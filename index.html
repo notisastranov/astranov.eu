@@ -184,13 +184,13 @@ function openNational(c){
   state.country=c;setLevel('national');
   if(!state.nationalMap){
     state.nationalMap=L.map('nationalMap',{zoomControl:false,attributionControl:false,worldCopyJump:false});
-    state.nationalTile=L.tileLayer(TILE.dark,{maxZoom:19}).addTo(state.nationalMap);
-    state.nationalMap.getContainer().addEventListener('wheel',e=>{if(e.deltaY>0&&state.nationalMap.getZoom()<=6){e.preventDefault();setLevel('global')}},{passive:false});
-    state.nationalMap.on('zoomend',()=>{if(state.nationalMap.getZoom()<=4)setLevel('global')});
+    state.nationalTile=L.tileLayer(TILE.dark,{maxZoom:19,minZoom:2}).addTo(state.nationalMap);
+    state.nationalMap.doubleClickZoom.disable();
+    state.nationalMap.on('dblclick',()=>setLevel('global'));
   }
   state.nationalMap.eachLayer(l=>{if(l._pin)l.remove()});
   const b=L.latLngBounds(c.cities.map(x=>[x.lat,x.lng])).pad(.45);
-  const settle=()=>{state.nationalMap.invalidateSize();state.nationalMap.fitBounds(b,{padding:[34,34],maxZoom:7,animate:true,duration:1.1})};
+  const settle=()=>{state.nationalMap.invalidateSize();state.nationalMap.fitBounds(b,{padding:[34,34],maxZoom:7,animate:true,duration:1.1});if(state.nationalMap.getZoom()<2)state.nationalMap.setZoom(3)};
   setTimeout(settle,80);setTimeout(settle,420);
   c.cities.forEach(city=>{
     const m=L.marker([city.lat,city.lng],{icon:L.divIcon({className:'',iconSize:[92,50],iconAnchor:[22,22],html:'<div class="cityPin"><span>'+esc(city.name)+'</span></div>'})})
@@ -206,8 +206,9 @@ function openCity(city){
     state.cityMap=L.map('cityMap',{zoomControl:false,attributionControl:false}).setView([city.lat,city.lng],city.z);
     state.dark=L.tileLayer(TILE.dark,{maxZoom:19}).addTo(state.cityMap);
     state.light=L.tileLayer(TILE.light,{maxZoom:19,opacity:0}).addTo(state.cityMap);
+    state.cityMap.doubleClickZoom.disable();
     state.cityMap.on('click',e=>{if(state.picking){finishPick(e.latlng);return}if($('vendorSheet').classList.contains('on'))$('vendorSheet').classList.add('min')});
-    state.cityMap.on('zoomend',()=>{if(state.cityMap.getZoom()<=8)openNational(state.country)});
+    state.cityMap.on('dblclick',()=>openNational(state.country));
   }
   state.cityMap.setView([city.lat,city.lng],city.z);
   applyBrightness();drawCity();
@@ -216,16 +217,24 @@ function openCity(city){
 
 function applyBrightness(){const v=+$('bright').value;localStorage.astranovBrightness=v;if(state.light)state.light.setOpacity(v<40?0:v<72?.42:.86)}
 
-function vendorsFor(c){return[
-  {id:'market',name:'Aegean Market',emoji:'🥬',lat:c.lat+.003,lng:c.lng+.004,items:JSON.parse(JSON.stringify(products))},
-  {id:'pizza',name:'Napoli Pizza',emoji:'🍕',lat:c.lat-.0035,lng:c.lng+.002,items:JSON.parse(JSON.stringify(products.slice(1,4)))}
+const locale={
+  gr:{market:'Aegean Market',pizza:'Napoli Pizza',drivers:['Nikos','Maria','Theo','Eleni']},
+  it:{market:'Mercato Centrale',pizza:'Pizzeria Da Mario',drivers:['Marco','Giulia','Luca','Sofia']},
+  fr:{market:'Marché Frais',pizza:'Pizza du Quartier',drivers:['Pierre','Camille','Lucas','Léa']},
+  de:{market:'Markt am Platz',pizza:'Pizzeria Berlin',drivers:['Hans','Anna','Jonas','Lara']},
+  es:{market:'Mercado Local',pizza:'Pizzería Bella',drivers:['Carlos','María','Diego','Laura']},
+  us:{market:'Corner Market',pizza:'Brooklyn Pizza',drivers:['Mike','Sarah','James','Emma']},
+  gb:{market:'High Street Market',pizza:'London Pizza',drivers:['Oliver','Amelia','Jack','Sophie']},
+  jp:{market:'Tokyo Mart',pizza:'Pizza Tokyo',drivers:['Hiro','Yuki','Ken','Aiko']},
+  au:{market:'Bondi Market',pizza:'Pizza Down Under',drivers:['Liam','Chloe','Noah','Mia']},
+  br:{market:'Mercado Carioca',pizza:'Pizzaria Rio',drivers:['Lucas','Ana','Pedro','Júlia']}
+};
+function localeFor(){return locale[state.country?.id]||locale.gr}
+function vendorsFor(c){const L=localeFor();return[
+  {id:'market',name:L.market,emoji:'🥬',lat:c.lat+.003,lng:c.lng+.004,items:JSON.parse(JSON.stringify(products))},
+  {id:'pizza',name:L.pizza,emoji:'🍕',lat:c.lat-.0035,lng:c.lng+.002,items:JSON.parse(JSON.stringify(products.slice(1,4)))}
 ]}
-function driversFor(c){return[
-  {id:'d1',name:'Nikos',emoji:'🛵',lat:c.lat+.005,lng:c.lng-.002},
-  {id:'d2',name:'Maria',emoji:'🚗',lat:c.lat-.004,lng:c.lng-.005},
-  {id:'d3',name:'Theo',emoji:'🛵',lat:c.lat+.001,lng:c.lng+.007},
-  {id:'d4',name:'Eleni',emoji:'🚲',lat:c.lat-.006,lng:c.lng+.004}
-]}
+function driversFor(c){const n=localeFor().drivers,emoji=['🛵','🚗','🛵','🚲'];return n.map((name,i)=>({id:'d'+(i+1),name,emoji:emoji[i],lat:c.lat+(i%2?-1:1)*(.003+i*.001),lng:c.lng+(i<2?(i?-.005:-.002):(i===2?.007:.004))}))}
 
 function icon(html,size=42){return L.divIcon({className:'',iconSize:[size,size],iconAnchor:[size/2,size/2],html})}
 
