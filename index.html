@@ -150,6 +150,38 @@ function findCountry(lat,lng){let best=null,bestDist=Infinity;for(const c of cou
 function setLevel(l){state.level=l;document.body.className=l+(state.vendorMode?' vendorMode':'')+(state.ownerAuthed?' krypteiaOn':'');['globe','national','personal'].forEach(id=>$(id).classList.remove('on'));if(l==='global'||l==='space')$('globe').classList.add('on');else $(l).classList.add('on');if(state.globe){const c=state.globe.controls();c.autoRotate=l==='global';c.autoRotateSpeed=.085;c.rotateSpeed=.78;c.enableDamping=true;c.dampingFactor=.08;state.globe.pointOfView({lat:state.country.lat,lng:state.country.lng,altitude:l==='space'?2.75:2.05},700)}}
 function goBack(){if(state.level==='personal'){openNational(state.country);return}if(state.level==='national'||state.level==='space'){setLevel('global');return}setLevel('global')}
 
+async function reverseGeocode(lat,lng){try{const ac=new AbortController();setTimeout(()=>ac.abort(),8000);const r=await fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat='+lat+'&lon='+lng+'&zoom=10&accept-language=en',{headers:{'Accept':'application/json'},signal:ac.signal});if(!r.ok)return null;return await r.json()}catch(e){return null}}
+function cityFromGeo(geo,lat,lng){const a=geo?.address||{};const name=a.city||a.town||a.village||a.suburb||a.county||a.state||geo?.display_name?.split(',')[0]||'Location';return{id:'geo',name,lat,lng,z:14}}
+function countryFromGeo(geo,lat,lng){const a=geo?.address||{};const id=(a.country_code||'xx').toLowerCase();const name=a.country||'Unknown';const known=countries.find(c=>c.id===id);if(known)return known;const city=cityFromGeo(geo,lat,lng);return{id,name,lat,lng,cities:[city]}}
+async function showPlaceInfo(lat,lng,geo){
+  const a=geo?.address||{};
+  const placeName=a.city||a.town||a.village||a.suburb||a.county||a.state||geo?.display_name?.split(',')[0]||'This location';
+  const country=a.country||'';
+  $('panelSheet').classList.add('on');
+  $('panelTitle').textContent='📍 '+placeName;
+  $('panelBody').innerHTML=
+    '<div class="card"><div class="txTop"><span>'+esc(placeName)+'</span><span>'+esc(country)+'</span></div>'+
+    '<div class="meta">'+esc(geo?.display_name||lat.toFixed(5)+', '+lng.toFixed(5))+'</div></div>'+
+    '<div class="card" id="wikiCard"><em>Searching Wikipedia…</em></div>'+
+    '<div class="card" style="color:var(--muted);font-size:11px">No AstranoV associates here yet. Be the first vendor or driver in '+esc(placeName)+'.</div>';
+  try{
+    const acW=new AbortController();setTimeout(()=>acW.abort(),9000);
+    let wr=await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(placeName)+'?redirect=true',{signal:acW.signal});
+    if(!wr.ok&&country){
+      const acS=new AbortController();setTimeout(()=>acS.abort(),6000);
+      const sr=await fetch('https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch='+encodeURIComponent(placeName+' '+country)+'&format=json&origin=*&srlimit=1',{signal:acS.signal});
+      if(sr.ok){const sd=await sr.json();const title=sd?.query?.search?.[0]?.title;
+        if(title){const acT=new AbortController();setTimeout(()=>acT.abort(),6000);wr=await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(title)+'?redirect=true',{signal:acT.signal})}}
+    }
+    const wc=$('wikiCard');if(!wc)return;
+    if(wr.ok){const w=await wr.json();
+      wc.innerHTML='<div class="txTop"><b>'+esc(w.title)+'</b></div>'+
+        '<div class="meta" style="margin-top:6px">'+esc((w.extract||'').slice(0,340))+'</div>'+
+        (w.thumbnail?'<img src="'+esc(w.thumbnail.source)+'" style="width:100%;max-height:130px;object-fit:cover;border-radius:10px;margin-top:8px">':'');
+    }else{wc.innerHTML='<em style="color:var(--muted)">No Wikipedia article found.</em>'}
+  }catch(e){const wc=$('wikiCard');if(wc)wc.innerHTML='<em style="color:var(--muted)">Wikipedia unavailable.</em>'}
+}
+
 function initGlobe(){
   if(!window.Globe){toast('Globe engine unavailable');return}
   state.globe=Globe()($('globeHost'))
@@ -165,9 +197,11 @@ function initGlobe(){
     .pointColor(d=>d.id==='gr'?'#d7b650':'#00d8ff')
     .pointResolution(24)
     .onPointClick(c=>{state.country=c;openNational(c)})
-    .onGlobeClick(({lat,lng})=>{
+    .onGlobeClick(async ({lat,lng})=>{
       if(state.level!=='global')return;
-      const c=findCountry(lat,lng);
+      toast('Locating…',4000);
+      const geo=await reverseGeocode(lat,lng);
+      const c=geo?countryFromGeo(geo,lat,lng):findCountry(lat,lng);
       if(c){state.country=c;openNational(c)}
     });
   const ctl=state.globe.controls();
@@ -187,10 +221,28 @@ function openNational(c){
     state.nationalTile=L.tileLayer(TILE.dark,{maxZoom:19,minZoom:2}).addTo(state.nationalMap);
     state.nationalMap.doubleClickZoom.disable();
     state.nationalMap.on('dblclick',()=>setLevel('global'));
+    state.nationalMap.on('click',async e=>{
+      const{lat,lng}=e.latlng;
+      toast('Locating…',4000);
+      const geo=await reverseGeocode(lat,lng);
+      if(!geo){toast('Location unavailable');return}
+      const cc=(geo.address?.country_code||'xx').toLowerCase();
+      if(cc!==state.country.id&&cc!=='xx'){openNational(countryFromGeo(geo,lat,lng))}
+      else{openCity(cityFromGeo(geo,lat,lng))}
+    });
   }
+  if(!c.cities||!c.cities.length)c.cities=[{id:'center',name:c.name,lat:c.lat||c.cities?.[0]?.lat,lng:c.lng||c.cities?.[0]?.lng,z:13}];
   state.nationalMap.eachLayer(l=>{if(l._pin)l.remove()});
-  const b=L.latLngBounds(c.cities.map(x=>[x.lat,x.lng])).pad(.45);
-  const settle=()=>{state.nationalMap.invalidateSize();state.nationalMap.fitBounds(b,{padding:[34,34],maxZoom:7,animate:true,duration:1.1});if(state.nationalMap.getZoom()<2)state.nationalMap.setZoom(3)};
+  const settle=()=>{
+    state.nationalMap.invalidateSize();
+    if(c.cities.length>1){
+      const b=L.latLngBounds(c.cities.map(x=>[x.lat,x.lng])).pad(.45);
+      state.nationalMap.fitBounds(b,{padding:[34,34],maxZoom:7,animate:true,duration:1.1});
+      if(state.nationalMap.getZoom()<2)state.nationalMap.setZoom(3);
+    }else{
+      state.nationalMap.setView([c.cities[0].lat,c.cities[0].lng],5,{animate:true,duration:1.1});
+    }
+  };
   setTimeout(settle,80);setTimeout(settle,420);
   c.cities.forEach(city=>{
     const m=L.marker([city.lat,city.lng],{icon:L.divIcon({className:'',iconSize:[92,50],iconAnchor:[22,22],html:'<div class="cityPin"><span>'+esc(city.name)+'</span></div>'})})
@@ -207,7 +259,7 @@ function openCity(city){
     state.dark=L.tileLayer(TILE.dark,{maxZoom:19}).addTo(state.cityMap);
     state.light=L.tileLayer(TILE.light,{maxZoom:19,opacity:0}).addTo(state.cityMap);
     state.cityMap.doubleClickZoom.disable();
-    state.cityMap.on('click',e=>{if(state.picking){finishPick(e.latlng);return}if($('vendorSheet').classList.contains('on'))$('vendorSheet').classList.add('min')});
+    state.cityMap.on('click',async e=>{if(state.picking){finishPick(e.latlng);return}if($('vendorSheet').classList.contains('on')){$('vendorSheet').classList.add('min');return}const{lat,lng}=e.latlng;toast('Locating…',3000);const geo=await reverseGeocode(lat,lng);showPlaceInfo(lat,lng,geo)});
     state.cityMap.on('dblclick',()=>openNational(state.country));
   }
   state.cityMap.setView([city.lat,city.lng],city.z);
