@@ -42,19 +42,39 @@
 .orderBubble{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid var(--g);background:rgba(52,35,2,.93);font-weight:1000;box-shadow:0 0 16px var(--g),0 0 32px rgba(215,182,80,.4);animation:bounce 1.25s infinite}.chatMark{border-radius:999px;border:1px solid var(--b2);background:rgba(3,12,29,.94);color:var(--b);font-size:11px;font-weight:1000;letter-spacing:.08em;padding:6px 10px;animation:bounce 1.4s infinite}
 @keyframes pulse{0%,100%{opacity:.75}50%{opacity:1}}@keyframes bounce{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-7px) scale(1.05)}}@keyframes glow{0%,100%{box-shadow:0 0 8px rgba(215,182,80,.25)}50%{box-shadow:0 0 20px rgba(215,182,80,.72)}}
 #toast{position:fixed;left:50%;top:calc(var(--st) + 68px);transform:translateX(-50%) translateY(-8px);z-index:220;opacity:0;pointer-events:none;transition:.25s;max-width:86vw;padding:9px 15px;border-radius:999px;background:rgba(3,12,29,.88);border:1px solid rgba(0,215,255,.26);font-size:12px;font-weight:850;text-align:center;box-shadow:0 0 24px rgba(0,0,0,.45);backdrop-filter:blur(12px)}#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
-#routeBadge{position:fixed;left:50%;bottom:calc(var(--sb) + 20px);transform:translateX(-50%);z-index:130;display:none;max-width:88vw;background:rgba(3,12,29,.84);border:1px solid rgba(0,215,255,.28);border-radius:999px;padding:10px 16px;color:var(--b);font-weight:1000;font-size:12px;box-shadow:0 0 26px rgba(0,215,255,.18);backdrop-filter:blur(12px);text-align:center}
+#routeBadge{position:fixed;left:50%;bottom:calc(var(--sb) + 74px);transform:translateX(-50%);z-index:130;display:none;max-width:88vw;background:rgba(3,12,29,.84);border:1px solid rgba(0,215,255,.28);border-radius:999px;padding:10px 16px;color:var(--b);font-weight:1000;font-size:12px;box-shadow:0 0 26px rgba(0,215,255,.18);backdrop-filter:blur(12px);text-align:center}
+/* ── Sheet backdrop mask ── */
+#ubwMask{position:fixed;inset:0;z-index:174;display:none;background:rgba(0,0,0,.38);backdrop-filter:blur(2px)}
+#ubwMask.on{display:block}
+/* ── Persistent AI input pill ── */
+#aiPill{position:fixed;left:12px;right:72px;bottom:calc(var(--sb) + 10px);z-index:150;display:none;align-items:center;gap:10px;background:rgba(3,12,29,.88);border:1px solid rgba(0,215,255,.18);border-radius:999px;padding:8px 14px;backdrop-filter:blur(14px);box-shadow:0 4px 24px rgba(0,0,0,.5);cursor:text;transition:opacity .5s}
+body.national #aiPill,body.personal #aiPill{display:flex}
+#aiPill.hidden{display:none!important}
+#aiPill span{flex:1;font-size:11px;color:rgba(233,247,255,.38);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#aiPill .pilMic{width:32px;height:32px;border-radius:50%;border:1px solid var(--b2);background:var(--b3);color:var(--b);font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+/* ── Sheet input row ── */
+.sheetInput{display:flex;gap:8px;padding:8px 12px 10px;border-top:1px solid rgba(0,215,255,.08);align-items:flex-end;flex-shrink:0}
+.sheetInput textarea{flex:1;background:rgba(0,215,255,.06);border:1px solid rgba(0,215,255,.18);border-radius:14px;color:#fff;padding:9px 13px;outline:0;font-size:12px;resize:none;min-height:36px;max-height:72px;overflow-y:auto;line-height:1.4}
+.sheetInput button{width:40px;height:40px;min-width:40px;border-radius:50%;border:1px solid rgba(0,215,255,.26);background:rgba(0,215,255,.09);color:var(--b);font-size:18px;align-self:flex-end}
+/* ── Video / photo map tile ── */
+.mapVideoTile{width:76px;height:54px;border-radius:10px;overflow:hidden;background:#000;border:2px solid var(--b);box-shadow:0 0 16px rgba(0,215,255,.5);position:relative}
+.mapVideoTile video,.mapVideoTile img{width:100%;height:100%;object-fit:cover;display:block}
+.mapVideoTile .tPlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20px;color:rgba(255,255,255,.9);pointer-events:none}
+/* ── Deliverer/service tags ── */
+.dayChip{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;border:1px solid rgba(0,215,255,.22);background:rgba(0,215,255,.06);color:var(--muted);font-size:11px;font-weight:900;cursor:pointer;transition:.15s}
+.dayChip.sel{border-color:var(--b);background:rgba(0,215,255,.18);color:var(--b)}
 .panel{position:fixed;left:50%;top:calc(var(--st) + 54px);transform:translateX(-50%);z-index:180;display:none;width:min(92vw,460px);max-height:66vh;overflow:auto;background:rgba(3,12,29,.94);border:1px solid rgba(0,215,255,.24);border-radius:17px;box-shadow:0 18px 48px rgba(0,0,0,.48);padding:12px;backdrop-filter:blur(18px);-webkit-overflow-scrolling:touch}.panel.on{display:block}.panel input,.panel textarea{width:100%;background:rgba(0,215,255,.07);border:1px solid rgba(0,215,255,.22);border-radius:12px;color:#fff;padding:9px 12px;outline:0}
 .quick{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.quick button,.smallBtn{min-height:38px;padding:0 12px;border-radius:999px;border:1px solid rgba(0,215,255,.22);background:rgba(0,215,255,.08);color:var(--b);font-weight:900;font-size:12px}.quick .gold,.smallBtn.gold{border-color:rgba(215,182,80,.32);background:rgba(215,182,80,.13);color:var(--g)}
 .krypTitle{font-size:13px;font-weight:1000;color:#a77bff;letter-spacing:.2em;margin-bottom:10px;text-align:center;text-shadow:0 0 14px rgba(167,123,255,.6)}#krypteia .panel{border-color:rgba(167,123,255,.28)}#devText{height:160px;margin-top:10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;user-select:text;resize:vertical}
 .checkLine{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.035);border-radius:12px;padding:8px;margin:6px 0;font-size:12px}.ok{color:var(--ok)}.bad{color:var(--r)}
-.sheet{position:fixed;left:8px;right:8px;bottom:calc(var(--sb) + 8px);z-index:170;max-height:66vh;display:none;flex-direction:column;background:var(--p);border:1px solid rgba(0,215,255,.22);border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.55);backdrop-filter:blur(20px);overflow:hidden}.sheet.on{display:flex}.sheet.min{height:44px;max-height:44px}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:175;max-height:33vh;display:none;flex-direction:column;background:var(--p);border-top:1px solid rgba(0,215,255,.18);border-radius:18px 18px 0 0;box-shadow:0 -6px 40px rgba(0,0,0,.65);backdrop-filter:blur(22px);overflow:hidden}.sheet.on{display:flex}.sheet.min{height:44px;max-height:44px}
 .sheetHead{height:44px;min-height:44px;display:flex;align-items:center;justify-content:center;position:relative;border-bottom:1px solid rgba(0,215,255,.08);cursor:pointer}.sheetTitle{position:absolute;left:14px;top:12px;max-width:62vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:1000;letter-spacing:.08em;color:var(--g)}.sheetHandle{width:42px;height:4px;border-radius:4px;background:rgba(0,215,255,.22)}.sheetClose{position:absolute;right:10px;top:7px;width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.03);color:var(--muted)}.sheetBody{overflow:auto;padding:10px;-webkit-overflow-scrolling:touch}
 .checkoutRibbon{display:flex;flex-wrap:wrap;gap:6px;padding:7px;background:linear-gradient(180deg,rgba(81,60,10,.95),rgba(36,27,6,.96));border-bottom:1px solid rgba(215,182,80,.28);overflow:visible}.rib{min-height:36px;min-width:74px;flex:1 1 78px;border:1px solid rgba(255,255,255,.12);border-radius:11px;background:rgba(255,255,255,.045);padding:4px 7px}.rib.wide{flex-basis:124px}.rib.action{order:-10;flex:0 0 148px;padding:0;border:0;background:transparent}.rib label{display:block;color:rgba(255,232,166,.7);font-size:8px;font-weight:1000;letter-spacing:.12em;text-transform:uppercase}.rib .val{font-size:12px;font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rib select,.rib input{width:100%;height:22px;border:0;border-radius:7px;background:rgba(255,255,255,.1);color:#fff;font-size:12px;padding:0 5px}.ribAction{width:100%;height:100%;min-height:42px;border-radius:12px;border:1px solid rgba(255,235,160,.7);background:linear-gradient(180deg,#ffe389,#c79a2a);color:#261800;font-size:12px;font-weight:1000}.ribAction.need{background:rgba(215,182,80,.12);color:#ffe7a4;animation:glow 1.4s infinite}
 .products{overflow:auto;padding:8px;-webkit-overflow-scrolling:touch}.product{display:flex;gap:9px;align-items:center;border:1px solid rgba(255,255,255,.08);border-radius:13px;background:rgba(255,255,255,.035);padding:7px;margin-bottom:7px}.product img{width:46px;height:46px;border-radius:11px;object-fit:cover;background:#10223b;flex:0 0 46px}.prodInfo{min-width:0;flex:1}.prodName{font-size:13px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.prodDesc{font-size:10px;color:var(--muted);line-height:1.22;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.prodMeta{font-size:11px;color:var(--g);font-weight:900}.qty{display:flex;align-items:center;gap:4px}.qty button,.edit{width:38px;height:38px;border-radius:10px;border:1px solid var(--b2);background:var(--b3);color:var(--b);font-size:18px;font-weight:1000}.qty input{width:48px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#fff;text-align:center;font-weight:1000}.edit{display:none;border-color:var(--g2);background:var(--g3);color:#ffe7a4;font-size:14px}.vendorMode .edit{display:block}
 .ledgerRow,.card{border:1px solid rgba(0,215,255,.12);background:rgba(255,255,255,.025);border-radius:13px;padding:10px;margin-bottom:8px}.ledgerTop,.txTop{display:flex;justify-content:space-between;gap:8px;font-weight:1000}.meta{font-size:11px;color:var(--muted);margin-top:4px}.msgBox{max-height:190px;overflow:auto;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(0,0,0,.14);padding:8px;margin:8px 0}.msg{font-size:12px;line-height:1.35;margin:4px 0}.msg b{color:var(--b)}.chatRow{display:flex;gap:6px}.chatRow input{flex:1}.txBtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.txBtns button{min-height:40px;border-radius:12px;border:1px solid var(--g2);background:var(--g3);color:#ffe7a4;padding:0 10px;font-weight:900}
 #ownerGate{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.82);backdrop-filter:blur(18px)}#ownerGate.on{display:flex}.ownerBox{background:rgba(3,10,24,.97);border:1px solid rgba(167,123,255,.38);border-radius:20px;padding:24px 20px;width:min(88vw,380px);box-shadow:0 24px 60px rgba(0,0,0,.7)}.ownerBox h2{font-size:14px;font-weight:1000;color:#a77bff;letter-spacing:.2em;text-align:center;margin-bottom:16px}.ownerBox input{width:100%;background:rgba(167,123,255,.09);border:1px solid rgba(167,123,255,.26);border-radius:12px;color:#fff;padding:10px 13px;outline:0;margin-bottom:10px;font-size:13px}.ownerBox .ownerBtn{width:100%;height:44px;border-radius:12px;border:1px solid rgba(167,123,255,.5);background:rgba(167,123,255,.18);color:#c9aaff;font-weight:1000;font-size:13px;letter-spacing:.1em;margin-top:4px}.ownerBox .cancel{background:transparent;border-color:rgba(255,255,255,.1);color:var(--muted);margin-top:8px}
 #krypteiaPanel{position:fixed;left:50%;top:calc(var(--st) + 54px);transform:translateX(-50%);z-index:280;display:none;width:min(92vw,480px);max-height:72vh;overflow:auto;background:rgba(2,5,18,.97);border:1px solid rgba(167,123,255,.32);border-radius:18px;box-shadow:0 18px 60px rgba(0,0,0,.7);padding:14px;backdrop-filter:blur(22px)}.krypteiaOn #krypteiaPanel{display:block}.krypLog{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10px;color:#a0c4ff;background:rgba(0,0,0,.3);border:1px solid rgba(0,215,255,.12);border-radius:10px;padding:8px;height:140px;overflow:auto;margin:8px 0;white-space:pre-wrap;user-select:text}
-@media(max-width:520px){.sheet{left:4px;right:4px;bottom:calc(var(--sb) + 4px);border-radius:16px}.rib.action{flex-basis:100%;height:42px}.rib{min-width:66px;flex-basis:72px}.rib.wide{flex-basis:112px}.product img{width:40px;height:40px;flex-basis:40px}.qty button,.edit{width:38px;height:38px}}
+@media(max-width:520px){.rib.action{flex-basis:100%;height:42px}.rib{min-width:66px;flex-basis:72px}.rib.wide{flex-basis:112px}.product img{width:40px;height:40px;flex-basis:40px}.qty button,.edit{width:38px;height:38px}}
 #triOverlay{position:fixed;inset:0;z-index:320;pointer-events:none;touch-action:none}
 #triOverlay.on{pointer-events:auto}
 .triMenu{position:absolute;inset:0;pointer-events:none;animation:triIn .24s cubic-bezier(.17,.67,.38,1.28) both}
@@ -66,7 +86,7 @@
 .triOpt.gold{border-color:var(--g);color:var(--g);box-shadow:0 0 24px rgba(215,182,80,.5),inset 0 0 12px rgba(215,182,80,.07)}
 .triOpt.gold:active{box-shadow:0 0 36px rgba(215,182,80,.9)}
 .triSvg{position:absolute;inset:0;pointer-events:none;overflow:visible}
-.sheet.tall{max-height:90vh}
+.sheet.tall{max-height:33vh}
 .formRow{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .formRow .rib{flex:1 1 78px;min-width:74px}
 .formField{display:block;margin-top:8px}
@@ -142,21 +162,8 @@ body:not(.global) #userBtn{opacity:0!important;pointer-events:none!important}
   <div class="loginBox" id="loginBox"></div>
 </div>
 <div id="triOverlay"></div>
-<div id="cmd" class="panel">
-  <input id="cmdInput" placeholder="Say or type: Greece, Rhodes, Athens, pizza, accounting, back">
-  <div class="quick">
-    <button data-cmd="Greece">Greece</button>
-    <button data-cmd="Italy">Italy</button>
-    <button data-cmd="France">France</button>
-    <button data-cmd="Rhodes">Rhodes</button>
-    <button data-cmd="pizza">Pizza</button>
-    <button class="gold" data-cmd="accounting">Accounting</button>
-    <button data-cmd="global channel">Global feed</button>
-    <button data-cmd="local channel">Local feed</button>
-    <button data-cmd="circles">Circles</button>
-    <button data-cmd="back">Back</button>
-  </div>
-</div>
+<div id="ubwMask"></div>
+<div id="aiPill"><span>Ask AI, search locations, vendors, anything…</span><button class="pilMic" id="pilMicBtn">🎙</button></div>
 <div id="ownerGate">
   <div class="ownerBox">
     <h2>KRYPTEIA ACCESS</h2>
@@ -188,11 +195,17 @@ body:not(.global) #userBtn{opacity:0!important;pointer-events:none!important}
 <section id="panelSheet" class="sheet">
   <div class="sheetHead"><span id="panelTitle" class="sheetTitle">Panel</span><div class="sheetHandle"></div><button id="closePanel" class="sheetClose">×</button></div>
   <div id="panelBody" class="sheetBody"></div>
+  <div class="sheetInput" id="sheetInputRow" style="display:none">
+    <textarea id="aiTxt" rows="1" placeholder="Ask AI, search, or type a command…"></textarea>
+    <button id="aiSendBtn">➤</button>
+  </div>
 </section>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
 <script src="https://unpkg.com/globe.gl@2.33.1/dist/globe.gl.min.js" crossorigin></script>
 <script>
 (function(){'use strict';
+/* ── Auto hard-refresh once per session ── */
+if(!sessionStorage.avR){sessionStorage.avR=1;window.location.reload(true)}
 const $=id=>document.getElementById(id);
 const TILE={dark:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',light:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'};
 const OSRM='https://router.project-osrm.org/route/v1/driving/';
@@ -217,7 +230,7 @@ const products=[
   {id:'p4',name:'Feta 200g',desc:'Traditional feta cheese',price:5.5,kg:.2,photo:'https://images.unsplash.com/photo-1559561853-08451507cbe7?auto=format&fit=crop&w=160&q=70'}
 ];
 
-const state={level:'global',country:countries[0],city:null,globe:null,nationalMap:null,nationalTile:null,cityMap:null,dark:null,light:null,vendors:[],drivers:[],markers:[],vendor:null,cart:{},destination:null,picking:false,selectedDriver:null,vendorMode:false,orders:[],ledger:[],messages:{},routeCache:new Map(),brightness:+(localStorage.astranovBrightness||35),ownerAuthed:false,user:null,balance:+(localStorage.astranovBalance||0),circles:{},customCircles:[],ownerAuthCallback:null};
+const state={level:'global',country:countries[0],city:null,globe:null,nationalMap:null,nationalTile:null,cityMap:null,dark:null,light:null,vendors:[],drivers:[],markers:[],vendor:null,cart:{},destination:null,picking:false,selectedDriver:null,vendorMode:false,orders:[],ledger:[],messages:{},routeCache:new Map(),brightness:+(localStorage.astranovBrightness||35),ownerAuthed:false,user:null,balance:+(localStorage.astranovBalance||0),circles:{},customCircles:[],ownerAuthCallback:null,videoTiles:[]};
 
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function money(n){return ((+n||0).toFixed(2))+' AVC'}
@@ -247,7 +260,7 @@ async function showPlaceInfo(lat,lng,geo){
   const a=geo?.address||{};
   const placeName=a.city||a.town||a.village||a.suburb||a.county||a.state||geo?.display_name?.split(',')[0]||'This location';
   const country=a.country||'';
-  $('panelSheet').classList.add('on');
+  ps();
   $('panelTitle').textContent='📍 '+placeName;
   $('panelBody').innerHTML=
     '<div class="card"><div class="txTop"><span>'+esc(placeName)+'</span><span>'+esc(country)+'</span></div>'+
@@ -278,12 +291,15 @@ state.customVendors=[];
 
 /* ── Minimize all open UI ── */
 function minimizeAll(){
-  $('panelSheet').classList.remove('on','tall');
+  px();
   $('vendorSheet').classList.remove('on','min');
-  $('cmd').classList.remove('on');
   $('loginOverlay').classList.remove('on');
+  $('ubwMask').classList.remove('on');
+  $('aiPill').classList.remove('hidden');
   closeTriMenu();
 }
+function ps(){ps();$('ubwMask').classList.add('on');$('aiPill').classList.add('hidden')}
+function px(){px();$('ubwMask').classList.remove('on');$('aiPill').classList.remove('hidden')}
 
 /* ── AVC Balance ── */
 function updateBalance(delta,animate=true){
@@ -297,7 +313,7 @@ function updateBalance(delta,animate=true){
 }
 
 function openRechargePanel(){
-  $('panelSheet').classList.add('on');$('panelSheet').classList.remove('tall');
+  ps();
   $('panelTitle').textContent='⚡ RECHARGE AVC';
   const opts=[10,25,50,100,250];
   let selAmt=25;
@@ -326,11 +342,11 @@ function openRechargePanel(){
       try{
         const r=await fetch('/api/balance/recharge',{method:'POST',headers:{'Content-Type':'application/json'},
           body:JSON.stringify({amount:amt,token:state.user?.token||null}),signal:AbortSignal.timeout(8000)});
-        if(r.ok){const j=await r.json();updateBalance(j.credited||amt);$('panelSheet').classList.remove('on');toast('+'+(j.credited||amt)+' AVC credited!',3000);return}
+        if(r.ok){const j=await r.json();updateBalance(j.credited||amt);px();toast('+'+(j.credited||amt)+' AVC credited!',3000);return}
         $('rchMsg').textContent='Payment gateway error. Try again.';
       }catch(e){
         /* Backend not yet deployed — demo mode: credit instantly */
-        updateBalance(amt);$('panelSheet').classList.remove('on');toast('[DEMO] +'+amt+' AVC credited',3000);
+        updateBalance(amt);px();toast('[DEMO] +'+amt+' AVC credited',3000);
       }
     };
   };
@@ -451,7 +467,7 @@ function getDefaultCircles(){
 }
 async function openCircle(id){
   const c=state.circles[id]||initCircle(id,id,'custom');
-  $('panelSheet').classList.add('on','tall');
+  ps();
   $('panelTitle').textContent=esc(c.name);
   renderCircle(id);
   /* poll for new messages */
@@ -494,7 +510,7 @@ async function sendCircleMsg(id){
   }catch(e){}
 }
 function openCreateCircle(){
-  $('panelSheet').classList.add('on','tall');
+  ps();
   $('panelTitle').textContent='💬 NEW CIRCLE';
   let circleType='public';
   $('panelBody').innerHTML=
@@ -528,7 +544,7 @@ function openCreateCircle(){
   };
 }
 function openCircleList(){
-  $('panelSheet').classList.add('on');$('panelSheet').classList.remove('tall');
+  ps();
   $('panelTitle').textContent='💬 CIRCLES';
   const defs=getDefaultCircles();
   const custom=state.customCircles.map(c=>state.circles[c.id]).filter(Boolean);
@@ -543,7 +559,7 @@ function openCircleList(){
 }
 
 function openChannel(name){
-  $('panelSheet').classList.add('on');$('panelSheet').classList.remove('tall');
+  ps();
   $('panelTitle').textContent=name.toUpperCase()+' CHANNEL';
   const list=state.posts[name]||[];
   $('panelBody').innerHTML=(list.length
@@ -583,7 +599,7 @@ function captureMedia(channel,mode){
 }
 
 function showMediaPreview(url,mode,channel){
-  $('panelSheet').classList.add('on','tall');
+  ps();
   $('panelTitle').textContent=(mode==='video'?'🎬':'📷')+' POST TO '+channel.toUpperCase();
   $('panelBody').innerHTML=
     '<div style="border-radius:13px;overflow:hidden;background:#000;margin-bottom:10px">'+
@@ -597,33 +613,137 @@ function showMediaPreview(url,mode,channel){
     '<button class="smallBtn" id="mediaCancel" style="flex:1">Discard</button>'+
     '<button class="ribAction" id="mediaPost" style="flex:2;height:44px">POST TO '+channel.toUpperCase()+'</button>'+
     '</div>';
-  $('mediaCancel').onclick=()=>{URL.revokeObjectURL(url);$('panelSheet').classList.remove('on','tall')};
+  $('mediaCancel').onclick=()=>{URL.revokeObjectURL(url);px()};
   $('mediaPost').onclick=()=>{
+    const lat=triState.pressLL?.lat||state.city?.lat||state.country?.lat;
+    const lng=triState.pressLL?.lng||state.city?.lng||state.country?.lng;
     const post={id:'POST-'+Date.now(),channel,
-      author:state.ownerAuthed?'Owner':'Guest',
-      lat:triState.pressLL?.lat||state.city?.lat||state.country?.lat,
-      lng:triState.pressLL?.lng||state.city?.lng||state.country?.lng,
-      place:state.city?.name||state.country?.name||'Earth',
+      author:state.ownerAuthed?'Owner':(state.user?.name||'Guest'),
+      lat,lng,place:state.city?.name||state.country?.name||'Earth',
       time:Date.now(),mediaURL:url,mediaType:mode,text:$('mediaCap')?.value||''};
     state.posts[channel]=state.posts[channel]||[];
     state.posts[channel].push(post);
-    $('panelSheet').classList.remove('on','tall');
-    toast((mode==='video'?'Video':'Photo')+' posted to '+channel);
+    /* ── Drop floating tile on map ── */
+    if(lat&&lng){
+      state.videoTiles.push({lat,lng,url,mode,channel});
+      if(state.cityMap&&state.level==='personal')drawCity();
+    }
+    px();
+    toast((mode==='video'?'📍 Video':'📍 Photo')+' pinned on map · '+channel);
     openChannel(channel);
   };
 }
 function captureVideo(channel){captureMedia(channel,'video')}
 
-/* ── Vendor registration form (real) ── */
-function openVendorForm(type){
-  const ll=triState.pressLL||(state.city?{lat:state.city.lat,lng:state.city.lng}:null);
-  if(!ll){toast('Open a city first, then long-press to add a vendor');return}
-  state.tempVendor={id:'V-'+Date.now(),type,name:'',lat:ll.lat,lng:ll.lng,items:[],
-    emoji:type==='market'?'🥬':type==='food'?'🍽':'🔧'};
-  $('panelSheet').classList.add('on','tall');
-  $('panelTitle').textContent='NEW '+type.toUpperCase()+' VENDOR';
-  renderVendorForm();
+/* ── Vendor / Service / Deliverer registration ── */
+function _ll(){return triState.pressLL||(state.city?{lat:state.city.lat,lng:state.city.lng}:null)}
+
+function openShopForm(){
+  const ll=_ll();if(!ll){toast('Enter a city first');return}
+  state.tempVendor={id:'V-'+Date.now(),type:'shop',name:'',lat:ll.lat,lng:ll.lng,items:[],emoji:'🛒',hours:'09:00–22:00'};
+  ps();$('panelTitle').textContent='🛒 NEW SHOP';renderVendorForm();
 }
+
+function openServiceForm(){
+  const ll=_ll();if(!ll){toast('Enter a city first');return}
+  const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  let selDays=new Set(['Mon','Tue','Wed','Thu','Fri']);
+  ps();$('panelTitle').textContent='🔧 REGISTER SERVICE';
+  const render=()=>{
+    $('panelBody').innerHTML=
+      '<div class="card">'+
+        '<div class="formField"><label>Your name / business</label><input id="svcName" placeholder="e.g. Nikos Cleaning"></div>'+
+        '<div class="formField"><label>Service type (what you do)</label><input id="svcType" placeholder="e.g. Barman, Waiter, Cleaner, Electrician"></div>'+
+        '<div class="formField"><label>Description</label><input id="svcDesc" placeholder="Brief description of your service"></div>'+
+        '<div class="formField"><label>Price</label>'+
+          '<div style="display:flex;gap:6px"><input id="svcPrice" type="number" min="0" step="0.5" placeholder="Amount" style="flex:1">'+
+          '<select id="svcUnit" style="flex:1;background:rgba(0,215,255,.07);border:1px solid rgba(0,215,255,.22);border-radius:10px;color:#fff;padding:8px;outline:0">'+
+          '<option>per hour</option><option>per job</option><option>per day</option></select></div></div>'+
+        '<div class="formField"><label>YouTube demo link (optional)</label><input id="svcYT" type="url" placeholder="https://youtube.com/watch?v=…"></div>'+
+        '<div class="formField"><label>📷 Photo</label><button class="smallBtn" id="svcPhoto" style="width:100%">Upload / capture photo</button><div id="svcPhotoWrap"></div></div>'+
+      '</div>'+
+      '<div class="card"><div class="meta" style="margin-bottom:8px">AVAILABLE DAYS</div>'+
+        '<div style="display:flex;gap:6px;flex-wrap:wrap">'+days.map(d=>'<div class="dayChip'+(selDays.has(d)?' sel':'')+'" data-day="'+d+'">'+d+'</div>').join('')+'</div>'+
+        '<div class="formField"><label>Time range</label>'+
+          '<div style="display:flex;gap:8px;align-items:center"><input id="svcFrom" type="time" value="09:00" style="flex:1;background:rgba(0,215,255,.07);border:1px solid rgba(0,215,255,.22);border-radius:10px;color:#fff;padding:8px;outline:0">'+
+          '<span style="color:var(--muted)">to</span><input id="svcTo" type="time" value="21:00" style="flex:1;background:rgba(0,215,255,.07);border:1px solid rgba(0,215,255,.22);border-radius:10px;color:#fff;padding:8px;outline:0"></div></div>'+
+      '</div>'+
+      '<div style="display:flex;gap:6px"><button class="smallBtn" onclick="px()" style="flex:1">Cancel</button><button class="ribAction" id="svcSave" style="flex:2;height:42px">REGISTER SERVICE</button></div>';
+    $('panelBody').querySelectorAll('.dayChip').forEach(el=>el.onclick=()=>{
+      const d=el.dataset.day;selDays.has(d)?selDays.delete(d):selDays.add(d);render()});
+    let svcPhoto='';
+    $('svcPhoto').onclick=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.setAttribute('capture','environment');
+      inp.onchange=()=>{const f=inp.files&&inp.files[0];if(!f)return;svcPhoto=URL.createObjectURL(f);$('svcPhotoWrap').innerHTML='<img src="'+svcPhoto+'" style="width:100%;max-height:100px;object-fit:cover;border-radius:9px;margin-top:6px">'};inp.click()};
+    $('svcSave').onclick=()=>{
+      const name=$('svcName').value.trim();const type=$('svcType').value.trim();
+      if(!name||!type){toast('Name and service type required');return}
+      const svc={id:'SVC-'+Date.now(),type:'service',name,serviceType:type,desc:$('svcDesc').value,
+        price:+$('svcPrice').value||0,priceUnit:$('svcUnit').value,
+        ytLink:$('svcYT').value,photo:svcPhoto,
+        days:[...selDays],timeFrom:$('svcFrom').value,timeTo:$('svcTo').value,
+        lat:ll.lat,lng:ll.lng,emoji:'🔧',items:[]};
+      state.customVendors.push(svc);px();toast('Service registered: '+name);
+      if(state.cityMap&&state.city)drawCity();
+    };
+  };render();
+}
+
+function openDelivererForm(){
+  const ll=_ll();if(!ll){toast('Enter a city first');return}
+  const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  let selDays=new Set(['Mon','Tue','Wed','Thu','Fri']);
+  let vehicle='🛵';
+  ps();$('panelTitle').textContent='🚐 REGISTER AS DELIVERER';
+  const pricing='Platform pricing:\n• Base: 3 AVC (covers first 3 km)\n• Distance: +1 AVC/km after 3 km\n• Each special condition (weather / night / heavy weight / temperature-sensitive / liquid / VIP non-stop / priority rush) adds +13%\n• Minimum charge: 3 AVC\n• Load: 1 driver per 13 kg or 13 L fraction';
+  const render=()=>{
+    $('panelBody').innerHTML=
+      '<div class="card">'+
+        '<div class="formField"><label>Your name</label><input id="dlvName" placeholder="Full name"></div>'+
+        '<div class="meta" style="margin-top:10px;margin-bottom:6px">VEHICLE</div>'+
+        '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+          [['🚲','Bicycle'],['🛵','Motorbike'],['🚗','Car'],['🚐','Van']].map(([v,l])=>
+            '<div class="rchOpt'+(vehicle===v?' sel':'')+'" data-v="'+v+'" style="flex:1;min-width:70px"><div style="font-size:22px">'+v+'</div><div class="rchLbl">'+l+'</div></div>').join('')+
+        '</div>'+
+        '<div class="formRow">'+
+          '<div class="rib"><label>Max load (kg)</label><input id="dlvKg" type="number" min="0" step="0.5" placeholder="kg"></div>'+
+          '<div class="rib"><label>Max volume (L)</label><input id="dlvL" type="number" min="0" step="0.5" placeholder="L"></div>'+
+          '<div class="rib wide"><label>Area radius (km)</label><input id="dlvKm" type="number" min="1" max="200" value="10"></div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="card"><div class="meta" style="margin-bottom:8px">WORKING DAYS</div>'+
+        '<div style="display:flex;gap:6px;flex-wrap:wrap">'+days.map(d=>'<div class="dayChip'+(selDays.has(d)?' sel':'')+'" data-day="'+d+'">'+d+'</div>').join('')+'</div>'+
+        '<div class="formField"><label>Working hours</label>'+
+          '<div style="display:flex;gap:8px;align-items:center"><input id="dlvFrom" type="time" value="08:00" style="flex:1;background:rgba(0,215,255,.07);border:1px solid rgba(0,215,255,.22);border-radius:10px;color:#fff;padding:8px;outline:0">'+
+          '<span style="color:var(--muted)">to</span><input id="dlvTo" type="time" value="22:00" style="flex:1;background:rgba(0,215,255,.07);border:1px solid rgba(0,215,255,.22);border-radius:10px;color:#fff;padding:8px;outline:0"></div></div>'+
+      '</div>'+
+      '<div class="card" style="background:rgba(0,215,255,.04)">'+
+        '<div style="font-size:10px;font-weight:1000;color:var(--b);letter-spacing:.08em;margin-bottom:6px">PLATFORM PRICING</div>'+
+        '<pre style="font-size:10px;color:var(--muted);white-space:pre-wrap;line-height:1.5">'+esc(pricing)+'</pre>'+
+        '<div style="display:flex;align-items:center;gap:10px;margin-top:10px">'+
+          '<input type="checkbox" id="dlvAgree" style="width:20px;height:20px;accent-color:var(--b)">'+
+          '<label for="dlvAgree" style="font-size:11px;color:#e9f7ff">I agree to these platform rates</label></div>'+
+      '</div>'+
+      '<div style="display:flex;gap:6px"><button class="smallBtn" onclick="px()" style="flex:1">Cancel</button><button class="ribAction" id="dlvSave" style="flex:2;height:42px">JOIN AS DELIVERER</button></div>';
+    $('panelBody').querySelectorAll('[data-v]').forEach(el=>el.onclick=()=>{vehicle=el.dataset.v;render()});
+    $('panelBody').querySelectorAll('.dayChip').forEach(el=>el.onclick=()=>{
+      const d=el.dataset.day;selDays.has(d)?selDays.delete(d):selDays.add(d);render()});
+    $('dlvSave').onclick=()=>{
+      const name=$('dlvName').value.trim();
+      if(!name){toast('Name required');return}
+      if(!$('dlvAgree').checked){toast('Please agree to platform rates');return}
+      const dlv={id:'DLV-'+Date.now(),type:'deliverer',name,vehicle,
+        maxKg:+$('dlvKg').value||0,maxL:+$('dlvL').value||0,radiusKm:+$('dlvKm').value||10,
+        days:[...selDays],timeFrom:$('dlvFrom').value,timeTo:$('dlvTo').value,
+        lat:ll.lat,lng:ll.lng,emoji:vehicle,items:[]};
+      state.customVendors.push(dlv);
+      state.drivers.push({id:dlv.id,name,emoji:vehicle,lat:ll.lat,lng:ll.lng});
+      px();toast('Welcome, '+name+'! You are now a registered deliverer.');
+      if(state.cityMap&&state.city)drawCity();
+    };
+  };render();
+}
+
+function openVendorForm(type){openShopForm()}
 
 function renderVendorForm(){
   const v=state.tempVendor;if(!v)return;
@@ -645,7 +765,7 @@ function renderVendorForm(){
   $('vfName').oninput=e=>state.tempVendor.name=e.target.value;
   $('vfAddItem').onclick=()=>openProductForm(null);
   $('vfSave').onclick=saveTempVendor;
-  $('vfCancel').onclick=()=>{state.tempVendor=null;$('panelSheet').classList.remove('on','tall')};
+  $('vfCancel').onclick=()=>{state.tempVendor=null;px()};
   $('panelBody').querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openProductForm(+b.dataset.edit));
   $('panelBody').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{state.tempVendor.items.splice(+b.dataset.del,1);renderVendorForm()});
 }
@@ -706,7 +826,7 @@ function saveTempVendor(){
   if(!v.items.length){toast('Add at least one product');return}
   state.customVendors.push(v);
   state.tempVendor=null;
-  $('panelSheet').classList.remove('on','tall');
+  px();
   toast('Vendor saved: '+v.name);
   if(state.cityMap&&state.city)drawCity();
 }
@@ -781,7 +901,7 @@ function runHandled(cmd){
 let recognition=null,handsFreeOn=false;
 function startHandsFree(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){toast('Voice not available — text command opened');$('cmd').classList.add('on');return}
+  if(!SR){toast('Voice not available');$('sheetInputRow').style.display='flex';ps();$('aiTxt').focus();return}
   if(recognition)try{recognition.stop()}catch(e){}
   recognition=new SR();
   recognition.lang=navigator.language||'en-US';
@@ -791,7 +911,7 @@ function startHandsFree(){
   recognition.onerror=e=>{
     if(e.error==='not-allowed'||e.error==='service-not-allowed'){
       handsFreeOn=false;$('voice').classList.remove('live');
-      toast('Microphone blocked');$('cmd').classList.add('on');
+      toast('Microphone blocked — type below');$('sheetInputRow').style.display='flex';ps();$('aiTxt').focus();
     }
   };
   recognition.onresult=async e=>{
@@ -849,7 +969,7 @@ function krypteiaOpts(){return[
 ]}
 
 function openProfile(){
-  $('panelSheet').classList.add('on');$('panelSheet').classList.remove('tall');
+  ps();
   $('panelTitle').textContent='👤 PROFILE';
   $('panelBody').innerHTML=
     '<div class="card"><div class="meta">Signed in as</div>'+
@@ -866,11 +986,11 @@ function openProfile(){
     '</div>';
   if($('profHF'))$('profHF').onclick=()=>{toggleHandsFree();openProfile()};
   if($('profIn'))$('profIn').onclick=()=>openOwnerGate();
-  if($('profOut'))$('profOut').onclick=()=>{state.ownerAuthed=false;document.body.classList.remove('krypteiaOn');$('panelSheet').classList.remove('on');toast('Signed out')};
+  if($('profOut'))$('profOut').onclick=()=>{state.ownerAuthed=false;document.body.classList.remove('krypteiaOn');px();toast('Signed out')};
 }
 
 function openMyActivity(){
-  $('panelSheet').classList.add('on');$('panelSheet').classList.remove('tall');
+  ps();
   $('panelTitle').textContent='📋 MY ACTIVITY';
   const orders=state.orders.slice().reverse();
   const myAuthor=state.ownerAuthed?'Owner':'Guest';
@@ -893,7 +1013,7 @@ function openMyActivity(){
 /* Krypteia DICTATE — voice or text → /api/ai/krypteia */
 function openDictate(useVoice){
   if(!state.ownerAuthed){toast('Owner auth required');return}
-  $('panelSheet').classList.add('on','tall');
+  ps();
   $('panelTitle').textContent='🎙 KRYPTEIA · DICTATE';
   $('panelBody').innerHTML=
     '<div class="card"><div class="meta">Architect dictation. Spoken or typed evolution requests are routed to <b>/api/ai/krypteia</b>. Backend cycles authorized AI coders (Claude / OpenAI / Gemini / Grok / DeepSeek), runs contamination scans, returns proposed patch. No keys in front-end.</div>'+
@@ -953,7 +1073,7 @@ const IPG_QUERIES={
 };
 function ipGuardOpen(scope){
   if(!state.ownerAuthed){toast('Owner auth required');return}
-  $('panelSheet').classList.add('on','tall');
+  ps();
   $('panelTitle').textContent='🛡 IP GUARD · '+scope.toUpperCase();
   const queries=IPG_QUERIES[scope]||[];
   const linkRow=q=>'<div style="border-top:1px solid rgba(167,123,255,.15);padding:8px 0">'+
@@ -993,7 +1113,7 @@ function ipGuardOpen(scope){
 /* Krypteia TELEMETRY */
 function openTelemetry(view){
   if(!state.ownerAuthed){toast('Owner auth required');return}
-  $('panelSheet').classList.add('on','tall');
+  ps();
   $('panelTitle').textContent='📊 KRYPTEIA · '+view.toUpperCase();
   if(view==='status'){
     const checks=[
@@ -1104,9 +1224,9 @@ function triOpts(){
       {icon:'🔒',label:'PRIVATE',action:()=>captureVideo('private')},
     ]},
     {icon:'🏪',label:'VENDOR',gold:true,sub:[
-      {icon:'🥬',label:'MARKET', gold:true,action:()=>openVendorForm('market')},
-      {icon:'🍽', label:'FOOD',   gold:true,action:()=>openVendorForm('food')},
-      {icon:'🔧',label:'SERVICE',gold:true,action:()=>openVendorForm('service')},
+      {icon:'🛒',label:'SHOP',      gold:true,action:()=>openShopForm()},
+      {icon:'🔧',label:'SERVICE',   gold:true,action:()=>openServiceForm()},
+      {icon:'🚐',label:'DELIVERER', gold:true,action:()=>openDelivererForm()},
     ]},
     {icon:'💬',label:'CIRCLES',sub:[
       {icon:'🌍',label:'GLOBAL',  action:()=>openCircle('global')},
@@ -1283,6 +1403,11 @@ function drawCity(){
     state.markers.push(L.marker([cv.lat,cv.lng],{icon:icon('<div class="mapPin shop">'+cv.emoji+'</div>')}).addTo(state.cityMap).bindTooltip(cv.name+' (yours)',{className:'cleanTip'}).on('click',()=>openVendor(merged)));
   });
   state.drivers.forEach(d=>{state.markers.push(L.marker([d.lat,d.lng],{icon:icon('<div class="mapPin driver">'+d.emoji+'</div>',38)}).addTo(state.cityMap).bindTooltip(d.name,{className:'cleanTip'}).on('click',()=>selectDriver(d)))});
+  /* ── Video / photo tiles ── */
+  state.videoTiles.filter(vt=>Math.abs(vt.lat-state.city.lat)<0.5&&Math.abs(vt.lng-state.city.lng)<0.5).forEach(vt=>{
+    const html='<div class="mapVideoTile">'+(vt.mode==='video'?'<video src="'+vt.url+'" muted loop autoplay playsinline></video><div class="tPlay">▶</div>':'<img src="'+vt.url+'">')+'</div>';
+    state.markers.push(L.marker([vt.lat,vt.lng],{icon:L.divIcon({className:'',iconSize:[76,54],iconAnchor:[38,54],html})}).addTo(state.cityMap).on('click',()=>openChannel(vt.channel)));
+  });
 }
 
 function openVendor(v){state.vendor=v;state.cart={};state.destination=null;state.selectedDriver=null;$('vendorTitle').textContent=v.emoji+' '+v.name;renderVendor();$('vendorSheet').classList.add('on');$('vendorSheet').classList.remove('min')}
@@ -1397,7 +1522,7 @@ function ledgerFor(o){
 function removeLayers(o){(o.layers||[]).forEach(l=>{try{l.remove()}catch(e){}});o.layers=[]}
 
 function openTransaction(o){
-  $('panelSheet').classList.add('on');$('panelTitle').textContent=o.id+' · '+o.status.toUpperCase();
+  ps();$('panelTitle').textContent=o.id+' · '+o.status.toUpperCase();
   const msg=(state.messages[o.id]||[]).map(m=>'<div class="msg"><b>'+esc(m.who)+':</b> '+esc(m.text)+'</div>').join('');
   $('panelBody').innerHTML='<div class="card"><div class="txTop"><span>'+esc(o.vendor.name)+'</span><b>'+money(o.calc.total)+' COD</b></div>'
     +'<div class="meta">Drivers: '+(o.drivers.map(d=>d.name).join(', ')||'Self-pickup')+' · Delivery paid cash to driver(s). Owner fee: '+money(o.calc.fee)+'</div>'
@@ -1415,7 +1540,7 @@ function maybeClose(o){
 }
 
 function accounting(){
-  $('panelSheet').classList.add('on');$('panelTitle').textContent='Accounting Office';
+  ps();$('panelTitle').textContent='Accounting Office';
   $('panelBody').innerHTML=state.ledger.length
     ?state.ledger.slice().reverse().map(x=>'<div class="ledgerRow"><div class="ledgerTop"><span>'+esc(x.type)+'</span><span>'+money(x.amount)+'</span></div><div class="meta">'+esc(x.id)+' · '+esc(x.from)+' → '+esc(x.to)+'</div></div>').join('')
     :'<div class="card">No completed transactions yet.</div>';
@@ -1491,7 +1616,6 @@ $('krypExport').onclick=()=>{
 /* ── Command router ── */
 function run(cmd){
   cmd=String(cmd||'').toLowerCase().trim();
-  $('cmd').classList.remove('on');
   if(!cmd)return;
   if(cmd.includes('krypteia')||cmd.includes('owner')||cmd.includes('admin'))return openOwnerGate();
   if(cmd.includes('vendor login')){state.vendorMode=true;document.body.classList.add('vendorMode');toast('Vendor mode on');if(state.vendor)renderVendor();return}
@@ -1508,17 +1632,29 @@ function run(cmd){
 function voice(){toggleHandsFree()}
 
 /* ── Event bindings ── */
-$('title').onclick=()=>$('cmd').classList.toggle('on');
+$('title').onclick=()=>{window.location.reload(true)};
 $('back').onclick=goBack;
 $('voice').onclick=voice;
-$('cmdInput').onkeydown=e=>{if(e.key==='Enter')run(e.target.value)};
-document.querySelectorAll('[data-cmd]').forEach(b=>b.onclick=()=>run(b.dataset.cmd));
 $('closeVendor').onclick=closeVendor;
 $('vendorHead').onclick=e=>{if(e.target.id!=='closeVendor')$('vendorSheet').classList.remove('min')};
-$('closePanel').onclick=()=>$('panelSheet').classList.remove('on');
+$('closePanel').onclick=()=>px();
+$('ubwMask').onclick=()=>{px();$('vendorSheet').classList.remove('on','min')};
 $('bright').oninput=applyBrightness;
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){$('cmd').classList.remove('on');$('panelSheet').classList.remove('on');$('ownerGate').classList.remove('on');$('loginOverlay').classList.remove('on');closeVendor();closeTriMenu()}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){px();$('ownerGate').classList.remove('on');$('loginOverlay').classList.remove('on');closeVendor();closeTriMenu()}});
 document.querySelectorAll('.sheet,.panel').forEach(x=>{x.addEventListener('touchmove',e=>e.stopPropagation(),{passive:true});x.addEventListener('wheel',e=>e.stopPropagation(),{passive:true})});
+/* ── AI pill + sheet input ── */
+$('aiPill').onclick=()=>{$('sheetInputRow').style.display='flex';$('panelTitle').textContent='AstranoV AI';$('panelBody').innerHTML='<div class="meta" style="padding:12px 0 4px">Ask anything — search locations, vendors, get help…</div>';ps();setTimeout(()=>$('aiTxt').focus(),80)};
+$('pilMicBtn').onclick=(e)=>{e.stopPropagation();$('aiPill').click();voice()};
+const sendAI=()=>{const t=$('aiTxt')?.value?.trim();if(!t)return;$('aiTxt').value='';run(t)};
+$('aiSendBtn').onclick=sendAI;
+$('aiTxt').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendAI()}};
+$('aiTxt').oninput=e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,72)+'px'};
+/* vendorSheet: toggle mask when it opens/closes */
+new MutationObserver(()=>{
+  const on=$('vendorSheet').classList.contains('on');
+  $('ubwMask').classList.toggle('on',on);
+  $('aiPill').classList.toggle('hidden',on);
+}).observe($('vendorSheet'),{attributes:true,attributeFilter:['class']});
 $('loginOverlay').addEventListener('touchmove',e=>e.stopPropagation(),{passive:true});
 $('loginBox').addEventListener('touchmove',e=>e.stopPropagation(),{passive:true});
 $('loginOverlay').onclick=e=>{if(e.target===$('loginOverlay'))$('loginOverlay').classList.remove('on')};
