@@ -103,10 +103,12 @@ body.national #aiPill,body.personal #aiPill{display:flex}
 @keyframes balPop{0%,100%{transform:scale(1)}45%{transform:scale(1.22)}}
 .balPlus{width:22px;height:22px;border-radius:50%;border:1px solid rgba(215,182,80,.5);background:rgba(215,182,80,.13);color:var(--g);font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;margin-left:2px;pointer-events:auto}
 /* ── User button (top-left, 13s reveal) ── */
-#userBtn{position:fixed;left:14px;top:calc(var(--st) + 14px);z-index:91;width:44px;height:44px;border-radius:50%;border:1px solid rgba(0,215,255,.32);background:rgba(3,12,29,.88);color:var(--b);font-size:20px;box-shadow:0 0 20px rgba(0,215,255,.12);backdrop-filter:blur(12px);cursor:pointer;opacity:0;pointer-events:none;transition:opacity .5s;display:flex;align-items:center;justify-content:center}
-#userBtn.show{opacity:1;pointer-events:auto}
+#userBtn{position:fixed;right:14px;top:calc(var(--st) + 14px);z-index:91;height:42px;min-width:42px;padding:0 14px;border-radius:999px;border:1px solid rgba(0,215,255,.32);background:rgba(3,12,29,.88);color:var(--b);font-size:15px;font-weight:1000;box-shadow:0 0 20px rgba(0,215,255,.12);backdrop-filter:blur(12px);cursor:pointer;opacity:1;pointer-events:auto;transition:opacity .5s,border-color .3s,color .3s;display:flex;align-items:center;justify-content:center;gap:7px;letter-spacing:.04em}
+#userBtn .ub-ico{font-size:18px;line-height:1}
+#userBtn .ub-bal{font-size:12px;color:var(--g);font-weight:1000}
+#userBtn .ub-bal small{font-size:9px;opacity:.7;margin-left:2px}
 #userBtn.authed{border-color:rgba(0,240,138,.5);color:var(--ok);box-shadow:0 0 20px rgba(0,240,138,.15)}
-body:not(.global) #userBtn{opacity:0!important;pointer-events:none!important}
+#userBtn.pop{animation:balPop .45s cubic-bezier(.17,.67,.38,1.28)}
 /* ── Idle fade ── */
 .ui-faded{opacity:.18!important;transition:opacity 1.2s!important}
 /* ── Login overlay ── */
@@ -153,11 +155,7 @@ body:not(.global) #userBtn{opacity:0!important;pointer-events:none!important}
 <div id="brightness"><span>☀</span><input id="bright" type="range" min="0" max="100" value="35"><span>☾</span></div>
 <div id="toast"></div>
 <div id="routeBadge"></div>
-<div id="balBadge">
-  <span id="balAmt">0.00</span><span style="font-size:10px;opacity:.65;margin-left:1px">AVC</span>
-  <span class="balPlus" id="balPlusBtn">+</span>
-</div>
-<button id="userBtn">👤</button>
+<button id="userBtn"><span class="ub-ico" id="ubIco">👤</span><span class="ub-bal" id="ubBal" style="display:none"><span id="balAmt">0.00</span><small>AVC</small></span></button>
 <div id="loginOverlay">
   <div class="loginBox" id="loginBox"></div>
 </div>
@@ -241,7 +239,7 @@ const products=[
   {id:'p4',name:'Feta 200g',desc:'Traditional feta cheese',price:5.5,kg:.2,photo:'https://images.unsplash.com/photo-1559561853-08451507cbe7?auto=format&fit=crop&w=160&q=70'}
 ];
 
-const state={level:'global',country:countries[0],city:null,globe:null,nationalMap:null,nationalTile:null,cityMap:null,dark:null,light:null,vendors:[],drivers:[],markers:[],vendor:null,cart:{},destination:null,picking:false,selectedDriver:null,vendorMode:false,orders:[],ledger:[],messages:{},routeCache:new Map(),brightness:+(localStorage.astranovBrightness||35),ownerAuthed:false,user:null,sbToken:localStorage.astranovSbToken||null,balance:+(localStorage.astranovBalance||0),circles:{},customCircles:[],ownerAuthCallback:null,videoTiles:[]};
+const state={level:'global',country:countries[0],city:null,globe:null,nationalMap:null,nationalTile:null,cityMap:null,dark:null,light:null,vendors:[],drivers:[],markers:[],vendor:null,cart:{},destination:null,picking:false,selectedDriver:null,vendorMode:false,orders:[],ledger:[],messages:{},routeCache:new Map(),brightness:+(localStorage.astranovBrightness||35),ownerAuthed:false,user:null,sbToken:localStorage.astranovSbToken||null,balance:+(localStorage.astranovBalance||0),circles:{},customCircles:[],ownerAuthCallback:null,videoTiles:[],geo:null,navHistory:[],navForward:[]};
 /* Restore saved session */
 if(localStorage.astranovUser){try{state.user=JSON.parse(localStorage.astranovUser)}catch(e){}};
 
@@ -259,12 +257,15 @@ function setLevel(l){
   if(l==='global'||l==='space')$('globe').classList.add('on');else $(l).classList.add('on');
   if(state.globe){const c=state.globe.controls();c.autoRotate=l==='global';c.autoRotateSpeed=.085;c.rotateSpeed=.78;c.enableDamping=true;c.dampingFactor=.08;state.globe.pointOfView({lat:state.country.lat,lng:state.country.lng,altitude:l==='space'?2.75:2.05},700)}
   /* show balance badge at city level */
-  if(l==='personal'){$('balBadge').classList.add('show');$('balAmt').textContent=state.balance.toFixed(2)}
-  else $('balBadge').classList.remove('show');
+  refreshUserBtn();
   /* minimize all sheets when going global */
   if(l==='global')minimizeAll();
 }
-function goBack(){if(state.level==='personal'){openNational(state.country);return}if(state.level==='national'||state.level==='space'){setLevel('global');return}setLevel('global')}
+function goBack(){
+  if(state.level==='personal'&&state.country){state.navForward.push({type:'city',country:state.country,city:state.city});openNational(state.country,true);return}
+  if(state.level==='national'||state.level==='space'){state.navForward.push({type:'national',country:state.country});setLevel('global');return}
+  setLevel('global');
+}
 
 async function reverseGeocode(lat,lng){try{const ac=new AbortController();setTimeout(()=>ac.abort(),8000);const r=await fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat='+lat+'&lon='+lng+'&zoom=10&accept-language=en',{headers:{'Accept':'application/json'},signal:ac.signal});if(!r.ok)return null;return await r.json()}catch(e){return null}}
 function cityFromGeo(geo,lat,lng){const a=geo?.address||{};const name=a.city||a.town||a.village||a.suburb||a.county||a.state||geo?.display_name?.split(',')[0]||'Location';return{id:'geo',name,lat,lng,z:14}}
@@ -319,9 +320,23 @@ function updateBalance(delta,animate=true){
   state.balance=Math.max(0,state.balance+(+delta||0));
   localStorage.astranovBalance=state.balance;
   $('balAmt').textContent=state.balance.toFixed(2);
+  refreshUserBtn();
   if(animate&&delta!==0){
-    const el=$('balBadge');el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop');
+    const el=$('userBtn');el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop');
     setTimeout(()=>el.classList.remove('pop'),500);
+  }
+}
+function refreshUserBtn(){
+  const ub=$('userBtn'),ico=$('ubIco'),bal=$('ubBal');if(!ub)return;
+  if(state.user){
+    ub.classList.add('authed');
+    ico.textContent=state.ownerAuthed?'⬡':'✓';
+    $('balAmt').textContent=state.balance.toFixed(2);
+    bal.style.display='inline-flex';
+  }else{
+    ub.classList.remove('authed');
+    ico.textContent='👤';
+    bal.style.display='none';
   }
 }
 
@@ -366,6 +381,7 @@ function openRechargePanel(){
 }
 
 /* ── User Login / Register ── */
+function _validPhone(p){return /^\+\d{7,15}$/.test(String(p||'').trim())}
 function _applySession(j,displayName,phone){
   state.sbToken=j.access_token||j.token||null;
   if(state.sbToken)localStorage.astranovSbToken=state.sbToken;
@@ -374,46 +390,74 @@ function _applySession(j,displayName,phone){
   state.user={id:u.id,name,email:u.email||'',phone:phone||u.phone||''};
   localStorage.astranovUser=JSON.stringify(state.user);
   $('loginOverlay').classList.remove('on');
-  $('userBtn').classList.add('authed');$('userBtn').textContent='✓';
-  /* fetch balance from profiles */
+  /* fetch balance + owner flag */
   sbFetch('/rest/v1/profiles?id=eq.'+u.id+'&select=balance,is_owner').then(r=>r.json()).then(rows=>{
-    if(rows[0]){state.balance=rows[0].balance||0;localStorage.astranovBalance=state.balance;$('balAmt').textContent=state.balance.toFixed(2);if(rows[0].is_owner)state.ownerAuthed=true}
+    if(rows[0]){state.balance=rows[0].balance||0;localStorage.astranovBalance=state.balance;if(rows[0].is_owner)state.ownerAuthed=true;refreshUserBtn()}
   }).catch(()=>{});
+  refreshUserBtn();
   toast('Welcome, '+name+'!',3000);
 }
+/* ── GPS locate + zoom to user ── */
+function locateMe(){
+  if(!('geolocation' in navigator)){toast('GPS not supported');return}
+  toast('Locating you…',1500);
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const lat=pos.coords.latitude,lng=pos.coords.longitude;
+    state.geo={lat,lng,ts:Date.now()};
+    /* Find or build a city object at the GPS coords */
+    let c=null,nearest=null,bestD=Infinity;
+    countries.forEach(co=>co.cities.forEach(ci=>{const d=Math.hypot(ci.lat-lat,ci.lng-lng);if(d<bestD){bestD=d;nearest=ci;c=co}}));
+    if(nearest&&bestD<0.5){state.country=c;openCity(nearest)}
+    else{
+      const here={id:'gps-'+Date.now(),name:'My location',lat,lng,z:15};
+      const co=countries.find(x=>Math.hypot(x.lat-lat,x.lng-lng)<6)||countries[0];
+      state.country=co;openCity(here);
+    }
+  },err=>{
+    toast('GPS denied: '+(err.message||'permission denied'),3000);
+  },{enableHighAccuracy:true,timeout:10000,maximumAge:30000});
+}
 async function doLogin(email,password,phone){
-  const err=$('lErr');if(err)err.textContent='Signing in…';
+  const err=$('lErr');if(err)err.textContent='';
+  email=String(email||'').trim();phone=String(phone||'').trim();password=String(password||'');
+  if(!email&&!phone){if(err)err.textContent='Email or phone required';return}
+  if(phone&&!_validPhone(phone)){if(err)err.textContent='Phone must be international, no spaces (e.g. +306971930225)';return}
+  if(!password){if(err)err.textContent='Password required';return}
+  if(err)err.textContent='Signing in…';
   try{
+    const body=email?{email,password}:{phone,password};
     const r=await sbFetch('/auth/v1/token?grant_type=password',{method:'POST',
-      body:JSON.stringify({email,password}),signal:AbortSignal.timeout(10000)});
+      body:JSON.stringify(body),signal:AbortSignal.timeout(10000)});
     if(r.ok){_applySession(await r.json(),null,phone);return}
     const j=await r.json().catch(()=>({}));
-    if(err)err.textContent=j.error_description||j.error||'Login failed.';
+    if(err)err.textContent=j.error_description||j.msg||j.error||'Login failed.';
   }catch(e){
-    const name=email?email.split('@')[0]:phone||'Guest';
-    state.user={id:'demo-'+Date.now(),name,email:email||'',phone:phone||''};
-    localStorage.astranovUser=JSON.stringify(state.user);
-    $('loginOverlay').classList.remove('on');
-    $('userBtn').classList.add('authed');$('userBtn').textContent='✓';
-    toast('[DEMO] Signed in as '+name,3000);
+    if(err)err.textContent='Network error. Try again.';
   }
 }
 async function doRegister(name,email,phone,password){
-  const err=$('lErr');if(err)err.textContent='Creating account…';
-  if(!name||(!email&&!phone)||!password){if(err)err.textContent='Name, email or phone, and password are required';return}
+  const err=$('lErr');if(err)err.textContent='';
+  name=String(name||'').trim();email=String(email||'').trim();phone=String(phone||'').trim();password=String(password||'');
+  if(!name){if(err)err.textContent='Full name required';return}
+  if(!email&&!phone){if(err)err.textContent='Email or phone required';return}
+  if(phone&&!_validPhone(phone)){if(err)err.textContent='Phone must be international, no spaces (e.g. +306971930225)';return}
+  if(!password||password.length<6){if(err)err.textContent='Password ≥ 6 characters';return}
+  if(err)err.textContent='Creating account…';
   try{
+    const body=email?{email,password,data:{display_name:name,phone}}:{phone,password,data:{display_name:name}};
     const r=await sbFetch('/auth/v1/signup',{method:'POST',
-      body:JSON.stringify({email,password,data:{display_name:name,phone}}),signal:AbortSignal.timeout(12000)});
+      body:JSON.stringify(body),signal:AbortSignal.timeout(12000)});
     if(r.ok){_applySession(await r.json(),name,phone);return}
     const j=await r.json().catch(()=>({}));
-    if(err)err.textContent=j.error_description||j.error||'Registration failed.';
-  }catch(e){await doLogin(email,password,phone)}
+    if(err)err.textContent=j.error_description||j.msg||j.error||'Registration failed.';
+  }catch(e){if(err)err.textContent='Network error. Try again.'}
 }
 function doLogout(){
-  state.user=null;state.sbToken=null;
+  state.user=null;state.sbToken=null;state.ownerAuthed=false;state.geo=null;
   localStorage.removeItem('astranovUser');localStorage.removeItem('astranovSbToken');
-  $('userBtn').classList.remove('authed');$('userBtn').textContent='👤';
+  document.body.classList.remove('krypteiaOn');
   $('loginOverlay').classList.remove('on');
+  refreshUserBtn();
   sbFetch('/auth/v1/logout',{method:'POST'}).catch(()=>{});
   toast('Signed out');
 }
@@ -449,14 +493,14 @@ function renderLoginBox(tab){
     (isReg?
       '<div class="lField"><label>Full name</label><input id="rgName" placeholder="Your full name" autocomplete="name"></div>'+
       '<div class="lField"><label>Email</label><input id="rgEmail" type="email" placeholder="you@email.com" autocomplete="email"></div>'+
-      '<div class="lField"><label>Phone</label><input id="rgPhone" type="tel" placeholder="+30 6900 000 000" autocomplete="tel"></div>'+
+      '<div class="lField"><label>Phone</label><input id="rgPhone" type="tel" placeholder="+306971930225 (no spaces)" autocomplete="tel"></div>'+
       '<div class="lField"><label>Password</label><input id="rgPass" type="password" placeholder="Choose password" autocomplete="new-password"></div>'+
       '<button class="ribAction" id="rgSubmit" style="width:100%;height:44px;margin-top:14px">CREATE ACCOUNT</button>'+
       '<div class="lErr" id="lErr"></div>'
     :
       '<div class="lField"><label>Email</label><input id="liEmail" type="email" placeholder="you@email.com" autocomplete="email"></div>'+
       '<div class="lField"><label>Password</label><input id="liPass" type="password" placeholder="Password" autocomplete="current-password"></div>'+
-      '<div class="lField"><label>Or phone number</label><input id="liPhone" type="tel" placeholder="+30 6900 000 000" autocomplete="tel"></div>'+
+      '<div class="lField"><label>Or phone number</label><input id="liPhone" type="tel" placeholder="+306971930225 (no spaces)" autocomplete="tel"></div>'+
       '<button class="ribAction" id="liSubmit" style="width:100%;height:44px;margin-top:14px">SIGN IN</button>'+
       '<div class="lErr" id="lErr"></div>'
     );
@@ -597,7 +641,7 @@ function openChannel(name){
 (function restoreSession(){
   try{
     const u=localStorage.astranovUser;
-    if(u){state.user=JSON.parse(u);$('userBtn').classList.add('authed');$('userBtn').textContent='✓'}
+    if(u){state.user=JSON.parse(u);refreshUserBtn()}
   }catch(e){}
   state.balance=+(localStorage.astranovBalance||0);
 })();
@@ -945,20 +989,47 @@ function toggleHandsFree(){handsFreeOn?stopHandsFree():startHandsFree()}
 
 /* ── YOU triangle + Krypteia triangle ── */
 function openYouTriangle(){
-  if(!state.city||!state.cityMap)return;
-  const pt=state.cityMap.latLngToContainerPoint([state.city.lat,state.city.lng]);
-  triState.pressLL={lat:state.city.lat,lng:state.city.lng};
+  if(!state.user){openLoginPanel();return}
+  if(!state.geo||!state.cityMap)return;
+  const pt=state.cityMap.latLngToContainerPoint([state.geo.lat,state.geo.lng]);
+  triState.pressLL={lat:state.geo.lat,lng:state.geo.lng};
   closeTriMenu();
   setTimeout(()=>openTriMenu(pt.x,pt.y,youOpts()),40);
 }
-function youOpts(){return[
-  {icon:'👤',label:'PROFILE', action:openProfile},
-  {icon:'🛡', label:'KRYPTEIA',gold:true,action:()=>{
-    if(state.ownerAuthed)openKrypteiaTriangle();
-    else openOwnerGate(openKrypteiaTriangle);
-  }},
-  {icon:'📋',label:'ACTIVITY',action:openMyActivity},
-]}
+function youOpts(){
+  const opts=[
+    {icon:'👤',label:'PROFILE', action:openProfile},
+    {icon:'🛒',label:'MY SHOPS',action:openMyShops},
+    {icon:'🔧',label:'MY SERVICES',action:openMyServices},
+    {icon:'📅',label:'SCHEDULE',action:openMySchedule},
+    {icon:'📊',label:'STATS',action:openMyStats},
+    {icon:'📋',label:'ACTIVITY',action:openMyActivity},
+  ];
+  if(state.ownerAuthed)opts.push({icon:'⬡',label:'KRYPTEIA',gold:true,action:openKrypteiaTriangle});
+  else opts.push({icon:'🛡',label:'KRYPTEIA',gold:true,action:()=>openOwnerGate(openKrypteiaTriangle)});
+  return opts;
+}
+function openMyShops(){ps();$('panelTitle').textContent='🛒 MY SHOPS';renderMyVendors('shop')}
+function openMyServices(){ps();$('panelTitle').textContent='🔧 MY SERVICES';renderMyVendors('service')}
+function renderMyVendors(type){
+  $('panelBody').innerHTML='<div style="padding:24px 0;text-align:center;color:var(--muted);font-size:12px">Loading…</div>';
+  sbFetch('/rest/v1/vendors?owner_id=eq.'+state.user.id+'&type=eq.'+type+'&select=*').then(r=>r.json()).then(rows=>{
+    $('panelBody').innerHTML=(rows.length?rows.map(v=>'<div class="card"><div class="txTop"><b>'+esc(v.name||'(unnamed)')+'</b><span class="meta">'+esc(v.type)+'</span></div><div class="meta">'+esc(JSON.stringify(v.data||{}).slice(0,120))+'</div></div>').join(''):'<div style="padding:24px 0;text-align:center;color:var(--muted);font-size:12px">No '+type+'s yet. Use the VENDOR triangle on the map to create one.</div>');
+  }).catch(()=>{$('panelBody').innerHTML='<div class="lErr">Could not load.</div>'});
+}
+function openMySchedule(){ps();$('panelTitle').textContent='📅 SCHEDULE';$('panelBody').innerHTML='<div class="card"><div class="meta">Manage your weekly availability across all your shops and services. Coming soon — schedule editor wired to vendors.data.hours.</div></div>'}
+function openMyStats(){
+  ps();$('panelTitle').textContent='📊 STATS';
+  $('panelBody').innerHTML='<div style="padding:24px 0;text-align:center;color:var(--muted);font-size:12px">Loading…</div>';
+  Promise.all([
+    sbFetch('/rest/v1/vendors?owner_id=eq.'+state.user.id+'&select=id,type'),
+    sbFetch('/rest/v1/balance_ledger?user_id=eq.'+state.user.id+'&select=amount')
+  ]).then(rs=>Promise.all(rs.map(r=>r.json()))).then(([vs,led])=>{
+    const shops=vs.filter(x=>x.type==='shop').length,svcs=vs.filter(x=>x.type==='service').length,dlv=vs.filter(x=>x.type==='deliverer').length;
+    const total=led.reduce((a,b)=>a+(+b.amount||0),0);
+    $('panelBody').innerHTML='<div class="card"><div class="txTop"><span>Shops</span><b>'+shops+'</b></div><div class="txTop"><span>Services</span><b>'+svcs+'</b></div><div class="txTop"><span>Deliverer profile</span><b>'+(dlv?'Yes':'No')+'</b></div><div class="txTop"><span>Lifetime ledger</span><b style="color:var(--g)">'+total.toFixed(2)+' AVC</b></div></div>';
+  }).catch(()=>{$('panelBody').innerHTML='<div class="lErr">Could not load stats.</div>'});
+}
 
 function openKrypteiaTriangle(){
   closeTriMenu();
@@ -1303,7 +1374,8 @@ function initGlobe(){
   $('globeHost').addEventListener('pointercancel',glCancel,{passive:true});
 }
 
-function openNational(c){
+function openNational(c,_silent){
+  if(!_silent)state.navForward=[];
   state.country=c;setLevel('national');
   if(!state.nationalMap){
     state.nationalMap=L.map('nationalMap',{zoomControl:false,attributionControl:false,worldCopyJump:false});
@@ -1353,7 +1425,8 @@ function openNational(c){
   toast(c.name+' national airspace');
 }
 
-function openCity(city){
+function openCity(city,_silent){
+  if(!_silent)state.navForward=[];
   state.city=city;setLevel('personal');
   if(!state.cityMap){
     state.cityMap=L.map('cityMap',{zoomControl:false,attributionControl:false}).setView([city.lat,city.lng],city.z);
@@ -1406,7 +1479,10 @@ function icon(html,size=42){return L.divIcon({className:'',iconSize:[size,size],
 function drawCity(){
   state.markers.forEach(m=>m.remove());state.markers=[];
   state.vendors=vendorsFor(state.city);state.drivers=driversFor(state.city);
-  state.markers.push(L.marker([state.city.lat,state.city.lng],{icon:icon('<div class="mapPin user">YOU</div>',44)}).addTo(state.cityMap).on('click',openYouTriangle));
+  /* YOU pin: only when logged in AND we have GPS coordinates */
+  if(state.user&&state.geo){
+    state.markers.push(L.marker([state.geo.lat,state.geo.lng],{icon:icon('<div class="mapPin user">YOU</div>',44)}).addTo(state.cityMap).on('click',openYouTriangle));
+  }
   const acctLat=state.city.lat+.0015,acctLng=state.city.lng-.0015;
   state.markers.push(L.marker([acctLat,acctLng],{icon:icon('<div class="mapPin acct">⬡</div>',38)}).addTo(state.cityMap).bindTooltip('Accounting Office',{className:'cleanTip'}).on('click',accounting));
   state.vendors.forEach(v=>{state.markers.push(L.marker([v.lat,v.lng],{icon:icon('<div class="mapPin shop">'+v.emoji+'</div>')}).addTo(state.cityMap).bindTooltip(v.name,{className:'cleanTip'}).on('click',()=>openVendor(v)))});
@@ -1573,20 +1649,18 @@ $('ownerSubmit').onclick=async()=>{
   const email=$('ownerEmail').value.trim(),phone=$('ownerPhone').value.trim();
   if(!email||!phone){$('ownerMsg').textContent='Email and phone required.';return}
   $('ownerMsg').textContent='Authenticating…';
+  if(!state.user||!state.sbToken){$('ownerMsg').textContent='You must sign in first.';return}
   try{
-    const r=await sbFetch('/auth/v1/token?grant_type=password',{method:'POST',
-      body:JSON.stringify({email,password:''}),signal:AbortSignal.timeout(8000)});
-    /* Regardless of auth result, check profile is_owner via stored session */
-    const tok=state.sbToken||SB_KEY;
-    const pr=await fetch(SB+'/rest/v1/profiles?select=is_owner',{headers:{'apikey':SB_KEY,'Authorization':'Bearer '+tok}});
-    if(pr.ok){const rows=await pr.json();if(rows[0]?.is_owner){activateKrypteia();return}}
-    /* fallback: check email matches known owner pattern via astranov-api */
-    const ar=await sbFn('astranov-api',{path:'/auth/owner-check',email,phone});
+    const pr=await sbFetch('/rest/v1/profiles?id=eq.'+state.user.id+'&select=is_owner,phone,display_name');
+    if(pr.ok){
+      const rows=await pr.json();
+      if(rows[0]?.is_owner){activateKrypteia();return}
+    }
+    const ar=await sbFn('astranov-api',{path:'/auth/owner-check',email,phone,user_id:state.user.id});
     if(ar.ok){const j=await ar.json();if(j.authorized){activateKrypteia();return}}
-    $('ownerMsg').textContent='Access denied.';
+    $('ownerMsg').textContent='Access denied. This account is not authorized as owner.';
   }catch(e){
-    $('ownerMsg').textContent='Backend unreachable. Krypteia in unverified demo state.';
-    setTimeout(()=>{activateKrypteia();},1800);
+    $('ownerMsg').textContent='Backend unreachable. Try again.';
   }
 };
 function activateKrypteia(){
@@ -1679,31 +1753,49 @@ $('loginOverlay').addEventListener('touchmove',e=>e.stopPropagation(),{passive:t
 $('loginBox').addEventListener('touchmove',e=>e.stopPropagation(),{passive:true});
 $('loginOverlay').onclick=e=>{if(e.target===$('loginOverlay'))$('loginOverlay').classList.remove('on')};
 
-/* ── 13-second user button reveal ── */
-setTimeout(()=>$('userBtn').classList.add('show'),13000);
-
-/* ── Idle fade for balance + user button ── */
+/* ── Idle fade for unified user button ── */
 let _fadeTimer;
 function _resetFade(){
   $('userBtn').classList.remove('ui-faded');
-  $('balBadge').classList.remove('ui-faded');
   clearTimeout(_fadeTimer);
-  _fadeTimer=setTimeout(()=>{
-    $('userBtn').classList.add('ui-faded');
-    $('balBadge').classList.add('ui-faded');
-  },6000);
+  _fadeTimer=setTimeout(()=>$('userBtn').classList.add('ui-faded'),6000);
 }
 document.addEventListener('touchstart',_resetFade,{passive:true});
 document.addEventListener('pointerdown',_resetFade,{passive:true});
 
-/* ── Wire up user + balance buttons ── */
+/* ── Unified user button: not logged in → login | logged in → GPS locate ── */
 $('userBtn').onclick=()=>{
-  if(!state.user)renderLoginBox('login');
-  else renderLoginBox('login');
-  $('loginOverlay').classList.toggle('on');
+  if(!state.user){openLoginPanel();return}
+  locateMe();
 };
-$('balPlusBtn').onclick=(e)=>{e.stopPropagation();openRechargePanel()};
-$('balBadge').onclick=()=>{if(!state.user)openLoginPanel();else openRechargePanel()};
+/* Long-press on userBtn (logged in) → open profile panel directly */
+let _ubLP;
+$('userBtn').addEventListener('touchstart',()=>{_ubLP=setTimeout(()=>{if(state.user){renderLoginBox('login');$('loginOverlay').classList.add('on')}},600)},{passive:true});
+$('userBtn').addEventListener('touchend',()=>{clearTimeout(_ubLP)},{passive:true});
+
+/* ── Edge swipe gestures: left edge → back, right edge → forward ── */
+const EDGE=22,SWIPE_MIN=70;
+let _swStart=null;
+document.addEventListener('touchstart',e=>{
+  if(e.touches.length!==1)return;
+  const t=e.touches[0],fromLeft=t.clientX<EDGE,fromRight=t.clientX>innerWidth-EDGE;
+  if(fromLeft||fromRight)_swStart={x:t.clientX,y:t.clientY,fromLeft,fromRight,t:Date.now()};
+},{passive:true});
+document.addEventListener('touchend',e=>{
+  if(!_swStart)return;
+  const t=(e.changedTouches[0]||{});const dx=t.clientX-_swStart.x,dy=Math.abs(t.clientY-_swStart.y),dt=Date.now()-_swStart.t;
+  const s=_swStart;_swStart=null;
+  if(dt>600||dy>60)return;
+  if(s.fromLeft&&dx>SWIPE_MIN)navBack();
+  else if(s.fromRight&&dx<-SWIPE_MIN)navForward();
+},{passive:true});
+function navBack(){goBack()}
+function navForward(){
+  if(!state.navForward.length){toast('No forward history');return}
+  const next=state.navForward.pop();
+  if(next.type==='national'){state.country=next.country;openNational(next.country,true)}
+  else if(next.type==='city'){state.country=next.country;openCity(next.city,true)}
+}
 
 /* ── Globe click → minimize all ── */
 /* (handled inside setLevel global) */
