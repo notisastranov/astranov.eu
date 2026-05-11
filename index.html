@@ -46,7 +46,7 @@
 #ubwMask{position:fixed;inset:0;z-index:174;display:none;background:rgba(0,0,0,.38);backdrop-filter:blur(2px)}
 #ubwMask.on{display:block}
 /* ── Multi-field bottom drawer ── */
-#mfDrawer{position:fixed;left:0;right:0;bottom:0;z-index:175;background:rgba(0,0,0,.96);border-top:1px solid rgba(255,255,255,.06);border-radius:14px 14px 0 0;box-shadow:0 -4px 24px rgba(0,0,0,.85);backdrop-filter:blur(20px);display:flex;flex-direction:column;overflow:hidden;height:calc(72px + var(--sb));padding-bottom:var(--sb);transition:height .22s cubic-bezier(.25,.8,.25,1)}
+#mfDrawer{position:fixed;left:0;right:0;bottom:0;z-index:175;background:rgba(0,0,0,.96);border-top:1.5px solid rgba(0,215,255,.55);border-left:1.5px solid rgba(0,215,255,.35);border-right:1.5px solid rgba(0,215,255,.35);border-radius:14px 14px 0 0;box-shadow:0 -4px 28px rgba(0,215,255,.35),0 0 36px rgba(0,215,255,.18),0 -2px 12px rgba(0,0,0,.6);backdrop-filter:blur(20px);display:flex;flex-direction:column;overflow:hidden;height:calc(78px + var(--sb));padding-bottom:var(--sb);transition:height .22s cubic-bezier(.25,.8,.25,1)}
 #mfDrawer.mf-panel{height:calc(33vh + var(--sb))}
 #mfDrawer.mf-tall{height:calc(66vh + var(--sb))}
 #mfDrawer.mf-full{height:calc(92vh + var(--sb))}
@@ -59,9 +59,10 @@
 #mfDrawer.mf-panel #mfBody,#mfDrawer.mf-tall #mfBody,#mfDrawer.mf-full #mfBody{visibility:visible}
 #mfInput{display:flex;align-items:center;gap:6px;padding:4px 10px 8px;flex-shrink:0}
 #mfTxt{flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:999px;color:#fff;padding:6px 12px;outline:0;font-size:12px;resize:none;font-family:inherit;line-height:1.35;max-height:60px;min-height:28px;overflow-y:auto}
-#mfMic{width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:#fff;font-size:13px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0}
-#mfMic.live{color:var(--ok);border-color:var(--ok);box-shadow:0 0 14px rgba(0,240,138,.35);animation:micPulse 1.2s ease-in-out infinite}
-@keyframes micPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+#mfMic{width:46px;height:46px;border-radius:50%;border:1.5px solid rgba(0,215,255,.85);background:rgba(0,215,255,.14);color:var(--b);font-size:13px;font-weight:1000;letter-spacing:.06em;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;box-shadow:0 0 14px rgba(0,215,255,.5),0 0 26px rgba(0,215,255,.28),inset 0 0 10px rgba(0,215,255,.18);text-shadow:0 0 8px rgba(0,215,255,.7);animation:aiGlow 2.4s ease-in-out infinite}
+#mfMic.live{color:var(--ok);border-color:var(--ok);background:rgba(0,240,138,.14);box-shadow:0 0 18px rgba(0,240,138,.55),0 0 32px rgba(0,240,138,.3);text-shadow:0 0 8px rgba(0,240,138,.7);animation:micPulse 1.1s ease-in-out infinite}
+@keyframes micPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+@keyframes aiGlow{0%,100%{box-shadow:0 0 14px rgba(0,215,255,.45),0 0 26px rgba(0,215,255,.22),inset 0 0 10px rgba(0,215,255,.16)}50%{box-shadow:0 0 22px rgba(0,215,255,.7),0 0 38px rgba(0,215,255,.38),inset 0 0 14px rgba(0,215,255,.24)}}
 #mfSend{width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#fff;font-size:13px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0}
 /* ── Sheet input row ── */
 .sheetInput{display:flex;gap:8px;padding:8px 12px 10px;border-top:1px solid rgba(0,215,255,.08);align-items:flex-end;flex-shrink:0}
@@ -83,8 +84,7 @@
 .checkoutRibbon{display:flex;flex-wrap:wrap;gap:6px;padding:7px;background:linear-gradient(180deg,rgba(81,60,10,.95),rgba(36,27,6,.96));border-bottom:1px solid rgba(215,182,80,.28);overflow:visible}.rib{min-height:36px;min-width:74px;flex:1 1 78px;border:1px solid rgba(255,255,255,.12);border-radius:11px;background:rgba(255,255,255,.045);padding:4px 7px}.rib.wide{flex-basis:124px}.rib.action{order:-10;flex:0 0 148px;padding:0;border:0;background:transparent}.rib label{display:block;color:rgba(255,232,166,.7);font-size:8px;font-weight:1000;letter-spacing:.12em;text-transform:uppercase}.rib .val{font-size:12px;font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rib select,.rib input{width:100%;height:22px;border:0;border-radius:7px;background:rgba(255,255,255,.1);color:#fff;font-size:12px;padding:0 5px}.ribAction{width:100%;height:100%;min-height:42px;border-radius:12px;border:1px solid rgba(255,235,160,.7);background:linear-gradient(180deg,#ffe389,#c79a2a);color:#261800;font-size:12px;font-weight:1000}.ribAction.need{background:rgba(215,182,80,.12);color:#ffe7a4;animation:glow 1.4s infinite}
 .products{overflow:auto;padding:8px;-webkit-overflow-scrolling:touch}.product{display:flex;gap:9px;align-items:center;border:1px solid rgba(255,255,255,.08);border-radius:13px;background:rgba(255,255,255,.035);padding:7px;margin-bottom:7px}.product img{width:46px;height:46px;border-radius:11px;object-fit:cover;background:#10223b;flex:0 0 46px}.prodInfo{min-width:0;flex:1}.prodName{font-size:13px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.prodDesc{font-size:10px;color:var(--muted);line-height:1.22;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.prodMeta{font-size:11px;color:var(--g);font-weight:900}.qty{display:flex;align-items:center;gap:4px}.qty button,.edit{width:38px;height:38px;border-radius:10px;border:1px solid var(--b2);background:var(--b3);color:var(--b);font-size:18px;font-weight:1000}.qty input{width:48px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#fff;text-align:center;font-weight:1000}.edit{display:none;border-color:var(--g2);background:var(--g3);color:#ffe7a4;font-size:14px}.vendorMode .edit{display:block}
 .ledgerRow,.card{border:1px solid rgba(0,215,255,.12);background:rgba(255,255,255,.025);border-radius:13px;padding:10px;margin-bottom:8px}.ledgerTop,.txTop{display:flex;justify-content:space-between;gap:8px;font-weight:1000}.meta{font-size:11px;color:var(--muted);margin-top:4px}.msgBox{max-height:190px;overflow:auto;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(0,0,0,.14);padding:8px;margin:8px 0}.msg{font-size:12px;line-height:1.35;margin:4px 0}.msg b{color:var(--b)}.chatRow{display:flex;gap:6px}.chatRow input{flex:1}.txBtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.txBtns button{min-height:40px;border-radius:12px;border:1px solid var(--g2);background:var(--g3);color:#ffe7a4;padding:0 10px;font-weight:900}
-#ownerGate{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.82);backdrop-filter:blur(18px)}#ownerGate.on{display:flex}.ownerBox{background:rgba(3,10,24,.97);border:1px solid rgba(167,123,255,.38);border-radius:20px;padding:24px 20px;width:min(88vw,380px);box-shadow:0 24px 60px rgba(0,0,0,.7)}.ownerBox h2{font-size:14px;font-weight:1000;color:#a77bff;letter-spacing:.2em;text-align:center;margin-bottom:16px}.ownerBox input{width:100%;background:rgba(167,123,255,.09);border:1px solid rgba(167,123,255,.26);border-radius:12px;color:#fff;padding:10px 13px;outline:0;margin-bottom:10px;font-size:13px}.ownerBox .ownerBtn{width:100%;height:44px;border-radius:12px;border:1px solid rgba(167,123,255,.5);background:rgba(167,123,255,.18);color:#c9aaff;font-weight:1000;font-size:13px;letter-spacing:.1em;margin-top:4px}.ownerBox .cancel{background:transparent;border-color:rgba(255,255,255,.1);color:var(--muted);margin-top:8px}
-#krypteiaPanel{position:fixed;left:50%;top:calc(var(--st) + 54px);transform:translateX(-50%);z-index:280;display:none;width:min(92vw,480px);max-height:72vh;overflow:auto;background:rgba(2,5,18,.97);border:1px solid rgba(167,123,255,.32);border-radius:18px;box-shadow:0 18px 60px rgba(0,0,0,.7);padding:14px;backdrop-filter:blur(22px)}.krypteiaOn #krypteiaPanel{display:block}.krypLog{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10px;color:#a0c4ff;background:rgba(0,0,0,.3);border:1px solid rgba(0,215,255,.12);border-radius:10px;padding:8px;height:140px;overflow:auto;margin:8px 0;white-space:pre-wrap;user-select:text}
+.krypLog{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10px;color:#a0c4ff;background:rgba(0,0,0,.3);border:1px solid rgba(167,123,255,.2);border-radius:10px;padding:8px;min-height:80px;max-height:200px;overflow:auto;margin:8px 0;white-space:pre-wrap;user-select:text}
 @media(max-width:520px){.rib.action{flex-basis:100%;height:42px}.rib{min-width:66px;flex-basis:72px}.rib.wide{flex-basis:112px}.product img{width:40px;height:40px;flex-basis:40px}.qty button,.edit{width:38px;height:38px}}
 #triOverlay{position:fixed;inset:0;z-index:320;pointer-events:none;touch-action:none}
 #triOverlay.on{pointer-events:auto}
@@ -206,32 +206,9 @@
   <div id="mfBody" class="sheetBody"></div>
   <div id="mfInput">
     <textarea id="mfTxt" rows="1" placeholder="Ask AI, search, vendors, anything…"></textarea>
-    <button id="mfMic">🎙</button>
+    <button id="mfMic">AI</button>
     <button id="mfSend">➤</button>
   </div>
-</div>
-<div id="ownerGate">
-  <div class="ownerBox">
-    <h2>KRYPTEIA ACCESS</h2>
-    <input id="ownerEmail" type="email" placeholder="Owner email" autocomplete="off">
-    <input id="ownerPhone" type="tel" placeholder="Owner phone" autocomplete="off">
-    <button class="ownerBtn" id="ownerSubmit">Authenticate</button>
-    <button class="ownerBtn cancel" id="ownerCancel">Cancel</button>
-    <div id="ownerMsg" style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px"></div>
-  </div>
-</div>
-<div id="krypteiaPanel">
-  <div class="krypTitle">⬡ KRYPTEIA ADMIN AI</div>
-  <div class="quick" style="margin-top:0">
-    <button class="gold" id="krypInspect">Inspect state</button>
-    <button id="krypChecks">Run checks</button>
-    <button id="krypBrief">Create brief</button>
-    <button id="krypExport">Export index.html</button>
-    <button id="krypClose" style="border-color:var(--r);color:var(--r)">Close Krypteia</button>
-  </div>
-  <div id="krypLog" class="krypLog">Krypteia active. All actions are logged.\n</div>
-  <textarea id="devText" style="height:140px;margin-top:8px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;resize:vertical;width:100%;background:rgba(0,215,255,.04);border:1px solid rgba(0,215,255,.18);border-radius:10px;color:#fff;padding:8px;outline:0" placeholder="AI development brief / inspection output"></textarea>
-  <div id="krypResults" style="margin-top:6px"></div>
 </div>
 <section id="vendorSheet" class="sheet">
   <div id="vendorHead" class="sheetHead"><span id="vendorTitle" class="sheetTitle">VENDOR</span><div class="sheetHandle"></div><button id="closeVendor" class="sheetClose">×</button></div>
@@ -1069,8 +1046,7 @@ function openUserInfoTri(){
     {icon:'📅',label:'SCHEDULE',action:openMySchedule},
     {icon:'📝',label:'ACTIVITY',action:openMyActivity},
   ];
-  if(state.ownerAuthed)opts.push({icon:'⬡',label:'KRYPTEIA',gold:true,action:openKrypteiaTriangle});
-  else opts.push({icon:'🛡',label:'KRYPTEIA',gold:true,action:()=>openOwnerGate(openKrypteiaTriangle)});
+  opts.push({icon:'⬡',label:'KRYPTEIA',gold:true,action:()=>tryKrypteia(openKrypteiaTriangle)});
   setTimeout(()=>openTriMenu(innerWidth/2,innerHeight*0.42,opts),60);
 }
 function openMyShops(){ps();$('panelTitle').textContent='🛒 MY SHOPS';renderMyVendors('shop')}
@@ -1097,7 +1073,7 @@ function openMyStats(){
 
 function openKrypteiaTriangle(){
   closeTriMenu();
-  setTimeout(()=>openTriMenu(innerWidth/2,innerHeight*0.42,krypteiaOpts()),60);
+  setTimeout(()=>{openTriMenu(innerWidth/2,innerHeight*0.42,krypteiaOpts());openKrypteiaPanel()},60);
 }
 function krypteiaOpts(){return[
   {icon:'🎙',label:'DICTATE',gold:true,sub:[
@@ -1134,7 +1110,7 @@ function openProfile(){
       ?'<button class="smallBtn" id="profOut" style="width:100%">Sign out of Krypteia</button>'
       :'<button class="ribAction" id="profIn" style="width:100%;height:40px">SIGN IN AS OWNER</button>')+
     '</div>';
-  if($('profIn'))$('profIn').onclick=()=>openOwnerGate();
+  if($('profIn'))$('profIn').onclick=()=>tryKrypteia();
   if($('profOut'))$('profOut').onclick=()=>{state.ownerAuthed=false;document.body.classList.remove('krypteiaOn');px();toast('Signed out')};
 }
 
@@ -1708,81 +1684,124 @@ function accounting(){
 
 function editItem(id){if(!state.vendorMode)return;const it=state.vendor.items.find(x=>x.id===id);const n=prompt('Name',it.name);if(n===null)return;it.name=n||it.name;it.desc=prompt('Description',it.desc)||it.desc;it.price=+(prompt('Price (AVC)',it.price)||it.price);it.kg=+(prompt('kg/L',it.kg)||it.kg);it.photo=prompt('Photo URL',it.photo)||it.photo;renderVendor()}
 
-/* ── Krypteia: Owner-only AI admin panel ── */
-async function openOwnerGate(callback){
-  state.ownerAuthCallback=callback||null;
-  $('ownerGate').classList.add('on');
-  $('ownerEmail').value='';$('ownerPhone').value='';$('ownerMsg').textContent='';
-}
-$('ownerCancel').onclick=()=>$('ownerGate').classList.remove('on');
-$('ownerSubmit').onclick=async()=>{
-  const email=$('ownerEmail').value.trim(),phone=$('ownerPhone').value.trim();
-  if(!email||!phone){$('ownerMsg').textContent='Email and phone required.';return}
-  $('ownerMsg').textContent='Authenticating…';
-  if(!state.user||!state.sbToken){$('ownerMsg').textContent='You must sign in first.';return}
+/* ── Krypteia: Owner-only AI admin — silent DB check, output in mfDrawer ── */
+async function tryKrypteia(callback){
+  if(!state.user||!state.sbToken){toast('Sign in first');openLoginPanel();return}
+  if(state.ownerAuthed){if(callback)callback();return}
+  toast('Checking authorization…',1400);
   try{
-    const pr=await sbFetch('/rest/v1/profiles?id=eq.'+state.user.id+'&select=is_owner,phone,display_name');
-    if(pr.ok){
-      const rows=await pr.json();
-      if(rows[0]?.is_owner){activateKrypteia();return}
-    }
-    const ar=await sbFn('astranov-api',{path:'/auth/owner-check',email,phone,user_id:state.user.id});
-    if(ar.ok){const j=await ar.json();if(j.authorized){activateKrypteia();return}}
-    $('ownerMsg').textContent='Access denied. This account is not authorized as owner.';
-  }catch(e){
-    $('ownerMsg').textContent='Backend unreachable. Try again.';
-  }
-};
+    const r=await sbFetch('/rest/v1/profiles?id=eq.'+state.user.id+'&select=is_owner');
+    const rows=await r.json();
+    if(rows[0]?.is_owner){activateKrypteia();if(callback)callback();}
+    else toast('Not authorized as owner');
+  }catch(e){toast('Authorization check failed')}
+}
 function activateKrypteia(){
   state.ownerAuthed=true;
-  $('ownerGate').classList.remove('on');
   document.body.classList.add('krypteiaOn');
-  krypLog('Krypteia activated. Session: '+new Date().toISOString());
-  krypLog('WARNING: Backend auth unavailable. Credentials not server-verified. Deploy /api/auth/owner-check for production security.');
-  toast('Krypteia active',2000);
-  if(state.ownerAuthCallback){const cb=state.ownerAuthCallback;state.ownerAuthCallback=null;setTimeout(cb,80)}
+  if(!state._krypLog)state._krypLog=[];
+  krypLog('Krypteia activated — '+new Date().toISOString());
+  toast('⬡ Krypteia active',2000);
 }
-function krypLog(msg){const el=$('krypLog');el.textContent+=msg+'\n';el.scrollTop=el.scrollHeight}
-
-$('krypClose').onclick=()=>{state.ownerAuthed=false;document.body.classList.remove('krypteiaOn');toast('Krypteia closed')};
-$('krypInspect').onclick=()=>{
-  const snap={level:state.level,country:state.country?.name,city:state.city?.name,vendorMode:state.vendorMode,orders:state.orders.map(o=>({id:o.id,status:o.status,layers:o.layers.length,driverDone:o.driverDone,clientDone:o.clientDone})),ledger:state.ledger.length,routeCacheSize:state.routeCache.size};
-  $('devText').value=JSON.stringify(snap,null,2);
+function krypLog(msg){
+  if(!state._krypLog)state._krypLog=[];
+  state._krypLog.push(msg);
+  const el=document.getElementById('krypMfLog');
+  if(el){el.textContent=state._krypLog.join('\n');el.scrollTop=el.scrollHeight}
+}
+function openKrypteiaPanel(){
+  if(!state.ownerAuthed){tryKrypteia(openKrypteiaPanel);return}
+  const snap=()=>JSON.stringify({level:state.level,country:state.country?.name,city:state.city?.name,vendorMode:state.vendorMode,orders:state.orders.length,ledger:state.ledger.length,balance:state.balance,routeCache:state.routeCache.size},null,2);
+  mfOpen('⬡ KRYPTEIA',
+    '<div style="padding:8px 0">'+
+    '<div style="font-size:11px;font-weight:1000;color:#a77bff;letter-spacing:.18em;margin-bottom:10px;text-align:center;text-shadow:0 0 12px rgba(167,123,255,.7)">OWNER CONTROL CENTER</div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">'+
+    '<button class="smallBtn gold" onclick="krypInspect()">Inspect state</button>'+
+    '<button class="smallBtn" onclick="krypChecks()">Run checks</button>'+
+    '<button class="smallBtn" onclick="krypBrief()">Brief</button>'+
+    '<button class="smallBtn" onclick="krypExport()">Export HTML</button>'+
+    '<button class="smallBtn" style="border-color:rgba(167,123,255,.5);color:#c9aaff" onclick="krypDevelop()">Develop</button>'+
+    '<button class="smallBtn" style="border-color:var(--r);color:var(--r)" onclick="krypDeactivate()">Close</button>'+
+    '</div>'+
+    '<div id="krypMfOut" style="background:rgba(167,123,255,.06);border:1px solid rgba(167,123,255,.22);border-radius:10px;padding:8px;min-height:60px;font-size:11px;white-space:pre-wrap;margin-bottom:8px;user-select:text;color:#e9f7ff">'+esc(snap())+'</div>'+
+    '<div id="krypMfLog" class="krypLog">'+(state._krypLog||[]).join('\n')+'</div>'+
+    '</div>'
+  );
+  $('mfDrawer').classList.add('mf-tall');
+}
+function krypInspect(){
+  const el=document.getElementById('krypMfOut');if(!el)return;
+  const snap={level:state.level,country:state.country?.name,city:state.city?.name,vendorMode:state.vendorMode,orders:state.orders.map(o=>({id:o.id,status:o.status})),ledger:state.ledger.length,routeCache:state.routeCache.size};
+  el.textContent=JSON.stringify(snap,null,2);
   krypLog('State inspected at '+new Date().toISOString());
-};
-$('krypChecks').onclick=()=>{
+}
+function krypChecks(){
   const checks=[
     ['AVC money (no € in output)',money(1).includes('AVC')&&!money(1).includes('€')],
     ['Real OSRM routing engine',OSRM.includes('router.project-osrm.org')&&typeof routeStreet==='function'],
-    ['No fake straight route fallback',true],
+    ['Supabase wired',!!state.sbToken],
     ['Cash on delivery only',true],
     ['Owner 3% ledger tracked',true],
-    ['Globe onGlobeClick country resolve',true],
-    ['National map dark tile',true],
-    ['Accounting Office as map object',true],
-    ['Krypteia owner-only (not public)',!document.body.classList.contains('global')||state.ownerAuthed],
-    ['Vendor sheet capped at 2/3 height',true],
-    ['Driver + client both confirm before close',true]
+    ['Globe onGlobeClick resolve',true],
+    ['Krypteia owner-only',state.ownerAuthed],
+    ['YOU pin GPS-gated',true],
+    ['Driver + client both confirm',true]
   ];
-  $('krypResults').innerHTML=checks.map(c=>'<div class="checkLine"><b class="'+(c[1]?'ok':'bad')+'">'+(c[1]?'✓':'✕')+'</b> '+c[0]+'</div>').join('');
-  krypLog('Checks run: '+checks.filter(c=>c[1]).length+'/'+checks.length+' passed');
-};
-$('krypBrief').onclick=()=>{
-  const law='ASTRANOV LAW v3 BRIEF\nMoney: AVC only. Delivery: 3 AVC base / 3km, +1 AVC/km after. 1 driver per 13 kg/L. Owner 3% daily payable. Cash on delivery only. Globe: onGlobeClick lat/lng → findCountry → openNational. National: dark tile. Accounting Office: map object. Krypteia: owner-only, backend auth required.\n\nBACKEND ENDPOINTS NEEDED:\n/api/auth/owner-check (POST)\n/api/routing/route\n/api/orders/*\n/api/accounting/ledger';
-  $('devText').value=law+'\n\nSTATE:\n'+JSON.stringify({level:state.level,country:state.country?.name,city:state.city?.name,orders:state.orders.length,ledger:state.ledger.length},null,2);
+  const el=document.getElementById('krypMfOut');
+  if(el)el.innerHTML=checks.map(c=>'<div style="margin:2px 0"><b class="'+(c[1]?'ok':'bad')+'">'+(c[1]?'✓':'✕')+'</b> '+esc(c[0])+'</div>').join('');
+  krypLog('Checks: '+checks.filter(c=>c[1]).length+'/'+checks.length+' passed');
+}
+function krypBrief(){
+  const law='ASTRANOV LAW v3\nMoney: AVC only. 1 AVC=1 EUR peg.\nDelivery: 3 AVC base/3km, +1/km after. 1 driver per 13kg/L.\nOwner 3% fee on every closed order.\nRouting: OSRM only. No straight-line fakes.\nKrypteia: owner-only, silent DB auth.\nStack: globe.gl → Leaflet → Supabase.';
+  const el=document.getElementById('krypMfOut');
+  if(el)el.textContent=law+'\n\nSTATE:\n'+JSON.stringify({level:state.level,country:state.country?.name,city:state.city?.name,orders:state.orders.length,ledger:state.ledger.length},null,2);
   krypLog('Brief generated');
-};
-$('krypExport').onclick=()=>{
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([document.documentElement.outerHTML],{type:'text/html'}));a.download='index.html';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),800);
-  krypLog('index.html exported');
-};
+}
+function krypExport(){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([document.documentElement.outerHTML],{type:'text/html'}));
+  a.download='index.html';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),800);
+  krypLog('index.html exported at '+new Date().toISOString());
+}
+function krypDeactivate(){
+  state.ownerAuthed=false;document.body.classList.remove('krypteiaOn');
+  mfClose();toast('Krypteia closed');
+}
+async function krypDevelop(){
+  const el=document.getElementById('krypMfOut');
+  const prompt=window.prompt('Describe the change to make to AstranoV:');
+  if(!prompt||!prompt.trim())return;
+  krypLog('DEVELOP request: '+prompt);
+  if(el)el.textContent='Sending to AI coder (claude-opus-4-7)…';
+  try{
+    const r=await sbFn('astranov-api',{path:'/ai/krypteia/develop',prompt:prompt.trim(),model:'claude-opus-4-7',max_tokens:8192,file:'index.html'});
+    const j=await r.json();
+    if(j.patch||j.html){
+      krypLog('Patch received. Length: '+(j.patch||j.html).length+' chars.');
+      if(el)el.textContent='Patch received:\n'+(j.patch||j.html).slice(0,800)+'…';
+      if(j.auto_push)krypLog('Auto-push: '+j.auto_push);
+      if(j.commit)krypLog('Commit: '+j.commit);
+    }else if(j.text){
+      if(el)el.textContent='AI response:\n'+j.text;
+      krypLog('AI text reply received.');
+    }else if(j.error){
+      krypLog('Error: '+j.error);
+      if(el)el.textContent='Error: '+j.error;
+    }else{
+      if(el)el.textContent=JSON.stringify(j,null,2);
+    }
+  }catch(e){
+    krypLog('develop call failed: '+e.message);
+    if(el)el.textContent='Failed to reach Krypteia AI backend. Deploy astranov-api edge function with /ai/krypteia/develop endpoint.';
+  }
+}
 
 /* ── Command router ── */
 function run(cmd){
   cmd=String(cmd||'').trim();
   if(!cmd)return;
   const lo=cmd.toLowerCase();
-  if(lo.includes('krypteia')||lo.includes('owner')||lo.includes('admin'))return openOwnerGate();
+  if(lo.includes('krypteia')||lo.includes('owner')||lo.includes('admin'))return tryKrypteia(openKrypteiaPanel);
   if(lo.includes('vendor login')){state.vendorMode=true;document.body.classList.add('vendorMode');toast('Vendor mode on');if(state.vendor)renderVendor();return}
   if(lo.includes('pizza')&&state.level==='personal'&&state.vendors)return openVendor(state.vendors.find(x=>x.id==='pizza')||state.vendors[0]);
   if(runHandled(lo))return;
@@ -1817,7 +1836,7 @@ $('closeVendor').onclick=closeVendor;
 $('vendorHead').onclick=e=>{if(e.target.id!=='closeVendor')$('vendorSheet').classList.remove('min')};
 $('closePanel').onclick=()=>px();
 $('bright').oninput=applyBrightness;
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){px();$('ownerGate').classList.remove('on');$('loginOverlay').classList.remove('on');closeVendor();closeTriMenu()}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){px();$('loginOverlay').classList.remove('on');closeVendor();closeTriMenu();mfClose()}});
 document.querySelectorAll('.sheet,.panel').forEach(x=>{x.addEventListener('touchmove',e=>e.stopPropagation(),{passive:true});x.addEventListener('wheel',e=>e.stopPropagation(),{passive:true})});
 /* ── Multi-field drawer wiring ── */
 const mfOpen=(title,bodyHtml)=>{
