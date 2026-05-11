@@ -941,11 +941,11 @@ function setUserHere(){
   }
 }
 
-/* ── AI via Supabase ai-router Edge Function with local fallback ── */
+/* ── AI — cloud router with intelligent local intelligence ── */
 async function aiAsk(text){
   const ctx={text,level:state.level,country:state.country?.name||null,city:state.city?.name||null,vendor:state.vendor?.name||null,ts:Date.now(),owner:state.ownerAuthed};
   try{
-    const ac=new AbortController();const tm=setTimeout(()=>ac.abort(),12000);
+    const ac=new AbortController();const tm=setTimeout(()=>ac.abort(),10000);
     const r=await sbFn('ai-router',ctx,ac.signal);
     clearTimeout(tm);
     if(r.ok){const j=await r.json();if(j&&typeof j==='object'&&(j.text||j.action))return j}
@@ -954,23 +954,42 @@ async function aiAsk(text){
 }
 function localAI(text){
   const lo=text.toLowerCase().trim();
-  if(!lo)return{text:'Say or type something — I\'ll help navigate, find vendors, or answer questions.'};
-  if(lo.includes('hello')||lo.includes('hi')||lo.includes('hey'))return{text:'Hello! I\'m your AstranoV AI. I can navigate the globe, find vendors, open circles, manage orders, and more. What do you need?'};
-  if(lo.includes('vendor')||lo.includes('shop')||lo.includes('store')){
-    const vs=(state.vendors||[]).slice(0,5).map(v=>v.emoji+' '+v.name).join(', ');
-    return{text:vs?'Nearby vendors: '+vs+'. Tap one on the map or say its name.':'No vendors loaded yet. Navigate to a city first.'};
+  if(!lo)return{text:'How can I help you?'};
+  /* greetings */
+  if(/^(hello|hi|hey|sup|yo)\b/.test(lo))return{text:'Hey! I\'m your AstranoV AI — built into the app. I can navigate the globe, find nearby vendors, open chat circles, check your balance, manage orders, and more. What do you need?'};
+  /* vendor / shop search */
+  if(lo.includes('vendor')||lo.includes('shop')||lo.includes('store')||lo.includes('restaurant')||lo.includes('food')||lo.includes('market')){
+    const vs=(state.vendors||[]).slice(0,6).map(v=>v.emoji+' '+v.name).join('\n');
+    if(vs)return{text:'Here are the vendors near you:\n'+vs+'\n\nTap any pin on the map to open their menu and place an order.'};
+    return{text:'No vendors are loaded yet. Navigate into a city first — tap a glowing beacon on the national map.'};
   }
-  if(lo.includes('balance')||lo.includes('money')||lo.includes('avc'))return{text:'Your balance is '+state.balance.toFixed(2)+' AVC. Tap the top-left button → recharge to add funds.',action:{type:'accounting'}};
-  if(lo.includes('circle')||lo.includes('chat')||lo.includes('message'))return{text:'Opening circles…',action:{type:'open_channel',channel:'local'}};
-  if(lo.includes('where')||lo.includes('location')||lo.includes('gps'))return{text:'Tap the top-left 👤 button to locate yourself on the map.'};
-  if(lo.includes('deliver')||lo.includes('order'))return{text:'Navigate to a city, tap a shop on the map, add items to cart, and place your order. Drivers are assigned automatically.'};
-  if(lo.includes('help')||lo.includes('what can'))return{text:'I can: navigate (say a country or city), find vendors, open chat circles, check balance, manage orders, and activate Krypteia. Just ask.'};
+  /* balance / money */
+  if(lo.includes('balance')||lo.includes('money')||lo.includes('wallet')||lo.includes('avc')||lo.includes('recharge'))return{text:'Your current balance is '+state.balance.toFixed(2)+' AVC (1 AVC = 1 EUR). Tap your 👤 button → Recharge to add funds.',action:{type:'accounting'}};
+  /* orders / delivery */
+  if(lo.includes('order')||lo.includes('deliver')||lo.includes('cart'))return{text:'To place an order: go to a city → tap a shop pin on the map → add items to cart → hit Order. Drivers are matched automatically and routes are calculated in real time.'};
+  /* navigation help */
+  if(lo.includes('where am i')||lo.includes('my location')||lo.includes('locate me')||lo.includes('gps'))return{text:'Tap your 👤 button in the top-left to GPS-locate yourself. Your YOU pin will appear on the map once location is confirmed.'};
+  /* circles / chat */
+  if(lo.includes('circle')||lo.includes('chat')||lo.includes('message')||lo.includes('community')){return{text:'Opening local channel…',action:{type:'open_channel',channel:'local'}}}
+  /* back / navigate */
+  if(lo==='back'||lo.startsWith('go back'))return{text:'Going back…',action:{type:'back'}};
+  /* help */
+  if(lo.includes('help')||lo.includes('what can you')||lo.includes('capabilities'))return{text:'I can:\n• Navigate — say any country or city name\n• Find vendors — "show shops near me"\n• Check balance — "my balance"\n• Open circles — "open chat"\n• Place orders — "order food"\n• Krypteia — owner-only admin panel\n\nJust speak or type naturally.'};
+  /* krypteia */
+  if(lo.includes('krypteia')||lo.includes('admin'))return{text:'Activating Krypteia…',action:{type:'krypteia'}};
+  /* country / city navigation */
   for(const c of countries){
-    if(lo.includes(c.name.toLowerCase())){const ct=c.cities[0];return{text:'Navigating to '+c.name+(ct?', opening '+ct.name:'')+'…',action:{type:'navigate',country:c.name}}}
-    const city=c.cities.find(x=>lo.includes(x.name.toLowerCase()));
-    if(city)return{text:'Taking you to '+city.name+'…',action:{type:'navigate',country:c.name,city:city.name}};
+    if(lo.includes(c.name.toLowerCase())){
+      const city=c.cities.find(x=>lo.includes(x.name.toLowerCase()));
+      if(city)return{text:'Taking you to '+city.name+', '+c.name+'.',action:{type:'navigate',country:c.name,city:city.name}};
+      return{text:'Opening '+c.name+' on the map.',action:{type:'navigate',country:c.name}};
+    }
   }
-  return{text:'I heard: "'+text+'". The AI cloud backend isn\'t connected yet — deploy the astranov-api Edge Function on Supabase to unlock full AI. Meanwhile I can navigate, find vendors, and manage your account.'};
+  /* weather / time — simple awareness */
+  if(lo.includes('time')||lo.includes('clock'))return{text:'Current time: '+new Date().toLocaleTimeString()+'. I\'m embedded in the app — for weather data, navigate to a city and check the local feed.'};
+  /* unknown — contextual response */
+  const ctx2=state.level==='global'?'You\'re currently on the global view.':state.level==='national'?'You\'re viewing '+state.country?.name+'.':'You\'re in '+state.city?.name+'.';
+  return{text:ctx2+'\n\nI didn\'t catch a specific command in "'+text+'". Try: a city name to navigate, "vendors" to find shops, "balance" to check funds, or "help" to see all commands.'};
 }
 
 function speak(text){
@@ -992,6 +1011,7 @@ function execAIAction(act){
     case 'back':goBack();break;
     case 'capture_video':if(act.channel)captureVideo(act.channel);break;
     case 'add_vendor':if(act.kind)openVendorForm(act.kind);break;
+    case 'krypteia':tryKrypteia(openKrypteiaPanel);break;
   }
 }
 
