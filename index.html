@@ -27,8 +27,7 @@
 .layer{position:fixed;inset:0;display:none}.layer.on{display:block}
 #stars{position:fixed;inset:0;pointer-events:none;background-image:radial-gradient(circle at 12% 18%,rgba(255,255,255,.55) 0 1px,transparent 1.2px),radial-gradient(circle at 78% 24%,rgba(255,255,255,.45) 0 1px,transparent 1.2px),radial-gradient(circle at 34% 71%,rgba(255,255,255,.45) 0 1px,transparent 1.2px),radial-gradient(circle at 88% 78%,rgba(255,255,255,.38) 0 1px,transparent 1.2px),radial-gradient(circle at 53% 42%,rgba(0,215,255,.28) 0 1px,transparent 1.2px)}
 #title{position:fixed;top:calc(var(--st) + 13px);left:50%;transform:translateX(-50%);z-index:90;font-weight:1000;letter-spacing:.32em;font-size:15px;color:var(--b);text-shadow:0 0 13px var(--b),0 0 34px rgba(0,160,255,.45);padding:10px 18px;border-radius:999px;cursor:pointer}
-#voice,#back{position:fixed;z-index:90;border-radius:50%;border:1px solid var(--b2);background:rgba(3,12,29,.65);color:var(--b);box-shadow:0 0 20px rgba(0,215,255,.16);backdrop-filter:blur(10px)}
-#voice{right:14px;bottom:calc(var(--sb) + 16px);width:48px;height:48px}#voice.live{color:var(--ok);border-color:var(--ok);box-shadow:0 0 32px rgba(0,240,138,.4)}
+#back{position:fixed;z-index:90;border-radius:50%;border:1px solid var(--b2);background:rgba(3,12,29,.65);color:var(--b);box-shadow:0 0 20px rgba(0,215,255,.16);backdrop-filter:blur(10px)}
 #back{left:14px;top:calc(var(--st) + 14px);display:none;width:44px;height:44px;font-size:26px}body:not(.global) #back,body.space #back{display:block}
 #globe{z-index:2}.global #globe,.space #globe{display:block}#globeHost{position:absolute;inset:0;overflow:hidden}.globe-gl{background:transparent!important}
 .countryBadge{position:absolute;transform:translate(-50%,-50%);width:42px;height:42px;border-radius:50%;pointer-events:auto;cursor:pointer;background:radial-gradient(circle,rgba(0,215,255,.22),rgba(0,215,255,.06) 55%,transparent 72%)}.countryBadge:before{content:"";position:absolute;left:14px;top:14px;width:14px;height:14px;border-radius:50%;background:var(--b);box-shadow:0 0 10px var(--b),0 0 30px rgba(0,216,255,.78)}.countryBadge.home:before{background:var(--g);box-shadow:0 0 12px var(--g),0 0 32px rgba(215,182,80,.75)}.countryBadge span{position:absolute;top:27px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:900;letter-spacing:.08em;color:#e9f7ff;text-shadow:0 0 8px #000,0 0 14px #000;white-space:nowrap}
@@ -46,12 +45,24 @@
 /* ── Sheet backdrop mask ── */
 #ubwMask{position:fixed;inset:0;z-index:174;display:none;background:rgba(0,0,0,.38);backdrop-filter:blur(2px)}
 #ubwMask.on{display:block}
-/* ── Persistent AI input pill ── */
-#aiPill{position:fixed;left:12px;right:72px;bottom:calc(var(--sb) + 10px);z-index:150;display:none;align-items:center;gap:10px;background:rgba(3,12,29,.88);border:1px solid rgba(0,215,255,.18);border-radius:999px;padding:8px 14px;backdrop-filter:blur(14px);box-shadow:0 4px 24px rgba(0,0,0,.5);cursor:text;transition:opacity .5s}
-body.national #aiPill,body.personal #aiPill{display:flex}
-#aiPill.hidden{display:none!important}
-#aiPill span{flex:1;font-size:11px;color:rgba(233,247,255,.38);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#aiPill .pilMic{width:32px;height:32px;border-radius:50%;border:1px solid var(--b2);background:var(--b3);color:var(--b);font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+/* ── Multi-field bottom drawer ── */
+#mfDrawer{position:fixed;left:0;right:0;bottom:0;z-index:175;background:rgba(3,12,29,.94);border-top:1px solid rgba(0,215,255,.18);border-radius:18px 18px 0 0;box-shadow:0 -6px 40px rgba(0,0,0,.7);backdrop-filter:blur(22px);display:flex;flex-direction:column;overflow:hidden;height:50px;transition:height .26s cubic-bezier(.25,.8,.25,1);touch-action:none}
+#mfDrawer.mf-panel{height:33vh}
+#mfDrawer.mf-tall{height:66vh}
+#mfDrawer.mf-full{height:90vh}
+#mfHandle{display:flex;align-items:center;padding:8px 14px 4px;flex-shrink:0;gap:8px;cursor:grab;min-height:36px}
+.mfBar{width:36px;height:3px;border-radius:999px;background:rgba(0,215,255,.28);margin:0 auto;flex-shrink:0}
+#mfTitle{flex:1;font-size:11px;font-weight:1000;letter-spacing:.1em;color:rgba(233,247,255,.5);text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#mfClose{width:28px;height:28px;border-radius:50%;border:1px solid rgba(255,255,255,.12);background:transparent;color:var(--muted);font-size:16px;line-height:1;flex-shrink:0;display:none}
+#mfDrawer.mf-panel #mfClose,#mfDrawer.mf-tall #mfClose,#mfDrawer.mf-full #mfClose{display:flex;align-items:center;justify-content:center}
+#mfBody{flex:1;overflow-y:auto;padding:0 14px;display:none}
+#mfDrawer.mf-panel #mfBody,#mfDrawer.mf-tall #mfBody,#mfDrawer.mf-full #mfBody{display:block}
+#mfInput{display:flex;align-items:center;gap:8px;padding:6px 12px 10px;flex-shrink:0}
+#mfTxt{flex:1;background:rgba(0,215,255,.07);border:1px solid rgba(0,215,255,.18);border-radius:999px;color:#fff;padding:9px 14px;outline:0;font-size:13px;resize:none;font-family:inherit;line-height:1.4;max-height:72px;min-height:36px;overflow-y:auto}
+#mfMic{width:36px;height:36px;border-radius:50%;border:1px solid var(--b2);background:var(--b3);color:var(--b);font-size:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+#mfMic.live{color:var(--ok);border-color:var(--ok);box-shadow:0 0 20px rgba(0,240,138,.3);animation:micPulse 1.2s ease-in-out infinite}
+@keyframes micPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+#mfSend{width:36px;height:36px;border-radius:50%;border:1px solid rgba(0,215,255,.3);background:rgba(0,215,255,.1);color:var(--b);font-size:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
 /* ── Sheet input row ── */
 .sheetInput{display:flex;gap:8px;padding:8px 12px 10px;border-top:1px solid rgba(0,215,255,.08);align-items:flex-end;flex-shrink:0}
 .sheetInput textarea{flex:1;background:rgba(0,215,255,.06);border:1px solid rgba(0,215,255,.18);border-radius:14px;color:#fff;padding:9px 13px;outline:0;font-size:12px;resize:none;min-height:36px;max-height:72px;overflow-y:auto;line-height:1.4}
@@ -96,19 +107,22 @@ body.national #aiPill,body.personal #aiPill{display:flex}
 .feedPost video,.feedPost img{width:100%;max-height:240px;object-fit:cover;border-radius:11px;margin-top:8px;background:#000}
 .feedEmpty{padding:24px 12px;text-align:center;color:var(--muted);font-size:12px}
 .aiBubble{padding:10px 12px;border-radius:14px;background:rgba(0,215,255,.07);border:1px solid rgba(0,215,255,.18);font-size:13px;line-height:1.4;margin:8px 0}
-/* ── Balance badge ── */
-#balBadge{position:fixed;right:14px;top:calc(var(--st) + 14px);z-index:91;display:flex;align-items:center;gap:5px;padding:7px 13px 7px 11px;border-radius:999px;border:1px solid rgba(215,182,80,.38);background:rgba(3,12,29,.88);color:var(--g);font-weight:1000;font-size:13px;box-shadow:0 0 20px rgba(215,182,80,.14);backdrop-filter:blur(12px);cursor:pointer;opacity:0;pointer-events:none;transition:opacity .5s}
-#balBadge.show{opacity:1;pointer-events:auto}
-#balBadge.pop{animation:balPop .45s cubic-bezier(.17,.67,.38,1.28)}
+/* ── User button (top-left) ── */
 @keyframes balPop{0%,100%{transform:scale(1)}45%{transform:scale(1.22)}}
-.balPlus{width:22px;height:22px;border-radius:50%;border:1px solid rgba(215,182,80,.5);background:rgba(215,182,80,.13);color:var(--g);font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;margin-left:2px;pointer-events:auto}
-/* ── User button (top-left, 13s reveal) ── */
-#userBtn{position:fixed;right:14px;top:calc(var(--st) + 14px);z-index:91;height:42px;min-width:42px;padding:0 14px;border-radius:999px;border:1px solid rgba(0,215,255,.32);background:rgba(3,12,29,.88);color:var(--b);font-size:15px;font-weight:1000;box-shadow:0 0 20px rgba(0,215,255,.12);backdrop-filter:blur(12px);cursor:pointer;opacity:1;pointer-events:auto;transition:opacity .5s,border-color .3s,color .3s;display:flex;align-items:center;justify-content:center;gap:7px;letter-spacing:.04em}
+#userBtn{position:fixed;left:14px;top:calc(var(--st) + 14px);z-index:91;height:42px;min-width:42px;padding:0 14px;border-radius:999px;border:1px solid rgba(0,215,255,.32);background:rgba(3,12,29,.88);color:var(--b);font-size:15px;font-weight:1000;box-shadow:0 0 20px rgba(0,215,255,.12);backdrop-filter:blur(12px);cursor:pointer;opacity:1;pointer-events:auto;transition:opacity .5s,border-color .3s,color .3s;display:flex;align-items:center;justify-content:center;gap:7px;letter-spacing:.04em}
 #userBtn .ub-ico{font-size:18px;line-height:1}
 #userBtn .ub-bal{font-size:12px;color:var(--g);font-weight:1000}
 #userBtn .ub-bal small{font-size:9px;opacity:.7;margin-left:2px}
 #userBtn.authed{border-color:rgba(0,240,138,.5);color:var(--ok);box-shadow:0 0 20px rgba(0,240,138,.15)}
 #userBtn.pop{animation:balPop .45s cubic-bezier(.17,.67,.38,1.28)}
+/* ── Radar button (top-right) ── */
+#radarBtn{position:fixed;right:14px;top:calc(var(--st) + 14px);z-index:91;width:54px;height:54px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+#radarBtn svg{width:54px;height:54px;position:absolute;top:0;left:0}
+#radarBtn .radar-center{position:relative;z-index:2;width:28px;height:28px;border-radius:50%;background:rgba(3,12,29,.92);border:1px solid rgba(0,215,255,.5);display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 0 14px rgba(0,215,255,.3)}
+.radar-sweep{transform-origin:27px 27px;animation:radarSpin 2.8s linear infinite}
+@keyframes radarSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+#radarBadge{position:absolute;top:-2px;right:-2px;min-width:16px;height:16px;border-radius:999px;background:var(--r);color:#fff;font-size:9px;font-weight:1000;display:flex;align-items:center;justify-content:center;padding:0 3px;display:none}
+#radarBadge.on{display:flex}
 /* ── Idle fade ── */
 .ui-faded{opacity:.18!important;transition:opacity 1.2s!important}
 /* ── Login overlay ── */
@@ -148,7 +162,6 @@ body.national #aiPill,body.personal #aiPill{display:flex}
 <div id="stars"></div>
 <div id="title">AstranoV</div>
 <button id="back">‹</button>
-<button id="voice">🎙</button>
 <div id="globe" class="layer on"><div id="globeHost"></div></div>
 <div id="national" class="layer"><div id="nationalMap"></div></div>
 <div id="personal" class="layer"><div id="cityMap"></div></div>
@@ -161,7 +174,32 @@ body.national #aiPill,body.personal #aiPill{display:flex}
 </div>
 <div id="triOverlay"></div>
 <div id="ubwMask"></div>
-<div id="aiPill"><span>Ask AI, search locations, vendors, anything…</span><button class="pilMic" id="pilMicBtn">🎙</button></div>
+<div id="radarBtn">
+  <svg viewBox="0 0 54 54" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="27" cy="27" r="24" stroke="rgba(0,215,255,0.15)" stroke-width="1"/>
+    <circle cx="27" cy="27" r="16" stroke="rgba(0,215,255,0.1)" stroke-width="1"/>
+    <circle cx="27" cy="27" r="8" stroke="rgba(0,215,255,0.15)" stroke-width="1"/>
+    <g class="radar-sweep">
+      <path d="M27 27 L27 3 A24 24 0 0 1 51 27 Z" fill="url(#rg)" opacity="0.6"/>
+      <defs><radialGradient id="rg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(27 27) scale(24)"><stop offset="0" stop-color="#00d7ff" stop-opacity="0.5"/><stop offset="1" stop-color="#00d7ff" stop-opacity="0"/></radialGradient></defs>
+    </g>
+  </svg>
+  <div class="radar-center" id="radarCenter">📡</div>
+  <div id="radarBadge">0</div>
+</div>
+<div id="mfDrawer">
+  <div id="mfHandle">
+    <div class="mfBar"></div>
+    <span id="mfTitle">Ask AI, search, command…</span>
+    <button id="mfClose">×</button>
+  </div>
+  <div id="mfBody" class="sheetBody"></div>
+  <div id="mfInput">
+    <textarea id="mfTxt" rows="1" placeholder="Ask AI, search, vendors, anything…"></textarea>
+    <button id="mfMic">🎙</button>
+    <button id="mfSend">➤</button>
+  </div>
+</div>
 <div id="ownerGate">
   <div class="ownerBox">
     <h2>KRYPTEIA ACCESS</h2>
@@ -193,10 +231,6 @@ body.national #aiPill,body.personal #aiPill{display:flex}
 <section id="panelSheet" class="sheet">
   <div class="sheetHead"><span id="panelTitle" class="sheetTitle">Panel</span><div class="sheetHandle"></div><button id="closePanel" class="sheetClose">×</button></div>
   <div id="panelBody" class="sheetBody"></div>
-  <div class="sheetInput" id="sheetInputRow" style="display:none">
-    <textarea id="aiTxt" rows="1" placeholder="Ask AI, search, or type a command…"></textarea>
-    <button id="aiSendBtn">➤</button>
-  </div>
 </section>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
 <script src="https://unpkg.com/globe.gl@2.33.1/dist/globe.gl.min.js" crossorigin></script>
@@ -309,11 +343,17 @@ function minimizeAll(){
   $('vendorSheet').classList.remove('on','min');
   $('loginOverlay').classList.remove('on');
   $('ubwMask').classList.remove('on');
-  $('aiPill').classList.remove('hidden');
   closeTriMenu();
 }
-function ps(){ps();$('ubwMask').classList.add('on');$('aiPill').classList.add('hidden')}
-function px(){px();$('ubwMask').classList.remove('on');$('aiPill').classList.remove('hidden')}
+function ps(){
+  $('panelSheet').classList.add('on');
+  $('ubwMask').classList.add('on');
+  $('mfDrawer').classList.remove('mf-panel','mf-tall','mf-full');
+}
+function px(){
+  $('panelSheet').classList.remove('on','tall');
+  $('ubwMask').classList.remove('on');
+}
 
 /* ── AVC Balance ── */
 function updateBalance(delta,animate=true){
@@ -1736,19 +1776,51 @@ $('ubwMask').onclick=()=>{px();$('vendorSheet').classList.remove('on','min')};
 $('bright').oninput=applyBrightness;
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){px();$('ownerGate').classList.remove('on');$('loginOverlay').classList.remove('on');closeVendor();closeTriMenu()}});
 document.querySelectorAll('.sheet,.panel').forEach(x=>{x.addEventListener('touchmove',e=>e.stopPropagation(),{passive:true});x.addEventListener('wheel',e=>e.stopPropagation(),{passive:true})});
-/* ── AI pill + sheet input ── */
-$('aiPill').onclick=()=>{$('sheetInputRow').style.display='flex';$('panelTitle').textContent='AstranoV AI';$('panelBody').innerHTML='<div class="meta" style="padding:12px 0 4px">Ask anything — search locations, vendors, get help…</div>';ps();setTimeout(()=>$('aiTxt').focus(),80)};
-$('pilMicBtn').onclick=(e)=>{e.stopPropagation();$('aiPill').click();voice()};
-const sendAI=()=>{const t=$('aiTxt')?.value?.trim();if(!t)return;$('aiTxt').value='';run(t)};
-$('aiSendBtn').onclick=sendAI;
-$('aiTxt').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendAI()}};
-$('aiTxt').oninput=e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,72)+'px'};
+/* ── Multi-field drawer wiring ── */
+const mfOpen=(title)=>{
+  $('mfTitle').textContent=title||'AstranoV AI';
+  $('mfDrawer').classList.add('mf-panel');
+  $('mfDrawer').classList.remove('mf-tall','mf-full');
+  $('ubwMask').classList.add('on');
+  setTimeout(()=>$('mfTxt').focus(),80);
+};
+const mfClose=()=>{
+  $('mfDrawer').classList.remove('mf-panel','mf-tall','mf-full');
+  $('ubwMask').classList.remove('on');
+};
+const mfTall=()=>{$('mfDrawer').classList.remove('mf-panel','mf-full');$('mfDrawer').classList.add('mf-tall');$('ubwMask').classList.add('on')};
+$('mfClose').onclick=mfClose;
+$('ubwMask').onclick=()=>{px();$('vendorSheet').classList.remove('on','min');mfClose()};
+const sendAI=()=>{const t=$('mfTxt')?.value?.trim();if(!t)return;$('mfTxt').value='';run(t)};
+$('mfSend').onclick=sendAI;
+$('mfTxt').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendAI()}};
+$('mfTxt').oninput=e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,72)+'px'};
+$('mfMic').onclick=toggleHandsFree;
+/* Tap on ribbon (collapsed state) → open */
+$('mfHandle').onclick=()=>{
+  if(!$('mfDrawer').classList.contains('mf-panel')&&!$('mfDrawer').classList.contains('mf-tall')&&!$('mfDrawer').classList.contains('mf-full'))mfOpen();
+};
+/* Drag handle to resize */
+let _mfDragY=null;
+$('mfHandle').addEventListener('touchstart',e=>{_mfDragY=e.touches[0].clientY},{passive:true});
+document.addEventListener('touchmove',e=>{
+  if(_mfDragY===null)return;
+  const dy=_mfDragY-e.touches[0].clientY;
+  const vh=innerHeight/100;
+  const mf=$('mfDrawer');
+  if(dy>40){mf.classList.remove('mf-panel');mf.classList.add('mf-tall')}
+  else if(dy<-40&&mf.classList.contains('mf-tall')){mf.classList.remove('mf-tall');mf.classList.add('mf-panel')}
+  else if(dy<-40&&mf.classList.contains('mf-panel')){mf.classList.remove('mf-panel');mfClose()}
+  if(Math.abs(dy)>80){_mfDragY=e.touches[0].clientY}
+},{passive:true});
+document.addEventListener('touchend',()=>{_mfDragY=null},{passive:true});
 /* vendorSheet: toggle mask when it opens/closes */
 new MutationObserver(()=>{
   const on=$('vendorSheet').classList.contains('on');
   $('ubwMask').classList.toggle('on',on);
-  $('aiPill').classList.toggle('hidden',on);
 }).observe($('vendorSheet'),{attributes:true,attributeFilter:['class']});
+/* At globe level: auto-start hands-free via mfDrawer tap, show hint */
+function onGlobeMfTap(){startHandsFree();$('mfTitle').textContent='🎙 Listening… speak a location or command';}
 $('loginOverlay').addEventListener('touchmove',e=>e.stopPropagation(),{passive:true});
 $('loginBox').addEventListener('touchmove',e=>e.stopPropagation(),{passive:true});
 $('loginOverlay').onclick=e=>{if(e.target===$('loginOverlay'))$('loginOverlay').classList.remove('on')};
