@@ -209,6 +209,17 @@ if(!sessionStorage.avR){sessionStorage.avR=1;window.location.reload(true)}
 const $=id=>document.getElementById(id);
 const TILE={dark:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',light:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'};
 const OSRM='https://router.project-osrm.org/route/v1/driving/';
+/* ── Supabase backend ── */
+const SB='https://kzlabcrlrpbnfiiyrjvl.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6bGFiY3JscnBibmZpaXlyanZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNjg3OTAsImV4cCI6MjA4OTc0NDc5MH0.TyshChfsIkc-k357FGME-8TnZn-zxeD74jL-GYRVlkg';
+async function sbFetch(path,opts={}){
+  const h={'apikey':SB_KEY,'Content-Type':'application/json',...(opts.headers||{})};
+  h['Authorization']='Bearer '+(state?.sbToken||SB_KEY);
+  return fetch(SB+path,{...opts,headers:h});
+}
+async function sbFn(fn,body,signal){
+  return fetch(SB+'/functions/v1/'+fn,{method:'POST',signal,headers:{'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'},body:JSON.stringify(body)});
+}
 
 const countries=[
   {id:'gr',name:'Greece',lat:39.0742,lng:21.8243,cities:[{id:'ath',name:'Athens',lat:37.9838,lng:23.7275,z:14},{id:'rho',name:'Rhodes',lat:36.4349,lng:28.2176,z:14},{id:'the',name:'Thessaloniki',lat:40.6401,lng:22.9444,z:13},{id:'pat',name:'Patras',lat:38.2466,lng:21.7346,z:13},{id:'her',name:'Heraklion',lat:35.3387,lng:25.1442,z:13}]},
@@ -230,7 +241,9 @@ const products=[
   {id:'p4',name:'Feta 200g',desc:'Traditional feta cheese',price:5.5,kg:.2,photo:'https://images.unsplash.com/photo-1559561853-08451507cbe7?auto=format&fit=crop&w=160&q=70'}
 ];
 
-const state={level:'global',country:countries[0],city:null,globe:null,nationalMap:null,nationalTile:null,cityMap:null,dark:null,light:null,vendors:[],drivers:[],markers:[],vendor:null,cart:{},destination:null,picking:false,selectedDriver:null,vendorMode:false,orders:[],ledger:[],messages:{},routeCache:new Map(),brightness:+(localStorage.astranovBrightness||35),ownerAuthed:false,user:null,balance:+(localStorage.astranovBalance||0),circles:{},customCircles:[],ownerAuthCallback:null,videoTiles:[]};
+const state={level:'global',country:countries[0],city:null,globe:null,nationalMap:null,nationalTile:null,cityMap:null,dark:null,light:null,vendors:[],drivers:[],markers:[],vendor:null,cart:{},destination:null,picking:false,selectedDriver:null,vendorMode:false,orders:[],ledger:[],messages:{},routeCache:new Map(),brightness:+(localStorage.astranovBrightness||35),ownerAuthed:false,user:null,sbToken:localStorage.astranovSbToken||null,balance:+(localStorage.astranovBalance||0),circles:{},customCircles:[],ownerAuthCallback:null,videoTiles:[]};
+/* Restore saved session */
+if(localStorage.astranovUser){try{state.user=JSON.parse(localStorage.astranovUser)}catch(e){}};
 
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function money(n){return ((+n||0).toFixed(2))+' AVC'}
@@ -340,8 +353,7 @@ function openRechargePanel(){
       if(!amt||amt<1){$('rchMsg').textContent='Enter a valid amount';return}
       $('rchMsg').textContent='Processing…';
       try{
-        const r=await fetch('/api/balance/recharge',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({amount:amt,token:state.user?.token||null}),signal:AbortSignal.timeout(8000)});
+        const r=await sbFn('astranov-api',{path:'/balance/recharge',amount:amt,user_id:state.user?.id},AbortSignal.timeout(8000));
         if(r.ok){const j=await r.json();updateBalance(j.credited||amt);px();toast('+'+(j.credited||amt)+' AVC credited!',3000);return}
         $('rchMsg').textContent='Payment gateway error. Try again.';
       }catch(e){
@@ -354,31 +366,32 @@ function openRechargePanel(){
 }
 
 /* ── User Login / Register ── */
+function _applySession(j,displayName,phone){
+  state.sbToken=j.access_token||j.token||null;
+  if(state.sbToken)localStorage.astranovSbToken=state.sbToken;
+  const u=j.user||j;
+  const name=u.user_metadata?.display_name||displayName||u.email?.split('@')[0]||phone||'User';
+  state.user={id:u.id,name,email:u.email||'',phone:phone||u.phone||''};
+  localStorage.astranovUser=JSON.stringify(state.user);
+  $('loginOverlay').classList.remove('on');
+  $('userBtn').classList.add('authed');$('userBtn').textContent='✓';
+  /* fetch balance from profiles */
+  sbFetch('/rest/v1/profiles?id=eq.'+u.id+'&select=balance,is_owner').then(r=>r.json()).then(rows=>{
+    if(rows[0]){state.balance=rows[0].balance||0;localStorage.astranovBalance=state.balance;$('balAmt').textContent=state.balance.toFixed(2);if(rows[0].is_owner)state.ownerAuthed=true}
+  }).catch(()=>{});
+  toast('Welcome, '+name+'!',3000);
+}
 async function doLogin(email,password,phone){
   const err=$('lErr');if(err)err.textContent='Signing in…';
   try{
-    const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({email:email||undefined,password:password||undefined,phone:phone||undefined}),
-      signal:AbortSignal.timeout(8000)});
-    if(r.ok){
-      const j=await r.json();
-      state.user={id:j.id,name:j.name||email||phone,email:j.email||email,phone:j.phone||phone,token:j.token||''};
-      state.balance=j.balance||state.balance;
-      $('balAmt').textContent=state.balance.toFixed(2);
-      localStorage.astranovUser=JSON.stringify(state.user);
-      localStorage.astranovBalance=state.balance;
-      $('loginOverlay').classList.remove('on');
-      $('userBtn').classList.add('authed');
-      $('userBtn').textContent='✓';
-      toast('Welcome, '+(j.name||'User')+'!',3000);
-      return;
-    }
+    const r=await sbFetch('/auth/v1/token?grant_type=password',{method:'POST',
+      body:JSON.stringify({email,password}),signal:AbortSignal.timeout(10000)});
+    if(r.ok){_applySession(await r.json(),null,phone);return}
     const j=await r.json().catch(()=>({}));
-    if(err)err.textContent=j.error||'Login failed. Check credentials.';
+    if(err)err.textContent=j.error_description||j.error||'Login failed.';
   }catch(e){
-    /* Backend not available — demo login */
     const name=email?email.split('@')[0]:phone||'Guest';
-    state.user={id:'demo-'+Date.now(),name,email:email||'',phone:phone||'',token:'demo'};
+    state.user={id:'demo-'+Date.now(),name,email:email||'',phone:phone||''};
     localStorage.astranovUser=JSON.stringify(state.user);
     $('loginOverlay').classList.remove('on');
     $('userBtn').classList.add('authed');$('userBtn').textContent='✓';
@@ -389,18 +402,19 @@ async function doRegister(name,email,phone,password){
   const err=$('lErr');if(err)err.textContent='Creating account…';
   if(!name||(!email&&!phone)||!password){if(err)err.textContent='Name, email or phone, and password are required';return}
   try{
-    const r=await fetch('/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({name,email,phone,password}),signal:AbortSignal.timeout(10000)});
-    if(r.ok){await doLogin(email,password,phone);return}
+    const r=await sbFetch('/auth/v1/signup',{method:'POST',
+      body:JSON.stringify({email,password,data:{display_name:name,phone}}),signal:AbortSignal.timeout(12000)});
+    if(r.ok){_applySession(await r.json(),name,phone);return}
     const j=await r.json().catch(()=>({}));
-    if(err)err.textContent=j.error||'Registration failed.';
+    if(err)err.textContent=j.error_description||j.error||'Registration failed.';
   }catch(e){await doLogin(email,password,phone)}
 }
 function doLogout(){
-  state.user=null;localStorage.removeItem('astranovUser');
+  state.user=null;state.sbToken=null;
+  localStorage.removeItem('astranovUser');localStorage.removeItem('astranovSbToken');
   $('userBtn').classList.remove('authed');$('userBtn').textContent='👤';
   $('loginOverlay').classList.remove('on');
-  fetch('/api/auth/logout',{method:'POST'}).catch(()=>{});
+  sbFetch('/auth/v1/logout',{method:'POST'}).catch(()=>{});
   toast('Signed out');
 }
 
@@ -472,8 +486,9 @@ async function openCircle(id){
   renderCircle(id);
   /* poll for new messages */
   try{
-    const r=await fetch('/api/chat/messages?circle='+encodeURIComponent(id)+'&since='+(c.since||0),{signal:AbortSignal.timeout(5000)});
-    if(r.ok){const j=await r.json();(j.messages||[]).forEach(m=>{if(!c.messages.find(x=>x.id===m.id))c.messages.push(m)});c.since=j.since||c.since;renderCircle(id)}
+    const since=c.since||0;
+    const r=await sbFetch('/rest/v1/circle_messages?circle_id=eq.'+encodeURIComponent(id)+'&ts=gt.'+since+'&order=ts.asc&limit=100',{signal:AbortSignal.timeout(5000)});
+    if(r.ok){const rows=await r.json();rows.forEach(m=>{if(!c.messages.find(x=>x.id===m.id)){c.messages.push({id:m.id,author:m.author,text:m.text,time:m.ts})}});if(rows.length)c.since=rows[rows.length-1].ts;renderCircle(id)}
   }catch(e){}
 }
 function renderCircle(id){
@@ -505,8 +520,9 @@ async function sendCircleMsg(id){
   state.circles[id].messages.push(msg);
   renderCircle(id);
   try{
-    await fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({circleId:id,text,token:state.user.token}),signal:AbortSignal.timeout(5000)});
+    await sbFetch('/rest/v1/circle_messages',{method:'POST',
+      headers:{'Prefer':'return=minimal'},
+      body:JSON.stringify({circle_id:id,author:state.user.name,text,ts:Date.now()}),signal:AbortSignal.timeout(5000)});
   }catch(e){}
 }
 function openCreateCircle(){
@@ -532,9 +548,10 @@ function openCreateCircle(){
     if(!state.user){openLoginPanel();return}
     const id='cus-'+Date.now();
     try{
-      const r=await fetch('/api/chat/circles',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({name,scope,type:circleType,token:state.user.token}),signal:AbortSignal.timeout(6000)});
-      if(r.ok){const j=await r.json();initCircle(j.id||id,name,scope,circleType);state.customCircles.push({id:j.id||id,name,scope,type:circleType});openCircle(j.id||id);return}
+      const r=await sbFetch('/rest/v1/circles',{method:'POST',
+        headers:{'Prefer':'return=representation'},
+        body:JSON.stringify({id,name,scope,type:circleType,owner_id:state.user.id}),signal:AbortSignal.timeout(6000)});
+      if(r.ok){const rows=await r.json();const cid=(rows[0]||{}).id||id;initCircle(cid,name,scope,circleType);state.customCircles.push({id:cid,name,scope,type:circleType});openCircle(cid);return}
     }catch(e){}
     /* demo fallback */
     initCircle(id,name,scope,circleType);
@@ -843,18 +860,15 @@ function setUserHere(){
   }
 }
 
-/* ── AI cycling backend + hands-free voice ── */
+/* ── AI via Supabase ai-router Edge Function ── */
 async function aiAsk(text){
-  const ctx={text,level:state.level,country:state.country?.name||null,city:state.city?.name||null,vendor:state.vendor?.name||null,ts:Date.now()};
-  const eps=['/api/ai/user','/api/ai/krypteia'];
-  for(const ep of eps){
-    try{
-      const ac=new AbortController();const tm=setTimeout(()=>ac.abort(),12000);
-      const r=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(ctx),signal:ac.signal});
-      clearTimeout(tm);
-      if(r.ok){const j=await r.json();if(j&&typeof j==='object')return j}
-    }catch(e){}
-  }
+  const ctx={text,level:state.level,country:state.country?.name||null,city:state.city?.name||null,vendor:state.vendor?.name||null,ts:Date.now(),owner:state.ownerAuthed};
+  try{
+    const ac=new AbortController();const tm=setTimeout(()=>ac.abort(),15000);
+    const r=await sbFn('ai-router',ctx,ac.signal);
+    clearTimeout(tm);
+    if(r.ok){const j=await r.json();if(j&&typeof j==='object')return j}
+  }catch(e){}
   return{error:'AI backend unavailable. Manual mode active.',text:''};
 }
 
@@ -1096,7 +1110,7 @@ function ipGuardOpen(scope){
     $('ipgRes').innerHTML='<em style="color:var(--muted)">Running deep scan…</em>';
     try{
       const ac=new AbortController();const tm=setTimeout(()=>ac.abort(),20000);
-      const r=await fetch('/api/krypteia/ip-guard',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope,brand:'AstranoV',architect:'Notis Astranov',queries}),signal:ac.signal});
+      const r=await sbFn('astranov-api',{path:'/krypteia/ip-guard',scope,brand:'AstranoV',architect:'Notis Astranov',queries},ac.signal);
       clearTimeout(tm);
       if(!r.ok)throw new Error('status '+r.status);
       const j=await r.json();const hits=j.hits||[];
@@ -1560,12 +1574,18 @@ $('ownerSubmit').onclick=async()=>{
   if(!email||!phone){$('ownerMsg').textContent='Email and phone required.';return}
   $('ownerMsg').textContent='Authenticating…';
   try{
-    const r=await fetch('/api/auth/owner-check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,phone}),signal:AbortSignal.timeout(6000)});
-    if(r.ok){const j=await r.json();if(j.authorized){activateKrypteia();return}}
+    const r=await sbFetch('/auth/v1/token?grant_type=password',{method:'POST',
+      body:JSON.stringify({email,password:''}),signal:AbortSignal.timeout(8000)});
+    /* Regardless of auth result, check profile is_owner via stored session */
+    const tok=state.sbToken||SB_KEY;
+    const pr=await fetch(SB+'/rest/v1/profiles?select=is_owner',{headers:{'apikey':SB_KEY,'Authorization':'Bearer '+tok}});
+    if(pr.ok){const rows=await pr.json();if(rows[0]?.is_owner){activateKrypteia();return}}
+    /* fallback: check email matches known owner pattern via astranov-api */
+    const ar=await sbFn('astranov-api',{path:'/auth/owner-check',email,phone});
+    if(ar.ok){const j=await ar.json();if(j.authorized){activateKrypteia();return}}
     $('ownerMsg').textContent='Access denied.';
   }catch(e){
-    /* Backend unavailable — demo gate: accept correct format only, log warning */
-    $('ownerMsg').textContent='Backend auth unavailable. Demo mode — credentials not verified. Krypteia active in unverified demo state.';
+    $('ownerMsg').textContent='Backend unreachable. Krypteia in unverified demo state.';
     setTimeout(()=>{activateKrypteia();},1800);
   }
 };
