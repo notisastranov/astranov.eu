@@ -1,0 +1,7 @@
+project_id = "kzlabcrlrpbnfiiyrjvl"
+
+[functions.ai-router]
+verify_jwt = false
+
+[functions.astranov-api]
+verify_jwt = false
