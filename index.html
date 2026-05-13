@@ -260,7 +260,7 @@ const products=[
   {id:'p4',name:'Feta 200g',desc:'Traditional feta cheese',price:5.5,kg:.2,photo:'https://images.unsplash.com/photo-1559561853-08451507cbe7?auto=format&fit=crop&w=160&q=70'}
 ];
 
-const state={level:'global',country:countries[0],city:null,globe:null,nationalMap:null,nationalTile:null,cityMap:null,dark:null,light:null,vendors:[],drivers:[],markers:[],vendor:null,cart:{},destination:null,picking:false,selectedDriver:null,vendorMode:false,orders:[],ledger:[],invoices:[],messages:{},routeCache:new Map(),brightness:+(localStorage.astranovBrightness||35),ownerAuthed:false,user:null,sbToken:localStorage.astranovSbToken||null,balance:+(localStorage.astranovBalance||0),circles:{},customCircles:[],ownerAuthCallback:null,videoTiles:[],geo:null,navHistory:[],navForward:[],_pickup:false};
+const state={level:'global',country:countries[0],city:null,globe:null,nationalMap:null,nationalTile:null,cityMap:null,dark:null,light:null,vendors:[],drivers:[],markers:[],vendor:null,cart:{},destination:null,picking:false,selectedDriver:null,vendorMode:false,orders:[],ledger:[],invoices:[],messages:{},routeCache:new Map(),brightness:+(localStorage.astranovBrightness||35),ownerAuthed:false,user:null,sbToken:localStorage.astranovSbToken||null,balance:+(localStorage.astranovBalance||0),circles:{},customCircles:[],ownerAuthCallback:null,videoTiles:[],geo:null,navHistory:[],navForward:[],_pickup:false,_conditions:{weather:false,night:false,weight:false,temp:false,liquid:false,vip:false,priority:false}};
 /* Restore saved session */
 if(localStorage.astranovUser){try{state.user=JSON.parse(localStorage.astranovUser)}catch(e){}};
 
@@ -1609,36 +1609,74 @@ function renderVendor(){
 function setQty(id,q,rer=true){state.cart[id]=q;if(q<=0)delete state.cart[id];if(rer)renderVendor();else renderRibbon()}
 function currentDest(){return state.destination||state.city}
 
+/* Auto-detect night condition */
+function _autoConditions(){
+  const h=new Date().getHours();
+  state._conditions.night=(h>=22||h<6);
+}
 function calc(){
+  _autoConditions();
   const items=state.vendor.items.map(it=>({it,q:state.cart[it.id]||0})).filter(x=>x.q>0);
   const basket=items.reduce((s,x)=>s+x.it.price*x.q,0);
-  /* Client pays: basket + 3% app fee */
+  /* Client-facing: basket + 3% app fee */
   const clientFee=+(basket*0.03).toFixed(2);
   const total=+(basket+clientFee).toFixed(2);
-  /* Vendor-side (internal): 30% delivery reserve + 3% app fee, net = remainder */
+  /* Vendor-side: 30% to delivery reserve, 3% app fee, remainder = net */
   const deliveryReserve=+(basket*0.30).toFixed(2);
   const vendorAppFee=+(basket*0.03).toFixed(2);
   const vendorNet=+(basket-deliveryReserve-vendorAppFee).toFixed(2);
+  /* Internal delivery engine: km + special conditions → driver cost */
+  const autoKg=items.reduce((s,x)=>s+x.it.kg*x.q,0);
+  const manualKg=+(document.getElementById('kg')?.value)||0;
+  const kg=manualKg>0?manualKg:autoKg;
   const mode=state.vendorMode?(document.getElementById('assign')?.value||'auto'):(state._pickup?'pickup':'delivery');
   const dest=currentDest();
-  return{items,basket,clientFee,total,deliveryReserve,vendorAppFee,vendorNet,mode,dest};
+  let dist=0,drivers=0,driverCost=0;
+  if(mode!=='pickup'&&dest){
+    dist=km(state.vendor.lat,state.vendor.lng,dest.lat,dest.lng);
+    const base=dist<=3?3:3+(dist-3);
+    drivers=Math.max(1,Math.ceil(Math.max(0.01,kg)/13));
+    const load=Math.max(0,drivers-1);
+    const cond=state._conditions;
+    const specials=[cond.weather,cond.night,cond.weight,cond.temp,cond.liquid,cond.vip,cond.priority].filter(Boolean).length;
+    driverCost=+((base+load)*(1+specials*0.13)).toFixed(2);
+  }
+  /* Reserve check: vendor must have enough accumulated reserve to cover driver cost */
+  const reserveBalance=+(state.vendor?.reserveBalance||0);
+  const reserveOk=mode==='pickup'||reserveBalance>=driverCost;
+  return{items,basket,clientFee,total,deliveryReserve,vendorAppFee,vendorNet,mode,dest,dist,drivers,kg,driverCost,reserveBalance,reserveOk};
 }
 
 function renderRibbon(){
   const c=state.vendor?calc():{items:[],basket:0,clientFee:0,total:0,deliveryReserve:0,vendorAppFee:0,vendorNet:0,mode:'delivery',dest:null};
   const has=c.items.length;
   if(state.vendorMode){
-    /* Vendor view: basket / reserves / fees / net — no km jargon */
-    $('ribbon').innerHTML='<div class="rib action"><button id="place" class="ribAction '+(has?'':'need')+'" '+(has?'':'disabled')+'>'+
-      (has?'CONFIRM ORDER':'↓ ADD ITEMS')+'</button></div>'+
+    /* Vendor view: financial summary + reserve + driver cost + special conditions */
+    const cond=state._conditions;
+    const condChips=[
+      ['weather','🌧','Weather'],['night','🌙','Night'],['weight','⚖️','Weight'],
+      ['temp','🧊','Temp'],['liquid','💧','Liquid'],['vip','⭐','VIP'],['priority','⚡','Priority']
+    ].map(([k,ico,lbl])=>'<button class="dayChip'+(cond[k]?' sel':'')+'" data-cond="'+k+'" title="'+lbl+'">'+ico+'</button>').join('');
+    const reserveWarn=!c.reserveOk?'<div style="background:rgba(255,85,119,.12);border:1px solid rgba(255,85,119,.4);border-radius:10px;padding:6px 10px;margin:4px 0;font-size:11px;color:var(--r)">⚠ Reserve insufficient ('+money(c.reserveBalance)+' / need '+money(c.driverCost)+'). <button class="smallBtn" style="border-color:var(--r);color:var(--r);height:28px;padding:0 8px;font-size:10px" onclick="topUpReserve()">Top Up</button></div>':'';
+    $('ribbon').innerHTML=
+      '<div class="rib action"><button id="place" class="ribAction '+(has&&c.reserveOk?'':'need')+'" '+(has&&c.reserveOk?'':'disabled')+'>'+
+        (has?(c.reserveOk?'CONFIRM ORDER':'RESERVE LOW'):'↓ ADD ITEMS')+'</button></div>'+
       '<div class="rib"><label>Basket</label><div class="val">'+money(c.basket)+'</div></div>'+
-      '<div class="rib"><label>Delivery Reserve</label><div class="val" style="color:var(--r)">−'+money(c.deliveryReserve)+'<span style="font-size:9px;opacity:.7"> 30%</span></div></div>'+
-      '<div class="rib"><label>App Fee</label><div class="val" style="color:var(--r)">−'+money(c.vendorAppFee)+'<span style="font-size:9px;opacity:.7"> 3%</span></div></div>'+
+      '<div class="rib"><label>Reserve 30%</label><div class="val" style="color:var(--r)">−'+money(c.deliveryReserve)+'</div></div>'+
+      '<div class="rib"><label>App Fee 3%</label><div class="val" style="color:var(--r)">−'+money(c.vendorAppFee)+'</div></div>'+
       '<div class="rib"><label>Net to You</label><div class="val" style="color:var(--ok)">'+money(c.vendorNet)+'</div></div>'+
       '<div class="rib"><label>Client Pays</label><div class="val" style="color:var(--b)">'+money(c.total)+'</div></div>'+
+      '<div class="rib"><label>Reserve Balance</label><div class="val" style="color:'+(c.reserveOk?'var(--ok)':'var(--r)')+'">'+money(c.reserveBalance)+'</div></div>'+
+      '<div class="rib"><label>Driver Cost</label><div class="val">'+money(c.driverCost)+'</div></div>'+
+      '<div class="rib"><label>Dist km</label><div class="val">'+c.dist.toFixed(1)+'</div></div>'+
+      '<div class="rib"><label>Kg/L</label><input id="kg" type="number" min="0" step="0.1" value="'+c.kg.toFixed(1)+'"></div>'+
+      '<div class="rib wide" style="flex-basis:100%"><label>Special Conditions</label><div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">'+condChips+'</div></div>'+
+      reserveWarn+
       '<div class="rib wide"><label>Assign</label><select id="assign"><option value="auto">Automatic</option><option value="choose">Choose driver</option><option value="pickup">Self-pickup</option></select></div>'+
       '<div class="rib wide"><label>Driver</label><select id="driver">'+state.drivers.map(d=>'<option value="'+d.id+'">'+d.emoji+' '+d.name+'</option>').join('')+'</select></div>';
+    $('ribbon').querySelectorAll('[data-cond]').forEach(b=>b.onclick=()=>{state._conditions[b.dataset.cond]=!state._conditions[b.dataset.cond];renderRibbon()});
     if($('assign')){$('assign').value=c.mode;$('assign').onchange=renderRibbon}
+    if($('kg'))$('kg').onchange=renderRibbon;
     if($('driver'))$('driver').onchange=e=>state.selectedDriver=state.drivers.find(d=>d.id===e.target.value);
   }else{
     /* Client view: final price only — no delivery breakdown, no reserve */
@@ -1679,17 +1717,32 @@ function driversNeeded(n){
   return chosen.slice(0,n);
 }
 
+function topUpReserve(){
+  const amt=+(prompt('Top up delivery reserve — enter amount in AVC (minimum 10):','50')||0);
+  if(amt<10){toast('Minimum top-up is 10 AVC');return}
+  if(!state.vendor)return;
+  state.vendor.reserveBalance=(state.vendor.reserveBalance||0)+amt;
+  /* Persist to Supabase if vendor is in DB */
+  sbFetch('/rest/v1/vendors?id=eq.'+state.vendor.id,{method:'PATCH',body:JSON.stringify({reserve_balance:state.vendor.reserveBalance}),headers:{'Prefer':'return=minimal'}}).catch(()=>{});
+  toast('Reserve topped up: '+money(state.vendor.reserveBalance),2500);
+  renderRibbon();
+}
+
 async function placeOrder(){
-  const c=calc();if(!c.items.length){toast('Add items first');return}
+  const c=calc();
+  if(!c.items.length){toast('Add items first');return}
+  if(!c.reserveOk){toast('Delivery reserve insufficient — top up to continue',3500);topUpReserve();return}
   const drivers=c.mode==='pickup'?[]:driversNeeded(c.drivers);
   if(drivers.length<c.drivers){toast('Not enough drivers nearby');return}
   if(c.drivers>1)toast(c.drivers+' drivers required for '+c.kg.toFixed(1)+' kg/L',3000);
   const order={id:'ORD-'+String(state.orders.length+1).padStart(3,'0'),vendor:state.vendor,calc:c,drivers,status:'routing',driverDone:false,clientDone:false,layers:[]};
+  /* Accumulate 30% of this sale into vendor reserve balance */
+  if(state.vendor){state.vendor.reserveBalance=+(( state.vendor.reserveBalance||0)+c.deliveryReserve).toFixed(2)}
   state.orders.push(order);
-  state.messages[order.id]=[{who:'System',text:'Cash order created. Calculating real street routes.'}];
+  state.messages[order.id]=[{who:'System',text:'Order created. Reserve credited +'+money(c.deliveryReserve)+'. Calculating routes.'}];
   openTransaction(order);closeVendor();
   await drawOrder(order);
-  if(order.status!=='routing_failed'){order.status='active';state.messages[order.id].push({who:'System',text:'Street route live. Driver and client must both confirm completion.'})}
+  if(order.status!=='routing_failed'){order.status='active';state.messages[order.id].push({who:'System',text:'Street route live. Driver ('+money(c.driverCost)+') and client must both confirm completion.'})}
   openTransaction(order);ledgerFor(order);
 }
 
@@ -1783,9 +1836,15 @@ function openTransaction(o){
 function maybeClose(o){
   if(o.driverDone&&o.clientDone&&o.status!=='closed'){
     o.status='closed';removeLayers(o);
+    const dc=+(o.calc?.driverCost||0);
+    if(dc>0&&o.vendor){
+      o.vendor.reserveBalance=+((o.vendor.reserveBalance||0)-dc).toFixed(2);
+      sbFetch('/rest/v1/vendors?id=eq.'+o.vendor.id,{method:'PATCH',body:JSON.stringify({reserve_balance:o.vendor.reserveBalance}),headers:{'Prefer':'return=minimal'}}).catch(()=>{});
+    }
     toast('Order '+o.id+' closed');
     issueInvoice(o).then(inv=>{
-      state.messages[o.id].push({who:'System',text:'Order closed. Invoice '+inv.mark+' issued.'});
+      const debitNote=dc>0?' Driver cost −'+money(dc)+' debited from reserve.':'';
+      state.messages[o.id].push({who:'System',text:'Order closed. Invoice '+inv.mark+' issued.'+debitNote});
       openTransaction(o);
     });
   }else{openTransaction(o)}
