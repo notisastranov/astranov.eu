@@ -37,7 +37,7 @@ async function callAnthropic(apiKey: string, text: string, context: string): Pro
         messages: [{ role: 'user', content: context + '\n\nUser says: ' + text }],
       }),
     })
-    if (!r.ok) { console.error('Anthropic error:', r.status, await r.text()); return null }
+    if (!r.ok) { console.error('Anthropic error:', r.status); return null }
     const j = await r.json()
     return j.content?.[0]?.text || null
   } catch (e) { console.error('Anthropic exception:', e); return null }
@@ -57,7 +57,7 @@ async function callGroq(apiKey: string, text: string, context: string): Promise<
         ],
       }),
     })
-    if (!r.ok) { console.error('Groq error:', r.status, await r.text()); return null }
+    if (!r.ok) { console.error('Groq error:', r.status); return null }
     const j = await r.json()
     return j.choices?.[0]?.message?.content || null
   } catch (e) { console.error('Groq exception:', e); return null }
@@ -77,7 +77,7 @@ async function callOpenAI(apiKey: string, text: string, context: string): Promis
         ],
       }),
     })
-    if (!r.ok) { console.error('OpenAI error:', r.status, await r.text()); return null }
+    if (!r.ok) { console.error('OpenAI error:', r.status); return null }
     const j = await r.json()
     return j.choices?.[0]?.message?.content || null
   } catch (e) { console.error('OpenAI exception:', e); return null }
@@ -110,7 +110,8 @@ serve(async (req) => {
     const GROQ_API_KEY = Deno.env.get('GROQ_API_KEY')
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
 
-    const context = `User is at: ${level} level${country ? ', country: ' + country : ''}${city ? ', city: ' + city : ''}${vendor ? ', browsing vendor: ' + vendor : ''}${owner ? ' [Owner/Admin]' : ''}.`
+    const clean = (s: unknown) => typeof s === 'string' ? s.replace(/[\n\r]/g, ' ').slice(0, 80) : ''
+    const context = `User is at: ${clean(level)} level${country ? ', country: ' + clean(country) : ''}${city ? ', city: ' + clean(city) : ''}${vendor ? ', browsing vendor: ' + clean(vendor) : ''}${owner ? ' [Owner/Admin]' : ''}.`
 
     let raw: string | null = null
 

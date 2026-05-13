@@ -1718,12 +1718,15 @@ function driversNeeded(n){
 }
 
 function topUpReserve(){
-  const amt=+(prompt('Top up delivery reserve — enter amount in AVC (minimum 10):','50')||0);
-  if(amt<10){toast('Minimum top-up is 10 AVC');return}
-  if(!state.vendor)return;
-  state.vendor.reserveBalance=(state.vendor.reserveBalance||0)+amt;
-  /* Persist to Supabase if vendor is in DB */
-  sbFetch('/rest/v1/vendors?id=eq.'+state.vendor.id,{method:'PATCH',body:JSON.stringify({reserve_balance:state.vendor.reserveBalance}),headers:{'Prefer':'return=minimal'}}).catch(()=>{});
+  if(!state.vendor){toast('No vendor selected');return}
+  if(state.user&&state.vendor.owner_id&&state.vendor.owner_id!==state.user.id&&!state.ownerAuthed){toast('Only the vendor owner can top up');return}
+  const raw=prompt('Top up delivery reserve — enter amount in AVC (minimum 10):','50');
+  if(raw===null)return;
+  const amt=parseFloat(raw);
+  if(isNaN(amt)||amt<10){toast('Minimum top-up is 10 AVC');return}
+  state.vendor.reserveBalance=+(((state.vendor.reserveBalance||0)+amt).toFixed(2));
+  state.ledger.push({ts:Date.now(),type:'RESERVE TOP-UP',vendor:state.vendor.name,amount:amt,balance:state.vendor.reserveBalance});
+  sbFetch('/rest/v1/vendors?id=eq.'+state.vendor.id,{method:'PATCH',body:JSON.stringify({reserve_balance:state.vendor.reserveBalance}),headers:{'Prefer':'return=minimal'}}).catch(e=>console.error('Reserve persist failed:',e));
   toast('Reserve topped up: '+money(state.vendor.reserveBalance),2500);
   renderRibbon();
 }
@@ -1824,7 +1827,7 @@ function openTransaction(o){
   ps();$('panelTitle').textContent=o.id+' · '+o.status.toUpperCase();
   const msg=(state.messages[o.id]||[]).map(m=>'<div class="msg"><b>'+esc(m.who)+':</b> '+esc(m.text)+'</div>').join('');
   $('panelBody').innerHTML='<div class="card"><div class="txTop"><span>'+esc(o.vendor.name)+'</span><b>'+money(o.calc.total)+' COD</b></div>'
-    +'<div class="meta">Drivers: '+(o.drivers.map(d=>d.name).join(', ')||'Self-pickup')+' · Delivery paid cash to driver(s). Owner fee: '+money(o.calc.fee)+'</div>'
+    +'<div class="meta">Drivers: '+(o.drivers.map(d=>d.name).join(', ')||'Self-pickup')+' · App fee: '+money((o.calc.clientFee||0)+(o.calc.vendorAppFee||0))+'</div>'
     +'<div class="txBtns"><button id="driverDone" '+(o.driverDone?'disabled':'')+'>Driver confirms delivered</button><button id="clientDone" '+(o.clientDone?'disabled':'')+'>Client confirms received</button></div></div>'
     +'<div class="msgBox">'+msg+'</div>'
     +'<div class="chatRow"><input id="chatIn" placeholder="Message client/vendor/driver"><button id="chatSend" class="smallBtn">Send</button></div>';
@@ -1837,14 +1840,23 @@ function maybeClose(o){
   if(o.driverDone&&o.clientDone&&o.status!=='closed'){
     o.status='closed';removeLayers(o);
     const dc=+(o.calc?.driverCost||0);
+    let debited=0;
     if(dc>0&&o.vendor){
-      o.vendor.reserveBalance=+((o.vendor.reserveBalance||0)-dc).toFixed(2);
-      sbFetch('/rest/v1/vendors?id=eq.'+o.vendor.id,{method:'PATCH',body:JSON.stringify({reserve_balance:o.vendor.reserveBalance}),headers:{'Prefer':'return=minimal'}}).catch(()=>{});
+      const cur=+(o.vendor.reserveBalance||0);
+      debited=Math.min(cur,dc);
+      o.vendor.reserveBalance=+((cur-debited).toFixed(2));
+      sbFetch('/rest/v1/vendors?id=eq.'+o.vendor.id,{method:'PATCH',body:JSON.stringify({reserve_balance:o.vendor.reserveBalance}),headers:{'Prefer':'return=minimal'}}).catch(e=>console.error('Reserve debit persist failed:',e));
+      state.ledger.push({ts:Date.now(),type:'DRIVER PAYOUT',vendor:o.vendor.name,order:o.id,amount:-debited,balance:o.vendor.reserveBalance});
+      if(debited<dc)state.messages[o.id].push({who:'System',text:'Warning: reserve insufficient by '+money(dc-debited)+'. Vendor must top up.'});
     }
     toast('Order '+o.id+' closed');
     issueInvoice(o).then(inv=>{
-      const debitNote=dc>0?' Driver cost −'+money(dc)+' debited from reserve.':'';
+      const debitNote=debited>0?' Driver cost −'+money(debited)+' debited from reserve.':'';
       state.messages[o.id].push({who:'System',text:'Order closed. Invoice '+inv.mark+' issued.'+debitNote});
+      openTransaction(o);
+    }).catch(e=>{
+      console.error('Invoice issue failed:',e);
+      state.messages[o.id].push({who:'System',text:'Order closed. Invoice pending sync.'});
       openTransaction(o);
     });
   }else{openTransaction(o)}
