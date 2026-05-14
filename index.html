@@ -14,12 +14,13 @@ html,body{width:100%;height:100%;background:#000;color:#fff;font-family:-apple-s
 #map-el{width:100%;height:100%;position:absolute;top:0;left:0;display:none}
 #toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.12);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.15);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;pointer-events:none;opacity:0;transition:opacity .3s;z-index:9999;white-space:nowrap}
 #back-btn{position:fixed;top:16px;left:80px;width:40px;height:40px;border-radius:50%;background:rgba(0,0,0,.55);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:20px;display:none;align-items:center;justify-content:center;cursor:pointer;z-index:200}
-/* Globe loading overlay */
-#globe-loading{position:fixed;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1;pointer-events:none;gap:14px}
-#globe-loading.done{display:none}
-.g-spin{width:36px;height:36px;border:2px solid rgba(255,255,255,.08);border-top-color:rgba(255,200,0,.65);border-radius:50%;animation:gspin 1s linear infinite}
-@keyframes gspin{to{transform:rotate(360deg)}}
-#globe-ltxt{font-size:12px;color:rgba(255,255,255,.35)}
+/* Splash screen */
+#splash{position:fixed;top:0;left:0;width:100%;height:100%;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:500;gap:20px;transition:opacity .7s ease}
+#splash.fade{opacity:0;pointer-events:none}
+#splash.done{display:none}
+#splash-name{font-size:24px;font-weight:200;letter-spacing:8px;color:rgba(255,255,255,.88);text-transform:uppercase}
+#splash-bar{width:110px;height:1px;background:rgba(255,255,255,.1);border-radius:1px;overflow:hidden}
+#splash-prog{height:100%;width:5%;background:#0a84ff;border-radius:1px;transition:width .35s ease}
 /* Drag handle shared */
 .wdh{font-size:13px;color:rgba(255,255,255,.2);cursor:move;touch-action:none;user-select:none;-webkit-user-select:none;line-height:1;align-self:stretch;display:flex;align-items:center;justify-content:center;padding:0 2px;border-radius:4px}
 .wdh:hover{color:rgba(255,255,255,.5)}
@@ -148,8 +149,7 @@ pre.mono{font-family:monospace;font-size:12px;color:rgba(255,255,255,.65);white-
 <div id="toast"></div>
 <div id="back-btn" onclick="goBack()">&#8592;</div>
 <div id="lvl-label"></div>
-<!-- Globe loading overlay -->
-<div id="globe-loading"><div class="g-spin"></div><div id="globe-ltxt">Loading…</div></div>
+<div id="splash"><div id="splash-name">ASTRANOV</div><div id="splash-bar"><div id="splash-prog"></div></div></div>
 <!-- Top-left wallet widget -->
 <div id="wallet-widget">
   <div class="wdh" title="Drag to move">&#8942;</div>
@@ -530,28 +530,48 @@ function clearMarkers() {
   S.markers = []
 }
 
-// ── GLOBE ──────────────────────────────────────────
-var _globeTries = 0
-function showGlobeFallback() {
-  var lo = document.getElementById('globe-loading')
-  if (!lo) return
-  lo.style.pointerEvents = 'auto'
-  lo.innerHTML = '<div style="font-size:16px;color:rgba(255,255,255,.7);margin-bottom:18px;letter-spacing:.5px">ASTRANOV</div>' +
-    '<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:300px;padding:0 20px">' +
-    COUNTRIES.slice(0,8).map(function(c) {
-      return '<button style="padding:9px 14px;border-radius:11px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;cursor:pointer;font-size:13px;font-family:inherit" onclick="openNational(' + JSON.stringify(c) + ')">' + esc(c.name) + '</button>'
-    }).join('') + '</div>'
+var _globeCdnWait = 0
+var _globeInitTries = 0
+
+function splashProg(pct) {
+  var el = document.getElementById('splash-prog')
+  if (el) el.style.width = Math.min(100, pct) + '%'
 }
 
+function splashDone() {
+  var s = document.getElementById('splash')
+  if (!s || s.classList.contains('done')) return
+  splashProg(100)
+  setTimeout(function() {
+    s.classList.add('fade')
+    setTimeout(function() { s.classList.add('done') }, 700)
+  }, 250)
+}
+
+function showGlobeFallback() {
+  splashDone()
+  var el = document.getElementById('globe-el')
+  if (el) {
+    el.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#000'
+    el.innerHTML = '<div style="font-size:22px;font-weight:200;letter-spacing:6px;color:rgba(255,255,255,.7)">ASTRANOV</div>' +
+      '<div style="font-size:12px;color:rgba(255,255,255,.35);margin-bottom:8px">Select a region</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:300px;padding:0 20px">' +
+      COUNTRIES.slice(0, 8).map(function(c) {
+        return '<button style="padding:8px 14px;border-radius:10px;background:rgba(10,132,255,.15);border:1px solid rgba(10,132,255,.3);color:#fff;cursor:pointer;font-size:13px;font-family:inherit" onclick="openNational(' + JSON.stringify(c.name) + ')">' + esc(c.name) + '</button>'
+      }).join('') + '</div>'
+  }
+}
+
+// ── GLOBE ──────────────────────────────────────────
 function initGlobe() {
   if (typeof Globe === 'undefined') {
-    _globeTries++
-    if (_globeTries > 40) { showGlobeFallback(); return }
+    _globeCdnWait++
+    if (_globeCdnWait > 60) { showGlobeFallback(); return }
+    splashProg(5 + _globeCdnWait * 1.2)
     setTimeout(initGlobe, 250)
     return
   }
   var el = document.getElementById('globe-el')
-  var lo = document.getElementById('globe-loading')
 
   function nearestCountry(lat, lng) {
     var best = null, bestD = Infinity
@@ -564,6 +584,7 @@ function initGlobe() {
 
   var g
   try {
+    splashProg(85)
     g = Globe()(el)
       .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
       .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
@@ -575,13 +596,14 @@ function initGlobe() {
         if (c) openNational(c)
       })
   } catch(e) {
-    console.error('Globe init failed:', e)
-    _globeTries++
-    if (_globeTries < 6) { setTimeout(initGlobe, 1000); return }
+    console.error('Globe init error:', e)
+    _globeInitTries++
+    if (_globeInitTries < 4) { setTimeout(initGlobe, 1200); return }
     showGlobeFallback()
     return
   }
-  if (lo) lo.classList.add('done')
+
+  splashDone()
 
   var arcs = []
   for (var i = 0; i < COUNTRIES.length; i++) {
@@ -621,6 +643,11 @@ function initGlobe() {
 
 // ── NATIONAL MAP ───────────────────────────────────
 function openNational(country) {
+  if (typeof country === 'string') {
+    var name = country
+    country = COUNTRIES.find(function(c) { return c.name === name }) || null
+  }
+  if (!country) return
   S.country = country
   setLevel('national')
   var el = document.getElementById('map-el')
