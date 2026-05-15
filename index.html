@@ -206,13 +206,13 @@ pre.mono{font-family:monospace;font-size:12px;color:rgba(255,255,255,.65);white-
 
   function flush() {
     var payload = { session: _sid, ua: navigator.userAgent.slice(0,120), ts: Date.now(), events: _log.slice() }
-    // Write to public storage bucket — readable by Claude via WebFetch with no auth
-    fetch(SBD + '/storage/v1/object/debug-pub/errors.json', {
+    // Edge function writes to public storage via service-role (bypasses all RLS)
+    fetch(SBD + '/functions/v1/debug-write', {
       method: 'POST',
-      headers: { 'apikey': KEY, 'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json', 'x-upsert': 'true' },
-      body: JSON.stringify(payload, null, 2)
+      headers: { 'apikey': KEY, 'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
     }).catch(function(){})
-    // Also write to analytics_events
+    // Fallback: also write to analytics_events
     fetch(SBD + '/rest/v1/analytics_events', {
       method: 'POST',
       headers: { 'apikey': KEY, 'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },

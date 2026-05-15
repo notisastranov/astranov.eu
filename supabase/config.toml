@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.debug-reader]
 verify_jwt = false
+
+[functions.debug-write]
+verify_jwt = false
