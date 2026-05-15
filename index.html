@@ -197,6 +197,32 @@ pre.mono{font-family:monospace;font-size:12px;color:rgba(255,255,255,.65);white-
 <script>
 'use strict'
 
+// ── REMOTE DEBUG ───────────────────────────────────
+;(function() {
+  var SBD = 'https://kzlabcrlrpbnfiiyrjvl.supabase.co'
+  var KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6bGFiY3JscnBibmZpaXlyanZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNjg3OTAsImV4cCI6MjA4OTc0NDc5MH0.TyshChfsIkc-k357FGME-8TnZn-zxeD74jL-GYRVlkg'
+  var _sid = Math.random().toString(36).slice(2, 8)
+  function dbg(type, data) {
+    fetch(SBD + '/rest/v1/analytics_events', {
+      method: 'POST',
+      headers: { 'apikey': KEY, 'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ type: 'debug_' + type, data: data, ts: Date.now(), session_id: _sid })
+    }).catch(function(){})
+  }
+  window.addEventListener('error', function(e) {
+    dbg('jserror', { msg: e.message, src: e.filename, line: e.lineno, col: e.colno })
+  })
+  window.addEventListener('unhandledrejection', function(e) {
+    dbg('promise', { msg: String(e.reason) })
+  })
+  var _oc = console.error.bind(console)
+  console.error = function() {
+    _oc.apply(console, arguments)
+    dbg('console_error', { msg: Array.from(arguments).map(String).join(' ') })
+  }
+  window._dbg = dbg
+})()
+
 // ── CONSTANTS ──────────────────────────────────────
 var SB = 'https://kzlabcrlrpbnfiiyrjvl.supabase.co'
 var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6bGFiY3JscnBibmZpaXlyanZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNjg3OTAsImV4cCI6MjA4OTc0NDc5MH0.TyshChfsIkc-k357FGME-8TnZn-zxeD74jL-GYRVlkg'
@@ -569,10 +595,15 @@ function showGlobeFallback() {
 function initGlobe() {
   if (typeof Globe === 'undefined') {
     _globeCdnWait++
-    if (_globeCdnWait > 12) { showGlobeFallback(); return }
+    if (_globeCdnWait === 1) window._dbg && _dbg('globe', { step: 'waiting_for_cdn', attempt: _globeCdnWait })
+    if (_globeCdnWait > 12) {
+      window._dbg && _dbg('globe', { step: 'cdn_timeout', attempts: _globeCdnWait })
+      showGlobeFallback(); return
+    }
     setTimeout(initGlobe, 250)
     return
   }
+  window._dbg && _dbg('globe', { step: 'cdn_loaded', Globe_type: typeof Globe })
   var el = document.getElementById('globe-el')
 
   function nearestCountry(lat, lng) {
@@ -586,19 +617,25 @@ function initGlobe() {
 
   var g
   try {
+    window._dbg && _dbg('globe', { step: 'constructor_start' })
     g = Globe()(el)
       .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
       .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
       .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
       .width(window.innerWidth)
       .height(window.innerHeight)
-      .onGlobeReady(function() { setTimeout(splashDone, 300) })
+      .onGlobeReady(function() {
+        window._dbg && _dbg('globe', { step: 'onGlobeReady_fired' })
+        setTimeout(splashDone, 300)
+      })
       .onGlobeClick(function(ev) {
         var c = nearestCountry(ev.lat, ev.lng)
         if (c) openNational(c)
       })
+    window._dbg && _dbg('globe', { step: 'constructor_done', has_onGlobeReady: typeof g.onGlobeReady })
   } catch(e) {
     console.error('Globe init error:', e)
+    window._dbg && _dbg('globe', { step: 'constructor_threw', error: e.message, stack: (e.stack||'').slice(0,300) })
     _globeInitTries++
     if (_globeInitTries < 4) { setTimeout(initGlobe, 1200); return }
     showGlobeFallback()
