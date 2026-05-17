@@ -10,76 +10,96 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     Internet Operating System. Globe-first collective reality interface.
     Frontend = THIS FILE only. Backend = Supabase (db + Edge Functions + Realtime).
 
-2.  STACK (frozen choices, do not reintroduce alternatives)
+2.  STACK (frozen)
     Maps      CesiumJS only. Leaflet, globe.gl, raw-Three banned.
-    Imagery   CartoDB Dark Matter primary; NASA Black Marble, Stadia, Esri, OSM
-              as auto-fallback. Photoreal 3D Tiles banned (too heavy).
-    Voice     Web Speech API.   Geo  Nominatim.   Routing  OSRM.
+    Voice     Web Speech API.  Geo  Nominatim.  Routing  OSRM.
     Backend   Supabase: auth, db, storage, realtime, Edge Functions (Deno).
 
-3.  ZERO UI LAW
-    The globe is always visible. CIC ring (#aicycle-float) is the ONLY always-
-    visible UI element. Everything else is transient: appears for a task,
-    auto-dismisses. No permanent menus, tab bars, or chrome.
-    All Cesium default widgets disabled in the Viewer constructor.
+3.  IMAGERY LAW — Reality First (binding, all zoom)
+    Globe tier (orbital → continental): only real Earth imagery. No procedural
+    textures beyond a transient load shimmer. Two layers mandatory, blended
+    along the real day/night terminator via Globe.enableLighting=true:
+      DAY    NASA Blue Marble Next Generation (BMNG) — public domain.
+      NIGHT  NASA Black Marble / Earth at Night — public domain.
+    Source via NASA GIBS WMTS (free, no key) or Cesium Ion (allowlisted).
 
-4.  NAVIGATION
+    City tier (regional → street): multiple real-cartography providers,
+    user-switchable via the right-HUD #layer-switch gadget. No procedural
+    city tiles. Order (lightweight, free first):
+      1. OpenStreetMap raster — default
+      2. CARTO Voyager / Positron / Dark Matter — free tier
+      3. Esri World Imagery — free non-commercial
+      4. Stadia Alidade Dark — free tier (key)
+      5. Protomaps (PMTiles) — when self-hosted
+      6. MapTiler — free tier (key)
+    Any module rendering map pixels at any zoom sources from this section.
+
+4.  GADGET LAW — Smart Gadgets Only (binding)
+    Every interactive element is a smart gadget. Definition (all five hold):
+      a. State-aware — visual form reflects current state, not only hover.
+      b. Feedback-rich — motion / telemetry / sound on input AND on bg change.
+      c. Context-bound — lives in a defined HUD zone; position is semantic.
+      d. Affordance beyond click — hold / voice / gesture / chain available.
+      e. Aesthetically native — rings, pulses, segmented bars, scopes, dials.
+    Forbidden: plain <button> with text-only, native <select> chrome, generic
+    OK/Cancel modals, hyperlink-style nav, stacked label-over-input forms,
+    any element labeled "Submit". OS verbs: EMIT, LOCK, ENGAGE, ACQUIRE,
+    TRANSMIT, BROADCAST. Translation table:
+      login         → identity orb (.gadget-orb) with live auth state.
+      post signal   → pulse emitter w/ intensity dial + reach indicator.
+      category pick → segmented HUD selector (.gadget-seg) w/ live counts.
+      layer toggle  → physical switch with active-state glow (#layer-switch).
+      locate me     → scope gadget (.gadget-scope) that acquires position.
+      modal confirm → engage gadget (.gadget-engage), never a flat button.
+
+5.  NAVIGATION
     One Cesium camera, three altitude bands:  GLOBAL >5,000 km · NATIONAL
     500–5,000 km · PERSONAL <500 km. Back button + level badge auto-fade.
 
-5.  AICYCLE — Collective Intelligence
-    Floating ring bottom-right. Tap = chat. Long-press = voice. Edge Function
-    /aicycle routes prompts. Owner cycle starts at Claude Opus; free cycle is
-    Groq → Gemini → GPT-4o-mini → xAI Grok. Returns {provider, label, via,
-    response}. Logged to aicycle_logs. Provider chips lock/unlock the cycle.
+6.  ZERO UI
+    Globe always visible. AICYCLE ring (#aicycle-float) is the ONLY always-
+    visible UI element. Everything else is transient.
 
-6.  MEMORY LAW
-    ai_memory.is_private = true → row NEVER reaches any AI. Only the owning
-    user can read or write their own ai_memory rows. RLS enforces this.
+7.  AICYCLE — Collective Intelligence
+    Edge Function /aicycle. Owner cycle starts at Claude Opus; free cycle is
+    Groq → Gemini → GPT-4o-mini → xAI Grok. Returns {response, provider,
+    via, label}. Logged to cic_logs. Provider chips lock/unlock the cycle.
 
-7.  SECURITY LAW
-    Secret keys (provider APIs, service role) live ONLY in Edge Function env.
-    Public client tokens (Supabase anon, allowlisted Cesium Ion) may live in
-    this file. is_owner column has client UPDATE revoked — only service role
-    can flip it. RLS enabled on every public table.
+8.  MEMORY LAW
+    ai_memory.is_private = true → row NEVER reaches any AI. RLS enforced.
 
-8.  KRYPTEIA — security only
-    Owner-only. PURPOSE: secret intelligence + IP defense.
-    Watch for stolen code/content, auto-report DMCA to providers. Detect
-    abuse: spam, auth flooding, exploits, harassment. Threat log lives in
-    security_events table. Krypteia is NOT a control panel — provider locks,
-    memory, AICYCLE log are surfaced elsewhere or accessed FROM Krypteia.
+9.  SECURITY LAW
+    Secrets live ONLY in Edge Function env. Public client tokens (Supabase
+    anon, allowlisted Cesium Ion) may live here. is_owner has client UPDATE
+    revoked. RLS on every public table.
 
-9.  CRAWLERS — automatic, no human button
-    pg_cron triggers /crawl every 30 min. Source kinds:
-      rss            → news, AICYCLE extracts location, Nominatim geocodes
-      osm_overpass   → vendors, landmarks, services, activities per region
-      wikipedia_geo  → landmark articles with extracts
-    Insert as source='crawler', author_id=null, with expiry. The map fills on
-    its own. Crawlers and AICYCLE together = the collective intelligence.
+10. KRYPTEIA — security only, owner-only
+    Watch for stolen code/content, auto-DMCA. Detect abuse: spam, auth
+    flooding, exploits, harassment. Threat log = security_events.
 
-10. MARKETPLACE
-    Deliveries: requester posts pickup+dropoff+description+AVC reward; runners
-    claim via accept_delivery RPC, advance through requested → accepted →
+11. CRAWLERS — automatic, no human button
+    pg_cron triggers /crawl every 30 min. rss, osm_overpass, wikipedia_geo.
+    Insert as source='crawler', author_id=null, with expiry.
+
+12. MARKETPLACE
+    Deliveries: requester posts pickup+dropoff+description+AVC reward;
+    runners claim via accept_delivery RPC; flow requested → accepted →
     in_transit → delivered (or cancelled). Discovery via nearby_deliveries.
-    AVC transfer on completion not yet implemented (needs avc_ledger).
 
-11. CALLING
+13. CALLING
     1:1 WebRTC. Signaling over Supabase Realtime channels:
       astranov:user:<uid>   inbox for invites
       astranov:call:<id>    per-call SDP + ICE
-    STUN: Google public. No TURN configured yet.
+    STUN: Google public. No TURN yet.
 
-12. JS SAFETY
-    Every CDN-dependent init wrapped in try-catch with graceful fallback.
-    Inline JS must pass `node --check` before every commit. Never use raw
-    single quotes inside template literals; use JSON.stringify() for dynamic
-    strings in onclick handlers.
+14. JS SAFETY
+    CDN-dependent init wrapped in try-catch. Inline JS must pass `node --check`
+    before commit. Never raw single quotes inside template literals; use
+    JSON.stringify() for dynamic onclick strings.
 
-13. EVOLUTION RULE
+15. EVOLUTION RULE
     This law strives shorter, more inclusive, more precise. If a rule can be
-    removed without weakening the constitution, remove it. If a rule is
-    implicit elsewhere, delete it here. Add only when truly novel.
+    removed without weakening the constitution, remove it.
 ================================================================================
 -->
 <html lang="en">
@@ -439,6 +459,279 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   .status-cancelled { background: rgba(160,160,160,0.15); color: #a0a0a0; }
 
   /* ============================================================
+     SMART GADGETS — Gadget Law §4
+     Vocabulary: orbs, rings, pulses, segmented bars, scopes, dials.
+     No plain buttons. No native <select>. No "Submit".
+     ============================================================ */
+
+  /* Identity orb — replaces the login form. Lives in the You panel.
+     Visual reflects auth state: idle / pending / signed-in / owner. */
+  .gadget-orb {
+    width: 96px; height: 96px; margin: 4px auto 14px;
+    position: relative; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, rgba(120,180,255,0.4), rgba(10,20,40,0.85) 70%);
+    border: 1.5px solid rgba(120,180,255,0.45);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: transform 0.2s, border-color 0.3s, background 0.3s;
+  }
+  .gadget-orb:hover { transform: scale(1.04); }
+  .gadget-orb::before {
+    content: ''; position: absolute; inset: -6px; border-radius: 50%;
+    border: 1px solid rgba(120,180,255,0.22);
+    animation: orb-halo 3.2s ease-in-out infinite;
+  }
+  @keyframes orb-halo {
+    0%,100% { transform: scale(1);    opacity: 0.4; }
+    50%     { transform: scale(1.08); opacity: 0.9; }
+  }
+  .gadget-orb.signed-in {
+    border-color: rgba(126,235,180,0.7);
+    background: radial-gradient(circle at 35% 30%, rgba(126,235,180,0.4), rgba(10,40,20,0.85) 70%);
+  }
+  .gadget-orb.signed-in::before { border-color: rgba(126,235,180,0.42); }
+  .gadget-orb.owner {
+    border-color: rgba(255,180,100,0.8);
+    background: radial-gradient(circle at 35% 30%, rgba(255,180,100,0.4), rgba(40,20,10,0.85) 70%);
+  }
+  .gadget-orb.owner::before { border-color: rgba(255,180,100,0.5); }
+  .gadget-orb.pending { animation: orb-pending 1.2s ease-in-out infinite; }
+  @keyframes orb-pending {
+    0%,100% { box-shadow: 0 0 0 0  rgba(120,180,255,0.55); }
+    50%     { box-shadow: 0 0 0 16px rgba(120,180,255,0);    }
+  }
+  .gadget-orb .glyph {
+    font-size: 26px; letter-spacing: 0.08em; color: #e6f1ff;
+    font-weight: 300; text-transform: uppercase;
+  }
+  .gadget-orb-readout {
+    text-align: center; font-size: 10px; letter-spacing: 0.25em;
+    color: #6a8aaf; text-transform: uppercase; margin-bottom: 12px;
+    font-family: 'SF Mono', monospace;
+  }
+
+  /* Command-line input — replaces label-over-input form rows */
+  .gadget-cmd-wrap { position: relative; margin-top: 10px; }
+  .gadget-cmd-wrap::before {
+    content: '›'; position: absolute; left: 12px; top: 50%;
+    transform: translateY(-50%); color: #7eb4ff; font-weight: 700;
+    pointer-events: none; font-size: 16px;
+  }
+  .gadget-cmd {
+    width: 100%; padding: 10px 12px 10px 28px;
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(120,180,255,0.25); border-radius: 10px;
+    font-family: 'SF Mono', 'Menlo', monospace; font-size: 13px;
+    color: #e6f1ff; outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .gadget-cmd:focus {
+    border-color: rgba(126,235,180,0.6);
+    box-shadow: 0 0 0 2px rgba(126,235,180,0.12);
+  }
+  textarea.gadget-cmd { min-height: 80px; resize: vertical; line-height: 1.45; }
+
+  /* Engage gadget — replaces "Submit". Sweeping shimmer; verb glyph. */
+  .gadget-engage {
+    width: 100%; margin-top: 12px; padding: 14px 16px;
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    background: linear-gradient(to right, rgba(120,180,255,0.06), rgba(120,180,255,0.18), rgba(120,180,255,0.06));
+    border: 1px solid rgba(120,180,255,0.4); border-radius: 999px;
+    color: #e6f1ff; font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase;
+    cursor: pointer; position: relative; overflow: hidden;
+    transition: border-color 0.2s, transform 0.15s, color 0.2s;
+    user-select: none;
+  }
+  .gadget-engage::before {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(to right, transparent, rgba(120,180,255,0.4), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.7s ease;
+  }
+  .gadget-engage:hover::before { transform: translateX(100%); }
+  .gadget-engage:active { transform: scale(0.98); }
+  .gadget-engage .verb-glyph {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #7eb4ff; box-shadow: 0 0 10px rgba(120,180,255,0.8);
+  }
+  .gadget-engage.armed {
+    border-color: rgba(126,235,180,0.75); color: #9ee0bd;
+    box-shadow: 0 0 22px rgba(126,235,180,0.3);
+  }
+  .gadget-engage.armed .verb-glyph {
+    background: #7eebb4; box-shadow: 0 0 14px rgba(126,235,180,0.9);
+    animation: verb-pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes verb-pulse {
+    0%,100% { transform: scale(1);   opacity: 1;   }
+    50%     { transform: scale(1.4); opacity: 0.7; }
+  }
+  .gadget-engage[disabled] {
+    opacity: 0.45; pointer-events: none; cursor: not-allowed;
+  }
+
+  /* Segmented HUD selector — replaces native <select>.
+     Each segment is state-aware (locks active) and shows live counts. */
+  .gadget-seg {
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+    gap: 2px; margin: 10px 0; padding: 3px;
+    background: rgba(0,0,0,0.45);
+    border: 1px solid rgba(120,180,255,0.18); border-radius: 12px;
+    overflow-x: auto; scrollbar-width: none;
+  }
+  .gadget-seg.wrap { grid-auto-flow: row; grid-template-columns: repeat(auto-fill, minmax(72px,1fr)); }
+  .gadget-seg::-webkit-scrollbar { display: none; }
+  .gadget-seg .seg {
+    padding: 7px 8px; text-align: center; cursor: pointer;
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: #6a8aaf; border-radius: 8px;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+    position: relative; min-width: 0;
+    border: 1px solid transparent;
+  }
+  .gadget-seg .seg:hover { color: #a8c8ee; background: rgba(120,180,255,0.06); }
+  .gadget-seg .seg.active {
+    background: rgba(120,180,255,0.22); color: #fff;
+    border-color: rgba(120,180,255,0.55);
+    box-shadow: inset 0 0 12px rgba(120,180,255,0.15), 0 0 8px rgba(120,180,255,0.2);
+  }
+  .gadget-seg .seg .count {
+    display: block; font-size: 9px; opacity: 0.6;
+    margin-top: 2px; font-variant-numeric: tabular-nums;
+    font-family: 'SF Mono', monospace;
+  }
+  .gadget-seg .seg.active .count { opacity: 0.9; color: #7eb4ff; }
+
+  /* Intensity dial — drag vertically to set amplitude.
+     Conic-gradient arc shows fill; live tabular number in centre. */
+  .gadget-dial-wrap {
+    display: flex; gap: 16px; align-items: center; margin: 14px 0 8px;
+  }
+  .gadget-dial {
+    width: 76px; height: 76px; position: relative; flex-shrink: 0;
+    cursor: ns-resize; user-select: none; touch-action: none;
+  }
+  .gadget-dial .track {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 2px solid rgba(120,180,255,0.18);
+    background: rgba(0,0,0,0.3);
+  }
+  .gadget-dial .arc {
+    position: absolute; inset: 0; border-radius: 50%;
+    background: conic-gradient(from -90deg, rgba(126,235,180,0.92) 0deg, rgba(126,235,180,0.92) calc(var(--pct,0) * 3.6deg), rgba(120,180,255,0.05) 0deg);
+    -webkit-mask: radial-gradient(circle at 50% 50%, transparent 28px, #000 29px, #000 36px, transparent 37px);
+            mask: radial-gradient(circle at 50% 50%, transparent 28px, #000 29px, #000 36px, transparent 37px);
+  }
+  .gadget-dial .value {
+    position: absolute; inset: 0; display: flex; align-items: center;
+    justify-content: center; font-size: 20px; font-weight: 300;
+    color: #e6f1ff; font-variant-numeric: tabular-nums; pointer-events: none;
+    font-family: 'SF Mono', monospace;
+  }
+  .gadget-dial-meta {
+    flex: 1; min-width: 0;
+  }
+  .gadget-dial-meta .label {
+    font-size: 10px; letter-spacing: 0.25em; color: #6a8aaf;
+    text-transform: uppercase; margin-bottom: 4px;
+  }
+  .gadget-reach {
+    height: 4px; background: rgba(120,180,255,0.12); border-radius: 4px;
+    position: relative; overflow: hidden; margin: 8px 0 4px;
+  }
+  .gadget-reach::after {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+    width: var(--pct, 30%);
+    background: linear-gradient(to right, rgba(120,180,255,0.45), rgba(126,235,180,0.85));
+    transition: width 0.2s;
+  }
+  .gadget-reach-label {
+    display: flex; justify-content: space-between;
+    font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: #6a8aaf; font-family: 'SF Mono', monospace;
+  }
+
+  /* Scope gadget — animated lock-on for locate / acquire actions */
+  .gadget-scope {
+    width: 110px; height: 110px; margin: 10px auto 6px; position: relative;
+    cursor: pointer;
+  }
+  .gadget-scope::before, .gadget-scope::after {
+    content: ''; position: absolute; inset: 0; border-radius: 50%;
+    border: 1px solid rgba(120,180,255,0.35);
+  }
+  .gadget-scope::after {
+    inset: 18px; border-style: dashed;
+    border-color: rgba(120,180,255,0.5);
+  }
+  .gadget-scope .ch-h, .gadget-scope .ch-v {
+    position: absolute; background: rgba(120,180,255,0.4);
+  }
+  .gadget-scope .ch-h { left: 4px; right: 4px; top: 50%; height: 1px; }
+  .gadget-scope .ch-v { top: 4px; bottom: 4px; left: 50%; width: 1px; }
+  .gadget-scope .pip {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 8px; height: 8px; background: #7eb4ff; border-radius: 50%;
+    box-shadow: 0 0 12px rgba(120,180,255,0.85);
+    transition: background 0.3s, box-shadow 0.3s;
+  }
+  .gadget-scope.acquiring::before {
+    animation: scope-ping 1.2s ease-out infinite;
+  }
+  @keyframes scope-ping {
+    0%   { transform: scale(0.55); opacity: 1;   border-color: rgba(120,180,255,0.9); }
+    100% { transform: scale(1);    opacity: 0;   border-color: rgba(120,180,255,0); }
+  }
+  .gadget-scope.locked::before, .gadget-scope.locked::after {
+    border-color: rgba(126,235,180,0.7);
+  }
+  .gadget-scope.locked .pip {
+    background: #7eebb4;
+    box-shadow: 0 0 14px rgba(126,235,180,0.95);
+  }
+  .gadget-scope-readout {
+    text-align: center; font-size: 10px; letter-spacing: 0.2em;
+    text-transform: uppercase; color: #a8c8ee;
+    margin-top: 6px; font-family: 'SF Mono', monospace;
+  }
+
+  /* Layer-switch gadget — physical-feeling switch for city-tier providers.
+     Appears top-right when below GLOBAL altitude. */
+  #layer-switch {
+    position: fixed;
+    top: calc(max(16px, env(safe-area-inset-top)) + 60px); right: 14px;
+    z-index: 36;
+    background: rgba(10,20,40,0.72); backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(120,180,255,0.22); border-radius: 14px;
+    padding: 5px;
+    display: none; flex-direction: column; gap: 3px;
+    min-width: 132px; opacity: 0; transition: opacity 0.3s;
+  }
+  #layer-switch.visible { display: flex; opacity: 1; }
+  #layer-switch .seg {
+    padding: 7px 10px; font-size: 10px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: #6a8aaf; cursor: pointer;
+    border-radius: 9px; transition: all 0.2s;
+    border: 1px solid transparent; user-select: none;
+    display: flex; align-items: center; gap: 8px;
+  }
+  #layer-switch .seg::before {
+    content: ''; width: 8px; height: 8px; border-radius: 50%;
+    border: 1px solid rgba(120,180,255,0.4); flex-shrink: 0;
+    transition: all 0.2s;
+  }
+  #layer-switch .seg:hover { color: #a8c8ee; background: rgba(120,180,255,0.06); }
+  #layer-switch .seg.active {
+    color: #fff; background: rgba(120,180,255,0.16);
+    border-color: rgba(120,180,255,0.45);
+    box-shadow: 0 0 14px rgba(120,180,255,0.22);
+  }
+  #layer-switch .seg.active::before {
+    background: #7eb4ff; border-color: #7eb4ff;
+    box-shadow: 0 0 8px rgba(120,180,255,0.9);
+  }
+
+  /* ============================================================
      Fallback / error
      ============================================================ */
   #fatal {
@@ -473,6 +766,8 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 <div id="level-badge">GLOBAL</div>
 <div id="imagery-source"></div>
 <div id="back-btn" aria-label="Back">←</div>
+<!-- Layer-switch gadget — city-tier provider switcher (Imagery Law §3) -->
+<div id="layer-switch" aria-label="Imagery provider"></div>
 <div id="tray-trigger"></div>
 <div id="tray">
   <button data-tab="feed">Feed</button>
@@ -593,8 +888,11 @@ async function bootCesium() {
       viewer.cesiumWidget.creditContainer.style.display = 'none';
     }
 
-    // Start the imagery cycle — falls through providers if any fails or hits quota.
-    startImageryCycle(0);
+    // IMAGERY LAW §3 — real imagery only:
+    //   globe-tier: NASA BMNG day + Black Marble night, blended by terminator.
+    //   city-tier:  user-selectable real-cartography providers via #layer-switch.
+    await bootImageryGlobeTier();
+    await setCityImagery(0);   // default OSM, hidden until below GLOBAL
 
     // Open camera at GLOBAL altitude over Europe (close to astranov.eu)
     viewer.camera.flyTo({
@@ -618,164 +916,132 @@ async function bootCesium() {
 }
 
 /* ==============================================================
-   1b. Imagery cycle — DARK FAST MAPS first.
-       Photoreal 3D Tiles dropped (too heavy). The cycle now leads with
-       CartoDB Dark Matter raster tiles for the Astranov dark aesthetic,
-       falls through to NASA Black Marble (city lights) and aerial layers
-       only if the primary chokes.
+   1b. Imagery — two tiers (Imagery Law §3)
+       Globe tier: NASA Blue Marble Next Generation (day) + VIIRS Black
+       Marble (night). Layered, blended by Cesium's day/night terminator
+       with Globe.enableLighting = true. Source: NASA GIBS WMTS (free, no key).
+       City tier: user-switchable real-cartography providers (#layer-switch).
    ============================================================== */
-const IMAGERY_CYCLE = [
-  {
-    id: 'carto-dark-matter',
-    label: 'DARK',
-    type: 'imagery',
-    init: async () => {
-      const provider = new Cesium.UrlTemplateImageryProvider({
-        url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-        subdomains: ['a', 'b', 'c', 'd'],
-        maximumLevel: 19,
-        credit: '© OpenStreetMap contributors · © CARTO',
-      });
-      viewer.scene.globe.show = true;
-      viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#05080d');
-      return viewer.imageryLayers.addImageryProvider(provider);
-    },
-    teardown: (layer) => {
-      try { viewer.imageryLayers.remove(layer, true); } catch (_) {}
-    },
-  },
-  {
-    id: 'nasa-black-marble',
-    label: 'NIGHTLIGHTS',
-    type: 'imagery',
-    init: async () => {
-      const provider = new Cesium.UrlTemplateImageryProvider({
-        url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_Black_Marble/default/2016-01-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png',
-        maximumLevel: 8,
-        credit: 'NASA GIBS · VIIRS Black Marble',
-      });
-      viewer.scene.globe.show = true;
-      viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#05080d');
-      return viewer.imageryLayers.addImageryProvider(provider);
-    },
-    teardown: (layer) => {
-      try { viewer.imageryLayers.remove(layer, true); } catch (_) {}
-    },
-  },
-  {
-    id: 'stadia-alidade-dark',
-    label: 'ALIDADE',
-    type: 'imagery',
-    init: async () => {
-      const provider = new Cesium.UrlTemplateImageryProvider({
-        url: 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png',
-        maximumLevel: 18,
-        credit: '© Stadia Maps · © OpenStreetMap contributors',
-      });
-      viewer.scene.globe.show = true;
-      return viewer.imageryLayers.addImageryProvider(provider);
-    },
-    teardown: (layer) => {
-      try { viewer.imageryLayers.remove(layer, true); } catch (_) {}
-    },
-  },
-  {
-    id: 'esri-world-imagery',
-    label: 'ESRI',
-    type: 'imagery',
-    init: async () => {
-      const provider = await Cesium.ArcGisMapServerImageryProvider.fromUrl(
-        'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer',
-        { enablePickFeatures: false }
-      );
-      viewer.scene.globe.show = true;
-      return viewer.imageryLayers.addImageryProvider(provider);
-    },
-    teardown: (layer) => {
-      try { viewer.imageryLayers.remove(layer, true); } catch (_) {}
-    },
-  },
-  {
-    id: 'openstreetmap',
-    label: 'OSM',
-    type: 'imagery',
-    init: async () => {
-      const provider = new Cesium.OpenStreetMapImageryProvider({
-        url: 'https://tile.openstreetmap.org/',
-      });
-      viewer.scene.globe.show = true;
-      return viewer.imageryLayers.addImageryProvider(provider);
-    },
-    teardown: (layer) => {
-      try { viewer.imageryLayers.remove(layer, true); } catch (_) {}
-    },
-  },
+let dayLayer   = null;   // BMNG day — bottom
+let nightLayer = null;   // Black Marble — terminator-masked, above day
+let cityLayer  = null;   // Current city-tier overlay — hidden at GLOBAL
+let cityProviderIndex = 0;
+
+const CITY_PROVIDERS = [
+  { id: 'osm',          label: 'OSM',
+    init: () => new Cesium.UrlTemplateImageryProvider({
+      url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      credit: '© OpenStreetMap contributors', maximumLevel: 19,
+    }) },
+  { id: 'carto-voyager', label: 'Voyager',
+    init: () => new Cesium.UrlTemplateImageryProvider({
+      url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+      subdomains: ['a','b','c','d'], credit: '© CARTO · © OSM', maximumLevel: 19,
+    }) },
+  { id: 'carto-dark',   label: 'Dark',
+    init: () => new Cesium.UrlTemplateImageryProvider({
+      url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+      subdomains: ['a','b','c','d'], credit: '© CARTO · © OSM', maximumLevel: 19,
+    }) },
+  { id: 'esri',         label: 'Satellite',
+    init: () => Cesium.ArcGisMapServerImageryProvider.fromUrl(
+      'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer',
+      { enablePickFeatures: false }) },
+  { id: 'stadia-dark',  label: 'Alidade',
+    init: () => new Cesium.UrlTemplateImageryProvider({
+      url: 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png',
+      credit: '© Stadia · © OSM', maximumLevel: 18,
+    }) },
 ];
 
-let activeImagery = { index: -1, handle: null, errors: [], detach: null };
+async function bootImageryGlobeTier() {
+  if (!viewer) return;
+  // Real day/night terminator — mandatory under Imagery Law §3.
+  viewer.scene.globe.enableLighting = true;
+  viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#02060d');
 
-async function startImageryCycle(fromIndex) {
-  // Teardown previous, if any
-  if (activeImagery.handle != null && activeImagery.index >= 0) {
-    if (activeImagery.detach) { try { activeImagery.detach(); } catch (_) {} }
-    IMAGERY_CYCLE[activeImagery.index].teardown(activeImagery.handle);
-  }
+  // DAY: NASA Blue Marble Next Generation via GIBS WMTS.
+  try {
+    const dayProvider = new Cesium.UrlTemplateImageryProvider({
+      url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_NextGeneration/default/2004-08-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg',
+      maximumLevel: 8,
+      credit: 'NASA EOSDIS GIBS · Blue Marble Next Generation',
+    });
+    dayLayer = viewer.imageryLayers.addImageryProvider(dayProvider);
+  } catch (e) { console.warn('[imagery] BMNG day failed', e); }
 
-  for (let i = fromIndex; i < IMAGERY_CYCLE.length; i++) {
-    const provider = IMAGERY_CYCLE[i];
-    // Skip Ion-dependent providers if no token configured
-    if (provider.needsIonToken && CESIUM_ION_TOKEN.startsWith('__')) {
-      console.log(`[imagery] skip ${provider.id} (no Ion token)`);
-      continue;
-    }
-    try {
-      const handle = await provider.init();
-      activeImagery = { index: i, handle, errors: [], detach: null };
-      attachImageryErrorListener(provider, handle);
-      updateImagerySourceBadge(provider, i > 0);
-      console.log(`[imagery] active: ${provider.id}`);
-      if (viewer) viewer.scene.requestRender();
-      return;
-    } catch (e) {
-      console.warn(`[imagery] ${provider.id} init failed:`, e?.message || e);
-    }
-  }
+  // NIGHT: NASA Black Marble — layered above day, day-side fully transparent.
+  try {
+    const nightProvider = new Cesium.UrlTemplateImageryProvider({
+      url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_Black_Marble/default/2016-01-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png',
+      maximumLevel: 8,
+      credit: 'NASA EOSDIS GIBS · VIIRS Black Marble',
+    });
+    nightLayer = viewer.imageryLayers.addImageryProvider(nightProvider);
+    nightLayer.dayAlpha = 0.0;
+    nightLayer.nightAlpha = 1.0;
+  } catch (e) { console.warn('[imagery] Black Marble night failed', e); }
 
-  // Nothing worked. Set a permanent badge so the user knows the globe is bare.
-  updateImagerySourceBadge({ label: 'NONE' }, true);
-  console.error('[imagery] all providers failed');
+  if (viewer) viewer.scene.requestRender();
 }
 
-function attachImageryErrorListener(provider, handle) {
-  const ERROR_WINDOW_MS = 5_000;
-  const ERROR_THRESHOLD = 3;
-
-  const onError = () => {
-    const now = Date.now();
-    activeImagery.errors.push(now);
-    activeImagery.errors = activeImagery.errors.filter(t => now - t < ERROR_WINDOW_MS);
-    if (activeImagery.errors.length >= ERROR_THRESHOLD) {
-      console.warn(`[imagery] ${provider.id} exceeded error threshold — cycling`);
-      startImageryCycle(activeImagery.index + 1);
+async function setCityImagery(index) {
+  if (!viewer) return;
+  if (cityLayer) {
+    try { viewer.imageryLayers.remove(cityLayer, true); } catch (_) {}
+    cityLayer = null;
+  }
+  cityProviderIndex = Math.max(0, Math.min(index, CITY_PROVIDERS.length - 1));
+  const p = CITY_PROVIDERS[cityProviderIndex];
+  try {
+    const provider = await p.init();
+    cityLayer = viewer.imageryLayers.addImageryProvider(provider);
+    // Hide on global tier; only visible national/personal (Imagery Law §3).
+    cityLayer.show = currentLevel !== 'global';
+    renderLayerSwitch();
+    updateImagerySourceBadge();
+    if (viewer) viewer.scene.requestRender();
+  } catch (e) {
+    console.warn('[imagery]', p.id, 'failed, advancing', e);
+    if (cityProviderIndex < CITY_PROVIDERS.length - 1) {
+      return setCityImagery(cityProviderIndex + 1);
     }
-  };
-
-  if (provider.type === '3dtiles') {
-    handle.tileFailed.addEventListener(onError);
-    activeImagery.detach = () => handle.tileFailed.removeEventListener(onError);
-  } else if (provider.type === 'imagery') {
-    // `handle` is an ImageryLayer
-    handle.imageryProvider.errorEvent.addEventListener(onError);
-    activeImagery.detach = () =>
-      handle.imageryProvider.errorEvent.removeEventListener(onError);
   }
 }
 
-function updateImagerySourceBadge(provider, visible) {
+function renderLayerSwitch() {
+  const el = $('layer-switch');
+  if (!el) return;
+  el.innerHTML = CITY_PROVIDERS.map((p, i) =>
+    `<div class="seg${i === cityProviderIndex ? ' active' : ''}" data-idx="${i}">${p.label}</div>`
+  ).join('');
+  el.querySelectorAll('.seg').forEach(seg => {
+    seg.addEventListener('click', () => setCityImagery(Number(seg.dataset.idx)));
+  });
+}
+
+function updateLayerSwitchVisibility() {
+  const el = $('layer-switch');
+  if (!el) return;
+  el.classList.toggle('visible', currentLevel !== 'global');
+  if (cityLayer) cityLayer.show = currentLevel !== 'global';
+  updateImagerySourceBadge();
+}
+
+function updateImagerySourceBadge() {
   const el = $('imagery-source');
   if (!el) return;
-  el.textContent = 'VIA ' + provider.label;
-  el.classList.toggle('visible', !!visible);
+  if (currentLevel === 'global') {
+    el.textContent = 'BMNG · BLACK MARBLE';
+  } else if (cityLayer && CITY_PROVIDERS[cityProviderIndex]) {
+    el.textContent = 'VIA ' + CITY_PROVIDERS[cityProviderIndex].label.toUpperCase();
+  } else {
+    el.textContent = 'NO LAYER';
+  }
+  // Visible briefly after each level transition; auto-fades from level badge.
+  el.classList.add('visible');
+  clearTimeout(updateImagerySourceBadge._t);
+  updateImagerySourceBadge._t = setTimeout(() => el.classList.remove('visible'), 2400);
 }
 
 
@@ -807,6 +1073,9 @@ function onCameraSettled() {
 
   // Back button: visible whenever we're below global
   $('back-btn').classList.toggle('visible', newLevel !== 'global');
+
+  // Imagery Law §3: city-tier provider switcher visible only when below GLOBAL.
+  updateLayerSwitchVisibility();
 }
 
 $('back-btn').addEventListener('click', () => {
@@ -1090,19 +1359,34 @@ async function openRadarPanel() {
     openPanel(`<h2>Radar</h2><div class="subtitle">Offline — connect Supabase first</div>`);
     return;
   }
+  // Locate-me as a scope gadget (Gadget Law §4 translation).
   openPanel(`
     <h2>Radar</h2>
-    <div class="subtitle">Searching for your position…</div>
-    <div id="radar-list" style="margin-top:12px;color:#6a8aaf;font-size:13px">Acquiring GPS…</div>
+    <div class="subtitle">Acquiring your position…</div>
+    <div class="gadget-scope acquiring" id="locate-scope">
+      <div class="ch-h"></div><div class="ch-v"></div><div class="pip"></div>
+    </div>
+    <div class="gadget-scope-readout" id="locate-readout">scanning · awaiting fix</div>
+    <div id="radar-list" style="margin-top:14px;color:#6a8aaf;font-size:13px"></div>
   `);
 
   let coords;
   try {
     coords = await getUserLocation();
+    const scope = $('locate-scope');
+    if (scope) { scope.classList.remove('acquiring'); scope.classList.add('locked'); }
+    const ro = $('locate-readout');
+    if (ro) ro.textContent = `lock · ${coords.lat.toFixed(4)}°, ${coords.lng.toFixed(4)}°`;
   } catch (e) {
+    const scope = $('locate-scope');
+    if (scope) scope.classList.remove('acquiring');
+    const ro = $('locate-readout');
+    if (ro) ro.textContent = 'no signal';
     $('radar-list').innerHTML =
       `<div style="color:#ff9e9e">Location unavailable: ${escapeHtml(e.message || 'permission denied')}</div>
-       <button class="primary" onclick="openRadarPanel()" style="margin-top:12px">Retry</button>`;
+       <div class="gadget-engage armed" onclick="openRadarPanel()" style="margin-top:12px">
+         <span class="verb-glyph"></span><span>Reacquire</span>
+       </div>`;
     return;
   }
 
@@ -1421,23 +1705,47 @@ window.submitDelivery = async () => {
 };
 
 function openYouPanel() {
+  // Identity gadget (Gadget Law §4 translation: login → identity orb)
   if (!session) {
     openPanel(`
-      <h2>You</h2>
-      <div class="subtitle">Sign in to enter</div>
-      <input id="email" type="email" placeholder="email" />
-      <button class="primary" onclick="sendMagicLink()">Send magic link</button>
+      <h2>Identity</h2>
+      <div class="gadget-orb-readout">Awaiting authentication</div>
+      <div class="gadget-orb" id="auth-orb"><div class="glyph">∅</div></div>
+      <div class="gadget-cmd-wrap">
+        <input id="email" class="gadget-cmd" type="email" autocomplete="email" placeholder="email@signal.in" />
+      </div>
+      <div class="gadget-engage" id="auth-engage" onclick="sendMagicLink()">
+        <span class="verb-glyph"></span><span id="auth-engage-label">Engage identity</span>
+      </div>
+      <div style="font-size:10px;color:#6a8aaf;letter-spacing:0.22em;text-transform:uppercase;text-align:center;margin-top:12px;font-family:'SF Mono',monospace">Magic link via email · no password</div>
     `);
+    const cmd = $('email'), engage = $('auth-engage');
+    const refresh = () => engage.classList.toggle('armed', /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cmd.value.trim()));
+    cmd.addEventListener('input', refresh);
+    cmd.addEventListener('keydown', e => { if (e.key === 'Enter' && engage.classList.contains('armed')) sendMagicLink(); });
+    refresh();
     return;
   }
+  const isOwner = !!profile?.is_owner;
+  const orbClass = isOwner ? 'signed-in owner' : 'signed-in';
+  const ident = profile?.display_name || session.user.email || '?';
+  const glyph = ident.trim().charAt(0).toUpperCase();
   openPanel(`
-    <h2>You</h2>
-    <div class="subtitle">${escapeHtml(profile?.display_name || session.user.email)}</div>
-    <div class="row"><span>AVC</span><span>${profile?.avc_balance ?? 0}</span></div>
-    <div class="row"><span>Krypteia</span><span>${profile?.is_owner ? 'OWNER' : 'locked'}</span></div>
-    <button class="primary" onclick="openMemoryPanel()" style="margin-top:14px">Memory</button>
-    <button class="primary" onclick="signOut()" style="margin-top:8px">Sign out</button>
-    ${profile?.is_owner ? '<button class="primary" onclick="openKrypteia()" style="margin-top:8px;background:rgba(255,100,100,0.15);border-color:rgba(255,100,100,0.3)">Krypteia</button>' : ''}
+    <h2>Identity</h2>
+    <div class="gadget-orb-readout">${isOwner ? 'Architect · Krypteia online' : 'Citizen · linked to globe'}</div>
+    <div class="gadget-orb ${orbClass}"><div class="glyph">${escapeHtml(glyph)}</div></div>
+    <div style="text-align:center;font-size:14px;color:#e6f1ff;margin:-6px 0 14px">${escapeHtml(ident)}</div>
+    <div class="row"><span>AVC</span><span style="color:#ffd47e">${profile?.avc_balance ?? 0}</span></div>
+    <div class="row"><span>Krypteia</span><span style="color:${isOwner ? '#ffb464' : '#6a8aaf'}">${isOwner ? 'OWNER' : 'locked'}</span></div>
+    <div class="gadget-engage armed" onclick="openMemoryPanel()" style="margin-top:14px">
+      <span class="verb-glyph"></span><span>Open memory</span>
+    </div>
+    ${isOwner ? `<div class="gadget-engage" onclick="openKrypteia()" style="margin-top:10px;border-color:rgba(255,180,100,0.5);color:#ffd49a">
+      <span class="verb-glyph" style="background:#ffb464;box-shadow:0 0 10px rgba(255,180,100,0.8)"></span><span>Enter Krypteia</span>
+    </div>` : ''}
+    <div class="gadget-engage" onclick="signOut()" style="margin-top:10px;border-color:rgba(255,120,120,0.3);color:#ff9e9e">
+      <span class="verb-glyph" style="background:#ff9e9e;box-shadow:0 0 8px rgba(255,120,120,0.6)"></span><span>Disengage</span>
+    </div>
   `);
 }
 
@@ -1453,34 +1761,137 @@ window.flyToSignal = id => {
 };
 
 window.sendMagicLink = async () => {
-  const email = $('email').value.trim();
-  if (!sb || !email) return;
+  const cmd = $('email');
+  const orb = $('auth-orb');
+  const engage = $('auth-engage');
+  const label = $('auth-engage-label');
+  if (!sb || !cmd?.value) return;
+  const email = cmd.value.trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
+  orb?.classList.add('pending');
+  if (label) label.textContent = 'Transmitting…';
   const { error } = await sb.auth.signInWithOtp({ email });
-  alert(error ? error.message : 'Check your email for the magic link.');
+  orb?.classList.remove('pending');
+  if (error) {
+    if (orb) orb.style.borderColor = 'rgba(255,120,120,0.75)';
+    if (label) label.textContent = error.message.slice(0, 44);
+    if (engage) engage.classList.remove('armed');
+  } else {
+    if (orb) orb.classList.add('signed-in');
+    if (label) label.textContent = 'Link sent — check email';
+    if (engage) engage.classList.add('armed');
+  }
 };
 
 window.signOut = async () => { await sb?.auth.signOut(); closePanel(); };
 
+/* Pulse emitter — Gadget Law §4 translation: post signal → segmented
+   category selector + intensity dial + reach indicator + engage gadget. */
+let emitState = { category: 'news', amplitude: 1 };
+
 window.openEmitPanel = () => {
   if (!session) return openYouPanel();
+
+  const CATS = [
+    { id: 'news',        label: 'News'    },
+    { id: 'jobs',        label: 'Jobs'    },
+    { id: 'commerce',    label: 'Commerce'},
+    { id: 'social',      label: 'Social'  },
+    { id: 'dating',      label: 'Dating'  },
+    { id: 'real_estate', label: 'Estate'  },
+    { id: 'classifieds', label: 'Class.'  },
+  ];
+  // Live category counts from currently-loaded signals on the globe.
+  const counts = {};
+  for (const { signal } of signalIndex.values()) {
+    counts[signal.category] = (counts[signal.category] || 0) + 1;
+  }
+  emitState = { category: 'news', amplitude: 1 };
+
   openPanel(`
-    <h2>Emit signal</h2>
-    <div class="subtitle">Drop a pin in the field</div>
-    <select id="emit-category">
-      <option value="news">News</option><option value="jobs">Jobs</option>
-      <option value="commerce">Commerce</option><option value="social">Social</option>
-      <option value="dating">Dating</option><option value="real_estate">Real estate</option>
-      <option value="classifieds">Classifieds</option>
-    </select>
-    <input id="emit-title" type="text" placeholder="Title" maxlength="200" />
-    <textarea id="emit-body" placeholder="Body (optional)" maxlength="5000"></textarea>
-    <div class="subtitle" style="margin-top:8px">Uses your current camera target as location.</div>
-    <button class="primary" onclick="emitSignal()">Emit</button>
+    <h2>Pulse emitter</h2>
+    <div class="subtitle">Drop a signal at the camera's centre point</div>
+
+    <div class="gadget-seg wrap" id="emit-cat-seg">
+      ${CATS.map(c => `
+        <div class="seg${c.id==='news'?' active':''}" data-cat="${c.id}">
+          ${c.label}<span class="count">${counts[c.id] || 0}</span>
+        </div>`).join('')}
+    </div>
+
+    <div class="gadget-cmd-wrap">
+      <input id="emit-title" class="gadget-cmd" type="text" placeholder="signal title…" maxlength="200" />
+    </div>
+    <div class="gadget-cmd-wrap" style="margin-top:8px">
+      <textarea id="emit-body" class="gadget-cmd" placeholder="payload (optional)…" maxlength="5000"></textarea>
+    </div>
+
+    <div class="gadget-dial-wrap">
+      <div class="gadget-dial" id="emit-dial">
+        <div class="track"></div><div class="arc"></div><div class="value">1</div>
+      </div>
+      <div class="gadget-dial-meta">
+        <div class="label">Amplitude · drag vertical</div>
+        <div class="gadget-reach" id="emit-reach"></div>
+        <div class="gadget-reach-label">
+          <span>local</span><span id="emit-reach-label">~ 1 km</span><span>orbital</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="gadget-engage" id="emit-engage" onclick="emitSignal()">
+      <span class="verb-glyph"></span><span>Emit signal</span>
+    </div>
   `);
+
+  // Segmented selector
+  document.querySelectorAll('#emit-cat-seg .seg').forEach(seg => {
+    seg.addEventListener('click', () => {
+      document.querySelectorAll('#emit-cat-seg .seg').forEach(s => s.classList.remove('active'));
+      seg.classList.add('active');
+      emitState.category = seg.dataset.cat;
+    });
+  });
+
+  // Intensity dial — drag-vertical to set amplitude (1..25)
+  const dial = $('emit-dial');
+  const dialValue = dial.querySelector('.value');
+  const reach = $('emit-reach');
+  const reachLbl = $('emit-reach-label');
+  let dragStart = null, baseValue = emitState.amplitude;
+  const setAmp = (a) => {
+    a = Math.max(1, Math.min(25, Math.round(a)));
+    emitState.amplitude = a;
+    const pct = (a / 25) * 100;
+    dial.style.setProperty('--pct', pct.toFixed(1));
+    dialValue.textContent = a;
+    reach.style.setProperty('--pct', pct.toFixed(1) + '%');
+    const km = a < 5 ? a : a < 12 ? a * 8 : a < 20 ? a * 40 : 99999;
+    reachLbl.textContent = a >= 20 ? 'orbital · global' : a >= 12 ? `national · ~${km} km` : a >= 5 ? `regional · ~${km} km` : `local · ~${km} km`;
+  };
+  setAmp(emitState.amplitude);
+  dial.addEventListener('pointerdown', e => {
+    dragStart = e.clientY; baseValue = emitState.amplitude;
+    try { dial.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  dial.addEventListener('pointermove', e => {
+    if (dragStart == null) return;
+    setAmp(baseValue + (dragStart - e.clientY) / 6);
+  });
+  const endDrag = () => { dragStart = null; };
+  dial.addEventListener('pointerup', endDrag);
+  dial.addEventListener('pointercancel', endDrag);
+
+  // Engage gadget arms when title is non-empty
+  const engage = $('emit-engage');
+  const title = $('emit-title');
+  const refreshArm = () => engage.classList.toggle('armed', !!title.value.trim());
+  title.addEventListener('input', refreshArm);
+  refreshArm();
 };
 
 window.emitSignal = async () => {
-  const title = $('emit-title').value.trim();
+  const title = $('emit-title')?.value.trim();
   if (!title) return;
   const center = viewer.camera.pickEllipsoid(
     new Cesium.Cartesian2(window.innerWidth / 2, window.innerHeight / 2),
@@ -1491,15 +1902,22 @@ window.emitSignal = async () => {
   const lng = Cesium.Math.toDegrees(carto.longitude);
   const lat = Cesium.Math.toDegrees(carto.latitude);
 
+  const engage = $('emit-engage');
+  if (engage) { engage.classList.add('armed'); engage.querySelector('span:last-child').textContent = 'Transmitting…'; }
+
   const { error } = await sb.from('signals').insert({
     author_id: session.user.id,
-    category: $('emit-category').value,
+    category: emitState.category,
     scope: currentLevel === 'global' ? 'global' : (currentLevel === 'national' ? 'national' : 'local'),
     title,
-    body: $('emit-body').value.trim() || null,
+    body: $('emit-body')?.value.trim() || null,
+    amplitude: emitState.amplitude,
     location: `SRID=4326;POINT(${lng} ${lat})`,
   });
-  if (error) return alert(error.message);
+  if (error) {
+    if (engage) engage.querySelector('span:last-child').textContent = error.message.slice(0, 40);
+    return;
+  }
   closePanel();
 };
 
@@ -1533,7 +1951,7 @@ window.openKrypteia = async () => {
 
     <div class="row" style="margin-top:16px">
       <span>Imagery source</span>
-      <span style="color:#a8c8ee">${activeImagery.index >= 0 ? IMAGERY_CYCLE[activeImagery.index].label : 'NONE'}</span>
+      <span style="color:#a8c8ee">${currentLevel === 'global' ? 'BMNG + BLACK MARBLE' : (CITY_PROVIDERS[cityProviderIndex]?.label || 'NONE').toUpperCase()}</span>
     </div>
     <div class="row">
       <span>Active signals on globe</span>
