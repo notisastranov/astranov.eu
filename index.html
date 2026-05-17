@@ -342,6 +342,112 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   }
   @keyframes mic-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.4); } }
 
+  /* Orbit provider dots — live on the AICYCLE ring */
+  #ring-orbit { position: absolute; inset: 0; pointer-events: none; }
+  .orbit-dot {
+    position: absolute; width: 6px; height: 6px; border-radius: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(120,180,255,0.22); border: 1px solid rgba(120,180,255,0.4);
+    transition: background 0.35s, box-shadow 0.35s;
+    cursor: pointer; pointer-events: all;
+  }
+  .orbit-dot.active {
+    background: #7eebb4; border-color: rgba(126,235,180,0.85);
+    box-shadow: 0 0 8px rgba(126,235,180,0.9);
+  }
+  .orbit-dot.owner-dot { background: rgba(255,180,100,0.22); border-color: rgba(255,180,100,0.4); }
+  .orbit-dot.owner-dot.active {
+    background: #ffb464; border-color: rgba(255,180,100,0.85);
+    box-shadow: 0 0 8px rgba(255,180,100,0.9);
+  }
+  .orbit-dot.locked-ring { box-shadow: 0 0 0 2px rgba(120,180,255,0.35), 0 0 8px rgba(126,235,180,0.9); }
+  #aicycle-float.thinking .orbit-dot.active {
+    animation: dot-pulse 0.75s ease-in-out infinite;
+  }
+  @keyframes dot-pulse {
+    0%,100% { box-shadow: 0 0 8px rgba(126,235,180,0.9); }
+    50%       { box-shadow: 0 0 18px rgba(126,235,180,0.9), 0 0 30px rgba(126,235,180,0.35); }
+  }
+
+  /* Radar orbital HUD */
+  #radar-hud { display:flex; flex-direction:column; align-items:center; gap:14px; padding:10px 0 0; }
+  #radar-orbital {
+    position:relative; width:220px; height:220px; border-radius:50%;
+    border:1px solid rgba(120,180,255,0.28);
+    background:radial-gradient(circle at center,rgba(30,60,100,0.18) 0%,rgba(10,20,40,0.82) 65%,rgba(0,8,24,0.96) 100%);
+    box-shadow:0 0 60px rgba(120,180,255,0.07) inset;
+    flex-shrink:0; overflow:hidden;
+  }
+  #radar-sweep {
+    position:absolute; inset:0; border-radius:50%;
+    background:conic-gradient(from 0deg,rgba(126,235,180,0) 0%,rgba(126,235,180,0.16) 12%,rgba(126,235,180,0) 22%);
+    animation:sweep 4s linear infinite;
+  }
+  @keyframes sweep { to { transform:rotate(360deg); } }
+  .radar-range-ring {
+    position:absolute; border-radius:50%; border:1px solid rgba(120,180,255,0.1);
+    pointer-events:none;
+  }
+  #radar-core {
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:44px; height:44px; border-radius:50%;
+    border:1px solid rgba(120,180,255,0.35);
+    background:rgba(8,16,32,0.85);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition:border-color 0.3s, box-shadow 0.3s;
+    z-index:2;
+  }
+  #radar-core.acquiring { border-color:rgba(126,235,180,0.5); animation:core-pulse 1.4s ease-in-out infinite; }
+  #radar-core.locked   { border-color:rgba(126,235,180,0.85); box-shadow:0 0 20px rgba(126,235,180,0.25); }
+  @keyframes core-pulse {
+    0%,100% { box-shadow:0 0 0 0 rgba(126,235,180,0.3); }
+    50%      { box-shadow:0 0 0 8px rgba(126,235,180,0); }
+  }
+  .rch { position:absolute; background:rgba(120,180,255,0.45); pointer-events:none; }
+  .rch.h { width:20px; height:1px; top:50%; left:50%; transform:translate(-50%,-50%); }
+  .rch.v { width:1px; height:20px; top:50%; left:50%; transform:translate(-50%,-50%); }
+  .rch.pip {
+    width:5px; height:5px; border-radius:50%;
+    background:#7eb4ff; box-shadow:0 0 8px rgba(120,180,255,0.9);
+    top:50%; left:50%; transform:translate(-50%,-50%);
+    transition:background 0.3s, box-shadow 0.3s;
+  }
+  #radar-core.locked .rch.pip { background:#7eebb4; box-shadow:0 0 10px rgba(126,235,180,0.9); }
+  #radar-coords {
+    position:absolute; bottom:24px; left:50%; transform:translateX(-50%);
+    font-size:8px; letter-spacing:0.2em; color:rgba(120,180,255,0.45);
+    text-transform:uppercase; white-space:nowrap; font-family:'SF Mono',monospace;
+    pointer-events:none;
+  }
+  .radar-orbit-dot {
+    position:absolute; width:8px; height:8px; border-radius:50%;
+    transform:translate(-50%,-50%);
+    background:rgba(120,180,255,0.18); border:1px solid rgba(120,180,255,0.35);
+    transition:background 0.35s, box-shadow 0.35s; cursor:pointer; z-index:1;
+  }
+  .radar-orbit-dot.active {
+    background:#7eebb4; border-color:rgba(126,235,180,0.85);
+    box-shadow:0 0 14px rgba(126,235,180,0.9);
+  }
+  .radar-orbit-dot.owner-dot { background:rgba(255,180,100,0.18); border-color:rgba(255,180,100,0.35); }
+  .radar-orbit-dot.owner-dot.active {
+    background:#ffb464; border-color:rgba(255,180,100,0.85);
+    box-shadow:0 0 14px rgba(255,180,100,0.9);
+  }
+  .radar-blip {
+    position:absolute; width:5px; height:5px; border-radius:50%;
+    transform:translate(-50%,-50%); cursor:pointer; z-index:3;
+    animation:blip-fade 4s ease-out forwards;
+  }
+  @keyframes blip-fade {
+    0%   { opacity:1; }
+    60%  { opacity:0.85; }
+    100% { opacity:0.25; }
+  }
+  #radar-signals {
+    width:100%; max-height:160px; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  }
+
   /* Radar list — distance + category color */
   .radar-row {
     display: flex; align-items: center; justify-content: space-between;
@@ -775,6 +881,7 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 <!-- Always-visible UI: AICYCLE ring only -->
 <div id="aicycle-float" title="Collective Intelligence">
   <div class="ring"></div>
+  <div id="ring-orbit"></div>
   <div class="node"></div>
   <div class="provider" id="aicycle-provider">AUTO</div>
 </div>
@@ -1372,65 +1479,140 @@ function openFeedPanel() {
   `);
 }
 
-async function openRadarPanel() {
-  if (!sb) {
-    openPanel(`<h2>Radar</h2><div class="subtitle">Offline — connect Supabase first</div>`);
-    return;
-  }
-  // Locate-me as a scope gadget (Gadget Law §4 translation).
-  openPanel(`
-    <h2>Radar</h2>
-    <div class="subtitle">Acquiring your position…</div>
-    <div class="gadget-scope acquiring" id="locate-scope">
-      <div class="ch-h"></div><div class="ch-v"></div><div class="pip"></div>
-    </div>
-    <div class="gadget-scope-readout" id="locate-readout">scanning · awaiting fix</div>
-    <div id="radar-list" style="margin-top:14px;color:#6a8aaf;font-size:13px"></div>
-  `);
+const RADAR_COLORS = {
+  news:'#00d4ff', jobs:'#7cff7c', commerce:'#ffaa00', social:'#ff7edc',
+  dating:'#ff3a6e', real_estate:'#b48cff', classifieds:'#a0a0a0',
+};
 
+async function openRadarPanel() {
+  // Build the orbital HUD shell immediately — acquisition runs async
+  openPanel(`
+    <div id="radar-hud">
+      <div id="radar-orbital">
+        <div id="radar-sweep"></div>
+        <div class="radar-range-ring" style="inset:35px"></div>
+        <div class="radar-range-ring" style="inset:70px"></div>
+        <div id="radar-orbit-dots"></div>
+        <div id="radar-blips"></div>
+        <div id="radar-core" class="acquiring" onclick="recalibrateRadar()">
+          <div class="rch h"></div>
+          <div class="rch v"></div>
+          <div class="rch pip"></div>
+        </div>
+        <div id="radar-coords">${sb ? 'ACQUIRING' : 'OFFLINE'}</div>
+      </div>
+      <div id="radar-signals"></div>
+    </div>
+  `);
+  _buildRadarOrbitDots();
+  if (!sb) return;
+  await _acquireRadar();
+}
+
+function _buildRadarOrbitDots() {
+  const container = $('radar-orbit-dots');
+  if (!container) return;
+  const cx = 110, cy = 110, r = 90;
+  const providers = AICYCLE_PROVIDERS.filter(p => p.name !== 'auto');
+  providers.forEach((p, i) => {
+    const angle = (i / providers.length) * 2 * Math.PI - Math.PI / 2;
+    const dot = document.createElement('div');
+    dot.className = 'radar-orbit-dot' + (p.ownerOnly ? ' owner-dot' : '');
+    dot.dataset.provider = p.name;
+    dot.style.left = (cx + r * Math.cos(angle)) + 'px';
+    dot.style.top  = (cy + r * Math.sin(angle)) + 'px';
+    dot.title = p.label;
+    const isLocked = lockedProvider === p.name;
+    const isLast   = !lockedProvider && lastActiveProvider === p.name;
+    if (isLocked || isLast) dot.classList.add('active');
+    dot.addEventListener('click', e => {
+      e.stopPropagation();
+      if (p.ownerOnly && !profile?.is_owner) return;
+      lockedProvider = lockedProvider === p.name ? null : p.name;
+      renderOrbitDots();
+      renderProviderChips();
+      updateRadarOrbitDots();
+      const coordEl = $('radar-coords');
+      if (coordEl && lockedProvider) coordEl.textContent = lockedProvider.toUpperCase();
+      $('aicycle-provider').textContent = (lockedProvider || lastActiveProvider || 'AUTO').toUpperCase();
+    });
+    container.appendChild(dot);
+  });
+}
+
+async function _acquireRadar() {
   let coords;
   try {
     coords = await getUserLocation();
-    const scope = $('locate-scope');
-    if (scope) { scope.classList.remove('acquiring'); scope.classList.add('locked'); }
-    const ro = $('locate-readout');
-    if (ro) ro.textContent = `lock · ${coords.lat.toFixed(4)}°, ${coords.lng.toFixed(4)}°`;
   } catch (e) {
-    const scope = $('locate-scope');
-    if (scope) scope.classList.remove('acquiring');
-    const ro = $('locate-readout');
-    if (ro) ro.textContent = 'no signal';
-    $('radar-list').innerHTML =
-      `<div style="color:#ff9e9e">Location unavailable: ${escapeHtml(e.message || 'permission denied')}</div>
-       <div class="gadget-engage armed" onclick="openRadarPanel()" style="margin-top:12px">
-         <span class="verb-glyph"></span><span>Reacquire</span>
-       </div>`;
+    const core = $('radar-core');
+    if (core) core.classList.remove('acquiring');
+    const coordEl = $('radar-coords');
+    if (coordEl) coordEl.textContent = 'NO FIX';
+    const sig = $('radar-signals');
+    if (sig) sig.innerHTML = `<div class="gadget-engage armed" onclick="recalibrateRadar()" style="margin:12px auto;max-width:200px"><span class="verb-glyph"></span><span>Reacquire</span></div>`;
     return;
   }
 
-  // Fly camera to user location at personal level
-  viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(coords.lng, coords.lat, 12_000),
-    duration: 2.5,
-  });
+  const core = $('radar-core');
+  if (core) { core.classList.remove('acquiring'); core.classList.add('locked'); core.dataset.lat = coords.lat; core.dataset.lng = coords.lng; }
+  const coordEl = $('radar-coords');
+  if (coordEl && !lockedProvider) coordEl.textContent = `${coords.lat.toFixed(3)}° ${coords.lng > 0 ? '+' : ''}${coords.lng.toFixed(3)}°`;
 
-  // Query nearby signals via RPC (50km default)
-  const { data, error } = await sb.rpc('nearby_signals', {
-    lat: coords.lat, lng: coords.lng, radius_meters: 50_000, max_results: 50,
-  });
+  viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(coords.lng, coords.lat, 12_000), duration: 2.5 });
+
+  const { data, error } = await sb.rpc('nearby_signals', { lat: coords.lat, lng: coords.lng, radius_meters: 50_000, max_results: 50 });
   if (error) {
-    $('radar-list').innerHTML = `<div style="color:#ff9e9e">RPC error: ${escapeHtml(error.message)}</div>`;
+    const sig = $('radar-signals');
+    if (sig) sig.innerHTML = `<div style="color:#ff9e9e;font-size:12px;text-align:center;padding:8px">signal rpc: ${escapeHtml(error.message)}</div>`;
     return;
   }
 
-  // Render
-  const COLORS = {
-    news:'#00d4ff', jobs:'#7cff7c', commerce:'#ffaa00', social:'#ff7edc',
-    dating:'#ff3a6e', real_estate:'#b48cff', classifieds:'#a0a0a0',
-  };
-  const rows = (data || []).map(s => `
+  _renderRadarBlips(data || [], coords);
+  _renderRadarSignalList(data || [], coords);
+}
+
+window.recalibrateRadar = async () => {
+  const core = $('radar-core');
+  if (!core || core.classList.contains('acquiring')) return;
+  core.classList.remove('locked');
+  core.classList.add('acquiring');
+  const coordEl = $('radar-coords');
+  if (coordEl) coordEl.textContent = 'ACQUIRING';
+  const blips = $('radar-blips');
+  if (blips) blips.innerHTML = '';
+  const sig = $('radar-signals');
+  if (sig) sig.innerHTML = '';
+  await _acquireRadar();
+};
+
+function _renderRadarBlips(signals, myCoords) {
+  const container = $('radar-blips');
+  if (!container) return;
+  container.innerHTML = '';
+  const cx = 110, cy = 110, maxR = 82;
+  signals.slice(0, 30).forEach(s => {
+    if (!s.lat || !s.lng) return;
+    const bearing = Math.atan2(s.lng - myCoords.lng, s.lat - myCoords.lat);
+    const dist = Math.min((s.distance_meters || 0) / 50_000, 0.98);
+    const blip = document.createElement('div');
+    blip.className = 'radar-blip';
+    blip.style.left = (cx + maxR * dist * Math.sin(bearing)) + 'px';
+    blip.style.top  = (cy - maxR * dist * Math.cos(bearing)) + 'px';
+    blip.style.background = RADAR_COLORS[s.category] || '#fff';
+    blip.style.boxShadow = `0 0 6px ${RADAR_COLORS[s.category] || '#fff'}`;
+    blip.title = s.title;
+    blip.addEventListener('click', () => flyToSignal(s.id));
+    container.appendChild(blip);
+  });
+}
+
+function _renderRadarSignalList(data, coords) {
+  const container = $('radar-signals');
+  if (!container) return;
+  const rows = data.map(s => `
     <div class="radar-row" onclick="flyToSignal('${s.id}')">
-      <span class="dot" style="background:${COLORS[s.category] || '#fff'}"></span>
+      <span class="dot" style="background:${RADAR_COLORS[s.category] || '#fff'}"></span>
       <div class="meta">
         <div class="title">${escapeHtml(s.title)}</div>
         <div class="sub">${s.category.replace('_',' ')} · ${formatRelative(s.created_at)}</div>
@@ -1438,18 +1620,18 @@ async function openRadarPanel() {
       <div class="dist">${formatDistance(s.distance_meters)}</div>
     </div>
   `).join('');
-
-  openPanel(`
-    <h2>Radar</h2>
-    <div class="subtitle">${data?.length || 0} signals within 50 km</div>
-    ${rows || '<div style="color:#6a8aaf;font-size:13px;margin-top:12px">Nothing nearby. Be the first to emit something here.</div>'}
-    <button class="primary" onclick="setHomeLocation(${coords.lat},${coords.lng})" style="margin-top:12px">Set as home location</button>
-  `);
+  container.innerHTML = rows || '<div style="color:#6a8aaf;font-size:12px;text-align:center;padding:10px">nothing within 50 km</div>';
+  if (coords && session) {
+    container.insertAdjacentHTML('afterbegin', `
+      <div class="gadget-engage" onclick="setHomeLocation(${coords.lat},${coords.lng})" style="margin:0 0 10px;font-size:11px;padding:8px 14px">
+        <span class="verb-glyph">⌖</span><span>Lock as home</span>
+      </div>
+    `);
+  }
 }
 
 window.setHomeLocation = async (lat, lng) => {
   if (!sb || !session) return;
-  // Best-effort reverse-geo via Nominatim
   let country = null, city = null;
   try {
     const geo = await reverseGeocode(lat, lng);
@@ -1459,9 +1641,7 @@ window.setHomeLocation = async (lat, lng) => {
   const { error } = await sb.rpc('set_home_location', {
     lat, lng, country: country ? country.slice(0,2) : null, city_name: city,
   });
-  if (error) alert('Failed to set home: ' + error.message);
-  else closePanel();
-  if (!error) loadProfile();
+  if (!error) { closePanel(); loadProfile(); }
 };
 
 async function getUserLocation() {
@@ -2128,9 +2308,10 @@ const AICYCLE_PROVIDERS = [
   { name: 'groq',   label: 'Groq',   ownerOnly: false },
   { name: 'gemini', label: 'Gemini', ownerOnly: false },
   { name: 'openai', label: 'GPT-4o', ownerOnly: false },
-  { name: 'xai',    label: 'Grok',   ownerOnly: false },
+  { name: 'xai',    label: 'xAI',    ownerOnly: false },
 ];
-let lockedProvider = null;  // null = auto cycle; 'claude' etc = locked
+let lockedProvider = null;   // null = auto; 'claude' etc = locked
+let lastActiveProvider = null; // last provider that actually responded
 
 function renderProviderChips() {
   const strip = $('aicycle-providers');
@@ -2149,10 +2330,60 @@ function renderProviderChips() {
       if (chip.classList.contains('disabled')) return;
       lockedProvider = p.name === 'auto' ? null : p.name;
       renderProviderChips();
-      // Update floating ring label
-      $('aicycle-provider').textContent = (lockedProvider || 'auto').toUpperCase();
+      renderOrbitDots();
+      updateRadarOrbitDots();
+      $('aicycle-provider').textContent = (lockedProvider || lastActiveProvider || 'auto').toUpperCase();
     });
     strip.appendChild(chip);
+  });
+}
+
+// Orbiting provider dots on the floating ring
+function renderOrbitDots() {
+  const container = $('ring-orbit');
+  if (!container) return;
+  container.innerHTML = '';
+  const cx = 32, cy = 32, r = 26;
+  const providers = AICYCLE_PROVIDERS.filter(p => p.name !== 'auto');
+  providers.forEach((p, i) => {
+    const angle = (i / providers.length) * 2 * Math.PI - Math.PI / 2;
+    const dot = document.createElement('div');
+    dot.className = 'orbit-dot' + (p.ownerOnly ? ' owner-dot' : '');
+    dot.dataset.provider = p.name;
+    dot.style.left = (cx + r * Math.cos(angle)) + 'px';
+    dot.style.top  = (cy + r * Math.sin(angle)) + 'px';
+    dot.title = p.label;
+    _styleOrbitDot(dot, p.name);
+    dot.addEventListener('click', e => {
+      e.stopPropagation();
+      if (p.ownerOnly && !profile?.is_owner) return;
+      lockedProvider = lockedProvider === p.name ? null : p.name;
+      renderOrbitDots();
+      renderProviderChips();
+      updateRadarOrbitDots();
+      $('aicycle-provider').textContent = (lockedProvider || lastActiveProvider || 'AUTO').toUpperCase();
+    });
+    container.appendChild(dot);
+  });
+}
+
+function _styleOrbitDot(dot, name) {
+  const isLocked = lockedProvider === name;
+  const isLast   = !lockedProvider && lastActiveProvider === name;
+  dot.classList.toggle('active', isLocked || isLast);
+  dot.classList.toggle('locked-ring', isLocked);
+}
+
+function updateOrbitDots() {
+  document.querySelectorAll('#ring-orbit .orbit-dot').forEach(dot =>
+    _styleOrbitDot(dot, dot.dataset.provider));
+}
+
+function updateRadarOrbitDots() {
+  document.querySelectorAll('.radar-orbit-dot').forEach(dot => {
+    const isLocked = lockedProvider === dot.dataset.provider;
+    const isLast   = !lockedProvider && lastActiveProvider === dot.dataset.provider;
+    dot.classList.toggle('active', isLocked || isLast);
   });
 }
 
@@ -2216,6 +2447,9 @@ $('aicycle-float').addEventListener('pointercancel', () => clearTimeout(aicycleP
   });
 })();
 
+// Boot orbit dots immediately
+renderOrbitDots();
+
 // Submit handler
 $('aicycle-form').addEventListener('submit', async e => {
   e.preventDefault();
@@ -2263,6 +2497,13 @@ function appendAICycleMessage(role, text, provider, via) {
   div.appendChild(t);
   aicycleMessages.appendChild(div);
   aicycleMessages.scrollTop = aicycleMessages.scrollHeight;
+  // Track which provider responded and light up its dot
+  if (role === 'ai' && provider && provider !== 'offline') {
+    lastActiveProvider = provider;
+    updateOrbitDots();
+    updateRadarOrbitDots();
+    if (!lockedProvider) $('aicycle-provider').textContent = provider.toUpperCase();
+  }
 }
 
 /* ==============================================================
