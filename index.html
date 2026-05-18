@@ -529,33 +529,70 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   .memory-row .del:hover { color: #ff9e9e; }
 
   /* ============================================================
-     Video calling
+     HUD Toast — replaces all alert() calls.
+     ============================================================ */
+  #hud-toast {
+    position: fixed; top: max(60px, env(safe-area-inset-top) + 44px);
+    left: 50%; transform: translateX(-50%) translateY(-10px);
+    padding: 8px 18px; border-radius: 999px;
+    background: rgba(8,16,32,0.92); backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(120,180,255,0.28);
+    font-size: 12px; letter-spacing: 0.08em; color: #a8c8ee;
+    z-index: 92; opacity: 0; pointer-events: none;
+    white-space: nowrap; max-width: 88vw;
+    overflow: hidden; text-overflow: ellipsis;
+    transition: opacity 0.22s ease, transform 0.22s ease;
+  }
+  #hud-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #hud-toast.err  { border-color: rgba(255,100,100,0.4); color: #ff9e9e; }
+  #hud-toast.ok   { border-color: rgba(126,235,180,0.4); color: #7eebb4; }
+
+  /* ============================================================
+     Incoming call — holographic ring, top-center.
      ============================================================ */
   #call-incoming {
-    position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
-    background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px); z-index: 80;
+    position: fixed; top: max(14px, env(safe-area-inset-top));
+    left: 50%; transform: translateX(-50%) scale(0.4);
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    z-index: 80; pointer-events: none; opacity: 0;
+    transition: transform 0.38s cubic-bezier(0.34,1.56,0.64,1), opacity 0.3s ease;
   }
-  #call-incoming.visible { display: flex; }
-  #call-incoming .card {
-    background: rgba(15, 25, 45, 0.95); border: 1px solid rgba(120, 180, 255, 0.3);
-    border-radius: 24px; padding: 32px; text-align: center; max-width: 320px;
-    box-shadow: 0 0 60px rgba(120, 180, 255, 0.2);
+  #call-incoming.visible {
+    transform: translateX(-50%) scale(1); opacity: 1; pointer-events: auto;
   }
-  #call-incoming .card .label { font-size: 11px; letter-spacing: 0.3em; color: #7eb4ff;
-                                 text-transform: uppercase; margin-bottom: 6px; }
-  #call-incoming .card .name { font-size: 22px; color: #fff; font-weight: 300;
-                                margin-bottom: 24px; word-break: break-word; }
-  #call-incoming .card .buttons { display: flex; gap: 12px; justify-content: center; }
-  #call-incoming .card button {
-    width: 60px; height: 60px; border-radius: 50%; border: 0; font-size: 24px;
-    cursor: pointer; transition: transform 0.15s;
+  #call-ring {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: rgba(8,16,32,0.82); backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1.5px solid rgba(120,180,255,0.5);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+    animation: call-pulse 1.3s ease-in-out infinite;
   }
-  #call-incoming .card button:active { transform: scale(0.92); }
-  #call-accept   { background: #2ecc71; color: #fff; }
-  #call-decline  { background: #ff4d4d; color: #fff; }
+  @keyframes call-pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(120,180,255,0.45); }
+    50%      { box-shadow: 0 0 0 16px rgba(120,180,255,0); }
+  }
+  #call-incoming-name {
+    font-size: 13px; letter-spacing: 0.1em; color: #e6f1ff;
+    max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #call-incoming-status {
+    font-size: 8px; letter-spacing: 0.28em; text-transform: uppercase; color: #7eb4ff;
+  }
+  #call-incoming .c-actions { display: flex; gap: 16px; margin-top: 4px; }
+  .c-orb {
+    width: 44px; height: 44px; border-radius: 50%; border: 0; outline: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .c-orb:active { transform: scale(0.88); }
+  #call-accept  { background: rgba(46,204,113,0.88); box-shadow: 0 0 20px rgba(46,204,113,0.4); }
+  #call-decline { background: rgba(255,77,77,0.88);  box-shadow: 0 0 20px rgba(255,77,77,0.4); }
 
-  /* Active call — PiP style video tile, draggable feel */
+  /* Active call PiP — holographic tile */
   #call-active {
     position: fixed; bottom: 100px; right: 20px;
     width: 280px; height: 360px; display: none;
@@ -959,8 +996,8 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   <div class="messages" id="aicycle-messages"></div>
   <form id="aicycle-form" autocomplete="off">
     <input id="aicycle-input" type="text" placeholder="Ask the cycle…" />
-    <button type="button" id="aicycle-mic" title="Voice input" style="background:transparent;font-size:18px">🎙</button>
-    <button type="submit">→</button>
+    <button type="button" id="aicycle-mic" title="Voice input" style="background:rgba(120,180,255,0.08);border:1px solid rgba(120,180,255,0.2);border-radius:50%;width:36px;height:36px;font-size:16px;flex-shrink:0;cursor:pointer">🎙</button>
+    <button type="submit" style="background:rgba(120,180,255,0.15);border:1px solid rgba(120,180,255,0.3);border-radius:12px;color:#7eb4ff;padding:0 14px;height:36px;font-size:16px;cursor:pointer;flex-shrink:0">→</button>
   </form>
 </div>
 
@@ -970,15 +1007,17 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   <p id="fatal-msg"></p>
 </div>
 
-<!-- Incoming call -->
+<!-- HUD Toast -->
+<div id="hud-toast"></div>
+
+<!-- Incoming call — holographic ring -->
 <div id="call-incoming">
-  <div class="card">
-    <div class="label">Incoming call</div>
-    <div class="name" id="call-incoming-name">…</div>
-    <div class="buttons">
-      <button id="call-decline" title="Decline">✕</button>
-      <button id="call-accept"  title="Accept">📞</button>
-    </div>
+  <div id="call-ring">📞</div>
+  <div id="call-incoming-name">…</div>
+  <div id="call-incoming-status">INCOMING</div>
+  <div class="c-actions">
+    <div class="c-orb" id="call-decline" title="Decline">✕</div>
+    <div class="c-orb" id="call-accept"  title="Accept">◈</div>
   </div>
 </div>
 
@@ -1018,6 +1057,41 @@ function fatal(msg) {
   $('fatal-msg').textContent = msg;
   $('fatal').classList.add('visible');
   console.error('[ASTRANOV FATAL]', msg);
+}
+
+// HUD toast — replaces all alert() calls. type: '' | 'ok' | 'err'
+let _toastTimer = null;
+function toast(msg, type = '') {
+  const el = $('hud-toast');
+  if (!el) return;
+  el.textContent = String(msg).slice(0, 88);
+  el.className = 'show' + (type ? ' ' + type : '');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { el.className = ''; }, 3200);
+}
+
+// Arm-confirm: first tap arms the engage element, second tap fires the action.
+// Pass the element and the callback. Auto-disarms after 3s.
+function armEngage(el, actionLabel, onConfirm) {
+  if (el.dataset.armed === '1') {
+    el.dataset.armed = '0';
+    el.classList.remove('armed');
+    const lbl = el.querySelector('span:last-child');
+    if (lbl) lbl.textContent = actionLabel;
+    clearTimeout(el._armTimer);
+    onConfirm();
+  } else {
+    el.dataset.armed = '1';
+    el.classList.add('armed');
+    const lbl = el.querySelector('span:last-child');
+    if (lbl) lbl.textContent = 'Confirm?';
+    clearTimeout(el._armTimer);
+    el._armTimer = setTimeout(() => {
+      el.dataset.armed = '0';
+      el.classList.remove('armed');
+      if (lbl) lbl.textContent = actionLabel;
+    }, 3000);
+  }
 }
 
 /* ==============================================================
@@ -1415,12 +1489,11 @@ function openSignalPanel(signal) {
     ? `<div style="font-size:13px; color:#a8c8ee; margin-bottom:12px; line-height:1.5">${escapeHtml(signal.body.slice(0, 400))}${signal.body.length > 400 ? '…' : ''}</div>`
     : '';
   const readLink = signal.source_url
-    ? `<a href="${signal.source_url}" target="_blank" rel="noopener" class="primary" style="display:block;text-decoration:none;text-align:center;margin-top:8px">Read full article →</a>`
+    ? `<div class="gadget-engage" onclick="window.open('${signal.source_url}','_blank','noopener')" style="margin-top:8px"><span class="verb-glyph">↗</span><span>Read full article</span></div>`
     : '';
-  // Show "Call author" only for human-authored signals that aren't mine
   const canCall = signal.author_id && session && signal.author_id !== session.user.id && signal.source !== 'crawler';
   const callBtn = canCall
-    ? `<button class="primary" onclick="startCallTo('${signal.author_id}','signal author')" style="margin-top:8px;background:rgba(120,255,180,0.12);border-color:rgba(120,255,180,0.3)">📞 Call author</button>`
+    ? `<div class="gadget-engage" onclick="startCallTo('${signal.author_id}','signal author')" style="margin-top:8px;border-color:rgba(126,235,180,0.35)"><span class="verb-glyph">◈</span><span>Call author</span></div>`
     : '';
   const html = `
     <h2>${escapeHtml(signal.category.replace('_', ' '))}</h2>
@@ -1430,7 +1503,7 @@ function openSignalPanel(signal) {
     ${sourceTag}
     <div class="row"><span>Amplitude</span><span>${signal.amplitude}</span></div>
     <div class="row"><span>Posted</span><span>${formatRelative(signal.created_at)}</span></div>
-    <button class="primary" id="signal-boost">⚡ Boost</button>
+    <div class="gadget-engage" id="signal-boost"><span class="verb-glyph">⚡</span><span>Boost</span></div>
     ${callBtn}
     ${readLink}
   `;
@@ -1439,7 +1512,7 @@ function openSignalPanel(signal) {
 }
 
 async function boostSignal(signalId) {
-  if (!sb || !session) return alert('Sign in to boost signals.');
+  if (!sb || !session) return toast('Sign in to boost signals.');
   const { error } = await sb.from('signal_reactions')
     .insert({ signal_id: signalId, profile_id: session.user.id, kind: 'boost' });
   if (error && !error.message.includes('duplicate')) console.error(error);
@@ -1623,7 +1696,7 @@ function openFeedPanel() {
     <h2>Feed</h2>
     <div class="subtitle">Recent signals in your field</div>
     ${items || '<div style="color:#6a8aaf;font-size:13px">No signals yet. Be the first to emit.</div>'}
-    <button class="primary" onclick="openEmitPanel()">+ Emit signal</button>
+    <div class="gadget-engage" onclick="openEmitPanel()"><span class="verb-glyph">⊕</span><span>Emit signal</span></div>
   `);
 }
 
@@ -1838,7 +1911,7 @@ function openWalletPanel() {
     </div>
     <div id="delivery-list" style="min-height:80px;color:#6a8aaf;font-size:13px">Loading…</div>
 
-    <button class="primary" style="margin-top:14px" onclick="openRequestDeliveryStep1()">+ Request delivery</button>
+    <div class="gadget-engage" onclick="openRequestDeliveryStep1()" style="margin-top:14px"><span class="verb-glyph">⊕</span><span>Request delivery</span></div>
   `);
   loadDeliveryTab('my-requests');
 }
@@ -1908,29 +1981,30 @@ function renderDeliveryRow(d, tab) {
 
 window.openDeliveryPanel = async (id) => {
   const { data: d, error } = await sb.from('deliveries').select('*').eq('id', id).single();
-  if (error) return alert(error.message);
+  if (error) return toast(error.message, 'err');
 
   const isRequester = d.requester_id === session.user.id;
   const isRunner    = d.runner_id === session.user.id;
   let actions = '';
 
+  const did = JSON.stringify(d.id);
   if (d.status === 'requested') {
     if (isRequester) {
-      actions = `<button class="primary" onclick="updateDeliveryStatus('${d.id}','cancelled')" style="background:rgba(160,160,160,0.15);border-color:rgba(160,160,160,0.3)">Cancel request</button>`;
+      actions = `<div class="gadget-engage" style="border-color:rgba(160,160,160,0.3)" onclick="armEngage(this,'Cancel request',()=>updateDeliveryStatus(${did},'cancelled'))"><span class="verb-glyph">✕</span><span>Cancel request</span></div>`;
     } else {
-      actions = `<button class="primary" onclick="acceptDelivery('${d.id}')">Accept delivery</button>`;
+      actions = `<div class="gadget-engage" onclick="acceptDelivery(${did})"><span class="verb-glyph">◈</span><span>Accept delivery</span></div>`;
     }
   } else if (d.status === 'accepted' && isRunner) {
-    actions = `<button class="primary" onclick="updateDeliveryStatus('${d.id}','in_transit')">Mark picked up</button>`;
+    actions = `<div class="gadget-engage" onclick="updateDeliveryStatus(${did},'in_transit')"><span class="verb-glyph">↑</span><span>Mark picked up</span></div>`;
   } else if (d.status === 'in_transit' && isRunner) {
-    actions = `<button class="primary" onclick="updateDeliveryStatus('${d.id}','delivered')" style="background:rgba(120,255,180,0.2);border-color:rgba(120,255,180,0.4)">Mark delivered</button>`;
+    actions = `<div class="gadget-engage armed" onclick="updateDeliveryStatus(${did},'delivered')"><span class="verb-glyph">✓</span><span>Mark delivered</span></div>`;
   }
 
-  // Call participant button
   const callTarget = isRequester && d.runner_id ? d.runner_id
                    : isRunner ? d.requester_id : null;
+  const callTarget_s = callTarget ? JSON.stringify(callTarget) : null;
   const callBtn = callTarget
-    ? `<button class="primary" onclick="startCallTo('${callTarget}','delivery partner')" style="margin-top:8px;background:rgba(120,180,255,0.15)">📞 Call ${isRequester ? 'runner' : 'requester'}</button>`
+    ? `<div class="gadget-engage" onclick="startCallTo(${callTarget_s},'delivery partner')" style="margin-top:8px;border-color:rgba(120,180,255,0.35)"><span class="verb-glyph">◈</span><span>Call ${isRequester ? 'runner' : 'requester'}</span></div>`
     : '';
 
   openPanel(`
@@ -1953,14 +2027,14 @@ window.openDeliveryPanel = async (id) => {
 
 window.acceptDelivery = async (id) => {
   const { error } = await sb.rpc('accept_delivery', { delivery_id: id });
-  if (error) return alert(error.message);
+  if (error) return toast(error.message, 'err');
   openDeliveryPanel(id);
 };
 
 window.updateDeliveryStatus = async (id, newStatus) => {
-  if (newStatus === 'cancelled' && !confirm('Cancel this delivery request?')) return;
+  // arm-confirm handled by gadget-engage arm state; proceed directly
   const { error } = await sb.rpc('update_delivery_status', { delivery_id: id, new_status: newStatus });
-  if (error) return alert(error.message);
+  if (error) return toast(error.message, 'err');
   openDeliveryPanel(id);
 };
 
@@ -1986,7 +2060,7 @@ window.openRequestDeliveryStep1 = () => {
       Aim the camera at the <strong>pickup point</strong> on the globe.
       The center of your screen is what gets picked. When ready, tap below.
     </p>
-    <button class="primary" onclick="captureDeliveryPoint('pickup')">Set pickup here</button>
+    <div class="gadget-engage" onclick="captureDeliveryPoint('pickup')"><span class="verb-glyph">⊕</span><span>Set pickup here</span></div>
   `);
 };
 
@@ -1996,7 +2070,7 @@ window.captureDeliveryPoint = (kind) => {
     new Cesium.Cartesian2(window.innerWidth / 2, window.innerHeight / 2),
     viewer.scene.globe.ellipsoid
   );
-  if (!center) return alert('Aim the camera at the ground first.');
+  if (!center) return toast('Aim the camera at the ground first.');
   const carto = Cesium.Cartographic.fromCartesian(center);
   const lng = Cesium.Math.toDegrees(carto.longitude);
   const lat = Cesium.Math.toDegrees(carto.latitude);
@@ -2010,7 +2084,7 @@ window.captureDeliveryPoint = (kind) => {
       <p style="color:#a8c8ee;font-size:13px;line-height:1.5">
         Now aim at the <strong>dropoff point</strong>. Pickup is locked at <span style="color:#7eb4ff">${lat.toFixed(3)}, ${lng.toFixed(3)}</span>.
       </p>
-      <button class="primary" onclick="captureDeliveryPoint('dropoff')">Set dropoff here</button>
+      <div class="gadget-engage" onclick="captureDeliveryPoint('dropoff')"><span class="verb-glyph">⊕</span><span>Set dropoff here</span></div>
     `);
   } else if (kind === 'dropoff') {
     deliveryDraft.dropoff = { lng, lat };
@@ -2025,7 +2099,7 @@ window.captureDeliveryPoint = (kind) => {
         Pickup: ${deliveryDraft.pickup.lat.toFixed(3)}, ${deliveryDraft.pickup.lng.toFixed(3)} →
         Dropoff: ${deliveryDraft.dropoff.lat.toFixed(3)}, ${deliveryDraft.dropoff.lng.toFixed(3)}
       </div>
-      <button class="primary" onclick="submitDelivery()">Publish request</button>
+      <div class="gadget-engage armed" onclick="submitDelivery()"><span class="verb-glyph">⊛</span><span>Broadcast request</span></div>
     `);
   }
 };
@@ -2033,7 +2107,7 @@ window.captureDeliveryPoint = (kind) => {
 window.submitDelivery = async () => {
   if (!deliveryDraft?.pickup || !deliveryDraft?.dropoff) return;
   const desc = $('del-desc').value.trim();
-  if (!desc) return alert('Description required');
+  if (!desc) return toast('Description required');
   const reward = parseFloat($('del-reward').value || '0');
   const notes = $('del-notes').value.trim() || null;
 
@@ -2045,7 +2119,7 @@ window.submitDelivery = async () => {
     reward_avc: reward,
     notes,
   });
-  if (error) return alert(error.message);
+  if (error) return toast(error.message, 'err');
   deliveryDraft = null;
   openWalletPanel();
 };
@@ -2243,7 +2317,7 @@ window.emitSignal = async () => {
     new Cesium.Cartesian2(window.innerWidth / 2, window.innerHeight / 2),
     viewer.scene.globe.ellipsoid
   );
-  if (!center) return alert('Aim the camera at the ground first.');
+  if (!center) return toast('Aim the camera at the ground first.');
   const carto = Cesium.Cartographic.fromCartesian(center);
   const lng = Cesium.Math.toDegrees(carto.longitude);
   const lat = Cesium.Math.toDegrees(carto.latitude);
@@ -2293,7 +2367,7 @@ window.openKrypteia = async () => {
       <span>Provider lock</span>
       <span style="color:${lockedProvider ? '#ffb464' : '#6a8aaf'}">${lockedProvider ? lockedProvider.toUpperCase() : 'AUTO'}</span>
     </div>
-    ${lockedProvider ? `<button class="primary" onclick="clearProviderLock()" style="background:rgba(255,180,100,0.15);border-color:rgba(255,180,100,0.3);margin-top:8px">Clear lock</button>` : ''}
+    ${lockedProvider ? `<div class="gadget-engage" onclick="clearProviderLock()" style="border-color:rgba(255,180,100,0.35);margin-top:8px"><span class="verb-glyph">✕</span><span>Clear lock</span></div>` : ''}
 
     <div class="row" style="margin-top:16px">
       <span>Imagery source</span>
@@ -2308,9 +2382,9 @@ window.openKrypteia = async () => {
       <span style="color:#a8c8ee">${currentLevel.toUpperCase()}</span>
     </div>
 
-    <button class="primary" onclick="openSecurityEvents()" style="margin-top:14px;background:rgba(255,100,100,0.15);border-color:rgba(255,100,100,0.3)">Threat log · IP defense</button>
-    <button class="primary" onclick="openMemoryPanel()" style="margin-top:8px">Memory · ai_memory</button>
-    <button class="primary" onclick="openAICycleLog()" style="margin-top:8px">Recent AICYCLE calls</button>
+    <div class="gadget-engage" onclick="openSecurityEvents()" style="margin-top:14px;border-color:rgba(255,100,100,0.35)"><span class="verb-glyph">⚠</span><span>Threat log</span></div>
+    <div class="gadget-engage" onclick="openMemoryPanel()" style="margin-top:8px"><span class="verb-glyph">◎</span><span>Memory</span></div>
+    <div class="gadget-engage" onclick="openAICycleLog()" style="margin-top:8px"><span class="verb-glyph">◈</span><span>AICYCLE log</span></div>
   `);
 };
 
@@ -2375,7 +2449,7 @@ window.openMemoryPanel = async () => {
           ${m.is_private ? '🔒 Private' : 'Public'}
         </span>
         <span style="opacity:0.5">${formatRelative(m.created_at)}</span>
-        <span class="del" onclick="deleteMemory('${m.id}')" style="margin-left:auto">Delete</span>
+        <span class="del" onclick="armEngage(this,'Delete',()=>deleteMemory('${m.id}'))" style="margin-left:auto">Delete</span>
       </div>
     </div>
   `).join('');
@@ -2387,7 +2461,7 @@ window.openMemoryPanel = async () => {
       <label style="font-size:11px;color:#a8c8ee;display:flex;align-items:center;gap:6px;cursor:pointer">
         <input type="checkbox" id="mem-private" /> Private (never sent to AI)
       </label>
-      <button class="primary" style="flex:1;margin-top:0" onclick="addMemory()">Add</button>
+      <div class="gadget-engage" style="flex:1;margin-top:0" onclick="addMemory()"><span class="verb-glyph">⊕</span><span>Add memory</span></div>
     </div>
     <div style="margin-top:16px">${rows || '<div style="color:#6a8aaf;font-size:13px">No memory entries yet.</div>'}</div>
   `);
@@ -2400,20 +2474,20 @@ window.addMemory = async () => {
   const { error } = await sb.from('ai_memory').insert({
     profile_id: session.user.id, content, is_private,
   });
-  if (error) return alert(error.message);
+  if (error) return toast(error.message, 'err');
   openMemoryPanel();
 };
 
 window.toggleMemoryPrivacy = async (id, newValue) => {
   const { error } = await sb.from('ai_memory').update({ is_private: newValue }).eq('id', id);
-  if (error) return alert(error.message);
+  if (error) return toast(error.message, 'err');
   openMemoryPanel();
 };
 
 window.deleteMemory = async (id) => {
-  if (!confirm('Delete this memory?')) return;
+  // arm-confirm handled by caller's gadget-engage arm state
   const { error } = await sb.from('ai_memory').delete().eq('id', id);
-  if (error) return alert(error.message);
+  if (error) return toast(error.message, 'err');
   openMemoryPanel();
 };
 
@@ -2742,14 +2816,14 @@ async function subscribeInbox() {
 }
 
 window.startCallTo = async (peerId, peerName) => {
-  if (!sb || !session) return alert('Sign in to make calls');
+  if (!sb || !session) return toast('Sign in to make calls');
   if (peerId === session.user.id) return;
-  if (currentCall) return alert('Already on a call');
+  if (currentCall) return toast('Already on a call');
 
   try {
     localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
   } catch (e) {
-    alert('Camera/mic blocked: ' + e.message);
+    toast('Mic/cam blocked: ' + e.message, 'err');
     return;
   }
 
@@ -2759,7 +2833,7 @@ window.startCallTo = async (peerId, peerName) => {
   }).select().single();
   if (error) {
     localStream.getTracks().forEach(t => t.stop()); localStream = null;
-    return alert(error.message);
+    return toast(error.message, 'err');
   }
 
   currentCall = { id: row.id, peerId, peerName: peerName || 'unknown',
@@ -2821,7 +2895,7 @@ async function acceptIncomingCall() {
   try {
     localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
   } catch (e) {
-    alert('Camera/mic blocked: ' + e.message);
+    toast('Mic/cam blocked: ' + e.message, 'err');
     declineIncomingCall();
     return;
   }
