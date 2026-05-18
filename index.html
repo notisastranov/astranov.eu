@@ -77,9 +77,12 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     Watch for stolen code/content, auto-DMCA. Detect abuse: spam, auth
     flooding, exploits, harassment. Threat log = security_events.
 
-11. CRAWLERS — automatic, no human button
-    pg_cron triggers /crawl every 30 min. rss, osm_overpass, wikipedia_geo.
-    Insert as source='crawler', author_id=null, with expiry.
+11. CRAWLERS — automatic, deployed
+    pg_cron triggers /crawl edge function every 30 min. Queries OSM Overpass
+    across 20 world cities → upserts into signals (source='crawler',
+    source_url='osm:node:ID', 7-day TTL). nearby_signals RPC returns lat/lng
+    extracted from PostGIS geometry (ST_X/ST_Y). Unique constraint on
+    source_url prevents duplicates.
 
 12. MARKETPLACE
     Deliveries: requester posts pickup+dropoff+description+AVC reward;
@@ -100,6 +103,13 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 15. EVOLUTION RULE
     This law strives shorter, more inclusive, more precise. If a rule can be
     removed without weakening the constitution, remove it.
+
+17. HOLOGRAPHIC DOCK — replaces the tray
+    Four .holo-orb divs (Feed ◈ · Radar ◎ · AVC ◍ · You ◉) float as ambient
+    beads (scale 0.58, opacity 0.45) at fixed positions. Tap = fly forward
+    (scale 1.06) and open the gadget. Drag = reposition freely; positions
+    persist in localStorage. On overlap a nudge algorithm pushes orbs apart.
+    On panel close, active orb returns to ambient. The tray (#tray) is retired.
 
 16. LAW-SYNC — Claude Autonomy (perpetual)
     Every code change updates this law block when it introduces, changes, or
@@ -216,28 +226,62 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   /* ============================================================
      Tray — bottom strip, hidden by default.
      ============================================================ */
-  #tray-trigger {
-    position: fixed; bottom: 0; left: 0; right: 0; height: 8px; z-index: 30;
-    background: linear-gradient(to top, rgba(120, 180, 255, 0.1), transparent);
+  #tray-trigger { display: none; }  /* retired — dock orbs replace the tray */
+  #tray         { display: none; }
+
+  /* ============================================================
+     Holographic Dock — ambient orbs replace the tray.
+     Three depth states: ambient (receded), active (forward), dragging.
+     ============================================================ */
+  .holo-orb {
+    position: fixed; z-index: 45; width: 44px; height: 44px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; user-select: none; touch-action: none;
+    background: rgba(8,16,32,0.68); backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(120,180,255,0.28);
+    box-shadow: 0 0 20px rgba(120,180,255,0.07), inset 0 0 12px rgba(120,180,255,0.04);
+    transition: transform 0.28s cubic-bezier(0.34,1.56,0.64,1),
+                opacity 0.28s ease, border-color 0.2s, box-shadow 0.2s;
   }
-  #tray {
-    position: fixed; left: 50%; transform: translate(-50%, 100%);
-    bottom: max(12px, env(safe-area-inset-bottom));
-    background: rgba(10, 20, 40, 0.75); backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(120, 180, 255, 0.2); border-radius: 22px;
-    padding: 8px; display: flex; gap: 4px; z-index: 45;
-    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-    opacity: 0; pointer-events: none;
+  .holo-orb.ambient {
+    transform: scale(0.58); opacity: 0.45;
+    border-color: rgba(120,180,255,0.12);
   }
-  #tray.visible { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
-  #tray button {
-    background: transparent; border: 0; color: #a8c8ee;
-    padding: 8px 16px; font-size: 11px; letter-spacing: 0.12em;
-    border-radius: 16px; cursor: pointer; text-transform: uppercase;
-    transition: background 0.2s;
+  .holo-orb.active, .holo-orb:not(.ambient):hover {
+    transform: scale(1.06); opacity: 1;
+    border-color: rgba(120,180,255,0.55);
+    box-shadow: 0 0 28px rgba(120,180,255,0.18), inset 0 0 16px rgba(120,180,255,0.08);
   }
-  #tray button:hover, #tray button.active { background: rgba(120, 180, 255, 0.12); color: #fff; }
+  .holo-orb.dragging {
+    transition: none; opacity: 0.88;
+    box-shadow: 0 0 40px rgba(120,180,255,0.28);
+    transform: scale(1.12);
+  }
+  .holo-orb .orb-g {
+    font-size: 17px; line-height: 1;
+    filter: drop-shadow(0 0 5px rgba(120,180,255,0.7));
+    transition: filter 0.2s;
+  }
+  .holo-orb.ambient .orb-g { filter: drop-shadow(0 0 2px rgba(120,180,255,0.3)); }
+  .holo-orb .orb-lbl {
+    position: absolute; top: calc(100% + 5px); left: 50%;
+    transform: translateX(-50%); font-size: 7px; letter-spacing: 0.2em;
+    text-transform: uppercase; color: rgba(120,180,255,0.5);
+    white-space: nowrap; font-family: 'SF Mono',monospace;
+    pointer-events: none; opacity: 0; transition: opacity 0.2s;
+  }
+  .holo-orb:not(.ambient) .orb-lbl { opacity: 1; }
+  /* Badge for live counts (unread DMs, active deliveries) */
+  .holo-orb .orb-badge {
+    position: absolute; top: 1px; right: 1px;
+    min-width: 14px; height: 14px; border-radius: 7px;
+    background: rgba(126,235,180,0.9); color: #021018;
+    font-size: 8px; font-weight: 700; line-height: 14px;
+    text-align: center; padding: 0 3px;
+    display: none;
+  }
+  .holo-orb .orb-badge.visible { display: block; }
 
   /* ============================================================
      Panel — slides up from bottom for tasks.
@@ -893,11 +937,20 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 <!-- Layer-switch gadget — city-tier provider switcher (Imagery Law §3) -->
 <div id="layer-switch" aria-label="Imagery provider"></div>
 <div id="tray-trigger"></div>
-<div id="tray">
-  <button data-tab="feed">Feed</button>
-  <button data-tab="radar">Radar</button>
-  <button data-tab="wallet">Wallet</button>
-  <button data-tab="you">You</button>
+<div id="tray"></div>
+
+<!-- Holographic dock orbs — replace the tray -->
+<div class="holo-orb ambient" id="dock-feed"     data-action="feed">
+  <div class="orb-g">◈</div><div class="orb-lbl">Feed</div>
+</div>
+<div class="holo-orb ambient" id="dock-radar"    data-action="radar">
+  <div class="orb-g">◎</div><div class="orb-lbl">Radar</div>
+</div>
+<div class="holo-orb ambient" id="dock-wallet"   data-action="wallet">
+  <div class="orb-g">◍</div><div class="orb-lbl">AVC</div><div class="orb-badge" id="dock-wallet-badge"></div>
+</div>
+<div class="holo-orb ambient" id="dock-identity" data-action="you">
+  <div class="orb-g">◉</div><div class="orb-lbl">You</div>
 </div>
 <div id="panel"></div>
 <div id="aicycle-chat">
@@ -1394,61 +1447,156 @@ async function boostSignal(signalId) {
 }
 
 /* ==============================================================
-   6. Tray — auto-hide, swipe-up trigger
+   6. Holographic Dock — draggable ambient orbs replace the tray.
+   Depth states: ambient (receded) ↔ active (foreground).
+   Positions persist in localStorage. Self-arrange on overlap.
    ============================================================== */
-const tray = $('tray');
-let trayHideTimer;
-function showTray() {
-  tray.classList.add('visible');
-  clearTimeout(trayHideTimer);
-  trayHideTimer = setTimeout(() => tray.classList.remove('visible'), 5000);
-}
-function bumpTrayTimer() {
-  if (tray.classList.contains('visible')) {
-    clearTimeout(trayHideTimer);
-    trayHideTimer = setTimeout(() => tray.classList.remove('visible'), 5000);
+(function() {
+  const ORBS = [
+    { id: 'dock-feed',     action: 'feed',   defaultPos: { left: 16, top: null, bottom: 120, right: null } },
+    { id: 'dock-radar',    action: 'radar',  defaultPos: { left: 16, top: null, bottom: 180, right: null } },
+    { id: 'dock-wallet',   action: 'wallet', defaultPos: { left: 16, top: null, bottom: 240, right: null } },
+    { id: 'dock-identity', action: 'you',    defaultPos: { left: null, top: 80, bottom: null, right: 16 } },
+  ];
+
+  const STORAGE_KEY = 'holo_dock_v1';
+  let savedPos = {};
+  try { savedPos = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch (_) {}
+
+  ORBS.forEach(cfg => {
+    const el = $(cfg.id);
+    if (!el) return;
+
+    // Restore or apply default position
+    const pos = savedPos[cfg.id] || cfg.defaultPos;
+    _applyPos(el, pos);
+
+    // Tap = activate → open panel
+    let dragMoved = false;
+    let dragStartX = 0, dragStartY = 0;
+    let elStartLeft = 0, elStartTop = 0;
+
+    el.addEventListener('pointerdown', e => {
+      e.stopPropagation();
+      dragMoved = false;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      const r = el.getBoundingClientRect();
+      elStartLeft = r.left;
+      elStartTop  = r.top;
+      el.setPointerCapture(e.pointerId);
+      el.classList.add('dragging');
+    });
+
+    el.addEventListener('pointermove', e => {
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+      if (!dragMoved && Math.hypot(dx, dy) < 6) return;
+      dragMoved = true;
+      const newLeft = Math.max(4, Math.min(window.innerWidth  - 48, elStartLeft + dx));
+      const newTop  = Math.max(4, Math.min(window.innerHeight - 48, elStartTop  + dy));
+      el.style.left   = newLeft + 'px';
+      el.style.top    = newTop  + 'px';
+      el.style.right  = 'auto';
+      el.style.bottom = 'auto';
+    });
+
+    el.addEventListener('pointerup', e => {
+      el.releasePointerCapture(e.pointerId);
+      el.classList.remove('dragging');
+      if (dragMoved) {
+        // Save position
+        const r = el.getBoundingClientRect();
+        savedPos[cfg.id] = { left: r.left, top: r.top, bottom: null, right: null };
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(savedPos)); } catch (_) {}
+        _nudgeOverlaps();
+      } else {
+        // Tap — activate + open
+        _activateOrb(el);
+        openTabPanel(cfg.action);
+      }
+    });
+
+    el.addEventListener('pointercancel', e => {
+      el.releasePointerCapture(e.pointerId);
+      el.classList.remove('dragging');
+    });
+  });
+
+  function _applyPos(el, pos) {
+    el.style.left   = pos.left   != null ? pos.left   + 'px' : 'auto';
+    el.style.right  = pos.right  != null ? pos.right  + 'px' : 'auto';
+    el.style.top    = pos.top    != null ? pos.top    + 'px' : 'auto';
+    el.style.bottom = pos.bottom != null ? pos.bottom + 'px' : 'auto';
   }
-}
-$('tray-trigger').addEventListener('click', showTray);
 
-// Swipe-up from bottom 60px
-let touchStartY = null;
-window.addEventListener('touchstart', e => {
-  const t = e.touches[0];
-  if (t && (window.innerHeight - t.clientY) < 60) touchStartY = t.clientY;
-}, { passive: true });
-window.addEventListener('touchmove', e => {
-  if (touchStartY != null) {
-    const t = e.touches[0];
-    if (touchStartY - t.clientY > 30) { showTray(); touchStartY = null; }
+  function _activateOrb(el) {
+    document.querySelectorAll('.holo-orb').forEach(o => {
+      o.classList.remove('active');
+      o.classList.add('ambient');
+    });
+    el.classList.remove('ambient');
+    el.classList.add('active');
+    // Return to ambient after 4s idle
+    clearTimeout(el._ambientTimer);
+    el._ambientTimer = setTimeout(() => {
+      el.classList.remove('active');
+      el.classList.add('ambient');
+    }, 4000);
   }
-}, { passive: true });
-window.addEventListener('touchend', () => { touchStartY = null; }, { passive: true });
 
-tray.addEventListener('click', e => {
-  const btn = e.target.closest('button[data-tab]');
-  if (!btn) return;
-  bumpTrayTimer();
-  openTabPanel(btn.dataset.tab);
-});
+  // Push apart orbs that overlap after a drag
+  function _nudgeOverlaps() {
+    const orbs = [...document.querySelectorAll('.holo-orb')];
+    orbs.forEach((a, i) => {
+      orbs.slice(i + 1).forEach(b => {
+        const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+        const dx = (ra.left + 22) - (rb.left + 22);
+        const dy = (ra.top  + 22) - (rb.top  + 22);
+        const dist = Math.hypot(dx, dy);
+        if (dist < 50 && dist > 0) {
+          const push = (50 - dist) / 2;
+          const nx = push * dx / dist, ny = push * dy / dist;
+          const newTop = Math.max(4, Math.min(window.innerHeight - 48, rb.top + 22 - ny - 22));
+          b.style.top    = newTop + 'px';
+          b.style.bottom = 'auto';
+        }
+      });
+    });
+  }
 
-// First-load teaser: peek tray for 2.5s
-setTimeout(() => {
-  tray.classList.add('visible');
-  setTimeout(() => tray.classList.remove('visible'), 2500);
-}, 1800);
+  // When a panel closes, return the active orb to ambient
+  window.addEventListener('panel:close', () => {
+    document.querySelectorAll('.holo-orb.active').forEach(o => {
+      o.classList.remove('active');
+      o.classList.add('ambient');
+    });
+  });
+
+  // First-load pulse: briefly grow each orb in sequence to teach gesture
+  setTimeout(() => {
+    ORBS.forEach((cfg, i) => {
+      const el = $(cfg.id);
+      if (!el) return;
+      setTimeout(() => {
+        el.classList.remove('ambient');
+        setTimeout(() => el.classList.add('ambient'), 700);
+      }, i * 200);
+    });
+  }, 1400);
+}());
 
 /* ==============================================================
    7. Panel — generic slide-up
    ============================================================== */
 const panel = $('panel');
 function openPanel(html) { panel.innerHTML = html; panel.classList.add('visible'); }
-function closePanel()    { panel.classList.remove('visible'); }
+function closePanel()    { panel.classList.remove('visible'); window.dispatchEvent(new Event('panel:close')); }
 
 // Tap outside panel → close
 document.addEventListener('click', e => {
   if (panel.classList.contains('visible') && !panel.contains(e.target)
-      && !e.target.closest('#tray') && !e.target.closest('#aicycle-float')) {
+      && !e.target.closest('.holo-orb') && !e.target.closest('#aicycle-float')) {
     closePanel();
   }
 }, true);
@@ -1561,7 +1709,7 @@ async function _acquireRadar() {
 
   viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(coords.lng, coords.lat, 12_000), duration: 2.5 });
 
-  const { data, error } = await sb.rpc('nearby_signals', { lat: coords.lat, lng: coords.lng, radius_meters: 50_000, max_results: 50 });
+  const { data, error } = await sb.rpc('nearby_signals', { p_lat: coords.lat, p_lng: coords.lng, radius_meters: 50_000, max_results: 50 });
   if (error) {
     const sig = $('radar-signals');
     if (sig) sig.innerHTML = `<div style="color:#ff9e9e;font-size:12px;text-align:center;padding:8px">signal rpc: ${escapeHtml(error.message)}</div>`;
