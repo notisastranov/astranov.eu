@@ -78,11 +78,11 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     flooding, exploits, harassment. Threat log = security_events.
 
 11. CRAWLERS — automatic, deployed
-    pg_cron triggers /crawl edge function every 30 min. Queries OSM Overpass
-    across 20 world cities → upserts into signals (source='crawler',
-    source_url='osm:node:ID', 7-day TTL). nearby_signals RPC returns lat/lng
-    extracted from PostGIS geometry (ST_X/ST_Y). Unique constraint on
-    source_url prevents duplicates.
+    pg_cron triggers /crawl edge function every 30 min via direct HTTP POST
+    (no vault required). Queries OSM Overpass across 20 world cities → upserts
+    into signals (source='crawler', source_url='osm:node:ID', 7-day TTL).
+    trg_sync_signal_coords trigger auto-populates lat/lng from PostGIS geometry
+    on every INSERT/UPDATE. nearby_signals RPC extracts ST_Y/ST_X for radar blips.
 
 12. MARKETPLACE
     Deliveries: requester posts pickup+dropoff+description+AVC reward;
@@ -103,6 +103,15 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 15. EVOLUTION RULE
     This law strives shorter, more inclusive, more precise. If a rule can be
     removed without weakening the constitution, remove it.
+
+18. LIVE WIRING — realtime state
+    loadDeliveryBadge() counts active deliveries for current user → badge on
+    wallet orb. Supabase realtime on deliveries table refreshes badge + open
+    wallet panel automatically. updateIdentityOrb() sets dock-identity glyph
+    to user initial + green glow when authenticated. Feed panel fetches from
+    DB on open and merges into globe signalIndex. flyToSignal() fetches from
+    DB if signal not in local index. emitSignal() sets lat+lng directly (also
+    backed by trg_sync_signal_coords trigger).
 
 17. HOLOGRAPHIC DOCK — replaces the tray
     Four .holo-orb divs (Feed ◈ · Radar ◎ · AVC ◍ · You ◉) float as ambient
@@ -626,17 +635,7 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   /* ============================================================
      Deliveries
      ============================================================ */
-  .delivery-tabs {
-    display: flex; gap: 4px; margin: 8px 0 16px;
-    border-bottom: 1px solid rgba(120, 180, 255, 0.1);
-  }
-  .delivery-tabs button {
-    background: transparent; border: 0; color: #6a8aaf;
-    padding: 8px 12px; font-size: 10px; letter-spacing: 0.15em;
-    text-transform: uppercase; cursor: pointer;
-    border-bottom: 2px solid transparent; margin-bottom: -1px;
-  }
-  .delivery-tabs button.active { color: #fff; border-bottom-color: #7eb4ff; }
+  .delivery-tabs { margin: 8px 0 16px; }
 
   .delivery-row {
     padding: 12px 0; border-bottom: 1px solid rgba(120, 180, 255, 0.06);
@@ -996,8 +995,8 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   <div class="messages" id="aicycle-messages"></div>
   <form id="aicycle-form" autocomplete="off">
     <input id="aicycle-input" type="text" placeholder="Ask the cycle…" />
-    <button type="button" id="aicycle-mic" title="Voice input" style="background:rgba(120,180,255,0.08);border:1px solid rgba(120,180,255,0.2);border-radius:50%;width:36px;height:36px;font-size:16px;flex-shrink:0;cursor:pointer">🎙</button>
-    <button type="submit" style="background:rgba(120,180,255,0.15);border:1px solid rgba(120,180,255,0.3);border-radius:12px;color:#7eb4ff;padding:0 14px;height:36px;font-size:16px;cursor:pointer;flex-shrink:0">→</button>
+    <div id="aicycle-mic" title="Voice input" role="button" style="background:rgba(120,180,255,0.08);border:1px solid rgba(120,180,255,0.2);border-radius:50%;width:36px;height:36px;font-size:16px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center">🎙</div>
+    <div id="aicycle-send" role="button" onclick="$('aicycle-form').dispatchEvent(new Event('submit',{cancelable:true,bubbles:true}))" style="background:rgba(120,180,255,0.15);border:1px solid rgba(120,180,255,0.3);border-radius:12px;color:#7eb4ff;padding:0 14px;height:36px;font-size:16px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">→</div>
   </form>
 </div>
 
@@ -1027,9 +1026,9 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   <video id="call-remote-video" autoplay playsinline></video>
   <video id="call-local-video"  autoplay playsinline muted></video>
   <div class="controls">
-    <button id="call-toggle-mic" title="Mute mic">🎙</button>
-    <button id="call-toggle-cam" title="Toggle camera">📷</button>
-    <button id="call-hangup"     title="Hang up">✕</button>
+    <div class="c-orb" id="call-toggle-mic" title="Mute mic"    style="background:rgba(120,180,255,0.25);font-size:18px">🎙</div>
+    <div class="c-orb" id="call-toggle-cam" title="Toggle cam"  style="background:rgba(120,180,255,0.25);font-size:18px">📷</div>
+    <div class="c-orb" id="call-hangup"     title="Hang up"     style="background:rgba(255,77,77,0.85);font-size:18px">✕</div>
   </div>
 </div>
 
@@ -1368,7 +1367,7 @@ function bootSupabase() {
 
   sb.auth.onAuthStateChange((_evt, s) => {
     session = s;
-    if (s) loadProfile(); else profile = null;
+    if (s) loadProfile(); else { profile = null; updateIdentityOrb(); }
   });
 
   loadSignals();
@@ -1379,8 +1378,38 @@ async function loadProfile() {
   if (!sb || !session) return;
   const { data, error } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
   if (!error) profile = data;
-  // Subscribe to personal inbox for incoming calls
   subscribeInbox();
+  loadDeliveryBadge();
+  updateIdentityOrb();
+}
+
+async function loadDeliveryBadge() {
+  const badge = $('dock-wallet-badge');
+  if (!sb || !session || !badge) return;
+  const { count } = await sb.from('deliveries')
+    .select('*', { count: 'exact', head: true })
+    .or(`requester_id.eq.${session.user.id},runner_id.eq.${session.user.id}`)
+    .in('status', ['requested','accepted','in_transit']);
+  const n = count || 0;
+  badge.textContent = n > 9 ? '9+' : n > 0 ? String(n) : '';
+  badge.classList.toggle('visible', n > 0);
+}
+
+function updateIdentityOrb() {
+  const orbEl = $('dock-identity');
+  if (!orbEl) return;
+  const glyphEl = orbEl.querySelector('.orb-g');
+  if (!glyphEl) return;
+  if (session) {
+    const initial = (profile?.display_name || session.user.email || 'U').trim().charAt(0).toUpperCase();
+    glyphEl.textContent = initial;
+    orbEl.style.borderColor = 'rgba(126,235,180,0.35)';
+    orbEl.style.boxShadow = '0 0 18px rgba(126,235,180,0.12)';
+  } else {
+    glyphEl.textContent = '◉';
+    orbEl.style.borderColor = '';
+    orbEl.style.boxShadow = '';
+  }
 }
 
 /* ==============================================================
@@ -1464,6 +1493,13 @@ function subscribeRealtime() {
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'signals' },
         p => removeSignalPoint(p.old.id))
     .subscribe();
+  // Delivery changes → update wallet badge + refresh open wallet panel
+  sb.channel('astranov-deliveries')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => {
+      loadDeliveryBadge();
+      if ($('delivery-list')) loadDeliveryTab(_currentDeliveryTab || 'my-requests');
+    })
+    .subscribe();
 }
 
 /* ==============================================================
@@ -1488,8 +1524,9 @@ function openSignalPanel(signal) {
   const bodyHtml = signal.body
     ? `<div style="font-size:13px; color:#a8c8ee; margin-bottom:12px; line-height:1.5">${escapeHtml(signal.body.slice(0, 400))}${signal.body.length > 400 ? '…' : ''}</div>`
     : '';
-  const readLink = signal.source_url
-    ? `<div class="gadget-engage" onclick="window.open('${signal.source_url}','_blank','noopener')" style="margin-top:8px"><span class="verb-glyph">↗</span><span>Read full article</span></div>`
+  const isWebUrl = signal.source_url && /^https?:\/\//i.test(signal.source_url);
+  const readLink = isWebUrl
+    ? `<div class="gadget-engage" onclick="window.open(${JSON.stringify(signal.source_url)},'_blank','noopener')" style="margin-top:8px"><span class="verb-glyph">↗</span><span>Read full</span></div>`
     : '';
   const canCall = signal.author_id && session && signal.author_id !== session.user.id && signal.source !== 'crawler';
   const callBtn = canCall
@@ -1681,23 +1718,44 @@ function openTabPanel(tab) {
   if (tab === 'you')    return openYouPanel();
 }
 
-function openFeedPanel() {
-  // TODO: render paginated list of recent signals
-  const items = [...signalIndex.values()]
-    .sort((a, b) => new Date(b.signal.created_at) - new Date(a.signal.created_at))
-    .slice(0, 20)
-    .map(({ signal }) => `
-      <div class="row" onclick="flyToSignal('${signal.id}')" style="cursor:pointer">
-        <span>${escapeHtml(signal.title)}</span>
-        <span style="font-size:10px;color:#6a8aaf">${signal.category}</span>
+function _renderFeedCards(signals) {
+  if (!signals.length) return '<div style="color:#6a8aaf;font-size:13px;padding:12px 0">No signals yet. Aim at the globe and emit one.</div>';
+  return signals.map(s => `
+    <div class="delivery-row" onclick="flyToSignal(${JSON.stringify(s.id)})">
+      <div class="head">
+        <span class="desc">${escapeHtml(s.title)}</span>
+        <span style="font-size:9px;color:${RADAR_COLORS[s.category]||'#a8c8ee'};letter-spacing:0.12em;text-transform:uppercase;margin-left:8px;flex-shrink:0">${s.category.replace('_',' ')}</span>
       </div>
-    `).join('');
+      <div class="meta">${s.source_name ? escapeHtml(s.source_name)+' · ' : ''}${formatRelative(s.created_at)}</div>
+    </div>`).join('');
+}
+
+async function openFeedPanel() {
+  const local = [...signalIndex.values()]
+    .sort((a, b) => new Date(b.signal.created_at) - new Date(a.signal.created_at))
+    .slice(0, 40).map(e => e.signal);
+
   openPanel(`
     <h2>Feed</h2>
-    <div class="subtitle">Recent signals in your field</div>
-    ${items || '<div style="color:#6a8aaf;font-size:13px">No signals yet. Be the first to emit.</div>'}
-    <div class="gadget-engage" onclick="openEmitPanel()"><span class="verb-glyph">⊕</span><span>Emit signal</span></div>
+    <div class="subtitle" id="feed-subtitle">${signalIndex.size} signals on globe</div>
+    <div id="feed-list">${_renderFeedCards(local)}</div>
+    <div class="gadget-engage" onclick="openEmitPanel()" style="margin-top:14px"><span class="verb-glyph">⊕</span><span>Emit signal</span></div>
   `);
+
+  if (!sb) return;
+  // Always fetch fresh from DB — merge new ones into globe index
+  const { data } = await sb.from('signals')
+    .select('id,author_id,category,scope,title,body,lng,lat,amplitude,created_at,source,source_url,source_name')
+    .eq('status','active').order('created_at',{ascending:false}).limit(80);
+  if (!data) return;
+  data.forEach(s => { if (s.lat && s.lng) addSignalPoint(s); });
+  const merged = [...signalIndex.values()]
+    .sort((a, b) => new Date(b.signal.created_at) - new Date(a.signal.created_at))
+    .slice(0, 60).map(e => e.signal);
+  const feedList = $('feed-list');
+  const feedSub  = $('feed-subtitle');
+  if (feedList) feedList.innerHTML = _renderFeedCards(merged);
+  if (feedSub)  feedSub.textContent = signalIndex.size + ' signals on globe';
 }
 
 const RADAR_COLORS = {
@@ -1902,23 +1960,38 @@ function openWalletPanel() {
   openPanel(`
     <h2>Wallet</h2>
     <div class="subtitle">AVC balance &amp; delivery marketplace</div>
-    <div style="font-size:32px;font-weight:300;margin:16px 0;">${profile?.avc_balance ?? 0} <span style="font-size:12px;color:#6a8aaf">AVC</span></div>
+    <div style="display:flex;align-items:center;gap:14px;margin:16px 0;padding:14px 16px;background:rgba(255,212,126,0.06);border-radius:12px;border:1px solid rgba(255,212,126,0.15)">
+      <svg width="44" height="44" viewBox="0 0 44 44" style="flex-shrink:0">
+        <circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,212,126,0.15)" stroke-width="3"/>
+        <circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,212,126,0.8)" stroke-width="3"
+          stroke-dasharray="${Math.min((profile?.avc_balance??0)/100*113,113).toFixed(1)} 113"
+          stroke-linecap="round" transform="rotate(-90 22 22)"/>
+        <text x="22" y="26" text-anchor="middle" fill="#ffd47e" font-size="10" font-weight="600">${profile?.avc_balance ?? 0}</text>
+      </svg>
+      <div>
+        <div style="font-size:22px;font-weight:300;color:#ffd47e">${profile?.avc_balance ?? 0} <span style="font-size:11px;color:#a88c50;letter-spacing:0.2em">AVC</span></div>
+        <div style="font-size:10px;color:#6a8aaf;letter-spacing:0.15em;text-transform:uppercase;margin-top:2px">Available balance</div>
+      </div>
+    </div>
 
-    <div class="delivery-tabs">
-      <button class="active" data-tab="my-requests"  onclick="switchDeliveryTab('my-requests',  event)">My requests</button>
-      <button             data-tab="my-runs"      onclick="switchDeliveryTab('my-runs',      event)">My runs</button>
-      <button             data-tab="nearby"       onclick="switchDeliveryTab('nearby',       event)">Nearby</button>
+    <div class="gadget-seg delivery-tabs" id="delivery-tab-seg">
+      <div class="seg active" data-tab="my-requests" onclick="switchDeliveryTab('my-requests',this)">Requests</div>
+      <div class="seg"        data-tab="my-runs"     onclick="switchDeliveryTab('my-runs',this)">My Runs</div>
+      <div class="seg"        data-tab="nearby"      onclick="switchDeliveryTab('nearby',this)">Nearby</div>
     </div>
     <div id="delivery-list" style="min-height:80px;color:#6a8aaf;font-size:13px">Loading…</div>
 
     <div class="gadget-engage" onclick="openRequestDeliveryStep1()" style="margin-top:14px"><span class="verb-glyph">⊕</span><span>Request delivery</span></div>
   `);
+  _currentDeliveryTab = 'my-requests';
   loadDeliveryTab('my-requests');
 }
 
-window.switchDeliveryTab = (tab, evt) => {
-  document.querySelectorAll('.delivery-tabs button').forEach(b => b.classList.remove('active'));
-  if (evt?.target) evt.target.classList.add('active');
+let _currentDeliveryTab = 'my-requests';
+window.switchDeliveryTab = (tab, el) => {
+  _currentDeliveryTab = tab;
+  document.querySelectorAll('.delivery-tabs .seg').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
   loadDeliveryTab(tab);
 };
 
@@ -2121,6 +2194,7 @@ window.submitDelivery = async () => {
   });
   if (error) return toast(error.message, 'err');
   deliveryDraft = null;
+  toast('Delivery broadcast — runners notified', 'ok');
   openWalletPanel();
 };
 
@@ -2169,15 +2243,23 @@ function openYouPanel() {
   `);
 }
 
-window.flyToSignal = id => {
-  const entry = signalIndex.get(id);
+window.flyToSignal = async (id) => {
+  let entry = signalIndex.get(id);
+  if (!entry && sb) {
+    // Signal not on globe yet — fetch from DB
+    const { data } = await sb.from('signals').select('*').eq('id', id).single();
+    if (data && data.lat && data.lng) { addSignalPoint(data); entry = signalIndex.get(id); }
+  }
   if (!entry) return;
   const { lng, lat } = entry.signal;
-  viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(Number(lng), Number(lat), 50000),
-    duration: 2,
-  });
+  if (viewer && lng != null && lat != null) {
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(Number(lng), Number(lat), 50000),
+      duration: 2,
+    });
+  }
   closePanel();
+  setTimeout(() => { if (entry) openSignalPanel(entry.signal); }, 300);
 };
 
 window.sendMagicLink = async () => {
@@ -2203,7 +2285,7 @@ window.sendMagicLink = async () => {
   }
 };
 
-window.signOut = async () => { await sb?.auth.signOut(); closePanel(); };
+window.signOut = async () => { await sb?.auth.signOut(); closePanel(); updateIdentityOrb(); };
 
 /* Pulse emitter — Gadget Law §4 translation: post signal → segmented
    category selector + intensity dial + reach indicator + engage gadget. */
@@ -2333,11 +2415,13 @@ window.emitSignal = async () => {
     body: $('emit-body')?.value.trim() || null,
     amplitude: emitState.amplitude,
     location: `SRID=4326;POINT(${lng} ${lat})`,
+    lat, lng,
   });
   if (error) {
     if (engage) engage.querySelector('span:last-child').textContent = error.message.slice(0, 40);
     return;
   }
+  toast('Signal emitted — broadcasting to the globe', 'ok');
   closePanel();
 };
 
