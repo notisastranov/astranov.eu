@@ -104,6 +104,29 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     This law strives shorter, more inclusive, more precise. If a rule can be
     removed without weakening the constitution, remove it.
 
+19. MESSAGING — direct user-to-user
+    messages table (RLS: sender inserts, both parties read). message_inbox()
+    RPC returns latest-per-peer with unread count. get_conversation() loads
+    thread. mark_messages_read() clears unread. dock-messages orb with badge.
+    Realtime subscription appends incoming bubbles in open thread.
+
+20. AVC ECONOMY — real transfer
+    avc_transactions ledger. trg_delivery_avc trigger fires on
+    deliveries.status → 'delivered': debits requester, credits runner,
+    logs both sides. New users receive 50 AVC starter balance. my_avc_transactions()
+    RPC powers the History tab in the wallet panel.
+
+21. DELIVERY GLOBE PINS — discovery on the map
+    Open delivery requests rendered as amber points on the Cesium globe.
+    Visible at NATIONAL / PERSONAL zoom. Clickable → openDeliveryPanel().
+    loadDeliveries() on boot; realtime INSERT adds pins, non-requested status
+    removes them. Runners find work by flying to any city.
+
+22. CATEGORY FILTER — #cat-filter
+    Row of color-coded dots at bottom centre. Visible at national/personal
+    zoom when signals are loaded. Tap a dot = toggle that category on/off
+    (show/hide all matching PointPrimitives). Auto-dims to 35% opacity after 3.5s.
+
 18. LIVE WIRING — realtime state
     loadDeliveryBadge() counts active deliveries for current user → badge on
     wallet orb. Supabase realtime on deliveries table refreshes badge + open
@@ -633,6 +656,68 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   }
 
   /* ============================================================
+     Category filter — appears at bottom centre, national/personal only
+     ============================================================ */
+  #cat-filter {
+    position: fixed; bottom: max(14px, env(safe-area-inset-bottom));
+    left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px; padding: 6px 10px;
+    background: rgba(6,12,24,0.72); backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(120,180,255,0.14); border-radius: 999px;
+    z-index: 44; opacity: 0; pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  #cat-filter.visible { opacity: 1; pointer-events: auto; }
+  .cat-dot {
+    width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+    border: 2px solid transparent; transition: opacity 0.2s, transform 0.15s;
+    flex-shrink: 0;
+  }
+  .cat-dot.off { opacity: 0.22; transform: scale(0.8); }
+  .cat-dot:active { transform: scale(0.9); }
+
+  /* ============================================================
+     Messages
+     ============================================================ */
+  .msg-row {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 10px 0; border-bottom: 1px solid rgba(120,180,255,0.07); cursor: pointer;
+  }
+  .msg-row:hover { background: rgba(120,180,255,0.04); }
+  .msg-row .av {
+    width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+    background: rgba(120,180,255,0.15); border: 1px solid rgba(120,180,255,0.25);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 600; color: #a8c8ee;
+  }
+  .msg-row .av.unread { border-color: rgba(126,235,180,0.5); background: rgba(126,235,180,0.1); color: #7eebb4; }
+  .msg-row .meta { flex: 1; min-width: 0; }
+  .msg-row .peer { font-size: 13px; color: #e6f1ff; font-weight: 500; }
+  .msg-row .preview { font-size: 11px; color: #6a8aaf; margin-top: 2px;
+                      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .msg-row .ts { font-size: 10px; color: #4a6a8f; flex-shrink: 0; }
+  .msg-bubble {
+    max-width: 82%; padding: 8px 12px; border-radius: 14px;
+    font-size: 13px; line-height: 1.45; margin-bottom: 6px; word-break: break-word;
+  }
+  .msg-bubble.me    { background: rgba(120,180,255,0.18); border-bottom-right-radius: 4px;
+                      align-self: flex-end; color: #d4e8ff; margin-left: auto; }
+  .msg-bubble.them  { background: rgba(30,40,60,0.9); border-bottom-left-radius: 4px;
+                      align-self: flex-start; color: #c8d8ef; }
+  .msg-thread { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px;
+                max-height: 44vh; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 4px 0; }
+  .msg-compose { display: flex; gap: 8px; margin-top: 8px; }
+  .msg-compose input { flex: 1; background: rgba(20,30,50,0.8); border: 1px solid rgba(120,180,255,0.2);
+                       border-radius: 20px; padding: 9px 14px; color: #e6f1ff; font-size: 13px;
+                       outline: none; }
+  .msg-compose input::placeholder { color: #4a6a8f; }
+  .msg-compose .send-orb { width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+                            background: rgba(120,180,255,0.2); border: 1px solid rgba(120,180,255,0.35);
+                            display: flex; align-items: center; justify-content: center;
+                            cursor: pointer; color: #7eb4ff; font-size: 16px; }
+
+  /* ============================================================
      Deliveries
      ============================================================ */
   .delivery-tabs { margin: 8px 0 16px; }
@@ -985,9 +1070,13 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 <div class="holo-orb ambient" id="dock-wallet"   data-action="wallet">
   <div class="orb-g">◍</div><div class="orb-lbl">AVC</div><div class="orb-badge" id="dock-wallet-badge"></div>
 </div>
+<div class="holo-orb ambient" id="dock-messages" data-action="messages">
+  <div class="orb-g">◫</div><div class="orb-lbl">Msgs</div><div class="orb-badge" id="dock-msg-badge"></div>
+</div>
 <div class="holo-orb ambient" id="dock-identity" data-action="you">
   <div class="orb-g">◉</div><div class="orb-lbl">You</div>
 </div>
+<div id="cat-filter"></div>
 <div id="panel"></div>
 <div id="aicycle-chat">
   <div id="aicycle-drag-handle"></div>
@@ -1325,8 +1414,12 @@ function onCameraSettled() {
   // Back button: visible whenever we're below global
   $('back-btn').classList.toggle('visible', newLevel !== 'global');
 
-  // Imagery Law §3: city-tier provider switcher visible only when below GLOBAL.
   updateLayerSwitchVisibility();
+  updateCatFilter();
+  // Show delivery pins only at NATIONAL / PERSONAL
+  const showDeliveries = newLevel !== 'global';
+  deliveryIndex.forEach(e => { e.primitive.show = showDeliveries; });
+  if (viewer) viewer.scene.requestRender();
 }
 
 $('back-btn').addEventListener('click', () => {
@@ -1371,6 +1464,7 @@ function bootSupabase() {
   });
 
   loadSignals();
+  loadDeliveries();
   subscribeRealtime();
 }
 
@@ -1380,7 +1474,9 @@ async function loadProfile() {
   if (!error) profile = data;
   subscribeInbox();
   loadDeliveryBadge();
+  loadMessageBadge();
   updateIdentityOrb();
+  profileSetupIfNeeded();
 }
 
 async function loadDeliveryBadge() {
@@ -1410,6 +1506,183 @@ function updateIdentityOrb() {
     orbEl.style.borderColor = '';
     orbEl.style.boxShadow = '';
   }
+}
+
+async function loadMessageBadge() {
+  const badge = $('dock-msg-badge');
+  if (!sb || !session || !badge) return;
+  const { data } = await sb.rpc('unread_message_count');
+  const n = Number(data || 0);
+  badge.textContent = n > 9 ? '9+' : n > 0 ? String(n) : '';
+  badge.classList.toggle('visible', n > 0);
+}
+
+async function profileSetupIfNeeded() {
+  if (!sb || !session || !profile) return;
+  // If display_name looks like an email prefix or is missing, prompt for real name
+  const name = profile.display_name || '';
+  if (name.includes('@') || name.length < 2) {
+    openPanel(`
+      <h2>Welcome to Astranov</h2>
+      <div class="subtitle">Set your identity to connect with others</div>
+      <div class="gadget-orb signed-in" style="margin:16px auto"><div class="glyph">${escapeHtml((name||'?').charAt(0).toUpperCase())}</div></div>
+      <div class="gadget-cmd-wrap">
+        <input id="setup-name" class="gadget-cmd" type="text" placeholder="Display name" maxlength="40" value="${escapeHtml(name)}" autocomplete="name" />
+      </div>
+      <div class="gadget-engage" id="setup-engage" onclick="saveDisplayName()">
+        <span class="verb-glyph">◈</span><span id="setup-label">Lock identity</span>
+      </div>
+      <div style="font-size:10px;color:#4a6a8f;text-align:center;margin-top:8px;letter-spacing:0.15em">50 AVC starter balance granted</div>
+    `);
+    const inp = $('setup-name'), eng = $('setup-engage');
+    const refresh = () => eng.classList.toggle('armed', inp.value.trim().length >= 2);
+    inp.addEventListener('input', refresh); refresh();
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter' && eng.classList.contains('armed')) saveDisplayName(); });
+  }
+}
+
+window.saveDisplayName = async () => {
+  const name = $('setup-name')?.value.trim();
+  if (!name || name.length < 2) return;
+  const { error } = await sb.from('profiles').update({ display_name: name }).eq('id', session.user.id);
+  if (error) return toast(error.message, 'err');
+  if (profile) profile.display_name = name;
+  updateIdentityOrb();
+  toast('Identity locked — welcome, ' + name, 'ok');
+  closePanel();
+};
+
+/* ==============================================================
+   Messages — direct messaging between users
+   ============================================================== */
+let _activePeer = null; // { id, name }
+
+async function openMessagesPanel() {
+  if (!session) return openYouPanel();
+  openPanel(`<h2>Messages</h2><div class="subtitle" id="msg-sub">Loading…</div><div id="msg-body"></div>`);
+  const { data, error } = await sb.rpc('message_inbox', { max_results: 30 });
+  if (error) {
+    const sub = $('msg-sub'); if (sub) sub.textContent = error.message; return;
+  }
+  const inbox = data || [];
+  const sub = $('msg-sub'); if (sub) sub.textContent = inbox.length + ' conversations';
+  const body = $('msg-body'); if (!body) return;
+  body.innerHTML = inbox.length ? inbox.map(c => `
+    <div class="msg-row" onclick="openConversation(${JSON.stringify(c.peer_id)},${JSON.stringify(c.peer_display)})">
+      <div class="av${Number(c.unread_count) > 0 ? ' unread' : ''}">${escapeHtml((c.peer_display||'?').charAt(0).toUpperCase())}</div>
+      <div class="meta">
+        <div class="peer">${escapeHtml(c.peer_display||'Unknown')}${Number(c.unread_count)>0?` <span style="color:#7eebb4;font-size:10px">${c.unread_count}</span>`:''}</div>
+        <div class="preview">${escapeHtml((c.last_body||'').slice(0,60))}</div>
+      </div>
+      <div class="ts">${formatRelative(c.last_at)}</div>
+    </div>`).join('')
+    : '<div style="color:#6a8aaf;font-size:13px;padding:16px 0">No messages yet. Call someone from a signal to start.</div>';
+}
+
+window.openConversation = async (peerId, peerName) => {
+  _activePeer = { id: peerId, name: peerName };
+  openPanel(`
+    <h2>${escapeHtml(peerName)}</h2>
+    <div class="msg-thread" id="msg-thread-container"></div>
+    <div class="msg-compose">
+      <input id="msg-input" placeholder="Message…" maxlength="4000" />
+      <div class="send-orb" onclick="sendMessage()" title="Send">→</div>
+    </div>
+  `);
+  // Mark read
+  await sb.rpc('mark_messages_read', { peer: peerId });
+  loadMessageBadge();
+  // Load thread
+  const { data } = await sb.rpc('get_conversation', { peer: peerId, max_results: 60 });
+  const thread = $('msg-thread-container'); if (!thread) return;
+  (data || []).forEach(m => _appendBubble(thread, m));
+  thread.scrollTop = thread.scrollHeight;
+  // Send on enter
+  const inp = $('msg-input');
+  if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }});
+};
+
+function _appendBubble(container, m) {
+  const isMe = m.sender_id === session?.user.id;
+  const div = document.createElement('div');
+  div.className = 'msg-bubble ' + (isMe ? 'me' : 'them');
+  div.textContent = m.body;
+  div.title = formatRelative(m.created_at);
+  container.appendChild(div);
+}
+
+function _appendIncomingBubble(m) {
+  if (m.sender_id !== _activePeer?.id) return;
+  const thread = $('msg-thread-container'); if (!thread) return;
+  _appendBubble(thread, m);
+  thread.scrollTop = thread.scrollHeight;
+  sb.rpc('mark_messages_read', { peer: m.sender_id });
+}
+
+window.sendMessage = async () => {
+  const inp = $('msg-input'); if (!inp || !_activePeer || !sb || !session) return;
+  const body = inp.value.trim(); if (!body) return;
+  inp.value = '';
+  const m = { id: crypto.randomUUID(), sender_id: session.user.id, body, created_at: new Date().toISOString() };
+  const thread = $('msg-thread-container');
+  if (thread) { _appendBubble(thread, m); thread.scrollTop = thread.scrollHeight; }
+  const { error } = await sb.from('messages').insert({ sender_id: session.user.id, recipient_id: _activePeer.id, body });
+  if (error) toast(error.message, 'err');
+};
+
+window.startDM = (peerId, peerName) => {
+  closePanel();
+  setTimeout(() => openConversation(peerId, peerName), 120);
+};
+
+/* ==============================================================
+   Category filter — toggle signal categories on the globe
+   ============================================================== */
+const CAT_FILTER_STATE = {};
+const CAT_COLORS_HEX = {
+  news: '#00d4ff', jobs: '#7cff7c', commerce: '#ffaa00',
+  social: '#ff7edc', dating: '#ff3a6e', real_estate: '#b48cff', classifieds: '#a0a0a0'
+};
+let _catFilterTimer = null;
+
+function buildCatFilter() {
+  const el = $('cat-filter'); if (!el) return;
+  el.innerHTML = '';
+  Object.keys(CAT_COLORS_HEX).forEach(cat => {
+    if (!(cat in CAT_FILTER_STATE)) CAT_FILTER_STATE[cat] = true;
+    const dot = document.createElement('div');
+    dot.className = 'cat-dot' + (CAT_FILTER_STATE[cat] ? '' : ' off');
+    dot.style.background = CAT_COLORS_HEX[cat];
+    dot.title = cat.replace('_',' ');
+    dot.addEventListener('click', () => {
+      CAT_FILTER_STATE[cat] = !CAT_FILTER_STATE[cat];
+      dot.classList.toggle('off', !CAT_FILTER_STATE[cat]);
+      applyCatFilter();
+      _flashCatFilter();
+    });
+    el.appendChild(dot);
+  });
+}
+
+function applyCatFilter() {
+  signalIndex.forEach(({ primitive, signal }) => {
+    primitive.show = CAT_FILTER_STATE[signal.category] !== false;
+  });
+  if (viewer) viewer.scene.requestRender();
+}
+
+function updateCatFilter() {
+  const el = $('cat-filter'); if (!el) return;
+  const show = currentLevel !== 'global' && signalIndex.size > 0;
+  el.classList.toggle('visible', show);
+  if (show) _flashCatFilter();
+}
+
+function _flashCatFilter() {
+  const el = $('cat-filter'); if (!el) return;
+  clearTimeout(_catFilterTimer);
+  el.style.opacity = '1';
+  _catFilterTimer = setTimeout(() => { el.style.opacity = '0.35'; }, 3500);
 }
 
 /* ==============================================================
@@ -1481,6 +1754,8 @@ async function loadSignals() {
     .limit(2000);
   if (error) { console.error('[signals] load failed', error); return; }
   data.forEach(addSignalPoint);
+  buildCatFilter();
+  updateCatFilter();
 }
 
 function subscribeRealtime() {
@@ -1493,11 +1768,23 @@ function subscribeRealtime() {
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'signals' },
         p => removeSignalPoint(p.old.id))
     .subscribe();
-  // Delivery changes → update wallet badge + refresh open wallet panel
   sb.channel('astranov-deliveries')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => {
-      loadDeliveryBadge();
-      if ($('delivery-list')) loadDeliveryTab(_currentDeliveryTab || 'my-requests');
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'deliveries' },
+        p => { addDeliveryPin(p.new); loadDeliveryBadge(); })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'deliveries' },
+        p => {
+          if (p.new.status !== 'requested') removeDeliveryPin(p.new.id);
+          loadDeliveryBadge();
+          if ($('delivery-list')) loadDeliveryTab(_currentDeliveryTab || 'my-requests');
+        })
+    .subscribe();
+  // Messages → badge update
+  sb.channel('astranov-messages')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, p => {
+      if (p.new.recipient_id === session?.user.id) {
+        loadMessageBadge();
+        if ($('msg-thread-container')) _appendIncomingBubble(p.new);
+      }
     })
     .subscribe();
 }
@@ -1508,12 +1795,16 @@ function subscribeRealtime() {
 function onCanvasClick(click) {
   if (!viewer) return;
   const picked = viewer.scene.pick(click.position);
-  if (picked?.primitive && picked.primitive.__signalId) {
+  if (picked?.primitive?.__signalId) {
     const entry = signalIndex.get(picked.primitive.__signalId);
     if (entry) openSignalPanel(entry.signal);
     return;
   }
-  // Clicked empty space → close transient UI
+  if (picked?.primitive?.__deliveryId) {
+    const entry = deliveryIndex.get(picked.primitive.__deliveryId);
+    if (entry) openDeliveryPanel(entry.delivery.id);
+    return;
+  }
   closePanel();
 }
 
@@ -1528,9 +1819,10 @@ function openSignalPanel(signal) {
   const readLink = isWebUrl
     ? `<div class="gadget-engage" onclick="window.open(${JSON.stringify(signal.source_url)},'_blank','noopener')" style="margin-top:8px"><span class="verb-glyph">↗</span><span>Read full</span></div>`
     : '';
-  const canCall = signal.author_id && session && signal.author_id !== session.user.id && signal.source !== 'crawler';
-  const callBtn = canCall
-    ? `<div class="gadget-engage" onclick="startCallTo('${signal.author_id}','signal author')" style="margin-top:8px;border-color:rgba(126,235,180,0.35)"><span class="verb-glyph">◈</span><span>Call author</span></div>`
+  const canContact = signal.author_id && session && signal.author_id !== session.user.id && signal.source !== 'crawler';
+  const callBtn = canContact
+    ? `<div class="gadget-engage" onclick="startCallTo('${signal.author_id}','signal author')" style="margin-top:8px;border-color:rgba(126,235,180,0.35)"><span class="verb-glyph">◈</span><span>Call author</span></div>
+       <div class="gadget-engage" onclick="startDM('${signal.author_id}','signal author')" style="margin-top:6px;border-color:rgba(120,180,255,0.3)"><span class="verb-glyph">◫</span><span>Message author</span></div>`
     : '';
   const html = `
     <h2>${escapeHtml(signal.category.replace('_', ' '))}</h2>
@@ -1563,10 +1855,11 @@ async function boostSignal(signalId) {
    ============================================================== */
 (function() {
   const ORBS = [
-    { id: 'dock-feed',     action: 'feed',   defaultPos: { left: 16, top: null, bottom: 120, right: null } },
-    { id: 'dock-radar',    action: 'radar',  defaultPos: { left: 16, top: null, bottom: 180, right: null } },
-    { id: 'dock-wallet',   action: 'wallet', defaultPos: { left: 16, top: null, bottom: 240, right: null } },
-    { id: 'dock-identity', action: 'you',    defaultPos: { left: null, top: 80, bottom: null, right: 16 } },
+    { id: 'dock-feed',     action: 'feed',     defaultPos: { left: 16, top: null, bottom: 120, right: null } },
+    { id: 'dock-radar',    action: 'radar',    defaultPos: { left: 16, top: null, bottom: 180, right: null } },
+    { id: 'dock-wallet',   action: 'wallet',   defaultPos: { left: 16, top: null, bottom: 240, right: null } },
+    { id: 'dock-messages', action: 'messages', defaultPos: { left: 16, top: null, bottom: 300, right: null } },
+    { id: 'dock-identity', action: 'you',      defaultPos: { left: null, top: 80, bottom: null, right: 16 } },
   ];
 
   const STORAGE_KEY = 'holo_dock_v1';
@@ -1712,10 +2005,11 @@ document.addEventListener('click', e => {
 }, true);
 
 function openTabPanel(tab) {
-  if (tab === 'feed')   return openFeedPanel();
-  if (tab === 'radar')  return openRadarPanel();
-  if (tab === 'wallet') return openWalletPanel();
-  if (tab === 'you')    return openYouPanel();
+  if (tab === 'feed')     return openFeedPanel();
+  if (tab === 'radar')    return openRadarPanel();
+  if (tab === 'wallet')   return openWalletPanel();
+  if (tab === 'messages') return openMessagesPanel();
+  if (tab === 'you')      return openYouPanel();
 }
 
 function _renderFeedCards(signals) {
@@ -1976,8 +2270,9 @@ function openWalletPanel() {
 
     <div class="gadget-seg delivery-tabs" id="delivery-tab-seg">
       <div class="seg active" data-tab="my-requests" onclick="switchDeliveryTab('my-requests',this)">Requests</div>
-      <div class="seg"        data-tab="my-runs"     onclick="switchDeliveryTab('my-runs',this)">My Runs</div>
+      <div class="seg"        data-tab="my-runs"     onclick="switchDeliveryTab('my-runs',this)">Runs</div>
       <div class="seg"        data-tab="nearby"      onclick="switchDeliveryTab('nearby',this)">Nearby</div>
+      <div class="seg"        data-tab="history"     onclick="switchDeliveryTab('history',this)">AVC log</div>
     </div>
     <div id="delivery-list" style="min-height:80px;color:#6a8aaf;font-size:13px">Loading…</div>
 
@@ -2019,6 +2314,19 @@ async function loadDeliveryTab(tab) {
     ({ data, error } = await sb.rpc('nearby_deliveries', {
       lat: coords.lat, lng: coords.lng, radius_meters: 20_000, max_results: 50,
     }));
+  } else if (tab === 'history') {
+    const { data: txData, error: txErr } = await sb.rpc('my_avc_transactions', { max_results: 40 });
+    if (txErr) { target.innerHTML = `<div style="color:#ff9e9e">${escapeHtml(txErr.message)}</div>`; return; }
+    target.innerHTML = (txData || []).length ? (txData || []).map(t => `
+      <div class="delivery-row">
+        <div class="head">
+          <span class="desc">${escapeHtml(t.note || t.kind.replace('_',' '))}</span>
+          <span style="color:${t.amount>0?'#7eebb4':'#ff9e9e'};font-weight:500">${t.amount>0?'+':''}${Number(t.amount)} AVC</span>
+        </div>
+        <div class="meta">${t.kind.replace('_',' ')} · ${formatRelative(t.created_at)}</div>
+      </div>`).join('')
+      : '<div style="color:#6a8aaf;padding:12px 0;font-size:13px">No AVC transactions yet. Complete a delivery to earn.</div>';
+    return;
   }
 
   if (error) {
@@ -2076,8 +2384,10 @@ window.openDeliveryPanel = async (id) => {
   const callTarget = isRequester && d.runner_id ? d.runner_id
                    : isRunner ? d.requester_id : null;
   const callTarget_s = callTarget ? JSON.stringify(callTarget) : null;
+  const partnerLabel = isRequester ? 'runner' : 'requester';
   const callBtn = callTarget
-    ? `<div class="gadget-engage" onclick="startCallTo(${callTarget_s},'delivery partner')" style="margin-top:8px;border-color:rgba(120,180,255,0.35)"><span class="verb-glyph">◈</span><span>Call ${isRequester ? 'runner' : 'requester'}</span></div>`
+    ? `<div class="gadget-engage" onclick="startCallTo(${callTarget_s},'${partnerLabel}')" style="margin-top:8px;border-color:rgba(120,180,255,0.35)"><span class="verb-glyph">◈</span><span>Call ${partnerLabel}</span></div>
+       <div class="gadget-engage" onclick="startDM(${callTarget_s},${JSON.stringify(partnerLabel)})" style="margin-top:6px;border-color:rgba(120,180,255,0.25)"><span class="verb-glyph">◫</span><span>Message ${partnerLabel}</span></div>`
     : '';
 
   openPanel(`
@@ -2110,6 +2420,57 @@ window.updateDeliveryStatus = async (id, newStatus) => {
   if (error) return toast(error.message, 'err');
   openDeliveryPanel(id);
 };
+
+/* ==============================================================
+   Delivery globe pins — yellow rings for open delivery requests.
+   Visible at NATIONAL / PERSONAL zoom only.
+   ============================================================== */
+let deliveryPoints = null;
+const deliveryIndex = new Map(); // id → { primitive, delivery }
+
+function ensureDeliveryCollection() {
+  if (!deliveryPoints && viewer) {
+    deliveryPoints = viewer.scene.primitives.add(new Cesium.PointPrimitiveCollection());
+  }
+}
+
+function addDeliveryPin(d) {
+  if (!viewer) return;
+  const lat = d.pickup_lat, lng = d.pickup_lng;
+  if (lat == null || lng == null) return;
+  ensureDeliveryCollection();
+  if (deliveryIndex.has(d.id)) return;
+  const prim = deliveryPoints.add({
+    position: Cesium.Cartesian3.fromDegrees(Number(lng), Number(lat)),
+    pixelSize: 14,
+    color: Cesium.Color.fromCssColorString('#ffd47e').withAlpha(0.9),
+    outlineColor: Cesium.Color.fromCssColorString('#ffaa00').withAlpha(0.7),
+    outlineWidth: 3,
+    scaleByDistance: new Cesium.NearFarScalar(1.5e3, 1.4, 8e6, 0.4),
+    show: currentLevel !== 'global',
+  });
+  prim.__deliveryId = d.id;
+  deliveryIndex.set(d.id, { primitive: prim, delivery: d });
+  viewer.scene.requestRender();
+}
+
+function removeDeliveryPin(id) {
+  const entry = deliveryIndex.get(id);
+  if (!entry || !deliveryPoints) return;
+  deliveryPoints.remove(entry.primitive);
+  deliveryIndex.delete(id);
+  if (viewer) viewer.scene.requestRender();
+}
+
+async function loadDeliveries() {
+  if (!sb) return;
+  const { data } = await sb.from('deliveries')
+    .select('id,description,reward_avc,status,pickup_lat,pickup_lng,requester_id')
+    .eq('status','requested')
+    .not('pickup_lat','is',null)
+    .limit(200);
+  (data || []).forEach(addDeliveryPin);
+}
 
 window.flyToCoords = (lng, lat) => {
   if (!viewer || lng == null || lat == null) return;
