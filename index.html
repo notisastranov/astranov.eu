@@ -107,7 +107,7 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 19. MESSAGING — direct user-to-user
     messages table (RLS: sender inserts, both parties read). message_inbox()
     RPC returns latest-per-peer with unread count. get_conversation() loads
-    thread. mark_messages_read() clears unread. dock-messages orb with badge.
+    thread. mark_messages_read() clears unread. #g-me badge shows unread count.
     Realtime subscription appends incoming bubbles in open thread.
 
 20. AVC ECONOMY — real transfer
@@ -141,19 +141,20 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 
 18. LIVE WIRING — realtime state
     loadDeliveryBadge() counts active deliveries for current user → badge on
-    wallet orb. Supabase realtime on deliveries table refreshes badge + open
-    wallet panel automatically. updateIdentityOrb() sets dock-identity glyph
+    ME badge. Supabase realtime on deliveries table refreshes badge + open
+    wallet panel automatically. updateIdentityOrb() sets #g-me glyph
     to user initial + green glow when authenticated. Feed panel fetches from
     DB on open and merges into globe signalIndex. flyToSignal() fetches from
     DB if signal not in local index. emitSignal() sets lat+lng directly (also
     backed by trg_sync_signal_coords trigger).
 
-17. HOLOGRAPHIC DOCK — replaces the tray
-    Four .holo-orb divs (Feed ◈ · Radar ◎ · AVC ◍ · You ◉) float as ambient
-    beads (scale 0.58, opacity 0.45) at fixed positions. Tap = fly forward
-    (scale 1.06) and open the gadget. Drag = reposition freely; positions
-    persist in localStorage. On overlap a nudge algorithm pushes orbs apart.
-    On panel close, active orb returns to ambient. The tray (#tray) is retired.
+17. FOUR CORNER GADGETS — replaces holographic dock
+    Exactly 4 large (76px) round corner gadgets replace all dock orbs and tray.
+    #g-discover (top-left) → DISCOVER panel (Feed + Radar). #g-me (top-right)
+    → ME hub (Profile + Messages + Wallet + Deliveries). #locate-orb (bottom-
+    left) → GPS acquire. #aicycle-float (bottom-right) → AI chat. No other
+    permanent UI. AICYCLE ring shows current model as "× PROVIDER" label only;
+    provider chips and orbit dots are removed.
 
 16. LAW-SYNC — Claude Autonomy (perpetual)
     Every code change updates this law block when it introduces, changes, or
@@ -274,88 +275,82 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   #tray         { display: none; }
 
   /* ============================================================
-     Holographic Dock — ambient orbs replace the tray.
-     Three depth states: ambient (receded), active (forward), dragging.
+     Corner gadgets — 4 large round gadgets, one per corner.
+     #g-discover (top-left), #g-me (top-right),
+     #locate-orb (bottom-left), #aicycle-float (bottom-right).
      ============================================================ */
-  .holo-orb {
-    position: fixed; z-index: 45; width: 44px; height: 44px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; user-select: none; touch-action: none;
-    background: rgba(8,16,32,0.68); backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border: 1px solid rgba(120,180,255,0.28);
-    box-shadow: 0 0 20px rgba(120,180,255,0.07), inset 0 0 12px rgba(120,180,255,0.04);
-    transition: transform 0.28s cubic-bezier(0.34,1.56,0.64,1),
-                opacity 0.28s ease, border-color 0.2s, box-shadow 0.2s;
+  .corner-gadget {
+    position: fixed; z-index: 47; width: 76px; height: 76px; border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4px; cursor: pointer; user-select: none; touch-action: manipulation;
+    background: rgba(8,16,32,0.75); backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1.5px solid rgba(120,180,255,0.30);
+    box-shadow: 0 0 28px rgba(120,180,255,0.10), inset 0 0 16px rgba(120,180,255,0.05);
+    transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s, border-color 0.2s;
   }
-  .holo-orb.ambient {
-    transform: scale(0.72); opacity: 0.72;
-    border-color: rgba(120,180,255,0.22);
+  .corner-gadget:active { transform: scale(0.94); }
+  .corner-gadget:hover  { border-color: rgba(120,180,255,0.55);
+    box-shadow: 0 0 36px rgba(120,180,255,0.20), inset 0 0 18px rgba(120,180,255,0.08); }
+  .corner-gadget .cg-glyph {
+    font-size: 22px; line-height: 1;
+    filter: drop-shadow(0 0 6px rgba(120,180,255,0.7));
   }
-  .holo-orb.active, .holo-orb:not(.ambient):hover {
-    transform: scale(1.06); opacity: 1;
-    border-color: rgba(120,180,255,0.55);
-    box-shadow: 0 0 28px rgba(120,180,255,0.18), inset 0 0 16px rgba(120,180,255,0.08);
+  .corner-gadget .cg-label {
+    font-size: 8px; letter-spacing: 0.25em; text-transform: uppercase;
+    color: rgba(120,180,255,0.65); font-family: 'SF Mono',monospace;
+    white-space: nowrap; pointer-events: none;
   }
-  .holo-orb.dragging {
-    transition: none; opacity: 0.88;
-    box-shadow: 0 0 40px rgba(120,180,255,0.28);
-    transform: scale(1.12);
-  }
-  .holo-orb .orb-g {
-    font-size: 17px; line-height: 1;
-    filter: drop-shadow(0 0 5px rgba(120,180,255,0.7));
-    transition: filter 0.2s;
-  }
-  .holo-orb.ambient .orb-g { filter: drop-shadow(0 0 2px rgba(120,180,255,0.3)); }
-  .holo-orb .orb-lbl {
-    position: absolute; top: calc(100% + 5px); left: 50%;
-    transform: translateX(-50%); font-size: 7px; letter-spacing: 0.2em;
-    text-transform: uppercase; color: rgba(120,180,255,0.5);
-    white-space: nowrap; font-family: 'SF Mono',monospace;
-    pointer-events: none; opacity: 0; transition: opacity 0.2s;
-  }
-  .holo-orb:not(.ambient) .orb-lbl { opacity: 1; }
-  /* Badge for live counts (unread DMs, active deliveries) */
-  .holo-orb .orb-badge {
-    position: absolute; top: 1px; right: 1px;
-    min-width: 14px; height: 14px; border-radius: 7px;
+  /* Badge for live counts */
+  .corner-gadget .cg-badge {
+    position: absolute; top: 4px; right: 4px;
+    min-width: 16px; height: 16px; border-radius: 8px;
     background: rgba(126,235,180,0.9); color: #021018;
-    font-size: 8px; font-weight: 700; line-height: 14px;
-    text-align: center; padding: 0 3px;
-    display: none;
+    font-size: 9px; font-weight: 700; line-height: 16px;
+    text-align: center; padding: 0 4px; display: none;
   }
-  .holo-orb .orb-badge.visible { display: block; }
+  .corner-gadget .cg-badge.visible { display: block; }
+  /* Signed-in state for #g-me */
+  #g-me.signed-in { border-color: rgba(126,235,180,0.40);
+    box-shadow: 0 0 28px rgba(126,235,180,0.14), inset 0 0 14px rgba(126,235,180,0.06); }
+  #g-discover { top: max(20px, env(safe-area-inset-top)); left: 20px; }
+  #g-me       { top: max(20px, env(safe-area-inset-top)); right: 20px; }
 
-  /* Locate orb — always-visible GPS scope, bottom-left */
+  /* Locate orb — bottom-left corner gadget, GPS scope */
   #locate-orb {
-    position: fixed; bottom: max(60px, calc(env(safe-area-inset-bottom) + 48px)); left: 16px;
-    width: 44px; height: 44px; border-radius: 50%; z-index: 46;
-    display: flex; align-items: center; justify-content: center;
-    background: rgba(8,16,32,0.72); backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+    position: fixed; bottom: max(20px, env(safe-area-inset-bottom)); left: 20px;
+    width: 76px; height: 76px; border-radius: 50%; z-index: 47;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4px;
+    background: rgba(8,16,32,0.75); backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     border: 1.5px solid rgba(126,235,180,0.35);
-    box-shadow: 0 0 18px rgba(126,235,180,0.1), inset 0 0 10px rgba(126,235,180,0.04);
-    cursor: pointer; user-select: none;
-    transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s, border-color 0.2s;
+    box-shadow: 0 0 28px rgba(126,235,180,0.10), inset 0 0 14px rgba(126,235,180,0.05);
+    cursor: pointer; user-select: none; touch-action: manipulation;
+    transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s, border-color 0.2s;
   }
-  #locate-orb:active { transform: scale(0.92); }
+  #locate-orb:active { transform: scale(0.94); }
   #locate-orb.acquiring {
     border-color: rgba(126,235,180,0.7);
-    box-shadow: 0 0 28px rgba(126,235,180,0.25), inset 0 0 14px rgba(126,235,180,0.1);
+    box-shadow: 0 0 36px rgba(126,235,180,0.25), inset 0 0 16px rgba(126,235,180,0.10);
     animation: locate-pulse 1.1s ease-in-out infinite;
   }
   #locate-orb.locked {
     border-color: rgba(126,235,180,0.9);
-    box-shadow: 0 0 36px rgba(126,235,180,0.35), inset 0 0 18px rgba(126,235,180,0.14);
+    box-shadow: 0 0 44px rgba(126,235,180,0.35), inset 0 0 20px rgba(126,235,180,0.14);
   }
   @keyframes locate-pulse {
-    0%,100% { box-shadow: 0 0 18px rgba(126,235,180,0.2); }
-    50%      { box-shadow: 0 0 40px rgba(126,235,180,0.45); }
+    0%,100% { box-shadow: 0 0 24px rgba(126,235,180,0.20); }
+    50%      { box-shadow: 0 0 50px rgba(126,235,180,0.45); }
   }
   #locate-orb .locate-g {
-    font-size: 18px; line-height: 1; color: rgba(126,235,180,0.85);
+    font-size: 24px; line-height: 1; color: rgba(126,235,180,0.85);
     transition: color 0.2s;
+  }
+  #locate-orb .locate-lbl {
+    font-size: 8px; letter-spacing: 0.25em; text-transform: uppercase;
+    color: rgba(126,235,180,0.55); font-family: 'SF Mono',monospace;
+    white-space: nowrap; pointer-events: none;
   }
   #locate-orb.acquiring .locate-g { animation: locate-spin 2s linear infinite; display: inline-block; }
   @keyframes locate-spin { to { transform: rotate(360deg); } }
@@ -451,27 +446,6 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   #aicycle-chat input { flex: 1; }
   #aicycle-mic, #aicycle-send { flex-shrink: 0; }
 
-  /* Provider chip strip — header of AICYCLE chat */
-  #aicycle-providers {
-    display: flex; gap: 6px; padding: 10px 12px; flex-wrap: wrap;
-    border-bottom: 1px solid rgba(120, 180, 255, 0.08);
-  }
-  .provider-chip {
-    padding: 4px 10px; border-radius: 999px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(120, 180, 255, 0.15);
-    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
-    color: #a8c8ee; cursor: pointer; transition: all 0.2s;
-    user-select: none;
-  }
-  .provider-chip:hover { background: rgba(120, 180, 255, 0.08); }
-  .provider-chip.locked {
-    background: rgba(126, 180, 255, 0.2);
-    border-color: rgba(126, 180, 255, 0.6);
-    color: #fff; font-weight: 500;
-  }
-  .provider-chip.locked::before { content: '🔒  '; }
-  .provider-chip.disabled { opacity: 0.35; cursor: not-allowed; }
 
   /* Mic recording state (the AICYCLE node pulses red while listening) */
   #aicycle-float.listening .node {
@@ -480,32 +454,6 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   }
   @keyframes mic-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.4); } }
 
-  /* Orbit provider dots — live on the AICYCLE ring */
-  #ring-orbit { position: absolute; inset: 0; pointer-events: none; }
-  .orbit-dot {
-    position: absolute; width: 6px; height: 6px; border-radius: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(120,180,255,0.22); border: 1px solid rgba(120,180,255,0.4);
-    transition: background 0.35s, box-shadow 0.35s;
-    cursor: pointer; pointer-events: all;
-  }
-  .orbit-dot.active {
-    background: #7eebb4; border-color: rgba(126,235,180,0.85);
-    box-shadow: 0 0 8px rgba(126,235,180,0.9);
-  }
-  .orbit-dot.owner-dot { background: rgba(255,180,100,0.22); border-color: rgba(255,180,100,0.4); }
-  .orbit-dot.owner-dot.active {
-    background: #ffb464; border-color: rgba(255,180,100,0.85);
-    box-shadow: 0 0 8px rgba(255,180,100,0.9);
-  }
-  .orbit-dot.locked-ring { box-shadow: 0 0 0 2px rgba(120,180,255,0.35), 0 0 8px rgba(126,235,180,0.9); }
-  #aicycle-float.thinking .orbit-dot.active {
-    animation: dot-pulse 0.75s ease-in-out infinite;
-  }
-  @keyframes dot-pulse {
-    0%,100% { box-shadow: 0 0 8px rgba(126,235,180,0.9); }
-    50%       { box-shadow: 0 0 18px rgba(126,235,180,0.9), 0 0 30px rgba(126,235,180,0.35); }
-  }
 
   /* Radar orbital HUD */
   #radar-hud { display:flex; flex-direction:column; align-items:center; gap:14px; padding:10px 0 0; }
@@ -1108,7 +1056,6 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 <!-- Always-visible UI: AICYCLE ring only -->
 <div id="aicycle-float" title="Collective Intelligence">
   <div class="ring"></div>
-  <div id="ring-orbit"></div>
   <div class="node"></div>
   <div class="provider" id="aicycle-provider">AUTO</div>
 </div>
@@ -1122,31 +1069,25 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 <div id="tray-trigger"></div>
 <div id="tray"></div>
 
-<!-- Holographic dock orbs — replace the tray -->
-<div class="holo-orb ambient" id="dock-feed"     data-action="feed">
-  <div class="orb-g">◈</div><div class="orb-lbl">Feed</div>
+<!-- Four corner gadgets -->
+<div class="corner-gadget" id="g-discover" title="Discover" onclick="openDiscoverPanel()">
+  <div class="cg-glyph">◈</div>
+  <div class="cg-label">Discover</div>
 </div>
-<div class="holo-orb ambient" id="dock-radar"    data-action="radar">
-  <div class="orb-g">◎</div><div class="orb-lbl">Radar</div>
-</div>
-<div class="holo-orb ambient" id="dock-wallet"   data-action="wallet">
-  <div class="orb-g">◍</div><div class="orb-lbl">AVC</div><div class="orb-badge" id="dock-wallet-badge"></div>
-</div>
-<div class="holo-orb ambient" id="dock-messages" data-action="messages">
-  <div class="orb-g">◫</div><div class="orb-lbl">Msgs</div><div class="orb-badge" id="dock-msg-badge"></div>
-</div>
-<div class="holo-orb ambient" id="dock-identity" data-action="you">
-  <div class="orb-g">◉</div><div class="orb-lbl">You</div>
+<div class="corner-gadget" id="g-me" title="Me" onclick="openMePanel()">
+  <div class="cg-glyph" id="g-me-glyph">◉</div>
+  <div class="cg-label">Me</div>
+  <div class="cg-badge" id="g-me-badge"></div>
 </div>
 <div id="cat-filter"></div>
-<!-- Locate orb — always visible GPS acquire -->
+<!-- Locate orb — bottom-left corner gadget -->
 <div id="locate-orb" title="Acquire location" onclick="locateUser()">
   <span class="locate-g">⊕</span>
+  <span class="locate-lbl">Locate</span>
 </div>
 <div id="panel"></div>
 <div id="aicycle-chat">
   <div id="aicycle-drag-handle"></div>
-  <div id="aicycle-providers"></div>
   <div class="messages" id="aicycle-messages"></div>
   <form id="aicycle-form" autocomplete="off">
     <input id="aicycle-input" class="gadget-cmd" type="text" placeholder="Ask the cycle…" style="margin-top:0;flex:1" />
@@ -1549,41 +1490,40 @@ async function loadProfile() {
 }
 
 async function loadDeliveryBadge() {
-  const badge = $('dock-wallet-badge');
-  if (!sb || !session || !badge) return;
+  if (!sb || !session) return;
   const { count } = await sb.from('deliveries')
     .select('*', { count: 'exact', head: true })
     .or(`requester_id.eq.${session.user.id},runner_id.eq.${session.user.id}`)
     .in('status', ['requested','accepted','in_transit']);
-  const n = count || 0;
+  _updateMeBadge(count || 0);
+}
+
+function _updateMeBadge(n) {
+  const badge = $('g-me-badge');
+  if (!badge) return;
   badge.textContent = n > 9 ? '9+' : n > 0 ? String(n) : '';
   badge.classList.toggle('visible', n > 0);
 }
 
 function updateIdentityOrb() {
-  const orbEl = $('dock-identity');
-  if (!orbEl) return;
-  const glyphEl = orbEl.querySelector('.orb-g');
-  if (!glyphEl) return;
+  const orbEl = $('g-me');
+  const glyphEl = $('g-me-glyph');
+  if (!orbEl || !glyphEl) return;
   if (session) {
     const initial = (profile?.display_name || session.user.email || 'U').trim().charAt(0).toUpperCase();
     glyphEl.textContent = initial;
-    orbEl.style.borderColor = 'rgba(126,235,180,0.35)';
-    orbEl.style.boxShadow = '0 0 18px rgba(126,235,180,0.12)';
+    orbEl.classList.add('signed-in');
   } else {
     glyphEl.textContent = '◉';
-    orbEl.style.borderColor = '';
-    orbEl.style.boxShadow = '';
+    orbEl.classList.remove('signed-in');
   }
 }
 
 async function loadMessageBadge() {
-  const badge = $('dock-msg-badge');
-  if (!sb || !session || !badge) return;
+  if (!sb || !session) return;
   const { data } = await sb.rpc('unread_message_count');
   const n = Number(data || 0);
-  badge.textContent = n > 9 ? '9+' : n > 0 ? String(n) : '';
-  badge.classList.toggle('visible', n > 0);
+  _updateMeBadge(n);
 }
 
 async function profileSetupIfNeeded() {
@@ -2099,144 +2039,15 @@ async function boostSignal(signalId) {
 }
 
 /* ==============================================================
-   6. Holographic Dock — draggable ambient orbs replace the tray.
-   Depth states: ambient (receded) ↔ active (foreground).
-   Positions persist in localStorage. Self-arrange on overlap.
+   6. Corner Gadgets — four fixed-position large orbs, one per corner.
+   #g-discover (top-left), #g-me (top-right), #locate-orb (bottom-left),
+   #aicycle-float (bottom-right). No dragging, no dock logic.
    ============================================================== */
 (function() {
-  const ORBS = [
-    { id: 'dock-feed',     action: 'feed',     defaultPos: { left: 16, top: null, bottom: 120, right: null } },
-    { id: 'dock-radar',    action: 'radar',    defaultPos: { left: 16, top: null, bottom: 180, right: null } },
-    { id: 'dock-wallet',   action: 'wallet',   defaultPos: { left: 16, top: null, bottom: 240, right: null } },
-    { id: 'dock-messages', action: 'messages', defaultPos: { left: 16, top: null, bottom: 300, right: null } },
-    { id: 'dock-identity', action: 'you',      defaultPos: { left: null, top: 80, bottom: null, right: 16 } },
-  ];
+  // No-op IIFE preserved for structural consistency; logic handled inline.
 
   const STORAGE_KEY = 'holo_dock_v1';
   let savedPos = {};
-  try { savedPos = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch (_) {}
-
-  ORBS.forEach(cfg => {
-    const el = $(cfg.id);
-    if (!el) return;
-
-    // Restore or apply default position
-    const pos = savedPos[cfg.id] || cfg.defaultPos;
-    _applyPos(el, pos);
-
-    // Tap = activate → open panel
-    let dragMoved = false;
-    let dragStartX = 0, dragStartY = 0;
-    let elStartLeft = 0, elStartTop = 0;
-
-    el.addEventListener('pointerdown', e => {
-      e.stopPropagation();
-      dragMoved = false;
-      dragStartX = e.clientX;
-      dragStartY = e.clientY;
-      const r = el.getBoundingClientRect();
-      elStartLeft = r.left;
-      elStartTop  = r.top;
-      el.setPointerCapture(e.pointerId);
-      el.classList.add('dragging');
-    });
-
-    el.addEventListener('pointermove', e => {
-      const dx = e.clientX - dragStartX;
-      const dy = e.clientY - dragStartY;
-      if (!dragMoved && Math.hypot(dx, dy) < 6) return;
-      dragMoved = true;
-      const newLeft = Math.max(4, Math.min(window.innerWidth  - 48, elStartLeft + dx));
-      const newTop  = Math.max(4, Math.min(window.innerHeight - 48, elStartTop  + dy));
-      el.style.left   = newLeft + 'px';
-      el.style.top    = newTop  + 'px';
-      el.style.right  = 'auto';
-      el.style.bottom = 'auto';
-    });
-
-    el.addEventListener('pointerup', e => {
-      el.releasePointerCapture(e.pointerId);
-      el.classList.remove('dragging');
-      if (dragMoved) {
-        // Save position
-        const r = el.getBoundingClientRect();
-        savedPos[cfg.id] = { left: r.left, top: r.top, bottom: null, right: null };
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(savedPos)); } catch (_) {}
-        _nudgeOverlaps();
-      } else {
-        // Tap — activate + open
-        _activateOrb(el);
-        openTabPanel(cfg.action);
-      }
-    });
-
-    el.addEventListener('pointercancel', e => {
-      el.releasePointerCapture(e.pointerId);
-      el.classList.remove('dragging');
-    });
-  });
-
-  function _applyPos(el, pos) {
-    el.style.left   = pos.left   != null ? pos.left   + 'px' : 'auto';
-    el.style.right  = pos.right  != null ? pos.right  + 'px' : 'auto';
-    el.style.top    = pos.top    != null ? pos.top    + 'px' : 'auto';
-    el.style.bottom = pos.bottom != null ? pos.bottom + 'px' : 'auto';
-  }
-
-  function _activateOrb(el) {
-    document.querySelectorAll('.holo-orb').forEach(o => {
-      o.classList.remove('active');
-      o.classList.add('ambient');
-    });
-    el.classList.remove('ambient');
-    el.classList.add('active');
-    // Return to ambient after 4s idle
-    clearTimeout(el._ambientTimer);
-    el._ambientTimer = setTimeout(() => {
-      el.classList.remove('active');
-      el.classList.add('ambient');
-    }, 4000);
-  }
-
-  // Push apart orbs that overlap after a drag
-  function _nudgeOverlaps() {
-    const orbs = [...document.querySelectorAll('.holo-orb')];
-    orbs.forEach((a, i) => {
-      orbs.slice(i + 1).forEach(b => {
-        const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
-        const dx = (ra.left + 22) - (rb.left + 22);
-        const dy = (ra.top  + 22) - (rb.top  + 22);
-        const dist = Math.hypot(dx, dy);
-        if (dist < 50 && dist > 0) {
-          const push = (50 - dist) / 2;
-          const nx = push * dx / dist, ny = push * dy / dist;
-          const newTop = Math.max(4, Math.min(window.innerHeight - 48, rb.top + 22 - ny - 22));
-          b.style.top    = newTop + 'px';
-          b.style.bottom = 'auto';
-        }
-      });
-    });
-  }
-
-  // When a panel closes, return the active orb to ambient
-  window.addEventListener('panel:close', () => {
-    document.querySelectorAll('.holo-orb.active').forEach(o => {
-      o.classList.remove('active');
-      o.classList.add('ambient');
-    });
-  });
-
-  // First-load pulse: briefly grow each orb in sequence to teach gesture
-  setTimeout(() => {
-    ORBS.forEach((cfg, i) => {
-      const el = $(cfg.id);
-      if (!el) return;
-      setTimeout(() => {
-        el.classList.remove('ambient');
-        setTimeout(() => el.classList.add('ambient'), 700);
-      }, i * 200);
-    });
-  }, 1400);
 }());
 
 /* ==============================================================
@@ -2249,7 +2060,8 @@ function closePanel()    { panel.classList.remove('visible'); window.dispatchEve
 // Tap outside panel → close
 document.addEventListener('click', e => {
   if (panel.classList.contains('visible') && !panel.contains(e.target)
-      && !e.target.closest('.holo-orb') && !e.target.closest('#aicycle-float')) {
+      && !e.target.closest('.corner-gadget') && !e.target.closest('#locate-orb')
+      && !e.target.closest('#aicycle-float')) {
     closePanel();
   }
 }, true);
@@ -2260,6 +2072,46 @@ function openTabPanel(tab) {
   if (tab === 'wallet')   return openWalletPanel();
   if (tab === 'messages') return openMessagesPanel();
   if (tab === 'you')      return openYouPanel();
+}
+
+// Corner gadget: DISCOVER (top-left) — combined Feed + Radar entry
+function openDiscoverPanel() {
+  openPanel(`
+    <h2>Discover</h2>
+    <div class="subtitle">Explore signals and your surroundings</div>
+    <div class="gadget-engage" onclick="openFeedPanel()" style="margin-top:12px">
+      <span class="verb-glyph">◈</span><span>Feed — Global signals</span>
+    </div>
+    <div class="gadget-engage" onclick="openRadarPanel()" style="margin-top:8px">
+      <span class="verb-glyph">◎</span><span>Radar — Nearby signals</span>
+    </div>
+    <div class="gadget-engage" onclick="openEmitPanel()" style="margin-top:8px">
+      <span class="verb-glyph">⊕</span><span>Emit — Broadcast signal</span>
+    </div>
+  `);
+}
+
+// Corner gadget: ME (top-right) — combined hub
+function openMePanel() {
+  openPanel(`
+    <h2>Me</h2>
+    <div class="subtitle">${session ? escapeHtml(profile?.display_name || session.user.email || 'Astranov') : 'Sign in to unlock'}</div>
+    ${session ? `
+    <div class="gadget-engage" onclick="openYouPanel()" style="margin-top:12px">
+      <span class="verb-glyph">◉</span><span>Profile &amp; identity</span>
+    </div>
+    <div class="gadget-engage" onclick="openMessagesPanel()" style="margin-top:8px">
+      <span class="verb-glyph">◫</span><span>Messages</span>
+    </div>
+    <div class="gadget-engage" onclick="openWalletPanel()" style="margin-top:8px">
+      <span class="verb-glyph">◍</span><span>AVC &amp; Deliveries</span>
+    </div>
+    ` : `
+    <div class="gadget-engage" onclick="openYouPanel()" style="margin-top:12px">
+      <span class="verb-glyph">◉</span><span>Sign in / Register</span>
+    </div>
+    `}
+  `);
 }
 
 function _renderFeedCards(signals) {
@@ -2336,29 +2188,15 @@ function _buildRadarOrbitDots() {
   const container = $('radar-orbit-dots');
   if (!container) return;
   const cx = 110, cy = 110, r = 90;
-  const providers = AICYCLE_PROVIDERS.filter(p => p.name !== 'auto');
-  providers.forEach((p, i) => {
+  const providers = ['claude','groq','gemini','openai','xai'];
+  providers.forEach((name, i) => {
     const angle = (i / providers.length) * 2 * Math.PI - Math.PI / 2;
     const dot = document.createElement('div');
-    dot.className = 'radar-orbit-dot' + (p.ownerOnly ? ' owner-dot' : '');
-    dot.dataset.provider = p.name;
+    dot.className = 'radar-orbit-dot' + (name === 'claude' ? ' owner-dot' : '');
+    dot.dataset.provider = name;
     dot.style.left = (cx + r * Math.cos(angle)) + 'px';
     dot.style.top  = (cy + r * Math.sin(angle)) + 'px';
-    dot.title = p.label;
-    const isLocked = lockedProvider === p.name;
-    const isLast   = !lockedProvider && lastActiveProvider === p.name;
-    if (isLocked || isLast) dot.classList.add('active');
-    dot.addEventListener('click', e => {
-      e.stopPropagation();
-      if (p.ownerOnly && !profile?.is_owner) return;
-      lockedProvider = lockedProvider === p.name ? null : p.name;
-      renderOrbitDots();
-      renderProviderChips();
-      updateRadarOrbitDots();
-      const coordEl = $('radar-coords');
-      if (coordEl && lockedProvider) coordEl.textContent = lockedProvider.toUpperCase();
-      $('aicycle-provider').textContent = (lockedProvider || lastActiveProvider || 'AUTO').toUpperCase();
-    });
+    if (lastActiveProvider === name) dot.classList.add('active');
     container.appendChild(dot);
   });
 }
@@ -2380,7 +2218,7 @@ async function _acquireRadar() {
   const core = $('radar-core');
   if (core) { core.classList.remove('acquiring'); core.classList.add('locked'); core.dataset.lat = coords.lat; core.dataset.lng = coords.lng; }
   const coordEl = $('radar-coords');
-  if (coordEl && !lockedProvider) coordEl.textContent = `${coords.lat.toFixed(3)}° ${coords.lng > 0 ? '+' : ''}${coords.lng.toFixed(3)}°`;
+  if (coordEl) coordEl.textContent = `${coords.lat.toFixed(3)}° ${coords.lng > 0 ? '+' : ''}${coords.lng.toFixed(3)}°`;
 
   viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(coords.lng, coords.lat, 12_000), duration: 2.5 });
 
@@ -3091,10 +2929,9 @@ window.openKrypteia = async () => {
       <span style="color:${openThreats > 0 ? '#ff6b6b' : '#7eebb4'}">${openThreats}</span>
     </div>
     <div class="row">
-      <span>Provider lock</span>
-      <span style="color:${lockedProvider ? '#ffb464' : '#6a8aaf'}">${lockedProvider ? lockedProvider.toUpperCase() : 'AUTO'}</span>
+      <span>Active AI</span>
+      <span style="color:#a8c8ee">${lastActiveProvider ? lastActiveProvider.toUpperCase() : 'AUTO CYCLE'}</span>
     </div>
-    ${lockedProvider ? `<div class="gadget-engage" onclick="clearProviderLock()" style="border-color:rgba(255,180,100,0.35);margin-top:8px"><span class="verb-glyph">✕</span><span>Clear lock</span></div>` : ''}
 
     <div class="row" style="margin-top:16px">
       <span>Imagery source</span>
@@ -3146,13 +2983,6 @@ window.openSecurityEvents = async () => {
     <div class="subtitle">${data?.length || 0} events · IP theft, abuse, exploits</div>
     ${rows || '<div style="color:#6a8aaf;font-size:13px;padding:12px 0">No threats detected. System clean.</div>'}
   `);
-};
-
-window.clearProviderLock = () => {
-  lockedProvider = null;
-  renderProviderChips();
-  $('aicycle-provider').textContent = 'AUTO';
-  openKrypteia();
 };
 
 window.openMemoryPanel = async () => {
@@ -3252,91 +3082,7 @@ const aicycleChat = $('aicycle-chat');
 const aicycleMessages = $('aicycle-messages');
 const aicycleHistory = [];
 
-// Provider list mirrors the Edge Function. 'auto' = cycle from start.
-const AICYCLE_PROVIDERS = [
-  { name: 'auto',   label: 'Auto',   ownerOnly: false },
-  { name: 'claude', label: 'Claude', ownerOnly: true  },
-  { name: 'groq',   label: 'Groq',   ownerOnly: false },
-  { name: 'gemini', label: 'Gemini', ownerOnly: false },
-  { name: 'openai', label: 'GPT-4o', ownerOnly: false },
-  { name: 'xai',    label: 'xAI',    ownerOnly: false },
-];
-let lockedProvider = null;   // null = auto; 'claude' etc = locked
 let lastActiveProvider = null; // last provider that actually responded
-
-function renderProviderChips() {
-  const strip = $('aicycle-providers');
-  if (!strip) return;
-  strip.innerHTML = '';
-  AICYCLE_PROVIDERS.forEach(p => {
-    const chip = document.createElement('span');
-    chip.className = 'provider-chip';
-    chip.dataset.provider = p.name;
-    chip.textContent = p.label;
-    // Owner-only providers are disabled for non-owners
-    if (p.ownerOnly && !profile?.is_owner) chip.classList.add('disabled');
-    const isLocked = (lockedProvider === p.name) || (p.name === 'auto' && !lockedProvider);
-    if (isLocked) chip.classList.add('locked');
-    chip.addEventListener('click', () => {
-      if (chip.classList.contains('disabled')) return;
-      lockedProvider = p.name === 'auto' ? null : p.name;
-      renderProviderChips();
-      renderOrbitDots();
-      updateRadarOrbitDots();
-      $('aicycle-provider').textContent = (lockedProvider || lastActiveProvider || 'auto').toUpperCase();
-    });
-    strip.appendChild(chip);
-  });
-}
-
-// Orbiting provider dots on the floating ring
-function renderOrbitDots() {
-  const container = $('ring-orbit');
-  if (!container) return;
-  container.innerHTML = '';
-  const cx = 32, cy = 32, r = 26;
-  const providers = AICYCLE_PROVIDERS.filter(p => p.name !== 'auto');
-  providers.forEach((p, i) => {
-    const angle = (i / providers.length) * 2 * Math.PI - Math.PI / 2;
-    const dot = document.createElement('div');
-    dot.className = 'orbit-dot' + (p.ownerOnly ? ' owner-dot' : '');
-    dot.dataset.provider = p.name;
-    dot.style.left = (cx + r * Math.cos(angle)) + 'px';
-    dot.style.top  = (cy + r * Math.sin(angle)) + 'px';
-    dot.title = p.label;
-    _styleOrbitDot(dot, p.name);
-    dot.addEventListener('click', e => {
-      e.stopPropagation();
-      if (p.ownerOnly && !profile?.is_owner) return;
-      lockedProvider = lockedProvider === p.name ? null : p.name;
-      renderOrbitDots();
-      renderProviderChips();
-      updateRadarOrbitDots();
-      $('aicycle-provider').textContent = (lockedProvider || lastActiveProvider || 'AUTO').toUpperCase();
-    });
-    container.appendChild(dot);
-  });
-}
-
-function _styleOrbitDot(dot, name) {
-  const isLocked = lockedProvider === name;
-  const isLast   = !lockedProvider && lastActiveProvider === name;
-  dot.classList.toggle('active', isLocked || isLast);
-  dot.classList.toggle('locked-ring', isLocked);
-}
-
-function updateOrbitDots() {
-  document.querySelectorAll('#ring-orbit .orbit-dot').forEach(dot =>
-    _styleOrbitDot(dot, dot.dataset.provider));
-}
-
-function updateRadarOrbitDots() {
-  document.querySelectorAll('.radar-orbit-dot').forEach(dot => {
-    const isLocked = lockedProvider === dot.dataset.provider;
-    const isLast   = !lockedProvider && lastActiveProvider === dot.dataset.provider;
-    dot.classList.toggle('active', isLocked || isLast);
-  });
-}
 
 // Open/close chat on ring tap (long-press = voice; see below)
 let aicyclePressTimer = null, aicyclePressIsLong = false;
@@ -3355,7 +3101,6 @@ $('aicycle-float').addEventListener('pointerup', () => {
     if (opening) {
       aicycleChat.style.height = '';
       aicycleChat.style.maxHeight = '';
-      renderProviderChips();
     }
   }
 });
@@ -3398,9 +3143,6 @@ $('aicycle-float').addEventListener('pointercancel', () => clearTimeout(aicycleP
   });
 })();
 
-// Boot orbit dots immediately
-renderOrbitDots();
-
 // Submit handler
 $('aicycle-form').addEventListener('submit', async e => {
   e.preventDefault();
@@ -3414,7 +3156,7 @@ $('aicycle-form').addEventListener('submit', async e => {
   try {
     const resp = await callAICycle(text);
     appendAICycleMessage('ai', resp.response, resp.label || resp.provider, resp.via);
-    $('aicycle-provider').textContent = (lockedProvider || resp.provider || 'auto').toUpperCase();
+    $('aicycle-provider').textContent = '× ' + (resp.provider || 'auto').toUpperCase();
   } catch (err) {
     appendAICycleMessage('ai', '(cycle unreachable — /aicycle Edge Function not responding)', 'offline', 'fallback');
   } finally {
@@ -3426,7 +3168,6 @@ async function callAICycle(prompt) {
   if (!sb) throw new Error('offline');
   const history = aicycleHistory.slice(-6);
   const body = { prompt, history };
-  if (lockedProvider) body.locked_provider = lockedProvider;
   const { data, error } = await sb.functions.invoke('aicycle', { body });
   if (error) throw error;
   aicycleHistory.push({ role: 'user', content: prompt });
@@ -3448,12 +3189,9 @@ function appendAICycleMessage(role, text, provider, via) {
   div.appendChild(t);
   aicycleMessages.appendChild(div);
   aicycleMessages.scrollTop = aicycleMessages.scrollHeight;
-  // Track which provider responded and light up its dot
   if (role === 'ai' && provider && provider !== 'offline') {
     lastActiveProvider = provider;
-    updateOrbitDots();
-    updateRadarOrbitDots();
-    if (!lockedProvider) $('aicycle-provider').textContent = provider.toUpperCase();
+    $('aicycle-provider').textContent = '× ' + provider.toUpperCase();
   }
 }
 
@@ -3475,9 +3213,7 @@ if (SpeechRecognition) {
     const transcript = evt.results[0]?.[0]?.transcript;
     if (transcript) {
       $('aicycle-input').value = transcript;
-      // Make sure chat is open so the user sees the message land
       aicycleChat.classList.add('visible');
-      renderProviderChips();
       // Auto-submit
       $('aicycle-form').dispatchEvent(new Event('submit', { cancelable: true }));
     }
