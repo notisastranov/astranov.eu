@@ -127,6 +127,18 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     zoom when signals are loaded. Tap a dot = toggle that category on/off
     (show/hide all matching PointPrimitives). Auto-dims to 35% opacity after 3.5s.
 
+23. PUSH / RELIABILITY — always-on presence
+    /sw.js service worker: offline shell cache + push handler + notification
+    click routing. VAPID Web Push via push-notify Edge Function (RFC 8291
+    AES-128-GCM, manual ECDSA JWT). push_subscriptions table stores per-
+    profile endpoints. pushNotify(id, payload) fires after every call invite,
+    DM, and delivery event. saveActiveDelivery() / clearActiveDelivery()
+    persist runner delivery state in localStorage. restoreSession() on boot
+    picks up active delivery + URL params injected by push-click deep-links.
+    handleNotificationNav() routes into call UI, DM thread, or delivery panel.
+    Callee-ready handshake: callee broadcasts 'callee-ready' on call channel
+    after push-wakeup so caller resends the SDP offer.
+
 18. LIVE WIRING — realtime state
     loadDeliveryBadge() counts active deliveries for current user → badge on
     wallet orb. Supabase realtime on deliveries table refreshes badge + open
@@ -1137,6 +1149,7 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 */
 const SUPABASE_URL     = 'https://lkoatrkhuigdolnjsbie.supabase.co';
 const SUPABASE_ANON    = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI';
+const VAPID_PUBLIC     = 'BDO_nZ43i2Qcb5Ql-p5zh2gqlo4cDQCIdcFbN5KQ1y1rz6eshbdhIqXFH7kZ7pyMK7i7X5D7yeEOQeQSplAkzyU';
 const CESIUM_ION_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzYTI0NjM1MC05MTAyLTQ1NjItOGI5Yi1kZTUxMWVlODA0MzQiLCJpZCI6NDMyMzAwLCJzdWIiOiJBc3RyYW5vdiIsImlzcyI6Imh0dHBzOi8vaW9uLmNlc2l1bS5jb20iLCJhdWQiOiJBTENJIiwiaWF0IjoxNzc4OTIwOTU3fQ.HPPdCQ7u_BWDoS7uK5uwqHHtmUivbU82u_bwHLhHkag';
 
 const $ = id => document.getElementById(id);
@@ -1477,6 +1490,8 @@ async function loadProfile() {
   loadMessageBadge();
   updateIdentityOrb();
   profileSetupIfNeeded();
+  subscribePush();
+  restoreSession();
 }
 
 async function loadDeliveryBadge() {
@@ -1553,6 +1568,144 @@ window.saveDisplayName = async () => {
 };
 
 /* ==============================================================
+   Push / Service Worker / Reliability  (§23)
+   ============================================================== */
+function urlBase64ToUint8Array(b64u) {
+  const pad = '='.repeat((4 - b64u.length % 4) % 4);
+  const b64  = (b64u + pad).replace(/-/g, '+').replace(/_/g, '/');
+  const raw  = atob(b64);
+  return Uint8Array.from(raw, c => c.charCodeAt(0));
+}
+
+let _swReg = null;
+
+function bootServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('/sw.js').then(reg => {
+    _swReg = reg;
+    navigator.serviceWorker.addEventListener('message', e => handleSwMessage(e.data));
+  }).catch(err => console.warn('[sw] register failed:', err));
+}
+
+async function subscribePush() {
+  if (!_swReg || !session || !VAPID_PUBLIC) return;
+  try {
+    let sub = await _swReg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await _swReg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
+      });
+    }
+    await savePushSubscription(sub);
+  } catch (e) {
+    console.warn('[push] subscribe failed:', e.message);
+  }
+}
+
+async function savePushSubscription(sub) {
+  if (!sb || !session || !sub) return;
+  const j = sub.toJSON();
+  await sb.from('push_subscriptions').upsert({
+    profile_id:  session.user.id,
+    endpoint:    j.endpoint,
+    keys_p256dh: j.keys.p256dh,
+    keys_auth:   j.keys.auth,
+  }, { onConflict: 'endpoint' });
+}
+
+async function pushNotify(recipientId, payload) {
+  if (!sb || !session || !recipientId || recipientId === session.user.id) return;
+  try {
+    await sb.functions.invoke('push-notify', { body: { recipient_id: recipientId, payload } });
+  } catch (e) {
+    console.warn('[push] notify failed:', e.message);
+  }
+}
+
+function handleSwMessage(msg) {
+  if (!msg) return;
+  if (msg.type === 'notif-nav') {
+    handleNotificationNav(msg.params || {});
+  } else if (msg.type === 'call-decline-push') {
+    if (currentCall && currentCall.id === msg.callId) declineIncomingCall();
+  } else if (msg.type === 'push-resubscribe') {
+    if (msg.sub && session) {
+      const sub = { toJSON: () => msg.sub };
+      savePushSubscription(sub);
+    }
+  }
+}
+
+function handleNotificationNav(p) {
+  const type = p.notif;
+  if (type === 'call' && p.callId) {
+    // Incoming call via push — build a synthetic call state then show UI
+    if (!currentCall) {
+      currentCall = {
+        id:           p.callId,
+        peerId:       p.callerId   || '',
+        peerName:     p.callerName || 'Caller',
+        role:         'callee',
+        startedAt:    Date.now(),
+        pendingOffer: null, // will arrive via callee-ready handshake
+      };
+      if ($('call-incoming-name')) $('call-incoming-name').textContent = currentCall.peerName;
+      if ($('call-incoming'))      $('call-incoming').classList.add('visible');
+      // Subscribe to call channel so we can receive the re-sent offer
+      if (sb) {
+        callChannel = sb.channel(callChannelName(p.callId));
+        callChannel
+          .on('broadcast', { event: 'offer'  }, ({ payload }) => {
+            if (currentCall) currentCall.pendingOffer = payload.offer;
+          })
+          .on('broadcast', { event: 'ice' }, ({ payload }) => onIce(payload))
+          .on('broadcast', { event: 'bye' }, () => endCall(true))
+          .subscribe()
+          .then(() => {
+            // Signal caller that we're awake and ready for their offer
+            callChannel.send({ type: 'broadcast', event: 'callee-ready', payload: { fromId: session?.user.id } });
+          });
+      }
+    }
+    if (p.accept === '1') acceptIncomingCall();
+  } else if (type === 'message' && p.senderId) {
+    openConversation(p.senderId, p.senderName || 'User');
+  } else if (type === 'delivery' && p.deliveryId) {
+    openDeliveryPanel(Number(p.deliveryId));
+  }
+}
+
+function saveActiveDelivery(delivery) {
+  try { localStorage.setItem('astranov_active_delivery', JSON.stringify(delivery)); } catch (_) {}
+}
+
+function clearActiveDelivery() {
+  try { localStorage.removeItem('astranov_active_delivery'); } catch (_) {}
+}
+
+function restoreSession() {
+  // 1. URL params injected by push-notification click
+  const p = new URLSearchParams(location.search);
+  if (p.has('notif')) {
+    handleNotificationNav(Object.fromEntries(p));
+    // Clean URL without reload
+    history.replaceState(null, '', '/');
+  }
+  // 2. Active delivery from localStorage (runner resume)
+  try {
+    const raw = localStorage.getItem('astranov_active_delivery');
+    if (raw) {
+      const d = JSON.parse(raw);
+      if (d && d.id) {
+        toast('Resuming delivery #' + d.id, 'ok');
+        setTimeout(() => openDeliveryPanel(d.id), 800);
+      }
+    }
+  } catch (_) {}
+}
+
+/* ==============================================================
    Messages — direct messaging between users
    ============================================================== */
 let _activePeer = null; // { id, name }
@@ -1627,7 +1780,15 @@ window.sendMessage = async () => {
   const thread = $('msg-thread-container');
   if (thread) { _appendBubble(thread, m); thread.scrollTop = thread.scrollHeight; }
   const { error } = await sb.from('messages').insert({ sender_id: session.user.id, recipient_id: _activePeer.id, body });
-  if (error) toast(error.message, 'err');
+  if (error) { toast(error.message, 'err'); return; }
+  pushNotify(_activePeer.id, {
+    type:       'message',
+    title:      profile?.display_name || 'Message',
+    body:       body.slice(0, 80),
+    tag:        'msg-' + session.user.id,
+    senderId:   session.user.id,
+    senderName: profile?.display_name || '',
+  });
 };
 
 window.startDM = (peerId, peerName) => {
@@ -2411,13 +2572,45 @@ window.openDeliveryPanel = async (id) => {
 window.acceptDelivery = async (id) => {
   const { error } = await sb.rpc('accept_delivery', { delivery_id: id });
   if (error) return toast(error.message, 'err');
+  // Fetch delivery to persist locally + notify requester
+  const { data: d } = await sb.from('deliveries').select('*').eq('id', id).single();
+  if (d) {
+    saveActiveDelivery(d);
+    pushNotify(d.requester_id, {
+      type:       'delivery',
+      title:      'Runner accepted your delivery',
+      body:       'Your delivery request has been accepted.',
+      tag:        'delivery-' + id,
+      deliveryId: id,
+    });
+  }
   openDeliveryPanel(id);
 };
 
 window.updateDeliveryStatus = async (id, newStatus) => {
-  // arm-confirm handled by gadget-engage arm state; proceed directly
   const { error } = await sb.rpc('update_delivery_status', { delivery_id: id, new_status: newStatus });
   if (error) return toast(error.message, 'err');
+  const terminal = newStatus === 'delivered' || newStatus === 'cancelled';
+  if (terminal) clearActiveDelivery();
+  else {
+    const { data: d } = await sb.from('deliveries').select('*').eq('id', id).single();
+    if (d) saveActiveDelivery(d);
+  }
+  // Notify the other party
+  const { data: d } = await sb.from('deliveries').select('*').eq('id', id).single();
+  if (d) {
+    const otherId = d.requester_id === session?.user.id ? d.runner_id : d.requester_id;
+    const msgs = { in_transit: 'Runner has picked up your delivery', delivered: 'Your delivery has been completed', cancelled: 'A delivery was cancelled' };
+    if (otherId && msgs[newStatus]) {
+      pushNotify(otherId, {
+        type:       'delivery',
+        title:      msgs[newStatus],
+        body:       d.description?.slice(0, 80) || '',
+        tag:        'delivery-' + id,
+        deliveryId: id,
+      });
+    }
+  }
   openDeliveryPanel(id);
 };
 
@@ -3287,19 +3480,23 @@ window.startCallTo = async (peerId, peerName) => {
   // Build peer connection
   await buildPeerConnection();
 
-  // Subscribe to per-call channel for answer + ICE
-  callChannel = sb.channel(callChannelName(row.id));
-  callChannel
-    .on('broadcast', { event: 'answer' }, ({ payload }) => onAnswer(payload))
-    .on('broadcast', { event: 'ice'    }, ({ payload }) => onIce(payload))
-    .on('broadcast', { event: 'bye'    }, () => endCall(true))
-    .subscribe();
-
-  // Create offer
+  // Create offer first so we can send it immediately and resend on callee-ready
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
 
-  // Send invite to peer's inbox
+  // Subscribe to per-call channel for answer + ICE + callee-ready
+  callChannel = sb.channel(callChannelName(row.id));
+  callChannel
+    .on('broadcast', { event: 'answer'      }, ({ payload }) => onAnswer(payload))
+    .on('broadcast', { event: 'ice'         }, ({ payload }) => onIce(payload))
+    .on('broadcast', { event: 'bye'         }, () => endCall(true))
+    .on('broadcast', { event: 'callee-ready'}, () => {
+      // Callee woke up via push — resend offer so they can complete the handshake
+      callChannel.send({ type: 'broadcast', event: 'offer', payload: { offer } }).catch(() => {});
+    })
+    .subscribe();
+
+  // Send invite to peer's Realtime inbox
   const inviteChannel = sb.channel(userChannelName(peerId));
   await inviteChannel.subscribe();
   await inviteChannel.send({
@@ -3310,8 +3507,19 @@ window.startCallTo = async (peerId, peerName) => {
       offer,
     },
   });
-  // We don't keep the invite channel after sending
   setTimeout(() => inviteChannel.unsubscribe().catch(() => {}), 1000);
+
+  // Push notification so callee is woken even if app is closed
+  pushNotify(peerId, {
+    type:       'call',
+    title:      (profile?.display_name || 'Someone') + ' is calling…',
+    body:       'Tap Accept to join the call.',
+    tag:        'call-' + row.id,
+    callId:     row.id,
+    callerId:   session.user.id,
+    callerName: profile?.display_name || '',
+    requireInteraction: true,
+  });
 
   showActiveCallUI('ringing');
 
@@ -3337,6 +3545,22 @@ async function acceptIncomingCall() {
   if (!currentCall || currentCall.role !== 'callee') return;
   $('call-incoming').classList.remove('visible');
 
+  // Push-wakeup path: callChannel already subscribed in handleNotificationNav.
+  // If no offer yet, wait up to 8s for the caller to resend via 'offer' event.
+  if (!currentCall.pendingOffer) {
+    await new Promise(resolve => {
+      const maxWait = setTimeout(resolve, 8000);
+      const check = setInterval(() => {
+        if (currentCall?.pendingOffer) { clearTimeout(maxWait); clearInterval(check); resolve(); }
+      }, 200);
+    });
+  }
+  if (!currentCall?.pendingOffer) {
+    toast('Call offer not received — try again', 'err');
+    declineIncomingCall();
+    return;
+  }
+
   try {
     localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
   } catch (e) {
@@ -3348,12 +3572,14 @@ async function acceptIncomingCall() {
   await buildPeerConnection();
   await pc.setRemoteDescription(new RTCSessionDescription(currentCall.pendingOffer));
 
-  // Subscribe to call channel
-  callChannel = sb.channel(callChannelName(currentCall.id));
-  callChannel
-    .on('broadcast', { event: 'ice' }, ({ payload }) => onIce(payload))
-    .on('broadcast', { event: 'bye' }, () => endCall(true))
-    .subscribe();
+  // Subscribe to call channel (skip if already subscribed by push-wakeup path)
+  if (!callChannel) {
+    callChannel = sb.channel(callChannelName(currentCall.id));
+    callChannel
+      .on('broadcast', { event: 'ice' }, ({ payload }) => onIce(payload))
+      .on('broadcast', { event: 'bye' }, () => endCall(true))
+      .subscribe();
+  }
 
   const answer = await pc.createAnswer();
   await pc.setLocalDescription(answer);
@@ -3502,8 +3728,9 @@ function formatRelative(iso) {
    10. Boot
    ============================================================== */
 window.addEventListener('load', () => {
-  bootCesium();    // async, fires-and-forgets; sets viewer when ready
-  bootSupabase();  // safe to call before viewer ready
+  bootCesium();          // async, fires-and-forgets; sets viewer when ready
+  bootSupabase();        // safe to call before viewer ready
+  bootServiceWorker();   // register SW for push + offline shell
 });
 
 // Pause Cesium render when tab hidden (battery)
