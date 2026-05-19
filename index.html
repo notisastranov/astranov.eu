@@ -1037,42 +1037,121 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     margin-top: 6px; font-family: 'SF Mono', monospace;
   }
 
-  /* Layer-switch gadget — physical-feeling switch for city-tier providers.
-     Appears top-right when below GLOBAL altitude. */
+  /* Layer-switch — top-center pill trigger + dropdown (Imagery Law §3) */
   #layer-switch {
     position: fixed;
-    top: calc(max(16px, env(safe-area-inset-top)) + 60px); right: 14px;
+    top: calc(max(10px, env(safe-area-inset-top)) + 8px);
+    left: 50%; transform: translateX(-50%);
     z-index: 36;
-    background: rgba(10,20,40,0.72); backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border: 1px solid rgba(120,180,255,0.22); border-radius: 14px;
-    padding: 5px;
-    display: none; flex-direction: column; gap: 3px;
-    min-width: 132px; opacity: 0; transition: opacity 0.3s;
+    display: none; flex-direction: column; align-items: center;
+    pointer-events: auto;
   }
-  #layer-switch.visible { display: flex; opacity: 1; }
-  #layer-switch .seg {
-    padding: 7px 10px; font-size: 10px; letter-spacing: 0.18em;
-    text-transform: uppercase; color: #6a8aaf; cursor: pointer;
-    border-radius: 9px; transition: all 0.2s;
-    border: 1px solid transparent; user-select: none;
-    display: flex; align-items: center; gap: 8px;
+  #layer-switch.visible { display: flex; }
+  #layer-pill {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(8,18,36,0.84); backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(120,180,255,0.28); border-radius: 20px;
+    padding: 6px 14px 6px 10px; cursor: pointer;
+    font-size: 11px; letter-spacing: 0.12em; color: #a8c8ee;
+    user-select: none; transition: border-color 0.2s, box-shadow 0.2s;
+    white-space: nowrap; -webkit-tap-highlight-color: transparent;
   }
-  #layer-switch .seg::before {
-    content: ''; width: 8px; height: 8px; border-radius: 50%;
-    border: 1px solid rgba(120,180,255,0.4); flex-shrink: 0;
-    transition: all 0.2s;
+  #layer-pill:active, #layer-switch.open #layer-pill {
+    border-color: rgba(120,180,255,0.55);
+    box-shadow: 0 0 14px rgba(120,180,255,0.18);
   }
-  #layer-switch .seg:hover { color: #a8c8ee; background: rgba(120,180,255,0.06); }
-  #layer-switch .seg.active {
-    color: #fff; background: rgba(120,180,255,0.16);
-    border-color: rgba(120,180,255,0.45);
-    box-shadow: 0 0 14px rgba(120,180,255,0.22);
+  #layer-pill .pill-emoji {
+    font-size: 15px; line-height: 1;
+    font-family: "Apple Color Emoji","Noto Color Emoji","Segoe UI Emoji",serif;
   }
-  #layer-switch .seg.active::before {
+  #layer-pill .pill-lbl { text-transform: uppercase; }
+  #layer-pill .pill-arrow { font-size: 8px; opacity: 0.55; transition: transform 0.2s; }
+  #layer-switch.open #layer-pill .pill-arrow { transform: rotate(180deg); }
+  #layer-menu {
+    display: none; flex-direction: column; gap: 2px;
+    background: rgba(6,14,28,0.94); backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(120,180,255,0.2); border-radius: 16px;
+    padding: 6px; margin-top: 6px; min-width: 190px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.55);
+  }
+  #layer-switch.open #layer-menu { display: flex; }
+  .layer-opt {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; border-radius: 10px; cursor: pointer;
+    font-size: 11px; letter-spacing: 0.13em; color: #6a8aaf;
+    transition: all 0.15s; user-select: none;
+    border: 1px solid transparent;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .layer-opt:hover { color: #a8c8ee; background: rgba(120,180,255,0.07); }
+  .layer-opt.active {
+    color: #fff; background: rgba(120,180,255,0.14);
+    border-color: rgba(120,180,255,0.38);
+  }
+  .layer-opt .lo-e {
+    font-size: 15px;
+    font-family: "Apple Color Emoji","Noto Color Emoji","Segoe UI Emoji",serif;
+    flex-shrink: 0;
+  }
+  .layer-opt .lo-l { text-transform: uppercase; flex: 1; }
+  .layer-opt .lo-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    border: 1px solid rgba(120,180,255,0.35); flex-shrink: 0; transition: all 0.2s;
+  }
+  .layer-opt.active .lo-dot {
     background: #7eb4ff; border-color: #7eb4ff;
-    box-shadow: 0 0 8px rgba(120,180,255,0.9);
+    box-shadow: 0 0 6px rgba(120,180,255,0.85);
   }
+  /* ME panel components */
+  .me-sec {
+    font-size: 9px; letter-spacing: 0.2em; color: #3a5a7a;
+    text-transform: uppercase; margin: 18px 0 7px;
+  }
+  .me-chips {
+    display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  .me-chips::-webkit-scrollbar { display: none; }
+  .me-chip {
+    padding: 7px 11px; border-radius: 10px; font-size: 11px;
+    color: #6a8aaf; border: 1px solid rgba(120,180,255,0.14);
+    background: rgba(120,180,255,0.04); cursor: pointer;
+    white-space: nowrap; transition: all 0.15s; user-select: none;
+    flex-shrink: 0; -webkit-tap-highlight-color: transparent;
+    font-family: "Apple Color Emoji","Noto Color Emoji","Segoe UI Emoji",sans-serif;
+  }
+  .me-chip:active { transform: scale(0.93); }
+  .me-chip.on {
+    color: #fff; background: rgba(120,180,255,0.18);
+    border-color: rgba(120,180,255,0.48);
+    box-shadow: 0 0 10px rgba(120,180,255,0.18);
+  }
+  .me-tog-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 13px 2px; cursor: pointer; user-select: none;
+    font-size: 13px; color: #a8c8ee; -webkit-tap-highlight-color: transparent;
+  }
+  .me-tog {
+    width: 44px; height: 24px; border-radius: 12px;
+    background: rgba(120,180,255,0.1); border: 1px solid rgba(120,180,255,0.2);
+    position: relative; transition: all 0.25s; flex-shrink: 0;
+  }
+  .me-tog::after {
+    content: ''; position: absolute; width: 18px; height: 18px;
+    border-radius: 9px; background: #3a5a7a; top: 2px; left: 3px;
+    transition: all 0.25s;
+  }
+  .me-tog.on { background: rgba(0,180,100,0.28); border-color: rgba(0,180,100,0.48); }
+  .me-tog.on::after { background: #00c06a; left: 23px; }
+  .me-inp {
+    width: 100%; background: rgba(8,20,42,0.7);
+    border: 1px solid rgba(120,180,255,0.17); border-radius: 10px;
+    color: #e6f1ff; font-size: 13px; padding: 10px 12px;
+    font-family: inherit; resize: none; box-sizing: border-box; outline: none;
+  }
+  .me-inp:focus { border-color: rgba(120,180,255,0.48); }
 
   /* ============================================================
      Fallback / error
@@ -1398,26 +1477,36 @@ let cityLayer  = null;   // Current city-tier overlay — hidden at GLOBAL
 let cityProviderIndex = 0;
 
 const CITY_PROVIDERS = [
-  { id: 'osm',          label: 'OSM',
-    init: () => new Cesium.UrlTemplateImageryProvider({
-      url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-      credit: '© OpenStreetMap contributors', maximumLevel: 19,
-    }) },
-  { id: 'carto-voyager', label: 'Voyager',
-    init: () => new Cesium.UrlTemplateImageryProvider({
-      url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-      subdomains: ['a','b','c','d'], credit: '© CARTO · © OSM', maximumLevel: 19,
-    }) },
-  { id: 'carto-dark',   label: 'Dark',
+  { id: 'carto-dark',    emoji: '🌑', label: 'Dark',
     init: () => new Cesium.UrlTemplateImageryProvider({
       url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
       subdomains: ['a','b','c','d'], credit: '© CARTO · © OSM', maximumLevel: 19,
     }) },
-  { id: 'esri',         label: 'Satellite',
+  { id: 'carto-voyager', emoji: '🧭', label: 'Voyager',
+    init: () => new Cesium.UrlTemplateImageryProvider({
+      url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+      subdomains: ['a','b','c','d'], credit: '© CARTO · © OSM', maximumLevel: 19,
+    }) },
+  { id: 'carto-light',   emoji: '☀️', label: 'Light',
+    init: () => new Cesium.UrlTemplateImageryProvider({
+      url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+      subdomains: ['a','b','c','d'], credit: '© CARTO · © OSM', maximumLevel: 19,
+    }) },
+  { id: 'osm',           emoji: '🗺', label: 'OSM',
+    init: () => new Cesium.UrlTemplateImageryProvider({
+      url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      credit: '© OpenStreetMap contributors', maximumLevel: 19,
+    }) },
+  { id: 'esri',          emoji: '🛰', label: 'Satellite',
     init: () => Cesium.ArcGisMapServerImageryProvider.fromUrl(
       'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer',
       { enablePickFeatures: false }) },
-  { id: 'stadia-dark',  label: 'Alidade',
+  { id: 'topo',          emoji: '🏔', label: 'Terrain',
+    init: () => new Cesium.UrlTemplateImageryProvider({
+      url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+      subdomains: ['a','b','c'], credit: '© OpenTopoMap · © OSM', maximumLevel: 17,
+    }) },
+  { id: 'stadia-dark',   emoji: '🌃', label: 'Alidade',
     init: () => new Cesium.UrlTemplateImageryProvider({
       url: 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png',
       credit: '© Stadia · © OSM', maximumLevel: 18,
@@ -1482,19 +1571,42 @@ async function setCityImagery(index) {
 function renderLayerSwitch() {
   const el = $('layer-switch');
   if (!el) return;
-  el.innerHTML = CITY_PROVIDERS.map((p, i) =>
-    `<div class="seg${i === cityProviderIndex ? ' active' : ''}" data-idx="${i}">${p.label}</div>`
-  ).join('');
-  el.querySelectorAll('.seg').forEach(seg => {
-    seg.addEventListener('click', () => setCityImagery(Number(seg.dataset.idx)));
-  });
+  const cur = CITY_PROVIDERS[cityProviderIndex] || CITY_PROVIDERS[0];
+  el.innerHTML = `
+    <div id="layer-pill" onclick="toggleLayerMenu(event)">
+      <span class="pill-emoji">${cur.emoji}</span>
+      <span class="pill-lbl">${cur.label}</span>
+      <span class="pill-arrow">▼</span>
+    </div>
+    <div id="layer-menu">
+      ${CITY_PROVIDERS.map((p, i) => `
+        <div class="layer-opt${i === cityProviderIndex ? ' active' : ''}"
+             onclick="setCityImagery(${i});closeLayerMenu()">
+          <span class="lo-e">${p.emoji}</span>
+          <span class="lo-l">${p.label}</span>
+          <span class="lo-dot"></span>
+        </div>`).join('')}
+    </div>`;
+}
+
+function toggleLayerMenu(e) {
+  if (e) e.stopPropagation();
+  const el = $('layer-switch');
+  if (el) el.classList.toggle('open');
+}
+
+function closeLayerMenu() {
+  const el = $('layer-switch');
+  if (el) el.classList.remove('open');
 }
 
 function updateLayerSwitchVisibility() {
   const el = $('layer-switch');
   if (!el) return;
-  el.classList.toggle('visible', currentLevel !== 'global');
-  if (cityLayer) cityLayer.show = currentLevel !== 'global';
+  const show = currentLevel !== 'global';
+  el.classList.toggle('visible', show);
+  if (!show) closeLayerMenu();
+  if (cityLayer) cityLayer.show = show;
   updateImagerySourceBadge();
 }
 
@@ -2611,6 +2723,7 @@ document.addEventListener('click', e => {
       && !e.target.closest('#aicycle-float')) {
     closePanel();
   }
+  if (!e.target.closest('#layer-switch')) closeLayerMenu();
 }, true);
 
 function openTabPanel(tab) {
@@ -2638,14 +2751,109 @@ function openDiscoverPanel() {
   `);
 }
 
-// Corner gadget: ME (top-right) — combined hub
+let _meData = {};
+
+function meSetStatus(el, v) {
+  el.closest('#me-status').querySelectorAll('.me-chip').forEach(c => c.classList.remove('on'));
+  el.classList.add('on');
+  _meData.availability_status = v;
+}
+function meSetVis(el, v) {
+  el.closest('#me-vis').querySelectorAll('.me-chip').forEach(c => c.classList.remove('on'));
+  el.classList.add('on');
+  _meData.map_visibility = v;
+}
+function meToggleMap(row) {
+  const tog = row.querySelector('.me-tog');
+  if (!tog) return;
+  const on = tog.classList.toggle('on');
+  _meData.show_on_map = on;
+}
+function meSetLayer(el, v) {
+  el.closest('#me-maplayer').querySelectorAll('.me-chip').forEach(c => c.classList.remove('on'));
+  el.classList.add('on');
+  _meData.preferred_map_layer = v;
+}
+async function saveMePanel() {
+  if (!sb || !session) return;
+  const nameEl = $('me-name'), bioEl = $('me-bio');
+  const updates = { updated_at: new Date().toISOString(), ..._meData };
+  if (nameEl?.value.trim()) updates.display_name = nameEl.value.trim();
+  if (bioEl) updates.bio = bioEl.value.trim();
+  const { error } = await sb.from('profiles').update(updates).eq('id', session.user.id);
+  if (error) { toast(error.message, 'err'); return; }
+  profile = { ...profile, ...updates };
+  if (_meData.preferred_map_layer) {
+    const idx = CITY_PROVIDERS.findIndex(p => p.id === _meData.preferred_map_layer);
+    if (idx >= 0) setCityImagery(idx);
+  }
+  _meData = {};
+  toast('Saved ✓');
+  closePanel();
+}
+function _signOut() {
+  toast('Signing out…');
+  setTimeout(() => sb.auth.signOut().then(() => location.reload()), 900);
+}
+
+// Corner gadget: ME (top-right) — account hub
 function openMePanel() {
+  if (!session) {
+    openPanel(`
+      <h2>Me</h2>
+      <div class="subtitle">Connect your identity</div>
+      <div class="gadget-engage" onclick="openYouPanel()" style="margin-top:14px">
+        <span class="verb-glyph">◉</span><span>Sign in / Register</span>
+      </div>
+    `);
+    return;
+  }
+  _meData = {};
+  const p = profile || {};
+  const status = p.availability_status || 'available';
+  const vis    = p.map_visibility    || 'public';
+  const showM  = p.show_on_map !== false;
+  const layer  = p.preferred_map_layer || 'carto-dark';
+  const STATUS_OPTS = [['available','🟢','Available'],['busy','🔴','Busy'],['away','🟡','Away'],['invisible','⚫','Invisible']];
+  const VIS_OPTS    = [['public','🌍','Public'],['contacts','👥','Contacts'],['hidden','🔒','Hidden']];
   openPanel(`
     <h2>Me</h2>
-    <div class="subtitle">${session ? escapeHtml(profile?.display_name || session.user.email || 'Astranov') : 'Sign in to unlock'}</div>
-    ${session ? `
-    <div class="gadget-engage" onclick="openYouPanel()" style="margin-top:12px">
-      <span class="verb-glyph">◉</span><span>Profile &amp; identity</span>
+    <div class="subtitle">${escapeHtml(p.display_name || session.user.email || 'Astranov')}</div>
+
+    <div class="me-sec">Availability</div>
+    <div class="me-chips" id="me-status">
+      ${STATUS_OPTS.map(([v,e,l]) =>
+        `<div class="me-chip${status===v?' on':''}" onclick="meSetStatus(this,${JSON.stringify(v)})">${e} ${l}</div>`
+      ).join('')}
+    </div>
+
+    <div class="me-sec">Map Visibility</div>
+    <div class="me-chips" id="me-vis">
+      ${VIS_OPTS.map(([v,e,l]) =>
+        `<div class="me-chip${vis===v?' on':''}" onclick="meSetVis(this,${JSON.stringify(v)})">${e} ${l}</div>`
+      ).join('')}
+    </div>
+
+    <div class="me-tog-row" onclick="meToggleMap(this)">
+      <span>📍 Show me on map</span>
+      <div class="me-tog${showM?' on':''}"></div>
+    </div>
+
+    <div class="me-sec">Preferred Map</div>
+    <div class="me-chips" id="me-maplayer">
+      ${CITY_PROVIDERS.map(cp =>
+        `<div class="me-chip${layer===cp.id?' on':''}" onclick="meSetLayer(this,${JSON.stringify(cp.id)})">${cp.emoji} ${cp.label}</div>`
+      ).join('')}
+    </div>
+
+    <div class="me-sec">Display Name</div>
+    <input class="me-inp" id="me-name" type="text" value="${escapeHtml(p.display_name||'')}" placeholder="Your name">
+
+    <div class="me-sec">Bio</div>
+    <textarea class="me-inp" id="me-bio" rows="3" placeholder="Short bio…">${escapeHtml(p.bio||'')}</textarea>
+
+    <div class="gadget-engage" onclick="saveMePanel()" style="margin-top:18px">
+      <span class="verb-glyph">✓</span><span>Save changes</span>
     </div>
     <div class="gadget-engage" onclick="openMessagesPanel()" style="margin-top:8px">
       <span class="verb-glyph">◫</span><span>Messages</span>
@@ -2653,11 +2861,9 @@ function openMePanel() {
     <div class="gadget-engage" onclick="openWalletPanel()" style="margin-top:8px">
       <span class="verb-glyph">◍</span><span>AVC &amp; Deliveries</span>
     </div>
-    ` : `
-    <div class="gadget-engage" onclick="openYouPanel()" style="margin-top:12px">
-      <span class="verb-glyph">◉</span><span>Sign in / Register</span>
+    <div class="gadget-engage" onclick="_signOut()" style="margin-top:18px;border-color:rgba(255,70,70,0.3);color:#ff7070">
+      <span class="verb-glyph">⏻</span><span>Sign out</span>
     </div>
-    `}
   `);
 }
 
@@ -3345,7 +3551,9 @@ window.signInGoogle = async () => {
   if (!sb) return toast('Connecting…');
   let googleEnabled = false;
   try {
-    const r = await fetch(SUPABASE_URL + '/auth/v1/settings');
+    const r = await fetch(SUPABASE_URL + '/auth/v1/settings', {
+      headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + SUPABASE_ANON }
+    });
     const cfg = await r.json();
     googleEnabled = !!cfg?.external?.google;
   } catch (_) {}
