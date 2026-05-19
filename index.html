@@ -3579,7 +3579,7 @@ window.signInGoogle = async () => {
   }
   const { error } = await sb.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: 'https://astranov.eu' }
+    options: { redirectTo: window.location.origin }
   });
   if (error) toast(error.message, 'err');
 };
