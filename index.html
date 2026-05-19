@@ -1091,7 +1091,8 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   .place-icon {
     width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    font-size: 22px; font-family: 'SF Mono',monospace; font-weight: 700;
+    font-size: 26px;
+    font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",serif;
     border: 1.5px solid currentColor; position: relative;
     background: rgba(6,14,28,0.9);
   }
@@ -2063,22 +2064,21 @@ function removeSignalPoint(id) {
    ============================================================== */
 const OVERPASS_API = 'https://overpass-api.de/api/interpreter';
 let placeBillboards = null;
-const placeIndex = new Map();   // 'osm:ID' -> { primitive, place }
+const placeIndex = new Map();
 const _osmFetchedZones = new Set();
 
-// Category metadata: color + HUD glyph
 const _CAT_INFO = {
-  food:       { color: '#ff9944', glyph: 'F', label: 'Food & Drink' },
-  cafe:       { color: '#ffcc55', glyph: 'C', label: 'Café' },
-  bar:        { color: '#ff5577', glyph: 'B', label: 'Bar / Pub' },
-  hotel:      { color: '#b48cff', glyph: 'H', label: 'Hotel' },
-  shop:       { color: '#ffaa33', glyph: 'S', label: 'Shop' },
-  medical:    { color: '#ff4466', glyph: '+', label: 'Medical' },
-  bank:       { color: '#44ddaa', glyph: '$', label: 'Bank' },
-  museum:     { color: '#ffdd55', glyph: 'M', label: 'Culture' },
-  attraction: { color: '#00d4ff', glyph: 'A', label: 'Attraction' },
-  supermarket:{ color: '#88ee44', glyph: 'G', label: 'Grocery' },
-  default:    { color: '#8899bb', glyph: 'P', label: 'Place' },
+  food:        { color: '#ff9944', emoji: '🍽', label: 'Food & Drink' },
+  cafe:        { color: '#ffcc55', emoji: '☕', label: 'Café' },
+  bar:         { color: '#ff5577', emoji: '🍺', label: 'Bar / Pub' },
+  hotel:       { color: '#b48cff', emoji: '🛏', label: 'Hotel' },
+  shop:        { color: '#ffaa33', emoji: '🛍', label: 'Shop' },
+  medical:     { color: '#ff4466', emoji: '💊', label: 'Medical' },
+  bank:        { color: '#44ddaa', emoji: '🏦', label: 'Bank' },
+  museum:      { color: '#ffdd55', emoji: '🏛', label: 'Culture' },
+  attraction:  { color: '#00d4ff', emoji: '⭐', label: 'Attraction' },
+  supermarket: { color: '#88ee44', emoji: '🛒', label: 'Grocery' },
+  default:     { color: '#8899bb', emoji: '📍', label: 'Place' },
 };
 
 function _catKey(tags) {
@@ -2096,50 +2096,49 @@ function _catKey(tags) {
   return 'default';
 }
 
-// Canvas icon cache — one icon canvas per category key
 const _placeIconCache = new Map();
 
 function _makePlaceCanvas(catKey) {
   if (_placeIconCache.has(catKey)) return _placeIconCache.get(catKey);
-  const sz = 56, cx = sz / 2;
+  const sz = 72, cx = sz / 2;
   const c = document.createElement('canvas'); c.width = c.height = sz;
   const ctx = c.getContext('2d');
   const info = _CAT_INFO[catKey] || _CAT_INFO.default;
   const col = info.color;
 
-  // Outer glow ring
+  // Outer radial glow
   const grd = ctx.createRadialGradient(cx, cx, 6, cx, cx, cx);
-  grd.addColorStop(0, col + '44'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+  grd.addColorStop(0, col + '66'); grd.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = grd; ctx.fillRect(0, 0, sz, sz);
 
-  // Dashed outer ring (HUD style)
-  ctx.setLineDash([3, 4]);
-  ctx.beginPath(); ctx.arc(cx, cx, cx - 4, 0, Math.PI * 2);
-  ctx.strokeStyle = col + '55'; ctx.lineWidth = 1.5; ctx.stroke();
-  ctx.setLineDash([]);
+  // Dashed orbit ring
+  ctx.save(); ctx.setLineDash([2, 3]);
+  ctx.beginPath(); ctx.arc(cx, cx, cx - 3, 0, Math.PI * 2);
+  ctx.strokeStyle = col + '55'; ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.restore();
 
-  // Body circle
+  // Body circle — dark fill + glowing border
   ctx.beginPath(); ctx.arc(cx, cx, cx - 10, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(5, 12, 26, 0.9)'; ctx.fill();
-  ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = 'rgba(4, 10, 22, 0.93)'; ctx.fill();
+  ctx.shadowColor = col; ctx.shadowBlur = 10;
+  ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.shadowBlur = 0;
 
-  // Corner tick marks
-  [0, 90, 180, 270].forEach(deg => {
-    const rad = (deg - 45) * Math.PI / 180;
-    const r1 = cx - 8, r2 = cx - 4;
+  // Four HUD tick marks at 45°/135°/225°/315°
+  [45, 135, 225, 315].forEach(deg => {
+    const rad = deg * Math.PI / 180;
+    const r1 = cx - 9, r2 = cx - 4;
     ctx.beginPath();
     ctx.moveTo(cx + Math.cos(rad) * r1, cx + Math.sin(rad) * r1);
     ctx.lineTo(cx + Math.cos(rad) * r2, cx + Math.sin(rad) * r2);
-    ctx.strokeStyle = col + 'aa'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.strokeStyle = col + 'cc'; ctx.lineWidth = 2; ctx.stroke();
   });
 
-  // Category letter
-  ctx.font = 'bold 16px "SF Mono", Menlo, monospace';
+  // Center emoji — color emoji via OS fonts, 22px
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillStyle = col;
-  ctx.shadowColor = col; ctx.shadowBlur = 8;
-  ctx.fillText(info.glyph, cx, cx + 1);
-  ctx.shadowBlur = 0;
+  ctx.font = '22px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",serif';
+  ctx.fillStyle = '#fff';
+  ctx.fillText(info.emoji, cx, cx + 1);
 
   _placeIconCache.set(catKey, c);
   return c;
@@ -2154,7 +2153,7 @@ function _ensureBillboardCollection() {
 function addPlacePoint(place) {
   if (!viewer || !place.lat || !place.lon) return;
   const tags = place.tags || {};
-  if (!tags.name) return; // skip unnamed POIs
+  if (!tags.name) return;
   _ensureBillboardCollection();
   const key = 'osm:' + place.id;
   if (placeIndex.has(key)) return;
@@ -2163,12 +2162,12 @@ function addPlacePoint(place) {
   const billboard = placeBillboards.add({
     position: Cesium.Cartesian3.fromDegrees(Number(place.lon), Number(place.lat)),
     image: icon,
-    width: 44,
-    height: 44,
+    width: 54,
+    height: 54,
     verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
     pixelOffset: new Cesium.Cartesian2(0, 6),
-    scaleByDistance: new Cesium.NearFarScalar(300, 1.1, 1.5e6, 0.15),
-    translucencyByDistance: new Cesium.NearFarScalar(8e5, 1.0, 2e6, 0),
+    scaleByDistance: new Cesium.NearFarScalar(300, 1.1, 1.2e6, 0.12),
+    translucencyByDistance: new Cesium.NearFarScalar(7e5, 1.0, 1.8e6, 0),
     eyeOffset: new Cesium.Cartesian3(0, 0, -10),
   });
   billboard.__placeId = key;
@@ -2200,7 +2199,6 @@ async function fetchOSMNearby(lat, lng, radiusM) {
   } catch (e) { console.warn('[OSM]', e); }
 }
 
-// Auto-load vendors via IP geolocation on first boot (no GPS needed)
 async function _autoLoadPlaces() {
   if (window._userLat) { fetchOSMNearby(window._userLat, window._userLng, 6000); return; }
   try {
@@ -2219,7 +2217,7 @@ async function _autoLoadPlaces() {
   } catch (_) {}
 }
 
-// Rich vendor panel with action strip + tabs
+// Rich vendor panel — all actions are real (ACI-backed or direct)
 function openPlacePanel(place) {
   const t = place.tags || {};
   const name = t.name || 'Unknown place';
@@ -2230,25 +2228,13 @@ function openPlacePanel(place) {
   const hours = t.opening_hours || '';
   const addr = [t['addr:housenumber'], t['addr:street'], t['addr:city']].filter(Boolean).join(' ');
   const cuisine = t.cuisine ? t.cuisine.replace(/_/g, ' ') : '';
-  const nameJ = JSON.stringify(name);
-  const catJ  = JSON.stringify(info.label);
-  const webJ  = JSON.stringify(website);
-  const phJ   = JSON.stringify(phone);
 
-  // Action: phone call
-  const callAct = phone
-    ? 'window.open(' + JSON.stringify('tel:' + phone) + ')'
-    : 'toast("No phone number listed","err")';
-  // Action: website booking
-  const bookAct = website
-    ? 'window.open(' + webJ + ',"_blank","noopener")'
-    : 'toast("No website listed — ask ACI for booking options","")';
+  // Store current place so onclick functions can reference it without JSON embedding
+  window._currentPlace = { tags: t, name, catKey, info, phone, website, hours, cuisine };
 
   const html = `
 <div class="place-hero">
-  <div class="place-icon" style="color:${info.color}">${info.glyph}
-    <div class="place-icon::after"></div>
-  </div>
+  <div class="place-icon" style="color:${info.color}">${info.emoji}</div>
   <div class="place-head">
     <div class="place-name">${escapeHtml(name)}</div>
     <div class="place-badge" style="color:${info.color}">${escapeHtml(info.label)}</div>
@@ -2256,24 +2242,24 @@ function openPlacePanel(place) {
   </div>
 </div>
 <div class="place-actions">
-  <div class="place-act" onclick="${escapeHtml(callAct)}">
-    <div class="place-act-icon" style="color:#7eebb4">◈</div>
+  <div class="place-act" onclick="_placeCall()">
+    <div class="place-act-icon" style="color:#7eebb4">📞</div>
     <div class="place-act-lbl">CALL</div>
   </div>
-  <div class="place-act" onclick="startDMToPlace(${nameJ},${phJ},${webJ})">
-    <div class="place-act-icon" style="color:#7eb4ff">◫</div>
+  <div class="place-act" onclick="_placeMessage()">
+    <div class="place-act-icon" style="color:#7eb4ff">💬</div>
     <div class="place-act-lbl">MESSAGE</div>
   </div>
-  <div class="place-act" onclick="${escapeHtml(bookAct)}">
-    <div class="place-act-icon" style="color:#b48cff">⊞</div>
+  <div class="place-act" onclick="_placeBook()">
+    <div class="place-act-icon" style="color:#b48cff">📅</div>
     <div class="place-act-lbl">BOOK</div>
   </div>
-  <div class="place-act" onclick="orderFromPlace(${nameJ},${webJ})">
-    <div class="place-act-icon" style="color:#ffaa33">⊕</div>
+  <div class="place-act" onclick="_placeOrder()">
+    <div class="place-act-icon" style="color:#ffaa33">🛒</div>
     <div class="place-act-lbl">ORDER</div>
   </div>
-  <div class="place-act" onclick="videoCallPlace(${nameJ})">
-    <div class="place-act-icon" style="color:#ff5577">◉</div>
+  <div class="place-act" onclick="_placeVideo()">
+    <div class="place-act-icon" style="color:#ff5577">🎥</div>
     <div class="place-act-lbl">VIDEO</div>
   </div>
 </div>
@@ -2283,13 +2269,106 @@ function openPlacePanel(place) {
   <div class="place-tab" onclick="placeSwitchTab('media')">MEDIA</div>
 </div>
 <div class="place-tab-body" id="ptab-body">${_placeInfoTab(t, phone, hours, cuisine, website)}</div>
-<div class="place-aci" onclick="askACIAboutPlace(${nameJ},${catJ},${webJ})">
+<div class="place-aci" onclick="_placeAskACI()">
   <div class="place-aci-g">◈</div>
   <div class="place-aci-t">Ask Astranov Collective Intelligence</div>
 </div>`;
   openPanel(html);
-  // Store current place for tab switching
-  window._currentPlace = { tags: t, name, catKey, info, phone, website, hours, cuisine };
+}
+
+// Place action dispatchers — read from _currentPlace so no JSON escaping needed in HTML
+window._placeCall = function() {
+  const p = window._currentPlace;
+  if (p.phone) { window.open('tel:' + p.phone); return; }
+  _openACI('Find the phone number and best way to call ' + p.name + ' (' + p.info.label + ')' + (p.website ? '. Their website: ' + p.website : '') + '. Provide a direct call link if you find one.');
+};
+
+window._placeMessage = function() {
+  const p = window._currentPlace;
+  const smsBtn = p.phone
+    ? '<div class="gadget-engage" style="margin-top:8px;border-color:rgba(126,235,180,0.3)" onclick="window.open(\'sms:' + p.phone + '\')"><span class="verb-glyph">◈</span><span>Open SMS to ' + escapeHtml(p.name) + '</span></div>'
+    : '';
+  openPanel('<h2>' + escapeHtml(p.name) + '</h2><div class="subtitle">COMPOSE MESSAGE</div>'
+    + '<textarea id="dm-text" placeholder="What do you want to say? ACI will help draft it…" style="width:100%;min-height:80px;margin-top:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(120,180,255,0.2);border-radius:10px;color:#e6f1ff;font-size:14px;font-family:inherit;padding:10px"></textarea>'
+    + smsBtn
+    + '<div class="gadget-engage" style="margin-top:8px;border-color:rgba(0,212,255,0.3)" onclick="_sendDMWithACI()"><span class="verb-glyph">◈</span><span>Draft & send with ACI</span></div>');
+};
+
+window._sendDMWithACI = function() {
+  const p = window._currentPlace;
+  const intent = ($('dm-text')?.value || '').trim();
+  const q = 'Draft a professional, friendly message to ' + p.name + (intent ? ' saying: "' + intent + '"' : ' to inquire about their services and availability')
+    + (p.phone ? ' (phone: ' + p.phone + ')' : '')
+    + (p.website ? ' (website: ' + p.website + ')' : '')
+    + '. Make it short and ready to send.';
+  closePanel();
+  _openACI(q);
+};
+
+window._placeBook = function() {
+  const p = window._currentPlace;
+  if (p.website) {
+    window.open(p.website, '_blank', 'noopener');
+    _openACI('I\'m trying to book at ' + p.name + '. Their website is ' + p.website + '. Can you find the booking page and walk me through the reservation process?');
+  } else {
+    _openACI('I want to book at ' + p.name + ' (' + p.info.label + '). Find their booking system, availability, and help me make a reservation. Address: ' + (window._currentPlace.tags['addr:street'] || 'unknown'));
+  }
+};
+
+window._placeOrder = function() {
+  const p = window._currentPlace;
+  const q = 'I want to order from ' + p.name + ' (' + p.info.label + ')'
+    + (p.website ? '. Website: ' + p.website : '')
+    + (p.tags.cuisine ? '. Cuisine: ' + p.tags.cuisine : '')
+    + '. Show me their menu, best items, prices if available, and how to order right now — delivery apps, their own site, or phone.';
+  closePanel();
+  _openACI(q);
+};
+
+window._placeVideo = function() {
+  const p = window._currentPlace;
+  if (!session) return openMePanel();
+  const callBtn = p.phone
+    ? '<div class="gadget-engage" style="margin-top:8px" onclick="window.open(\'tel:' + p.phone + '\')"><span class="verb-glyph">◈</span><span>Call them now instead</span></div>'
+    : '';
+  openPanel('<h2>Video Call</h2><div class="subtitle">' + escapeHtml(p.name) + '</div>'
+    + '<div style="font-size:13px;color:#a8c8ee;line-height:1.6;margin:12px 0">'
+    + escapeHtml(p.name) + ' hasn\'t joined Astranov yet. Let ACI draft an invitation — once they\'re on the platform, you can video call, message, and order directly.'
+    + '</div>'
+    + '<div class="gadget-engage" style="border-color:rgba(0,212,255,0.3)" onclick="_inviteVendorACI()"><span class="verb-glyph">◈</span><span>Ask ACI to draft an invite</span></div>'
+    + callBtn);
+};
+
+window._inviteVendorACI = function() {
+  const p = window._currentPlace;
+  const q = 'Write a short, compelling invitation to ' + p.name + ' (' + p.info.label + ') to join Astranov — a new internet operating system where customers discover them on a live globe, video call, message, order, and book directly. Keep it under 100 words, professional and exciting.'
+    + (p.phone ? ' Their contact: ' + p.phone : '')
+    + (p.website ? ' / ' + p.website : '');
+  closePanel();
+  _openACI(q);
+};
+
+window._placeAskACI = function() {
+  const p = window._currentPlace;
+  const q = 'Tell me everything about ' + p.name + ' (' + p.info.label + ')'
+    + (p.website ? '. Website: ' + p.website : '')
+    + (p.tags.cuisine ? '. Cuisine: ' + p.tags.cuisine : '')
+    + (p.tags.opening_hours ? '. Hours: ' + p.tags.opening_hours : '')
+    + '. What do they offer, what are customers saying, and what\'s the best way to interact with them on Astranov?';
+  closePanel();
+  _openACI(q);
+};
+
+// Central ACI opener — shared by all place actions
+function _openACI(query) {
+  const chatEl = $('aicycle-chat');
+  if (chatEl && !chatEl.classList.contains('visible')) chatEl.classList.add('visible');
+  const inp = $('aicycle-input');
+  if (inp) inp.value = query;
+  setTimeout(() => {
+    const form = $('aicycle-form');
+    if (form) form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+  }, 150);
 }
 
 function _placeInfoTab(t, phone, hours, cuisine, website) {
@@ -2298,14 +2377,13 @@ function _placeInfoTab(t, phone, hours, cuisine, website) {
   if (cuisine) rows.push(['Cuisine', escapeHtml(cuisine)]);
   if (phone) rows.push(['Phone', '<a href="tel:' + escapeHtml(phone) + '" style="color:#7eebb4">' + escapeHtml(phone) + '</a>']);
   if (website) rows.push(['Website', '<a onclick="window.open(' + JSON.stringify(website) + ',\'_blank\',\'noopener\')" style="color:#7eb4ff;cursor:pointer">↗ Open</a>']);
-  if (!rows.length) rows.push(['', '<span style="color:#6a8aaf;font-size:12px">No additional info in OpenStreetMap yet</span>']);
+  if (!rows.length) rows.push(['Info', '<span style="color:#6a8aaf;font-size:12px">Ask ACI below for more details</span>']);
   return rows.map(([k,v]) => '<div class="pl-row"><span class="pl-key">' + k + '</span><span class="pl-val">' + v + '</span></div>').join('');
 }
 
 window.placeSwitchTab = function(tab) {
   document.querySelectorAll('.place-tab').forEach((el, i) => {
-    const tabs = ['info','menu','media'];
-    el.classList.toggle('active', tabs[i] === tab);
+    el.classList.toggle('active', ['info','menu','media'][i] === tab);
   });
   const body = $('ptab-body');
   if (!body) return;
@@ -2313,52 +2391,19 @@ window.placeSwitchTab = function(tab) {
   if (tab === 'info') {
     body.innerHTML = _placeInfoTab(p.tags||{}, p.phone, p.hours, p.cuisine, p.website);
   } else if (tab === 'menu') {
-    body.innerHTML = '<div style="color:#6a8aaf;font-size:13px;padding:10px 0">Ask Astranov to describe the menu and offerings for this place.</div>'
-      + '<div class="place-aci" style="margin-top:10px" onclick="askACIAboutPlace(' + JSON.stringify(p.name) + ',' + JSON.stringify(p.info ? p.info.label : 'place') + ',' + JSON.stringify(p.website||'') + ')">'
-      + '<div class="place-aci-g">◈</div><div class="place-aci-t">Ask ACI for menu & offerings</div></div>';
-  } else if (tab === 'media') {
-    body.innerHTML = '<div style="color:#6a8aaf;font-size:13px;padding:10px 0">Video tours, product videos, and live feeds — coming soon as vendors join Astranov.</div>';
-  }
-};
-
-window.orderFromPlace = function(name, website) {
-  if (!session) return openMePanel();
-  if (website) {
-    const chatEl = $('aicycle-chat');
-    if (chatEl && !chatEl.classList.contains('visible')) chatEl.classList.add('visible');
-    const inp = $('aicycle-input');
-    if (inp) inp.value = 'I want to order from ' + name + '. Can you help me find the menu and place an order via their website: ' + website;
-    setTimeout(() => {
-      const form = $('aicycle-form');
-      if (form) form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
-    }, 150);
-    closePanel();
+    body.innerHTML = '<div style="color:#6a8aaf;font-size:13px;padding:8px 0">ACI will find the menu and top items for you.</div>'
+      + '<div class="place-aci" style="margin-top:10px" onclick="_openACI(\'Show me the full menu and best dishes at ' + escapeHtml(p.name || '') + (p.website ? '. Website: ' + (p.website || '') : '') + '. Include prices if available.\')">'
+      + '<div class="place-aci-g">◈</div><div class="place-aci-t">Get menu from ACI</div></div>';
   } else {
-    toast('Direct ordering for ' + name + ' — coming soon', '');
+    body.innerHTML = '<div style="color:#6a8aaf;font-size:13px;padding:8px 0">Video tours and live vendor feeds arrive when they join Astranov.</div>'
+      + '<div class="place-aci" style="margin-top:10px" onclick="_inviteVendorACI()">'
+      + '<div class="place-aci-g">🎥</div><div class="place-aci-t">Invite ' + escapeHtml(p.name || 'vendor') + ' to join</div></div>';
   }
-};
-
-window.videoCallPlace = function(name) {
-  if (!session) return openMePanel();
-  toast('Video calls to vendors — launching soon on Astranov', '');
-};
-
-window.startDMToPlace = function(name, phone, website) {
-  if (!session) return openMePanel();
-  toast('Direct messaging to ' + name + ' — launching soon', '');
 };
 
 window.askACIAboutPlace = function(name, cat, website) {
   closePanel();
-  const chatEl = $('aicycle-chat');
-  if (chatEl && !chatEl.classList.contains('visible')) chatEl.classList.add('visible');
-  const q = 'Tell me about ' + name + ' (' + cat + ')' + (website ? '. Website: ' + website : '') + '. What do they offer, what are their best products or dishes, and can I order or book via Astranov?';
-  const inp = $('aicycle-input');
-  if (inp) inp.value = q;
-  setTimeout(() => {
-    const form = $('aicycle-form');
-    if (form) form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
-  }, 150);
+  _openACI('Tell me about ' + name + ' (' + cat + ')' + (website ? '. Website: ' + website : '') + '. What do they offer and how can I interact with them on Astranov?');
 };
 
 async function loadSignals() {
