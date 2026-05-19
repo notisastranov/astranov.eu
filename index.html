@@ -1172,7 +1172,7 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   <canvas class="gfx-canvas" id="gfx-ai" width="64" height="64"></canvas>
   <div class="ring"></div>
   <div class="node"></div>
-  <div class="provider" id="aicycle-provider">ACI</div>
+  <div class="provider" id="aicycle-provider">AI</div>
 </div>
 
 <!-- Transient UI -->
@@ -2289,9 +2289,9 @@ window._placeMessage = function() {
     ? '<div class="gadget-engage" style="margin-top:8px;border-color:rgba(126,235,180,0.3)" onclick="window.open(\'sms:' + p.phone + '\')"><span class="verb-glyph">◈</span><span>Open SMS to ' + escapeHtml(p.name) + '</span></div>'
     : '';
   openPanel('<h2>' + escapeHtml(p.name) + '</h2><div class="subtitle">COMPOSE MESSAGE</div>'
-    + '<textarea id="dm-text" placeholder="What do you want to say? ACI will help draft it…" style="width:100%;min-height:80px;margin-top:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(120,180,255,0.2);border-radius:10px;color:#e6f1ff;font-size:14px;font-family:inherit;padding:10px"></textarea>'
+    + '<textarea id="dm-text" placeholder="What do you want to say? AI will help draft it…" style="width:100%;min-height:80px;margin-top:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(120,180,255,0.2);border-radius:10px;color:#e6f1ff;font-size:14px;font-family:inherit;padding:10px"></textarea>'
     + smsBtn
-    + '<div class="gadget-engage" style="margin-top:8px;border-color:rgba(0,212,255,0.3)" onclick="_sendDMWithACI()"><span class="verb-glyph">◈</span><span>Draft & send with ACI</span></div>');
+    + '<div class="gadget-engage" style="margin-top:8px;border-color:rgba(0,212,255,0.3)" onclick="_sendDMWithACI()"><span class="verb-glyph">◈</span><span>Draft & send with AI</span></div>');
 };
 
 window._sendDMWithACI = function() {
@@ -2328,15 +2328,8 @@ window._placeOrder = function() {
 window._placeVideo = function() {
   const p = window._currentPlace;
   if (!session) return openMePanel();
-  const callBtn = p.phone
-    ? '<div class="gadget-engage" style="margin-top:8px" onclick="window.open(\'tel:' + p.phone + '\')"><span class="verb-glyph">◈</span><span>Call them now instead</span></div>'
-    : '';
-  openPanel('<h2>Video Call</h2><div class="subtitle">' + escapeHtml(p.name) + '</div>'
-    + '<div style="font-size:13px;color:#a8c8ee;line-height:1.6;margin:12px 0">'
-    + escapeHtml(p.name) + ' hasn\'t joined Astranov yet. Let ACI draft an invitation — once they\'re on the platform, you can video call, message, and order directly.'
-    + '</div>'
-    + '<div class="gadget-engage" style="border-color:rgba(0,212,255,0.3)" onclick="_inviteVendorACI()"><span class="verb-glyph">◈</span><span>Ask ACI to draft an invite</span></div>'
-    + callBtn);
+  closePanel();
+  startGuestCall(p.name);
 };
 
 window._inviteVendorACI = function() {
@@ -2377,7 +2370,7 @@ function _placeInfoTab(t, phone, hours, cuisine, website) {
   if (cuisine) rows.push(['Cuisine', escapeHtml(cuisine)]);
   if (phone) rows.push(['Phone', '<a href="tel:' + escapeHtml(phone) + '" style="color:#7eebb4">' + escapeHtml(phone) + '</a>']);
   if (website) rows.push(['Website', '<a onclick="window.open(' + JSON.stringify(website) + ',\'_blank\',\'noopener\')" style="color:#7eb4ff;cursor:pointer">↗ Open</a>']);
-  if (!rows.length) rows.push(['Info', '<span style="color:#6a8aaf;font-size:12px">Ask ACI below for more details</span>']);
+  if (!rows.length) rows.push(['Info', '<span style="color:#6a8aaf;font-size:12px">Ask AI below for more details</span>']);
   return rows.map(([k,v]) => '<div class="pl-row"><span class="pl-key">' + k + '</span><span class="pl-val">' + v + '</span></div>').join('');
 }
 
@@ -2391,9 +2384,9 @@ window.placeSwitchTab = function(tab) {
   if (tab === 'info') {
     body.innerHTML = _placeInfoTab(p.tags||{}, p.phone, p.hours, p.cuisine, p.website);
   } else if (tab === 'menu') {
-    body.innerHTML = '<div style="color:#6a8aaf;font-size:13px;padding:8px 0">ACI will find the menu and top items for you.</div>'
+    body.innerHTML = '<div style="color:#6a8aaf;font-size:13px;padding:8px 0">AI will find the menu and top items for you.</div>'
       + '<div class="place-aci" style="margin-top:10px" onclick="_openACI(\'Show me the full menu and best dishes at ' + escapeHtml(p.name || '') + (p.website ? '. Website: ' + (p.website || '') : '') + '. Include prices if available.\')">'
-      + '<div class="place-aci-g">◈</div><div class="place-aci-t">Get menu from ACI</div></div>';
+      + '<div class="place-aci-g">◈</div><div class="place-aci-t">Get menu from AI</div></div>';
   } else {
     body.innerHTML = '<div style="color:#6a8aaf;font-size:13px;padding:8px 0">Video tours and live vendor feeds arrive when they join Astranov.</div>'
       + '<div class="place-aci" style="margin-top:10px" onclick="_inviteVendorACI()">'
@@ -3779,7 +3772,7 @@ async function callAICycle(prompt) {
   return data;
 }
 
-// ACI ring label is ALWAYS "ACI" — models shown inside the chat panel only
+// AI ring label — models shown inside the chat panel only
 function _setAILabel(provider) {
   if (provider && provider !== 'offline') updateACIModels(provider);
 }
@@ -4142,14 +4135,145 @@ async function endCall(remote) {
 
 function cleanupCall() {
   clearTimeout(callRingTimeout);
-  if (callChannel) { callChannel.unsubscribe().catch(() => {}); callChannel = null; }
+  if (callChannel)  { callChannel.unsubscribe().catch(() => {});  callChannel  = null; }
+  if (guestChannel) { guestChannel.unsubscribe().catch(() => {}); guestChannel = null; }
   if (pc) { try { pc.close(); } catch (_) {} pc = null; }
   if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
-  $('call-local-video').srcObject = null;
+  $('call-local-video').srcObject  = null;
   $('call-remote-video').srcObject = null;
   $('call-active').classList.remove('visible');
   $('call-incoming').classList.remove('visible');
+  const inv = document.getElementById('gcall-invite'); if (inv) inv.remove();
   currentCall = null;
+}
+
+/* ==============================================================
+   Guest video call — shareable room link, no Astranov account needed
+   Host (Astranov user) starts the room; guest opens the link in any browser.
+   Signaling via Supabase Realtime broadcast; media P2P via STUN.
+   ============================================================== */
+let guestChannel = null;
+
+async function startGuestCall(label) {
+  if (currentCall) return toast('Already in a call');
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+  } catch (e) {
+    toast('Camera / mic blocked: ' + e.message, 'err'); return;
+  }
+  localStream = stream;
+
+  const roomId = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)).replace(/-/g,'').slice(0,12);
+  const callLink = location.origin + '/?gcall=' + roomId;
+  currentCall = { id: 'guest:' + roomId, peerId: null, peerName: label || 'guest',
+                   role: 'host', startedAt: Date.now() };
+
+  guestChannel = sb.channel('astranov:guest:' + roomId);
+  guestChannel
+    .on('broadcast', { event: 'guest-offer' }, async ({ payload }) => {
+      if (pc) return;
+      pc = new RTCPeerConnection({ iceServers: STUN_SERVERS });
+      localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+      pc.ontrack = evt => {
+        const rv = $('call-remote-video');
+        if (rv.srcObject !== evt.streams[0]) rv.srcObject = evt.streams[0];
+        setCallStatus('CONNECTED');
+      };
+      pc.onicecandidate = evt => {
+        if (evt.candidate) guestChannel.send({ type: 'broadcast', event: 'host-ice', payload: { candidate: evt.candidate } }).catch(() => {});
+      };
+      pc.onconnectionstatechange = () => {
+        if (pc?.connectionState === 'failed') { setCallStatus('FAILED'); setTimeout(() => endCall(false), 1500); }
+      };
+      await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      await guestChannel.send({ type: 'broadcast', event: 'host-answer', payload: { answer } });
+      const inv = document.getElementById('gcall-invite'); if (inv) inv.style.opacity = '0.25';
+    })
+    .on('broadcast', { event: 'guest-ice' }, async ({ payload }) => {
+      if (pc) await pc.addIceCandidate(new RTCIceCandidate(payload.candidate)).catch(() => {});
+    })
+    .on('broadcast', { event: 'bye' }, () => endCall(true))
+    .subscribe();
+
+  $('call-local-video').srcObject = localStream;
+  showActiveCallUI('WAITING FOR GUEST');
+  _showGuestInviteOverlay(callLink, label);
+}
+
+function _showGuestInviteOverlay(link, label) {
+  const old = document.getElementById('gcall-invite'); if (old) old.remove();
+  const el = document.createElement('div');
+  el.id = 'gcall-invite';
+  el.style.cssText = 'position:absolute;top:8px;left:8px;right:8px;background:rgba(5,11,25,0.96);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(0,212,255,0.35);border-radius:14px;padding:14px;z-index:10';
+  el.innerHTML = '<div style="font-size:9px;letter-spacing:0.18em;color:#00d4ff;margin-bottom:8px;text-transform:uppercase">Invite '
+    + escapeHtml((label || 'guest').toUpperCase()) + ' to call</div>'
+    + '<div style="font-size:10px;color:#7eb4ff;word-break:break-all;background:rgba(0,0,0,0.4);padding:8px;border-radius:8px;margin-bottom:10px;line-height:1.5;font-family:monospace">'
+    + escapeHtml(link) + '</div>'
+    + '<div style="display:flex;gap:8px">'
+    + '<div id="gcall-copy" style="flex:1;text-align:center;padding:8px;border-radius:9px;border:1px solid rgba(0,212,255,0.45);color:#00d4ff;font-size:10px;letter-spacing:0.14em;cursor:pointer;transition:background 0.15s">COPY</div>'
+    + '<div id="gcall-share" style="flex:1;text-align:center;padding:8px;border-radius:9px;border:1px solid rgba(126,180,255,0.3);color:#7eb4ff;font-size:10px;letter-spacing:0.14em;cursor:pointer;transition:background 0.15s">SHARE</div>'
+    + '</div>';
+  $('call-active').appendChild(el);
+  document.getElementById('gcall-copy').onclick = () => {
+    navigator.clipboard?.writeText(link).then(() => toast('Call link copied', ''));
+  };
+  document.getElementById('gcall-share').onclick = () => {
+    if (navigator.share) navigator.share({ title: 'Astranov Video Call', text: 'Join — no account needed', url: link });
+    else navigator.clipboard?.writeText(link).then(() => toast('Call link copied', ''));
+  };
+}
+
+async function joinGuestCall(roomId) {
+  if (currentCall) return toast('Already in a call');
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+  } catch (e) {
+    toast('Camera / mic blocked: ' + e.message, 'err'); return;
+  }
+  localStream = stream;
+  currentCall = { id: 'guest:' + roomId, peerId: null, peerName: 'host', role: 'guest', startedAt: Date.now() };
+
+  $('call-local-video').srcObject = localStream;
+  showActiveCallUI('JOINING');
+
+  pc = new RTCPeerConnection({ iceServers: STUN_SERVERS });
+  localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+  pc.ontrack = evt => {
+    const rv = $('call-remote-video');
+    if (rv.srcObject !== evt.streams[0]) rv.srcObject = evt.streams[0];
+    setCallStatus('CONNECTED');
+  };
+  pc.onconnectionstatechange = () => {
+    if (pc?.connectionState === 'failed') { setCallStatus('FAILED'); setTimeout(() => endCall(false), 1500); }
+  };
+
+  guestChannel = sb.channel('astranov:guest:' + roomId);
+  guestChannel
+    .on('broadcast', { event: 'host-answer' }, async ({ payload }) => {
+      if (pc) await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
+    })
+    .on('broadcast', { event: 'host-ice' }, async ({ payload }) => {
+      if (pc) await pc.addIceCandidate(new RTCIceCandidate(payload.candidate)).catch(() => {});
+    })
+    .on('broadcast', { event: 'bye' }, () => endCall(true))
+    .subscribe(async status => {
+      if (status !== 'SUBSCRIBED') return;
+      pc.onicecandidate = evt => {
+        if (evt.candidate) guestChannel.send({ type: 'broadcast', event: 'guest-ice', payload: { candidate: evt.candidate } }).catch(() => {});
+      };
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      await guestChannel.send({ type: 'broadcast', event: 'guest-offer', payload: { offer } });
+    });
+}
+
+function checkGuestCallURL() {
+  const roomId = new URLSearchParams(location.search).get('gcall');
+  if (roomId && sb) setTimeout(() => joinGuestCall(roomId), 800);
 }
 
 // Wire UI buttons
@@ -4396,6 +4520,7 @@ window.addEventListener('load', () => {
   bootCesium();          // async, fires-and-forgets; sets viewer when ready
   bootSupabase();        // safe to call before viewer ready
   bootServiceWorker();   // register SW for push + offline shell
+  checkGuestCallURL();   // auto-join if opened via ?gcall= invite link
 
   // Boot canvas shaders
   try {
