@@ -443,11 +443,35 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     background: rgba(120, 180, 255, 0.3); flex-shrink: 0;
   }
   #aicycle-title {
-    font-size: 9px; letter-spacing: 0.35em; text-transform: uppercase;
-    color: rgba(120,180,255,0.5); font-family: 'SF Mono',monospace;
-    pointer-events: none; user-select: none;
+    font-size: 8px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: rgba(120,180,255,0.55); font-family: 'SF Mono',monospace;
+    pointer-events: none; user-select: none; white-space: nowrap;
   }
-  #aicycle-float .provider { transition: opacity 0.4s; }
+  /* Model indicator strip inside ACI chat */
+  #aci-models {
+    display: flex; gap: 6px; padding: 6px 14px 4px; flex-wrap: wrap;
+    border-bottom: 1px solid rgba(120,180,255,0.07);
+  }
+  #aci-models:empty { display: none; }
+  .aci-dot {
+    display: flex; align-items: center; gap: 4px; padding: 3px 8px;
+    border-radius: 999px; border: 1px solid rgba(120,180,255,0.12);
+    background: rgba(255,255,255,0.02);
+    font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: rgba(120,180,255,0.35); font-family: 'SF Mono',monospace;
+    transition: all 0.35s;
+  }
+  .aci-dot::before {
+    content: ''; width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
+    background: rgba(120,180,255,0.18); transition: all 0.35s;
+  }
+  .aci-dot.active {
+    border-color: rgba(126,235,180,0.45); color: rgba(126,235,180,0.90);
+    background: rgba(126,235,180,0.04);
+  }
+  .aci-dot.active::before {
+    background: #7eebb4; box-shadow: 0 0 8px rgba(126,235,180,0.9);
+  }
   #aicycle-chat .messages {
     overflow-y: auto; -webkit-overflow-scrolling: touch;
     padding: 8px 16px 4px; min-height: 0;
@@ -1076,7 +1100,7 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   <canvas class="gfx-canvas" id="gfx-ai" width="64" height="64"></canvas>
   <div class="ring"></div>
   <div class="node"></div>
-  <div class="provider" id="aicycle-provider">ASTRANOV</div>
+  <div class="provider" id="aicycle-provider">ACI</div>
 </div>
 
 <!-- Transient UI -->
@@ -1109,7 +1133,8 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 </div>
 <div id="panel"></div>
 <div id="aicycle-chat">
-  <div id="aicycle-drag-handle"><span id="aicycle-title">ASTRANOV INTELLIGENCE</span></div>
+  <div id="aicycle-drag-handle"><span id="aicycle-title">ASTRANOV COLLECTIVE INTELLIGENCE</span></div>
+  <div id="aci-models"></div>
   <div class="messages" id="aicycle-messages"></div>
   <form id="aicycle-form" autocomplete="off">
     <input id="aicycle-input" class="gadget-cmd" type="text" placeholder="Talk to Astranov…" style="margin-top:0;flex:1" />
@@ -3221,6 +3246,7 @@ $('aicycle-float').addEventListener('pointerup', () => {
     if (opening) {
       aicycleChat.style.height = '';
       aicycleChat.style.maxHeight = '';
+      renderACIModels();
     }
   }
 });
@@ -3277,7 +3303,7 @@ $('aicycle-form').addEventListener('submit', async e => {
   try {
     const resp = await callAICycle(text);
     appendAICycleMessage('ai', resp.response, resp.label || resp.provider, resp.via);
-    _setAILabel(resp.provider || null);
+    if (resp.provider) _setAILabel(resp.provider);
   } catch (err) {
     appendAICycleMessage('ai', '(cycle unreachable — /aicycle Edge Function not responding)', 'offline', 'fallback');
   } finally {
@@ -3297,24 +3323,36 @@ async function callAICycle(prompt) {
   return data;
 }
 
+// ACI ring label is ALWAYS "ACI" — models shown inside the chat panel only
 function _setAILabel(provider) {
-  const el = $('aicycle-provider');
-  if (!el) return;
-  if (!provider || provider === 'auto' || provider === 'offline') {
-    el.style.opacity = '0';
-    setTimeout(() => { el.textContent = 'ASTRANOV'; el.style.opacity = '1'; }, 350);
-    return;
-  }
-  el.style.opacity = '0';
-  setTimeout(() => {
-    el.textContent = '× ' + provider.toUpperCase();
-    el.style.opacity = '1';
-    clearTimeout(el._resetTimer);
-    el._resetTimer = setTimeout(() => {
-      el.style.opacity = '0';
-      setTimeout(() => { el.textContent = 'ASTRANOV'; el.style.opacity = '1'; }, 350);
-    }, 5000);
-  }, 350);
+  if (provider && provider !== 'offline') updateACIModels(provider);
+}
+
+const ACI_MODELS = [
+  { name: 'groq',   label: 'Groq'   },
+  { name: 'gemini', label: 'Gemini' },
+  { name: 'openai', label: 'GPT-4o' },
+  { name: 'xai',    label: 'xAI'    },
+  { name: 'claude', label: 'Claude', ownerOnly: true },
+];
+
+function renderACIModels() {
+  const container = $('aci-models');
+  if (!container) return;
+  container.innerHTML = '';
+  ACI_MODELS.forEach(m => {
+    if (m.ownerOnly && !profile?.is_owner) return;
+    const el = document.createElement('div');
+    el.className = 'aci-dot' + (lastActiveProvider === m.name ? ' active' : '');
+    el.dataset.model = m.name;
+    el.textContent = m.label;
+    container.appendChild(el);
+  });
+}
+
+function updateACIModels(provider) {
+  document.querySelectorAll('.aci-dot').forEach(dot =>
+    dot.classList.toggle('active', dot.dataset.model === provider));
 }
 
 function appendAICycleMessage(role, text, provider, via) {
@@ -3323,11 +3361,9 @@ function appendAICycleMessage(role, text, provider, via) {
   if (role === 'ai') {
     const v = document.createElement('div');
     v.className = 'via';
-    if (provider && provider !== 'offline' && provider !== 'system') {
-      v.textContent = 'Astranov · ' + provider.toUpperCase();
-    } else {
-      v.textContent = 'Astranov';
-    }
+    v.textContent = 'Astranov Collective Intelligence'
+      + (provider && provider !== 'offline' && provider !== 'system'
+        ? ' · ' + provider.toUpperCase() : '');
     div.appendChild(v);
   }
   const t = document.createElement('div');
