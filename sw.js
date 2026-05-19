@@ -2,29 +2,36 @@
 // Handles: offline shell, push notifications, notification click routing
 'use strict';
 
-const CACHE = 'astranov-v2';
+const CACHE = 'astranov-v6';
 
 self.addEventListener('install', e => {
-  self.skipWaiting();
-  e.waitUntil(caches.open(CACHE).then(c => c.add('/')));
+  self.skipWaiting();   // new SW takes over the moment it installs
+  // Don't pre-cache '/'; we want fresh HTML on every install.
 });
 
 self.addEventListener('activate', e => {
   e.waitUntil(Promise.all([
     clients.claim(),
-    caches.keys().then(keys => Promise.all(
-      keys.filter(k => k !== CACHE).map(k => caches.delete(k))
-    )),
+    // Wipe every previous cache so stale HTML can never resurface.
+    caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))),
   ]));
 });
 
-// Offline shell — serve cached index.html for navigation requests
+// Network-first for HTML — always show the freshest deploy.
+// Cache is only the offline fallback.
 self.addEventListener('fetch', e => {
-  if (e.request.mode === 'navigate') {
-    e.respondWith(
-      fetch(e.request).catch(() => caches.match('/'))
-    );
-  }
+  if (e.request.mode !== 'navigate') return;
+  e.respondWith((async () => {
+    try {
+      const fresh = await fetch(e.request, { cache: 'no-store' });
+      const cache = await caches.open(CACHE);
+      cache.put('/', fresh.clone());
+      return fresh;
+    } catch (_) {
+      const cached = await caches.match('/');
+      return cached || new Response('Offline', { status: 503 });
+    }
+  })());
 });
 
 // Push notification — fires even when app is closed
