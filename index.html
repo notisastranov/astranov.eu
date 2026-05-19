@@ -1962,7 +1962,23 @@ function clearActiveDelivery() {
   try { localStorage.removeItem('astranov_active_delivery'); } catch (_) {}
 }
 
+function _readOAuthError() {
+  const q = new URLSearchParams(location.search);
+  const h = new URLSearchParams((location.hash || '').replace(/^#/, ''));
+  const desc = q.get('error_description') || h.get('error_description');
+  const code = q.get('error_code')       || h.get('error_code');
+  const err  = q.get('error')            || h.get('error');
+  if (!err && !code) return null;
+  return decodeURIComponent((desc || code || err).replace(/\+/g, ' '));
+}
+
 function restoreSession() {
+  // 0. Surface OAuth errors that landed here as ?error=... or #error=...
+  const oauthErr = _readOAuthError();
+  if (oauthErr) {
+    toast('Sign-in failed: ' + oauthErr, 'err');
+    history.replaceState(null, '', '/');
+  }
   // 1. URL params injected by push-notification click
   const p = new URLSearchParams(location.search);
   if (p.has('notif')) {
