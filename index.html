@@ -85,9 +85,19 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     on every INSERT/UPDATE. nearby_signals RPC extracts ST_Y/ST_X for radar blips.
 
 12. MARKETPLACE
-    Deliveries: requester posts pickup+dropoff+description+AVC reward;
-    runners claim via accept_delivery RPC; flow requested → accepted →
-    in_transit → delivered (or cancelled). Discovery via nearby_deliveries.
+    Two surfaces, one currency (AVC).
+    a. Deliveries — peer logistics. Requester posts pickup+dropoff+reward;
+       runners claim via accept_delivery RPC; requested → accepted →
+       in_transit → delivered (cancellable). Discovery via nearby_deliveries.
+    b. Orders — vendor commerce. Tap any vendor pin → ORDER opens cart.
+       items[]={name,qty,price}, calc={subtotal,delivery_fee,platform_fee,
+       total,currency}. order-intake Edge Function upserts the vendor row
+       (vendor_id='osm:'+id), inserts orders row, broadcasts new_order on
+       vendor-orders-<vendor_id>. order-status Edge Function flips status:
+       pending → accepted → preparing → in_transit → delivered (cancellable
+       at pending). Per-order channel order-<id> broadcasts every flip; the
+       Order Track panel re-renders live. Orders tab in wallet lists every
+       order the customer placed.
 
 13. CALLING
     1:1 WebRTC. Signaling over Supabase Realtime channels:
@@ -122,10 +132,14 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     loadDeliveries() on boot; realtime INSERT adds pins, non-requested status
     removes them. Runners find work by flying to any city.
 
-22. CATEGORY FILTER — #cat-filter
-    Row of color-coded dots at bottom centre. Visible at national/personal
-    zoom when signals are loaded. Tap a dot = toggle that category on/off
-    (show/hide all matching PointPrimitives). Auto-dims to 35% opacity after 3.5s.
+22. RADIAL FAN ENGINE — one model, four gadgets
+    GADGET_FANS config maps each corner gadget to { items, arcFrom,
+    arcTo, longPress }. _renderFan(name) draws items along the arc,
+    each dot styled by kind: explore (green), publish (amber),
+    system (purple), link (blue). Item.fn returns { keepOpen: true }
+    to keep the fan open (used by toggleable items like category
+    filters). All other taps close the fan. Discover fans the
+    category toggles; ME fans the publish + identity actions.
 
 23. PUSH / RELIABILITY — always-on presence
     /sw.js service worker: offline shell cache + push handler + notification
@@ -148,13 +162,39 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     DB if signal not in local index. emitSignal() sets lat+lng directly (also
     backed by trg_sync_signal_coords trigger).
 
-17. FOUR CORNER GADGETS — replaces holographic dock
-    Exactly 4 large (76px) round corner gadgets replace all dock orbs and tray.
-    #g-discover (top-left) → DISCOVER panel (Feed + Radar). #g-me (top-right)
-    → ME hub (Profile + Messages + Wallet + Deliveries). #locate-orb (bottom-
-    left) → GPS acquire. #aicycle-float (bottom-right) → AI chat. No other
-    permanent UI. AICYCLE ring shows current model as "× PROVIDER" label only;
-    provider chips and orbit dots are removed.
+17. FOUR CORNER GADGETS — radial fans, sole permanent chrome
+    Exactly 4 large (76px) round corner gadgets. ALL four fan radially
+    on tap; long-press fires the gadget's primary action.
+      #g-discover  (top-left, arc 0→π/2 right-to-down):
+                   Feed, Radar, then one toggle per signal category.
+                   Long-press = ascend one zoom level.
+      #g-me        (top-right, arc π/2→π down-to-left):
+                   Emit, Deliver, Message, Profile, Wallet, Drones,
+                   Sign out (signed-out variant: Sign in).
+                   Long-press = open full ME panel.
+      #locate-orb  (bottom-left, arc -π/2→0 up-to-right):
+                   Locate, Drone view, Driving view, Share location.
+                   Long-press = locate now.
+      #aicycle    (bottom-right, arc π→3π/2 left-to-up):
+                   Chat, Voice, Auto, then one chip per provider.
+                   Long-press = toggle voice / hands-free.
+    Tap outside the open fan = close. Only one fan open at a time.
+    No floating back button, no #cat-filter row, no #layer-switch
+    pill, no level badge — gadgets carry their own state.
+
+24. DRIVE MODE — motion-aware camera
+    locate-orb starts navigator.geolocation.watchPosition. Rolling avg
+    of GPS speed: >5 m/s for 3 s → driving view (alt 120 m, pitch -25°,
+    heading=course). <1 m/s for 5 s → drone view (alt 600 m, pitch -90°).
+    #drive-hud bottom-center shows live km/h while driving.
+
+25. DRONES — companion-craft standby
+    initDroneStandby() runs after loadProfile() and subscribes a private
+    Supabase Realtime channel 'drone:<userId>'. Drone clients join the
+    same room, exchange WebRTC SDP + ICE via broadcast events, then open
+    a datachannel for telemetry + waypoint commands. ME panel exposes
+    the pairing room; sendDroneWaypoint(lat,lng,alt) dispatches to every
+    connected craft.
 
 16. LAW-SYNC — Claude Autonomy (perpetual)
     Every code change updates this law block when it introduces, changes, or
@@ -708,29 +748,79 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   }
 
   /* ============================================================
-     Category filter — appears at bottom centre, national/personal only
+     Radial fans — any corner gadget can host a fan-out arc of dots.
+     Anchored to the gadget center; arc direction depends on corner.
      ============================================================ */
-  #cat-filter {
-    position: fixed; bottom: max(14px, env(safe-area-inset-bottom));
-    left: 50%; transform: translateX(-50%);
-    display: flex; gap: 6px; padding: 6px 10px;
-    background: rgba(6,12,24,0.72); backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(120,180,255,0.14); border-radius: 999px;
-    z-index: 44; opacity: 0; pointer-events: none;
-    transition: opacity 0.3s;
+  .radial-fan {
+    position: fixed; z-index: 46; pointer-events: none;
   }
-  #cat-filter.visible { opacity: 1; pointer-events: auto; }
-  .cat-dot {
-    width: 34px; height: 34px; border-radius: 10px; cursor: pointer;
+  .fan-dot {
+    position: absolute; top: 18px; left: 18px;
+    width: 40px; height: 40px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    font-size: 18px; font-family: "Apple Color Emoji","Noto Color Emoji","Segoe UI Emoji",serif;
-    background: rgba(120,180,255,0.07); border: 1px solid rgba(120,180,255,0.14);
-    transition: opacity 0.2s, transform 0.15s, background 0.15s;
-    flex-shrink: 0; -webkit-tap-highlight-color: transparent;
+    font-size: 18px;
+    font-family: "Apple Color Emoji","Noto Color Emoji","Segoe UI Emoji",serif;
+    background: rgba(6,14,28,0.92); backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1.5px solid rgba(120,180,255,0.35);
+    box-shadow: 0 0 14px rgba(120,180,255,0.18);
+    cursor: pointer; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    color: #cfe2ff;
+    transform: translate(0,0) scale(0);
+    opacity: 0;
+    pointer-events: auto;
+    transition: transform 0.34s cubic-bezier(0.34,1.56,0.64,1),
+                opacity 0.22s ease-out, border-color 0.2s, box-shadow 0.2s;
   }
-  .cat-dot.off { opacity: 0.2; transform: scale(0.8); background: transparent; }
-  .cat-dot:active { transform: scale(0.88); background: rgba(120,180,255,0.18); }
+  .radial-fan.open .fan-dot {
+    transform: translate(var(--fx,0), var(--fy,0)) scale(1);
+    opacity: 1;
+  }
+  .fan-dot.off {
+    opacity: 0.32;
+    border-color: rgba(120,180,255,0.12);
+    box-shadow: none;
+  }
+  .fan-dot:active { transform: translate(var(--fx,0), var(--fy,0)) scale(0.88); }
+  .fan-dot.act-publish { border-color: rgba(255,170,80,0.55);  color: #ffb464; box-shadow: 0 0 14px rgba(255,170,80,0.20); }
+  .fan-dot.act-explore { border-color: rgba(126,235,180,0.50); color: #7eebb4; box-shadow: 0 0 14px rgba(126,235,180,0.20); }
+  .fan-dot.act-system  { border-color: rgba(180,140,255,0.50); color: #c9b0ff; box-shadow: 0 0 14px rgba(180,140,255,0.20); }
+  .fan-dot.act-link    { border-color: rgba(120,180,255,0.50); color: #a8c8ee; box-shadow: 0 0 14px rgba(120,180,255,0.20); }
+  .fan-dot .fd-lbl {
+    position: absolute; font-size: 7.5px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: rgba(200,220,255,0.85);
+    text-shadow: 0 0 6px rgba(0,0,0,0.95);
+    pointer-events: none; white-space: nowrap;
+    top: 100%; margin-top: 3px;
+  }
+  .corner-gadget.fanning, #locate-orb.fanning, #aicycle-float.fanning {
+    border-color: rgba(126,235,180,0.7) !important;
+    box-shadow: 0 0 44px rgba(126,235,180,0.30) !important;
+  }
+  /* Anchor the fans to their host gadgets */
+  #fan-discover { top: max(20px, env(safe-area-inset-top)); left: 20px; width: 76px; height: 76px; }
+  #fan-me       { top: max(20px, env(safe-area-inset-top)); right: 20px; width: 76px; height: 76px; }
+  #fan-locate   { bottom: max(20px, env(safe-area-inset-bottom)); left: 20px; width: 76px; height: 76px; }
+  #fan-ai       { bottom: max(20px, env(safe-area-inset-bottom)); right: 20px; width: 76px; height: 76px; }
+  /* Right-side fans mirror — origin is right edge of the anchor */
+  #fan-me .fan-dot, #fan-ai .fan-dot { left: auto; right: 18px; }
+
+  /* Driving HUD — bottom-center pill, only visible when motion > 5 m/s */
+  #drive-hud {
+    position: fixed; bottom: 110px; left: 50%; transform: translateX(-50%);
+    padding: 5px 14px; border-radius: 999px;
+    background: rgba(8,20,42,0.78); backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(126,235,180,0.32);
+    font-size: 10px; letter-spacing: 0.22em; color: #7eebb4;
+    text-transform: uppercase; opacity: 0; pointer-events: none;
+    transition: opacity 0.35s; z-index: 41;
+    display: flex; align-items: center; gap: 8px;
+  }
+  #drive-hud.visible { opacity: 1; }
+  #drive-hud .dh-emoji { font-size: 13px; }
+  #drive-hud .dh-sp { color: #cfe9d6; font-weight: 600; letter-spacing: 0.06em; }
 
   /* ============================================================
      Messages
@@ -1153,6 +1243,42 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   }
   .me-inp:focus { border-color: rgba(120,180,255,0.48); }
 
+  /* Order / cart */
+  .ord-row { display: grid; grid-template-columns: 1fr 50px 60px 22px; gap: 6px; margin-bottom: 6px; align-items: center; }
+  .ord-row .me-inp { padding: 7px 9px; font-size: 12px; }
+  .ord-row .ord-qty, .ord-row .ord-px { text-align: right; }
+  .ord-row .ord-x {
+    width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; color: #ff9e9e; font-size: 10px;
+    border: 1px solid rgba(255,100,100,0.22); cursor: pointer; user-select: none;
+  }
+  .ord-row .ord-x:active { background: rgba(255,100,100,0.15); }
+  .ord-tot { display: flex; justify-content: space-between; font-size: 12px; color: #a8c8ee; padding: 3px 0; }
+  .ord-line { display: flex; justify-content: space-between; font-size: 13px; color: #e6f1ff;
+              padding: 6px 0; border-bottom: 1px solid rgba(120,180,255,0.07); }
+  .ord-track {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 4px; margin: 10px 0;
+  }
+  .ord-step { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
+  .ord-step .ord-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 1.5px solid rgba(120,180,255,0.3); background: rgba(8,20,42,0.7);
+    transition: all 0.3s;
+  }
+  .ord-step.on .ord-dot { background: #7eebb4; border-color: #7eebb4; box-shadow: 0 0 8px rgba(126,235,180,0.5); }
+  .ord-step.now .ord-dot { animation: ord-pulse 1.4s ease-in-out infinite; }
+  .ord-step .ord-lbl {
+    font-size: 7px; letter-spacing: 0.12em; color: #6a8aaf;
+    text-align: center; max-width: 60px;
+  }
+  .ord-step.on .ord-lbl { color: #7eebb4; }
+  .ord-line-h { flex: 1; height: 1px; background: rgba(120,180,255,0.18); margin: 0 4px; margin-bottom: 20px; }
+  @keyframes ord-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.5); box-shadow: 0 0 14px rgba(126,235,180,0.8); }
+  }
+
   /* ============================================================
      Fallback / error
      ============================================================ */
@@ -1258,29 +1384,32 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 </div>
 
 <!-- Transient UI -->
-<div id="level-badge">GLOBAL</div>
 <div id="imagery-source"></div>
-<div id="back-btn" aria-label="Back">←</div>
-<!-- Layer-switch gadget — city-tier provider switcher (Imagery Law §3) -->
-<div id="layer-switch" aria-label="Imagery provider"></div>
 <div id="tray-trigger"></div>
 <div id="tray"></div>
 
-<!-- Four corner gadgets -->
-<div class="corner-gadget" id="g-discover" title="Discover" onclick="openDiscoverPanel()">
+<!-- Four corner gadgets — each one tap-fans a radial arc; long-press = primary action -->
+<div class="corner-gadget" id="g-discover" title="Discover"
+     onpointerdown="gadgetPress('discover',event)" onpointerup="gadgetRelease('discover',event)">
   <canvas class="gfx-canvas" id="gfx-discover" width="76" height="76"></canvas>
   <div class="cg-glyph">◈</div>
   <div class="cg-label">Discover</div>
 </div>
-<div class="corner-gadget" id="g-me" title="Me" onclick="openMePanel()">
+<div class="radial-fan" id="fan-discover"></div>
+<div class="corner-gadget" id="g-me" title="Me"
+     onpointerdown="gadgetPress('me',event)" onpointerup="gadgetRelease('me',event)">
   <canvas class="gfx-canvas" id="gfx-me" width="76" height="76"></canvas>
   <div class="cg-glyph" id="g-me-glyph">◉</div>
   <div class="cg-label">Me</div>
   <div class="cg-badge" id="g-me-badge"></div>
 </div>
-<div id="cat-filter"></div>
+<div class="radial-fan" id="fan-me"></div>
+<div class="radial-fan" id="fan-locate"></div>
+<div class="radial-fan" id="fan-ai"></div>
+<div id="drive-hud"><span class="dh-emoji">🚗</span><span>Driving</span><span class="dh-sp" id="dh-sp">0 km/h</span></div>
 <!-- Locate orb — bottom-left corner gadget -->
-<div id="locate-orb" title="Acquire location" onclick="locateUser()">
+<div id="locate-orb" title="Locate"
+     onpointerdown="gadgetPress('locate',event)" onpointerup="gadgetRelease('locate',event)">
   <canvas class="gfx-canvas" id="gfx-locate" width="76" height="76"></canvas>
   <span class="locate-g">⊕</span>
   <span class="locate-lbl">Locate</span>
@@ -1555,7 +1684,14 @@ async function setCityImagery(index) {
   try {
     const provider = await p.init();
     cityLayer = viewer.imageryLayers.addImageryProvider(provider);
-    // Hide on global tier; only visible national/personal (Imagery Law §3).
+    // Brightness boost on the inherently-dark CARTO Dark Matter style so
+    // streets stay readable while the look stays dark.
+    if (p.id === 'carto-dark') {
+      cityLayer.brightness = 1.85;
+      cityLayer.contrast   = 1.35;
+      cityLayer.gamma      = 0.78;
+      cityLayer.saturation = 0.85;
+    }
     cityLayer.show = currentLevel !== 'global';
     renderLayerSwitch();
     updateImagerySourceBadge();
@@ -1646,15 +1782,12 @@ function onCameraSettled() {
   if (newLevel === currentLevel) return;
   currentLevel = newLevel;
 
-  // Show level badge briefly
-  const badge = $('level-badge');
-  badge.textContent = newLevel;
-  badge.classList.add('visible');
-  clearTimeout(levelTimer);
-  levelTimer = setTimeout(() => badge.classList.remove('visible'), 1800);
-
-  // Back button: visible whenever we're below global
-  $('back-btn').classList.toggle('visible', newLevel !== 'global');
+  // Level + back are folded into #g-discover: tint the gadget by zoom level
+  const gd = $('g-discover');
+  if (gd) {
+    gd.classList.toggle('at-personal', newLevel === 'personal');
+    gd.classList.toggle('at-national', newLevel === 'national');
+  }
 
   updateLayerSwitchVisibility();
   updateCatFilter();
@@ -1664,8 +1797,8 @@ function onCameraSettled() {
   if (viewer) viewer.scene.requestRender();
 }
 
-$('back-btn').addEventListener('click', () => {
-  // Ascend one level
+function ascendLevel() {
+  if (!viewer) return;
   const h = viewer.camera.positionCartographic.height;
   const target = h > LEVEL_THRESHOLDS.national ? 12_000_000 : 2_000_000;
   const carto = viewer.camera.positionCartographic;
@@ -1673,7 +1806,7 @@ $('back-btn').addEventListener('click', () => {
     destination: Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, target),
     duration: 1.4,
   });
-});
+}
 
 /* ==============================================================
    3. Supabase — auth, signals, realtime
@@ -1722,6 +1855,7 @@ async function loadProfile() {
   updateIdentityOrb();
   profileSetupIfNeeded();
   subscribePush();
+  initDroneStandby();
   restoreSession();
 }
 
@@ -1813,8 +1947,16 @@ let _swReg = null;
 
 function bootServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
-  navigator.serviceWorker.register('/sw.js').then(reg => {
+  navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(reg => {
     _swReg = reg;
+    // Force an update check on every page load so users always get the freshest SW.
+    try { reg.update(); } catch (_) {}
+    // When a new SW takes over, reload once so the page runs the new app code.
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloaded) return; reloaded = true;
+      location.reload();
+    });
     navigator.serviceWorker.addEventListener('message', e => handleSwMessage(e.data));
   }).catch(err => console.warn('[sw] register failed:', err));
 }
@@ -1916,7 +2058,23 @@ function clearActiveDelivery() {
   try { localStorage.removeItem('astranov_active_delivery'); } catch (_) {}
 }
 
+function _readOAuthError() {
+  const q = new URLSearchParams(location.search);
+  const h = new URLSearchParams((location.hash || '').replace(/^#/, ''));
+  const desc = q.get('error_description') || h.get('error_description');
+  const code = q.get('error_code')       || h.get('error_code');
+  const err  = q.get('error')            || h.get('error');
+  if (!err && !code) return null;
+  return decodeURIComponent((desc || code || err).replace(/\+/g, ' '));
+}
+
 function restoreSession() {
+  // 0. Surface OAuth errors that landed here as ?error=... or #error=...
+  const oauthErr = _readOAuthError();
+  if (oauthErr) {
+    toast('Sign-in failed: ' + oauthErr, 'err');
+    history.replaceState(null, '', '/');
+  }
   // 1. URL params injected by push-notification click
   const p = new URLSearchParams(location.search);
   if (p.has('notif')) {
@@ -1960,13 +2118,11 @@ function locateUser() {
           orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
         });
       }
-      // Store for radar and signal emit
       window._userLat = lat; window._userLng = lng;
-      // Place glowing user beacon on globe
       setUserBeacon(lat, lng);
-      // Populate globe with real-world POIs from OpenStreetMap
       fetchOSMNearby(lat, lng, 5000);
       setTimeout(() => orb.classList.remove('locked'), 4000);
+      startDriveWatch(); // continuous motion tracking from this point
     },
     err => {
       orb.classList.remove('acquiring');
@@ -1976,6 +2132,140 @@ function locateUser() {
     { enableHighAccuracy: true, timeout: 10000 }
   );
 }
+
+/* ==============================================================
+   Drive mode — continuous motion-aware camera.
+   Drone view at rest (pitch -90°, altitude ~600 m). When sustained
+   speed > 5 m/s for >3 s → driving view (pitch -25°, altitude ~120 m,
+   heading locks to GPS course). When speed < 1 m/s for >5 s → drone.
+   ============================================================== */
+let _driveWatchId = null;
+let _driveMode    = 'drone';      // 'drone' | 'driving'
+let _driveBufSpeed = [];          // last speeds, m/s
+let _driveLastSwitchAt = 0;
+function startDriveWatch() {
+  if (_driveWatchId || !navigator.geolocation || !navigator.geolocation.watchPosition) return;
+  _driveWatchId = navigator.geolocation.watchPosition(
+    pos => _driveTick(pos),
+    () => {},
+    { enableHighAccuracy: true, maximumAge: 1500, timeout: 15_000 }
+  );
+}
+function stopDriveWatch() {
+  if (_driveWatchId) navigator.geolocation.clearWatch(_driveWatchId);
+  _driveWatchId = null;
+}
+function _driveTick(pos) {
+  const { latitude: lat, longitude: lng, speed, heading } = pos.coords;
+  window._userLat = lat; window._userLng = lng;
+  setUserBeacon(lat, lng);
+  const sp = (typeof speed === 'number' && isFinite(speed) && speed >= 0) ? speed : 0;
+  _driveBufSpeed.push(sp);
+  if (_driveBufSpeed.length > 6) _driveBufSpeed.shift();
+  const avg = _driveBufSpeed.reduce((a, b) => a + b, 0) / _driveBufSpeed.length;
+  const hud = $('drive-hud'), sps = $('dh-sp');
+  if (sps) sps.textContent = Math.round(avg * 3.6) + ' km/h';
+  if (hud) hud.classList.toggle('visible', _driveMode === 'driving');
+
+  const now = Date.now();
+  const dwell = now - _driveLastSwitchAt;
+  // Hysteresis: 5 m/s = 18 km/h to enter, 1 m/s = 3.6 km/h to leave
+  if (_driveMode === 'drone' && avg > 5 && dwell > 3000) {
+    _driveMode = 'driving'; _driveLastSwitchAt = now;
+    _enterDriving(lat, lng, heading);
+  } else if (_driveMode === 'driving') {
+    if (avg < 1 && dwell > 5000) {
+      _driveMode = 'drone'; _driveLastSwitchAt = now;
+      _enterDrone(lat, lng);
+    } else {
+      // Continuously follow while driving
+      _followDriving(lat, lng, heading);
+    }
+  }
+}
+function _enterDriving(lat, lng, heading) {
+  if (!viewer) return;
+  const h = (typeof heading === 'number' && !isNaN(heading)) ? heading : 0;
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat, 120),
+    duration: 1.6,
+    orientation: { heading: Cesium.Math.toRadians(h), pitch: Cesium.Math.toRadians(-25), roll: 0 },
+  });
+  toast('Driving view engaged', 'ok');
+}
+function _enterDrone(lat, lng) {
+  if (!viewer) return;
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat, 600),
+    duration: 1.8,
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+  });
+  toast('Drone view restored', '');
+}
+function _followDriving(lat, lng, heading) {
+  if (!viewer) return;
+  const h = (typeof heading === 'number' && !isNaN(heading)) ? heading : null;
+  // Snap camera; cheap each tick, avoids dueling flyTo
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat, 120),
+    orientation: { heading: h != null ? Cesium.Math.toRadians(h) : viewer.camera.heading,
+                   pitch: Cesium.Math.toRadians(-25), roll: 0 },
+  });
+}
+
+/* ==============================================================
+   Helper drones — WebRTC datachannel scaffold. The Astranov system
+   stands ready to pair with companion drones via WebRTC + Supabase
+   Realtime signaling (room: 'drone:<userId>'). A drone client
+   joins the same room and exchanges SDP offers. Once paired, we
+   can stream telemetry + send waypoints over the datachannel.
+   ============================================================== */
+const droneState = { peers: new Map(), channel: null, ready: false };
+function initDroneStandby() {
+  if (!sb || !session || droneState.ready) return;
+  const room = 'drone:' + session.user.id;
+  droneState.channel = sb.channel(room, { config: { broadcast: { ack: true } } })
+    .on('broadcast', { event: 'drone-hello' }, ({ payload }) => _onDroneHello(payload))
+    .on('broadcast', { event: 'drone-sdp'   }, ({ payload }) => _onDroneSdp(payload))
+    .on('broadcast', { event: 'drone-ice'   }, ({ payload }) => _onDroneIce(payload))
+    .subscribe();
+  droneState.ready = true;
+}
+function _onDroneHello(p) {
+  toast('Drone discovered: ' + (p.callsign || 'unknown'), 'ok');
+  // (full handshake elided — drone client initiates with SDP offer)
+}
+function _onDroneSdp(p) { /* answer with sb.channel send */ }
+function _onDroneIce(p) { /* trickle ICE */ }
+function sendDroneWaypoint(lat, lng, alt) {
+  for (const peer of droneState.peers.values()) {
+    try { peer.dc?.send(JSON.stringify({ type: 'waypoint', lat, lng, alt })); } catch (_) {}
+  }
+}
+window.openDronePanel = function() {
+  initDroneStandby();
+  const room = session ? 'drone:' + session.user.id : null;
+  openPanel(`
+    <h2>Drones</h2>
+    <div class="subtitle">${room ? 'Astranov standby — '+droneState.peers.size+' linked' : 'Sign in to pair'}</div>
+    <div style="font-size:12px;color:#a8c8ee;line-height:1.55;margin-top:10px">
+      Companion drones pair over WebRTC, signalled through your private
+      Supabase channel <code style="color:#7eebb4">${room || '—'}</code>.
+      Once linked, the gadget transforms into a flight stick: hold to fly,
+      release to hover, double-tap to return-to-home.
+    </div>
+    <div class="gadget-engage" onclick="_copyRoom(${JSON.stringify(room||'')})" style="margin-top:14px">
+      <span class="verb-glyph">⎘</span><span>Copy pairing room</span>
+    </div>
+    <div class="gadget-engage" onclick="closePanel()" style="margin-top:8px;border-color:rgba(255,255,255,0.1)">
+      <span class="verb-glyph">◫</span><span>Standby</span>
+    </div>
+  `);
+};
+window._copyRoom = function(r) {
+  if (!r) return toast('Sign in first', 'err');
+  navigator.clipboard?.writeText(r).then(() => toast('Room copied', 'ok'));
+};
 
 /* ==============================================================
    Messages — direct messaging between users
@@ -2081,46 +2371,200 @@ const CAT_EMOJIS = {
   real_estate: { emoji: '🏠', label: 'Real Estate' },
   classifieds: { emoji: '📋', label: 'Classifieds' },
 };
-let _catFilterTimer = null;
+/* ==============================================================
+   Radial gadget fans — all four corner gadgets expand radial
+   button arcs. Tap = toggle fan; long-press (600 ms) = primary
+   action. Items are defined per-gadget in GADGET_FANS.
+   ============================================================== */
 
-function buildCatFilter() {
-  const el = $('cat-filter'); if (!el) return;
-  el.innerHTML = '';
-  Object.keys(CAT_EMOJIS).forEach(cat => {
-    if (!(cat in CAT_FILTER_STATE)) CAT_FILTER_STATE[cat] = true;
-    const btn = document.createElement('div');
-    btn.className = 'cat-dot' + (CAT_FILTER_STATE[cat] ? '' : ' off');
-    btn.title = CAT_EMOJIS[cat].label;
-    btn.textContent = CAT_EMOJIS[cat].emoji;
-    btn.addEventListener('click', () => {
+function _catItems() {
+  return Object.keys(CAT_EMOJIS).map(cat => ({
+    kind: 'cat', cat,
+    glyph: CAT_EMOJIS[cat].emoji,
+    label: CAT_EMOJIS[cat].label,
+    isOn: () => CAT_FILTER_STATE[cat] !== false,
+    fn: (dot) => {
+      if (!(cat in CAT_FILTER_STATE)) CAT_FILTER_STATE[cat] = true;
       CAT_FILTER_STATE[cat] = !CAT_FILTER_STATE[cat];
-      btn.classList.toggle('off', !CAT_FILTER_STATE[cat]);
+      dot.classList.toggle('off', !CAT_FILTER_STATE[cat]);
       applyCatFilter();
-      _flashCatFilter();
+      return { keepOpen: true };
+    },
+  }));
+}
+
+const GADGET_FANS = {
+  discover: {
+    host: 'g-discover', fan: 'fan-discover',
+    arcFrom: 0,              arcTo: Math.PI / 2,         // right → down
+    longPress: () => ascendLevel(),
+    items: () => [
+      { kind: 'explore', glyph: '◈', label: 'Feed',  fn: () => openFeedPanel()  },
+      { kind: 'explore', glyph: '◎', label: 'Radar', fn: () => openRadarPanel() },
+      ..._catItems(),
+    ],
+  },
+  me: {
+    host: 'g-me', fan: 'fan-me',
+    arcFrom: Math.PI / 2,    arcTo: Math.PI,             // down → left
+    longPress: () => openMePanel(),
+    items: () => session ? [
+      { kind: 'publish', glyph: '⊕', label: 'Emit',     fn: () => openEmitPanel() },
+      { kind: 'publish', glyph: '📦', label: 'Deliver',  fn: () => openRequestDeliveryStep1() },
+      { kind: 'publish', glyph: '✉', label: 'Message',  fn: () => openMessagesPanel() },
+      { kind: 'link',    glyph: '◉', label: 'Profile',  fn: () => openMePanel() },
+      { kind: 'link',    glyph: '◍', label: 'Wallet',   fn: () => openWalletPanel() },
+      { kind: 'system',  glyph: '⟁', label: 'Drones',   fn: () => openDronePanel() },
+      { kind: 'system',  glyph: '⏻', label: 'Sign out', fn: () => _signOut() },
+    ] : [
+      { kind: 'link', glyph: '◉', label: 'Sign in', fn: () => openYouPanel() },
+    ],
+  },
+  locate: {
+    host: 'locate-orb', fan: 'fan-locate',
+    arcFrom: -Math.PI / 2,   arcTo: 0,                   // up → right
+    longPress: () => locateUser(),
+    items: () => [
+      { kind: 'system',  glyph: '⊕', label: 'Locate',  fn: () => locateUser() },
+      { kind: 'system',  glyph: '🚁', label: 'Drone',   fn: () => _forceCamMode('drone') },
+      { kind: 'system',  glyph: '🚗', label: 'Driving', fn: () => _forceCamMode('driving') },
+      { kind: 'publish', glyph: '📍', label: 'Share',   fn: () => _shareMyLocation() },
+    ],
+  },
+  ai: {
+    host: 'aicycle-float', fan: 'fan-ai',
+    arcFrom: Math.PI,        arcTo: 3 * Math.PI / 2,     // left → up
+    longPress: () => toggleVoice(),
+    items: () => {
+      const base = [
+        { kind: 'explore', glyph: '◈', label: 'Chat', fn: () => _openACIPanel() },
+        { kind: 'system',  glyph: '🎙', label: 'Voice', fn: () => toggleVoice() },
+        { kind: 'system',  glyph: '∞', label: 'Auto',  fn: () => { lastActiveProvider = null; toast('Auto-cycle', ''); } },
+      ];
+      const provs = ACI_MODELS.filter(m => !m.ownerOnly || profile?.is_owner).map(m => ({
+        kind: 'link', glyph: m.label.charAt(0), label: m.label,
+        isOn: () => lastActiveProvider === m.name,
+        fn: () => { lastActiveProvider = m.name; updateACIModels(m.name); toast('Lock ' + m.label, ''); },
+      }));
+      return [...base, ...provs];
+    },
+  },
+};
+
+const _fanState = { open: null, items: new WeakMap() };
+
+function _renderFan(name) {
+  const cfg = GADGET_FANS[name];
+  const el = $(cfg.fan); if (!el) return;
+  el.innerHTML = '';
+  const items = cfg.items();
+  const N = items.length;
+  const baseR = 92;
+  items.forEach((it, i) => {
+    const d = document.createElement('div');
+    const tFrac = N <= 1 ? 0.5 : i / (N - 1);
+    const ang = cfg.arcFrom + (cfg.arcTo - cfg.arcFrom) * tFrac;
+    const R = baseR + Math.floor(i / 7) * 56;
+    const x = Math.cos(ang) * R;
+    const y = Math.sin(ang) * R;
+    d.style.setProperty('--fx', x.toFixed(1) + 'px');
+    d.style.setProperty('--fy', y.toFixed(1) + 'px');
+    d.style.transitionDelay = (i * 28) + 'ms';
+    d.className = 'fan-dot act-' + (it.kind === 'cat' ? 'explore' : it.kind);
+    d.title = it.label;
+    d.innerHTML = it.glyph + (it.label ? '<span class="fd-lbl">' + escapeHtml(it.label) + '</span>' : '');
+    if (it.isOn && !it.isOn()) d.classList.add('off');
+    d.addEventListener('click', e => {
+      e.stopPropagation();
+      const res = it.fn(d) || {};
+      if (!res.keepOpen) closeAllFans();
     });
-    el.appendChild(btn);
+    el.appendChild(d);
   });
 }
 
+function openGadgetFan(name) {
+  closeAllFans();
+  _renderFan(name);
+  const cfg = GADGET_FANS[name];
+  $(cfg.fan)?.classList.add('open');
+  $(cfg.host)?.classList.add('fanning');
+  _fanState.open = name;
+}
+function closeAllFans() {
+  if (!_fanState.open) return;
+  const cfg = GADGET_FANS[_fanState.open];
+  if (cfg) { $(cfg.fan)?.classList.remove('open'); $(cfg.host)?.classList.remove('fanning'); }
+  _fanState.open = null;
+}
+
+const _gadgetPress = {};
+window.gadgetPress = function(name, e) {
+  if (e) e.preventDefault();
+  _gadgetPress[name] = { at: Date.now(), long: false };
+  _gadgetPress[name].timer = setTimeout(() => {
+    if (!_gadgetPress[name]) return;
+    _gadgetPress[name].long = true;
+    closeAllFans();
+    try { GADGET_FANS[name]?.longPress?.(); } catch (_) {}
+  }, 600);
+};
+window.gadgetRelease = function(name, e) {
+  const s = _gadgetPress[name]; if (!s) return;
+  clearTimeout(s.timer);
+  const wasLong = s.long;
+  delete _gadgetPress[name];
+  if (wasLong) return;
+  if (_fanState.open === name) closeAllFans(); else openGadgetFan(name);
+};
+
+// Tap outside any open fan closes it
+document.addEventListener('pointerdown', e => {
+  if (!_fanState.open) return;
+  const cfg = GADGET_FANS[_fanState.open];
+  if (!cfg) return;
+  if (e.target.closest('#' + cfg.host) || e.target.closest('#' + cfg.fan)) return;
+  closeAllFans();
+});
+
+// Legacy hook — keep these names so callers that still reference them work
+function buildCatFilter() { /* fan rebuilds on every open via _renderFan */ }
 function applyCatFilter() {
   signalIndex.forEach(({ primitive, signal }) => {
     primitive.show = CAT_FILTER_STATE[signal.category] !== false;
   });
   if (viewer) viewer.scene.requestRender();
 }
+function updateCatFilter() { /* fan is user-controlled */ }
 
-function updateCatFilter() {
-  const el = $('cat-filter'); if (!el) return;
-  const show = currentLevel !== 'global' && signalIndex.size > 0;
-  el.classList.toggle('visible', show);
-  if (show) _flashCatFilter();
+function _forceCamMode(mode) {
+  if (!window._userLat) return toast('Locate first', 'err');
+  _driveBufSpeed = [];
+  _driveLastSwitchAt = Date.now();
+  if (mode === 'driving') {
+    _driveMode = 'driving';
+    _enterDriving(window._userLat, window._userLng, 0);
+  } else {
+    _driveMode = 'drone';
+    _enterDrone(window._userLat, window._userLng);
+  }
 }
 
-function _flashCatFilter() {
-  const el = $('cat-filter'); if (!el) return;
-  clearTimeout(_catFilterTimer);
-  el.style.opacity = '1';
-  _catFilterTimer = setTimeout(() => { el.style.opacity = '0.35'; }, 3500);
+function _shareMyLocation() {
+  if (!window._userLat) return toast('Locate first', 'err');
+  const url = 'https://www.openstreetmap.org/?mlat=' + window._userLat + '&mlon=' + window._userLng + '#map=16/' + window._userLat + '/' + window._userLng;
+  if (navigator.share) navigator.share({ title: 'My location', url }).catch(()=>{});
+  else { navigator.clipboard?.writeText(url); toast('Location copied', 'ok'); }
+}
+
+function _openACIPanel() {
+  const opening = !aicycleChat.classList.contains('visible');
+  aicycleChat.classList.toggle('visible');
+  if (opening) {
+    aicycleChat.style.height = '';
+    aicycleChat.style.maxHeight = '';
+    renderACIModels();
+  }
 }
 
 /* ==============================================================
@@ -2419,7 +2863,8 @@ function openPlacePanel(place) {
   const cuisine = t.cuisine ? t.cuisine.replace(/_/g, ' ') : '';
 
   // Store current place so onclick functions can reference it without JSON embedding
-  window._currentPlace = { tags: t, name, catKey, info, phone, website, hours, cuisine };
+  window._currentPlace = { id: place.id, tags: t, name, catKey, info, phone, website, hours, cuisine,
+                           _lat: Number(place.lat), _lng: Number(place.lon) };
 
   const html = `
 <div class="place-hero">
@@ -2505,13 +2950,246 @@ window._placeBook = function() {
 };
 
 window._placeOrder = function() {
+  if (!session) return openMePanel();
   const p = window._currentPlace;
-  const q = 'I want to order from ' + p.name + ' (' + p.info.label + ')'
-    + (p.website ? '. Website: ' + p.website : '')
-    + (p.tags.cuisine ? '. Cuisine: ' + p.tags.cuisine : '')
-    + '. Show me their menu, best items, prices if available, and how to order right now — delivery apps, their own site, or phone.';
-  closePanel();
-  _openACI(q);
+  if (!p) return;
+  window._cart = window._cart || [];
+  if (window._cartVendorId !== _osmIdFor(p)) { window._cart = []; window._cartVendorId = _osmIdFor(p); }
+  _renderOrderPanel();
+};
+
+function _osmIdFor(p) {
+  const t = p.tags || {};
+  if (t['osm:id']) return 'osm:' + t['osm:id'];
+  if (p.id) return 'osm:' + p.id;
+  // fall back to a stable hash of name+coords
+  return 'astr:' + encodeURIComponent((p.name || 'x') + ':' + (t['addr:street'] || ''));
+}
+
+function _renderOrderPanel() {
+  const p = window._currentPlace;
+  const cart = window._cart || [];
+  const items = cart.map((it, i) => `
+    <div class="ord-row">
+      <input class="me-inp ord-name" data-i="${i}" type="text" value="${escapeHtml(it.name)}" placeholder="Item name" oninput="_cartEdit(${i},'name',this.value)">
+      <input class="me-inp ord-qty"  data-i="${i}" type="number" min="1" max="50" value="${it.qty}" oninput="_cartEdit(${i},'qty',this.value)">
+      <input class="me-inp ord-px"   data-i="${i}" type="number" min="0" step="0.5" value="${it.price}" oninput="_cartEdit(${i},'price',this.value)">
+      <div class="ord-x" onclick="_cartRemove(${i})">✕</div>
+    </div>`).join('');
+  const subtotal = cart.reduce((s, it) => s + (Number(it.qty)||0) * (Number(it.price)||0), 0);
+  const deliveryFee = cart.length ? 3 : 0;
+  const platformFee = subtotal ? Math.max(1, Math.round(subtotal * 0.05)) : 0;
+  const total = subtotal + deliveryFee + platformFee;
+  const bal = Number(profile?.avc_balance ?? 0);
+  const canPay = total > 0 && bal >= total;
+
+  const addr = window._orderAddress || (window._userLat ? 'My current location' : '');
+
+  openPanel(`
+    <div class="place-hero" style="margin-bottom:10px">
+      <div class="place-icon" style="color:${p.info.color};font-size:22px">${p.info.emoji}</div>
+      <div class="place-head">
+        <div class="place-name">${escapeHtml(p.name)}</div>
+        <div class="place-badge" style="color:${p.info.color}">${escapeHtml(p.info.label)}</div>
+        <div style="font-size:10px;color:#6a8aaf;letter-spacing:0.15em;text-transform:uppercase;margin-top:4px">Order &amp; deliver</div>
+      </div>
+    </div>
+
+    <div class="me-sec">Cart</div>
+    <div id="ord-rows">${items || '<div style="color:#6a8aaf;font-size:12px;padding:6px 0">Add what you want. Price is your offer in AVC — vendor confirms.</div>'}</div>
+    <div class="gadget-engage" onclick="_cartAdd()" style="margin-top:10px;border-color:rgba(120,180,255,0.22)">
+      <span class="verb-glyph">⊕</span><span>Add item</span>
+    </div>
+
+    <div class="me-sec">Deliver to</div>
+    <input class="me-inp" id="ord-addr" type="text" value="${escapeHtml(addr)}" placeholder="Street, building, floor…" oninput="window._orderAddress=this.value">
+    <div class="gadget-engage" onclick="_useMyLocation()" style="margin-top:8px;border-color:rgba(126,235,180,0.22)">
+      <span class="verb-glyph">⊙</span><span>Use my GPS location</span>
+    </div>
+
+    <div class="me-sec">Notes</div>
+    <textarea class="me-inp" id="ord-notes" rows="2" placeholder="Allergies, doorbell, extra sauce…">${escapeHtml(window._orderNotes||'')}</textarea>
+
+    <div style="margin-top:18px;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,212,126,0.18);background:rgba(255,212,126,0.04)">
+      <div class="ord-tot"><span>Subtotal</span><span>${subtotal} AVC</span></div>
+      <div class="ord-tot"><span>Delivery</span><span>${deliveryFee} AVC</span></div>
+      <div class="ord-tot"><span>Platform 5%</span><span>${platformFee} AVC</span></div>
+      <div class="ord-tot" style="font-size:14px;color:#ffd47e;font-weight:600;border-top:1px solid rgba(255,212,126,0.18);margin-top:6px;padding-top:8px">
+        <span>TOTAL</span><span>${total} AVC</span>
+      </div>
+      <div style="font-size:10px;color:${bal>=total?'#7eebb4':'#ff9e9e'};letter-spacing:0.12em;margin-top:6px">
+        Your balance · ${bal} AVC
+      </div>
+    </div>
+
+    <div class="gadget-engage" onclick="_submitOrder()" style="margin-top:14px;${canPay?'border-color:rgba(255,212,126,0.45);color:#ffd47e':'opacity:0.5;pointer-events:none'}">
+      <span class="verb-glyph">◍</span><span>${canPay?'Transmit order · ' + total + ' AVC':(cart.length?'Insufficient AVC':'Cart is empty')}</span>
+    </div>
+  `);
+}
+
+window._cartAdd = function() {
+  window._cart.push({ name: '', qty: 1, price: 5 });
+  _renderOrderPanel();
+};
+window._cartRemove = function(i) {
+  window._cart.splice(i, 1);
+  _renderOrderPanel();
+};
+window._cartEdit = function(i, field, val) {
+  if (!window._cart[i]) return;
+  if (field === 'qty' || field === 'price') val = Number(val) || 0;
+  window._cart[i][field] = val;
+  // recompute totals — re-render but preserve focus
+  const focus = document.activeElement;
+  const focusKey = focus && focus.dataset && focus.dataset.i;
+  const focusClass = focus && focus.className;
+  _renderOrderPanel();
+  if (focusKey != null) {
+    const sel = document.querySelector(`input[data-i="${focusKey}"].${focusClass.split(' ').pop()}`);
+    if (sel) { sel.focus(); sel.setSelectionRange(sel.value.length, sel.value.length); }
+  }
+};
+
+window._useMyLocation = async function() {
+  try {
+    const c = await getUserLocation();
+    window._orderLat = c.lat; window._orderLng = c.lng;
+    // Reverse geocode best-effort
+    try {
+      const r = await fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + c.lat + '&lon=' + c.lng);
+      const j = await r.json();
+      window._orderAddress = j.display_name || ('GPS ' + c.lat.toFixed(4) + ',' + c.lng.toFixed(4));
+    } catch (_) {
+      window._orderAddress = 'GPS ' + c.lat.toFixed(4) + ',' + c.lng.toFixed(4);
+    }
+    _renderOrderPanel();
+  } catch (e) {
+    toast('Location denied: ' + (e.message || e), 'err');
+  }
+};
+
+window._submitOrder = async function() {
+  const p = window._currentPlace;
+  const cart = (window._cart || []).filter(it => it.name && Number(it.qty) > 0 && Number(it.price) >= 0);
+  if (!cart.length) return toast('Cart is empty', 'err');
+  const subtotal = cart.reduce((s, it) => s + (Number(it.qty)||0) * (Number(it.price)||0), 0);
+  const delivery_fee = 3;
+  const platform_fee = Math.max(1, Math.round(subtotal * 0.05));
+  const total = subtotal + delivery_fee + platform_fee;
+  const addr = ($('ord-addr')?.value || '').trim();
+  const notes = ($('ord-notes')?.value || '').trim();
+  window._orderNotes = notes;
+
+  const vendor_id = window._cartVendorId || _osmIdFor(p);
+  const t = p.tags || {};
+  const vendor_payload = {
+    osm_id: p.id || (vendor_id.startsWith('osm:') ? vendor_id.slice(4) : null),
+    name: p.name, emoji: p.info.emoji, category: p.catKey,
+    lat: p._lat ?? null, lng: p._lng ?? null,
+    address: { street: t['addr:street'], city: t['addr:city'], housenumber: t['addr:housenumber'] },
+    tags: t,
+  };
+
+  const lat = window._orderLat ?? window._userLat ?? null;
+  const lng = window._orderLng ?? window._userLng ?? null;
+
+  toast('Transmitting order…');
+  try {
+    const { data, error } = await sb.functions.invoke('order-intake', {
+      body: {
+        vendor_id, vendor: vendor_payload,
+        items: cart, calc: { subtotal, delivery_fee, platform_fee, total, currency: 'AVC' },
+        delivery_lat: lat, delivery_lng: lng, delivery_address: addr, notes,
+      }
+    });
+    if (error) throw error;
+    if (!data?.ok) throw new Error(data?.error || 'order failed');
+    window._cart = []; window._cartVendorId = null;
+    toast('Order placed · ' + data.order.short_id, 'ok');
+    closePanel();
+    setTimeout(() => openOrderTrackPanel(data.order.id), 250);
+  } catch (e) {
+    toast('Order failed: ' + (e.message || e), 'err');
+  }
+};
+
+async function openOrderTrackPanel(orderId) {
+  if (!sb || !session) return;
+  const { data: o } = await sb.from('orders').select('*').eq('id', orderId).single();
+  if (!o) return toast('Order not found', 'err');
+  _renderOrderTrack(o);
+  // subscribe to live status
+  const ch = sb.channel('order-' + orderId)
+    .on('broadcast', { event: 'status' }, ({ payload }) => {
+      if (payload.order_id === orderId) {
+        sb.from('orders').select('*').eq('id', orderId).single().then(({ data }) => data && _renderOrderTrack(data));
+      }
+    });
+  ch.subscribe();
+  window._orderChannel && sb.removeChannel(window._orderChannel);
+  window._orderChannel = ch;
+}
+
+function _renderOrderTrack(o) {
+  const steps = ['pending','accepted','preparing','in_transit','delivered'];
+  const idx = Math.max(0, steps.indexOf(o.status));
+  const calc = o.calc || {};
+  const items = (o.items || []).map(it => `
+    <div class="ord-line"><span>${escapeHtml(it.name)} ×${it.qty}</span><span>${(Number(it.qty)*Number(it.price))} AVC</span></div>
+  `).join('');
+  openPanel(`
+    <h2>Order ${escapeHtml(o.short_id || '')}</h2>
+    <div class="subtitle">${escapeHtml(o.status.toUpperCase().replace('_',' '))}</div>
+
+    <div class="ord-track">
+      ${steps.map((s, i) => `
+        <div class="ord-step${i<=idx?' on':''}${i===idx?' now':''}">
+          <div class="ord-dot"></div>
+          <div class="ord-lbl">${s.replace('_',' ').toUpperCase()}</div>
+        </div>
+      `).join('<div class="ord-line-h"></div>')}
+    </div>
+
+    <div class="me-sec">Driver</div>
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;font-size:14px;color:#e6f1ff">
+      <span style="font-size:22px">${o.driver_emoji||'🚴'}</span>
+      <span>${escapeHtml(o.driver_name||'Assigning…')}</span>
+    </div>
+
+    <div class="me-sec">Items</div>
+    ${items}
+
+    <div style="margin-top:14px;padding:12px;border-radius:10px;border:1px solid rgba(255,212,126,0.18);background:rgba(255,212,126,0.04)">
+      <div class="ord-tot"><span>Subtotal</span><span>${calc.subtotal||0} AVC</span></div>
+      <div class="ord-tot"><span>Delivery</span><span>${calc.delivery_fee||0} AVC</span></div>
+      <div class="ord-tot"><span>Platform</span><span>${calc.platform_fee||0} AVC</span></div>
+      <div class="ord-tot" style="color:#ffd47e;font-weight:600;border-top:1px solid rgba(255,212,126,0.18);margin-top:6px;padding-top:6px">
+        <span>TOTAL</span><span>${calc.total||0} AVC</span>
+      </div>
+    </div>
+
+    ${o.delivery_address ? '<div class="me-sec">Deliver to</div><div style="font-size:12px;color:#a8c8ee;padding:6px 0">'+escapeHtml(o.delivery_address)+'</div>' : ''}
+    ${o.status === 'pending' ? '<div class="gadget-engage" onclick="_cancelOrder('+JSON.stringify(o.id)+')" style="margin-top:14px;border-color:rgba(255,100,100,0.3);color:#ff9e9e"><span class="verb-glyph">✕</span><span>Cancel order</span></div>' : ''}
+    <div class="gadget-engage" onclick="openOrdersTab()" style="margin-top:8px"><span class="verb-glyph">◫</span><span>All my orders</span></div>
+  `);
+}
+
+window._cancelOrder = async function(id) {
+  if (!sb) return;
+  try {
+    await sb.functions.invoke('order-status', { body: { order_id: id, status: 'cancelled' } });
+    toast('Order cancelled', 'ok');
+    closePanel();
+  } catch (e) { toast('Cancel failed: ' + (e.message||e), 'err'); }
+};
+
+window.openOrdersTab = function() {
+  openWalletPanel();
+  setTimeout(() => {
+    const seg = document.querySelector('.delivery-tabs .seg[data-tab="orders"]');
+    if (seg) seg.click();
+  }, 80);
 };
 
 window._placeVideo = function() {
@@ -2861,6 +3539,9 @@ function openMePanel() {
     <div class="gadget-engage" onclick="openWalletPanel()" style="margin-top:8px">
       <span class="verb-glyph">◍</span><span>AVC &amp; Deliveries</span>
     </div>
+    <div class="gadget-engage" onclick="openDronePanel()" style="margin-top:8px;border-color:rgba(126,235,180,0.3);color:#7eebb4">
+      <span class="verb-glyph">⟁</span><span>Drones — pair &amp; control</span>
+    </div>
     <div class="gadget-engage" onclick="_signOut()" style="margin-top:18px;border-color:rgba(255,70,70,0.3);color:#ff7070">
       <span class="verb-glyph">⏻</span><span>Sign out</span>
     </div>
@@ -3113,7 +3794,8 @@ function openWalletPanel() {
     </div>
 
     <div class="gadget-seg delivery-tabs" id="delivery-tab-seg">
-      <div class="seg active" data-tab="my-requests" onclick="switchDeliveryTab('my-requests',this)">Requests</div>
+      <div class="seg active" data-tab="orders"      onclick="switchDeliveryTab('orders',this)">Orders</div>
+      <div class="seg"        data-tab="my-requests" onclick="switchDeliveryTab('my-requests',this)">Requests</div>
       <div class="seg"        data-tab="my-runs"     onclick="switchDeliveryTab('my-runs',this)">Runs</div>
       <div class="seg"        data-tab="nearby"      onclick="switchDeliveryTab('nearby',this)">Nearby</div>
       <div class="seg"        data-tab="history"     onclick="switchDeliveryTab('history',this)">AVC log</div>
@@ -3122,8 +3804,8 @@ function openWalletPanel() {
 
     <div class="gadget-engage" onclick="openRequestDeliveryStep1()" style="margin-top:14px"><span class="verb-glyph">⊕</span><span>Request delivery</span></div>
   `);
-  _currentDeliveryTab = 'my-requests';
-  loadDeliveryTab('my-requests');
+  _currentDeliveryTab = 'orders';
+  loadDeliveryTab('orders');
 }
 
 let _currentDeliveryTab = 'my-requests';
@@ -3140,6 +3822,26 @@ async function loadDeliveryTab(tab) {
   target.innerHTML = '<div style="color:#6a8aaf">Loading…</div>';
 
   let data = [], error = null;
+  if (tab === 'orders') {
+    const { data: oData, error: oErr } = await sb.from('orders')
+      .select('id,short_id,vendor_id,items,calc,status,driver_name,driver_emoji,delivery_address,created_at')
+      .eq('customer_id', session.user.id)
+      .order('created_at', { ascending: false }).limit(40);
+    if (oErr) { target.innerHTML = `<div style="color:#ff9e9e">${escapeHtml(oErr.message)}</div>`; return; }
+    if (!oData || !oData.length) {
+      target.innerHTML = '<div style="color:#6a8aaf;padding:12px 0;font-size:13px">No orders yet. Tap a vendor on the globe, then ORDER.</div>';
+      return;
+    }
+    target.innerHTML = oData.map(o => `
+      <div class="delivery-row" onclick="openOrderTrackPanel(${JSON.stringify(o.id)})">
+        <div class="head">
+          <span class="desc">${escapeHtml(o.short_id || 'ORDER')} · ${o.driver_emoji||''} ${escapeHtml(o.driver_name||'')}</span>
+          <span class="reward">${(o.calc&&o.calc.total)||0} AVC</span>
+        </div>
+        <div class="meta">${escapeHtml(o.status.replace('_',' '))} · ${(o.items||[]).length} items · ${formatRelative(o.created_at)}</div>
+      </div>`).join('');
+    return;
+  }
   if (tab === 'my-requests') {
     ({ data, error } = await sb.from('deliveries')
       .select('*').eq('requester_id', session.user.id)
@@ -3963,28 +4665,10 @@ const aicycleHistory = [];
 
 let lastActiveProvider = null; // last provider that actually responded
 
-// Open/close chat on ring tap (long-press = voice; see below)
-let aicyclePressTimer = null, aicyclePressIsLong = false;
-$('aicycle-float').addEventListener('pointerdown', () => {
-  aicyclePressIsLong = false;
-  aicyclePressTimer = setTimeout(() => {
-    aicyclePressIsLong = true;
-    toggleVoice();
-  }, 600);  // 600ms hold = voice toggle
-});
-$('aicycle-float').addEventListener('pointerup', () => {
-  clearTimeout(aicyclePressTimer);
-  if (!aicyclePressIsLong) {
-    const opening = !aicycleChat.classList.contains('visible');
-    aicycleChat.classList.toggle('visible');
-    if (opening) {
-      aicycleChat.style.height = '';
-      aicycleChat.style.maxHeight = '';
-      renderACIModels();
-    }
-  }
-});
-$('aicycle-float').addEventListener('pointercancel', () => clearTimeout(aicyclePressTimer));
+// Aicycle press handling is unified via gadgetPress/gadgetRelease(name='ai')
+$('aicycle-float').addEventListener('pointerdown', e => gadgetPress('ai', e));
+$('aicycle-float').addEventListener('pointerup',   e => gadgetRelease('ai', e));
+$('aicycle-float').addEventListener('pointercancel', () => { delete _gadgetPress['ai']; });
 
 // Drag handle — resize panel between input-bar height and 60vh ceiling
 (function() {
