@@ -2695,35 +2695,54 @@ window.submitDelivery = async () => {
 };
 
 function openYouPanel() {
-  // Identity gadget (Gadget Law §4 translation: login → identity orb)
   if (!session) {
     openPanel(`
       <h2>Identity</h2>
-      <div class="gadget-orb-readout">Awaiting authentication</div>
+      <div class="subtitle">Sign in or create your account</div>
       <div class="gadget-orb" id="auth-orb"><div class="glyph">∅</div></div>
       <div class="gadget-cmd-wrap">
-        <input id="email" class="gadget-cmd" type="email" autocomplete="email" placeholder="email@signal.in" />
+        <input id="auth-email" class="gadget-cmd" type="email" autocomplete="email"
+          placeholder="your@email.com" />
       </div>
-      <div class="gadget-engage" id="auth-engage" onclick="sendMagicLink()">
-        <span class="verb-glyph"></span><span id="auth-engage-label">Engage identity</span>
+      <div class="gadget-cmd-wrap">
+        <input id="auth-pass" class="gadget-cmd" type="password" autocomplete="current-password"
+          placeholder="Password (leave blank for magic link)" />
       </div>
-      <div style="font-size:10px;color:#6a8aaf;letter-spacing:0.22em;text-transform:uppercase;text-align:center;margin-top:12px;font-family:'SF Mono',monospace">Magic link via email · no password</div>
+      <div style="display:flex;gap:8px;margin-top:2px">
+        <div class="gadget-engage" id="auth-signin-btn" onclick="signInPassword()" style="flex:1">
+          <span class="verb-glyph">◈</span><span id="auth-signin-lbl">Sign in</span>
+        </div>
+        <div class="gadget-engage" id="auth-signup-btn" onclick="signUpPassword()" style="flex:1;border-color:rgba(126,235,180,0.3)">
+          <span class="verb-glyph" style="background:#7eebb4;box-shadow:0 0 8px rgba(126,235,180,0.6)">⊕</span><span id="auth-signup-lbl">Register</span>
+        </div>
+      </div>
+      <div style="text-align:center;margin:14px 0 10px;font-size:9px;color:#3a5a7f;letter-spacing:0.25em;text-transform:uppercase">— or —</div>
+      <div class="gadget-engage" id="auth-magic-btn" onclick="sendMagicLink()">
+        <span class="verb-glyph">◎</span><span id="auth-magic-lbl">Send magic link to email</span>
+      </div>
+      <div id="auth-status" style="font-size:10px;color:#6a8aaf;letter-spacing:0.15em;text-align:center;margin-top:10px;min-height:16px"></div>
     `);
-    const cmd = $('email'), engage = $('auth-engage');
-    const refresh = () => engage.classList.toggle('armed', /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cmd.value.trim()));
-    cmd.addEventListener('input', refresh);
-    cmd.addEventListener('keydown', e => { if (e.key === 'Enter' && engage.classList.contains('armed')) sendMagicLink(); });
+    const emailEl = $('auth-email'), passEl = $('auth-pass');
+    const refresh = () => {
+      const ok = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((emailEl?.value||'').trim());
+      $('auth-signin-btn')?.classList.toggle('armed', ok);
+      $('auth-signup-btn')?.classList.toggle('armed', ok);
+      $('auth-magic-btn')?.classList.toggle('armed', ok);
+    };
+    emailEl?.addEventListener('input', refresh);
+    passEl?.addEventListener('input', refresh);
+    passEl?.addEventListener('keydown', e => { if (e.key === 'Enter') signInPassword(); });
+    emailEl?.addEventListener('keydown', e => { if (e.key === 'Enter') passEl?.focus(); });
     refresh();
     return;
   }
   const isOwner = !!profile?.is_owner;
-  const orbClass = isOwner ? 'signed-in owner' : 'signed-in';
   const ident = profile?.display_name || session.user.email || '?';
   const glyph = ident.trim().charAt(0).toUpperCase();
   openPanel(`
     <h2>Identity</h2>
     <div class="gadget-orb-readout">${isOwner ? 'Architect · Krypteia online' : 'Citizen · linked to globe'}</div>
-    <div class="gadget-orb ${orbClass}"><div class="glyph">${escapeHtml(glyph)}</div></div>
+    <div class="gadget-orb ${isOwner ? 'signed-in owner' : 'signed-in'}"><div class="glyph">${escapeHtml(glyph)}</div></div>
     <div style="text-align:center;font-size:14px;color:#e6f1ff;margin:-6px 0 14px">${escapeHtml(ident)}</div>
     <div class="row"><span>AVC</span><span style="color:#ffd47e">${profile?.avc_balance ?? 0}</span></div>
     <div class="row"><span>Krypteia</span><span style="color:${isOwner ? '#ffb464' : '#6a8aaf'}">${isOwner ? 'OWNER' : 'locked'}</span></div>
@@ -2758,26 +2777,66 @@ window.flyToSignal = async (id) => {
   setTimeout(() => { if (entry) openSignalPanel(entry.signal); }, 300);
 };
 
+function _authEmail() { return ($('auth-email')?.value || '').trim(); }
+function _authPass()  { return ($('auth-pass')?.value  || '').trim(); }
+function _authStatus(msg, color) {
+  const el = $('auth-status');
+  if (el) { el.textContent = msg; el.style.color = color || '#6a8aaf'; }
+}
+
+window.signInPassword = async () => {
+  if (!sb) return;
+  const email = _authEmail(), password = _authPass();
+  if (!email) return;
+  if (!password) return sendMagicLink();  // blank password → magic link
+  _authStatus('Authenticating…');
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) {
+    _authStatus(error.message, '#ff9e9e');
+  } else {
+    _authStatus('Authenticated.', '#7eebb4');
+    closePanel();
+  }
+};
+
+window.signUpPassword = async () => {
+  if (!sb) return;
+  const email = _authEmail(), password = _authPass();
+  if (!email) return;
+  if (!password || password.length < 6) {
+    _authStatus('Enter a password (min 6 chars) to register.', '#ffb464');
+    $('auth-pass')?.focus();
+    return;
+  }
+  _authStatus('Creating account…');
+  const { error } = await sb.auth.signUp({
+    email, password,
+    options: { emailRedirectTo: 'https://astranov.eu' }
+  });
+  if (error) {
+    _authStatus(error.message, '#ff9e9e');
+  } else {
+    _authStatus('Check your email to confirm your account.', '#7eebb4');
+  }
+};
+
 window.sendMagicLink = async () => {
-  const cmd = $('email');
+  if (!sb) return;
+  const email = _authEmail();
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
   const orb = $('auth-orb');
-  const engage = $('auth-engage');
-  const label = $('auth-engage-label');
-  if (!sb || !cmd?.value) return;
-  const email = cmd.value.trim();
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
   orb?.classList.add('pending');
-  if (label) label.textContent = 'Transmitting…';
-  const { error } = await sb.auth.signInWithOtp({ email });
+  _authStatus('Sending magic link…');
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: 'https://astranov.eu' }
+  });
   orb?.classList.remove('pending');
   if (error) {
-    if (orb) orb.style.borderColor = 'rgba(255,120,120,0.75)';
-    if (label) label.textContent = error.message.slice(0, 44);
-    if (engage) engage.classList.remove('armed');
+    _authStatus(error.message, '#ff9e9e');
   } else {
-    if (orb) orb.classList.add('signed-in');
-    if (label) label.textContent = 'Link sent — check email';
-    if (engage) engage.classList.add('armed');
+    orb?.classList.add('signed-in');
+    _authStatus('Magic link sent — check your email.', '#7eebb4');
   }
 };
 
