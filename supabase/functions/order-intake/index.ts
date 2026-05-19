@@ -41,10 +41,29 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}))
-    const { vendor_id, items, calc, delivery_lat, delivery_lng, delivery_address, notes } = body
+    const { vendor_id, vendor, items, calc, delivery_lat, delivery_lng, delivery_address, notes } = body
 
     if (!vendor_id || !Array.isArray(items) || items.length === 0) {
       return new Response(JSON.stringify({ error: 'vendor_id and items required' }), { status: 400, headers: cors })
+    }
+
+    // Upsert vendor row from OSM payload so orders.vendor_id always resolves
+    if (vendor && (vendor.name || vendor.lat)) {
+      try {
+        await sb.from('vendors').upsert({
+          id:       vendor_id,
+          osm_id:   vendor.osm_id ?? (vendor_id.startsWith('osm:') ? vendor_id.slice(4) : null),
+          name:     vendor.name || 'Unknown',
+          emoji:    vendor.emoji || '🎪',
+          category: vendor.category || 'shop',
+          lat:      Number(vendor.lat) || 0,
+          lng:      Number(vendor.lng) || 0,
+          address:  vendor.address ?? {},
+          tags:     vendor.tags ?? {},
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'id' })
+      } catch (_) { /* non-fatal */ }
     }
 
     const driver = DRIVERS[Math.floor(Math.random() * DRIVERS.length)]
