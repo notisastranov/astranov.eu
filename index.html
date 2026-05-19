@@ -722,12 +722,15 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   }
   #cat-filter.visible { opacity: 1; pointer-events: auto; }
   .cat-dot {
-    width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
-    border: 2px solid transparent; transition: opacity 0.2s, transform 0.15s;
-    flex-shrink: 0;
+    width: 34px; height: 34px; border-radius: 10px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-family: "Apple Color Emoji","Noto Color Emoji","Segoe UI Emoji",serif;
+    background: rgba(120,180,255,0.07); border: 1px solid rgba(120,180,255,0.14);
+    transition: opacity 0.2s, transform 0.15s, background 0.15s;
+    flex-shrink: 0; -webkit-tap-highlight-color: transparent;
   }
-  .cat-dot.off { opacity: 0.22; transform: scale(0.8); }
-  .cat-dot:active { transform: scale(0.9); }
+  .cat-dot.off { opacity: 0.2; transform: scale(0.8); background: transparent; }
+  .cat-dot:active { transform: scale(0.88); background: rgba(120,180,255,0.18); }
 
   /* ============================================================
      Messages
@@ -1840,12 +1843,15 @@ function locateUser() {
       const { latitude: lat, longitude: lng } = pos.coords;
       if (viewer) {
         viewer.camera.flyTo({
-          destination: Cesium.Cartesian3.fromDegrees(lng, lat, 18000),
-          duration: 2,
+          destination: Cesium.Cartesian3.fromDegrees(lng, lat, 420),
+          duration: 3.5,
+          orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
         });
       }
       // Store for radar and signal emit
       window._userLat = lat; window._userLng = lng;
+      // Place glowing user beacon on globe
+      setUserBeacon(lat, lng);
       // Populate globe with real-world POIs from OpenStreetMap
       fetchOSMNearby(lat, lng, 5000);
       setTimeout(() => orb.classList.remove('locked'), 4000);
@@ -1954,28 +1960,33 @@ window.startDM = (peerId, peerName) => {
    Category filter — toggle signal categories on the globe
    ============================================================== */
 const CAT_FILTER_STATE = {};
-const CAT_COLORS_HEX = {
-  news: '#00d4ff', jobs: '#7cff7c', commerce: '#ffaa00',
-  social: '#ff7edc', dating: '#ff3a6e', real_estate: '#b48cff', classifieds: '#a0a0a0'
+const CAT_EMOJIS = {
+  news:        { emoji: '📰', label: 'News'        },
+  jobs:        { emoji: '💼', label: 'Jobs'        },
+  commerce:    { emoji: '🛒', label: 'Commerce'    },
+  social:      { emoji: '💬', label: 'Social'      },
+  dating:      { emoji: '❤️', label: 'Dating'      },
+  real_estate: { emoji: '🏠', label: 'Real Estate' },
+  classifieds: { emoji: '📋', label: 'Classifieds' },
 };
 let _catFilterTimer = null;
 
 function buildCatFilter() {
   const el = $('cat-filter'); if (!el) return;
   el.innerHTML = '';
-  Object.keys(CAT_COLORS_HEX).forEach(cat => {
+  Object.keys(CAT_EMOJIS).forEach(cat => {
     if (!(cat in CAT_FILTER_STATE)) CAT_FILTER_STATE[cat] = true;
-    const dot = document.createElement('div');
-    dot.className = 'cat-dot' + (CAT_FILTER_STATE[cat] ? '' : ' off');
-    dot.style.background = CAT_COLORS_HEX[cat];
-    dot.title = cat.replace('_',' ');
-    dot.addEventListener('click', () => {
+    const btn = document.createElement('div');
+    btn.className = 'cat-dot' + (CAT_FILTER_STATE[cat] ? '' : ' off');
+    btn.title = CAT_EMOJIS[cat].label;
+    btn.textContent = CAT_EMOJIS[cat].emoji;
+    btn.addEventListener('click', () => {
       CAT_FILTER_STATE[cat] = !CAT_FILTER_STATE[cat];
-      dot.classList.toggle('off', !CAT_FILTER_STATE[cat]);
+      btn.classList.toggle('off', !CAT_FILTER_STATE[cat]);
       applyCatFilter();
       _flashCatFilter();
     });
-    el.appendChild(dot);
+    el.appendChild(btn);
   });
 }
 
@@ -2005,6 +2016,10 @@ function _flashCatFilter() {
    ============================================================== */
 let signalPoints = null;         // PointPrimitiveCollection
 const signalIndex = new Map();   // id -> { primitive, signal }
+
+let userBillboards = null;
+let userBillboard  = null;
+let _userBeaconRaf = 0;
 
 const CATEGORY_COLORS = {
   news:        Cesium.Color.fromCssColorString('#00d4ff'),
@@ -2057,6 +2072,67 @@ function removeSignalPoint(id) {
   signalPoints.remove(entry.primitive);
   signalIndex.delete(id);
   viewer.scene.requestRender();
+}
+
+/* ==============================================================
+   User location beacon — glowing, hovering "you are here" marker
+   ============================================================== */
+function _makeUserBeaconCanvas() {
+  const sz = 80, cx = sz / 2;
+  const c = document.createElement('canvas'); c.width = c.height = sz;
+  const ctx = c.getContext('2d');
+  // Outer soft glow
+  const g = ctx.createRadialGradient(cx, cx, 4, cx, cx, cx);
+  g.addColorStop(0, 'rgba(0,212,255,0.8)');
+  g.addColorStop(0.45, 'rgba(0,212,255,0.25)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, sz, sz);
+  // Dashed orbit ring
+  ctx.save(); ctx.setLineDash([3, 4]);
+  ctx.beginPath(); ctx.arc(cx, cx, cx - 4, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(0,212,255,0.45)'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.restore();
+  // Solid filled circle
+  ctx.beginPath(); ctx.arc(cx, cx, cx - 20, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,180,255,0.94)'; ctx.fill();
+  ctx.shadowColor = '#00d4ff'; ctx.shadowBlur = 16;
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.shadowBlur = 0;
+  // White center dot
+  ctx.beginPath(); ctx.arc(cx, cx, 5, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff'; ctx.fill();
+  return c;
+}
+
+function setUserBeacon(lat, lng) {
+  if (!viewer) return;
+  if (!userBillboards) {
+    userBillboards = viewer.scene.primitives.add(new Cesium.BillboardCollection({ scene: viewer.scene }));
+  }
+  if (userBillboard) { userBillboards.remove(userBillboard); userBillboard = null; }
+  cancelAnimationFrame(_userBeaconRaf);
+
+  userBillboard = userBillboards.add({
+    position: Cesium.Cartesian3.fromDegrees(Number(lng), Number(lat)),
+    image: _makeUserBeaconCanvas(),
+    width: 58,
+    height: 58,
+    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+    scaleByDistance: new Cesium.NearFarScalar(100, 2.0, 4e5, 0.2),
+    translucencyByDistance: new Cesium.NearFarScalar(3e5, 1.0, 8e5, 0),
+    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+    eyeOffset: new Cesium.Cartesian3(0, 0, -5),
+  });
+
+  let t = 0;
+  (function animateBeacon() {
+    if (!userBillboard) return;
+    t += 0.038;
+    userBillboard.scale = 1 + 0.2 * Math.abs(Math.sin(t * 0.75));
+    userBillboard.pixelOffset = new Cesium.Cartesian2(0, Math.sin(t) * 5 - 3);
+    viewer.scene.requestRender();
+    _userBeaconRaf = requestAnimationFrame(animateBeacon);
+  })();
 }
 
 /* ==============================================================
@@ -2207,6 +2283,7 @@ async function _autoLoadPlaces() {
     if (d && d.latitude) {
       window._userLat = d.latitude; window._userLng = d.longitude;
       fetchOSMNearby(d.latitude, d.longitude, 8000);
+      setUserBeacon(d.latitude, d.longitude);
       if (viewer) {
         viewer.camera.flyTo({
           destination: Cesium.Cartesian3.fromDegrees(d.longitude, d.latitude, 40000),
