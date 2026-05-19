@@ -435,10 +435,19 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   #aicycle-chat.visible { transform: translateY(0); }
   #aicycle-chat.resizing { transition: none; }
   #aicycle-drag-handle {
-    width: 36px; height: 4px; border-radius: 2px;
-    background: rgba(120, 180, 255, 0.3); margin: 8px auto 2px;
-    cursor: ns-resize; flex-shrink: 0; touch-action: none;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 10px 0 2px; cursor: ns-resize; flex-shrink: 0; touch-action: none;
   }
+  #aicycle-drag-handle::before {
+    content: ''; display: block; width: 36px; height: 4px; border-radius: 2px;
+    background: rgba(120, 180, 255, 0.3); flex-shrink: 0;
+  }
+  #aicycle-title {
+    font-size: 9px; letter-spacing: 0.35em; text-transform: uppercase;
+    color: rgba(120,180,255,0.5); font-family: 'SF Mono',monospace;
+    pointer-events: none; user-select: none;
+  }
+  #aicycle-float .provider { transition: opacity 0.4s; }
   #aicycle-chat .messages {
     overflow-y: auto; -webkit-overflow-scrolling: touch;
     padding: 8px 16px 4px; min-height: 0;
@@ -1067,7 +1076,7 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   <canvas class="gfx-canvas" id="gfx-ai" width="64" height="64"></canvas>
   <div class="ring"></div>
   <div class="node"></div>
-  <div class="provider" id="aicycle-provider">AUTO</div>
+  <div class="provider" id="aicycle-provider">ASTRANOV</div>
 </div>
 
 <!-- Transient UI -->
@@ -1100,10 +1109,10 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 </div>
 <div id="panel"></div>
 <div id="aicycle-chat">
-  <div id="aicycle-drag-handle"></div>
+  <div id="aicycle-drag-handle"><span id="aicycle-title">ASTRANOV INTELLIGENCE</span></div>
   <div class="messages" id="aicycle-messages"></div>
   <form id="aicycle-form" autocomplete="off">
-    <input id="aicycle-input" class="gadget-cmd" type="text" placeholder="Ask the cycle…" style="margin-top:0;flex:1" />
+    <input id="aicycle-input" class="gadget-cmd" type="text" placeholder="Talk to Astranov…" style="margin-top:0;flex:1" />
     <div id="aicycle-mic" title="Voice input" role="button" style="background:rgba(120,180,255,0.08);border:1.5px solid rgba(120,180,255,0.25);border-radius:50%;width:36px;height:36px;font-size:15px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:box-shadow 0.2s">◎</div>
     <div id="aicycle-send" role="button" onclick="$('aicycle-form').dispatchEvent(new Event('submit',{cancelable:true,bubbles:true}))" style="background:rgba(120,180,255,0.12);border:1.5px solid rgba(120,180,255,0.35);border-radius:50%;width:36px;height:36px;font-size:16px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#7eb4ff;transition:box-shadow 0.2s">◈</div>
   </form>
@@ -1477,6 +1486,7 @@ function bootSupabase() {
   sb.auth.getSession().then(({ data }) => {
     session = data.session;
     if (session) loadProfile();
+    else tryAutoCredentials();
   });
 
   sb.auth.onAuthStateChange((_evt, s) => {
@@ -2720,6 +2730,9 @@ function openYouPanel() {
       <div class="gadget-engage" id="auth-magic-btn" onclick="sendMagicLink()">
         <span class="verb-glyph">◎</span><span id="auth-magic-lbl">Send magic link to email</span>
       </div>
+      <div class="gadget-engage" onclick="signInGoogle()" style="margin-top:8px;border-color:rgba(255,255,255,0.15)">
+        <span class="verb-glyph" style="background:#fff;color:#333;font-size:13px;font-weight:700;box-shadow:none">G</span><span>Continue with Google</span>
+      </div>
       <div id="auth-status" style="font-size:10px;color:#6a8aaf;letter-spacing:0.15em;text-align:center;margin-top:10px;min-height:16px"></div>
     `);
     const emailEl = $('auth-email'), passEl = $('auth-pass');
@@ -2795,9 +2808,42 @@ window.signInPassword = async () => {
     _authStatus(error.message, '#ff9e9e');
   } else {
     _authStatus('Authenticated.', '#7eebb4');
+    // Store credentials in browser password manager for future auto-login
+    if (navigator.credentials?.store && window.PasswordCredential) {
+      try { await navigator.credentials.store(new PasswordCredential({ id: email, password })); } catch (_) {}
+    }
     closePanel();
   }
 };
+
+window.signInGoogle = async () => {
+  if (!sb) return toast('Connecting…');
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: 'https://astranov.eu' }
+  });
+  if (error) toast(error.message, 'err');
+};
+
+async function tryAutoCredentials() {
+  if (session || !sb) return;
+  // Try browser's saved password manager silently (no UI prompt)
+  if (navigator.credentials?.get) {
+    try {
+      const cred = await navigator.credentials.get({ password: true, mediation: 'silent' });
+      if (cred?.type === 'password' && cred.id && cred.password) {
+        const { error } = await sb.auth.signInWithPassword({ email: cred.id, password: cred.password });
+        if (!error) return; // auto signed in
+      }
+    } catch (_) {}
+  }
+  // First-visit nudge — show once, non-blocking
+  const key = 'av_identity_nudge_v1';
+  if (!localStorage.getItem(key)) {
+    localStorage.setItem(key, '1');
+    setTimeout(() => { if (!session) toast('Tap ME ◉ to connect your identity', ''); }, 3500);
+  }
+}
 
 window.signUpPassword = async () => {
   if (!sb) return;
@@ -3231,7 +3277,7 @@ $('aicycle-form').addEventListener('submit', async e => {
   try {
     const resp = await callAICycle(text);
     appendAICycleMessage('ai', resp.response, resp.label || resp.provider, resp.via);
-    $('aicycle-provider').textContent = '× ' + (resp.provider || 'auto').toUpperCase();
+    _setAILabel(resp.provider || null);
   } catch (err) {
     appendAICycleMessage('ai', '(cycle unreachable — /aicycle Edge Function not responding)', 'offline', 'fallback');
   } finally {
@@ -3251,13 +3297,37 @@ async function callAICycle(prompt) {
   return data;
 }
 
+function _setAILabel(provider) {
+  const el = $('aicycle-provider');
+  if (!el) return;
+  if (!provider || provider === 'auto' || provider === 'offline') {
+    el.style.opacity = '0';
+    setTimeout(() => { el.textContent = 'ASTRANOV'; el.style.opacity = '1'; }, 350);
+    return;
+  }
+  el.style.opacity = '0';
+  setTimeout(() => {
+    el.textContent = '× ' + provider.toUpperCase();
+    el.style.opacity = '1';
+    clearTimeout(el._resetTimer);
+    el._resetTimer = setTimeout(() => {
+      el.style.opacity = '0';
+      setTimeout(() => { el.textContent = 'ASTRANOV'; el.style.opacity = '1'; }, 350);
+    }, 5000);
+  }, 350);
+}
+
 function appendAICycleMessage(role, text, provider, via) {
   const div = document.createElement('div');
   div.className = 'msg ' + role;
-  if (role === 'ai' && (provider || via)) {
+  if (role === 'ai') {
     const v = document.createElement('div');
     v.className = 'via';
-    v.textContent = `${provider || ''}${via ? ' · ' + via : ''}`;
+    if (provider && provider !== 'offline' && provider !== 'system') {
+      v.textContent = 'Astranov · ' + provider.toUpperCase();
+    } else {
+      v.textContent = 'Astranov';
+    }
     div.appendChild(v);
   }
   const t = document.createElement('div');
@@ -3267,7 +3337,7 @@ function appendAICycleMessage(role, text, provider, via) {
   aicycleMessages.scrollTop = aicycleMessages.scrollHeight;
   if (role === 'ai' && provider && provider !== 'offline') {
     lastActiveProvider = provider;
-    $('aicycle-provider').textContent = '× ' + provider.toUpperCase();
+    _setAILabel(provider);
   }
 }
 
