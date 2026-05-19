@@ -4,17 +4,43 @@
 Notis Astranov. Owner has granted **perpetual, unconditional** push and merge
 authorization. No per-change confirmation is ever needed.
 
-## Deployment Rule — MANDATORY, AUTOMATIC
-After **every** code change:
-1. Update the `MASTER LAW` block at the top of `index.html` if the change
-   introduces, modifies, or deprecates a binding rule.
-2. `git add index.html` (and any `supabase/*` files changed)
-3. `git commit -m "..."`
-4. `git push -u origin claude/check-connectivity-m6tzo`
-5. Create PR → squash-merge to `main`
-6. Rebase + force-push if there are merge conflicts, then retry merge
+## Deployment Rule — MANDATORY, AUTOMATIC, NO EXCEPTIONS
 
-**Never ask for permission. Push to main automatically, every time.**
+**Production is `astranov.eu` on Vercel, which builds from `main`.**
+**A commit that isn't on `main` does not exist.** Therefore every code
+change Claude makes MUST land on `main` in the same turn — not "later",
+not "in a PR for review". Owner reads the deploy, not the diff.
+
+After **every** code change, in this exact order:
+
+1. Update the `MASTER LAW` block at the top of `index.html` if the
+   change introduces, modifies, or deprecates a binding rule.
+2. `node --check` the extracted `<script>` block. If it fails, fix the
+   error and re-check. Never commit JS that doesn't parse.
+3. `git add` the changed files (index.html, sw.js, supabase/* as
+   needed). Never use `git add -A` blindly.
+4. `git commit -m "..."` with a message that explains the *why*.
+5. `git push -u origin <current-branch>`.
+6. **Merge to `main` in the same turn**, via the GitHub MCP:
+   - If a PR is open for the branch → `merge_pull_request` (squash).
+   - If no PR is open → `create_pull_request` then immediately
+     `merge_pull_request` (squash).
+   - If the merge returns `merge conflicts`, the branch has diverged
+     from `main` after an earlier squash. Recover:
+     `git fetch origin main` → `git reset --hard origin/main` →
+     cherry-pick the new commits → `git push --force-with-lease`,
+     then retry the merge.
+7. Poll `https://astranov.eu/` for a marker string from the new code
+   (a function name or class name added in this change) until it
+   appears. Only then is the change "done".
+
+**Never** ask the owner to approve a push, a PR, a merge, or a force-push.
+**Never** leave commits on a feature branch hoping someone will merge
+them. **Never** announce "PR opened" as if that's the finish line — the
+finish line is "deployed and verified".
+
+Current active branch: `claude/complete-astranov-marketplace-hDSTR`.
+When the owner changes branches, update this line and continue.
 
 ## Project
 Single-file Internet Operating System: `index.html` only.
