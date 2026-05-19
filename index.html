@@ -1083,6 +1083,77 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   #fatal h1 { font-size: 14px; letter-spacing: 0.4em; color: #ff6b6b;
               text-transform: uppercase; margin: 0 0 12px; }
   #fatal p  { font-size: 13px; color: #8aa; max-width: 400px; line-height: 1.5; }
+
+  /* ============================================================
+     Vendor / Place tile — rich business panel
+     ============================================================ */
+  .place-hero { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 18px; }
+  .place-icon {
+    width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-family: 'SF Mono',monospace; font-weight: 700;
+    border: 1.5px solid currentColor; position: relative;
+    background: rgba(6,14,28,0.9);
+  }
+  .place-icon::after {
+    content: ''; position: absolute; inset: -5px; border-radius: 19px;
+    border: 1px solid currentColor; opacity: 0.22; pointer-events: none;
+  }
+  .place-head { flex: 1; min-width: 0; }
+  .place-name { font-size: 16px; font-weight: 600; color: #e6f1ff; line-height: 1.2;
+                margin-bottom: 5px; word-break: break-word; }
+  .place-badge {
+    display: inline-block; font-size: 8px; letter-spacing: 0.14em;
+    text-transform: uppercase; padding: 2px 9px; border-radius: 999px;
+    border: 1px solid currentColor; margin-bottom: 7px;
+  }
+  .place-addr { font-size: 12px; color: #6a8aaf; }
+
+  /* 5-button action strip */
+  .place-actions { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 18px; }
+  .place-act {
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    padding: 10px 2px 8px; border-radius: 12px; cursor: pointer;
+    border: 1px solid rgba(120,180,255,0.13);
+    background: rgba(120,180,255,0.04);
+    transition: background 0.18s, border-color 0.18s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .place-act:active { background: rgba(120,180,255,0.14); border-color: rgba(120,180,255,0.35); }
+  .place-act-icon { font-size: 16px; }
+  .place-act-lbl { font-size: 7px; letter-spacing: 0.12em; text-transform: uppercase; color: #6a8aaf; }
+
+  /* Tab bar */
+  .place-tabs {
+    display: flex; border-bottom: 1px solid rgba(120,180,255,0.1); margin-bottom: 14px;
+  }
+  .place-tab {
+    padding: 7px 14px; font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: #6a8aaf; cursor: pointer; border-bottom: 2px solid transparent;
+    margin-bottom: -1px; transition: all 0.2s; flex: 1; text-align: center;
+  }
+  .place-tab.active { color: #7eb4ff; border-bottom-color: #7eb4ff; }
+  .place-tab-body { min-height: 60px; }
+
+  /* Info rows inside tab body */
+  .pl-row {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 9px 0; border-bottom: 1px solid rgba(120,180,255,0.07); font-size: 13px;
+  }
+  .pl-row:last-child { border-bottom: 0; }
+  .pl-key { color: #6a8aaf; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
+  .pl-val { color: #a8c8ee; text-align: right; max-width: 68%; word-break: break-word; }
+
+  /* ACI ask button at bottom of place panel */
+  .place-aci {
+    margin-top: 14px; padding: 13px 16px; border-radius: 14px;
+    border: 1px solid rgba(0,212,255,0.28); background: rgba(0,212,255,0.04);
+    display: flex; align-items: center; gap: 10px; cursor: pointer;
+    transition: background 0.18s; -webkit-tap-highlight-color: transparent;
+  }
+  .place-aci:active { background: rgba(0,212,255,0.1); }
+  .place-aci-g { font-size: 17px; color: #00d4ff; }
+  .place-aci-t { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #00d4ff; }
 </style>
 </head>
 <body>
@@ -1522,6 +1593,7 @@ function bootSupabase() {
   loadSignals();
   loadDeliveries();
   subscribeRealtime();
+  _autoLoadPlaces();
 }
 
 async function loadProfile() {
@@ -1987,64 +2059,133 @@ function removeSignalPoint(id) {
 }
 
 /* ==============================================================
-   OSM / Overpass — real-world POI pins on the globe
+   OSM / Overpass — vendor billboard dots on the globe
    ============================================================== */
 const OVERPASS_API = 'https://overpass-api.de/api/interpreter';
-let placePoints = null;
-const placeIndex = new Map(); // 'osm:ID' -> { primitive, place }
-let _osmFetchedZones = new Set(); // track fetched tile zones to avoid duplicate requests
+let placeBillboards = null;
+const placeIndex = new Map();   // 'osm:ID' -> { primitive, place }
+const _osmFetchedZones = new Set();
 
-function _ensurePlaceCollection() {
-  if (!placePoints && viewer) {
-    placePoints = viewer.scene.primitives.add(new Cesium.PointPrimitiveCollection());
-  }
+// Category metadata: color + HUD glyph
+const _CAT_INFO = {
+  food:       { color: '#ff9944', glyph: 'F', label: 'Food & Drink' },
+  cafe:       { color: '#ffcc55', glyph: 'C', label: 'Café' },
+  bar:        { color: '#ff5577', glyph: 'B', label: 'Bar / Pub' },
+  hotel:      { color: '#b48cff', glyph: 'H', label: 'Hotel' },
+  shop:       { color: '#ffaa33', glyph: 'S', label: 'Shop' },
+  medical:    { color: '#ff4466', glyph: '+', label: 'Medical' },
+  bank:       { color: '#44ddaa', glyph: '$', label: 'Bank' },
+  museum:     { color: '#ffdd55', glyph: 'M', label: 'Culture' },
+  attraction: { color: '#00d4ff', glyph: 'A', label: 'Attraction' },
+  supermarket:{ color: '#88ee44', glyph: 'G', label: 'Grocery' },
+  default:    { color: '#8899bb', glyph: 'P', label: 'Place' },
+};
+
+function _catKey(tags) {
+  const a = tags.amenity || '', s = tags.shop || '', t = tags.tourism || '';
+  if (/restaurant|fast_food|food_court/.test(a)) return 'food';
+  if (/cafe/.test(a)) return 'cafe';
+  if (/bar|pub/.test(a)) return 'bar';
+  if (/hotel|hostel|motel/.test(a + t)) return 'hotel';
+  if (/hospital|clinic|pharmacy|doctors/.test(a)) return 'medical';
+  if (/bank|atm/.test(a)) return 'bank';
+  if (/museum|gallery|theatre|cinema/.test(a + t)) return 'museum';
+  if (/attraction|viewpoint/.test(t)) return 'attraction';
+  if (/supermarket|convenience/.test(a + s)) return 'supermarket';
+  if (s) return 'shop';
+  return 'default';
 }
 
-function _osmColor(tags) {
-  const a = tags.amenity || '';
-  const s = tags.shop    || '';
-  const t = tags.tourism || '';
-  if (/restaurant|cafe|fast_food|pub|bar|food_court/.test(a)) return Cesium.Color.fromCssColorString('#ff9944');
-  if (/hotel|hostel|motel/.test(a) || /hotel|hostel|motel/.test(t)) return Cesium.Color.fromCssColorString('#b48cff');
-  if (/hospital|clinic|pharmacy|doctors/.test(a))  return Cesium.Color.fromCssColorString('#ff4466');
-  if (/bank|atm/.test(a))                          return Cesium.Color.fromCssColorString('#44ddaa');
-  if (/supermarket|convenience|grocery/.test(a+s)) return Cesium.Color.fromCssColorString('#88ee44');
-  if (/museum|gallery|theatre|cinema/.test(a+t))   return Cesium.Color.fromCssColorString('#ffdd55');
-  if (/attraction|viewpoint/.test(t))              return Cesium.Color.fromCssColorString('#00d4ff');
-  if (s) return Cesium.Color.fromCssColorString('#ffaa33');
-  return Cesium.Color.fromCssColorString('#cccccc');
+// Canvas icon cache — one icon canvas per category key
+const _placeIconCache = new Map();
+
+function _makePlaceCanvas(catKey) {
+  if (_placeIconCache.has(catKey)) return _placeIconCache.get(catKey);
+  const sz = 56, cx = sz / 2;
+  const c = document.createElement('canvas'); c.width = c.height = sz;
+  const ctx = c.getContext('2d');
+  const info = _CAT_INFO[catKey] || _CAT_INFO.default;
+  const col = info.color;
+
+  // Outer glow ring
+  const grd = ctx.createRadialGradient(cx, cx, 6, cx, cx, cx);
+  grd.addColorStop(0, col + '44'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, sz, sz);
+
+  // Dashed outer ring (HUD style)
+  ctx.setLineDash([3, 4]);
+  ctx.beginPath(); ctx.arc(cx, cx, cx - 4, 0, Math.PI * 2);
+  ctx.strokeStyle = col + '55'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Body circle
+  ctx.beginPath(); ctx.arc(cx, cx, cx - 10, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(5, 12, 26, 0.9)'; ctx.fill();
+  ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+
+  // Corner tick marks
+  [0, 90, 180, 270].forEach(deg => {
+    const rad = (deg - 45) * Math.PI / 180;
+    const r1 = cx - 8, r2 = cx - 4;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(rad) * r1, cx + Math.sin(rad) * r1);
+    ctx.lineTo(cx + Math.cos(rad) * r2, cx + Math.sin(rad) * r2);
+    ctx.strokeStyle = col + 'aa'; ctx.lineWidth = 1.5; ctx.stroke();
+  });
+
+  // Category letter
+  ctx.font = 'bold 16px "SF Mono", Menlo, monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = col;
+  ctx.shadowColor = col; ctx.shadowBlur = 8;
+  ctx.fillText(info.glyph, cx, cx + 1);
+  ctx.shadowBlur = 0;
+
+  _placeIconCache.set(catKey, c);
+  return c;
+}
+
+function _ensureBillboardCollection() {
+  if (!placeBillboards && viewer) {
+    placeBillboards = viewer.scene.primitives.add(new Cesium.BillboardCollection({ scene: viewer.scene }));
+  }
 }
 
 function addPlacePoint(place) {
   if (!viewer || !place.lat || !place.lon) return;
-  _ensurePlaceCollection();
+  const tags = place.tags || {};
+  if (!tags.name) return; // skip unnamed POIs
+  _ensureBillboardCollection();
   const key = 'osm:' + place.id;
   if (placeIndex.has(key)) return;
-  const color = _osmColor(place.tags || {});
-  const primitive = placePoints.add({
+  const catKey = _catKey(tags);
+  const icon = _makePlaceCanvas(catKey);
+  const billboard = placeBillboards.add({
     position: Cesium.Cartesian3.fromDegrees(Number(place.lon), Number(place.lat)),
-    pixelSize: 8,
-    color: color.withAlpha(0.9),
-    outlineColor: Cesium.Color.WHITE.withAlpha(0.5),
-    outlineWidth: 1.5,
-    scaleByDistance: new Cesium.NearFarScalar(1.5e2, 1.6, 1.5e6, 0.5),
+    image: icon,
+    width: 44,
+    height: 44,
+    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+    pixelOffset: new Cesium.Cartesian2(0, 6),
+    scaleByDistance: new Cesium.NearFarScalar(300, 1.1, 1.5e6, 0.15),
+    translucencyByDistance: new Cesium.NearFarScalar(8e5, 1.0, 2e6, 0),
+    eyeOffset: new Cesium.Cartesian3(0, 0, -10),
   });
-  primitive.__placeId = key;
-  placeIndex.set(key, { primitive, place });
+  billboard.__placeId = key;
+  placeIndex.set(key, { primitive: billboard, place });
   viewer.scene.requestRender();
 }
 
 async function fetchOSMNearby(lat, lng, radiusM) {
-  radiusM = radiusM || 5000;
-  // Zone key: 0.1° grid to avoid re-fetching same area
+  radiusM = radiusM || 6000;
   const zk = Math.round(lat * 10) + ',' + Math.round(lng * 10);
   if (_osmFetchedZones.has(zk)) return;
   _osmFetchedZones.add(zk);
   const q = '[out:json][timeout:25];('
-    + 'node["name"]["amenity"~"restaurant|cafe|bar|fast_food|pub|hotel|pharmacy|bank|atm|supermarket|hospital|clinic|cinema|theatre|museum"](around:' + radiusM + ',' + lat + ',' + lng + ');'
+    + 'node["name"]["amenity"~"restaurant|cafe|bar|fast_food|pub|hotel|pharmacy|bank|atm|supermarket|hospital|clinic|cinema|theatre|museum|doctors|convenience"](around:' + radiusM + ',' + lat + ',' + lng + ');'
     + 'node["name"]["shop"](around:' + radiusM + ',' + lat + ',' + lng + ');'
     + 'node["name"]["tourism"~"hotel|hostel|motel|attraction|museum|gallery|viewpoint"](around:' + radiusM + ',' + lat + ',' + lng + ');'
-    + ');out 500;';
+    + ');out 600;';
   try {
     const resp = await fetch(OVERPASS_API, {
       method: 'POST',
@@ -2055,48 +2196,169 @@ async function fetchOSMNearby(lat, lng, radiusM) {
     const json = await resp.json();
     const elements = json.elements || [];
     elements.forEach(addPlacePoint);
-    if (elements.length) toast(elements.length + ' places loaded near you', '');
+    if (elements.length) toast(elements.length + ' vendors on globe', '');
   } catch (e) { console.warn('[OSM]', e); }
 }
 
+// Auto-load vendors via IP geolocation on first boot (no GPS needed)
+async function _autoLoadPlaces() {
+  if (window._userLat) { fetchOSMNearby(window._userLat, window._userLng, 6000); return; }
+  try {
+    const r = await fetch('https://ipapi.co/json/');
+    const d = await r.json();
+    if (d && d.latitude) {
+      window._userLat = d.latitude; window._userLng = d.longitude;
+      fetchOSMNearby(d.latitude, d.longitude, 8000);
+      if (viewer) {
+        viewer.camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(d.longitude, d.latitude, 40000),
+          duration: 3,
+        });
+      }
+    }
+  } catch (_) {}
+}
+
+// Rich vendor panel with action strip + tabs
 function openPlacePanel(place) {
   const t = place.tags || {};
   const name = t.name || 'Unknown place';
-  const cat = t.amenity || t.shop || t.tourism || 'place';
+  const catKey = _catKey(t);
+  const info = _CAT_INFO[catKey] || _CAT_INFO.default;
   const phone = t.phone || t['contact:phone'] || '';
   const website = t.website || t['contact:website'] || '';
   const hours = t.opening_hours || '';
   const addr = [t['addr:housenumber'], t['addr:street'], t['addr:city']].filter(Boolean).join(' ');
-  const cuisine = t.cuisine ? '<div class="row"><span>Cuisine</span><span>' + escapeHtml(t.cuisine.replace(/_/g,' ')) + '</span></div>' : '';
-  const phoneRow = phone ? '<div class="row"><span>Phone</span><span><a href="tel:' + escapeHtml(phone) + '" style="color:#7eebb4">' + escapeHtml(phone) + '</a></span></div>' : '';
-  const hoursRow = hours ? '<div class="row"><span>Hours</span><span style="font-size:11px;color:#a8c8ee">' + escapeHtml(hours) + '</span></div>' : '';
-  const addrRow = addr ? '<div class="row"><span>Address</span><span style="color:#a8c8ee">' + escapeHtml(addr) + '</span></div>' : '';
-  const webBtn = website ? '<div class="gadget-engage" onclick="window.open(' + JSON.stringify(website) + ',\'_blank\',\'noopener\')" style="margin-top:8px"><span class="verb-glyph">↗</span><span>Visit website</span></div>' : '';
-  const aciBtn = '<div class="gadget-engage" onclick="askACIAboutPlace(' + JSON.stringify(name) + ',' + JSON.stringify(cat) + ',' + JSON.stringify(website) + ')" style="margin-top:8px;border-color:rgba(0,212,255,0.4)"><span class="verb-glyph">◈</span><span>Ask Astranov about this</span></div>';
-  const msgBtn = '<div class="gadget-engage" onclick="startDMToPlace(' + JSON.stringify(name) + ',' + JSON.stringify(phone) + ',' + JSON.stringify(website) + ')" style="margin-top:6px;border-color:rgba(126,235,180,0.35)"><span class="verb-glyph">◫</span><span>Contact place</span></div>';
-  const html = '<h2>' + escapeHtml(name) + '</h2>'
-    + '<div class="subtitle">' + escapeHtml(cat.replace(/_/g,' ').toUpperCase()) + '</div>'
-    + addrRow + cuisine + phoneRow + hoursRow
-    + webBtn + aciBtn + msgBtn;
+  const cuisine = t.cuisine ? t.cuisine.replace(/_/g, ' ') : '';
+  const nameJ = JSON.stringify(name);
+  const catJ  = JSON.stringify(info.label);
+  const webJ  = JSON.stringify(website);
+  const phJ   = JSON.stringify(phone);
+
+  // Action: phone call
+  const callAct = phone
+    ? 'window.open(' + JSON.stringify('tel:' + phone) + ')'
+    : 'toast("No phone number listed","err")';
+  // Action: website booking
+  const bookAct = website
+    ? 'window.open(' + webJ + ',"_blank","noopener")'
+    : 'toast("No website listed — ask ACI for booking options","")';
+
+  const html = `
+<div class="place-hero">
+  <div class="place-icon" style="color:${info.color}">${info.glyph}
+    <div class="place-icon::after"></div>
+  </div>
+  <div class="place-head">
+    <div class="place-name">${escapeHtml(name)}</div>
+    <div class="place-badge" style="color:${info.color}">${escapeHtml(info.label)}</div>
+    ${addr ? '<div class="place-addr">' + escapeHtml(addr) + '</div>' : ''}
+  </div>
+</div>
+<div class="place-actions">
+  <div class="place-act" onclick="${escapeHtml(callAct)}">
+    <div class="place-act-icon" style="color:#7eebb4">◈</div>
+    <div class="place-act-lbl">CALL</div>
+  </div>
+  <div class="place-act" onclick="startDMToPlace(${nameJ},${phJ},${webJ})">
+    <div class="place-act-icon" style="color:#7eb4ff">◫</div>
+    <div class="place-act-lbl">MESSAGE</div>
+  </div>
+  <div class="place-act" onclick="${escapeHtml(bookAct)}">
+    <div class="place-act-icon" style="color:#b48cff">⊞</div>
+    <div class="place-act-lbl">BOOK</div>
+  </div>
+  <div class="place-act" onclick="orderFromPlace(${nameJ},${webJ})">
+    <div class="place-act-icon" style="color:#ffaa33">⊕</div>
+    <div class="place-act-lbl">ORDER</div>
+  </div>
+  <div class="place-act" onclick="videoCallPlace(${nameJ})">
+    <div class="place-act-icon" style="color:#ff5577">◉</div>
+    <div class="place-act-lbl">VIDEO</div>
+  </div>
+</div>
+<div class="place-tabs" id="ptabs">
+  <div class="place-tab active" onclick="placeSwitchTab('info')">INFO</div>
+  <div class="place-tab" onclick="placeSwitchTab('menu')">MENU</div>
+  <div class="place-tab" onclick="placeSwitchTab('media')">MEDIA</div>
+</div>
+<div class="place-tab-body" id="ptab-body">${_placeInfoTab(t, phone, hours, cuisine, website)}</div>
+<div class="place-aci" onclick="askACIAboutPlace(${nameJ},${catJ},${webJ})">
+  <div class="place-aci-g">◈</div>
+  <div class="place-aci-t">Ask Astranov Collective Intelligence</div>
+</div>`;
   openPanel(html);
+  // Store current place for tab switching
+  window._currentPlace = { tags: t, name, catKey, info, phone, website, hours, cuisine };
 }
+
+function _placeInfoTab(t, phone, hours, cuisine, website) {
+  const rows = [];
+  if (hours) rows.push(['Hours', escapeHtml(hours)]);
+  if (cuisine) rows.push(['Cuisine', escapeHtml(cuisine)]);
+  if (phone) rows.push(['Phone', '<a href="tel:' + escapeHtml(phone) + '" style="color:#7eebb4">' + escapeHtml(phone) + '</a>']);
+  if (website) rows.push(['Website', '<a onclick="window.open(' + JSON.stringify(website) + ',\'_blank\',\'noopener\')" style="color:#7eb4ff;cursor:pointer">↗ Open</a>']);
+  if (!rows.length) rows.push(['', '<span style="color:#6a8aaf;font-size:12px">No additional info in OpenStreetMap yet</span>']);
+  return rows.map(([k,v]) => '<div class="pl-row"><span class="pl-key">' + k + '</span><span class="pl-val">' + v + '</span></div>').join('');
+}
+
+window.placeSwitchTab = function(tab) {
+  document.querySelectorAll('.place-tab').forEach((el, i) => {
+    const tabs = ['info','menu','media'];
+    el.classList.toggle('active', tabs[i] === tab);
+  });
+  const body = $('ptab-body');
+  if (!body) return;
+  const p = window._currentPlace || {};
+  if (tab === 'info') {
+    body.innerHTML = _placeInfoTab(p.tags||{}, p.phone, p.hours, p.cuisine, p.website);
+  } else if (tab === 'menu') {
+    body.innerHTML = '<div style="color:#6a8aaf;font-size:13px;padding:10px 0">Ask Astranov to describe the menu and offerings for this place.</div>'
+      + '<div class="place-aci" style="margin-top:10px" onclick="askACIAboutPlace(' + JSON.stringify(p.name) + ',' + JSON.stringify(p.info ? p.info.label : 'place') + ',' + JSON.stringify(p.website||'') + ')">'
+      + '<div class="place-aci-g">◈</div><div class="place-aci-t">Ask ACI for menu & offerings</div></div>';
+  } else if (tab === 'media') {
+    body.innerHTML = '<div style="color:#6a8aaf;font-size:13px;padding:10px 0">Video tours, product videos, and live feeds — coming soon as vendors join Astranov.</div>';
+  }
+};
+
+window.orderFromPlace = function(name, website) {
+  if (!session) return openMePanel();
+  if (website) {
+    const chatEl = $('aicycle-chat');
+    if (chatEl && !chatEl.classList.contains('visible')) chatEl.classList.add('visible');
+    const inp = $('aicycle-input');
+    if (inp) inp.value = 'I want to order from ' + name + '. Can you help me find the menu and place an order via their website: ' + website;
+    setTimeout(() => {
+      const form = $('aicycle-form');
+      if (form) form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    }, 150);
+    closePanel();
+  } else {
+    toast('Direct ordering for ' + name + ' — coming soon', '');
+  }
+};
+
+window.videoCallPlace = function(name) {
+  if (!session) return openMePanel();
+  toast('Video calls to vendors — launching soon on Astranov', '');
+};
+
+window.startDMToPlace = function(name, phone, website) {
+  if (!session) return openMePanel();
+  toast('Direct messaging to ' + name + ' — launching soon', '');
+};
 
 window.askACIAboutPlace = function(name, cat, website) {
   closePanel();
   const chatEl = $('aicycle-chat');
   if (chatEl && !chatEl.classList.contains('visible')) chatEl.classList.add('visible');
-  const q = 'Tell me about ' + name + ' (' + cat + ')' + (website ? '. Their website: ' + website : '') + '. What do they offer, what are reviews like, and can I order or book through Astranov?';
+  const q = 'Tell me about ' + name + ' (' + cat + ')' + (website ? '. Website: ' + website : '') + '. What do they offer, what are their best products or dishes, and can I order or book via Astranov?';
   const inp = $('aicycle-input');
-  if (inp) { inp.value = q; }
+  if (inp) inp.value = q;
   setTimeout(() => {
     const form = $('aicycle-form');
     if (form) form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
   }, 150);
-};
-
-window.startDMToPlace = function(name, phone, website) {
-  if (!session) return openMePanel();
-  toast('Messaging ' + name + ' — feature coming soon', '');
 };
 
 async function loadSignals() {
@@ -2966,14 +3228,32 @@ window.signInPassword = async () => {
 
 window.signInGoogle = async () => {
   if (!sb) return toast('Connecting…');
+  let googleEnabled = false;
   try {
     const r = await fetch(SUPABASE_URL + '/auth/v1/settings');
     const cfg = await r.json();
-    if (!cfg?.external?.google) {
-      toast('Google sign-in not yet configured — enable it in Supabase Dashboard → Auth → Providers → Google', 'err');
-      return;
-    }
+    googleEnabled = !!cfg?.external?.google;
   } catch (_) {}
+  if (!googleEnabled) {
+    openPanel(`
+      <h2>Google Sign-In</h2>
+      <div class="subtitle">Setup required</div>
+      <div style="font-size:13px;color:#a8c8ee;line-height:1.6;margin-bottom:16px">
+        To enable Google login, go to your Supabase dashboard and enable the Google provider.<br><br>
+        <strong style="color:#7eb4ff">Steps:</strong><br>
+        1. Open Supabase Dashboard → Authentication → Providers<br>
+        2. Enable Google and paste your Client ID + Secret<br>
+        3. Add <code style="color:#7eebb4">https://astranov.eu</code> as an authorised redirect URI in Google Cloud Console
+      </div>
+      <div class="gadget-engage" onclick="window.open('https://supabase.com/dashboard/project/lkoatrkhuigdolnjsbie/auth/providers','_blank','noopener')">
+        <span class="verb-glyph">↗</span><span>Open Supabase Auth Settings</span>
+      </div>
+      <div class="gadget-engage" onclick="closePanel()" style="margin-top:8px;border-color:rgba(255,255,255,0.1)">
+        <span class="verb-glyph">◫</span><span>Use email instead</span>
+      </div>
+    `);
+    return;
+  }
   const { error } = await sb.auth.signInWithOAuth({
     provider: 'google',
     options: { redirectTo: 'https://astranov.eu' }
