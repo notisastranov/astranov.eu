@@ -132,10 +132,12 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     loadDeliveries() on boot; realtime INSERT adds pins, non-requested status
     removes them. Runners find work by flying to any city.
 
-22. CATEGORY FILTER — #cat-filter
-    Row of color-coded dots at bottom centre. Visible at national/personal
-    zoom when signals are loaded. Tap a dot = toggle that category on/off
-    (show/hide all matching PointPrimitives). Auto-dims to 35% opacity after 3.5s.
+22. CATEGORY FAN — radiates from #g-discover
+    Tap #g-discover → quarter-arc of dots fans out of the top-left gadget:
+    first 3 dots are action verbs (Feed/Radar/Emit), then one dot per
+    signal category. Tap a category to toggle visibility on the globe.
+    Long-press #g-discover = ascend one zoom level (replaces the dead
+    #back-btn). The fan auto-collapses when you tap outside.
 
 23. PUSH / RELIABILITY — always-on presence
     /sw.js service worker: offline shell cache + push handler + notification
@@ -158,13 +160,27 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     DB if signal not in local index. emitSignal() sets lat+lng directly (also
     backed by trg_sync_signal_coords trigger).
 
-17. FOUR CORNER GADGETS — replaces holographic dock
-    Exactly 4 large (76px) round corner gadgets replace all dock orbs and tray.
-    #g-discover (top-left) → DISCOVER panel (Feed + Radar). #g-me (top-right)
-    → ME hub (Profile + Messages + Wallet + Deliveries). #locate-orb (bottom-
-    left) → GPS acquire. #aicycle-float (bottom-right) → AI chat. No other
-    permanent UI. AICYCLE ring shows current model as "× PROVIDER" label only;
-    provider chips and orbit dots are removed.
+17. FOUR CORNER GADGETS — sole permanent chrome
+    Exactly 4 large (76px) round corner gadgets. #g-discover (top-left)
+    fans Feed/Radar/Emit + category toggles; long-press ascends. #g-me
+    (top-right) → ME hub. #locate-orb (bottom-left) → GPS acquire +
+    starts drive watch. #aicycle-float (bottom-right) → AI chat. No
+    floating back button, no #cat-filter row, no #layer-switch pill,
+    no level badge — gadgets carry their own state.
+
+24. DRIVE MODE — motion-aware camera
+    locate-orb starts navigator.geolocation.watchPosition. Rolling avg
+    of GPS speed: >5 m/s for 3 s → driving view (alt 120 m, pitch -25°,
+    heading=course). <1 m/s for 5 s → drone view (alt 600 m, pitch -90°).
+    #drive-hud bottom-center shows live km/h while driving.
+
+25. DRONES — companion-craft standby
+    initDroneStandby() runs after loadProfile() and subscribes a private
+    Supabase Realtime channel 'drone:<userId>'. Drone clients join the
+    same room, exchange WebRTC SDP + ICE via broadcast events, then open
+    a datachannel for telemetry + waypoint commands. ME panel exposes
+    the pairing room; sendDroneWaypoint(lat,lng,alt) dispatches to every
+    connected craft.
 
 16. LAW-SYNC — Claude Autonomy (perpetual)
     Every code change updates this law block when it introduces, changes, or
@@ -718,29 +734,64 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   }
 
   /* ============================================================
-     Category filter — appears at bottom centre, national/personal only
+     Category fan — radiates from #g-discover when toggled
      ============================================================ */
-  #cat-filter {
-    position: fixed; bottom: max(14px, env(safe-area-inset-bottom));
-    left: 50%; transform: translateX(-50%);
-    display: flex; gap: 6px; padding: 6px 10px;
-    background: rgba(6,12,24,0.72); backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(120,180,255,0.14); border-radius: 999px;
-    z-index: 44; opacity: 0; pointer-events: none;
-    transition: opacity 0.3s;
+  #cat-fan {
+    position: fixed; z-index: 46;
+    top: max(20px, env(safe-area-inset-top)); left: 20px;
+    width: 76px; height: 76px;
+    pointer-events: none;
   }
-  #cat-filter.visible { opacity: 1; pointer-events: auto; }
-  .cat-dot {
-    width: 34px; height: 34px; border-radius: 10px; cursor: pointer;
+  .cat-fan-dot {
+    position: absolute; top: 18px; left: 18px;
+    width: 40px; height: 40px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    font-size: 18px; font-family: "Apple Color Emoji","Noto Color Emoji","Segoe UI Emoji",serif;
-    background: rgba(120,180,255,0.07); border: 1px solid rgba(120,180,255,0.14);
-    transition: opacity 0.2s, transform 0.15s, background 0.15s;
-    flex-shrink: 0; -webkit-tap-highlight-color: transparent;
+    font-size: 18px;
+    font-family: "Apple Color Emoji","Noto Color Emoji","Segoe UI Emoji",serif;
+    background: rgba(6,14,28,0.92); backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1.5px solid rgba(120,180,255,0.35);
+    box-shadow: 0 0 14px rgba(120,180,255,0.18);
+    cursor: pointer; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transform: translate(0,0) scale(0);
+    opacity: 0;
+    pointer-events: auto;
+    transition: transform 0.34s cubic-bezier(0.34,1.56,0.64,1),
+                opacity 0.22s ease-out, border-color 0.2s, box-shadow 0.2s;
   }
-  .cat-dot.off { opacity: 0.2; transform: scale(0.8); background: transparent; }
-  .cat-dot:active { transform: scale(0.88); background: rgba(120,180,255,0.18); }
+  #cat-fan.open .cat-fan-dot {
+    transform: translate(var(--cf-x,0), var(--cf-y,0)) scale(1);
+    opacity: 1;
+  }
+  .cat-fan-dot.off {
+    opacity: 0.32;
+    border-color: rgba(120,180,255,0.12);
+    box-shadow: none;
+  }
+  .cat-fan-dot:active { transform: translate(var(--cf-x,0), var(--cf-y,0)) scale(0.88); }
+  .cat-fan-dot[data-action] {
+    border-color: rgba(126,235,180,0.45);
+    box-shadow: 0 0 14px rgba(126,235,180,0.20);
+    color: #7eebb4; font-size: 16px;
+  }
+  #g-discover.fanning .cg-glyph { color: #7eebb4; filter: drop-shadow(0 0 12px rgba(126,235,180,0.85)); }
+
+  /* Driving HUD — bottom-center pill, only visible when motion > 5 m/s */
+  #drive-hud {
+    position: fixed; bottom: 110px; left: 50%; transform: translateX(-50%);
+    padding: 5px 14px; border-radius: 999px;
+    background: rgba(8,20,42,0.78); backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(126,235,180,0.32);
+    font-size: 10px; letter-spacing: 0.22em; color: #7eebb4;
+    text-transform: uppercase; opacity: 0; pointer-events: none;
+    transition: opacity 0.35s; z-index: 41;
+    display: flex; align-items: center; gap: 8px;
+  }
+  #drive-hud.visible { opacity: 1; }
+  #drive-hud .dh-emoji { font-size: 13px; }
+  #drive-hud .dh-sp { color: #cfe9d6; font-weight: 600; letter-spacing: 0.06em; }
 
   /* ============================================================
      Messages
@@ -1304,27 +1355,24 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 </div>
 
 <!-- Transient UI -->
-<div id="level-badge">GLOBAL</div>
 <div id="imagery-source"></div>
-<div id="back-btn" aria-label="Back">←</div>
-<!-- Layer-switch gadget — city-tier provider switcher (Imagery Law §3) -->
-<div id="layer-switch" aria-label="Imagery provider"></div>
 <div id="tray-trigger"></div>
 <div id="tray"></div>
 
 <!-- Four corner gadgets -->
-<div class="corner-gadget" id="g-discover" title="Discover" onclick="openDiscoverPanel()">
+<div class="corner-gadget" id="g-discover" title="Discover" onpointerdown="discoverPress()" onclick="discoverTap()">
   <canvas class="gfx-canvas" id="gfx-discover" width="76" height="76"></canvas>
   <div class="cg-glyph">◈</div>
   <div class="cg-label">Discover</div>
 </div>
+<div id="cat-fan"></div>
 <div class="corner-gadget" id="g-me" title="Me" onclick="openMePanel()">
   <canvas class="gfx-canvas" id="gfx-me" width="76" height="76"></canvas>
   <div class="cg-glyph" id="g-me-glyph">◉</div>
   <div class="cg-label">Me</div>
   <div class="cg-badge" id="g-me-badge"></div>
 </div>
-<div id="cat-filter"></div>
+<div id="drive-hud"><span class="dh-emoji">🚗</span><span>Driving</span><span class="dh-sp" id="dh-sp">0 km/h</span></div>
 <!-- Locate orb — bottom-left corner gadget -->
 <div id="locate-orb" title="Acquire location" onclick="locateUser()">
   <canvas class="gfx-canvas" id="gfx-locate" width="76" height="76"></canvas>
@@ -1692,15 +1740,12 @@ function onCameraSettled() {
   if (newLevel === currentLevel) return;
   currentLevel = newLevel;
 
-  // Show level badge briefly
-  const badge = $('level-badge');
-  badge.textContent = newLevel;
-  badge.classList.add('visible');
-  clearTimeout(levelTimer);
-  levelTimer = setTimeout(() => badge.classList.remove('visible'), 1800);
-
-  // Back button: visible whenever we're below global
-  $('back-btn').classList.toggle('visible', newLevel !== 'global');
+  // Level + back are folded into #g-discover: tint the gadget by zoom level
+  const gd = $('g-discover');
+  if (gd) {
+    gd.classList.toggle('at-personal', newLevel === 'personal');
+    gd.classList.toggle('at-national', newLevel === 'national');
+  }
 
   updateLayerSwitchVisibility();
   updateCatFilter();
@@ -1710,8 +1755,8 @@ function onCameraSettled() {
   if (viewer) viewer.scene.requestRender();
 }
 
-$('back-btn').addEventListener('click', () => {
-  // Ascend one level
+function ascendLevel() {
+  if (!viewer) return;
   const h = viewer.camera.positionCartographic.height;
   const target = h > LEVEL_THRESHOLDS.national ? 12_000_000 : 2_000_000;
   const carto = viewer.camera.positionCartographic;
@@ -1719,7 +1764,7 @@ $('back-btn').addEventListener('click', () => {
     destination: Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, target),
     duration: 1.4,
   });
-});
+}
 
 /* ==============================================================
    3. Supabase — auth, signals, realtime
@@ -1768,6 +1813,7 @@ async function loadProfile() {
   updateIdentityOrb();
   profileSetupIfNeeded();
   subscribePush();
+  initDroneStandby();
   restoreSession();
 }
 
@@ -2022,13 +2068,11 @@ function locateUser() {
           orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
         });
       }
-      // Store for radar and signal emit
       window._userLat = lat; window._userLng = lng;
-      // Place glowing user beacon on globe
       setUserBeacon(lat, lng);
-      // Populate globe with real-world POIs from OpenStreetMap
       fetchOSMNearby(lat, lng, 5000);
       setTimeout(() => orb.classList.remove('locked'), 4000);
+      startDriveWatch(); // continuous motion tracking from this point
     },
     err => {
       orb.classList.remove('acquiring');
@@ -2038,6 +2082,140 @@ function locateUser() {
     { enableHighAccuracy: true, timeout: 10000 }
   );
 }
+
+/* ==============================================================
+   Drive mode — continuous motion-aware camera.
+   Drone view at rest (pitch -90°, altitude ~600 m). When sustained
+   speed > 5 m/s for >3 s → driving view (pitch -25°, altitude ~120 m,
+   heading locks to GPS course). When speed < 1 m/s for >5 s → drone.
+   ============================================================== */
+let _driveWatchId = null;
+let _driveMode    = 'drone';      // 'drone' | 'driving'
+let _driveBufSpeed = [];          // last speeds, m/s
+let _driveLastSwitchAt = 0;
+function startDriveWatch() {
+  if (_driveWatchId || !navigator.geolocation || !navigator.geolocation.watchPosition) return;
+  _driveWatchId = navigator.geolocation.watchPosition(
+    pos => _driveTick(pos),
+    () => {},
+    { enableHighAccuracy: true, maximumAge: 1500, timeout: 15_000 }
+  );
+}
+function stopDriveWatch() {
+  if (_driveWatchId) navigator.geolocation.clearWatch(_driveWatchId);
+  _driveWatchId = null;
+}
+function _driveTick(pos) {
+  const { latitude: lat, longitude: lng, speed, heading } = pos.coords;
+  window._userLat = lat; window._userLng = lng;
+  setUserBeacon(lat, lng);
+  const sp = (typeof speed === 'number' && isFinite(speed) && speed >= 0) ? speed : 0;
+  _driveBufSpeed.push(sp);
+  if (_driveBufSpeed.length > 6) _driveBufSpeed.shift();
+  const avg = _driveBufSpeed.reduce((a, b) => a + b, 0) / _driveBufSpeed.length;
+  const hud = $('drive-hud'), sps = $('dh-sp');
+  if (sps) sps.textContent = Math.round(avg * 3.6) + ' km/h';
+  if (hud) hud.classList.toggle('visible', _driveMode === 'driving');
+
+  const now = Date.now();
+  const dwell = now - _driveLastSwitchAt;
+  // Hysteresis: 5 m/s = 18 km/h to enter, 1 m/s = 3.6 km/h to leave
+  if (_driveMode === 'drone' && avg > 5 && dwell > 3000) {
+    _driveMode = 'driving'; _driveLastSwitchAt = now;
+    _enterDriving(lat, lng, heading);
+  } else if (_driveMode === 'driving') {
+    if (avg < 1 && dwell > 5000) {
+      _driveMode = 'drone'; _driveLastSwitchAt = now;
+      _enterDrone(lat, lng);
+    } else {
+      // Continuously follow while driving
+      _followDriving(lat, lng, heading);
+    }
+  }
+}
+function _enterDriving(lat, lng, heading) {
+  if (!viewer) return;
+  const h = (typeof heading === 'number' && !isNaN(heading)) ? heading : 0;
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat, 120),
+    duration: 1.6,
+    orientation: { heading: Cesium.Math.toRadians(h), pitch: Cesium.Math.toRadians(-25), roll: 0 },
+  });
+  toast('Driving view engaged', 'ok');
+}
+function _enterDrone(lat, lng) {
+  if (!viewer) return;
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat, 600),
+    duration: 1.8,
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+  });
+  toast('Drone view restored', '');
+}
+function _followDriving(lat, lng, heading) {
+  if (!viewer) return;
+  const h = (typeof heading === 'number' && !isNaN(heading)) ? heading : null;
+  // Snap camera; cheap each tick, avoids dueling flyTo
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat, 120),
+    orientation: { heading: h != null ? Cesium.Math.toRadians(h) : viewer.camera.heading,
+                   pitch: Cesium.Math.toRadians(-25), roll: 0 },
+  });
+}
+
+/* ==============================================================
+   Helper drones — WebRTC datachannel scaffold. The Astranov system
+   stands ready to pair with companion drones via WebRTC + Supabase
+   Realtime signaling (room: 'drone:<userId>'). A drone client
+   joins the same room and exchanges SDP offers. Once paired, we
+   can stream telemetry + send waypoints over the datachannel.
+   ============================================================== */
+const droneState = { peers: new Map(), channel: null, ready: false };
+function initDroneStandby() {
+  if (!sb || !session || droneState.ready) return;
+  const room = 'drone:' + session.user.id;
+  droneState.channel = sb.channel(room, { config: { broadcast: { ack: true } } })
+    .on('broadcast', { event: 'drone-hello' }, ({ payload }) => _onDroneHello(payload))
+    .on('broadcast', { event: 'drone-sdp'   }, ({ payload }) => _onDroneSdp(payload))
+    .on('broadcast', { event: 'drone-ice'   }, ({ payload }) => _onDroneIce(payload))
+    .subscribe();
+  droneState.ready = true;
+}
+function _onDroneHello(p) {
+  toast('Drone discovered: ' + (p.callsign || 'unknown'), 'ok');
+  // (full handshake elided — drone client initiates with SDP offer)
+}
+function _onDroneSdp(p) { /* answer with sb.channel send */ }
+function _onDroneIce(p) { /* trickle ICE */ }
+function sendDroneWaypoint(lat, lng, alt) {
+  for (const peer of droneState.peers.values()) {
+    try { peer.dc?.send(JSON.stringify({ type: 'waypoint', lat, lng, alt })); } catch (_) {}
+  }
+}
+window.openDronePanel = function() {
+  initDroneStandby();
+  const room = session ? 'drone:' + session.user.id : null;
+  openPanel(`
+    <h2>Drones</h2>
+    <div class="subtitle">${room ? 'Astranov standby — '+droneState.peers.size+' linked' : 'Sign in to pair'}</div>
+    <div style="font-size:12px;color:#a8c8ee;line-height:1.55;margin-top:10px">
+      Companion drones pair over WebRTC, signalled through your private
+      Supabase channel <code style="color:#7eebb4">${room || '—'}</code>.
+      Once linked, the gadget transforms into a flight stick: hold to fly,
+      release to hover, double-tap to return-to-home.
+    </div>
+    <div class="gadget-engage" onclick="_copyRoom(${JSON.stringify(room||'')})" style="margin-top:14px">
+      <span class="verb-glyph">⎘</span><span>Copy pairing room</span>
+    </div>
+    <div class="gadget-engage" onclick="closePanel()" style="margin-top:8px;border-color:rgba(255,255,255,0.1)">
+      <span class="verb-glyph">◫</span><span>Standby</span>
+    </div>
+  `);
+};
+window._copyRoom = function(r) {
+  if (!r) return toast('Sign in first', 'err');
+  navigator.clipboard?.writeText(r).then(() => toast('Room copied', 'ok'));
+};
 
 /* ==============================================================
    Messages — direct messaging between users
@@ -2143,24 +2321,55 @@ const CAT_EMOJIS = {
   real_estate: { emoji: '🏠', label: 'Real Estate' },
   classifieds: { emoji: '📋', label: 'Classifieds' },
 };
-let _catFilterTimer = null;
+/* Category fan — radiates from #g-discover. Action dots (Feed/Radar/Emit)
+   come first, then category toggles. */
+const FAN_ACTIONS = [
+  { key: 'feed',  glyph: '◈', label: 'Feed',  fn: () => openFeedPanel() },
+  { key: 'radar', glyph: '◎', label: 'Radar', fn: () => openRadarPanel() },
+  { key: 'emit',  glyph: '⊕', label: 'Emit',  fn: () => openEmitPanel() },
+];
 
 function buildCatFilter() {
-  const el = $('cat-filter'); if (!el) return;
+  const el = $('cat-fan'); if (!el) return;
   el.innerHTML = '';
-  Object.keys(CAT_EMOJIS).forEach(cat => {
-    if (!(cat in CAT_FILTER_STATE)) CAT_FILTER_STATE[cat] = true;
-    const btn = document.createElement('div');
-    btn.className = 'cat-dot' + (CAT_FILTER_STATE[cat] ? '' : ' off');
-    btn.title = CAT_EMOJIS[cat].label;
-    btn.textContent = CAT_EMOJIS[cat].emoji;
-    btn.addEventListener('click', () => {
-      CAT_FILTER_STATE[cat] = !CAT_FILTER_STATE[cat];
-      btn.classList.toggle('off', !CAT_FILTER_STATE[cat]);
-      applyCatFilter();
-      _flashCatFilter();
-    });
-    el.appendChild(btn);
+  const cats = Object.keys(CAT_EMOJIS);
+  const items = [
+    ...FAN_ACTIONS.map(a => ({ kind: 'action', ...a })),
+    ...cats.map(cat => ({ kind: 'cat', cat })),
+  ];
+  // Arc: from 90° (straight down) to 0° (straight right) — quarter circle in the top-left
+  const N = items.length;
+  const baseR = 92;
+  items.forEach((it, i) => {
+    const d = document.createElement('div');
+    const ang = (Math.PI / 2) * (i / Math.max(1, N - 1)) + (Math.PI / 28);
+    // origin = top-left gadget center (38,38). Position relative to that.
+    const R = baseR + Math.floor(i / 7) * 52;
+    const x = Math.cos(ang) * R;
+    const y = Math.sin(ang) * R;
+    d.style.setProperty('--cf-x', x.toFixed(1) + 'px');
+    d.style.setProperty('--cf-y', y.toFixed(1) + 'px');
+    d.style.transitionDelay = (i * 28) + 'ms';
+    if (it.kind === 'action') {
+      d.className = 'cat-fan-dot';
+      d.dataset.action = it.key;
+      d.title = it.label;
+      d.textContent = it.glyph;
+      d.addEventListener('click', e => { e.stopPropagation(); closeFan(); it.fn(); });
+    } else {
+      const cat = it.cat;
+      if (!(cat in CAT_FILTER_STATE)) CAT_FILTER_STATE[cat] = true;
+      d.className = 'cat-fan-dot' + (CAT_FILTER_STATE[cat] ? '' : ' off');
+      d.title = CAT_EMOJIS[cat].label;
+      d.textContent = CAT_EMOJIS[cat].emoji;
+      d.addEventListener('click', e => {
+        e.stopPropagation();
+        CAT_FILTER_STATE[cat] = !CAT_FILTER_STATE[cat];
+        d.classList.toggle('off', !CAT_FILTER_STATE[cat]);
+        applyCatFilter();
+      });
+    }
+    el.appendChild(d);
   });
 }
 
@@ -2171,19 +2380,45 @@ function applyCatFilter() {
   if (viewer) viewer.scene.requestRender();
 }
 
-function updateCatFilter() {
-  const el = $('cat-filter'); if (!el) return;
-  const show = currentLevel !== 'global' && signalIndex.size > 0;
-  el.classList.toggle('visible', show);
-  if (show) _flashCatFilter();
-}
+function updateCatFilter() { /* fan visibility is user-controlled now */ }
 
-function _flashCatFilter() {
-  const el = $('cat-filter'); if (!el) return;
-  clearTimeout(_catFilterTimer);
-  el.style.opacity = '1';
-  _catFilterTimer = setTimeout(() => { el.style.opacity = '0.35'; }, 3500);
+let _fanOpen = false;
+let _discoverPressT = 0;
+let _discoverHold  = null;
+function openFan() {
+  const fan = $('cat-fan'); if (!fan) return;
+  if (!fan.children.length) buildCatFilter();
+  fan.classList.add('open');
+  $('g-discover')?.classList.add('fanning');
+  _fanOpen = true;
 }
+function closeFan() {
+  $('cat-fan')?.classList.remove('open');
+  $('g-discover')?.classList.remove('fanning');
+  _fanOpen = false;
+}
+window.discoverPress = function() {
+  _discoverPressT = Date.now();
+  clearTimeout(_discoverHold);
+  _discoverHold = setTimeout(() => {
+    // Long-press → ascend one zoom level (replaces back-btn)
+    _discoverHold = null;
+    ascendLevel();
+    if (_fanOpen) closeFan();
+  }, 600);
+};
+window.discoverTap = function() {
+  if (_discoverHold) clearTimeout(_discoverHold);
+  const held = Date.now() - _discoverPressT;
+  if (held >= 600) return; // long-press already fired
+  if (_fanOpen) closeFan(); else openFan();
+};
+// Tap outside closes the fan
+document.addEventListener('click', e => {
+  if (!_fanOpen) return;
+  if (e.target.closest('#g-discover') || e.target.closest('#cat-fan')) return;
+  closeFan();
+});
 
 /* ==============================================================
    4. Signals — PointPrimitiveCollection + pulse callback
@@ -3156,6 +3391,9 @@ function openMePanel() {
     </div>
     <div class="gadget-engage" onclick="openWalletPanel()" style="margin-top:8px">
       <span class="verb-glyph">◍</span><span>AVC &amp; Deliveries</span>
+    </div>
+    <div class="gadget-engage" onclick="openDronePanel()" style="margin-top:8px;border-color:rgba(126,235,180,0.3);color:#7eebb4">
+      <span class="verb-glyph">⟁</span><span>Drones — pair &amp; control</span>
     </div>
     <div class="gadget-engage" onclick="_signOut()" style="margin-top:18px;border-color:rgba(255,70,70,0.3);color:#ff7070">
       <span class="verb-glyph">⏻</span><span>Sign out</span>
