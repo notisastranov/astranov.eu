@@ -1773,6 +1773,8 @@ function locateUser() {
       }
       // Store for radar and signal emit
       window._userLat = lat; window._userLng = lng;
+      // Populate globe with real-world POIs from OpenStreetMap
+      fetchOSMNearby(lat, lng, 5000);
       setTimeout(() => orb.classList.remove('locked'), 4000);
     },
     err => {
@@ -1984,6 +1986,119 @@ function removeSignalPoint(id) {
   viewer.scene.requestRender();
 }
 
+/* ==============================================================
+   OSM / Overpass — real-world POI pins on the globe
+   ============================================================== */
+const OVERPASS_API = 'https://overpass-api.de/api/interpreter';
+let placePoints = null;
+const placeIndex = new Map(); // 'osm:ID' -> { primitive, place }
+let _osmFetchedZones = new Set(); // track fetched tile zones to avoid duplicate requests
+
+function _ensurePlaceCollection() {
+  if (!placePoints && viewer) {
+    placePoints = viewer.scene.primitives.add(new Cesium.PointPrimitiveCollection());
+  }
+}
+
+function _osmColor(tags) {
+  const a = tags.amenity || '';
+  const s = tags.shop    || '';
+  const t = tags.tourism || '';
+  if (/restaurant|cafe|fast_food|pub|bar|food_court/.test(a)) return Cesium.Color.fromCssColorString('#ff9944');
+  if (/hotel|hostel|motel/.test(a) || /hotel|hostel|motel/.test(t)) return Cesium.Color.fromCssColorString('#b48cff');
+  if (/hospital|clinic|pharmacy|doctors/.test(a))  return Cesium.Color.fromCssColorString('#ff4466');
+  if (/bank|atm/.test(a))                          return Cesium.Color.fromCssColorString('#44ddaa');
+  if (/supermarket|convenience|grocery/.test(a+s)) return Cesium.Color.fromCssColorString('#88ee44');
+  if (/museum|gallery|theatre|cinema/.test(a+t))   return Cesium.Color.fromCssColorString('#ffdd55');
+  if (/attraction|viewpoint/.test(t))              return Cesium.Color.fromCssColorString('#00d4ff');
+  if (s) return Cesium.Color.fromCssColorString('#ffaa33');
+  return Cesium.Color.fromCssColorString('#cccccc');
+}
+
+function addPlacePoint(place) {
+  if (!viewer || !place.lat || !place.lon) return;
+  _ensurePlaceCollection();
+  const key = 'osm:' + place.id;
+  if (placeIndex.has(key)) return;
+  const color = _osmColor(place.tags || {});
+  const primitive = placePoints.add({
+    position: Cesium.Cartesian3.fromDegrees(Number(place.lon), Number(place.lat)),
+    pixelSize: 8,
+    color: color.withAlpha(0.9),
+    outlineColor: Cesium.Color.WHITE.withAlpha(0.5),
+    outlineWidth: 1.5,
+    scaleByDistance: new Cesium.NearFarScalar(1.5e2, 1.6, 1.5e6, 0.5),
+  });
+  primitive.__placeId = key;
+  placeIndex.set(key, { primitive, place });
+  viewer.scene.requestRender();
+}
+
+async function fetchOSMNearby(lat, lng, radiusM) {
+  radiusM = radiusM || 5000;
+  // Zone key: 0.1° grid to avoid re-fetching same area
+  const zk = Math.round(lat * 10) + ',' + Math.round(lng * 10);
+  if (_osmFetchedZones.has(zk)) return;
+  _osmFetchedZones.add(zk);
+  const q = '[out:json][timeout:25];('
+    + 'node["name"]["amenity"~"restaurant|cafe|bar|fast_food|pub|hotel|pharmacy|bank|atm|supermarket|hospital|clinic|cinema|theatre|museum"](around:' + radiusM + ',' + lat + ',' + lng + ');'
+    + 'node["name"]["shop"](around:' + radiusM + ',' + lat + ',' + lng + ');'
+    + 'node["name"]["tourism"~"hotel|hostel|motel|attraction|museum|gallery|viewpoint"](around:' + radiusM + ',' + lat + ',' + lng + ');'
+    + ');out 500;';
+  try {
+    const resp = await fetch(OVERPASS_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'data=' + encodeURIComponent(q)
+    });
+    if (!resp.ok) return;
+    const json = await resp.json();
+    const elements = json.elements || [];
+    elements.forEach(addPlacePoint);
+    if (elements.length) toast(elements.length + ' places loaded near you', '');
+  } catch (e) { console.warn('[OSM]', e); }
+}
+
+function openPlacePanel(place) {
+  const t = place.tags || {};
+  const name = t.name || 'Unknown place';
+  const cat = t.amenity || t.shop || t.tourism || 'place';
+  const phone = t.phone || t['contact:phone'] || '';
+  const website = t.website || t['contact:website'] || '';
+  const hours = t.opening_hours || '';
+  const addr = [t['addr:housenumber'], t['addr:street'], t['addr:city']].filter(Boolean).join(' ');
+  const cuisine = t.cuisine ? '<div class="row"><span>Cuisine</span><span>' + escapeHtml(t.cuisine.replace(/_/g,' ')) + '</span></div>' : '';
+  const phoneRow = phone ? '<div class="row"><span>Phone</span><span><a href="tel:' + escapeHtml(phone) + '" style="color:#7eebb4">' + escapeHtml(phone) + '</a></span></div>' : '';
+  const hoursRow = hours ? '<div class="row"><span>Hours</span><span style="font-size:11px;color:#a8c8ee">' + escapeHtml(hours) + '</span></div>' : '';
+  const addrRow = addr ? '<div class="row"><span>Address</span><span style="color:#a8c8ee">' + escapeHtml(addr) + '</span></div>' : '';
+  const webBtn = website ? '<div class="gadget-engage" onclick="window.open(' + JSON.stringify(website) + ',\'_blank\',\'noopener\')" style="margin-top:8px"><span class="verb-glyph">↗</span><span>Visit website</span></div>' : '';
+  const aciBtn = '<div class="gadget-engage" onclick="askACIAboutPlace(' + JSON.stringify(name) + ',' + JSON.stringify(cat) + ',' + JSON.stringify(website) + ')" style="margin-top:8px;border-color:rgba(0,212,255,0.4)"><span class="verb-glyph">◈</span><span>Ask Astranov about this</span></div>';
+  const msgBtn = '<div class="gadget-engage" onclick="startDMToPlace(' + JSON.stringify(name) + ',' + JSON.stringify(phone) + ',' + JSON.stringify(website) + ')" style="margin-top:6px;border-color:rgba(126,235,180,0.35)"><span class="verb-glyph">◫</span><span>Contact place</span></div>';
+  const html = '<h2>' + escapeHtml(name) + '</h2>'
+    + '<div class="subtitle">' + escapeHtml(cat.replace(/_/g,' ').toUpperCase()) + '</div>'
+    + addrRow + cuisine + phoneRow + hoursRow
+    + webBtn + aciBtn + msgBtn;
+  openPanel(html);
+}
+
+window.askACIAboutPlace = function(name, cat, website) {
+  closePanel();
+  const chatEl = $('aicycle-chat');
+  if (chatEl && !chatEl.classList.contains('visible')) chatEl.classList.add('visible');
+  const q = 'Tell me about ' + name + ' (' + cat + ')' + (website ? '. Their website: ' + website : '') + '. What do they offer, what are reviews like, and can I order or book through Astranov?';
+  const inp = $('aicycle-input');
+  if (inp) { inp.value = q; }
+  setTimeout(() => {
+    const form = $('aicycle-form');
+    if (form) form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+  }, 150);
+};
+
+window.startDMToPlace = function(name, phone, website) {
+  if (!session) return openMePanel();
+  toast('Messaging ' + name + ' — feature coming soon', '');
+};
+
 async function loadSignals() {
   if (!sb) return;
   const { data, error } = await sb
@@ -2043,6 +2158,11 @@ function onCanvasClick(click) {
   if (picked?.primitive?.__deliveryId) {
     const entry = deliveryIndex.get(picked.primitive.__deliveryId);
     if (entry) openDeliveryPanel(entry.delivery.id);
+    return;
+  }
+  if (picked?.primitive?.__placeId) {
+    const entry = placeIndex.get(picked.primitive.__placeId);
+    if (entry) openPlacePanel(entry.place);
     return;
   }
   closePanel();
@@ -2281,6 +2401,9 @@ async function _acquireRadar() {
 
   _renderRadarBlips(data || [], coords);
   _renderRadarSignalList(data || [], coords);
+
+  // Populate globe with nearby real-world places from OpenStreetMap
+  fetchOSMNearby(coords.lat, coords.lng, 5000);
 }
 
 window.recalibrateRadar = async () => {
@@ -2843,6 +2966,14 @@ window.signInPassword = async () => {
 
 window.signInGoogle = async () => {
   if (!sb) return toast('Connecting…');
+  try {
+    const r = await fetch(SUPABASE_URL + '/auth/v1/settings');
+    const cfg = await r.json();
+    if (!cfg?.external?.google) {
+      toast('Google sign-in not yet configured — enable it in Supabase Dashboard → Auth → Providers → Google', 'err');
+      return;
+    }
+  } catch (_) {}
   const { error } = await sb.auth.signInWithOAuth({
     provider: 'google',
     options: { redirectTo: 'https://astranov.eu' }
