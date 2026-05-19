@@ -132,14 +132,20 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     loadDeliveries() on boot; realtime INSERT adds pins, non-requested status
     removes them. Runners find work by flying to any city.
 
-22. RADIAL FAN ENGINE — one model, four gadgets
-    GADGET_FANS config maps each corner gadget to { items, arcFrom,
-    arcTo, longPress }. _renderFan(name) draws items along the arc,
-    each dot styled by kind: explore (green), publish (amber),
-    system (purple), link (blue). Item.fn returns { keepOpen: true }
-    to keep the fan open (used by toggleable items like category
-    filters). All other taps close the fan. Discover fans the
-    category toggles; ME fans the publish + identity actions.
+22. RING ENGINE — one rotating wheel per gadget
+    GADGET_FANS[name] = { host, fan, mirror, focalAngle, longPress,
+    items() }. Items distribute evenly on a full 360° ring centred
+    on the gadget. focalAngle (toward screen center) is the position
+    where the focused item sits — biggest (scale 1.32), pulsing,
+    labelled. Distance from focal scales size from 1.32 down to
+    0.55 and opacity from 1.0 to 0; the back half of the ring is
+    fully invisible. Drag the visible dots to spin the wheel
+    (pointermove deltas added to a global rotation). Mouse wheel
+    cycles one slot at a time. Tap a visible dot to fire its fn;
+    short tap on the gadget toggles the ring; long-press fires the
+    gadget's primary action. ME ring while signed-out exposes
+    Google / Email / Skip directly — no nested login panel.
+    mirror:true flips x for right-anchored fans.
 
 23. PUSH / RELIABILITY — always-on presence
     /sw.js service worker: offline shell cache + push handler + notification
@@ -748,63 +754,85 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   }
 
   /* ============================================================
-     Radial fans — any corner gadget can host a fan-out arc of dots.
-     Anchored to the gadget center; arc direction depends on corner.
+     Rotating ring — each corner gadget hosts a ring of buttons
+     that the user can spin. Buttons closer to the screen-inward
+     focal direction are larger, brighter, and labelled.
      ============================================================ */
   .radial-fan {
-    position: fixed; z-index: 46; pointer-events: none;
+    position: fixed; z-index: 46;
+    width: 0; height: 0;          /* origin is a point at the gadget center */
+    pointer-events: none;
+    --rot: 0deg;
   }
   .fan-dot {
-    position: absolute; top: 18px; left: 18px;
-    width: 40px; height: 40px; border-radius: 50%;
+    position: absolute;
+    top: 0; left: 0;
+    width: 56px; height: 56px;
+    margin-top: -28px; margin-left: -28px;
+    border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    font-size: 18px;
+    font-size: 24px;
     font-family: "Apple Color Emoji","Noto Color Emoji","Segoe UI Emoji",serif;
-    background: rgba(6,14,28,0.92); backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    background: rgba(6,14,28,0.92);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     border: 1.5px solid rgba(120,180,255,0.35);
     box-shadow: 0 0 14px rgba(120,180,255,0.18);
+    color: #cfe2ff;
     cursor: pointer; user-select: none;
     -webkit-tap-highlight-color: transparent;
-    color: #cfe2ff;
-    transform: translate(0,0) scale(0);
-    opacity: 0;
     pointer-events: auto;
-    transition: transform 0.34s cubic-bezier(0.34,1.56,0.64,1),
-                opacity 0.22s ease-out, border-color 0.2s, box-shadow 0.2s;
+    transform: translate(var(--fx,0), var(--fy,0)) scale(var(--fs, 0));
+    opacity: var(--fo, 0);
+    transition: transform 0.42s cubic-bezier(0.22,0.9,0.32,1),
+                opacity 0.30s ease-out, border-color 0.2s, box-shadow 0.2s,
+                background 0.2s;
   }
-  .radial-fan.open .fan-dot {
-    transform: translate(var(--fx,0), var(--fy,0)) scale(1);
-    opacity: 1;
+  .radial-fan.dragging .fan-dot { transition: none; }
+  .fan-dot.focused {
+    background: rgba(10,22,44,0.95);
+    border-color: rgba(126,235,180,0.85);
+    box-shadow: 0 0 28px rgba(126,235,180,0.45), inset 0 0 18px rgba(126,235,180,0.10);
+    animation: fan-focus-pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes fan-focus-pulse {
+    0%,100% { box-shadow: 0 0 24px rgba(126,235,180,0.32), inset 0 0 16px rgba(126,235,180,0.08); }
+    50%     { box-shadow: 0 0 40px rgba(126,235,180,0.55), inset 0 0 22px rgba(126,235,180,0.16); }
   }
   .fan-dot.off {
-    opacity: 0.32;
+    opacity: calc(var(--fo, 1) * 0.35);
     border-color: rgba(120,180,255,0.12);
     box-shadow: none;
   }
-  .fan-dot:active { transform: translate(var(--fx,0), var(--fy,0)) scale(0.88); }
-  .fan-dot.act-publish { border-color: rgba(255,170,80,0.55);  color: #ffb464; box-shadow: 0 0 14px rgba(255,170,80,0.20); }
+  .fan-dot:active { transform: translate(var(--fx,0), var(--fy,0)) scale(calc(var(--fs, 1) * 0.92)); }
+  .fan-dot.act-publish { border-color: rgba(255,170,80,0.55);  color: #ffb464; box-shadow: 0 0 14px rgba(255,170,80,0.22); }
   .fan-dot.act-explore { border-color: rgba(126,235,180,0.50); color: #7eebb4; box-shadow: 0 0 14px rgba(126,235,180,0.20); }
   .fan-dot.act-system  { border-color: rgba(180,140,255,0.50); color: #c9b0ff; box-shadow: 0 0 14px rgba(180,140,255,0.20); }
   .fan-dot.act-link    { border-color: rgba(120,180,255,0.50); color: #a8c8ee; box-shadow: 0 0 14px rgba(120,180,255,0.20); }
+  .fan-dot.act-cat     { border-color: rgba(255,210,140,0.45); color: #ffd99a; box-shadow: 0 0 14px rgba(255,210,140,0.18); }
   .fan-dot .fd-lbl {
-    position: absolute; font-size: 7.5px; letter-spacing: 0.18em;
-    text-transform: uppercase; color: rgba(200,220,255,0.85);
-    text-shadow: 0 0 6px rgba(0,0,0,0.95);
+    position: absolute; bottom: -16px; left: 50%;
+    transform: translateX(-50%) scale(var(--lbl-s, 0));
+    transform-origin: 50% 0;
+    font-size: 9px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: rgba(230,240,255,0.95);
+    text-shadow: 0 0 8px rgba(0,0,0,0.95), 0 0 3px rgba(0,0,0,0.95);
     pointer-events: none; white-space: nowrap;
-    top: 100%; margin-top: 3px;
+    opacity: var(--lbl-o, 0);
+    transition: transform 0.3s, opacity 0.25s;
   }
   .corner-gadget.fanning, #locate-orb.fanning, #aicycle-float.fanning {
     border-color: rgba(126,235,180,0.7) !important;
     box-shadow: 0 0 44px rgba(126,235,180,0.30) !important;
   }
-  /* Anchor the fans to their host gadgets */
-  #fan-discover { top: max(20px, env(safe-area-inset-top)); left: 20px; width: 76px; height: 76px; }
-  #fan-me       { top: max(20px, env(safe-area-inset-top)); right: 20px; width: 76px; height: 76px; }
-  #fan-locate   { bottom: max(20px, env(safe-area-inset-bottom)); left: 20px; width: 76px; height: 76px; }
-  #fan-ai       { bottom: max(20px, env(safe-area-inset-bottom)); right: 20px; width: 76px; height: 76px; }
-  /* Right-side fans mirror — origin is right edge of the anchor */
-  #fan-me .fan-dot, #fan-ai .fan-dot { left: auto; right: 18px; }
+  /* Each fan is anchored to the center of its host gadget. */
+  #fan-discover { top: calc(max(20px, env(safe-area-inset-top)) + 38px);    left:  calc(20px + 38px); }
+  #fan-me       { top: calc(max(20px, env(safe-area-inset-top)) + 38px);    right: calc(20px + 38px); }
+  #fan-locate   { bottom: calc(max(20px, env(safe-area-inset-bottom)) + 38px); left:  calc(20px + 38px); }
+  #fan-ai       { bottom: calc(max(20px, env(safe-area-inset-bottom)) + 38px); right: calc(20px + 38px); }
+  /* Right-anchored fans need their offset interpreted as left = -right */
+  #fan-me .fan-dot, #fan-ai .fan-dot {
+    left: auto; right: 0; margin-right: -28px; margin-left: 0;
+  }
 
   /* Driving HUD — bottom-center pill, only visible when motion > 5 m/s */
   #drive-hud {
@@ -2393,10 +2421,13 @@ function _catItems() {
   }));
 }
 
+// Each gadget anchors at its corner; focalAngle is the direction (radians,
+// CSS y-down) from the gadget center toward the screen center — that's the
+// position where the focused item sits, biggest and labelled.
 const GADGET_FANS = {
   discover: {
-    host: 'g-discover', fan: 'fan-discover',
-    arcFrom: 0,              arcTo: Math.PI / 2,         // right → down
+    host: 'g-discover', fan: 'fan-discover', mirror: false,
+    focalAngle: Math.PI / 4,                                // down-right
     longPress: () => ascendLevel(),
     items: () => [
       { kind: 'explore', glyph: '◈', label: 'Feed',  fn: () => openFeedPanel()  },
@@ -2405,41 +2436,43 @@ const GADGET_FANS = {
     ],
   },
   me: {
-    host: 'g-me', fan: 'fan-me',
-    arcFrom: Math.PI / 2,    arcTo: Math.PI,             // down → left
+    host: 'g-me', fan: 'fan-me', mirror: true,              // right-anchored: x is mirrored
+    focalAngle: 3 * Math.PI / 4,                             // down-left
     longPress: () => openMePanel(),
     items: () => session ? [
-      { kind: 'publish', glyph: '⊕', label: 'Emit',     fn: () => openEmitPanel() },
+      { kind: 'publish', glyph: '⊕',  label: 'Emit',     fn: () => openEmitPanel() },
       { kind: 'publish', glyph: '📦', label: 'Deliver',  fn: () => openRequestDeliveryStep1() },
-      { kind: 'publish', glyph: '✉', label: 'Message',  fn: () => openMessagesPanel() },
-      { kind: 'link',    glyph: '◉', label: 'Profile',  fn: () => openMePanel() },
-      { kind: 'link',    glyph: '◍', label: 'Wallet',   fn: () => openWalletPanel() },
-      { kind: 'system',  glyph: '⟁', label: 'Drones',   fn: () => openDronePanel() },
-      { kind: 'system',  glyph: '⏻', label: 'Sign out', fn: () => _signOut() },
+      { kind: 'publish', glyph: '✉',  label: 'Message',  fn: () => openMessagesPanel() },
+      { kind: 'link',    glyph: '◉',  label: 'Profile',  fn: () => openMePanel() },
+      { kind: 'link',    glyph: '◍',  label: 'Wallet',   fn: () => openWalletPanel() },
+      { kind: 'system',  glyph: '⟁',  label: 'Drones',   fn: () => openDronePanel() },
+      { kind: 'system',  glyph: '⏻',  label: 'Sign out', fn: () => _signOut() },
     ] : [
-      { kind: 'link', glyph: '◉', label: 'Sign in', fn: () => openYouPanel() },
+      { kind: 'link',    glyph: '🇬',  label: 'Google',   fn: () => signInGoogle() },
+      { kind: 'link',    glyph: '✉',  label: 'Email',    fn: () => openYouPanel() },
+      { kind: 'system',  glyph: '➜',  label: 'Skip',     fn: () => closeAllFans() },
     ],
   },
   locate: {
-    host: 'locate-orb', fan: 'fan-locate',
-    arcFrom: -Math.PI / 2,   arcTo: 0,                   // up → right
+    host: 'locate-orb', fan: 'fan-locate', mirror: false,
+    focalAngle: -Math.PI / 4,                                // up-right
     longPress: () => locateUser(),
     items: () => [
-      { kind: 'system',  glyph: '⊕', label: 'Locate',  fn: () => locateUser() },
+      { kind: 'system',  glyph: '⊕',  label: 'Locate',  fn: () => locateUser() },
       { kind: 'system',  glyph: '🚁', label: 'Drone',   fn: () => _forceCamMode('drone') },
       { kind: 'system',  glyph: '🚗', label: 'Driving', fn: () => _forceCamMode('driving') },
       { kind: 'publish', glyph: '📍', label: 'Share',   fn: () => _shareMyLocation() },
     ],
   },
   ai: {
-    host: 'aicycle-float', fan: 'fan-ai',
-    arcFrom: Math.PI,        arcTo: 3 * Math.PI / 2,     // left → up
+    host: 'aicycle-float', fan: 'fan-ai', mirror: true,
+    focalAngle: -3 * Math.PI / 4,                            // up-left  (= 5π/4)
     longPress: () => toggleVoice(),
     items: () => {
       const base = [
-        { kind: 'explore', glyph: '◈', label: 'Chat', fn: () => _openACIPanel() },
+        { kind: 'explore', glyph: '◈', label: 'Chat',  fn: () => _openACIPanel() },
         { kind: 'system',  glyph: '🎙', label: 'Voice', fn: () => toggleVoice() },
-        { kind: 'system',  glyph: '∞', label: 'Auto',  fn: () => { lastActiveProvider = null; toast('Auto-cycle', ''); } },
+        { kind: 'system',  glyph: '∞', label: 'Auto',   fn: () => { lastActiveProvider = null; toast('Auto-cycle', ''); } },
       ];
       const provs = ACI_MODELS.filter(m => !m.ownerOnly || profile?.is_owner).map(m => ({
         kind: 'link', glyph: m.label.charAt(0), label: m.label,
@@ -2451,53 +2484,167 @@ const GADGET_FANS = {
   },
 };
 
-const _fanState = { open: null, items: new WeakMap() };
+const _fanState = { open: null, items: [], rot: 0, name: null };
+
+// Angle normalisation: signed shortest delta in radians
+function _angDelta(a, b) {
+  let d = (a - b) % (Math.PI * 2);
+  if (d >  Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return d;
+}
+
+function _ringRadius(n) {
+  // Pack n items on a circle so 56px dots don't collide. Min spacing ~64px.
+  const minR = 110;
+  const byArc = (64 * n) / (2 * Math.PI);
+  return Math.max(minR, byArc);
+}
 
 function _renderFan(name) {
   const cfg = GADGET_FANS[name];
   const el = $(cfg.fan); if (!el) return;
   el.innerHTML = '';
   const items = cfg.items();
-  const N = items.length;
-  const baseR = 92;
+  const N = Math.max(1, items.length);
+  const R = _ringRadius(N);
+  const slot = (2 * Math.PI) / N;
+  _fanState.items = [];
+
   items.forEach((it, i) => {
+    const baseAng = slot * i;       // 0…2π, before global rotation
     const d = document.createElement('div');
-    const tFrac = N <= 1 ? 0.5 : i / (N - 1);
-    const ang = cfg.arcFrom + (cfg.arcTo - cfg.arcFrom) * tFrac;
-    const R = baseR + Math.floor(i / 7) * 56;
-    const x = Math.cos(ang) * R;
-    const y = Math.sin(ang) * R;
-    d.style.setProperty('--fx', x.toFixed(1) + 'px');
-    d.style.setProperty('--fy', y.toFixed(1) + 'px');
-    d.style.transitionDelay = (i * 28) + 'ms';
-    d.className = 'fan-dot act-' + (it.kind === 'cat' ? 'explore' : it.kind);
-    d.title = it.label;
-    d.innerHTML = it.glyph + (it.label ? '<span class="fd-lbl">' + escapeHtml(it.label) + '</span>' : '');
+    d.className = 'fan-dot act-' + (it.kind === 'cat' ? 'cat' : it.kind);
+    d.dataset.idx = String(i);
+    d.title = it.label || '';
+    d.innerHTML = (it.glyph || '◌') + (it.label ? '<span class="fd-lbl">' + escapeHtml(it.label) + '</span>' : '');
     if (it.isOn && !it.isOn()) d.classList.add('off');
-    d.addEventListener('click', e => {
-      e.stopPropagation();
-      const res = it.fn(d) || {};
-      if (!res.keepOpen) closeAllFans();
-    });
     el.appendChild(d);
+
+    d.addEventListener('pointerdown', _onFanPointerDown);
+    d.addEventListener('pointerup',   e => _onFanPointerUp(e, i, it, d));
+
+    _fanState.items.push({ baseAng, R, el: d, item: it });
   });
+  _applyFanLayout();
+}
+
+function _applyFanLayout() {
+  const name = _fanState.open; if (!name) return;
+  const cfg  = GADGET_FANS[name];
+  const focal = cfg.focalAngle;
+  // For mirrored (right-anchored) fans, the dot's x-offset is interpreted
+  // as growing leftward, so we flip the cos sign while keeping the focal
+  // angle math identical.
+  const mir = cfg.mirror ? -1 : 1;
+  for (const slot of _fanState.items) {
+    const a = slot.baseAng + _fanState.rot;
+    const x = Math.cos(a) * slot.R * mir;
+    const y = Math.sin(a) * slot.R;
+    const dist = Math.abs(_angDelta(a, focal));    // 0 = at focal, π = opposite
+    // Map dist 0…π → scale 1.32…0.55 and opacity 1…0.0
+    const t = Math.min(1, dist / (Math.PI * 0.9));
+    const scale = 1.32 - 0.77 * t;
+    const opac  = Math.max(0, 1 - 1.18 * t);       // fully invisible past ~0.85π
+    slot.el.style.setProperty('--fx', x.toFixed(1) + 'px');
+    slot.el.style.setProperty('--fy', y.toFixed(1) + 'px');
+    slot.el.style.setProperty('--fs', scale.toFixed(3));
+    slot.el.style.setProperty('--fo', opac.toFixed(3));
+    // Label visibility: only the focused dot (within ~22°) shows it
+    const focused = dist < (Math.PI / 8);
+    slot.el.classList.toggle('focused', focused);
+    slot.el.style.setProperty('--lbl-o', focused ? '1' : '0');
+    slot.el.style.setProperty('--lbl-s', focused ? '1' : '0.7');
+    slot.el.style.pointerEvents = (opac < 0.15) ? 'none' : 'auto';
+  }
 }
 
 function openGadgetFan(name) {
   closeAllFans();
-  _renderFan(name);
-  const cfg = GADGET_FANS[name];
-  $(cfg.fan)?.classList.add('open');
-  $(cfg.host)?.classList.add('fanning');
+  _fanState.name = name;
   _fanState.open = name;
+  _fanState.rot = 0;
+  const cfg = GADGET_FANS[name];
+  const fan = $(cfg.fan);
+  const host = $(cfg.host);
+  if (!fan || !host) return;
+  // Rotate the ring so the first item lands at the focal angle.
+  _fanState.rot = cfg.focalAngle;
+  _renderFan(name);
+  fan.classList.add('open');
+  host.classList.add('fanning');
 }
 function closeAllFans() {
   if (!_fanState.open) return;
   const cfg = GADGET_FANS[_fanState.open];
-  if (cfg) { $(cfg.fan)?.classList.remove('open'); $(cfg.host)?.classList.remove('fanning'); }
+  if (cfg) {
+    const fan = $(cfg.fan); const host = $(cfg.host);
+    fan?.classList.remove('open');
+    host?.classList.remove('fanning');
+    if (fan) for (const slot of _fanState.items) slot.el.style.setProperty('--fs', '0');
+  }
   _fanState.open = null;
+  _fanState.items = [];
 }
 
+// === Drag-to-rotate =====================================================
+let _dragSt = null;
+function _gadgetCenter(name) {
+  const cfg = GADGET_FANS[name]; if (!cfg) return null;
+  const host = $(cfg.host); if (!host) return null;
+  const r = host.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+}
+function _onFanPointerDown(e) {
+  if (!_fanState.open) return;
+  const c = _gadgetCenter(_fanState.open); if (!c) return;
+  _dragSt = {
+    startAng: Math.atan2(e.clientY - c.y, e.clientX - c.x),
+    startRot: _fanState.rot,
+    moved: 0,
+    pointerId: e.pointerId,
+    target: e.currentTarget,
+  };
+  try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+  $(GADGET_FANS[_fanState.open].fan)?.classList.add('dragging');
+}
+function _onFanPointerUp(e, idx, item, dot) {
+  if (_dragSt) {
+    $(GADGET_FANS[_fanState.open]?.fan)?.classList.remove('dragging');
+    try { _dragSt.target?.releasePointerCapture(_dragSt.pointerId); } catch (_) {}
+    const moved = _dragSt.moved;
+    _dragSt = null;
+    if (moved > 14) return;   // it was a drag, not a tap
+  }
+  const res = item.fn(dot) || {};
+  if (!res.keepOpen) closeAllFans();
+}
+document.addEventListener('pointermove', e => {
+  if (!_dragSt || !_fanState.open) return;
+  const c = _gadgetCenter(_fanState.open); if (!c) return;
+  const ang = Math.atan2(e.clientY - c.y, e.clientX - c.x);
+  let delta = ang - _dragSt.startAng;
+  // wrap into (-π, π]
+  while (delta >  Math.PI) delta -= 2 * Math.PI;
+  while (delta < -Math.PI) delta += 2 * Math.PI;
+  // For mirrored fans, rotation feel should match the visible motion of the dots
+  const mir = GADGET_FANS[_fanState.open].mirror ? -1 : 1;
+  _fanState.rot = _dragSt.startRot + delta * mir;
+  _dragSt.moved += Math.abs(delta);
+  _applyFanLayout();
+}, { passive: true });
+
+// Mouse wheel cycles the ring one slot at a time when a fan is open.
+document.addEventListener('wheel', e => {
+  if (!_fanState.open) return;
+  const step = (2 * Math.PI) / Math.max(1, _fanState.items.length);
+  const mir = GADGET_FANS[_fanState.open].mirror ? -1 : 1;
+  _fanState.rot += (e.deltaY > 0 ? -step : step) * mir;
+  _applyFanLayout();
+  e.preventDefault();
+}, { passive: false });
+
+// === Press contracts ====================================================
 const _gadgetPress = {};
 window.gadgetPress = function(name, e) {
   if (e) e.preventDefault();
