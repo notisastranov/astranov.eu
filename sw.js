@@ -2,36 +2,76 @@
 // Handles: offline shell, push notifications, notification click routing
 'use strict';
 
-const CACHE = 'astranov-v6';
+const SHELL_CACHE = 'astranov-shell-v7';
+const TILE_CACHE  = 'astranov-tiles-v1';
+const TILE_HOSTS = [
+  'basemaps.cartocdn.com',           // CARTO dark/voyager/light
+  'tile.openstreetmap.org',          // OSM raster
+  'gibs.earthdata.nasa.gov',         // NASA BMNG + Black Marble
+  'services.arcgisonline.com',       // Esri satellite
+  'stamen-tiles.a.ssl.fastly.net',   // Stamen (legacy)
+  'tile.thunderforest.com',          // optional
+];
+const TILE_RX = /\.(png|jpe?g|webp|avif)(\?|$)/i;
 
 self.addEventListener('install', e => {
-  self.skipWaiting();   // new SW takes over the moment it installs
-  // Don't pre-cache '/'; we want fresh HTML on every install.
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
   e.waitUntil(Promise.all([
     clients.claim(),
-    // Wipe every previous cache so stale HTML can never resurface.
-    caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))),
+    // Drop only the old SHELL caches; KEEP the tile cache between deploys.
+    caches.keys().then(keys => Promise.all(
+      keys.filter(k => k !== SHELL_CACHE && k !== TILE_CACHE).map(k => caches.delete(k))
+    )),
   ]));
 });
 
-// Network-first for HTML — always show the freshest deploy.
-// Cache is only the offline fallback.
+// Cache-first stale-while-revalidate for raster map tiles.
+async function _tileFetch(req) {
+  const cache = await caches.open(TILE_CACHE);
+  const hit = await cache.match(req);
+  if (hit) {
+    // Refresh in the background so the cache stays warm.
+    fetch(req).then(r => { if (r && r.ok) cache.put(req, r.clone()); }).catch(()=>{});
+    return hit;
+  }
+  try {
+    const fresh = await fetch(req);
+    if (fresh && fresh.ok) cache.put(req, fresh.clone());
+    return fresh;
+  } catch (e) {
+    // Last-resort transparent 1×1 so Cesium doesn't keep retrying
+    return new Response(new Uint8Array(0), { status: 503 });
+  }
+}
+
 self.addEventListener('fetch', e => {
-  if (e.request.mode !== 'navigate') return;
-  e.respondWith((async () => {
-    try {
-      const fresh = await fetch(e.request, { cache: 'no-store' });
-      const cache = await caches.open(CACHE);
-      cache.put('/', fresh.clone());
-      return fresh;
-    } catch (_) {
-      const cached = await caches.match('/');
-      return cached || new Response('Offline', { status: 503 });
-    }
-  })());
+  const req = e.request;
+  const url = (() => { try { return new URL(req.url); } catch { return null; } })();
+  if (!url) return;
+
+  // Map tiles
+  if (req.method === 'GET' && TILE_HOSTS.some(h => url.host.endsWith(h)) && TILE_RX.test(url.pathname)) {
+    e.respondWith(_tileFetch(req));
+    return;
+  }
+
+  // HTML navigations: network-first, cache as offline fallback
+  if (req.mode === 'navigate') {
+    e.respondWith((async () => {
+      try {
+        const fresh = await fetch(req, { cache: 'no-store' });
+        const cache = await caches.open(SHELL_CACHE);
+        cache.put('/', fresh.clone());
+        return fresh;
+      } catch (_) {
+        const cached = await caches.match('/');
+        return cached || new Response('Offline', { status: 503 });
+      }
+    })());
+  }
 });
 
 // Push notification — fires even when app is closed
