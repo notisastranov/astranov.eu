@@ -552,10 +552,36 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   #aicycle-chat .msg.ai   { background: rgba(255, 255, 255, 0.04); }
   #aicycle-chat .msg .via { font-size: 9px; letter-spacing: 0.15em;
                         color: #6a8aaf; text-transform: uppercase; margin-bottom: 4px; }
-  #aicycle-chat form { display: flex; gap: 8px; padding: 12px;
+  #aicycle-chat form { display: flex; gap: 10px; padding: 12px; align-items: center;
                    border-top: 1px solid rgba(120, 180, 255, 0.1); }
   #aicycle-chat input { flex: 1; }
-  #aicycle-mic, #aicycle-send { flex-shrink: 0; }
+  /* Big, glowing blue command buttons — mic (left) + send (right) */
+  .aci-btn {
+    flex-shrink: 0; width: 52px; height: 52px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; cursor: pointer; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    background: rgba(40, 110, 220, 0.18);
+    border: 2px solid rgba(120, 180, 255, 0.6);
+    box-shadow: 0 0 16px rgba(90, 160, 255, 0.35), inset 0 0 12px rgba(90, 160, 255, 0.15);
+    transition: transform 0.15s, box-shadow 0.25s, background 0.25s, border-color 0.25s;
+    font-family: "Apple Color Emoji","Noto Color Emoji","Segoe UI Emoji",sans-serif;
+  }
+  .aci-btn:active { transform: scale(0.9); }
+  .aci-btn:hover { box-shadow: 0 0 24px rgba(90, 160, 255, 0.55), inset 0 0 14px rgba(90, 160, 255, 0.22); }
+  /* Locked-in / active state — strong steady glow */
+  .aci-btn.locked {
+    background: rgba(60, 140, 255, 0.42);
+    border-color: rgba(150, 200, 255, 0.95);
+    box-shadow: 0 0 30px rgba(110, 180, 255, 0.85), inset 0 0 16px rgba(150, 200, 255, 0.4);
+    animation: aci-btn-pulse 1.3s ease-in-out infinite;
+  }
+  @keyframes aci-btn-pulse {
+    0%,100% { box-shadow: 0 0 24px rgba(110,180,255,0.7), inset 0 0 14px rgba(150,200,255,0.35); }
+    50%     { box-shadow: 0 0 40px rgba(140,200,255,1), inset 0 0 20px rgba(180,220,255,0.55); }
+  }
+  #aicycle-speaking-stop { display: none; }
+  #aicycle-speaking-stop.on { display: flex; }
 
 
   /* Mic recording state (the AICYCLE node pulses red while listening) */
@@ -564,6 +590,11 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     animation: mic-pulse 1s ease-in-out infinite;
   }
   @keyframes mic-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.4); } }
+  /* Speaking state — Astranov's ring glows blue while it talks */
+  #aicycle-float.speaking .node {
+    background: #6eb4ff; box-shadow: 0 0 18px rgba(110, 180, 255, 0.95);
+    animation: mic-pulse 0.7s ease-in-out infinite;
+  }
 
 
   /* Radar orbital HUD */
@@ -1562,9 +1593,9 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   <div id="aci-models"></div>
   <div class="messages" id="aicycle-messages"></div>
   <form id="aicycle-form" autocomplete="off">
+    <div id="aicycle-mic" class="aci-btn" title="Hands-free voice" role="button">🎙️</div>
     <input id="aicycle-input" class="gadget-cmd" type="text" placeholder="Talk to Astranov…" style="margin-top:0;flex:1" />
-    <div id="aicycle-mic" title="Voice input" role="button" style="background:rgba(120,180,255,0.08);border:1.5px solid rgba(120,180,255,0.25);border-radius:50%;width:36px;height:36px;font-size:15px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:box-shadow 0.2s">◎</div>
-    <div id="aicycle-send" role="button" onclick="$('aicycle-form').dispatchEvent(new Event('submit',{cancelable:true,bubbles:true}))" style="background:rgba(120,180,255,0.12);border:1.5px solid rgba(120,180,255,0.35);border-radius:50%;width:36px;height:36px;font-size:16px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#7eb4ff;transition:box-shadow 0.2s">◈</div>
+    <div id="aicycle-send" class="aci-btn" title="Send" role="button" onclick="$('aicycle-form').dispatchEvent(new Event('submit',{cancelable:true,bubbles:true}))" style="color:#cfe6ff">🚀</div>
   </form>
 </div>
 
@@ -5166,12 +5197,20 @@ $('aicycle-form').addEventListener('submit', async e => {
   try {
     const resp = await callAICycle(text);
     appendAICycleMessage('ai', resp.response, 'astranov', '');
+    speakAstranov(resp.response);
   } catch (err) {
     appendAICycleMessage('ai', '(cycle unreachable — /aicycle Edge Function not responding)', 'offline', 'fallback');
   } finally {
     $('aicycle-float').classList.remove('thinking');
     window._gfxThinking = false;
   }
+});
+
+// Brief glow when the send button is pressed
+$('aicycle-send')?.addEventListener('pointerdown', () => {
+  const s = $('aicycle-send'); if (!s) return;
+  s.classList.add('locked');
+  setTimeout(() => { if (!_speaking) s.classList.remove('locked'); }, 400);
 });
 
 async function callAICycle(prompt) {
@@ -5207,12 +5246,52 @@ function appendAICycleMessage(role, text, provider, via) {
 }
 
 /* ==============================================================
-   8b. Voice input — Web Speech API
-   Tap-and-hold the ring (or tap the 🎙 button) to listen once.
+   8b. Voice — Astranov listens (Web Speech recognition) AND talks
+   (Web Speech synthesis). The left 🎙️ button toggles hands-free:
+   listen → transcribe → answer → speak → listen again, until tapped off.
    ============================================================== */
+
+// ── Text-to-speech: Astranov speaks its replies ──────────────
+let _ttsVoices = [];
+let _speaking = false;
+function _loadVoices() { try { _ttsVoices = window.speechSynthesis?.getVoices() || []; } catch (_) {} }
+if (window.speechSynthesis) {
+  _loadVoices();
+  window.speechSynthesis.onvoiceschanged = _loadVoices;
+}
+function _pickVoice() {
+  if (!_ttsVoices.length) _loadVoices();
+  const lang = (navigator.language || 'en-US');
+  const want = ['Google UK English Male','Google US English','Daniel','Samantha','Microsoft','Aaron','Arthur'];
+  for (const w of want) { const v = _ttsVoices.find(v => v.name.includes(w)); if (v) return v; }
+  return _ttsVoices.find(v => v.lang === lang) ||
+         _ttsVoices.find(v => v.lang.startsWith(lang.slice(0, 2))) || null;
+}
+function speakAstranov(text) {
+  try {
+    if (!window.speechSynthesis || !text) return;
+    window.speechSynthesis.cancel();
+    const clean = String(text).replace(/[*_`#>]/g, '').slice(0, 600);
+    const u = new SpeechSynthesisUtterance(clean);
+    const v = _pickVoice(); if (v) u.voice = v;
+    u.lang = (v && v.lang) || navigator.language || 'en-US';
+    u.rate = 1.03; u.pitch = 1.0; u.volume = 1.0;
+    u.onstart = () => { _speaking = true; $('aicycle-mic')?.classList.add('locked'); $('aicycle-float')?.classList.add('speaking'); };
+    u.onend = () => {
+      _speaking = false;
+      $('aicycle-float')?.classList.remove('speaking');
+      if (!handsFree) $('aicycle-mic')?.classList.remove('locked');
+      if (handsFree) setTimeout(startListening, 350); // resume hands-free loop
+    };
+    window.speechSynthesis.speak(u);
+  } catch (_) {}
+}
+
+// ── Speech recognition: Astranov listens ─────────────────────
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = null;
 let voiceActive = false;
+let handsFree = false;
 
 if (SpeechRecognition) {
   recognition = new SpeechRecognition();
@@ -5225,42 +5304,57 @@ if (SpeechRecognition) {
     if (transcript) {
       $('aicycle-input').value = transcript;
       aicycleChat.classList.add('visible');
-      // Auto-submit
       $('aicycle-form').dispatchEvent(new Event('submit', { cancelable: true }));
     }
   };
   recognition.onend = () => {
     voiceActive = false;
     $('aicycle-float').classList.remove('listening');
+    // Hands-free: keep the loop alive (unless Astranov is currently speaking)
+    if (handsFree && !_speaking) setTimeout(startListening, 300);
   };
   recognition.onerror = (e) => {
     voiceActive = false;
     $('aicycle-float').classList.remove('listening');
-    console.warn('[voice] error:', e.error);
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      handsFree = false; $('aicycle-mic')?.classList.remove('locked');
+      toast('Microphone blocked — allow access', 'err');
+    }
   };
+}
+
+function startListening() {
+  if (!recognition || !handsFree || voiceActive || _speaking) return;
+  try { recognition.start(); voiceActive = true; $('aicycle-float').classList.add('listening'); }
+  catch (_) { /* already started */ }
 }
 
 function toggleVoice() {
   if (!recognition) {
-    appendAICycleMessage('ai', '(voice input not supported in this browser)', 'system', null);
+    appendAICycleMessage('ai', '(voice input is not supported in this browser)', 'system', null);
     aicycleChat.classList.add('visible');
     return;
   }
-  if (voiceActive) {
+  handsFree = !handsFree;
+  const mic = $('aicycle-mic');
+  if (handsFree) {
+    aicycleChat.classList.add('visible');
+    mic?.classList.add('locked');
+    toast('Hands-free on — speak to Astranov', 'ok');
+    startListening();
+  } else {
+    mic?.classList.remove('locked');
     try { recognition.stop(); } catch (_) {}
-    return;
-  }
-  try {
-    recognition.start();
-    voiceActive = true;
-    $('aicycle-float').classList.add('listening');
-  } catch (e) {
-    console.warn('[voice] start failed:', e);
+    try { window.speechSynthesis?.cancel(); } catch (_) {}
+    _speaking = false;
+    toast('Hands-free off', '');
   }
 }
 
 $('aicycle-mic').addEventListener('click', (e) => {
   e.preventDefault();
+  // A user gesture unlocks audio playback on mobile — prime the synth engine.
+  try { window.speechSynthesis?.resume(); } catch (_) {}
   toggleVoice();
 });
 
