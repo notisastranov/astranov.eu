@@ -64,10 +64,18 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     Globe always visible. AICYCLE ring (#aicycle-float) is the ONLY always-
     visible UI element. Everything else is transient.
 
-7.  AICYCLE — Collective Intelligence
-    Edge Function /aicycle. Owner cycle starts at Claude Opus; free cycle is
-    Groq → Gemini → GPT-4o-mini → xAI Grok. Returns {response, provider,
-    via, label}. Logged to cic_logs. Provider chips lock/unlock the cycle.
+7.  AICYCLE — AstranoV Collective Artificial Intelligence (ACAI)
+    Edge Function /aicycle. ONE voice "Astranov", many engines. Sources
+    (Edge secrets): ANTHROPIC_PAID_API_KEY (owner-grade), OPENROUTER.AI
+    (collective backbone), GROQ_API_KEY, GEMINI_API_KEY. Auto order:
+    owner → paid Anthropic first; everyone → OpenRouter backbone, then
+    Groq, then Gemini. Seeded by COLLECTIVE MEMORY: the creator's public
+    ai_memory (Notis Astranov, is_owner=true) is always injected as the
+    foundational mind; the user's own public memories are layered on.
+    The creator's prompts auto-store as 'creator-dialogue'; any user can
+    teach a fact by saying "remember …". Accepts {prompt,history} or
+    {messages}. Returns {response, text, provider, via, label}. Logged
+    to cic_logs. Never names an underlying provider in its replies.
 
 8.  MEMORY LAW
     ai_memory.is_private = true → row NEVER reaches any AI. RLS enforced.
@@ -5120,7 +5128,7 @@ $('aicycle-form').addEventListener('submit', async e => {
 async function callAICycle(prompt) {
   if (!sb) throw new Error('offline');
   const history = aicycleHistory.slice(-6);
-  const body = { prompt, history };
+  const body = { prompt, history, locked_provider: lastActiveProvider || 'auto' };
   const { data, error } = await sb.functions.invoke('aicycle', { body });
   if (error) throw error;
   aicycleHistory.push({ role: 'user', content: prompt });
@@ -5134,11 +5142,10 @@ function _setAILabel(provider) {
 }
 
 const ACI_MODELS = [
-  { name: 'groq',   label: 'Groq'   },
-  { name: 'gemini', label: 'Gemini' },
-  { name: 'openai', label: 'GPT-4o' },
-  { name: 'xai',    label: 'xAI'    },
-  { name: 'claude', label: 'Claude', ownerOnly: true },
+  { name: 'openrouter', label: 'Core'   },   // OpenRouter backbone
+  { name: 'groq',       label: 'Groq'   },
+  { name: 'gemini',     label: 'Gemini' },
+  { name: 'claude',     label: 'Opus', ownerOnly: true },
 ];
 
 function renderACIModels() {
