@@ -1593,9 +1593,7 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   <div id="aci-models"></div>
   <div class="messages" id="aicycle-messages"></div>
   <form id="aicycle-form" autocomplete="off">
-    <div id="aicycle-mic" class="aci-btn" title="Hands-free voice" role="button">🎙️</div>
-    <input id="aicycle-input" class="gadget-cmd" type="text" placeholder="Talk to Astranov…" style="margin-top:0;flex:1" />
-    <div id="aicycle-send" class="aci-btn" title="Send" role="button" onclick="$('aicycle-form').dispatchEvent(new Event('submit',{cancelable:true,bubbles:true}))" style="color:#cfe6ff">🚀</div>
+    <input id="aicycle-input" class="gadget-cmd" type="text" placeholder="Speak, or tap here to type…" style="margin-top:0;flex:1" />
   </form>
 </div>
 
@@ -5141,10 +5139,26 @@ const aicycleChat = $('aicycle-chat');
 const aicycleMessages = $('aicycle-messages');
 const aicycleHistory = [];
 
-// Aicycle press handling is unified via gadgetPress/gadgetRelease(name='ai')
-$('aicycle-float').addEventListener('pointerdown', e => gadgetPress('ai', e));
-$('aicycle-float').addEventListener('pointerup',   e => gadgetRelease('ai', e));
-$('aicycle-float').addEventListener('pointercancel', () => { delete _gadgetPress['ai']; });
+// Tapping the AICYCLE ring opens Astranov and starts listening + speaking.
+// No buttons, no menu — pure automatic voice + type.
+$('aicycle-float').addEventListener('click', () => {
+  if (aicycleChat.classList.contains('visible')) closeAstranov();
+  else openAstranov();
+});
+
+function openAstranov() {
+  aicycleChat.classList.add('visible');
+  aicycleChat.style.height = ''; aicycleChat.style.maxHeight = '';
+  // A tap is a user gesture — unlock audio so Astranov can speak on mobile.
+  try { window.speechSynthesis?.resume(); } catch (_) {}
+  // Auto-open the microphone and begin the hands-free loop.
+  if (recognition && !handsFree) toggleVoice();
+}
+function closeAstranov() {
+  aicycleChat.classList.remove('visible');
+  if (handsFree) toggleVoice();          // stop listening
+  try { window.speechSynthesis?.cancel(); } catch (_) {}
+}
 
 // Drag handle — resize panel between input-bar height and 60vh ceiling
 (function() {
@@ -5301,11 +5315,12 @@ if (SpeechRecognition) {
 
   recognition.onresult = (evt) => {
     const transcript = evt.results[0]?.[0]?.transcript;
-    if (transcript) {
-      $('aicycle-input').value = transcript;
-      aicycleChat.classList.add('visible');
-      $('aicycle-form').dispatchEvent(new Event('submit', { cancelable: true }));
-    }
+    if (!transcript) return;
+    // If the user is typing in the field, don't hijack — let them type.
+    if (document.activeElement === $('aicycle-input') && $('aicycle-input').value.trim()) return;
+    $('aicycle-input').value = transcript;
+    aicycleChat.classList.add('visible');
+    $('aicycle-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
   };
   recognition.onend = () => {
     voiceActive = false;
@@ -5336,27 +5351,15 @@ function toggleVoice() {
     return;
   }
   handsFree = !handsFree;
-  const mic = $('aicycle-mic');
   if (handsFree) {
     aicycleChat.classList.add('visible');
-    mic?.classList.add('locked');
-    toast('Hands-free on — speak to Astranov', 'ok');
     startListening();
   } else {
-    mic?.classList.remove('locked');
     try { recognition.stop(); } catch (_) {}
     try { window.speechSynthesis?.cancel(); } catch (_) {}
     _speaking = false;
-    toast('Hands-free off', '');
   }
 }
-
-$('aicycle-mic').addEventListener('click', (e) => {
-  e.preventDefault();
-  // A user gesture unlocks audio playback on mobile — prime the synth engine.
-  try { window.speechSynthesis?.resume(); } catch (_) {}
-  toggleVoice();
-});
 
 /* ==============================================================
    8c. Video calling — 1:1 WebRTC over Supabase Realtime signaling
