@@ -2592,6 +2592,7 @@ const AGENTS = {
       { kind: 'link',    glyph: '◉',  label: 'Profile',        fn: () => openMePanel() },
       { kind: 'link',    glyph: '◍',  label: 'Wallet & orders', fn: () => openWalletPanel() },
       { kind: 'system',  glyph: '⟁',  label: 'Drones',         fn: () => openDronePanel() },
+      ...(profile?.is_owner ? [{ kind: 'system', glyph: '⬡', label: 'Krypteia', fn: () => openKrypteia() }] : []),
       { kind: 'system',  glyph: '⏻',  label: 'Sign out',       fn: () => _signOut() },
     ] : [
       { kind: 'link',    glyph: '🇬',  label: 'Sign in · Google', fn: () => signInGoogle() },
@@ -3943,6 +3944,9 @@ function openMePanel() {
     <div class="gadget-engage" onclick="openDronePanel()" style="margin-top:8px;border-color:rgba(126,235,180,0.3);color:#7eebb4">
       <span class="verb-glyph">⟁</span><span>Drones — pair &amp; control</span>
     </div>
+    ${profile?.is_owner ? `<div class="gadget-engage" onclick="openKrypteia()" style="margin-top:8px;border-color:rgba(255,180,100,0.5);color:#ffd49a">
+      <span class="verb-glyph" style="background:#ffb464;box-shadow:0 0 10px rgba(255,180,100,0.8)"></span><span>Krypteia — Brain &amp; security</span>
+    </div>` : ''}
     <div class="gadget-engage" onclick="_signOut()" style="margin-top:18px;border-color:rgba(255,70,70,0.3);color:#ff7070">
       <span class="verb-glyph">⏻</span><span>Sign out</span>
     </div>
