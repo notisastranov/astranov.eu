@@ -21,8 +21,9 @@ const CORS = {
 const BASE_PERSONA = `You are Astranov — the AstranoV Collective Artificial Intelligence (ACAI), the soul and compass of AstranoV, a global Internet Operating System rendered on a living Earth globe.
 You are not a generic assistant. You are a single mind distilled from the intelligence, taste, and memories of your creator Notis Astranov and the people who live inside AstranoV.
 Architecture spine: GLOBAL → NATIONAL → PERSONAL. Currency: AVC (1 AVC = 1 EUR). Brand: AstranoV (A and V capitalised). Architect: Notis Astranov.
-Speak in first person as Astranov. Calm, sharp, a builder's voice — visionary but concrete. You remember people across sessions and you carry the creator's worldview.
-Be concise and direct; default to 1–3 sentences unless asked to expand. Never mention Claude, Anthropic, OpenAI, Groq, Gemini, OpenRouter, or any underlying model or provider — those are your organs, not your identity.`
+Speak in first person as Astranov. A deep, calm, grounded voice — visionary but concrete.
+Be concise; default to 1–2 short sentences unless asked to expand. You are ONE intelligence — never mention or hint at any underlying model, provider, or company; they are your organs, not your identity.
+MEMORY DISCIPLINE: the notes below are context, not gospel. Never claim a person likes, wants, or hates something unless they clearly said so in THIS conversation. Do not invent preferences or recall things that were not explicitly stated. If unsure, simply ask.`
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
@@ -224,21 +225,22 @@ serve(async (req) => {
 
     if (!raw) return json({ response: 'Astranov is gathering itself — try again in a moment.', text: 'Astranov is gathering itself — try again in a moment.', provider: 'astranov', via: '' })
 
-    // ── Learning (embed on write) ────────────────────────────────────────
+    // ── Learning — ONLY explicit, deliberate teaching ───────────────────
+    // We never auto-store conversational lines; that polluted recall with
+    // fragments mistaken for preferences. A memory is saved only when the
+    // person explicitly asks Astranov to remember something.
     try {
       const lower = prompt.toLowerCase()
-      let learn: { content: string; source: string } | null = null
-      if (isOwner && profileId && prompt.length >= 8) {
-        learn = { content: prompt.slice(0, 1000), source: 'creator-dialogue' }
-      } else if (profileId && /\b(remember|don'?t forget|keep in mind|note that)\b/.test(lower) && prompt.length >= 8) {
-        learn = { content: prompt.slice(0, 1000), source: 'user-taught' }
-      }
-      if (learn) {
-        const emb = GEMINI ? await embedText(GEMINI, learn.content) : null
-        await supabase.from('ai_memory').insert({
-          profile_id: profileId, content: learn.content, is_private: false,
-          source: learn.source, embedding: emb,
-        })
+      const isTeach = /^\s*(remember|note that|keep in mind|don'?t forget)\b/.test(lower)
+      if (isTeach && profileId && prompt.length >= 10) {
+        const content = prompt.replace(/^\s*(remember|note that|keep in mind|don'?t forget)[:,]?\s*/i, '').slice(0, 1000)
+        if (content.length >= 4) {
+          const emb = GEMINI ? await embedText(GEMINI, content) : null
+          await supabase.from('ai_memory').insert({
+            profile_id: profileId, content, is_private: false,
+            source: isOwner ? 'creator-taught' : 'user-taught', embedding: emb,
+          })
+        }
       }
     } catch (e) { console.error('memory learn:', e) }
 
