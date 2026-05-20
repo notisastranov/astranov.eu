@@ -88,14 +88,24 @@ AstranoV is a **Virtual Reality Operating System**. The globe and space are perm
 
 ---
 
-## Collective Intelligence Cycle (AICYCLE)
+## Collective Intelligence Cycle (AICYCLE / ACAI)
 - Always-on floating ring (bottom-right, `#aicycle-float`)
-- Owner cycle: Claude Opus first, then Groq → Gemini → GPT-4o-mini → Grok
-- Free cycle for all users: Groq → Gemini → GPT-4o-mini → Grok
-- Tap node = lock to that provider; tap again = Auto
-- Tap center mic = toggle hands-free
-- Tap ring = open C.I. chat (starts small, grows to 33vh max, drag-to-resize)
-- Returns `provider` + `via` on every response
+- ONE first-person voice "Astranov" — the AstranoV Collective Artificial
+  Intelligence. Underlying engines are organs, never named in replies.
+- Engines (Edge secrets): `ANTHROPIC_PAID_API_KEY` (owner Opus),
+  `OPENROUTER_API_KEY` (collective backbone, default model
+  `meta-llama/llama-3.3-70b-instruct`), `GROQ_API_KEY`, `GEMINI_API_KEY`.
+- Auto order: owner → paid Anthropic; everyone → OpenRouter → Groq → Gemini.
+- BRAIN — real semantic memory: `ai_memory.embedding vector(768)` via
+  Gemini `gemini-embedding-001` (outputDimensionality 768). Each turn
+  embeds the query and pulls the most relevant public memories of the
+  creator (`is_owner`) and the user via `match_memories()` RPC (HNSW
+  cosine). New facts embed on write; rows missing a vector backfill lazily.
+- Learning: the owner's prompts persist as `creator-dialogue`; any user
+  can teach a durable fact with "remember …" (`user-taught`). 8 seeded
+  `creator-seed` memories carry Notis Astranov's foundational worldview.
+- Private memories (`is_private = true`) NEVER reach any engine.
+- Returns `{response, text, provider, via, label, recalled}`.
 
 ## AICYCLE Chat Panel Law
 - Opens at input-bar height only — no pre-allocated empty space
