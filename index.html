@@ -65,17 +65,16 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     visible UI element. Everything else is transient.
 
 7.  AICYCLE — AstranoV Collective Artificial Intelligence (ACAI)
-    Edge Function /aicycle. ONE voice "Astranov", many engines. Sources
-    (Edge secrets): ANTHROPIC_PAID_API_KEY (owner-grade), OPENROUTER.AI
-    (collective backbone), GROQ_API_KEY, GEMINI_API_KEY. Auto order:
-    owner → paid Anthropic first; everyone → OpenRouter backbone, then
-    Groq, then Gemini. Seeded by COLLECTIVE MEMORY: the creator's public
-    ai_memory (Notis Astranov, is_owner=true) is always injected as the
-    foundational mind; the user's own public memories are layered on.
-    The creator's prompts auto-store as 'creator-dialogue'; any user can
-    teach a fact by saying "remember …". Accepts {prompt,history} or
-    {messages}. Returns {response, text, provider, via, label}. Logged
-    to cic_logs. Never names an underlying provider in its replies.
+    Edge Function /aicycle. There is exactly ONE intelligence: Astranov.
+    No provider chips, no model selection, no "auto cycle" — the external
+    engines (paid Anthropic for owner, then OpenRouter, Groq, Gemini) are
+    HIDDEN organs chosen automatically and never named, exposed, or stored.
+    cic_logs always record provider='astranov', via=''. Seeded by
+    COLLECTIVE MEMORY: the creator's public ai_memory (Notis Astranov,
+    is_owner=true) is always recalled; the user's memories layer on.
+    Every exchange is logged as the training corpus. Accepts {prompt,
+    history} or {messages}. Returns {response, text, provider:'astranov',
+    label:'Astranov', recalled}.
 
 8.  MEMORY LAW / BRAIN
     ai_memory.is_private = true → row NEVER reaches any AI. RLS enforced.
@@ -2618,20 +2617,17 @@ const AGENTS = {
   },
   ai: {
     host: 'aicycle-float',
-    title: 'Astranov Intelligence', glyph: '◈',
-    sub: () => 'CYCLE · ' + (lastActiveProvider ? lastActiveProvider.toUpperCase() : 'AUTO'),
+    title: 'Astranov', glyph: '◈',
+    sub: () => 'COLLECTIVE INTELLIGENCE',
     longPress: () => toggleVoice(),
-    chatSystem: null,        // routes through the existing aicycle Edge Function
+    chatSystem: null,        // routes through the Astranov brain (/aicycle)
     items: () => {
       const base = [
-        { kind: 'system',  glyph: '🎙', label: 'Toggle voice',  fn: () => toggleVoice() },
-        { kind: 'system',  glyph: '∞',  label: 'Auto cycle',    fn: () => { lastActiveProvider = null; toast('Auto-cycle', ''); refreshAgentSheet(); } },
+        { kind: 'explore', glyph: '◈', label: 'Open chat',    fn: () => _openACIPanel() },
+        { kind: 'system',  glyph: '🎙', label: 'Toggle voice', fn: () => toggleVoice() },
       ];
-      const provs = ACI_MODELS.filter(m => !m.ownerOnly || profile?.is_owner).map(m => ({
-        kind: 'link', glyph: m.label.charAt(0), label: 'Lock ' + m.label,
-        fn: () => { lastActiveProvider = m.name; updateACIModels(m.name); toast('Lock ' + m.label, ''); refreshAgentSheet(); },
-      }));
-      return [...base, ...provs];
+      if (profile?.is_owner) base.push({ kind: 'system', glyph: '⬡', label: 'Brain', fn: () => openBrainPanel() });
+      return base;
     },
   },
 };
@@ -4024,20 +4020,9 @@ async function openRadarPanel() {
 }
 
 function _buildRadarOrbitDots() {
+  // One AI — Astranov. No per-provider orbit dots.
   const container = $('radar-orbit-dots');
-  if (!container) return;
-  const cx = 110, cy = 110, r = 90;
-  const providers = ['claude','groq','gemini','openai','xai'];
-  providers.forEach((name, i) => {
-    const angle = (i / providers.length) * 2 * Math.PI - Math.PI / 2;
-    const dot = document.createElement('div');
-    dot.className = 'radar-orbit-dot' + (name === 'claude' ? ' owner-dot' : '');
-    dot.dataset.provider = name;
-    dot.style.left = (cx + r * Math.cos(angle)) + 'px';
-    dot.style.top  = (cy + r * Math.sin(angle)) + 'px';
-    if (lastActiveProvider === name) dot.classList.add('active');
-    container.appendChild(dot);
-  });
+  if (container) container.innerHTML = '';
 }
 
 async function _acquireRadar() {
@@ -4915,8 +4900,8 @@ window.openKrypteia = async () => {
       <span style="color:${openThreats > 0 ? '#ff6b6b' : '#7eebb4'}">${openThreats}</span>
     </div>
     <div class="row">
-      <span>Active AI</span>
-      <span style="color:#a8c8ee">${lastActiveProvider ? lastActiveProvider.toUpperCase() : 'AUTO CYCLE'}</span>
+      <span>Intelligence</span>
+      <span style="color:#7eebb4">ASTRANOV</span>
     </div>
 
     <div class="row" style="margin-top:16px">
@@ -5105,7 +5090,7 @@ window.openAICycleLog = async () => {
     <div class="memory-row">
       <div class="body" style="font-size:12px;color:#a8c8ee">${escapeHtml((c.query || '').slice(0, 100))}${(c.query || '').length > 100 ? '…' : ''}</div>
       <div class="controls">
-        <span class="privacy-pill public">${c.provider || '?'} · ${c.via || '?'}</span>
+        <span class="privacy-pill public">Astranov</span>
         <span style="opacity:0.6">${c.latency_ms || '?'} ms</span>
         <span style="margin-left:auto;opacity:0.5">${formatRelative(c.created_at)}</span>
       </div>
@@ -5124,8 +5109,6 @@ window.openAICycleLog = async () => {
 const aicycleChat = $('aicycle-chat');
 const aicycleMessages = $('aicycle-messages');
 const aicycleHistory = [];
-
-let lastActiveProvider = null; // last provider that actually responded
 
 // Aicycle press handling is unified via gadgetPress/gadgetRelease(name='ai')
 $('aicycle-float').addEventListener('pointerdown', e => gadgetPress('ai', e));
@@ -5182,8 +5165,7 @@ $('aicycle-form').addEventListener('submit', async e => {
 
   try {
     const resp = await callAICycle(text);
-    appendAICycleMessage('ai', resp.response, resp.label || resp.provider, resp.via);
-    if (resp.provider) _setAILabel(resp.provider);
+    appendAICycleMessage('ai', resp.response, 'astranov', '');
   } catch (err) {
     appendAICycleMessage('ai', '(cycle unreachable — /aicycle Edge Function not responding)', 'offline', 'fallback');
   } finally {
@@ -5195,7 +5177,7 @@ $('aicycle-form').addEventListener('submit', async e => {
 async function callAICycle(prompt) {
   if (!sb) throw new Error('offline');
   const history = aicycleHistory.slice(-6);
-  const body = { prompt, history, locked_provider: lastActiveProvider || 'auto' };
+  const body = { prompt, history };
   const { data, error } = await sb.functions.invoke('aicycle', { body });
   if (error) throw error;
   aicycleHistory.push({ role: 'user', content: prompt });
@@ -5203,36 +5185,10 @@ async function callAICycle(prompt) {
   return data;
 }
 
-// AI ring label — models shown inside the chat panel only
-function _setAILabel(provider) {
-  if (provider && provider !== 'offline') updateACIModels(provider);
-}
-
-const ACI_MODELS = [
-  { name: 'openrouter', label: 'Core'   },   // OpenRouter backbone
-  { name: 'groq',       label: 'Groq'   },
-  { name: 'gemini',     label: 'Gemini' },
-  { name: 'claude',     label: 'Opus', ownerOnly: true },
-];
-
-function renderACIModels() {
-  const container = $('aci-models');
-  if (!container) return;
-  container.innerHTML = '';
-  ACI_MODELS.forEach(m => {
-    if (m.ownerOnly && !profile?.is_owner) return;
-    const el = document.createElement('div');
-    el.className = 'aci-dot' + (lastActiveProvider === m.name ? ' active' : '');
-    el.dataset.model = m.name;
-    el.textContent = m.label;
-    container.appendChild(el);
-  });
-}
-
-function updateACIModels(provider) {
-  document.querySelectorAll('.aci-dot').forEach(dot =>
-    dot.classList.toggle('active', dot.dataset.model === provider));
-}
+// One AI — Astranov. No provider chips, no model selection.
+function _setAILabel() { /* no-op: there is only Astranov */ }
+function renderACIModels() { const c = $('aci-models'); if (c) c.innerHTML = ''; }
+function updateACIModels() { /* no-op */ }
 
 function appendAICycleMessage(role, text, provider, via) {
   const div = document.createElement('div');
@@ -5240,9 +5196,7 @@ function appendAICycleMessage(role, text, provider, via) {
   if (role === 'ai') {
     const v = document.createElement('div');
     v.className = 'via';
-    v.textContent = 'Astranov Collective Intelligence'
-      + (provider && provider !== 'offline' && provider !== 'system'
-        ? ' · ' + provider.toUpperCase() : '');
+    v.textContent = 'Astranov';
     div.appendChild(v);
   }
   const t = document.createElement('div');
@@ -5250,10 +5204,6 @@ function appendAICycleMessage(role, text, provider, via) {
   div.appendChild(t);
   aicycleMessages.appendChild(div);
   aicycleMessages.scrollTop = aicycleMessages.scrollHeight;
-  if (role === 'ai' && provider && provider !== 'offline') {
-    lastActiveProvider = provider;
-    _setAILabel(provider);
-  }
 }
 
 /* ==============================================================

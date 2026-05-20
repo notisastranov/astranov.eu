@@ -130,7 +130,6 @@ serve(async (req) => {
       prompt = last ? String(last.content || '').trim() : ''
       history = convo.slice(0, -1).map(m => ({ role: m.role, content: String(m.content) }))
     }
-    const locked_provider = body.locked_provider || ''
 
     if (!prompt) return json({ response: 'How can I help you?', text: 'How can I help you?', provider: 'astranov', via: '' })
 
@@ -213,27 +212,17 @@ serve(async (req) => {
     const OPENROUTER = Deno.env.get('OPENROUTER_API_KEY') || Deno.env.get('OPENROUTER') || Deno.env.get('OPENROUTER.AI')
     const GROQ       = Deno.env.get('GROQ_API_KEY')
 
+    // There is ONE intelligence: Astranov. The engines below are hidden
+    // organs chosen automatically; their identity is never exposed or stored.
     let raw: string | null = null
-    let provider = 'astranov'
-    let via = ''
-    const pp = locked_provider ? String(locked_provider) : ''
+    if (isOwner && ANTHROPIC) raw = await callAnthropic(ANTHROPIC, system, messages)
+    if (!raw && OPENROUTER)   raw = await callOpenRouter(OPENROUTER, system, messages)
+    if (!raw && GROQ)         raw = await callGroq(GROQ, system, messages)
+    if (!raw && GEMINI)       raw = await callGemini(GEMINI, system, messages)
+    const provider = 'astranov'
+    const via = ''
 
-    if (pp && pp !== 'auto') {
-      if      (pp === 'claude'     && isOwner && ANTHROPIC) { raw = await callAnthropic(ANTHROPIC, system, messages);  if (raw) { provider = 'claude';     via = 'claude' } }
-      else if (pp === 'openrouter' && OPENROUTER)           { raw = await callOpenRouter(OPENROUTER, system, messages); if (raw) { provider = 'openrouter'; via = 'openrouter' } }
-      else if (pp === 'groq'       && GROQ)                 { raw = await callGroq(GROQ, system, messages);            if (raw) { provider = 'groq';       via = 'groq' } }
-      else if (pp === 'gemini'     && GEMINI)               { raw = await callGemini(GEMINI, system, messages);        if (raw) { provider = 'gemini';     via = 'gemini' } }
-    }
-
-    if (!raw) {
-      if (isOwner && ANTHROPIC) { raw = await callAnthropic(ANTHROPIC, system, messages); if (raw) via = 'claude' }
-      if (!raw && OPENROUTER)   { raw = await callOpenRouter(OPENROUTER, system, messages); if (raw) via = 'openrouter' }
-      if (!raw && GROQ)         { raw = await callGroq(GROQ, system, messages);            if (raw) via = 'groq' }
-      if (!raw && GEMINI)       { raw = await callGemini(GEMINI, system, messages);        if (raw) via = 'gemini' }
-      provider = 'astranov'
-    }
-
-    if (!raw) return json({ response: 'Collective Intelligence temporarily offline — try again shortly.', text: 'Collective Intelligence temporarily offline — try again shortly.', provider: 'offline', via: '' })
+    if (!raw) return json({ response: 'Astranov is gathering itself — try again in a moment.', text: 'Astranov is gathering itself — try again in a moment.', provider: 'astranov', via: '' })
 
     // ── Learning (embed on write) ────────────────────────────────────────
     try {
@@ -266,9 +255,10 @@ serve(async (req) => {
     } catch (e) { console.error('backfill:', e) }
 
     const latencyMs = Date.now() - t0
-    const label = `Astranov${via ? ' · ' + via : ''}`
+    const label = 'Astranov'
+    // Corpus log for training — engine identity is never persisted.
     try {
-      await supabase.from('cic_logs').insert({ profile_id: profileId, query: prompt.slice(0, 2000), response: raw.slice(0, 4000), provider, via, latency_ms: latencyMs })
+      await supabase.from('cic_logs').insert({ profile_id: profileId, query: prompt.slice(0, 2000), response: raw.slice(0, 4000), provider: 'astranov', via: '', latency_ms: latencyMs })
     } catch (e) { console.error('cic_log:', e) }
 
     return json({ response: raw, text: raw, provider, via, label, recalled: { creator: creatorMind.length, user: userMemory.length } })
