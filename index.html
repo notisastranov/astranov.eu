@@ -54,7 +54,11 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 
 5.  NAVIGATION
     One Cesium camera, three altitude bands:  GLOBAL >5,000 km · NATIONAL
-    500–5,000 km · PERSONAL <500 km. Back button + level badge auto-fade.
+    500–5,000 km · PERSONAL <500 km. Tap empty globe = descend one level
+    toward the tapped point (global→national→city→street). Glowing blue
+    major-city beacons show at GLOBAL+NATIONAL; tap one to dive to that
+    city. Globe lighting (day/night terminator) is GLOBAL-only — it is
+    switched OFF below global so the street map renders at full brightness.
 
 6.  ZERO UI
     Globe always visible. AICYCLE ring (#aicycle-float) is the ONLY always-
@@ -1708,6 +1712,9 @@ async function bootCesium() {
     viewer.scene.globe.tileCacheSize = 1500;            // keep more tiles in RAM
     viewer.resolutionScale = Math.min(2, window.devicePixelRatio || 1);
 
+    // Glowing blue major-city beacons — click to dive into a city
+    buildCityBeacons();
+
     // Open camera at GLOBAL altitude over Europe (close to astranov.eu)
     viewer.camera.flyTo({
       destination: Cesium.Cartesian3.fromDegrees(20, 40, 12_000_000),
@@ -1823,11 +1830,13 @@ async function setCityImagery(index) {
     // Brightness boost on the inherently-dark CARTO Dark Matter style so
     // streets stay readable while the look stays dark.
     if (p.id === 'carto-dark') {
-      cityLayer.brightness = 1.85;
-      cityLayer.contrast   = 1.35;
-      cityLayer.gamma      = 0.78;
-      cityLayer.saturation = 0.85;
+      cityLayer.brightness = 2.35;
+      cityLayer.contrast   = 1.45;
+      cityLayer.gamma      = 0.68;
+      cityLayer.saturation = 0.9;
     }
+    // City tiles must sit ON TOP of the NASA globe layers.
+    try { viewer.imageryLayers.raiseToTop(cityLayer); } catch (_) {}
     cityLayer.show = currentLevel !== 'global';
     renderLayerSwitch();
     updateImagerySourceBadge();
@@ -1924,6 +1933,14 @@ function onCameraSettled() {
     gd.classList.toggle('at-personal', newLevel === 'personal');
     gd.classList.toggle('at-national', newLevel === 'national');
   }
+
+  // Globe lighting (day/night terminator) is the GLOBAL aesthetic only.
+  // Below global it darkens the street map at night — turn it off so the
+  // CARTO street tiles render at full brightness.
+  if (viewer) viewer.scene.globe.enableLighting = (newLevel === 'global');
+
+  // City glowing dots: visible at GLOBAL + NATIONAL, hidden at PERSONAL
+  cityDotIndex.forEach(e => { e.primitive.show = (newLevel !== 'personal'); });
 
   updateLayerSwitchVisibility();
   updateCatFilter();
@@ -2941,6 +2958,104 @@ function setUserBeacon(lat, lng) {
 }
 
 /* ==============================================================
+   Major-city beacons — glowing blue dots at GLOBAL + NATIONAL.
+   Click one to dive to that city. Hidden once you reach PERSONAL.
+   ============================================================== */
+const WORLD_CITIES = [
+  { name: 'Athens',      lat: 37.9838, lng: 23.7275 },
+  { name: 'Thessaloniki',lat: 40.6401, lng: 22.9444 },
+  { name: 'London',      lat: 51.5074, lng: -0.1278 },
+  { name: 'Paris',       lat: 48.8566, lng: 2.3522  },
+  { name: 'Berlin',      lat: 52.5200, lng: 13.4050 },
+  { name: 'Madrid',      lat: 40.4168, lng: -3.7038 },
+  { name: 'Rome',        lat: 41.9028, lng: 12.4964 },
+  { name: 'Amsterdam',   lat: 52.3676, lng: 4.9041  },
+  { name: 'Istanbul',    lat: 41.0082, lng: 28.9784 },
+  { name: 'Moscow',      lat: 55.7558, lng: 37.6173 },
+  { name: 'Dubai',       lat: 25.2048, lng: 55.2708 },
+  { name: 'New York',    lat: 40.7128, lng: -74.0060 },
+  { name: 'Los Angeles', lat: 34.0522, lng: -118.2437 },
+  { name: 'Chicago',     lat: 41.8781, lng: -87.6298 },
+  { name: 'Toronto',     lat: 43.6532, lng: -79.3832 },
+  { name: 'México City', lat: 19.4326, lng: -99.1332 },
+  { name: 'São Paulo',   lat: -23.5505, lng: -46.6333 },
+  { name: 'Buenos Aires',lat: -34.6037, lng: -58.3816 },
+  { name: 'Lagos',       lat: 6.5244,  lng: 3.3792  },
+  { name: 'Cairo',       lat: 30.0444, lng: 31.2357 },
+  { name: 'Johannesburg',lat: -26.2041, lng: 28.0473 },
+  { name: 'Mumbai',      lat: 19.0760, lng: 72.8777 },
+  { name: 'Delhi',       lat: 28.6139, lng: 77.2090 },
+  { name: 'Singapore',   lat: 1.3521,  lng: 103.8198 },
+  { name: 'Bangkok',     lat: 13.7563, lng: 100.5018 },
+  { name: 'Hong Kong',   lat: 22.3193, lng: 114.1694 },
+  { name: 'Shanghai',    lat: 31.2304, lng: 121.4737 },
+  { name: 'Tokyo',       lat: 35.6762, lng: 139.6503 },
+  { name: 'Seoul',       lat: 37.5665, lng: 126.9780 },
+  { name: 'Sydney',      lat: -33.8688, lng: 151.2093 },
+];
+let cityBillboards = null;
+const cityDotIndex = new Map();   // cityId → { primitive, city }
+let _cityDotImg = null;
+
+function _makeCityDotCanvas() {
+  if (_cityDotImg) return _cityDotImg;
+  const s = 48, c = document.createElement('canvas');
+  c.width = c.height = s;
+  const ctx = c.getContext('2d');
+  const cx = s / 2, cy = s / 2;
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, cx);
+  g.addColorStop(0,    'rgba(150,210,255,0.95)');
+  g.addColorStop(0.35, 'rgba(90,170,255,0.65)');
+  g.addColorStop(0.7,  'rgba(60,140,255,0.20)');
+  g.addColorStop(1,    'rgba(60,140,255,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(cx, cy, cx, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#dff0ff';
+  ctx.beginPath(); ctx.arc(cx, cy, 4.5, 0, Math.PI * 2); ctx.fill();
+  _cityDotImg = c;
+  return c;
+}
+
+function buildCityBeacons() {
+  if (!viewer || cityBillboards) return;
+  cityBillboards = viewer.scene.primitives.add(new Cesium.BillboardCollection({ scene: viewer.scene }));
+  const img = _makeCityDotCanvas();
+  WORLD_CITIES.forEach((city, i) => {
+    const id = 'city:' + i;
+    const bb = cityBillboards.add({
+      position: Cesium.Cartesian3.fromDegrees(city.lng, city.lat),
+      image: img,
+      width: 30, height: 30,
+      scaleByDistance: new Cesium.NearFarScalar(5e5, 0.7, 2e7, 1.6),
+      translucencyByDistance: new Cesium.NearFarScalar(3e5, 0, 1.2e6, 1.0),
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+    });
+    bb.__cityId = id;
+    cityDotIndex.set(id, { primitive: bb, city });
+  });
+  // Gentle shared pulse
+  let t = 0;
+  (function pulse() {
+    if (!cityBillboards) return;
+    t += 0.05;
+    const sc = 1 + 0.18 * Math.abs(Math.sin(t));
+    cityDotIndex.forEach(e => { if (e.primitive.show) e.primitive.scale = sc; });
+    viewer.scene.requestRender();
+    requestAnimationFrame(pulse);
+  })();
+}
+
+function flyToCity(city) {
+  if (!city || !viewer) return;
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(city.lng, city.lat, 6_000),
+    duration: 2.2,
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-72), roll: 0 },
+  });
+  fetchOSMNearby(city.lat, city.lng, 5000);
+}
+
+/* ==============================================================
    OSM / Overpass — vendor billboard dots on the globe
    ============================================================== */
 const OVERPASS_API = 'https://overpass-api.de/api/interpreter';
@@ -3566,6 +3681,10 @@ function subscribeRealtime() {
 function onCanvasClick(click) {
   if (!viewer) return;
   const picked = viewer.scene.pick(click.position);
+  if (picked?.primitive?.__cityId) {
+    flyToCity(cityDotIndex.get(picked.primitive.__cityId)?.city);
+    return;
+  }
   if (picked?.primitive?.__signalId) {
     const entry = signalIndex.get(picked.primitive.__signalId);
     if (entry) openSignalPanel(entry.signal);
@@ -3579,6 +3698,25 @@ function onCanvasClick(click) {
   if (picked?.primitive?.__placeId) {
     const entry = placeIndex.get(picked.primitive.__placeId);
     if (entry) openPlacePanel(entry.place);
+    return;
+  }
+  // Empty globe tap → descend one navigation level toward the tapped point.
+  const ray = viewer.camera.getPickRay(click.position);
+  const ground = ray && viewer.scene.globe.pick(ray, viewer.scene);
+  if (ground) {
+    const carto = Cesium.Cartographic.fromCartesian(ground);
+    const lat = Cesium.Math.toDegrees(carto.latitude);
+    const lng = Cesium.Math.toDegrees(carto.longitude);
+    const h = viewer.camera.positionCartographic.height;
+    let target;
+    if (h > LEVEL_THRESHOLDS.global)        target = 700_000;   // global → national
+    else if (h > LEVEL_THRESHOLDS.national) target = 8_000;     // national → city
+    else                                    target = 1_200;     // city → street
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(lng, lat, target),
+      duration: 1.6,
+      orientation: { heading: 0, pitch: Cesium.Math.toRadians(target < 10_000 ? -65 : -90), roll: 0 },
+    });
     return;
   }
   closePanel();
