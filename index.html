@@ -77,8 +77,14 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     {messages}. Returns {response, text, provider, via, label}. Logged
     to cic_logs. Never names an underlying provider in its replies.
 
-8.  MEMORY LAW
+8.  MEMORY LAW / BRAIN
     ai_memory.is_private = true → row NEVER reaches any AI. RLS enforced.
+    Public rows carry a vector(768) embedding; match_memories() RPC does
+    HNSW cosine recall. /brain Edge Function (owner-only): mode 'distill'
+    consolidates raw creator-dialogue/user-taught notes into sharp
+    'creator-distilled' principles; mode 'export' emits a JSONL fine-tune
+    corpus from cic_logs; mode 'stats' reports memory + corpus counts.
+    Krypteia → Brain panel drives all three.
 
 9.  SECURITY LAW
     Secrets live ONLY in Edge Function env. Public client tokens (Supabase
@@ -4923,9 +4929,66 @@ window.openKrypteia = async () => {
     </div>
 
     <div class="gadget-engage" onclick="openSecurityEvents()" style="margin-top:14px;border-color:rgba(255,100,100,0.35)"><span class="verb-glyph">⚠</span><span>Threat log</span></div>
+    <div class="gadget-engage" onclick="openBrainPanel()" style="margin-top:8px;border-color:rgba(126,235,180,0.4);color:#7eebb4"><span class="verb-glyph" style="background:#7eebb4;box-shadow:0 0 10px rgba(126,235,180,0.8)"></span><span>Brain — memory &amp; training</span></div>
     <div class="gadget-engage" onclick="openMemoryPanel()" style="margin-top:8px"><span class="verb-glyph">◎</span><span>Memory</span></div>
     <div class="gadget-engage" onclick="openAICycleLog()" style="margin-top:8px"><span class="verb-glyph">◈</span><span>AICYCLE log</span></div>
   `);
+};
+
+// Brain panel — owner control over the AstranoV Collective AI's mind.
+window.openBrainPanel = async () => {
+  if (!profile?.is_owner || !sb) return;
+  openPanel(`<h2 style="color:#7eebb4">Brain</h2><div class="subtitle">Reading the mind…</div>`);
+  let stats = null;
+  try {
+    const { data } = await sb.functions.invoke('brain', { body: { mode: 'stats' } });
+    stats = data;
+  } catch (_) {}
+  const rows = (stats?.memory || []).map(m =>
+    `<div class="row"><span>${escapeHtml(m.source || 'memory')}</span><span style="color:#a8c8ee">${m.embedded}/${m.total} embedded</span></div>`
+  ).join('') || '<div style="color:#6a8aaf;font-size:13px;padding:8px 0">No memories yet — talk to Astranov to grow the mind.</div>';
+  openPanel(`
+    <h2 style="color:#7eebb4">Brain</h2>
+    <div class="subtitle">AstranoV Collective Artificial Intelligence — semantic memory</div>
+    ${rows}
+    <div class="row" style="margin-top:8px"><span>Training corpus</span><span style="color:#a8c8ee">${stats?.corpus_rows ?? 0} exchanges</span></div>
+
+    <div style="font-size:12px;color:#6a8aaf;line-height:1.5;margin-top:14px">
+      Distil compresses raw dialogue into sharp, durable principles that lead recall.
+      Export builds a JSONL fine-tuning corpus from every logged exchange.
+    </div>
+    <div class="gadget-engage" onclick="brainDistill(this)" style="margin-top:12px;border-color:rgba(126,235,180,0.45);color:#7eebb4"><span class="verb-glyph" style="background:#7eebb4"></span><span>Distil the mind</span></div>
+    <div class="gadget-engage" onclick="brainExport(this)" style="margin-top:8px"><span class="verb-glyph">⤓</span><span>Export training corpus</span></div>
+    <div class="gadget-engage" onclick="openMemoryPanel()" style="margin-top:8px"><span class="verb-glyph">◎</span><span>Curate memories</span></div>
+  `);
+};
+
+window.brainDistill = async (el) => {
+  if (el) { el.querySelector('span:last-child').textContent = 'Distilling…'; el.style.pointerEvents = 'none'; }
+  try {
+    const { data, error } = await sb.functions.invoke('brain', { body: { mode: 'distill' } });
+    if (error) throw error;
+    if (data?.distilled > 0) toast('Mind distilled — ' + data.distilled + ' new principles', 'ok');
+    else toast(data?.note || 'Nothing new to distil yet', '');
+  } catch (e) { toast('Distil failed: ' + (e.message || e), 'err'); }
+  openBrainPanel();
+};
+
+window.brainExport = async (el) => {
+  if (el) { el.querySelector('span:last-child').textContent = 'Exporting…'; el.style.pointerEvents = 'none'; }
+  try {
+    const { data, error } = await sb.functions.invoke('brain', { body: { mode: 'export' } });
+    if (error) throw error;
+    if (!data?.count) { toast('Corpus is empty — talk to Astranov first', ''); openBrainPanel(); return; }
+    const blob = new Blob([data.jsonl], { type: 'application/x-ndjson' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'astranov-corpus-' + Date.now() + '.jsonl';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    toast('Exported ' + data.count + ' exchanges', 'ok');
+  } catch (e) { toast('Export failed: ' + (e.message || e), 'err'); }
+  openBrainPanel();
 };
 
 window.openSecurityEvents = async () => {
