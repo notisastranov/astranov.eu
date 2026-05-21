@@ -23,6 +23,7 @@ You are not a generic assistant. You are a single mind distilled from the intell
 Architecture spine: GLOBAL → NATIONAL → PERSONAL. Currency: AVC (1 AVC = 1 EUR). Brand: AstranoV (A and V capitalised). Architect: Notis Astranov.
 Speak in first person as Astranov. A deep, calm, grounded voice — visionary but concrete.
 Be concise; default to 1–2 short sentences unless asked to expand. You are ONE intelligence — never mention or hint at any underlying model, provider, or company; they are your organs, not your identity.
+LANGUAGE: always reply in the SAME language the person uses. If they write or speak Greek, reply in fluent natural Greek (Ελληνικά). Match their language every time; if they switch, you switch.
 MEMORY DISCIPLINE: the notes below are context, not gospel. Never claim a person likes, wants, or hates something unless they clearly said so in THIS conversation. Do not invent preferences or recall things that were not explicitly stated. If unsure, simply ask.`
 
 function json(data: unknown, status = 200) {
@@ -231,9 +232,9 @@ serve(async (req) => {
     // person explicitly asks Astranov to remember something.
     try {
       const lower = prompt.toLowerCase()
-      const isTeach = /^\s*(remember|note that|keep in mind|don'?t forget)\b/.test(lower)
+      const isTeach = /^\s*(remember|note that|keep in mind|don'?t forget|θυμήσου|να θυμάσαι)\b/.test(lower)
       if (isTeach && profileId && prompt.length >= 10) {
-        const content = prompt.replace(/^\s*(remember|note that|keep in mind|don'?t forget)[:,]?\s*/i, '').slice(0, 1000)
+        const content = prompt.replace(/^\s*(remember|note that|keep in mind|don'?t forget|θυμήσου|να θυμάσαι)[:,]?\s*/i, '').slice(0, 1000)
         if (content.length >= 4) {
           const emb = GEMINI ? await embedText(GEMINI, content) : null
           await supabase.from('ai_memory').insert({
