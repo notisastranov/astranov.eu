@@ -57,6 +57,18 @@ All changes go into this one file. No new files unless explicitly requested.
 One Cesium camera, three altitude bands. Single tap down, double-tap / back up.
 AVC currency only. Krypteia = owner-only hidden panel.
 
+## Agent Intent Law — act first, ask later (MANDATORY)
+The four corner agents NEVER open a menu on first tap. First tap = the
+agent performs its primary action immediately, no questions:
+- Discover → show what's around (feed/nearby)
+- Identity → open the user's profile (or sign-in if signed out)
+- Navigation → locate the user (GPS calibrate + zoom)
+- Astranov → open chat, start listening, talk
+Only AFTER the agent is engaged does a further tap open the bottom drawer.
+That drawer must show ONLY the options that make sense in context — the
+agent judges what is needed. NEVER a pile of buttons. Tapping while the
+drawer is open closes it.
+
 ---
 
 ## ZERO UI LAW — NEVER VIOLATE

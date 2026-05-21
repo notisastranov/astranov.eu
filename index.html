@@ -196,6 +196,15 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     DB if signal not in local index. emitSignal() sets lat+lng directly (also
     backed by trg_sync_signal_coords trigger).
 
+17b. AGENT INTENT LAW — act first, ask later
+    FIRST tap on any of the four agents performs its primary action
+    immediately — no drawer, no buttons, no questions. Discover → feed,
+    Identity → profile/sign-in, Navigation → locate, Astranov → open+
+    listen. Only AFTER the agent is engaged does a further tap open the
+    bottom drawer, and that drawer shows ONLY the options that make
+    sense in context — never a pile of buttons. The agent judges what
+    is needed. Tapping while the drawer is open closes it.
+
 17. FOUR CORNER AGENTS — sole permanent chrome
     Four large (76px) corner gadgets, each one an "agent" whose menu,
     status, and chat all live inside the universal #agent-sheet bottom
@@ -2601,11 +2610,11 @@ const AGENTS = {
     title: 'Discover Agent', glyph: '◈',
     sub: () => signalIndex.size + ' SIGNALS · TAP A CATEGORY TO TOGGLE',
     longPress: () => ascendLevel(),
+    primary: () => openFeedPanel(),          // first tap: show what's around
     chatSystem: 'You are the Discover Agent for Astranov — you help the user find people, places, events, and signals on the live globe. Be concise.',
     items: () => [
-      { kind: 'explore', glyph: '◈', label: 'Open feed',     fn: () => openFeedPanel()  },
       { kind: 'explore', glyph: '◎', label: 'Nearby radar',  fn: () => openRadarPanel() },
-      { kind: 'system',  glyph: '↑', label: 'Zoom out',      fn: () => ascendLevel() },
+      { kind: 'publish', glyph: '⊕', label: 'Emit signal',   fn: () => openEmitPanel()  },
       ..._catItems(),
     ],
   },
@@ -2615,12 +2624,12 @@ const AGENTS = {
     glyph: '◉',
     sub: () => session ? ('AVC ' + (profile?.avc_balance ?? 0)) : 'SIGN IN TO PUBLISH',
     longPress: () => openMePanel(),
+    primary: () => session ? openMePanel() : openYouPanel(),  // first tap: who am I / sign in
     chatSystem: 'You are the Identity Agent for Astranov — you help the user manage their profile, AVC wallet, deliveries, messages, and identity settings. Be concise.',
     items: () => session ? [
       { kind: 'publish', glyph: '⊕',  label: 'Emit signal',    fn: () => openEmitPanel() },
       { kind: 'publish', glyph: '📦', label: 'Request delivery', fn: () => openRequestDeliveryStep1() },
       { kind: 'publish', glyph: '✉',  label: 'Messages',       fn: () => openMessagesPanel() },
-      { kind: 'link',    glyph: '◉',  label: 'Profile',        fn: () => openMePanel() },
       { kind: 'link',    glyph: '◍',  label: 'Wallet & orders', fn: () => openWalletPanel() },
       { kind: 'system',  glyph: '⟁',  label: 'Drones',         fn: () => openDronePanel() },
       ...(profile?.is_owner ? [{ kind: 'system', glyph: '⬡', label: 'Krypteia', fn: () => openKrypteia() }] : []),
@@ -2635,15 +2644,15 @@ const AGENTS = {
     title: 'Navigation Agent', glyph: '⊕',
     sub: () => window._userLat ? ('GPS LOCKED · ' + _driveMode.toUpperCase()) : 'NO POSITION',
     longPress: () => locateUser(),
+    primary: () => locateUser(),             // first tap: locate straight away
+    engaged: () => !!window._userLat,        // "engaged" once we have a fix
     chatSystem: 'You are the Navigation Agent for Astranov — you help with location, routing, and the user\'s drone/driving view. Be concise.',
     items: () => [
-      { kind: 'system',  glyph: '⊕',  label: 'Acquire GPS',    fn: () => locateUser() },
+      { kind: 'system',  glyph: '⊕',  label: 'Re-locate',      fn: () => locateUser() },
       { kind: 'system',  glyph: '🚁', label: 'Drone view',     fn: () => _forceCamMode('drone') },
       { kind: 'system',  glyph: '🚗', label: 'Driving view',   fn: () => _forceCamMode('driving') },
       { kind: 'publish', glyph: '📍', label: 'Share location', fn: () => _shareMyLocation() },
       { kind: 'link',    glyph: '🌑', label: 'Dark map',       fn: () => setCityImagery(0) },
-      { kind: 'link',    glyph: '🧭', label: 'Voyager map',    fn: () => setCityImagery(1) },
-      { kind: 'link',    glyph: '☀',  label: 'Light map',      fn: () => setCityImagery(2) },
       { kind: 'link',    glyph: '🛰', label: 'Satellite',      fn: () => setCityImagery(4) },
     ],
   },
@@ -2652,10 +2661,10 @@ const AGENTS = {
     title: 'Astranov', glyph: '◈',
     sub: () => 'COLLECTIVE INTELLIGENCE',
     longPress: () => toggleVoice(),
+    primary: () => openAstranov(),           // first tap: open + listen + talk (own handler)
     chatSystem: null,        // routes through the Astranov brain (/aicycle)
     items: () => {
       const base = [
-        { kind: 'explore', glyph: '◈', label: 'Open chat',    fn: () => _openACIPanel() },
         { kind: 'system',  glyph: '🎙', label: 'Toggle voice', fn: () => toggleVoice() },
       ];
       if (profile?.is_owner) base.push({ kind: 'system', glyph: '⬡', label: 'Brain', fn: () => openBrainPanel() });
@@ -2826,6 +2835,10 @@ window.gadgetPress = function(name, e) {
     try { AGENTS[name]?.longPress?.(); } catch (_) {}
   }, 600);
 };
+// Agent law: FIRST tap performs the agent's primary action — no drawer, no
+// questions. Once engaged, a further tap opens the bottom drawer with only
+// the options that make sense. Tapping while the drawer is open closes it.
+const _engaged = new Set();
 window.gadgetRelease = function(name, e) {
   const s = _gadgetPress[name]; if (!s) return;
   clearTimeout(s.timer);
@@ -2833,9 +2846,12 @@ window.gadgetRelease = function(name, e) {
   delete _gadgetPress[name];
   if (wasLong) return;
   if (_agentState.open === name) { closeAgentSheet(); return; }
-  // Locate agent: first tap locates straight away (no menu). Only once we
-  // already have a fix does a tap open the options drawer.
-  if (name === 'locate' && !window._userLat) { locateUser(); return; }
+  const cfg = AGENTS[name]; if (!cfg) return;
+  const engaged = cfg.engaged ? cfg.engaged() : _engaged.has(name);
+  if (!engaged) {
+    _engaged.add(name);
+    if (cfg.primary) { try { cfg.primary(); } catch (_) {} return; }
+  }
   openAgentSheet(name);
 };
 
