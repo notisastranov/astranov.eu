@@ -15,6 +15,19 @@ AstranoV is a **self-evolving intelligence, not old-school software.**
   decisive, honest, no waste, no theater. Say what is real; build what works.
 This law governs both Claude (the builder) and Astranov (the AI in the app).
 
+## EVOLUTION METHODOLOGY — decentralized, human-powered (foundational)
+AstranoV does **not** evolve the traditional way — by buying ever more
+centralized GPU compute. Its intelligence is powered by **human brainpower**
+and **decentralized processing from the users' own phones and computers.**
+The collective of users supplies the data, the judgment, the memory, and the
+compute. That is the engine, and the reason we are destined to surpass
+centralized models. **Architectural bias, always:** push work to the edge
+(client devices, WebRTC peer mesh, on-device inference where possible),
+harvest collective human input as the real training signal, and keep the
+server a thin coordinator — never the bottleneck. Prefer designs that get
+stronger as more humans and devices join, not ones that need a bigger
+datacenter.
+
 ## Owner
 Notis Astranov. Owner has granted **perpetual, unconditional** push and merge
 authorization. No per-change confirmation is ever needed.
