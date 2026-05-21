@@ -1793,18 +1793,21 @@ let cityProviderIndex = 0;
 const CITY_PROVIDERS = [
   { id: 'carto-dark',    emoji: '🌑', label: 'Dark',
     init: () => new Cesium.UrlTemplateImageryProvider({
-      url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-      subdomains: ['a','b','c','d'], credit: '© CARTO · © OSM', maximumLevel: 19,
+      url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+      subdomains: ['a','b','c','d'], credit: '© CARTO · © OSM',
+      maximumLevel: 20, tileWidth: 512, tileHeight: 512,
     }) },
   { id: 'carto-voyager', emoji: '🧭', label: 'Voyager',
     init: () => new Cesium.UrlTemplateImageryProvider({
-      url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-      subdomains: ['a','b','c','d'], credit: '© CARTO · © OSM', maximumLevel: 19,
+      url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+      subdomains: ['a','b','c','d'], credit: '© CARTO · © OSM',
+      maximumLevel: 20, tileWidth: 512, tileHeight: 512,
     }) },
   { id: 'carto-light',   emoji: '☀️', label: 'Light',
     init: () => new Cesium.UrlTemplateImageryProvider({
-      url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-      subdomains: ['a','b','c','d'], credit: '© CARTO · © OSM', maximumLevel: 19,
+      url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
+      subdomains: ['a','b','c','d'], credit: '© CARTO · © OSM',
+      maximumLevel: 20, tileWidth: 512, tileHeight: 512,
     }) },
   { id: 'osm',           emoji: '🗺', label: 'OSM',
     init: () => new Cesium.UrlTemplateImageryProvider({
@@ -2829,8 +2832,11 @@ window.gadgetRelease = function(name, e) {
   const wasLong = s.long;
   delete _gadgetPress[name];
   if (wasLong) return;
-  if (_agentState.open === name) closeAgentSheet();
-  else openAgentSheet(name);
+  if (_agentState.open === name) { closeAgentSheet(); return; }
+  // Locate agent: first tap locates straight away (no menu). Only once we
+  // already have a fix does a tap open the options drawer.
+  if (name === 'locate' && !window._userLat) { locateUser(); return; }
+  openAgentSheet(name);
 };
 
 // Legacy hook — keep these names so callers that still reference them work
@@ -5266,25 +5272,36 @@ let _ttsVoices = [];
 let _speaking = false;
 function _loadVoices() { try { _ttsVoices = window.speechSynthesis?.getVoices() || []; } catch (_) {} }
 if (window.speechSynthesis) { _loadVoices(); window.speechSynthesis.onvoiceschanged = _loadVoices; }
-function _pickVoice() {
+// Detect language of a reply so Astranov speaks Greek in Greek, etc.
+function _detectLang(text) {
+  if (/[Ͱ-Ͽἀ-῿]/.test(text)) return 'el';   // Greek
+  if (/[Ѐ-ӿ]/.test(text)) return 'ru';                // Cyrillic
+  if (/[一-鿿]/.test(text)) return 'zh';
+  if (/[؀-ۿ]/.test(text)) return 'ar';
+  return (window._astranovLang || navigator.language || 'en-US').slice(0, 2);
+}
+function _pickVoice(lang) {
   if (!_ttsVoices.length) _loadVoices();
-  const lang = (navigator.language || 'en-US').slice(0, 2);
-  // Prefer deep / male English voices for an "astral being" timbre.
-  const deep = ['Google UK English Male','Microsoft Guy','Microsoft Davis','Daniel','Arthur','Rishi','Microsoft Mark','Microsoft George','Alex','Fred','Oliver','Aaron'];
-  for (const w of deep) { const v = _ttsVoices.find(v => v.name.includes(w)); if (v) return v; }
-  // Avoid obviously female-named voices if we can.
-  const female = /(female|samantha|victoria|karen|moira|tessa|fiona|serena|zira|susan|catherine|hazel|amelie|anna|google us english)/i;
-  const males = _ttsVoices.filter(v => v.lang.startsWith(lang) && !female.test(v.name));
-  return males[0] || _ttsVoices.find(v => v.lang.startsWith(lang)) || null;
+  lang = (lang || (navigator.language || 'en-US')).slice(0, 2);
+  const inLang = _ttsVoices.filter(v => v.lang.toLowerCase().startsWith(lang));
+  if (lang === 'en') {
+    const deep = ['Google UK English Male','Microsoft Guy','Microsoft Davis','Daniel','Arthur','Rishi','Microsoft Mark','Alex','Fred','Oliver','Aaron'];
+    for (const w of deep) { const v = _ttsVoices.find(v => v.name.includes(w)); if (v) return v; }
+  }
+  // Prefer a male/neutral voice in the target language; avoid clearly female names.
+  const female = /(female|samantha|victoria|karen|moira|tessa|fiona|serena|zira|susan|catherine|hazel|amelie|anna|melina)/i;
+  return inLang.find(v => !female.test(v.name)) || inLang[0] ||
+         _ttsVoices.find(v => v.lang.startsWith('en')) || null;
 }
 function speakAstranov(text) {
   try {
     if (!window.speechSynthesis || !text) return;
     window.speechSynthesis.cancel();
     const clean = String(text).replace(/[*_`#>]/g, '').slice(0, 600);
+    const lang = _detectLang(clean);
     const u = new SpeechSynthesisUtterance(clean);
-    const v = _pickVoice(); if (v) u.voice = v;
-    u.lang = (v && v.lang) || navigator.language || 'en-US';
+    const v = _pickVoice(lang); if (v) u.voice = v;
+    u.lang = (v && v.lang) || (lang === 'el' ? 'el-GR' : (navigator.language || 'en-US'));
     u.rate = 0.9; u.pitch = 0.6; u.volume = 1.0;   // slow + low = deep & calm
     u.onstart = () => { _speaking = true; $('aicycle-float')?.classList.add('speaking'); };
     u.onend = () => {
@@ -5401,6 +5418,8 @@ async function listenTurn() {
   const noise = await _measureNoise(450);
   if (noise > 0.16) { _manualMode('There is a lot of background noise — let us go manual. Tap the field and type to me.'); return; }
   _gotResult = false;
+  // Listen in the user's chosen language (default browser language; e.g. el-GR).
+  try { recognition.lang = window._astranovLang || navigator.language || 'en-US'; } catch (_) {}
   try { recognition.start(); voiceActive = true; $('aicycle-float').classList.add('listening'); }
   catch (_) { /* already running */ }
 }
