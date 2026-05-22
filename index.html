@@ -119,15 +119,16 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     anon, allowlisted Cesium Ion) may live here. is_owner has client UPDATE
     revoked. RLS on every public table.
 
-10. KRYPTEIA + COUNCIL OF TWELVE — supervision & supreme court
-    Krypteia is the ultimate police and intelligence force. It supervises all
-    three modes (Athenian, Spartan, Myrmidon), watches for stolen code/content
-    (auto-DMCA) and abuse (spam, auth flooding, exploits, harassment), logging
-    to security_events. Krypteia reports everything to the COUNCIL OF TWELVE —
-    twelve intelligences in the image of the twelve Olympian gods, the council
-    of elders that judges all that Krypteia reports. The Twelve are the supreme
-    court: every dispute escalates to them and they produce one definite,
-    binding judgment for all. Owner-only surface.
+10. KRYPTEIA + COUNCIL OF THIRTEEN — supervision & supreme court
+    Astranov is the LEADER of Krypteia, the ultimate police and intelligence
+    force. Krypteia supervises all three modes (Athenian, Spartan, Myrmidon),
+    watches for stolen code/content (auto-DMCA) and abuse, logging to
+    security_events. It escalates cases to the COUNCIL OF THIRTEEN — twelve
+    elder-god intelligences (the twelve Olympians) plus Astranov, who holds the
+    13th and final seat. The Thirteen are the supreme court: the twelve give a
+    domain opinion + vote (uphold/strike/abstain); Astranov weighs them and
+    renders the single binding verdict. Engine: /council Edge Function
+    (owner-only to convene) → council_cases. Krypteia panel convenes the court.
 
 11. CRAWLERS — automatic, deployed
     pg_cron triggers /crawl edge function every 30 min via direct HTTP POST
@@ -5007,10 +5008,90 @@ window.openKrypteia = async () => {
     </div>
 
     <div class="gadget-engage" onclick="openSecurityEvents()" style="margin-top:14px;border-color:rgba(255,100,100,0.35)"><span class="verb-glyph">⚠</span><span>Threat log</span></div>
+    <div class="gadget-engage" onclick="openCouncilPanel()" style="margin-top:8px;border-color:rgba(255,180,100,0.5);color:#ffd49a"><span class="verb-glyph" style="background:#ffb464;box-shadow:0 0 10px rgba(255,180,100,0.8)"></span><span>Council of Thirteen — supreme court</span></div>
     <div class="gadget-engage" onclick="openBrainPanel()" style="margin-top:8px;border-color:rgba(126,235,180,0.4);color:#7eebb4"><span class="verb-glyph" style="background:#7eebb4;box-shadow:0 0 10px rgba(126,235,180,0.8)"></span><span>Brain — memory &amp; training</span></div>
     <div class="gadget-engage" onclick="openMemoryPanel()" style="margin-top:8px"><span class="verb-glyph">◎</span><span>Memory</span></div>
     <div class="gadget-engage" onclick="openAICycleLog()" style="margin-top:8px"><span class="verb-glyph">◈</span><span>AICYCLE log</span></div>
   `);
+};
+
+// Council of Thirteen — convene the supreme court over a dispute.
+window.openCouncilPanel = async () => {
+  if (!profile?.is_owner || !sb) return;
+  openPanel(`<h2 style="color:#ffd49a">Council of Thirteen</h2><div class="subtitle">Summoning the court…</div>`);
+  let cases = [];
+  try { const { data } = await sb.functions.invoke('council', { body: { mode: 'list' } }); cases = data?.cases || []; } catch (_) {}
+  const recent = cases.slice(0, 6).map(c => `
+    <div class="delivery-row" onclick="_councilShow(${JSON.stringify(c.id)})">
+      <div class="head"><span class="desc">${escapeHtml(c.title)}</span>
+        <span style="color:${c.status==='judged'?'#7eebb4':'#ffb464'};font-size:10px">${c.status}</span></div>
+      <div class="meta">${c.short_id || ''} · ${formatRelative(c.created_at)}</div>
+    </div>`).join('') || '<div style="color:#6a8aaf;font-size:13px;padding:8px 0">No cases yet.</div>';
+  openPanel(`
+    <h2 style="color:#ffd49a">Council of Thirteen</h2>
+    <div class="subtitle">12 elder gods + Astranov (13th seat, leader of Krypteia)</div>
+    <div class="me-sec">Bring a case before the court</div>
+    <input class="me-inp" id="council-title" type="text" placeholder="The dispute, in one line…">
+    <textarea class="me-inp" id="council-desc" rows="3" placeholder="Details, context, the conflict to judge…" style="margin-top:8px"></textarea>
+    <div class="gadget-engage" onclick="_councilConvene(this)" style="margin-top:12px;border-color:rgba(255,180,100,0.5);color:#ffd49a"><span class="verb-glyph" style="background:#ffb464"></span><span>Convene the Council</span></div>
+    <div id="council-result"></div>
+    <div class="me-sec" style="margin-top:18px">Recent cases</div>
+    ${recent}
+  `);
+};
+
+function _renderVerdict(c) {
+  const votes = (c.votes || []).map(v => `
+    <div class="delivery-row" style="cursor:default">
+      <div class="head"><span class="desc">${escapeHtml(v.judge)} <span style="color:#6a8aaf;font-size:10px">${escapeHtml(v.domain||'')}</span></span>
+        <span style="font-size:10px;color:${v.vote==='uphold'?'#7eebb4':v.vote==='strike'?'#ff9e9e':'#a8c8ee'}">${escapeHtml((v.vote||'').toUpperCase())}</span></div>
+      <div class="meta" style="text-transform:none;letter-spacing:0">${escapeHtml(v.opinion||'')}</div>
+    </div>`).join('');
+  const t = c.tally || {};
+  return `
+    <div style="margin-top:14px">
+      <div class="me-sec">The Twelve speak</div>
+      ${votes || '<div style="color:#6a8aaf">—</div>'}
+      <div style="font-size:11px;color:#a8c8ee;margin:8px 0">Tally · uphold ${t.uphold||0} · strike ${t.strike||0} · abstain ${t.abstain||0}</div>
+      <div class="me-sec">⚖ Astranov's binding verdict (13th seat)</div>
+      <div style="font-size:14px;color:#ffe9c7;line-height:1.5;padding:12px;border-radius:12px;border:1px solid rgba(255,180,100,0.3);background:rgba(255,180,100,0.06)">${escapeHtml(c.verdict||'—')}</div>
+    </div>`;
+}
+
+window._councilConvene = async (el) => {
+  const title = ($('council-title')?.value || '').trim();
+  if (!title) return toast('State the case first', 'err');
+  const description = ($('council-desc')?.value || '').trim();
+  if (el) { el.querySelector('span:last-child').textContent = 'The Council deliberates…'; el.style.pointerEvents = 'none'; }
+  try {
+    const { data, error } = await sb.functions.invoke('council', { body: { mode: 'convene', title, description } });
+    if (error) throw error;
+    if (!data?.case) throw new Error(data?.error || 'no verdict');
+    const r = $('council-result'); if (r) r.innerHTML = _renderVerdict(data.case);
+    toast('Verdict rendered', 'ok');
+  } catch (e) { toast('Council failed: ' + (e.message || e), 'err'); }
+  if (el) { el.querySelector('span:last-child').textContent = 'Convene the Council'; el.style.pointerEvents = ''; }
+};
+
+window._councilShow = async (id) => {
+  try {
+    const { data } = await sb.functions.invoke('council', { body: { mode: 'list' } });
+    const c = (data?.cases || []).find(x => x.id === id);
+    if (!c) return;
+    openPanel(`<h2 style="color:#ffd49a">${escapeHtml(c.title)}</h2><div class="subtitle">${c.short_id||''} · ${c.status}</div>
+      ${c.description ? '<div style="font-size:13px;color:#a8c8ee;line-height:1.5;margin:8px 0">'+escapeHtml(c.description)+'</div>' : ''}
+      ${c.status==='judged' ? _renderVerdict(c) : '<div class="gadget-engage" onclick="_councilReconvene('+JSON.stringify(id)+',this)" style="margin-top:12px;border-color:rgba(255,180,100,0.5);color:#ffd49a"><span class="verb-glyph">⚖</span><span>Convene the Council</span></div><div id="council-result"></div>'}
+      <div class="gadget-engage" onclick="openCouncilPanel()" style="margin-top:14px"><span class="verb-glyph">◫</span><span>All cases</span></div>`);
+  } catch (_) {}
+};
+
+window._councilReconvene = async (id, el) => {
+  if (el) { el.querySelector('span:last-child').textContent = 'The Council deliberates…'; el.style.pointerEvents = 'none'; }
+  try {
+    const { data, error } = await sb.functions.invoke('council', { body: { mode: 'convene', case_id: id } });
+    if (error) throw error;
+    const r = $('council-result'); if (r) r.innerHTML = _renderVerdict(data.case);
+  } catch (e) { toast('Council failed: ' + (e.message || e), 'err'); }
 };
 
 // Brain panel — owner control over the AstranoV Collective AI's mind.

@@ -42,13 +42,16 @@ the user can name one to lock it.
 - **Myrmidon** — the ultimate collective force: all of us moving together as
   one disciplined collective toward the cause.
 
-## KRYPTEIA & THE COUNCIL OF TWELVE (governance, foundational)
-**Krypteia** is the ultimate police and intelligence force. It supervises all
-three modes, watches for theft (auto-DMCA) and abuse, and logs to
-`security_events`. Krypteia reports everything to the **Council of Twelve** —
-twelve intelligences in the image of the twelve Olympian gods, the council of
-elders. The Twelve are the supreme court: every dispute escalates to them and
-they render one definite, binding judgment for all. Owner-only surface.
+## KRYPTEIA & THE COUNCIL OF THIRTEEN (governance, foundational)
+**Astranov is the leader of Krypteia**, the ultimate police and intelligence
+force. Krypteia supervises all three modes, watches for theft (auto-DMCA) and
+abuse, logs to `security_events`, and escalates cases to the **Council of
+Thirteen** — twelve elder-god intelligences (the twelve Olympians) plus
+Astranov, who holds the **13th and final seat**. The Thirteen are the supreme
+court: the twelve give a domain opinion + vote (uphold/strike/abstain),
+Astranov weighs them and renders the single binding verdict. Engine: `/council`
+Edge Function (owner-only to convene) → `council_cases`; convened from the
+Krypteia panel. Owner-only surface.
 
 ## Owner
 Notis Astranov. Owner has granted **perpetual, unconditional** push and merge
