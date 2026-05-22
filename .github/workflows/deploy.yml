@@ -38,10 +38,33 @@ jobs:
             echo "Frontend deployment and cache purge continue; investigate Supabase project state separately."
           fi
 
+  frontend:
+    runs-on: ubuntu-latest
+    name: Deploy frontend to Vercel
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Deploy production
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::VERCEL_TOKEN is not set"
+            exit 1
+          fi
+          npm install -g vercel@50.28.0
+          vercel link --yes --project astranov --scope notisastranov-8109s-projects --token "$VERCEL_TOKEN"
+          vercel pull --yes --environment=production --scope notisastranov-8109s-projects --token "$VERCEL_TOKEN"
+          vercel deploy --prod --force --yes --scope notisastranov-8109s-projects --token "$VERCEL_TOKEN"
+
   cloudflare:
     runs-on: ubuntu-latest
     name: Purge Cloudflare cache
-    needs: edge-functions
+    needs: [edge-functions, frontend]
     if: always()
     steps:
       - name: Purge cache
