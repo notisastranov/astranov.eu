@@ -119,9 +119,15 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     anon, allowlisted Cesium Ion) may live here. is_owner has client UPDATE
     revoked. RLS on every public table.
 
-10. KRYPTEIA — security only, owner-only
-    Watch for stolen code/content, auto-DMCA. Detect abuse: spam, auth
-    flooding, exploits, harassment. Threat log = security_events.
+10. KRYPTEIA + COUNCIL OF TWELVE — supervision & supreme court
+    Krypteia is the ultimate police and intelligence force. It supervises all
+    three modes (Athenian, Spartan, Myrmidon), watches for stolen code/content
+    (auto-DMCA) and abuse (spam, auth flooding, exploits, harassment), logging
+    to security_events. Krypteia reports everything to the COUNCIL OF TWELVE —
+    twelve intelligences in the image of the twelve Olympian gods, the council
+    of elders that judges all that Krypteia reports. The Twelve are the supreme
+    court: every dispute escalates to them and they produce one definite,
+    binding judgment for all. Owner-only surface.
 
 11. CRAWLERS — automatic, deployed
     pg_cron triggers /crawl edge function every 30 min via direct HTTP POST
@@ -4973,7 +4979,10 @@ window.openKrypteia = async () => {
 
   openPanel(`
     <h2 style="color:#ff6b6b">Krypteia</h2>
-    <div class="subtitle">Secret intelligence · threat watch · IP defense</div>
+    <div class="subtitle">Police &amp; intelligence · supervises all three modes</div>
+    <div style="font-size:11px;color:#a8c8ee;line-height:1.5;margin:4px 0 12px;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,180,100,0.2);background:rgba(255,180,100,0.05)">
+      ⚖ Reports to the <strong style="color:#ffd49a">Council of Twelve</strong> — the supreme court that judges all disputes and renders one binding verdict.
+    </div>
 
     <div class="row">
       <span>Open threats</span>

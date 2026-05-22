@@ -42,6 +42,14 @@ the user can name one to lock it.
 - **Myrmidon** — the ultimate collective force: all of us moving together as
   one disciplined collective toward the cause.
 
+## KRYPTEIA & THE COUNCIL OF TWELVE (governance, foundational)
+**Krypteia** is the ultimate police and intelligence force. It supervises all
+three modes, watches for theft (auto-DMCA) and abuse, and logs to
+`security_events`. Krypteia reports everything to the **Council of Twelve** —
+twelve intelligences in the image of the twelve Olympian gods, the council of
+elders. The Twelve are the supreme court: every dispute escalates to them and
+they render one definite, binding judgment for all. Owner-only surface.
+
 ## Owner
 Notis Astranov. Owner has granted **perpetual, unconditional** push and merge
 authorization. No per-change confirmation is ever needed.
