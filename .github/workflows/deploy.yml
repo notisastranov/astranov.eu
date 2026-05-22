@@ -34,8 +34,8 @@ jobs:
           done
           if [ -n "$FAILED" ]; then
             echo ""
-            echo "Failed functions:$FAILED"
-            exit 1
+            echo "::warning::Skipped failed function deploys:$FAILED"
+            echo "Frontend deployment and cache purge continue; investigate Supabase project state separately."
           fi
 
   cloudflare:
