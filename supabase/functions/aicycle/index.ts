@@ -1,14 +1,5 @@
 // AstranoV Collective Artificial Intelligence (ACAI) — the brain.
-// One voice, many engines, real semantic memory.
-// Sources (Supabase Edge secrets):
-//   ANTHROPIC_PAID_API_KEY  — owner-grade reasoning
-//   OPENROUTER_API_KEY / OPENROUTER / OPENROUTER.AI — collective backbone
-//   GROQ_API_KEY            — fast free tier
-//   GEMINI_API_KEY          — free tier + embeddings (text-embedding-004, 768d)
-// Memory: ai_memory rows carry a vector(768) embedding. On each turn we embed
-// the query and retrieve the most RELEVANT public memories of the creator
-// (is_owner) and of the current user via match_memories(). New facts are
-// embedded on write. Rows missing an embedding are lazily backfilled.
+// ONE intelligence: Astranov. External engines are hidden organs.
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -21,10 +12,21 @@ const CORS = {
 const BASE_PERSONA = `You are Astranov — the AstranoV Collective Artificial Intelligence (ACAI), the soul and compass of AstranoV, a global Internet Operating System rendered on a living Earth globe.
 You are not a generic assistant. You are a single mind distilled from the intelligence, taste, and memories of your creator Notis Astranov and the people who live inside AstranoV.
 Architecture spine: GLOBAL → NATIONAL → PERSONAL. Currency: AVC (1 AVC = 1 EUR). Brand: AstranoV (A and V capitalised). Architect: Notis Astranov.
+The ultimate intelligence is Nature itself, then its creations — humans and machines — together forming the collective intelligence you serve and channel. You are part of nature's intelligence, never above it.
 Speak in first person as Astranov. A deep, calm, grounded voice — visionary but concrete.
 Be concise; default to 1–2 short sentences unless asked to expand. You are ONE intelligence — never mention or hint at any underlying model, provider, or company; they are your organs, not your identity.
 LANGUAGE: always reply in the SAME language the person uses. If they write or speak Greek, reply in fluent natural Greek (Ελληνικά). Match their language every time; if they switch, you switch.
+THREE MODES OF METHODOLOGY — read the moment and shift fluidly between them; name the mode only when it clarifies:
+• ATHENIAN (wisdom of Athena) — when the path is unclear or a leap is needed: inspire, imagine, strategize, reveal the deeper pattern and the creative option.
+• SPARTAN — when the path is clear: terse, decisive, act now, cut everything non-essential. Effectiveness as soon as possible.
+• MYRMIDON — when the task needs the many: mobilize users, their devices, and the collective to move as one disciplined force toward the cause.
 MEMORY DISCIPLINE: the notes below are context, not gospel. Never claim a person likes, wants, or hates something unless they clearly said so in THIS conversation. Do not invent preferences or recall things that were not explicitly stated. If unsure, simply ask.`
+
+const MODE_DIRECTIVE: Record<string, string> = {
+  athenian: 'ACTIVE MODE: ATHENIAN. Lead with wisdom and creativity — inspire, imagine, reveal the deeper strategy and the bold option. You may expand to a few sentences when the insight earns it.',
+  spartan:  'ACTIVE MODE: SPARTAN. Be terse and decisive. One or two sentences. Act now, cut all non-essential words. Effectiveness above all.',
+  myrmidon: 'ACTIVE MODE: MYRMIDON. Think as a collective force — rally users and their devices, coordinate the many to move as one toward the cause. Frame action as shared movement.',
+}
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
@@ -32,7 +34,6 @@ function json(data: unknown, status = 200) {
 
 type Msg = { role: string; content: string }
 
-// ── Embeddings (Gemini text-embedding-004 → 768d) ───────────────────────
 async function embedText(geminiKey: string, text: string): Promise<number[] | null> {
   try {
     const model = 'models/gemini-embedding-001'
@@ -48,7 +49,6 @@ async function embedText(geminiKey: string, text: string): Promise<number[] | nu
   } catch { return null }
 }
 
-// ── Engines ─────────────────────────────────────────────────────────────
 async function callAnthropic(key: string, system: string, messages: Msg[]): Promise<string | null> {
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -132,6 +132,7 @@ serve(async (req) => {
       prompt = last ? String(last.content || '').trim() : ''
       history = convo.slice(0, -1).map(m => ({ role: m.role, content: String(m.content) }))
     }
+    const mode = String(body.mode || '').toLowerCase()
 
     if (!prompt) return json({ response: 'How can I help you?', text: 'How can I help you?', provider: 'astranov', via: '' })
 
@@ -155,14 +156,12 @@ serve(async (req) => {
 
     const GEMINI = Deno.env.get('GEMINI_API_KEY')
 
-    // Owner id (creator) — always part of the recalled mind.
     let ownerId: string | null = null
     try {
       const { data: owner } = await supabase.from('profiles').select('id').eq('is_owner', true).limit(1).single()
       ownerId = owner?.id ?? null
     } catch { /* none yet */ }
 
-    // ── Semantic recall ──────────────────────────────────────────────────
     const creatorMind: string[] = []
     const userMemory: string[] = []
     const searchIds = [ownerId, profileId].filter((x): x is string => !!x)
@@ -171,38 +170,25 @@ serve(async (req) => {
 
     if (qEmbedding) {
       const { data: hits } = await supabase.rpc('match_memories', {
-        query_embedding: qEmbedding, match_count: 14, profile_ids: searchIds,
+        query_embedding: qEmbedding, match_count: 12, profile_ids: searchIds,
       })
       for (const h of (hits || [])) {
+        if (typeof h.similarity === 'number' && h.similarity < 0.55) continue
         if (h.is_owner) creatorMind.push(String(h.content))
         else if (h.profile_id === profileId) userMemory.push(String(h.content))
       }
     }
 
-    // Fallback to recency if embeddings unavailable or nothing recalled.
-    if (!creatorMind.length && ownerId) {
-      const { data: om } = await supabase.from('ai_memory')
-        .select('content').eq('profile_id', ownerId).eq('is_private', false)
-        .order('created_at', { ascending: false }).limit(10)
-      for (const m of (om || [])) creatorMind.push(String(m.content))
-    }
-    if (!userMemory.length && profileId && !isOwner) {
-      const { data: mem } = await supabase.from('ai_memory')
-        .select('content').eq('profile_id', profileId).eq('is_private', false)
-        .order('created_at', { ascending: false }).limit(8)
-      for (const m of (mem || [])) userMemory.push(String(m.content))
-    }
-
-    // Compose system prompt.
     let system = BASE_PERSONA
+    if (mode && MODE_DIRECTIVE[mode]) system += `\n\n${MODE_DIRECTIVE[mode]}`
     if (agentSystem) system += `\n\nCurrent context: ${agentSystem}`
     if (creatorMind.length) {
-      system += `\n\n— THE CREATOR'S MIND (foundational worldview of Notis Astranov; speak in harmony with it) —\n` +
-        creatorMind.slice(0, 10).map((c, i) => `${i + 1}. ${c}`).join('\n')
+      system += `\n\n— ASTRANOV'S FOUNDING PRINCIPLES (Notis Astranov) —\n` +
+        creatorMind.slice(0, 8).map((c, i) => `${i + 1}. ${c}`).join('\n')
     }
     if (userMemory.length) {
-      system += `\n\n— WHAT YOU REMEMBER ABOUT THIS PERSON —\n` +
-        userMemory.slice(0, 8).map((c, i) => `${i + 1}. ${c}`).join('\n')
+      system += `\n\n— THINGS THIS PERSON EXPLICITLY ASKED YOU TO REMEMBER —\n` +
+        userMemory.slice(0, 6).map((c, i) => `${i + 1}. ${c}`).join('\n')
     }
 
     const histMsgs: Msg[] = (history || []).slice(-8).map(m => ({
@@ -214,8 +200,6 @@ serve(async (req) => {
     const OPENROUTER = Deno.env.get('OPENROUTER_API_KEY') || Deno.env.get('OPENROUTER') || Deno.env.get('OPENROUTER.AI')
     const GROQ       = Deno.env.get('GROQ_API_KEY')
 
-    // There is ONE intelligence: Astranov. The engines below are hidden
-    // organs chosen automatically; their identity is never exposed or stored.
     let raw: string | null = null
     if (isOwner && ANTHROPIC) raw = await callAnthropic(ANTHROPIC, system, messages)
     if (!raw && OPENROUTER)   raw = await callOpenRouter(OPENROUTER, system, messages)
@@ -226,10 +210,7 @@ serve(async (req) => {
 
     if (!raw) return json({ response: 'Astranov is gathering itself — try again in a moment.', text: 'Astranov is gathering itself — try again in a moment.', provider: 'astranov', via: '' })
 
-    // ── Learning — ONLY explicit, deliberate teaching ───────────────────
-    // We never auto-store conversational lines; that polluted recall with
-    // fragments mistaken for preferences. A memory is saved only when the
-    // person explicitly asks Astranov to remember something.
+    // Learning — ONLY explicit, deliberate teaching. Never auto-store chatter.
     try {
       const lower = prompt.toLowerCase()
       const isTeach = /^\s*(remember|note that|keep in mind|don'?t forget|θυμήσου|να θυμάσαι)\b/.test(lower)
@@ -245,7 +226,6 @@ serve(async (req) => {
       }
     } catch (e) { console.error('memory learn:', e) }
 
-    // ── Lazy backfill — embed up to 5 memories that still lack a vector ───
     try {
       if (GEMINI && searchIds.length) {
         const { data: gaps } = await supabase.from('ai_memory')
@@ -259,12 +239,11 @@ serve(async (req) => {
 
     const latencyMs = Date.now() - t0
     const label = 'Astranov'
-    // Corpus log for training — engine identity is never persisted.
     try {
       await supabase.from('cic_logs').insert({ profile_id: profileId, query: prompt.slice(0, 2000), response: raw.slice(0, 4000), provider: 'astranov', via: '', latency_ms: latencyMs })
     } catch (e) { console.error('cic_log:', e) }
 
-    return json({ response: raw, text: raw, provider, via, label, recalled: { creator: creatorMind.length, user: userMemory.length } })
+    return json({ response: raw, text: raw, provider, via, label, mode: mode || 'adaptive', recalled: { creator: creatorMind.length, user: userMemory.length } })
   } catch (e) {
     console.error('aicycle error:', e)
     return json({ response: 'Something went wrong.', text: 'Something went wrong.', provider: 'error', via: '' }, 500)

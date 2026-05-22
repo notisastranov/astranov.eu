@@ -28,6 +28,13 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     keep the server a thin coordinator. Prefer designs that strengthen as
     more humans and devices join, not ones that need a bigger datacenter.
 
+0c. THREE MODES OF METHODOLOGY
+    ATHENIAN — wisdom of Athena; inspiration + creativity for the unclear leap.
+    SPARTAN — effective ASAP, clear-cut, terse, decisive, cut all waste.
+    MYRMIDON — the ultimate collective force; all of us moving as one toward
+    the cause. Astranov reads the moment and shifts fluidly; the user may name
+    a mode in any language to lock it (/aicycle body.mode).
+
 1.  IDENTITY
     Internet Operating System. Globe-first collective reality interface.
     Frontend = THIS FILE only. Backend = Supabase (db + Edge Functions + Realtime).
@@ -5248,6 +5255,12 @@ $('aicycle-form').addEventListener('submit', async e => {
   const input = $('aicycle-input');
   const text = input.value.trim();
   if (!text) return;
+  // Mode switch by voice/text — "spartan mode", "athenian mode", "myrmidon mode".
+  const mm = text.toLowerCase().match(/\b(athenian|spartan|myrmidon|αθηναϊκ|σπαρτιατ|μυρμιδον)/);
+  if (mm) {
+    const map = { 'αθηναϊκ': 'athenian', 'σπαρτιατ': 'spartan', 'μυρμιδον': 'myrmidon' };
+    window._astranovMode = map[mm[1]] || mm[1];
+  }
   appendAICycleMessage('user', text);
   input.value = '';
   $('aicycle-float').classList.add('thinking');
@@ -5268,7 +5281,7 @@ $('aicycle-form').addEventListener('submit', async e => {
 async function callAICycle(prompt) {
   if (!sb) throw new Error('offline');
   const history = aicycleHistory.slice(-6);
-  const body = { prompt, history };
+  const body = { prompt, history, mode: window._astranovMode || '' };
   const { data, error } = await sb.functions.invoke('aicycle', { body });
   if (error) throw error;
   aicycleHistory.push({ role: 'user', content: prompt });
