@@ -186,8 +186,11 @@ This block strives to get shorter, more inclusive, more precise with every edit.
        runners claim via accept_delivery RPC; requested → accepted →
        in_transit → delivered (cancellable). Discovery via nearby_deliveries.
     b. Orders — vendor commerce. Tap any vendor pin → ORDER opens cart.
-       items[]={name,qty,price}, calc={subtotal,delivery_fee,platform_fee,
-       total,currency}. order-intake Edge Function upserts the vendor row
+       vendor-menu Edge Function has Astranov COMPOSE a menu (dishes + AVC
+       prices) for OSM vendors that publish none, cached in vendors.items;
+       tap a dish to add it to the cart. items[]={name,qty,price},
+       calc={subtotal,delivery_fee,platform_fee,total,currency}.
+       order-intake Edge Function upserts the vendor row
        (vendor_id='osm:'+id), inserts orders row, broadcasts new_order on
        vendor-orders-<vendor_id>. order-status Edge Function flips status:
        pending → accepted → preparing → in_transit → delivered (cancellable
@@ -1531,6 +1534,13 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   .ord-row { display: grid; grid-template-columns: 1fr 50px 60px 22px; gap: 6px; margin-bottom: 6px; align-items: center; }
   .ord-row .me-inp { padding: 7px 9px; font-size: 12px; }
   .ord-row .ord-qty, .ord-row .ord-px { text-align: right; }
+  .menu-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; margin-bottom: 6px; border-radius: 10px; cursor: pointer;
+    background: rgba(126,235,180,0.05); border: 1px solid rgba(126,235,180,0.18);
+    -webkit-tap-highlight-color: transparent; transition: background 0.15s, transform 0.1s;
+  }
+  .menu-item:active { transform: scale(0.98); background: rgba(126,235,180,0.14); }
   .ord-row .ord-x {
     width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center;
     justify-content: center; color: #ff9e9e; font-size: 10px;
@@ -3676,9 +3686,63 @@ window._placeOrder = function() {
   const p = window._currentPlace;
   if (!p) return;
   window._cart = window._cart || [];
-  if (window._cartVendorId !== _osmIdFor(p)) { window._cart = []; window._cartVendorId = _osmIdFor(p); }
+  if (window._cartVendorId !== _osmIdFor(p)) {
+    window._cart = []; window._cartVendorId = _osmIdFor(p);
+    window._menu = null; window._menuVendor = null;   // new vendor → fresh menu
+  }
+  _renderOrderPanel();
+  if (window._menu == null && !window._menuLoading) _loadMenu();   // auto-compose
+};
+
+// Astranov-composed menu — tappable dishes that add to the cart.
+function _menuHtml() {
+  const menu = (window._menuVendor === window._cartVendorId) ? window._menu : null;
+  if (window._menuLoading) return '<div style="color:#7eb4ff;font-size:12px;padding:8px 0">Astranov is composing the menu…</div>';
+  if (menu == null) return '<div class="gadget-engage" onclick="_loadMenu()" style="margin-top:4px;border-color:rgba(126,235,180,0.3)"><span class="verb-glyph">◈</span><span>Compose the menu</span></div>';
+  if (!menu.length) return '<div style="color:#6a8aaf;font-size:12px;padding:6px 0">No menu found — add items manually below.</div>';
+  return menu.map((m, i) => `
+    <div class="menu-item" onclick="_addMenuItem(${i})">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;color:#e6f1ff">${escapeHtml(m.name)}</div>
+        ${m.desc ? '<div style="font-size:10px;color:#6a8aaf;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(m.desc) + '</div>' : ''}
+      </div>
+      <div style="font-size:12px;color:#ffd47e;flex-shrink:0">${m.price} AVC</div>
+      <div style="font-size:16px;color:#7eebb4;flex-shrink:0">＋</div>
+    </div>`).join('');
+}
+window._loadMenu = async function() {
+  if (!sb) return;
+  const p = window._currentPlace; if (!p) return;
+  window._menuLoading = true;
+  const el = $('ord-menu'); if (el) el.innerHTML = '<div style="color:#7eb4ff;font-size:12px;padding:8px 0">Astranov is composing the menu…</div>';
+  try {
+    const t = p.tags || {};
+    const { data } = await sb.functions.invoke('vendor-menu', { body: {
+      vendor_id: window._cartVendorId,
+      vendor: { name: p.name, category: p.catKey, tags: t },
+    }});
+    window._menu = (data && data.items) || [];
+    window._menuVendor = window._cartVendorId;
+  } catch (_) { window._menu = []; }
+  window._menuLoading = false;
+  const el2 = $('ord-menu'); if (el2) el2.innerHTML = _menuHtml();
+};
+window._addMenuItem = function(i) {
+  const m = (window._menu || [])[i]; if (!m) return;
+  const ex = window._cart.find(c => c.name === m.name);
+  if (ex) ex.qty = Number(ex.qty) + 1;
+  else window._cart.push({ name: m.name, qty: 1, price: m.price });
+  toast(m.name + ' added', 'ok');
   _renderOrderPanel();
 };
+
+function _osmIdFor(p) {
+  const t = p.tags || {};
+  if (t['osm:id']) return 'osm:' + t['osm:id'];
+  if (p.id) return 'osm:' + p.id;
+  // fall back to a stable hash of name+coords
+  return 'astr:' + encodeURIComponent((p.name || 'x') + ':' + (t['addr:street'] || ''));
+}
 
 function _osmIdFor(p) {
   const t = p.tags || {};
@@ -3717,8 +3781,11 @@ function _renderOrderPanel() {
       </div>
     </div>
 
+    <div class="me-sec">Menu · composed by Astranov</div>
+    <div id="ord-menu">${_menuHtml()}</div>
+
     <div class="me-sec">Cart</div>
-    <div id="ord-rows">${items || '<div style="color:#6a8aaf;font-size:12px;padding:6px 0">Add what you want. Price is your offer in AVC — vendor confirms.</div>'}</div>
+    <div id="ord-rows">${items || '<div style="color:#6a8aaf;font-size:12px;padding:6px 0">Tap menu items above, or add your own below. Price is your offer in AVC — vendor confirms.</div>'}</div>
     <div class="gadget-engage" onclick="_cartAdd()" style="margin-top:10px;border-color:rgba(120,180,255,0.22)">
       <span class="verb-glyph">⊕</span><span>Add item</span>
     </div>
