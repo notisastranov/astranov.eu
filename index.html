@@ -349,6 +349,21 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     z-index: 100; transition: opacity 1s ease;
   }
   #boot.gone { opacity: 0; pointer-events: none; }
+
+  /* Brightness slider — left edge, vertical, subtle. */
+  #bright-wrap {
+    position: fixed; left: 8px; top: 50%; transform: translateY(-50%);
+    z-index: 45; display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 12px 6px; border-radius: 16px;
+    background: rgba(6,12,24,0.55); backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(120,180,255,0.16);
+  }
+  #bright-wrap .bright-ico { font-size: 13px; color: #ffd47e; opacity: 0.85; }
+  #bright-slider {
+    -webkit-appearance: slider-vertical; appearance: slider-vertical;
+    writing-mode: vertical-lr; direction: rtl;
+    width: 6px; height: 150px; accent-color: #7eb4ff; cursor: pointer; background: transparent;
+  }
   #boot .cosmos { position: relative; width: 210px; height: 210px; margin-bottom: 28px; }
   #boot .ring { position: absolute; inset: 0; animation: boot-spin 16s linear infinite; }
   #boot .seat {
@@ -1685,6 +1700,12 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 </div>
 <div id="drive-hud"><span class="dh-emoji">🚗</span><span>Driving</span><span class="dh-sp" id="dh-sp">0 km/h</span></div>
 
+<!-- Brightness slider — left edge. Controls map luminosity live. -->
+<div id="bright-wrap" title="Map brightness">
+  <span class="bright-ico">☀</span>
+  <input id="bright-slider" type="range" min="0.5" max="3" step="0.05" value="1.45" aria-label="Map brightness">
+</div>
+
 <!-- Universal agent bottom sheet — replaces the radial fan -->
 <div id="agent-sheet" aria-hidden="true">
   <div id="agent-handle"></div>
@@ -1848,9 +1869,9 @@ async function bootCesium() {
       timeline: false,
       navigationHelpButton: false,
       navigationInstructionsInitiallyVisible: false,
-      // Performance
-      requestRenderMode: true,
-      maximumRenderTimeChange: Infinity,
+      // Render continuously — requestRenderMode:true was leaving a frozen,
+      // half-painted frame on boot (the "blurry beige" globe-that-never-draws).
+      requestRenderMode: false,
       // No default imagery — the imagery cycle manages this
       baseLayer: false,
       // Allow both 3D and 2D
@@ -1966,7 +1987,16 @@ async function bootImageryGlobeTier() {
   viewer.scene.globe.enableLighting = true;
   viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#02060d');
 
-  // DAY: NASA Blue Marble Next Generation via GIBS WMTS.
+  // GUARANTEED BASE — Cesium's bundled Natural Earth II ships with the CDN
+  // build, so the globe ALWAYS renders even if NASA GIBS is slow or blocked.
+  try {
+    const base = await Cesium.TileMapServiceImageryProvider.fromUrl(
+      Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
+    );
+    viewer.imageryLayers.addImageryProvider(base);
+  } catch (e) { console.warn('[imagery] Natural Earth base failed', e); }
+
+  // DAY: NASA Blue Marble Next Generation via GIBS WMTS (layered on top).
   try {
     const dayProvider = new Cesium.UrlTemplateImageryProvider({
       url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_NextGeneration/default/2004-08-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg',
@@ -1991,6 +2021,21 @@ async function bootImageryGlobeTier() {
   if (viewer) viewer.scene.requestRender();
 }
 
+// Live map brightness — controls the city layer if present, else the globe day layer.
+window._brightness = 1.45;
+function applyBrightness(v) {
+  window._brightness = v;
+  try {
+    if (cityLayer && cityLayer.show) cityLayer.brightness = v;
+    else if (dayLayer) dayLayer.brightness = Math.max(0.8, v * 0.85);
+    viewer && viewer.scene.requestRender();
+  } catch (_) {}
+}
+(function wireBright() {
+  const s = $('bright-slider'); if (!s) return setTimeout(wireBright, 100);
+  s.addEventListener('input', e => applyBrightness(parseFloat(e.target.value)));
+})();
+
 async function setCityImagery(index) {
   if (!viewer) return;
   if (cityLayer) {
@@ -2005,10 +2050,12 @@ async function setCityImagery(index) {
     // Brightness boost on the inherently-dark CARTO Dark Matter style so
     // streets stay readable while the look stays dark.
     if (p.id === 'carto-dark') {
-      cityLayer.brightness = 1.45;
+      cityLayer.brightness = window._brightness ?? 1.45;
       cityLayer.contrast   = 1.15;
       cityLayer.gamma      = 0.85;
       cityLayer.saturation = 1.0;
+    } else if (window._brightness != null) {
+      cityLayer.brightness = window._brightness;
     }
     // City tiles must sit ON TOP of the NASA globe layers.
     try { viewer.imageryLayers.raiseToTop(cityLayer); } catch (_) {}
