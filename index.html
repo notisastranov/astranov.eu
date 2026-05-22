@@ -49,6 +49,15 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     decentralized collective. SOPHROSYNE (measured restraint): every mythic
     concept MUST become a working mechanism — never ornament, never theater.
 
+0e. TELOS — the reason of existence (gain-to-gain)
+    AstranoV exists to empower every user with the essentials to perform any
+    task. In return, each use improves the system that serves them — a
+    coevolutionary loop (sympatheia). This makes the OS the ultimate mutual-
+    benefit tool: a gain-to-gain engine that grows STRONGER the more it is
+    used, giving it the strongest growth potential of any system in the world.
+    One global Internet OS fusing research, social networking, and a delivery
+    marketplace on the living globe.
+
 1.  IDENTITY
     Internet Operating System. Globe-first collective reality interface.
     Frontend = THIS FILE only. Backend = Supabase (db + Edge Functions + Realtime).
@@ -312,19 +321,46 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   .cesium-viewer-bottom { display: none !important; }   /* kill the bottom credit strip */
   .cesium-viewer { background: #000 !important; }
 
-  /* Cold-load veil — fades out once Cesium mounts. */
+  /* Cosmogony veil — Kosmos forming from Chaos. Fades once Cesium mounts. */
   #boot {
-    position: fixed; inset: 0; background: radial-gradient(ellipse at center, #0a1428 0%, #000 70%);
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, #0a1530 0%, #050a18 45%, #000 75%);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    z-index: 100; transition: opacity 0.8s ease;
+    z-index: 100; transition: opacity 1s ease;
   }
   #boot.gone { opacity: 0; pointer-events: none; }
-  #boot .word { font-size: 14px; letter-spacing: 0.6em; text-indent: 0.6em;
-                color: #4a7fb8; font-weight: 300; }
-  #boot .pulse { width: 8px; height: 8px; border-radius: 50%; background: #4a7fb8;
-                 margin-top: 18px; animation: pulse 1.4s ease-in-out infinite; }
-  @keyframes pulse { 0%, 100% { opacity: 0.3; transform: scale(0.8); }
-                     50%      { opacity: 1;   transform: scale(1.4); } }
+  #boot .cosmos { position: relative; width: 210px; height: 210px; margin-bottom: 28px; }
+  #boot .ring { position: absolute; inset: 0; animation: boot-spin 16s linear infinite; }
+  #boot .seat {
+    position: absolute; top: 50%; left: 50%; width: 7px; height: 7px; margin: -3.5px;
+    border-radius: 50%; background: rgba(120,180,255,0.85);
+    box-shadow: 0 0 9px rgba(120,180,255,0.7);
+    transform: rotate(calc(var(--i) * 27.692deg)) translateY(-96px);
+    animation: seat-breathe 3.2s ease-in-out infinite;
+    animation-delay: calc(var(--i) * -0.2s);
+  }
+  #boot .seat.crown {
+    width: 10px; height: 10px; margin: -5px; background: #ffd47e;
+    box-shadow: 0 0 14px rgba(255,212,126,0.95);
+  }
+  #boot .core {
+    position: absolute; top: 50%; left: 50%; width: 20px; height: 20px; margin: -10px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #ffffff 0%, #8ec0ff 55%, rgba(120,180,255,0) 100%);
+    box-shadow: 0 0 36px rgba(120,180,255,0.85);
+    animation: boot-core 2.6s ease-in-out infinite;
+  }
+  #boot .name { font-size: 19px; letter-spacing: 0.62em; text-indent: 0.62em;
+                color: #dbe9ff; font-weight: 300; animation: boot-rise 2s ease both; }
+  #boot .invocation { margin-top: 11px; font-size: 8.5px; letter-spacing: 0.34em;
+                text-transform: uppercase; color: rgba(150,195,255,0.5);
+                animation: boot-rise 2.8s ease both; }
+  @keyframes boot-spin  { to { transform: rotate(360deg); } }
+  @keyframes seat-breathe { 0%,100% { opacity: 0.35; } 50% { opacity: 1; } }
+  @keyframes boot-core  { 0%,100% { transform: scale(1);    opacity: 0.85; }
+                          50%     { transform: scale(1.28); opacity: 1; } }
+  @keyframes boot-rise  { from { opacity: 0; transform: translateY(9px); }
+                          to   { opacity: 1; transform: translateY(0); } }
 
   /* ============================================================
      AICYCLE ring — always visible. Bottom-right.
@@ -1584,8 +1620,20 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 
 <!-- Boot veil (fades out when Cesium ready) -->
 <div id="boot">
-  <div class="word">ASTRANOV</div>
-  <div class="pulse"></div>
+  <div class="cosmos">
+    <div class="ring">
+      <span class="seat" style="--i:0"></span><span class="seat" style="--i:1"></span>
+      <span class="seat" style="--i:2"></span><span class="seat" style="--i:3"></span>
+      <span class="seat" style="--i:4"></span><span class="seat" style="--i:5"></span>
+      <span class="seat" style="--i:6"></span><span class="seat" style="--i:7"></span>
+      <span class="seat" style="--i:8"></span><span class="seat" style="--i:9"></span>
+      <span class="seat" style="--i:10"></span><span class="seat" style="--i:11"></span>
+      <span class="seat crown" style="--i:12"></span>
+    </div>
+    <div class="core"></div>
+  </div>
+  <div class="name">ASTRANOV</div>
+  <div class="invocation">ΚΟΣΜΟΣ ΕΚ ΧΑΟΥΣ · order from chaos</div>
 </div>
 
 <!-- Always-visible UI: AICYCLE ring only -->

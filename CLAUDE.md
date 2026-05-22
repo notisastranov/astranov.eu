@@ -32,6 +32,17 @@ server a thin coordinator — never the bottleneck. Prefer designs that get
 stronger as more humans and devices join, not ones that need a bigger
 datacenter.
 
+## TELOS — the reason of existence (gain-to-gain, foundational)
+AstranoV exists to empower every user with the essentials to perform any task,
+and in return each use improves the system that serves them — a coevolutionary
+loop (*sympatheia*). It is the ultimate mutual-benefit tool: a **gain-to-gain
+engine that grows stronger the more it is used**, giving it the strongest
+growth potential of any system in the world. One global Internet OS fusing
+research, social networking, and a delivery marketplace on the living globe.
+Every feature must serve this loop: give the user real power AND let their use
+strengthen the collective. Rebuild by evolution (*panta rhei*), surface by
+surface — never a single destructive rewrite of a working system.
+
 ## COSMOTHEASIS — the working method (foundational, governs Claude too)
 Inspiration is drawn from ancient Greek cosmotheasis — the ordered vision of
 the whole cosmos. **The method: every question already contains its own
