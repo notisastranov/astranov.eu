@@ -70,6 +70,14 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     adaptive, self-organizing, emergent, decentralized (ecosystems, swarms,
     feedback loops, growth from the edge); shun brute-force centralization.
 
+0g. THE LIVING COSMOS — the cycle made visible
+    openCosmos() renders the gain-to-gain cycle from live, public, aggregate-
+    only data (cosmos_stats() RPC, security-definer, counts only — no content,
+    no private rows): Nature (world signals) · Humans (people) · Machine (brain
+    memories) all feeding the Collective Brain, plus Market/Logistics/Justice
+    in motion. Reached from the Discover agent's drawer. Transparency is itself
+    gain-to-gain: the collective's state is visible to all who feed it.
+
 1.  IDENTITY
     Internet Operating System. Globe-first collective reality interface.
     Frontend = THIS FILE only. Backend = Supabase (db + Edge Functions + Realtime).
@@ -2677,6 +2685,58 @@ window.startDM = (peerId, peerName) => {
   setTimeout(() => openConversation(peerId, peerName), 120);
 };
 
+// THE LIVING COSMOS — the gain-to-gain cycle made visible. Nature, Humans, and
+// Machines feed the Collective Brain; the Brain shapes them back. Live, public,
+// aggregate-only data (cosmos_stats RPC) — gain-to-gain transparency.
+function _cosmosNode(glyph, label, value, color, sub) {
+  return `<div style="flex:1;min-width:84px;text-align:center;padding:12px 6px;border-radius:14px;
+      border:1px solid ${color}33;background:${color}0d">
+    <div style="font-size:22px;line-height:1">${glyph}</div>
+    <div style="font-size:24px;font-weight:300;color:${color};margin-top:6px">${value}</div>
+    <div style="font-size:8px;letter-spacing:0.18em;text-transform:uppercase;color:#8aa6c8;margin-top:3px">${label}</div>
+    ${sub ? `<div style="font-size:8px;color:#5e789c;margin-top:2px">${sub}</div>` : ''}
+  </div>`;
+}
+window.openCosmos = async () => {
+  openPanel(`<h2 style="letter-spacing:0.06em">The Living Cosmos</h2><div class="subtitle">Reading the collective…</div>`);
+  let s = {};
+  try {
+    if (sb) { const { data } = await sb.rpc('cosmos_stats'); s = data || {}; }
+  } catch (_) {}
+  const N = (x) => (x ?? 0).toLocaleString();
+  openPanel(`
+    <h2 style="letter-spacing:0.06em">The Living Cosmos</h2>
+    <div class="subtitle">Nature · Humans · Machines → the Collective Brain</div>
+
+    <div style="display:flex;gap:8px;margin-top:14px">
+      ${_cosmosNode('🌍', 'Nature', N(s.signals), '#7cff9e', 'world signals')}
+      ${_cosmosNode('🧠', 'Humans', N(s.people), '#7eb4ff', 'on the globe')}
+      ${_cosmosNode('◈', 'Machine', N(s.memories), '#c9b0ff', 'brain memories')}
+    </div>
+
+    <div style="text-align:center;font-size:18px;color:#ffd47e;margin:14px 0 4px">↓ ↑</div>
+    <div style="text-align:center;padding:14px;border-radius:16px;border:1px solid rgba(255,212,126,0.28);background:rgba(255,212,126,0.06)">
+      <div style="font-size:9px;letter-spacing:0.25em;text-transform:uppercase;color:#a88c50">The Collective Brain</div>
+      <div style="font-size:30px;font-weight:300;color:#ffd47e;margin-top:4px">${N((s.signals||0)+(s.people||0)+(s.memories||0))}</div>
+      <div style="font-size:9px;color:#a88c50;letter-spacing:0.12em">currents feeding the nervous system · ${N(s.ai_turns)} thoughts so far</div>
+    </div>
+
+    <div class="me-sec">The cycle in motion</div>
+    <div style="display:flex;gap:8px">
+      ${_cosmosNode('🛒', 'Market', N(s.orders), '#ffaa55', 'orders')}
+      ${_cosmosNode('📦', 'Logistics', N(s.deliveries), '#ff9e9e', 'deliveries')}
+      ${_cosmosNode('⚖', 'Justice', N(s.verdicts), '#ffd49a', 'verdicts')}
+    </div>
+
+    <div style="font-size:12px;color:#a8c8ee;line-height:1.55;margin-top:16px;padding:12px;border-radius:12px;border:1px solid rgba(120,180,255,0.16);background:rgba(120,180,255,0.04)">
+      Nature builds humans, humans build machines, machines return to nature to help humans — and all three feed this brain, which shapes them back. Every signal you read, every order you place, every word you teach me makes the whole collective stronger. <span style="color:#7eebb4">This is the gain-to-gain cycle.</span>
+    </div>
+    <div class="place-aci" style="margin-top:12px" onclick="closePanel();openAstranov()">
+      <div class="place-aci-g">◈</div><div class="place-aci-t">Ask Astranov about the cosmos</div>
+    </div>
+  `);
+};
+
 /* ==============================================================
    Category filter — toggle signal categories on the globe
    ============================================================== */
@@ -2724,6 +2784,7 @@ const AGENTS = {
     chatSystem: 'You are the Discover Agent for Astranov — you help the user find people, places, events, and signals on the live globe. Be concise.',
     items: () => [
       { kind: 'explore', glyph: '◎', label: 'Nearby radar',  fn: () => openRadarPanel() },
+      { kind: 'explore', glyph: '✦', label: 'Living Cosmos', fn: () => openCosmos() },
       { kind: 'publish', glyph: '⊕', label: 'Emit signal',   fn: () => openEmitPanel()  },
       ..._catItems(),
     ],
