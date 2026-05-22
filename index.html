@@ -1885,8 +1885,11 @@ async function bootCesium() {
     buildCityBeacons();
 
     // Open camera at GLOBAL altitude over Europe (close to astranov.eu)
+    // Open on the GLOBE itself — far enough out that Earth sits in black
+    // space (Zero-UI §1: the globe and space are always on screen). 12,000 km
+    // was too close and filled the frame like a flat map.
     viewer.camera.flyTo({
-      destination: Cesium.Cartesian3.fromDegrees(20, 40, 12_000_000),
+      destination: Cesium.Cartesian3.fromDegrees(20, 35, 28_000_000),
       duration: 0,
     });
 
@@ -2002,10 +2005,10 @@ async function setCityImagery(index) {
     // Brightness boost on the inherently-dark CARTO Dark Matter style so
     // streets stay readable while the look stays dark.
     if (p.id === 'carto-dark') {
-      cityLayer.brightness = 2.35;
-      cityLayer.contrast   = 1.45;
-      cityLayer.gamma      = 0.68;
-      cityLayer.saturation = 0.9;
+      cityLayer.brightness = 1.45;
+      cityLayer.contrast   = 1.15;
+      cityLayer.gamma      = 0.85;
+      cityLayer.saturation = 1.0;
     }
     // City tiles must sit ON TOP of the NASA globe layers.
     try { viewer.imageryLayers.raiseToTop(cityLayer); } catch (_) {}
@@ -3291,7 +3294,32 @@ function flyToCity(city) {
 /* ==============================================================
    OSM / Overpass — vendor billboard dots on the globe
    ============================================================== */
+// Multiple Overpass mirrors — the main one frequently 504s. We race through
+// them with a per-request timeout so vendors reliably load.
 const OVERPASS_API = 'https://overpass-api.de/api/interpreter';
+const OVERPASS_MIRRORS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+  'https://overpass.openstreetmap.fr/api/interpreter',
+];
+async function _overpassFetch(query) {
+  for (const url of OVERPASS_MIRRORS) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 18000);
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'data=' + encodeURIComponent(query),
+        signal: ctrl.signal,
+      });
+      clearTimeout(t);
+      if (resp.ok) return await resp.json();
+    } catch (_) { /* try next mirror */ }
+  }
+  return null;
+}
 let placeBillboards = null;
 const placeIndex = new Map();
 const _osmFetchedZones = new Set();
@@ -3414,18 +3442,11 @@ async function fetchOSMNearby(lat, lng, radiusM) {
     + 'node["name"]["shop"](around:' + radiusM + ',' + lat + ',' + lng + ');'
     + 'node["name"]["tourism"~"hotel|hostel|motel|attraction|museum|gallery|viewpoint"](around:' + radiusM + ',' + lat + ',' + lng + ');'
     + ');out 600;';
-  try {
-    const resp = await fetch(OVERPASS_API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'data=' + encodeURIComponent(q)
-    });
-    if (!resp.ok) return;
-    const json = await resp.json();
-    const elements = json.elements || [];
-    elements.forEach(addPlacePoint);
-    if (elements.length) toast(elements.length + ' vendors on globe', '');
-  } catch (e) { console.warn('[OSM]', e); }
+  const json = await _overpassFetch(q);
+  if (!json) { _osmFetchedZones.delete(zk); return; }   // allow retry later
+  const elements = json.elements || [];
+  elements.forEach(addPlacePoint);
+  if (elements.length) toast(elements.length + ' places nearby', '');
 }
 
 async function _autoLoadPlaces() {
