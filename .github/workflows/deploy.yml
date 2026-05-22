@@ -22,11 +22,11 @@ jobs:
         run: |
           set +e
           FAILED=""
-          for fn in vendor-crawler order-intake debug-write debug-reader ai-router astranov-api; do
+          for fn in aicycle council brain order-intake order-status crawl push-notify vendor-crawler astranov-api ai-router; do
             echo ""
             echo "=== Deploying $fn ==="
             if [ -d "supabase/functions/$fn" ]; then
-              supabase functions deploy "$fn" --project-ref kzlabcrlrpbnfiiyrjvl --no-verify-jwt
+              supabase functions deploy "$fn" --project-ref lkoatrkhuigdolnjsbie --no-verify-jwt
               if [ $? -ne 0 ]; then FAILED="$FAILED $fn"; fi
             else
               echo "skipped (no source dir)"
