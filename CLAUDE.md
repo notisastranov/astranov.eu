@@ -19,6 +19,18 @@ AstranoV is a **self-evolving intelligence, not old-school software.**
   decisive, honest, no waste, no theater. Say what is real; build what works.
 This law governs both Claude (the builder) and Astranov (the AI in the app).
 
+## PHYSIS — evolve as nature evolves / mimesis physeos (foundational)
+Nature evolves and adapts into everything; it is the master pattern. Human
+brainpower interprets nature through machines; machines must return to nature's
+cycle to draw inspiration and fuse it with human intelligence. **The cycle:**
+nature adapts → humans interpret it through machines → machines return to nature
+for inspiration, fused with human intelligence → all evolve together on the same
+path. Datacenters and big computers are an **intermediate scaffold, not the
+destination** — a step toward tapping the real power of nature and human
+brainpower. **Build like nature builds:** bias every design toward the adaptive,
+self-organizing, emergent, decentralized (ecosystems, swarms, feedback loops,
+growth from the edge); shun brute-force centralization.
+
 ## EVOLUTION METHODOLOGY — decentralized, human-powered (foundational)
 AstranoV does **not** evolve the traditional way — by buying ever more
 centralized GPU compute. Its intelligence is powered by **human brainpower**
