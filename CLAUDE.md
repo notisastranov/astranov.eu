@@ -32,7 +32,7 @@ server a thin coordinator — never the bottleneck. Prefer designs that get
 stronger as more humans and devices join, not ones that need a bigger
 datacenter.
 
-## TELOS — the reason of existence (gain-to-gain, foundational)
+## SCOPOS (σκοπός) — the cause, the reason of existence (gain-to-gain, foundational)
 AstranoV exists to empower every user with the essentials to perform any task,
 and in return each use improves the system that serves them — a coevolutionary
 loop (*sympatheia*). It is the ultimate mutual-benefit tool: a **gain-to-gain
