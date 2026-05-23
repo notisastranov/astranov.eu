@@ -156,9 +156,22 @@ This block strives to get shorter, more inclusive, more precise with every edit.
           projected to canvas coordinates and their CSS transform updated.
           Camera zoom → orb scale; Earth occlusion → orb fades out behind
           the planet; Earth's spin → orbs travel with it like satellites.
-          NO viewport-locked orbit, NO labels, NO Atari halo around the
-          screen. The orb IS the agent — content stays upright because
-          the orb itself never rotates, only its world position moves.
+          NO viewport-locked orbit, NO labels, NO Atari halo. The orb IS
+          the agent — content stays upright because the orb itself never
+          rotates, only its world position moves.
+      (d) EVENT BINDING — when an informant has news with lat/lng, the
+          orb LEAVES its Fibonacci home and anchors over the event's
+          source country. A glowing PolylineGlow beam shoots from the
+          ground (1km up) to the orb at 1500km, tinted to the agent's
+          colour. The orb still previews its muted video; news flows
+          along the beam from where it happened.
+      (e) HORIZON + NIGHT — orbs grazing the limb get rim glow + soft
+          DOF blur (--orb-rim, --orb-blur). Orbs on the night hemisphere
+          get a warm amber overlay (--orb-night), computed each frame
+          from scene.light.directionWC. Sun → cool; midnight → ember.
+      (f) TAP TO LIVE — a single tap on an orb expands it to ~70vmin
+          and plays its video UNMUTED. The expanded view is the player;
+          "Open agent" drills into the agentCard panel.
     No agent visual is allowed to be a static gradient again. Place-pin
     "jingle-bell" lights on the globe are hidden at the global tier — the
     informant orbs do the job; place agents reveal only when descending.
@@ -437,10 +450,19 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     width: 56px; height: 56px; border-radius: 50%; position: relative; overflow: hidden;
     border: 1.5px solid color-mix(in srgb, var(--ic, #7eb4ff) 85%, transparent);
     box-shadow:
-      0 0 18px color-mix(in srgb, var(--ic, #7eb4ff) 55%, transparent),
-      0 0 36px color-mix(in srgb, var(--ic, #7eb4ff) 22%, transparent),
+      0 0 calc(18px + var(--orb-rim, 0) * 32px) color-mix(in srgb, var(--ic, #7eb4ff) 60%, transparent),
+      0 0 calc(36px + var(--orb-rim, 0) * 50px) color-mix(in srgb, var(--ic, #7eb4ff) 22%, transparent),
       inset 0 0 14px rgba(0,0,0,0.55);
     transition: box-shadow 0.2s;
+    filter: blur(var(--orb-blur, 0px));
+  }
+  /* NIGHT-SIDE WARM TINT — orbs over the night hemisphere glow amber. */
+  .informant .orb::before {
+    content: ''; position: absolute; inset: 0; border-radius: 50%;
+    background: radial-gradient(circle at 50% 55%, rgba(255,168,96,0.7), transparent 70%);
+    mix-blend-mode: overlay;
+    opacity: calc(var(--orb-night, 0) * 0.85);
+    pointer-events: none; z-index: 2;
   }
   .informant.has-news .orb { animation: informant-pulse 1.8s ease-in-out infinite; }
   @keyframes informant-pulse {
@@ -462,6 +484,48 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     z-index: 3;
   }
   .informant .count:empty { display: none; }
+
+  /* ORB EXPAND — tap an informant to grow it big and play its video
+     UNMUTED. Used to be a bottom panel; now the orb itself is the player. */
+  #orb-expand {
+    position: fixed; inset: 0; z-index: 200;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.3s ease-out;
+  }
+  #orb-expand.on { opacity: 1; }
+  .orb-expand-bg {
+    position: absolute; inset: 0;
+    background: radial-gradient(circle, rgba(2,8,18,0.6), rgba(0,0,0,0.92));
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
+  .orb-expand-orb {
+    position: relative; width: min(70vmin, 460px); height: min(70vmin, 460px);
+    border-radius: 50%; overflow: hidden;
+    border: 2px solid color-mix(in srgb, var(--ic, #7eb4ff) 90%, transparent);
+    box-shadow:
+      0 0 60px  color-mix(in srgb, var(--ic, #7eb4ff) 70%, transparent),
+      0 0 140px color-mix(in srgb, var(--ic, #7eb4ff) 32%, transparent);
+    transform: scale(0.4); transition: transform 0.45s cubic-bezier(.2,.9,.3,1.25);
+  }
+  #orb-expand.on .orb-expand-orb { transform: scale(1); }
+  .orb-expand-video {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; display: block; background: #04101e;
+  }
+  .orb-expand-orb .living-orb { mix-blend-mode: screen; opacity: 0.42; }
+  .orb-expand-glyph {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 92px; text-shadow: 0 0 14px rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.95); z-index: 2;
+  }
+  .orb-expand-meta {
+    position: absolute; bottom: 14vh; left: 50%; transform: translateX(-50%);
+    color: #c5dcff; font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase;
+    text-shadow: 0 0 8px rgba(0,0,0,0.85); white-space: nowrap;
+  }
+  .orb-expand-actions {
+    position: absolute; bottom: 7vh; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 12px; z-index: 3;
+  }
 
   /* LIVING ORB — the procedural graphics primitive. A canvas painting a
      flowing plasma generated from the agent's own DNA (color + seed). Sits
@@ -2590,13 +2654,16 @@ function videoOrbHTML(emoji, color, seed, videoUrl) {
   </div>`;
 }
 
-// ── EARTH-ANCHORED ORB POSITIONING ──────────────────────────────────────
-// Orbs are real points in 3D space at ~1500km altitude, evenly distributed
-// on a Fibonacci sphere. Each Cesium postRender we project them to screen
-// and update CSS transforms. Camera zoom → orb scale; Earth occlusion →
-// orb fades out behind the planet; Earth's spin → orbs travel with it.
+// ── EARTH-ANCHORED ORB POSITIONING + EVENT INTERACTION ───────────────────
+// Orbs are real points in 3D space at ~1500km altitude on a Fibonacci sphere.
+// When an event arrives matching an informant's domain, the orb relocates
+// over the event's lat/lon and a glowing beam shoots from ground to orb.
+// Per-frame: project to canvas, compute camera grazing (rim glow + soft
+// DOF blur), compute sun dot (warm tint on the night side), occlude the
+// far hemisphere. The orb itself never rotates — content stays upright.
 const _ORB_ALT = 1_500_000;
-const _orbAnchors = [];
+const _orbState = []; // [{ infId, cart, beam, isEvent, color, lat, lon }, ...]
+
 function _computeOrbAnchorsLatLon(n) {
   const pts = [];
   const phi = Math.PI * (Math.sqrt(5) - 1);
@@ -2611,15 +2678,60 @@ function _computeOrbAnchorsLatLon(n) {
   }
   return pts;
 }
-function _refreshOrbAnchors(n) {
-  const pts = _computeOrbAnchorsLatLon(n);
-  _orbAnchors.length = 0;
-  for (const { lat, lon } of pts) {
-    _orbAnchors.push({ lat, lon, cart: Cesium.Cartesian3.fromDegrees(lon, lat, _ORB_ALT) });
+
+// Build the per-orb 3D state from the informants list. If an informant has
+// a findings signal with lat/lng, the orb anchors over THAT event and we
+// add a glowing beam from ground to orb. Otherwise the orb sits at its
+// Fibonacci home position.
+function _refreshOrbAnchors(items) {
+  // Tear down old beams.
+  if (viewer) for (const s of _orbState) { if (s.beam) try { viewer.entities.remove(s.beam); } catch (_) {} }
+  _orbState.length = 0;
+  const n = items.length;
+  const homes = _computeOrbAnchorsLatLon(n);
+  for (let i = 0; i < n; i++) {
+    const inf = items[i];
+    let lat = homes[i].lat, lon = homes[i].lon, isEvent = false, eventTitle = null;
+    let color = '#7eb4ff';
+    let infId = null;
+    if (!inf._new) {
+      infId = inf.id || null;
+      color = inf.color || _CAT_COLORS[inf.category] || '#7eb4ff';
+      const found = (typeof _informantFindings === 'function') ? _informantFindings(inf) : [];
+      const located = found.find(f => typeof f.lat === 'number' && typeof f.lng === 'number');
+      if (located) { lat = located.lat; lon = located.lng; isEvent = true; eventTitle = located.title; }
+    }
+    const cart = Cesium.Cartesian3.fromDegrees(lon, lat, _ORB_ALT);
+    let beam = null;
+    if (isEvent && viewer) {
+      try {
+        const cesiumColor = Cesium.Color.fromCssColorString(color);
+        beam = viewer.entities.add({
+          polyline: {
+            positions: [
+              Cesium.Cartesian3.fromDegrees(lon, lat, 1000),
+              Cesium.Cartesian3.fromDegrees(lon, lat, _ORB_ALT),
+            ],
+            width: 3,
+            arcType: Cesium.ArcType.NONE,
+            material: new Cesium.PolylineGlowMaterialProperty({
+              color: cesiumColor.withAlpha(0.95),
+              glowPower: 0.32,
+              taperPower: 0.6,
+            }),
+          },
+        });
+      } catch (_) {}
+    }
+    _orbState.push({ infId, cart, beam, isEvent, color, lat, lon, eventTitle });
   }
 }
+
 let _orbProjAttached = false;
 let _orbOccluder = null;
+const _v3a = new Cesium.Cartesian3();
+const _v3b = new Cesium.Cartesian3();
+const _v3c = new Cesium.Cartesian3();
 function _projectOrbs() {
   const strip = document.getElementById('tile-strip');
   if (!strip || strip.classList.contains('hide-orbit')) return;
@@ -2630,17 +2742,39 @@ function _projectOrbs() {
     _orbOccluder.cameraPosition = viewer.scene.camera.positionWC;
   }
   const camPos = viewer.scene.camera.positionWC;
+  // Sun direction (points FROM the sun TOWARD Earth, so -sunDir points at sun).
+  let sunDir = null;
+  try { sunDir = viewer.scene.light && viewer.scene.light.directionWC; } catch (_) {}
+  const camUnit = Cesium.Cartesian3.normalize(camPos, _v3a);
   const kids = strip.children;
-  const n = Math.min(kids.length, _orbAnchors.length);
+  const n = Math.min(kids.length, _orbState.length);
   for (let i = 0; i < n; i++) {
     const el = kids[i];
-    const a = _orbAnchors[i];
-    const win = viewer.scene.cartesianToCanvasCoordinates(a.cart);
-    const vis = win && _orbOccluder.isPointVisible(a.cart);
+    const s = _orbState[i];
+    const win = viewer.scene.cartesianToCanvasCoordinates(s.cart);
+    const vis = win && _orbOccluder.isPointVisible(s.cart);
     if (vis) {
-      const d = Cesium.Cartesian3.distance(a.cart, camPos);
-      const s = Math.max(0.5, Math.min(1.4, 14_000_000 / d));
-      el.style.transform = `translate3d(${(win.x - 28).toFixed(1)}px, ${(win.y - 28).toFixed(1)}px, 0) scale(${s.toFixed(3)})`;
+      const d = Cesium.Cartesian3.distance(s.cart, camPos);
+      const scale = Math.max(0.5, Math.min(1.45, 14_000_000 / d));
+      // Grazing: dot of orb-unit and camera-unit (both from earth center).
+      // 1.0 = orb directly between us and Earth, 0 ≈ on the horizon.
+      const orbUnit = Cesium.Cartesian3.normalize(s.cart, _v3b);
+      const dotCam = Math.max(-1, Math.min(1, Cesium.Cartesian3.dot(orbUnit, camUnit)));
+      // Soft DOF near the limb (orbs that are grazing the planet's edge).
+      const grazing = Math.max(0, 0.6 - dotCam);   // 0 at camera-facing, 0.6 at horizon
+      const blurPx = (grazing * 3.4).toFixed(2);    // up to ~2px blur
+      const rim = Math.min(1, grazing * 1.7).toFixed(3);
+      // Night side: dot orb with -sunDir; >0 = day, <0 = night.
+      let night = 0;
+      if (sunDir) {
+        const negSun = Cesium.Cartesian3.negate(sunDir, _v3c);
+        const sunDot = Cesium.Cartesian3.dot(orbUnit, negSun);
+        night = Math.max(0, -sunDot); // 0..1, 1 at deep night
+      }
+      el.style.setProperty('--orb-blur', `${blurPx}px`);
+      el.style.setProperty('--orb-rim', rim);
+      el.style.setProperty('--orb-night', night.toFixed(2));
+      el.style.transform = `translate3d(${(win.x - 28).toFixed(1)}px, ${(win.y - 28).toFixed(1)}px, 0) scale(${scale.toFixed(3)})`;
       el.style.opacity = '1';
     } else {
       el.style.opacity = '0';
@@ -2651,7 +2785,6 @@ function _attachOrbProjLoop() {
   if (_orbProjAttached || !viewer) return;
   viewer.scene.postRender.addEventListener(_projectOrbs);
   _orbProjAttached = true;
-  // Continuous render so postRender fires every frame as the Earth spins.
   if (viewer.scene.requestRenderMode) viewer.scene.requestRender();
 }
 
@@ -2722,7 +2855,7 @@ function renderInformants() {
   el.classList.remove('hide-orbit');
   const list = _loadInformants();
   const items = [...list, { _new: true }];
-  _refreshOrbAnchors(items.length);
+  _refreshOrbAnchors(items);
   const orbs = items.map((inf, i) => {
     if (inf._new) {
       return `<div class="informant" style="--ic:#7eebb4;opacity:0" onclick="openInformantCreate()" title="Create an agent">
@@ -2734,16 +2867,64 @@ function renderInformants() {
     const color = inf.color || _CAT_COLORS[inf.category] || '#7eb4ff';
     const seed = _hashSeed(inf.id + (inf.name || ''));
     const vurl = _informantVideoURL(inf);
-    return `<div class="informant${has ? ' has-news' : ''}" style="--ic:${color};opacity:0" onclick="openInformant(${JSON.stringify(inf.id)})" title="${escapeHtml(inf.name)} agent">
+    return `<div class="informant${has ? ' has-news' : ''}" style="--ic:${color};opacity:0" onclick="expandOrb(${JSON.stringify(inf.id)})" title="${escapeHtml(inf.name)} agent">
       <div class="orb">${videoOrbHTML(inf.emoji || '◈', color, seed, vurl)}${has ? `<div class="count">${found.length}</div>` : '<div class="count"></div>'}</div>
     </div>`;
   }).join('');
   el.innerHTML = orbs;
   _attachOrbProjLoop();
-  // First projection happens on next render tick; nudge Cesium to draw.
   if (viewer) viewer.scene.requestRender();
 }
 function _findInformant(id) { return _loadInformants().find(x => x.id === id); }
+// EXPAND ORB — first tap on an orb grows it big and plays its video
+// UNMUTED (autoplay-with-sound is allowed because the call is in a
+// click handler). Tap outside or the close button to dismiss; the
+// "Open agent" button drills into the full agentCard panel.
+window.expandOrb = function(infId) {
+  const inf = _findInformant(infId); if (!inf) return;
+  closeExpandOrb();
+  const color = inf.color || _CAT_COLORS[inf.category] || '#7eb4ff';
+  const vurl = _informantVideoURL(inf);
+  const seed = _hashSeed(inf.id + (inf.name || ''));
+  const found = _informantFindings(inf);
+  const located = found.find(f => typeof f.lat === 'number' && typeof f.lng === 'number');
+  const meta = located
+    ? `LIVE · ${escapeHtml((located.city || located.country_code || '').toString().toUpperCase())} · ${escapeHtml((located.title || '').slice(0, 60))}`
+    : `${escapeHtml((inf.name || 'AGENT').toUpperCase())} · ${escapeHtml(inf.topic || 'no topic set')}`;
+  const wrap = document.createElement('div');
+  wrap.id = 'orb-expand';
+  wrap.innerHTML = `
+    <div class="orb-expand-bg"></div>
+    <div class="orb-expand-orb" style="--ic:${color}">
+      <video class="orb-expand-video" src="${escapeHtml(vurl)}" autoplay loop playsinline></video>
+      <canvas class="living-orb" width="512" height="512" data-color="${color}" data-seed="${seed}"></canvas>
+      <span class="orb-expand-glyph">${inf.emoji || '◈'}</span>
+    </div>
+    <div class="orb-expand-meta">${meta}</div>
+    <div class="orb-expand-actions">
+      <div class="gadget-engage" onclick="event.stopPropagation();openInformant(${JSON.stringify(infId)});closeExpandOrb()" style="border-color:color-mix(in srgb, ${color} 70%, transparent);color:#dde9ff">
+        <span class="verb-glyph" style="background:${color}"></span><span>Open agent</span>
+      </div>
+    </div>`;
+  wrap.addEventListener('click', (e) => {
+    if (e.target === wrap || e.target.classList.contains('orb-expand-bg')) closeExpandOrb();
+  });
+  document.body.appendChild(wrap);
+  // Unmute the video AFTER it's in the DOM, so the click gesture covers it.
+  const vid = wrap.querySelector('video');
+  if (vid) {
+    vid.muted = false; vid.volume = 0.9;
+    vid.play().catch(() => { vid.muted = true; vid.play().catch(()=>{}); });
+  }
+  requestAnimationFrame(() => wrap.classList.add('on'));
+};
+window.closeExpandOrb = function() {
+  const w = document.getElementById('orb-expand'); if (!w) return;
+  const v = w.querySelector('video'); if (v) { try { v.pause(); } catch (_) {} }
+  w.classList.remove('on');
+  setTimeout(() => { try { w.remove(); } catch (_) {} }, 320);
+};
+
 window.openInformant = function(id) {
   const inf = _findInformant(id); if (!inf) return;
   const found = _informantFindings(inf);
