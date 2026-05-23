@@ -211,24 +211,26 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     to every SpeechSynthesisUtterance.volume call. NO beam-orb chains,
     NO bespoke slider chrome — same control language as brightness.
 
-5i. GAMING GRAPHICS — WebGL shader + Cesium bloom (binding)
+5i. GAMING GRAPHICS — WebGL PBR shader + Cesium bloom (binding)
     The Living-Orb Engine renders through ONE shared WebGL context
-    running a PBR-flavoured fragment shader:
-      • Hash-noise plasma with 2-step domain warp (5-octave fbm).
-      • Lambert diffuse with sub-surface scatter floor.
-      • Schlick-Fresnel rim (F0 = 0.04, ^5 falloff) — real glass-sphere
-        physics for the limb glow.
-      • Phong specular tight highlight aligned to a top-left light.
-      • Multiply-blended terminator shadow.
-      • Outer particle-dust ring rendered IN the same shader pass.
+    running a real PBR fragment shader:
+      • 7-octave fbm hash-noise plasma with 2-step CURL-LIKE domain warp.
+      • TWO-LIGHT MODEL: key (top-left, warm) + cool fill (bottom-right).
+      • GGX (Trowbridge-Reitz) microfacet specular distribution per
+        light, low roughness a=0.18 → glass-orb tight highlight.
+      • Schlick-Fresnel: rim glow AND specular reflectance, with a
+        slightly tinted F0 toward the agent's own colour.
+      • Sub-surface wrap-around glow on the limb away from key light.
+      • Warm-tinted terminator shadow (not pure black).
+      • Anti-aliased orb edge (smoothstep over the last 1.5% radius).
+      • ACES filmic tonemap on the linear HDR colour + sRGB gamma.
+      • Outer particle-dust ring rendered IN the same pass.
     Each orb's 2D canvas is filled by drawImage from the shared GL
-    canvas — N orbs cost N shader passes, no extra contexts.
-    The Cesium scene runs PostProcessStageLibrary.bloom (contrast 110,
-    brightness -0.35) plus FXAA so the planet's lit limb, beams, sun,
-    and city-lights glow naturally. CSS dust particles orbit the apex
-    system orbs to match the scene bloom. Apex orbs gently float ±4px
-    via CSS individual-translate, composed with the per-frame
-    Cesium-projected transform.
+    canvas — N orbs cost N shader passes, one GL context total.
+    Cesium scene runs PostProcessStageLibrary.bloom (contrast 110,
+    brightness -0.35) + FXAA so the planet's lit limb, beams, sun and
+    city lights glow naturally. CSS dust orbits the apex system orbs;
+    apex orbs gently float ±4px composed with the per-frame projection.
 
 5f. LIVING-ORB GRAPHICS ENGINE — procedural visuals + real video + real 3D
     Three layers, every one a real graphics primitive:
@@ -338,9 +340,28 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     renders the single binding verdict. Engine: /council Edge Function
     (owner-only to convene) → council_cases. Krypteia panel convenes the court.
 
+10d. KRYPTEIA — PERPETUAL OWNER AUTHORIZATION & SILENT BOOT (binding)
+    The owner, Notis Astranov, grants Krypteia PERPETUAL AUTHORIZATION
+    to act autonomously in defence of the system. Krypteia does not
+    surface a panel for every check — it surfaces ONLY when severity
+    demands the owner's eyes. Otherwise it acts silently and logs.
+    THE KRYPTEIA ORB IS ONE TAP, NO SUBMENU. Tap = /krypteia Edge Fn:
+      • audit + watchtower + threat-log fire in parallel server-side.
+      • The combined findings are handed to /developer (Claude opus-4-7)
+        for triage. Claude returns DIAGNOSIS / DIFF / COMMAND / RISK
+        plus a final line: SEVERITY=<…>; OWNER_APPROVAL=<yes|no>.
+      • If owner approval is required OR severity ≥ medium, a verdict
+        panel opens with the Claude text and a one-tap "Hand to Claude
+        (apply now)" action.
+      • Otherwise Krypteia closes silent and writes a security_events
+        row tagged kind='krypteia_run'.
+    Krypteia ALSO runs ONCE on every owner sign-in (silent boot mode,
+    4-second delay so it doesn't block boot). It NEVER pops a panel
+    during silent boot unless severity demands it. The owner can re-run
+    at any time by tapping the Krypteia orb.
+
 10c. KRYPTEIA — CODE HYGIENE & ARCHITECT CHANNEL (binding)
-    The Krypteia panel exposes two owner-only mechanisms beyond the
-    Watchtower:
+    The Krypteia subsystems that the one-tap composite (§10d) combines:
       AUDIT (krypteia-audit Edge Fn) — fetches the LIVE deployed bundle
       from astranov.eu and runs static pattern checks for zombie / dead /
       contaminated / foreign code: eval-style dynamic exec, hard-coded
@@ -351,10 +372,15 @@ This block strives to get shorter, more inclusive, more precise with every edit.
       (critical/warn/info) with a one-line verdict. The owner can pipe
       the findings directly into the Improvement channel for proposed
       fixes.
-      IMPROVEMENT REQUEST (architect channel) — owner-only chat with
-      Astranov in code-architect mode (system overlay orients toward
-      DIAGNOSIS / PROPOSAL / NEXT, Spartan). Used to design concrete
-      improvements before sending them to Claude Code for implementation.
+      DEVELOPER (direct Claude channel) — owner-only line that calls
+      the /developer Edge Fn, which hits Anthropic claude-opus-4-7
+      directly with a Krypteia-specific system primer (NOT routed
+      through /aicycle, NOT Astranov-the-character). Claude responds
+      as the engineer building AstranoV in four fixed sections:
+      DIAGNOSIS / DIFF / COMMAND / RISK. The other Krypteia panels
+      (Audit, Watchtower, Threat log, Brain) all pipe their findings
+      directly into Developer via a single button so any Krypteia
+      output can be handed to Claude to act on.
 
 10b. KRYPTEIA — IP DEFENCE & WATCHTOWER (binding)
     AstranoV is the world's first AGENTIC ORBITAL OPERATING SYSTEM (AOOS),
@@ -2877,7 +2903,7 @@ uniform vec3  u_color;
 uniform vec3  u_deep;
 uniform float u_seed;
 
-// Hash + value noise (no textures, fully procedural).
+// HASH + VALUE NOISE (procedural, no textures).
 float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float n2(vec2 p){
   vec2 i = floor(p), f = fract(p);
@@ -2885,71 +2911,117 @@ float n2(vec2 p){
   return mix(mix(h21(i + vec2(0,0)), h21(i + vec2(1,0)), u.x),
              mix(h21(i + vec2(0,1)), h21(i + vec2(1,1)), u.x), u.y);
 }
+// FBM with 7 octaves for finer surface detail.
 float fbm(vec2 p){
   float v = 0.0, a = 0.5;
-  for (int i = 0; i < 5; i++){ v += a * n2(p); p *= 2.02; a *= 0.5; }
+  for (int i = 0; i < 7; i++){ v += a * n2(p); p *= 2.03; a *= 0.5; }
   return v;
 }
+// CURL-LIKE 2-step domain warp.
+vec2 warp(vec2 p, float s){
+  return vec2(
+    fbm(p + vec2(s * 0.7, -s * 0.3)),
+    fbm(p + vec2(-s * 0.4, s * 0.9))
+  );
+}
+
+// GGX / TROWBRIDGE-REITZ microfacet specular distribution. Real PBR.
+float D_GGX(float NdotH, float a){
+  float a2 = a * a;
+  float d  = (NdotH * a2 - NdotH) * NdotH + 1.0;
+  return a2 / (3.14159265 * d * d);
+}
+// Schlick-Fresnel.
+vec3 F_Schlick(float cosT, vec3 F0){
+  return F0 + (vec3(1.0) - F0) * pow(1.0 - cosT, 5.0);
+}
+// ACES filmic tonemap — film-quality colour rolloff.
+vec3 aces(vec3 x){
+  const float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14;
+  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+}
+// Gamma 2.2 → sRGB.
+vec3 toSRGB(vec3 c){ return pow(c, vec3(1.0 / 2.2)); }
 
 void main(){
   vec2 uv = (gl_FragCoord.xy / u_res) * 2.0 - 1.0;
   float dist = length(uv);
 
-  // OUTER PARTICLE-DUST RING (1.0 < dist < 1.18). Bright specks orbiting
-  // the orb, falling off toward the edge of the canvas.
-  if (dist > 1.0 && dist < 1.18){
+  // OUTER PARTICLE-DUST RING. Slightly wider + softer than before.
+  if (dist > 1.0 && dist < 1.20){
     float ang = atan(uv.y, uv.x);
-    vec2 pp = vec2(ang * 4.0, dist * 50.0) + vec2(u_time * 0.3, 0.0);
-    float p = smoothstep(0.86, 0.95, n2(pp + u_seed * 100.0));
-    float falloff = smoothstep(1.18, 1.02, dist);
-    gl_FragColor = vec4(u_color, p * falloff * 0.7);
+    vec2 pp = vec2(ang * 4.0, dist * 50.0) + vec2(u_time * 0.28, 0.0);
+    float p = smoothstep(0.85, 0.96, n2(pp + u_seed * 100.0));
+    float falloff = smoothstep(1.20, 1.01, dist);
+    gl_FragColor = vec4(u_color, p * falloff * 0.75);
     return;
   }
-  if (dist > 1.0) discard;
+  // Anti-aliased orb edge: soft cutoff over ~2px instead of a hard discard.
+  float edgeAA = smoothstep(1.0, 0.985, dist);
+  if (edgeAA <= 0.0) discard;
 
-  // Reconstruct a sphere normal in screen space.
+  // Sphere normal in screen space (orthographic).
   vec3 N = vec3(uv, sqrt(max(0.0, 1.0 - dist * dist)));
-  vec3 L = normalize(vec3(-0.35, 0.55, 0.75));   // light: top-left
+  // TWO-LIGHT MODEL: key from top-left + cool fill from bottom-right.
+  vec3 Lkey  = normalize(vec3(-0.35,  0.55, 0.75));
+  vec3 Lfill = normalize(vec3( 0.55, -0.30, 0.50));
   vec3 V = vec3(0.0, 0.0, 1.0);
-  vec3 H = normalize(L + V);
+  vec3 Hk = normalize(Lkey  + V);
+  vec3 Hf = normalize(Lfill + V);
 
-  // Domain-warped plasma sampled on the sphere surface.
-  float t = u_time * 0.35 + u_seed * 6.28;
-  vec2 puv = uv * 1.7;
-  vec2 q = vec2(
-    fbm(puv + vec2(t * 0.18, u_seed * 7.3)),
-    fbm(puv + vec2(-t * 0.24, u_seed * 11.7 + 5.0))
-  );
-  float plasma = fbm(puv + q * 1.8 + vec2(t * 0.12, 0.0));
+  // Domain-warped, multi-scale plasma. Adds genuine surface variation,
+  // not just a single noise field.
+  float t = u_time * 0.32 + u_seed * 6.28;
+  vec2 puv = uv * 1.6;
+  vec2 w1 = warp(puv + vec2(t * 0.15, 0), u_seed * 5.0);
+  vec2 w2 = warp(puv * 2.1 + w1 * 1.4 + vec2(0, t * 0.2), u_seed * 9.0);
+  float plasma = fbm(puv + w2 * 0.9 + vec2(t * 0.10, t * 0.06));
 
-  // Diffuse — Lambert with floor (sub-surface scatter approximation).
-  float NdotL = max(0.0, dot(N, L));
-  float diff = 0.35 + 0.65 * NdotL;
+  // Per-pixel material colour. Hot pockets push to deep complementary tone.
+  vec3 base = mix(u_color, u_deep, smoothstep(0.38, 0.88, plasma));
 
-  // Mix colour by plasma. Hot pockets push toward deep tone.
-  vec3 base = mix(u_color, u_deep, smoothstep(0.4, 0.85, plasma));
-  vec3 col = base * diff;
+  // Diffuse from both lights.
+  float NdotLk = max(0.0, dot(N, Lkey));
+  float NdotLf = max(0.0, dot(N, Lfill));
+  float diff = 0.18 + 0.70 * NdotLk + 0.18 * NdotLf;
 
-  // SUB-SURFACE GLOW — wrap-around lighting, the bit of light that
-  // makes a real translucent sphere glow on the limb away from the sun.
-  float wrap = max(0.0, dot(-N.xy, L.xy)) * 0.5;
-  col += u_color * wrap * 0.18 * (1.0 - NdotL);
+  // SUB-SURFACE WRAP — translucent-sphere glow on the limb away from
+  // the key light. Coloured by the agent's own colour.
+  float wrap = max(0.0, dot(-N.xy, Lkey.xy)) * 0.5;
+  vec3 sss = u_color * wrap * 0.32 * (1.0 - NdotLk);
 
-  // SCHLICK-FRESNEL — rim brightens because grazing rays travel through
-  // more material. F0 ~0.04 for non-metals; rim approaches 1.
+  // GGX SPECULAR with low roughness (a=0.18) for a glass-orb highlight.
+  float a = 0.18;
   float NdotV = max(0.0, dot(N, V));
-  float F = 0.04 + 0.96 * pow(1.0 - NdotV, 5.0);
-  col += u_color * F * 0.9;
+  float NdotHk = max(0.0, dot(N, Hk));
+  float NdotHf = max(0.0, dot(N, Hf));
+  float Dk = D_GGX(NdotHk, a);
+  float Df = D_GGX(NdotHf, a);
+  vec3 F0 = mix(vec3(0.04), u_color, 0.15);   // slight tinted reflectance
+  vec3 Fk = F_Schlick(max(0.0, dot(Hk, V)), F0);
+  vec3 Ff = F_Schlick(max(0.0, dot(Hf, V)), F0);
+  vec3 specK = Dk * Fk * 1.0;
+  vec3 specF = Df * Ff * 0.35;
 
-  // SPECULAR — Phong, tight focused highlight.
-  float spec = pow(max(0.0, dot(N, H)), 64.0);
-  col += vec3(spec) * 0.85;
+  // SCHLICK-FRESNEL RIM — grazing-angle brightening (real glass-sphere physics).
+  vec3 Frim = F_Schlick(NdotV, vec3(0.04)) * 0.85;
 
-  // TERMINATOR SHADOW — multiply the far hemisphere by a soft dark.
-  float dark = smoothstep(0.05, -0.55, NdotL);
-  col *= mix(vec3(1.0), vec3(0.25, 0.18, 0.22), dark * 0.65);
+  // TERMINATOR — multiply far hemisphere by warm-toned darkness, not pure black.
+  float dark = smoothstep(0.10, -0.55, NdotLk);
+  vec3 termTint = mix(vec3(1.0), vec3(0.22, 0.16, 0.20), dark * 0.7);
 
-  gl_FragColor = vec4(col, 1.0);
+  // Composite linear HDR.
+  vec3 col = base * diff;
+  col += sss;
+  col += specK + specF;
+  col += u_color * Frim;
+  col *= termTint;
+
+  // ACES filmic tonemap → gamma 2.2 for cinematic colour rolloff.
+  col = aces(col * 1.05);
+  col = toSRGB(col);
+
+  gl_FragColor = vec4(col, edgeAA);
 }`;
   function _compile(src, type){
     const sh = gl.createShader(type);
@@ -3760,6 +3832,16 @@ async function loadProfile() {
   // ring now that we know the owner has signed in.
   if (typeof renderInformants === 'function') renderInformants();
   profileSetupIfNeeded();
+  // SILENT BOOT — under perpetual owner authorization (MASTER LAW §10d)
+  // Krypteia runs once per session on owner sign-in: audit + watchtower
+  // + threat triage in parallel, Claude triages. Surfaces a panel only
+  // if severity demands it, otherwise logs silently and gets out of the
+  // way. Wrapped to never throw and never block the rest of boot.
+  if (profile && profile.is_owner) {
+    setTimeout(() => {
+      try { if (typeof openKrypteia === 'function') openKrypteia(true); } catch (_) {}
+    }, 4000);
+  }
   subscribePush();
   initDroneStandby();
   restoreSession();
@@ -6763,36 +6845,84 @@ window.emitSignal = async () => {
   closePanel();
 };
 
-window.openKrypteia = async () => {
-  if (!profile?.is_owner) {
-    openPanel(agentCard({ emoji: '⬡', name: 'Krypteia', role: 'Owner only', color: '#ff9e9e',
-      body: '<div style="color:#6a8aaf;font-size:12px;padding:8px 0">This agent answers only to the architect.</div>' }));
+// KRYPTEIA — one-tap unified run. No submenu, no buttons. Operates
+// under PERPETUAL OWNER AUTHORIZATION (MASTER LAW §10d): audit +
+// watchtower + threat log fire in parallel server-side, Claude triages,
+// the panel appears ONLY when severity demands owner approval. Otherwise
+// Krypteia closes silent — its work is logged as a security_events row.
+//
+// runSilently=true skips ever opening the owner panel even on alert;
+// used by the silent boot run so the OS doesn't pop a panel just because
+// the owner happened to refresh.
+window.openKrypteia = async (runSilently) => {
+  if (!profile?.is_owner || !sb) {
+    if (!runSilently) {
+      openPanel(agentCard({ emoji: '⬡', name: 'Krypteia', role: 'Owner only', color: '#ff9e9e',
+        body: '<div style="color:#6a8aaf;font-size:12px;padding:8px 0">This agent answers only to the architect.</div>' }));
+    }
     return;
   }
-  let openThreats = 0;
+  if (!runSilently) {
+    openPanel(agentCard({
+      emoji: '⬡', name: 'Krypteia', role: 'Guardian · running all checks',
+      color: '#ffb464',
+      status: 'Audit + Watchtower + Threat triage in parallel, Claude reviewing…',
+      body: `<div style="color:#a8c8ee;font-size:12px;line-height:1.6">
+        Krypteia is checking the live bundle for contamination, the
+        public web for stolen fingerprints, and the threat log for
+        open incidents — then Claude triages the lot. This takes
+        roughly 30–60 seconds.
+      </div>`,
+      actions: [],
+    }));
+  }
+  let v = null;
   try {
-    const { count } = await sb.from('security_events').select('*', { count: 'exact', head: true }).eq('status', 'open');
-    openThreats = count || 0;
-  } catch (_) {}
-  const body = `
-    <div class="row"><span>Open threats</span><span style="color:${openThreats > 0 ? '#ff6b6b' : '#7eebb4'}">${openThreats}</span></div>
-    <div class="row"><span>Intelligence</span><span style="color:#7eebb4">ASTRANOV</span></div>
-    <div class="row"><span>Active signals</span><span style="color:#a8c8ee">${signalIndex.size}</span></div>
-    <div class="row"><span>Navigation level</span><span style="color:#a8c8ee">${currentLevel.toUpperCase()}</span></div>`;
+    const { data, error } = await sb.functions.invoke('krypteia', { body: { mode: 'scan' } });
+    if (error) throw error;
+    v = data;
+  } catch (e) { v = { error: String(e) }; }
+  if (!v || v.error) {
+    if (!runSilently) {
+      openPanel(agentCard({
+        emoji: '⬡', name: 'Krypteia', role: 'Guardian',
+        color: '#ff5a4a',
+        status: 'Krypteia run failed',
+        body: `<div style="color:#ff9e9e;font-size:12px">${escapeHtml(v?.error || 'no response')}</div>`,
+        actions: [{ label: 'Try again', primary: true, onclick: 'openKrypteia()' }],
+      }));
+    }
+    return;
+  }
+  // Log everything to the owner-only AICYCLE log either way.
+  try { console.info('[krypteia]', v.severity, v.summary); } catch (_) {}
+  // Silent close path: no owner approval needed AND we weren't asked to
+  // surface a panel — Krypteia did its job and is gone.
+  if (v.silent_ok && !runSilently) {
+    closePanel();
+    toast(`Krypteia · ${v.severity} · ${v.audit?.counts ? (v.audit.counts.warn + v.audit.counts.info) + ' minor' : 'clean'}`, 'ok');
+    return;
+  }
+  if (v.silent_ok && runSilently) return; // truly silent boot path
+  // Owner approval required OR severity ≥ medium — open the verdict panel.
+  const sevColor = v.severity === 'critical' ? '#ff6b6b' :
+                   v.severity === 'high'     ? '#ff8a4a' :
+                   v.severity === 'medium'   ? '#ffb464' : '#7eebb4';
+  const counts = v.audit?.counts || { critical: 0, warn: 0, info: 0 };
+  const watchN = (v.watch?.hits_count || 0);
+  const threatN = (v.threats || []).length;
+  const ownerLine = v.owner_approval_required
+    ? `<div style="margin:10px 0 14px;padding:10px;border-radius:10px;background:rgba(255,90,80,0.08);border:1px solid rgba(255,90,80,0.3);color:#ffd0c8;font-size:13px;line-height:1.5">⬡ Owner approval required. Krypteia held action until you reviewed this.</div>`
+    : '';
   openPanel(agentCard({
-    emoji: '⬡', name: 'Krypteia', role: 'Guardian · supervises all three modes',
-    color: '#ffb464',
-    status: 'Reports to the Council of Thirteen',
-    body,
+    emoji: '⬡', name: 'Krypteia', role: 'Guardian · verdict ready',
+    color: sevColor,
+    status: `Severity: ${v.severity.toUpperCase()} · audit ${counts.critical}C/${counts.warn}W/${counts.info}I · watchtower ${watchN} · threats ${threatN} · ${formatRelative(v.at)}`,
+    body: `${ownerLine}
+      <div style="font-size:13px;color:#dde9ff;line-height:1.55;white-space:pre-wrap;font-family:ui-monospace,monospace;max-height:46vh;overflow:auto">${escapeHtml(v.claude || '(no claude text)')}</div>`,
     actions: [
-      { label: 'Threat log',                       danger: true,  onclick: 'openSecurityEvents()' },
-      { label: 'Audit — find zombie / foreign code', primary: true, onclick: 'openKrypteiaAudit()' },
-      { label: 'Improvement request',              primary: true, onclick: 'openKrypteiaImprove()' },
-      { label: 'Watchtower — scan for theft',      primary: true, onclick: 'openKrypteiaWatch()' },
-      { label: 'Council of Thirteen',              primary: true, onclick: 'openCouncilPanel()' },
-      { label: 'Brain — memory & training',        onclick: 'openBrainPanel()' },
-      { label: 'Memory',                           onclick: 'openMemoryPanel()' },
-      { label: 'AICYCLE log',                      onclick: 'openAICycleLog()' },
+      { label: 'Hand to Claude (apply now)', primary: true, onclick: `openDeveloper(${JSON.stringify('Apply the recommendations from the Krypteia verdict in the context block. Produce a concrete diff and the command to ship.')}, ${JSON.stringify(JSON.stringify({ severity: v.severity, claude: v.claude, audit: v.audit, watch: v.watch, threats: v.threats }, null, 2).slice(0, 9000))})` },
+      { label: 'Run again', onclick: 'openKrypteia()' },
     ],
   }));
 };
@@ -6841,35 +6971,44 @@ window.openKrypteiaAudit = async () => {
     status: `${c.critical} critical · ${c.warn} warn · ${c.info} info · ${(res.source_size/1024).toFixed(0)} kB scanned · ${formatRelative(res.scanned_at)}`,
     body: `<div style="font-size:13px;color:${verdictColor};font-weight:600;margin:4px 0 10px">Verdict: ${escapeHtml(res.verdict || '—')}</div>${rows}`,
     actions: [
-      { label: 'Ask Astranov to suggest fixes', primary: true, onclick: `openKrypteiaImprove(${JSON.stringify('Please review the following Krypteia audit findings and suggest concrete fixes for each, in order of severity: ' + JSON.stringify(findings).slice(0, 1600))})` },
+      { label: 'Ask Claude to fix these', primary: true, onclick: `openDeveloper(${JSON.stringify('Review the Krypteia audit findings in the context block and propose concrete fixes in DIAGNOSIS / DIFF / COMMAND / RISK form, ordered by severity.')}, ${JSON.stringify(JSON.stringify(findings, null, 2).slice(0, 8000))})` },
       { label: 'Re-scan', onclick: 'openKrypteiaAudit()' },
     ],
   }));
 };
 
-// Krypteia Improve — direct channel to Astranov for owner-requested
-// improvements. Sends the request through /aicycle with a system prompt
-// that orients the AI toward concrete, file-level code suggestions.
-window.openKrypteiaImprove = async (preseed) => {
+// Developer — direct line to Claude (the engineer). Calls /developer
+// Edge Fn which hits Anthropic claude-opus-4-7 with a Krypteia-specific
+// system prompt. NOT routed through /aicycle, NOT Astranov-the-character:
+// this is the builder talking, with full codebase context, asked for
+// concrete diffs. Optional preseed lets other Krypteia panels (Audit,
+// Watchtower) hand findings straight into this channel.
+window.openDeveloper = async (preseed, preContext) => {
   if (!profile?.is_owner || !sb) return;
   const seed = (typeof preseed === 'string') ? preseed : '';
+  const ctx  = (typeof preContext === 'string') ? preContext : '';
   openPanel(agentCard({
-    emoji: '⬡', name: 'Improvement request', role: 'Krypteia · architect channel',
+    emoji: '⬡', name: 'Developer', role: 'Krypteia · direct line to Claude',
     color: '#ffb464',
-    status: 'Speak directly to Astranov. Code-level proposals only.',
+    status: 'Asks Claude to diagnose, diff, command, risk.',
     body: `
       <div style="font-size:12px;color:#a8c8ee;margin-bottom:10px;line-height:1.5">
-        Ask Astranov to design a concrete improvement. The response is a
-        proposal — file paths, function names, the diff in plain prose.
-        You then pass it to Claude Code (or me, in another turn) to apply.
+        This is Claude the engineer — the builder, not Astranov-the-AI.
+        Describe what needs fixing or improving. The reply is in four
+        sections: DIAGNOSIS, DIFF, COMMAND, RISK. Run the COMMAND in
+        the next Claude Code session to apply.
       </div>
-      <textarea class="me-inp" id="kr-improve-q" rows="5" placeholder="e.g. 'Make the orbital ring slow down when an orb is expanded, so the article photo doesn't drift off-camera while reading.'">${escapeHtml(seed)}</textarea>
-      <div id="kr-improve-out" style="margin-top:14px;font-size:13px;color:#dde9ff;line-height:1.55;white-space:pre-wrap"></div>`,
+      <textarea class="me-inp" id="dev-q" rows="6" placeholder="e.g. 'The Me orb's beam doesn't appear when I sign in but locate hasn't fired yet.'">${escapeHtml(seed)}</textarea>
+      ${ctx ? `<div style="font-size:11px;color:#7a98c0;margin-top:8px">Context attached (${ctx.length} chars) — Claude will see it.</div>` : ''}
+      <div id="dev-out" style="margin-top:14px;font-size:13px;color:#dde9ff;line-height:1.55;white-space:pre-wrap;font-family:ui-monospace,monospace"></div>`,
     actions: [
-      { label: 'Send to Astranov', primary: true, onclick: '_krypteiaImproveSend()' },
+      { label: 'Send to Claude', primary: true, onclick: `_developerSend(${JSON.stringify(ctx)})` },
     ],
   }));
 };
+// Back-compat shim so any old callers (e.g. early audit responses)
+// still route to the new Developer panel.
+window.openKrypteiaImprove = window.openDeveloper;
 // ── APEX TIER HANDLERS ─────────────────────────────────────────────────
 // Pilot: warp back to planet Earth's global home, no matter where the
 // user is. Closes any open panel / expanded orb, then flies to the
@@ -6925,35 +7064,20 @@ function _applyVolume(v) {
   s.addEventListener('input', e => _applyVolume(parseFloat(e.target.value)));
 })();
 
-window._krypteiaImproveSend = async function() {
-  const q = ($('kr-improve-q')?.value || '').trim();
+window._developerSend = async function(ctx) {
+  const q = ($('dev-q')?.value || '').trim();
   if (!q) return toast('Write the request first.', 'err');
-  const out = $('kr-improve-out');
-  if (out) out.textContent = 'Astranov is thinking…';
+  const out = $('dev-out');
+  if (out) out.textContent = 'Calling Claude…';
   try {
-    // aicycle expects either body.prompt OR a body.messages array. We
-    // supply messages so a system overlay rides alongside the user's
-    // question — orienting Astranov toward a code-architect reply.
-    const sysOverlay = `KRYPTEIA-IMPROVE CHANNEL. The user is Notis Astranov, owner and architect of AstranoV — the world's first Agentic Orbital Operating System. They are asking for a concrete improvement to the codebase.
-The system is a single index.html on Vercel (https://astranov.eu) backed by Supabase Edge Functions in /supabase/functions/* (aicycle, council, brain, vendor-menu, order-intake, order-status, krypteia-watch, krypteia-audit, informant-feed, push-notify, crawl). Frontend uses Cesium for the 3D globe, the Living-Orb Graphics Engine for procedural agent visuals, and the orbital tier system (Me 30,000km / Pilot 22,000km / Astranov 16,000km / Discover 10,000km / informants 1,500km).
-Answer in EXACTLY three short sections, no preamble:
-1) DIAGNOSIS — one sentence: what's the underlying issue or opportunity.
-2) PROPOSAL — file paths, function names, the rough diff in prose. Be specific. Cite which MASTER LAW section to update.
-3) NEXT — the one command Notis should run next to make it happen.
-No padding, no caveats. Spartan.`;
-    const { data, error } = await sb.functions.invoke('aicycle', {
-      body: {
-        messages: [
-          { role: 'system', content: sysOverlay },
-          { role: 'user',   content: q },
-        ],
-        mode: 'spartan',
-      },
-    });
+    const body = { request: q };
+    if (typeof ctx === 'string' && ctx) body.context = ctx;
+    const { data, error } = await sb.functions.invoke('developer', { body });
     if (error) throw error;
-    const text = (data && (data.response || data.text)) || '';
+    if (data && data.error) throw new Error(data.error);
+    const text = (data && data.text) || '';
     if (!text) {
-      if (out) out.textContent = 'Astranov returned no text. Raw response:\n\n' + JSON.stringify(data || {}, null, 2);
+      if (out) out.textContent = 'Claude returned no text. Raw response:\n\n' + JSON.stringify(data || {}, null, 2);
       return;
     }
     if (out) out.textContent = text;
@@ -6961,6 +7085,8 @@ No padding, no caveats. Spartan.`;
     if (out) out.textContent = 'Channel failed: ' + String(e);
   }
 };
+// Back-compat shim.
+window._krypteiaImproveSend = window._developerSend;
 
 // Krypteia Watchtower — owner-only IP-defence scanner.
 // Calls krypteia-watch Edge Fn → GitHub code search across our
@@ -6998,7 +7124,8 @@ window.openKrypteiaWatch = async () => {
     status: `${hits.length} hit${hits.length === 1 ? '' : 's'} · ${res.fingerprints_used} fingerprints · ${formatRelative(res.scanned_at)}`,
     body: rows,
     actions: hits.length ? [
-      { label: 'Escalate to the Council of Thirteen', primary: true, onclick: 'openCouncilPanel()' },
+      { label: 'Hand to Claude (draft DMCA + counter-move)', primary: true, onclick: `openDeveloper(${JSON.stringify('The Watchtower found off-canonical occurrences of AstranoV fingerprints on GitHub. For each hit, propose: (a) the legal posture (clear copy / coincidence / inspired-by); (b) a draft DMCA / cease-and-desist line if warranted; (c) whether to escalate to the Council of Thirteen.')}, ${JSON.stringify(JSON.stringify(hits, null, 2).slice(0, 8000))})` },
+      { label: 'Escalate to the Council of Thirteen', onclick: 'openCouncilPanel()' },
       { label: 'Re-scan', onclick: 'openKrypteiaWatch()' },
     ] : [
       { label: 'Re-scan', primary: true, onclick: 'openKrypteiaWatch()' },
@@ -7111,6 +7238,7 @@ window.openBrainPanel = async () => {
       { label: 'Distil the mind',           primary: true, onclick: 'brainDistill(this)' },
       { label: 'Export training corpus',                   onclick: 'brainExport(this)' },
       { label: 'Curate memories',                          onclick: 'openMemoryPanel()' },
+      { label: 'Ask Claude to audit the mind', onclick: `openDeveloper(${JSON.stringify('Audit the AstranoV brain (semantic-memory pgvector + creator-distilled principles). Are recall thresholds, embed dimensions, distil cadence and corpus-export shape healthy? Propose concrete improvements.')}, ${JSON.stringify(JSON.stringify(stats || {}, null, 2).slice(0, 4000))})` },
     ],
   }));
 };
@@ -7169,10 +7297,15 @@ window.openSecurityEvents = async () => {
       ${e.details ? `<div style="font-size:11px;color:#6a8aaf;margin-top:4px;font-family:monospace">${escapeHtml(JSON.stringify(e.details).slice(0,200))}</div>` : ''}
     </div>
   `).join('');
+  const events = data || [];
+  const askClaude = events.length
+    ? `<div class="gadget-engage" onclick='openDeveloper(${JSON.stringify("Review these security_events and propose: triage (real / false-positive), the root-cause fix for each real threat, and what to harden so it doesn't recur.").replace(/'/g, "&#39;")}, ${JSON.stringify(JSON.stringify(events.slice(0, 15), null, 2).slice(0, 6000)).replace(/'/g, "&#39;")})' style="margin-top:14px;border-color:rgba(255,180,100,0.5);color:#ffd49a"><span class="verb-glyph" style="background:#ffb464"></span><span>Hand log to Claude for triage</span></div>`
+    : '';
   openPanel(`
     <h2 style="color:#ff6b6b">Threat log</h2>
-    <div class="subtitle">${data?.length || 0} events · IP theft, abuse, exploits</div>
+    <div class="subtitle">${events.length} events · IP theft, abuse, exploits</div>
     ${rows || '<div style="color:#6a8aaf;font-size:13px;padding:12px 0">No threats detected. System clean.</div>'}
+    ${askClaude}
   `);
 };
 
