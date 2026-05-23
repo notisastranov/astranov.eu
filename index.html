@@ -6704,12 +6704,31 @@ window._krypteiaImproveSend = async function() {
   const out = $('kr-improve-out');
   if (out) out.textContent = 'Astranov is thinking…';
   try {
-    const sysOverlay = 'KRYPTEIA-IMPROVE CHANNEL. The user is Notis Astranov, owner & architect. They are asking for a concrete improvement to the AstranoV codebase. Answer in three sections, each one short and decisive:\n1) DIAGNOSIS — what is the underlying issue or opportunity in one sentence.\n2) PROPOSAL — exactly what to change. File paths, function names, the rough diff in prose. Be specific to AstranoV\'s architecture: index.html as the single frontend file, /supabase/functions/* for Edge Fns, MASTER LAW codification, Cesium globe, orbital agents, Living-Orb Graphics Engine.\n3) NEXT — the one command or step to take next.\nNo padding, no caveats. Spartan.';
+    // aicycle expects either body.prompt OR a body.messages array. We
+    // supply messages so a system overlay rides alongside the user's
+    // question — orienting Astranov toward a code-architect reply.
+    const sysOverlay = `KRYPTEIA-IMPROVE CHANNEL. The user is Notis Astranov, owner and architect of AstranoV — the world's first Agentic Orbital Operating System. They are asking for a concrete improvement to the codebase.
+The system is a single index.html on Vercel (https://astranov.eu) backed by Supabase Edge Functions in /supabase/functions/* (aicycle, council, brain, vendor-menu, order-intake, order-status, krypteia-watch, krypteia-audit, informant-feed, push-notify, crawl). Frontend uses Cesium for the 3D globe, the Living-Orb Graphics Engine for procedural agent visuals, and the orbital tier system (Me 30,000km / Pilot 22,000km / Astranov 16,000km / Discover 10,000km / informants 1,500km).
+Answer in EXACTLY three short sections, no preamble:
+1) DIAGNOSIS — one sentence: what's the underlying issue or opportunity.
+2) PROPOSAL — file paths, function names, the rough diff in prose. Be specific. Cite which MASTER LAW section to update.
+3) NEXT — the one command Notis should run next to make it happen.
+No padding, no caveats. Spartan.`;
     const { data, error } = await sb.functions.invoke('aicycle', {
-      body: { query: q, system_overlay: sysOverlay, mode: 'spartan' },
+      body: {
+        messages: [
+          { role: 'system', content: sysOverlay },
+          { role: 'user',   content: q },
+        ],
+        mode: 'spartan',
+      },
     });
     if (error) throw error;
-    const text = data?.response || data?.text || JSON.stringify(data || {}, null, 2);
+    const text = (data && (data.response || data.text)) || '';
+    if (!text) {
+      if (out) out.textContent = 'Astranov returned no text. Raw response:\n\n' + JSON.stringify(data || {}, null, 2);
+      return;
+    }
     if (out) out.textContent = text;
   } catch (e) {
     if (out) out.textContent = 'Channel failed: ' + String(e);
