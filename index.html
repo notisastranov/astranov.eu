@@ -140,6 +140,16 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     Boot must START on the global view; the camera NEVER auto-flies to
     the user's city. Pre-warming by IP is allowed; moving the camera is not.
 
+5f. LIVING-ORB GRAPHICS ENGINE — procedural visuals, no static gradients
+    Every agent's orb is a procedural plasma generated from the agent's own
+    DNA (color hex + seed from its name/id). Three radial blobs orbit at
+    different rates; a moving specular highlight tracks the light; a glowing
+    rim. ~30 fps, throttled, paused when the document is hidden. One shared
+    rAF loop drives every orb on the page. Replaces the Atari-era CSS
+    gradients on informant orbs and agentCard headers; will extend next to
+    place-agent map pins, signal tiles, and the cosmos background. No agent
+    visual is allowed to be a static gradient again.
+
 5e. AGENT PANEL LAW — one skin for every agent's home
     Every panel in AstranoV is rendered by agentCard({emoji,name,role,color,
     status,body,actions}). One orb header (the agent's small face) +
@@ -417,7 +427,7 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     display: flex; flex-direction: column; align-items: center; gap: 4px;
   }
   .informant .orb {
-    width: 54px; height: 54px; border-radius: 50%; position: relative;
+    width: 54px; height: 54px; border-radius: 50%; position: relative; overflow: hidden;
     display: flex; align-items: center; justify-content: center;
     font-size: 22px; line-height: 1;
     background: radial-gradient(circle at 35% 30%,
@@ -468,6 +478,20 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     .informant { transform: rotate(var(--a, 0deg)) translate(38vmin) rotate(calc(-1 * var(--a, 0deg))); }
   }
 
+  /* LIVING ORB — the procedural graphics primitive. A canvas painting a
+     flowing plasma generated from the agent's own DNA (color + seed). Sits
+     inside any element that previously used a static CSS gradient. */
+  .orb-host { position: relative; width: 100%; height: 100%; border-radius: 50%; }
+  .living-orb {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    border-radius: 50%; display: block; pointer-events: none;
+  }
+  .orb-glyph {
+    position: absolute; inset: 0; display: flex; align-items: center;
+    justify-content: center; font-size: inherit; pointer-events: none;
+    text-shadow: 0 0 6px rgba(0,0,0,0.55);
+  }
+
   /* AGENT CARD — the unified panel skin every agent's home shares.
      Orb header (a small face for the agent) + role chip + status + body.
      Used by informants, ME, brain, krypteia, council and every future agent. */
@@ -477,9 +501,10 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     border-bottom: 1px solid rgba(120,180,255,0.08);
   }
   .agent-card-orb {
+    position: relative;
     width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    font-size: 22px; line-height: 1;
+    font-size: 22px; line-height: 1; overflow: hidden;
     background: radial-gradient(circle at 35% 30%,
       rgba(255,255,255,0.45) 0%,
       color-mix(in srgb, var(--ac, #7eb4ff) 65%, transparent) 22%,
@@ -2449,6 +2474,89 @@ function _signalsForLevel() {
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     .slice(0, 14);
 }
+// ── LIVING ORB GRAPHICS ENGINE ──────────────────────────────────────────
+// Procedural agent visuals — every orb is a flowing plasma generated from
+// the agent's own DNA (color + seed). 2D canvas, composited radial blobs +
+// noise, ~30fps, GPU-friendly. Replaces static CSS gradients across the app.
+const _LIVING_ORBS = new Set();
+function _hashSeed(s) { let h = 0; const str = String(s || ''); for (let i = 0; i < str.length; i++) h = ((h << 5) - h + str.charCodeAt(i)) | 0; return Math.abs(h) % 1000 / 1000; }
+function _hexToRgb(h) {
+  h = (h || '#7eb4ff').replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+}
+function _initLivingOrb(cv) {
+  if (!cv || cv.__inited) return;
+  cv.__inited = true;
+  cv.__ctx = cv.getContext('2d');
+  cv.__rgb = _hexToRgb(cv.dataset.color || '#7eb4ff');
+  cv.__seed = parseFloat(cv.dataset.seed || _hashSeed(cv.dataset.name || 'a'));
+  _LIVING_ORBS.add(cv);
+}
+function _drawLivingOrb(cv, t) {
+  const ctx = cv.__ctx; if (!ctx) return;
+  const w = cv.width, h = cv.height;
+  const cx = w / 2, cy = h / 2, R = Math.min(w, h) / 2;
+  const [r, g, b] = cv.__rgb;
+  const seed = cv.__seed;
+  ctx.clearRect(0, 0, w, h);
+  // Clip to a circle so the plasma stays inside the orb.
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
+  // Deep base
+  ctx.fillStyle = `rgba(4, 10, 22, 0.95)`;
+  ctx.fillRect(0, 0, w, h);
+  // Flowing plasma — three radial blobs orbiting at different rates.
+  ctx.globalCompositeOperation = 'screen';
+  for (let i = 0; i < 3; i++) {
+    const phase = t * (0.35 + i * 0.22) + seed * 6.28 + i * 2.1;
+    const radius = R * (0.45 + 0.18 * Math.sin(phase * 1.7));
+    const x = cx + Math.cos(phase) * R * 0.42;
+    const y = cy + Math.sin(phase * 1.3 + seed) * R * 0.42;
+    const grd = ctx.createRadialGradient(x, y, 0, x, y, radius * 1.8);
+    grd.addColorStop(0,    `rgba(${r}, ${g}, ${b}, 0.85)`);
+    grd.addColorStop(0.5,  `rgba(${r}, ${g}, ${b}, 0.30)`);
+    grd.addColorStop(1,    `rgba(${r}, ${g}, ${b}, 0.00)`);
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, w, h);
+  }
+  // Specular highlight
+  ctx.globalCompositeOperation = 'lighter';
+  const hi = ctx.createRadialGradient(cx - R * 0.35, cy - R * 0.35, 0, cx - R * 0.35, cy - R * 0.35, R * 0.7);
+  hi.addColorStop(0, 'rgba(255,255,255,0.45)');
+  hi.addColorStop(1, 'rgba(255,255,255,0.00)');
+  ctx.fillStyle = hi; ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+  // Outer rim — glowing edge
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.85)`;
+  ctx.lineWidth = Math.max(1, R * 0.045);
+  ctx.beginPath(); ctx.arc(cx, cy, R - ctx.lineWidth / 2, 0, Math.PI * 2); ctx.stroke();
+}
+let _gfxStart = performance.now(), _gfxFrame = 0;
+function _gfxTick() {
+  const t = (performance.now() - _gfxStart) / 1000;
+  // Throttle to ~30fps for battery; skip when document hidden.
+  if (!document.hidden && (_gfxFrame++ & 1) === 0) {
+    for (const cv of _LIVING_ORBS) {
+      // Skip off-screen orbs cheaply.
+      if (!cv.isConnected) { _LIVING_ORBS.delete(cv); continue; }
+      _drawLivingOrb(cv, t);
+    }
+  }
+  requestAnimationFrame(_gfxTick);
+}
+requestAnimationFrame(_gfxTick);
+// Helper to mint a living-orb HTML block with an emoji on top.
+function livingOrbHTML(emoji, color, seed) {
+  const s = (seed != null ? seed : _hashSeed(String(emoji || '') + color));
+  return `<canvas class="living-orb" width="160" height="160" data-color="${color || '#7eb4ff'}" data-seed="${s}"></canvas><span class="orb-glyph">${emoji || ''}</span>`;
+}
+// Re-scan the DOM after any panel/orbit render to wire up new orbs.
+function _scanLivingOrbs() { document.querySelectorAll('canvas.living-orb').forEach(_initLivingOrb); }
+// Also auto-scan when nodes are added — covers panels mounted asynchronously.
+new MutationObserver(() => _scanLivingOrbs()).observe(document.body, { childList: true, subtree: true });
+
 // ── AGENT SDK ───────────────────────────────────────────────────────────
 // Every panel in AstranoV is an agent's home. agentCard renders the unified
 // shape: orb header + role chip + status + body + a minimal vertical action
@@ -2467,7 +2575,7 @@ function agentCard({ emoji = '◈', name, role = '', color = '#7eb4ff', status =
   }).join('');
   return `
     <div class="agent-card-header" style="--ac:${color}">
-      <div class="agent-card-orb">${emoji}</div>
+      <div class="agent-card-orb">${livingOrbHTML(emoji, color, _hashSeed(name + role))}</div>
       <div class="agent-card-meta">
         <div class="agent-card-name">${escapeHtml(name || 'Agent')}</div>
         ${role ? `<div class="agent-card-role">${escapeHtml(role)}</div>` : ''}
@@ -2516,15 +2624,16 @@ function renderInformants() {
     const angle = (i * 360 / N) + 'deg';
     if (inf._new) {
       return `<div class="informant" style="--ic:#7eebb4;--a:${angle}" onclick="openInformantCreate()" title="Create an agent">
-        <div class="orb" style="font-size:26px">＋</div>
+        <div class="orb" style="font-size:26px">${livingOrbHTML('＋', '#7eebb4', i * 0.137)}</div>
         <div class="name" style="opacity:0.7">new</div>
       </div>`;
     }
     const found = _informantFindings(inf);
     const has = found.length > 0;
     const color = inf.color || _CAT_COLORS[inf.category] || '#7eb4ff';
+    const seed = _hashSeed(inf.id + (inf.name || ''));
     return `<div class="informant${has ? ' has-news' : ''}" style="--ic:${color};--a:${angle}" onclick="openInformant(${JSON.stringify(inf.id)})" title="${escapeHtml(inf.name)} agent">
-      <div class="orb">${inf.emoji || '◈'}${has ? `<div class="count">${found.length}</div>` : '<div class="count"></div>'}</div>
+      <div class="orb">${livingOrbHTML(inf.emoji || '◈', color, seed)}${has ? `<div class="count">${found.length}</div>` : '<div class="count"></div>'}</div>
       <div class="name">${escapeHtml(inf.name || '')}</div>
     </div>`;
   }).join('');
