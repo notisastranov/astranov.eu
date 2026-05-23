@@ -120,16 +120,23 @@ This block strives to get shorter, more inclusive, more precise with every edit.
       DAY    NASA Blue Marble Next Generation (BMNG) — public domain.
       NIGHT  NASA Black Marble / Earth at Night — public domain.
     Source via NASA GIBS WMTS (free, no key) or Cesium Ion (allowlisted).
+    BMNG and Black Marble are HIDDEN as soon as we leave the global tier
+    (dayLayer.show = nightLayer.show = false). The street map covers the
+    visible area alone — no "satellite at night" bleed-through at city tier.
 
-    City tier (regional → street): multiple real-cartography providers,
-    user-switchable via the right-HUD #layer-switch gadget. No procedural
-    city tiles. Order (lightweight, free first):
-      1. OpenStreetMap raster — default
-      2. CARTO Voyager / Positron / Dark Matter — free tier
-      3. Esri World Imagery — free non-commercial
-      4. Stadia Alidade Dark — free tier (key)
-      5. Protomaps (PMTiles) — when self-hosted
-      6. MapTiler — free tier (key)
+    City tier (regional → street): default is CARTO DARK MATTER — a flat
+    dark street map, NOT an imitation of the satellite. It renders at
+    neutral brightness/contrast/gamma (no boosting to fight an underlying
+    photo, because there is no underlying photo). The user can switch to
+    Voyager / Light / OSM / Esri Satellite / OpenTopo / Stadia Alidade
+    via the #layer-switch gadget (right HUD) or the Map Style chips in
+    the ME panel. Order (lightweight, free first):
+      1. CARTO Dark Matter — default, flat dark cartography
+      2. CARTO Voyager / Positron — soft colour street maps
+      3. OpenStreetMap raster — primary-colour street map
+      4. Esri World Imagery — REAL SATELLITE (user opt-in)
+      5. OpenTopoMap — terrain contours
+      6. Stadia Alidade Dark — alt dark
     Any module rendering map pixels at any zoom sources from this section.
 
 4.  GADGET LAW — Smart Gadgets Only (binding)
@@ -2453,16 +2460,13 @@ async function setCityImagery(index) {
   try {
     const provider = await p.init();
     cityLayer = viewer.imageryLayers.addImageryProvider(provider);
-    // Brightness boost on the inherently-dark CARTO Dark Matter style so
-    // streets stay readable while the look stays dark.
-    if (p.id === 'carto-dark') {
-      cityLayer.brightness = window._brightness ?? 1.45;
-      cityLayer.contrast   = 1.15;
-      cityLayer.gamma      = 0.85;
-      cityLayer.saturation = 1.0;
-    } else if (window._brightness != null) {
-      cityLayer.brightness = window._brightness;
-    }
+    // BMNG/Black Marble are hidden at non-global, so the city layer renders
+    // alone — no need to boost brightness to fight an underlying satellite
+    // photo. Render at neutral values; CARTO Dark is dark by design.
+    cityLayer.brightness = window._brightness ?? 1.0;
+    cityLayer.contrast   = 1.0;
+    cityLayer.gamma      = 1.0;
+    cityLayer.saturation = 1.0;
     // City tiles must sit ON TOP of the NASA globe layers.
     try { viewer.imageryLayers.raiseToTop(cityLayer); } catch (_) {}
     cityLayer.show = currentLevel !== 'global';
@@ -2570,6 +2574,14 @@ function onCameraSettled() {
   // Below global it darkens the street map at night — turn it off so the
   // CARTO street tiles render at full brightness.
   if (viewer) viewer.scene.globe.enableLighting = (newLevel === 'global');
+
+  // BMNG day + Black Marble night are GLOBAL textures. At national/personal
+  // we hide them entirely so the street map (cityLayer) covers the visible
+  // area without any "satellite at night" bleed-through. They come back
+  // when we ascend to global.
+  const showGlobeTextures = (newLevel === 'global');
+  if (dayLayer)   dayLayer.show   = showGlobeTextures;
+  if (nightLayer) nightLayer.show = showGlobeTextures;
 
   // City glowing dots: visible at NATIONAL only — the globe stays clean
   // at GLOBAL (orbs do the job), and the streets do at PERSONAL.
