@@ -281,6 +281,24 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     renders the single binding verdict. Engine: /council Edge Function
     (owner-only to convene) → council_cases. Krypteia panel convenes the court.
 
+10c. KRYPTEIA — CODE HYGIENE & ARCHITECT CHANNEL (binding)
+    The Krypteia panel exposes two owner-only mechanisms beyond the
+    Watchtower:
+      AUDIT (krypteia-audit Edge Fn) — fetches the LIVE deployed bundle
+      from astranov.eu and runs static pattern checks for zombie / dead /
+      contaminated / foreign code: eval-style dynamic exec, hard-coded
+      secrets, plaintext http://, foreign origins outside the allow-list,
+      large base64 blobs, iframe injections, analytics/tracker globals,
+      console.* calls, TODO/FIXME/HACK markers, long dead comment blocks,
+      and unknown localStorage keys. Returns findings grouped by severity
+      (critical/warn/info) with a one-line verdict. The owner can pipe
+      the findings directly into the Improvement channel for proposed
+      fixes.
+      IMPROVEMENT REQUEST (architect channel) — owner-only chat with
+      Astranov in code-architect mode (system overlay orients toward
+      DIAGNOSIS / PROPOSAL / NEXT, Spartan). Used to design concrete
+      improvements before sending them to Claude Code for implementation.
+
 10b. KRYPTEIA — IP DEFENCE & WATCHTOWER (binding)
     AstranoV is the world's first AGENTIC ORBITAL OPERATING SYSTEM (AOOS),
     invented and owned by Notis Astranov. The git history of this repository
@@ -6281,14 +6299,107 @@ window.openKrypteia = async () => {
     status: 'Reports to the Council of Thirteen',
     body,
     actions: [
-      { label: 'Threat log',                 danger: true,  onclick: 'openSecurityEvents()' },
-      { label: 'Watchtower — scan for theft',primary: true, onclick: 'openKrypteiaWatch()' },
-      { label: 'Council of Thirteen',        primary: true, onclick: 'openCouncilPanel()' },
-      { label: 'Brain — memory & training',  onclick: 'openBrainPanel()' },
-      { label: 'Memory',                     onclick: 'openMemoryPanel()' },
-      { label: 'AICYCLE log',                onclick: 'openAICycleLog()' },
+      { label: 'Threat log',                       danger: true,  onclick: 'openSecurityEvents()' },
+      { label: 'Audit — find zombie / foreign code', primary: true, onclick: 'openKrypteiaAudit()' },
+      { label: 'Improvement request',              primary: true, onclick: 'openKrypteiaImprove()' },
+      { label: 'Watchtower — scan for theft',      primary: true, onclick: 'openKrypteiaWatch()' },
+      { label: 'Council of Thirteen',              primary: true, onclick: 'openCouncilPanel()' },
+      { label: 'Brain — memory & training',        onclick: 'openBrainPanel()' },
+      { label: 'Memory',                           onclick: 'openMemoryPanel()' },
+      { label: 'AICYCLE log',                      onclick: 'openAICycleLog()' },
     ],
   }));
+};
+
+// Krypteia Audit — owner-only static scanner of the LIVE deployed bundle.
+// Looks for zombie / dead / contaminated / foreign code: eval-style
+// dynamic exec, hard-coded secrets, plaintext http://, foreign origins
+// outside the allow-list, large base64 blobs, iframe injections,
+// tracker globals, console.* calls, unfinished-work markers, long dead
+// comment blocks, and unknown localStorage keys.
+window.openKrypteiaAudit = async () => {
+  if (!profile?.is_owner || !sb) return;
+  openPanel(agentCard({
+    emoji: '⬡', name: 'Audit', role: 'Krypteia · code hygiene',
+    color: '#ff8a4a',
+    status: 'Scanning the live bundle for contamination…',
+    body: '<div style="color:#a8c8ee;font-size:12px;padding:8px 0">Fetching astranov.eu and running ~15 pattern checks against it: dynamic exec, hard-coded secrets, foreign origins, base64 blobs, trackers, dead-code blocks, unknown localStorage keys.</div>',
+    actions: [],
+  }));
+  let res = null;
+  try {
+    const { data } = await sb.functions.invoke('krypteia-audit', { body: { mode: 'scan' } });
+    res = data;
+  } catch (e) { res = { error: String(e) }; }
+  if (!res || res.error || !res.ok) {
+    openPanel(agentCard({
+      emoji: '⬡', name: 'Audit', role: 'Krypteia · code hygiene', color: '#ff8a4a',
+      status: 'Audit failed',
+      body: `<div style="color:#ff9e9e;font-size:12px">${escapeHtml(res?.error || 'no response')}</div>`,
+      actions: [{ label: 'Retry', primary: true, onclick: 'openKrypteiaAudit()' }],
+    }));
+    return;
+  }
+  const c = res.counts || { critical: 0, warn: 0, info: 0 };
+  const verdictColor = c.critical > 0 ? '#ff6b6b' : c.warn > 0 ? '#ffb464' : '#7eebb4';
+  const sevColor = (s) => s === 'critical' ? '#ff6b6b' : s === 'warn' ? '#ffb464' : '#7eb4ff';
+  const findings = res.findings || [];
+  const rows = findings.length ? findings.map(f => `
+    <div class="delivery-row" style="cursor:default">
+      <div class="head"><span class="desc">${escapeHtml(f.detail)}</span>
+        <span style="color:${sevColor(f.severity)};font-size:10px">${escapeHtml(f.severity.toUpperCase())}</span></div>
+      <div class="meta" style="text-transform:none;letter-spacing:0;font-family:ui-monospace,monospace;color:#7a98c0">${escapeHtml(f.excerpt || f.kind)}</div>
+    </div>`).join('') : '<div style="color:#7eebb4;font-size:13px;padding:8px 0">All clear. Bundle reads clean across every audit category.</div>';
+  openPanel(agentCard({
+    emoji: '⬡', name: 'Audit', role: 'Krypteia · code hygiene', color: '#ff8a4a',
+    status: `${c.critical} critical · ${c.warn} warn · ${c.info} info · ${(res.source_size/1024).toFixed(0)} kB scanned · ${formatRelative(res.scanned_at)}`,
+    body: `<div style="font-size:13px;color:${verdictColor};font-weight:600;margin:4px 0 10px">Verdict: ${escapeHtml(res.verdict || '—')}</div>${rows}`,
+    actions: [
+      { label: 'Ask Astranov to suggest fixes', primary: true, onclick: `openKrypteiaImprove(${JSON.stringify('Please review the following Krypteia audit findings and suggest concrete fixes for each, in order of severity: ' + JSON.stringify(findings).slice(0, 1600))})` },
+      { label: 'Re-scan', onclick: 'openKrypteiaAudit()' },
+    ],
+  }));
+};
+
+// Krypteia Improve — direct channel to Astranov for owner-requested
+// improvements. Sends the request through /aicycle with a system prompt
+// that orients the AI toward concrete, file-level code suggestions.
+window.openKrypteiaImprove = async (preseed) => {
+  if (!profile?.is_owner || !sb) return;
+  const seed = (typeof preseed === 'string') ? preseed : '';
+  openPanel(agentCard({
+    emoji: '⬡', name: 'Improvement request', role: 'Krypteia · architect channel',
+    color: '#ffb464',
+    status: 'Speak directly to Astranov. Code-level proposals only.',
+    body: `
+      <div style="font-size:12px;color:#a8c8ee;margin-bottom:10px;line-height:1.5">
+        Ask Astranov to design a concrete improvement. The response is a
+        proposal — file paths, function names, the diff in plain prose.
+        You then pass it to Claude Code (or me, in another turn) to apply.
+      </div>
+      <textarea class="me-inp" id="kr-improve-q" rows="5" placeholder="e.g. 'Make the orbital ring slow down when an orb is expanded, so the article photo doesn't drift off-camera while reading.'">${escapeHtml(seed)}</textarea>
+      <div id="kr-improve-out" style="margin-top:14px;font-size:13px;color:#dde9ff;line-height:1.55;white-space:pre-wrap"></div>`,
+    actions: [
+      { label: 'Send to Astranov', primary: true, onclick: '_krypteiaImproveSend()' },
+    ],
+  }));
+};
+window._krypteiaImproveSend = async function() {
+  const q = ($('kr-improve-q')?.value || '').trim();
+  if (!q) return toast('Write the request first.', 'err');
+  const out = $('kr-improve-out');
+  if (out) out.textContent = 'Astranov is thinking…';
+  try {
+    const sysOverlay = 'KRYPTEIA-IMPROVE CHANNEL. The user is Notis Astranov, owner & architect. They are asking for a concrete improvement to the AstranoV codebase. Answer in three sections, each one short and decisive:\n1) DIAGNOSIS — what is the underlying issue or opportunity in one sentence.\n2) PROPOSAL — exactly what to change. File paths, function names, the rough diff in prose. Be specific to AstranoV\'s architecture: index.html as the single frontend file, /supabase/functions/* for Edge Fns, MASTER LAW codification, Cesium globe, orbital agents, Living-Orb Graphics Engine.\n3) NEXT — the one command or step to take next.\nNo padding, no caveats. Spartan.';
+    const { data, error } = await sb.functions.invoke('aicycle', {
+      body: { query: q, system_overlay: sysOverlay, mode: 'spartan' },
+    });
+    if (error) throw error;
+    const text = data?.response || data?.text || JSON.stringify(data || {}, null, 2);
+    if (out) out.textContent = text;
+  } catch (e) {
+    if (out) out.textContent = 'Channel failed: ' + String(e);
+  }
 };
 
 // Krypteia Watchtower — owner-only IP-defence scanner.
