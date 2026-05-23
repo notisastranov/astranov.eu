@@ -1981,6 +1981,18 @@ async function bootCesium() {
     viewer.camera.moveEnd.addEventListener(onCameraSettled);
     onCameraSettled();
 
+    // Globe auto-spins gently on load (Zero-UI §1: the globe should feel alive).
+    // Stops on first user interaction; only spins at the global tier.
+    window._autoSpin = true;
+    const stopSpin = () => { window._autoSpin = false; };
+    viewer.scene.canvas.addEventListener('pointerdown', stopSpin, { once: true });
+    viewer.scene.canvas.addEventListener('wheel',       stopSpin, { once: true });
+    viewer.clock.onTick.addEventListener(() => {
+      if (window._autoSpin && currentLevel === 'global' && viewer.scene.mode === Cesium.SceneMode.SCENE3D) {
+        try { viewer.scene.camera.rotateRight(0.00045); } catch (_) {}
+      }
+    });
+
     // Pin picking
     const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
     handler.setInputAction(onCanvasClick, Cesium.ScreenSpaceEventType.LEFT_CLICK);
@@ -2007,21 +2019,18 @@ let cityProviderIndex = 0;
 const CITY_PROVIDERS = [
   { id: 'carto-dark',    emoji: '🌑', label: 'Dark',
     init: () => new Cesium.UrlTemplateImageryProvider({
-      url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-      subdomains: ['a','b','c','d'], credit: '© CARTO · © OSM',
-      maximumLevel: 20, tileWidth: 512, tileHeight: 512,
+      url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+      subdomains: ['a','b','c','d'], credit: '© CARTO · © OSM', maximumLevel: 19,
     }) },
   { id: 'carto-voyager', emoji: '🧭', label: 'Voyager',
     init: () => new Cesium.UrlTemplateImageryProvider({
-      url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-      subdomains: ['a','b','c','d'], credit: '© CARTO · © OSM',
-      maximumLevel: 20, tileWidth: 512, tileHeight: 512,
+      url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+      subdomains: ['a','b','c','d'], credit: '© CARTO · © OSM', maximumLevel: 19,
     }) },
   { id: 'carto-light',   emoji: '☀️', label: 'Light',
     init: () => new Cesium.UrlTemplateImageryProvider({
-      url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
-      subdomains: ['a','b','c','d'], credit: '© CARTO · © OSM',
-      maximumLevel: 20, tileWidth: 512, tileHeight: 512,
+      url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+      subdomains: ['a','b','c','d'], credit: '© CARTO · © OSM', maximumLevel: 19,
     }) },
   { id: 'osm',           emoji: '🗺', label: 'OSM',
     init: () => new Cesium.UrlTemplateImageryProvider({
@@ -4126,7 +4135,12 @@ function onCanvasClick(click) {
   }
   if (picked?.primitive?.__placeId) {
     const entry = placeIndex.get(picked.primitive.__placeId);
-    if (entry) openPlacePanel(entry.place);
+    if (entry) {
+      // Act-first: vendor pin → straight to menu + order. The place panel is
+      // briefly shown to set _currentPlace, then the order panel takes over.
+      openPlacePanel(entry.place);
+      setTimeout(() => { try { _placeOrder(); } catch (_) {} }, 180);
+    }
     return;
   }
   // Empty globe tap → descend one navigation level toward the tapped point.
