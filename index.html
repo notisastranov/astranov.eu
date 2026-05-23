@@ -488,16 +488,16 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   }
   #tile-strip:empty, #tile-strip.hide-orbit { display: none; }
   .informant {
-    position: absolute; top: 0; left: 0; width: 56px; height: 56px;
+    position: absolute; top: 0; left: 0; width: 84px; height: 84px;
     cursor: pointer; user-select: none; pointer-events: auto;
     -webkit-tap-highlight-color: transparent;
     transition: opacity 0.35s ease-out;
     will-change: transform, opacity;
-    transform-origin: 28px 28px;
+    transform-origin: 42px 42px;
     /* No labels. The orb IS the agent. */
   }
   .informant .orb {
-    width: 56px; height: 56px; border-radius: 50%; position: relative; overflow: hidden;
+    width: 84px; height: 84px; border-radius: 50%; position: relative; overflow: hidden;
     border: 1.5px solid color-mix(in srgb, var(--ic, #7eb4ff) 85%, transparent);
     box-shadow:
       0 0 calc(18px + var(--orb-rim, 0) * 32px) color-mix(in srgb, var(--ic, #7eb4ff) 60%, transparent),
@@ -631,8 +631,12 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     position: absolute; inset: 0; width: 100%; height: 100%;
     border-radius: 50%; display: block; pointer-events: none;
   }
-  /* When a video lives behind the plasma, blend the plasma over it as a colour wash. */
-  .orb-stage .living-orb { mix-blend-mode: screen; opacity: 0.55; }
+  /* When a video lives behind the plasma, blend the plasma as a faint colour wash so the video is the dominant content. */
+  .orb-stage .living-orb { mix-blend-mode: screen; opacity: 0.22; }
+  .orb-stage .orb-thumb {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; display: block; background: #04101e;
+  }
   .orb-glyph {
     position: absolute; inset: 0; display: flex; align-items: center;
     justify-content: center; font-size: inherit; pointer-events: none;
@@ -2734,13 +2738,19 @@ function _informantVideoURL(inf) {
   if (inf && typeof inf.video_url === 'string' && inf.video_url.trim()) return inf.video_url.trim();
   return _INFORMANT_VIDEO_CATALOG[inf?.category] || _INFORMANT_VIDEO_CATALOG.news;
 }
-// Mint a video-backed orb. Video clipped to the circle, plasma overlay
-// blended on top as a colour wash, emoji glyph anchored on top of both.
-function videoOrbHTML(emoji, color, seed, videoUrl) {
+// Mint a video-backed orb. Real video clipped to the circle is the
+// dominant content; plasma rides on top as a faint colour wash; emoji
+// glyph anchored on top of both. Optionally an image_url overrides the
+// video — used when the live feed gives us a still preview (e.g. a news
+// article's social-card image) but no video.
+function videoOrbHTML(emoji, color, seed, videoUrl, imageUrl) {
   const s = (seed != null ? seed : _hashSeed(String(emoji || '') + (color || '')));
   const url = videoUrl || _INFORMANT_VIDEO_CATALOG.news;
+  const media = imageUrl
+    ? `<img class="orb-thumb" src="${escapeHtml(imageUrl)}" alt="" loading="lazy" onerror="this.style.display='none'" referrerpolicy="no-referrer">`
+    : `<video class="orb-video" src="${escapeHtml(url)}" autoplay muted loop playsinline preload="auto" onloadeddata="this.classList.add('is-ready')" onerror="this.style.display='none'"></video>`;
   return `<div class="orb-stage">
-    <video class="orb-video" src="${escapeHtml(url)}" autoplay muted loop playsinline preload="metadata" onloadeddata="this.classList.add('is-ready')" onerror="this.style.display='none'"></video>
+    ${media}
     <canvas class="living-orb" width="256" height="256" data-color="${color || '#7eb4ff'}" data-seed="${s}"></canvas>
     <span class="orb-glyph">${emoji || ''}</span>
   </div>`;
@@ -2867,7 +2877,7 @@ function _projectOrbs() {
       el.style.setProperty('--orb-blur', `${blurPx}px`);
       el.style.setProperty('--orb-rim', rim);
       el.style.setProperty('--orb-night', night.toFixed(2));
-      el.style.transform = `translate3d(${(win.x - 28).toFixed(1)}px, ${(win.y - 28).toFixed(1)}px, 0) scale(${scale.toFixed(3)})`;
+      el.style.transform = `translate3d(${(win.x - 42).toFixed(1)}px, ${(win.y - 42).toFixed(1)}px, 0) scale(${scale.toFixed(3)})`;
       el.style.opacity = '1';
     } else {
       el.style.opacity = '0';
@@ -2933,14 +2943,57 @@ function _loadInformants() {
   return _INFORMANT_SEED.map(x => ({ ...x }));
 }
 function _saveInformants(list) { localStorage.setItem('astranov_informants_v2', JSON.stringify(list)); }
+// External findings — real, geo-tagged news pulled from informant-feed
+// (which queries GDELT). Keyed by informant id. Live for the session.
+const _externalFindings = new Map();
+
 function _informantFindings(inf) {
+  // 1) External (real-world geo-tagged news from informant-feed) — preferred,
+  //    because they carry lat/lng and image previews.
+  const ext = _externalFindings.get(inf.id) || [];
+  // 2) Local in-app signals (other users' posts in this category), filtered
+  //    by topic if set.
   const topic = (inf.topic || '').toLowerCase().trim();
   const inScope = _signalsForLevel();
   const byCat = inf.category ? inScope.filter(s => s.category === inf.category) : inScope;
-  const matched = topic
+  const local = topic
     ? byCat.filter(s => (s.title + ' ' + (s.body || '')).toLowerCase().includes(topic))
     : byCat;
-  return matched.slice(0, 8);
+  return [...ext, ...local].slice(0, 8);
+}
+
+// Pull real news for every user-defined informant from the informant-feed
+// Edge Fn. Refreshes every 4 minutes; first poll fires from renderInformants
+// shortly after boot, then this interval keeps it warm.
+let _feedPollTimer = null;
+let _feedInFlight = false;
+async function pollInformantFeeds() {
+  if (_feedInFlight || !sb) return;
+  if (typeof currentLevel !== 'undefined' && currentLevel !== 'global') return;
+  const list = (typeof _loadInformants === 'function') ? _loadInformants() : [];
+  const informants = list
+    .filter(i => i && i.id && i.category)
+    .map(i => ({ id: i.id, category: i.category, topic: i.topic || '' }));
+  if (!informants.length) return;
+  _feedInFlight = true;
+  try {
+    const { data, error } = await sb.functions.invoke('informant-feed', { body: { informants } });
+    if (!error && data && data.findings) {
+      let any = false;
+      for (const id of Object.keys(data.findings)) {
+        const arr = data.findings[id];
+        if (Array.isArray(arr) && arr.length) { _externalFindings.set(id, arr); any = true; }
+      }
+      if (any && typeof renderInformants === 'function') renderInformants();
+    }
+  } catch (_) { /* network blip */ }
+  finally { _feedInFlight = false; }
+}
+function _startInformantFeedPolling() {
+  if (_feedPollTimer) clearInterval(_feedPollTimer);
+  _feedPollTimer = setInterval(() => { pollInformantFeeds().catch(() => {}); }, 240000);
+  // Kick a first poll immediately (but defer slightly so sb client is ready).
+  setTimeout(() => { pollInformantFeeds().catch(() => {}); }, 1500);
 }
 function renderInformants() {
   const el = $('tile-strip'); if (!el) return;
@@ -2972,8 +3025,12 @@ function renderInformants() {
     const color = inf.color || _CAT_COLORS[inf.category] || '#7eb4ff';
     const seed = _hashSeed(inf.id + (inf.name || ''));
     const vurl = _informantVideoURL(inf);
+    // If the latest finding has a social-card image, show it as the orb's
+    // preview (real news photo). Otherwise fall back to the catalog video.
+    const previewImg = (found[0] && typeof found[0].image_url === 'string' && /^https?:/i.test(found[0].image_url))
+      ? found[0].image_url : '';
     return `<div class="informant${has ? ' has-news' : ''}" style="--ic:${color};opacity:0" onclick="expandOrb(${JSON.stringify(inf.id)})" title="${escapeHtml(inf.name)} agent">
-      <div class="orb">${videoOrbHTML(inf.emoji || '◈', color, seed, vurl)}${has ? `<div class="count">${found.length}</div>` : '<div class="count"></div>'}</div>
+      <div class="orb">${videoOrbHTML(inf.emoji || '◈', color, seed, vurl, previewImg)}${has ? `<div class="count">${found.length}</div>` : '<div class="count"></div>'}</div>
     </div>`;
   }).join('');
   el.innerHTML = orbs;
@@ -2996,17 +3053,24 @@ window.expandOrb = function(infId) {
   const meta = located
     ? `LIVE · ${escapeHtml((located.city || located.country_code || '').toString().toUpperCase())} · ${escapeHtml((located.title || '').slice(0, 60))}`
     : `${escapeHtml((inf.name || 'AGENT').toUpperCase())} · ${escapeHtml(inf.topic || 'no topic set')}`;
+  const previewImg = (found[0] && typeof found[0].image_url === 'string' && /^https?:/i.test(found[0].image_url))
+    ? found[0].image_url : '';
+  const headerArticleUrl = (found[0] && found[0].url) ? found[0].url : '';
   const wrap = document.createElement('div');
   wrap.id = 'orb-expand';
+  const media = previewImg
+    ? `<img class="orb-expand-video" src="${escapeHtml(previewImg)}" alt="" referrerpolicy="no-referrer" onerror="this.style.display='none'">`
+    : `<video class="orb-expand-video" src="${escapeHtml(vurl)}" autoplay loop playsinline></video>`;
   wrap.innerHTML = `
     <div class="orb-expand-bg"></div>
     <div class="orb-expand-orb" style="--ic:${color}">
-      <video class="orb-expand-video" src="${escapeHtml(vurl)}" autoplay loop playsinline></video>
+      ${media}
       <canvas class="living-orb" width="512" height="512" data-color="${color}" data-seed="${seed}"></canvas>
       <span class="orb-expand-glyph">${inf.emoji || '◈'}</span>
     </div>
     <div class="orb-expand-meta">${meta}</div>
     <div class="orb-expand-actions">
+      ${headerArticleUrl ? `<div class="gadget-engage" onclick="event.stopPropagation();window.open(${JSON.stringify(headerArticleUrl)},'_blank','noopener')" style="border-color:color-mix(in srgb, ${color} 70%, transparent);color:#dde9ff"><span class="verb-glyph" style="background:${color}"></span><span>Read article</span></div>` : ''}
       <div class="gadget-engage" onclick="event.stopPropagation();openInformant(${JSON.stringify(infId)});closeExpandOrb()" style="border-color:color-mix(in srgb, ${color} 70%, transparent);color:#dde9ff">
         <span class="verb-glyph" style="background:${color}"></span><span>Open agent</span>
       </div>
@@ -3176,6 +3240,9 @@ function bootSupabase() {
   loadDeliveries();
   subscribeRealtime();
   _autoLoadPlaces();
+  // Start the orbital-agent news poller — real geo-tagged GDELT data
+  // flows into every informant orb and drives event-binding + beams.
+  _startInformantFeedPolling();
 }
 
 async function loadProfile() {
