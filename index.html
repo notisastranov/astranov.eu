@@ -1,6 +1,32 @@
 <!DOCTYPE html>
 <!--
 ================================================================================
+ASTRANOV — INVENTION DECLARATION & PROVENANCE
+================================================================================
+The world's first Agentic Orbital Operating System (AOOS).
+Invented and owned by Notis Astranov · notisastranov@gmail.com
+Canonical repository: https://github.com/notisastranov/astranov
+Canonical deployment: https://astranov.eu
+Repository genesis: 2025  ·  First public AOOS deployment: 2026
+
+The git commit history of this repository is the cryptographic time-stamp
+of every architectural primitive named in MASTER LAW §5f and elsewhere,
+including (without limitation): the orb-anchored 3D event-binding model,
+the Living-Orb Graphics Engine, the Council of Thirteen governance, the
+AICYCLE single-voice multi-engine routing, and the orb-to-event glowing
+beam interaction. All such primitives are jointly claimed as the prior
+art of Notis Astranov.
+
+Licensed under the AstranoV Orbital License v1.0 — see /LICENSE.
+3% of Turnover, whether you fork the engine OR earn through the
+deployment. Free below €300 trailing-twelve-month Turnover. Consumer
+use is always free. SPDX-License-Identifier: LicenseRef-AstranoV-Orbital-1.0
+
+Trademarks claimed: AstranoV, Astranov, Agentic Orbital Operating System,
+AOOS, Living-Orb Graphics Engine, Council of Thirteen (in AOOS context),
+Krypteia (in AOOS context), AICYCLE, ACAI.
+
+================================================================================
 ASTRANOV — MASTER LAW
 ================================================================================
 Single source of truth. Every update to this app updates this block FIRST.
@@ -248,6 +274,23 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     renders the single binding verdict. Engine: /council Edge Function
     (owner-only to convene) → council_cases. Krypteia panel convenes the court.
 
+10b. KRYPTEIA — IP DEFENCE & WATCHTOWER (binding)
+    AstranoV is the world's first AGENTIC ORBITAL OPERATING SYSTEM (AOOS),
+    invented and owned by Notis Astranov. The git history of this repository
+    is the cryptographically time-stamped record of every architectural
+    primitive named in §5f and elsewhere. Source is published under the
+    AstranoV Orbital License v1.0 (see /LICENSE): 3% of Turnover whether
+    you fork the engine OR earn through the canonical deployment, free
+    below €300 trailing-twelve-month, consumer use always free.
+    Krypteia maintains a WATCHTOWER (krypteia-watch Edge Fn, owner-only)
+    that scans GitHub for off-canonical occurrences of the distinctive
+    fingerprints (e.g. "Agentic Orbital Operating System", "_computeOrb
+    AnchorsLatLon", "Living-Orb Graphics Engine", etc.). Clear violations
+    are escalated to the Council of Thirteen, then to formal DMCA /
+    cease-and-desist. A KRYPTEIA ORB sits in the orbital ring whenever
+    the owner is signed in — black core, blood-red rim, ritual pulse,
+    no video layer — tap to open the Krypteia panel and the Watchtower.
+
 11. CRAWLERS — automatic, deployed
     pg_cron triggers /crawl edge function every 30 min via direct HTTP POST
     (no vault required). Queries OSM Overpass across 20 world cities → upserts
@@ -484,6 +527,37 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     z-index: 3;
   }
   .informant .count:empty { display: none; }
+
+  /* KRYPTEIA ORB — owner-only sovereign orb. Black core, blood-red rim,
+     no video layer, ritual pulse. Sits in the orbital ring only when the
+     owner is signed in. */
+  .informant.krypteia .orb {
+    background: radial-gradient(circle at 35% 30%,
+      rgba(255,90,90,0.55) 0%,
+      rgba(120,10,10,0.7) 22%,
+      rgba(20,2,2,0.95) 70%,
+      rgba(0,0,0,1) 100%);
+    border: 1.8px solid rgba(255,90,80,0.95);
+    box-shadow:
+      0 0 22px rgba(255,70,70,0.85),
+      0 0 60px rgba(255,60,60,0.35),
+      inset 0 0 18px rgba(0,0,0,0.85);
+    animation: krypteia-pulse 2.6s ease-in-out infinite;
+  }
+  .informant.krypteia .orb-glyph {
+    color: #ffd0c8; font-size: 26px; font-weight: 700;
+    text-shadow: 0 0 10px rgba(255,80,80,0.95), 0 0 4px rgba(0,0,0,0.95);
+  }
+  @keyframes krypteia-pulse {
+    0%,100% { box-shadow:
+      0 0 22px rgba(255,70,70,0.85),
+      0 0 60px rgba(255,60,60,0.32),
+      inset 0 0 18px rgba(0,0,0,0.85); }
+    50%     { box-shadow:
+      0 0 36px rgba(255,90,80,1),
+      0 0 100px rgba(255,80,60,0.55),
+      inset 0 0 22px rgba(0,0,0,0.95); }
+  }
 
   /* ORB EXPAND — tap an informant to grow it big and play its video
      UNMUTED. Used to be a bottom panel; now the orb itself is the player. */
@@ -2694,13 +2768,14 @@ function _refreshOrbAnchors(items) {
     let lat = homes[i].lat, lon = homes[i].lon, isEvent = false, eventTitle = null;
     let color = '#7eb4ff';
     let infId = null;
-    if (!inf._new) {
+    if (!inf._new && !inf._krypteia) {
       infId = inf.id || null;
       color = inf.color || _CAT_COLORS[inf.category] || '#7eb4ff';
       const found = (typeof _informantFindings === 'function') ? _informantFindings(inf) : [];
       const located = found.find(f => typeof f.lat === 'number' && typeof f.lng === 'number');
       if (located) { lat = located.lat; lon = located.lng; isEvent = true; eventTitle = located.title; }
     }
+    if (inf._krypteia) color = '#ff5a4a';
     const cart = Cesium.Cartesian3.fromDegrees(lon, lat, _ORB_ALT);
     let beam = null;
     if (isEvent && viewer) {
@@ -2854,9 +2929,21 @@ function renderInformants() {
   if (currentLevel !== 'global') { el.classList.add('hide-orbit'); el.innerHTML = ''; return; }
   el.classList.remove('hide-orbit');
   const list = _loadInformants();
-  const items = [...list, { _new: true }];
+  // KRYPTEIA — owner-only sovereign orb. Materialises only when the
+  // owner is signed in; sits first in the orbit at a stable lat/lon.
+  const isOwner = !!(typeof profile !== 'undefined' && profile && profile.is_owner);
+  const items = [
+    ...(isOwner ? [{ _krypteia: true }] : []),
+    ...list,
+    { _new: true },
+  ];
   _refreshOrbAnchors(items);
   const orbs = items.map((inf, i) => {
+    if (inf._krypteia) {
+      return `<div class="informant krypteia" style="--ic:#ff5a4a;opacity:0" onclick="openKrypteia()" title="Krypteia — the watchtower">
+        <div class="orb"><span class="orb-glyph">⬡</span></div>
+      </div>`;
+    }
     if (inf._new) {
       return `<div class="informant" style="--ic:#7eebb4;opacity:0" onclick="openInformantCreate()" title="Create an agent">
         <div class="orb" style="font-size:26px">${livingOrbHTML('＋', '#7eebb4', i * 0.137)}</div>
@@ -3064,7 +3151,7 @@ function bootSupabase() {
 
   sb.auth.onAuthStateChange((_evt, s) => {
     session = s;
-    if (s) loadProfile(); else { profile = null; updateIdentityOrb(); }
+    if (s) loadProfile(); else { profile = null; updateIdentityOrb(); if (typeof renderInformants === 'function') renderInformants(); }
   });
 
   loadSignals();
@@ -3081,6 +3168,9 @@ async function loadProfile() {
   loadDeliveryBadge();
   loadMessageBadge();
   updateIdentityOrb();
+  // Krypteia orb materialises only for the owner — re-render the orbital
+  // ring now that we know the owner has signed in.
+  if (typeof renderInformants === 'function') renderInformants();
   profileSetupIfNeeded();
   subscribePush();
   initDroneStandby();
@@ -6085,10 +6175,55 @@ window.openKrypteia = async () => {
     body,
     actions: [
       { label: 'Threat log',                 danger: true,  onclick: 'openSecurityEvents()' },
+      { label: 'Watchtower — scan for theft',primary: true, onclick: 'openKrypteiaWatch()' },
       { label: 'Council of Thirteen',        primary: true, onclick: 'openCouncilPanel()' },
       { label: 'Brain — memory & training',  onclick: 'openBrainPanel()' },
       { label: 'Memory',                     onclick: 'openMemoryPanel()' },
       { label: 'AICYCLE log',                onclick: 'openAICycleLog()' },
+    ],
+  }));
+};
+
+// Krypteia Watchtower — owner-only IP-defence scanner.
+// Calls krypteia-watch Edge Fn → GitHub code search across our
+// distinctive fingerprints → lists hits not in the canonical repo.
+window.openKrypteiaWatch = async () => {
+  if (!profile?.is_owner || !sb) return;
+  openPanel(agentCard({
+    emoji: '⬡', name: 'Watchtower', role: 'Krypteia · IP defence',
+    color: '#ff5a4a',
+    status: 'Scanning the public web for our fingerprints…',
+    body: '<div style="color:#a8c8ee;font-size:12px;padding:8px 0">Hunting GitHub for off-canonical occurrences of the AstranoV architecture. This takes ~15 seconds (one query per fingerprint, throttled to GitHub\'s rate limit).</div>',
+    actions: [],
+  }));
+  let res = null;
+  try {
+    const { data } = await sb.functions.invoke('krypteia-watch', { body: { mode: 'scan' } });
+    res = data;
+  } catch (e) { res = { error: String(e) }; }
+  if (!res || res.error) {
+    openPanel(agentCard({
+      emoji: '⬡', name: 'Watchtower', role: 'Krypteia · IP defence', color: '#ff5a4a',
+      status: 'Scan failed', body: `<div style="color:#ff9e9e;font-size:12px">${escapeHtml(res?.error || 'no response')}</div>`,
+      actions: [{ label: 'Retry', primary: true, onclick: 'openKrypteiaWatch()' }],
+    }));
+    return;
+  }
+  const hits = res.hits || [];
+  const rows = hits.length ? hits.map(h => `
+    <div class="delivery-row" onclick="window.open('${escapeHtml(h.html_url)}','_blank','noopener')" style="cursor:pointer">
+      <div class="head"><span class="desc">${escapeHtml(h.repo)}</span><span style="color:#ff9e9e;font-size:10px">HIT</span></div>
+      <div class="meta">${escapeHtml(h.path)} · matched: ${escapeHtml(h.fingerprint)}</div>
+    </div>`).join('') : '<div style="color:#7eebb4;font-size:13px;padding:8px 0">All clear. No off-canonical occurrences detected on GitHub.</div>';
+  openPanel(agentCard({
+    emoji: '⬡', name: 'Watchtower', role: 'Krypteia · IP defence', color: '#ff5a4a',
+    status: `${hits.length} hit${hits.length === 1 ? '' : 's'} · ${res.fingerprints_used} fingerprints · ${formatRelative(res.scanned_at)}`,
+    body: rows,
+    actions: hits.length ? [
+      { label: 'Escalate to the Council of Thirteen', primary: true, onclick: 'openCouncilPanel()' },
+      { label: 'Re-scan', onclick: 'openKrypteiaWatch()' },
+    ] : [
+      { label: 'Re-scan', primary: true, onclick: 'openKrypteiaWatch()' },
     ],
   }));
 };
