@@ -179,9 +179,11 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     corner gadgets vanish (body.at-global hides them). Altitude maps
     directly to importance — the user looks UP to find what matters:
 
-      ME        30,000 km · anchored to user's actual lat/lng with a
+      ME         1,800 km · anchored to user's actual lat/lng with a
                             glowing beam from the ground to the orb.
-                            "This is you, here." Apex.
+                            Sits JUST above the informant ring so the
+                            beam terminates visibly at the orb — never
+                            fires to infinity. "This is you, here."
       PILOT     22,000 km · spinning Earth glyph. Single tap from ANY
                             zoom = warp to global home (closes panels,
                             re-engages auto-spin). Always reachable —
@@ -3351,7 +3353,7 @@ const _orbState = []; // [{ kind, infId|sysId, cart, beam, isEvent, color, lat, 
 // always sees them clustered on the near side of Earth.
 // Me also carries an event-bound beam down to the user's actual lat/lng.
 const _SYSTEM_ORB_TIERS = [
-  { id: 'sys-me',       name: 'Me',        emoji: '◉',  color: '#7eebb4', alt: 30_000_000, latOff:  52, boost: 1.10, classes: 'system sys-me',       onclick: 'expandMeOrb()' },
+  { id: 'sys-me',       name: 'Me',        emoji: '◉',  color: '#7eebb4', alt:  1_800_000, latOff:   0, boost: 1.10, classes: 'system sys-me',       onclick: 'expandMeOrb()' },
   { id: 'sys-pilot',    name: 'Pilot',     emoji: '🌍', color: '#6dd0ff', alt: 22_000_000, latOff:  28, boost: 0.95, classes: 'system sys-pilot',    onclick: 'pilotHome()' },
   { id: 'sys-astranov', name: 'Astranov',  emoji: '◈',  color: '#a8c8ee', alt: 16_000_000, latOff: -28, boost: 0.85, classes: 'system sys-astranov', onclick: 'openAstranovChat()' },
   { id: 'sys-discover', name: 'Discover',  emoji: '⬢',  color: '#ffb464', alt: 10_000_000, latOff: -52, boost: 0.75, classes: 'system sys-discover', onclick: 'gadgetRelease(\'discover\', null)' },
