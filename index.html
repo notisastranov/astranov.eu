@@ -140,6 +140,16 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     Boot must START on the global view; the camera NEVER auto-flies to
     the user's city. Pre-warming by IP is allowed; moving the camera is not.
 
+5e. AGENT PANEL LAW — one skin for every agent's home
+    Every panel in AstranoV is rendered by agentCard({emoji,name,role,color,
+    status,body,actions}). One orb header (the agent's small face) +
+    role chip + status line + body + a minimal vertical action strip. No
+    bespoke <h2>/<div class="subtitle"> chrome anywhere — the agent skin is
+    the only shape. Migrated already: openInformant, openMePanel,
+    openKrypteia, openBrainPanel. Every future panel uses this helper or
+    it doesn't ship. This is how the rebuild proceeds: surface-by-surface,
+    each converted to an agent's home, until the legacy chrome is gone.
+
 5d. AGENT SOVEREIGNTY — the user composes the UI
     Every informant can be CREATED, EDITED, or DELETED by the user. A "＋"
     orb in the halo summons a new agent (name, emoji, domain, topic).
@@ -456,6 +466,45 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     .informant .orb { width: 46px; height: 46px; font-size: 18px; }
     .orbit { width: 84vmin; height: 84vmin; }
     .informant { transform: rotate(var(--a, 0deg)) translate(38vmin) rotate(calc(-1 * var(--a, 0deg))); }
+  }
+
+  /* AGENT CARD — the unified panel skin every agent's home shares.
+     Orb header (a small face for the agent) + role chip + status + body.
+     Used by informants, ME, brain, krypteia, council and every future agent. */
+  .agent-card-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 4px 0 14px; margin-bottom: 14px;
+    border-bottom: 1px solid rgba(120,180,255,0.08);
+  }
+  .agent-card-orb {
+    width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; line-height: 1;
+    background: radial-gradient(circle at 35% 30%,
+      rgba(255,255,255,0.45) 0%,
+      color-mix(in srgb, var(--ac, #7eb4ff) 65%, transparent) 22%,
+      color-mix(in srgb, var(--ac, #7eb4ff) 25%, transparent) 65%,
+      rgba(4,10,22,0.85) 100%);
+    border: 1.5px solid color-mix(in srgb, var(--ac, #7eb4ff) 70%, transparent);
+    box-shadow: 0 0 16px color-mix(in srgb, var(--ac, #7eb4ff) 50%, transparent),
+                inset 0 0 10px color-mix(in srgb, var(--ac, #7eb4ff) 25%, transparent);
+  }
+  .agent-card-meta { flex: 1; min-width: 0; }
+  .agent-card-name {
+    font-size: 16px; font-weight: 500; color: #e6f1ff;
+    line-height: 1.2; word-break: break-word;
+  }
+  .agent-card-role {
+    display: inline-block; margin-top: 4px;
+    font-size: 8px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--ac, #7eb4ff);
+    padding: 2px 9px; border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--ac, #7eb4ff) 40%, transparent);
+    background: color-mix(in srgb, var(--ac, #7eb4ff) 10%, transparent);
+  }
+  .agent-card-status {
+    font-size: 9px; letter-spacing: 0.15em; color: #6a8aaf;
+    margin-top: 6px; text-transform: uppercase;
   }
 
   /* Brightness slider — left edge, vertical, subtle. */
@@ -2400,6 +2449,35 @@ function _signalsForLevel() {
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     .slice(0, 14);
 }
+// ── AGENT SDK ───────────────────────────────────────────────────────────
+// Every panel in AstranoV is an agent's home. agentCard renders the unified
+// shape: orb header + role chip + status + body + a minimal vertical action
+// strip. Used by informants, ME, brain, krypteia, council, and every future
+// agent. The body is raw HTML; the actions array is rendered as engage rows.
+function agentCard({ emoji = '◈', name, role = '', color = '#7eb4ff', status = '', body = '', actions = [] }) {
+  const acts = (actions || []).filter(Boolean).map(a => {
+    const tone = a.danger ? 'border-color:rgba(255,100,100,0.32);color:#ff9e9e'
+                : a.primary ? `border-color:color-mix(in srgb, ${color} 55%, transparent);color:${color}`
+                : '';
+    const dot = a.danger ? 'background:#ff9e9e'
+              : a.primary ? `background:${color}` : '';
+    return `<div class="gadget-engage" onclick="${a.onclick || ''}" style="margin-top:8px;${tone}">
+      <span class="verb-glyph" style="${dot}"></span><span>${escapeHtml(a.label || '')}</span>
+    </div>`;
+  }).join('');
+  return `
+    <div class="agent-card-header" style="--ac:${color}">
+      <div class="agent-card-orb">${emoji}</div>
+      <div class="agent-card-meta">
+        <div class="agent-card-name">${escapeHtml(name || 'Agent')}</div>
+        ${role ? `<div class="agent-card-role">${escapeHtml(role)}</div>` : ''}
+        ${status ? `<div class="agent-card-status">${escapeHtml(status)}</div>` : ''}
+      </div>
+    </div>
+    <div class="agent-card-body">${body || ''}</div>
+    ${acts}`;
+}
+
 // ── INFORMANT AGENTS — user-owned daemones ─────────────────────────────
 // The user composes the UI: each agent can be created / edited / deleted.
 // The list lives in localStorage so it persists across sessions on this
@@ -2457,20 +2535,13 @@ window.openInformant = function(id) {
   const inf = _findInformant(id); if (!inf) return;
   const found = _informantFindings(inf);
   const color = inf.color || _CAT_COLORS[inf.category] || '#7eb4ff';
+  const cats = ['news','jobs','commerce','social','dating','real_estate','classifieds'];
   const items = found.map(s => `
     <div class="delivery-row" onclick="flyToSignal(${JSON.stringify(s.id)})">
       <div class="head"><span class="desc">${escapeHtml(s.title)}</span></div>
       <div class="meta">${escapeHtml((s.city || s.country_code || '').toString())} · ${formatRelative(s.created_at)}</div>
     </div>`).join('') || '<div style="color:#6a8aaf;font-size:12px;padding:8px 0">Nothing yet — sharpen the topic, or widen the category.</div>';
-  const cats = ['news','jobs','commerce','social','dating','real_estate','classifieds'];
-  openPanel(`
-    <div class="place-hero" style="margin-bottom:10px">
-      <div class="place-icon" style="color:${color};font-size:24px">${inf.emoji || '◈'}</div>
-      <div class="place-head">
-        <div class="place-name">${escapeHtml(inf.name || 'Agent')}</div>
-        <div class="place-badge" style="color:${color}">INFORMANT · yours to command</div>
-      </div>
-    </div>
+  const body = `
     <div class="me-sec">Name</div>
     <input class="me-inp" id="inf-name"  type="text" value="${escapeHtml(inf.name || '')}" maxlength="24">
     <div class="me-sec">Emoji</div>
@@ -2479,15 +2550,19 @@ window.openInformant = function(id) {
     <div class="me-chips" id="inf-cat">${cats.map(c => `<div class="me-chip${c===inf.category?' on':''}" data-c="${c}" onclick="this.parentNode.querySelectorAll('.me-chip').forEach(x=>x.classList.remove('on'));this.classList.add('on')">${c.replace('_',' ')}</div>`).join('')}</div>
     <div class="me-sec">What should it research?</div>
     <input class="me-inp" id="inf-topic" type="text" value="${escapeHtml(inf.topic || '')}" placeholder="e.g. tech in Athens, coffee deals, remote jobs…">
-    <div class="gadget-engage" onclick="_saveInformant(${JSON.stringify(id)})" style="margin-top:10px;border-color:rgba(126,235,180,0.45);color:#7eebb4">
-      <span class="verb-glyph" style="background:#7eebb4"></span><span>Sharpen this agent</span>
-    </div>
-    <div class="gadget-engage" onclick="armEngage(this,'Delete agent',()=>_deleteInformant(${JSON.stringify(id)}))" style="margin-top:8px;border-color:rgba(255,100,100,0.3);color:#ff9e9e">
-      <span class="verb-glyph" style="background:#ff9e9e"></span><span>Delete agent</span>
-    </div>
     <div class="me-sec" style="margin-top:14px">Latest findings (${found.length})</div>
-    ${items}
-  `);
+    ${items}`;
+  openPanel(agentCard({
+    emoji: inf.emoji || '◈',
+    name:  inf.name  || 'Agent',
+    role:  'Informant · yours to command',
+    color, status: (inf.topic ? 'Topic · ' + inf.topic : 'No topic set'),
+    body,
+    actions: [
+      { label: 'Sharpen this agent', primary: true,  onclick: `_saveInformant(${JSON.stringify(id)})` },
+      { label: 'Delete agent',       danger: true,   onclick: `armEngage(this,'Delete agent',()=>_deleteInformant(${JSON.stringify(id)}))` },
+    ],
+  }));
 };
 window.openInformantCreate = function() {
   const cats = ['news','jobs','commerce','social','dating','real_estate','classifieds'];
@@ -4605,16 +4680,15 @@ function _signOut() {
   setTimeout(() => sb.auth.signOut().then(() => location.reload()), 900);
 }
 
-// Corner gadget: ME (top-right) — account hub
+// Corner gadget: ME (top-right) — Identity agent's home (agent-card skin).
 function openMePanel() {
   if (!session) {
-    openPanel(`
-      <h2>Me</h2>
-      <div class="subtitle">Connect your identity</div>
-      <div class="gadget-engage" onclick="openYouPanel()" style="margin-top:14px">
-        <span class="verb-glyph">◉</span><span>Sign in / Register</span>
-      </div>
-    `);
+    openPanel(agentCard({
+      emoji: '◉', name: 'Identity', role: 'Sign in to claim your seat',
+      color: '#7eb4ff', status: 'You are not yet linked to the globe.',
+      body: '',
+      actions: [{ label: 'Sign in / Register', primary: true, onclick: 'openYouPanel()' }],
+    }));
     return;
   }
   _meData = {};
@@ -4625,61 +4699,39 @@ function openMePanel() {
   const layer  = p.preferred_map_layer || 'carto-dark';
   const STATUS_OPTS = [['available','🟢','Available'],['busy','🔴','Busy'],['away','🟡','Away'],['invisible','⚫','Invisible']];
   const VIS_OPTS    = [['public','🌍','Public'],['contacts','👥','Contacts'],['hidden','🔒','Hidden']];
-  openPanel(`
-    <h2>Me</h2>
-    <div class="subtitle">${escapeHtml(p.display_name || session.user.email || 'Astranov')}</div>
-
+  const body = `
     <div class="me-sec">Availability</div>
-    <div class="me-chips" id="me-status">
-      ${STATUS_OPTS.map(([v,e,l]) =>
-        `<div class="me-chip${status===v?' on':''}" onclick="meSetStatus(this,${JSON.stringify(v)})">${e} ${l}</div>`
-      ).join('')}
-    </div>
-
-    <div class="me-sec">Map Visibility</div>
-    <div class="me-chips" id="me-vis">
-      ${VIS_OPTS.map(([v,e,l]) =>
-        `<div class="me-chip${vis===v?' on':''}" onclick="meSetVis(this,${JSON.stringify(v)})">${e} ${l}</div>`
-      ).join('')}
-    </div>
-
+    <div class="me-chips" id="me-status">${STATUS_OPTS.map(([v,e,l]) =>
+      `<div class="me-chip${status===v?' on':''}" onclick="meSetStatus(this,${JSON.stringify(v)})">${e} ${l}</div>`).join('')}</div>
+    <div class="me-sec">Map visibility</div>
+    <div class="me-chips" id="me-vis">${VIS_OPTS.map(([v,e,l]) =>
+      `<div class="me-chip${vis===v?' on':''}" onclick="meSetVis(this,${JSON.stringify(v)})">${e} ${l}</div>`).join('')}</div>
     <div class="me-tog-row" onclick="meToggleMap(this)">
-      <span>📍 Show me on map</span>
-      <div class="me-tog${showM?' on':''}"></div>
+      <span>📍 Show me on map</span><div class="me-tog${showM?' on':''}"></div>
     </div>
-
-    <div class="me-sec">Preferred Map</div>
-    <div class="me-chips" id="me-maplayer">
-      ${CITY_PROVIDERS.map(cp =>
-        `<div class="me-chip${layer===cp.id?' on':''}" onclick="meSetLayer(this,${JSON.stringify(cp.id)})">${cp.emoji} ${cp.label}</div>`
-      ).join('')}
-    </div>
-
-    <div class="me-sec">Display Name</div>
+    <div class="me-sec">Preferred map</div>
+    <div class="me-chips" id="me-maplayer">${CITY_PROVIDERS.map(cp =>
+      `<div class="me-chip${layer===cp.id?' on':''}" onclick="meSetLayer(this,${JSON.stringify(cp.id)})">${cp.emoji} ${cp.label}</div>`).join('')}</div>
+    <div class="me-sec">Display name</div>
     <input class="me-inp" id="me-name" type="text" value="${escapeHtml(p.display_name||'')}" placeholder="Your name">
-
     <div class="me-sec">Bio</div>
-    <textarea class="me-inp" id="me-bio" rows="3" placeholder="Short bio…">${escapeHtml(p.bio||'')}</textarea>
-
-    <div class="gadget-engage" onclick="saveMePanel()" style="margin-top:18px">
-      <span class="verb-glyph">✓</span><span>Save changes</span>
-    </div>
-    <div class="gadget-engage" onclick="openMessagesPanel()" style="margin-top:8px">
-      <span class="verb-glyph">◫</span><span>Messages</span>
-    </div>
-    <div class="gadget-engage" onclick="openWalletPanel()" style="margin-top:8px">
-      <span class="verb-glyph">◍</span><span>AVC &amp; Deliveries</span>
-    </div>
-    <div class="gadget-engage" onclick="openDronePanel()" style="margin-top:8px;border-color:rgba(126,235,180,0.3);color:#7eebb4">
-      <span class="verb-glyph">⟁</span><span>Drones — pair &amp; control</span>
-    </div>
-    ${profile?.is_owner ? `<div class="gadget-engage" onclick="openKrypteia()" style="margin-top:8px;border-color:rgba(255,180,100,0.5);color:#ffd49a">
-      <span class="verb-glyph" style="background:#ffb464;box-shadow:0 0 10px rgba(255,180,100,0.8)"></span><span>Krypteia — Brain &amp; security</span>
-    </div>` : ''}
-    <div class="gadget-engage" onclick="_signOut()" style="margin-top:18px;border-color:rgba(255,70,70,0.3);color:#ff7070">
-      <span class="verb-glyph">⏻</span><span>Sign out</span>
-    </div>
-  `);
+    <textarea class="me-inp" id="me-bio" rows="3" placeholder="Short bio…">${escapeHtml(p.bio||'')}</textarea>`;
+  const actions = [
+    { label: 'Save changes',         primary: true, onclick: 'saveMePanel()' },
+    { label: 'Messages',                            onclick: 'openMessagesPanel()' },
+    { label: 'AVC & Deliveries',                    onclick: 'openWalletPanel()' },
+    { label: 'Drones — pair & control',             onclick: 'openDronePanel()' },
+    profile?.is_owner ? { label: 'Krypteia — Brain & security', primary: true, onclick: 'openKrypteia()' } : null,
+    { label: 'Sign out', danger: true, onclick: '_signOut()' },
+  ];
+  openPanel(agentCard({
+    emoji: p.avatar_emoji || '◉',
+    name: p.display_name || session.user.email || 'Astranov',
+    role: 'Identity agent · your seat in the world',
+    color: '#7eb4ff',
+    status: 'AVC ' + (p.avc_balance ?? 0),
+    body, actions,
+  }));
 }
 
 function _renderFeedCards(signals) {
@@ -5612,53 +5664,33 @@ window.emitSignal = async () => {
 
 window.openKrypteia = async () => {
   if (!profile?.is_owner) {
-    openPanel(`<h2 style="color:#ff6b6b">Krypteia</h2><div class="subtitle">Owner only</div>`);
+    openPanel(agentCard({ emoji: '⬡', name: 'Krypteia', role: 'Owner only', color: '#ff9e9e',
+      body: '<div style="color:#6a8aaf;font-size:12px;padding:8px 0">This agent answers only to the architect.</div>' }));
     return;
   }
-  // Load open security events count
   let openThreats = 0;
   try {
-    const { count } = await sb.from('security_events')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'open');
+    const { count } = await sb.from('security_events').select('*', { count: 'exact', head: true }).eq('status', 'open');
     openThreats = count || 0;
   } catch (_) {}
-
-  openPanel(`
-    <h2 style="color:#ff6b6b">Krypteia</h2>
-    <div class="subtitle">Police &amp; intelligence · supervises all three modes</div>
-    <div style="font-size:11px;color:#a8c8ee;line-height:1.5;margin:4px 0 12px;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,180,100,0.2);background:rgba(255,180,100,0.05)">
-      ⚖ Reports to the <strong style="color:#ffd49a">Council of Twelve</strong> — the supreme court that judges all disputes and renders one binding verdict.
-    </div>
-
-    <div class="row">
-      <span>Open threats</span>
-      <span style="color:${openThreats > 0 ? '#ff6b6b' : '#7eebb4'}">${openThreats}</span>
-    </div>
-    <div class="row">
-      <span>Intelligence</span>
-      <span style="color:#7eebb4">ASTRANOV</span>
-    </div>
-
-    <div class="row" style="margin-top:16px">
-      <span>Imagery source</span>
-      <span style="color:#a8c8ee">${currentLevel === 'global' ? 'BMNG + BLACK MARBLE' : (CITY_PROVIDERS[cityProviderIndex]?.label || 'NONE').toUpperCase()}</span>
-    </div>
-    <div class="row">
-      <span>Active signals on globe</span>
-      <span style="color:#a8c8ee">${signalIndex.size}</span>
-    </div>
-    <div class="row">
-      <span>Navigation level</span>
-      <span style="color:#a8c8ee">${currentLevel.toUpperCase()}</span>
-    </div>
-
-    <div class="gadget-engage" onclick="openSecurityEvents()" style="margin-top:14px;border-color:rgba(255,100,100,0.35)"><span class="verb-glyph">⚠</span><span>Threat log</span></div>
-    <div class="gadget-engage" onclick="openCouncilPanel()" style="margin-top:8px;border-color:rgba(255,180,100,0.5);color:#ffd49a"><span class="verb-glyph" style="background:#ffb464;box-shadow:0 0 10px rgba(255,180,100,0.8)"></span><span>Council of Thirteen — supreme court</span></div>
-    <div class="gadget-engage" onclick="openBrainPanel()" style="margin-top:8px;border-color:rgba(126,235,180,0.4);color:#7eebb4"><span class="verb-glyph" style="background:#7eebb4;box-shadow:0 0 10px rgba(126,235,180,0.8)"></span><span>Brain — memory &amp; training</span></div>
-    <div class="gadget-engage" onclick="openMemoryPanel()" style="margin-top:8px"><span class="verb-glyph">◎</span><span>Memory</span></div>
-    <div class="gadget-engage" onclick="openAICycleLog()" style="margin-top:8px"><span class="verb-glyph">◈</span><span>AICYCLE log</span></div>
-  `);
+  const body = `
+    <div class="row"><span>Open threats</span><span style="color:${openThreats > 0 ? '#ff6b6b' : '#7eebb4'}">${openThreats}</span></div>
+    <div class="row"><span>Intelligence</span><span style="color:#7eebb4">ASTRANOV</span></div>
+    <div class="row"><span>Active signals</span><span style="color:#a8c8ee">${signalIndex.size}</span></div>
+    <div class="row"><span>Navigation level</span><span style="color:#a8c8ee">${currentLevel.toUpperCase()}</span></div>`;
+  openPanel(agentCard({
+    emoji: '⬡', name: 'Krypteia', role: 'Guardian · supervises all three modes',
+    color: '#ffb464',
+    status: 'Reports to the Council of Thirteen',
+    body,
+    actions: [
+      { label: 'Threat log',                 danger: true,  onclick: 'openSecurityEvents()' },
+      { label: 'Council of Thirteen',        primary: true, onclick: 'openCouncilPanel()' },
+      { label: 'Brain — memory & training',  onclick: 'openBrainPanel()' },
+      { label: 'Memory',                     onclick: 'openMemoryPanel()' },
+      { label: 'AICYCLE log',                onclick: 'openAICycleLog()' },
+    ],
+  }));
 };
 
 // Council of Thirteen — convene the supreme court over a dispute.
@@ -5740,32 +5772,34 @@ window._councilReconvene = async (id, el) => {
   } catch (e) { toast('Council failed: ' + (e.message || e), 'err'); }
 };
 
-// Brain panel — owner control over the AstranoV Collective AI's mind.
+// Brain panel — the Memory agent (owner). Unified agent-card skin.
 window.openBrainPanel = async () => {
   if (!profile?.is_owner || !sb) return;
-  openPanel(`<h2 style="color:#7eebb4">Brain</h2><div class="subtitle">Reading the mind…</div>`);
+  openPanel(agentCard({ emoji: '◈', name: 'Brain', role: 'Reading the mind…', color: '#7eebb4' }));
   let stats = null;
-  try {
-    const { data } = await sb.functions.invoke('brain', { body: { mode: 'stats' } });
-    stats = data;
-  } catch (_) {}
+  try { const { data } = await sb.functions.invoke('brain', { body: { mode: 'stats' } }); stats = data; } catch (_) {}
   const rows = (stats?.memory || []).map(m =>
     `<div class="row"><span>${escapeHtml(m.source || 'memory')}</span><span style="color:#a8c8ee">${m.embedded}/${m.total} embedded</span></div>`
   ).join('') || '<div style="color:#6a8aaf;font-size:13px;padding:8px 0">No memories yet — talk to Astranov to grow the mind.</div>';
-  openPanel(`
-    <h2 style="color:#7eebb4">Brain</h2>
-    <div class="subtitle">AstranoV Collective Artificial Intelligence — semantic memory</div>
+  const body = `
     ${rows}
     <div class="row" style="margin-top:8px"><span>Training corpus</span><span style="color:#a8c8ee">${stats?.corpus_rows ?? 0} exchanges</span></div>
-
     <div style="font-size:12px;color:#6a8aaf;line-height:1.5;margin-top:14px">
       Distil compresses raw dialogue into sharp, durable principles that lead recall.
       Export builds a JSONL fine-tuning corpus from every logged exchange.
-    </div>
-    <div class="gadget-engage" onclick="brainDistill(this)" style="margin-top:12px;border-color:rgba(126,235,180,0.45);color:#7eebb4"><span class="verb-glyph" style="background:#7eebb4"></span><span>Distil the mind</span></div>
-    <div class="gadget-engage" onclick="brainExport(this)" style="margin-top:8px"><span class="verb-glyph">⤓</span><span>Export training corpus</span></div>
-    <div class="gadget-engage" onclick="openMemoryPanel()" style="margin-top:8px"><span class="verb-glyph">◎</span><span>Curate memories</span></div>
-  `);
+    </div>`;
+  openPanel(agentCard({
+    emoji: '◈', name: 'Brain',
+    role: 'Memory agent · the collective nervous system',
+    color: '#7eebb4',
+    status: 'AstranoV Collective Artificial Intelligence',
+    body,
+    actions: [
+      { label: 'Distil the mind',           primary: true, onclick: 'brainDistill(this)' },
+      { label: 'Export training corpus',                   onclick: 'brainExport(this)' },
+      { label: 'Curate memories',                          onclick: 'openMemoryPanel()' },
+    ],
+  }));
 };
 
 window.brainDistill = async (el) => {
