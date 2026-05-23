@@ -140,15 +140,22 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     Boot must START on the global view; the camera NEVER auto-flies to
     the user's city. Pre-warming by IP is allowed; moving the camera is not.
 
-5f. LIVING-ORB GRAPHICS ENGINE — procedural visuals, no static gradients
-    Every agent's orb is a procedural plasma generated from the agent's own
-    DNA (color hex + seed from its name/id). Three radial blobs orbit at
-    different rates; a moving specular highlight tracks the light; a glowing
-    rim. ~30 fps, throttled, paused when the document is hidden. One shared
-    rAF loop drives every orb on the page. Replaces the Atari-era CSS
-    gradients on informant orbs and agentCard headers; will extend next to
-    place-agent map pins, signal tiles, and the cosmos background. No agent
-    visual is allowed to be a static gradient again.
+5f. LIVING-ORB GRAPHICS ENGINE — procedural visuals + real video, no static gradients
+    Two layers, both real graphics:
+      (a) PLASMA — every agent's orb has a procedural canvas generated from
+          its own DNA (color hex + seed from name/id). Three radial blobs
+          orbit at different rates; a moving specular highlight; glowing
+          rim. ~30 fps, throttled, paused when the document is hidden.
+          One shared rAF loop drives every orb on the page.
+      (b) VIDEO — informant orbs that orbit the Earth are LIVE WINDOWS:
+          each carries a real video (default catalog by domain, override
+          per-agent via the agent's video_url field — the slot where AI-
+          generated video from compose-video Edge Fn lands). The video is
+          wrapped in .orb-stage and counter-rotated against .orbit so the
+          CONTENT STAYS UPRIGHT while the ring spins around the Earth.
+          The plasma sits on top as a colour wash (mix-blend-mode: screen).
+    No agent visual is allowed to be a static gradient again. No orb that
+    orbits is allowed to tumble its content with the ring.
 
 5e. AGENT PANEL LAW — one skin for every agent's home
     Every panel in AstranoV is rendered by agentCard({emoji,name,role,color,
@@ -480,16 +487,34 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 
   /* LIVING ORB — the procedural graphics primitive. A canvas painting a
      flowing plasma generated from the agent's own DNA (color + seed). Sits
-     inside any element that previously used a static CSS gradient. */
+     inside any element that previously used a static CSS gradient.
+     When wrapped in .orb-stage inside .orbit, the stage counter-rotates so
+     real video content inside the orb stays UPRIGHT while the ring spins. */
   .orb-host { position: relative; width: 100%; height: 100%; border-radius: 50%; }
+  .orb-stage {
+    position: absolute; inset: 0; border-radius: 50%; overflow: hidden;
+    transform-origin: 50% 50%;
+  }
+  /* The counter-spin: only orbs travelling around .orbit need to keep content level. */
+  .orbit .orb-stage { animation: orbit-counter 90s linear infinite; }
+  @keyframes orbit-counter { to { transform: rotate(-360deg); } }
+  .orb-video {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; pointer-events: none; display: block;
+    background: #04101e;
+  }
+  .orb-video.is-ready { opacity: 1; }
   .living-orb {
     position: absolute; inset: 0; width: 100%; height: 100%;
     border-radius: 50%; display: block; pointer-events: none;
   }
+  /* When a video lives behind the plasma, blend the plasma over it as a colour wash. */
+  .orb-stage .living-orb { mix-blend-mode: screen; opacity: 0.55; }
   .orb-glyph {
     position: absolute; inset: 0; display: flex; align-items: center;
     justify-content: center; font-size: inherit; pointer-events: none;
-    text-shadow: 0 0 6px rgba(0,0,0,0.55);
+    text-shadow: 0 0 6px rgba(0,0,0,0.85), 0 0 2px rgba(0,0,0,0.9);
+    z-index: 2;
   }
 
   /* AGENT CARD — the unified panel skin every agent's home shares.
@@ -2552,6 +2577,39 @@ function livingOrbHTML(emoji, color, seed) {
   const s = (seed != null ? seed : _hashSeed(String(emoji || '') + color));
   return `<canvas class="living-orb" width="160" height="160" data-color="${color || '#7eb4ff'}" data-seed="${s}"></canvas><span class="orb-glyph">${emoji || ''}</span>`;
 }
+
+// ── REAL VIDEO LAYER — informant orbs are live windows, not icons. ───────
+// Catalog of public, CORS-friendly sample MP4s mapped by informant domain.
+// This is the slot AI-generated video (Veo / Runway / Replicate) lands in
+// once compose-video Edge Fn is wired; each informant carries its own
+// video_url override, so per-agent generation drops in without changing
+// any of this code.
+const _INFORMANT_VIDEO_CATALOG = {
+  news:         'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+  jobs:         'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4',
+  commerce:     'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/VolkswagenGTIReview.mp4',
+  social:       'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+  dating:       'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
+  real_estate:  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+  classifieds:  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WhatCarCanYouGetForAGrand.mp4',
+};
+function _informantVideoURL(inf) {
+  if (inf && typeof inf.video_url === 'string' && inf.video_url.trim()) return inf.video_url.trim();
+  return _INFORMANT_VIDEO_CATALOG[inf?.category] || _INFORMANT_VIDEO_CATALOG.news;
+}
+// Mint a video-backed orb. Video clipped to the circle, plasma overlay
+// blended on top as a colour wash, emoji glyph anchored on top of both.
+// Wrapped in .orb-stage so .orbit's counter-rotation keeps it level.
+function videoOrbHTML(emoji, color, seed, videoUrl) {
+  const s = (seed != null ? seed : _hashSeed(String(emoji || '') + (color || '')));
+  const url = videoUrl || _INFORMANT_VIDEO_CATALOG.news;
+  return `<div class="orb-stage">
+    <video class="orb-video" src="${escapeHtml(url)}" autoplay muted loop playsinline preload="metadata" onloadeddata="this.classList.add('is-ready')" onerror="this.style.display='none'"></video>
+    <canvas class="living-orb" width="160" height="160" data-color="${color || '#7eb4ff'}" data-seed="${s}"></canvas>
+    <span class="orb-glyph">${emoji || ''}</span>
+  </div>`;
+}
+
 // Re-scan the DOM after any panel/orbit render to wire up new orbs.
 function _scanLivingOrbs() { document.querySelectorAll('canvas.living-orb').forEach(_initLivingOrb); }
 // Also auto-scan when nodes are added — covers panels mounted asynchronously.
@@ -2632,8 +2690,9 @@ function renderInformants() {
     const has = found.length > 0;
     const color = inf.color || _CAT_COLORS[inf.category] || '#7eb4ff';
     const seed = _hashSeed(inf.id + (inf.name || ''));
+    const vurl = _informantVideoURL(inf);
     return `<div class="informant${has ? ' has-news' : ''}" style="--ic:${color};--a:${angle}" onclick="openInformant(${JSON.stringify(inf.id)})" title="${escapeHtml(inf.name)} agent">
-      <div class="orb">${livingOrbHTML(inf.emoji || '◈', color, seed)}${has ? `<div class="count">${found.length}</div>` : '<div class="count"></div>'}</div>
+      <div class="orb">${videoOrbHTML(inf.emoji || '◈', color, seed, vurl)}${has ? `<div class="count">${found.length}</div>` : '<div class="count"></div>'}</div>
       <div class="name">${escapeHtml(inf.name || '')}</div>
     </div>`;
   }).join('');
@@ -2659,6 +2718,8 @@ window.openInformant = function(id) {
     <div class="me-chips" id="inf-cat">${cats.map(c => `<div class="me-chip${c===inf.category?' on':''}" data-c="${c}" onclick="this.parentNode.querySelectorAll('.me-chip').forEach(x=>x.classList.remove('on'));this.classList.add('on')">${c.replace('_',' ')}</div>`).join('')}</div>
     <div class="me-sec">What should it research?</div>
     <input class="me-inp" id="inf-topic" type="text" value="${escapeHtml(inf.topic || '')}" placeholder="e.g. tech in Athens, coffee deals, remote jobs…">
+    <div class="me-sec">Live video (URL — leave blank for the domain default)</div>
+    <input class="me-inp" id="inf-video" type="url" value="${escapeHtml(inf.video_url || '')}" placeholder="https://…mp4 (or an AI-generated clip URL)">
     <div class="me-sec" style="margin-top:14px">Latest findings (${found.length})</div>
     ${items}`;
   openPanel(agentCard({
@@ -2686,6 +2747,8 @@ window.openInformantCreate = function() {
     <div class="me-chips" id="inf-cat">${cats.map((c,i) => `<div class="me-chip${i===0?' on':''}" data-c="${c}" onclick="this.parentNode.querySelectorAll('.me-chip').forEach(x=>x.classList.remove('on'));this.classList.add('on')">${c.replace('_',' ')}</div>`).join('')}</div>
     <div class="me-sec">What should it research?</div>
     <input class="me-inp" id="inf-topic" type="text" placeholder="e.g. AI news in Greece…">
+    <div class="me-sec">Live video (URL — optional)</div>
+    <input class="me-inp" id="inf-video" type="url" placeholder="https://…mp4 (or an AI-generated clip URL)">
     <div class="gadget-engage" onclick="_createInformant()" style="margin-top:12px;border-color:rgba(126,235,180,0.5);color:#7eebb4">
       <span class="verb-glyph" style="background:#7eebb4"></span><span>Summon this agent</span>
     </div>
@@ -2693,12 +2756,14 @@ window.openInformantCreate = function() {
 };
 function _readInformantForm() {
   const cat = document.querySelector('#inf-cat .me-chip.on')?.dataset.c || 'news';
+  const v = ($('inf-video')?.value || '').trim().slice(0, 500);
   return {
     name:  ($('inf-name')?.value || '').trim().slice(0, 24),
     emoji: ($('inf-emoji')?.value || '').trim().slice(0, 4),
     category: cat,
     color: _CAT_COLORS[cat] || '#7eb4ff',
     topic: ($('inf-topic')?.value || '').trim().slice(0, 200),
+    video_url: /^https?:\/\//i.test(v) ? v : '',
   };
 }
 window._saveInformant = function(id) {
