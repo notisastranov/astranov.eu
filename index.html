@@ -132,6 +132,16 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     city. Globe lighting (day/night terminator) is GLOBAL-only — it is
     switched OFF below global so the street map renders at full brightness.
 
+5b. SPACE VIEW — the global showcase mechanism
+    The spinning Earth-in-space is the SHOWCASE LAYER, active only at the
+    GLOBAL tier. While the camera sits in space, the globe rotates around
+    its polar axis (UNIT_Z) and orbiting it are the planet's current GLOBAL
+    FEEDS, NEWS, and OFFERS — that is the purpose of the spin. The moment
+    the user descends (taps the globe, taps a city beacon, or any
+    flyTo/setView fires), the spin stops permanently and the showcase
+    layer is replaced by the local map. The spin is a presentation
+    mechanism, never an ambient ornament.
+
 6.  ZERO UI
     Globe always visible. AICYCLE ring (#aicycle-float) is the ONLY always-
     visible UI element. Everything else is transient.
