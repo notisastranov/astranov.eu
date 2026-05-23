@@ -196,16 +196,20 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     which honestly fades behind Earth when the user's body is on the
     other side of the camera — the beam still tells you where you are.
 
-    At national/personal tiers the corner gadgets reappear, so the four
-    system agents remain reachable everywhere.
+    The legacy corner gadgets (#g-discover, #g-me, #locate-orb,
+    #aicycle-float) are RETIRED — never visible at any tier. At non-
+    global tiers only a small #pilot-mini sits top-left as the
+    always-reachable warp-home gesture; the other three apex agents
+    are not relevant at street level and stay hidden until the user
+    Pilot-warps back to the global tier.
 
-5h. VOLUME CHAIN — beam-connected orbs as a slider (binding)
-    A vertical chain of small orbs on the right edge of the global view
-    is the voice volume of Astranov. Each orb is a step; the bright
-    handle orb is the current level. Tap any orb to set; drag the
-    handle for continuous control. Beams between orbs glow when active.
-    Persisted in localStorage as astranov_voice_volume. Applies to all
-    SpeechSynthesisUtterance.volume calls.
+5h. VOLUME SLIDER — mirrors the brightness slider (binding)
+    The voice volume of Astranov is controlled by a vertical input
+    range identical in shape to the brightness slider, mounted on the
+    right edge (#vol-wrap → #vol-slider). Visible only at the global
+    tier. Persisted in localStorage as astranov_voice_volume. Applied
+    to every SpeechSynthesisUtterance.volume call. NO beam-orb chains,
+    NO bespoke slider chrome — same control language as brightness.
 
 5f. LIVING-ORB GRAPHICS ENGINE — procedural visuals + real video + real 3D
     Three layers, every one a real graphics primitive:
@@ -540,21 +544,20 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   }
   #tile-strip:empty, #tile-strip.hide-orbit { display: none; }
   .informant {
-    position: absolute; top: 0; left: 0; width: 84px; height: 84px;
+    position: absolute; top: 0; left: 0; width: 64px; height: 64px;
     cursor: pointer; user-select: none; pointer-events: auto;
     -webkit-tap-highlight-color: transparent;
     transition: opacity 0.35s ease-out;
     will-change: transform, opacity;
-    transform-origin: 42px 42px;
-    /* No labels. The orb IS the agent. */
+    transform-origin: 32px 32px;
   }
   .informant .orb {
-    width: 84px; height: 84px; border-radius: 50%; position: relative; overflow: hidden;
+    width: 64px; height: 64px; border-radius: 50%; position: relative; overflow: hidden;
     border: 1.5px solid color-mix(in srgb, var(--ic, #7eb4ff) 85%, transparent);
     box-shadow:
-      0 0 calc(18px + var(--orb-rim, 0) * 32px) color-mix(in srgb, var(--ic, #7eb4ff) 60%, transparent),
-      0 0 calc(36px + var(--orb-rim, 0) * 50px) color-mix(in srgb, var(--ic, #7eb4ff) 22%, transparent),
-      inset 0 0 14px rgba(0,0,0,0.55);
+      0 0 calc(14px + var(--orb-rim, 0) * 26px) color-mix(in srgb, var(--ic, #7eb4ff) 60%, transparent),
+      0 0 calc(30px + var(--orb-rim, 0) * 40px) color-mix(in srgb, var(--ic, #7eb4ff) 22%, transparent),
+      inset 0 0 12px rgba(0,0,0,0.55);
     transition: box-shadow 0.2s;
     filter: blur(var(--orb-blur, 0px));
   }
@@ -596,10 +599,32 @@ This block strives to get shorter, more inclusive, more precise with every edit.
        Pilot     22,000 km · spinning Earth glyph, tap = warp to home
        Astranov  16,000 km · the collective AI
        Discover  10,000 km · ambient feed preview */
-  body.at-global #g-discover,
-  body.at-global #g-me,
-  body.at-global #locate-orb,
-  body.at-global #aicycle-float { display: none !important; }
+  /* Legacy corner gadgets are retired in favour of orbital apex agents.
+     They never appear again. The user wanted no orange-orb relics at
+     zoom-down; this enforces it. The Pilot lifeboat at non-global lives
+     in #pilot-mini below. */
+  #g-discover, #g-me, #locate-orb, #aicycle-float { display: none !important; }
+  /* PILOT MINI — at non-global tiers, a small floating Pilot orb sits
+     top-left as the universal warp-home gesture. The other three apex
+     agents are not relevant at street level. */
+  #pilot-mini {
+    position: fixed; top: 22px; left: 22px; z-index: 46;
+    width: 52px; height: 52px; border-radius: 50%;
+    cursor: pointer; pointer-events: auto;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+    background: radial-gradient(circle at 35% 30%,
+      rgba(140,200,255,0.55) 0%,
+      rgba(50,100,180,0.4) 25%,
+      rgba(4,16,32,0.95) 90%);
+    border: 1.5px solid rgba(120,200,255,0.65);
+    box-shadow: 0 0 18px rgba(120,200,255,0.45), inset 0 0 12px rgba(0,0,0,0.5);
+    transition: transform 0.2s;
+    animation: pilot-spin 14s linear infinite;
+  }
+  #pilot-mini:hover { transform: scale(1.08); }
+  #pilot-mini:active { transform: scale(0.94); }
+  body.at-global #pilot-mini { display: none; }
   .informant.system .orb {
     border-width: 2px;
     box-shadow:
@@ -617,56 +642,22 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   /* Me orb identity glow — always the warmest, always the user's anchor. */
   .informant.sys-me .orb { border-color: rgba(126,235,180,0.95); }
 
-  /* VOLUME CHAIN — a vertical column of beam-connected orbs on the right
-     edge of the global view. The handle orb is itself an orb you drag,
-     and the beams between orbs are real glowing lines. */
-  #volume-chain {
-    position: fixed; top: 50%; right: 26px;
-    transform: translateY(-50%);
-    z-index: 46; pointer-events: none;
-    display: flex; flex-direction: column; align-items: center;
-    gap: 18px;
+  /* VOLUME SLIDER — identical chrome to #bright-wrap, mirrored to the
+     right edge. Controls Astranov's voice loudness live. Visible only
+     at the global tier. */
+  #vol-wrap {
+    position: fixed; right: 8px; top: 50%; transform: translateY(-50%);
+    z-index: 45; display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 12px 6px; border-radius: 16px;
+    background: rgba(6,12,24,0.55); backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(120,180,255,0.16);
   }
-  body:not(.at-global) #volume-chain { display: none; }
-  .vol-orb {
-    width: 36px; height: 36px; border-radius: 50%;
-    position: relative; overflow: hidden;
-    border: 1.5px solid rgba(120,200,255,0.45);
-    background: radial-gradient(circle at 35% 30%,
-      rgba(180,220,255,0.55) 0%,
-      rgba(60,120,200,0.35) 30%,
-      rgba(8,18,32,0.95) 90%);
-    box-shadow: 0 0 12px rgba(120,200,255,0.4), inset 0 0 10px rgba(0,0,0,0.7);
-    cursor: pointer; pointer-events: auto;
-    transition: box-shadow 0.18s, transform 0.18s;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .vol-orb:hover { transform: scale(1.1); }
-  .vol-orb.handle {
-    width: 48px; height: 48px;
-    border: 2px solid rgba(126,235,180,0.95);
-    background: radial-gradient(circle at 35% 30%,
-      rgba(160,255,210,0.7) 0%,
-      rgba(60,180,140,0.5) 25%,
-      rgba(4,20,15,0.95) 100%);
-    box-shadow: 0 0 22px rgba(126,235,180,0.7), 0 0 50px rgba(126,235,180,0.32), inset 0 0 12px rgba(0,0,0,0.7);
-    cursor: grab;
-  }
-  .vol-orb.handle:active { cursor: grabbing; }
-  .vol-orb.active { box-shadow: 0 0 18px rgba(126,235,180,0.65), inset 0 0 10px rgba(0,0,0,0.6); border-color: rgba(126,235,180,0.75); }
-  .vol-orb .vol-glyph {
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    font-size: 14px; color: #cfe9ff; text-shadow: 0 0 4px rgba(0,0,0,0.9);
-  }
-  .vol-beam {
-    width: 2px; height: 14px;
-    background: linear-gradient(to bottom, rgba(126,235,180,0.7), rgba(126,235,180,0.18));
-    border-radius: 2px;
-    box-shadow: 0 0 6px rgba(126,235,180,0.45);
-  }
-  .vol-cap {
-    font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase;
-    color: #a8c8ee; opacity: 0.7; margin-bottom: 4px;
+  body:not(.at-global) #vol-wrap { display: none; }
+  #vol-wrap .vol-ico { font-size: 13px; color: #7eebb4; opacity: 0.85; }
+  #vol-slider {
+    -webkit-appearance: slider-vertical; appearance: slider-vertical;
+    writing-mode: vertical-lr; direction: rtl;
+    width: 6px; height: 150px; accent-color: #7eebb4; cursor: pointer; background: transparent;
   }
 
   /* KRYPTEIA ORB — owner-only sovereign orb. Black core, blood-red rim,
@@ -2174,14 +2165,20 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 </div>
 <div id="drive-hud"><span class="dh-emoji">🚗</span><span>Driving</span><span class="dh-sp" id="dh-sp">0 km/h</span></div>
 
+<!-- Pilot lifeboat — the always-reachable warp-home gesture at non-global
+     tiers. Hidden at global (the orbital Pilot orb takes over). -->
+<div id="pilot-mini" title="Pilot — warp to home orbit" onclick="pilotHome()">🌍</div>
+
 <!-- Showcase tile strip — tiny muted-video-feel tiles of feeds/news/offers,
      auto-scoping to GLOBAL / NATIONAL / LOCAL as the camera descends. -->
 <div id="tile-strip" aria-label="Showcase feeds"></div>
 
-<!-- Volume chain — beam-connected orbs on the right edge. Each orb is a
-     volume step; the bright handle orb is what you drag to set the
-     loudness of Astranov's voice. Visible only at the global tier. -->
-<div id="volume-chain" aria-label="Voice volume"></div>
+<!-- Volume slider — mirrors the brightness slider on the right edge.
+     Controls Astranov's voice loudness. Visible only at the global tier. -->
+<div id="vol-wrap" title="Voice volume">
+  <span class="vol-ico">🔊</span>
+  <input id="vol-slider" type="range" min="0" max="1" step="0.02" value="1" aria-label="Voice volume">
+</div>
 
 <!-- Brightness slider — left edge. Controls map luminosity live. -->
 <div id="bright-wrap" title="Map brightness">
@@ -2811,39 +2808,82 @@ function _drawLivingOrb(cv, t) {
   const w = cv.width, h = cv.height;
   const cx = w / 2, cy = h / 2, R = Math.min(w, h) / 2;
   const [r, g, b] = cv.__rgb;
+  // Derive a complementary "deep" tone — pushes the hue 25% toward magenta/blue
+  // so the plasma has chromatic depth instead of a single colour wash.
+  const r2 = Math.round(r * 0.45 + 90);
+  const g2 = Math.round(g * 0.45 + 30);
+  const b2 = Math.round(b * 0.65 + 80);
   const seed = cv.__seed;
   ctx.clearRect(0, 0, w, h);
-  // Clip to a circle so the plasma stays inside the orb.
   ctx.save();
   ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
-  // Deep base
-  ctx.fillStyle = `rgba(4, 10, 22, 0.95)`;
+  // Deep base — almost-black, gives the orb the void backdrop.
+  ctx.fillStyle = `rgb(3, 7, 15)`;
   ctx.fillRect(0, 0, w, h);
-  // Flowing plasma — three radial blobs orbiting at different rates.
-  ctx.globalCompositeOperation = 'screen';
-  for (let i = 0; i < 3; i++) {
-    const phase = t * (0.35 + i * 0.22) + seed * 6.28 + i * 2.1;
-    const radius = R * (0.45 + 0.18 * Math.sin(phase * 1.7));
-    const x = cx + Math.cos(phase) * R * 0.42;
-    const y = cy + Math.sin(phase * 1.3 + seed) * R * 0.42;
-    const grd = ctx.createRadialGradient(x, y, 0, x, y, radius * 1.8);
-    grd.addColorStop(0,    `rgba(${r}, ${g}, ${b}, 0.85)`);
-    grd.addColorStop(0.5,  `rgba(${r}, ${g}, ${b}, 0.30)`);
-    grd.addColorStop(1,    `rgba(${r}, ${g}, ${b}, 0.00)`);
-    ctx.fillStyle = grd;
-    ctx.fillRect(0, 0, w, h);
+  // Sub-surface scattering — large soft radial behind the plasma, biased
+  // toward the camera-side. Gives the orb genuine volume.
+  {
+    const sx = cx - R * 0.20, sy = cy - R * 0.20;
+    const sss = ctx.createRadialGradient(sx, sy, 0, sx, sy, R * 1.15);
+    sss.addColorStop(0,    `rgba(${r}, ${g}, ${b}, 0.55)`);
+    sss.addColorStop(0.55, `rgba(${r2}, ${g2}, ${b2}, 0.30)`);
+    sss.addColorStop(1,    `rgba(0, 0, 0, 0)`);
+    ctx.fillStyle = sss; ctx.fillRect(0, 0, w, h);
   }
-  // Specular highlight
+  // Flowing plasma — 5 orbiting radial blobs at different rates,
+  // alternating between the agent's primary colour and the deep
+  // complementary tone for chromatic motion.
+  ctx.globalCompositeOperation = 'screen';
+  const N = 5;
+  for (let i = 0; i < N; i++) {
+    const phase = t * (0.28 + i * 0.18) + seed * 6.28 + i * 1.7;
+    const radius = R * (0.40 + 0.20 * Math.sin(phase * 1.4));
+    const orbitR = R * (0.30 + 0.18 * (i / N));
+    const x = cx + Math.cos(phase) * orbitR;
+    const y = cy + Math.sin(phase * 1.21 + seed * 3) * orbitR;
+    const useDeep = (i % 2) === 1;
+    const cr = useDeep ? r2 : r, cg = useDeep ? g2 : g, cb = useDeep ? b2 : b;
+    const grd = ctx.createRadialGradient(x, y, 0, x, y, radius * 2.2);
+    grd.addColorStop(0,    `rgba(${cr}, ${cg}, ${cb}, 0.78)`);
+    grd.addColorStop(0.45, `rgba(${cr}, ${cg}, ${cb}, 0.30)`);
+    grd.addColorStop(1,    `rgba(${cr}, ${cg}, ${cb}, 0)`);
+    ctx.fillStyle = grd; ctx.fillRect(0, 0, w, h);
+  }
+  // Specular highlight — a focused bright spot offset toward the light.
   ctx.globalCompositeOperation = 'lighter';
-  const hi = ctx.createRadialGradient(cx - R * 0.35, cy - R * 0.35, 0, cx - R * 0.35, cy - R * 0.35, R * 0.7);
-  hi.addColorStop(0, 'rgba(255,255,255,0.45)');
-  hi.addColorStop(1, 'rgba(255,255,255,0.00)');
-  ctx.fillStyle = hi; ctx.fillRect(0, 0, w, h);
+  {
+    const hx = cx - R * 0.38, hy = cy - R * 0.42;
+    const hi = ctx.createRadialGradient(hx, hy, 0, hx, hy, R * 0.65);
+    hi.addColorStop(0, 'rgba(255,255,255,0.55)');
+    hi.addColorStop(0.35, 'rgba(255,255,255,0.18)');
+    hi.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = hi; ctx.fillRect(0, 0, w, h);
+  }
+  // Fresnel edge — the rim of a real 3D sphere brightens because
+  // light grazes through more material. Apply as an inner ring.
+  {
+    const fr = ctx.createRadialGradient(cx, cy, R * 0.78, cx, cy, R);
+    fr.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0)`);
+    fr.addColorStop(0.7, `rgba(${r}, ${g}, ${b}, 0.32)`);
+    fr.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0.95)`);
+    ctx.fillStyle = fr; ctx.fillRect(0, 0, w, h);
+  }
+  // Terminator shadow — far side of the sphere darkens (assumes the
+  // light comes from the top-left, matching the specular).
+  ctx.globalCompositeOperation = 'multiply';
+  {
+    const sx = cx + R * 0.5, sy = cy + R * 0.5;
+    const sh = ctx.createRadialGradient(sx, sy, 0, sx, sy, R * 1.35);
+    sh.addColorStop(0, 'rgba(0,0,0,0.6)');
+    sh.addColorStop(0.7, 'rgba(0,0,0,0.15)');
+    sh.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = sh; ctx.fillRect(0, 0, w, h);
+  }
   ctx.restore();
-  // Outer rim — glowing edge
+  // Outer rim — sharp glowing edge atop everything, full opacity.
   ctx.globalCompositeOperation = 'source-over';
-  ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.85)`;
-  ctx.lineWidth = Math.max(1, R * 0.045);
+  ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.95)`;
+  ctx.lineWidth = Math.max(1.5, R * 0.04);
   ctx.beginPath(); ctx.arc(cx, cy, R - ctx.lineWidth / 2, 0, Math.PI * 2); ctx.stroke();
 }
 let _gfxStart = performance.now(), _gfxFrame = 0;
@@ -2863,7 +2903,7 @@ requestAnimationFrame(_gfxTick);
 // Helper to mint a living-orb HTML block with an emoji on top.
 function livingOrbHTML(emoji, color, seed) {
   const s = (seed != null ? seed : _hashSeed(String(emoji || '') + color));
-  return `<canvas class="living-orb" width="160" height="160" data-color="${color || '#7eb4ff'}" data-seed="${s}"></canvas><span class="orb-glyph">${emoji || ''}</span>`;
+  return `<canvas class="living-orb" width="384" height="384" data-color="${color || '#7eb4ff'}" data-seed="${s}"></canvas><span class="orb-glyph">${emoji || ''}</span>`;
 }
 
 // ── REAL VIDEO LAYER — informant orbs are live windows, not icons. ───────
@@ -2898,7 +2938,7 @@ function videoOrbHTML(emoji, color, seed, videoUrl, imageUrl) {
     : `<video class="orb-video" src="${escapeHtml(url)}" autoplay muted loop playsinline preload="auto" onloadeddata="this.classList.add('is-ready')" onerror="this.style.display='none'"></video>`;
   return `<div class="orb-stage">
     ${media}
-    <canvas class="living-orb" width="256" height="256" data-color="${color || '#7eb4ff'}" data-seed="${s}"></canvas>
+    <canvas class="living-orb" width="384" height="384" data-color="${color || '#7eb4ff'}" data-seed="${s}"></canvas>
     <span class="orb-glyph">${emoji || ''}</span>
   </div>`;
 }
@@ -2919,10 +2959,10 @@ const _orbState = []; // [{ kind, infId|sysId, cart, beam, isEvent, color, lat, 
 // always sees them clustered on the near side of Earth.
 // Me also carries an event-bound beam down to the user's actual lat/lng.
 const _SYSTEM_ORB_TIERS = [
-  { id: 'sys-me',       name: 'Me',        emoji: '◉',  color: '#7eebb4', alt: 30_000_000, latOff:  28, boost: 1.55, classes: 'system sys-me',       onclick: 'expandMeOrb()' },
-  { id: 'sys-pilot',    name: 'Pilot',     emoji: '🌍', color: '#6dd0ff', alt: 22_000_000, latOff:  10, boost: 1.40, classes: 'system sys-pilot',    onclick: 'pilotHome()' },
-  { id: 'sys-astranov', name: 'Astranov',  emoji: '◈',  color: '#a8c8ee', alt: 16_000_000, latOff: -10, boost: 1.25, classes: 'system sys-astranov', onclick: 'openAstranovChat()' },
-  { id: 'sys-discover', name: 'Discover',  emoji: '⬢',  color: '#ffb464', alt: 10_000_000, latOff: -26, boost: 1.10, classes: 'system sys-discover', onclick: 'gadgetRelease(\'discover\', null)' },
+  { id: 'sys-me',       name: 'Me',        emoji: '◉',  color: '#7eebb4', alt: 30_000_000, latOff:  52, boost: 1.10, classes: 'system sys-me',       onclick: 'expandMeOrb()' },
+  { id: 'sys-pilot',    name: 'Pilot',     emoji: '🌍', color: '#6dd0ff', alt: 22_000_000, latOff:  28, boost: 0.95, classes: 'system sys-pilot',    onclick: 'pilotHome()' },
+  { id: 'sys-astranov', name: 'Astranov',  emoji: '◈',  color: '#a8c8ee', alt: 16_000_000, latOff: -28, boost: 0.85, classes: 'system sys-astranov', onclick: 'openAstranovChat()' },
+  { id: 'sys-discover', name: 'Discover',  emoji: '⬢',  color: '#ffb464', alt: 10_000_000, latOff: -52, boost: 0.75, classes: 'system sys-discover', onclick: 'gadgetRelease(\'discover\', null)' },
 ];
 
 // User location tracked for the Me beam. Updated by the existing
@@ -3105,7 +3145,7 @@ function _projectOrbs() {
       el.style.setProperty('--orb-blur', `${blurPx}px`);
       el.style.setProperty('--orb-rim', rim);
       el.style.setProperty('--orb-night', night.toFixed(2));
-      el.style.transform = `translate3d(${(win.x - 42).toFixed(1)}px, ${(win.y - 42).toFixed(1)}px, 0) scale(${scale.toFixed(3)})`;
+      el.style.transform = `translate3d(${(win.x - 32).toFixed(1)}px, ${(win.y - 32).toFixed(1)}px, 0) scale(${scale.toFixed(3)})`;
       el.style.opacity = '1';
     } else {
       el.style.opacity = '0';
@@ -6642,63 +6682,21 @@ window.openAstranovChat = function() {
   try { if (typeof gadgetRelease === 'function') return gadgetRelease('ai', null); } catch (_) {}
 };
 
-// ── VOLUME CHAIN — beam-connected orbs as a draggable slider ───────────
-// 5 steps from mute → max. The handle orb sits at the current level;
-// the chain above it is dim. Click any orb to set; drag the handle for
-// continuous control. Persisted in localStorage.
-const _VOL_STEPS = 5;
+// ── VOLUME SLIDER — same shape as the brightness slider ────────────────
+// Controls SpeechSynthesisUtterance.volume on the Astranov voice path.
 window._astranovVolume = parseFloat(localStorage.getItem('astranov_voice_volume') || '1') || 1.0;
-function _volRender() {
-  const host = document.getElementById('volume-chain');
-  if (!host) return;
-  const level = window._astranovVolume;
-  // levels go bottom→top: index 0 = mute at bottom, 4 = max at top.
-  const handleIdx = Math.round(level * (_VOL_STEPS - 1));
-  let html = '<div class="vol-cap">VOL</div>';
-  for (let i = _VOL_STEPS - 1; i >= 0; i--) {
-    const isHandle = (i === handleIdx);
-    const isActive = (i <= handleIdx);
-    const cls = isHandle ? 'vol-orb handle' : (isActive ? 'vol-orb active' : 'vol-orb');
-    const glyph = i === 0 ? '🔇' : i === _VOL_STEPS - 1 ? '🔊' : '';
-    html += `<div class="${cls}" data-i="${i}" onclick="_volSet(${i / (_VOL_STEPS - 1)})">
-      <span class="vol-glyph">${glyph}</span></div>`;
-    if (i > 0) html += `<div class="vol-beam"></div>`;
-  }
-  host.innerHTML = html;
-  // Drag the handle for continuous control.
-  const handle = host.querySelector('.vol-orb.handle');
-  if (handle) _volBindDrag(handle, host);
-}
-function _volBindDrag(handle, host) {
-  let dragging = false;
-  handle.addEventListener('pointerdown', (e) => {
-    dragging = true;
-    try { handle.setPointerCapture(e.pointerId); } catch (_) {}
-  });
-  handle.addEventListener('pointermove', (e) => {
-    if (!dragging) return;
-    const rect = host.getBoundingClientRect();
-    // Top of host = volume 1, bottom = 0
-    const t = 1 - ((e.clientY - rect.top) / rect.height);
-    _volSet(Math.max(0, Math.min(1, t)));
-  });
-  const stop = () => { dragging = false; };
-  handle.addEventListener('pointerup', stop);
-  handle.addEventListener('pointercancel', stop);
-}
-window._volSet = function(level) {
-  level = Math.max(0, Math.min(1, level));
-  window._astranovVolume = level;
-  try { localStorage.setItem('astranov_voice_volume', String(level)); } catch (_) {}
-  _volRender();
-  // If something is speaking right now, it will use the new volume on
-  // the next utterance — there's no way to live-tune a running utterance
-  // through SpeechSynthesisUtterance. Cancel current playback so the
-  // user hears the change immediately.
+function _applyVolume(v) {
+  v = Math.max(0, Math.min(1, v));
+  window._astranovVolume = v;
+  try { localStorage.setItem('astranov_voice_volume', String(v)); } catch (_) {}
+  // Cancel current playback so the change is audible immediately.
   try { if (window.speechSynthesis && speechSynthesis.speaking) speechSynthesis.cancel(); } catch (_) {}
-};
-// First paint on boot.
-try { _volRender(); } catch (_) {}
+}
+(function wireVolume() {
+  const s = document.getElementById('vol-slider'); if (!s) return setTimeout(wireVolume, 100);
+  s.value = String(window._astranovVolume);
+  s.addEventListener('input', e => _applyVolume(parseFloat(e.target.value)));
+})();
 
 window._krypteiaImproveSend = async function() {
   const q = ($('kr-improve-q')?.value || '').trim();
