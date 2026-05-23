@@ -2571,8 +2571,9 @@ function onCameraSettled() {
   // CARTO street tiles render at full brightness.
   if (viewer) viewer.scene.globe.enableLighting = (newLevel === 'global');
 
-  // City glowing dots: visible at GLOBAL + NATIONAL, hidden at PERSONAL
-  cityDotIndex.forEach(e => { e.primitive.show = (newLevel !== 'personal'); });
+  // City glowing dots: visible at NATIONAL only — the globe stays clean
+  // at GLOBAL (orbs do the job), and the streets do at PERSONAL.
+  cityDotIndex.forEach(e => { e.primitive.show = (newLevel === 'national'); });
 
   updateLayerSwitchVisibility();
   updateCatFilter();
@@ -2582,6 +2583,11 @@ function onCameraSettled() {
   // Place-agent billboards (OSM dots) are noise at the global tier — the
   // informant orbs do the job. Only reveal them once we descend.
   if (placeBillboards) placeBillboards.show = showDeliveries;
+  // Signal pins on the globe are also noise at GLOBAL — informants and
+  // event-binding beams carry signals at that tier. Reveal at NATIONAL+.
+  signalIndex.forEach(({ primitive, signal }) => {
+    primitive.show = (newLevel !== 'global') && (CAT_FILTER_STATE[signal.category] !== false);
+  });
   // Re-scope the showcase tile strip to the new level.
   renderTileStrip();
   if (viewer) viewer.scene.requestRender();
@@ -4099,6 +4105,7 @@ function addSignalPoint(signal) {
     outlineColor: Cesium.Color.WHITE.withAlpha(0.4),
     outlineWidth: 1,
     scaleByDistance: new Cesium.NearFarScalar(1.5e2, 1.4, 1.5e7, 0.6),
+    show: (currentLevel !== 'global') && (CAT_FILTER_STATE[signal.category] !== false),
   });
   primitive.__signalId = signal.id;
   signalIndex.set(signal.id, { primitive, signal });
@@ -4255,6 +4262,7 @@ function buildCityBeacons() {
       scaleByDistance: new Cesium.NearFarScalar(5e5, 0.7, 2e7, 1.6),
       translucencyByDistance: new Cesium.NearFarScalar(3e5, 0, 1.2e6, 1.0),
       disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      show: false, // Hidden at boot (global). Revealed when we descend to NATIONAL.
     });
     bb.__cityId = id;
     cityDotIndex.set(id, { primitive: bb, city });
@@ -4271,14 +4279,34 @@ function buildCityBeacons() {
   })();
 }
 
+// Tier-aware city-dot flight. NEVER skip a level: from GLOBAL we land at
+// NATIONAL altitude over the city's country; only from NATIONAL do we
+// descend into the city itself. From PERSONAL we stay personal (recenter).
 function flyToCity(city) {
   if (!city || !viewer) return;
+  const h = viewer.camera.positionCartographic.height;
+  let alt, pitchDeg;
+  if (h > LEVEL_THRESHOLDS.global) {
+    // Global → National. Park above the country, do not yet descend to city.
+    alt = 700_000;
+    pitchDeg = -90;
+  } else if (h > LEVEL_THRESHOLDS.national) {
+    // National → City. Now actually enter the city.
+    alt = 6_000;
+    pitchDeg = -72;
+  } else {
+    // Already personal — just recenter on the city.
+    alt = h;
+    pitchDeg = -65;
+  }
   viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(city.lng, city.lat, 6_000),
-    duration: 2.2,
-    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-72), roll: 0 },
+    destination: Cesium.Cartesian3.fromDegrees(city.lng, city.lat, alt),
+    duration: 2.0,
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(pitchDeg), roll: 0 },
   });
-  fetchOSMNearby(city.lat, city.lng, 5000);
+  // Only warm up OSM at city tier or lower — at national altitude we'd be
+  // querying a sub-5km radius that the camera can't even see.
+  if (alt <= LEVEL_THRESHOLDS.national) fetchOSMNearby(city.lat, city.lng, 5000);
 }
 
 /* ==============================================================
