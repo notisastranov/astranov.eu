@@ -132,20 +132,30 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     city. Globe lighting (day/night terminator) is GLOBAL-only — it is
     switched OFF below global so the street map renders at full brightness.
 
-5b. SHOWCASE LAYER — universal feeds/news/offers across all tiers
-    A single mechanism, three contexts. A horizontal strip of tiny ambient
-    muted-video-feel tiles (#tile-strip) carries the current feeds, news,
-    and offers and AUTO-SCOPES by altitude:
-      GLOBAL    → planetary signals (the spinning Earth-in-space view).
+5b. INFORMANT AGENTS — the showcase as a row of daemones
+    The showcase layer is NOT a row of content tiles; it is a row of small
+    AGENTS — INFORMANTS — each watching one domain (News, Jobs, Offers,
+    Social, Estate, Market). They live in #tile-strip, styled as glowing
+    orbs (same visual language as the four corner agents). Tap an orb to
+    read its findings AND to tell it what to research (the topic persists
+    per-device in localStorage). Findings auto-scope by altitude:
+      GLOBAL    → planetary signals (also: the planet spins under them).
       NATIONAL  → signals within ~country radius of the camera.
       PERSONAL  → signals within ~50 km of the camera.
-    Tiles tint by category (RADAR_COLORS), drift with a CSS gradient flow
-    (no real video required), and tapping a tile flies to that signal.
-    The strip re-renders on every camera moveEnd (debounced 250 ms) and on
-    fresh signal arrivals. At the global tier, the planet ALSO spins around
-    UNIT_Z as the showcase backdrop; the spin stops permanently on any
-    flyTo/setView. The spin and the tiles are presentation mechanisms,
-    never ambient ornament.
+    Re-render on every camera moveEnd (debounced 250 ms) and on fresh
+    signal arrivals. The orb pulses when it has new findings; a small
+    count badge shows how many. We have transcended the tile/feed pattern
+    into agentic informants — no spam, only delegated intelligence.
+
+5c. AGENTS EVERYWHERE — even on the map
+    Every place on the map is itself an agent: vendor billboards render as
+    PLACE AGENT ORBS (the same orb visual language as informants + corner
+    agents) — glassy radial body, soft aura, orbit ring, category emoji at
+    the centre. No boxy badges. Tapping a place agent goes straight to its
+    menu + order. The whole product surface is uniformly agentic — corners
+    are SYSTEM agents, informants are CONTENT agents, the Council are
+    JUDGMENT agents, Krypteia is the GUARDIAN agent, places are LOCAL
+    agents. Nothing inert; everything has agency.
 
 6.  ZERO UI
     Globe always visible. AICYCLE ring (#aicycle-float) is the ONLY always-
@@ -368,65 +378,75 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   }
   #boot.gone { opacity: 0; pointer-events: none; }
 
-  /* Showcase tile strip — universal feeds/news/offers carrier.
-     Tiny ambient muted-video-feel cards that auto-scope by altitude. */
+  /* Informant orbs — agentic showcase. Small living orbs that each watch a
+     domain (News, Offers, Jobs, …) and report findings. Tap to read + edit
+     what they research. Live under the Discover agent. */
   #tile-strip {
-    position: fixed; bottom: 22px; left: 110px; right: 110px;
-    height: 78px; z-index: 44;
-    display: flex; gap: 8px; overflow-x: auto; padding: 4px 0;
+    position: fixed; bottom: 22px; left: 110px; right: 110px; height: 86px;
+    z-index: 44; display: flex; gap: 12px; align-items: center;
+    overflow-x: auto; padding: 4px 6px;
     -webkit-overflow-scrolling: touch; scrollbar-width: none;
     mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
     -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
   }
   #tile-strip::-webkit-scrollbar { display: none; }
   #tile-strip:empty { display: none; }
-  .tile {
-    flex: 0 0 124px; height: 72px; border-radius: 11px; overflow: hidden;
-    position: relative; cursor: pointer; user-select: none;
-    background: linear-gradient(135deg, color-mix(in srgb, var(--tc, #7eb4ff) 30%, transparent) 0%, #050a14 100%);
-    border: 1px solid color-mix(in srgb, var(--tc, #7eb4ff) 45%, transparent);
-    box-shadow: 0 0 14px color-mix(in srgb, var(--tc, #7eb4ff) 25%, transparent);
-    transition: transform 0.18s ease-out, box-shadow 0.2s;
+  .informant {
+    flex: 0 0 64px; height: 78px; display: flex; flex-direction: column;
+    align-items: center; gap: 4px; cursor: pointer; user-select: none;
     -webkit-tap-highlight-color: transparent;
   }
-  .tile:hover  { transform: translateY(-2px); box-shadow: 0 0 22px color-mix(in srgb, var(--tc, #7eb4ff) 45%, transparent); }
-  .tile:active { transform: scale(0.96); }
-  /* Looping ambient "video" — drifting glow, no real video required. */
-  .tile::before {
-    content: ''; position: absolute; inset: 0; pointer-events: none;
-    background:
-      radial-gradient(circle at 30% 40%, color-mix(in srgb, var(--tc, #7eb4ff) 55%, transparent), transparent 60%),
-      radial-gradient(circle at 70% 60%, color-mix(in srgb, var(--tc, #7eb4ff) 40%, transparent), transparent 65%);
-    animation: tile-flow 6.5s ease-in-out infinite alternate;
-    mix-blend-mode: screen;
+  .informant .orb {
+    width: 50px; height: 50px; border-radius: 50%; position: relative;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; line-height: 1;
+    background: radial-gradient(circle at 35% 30%,
+      color-mix(in srgb, var(--ic, #7eb4ff) 75%, #fff 0%) 0%,
+      color-mix(in srgb, var(--ic, #7eb4ff) 35%, transparent) 55%,
+      rgba(0,0,0,0.25) 100%);
+    border: 1.5px solid color-mix(in srgb, var(--ic, #7eb4ff) 70%, transparent);
+    box-shadow: 0 0 16px color-mix(in srgb, var(--ic, #7eb4ff) 50%, transparent),
+                inset 0 0 10px color-mix(in srgb, var(--ic, #7eb4ff) 30%, transparent);
+    transition: transform 0.18s ease-out, box-shadow 0.2s;
   }
-  @keyframes tile-flow {
-    0%   { transform: translate(0,0)     scale(1);    opacity: 0.55; }
-    50%  { transform: translate(-6%,4%)  scale(1.12); opacity: 0.95; }
-    100% { transform: translate(7%,-3%)  scale(1.18); opacity: 0.7;  }
+  .informant .orb::after {
+    content: ''; position: absolute; inset: -3px; border-radius: 50%;
+    border: 1px solid color-mix(in srgb, var(--ic, #7eb4ff) 35%, transparent);
+    animation: informant-ring 3s ease-in-out infinite;
+    pointer-events: none;
   }
-  .tile-dot {
-    position: absolute; top: 7px; right: 8px; width: 5px; height: 5px;
-    border-radius: 50%; background: var(--tc, #7eb4ff);
-    box-shadow: 0 0 7px var(--tc, #7eb4ff);
-    animation: tile-pulse 1.6s ease-in-out infinite;
+  @keyframes informant-ring {
+    0%,100% { transform: scale(1);    opacity: 0.7; }
+    50%     { transform: scale(1.12); opacity: 0.25; }
   }
-  @keyframes tile-pulse { 0%,100% { opacity: 0.45; } 50% { opacity: 1; } }
-  .tile-cat {
-    position: absolute; top: 6px; left: 7px; font-size: 7px; letter-spacing: 0.16em;
-    text-transform: uppercase; color: var(--tc, #7eb4ff);
-    padding: 1px 6px; background: rgba(0,0,0,0.55); border-radius: 999px;
+  .informant:hover .orb  { transform: translateY(-2px); box-shadow: 0 0 24px color-mix(in srgb, var(--ic, #7eb4ff) 70%, transparent); }
+  .informant:active .orb { transform: scale(0.94); }
+  .informant.has-news .orb {
+    animation: informant-pulse 1.8s ease-in-out infinite;
   }
-  .tile-title {
-    position: absolute; left: 0; right: 0; bottom: 0;
-    padding: 4px 7px 5px; font-size: 10px; line-height: 1.2; color: #eaf2ff;
-    background: linear-gradient(to top, rgba(0,0,0,0.92), rgba(0,0,0,0.5) 60%, transparent);
-    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-    overflow: hidden;
+  @keyframes informant-pulse {
+    0%,100% { box-shadow: 0 0 16px color-mix(in srgb, var(--ic, #7eb4ff) 50%, transparent),
+                          inset 0 0 10px color-mix(in srgb, var(--ic, #7eb4ff) 30%, transparent); }
+    50%     { box-shadow: 0 0 26px color-mix(in srgb, var(--ic, #7eb4ff) 90%, transparent),
+                          inset 0 0 14px color-mix(in srgb, var(--ic, #7eb4ff) 50%, transparent); }
+  }
+  .informant .count {
+    position: absolute; top: -3px; right: -3px;
+    min-width: 16px; height: 16px; border-radius: 8px; padding: 0 4px;
+    font-size: 9px; font-weight: 700; line-height: 16px; text-align: center;
+    background: var(--ic, #7eb4ff); color: #021018;
+    box-shadow: 0 0 6px var(--ic, #7eb4ff);
+  }
+  .informant .count:empty { display: none; }
+  .informant .name {
+    font-size: 8px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: color-mix(in srgb, var(--ic, #7eb4ff) 80%, #fff 20%);
+    text-shadow: 0 0 4px rgba(0,0,0,0.85);
+    white-space: nowrap;
   }
   @media (max-width: 520px) {
-    #tile-strip { left: 96px; right: 96px; height: 70px; }
-    .tile { flex-basis: 108px; height: 64px; }
+    #tile-strip { left: 96px; right: 96px; height: 78px; gap: 10px; }
+    .informant .orb { width: 44px; height: 44px; font-size: 18px; }
   }
 
   /* Brightness slider — left edge, vertical, subtle. */
@@ -2371,23 +2391,82 @@ function _signalsForLevel() {
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     .slice(0, 14);
 }
-function renderTileStrip() {
+// ── INFORMANT AGENTS ────────────────────────────────────────────────────
+// Each informant is a small daemon watching one domain (News/Jobs/Offers/…)
+// and reporting findings scoped to the current camera level. Tap to read its
+// findings and tell it what to research; the topic is saved on this device.
+const DEFAULT_INFORMANTS = [
+  { id: 'news',   name: 'News',   emoji: '📰', color: '#00d4ff', category: 'news' },
+  { id: 'jobs',   name: 'Jobs',   emoji: '💼', color: '#7cff7c', category: 'jobs' },
+  { id: 'offers', name: 'Offers', emoji: '🏷',  color: '#ffaa00', category: 'commerce' },
+  { id: 'social', name: 'Social', emoji: '💬', color: '#ff7edc', category: 'social' },
+  { id: 'estate', name: 'Estate', emoji: '🏠', color: '#b48cff', category: 'real_estate' },
+  { id: 'mkt',    name: 'Market', emoji: '📋', color: '#bfa073', category: 'classifieds' },
+];
+function _informantTopics() { try { return JSON.parse(localStorage.getItem('astranov_informants') || '{}'); } catch (_) { return {}; } }
+function _saveInformantTopic(id, topic) {
+  const t = _informantTopics(); t[id] = (topic || '').slice(0, 200); localStorage.setItem('astranov_informants', JSON.stringify(t));
+}
+function _informantFindings(inf) {
+  const topics = _informantTopics();
+  const topic = (topics[inf.id] || '').toLowerCase().trim();
+  const inScope = _signalsForLevel();           // already scoped to current tier
+  const byCat = inScope.filter(s => s.category === inf.category);
+  const matched = topic
+    ? byCat.filter(s => (s.title + ' ' + (s.body || '')).toLowerCase().includes(topic))
+    : byCat;
+  return matched.slice(0, 8);
+}
+function renderInformants() {
   const el = $('tile-strip'); if (!el) return;
-  const signals = _signalsForLevel();
-  el.innerHTML = signals.map(s => {
-    const color = (typeof RADAR_COLORS !== 'undefined' && RADAR_COLORS[s.category]) || '#7eb4ff';
-    const cat = String(s.category || '').replace('_', ' ');
-    return `<div class="tile" style="--tc:${color}" onclick="flyToSignal(${JSON.stringify(s.id)})" title="${escapeHtml(s.title || '')}">
-      <div class="tile-dot"></div>
-      <div class="tile-cat">${escapeHtml(cat)}</div>
-      <div class="tile-title">${escapeHtml(s.title || '')}</div>
+  el.innerHTML = DEFAULT_INFORMANTS.map(inf => {
+    const found = _informantFindings(inf);
+    const has = found.length > 0;
+    return `<div class="informant${has ? ' has-news' : ''}" style="--ic:${inf.color}" onclick="openInformant(${JSON.stringify(inf.id)})" title="${escapeHtml(inf.name)} agent">
+      <div class="orb">${inf.emoji}${has ? `<div class="count">${found.length}</div>` : '<div class="count"></div>'}</div>
+      <div class="name">${escapeHtml(inf.name)}</div>
     </div>`;
   }).join('');
 }
-// Re-render on map pan/zoom (debounced) so the strip stays in sync with view.
+window.openInformant = function(id) {
+  const inf = DEFAULT_INFORMANTS.find(x => x.id === id); if (!inf) return;
+  const topic = _informantTopics()[id] || '';
+  const found = _informantFindings(inf);
+  const items = found.map(s => `
+    <div class="delivery-row" onclick="flyToSignal(${JSON.stringify(s.id)})">
+      <div class="head"><span class="desc">${escapeHtml(s.title)}</span></div>
+      <div class="meta">${escapeHtml((s.city || s.country_code || '').toString())} · ${formatRelative(s.created_at)}</div>
+    </div>`).join('') || '<div style="color:#6a8aaf;font-size:12px;padding:8px 0">Nothing yet at this view — try descending or widening the topic.</div>';
+  openPanel(`
+    <div class="place-hero" style="margin-bottom:10px">
+      <div class="place-icon" style="color:${inf.color};font-size:24px">${inf.emoji}</div>
+      <div class="place-head">
+        <div class="place-name">${escapeHtml(inf.name)} agent</div>
+        <div class="place-badge" style="color:${inf.color}">INFORMANT</div>
+        <div style="font-size:10px;color:#6a8aaf;letter-spacing:0.15em;text-transform:uppercase;margin-top:4px">Watching for you</div>
+      </div>
+    </div>
+    <div class="me-sec">Tell ${escapeHtml(inf.name)} what to research</div>
+    <input class="me-inp" id="inf-topic" type="text" value="${escapeHtml(topic)}" placeholder="e.g. tech in Athens, coffee deals, remote jobs…">
+    <div class="gadget-engage" onclick="_saveInformant(${JSON.stringify(id)},this)" style="margin-top:8px;border-color:rgba(126,235,180,0.4);color:#7eebb4">
+      <span class="verb-glyph" style="background:#7eebb4"></span><span>Sharpen this agent</span>
+    </div>
+    <div class="me-sec" style="margin-top:14px">Latest findings (${found.length})</div>
+    ${items}
+  `);
+};
+window._saveInformant = function(id, el) {
+  const t = ($('inf-topic')?.value || '').trim();
+  _saveInformantTopic(id, t);
+  toast('Agent sharpened', 'ok');
+  renderInformants();
+  openInformant(id);   // re-open with new findings
+};
 let _tileTimer = null;
-function _scheduleTileRefresh() { clearTimeout(_tileTimer); _tileTimer = setTimeout(renderTileStrip, 250); }
-window.renderTileStrip = renderTileStrip;
+function _scheduleTileRefresh() { clearTimeout(_tileTimer); _tileTimer = setTimeout(renderInformants, 250); }
+// keep old name working for any caller
+function renderTileStrip() { renderInformants(); }
+window.renderInformants = renderInformants;
 
 function ascendLevel() {
   if (!viewer) return;
@@ -3621,45 +3700,45 @@ const _placeIconCache = new Map();
 
 function _makePlaceCanvas(catKey) {
   if (_placeIconCache.has(catKey)) return _placeIconCache.get(catKey);
-  const sz = 72, cx = sz / 2;
+  // PLACE AGENT ORB — visual language matches informant orbs and corner
+  // agents. Soft radial glow, glassy orb body, faint orbit ring, centre
+  // emoji. No boxy badges, no tick marks. Every place on the map is an
+  // agent of itself.
+  const sz = 80, cx = sz / 2;
   const c = document.createElement('canvas'); c.width = c.height = sz;
   const ctx = c.getContext('2d');
   const info = _CAT_INFO[catKey] || _CAT_INFO.default;
   const col = info.color;
 
-  // Outer radial glow
-  const grd = ctx.createRadialGradient(cx, cx, 6, cx, cx, cx);
-  grd.addColorStop(0, col + '66'); grd.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = grd; ctx.fillRect(0, 0, sz, sz);
+  // Outer aura
+  const aura = ctx.createRadialGradient(cx, cx, 6, cx, cx, cx);
+  aura.addColorStop(0, col + 'aa');
+  aura.addColorStop(0.45, col + '40');
+  aura.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = aura; ctx.fillRect(0, 0, sz, sz);
 
-  // Dashed orbit ring
-  ctx.save(); ctx.setLineDash([2, 3]);
-  ctx.beginPath(); ctx.arc(cx, cx, cx - 3, 0, Math.PI * 2);
-  ctx.strokeStyle = col + '55'; ctx.lineWidth = 1.2; ctx.stroke();
-  ctx.restore();
+  // Faint orbit ring (the agent is alive in its own sphere)
+  ctx.beginPath(); ctx.arc(cx, cx, cx - 4, 0, Math.PI * 2);
+  ctx.strokeStyle = col + '55'; ctx.lineWidth = 1; ctx.stroke();
 
-  // Body circle — dark fill + glowing border
-  ctx.beginPath(); ctx.arc(cx, cx, cx - 10, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(4, 10, 22, 0.93)'; ctx.fill();
-  ctx.shadowColor = col; ctx.shadowBlur = 10;
-  ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.stroke();
+  // Glassy orb body — top-left highlight to mid-tone to deep
+  const r = cx - 11;
+  const body = ctx.createRadialGradient(cx - r * 0.4, cx - r * 0.4, 1, cx, cx, r);
+  body.addColorStop(0,    'rgba(255,255,255,0.55)');
+  body.addColorStop(0.18, col + 'cc');
+  body.addColorStop(0.7,  col + '44');
+  body.addColorStop(1,    'rgba(4,10,22,0.95)');
+  ctx.beginPath(); ctx.arc(cx, cx, r, 0, Math.PI * 2);
+  ctx.fillStyle = body; ctx.fill();
+  ctx.shadowColor = col; ctx.shadowBlur = 8;
+  ctx.strokeStyle = col + 'dd'; ctx.lineWidth = 1.5; ctx.stroke();
   ctx.shadowBlur = 0;
 
-  // Four HUD tick marks at 45°/135°/225°/315°
-  [45, 135, 225, 315].forEach(deg => {
-    const rad = deg * Math.PI / 180;
-    const r1 = cx - 9, r2 = cx - 4;
-    ctx.beginPath();
-    ctx.moveTo(cx + Math.cos(rad) * r1, cx + Math.sin(rad) * r1);
-    ctx.lineTo(cx + Math.cos(rad) * r2, cx + Math.sin(rad) * r2);
-    ctx.strokeStyle = col + 'cc'; ctx.lineWidth = 2; ctx.stroke();
-  });
-
-  // Center emoji — color emoji via OS fonts, 22px
+  // Centre emoji — the agent's face
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = '22px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",serif';
+  ctx.font = '23px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",serif';
   ctx.fillStyle = '#fff';
-  ctx.fillText(info.emoji, cx, cx + 1);
+  ctx.fillText(info.emoji, cx, cx + 2);
 
   _placeIconCache.set(catKey, c);
   return c;
