@@ -140,22 +140,28 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     Boot must START on the global view; the camera NEVER auto-flies to
     the user's city. Pre-warming by IP is allowed; moving the camera is not.
 
-5f. LIVING-ORB GRAPHICS ENGINE — procedural visuals + real video, no static gradients
-    Two layers, both real graphics:
-      (a) PLASMA — every agent's orb has a procedural canvas generated from
-          its own DNA (color hex + seed from name/id). Three radial blobs
-          orbit at different rates; a moving specular highlight; glowing
-          rim. ~30 fps, throttled, paused when the document is hidden.
-          One shared rAF loop drives every orb on the page.
-      (b) VIDEO — informant orbs that orbit the Earth are LIVE WINDOWS:
-          each carries a real video (default catalog by domain, override
-          per-agent via the agent's video_url field — the slot where AI-
-          generated video from compose-video Edge Fn lands). The video is
-          wrapped in .orb-stage and counter-rotated against .orbit so the
-          CONTENT STAYS UPRIGHT while the ring spins around the Earth.
-          The plasma sits on top as a colour wash (mix-blend-mode: screen).
-    No agent visual is allowed to be a static gradient again. No orb that
-    orbits is allowed to tumble its content with the ring.
+5f. LIVING-ORB GRAPHICS ENGINE — procedural visuals + real video + real 3D
+    Three layers, every one a real graphics primitive:
+      (a) PLASMA — every agent's orb is a 256² procedural canvas generated
+          from its own DNA (color + seed from name/id). Three radial blobs
+          orbit; specular highlight; glowing rim. Shared rAF, ~30 fps,
+          paused when the document is hidden.
+      (b) VIDEO — informant orbs are LIVE WINDOWS. Each carries a real MP4
+          (default catalog by domain, override per-agent via video_url —
+          the slot where AI-generated clips from compose-video Edge Fn
+          will land). Video clipped to the circle, plasma overlay rides
+          on top as a colour wash (mix-blend-mode: screen).
+      (c) 3D ANCHORING — orbs are REAL 3D POINTS at ~1500km altitude on a
+          Fibonacci sphere around Earth. Each Cesium postRender they are
+          projected to canvas coordinates and their CSS transform updated.
+          Camera zoom → orb scale; Earth occlusion → orb fades out behind
+          the planet; Earth's spin → orbs travel with it like satellites.
+          NO viewport-locked orbit, NO labels, NO Atari halo around the
+          screen. The orb IS the agent — content stays upright because
+          the orb itself never rotates, only its world position moves.
+    No agent visual is allowed to be a static gradient again. Place-pin
+    "jingle-bell" lights on the globe are hidden at the global tier — the
+    informant orbs do the job; place agents reveal only when descending.
 
 5e. AGENT PANEL LAW — one skin for every agent's home
     Every panel in AstranoV is rendered by agentCard({emoji,name,role,color,
@@ -409,81 +415,53 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   }
   #boot.gone { opacity: 0; pointer-events: none; }
 
-  /* INFORMANT AGENTS — they ORBIT the Earth, not sit in a navbar list.
-     A circular halo of agent-orbs around the viewport centre where the
-     globe sits. They orbit slowly (same direction as the globe spin) and
-     re-render every camera moveEnd. Only visible at the GLOBAL tier. */
+  /* INFORMANT AGENTS — they are real 3D satellites, anchored to Earth at
+     fixed lat/lon points (Fibonacci sphere) at orbital altitude. They
+     follow the camera: rotate with Earth's spin, scale with zoom, hide
+     behind the planet. Updated each Cesium postRender — no CSS orbit. */
   #tile-strip {
     position: fixed; inset: 0; pointer-events: none; z-index: 44;
-    display: grid; place-items: center;
+    overflow: hidden;
   }
-  #tile-strip:empty { display: none; }
-  #tile-strip.hide-orbit { display: none; }
-  .orbit {
-    position: relative; width: min(76vmin, 620px); height: min(76vmin, 620px);
-    animation: orbit-spin 90s linear infinite;
-  }
-  @keyframes orbit-spin { to { transform: rotate(360deg); } }
+  #tile-strip:empty, #tile-strip.hide-orbit { display: none; }
   .informant {
-    position: absolute; top: 50%; left: 50%; width: 64px; height: 64px;
-    margin: -32px 0 0 -32px;
-    transform: rotate(var(--a, 0deg)) translate(min(36vmin, 300px)) rotate(calc(-1 * var(--a, 0deg)));
-    /* The double-rotate keeps each orb upright while it travels along the ring. */
+    position: absolute; top: 0; left: 0; width: 56px; height: 56px;
     cursor: pointer; user-select: none; pointer-events: auto;
     -webkit-tap-highlight-color: transparent;
-    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    transition: opacity 0.35s ease-out;
+    will-change: transform, opacity;
+    transform-origin: 28px 28px;
+    /* No labels. The orb IS the agent. */
   }
   .informant .orb {
-    width: 54px; height: 54px; border-radius: 50%; position: relative; overflow: hidden;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 22px; line-height: 1;
-    background: radial-gradient(circle at 35% 30%,
-      rgba(255,255,255,0.55) 0%,
-      color-mix(in srgb, var(--ic, #7eb4ff) 70%, transparent) 18%,
-      color-mix(in srgb, var(--ic, #7eb4ff) 30%, transparent) 60%,
-      rgba(4,10,22,0.85) 100%);
-    border: 1.5px solid color-mix(in srgb, var(--ic, #7eb4ff) 70%, transparent);
-    box-shadow: 0 0 18px color-mix(in srgb, var(--ic, #7eb4ff) 55%, transparent),
-                inset 0 0 12px color-mix(in srgb, var(--ic, #7eb4ff) 30%, transparent);
-    transition: transform 0.18s ease-out, box-shadow 0.2s;
+    width: 56px; height: 56px; border-radius: 50%; position: relative; overflow: hidden;
+    border: 1.5px solid color-mix(in srgb, var(--ic, #7eb4ff) 85%, transparent);
+    box-shadow:
+      0 0 18px color-mix(in srgb, var(--ic, #7eb4ff) 55%, transparent),
+      0 0 36px color-mix(in srgb, var(--ic, #7eb4ff) 22%, transparent),
+      inset 0 0 14px rgba(0,0,0,0.55);
+    transition: box-shadow 0.2s;
   }
-  .informant .orb::after {
-    content: ''; position: absolute; inset: -4px; border-radius: 50%;
-    border: 1px solid color-mix(in srgb, var(--ic, #7eb4ff) 35%, transparent);
-    animation: informant-ring 3s ease-in-out infinite; pointer-events: none;
-  }
-  @keyframes informant-ring {
-    0%,100% { transform: scale(1);    opacity: 0.7; }
-    50%     { transform: scale(1.14); opacity: 0.25; }
-  }
-  .informant:hover .orb  { transform: scale(1.08); box-shadow: 0 0 28px color-mix(in srgb, var(--ic, #7eb4ff) 80%, transparent); }
-  .informant:active .orb { transform: scale(0.94); }
   .informant.has-news .orb { animation: informant-pulse 1.8s ease-in-out infinite; }
   @keyframes informant-pulse {
-    0%,100% { box-shadow: 0 0 18px color-mix(in srgb, var(--ic, #7eb4ff) 55%, transparent),
-                          inset 0 0 12px color-mix(in srgb, var(--ic, #7eb4ff) 30%, transparent); }
-    50%     { box-shadow: 0 0 30px color-mix(in srgb, var(--ic, #7eb4ff) 95%, transparent),
-                          inset 0 0 16px color-mix(in srgb, var(--ic, #7eb4ff) 55%, transparent); }
+    0%,100% { box-shadow:
+      0 0 18px color-mix(in srgb, var(--ic, #7eb4ff) 55%, transparent),
+      0 0 36px color-mix(in srgb, var(--ic, #7eb4ff) 22%, transparent),
+      inset 0 0 14px rgba(0,0,0,0.55); }
+    50%     { box-shadow:
+      0 0 30px color-mix(in srgb, var(--ic, #7eb4ff) 95%, transparent),
+      0 0 60px color-mix(in srgb, var(--ic, #7eb4ff) 45%, transparent),
+      inset 0 0 18px rgba(0,0,0,0.7); }
   }
   .informant .count {
-    position: absolute; top: -4px; right: -4px;
+    position: absolute; top: -3px; right: -3px;
     min-width: 16px; height: 16px; border-radius: 8px; padding: 0 4px;
     font-size: 9px; font-weight: 700; line-height: 16px; text-align: center;
     background: var(--ic, #7eb4ff); color: #021018;
     box-shadow: 0 0 6px var(--ic, #7eb4ff);
+    z-index: 3;
   }
   .informant .count:empty { display: none; }
-  .informant .name {
-    font-size: 8px; letter-spacing: 0.18em; text-transform: uppercase;
-    color: color-mix(in srgb, var(--ic, #7eb4ff) 80%, #fff 20%);
-    text-shadow: 0 0 4px rgba(0,0,0,0.85);
-    white-space: nowrap;
-  }
-  @media (max-width: 520px) {
-    .informant .orb { width: 46px; height: 46px; font-size: 18px; }
-    .orbit { width: 84vmin; height: 84vmin; }
-    .informant { transform: rotate(var(--a, 0deg)) translate(38vmin) rotate(calc(-1 * var(--a, 0deg))); }
-  }
 
   /* LIVING ORB — the procedural graphics primitive. A canvas painting a
      flowing plasma generated from the agent's own DNA (color + seed). Sits
@@ -2463,6 +2441,9 @@ function onCameraSettled() {
   // Show delivery pins only at NATIONAL / PERSONAL
   const showDeliveries = newLevel !== 'global';
   deliveryIndex.forEach(e => { e.primitive.show = showDeliveries; });
+  // Place-agent billboards (OSM dots) are noise at the global tier — the
+  // informant orbs do the job. Only reveal them once we descend.
+  if (placeBillboards) placeBillboards.show = showDeliveries;
   // Re-scope the showcase tile strip to the new level.
   renderTileStrip();
   if (viewer) viewer.scene.requestRender();
@@ -2599,15 +2580,79 @@ function _informantVideoURL(inf) {
 }
 // Mint a video-backed orb. Video clipped to the circle, plasma overlay
 // blended on top as a colour wash, emoji glyph anchored on top of both.
-// Wrapped in .orb-stage so .orbit's counter-rotation keeps it level.
 function videoOrbHTML(emoji, color, seed, videoUrl) {
   const s = (seed != null ? seed : _hashSeed(String(emoji || '') + (color || '')));
   const url = videoUrl || _INFORMANT_VIDEO_CATALOG.news;
   return `<div class="orb-stage">
     <video class="orb-video" src="${escapeHtml(url)}" autoplay muted loop playsinline preload="metadata" onloadeddata="this.classList.add('is-ready')" onerror="this.style.display='none'"></video>
-    <canvas class="living-orb" width="160" height="160" data-color="${color || '#7eb4ff'}" data-seed="${s}"></canvas>
+    <canvas class="living-orb" width="256" height="256" data-color="${color || '#7eb4ff'}" data-seed="${s}"></canvas>
     <span class="orb-glyph">${emoji || ''}</span>
   </div>`;
+}
+
+// ── EARTH-ANCHORED ORB POSITIONING ──────────────────────────────────────
+// Orbs are real points in 3D space at ~1500km altitude, evenly distributed
+// on a Fibonacci sphere. Each Cesium postRender we project them to screen
+// and update CSS transforms. Camera zoom → orb scale; Earth occlusion →
+// orb fades out behind the planet; Earth's spin → orbs travel with it.
+const _ORB_ALT = 1_500_000;
+const _orbAnchors = [];
+function _computeOrbAnchorsLatLon(n) {
+  const pts = [];
+  const phi = Math.PI * (Math.sqrt(5) - 1);
+  for (let i = 0; i < n; i++) {
+    const y = 1 - (i / Math.max(1, n - 1)) * 2;
+    const r = Math.sqrt(Math.max(0, 1 - y * y));
+    const t = phi * i;
+    const x = Math.cos(t) * r, z = Math.sin(t) * r;
+    const lat = Math.asin(Math.max(-1, Math.min(1, y))) * 180 / Math.PI;
+    const lon = Math.atan2(z, x) * 180 / Math.PI;
+    pts.push({ lat, lon });
+  }
+  return pts;
+}
+function _refreshOrbAnchors(n) {
+  const pts = _computeOrbAnchorsLatLon(n);
+  _orbAnchors.length = 0;
+  for (const { lat, lon } of pts) {
+    _orbAnchors.push({ lat, lon, cart: Cesium.Cartesian3.fromDegrees(lon, lat, _ORB_ALT) });
+  }
+}
+let _orbProjAttached = false;
+let _orbOccluder = null;
+function _projectOrbs() {
+  const strip = document.getElementById('tile-strip');
+  if (!strip || strip.classList.contains('hide-orbit')) return;
+  if (!viewer || !viewer.scene || !viewer.scene.globe) return;
+  if (!_orbOccluder) {
+    _orbOccluder = new Cesium.EllipsoidalOccluder(viewer.scene.globe.ellipsoid, viewer.scene.camera.positionWC);
+  } else {
+    _orbOccluder.cameraPosition = viewer.scene.camera.positionWC;
+  }
+  const camPos = viewer.scene.camera.positionWC;
+  const kids = strip.children;
+  const n = Math.min(kids.length, _orbAnchors.length);
+  for (let i = 0; i < n; i++) {
+    const el = kids[i];
+    const a = _orbAnchors[i];
+    const win = viewer.scene.cartesianToCanvasCoordinates(a.cart);
+    const vis = win && _orbOccluder.isPointVisible(a.cart);
+    if (vis) {
+      const d = Cesium.Cartesian3.distance(a.cart, camPos);
+      const s = Math.max(0.5, Math.min(1.4, 14_000_000 / d));
+      el.style.transform = `translate3d(${(win.x - 28).toFixed(1)}px, ${(win.y - 28).toFixed(1)}px, 0) scale(${s.toFixed(3)})`;
+      el.style.opacity = '1';
+    } else {
+      el.style.opacity = '0';
+    }
+  }
+}
+function _attachOrbProjLoop() {
+  if (_orbProjAttached || !viewer) return;
+  viewer.scene.postRender.addEventListener(_projectOrbs);
+  _orbProjAttached = true;
+  // Continuous render so postRender fires every frame as the Earth spins.
+  if (viewer.scene.requestRenderMode) viewer.scene.requestRender();
 }
 
 // Re-scan the DOM after any panel/orbit render to wire up new orbs.
@@ -2677,13 +2722,11 @@ function renderInformants() {
   el.classList.remove('hide-orbit');
   const list = _loadInformants();
   const items = [...list, { _new: true }];
-  const N = items.length;
+  _refreshOrbAnchors(items.length);
   const orbs = items.map((inf, i) => {
-    const angle = (i * 360 / N) + 'deg';
     if (inf._new) {
-      return `<div class="informant" style="--ic:#7eebb4;--a:${angle}" onclick="openInformantCreate()" title="Create an agent">
+      return `<div class="informant" style="--ic:#7eebb4;opacity:0" onclick="openInformantCreate()" title="Create an agent">
         <div class="orb" style="font-size:26px">${livingOrbHTML('＋', '#7eebb4', i * 0.137)}</div>
-        <div class="name" style="opacity:0.7">new</div>
       </div>`;
     }
     const found = _informantFindings(inf);
@@ -2691,12 +2734,14 @@ function renderInformants() {
     const color = inf.color || _CAT_COLORS[inf.category] || '#7eb4ff';
     const seed = _hashSeed(inf.id + (inf.name || ''));
     const vurl = _informantVideoURL(inf);
-    return `<div class="informant${has ? ' has-news' : ''}" style="--ic:${color};--a:${angle}" onclick="openInformant(${JSON.stringify(inf.id)})" title="${escapeHtml(inf.name)} agent">
+    return `<div class="informant${has ? ' has-news' : ''}" style="--ic:${color};opacity:0" onclick="openInformant(${JSON.stringify(inf.id)})" title="${escapeHtml(inf.name)} agent">
       <div class="orb">${videoOrbHTML(inf.emoji || '◈', color, seed, vurl)}${has ? `<div class="count">${found.length}</div>` : '<div class="count"></div>'}</div>
-      <div class="name">${escapeHtml(inf.name || '')}</div>
     </div>`;
   }).join('');
-  el.innerHTML = `<div class="orbit">${orbs}</div>`;
+  el.innerHTML = orbs;
+  _attachOrbProjLoop();
+  // First projection happens on next render tick; nudge Cesium to draw.
+  if (viewer) viewer.scene.requestRender();
 }
 function _findInformant(id) { return _loadInformants().find(x => x.id === id); }
 window.openInformant = function(id) {
