@@ -132,20 +132,24 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     city. Globe lighting (day/night terminator) is GLOBAL-only — it is
     switched OFF below global so the street map renders at full brightness.
 
-5b. INFORMANT AGENTS — the showcase as a row of daemones
-    The showcase layer is NOT a row of content tiles; it is a row of small
-    AGENTS — INFORMANTS — each watching one domain (News, Jobs, Offers,
-    Social, Estate, Market). They live in #tile-strip, styled as glowing
-    orbs (same visual language as the four corner agents). Tap an orb to
-    read its findings AND to tell it what to research (the topic persists
-    per-device in localStorage). Findings auto-scope by altitude:
-      GLOBAL    → planetary signals (also: the planet spins under them).
-      NATIONAL  → signals within ~country radius of the camera.
-      PERSONAL  → signals within ~50 km of the camera.
-    Re-render on every camera moveEnd (debounced 250 ms) and on fresh
-    signal arrivals. The orb pulses when it has new findings; a small
-    count badge shows how many. We have transcended the tile/feed pattern
-    into agentic informants — no spam, only delegated intelligence.
+5b. INFORMANT AGENTS — they ORBIT the Earth, user-owned
+    The showcase layer is a HALO of agent-orbs orbiting Earth-in-space
+    (#tile-strip → .orbit), each watching one domain. Visible ONLY at the
+    global tier — descend and the world's local agents take over (place
+    orbs on the map). NEVER a row at the bottom; agents inhabit the cosmos.
+    Boot must START on the global view; the camera NEVER auto-flies to
+    the user's city. Pre-warming by IP is allowed; moving the camera is not.
+
+5d. AGENT SOVEREIGNTY — the user composes the UI
+    Every informant can be CREATED, EDITED, or DELETED by the user. A "＋"
+    orb in the halo summons a new agent (name, emoji, domain, topic).
+    Tapping any agent opens its panel with editable fields + a delete
+    affordance. The 6 seeds appear only when the list is empty. The list
+    persists in localStorage (astranov_informants_v2). Consequence: the UI
+    is no longer dictated by the designer — the UI is whatever roster of
+    daemones the user has assembled. That is how control returns to the
+    user: not through settings panels, but by ownership of the agents
+    themselves.
 
 5c. AGENTS EVERYWHERE — even on the map
     Every place on the map is itself an agent: vendor billboards render as
@@ -378,60 +382,64 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   }
   #boot.gone { opacity: 0; pointer-events: none; }
 
-  /* Informant orbs — agentic showcase. Small living orbs that each watch a
-     domain (News, Offers, Jobs, …) and report findings. Tap to read + edit
-     what they research. Live under the Discover agent. */
+  /* INFORMANT AGENTS — they ORBIT the Earth, not sit in a navbar list.
+     A circular halo of agent-orbs around the viewport centre where the
+     globe sits. They orbit slowly (same direction as the globe spin) and
+     re-render every camera moveEnd. Only visible at the GLOBAL tier. */
   #tile-strip {
-    position: fixed; bottom: 22px; left: 110px; right: 110px; height: 86px;
-    z-index: 44; display: flex; gap: 12px; align-items: center;
-    overflow-x: auto; padding: 4px 6px;
-    -webkit-overflow-scrolling: touch; scrollbar-width: none;
-    mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
-    -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+    position: fixed; inset: 0; pointer-events: none; z-index: 44;
+    display: grid; place-items: center;
   }
-  #tile-strip::-webkit-scrollbar { display: none; }
   #tile-strip:empty { display: none; }
+  #tile-strip.hide-orbit { display: none; }
+  .orbit {
+    position: relative; width: min(76vmin, 620px); height: min(76vmin, 620px);
+    animation: orbit-spin 90s linear infinite;
+  }
+  @keyframes orbit-spin { to { transform: rotate(360deg); } }
   .informant {
-    flex: 0 0 64px; height: 78px; display: flex; flex-direction: column;
-    align-items: center; gap: 4px; cursor: pointer; user-select: none;
+    position: absolute; top: 50%; left: 50%; width: 64px; height: 64px;
+    margin: -32px 0 0 -32px;
+    transform: rotate(var(--a, 0deg)) translate(min(36vmin, 300px)) rotate(calc(-1 * var(--a, 0deg)));
+    /* The double-rotate keeps each orb upright while it travels along the ring. */
+    cursor: pointer; user-select: none; pointer-events: auto;
     -webkit-tap-highlight-color: transparent;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
   }
   .informant .orb {
-    width: 50px; height: 50px; border-radius: 50%; position: relative;
+    width: 54px; height: 54px; border-radius: 50%; position: relative;
     display: flex; align-items: center; justify-content: center;
-    font-size: 20px; line-height: 1;
+    font-size: 22px; line-height: 1;
     background: radial-gradient(circle at 35% 30%,
-      color-mix(in srgb, var(--ic, #7eb4ff) 75%, #fff 0%) 0%,
-      color-mix(in srgb, var(--ic, #7eb4ff) 35%, transparent) 55%,
-      rgba(0,0,0,0.25) 100%);
+      rgba(255,255,255,0.55) 0%,
+      color-mix(in srgb, var(--ic, #7eb4ff) 70%, transparent) 18%,
+      color-mix(in srgb, var(--ic, #7eb4ff) 30%, transparent) 60%,
+      rgba(4,10,22,0.85) 100%);
     border: 1.5px solid color-mix(in srgb, var(--ic, #7eb4ff) 70%, transparent);
-    box-shadow: 0 0 16px color-mix(in srgb, var(--ic, #7eb4ff) 50%, transparent),
-                inset 0 0 10px color-mix(in srgb, var(--ic, #7eb4ff) 30%, transparent);
+    box-shadow: 0 0 18px color-mix(in srgb, var(--ic, #7eb4ff) 55%, transparent),
+                inset 0 0 12px color-mix(in srgb, var(--ic, #7eb4ff) 30%, transparent);
     transition: transform 0.18s ease-out, box-shadow 0.2s;
   }
   .informant .orb::after {
-    content: ''; position: absolute; inset: -3px; border-radius: 50%;
+    content: ''; position: absolute; inset: -4px; border-radius: 50%;
     border: 1px solid color-mix(in srgb, var(--ic, #7eb4ff) 35%, transparent);
-    animation: informant-ring 3s ease-in-out infinite;
-    pointer-events: none;
+    animation: informant-ring 3s ease-in-out infinite; pointer-events: none;
   }
   @keyframes informant-ring {
     0%,100% { transform: scale(1);    opacity: 0.7; }
-    50%     { transform: scale(1.12); opacity: 0.25; }
+    50%     { transform: scale(1.14); opacity: 0.25; }
   }
-  .informant:hover .orb  { transform: translateY(-2px); box-shadow: 0 0 24px color-mix(in srgb, var(--ic, #7eb4ff) 70%, transparent); }
+  .informant:hover .orb  { transform: scale(1.08); box-shadow: 0 0 28px color-mix(in srgb, var(--ic, #7eb4ff) 80%, transparent); }
   .informant:active .orb { transform: scale(0.94); }
-  .informant.has-news .orb {
-    animation: informant-pulse 1.8s ease-in-out infinite;
-  }
+  .informant.has-news .orb { animation: informant-pulse 1.8s ease-in-out infinite; }
   @keyframes informant-pulse {
-    0%,100% { box-shadow: 0 0 16px color-mix(in srgb, var(--ic, #7eb4ff) 50%, transparent),
-                          inset 0 0 10px color-mix(in srgb, var(--ic, #7eb4ff) 30%, transparent); }
-    50%     { box-shadow: 0 0 26px color-mix(in srgb, var(--ic, #7eb4ff) 90%, transparent),
-                          inset 0 0 14px color-mix(in srgb, var(--ic, #7eb4ff) 50%, transparent); }
+    0%,100% { box-shadow: 0 0 18px color-mix(in srgb, var(--ic, #7eb4ff) 55%, transparent),
+                          inset 0 0 12px color-mix(in srgb, var(--ic, #7eb4ff) 30%, transparent); }
+    50%     { box-shadow: 0 0 30px color-mix(in srgb, var(--ic, #7eb4ff) 95%, transparent),
+                          inset 0 0 16px color-mix(in srgb, var(--ic, #7eb4ff) 55%, transparent); }
   }
   .informant .count {
-    position: absolute; top: -3px; right: -3px;
+    position: absolute; top: -4px; right: -4px;
     min-width: 16px; height: 16px; border-radius: 8px; padding: 0 4px;
     font-size: 9px; font-weight: 700; line-height: 16px; text-align: center;
     background: var(--ic, #7eb4ff); color: #021018;
@@ -445,8 +453,9 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     white-space: nowrap;
   }
   @media (max-width: 520px) {
-    #tile-strip { left: 96px; right: 96px; height: 78px; gap: 10px; }
-    .informant .orb { width: 44px; height: 44px; font-size: 18px; }
+    .informant .orb { width: 46px; height: 46px; font-size: 18px; }
+    .orbit { width: 84vmin; height: 84vmin; }
+    .informant { transform: rotate(var(--a, 0deg)) translate(38vmin) rotate(calc(-1 * var(--a, 0deg))); }
   }
 
   /* Brightness slider — left edge, vertical, subtle. */
@@ -2391,27 +2400,28 @@ function _signalsForLevel() {
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     .slice(0, 14);
 }
-// ── INFORMANT AGENTS ────────────────────────────────────────────────────
-// Each informant is a small daemon watching one domain (News/Jobs/Offers/…)
-// and reporting findings scoped to the current camera level. Tap to read its
-// findings and tell it what to research; the topic is saved on this device.
-const DEFAULT_INFORMANTS = [
-  { id: 'news',   name: 'News',   emoji: '📰', color: '#00d4ff', category: 'news' },
-  { id: 'jobs',   name: 'Jobs',   emoji: '💼', color: '#7cff7c', category: 'jobs' },
-  { id: 'offers', name: 'Offers', emoji: '🏷',  color: '#ffaa00', category: 'commerce' },
-  { id: 'social', name: 'Social', emoji: '💬', color: '#ff7edc', category: 'social' },
-  { id: 'estate', name: 'Estate', emoji: '🏠', color: '#b48cff', category: 'real_estate' },
-  { id: 'mkt',    name: 'Market', emoji: '📋', color: '#bfa073', category: 'classifieds' },
+// ── INFORMANT AGENTS — user-owned daemones ─────────────────────────────
+// The user composes the UI: each agent can be created / edited / deleted.
+// The list lives in localStorage so it persists across sessions on this
+// device. The 6 seeds appear only if the list is empty.
+const _INFORMANT_SEED = [
+  { id: 'news',   name: 'News',   emoji: '📰', color: '#00d4ff', category: 'news',        topic: '' },
+  { id: 'jobs',   name: 'Jobs',   emoji: '💼', color: '#7cff7c', category: 'jobs',        topic: '' },
+  { id: 'offers', name: 'Offers', emoji: '🏷',  color: '#ffaa00', category: 'commerce',    topic: '' },
+  { id: 'social', name: 'Social', emoji: '💬', color: '#ff7edc', category: 'social',      topic: '' },
+  { id: 'estate', name: 'Estate', emoji: '🏠', color: '#b48cff', category: 'real_estate', topic: '' },
+  { id: 'mkt',    name: 'Market', emoji: '📋', color: '#bfa073', category: 'classifieds', topic: '' },
 ];
-function _informantTopics() { try { return JSON.parse(localStorage.getItem('astranov_informants') || '{}'); } catch (_) { return {}; } }
-function _saveInformantTopic(id, topic) {
-  const t = _informantTopics(); t[id] = (topic || '').slice(0, 200); localStorage.setItem('astranov_informants', JSON.stringify(t));
+const _CAT_COLORS = { news:'#00d4ff', jobs:'#7cff7c', commerce:'#ffaa00', social:'#ff7edc', dating:'#ff3a6e', real_estate:'#b48cff', classifieds:'#bfa073' };
+function _loadInformants() {
+  try { const s = JSON.parse(localStorage.getItem('astranov_informants_v2') || 'null'); if (Array.isArray(s) && s.length) return s; } catch (_) {}
+  return _INFORMANT_SEED.map(x => ({ ...x }));
 }
+function _saveInformants(list) { localStorage.setItem('astranov_informants_v2', JSON.stringify(list)); }
 function _informantFindings(inf) {
-  const topics = _informantTopics();
-  const topic = (topics[inf.id] || '').toLowerCase().trim();
-  const inScope = _signalsForLevel();           // already scoped to current tier
-  const byCat = inScope.filter(s => s.category === inf.category);
+  const topic = (inf.topic || '').toLowerCase().trim();
+  const inScope = _signalsForLevel();
+  const byCat = inf.category ? inScope.filter(s => s.category === inf.category) : inScope;
   const matched = topic
     ? byCat.filter(s => (s.title + ' ' + (s.body || '')).toLowerCase().includes(topic))
     : byCat;
@@ -2419,48 +2429,120 @@ function _informantFindings(inf) {
 }
 function renderInformants() {
   const el = $('tile-strip'); if (!el) return;
-  el.innerHTML = DEFAULT_INFORMANTS.map(inf => {
+  if (currentLevel !== 'global') { el.classList.add('hide-orbit'); el.innerHTML = ''; return; }
+  el.classList.remove('hide-orbit');
+  const list = _loadInformants();
+  const items = [...list, { _new: true }];
+  const N = items.length;
+  const orbs = items.map((inf, i) => {
+    const angle = (i * 360 / N) + 'deg';
+    if (inf._new) {
+      return `<div class="informant" style="--ic:#7eebb4;--a:${angle}" onclick="openInformantCreate()" title="Create an agent">
+        <div class="orb" style="font-size:26px">＋</div>
+        <div class="name" style="opacity:0.7">new</div>
+      </div>`;
+    }
     const found = _informantFindings(inf);
     const has = found.length > 0;
-    return `<div class="informant${has ? ' has-news' : ''}" style="--ic:${inf.color}" onclick="openInformant(${JSON.stringify(inf.id)})" title="${escapeHtml(inf.name)} agent">
-      <div class="orb">${inf.emoji}${has ? `<div class="count">${found.length}</div>` : '<div class="count"></div>'}</div>
-      <div class="name">${escapeHtml(inf.name)}</div>
+    const color = inf.color || _CAT_COLORS[inf.category] || '#7eb4ff';
+    return `<div class="informant${has ? ' has-news' : ''}" style="--ic:${color};--a:${angle}" onclick="openInformant(${JSON.stringify(inf.id)})" title="${escapeHtml(inf.name)} agent">
+      <div class="orb">${inf.emoji || '◈'}${has ? `<div class="count">${found.length}</div>` : '<div class="count"></div>'}</div>
+      <div class="name">${escapeHtml(inf.name || '')}</div>
     </div>`;
   }).join('');
+  el.innerHTML = `<div class="orbit">${orbs}</div>`;
 }
+function _findInformant(id) { return _loadInformants().find(x => x.id === id); }
 window.openInformant = function(id) {
-  const inf = DEFAULT_INFORMANTS.find(x => x.id === id); if (!inf) return;
-  const topic = _informantTopics()[id] || '';
+  const inf = _findInformant(id); if (!inf) return;
   const found = _informantFindings(inf);
+  const color = inf.color || _CAT_COLORS[inf.category] || '#7eb4ff';
   const items = found.map(s => `
     <div class="delivery-row" onclick="flyToSignal(${JSON.stringify(s.id)})">
       <div class="head"><span class="desc">${escapeHtml(s.title)}</span></div>
       <div class="meta">${escapeHtml((s.city || s.country_code || '').toString())} · ${formatRelative(s.created_at)}</div>
-    </div>`).join('') || '<div style="color:#6a8aaf;font-size:12px;padding:8px 0">Nothing yet at this view — try descending or widening the topic.</div>';
+    </div>`).join('') || '<div style="color:#6a8aaf;font-size:12px;padding:8px 0">Nothing yet — sharpen the topic, or widen the category.</div>';
+  const cats = ['news','jobs','commerce','social','dating','real_estate','classifieds'];
   openPanel(`
     <div class="place-hero" style="margin-bottom:10px">
-      <div class="place-icon" style="color:${inf.color};font-size:24px">${inf.emoji}</div>
+      <div class="place-icon" style="color:${color};font-size:24px">${inf.emoji || '◈'}</div>
       <div class="place-head">
-        <div class="place-name">${escapeHtml(inf.name)} agent</div>
-        <div class="place-badge" style="color:${inf.color}">INFORMANT</div>
-        <div style="font-size:10px;color:#6a8aaf;letter-spacing:0.15em;text-transform:uppercase;margin-top:4px">Watching for you</div>
+        <div class="place-name">${escapeHtml(inf.name || 'Agent')}</div>
+        <div class="place-badge" style="color:${color}">INFORMANT · yours to command</div>
       </div>
     </div>
-    <div class="me-sec">Tell ${escapeHtml(inf.name)} what to research</div>
-    <input class="me-inp" id="inf-topic" type="text" value="${escapeHtml(topic)}" placeholder="e.g. tech in Athens, coffee deals, remote jobs…">
-    <div class="gadget-engage" onclick="_saveInformant(${JSON.stringify(id)},this)" style="margin-top:8px;border-color:rgba(126,235,180,0.4);color:#7eebb4">
+    <div class="me-sec">Name</div>
+    <input class="me-inp" id="inf-name"  type="text" value="${escapeHtml(inf.name || '')}" maxlength="24">
+    <div class="me-sec">Emoji</div>
+    <input class="me-inp" id="inf-emoji" type="text" value="${escapeHtml(inf.emoji || '')}" maxlength="4" style="width:80px;text-align:center;font-size:18px">
+    <div class="me-sec">Domain</div>
+    <div class="me-chips" id="inf-cat">${cats.map(c => `<div class="me-chip${c===inf.category?' on':''}" data-c="${c}" onclick="this.parentNode.querySelectorAll('.me-chip').forEach(x=>x.classList.remove('on'));this.classList.add('on')">${c.replace('_',' ')}</div>`).join('')}</div>
+    <div class="me-sec">What should it research?</div>
+    <input class="me-inp" id="inf-topic" type="text" value="${escapeHtml(inf.topic || '')}" placeholder="e.g. tech in Athens, coffee deals, remote jobs…">
+    <div class="gadget-engage" onclick="_saveInformant(${JSON.stringify(id)})" style="margin-top:10px;border-color:rgba(126,235,180,0.45);color:#7eebb4">
       <span class="verb-glyph" style="background:#7eebb4"></span><span>Sharpen this agent</span>
+    </div>
+    <div class="gadget-engage" onclick="armEngage(this,'Delete agent',()=>_deleteInformant(${JSON.stringify(id)}))" style="margin-top:8px;border-color:rgba(255,100,100,0.3);color:#ff9e9e">
+      <span class="verb-glyph" style="background:#ff9e9e"></span><span>Delete agent</span>
     </div>
     <div class="me-sec" style="margin-top:14px">Latest findings (${found.length})</div>
     ${items}
   `);
 };
-window._saveInformant = function(id, el) {
-  const t = ($('inf-topic')?.value || '').trim();
-  _saveInformantTopic(id, t);
+window.openInformantCreate = function() {
+  const cats = ['news','jobs','commerce','social','dating','real_estate','classifieds'];
+  openPanel(`
+    <h2>New agent</h2>
+    <div class="subtitle">Compose a daemon to watch a domain for you</div>
+    <div class="me-sec">Name</div>
+    <input class="me-inp" id="inf-name"  type="text" placeholder="Tech, Sports, Cafés in my city…" maxlength="24">
+    <div class="me-sec">Emoji</div>
+    <input class="me-inp" id="inf-emoji" type="text" placeholder="◈" maxlength="4" style="width:80px;text-align:center;font-size:18px">
+    <div class="me-sec">Domain</div>
+    <div class="me-chips" id="inf-cat">${cats.map((c,i) => `<div class="me-chip${i===0?' on':''}" data-c="${c}" onclick="this.parentNode.querySelectorAll('.me-chip').forEach(x=>x.classList.remove('on'));this.classList.add('on')">${c.replace('_',' ')}</div>`).join('')}</div>
+    <div class="me-sec">What should it research?</div>
+    <input class="me-inp" id="inf-topic" type="text" placeholder="e.g. AI news in Greece…">
+    <div class="gadget-engage" onclick="_createInformant()" style="margin-top:12px;border-color:rgba(126,235,180,0.5);color:#7eebb4">
+      <span class="verb-glyph" style="background:#7eebb4"></span><span>Summon this agent</span>
+    </div>
+  `);
+};
+function _readInformantForm() {
+  const cat = document.querySelector('#inf-cat .me-chip.on')?.dataset.c || 'news';
+  return {
+    name:  ($('inf-name')?.value || '').trim().slice(0, 24),
+    emoji: ($('inf-emoji')?.value || '').trim().slice(0, 4),
+    category: cat,
+    color: _CAT_COLORS[cat] || '#7eb4ff',
+    topic: ($('inf-topic')?.value || '').trim().slice(0, 200),
+  };
+}
+window._saveInformant = function(id) {
+  const list = _loadInformants();
+  const i = list.findIndex(x => x.id === id); if (i < 0) return;
+  const f = _readInformantForm();
+  list[i] = { ...list[i], ...f, name: f.name || list[i].name, emoji: f.emoji || list[i].emoji };
+  _saveInformants(list);
   toast('Agent sharpened', 'ok');
   renderInformants();
-  openInformant(id);   // re-open with new findings
+  closePanel();
+};
+window._createInformant = function() {
+  const f = _readInformantForm();
+  if (!f.name) return toast('Name the agent first', 'err');
+  const list = _loadInformants();
+  list.push({ id: 'inf-' + Date.now().toString(36), ...f, emoji: f.emoji || '◈' });
+  _saveInformants(list);
+  toast('Agent summoned', 'ok');
+  renderInformants();
+  closePanel();
+};
+window._deleteInformant = function(id) {
+  const list = _loadInformants().filter(x => x.id !== id);
+  _saveInformants(list);
+  toast('Agent dismissed', '');
+  renderInformants();
+  closePanel();
 };
 let _tileTimer = null;
 function _scheduleTileRefresh() { clearTimeout(_tileTimer); _tileTimer = setTimeout(renderInformants, 250); }
@@ -3793,20 +3875,18 @@ async function fetchOSMNearby(lat, lng, radiusM) {
 }
 
 async function _autoLoadPlaces() {
+  // Pre-warm nearby places by IP, but NEVER move the camera. The app must
+  // always start on the global view (Zero-UI §1, Space View §5b). The
+  // camera descends only on an explicit user action: locate / tap globe /
+  // tap a city beacon.
   if (window._userLat) { fetchOSMNearby(window._userLat, window._userLng, 6000); return; }
   try {
     const r = await fetch('https://ipapi.co/json/');
     const d = await r.json();
     if (d && d.latitude) {
       window._userLat = d.latitude; window._userLng = d.longitude;
-      fetchOSMNearby(d.latitude, d.longitude, 8000);
-      setUserBeacon(d.latitude, d.longitude);
-      if (viewer) {
-        viewer.camera.flyTo({
-          destination: Cesium.Cartesian3.fromDegrees(d.longitude, d.latitude, 40000),
-          duration: 3,
-        });
-      }
+      fetchOSMNearby(d.latitude, d.longitude, 8000);   // warm vendors silently
+      // no setUserBeacon, no flyTo — the user must opt in to descend.
     }
   } catch (_) {}
 }
