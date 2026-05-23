@@ -173,6 +173,40 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     Boot must START on the global view; the camera NEVER auto-flies to
     the user's city. Pre-warming by IP is allowed; moving the camera is not.
 
+5g. ORBITAL TIER SYSTEM — altitude is importance (binding, §5 lineage)
+    The four system agents are NOT corner chrome. At the global tier
+    they are real orbital satellites at apex altitudes; the legacy
+    corner gadgets vanish (body.at-global hides them). Altitude maps
+    directly to importance — the user looks UP to find what matters:
+
+      ME        30,000 km · anchored to user's actual lat/lng with a
+                            glowing beam from the ground to the orb.
+                            "This is you, here." Apex.
+      PILOT     22,000 km · spinning Earth glyph. Single tap from ANY
+                            zoom = warp to global home (closes panels,
+                            re-engages auto-spin). Always reachable —
+                            never occluded by the planet.
+      ASTRANOV  16,000 km · the collective AI. Tap = open chat & mic.
+      DISCOVER  10,000 km · ambient feed preview.
+      Informants + Krypteia  1,500 km · the working ring (§5b).
+
+    Apex orbs are anchored to the camera's current longitude (with a
+    latitude offset per tier), so they always sit in front of the user
+    on the visible side of Earth. They are non-occludable except Me,
+    which honestly fades behind Earth when the user's body is on the
+    other side of the camera — the beam still tells you where you are.
+
+    At national/personal tiers the corner gadgets reappear, so the four
+    system agents remain reachable everywhere.
+
+5h. VOLUME CHAIN — beam-connected orbs as a slider (binding)
+    A vertical chain of small orbs on the right edge of the global view
+    is the voice volume of Astranov. Each orb is a step; the bright
+    handle orb is the current level. Tap any orb to set; drag the
+    handle for continuous control. Beams between orbs glow when active.
+    Persisted in localStorage as astranov_voice_volume. Applies to all
+    SpeechSynthesisUtterance.volume calls.
+
 5f. LIVING-ORB GRAPHICS ENGINE — procedural visuals + real video + real 3D
     Three layers, every one a real graphics primitive:
       (a) PLASMA — every agent's orb is a 256² procedural canvas generated
@@ -552,6 +586,88 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     z-index: 3;
   }
   .informant .count:empty { display: none; }
+
+  /* APEX TIER — the four system orbs (Me, Pilot, Astranov, Discover)
+     are orbital agents at the highest altitudes at the GLOBAL tier.
+     They replace the legacy corner gadgets, which are hidden whenever
+     the body has the .at-global class.
+     Altitude = importance:
+       Me        30,000 km · anchored to user's actual lat/lng + beam
+       Pilot     22,000 km · spinning Earth glyph, tap = warp to home
+       Astranov  16,000 km · the collective AI
+       Discover  10,000 km · ambient feed preview */
+  body.at-global #g-discover,
+  body.at-global #g-me,
+  body.at-global #locate-orb,
+  body.at-global #aicycle-float { display: none !important; }
+  .informant.system .orb {
+    border-width: 2px;
+    box-shadow:
+      0 0 calc(28px + var(--orb-rim, 0) * 40px) color-mix(in srgb, var(--ic, #7eb4ff) 75%, transparent),
+      0 0 calc(60px + var(--orb-rim, 0) * 60px) color-mix(in srgb, var(--ic, #7eb4ff) 32%, transparent),
+      inset 0 0 18px rgba(0,0,0,0.65);
+  }
+  .informant.system .orb-glyph { font-size: 36px; }
+  /* Pilot spinning Earth — the warp-home gesture. */
+  .informant.sys-pilot .orb-glyph {
+    font-size: 44px;
+    animation: pilot-spin 14s linear infinite;
+  }
+  @keyframes pilot-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  /* Me orb identity glow — always the warmest, always the user's anchor. */
+  .informant.sys-me .orb { border-color: rgba(126,235,180,0.95); }
+
+  /* VOLUME CHAIN — a vertical column of beam-connected orbs on the right
+     edge of the global view. The handle orb is itself an orb you drag,
+     and the beams between orbs are real glowing lines. */
+  #volume-chain {
+    position: fixed; top: 50%; right: 26px;
+    transform: translateY(-50%);
+    z-index: 46; pointer-events: none;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 18px;
+  }
+  body:not(.at-global) #volume-chain { display: none; }
+  .vol-orb {
+    width: 36px; height: 36px; border-radius: 50%;
+    position: relative; overflow: hidden;
+    border: 1.5px solid rgba(120,200,255,0.45);
+    background: radial-gradient(circle at 35% 30%,
+      rgba(180,220,255,0.55) 0%,
+      rgba(60,120,200,0.35) 30%,
+      rgba(8,18,32,0.95) 90%);
+    box-shadow: 0 0 12px rgba(120,200,255,0.4), inset 0 0 10px rgba(0,0,0,0.7);
+    cursor: pointer; pointer-events: auto;
+    transition: box-shadow 0.18s, transform 0.18s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .vol-orb:hover { transform: scale(1.1); }
+  .vol-orb.handle {
+    width: 48px; height: 48px;
+    border: 2px solid rgba(126,235,180,0.95);
+    background: radial-gradient(circle at 35% 30%,
+      rgba(160,255,210,0.7) 0%,
+      rgba(60,180,140,0.5) 25%,
+      rgba(4,20,15,0.95) 100%);
+    box-shadow: 0 0 22px rgba(126,235,180,0.7), 0 0 50px rgba(126,235,180,0.32), inset 0 0 12px rgba(0,0,0,0.7);
+    cursor: grab;
+  }
+  .vol-orb.handle:active { cursor: grabbing; }
+  .vol-orb.active { box-shadow: 0 0 18px rgba(126,235,180,0.65), inset 0 0 10px rgba(0,0,0,0.6); border-color: rgba(126,235,180,0.75); }
+  .vol-orb .vol-glyph {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: #cfe9ff; text-shadow: 0 0 4px rgba(0,0,0,0.9);
+  }
+  .vol-beam {
+    width: 2px; height: 14px;
+    background: linear-gradient(to bottom, rgba(126,235,180,0.7), rgba(126,235,180,0.18));
+    border-radius: 2px;
+    box-shadow: 0 0 6px rgba(126,235,180,0.45);
+  }
+  .vol-cap {
+    font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: #a8c8ee; opacity: 0.7; margin-bottom: 4px;
+  }
 
   /* KRYPTEIA ORB — owner-only sovereign orb. Black core, blood-red rim,
      no video layer, ritual pulse. Sits in the orbital ring only when the
@@ -2062,6 +2178,11 @@ This block strives to get shorter, more inclusive, more precise with every edit.
      auto-scoping to GLOBAL / NATIONAL / LOCAL as the camera descends. -->
 <div id="tile-strip" aria-label="Showcase feeds"></div>
 
+<!-- Volume chain — beam-connected orbs on the right edge. Each orb is a
+     volume step; the bright handle orb is what you drag to set the
+     loudness of Astranov's voice. Visible only at the global tier. -->
+<div id="volume-chain" aria-label="Voice volume"></div>
+
 <!-- Brightness slider — left edge. Controls map luminosity live. -->
 <div id="bright-wrap" title="Map brightness">
   <span class="bright-ico">☀</span>
@@ -2571,6 +2692,9 @@ function updateImagerySourceBadge() {
    ============================================================== */
 const LEVEL_THRESHOLDS = { global: 5_000_000, national: 500_000 };
 let currentLevel = 'global';
+// Initialise the body class — at boot we're global, so corner gadgets
+// are hidden and the apex-tier orbital agents take over.
+try { document.body.classList.add('at-global'); } catch (_) {}
 let levelTimer;
 
 function deriveLevel(heightMeters) {
@@ -2604,6 +2728,11 @@ function onCameraSettled() {
   const showGlobeTextures = (newLevel === 'global');
   if (dayLayer)   dayLayer.show   = showGlobeTextures;
   if (nightLayer) nightLayer.show = showGlobeTextures;
+
+  // At global, the four system agents are orbital (apex tier) and the
+  // legacy corner gadgets vanish. At national/personal, the corners
+  // reappear so the agents are always reachable.
+  document.body.classList.toggle('at-global', newLevel === 'global');
 
   // City glowing dots: visible at NATIONAL only — the globe stays clean
   // at GLOBAL (orbs do the job), and the streets do at PERSONAL.
@@ -2782,7 +2911,54 @@ function videoOrbHTML(emoji, color, seed, videoUrl, imageUrl) {
 // DOF blur), compute sun dot (warm tint on the night side), occlude the
 // far hemisphere. The orb itself never rotates — content stays upright.
 const _ORB_ALT = 1_500_000;
-const _orbState = []; // [{ infId, cart, beam, isEvent, color, lat, lon }, ...]
+const _orbState = []; // [{ kind, infId|sysId, cart, beam, isEvent, color, lat, lon, orbDef? }, ...]
+
+// APEX TIER — the four system agents. Altitude = importance. Latitude
+// offsets give vertical separation in screen space at the global tier;
+// they're all anchored to the camera's current longitude so the user
+// always sees them clustered on the near side of Earth.
+// Me also carries an event-bound beam down to the user's actual lat/lng.
+const _SYSTEM_ORB_TIERS = [
+  { id: 'sys-me',       name: 'Me',        emoji: '◉',  color: '#7eebb4', alt: 30_000_000, latOff:  28, boost: 1.55, classes: 'system sys-me',       onclick: 'expandMeOrb()' },
+  { id: 'sys-pilot',    name: 'Pilot',     emoji: '🌍', color: '#6dd0ff', alt: 22_000_000, latOff:  10, boost: 1.40, classes: 'system sys-pilot',    onclick: 'pilotHome()' },
+  { id: 'sys-astranov', name: 'Astranov',  emoji: '◈',  color: '#a8c8ee', alt: 16_000_000, latOff: -10, boost: 1.25, classes: 'system sys-astranov', onclick: 'openAstranovChat()' },
+  { id: 'sys-discover', name: 'Discover',  emoji: '⬢',  color: '#ffb464', alt: 10_000_000, latOff: -26, boost: 1.10, classes: 'system sys-discover', onclick: 'gadgetRelease(\'discover\', null)' },
+];
+
+// User location tracked for the Me beam. Updated by the existing
+// locate/IP-warm pipelines via setUserLocation().
+let _userLat = null, _userLng = null;
+let _meBeamEntity = null;
+window.setUserLocation = function(lat, lng) {
+  if (typeof lat !== 'number' || typeof lng !== 'number') return;
+  _userLat = lat; _userLng = lng;
+  _refreshMeBeam();
+};
+function _refreshMeBeam() {
+  if (!viewer) return;
+  // Tear down any old beam.
+  if (_meBeamEntity) { try { viewer.entities.remove(_meBeamEntity); } catch (_) {} _meBeamEntity = null; }
+  if (_userLat == null || _userLng == null) return;
+  if (currentLevel !== 'global') return;
+  try {
+    const tier = _SYSTEM_ORB_TIERS.find(t => t.id === 'sys-me');
+    _meBeamEntity = viewer.entities.add({
+      polyline: {
+        positions: [
+          Cesium.Cartesian3.fromDegrees(_userLng, _userLat, 1000),
+          Cesium.Cartesian3.fromDegrees(_userLng, _userLat, tier.alt),
+        ],
+        width: 4,
+        arcType: Cesium.ArcType.NONE,
+        material: new Cesium.PolylineGlowMaterialProperty({
+          color: Cesium.Color.fromCssColorString('#7eebb4').withAlpha(0.95),
+          glowPower: 0.4,
+          taperPower: 0.4,
+        }),
+      },
+    });
+  } catch (_) {}
+}
 
 function _computeOrbAnchorsLatLon(n) {
   const pts = [];
@@ -2844,8 +3020,17 @@ function _refreshOrbAnchors(items) {
         });
       } catch (_) {}
     }
-    _orbState.push({ infId, cart, beam, isEvent, color, lat, lon, eventTitle });
+    _orbState.push({ kind: 'informant', infId, cart, beam, isEvent, color, lat, lon, eventTitle });
   }
+  // Append the apex tier. Their cart is recomputed each frame from the
+  // camera's longitude — they're camera-anchored so they never go behind
+  // Earth and the user always sees them where they expect.
+  for (const tier of _SYSTEM_ORB_TIERS) {
+    _orbState.push({ kind: 'system', sysId: tier.id, cart: null, beam: null, isEvent: false, color: tier.color, lat: 0, lon: 0, orbDef: tier });
+  }
+  // The Me beam is its own entity — refreshed when the level becomes
+  // global and whenever setUserLocation is called.
+  _refreshMeBeam();
 }
 
 let _orbProjAttached = false;
@@ -2867,30 +3052,55 @@ function _projectOrbs() {
   let sunDir = null;
   try { sunDir = viewer.scene.light && viewer.scene.light.directionWC; } catch (_) {}
   const camUnit = Cesium.Cartesian3.normalize(camPos, _v3a);
+  // Camera centre in degrees — used to anchor the apex (system) orbs
+  // so they always sit in front of the user.
+  let camLat = 0, camLng = 0;
+  try {
+    const c = viewer.camera.positionCartographic;
+    camLat = Cesium.Math.toDegrees(c.latitude);
+    camLng = Cesium.Math.toDegrees(c.longitude);
+  } catch (_) {}
   const kids = strip.children;
   const n = Math.min(kids.length, _orbState.length);
   for (let i = 0; i < n; i++) {
     const el = kids[i];
     const s = _orbState[i];
+    // Apex/system orbs: refresh cart each frame against camera centre.
+    if (s.kind === 'system' && s.orbDef) {
+      // Me orb is special — when we know where the user actually is,
+      // it anchors there (so the beam connects to the user's body).
+      // Otherwise it floats over the camera centre like the others.
+      const tier = s.orbDef;
+      let lat, lng;
+      if (tier.id === 'sys-me' && _userLat != null && _userLng != null) {
+        lat = _userLat; lng = _userLng;
+      } else {
+        lat = Math.max(-80, Math.min(80, camLat + tier.latOff));
+        lng = camLng;
+      }
+      try { s.cart = Cesium.Cartesian3.fromDegrees(lng, lat, tier.alt); } catch (_) {}
+    }
+    if (!s.cart) { el.style.opacity = '0'; continue; }
     const win = viewer.scene.cartesianToCanvasCoordinates(s.cart);
-    const vis = win && _orbOccluder.isPointVisible(s.cart);
+    // System orbs (except Me, which honestly tells you where you are)
+    // are NEVER occluded — they're the OS chrome, must stay reachable.
+    const isApexAlways = (s.kind === 'system' && s.orbDef && s.orbDef.id !== 'sys-me');
+    const vis = win && (isApexAlways || _orbOccluder.isPointVisible(s.cart));
     if (vis) {
       const d = Cesium.Cartesian3.distance(s.cart, camPos);
-      const scale = Math.max(0.5, Math.min(1.45, 14_000_000 / d));
+      let scale = Math.max(0.5, Math.min(1.45, 14_000_000 / d));
+      if (s.kind === 'system' && s.orbDef && s.orbDef.boost) scale *= s.orbDef.boost;
       // Grazing: dot of orb-unit and camera-unit (both from earth center).
-      // 1.0 = orb directly between us and Earth, 0 ≈ on the horizon.
       const orbUnit = Cesium.Cartesian3.normalize(s.cart, _v3b);
       const dotCam = Math.max(-1, Math.min(1, Cesium.Cartesian3.dot(orbUnit, camUnit)));
-      // Soft DOF near the limb (orbs that are grazing the planet's edge).
-      const grazing = Math.max(0, 0.6 - dotCam);   // 0 at camera-facing, 0.6 at horizon
-      const blurPx = (grazing * 3.4).toFixed(2);    // up to ~2px blur
+      const grazing = Math.max(0, 0.6 - dotCam);
+      const blurPx = (grazing * 3.4).toFixed(2);
       const rim = Math.min(1, grazing * 1.7).toFixed(3);
-      // Night side: dot orb with -sunDir; >0 = day, <0 = night.
       let night = 0;
       if (sunDir) {
         const negSun = Cesium.Cartesian3.negate(sunDir, _v3c);
         const sunDot = Cesium.Cartesian3.dot(orbUnit, negSun);
-        night = Math.max(0, -sunDot); // 0..1, 1 at deep night
+        night = Math.max(0, -sunDot);
       }
       el.style.setProperty('--orb-blur', `${blurPx}px`);
       el.style.setProperty('--orb-rim', rim);
@@ -3051,7 +3261,15 @@ function renderInformants() {
       <div class="orb">${videoOrbHTML(inf.emoji || '◈', color, seed, vurl, previewImg)}${has ? `<div class="count">${found.length}</div>` : '<div class="count"></div>'}</div>
     </div>`;
   }).join('');
-  el.innerHTML = orbs;
+  // Append the four apex-tier system orbs after the informants. Order
+  // matters: _orbState is appended in the SAME order in _refreshOrbAnchors.
+  const sysOrbs = _SYSTEM_ORB_TIERS.map(tier => {
+    const glyphHtml = `<span class="orb-glyph">${tier.emoji}</span>`;
+    return `<div class="informant ${tier.classes}" style="--ic:${tier.color};opacity:0" onclick="${tier.onclick}" title="${escapeHtml(tier.name)}">
+      <div class="orb">${livingOrbHTML('', tier.color, _hashSeed(tier.id))}${glyphHtml}</div>
+    </div>`;
+  }).join('');
+  el.innerHTML = orbs + sysOrbs;
   _attachOrbProjLoop();
   if (viewer) viewer.scene.requestRender();
 }
@@ -3541,7 +3759,7 @@ function locateUser() {
           orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
         });
       }
-      window._userLat = lat; window._userLng = lng;
+      window._userLat = lat; window._userLng = lng; setUserLocation(lat, lng);
       setUserBeacon(lat, lng);
       fetchOSMNearby(lat, lng, 5000);
       setTimeout(() => orb.classList.remove('locked'), 4000);
@@ -3580,7 +3798,7 @@ function stopDriveWatch() {
 }
 function _driveTick(pos) {
   const { latitude: lat, longitude: lng, speed, heading } = pos.coords;
-  window._userLat = lat; window._userLng = lng;
+  window._userLat = lat; window._userLng = lng; setUserLocation(lat, lng);
   setUserBeacon(lat, lng);
   const sp = (typeof speed === 'number' && isFinite(speed) && speed >= 0) ? speed : 0;
   _driveBufSpeed.push(sp);
@@ -4575,6 +4793,7 @@ async function _autoLoadPlaces() {
     const d = await r.json();
     if (d && d.latitude) {
       window._userLat = d.latitude; window._userLng = d.longitude;
+      setUserLocation(d.latitude, d.longitude);
       fetchOSMNearby(d.latitude, d.longitude, 8000);   // warm vendors silently
       // no setUserBeacon, no flyTo — the user must opt in to descend.
     }
@@ -6384,6 +6603,103 @@ window.openKrypteiaImprove = async (preseed) => {
     ],
   }));
 };
+// ── APEX TIER HANDLERS ─────────────────────────────────────────────────
+// Pilot: warp back to planet Earth's global home, no matter where the
+// user is. Closes any open panel / expanded orb, then flies to the
+// canonical global camera. This is the universal "home" gesture.
+window.pilotHome = function() {
+  try { if (typeof closeExpandOrb === 'function') closeExpandOrb(); } catch (_) {}
+  try { if (typeof closePanel === 'function') closePanel(); } catch (_) {}
+  if (!viewer) return;
+  try { window._autoSpin = true; } catch (_) {}
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(0, 20, 28_000_000),
+    duration: 1.8,
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+  });
+  toast('Pilot · returning to home orbit', '');
+};
+
+// Me orb tap: expand the user's identity panel (signed-in user) or
+// prompt sign-in. Also re-anchor the beam by re-locating the user if we
+// haven't yet.
+window.expandMeOrb = function() {
+  // If we don't yet have a user location, kick the locate flow so the
+  // beam can find its ground anchor.
+  if (_userLat == null || _userLng == null) {
+    try { if (typeof startLocate === 'function') startLocate(); } catch (_) {}
+  }
+  // Route into the existing identity panel — that's the canonical "Me".
+  try {
+    if (profile && profile.is_owner) { if (typeof openMePanel === 'function') return openMePanel(); }
+    if (session) { if (typeof openMePanel === 'function') return openMePanel(); }
+    if (typeof openAuthOrb === 'function') return openAuthOrb();
+  } catch (_) {}
+};
+
+// Astranov tap: open the AI chat, start the conversation as before.
+window.openAstranovChat = function() {
+  try { if (typeof gadgetRelease === 'function') return gadgetRelease('ai', null); } catch (_) {}
+};
+
+// ── VOLUME CHAIN — beam-connected orbs as a draggable slider ───────────
+// 5 steps from mute → max. The handle orb sits at the current level;
+// the chain above it is dim. Click any orb to set; drag the handle for
+// continuous control. Persisted in localStorage.
+const _VOL_STEPS = 5;
+window._astranovVolume = parseFloat(localStorage.getItem('astranov_voice_volume') || '1') || 1.0;
+function _volRender() {
+  const host = document.getElementById('volume-chain');
+  if (!host) return;
+  const level = window._astranovVolume;
+  // levels go bottom→top: index 0 = mute at bottom, 4 = max at top.
+  const handleIdx = Math.round(level * (_VOL_STEPS - 1));
+  let html = '<div class="vol-cap">VOL</div>';
+  for (let i = _VOL_STEPS - 1; i >= 0; i--) {
+    const isHandle = (i === handleIdx);
+    const isActive = (i <= handleIdx);
+    const cls = isHandle ? 'vol-orb handle' : (isActive ? 'vol-orb active' : 'vol-orb');
+    const glyph = i === 0 ? '🔇' : i === _VOL_STEPS - 1 ? '🔊' : '';
+    html += `<div class="${cls}" data-i="${i}" onclick="_volSet(${i / (_VOL_STEPS - 1)})">
+      <span class="vol-glyph">${glyph}</span></div>`;
+    if (i > 0) html += `<div class="vol-beam"></div>`;
+  }
+  host.innerHTML = html;
+  // Drag the handle for continuous control.
+  const handle = host.querySelector('.vol-orb.handle');
+  if (handle) _volBindDrag(handle, host);
+}
+function _volBindDrag(handle, host) {
+  let dragging = false;
+  handle.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  handle.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const rect = host.getBoundingClientRect();
+    // Top of host = volume 1, bottom = 0
+    const t = 1 - ((e.clientY - rect.top) / rect.height);
+    _volSet(Math.max(0, Math.min(1, t)));
+  });
+  const stop = () => { dragging = false; };
+  handle.addEventListener('pointerup', stop);
+  handle.addEventListener('pointercancel', stop);
+}
+window._volSet = function(level) {
+  level = Math.max(0, Math.min(1, level));
+  window._astranovVolume = level;
+  try { localStorage.setItem('astranov_voice_volume', String(level)); } catch (_) {}
+  _volRender();
+  // If something is speaking right now, it will use the new volume on
+  // the next utterance — there's no way to live-tune a running utterance
+  // through SpeechSynthesisUtterance. Cancel current playback so the
+  // user hears the change immediately.
+  try { if (window.speechSynthesis && speechSynthesis.speaking) speechSynthesis.cancel(); } catch (_) {}
+};
+// First paint on boot.
+try { _volRender(); } catch (_) {}
+
 window._krypteiaImproveSend = async function() {
   const q = ($('kr-improve-q')?.value || '').trim();
   if (!q) return toast('Write the request first.', 'err');
@@ -6876,7 +7192,8 @@ function speakAstranov(text) {
     const u = new SpeechSynthesisUtterance(clean);
     const v = _pickVoice(lang); if (v) u.voice = v;
     u.lang = (v && v.lang) || (lang === 'el' ? 'el-GR' : (navigator.language || 'en-US'));
-    u.rate = 0.9; u.pitch = 0.6; u.volume = 1.0;   // slow + low = deep & calm
+    u.rate = 0.9; u.pitch = 0.6;
+    u.volume = (typeof window._astranovVolume === 'number') ? window._astranovVolume : 1.0;   // slow + low = deep & calm
     u.onstart = () => { _speaking = true; $('aicycle-float')?.classList.add('speaking'); };
     u.onend = () => {
       _speaking = false;
