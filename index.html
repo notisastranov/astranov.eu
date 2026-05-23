@@ -1678,7 +1678,6 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     <div class="core"></div>
   </div>
   <div class="name">ASTRANOV</div>
-  <div class="invocation">ΚΟΣΜΟΣ ΕΚ ΧΑΟΥΣ · order from chaos</div>
 </div>
 
 <!-- Always-visible UI: AICYCLE ring only -->
@@ -1981,17 +1980,26 @@ async function bootCesium() {
     viewer.camera.moveEnd.addEventListener(onCameraSettled);
     onCameraSettled();
 
-    // Globe auto-spins gently on load (Zero-UI §1: the globe should feel alive).
-    // Stops on first user interaction; only spins at the global tier.
+    // Globe auto-spins gently around Earth's polar axis on load. It's a true
+    // planetary rotation (UNIT_Z), not a camera-drift. Stops permanently the
+    // moment any other camera motion or user gesture begins.
     window._autoSpin = true;
     const stopSpin = () => { window._autoSpin = false; };
-    viewer.scene.canvas.addEventListener('pointerdown', stopSpin, { once: true });
-    viewer.scene.canvas.addEventListener('wheel',       stopSpin, { once: true });
+    viewer.scene.canvas.addEventListener('pointerdown', stopSpin);
+    viewer.scene.canvas.addEventListener('wheel',       stopSpin);
+    viewer.scene.canvas.addEventListener('touchstart',  stopSpin);
     viewer.clock.onTick.addEventListener(() => {
-      if (window._autoSpin && currentLevel === 'global' && viewer.scene.mode === Cesium.SceneMode.SCENE3D) {
-        try { viewer.scene.camera.rotateRight(0.00045); } catch (_) {}
-      }
+      if (!window._autoSpin) return;
+      if (currentLevel !== 'global') return;
+      if (viewer.scene.mode !== Cesium.SceneMode.SCENE3D) return;
+      try { viewer.scene.camera.rotate(Cesium.Cartesian3.UNIT_Z, -0.0008); } catch (_) {}
     });
+    // Any programmatic camera motion (flyTo / setView, called by locate, click-
+    // to-descend, fly-to-city, etc.) must kill the auto-spin so they don't fight.
+    const _origFlyTo = viewer.camera.flyTo.bind(viewer.camera);
+    viewer.camera.flyTo = (...args) => { window._autoSpin = false; return _origFlyTo(...args); };
+    const _origSetView = viewer.camera.setView.bind(viewer.camera);
+    viewer.camera.setView = (...args) => { window._autoSpin = false; return _origSetView(...args); };
 
     // Pin picking
     const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
