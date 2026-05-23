@@ -732,6 +732,99 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     width: 6px; height: 150px; accent-color: #7eebb4; cursor: pointer; background: transparent;
   }
 
+  /* KRYPTEIA DASHBOARD — multimedia console. Strip of stat tiles +
+     three cards (Audit / Watchtower / Threats) + Claude verdict +
+     a chat box with voice. Picks up the panel's existing chrome. */
+  .krypteia-dash { display: flex; flex-direction: column; gap: 14px; }
+  .krypteia-dash .kd-banner {
+    padding: 10px 14px; border-radius: 10px;
+    background: rgba(255,90,80,0.10); border: 1px solid rgba(255,90,80,0.35);
+    color: #ffd0c8; font-size: 12.5px; letter-spacing: 0.04em; line-height: 1.5;
+  }
+  .kd-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .kd-stat {
+    padding: 10px 8px; border-radius: 12px;
+    background: rgba(8,16,32,0.55); border: 1px solid rgba(120,180,255,0.18);
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .kd-stat-n { font-size: 18px; font-weight: 600; color: #dde9ff; }
+  .kd-stat-l { font-size: 9px; color: #7a98c0; letter-spacing: 0.2em; text-transform: uppercase; }
+  .kd-grid {
+    display: grid; grid-template-columns: 1fr; gap: 12px;
+  }
+  @media (min-width: 720px) {
+    .kd-grid { grid-template-columns: 1fr 1fr 1fr; }
+  }
+  .kd-card {
+    padding: 12px; border-radius: 14px;
+    background: rgba(6,12,24,0.55); border: 1px solid rgba(120,180,255,0.16);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  .kd-card h4 {
+    margin: 0 0 10px; font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: #a8c8ee; font-weight: 600;
+  }
+  .kd-row {
+    padding: 8px 10px; margin-bottom: 6px; border-radius: 10px;
+    background: rgba(120,180,255,0.04); border: 1px solid rgba(120,180,255,0.08);
+  }
+  .kd-row-head { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .kd-row-excerpt {
+    margin-top: 4px; font-size: 10px; color: #7a98c0;
+    font-family: ui-monospace, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .kd-row-img { display: flex; gap: 10px; cursor: pointer; transition: background 0.18s; }
+  .kd-row-img:hover { background: rgba(120,180,255,0.10); }
+  .kd-thumb {
+    width: 90px; height: 50px; border-radius: 6px; object-fit: cover;
+    border: 1px solid rgba(120,180,255,0.2); flex-shrink: 0;
+    background: #061226;
+  }
+  .kd-row-meta { flex: 1; min-width: 0; }
+  .kd-row-meta > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kd-empty { font-size: 12px; color: #7eebb4; padding: 8px 4px; }
+  .kd-verdict {
+    font-size: 12.5px; line-height: 1.55; color: #dde9ff;
+    white-space: pre-wrap; font-family: ui-monospace, monospace;
+    max-height: 32vh; overflow: auto;
+    padding: 10px; border-radius: 10px;
+    background: rgba(4,10,22,0.55); border: 1px solid rgba(120,180,255,0.12);
+  }
+  .kd-chat #kd-thread {
+    max-height: 24vh; overflow-y: auto; padding: 4px 0; margin-bottom: 8px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .kd-msg {
+    padding: 8px 10px; border-radius: 10px; font-size: 12.5px; line-height: 1.5;
+    max-width: 92%; white-space: pre-wrap; word-wrap: break-word;
+  }
+  .kd-msg-you {
+    align-self: flex-end; background: rgba(126,235,180,0.14);
+    border: 1px solid rgba(126,235,180,0.3); color: #d6f7e6;
+  }
+  .kd-msg-bot {
+    align-self: flex-start; background: rgba(120,180,255,0.10);
+    border: 1px solid rgba(120,180,255,0.2); color: #dde9ff;
+    font-family: ui-monospace, monospace;
+  }
+  .kd-input-row { display: flex; gap: 6px; align-items: stretch; }
+  .kd-input-row input {
+    flex: 1; padding: 10px 12px; border-radius: 10px;
+    background: rgba(4,10,22,0.65); color: #dde9ff;
+    border: 1px solid rgba(120,180,255,0.2); font: inherit; font-size: 13px;
+    outline: none;
+  }
+  .kd-input-row input:focus { border-color: rgba(126,235,180,0.5); }
+  .kd-btn {
+    padding: 10px 14px; border-radius: 10px; cursor: pointer; font: inherit; font-size: 13px;
+    background: rgba(120,180,255,0.10); color: #dde9ff;
+    border: 1px solid rgba(120,180,255,0.25);
+    transition: background 0.18s;
+  }
+  .kd-btn:hover { background: rgba(120,180,255,0.20); }
+  .kd-btn-send { background: rgba(126,235,180,0.18); border-color: rgba(126,235,180,0.45); color: #d6f7e6; }
+  .kd-btn-send:hover { background: rgba(126,235,180,0.30); }
+
   /* KRYPTEIA ORB — owner-only sovereign orb. Black core, blood-red rim,
      no video layer, ritual pulse. Sits in the orbital ring only when the
      owner is signed in. */
@@ -3818,6 +3911,140 @@ function bootSupabase() {
   // Start the orbital-agent news poller — real geo-tagged GDELT data
   // flows into every informant orb and drives event-binding + beams.
   _startInformantFeedPolling();
+  // KRYPTEIA — silent boot for EVERY visitor (§10d). 3 seconds after
+  // boot we wire tamper listeners and ping a heartbeat. Owner sessions
+  // additionally run the composite scan; non-owner sessions just enable
+  // tamper logging and a heartbeat. Nothing surfaces unless severity
+  // demands the owner's eyes.
+  _wireKrypteiaTamper();
+  setTimeout(() => { try { _krypteiaBootRun(); } catch (_) {} }, 3000);
+}
+
+// Tamper listeners — log + warn, never block. Caught events ride the
+// /tamper Edge Fn which writes a security_events row tagged with IP,
+// UA, identity (if signed in), language, screen, page, and count.
+let _tamperCount = 0;
+let _tamperReportedKinds = new Set();
+function _tamperReport(kind, sample) {
+  _tamperCount++;
+  // Fire-and-forget POST to /tamper.
+  try {
+    const auth = (session && session.access_token) ? session.access_token : SUPABASE_ANON;
+    fetch(SUPABASE_URL + '/functions/v1/tamper', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON,
+        'Authorization': 'Bearer ' + auth,
+      },
+      body: JSON.stringify({
+        kind,
+        ts: Date.now(),
+        lang: navigator.language,
+        screen: `${screen.width}x${screen.height}`,
+        page: location.pathname,
+        count: _tamperCount,
+        sample: sample || undefined,
+      }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch (_) {}
+  // FIRST attempt: license notice + immediate camera-verification challenge.
+  // Lawful path — explicit consent prompt, never silent activation.
+  if (_tamperCount === 1) {
+    try { toast('Krypteia · this content is licensed under the AstranoV Orbital License (3% / €300). This action has been logged.', 'err'); } catch (_) {}
+    setTimeout(() => _krypteiaCameraVerify(), 400);
+  } else if (_tamperCount === 5) {
+    try { toast('Krypteia · five attempts. The owner has been escalated.', 'err'); } catch (_) {}
+  }
+}
+function _wireKrypteiaTamper() {
+  if (window._kryptWired) return;
+  window._kryptWired = true;
+  document.addEventListener('keydown', (e) => {
+    const k = (e.key || '').toLowerCase();
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && k === 'a') _tamperReport('select-all');
+    else if (mod && k === 'c') _tamperReport('copy');
+    else if (mod && k === 's') _tamperReport('save-page');
+    else if (mod && k === 'u') _tamperReport('view-source');
+    else if (mod && k === 'p') _tamperReport('print');
+    else if (e.key === 'F12') _tamperReport('devtools-f12');
+    else if (mod && e.shiftKey && k === 'i') _tamperReport('devtools-i');
+    else if (mod && e.shiftKey && k === 'c') _tamperReport('devtools-c');
+    else if (mod && e.shiftKey && k === 'j') _tamperReport('devtools-j');
+  }, true);
+  document.addEventListener('contextmenu', () => _tamperReport('contextmenu'));
+  document.addEventListener('copy', () => {
+    const sel = (window.getSelection && window.getSelection().toString()) || '';
+    _tamperReport('copy-event', sel.slice(0, 200));
+  });
+  // Devtools-open heuristic — large outer/inner-height delta = panels open.
+  setInterval(() => {
+    try {
+      const dh = window.outerHeight - window.innerHeight;
+      const dw = window.outerWidth  - window.innerWidth;
+      const open = (dh > 220 || dw > 220);
+      if (open && !_tamperReportedKinds.has('devtools-open-heuristic')) {
+        _tamperReportedKinds.add('devtools-open-heuristic');
+        _tamperReport('devtools-open-heuristic');
+      }
+    } catch (_) {}
+  }, 4000);
+}
+function _krypteiaBootRun() {
+  // Heartbeat for every visitor (used for analytics + integrity log).
+  try {
+    const auth = (session && session.access_token) ? session.access_token : SUPABASE_ANON;
+    fetch(SUPABASE_URL + '/functions/v1/tamper', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + auth },
+      body: JSON.stringify({ kind: 'krypteia-heartbeat', ts: Date.now(), page: location.pathname, lang: navigator.language, screen: `${screen.width}x${screen.height}`, count: 0 }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch (_) {}
+  // For OWNER sessions, also run the full composite scan in silent mode.
+  // The verdict panel surfaces only if severity demands it.
+  if (profile && profile.is_owner && typeof openKrypteia === 'function') {
+    openKrypteia(true);
+  }
+}
+// Camera verification challenge — fires after repeated tamper attempts.
+// LAWFUL surface: explicit consent prompt, no silent activation. Decline
+// is logged. Accept captures one photo and ships it to security_events.
+async function _krypteiaCameraVerify() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+  const ok = confirm(
+    'Krypteia anti-fraud check\n\n' +
+    'Repeated attempts to bypass the license were detected. AstranoV is asking for a one-time camera snapshot to verify you are not running an automated copy. ' +
+    'The snapshot is logged to the owner only. Decline if you do not consent.'
+  );
+  if (!ok) { _tamperReport('camera-verify-declined'); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 }, audio: false });
+    _tamperReport('camera-verify-accepted');
+    const v = document.createElement('video');
+    v.srcObject = stream; v.muted = true; v.playsInline = true; await v.play();
+    await new Promise(r => setTimeout(r, 600));
+    const c = document.createElement('canvas');
+    c.width = 320; c.height = 240;
+    c.getContext('2d').drawImage(v, 0, 0, 320, 240);
+    const dataUrl = c.toDataURL('image/jpeg', 0.6);
+    stream.getTracks().forEach(t => t.stop());
+    // Send the snapshot via /tamper (kept under sample). Truncated to fit.
+    _tamperReport('camera-verify-snapshot', dataUrl.slice(0, 400));
+    // Upload the full JPEG to Supabase storage if profile is signed in.
+    try {
+      if (sb && session && session.user) {
+        const blob = await (await fetch(dataUrl)).blob();
+        const path = `${session.user.id}/${Date.now()}.jpg`;
+        await sb.storage.from('tamper-snapshots').upload(path, blob, { contentType: 'image/jpeg', upsert: false }).catch(() => {});
+      }
+    } catch (_) {}
+    toast('Krypteia · verification complete.', '');
+  } catch (e) {
+    _tamperReport('camera-verify-declined');
+  }
 }
 
 async function loadProfile() {
@@ -6904,27 +7131,154 @@ window.openKrypteia = async (runSilently) => {
     return;
   }
   if (v.silent_ok && runSilently) return; // truly silent boot path
-  // Owner approval required OR severity ≥ medium — open the verdict panel.
+  // Surface as the multimedia dashboard.
+  _krypteiaShowDash(v);
+};
+
+// Multimedia Krypteia dashboard — text + thumbnails + chat + voice.
+// Three cards (Audit / Watchtower / Threats) + Claude verdict + a
+// live chat box that talks BACK to Krypteia (routed through /developer
+// with the full verdict as context, so follow-ups keep the picture).
+window._krypteiaState = { lastVerdict: null, thread: [] };
+function _krypteiaShowDash(v) {
+  window._krypteiaState.lastVerdict = v;
+  window._krypteiaState.thread = [];
   const sevColor = v.severity === 'critical' ? '#ff6b6b' :
                    v.severity === 'high'     ? '#ff8a4a' :
                    v.severity === 'medium'   ? '#ffb464' : '#7eebb4';
   const counts = v.audit?.counts || { critical: 0, warn: 0, info: 0 };
-  const watchN = (v.watch?.hits_count || 0);
-  const threatN = (v.threats || []).length;
+  const watchHits = (v.watch && v.watch.hits) || [];
+  const threats   = v.threats || [];
+  const audits    = (v.audit && v.audit.findings) || [];
+
+  const auditRows = audits.length ? audits.slice(0, 8).map(f => {
+    const sc = f.severity === 'critical' ? '#ff6b6b' : f.severity === 'warn' ? '#ffb464' : '#7eb4ff';
+    return `<div class="kd-row">
+      <div class="kd-row-head"><span style="color:${sc};font-weight:600;font-size:10px;letter-spacing:0.18em">${escapeHtml(f.severity.toUpperCase())}</span><span style="color:#dde9ff">${escapeHtml(f.detail)}</span></div>
+      <div class="kd-row-excerpt">${escapeHtml(f.excerpt || f.kind)}</div>
+    </div>`;
+  }).join('') : '<div class="kd-empty">No contamination detected.</div>';
+
+  // Watchtower hits — pull real GitHub OG images for the offending repos.
+  const watchRows = watchHits.length ? watchHits.slice(0, 6).map(h => {
+    const ogUrl = `https://opengraph.githubassets.com/1/${escapeHtml(h.repo)}`;
+    return `<div class="kd-row kd-row-img" onclick="window.open('${escapeHtml(h.html_url)}','_blank','noopener')">
+      <img class="kd-thumb" src="${ogUrl}" alt="" referrerpolicy="no-referrer" loading="lazy" onerror="this.style.display='none'">
+      <div class="kd-row-meta">
+        <div style="color:#ff9e9e;font-weight:600;font-size:12px">${escapeHtml(h.repo)}</div>
+        <div style="color:#a8c8ee;font-size:11px;font-family:ui-monospace,monospace">${escapeHtml(h.path)}</div>
+        <div style="color:#7a98c0;font-size:10px;margin-top:3px">matched: ${escapeHtml(h.fingerprint)}</div>
+      </div>
+    </div>`;
+  }).join('') : '<div class="kd-empty">No off-canonical occurrences.</div>';
+
+  const threatRows = threats.length ? threats.slice(0, 8).map(t => {
+    const sc = t.severity === 'critical' ? '#ff6b6b' : t.severity === 'warning' ? '#ffb464' : '#7eb4ff';
+    const d = t.details || {};
+    return `<div class="kd-row">
+      <div class="kd-row-head"><span style="color:${sc};font-weight:600;font-size:10px;letter-spacing:0.18em">${escapeHtml(String(t.severity || '').toUpperCase())}</span><span style="color:#dde9ff">${escapeHtml(t.kind)}</span><span style="color:#7a98c0;font-size:10px;margin-left:auto">${formatRelative(t.created_at)}</span></div>
+      <div class="kd-row-excerpt">${escapeHtml(((d.ip || '') + ' · ' + (d.ua || '').slice(0, 80)).slice(0, 140))}</div>
+    </div>`;
+  }).join('') : '<div class="kd-empty">No open events.</div>';
+
   const ownerLine = v.owner_approval_required
-    ? `<div style="margin:10px 0 14px;padding:10px;border-radius:10px;background:rgba(255,90,80,0.08);border:1px solid rgba(255,90,80,0.3);color:#ffd0c8;font-size:13px;line-height:1.5">⬡ Owner approval required. Krypteia held action until you reviewed this.</div>`
-    : '';
+    ? `<div class="kd-banner">⬡ OWNER APPROVAL REQUIRED — Krypteia held action until you reviewed this.</div>` : '';
+
+  const body = `
+    <div class="krypteia-dash">
+      ${ownerLine}
+      <div class="kd-strip">
+        <div class="kd-stat" style="border-color:${sevColor};color:${sevColor}">
+          <div class="kd-stat-n">${escapeHtml(v.severity.toUpperCase())}</div>
+          <div class="kd-stat-l">SEVERITY</div>
+        </div>
+        <div class="kd-stat"><div class="kd-stat-n">${counts.critical}<span style="font-size:11px;opacity:0.5">C</span> ${counts.warn}<span style="font-size:11px;opacity:0.5">W</span></div><div class="kd-stat-l">CODE HYGIENE</div></div>
+        <div class="kd-stat"><div class="kd-stat-n">${watchHits.length}</div><div class="kd-stat-l">WATCHTOWER HITS</div></div>
+        <div class="kd-stat"><div class="kd-stat-n">${threats.length}</div><div class="kd-stat-l">THREATS</div></div>
+      </div>
+
+      <div class="kd-grid">
+        <div class="kd-card"><h4>Code Hygiene · live bundle</h4>${auditRows}</div>
+        <div class="kd-card"><h4>Watchtower · public web</h4>${watchRows}</div>
+        <div class="kd-card"><h4>Threat log · last 15</h4>${threatRows}</div>
+      </div>
+
+      <div class="kd-card">
+        <h4>Verdict from Claude</h4>
+        <div class="kd-verdict">${escapeHtml(v.claude || '(no claude text)')}</div>
+      </div>
+
+      <div class="kd-card kd-chat">
+        <h4>Talk to Krypteia</h4>
+        <div id="kd-thread"></div>
+        <div class="kd-input-row">
+          <input id="kd-input" type="text" placeholder="Ask a follow-up — Krypteia answers with the verdict above as context…">
+          <button class="kd-btn" onclick="_krypteiaVoice()" title="Voice">🎤</button>
+          <button class="kd-btn kd-btn-send" onclick="_krypteiaChat()">Send</button>
+        </div>
+      </div>
+    </div>`;
+
   openPanel(agentCard({
-    emoji: '⬡', name: 'Krypteia', role: 'Guardian · verdict ready',
+    emoji: '⬡', name: 'Krypteia', role: 'Guardian · multimedia console',
     color: sevColor,
-    status: `Severity: ${v.severity.toUpperCase()} · audit ${counts.critical}C/${counts.warn}W/${counts.info}I · watchtower ${watchN} · threats ${threatN} · ${formatRelative(v.at)}`,
-    body: `${ownerLine}
-      <div style="font-size:13px;color:#dde9ff;line-height:1.55;white-space:pre-wrap;font-family:ui-monospace,monospace;max-height:46vh;overflow:auto">${escapeHtml(v.claude || '(no claude text)')}</div>`,
+    status: `Scanned ${formatRelative(v.at)} · ${v.owner_approval_required ? 'awaiting owner' : 'silent ok'}`,
+    body,
     actions: [
       { label: 'Hand to Claude (apply now)', primary: true, onclick: `openDeveloper(${JSON.stringify('Apply the recommendations from the Krypteia verdict in the context block. Produce a concrete diff and the command to ship.')}, ${JSON.stringify(JSON.stringify({ severity: v.severity, claude: v.claude, audit: v.audit, watch: v.watch, threats: v.threats }, null, 2).slice(0, 9000))})` },
-      { label: 'Run again', onclick: 'openKrypteia()' },
+      { label: 'Re-run',  onclick: 'openKrypteia()' },
     ],
   }));
+}
+window._krypteiaChat = async function() {
+  const inp = document.getElementById('kd-input');
+  const q = (inp?.value || '').trim();
+  if (!q) return;
+  inp.value = '';
+  const thread = document.getElementById('kd-thread');
+  if (!thread) return;
+  const v = window._krypteiaState.lastVerdict || {};
+  // Append the user line.
+  const userDiv = document.createElement('div');
+  userDiv.className = 'kd-msg kd-msg-you';
+  userDiv.textContent = q;
+  thread.appendChild(userDiv);
+  const thinking = document.createElement('div');
+  thinking.className = 'kd-msg kd-msg-bot';
+  thinking.textContent = 'Krypteia is thinking…';
+  thread.appendChild(thinking);
+  thread.scrollTop = thread.scrollHeight;
+  try {
+    const ctx = JSON.stringify({
+      verdict: v,
+      thread: window._krypteiaState.thread.slice(-6),
+    }, null, 2).slice(0, 10000);
+    const { data, error } = await sb.functions.invoke('developer', { body: { request: q, context: ctx } });
+    if (error) throw error;
+    if (data && data.error) throw new Error(data.error);
+    const text = (data && data.text) || '(no reply)';
+    thinking.textContent = text;
+    window._krypteiaState.thread.push({ q, a: text });
+    thread.scrollTop = thread.scrollHeight;
+    // Speak the reply (truncated) through the existing TTS pipeline.
+    try { if (typeof speakAstranov === 'function') speakAstranov(text.slice(0, 400)); } catch (_) {}
+  } catch (e) {
+    thinking.textContent = 'Channel failed: ' + String(e);
+  }
+};
+window._krypteiaVoice = function() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return toast('Voice unavailable in this browser', 'err');
+  const r = new SR();
+  r.lang = navigator.language || 'en-GB';
+  r.interimResults = false;
+  r.maxAlternatives = 1;
+  r.onresult = (e) => {
+    const t = e.results?.[0]?.[0]?.transcript || '';
+    const inp = document.getElementById('kd-input');
+    if (inp && t) { inp.value = t; window._krypteiaChat(); }
+  };
+  try { r.start(); toast('Listening…', ''); } catch (_) {}
 };
 
 // Krypteia Audit — owner-only static scanner of the LIVE deployed bundle.
