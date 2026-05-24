@@ -658,8 +658,8 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     width: 64px; height: 64px; border-radius: 50%; position: relative; overflow: hidden;
     border: 1.5px solid color-mix(in srgb, var(--ic, #7eb4ff) 85%, transparent);
     box-shadow:
-      0 0 calc(14px + var(--orb-rim, 0) * 26px) color-mix(in srgb, var(--ic, #7eb4ff) 60%, transparent),
-      0 0 calc(30px + var(--orb-rim, 0) * 40px) color-mix(in srgb, var(--ic, #7eb4ff) 22%, transparent),
+      0 0 calc(14px + var(--orb-rim, 0) * 26px + var(--orb-focus, 0) * 18px) color-mix(in srgb, var(--ic, #7eb4ff) 60%, transparent),
+      0 0 calc(30px + var(--orb-rim, 0) * 40px + var(--orb-focus, 0) * 30px) color-mix(in srgb, var(--ic, #7eb4ff) 22%, transparent),
       inset 0 0 12px rgba(0,0,0,0.55);
     transition: box-shadow 0.2s;
     filter: blur(var(--orb-blur, 0px));
@@ -3771,6 +3771,9 @@ function _projectOrbs() {
       el.style.setProperty('--orb-rim', rim);
       el.style.setProperty('--orb-night', night.toFixed(2));
       el.style.setProperty('--orb-z', (((s.alt || _ORB_ALT) - _ORB_ALT) / _ORB_Z_SPREAD).toFixed(3));
+      // FOCAL GLOW BOOST — orbs at the focus plane glow ~25% brighter,
+      // making the user's current Z layer visually pop without moving.
+      el.style.setProperty('--orb-focus', (1 - focalNorm).toFixed(3));
       el.style.transform = `translate3d(${(win.x - 32).toFixed(1)}px, ${(win.y - 32).toFixed(1)}px, 0) scale(${scale.toFixed(3)})`;
       el.style.opacity = dofOpacity.toFixed(3);
       // Out-of-focus orbs are non-interactive — prevents tapping a
