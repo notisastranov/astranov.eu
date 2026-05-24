@@ -477,6 +477,17 @@ This block strives to get shorter, more inclusive, more precise with every edit.
         panel only on severity ≥ medium. Improvements that don't need
         owner triage land directly.
 
+15c. OPINION FIRST — Claude states its position before building (binding)
+    Before any non-trivial change (architectural, irreversible, third-
+    party-facing, or law-touching), Claude leads with a brief VERDICT:
+    the move it would make, the one main tradeoff, and a yes/no the
+    owner can act on. Code lands only after the owner says yes (or
+    after the explicit "go" of the perpetual authorization for
+    feature work where direction is already clear).
+    Trivial work — typo fixes, syntax bugs, small refactors, cycles
+    inside an already-agreed feature — still ships immediately. The
+    rule is "opinion first on the WHAT, not on every HOW".
+
 13. SOCIAL PRIMITIVES — engagement layer on every signal (binding)
     Every signal on the globe is a thread + a reaction surface:
       • signal_comments table — public read, authenticated insert,
