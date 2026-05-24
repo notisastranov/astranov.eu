@@ -3747,7 +3747,10 @@ function _projectOrbs() {
       // DEPTH-OF-FIELD (§5j) — orbs at the focal plane render full; orbs
       // outside it blur, dim, and shrink. The user navigates the cloud
       // by shifting the focal plane via the depth slider.
-      const focalDelta = Math.abs((s.alt || _ORB_ALT) - (window._focalAlt || _ORB_ALT));
+      // Apex/system orbs are OS chrome — they ignore depth entirely and
+      // always render at full focus, no matter where the user is in Z.
+      const isSystem = (s.kind === 'system');
+      const focalDelta = isSystem ? 0 : Math.abs((s.alt || _ORB_ALT) - (window._focalAlt || _ORB_ALT));
       const focalNorm  = Math.min(1, focalDelta / _ORB_Z_SPREAD);
       const dofBlur    = focalNorm * 5.5;       // up to 5.5px out-of-focus blur
       const dofOpacity = 1 - focalNorm * 0.55;  // 1 at focus → 0.45 at far Z
