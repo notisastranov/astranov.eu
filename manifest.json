@@ -1,0 +1,26 @@
+{
+  "name": "AstranoV",
+  "short_name": "AstranoV",
+  "description": "Agentic Orbital Operating System — research + social + delivery on the living globe.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#02060d",
+  "background_color": "#02060d",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["navigation", "social", "shopping"]
+}

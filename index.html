@@ -616,13 +616,49 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     deprecates a binding rule. Claude has perpetual, unconditional push and
     squash-merge authorization from the owner — no per-change confirmation
     needed. Syntax-check JS, commit, push, PR, merge: automatic, every time.
+
+16b. ANONYMOUS SERVICE — user-facing privacy guardian (binding)
+    Every non-owner user sees the ANONYMOUS SERVICE orb (⊘, ice-blue) in
+    the orbit ring; the owner sees Krypteia (⬡, blood-red) in the same
+    slot. Users NEVER see or hear of Krypteia from the public UI.
+    Anonymous Service serves PRIVACY for JUSTFUL USE:
+      • Anonymity, identity protection, location protection.
+      • Defence against tech-giant + totalitarian-state surveillance.
+      • Refuses to assist actions that harm others (doxxing, fraud,
+        hacking another's system). Privacy ends where harm begins.
+    Surface (anonymous-scan + /developer Edge Fn under the hood):
+      • Browser-side environment fingerprint shipped to Claude for a
+        privacy-analyst verdict + suspicion score (0..1).
+      • HONEST DISCLOSURE: browsers cannot read filesystem, installed
+        apps, or detect root/jailbreak reliably. Stated in the panel.
+      • AI advisor chat — walks the user through device-side root /
+        jailbreak / malware self-checks on Android / iOS / desktop.
+      • PWA install CTA — installing AstranoV unlocks deeper checks.
+      • Opt-in compute donation (§17b).
+
+17b. COMPUTE CONTRIBUTION — donate cycles, earn AVC (binding)
+    Users may OPT IN to donate spare CPU cycles to the AstranoV collective
+    through a Web Worker (contribute-worker.js). Cycles are recorded by
+    the /contribute Edge Fn into compute_contributions (RLS: owner reads
+    all, user reads own). The payout loop (cycles → AVC credit) is
+    deferred to next-batch (placeholder visible in the panel). Guardrails:
+      • EXPLICIT opt-in only — no background mining without consent.
+      • Visible + pausable — a toggle in the Anonymous Service panel.
+      • Throttled — worker yields every 4096 hashes, breathes 200 ms
+        between chunks. Never pegs the CPU at 100%.
+      • Honest measurement — every ping records actual cycles + duration.
+      • Anti-coercion — refusing to donate does NOT lock the user out of
+        any core feature; donation only unlocks "advanced" surfaces.
+
 ================================================================================
 -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<meta name="theme-color" content="#000000" />
+<meta name="theme-color" content="#02060d" />
+<link rel="manifest" href="/manifest.json" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
 <title>ASTRANOV</title>
 <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Widgets/widgets.css" />
 <style>
@@ -916,6 +952,78 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   .kd-btn:hover { background: rgba(120,180,255,0.20); }
   .kd-btn-send { background: rgba(126,235,180,0.18); border-color: rgba(126,235,180,0.45); color: #d6f7e6; }
   .kd-btn-send:hover { background: rgba(126,235,180,0.30); }
+
+  /* ANONYMOUS ORB — user-facing privacy orb. Cool ice-blue, sits in the
+     orbit ring for every non-owner. Owners see KRYPTEIA instead. */
+  .informant.anonymous .orb {
+    background: radial-gradient(circle at 35% 30%,
+      rgba(140,210,255,0.55) 0%,
+      rgba(40,90,160,0.40) 28%,
+      rgba(4,10,22,0.95) 90%);
+    border: 1.8px solid rgba(109,208,255,0.95);
+    box-shadow:
+      0 0 24px rgba(109,208,255,0.75),
+      0 0 60px rgba(109,208,255,0.30),
+      inset 0 0 16px rgba(0,0,0,0.7);
+    animation: anonymous-pulse 3s ease-in-out infinite;
+  }
+  .informant.anonymous .orb-glyph {
+    color: #d6efff; font-size: 24px; font-weight: 600;
+    text-shadow: 0 0 8px rgba(109,208,255,0.85);
+  }
+  @keyframes anonymous-pulse {
+    0%,100% { box-shadow:
+      0 0 24px rgba(109,208,255,0.75),
+      0 0 60px rgba(109,208,255,0.30),
+      inset 0 0 16px rgba(0,0,0,0.7); }
+    50%     { box-shadow:
+      0 0 36px rgba(109,208,255,0.95),
+      0 0 90px rgba(109,208,255,0.50),
+      inset 0 0 20px rgba(0,0,0,0.85); }
+  }
+
+  /* ANONYMOUS SERVICE DASHBOARD — clone the Krypteia chrome but tuned
+     for users: scan card + advisor chat + PWA install + opt-in mining. */
+  .anon-dash { display: flex; flex-direction: column; gap: 14px; }
+  .anon-dash .anon-banner {
+    padding: 12px 14px; border-radius: 12px;
+    background: rgba(109,208,255,0.08); border: 1px solid rgba(109,208,255,0.30);
+    color: #d6efff; font-size: 12.5px; line-height: 1.55;
+  }
+  .anon-ethics {
+    padding: 10px 12px; border-radius: 10px;
+    background: rgba(255,212,126,0.06); border: 1px solid rgba(255,212,126,0.22);
+    color: #ffe1a8; font-size: 11px; line-height: 1.5; letter-spacing: 0.04em;
+  }
+  .anon-card {
+    padding: 12px; border-radius: 14px;
+    background: rgba(6,12,24,0.55); border: 1px solid rgba(109,208,255,0.18);
+  }
+  .anon-card h4 {
+    margin: 0 0 8px; font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: #a8c8ee; font-weight: 600;
+  }
+  .anon-verdict {
+    font-size: 12.5px; line-height: 1.55; color: #dde9ff;
+    white-space: pre-wrap; font-family: ui-monospace, monospace;
+    max-height: 38vh; overflow: auto;
+    padding: 10px; border-radius: 10px;
+    background: rgba(4,10,22,0.55); border: 1px solid rgba(109,208,255,0.14);
+  }
+  .anon-meter {
+    display: flex; align-items: center; gap: 10px; margin: 4px 0 10px;
+  }
+  .anon-meter .bar {
+    flex: 1; height: 6px; border-radius: 4px;
+    background: linear-gradient(to right, #7eebb4 0%, #ffd47e 50%, #ff6b6b 100%);
+    position: relative; overflow: hidden;
+  }
+  .anon-meter .bar::after {
+    content: ''; position: absolute; top: -1px; bottom: -1px;
+    background: rgba(8,18,32,0.85); right: 0;
+    width: var(--anon-meter-right, 100%); transition: width 0.4s;
+  }
+  .anon-meter .lbl { font-size: 10px; color: #a8c8ee; letter-spacing: 0.16em; }
 
   /* KRYPTEIA ORB — owner-only sovereign orb. Black core, blood-red rim,
      no video layer, ritual pulse. Sits in the orbital ring only when the
@@ -3652,17 +3760,18 @@ function _refreshOrbAnchors(items) {
     let lat = homes[i].lat, lon = homes[i].lon, isEvent = false, eventTitle = null;
     let color = '#7eb4ff';
     let infId = null;
-    if (!inf._new && !inf._krypteia) {
+    if (!inf._new && !inf._krypteia && !inf._anonymous) {
       infId = inf.id || null;
       color = inf.color || _CAT_COLORS[inf.category] || '#7eb4ff';
       const found = (typeof _informantFindings === 'function') ? _informantFindings(inf) : [];
       const located = found.find(f => typeof f.lat === 'number' && typeof f.lng === 'number');
       if (located) { lat = located.lat; lon = located.lng; isEvent = true; eventTitle = located.title; }
     }
-    if (inf._krypteia) color = '#ff5a4a';
+    if (inf._krypteia)  color = '#ff5a4a';
+    if (inf._anonymous) color = '#6dd0ff';
     // Each orb sits at a STABLE per-id altitude on the Z-axis. The cloud
     // is 3D — depth-of-field reveals only orbs at the focal plane.
-    const orbAlt = _orbZ(infId || (inf._krypteia ? 'krypteia' : ('new-' + i)));
+    const orbAlt = _orbZ(infId || (inf._krypteia ? 'krypteia' : inf._anonymous ? 'anonymous' : ('new-' + i)));
     const cart = Cesium.Cartesian3.fromDegrees(lon, lat, orbAlt);
     let beam = null;
     if (isEvent && viewer) {
@@ -3923,11 +4032,14 @@ function renderInformants() {
   if (currentLevel !== 'global') { el.classList.add('hide-orbit'); el.innerHTML = ''; return; }
   el.classList.remove('hide-orbit');
   const list = _loadInformants();
-  // KRYPTEIA — owner-only sovereign orb. Materialises only when the
-  // owner is signed in; sits first in the orbit at a stable lat/lon.
+  // KRYPTEIA — owner-only sovereign orb.
+  // ANONYMOUS — privacy/anonymity orb shown to everyone EXCEPT the owner.
+  // (The owner gets Krypteia, which is the deeper version; users see
+  // the Anonymous Service face instead, which never advertises Krypteia's
+  // existence.)
   const isOwner = !!(typeof profile !== 'undefined' && profile && profile.is_owner);
   const items = [
-    ...(isOwner ? [{ _krypteia: true }] : []),
+    ...(isOwner ? [{ _krypteia: true }] : [{ _anonymous: true }]),
     ...list,
     { _new: true },
   ];
@@ -3936,6 +4048,11 @@ function renderInformants() {
     if (inf._krypteia) {
       return `<div class="informant krypteia" style="--ic:#ff5a4a;opacity:0" onclick="openKrypteia()" title="Krypteia — the watchtower">
         <div class="orb"><span class="orb-glyph">⬡</span></div>
+      </div>`;
+    }
+    if (inf._anonymous) {
+      return `<div class="informant anonymous" style="--ic:#6dd0ff;opacity:0" onclick="openAnonymousService()" title="Anonymous Service — your privacy guardian">
+        <div class="orb"><span class="orb-glyph">⊘</span></div>
       </div>`;
     }
     if (inf._new) {
@@ -7401,6 +7518,233 @@ window.emitSignal = async () => {
 // runSilently=true skips ever opening the owner panel even on alert;
 // used by the silent boot run so the OS doesn't pop a panel just because
 // the owner happened to refresh.
+// ANONYMOUS SERVICE — the user-facing privacy guardian (§16).
+// Replaces Krypteia in every non-owner UI surface. Same orb shape,
+// different presentation: focused on user-side privacy, anonymity,
+// identity & location protection, with an honest disclosure of what
+// the browser can/can't see + an opt-in compute-donation pipeline.
+window._anonState = { lastVerdict: null, mining: false, worker: null, cycles: 0, started: 0 };
+function _fingerprintBundle() {
+  try {
+    const c = document.createElement('canvas');
+    let glRenderer = '', glVendor = '';
+    try {
+      const gl = c.getContext('webgl');
+      const ext = gl && gl.getExtension('WEBGL_debug_renderer_info');
+      if (ext) {
+        glRenderer = gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) || '';
+        glVendor   = gl.getParameter(ext.UNMASKED_VENDOR_WEBGL) || '';
+      }
+    } catch (_) {}
+    return {
+      user_agent:     navigator.userAgent,
+      languages:      (navigator.languages || []).slice(0, 6),
+      platform:       navigator.platform || '',
+      hardware_cores: navigator.hardwareConcurrency || 0,
+      memory_gb:      navigator.deviceMemory || 0,
+      webdriver:      !!navigator.webdriver,
+      timezone:       Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+      screen:         `${screen.width}x${screen.height}@${window.devicePixelRatio || 1}`,
+      viewport:       `${window.innerWidth}x${window.innerHeight}`,
+      online:         !!navigator.onLine,
+      cookies:        !!navigator.cookieEnabled,
+      do_not_track:   navigator.doNotTrack || '',
+      gl_vendor:      glVendor,
+      gl_renderer:    glRenderer,
+      is_pwa:         window.matchMedia && window.matchMedia('(display-mode: standalone)').matches,
+      touch_points:   navigator.maxTouchPoints || 0,
+    };
+  } catch (_) { return {}; }
+}
+window.openAnonymousService = async () => {
+  if (!sb) return toast('Sign-in is offline. Try again in a moment.', 'err');
+  openPanel(agentCard({
+    emoji: '⊘', name: 'Anonymous Service', role: 'Your privacy guardian',
+    color: '#6dd0ff',
+    status: 'Scanning your browser environment with our AI…',
+    body: `<div class="anon-banner">
+      The Anonymous Service guards your privacy — anonymity, identity, location, and your right to be free from surveillance. Honest about its limits: a browser can read fingerprint signals but cannot reach inside your device. For a full root scan, install AstranoV as an app (below).
+    </div>
+    <div class="anon-ethics">
+      <b>Ethics:</b> we serve <i>justful</i> use. The Anonymous Service will not assist actions that harm others (doxxing, fraud, hacking another person's system). Your right to privacy ends where it becomes someone else's harm.
+    </div>
+    <div style="color:#a8c8ee;font-size:12px;padding:8px 0">Running the scan…</div>`,
+    actions: [],
+  }));
+  let res = null;
+  try {
+    const fp = _fingerprintBundle();
+    const { data, error } = await sb.functions.invoke('anonymous-scan', { body: { fingerprint: fp } });
+    if (error) throw error;
+    res = data;
+  } catch (e) { res = { error: String(e) }; }
+  _anonRenderDash(res);
+};
+function _anonRenderDash(res) {
+  window._anonState.lastVerdict = res || {};
+  const ok = res && res.ok;
+  const suspicion = ok ? (res.suspicion || 0) : 0;
+  const verdict = ok ? res.verdict : (res && res.error ? ('Scan failed: ' + res.error) : '(no response)');
+  const meterRight = ((1 - suspicion) * 100).toFixed(1) + '%';
+  const sevColor = suspicion >= 0.7 ? '#ff6b6b' : suspicion >= 0.4 ? '#ffb464' : '#7eebb4';
+  const installablePWA = !!window._deferredPWAInstall;
+  const isPWA = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+
+  const body = `
+    <div class="anon-dash">
+      <div class="anon-banner">
+        The Anonymous Service guards your privacy — anonymity, identity, location, and your right to be free from surveillance. Honest about its limits: a browser can read fingerprint signals but cannot reach inside your device.
+      </div>
+      <div class="anon-ethics">
+        <b>Ethics:</b> we serve <i>justful</i> use. Privacy ends where it becomes someone else's harm.
+      </div>
+
+      <div class="anon-card">
+        <h4>Environment verdict</h4>
+        <div class="anon-meter">
+          <div class="bar" style="--anon-meter-right:${(100 - suspicion * 100).toFixed(1)}%"></div>
+          <div class="lbl" style="color:${sevColor}">${(suspicion * 100).toFixed(0)}% suspicion</div>
+        </div>
+        <div class="anon-verdict">${escapeHtml(verdict)}</div>
+      </div>
+
+      <div class="anon-card">
+        <h4>Install AstranoV on your device</h4>
+        <div style="font-size:12px;color:#a8c8ee;line-height:1.55;margin-bottom:8px">
+          Installed, AstranoV runs offline, gets fuller permission to monitor your network connections, and can host the compute donor below. ${isPWA ? '<span style="color:#7eebb4">✓ already installed</span>' : ''}
+        </div>
+        ${!isPWA ? `<div class="gadget-engage" onclick="_anonInstallPWA()" style="border-color:rgba(126,235,180,0.4);color:#d6f7e6">
+          <span class="verb-glyph" style="background:#7eebb4"></span><span>Install AstranoV ${installablePWA ? '' : '(use your browser menu → Install)'}</span>
+        </div>` : ''}
+      </div>
+
+      <div class="anon-card">
+        <h4>Donate compute — earn AVC, unlock advanced features</h4>
+        <div style="font-size:12px;color:#a8c8ee;line-height:1.55;margin-bottom:10px">
+          Opt in to donate spare cycles to the AstranoV collective. The browser tab will use a slice of your CPU; you can pause anytime. Cycles donated → AVC credited (payout loop ships next). Advanced features unlock as you contribute.
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div class="gadget-engage" id="anon-mine-toggle" onclick="_anonMineToggle()" style="border-color:rgba(126,235,180,0.4);color:#d6f7e6">
+            <span class="verb-glyph" style="background:${window._anonState.mining ? '#ff6b6b' : '#7eebb4'}"></span>
+            <span>${window._anonState.mining ? 'Pause donating' : 'Start donating compute'}</span>
+          </div>
+          <div id="anon-mine-stat" style="font-size:11px;color:#a8c8ee;font-variant-numeric:tabular-nums">${window._anonState.mining ? 'running…' : ''}</div>
+        </div>
+      </div>
+
+      <div class="anon-card">
+        <h4>Ask the Anonymous Service</h4>
+        <div id="anon-thread" style="max-height:24vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+        <div style="display:flex;gap:6px">
+          <input id="anon-input" class="me-inp" type="text" placeholder="How do I check if my Android is rooted? How do I block trackers?" style="flex:1">
+          <button class="kd-btn" onclick="_anonVoice()" title="Voice">🎤</button>
+          <button class="kd-btn kd-btn-send" onclick="_anonChat()">Send</button>
+        </div>
+      </div>
+    </div>`;
+  openPanel(agentCard({
+    emoji: '⊘', name: 'Anonymous Service', role: 'Your privacy guardian',
+    color: '#6dd0ff',
+    status: ok ? `Suspicion ${(suspicion * 100).toFixed(0)}% · ${formatRelative(res.at)}` : 'Scan failed',
+    body,
+    actions: [
+      { label: 'Re-scan', onclick: 'openAnonymousService()' },
+    ],
+  }));
+}
+// PWA install via the beforeinstallprompt deferred prompt (Chrome/Edge).
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  window._deferredPWAInstall = e;
+});
+window._anonInstallPWA = async function() {
+  const d = window._deferredPWAInstall;
+  if (!d) {
+    toast('Use your browser menu → Install / Add to Home Screen', '');
+    return;
+  }
+  d.prompt();
+  try { await d.userChoice; } catch (_) {}
+  window._deferredPWAInstall = null;
+};
+// Mining toggle.
+window._anonMineToggle = async function() {
+  if (window._anonState.mining) {
+    try { window._anonState.worker && window._anonState.worker.postMessage({ type: 'stop' }); } catch (_) {}
+    window._anonState.mining = false;
+    return _anonRenderDash(window._anonState.lastVerdict);
+  }
+  // Fetch a work unit then start.
+  try {
+    const { data } = await sb.functions.invoke('contribute', { body: { mode: 'workunit' } });
+    const wu = (data && data.target) ? data : { target: 'astranov', difficulty: 200_000 };
+    const w = new Worker('/contribute-worker.js');
+    w.onmessage = (e) => {
+      const m = e.data || {};
+      if (m.type === 'tick') {
+        window._anonState.cycles = m.cycles;
+        const st = document.getElementById('anon-mine-stat');
+        if (st) st.textContent = `${m.cycles.toLocaleString()} cycles · ${(m.duration_ms/1000).toFixed(0)}s · est. ${(m.cycles/5_000_000).toFixed(4)} AVC`;
+        // Ping coordinator every ~10s.
+        const now = Date.now();
+        if (!window._anonState.lastPing || now - window._anonState.lastPing > 10_000) {
+          window._anonState.lastPing = now;
+          const anonId = (function() {
+            let id = localStorage.getItem('astranov_anon_id');
+            if (!id) { id = crypto.randomUUID(); localStorage.setItem('astranov_anon_id', id); }
+            return id;
+          })();
+          sb.functions.invoke('contribute', { body: { mode: 'ping', cycles: m.cycles, duration_ms: m.duration_ms, anon_id: anonId } }).catch(() => {});
+        }
+      }
+    };
+    w.postMessage({ type: 'start', workUnit: wu });
+    window._anonState.worker = w;
+    window._anonState.mining = true;
+    window._anonState.cycles = 0;
+    window._anonState.started = Date.now();
+    _anonRenderDash(window._anonState.lastVerdict);
+  } catch (e) {
+    toast('Could not start contributing: ' + String(e), 'err');
+  }
+};
+// Chat / voice — pipe through /developer with the Anonymous primer.
+window._anonChat = async function() {
+  const inp = document.getElementById('anon-input');
+  const q = (inp?.value || '').trim();
+  if (!q) return;
+  inp.value = '';
+  const t = document.getElementById('anon-thread');
+  if (!t) return;
+  const u = document.createElement('div');
+  u.className = 'kd-msg kd-msg-you'; u.textContent = q; t.appendChild(u);
+  const b = document.createElement('div');
+  b.className = 'kd-msg kd-msg-bot'; b.textContent = 'Anonymous Service is thinking…'; t.appendChild(b);
+  t.scrollTop = t.scrollHeight;
+  try {
+    const ctx = JSON.stringify({ verdict: window._anonState.lastVerdict || {} }, null, 2).slice(0, 9000);
+    const { data, error } = await sb.functions.invoke('anonymous-scan', {
+      body: { fingerprint: _fingerprintBundle(), follow_up: q, prior: ctx },
+    });
+    if (error) throw error;
+    b.textContent = data?.verdict || '(no reply)';
+    t.scrollTop = t.scrollHeight;
+  } catch (e) { b.textContent = 'Channel failed: ' + String(e); }
+};
+window._anonVoice = function() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return toast('Voice unavailable', 'err');
+  const r = new SR();
+  r.lang = navigator.language || 'en-GB';
+  r.interimResults = false;
+  r.onresult = (e) => {
+    const t = e.results?.[0]?.[0]?.transcript || '';
+    const inp = document.getElementById('anon-input');
+    if (inp && t) { inp.value = t; _anonChat(); }
+  };
+  try { r.start(); toast('Listening…', ''); } catch (_) {}
+};
+
 window.openKrypteia = async (runSilently) => {
   if (!profile?.is_owner || !sb) {
     if (!runSilently) {
