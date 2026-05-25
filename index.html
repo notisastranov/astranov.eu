@@ -650,6 +650,40 @@ This block strives to get shorter, more inclusive, more precise with every edit.
       • Anti-coercion — refusing to donate does NOT lock the user out of
         any core feature; donation only unlocks "advanced" surfaces.
 
+18. PAYMENTS — Stripe + Revolut + PayPal, 1 AVC = 1 EUR (binding)
+    Three independent payment rails, one ledger. The user picks an
+    amount + a provider from openBuyAVC(); the front end posts to the
+    matching Edge Fn (/payments for Stripe, /revolut, /paypal) which
+    creates a hosted-checkout session and returns the URL. AstranoV
+    never sees the user's card.
+    Each provider has a WEBHOOK handler:
+      • /stripe-webhook  — checkout.session.completed
+      • /revolut-webhook — ORDER_COMPLETED / ORDER_AUTHORISED
+      • /paypal-webhook  — CHECKOUT.ORDER.APPROVED (auto-captures) +
+                           PAYMENT.CAPTURE.COMPLETED
+    All three webhooks verify signatures before doing anything. On a
+    successful event the handler:
+      1. Upserts a row in `payments` (provider, provider_ref, status,
+         amount_cents, currency, profile_id, paid_at, raw_event).
+      2. Inserts a row in `royalties` booking 3% of the amount per
+         Orbital License v1.0.
+      3. Credits the buyer's profiles.avc_balance via credit_avc RPC
+         (1 AVC = 1 EUR).
+    No payment provider is the source of truth — the `payments` table
+    is, indexed unique on (provider, provider_ref). RLS: owner reads
+    all; user reads own. Royalties: owner-only.
+
+18b. PRIVACY POLICY — GDPR-compliant, /privacy.html (binding)
+    AstranoV operates from the EU on a .eu domain owned by a Greek
+    individual data controller. /privacy.html documents the lawful
+    basis for every category of data processed, the sub-processors
+    (Supabase, Vercel, Stripe, Revolut, PayPal, AI providers, NASA/
+    OSM/CARTO/Esri, RSS upstreams), retention windows (12 mo for
+    tamper telemetry, 7 yr for payment records, 30 day for deleted
+    accounts), international transfer basis (SCCs), and user rights
+    under GDPR Articles 15–22. Linked from openBuyAVC() and the
+    Anonymous Service panel.
+
 ================================================================================
 -->
 <html lang="en">
@@ -4291,6 +4325,12 @@ function bootSupabase() {
   // Start the orbital-agent news poller — real geo-tagged GDELT data
   // flows into every informant orb and drives event-binding + beams.
   _startInformantFeedPolling();
+  // Returning from a checkout? Pop the Buy AVC panel with the success/cancel
+  // banner so the user gets confirmation instead of staring at the globe.
+  try {
+    const paid = new URL(location.href).searchParams.get('paid');
+    if (paid === '1' || paid === '0') setTimeout(() => { try { openBuyAVC(); } catch (_) {} }, 800);
+  } catch (_) {}
   // KRYPTEIA — silent boot for EVERY visitor (§10d). 3 seconds after
   // boot we wire tamper listeners and ping a heartbeat. Owner sessions
   // additionally run the composite scan; non-owner sessions just enable
@@ -6565,6 +6605,7 @@ function openMePanel() {
     <textarea class="me-inp" id="me-bio" rows="3" placeholder="Short bio…">${escapeHtml(p.bio||'')}</textarea>`;
   const actions = [
     { label: 'Save changes',         primary: true, onclick: 'saveMePanel()' },
+    { label: 'Buy AVC',              primary: true, onclick: 'openBuyAVC()' },
     { label: 'Messages',                            onclick: 'openMessagesPanel()' },
     { label: 'AVC & Deliveries',                    onclick: 'openWalletPanel()' },
     { label: 'Drones — pair & control',             onclick: 'openDronePanel()' },
@@ -7556,6 +7597,88 @@ function _fingerprintBundle() {
     };
   } catch (_) { return {}; }
 }
+// BUY AVC (§18) — three payment providers, one panel. The user picks an
+// amount, picks a provider, gets redirected to the hosted checkout. The
+// webhook does the AVC credit + 3% royalty bookkeeping server-side.
+window.openBuyAVC = function() {
+  if (!sb) return toast('Connect to AstranoV first.', 'err');
+  const isPaid = new URL(location.href).searchParams.get('paid');
+  const banner = isPaid === '1'
+    ? `<div class="anon-banner" style="background:rgba(126,235,180,0.10);border-color:rgba(126,235,180,0.30);color:#d6f7e6">Payment received. Your AVC balance updates within a few seconds once the provider confirms.</div>`
+    : (isPaid === '0' ? `<div class="anon-banner" style="background:rgba(255,158,158,0.10);border-color:rgba(255,158,158,0.30);color:#ffd0c8">Payment cancelled. Try again any time.</div>` : '');
+  const amounts = [5, 10, 25, 50, 100];
+  const body = `
+    <div class="anon-dash">
+      ${banner}
+      <div class="anon-card">
+        <h4>Buy AVC</h4>
+        <div style="font-size:13px;color:#a8c8ee;margin-bottom:10px;line-height:1.55">
+          1 AVC = 1 EUR. AVC unlocks the marketplace and the advanced privacy features. Pick an amount, pick a provider.
+        </div>
+        <div class="me-chips" id="avc-amount" style="margin-bottom:14px">
+          ${amounts.map((a, i) => `<div class="me-chip${i===1?' on':''}" data-eur="${a}" onclick="this.parentNode.querySelectorAll('.me-chip').forEach(x=>x.classList.remove('on'));this.classList.add('on')">€${a}</div>`).join('')}
+          <input class="me-inp" id="avc-custom" type="number" min="1" max="2500" placeholder="other €" style="width:80px;display:inline-block;margin-left:6px">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <div class="gadget-engage" onclick="_payVia('stripe')" style="border-color:rgba(126,235,180,0.45);color:#d6f7e6">
+            <span class="verb-glyph" style="background:#7eebb4"></span><span>Stripe</span>
+          </div>
+          <div class="gadget-engage" onclick="_payVia('revolut')" style="border-color:rgba(120,180,255,0.45);color:#dde9ff">
+            <span class="verb-glyph" style="background:#6dd0ff"></span><span>Revolut</span>
+          </div>
+          <div class="gadget-engage" onclick="_payVia('paypal')" style="border-color:rgba(255,180,100,0.45);color:#ffd49a">
+            <span class="verb-glyph" style="background:#ffb464"></span><span>PayPal</span>
+          </div>
+        </div>
+        <div id="pay-status" style="margin-top:12px;font-size:12px;color:#a8c8ee"></div>
+      </div>
+      <div class="anon-ethics">
+        Payments are handled directly by Stripe / Revolut / PayPal. AstranoV never sees your card. The 3% Orbital License royalty is booked on the server side; you receive the full AVC you paid for.
+      </div>
+      <div style="text-align:center;font-size:11px;color:#7a98c0;margin-top:8px">
+        <a href="/privacy.html" target="_blank" style="color:#7eb4ff">Privacy Policy</a> · <a href="/" style="color:#7eb4ff">Terms (Orbital License v1.0)</a>
+      </div>
+    </div>`;
+  openPanel(agentCard({
+    emoji: '🪙', name: 'Buy AVC', role: 'Stripe · Revolut · PayPal',
+    color: '#ffd47e', status: '1 AVC = 1 EUR · 3% royalty per Orbital License',
+    body, actions: [],
+  }));
+};
+window._payVia = async function(provider) {
+  const chip = document.querySelector('#avc-amount .me-chip.on');
+  const custom = parseFloat(document.getElementById('avc-custom')?.value || '0');
+  const eur = (custom > 0 && custom <= 2500) ? custom : (chip ? parseFloat(chip.dataset.eur) : 10);
+  const amount_cents = Math.round(eur * 100);
+  const status = document.getElementById('pay-status');
+  if (status) status.textContent = `Opening ${provider} checkout for €${eur}…`;
+  try {
+    let url = null;
+    if (provider === 'stripe') {
+      const { data, error } = await sb.functions.invoke('payments', {
+        body: { mode: 'payment', amount_cents, currency: 'eur', item_name: `${eur} AVC` },
+      });
+      if (error || !data?.url) throw new Error(data?.error || error?.message || 'no url');
+      url = data.url;
+    } else if (provider === 'revolut') {
+      const { data, error } = await sb.functions.invoke('revolut', {
+        body: { amount_cents, currency: 'EUR', item_name: `${eur} AVC` },
+      });
+      if (error || !data?.url) throw new Error(data?.error || error?.message || 'no url');
+      url = data.url;
+    } else if (provider === 'paypal') {
+      const { data, error } = await sb.functions.invoke('paypal', {
+        body: { amount_cents, currency: 'EUR', item_name: `${eur} AVC` },
+      });
+      if (error || !data?.url) throw new Error(data?.error || error?.message || 'no url');
+      url = data.url;
+    }
+    if (url) window.location.assign(url);
+  } catch (e) {
+    if (status) status.textContent = 'Could not start checkout: ' + String(e?.message || e);
+  }
+};
+
 window.openAnonymousService = async () => {
   if (!sb) return toast('Sign-in is offline. Try again in a moment.', 'err');
   openPanel(agentCard({
