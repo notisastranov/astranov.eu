@@ -1004,10 +1004,10 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     color: #a8c8ee; font-weight: 600;
   }
   .anon-verdict {
-    font-size: 12.5px; line-height: 1.55; color: #dde9ff;
-    white-space: pre-wrap; font-family: ui-monospace, monospace;
+    font-size: 13px; line-height: 1.6; color: #dde9ff;
+    white-space: pre-wrap;
     max-height: 38vh; overflow: auto;
-    padding: 10px; border-radius: 10px;
+    padding: 12px 14px; border-radius: 10px;
     background: rgba(4,10,22,0.55); border: 1px solid rgba(109,208,255,0.14);
   }
   .anon-meter {
@@ -7588,7 +7588,8 @@ function _anonRenderDash(res) {
   const meterRight = ((1 - suspicion) * 100).toFixed(1) + '%';
   const sevColor = suspicion >= 0.7 ? '#ff6b6b' : suspicion >= 0.4 ? '#ffb464' : '#7eebb4';
   const installablePWA = !!window._deferredPWAInstall;
-  const isPWA = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  const isPWA = window._isPWAInstalled ? window._isPWAInstalled() : false;
+  const iosHint = window._isIOSSafari ? '<div style="font-size:11px;color:#a8c8ee;margin-top:6px;line-height:1.5">On iOS Safari: tap the <b>Share</b> icon below, then <b>Add to Home Screen</b>.</div>' : '';
 
   const body = `
     <div class="anon-dash">
@@ -7614,8 +7615,8 @@ function _anonRenderDash(res) {
           Installed, AstranoV runs offline, gets fuller permission to monitor your network connections, and can host the compute donor below. ${isPWA ? '<span style="color:#7eebb4">✓ already installed</span>' : ''}
         </div>
         ${!isPWA ? `<div class="gadget-engage" onclick="_anonInstallPWA()" style="border-color:rgba(126,235,180,0.4);color:#d6f7e6">
-          <span class="verb-glyph" style="background:#7eebb4"></span><span>Install AstranoV ${installablePWA ? '' : '(use your browser menu → Install)'}</span>
-        </div>` : ''}
+          <span class="verb-glyph" style="background:#7eebb4"></span><span>Install AstranoV</span>
+        </div>${iosHint}` : ''}
       </div>
 
       <div class="anon-card">
@@ -7653,61 +7654,104 @@ function _anonRenderDash(res) {
   }));
 }
 // PWA install via the beforeinstallprompt deferred prompt (Chrome/Edge).
+// Safari iOS never fires this — we detect that path separately and show
+// the "Add to Home Screen" instructions instead.
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   window._deferredPWAInstall = e;
 });
+window._isIOSSafari = (function() {
+  const ua = navigator.userAgent || '';
+  const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  const isSafari = /^((?!chrome|android|crios|fxios).)*safari/i.test(ua);
+  return isIOS && isSafari;
+})();
+window._isPWAInstalled = function() {
+  try {
+    return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+        || ('standalone' in navigator && navigator.standalone === true);
+  } catch (_) { return false; }
+};
 window._anonInstallPWA = async function() {
+  if (window._isPWAInstalled()) { toast('AstranoV is already installed.', 'ok'); return; }
   const d = window._deferredPWAInstall;
-  if (!d) {
-    toast('Use your browser menu → Install / Add to Home Screen', '');
+  if (d) {
+    d.prompt();
+    try { await d.userChoice; } catch (_) {}
+    window._deferredPWAInstall = null;
     return;
   }
-  d.prompt();
-  try { await d.userChoice; } catch (_) {}
-  window._deferredPWAInstall = null;
-};
-// Mining toggle.
-window._anonMineToggle = async function() {
-  if (window._anonState.mining) {
-    try { window._anonState.worker && window._anonState.worker.postMessage({ type: 'stop' }); } catch (_) {}
-    window._anonState.mining = false;
-    return _anonRenderDash(window._anonState.lastVerdict);
+  if (window._isIOSSafari) {
+    toast('Tap the Share button below, then "Add to Home Screen".', '');
+  } else {
+    toast('Open your browser menu → Install AstranoV (or "Add to Home Screen").', '');
   }
-  // Fetch a work unit then start.
-  try {
-    const { data } = await sb.functions.invoke('contribute', { body: { mode: 'workunit' } });
-    const wu = (data && data.target) ? data : { target: 'astranov', difficulty: 200_000 };
-    const w = new Worker('/contribute-worker.js');
-    w.onmessage = (e) => {
-      const m = e.data || {};
-      if (m.type === 'tick') {
-        window._anonState.cycles = m.cycles;
-        const st = document.getElementById('anon-mine-stat');
-        if (st) st.textContent = `${m.cycles.toLocaleString()} cycles · ${(m.duration_ms/1000).toFixed(0)}s · est. ${(m.cycles/5_000_000).toFixed(4)} AVC`;
-        // Ping coordinator every ~10s.
-        const now = Date.now();
-        if (!window._anonState.lastPing || now - window._anonState.lastPing > 10_000) {
-          window._anonState.lastPing = now;
-          const anonId = (function() {
-            let id = localStorage.getItem('astranov_anon_id');
-            if (!id) { id = crypto.randomUUID(); localStorage.setItem('astranov_anon_id', id); }
-            return id;
-          })();
-          sb.functions.invoke('contribute', { body: { mode: 'ping', cycles: m.cycles, duration_ms: m.duration_ms, anon_id: anonId } }).catch(() => {});
-        }
+};
+// Update only the mining card label/glyph in place — preserves the
+// chat thread + verdict scroll position.
+function _anonMineCardUpdate() {
+  const tog = document.getElementById('anon-mine-toggle');
+  if (!tog) return;
+  const isMining = !!window._anonState.mining;
+  tog.querySelector('.verb-glyph').style.background = isMining ? '#ff6b6b' : '#7eebb4';
+  tog.querySelector('span:last-child').textContent  = isMining ? 'Pause donating' : 'Start donating compute';
+}
+async function _anonMineStart() {
+  if (window._anonState.mining) return;
+  let wu = { target: 'astranov', difficulty: 200_000 };
+  try { const { data } = await sb.functions.invoke('contribute', { body: { mode: 'workunit' } });
+        if (data && data.target) wu = data; } catch (_) {}
+  const w = new Worker('/contribute-worker.js');
+  w.onmessage = (e) => {
+    const m = e.data || {};
+    if (m.type === 'tick') {
+      window._anonState.cycles = m.cycles;
+      const st = document.getElementById('anon-mine-stat');
+      if (st) st.textContent = `${m.cycles.toLocaleString()} cycles · ${(m.duration_ms/1000).toFixed(0)}s · est. ${(m.cycles/5_000_000).toFixed(4)} AVC`;
+      const now = Date.now();
+      if (!window._anonState.lastPing || now - window._anonState.lastPing > 10_000) {
+        window._anonState.lastPing = now;
+        const anonId = (function() {
+          let id = localStorage.getItem('astranov_anon_id');
+          if (!id) { id = crypto.randomUUID(); localStorage.setItem('astranov_anon_id', id); }
+          return id;
+        })();
+        sb.functions.invoke('contribute', { body: { mode: 'ping', cycles: m.cycles, duration_ms: m.duration_ms, anon_id: anonId } }).catch(() => {});
       }
-    };
-    w.postMessage({ type: 'start', workUnit: wu });
-    window._anonState.worker = w;
-    window._anonState.mining = true;
-    window._anonState.cycles = 0;
-    window._anonState.started = Date.now();
-    _anonRenderDash(window._anonState.lastVerdict);
-  } catch (e) {
-    toast('Could not start contributing: ' + String(e), 'err');
-  }
+    }
+  };
+  w.postMessage({ type: 'start', workUnit: wu });
+  window._anonState.worker = w;
+  window._anonState.mining = true;
+  window._anonState.cycles = 0;
+  window._anonState.started = Date.now();
+  try { localStorage.setItem('astranov_mining_opt_in', '1'); } catch (_) {}
+  _anonMineCardUpdate();
+}
+function _anonMineStop() {
+  if (!window._anonState.mining) return;
+  try { window._anonState.worker && window._anonState.worker.postMessage({ type: 'stop' }); } catch (_) {}
+  try { window._anonState.worker && window._anonState.worker.terminate(); } catch (_) {}
+  window._anonState.worker = null;
+  window._anonState.mining = false;
+  try { localStorage.removeItem('astranov_mining_opt_in'); } catch (_) {}
+  _anonMineCardUpdate();
+}
+window._anonMineToggle = async function() {
+  if (window._anonState.mining) return _anonMineStop();
+  try { await _anonMineStart(); } catch (e) { toast('Could not start contributing: ' + String(e), 'err'); }
 };
+// Resume mining on page load IF the user previously opted in. Honors
+// the §17b anti-coercion guardrail: only auto-resumes a choice the user
+// already explicitly made, never starts mining without prior consent.
+(function _anonMineResume() {
+  try {
+    if (localStorage.getItem('astranov_mining_opt_in') === '1') {
+      // Defer until after the rest of boot so we don't race the worker fetch.
+      setTimeout(() => { try { _anonMineStart(); } catch (_) {} }, 4500);
+    }
+  } catch (_) {}
+})();
 // Chat / voice — pipe through /developer with the Anonymous primer.
 window._anonChat = async function() {
   const inp = document.getElementById('anon-input');
