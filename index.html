@@ -853,12 +853,11 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   /* Me orb identity glow — always the warmest, always the user's anchor. */
   .informant.sys-me .orb { border-color: rgba(126,235,180,0.95); }
 
-  /* DEPTH SLIDER (§5j) — third Z dimension control. Lives on the left
-     edge, below the brightness slider. Moves the user's focal plane
-     through the orb cloud; orbs at the plane render sharp, others blur.
-     Visible only at the global tier. */
+  /* DEPTH SLIDER (§5j) — third Z dimension control. Lives on the RIGHT
+     edge, just below the volume slider, so it cannot overlap the
+     brightness slider on the left. Visible only at the global tier. */
   #depth-wrap {
-    position: fixed; left: 8px; top: calc(50% + 110px); transform: translateY(-50%);
+    position: fixed; right: 8px; top: calc(50% + 130px); transform: translateY(0);
     z-index: 45; display: flex; flex-direction: column; align-items: center; gap: 8px;
     padding: 12px 6px; border-radius: 16px;
     background: rgba(6,12,24,0.55); backdrop-filter: blur(10px);
@@ -869,7 +868,7 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   #depth-slider {
     -webkit-appearance: slider-vertical; appearance: slider-vertical;
     writing-mode: vertical-lr; direction: rtl;
-    width: 6px; height: 120px; accent-color: #7eebb4; cursor: pointer; background: transparent;
+    width: 6px; height: 100px; accent-color: #7eebb4; cursor: pointer; background: transparent;
   }
   #depth-wrap .depth-readout {
     font-size: 9px; letter-spacing: 0.18em; color: #7eebb4;
@@ -3059,20 +3058,18 @@ async function bootImageryGlobeTier() {
   viewer.scene.globe.enableLighting = true;
   viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#02060d');
 
-  // GAMING-GRADE POST-PROCESS — screen-space bloom so the planet's lit
-  // edge, beams, sun and city-light pinpoints glow naturally. Cesium's
-  // built-in stage; we tune it down from the default (which is harsh).
+  // POST-PROCESS — bloom is GPU-expensive and was the dominant cost on
+  // boot. Disabled by default; the orb plasma shaders already do their
+  // own bloom in-shader. Owner can re-enable via window.toggleBloom().
   try {
     const bloom = viewer.scene.postProcessStages.bloom;
     if (bloom) {
-      bloom.enabled = true;
-      bloom.uniforms.contrast    = 110;   // default 128 — slightly softer
-      bloom.uniforms.brightness  = -0.35; // raise the bloom threshold
-      bloom.uniforms.glowOnly    = false;
-      bloom.uniforms.delta       = 1.2;
-      bloom.uniforms.sigma       = 3.4;
-      bloom.uniforms.stepSize    = 1.0;
+      bloom.enabled = false;
     }
+    window.toggleBloom = function() {
+      const b = viewer.scene.postProcessStages.bloom;
+      if (b) { b.enabled = !b.enabled; viewer.scene.requestRender(); return b.enabled; }
+    };
     // FXAA on top — cheap antialiasing that smooths the bloom-blown rim.
     if (viewer.scene.postProcessStages.fxaa) viewer.scene.postProcessStages.fxaa.enabled = true;
   } catch (e) { console.warn('[bloom]', e); }
@@ -3138,12 +3135,20 @@ async function setCityImagery(index) {
     const provider = await p.init();
     cityLayer = viewer.imageryLayers.addImageryProvider(provider);
     // BMNG/Black Marble are hidden at non-global, so the city layer renders
-    // alone — no need to boost brightness to fight an underlying satellite
-    // photo. Render at neutral values; CARTO Dark is dark by design.
-    cityLayer.brightness = window._brightness ?? 1.0;
-    cityLayer.contrast   = 1.0;
-    cityLayer.gamma      = 1.0;
-    cityLayer.saturation = 1.0;
+    // CARTO Dark Matter is dark BY DESIGN — at neutral the streets are
+    // invisible. We boost brightness + contrast so streets read clearly
+    // even though BMNG/Black Marble underneath are now hidden.
+    if (p.id === 'carto-dark') {
+      cityLayer.brightness = window._brightness ?? 1.55;
+      cityLayer.contrast   = 1.20;
+      cityLayer.gamma      = 0.85;
+      cityLayer.saturation = 1.05;
+    } else {
+      cityLayer.brightness = window._brightness ?? 1.0;
+      cityLayer.contrast   = 1.0;
+      cityLayer.gamma      = 1.0;
+      cityLayer.saturation = 1.0;
+    }
     // City tiles must sit ON TOP of the NASA globe layers.
     try { viewer.imageryLayers.raiseToTop(cityLayer); } catch (_) {}
     cityLayer.show = currentLevel !== 'global';
@@ -3635,11 +3640,14 @@ function _drawLivingOrb2D(cv, t) {
 let _gfxStart = performance.now(), _gfxFrame = 0;
 function _gfxTick() {
   const t = (performance.now() - _gfxStart) / 1000;
-  // Throttle to ~30fps for battery; skip when document hidden.
-  if (!document.hidden && (_gfxFrame++ & 1) === 0) {
+  // Throttle to ~15fps — orb plasma is decorative, no one needs 60fps.
+  // Halves shader cost vs the previous 30fps. Skip when document hidden.
+  if (!document.hidden && (_gfxFrame++ & 3) === 0) {
     for (const cv of _LIVING_ORBS) {
       // Skip off-screen orbs cheaply.
       if (!cv.isConnected) { _LIVING_ORBS.delete(cv); continue; }
+      // Also skip when the element is fully faded out (DoF / occluded).
+      const host = cv.closest('.informant'); if (host && host.style.opacity === '0') continue;
       _drawLivingOrb(cv, t);
     }
   }
@@ -3649,7 +3657,7 @@ requestAnimationFrame(_gfxTick);
 // Helper to mint a living-orb HTML block with an emoji on top.
 function livingOrbHTML(emoji, color, seed) {
   const s = (seed != null ? seed : _hashSeed(String(emoji || '') + color));
-  return `<canvas class="living-orb" width="384" height="384" data-color="${color || '#7eb4ff'}" data-seed="${s}"></canvas><span class="orb-glyph">${emoji || ''}</span>`;
+  return `<canvas class="living-orb" width="256" height="256" data-color="${color || '#7eb4ff'}" data-seed="${s}"></canvas><span class="orb-glyph">${emoji || ''}</span>`;
 }
 
 // ── REAL VIDEO LAYER — informant orbs are live windows, not icons. ───────
@@ -3690,7 +3698,7 @@ function videoOrbHTML(emoji, color, seed, videoUrl, imageUrl) {
     : `<video class="orb-video" src="${escapeHtml(url)}" autoplay muted loop playsinline preload="auto" onloadeddata="this.classList.add('is-ready')" onerror="this.style.display='none'"></video>`;
   return `<div class="orb-stage">
     ${media}
-    <canvas class="living-orb" width="384" height="384" data-color="${color || '#7eb4ff'}" data-seed="${s}"></canvas>
+    <canvas class="living-orb" width="256" height="256" data-color="${color || '#7eb4ff'}" data-seed="${s}"></canvas>
     <span class="orb-glyph">${emoji || ''}</span>
   </div>`;
 }
