@@ -217,19 +217,20 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     The orbital cloud is NOT a flat ring. Every orb sits at a stable
     per-id altitude (_orbZ): informants spread across 600 – 2,400 km
     via a hash-derived offset; system tiers retain their declared
-    altitudes. The user navigates the depth axis via:
-      • The #depth-slider (left edge, just below #bright-wrap) which
-        sets window._focalAlt in metres. Persists in localStorage.
-      • Shift+wheel anywhere on the globe shifts focal in 50 km steps.
-    Each frame, _projectOrbs computes focalNorm = |orb.alt - focalAlt|
-    / _ORB_Z_SPREAD and applies:
-      • Blur up to ~5.5 px out-of-focus (composes with horizon DOF).
+    altitudes. No slider — depth is GESTURE-DRIVEN on the canvas:
+      • Single tap in EMPTY SKY (no Earth pick) at the GLOBAL tier
+        → focal -200 km (deeper, toward Earth).
+      • Long-press in empty sky → focal +200 km / 300 ms while held
+        (shallower, toward apex).
+      • Taps that hit the Earth disc still descend tier (unchanged).
+    window._focalAlt persists in localStorage. Each frame _projectOrbs
+    computes focalNorm = |orb.alt - focalAlt| / _ORB_Z_SPREAD and applies:
+      • Blur up to ~5.5 px out-of-focus.
       • Opacity from 1.0 at focus down to 0.45 at far Z.
       • Scale falloff from 1.0 at focus down to 0.7 at far Z.
-    Effect: only the orbs at the focal plane read sharp. Sliding depth
-    reveals the layered cloud — an advanced-user affordance for managing
-    many orbs without traditional 3D rendering. CSS variable --orb-z
-    is exposed per orb for future shader-side effects.
+      • pointer-events:none outside focalNorm 0.55.
+    Effect: only the orbs at the focal plane read sharp; tapping
+    repeatedly sweeps through the layered cloud.
 
 5i. GAMING GRAPHICS — WebGL PBR shader + Cesium bloom (binding)
     The Living-Orb Engine renders through ONE shared WebGL context
@@ -853,27 +854,11 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   /* Me orb identity glow — always the warmest, always the user's anchor. */
   .informant.sys-me .orb { border-color: rgba(126,235,180,0.95); }
 
-  /* DEPTH SLIDER (§5j) — third Z dimension control. Lives on the RIGHT
-     edge, just below the volume slider, so it cannot overlap the
-     brightness slider on the left. Visible only at the global tier. */
-  #depth-wrap {
-    position: fixed; right: 8px; top: calc(50% + 130px); transform: translateY(0);
-    z-index: 45; display: flex; flex-direction: column; align-items: center; gap: 8px;
-    padding: 12px 6px; border-radius: 16px;
-    background: rgba(6,12,24,0.55); backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(120,180,255,0.16);
-  }
-  body:not(.at-global) #depth-wrap { display: none; }
-  #depth-wrap .depth-ico { font-size: 13px; color: #7eebb4; opacity: 0.85; }
-  #depth-slider {
-    -webkit-appearance: slider-vertical; appearance: slider-vertical;
-    writing-mode: vertical-lr; direction: rtl;
-    width: 6px; height: 100px; accent-color: #7eebb4; cursor: pointer; background: transparent;
-  }
-  #depth-wrap .depth-readout {
-    font-size: 9px; letter-spacing: 0.18em; color: #7eebb4;
-    font-variant-numeric: tabular-nums; opacity: 0.85;
-  }
+  /* DEPTH gesture (§5j) replaces the slider:
+     • single tap in EMPTY SKY at the global tier  →  focal -200 km (deeper)
+     • long-press in EMPTY SKY                     →  focal +200 km / 300 ms (shallower)
+     • taps on the Earth disc keep the tier-descend gesture
+     No persistent UI for depth — the orb cloud's response is the readout. */
 
   /* VOLUME SLIDER — identical chrome to #bright-wrap, mirrored to the
      right edge. Controls Astranov's voice loudness live. Visible only
@@ -2578,14 +2563,8 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   <input id="vol-slider" type="range" min="0" max="1" step="0.02" value="1" aria-label="Voice volume">
 </div>
 
-<!-- Depth slider — moves the focal plane through the orb cloud. Orbs at
-     the focal altitude render sharp + full size; orbs outside blur and
-     fade. Lives just below the brightness slider on the left edge. -->
-<div id="depth-wrap" title="Depth focus">
-  <span class="depth-ico">◉</span>
-  <input id="depth-slider" type="range" min="600000" max="2400000" step="20000" value="1500000" aria-label="Depth focus">
-  <span class="depth-readout" id="depth-readout">1500</span>
-</div>
+<!-- Depth slider removed (§5j v2) — replaced by tap+hold gestures on the
+     sky around Earth. See _wireDepthGesture below. -->
 
 <!-- Brightness slider — left edge. Controls map luminosity live. -->
 <div id="bright-wrap" title="Map brightness">
@@ -2898,6 +2877,7 @@ async function bootCesium() {
       ssc.lookEventTypes = ssc.lookEventTypes ? [] : [];
     } catch (_) {}
     _wireTwoFingerZoom(viewer.scene.canvas);
+    _wireDepthGesture(viewer.scene.canvas);
 
     // Hide boot veil
     setTimeout(() => $('boot').classList.add('gone'), 400);
@@ -8261,27 +8241,79 @@ function _applyVolume(v) {
 // projection loop reads window._focalAlt every frame and applies depth-
 // of-field blur + opacity + scale falloff per orb. Persists across
 // reloads. Shift+wheel also nudges focal in steps of 50 km.
+// DEPTH (§5j v2) — no slider, no readout. Driven by tap-on-sky gestures
+// installed by _wireDepthGesture (called from the viewer init).
 function _applyDepth(v) {
   v = Math.max(600_000, Math.min(2_400_000, Number(v) || _ORB_ALT));
   window._focalAlt = v;
   try { localStorage.setItem('astranov_focal_alt', String(v)); } catch (_) {}
-  const el = document.getElementById('depth-slider');
-  if (el && Number(el.value) !== v) el.value = String(v);
-  const r = document.getElementById('depth-readout');
-  if (r) r.textContent = String(Math.round(v / 1000)) + ' km';
 }
-(function wireDepth() {
-  const s = document.getElementById('depth-slider'); if (!s) return setTimeout(wireDepth, 100);
-  const stored = parseFloat(localStorage.getItem('astranov_focal_alt') || '0');
-  if (stored) { window._focalAlt = stored; s.value = String(stored); }
-  s.addEventListener('input', e => _applyDepth(parseFloat(e.target.value)));
-  // Shift+wheel anywhere on the globe shifts focal in 50 km steps.
-  window.addEventListener('wheel', (e) => {
-    if (!e.shiftKey) return;
-    e.preventDefault();
-    _applyDepth((window._focalAlt || _ORB_ALT) + Math.sign(e.deltaY) * -50_000);
-  }, { passive: false });
+// Restore on boot.
+(function() {
+  try {
+    const stored = parseFloat(localStorage.getItem('astranov_focal_alt') || '0');
+    if (stored) window._focalAlt = stored;
+  } catch (_) {}
 })();
+// TAP / LONG-PRESS depth gesture on the Cesium canvas.
+//   • tap in the sky (no Earth hit) at GLOBAL tier  →  focal -200 km
+//   • long-press in the sky at GLOBAL tier          →  focal +200 km / 300 ms while held
+//   • taps that hit the Earth disc are routed normally (onCanvasClick handles tier descent)
+function _wireDepthGesture(canvas) {
+  if (!canvas || canvas.__depthWired) return;
+  canvas.__depthWired = true;
+  let downAt = 0, downX = 0, downY = 0, holdTimer = null, holding = false;
+  let stepInterval = null;
+  function isSkyAtPoint(px, py) {
+    if (typeof currentLevel !== 'undefined' && currentLevel !== 'global') return false;
+    if (!viewer || !viewer.scene || !viewer.scene.globe) return false;
+    try {
+      const ray = viewer.camera.getPickRay(new Cesium.Cartesian2(px, py));
+      const ground = ray && viewer.scene.globe.pick(ray, viewer.scene);
+      return !ground; // no Earth hit = sky
+    } catch (_) { return false; }
+  }
+  function startHoldShallow() {
+    if (holding) return;
+    holding = true;
+    // Immediate step + then every 300 ms while held.
+    _applyDepth((window._focalAlt || _ORB_ALT) + 200_000);
+    stepInterval = setInterval(() => {
+      _applyDepth((window._focalAlt || _ORB_ALT) + 200_000);
+    }, 300);
+  }
+  function endHold() {
+    if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+    if (stepInterval) { clearInterval(stepInterval); stepInterval = null; }
+    holding = false;
+  }
+  canvas.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    downAt = performance.now();
+    downX = e.clientX; downY = e.clientY;
+    if (isSkyAtPoint(downX, downY)) {
+      holdTimer = setTimeout(() => {
+        if (Math.hypot(downX - e.clientX, downY - e.clientY) < 16) startHoldShallow();
+      }, 350);
+    }
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (holdTimer && Math.hypot(e.clientX - downX, e.clientY - downY) > 12) endHold();
+  });
+  canvas.addEventListener('pointerup', (e) => {
+    const heldMs = performance.now() - downAt;
+    const moved = Math.hypot(e.clientX - downX, e.clientY - downY);
+    const wasHolding = holding;
+    endHold();
+    if (wasHolding) return; // hold already advanced focal; do nothing on release
+    if (heldMs < 250 && moved < 12 && isSkyAtPoint(e.clientX, e.clientY)) {
+      // Quick sky-tap: nudge focal DEEPER (toward Earth) by one step.
+      _applyDepth((window._focalAlt || _ORB_ALT) - 200_000);
+    }
+  });
+  canvas.addEventListener('pointercancel', endHold);
+  canvas.addEventListener('pointerleave', endHold);
+}
 
 window._developerSend = async function(ctx) {
   const q = ($('dev-q')?.value || '').trim();
