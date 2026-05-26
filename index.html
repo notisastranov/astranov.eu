@@ -651,28 +651,28 @@ This block strives to get shorter, more inclusive, more precise with every edit.
       • Anti-coercion — refusing to donate does NOT lock the user out of
         any core feature; donation only unlocks "advanced" surfaces.
 
-18. PAYMENTS — Stripe + Revolut + PayPal, 1 AVC = 1 EUR (binding)
-    Three independent payment rails, one ledger. The user picks an
-    amount + a provider from openBuyAVC(); the front end posts to the
-    matching Edge Fn (/payments for Stripe, /revolut, /paypal) which
-    creates a hosted-checkout session and returns the URL. AstranoV
-    never sees the user's card.
-    Each provider has a WEBHOOK handler:
-      • /stripe-webhook  — checkout.session.completed
-      • /revolut-webhook — ORDER_COMPLETED / ORDER_AUTHORISED
-      • /paypal-webhook  — CHECKOUT.ORDER.APPROVED (auto-captures) +
-                           PAYMENT.CAPTURE.COMPLETED
-    All three webhooks verify signatures before doing anything. On a
-    successful event the handler:
-      1. Upserts a row in `payments` (provider, provider_ref, status,
-         amount_cents, currency, profile_id, paid_at, raw_event).
-      2. Inserts a row in `royalties` booking 3% of the amount per
-         Orbital License v1.0.
-      3. Credits the buyer's profiles.avc_balance via credit_avc RPC
-         (1 AVC = 1 EUR).
-    No payment provider is the source of truth — the `payments` table
-    is, indexed unique on (provider, provider_ref). RLS: owner reads
-    all; user reads own. Royalties: owner-only.
+18. PAYMENTS — Stripe + Revolut + PayPal, two-ledger currency model (binding)
+    USERS see EUR only. The € orb (sys-eur in the orbital ring) opens
+    the wallet panel showing eur_balance and the marketplace.
+    OWNER also holds an AVC reserve (avc_balance) — equivalent to EUR
+    at 1:1 — used as the system's internal credit pool. The admin_
+    transfer_avc_to_eur RPC (owner-gated server-side) moves AVC from
+    the owner reserve into any user's eur_balance.
+    Payment webhooks credit eur_balance directly (never avc_balance).
+    The 3% Orbital-License royalty is booked in the royalties table
+    independently of either balance — it's an accounting record, not
+    a balance deduction.
+
+    Three independent payment rails, one ledger. openBuyAVC() posts
+    to the matching Edge Fn (/payments for Stripe, /revolut, /paypal)
+    which creates a hosted-checkout session; AstranoV never sees the
+    user's card. Each provider has a WEBHOOK handler that verifies
+    signatures, upserts a `payments` row, inserts a `royalties` row at
+    3% of the amount, and calls credit_eur to land the funds in the
+    buyer's eur_balance. No payment provider is the source of truth —
+    the `payments` table is, unique on (provider, provider_ref).
+    RLS: payments owner-all + self-read; royalties + avc_balance
+    owner-only.
 
 18b. PRIVACY POLICY — GDPR-compliant, /privacy.html (binding)
     AstranoV operates from the EU on a .eu domain owned by a Greek
@@ -869,6 +869,18 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   @keyframes pilot-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   /* Me orb identity glow — always the warmest, always the user's anchor. */
   .informant.sys-me .orb { border-color: rgba(126,235,180,0.95); }
+  /* € orb — user-facing wallet entry. Gold to read as money. */
+  .informant.sys-eur .orb {
+    border-color: rgba(255,212,126,0.95);
+    box-shadow:
+      0 0 calc(22px + var(--orb-rim, 0) * 32px) rgba(255,212,126,0.55),
+      0 0 calc(46px + var(--orb-rim, 0) * 40px) rgba(255,180,80,0.22),
+      inset 0 0 16px rgba(0,0,0,0.55);
+  }
+  .informant.sys-eur .orb-glyph {
+    color: #ffe1a8; font-weight: 700;
+    text-shadow: 0 0 10px rgba(255,180,80,0.85), 0 0 3px rgba(0,0,0,0.9);
+  }
 
   /* DEPTH gesture (§5j) replaces the slider:
      • single tap in EMPTY SKY at the global tier  →  focal -200 km (deeper)
@@ -3735,6 +3747,7 @@ const _orbState = []; // [{ kind, infId|sysId, cart, beam, isEvent, color, lat, 
 // Me also carries an event-bound beam down to the user's actual lat/lng.
 const _SYSTEM_ORB_TIERS = [
   { id: 'sys-me',       name: 'Me',        emoji: '◉',  color: '#7eebb4', alt:  1_800_000, latOff:   0, boost: 1.10, classes: 'system sys-me',       onclick: 'expandMeOrb()' },
+  { id: 'sys-eur',      name: 'Wallet',    emoji: '€',  color: '#ffd47e', alt: 14_000_000, latOff:  50, boost: 1.00, classes: 'system sys-eur',      onclick: 'openWalletPanel()' },
   { id: 'sys-pilot',    name: 'Pilot',     emoji: '🌍', color: '#6dd0ff', alt: 22_000_000, latOff:  28, boost: 0.95, classes: 'system sys-pilot',    onclick: 'pilotHome()' },
   { id: 'sys-astranov', name: 'Astranov',  emoji: '◈',  color: '#a8c8ee', alt: 16_000_000, latOff: -28, boost: 0.85, classes: 'system sys-astranov', onclick: 'openAstranov()' },
   { id: 'sys-discover', name: 'Discover',  emoji: '⬢',  color: '#ffb464', alt: 10_000_000, latOff: -52, boost: 0.75, classes: 'system sys-discover', onclick: 'openFeedPanel()' },
@@ -6624,7 +6637,7 @@ function openMePanel() {
     <textarea class="me-inp" id="me-bio" rows="3" placeholder="Short bio…">${escapeHtml(p.bio||'')}</textarea>`;
   const actions = [
     { label: 'Save changes',         primary: true, onclick: 'saveMePanel()' },
-    { label: 'Buy AVC',              primary: true, onclick: 'openBuyAVC()' },
+    { label: 'Top up euros',         primary: true, onclick: 'openBuyAVC()' },
     { label: 'Messages',                            onclick: 'openMessagesPanel()' },
     { label: 'AVC & Deliveries',                    onclick: 'openWalletPanel()' },
     { label: 'Drones — pair & control',             onclick: 'openDronePanel()' },
@@ -6858,11 +6871,34 @@ function formatDistance(m) {
 
 function openWalletPanel() {
   if (!session) return openYouPanel();
-  const bal = profile?.avc_balance ?? 0;
-  const dash = Math.min(bal/100*113, 113).toFixed(1);
+  // Users see EUR (eur_balance). AVC is owner-only reserve, shown in
+  // the admin card further down.
+  const eur = Number(profile?.eur_balance ?? 0);
+  const isOwner = !!profile?.is_owner;
+  const adminAvc = Number(profile?.avc_balance ?? 0);
+  const adminCard = isOwner ? `
+    <div style="margin:18px 0 6px;padding:14px 16px;border-radius:14px;
+                background:linear-gradient(135deg, rgba(168,200,238,0.08) 0%, rgba(168,200,238,0.03) 100%);
+                border:1px solid rgba(168,200,238,0.22)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div>
+          <div style="font-size:11px;color:#a8c8ee;letter-spacing:0.22em;text-transform:uppercase">Admin · AVC reserve</div>
+          <div style="font-size:22px;color:#cfe1ff;font-weight:300;margin-top:2px">${adminAvc.toFixed(2)}<span style="font-size:11px;color:#7a98c0;letter-spacing:0.2em;margin-left:6px">AVC</span></div>
+        </div>
+        <div style="font-size:10px;color:#7a98c0;max-width:130px;line-height:1.4;text-align:right">Owner-only ledger.
+1 AVC = €1. Transfer to any user.</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:stretch">
+        <input id="avc-target" class="me-inp" type="text" placeholder="profile id or email" style="flex:1.6;min-width:0">
+        <input id="avc-amount" class="me-inp" type="number" min="0.01" step="0.01" placeholder="€ amount" style="flex:1;min-width:0">
+        <button class="kd-btn kd-btn-send" onclick="_adminTransferAvcToEur()" style="white-space:nowrap">Transfer →</button>
+      </div>
+      <div id="avc-transfer-status" style="margin-top:8px;font-size:11px;color:#7a98c0"></div>
+    </div>` : '';
+
   openPanel(`
     <h2>Wallet</h2>
-    <div class="subtitle">AVC balance · delivery marketplace</div>
+    <div class="subtitle">Your euros · delivery marketplace</div>
 
     <div style="display:flex;align-items:center;gap:14px;margin:14px 0 6px;padding:16px 18px;border-radius:14px;
                 background:linear-gradient(135deg, rgba(255,212,126,0.10) 0%, rgba(255,212,126,0.04) 100%);
@@ -6870,12 +6906,12 @@ function openWalletPanel() {
       <svg width="56" height="56" viewBox="0 0 56 56" style="flex-shrink:0">
         <circle cx="28" cy="28" r="22" fill="none" stroke="rgba(255,212,126,0.15)" stroke-width="3"/>
         <circle cx="28" cy="28" r="22" fill="none" stroke="rgba(255,212,126,0.95)" stroke-width="3"
-          stroke-dasharray="${(Math.min(bal/100*138,138)).toFixed(1)} 138"
+          stroke-dasharray="${(Math.min(eur/100*138,138)).toFixed(1)} 138"
           stroke-linecap="round" transform="rotate(-90 28 28)"/>
       </svg>
       <div style="flex:1">
-        <div style="font-size:30px;font-weight:300;color:#ffd47e;line-height:1">${bal}<span style="font-size:12px;color:#a88c50;letter-spacing:0.2em;margin-left:6px">AVC</span></div>
-        <div style="font-size:10px;color:#6a8aaf;letter-spacing:0.2em;text-transform:uppercase;margin-top:6px">Available balance · 1 AVC = €1</div>
+        <div style="font-size:30px;font-weight:300;color:#ffd47e;line-height:1">€${eur.toFixed(2)}</div>
+        <div style="font-size:10px;color:#6a8aaf;letter-spacing:0.2em;text-transform:uppercase;margin-top:6px">Available balance</div>
       </div>
     </div>
 
@@ -6888,18 +6924,52 @@ function openWalletPanel() {
       </div>
     </div>
 
+    ${adminCard}
+
     <div class="gadget-seg delivery-tabs" id="delivery-tab-seg">
       <div class="seg active" data-tab="orders"      onclick="switchDeliveryTab('orders',this)">Orders</div>
       <div class="seg"        data-tab="my-requests" onclick="switchDeliveryTab('my-requests',this)">Requests</div>
       <div class="seg"        data-tab="my-runs"     onclick="switchDeliveryTab('my-runs',this)">Runs</div>
       <div class="seg"        data-tab="nearby"      onclick="switchDeliveryTab('nearby',this)">Nearby</div>
-      <div class="seg"        data-tab="history"     onclick="switchDeliveryTab('history',this)">AVC log</div>
+      <div class="seg"        data-tab="history"     onclick="switchDeliveryTab('history',this)">Log</div>
     </div>
     <div id="delivery-list" style="min-height:80px;color:#6a8aaf;font-size:13px">Loading…</div>
   `);
   _currentDeliveryTab = 'orders';
   loadDeliveryTab('orders');
 }
+
+// Owner-only: transfer AVC from the owner's reserve into any user's EUR
+// balance. Wraps the admin_transfer_avc_to_eur RPC (which double-checks
+// is_owner server-side, so even if a non-owner crafts this call directly
+// the RPC refuses).
+window._adminTransferAvcToEur = async function() {
+  const status = document.getElementById('avc-transfer-status');
+  const target = (document.getElementById('avc-target')?.value || '').trim();
+  const amount = parseFloat(document.getElementById('avc-amount')?.value || '0');
+  if (!target || !amount || amount <= 0) { if (status) status.textContent = 'target id + positive amount required'; return; }
+  // Accept either a profile_id (uuid) or an email. Email path looks up profile_id.
+  let targetId = target;
+  if (target.includes('@')) {
+    try {
+      const { data } = await sb.from('profiles').select('id').eq('email', target).single();
+      if (!data?.id) { if (status) status.textContent = 'no profile found for that email'; return; }
+      targetId = data.id;
+    } catch (_) { if (status) status.textContent = 'lookup failed'; return; }
+  }
+  try {
+    const { data, error } = await sb.rpc('admin_transfer_avc_to_eur', {
+      p_target_profile: targetId, p_amount: amount,
+    });
+    if (error) throw error;
+    if (status) status.textContent = `Transferred €${amount.toFixed(2)} to ${targetId.slice(0,8)}…`;
+    // Refresh balances.
+    try { const { data: p } = await sb.from('profiles').select('*').eq('id', session.user.id).single(); if (p) profile = p; } catch (_) {}
+    setTimeout(openWalletPanel, 900);
+  } catch (e) {
+    if (status) status.textContent = 'Failed: ' + (e?.message || String(e));
+  }
+};
 
 let _currentDeliveryTab = 'my-requests';
 window.switchDeliveryTab = (tab, el) => {
@@ -7641,9 +7711,9 @@ window.openBuyAVC = function() {
     <div class="anon-dash">
       ${banner}
       <div class="anon-card">
-        <h4>Buy AVC</h4>
+        <h4>Top up your euros</h4>
         <div style="font-size:13px;color:#a8c8ee;margin-bottom:10px;line-height:1.55">
-          1 AVC = 1 EUR. AVC unlocks the marketplace and the advanced privacy features. Pick an amount, pick a provider.
+          Add money to your AstranoV wallet. Funds land in your € balance and unlock the marketplace + advanced features. Pick an amount, pick a provider.
         </div>
         <div class="me-chips" id="avc-amount" style="margin-bottom:14px">
           ${amounts.map((a, i) => `<div class="me-chip${i===1?' on':''}" data-eur="${a}" onclick="this.parentNode.querySelectorAll('.me-chip').forEach(x=>x.classList.remove('on'));this.classList.add('on')">€${a}</div>`).join('')}
@@ -7670,8 +7740,8 @@ window.openBuyAVC = function() {
       </div>
     </div>`;
   openPanel(agentCard({
-    emoji: '🪙', name: 'Buy AVC', role: 'Stripe · Revolut · PayPal',
-    color: '#ffd47e', status: '1 AVC = 1 EUR · 3% royalty per Orbital License',
+    emoji: '€', name: 'Top up', role: 'Stripe · Revolut · PayPal',
+    color: '#ffd47e', status: 'Add euros to your wallet',
     body, actions: [],
   }));
 };
