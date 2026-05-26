@@ -701,37 +701,41 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     window._ambientToggleMute() exists for a future mute affordance.
 
 22. REALITY LAW — orbs mimic reality, code respects the device (binding)
-    AstranoV is reality, not a desktop OS. Two corollaries, both
-    binding, both flowing from PRIME LAW (truth + Spartan):
+    AstranoV is reality, not a desktop OS. Three corollaries, all
+    binding, all flowing from PRIME LAW (truth + Spartan):
 
-    (a) INTERACTION MIMICS REAL CONVERSATION, NOT MENU TREES.
+    (a) ONE ORB, ONE ACTION. NO MENUS. NO OPTIONS.
         Tap an orb → the orb GLOWS and SPEAKS what's true right now,
         using Astranov's voice. The orb itself is the notification.
-        NO tabs, NO chips, NO nested menus, NO panels-by-default.
-        A bottom panel appears ONLY when (i) the information cannot
-        fit in a single spoken sentence AND the user wants more, OR
-        (ii) the user needs to type / choose / confirm. In that case
-        the panel takes the form of a CHAT — one input, voice mic,
-        scrollback — never a tabbed control surface. Common verbs
-        (top up, messages, wallet, request delivery, locate, sign out)
-        route by simple intent matching; the catch-all hands off to
-        Astranov for a real reply.
+        No tabs. No chips. No nested menus. No "what would you like
+        to do?" lists. The user does not have time to explore; they
+        get what they need. If they need to do something different,
+        they tap THAT orb — money lives on the € orb, conversation on
+        the Astranov orb, home on the Pilot orb, news on Discover.
 
-    (b) THE CODE LOAD MUST FIT THE USER'S DEVICE.
+    (b) PANELS ONLY WHEN UNAVOIDABLE — AND ALWAYS AS CHAT.
+        A bottom panel appears ONLY when (i) the data does not fit a
+        single spoken sentence AND the user explicitly asks for more
+        (long-press, follow-up question), OR (ii) the user must type
+        a free-form value (sign-in fields, profile edits, message
+        body). When a panel is unavoidable it is a CHAT — one input,
+        voice mic, scrollback — never a control surface with chips
+        and toggles. Auth and payment-redirect surfaces are the only
+        exceptions (3rd-party flows we don't own).
+
+    (c) THE CODE LOAD MUST FIT THE USER'S DEVICE.
         An app that stutters or jams on the user's hardware violates
         reality just as much as a fake menu does. Concrete rules:
-          • No render loop runs at more than 30 fps when nothing is
-            interacting; idle should drop to 10–15 fps.
-          • No WebGL pass renders to a buffer larger than 256² unless
-            the user has explicitly opted into a "gaming" mode.
-          • No request fan-out greater than the device's likely
-            concurrency (navigator.hardwareConcurrency, fallback 4).
-          • Workers must throttle and yield; the main thread must
-            never block more than 50 ms on anything boot-related.
+          • No render loop > 30 fps when nothing is interacting; idle
+            should drop to 10–15 fps.
+          • No WebGL pass > 256² without explicit gaming mode.
+          • No request fan-out greater than navigator.hardwareConcurrency
+            (fallback 4).
+          • Workers must throttle and yield; main thread must never
+            block more than 50 ms on anything boot-related.
           • Service Worker caches tiles aggressively so a second visit
             is offline-instant.
-          • If a feature is heavy AND optional (Cesium bloom, mining
-            worker, postprocess stages), it ships OFF by default.
+          • Heavy optional features ship OFF by default.
 
     Every commit that adds a new orb, panel, or render path is judged
     against this law BEFORE it lands. Violations are §10b Krypteia
@@ -8075,6 +8079,19 @@ window.openKrypteia = async (runSilently) => {
     }
     return;
   }
+  // CACHED-VERDICT FAST PATH (§22 Reality Law): if the silent boot has
+  // a fresh verdict (< 5 min old) the foreground tap shows it instantly,
+  // no 30-second re-scan. Owner can force a fresh run via Re-run inside
+  // the dashboard. Also clear the alert glow now that the owner has
+  // engaged with the orb.
+  const cached = window._krypteiaState && window._krypteiaState.lastVerdict;
+  const cachedFresh = cached && cached.at && (Date.now() - new Date(cached.at).valueOf() < 5 * 60_000);
+  const orb = document.querySelector('.informant.krypteia');
+  if (orb) orb.classList.remove('alert');
+  if (!runSilently && cachedFresh) {
+    _krypteiaShowDash(cached);
+    return;
+  }
   if (!runSilently) {
     openPanel(agentCard({
       emoji: '⬡', name: 'Krypteia', role: 'Guardian · running all checks',
@@ -8402,21 +8419,25 @@ window.pilotHome = function() {
 // Me orb tap: expand the user's identity panel (signed-in user) or
 // prompt sign-in. Also re-anchor the beam by re-locating the user if we
 // haven't yet.
-// Me orb tap (§22 REALITY LAW): the orb SPEAKS what's true right now.
-// No tabs, no chips, no menu. A chat panel opens only if the user wants
-// to act on something — voice or text follow-up — not because they
-// touched the orb.
+// Me orb tap (§22 REALITY LAW v2): one orb, one action. The orb SPEAKS
+// what's true right now + GLOWS. NO panel, NO chat input, NO options.
+// To do anything the user uses the orb that owns that action:
+//   • money     → € orb     (sys-eur)
+//   • news      → orb itself glows/has-news + Discover orb
+//   • talk      → Astranov orb (the canonical chat)
+//   • home      → Pilot orb
+// We refuse to overload the user with menus.
 window.expandMeOrb = async function() {
   if (_userLat == null || _userLng == null) {
     try { if (typeof startLocate === 'function') startLocate(); } catch (_) {}
   }
   if (!session) {
-    // No identity yet — the orb says so, and one chat opens for sign-in.
+    // No identity yet — speak the prompt + open the auth surface (the
+    // only place where "options" are unavoidable: sign-in vs register).
     try { speakAstranov('You are not yet signed in. Tap to sign in or register.'); } catch (_) {}
     try { if (typeof openYouPanel === 'function') openYouPanel(); } catch (_) {}
     return;
   }
-  // Glow the orb so the user knows it's the one talking.
   const orb = document.querySelector('.informant.sys-me');
   if (orb) {
     orb.classList.add('alert');
@@ -8426,7 +8447,6 @@ window.expandMeOrb = async function() {
   // Compute a true, terse status the orb says aloud.
   const name = (profile && profile.display_name) || 'friend';
   const eur  = Number(profile?.eur_balance ?? 0);
-  // Live counts — best-effort, fail-silent.
   let openOrders = 0, unreadMsgs = 0;
   try {
     const { count: oc } = await sb.from('orders').select('*', { count: 'exact', head: true })
@@ -8441,115 +8461,8 @@ window.expandMeOrb = async function() {
   const parts = [`${name}, your wallet has ${eur.toFixed(2)} euros.`];
   if (openOrders) parts.push(`${openOrders} order${openOrders === 1 ? '' : 's'} in flight.`);
   if (unreadMsgs) parts.push(`${unreadMsgs} unread message${unreadMsgs === 1 ? '' : 's'}.`);
-  parts.push('What do you want to do?');
+  if (!openOrders && !unreadMsgs) parts.push('All quiet.');
   try { speakAstranov(parts.join(' ')); } catch (_) {}
-  // Open ONE chat surface only — for the follow-up. No tabs, no chips.
-  // The user types or speaks; intents route to the right action.
-  _openMeChat({
-    name, eur, openOrders, unreadMsgs,
-    greeting: parts.join(' '),
-  });
-};
-
-// Me-orb chat surface: real conversation, no menu tree. The user can
-// type or speak a request; we route by simple intent matching to the
-// existing actions (top up, open messages, place delivery, sign out).
-function _openMeChat(state) {
-  const html = `
-    <div class="anon-dash">
-      <div class="anon-banner" style="background:rgba(126,235,180,0.08);border-color:rgba(126,235,180,0.28);color:#d6f7e6">
-        ${escapeHtml(state.greeting)}
-      </div>
-      <div class="anon-card">
-        <div id="me-thread" style="max-height:30vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
-        <div style="display:flex;gap:6px">
-          <input id="me-input" class="me-inp" type="text" placeholder="Top up 20 euros · show my messages · sign me out…" style="flex:1">
-          <button class="kd-btn" onclick="_meVoice()" title="Voice">🎤</button>
-          <button class="kd-btn kd-btn-send" onclick="_meChat()">Send</button>
-        </div>
-      </div>
-    </div>`;
-  openPanel(agentCard({
-    emoji: '◉', name: 'Me', role: profile?.is_owner ? 'Architect' : 'Citizen of AstranoV',
-    color: '#7eebb4',
-    status: `€${state.eur.toFixed(2)}${state.openOrders ? ' · ' + state.openOrders + ' in flight' : ''}${state.unreadMsgs ? ' · ' + state.unreadMsgs + ' unread' : ''}`,
-    body: html,
-    actions: [],
-  }));
-  setTimeout(() => { const i = document.getElementById('me-input'); if (i) i.focus(); }, 200);
-}
-window._meChat = async function() {
-  const inp = document.getElementById('me-input');
-  const q = (inp?.value || '').trim().toLowerCase();
-  if (!q) return;
-  if (inp) inp.value = '';
-  const t = document.getElementById('me-thread');
-  if (t) {
-    const u = document.createElement('div'); u.className = 'kd-msg kd-msg-you'; u.textContent = q; t.appendChild(u);
-    t.scrollTop = t.scrollHeight;
-  }
-  // Intent routing — Spartan, no LLM round-trip needed for the common
-  // verbs. Only the catch-all falls through to Astranov.
-  const reply = (txt) => {
-    if (t) { const b = document.createElement('div'); b.className = 'kd-msg kd-msg-bot'; b.textContent = txt; t.appendChild(b); t.scrollTop = t.scrollHeight; }
-    try { speakAstranov(txt); } catch (_) {}
-  };
-  if (/^(top.?up|add money|put.*euros?|deposit)/i.test(q)) {
-    reply('Opening top-up.');
-    setTimeout(() => { try { openBuyAVC(); } catch (_) {} }, 400);
-    return;
-  }
-  if (/messages?|inbox|dms?/i.test(q)) {
-    reply('Opening your messages.');
-    setTimeout(() => { try { openMessagesPanel(); } catch (_) {} }, 400);
-    return;
-  }
-  if (/wallet|balance|euros?/i.test(q) && !/top|add|deposit/.test(q)) {
-    reply('Opening your wallet.');
-    setTimeout(() => { try { openWalletPanel(); } catch (_) {} }, 400);
-    return;
-  }
-  if (/deliver|request|order|courier/i.test(q)) {
-    reply('Opening request delivery.');
-    setTimeout(() => { try { openRequestDeliveryStep1(); } catch (_) {} }, 400);
-    return;
-  }
-  if (/sign out|log out|logout/i.test(q)) {
-    reply('Signing you out.');
-    setTimeout(() => { try { _signOut(); } catch (_) {} }, 400);
-    return;
-  }
-  if (/locate|where am i|find me/i.test(q)) {
-    reply('Locating you.');
-    setTimeout(() => { try { startLocate(); } catch (_) {} }, 400);
-    return;
-  }
-  // Fallback: hand the question to Astranov (the AI) so the user gets a
-  // real answer instead of a menu. Astranov has the codebase context.
-  reply('Asking Astranov…');
-  try {
-    const { data } = await sb.functions.invoke('aicycle', {
-      body: { messages: [
-        { role: 'system', content: 'You are Astranov. The user is in the Me-orb chat. Answer terse, one or two sentences. Where helpful, suggest the verb they can type next (top up, messages, wallet, request delivery, locate, sign out).' },
-        { role: 'user', content: q },
-      ] },
-    });
-    const text = (data && (data.response || data.text)) || '(no reply)';
-    reply(text);
-  } catch (e) { reply('Channel failed: ' + String(e)); }
-};
-window._meVoice = function() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) return toast('Voice unavailable', 'err');
-  const r = new SR();
-  r.lang = navigator.language || 'en-GB';
-  r.interimResults = false;
-  r.onresult = (e) => {
-    const t = e.results?.[0]?.[0]?.transcript || '';
-    const inp = document.getElementById('me-input');
-    if (inp && t) { inp.value = t; _meChat(); }
-  };
-  try { r.start(); toast('Listening…', ''); } catch (_) {}
 };
 
 // Astranov tap: open the AI chat + listen + talk directly.
