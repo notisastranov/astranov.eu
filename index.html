@@ -198,12 +198,29 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     which honestly fades behind Earth when the user's body is on the
     other side of the camera — the beam still tells you where you are.
 
-    The legacy corner gadgets (#g-discover, #g-me, #locate-orb,
-    #aicycle-float) are RETIRED — never visible at any tier. At non-
-    global tiers only a small #pilot-mini sits top-left as the
-    always-reachable warp-home gesture; the other three apex agents
-    are not relevant at street level and stay hidden until the user
-    Pilot-warps back to the global tier.
+    The legacy corner gadgets (#g-discover, #g-me, #locate-orb) are
+    RETIRED — never visible at any tier. At non-global tiers only a
+    small #pilot-mini sits top-left as the always-reachable warp-home
+    gesture; the other three apex agents are not relevant at street
+    level and stay hidden until the user Pilot-warps back to global.
+    #aicycle-float is NOT retired — see §13d.
+
+13d. AI CYCLE — engine transparency component (binding, owner directive)
+    We built our own brain so we no longer DEPEND on any single outside
+    AI — but the brain still reaches outside AIs THROUGH itself. The
+    AICYCLE ring (#aicycle-float, bottom-right, always visible) is the
+    living readout of that: after every turn it shows the short code of
+    the engine the brain actually used (ANT/OR/GRQ/GEM), and tapping it
+    opens the AI-Cycle console (openAICycleConsole → /ai-status):
+    connected engines (key present = 🟢, key never exposed), usage
+    statistics from cic_logs (calls + avg latency per engine), and
+    SUGGESTED new engines to connect (Mistral/DeepSeek/xAI/Cohere/…,
+    each with the env var to set). /aicycle now returns engine +
+    engineLabel + model + latencyMs and logs the real engine to
+    cic_logs.provider. The SPOKEN voice stays ONE — Astranov; the
+    component reveals the organ for transparency, never renames the
+    voice. Adding a new engine = set its API key in Supabase secrets +
+    add one fallback branch in /aicycle.
 
 5h. VOLUME SLIDER — mirrors the brightness slider (binding)
     The voice volume of Astranov is controlled by a vertical input
@@ -955,7 +972,7 @@ This block strives to get shorter, more inclusive, more precise with every edit.
      They never appear again. The user wanted no orange-orb relics at
      zoom-down; this enforces it. The Pilot lifeboat at non-global lives
      in #pilot-mini below. */
-  #g-discover, #g-me, #locate-orb, #aicycle-float { display: none !important; }
+  #g-discover, #g-me, #locate-orb { display: none !important; }
   /* PILOT MINI — at non-global tiers, a small floating Pilot orb sits
      top-left as the universal warp-home gesture. The other three apex
      agents are not relevant at street level. */
@@ -9351,10 +9368,59 @@ const aicycleHistory = [];
 
 // Tapping the AICYCLE ring opens Astranov and starts listening + speaking.
 // No buttons, no menu — pure automatic voice + type.
-$('aicycle-float').addEventListener('click', () => {
-  if (aicycleChat.classList.contains('visible')) closeAstranov();
-  else openAstranov();
-});
+// The AICYCLE ring is the transparency component: it shows which engine
+// the brain is using and opens the engine console (stats + connections).
+// Talking to Astranov is the apex ◈ orb's job, not the ring's.
+$('aicycle-float').addEventListener('click', () => { openAICycleConsole(); });
+
+const ENGINE_SHORT = { anthropic: 'ANT', openrouter: 'OR', groq: 'GRQ', gemini: 'GEM' };
+function _setEngineIndicator(engine) {
+  const el = $('aicycle-provider');
+  if (!el) return;
+  const code = ENGINE_SHORT[engine] || (engine ? engine.slice(0, 3).toUpperCase() : 'AI');
+  el.textContent = code;
+  const ring = $('aicycle-float');
+  if (ring) ring.title = engine ? ('Astranov via ' + engine + ' — tap for AI cycle') : 'AI cycle';
+}
+
+async function openAICycleConsole() {
+  openPanel(`<h2>AI Cycle</h2><div class="subtitle">the brain's living connections</div>
+    <div id="aicycle-console" style="color:#7eb4ff;font-size:12px;padding:14px 0">Reading the cycle…</div>`);
+  let d;
+  try {
+    const { data } = await sb.functions.invoke('ai-status', { body: {} });
+    d = data;
+  } catch (_) {}
+  const host = $('aicycle-console'); if (!host) return;
+  if (!d || !d.ok) { host.innerHTML = '<div style="color:#ff9e9e;font-size:13px">Cycle unreachable.</div>'; return; }
+
+  const engineRow = e => `
+    <div class="delivery-row" style="cursor:default">
+      <div class="head">
+        <span class="desc">${e.connected ? '🟢' : '⚫'} ${escapeHtml(e.label)}</span>
+        <span class="reward" style="color:${e.connected ? '#7eebb4' : '#6a8aaf'}">${e.connected ? 'connected' : 'off'}</span>
+      </div>
+      <div class="meta">${escapeHtml(e.role)} · ${escapeHtml(e.model)}</div>
+    </div>`;
+  const statRow = s => `
+    <div class="ord-line"><span>${escapeHtml(s.label)}</span>
+      <span style="color:#7a98c0">${s.calls} calls · ${s.avg_ms}ms avg</span></div>`;
+  const sugRow = s => `
+    <div class="delivery-row" style="cursor:default">
+      <div class="head"><span class="desc">✦ ${escapeHtml(s.label)}</span>
+        <span class="reward" style="color:#ffd47e">add key</span></div>
+      <div class="meta">${escapeHtml(s.note)} · set <code>${escapeHtml(s.env)}</code> in Supabase secrets</div>
+    </div>`;
+
+  host.innerHTML = `
+    <div class="me-sec">Connected engines — the brain reaches outside AIs through itself</div>
+    ${d.engines.map(engineRow).join('')}
+    <div class="me-sec">Usage · ${d.totalCalls} total turns</div>
+    ${d.stats.length ? d.stats.map(statRow).join('') : '<div style="color:#6a8aaf;font-size:12px">No turns logged yet.</div>'}
+    <div class="me-sec">Suggested connections</div>
+    ${d.suggestions.length ? d.suggestions.map(sugRow).join('') : '<div style="color:#6a8aaf;font-size:12px">All suggested engines are connected.</div>'}
+    <div style="font-size:10px;color:#6a8aaf;margin-top:12px;letter-spacing:0.04em">One voice — Astranov. Engines are organs; this panel shows which organ answered, never changes the voice.</div>`;
+}
 
 function openAstranov() {
   aicycleChat.classList.add('visible');
@@ -9434,6 +9500,7 @@ async function callAICycle(prompt) {
   if (error) throw error;
   aicycleHistory.push({ role: 'user', content: prompt });
   aicycleHistory.push({ role: 'assistant', content: data.response || '' });
+  try { _setEngineIndicator(data.engine); } catch (_) {}
   return data;
 }
 
@@ -9599,6 +9666,7 @@ async function runAstranovAgent(userText) {
         body: { agent: true, prompt, history, mode: window._astranovMode || '' },
       });
       if (error) throw error;
+      try { _setEngineIndicator(data.engine); } catch (_) {}
       const parsed = _parseAgentJSON(data.response);
       if (!parsed) {            // model spoke plainly — treat as final answer
         appendAICycleMessage('ai', data.response, 'astranov', '');
