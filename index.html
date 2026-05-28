@@ -458,6 +458,22 @@ This block strives to get shorter, more inclusive, more precise with every edit.
       astranov:call:<id>    per-call SDP + ICE
     STUN: Google public. No TURN yet.
 
+13b. ROUTING — real OSRM driving routes (binding)
+    astranovNavigate(toLat,toLng,label) routes from the user's live
+    position (or IP fix) to a destination via the public OSRM driving
+    profile (router.project-osrm.org, geometries=geojson, steps=true).
+    The driving profile is OSM-built and RESPECTS one-way tags + turn
+    restrictions, so the route is never wrong-way — we render ONLY what
+    the profile returns; no client-side path guessing. The geometry is
+    drawn as a ground-clamped PolylineGlow that hugs the CARTO street
+    layer, with start (green) + destination (red) markers; the panel
+    shows duration, distance, and turn-by-turn. "Start driving" engages
+    the GPS-follow driving view along the drawn line. Entry: the ROUTE
+    action on any place panel (place._lat/_lng). Imagery stays §3: the
+    globe is real NASA; national/city is the light CARTO dark street
+    layer (streets, names, house numbers at z17-19) — chosen for fast
+    load + routing legibility, never sacrificing function for prettiness.
+
 14. JS SAFETY
     CDN-dependent init wrapped in try-catch. Inline JS must pass `node --check`
     before commit. Never raw single quotes inside template literals; use
@@ -2657,7 +2673,7 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   .place-addr { font-size: 12px; color: #6a8aaf; }
 
   /* 5-button action strip */
-  .place-actions { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 18px; }
+  .place-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 18px; }
   .place-act {
     display: flex; flex-direction: column; align-items: center; gap: 5px;
     padding: 10px 2px 8px; border-radius: 12px; cursor: pointer;
@@ -5070,6 +5086,162 @@ function _followDriving(lat, lng, heading) {
 }
 
 /* ==============================================================
+   ROUTING (§13b) — real OSRM driving routes, drawn on the globe.
+   The driving profile is built from OSM and RESPECTS one-way tags
+   and turn restrictions, so a returned route never sends the user
+   the wrong way down a one-way street. We draw the geometry clamped
+   to the ground (follows the actual streets on the CARTO layer) and
+   surface distance + duration + turn-by-turn. No wrong-way risk is
+   introduced client-side: we only render what the profile returns.
+   ============================================================== */
+const _route = { entities: [], steps: [], dest: null, label: '' };
+const OSRM_BASE = 'https://router.project-osrm.org/route/v1/driving/';
+
+function _fmtDist(m) {
+  return m >= 1000 ? (m / 1000).toFixed(m >= 10000 ? 0 : 1) + ' km' : Math.round(m) + ' m';
+}
+function _fmtDur(s) {
+  const min = Math.round(s / 60);
+  if (min < 60) return min + ' min';
+  return Math.floor(min / 60) + ' h ' + (min % 60) + ' min';
+}
+
+async function _fetchOSRM(fromLat, fromLng, toLat, toLng) {
+  const url = OSRM_BASE
+    + fromLng + ',' + fromLat + ';' + toLng + ',' + toLat
+    + '?overview=full&geometries=geojson&steps=true&annotations=false';
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('routing service ' + r.status);
+  const j = await r.json();
+  if (j.code !== 'Ok' || !j.routes || !j.routes.length) throw new Error(j.message || 'no route found');
+  return j.routes[0];
+}
+
+function _clearRoute() {
+  if (!viewer) return;
+  _route.entities.forEach(e => { try { viewer.entities.remove(e); } catch (_) {} });
+  _route.entities = [];
+  _route.steps = [];
+  _route.dest = null;
+  try { viewer.scene.requestRender(); } catch (_) {}
+}
+
+function _drawRoute(route, fromLat, fromLng, toLat, toLng) {
+  if (!viewer) return;
+  _clearRoute();
+  const coords = route.geometry.coordinates;            // [[lng,lat], ...]
+  const flat = [];
+  coords.forEach(c => { flat.push(c[0], c[1]); });
+  // Glowing line that hugs the street grid on the CARTO layer.
+  const line = viewer.entities.add({
+    polyline: {
+      positions: Cesium.Cartesian3.fromDegreesArray(flat),
+      width: 9,
+      clampToGround: true,
+      material: new Cesium.PolylineGlowMaterialProperty({
+        glowPower: 0.22,
+        color: Cesium.Color.fromCssColorString('#39e0ff'),
+      }),
+      zIndex: 999,
+    },
+  });
+  const start = viewer.entities.add({
+    position: Cesium.Cartesian3.fromDegrees(fromLng, fromLat),
+    point: { pixelSize: 13, color: Cesium.Color.fromCssColorString('#7eebb4'),
+             outlineColor: Cesium.Color.BLACK, outlineWidth: 2,
+             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND },
+  });
+  const end = viewer.entities.add({
+    position: Cesium.Cartesian3.fromDegrees(toLng, toLat),
+    point: { pixelSize: 13, color: Cesium.Color.fromCssColorString('#ff5577'),
+             outlineColor: Cesium.Color.BLACK, outlineWidth: 2,
+             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND },
+  });
+  _route.entities = [line, start, end];
+  _route.dest = { lat: toLat, lng: toLng };
+  try { viewer.flyTo(line, { duration: 1.4 }).catch(() => {}); } catch (_) {}
+  try { viewer.scene.requestRender(); } catch (_) {}
+}
+
+// Public entry — route from the user's position (or IP fix) to a destination.
+window.astranovNavigate = async function(toLat, toLng, label) {
+  if (!viewer) return;
+  toLat = Number(toLat); toLng = Number(toLng);
+  if (!isFinite(toLat) || !isFinite(toLng)) return toast('No destination coordinates', 'err');
+  let fromLat = window._userLat, fromLng = window._userLng;
+  if (fromLat == null || fromLng == null) {
+    toast('Locating you…');
+    try { const c = await getUserLocation(); fromLat = c.lat; fromLng = c.lng;
+          window._userLat = c.lat; window._userLng = c.lng; setUserLocation(c.lat, c.lng); }
+    catch (_) { return toast('Need your location to route. Tap the Pilot to locate.', 'err'); }
+  }
+  toast('Charting route…');
+  try {
+    const route = await _fetchOSRM(fromLat, fromLng, toLat, toLng);
+    _route.steps = (route.legs && route.legs[0] && route.legs[0].steps) || [];
+    _route.label = label || 'Destination';
+    _drawRoute(route, fromLat, fromLng, toLat, toLng);
+    _openRoutePanel(route, label || 'Destination');
+  } catch (e) {
+    toast('Routing failed: ' + (e.message || e), 'err');
+  }
+};
+
+function _maneuverText(step) {
+  const m = step.maneuver || {};
+  const road = step.name ? ' onto ' + escapeHtml(step.name) : '';
+  const type = m.type || 'continue';
+  const mod = m.modifier ? ' ' + m.modifier : '';
+  if (type === 'depart')  return 'Head out' + (step.name ? ' on ' + escapeHtml(step.name) : '');
+  if (type === 'arrive')  return 'Arrive at destination';
+  if (type === 'roundabout' || type === 'rotary') return 'Take the roundabout' + road;
+  if (type === 'turn')    return 'Turn' + mod + road;
+  if (type === 'merge')   return 'Merge' + mod + road;
+  if (type === 'fork')    return 'Keep' + mod + road;
+  if (type === 'on ramp' || type === 'off ramp') return (type === 'on ramp' ? 'Take the ramp' : 'Exit') + road;
+  if (type === 'new name') return 'Continue' + road;
+  return (type.charAt(0).toUpperCase() + type.slice(1)) + mod + road;
+}
+
+function _openRoutePanel(route, label) {
+  const steps = (route.legs && route.legs[0] && route.legs[0].steps) || [];
+  const turns = steps.map(s => `
+    <div class="ord-line">
+      <span>${_maneuverText(s)}</span>
+      <span style="color:#7a98c0;flex-shrink:0">${s.distance ? _fmtDist(s.distance) : ''}</span>
+    </div>`).join('');
+  openPanel(`
+    <h2>Route</h2>
+    <div class="subtitle">to ${escapeHtml(label)}</div>
+    <div style="display:flex;gap:18px;margin:14px 0;align-items:baseline">
+      <div><div style="font-size:24px;color:#39e0ff;font-weight:300">${_fmtDur(route.duration)}</div>
+        <div style="font-size:9px;color:#7a98c0;letter-spacing:0.2em;text-transform:uppercase">drive time</div></div>
+      <div><div style="font-size:24px;color:#cfe1ff;font-weight:300">${_fmtDist(route.distance)}</div>
+        <div style="font-size:9px;color:#7a98c0;letter-spacing:0.2em;text-transform:uppercase">distance</div></div>
+    </div>
+    <div style="font-size:10px;color:#6a8aaf;letter-spacing:0.06em;margin-bottom:6px">One-way streets &amp; turn restrictions are honoured by the driving engine.</div>
+    <div class="gadget-engage" onclick="_startRouteDriving()" style="border-color:rgba(57,224,255,0.4);color:#aef0ff">
+      <span class="verb-glyph">◈</span><span>Start driving</span>
+    </div>
+    <div class="me-sec">Turn by turn</div>
+    <div>${turns || '<div style="color:#6a8aaf;font-size:12px">Direct line.</div>'}</div>
+    <div class="gadget-engage" onclick="_clearRoute();closePanel()" style="margin-top:12px;border-color:rgba(255,100,100,0.3);color:#ff9e9e">
+      <span class="verb-glyph">✕</span><span>Clear route</span>
+    </div>
+  `);
+}
+
+window._startRouteDriving = function() {
+  closePanel();
+  if (window._userLat == null) return toast('Locate first', 'err');
+  // Engage live driving view + GPS follow; the drawn route stays on the map.
+  try { if (typeof startDriveWatch === 'function') startDriveWatch(); } catch (_) {}
+  _enterDriving(window._userLat, window._userLng, 0);
+  toast('Navigation started · follow the cyan line', 'ok');
+};
+
+
+/* ==============================================================
    Helper drones — WebRTC datachannel scaffold. The Astranov system
    stands ready to pair with companion drones via WebRTC + Supabase
    Realtime signaling (room: 'drone:<userId>'). A drone client
@@ -6057,6 +6229,10 @@ function openPlacePanel(place) {
     <div class="place-act-icon" style="color:#ffaa33">🛒</div>
     <div class="place-act-lbl">ORDER</div>
   </div>
+  <div class="place-act" onclick="_placeNavigate()">
+    <div class="place-act-icon" style="color:#39e0ff">🧭</div>
+    <div class="place-act-lbl">ROUTE</div>
+  </div>
   <div class="place-act" onclick="_placeVideo()">
     <div class="place-act-icon" style="color:#ff5577">🎥</div>
     <div class="place-act-lbl">VIDEO</div>
@@ -6080,6 +6256,13 @@ window._placeCall = function() {
   const p = window._currentPlace;
   if (p.phone) { window.open('tel:' + p.phone); return; }
   _openACI('Find the phone number and best way to call ' + p.name + ' (' + p.info.label + ')' + (p.website ? '. Their website: ' + p.website : '') + '. Provide a direct call link if you find one.');
+};
+
+window._placeNavigate = function() {
+  const p = window._currentPlace;
+  if (!p || !isFinite(p._lat) || !isFinite(p._lng)) return toast('No coordinates for this place', 'err');
+  closePanel();
+  astranovNavigate(p._lat, p._lng, p.name);
 };
 
 window._placeMessage = function() {
