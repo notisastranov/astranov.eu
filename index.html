@@ -474,6 +474,22 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     layer (streets, names, house numbers at z17-19) — chosen for fast
     load + routing legibility, never sacrificing function for prettiness.
 
+13c. ASTRANOV AS AGENT — the brain with hands (binding, Prime Law)
+    Every AICYCLE chat turn runs a tool-use loop (runAstranovAgent):
+    /aicycle in agent mode returns STRICT JSON {say, action, done};
+    the client executes the action, feeds an OBSERVATION back, and
+    loops (cap 6 steps) until done. Astranov DOES the task, never
+    lists options. Client tools (real executors, no stubs): locate,
+    find_places(query,radius) → live Overpass search near the user,
+    show_place(index), navigate(index) → real OSRM route, order(index,
+    items,notes) → composes the menu, prices items, debits euros via
+    order-intake. Pure conversation returns action:null/done:true and
+    is just spoken. The loop NEVER auto-learns memories (only explicit
+    "remember …" outside agent mode writes to ai_memory). Engines stay
+    hidden organs; one voice — Astranov. This is how a user "uses the
+    app freely" by speaking intent: go there, find this shop, order me
+    this — and the system performs it.
+
 14. JS SAFETY
     CDN-dependent init wrapped in try-catch. Inline JS must pass `node --check`
     before commit. Never raw single quotes inside template literals; use
@@ -9406,19 +9422,8 @@ $('aicycle-form').addEventListener('submit', async e => {
   }
   appendAICycleMessage('user', text);
   input.value = '';
-  $('aicycle-float').classList.add('thinking');
-  window._gfxThinking = true;
-
-  try {
-    const resp = await callAICycle(text);
-    appendAICycleMessage('ai', resp.response, 'astranov', '');
-    speakAstranov(resp.response);
-  } catch (err) {
-    appendAICycleMessage('ai', '(cycle unreachable — /aicycle Edge Function not responding)', 'offline', 'fallback');
-  } finally {
-    $('aicycle-float').classList.remove('thinking');
-    window._gfxThinking = false;
-  }
+  // Astranov is always an agent now: it can act in the app, not just talk.
+  await runAstranovAgent(text);
 });
 
 async function callAICycle(prompt) {
@@ -9431,6 +9436,189 @@ async function callAICycle(prompt) {
   aicycleHistory.push({ role: 'assistant', content: data.response || '' });
   return data;
 }
+
+/* ==============================================================
+   ASTRANOV AS AGENT (§14b) — the brain with hands. Every chat turn
+   runs a tool-use loop: the model decides one action, the app
+   executes it, the observation feeds back, until the task is done.
+   This is the Prime Law made real — Astranov DOES the thing
+   (find a shop, route there, order, deliver) instead of listing
+   options. Pure conversation simply returns action:null, done:true.
+   ============================================================== */
+const _AGENT = { places: [] };
+
+function _haversineM(aLat, aLng, bLat, bLng) {
+  const R = 6371000, toR = Math.PI / 180;
+  const dLat = (bLat - aLat) * toR, dLng = (bLng - aLng) * toR;
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(aLat * toR) * Math.cos(bLat * toR) * Math.sin(dLng / 2) ** 2;
+  return Math.round(2 * R * Math.asin(Math.sqrt(s)));
+}
+
+function _parseAgentJSON(s) {
+  if (!s) return null;
+  const i = s.indexOf('{'), j = s.lastIndexOf('}');
+  if (i < 0 || j <= i) return null;
+  const slice = s.slice(i, j + 1);
+  try { return JSON.parse(slice); } catch (_) {}
+  // Strip code fences / trailing commas as a last resort.
+  try { return JSON.parse(slice.replace(/```/g, '').replace(/,\s*([}\]])/g, '$1')); } catch (_) { return null; }
+}
+
+async function _agentEnsureLocation() {
+  if (window._userLat != null && window._userLng != null) return true;
+  try {
+    const c = await getUserLocation();
+    window._userLat = c.lat; window._userLng = c.lng; setUserLocation(c.lat, c.lng);
+    try { setUserBeacon(c.lat, c.lng); } catch (_) {}
+    return true;
+  } catch (_) { return false; }
+}
+
+async function _agentFindPlaces(query, radiusM) {
+  if (window._userLat == null) return [];
+  const lat = window._userLat, lng = window._userLng;
+  const r = Math.min(Math.max(Number(radiusM) || 4000, 300), 15000);
+  const q = '[out:json][timeout:25];('
+    + 'node["name"]["amenity"](around:' + r + ',' + lat + ',' + lng + ');'
+    + 'node["name"]["shop"](around:' + r + ',' + lat + ',' + lng + ');'
+    + 'node["name"]["tourism"](around:' + r + ',' + lat + ',' + lng + ');'
+    + ');out 400;';
+  const json = await _overpassFetch(q);
+  const els = (json && json.elements) || [];
+  const kw = String(query || '').toLowerCase().trim();
+  const scored = els.map(e => {
+    const t = e.tags || {};
+    const hay = [t.name, t.amenity, t.shop, t.tourism, t.cuisine, t['addr:street']].filter(Boolean).join(' ').toLowerCase();
+    const match = !kw || kw.split(/\s+/).some(w => w && hay.includes(w));
+    const dist = _haversineM(lat, lng, Number(e.lat), Number(e.lon));
+    const catKey = _catKey(t);
+    return { match, dist, raw: e, name: t.name, category: (_CAT_INFO[catKey] || _CAT_INFO.default).label,
+             addr: [t['addr:housenumber'], t['addr:street']].filter(Boolean).join(' '),
+             lat: Number(e.lat), lng: Number(e.lon) };
+  }).filter(x => x.match && x.name).sort((a, b) => a.dist - b.dist).slice(0, 8);
+  return scored;
+}
+
+async function _agentOrder(place, items, notes) {
+  if (!session) return { ok: false, error: 'user must sign in to order' };
+  const t = (place.raw && place.raw.tags) || {};
+  const catKey = _catKey(t);
+  const info = _CAT_INFO[catKey] || _CAT_INFO.default;
+  window._currentPlace = { id: place.raw.id, tags: t, name: place.name, catKey, info, _lat: place.lat, _lng: place.lng };
+  const vendor_id = _osmIdFor(window._currentPlace);
+  // Compose the menu so we can price the requested items.
+  let menuItems = [];
+  try {
+    const { data } = await sb.functions.invoke('vendor-menu', { body: { vendor_id, vendor: { name: place.name, category: catKey, tags: t } } });
+    menuItems = (data && data.items) || [];
+  } catch (_) {}
+  const cart = (items || []).map(it => {
+    const want = String(it.name || '').toLowerCase();
+    const m = menuItems.find(x => x.name.toLowerCase().includes(want) || (want && want.includes(x.name.toLowerCase())));
+    return { name: m ? m.name : (it.name || 'Item'), qty: Math.max(1, Number(it.qty) || 1), price: m ? m.price : 5 };
+  }).filter(c => c.name);
+  if (!cart.length) return { ok: false, error: 'no items to order' };
+  const subtotal = cart.reduce((s, it) => s + it.qty * it.price, 0);
+  const delivery_fee = 3, platform_fee = Math.max(1, Math.round(subtotal * 0.05));
+  const total = subtotal + delivery_fee + platform_fee;
+  const vendor_payload = {
+    osm_id: place.raw.id, name: place.name, emoji: info.emoji, category: catKey,
+    lat: place.lat, lng: place.lng,
+    address: { street: t['addr:street'], city: t['addr:city'], housenumber: t['addr:housenumber'] }, tags: t,
+  };
+  try {
+    const { data, error } = await sb.functions.invoke('order-intake', { body: {
+      vendor_id, vendor: vendor_payload, items: cart,
+      calc: { subtotal, delivery_fee, platform_fee, total, currency: 'EUR' },
+      delivery_lat: window._userLat ?? null, delivery_lng: window._userLng ?? null,
+      delivery_address: window._orderAddress || 'My current location', notes: notes || '',
+    } });
+    if (error) {
+      const msg = String(error.message || error);
+      if (msg.includes('insufficient_funds') || msg.includes('402')) return { ok: false, error: 'insufficient_funds', total };
+      return { ok: false, error: msg };
+    }
+    if (!data?.ok) return { ok: false, error: data?.error || 'order failed', total };
+    try { await loadProfile(); } catch (_) {}
+    setTimeout(() => { try { openOrderTrackPanel(data.order.id); } catch (_) {} }, 250);
+    return { ok: true, order: data.order.short_id, total, items: cart };
+  } catch (e) { return { ok: false, error: String(e.message || e) }; }
+}
+
+async function _agentExec(act) {
+  const tool = act && act.tool;
+  const a = (act && act.args) || {};
+  try {
+    if (tool === 'locate') {
+      const ok = await _agentEnsureLocation();
+      if (!ok) return { ok: false, error: 'location permission denied' };
+      if (viewer) viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(window._userLng, window._userLat, 400),
+        duration: 2.2, orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 } });
+      return { ok: true, lat: window._userLat, lng: window._userLng };
+    }
+    if (tool === 'find_places') {
+      if (!(await _agentEnsureLocation())) return { ok: false, error: 'need location first' };
+      const list = await _agentFindPlaces(a.query || '', a.radius_m);
+      _AGENT.places = list;
+      return { ok: true, count: list.length,
+        places: list.map((p, i) => ({ index: i, name: p.name, category: p.category, addr: p.addr, dist_m: p.dist })) };
+    }
+    if (tool === 'show_place') {
+      const p = _AGENT.places[a.index]; if (!p) return { ok: false, error: 'no such place index' };
+      openPlacePanel(p.raw);
+      return { ok: true, name: p.name };
+    }
+    if (tool === 'navigate') {
+      let lat = a.lat, lng = a.lng, label = a.label;
+      if (a.index != null && _AGENT.places[a.index]) { const p = _AGENT.places[a.index]; lat = p.lat; lng = p.lng; label = p.name; }
+      if (lat == null || lng == null) return { ok: false, error: 'no destination' };
+      await astranovNavigate(lat, lng, label || 'destination');
+      return { ok: true };
+    }
+    if (tool === 'order') {
+      const p = _AGENT.places[a.index]; if (!p) return { ok: false, error: 'no such place index' };
+      return await _agentOrder(p, a.items || [], a.notes || '');
+    }
+    return { ok: false, error: 'unknown tool: ' + tool };
+  } catch (e) { return { ok: false, error: String(e.message || e) }; }
+}
+
+async function runAstranovAgent(userText) {
+  if (!sb) { appendAICycleMessage('ai', '(offline)', 'offline', 'fallback'); return; }
+  const stateBits = [
+    'user_location=' + (window._userLat != null ? window._userLat.toFixed(5) + ',' + window._userLng.toFixed(5) : 'unknown'),
+    'signed_in=' + (!!session),
+  ].join('; ');
+  const convo = [{ role: 'user', content: userText + '\n\n[' + stateBits + ']' }];
+  $('aicycle-float').classList.add('thinking'); window._gfxThinking = true;
+  try {
+    for (let step = 0; step < 6; step++) {
+      const prompt = convo[convo.length - 1].content;
+      const history = convo.slice(0, -1);
+      const { data, error } = await sb.functions.invoke('aicycle', {
+        body: { agent: true, prompt, history, mode: window._astranovMode || '' },
+      });
+      if (error) throw error;
+      const parsed = _parseAgentJSON(data.response);
+      if (!parsed) {            // model spoke plainly — treat as final answer
+        appendAICycleMessage('ai', data.response, 'astranov', '');
+        speakAstranov(data.response);
+        break;
+      }
+      if (parsed.say) { appendAICycleMessage('ai', parsed.say, 'astranov', ''); speakAstranov(parsed.say); }
+      convo.push({ role: 'assistant', content: JSON.stringify(parsed) });
+      const act = parsed.action;
+      if (!act || parsed.done) break;
+      const obs = await _agentExec(act);
+      convo.push({ role: 'user', content: 'OBSERVATION (tool=' + act.tool + '): ' + JSON.stringify(obs).slice(0, 1600) });
+    }
+  } catch (e) {
+    appendAICycleMessage('ai', '(Astranov could not complete that: ' + (e.message || e) + ')', 'offline', 'fallback');
+  } finally {
+    $('aicycle-float').classList.remove('thinking'); window._gfxThinking = false;
+  }
+}
+
 
 // One AI — Astranov. No provider chips, no model selection.
 function _setAILabel() { /* no-op: there is only Astranov */ }
