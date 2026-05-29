@@ -124,6 +124,26 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     Internet Operating System. Globe-first collective reality interface.
     Frontend = THIS FILE only. Backend = Supabase (db + Edge Functions + Realtime).
 
+1b. APP NAME — the always-present anchor & heal button (binding, never regress)
+    The name "ASTRANOV" is ALWAYS visible, pinned at the TOP-CENTRE of the
+    screen, at every tier and over every panel — the one permanent identity
+    mark alongside the AICYCLE ring. STYLE: electric, glowing, DEEP BLUE, a
+    squarish font set in a square-with-rounded-edges badge (#app-name).
+    FUNCTION — tapping the name is the universal RESET / HEAL gesture:
+      (1) it captures an internal DIAGNOSTIC of what got stuck this session
+          (collected JS errors, unhandled rejections, failed fetches, SW
+          state, tier, user-agent) and ships it to /diag → security_events
+          (owner-only) so we LEARN what broke and harden the next production
+          cycle; then
+      (2) it performs a HARD REFRESH — unregister the service worker, clear
+          caches, reload from network — so a stale or broken build can always
+          be escaped in ONE tap.
+    Rationale: the system evolves surface-by-surface and things break during
+    evolution (panta rhei). The name is the always-there way out AND the
+    feedback channel that makes breakage self-correcting (per POROS §0h).
+    This block is load-bearing — do not remove or restyle away the glow,
+    the top-centre position, or the tap-to-heal behaviour.
+
 2.  STACK (frozen)
     Maps      CesiumJS only. Leaflet, globe.gl, raw-Three banned.
     Voice     Web Speech API.  Geo  Nominatim.  Routing  OSRM.
@@ -1525,10 +1545,41 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   }
 
   /* ============================================================
+     APP NAME (§1b) — always on top, electric glowing deep-blue, set in a
+     square-with-rounded-edges badge. Tap = diagnostic + hard refresh.
+     ============================================================ */
+  #app-name {
+    position: fixed; top: max(8px, env(safe-area-inset-top)); left: 50%;
+    transform: translateX(-50%); z-index: 200; cursor: pointer;
+    padding: 5px 16px; border-radius: 11px;
+    font-family: 'Bahnschrift', 'DIN Alternate', 'Eurostile', 'Arial Narrow', system-ui, sans-serif;
+    font-weight: 800; font-size: 17px; letter-spacing: 0.42em; text-indent: 0.42em;
+    color: #cfe7ff; -webkit-user-select: none; user-select: none; line-height: 1;
+    background: linear-gradient(180deg, rgba(10,26,64,0.62), rgba(4,12,34,0.62));
+    border: 1.5px solid rgba(70,150,255,0.85);
+    box-shadow:
+      0 0 10px rgba(40,120,255,0.75), 0 0 22px rgba(40,120,255,0.45),
+      inset 0 0 12px rgba(60,140,255,0.35);
+    text-shadow:
+      0 0 6px rgba(120,180,255,0.95), 0 0 14px rgba(40,120,255,0.85),
+      0 0 28px rgba(20,90,255,0.6);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    animation: appname-pulse 3.4s ease-in-out infinite;
+    transition: transform 0.12s;
+  }
+  #app-name:active { transform: translateX(-50%) scale(0.94); }
+  @keyframes appname-pulse {
+    0%,100% { box-shadow: 0 0 10px rgba(40,120,255,0.7), 0 0 22px rgba(40,120,255,0.4), inset 0 0 12px rgba(60,140,255,0.3); }
+    50%     { box-shadow: 0 0 16px rgba(60,150,255,1), 0 0 34px rgba(40,120,255,0.7), inset 0 0 16px rgba(80,160,255,0.5); }
+  }
+  #app-name.healing { animation: none; border-color: #7eebb4; color: #d6f7e6;
+    box-shadow: 0 0 18px rgba(126,235,180,0.9), inset 0 0 16px rgba(126,235,180,0.5); }
+
+  /* ============================================================
      Level badge — top, auto-fades.
      ============================================================ */
   #level-badge {
-    position: fixed; top: max(16px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+    position: fixed; top: calc(max(8px, env(safe-area-inset-top)) + 40px); left: 50%; transform: translateX(-50%);
     padding: 6px 14px; border-radius: 999px;
     background: rgba(10, 20, 40, 0.6); backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
@@ -2798,6 +2849,9 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 
 <div id="cesiumContainer"></div>
 
+<!-- APP NAME — always-present anchor (§1b). Tap = diagnostic + hard refresh. -->
+<div id="app-name" onclick="appNameReload()" title="AstranoV — tap to heal & reload">ASTRANOV</div>
+
 <!-- Boot veil (fades out when Cesium ready) -->
 <div id="boot">
   <div class="cosmos">
@@ -2946,6 +3000,64 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 /* ==============================================================
    ASTRANOV CORE — single-file runtime
    ============================================================== */
+
+/* --- DIAGNOSTIC COLLECTOR (§1b) — capture "what got stuck" so tapping
+   the app name can ship it for internal review. Installs FIRST so it
+   catches early boot errors. --- */
+window._diag = window._diag || [];
+function _diagPush(kind, detail) {
+  try {
+    window._diag.push({ t: Date.now(), kind, detail: String(detail).slice(0, 500) });
+    if (window._diag.length > 60) window._diag.shift();
+  } catch (_) {}
+}
+window.addEventListener('error', (e) => {
+  _diagPush('error', (e.message || 'error') + ' @ ' + (e.filename || '') + ':' + (e.lineno || ''));
+});
+window.addEventListener('unhandledrejection', (e) => {
+  _diagPush('promise', (e.reason && (e.reason.message || e.reason)) || 'rejection');
+});
+(function () {
+  const _ce = console.error;
+  console.error = function (...a) { _diagPush('console', a.map(x => (x && x.message) || x).join(' ')); return _ce.apply(this, a); };
+})();
+
+// Tap the app name → ship the diagnostic (internal), then HARD refresh
+// (unregister SW + clear caches + reload from network). The one-tap escape
+// from any stale or broken build, and the feedback channel that makes
+// breakage self-correcting (§1b, POROS §0h).
+window.appNameReload = async function () {
+  const el = document.getElementById('app-name');
+  if (el) el.classList.add('healing');
+  const payload = {
+    errors: window._diag || [],
+    url: location.href,
+    tier: (typeof currentLevel !== 'undefined') ? currentLevel : '?',
+    ua: navigator.userAgent,
+    lang: navigator.language,
+    screen: (screen.width + 'x' + screen.height),
+    sw: !!(navigator.serviceWorker && navigator.serviceWorker.controller),
+    signed_in: (typeof session !== 'undefined' && !!session),
+    ts: new Date().toISOString(),
+  };
+  try {
+    await fetch(SUPABASE_URL + '/functions/v1/diag', {
+      method: 'POST', keepalive: true,
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON,
+                 'Authorization': 'Bearer ' + ((typeof session !== 'undefined' && session && session.access_token) ? session.access_token : SUPABASE_ANON) },
+      body: JSON.stringify(payload),
+    });
+  } catch (_) { /* never block the reload on the diagnostic */ }
+  // Hard refresh: drop the service worker + caches so we always pull fresh.
+  try {
+    if (navigator.serviceWorker) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister().catch(() => {})));
+    }
+    if (window.caches) { const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k).catch(() => {}))); }
+  } catch (_) {}
+  location.reload();
+};
 
 /* --- CONFIG (Astranov production) ---
    These two are PUBLIC client tokens by design:
