@@ -4277,6 +4277,10 @@ function _projectOrbs() {
   for (let i = 0; i < n; i++) {
     const el = kids[i];
     const s = _orbState[i];
+    // Pinball physics (§0h): while an orb is being dragged or flung, the
+    // physics loop owns its transform — projection lets go until it settles.
+    const _ph = _orbPhys.get(el);
+    if (_ph && _ph.mode !== 'orbit') continue;
     // Apex/system orbs: refresh cart each frame against camera centre.
     if (s.kind === 'system' && s.orbDef) {
       // Me orb is special — when we know where the user actually is,
@@ -4348,7 +4352,87 @@ function _attachOrbProjLoop() {
   if (_orbProjAttached || !viewer) return;
   viewer.scene.postRender.addEventListener(_projectOrbs);
   _orbProjAttached = true;
+  _orbPhysInit();
   if (viewer.scene.requestRenderMode) viewer.scene.requestRender();
+}
+
+/* ==============================================================
+   ORB PINBALL PHYSICS (§0h POROS) — we don't yet have a AAA orb engine,
+   so we go AROUND it: orbs are real, physical things. Drag them, fling
+   them with momentum, watch them bounce off the screen edges and settle
+   back into orbit. Tap (no drag) still opens the orb. This ships the
+   "living orbs" feel today; the engine catches up later.
+   ============================================================== */
+const _orbPhys = new Map();   // el -> { mode:'drag'|'fling', x, y, vx, vy, ... }
+let _orbPhysRAF = 0;
+function _orbPhysInit() {
+  const strip = document.getElementById('tile-strip');
+  if (!strip || strip._physWired) return;
+  strip._physWired = true;
+  strip.addEventListener('pointerdown', _orbPointerDown);
+}
+function _orbPointerDown(e) {
+  const el = e.target.closest && e.target.closest('.informant');
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  _orbPhys.set(el, {
+    mode: 'drag', x: rect.left, y: rect.top, vx: 0, vy: 0,
+    downX: e.clientX, downY: e.clientY, moved: false,
+    lastX: e.clientX, lastY: e.clientY, lastT: performance.now(),
+  });
+  try { el.setPointerCapture(e.pointerId); } catch (_) {}
+  el.addEventListener('pointermove', _orbPointerMove);
+  el.addEventListener('pointerup', _orbPointerUp);
+  el.addEventListener('pointercancel', _orbPointerUp);
+}
+function _orbPointerMove(e) {
+  const el = e.currentTarget; const p = _orbPhys.get(el); if (!p) return;
+  if (Math.abs(e.clientX - p.downX) + Math.abs(e.clientY - p.downY) > 6) p.moved = true;
+  p.x += e.clientX - p.lastX;
+  p.y += e.clientY - p.lastY;
+  const now = performance.now(), dt = Math.max(1, now - p.lastT);
+  p.vx = (e.clientX - p.lastX) / dt * 16;
+  p.vy = (e.clientY - p.lastY) / dt * 16;
+  p.lastX = e.clientX; p.lastY = e.clientY; p.lastT = now;
+  el.style.transform = `translate3d(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px, 0) scale(1.12)`;
+  el.style.opacity = '1'; el.style.zIndex = '60'; el.style.pointerEvents = 'auto';
+  e.preventDefault();
+}
+function _orbPointerUp(e) {
+  const el = e.currentTarget; const p = _orbPhys.get(el); if (!p) return;
+  el.removeEventListener('pointermove', _orbPointerMove);
+  el.removeEventListener('pointerup', _orbPointerUp);
+  el.removeEventListener('pointercancel', _orbPointerUp);
+  if (!p.moved) {            // a TAP — let the inline onclick open the orb
+    _orbPhys.delete(el); el.style.zIndex = '';
+    return;
+  }
+  // A FLING — suppress the click that would otherwise fire, then coast.
+  const suppress = (ev) => { ev.stopPropagation(); ev.preventDefault(); el.removeEventListener('click', suppress, true); };
+  el.addEventListener('click', suppress, true);
+  setTimeout(() => el.removeEventListener('click', suppress, true), 400);
+  p.mode = 'fling';
+  if (!_orbPhysRAF) _orbPhysRAF = requestAnimationFrame(_orbPhysTick);
+}
+function _orbPhysTick() {
+  _orbPhysRAF = 0;
+  let active = false;
+  const W = window.innerWidth, H = window.innerHeight, SZ = 60;
+  for (const [el, p] of _orbPhys) {
+    if (p.mode !== 'fling') continue;
+    active = true;
+    p.x += p.vx; p.y += p.vy;
+    p.vx *= 0.95; p.vy *= 0.95;
+    if (p.x < 0) { p.x = 0; p.vx = -p.vx * 0.7; }
+    if (p.x > W - SZ) { p.x = W - SZ; p.vx = -p.vx * 0.7; }
+    if (p.y < 0) { p.y = 0; p.vy = -p.vy * 0.7; }
+    if (p.y > H - SZ) { p.y = H - SZ; p.vy = -p.vy * 0.7; }
+    el.style.transform = `translate3d(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px, 0) scale(1.06)`;
+    if (Math.abs(p.vx) + Math.abs(p.vy) < 0.4) {   // settled → back into orbit
+      _orbPhys.delete(el); el.style.zIndex = '';
+    }
+  }
+  if (active) _orbPhysRAF = requestAnimationFrame(_orbPhysTick);
 }
 
 // Re-scan the DOM after any panel/orbit render to wire up new orbs.
@@ -4477,6 +4561,7 @@ function _startInformantFeedPolling() {
 }
 function renderInformants() {
   const el = $('tile-strip'); if (!el) return;
+  try { _orbPhys.clear(); } catch (_) {}   // drop physics state for orbs we're about to rebuild
   if (currentLevel !== 'global') { el.classList.add('hide-orbit'); el.innerHTML = ''; return; }
   el.classList.remove('hide-orbit');
   const list = _loadInformants();
