@@ -1587,6 +1587,27 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   #app-name.healing { animation: none; border-color: #7eebb4; color: #d6f7e6;
     box-shadow: 0 0 18px rgba(126,235,180,0.9), inset 0 0 16px rgba(126,235,180,0.5); }
 
+  /* City-level CATEGORY orbs — a floating cluster at the PERSONAL tier. */
+  #city-cats {
+    position: fixed; left: 0; right: 0; bottom: max(80px, calc(env(safe-area-inset-bottom) + 80px));
+    z-index: 46; display: none; flex-wrap: wrap; justify-content: center;
+    gap: 12px; padding: 0 18px; pointer-events: none;
+  }
+  body.at-personal #city-cats { display: flex; }
+  #city-cats .cat-orb {
+    pointer-events: auto; width: 58px; height: 58px; border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; gap: 1px;
+    background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--ic) 55%, transparent), rgba(6,12,24,0.82) 72%);
+    border: 1.5px solid color-mix(in srgb, var(--ic) 75%, transparent);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--ic) 40%, transparent);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    transition: transform 0.14s;
+  }
+  #city-cats .cat-orb:active { transform: scale(0.9); }
+  #city-cats .cat-orb .ce { font-size: 20px; line-height: 1; }
+  #city-cats .cat-orb .cl { font-size: 7px; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(220,235,255,0.85); }
+
   /* Me spotlight — connects the on-screen Me orb to the user's location. */
   #me-spotlight { position: fixed; inset: 0; z-index: 43; pointer-events: none; width: 100%; height: 100%; }
   #me-spotlight line {
@@ -2929,6 +2950,10 @@ This block strives to get shorter, more inclusive, more precise with every edit.
      auto-scoping to GLOBAL / NATIONAL / LOCAL as the camera descends. -->
 <div id="tile-strip" aria-label="Showcase feeds"></div>
 
+<!-- City-level CATEGORY orbs — general groupings (Dining, Hotels, Rentals…)
+     shown at the PERSONAL tier. Tap one to see the real options + filter. -->
+<div id="city-cats" aria-label="Categories"></div>
+
 <!-- Volume slider — mirrors the brightness slider on the right edge.
      Controls Astranov's voice loudness. Visible only at the global tier. -->
 <div id="vol-wrap" title="Voice volume">
@@ -3268,8 +3293,8 @@ async function bootCesium() {
     // Zoom + LOD settings — allow the user to zoom all the way down to
     // street level, and demand high-detail tile loads.
     const cc = viewer.scene.screenSpaceCameraController;
-    cc.minimumZoomDistance = 5;          // 5 m above ground
-    cc.maximumZoomDistance = 30_000_000; // 30 000 km
+    cc.minimumZoomDistance = 5;            // 5 m above ground
+    cc.maximumZoomDistance = 2_000_000_000; // 2 M km — pull back into the stars (cosmic tier)
     cc.enableTilt = true; cc.enableRotate = true;
     viewer.scene.globe.maximumScreenSpaceError = 1.66; // sharper than default
     viewer.scene.globe.preloadSiblings = true;
@@ -3690,6 +3715,10 @@ function onCameraSettled() {
     gd.classList.toggle('at-personal', newLevel === 'personal');
     gd.classList.toggle('at-national', newLevel === 'national');
   }
+  // Body tier classes drive CSS (e.g. the city category orbs appear at personal).
+  document.body.classList.toggle('at-personal', newLevel === 'personal');
+  document.body.classList.toggle('at-national', newLevel === 'national');
+  if (newLevel === 'personal') { try { renderCityCats(); } catch (_) {} }
 
   // Globe lighting (day/night terminator) is the GLOBAL aesthetic only.
   // Below global it darkens the street map at night — turn it off so the
@@ -6320,6 +6349,16 @@ const WORLD_CITIES = [
   { name: 'Seoul',       lat: 37.5665, lng: 126.9780 },
   { name: 'Sydney',      lat: -33.8688, lng: 151.2093 },
 ];
+// UNDERWATER CITIES — zoom into the sea and find them. Seeded explorable
+// settlements in deep ocean (the globe is alive below the waterline too).
+const UNDERWATER_CITIES = [
+  { name: 'Atlantís',     lat: 31.500, lng: -24.500, underwater: true },  // mid-Atlantic
+  { name: 'Mu',           lat: 5.000,  lng: -150.000, underwater: true },  // Pacific
+  { name: 'Lemuría',      lat: -8.000, lng: 78.000,  underwater: true },   // Indian Ocean
+  { name: 'Thalassa',     lat: 36.000, lng: 18.000,  underwater: true },   // Mediterranean deep
+  { name: 'Hydropolis',   lat: 24.000, lng: -68.000, underwater: true },   // off the Bahamas
+  { name: 'Nautilus',     lat: -35.000, lng: -40.000, underwater: true },  // South Atlantic
+];
 let cityBillboards = null;
 let cityLabels = null;            // city NAME labels (national tier)
 const cityDotIndex = new Map();   // cityId → { primitive, city }
@@ -6378,6 +6417,32 @@ function buildCityBeacons() {
       show: false,
     });
   });
+  // Underwater cities — teal beacons in the deep, explorable like any city.
+  UNDERWATER_CITIES.forEach((city, j) => {
+    const id = 'ucity:' + j;
+    const bb = cityBillboards.add({
+      position: Cesium.Cartesian3.fromDegrees(city.lng, city.lat),
+      image: img, color: Cesium.Color.fromCssColorString('#5ff0d0'),
+      width: 26, height: 26,
+      scaleByDistance: new Cesium.NearFarScalar(5e5, 0.7, 2e7, 1.6),
+      translucencyByDistance: new Cesium.NearFarScalar(3e5, 0, 1.2e6, 1.0),
+      disableDepthTestDistance: Number.POSITIVE_INFINITY, show: false,
+    });
+    bb.__cityId = id;
+    cityDotIndex.set(id, { primitive: bb, city });
+    cityLabels.add({
+      position: Cesium.Cartesian3.fromDegrees(city.lng, city.lat),
+      text: '≈ ' + city.name,
+      font: '600 12px -apple-system, "Segoe UI", system-ui, sans-serif',
+      fillColor: Cesium.Color.fromCssColorString('#9fffe9'),
+      outlineColor: Cesium.Color.fromCssColorString('#011a18'), outlineWidth: 3,
+      style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+      pixelOffset: new Cesium.Cartesian2(0, -18),
+      scaleByDistance: new Cesium.NearFarScalar(5e5, 0.85, 6e6, 0.5),
+      translucencyByDistance: new Cesium.NearFarScalar(3e5, 0, 1.2e6, 1.0),
+      disableDepthTestDistance: Number.POSITIVE_INFINITY, show: false,
+    });
+  });
   // Gentle shared pulse
   let t = 0;
   (function pulse() {
@@ -6389,6 +6454,69 @@ function buildCityBeacons() {
     requestAnimationFrame(pulse);
   })();
 }
+
+/* ==============================================================
+   CITY CATEGORY ORBS — at the PERSONAL tier the city groups into a few
+   general category orbs. Tap one (or zoom in) → its real options unfold
+   in a panel you can filter. Groupings up top, options + filter below.
+   ============================================================== */
+const CITY_CATEGORIES = [
+  { key: 'dining',  label: 'Dining',    emoji: '🍽', q: 'restaurant',  color: '#ff9944' },
+  { key: 'fast',    label: 'Fast food', emoji: '🍔', q: 'fast_food',   color: '#ffaa33' },
+  { key: 'cafes',   label: 'Cafés',     emoji: '☕', q: 'cafe',        color: '#d2a679' },
+  { key: 'bars',    label: 'Bars',      emoji: '🍸', q: 'bar',         color: '#ff7edc' },
+  { key: 'hotels',  label: 'Hotels',    emoji: '🏨', q: 'hotel',       color: '#b48cff' },
+  { key: 'rentals', label: 'Rentals',   emoji: '🚗', q: 'car_rental',  color: '#7eb4ff' },
+  { key: 'shops',   label: 'Shops',     emoji: '🛍', q: 'shop',        color: '#7cff7c' },
+  { key: 'pharmacy',label: 'Pharmacy',  emoji: '💊', q: 'pharmacy',    color: '#5ff0d0' },
+  { key: 'fun',     label: 'Nightlife', emoji: '🎉', q: 'nightclub',   color: '#ff3a6e' },
+];
+function renderCityCats() {
+  const host = document.getElementById('city-cats'); if (!host) return;
+  if (host.dataset.built) return;   // static set — build once
+  host.dataset.built = '1';
+  host.innerHTML = CITY_CATEGORIES.map(c =>
+    `<div class="cat-orb" style="--ic:${c.color}" onclick="openCategoryPanel('${c.key}')" title="${escapeHtml(c.label)}">
+       <span class="ce">${c.emoji}</span><span class="cl">${escapeHtml(c.label)}</span>
+     </div>`).join('');
+}
+window.openCategoryPanel = async function(key, filterText) {
+  const cat = CITY_CATEGORIES.find(c => c.key === key); if (!cat) return;
+  openPanel(`<h2>${cat.emoji} ${escapeHtml(cat.label)}</h2>
+    <div class="subtitle">near you · tap one to route or order</div>
+    <input id="cat-filter" class="me-inp" type="text" placeholder="Filter ${escapeHtml(cat.label.toLowerCase())}…" value="${escapeHtml(filterText || '')}" oninput="_catFilter('${key}', this.value)">
+    <div id="cat-list" style="margin-top:10px;color:#7eb4ff;font-size:12px">Scanning ${escapeHtml(cat.label.toLowerCase())} around you…</div>`);
+  if (!(await _agentEnsureLocation())) {
+    const el = $('cat-list'); if (el) el.innerHTML = '<div style="color:#ff9e9e;font-size:13px">Tap the Pilot/Locate to find you first.</div>';
+    return;
+  }
+  let list = [];
+  try { list = await _agentFindPlaces(cat.q, 6000); } catch (_) {}
+  window._catCache = window._catCache || {};
+  window._catCache[key] = list;
+  _renderCatList(key, filterText || '');
+};
+window._catFilter = function(key, text) { _renderCatList(key, text); };
+function _renderCatList(key, text) {
+  const el = $('cat-list'); if (!el) return;
+  const all = (window._catCache && window._catCache[key]) || [];
+  const f = (text || '').toLowerCase().trim();
+  const list = f ? all.filter(p => (p.name + ' ' + (p.addr || '')).toLowerCase().includes(f)) : all;
+  if (!list.length) {
+    el.innerHTML = `<div style="color:#6a8aaf;font-size:13px;padding:8px 0">${f ? 'Nothing matches that filter.' : 'None found nearby — try another category or move the map.'}</div>`;
+    return;
+  }
+  el.innerHTML = list.slice(0, 40).map((p, i) => `
+    <div class="delivery-row" onclick="_catOpen('${key}', ${all.indexOf(p)})">
+      <div class="head"><span class="desc">${escapeHtml(p.name)}</span>
+        <span class="reward">${p.dist < 1000 ? p.dist + ' m' : (p.dist / 1000).toFixed(1) + ' km'}</span></div>
+      <div class="meta">${escapeHtml(p.category || '')}${p.addr ? ' · ' + escapeHtml(p.addr) : ''}</div>
+    </div>`).join('');
+}
+window._catOpen = function(key, idx) {
+  const p = (window._catCache && window._catCache[key] || [])[idx];
+  if (p && p.raw) { closePanel(); openPlacePanel(p.raw); }
+};
 
 // Tier-aware city-dot flight. NEVER skip a level: from GLOBAL we land at
 // NATIONAL altitude over the city's country; only from NATIONAL do we
