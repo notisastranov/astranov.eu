@@ -3436,6 +3436,7 @@ function _wireTwoFingerZoom(canvas) {
    ============================================================== */
 let dayLayer   = null;   // BMNG day — bottom
 let nightLayer = null;   // Black Marble — terminator-masked, above day
+let baseLayer  = null;   // Natural Earth II fallback — also a GLOBAL-only texture
 let cityLayer  = null;   // Current city-tier overlay — hidden at GLOBAL
 let cityProviderIndex = 0;
 
@@ -3504,7 +3505,7 @@ async function bootImageryGlobeTier() {
     const base = await Cesium.TileMapServiceImageryProvider.fromUrl(
       Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
     );
-    viewer.imageryLayers.addImageryProvider(base);
+    baseLayer = viewer.imageryLayers.addImageryProvider(base);
   } catch (e) { console.warn('[imagery] Natural Earth base failed', e); }
 
   // DAY: NASA Blue Marble Next Generation via GIBS WMTS (layered on top).
@@ -3691,15 +3692,20 @@ function onCameraSettled() {
   const showGlobeTextures = (newLevel === 'global');
   if (dayLayer)   dayLayer.show   = showGlobeTextures;
   if (nightLayer) nightLayer.show = showGlobeTextures;
+  // Also hide the green Natural-Earth fallback below global. If CARTO is
+  // slow/blocked, the user then sees the DARK globe (#02060d) with city
+  // beacons — never the blurry green "satellite mess" the owner reported.
+  if (baseLayer)  baseLayer.show  = showGlobeTextures;
 
   // At global, the four system agents are orbital (apex tier) and the
   // legacy corner gadgets vanish. At national/personal, the corners
   // reappear so the agents are always reachable.
   document.body.classList.toggle('at-global', newLevel === 'global');
 
-  // City glowing dots: visible at NATIONAL only — the globe stays clean
-  // at GLOBAL (orbs do the job), and the streets do at PERSONAL.
+  // City glowing dots + NAME labels: visible at NATIONAL only — the globe
+  // stays clean at GLOBAL (orbs do the job), and the streets do at PERSONAL.
   cityDotIndex.forEach(e => { e.primitive.show = (newLevel === 'national'); });
+  if (cityLabels) { for (let i = 0; i < cityLabels.length; i++) cityLabels.get(i).show = (newLevel === 'national'); }
 
   updateLayerSwitchVisibility();
   updateCatFilter();
@@ -6260,6 +6266,7 @@ const WORLD_CITIES = [
   { name: 'Sydney',      lat: -33.8688, lng: 151.2093 },
 ];
 let cityBillboards = null;
+let cityLabels = null;            // city NAME labels (national tier)
 const cityDotIndex = new Map();   // cityId → { primitive, city }
 let _cityDotImg = null;
 
@@ -6285,6 +6292,7 @@ function _makeCityDotCanvas() {
 function buildCityBeacons() {
   if (!viewer || cityBillboards) return;
   cityBillboards = viewer.scene.primitives.add(new Cesium.BillboardCollection({ scene: viewer.scene }));
+  cityLabels = viewer.scene.primitives.add(new Cesium.LabelCollection({ scene: viewer.scene }));
   const img = _makeCityDotCanvas();
   WORLD_CITIES.forEach((city, i) => {
     const id = 'city:' + i;
@@ -6299,6 +6307,21 @@ function buildCityBeacons() {
     });
     bb.__cityId = id;
     cityDotIndex.set(id, { primitive: bb, city });
+    // Tap-to-dive city NAME label so the user can read where to go.
+    cityLabels.add({
+      position: Cesium.Cartesian3.fromDegrees(city.lng, city.lat),
+      text: city.name,
+      font: '600 13px -apple-system, "Segoe UI", system-ui, sans-serif',
+      fillColor: Cesium.Color.fromCssColorString('#dbe9ff'),
+      outlineColor: Cesium.Color.fromCssColorString('#02060d'),
+      outlineWidth: 3,
+      style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+      pixelOffset: new Cesium.Cartesian2(0, -20),
+      scaleByDistance: new Cesium.NearFarScalar(5e5, 0.85, 6e6, 0.5),
+      translucencyByDistance: new Cesium.NearFarScalar(3e5, 0, 1.2e6, 1.0),
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      show: false,
+    });
   });
   // Gentle shared pulse
   let t = 0;
