@@ -121,7 +121,8 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     delivering the way around it.
 
 1.  IDENTITY
-    Internet Operating System. Globe-first collective reality interface.
+    AstranoV — THE GLOBAL OPERATING SYSTEM. Globe-first collective reality
+    interface; one OS, one currency, one collective intelligence, every device.
     Frontend = THIS FILE only. Backend = Supabase (db + Edge Functions + Realtime).
 
 1b. APP NAME — the always-present anchor & heal button (binding, never regress)
@@ -958,7 +959,7 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="AstranoV" />
 <meta name="mobile-web-app-capable" content="yes" />
-<title>ASTRANOV</title>
+<title>AstranoV — The Global Operating System</title>
 <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Widgets/widgets.css" />
 <style>
   /* ============================================================
@@ -1581,7 +1582,8 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   #app-name {
     position: fixed; top: max(8px, env(safe-area-inset-top)); left: 50%;
     transform: translateX(-50%); z-index: 200; cursor: pointer;
-    padding: 5px 16px; border-radius: 11px;
+    padding: 5px 16px 6px; border-radius: 11px;
+    display: flex; flex-direction: column; align-items: center;
     font-family: 'Bahnschrift', 'DIN Alternate', 'Eurostile', 'Arial Narrow', system-ui, sans-serif;
     font-weight: 800; font-size: 17px; letter-spacing: 0.42em; text-indent: 0.42em;
     color: #cfe7ff; -webkit-user-select: none; user-select: none; line-height: 1;
@@ -1601,6 +1603,11 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   @keyframes appname-pulse {
     0%,100% { box-shadow: 0 0 10px rgba(40,120,255,0.7), 0 0 22px rgba(40,120,255,0.4), inset 0 0 12px rgba(60,140,255,0.3); }
     50%     { box-shadow: 0 0 16px rgba(60,150,255,1), 0 0 34px rgba(40,120,255,0.7), inset 0 0 16px rgba(80,160,255,0.5); }
+  }
+  #app-name .app-tag {
+    display: block; font-size: 6px; font-weight: 600; letter-spacing: 0.34em;
+    text-indent: 0.34em; color: rgba(150,190,255,0.8); margin-top: 3px;
+    text-shadow: 0 0 6px rgba(40,120,255,0.7);
   }
   #app-name.healing { animation: none; border-color: #7eebb4; color: #d6f7e6;
     box-shadow: 0 0 18px rgba(126,235,180,0.9), inset 0 0 16px rgba(126,235,180,0.5); }
@@ -2909,7 +2916,7 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 <div id="cesiumContainer"></div>
 
 <!-- APP NAME — always-present anchor (§1b). Tap = diagnostic + hard refresh. -->
-<div id="app-name" onclick="appNameReload()" title="AstranoV — tap to heal & reload">ASTRANOV</div>
+<div id="app-name" onclick="appNameReload()" title="AstranoV — The Global Operating System · tap to heal & reload">ASTRANOV<span class="app-tag">GLOBAL OPERATING SYSTEM</span></div>
 
 <!-- Me spotlight — a line from the on-screen Me orb to the user's location. -->
 <svg id="me-spotlight"><line id="me-spot-line" x1="0" y1="0" x2="0" y2="0"></line></svg>
@@ -9918,11 +9925,11 @@ const aicycleHistory = [];
 $('aicycle-float').addEventListener('click', () => { openAICycleConsole(); });
 
 const ENGINE_SHORT = { anthropic: 'ANT', openrouter: 'OR', groq: 'GRQ', gemini: 'GEM',
-  deepseek: 'DS', mistral: 'MST', xai: 'XAI', together: 'TGT', perplexity: 'PPX' };
+  deepseek: 'DS', mistral: 'MST', xai: 'XAI', together: 'TGT', perplexity: 'PPX', astranov: 'AV' };
 function _setEngineIndicator(engine) {
   const el = $('aicycle-provider');
   if (!el) return;
-  const code = ENGINE_SHORT[engine] || (engine ? engine.slice(0, 3).toUpperCase() : 'AI');
+  const code = ENGINE_SHORT[engine] || (engine ? engine.slice(0, 3).toUpperCase() : 'AV');
   el.textContent = code;
   const ring = $('aicycle-float');
   if (ring) ring.title = engine ? ('Astranov via ' + engine + ' — tap for AI cycle') : 'AI cycle';
@@ -9957,7 +9964,23 @@ async function openAICycleConsole() {
       <div class="meta">${escapeHtml(s.note)} · set <code>${escapeHtml(s.env)}</code> in Supabase secrets</div>
     </div>`;
 
+  // THE DIAL — how the brain spends the cycle. Auto = brain decides depth by
+  // specialty + level (1 / 2 / all). All = force every mind + judge. Or lock
+  // one model. This is the user's control over the overcharge tradeoff.
+  const pref = window._aiEngine || 'astranov';
+  const dialChip = (key, label, sub) => `
+    <div class="me-chip${pref === key ? ' on' : ''}" onclick="setAIEngine('${key}')" style="display:flex;flex-direction:column;align-items:flex-start;gap:1px">
+      <span>${escapeHtml(label)}</span><span style="font-size:8px;opacity:0.65">${escapeHtml(sub)}</span></div>`;
+  const lockChips = d.engines.filter(e => e.connected).map(e => dialChip(e.key, e.label, 'lock')).join('');
+
   host.innerHTML = `
+    <div class="me-sec">The dial — how the brain spends the cycle</div>
+    <div class="me-chips">
+      ${dialChip('astranov', 'AstranoV', 'auto · brain decides depth')}
+      ${dialChip('all', 'All minds', 'force every mind + judge')}
+      ${lockChips}
+    </div>
+    <div style="font-size:10px;color:#6a8aaf;margin:4px 0 2px">Auto spends one model for simple asks, several + judgment for hard ones — never fires all to overcharge. Lock one to force it; All to convene every mind.</div>
     <div class="me-sec">Connected engines — the brain reaches outside AIs through itself</div>
     ${d.engines.map(engineRow).join('')}
     <div class="me-sec">Usage · ${d.totalCalls} total turns</div>
@@ -9966,6 +9989,18 @@ async function openAICycleConsole() {
     ${d.suggestions.length ? d.suggestions.map(sugRow).join('') : '<div style="color:#6a8aaf;font-size:12px">All suggested engines are connected.</div>'}
     <div style="font-size:10px;color:#6a8aaf;margin-top:12px;letter-spacing:0.04em">One voice — Astranov. Engines are organs; this panel shows which organ answered, never changes the voice.</div>`;
 }
+
+// The user's chosen cycle mode: 'astranov' (auto), 'all' (escalate), or an
+// engine key (lock). Persisted; sent to /aicycle on every turn.
+window._aiEngine = (function () { try { return localStorage.getItem('astranov_engine') || 'astranov'; } catch (_) { return 'astranov'; } })();
+window.setAIEngine = function (key) {
+  window._aiEngine = key;
+  try { localStorage.setItem('astranov_engine', key); } catch (_) {}
+  try { _setEngineIndicator(key === 'astranov' || key === 'all' ? '' : key); } catch (_) {}
+  const code = key === 'all' ? 'ALL' : (key === 'astranov' ? 'AV' : (ENGINE_SHORT[key] || key.slice(0, 3).toUpperCase()));
+  try { toast('Cycle dial · ' + code, 'ok'); } catch (_) {}
+  try { openAICycleConsole(); } catch (_) {}
+};
 
 function openAstranov() {
   aicycleChat.classList.add('visible');
@@ -10048,7 +10083,7 @@ $('aicycle-form').addEventListener('submit', async e => {
 async function callAICycle(prompt) {
   if (!sb) throw new Error('offline');
   const history = aicycleHistory.slice(-6);
-  const body = { prompt, history, mode: window._astranovMode || '' };
+  const body = { prompt, history, mode: window._astranovMode || '', engine: window._aiEngine || 'astranov' };
   const { data, error } = await sb.functions.invoke('aicycle', { body });
   if (error) throw error;
   aicycleHistory.push({ role: 'user', content: prompt });
@@ -10216,7 +10251,7 @@ async function runAstranovAgent(userText) {
       const prompt = convo[convo.length - 1].content;
       const history = convo.slice(0, -1);
       const { data, error } = await sb.functions.invoke('aicycle', {
-        body: { agent: true, prompt, history, mode: window._astranovMode || '' },
+        body: { agent: true, prompt, history, mode: window._astranovMode || '', engine: window._aiEngine || 'astranov' },
       });
       if (error) throw error;
       try { _setEngineIndicator(data.engine); } catch (_) {}
