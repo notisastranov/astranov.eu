@@ -2,7 +2,7 @@
 // Handles: offline shell, push notifications, notification click routing
 'use strict';
 
-const SHELL_CACHE = 'astranov-shell-v8';
+const SHELL_CACHE = 'astranov-shell-v9';
 const TILE_CACHE  = 'astranov-tiles-v1';
 const TILE_HOSTS = [
   'basemaps.cartocdn.com',           // CARTO dark/voyager/light
@@ -50,8 +50,10 @@ async function _tileFetch(req) {
     if (fresh && fresh.ok) cache.put(req, fresh.clone());
     return fresh;
   } catch (e) {
-    // Last-resort transparent 1×1 so Cesium doesn't keep retrying
-    return new Response(new Uint8Array(0), { status: 503 });
+    // Do NOT fabricate a 503 — Cesium caches that as a permanently dead
+    // tile (the "foggy base showing through" bug). Re-throw so the browser
+    // reports a normal network error and Cesium retries the tile later.
+    throw e;
   }
 }
 

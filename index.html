@@ -935,7 +935,7 @@ This block strives to get shorter, more inclusive, more precise with every edit.
      behind the planet. Updated each Cesium postRender — no CSS orbit. */
   #tile-strip {
     position: fixed; inset: 0; pointer-events: none; z-index: 44;
-    overflow: hidden;
+    overflow: visible;   /* never clip an orb that floats to a screen edge */
   }
   #tile-strip:empty, #tile-strip.hide-orbit { display: none; }
   .informant {
@@ -4206,11 +4206,13 @@ function _projectOrbs() {
       el.style.setProperty('--orb-focus', (1 - focalNorm).toFixed(3));
       el.style.transform = `translate3d(${(win.x - 32).toFixed(1)}px, ${(win.y - 32).toFixed(1)}px, 0) scale(${scale.toFixed(3)})`;
       el.style.opacity = dofOpacity.toFixed(3);
-      // Out-of-focus orbs are non-interactive — prevents tapping a
-      // ghost behind the layer the user is actually looking at.
-      el.style.pointerEvents = (focalNorm > 0.55) ? 'none' : 'auto';
+      // Any orb the user can SEE must be tappable — a visible orb that
+      // silently swallows taps (the old depth-gated pointer-events:none)
+      // is what made the orbs feel dead. Visible = interactive.
+      el.style.pointerEvents = 'auto';
     } else {
       el.style.opacity = '0';
+      el.style.pointerEvents = 'none';   // truly hidden orbs never eat taps
     }
   }
 }
@@ -4748,9 +4750,15 @@ async function _krypteiaCameraVerify() {
     // Send the snapshot via /tamper (kept under sample). Truncated to fit.
     _tamperReport('camera-verify-snapshot', dataUrl.slice(0, 400));
     // Upload the full JPEG to Supabase storage if profile is signed in.
+    // NB: fetch() on a data: URL is blocked by our CSP connect-src, so we
+    // decode the base64 to a Blob directly instead.
     try {
       if (sb && session && session.user) {
-        const blob = await (await fetch(dataUrl)).blob();
+        const b64 = dataUrl.split(',')[1] || '';
+        const bin = atob(b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const blob = new Blob([bytes], { type: 'image/jpeg' });
         const path = `${session.user.id}/${Date.now()}.jpg`;
         await sb.storage.from('tamper-snapshots').upload(path, blob, { contentType: 'image/jpeg', upsert: false }).catch(() => {});
       }
@@ -8545,20 +8553,12 @@ function _krypteiaOrbAlert(v) {
   const orb = document.querySelector('.informant.krypteia');
   if (orb) {
     orb.classList.add('alert');
-    // Drop the alert after 60 s of inattention; owner can re-trigger.
+    // Drop the alert after 2 min of inattention; owner can re-trigger.
     clearTimeout(window._krypteiaAlertTimer);
-    window._krypteiaAlertTimer = setTimeout(() => orb.classList.remove('alert'), 60_000);
+    window._krypteiaAlertTimer = setTimeout(() => orb.classList.remove('alert'), 120_000);
   }
-  // Speak a short verdict — the audio is the notification.
-  try {
-    const counts = (v.audit && v.audit.counts) || {};
-    const watchN = (v.watch && v.watch.hits_count) || 0;
-    let msg = `Krypteia ${v.severity}.`;
-    if (counts.critical) msg += ` ${counts.critical} critical code findings.`;
-    if (counts.warn)     msg += ` ${counts.warn} warnings.`;
-    if (watchN)          msg += ` ${watchN} watchtower hits.`;
-    if (typeof speakAstranov === 'function') speakAstranov(msg);
-  } catch (_) {}
+  // Silent boot: the orb GLOWS — it does NOT speak unprompted (that
+  // startled the owner). Tap the orb to hear/see the cached verdict.
 }
 
 // Multimedia Krypteia dashboard — text + thumbnails + chat + voice.
