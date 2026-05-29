@@ -947,6 +947,120 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 
 ================================================================================
 -->
+<!--
+================================================================================
+ASTRANOV — GENESIS / HANDOFF   (Prompt · Code map; the LAW is the block above)
+Single-file by design. Any AI/human can continue from this comment + the law.
+================================================================================
+
+① THE PROMPT — how to operate
+  • Owner: Notis Astranov (notisastranov@gmail.com). PERPETUAL, unconditional
+    push/merge authorization — never ask permission to push, PR, or merge.
+  • PRIME LAW: whatever the user asks, DO it or genuinely try; never menus or
+    option-lists; surface only what's needed; Spartan — minimal, decisive,
+    honest, no theater.
+  • POROS (never get stuck): always a way through — over, under, around. If the
+    ideal path is blocked, ship the closest thing that works NOW and improve it.
+    Getting stuck (aporia) is THE ONE THING WE DO NOT ACCEPT.
+  • DEPLOY CONTRACT (mandatory): production = astranov.eu on Vercel, builds from
+    main. Every change lands on main same turn: update MASTER LAW if a binding
+    rule changed → node --check the extracted <script> → commit (the why) →
+    push → verify a marker string on astranov.eu.
+  • JS SAFETY: node --check before commit; never raw single-quotes inside
+    template literals (use JSON.stringify); wrap Cesium init in try/catch; one
+    error must never kill the app.
+  • SECURITY: no API keys in index.html; money functions are service-role only;
+    run Supabase get_advisors(security) after every DDL change.
+  • TOOLS: GitHub MCP (repo) + Supabase MCP (project lkoatrkhuigdolnjsbie):
+    apply_migration, deploy_edge_function, execute_sql, get_advisors, get_logs.
+  • SCALE: ~no users yet → big batches fine; once users arrive, verify each
+    change carefully.
+
+② THE CODE — architecture map
+  STACK: CesiumJS 1.119 (globe), Supabase (Postgres+RLS+Edge Functions+Realtime
+  +pgvector), Vercel (host from main), PWA (manifest+sw.js). Frontend = THIS
+  single index.html (MASTER LAW comment + all CSS + one <script>).
+
+  REPO FILES: index.html (everything) · sw.js (offline shell, push, tile cache
+  v9, never fakes a 503) · manifest.json (installable OS) · contribute-worker.js
+  (SHA-256 compute donation) · privacy.html (GDPR) · vercel.json (CSP) ·
+  LICENSE+README (Orbital License: 3% of turnover after €300/yr) · CLAUDE.md ·
+  supabase/functions/* (Deno edge functions).
+
+  FRONTEND SUBSYSTEMS (all in index.html):
+   • Tiers: one camera, GLOBAL>5,000km · NATIONAL 500–5,000km · PERSONAL<500km;
+     cosmic zoom-out to 2,000,000km (star skybox). Tap empty globe = descend.
+   • Imagery: globe = NASA Blue/Black Marble (day/night terminator); below
+     global = CARTO Dark streets; green Natural-Earth fallback hidden below
+     global so a dark map shows if tiles lag.
+   • Orbs: informant cloud orbs in #tile-strip projected each frame
+     (_projectOrbs on postRender) — CLAMPED on-screen, crowd-shrink,
+     fling-to-dismiss (pinball _orbPhys*). Apex orbs: Me (initials, highest
+     orbit, info popup, screen-space spotlight), € Wallet, Pilot (home),
+     Astranov (chat), Discover (feed); guardian = Krypteia (owner) / Anonymous.
+   • City category orbs (§5k): PERSONAL tier #city-cats groups (Dining, Hotels,
+     Rentals…) → openCategoryPanel() lists real Overpass options + filter →
+     openPlacePanel (Route/Order). World + underwater city beacons at national.
+   • Marketplace: euro orders + euro delivery bounty (real settlement).
+   • Social: circles + group/1:1 WebRTC calls (STUN + Open Relay TURN).
+   • AI Cycle + DIAL: ring #aicycle-float shows engine; tap → console + dial
+     (AstranoV auto / All minds / lock one), persisted, sent every turn.
+   • App-name heal: #app-name tap → /diag + hard refresh (SW unregister).
+
+  EDGE FUNCTIONS (purpose):
+   aicycle = THE BRAIN. Default routes ONE model by specialty (perplexity=fresh,
+     deepseek=reasoning, groq=fast, anthropic=owner) AND auto-scales depth by
+     problem LEVEL (1 / 2 / all+judge). engine=lock; engine:'all'/escalate=force
+     ensemble+judge; agent:true=tool-use loop (locate/find_places/show_place/
+     navigate/order). pgvector memory via match_memories; "remember…" stores.
+   ai-status = dial/console data (connected engines, stats, suggestions, order).
+   diag = app-name + runtime-error diagnostics → security_events.
+   order-intake = recompute total, debit eur (order_debit_eur, 402 if short),
+     insert order, broadcast; refund on failure. order-status = status flips +
+     refund-on-cancel. vendor-menu = AI-composed euro menu (cached).
+   crawl = seed signals from OSM Overpass, 4 mirrors + retry. informant-feed =
+     RSS news signals. anonymous-scan = user privacy guardian.
+   krypteia / krypteia-audit / krypteia-watch = owner guardian (silent boot).
+   council = Council of Thirteen (owner). developer = route request to the
+     builder → roadmap. brain = memory helpers. contribute = compute cycles.
+   payments + stripe/revolut/paypal (+ -webhook) = 3 rails, credit eur_balance
+     + 3% royalty. tamper = anti-theft log. push-notify = web push.
+
+  DATABASE (Postgres + RLS): profiles (eur_balance+avc_balance+is_owner are
+   COLUMN-LOCKED; own private row via my_profile() RPC) · signals (globe feed) ·
+   ai_memory (vector(768), match_memories) · cic_logs (brain turns+engine) ·
+   orders · vendors · deliveries (escrow trg_delivery_escrow → payout/refund
+   on_delivery_complete) · circles + circle_members (is_circle_member SECURITY
+   DEFINER breaks RLS recursion) · calls · messages (read_at) · payments +
+   royalties · security_events · compute_contributions · council_cases ·
+   push_subscriptions.
+  MONEY SECURITY (binding): credit_eur/credit_avc = service_role only;
+   order_debit_eur/order_refund_eur = SECURITY DEFINER server-owned;
+   admin_transfer_avc_to_eur = owner-checked. No client mints balance or sets
+   is_owner. get_advisors(security) after every DDL change.
+
+  SECRETS (Edge env; never values in this file): ANTHROPIC_PAID_API_KEY,
+   OPENROUTER_API_KEY, GROQ_API_KEY, GEMINI_API_KEY, DEEPSEEK_API_KEY,
+   MISTRAL_API_KEY, XAI_API_KEY, TOGETHER_API_KEY, PERPLEXITY_API_KEY,
+   COHERE_API_KEY (+ *_MODEL, FALLBACK_ORDER) · SUPABASE_URL/SERVICE_ROLE_KEY/
+   ANON_KEY · Stripe/Revolut/PayPal keys + webhook secrets · CRAWL_SECRET ·
+   VAPID push keys.
+
+  DEPLOY: edit index.html (+ MASTER LAW if a rule changed) → node --check →
+   git push origin main (Vercel builds) → verify marker on astranov.eu.
+   Backend via Supabase MCP on project lkoatrkhuigdolnjsbie, then advisors.
+
+③ STATE / NEXT: Built & live — globe+tiers+imagery, orbs (pinball/clamp/shrink),
+  Me orb, city category orbs, world+underwater beacons, cosmic zoom, euro
+  marketplace (orders+delivery bounty), circles+calls (TURN), the AstranoV
+  ensemble brain (specialty+level routing, judge, dial), agent loop, memory,
+  app-name heal, payment rails, security lockdown. KNOWN: Overpass rate-limits
+  cloud IPs (crawler slow; a dedicated Overpass/bulk OSM extract densifies
+  fast) · vendor orders lack real merchants (deliveries are the real peer txn) ·
+  DeepSeek key needs prepaid balance · the two-human core loop (sign up → order
+  → call) is NOT yet exercised end-to-end — do that before scaling.
+================================================================================
+-->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
