@@ -1097,8 +1097,20 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     animation: pilot-spin 14s linear infinite;
   }
   @keyframes pilot-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-  /* Me orb identity glow — always the warmest, always the user's anchor. */
-  .informant.sys-me .orb { border-color: rgba(126,235,180,0.95); }
+  /* Me orb identity glow — always the warmest, always the user's anchor.
+     Wears the user's initials and glows continuously so it's findable. */
+  .informant.sys-me .orb {
+    border-color: rgba(126,235,180,0.95);
+    animation: me-glow 3s ease-in-out infinite;
+  }
+  .informant.sys-me .orb-glyph {
+    font-size: 22px; font-weight: 800; letter-spacing: 0.02em; color: #eafff4;
+    text-shadow: 0 0 8px rgba(126,235,180,0.95), 0 0 18px rgba(126,235,180,0.6);
+  }
+  @keyframes me-glow {
+    0%,100% { box-shadow: 0 0 16px rgba(126,235,180,0.6), inset 0 0 12px rgba(0,0,0,0.5); }
+    50%     { box-shadow: 0 0 30px rgba(126,235,180,1), 0 0 60px rgba(126,235,180,0.5), inset 0 0 14px rgba(0,0,0,0.55); }
+  }
   /* Me orb in alert mode — speaking to the user right now. */
   .informant.sys-me.alert .orb {
     animation: krypteia-pulse 1.0s ease-in-out infinite;
@@ -3101,10 +3113,27 @@ function emitTelemetry(event, severity = 'info', context = {}) {
 
   console[severity === 'error' ? 'error' : 'info']('[ASTRANOV TELEMETRY]', payload);
 
-  if (navigator.sendBeacon) {
-    try {
-      navigator.sendBeacon('/api/client-telemetry', JSON.stringify(payload));
-    } catch (_) {}
+  // Ship error-severity telemetry to the /diag sink (real, owner-reviewable)
+  // instead of the old /api/client-telemetry (which 404'd). Fire-and-forget,
+  // lightly throttled so an error storm can't spam. This is how we find what
+  // breaks WITHOUT making the owner click through everything.
+  if (severity === 'error' && typeof fetch === 'function') {
+    const now = Date.now();
+    window._lastDiagPost = window._lastDiagPost || 0;
+    if (now - window._lastDiagPost > 4000) {
+      window._lastDiagPost = now;
+      try {
+        fetch(SUPABASE_URL + '/functions/v1/diag', {
+          method: 'POST', keepalive: true,
+          headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + SUPABASE_ANON },
+          body: JSON.stringify({
+            errors: [{ kind: event, detail: JSON.stringify(context).slice(0, 400) }],
+            url: location.href, tier: (typeof currentLevel !== 'undefined' ? currentLevel : '?'),
+            ua: navigator.userAgent, auto: true,
+          }),
+        }).catch(() => {});
+      } catch (_) {}
+    }
   }
 }
 
@@ -4126,12 +4155,23 @@ const _orbState = []; // [{ kind, infId|sysId, cart, beam, isEvent, color, lat, 
 // always sees them clustered on the near side of Earth.
 // Me also carries an event-bound beam down to the user's actual lat/lng.
 const _SYSTEM_ORB_TIERS = [
-  { id: 'sys-me',       name: 'Me',        emoji: '◉',  color: '#7eebb4', alt:  1_800_000, latOff:   0, boost: 1.10, classes: 'system sys-me',       onclick: 'expandMeOrb()' },
+  { id: 'sys-me',       name: 'Me',        emoji: '◉',  color: '#7eebb4', alt: 26_000_000, latOff:   0, boost: 1.25, classes: 'system sys-me',       onclick: 'expandMeOrb()' },
   { id: 'sys-eur',      name: 'Wallet',    emoji: '€',  color: '#ffd47e', alt: 14_000_000, latOff:  50, boost: 1.00, classes: 'system sys-eur',      onclick: 'openWalletPanel()' },
   { id: 'sys-pilot',    name: 'Pilot',     emoji: '🌍', color: '#6dd0ff', alt: 22_000_000, latOff:  28, boost: 0.95, classes: 'system sys-pilot',    onclick: 'pilotHome()' },
   { id: 'sys-astranov', name: 'Astranov',  emoji: '◈',  color: '#a8c8ee', alt: 16_000_000, latOff: -28, boost: 0.85, classes: 'system sys-astranov', onclick: 'openAstranov()' },
   { id: 'sys-discover', name: 'Discover',  emoji: '⬢',  color: '#ffb464', alt: 10_000_000, latOff: -52, boost: 0.75, classes: 'system sys-discover', onclick: 'openFeedPanel()' },
 ];
+
+// The Me orb wears the user's initials. Falls back to a dot when signed out.
+function _meInitials() {
+  try {
+    const n = (typeof profile !== 'undefined' && profile && profile.display_name) ? String(profile.display_name).trim() : '';
+    if (!n) return '◉';
+    const parts = n.split(/\s+/).filter(Boolean);
+    const ini = (parts[0][0] + (parts[1] ? parts[1][0] : (parts[0][1] || ''))).toUpperCase();
+    return ini || '◉';
+  } catch (_) { return '◉'; }
+}
 
 // User location tracked for the Me beam. Updated by the existing
 // locate/IP-warm pipelines via setUserLocation().
@@ -4609,7 +4649,10 @@ function renderInformants() {
   // Append the four apex-tier system orbs after the informants. Order
   // matters: _orbState is appended in the SAME order in _refreshOrbAnchors.
   const sysOrbs = _SYSTEM_ORB_TIERS.map(tier => {
-    const glyphHtml = `<span class="orb-glyph">${tier.emoji}</span>`;
+    // The Me orb shows the user's INITIALS (their face in the cosmos),
+    // not a generic glyph.
+    const glyph = (tier.id === 'sys-me') ? _meInitials() : tier.emoji;
+    const glyphHtml = `<span class="orb-glyph">${escapeHtml(glyph)}</span>`;
     return `<div class="informant ${tier.classes}" style="--ic:${tier.color};opacity:0" onclick="${tier.onclick}" title="${escapeHtml(tier.name)}">
       <div class="orb">${livingOrbHTML('', tier.color, _hashSeed(tier.id))}${glyphHtml}</div>
     </div>`;
@@ -9058,7 +9101,7 @@ window.expandMeOrb = async function() {
   } catch (_) {}
   try {
     const { count: mc } = await sb.from('messages').select('*', { count: 'exact', head: true })
-      .eq('recipient_id', session.user.id).eq('read', false);
+      .eq('recipient_id', session.user.id).is('read_at', null);
     unreadMsgs = mc || 0;
   } catch (_) {}
   const parts = [`${name}, your wallet has ${eur.toFixed(2)} euros.`];
@@ -9066,6 +9109,25 @@ window.expandMeOrb = async function() {
   if (unreadMsgs) parts.push(`${unreadMsgs} unread message${unreadMsgs === 1 ? '' : 's'}.`);
   if (!openOrders && !unreadMsgs) parts.push('All quiet.');
   try { speakAstranov(parts.join(' ')); } catch (_) {}
+
+  // Open a clean, titled INFO popup — the orb is no longer dead. It states
+  // who you are and your live status, with the few actions that make sense.
+  openPanel(agentCard({
+    emoji: _meInitials(), name: escapeHtml(name), role: 'You · your seat in the world',
+    color: '#7eebb4',
+    status: `€${eur.toFixed(2)} · ${openOrders} order${openOrders === 1 ? '' : 's'} · ${unreadMsgs} unread`,
+    body: `
+      <div class="row"><span>Wallet</span><span style="color:#ffd47e">€${eur.toFixed(2)}</span></div>
+      <div class="row"><span>Orders in flight</span><span style="color:#7eb4ff">${openOrders}</span></div>
+      <div class="row"><span>Unread messages</span><span style="color:#7eb4ff">${unreadMsgs}</span></div>
+      ${(_userLat != null) ? '<div class="row"><span>Located</span><span style="color:#7eebb4">yes ◉</span></div>' : '<div class="row"><span>Located</span><span style="color:#ff9e9e">tap Pilot/Locate</span></div>'}`,
+    actions: [
+      { label: 'Wallet & top-up', primary: true, onclick: 'closePanel();openWalletPanel()' },
+      { label: 'Messages',                         onclick: 'closePanel();openMessagesPanel()' },
+      { label: 'Circles — group video',            onclick: 'closePanel();openCirclesPanel()' },
+      { label: 'Profile & settings',               onclick: 'closePanel();openMePanel()' },
+    ],
+  }));
 };
 
 // Astranov tap: open the AI chat + listen + talk directly.
@@ -9684,6 +9746,14 @@ async function openAICycleConsole() {
 function openAstranov() {
   aicycleChat.classList.add('visible');
   aicycleChat.style.height = ''; aicycleChat.style.maxHeight = '';
+  // First open with an empty thread: greet so the orb's PURPOSE is obvious
+  // (this is Astranov, the assistant — not an unlabelled "hole").
+  try {
+    const box = $('aicycle-messages');
+    if (box && !box.children.length && !aicycleHistory.length) {
+      appendAICycleMessage('ai', "I'm Astranov. Tell me what you need — find a place, route me there, order something, or call someone — and I'll do it.", 'astranov', '');
+    }
+  } catch (_) {}
   try { window.speechSynthesis?.resume(); } catch (_) {}
   startVoiceSession();
 }
