@@ -1049,15 +1049,6 @@ Single-file by design. Any AI/human can continue from this comment + the law.
      messages, a euro delivery bounty); no paid AI; capped+idempotent; POST
      {purge:true} removes them. Filter bots via profiles.is_bot.
 
-  LABS — isolated rooms for other AIs (astranov.eu/grok, /chatgpt, /gemini,
-   /deepseek). Each lives at /labs/<name>/ in this monorepo and is served by
-   the SAME Vercel project via root vercel.json rewrites (/grok/* → /labs/
-   grok/*, etc.). Real isolation is at the SUPABASE layer: each lab gets its
-   own org + own free project (astranov-grok, -chatgpt, -gemini, -deepseek)
-   with its own DB, auth, edge functions, secrets. AI engine keys are SHARED
-   (same key pasted into each project's secrets) with an optional per-lab
-   LAB_BUDGET_DAILY kill-switch. Each lab's index.html carries the same
-   genesis brief so the resident AI knows the laws + the architecture.
 
   DATABASE (Postgres + RLS): profiles (eur_balance+avc_balance+is_owner are
    COLUMN-LOCKED; own private row via my_profile() RPC) · signals (globe feed) ·
