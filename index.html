@@ -147,8 +147,14 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 1b. APP NAME — the always-present anchor & heal button (binding, never regress)
     The name "ASTRANOV" is ALWAYS visible, pinned at the TOP-CENTRE of the
     screen, at every tier and over every panel — the one permanent identity
-    mark alongside the AICYCLE ring. STYLE: electric, glowing, DEEP BLUE, a
-    squarish font set in a square-with-rounded-edges badge (#app-name).
+    mark alongside the AICYCLE ring.
+    STYLE (binding): inscriptional capitals (Cinzel) GLOWING DEEP GREEK
+    NAVY out of the void — Aegean → ink (#cfe2ff letters; layered
+    text-shadows in #2d6cc4 / #143478 / #08163c) with a slow halo
+    pulse. The letters float in space. BANNED, by law: any box,
+    border, background fill, backdrop blur, rounded badge, orange or
+    gold trim, or anything that makes the name look like a button.
+    The glow is the only chrome.
     FUNCTION — tapping the name is the universal RESET / HEAL gesture:
       (1) it captures an internal DIAGNOSTIC of what got stuck this session
           (collected JS errors, unhandled rejections, failed fetches, SW
@@ -1760,57 +1766,58 @@ Single-file by design. Any AI/human can continue from this comment + the law.
      (Cinzel) in marble & gold, faintly haloed in Aegean blue.
      Tap = diagnostic + hard refresh.
      ============================================================ */
+  /* WORDMARK LAW: letters floating in space. NO box, NO border, NO
+     background, NO orange/gold trim. Pure inscriptional capitals
+     glowing deep Greek navy out of the void. */
   #app-name {
     position: fixed; top: max(10px, env(safe-area-inset-top)); left: 50%;
     transform: translateX(-50%); z-index: 200; cursor: pointer;
-    padding: 6px 22px 7px; border-radius: var(--r-soft);
+    padding: 0; border-radius: 0;
     display: flex !important; flex-direction: column; align-items: center;
     visibility: visible !important; opacity: 1 !important;
     font-family: var(--font-display);
     font-weight: 800; font-size: 19px; letter-spacing: 0.48em; text-indent: 0.48em;
-    /* The name itself glows deep Greek navy — Aegean blue at the
-       heart, deepening to ink at the edges. Always visible. */
     color: #cfe2ff;
     -webkit-user-select: none; user-select: none; line-height: 1;
-    background:
-      linear-gradient(180deg, rgba(6,18,46,0.72), rgba(2,5,18,0.78));
-    border: 1px solid rgba(45,108,196,0.65);
-    box-shadow:
-      0 0 0 1px rgba(45,108,196,0.35) inset,
-      0 0 18px rgba(45,108,196,0.55),
-      0 0 38px rgba(20,52,120,0.55);
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    backdrop-filter: none; -webkit-backdrop-filter: none;
     text-shadow:
-      0 0 4px rgba(207,226,255,0.85),
-      0 0 12px rgba(45,108,196,0.95),
-      0 0 22px rgba(20,52,120,0.85),
-      0 0 36px rgba(8,22,60,0.9);
-    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-    transition: transform var(--t-quick) var(--ease), box-shadow var(--t-mid) var(--ease);
+      0 0 6px rgba(207,226,255,0.9),
+      0 0 14px rgba(45,108,196,1),
+      0 0 26px rgba(20,52,120,0.95),
+      0 0 44px rgba(8,22,60,0.95);
+    transition: transform var(--t-quick) var(--ease), text-shadow var(--t-mid) var(--ease);
     animation: app-name-pulse 4.2s ease-in-out infinite;
   }
   @keyframes app-name-pulse {
-    0%,100% { box-shadow:
-      0 0 0 1px rgba(45,108,196,0.35) inset,
-      0 0 18px rgba(45,108,196,0.55),
-      0 0 38px rgba(20,52,120,0.55); }
-    50%     { box-shadow:
-      0 0 0 1px rgba(45,108,196,0.55) inset,
-      0 0 28px rgba(45,108,196,0.85),
-      0 0 56px rgba(20,52,120,0.75); }
+    0%,100% { text-shadow:
+      0 0 6px rgba(207,226,255,0.85),
+      0 0 14px rgba(45,108,196,1),
+      0 0 26px rgba(20,52,120,0.9),
+      0 0 44px rgba(8,22,60,0.9); }
+    50%     { text-shadow:
+      0 0 8px rgba(207,226,255,1),
+      0 0 22px rgba(45,108,196,1),
+      0 0 38px rgba(20,52,120,1),
+      0 0 60px rgba(8,22,60,0.95); }
   }
   #app-name:active { transform: translateX(-50%) scale(0.96); }
-  #app-name::after {
-    content: ''; position: absolute; left: 12%; right: 12%; bottom: -1px; height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(93,178,255,0.95), transparent);
-    opacity: 0.8;
-  }
+  #app-name::after { content: none; }
   #app-name .app-tag {
     display: block; font-family: var(--font-body); font-size: 7px; font-weight: 600;
     letter-spacing: 0.42em; text-indent: 0.42em; color: rgba(140,180,235,0.92);
-    margin-top: 5px; text-shadow: 0 0 8px rgba(45,108,196,0.85);
+    margin-top: 5px; text-shadow:
+      0 0 6px rgba(45,108,196,0.95),
+      0 0 14px rgba(20,52,120,0.7);
   }
-  #app-name.healing { border-color: rgba(126,235,180,0.7); color: #d6f7e6;
-    box-shadow: 0 0 22px rgba(126,235,180,0.5), inset 0 0 16px rgba(126,235,180,0.35); }
+  /* No box on the healing state either — only the glow shifts color. */
+  #app-name.healing { color: #d6f7e6;
+    text-shadow:
+      0 0 6px rgba(214,247,230,0.95),
+      0 0 16px rgba(126,235,180,0.95),
+      0 0 30px rgba(54,150,108,0.85); }
 
   /* City-level CATEGORY orbs — a floating cluster at the PERSONAL tier. */
   #city-cats {

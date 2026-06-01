@@ -210,6 +210,13 @@ AstranoV is a **Virtual Reality Operating System**. The globe and space are perm
 - Add persistent overlay UI that covers the globe
 - Break the globe rendering (always wrap Cesium Viewer init in try-catch with fallback)
 - Deploy changes that kill the app (syntax-check JS before every commit)
+- **Wrap the wordmark in a box.** The "ASTRANOV" name (`#app-name`) is
+  inscriptional capitals floating in space — pure glow, nothing else.
+  BANNED: any background fill, border, backdrop blur, rounded badge,
+  box-shadow halo, orange or gold trim, or any styling that makes the
+  name look like a button. The deep-Greek-navy glow (Aegean → ink) is
+  the only chrome. The name is always visible; no opacity / display /
+  visibility toggle may hide it.
 
 ### Tray design:
 - Triggered by swipe-up from bottom 60px OR tap on `#tray-trigger` (thin strip)
