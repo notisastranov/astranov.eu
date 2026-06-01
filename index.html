@@ -1242,6 +1242,21 @@ Single-file by design. Any AI/human can continue from this comment + the law.
     z-index: 3;
   }
   .informant .count:empty { display: none; }
+  /* Every orb wears its NAME below it so the user knows what they're
+     looking at without tapping. Tiny inscriptional caps, glow matches
+     the orb's tint. (Gadget Law §4 — feedback-rich, context-bound.) */
+  .informant .orb-name {
+    position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+    font-family: var(--font-display, 'Cinzel', serif);
+    font-size: 9px; font-weight: 600; letter-spacing: 0.22em;
+    color: rgba(244,237,224,0.92);
+    text-shadow:
+      0 0 5px color-mix(in srgb, var(--ic, #7eb4ff) 90%, transparent),
+      0 0 12px color-mix(in srgb, var(--ic, #7eb4ff) 55%, transparent),
+      0 1px 2px rgba(0,0,0,0.85);
+    pointer-events: none; text-transform: uppercase; white-space: nowrap;
+    user-select: none;
+  }
 
   /* APEX TIER — the four system orbs (Me, Pilot, Astranov, Discover)
      are orbital agents at the highest altitudes at the GLOBAL tier.
@@ -3587,6 +3602,15 @@ async function bootCesium() {
     // Camera height drives the navigation level
     viewer.camera.moveEnd.addEventListener(onCameraSettled);
     viewer.camera.moveEnd.addEventListener(() => _scheduleTileRefresh());
+    // Stash the orbit cloud during camera flight so the projection
+    // loop doesn't fight the camera for the frame budget. It comes
+    // back when the camera lands and renderInformants runs.
+    viewer.camera.moveStart.addEventListener(() => {
+      try {
+        const strip = document.getElementById('tile-strip');
+        if (strip) strip.classList.add('hide-orbit');
+      } catch (_) {}
+    });
     onCameraSettled();
     renderTileStrip();
 
@@ -4982,16 +5006,19 @@ function renderInformants() {
     if (inf._krypteia) {
       return `<div class="informant krypteia" style="--ic:#ff5a4a;opacity:0" onclick="openKrypteia()" title="Krypteia — the watchtower">
         <div class="orb"><span class="orb-glyph">⬡</span></div>
+        <span class="orb-name">Krypteia</span>
       </div>`;
     }
     if (inf._anonymous) {
       return `<div class="informant anonymous" style="--ic:#6dd0ff;opacity:0" onclick="openAnonymousService()" title="Anonymous Service — your privacy guardian">
         <div class="orb"><span class="orb-glyph">⊘</span></div>
+        <span class="orb-name">Anonymous</span>
       </div>`;
     }
     if (inf._new) {
       return `<div class="informant" style="--ic:#7eebb4;opacity:0" onclick="openInformantCreate()" title="Create an agent">
         <div class="orb" style="font-size:26px">${livingOrbHTML('＋', '#7eebb4', i * 0.137)}</div>
+        <span class="orb-name">New Agent</span>
       </div>`;
     }
     const found = _informantFindings(inf);
@@ -5005,17 +5032,17 @@ function renderInformants() {
       ? found[0].image_url : '';
     return `<div class="informant${has ? ' has-news' : ''}" style="--ic:${color};opacity:0" onclick="expandOrb(${JSON.stringify(inf.id)})" title="${escapeHtml(inf.name)} agent">
       <div class="orb">${videoOrbHTML(inf.emoji || '◈', color, seed, vurl, previewImg)}${has ? `<div class="count">${found.length}</div>` : '<div class="count"></div>'}</div>
+      <span class="orb-name">${escapeHtml(inf.name || 'Agent')}</span>
     </div>`;
   }).join('');
   // Append the four apex-tier system orbs after the informants. Order
   // matters: _orbState is appended in the SAME order in _refreshOrbAnchors.
   const sysOrbs = _SYSTEM_ORB_TIERS.map(tier => {
-    // The Me orb shows the user's INITIALS (their face in the cosmos),
-    // not a generic glyph.
     const glyph = (tier.id === 'sys-me') ? _meInitials() : tier.emoji;
     const glyphHtml = `<span class="orb-glyph">${escapeHtml(glyph)}</span>`;
     return `<div class="informant ${tier.classes}" style="--ic:${tier.color};opacity:0" onclick="${tier.onclick}" title="${escapeHtml(tier.name)}">
       <div class="orb">${livingOrbHTML('', tier.color, _hashSeed(tier.id))}${glyphHtml}</div>
+      <span class="orb-name">${escapeHtml(tier.name)}</span>
     </div>`;
   }).join('');
   el.innerHTML = orbs + sysOrbs;
@@ -9661,13 +9688,20 @@ window.pilotHome = function() {
 //   • home      → Pilot orb
 // We refuse to overload the user with menus.
 window.expandMeOrb = async function() {
+  // Agent Intent Law — act first. The Me orb's first action is always
+  // DIVE-TO-ME: drop the camera straight to where the user is and warm
+  // the nearby vendors. No location yet? Acquire one. If signed-out
+  // and at PERSONAL already, show identity.
   if (_userLat == null || _userLng == null) {
     try { if (typeof startLocate === 'function') startLocate(); } catch (_) {}
+    return;
+  }
+  const atPersonal = (typeof currentLevel !== 'undefined' && currentLevel === 'personal');
+  if (!atPersonal) {
+    try { diveToMe(); } catch (_) {}
+    return;
   }
   if (!session) {
-    // No identity yet — speak the prompt + open the auth surface (the
-    // only place where "options" are unavoidable: sign-in vs register).
-    try { speakAstranov('You are not yet signed in. Tap to sign in or register.'); } catch (_) {}
     try { if (typeof openYouPanel === 'function') openYouPanel(); } catch (_) {}
     return;
   }
