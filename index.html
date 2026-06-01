@@ -10124,7 +10124,22 @@ const aicycleHistory = [];
 // The AICYCLE ring is the transparency component: it shows which engine
 // the brain is using and opens the engine console (stats + connections).
 // Talking to Astranov is the apex ◈ orb's job, not the ring's.
-$('aicycle-float').addEventListener('click', () => { openAICycleConsole(); });
+// AICYCLE ring — TAP opens the conversation (the brain talks first), LONG-PRESS
+// opens the engine dial. The tap is the engagement; the press is the console.
+(function wireAicycleRing() {
+  const el = $('aicycle-float'); if (!el) return;
+  let pressTimer = 0, isLong = false;
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    isLong = false;
+    clearTimeout(pressTimer);
+    pressTimer = setTimeout(() => { isLong = true; try { openAICycleConsole(); } catch (_) {} }, 550);
+  });
+  const cancel = () => { clearTimeout(pressTimer); };
+  el.addEventListener('pointerup', () => { cancel(); if (!isLong) try { openAstranov(); } catch (_) {} });
+  el.addEventListener('pointerleave', cancel);
+  el.addEventListener('pointercancel', cancel);
+})();
 
 const ENGINE_SHORT = { anthropic: 'ANT', openrouter: 'OR', groq: 'GRQ', gemini: 'GEM',
   deepseek: 'DS', mistral: 'MST', xai: 'XAI', together: 'TGT', perplexity: 'PPX', astranov: 'AV' };
@@ -10207,19 +10222,37 @@ window.setAIEngine = function (key) {
 function openAstranov() {
   aicycleChat.classList.add('visible');
   aicycleChat.style.height = ''; aicycleChat.style.maxHeight = '';
-  // First open with an empty thread: greet so the orb's PURPOSE is obvious
-  // (this is Astranov, the assistant — not an unlabelled "hole").
+  window._manualToldUser = null;   // reset the "told you mic is blocked" dedupe each open
+  try { window.speechSynthesis?.resume(); } catch (_) {}
+  // The brain TALKS FIRST. On an empty thread, append a greeting AND speak
+  // it aloud. The TTS onend hook is what triggers listenTurn(), so this also
+  // chains the listening turn naturally.
+  let greeted = false;
   try {
     const box = $('aicycle-messages');
     if (box && !box.children.length && !aicycleHistory.length) {
-      appendAICycleMessage('ai', "I'm Astranov. Tell me what you need — find a place, route me there, order something, or call someone — and I'll do it.", 'astranov', '');
+      const greeting = "I'm Astranov. Tell me what you need — find a place, route me there, order something, call someone — and I'll do it.";
+      appendAICycleMessage('ai', greeting, 'astranov', '');
+      try { speakAstranov(greeting); greeted = true; } catch (_) {}
     }
   } catch (_) {}
-  try { window.speechSynthesis?.resume(); } catch (_) {}
-  startVoiceSession();
+  // Voice path. If speech recognition isn't supported / is denied / the room
+  // is too noisy and the user goes silent, the text input is always ready —
+  // we focus it as a graceful fallback and keep re-attempting voice quietly.
+  try { startVoiceSession(); } catch (_) {}
+  setTimeout(() => { try { $('aicycle-input')?.focus({ preventScroll: true }); } catch (_) {} }, greeted ? 1200 : 250);
+  // Re-engagement loop: if listening has gone quiet for a while, retry speech.
+  clearInterval(window._astranovReengage);
+  window._astranovReengage = setInterval(() => {
+    if (!aicycleChat.classList.contains('visible')) { clearInterval(window._astranovReengage); return; }
+    if (typeof voiceActive !== 'undefined' && !voiceActive && !_speaking) {
+      try { startVoiceSession(); } catch (_) {}
+    }
+  }, 12_000);
 }
 function closeAstranov() {
   aicycleChat.classList.remove('visible');
+  clearInterval(window._astranovReengage);
   stopVoiceSession();
 }
 // Tapping the conversation while Astranov is talking interrupts it and listens.
@@ -10633,8 +10666,13 @@ if (SpeechRecognition) {
 function _manualMode(msg) {
   sessionOn = false;
   try { recognition?.stop(); } catch (_) {}
-  appendAICycleMessage('ai', msg, 'astranov', '');
-  speakAstranov(msg);
+  // Tell the user ONCE per panel-open. The re-engagement loop in openAstranov
+  // will keep quietly retrying speech; spamming the chat every retry is hostile.
+  if (window._manualToldUser !== msg) {
+    appendAICycleMessage('ai', msg, 'astranov', '');
+    speakAstranov(msg);
+    window._manualToldUser = msg;
+  }
   $('aicycle-input')?.focus();
 }
 
