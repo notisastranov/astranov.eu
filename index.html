@@ -3426,13 +3426,10 @@ function toast(msg, type = '') {
   el.className = 'show' + (type ? ' ' + type : '');
   clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => { el.className = ''; }, 3200);
-  // Agent-notification ping. 'err' toasts get the urgent tone, the rest
-  // get the soft tone. Silent if speech-volume is 0 (full mute).
-  try {
-    if (typeof _pingAgent === 'function') {
-      _pingAgent({ tone: type === 'err' ? 'urgent' : 'soft' });
-    }
-  } catch (_) {}
+  // No audio ping. Toast is visual-only — pinging on every status string
+  // turned routine flow into a beep-beep-beep stream. The few places that
+  // genuinely need to grab attention (new informant signals) call
+  // _pingAgent directly.
 }
 
 // Arm-confirm: first tap arms the engage element, second tap fires the action.
@@ -10256,8 +10253,10 @@ async function _copilotScan() {
   appendAICycleMessage('ai', '◉ co-pilot · ' + say, 'astranov', '', info);
   try { speakAstranov(say); } catch (_) {}
 }
-// Restore co-pilot if the user had it on last session.
-try { if (localStorage.getItem('astranov_copilot') === '1') setTimeout(startCopilot, 4500); } catch (_) {}
+// Co-pilot does NOT auto-restore. Each session the user opts in explicitly
+// from the AI Cycle console — the app must be silent on boot. Clear any
+// stale flag from previous builds so it can't speak on its own.
+try { localStorage.removeItem('astranov_copilot'); } catch (_) {}
 
 async function openAICycleConsole() {
   openPanel(`<h2>AI Cycle</h2><div class="subtitle">the brain's living connections</div>
@@ -10336,41 +10335,23 @@ window.setAIEngine = function (key) {
   try { openAICycleConsole(); } catch (_) {}
 };
 
+// Open the chat surface. The brain is QUIET: no auto-greeting, no
+// auto-listening, no reengage loop. The user speaks first. Voice is
+// engaged only when the user taps the mic toggle. (Auto-speaking on
+// open made the app "talk by itself"; iOS system beeps fire on every
+// SpeechRecognition start/stop, so the reengage loop produced
+// "beep beep beep". Both gone.)
 function openAstranov() {
   aicycleChat.classList.add('visible');
   aicycleChat.style.height = ''; aicycleChat.style.maxHeight = '';
-  window._manualToldUser = null;   // reset the "told you mic is blocked" dedupe each open
-  try { window.speechSynthesis?.resume(); } catch (_) {}
-  // The brain TALKS FIRST. On an empty thread, append a greeting AND speak
-  // it aloud. The TTS onend hook is what triggers listenTurn(), so this also
-  // chains the listening turn naturally.
-  let greeted = false;
-  try {
-    const box = $('aicycle-messages');
-    if (box && !box.children.length && !aicycleHistory.length) {
-      const greeting = "I'm Astranov. Tell me what you need — find a place, route me there, order something, call someone — and I'll do it.";
-      appendAICycleMessage('ai', greeting, 'astranov', '');
-      try { speakAstranov(greeting); greeted = true; } catch (_) {}
-    }
-  } catch (_) {}
-  // Voice path. If speech recognition isn't supported / is denied / the room
-  // is too noisy and the user goes silent, the text input is always ready —
-  // we focus it as a graceful fallback and keep re-attempting voice quietly.
-  try { startVoiceSession(); } catch (_) {}
-  setTimeout(() => { try { $('aicycle-input')?.focus({ preventScroll: true }); } catch (_) {} }, greeted ? 1200 : 250);
-  // Re-engagement loop: if listening has gone quiet for a while, retry speech.
-  clearInterval(window._astranovReengage);
-  window._astranovReengage = setInterval(() => {
-    if (!aicycleChat.classList.contains('visible')) { clearInterval(window._astranovReengage); return; }
-    if (typeof voiceActive !== 'undefined' && !voiceActive && !_speaking) {
-      try { startVoiceSession(); } catch (_) {}
-    }
-  }, 12_000);
+  window._manualToldUser = null;
+  setTimeout(() => { try { $('aicycle-input')?.focus({ preventScroll: true }); } catch (_) {} }, 200);
 }
 function closeAstranov() {
   aicycleChat.classList.remove('visible');
-  clearInterval(window._astranovReengage);
-  stopVoiceSession();
+  try { clearInterval(window._astranovReengage); } catch (_) {}
+  try { stopVoiceSession(); } catch (_) {}
+  try { window.speechSynthesis?.cancel(); } catch (_) {}
 }
 // Tapping the conversation while Astranov is talking interrupts it and listens.
 $('aicycle-messages')?.addEventListener('click', () => {
