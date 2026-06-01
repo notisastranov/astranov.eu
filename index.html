@@ -1099,13 +1099,46 @@ Single-file by design. Any AI/human can continue from this comment + the law.
 <meta name="mobile-web-app-capable" content="yes" />
 <title>AstranoV — The Global Operating System</title>
 <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Widgets/widgets.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" />
 <style>
+  /* ============================================================
+     HELLENIC-COSMIC DESIGN TOKENS — locked palette/type/motion.
+     AstranoV in marble + gold over the wine-dark sea of space.
+     ============================================================ */
+  :root {
+    --void:        #020512;           /* deepest space */
+    --night:       #050b1c;           /* working background */
+    --wine:        #0a2240;           /* "wine-dark sea" surface */
+    --ink:         #e8dfca;           /* warm marble — body text on dark */
+    --marble:      #f4ede0;           /* paper-white — headings */
+    --dim:         #7a8aaa;           /* secondary text */
+    --aegean:      #5db2ff;           /* electric blue — accent / Astranov */
+    --aegean-deep: #1a6fc9;
+    --chrysos:     #d4a047;           /* mosaic gold */
+    --chrysos-hi:  #f0c875;           /* lit gold */
+    --olive:       #383d2c;           /* subtle olive borders */
+    --phoenician:  #c8403c;           /* classical alert (not gaming red) */
+    --thanatos:    #ff9e9e;           /* warning ink */
+
+    --font-display: 'Cinzel', 'Trajan Pro', 'Bodoni 72', 'Optima', Georgia, serif;
+    --font-body:    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --font-mono:    ui-monospace, 'JetBrains Mono', 'IBM Plex Mono', 'Bahnschrift', monospace;
+
+    --r-sharp: 0px;  --r-soft: 6px;  --r-card: 12px;  --r-pill: 999px;
+    --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px;
+    --sp-6: 32px; --sp-7: 48px; --sp-8: 72px;
+
+    --ease:    cubic-bezier(0.22, 0.9, 0.32, 1);
+    --t-quick: 0.16s;  --t-mid: 0.32s;  --t-slow: 0.64s;
+  }
   /* ============================================================
      ZERO UI — only the globe and the AICYCLE ring are permanent.
      ============================================================ */
   *, *::before, *::after { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden;
-               background: #000; color: #e6f1ff; font-family: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Display", system-ui, sans-serif;
+               background: var(--void); color: var(--ink); font-family: var(--font-body);
                -webkit-tap-highlight-color: transparent; user-select: none; }
 
   /* The Cesium canvas owns the screen. */
@@ -1116,11 +1149,16 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   /* Cosmogony veil — Kosmos forming from Chaos. Fades once Cesium mounts. */
   #boot {
     position: fixed; inset: 0;
-    background: radial-gradient(ellipse at center, #0a1530 0%, #050a18 45%, #000 75%);
+    background:
+      radial-gradient(circle at 50% 45%, rgba(212,160,71,0.06) 0%, transparent 36%),
+      radial-gradient(ellipse at center, var(--wine) 0%, var(--night) 50%, var(--void) 100%);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     z-index: 100; transition: opacity 1s ease;
   }
   #boot.gone { opacity: 0; pointer-events: none; }
+  #boot .name { font-family: var(--font-display) !important; color: var(--marble) !important;
+                letter-spacing: 0.52em !important; text-indent: 0.52em !important;
+                text-shadow: 0 0 14px rgba(212,160,71,0.45), 0 0 24px rgba(93,178,255,0.3) !important; }
 
   /* INFORMANT AGENTS — they are real 3D satellites, anchored to Earth at
      fixed lat/lon points (Fibonacci sphere) at orbital altitude. They
@@ -1714,41 +1752,45 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   }
 
   /* ============================================================
-     APP NAME (§1b) — always on top, electric glowing deep-blue, set in a
-     square-with-rounded-edges badge. Tap = diagnostic + hard refresh.
+     APP NAME (§1b) — the wordmark. Carved inscriptional capitals
+     (Cinzel) in marble & gold, faintly haloed in Aegean blue.
+     Tap = diagnostic + hard refresh.
      ============================================================ */
   #app-name {
-    position: fixed; top: max(8px, env(safe-area-inset-top)); left: 50%;
+    position: fixed; top: max(10px, env(safe-area-inset-top)); left: 50%;
     transform: translateX(-50%); z-index: 200; cursor: pointer;
-    padding: 5px 16px 6px; border-radius: 11px;
+    padding: 6px 22px 7px; border-radius: var(--r-soft);
     display: flex; flex-direction: column; align-items: center;
-    font-family: 'Bahnschrift', 'DIN Alternate', 'Eurostile', 'Arial Narrow', system-ui, sans-serif;
-    font-weight: 800; font-size: 17px; letter-spacing: 0.42em; text-indent: 0.42em;
-    color: #cfe7ff; -webkit-user-select: none; user-select: none; line-height: 1;
-    background: linear-gradient(180deg, rgba(10,26,64,0.62), rgba(4,12,34,0.62));
-    border: 1.5px solid rgba(70,150,255,0.85);
+    font-family: var(--font-display);
+    font-weight: 800; font-size: 19px; letter-spacing: 0.48em; text-indent: 0.48em;
+    color: var(--marble); -webkit-user-select: none; user-select: none; line-height: 1;
+    background:
+      linear-gradient(180deg, rgba(10,34,64,0.55), rgba(2,5,18,0.55));
+    border: 1px solid rgba(212,160,71,0.45);
     box-shadow:
-      0 0 10px rgba(40,120,255,0.75), 0 0 22px rgba(40,120,255,0.45),
-      inset 0 0 12px rgba(60,140,255,0.35);
+      0 0 0 1px rgba(93,178,255,0.18) inset,
+      0 0 22px rgba(93,178,255,0.25),
+      0 0 36px rgba(212,160,71,0.18);
     text-shadow:
-      0 0 6px rgba(120,180,255,0.95), 0 0 14px rgba(40,120,255,0.85),
-      0 0 28px rgba(20,90,255,0.6);
-    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-    animation: appname-pulse 3.4s ease-in-out infinite;
-    transition: transform 0.12s;
+      0 0 6px rgba(244,237,224,0.45),
+      0 0 14px rgba(212,160,71,0.55),
+      0 0 28px rgba(93,178,255,0.35);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    transition: transform var(--t-quick) var(--ease), box-shadow var(--t-mid) var(--ease);
   }
-  #app-name:active { transform: translateX(-50%) scale(0.94); }
-  @keyframes appname-pulse {
-    0%,100% { box-shadow: 0 0 10px rgba(40,120,255,0.7), 0 0 22px rgba(40,120,255,0.4), inset 0 0 12px rgba(60,140,255,0.3); }
-    50%     { box-shadow: 0 0 16px rgba(60,150,255,1), 0 0 34px rgba(40,120,255,0.7), inset 0 0 16px rgba(80,160,255,0.5); }
+  #app-name:active { transform: translateX(-50%) scale(0.96); }
+  #app-name::after {
+    content: ''; position: absolute; left: 12%; right: 12%; bottom: -1px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--chrysos-hi), transparent);
+    opacity: 0.65;
   }
   #app-name .app-tag {
-    display: block; font-size: 6px; font-weight: 600; letter-spacing: 0.34em;
-    text-indent: 0.34em; color: rgba(150,190,255,0.8); margin-top: 3px;
-    text-shadow: 0 0 6px rgba(40,120,255,0.7);
+    display: block; font-family: var(--font-body); font-size: 7px; font-weight: 600;
+    letter-spacing: 0.42em; text-indent: 0.42em; color: rgba(212,160,71,0.85);
+    margin-top: 5px; text-shadow: 0 0 8px rgba(212,160,71,0.45);
   }
-  #app-name.healing { animation: none; border-color: #7eebb4; color: #d6f7e6;
-    box-shadow: 0 0 18px rgba(126,235,180,0.9), inset 0 0 16px rgba(126,235,180,0.5); }
+  #app-name.healing { border-color: rgba(126,235,180,0.7); color: #d6f7e6;
+    box-shadow: 0 0 22px rgba(126,235,180,0.5), inset 0 0 16px rgba(126,235,180,0.35); }
 
   /* City-level CATEGORY orbs — a floating cluster at the PERSONAL tier. */
   #city-cats {
@@ -1952,9 +1994,16 @@ Single-file by design. Any AI/human can continue from this comment + the law.
     z-index: 60;
   }
   #panel.visible { transform: translateY(0); }
-  #panel h2 { margin: 0 0 4px; font-size: 13px; letter-spacing: 0.2em;
-              color: #7eb4ff; text-transform: uppercase; font-weight: 500; }
-  #panel .subtitle { font-size: 11px; color: #6a8aaf; margin-bottom: 16px; }
+  #panel h2 { margin: 0 0 6px; font-family: var(--font-display);
+              font-size: 18px; letter-spacing: 0.22em; text-indent: 0.22em;
+              color: var(--marble); text-transform: uppercase; font-weight: 600;
+              text-shadow: 0 0 8px rgba(212,160,71,0.25); }
+  #panel h2::after {
+    content:''; display:block; width: 42px; height: 1px; margin: 8px 0 0;
+    background: linear-gradient(90deg, var(--chrysos-hi), transparent);
+  }
+  #panel .subtitle { font-family: var(--font-body); font-size: 11px;
+                     color: var(--dim); margin-bottom: 18px; letter-spacing: 0.08em; }
   #panel .row { display: flex; justify-content: space-between; align-items: center;
                 padding: 10px 0; border-bottom: 1px solid rgba(120, 180, 255, 0.08); }
   #panel .row:last-child { border-bottom: 0; }
