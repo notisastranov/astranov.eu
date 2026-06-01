@@ -224,7 +224,15 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     500–5,000 km · PERSONAL <500 km. Tap empty globe = descend one level
     toward the tapped point (global→national→city→street). Glowing blue
     major-city beacons + NAME labels show at NATIONAL; tap one to dive to
-    that city. Globe lighting (day/night terminator) is GLOBAL-only — it is
+    that city.
+    DIVE-TO-ME (binding, never regress): the user's beacon on the globe
+    collapses the three-step descent into ONE TAP. Tap the beacon →
+    camera flies straight to PERSONAL over the user AND nearby places
+    are warmed in the same call. The beacon must be present from the
+    moment we have ANY fix — GPS lock or IP warm-up — so this gesture
+    works on a cold load. Engine: setUserBeacon tags the billboard
+    __userBeacon=true, onCanvasClick routes that to diveToMe(). Both
+    are load-bearing. Globe lighting (day/night terminator) is GLOBAL-only — it is
     switched OFF below global so the street map renders at full brightness.
     COSMIC ZOOM-OUT: max zoom is 2,000,000 km — pull back past Earth into the
     star skybox (solar-system / galaxy feel); there is always more to explore
@@ -612,6 +620,19 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     hidden organs; one voice — Astranov. This is how a user "uses the
     app freely" by speaking intent: go there, find this shop, order me
     this — and the system performs it.
+
+13e. SLUMBER LAW — sleep when nothing is needed (binding, never regress)
+    Everything heavy MUST sleep when not actively needed. The app is a VR
+    OS, not a screensaver — no 24/7 background work allowed.
+    Sleepers, registered via window._slumber: Cesium render loop, orb
+    physics RAF, informant feed polling, GPS watchPosition, co-pilot scan
+    interval, ambient hum gain. Each sleep()/wake() must be idempotent.
+    Triggers: tab hidden / window blur → sleep; user idle 5 min (no
+    pointerdown/touchstart/keydown/wheel) → sleep; any human signal of
+    presence wakes everything and resets the idle clock.
+    Any new RAF, setInterval >5 s, or persistent network watch MUST
+    register a sleeper with window._slumber. Forgetting to register is
+    a regression.
 
 14. JS SAFETY
     CDN-dependent init wrapped in try-catch. Inline JS must pass `node --check`
@@ -6626,6 +6647,8 @@ function setUserBeacon(lat, lng) {
     disableDepthTestDistance: Number.POSITIVE_INFINITY,
     eyeOffset: new Cesium.Cartesian3(0, 0, -5),
   });
+  // Tag so onCanvasClick can recognise the beacon and dive-to-me on tap.
+  try { userBillboard.__userBeacon = true; } catch (_) {}
 
   let t = 0;
   (function animateBeacon() {
@@ -7032,19 +7055,23 @@ async function fetchOSMNearby(lat, lng, radiusM) {
 }
 
 async function _autoLoadPlaces() {
-  // Pre-warm nearby places by IP, but NEVER move the camera. The app must
-  // always start on the global view (Zero-UI §1, Space View §5b). The
-  // camera descends only on an explicit user action: locate / tap globe /
-  // tap a city beacon.
-  if (window._userLat) { fetchOSMNearby(window._userLat, window._userLng, 6000); return; }
+  // Pre-warm nearby places by IP and DROP the user beacon so the user
+  // can dive-to-me with a single tap from the global view. Camera does
+  // NOT move (Zero-UI §1, Space View §5b) — the beacon is the affordance,
+  // tapping it triggers the descent.
+  if (window._userLat) {
+    fetchOSMNearby(window._userLat, window._userLng, 6000);
+    try { setUserBeacon(window._userLat, window._userLng); } catch (_) {}
+    return;
+  }
   try {
     const r = await fetch('https://ipapi.co/json/');
     const d = await r.json();
     if (d && d.latitude) {
       window._userLat = d.latitude; window._userLng = d.longitude;
       setUserLocation(d.latitude, d.longitude);
-      fetchOSMNearby(d.latitude, d.longitude, 8000);   // warm vendors silently
-      // no setUserBeacon, no flyTo — the user must opt in to descend.
+      try { setUserBeacon(d.latitude, d.longitude); } catch (_) {}
+      fetchOSMNearby(d.latitude, d.longitude, 8000);
     }
   } catch (_) {}
 }
@@ -7589,6 +7616,14 @@ function subscribeRealtime() {
 function onCanvasClick(click) {
   if (!viewer) return;
   const picked = viewer.scene.pick(click.position);
+  // DIVE-TO-ME (one tap to where you are). The user's beacon is the
+  // shortest path from any tier to PERSONAL: tap it and the camera
+  // flies straight to street level over the user's fix and the
+  // nearby vendors are warmed and rendered.
+  if (picked?.primitive?.__userBeacon) {
+    try { diveToMe(); } catch (_) {}
+    return;
+  }
   if (picked?.primitive?.__cityId) {
     flyToCity(cityDotIndex.get(picked.primitive.__cityId)?.city);
     return;
@@ -7634,6 +7669,27 @@ function onCanvasClick(click) {
   }
   closePanel();
 }
+
+/* DIVE-TO-ME — one-tap descent from anywhere to PERSONAL over the
+   user's location. Warms the nearby places so "what I can do around
+   me" is live the moment the camera lands. */
+function diveToMe() {
+  if (!viewer) return;
+  const lat = window._userLat, lng = window._userLng;
+  if (lat == null || lng == null) {
+    try { if (typeof startLocate === 'function') startLocate(); } catch (_) {}
+    return;
+  }
+  try {
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(lng, lat, 1_200),
+      duration: 1.4,
+      orientation: { heading: 0, pitch: Cesium.Math.toRadians(-65), roll: 0 },
+    });
+  } catch (_) {}
+  try { fetchOSMNearby(lat, lng, 1500); } catch (_) {}
+}
+window.diveToMe = diveToMe;
 
 function openSignalPanel(signal) {
   const sourceTag = signal.source === 'crawler' && signal.source_name

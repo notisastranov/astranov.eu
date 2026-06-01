@@ -177,6 +177,37 @@ All changes go into this one file. No new files unless explicitly requested.
 One Cesium camera, three altitude bands. Single tap down, double-tap / back up.
 AVC currency only. Krypteia = owner-only hidden panel.
 
+### DIVE-TO-ME (one tap, mandatory)
+From any tier the user can collapse the three-step descent into a single
+gesture by tapping their own beacon on the globe. Tap the user beacon →
+camera flies straight to PERSONAL over the user's fix AND nearby places
+are warmed in the same call, so "what I can do around me" is alive the
+moment the camera lands. The beacon is shown the moment we have ANY
+fix (GPS or IP), so this gesture works on a fresh load.
+Engine: `setUserBeacon` tags the billboard `__userBeacon = true`;
+`onCanvasClick` routes that to `diveToMe()`. Both are load-bearing —
+removing either re-breaks the core gesture.
+
+## Slumber Law — sleep when nothing is needed (binding, never regress)
+Everything heavy MUST sleep when it isn't actively needed. The app is a
+VR OS, not a screensaver — it can't burn battery or jank the camera with
+24/7 background work.
+
+Sleepers (registered with `window._slumber`): Cesium render loop, orb
+physics RAF, informant feed polling (4-min network), GPS watchPosition,
+co-pilot scan interval, ambient hum gain. Each `sleep()` / `wake()` is
+idempotent.
+
+Triggers:
+- Tab hidden / window blur → sleep.
+- User idle 5 min (no pointerdown / touchstart / keydown / wheel) → sleep.
+- Any human signal of presence → wake + reset idle clock.
+
+When adding a new system that opens a network connection, starts a
+RAF, or installs a setInterval longer than 5 s, you MUST register it
+with `window._slumber` so the law holds. Failure to register is a
+regression.
+
 ## Agent Intent Law — act first, ask later (MANDATORY)
 The four corner agents NEVER open a menu on first tap. First tap = the
 agent performs its primary action immediately, no questions:
