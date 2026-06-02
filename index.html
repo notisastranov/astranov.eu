@@ -2006,19 +2006,17 @@ Single-file by design. Any AI/human can continue from this comment + the law.
     transform: translate(-50%, -50%) rotate(var(--od-rot, 0deg));
     will-change: transform;
   }
-  /* Escalation SHARDS — triangles arranged around the wheel that
-     light up + grow as the value advances. The cool→warm hue is
-     the read-at-a-glance direction of escalation. */
-  #orbital-dial .od-shards {
+  /* FLOOD ARC — colored donut wedge that fills the inside of the
+     dial as the value advances. Lives OUTSIDE the rotating wheel so
+     it stays anchored to the top while the wheel spins. */
+  #orbital-dial .od-flood {
     position: absolute; left: 50%; top: 50%;
     transform: translate(-50%, -50%);
     overflow: visible; pointer-events: none;
   }
-  #orbital-dial .od-shard {
-    stroke-width: 1;
-    transition: opacity 0.18s var(--ease),
-                transform 0.18s var(--ease),
-                filter 0.2s var(--ease);
+  #orbital-dial .od-flood-arc {
+    filter: drop-shadow(0 0 14px rgba(93,178,255,0.45));
+    transition: filter 0.2s var(--ease);
   }
   /* Dial dots — option markers around the halo. Smaller to match
      the smaller default radius. */
@@ -2048,19 +2046,6 @@ Single-file by design. Any AI/human can continue from this comment + the law.
       0 0 22px color-mix(in srgb, var(--dc, #cfe2ff) 95%, transparent),
       0 0 44px color-mix(in srgb, var(--dc, #cfe2ff) 45%, transparent);
     transform: translate(var(--dx, 0px), var(--dy, 0px)) scale(1.15);
-  }
-  /* Tick marks for continuous mode — let the roulette feel real. */
-  #orbital-dial .od-tick {
-    position: absolute; left: 50%; top: 50%;
-    width: 2px; height: 8px; margin: -4px 0 0 -1px;
-    background: rgba(207,226,255,0.45);
-    transform: translate(var(--dx, 0), var(--dy, 0)) rotate(var(--ang, 0));
-    transform-origin: center;
-  }
-  #orbital-dial .od-tick.major {
-    height: 14px; width: 2.5px; margin-top: -7px;
-    background: rgba(93,178,255,0.95);
-    box-shadow: 0 0 8px rgba(93,178,255,0.7);
   }
   /* Continuous-arc indicator (for value dials like volume/brightness). */
   #orbital-dial .od-arc {
@@ -5054,79 +5039,90 @@ const OrbitalDial = (() => {
     const w = wheelEl(); if (!w) return;
     const root = document.getElementById('orbital-dial');
     root.style.setProperty('--od-rot', (-active._t * 360).toFixed(3) + 'deg');
-    _updateShards();
+    _updateFlood();
   }
-  // Build the SHARD ring — N triangles pointing OUTWARD around the
-  // wheel. Each shard sits at a discrete angular slot. Their colour
-  // climbs along a cool→warm escalation gradient so the user reads
-  // direction at a glance, and they GROW + brighten as the dial's
-  // value advances past their slot.
-  function _buildShards(radius, count) {
-    const w = wheelEl(); if (!w) return;
+  // FLOOD ARC — a colored donut wedge that fills the INSIDE of the
+  // dial (between the orb body and the halo edge) and grows clockwise
+  // from the top marker as the value advances. The hue moves with
+  // the value so the user reads "where am I on the scale" at a glance:
+  // cool aegean blue at low values, warming through to chrysos at
+  // full. The arc lives in .od-ring (NOT .od-wheel) so it stays
+  // anchored to the top while the wheel spins.
+  function _buildFlood(radius) {
     const ns = 'http://www.w3.org/2000/svg';
-    const svgSize = (radius + 14) * 2;
+    const svgSize = (radius + 6) * 2;
     const svg = document.createElementNS(ns, 'svg');
-    svg.setAttribute('class', 'od-shards');
+    svg.setAttribute('class', 'od-flood');
     svg.setAttribute('viewBox', `${-svgSize/2} ${-svgSize/2} ${svgSize} ${svgSize}`);
     svg.style.width  = svgSize + 'px';
     svg.style.height = svgSize + 'px';
-    for (let i = 0; i < count; i++) {
-      // Slot centred at angle (i / count) * 2π, top-anchored.
-      const a   = (i / count) * Math.PI * 2 - Math.PI / 2;
-      const tipR  = radius + 11;
-      const baseR = radius - 1;
-      const half  = (Math.PI / count) * 0.78;   // half-width of the triangle base
-      // Three points: tip on the outer ring, base on the inner ring.
-      const tipX  = Math.cos(a)         * tipR;
-      const tipY  = Math.sin(a)         * tipR;
-      const bL_x  = Math.cos(a - half)  * baseR;
-      const bL_y  = Math.sin(a - half)  * baseR;
-      const bR_x  = Math.cos(a + half)  * baseR;
-      const bR_y  = Math.sin(a + half)  * baseR;
-      // Hue maps to the escalation: 210° (cool aegean) at the bottom of
-      // the dial, sweeping through 200, 50 (warm chrysos) at the top.
-      const u = i / count;
-      const hue = 210 - u * 160;       // 210 → 50
-      const sat = 75, light = 56;
-      const tri = document.createElementNS(ns, 'polygon');
-      tri.setAttribute('points', `${tipX},${tipY} ${bL_x},${bL_y} ${bR_x},${bR_y}`);
-      tri.setAttribute('class', 'od-shard');
-      tri.style.fill = `hsl(${hue} ${sat}% ${light}% / 0.35)`;
-      tri.style.stroke = `hsl(${hue} ${sat}% ${light + 12}% / 0.85)`;
-      tri.dataset.t = u.toFixed(4);
-      svg.appendChild(tri);
-    }
-    w.appendChild(svg);
+    // Reusable gradient — recoloured live in _updateFlood.
+    const defs = document.createElementNS(ns, 'defs');
+    defs.innerHTML = `
+      <radialGradient id="od-flood-g" cx="50%" cy="50%" r="50%">
+        <stop offset="0%"   stop-color="hsl(210 78% 60% / 0.0)"/>
+        <stop offset="55%"  stop-color="hsl(200 78% 60% / 0.45)"/>
+        <stop offset="100%" stop-color="hsl(50 90% 62% / 0.85)"/>
+      </radialGradient>`;
+    svg.appendChild(defs);
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('class', 'od-flood-arc');
+    path.setAttribute('fill', 'url(#od-flood-g)');
+    svg.appendChild(path);
+    ring.appendChild(svg);
   }
-  // Recolour / brighten shards based on the active position. Shards
-  // BEFORE the current _t (cumulative) are fully lit ("advanced");
-  // shards after are dim ("yet to reach").
-  function _updateShards() {
+  function _updateFlood() {
     if (!active) return;
-    const shards = ring.querySelectorAll('.od-shard');
+    const svg = ring.querySelector('.od-flood');
+    if (!svg) return;
+    const path = svg.querySelector('.od-flood-arc');
+    if (!path) return;
+    const radius = centre().radius;
+    const outerR = radius - 4;
+    const orbR   = active.anchorEl ? Math.max(22, active.anchorEl.offsetWidth / 2 + 4) : 28;
+    const innerR = orbR;
+    // Sweep angle: clockwise from the top, proportional to _t.
     const t = active._t;
-    shards.forEach(s => {
-      const u = parseFloat(s.dataset.t) || 0;
-      // Distance around the ring from the head (the value) to this shard,
-      // measured forward (clockwise). Smaller distance = closer to the
-      // leading edge = brighter.
-      let d = u - t;
-      while (d < 0) d += 1;
-      // Lit if behind the head within ~85 % of the ring; the trailing
-      // shard right under the marker glows brightest.
-      const lit = d > 0.85 ? 1 : (1 - d / 0.85);
-      const scale = 0.7 + lit * 0.5;
-      s.style.opacity = (0.25 + lit * 0.75).toFixed(2);
-      s.style.transformOrigin = '0 0';
-      s.style.transform = `scale(${scale.toFixed(3)})`;
-      s.style.filter = `drop-shadow(0 0 ${(2 + lit * 8).toFixed(1)}px hsl(${(210 - u * 160).toFixed(0)} 75% 56% / ${lit.toFixed(2)}))`;
-    });
+    let theta = t * Math.PI * 2;
+    if (theta < 0.0001) {
+      path.setAttribute('d', '');   // nothing to flood
+      _tintFlood(0);
+      return;
+    }
+    // Donut wedge: outer arc from top (start) clockwise to end, then
+    // inner arc back to start. In SVG, y grows downward, so the "top"
+    // is angle -π/2 in math, but for a clean clockwise sweep we
+    // parameterise as (angle from top, going clockwise).
+    const start = -Math.PI / 2;
+    const end   = start + theta;
+    const oxS = Math.cos(start) * outerR, oyS = Math.sin(start) * outerR;
+    const oxE = Math.cos(end)   * outerR, oyE = Math.sin(end)   * outerR;
+    const ixS = Math.cos(start) * innerR, iyS = Math.sin(start) * innerR;
+    const ixE = Math.cos(end)   * innerR, iyE = Math.sin(end)   * innerR;
+    const large = theta > Math.PI ? 1 : 0;
+    const d = `M ${oxS} ${oyS} A ${outerR} ${outerR} 0 ${large} 1 ${oxE} ${oyE}
+               L ${ixE} ${iyE} A ${innerR} ${innerR} 0 ${large} 0 ${ixS} ${iyS} Z`;
+    path.setAttribute('d', d);
+    _tintFlood(t);
+  }
+  // Move the gradient stops with the value so the leading edge
+  // (the warm chrysos) sits at the user's current position.
+  function _tintFlood(t) {
+    const svg = ring.querySelector('.od-flood');
+    if (!svg) return;
+    const stops = svg.querySelectorAll('stop');
+    if (stops.length < 3) return;
+    // Cool aegean at the tail, warm chrysos at the head.
+    const tailHue = 210 - t * 30;        // 210 → 180
+    const headHue = 50  + (1 - t) * 30;   // bright chrysos at full
+    stops[0].setAttribute('stop-color', `hsl(${tailHue.toFixed(0)} 78% 60% / 0)`);
+    stops[1].setAttribute('stop-color', `hsl(${(tailHue - 10).toFixed(0)} 78% 60% / ${(0.30 + t * 0.30).toFixed(2)})`);
+    stops[2].setAttribute('stop-color', `hsl(${headHue.toFixed(0)} 92% 62% / ${(0.55 + t * 0.30).toFixed(2)})`);
   }
   function buildDiscrete(opts, radius) {
     const w = wheelEl(); if (!w) return;
     const n = opts.items.length;
-    // One shard per option — colour reads as the escalation gradient.
-    _buildShards(radius, n);
+    _buildFlood(radius);
     opts.items.forEach((it, i) => {
       // Dot 0 starts at the top; subsequent dots clockwise around.
       const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
@@ -5151,9 +5147,7 @@ const OrbitalDial = (() => {
   }
   function buildContinuous(opts, radius) {
     const w = wheelEl(); if (!w) return;
-    // 18 shards — a clean read of the escalation gradient around the
-    // ring without making the wheel look noisy.
-    _buildShards(radius, 18);
+    _buildFlood(radius);
     // A glowing fill segment that grows clockwise from the top as the
     // value increases. Rendered as an SVG circle with stroke-dasharray.
     const arc = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
