@@ -1978,46 +1978,125 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   }
   .cfc-all { font-weight: 700; }
 
-  /* MOTHERSHIP ORB (§0n) — one element holds every small orb inside
-     her by default; tap her to fan them out around her body. Earth
-     lives at her centre. Throwable like every orb. */
+  /* MOTHERSHIP ORB (§0n) — a small Earth-bodied orb surrounded by
+     three permanent rings of small orbs. The rings ALWAYS show; each
+     spins like a roulette under finger drag, with trackball physics.
+     Tap an orb to fire its action; fling a free orb at the mother to
+     stow it. */
   #mother-orb {
-    position: fixed; z-index: 220; width: 88px; height: 88px;
+    position: fixed; z-index: 220; width: 56px; height: 56px;
     cursor: grab; -webkit-tap-highlight-color: transparent;
     user-select: none; touch-action: none;
     border-radius: 50%;
-    /* Default location: bottom-right corner, just clear of the
-       safe area + AICYCLE ring. The user can throw her anywhere. */
-    right: 18px; bottom: max(94px, calc(env(safe-area-inset-bottom) + 94px));
+    /* Default location: bottom-right corner, just clear of the safe
+       area. The rings sit OUTSIDE the orb body so we leave breathing
+       room from the edge for them. */
+    right: 130px; bottom: max(130px, calc(env(safe-area-inset-bottom) + 130px));
     transition: transform 0.18s var(--ease), box-shadow 0.22s var(--ease);
     will-change: transform;
+    /* The rings overflow the orb's bounds — keep them visible. */
+    overflow: visible;
   }
   #mother-orb.dragging, #mother-orb.flinging { cursor: grabbing; transition: none; }
   #mother-orb:active { transform: scale(0.95); }
   #mother-orb .mo-earth {
-    position: absolute; inset: 6px; border-radius: 50%;
+    position: absolute; inset: 3px; border-radius: 50%;
     background:
-      radial-gradient(circle at 36% 32%, rgba(255,255,255,0.18) 0%, transparent 36%),
+      radial-gradient(circle at 36% 32%, rgba(255,255,255,0.22) 0%, transparent 36%),
       radial-gradient(circle at 65% 70%, rgba(126,235,180,0.55) 0%, transparent 38%),
       radial-gradient(circle at 30% 75%, rgba(126,235,180,0.45) 0%, transparent 32%),
       linear-gradient(165deg, #0a3a64 0%, #06224a 55%, #021024 100%);
     border: 1px solid rgba(207,226,255,0.55);
     box-shadow:
-      inset 0 0 18px rgba(0,0,0,0.7),
-      inset 0 6px 14px rgba(207,226,255,0.18);
+      inset 0 0 14px rgba(0,0,0,0.7),
+      inset 0 4px 10px rgba(207,226,255,0.18);
   }
   #mother-orb .mo-halo {
-    position: absolute; inset: -4px; border-radius: 50%; pointer-events: none;
+    position: absolute; inset: -3px; border-radius: 50%; pointer-events: none;
     box-shadow:
-      0 0 18px rgba(45,108,196,0.65),
-      0 0 40px rgba(20,52,120,0.55),
-      0 0 70px rgba(8,22,60,0.55);
+      0 0 14px rgba(45,108,196,0.6),
+      0 0 30px rgba(20,52,120,0.5);
   }
   #mother-orb.open .mo-halo {
     box-shadow:
-      0 0 26px rgba(93,178,255,0.95),
-      0 0 60px rgba(45,108,196,0.7),
-      0 0 110px rgba(20,52,120,0.55);
+      0 0 22px rgba(93,178,255,0.95),
+      0 0 50px rgba(45,108,196,0.7);
+  }
+  /* MOTHERSHIP RINGS — three concentric orbit tracks for the small
+     orbs. Each ring is a zero-size container at the mother's centre;
+     its rotation is driven via --rng (deg). The ring orbs are
+     positioned absolutely with translate(dx, dy) relative to the
+     ring container so the rotation carries them all together. */
+  #mother-orb .mo-ring {
+    position: absolute; left: 50%; top: 50%; width: 0; height: 0;
+    transform: translate(-50%, -50%) rotate(var(--rng, 0deg));
+    transform-origin: 0 0;
+    pointer-events: none;
+    will-change: transform;
+  }
+  #mother-orb .mo-ring.spinning { transition: none; }
+  /* A faint dashed circle on each ring so the orbits are legible
+     even when only one orb is currently stowed in that ring. */
+  #mother-orb .mo-ring::before {
+    content: ''; position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: calc(var(--rr, 40px) * 2); height: calc(var(--rr, 40px) * 2);
+    border-radius: 50%;
+    border: 1px dashed rgba(93,178,255,0.22);
+    pointer-events: none;
+  }
+  /* Ring orbs — tiny circles tinted by their assigned colour. */
+  .mo-rorb {
+    position: absolute; left: 0; top: 0;
+    width: 26px; height: 26px; margin: -13px 0 0 -13px;
+    border-radius: 50%; pointer-events: auto;
+    cursor: pointer; touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    transform: translate(var(--dx, 0), var(--dy, 0));
+    background: radial-gradient(circle at 32% 32%,
+      color-mix(in srgb, var(--mc, #7eb4ff) 92%, white 18%),
+      var(--mc, #7eb4ff) 55%, #04101f 100%);
+    border: 1px solid color-mix(in srgb, var(--mc, #7eb4ff) 85%, transparent);
+    box-shadow:
+      inset 0 0 6px rgba(0,0,0,0.55),
+      0 0 10px color-mix(in srgb, var(--mc, #7eb4ff) 55%, transparent);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display, 'Cinzel', serif);
+    font-size: 11px; font-weight: 700; color: #f4ede0;
+    text-shadow: 0 0 4px color-mix(in srgb, var(--mc, #7eb4ff) 70%, transparent);
+    transition: box-shadow 0.18s var(--ease), transform 0.18s var(--ease);
+  }
+  /* The orb's glyph stays UPRIGHT regardless of the ring's rotation
+     so emoji + letters read correctly. We counter-rotate it in JS
+     via --counter-rot. */
+  .mo-rorb .mo-rorb-glyph {
+    transform: rotate(var(--counter-rot, 0deg));
+    pointer-events: none;
+  }
+  .mo-rorb.released {
+    /* When an orb is released to the screen, its slot in the ring
+       fades so the user sees that it's "out". */
+    opacity: 0.28;
+    box-shadow:
+      inset 0 0 6px rgba(0,0,0,0.55),
+      0 0 4px color-mix(in srgb, var(--mc, #7eb4ff) 35%, transparent);
+  }
+  /* MOTHERSHIP FLASH — a quick ripple inside the mother orb on
+     absorb/release for visible feedback (§0k Manual Foundation). */
+  #mother-orb .mo-flash {
+    position: absolute; inset: -10px; border-radius: 50%;
+    pointer-events: none; opacity: 0;
+    background: radial-gradient(circle, rgba(207,226,255,0.45) 0%, transparent 65%);
+    transition: opacity 0.08s ease-out;
+  }
+  #mother-orb.mo-flash-on .mo-flash {
+    opacity: 1;
+    animation: mo-flash-pop 0.62s ease-out forwards;
+  }
+  @keyframes mo-flash-pop {
+    0%   { opacity: 0.92; transform: scale(0.85); }
+    40%  { opacity: 0.8;  transform: scale(1.4);  }
+    100% { opacity: 0;    transform: scale(1.85); }
   }
   /* MOTHER DISC — the inventory ring that fans out when the mother
      is tapped. Each child token represents one stowable orb; tap to
@@ -3640,13 +3719,19 @@ Single-file by design. Any AI/human can continue from this comment + the law.
      showing its dial. Single canonical layer (§0m ORBITAL DIAL LAW). -->
 <div id="orbital-dial" aria-hidden="true"></div>
 
-<!-- MOTHERSHIP ORB (§0n) — the OS centerpiece. Holds every small orb
-     inside her; tap to expand the disc; tap Earth (center) to warp
-     home. Throwable. Single always-visible chrome element along with
-     the wordmark and the globe itself. -->
+<!-- MOTHERSHIP ORB (§0n) — small body + three permanent concentric
+     rings of orbs orbiting around her. The rings are always visible;
+     each rotates like a roulette under finger drag. Tap an orb to
+     fire its action; long-press to release it onto the screen; fling
+     a free orb back at the MotherShip to stow it (visible + audio
+     feedback on both directions). -->
 <div id="mother-orb" title="Astranov MotherShip · tap to open">
   <div class="mo-earth" aria-hidden="true"></div>
   <div class="mo-halo"  aria-hidden="true"></div>
+  <div class="mo-ring r1" data-ring="0" aria-hidden="true"></div>
+  <div class="mo-ring r2" data-ring="1" aria-hidden="true"></div>
+  <div class="mo-ring r3" data-ring="2" aria-hidden="true"></div>
+  <div class="mo-flash"  aria-hidden="true"></div>
 </div>
 <div id="mother-disc" aria-hidden="true"></div>
 
@@ -5638,6 +5723,14 @@ const MOTHER_INVENTORY = [
   { id: 'ctrl-vol',      label: 'Volume',   color: '#7eebb4', glyph: '🔊' },
   { id: 'ctrl-bright',   label: 'Bright',   color: '#ffd47e', glyph: '☀'  },
 ];
+// Three concentric orbit rings. Each ring radius is the distance from
+// the mother's centre to the orb's centre. Items are referenced by id
+// from MOTHER_INVENTORY.
+const MOTHER_RINGS = [
+  { radius: 44, ids: ['sys-me',        'sys-astranov',   'aicycle-float'] },
+  { radius: 70, ids: ['sys-eur',       'sys-pilot',      'sys-discover']  },
+  { radius: 96, ids: ['ctrl-mic',      'ctrl-vol',       'ctrl-bright']   },
+];
 window._mother = (function () {
   let released;
   try {
@@ -5753,7 +5846,202 @@ function closeMotherDisc() {
 window.openMotherDisc  = openMotherDisc;
 window.closeMotherDisc = closeMotherDisc;
 
-(function wireMotherOrb() {
+// State per ring: rotation angle (deg) — drives transform: rotate.
+const _moRingState = MOTHER_RINGS.map(() => ({ rot: 0, vel: 0, raf: 0 }));
+
+// Audio feedback: two-tone synth chimes — one for absorb, one for
+// release. WebAudio so no asset fetching; runs lazily on first call.
+function _moAudio() {
+  if (!window._moAudioCtx) {
+    try { window._moAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (_) { return null; }
+  }
+  return window._moAudioCtx;
+}
+function _moPing(kind /* 'absorb' | 'release' */) {
+  const ctx = _moAudio(); if (!ctx) return;
+  try { if (ctx.state === 'suspended') ctx.resume(); } catch (_) {}
+  const now = ctx.currentTime;
+  // Two stacked sine partials with an exponential decay envelope.
+  const fundamentals = kind === 'absorb' ? [520, 320] : [660, 990];
+  const gain = ctx.createGain();
+  gain.gain.value = 0;
+  gain.connect(ctx.destination);
+  const vol = Math.max(0, Math.min(1, (window._astranovVolume ?? 1) * 0.18));
+  gain.gain.linearRampToValueAtTime(vol, now + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+  for (const f of fundamentals) {
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(f, now);
+    // Downward chirp on absorb, upward on release.
+    o.frequency.exponentialRampToValueAtTime(
+      kind === 'absorb' ? f * 0.65 : f * 1.55, now + 0.4);
+    o.connect(gain);
+    o.start(now);
+    o.stop(now + 0.45);
+  }
+}
+function _moFlash() {
+  const mo = document.getElementById('mother-orb');
+  if (!mo) return;
+  mo.classList.remove('mo-flash-on');
+  // Reflow so the animation re-fires.
+  void mo.offsetWidth;
+  mo.classList.add('mo-flash-on');
+  setTimeout(() => mo.classList.remove('mo-flash-on'), 700);
+}
+function _moFeedback(kind) {
+  _moFlash();
+  _moPing(kind);
+}
+
+function _renderMotherRings() {
+  const mo = document.getElementById('mother-orb');
+  if (!mo) return;
+  MOTHER_RINGS.forEach((ring, ri) => {
+    const ringEl = mo.querySelector(`.mo-ring[data-ring="${ri}"]`);
+    if (!ringEl) return;
+    ringEl.style.setProperty('--rr', ring.radius + 'px');
+    ringEl.style.setProperty('--rng', _moRingState[ri].rot.toFixed(2) + 'deg');
+    ringEl.innerHTML = '';
+    const n = ring.ids.length;
+    ring.ids.forEach((id, i) => {
+      const def = MOTHER_INVENTORY.find(x => x.id === id);
+      if (!def) return;
+      const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+      const dx = Math.cos(a) * ring.radius;
+      const dy = Math.sin(a) * ring.radius;
+      const isReleased = window._mother.released.has(id);
+      const el = document.createElement('div');
+      el.className = 'mo-rorb' + (isReleased ? ' released' : '');
+      el.style.setProperty('--mc', def.color);
+      el.style.setProperty('--dx', dx + 'px');
+      el.style.setProperty('--dy', dy + 'px');
+      el.dataset.id = id;
+      el.dataset.ring = String(ri);
+      el.title = def.label + (isReleased ? ' — released (drag onto MotherShip to stow)' : ' — tap to use; long-press to release');
+      const glyph = typeof def.glyph === 'function' ? def.glyph() : def.glyph;
+      el.innerHTML = `<span class="mo-rorb-glyph">${escapeHtml(glyph)}</span>`;
+      _wireRingOrb(el, ri, def);
+      ringEl.appendChild(el);
+    });
+    _counterRotateRing(ri);
+  });
+}
+function _counterRotateRing(ri) {
+  const mo = document.getElementById('mother-orb'); if (!mo) return;
+  const ringEl = mo.querySelector(`.mo-ring[data-ring="${ri}"]`);
+  if (!ringEl) return;
+  ringEl.style.setProperty('--rng', _moRingState[ri].rot.toFixed(2) + 'deg');
+  // Counter-rotate glyphs so they stay upright as the ring spins.
+  ringEl.querySelectorAll('.mo-rorb-glyph').forEach(g => {
+    g.style.setProperty('--counter-rot', (-_moRingState[ri].rot).toFixed(2) + 'deg');
+  });
+}
+function _wireRingOrb(el, ri, def) {
+  // Tap → fire orb's primary action (act-first).
+  // Drag → rotate the ring with trackball physics.
+  // Long-press → release the orb to the screen.
+  let pid = 0, sx = 0, sy = 0, lastT = 0, lastAng = 0, vel = 0;
+  let dragging = false, longPressTimer = 0, longPressed = false;
+  const centre = () => {
+    const mo = document.getElementById('mother-orb');
+    const r = mo.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  };
+  const down = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (_moRingState[ri].raf) { cancelAnimationFrame(_moRingState[ri].raf); _moRingState[ri].raf = 0; }
+    pid = e.pointerId;
+    try { el.setPointerCapture(pid); } catch (_) {}
+    sx = e.clientX; sy = e.clientY; lastT = performance.now();
+    const c = centre();
+    lastAng = Math.atan2(e.clientY - c.y, e.clientX - c.x);
+    vel = 0; dragging = false; longPressed = false;
+    longPressTimer = setTimeout(() => {
+      if (!dragging) {
+        longPressed = true;
+        // Release the orb to the screen — the MotherShip "spits it out."
+        if (!window._mother.released.has(def.id)) {
+          _releaseOrb(def.id);
+          _renderMotherRings();
+          _moFeedback('release');
+        }
+      }
+    }, 500);
+  };
+  const move = (e) => {
+    if (e.pointerId !== pid) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (!dragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+      dragging = true;
+      clearTimeout(longPressTimer);
+    }
+    if (!dragging) return;
+    const c = centre();
+    const ang = Math.atan2(e.clientY - c.y, e.clientX - c.x);
+    let dAng = ang - lastAng;
+    if (dAng >  Math.PI) dAng -= Math.PI * 2;
+    if (dAng < -Math.PI) dAng += Math.PI * 2;
+    const now = performance.now();
+    const dt = Math.max(1, now - lastT);
+    const v = (dAng * 180 / Math.PI) / dt;   // deg/ms
+    vel = vel * 0.45 + v * 0.55;
+    _moRingState[ri].rot += dAng * 180 / Math.PI;
+    _counterRotateRing(ri);
+    lastAng = ang; lastT = now;
+  };
+  const up = (e) => {
+    if (e.pointerId !== pid) return;
+    try { el.releasePointerCapture(pid); } catch (_) {}
+    clearTimeout(longPressTimer);
+    pid = 0;
+    if (longPressed) return;
+    if (!dragging) {
+      // Pure tap: fire the orb's primary action.
+      _ringOrbTap(def);
+      return;
+    }
+    // Fling the ring with momentum.
+    const speed = vel * 16.67;   // deg/frame
+    if (Math.abs(speed) > 0.5) _spinRing(ri, speed);
+  };
+  el.addEventListener('pointerdown',  down);
+  el.addEventListener('pointermove',  move);
+  el.addEventListener('pointerup',    up);
+  el.addEventListener('pointercancel', up);
+}
+function _spinRing(ri, velPerFrame) {
+  const MAX = 18, FRICTION = 0.94, STOP = 0.05;
+  if (velPerFrame > MAX)  velPerFrame = MAX;
+  if (velPerFrame < -MAX) velPerFrame = -MAX;
+  const step = () => {
+    _moRingState[ri].rot += velPerFrame;
+    _counterRotateRing(ri);
+    velPerFrame *= FRICTION;
+    if (Math.abs(velPerFrame) > STOP) {
+      _moRingState[ri].raf = requestAnimationFrame(step);
+    } else {
+      _moRingState[ri].raf = 0;
+    }
+  };
+  _moRingState[ri].raf = requestAnimationFrame(step);
+}
+function _ringOrbTap(def) {
+  // Fire the orb's primary action. We map each id to its onclick.
+  if (def.id === 'sys-me')        { try { expandMeOrb(); } catch (_) {} return; }
+  if (def.id === 'sys-eur')       { try { openWalletPanel(); } catch (_) {} return; }
+  if (def.id === 'sys-pilot')     { try { pilotHome(); } catch (_) {} return; }
+  if (def.id === 'sys-astranov')  { try { openAstranov(); } catch (_) {} return; }
+  if (def.id === 'sys-discover')  { try { openFeedPanel(); } catch (_) {} return; }
+  if (def.id === 'aicycle-float') { try { openAstranov(); } catch (_) {} return; }
+  if (def.id === 'ctrl-mic')      { try { document.getElementById('ctrl-mic').click(); } catch (_) {} return; }
+  if (def.id === 'ctrl-vol')      { try { document.getElementById('ctrl-vol').click(); } catch (_) {} return; }
+  if (def.id === 'ctrl-bright')   { try { document.getElementById('ctrl-bright').click(); } catch (_) {} return; }
+}
+
+(function wireMotherShip() {
   const mo = document.getElementById('mother-orb');
   if (!mo) return;
   // Restore persisted position.
@@ -5765,28 +6053,29 @@ window.closeMotherDisc = closeMotherDisc;
     }
   } catch (_) {}
   makeThrowableOrb(mo, {
-    size: 88, persistKey: 'astranov_mother_pos',
+    size: 56, persistKey: 'astranov_mother_pos',
     onTap: () => {
-      if (document.getElementById('mother-disc').classList.contains('open')) closeMotherDisc();
-      else openMotherDisc();
+      // Tapping the MotherShip body warps home. The Earth at her
+      // centre IS the planet (§0n).
+      try { if (typeof pilotHome === 'function') pilotHome(); } catch (_) {}
     },
   });
-  // Apply initial released/stowed state once the orbs exist in DOM.
+  // Build the three orbit rings and apply released/stowed state.
+  _renderMotherRings();
   setTimeout(_applyMotherVisibility, 80);
   setTimeout(_applyMotherVisibility, 400);
-  setTimeout(_applyMotherVisibility, 1500);
+  setTimeout(() => { _applyMotherVisibility(); _renderMotherRings(); }, 1500);
 
-  // FLING-TO-ABSORB: every makeThrowableOrb fling fires settle via
-  // localStorage save. We hook a global pointerup that checks if a
-  // freshly-flung orb landed inside the mother's capture radius, and
-  // stow it if so. The check runs on next animation frame so the
-  // fling has settled.
+  // FLING-TO-ABSORB: a released orb that lands within the mother's
+  // capture radius after a fling is stowed back automatically, with
+  // audio + visual feedback (§0n MOTHERSHIP LAW + §0k Manual
+  // Foundation Law: visible deed for every absorbed action).
   document.addEventListener('pointerup', (e) => {
-    // Determine if pointer originated on a catalogued orb.
-    const path = e.target && e.target.closest ? e.target.closest('.so, .ctrl-orb, #aicycle-float') : null;
+    const path = e.target && e.target.closest
+      ? e.target.closest('.so, .ctrl-orb, #aicycle-float')
+      : null;
     if (!path) return;
     requestAnimationFrame(() => {
-      // After settle: poll for ~1.5 s in case a fling is still in flight.
       let tries = 0;
       const check = () => {
         tries++;
@@ -5795,13 +6084,12 @@ window.closeMotherDisc = closeMotherDisc;
         const cy = rect.top  + rect.height / 2;
         const m  = _motherCentre();
         const d  = Math.hypot(cx - m.x, cy - m.y);
-        if (d < 70) {
-          // Absorbed.
+        if (d < 90) {
           const id = path.id || path.dataset.orb;
           if (id && window._mother.released.has(id)) {
             _stowOrb(id);
-            const disc = document.getElementById('mother-disc');
-            if (disc && disc.classList.contains('open')) _renderMotherDisc();
+            _renderMotherRings();
+            _moFeedback('absorb');
           }
           return;
         }
@@ -5813,10 +6101,8 @@ window.closeMotherDisc = closeMotherDisc;
     });
   }, { passive: true });
 
-  // Re-render the disc if the mother moves while it's open.
-  window.addEventListener('resize', () => {
-    if (document.getElementById('mother-disc').classList.contains('open')) _renderMotherDisc();
-  }, { passive: true });
+  // Re-render rings on resize.
+  window.addEventListener('resize', () => { _renderMotherRings(); }, { passive: true });
 })();
 
 /* ==============================================================
