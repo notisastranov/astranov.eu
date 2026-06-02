@@ -1182,7 +1182,7 @@ Single-file by design. Any AI/human can continue from this comment + the law.
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     z-index: 100; transition: opacity 1s ease;
   }
-  #boot.gone { opacity: 0; pointer-events: none; }
+  #boot.gone { opacity: 0; pointer-events: none; display: none !important; }
   #boot .name { font-family: var(--font-display) !important; color: var(--marble) !important;
                 letter-spacing: 0.52em !important; text-indent: 0.52em !important;
                 text-shadow: 0 0 14px rgba(212,160,71,0.45), 0 0 24px rgba(93,178,255,0.3) !important; }
@@ -1825,19 +1825,10 @@ Single-file by design. Any AI/human can continue from this comment + the law.
       0 0 26px rgba(20,52,120,0.95),
       0 0 44px rgba(8,22,60,0.95);
     transition: transform var(--t-quick) var(--ease), text-shadow var(--t-mid) var(--ease);
-    animation: app-name-pulse 4.2s ease-in-out infinite;
-  }
-  @keyframes app-name-pulse {
-    0%,100% { text-shadow:
-      0 0 6px rgba(207,226,255,0.85),
-      0 0 14px rgba(45,108,196,1),
-      0 0 26px rgba(20,52,120,0.9),
-      0 0 44px rgba(8,22,60,0.9); }
-    50%     { text-shadow:
-      0 0 8px rgba(207,226,255,1),
-      0 0 22px rgba(45,108,196,1),
-      0 0 38px rgba(20,52,120,1),
-      0 0 60px rgba(8,22,60,0.95); }
+    /* No pulse animation — text-shadow keyframes force a repaint every
+       frame, which on a phone is one of the most expensive CSS
+       effects. The static layered shadow is enough; the glow lives
+       in the colour, not the animation. */
   }
   #app-name:active { transform: translateX(-50%) scale(0.96); }
   #app-name::after { content: none; }
@@ -3649,7 +3640,13 @@ async function bootCesium() {
       } catch (_) {}
     });
     onCameraSettled();
-    renderTileStrip();
+    // The orbital cloud is deferred behind requestIdleCallback so the
+    // first paint shows the globe ALONE — no orbs, no labels, no
+    // sprite bake. The cloud renders ~1 s later when the main thread
+    // is quiet. The user can interact with the globe immediately;
+    // orbs catch up.
+    const _lazyOrbs = (fn, t) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: t }) : setTimeout(fn, t));
+    _lazyOrbs(() => { try { renderTileStrip(); } catch (_) {} }, 1200);
 
     // Globe auto-spins gently around Earth's polar axis on load. It's a true
     // planetary rotation (UNIT_Z), not a camera-drift. Stops permanently the
@@ -3857,58 +3854,77 @@ const CITY_PROVIDERS = [
 
 async function bootImageryGlobeTier() {
   if (!viewer) return;
-  // Real day/night terminator — mandatory under Imagery Law §3.
-  viewer.scene.globe.enableLighting = true;
+  // GAME-ENGINE PASSAGE — the heaviest part of the GLOBAL frame was
+  // THREE stacked imagery layers + real-time day/night terminator
+  // lighting (Globe.enableLighting = true). On mobile that meant the
+  // shader was sampling three textures per fragment AND computing
+  // sun-position lighting every frame. Boot was waiting for NASA GIBS
+  // tiles before first paint — over Wi-Fi that's fine, over LTE it
+  // was the "stuck for ten seconds" gate.
+  //
+  // The lawful passage (ONASIS): boot on the BUNDLED Natural Earth II
+  // texture — it ships with Cesium, no network fetch, single texture
+  // sample, single-layer shader. Lighting OFF — no per-fragment sun
+  // dot product. BMNG + Black Marble are lazy-loaded ~4 s after boot
+  // (idle callback) so the high-fidelity look catches up without
+  // gating first paint. Day/night terminator returns after that.
+  viewer.scene.globe.enableLighting = false;
   viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#02060d');
 
-  // POST-PROCESS — bloom is GPU-expensive and was the dominant cost on
-  // boot. Disabled by default; the orb plasma shaders already do their
-  // own bloom in-shader. Owner can re-enable via window.toggleBloom().
+  // Bloom + FXAA stay OFF. The previous code disabled bloom and then
+  // re-enabled FXAA two lines later — net positive on a desktop,
+  // wasted ms on mobile.
   try {
     const bloom = viewer.scene.postProcessStages.bloom;
-    if (bloom) {
-      bloom.enabled = false;
-    }
+    if (bloom) bloom.enabled = false;
     window.toggleBloom = function() {
       const b = viewer.scene.postProcessStages.bloom;
       if (b) { b.enabled = !b.enabled; viewer.scene.requestRender(); return b.enabled; }
     };
-    // FXAA on top — cheap antialiasing that smooths the bloom-blown rim.
-    if (viewer.scene.postProcessStages.fxaa) viewer.scene.postProcessStages.fxaa.enabled = true;
-  } catch (e) { console.warn('[bloom]', e); }
+    if (viewer.scene.postProcessStages.fxaa) viewer.scene.postProcessStages.fxaa.enabled = false;
+  } catch (e) { console.warn('[postprocess]', e); }
 
-  // GUARANTEED BASE — Cesium's bundled Natural Earth II ships with the CDN
-  // build, so the globe ALWAYS renders even if NASA GIBS is slow or blocked.
+  // Bundled imagery — instant, no network. The globe paints on the
+  // very first frame.
   try {
     const base = await Cesium.TileMapServiceImageryProvider.fromUrl(
       Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
     );
     baseLayer = viewer.imageryLayers.addImageryProvider(base);
   } catch (e) { console.warn('[imagery] Natural Earth base failed', e); }
+  viewer.scene.requestRender();
 
-  // DAY: NASA Blue Marble Next Generation via GIBS WMTS (layered on top).
-  try {
-    const dayProvider = new Cesium.UrlTemplateImageryProvider({
-      url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_NextGeneration/default/2004-08-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg',
-      maximumLevel: 8,
-      credit: 'NASA EOSDIS GIBS · Blue Marble Next Generation',
-    });
-    dayLayer = viewer.imageryLayers.addImageryProvider(dayProvider);
-  } catch (e) { console.warn('[imagery] BMNG day failed', e); }
-
-  // NIGHT: NASA Black Marble — layered above day, day-side fully transparent.
-  try {
-    const nightProvider = new Cesium.UrlTemplateImageryProvider({
-      url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_Black_Marble/default/2016-01-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png',
-      maximumLevel: 8,
-      credit: 'NASA EOSDIS GIBS · VIIRS Black Marble',
-    });
-    nightLayer = viewer.imageryLayers.addImageryProvider(nightProvider);
-    nightLayer.dayAlpha = 0.0;
-    nightLayer.nightAlpha = 1.0;
-  } catch (e) { console.warn('[imagery] Black Marble night failed', e); }
-
-  if (viewer) viewer.scene.requestRender();
+  // Lazy-load BMNG + Black Marble + lighting AFTER the user can see
+  // and interact with the globe. requestIdleCallback waits for a
+  // quiet main thread.
+  const lazy = (fn, t) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: t }) : setTimeout(fn, t));
+  lazy(() => {
+    try {
+      const dayProvider = new Cesium.UrlTemplateImageryProvider({
+        url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_NextGeneration/default/2004-08-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg',
+        maximumLevel: 8,
+        credit: 'NASA EOSDIS GIBS · Blue Marble Next Generation',
+      });
+      dayLayer = viewer.imageryLayers.addImageryProvider(dayProvider);
+    } catch (e) { console.warn('[imagery] BMNG day failed', e); }
+  }, 4000);
+  lazy(() => {
+    try {
+      const nightProvider = new Cesium.UrlTemplateImageryProvider({
+        url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_Black_Marble/default/2016-01-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png',
+        maximumLevel: 8,
+        credit: 'NASA EOSDIS GIBS · VIIRS Black Marble',
+      });
+      nightLayer = viewer.imageryLayers.addImageryProvider(nightProvider);
+      nightLayer.dayAlpha = 0.0;
+      nightLayer.nightAlpha = 1.0;
+      // Now that night is loaded, switch on the terminator. The
+      // single per-fragment lighting cost is acceptable once the
+      // boot is done.
+      viewer.scene.globe.enableLighting = true;
+      viewer.scene.requestRender();
+    } catch (e) { console.warn('[imagery] Black Marble night failed', e); }
+  }, 7000);
 }
 
 // Live map brightness — controls the city layer if present, else the globe day layer.
