@@ -172,6 +172,33 @@ globe, the wordmark, the AICYCLE ring, the apex orb dock, the
 contextual back chevron at non-global tiers. Everything else is
 summoned, used, and dismissed.
 
+## ORBITAL DIAL LAW — every control orb is a throwable trackball with a radial dial (binding)
+**Every interactive orb in AstranoV obeys the same two-gesture grammar:**
+- **Tap** opens a **circular orbital dial** around the orb — dots arranged
+  on a ring representing the orb's options (discrete) or a continuous arc
+  representing a value (volume, brightness). One finger drags around the
+  ring to cycle / set; tapping a dot commits; tapping outside the ring
+  closes the dial.
+- **Drag / fling** the orb itself moves it anywhere on screen with
+  **trackball physics** (friction + wall bounce + settle), position
+  persisted to localStorage.
+
+This unifies every control surface in the app into one gesture grammar
+the user learns once. The dial is NOT a dropdown — it is anchored to
+the orb, like a knob with a halo of detents — so it is **exempt from
+the Bottom Drawer Law**. Drawers carry transient lists / filters;
+dials carry the values of an orb in place.
+
+Prior art (Catch-up Law): Maya marking menus, Photoshop HUD rings,
+Apple Watch crown radial pickers, Eve Online's overview rings, gaming
+radial selectors. Astranov adds: every orb is also a trackball — the
+control AND its body are throwable.
+
+Implementation contract: the `OrbitalDial` controller is the single
+implementation. New control orbs must use it; ad-hoc radial pickers
+are a regression. The `makeThrowableOrb` helper applies the trackball
+physics; do not reimplement it.
+
 ## BOTTOM DRAWER LAW — one transient surface for everything that pops (binding)
 **There is ONE place ephemeral UI lives: the bottom drawer.** Drop-downs,
 filter chips, sort menus, category pickers, action sheets, modal-style

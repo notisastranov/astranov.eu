@@ -160,6 +160,27 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     Permanent UI is reserved for the unconditional essentials: globe,
     wordmark, AICYCLE ring, apex orb dock, contextual back chevron.
 
+0m. ORBITAL DIAL LAW — every control orb is a throwable trackball with
+    a radial dial (binding, never regress)
+    Every interactive orb obeys the same two-gesture grammar:
+    - TAP opens a circular ORBITAL DIAL around the orb — dots on a
+      ring (discrete options) or a continuous arc (a value). One
+      finger drags around the ring to cycle / set; tap a dot to
+      commit; tap outside the ring to close.
+    - DRAG / FLING moves the orb itself with trackball physics
+      (friction + wall bounce + settle), position persisted.
+    The dial is NOT a dropdown — it is anchored to its orb like a
+    knob with a halo of detents — so it is EXEMPT from the Bottom
+    Drawer Law. Drawers carry transient lists / filters; dials
+    carry the values of an orb in place. Prior art: Maya marking
+    menus, Photoshop HUD rings, Apple Watch crown radial pickers,
+    gaming radial selectors. Astranov adds: every orb is also a
+    trackball — the control AND its body are throwable.
+    Implementation contract: the OrbitalDial controller is the
+    single implementation; ad-hoc radial pickers are a regression.
+    makeThrowableOrb applies the trackball physics — do not
+    reimplement.
+
 0L. BOTTOM DRAWER LAW — one transient surface for everything that pops
     (binding, never regress)
     There is ONE place ephemeral UI lives: the bottom drawer. Drop-downs,
@@ -1943,6 +1964,138 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   }
   .cfc-all { font-weight: 700; }
 
+  /* ORBITAL DIAL — radial control around an orb (§0m). One layer for
+     the whole app; only one dial is ever open at a time. */
+  #orbital-dial {
+    position: fixed; z-index: 240; pointer-events: none;
+    inset: 0; display: none;
+  }
+  #orbital-dial.open { display: block; pointer-events: auto; }
+  #orbital-dial .od-veil {
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at var(--od-cx, 50%) var(--od-cy, 50%),
+      rgba(2,6,18,0.05), rgba(2,6,18,0.55) 60%);
+    backdrop-filter: blur(1.5px); -webkit-backdrop-filter: blur(1.5px);
+  }
+  #orbital-dial .od-ring {
+    position: absolute; left: var(--od-cx, 50%); top: var(--od-cy, 50%);
+    width: 0; height: 0; transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  /* The dial halo — a glowing circle at the dial radius. */
+  #orbital-dial .od-halo {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: calc(var(--od-r, 110px) * 2); height: calc(var(--od-r, 110px) * 2);
+    border-radius: 50%; box-sizing: border-box;
+    border: 1px dashed rgba(93,178,255,0.45);
+    box-shadow:
+      0 0 22px rgba(45,108,196,0.45),
+      inset 0 0 18px rgba(45,108,196,0.18);
+  }
+  /* Dial dots — option markers around the halo. */
+  #orbital-dial .od-dot {
+    position: absolute; left: 50%; top: 50%;
+    width: 38px; height: 38px; margin: -19px 0 0 -19px;
+    transform: translate(var(--dx, 0px), var(--dy, 0px));
+    border-radius: 50%;
+    background: radial-gradient(circle at 32% 32%,
+      color-mix(in srgb, var(--dc, #cfe2ff) 92%, white 18%),
+      var(--dc, #cfe2ff) 55%, #04101f 100%);
+    border: 1px solid color-mix(in srgb, var(--dc, #cfe2ff) 85%, transparent);
+    box-shadow:
+      inset 0 0 8px rgba(0,0,0,0.55),
+      0 0 12px color-mix(in srgb, var(--dc, #cfe2ff) 55%, transparent);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display, 'Cinzel', serif);
+    font-size: 13px; font-weight: 700; color: #f4ede0;
+    text-shadow: 0 0 4px color-mix(in srgb, var(--dc, #cfe2ff) 70%, transparent);
+    pointer-events: auto; -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+    transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease);
+  }
+  #orbital-dial .od-dot.active {
+    box-shadow:
+      inset 0 0 8px rgba(0,0,0,0.55),
+      0 0 22px color-mix(in srgb, var(--dc, #cfe2ff) 95%, transparent),
+      0 0 44px color-mix(in srgb, var(--dc, #cfe2ff) 45%, transparent);
+    transform: translate(var(--dx, 0px), var(--dy, 0px)) scale(1.15);
+  }
+  /* Continuous-arc indicator (for value dials like volume/brightness). */
+  #orbital-dial .od-arc {
+    position: absolute; left: 50%; top: 50%;
+    width: calc(var(--od-r, 110px) * 2); height: calc(var(--od-r, 110px) * 2);
+    transform: translate(-50%, -50%) rotate(-90deg);
+    pointer-events: none;
+  }
+  #orbital-dial .od-arc circle {
+    fill: none; stroke-width: 5; stroke-linecap: round;
+    transform-origin: center;
+  }
+  #orbital-dial .od-arc .od-arc-bg    { stroke: rgba(45,108,196,0.32); }
+  #orbital-dial .od-arc .od-arc-value { stroke: rgba(93,178,255,0.95);
+    filter: drop-shadow(0 0 8px rgba(93,178,255,0.7)); }
+  #orbital-dial .od-arc-knob {
+    position: absolute; left: 50%; top: 50%;
+    width: 26px; height: 26px; margin: -13px 0 0 -13px;
+    border-radius: 50%; pointer-events: auto;
+    background: radial-gradient(circle at 32% 32%, #e7f0ff, #5db2ff 60%, #0a1f44 100%);
+    border: 1px solid rgba(207,226,255,0.85);
+    box-shadow:
+      inset 0 0 8px rgba(0,0,0,0.55),
+      0 0 16px rgba(93,178,255,0.85);
+    transform: translate(var(--kx, 0px), var(--ky, 0px));
+  }
+  #orbital-dial .od-label {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, calc(var(--od-r, 110px) + 26px));
+    font-family: var(--font-display, 'Cinzel', serif);
+    font-size: 12px; font-weight: 700; letter-spacing: 0.2em;
+    text-transform: uppercase; color: #cfe2ff;
+    text-shadow: 0 0 8px rgba(45,108,196,0.95);
+    white-space: nowrap; pointer-events: none;
+  }
+  #orbital-dial .od-value {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    font-family: var(--font-body, system-ui, sans-serif);
+    font-size: 18px; font-weight: 700; color: rgba(244,237,224,0.95);
+    text-shadow: 0 0 8px rgba(45,108,196,0.95);
+    pointer-events: none;
+  }
+
+  /* CONTROL ORBS — volume, brightness, AI cycle. Same skin as the
+     apex dock orbs; throwable + dialable per §0m. The AI orb keeps
+     its existing #aicycle-float treatment elsewhere; vol + bright
+     are new orbs replacing the old vertical slider chrome. */
+  .ctrl-orb {
+    position: fixed; width: 44px; height: 44px;
+    z-index: 199; pointer-events: auto; cursor: grab;
+    border-radius: 50%; touch-action: none;
+    -webkit-tap-highlight-color: transparent; user-select: none;
+    transition: transform 0.18s var(--ease), box-shadow 0.2s var(--ease);
+    will-change: transform;
+  }
+  .ctrl-orb.dragging, .ctrl-orb.flinging { cursor: grabbing; transition: none; }
+  .ctrl-orb:active { transform: scale(0.94); }
+  .ctrl-orb .co-body {
+    width: 100%; height: 100%; border-radius: 50%;
+    background:
+      radial-gradient(circle at 32% 32%, color-mix(in srgb, var(--co-c, #7eb4ff) 92%, white 18%),
+                                          var(--co-c, #7eb4ff) 55%,
+                                          #04101f 100%);
+    box-shadow:
+      inset 0 0 10px rgba(0,0,0,0.55),
+      0 0 14px color-mix(in srgb, var(--co-c, #7eb4ff) 60%, transparent),
+      0 0 28px color-mix(in srgb, var(--co-c, #7eb4ff) 28%, transparent);
+    border: 1px solid color-mix(in srgb, var(--co-c, #7eb4ff) 85%, transparent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: #f4ede0;
+    text-shadow: 0 0 6px color-mix(in srgb, var(--co-c, #7eb4ff) 70%, transparent);
+  }
+  body:not(.at-global) #ctrl-vol,
+  body:not(.at-global) #ctrl-bright { display: none; }
+
   /* APEX SYSTEM ORB DOCK — five small DRAGGABLE circles. The user
      places them wherever; positions persist. Defaults sit along the
      left edge of the screen so the globe is unobscured. */
@@ -3323,6 +3476,10 @@ Single-file by design. Any AI/human can continue from this comment + the law.
      and the user can drag any orb to anywhere on screen. -->
 <div id="sys-orbs" aria-label="System agents"></div>
 
+<!-- ORBITAL DIAL overlay — anchored to whichever orb is currently
+     showing its dial. Single canonical layer (§0m ORBITAL DIAL LAW). -->
+<div id="orbital-dial" aria-hidden="true"></div>
+
 <!-- Me spotlight — a line from the on-screen Me orb to the user's location. -->
 <svg id="me-spotlight"><line id="me-spot-line" x1="0" y1="0" x2="0" y2="0"></line></svg>
 
@@ -3386,18 +3543,19 @@ Single-file by design. Any AI/human can continue from this comment + the law.
 
 <!-- Volume slider — mirrors the brightness slider on the right edge.
      Controls Astranov's voice loudness. Visible only at the global tier. -->
-<div id="vol-wrap" title="Voice volume">
-  <span class="vol-ico">🔊</span>
-  <input id="vol-slider" type="range" min="0" max="1" step="0.02" value="1" aria-label="Voice volume">
+<!-- Voice volume — control orb (§0m ORBITAL DIAL LAW). Tap = arc dial,
+     drag = throw. The old vertical slider was retired in favour of
+     the unified orb gesture grammar. -->
+<div id="ctrl-vol" class="ctrl-orb" title="Voice volume — tap to dial, drag to throw">
+  <div class="co-body">🔊</div>
 </div>
 
 <!-- Depth slider removed (§5j v2) — replaced by tap+hold gestures on the
      sky around Earth. See _wireDepthGesture below. -->
 
-<!-- Brightness slider — left edge. Controls map luminosity live. -->
-<div id="bright-wrap" title="Map brightness">
-  <span class="bright-ico">☀</span>
-  <input id="bright-slider" type="range" min="0.5" max="3" step="0.05" value="1.45" aria-label="Map brightness">
+<!-- Map brightness — control orb (§0m ORBITAL DIAL LAW). -->
+<div id="ctrl-bright" class="ctrl-orb" title="Map brightness — tap to dial, drag to throw">
+  <div class="co-body">☀</div>
 </div>
 
 <!-- Universal agent bottom sheet — replaces the radial fan -->
@@ -4651,6 +4809,352 @@ function _gfxTick() {
 }
 
 /* ==============================================================
+   THROWABLE ORB — generic trackball physics for any orb element
+   (§0m ORBITAL DIAL LAW). One implementation; apex orbs, control
+   orbs, and the AICYCLE ring all use this.
+   ============================================================== */
+function makeThrowableOrb(el, opts) {
+  opts = opts || {};
+  const ORB_W = opts.size || 44;
+  const FRICTION = 0.94, BOUNCE = 0.62, STOP_V = 0.12;
+  const persistKey = opts.persistKey || null;
+  let pid = 0, moved = false;
+  let lastX = 0, lastY = 0, lastT = 0;
+  let vx = 0, vy = 0, raf = 0;
+
+  const loadPos = () => {
+    if (!persistKey) return null;
+    try { const r = localStorage.getItem(persistKey); return r ? JSON.parse(r) : null; } catch (_) { return null; }
+  };
+  const savePos = () => {
+    if (!persistKey) return;
+    try { localStorage.setItem(persistKey, JSON.stringify({
+      x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0,
+    })); } catch (_) {}
+  };
+  const restore = () => {
+    const p = loadPos();
+    if (p && typeof p.x === 'number') {
+      el.style.left = p.x + 'px'; el.style.top = p.y + 'px';
+    }
+  };
+  restore();
+
+  const flingStep = () => {
+    raf = 0;
+    let x = parseFloat(el.style.left) || 0;
+    let y = parseFloat(el.style.top)  || 0;
+    x += vx; y += vy;
+    const W = window.innerWidth, H = window.innerHeight;
+    if (x < 4)              { x = 4;              vx = -vx * BOUNCE; }
+    if (x > W - ORB_W - 4)  { x = W - ORB_W - 4;  vx = -vx * BOUNCE; }
+    if (y < 4)              { y = 4;              vy = -vy * BOUNCE; }
+    if (y > H - ORB_W - 4)  { y = H - ORB_W - 4;  vy = -vy * BOUNCE; }
+    vx *= FRICTION; vy *= FRICTION;
+    el.style.left = x.toFixed(1) + 'px';
+    el.style.top  = y.toFixed(1) + 'px';
+    if (Math.abs(vx) + Math.abs(vy) > STOP_V) {
+      raf = requestAnimationFrame(flingStep);
+    } else {
+      el.classList.remove('flinging');
+      savePos();
+    }
+  };
+  const down = (e) => {
+    e.preventDefault();
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    el.classList.remove('flinging');
+    pid = e.pointerId;
+    try { el.setPointerCapture(pid); } catch (_) {}
+    el.classList.add('dragging');
+    lastX = e.clientX; lastY = e.clientY; lastT = performance.now();
+    vx = 0; vy = 0; moved = false;
+  };
+  const move = (e) => {
+    if (e.pointerId !== pid) return;
+    const now = performance.now();
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    if (!moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) moved = true;
+    if (moved) {
+      const x = (parseFloat(el.style.left) || 0) + dx;
+      const y = (parseFloat(el.style.top)  || 0) + dy;
+      el.style.left = Math.max(4, Math.min(window.innerWidth  - ORB_W - 4, x)).toFixed(1) + 'px';
+      el.style.top  = Math.max(4, Math.min(window.innerHeight - ORB_W - 4, y)).toFixed(1) + 'px';
+      const dt = Math.max(1, now - lastT);
+      const fvx = dx / dt * 16.67, fvy = dy / dt * 16.67;
+      vx = vx * 0.4 + fvx * 0.6; vy = vy * 0.4 + fvy * 0.6;
+      lastX = e.clientX; lastY = e.clientY; lastT = now;
+    }
+  };
+  const up = (e) => {
+    if (e.pointerId !== pid) return;
+    try { el.releasePointerCapture(pid); } catch (_) {}
+    el.classList.remove('dragging');
+    pid = 0;
+    if (!moved) {
+      if (typeof opts.onTap === 'function') try { opts.onTap(el); } catch (_) {}
+      return;
+    }
+    const speed = Math.hypot(vx, vy);
+    if (speed > 0.6) {
+      const MAX = 38;
+      if (speed > MAX) { vx = vx * MAX / speed; vy = vy * MAX / speed; }
+      el.classList.add('flinging');
+      raf = requestAnimationFrame(flingStep);
+    } else {
+      savePos();
+    }
+  };
+  el.addEventListener('pointerdown',  down);
+  el.addEventListener('pointermove',  move);
+  el.addEventListener('pointerup',    up);
+  el.addEventListener('pointercancel', up);
+}
+
+/* ==============================================================
+   ORBITAL DIAL — radial control surface around an orb (§0m).
+   ONE controller, ONE overlay (#orbital-dial). Two modes:
+   - discrete: dots arranged around the ring; drag-to-cycle
+   - continuous: arc + knob from min..max; drag to set
+   Tap a dot to commit; tap outside the ring to close.
+   ============================================================== */
+const OrbitalDial = (() => {
+  const root = () => document.getElementById('orbital-dial');
+  let active = null;     // { mode, anchorEl, items, value, range, onChange, onCommit, label }
+  let veil, ring;
+
+  function ensure() {
+    const r = root(); if (!r) return null;
+    if (!veil) {
+      r.innerHTML = `<div class="od-veil"></div><div class="od-ring"></div>`;
+      veil = r.querySelector('.od-veil');
+      ring = r.querySelector('.od-ring');
+      veil.addEventListener('pointerdown', (e) => {
+        // Tap outside the ring closes the dial.
+        if (e.target === veil) close();
+      });
+    }
+    return r;
+  }
+
+  function open(opts) {
+    const r = ensure(); if (!r) return;
+    active = opts;
+    const anchor = opts.anchorEl;
+    const rect = anchor.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top  + rect.height / 2;
+    const radius = opts.radius || 110;
+    r.style.setProperty('--od-cx', cx + 'px');
+    r.style.setProperty('--od-cy', cy + 'px');
+    r.style.setProperty('--od-r',  radius + 'px');
+    ring.innerHTML = `<div class="od-halo"></div><div class="od-value"></div><div class="od-label">${escapeHtml(opts.label || '')}</div>`;
+    if (opts.mode === 'continuous') buildContinuous(opts, radius);
+    else buildDiscrete(opts, radius);
+    r.classList.add('open');
+    r.setAttribute('aria-hidden', 'false');
+    requestAnimationFrame(() => updateValueLabel());
+    // Pointer-drag from anywhere on the veil cycles the dial.
+    veil.addEventListener('pointermove', onVeilMove);
+    veil.addEventListener('pointerup',   onVeilUp);
+  }
+  function close() {
+    if (!root()) return;
+    root().classList.remove('open');
+    root().setAttribute('aria-hidden', 'true');
+    veil.removeEventListener('pointermove', onVeilMove);
+    veil.removeEventListener('pointerup',   onVeilUp);
+    active = null;
+  }
+  function buildDiscrete(opts, radius) {
+    const n = opts.items.length;
+    opts.items.forEach((it, i) => {
+      const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+      const dx = Math.cos(angle) * radius;
+      const dy = Math.sin(angle) * radius;
+      const dot = document.createElement('div');
+      dot.className = 'od-dot' + (it.value === opts.value ? ' active' : '');
+      dot.style.setProperty('--dx', dx + 'px');
+      dot.style.setProperty('--dy', dy + 'px');
+      dot.style.setProperty('--dc', it.color || '#a8c8ee');
+      dot.textContent = it.glyph || '';
+      dot.title = it.label || '';
+      dot.dataset.value = String(it.value);
+      dot.addEventListener('pointerdown', (e) => { e.stopPropagation(); });
+      dot.addEventListener('pointerup',   (e) => {
+        e.stopPropagation();
+        commit(it.value);
+      });
+      ring.appendChild(dot);
+    });
+  }
+  function buildContinuous(opts, radius) {
+    const arc = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    arc.setAttribute('class', 'od-arc');
+    arc.setAttribute('viewBox', `0 0 ${radius * 2} ${radius * 2}`);
+    const C = 2 * Math.PI * radius;
+    const v = clamp01((opts.value - opts.range[0]) / (opts.range[1] - opts.range[0]));
+    arc.innerHTML = `
+      <circle class="od-arc-bg"    cx="${radius}" cy="${radius}" r="${radius - 4}"></circle>
+      <circle class="od-arc-value" cx="${radius}" cy="${radius}" r="${radius - 4}"
+              stroke-dasharray="${(C - 8) * v} ${C}"></circle>`;
+    ring.appendChild(arc);
+    const knob = document.createElement('div');
+    knob.className = 'od-arc-knob';
+    ring.appendChild(knob);
+    positionKnob(opts, radius);
+  }
+  function positionKnob(opts, radius) {
+    const v = clamp01((opts.value - opts.range[0]) / (opts.range[1] - opts.range[0]));
+    const angle = v * Math.PI * 2 - Math.PI / 2;
+    const kx = Math.cos(angle) * (radius - 4);
+    const ky = Math.sin(angle) * (radius - 4);
+    const knob = ring.querySelector('.od-arc-knob');
+    if (knob) {
+      knob.style.setProperty('--kx', kx + 'px');
+      knob.style.setProperty('--ky', ky + 'px');
+    }
+    const arcV = ring.querySelector('.od-arc-value');
+    if (arcV) {
+      const C = 2 * Math.PI * (radius - 4);
+      arcV.setAttribute('stroke-dasharray', `${C * v} ${C * 4}`);
+    }
+  }
+  function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+  function updateValueLabel() {
+    if (!active) return;
+    const el = ring.querySelector('.od-value');
+    if (!el) return;
+    if (active.mode === 'continuous') {
+      el.textContent = active.format ? active.format(active.value) : String(Math.round(active.value * 100) / 100);
+    } else {
+      const it = active.items.find(i => i.value === active.value);
+      el.textContent = it ? (it.glyph || '') : '';
+    }
+  }
+  function onVeilMove(e) {
+    if (!active) return;
+    const r = root();
+    const cx = parseFloat(getComputedStyle(r).getPropertyValue('--od-cx'));
+    const cy = parseFloat(getComputedStyle(r).getPropertyValue('--od-cy'));
+    const radius = parseFloat(getComputedStyle(r).getPropertyValue('--od-r')) || 110;
+    const ang = Math.atan2(e.clientY - cy, e.clientX - cx);
+    // Normalise so the top of the dial is t=0.
+    let t = (ang + Math.PI / 2) / (Math.PI * 2);
+    if (t < 0) t += 1;
+    if (active.mode === 'continuous') {
+      const val = active.range[0] + (active.range[1] - active.range[0]) * t;
+      const step = active.step || 0.01;
+      active.value = Math.round(val / step) * step;
+      positionKnob(active, radius);
+      updateValueLabel();
+      if (typeof active.onChange === 'function') try { active.onChange(active.value); } catch (_) {}
+    } else {
+      const n = active.items.length;
+      const idx = Math.round(t * n) % n;
+      const next = active.items[idx];
+      if (next && next.value !== active.value) {
+        active.value = next.value;
+        ring.querySelectorAll('.od-dot').forEach(d => d.classList.toggle('active', d.dataset.value === String(active.value)));
+        updateValueLabel();
+        if (typeof active.onChange === 'function') try { active.onChange(active.value); } catch (_) {}
+      }
+    }
+  }
+  function onVeilUp() { /* veil's pointerdown handler closes when tapping veil itself */ }
+  function commit(value) {
+    if (!active) return;
+    active.value = value;
+    if (typeof active.onCommit === 'function') try { active.onCommit(value); } catch (_) {}
+    close();
+  }
+
+  return { open, close };
+})();
+window.OrbitalDial = OrbitalDial;
+
+/* ==============================================================
+   CONTROL ORBS — Voice volume, Map brightness. Each is a single
+   throwable orb whose tap opens an Orbital Dial (§0m).
+   ============================================================== */
+(function wireControlOrbs() {
+  const W = window.innerWidth, H = window.innerHeight;
+  const vol = document.getElementById('ctrl-vol');
+  const bri = document.getElementById('ctrl-bright');
+  if (vol) {
+    vol.style.setProperty('--co-c', '#7eebb4');
+    vol.style.right = '14px'; vol.style.top  = (H * 0.42) + 'px';
+    if (!vol.style.left) vol.style.left = (W - 58) + 'px';
+    makeThrowableOrb(vol, {
+      size: 44, persistKey: 'astranov_ctrl_vol_pos',
+      onTap: (el) => {
+        OrbitalDial.open({
+          anchorEl: el, mode: 'continuous',
+          range: [0, 1], step: 0.02, value: window._astranovVolume || 1,
+          label: 'Voice volume',
+          format: v => Math.round(v * 100) + '%',
+          onChange: v => { try { _applyVolume(v); } catch (_) {} },
+        });
+      },
+    });
+  }
+  if (bri) {
+    bri.style.setProperty('--co-c', '#ffd47e');
+    bri.style.left = '14px'; bri.style.top = (H * 0.42) + 'px';
+    makeThrowableOrb(bri, {
+      size: 44, persistKey: 'astranov_ctrl_bri_pos',
+      onTap: (el) => {
+        OrbitalDial.open({
+          anchorEl: el, mode: 'continuous',
+          range: [0.5, 3], step: 0.05, value: window._brightness || 1.45,
+          label: 'Map brightness',
+          format: v => v.toFixed(2) + '×',
+          onChange: v => { try { applyBrightness(v); } catch (_) {} },
+        });
+      },
+    });
+  }
+})();
+
+/* AICYCLE ring — tap opens the engine dial (§0m). The dial dots
+   cycle through Astranov-auto / All / Anthropic / OpenRouter /
+   Groq / Gemini, and the center value tap opens the chat. The
+   ring also becomes throwable. */
+(function wireAICycleDial() {
+  const ring = document.getElementById('aicycle-float');
+  if (!ring) return;
+  // Lift the ring out of its fixed CSS slot so it can be thrown.
+  const rect = ring.getBoundingClientRect();
+  ring.style.position = 'fixed';
+  ring.style.right = 'auto'; ring.style.bottom = 'auto';
+  ring.style.left = rect.left + 'px';
+  ring.style.top  = rect.top  + 'px';
+  makeThrowableOrb(ring, {
+    size: ring.offsetWidth || 64, persistKey: 'astranov_aicycle_pos',
+    onTap: (el) => {
+      const items = [
+        { value: 'astranov',   glyph: 'AV',  color: '#cfe2ff', label: 'AstranoV auto' },
+        { value: 'all',        glyph: 'ALL', color: '#ffd47e', label: 'All engines' },
+        { value: 'anthropic',  glyph: 'ANT', color: '#a8c8ee', label: 'Anthropic' },
+        { value: 'openrouter', glyph: 'OR',  color: '#7eebb4', label: 'OpenRouter' },
+        { value: 'groq',       glyph: 'GRQ', color: '#ffb464', label: 'Groq' },
+        { value: 'gemini',     glyph: 'GEM', color: '#6dd0ff', label: 'Gemini' },
+        { value: '__chat',     glyph: '◈',   color: '#f0c875', label: 'Open chat' },
+      ];
+      OrbitalDial.open({
+        anchorEl: el, mode: 'discrete', items,
+        value: window._aiEngine || 'astranov',
+        label: 'AstranoV cycle',
+        onCommit: (v) => {
+          if (v === '__chat') { try { openAstranov(); } catch (_) {} return; }
+          try { window.setAIEngine(v); } catch (_) {}
+        },
+      });
+    },
+  });
+})();
+
+/* ==============================================================
    APEX SYSTEM ORB DOCK — 5 small draggable circles.
    The user can drag any orb anywhere on screen. Positions persist
    in localStorage. Tap fires the orb's primary action (per Agent
@@ -4694,11 +5198,30 @@ function renderSystemOrbDock() {
     host.appendChild(el);
   });
 }
-// TRACKBALL physics for the apex orbs. Fling with one finger —
-// the orb keeps going, bounces off the screen edges, decelerates
-// from friction, and settles. Same gesture grammar as a billiard
-// ball on a frictioned table.
+// Wire one apex dock orb onto the shared makeThrowableOrb physics
+// (§0m ORBITAL DIAL LAW — one implementation). Each apex orb persists
+// its position under its own localStorage key inside the legacy
+// astranov_sys_orbs_v1 map.
 function _wireDraggableOrb(el, tier) {
+  makeThrowableOrb(el, {
+    size: 44,
+    onTap: () => { try { (new Function(tier.onclick))(); } catch (_) {} },
+  });
+  // Persist into the legacy combined sys-orbs map so existing
+  // saved layouts keep working.
+  const persist = () => {
+    const map = _loadOrbPositions();
+    map[tier.id] = { x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0 };
+    _saveOrbPositions(map);
+  };
+  // makeThrowableOrb persists via its own persistKey (none here), so
+  // hook into the same pointerup to write our combined map.
+  el.addEventListener('pointerup',     persist);
+  el.addEventListener('pointercancel', persist);
+}
+// Legacy fling code path retained for reference; superseded by
+// makeThrowableOrb above. (No longer called.)
+function _legacyWireDraggableOrb(el, tier) {
   let pid = 0, moved = false;
   let lastX = 0, lastY = 0, lastT = 0;
   let vx = 0, vy = 0;           // px / ms, decoded into px / frame inside the fling
