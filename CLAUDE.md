@@ -172,6 +172,26 @@ globe, the wordmark, the AICYCLE ring, the apex orb dock, the
 contextual back chevron at non-global tiers. Everything else is
 summoned, used, and dismissed.
 
+## BOTTOM DRAWER LAW — one transient surface for everything that pops (binding)
+**There is ONE place ephemeral UI lives: the bottom drawer.** Drop-downs,
+filter chips, sort menus, category pickers, action sheets, modal-style
+choosers — they all open from the bottom edge as a single drawer. No
+floating chip rows under the wordmark, no inline dropdowns scattered
+across the screen, no menus pinned to corners. One canonical surface
+that the user already knows how to find.
+
+The drawer slides up, presents what's needed, auto-dismisses (or closes
+on swipe-down / tap-outside). It is summoned by:
+- the AI (per the AI-in-Context Law),
+- a swipe-up from the bottom edge, or
+- a tap on a small contextual affordance that appears only when the
+  surface has something to offer (e.g. the filter affordance only
+  exists at NATIONAL/PERSONAL where vendors flood the map).
+
+Permanent UI remains the unconditional set only: globe, wordmark,
+AICYCLE ring, apex orb dock, contextual back chevron. Everything
+else flows through the drawer.
+
 ## MANUAL FOUNDATION LAW — no hallucination, every AI action has a visible manual twin (binding)
 Whatever the AI talks about MUST physically exist in the UI. AI
 **cannot** invent capabilities. When Astranov says "I'm filtering to

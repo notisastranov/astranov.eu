@@ -160,6 +160,20 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     Permanent UI is reserved for the unconditional essentials: globe,
     wordmark, AICYCLE ring, apex orb dock, contextual back chevron.
 
+0L. BOTTOM DRAWER LAW — one transient surface for everything that pops
+    (binding, never regress)
+    There is ONE place ephemeral UI lives: the bottom drawer. Drop-downs,
+    filter chips, sort menus, category pickers, action sheets, modal
+    choosers — ALL of them open from the bottom edge as a single drawer.
+    No floating chip rows under the wordmark, no inline dropdowns
+    scattered across the screen, no menus pinned to corners. ONE canonical
+    surface the user already knows how to find. Summoned by the AI, by
+    swipe-up from the bottom, or by a small contextual affordance that
+    appears only when the surface has something to offer. Permanent UI
+    stays the unconditional set: globe, wordmark, AICYCLE ring, apex orb
+    dock, contextual back chevron. Everything else flows through the
+    drawer.
+
 0k. MANUAL FOUNDATION LAW — no hallucination, every AI action has a
     visible manual twin (binding, never regress)
     Whatever the AI talks about MUST physically exist in the UI. AI
@@ -1881,40 +1895,53 @@ Single-file by design. Any AI/human can continue from this comment + the law.
       0 0 16px rgba(126,235,180,0.95),
       0 0 30px rgba(54,150,108,0.85); }
 
-  /* CATEGORY FILTER BAR — small chip row under the wordmark.
-     Hidden by default; appears at NATIONAL+PERSONAL where the user
-     has a city around them. AI-readable via #cat-filter-bar dataset. */
-  #cat-filter-bar {
-    position: fixed; top: max(46px, calc(env(safe-area-inset-top) + 46px));
-    left: 50%; transform: translateX(-50%);
-    z-index: 199; display: none; gap: 6px;
-    padding: 4px 6px; max-width: min(92vw, 720px);
-    overflow-x: auto; scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
+  /* DRAWER HANDLE — small bottom-edge affordance that summons the
+     bottom drawer. Hidden at GLOBAL (nothing to filter yet); visible
+     at NATIONAL + PERSONAL. A 3 px line + a short chevron above it. */
+  #drawer-handle {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: max(12px, calc(env(safe-area-inset-bottom) + 12px));
+    z-index: 199; display: none; align-items: center; justify-content: center;
+    width: 60px; height: 22px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; user-select: none;
   }
-  #cat-filter-bar::-webkit-scrollbar { display: none; }
-  body.at-personal #cat-filter-bar,
-  body.at-national #cat-filter-bar { display: flex; }
-  #cat-filter-bar .cfc {
-    flex: 0 0 auto; min-width: 0;
+  body.at-personal #drawer-handle,
+  body.at-national #drawer-handle { display: flex; }
+  #drawer-handle::before {
+    content: '';
+    width: 40px; height: 3px; border-radius: 2px;
+    background: linear-gradient(90deg,
+      rgba(45,108,196,0.25), rgba(93,178,255,0.85), rgba(45,108,196,0.25));
+    box-shadow: 0 0 12px rgba(45,108,196,0.55);
+  }
+  #drawer-handle:active { transform: translateX(-50%) scale(0.94); }
+
+  /* CHIP styles used INSIDE the bottom drawer. Same look, no
+     position:fixed — they live wherever the drawer puts them. */
+  .cfc-row {
+    display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 14px;
+  }
+  .cfc {
+    flex: 0 0 auto;
     font-family: var(--font-body, system-ui, sans-serif);
-    font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
-    text-transform: uppercase; color: rgba(220,235,255,0.78);
-    padding: 5px 10px; border-radius: 12px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; color: rgba(220,235,255,0.82);
+    padding: 6px 12px; border-radius: 14px;
     background: rgba(8, 18, 38, 0.55);
     border: 1px solid rgba(45,108,196,0.42);
-    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
     cursor: pointer; -webkit-tap-highlight-color: transparent;
     user-select: none; white-space: nowrap;
+    transition: transform 0.12s var(--ease), box-shadow 0.18s var(--ease),
+                background 0.18s var(--ease), border-color 0.18s var(--ease);
   }
-  #cat-filter-bar .cfc:active { transform: scale(0.95); }
-  #cat-filter-bar .cfc.on {
+  .cfc:active { transform: scale(0.95); }
+  .cfc.on {
     color: #cfe2ff;
     background: rgba(20, 52, 120, 0.72);
     border-color: rgba(93,178,255,0.85);
     box-shadow: 0 0 14px rgba(45,108,196,0.55);
   }
-  #cat-filter-bar .cfc-all { font-weight: 700; }
+  .cfc-all { font-weight: 700; }
 
   /* APEX SYSTEM ORB DOCK — five small DRAGGABLE circles. The user
      places them wherever; positions persist. Defaults sit along the
@@ -3276,11 +3303,12 @@ Single-file by design. Any AI/human can continue from this comment + the law.
 <!-- APP NAME — always-present anchor (§1b). Tap = diagnostic + hard refresh. -->
 <div id="app-name" onclick="appNameReload()" title="AstranoV — The Global Operating System · tap to heal & reload">ASTRANOV<span class="app-tag">GLOBAL OPERATING SYSTEM</span></div>
 
-<!-- CATEGORY FILTER — chip bar under the wordmark. Appears at
-     PERSONAL tier so the user can filter the vendor pins flooding
-     the city view. Programmable via window.setCategoryFilter so
-     Astranov can drive it (e.g. "show me only restaurants"). -->
-<div id="cat-filter-bar" aria-label="Category filter"></div>
+<!-- CONTEXTUAL DRAWER HANDLE — a small chevron at the bottom edge
+     that summons the bottom drawer. Appears only when the current
+     tier has something to offer (NATIONAL/PERSONAL = filter chips).
+     Per the BOTTOM DRAWER LAW: one transient surface for all
+     dropdowns / filters / menus. -->
+<div id="drawer-handle" aria-label="Open options" title="Filters & options"></div>
 
 <!-- APEX SYSTEM ORBS — five draggable DOM gadgets (Me / Wallet /
      Pilot / Astranov / Discover). Positions persist in localStorage
@@ -3769,7 +3797,11 @@ async function bootCesium() {
     // and the user needs them to be available the moment the globe
     // appears.
     try { renderSystemOrbDock(); } catch (_) {}
-    try { renderCatFilterBar();  } catch (_) {}
+    // Bottom drawer handle — visible at NATIONAL/PERSONAL via CSS.
+    try {
+      const h = document.getElementById('drawer-handle');
+      if (h) h.addEventListener('click', () => { try { openFilterDrawer(); } catch (_) {} });
+    } catch (_) {}
     const _lazyOrbs = (fn, t) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: t }) : setTimeout(fn, t));
     _lazyOrbs(() => { try { renderTileStrip(); } catch (_) {} }, 1200);
 
@@ -4724,21 +4756,49 @@ const _CAT_FILTER = {
     { key: 'tourism',   label: 'Sights',     emoji: '⛰' },
   ],
 };
-function renderCatFilterBar() {
-  const bar = document.getElementById('cat-filter-bar');
-  if (!bar) return;
-  bar.innerHTML = _CAT_FILTER.cats.map(c =>
+function _catFilterChipsHTML() {
+  return _CAT_FILTER.cats.map(c =>
     `<div class="cfc ${c.key === 'all' ? 'cfc-all' : ''}${_CAT_FILTER.active === c.key ? ' on' : ''}"
-          data-cat="${c.key}">${c.emoji} ${escapeHtml(c.label)}</div>`
+          data-cat="${c.key}" data-affordance="cat-filter-chip">${c.emoji} ${escapeHtml(c.label)}</div>`
   ).join('');
-  bar.querySelectorAll('.cfc').forEach(el => {
-    el.addEventListener('click', () => setCategoryFilter(el.dataset.cat));
+}
+// Single bottom drawer for ALL transient pop-up UI (BOTTOM DRAWER LAW).
+// Filters, sorts, category pickers, AI-summoned chip sets — all open
+// here. The drawer reuses the existing openPanel surface so there's
+// only ONE slide-up window on screen, ever.
+function openFilterDrawer() {
+  const html = `<h2>Filter the map</h2>
+    <div class="subtitle">Tap a category — the map updates live</div>
+    <div class="cfc-row" id="drawer-cat-row">${_catFilterChipsHTML()}</div>
+    <div style="font-size:10px;color:#6a8aaf;line-height:1.5">
+      Astranov can also drive this. Say <i>"show me cafes"</i> or
+      <i>"only hotels"</i> — the chip you see selected here will fire.
+    </div>`;
+  try { openPanel(html); } catch (_) {}
+  setTimeout(() => {
+    document.querySelectorAll('#drawer-cat-row .cfc').forEach(el => {
+      el.addEventListener('click', () => {
+        setCategoryFilter(el.dataset.cat);
+        _refreshFilterDrawerChips();
+      });
+    });
+  }, 0);
+}
+function _refreshFilterDrawerChips() {
+  const row = document.getElementById('drawer-cat-row');
+  if (!row) return;
+  row.innerHTML = _catFilterChipsHTML();
+  row.querySelectorAll('.cfc').forEach(el => {
+    el.addEventListener('click', () => {
+      setCategoryFilter(el.dataset.cat);
+      _refreshFilterDrawerChips();
+    });
   });
 }
 function setCategoryFilter(cat) {
   _CAT_FILTER.active = cat || 'all';
-  renderCatFilterBar();
   _applyCatFilterToPlaces();
+  _refreshFilterDrawerChips();   // visible engage — Manual Foundation Law
 }
 function _applyCatFilterToPlaces() {
   if (!placeIndex) return;
@@ -4753,6 +4813,7 @@ function _applyCatFilterToPlaces() {
   if (viewer) viewer.scene.requestRender();
 }
 window.setCategoryFilter = setCategoryFilter;
+window.openFilterDrawer  = openFilterDrawer;
 window._catFilter = _CAT_FILTER;
 requestAnimationFrame(_gfxTick);
 // Helper to mint a living-orb HTML block with an emoji on top.
