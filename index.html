@@ -242,13 +242,14 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     The name "ASTRANOV" is ALWAYS visible, pinned at the TOP-CENTRE of the
     screen, at every tier and over every panel — the one permanent identity
     mark alongside the AICYCLE ring.
-    STYLE (binding): inscriptional capitals (Cinzel) GLOWING DEEP GREEK
-    NAVY out of the void — Aegean → ink (#cfe2ff letters; layered
-    text-shadows in #2d6cc4 / #143478 / #08163c) with a slow halo
-    pulse. The letters float in space. BANNED, by law: any box,
+    STYLE (binding): rounded geometric letters (Quicksand) GLOWING
+    DEEP ELECTRIC BLUE out of the void — #cde7ff letters with
+    layered text-shadows in #4aa6ff / #1e6cff / #0040d8 / #001a66
+    (white core → electric blue → deep electric navy). The letters
+    float in space; the glow IS the chrome. BANNED, by law: any box,
     border, background fill, backdrop blur, rounded badge, orange or
-    gold trim, or anything that makes the name look like a button.
-    The glow is the only chrome.
+    gold trim, animation pulse on the glow, or anything that makes
+    the name look like a button.
     FUNCTION — tapping the name is the universal RESET / HEAL gesture:
       (1) it captures an internal DIAGNOSTIC of what got stuck this session
           (collected JS errors, unhandled rejections, failed fetches, SW
@@ -1829,37 +1830,94 @@ Single-file by design. Any AI/human can continue from this comment + the law.
     writing-mode: vertical-lr; direction: rtl;
     width: 6px; height: 150px; accent-color: #7eb4ff; cursor: pointer; background: transparent;
   }
-  #boot .cosmos { position: relative; width: 210px; height: 210px; margin-bottom: 28px; }
-  #boot .ring { position: absolute; inset: 0; animation: boot-spin 16s linear infinite; }
-  #boot .seat {
-    position: absolute; top: 50%; left: 50%; width: 7px; height: 7px; margin: -3.5px;
-    border-radius: 50%; background: rgba(120,180,255,0.85);
-    box-shadow: 0 0 9px rgba(120,180,255,0.7);
-    transform: rotate(calc(var(--i) * 27.692deg)) translateY(-96px);
-    animation: seat-breathe 3.2s ease-in-out infinite;
-    animation-delay: calc(var(--i) * -0.2s);
+  /* ============================================================
+     BOOT VEIL — matches the live design. Earth at the centre with
+     three glowing orbit rings + orbital dots; electric-blue
+     ASTRANOV wordmark below. Disappears the moment Cesium paints.
+     ============================================================ */
+  #boot .cosmos {
+    position: relative; width: 220px; height: 220px; margin-bottom: 36px;
+    display: flex; align-items: center; justify-content: center;
   }
-  #boot .seat.crown {
-    width: 10px; height: 10px; margin: -5px; background: #ffd47e;
-    box-shadow: 0 0 14px rgba(255,212,126,0.95);
+  /* Earth — radial gradient body, faint atmosphere ring. */
+  #boot .earth {
+    position: absolute; width: 64px; height: 64px; border-radius: 50%;
+    background:
+      radial-gradient(circle at 36% 32%, rgba(255,255,255,0.22) 0%, transparent 36%),
+      radial-gradient(circle at 65% 70%, rgba(74,255,200,0.45) 0%, transparent 38%),
+      radial-gradient(circle at 30% 75%, rgba(74,255,200,0.35) 0%, transparent 32%),
+      linear-gradient(165deg, #0b4d8c 0%, #062a5c 55%, #02112e 100%);
+    border: 1px solid rgba(120,200,255,0.6);
+    box-shadow:
+      inset 0 0 18px rgba(0,0,0,0.7),
+      inset 0 6px 14px rgba(120,200,255,0.22),
+      0 0 28px rgba(40,120,255,0.65),
+      0 0 62px rgba(20,80,200,0.55);
+    animation: boot-earth-pulse 3.4s ease-in-out infinite;
   }
-  #boot .core {
-    position: absolute; top: 50%; left: 50%; width: 20px; height: 20px; margin: -10px;
-    border-radius: 50%;
-    background: radial-gradient(circle, #ffffff 0%, #8ec0ff 55%, rgba(120,180,255,0) 100%);
-    box-shadow: 0 0 36px rgba(120,180,255,0.85);
-    animation: boot-core 2.6s ease-in-out infinite;
+  #boot .orbit {
+    position: absolute; border-radius: 50%;
+    border: 1px dashed rgba(72,140,255,0.32);
+    box-shadow: 0 0 18px rgba(40,120,255,0.16);
   }
-  #boot .name { font-size: 19px; letter-spacing: 0.62em; text-indent: 0.62em;
-                color: #dbe9ff; font-weight: 300; animation: boot-rise 2s ease both; }
-  #boot .invocation { margin-top: 11px; font-size: 8.5px; letter-spacing: 0.34em;
-                text-transform: uppercase; color: rgba(150,195,255,0.5);
-                animation: boot-rise 2.8s ease both; }
-  @keyframes boot-spin  { to { transform: rotate(360deg); } }
-  @keyframes seat-breathe { 0%,100% { opacity: 0.35; } 50% { opacity: 1; } }
-  @keyframes boot-core  { 0%,100% { transform: scale(1);    opacity: 0.85; }
-                          50%     { transform: scale(1.28); opacity: 1; } }
-  @keyframes boot-rise  { from { opacity: 0; transform: translateY(9px); }
+  #boot .orbit.r1 { width:  92px; height:  92px; }
+  #boot .orbit.r2 { width: 148px; height: 148px; border-color: rgba(72,140,255,0.24); }
+  #boot .orbit.r3 { width: 204px; height: 204px; border-color: rgba(72,140,255,0.18); }
+  /* Orbital dots — small glowing satellites circling each ring. */
+  #boot .sat {
+    position: absolute; width: 9px; height: 9px; border-radius: 50%;
+    background: radial-gradient(circle, #d6ecff 0%, #44a4ff 55%, #001a66 100%);
+    box-shadow:
+      0 0 10px rgba(110,190,255,0.95),
+      0 0 22px rgba(40,120,255,0.6);
+    top: 50%; left: 50%; margin: -4.5px;
+  }
+  #boot .sat.r1 { animation: boot-orbit-1 4.5s linear infinite; }
+  #boot .sat.r2 { animation: boot-orbit-2 7.2s linear infinite; }
+  #boot .sat.r3 { animation: boot-orbit-3 9.6s linear infinite; }
+  #boot .sat.s2 { animation-delay: -1.8s; opacity: 0.7; }
+  #boot .sat.s3 { animation-delay: -3.4s; opacity: 0.5; }
+  /* ASTRANOV — deep electric glowing blue. The light is the chrome. */
+  #boot .name {
+    font-family: 'Quicksand', system-ui, sans-serif;
+    font-size: 23px; font-weight: 700;
+    letter-spacing: 0.36em; text-indent: 0.36em;
+    color: #cde7ff;
+    text-shadow:
+      0 0 4px #ffffff,
+      0 0 10px #4aa6ff,
+      0 0 22px #1e6cff,
+      0 0 40px #0040d8,
+      0 0 70px #001a66;
+    animation: boot-rise 1.4s ease both;
+  }
+  /* Earth body subtle pulse to feel "alive." */
+  @keyframes boot-earth-pulse {
+    0%,100% { box-shadow:
+      inset 0 0 18px rgba(0,0,0,0.7),
+      inset 0 6px 14px rgba(120,200,255,0.22),
+      0 0 28px rgba(40,120,255,0.65),
+      0 0 62px rgba(20,80,200,0.55); }
+    50%     { box-shadow:
+      inset 0 0 18px rgba(0,0,0,0.7),
+      inset 0 6px 14px rgba(120,200,255,0.32),
+      0 0 38px rgba(74,166,255,0.85),
+      0 0 88px rgba(30,108,255,0.7); }
+  }
+  /* Orbital paths — translateY by ring radius then rotate. */
+  @keyframes boot-orbit-1 {
+    from { transform: rotate(0deg)   translateY(-46px) rotate(0deg);   }
+    to   { transform: rotate(360deg) translateY(-46px) rotate(-360deg); }
+  }
+  @keyframes boot-orbit-2 {
+    from { transform: rotate(0deg)   translateY(-74px) rotate(0deg);   }
+    to   { transform: rotate(360deg) translateY(-74px) rotate(-360deg); }
+  }
+  @keyframes boot-orbit-3 {
+    from { transform: rotate(0deg)   translateY(-102px) rotate(0deg);   }
+    to   { transform: rotate(360deg) translateY(-102px) rotate(-360deg); }
+  }
+  @keyframes boot-rise  { from { opacity: 0; transform: translateY(8px); }
                           to   { opacity: 1; transform: translateY(0); } }
 
   /* ============================================================
@@ -1898,8 +1956,8 @@ Single-file by design. Any AI/human can continue from this comment + the law.
      ============================================================ */
   /* WORDMARK LAW: letters floating in space. NO box, NO border, NO
      background, NO chrome. Simple rounded geometric letters
-     (Quicksand) glowing deep Greek navy out of the void. No tagline
-     underneath the name. */
+     (Quicksand) glowing DEEP ELECTRIC BLUE — the glow IS the chrome.
+     No tagline underneath the name. */
   #app-name {
     position: fixed; top: max(10px, env(safe-area-inset-top)); left: 50%;
     transform: translateX(-50%); z-index: 200; cursor: pointer;
@@ -1908,17 +1966,18 @@ Single-file by design. Any AI/human can continue from this comment + the law.
     visibility: visible !important; opacity: 1 !important;
     font-family: 'Quicksand', system-ui, sans-serif;
     font-weight: 700; font-size: 21px; letter-spacing: 0.34em; text-indent: 0.34em;
-    color: #cfe2ff;
+    color: #cde7ff;
     -webkit-user-select: none; user-select: none; line-height: 1;
     background: transparent;
     border: 0;
     box-shadow: none;
     backdrop-filter: none; -webkit-backdrop-filter: none;
     text-shadow:
-      0 0 6px rgba(207,226,255,0.9),
-      0 0 14px rgba(45,108,196,1),
-      0 0 26px rgba(20,52,120,0.95),
-      0 0 44px rgba(8,22,60,0.95);
+      0 0 4px #ffffff,
+      0 0 10px #4aa6ff,
+      0 0 22px #1e6cff,
+      0 0 40px #0040d8,
+      0 0 70px #001a66;
     transition: transform var(--t-quick) var(--ease);
   }
   #app-name:active { transform: translateX(-50%) scale(0.96); }
@@ -3814,19 +3873,19 @@ Single-file by design. Any AI/human can continue from this comment + the law.
 <!-- Me spotlight — a line from the on-screen Me orb to the user's location. -->
 <svg id="me-spotlight"><line id="me-spot-line" x1="0" y1="0" x2="0" y2="0"></line></svg>
 
-<!-- Boot veil (fades out when Cesium ready) -->
+<!-- Boot veil — Earth + three orbit rings (matches the live design). -->
 <div id="boot">
   <div class="cosmos">
-    <div class="ring">
-      <span class="seat" style="--i:0"></span><span class="seat" style="--i:1"></span>
-      <span class="seat" style="--i:2"></span><span class="seat" style="--i:3"></span>
-      <span class="seat" style="--i:4"></span><span class="seat" style="--i:5"></span>
-      <span class="seat" style="--i:6"></span><span class="seat" style="--i:7"></span>
-      <span class="seat" style="--i:8"></span><span class="seat" style="--i:9"></span>
-      <span class="seat" style="--i:10"></span><span class="seat" style="--i:11"></span>
-      <span class="seat crown" style="--i:12"></span>
-    </div>
-    <div class="core"></div>
+    <div class="orbit r1"></div>
+    <div class="orbit r2"></div>
+    <div class="orbit r3"></div>
+    <div class="sat r1"></div>
+    <div class="sat r2"></div>
+    <div class="sat r2 s2"></div>
+    <div class="sat r3"></div>
+    <div class="sat r3 s2"></div>
+    <div class="sat r3 s3"></div>
+    <div class="earth"></div>
   </div>
   <div class="name">ASTRANOV</div>
 </div>
