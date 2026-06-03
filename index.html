@@ -8503,6 +8503,16 @@ async function pushNotify(recipientId, payload) {
 
 function handleSwMessage(msg) {
   if (!msg) return;
+  if (msg.type === 'sw-activated') {
+    // A new Service Worker just took over — force-reload so this tab
+    // runs the fresh HTML + JS, not the cached shell from the previous
+    // deploy. Belt-and-braces alongside the controllerchange handler.
+    if (!window.__swReloadedFor || window.__swReloadedFor !== msg.version) {
+      window.__swReloadedFor = msg.version;
+      setTimeout(() => { try { location.reload(); } catch (_) {} }, 200);
+    }
+    return;
+  }
   if (msg.type === 'notif-nav') {
     handleNotificationNav(msg.params || {});
   } else if (msg.type === 'call-decline-push') {

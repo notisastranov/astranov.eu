@@ -2,7 +2,7 @@
 // Handles: offline shell, push notifications, notification click routing
 'use strict';
 
-const SHELL_CACHE = 'astranov-shell-v9';
+const SHELL_CACHE = 'astranov-shell-v10';
 const TILE_CACHE  = 'astranov-tiles-v1';
 const TILE_HOSTS = [
   'basemaps.cartocdn.com',           // CARTO dark/voyager/light
@@ -27,13 +27,22 @@ self.addEventListener('install', e => {
 });
 
 self.addEventListener('activate', e => {
-  e.waitUntil(Promise.all([
-    clients.claim(),
-    // Drop only the old SHELL caches; KEEP the tile cache between deploys.
-    caches.keys().then(keys => Promise.all(
-      keys.filter(k => k !== SHELL_CACHE && k !== TILE_CACHE).map(k => caches.delete(k))
-    )),
-  ]));
+  e.waitUntil((async () => {
+    await Promise.all([
+      clients.claim(),
+      // Drop only the old SHELL caches; KEEP the tile cache between deploys.
+      caches.keys().then(keys => Promise.all(
+        keys.filter(k => k !== SHELL_CACHE && k !== TILE_CACHE).map(k => caches.delete(k))
+      )),
+    ]);
+    // Tell every open tab to reload so they pick up the fresh HTML
+    // immediately — fixes the "I deployed but the changes don't show
+    // up" stuck-Service-Worker symptom.
+    try {
+      const wins = await self.clients.matchAll({ type: 'window' });
+      wins.forEach(w => { try { w.postMessage({ type: 'sw-activated', version: SHELL_CACHE }); } catch (_) {} });
+    } catch (_) {}
+  })());
 });
 
 // Cache-first stale-while-revalidate for raster map tiles.
