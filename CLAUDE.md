@@ -172,6 +172,30 @@ globe, the wordmark, the AICYCLE ring, the apex orb dock, the
 contextual back chevron at non-global tiers. Everything else is
 summoned, used, and dismissed.
 
+## SCENARIO LAW — the OS demonstrates its own competence (binding)
+Every binding capability must be exercisable as a runnable **scenario**:
+a beat-list the system performs against its real surfaces (AI speaks,
+user voice is transcribed in the bottom chat, orbs are revealed, the
+filter chips glow, the camera shifts tier, panels open and close). The
+loop is **devise → implement → judge → improve**:
+
+- **Devise** — define the scenario as a list of beats inside `SCENARIOS`.
+  Each beat targets a real surface; no narration without a visible deed
+  (§0k Manual Foundation Law).
+- **Implement** — every beat-kind (`say`, `hear`, `reveal`, `flyTo`,
+  `panel`, `closePanel`, `run`, `judge`, `wait`) maps to a single
+  callable in `runScenario`. Adding a beat-kind = adding one switch arm.
+- **Judge** — when the scenario ends, the engine prints to the chat:
+  total beats, errors, slow steps (>600 ms), and a verdict — *was it
+  helpful? did it take long?* — followed by the next improvement.
+- **Improve** — read the verdict, trim the friction, ship the fix.
+  Then re-run.
+
+A scenario is OWNED by Astranov, not by Claude — it lives in the
+runtime so the OS can demonstrate itself to a new user. First-run
+guided tours, regression checks, and live demos all share one engine.
+Trigger: `?demo=<name>` URL param.
+
 ## MOTHERSHIP LAW — Earth is the MotherShip, orbs ride her gravity (binding)
 **Earth IS the mother.** The Cesium globe at the centre of the screen
 is the OS centerpiece — there is no separate mother orb body. Every

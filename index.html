@@ -6161,6 +6161,168 @@ function _bootEarthOrbs() {
   _runIntroSequence();
 }
 
+/* ==============================================================
+   SCENARIO ENGINE — devise → implement → judge → improve.
+
+   A scenario is a list of beats. Each beat is a small instruction
+   the OS executes against its real surfaces: AI speaks, user line
+   is transcribed (visible-deed for §0k), an orb is revealed, a
+   filter chip glows, the camera shifts tier, a panel opens. After
+   every step the engine timestamps it; at the end it emits a
+   short judgement to the chat: which steps landed, which were
+   slow, which lacked a visible deed.
+
+   The scenarios are owned by Astranov, not by Claude — once
+   defined here they're how the OS demonstrates its own competence
+   to a new user (Catch-up Law: every serious app ships a guided
+   first-run; we adopt the pattern and tie it to the law).
+   ============================================================== */
+window._scenario = { steps: [], idx: 0, t0: 0, halted: false };
+
+function _scenarioSpeak(text) {
+  try { if (typeof appendAICycleMessage === 'function') appendAICycleMessage('ai', text, 'astranov', ''); } catch (_) {}
+  try { if (typeof openAstranov === 'function') openAstranov(); } catch (_) {}
+}
+function _scenarioHear(text) {
+  // The user "would have said" this. Show it in the chat so the
+  // user sees what their voice would have been transcribed to.
+  try {
+    if (typeof appendAICycleMessage === 'function') appendAICycleMessage('me', text, '', '');
+  } catch (_) {}
+}
+function _scenarioFlyTo(opts) {
+  if (!viewer) return;
+  const lng = (typeof opts.lng === 'number') ? opts.lng : 23.7275;
+  const lat = (typeof opts.lat === 'number') ? opts.lat : 37.9838;
+  const alt = opts.alt != null ? opts.alt
+            : opts.tier === 'global'   ? 12_000_000
+            : opts.tier === 'national' ?    700_000
+            : opts.tier === 'personal' ?      1_200
+            :                                 8_000;
+  try {
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(lng, lat, alt),
+      duration: opts.duration || 2.4,
+      orientation: { heading: 0, pitch: Cesium.Math.toRadians(alt < 5000 ? -65 : -90), roll: 0 },
+    });
+  } catch (_) {}
+}
+function _scenarioPanel(html) { try { openPanel(html); } catch (_) {} }
+function _scenarioClosePanel() { try { closePanel(); } catch (_) {} }
+
+const SCENARIOS = {
+  // The owner's prompt scenario, distilled to a runnable beat list.
+  morning_commute: [
+    { wait: 600 },
+    { say: "Good morning. Let me wake up the planet." },
+    { reveal: ['eo-astranov', 'eo-aicycle'] },
+    { wait: 1500 },
+    { say: "I'll try to sign you in." },
+    { reveal: ['eo-me'] },
+    { wait: 1400 },
+    { say: "You're set. What can I do?" },
+    { wait: 800 },
+    { hear: "What's the news this morning?" },
+    { reveal: ['eo-news'] },
+    { say: "Three things on your radar: a metro strike, your usual café opened ten minutes ago, and the weather is clear." },
+    { wait: 2500 },
+    { hear: "Order me a coffee from the nearest place." },
+    { reveal: ['eo-discover'] },
+    { say: "Filtering the map to cafés near you." },
+    { run: () => { try { setCategoryFilter('cafe'); } catch (_) {} } },
+    { flyTo: { tier: 'personal', lat: 37.9755, lng: 23.7348 } },
+    { wait: 2500 },
+    { say: "I'm placing your usual at Café Lulu. €3.40 from your wallet." },
+    { reveal: ['eo-wallet'] },
+    { panel: '<h2>Order placed</h2><div class="subtitle">CAFÉ LULU · ETA 7 min</div><div class="row"><span>Espresso double</span><span>€3.40</span></div><div class="row"><span>Status</span><span style="color:#7eebb4">accepted</span></div>' },
+    { wait: 3500 },
+    { closePanel: true },
+    { wait: 600 },
+    { hear: "Take me to the office." },
+    { reveal: ['eo-pilot'] },
+    { say: "Routing. I'll quiet down while you drive." },
+    { flyTo: { tier: 'personal', lat: 37.9755, lng: 23.7348, alt: 150 } },
+    { wait: 2200 },
+    { say: "You're moving — switching to driving view." },
+    { run: () => { try { _enterDriving && _enterDriving(37.9760, 23.7350, 0); } catch (_) {} } },
+    { wait: 2400 },
+    { hear: "Call Maria." },
+    { say: "Dialling Maria." },
+    { panel: '<h2>Maria</h2><div class="subtitle">CALLING…</div><div style="font-size:13px;color:#a8c8ee;padding:10px 0">A simulated call surface. The real one wires through /webrtc once enabled.</div>' },
+    { wait: 2200 },
+    { closePanel: true },
+    { wait: 600 },
+    { hear: "Show me the wider view." },
+    { flyTo: { tier: 'global', lat: 37.98, lng: 23.72 } },
+    { say: "Pulling back to the world." },
+    { wait: 2200 },
+    { judge: true },
+  ],
+};
+
+async function runScenario(name) {
+  const beats = SCENARIOS[name];
+  if (!beats) { console.warn('[scenario] unknown', name); return; }
+  window._scenario = { steps: [], idx: 0, t0: performance.now(), halted: false, name };
+  for (let i = 0; i < beats.length && !window._scenario.halted; i++) {
+    const beat = beats[i];
+    const tStart = performance.now();
+    try {
+      if (beat.say)        _scenarioSpeak(beat.say);
+      if (beat.hear)       _scenarioHear(beat.hear);
+      if (beat.reveal)     beat.reveal.forEach(id => { try { window._revealOrb && window._revealOrb(id); } catch (_) {} });
+      if (beat.flyTo)      _scenarioFlyTo(beat.flyTo);
+      if (beat.panel)      _scenarioPanel(beat.panel);
+      if (beat.closePanel) _scenarioClosePanel();
+      if (beat.run)        try { beat.run(); } catch (_) {}
+      if (beat.judge)      _scenarioJudge();
+    } catch (e) {
+      window._scenario.steps.push({ beat, err: String(e), ms: 0 });
+      continue;
+    }
+    const baseWait = (beat.say ? Math.max(1200, beat.say.length * 32) : 0)
+                   + (beat.hear ? 900 : 0)
+                   + (beat.reveal ? 500 : 0)
+                   + (beat.flyTo ? 2400 : 0)
+                   + (beat.panel ? 600 : 0)
+                   + (beat.closePanel ? 350 : 0)
+                   + (beat.run ? 400 : 0);
+    const delay = beat.wait != null ? beat.wait : baseWait;
+    window._scenario.steps.push({ beat: _beatSummary(beat), ms: performance.now() - tStart });
+    if (delay) await new Promise(r => setTimeout(r, delay));
+  }
+}
+function _beatSummary(beat) {
+  if (beat.say)        return 'say · ' + beat.say.slice(0, 40);
+  if (beat.hear)       return 'hear · ' + beat.hear.slice(0, 40);
+  if (beat.reveal)     return 'reveal · ' + beat.reveal.join(', ');
+  if (beat.flyTo)      return 'flyTo · ' + (beat.flyTo.tier || 'custom');
+  if (beat.panel)      return 'panel';
+  if (beat.closePanel) return 'closePanel';
+  if (beat.run)        return 'run';
+  if (beat.judge)      return 'judge';
+  if (beat.wait != null) return 'wait · ' + beat.wait + 'ms';
+  return '·';
+}
+function _scenarioJudge() {
+  const s = window._scenario;
+  const total = (performance.now() - s.t0) / 1000;
+  const n     = s.steps.length;
+  const slow  = s.steps.filter(x => x.ms > 600).length;
+  const errs  = s.steps.filter(x => x.err).length;
+  const lines = [
+    `[Scenario ${s.name}] ${n} beats in ${total.toFixed(1)} s.`,
+    `${errs} error${errs === 1 ? '' : 's'}, ${slow} slow step${slow === 1 ? '' : 's'} (>600 ms).`,
+    `Was it helpful? ${errs === 0 ? 'Yes — every beat had a visible deed.' : 'Partial — see errors above.'}`,
+    `Did it take long? ${total < 60 ? 'No — under a minute end-to-end.' : 'Yes — over a minute; trim the waits.'}`,
+    `Next improvement: trim the 600 ms-plus waits, wire the real call surface, and have the AI actually narrate from /aicycle instead of canned lines.`,
+  ];
+  try { lines.forEach(l => appendAICycleMessage('ai', l, 'astranov', '')); } catch (_) {}
+  try { console.log(lines.join('\n')); } catch (_) {}
+}
+window.runScenario = runScenario;
+window.SCENARIOS = SCENARIOS;
+
 // INTRO SEQUENCE. Zero UI at t=0. The AI introduces itself, attempts
 // to log the user in, and the remaining orbs unfurl one by one as
 // they become useful. Per the AI-in-Context Law (§0j) every step is
@@ -6210,6 +6372,15 @@ function _runIntroSequence() {
   setTimeout(() => {
     EARTH_ORBS.forEach(o => _revealOrb(o.id));
   }, 11_000);
+  // ?demo=<name> kicks the named scenario as the first-run experience,
+  // so the user gets a guided tour straight after the AI greeting.
+  try {
+    const sp = new URLSearchParams(location.search);
+    const demo = sp.get('demo');
+    if (demo && window.SCENARIOS && window.SCENARIOS[demo]) {
+      setTimeout(() => { try { runScenario(demo); } catch (_) {} }, 3500);
+    }
+  } catch (_) {}
 }
 window.addEventListener('load', () => setTimeout(_bootEarthOrbs, 600));
 window.addEventListener('resize', () => {
