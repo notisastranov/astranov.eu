@@ -182,6 +182,35 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     Permanent UI is reserved for the unconditional essentials: globe,
     wordmark, AICYCLE ring, apex orb dock, contextual back chevron.
 
+0o. MATERIALISATION LAW — orbs ex nihilo (foundational, binding)
+    The OS has full authority to MATERIALISE orbs at will, and to
+    DEMATERIALISE them when no longer needed. This ends the UI design
+    problem: NO fixed catalogue of panels, menus, windows — ONE
+    mechanism, the orb, summoned per moment, per user, per context.
+    Cold boot = ONLY THE GLOBE. Orbs then pop up out of the planet
+    by user schedule / will / preferences:
+      - morning hour → news orb
+      - midday break → local-news / nearby-cafés orb
+      - driving detected → pilot / route orb
+      - user asks for X → AI materialises an orb for X
+      - job done → the orb dematerialises
+    Authority is shared:
+      - ASTRANOV materialises orbs the moment they help.
+      - The USER can demand or dismiss any orb (voice, text, fling
+        out of orbit).
+    Contract:
+      window.materializeOrb({ id, label, color, glyph, ring, act,
+                              ttl, source }) — canonical entry.
+      window.dematerializeOrb(id) — AI tool-calls and user gestures
+                                    both route here.
+      Schedule table fires once per matching window for the OS's
+      daily rhythm.
+      Moon + close-orbit cold cluster fade to low opacity by default
+      so a stray zoom-out doesn't flood the eye; they sharpen only
+      at genuine cosmic altitude.
+    Combined with the Zero UI Law §6 this is the CLOSING law on the
+    UI battle.
+
 0n. MOTHERSHIP LAW v2 — EARTH IS THE MOTHERSHIP (binding, never regress)
     Earth (the Cesium globe centred on screen) IS the OS centerpiece.
     NO separate mother-orb body. Every little orb orbits her in one
@@ -2113,10 +2142,14 @@ Single-file by design. Any AI/human can continue from this comment + the law.
     bottom: max(140px, calc(env(safe-area-inset-bottom) + 140px));
     width: 0; height: 0; z-index: 197;
     pointer-events: none;
-    transition: transform 0.6s var(--ease);
-    will-change: transform;
+    /* DIM by default (§0o): the Moon and her orbs fade to low
+       opacity so an accidental zoom-out doesn't flood the eye. They
+       sharpen only when the user is genuinely at cosmic altitude. */
+    opacity: 0.35;
+    transition: transform 0.6s var(--ease), opacity 0.6s var(--ease);
+    will-change: transform, opacity;
   }
-  body.cosmic-zoom #moon-system { transform: scale(1.35); }
+  body.cosmic-zoom #moon-system { transform: scale(1.35); opacity: 1; }
   .moon-body {
     position: absolute; left: -14px; top: -14px;
     width: 28px; height: 28px; border-radius: 50%;
@@ -5963,6 +5996,96 @@ function _orbUsefulness(orb) {
   }
 }
 
+// Dynamic orb registry — orbs materialised at runtime by the AI or
+// the user (§0o MATERIALISATION LAW). They live alongside the static
+// EARTH_ORBS catalogue and ride the same usefulness-arrangement.
+// def: { id, label, color, glyph, ring, act, ttl, source, expiresAt }
+window._dynamicOrbs = new Map();
+window.materializeOrb = function (def) {
+  if (!def || !def.id) return;
+  const ring = (def.ring != null) ? def.ring : 2;
+  const expiresAt = (def.ttl && def.ttl > 0) ? Date.now() + def.ttl : 0;
+  const entry = {
+    id: def.id, ring,
+    color: def.color || '#7eb4ff',
+    glyph: def.glyph || '◉',
+    label: def.label || 'Orb',
+    act: typeof def.act === 'function' ? def.act : (() => {}),
+    source: def.source || 'ai',
+    expiresAt,
+  };
+  window._dynamicOrbs.set(def.id, entry);
+  try { window._revealedOrbs.add(def.id); } catch (_) {}
+  try { _layoutEarthOrbs(); } catch (_) {}
+  return entry;
+};
+window.dematerializeOrb = function (id) {
+  if (!id) return;
+  window._dynamicOrbs.delete(id);
+  try { window._revealedOrbs.delete(id); } catch (_) {}
+  // Remove its rendered DOM if present so the layout collapses
+  // cleanly without waiting for the next layout tick.
+  const host = document.getElementById('earth-rings');
+  if (host) {
+    const el = host.querySelector(`.er-orb[data-id="${id}"]`);
+    if (el) el.remove();
+  }
+  try { _layoutEarthOrbs(); } catch (_) {}
+};
+// TTL sweep — runs every 20 s on the slumber-aware tick.
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, e] of window._dynamicOrbs) {
+    if (e.expiresAt && now > e.expiresAt) window.dematerializeOrb(id);
+  }
+}, 20_000);
+
+// SCHEDULE — the OS's daily rhythm. Each entry fires once per matching
+// minute (the lastRunDay key prevents repeat fires inside the window).
+// The architect names the intent; the scheduler ships it.
+const ORB_SCHEDULE = [
+  { hour: 8,  minute: 0,  action: () => materializeOrb({
+      id: 'd-news-morning', ring: 2, color: '#5db2ff', glyph: '📰',
+      label: 'Morning News',
+      act: () => { try { openGroupPanel('news'); } catch (_) {} },
+      ttl: 3 * 60 * 60 * 1000,   // 3 hours
+      source: 'schedule.morning_news',
+    }) },
+  { hour: 12, minute: 30, action: () => materializeOrb({
+      id: 'd-local-midday', ring: 2, color: '#7eebb4', glyph: '📍',
+      label: 'Local',
+      act: () => { try { openGroupPanel('places'); } catch (_) {} },
+      ttl: 2 * 60 * 60 * 1000,
+      source: 'schedule.local_midday',
+    }) },
+  { hour: 18, minute: 30, action: () => materializeOrb({
+      id: 'd-unwind', ring: 2, color: '#ffb464', glyph: '🍷',
+      label: 'Unwind',
+      act: () => { try { openGroupPanel('places'); } catch (_) {} },
+      ttl: 4 * 60 * 60 * 1000,
+      source: 'schedule.evening_unwind',
+    }) },
+];
+const _scheduleFired = new Set();
+function _scheduleTick() {
+  const now = new Date();
+  const key = now.toISOString().slice(0, 13);   // YYYY-MM-DDTHH
+  const h = now.getHours(), m = now.getMinutes();
+  for (const entry of ORB_SCHEDULE) {
+    if (entry.hour !== h) continue;
+    if (Math.abs(entry.minute - m) > 1) continue;
+    const k = entry.hour + ':' + entry.minute + '@' + key;
+    if (_scheduleFired.has(k)) continue;
+    _scheduleFired.add(k);
+    try { entry.action(); } catch (_) {}
+  }
+}
+setInterval(_scheduleTick, 60_000);
+// First check shortly after boot so missed-by-seconds windows still fire.
+setTimeout(_scheduleTick, 8000);
+window.ORB_SCHEDULE   = ORB_SCHEDULE;
+window._scheduleTick  = _scheduleTick;
+
 // Reveal queue. Cold-boot rule: ZERO orbs visible. The intro sequence
 // reveals them one by one as the AI introduces itself, logs the user
 // in, and grows the workspace to what's needed.
@@ -5991,10 +6114,20 @@ function _layoutEarthOrbs() {
     if (!window._revealedOrbs.has(el.dataset.id)) el.remove();
   });
   // Group orbs by ring, sorted by usefulness desc. Only revealed.
+  // Dynamic orbs materialised at runtime (§0o) live in the same
+  // arrangement as the static catalogue.
   const byRing = [[], [], []];
   for (const orb of EARTH_ORBS) {
     if (!window._revealedOrbs.has(orb.id)) continue;
     byRing[orb.ring].push({ orb, u: _orbUsefulness(orb) });
+  }
+  for (const [, d] of window._dynamicOrbs) {
+    if (!window._revealedOrbs.has(d.id)) continue;
+    const r = (d.ring >= 0 && d.ring <= 2) ? d.ring : 2;
+    // Dynamic orbs start with high usefulness — the AI just summoned
+    // them because they help right now. Their TTL eventually expires
+    // them out of the cloud.
+    byRing[r].push({ orb: d, u: 0.88 });
   }
   byRing.forEach(arr => arr.sort((a, b) => b.u - a.u));
 

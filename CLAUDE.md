@@ -228,6 +228,46 @@ This realises the EVOLUTION METHODOLOGY (decentralized, human-
 powered) and SCOPOS (gain-to-gain) — the more users contribute, the
 stronger the OS gets; the stronger it gets, the more it pays back.
 
+## MATERIALISATION LAW — orbs ex nihilo (foundational, binding)
+The OS has **full authority to materialise orbs at will, and to
+dematerialise them when no longer needed.** This ends the UI design
+problem: there is no fixed catalog of panels, menus, windows, or
+sub-screens to design — there is ONE mechanism, the orb, and it is
+summoned per moment, per user, per context.
+
+Cold-boot rule (combined with Zero UI Law §6): when the OS starts,
+**nothing is visible but the globe.** Then orbs pop up out of the
+planet according to the user's schedule, will, and preferences:
+- Morning at the usual hour → a news orb appears.
+- Midday break → a local-news / nearby-cafés orb appears.
+- Driving detected → the pilot / route orb appears.
+- User asks for X → AI materialises an orb for X.
+- Job done → the orb dematerialises.
+
+Authority is shared between the OS (Astranov) and the user:
+- **Astranov** materialises orbs the moment they help. The brain
+  decides; the affordance appears.
+- **The user** can demand or dismiss any orb (voice, text, or by
+  flinging the orb out of orbit).
+
+Implementation contract:
+- `window.materializeOrb(def)` is the canonical entry point.
+  `def = { id, label, color, glyph, ring (0|1|2), act, ttl, source }`.
+  Dynamic orbs live alongside the static catalogue and ride the
+  same usefulness-arrangement engine.
+- `window.dematerializeOrb(id)` removes an orb. AI tool calls and
+  user gestures both route here.
+- Schedule: a config table of `{ when, action }` entries fires once
+  per matching window; the OS's daily rhythm runs through this.
+- Moon storage and the close-orbit cold cluster fade to low opacity
+  by default so accidentally zooming out doesn't flood the eye;
+  they sharpen only when the user is genuinely at cosmic altitude.
+
+This is the closing law on the UI battle. The Architect picks the
+intent ("show me news at 8 am"); the Builders ship `materialize` /
+`dematerialize`; the User experiences orbs that *just appear when
+they should and disappear when they shouldn't.*
+
 ## SCENARIO LAW — the OS demonstrates its own competence (binding)
 Every binding capability must be exercisable as a runnable **scenario**:
 a beat-list the system performs against its real surfaces (AI speaks,
