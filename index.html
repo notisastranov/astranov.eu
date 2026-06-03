@@ -1841,57 +1841,31 @@ Single-file by design. Any AI/human can continue from this comment + the law.
     width: 6px; height: 150px; accent-color: #7eb4ff; cursor: pointer; background: transparent;
   }
   /* ============================================================
-     BOOT VEIL — matches the live design. Earth at the centre with
-     three glowing orbit rings + orbital dots; electric-blue
-     ASTRANOV wordmark below. Disappears the moment Cesium paints.
+     BOOT VEIL — a clean loader. No festival. Just the wordmark, a
+     small breathing dot below it, and the dark void. Lifts the
+     moment Cesium paints the first frame.
      ============================================================ */
   #boot .cosmos {
-    position: relative; width: 220px; height: 220px; margin-bottom: 36px;
+    position: relative; width: 32px; height: 32px; margin-bottom: 22px;
     display: flex; align-items: center; justify-content: center;
   }
-  /* Earth — radial gradient body, faint atmosphere ring. */
   #boot .earth {
-    position: absolute; width: 64px; height: 64px; border-radius: 50%;
-    background:
-      radial-gradient(circle at 36% 32%, rgba(255,255,255,0.22) 0%, transparent 36%),
-      radial-gradient(circle at 65% 70%, rgba(74,255,200,0.45) 0%, transparent 38%),
-      radial-gradient(circle at 30% 75%, rgba(74,255,200,0.35) 0%, transparent 32%),
-      linear-gradient(165deg, #0b4d8c 0%, #062a5c 55%, #02112e 100%);
-    border: 1px solid rgba(120,200,255,0.6);
+    position: absolute; width: 10px; height: 10px; border-radius: 50%;
+    background: #4aa6ff;
     box-shadow:
-      inset 0 0 18px rgba(0,0,0,0.7),
-      inset 0 6px 14px rgba(120,200,255,0.22),
-      0 0 28px rgba(40,120,255,0.65),
-      0 0 62px rgba(20,80,200,0.55);
-    animation: boot-earth-pulse 3.4s ease-in-out infinite;
+      0 0 6px #4aa6ff,
+      0 0 16px #1e6cff,
+      0 0 32px #0040d8;
+    animation: boot-dot 1.6s ease-in-out infinite;
   }
-  #boot .orbit {
-    position: absolute; border-radius: 50%;
-    border: 1px dashed rgba(72,140,255,0.32);
-    box-shadow: 0 0 18px rgba(40,120,255,0.16);
+  @keyframes boot-dot {
+    0%,100% { transform: scale(0.85); opacity: 0.7; }
+    50%     { transform: scale(1.10); opacity: 1; }
   }
-  #boot .orbit.r1 { width:  92px; height:  92px; }
-  #boot .orbit.r2 { width: 148px; height: 148px; border-color: rgba(72,140,255,0.24); }
-  #boot .orbit.r3 { width: 204px; height: 204px; border-color: rgba(72,140,255,0.18); }
-  /* Orbital dots — small glowing satellites circling each ring. */
-  #boot .sat {
-    position: absolute; width: 9px; height: 9px; border-radius: 50%;
-    background: radial-gradient(circle, #d6ecff 0%, #44a4ff 55%, #001a66 100%);
-    box-shadow:
-      0 0 10px rgba(110,190,255,0.95),
-      0 0 22px rgba(40,120,255,0.6);
-    top: 50%; left: 50%; margin: -4.5px;
-  }
-  #boot .sat.r1 { animation: boot-orbit-1 4.5s linear infinite; }
-  #boot .sat.r2 { animation: boot-orbit-2 7.2s linear infinite; }
-  #boot .sat.r3 { animation: boot-orbit-3 9.6s linear infinite; }
-  #boot .sat.s2 { animation-delay: -1.8s; opacity: 0.7; }
-  #boot .sat.s3 { animation-delay: -3.4s; opacity: 0.5; }
-  /* ASTRANOV — deep electric glowing blue. The light is the chrome. */
   #boot .name {
     font-family: 'Quicksand', system-ui, sans-serif;
-    font-size: 23px; font-weight: 700;
-    letter-spacing: 0.36em; text-indent: 0.36em;
+    font-size: 21px; font-weight: 700;
+    letter-spacing: 0.34em; text-indent: 0.34em;
     color: #cde7ff;
     text-shadow:
       0 0 4px #ffffff,
@@ -1899,36 +1873,7 @@ Single-file by design. Any AI/human can continue from this comment + the law.
       0 0 22px #1e6cff,
       0 0 40px #0040d8,
       0 0 70px #001a66;
-    animation: boot-rise 1.4s ease both;
   }
-  /* Earth body subtle pulse to feel "alive." */
-  @keyframes boot-earth-pulse {
-    0%,100% { box-shadow:
-      inset 0 0 18px rgba(0,0,0,0.7),
-      inset 0 6px 14px rgba(120,200,255,0.22),
-      0 0 28px rgba(40,120,255,0.65),
-      0 0 62px rgba(20,80,200,0.55); }
-    50%     { box-shadow:
-      inset 0 0 18px rgba(0,0,0,0.7),
-      inset 0 6px 14px rgba(120,200,255,0.32),
-      0 0 38px rgba(74,166,255,0.85),
-      0 0 88px rgba(30,108,255,0.7); }
-  }
-  /* Orbital paths — translateY by ring radius then rotate. */
-  @keyframes boot-orbit-1 {
-    from { transform: rotate(0deg)   translateY(-46px) rotate(0deg);   }
-    to   { transform: rotate(360deg) translateY(-46px) rotate(-360deg); }
-  }
-  @keyframes boot-orbit-2 {
-    from { transform: rotate(0deg)   translateY(-74px) rotate(0deg);   }
-    to   { transform: rotate(360deg) translateY(-74px) rotate(-360deg); }
-  }
-  @keyframes boot-orbit-3 {
-    from { transform: rotate(0deg)   translateY(-102px) rotate(0deg);   }
-    to   { transform: rotate(360deg) translateY(-102px) rotate(-360deg); }
-  }
-  @keyframes boot-rise  { from { opacity: 0; transform: translateY(8px); }
-                          to   { opacity: 1; transform: translateY(0); } }
 
   /* ============================================================
      AICYCLE ring — always visible. Bottom-right.
@@ -2063,17 +2008,8 @@ Single-file by design. Any AI/human can continue from this comment + the law.
     position: absolute; left: 0; top: 0;
     width: 0; height: 0; pointer-events: none;
   }
-  /* Faint dashed orbit track so the ring is legible even when its
-     orbs are clustered at the top. */
-  #earth-rings .er-ring::before {
-    content: ''; position: absolute; left: 50%; top: 50%;
-    transform: translate(-50%, -50%);
-    width:  calc(var(--rr, 90px) * 2);
-    height: calc(var(--rr, 90px) * 2);
-    border-radius: 50%;
-    border: 1px dashed rgba(93,178,255,0.18);
-    pointer-events: none;
-  }
+  /* No dashed orbit tracks. Orbs alone read as the rings — chrome
+     stays out of the way. */
   /* Each orb on a ring. Positioned at its --dx, --dy (computed from
      ring radius × cos/sin of its current angle). Smooth transition
      so the live re-arrangement looks like a planetary settle. */
@@ -2088,26 +2024,22 @@ Single-file by design. Any AI/human can continue from this comment + the law.
                 opacity   0.4s var(--ease),
                 box-shadow 0.3s var(--ease);
     background: radial-gradient(circle at 32% 32%,
-      color-mix(in srgb, var(--mc, #7eb4ff) 92%, white 18%),
+      color-mix(in srgb, var(--mc, #7eb4ff) 88%, white 14%),
       var(--mc, #7eb4ff) 55%, #04101f 100%);
-    border: 1px solid color-mix(in srgb, var(--mc, #7eb4ff) 85%, transparent);
-    box-shadow:
-      inset 0 0 6px rgba(0,0,0,0.55),
-      0 0 10px color-mix(in srgb, var(--mc, #7eb4ff) 55%, transparent);
+    border: 1px solid color-mix(in srgb, var(--mc, #7eb4ff) 70%, transparent);
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.55);
     display: flex; align-items: center; justify-content: center;
-    font-family: var(--font-display, 'Cinzel', serif);
-    font-size: 12px; font-weight: 700; color: #f4ede0;
-    text-shadow: 0 0 4px color-mix(in srgb, var(--mc, #7eb4ff) 70%, transparent);
+    font-family: var(--font-body, system-ui, sans-serif);
+    font-size: 11px; font-weight: 600; color: #e8eef8;
   }
-  /* Useful orbs glow brighter; useless ones fade toward translucent
-     so the user reads relevance by intensity AND position. */
+  /* Useful orbs get a soft halo; useless ones simply fade.
+     Intensity is the second relevance channel; angle is the first. */
   .er-orb[data-use="hi"] {
     box-shadow:
-      inset 0 0 6px rgba(0,0,0,0.45),
-      0 0 22px color-mix(in srgb, var(--mc, #7eb4ff) 95%, transparent),
-      0 0 42px color-mix(in srgb, var(--mc, #7eb4ff) 45%, transparent);
+      inset 0 0 5px rgba(0,0,0,0.45),
+      0 0 8px color-mix(in srgb, var(--mc, #7eb4ff) 70%, transparent);
   }
-  .er-orb[data-use="lo"] { opacity: 0.32; }
+  .er-orb[data-use="lo"] { opacity: 0.40; }
   .er-orb:active { transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.92); }
   /* Quick ripple from screen centre on absorb / release. */
   #er-flash {
@@ -2141,31 +2073,15 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   }
   body.cosmic-zoom #moon-system { transform: scale(1.35); }
   .moon-body {
-    position: absolute; left: -16px; top: -16px;
-    width: 32px; height: 32px; border-radius: 50%;
+    position: absolute; left: -14px; top: -14px;
+    width: 28px; height: 28px; border-radius: 50%;
     pointer-events: auto;
     background:
-      radial-gradient(circle at 28% 28%, rgba(255,255,255,0.40) 0%, transparent 35%),
-      radial-gradient(circle at 65% 55%, rgba(80,100,140,0.35) 0%, transparent 28%),
-      radial-gradient(circle at 35% 75%, rgba(40,60,90,0.45)  0%, transparent 30%),
-      linear-gradient(165deg, #b6c2d8 0%, #6a7790 55%, #2b3550 100%);
-    border: 1px solid rgba(180,200,235,0.55);
-    box-shadow:
-      inset 0 0 10px rgba(0,0,0,0.55),
-      0 0 16px rgba(140,170,220,0.42),
-      0 0 30px rgba(80,110,160,0.35);
+      radial-gradient(circle at 28% 28%, rgba(255,255,255,0.30) 0%, transparent 35%),
+      linear-gradient(165deg, #8e98ad 0%, #5a667e 55%, #2b3550 100%);
+    border: 1px solid rgba(180,200,235,0.35);
+    box-shadow: inset 0 0 8px rgba(0,0,0,0.6);
     cursor: pointer;
-    animation: moon-pulse 5.2s ease-in-out infinite;
-  }
-  @keyframes moon-pulse {
-    0%,100% { box-shadow:
-      inset 0 0 10px rgba(0,0,0,0.55),
-      0 0 16px rgba(140,170,220,0.42),
-      0 0 30px rgba(80,110,160,0.35); }
-    50%     { box-shadow:
-      inset 0 0 10px rgba(0,0,0,0.55),
-      0 0 22px rgba(180,210,255,0.65),
-      0 0 44px rgba(100,140,200,0.55); }
   }
   .moon-ring {
     position: absolute; left: 0; top: 0;
@@ -3970,20 +3886,9 @@ Single-file by design. Any AI/human can continue from this comment + the law.
 <!-- Me spotlight — a line from the on-screen Me orb to the user's location. -->
 <svg id="me-spotlight"><line id="me-spot-line" x1="0" y1="0" x2="0" y2="0"></line></svg>
 
-<!-- Boot veil — Earth + three orbit rings (matches the live design). -->
+<!-- Boot veil — clean loader. -->
 <div id="boot">
-  <div class="cosmos">
-    <div class="orbit r1"></div>
-    <div class="orbit r2"></div>
-    <div class="orbit r3"></div>
-    <div class="sat r1"></div>
-    <div class="sat r2"></div>
-    <div class="sat r2 s2"></div>
-    <div class="sat r3"></div>
-    <div class="sat r3 s2"></div>
-    <div class="sat r3 s3"></div>
-    <div class="earth"></div>
-  </div>
+  <div class="cosmos"><div class="earth"></div></div>
   <div class="name">ASTRANOV</div>
 </div>
 
@@ -6207,20 +6112,13 @@ function _watchCosmicZoom() {
   tick();
 }
 
-// Boot — render once, then tick.
+// Boot — render once, then tick. No flash, no fanfare.
 function _bootEarthOrbs() {
   _layoutEarthOrbs();
   _layoutMoonOrbs();
   _wireMoonBody();
   _watchCosmicZoom();
   _startEarthOrbsTick();
-  // Tiny visual flair on boot — the rings briefly pulse so the user
-  // sees them appear.
-  const flash = document.getElementById('er-flash');
-  if (flash) {
-    flash.classList.remove('on'); void flash.offsetWidth; flash.classList.add('on');
-    setTimeout(() => flash.classList.remove('on'), 800);
-  }
 }
 window.addEventListener('load', () => setTimeout(_bootEarthOrbs, 600));
 window.addEventListener('resize', () => {
