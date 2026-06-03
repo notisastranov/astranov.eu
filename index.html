@@ -2190,10 +2190,22 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   }
   .moon-orb:active { transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.92); }
 
-  /* Legacy MotherShip body — retired (§0n v2). Earth is now the
-     mother. Hidden but kept in DOM in case stray code references
-     #mother-orb. */
-  #mother-orb, #mother-disc { display: none !important; }
+  /* ZERO-UI ENFORCEMENT (§0o MATERIALISATION LAW). Cold boot = ONLY
+     THE GLOBE. Every legacy "always visible" chrome element from
+     prior rounds is hidden by default. Orbs are summoned through
+     materializeOrb() — by the AI, the user, or the schedule. The
+     wordmark and the globe are the only unconditional UI. */
+  #aicycle-float,
+  #sys-orbs,
+  #ctrl-vol,
+  #ctrl-mic,
+  #ctrl-bright,
+  #drawer-handle,
+  #pilot-mini { display: none !important; }
+  /* Moon stays hidden until the user is genuinely in cosmic zoom —
+     no accidental zoom-out should reveal her cluster. */
+  #moon-system { opacity: 0 !important; pointer-events: none; }
+  body.cosmic-zoom #moon-system { opacity: 1 !important; pointer-events: auto; transform: scale(1.35); }
 
   /* Legacy mother-orb styles still apply if someone re-shows it,
      but they're orphaned. Kept short here. */
@@ -6700,39 +6712,18 @@ function _astranovIntro(text) {
 }
 function _runIntroSequence() {
   if (window._introRan) return; window._introRan = true;
-  // Step 1 — AI orb appears so the user has a face to read.
-  setTimeout(() => { _revealOrb('eo-astranov'); _revealOrb('eo-aicycle'); }, 1400);
-  // Step 2 — Astranov says hello and announces the login attempt.
+  // §0o MATERIALISATION LAW + §6 ZERO UI LAW: cold boot = ONLY the
+  // globe. The AI introduces itself in the chat. NO orb reveals
+  // here. Orbs come out of the planet only when the user asks,
+  // when the AI judges them needed, or when the schedule fires.
   setTimeout(() => {
     const signedIn = !!(typeof session !== 'undefined' && session);
     _astranovIntro(signedIn
-      ? "I'm Astranov. You're already signed in — let's get to work."
-      : "I'm Astranov. Let me try to sign you in."
+      ? "I'm Astranov. Welcome back — say what you need."
+      : "I'm Astranov. Say what you need, or sign in when you're ready."
     );
-  }, 2100);
-  // Step 3 — try to load the user; reveal the Me orb when the
-  // identity surfaces. If they're not signed in, the You panel
-  // opens via openYouPanel.
-  setTimeout(() => {
-    try {
-      if (typeof session !== 'undefined' && session) {
-        _revealOrb('eo-me');
-      } else if (typeof openYouPanel === 'function') {
-        openYouPanel();
-      }
-    } catch (_) {}
-  }, 4500);
-  // Step 4 — context orbs settle in.
-  setTimeout(() => _revealOrb('eo-news'),     6200);
-  setTimeout(() => _revealOrb('eo-pilot'),    7400);
-  setTimeout(() => _revealOrb('eo-discover'), 8400);
-  setTimeout(() => _revealOrb('eo-wallet'),   9400);
-  // Step 5 — reveal everything else after the workspace is warm.
-  setTimeout(() => {
-    EARTH_ORBS.forEach(o => _revealOrb(o.id));
-  }, 11_000);
-  // ?demo=<name> kicks the named scenario as the first-run experience,
-  // so the user gets a guided tour straight after the AI greeting.
+  }, 1200);
+  // ?demo=<name> runs the named scenario as a guided tour.
   try {
     const sp = new URLSearchParams(location.search);
     const demo = sp.get('demo');
@@ -8248,10 +8239,9 @@ async function loadProfile() {
     prof = data;
   }
   if (prof) profile = prof;
-  // Intro sequence (§0n): the Me orb appears the moment identity
-  // resolves, regardless of whether the user signed in before or
-  // during the boot greeting.
-  try { window._revealOrb && window._revealOrb('eo-me'); } catch (_) {}
+  // §0o MATERIALISATION LAW: identity loading does NOT auto-reveal
+  // the Me orb. If the user wants their identity surface, they ask
+  // (voice/text) and the AI materialises it.
   subscribeInbox();
   loadDeliveryBadge();
   loadMessageBadge();
