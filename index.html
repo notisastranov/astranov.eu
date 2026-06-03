@@ -184,6 +184,19 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     three rings. The old mother-orb body is hidden in DOM behind a
     display:none guard — its helpers are stubbed.
 
+    INTRO SEQUENCE (binding, never regress). Cold boot is ZERO UI —
+    only the globe + the wordmark + the boot loader. No orbs visible.
+    _runIntroSequence() reveals them in order, each step surfaced
+    through the Astranov text box (§0j AI-in-Context Law):
+    1. Astranov + AI Cycle orbs appear.
+    2. Astranov text bubble: "I'm Astranov. Let me try to sign you in."
+       (or "You're already signed in — let's get to work.")
+    3. If signed-in, Me orb fades in over the identity; otherwise
+       openYouPanel is summoned.
+    4. News, Pilot, Discover, Wallet appear in sequence.
+    5. After the workspace is warm, the full catalogue is revealed.
+    window._revealOrb(id) is the canonical reveal handle.
+
     MOON — secondary base. Anyone who zooms out far enough sees her at
     the bottom-right of the screen. A small grey-blue body with her
     own single orbit ring carrying the COLD / DEEPER orbs the user
@@ -1282,15 +1295,25 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   #boot {
     position: fixed; inset: 0;
     background:
-      radial-gradient(circle at 50% 45%, rgba(212,160,71,0.06) 0%, transparent 36%),
-      radial-gradient(ellipse at center, var(--wine) 0%, var(--night) 50%, var(--void) 100%);
+      radial-gradient(ellipse at 50% 45%, #04122e 0%, #020a1c 55%, #010615 100%);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    z-index: 100; transition: opacity 1s ease;
+    z-index: 100; transition: opacity 0.6s ease;
   }
   #boot.gone { opacity: 0; pointer-events: none; display: none !important; }
-  #boot .name { font-family: var(--font-display) !important; color: var(--marble) !important;
-                letter-spacing: 0.52em !important; text-indent: 0.52em !important;
-                text-shadow: 0 0 14px rgba(212,160,71,0.45), 0 0 24px rgba(93,178,255,0.3) !important; }
+  /* The wordmark on the boot veil uses the same deep-electric-blue
+     glow as the live #app-name. NO display-font override; NO gold
+     halo override. Inherits the same Quicksand + electric stack. */
+  #boot .name {
+    font-family: 'Quicksand', system-ui, sans-serif !important;
+    color: #cde7ff !important;
+    letter-spacing: 0.34em !important; text-indent: 0.34em !important;
+    text-shadow:
+      0 0 4px #ffffff,
+      0 0 10px #4aa6ff,
+      0 0 22px #1e6cff,
+      0 0 40px #0040d8,
+      0 0 70px #001a66 !important;
+  }
 
   /* INFORMANT AGENTS — they are real 3D satellites, anchored to Earth at
      fixed lat/lon points (Fibonacci sphere) at orbital altitude. They
@@ -5918,6 +5941,16 @@ function _orbUsefulness(orb) {
   }
 }
 
+// Reveal queue. Cold-boot rule: ZERO orbs visible. The intro sequence
+// reveals them one by one as the AI introduces itself, logs the user
+// in, and grows the workspace to what's needed.
+window._revealedOrbs = new Set();
+function _revealOrb(id) {
+  window._revealedOrbs.add(id);
+  try { _layoutEarthOrbs(); } catch (_) {}
+}
+window._revealOrb = _revealOrb;
+
 // Layout: sort orbs in each ring by usefulness desc, then place them
 // around the ring. Most useful sits at 0° (top); useless drift past
 // 180° (bottom). Adjacent items are separated by at least 18° so they
@@ -5931,9 +5964,14 @@ function _layoutEarthOrbs() {
     const el = host.querySelector(`.er-ring[data-ring="${r}"]`);
     if (el) el.style.setProperty('--rr', EARTH_RING_RADII[r] + 'px');
   }
-  // Group orbs by ring, sorted by usefulness desc.
+  // Drop any rendered orbs that are no longer revealed.
+  host.querySelectorAll('.er-orb').forEach(el => {
+    if (!window._revealedOrbs.has(el.dataset.id)) el.remove();
+  });
+  // Group orbs by ring, sorted by usefulness desc. Only revealed.
   const byRing = [[], [], []];
   for (const orb of EARTH_ORBS) {
+    if (!window._revealedOrbs.has(orb.id)) continue;
     byRing[orb.ring].push({ orb, u: _orbUsefulness(orb) });
   }
   byRing.forEach(arr => arr.sort((a, b) => b.u - a.u));
@@ -6112,13 +6150,66 @@ function _watchCosmicZoom() {
   tick();
 }
 
-// Boot — render once, then tick. No flash, no fanfare.
+// Boot — Earth alone. The intro sequence below progressively reveals
+// the orbs as they're needed.
 function _bootEarthOrbs() {
-  _layoutEarthOrbs();
+  _layoutEarthOrbs();   // empty until the sequence reveals
   _layoutMoonOrbs();
   _wireMoonBody();
   _watchCosmicZoom();
   _startEarthOrbsTick();
+  _runIntroSequence();
+}
+
+// INTRO SEQUENCE. Zero UI at t=0. The AI introduces itself, attempts
+// to log the user in, and the remaining orbs unfurl one by one as
+// they become useful. Per the AI-in-Context Law (§0j) every step is
+// surfaced through the Astranov text box so the user can read AND
+// reply by text — no invisible work.
+function _astranovIntro(text) {
+  try {
+    // Open the chat panel quietly (no auto-listen, no auto-speech;
+    // owner's previous directive). Append the line so the user can
+    // read what's happening and reply.
+    if (typeof openAstranov === 'function') openAstranov();
+    if (typeof appendAICycleMessage === 'function') {
+      appendAICycleMessage('ai', text, 'astranov', '');
+    }
+  } catch (_) {}
+}
+function _runIntroSequence() {
+  if (window._introRan) return; window._introRan = true;
+  // Step 1 — AI orb appears so the user has a face to read.
+  setTimeout(() => { _revealOrb('eo-astranov'); _revealOrb('eo-aicycle'); }, 1400);
+  // Step 2 — Astranov says hello and announces the login attempt.
+  setTimeout(() => {
+    const signedIn = !!(typeof session !== 'undefined' && session);
+    _astranovIntro(signedIn
+      ? "I'm Astranov. You're already signed in — let's get to work."
+      : "I'm Astranov. Let me try to sign you in."
+    );
+  }, 2100);
+  // Step 3 — try to load the user; reveal the Me orb when the
+  // identity surfaces. If they're not signed in, the You panel
+  // opens via openYouPanel.
+  setTimeout(() => {
+    try {
+      if (typeof session !== 'undefined' && session) {
+        _revealOrb('eo-me');
+      } else if (typeof openYouPanel === 'function') {
+        openYouPanel();
+      }
+    } catch (_) {}
+  }, 4500);
+  // Step 4 — context orbs settle in.
+  setTimeout(() => _revealOrb('eo-news'),     6200);
+  setTimeout(() => _revealOrb('eo-pilot'),    7400);
+  setTimeout(() => _revealOrb('eo-discover'), 8400);
+  setTimeout(() => _revealOrb('eo-wallet'),   9400);
+  // Step 5 — reveal everything else after the workspace is warm.
+  setTimeout(() => {
+    EARTH_ORBS.forEach(o => _revealOrb(o.id));
+  }, 11_000);
 }
 window.addEventListener('load', () => setTimeout(_bootEarthOrbs, 600));
 window.addEventListener('resize', () => {
@@ -7627,6 +7718,10 @@ async function loadProfile() {
     prof = data;
   }
   if (prof) profile = prof;
+  // Intro sequence (§0n): the Me orb appears the moment identity
+  // resolves, regardless of whether the user signed in before or
+  // during the boot greeting.
+  try { window._revealOrb && window._revealOrb('eo-me'); } catch (_) {}
   subscribeInbox();
   loadDeliveryBadge();
   loadMessageBadge();
