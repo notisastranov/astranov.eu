@@ -1915,27 +1915,21 @@ Single-file by design. Any AI/human can continue from this comment + the law.
     width: 6px; height: 150px; accent-color: #7eb4ff; cursor: pointer; background: transparent;
   }
   /* ============================================================
-     BOOT VEIL — a clean loader. No festival. Just the wordmark, a
-     small breathing dot below it, and the dark void. Lifts the
-     moment Cesium paints the first frame.
+     BOOT VEIL — exactly two things: the ASTRANOV wordmark and a
+     standard rotating loader ring. No cosmos, no Earth, no
+     satellites. Lifts the moment Cesium paints.
      ============================================================ */
   #boot .cosmos {
-    position: relative; width: 32px; height: 32px; margin-bottom: 22px;
-    display: flex; align-items: center; justify-content: center;
+    position: relative; width: 28px; height: 28px; margin-bottom: 22px;
   }
-  #boot .earth {
-    position: absolute; width: 10px; height: 10px; border-radius: 50%;
-    background: #4aa6ff;
-    box-shadow:
-      0 0 6px #4aa6ff,
-      0 0 16px #1e6cff,
-      0 0 32px #0040d8;
-    animation: boot-dot 1.6s ease-in-out infinite;
+  #boot .loader {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 2px solid rgba(74,166,255,0.18);
+    border-top-color: #4aa6ff;
+    box-shadow: 0 0 14px rgba(74,166,255,0.45);
+    animation: boot-spin 0.95s linear infinite;
   }
-  @keyframes boot-dot {
-    0%,100% { transform: scale(0.85); opacity: 0.7; }
-    50%     { transform: scale(1.10); opacity: 1; }
-  }
+  @keyframes boot-spin { to { transform: rotate(360deg); } }
   #boot .name {
     font-family: 'Quicksand', system-ui, sans-serif;
     font-size: 21px; font-weight: 700;
@@ -2901,6 +2895,30 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   #aicycle-chat .msg .routed { margin-top: 6px; font-size: 9px; letter-spacing: 0.1em;
                         color: var(--dim); font-style: italic; opacity: 0.85;
                         border-top: 1px dashed rgba(212,160,71,0.18); padding-top: 4px; }
+  /* Manual Foundation Law §0k: visible mic + send buttons so the
+     user knows exactly what to tap. Voice is opt-in via the mic
+     button; the send button is the manual fallback for typing. */
+  #aicycle-chat .aci-btn {
+    flex: 0 0 auto; width: 38px; height: 38px; padding: 0;
+    border-radius: 50%; cursor: pointer;
+    background: rgba(8, 18, 38, 0.55);
+    border: 1px solid rgba(93, 178, 255, 0.5);
+    color: #cde7ff; font-size: 16px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.12s var(--ease), box-shadow 0.18s var(--ease);
+  }
+  #aicycle-chat .aci-btn:active { transform: scale(0.92); }
+  #aicycle-chat .aci-btn.primary {
+    background: rgba(20, 52, 120, 0.75);
+    border-color: rgba(93, 178, 255, 0.9);
+    box-shadow: 0 0 12px rgba(45, 108, 196, 0.55);
+  }
+  #aicycle-chat #aci-mic.listening {
+    border-color: #7eebb4;
+    color: #7eebb4;
+    box-shadow: 0 0 14px rgba(126, 235, 180, 0.7);
+  }
   #aicycle-chat form { display: flex; gap: 10px; padding: 12px; align-items: center;
                    border-top: 1px solid rgba(120, 180, 255, 0.1); }
   #aicycle-chat input { flex: 1; }
@@ -3964,9 +3982,9 @@ Single-file by design. Any AI/human can continue from this comment + the law.
 <!-- Me spotlight — a line from the on-screen Me orb to the user's location. -->
 <svg id="me-spotlight"><line id="me-spot-line" x1="0" y1="0" x2="0" y2="0"></line></svg>
 
-<!-- Boot veil — clean loader. -->
+<!-- Boot veil — wordmark + standard loader ring. Nothing else. -->
 <div id="boot">
-  <div class="cosmos"><div class="earth"></div></div>
+  <div class="cosmos"><div class="loader"></div></div>
   <div class="name">ASTRANOV</div>
 </div>
 
@@ -4070,7 +4088,9 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   <div id="aci-models"></div>
   <div class="messages" id="aicycle-messages"></div>
   <form id="aicycle-form" autocomplete="off">
-    <input id="aicycle-input" class="gadget-cmd" type="text" placeholder="Speak, or tap here to type…" style="margin-top:0;flex:1" />
+    <button id="aci-mic" type="button" class="aci-btn" title="Tap to talk · tap again to stop" aria-label="Microphone">🎙</button>
+    <input id="aicycle-input" class="gadget-cmd" type="text" placeholder="Tap mic to talk, or type here…" style="margin-top:0;flex:1" />
+    <button id="aci-send" type="submit" class="aci-btn primary" title="Send" aria-label="Send">↑</button>
   </form>
 </div>
 
@@ -7810,9 +7830,9 @@ async function pollInformantFeeds() {
           _externalFindings.set(id, arr); any = true;
         }
       }
-      // Ping the user — soft tone — when at least one informant got
-      // genuinely new news since the last poll. Not on every poll.
-      if (newSignals) { try { _pingAgent({ tone: 'soft' }); } catch (_) {} }
+      // No periodic audio ping. Notifications stay visual — the
+      // informant orb's glow / count badge does the job. The owner
+      // doesn't want the app beeping at them every 4 minutes.
       if (any && typeof renderInformants === 'function') renderInformants();
     }
   } catch (_) { /* network blip */ }
@@ -13407,6 +13427,31 @@ $('aicycle-messages')?.addEventListener('click', () => {
 })();
 
 // Submit handler
+// Manual mic toggle on the chat — §0k Manual Foundation Law. The
+// user taps the mic to start listening, taps again to stop. Visible
+// class change so they can SEE the mic is on. Stays purely opt-in;
+// no auto-recognition (which caused the iOS beep loop).
+(function _wireMicButton() {
+  const btn = document.getElementById('aci-mic');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    try {
+      if (typeof sessionOn !== 'undefined' && sessionOn) {
+        try { stopVoiceSession(); } catch (_) {}
+        btn.classList.remove('listening');
+      } else {
+        try { startVoiceSession(); } catch (_) {}
+        btn.classList.add('listening');
+      }
+    } catch (_) {}
+  });
+  // Reflect SpeechRecognition lifecycle on the button — when the
+  // session stops on its own (silence, error), the visual follows.
+  document.addEventListener('astranov:voice', (e) => {
+    if (!e || !e.detail) return;
+    btn.classList.toggle('listening', !!e.detail.on);
+  });
+})();
 $('aicycle-form').addEventListener('submit', async e => {
   e.preventDefault();
   const input = $('aicycle-input');
@@ -13808,11 +13853,15 @@ function _manualMode(msg) {
   // The user taps the input when they want to type.
 }
 
+function _emitVoiceState(on) {
+  try { document.dispatchEvent(new CustomEvent('astranov:voice', { detail: { on } })); } catch (_) {}
+}
 async function startVoiceSession() {
   if (!recognition) { _manualMode('Voice is not supported here — tap the field and type to me.'); return; }
   const ok = await _ensureMicMeter();
   if (!ok) { _manualMode('Microphone is blocked — tap the field and type to me.'); return; }
   sessionOn = true; _emptyTurns = 0;
+  _emitVoiceState(true);
   listenTurn();
 }
 function stopVoiceSession() {
@@ -13821,6 +13870,7 @@ function stopVoiceSession() {
   try { window.speechSynthesis?.cancel(); } catch (_) {}
   _speaking = false;
   $('aicycle-float')?.classList.remove('listening', 'speaking');
+  _emitVoiceState(false);
 }
 
 async function listenTurn() {
