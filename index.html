@@ -2190,6 +2190,36 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   }
   .moon-orb:active { transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.92); }
 
+  /* CHAT RE-OPEN TAB — small bottom-edge affordance. Hidden when
+     the chat is open; appears the moment it's closed. */
+  #chat-reopen {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: max(10px, calc(env(safe-area-inset-bottom) + 10px));
+    z-index: 200;
+    width: 64px; height: 22px;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    background:
+      radial-gradient(circle at 50% 50%,
+        rgba(74,166,255,0.35) 0%,
+        rgba(30,108,255,0.18) 45%,
+        rgba(0,26,102,0)      70%);
+    border-radius: 12px 12px 0 0;
+    border-top:    1px solid rgba(74,166,255,0.55);
+    border-left:   1px solid rgba(74,166,255,0.18);
+    border-right:  1px solid rgba(74,166,255,0.18);
+    display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: 3px;
+    transition: opacity 0.25s var(--ease);
+  }
+  #chat-reopen::after {
+    content: '◈';
+    color: #cde7ff;
+    font-size: 13px;
+    text-shadow: 0 0 6px #4aa6ff, 0 0 14px #1e6cff;
+  }
+  body.chat-open #chat-reopen { opacity: 0; pointer-events: none; }
+  #chat-reopen:active { transform: translateX(-50%) scale(0.94); }
+
   /* ZERO-UI ENFORCEMENT (§0o MATERIALISATION LAW). Cold boot = ONLY
      THE GLOBE. Every legacy "always visible" chrome element from
      prior rounds is hidden by default. Orbs are summoned through
@@ -3988,6 +4018,11 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   <div id="er-flash" aria-hidden="true"></div>
 </div>
 
+<!-- CHAT RE-OPEN TAB — a tiny bottom-edge handle so the chat is ALWAYS
+     one tap away even when the panel is closed. Manual Foundation Law
+     §0k: every AI affordance has a visible manual twin. -->
+<div id="chat-reopen" title="Open Astranov"></div>
+
 <!-- MOON — secondary base (§0n addendum). Visible to anyone who zooms
      out enough to see the wider cosmos. Holds the deeper / less-
      frequent orbs: Council of Thirteen, Krypteia, long-term Memory,
@@ -4923,16 +4958,17 @@ function onCameraSettled() {
   if (viewer) viewer.scene.globe.enableLighting = (newLevel === 'global');
 
   // BMNG day + Black Marble night are GLOBAL textures. At national/personal
-  // we hide them entirely so the street map (cityLayer) covers the visible
-  // area without any "satellite at night" bleed-through. They come back
-  // when we ascend to global.
+  // we hide them so the street map (cityLayer) covers the visible area
+  // without any "satellite at night" bleed-through.
   const showGlobeTextures = (newLevel === 'global');
   if (dayLayer)   dayLayer.show   = showGlobeTextures;
   if (nightLayer) nightLayer.show = showGlobeTextures;
-  // Also hide the green Natural-Earth fallback below global. If CARTO is
-  // slow/blocked, the user then sees the DARK globe (#02060d) with city
-  // beacons — never the blurry green "satellite mess" the owner reported.
-  if (baseLayer)  baseLayer.show  = showGlobeTextures;
+  // baseLayer (NaturalEarth) STAYS VISIBLE at every tier. Before this
+  // fix, hiding it at NATIONAL left a black globe whenever cityLayer
+  // hadn't loaded its tiles yet — exactly the "black screen, no
+  // boundaries" the owner saw. NaturalEarth gives the user real
+  // terrain + country shapes at NATIONAL while cityLayer streams in.
+  if (baseLayer)  baseLayer.show  = true;
 
   // At global, the four system agents are orbital (apex tier) and the
   // legacy corner gadgets vanish. At national/personal, the corners
@@ -6803,16 +6839,10 @@ function _runIntroSequence() {
       : "I'm Astranov. Say what you need, or sign in when you're ready."
     );
   }, 1200);
-  // Auto-dismiss the chat 6 s after greeting so it doesn't block the
-  // bottom of the globe. The user can re-open it any time via the
-  // mic / send buttons or by voice. The greeting message stays in
-  // the thread.
-  setTimeout(() => {
-    try {
-      if (typeof closeAstranov === 'function') closeAstranov();
-      else { const c = document.getElementById('aicycle-chat'); if (c) c.classList.remove('visible'); }
-    } catch (_) {}
-  }, 7500);
+  // NO auto-dismiss — the chat opens at input-bar height per its own
+  // Law (it doesn't pre-allocate space), and a #re-open tab is
+  // always visible so the user can summon it again with one tap if
+  // they swipe it away themselves.
   // ?demo=<name> runs the named scenario as a guided tour.
   try {
     const sp = new URLSearchParams(location.search);
@@ -13479,12 +13509,14 @@ function openAstranov() {
   aicycleChat.classList.add('visible');
   aicycleChat.style.height = ''; aicycleChat.style.maxHeight = '';
   window._manualToldUser = null;
+  try { document.body.classList.add('chat-open'); } catch (_) {}
   // Do NOT auto-focus the input. Auto-focus pops the mobile keyboard
   // and floods the screen. The user taps the input field explicitly
   // when they want to type.
 }
 function closeAstranov() {
   aicycleChat.classList.remove('visible');
+  try { document.body.classList.remove('chat-open'); } catch (_) {}
   try { clearInterval(window._astranovReengage); } catch (_) {}
   try { stopVoiceSession(); } catch (_) {}
   try { window.speechSynthesis?.cancel(); } catch (_) {}
@@ -13532,6 +13564,13 @@ $('aicycle-messages')?.addEventListener('click', () => {
 })();
 
 // Submit handler
+// Chat re-open tab — always one tap away (§0k Manual Foundation Law).
+(function _wireChatReopen() {
+  const tab = document.getElementById('chat-reopen');
+  if (!tab) return;
+  tab.addEventListener('click', () => { try { openAstranov(); } catch (_) {} });
+})();
+
 // Manual mic toggle on the chat — §0k Manual Foundation Law. The
 // user taps the mic to start listening, taps again to stop. Visible
 // class change so they can SEE the mic is on. Stays purely opt-in;
