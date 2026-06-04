@@ -14722,9 +14722,19 @@ async function _agentExec(act) {
       return { ok: false, error: 'unknown surface: ' + surface };
     }
     // Materialise / dematerialise — let the AI summon any orb on
-    // demand (§0o MATERIALISATION LAW).
+    // demand (§0o MATERIALISATION LAW). If the id is already in the
+    // dematerialised roster (Stellar Nav, future specialists), pull
+    // it from there so we keep its real act fn. Otherwise build an
+    // ad-hoc orb that opens whatever surface the brain named.
     if (tool === 'materialize_orb' || tool === 'orb') {
       try {
+        if (a.id && window._orbRoster && window._orbRoster.has(a.id)) {
+          const extra = {};
+          if (a.ttl_ms != null) extra.ttl = a.ttl_ms;
+          if (a.ring != null) extra.ring = a.ring;
+          window.summonOrb(a.id, extra);
+          return { ok: true, id: a.id, summonedFromRoster: true };
+        }
         window.materializeOrb({
           id: a.id || 'd-ai-' + Date.now(),
           ring: (a.ring != null) ? a.ring : 2,
