@@ -2960,6 +2960,12 @@ Single-file by design. Any AI/human can continue from this comment + the law.
     color: rgba(120,180,255,0.55); font-family: 'SF Mono',monospace;
     pointer-events: none; user-select: none; white-space: nowrap;
   }
+  #aicycle-subtitle {
+    font-size: 8px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: rgba(126,235,180,0.55); font-family: 'SF Mono',monospace;
+    pointer-events: none; user-select: none; margin-left: 8px;
+  }
+  #aicycle-subtitle:empty { display: none; }
   /* Model indicator strip inside ACI chat */
   #aci-models {
     display: flex; gap: 6px; padding: 6px 14px 4px; flex-wrap: wrap;
@@ -4198,7 +4204,7 @@ Single-file by design. Any AI/human can continue from this comment + the law.
 </div>
 <div id="panel"></div>
 <div id="aicycle-chat">
-  <div id="aicycle-drag-handle"><span id="aicycle-title">ASTRANOV COLLECTIVE INTELLIGENCE</span></div>
+  <div id="aicycle-drag-handle"><span id="aicycle-title">ASTRANOV</span><span id="aicycle-subtitle"></span></div>
   <div id="aci-models"></div>
   <div class="messages" id="aicycle-messages"></div>
   <form id="aicycle-form" autocomplete="off">
@@ -8988,6 +8994,16 @@ function updateIdentityOrb() {
   } catch (_) {}
   // Owner-only Moon orbs (Krypteia) appear / disappear with identity.
   try { if (typeof window.relayoutMoonOrbs === 'function') window.relayoutMoonOrbs(); } catch (_) {}
+  // Chat subtitle shows the signed-in name (or empty when anon).
+  try {
+    const sub = document.getElementById('aicycle-subtitle');
+    if (sub) {
+      const name = (profile && profile.display_name)
+                || (session && session.user && session.user.email && session.user.email.split('@')[0])
+                || '';
+      sub.textContent = name ? '· ' + name : '';
+    }
+  } catch (_) {}
   const orbEl = $('g-me');
   const glyphEl = $('g-me-glyph');
   if (!orbEl || !glyphEl) return;
