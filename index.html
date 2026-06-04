@@ -4636,7 +4636,18 @@ async function bootCesium() {
     _wireDepthGesture(viewer.scene.canvas);
 
     // Hide boot veil
-    setTimeout(() => $('boot').classList.add('gone'), 400);
+    // Dismiss the boot veil on Cesium's FIRST postRender frame — the
+    // exact moment the globe is on screen. Falls back to a 1.2 s
+    // timer in case postRender never fires (network / WebGL failure).
+    let _bootHidden = false;
+    const hideBoot = () => { if (_bootHidden) return; _bootHidden = true; $('boot').classList.add('gone'); };
+    try {
+      const dismiss = viewer.scene.postRender.addEventListener(() => {
+        hideBoot();
+        try { viewer.scene.postRender.removeEventListener(dismiss); } catch (_) {}
+      });
+    } catch (_) { hideBoot(); }
+    setTimeout(hideBoot, 1200);
   } catch (e) {
     fatal(e.message || String(e));
   }
