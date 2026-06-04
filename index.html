@@ -4196,7 +4196,11 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   <div class="messages" id="aicycle-messages"></div>
   <form id="aicycle-form" autocomplete="off">
     <button id="aci-mic" type="button" class="aci-btn" title="Tap to talk · tap again to stop" aria-label="Microphone">🎙</button>
-    <input id="aicycle-input" class="gadget-cmd" type="text" placeholder="Tap mic to talk, or type here…" style="margin-top:0;flex:1" />
+    <input id="aicycle-input" class="gadget-cmd" type="text"
+      autocomplete="off" autocapitalize="off" spellcheck="false"
+      enterkeyhint="send"
+      placeholder="Try: pizza · news · messages · call · wallet"
+      style="margin-top:0;flex:1;font-size:16px" />
     <button id="aci-send" type="submit" class="aci-btn primary" title="Send" aria-label="Send">↑</button>
   </form>
 </div>
