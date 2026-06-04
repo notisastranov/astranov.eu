@@ -1214,29 +1214,75 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   FRONTEND SUBSYSTEMS (all in index.html):
    • Tiers: one camera, GLOBAL>5,000km · NATIONAL 500–5,000km · PERSONAL<500km;
      cosmic zoom-out to 2,000,000km (star skybox). Tap empty globe = descend.
-   • Imagery: globe = NASA Blue/Black Marble (day/night terminator); below
-     global = CARTO Dark streets; green Natural-Earth fallback hidden below
-     global so a dark map shows if tiles lag.
-   • Orbs: informant cloud orbs in #tile-strip projected each frame
-     (_projectOrbs on postRender) — CLAMPED on-screen, crowd-shrink,
-     fling-to-dismiss (pinball _orbPhys*). Apex orbs: Me (initials, highest
-     orbit, info popup, screen-space spotlight), € Wallet, Pilot (home),
-     Astranov (chat), Discover (feed); guardian = Krypteia (owner) / Anonymous.
-   • City category orbs (§5k): PERSONAL tier #city-cats groups (Dining, Hotels,
-     Rentals…) → openCategoryPanel() lists real Overpass options + filter →
-     openPlacePanel (Route/Order). World + underwater city beacons at national.
-   • Marketplace: euro orders + euro delivery bounty (real settlement).
-   • Social: circles + group/1:1 WebRTC calls (STUN + Open Relay TURN).
-   • AI Cycle + DIAL: ring #aicycle-float shows engine; tap → console + dial
-     (AstranoV auto / All minds / lock one), persisted, sent every turn.
+     Tap empty globe with drawer open = close drawer first.
+   • Imagery: bundled Natural Earth II at boot (instant); BMNG + Black Marble
+     + day/night lighting lazy-load behind requestIdleCallback. baseLayer
+     stays visible at all tiers so NATIONAL never goes black.
+   • COLD BOOT = ZERO UI (§6 + §0o MATERIALISATION LAW). Globe + wordmark + AI
+     chat with time-of-day greeting + working-vocabulary hint. NOTHING else.
+     Orbs materialise on demand (user / AI / schedule).
+   • Permanent UI: globe, wordmark (Quicksand, deep-electric-blue glow, NO
+     box), chat-reopen tab at bottom-edge, back-to-globe chevron at non-global
+     tiers. That's it.
+   • Orbs (§0n v2 MOTHERSHIP LAW): Earth IS the mother. Three concentric rings
+     #earth-rings centred on screen; #moon-system at the celestial moon's
+     real position (Simon-1994 ephemeris, _moonOverlayTick). Moon hidden at
+     opacity 0 until body.cosmic-zoom (>20,000 km altitude). Moon ring carries
+     cold-base orbs: Council · Krypteia (owner) · Memory · Archive · DeBug
+     · Settings.
+   • Materialise / dematerialise (§0o): window.materializeOrb(def) creates a
+     dynamic orb in _dynamicOrbs + revealedOrbs; layout-by-usefulness places
+     it on its ring; TTL sweep dematerialises after expiresAt. The AI's
+     agent tool 'materialize_orb' calls this; the user's chat keywords trigger
+     it via _routeLocal.
+   • Dematerialised roster: window._orbRoster Map of specialist orbs the OS
+     knows but hasn't summoned (e.g. Stellar Nav for ship captains).
+     window.summonOrb(id) pulls from the roster and materialises with its
+     real act fn. The AI brain's materialize_orb tool checks the roster first.
+   • Local intent router: _routeLocal(text) catches one-word commands BEFORE
+     calling the brain. Catalogue: pizza/food/coffee/etc. (dive + auto-open
+     nearest vendor menu), news, messages, wallet, call, call NAME, message
+     NAME, home, where am I, sign in/up/out, help, stellar/captain. Greek
+     synonyms (πίτσα, νέα, μηνύματα, πορτοφόλι, σπίτι) match too.
+   • Stellar Navigation panel (openStellarNavPanel): position in nautical
+     DD°MM'SS", course heading + compass + knots from GPS speed buffer, Sun +
+     Moon altitude/azimuth via _toAltAz local ENU transform, moon phase +
+     illumination from Julian cycle.
+   • AICYCLE chat: form has visible 🎙 Mic + ↑ Send buttons (44 px tap
+     targets), enterkeyhint=send, 16 px font (iOS no-zoom). Mic button is
+     opt-in; clicks toggle voice. astranov:voice CustomEvent syncs the
+     button state with the session.
+   • Scenario engine (§Scenario Law): SCENARIOS catalogue (pizza_order,
+     morning_commute) runs via ?demo=<name>. Beat kinds: say · hear · reveal
+     · flyTo · panel · closePanel · run · judge · wait. _scenarioJudge emits
+     verdict: helpful? slow? next improvement.
+   • DeBug ORB (§Debug Orb Law): start/stop loop runs scenarios, judges
+     itself, queues verdicts. 13 AVC/h reward (window._DEBUG_RATE_PER_HOUR),
+     submit credits via /debug-credit Edge fn. Recording is a separate
+     opt-in. Slumber-aware: auto-pauses on tab hidden.
+   • Marketplace: place pin tap → openPlacePanel (info) for non-orderable
+     (museum / hotel / bank / medical), straight to _placeOrder for orderable
+     (food / cafe / bar / shop). Menu loads via vendor-menu Edge fn. Order
+     intake debits eur_balance (402 if insufficient → opens topup).
+   • Social: openMessagesPanel = inbox + "Start a new conversation" search
+     via find_peer RPC. openCallPickPanel = peers from message_inbox RPC,
+     tap → startCallTo (WebRTC over Supabase Realtime + STUN/TURN).
+   • Slumber (§Slumber Law): window._slumber controller pauses Cesium render,
+     orb physics, feed polling, GPS watch, ambient hum on tab hidden /
+     5-min idle. Wakes on visibility / focus / pointer / key.
    • App-name heal: #app-name tap → /diag + hard refresh (SW unregister).
 
   EDGE FUNCTIONS (purpose):
-   aicycle = THE BRAIN. Default routes ONE model by specialty (perplexity=fresh,
-     deepseek=reasoning, groq=fast, anthropic=owner) AND auto-scales depth by
-     problem LEVEL (1 / 2 / all+judge). engine=lock; engine:'all'/escalate=force
-     ensemble+judge; agent:true=tool-use loop (locate/find_places/show_place/
-     navigate/order). pgvector memory via match_memories; "remember…" stores.
+   aicycle (v33) = THE BRAIN. Specialty + level routing across 9 model
+     organs (anthropic, openrouter, groq, gemini, deepseek, mistral, xai,
+     together, perplexity, cohere). agent:true → tool-use loop. Tools now:
+     locate · find_places · show_place · navigate · order · open(surface) ·
+     materialize_orb(id/def) · dematerialize_orb. open surfaces: news,
+     messages, wallet, call, order, home, signin, topup, debug. AGENT_PROTOCOL
+     in system prompt teaches the brain the Materialisation Law spirit.
+   debug-credit (v1) = JWT-verified. seconds × ratePerHour / 3600 → AVC
+     credit via credit_avc() RPC. Caps: 24 h per submission, 50 AVC/h max.
+     Inserts compute_contributions row with optional verdict queue.
    ai-status = dial/console data (connected engines, stats, suggestions, order).
    diag = app-name + runtime-error diagnostics → security_events.
    order-intake = recompute total, debit eur (order_debit_eur, 402 if short),
@@ -1250,9 +1296,7 @@ Single-file by design. Any AI/human can continue from this comment + the law.
    payments + stripe/revolut/paypal (+ -webhook) = 3 rails, credit eur_balance
      + 3% royalty. tamper = anti-theft log. push-notify = web push.
    seed-bots = dev tool: 3 persona users (Athena/Spartan/Myrmidon, profiles
-     .is_bot=true) generate FREE sample data (signals, a circle, follows,
-     messages, a euro delivery bounty); no paid AI; capped+idempotent; POST
-     {purge:true} removes them. Filter bots via profiles.is_bot.
+     .is_bot=true) generate FREE sample data; POST {purge:true} removes them.
 
 
   DATABASE (Postgres + RLS): profiles (eur_balance+avc_balance+is_owner are
@@ -1279,15 +1323,47 @@ Single-file by design. Any AI/human can continue from this comment + the law.
    git push origin main (Vercel builds) → verify marker on astranov.eu.
    Backend via Supabase MCP on project lkoatrkhuigdolnjsbie, then advisors.
 
-③ STATE / NEXT: Built & live — globe+tiers+imagery, orbs (pinball/clamp/shrink),
-  Me orb, city category orbs, world+underwater beacons, cosmic zoom, euro
-  marketplace (orders+delivery bounty), circles+calls (TURN), the AstranoV
-  ensemble brain (specialty+level routing, judge, dial), agent loop, memory,
-  app-name heal, payment rails, security lockdown. KNOWN: Overpass rate-limits
-  cloud IPs (crawler slow; a dedicated Overpass/bulk OSM extract densifies
-  fast) · vendor orders lack real merchants (deliveries are the real peer txn) ·
-  DeepSeek key needs prepaid balance · the two-human core loop (sign up → order
-  → call) is NOT yet exercised end-to-end — do that before scaling.
+③ STATE / NEXT: Built & live —
+   • Cold-boot Zero UI (globe + wordmark + AI chat).
+   • Four pillars reachable from one word (pizza/news/messages/call/wallet),
+     each with manual surface + AI tool-call equivalent.
+   • Stellar Navigation (advanced, dematerialised by default).
+   • Earth-as-mother + 3 orbit rings + Moon at real celestial position.
+   • DeBug ORB pays 13 AVC/h via /debug-credit; AVC visible in non-owner
+     wallet.
+   • Greek synonyms in the intent router.
+   • Scenario engine + judge loop; pizza_order scenario runnable via
+     ?demo=pizza_order.
+   • Tap-globe-to-close drawer; chat auto-scroll respects user scroll;
+     drag-close fires closeAstranov; back-to-globe fades in/out.
+   • Privacy: history clears on sign-out; messages findable via find_peer
+     RPC.
+  KNOWN GAPS (end-to-end untested from server-side build env):
+   • Real Stripe webhook → AVC credit
+   • Real WebRTC call connect (audio/video)
+   • Real driver acceptance + delivery handoff
+   • End-to-end Greek messaging flow
+  Test all of these on a real device with two accounts before going wide.
+
+④ NEW LAWS shipped in the last batch — read CLAUDE.md / MASTER LAW above for
+   full text:
+   • §0i CATCH-UP — adopt proven UX patterns; innovate only at the unfinished
+     frontier; cite prior art before shipping.
+   • §0j AI-IN-CONTEXT — affordances surface through the AI text box.
+   • §0k MANUAL FOUNDATION — every AI action has a visible manual twin.
+   • §0L BOTTOM DRAWER — single transient surface for menus / pickers.
+   • §0m ORBITAL DIAL — tap orb = radial roulette; drag orb = trackball;
+     dial spins with momentum like a real jog wheel.
+   • §0n v2 MOTHERSHIP — Earth is the mother; 3 rings around her; live-
+     arrangement by usefulness (0° top = most useful, 180°+ = useless).
+     Moon = secondary base, hidden until cosmic zoom.
+   • §0o MATERIALISATION — AI summons orbs ex nihilo; user can fling them out
+     of orbit. NO fixed catalog of windows / menus / tiles. Panels for CONTENT
+     only.
+   • §13e SLUMBER — every long-running RAF / interval / GPS watch must
+     register a sleeper via window._slumber.
+   • Three tiers of EVOLUTION: Architect (laws/direction) → Programmer
+     (catch-up + ship surfaces) → User (drives evolution by use).
 ================================================================================
 -->
 <html lang="en">
