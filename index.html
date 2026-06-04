@@ -6476,8 +6476,9 @@ function _scenarioSpeak(text) {
 function _scenarioHear(text) {
   // The user "would have said" this. Show it in the chat so the
   // user sees what their voice would have been transcribed to.
+  // Uses role 'user' (matches the CSS .msg.user style).
   try {
-    if (typeof appendAICycleMessage === 'function') appendAICycleMessage('me', text, '', '');
+    if (typeof appendAICycleMessage === 'function') appendAICycleMessage('user', text, '', '');
   } catch (_) {}
 }
 function _scenarioFlyTo(opts) {
