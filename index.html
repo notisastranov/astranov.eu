@@ -210,6 +210,15 @@ This block strives to get shorter, more inclusive, more precise with every edit.
       at genuine cosmic altitude.
     Combined with the Zero UI Law §6 this is the CLOSING law on the
     UI battle.
+    DIFFERENTIATOR (binding restatement): every other OS uses
+    WINDOWS, APP TILES, and BIG MENUS. AstranoV uses ORBS. A
+    launcher is not a chip row in a panel; it is orbs around the
+    globe. A picker is not a dropdown; it is an orbital dial on an
+    orb. If a builder catches themselves designing a tile-grid or
+    tab strip, they have regressed — replace with materialised
+    orbs. Panels are reserved for CONTENT (a menu, a message
+    thread, a wallet ledger). Launchers, pickers, filters,
+    menus → orbs.
 
 0n. MOTHERSHIP LAW v2 — EARTH IS THE MOTHERSHIP (binding, never regress)
     Earth (the Cesium globe centred on screen) IS the OS centerpiece.
@@ -2075,7 +2084,14 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   #earth-rings .er-ring {
     position: absolute; left: 0; top: 0;
     width: 0; height: 0; pointer-events: none;
+    /* User rotation — set by JS during drag with trackball physics
+       (see _wireRingSpin). Orbs translate(dx,dy) inside; the ring
+       rotates as a whole. */
+    transform: rotate(var(--ring-rot, 0deg));
+    transition: transform 0.18s var(--ease);
+    will-change: transform;
   }
+  #earth-rings .er-ring.spinning { transition: none; }
   /* No dashed orbit tracks. Orbs alone read as the rings — chrome
      stays out of the way. */
   /* Each orb on a ring. Positioned at its --dx, --dy (computed from
@@ -2189,31 +2205,6 @@ Single-file by design. Any AI/human can continue from this comment + the law.
     text-shadow: 0 0 4px color-mix(in srgb, var(--mc, #a0b4d8) 70%, transparent);
   }
   .moon-orb:active { transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.92); }
-
-  /* Home chips inside the chat — the four pillars made tappable.
-     Marketplace · News · Messages · Calls · Wallet, all reachable
-     from cold boot in one tap. */
-  .home-chips {
-    display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px;
-  }
-  .home-chips .hc {
-    flex: 0 0 auto;
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 8px 12px; border-radius: 14px;
-    background: rgba(8, 18, 38, 0.55);
-    border: 1px solid rgba(74, 166, 255, 0.4);
-    color: #cde7ff; font-size: 12px; font-weight: 600;
-    letter-spacing: 0.04em;
-    cursor: pointer; -webkit-tap-highlight-color: transparent;
-    user-select: none;
-    transition: transform 0.12s var(--ease), box-shadow 0.18s var(--ease);
-  }
-  .home-chips .hc:active { transform: scale(0.95); }
-  .home-chips .hc:hover {
-    border-color: rgba(74, 166, 255, 0.9);
-    box-shadow: 0 0 14px rgba(45, 108, 196, 0.4);
-  }
-  .home-chips .hcg { font-size: 14px; line-height: 1; }
 
   /* CHAT RE-OPEN TAB — small bottom-edge affordance. Hidden when
      the chat is open; appears the moment it's closed. */
@@ -6266,12 +6257,13 @@ function _layoutEarthOrbs() {
         el.title = orb.label;
         const g = typeof orb.glyph === 'function' ? orb.glyph() : orb.glyph;
         el.textContent = g;
-        el.addEventListener('pointerup', (e) => {
-          // No drag → tap action.
-          if (!el._dragged) { try { orb.act(); } catch (_) {} }
-          el._dragged = false;
+        // Tap action — only fires if no spin-drag happened. The
+        // spin handler swallows clicks for 200 ms after a drag.
+        el.addEventListener('click', (e) => {
+          try { orb.act(); } catch (_) {}
         });
         ringEl.appendChild(el);
+        try { _wireRingSpin(el, ri); } catch (_) {}
       } else if (orb.id === 'eo-me') {
         // Keep Me orb's initials in sync.
         el.textContent = _meInitials();
@@ -6853,18 +6845,17 @@ function _astranovIntro(text) {
 }
 function _runIntroSequence() {
   if (window._introRan) return; window._introRan = true;
-  // Cold boot greets, then offers the 4 pillars right inside the
-  // chat as one-tap chips — the marketplace + news + messages +
-  // video calls "made easy" promise of the app. Manual Foundation
-  // Law §0k: every chip is a visible affordance the user can drive
-  // without voice.
+  // Cold boot greets in the chat, then MATERIALISES the four pillars
+  // as orbs around the globe (§0o MATERIALISATION LAW). Not chips in
+  // a panel — orbs in space. The user reaches every core capability
+  // by tapping an orb the AI summoned the moment it was needed.
   setTimeout(() => {
     const signedIn = !!(typeof session !== 'undefined' && session);
     _astranovIntro(signedIn
-      ? "Welcome back. What do you need?"
-      : "I'm Astranov. Say what you need, or tap one of these:"
+      ? "Welcome back. Tap an orb, or say what you need."
+      : "I'm Astranov. Tap an orb, or say what you need."
     );
-    setTimeout(() => _appendHomeChips(), 200);
+    setTimeout(() => _materializePillars(), 300);
   }, 1200);
   // ?demo=<name> runs the named scenario as a guided tour.
   try {
@@ -6876,38 +6867,126 @@ function _runIntroSequence() {
   } catch (_) {}
 }
 
-// The four pillars as chips inside the chat. Each one routes to a
-// surface that already works end-to-end on the backend; this is
-// the discoverable launcher the cold boot was missing.
-function _appendHomeChips() {
-  const box = document.getElementById('aicycle-messages');
-  if (!box) return;
-  const row = document.createElement('div');
-  row.className = 'home-chips';
-  row.innerHTML = `
-    <div class="hc" data-act="order"   data-affordance="home-chip-order"><span class="hcg">🛒</span><span>Order</span></div>
-    <div class="hc" data-act="news"    data-affordance="home-chip-news"><span class="hcg">📰</span><span>News</span></div>
-    <div class="hc" data-act="msg"     data-affordance="home-chip-msg"><span class="hcg">✉</span><span>Messages</span></div>
-    <div class="hc" data-act="call"    data-affordance="home-chip-call"><span class="hcg">◈</span><span>Call</span></div>
-    <div class="hc" data-act="wallet"  data-affordance="home-chip-wallet"><span class="hcg">€</span><span>Wallet</span></div>
-  `;
-  box.appendChild(row);
-  row.querySelectorAll('.hc').forEach(el => {
-    el.addEventListener('click', () => {
-      const act = el.dataset.act;
-      try { closeAstranov(); } catch (_) {}
-      try {
-        if (act === 'order')  openFeedPanel();
-        if (act === 'news')   openFeedPanel();
-        if (act === 'msg')    openMessagesPanel();
-        if (act === 'wallet') openWalletPanel();
-        if (act === 'call')   openCallPickPanel();
-      } catch (_) {}
-    });
+// The four pillars become orbs around the globe — Marketplace, News
+// Delivery, Social Messaging, Video Calls — plus a Wallet on the
+// inner ring for money. Materialised once by the AI on first boot;
+// the user can fling them away or the AI can dematerialise them
+// when context shifts (§0o).
+function _materializePillars() {
+  const pillars = [
+    { id: 'p-order',  ring: 1, color: '#ffd47e', glyph: '🛒', label: 'Order',    act: () => { try { openFeedPanel();      } catch (_) {} } },
+    { id: 'p-news',   ring: 2, color: '#5db2ff', glyph: '📰', label: 'News',     act: () => { try { openFeedPanel();      } catch (_) {} } },
+    { id: 'p-msg',    ring: 1, color: '#a0c6ff', glyph: '✉',  label: 'Messages', act: () => { try { openMessagesPanel();  } catch (_) {} } },
+    { id: 'p-call',   ring: 1, color: '#7eebb4', glyph: '◈',  label: 'Call',     act: () => { try { openCallPickPanel();  } catch (_) {} } },
+    { id: 'p-wallet', ring: 0, color: '#ffd47e', glyph: '€',  label: 'Wallet',   act: () => { try { openWalletPanel();    } catch (_) {} } },
+  ];
+  pillars.forEach(p => {
+    try { window.materializeOrb && window.materializeOrb(p); } catch (_) {}
   });
-  try { box.scrollTop = box.scrollHeight; } catch (_) {}
 }
-window._appendHomeChips = _appendHomeChips;
+window._materializePillars = _materializePillars;
+
+/* ==============================================================
+   RING SPIN — user can rotate any of the three Earth rings by
+   grabbing one of its orbs and dragging around. Trackball physics
+   (angular momentum + friction + settle). Layout-by-usefulness
+   keeps updating underneath; the user's rotation is a free offset
+   on top.
+   ============================================================== */
+const _ringSpinState = [
+  { rot: 0, vel: 0, raf: 0 },
+  { rot: 0, vel: 0, raf: 0 },
+  { rot: 0, vel: 0, raf: 0 },
+];
+function _applyRingRotation(idx) {
+  const host = document.getElementById('earth-rings');
+  if (!host) return;
+  const ring = host.querySelector(`.er-ring[data-ring="${idx}"]`);
+  if (!ring) return;
+  ring.style.setProperty('--ring-rot', _ringSpinState[idx].rot.toFixed(2) + 'deg');
+}
+function _wireRingSpin(orbEl, ringIdx) {
+  if (orbEl.__spinWired) return; orbEl.__spinWired = true;
+  let pid = 0, downX = 0, downY = 0, lastAng = 0, lastT = 0, dragging = false;
+  const centre = () => {
+    const host = document.getElementById('earth-rings');
+    if (!host) return { x: innerWidth / 2, y: innerHeight / 2 };
+    const r = host.getBoundingClientRect();
+    return { x: r.left, y: r.top };
+  };
+  const down = (e) => {
+    if (_ringSpinState[ringIdx].raf) { cancelAnimationFrame(_ringSpinState[ringIdx].raf); _ringSpinState[ringIdx].raf = 0; }
+    pid = e.pointerId;
+    try { orbEl.setPointerCapture(pid); } catch (_) {}
+    downX = e.clientX; downY = e.clientY;
+    const c = centre();
+    lastAng = Math.atan2(e.clientY - c.y, e.clientX - c.x);
+    lastT = performance.now();
+    dragging = false;
+    const host = document.getElementById('earth-rings');
+    const ring = host && host.querySelector(`.er-ring[data-ring="${ringIdx}"]`);
+    if (ring) ring.classList.add('spinning');
+  };
+  const move = (e) => {
+    if (e.pointerId !== pid) return;
+    if (!dragging) {
+      const dx = e.clientX - downX, dy = e.clientY - downY;
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) dragging = true;
+      else return;
+    }
+    const c = centre();
+    const ang = Math.atan2(e.clientY - c.y, e.clientX - c.x);
+    let dAng = ang - lastAng;
+    if (dAng >  Math.PI) dAng -= Math.PI * 2;
+    if (dAng < -Math.PI) dAng += Math.PI * 2;
+    const now = performance.now();
+    const dt = Math.max(1, now - lastT);
+    const degPerMs = (dAng * 180 / Math.PI) / dt;
+    _ringSpinState[ringIdx].vel = _ringSpinState[ringIdx].vel * 0.45 + degPerMs * 0.55;
+    _ringSpinState[ringIdx].rot += dAng * 180 / Math.PI;
+    _applyRingRotation(ringIdx);
+    lastAng = ang; lastT = now;
+    // Don't fire the orb's tap action — this is a spin.
+    e.stopPropagation();
+  };
+  const up = (e) => {
+    if (e.pointerId !== pid) return;
+    try { orbEl.releasePointerCapture(pid); } catch (_) {}
+    pid = 0;
+    const host = document.getElementById('earth-rings');
+    const ring = host && host.querySelector(`.er-ring[data-ring="${ringIdx}"]`);
+    if (ring) ring.classList.remove('spinning');
+    if (!dragging) return;   // pure tap — let the orb's click fire
+    // Fling with momentum.
+    const velPerFrame = _ringSpinState[ringIdx].vel * 16.67;   // deg/frame
+    if (Math.abs(velPerFrame) > 0.4) _spinRing(ringIdx, velPerFrame);
+    // Swallow the click so the orb's tap action doesn't fire after a spin.
+    e.stopPropagation();
+    const swallow = (ev) => { ev.stopPropagation(); ev.preventDefault(); orbEl.removeEventListener('click', swallow, true); };
+    orbEl.addEventListener('click', swallow, true);
+    setTimeout(() => orbEl.removeEventListener('click', swallow, true), 200);
+  };
+  orbEl.addEventListener('pointerdown',  down);
+  orbEl.addEventListener('pointermove',  move);
+  orbEl.addEventListener('pointerup',    up);
+  orbEl.addEventListener('pointercancel', up);
+}
+function _spinRing(ringIdx, velPerFrame) {
+  const MAX = 22, FRICTION = 0.93, STOP = 0.06;
+  if (velPerFrame >  MAX) velPerFrame =  MAX;
+  if (velPerFrame < -MAX) velPerFrame = -MAX;
+  const step = () => {
+    _ringSpinState[ringIdx].rot += velPerFrame;
+    _applyRingRotation(ringIdx);
+    velPerFrame *= FRICTION;
+    if (Math.abs(velPerFrame) > STOP) {
+      _ringSpinState[ringIdx].raf = requestAnimationFrame(step);
+    } else {
+      _ringSpinState[ringIdx].raf = 0;
+    }
+  };
+  _ringSpinState[ringIdx].raf = requestAnimationFrame(step);
+}
 
 // Lightweight call picker — lists recent peers + lets you search by
 // name. Calls startCallTo() per the existing WebRTC pipeline.

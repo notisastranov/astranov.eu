@@ -268,6 +268,17 @@ intent ("show me news at 8 am"); the Builders ship `materialize` /
 `dematerialize`; the User experiences orbs that *just appear when
 they should and disappear when they shouldn't.*
 
+**The differentiator (binding restatement):** every other OS in the
+world surfaces capabilities through **windows, app tiles, and huge
+menus**. AstranoV does it through **orbs**. A launcher is not a chip
+row in a panel; it's orbs around the globe. A picker is not a
+dropdown; it's an orbital dial on an orb. Any time the architect
+or the builders catch themselves designing a tile-grid or a tab
+strip, they have regressed — replace it with materialised orbs.
+Panels are reserved for CONTENT (the menu of a restaurant, a
+message thread, a wallet ledger). Launchers, pickers, filters,
+menus → ORBS.
+
 ## SCENARIO LAW — the OS demonstrates its own competence (binding)
 Every binding capability must be exercisable as a runnable **scenario**:
 a beat-list the system performs against its real surfaces (AI speaks,
