@@ -11266,12 +11266,13 @@ function onCanvasClick(click) {
   if (picked?.primitive?.__placeId) {
     const entry = placeIndex.get(picked.primitive.__placeId);
     if (entry) {
-      // 5-click order path: globe → national → city → vendor → + → Order.
-      // Tap vendor jumps straight to the ORDER panel (menu + cart),
-      // skipping the info card. _placeOrder seeds _currentPlace and
-      // auto-loads the menu so the user can tap + immediately.
+      // 5-click order path for ORDERABLE categories (food, café, bar,
+      // shop, supermarket): tap vendor → straight to ORDER panel
+      // (menu + cart), bypass the info card.
+      // Non-orderable categories (museum, attraction, hotel, bank,
+      // medical) open the INFO card instead — there's nothing to add
+      // to a cart for a museum.
       try {
-        // Seed _currentPlace from the pin so _placeOrder has its info.
         const p = entry.place;
         const t = p.tags || {};
         const catKey = _catKey(t);
@@ -11280,11 +11281,14 @@ function onCanvasClick(click) {
           catKey, info, phone: t.phone || '', website: t.website || '',
           hours: t.opening_hours || '', cuisine: t.cuisine || '',
           _lat: Number(p.lat), _lng: Number(p.lon) };
+        const orderable = /^(food|cafe|bar|shop|supermarket)$/.test(catKey);
+        if (orderable) {
+          _placeOrder();
+          setTimeout(() => { try { if (window._menu == null) _loadMenu(); } catch (_) {} }, 240);
+        } else {
+          openPlacePanel(p);   // info card; user can still tap ORDER inside if they want
+        }
       } catch (_) {}
-      try { _placeOrder(); } catch (_) {}
-      // Compose the menu in the background so + buttons appear without
-      // a second tap.
-      setTimeout(() => { try { if (window._menu == null) _loadMenu(); } catch (_) {} }, 240);
     }
     return;
   }
