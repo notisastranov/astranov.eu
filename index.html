@@ -2190,6 +2190,31 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   }
   .moon-orb:active { transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.92); }
 
+  /* Home chips inside the chat — the four pillars made tappable.
+     Marketplace · News · Messages · Calls · Wallet, all reachable
+     from cold boot in one tap. */
+  .home-chips {
+    display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px;
+  }
+  .home-chips .hc {
+    flex: 0 0 auto;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 12px; border-radius: 14px;
+    background: rgba(8, 18, 38, 0.55);
+    border: 1px solid rgba(74, 166, 255, 0.4);
+    color: #cde7ff; font-size: 12px; font-weight: 600;
+    letter-spacing: 0.04em;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    transition: transform 0.12s var(--ease), box-shadow 0.18s var(--ease);
+  }
+  .home-chips .hc:active { transform: scale(0.95); }
+  .home-chips .hc:hover {
+    border-color: rgba(74, 166, 255, 0.9);
+    box-shadow: 0 0 14px rgba(45, 108, 196, 0.4);
+  }
+  .home-chips .hcg { font-size: 14px; line-height: 1; }
+
   /* CHAT RE-OPEN TAB — small bottom-edge affordance. Hidden when
      the chat is open; appears the moment it's closed. */
   #chat-reopen {
@@ -6828,21 +6853,19 @@ function _astranovIntro(text) {
 }
 function _runIntroSequence() {
   if (window._introRan) return; window._introRan = true;
-  // §0o MATERIALISATION LAW + §6 ZERO UI LAW: cold boot = ONLY the
-  // globe. The AI introduces itself in the chat, then closes so the
-  // globe is fully tappable for the 5-click manual order path
-  // (globe → national → city → vendor → + → Order).
+  // Cold boot greets, then offers the 4 pillars right inside the
+  // chat as one-tap chips — the marketplace + news + messages +
+  // video calls "made easy" promise of the app. Manual Foundation
+  // Law §0k: every chip is a visible affordance the user can drive
+  // without voice.
   setTimeout(() => {
     const signedIn = !!(typeof session !== 'undefined' && session);
     _astranovIntro(signedIn
-      ? "I'm Astranov. Welcome back — say what you need."
-      : "I'm Astranov. Say what you need, or sign in when you're ready."
+      ? "Welcome back. What do you need?"
+      : "I'm Astranov. Say what you need, or tap one of these:"
     );
+    setTimeout(() => _appendHomeChips(), 200);
   }, 1200);
-  // NO auto-dismiss — the chat opens at input-bar height per its own
-  // Law (it doesn't pre-allocate space), and a #re-open tab is
-  // always visible so the user can summon it again with one tap if
-  // they swipe it away themselves.
   // ?demo=<name> runs the named scenario as a guided tour.
   try {
     const sp = new URLSearchParams(location.search);
@@ -6852,6 +6875,87 @@ function _runIntroSequence() {
     }
   } catch (_) {}
 }
+
+// The four pillars as chips inside the chat. Each one routes to a
+// surface that already works end-to-end on the backend; this is
+// the discoverable launcher the cold boot was missing.
+function _appendHomeChips() {
+  const box = document.getElementById('aicycle-messages');
+  if (!box) return;
+  const row = document.createElement('div');
+  row.className = 'home-chips';
+  row.innerHTML = `
+    <div class="hc" data-act="order"   data-affordance="home-chip-order"><span class="hcg">🛒</span><span>Order</span></div>
+    <div class="hc" data-act="news"    data-affordance="home-chip-news"><span class="hcg">📰</span><span>News</span></div>
+    <div class="hc" data-act="msg"     data-affordance="home-chip-msg"><span class="hcg">✉</span><span>Messages</span></div>
+    <div class="hc" data-act="call"    data-affordance="home-chip-call"><span class="hcg">◈</span><span>Call</span></div>
+    <div class="hc" data-act="wallet"  data-affordance="home-chip-wallet"><span class="hcg">€</span><span>Wallet</span></div>
+  `;
+  box.appendChild(row);
+  row.querySelectorAll('.hc').forEach(el => {
+    el.addEventListener('click', () => {
+      const act = el.dataset.act;
+      try { closeAstranov(); } catch (_) {}
+      try {
+        if (act === 'order')  openFeedPanel();
+        if (act === 'news')   openFeedPanel();
+        if (act === 'msg')    openMessagesPanel();
+        if (act === 'wallet') openWalletPanel();
+        if (act === 'call')   openCallPickPanel();
+      } catch (_) {}
+    });
+  });
+  try { box.scrollTop = box.scrollHeight; } catch (_) {}
+}
+window._appendHomeChips = _appendHomeChips;
+
+// Lightweight call picker — lists recent peers + lets you search by
+// name. Calls startCallTo() per the existing WebRTC pipeline.
+async function openCallPickPanel() {
+  try {
+    openPanel(`<h2>Call</h2>
+      <div class="subtitle">SOMEONE YOU KNOW · TAP TO RING</div>
+      <div id="call-pick-body" style="font-size:12px;color:#a8c8ee;padding:10px 0">Loading recent…</div>`);
+    if (!sb || !session) {
+      const b = document.getElementById('call-pick-body');
+      if (b) b.innerHTML = '<div style="color:#ff9e9e">Sign in to call.</div>';
+      return;
+    }
+    // Recent peers from messages, deduped.
+    let peers = [];
+    try {
+      const { data } = await sb.from('messages')
+        .select('recipient_id, author_id, recipient:profiles!messages_recipient_id_fkey(id,display_name), author:profiles!messages_author_id_fkey(id,display_name)')
+        .or(`author_id.eq.${session.user.id},recipient_id.eq.${session.user.id}`)
+        .order('created_at', { ascending: false }).limit(40);
+      const seen = new Set();
+      (data || []).forEach(r => {
+        const other = r.author_id === session.user.id ? r.recipient : r.author;
+        if (!other || !other.id || other.id === session.user.id) return;
+        if (seen.has(other.id)) return; seen.add(other.id);
+        peers.push(other);
+      });
+    } catch (_) {}
+    const b = document.getElementById('call-pick-body');
+    if (!b) return;
+    if (peers.length === 0) {
+      b.innerHTML = '<div style="color:#6a8aaf">No recent conversations. Open Messages, start one, then come back to call.</div>';
+      return;
+    }
+    b.innerHTML = peers.map(p =>
+      `<div class="row" style="cursor:pointer" data-peer="${escapeHtml(p.id)}" data-name="${escapeHtml(p.display_name || 'Friend')}">
+         <span>${escapeHtml(p.display_name || 'Friend')}</span>
+         <span style="color:#7eebb4">◈ call</span>
+       </div>`
+    ).join('');
+    b.querySelectorAll('[data-peer]').forEach(row => {
+      row.addEventListener('click', () => {
+        try { startCallTo(row.dataset.peer, row.dataset.name); } catch (_) {}
+      });
+    });
+  } catch (_) {}
+}
+window.openCallPickPanel = openCallPickPanel;
 window.addEventListener('load', () => setTimeout(_bootEarthOrbs, 600));
 window.addEventListener('resize', () => {
   try { _layoutEarthOrbs(); } catch (_) {}
