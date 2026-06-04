@@ -14565,7 +14565,16 @@ function _routeLocal(raw) {
       () => signedIn ? openMessagesPanel() : openYouPanel());
     return true;
   }
-  if (/\b(wallet|balance|money|euros|avc|coins|payment|pay|top\s*up|πορτοφόλι|λεφτά|χρήματα|ευρώ|πληρωμή)\b/.test(text)) {
+  // "top up" / "add money" / "buy euros" → straight to the buy
+  // surface, not the wallet ledger. Saves one tap when the intent
+  // is clearly to fund the account.
+  if (/\b(top\s*up|add money|buy euros|αγορά ευρώ|προσθεσε λεφτα|γεμισε πορτοφολι)\b/i.test(text)) {
+    const signedIn = !!(typeof session !== 'undefined' && session);
+    _routedFire(signedIn ? 'Opening top-up.' : 'Sign in first, then top up.',
+      () => signedIn ? openBuyAVC() : openYouPanel());
+    return true;
+  }
+  if (/\b(wallet|balance|money|euros|avc|coins|payment|pay|πορτοφόλι|λεφτά|χρήματα|ευρώ|πληρωμή)\b/.test(text)) {
     const signedIn = !!(typeof session !== 'undefined' && session);
     _routedFire(signedIn ? 'Opening your wallet.' : 'Sign in to see your wallet.',
       () => signedIn ? openWalletPanel() : openYouPanel());
