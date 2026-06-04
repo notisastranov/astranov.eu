@@ -7328,6 +7328,17 @@ window.registerDematerialisedOrb({
   source: 'captain.stellar',
 });
 
+// Register the four pillars + wallet so the AI brain can summon
+// them by short id ('news', 'order', 'messages', 'call', 'wallet')
+// via materialize_orb({ id: 'news' }) — no need to specify the
+// surface separately. Each one's act fn fires the real surface.
+window.registerDematerialisedOrb({ id: 'news',     ring: 2, color: '#5db2ff', glyph: '📰', label: 'News',     act: () => openFeedPanel() });
+window.registerDematerialisedOrb({ id: 'order',    ring: 1, color: '#ffd47e', glyph: '🛒', label: 'Order',    act: () => diveToMe() });
+window.registerDematerialisedOrb({ id: 'messages', ring: 1, color: '#a0c6ff', glyph: '✉',  label: 'Messages', act: () => openMessagesPanel() });
+window.registerDematerialisedOrb({ id: 'call',     ring: 1, color: '#7eebb4', glyph: '◈',  label: 'Call',     act: () => openCallPickPanel() });
+window.registerDematerialisedOrb({ id: 'wallet',   ring: 0, color: '#ffd47e', glyph: '€',  label: 'Wallet',   act: () => openWalletPanel() });
+window.registerDematerialisedOrb({ id: 'debug',    ring: 2, color: '#7eebb4', glyph: '◉',  label: 'DeBug',    act: () => openDebugPanel() });
+
 /* ==============================================================
    RING SPIN — user can rotate any of the three Earth rings by
    grabbing one of its orbs and dragging around. Trackball physics
