@@ -14131,9 +14131,35 @@ function _routedFire(line, fn) {
 // Returns true if the text was matched and a surface fired.
 function _routeLocal(raw) {
   const text = raw.toLowerCase().trim();
-  if (/\b(pizza|burger|sushi|kebab|coffee|tea|wine|beer|food|eat|hungry|order|delivery|deliver|drink)\b/.test(text)) {
-    _routedFire("Showing you what's open nearby.", () => {
-      try { diveToMe(); } catch (_) { try { startLocate(); } catch (_) {} }
+  const foodMatch = text.match(/\b(pizza|burger|sushi|kebab|gyros|souvlaki|coffee|tea|wine|beer|food|eat|hungry|order|delivery|deliver|drink)\b/);
+  if (foodMatch) {
+    const cuisine = foodMatch[1];
+    _routedFire("Looking for " + cuisine + " near you.", async () => {
+      try { diveToMe(); } catch (_) { try { startLocate(); } catch (_) {} return; }
+      // Wait for the camera flight + nearby fetch, then auto-open
+      // the nearest matching vendor's order panel. The user gets
+      // straight to the menu in one word.
+      try {
+        await new Promise(r => setTimeout(r, 1800));
+        if (window._userLat == null) return;
+        const places = await _agentFindPlaces(cuisine, 2500);
+        if (!places || !places.length) {
+          try { toast('No ' + cuisine + ' near you — try widening.', ''); } catch (_) {}
+          return;
+        }
+        const p = places[0];
+        try {
+          const t = (p.raw && p.raw.tags) || {};
+          const catKey = _catKey(t);
+          window._currentPlace = { id: p.raw.id, tags: t, name: p.name, catKey,
+            info: _CAT_INFO[catKey] || _CAT_INFO.default,
+            phone: t.phone || '', website: t.website || '',
+            hours: t.opening_hours || '', cuisine: t.cuisine || '',
+            _lat: p.lat, _lng: p.lng };
+          _placeOrder();
+          setTimeout(() => { try { if (window._menu == null) _loadMenu(); } catch (_) {} }, 240);
+        } catch (_) {}
+      } catch (_) {}
     });
     return true;
   }
