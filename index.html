@@ -14622,9 +14622,10 @@ function _routeLocal(raw) {
     _routedFire('Opening your contacts.', () => openCallPickPanel());
     return true;
   }
-  // "message NAME hi there" / "text NAME …" / "send NAME a message"
+  // "message NAME hi there" / "text NAME …" / "send NAME a message" /
+  // "talk to NAME …" / "tell NAME …" / "ask NAME …"
   const msgMatch =
-       text.match(/\b(?:message|text|dm|write to|write)\s+([a-zÀ-ſ][a-zÀ-ſ\s']{1,40}?)(?:\s+(.+))?$/i)
+       text.match(/\b(?:message|text|dm|write to|write|talk to|tell|ask)\s+([a-zÀ-ſ][a-zÀ-ſ\s']{1,40}?)(?:\s+(.+))?$/i)
     || text.match(/\bsend\s+([a-zÀ-ſ][a-zÀ-ſ\s']{1,40}?)\s+(?:a\s+)?(?:message|msg|text)\b\s*(.*)$/i);
   if (msgMatch) {
     const name = msgMatch[1].trim();
