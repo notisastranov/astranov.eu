@@ -8718,8 +8718,30 @@ function bootSupabase() {
   });
 
   sb.auth.onAuthStateChange((_evt, s) => {
+    const wasSignedOut = !session;
     session = s;
-    if (s) loadProfile(); else { profile = null; updateIdentityOrb(); if (typeof renderInformants === 'function') renderInformants(); }
+    if (s) {
+      loadProfile().then(() => {
+        // Welcome the user the moment they sign in — they came from
+        // the You panel and probably need orientation. Visible deed
+        // per §0k: identity resolved → AI acknowledges + names the
+        // next action.
+        if (wasSignedOut) {
+          try {
+            const name = (profile && profile.display_name) || (s.user && s.user.email) || 'friend';
+            const first = String(name).split(/[\s@]/)[0];
+            if (typeof openAstranov === 'function') openAstranov();
+            if (typeof appendAICycleMessage === 'function') {
+              appendAICycleMessage('ai', "Welcome, " + first + ". Try: pizza · news · messages · call · wallet.", 'astranov', '');
+            }
+            try { closePanel(); } catch (_) {}
+          } catch (_) {}
+        }
+      });
+    } else {
+      profile = null; updateIdentityOrb();
+      if (typeof renderInformants === 'function') renderInformants();
+    }
   });
 
   loadSignals();
