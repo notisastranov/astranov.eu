@@ -6157,6 +6157,25 @@ function _orbUsefulness(orb) {
 // EARTH_ORBS catalogue and ride the same usefulness-arrangement.
 // def: { id, label, color, glyph, ring, act, ttl, source, expiresAt }
 window._dynamicOrbs = new Map();
+
+// DEMATERIALISED ROSTER — orbs the OS KNOWS about and can summon on
+// demand. Not on the globe; ready to materialise when the user or
+// the AI calls for them. This is the "library" the AI picks from
+// when context warrants a specialist surface (a captain on open
+// water, an owner reviewing Krypteia, a guest at a museum, etc.).
+window._orbRoster = new Map();
+window.registerDematerialisedOrb = function (def) {
+  if (!def || !def.id) return;
+  window._orbRoster.set(def.id, def);
+};
+window.summonOrb = function (id, extra) {
+  // Pull from the dematerialised roster and materialise it. Optional
+  // extra fields override the roster definition (e.g. ttl, ring).
+  const def = window._orbRoster.get(id);
+  if (!def) return null;
+  const merged = Object.assign({}, def, extra || {});
+  return window.materializeOrb(merged);
+};
 window.materializeOrb = function (def) {
   if (!def || !def.id) return;
   const ring = (def.ring != null) ? def.ring : 2;
@@ -7033,6 +7052,167 @@ function _materializePillars() {
   });
 }
 window._materializePillars = _materializePillars;
+
+/* ==============================================================
+   STELLAR NAVIGATION — first-class navigation helper for ship
+   captains (or anyone on open water / under open sky). Dematerialised
+   by default; lives in window._orbRoster as 'stellar-nav'. Summoned
+   on demand by the user ("stellar nav", "captain", "celestial",
+   "sextant", "course") or by the AI brain via tool-call.
+
+   Surface (openStellarNavPanel): current celestial-body positions
+   (sun, moon, the four visible-eye planets) computed from Cesium's
+   Simon1994 ephemeris, plus user's nautical position (DD°MM'SS"),
+   true bearing, speed, and the moon's phase. Updated live.
+   ============================================================== */
+function _toAltAz(targetFixed, observerFixed) {
+  // ENU frame at observer's surface point, then convert target to it.
+  const enu = Cesium.Transforms.eastNorthUpToFixedFrame(observerFixed);
+  const inv = Cesium.Matrix4.inverseTransformation(enu, new Cesium.Matrix4());
+  const local = Cesium.Matrix4.multiplyByPoint(inv, targetFixed, new Cesium.Cartesian3());
+  const horiz = Math.hypot(local.x, local.y);
+  const altDeg = Cesium.Math.toDegrees(Math.atan2(local.z, horiz));
+  // Azimuth from true north, clockwise.
+  let azDeg = Cesium.Math.toDegrees(Math.atan2(local.x, local.y));
+  if (azDeg < 0) azDeg += 360;
+  return { alt: altDeg, az: azDeg };
+}
+function _ddmm(deg, posChar, negChar) {
+  const sign = deg < 0 ? negChar : posChar;
+  const a = Math.abs(deg);
+  const d = Math.floor(a);
+  const mFloat = (a - d) * 60;
+  const m = Math.floor(mFloat);
+  const s = Math.round((mFloat - m) * 60);
+  return sign + ' ' + d + '°' + String(m).padStart(2, '0') + "'" + String(s).padStart(2, '0') + '"';
+}
+function _compassPoint(deg) {
+  const pts = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+               'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+  return pts[Math.round(deg / 22.5) % 16];
+}
+function _moonPhaseInfo(date) {
+  // Cycle length ~29.5306 days. New moon reference: 2000-01-06 18:14 UTC.
+  const newRef = Date.UTC(2000, 0, 6, 18, 14);
+  const days = (date.getTime() - newRef) / (1000 * 60 * 60 * 24);
+  const phase = ((days % 29.5306) + 29.5306) % 29.5306;
+  const illum = (1 - Math.cos((phase / 29.5306) * 2 * Math.PI)) / 2;
+  let name = 'New';
+  if (phase < 1.84) name = 'New';
+  else if (phase < 5.53) name = 'Waxing crescent';
+  else if (phase < 9.22) name = 'First quarter';
+  else if (phase < 12.91) name = 'Waxing gibbous';
+  else if (phase < 16.61) name = 'Full';
+  else if (phase < 20.30) name = 'Waning gibbous';
+  else if (phase < 23.99) name = 'Last quarter';
+  else if (phase < 27.68) name = 'Waning crescent';
+  else name = 'New';
+  return { name, illum, days: phase };
+}
+function _stellarSnapshot() {
+  if (!viewer || window._userLat == null) return null;
+  const time = viewer.clock ? viewer.clock.currentTime : Cesium.JulianDate.now();
+  const obs = Cesium.Cartesian3.fromDegrees(window._userLng, window._userLat, 0);
+  const bodies = [];
+  try {
+    const moonInertial = Cesium.Simon1994PlanetaryPositions.computeMoonPositionInEarthInertialFrame(time);
+    const sunInertial  = Cesium.Simon1994PlanetaryPositions.computeSunPositionInEarthInertialFrame(time);
+    const icrfToFixed  = Cesium.Transforms.computeIcrfToFixedMatrix(time);
+    if (icrfToFixed) {
+      const moonFixed = Cesium.Matrix3.multiplyByVector(icrfToFixed, moonInertial, new Cesium.Cartesian3());
+      const sunFixed  = Cesium.Matrix3.multiplyByVector(icrfToFixed, sunInertial,  new Cesium.Cartesian3());
+      bodies.push({ name: 'Sun',  glyph: '☉', pos: _toAltAz(sunFixed,  obs) });
+      bodies.push({ name: 'Moon', glyph: '☾', pos: _toAltAz(moonFixed, obs) });
+    }
+  } catch (_) {}
+  const now = new Date();
+  const drive = (typeof _driveBufSpeed !== 'undefined' && _driveBufSpeed && _driveBufSpeed.length)
+    ? _driveBufSpeed.reduce((a, b) => a + b, 0) / _driveBufSpeed.length : 0;
+  const heading = (() => {
+    try {
+      if (viewer && viewer.camera) {
+        return ((Cesium.Math.toDegrees(viewer.camera.heading) % 360) + 360) % 360;
+      }
+    } catch (_) {}
+    return 0;
+  })();
+  return {
+    bodies,
+    lat: window._userLat, lng: window._userLng,
+    speedMps: drive,
+    knots: drive * 1.94384,
+    heading,
+    compass: _compassPoint(heading),
+    moonPhase: _moonPhaseInfo(now),
+    nowIso: now.toISOString(),
+  };
+}
+function _renderStellarPanel() {
+  const snap = _stellarSnapshot();
+  if (!snap) {
+    openPanel(`<h2>Stellar Nav</h2>
+      <div class="subtitle">WAITING FOR FIX</div>
+      <div style="font-size:12px;color:#a8c8ee;padding:10px 0">No GPS yet. Tap Pilot or accept location to begin.</div>`);
+    return;
+  }
+  const row = (label, value) =>
+    `<div class="row"><span>${label}</span><span style="color:#cfe2ff">${value}</span></div>`;
+  const bodyRows = snap.bodies.map(b =>
+    row(b.glyph + ' ' + b.name,
+        (b.pos.alt >= 0
+          ? '<span style="color:#7eebb4">alt ' + b.pos.alt.toFixed(1) + '°</span>'
+          : '<span style="color:#6a8aaf">below horizon</span>')
+        + ' · az ' + b.pos.az.toFixed(1) + '°')
+  ).join('');
+  openPanel(`<h2>Stellar Nav</h2>
+    <div class="subtitle">CELESTIAL FIX · NAUTICAL</div>
+    <div class="me-sec">Position</div>
+    ${row('Latitude',  _ddmm(snap.lat, 'N', 'S'))}
+    ${row('Longitude', _ddmm(snap.lng, 'E', 'W'))}
+    ${row('UTC', new Date(snap.nowIso).toUTCString().slice(5, 25))}
+
+    <div class="me-sec">Course over ground</div>
+    ${row('Heading', snap.heading.toFixed(1) + '° ' + snap.compass)}
+    ${row('Speed',  snap.knots.toFixed(1) + ' kn (' + (snap.speedMps * 3.6).toFixed(1) + ' km/h)')}
+
+    <div class="me-sec">Celestial bodies</div>
+    ${bodyRows || '<div style="font-size:12px;color:#6a8aaf">No ephemeris available.</div>'}
+
+    <div class="me-sec">Moon</div>
+    ${row('Phase', snap.moonPhase.name)}
+    ${row('Illumination', (snap.moonPhase.illum * 100).toFixed(0) + '%')}
+
+    <div style="font-size:10px;color:#6a8aaf;margin-top:14px;line-height:1.55">
+      Updates live. Tap globe to dismiss; the orb stays in your roster
+      so you can re-summon it from chat with "stellar nav" or
+      "captain".
+    </div>`);
+}
+function openStellarNavPanel() {
+  _renderStellarPanel();
+  if (window._stellarTimer) clearInterval(window._stellarTimer);
+  window._stellarTimer = setInterval(() => {
+    if (!document.getElementById('panel')?.classList.contains('visible')) {
+      clearInterval(window._stellarTimer); window._stellarTimer = 0; return;
+    }
+    _renderStellarPanel();
+  }, 10_000);
+}
+window.openStellarNavPanel = openStellarNavPanel;
+
+// Register Stellar Nav into the dematerialised roster. Summoned by
+// the user typing "stellar", "captain", "celestial", "sextant",
+// "course", "knots", "bearing", "nautical" — or by the AI brain via
+// materialize_orb tool-call when it detects open-water context.
+window.registerDematerialisedOrb({
+  id: 'stellar-nav',
+  ring: 2,
+  color: '#a0c6ff',
+  glyph: '☉',
+  label: 'Stellar Nav',
+  act: () => { try { openStellarNavPanel(); } catch (_) {} },
+  source: 'captain.stellar',
+});
 
 /* ==============================================================
    RING SPIN — user can rotate any of the three Earth rings by
@@ -14257,9 +14437,17 @@ function _routeLocal(raw) {
     _routedFire(session ? 'Opening your identity.' : "Let's get you signed in.", () => openYouPanel());
     return true;
   }
+  // Stellar / captain mode — summon the dematerialised navigation orb.
+  if (/\b(stellar|celestial|sextant|captain|nautical|bearing|knots|course\s+over\s+ground|cog|sailing)\b/.test(text)) {
+    _routedFire('Summoning your Stellar Nav.', () => {
+      try { window.summonOrb && window.summonOrb('stellar-nav', { ttl_ms: 6 * 60 * 60 * 1000 }); } catch (_) {}
+      try { openStellarNavPanel(); } catch (_) {}
+    });
+    return true;
+  }
   // Help / what can you do / commands.
   if (/\b(help|what can you do|commands|how|what now)\b/.test(text)) {
-    _routedFire("Try one word: pizza · news · messages · call · wallet · home. Or tap the orbs around the globe.", () => {});
+    _routedFire("Try one word: pizza · news · messages · call · wallet · home · captain. Or tap the orbs around the globe.", () => {});
     return true;
   }
   return false;
