@@ -13908,9 +13908,71 @@ $('aicycle-form').addEventListener('submit', async e => {
   }
   appendAICycleMessage('user', text);
   input.value = '';
-  // Astranov is always an agent now: it can act in the app, not just talk.
+  // LOCAL ROUTER (§0k Manual Foundation Law + §0j AI-in-Context).
+  // Common one-word intents land instantly without a backend round-
+  // trip; the AI surfaces the matching orb/surface and reports the
+  // visible deed. Falls through to runAstranovAgent for anything
+  // ambiguous or compound — the brain still owns conversation.
+  if (_routeLocal(text)) return;
   await runAstranovAgent(text);
 });
+
+// Returns true if the text was matched and a surface fired.
+function _routeLocal(raw) {
+  const text = raw.toLowerCase().trim();
+  // Food / order / hungry — show nearby vendors at PERSONAL.
+  if (/\b(pizza|burger|sushi|kebab|coffee|tea|wine|beer|food|eat|hungry|order|delivery|deliver|drink)\b/.test(text)) {
+    appendAICycleMessage('ai', "Showing you what's open nearby.", 'astranov', '');
+    try { closeAstranov(); } catch (_) {}
+    try { diveToMe(); } catch (_) { try { startLocate(); } catch (_) {} }
+    return true;
+  }
+  // News / feed / headlines.
+  if (/\b(news|headline|feed|stories|today|happening)\b/.test(text)) {
+    appendAICycleMessage('ai', 'Opening the feed.', 'astranov', '');
+    try { closeAstranov(); } catch (_) {}
+    try { openFeedPanel(); } catch (_) {}
+    return true;
+  }
+  // Messages / inbox.
+  if (/\b(message|messages|msg|inbox|chat|chats|texts|dm|conversation)\b/.test(text)) {
+    appendAICycleMessage('ai', 'Opening your messages.', 'astranov', '');
+    try { closeAstranov(); } catch (_) {}
+    try { openMessagesPanel(); } catch (_) {}
+    return true;
+  }
+  // Wallet / balance / money.
+  if (/\b(wallet|balance|money|euros|avc|coins|payment|pay|top\s*up)\b/.test(text)) {
+    appendAICycleMessage('ai', 'Opening your wallet.', 'astranov', '');
+    try { closeAstranov(); } catch (_) {}
+    try { openWalletPanel(); } catch (_) {}
+    return true;
+  }
+  // Call someone — match "call X" or just "call".
+  if (/\b(call|ring|video|videocall)\b/.test(text)) {
+    appendAICycleMessage('ai', 'Opening your contacts.', 'astranov', '');
+    try { closeAstranov(); } catch (_) {}
+    try { openCallPickPanel(); } catch (_) {}
+    return true;
+  }
+  // Home / global / world / back / pilot.
+  if (/\b(home|global|world|earth|pilot|warp|back to globe)\b/.test(text)) {
+    appendAICycleMessage('ai', 'Warping home.', 'astranov', '');
+    try { closeAstranov(); } catch (_) {}
+    try { pilotHome(); } catch (_) {}
+    return true;
+  }
+  // Locate / where am I — kick GPS + dive.
+  if (/\b(where am i|locate me|find me|my location|where i am)\b/.test(text)) {
+    appendAICycleMessage('ai', 'Locating you and diving in.', 'astranov', '');
+    try { closeAstranov(); } catch (_) {}
+    try { startLocate(); } catch (_) {}
+    setTimeout(() => { try { diveToMe(); } catch (_) {} }, 1500);
+    return true;
+  }
+  return false;
+}
+window._routeLocal = _routeLocal;
 
 async function callAICycle(prompt) {
   if (!sb) throw new Error('offline');
