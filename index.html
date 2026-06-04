@@ -11086,6 +11086,7 @@ function diveToMe() {
   if (!viewer) return;
   const lat = window._userLat, lng = window._userLng;
   if (lat == null || lng == null) {
+    try { toast('Locating you…', ''); } catch (_) {}
     try { if (typeof startLocate === 'function') startLocate(); } catch (_) {}
     return;
   }
@@ -11096,6 +11097,9 @@ function diveToMe() {
       orientation: { heading: 0, pitch: Cesium.Math.toRadians(-65), roll: 0 },
     });
   } catch (_) {}
+  // Give the user feedback while the Overpass query lands — fetch
+  // can take 1-3 s and silence reads as "nothing's happening."
+  try { toast('Finding what is nearby…', ''); } catch (_) {}
   try { fetchOSMNearby(lat, lng, 1500); } catch (_) {}
 }
 window.diveToMe = diveToMe;
