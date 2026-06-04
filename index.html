@@ -2221,6 +2221,17 @@ Single-file by design. Any AI/human can continue from this comment + the law.
     font-size: 10px; font-weight: 700; color: #f4f6ff;
     text-shadow: 0 0 4px color-mix(in srgb, var(--mc, #a0b4d8) 70%, transparent);
   }
+  .moon-orb::after {
+    content: attr(data-label);
+    position: absolute; left: 50%; top: 26px; transform: translateX(-50%);
+    font-family: 'Quicksand', system-ui, sans-serif;
+    font-size: 7.5px; font-weight: 600;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: rgba(207, 226, 255, 0.78);
+    white-space: nowrap; pointer-events: none;
+    text-shadow: 0 0 4px color-mix(in srgb, var(--mc, #a0b4d8) 70%, transparent),
+                 0 1px 2px rgba(0,0,0,0.85);
+  }
   .moon-orb:active { transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.92); }
 
   /* BACK-TO-GLOBE chevron — hidden at GLOBAL, shown at NATIONAL +
@@ -6449,6 +6460,7 @@ function _layoutMoonOrbs() {
     const el = document.createElement('div');
     el.className = 'moon-orb';
     el.dataset.id = orb.id;
+    el.dataset.label = orb.label;
     el.style.setProperty('--mc', orb.color);
     el.style.setProperty('--dx', dx.toFixed(1) + 'px');
     el.style.setProperty('--dy', dy.toFixed(1) + 'px');
