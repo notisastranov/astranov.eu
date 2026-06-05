@@ -18,15 +18,18 @@
 <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
 <style>
-  :root { --t-quick: 0.18s; --ease: cubic-bezier(0.32, 0.72, 0, 1); }
+  :root { --t-quick: 0.18s; --ease: cubic-bezier(0.32, 0.72, 0, 1); --aegean: #4aa6ff; --deep: #1e6cff; }
+  *, *::before, *::after { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; height: 100%; background: #010615; overflow: hidden;
     color: #cde7ff; font-family: 'Quicksand', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
   body { position: fixed; inset: 0; }
+  button { font-family: inherit; }
+  input, textarea, select { font-family: inherit; }
 
   #cesiumContainer { position: absolute; inset: 0; }
   .cesium-widget-credits, .cesium-viewer-bottom { display: none !important; }
 
-  /* WORDMARK — always visible. Deep electric blue glow, no chrome. */
+  /* WORDMARK */
   #app-name {
     position: fixed; top: max(10px, env(safe-area-inset-top)); left: 50%;
     transform: translateX(-50%); z-index: 200; cursor: pointer;
@@ -38,7 +41,7 @@
   }
   #app-name:active { transform: translateX(-50%) scale(0.96); }
 
-  /* BOOT — minimal loader. */
+  /* BOOT */
   #boot { position: fixed; inset: 0; z-index: 100;
     background: radial-gradient(ellipse at 50% 45%, #04122e 0%, #020a1c 55%, #010615 100%);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -53,21 +56,25 @@
     color: #cde7ff; text-shadow: 0 0 4px #ffffff, 0 0 10px #4aa6ff, 0 0 22px #1e6cff,
                                   0 0 40px #0040d8, 0 0 70px #001a66; }
 
-  /* CHAT — bottom drawer, slides up. Mostly perimeter. */
+  /* CHAT */
   #chat { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
     max-height: 60vh; display: flex; flex-direction: column;
-    background: linear-gradient(180deg, rgba(8,18,38,0.32), rgba(2,6,18,0.46));
-    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    background: linear-gradient(180deg, rgba(8,18,38,0.42), rgba(2,6,18,0.56));
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
     border-top: 1px solid rgba(93,178,255,0.55); border-radius: 22px 22px 0 0;
-    box-shadow: 0 -10px 28px rgba(45,108,196,0.18),
-                inset 0 1px 0 rgba(207,226,255,0.18);
+    box-shadow: 0 -10px 28px rgba(45,108,196,0.18), inset 0 1px 0 rgba(207,226,255,0.18);
     transform: translateY(100%); transition: transform 0.4s var(--ease);
     overflow: hidden; }
   #chat.open { transform: translateY(0); }
   #chat-handle { padding: 8px 14px; display: flex; align-items: center; justify-content: center;
-    gap: 10px; cursor: grab; user-select: none; }
+    gap: 10px; cursor: grab; user-select: none; position: relative; }
   #chat-handle::before { content: ''; width: 36px; height: 4px; border-radius: 2px;
     background: rgba(120,180,255,0.35); }
+  #chat.thinking #chat-handle::after { content: ''; position: absolute; left: 50%; top: 0;
+    transform: translateX(-50%); width: 60%; height: 2px;
+    background: linear-gradient(90deg, transparent, #4aa6ff, transparent);
+    animation: think 1.4s linear infinite; }
+  @keyframes think { 0%{transform:translateX(-50%) translateX(-30%);opacity:0} 50%{transform:translateX(-50%);opacity:1} 100%{transform:translateX(-50%) translateX(30%);opacity:0} }
   #chat-msgs { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 16px 8px;
     -webkit-overflow-scrolling: touch; }
   #chat-msgs:empty { display: none; }
@@ -81,17 +88,18 @@
     background: rgba(8,18,38,0.55); border: 1px solid rgba(93,178,255,0.40);
     border-radius: 22px; color: #e8eef8; outline: none; }
   #chat-input:focus { border-color: rgba(93,178,255,0.85); box-shadow: 0 0 12px rgba(45,108,196,0.4); }
-  .btn { width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
+  .btn { width: 44px; height: 44px; border-radius: 50%; cursor: pointer; flex: 0 0 auto;
     background: rgba(8,18,38,0.55); border: 1px solid rgba(93,178,255,0.5);
     color: #cde7ff; font-size: 16px; display: flex; align-items: center; justify-content: center;
-    -webkit-tap-highlight-color: transparent; transition: transform 0.12s var(--ease); }
+    -webkit-tap-highlight-color: transparent; transition: transform 0.12s var(--ease); padding: 0; }
   .btn:active { transform: scale(0.92); }
   .btn.primary { background: rgba(20,52,120,0.75); border-color: rgba(93,178,255,0.9);
     box-shadow: 0 0 12px rgba(45,108,196,0.55); }
   .btn.listening { border-color: #7eebb4; color: #7eebb4;
     box-shadow: 0 0 14px rgba(126,235,180,0.7); }
+  .btn.danger { background: rgba(120,30,30,0.75); border-color: rgba(255,80,80,0.9); color: #ffd6d6; }
+  .btn.ok { background: rgba(20,80,40,0.75); border-color: rgba(126,235,180,0.85); color: #d6f7e6; }
 
-  /* CHAT RE-OPEN — bottom tab when chat is closed. */
   #chat-reopen { position: fixed; left: 50%; transform: translateX(-50%);
     bottom: max(10px, calc(env(safe-area-inset-bottom) + 10px)); z-index: 200;
     width: 64px; height: 22px; cursor: pointer;
@@ -105,19 +113,117 @@
   #chat-reopen::after { content: '◈'; color: #cde7ff; font-size: 13px;
     text-shadow: 0 0 6px #4aa6ff, 0 0 14px #1e6cff; }
   body.chat-open #chat-reopen { opacity: 0; pointer-events: none; }
+
+  /* PANEL — bottom drawer for content surfaces */
+  #panel { position: fixed; left: 0; right: 0; bottom: 0; z-index: 70;
+    max-height: 75vh; overflow-y: auto; padding: 18px 18px calc(28px + env(safe-area-inset-bottom));
+    background: linear-gradient(180deg, rgba(8,18,38,0.55), rgba(2,6,18,0.72));
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(93,178,255,0.55); border-radius: 22px 22px 0 0;
+    box-shadow: 0 -10px 32px rgba(45,108,196,0.22);
+    transform: translateY(100%); transition: transform 0.4s var(--ease); }
+  #panel.open { transform: translateY(0); }
+  #panel h2 { margin: 0 0 4px; font-size: 18px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: #cde7ff; }
+  #panel h3 { margin: 18px 0 6px; font-size: 11px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: rgba(120,180,255,0.7); }
+  #panel p { margin: 4px 0; font-size: 13px; line-height: 1.5; color: #a8c8ee; }
+  #panel input, #panel textarea, #panel select {
+    width: 100%; padding: 10px 12px; font-size: 16px; margin: 6px 0;
+    background: rgba(8,18,38,0.65); border: 1px solid rgba(93,178,255,0.35);
+    border-radius: 10px; color: #e8eef8; outline: none; }
+  #panel input:focus, #panel textarea:focus { border-color: rgba(93,178,255,0.85); }
+  #panel .pbtn { display: inline-flex; align-items: center; justify-content: center;
+    padding: 10px 16px; margin: 4px 4px 4px 0; cursor: pointer; font-size: 13px; font-weight: 600;
+    background: rgba(20,52,120,0.65); border: 1px solid rgba(93,178,255,0.6);
+    border-radius: 22px; color: #cde7ff; user-select: none;
+    -webkit-tap-highlight-color: transparent; transition: transform 0.12s var(--ease); }
+  #panel .pbtn:active { transform: scale(0.96); }
+  #panel .pbtn.ok { background: rgba(20,80,40,0.65); border-color: rgba(126,235,180,0.7); color: #d6f7e6; }
+  #panel .pbtn.danger { background: rgba(80,20,20,0.65); border-color: rgba(255,120,120,0.7); color: #ffd6d6; }
+  #panel .pbtn.muted { background: rgba(40,52,72,0.55); border-color: rgba(120,140,180,0.45); color: #b8c8e0; }
+  #panel .row { display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0; border-bottom: 1px solid rgba(93,178,255,0.12);
+    font-size: 13px; color: #cde7ff; gap: 8px; }
+  #panel .row:last-child { border-bottom: 0; }
+  #panel .card { padding: 10px 12px; margin: 6px 0; border-radius: 12px;
+    background: rgba(8,18,38,0.45); border: 1px solid rgba(93,178,255,0.18);
+    cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  #panel .card:hover { border-color: rgba(93,178,255,0.55); }
+  #panel .card .ct { font-size: 14px; color: #cfe2ff; line-height: 1.35; }
+  #panel .card .cm { font-size: 11px; color: rgba(168,200,238,0.65); margin-top: 4px; }
+  #panel .close { position: absolute; top: 8px; right: 12px; padding: 4px 10px;
+    background: transparent; border: 0; color: rgba(168,200,238,0.6); font-size: 18px; cursor: pointer; }
+
+  /* CALL STAGE — fullscreen video overlay */
+  #call-stage { position: fixed; inset: 0; z-index: 500; background: #000;
+    display: none; flex-direction: column; }
+  #call-stage.on { display: flex; }
+  #call-remote { flex: 1; min-height: 0; width: 100%; object-fit: cover; background: #000; }
+  #call-local  { position: absolute; right: 16px; top: max(16px, env(safe-area-inset-top));
+    width: 110px; height: 150px; object-fit: cover; background: #111;
+    border: 2px solid rgba(255,255,255,0.4); border-radius: 12px; z-index: 510; }
+  #call-overlay { position: absolute; left: 0; right: 0; top: 0; padding: 16px;
+    z-index: 511; color: #fff; font-size: 14px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.6), transparent);
+    display: flex; flex-direction: column; gap: 4px; }
+  #call-controls { position: absolute; left: 0; right: 0;
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    display: flex; justify-content: center; gap: 18px; z-index: 511; }
+  #call-controls .btn { width: 56px; height: 56px; font-size: 22px; }
+  #incoming { position: fixed; top: max(16px, env(safe-area-inset-top));
+    left: 16px; right: 16px; z-index: 400;
+    background: rgba(8,18,38,0.92); backdrop-filter: blur(10px);
+    border: 1px solid rgba(126,235,180,0.7); border-radius: 14px;
+    padding: 14px 18px; color: #cde7ff; display: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5); animation: ringPulse 1.2s ease infinite; }
+  #incoming.on { display: block; }
+  @keyframes ringPulse { 0%,100%{box-shadow:0 0 0 0 rgba(126,235,180,0.4)} 50%{box-shadow:0 0 0 12px rgba(126,235,180,0)} }
+  #incoming .title { font-size: 14px; margin-bottom: 10px; }
+  #incoming .name { font-weight: 700; color: #7eebb4; }
+  #incoming .acts { display: flex; gap: 10px; }
+  #incoming .pbtn { padding: 8px 14px; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 13px;
+    border: 1px solid; flex: 1; text-align: center; }
+  #incoming .accept { background: rgba(20,80,40,0.85); border-color: #7eebb4; color: #d6f7e6; }
+  #incoming .decline { background: rgba(80,20,20,0.85); border-color: #ff7878; color: #ffd6d6; }
+
+  /* TOAST */
+  #toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+    background: rgba(8,18,38,0.92); color: #cde7ff; padding: 10px 16px;
+    border-radius: 22px; border: 1px solid rgba(93,178,255,0.55);
+    font-size: 13px; z-index: 600; opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease; }
+  #toast.show { opacity: 1; }
+  #toast.err  { border-color: rgba(255,120,120,0.7); color: #ffd6d6; }
+  #toast.ok   { border-color: rgba(126,235,180,0.7); color: #d6f7e6; }
+
+  /* MENU items in vendor panel */
+  .mi { display: flex; align-items: center; gap: 10px; padding: 10px;
+    background: rgba(8,18,38,0.45); border: 1px solid rgba(93,178,255,0.18);
+    border-radius: 12px; margin: 6px 0; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; transition: border-color 0.18s var(--ease); }
+  .mi:hover { border-color: rgba(93,178,255,0.55); }
+  .mi .mi-name { flex: 1; font-size: 14px; color: #cfe2ff; }
+  .mi .mi-price { font-size: 13px; color: #ffd47e; font-weight: 600; }
+  .mi .mi-add { font-size: 20px; color: #7eebb4; }
+
+  .cart-row { display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0; border-bottom: 1px dashed rgba(93,178,255,0.15); font-size: 13px; }
+  .cart-x { color: rgba(255,120,120,0.8); cursor: pointer; padding: 0 6px; }
 </style>
 </head>
 <body>
 
 <!--
 ================================================================================
-ASTRANOV — minimal scaffold after architect-ordered nuke (2026-06-05).
-Architect: Notis Astranov. Per CLAUDE.md §1, the architect's order
-overrides every other clause. Full pre-nuke state at git tag
-'pre-nuke-2026-06-05-1202' (16,127 lines). Recoverable with:
-   git checkout pre-nuke-2026-06-05-1202 -- index.html
-This scaffold: globe + wordmark + AI chat wired to /aicycle. ~250 lines.
-The architect grows it from here, surface by surface, on their terms.
+ASTRANOV — minimal scaffold + three pillars built on the architect's order:
+1. WebRTC video calling between users
+2. News fetch agent (signals + informant-feed Edge fn)
+3. Delivery marketplace (vendors menu + drivers acceptance + orders)
+Architect: Notis Astranov. Per CLAUDE.md §1, architect overrides every clause.
+Pre-nuke state preserved at git tag pre-nuke-2026-06-05-1202.
+Backend (27 Edge functions, all RPCs, all tables) unchanged on
+Supabase project lkoatrkhuigdolnjsbie.
 ================================================================================
 -->
 
@@ -138,10 +244,36 @@ The architect grows it from here, surface by surface, on their terms.
   <form id="chat-form" autocomplete="off">
     <button id="btn-mic" type="button" class="btn" title="Speak" aria-label="Microphone">🎙</button>
     <input id="chat-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
-      enterkeyhint="send" placeholder="Speak or type…" />
+      enterkeyhint="send" placeholder="Try: news · call NAME · pizza · sign in · wallet" />
     <button id="btn-send" type="submit" class="btn primary" title="Send" aria-label="Send">↑</button>
   </form>
 </div>
+
+<div id="panel"><button class="close" onclick="closePanel()" aria-label="Close">×</button><div id="panel-body"></div></div>
+
+<div id="call-stage">
+  <video id="call-remote" autoplay playsinline></video>
+  <video id="call-local" autoplay playsinline muted></video>
+  <div id="call-overlay">
+    <div id="call-peer">—</div>
+    <div id="call-status">connecting…</div>
+  </div>
+  <div id="call-controls">
+    <button class="btn" id="btn-mute" aria-label="Mute">🎙</button>
+    <button class="btn" id="btn-cam" aria-label="Camera">📷</button>
+    <button class="btn danger" id="btn-end" aria-label="End call">✕</button>
+  </div>
+</div>
+
+<div id="incoming">
+  <div class="title">Incoming call from <span class="name" id="inc-name">—</span></div>
+  <div class="acts">
+    <div class="pbtn accept" onclick="acceptIncoming()">Accept</div>
+    <div class="pbtn decline" onclick="declineIncoming()">Decline</div>
+  </div>
+</div>
+
+<div id="toast"></div>
 
 <script>
 'use strict';
@@ -150,9 +282,29 @@ const SUPABASE_URL = 'https://lkoatrkhuigdolnjsbie.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4NTQ5NjUsImV4cCI6MjA5NDQzMDk2NX0.6Ji5y_WTMSpKDF5wkX9c4Yj76OuhVTcSvKK4xUDeFKw';
 
 const $ = (id) => document.getElementById(id);
+const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-/* ---------- Cesium ---------- */
+let toastTimer = 0;
+function toast(msg, kind = '') {
+  const t = $('toast'); t.textContent = String(msg).slice(0, 100);
+  t.className = 'show ' + (kind || '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = ''; }, 3200);
+}
+
+function formatRelative(ts) {
+  if (!ts) return '';
+  const s = Math.max(1, Math.round((Date.now() - new Date(ts).getTime()) / 1000));
+  if (s < 60) return s + 's';
+  const m = Math.round(s / 60); if (m < 60) return m + 'm';
+  const h = Math.round(m / 60); if (h < 24) return h + 'h';
+  return Math.round(h / 24) + 'd';
+}
+
+/* ============================== Cesium ============================== */
 let viewer = null;
+let _userLat = null, _userLng = null;
+
 async function bootCesium() {
   try {
     viewer = new Cesium.Viewer('cesiumContainer', {
@@ -183,7 +335,10 @@ async function bootCesium() {
       duration: 0,
     });
     viewer.scene.requestRender();
-    // Dismiss boot on first paint.
+    // Click handler for vendor pins
+    const h = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+    h.setInputAction(onCanvasClick, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+    // Dismiss boot on first paint
     let hidden = false;
     const hide = () => { if (hidden) return; hidden = true; $('boot').classList.add('gone'); };
     try {
@@ -198,34 +353,964 @@ async function bootCesium() {
   }
 }
 
-/* ---------- Supabase ---------- */
-let sb = null, session = null;
+async function locateMe() {
+  if (!navigator.geolocation) return null;
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        _userLat = pos.coords.latitude; _userLng = pos.coords.longitude;
+        resolve({ lat: _userLat, lng: _userLng });
+      },
+      () => { ipWarmup().then(resolve); },
+      { enableHighAccuracy: true, timeout: 10_000 }
+    );
+  });
+}
+
+async function ipWarmup() {
+  try {
+    const r = await fetch('https://ipapi.co/json/');
+    const d = await r.json();
+    if (d?.latitude) {
+      _userLat = d.latitude; _userLng = d.longitude;
+      return { lat: _userLat, lng: _userLng };
+    }
+  } catch (_) {}
+  return null;
+}
+
+async function diveToMe() {
+  if (_userLat == null) {
+    toast('Locating…');
+    await locateMe();
+    if (_userLat == null) { toast('Need your location', 'err'); return false; }
+  }
+  if (viewer) {
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(_userLng, _userLat, 1_200),
+      duration: 1.4,
+      orientation: { heading: 0, pitch: Cesium.Math.toRadians(-65), roll: 0 },
+    });
+  }
+  return true;
+}
+
+async function pilotHome() {
+  if (!viewer) return;
+  const lng = _userLng ?? 20, lat = _userLat ?? 35;
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat, 12_000_000),
+    duration: 1.8,
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+  });
+}
+
+function onCanvasClick(click) {
+  if (!viewer) return;
+  const picked = viewer.scene.pick(click.position);
+  if (picked?.primitive?.__vendorOsmId) {
+    const p = vendorIndex.get(picked.primitive.__vendorOsmId);
+    if (p) openVendorPanel(p);
+  }
+}
+
+/* ============================== Supabase ============================== */
+let sb = null, session = null, profile = null;
+
 function bootSupabase() {
   try {
     sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    sb.auth.getSession().then(({ data }) => { session = data.session; });
-    sb.auth.onAuthStateChange((_e, s) => { session = s; });
+    sb.auth.getSession().then(({ data }) => {
+      session = data.session;
+      if (session) { loadProfile(); listenForIncomingCalls(); }
+    });
+    sb.auth.onAuthStateChange((_e, s) => {
+      const becameSignedIn = !session && s;
+      session = s;
+      if (s) { loadProfile(); listenForIncomingCalls(); if (becameSignedIn) closePanel(); }
+      else { profile = null; }
+    });
   } catch (e) { console.error('[Supabase]', e); }
 }
 
-/* ---------- Chat ---------- */
-const aicycleHistory = [];
+async function loadProfile() {
+  if (!sb || !session) return;
+  try {
+    const { data } = await sb.rpc('my_profile');
+    if (data) profile = Array.isArray(data) ? data[0] : data;
+  } catch (_) {}
+}
+
+/* ============================== Panel ============================== */
+function openPanel(html) {
+  $('panel-body').innerHTML = html;
+  $('panel').classList.add('open');
+}
+function closePanel() { $('panel').classList.remove('open'); }
+
+/* ============================== Auth ============================== */
+function openAuthPanel() {
+  openPanel(`
+    <h2>Sign in</h2>
+    <p>Email + password, magic link, or Google. New here? Tap Register.</p>
+    <input id="auth-email" type="email" placeholder="you@example.com" autocomplete="email">
+    <input id="auth-pass" type="password" placeholder="Password (blank for magic link)" autocomplete="current-password">
+    <div style="margin-top:10px">
+      <button class="pbtn ok" onclick="signInPassword()">Sign in</button>
+      <button class="pbtn" onclick="signUpPassword()">Register</button>
+      <button class="pbtn muted" onclick="sendMagicLink()">Magic link</button>
+      <button class="pbtn muted" onclick="signInGoogle()">Google</button>
+    </div>
+    <div id="auth-status" style="font-size:11px;color:rgba(168,200,238,0.65);margin-top:10px"></div>
+  `);
+}
+
+async function signInPassword() {
+  const email = $('auth-email').value.trim(); const password = $('auth-pass').value;
+  if (!email || !password) return $('auth-status').textContent = 'Email + password required.';
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) $('auth-status').textContent = error.message;
+  else { toast('Signed in', 'ok'); closePanel(); }
+}
+
+async function signUpPassword() {
+  const email = $('auth-email').value.trim(); const password = $('auth-pass').value;
+  if (!email || !password) return $('auth-status').textContent = 'Email + password required.';
+  const { error } = await sb.auth.signUp({ email, password });
+  if (error) $('auth-status').textContent = error.message;
+  else $('auth-status').textContent = 'Check your email to confirm.';
+}
+
+async function sendMagicLink() {
+  const email = $('auth-email').value.trim();
+  if (!email) return $('auth-status').textContent = 'Email required.';
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } });
+  if (error) $('auth-status').textContent = error.message;
+  else $('auth-status').textContent = 'Magic link sent — check your email.';
+}
+
+async function signInGoogle() {
+  const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin } });
+  if (error) $('auth-status').textContent = error.message;
+}
+
+async function signOut() {
+  await sb.auth.signOut();
+  toast('Signed out', '');
+  closePanel();
+}
+
+/* ============================== News ============================== */
+const DEFAULT_INFORMANTS = [
+  { id: 'world',   name: 'World',   category: 'news',    queries: ['world headlines'] },
+  { id: 'tech',    name: 'Tech',    category: 'news',    queries: ['technology'] },
+  { id: 'sports',  name: 'Sports',  category: 'news',    queries: ['sports'] },
+  { id: 'sci',     name: 'Science', category: 'news',    queries: ['science'] },
+  { id: 'biz',     name: 'Business',category: 'commerce',queries: ['business markets'] },
+];
+
+async function openNewsPanel() {
+  openPanel(`
+    <h2>News</h2>
+    <p>Real signals from the globe + informant feeds. Tap a card to read.</p>
+    <div id="news-list">Loading…</div>
+  `);
+  let signals = [];
+  try {
+    const r = await sb.from('signals')
+      .select('id, title, body, source_name, source_url, created_at, category')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(50);
+    signals = r.data || [];
+  } catch (_) {}
+  let informants = [];
+  try {
+    const r = await sb.functions.invoke('informant-feed', { body: { informants: DEFAULT_INFORMANTS } });
+    if (r.data?.findings) {
+      for (const arr of Object.values(r.data.findings)) {
+        if (Array.isArray(arr)) informants.push(...arr);
+      }
+    }
+  } catch (_) {}
+  const items = [
+    ...signals.map(s => ({
+      title: s.title, src: s.source_name || s.category || 'signal',
+      t: s.created_at, url: s.source_url, body: s.body,
+    })),
+    ...informants.map(f => ({
+      title: f.title || '(untitled)', src: f.source || 'informant',
+      t: f.published_at || f.created_at || new Date().toISOString(),
+      url: f.source_url || f.url, body: f.summary,
+    })),
+  ].sort((a, b) => new Date(b.t) - new Date(a.t)).slice(0, 80);
+  if (!items.length) { $('news-list').textContent = 'No news yet — informants are warming up.'; return; }
+  $('news-list').innerHTML = items.map((it, i) => `
+    <div class="card" onclick="${it.url ? `window.open('${escapeHtml(it.url)}','_blank','noopener')` : `toast('No link')`}">
+      <div class="ct">${escapeHtml(it.title)}</div>
+      <div class="cm">${escapeHtml(it.src)} · ${formatRelative(it.t)}</div>
+    </div>
+  `).join('');
+}
+
+/* ============================== Messages ============================== */
+let _activePeer = null;
+
+async function openMessagesPanel() {
+  if (!session) return openAuthPanel();
+  openPanel(`
+    <h2>Messages</h2>
+    <p>Recent conversations. Search by name to start a new one.</p>
+    <div id="msg-inbox">Loading…</div>
+    <h3>Find someone</h3>
+    <input id="msg-search" placeholder="Name or username…" oninput="findPeer(this.value)">
+    <div id="msg-found"></div>
+  `);
+  let inbox = [];
+  try {
+    const r = await sb.rpc('message_inbox', { max_results: 30 });
+    inbox = r.data || [];
+  } catch (_) {}
+  if (!inbox.length) { $('msg-inbox').innerHTML = '<p>No threads yet.</p>'; return; }
+  $('msg-inbox').innerHTML = inbox.map(c => `
+    <div class="card" onclick="openConversation('${c.peer_id}', ${JSON.stringify(c.peer_display || 'Friend').replace(/"/g, '&quot;')})">
+      <div class="ct">${escapeHtml(c.peer_display || 'Friend')}${Number(c.unread_count) > 0 ? ' · <b style="color:#7eebb4">' + c.unread_count + ' new</b>' : ''}</div>
+      <div class="cm">${escapeHtml((c.last_body || '').slice(0, 80))} · ${formatRelative(c.last_at)}</div>
+    </div>
+  `).join('');
+}
+
+async function findPeer(q) {
+  const out = $('msg-found'); if (!out) return;
+  q = (q || '').trim();
+  if (q.length < 2) { out.innerHTML = ''; return; }
+  try {
+    const { data } = await sb.rpc('find_peer', { q });
+    const rows = (data || []).filter(r => r.id !== session?.user.id);
+    out.innerHTML = rows.length ? rows.map(r => `
+      <div class="card" onclick="openConversation('${r.id}', ${JSON.stringify(r.display_name || 'Friend').replace(/"/g, '&quot;')})">
+        <div class="ct">${escapeHtml(r.display_name || 'Friend')}</div>
+        <div class="cm">Tap to write or call</div>
+      </div>
+    `).join('') : '<p>No one with that name.</p>';
+  } catch (_) { out.innerHTML = ''; }
+}
+
+async function openConversation(peerId, name) {
+  _activePeer = { id: peerId, name };
+  openPanel(`
+    <h2>${escapeHtml(name)}</h2>
+    <div style="margin-bottom:8px">
+      <button class="pbtn ok" onclick="startCall('${peerId}', ${JSON.stringify(name).replace(/"/g, '&quot;')})">◈ Video call</button>
+    </div>
+    <div id="thread" style="max-height:42vh;overflow-y:auto;padding:8px 0;display:flex;flex-direction:column;gap:6px"></div>
+    <form id="msg-send-form" style="display:flex;gap:8px;margin-top:10px">
+      <input id="msg-body" placeholder="Message…" autocomplete="off">
+      <button type="submit" class="pbtn ok">Send</button>
+    </form>
+  `);
+  try {
+    const { data } = await sb.rpc('get_conversation', { peer: peerId, max_results: 50 });
+    renderThread(data || []);
+  } catch (_) {}
+  try { await sb.rpc('mark_messages_read', { peer: peerId }); } catch (_) {}
+  $('msg-send-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = $('msg-body').value.trim();
+    if (!body) return;
+    $('msg-body').value = '';
+    try {
+      await sb.from('messages').insert({ recipient_id: peerId, sender_id: session.user.id, body });
+      const { data } = await sb.rpc('get_conversation', { peer: peerId, max_results: 50 });
+      renderThread(data || []);
+    } catch (e) { toast(e.message, 'err'); }
+  });
+}
+
+function renderThread(msgs) {
+  const el = $('thread'); if (!el) return;
+  el.innerHTML = msgs.map(m => {
+    const mine = m.sender_id === session?.user.id;
+    return `<div class="msg ${mine ? 'user' : 'ai'}" style="${mine ? 'align-self:flex-end' : 'align-self:flex-start'}">
+      ${escapeHtml(m.body)}
+    </div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+/* ============================== Video Calling (WebRTC) ============================== */
+const ICE_SERVERS = [
+  { urls: ['stun:stun.l.google.com:19302'] },
+  { urls: ['stun:stun1.l.google.com:19302'] },
+  { urls: ['stun:global.stun.twilio.com:3478'] },
+  // Open Relay TURN (free fallback)
+  { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+];
+
+let pc = null, localStream = null, callChannel = null, currentCall = null;
+let _pendingIncoming = null, _inboxChannel = null;
+
+function listenForIncomingCalls() {
+  if (!sb || !session) return;
+  try { _inboxChannel?.unsubscribe(); } catch (_) {}
+  _inboxChannel = sb.channel('user:' + session.user.id, { config: { broadcast: { ack: false } } });
+  _inboxChannel.on('broadcast', { event: 'incoming-call' }, ({ payload }) => onIncomingInvite(payload));
+  _inboxChannel.subscribe();
+}
+
+function onIncomingInvite(p) {
+  if (currentCall) return;   // ignore if already on a call
+  _pendingIncoming = p;
+  $('inc-name').textContent = p.fromName || 'Caller';
+  $('incoming').classList.add('on');
+}
+
+async function acceptIncoming() {
+  if (!_pendingIncoming) return;
+  const p = _pendingIncoming; _pendingIncoming = null;
+  $('incoming').classList.remove('on');
+  try { localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true }); }
+  catch (e) { toast('Mic/cam blocked', 'err'); return; }
+  currentCall = { id: p.callId, peerId: p.fromId, peerName: p.fromName, role: 'callee' };
+  $('call-peer').textContent = p.fromName || 'Caller';
+  $('call-status').textContent = 'connecting…';
+  buildPC();
+  await pc.setRemoteDescription(p.offer);
+  const answer = await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+  callChannel = sb.channel('call:' + p.callId, { config: { broadcast: { ack: false } } });
+  callChannel.on('broadcast', { event: 'ice' }, ({ payload }) => onRemoteIce(payload));
+  callChannel.on('broadcast', { event: 'bye' }, () => endCall());
+  callChannel.subscribe();
+  await callChannel.send({ type: 'broadcast', event: 'answer', payload: answer });
+  try {
+    await sb.from('calls').update({ status: 'accepted', accepted_at: new Date().toISOString() }).eq('id', p.callId);
+  } catch (_) {}
+  showCallStage();
+}
+
+async function declineIncoming() {
+  if (!_pendingIncoming) return;
+  const p = _pendingIncoming; _pendingIncoming = null;
+  $('incoming').classList.remove('on');
+  try {
+    const ch = sb.channel('call:' + p.callId);
+    await ch.subscribe();
+    await ch.send({ type: 'broadcast', event: 'bye', payload: { reason: 'declined' } });
+    ch.unsubscribe();
+    await sb.from('calls').update({ status: 'declined', ended_at: new Date().toISOString() }).eq('id', p.callId);
+  } catch (_) {}
+}
+
+async function startCall(peerId, peerName) {
+  if (!session) return openAuthPanel();
+  if (currentCall) return toast('Already on a call', 'err');
+  if (peerId === session.user.id) return toast("Can't call yourself", 'err');
+  try { localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true }); }
+  catch (e) { toast('Mic/cam blocked: ' + e.message, 'err'); return; }
+  let row;
+  try {
+    const r = await sb.from('calls').insert({ caller_id: session.user.id, callee_id: peerId }).select().single();
+    if (r.error) throw r.error;
+    row = r.data;
+  } catch (e) {
+    stopLocalStream();
+    return toast('Call create failed: ' + e.message, 'err');
+  }
+  currentCall = { id: row.id, peerId, peerName, role: 'caller' };
+  $('call-peer').textContent = peerName || 'Calling…';
+  $('call-status').textContent = 'ringing…';
+  buildPC();
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  callChannel = sb.channel('call:' + row.id, { config: { broadcast: { ack: false } } });
+  callChannel.on('broadcast', { event: 'answer' }, ({ payload }) => onRemoteAnswer(payload));
+  callChannel.on('broadcast', { event: 'ice' }, ({ payload }) => onRemoteIce(payload));
+  callChannel.on('broadcast', { event: 'bye' }, () => endCall());
+  callChannel.subscribe();
+  // Tell the callee via their user channel + push notification
+  const userCh = sb.channel('user:' + peerId);
+  await userCh.subscribe();
+  await userCh.send({
+    type: 'broadcast', event: 'incoming-call',
+    payload: { callId: row.id, fromId: session.user.id,
+      fromName: (profile?.display_name || session.user.email || 'Caller'), offer },
+  });
+  userCh.unsubscribe();
+  try {
+    await sb.functions.invoke('push-notify', { body: {
+      target_profile_id: peerId, type: 'call', callId: row.id,
+      title: 'Incoming call', body: (profile?.display_name || 'Friend') + ' is calling you',
+    }});
+  } catch (_) {}
+  showCallStage();
+}
+
+function buildPC() {
+  pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  if (localStream) localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+  pc.ontrack = (e) => {
+    const r = $('call-remote');
+    if (r.srcObject !== e.streams[0]) r.srcObject = e.streams[0];
+    $('call-status').textContent = 'connected';
+  };
+  pc.onicecandidate = (e) => {
+    if (e.candidate && callChannel) {
+      try { callChannel.send({ type: 'broadcast', event: 'ice', payload: e.candidate.toJSON() }); } catch (_) {}
+    }
+  };
+  pc.onconnectionstatechange = () => {
+    const st = pc.connectionState;
+    if (st === 'connected') $('call-status').textContent = 'connected';
+    else if (st === 'disconnected' || st === 'failed' || st === 'closed') endCall();
+  };
+  $('call-local').srcObject = localStream;
+}
+
+async function onRemoteAnswer(answer) {
+  try { await pc.setRemoteDescription(answer); $('call-status').textContent = 'connecting…'; } catch (_) {}
+}
+
+async function onRemoteIce(c) {
+  if (!c) return;
+  try { await pc.addIceCandidate(c); } catch (_) {}
+}
+
+function showCallStage() { $('call-stage').classList.add('on'); }
+function hideCallStage() { $('call-stage').classList.remove('on'); }
+
+function endCall() {
+  if (!currentCall && !pc) return;
+  try { if (callChannel) callChannel.send({ type: 'broadcast', event: 'bye', payload: {} }); } catch (_) {}
+  try { callChannel?.unsubscribe(); } catch (_) {}
+  callChannel = null;
+  try { pc?.close(); } catch (_) {}
+  pc = null;
+  stopLocalStream();
+  if (currentCall) {
+    try { sb.from('calls').update({ status: 'ended', ended_at: new Date().toISOString() }).eq('id', currentCall.id); } catch (_) {}
+  }
+  currentCall = null;
+  hideCallStage();
+}
+
+function stopLocalStream() {
+  try { localStream?.getTracks().forEach(t => t.stop()); } catch (_) {}
+  localStream = null;
+  try { $('call-local').srcObject = null; } catch (_) {}
+  try { $('call-remote').srcObject = null; } catch (_) {}
+}
+
+$('btn-end').addEventListener('click', endCall);
+$('btn-mute').addEventListener('click', () => {
+  if (!localStream) return;
+  const a = localStream.getAudioTracks()[0]; if (!a) return;
+  a.enabled = !a.enabled;
+  $('btn-mute').classList.toggle('danger', !a.enabled);
+});
+$('btn-cam').addEventListener('click', () => {
+  if (!localStream) return;
+  const v = localStream.getVideoTracks()[0]; if (!v) return;
+  v.enabled = !v.enabled;
+  $('btn-cam').classList.toggle('danger', !v.enabled);
+});
+
+async function openCallPicker() {
+  if (!session) return openAuthPanel();
+  openPanel(`
+    <h2>Call</h2>
+    <p>Recent contacts. Tap to ring.</p>
+    <div id="call-peers">Loading…</div>
+    <h3>Find someone</h3>
+    <input id="call-search" placeholder="Name or username…" oninput="findPeerForCall(this.value)">
+    <div id="call-found"></div>
+  `);
+  let peers = [];
+  try {
+    const r = await sb.rpc('message_inbox', { max_results: 30 });
+    peers = (r.data || []).filter(c => c.peer_id);
+  } catch (_) {}
+  $('call-peers').innerHTML = peers.length ? peers.map(c => `
+    <div class="card" onclick="startCall('${c.peer_id}', ${JSON.stringify(c.peer_display || 'Friend').replace(/"/g, '&quot;')})">
+      <div class="ct">${escapeHtml(c.peer_display || 'Friend')}</div>
+      <div class="cm">◈ video call</div>
+    </div>
+  `).join('') : '<p>No recent peers. Search below to find someone.</p>';
+}
+
+async function findPeerForCall(q) {
+  const out = $('call-found'); if (!out) return;
+  q = (q || '').trim();
+  if (q.length < 2) { out.innerHTML = ''; return; }
+  try {
+    const { data } = await sb.rpc('find_peer', { q });
+    const rows = (data || []).filter(r => r.id !== session?.user.id);
+    out.innerHTML = rows.length ? rows.map(r => `
+      <div class="card" onclick="startCall('${r.id}', ${JSON.stringify(r.display_name || 'Friend').replace(/"/g, '&quot;')})">
+        <div class="ct">${escapeHtml(r.display_name || 'Friend')}</div>
+        <div class="cm">◈ video call</div>
+      </div>
+    `).join('') : '<p>No one with that name.</p>';
+  } catch (_) { out.innerHTML = ''; }
+}
+
+/* ============================== Delivery marketplace ============================== */
+let vendorPins = null;
+const vendorIndex = new Map();
+let _currentVendor = null, _menu = [], _cart = [];
+
+function _makePinCanvas(emoji, color) {
+  const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(32, 28, 4, 32, 32, 28);
+  g.addColorStop(0, '#ffffff'); g.addColorStop(0.45, color); g.addColorStop(1, '#08163c');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(32, 32, 26, 0, Math.PI * 2); ctx.fill();
+  ctx.font = '22px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(emoji, 32, 34);
+  return c;
+}
+
+function _vendorEmoji(tags) {
+  const a = tags.amenity || '', s = tags.shop || '';
+  if (/restaurant|fast_food|food_court/.test(a)) return '🍴';
+  if (/cafe/.test(a)) return '☕';
+  if (/bar|pub/.test(a)) return '🍷';
+  if (/hotel/.test(a)) return '🏨';
+  if (/pharmacy/.test(a)) return '➕';
+  if (/supermarket|convenience/.test(s)) return '🛒';
+  if (/bakery/.test(s)) return '🥐';
+  if (s) return '🛍';
+  return '◍';
+}
+
+async function fetchNearbyVendors(lat, lng, keyword) {
+  const radius = 2500;
+  const q = `[out:json][timeout:25];(
+    node["name"]["amenity"~"restaurant|cafe|bar|fast_food|pub|food_court|bakery"](around:${radius},${lat},${lng});
+    node["name"]["shop"~"bakery|supermarket|convenience|grocery"](around:${radius},${lat},${lng});
+  );out 80;`;
+  try {
+    const r = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'data=' + encodeURIComponent(q),
+    });
+    const j = await r.json();
+    let items = (j.elements || []).filter(e => e.tags?.name);
+    if (keyword) {
+      const k = keyword.toLowerCase();
+      items = items.sort((a, b) => {
+        const ah = JSON.stringify(a.tags).toLowerCase().includes(k) ? 0 : 1;
+        const bh = JSON.stringify(b.tags).toLowerCase().includes(k) ? 0 : 1;
+        return ah - bh;
+      });
+    }
+    return items;
+  } catch (_) { return []; }
+}
+
+function renderVendorPins(places) {
+  if (!viewer) return;
+  if (!vendorPins) vendorPins = viewer.scene.primitives.add(new Cesium.BillboardCollection({ scene: viewer.scene }));
+  vendorPins.removeAll(); vendorIndex.clear();
+  for (const p of places) {
+    if (!p.lat || !p.lon) continue;
+    const emoji = _vendorEmoji(p.tags || {});
+    const bb = vendorPins.add({
+      position: Cesium.Cartesian3.fromDegrees(p.lon, p.lat),
+      image: _makePinCanvas(emoji, '#ffaa33'),
+      width: 30, height: 30,
+      scaleByDistance: new Cesium.NearFarScalar(200, 1.0, 1.2e6, 0.2),
+      translucencyByDistance: new Cesium.NearFarScalar(7e5, 1.0, 1.8e6, 0),
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+    });
+    bb.__vendorOsmId = 'osm:' + p.id;
+    vendorIndex.set('osm:' + p.id, p);
+  }
+  viewer.scene.requestRender();
+}
+
+async function diveToVendors(keyword) {
+  const ok = await diveToMe();
+  if (!ok) return;
+  toast('Searching nearby…');
+  const places = await fetchNearbyVendors(_userLat, _userLng, keyword);
+  if (!places.length) { toast('Nothing nearby', 'err'); return; }
+  renderVendorPins(places);
+  toast(places.length + ' places nearby', 'ok');
+  // For signed-in users with a keyword, auto-open the nearest match.
+  if (keyword && session) {
+    const k = keyword.toLowerCase();
+    const match = places.find(p => JSON.stringify(p.tags).toLowerCase().includes(k));
+    if (match) setTimeout(() => openVendorPanel(match), 1600);
+  }
+}
+
+async function openVendorPanel(p) {
+  if (!session) return openAuthPanel();
+  _currentVendor = p; _cart = []; _menu = [];
+  openPanel(`
+    <h2>${escapeHtml(p.tags.name)}</h2>
+    <p>${escapeHtml([p.tags.cuisine, p.tags['addr:street']].filter(Boolean).join(' · '))}</p>
+    <h3>Menu</h3>
+    <div id="vendor-menu">Composing menu…</div>
+    <h3>Cart</h3>
+    <div id="vendor-cart"><p>Tap menu items to add.</p></div>
+    <div id="vendor-total" style="margin-top:10px;padding:10px 0;border-top:1px solid rgba(93,178,255,0.25)"></div>
+    <button class="pbtn ok" onclick="placeOrder()" id="btn-place" disabled>Place order</button>
+  `);
+  try {
+    const r = await sb.functions.invoke('vendor-menu', { body: {
+      vendor_id: 'osm:' + p.id,
+      vendor: { name: p.tags.name, category: 'food', tags: p.tags, lat: p.lat, lng: p.lon },
+    }});
+    _menu = (r.data?.items) || [];
+    renderMenu();
+  } catch (e) {
+    $('vendor-menu').textContent = 'Menu compose failed: ' + e.message;
+  }
+}
+
+function renderMenu() {
+  if (!_menu.length) { $('vendor-menu').textContent = 'No menu items.'; return; }
+  $('vendor-menu').innerHTML = _menu.map((m, i) => `
+    <div class="mi" onclick="addToCart(${i})">
+      <div class="mi-name">${escapeHtml(m.name)}${m.desc ? '<br><span style="font-size:11px;color:rgba(168,200,238,0.55)">' + escapeHtml(m.desc) + '</span>' : ''}</div>
+      <div class="mi-price">€${m.price}</div>
+      <div class="mi-add">＋</div>
+    </div>
+  `).join('');
+}
+
+function addToCart(i) {
+  const m = _menu[i]; if (!m) return;
+  const ex = _cart.find(x => x.name === m.name);
+  if (ex) ex.qty++; else _cart.push({ name: m.name, qty: 1, price: m.price });
+  renderCart();
+}
+
+function removeFromCart(i) { _cart.splice(i, 1); renderCart(); }
+
+function renderCart() {
+  const c = $('vendor-cart'); const t = $('vendor-total'); const b = $('btn-place');
+  if (!c) return;
+  if (!_cart.length) {
+    c.innerHTML = '<p>Tap menu items to add.</p>';
+    t.innerHTML = ''; b.disabled = true; return;
+  }
+  c.innerHTML = _cart.map((it, i) => `
+    <div class="cart-row">
+      <span>${escapeHtml(it.name)} ×${it.qty}</span>
+      <span>€${(it.qty * it.price).toFixed(2)} <span class="cart-x" onclick="removeFromCart(${i})">✕</span></span>
+    </div>
+  `).join('');
+  const sub = _cart.reduce((s, it) => s + it.qty * it.price, 0);
+  const del = 3, plat = Math.max(1, Math.round(sub * 0.05));
+  const total = sub + del + plat;
+  const bal = Number(profile?.eur_balance || 0);
+  t.innerHTML = `
+    <div class="row"><span>Subtotal</span><span>€${sub.toFixed(2)}</span></div>
+    <div class="row"><span>Delivery</span><span>€${del}</span></div>
+    <div class="row"><span>Platform fee</span><span>€${plat}</span></div>
+    <div class="row" style="font-weight:700"><span>Total</span><span>€${total.toFixed(2)}</span></div>
+    <div class="row" style="color:${bal >= total ? '#7eebb4' : '#ff9e9e'}"><span>Your balance</span><span>€${bal.toFixed(2)}</span></div>
+  `;
+  b.disabled = false;
+  b.textContent = bal >= total ? 'Place order' : 'Top up & order';
+}
+
+async function placeOrder() {
+  if (!session) return openAuthPanel();
+  if (!_currentVendor || !_cart.length) return;
+  const p = _currentVendor;
+  const sub = _cart.reduce((s, it) => s + it.qty * it.price, 0);
+  const del = 3, plat = Math.max(1, Math.round(sub * 0.05));
+  const total = sub + del + plat;
+  toast('Sending order…');
+  try {
+    const { data, error } = await sb.functions.invoke('order-intake', { body: {
+      vendor_id: 'osm:' + p.id,
+      vendor: { osm_id: p.id, name: p.tags.name, emoji: _vendorEmoji(p.tags), category: 'food',
+        lat: p.lat, lng: p.lon,
+        address: { street: p.tags['addr:street'], city: p.tags['addr:city'] }, tags: p.tags },
+      items: _cart,
+      calc: { subtotal: sub, delivery_fee: del, platform_fee: plat, total, currency: 'EUR' },
+      delivery_lat: _userLat, delivery_lng: _userLng,
+      delivery_address: '', notes: '',
+    }});
+    if (error) throw error;
+    if (!data?.ok) throw new Error(data?.error || 'order failed');
+    toast('Order placed · ' + data.order.short_id, 'ok');
+    _cart = [];
+    try { await loadProfile(); } catch (_) {}
+    setTimeout(() => openOrderTrack(data.order.id), 250);
+  } catch (e) {
+    const msg = String(e.message || e);
+    if (msg.includes('insufficient_funds') || msg.includes('402')) {
+      toast('Not enough euros — top up to order', 'err');
+      try { await loadProfile(); } catch (_) {}
+      setTimeout(openBuyPanel, 400);
+      return;
+    }
+    toast('Order failed: ' + msg, 'err');
+  }
+}
+
+async function openOrderTrack(orderId) {
+  if (!sb || !session) return;
+  const { data: o } = await sb.from('orders').select('*').eq('id', orderId).single();
+  if (!o) return toast('Order not found', 'err');
+  _renderOrder(o);
+  const ch = sb.channel('order-' + orderId).on('broadcast', { event: 'status' }, ({ payload }) => {
+    if (payload?.order_id === orderId) {
+      sb.from('orders').select('*').eq('id', orderId).single().then(({ data }) => data && _renderOrder(data));
+    }
+  });
+  ch.subscribe();
+}
+
+function _renderOrder(o) {
+  const steps = ['pending', 'accepted', 'preparing', 'in_transit', 'delivered'];
+  const idx = Math.max(0, steps.indexOf(o.status));
+  const items = (o.items || []).map(it => `<div class="row"><span>${escapeHtml(it.name)} ×${it.qty}</span><span>€${(it.qty * it.price).toFixed(2)}</span></div>`).join('');
+  openPanel(`
+    <h2>Order ${escapeHtml(o.short_id || '')}</h2>
+    <p>${escapeHtml(o.status.toUpperCase().replace('_', ' '))}</p>
+    <div style="display:flex;gap:6px;margin:10px 0">
+      ${steps.map((s, i) => `<div style="flex:1;height:6px;border-radius:3px;background:${i <= idx ? '#7eebb4' : 'rgba(93,178,255,0.18)'}" title="${s}"></div>`).join('')}
+    </div>
+    <h3>Items</h3>
+    ${items}
+    <h3>Total</h3>
+    <div class="row"><span>Paid</span><span>€${(o.calc?.total ?? 0).toFixed(2)}</span></div>
+    <p style="margin-top:14px;font-size:11px;color:rgba(168,200,238,0.55)">Updates live as the vendor and driver advance the order.</p>
+  `);
+}
+
+/* ============================== Driver flow ============================== */
+async function openDriverPanel() {
+  if (!session) return openAuthPanel();
+  openPanel(`
+    <h2>Driver</h2>
+    <p>Open delivery requests near you. Tap Accept to take one.</p>
+    <div id="drv-list">Loading…</div>
+    <h3>Your active runs</h3>
+    <div id="drv-runs">Loading…</div>
+  `);
+  if (_userLat == null) await locateMe();
+  let nearby = [];
+  try {
+    const r = await sb.rpc('nearby_deliveries', { lat: _userLat ?? 0, lng: _userLng ?? 0, radius_meters: 8000, max_results: 30 });
+    nearby = (r.data || []).filter(d => d.status === 'requested');
+  } catch (e) { $('drv-list').textContent = 'Failed: ' + e.message; }
+  $('drv-list').innerHTML = nearby.length ? nearby.map(d => `
+    <div class="card">
+      <div class="ct">${escapeHtml(d.short_id || d.id.slice(0, 8))} — €${Number(d.reward_avc || 0).toFixed(2)}</div>
+      <div class="cm">${escapeHtml(d.pickup_address || '')} → ${escapeHtml(d.dropoff_address || '')}</div>
+      <button class="pbtn ok" style="margin-top:6px" onclick="acceptDelivery('${d.id}')">Accept</button>
+    </div>
+  `).join('') : '<p>No deliveries nearby. Try again later.</p>';
+  try {
+    const r = await sb.from('deliveries').select('*').eq('runner_id', session.user.id).in('status', ['accepted', 'en_route', 'picked_up']).order('created_at', { ascending: false });
+    const runs = r.data || [];
+    $('drv-runs').innerHTML = runs.length ? runs.map(d => `
+      <div class="card">
+        <div class="ct">${escapeHtml(d.short_id || d.id.slice(0, 8))} — ${escapeHtml(d.status)}</div>
+        <div class="cm">€${Number(d.reward_avc || 0).toFixed(2)} reward</div>
+        <button class="pbtn" onclick="advanceDelivery('${d.id}','picked_up')">Mark picked up</button>
+        <button class="pbtn ok" onclick="advanceDelivery('${d.id}','delivered')">Mark delivered</button>
+      </div>
+    `).join('') : '<p>No active runs.</p>';
+  } catch (_) {}
+}
+
+async function acceptDelivery(id) {
+  try {
+    const { error } = await sb.rpc('accept_delivery', { delivery_id: id });
+    if (error) throw error;
+    toast('Delivery accepted', 'ok');
+    openDriverPanel();
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+async function advanceDelivery(id, newStatus) {
+  try {
+    const { error } = await sb.rpc('update_delivery_status', { delivery_id: id, new_status: newStatus });
+    if (error) throw error;
+    toast(newStatus, 'ok');
+    openDriverPanel();
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+/* ============================== Vendor (your orders if you sell) ============================== */
+async function openVendorOrdersPanel() {
+  if (!session) return openAuthPanel();
+  openPanel(`
+    <h2>Vendor — Incoming orders</h2>
+    <p>Orders to fulfil. Advance the status as you prepare and hand off.</p>
+    <div id="vo-list">Loading…</div>
+  `);
+  try {
+    const r = await sb.from('orders').select('*').eq('vendor_owner_id', session.user.id)
+      .order('created_at', { ascending: false }).limit(30);
+    const orders = r.data || [];
+    if (!orders.length) {
+      $('vo-list').innerHTML = '<p>No orders yet. Register your business in profile → become vendor.</p>';
+      return;
+    }
+    $('vo-list').innerHTML = orders.map(o => `
+      <div class="card">
+        <div class="ct">${escapeHtml(o.short_id || o.id.slice(0, 8))} — €${Number(o.calc?.total ?? 0).toFixed(2)} — <b>${escapeHtml(o.status)}</b></div>
+        <div class="cm">${(o.items || []).map(i => `${i.qty}× ${i.name}`).join(', ')}</div>
+        <button class="pbtn" onclick="vendorAdvance('${o.id}','accepted')">Accept</button>
+        <button class="pbtn" onclick="vendorAdvance('${o.id}','preparing')">Preparing</button>
+        <button class="pbtn ok" onclick="vendorAdvance('${o.id}','in_transit')">Hand off</button>
+      </div>
+    `).join('');
+  } catch (e) { $('vo-list').textContent = 'Failed: ' + e.message; }
+}
+
+async function vendorAdvance(id, status) {
+  try {
+    await sb.functions.invoke('order-status', { body: { order_id: id, new_status: status } });
+    toast(status, 'ok');
+    openVendorOrdersPanel();
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+/* ============================== Wallet ============================== */
+async function openWalletPanel() {
+  if (!session) return openAuthPanel();
+  await loadProfile();
+  const eur = Number(profile?.eur_balance || 0);
+  openPanel(`
+    <h2>Wallet</h2>
+    <p>Your euros and recent activity.</p>
+    <div class="row" style="font-size:24px;font-weight:300;color:#ffd47e">
+      <span>Balance</span><span>€${eur.toFixed(2)}</span>
+    </div>
+    <div style="margin:14px 0">
+      <button class="pbtn ok" onclick="openBuyPanel()">Top up</button>
+      <button class="pbtn" onclick="openDriverPanel()">Drive (earn)</button>
+      <button class="pbtn" onclick="openVendorOrdersPanel()">Vendor orders</button>
+      <button class="pbtn danger" onclick="signOut()">Sign out</button>
+    </div>
+  `);
+}
+
+async function openBuyPanel() {
+  if (!session) return openAuthPanel();
+  openPanel(`
+    <h2>Top up</h2>
+    <p>Add euros to your wallet. Settled by Stripe / Revolut / PayPal.</p>
+    <input id="buy-amt" type="number" min="1" max="2500" value="10" placeholder="EUR">
+    <div style="margin-top:10px">
+      <button class="pbtn ok" onclick="payProvider('stripe')">Stripe</button>
+      <button class="pbtn" onclick="payProvider('revolut')">Revolut</button>
+      <button class="pbtn" onclick="payProvider('paypal')">PayPal</button>
+    </div>
+    <p style="font-size:11px;color:rgba(168,200,238,0.55);margin-top:12px">
+      A 3 % Orbital License royalty is booked server-side; you receive the full top-up.
+    </p>
+  `);
+}
+
+async function payProvider(provider) {
+  const eur = parseFloat($('buy-amt').value) || 10;
+  const amount_cents = Math.round(eur * 100);
+  try {
+    const { data, error } = await sb.functions.invoke(provider, { body: {
+      amount_cents, currency: 'EUR', return_url: location.origin + '/?paid=1',
+      cancel_url: location.origin + '/?paid=0',
+    }});
+    if (error) throw error;
+    if (data?.url) { location.href = data.url; return; }
+    toast('Payment session failed', 'err');
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+/* ============================== Chat router ============================== */
 function openChat() { $('chat').classList.add('open'); document.body.classList.add('chat-open'); }
 function closeChat() { $('chat').classList.remove('open'); document.body.classList.remove('chat-open'); }
+
+const aicycleHistory = [];
 function appendMsg(role, text) {
-  const div = document.createElement('div');
-  div.className = 'msg ' + role;
-  div.textContent = text;
+  const div = document.createElement('div'); div.className = 'msg ' + role; div.textContent = text;
   const msgs = $('chat-msgs');
   const nearBottom = (msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight) < 80;
   msgs.appendChild(div);
   if (nearBottom) msgs.scrollTop = msgs.scrollHeight;
 }
 
+function _routedFire(line, fn) {
+  appendMsg('ai', line);
+  try { fn(); } catch (e) { console.error(e); }
+  setTimeout(closeChat, 800);
+}
+
+function routeLocal(raw) {
+  const t = (raw || '').toLowerCase().trim();
+  if (/\b(news|headlines|feed|νέα|ειδήσεις)\b/.test(t))                              { _routedFire('Opening the news.', openNewsPanel); return true; }
+  if (/\b(messages?|inbox|dm|chats?|μηνύματα|μήνυμ)\b/.test(t))                        { _routedFire(session ? 'Opening your messages.' : 'Sign in first.', () => session ? openMessagesPanel() : openAuthPanel()); return true; }
+  if (/\b(wallet|balance|money|euros|πορτοφόλι|λεφτά|ευρώ)\b/.test(t))                 { _routedFire(session ? 'Opening your wallet.' : 'Sign in first.', () => session ? openWalletPanel() : openAuthPanel()); return true; }
+  if (/\b(top\s*up|add money|buy euros|αγορά ευρώ)\b/.test(t))                         { _routedFire(session ? 'Opening top-up.' : 'Sign in first.', () => session ? openBuyPanel() : openAuthPanel()); return true; }
+  if (/\b(drive|delivery|deliver|driver|courier|οδηγός|παράδοση)\b/.test(t))           { _routedFire(session ? 'Opening driver dashboard.' : 'Sign in to drive.', () => session ? openDriverPanel() : openAuthPanel()); return true; }
+  if (/\b(vendor|my orders|incoming orders|παραγγελίες μου)\b/.test(t))                { _routedFire(session ? 'Opening your vendor orders.' : 'Sign in first.', () => session ? openVendorOrdersPanel() : openAuthPanel()); return true; }
+  if (/\b(home|globe|world|earth|σπίτι|κόσμος)\b/.test(t))                              { _routedFire('Warping home.', pilotHome); return true; }
+  if (/\b(sign\s*in|log\s*in|sign\s*up|register|εγγραφή|σύνδεση)\b/.test(t))           { _routedFire('Sign-in panel.', openAuthPanel); return true; }
+  if (/\b(sign\s*out|log\s*out|αποσύνδεση)\b/.test(t) && session)                       { _routedFire('Signing you out.', signOut); return true; }
+  // Call NAME / video NAME
+  const callMatch = t.match(/\b(?:call|ring|video|videocall|κάλεσε)\s+([a-zà-ÿα-ω][a-zà-ÿα-ω\s']{1,40}?)(?:[.,!?]|$)/i);
+  if (callMatch) {
+    const name = callMatch[1].trim();
+    _routedFire('Calling ' + name + '.', async () => {
+      if (!session) { openAuthPanel(); return; }
+      const { data } = await sb.rpc('find_peer', { q: name });
+      const peer = (data || [])[0];
+      if (peer) startCall(peer.id, peer.display_name);
+      else openCallPicker();
+    });
+    return true;
+  }
+  if (/\b(call|ring|κάλεσε)\b/.test(t)) { _routedFire(session ? 'Opening contacts.' : 'Sign in first.', () => session ? openCallPicker() : openAuthPanel()); return true; }
+  // Message NAME body
+  const msgMatch = t.match(/\b(?:message|text|dm|talk to|tell|γράψε)\s+([a-zà-ÿα-ω][a-zà-ÿα-ω\s']{1,40}?)(?:\s+(.+))?$/i);
+  if (msgMatch) {
+    const name = msgMatch[1].trim();
+    const body = (msgMatch[2] || '').trim();
+    _routedFire('Looking for ' + name + '.', async () => {
+      if (!session) { openAuthPanel(); return; }
+      const { data } = await sb.rpc('find_peer', { q: name });
+      const peer = (data || [])[0];
+      if (peer) {
+        openConversation(peer.id, peer.display_name);
+        if (body) setTimeout(() => {
+          const inp = document.getElementById('msg-body');
+          if (inp) { inp.value = body; $('msg-send-form')?.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); }
+        }, 500);
+      } else { openMessagesPanel(); }
+    });
+    return true;
+  }
+  // Food / order
+  const foodMatch = t.match(/\b(pizza|burger|sushi|kebab|gyros|souvlaki|coffee|tea|wine|beer|food|eat|hungry|order|delivery|deliver|drink|πίτσα|σουβλάκι|καφέ|μπύρα|παραγγελ|φαγητ|πεινάω)\b/);
+  if (foodMatch) {
+    const kw = foodMatch[1];
+    _routedFire('Looking for ' + kw + ' nearby.', () => diveToVendors(kw));
+    return true;
+  }
+  if (/\b(help|commands|τι μπορείς|βοήθεια)\b/.test(t)) {
+    _routedFire('Try one word: news · pizza · messages · call · call NAME · wallet · drive · home · sign in.', () => {});
+    return true;
+  }
+  return false;
+}
+
 async function callBrain(prompt) {
   if (!sb) return '(offline)';
   const history = aicycleHistory.slice(-6);
   try {
+    $('chat').classList.add('thinking');
     const { data, error } = await sb.functions.invoke('aicycle', {
       body: { prompt, history, engine: 'astranov' },
     });
@@ -235,6 +1320,7 @@ async function callBrain(prompt) {
     aicycleHistory.push({ role: 'assistant', content: reply });
     return reply;
   } catch (e) { return '(error: ' + (e.message || e) + ')'; }
+  finally { $('chat').classList.remove('thinking'); }
 }
 
 $('chat-form').addEventListener('submit', async (e) => {
@@ -244,6 +1330,7 @@ $('chat-form').addEventListener('submit', async (e) => {
   if (!text) return;
   appendMsg('user', text);
   input.value = '';
+  if (routeLocal(text)) return;
   const reply = await callBrain(text);
   appendMsg('ai', reply);
 });
@@ -266,12 +1353,12 @@ if (SR) {
   recognition.onerror = () => { listening = false; $('btn-mic').classList.remove('listening'); };
 }
 $('btn-mic').addEventListener('click', () => {
-  if (!recognition) return;
+  if (!recognition) return toast('Voice not supported here', 'err');
   if (listening) { try { recognition.stop(); } catch (_) {} listening = false; $('btn-mic').classList.remove('listening'); return; }
   try { recognition.start(); listening = true; $('btn-mic').classList.add('listening'); } catch (_) {}
 });
 
-/* ---------- Chat drag handle (drag down to close) ---------- */
+/* ---------- Chat drag handle ---------- */
 (function () {
   const h = $('chat-handle'); if (!h) return;
   let startY = 0, startH = 0, dragging = false;
@@ -295,21 +1382,39 @@ $('btn-mic').addEventListener('click', () => {
 window.addEventListener('load', () => {
   bootCesium();
   bootSupabase();
-  // Open the chat with a greeting after a short pause.
+  ipWarmup();
+  // Greet after a short pause.
   setTimeout(() => {
     openChat();
     const h = new Date().getHours();
     const tod = h < 5 ? 'Up late' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
-    appendMsg('ai', tod + ". I'm Astranov. Ask me anything.");
+    appendMsg('ai', tod + ". I'm Astranov. Try: news · pizza · messages · call NAME · wallet · drive.");
   }, 1400);
+  // Handle ?paid=1 from a payment provider redirect.
+  try {
+    const paid = new URL(location.href).searchParams.get('paid');
+    if (paid === '1') setTimeout(() => { loadProfile().then(openWalletPanel); toast('Payment received — balance updates shortly', 'ok'); }, 900);
+    if (paid === '0') setTimeout(() => toast('Payment cancelled', 'err'), 900);
+  } catch (_) {}
 });
 
-// Escape closes chat.
+// Escape closes chat / panel.
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (document.activeElement?.tagName === 'INPUT') { document.activeElement.blur(); return; }
+  if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+    document.activeElement.blur(); return;
+  }
+  if ($('panel').classList.contains('open')) { closePanel(); return; }
   if ($('chat').classList.contains('open')) closeChat();
 });
+
+// Service worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(reg => {
+    reg.update().catch(()=>{});
+    navigator.serviceWorker.addEventListener('controllerchange', () => location.reload());
+  }).catch(() => {});
+}
 </script>
 </body>
 </html>
