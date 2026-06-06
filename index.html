@@ -84,6 +84,8 @@
   .msg.user { background: rgba(120,180,255,0.12); margin-left: auto; }
   .msg.thinking-stub { color: rgba(168,200,238,0.65); animation: pulse 1.1s ease-in-out infinite; }
   @keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
+  .msg-meta { margin-top: 6px; font-size: 10px; letter-spacing: 0.06em;
+    color: rgba(120,180,255,0.55); text-transform: uppercase; }
   #chat-form { display: flex; gap: 10px; padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
     align-items: center; }
   #chat-input { flex: 1; min-width: 0; padding: 10px 14px; font-size: 16px;
@@ -416,8 +418,8 @@ async function pilotHome() {
 function onCanvasClick(click) {
   if (!viewer) return;
   const picked = viewer.scene.pick(click.position);
-  if (picked?.primitive?.__vendorOsmId) {
-    const p = vendorIndex.get(picked.primitive.__vendorOsmId);
+  if (picked?.primitive?.__vendorId) {
+    const p = vendorIndex.get(picked.primitive.__vendorId);
     if (p) openVendorPanel(p);
   }
 }
@@ -879,42 +881,39 @@ function _makePinCanvas(emoji, color) {
   return c;
 }
 
-function _vendorEmoji(tags) {
-  const a = tags.amenity || '', s = tags.shop || '';
-  if (/restaurant|fast_food|food_court/.test(a)) return '🍴';
-  if (/cafe/.test(a)) return '☕';
-  if (/bar|pub/.test(a)) return '🍷';
-  if (/hotel/.test(a)) return '🏨';
-  if (/pharmacy/.test(a)) return '➕';
-  if (/supermarket|convenience/.test(s)) return '🛒';
-  if (/bakery/.test(s)) return '🥐';
-  if (s) return '🛍';
-  return '◍';
+function _distMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000, toRad = x => x * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(a));
 }
 
+// Pull from OUR vendors table, only those that published a menu with
+// prices. Vendors without items don't appear — the architect's law.
 async function fetchNearbyVendors(lat, lng, keyword) {
-  const radius = 2500;
-  const q = `[out:json][timeout:25];(
-    node["name"]["amenity"~"restaurant|cafe|bar|fast_food|pub|food_court|bakery"](around:${radius},${lat},${lng});
-    node["name"]["shop"~"bakery|supermarket|convenience|grocery"](around:${radius},${lat},${lng});
-  );out 80;`;
   try {
-    const r = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'data=' + encodeURIComponent(q),
-    });
-    const j = await r.json();
-    let items = (j.elements || []).filter(e => e.tags?.name);
+    const r = await sb.from('vendors').select('*')
+      .eq('is_active', true).neq('items', '[]').limit(200);
+    if (r.error) throw r.error;
+    let list = (r.data || []).filter(v =>
+      v.lat && v.lng && Array.isArray(v.items) && v.items.some(i => Number(i?.price) > 0)
+    );
+    if (lat != null && lng != null) {
+      list = list
+        .map(v => ({ ...v, _dist: _distMeters(lat, lng, v.lat, v.lng) }))
+        .filter(v => v._dist <= 5000)
+        .sort((a, b) => a._dist - b._dist);
+    }
     if (keyword) {
       const k = keyword.toLowerCase();
-      items = items.sort((a, b) => {
-        const ah = JSON.stringify(a.tags).toLowerCase().includes(k) ? 0 : 1;
-        const bh = JSON.stringify(b.tags).toLowerCase().includes(k) ? 0 : 1;
+      list.sort((a, b) => {
+        const ah = JSON.stringify(a).toLowerCase().includes(k) ? 0 : 1;
+        const bh = JSON.stringify(b).toLowerCase().includes(k) ? 0 : 1;
         return ah - bh;
       });
     }
-    return items;
-  } catch (_) { return []; }
+    return list;
+  } catch (e) { console.error('[vendors]', e); return []; }
 }
 
 function renderVendorPins(places) {
@@ -922,18 +921,17 @@ function renderVendorPins(places) {
   if (!vendorPins) vendorPins = viewer.scene.primitives.add(new Cesium.BillboardCollection({ scene: viewer.scene }));
   vendorPins.removeAll(); vendorIndex.clear();
   for (const p of places) {
-    if (!p.lat || !p.lon) continue;
-    const emoji = _vendorEmoji(p.tags || {});
+    if (!p.lat || !p.lng) continue;
     const bb = vendorPins.add({
-      position: Cesium.Cartesian3.fromDegrees(p.lon, p.lat),
-      image: _makePinCanvas(emoji, '#ffaa33'),
+      position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),
+      image: _makePinCanvas(p.emoji || '◍', '#ffaa33'),
       width: 30, height: 30,
       scaleByDistance: new Cesium.NearFarScalar(200, 1.0, 1.2e6, 0.2),
       translucencyByDistance: new Cesium.NearFarScalar(7e5, 1.0, 1.8e6, 0),
       disableDepthTestDistance: Number.POSITIVE_INFINITY,
     });
-    bb.__vendorOsmId = 'osm:' + p.id;
-    vendorIndex.set('osm:' + p.id, p);
+    bb.__vendorId = p.id;
+    vendorIndex.set(p.id, p);
   }
   viewer.scene.requestRender();
 }
@@ -943,40 +941,144 @@ async function diveToVendors(keyword) {
   if (!ok) return;
   toast('Searching nearby…');
   const places = await fetchNearbyVendors(_userLat, _userLng, keyword);
-  if (!places.length) { toast('Nothing nearby', 'err'); return; }
+  if (!places.length) {
+    openPanel(`
+      <h2>No published vendors here yet</h2>
+      <p>Our crawler can sweep places near you. Vendors without a real
+      menu get a chance to publish one — outside Google.</p>
+      <button class="pbtn ok" onclick="seedNearbyVendors()">Seed nearby places</button>
+      <button class="pbtn muted" onclick="openVendorClaim()">List my business</button>
+    `);
+    return;
+  }
   renderVendorPins(places);
-  toast(places.length + ' places nearby', 'ok');
-  // For signed-in users with a keyword, auto-open the nearest match.
+  toast(places.length + ' open nearby', 'ok');
   if (keyword && session) {
     const k = keyword.toLowerCase();
-    const match = places.find(p => JSON.stringify(p.tags).toLowerCase().includes(k));
-    if (match) setTimeout(() => openVendorPanel(match), 1600);
+    const match = places.find(p => JSON.stringify(p).toLowerCase().includes(k));
+    if (match) setTimeout(() => openVendorPanel(match), 1400);
   }
+}
+
+async function seedNearbyVendors() {
+  if (_userLat == null) await locateMe();
+  if (_userLat == null) return toast('Need your location to seed', 'err');
+  toast('Crawler dispatched — please wait…');
+  try {
+    const { data, error } = await sb.functions.invoke('vendor-crawler', {
+      body: { lat: _userLat, lng: _userLng, radius: 2500 },
+    });
+    if (error) throw error;
+    toast('Seeded ' + (data?.count ?? 0) + ' places. Vendors must publish menus before they show.', 'ok');
+    setTimeout(() => diveToVendors(), 600);
+  } catch (e) { toast('Seed failed: ' + (e.message || e), 'err'); }
 }
 
 async function openVendorPanel(p) {
   if (!session) return openAuthPanel();
-  _currentVendor = p; _cart = []; _menu = [];
+  _currentVendor = p; _cart = []; _menu = Array.isArray(p.items) ? p.items.slice() : [];
+  const subtitle = [p.tags?.cuisine, p.address?.street, p.address?.city]
+    .filter(Boolean).join(' · ');
+  const ownerOrArchitect = profile?.is_owner || (p.owner_id && p.owner_id === session?.user.id);
   openPanel(`
-    <h2>${escapeHtml(p.tags.name)}</h2>
-    <p>${escapeHtml([p.tags.cuisine, p.tags['addr:street']].filter(Boolean).join(' · '))}</p>
+    <h2>${escapeHtml(p.name)}</h2>
+    <p>${escapeHtml(subtitle)}</p>
+    ${ownerOrArchitect ? `<button class="pbtn muted" onclick="openVendorEdit('${p.id}')">Edit menu</button>` : ''}
     <h3>Menu</h3>
-    <div id="vendor-menu">Composing menu…</div>
+    <div id="vendor-menu"></div>
     <h3>Cart</h3>
     <div id="vendor-cart"><p>Tap menu items to add.</p></div>
     <div id="vendor-total" style="margin-top:10px;padding:10px 0;border-top:1px solid rgba(93,178,255,0.25)"></div>
     <button class="pbtn ok" onclick="placeOrder()" id="btn-place" disabled>Place order</button>
   `);
+  renderMenu();
+}
+
+async function openVendorEdit(vendorId) {
+  if (!session) return openAuthPanel();
+  const r = await sb.from('vendors').select('*').eq('id', vendorId).single();
+  if (r.error || !r.data) return toast('Vendor not found', 'err');
+  const v = r.data;
+  if (!profile?.is_owner && v.owner_id !== session.user.id) return toast('Not yours to edit', 'err');
+  const items = Array.isArray(v.items) ? v.items : [];
+  openPanel(`
+    <h2>Publish menu — ${escapeHtml(v.name)}</h2>
+    <p>Add items with prices. They appear on the globe the moment you save. Outside Google.</p>
+    <div id="pub-items">${items.map((it, i) => _pubRow(it, i)).join('')}</div>
+    <button class="pbtn" onclick="pubAdd()">+ Add item</button>
+    <div style="margin-top:14px">
+      <button class="pbtn ok" onclick="pubSave('${vendorId}')">Save & publish</button>
+      <button class="pbtn muted" onclick="pubClaim('${vendorId}')">${v.owner_id ? 'Claimed' : 'Claim this listing'}</button>
+    </div>
+  `);
+}
+
+function _pubRow(it, i) {
+  return `
+    <div class="row" style="gap:6px" data-pub-row="${i}">
+      <input style="flex:2" placeholder="Item name" value="${escapeHtml(it?.name || '')}" data-pub="name">
+      <input style="flex:1" placeholder="Price €" type="number" min="0" step="0.5" value="${escapeHtml(it?.price ?? '')}" data-pub="price">
+      <button class="cart-x" onclick="this.closest('[data-pub-row]').remove()">✕</button>
+    </div>`;
+}
+
+function pubAdd() {
+  const wrap = $('pub-items');
+  const idx  = wrap.children.length;
+  wrap.insertAdjacentHTML('beforeend', _pubRow({}, idx));
+}
+
+async function pubSave(vendorId) {
+  const rows = Array.from(document.querySelectorAll('[data-pub-row]'));
+  const items = rows.map(r => ({
+    name:  r.querySelector('[data-pub="name"]').value.trim(),
+    price: Number(r.querySelector('[data-pub="price"]').value),
+  })).filter(x => x.name && x.price > 0);
+  if (!items.length) return toast('Add at least one item with a price', 'err');
   try {
-    const r = await sb.functions.invoke('vendor-menu', { body: {
-      vendor_id: 'osm:' + p.id,
-      vendor: { name: p.tags.name, category: 'food', tags: p.tags, lat: p.lat, lng: p.lon },
-    }});
-    _menu = (r.data?.items) || [];
-    renderMenu();
-  } catch (e) {
-    $('vendor-menu').textContent = 'Menu compose failed: ' + e.message;
-  }
+    const { error } = await sb.from('vendors').update({ items, is_active: true }).eq('id', vendorId);
+    if (error) throw error;
+    toast('Menu published · ' + items.length + ' items', 'ok');
+    setTimeout(() => diveToVendors(), 400);
+  } catch (e) { toast('Save failed: ' + (e.message || e), 'err'); }
+}
+
+async function pubClaim(vendorId) {
+  try {
+    const { error } = await sb.from('vendors').update({ owner_id: session.user.id }).eq('id', vendorId);
+    if (error) throw error;
+    toast('Claimed. You can edit + receive orders now.', 'ok');
+    openVendorEdit(vendorId);
+  } catch (e) { toast('Claim failed: ' + (e.message || e), 'err'); }
+}
+
+async function openVendorClaim() {
+  if (!session) return openAuthPanel();
+  if (_userLat == null) await locateMe();
+  openPanel(`
+    <h2>List my business</h2>
+    <p>Drop your business onto the globe so people near you can order. You publish the menu — no Google in the loop.</p>
+    <input id="vc-name" placeholder="Business name">
+    <input id="vc-cat"  placeholder="Category (restaurant, cafe, bakery, shop, …)" value="restaurant">
+    <button class="pbtn ok" onclick="vcCreate()">Create & open menu editor</button>
+  `);
+}
+
+async function vcCreate() {
+  const name = $('vc-name').value.trim();
+  const cat  = $('vc-cat').value.trim() || 'shop';
+  if (!name) return toast('Name required', 'err');
+  if (_userLat == null) return toast('Need your location', 'err');
+  try {
+    const r = await sb.from('vendors').insert({
+      name, category: cat, lat: _userLat, lng: _userLng,
+      emoji: cat === 'cafe' ? '☕' : cat === 'bakery' ? '🥐' : cat === 'restaurant' ? '🍽️' : '🛍️',
+      owner_id: session.user.id, is_active: true, items: [],
+    }).select().single();
+    if (r.error) throw r.error;
+    toast('Created — now publish your menu', 'ok');
+    openVendorEdit(r.data.id);
+  } catch (e) { toast('Create failed: ' + (e.message || e), 'err'); }
 }
 
 function renderMenu() {
@@ -1037,10 +1139,10 @@ async function placeOrder() {
   toast('Sending order…');
   try {
     const { data, error } = await sb.functions.invoke('order-intake', { body: {
-      vendor_id: 'osm:' + p.id,
-      vendor: { osm_id: p.id, name: p.tags.name, emoji: _vendorEmoji(p.tags), category: 'food',
-        lat: p.lat, lng: p.lon,
-        address: { street: p.tags['addr:street'], city: p.tags['addr:city'] }, tags: p.tags },
+      vendor_id: p.id,
+      vendor: { id: p.id, osm_id: p.osm_id || null, name: p.name,
+        emoji: p.emoji || '◍', category: p.category || 'shop',
+        lat: p.lat, lng: p.lng, address: p.address || {}, tags: p.tags || {} },
       items: _cart,
       calc: { subtotal: sub, delivery_fee: del, platform_fee: plat, total, currency: 'EUR' },
       delivery_lat: _userLat, delivery_lng: _userLng,
@@ -1098,9 +1200,21 @@ function _renderOrder(o) {
 /* ============================== Driver flow ============================== */
 async function openDriverPanel() {
   if (!session) return openAuthPanel();
+  // Architect-only for the bootstrap. The driver pool grows when the
+  // architect names the next runner; until then deliveries route to him.
+  if (!profile?.is_owner) {
+    openPanel(`
+      <h2>Driver</h2>
+      <p>Driver onboarding opens after the bootstrap. Right now the
+      architect runs every delivery from his real location. Tap below
+      to request access when it's time.</p>
+      <button class="pbtn muted" onclick="toast('Noted — you will be invited.', 'ok')">Notify me</button>
+    `);
+    return;
+  }
   openPanel(`
-    <h2>Driver</h2>
-    <p>Open delivery requests near you. Tap Accept to take one.</p>
+    <h2>Driver — Architect</h2>
+    <p>Open delivery requests near your real GPS. Tap Accept to take one.</p>
     <div id="drv-list">Loading…</div>
     <h3>Your active runs</h3>
     <div id="drv-runs">Loading…</div>
@@ -1337,20 +1451,25 @@ function appendThinking() {
 }
 
 async function callBrain(prompt, stub) {
-  if (!sb) return 'AstranoV is offline. Reload the page.';
+  if (!sb) return { reply: 'AstranoV is offline. Reload the page.', meta: '' };
   const history = aicycleHistory.slice(-6);
   try {
     $('chat').classList.add('thinking');
+    const t0 = Date.now();
     const { data, error } = await sb.functions.invoke('aicycle', {
       body: { prompt, history, engine: 'astranov' },
     });
     if (error) throw error;
     const reply = (data && (data.response || data.text)) || '(no reply)';
+    const ms   = Number(data?.latencyMs) || (Date.now() - t0);
+    const label= data?.engineLabel || data?.engine || 'brain';
+    const model= data?.model ? String(data.model).split('/').pop() : '';
+    const meta = `via ${label}${model ? ' · ' + model : ''} · ${(ms/1000).toFixed(1)}s`;
     aicycleHistory.push({ role: 'user', content: prompt });
     aicycleHistory.push({ role: 'assistant', content: reply });
-    return reply;
+    return { reply, meta };
   } catch (e) {
-    return 'Brain unreachable: ' + (e.message || e) + '. Try again in a moment.';
+    return { reply: 'Brain unreachable: ' + (e.message || e) + '. Try again in a moment.', meta: '' };
   } finally {
     $('chat').classList.remove('thinking');
     if (stub) stub.classList.remove('thinking-stub');
@@ -1368,8 +1487,14 @@ $('chat-form').addEventListener('submit', async (e) => {
   // Show a thinking stub the user can SEE so silence never reads as a
   // dead app. Replace its text with the actual reply when it lands.
   const stub = appendThinking();
-  const reply = await callBrain(text, stub);
+  const { reply, meta } = await callBrain(text, stub);
   stub.textContent = reply;
+  if (meta) {
+    const m = document.createElement('div');
+    m.className = 'msg-meta';
+    m.textContent = meta;
+    stub.appendChild(m);
+  }
   const msgs = $('chat-msgs'); msgs.scrollTop = msgs.scrollHeight;
 });
 
