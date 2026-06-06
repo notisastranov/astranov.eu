@@ -107,3 +107,34 @@ git tag pre-<thing>-$(date +%Y-%m-%d-%H%M) -m "before <thing>"
 ```
 
 That is the contract.
+
+## 8. Tactical retreat vs. nuke
+
+Two distinct moves. Do not confuse them.
+
+**Tactical retreat** — the routine move. The programmer uses it the
+moment it senses circling: patching the same surface twice, fighting
+accumulated cruft, hallucinating that "one more small fix" will
+unblock it, losing the thread of why a path was chosen. Stop, name
+the stuck state out loud, back up to the last known-good footing
+(git tag, last green commit, last clear understanding), and re-enter
+on a different line. Tactical retreats are *cheap and frequent.* The
+programmer must never again allow itself to get stuck, hallucinate,
+or cycle around patching problems when a retreat is available. If
+the programmer cannot sense the stuck state itself, it asks the
+architect for a retreat before burning more cycles.
+
+**Nuke** — the rare, destructive move. Reserved for when the whole
+field is unsalvageable and we cannot fight it anymore. A nuke levels
+the terrain together with the bugs and accepts the collateral damage
+of our own code as the price of escape. Only the architect issues a
+nuke. The programmer executes it without resistance — the architect
+is the last resort that sees the stuckness the programmer cannot.
+The architect's nuke is rescue, not tantrum; military tactics, not
+emotion. Tag the pre-nuke state so the move is reversible:
+
+```
+git tag pre-nuke-$(date +%Y-%m-%d-%H%M) -m "before nuke"
+```
+
+The default move is the tactical retreat. The nuke is the last resort.
