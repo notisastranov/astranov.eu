@@ -163,36 +163,26 @@
     color: rgba(207,226,255,0.85); white-space: nowrap; }
   body.signed-in #login-orb { display: none; }
 
-  /* Test-call orb — small floating ◈ next to the mic for verifying
-     camera + mic on a single device (self-loopback). Draggable. */
-  #test-orb { position: fixed; left: 16px;
-    bottom: calc(var(--orb-bottom, 80px) + env(safe-area-inset-bottom));
-    z-index: 250; width: 54px; height: 54px; border-radius: 50%;
-    cursor: grab; display: flex; align-items: center; justify-content: center;
-    touch-action: none;
-    background: radial-gradient(circle at 50% 50%,
-      rgba(126,235,180,0.85) 0%, rgba(46,130,90,0.5) 55%, rgba(0,20,12,0) 80%);
-    border: 2px solid rgba(126,235,180,0.7);
-    color: #d6f7e6; font-size: 18px; font-weight: 700;
-    box-shadow: 0 0 14px rgba(126,235,180,0.55);
-    animation: pulse 1.6s ease-in-out infinite;
-    transition: transform 0.18s var(--ease), bottom 0.32s var(--ease);
-  }
-  #test-orb.dragged { transition: none; animation: none; }
-  #test-orb:active { transform: scale(0.92); cursor: grabbing; }
-  #test-orb::after { content: 'TEST CALL'; position: absolute; left: 50%; bottom: -14px;
-    transform: translateX(-50%); font-size: 9px; letter-spacing: 0.18em;
-    color: rgba(214,247,230,0.8); white-space: nowrap; }
+  /* Test-call chrome orb is gone — test peers materialise on the globe
+     as draggable Cesium entities. See _renderPeerOrbs(). */
 
   /* PANEL — bottom drawer for content surfaces */
   #panel { position: fixed; left: 0; right: 0; bottom: 0; z-index: 70;
-    max-height: 75vh; overflow-y: auto; padding: 18px 18px calc(28px + env(safe-area-inset-bottom));
+    max-height: 75vh; overflow-y: auto; padding: 0 18px calc(28px + env(safe-area-inset-bottom));
     background: linear-gradient(180deg, rgba(8,18,38,0.55), rgba(2,6,18,0.72));
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     border-top: 1px solid rgba(93,178,255,0.55); border-radius: 22px 22px 0 0;
     box-shadow: 0 -10px 32px rgba(45,108,196,0.22);
     transform: translateY(100%); transition: transform 0.4s var(--ease); }
   #panel.open { transform: translateY(0); }
+  #panel-handle { position: sticky; top: 0; padding: 10px 14px 8px;
+    display: flex; align-items: center; justify-content: center; cursor: grab;
+    user-select: none; touch-action: none; z-index: 2;
+    background: linear-gradient(180deg, rgba(8,18,38,0.85), rgba(8,18,38,0)); }
+  #panel-handle::before { content: ''; width: 42px; height: 4px; border-radius: 2px;
+    background: rgba(120,180,255,0.45); }
+  #panel-handle:active { cursor: grabbing; }
+  #panel-body { padding-top: 8px; }
   #panel h2 { margin: 0 0 4px; font-size: 18px; letter-spacing: 0.18em;
     text-transform: uppercase; color: #cde7ff; }
   #panel h3 { margin: 18px 0 6px; font-size: 11px; letter-spacing: 0.22em;
@@ -312,7 +302,6 @@ Supabase project lkoatrkhuigdolnjsbie.
 <div id="chat-reopen" title="Open Astranov"></div>
 <div id="login-orb" title="Sign in"            onclick="openAuthPanel()">◈</div>
 <div id="pilot-orb" title="Back to the globe"  onclick="pilotHome()"></div>
-<div id="test-orb"  title="Test camera & mic"  onclick="startSelfCallTest()">◈</div>
 
 <div id="chat">
   <div id="chat-handle"></div>
@@ -325,7 +314,11 @@ Supabase project lkoatrkhuigdolnjsbie.
   </form>
 </div>
 
-<div id="panel"><button class="close" onclick="closePanel()" aria-label="Close">×</button><div id="panel-body"></div></div>
+<div id="panel">
+  <div id="panel-handle" aria-label="Drag to close"></div>
+  <button class="close" onclick="closePanel()" aria-label="Close">×</button>
+  <div id="panel-body"></div>
+</div>
 
 <div id="call-stage">
   <video id="call-remote" autoplay playsinline></video>
@@ -524,9 +517,10 @@ async function locateMe() {
     navigator.geolocation.getCurrentPosition(
       pos => {
         _userLat = pos.coords.latitude; _userLng = pos.coords.longitude;
+        maybeMoveTestPeerHere();
         resolve({ lat: _userLat, lng: _userLng });
       },
-      () => { ipWarmup().then(resolve); },
+      () => { ipWarmup().then((r) => { maybeMoveTestPeerHere(); resolve(r); }); },
       { enableHighAccuracy: true, timeout: 10_000 }
     );
   });
@@ -580,8 +574,13 @@ function _updatePilotOrb() {
 function onCanvasClick(click) {
   if (!viewer) return;
   const picked = viewer.scene.pick(click.position);
-  // Glowing call orb has top priority — tap = answer
+  // Glowing incoming-call orb has top priority — tap = answer
   if (picked?.id?.__callOrb) { acceptIncoming(); return; }
+  // Peer orb on the globe — tap = ring them
+  if (picked?.id?.__peerOrb) {
+    startCall(picked.id.__peerOrb.id, picked.id.__peerOrb.display_name);
+    return;
+  }
   if (picked?.primitive?.__vendorId) {
     const p = vendorIndex.get(picked.primitive.__vendorId);
     if (p) openVendorPanel(p);
@@ -984,6 +983,83 @@ function _killCallOrb() {
   if (_callOrb && viewer) { try { viewer.entities.remove(_callOrb); } catch (_) {} }
   _callOrb = null;
   clearTimeout(_callOrbTimeout); _callOrbTimeout = 0;
+}
+
+/* ---------- Peer orbs (every discoverable user, on the globe) ---------- */
+
+const _peerEntities = new Map();   // peer.id → Cesium.Entity
+
+async function refreshPeerOrbs() {
+  if (!sb || !viewer) return;
+  try {
+    const { data } = await sb.rpc('discoverable_peers');
+    const peers = Array.isArray(data) ? data : [];
+    const seen = new Set();
+    for (const p of peers) {
+      if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) continue;
+      seen.add(p.id);
+      const existing = _peerEntities.get(p.id);
+      if (existing) {
+        existing.position = Cesium.Cartesian3.fromDegrees(p.lng, p.lat);
+        if (existing.label) existing.label.text = '◈ ' + (p.display_name || 'Friend');
+        existing.__peerOrb = p;
+        continue;
+      }
+      const ent = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),
+        point: {
+          pixelSize: new Cesium.CallbackProperty(() => 16 + 6 * (0.5 + 0.5 * Math.sin(Date.now() / 380)), false),
+          color: Cesium.Color.fromCssColorString('#4aa6ff'),
+          outlineColor: new Cesium.CallbackProperty(
+            () => Cesium.Color.fromCssColorString('#4aa6ff').withAlpha(0.25 + 0.45 * (0.5 + 0.5 * Math.sin(Date.now() / 380))),
+            false),
+          outlineWidth: new Cesium.CallbackProperty(() => 4 + 6 * (0.5 + 0.5 * Math.sin(Date.now() / 380)), false),
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+        label: {
+          text: '◈ ' + (p.display_name || 'Friend'),
+          font: '600 12px Quicksand, sans-serif',
+          fillColor: Cesium.Color.fromCssColorString('#cde7ff'),
+          outlineColor: Cesium.Color.fromCssColorString('#020a1c'),
+          outlineWidth: 3,
+          style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+          pixelOffset: new Cesium.Cartesian2(0, -32),
+          showBackground: true,
+          backgroundColor: Cesium.Color.fromCssColorString('#020a1c').withAlpha(0.45),
+          backgroundPadding: new Cesium.Cartesian2(6, 3),
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+      });
+      ent.__peerOrb = p;
+      _peerEntities.set(p.id, ent);
+    }
+    // Drop entities for peers that disappeared.
+    for (const [id, ent] of _peerEntities) {
+      if (!seen.has(id)) {
+        try { viewer.entities.remove(ent); } catch (_) {}
+        _peerEntities.delete(id);
+      }
+    }
+  } catch (e) { console.error('[peers]', e); }
+}
+
+// Architect-only: pin the test peer near you the first time you get a
+// GPS fix so the orb is in your city instead of stuck on Athens.
+let _testPinDone = false;
+async function maybeMoveTestPeerHere() {
+  if (_testPinDone) return;
+  if (!session || !profile?.is_owner) return;
+  if (_userLat == null || _userLng == null) return;
+  _testPinDone = true;
+  // Offset by ~150 m so the orb isn't literally on top of yours.
+  const lat = _userLat + 0.0014;
+  const lng = _userLng + 0.0014;
+  try {
+    await sb.rpc('architect_set_peer_home', {
+      target: '4af6d2f4-675e-4423-9a9b-35d5711963ae', lat, lng,
+    });
+    refreshPeerOrbs();
+  } catch (_) { /* non-architect or RPC missing — silently no-op */ }
 }
 
 function onIncomingInvite(p) {
@@ -1956,6 +2032,31 @@ $('btn-mic').addEventListener('click', () => {
   });
 })();
 
+/* ---------- Panel drag handle (drawer drag-down-to-close) ---------- */
+function _bindPanelDragHandle() {
+  const h = $('panel-handle'), panel = $('panel'); if (!h || !panel) return;
+  let startY = 0, dy = 0, dragging = false;
+  h.addEventListener('pointerdown', (e) => {
+    h.setPointerCapture(e.pointerId);
+    startY = e.clientY; dy = 0; dragging = true;
+    panel.style.transition = 'none';
+  });
+  h.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    dy = Math.max(0, e.clientY - startY);
+    panel.style.transform = `translateY(${dy}px)`;
+    // Push the orbs up by the diminishing drawer height as it drags down.
+    _pushOrbsAboveDrawers();
+  });
+  h.addEventListener('pointerup', (e) => {
+    dragging = false; try { h.releasePointerCapture(e.pointerId); } catch (_) {}
+    panel.style.transition = '';
+    panel.style.transform = '';
+    if (dy > 80) closePanel();
+    setTimeout(_pushOrbsAboveDrawers, 360);
+  });
+}
+
 /* ---------- Boot ---------- */
 window.addEventListener('load', () => {
   bootCesium();
@@ -1964,10 +2065,13 @@ window.addEventListener('load', () => {
   // Trackball drag on every floating orb. Position survives reloads.
   _bindOrbDrag($('login-orb'), 'astranov.orb.login');
   _bindOrbDrag($('pilot-orb'), 'astranov.orb.pilot');
-  _bindOrbDrag($('test-orb'),  'astranov.orb.test');
   // Initial orb-resting position so they sit above the chat once it opens.
   _pushOrbsAboveDrawers();
   window.addEventListener('resize', _pushOrbsAboveDrawers);
+  _bindPanelDragHandle();
+  // Peer orbs on the globe — refresh once now and every 25 s thereafter.
+  setTimeout(refreshPeerOrbs, 1800);
+  setInterval(refreshPeerOrbs, 25_000);
   // Greet after a short pause.
   setTimeout(() => {
     openChat();

@@ -188,7 +188,9 @@ Natural Earth II texture, never a stylised "fake" globe.
 
 **Bottom-drawer surfaces.** Every content surface that pops up — chat,
 panel, ordering, news, wallet, vendor publish — slides up from the
-bottom. No modal that steals the whole screen.
+bottom. No modal that steals the whole screen. Every drawer has a
+visible drag handle at its top and can be dismissed by dragging it
+down with one finger (release past 80 px = close).
 
 **Drawers push orbs.** When a drawer opens, every visible orb slides
 up so it sits above the drawer. Orbs are never covered, ever. When
@@ -216,16 +218,26 @@ binds these handlers, every release:
 | Tap empty globe (single)      | No effect (preserve for future surface dive) |
 | Tap vendor pin                | Open vendor panel |
 | Tap incoming-call orb         | Answer the call |
+| Tap peer orb                  | Ring that peer (start a video call) |
 | Tap pilot orb                 | Warp camera to global view (28 000 km) |
-| Tap test-call orb             | Open self-loopback call stage |
 
 **Pilot orb.** Whenever the camera is below ~12 000 km, a small blue
 Earth thumbnail labelled GLOBE appears bottom-right. Tap = warp camera
 to global view at 28 000 km. At global view it dematerialises.
 
-**Test-call orb.** A persistent pulsing green ◈ that opens a
-self-loopback call stage (your camera in both slots) so a single
-device can verify mic + camera without a second peer.
+**Peer orbs.** Every discoverable peer (`map_visibility public`, not a
+bot, with a `home_location`) renders as a pulsing aegean-blue ◈
+Cesium entity at their coordinates, labelled with their display
+name. Tap a peer orb = ring them. Refreshed every 25 s. Peer orbs
+replace the floating chrome test-call orb — testing happens against a
+real peer on the globe, not a chrome shortcut.
+
+**Test peer.** A seeded account `astranov@astranov.eu / astranov2026`
+named "Astranov Test" sits on the globe at a real point. Default
+seed is Athens (37.9755, 23.7348). When the architect's GPS
+resolves, his client calls `architect_set_peer_home` to pin the test
+peer ~150 m next to him so the orb is in his city, not stuck on
+Athens.
 
 **Login orb.** On every cold boot the client calls
 `sb.auth.getSession()` to try to restore a session. If none is found,
