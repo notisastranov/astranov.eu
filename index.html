@@ -249,7 +249,7 @@ Supabase project lkoatrkhuigdolnjsbie.
   <div id="chat-handle"></div>
   <div id="chat-msgs"></div>
   <form id="chat-form" autocomplete="off">
-    <button id="btn-mic" type="button" class="btn" title="Speak" aria-label="Microphone">🎙</button>
+    <button id="btn-mic" type="button" class="btn" title="Speak" aria-label="Microphone">◉</button>
     <input id="chat-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
       enterkeyhint="send" placeholder="Try: news · call NAME · pizza · sign in · wallet" />
     <button id="btn-send" type="submit" class="btn primary" title="Send" aria-label="Send">↑</button>
@@ -266,8 +266,8 @@ Supabase project lkoatrkhuigdolnjsbie.
     <div id="call-status">connecting…</div>
   </div>
   <div id="call-controls">
-    <button class="btn" id="btn-mute" aria-label="Mute">🎙</button>
-    <button class="btn" id="btn-cam" aria-label="Camera">📷</button>
+    <button class="btn" id="btn-mute" aria-label="Mute">◉</button>
+    <button class="btn" id="btn-cam" aria-label="Camera">▣</button>
     <button class="btn danger" id="btn-end" aria-label="End call">✕</button>
   </div>
 </div>
@@ -936,14 +936,32 @@ let vendorPins = null;
 const vendorIndex = new Map();
 let _currentVendor = null, _menu = [], _cart = [];
 
-function _makePinCanvas(emoji, color) {
+// AstranoV glyph language: one shape, color carries the category.
+// Diamond ◈ rendered in the category's tint with a deep-electric glow,
+// matching the wordmark. No emoji on the globe.
+function _pinColor(cat) {
+  const c = String(cat || '').toLowerCase();
+  if (/restaurant|cafe|fast_food|bakery|ice_cream|food/.test(c)) return '#ffaa33';
+  if (/bar|pub|drink/.test(c))                                    return '#d96e6e';
+  if (/pharmacy|hospital|health/.test(c))                         return '#7eebb4';
+  if (/hotel|fitness|service|hairdresser/.test(c))                return '#a98cff';
+  if (/shop|supermarket|grocery|convenience|store/.test(c))       return '#4aa6ff';
+  return '#cde7ff';
+}
+
+function _makePinCanvas(color) {
   const c = document.createElement('canvas'); c.width = 64; c.height = 64;
   const ctx = c.getContext('2d');
-  const g = ctx.createRadialGradient(32, 28, 4, 32, 32, 28);
-  g.addColorStop(0, '#ffffff'); g.addColorStop(0.45, color); g.addColorStop(1, '#08163c');
-  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(32, 32, 26, 0, Math.PI * 2); ctx.fill();
-  ctx.font = '22px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(emoji, 32, 34);
+  ctx.save();
+  ctx.translate(32, 32);
+  ctx.rotate(Math.PI / 4);
+  ctx.shadowColor = color; ctx.shadowBlur = 18;
+  ctx.fillStyle = color;
+  ctx.fillRect(-14, -14, 28, 28);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.fillRect(-9, -10, 18, 4);
+  ctx.restore();
   return c;
 }
 
@@ -990,7 +1008,7 @@ function renderVendorPins(places) {
     if (!p.lat || !p.lng) continue;
     const bb = vendorPins.add({
       position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),
-      image: _makePinCanvas(p.emoji || '◍', '#ffaa33'),
+      image: _makePinCanvas(_pinColor(p.category)),
       width: 30, height: 30,
       scaleByDistance: new Cesium.NearFarScalar(200, 1.0, 1.2e6, 0.2),
       translucencyByDistance: new Cesium.NearFarScalar(7e5, 1.0, 1.8e6, 0),
@@ -1138,7 +1156,6 @@ async function vcCreate() {
   try {
     const r = await sb.from('vendors').insert({
       name, category: cat, lat: _userLat, lng: _userLng,
-      emoji: cat === 'cafe' ? '☕' : cat === 'bakery' ? '🥐' : cat === 'restaurant' ? '🍽️' : '🛍️',
       owner_id: session.user.id, is_active: true, items: [],
     }).select().single();
     if (r.error) throw r.error;
@@ -1207,7 +1224,7 @@ async function placeOrder() {
     const { data, error } = await sb.functions.invoke('order-intake', { body: {
       vendor_id: p.id,
       vendor: { id: p.id, osm_id: p.osm_id || null, name: p.name,
-        emoji: p.emoji || '◍', category: p.category || 'shop',
+        category: p.category || 'shop',
         lat: p.lat, lng: p.lng, address: p.address || {}, tags: p.tags || {} },
       items: _cart,
       calc: { subtotal: sub, delivery_fee: del, platform_fee: plat, total, currency: 'EUR' },
