@@ -165,3 +165,70 @@ The council is structural, not technical: these are the lenses the
 programmer applies when working on AstranoV. Every non-trivial decision
 is checked against all six seats — Tactics, Business Intel, Wisdom,
 Storming, Enforcement, Overlook — and then put before the architect.
+
+## 10. User interface law
+
+These rules survive every nuke. The architect does not re-specify them
+turn after turn. Programmer reads and obeys.
+
+**Globe first.** Cold boot = globe + wordmark + chat. Nothing else.
+Every surface materialises on demand and dematerialises when not in
+use. There is no persistent navigation chrome — no app bar, no tab
+bar, no hamburger.
+
+**Glyph language.** ◈ is canonical. The wordmark is sharp Quicksand
+with electric-blue glow on a black field. Vendor pins use one emoji
+per category on a colour-tinted glowing halo (food amber, drink red,
+shop aegean blue, health green, service violet). Geometric Unicode
+(◈ ◉ ▣ ✕ ↑) belongs on the chrome. No cartoony icon art outside the
+pins.
+
+**Imagery.** Real satellite (Esri World Imagery). Never the painted
+Natural Earth II texture, never a stylised "fake" globe.
+
+**Bottom-drawer surfaces.** Every content surface that pops up — chat,
+panel, ordering, news, wallet, vendor publish — slides up from the
+bottom. No modal that steals the whole screen.
+
+**Drawers push orbs.** When a drawer opens, every visible orb slides
+up so it sits above the drawer. Orbs are never covered, ever. When
+the drawer closes, orbs return to their resting position.
+
+**Orbs over chrome.** Every persistent affordance is a floating orb,
+not a bar or tab. Each orb is trackball-draggable anywhere on the
+screen; the position persists per device. A drag never fires the
+orb's tap action — tap and drag are distinct.
+
+**Gestures (Google-Maps grammar, no learning curve).**
+- One-finger drag = pan.
+- Pinch = zoom (Cesium default).
+- Double-tap = zoom IN to the picked point.
+- Two-finger tap = zoom OUT one step.
+- Two-finger drag DOWN = zoom IN.
+- Two-finger drag UP = zoom OUT.
+
+**Pilot orb.** Whenever the camera is below ~12 000 km, a small blue
+Earth thumbnail labelled GLOBE appears bottom-right. Tap = warp camera
+to global view at 28 000 km. At global view it dematerialises.
+
+**Test-call orb.** A persistent pulsing green ◈ that opens a
+self-loopback call stage (your camera in both slots) so a single
+device can verify mic + camera without a second peer.
+
+**Incoming call = orb on the globe.** A call materialises as a pulsing
+green orb at the caller's GPS point. Camera flies to ~35 km
+city-altitude so the receiver sees who is calling from where. Tap orb
+= answer. A small Ignore ✕ pill is the only chrome; 30 s silence =
+auto-decline. Banner UI is wrong.
+
+**Voice.** Mobile browsers block self-activating the microphone
+without a user gesture. The 🔴 mic button is the explicit toggle.
+State this honestly; do not pretend it could be otherwise.
+
+**Brain visibility.** Every AI reply shows which model answered, in
+the form `via {provider} · {model} · {latency}s` under the message.
+Model accountability is not optional.
+
+**Push, don't preempt.** When a panel or drawer opens, it never
+covers what the user is touching or watching. Always recompute the
+orb resting bottom from the drawer's actual height.
