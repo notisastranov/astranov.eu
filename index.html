@@ -1090,6 +1090,9 @@ async function refreshPeerOrbs() {
           showBackground: true,
           backgroundColor: Cesium.Color.fromCssColorString('#020a1c').withAlpha(0.45),
           backgroundPadding: new Cesium.Cartesian2(6, 3),
+          // Only show labels when you're within ~4 000 km so they don't
+          // clutter the globe view; the orb itself stays visible.
+          distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 4_000_000),
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
       });
