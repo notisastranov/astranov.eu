@@ -475,6 +475,10 @@ function _cameraLngLat() {
 
 function onDoubleClickZoom(click) {
   if (!viewer) return;
+  // Don't dive when the user is targeting an orb / pin — that gesture
+  // is for that orb's action (call, answer, vendor panel).
+  const picked = viewer.scene.pick(click.position);
+  if (picked?.id?.__callOrb || picked?.id?.__peerOrb || picked?.primitive?.__vendorId) return;
   const ray = viewer.camera.getPickRay(click.position);
   const cart = ray && viewer.scene.globe.pick(ray, viewer.scene);
   let lng, lat;
