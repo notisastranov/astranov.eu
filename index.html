@@ -543,9 +543,12 @@ async function locateMe() {
       pos => {
         _userLat = pos.coords.latitude; _userLng = pos.coords.longitude;
         maybeMoveTestPeerHere();
+        maybePinMyselfHere();
         resolve({ lat: _userLat, lng: _userLng });
       },
-      () => { ipWarmup().then((r) => { maybeMoveTestPeerHere(); resolve(r); }); },
+      () => { ipWarmup().then((r) => {
+        maybeMoveTestPeerHere(); maybePinMyselfHere(); resolve(r);
+      }); },
       { enableHighAccuracy: true, timeout: 10_000 }
     );
   });
@@ -1110,7 +1113,6 @@ async function maybeMoveTestPeerHere() {
   if (!session || !profile?.is_owner) return;
   if (_userLat == null || _userLng == null) return;
   _testPinDone = true;
-  // Offset by ~150 m so the orb isn't literally on top of yours.
   const lat = _userLat + 0.0014;
   const lng = _userLng + 0.0014;
   try {
@@ -1118,7 +1120,23 @@ async function maybeMoveTestPeerHere() {
       target: '4af6d2f4-675e-4423-9a9b-35d5711963ae', lat, lng,
     });
     refreshPeerOrbs();
-  } catch (_) { /* non-architect or RPC missing — silently no-op */ }
+  } catch (_) {}
+}
+
+// Every signed-in user: write your own home_location so a second
+// device (or another peer) can see your orb on the globe and ring you.
+let _selfPinDone = false;
+async function maybePinMyselfHere() {
+  if (_selfPinDone) return;
+  if (!session || _userLat == null || _userLng == null) return;
+  _selfPinDone = true;
+  try {
+    await sb.rpc('set_home_location', {
+      lat: _userLat, lng: _userLng, country: null, city_name: null,
+    });
+    await loadProfile();
+    refreshPeerOrbs();
+  } catch (_) {}
 }
 
 function onIncomingInvite(p) {
