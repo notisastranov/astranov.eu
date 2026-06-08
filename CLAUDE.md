@@ -399,7 +399,21 @@ local stream is rendered into both `<video>` slots, remote `<video>`
 is muted (no audio echo), call stage shows status "connected · this
 is YOU". Self-test rows are NOT written to the `calls` table.
 
-## 13. Law maintenance
+## 13. Vendored critical JS
+
+**No third-party CDN in the brain's path.** Any JS the app needs to
+boot — supabase-js most of all — is vendored into `/vendor/` and
+served same-origin by Vercel. The service worker precaches it on
+install. CDN URLs are inline fallbacks only; a CDN 404 or outage
+can never again leave the user with a dead brain and a misleading
+"reload" message. Cesium and Google Fonts stay on their CDNs (large
+and broadly mirrored), but supabase-js sits in our repo.
+
+This rule was earned the hard way: unpkg's `/@2/dist/umd/supabase.min.js`
+shape changed in 2.108.0 and started 404-ing without warning. Hours
+were lost before anyone tested the actual `<script>` load.
+
+## 14. Law maintenance
 
 **Every architectural decision is written into this file the same
 turn it is made.** The programmer does not store rules in chat

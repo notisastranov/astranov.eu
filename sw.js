@@ -2,7 +2,7 @@
 // Handles: offline shell, push notifications, notification click routing
 'use strict';
 
-const SHELL_CACHE = 'astranov-shell-v43';
+const SHELL_CACHE = 'astranov-shell-v44';
 const TILE_CACHE  = 'astranov-tiles-v1';
 const TILE_HOSTS = [
   'basemaps.cartocdn.com',           // CARTO dark/voyager/light
@@ -15,12 +15,17 @@ const TILE_HOSTS = [
 const TILE_RX = /\.(png|jpe?g|webp|avif)(\?|$)/i;
 
 self.addEventListener('install', e => {
-  // Precache the app shell + icons so a first visit makes AstranoV
-  // installable and offline-instant (§24 PLATFORM).
+  // Precache the app shell + icons + critical vendored JS so a first
+  // visit makes AstranoV installable and offline-instant. Self-hosting
+  // supabase-js means a CDN outage cannot kill the brain.
   e.waitUntil((async () => {
     try {
       const cache = await caches.open(SHELL_CACHE);
-      await cache.addAll(['/', '/manifest.json', '/icon-192.png', '/icon-512.png', '/icon-180.png']);
+      await cache.addAll([
+        '/', '/manifest.json',
+        '/icon-192.png', '/icon-512.png', '/icon-180.png',
+        '/vendor/supabase.min.js',
+      ]);
     } catch (_) { /* network may be flaky; SW still installs */ }
     self.skipWaiting();
   })());
