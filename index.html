@@ -1246,6 +1246,7 @@ async function declineIncoming() {
   } catch (_) {}
 }
 
+let _outgoingTimer = 0;
 async function startCall(peerId, peerName) {
   if (!session) return openAuthPanel();
   if (currentCall) return toast('Already on a call', 'err');
@@ -1291,6 +1292,15 @@ async function startCall(peerId, peerName) {
       title: 'Incoming call', body: (profile?.display_name || 'Friend') + ' is calling you',
     }});
   } catch (_) {}
+  // 30 s outgoing-call timeout — if the callee never accepts, hang up
+  // cleanly with a "no answer" toast instead of ringing forever.
+  clearTimeout(_outgoingTimer);
+  _outgoingTimer = setTimeout(() => {
+    if (currentCall && currentCall.id === row.id && pc?.connectionState !== 'connected') {
+      toast('No answer from ' + (peerName || 'peer'), 'err');
+      endCall();
+    }
+  }, 30_000);
   showCallStage();
 }
 
@@ -1329,6 +1339,7 @@ function hideCallStage() { $('call-stage').classList.remove('on'); }
 
 function endCall() {
   if (!currentCall && !pc) return;
+  clearTimeout(_outgoingTimer); _outgoingTimer = 0;
   try { if (callChannel) callChannel.send({ type: 'broadcast', event: 'bye', payload: {} }); } catch (_) {}
   try { callChannel?.unsubscribe(); } catch (_) {}
   callChannel = null;
