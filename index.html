@@ -2419,6 +2419,21 @@ async function openPeoplePanel() {
   }
 }
 
+async function _brainHeartbeat() {
+  if (!sb) { toast('SDK did not load — see chat for details', 'err'); return; }
+  try {
+    const t0 = Date.now();
+    const { data, error } = await sb.functions.invoke('aicycle', {
+      body: { prompt: '_ping_', history: [], engine: 'astranov' },
+    });
+    if (error || (data && data.error)) throw error || new Error(data.error);
+    console.log('[Brain] online · ' + (Date.now() - t0) + 'ms · ' + (data?.engineLabel || ''));
+  } catch (e) {
+    toast('Brain unreachable: ' + (e.message || e), 'err');
+    console.error('[Brain] offline', e);
+  }
+}
+
 /* ---------- Diagnostics ---------- */
 async function runDiag() {
   const lines = [];
@@ -2549,6 +2564,9 @@ window.addEventListener('load', () => {
   // Peer orbs on the globe — refresh once now and every 25 s thereafter.
   setTimeout(refreshPeerOrbs, 1800);
   setInterval(refreshPeerOrbs, 25_000);
+  // One-shot silent brain heartbeat so the architect sees a failure
+  // BEFORE typing rather than after waiting on a dead reply.
+  setTimeout(_brainHeartbeat, 2500);
   // Greet after a short pause.
   setTimeout(() => {
     openChat();
