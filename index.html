@@ -15,12 +15,11 @@
 
 <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Widgets/widgets.css" />
 <script src="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Cesium.js"></script>
-<!-- supabase-js UMD. unpkg's /@2/ tag currently 302-redirects to a
-     404 path for 2.108.0; jsdelivr serves the real bundle. We try
-     jsdelivr first and, if it fails, fall back to unpkg pinned to a
-     known-good version. -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"
-        onerror="document.write('<script src=&quot;https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js&quot;><\/script>')"></script>
+<!-- supabase-js UMD. Primary = self-hosted (no CDN dependency).
+     If the static file fails (404, deploy in flight), fall through to
+     jsdelivr. bootSupabase() handles any remaining CDN fallback in JS. -->
+<script src="/vendor/supabase.min.js"
+        onerror="document.write('<script src=&quot;https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js&quot;><\/script>')"></script>
 
 <style>
   :root { --t-quick: 0.18s; --ease: cubic-bezier(0.32, 0.72, 0, 1); --aegean: #4aa6ff; --deep: #1e6cff; }
