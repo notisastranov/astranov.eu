@@ -1347,6 +1347,8 @@ function endCall() {
   currentCall = null; _currentAgentKey = null;
   _killCallOrb();
   hideCallStage();
+  // If a new SW shell wanted to claim while we were on a call, take it now.
+  if (window._swReloadPending) { window._swReloadPending = false; setTimeout(() => location.reload(), 400); }
 }
 
 function stopLocalStream() {
@@ -2570,11 +2572,14 @@ window.addEventListener('keydown', (e) => {
   if ($('chat').classList.contains('open')) closeChat();
 });
 
-// Service worker
+// Service worker — auto-reload on update, but never mid-call.
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(reg => {
     reg.update().catch(()=>{});
-    navigator.serviceWorker.addEventListener('controllerchange', () => location.reload());
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (currentCall) { window._swReloadPending = true; return; }
+      location.reload();
+    });
   }).catch(() => {});
 }
 </script>
