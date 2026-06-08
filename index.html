@@ -15,7 +15,12 @@
 
 <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Widgets/widgets.css" />
 <script src="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Cesium.js"></script>
-<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<!-- supabase-js UMD. unpkg's /@2/ tag currently 302-redirects to a
+     404 path for 2.108.0; jsdelivr serves the real bundle. We try
+     jsdelivr first and, if it fails, fall back to unpkg pinned to a
+     known-good version. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"
+        onerror="document.write('<script src=&quot;https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js&quot;><\/script>')"></script>
 
 <style>
   :root { --t-quick: 0.18s; --ease: cubic-bezier(0.32, 0.72, 0, 1); --aegean: #4aa6ff; --deep: #1e6cff; }
@@ -638,6 +643,14 @@ function onCanvasClick(click) {
 let sb = null, session = null, profile = null;
 
 function bootSupabase() {
+  if (!window.supabase || typeof window.supabase.createClient !== 'function') {
+    // The SDK script never landed (CDN flake, blocked, etc.). Reloading
+    // won't fix it — tell the user honestly and try a one-shot dynamic
+    // fallback to a second CDN, then a third.
+    console.error('[Supabase] SDK not loaded — attempting fallback');
+    _loadSupabaseFallback();
+    return;
+  }
   try {
     sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     sb.auth.getSession().then(({ data }) => {
@@ -656,6 +669,25 @@ function bootSupabase() {
       } else { profile = null; }
     });
   } catch (e) { console.error('[Supabase]', e); }
+}
+
+function _loadSupabaseFallback() {
+  // Defensive: if the inline <script onerror> chain failed too, try one
+  // last time from a third CDN. After this, surface the real reason.
+  const tried = (window._sbTried = window._sbTried || []);
+  const candidates = [
+    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js',
+    'https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js',
+    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
+  ];
+  const next = candidates.find(u => !tried.includes(u));
+  if (!next) { toast('Supabase SDK did not load from any CDN. Network blocked?', 'err'); return; }
+  tried.push(next);
+  const s = document.createElement('script');
+  s.src = next; s.async = false;
+  s.onload  = () => { console.log('[Supabase] loaded from', next); bootSupabase(); };
+  s.onerror = () => { console.error('[Supabase] failed', next); _loadSupabaseFallback(); };
+  document.head.appendChild(s);
 }
 
 function _reflectSignedIn() {
@@ -2272,7 +2304,7 @@ async function callBrain(prompt, stub, opts) {
   // LAW §10/§13 — our brain (aicycle) is the only voice. We never
   // silently route the user's words elsewhere. On failure, surface
   // the actual error and let the architect decide what to do next.
-  if (!sb) return { reply: 'AstranoV is offline. Reload the page.', meta: '' };
+  if (!sb) return { reply: '◈ Supabase SDK did not load from any CDN. Reloading will not fix this — likely a network block. Check /vendor or report the URL.', meta: '', failed: true, err: 'sdk-missing' };
   const history = (opts?.history) || aicycleHistory.slice(-6);
   const persona = opts?.persona;
   const payload = persona
