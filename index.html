@@ -1526,6 +1526,8 @@ async function agentSend(rawText) {
     `<div class="ag-line ag-agent">${escapeHtml(currentCall.peerName)} · ${escapeHtml(reply)}` +
     (out.meta ? `<span class="ag-meta"> · ${escapeHtml(out.meta)}</span>` : '') + `</div>`);
   log.scrollTop = log.scrollHeight;
+  // Re-focus the input so the conversation flows turn-by-turn.
+  try { $('agent-input')?.focus(); } catch (_) {}
   if ('speechSynthesis' in window && !out.failed) {
     try {
       const u = new SpeechSynthesisUtterance(reply);
