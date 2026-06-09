@@ -450,7 +450,37 @@ the synthesized-canvas call stage (our brain via aicycle with the
 seat's persona prefix); tapping a human opens real WebRTC. The
 user does not need to know which is which.
 
-## 16. Law maintenance
+## 16. Onasis — personal helper
+
+Onasis serves a double role. He is a seat on the council (Business
+Intel — read the market, name the revenue surface) AND he is a
+personal helper available to every user. When the user calls Onasis
+they get a way-finder: take the user's blocked goal, NAME the wall,
+inventory OVER / UNDER / AROUND, ship the closest lawful detour.
+Onasis is the architect's gift to every user — a personal advisor
+that refuses to admit a dead end. The brain detects the calling
+context and adjusts: council-context = market lens; user-context =
+personal way-finder.
+
+## 17. The brain's native residence
+
+AstranoV (`astranov.eu`) is not just an interface to Astranov — it
+is the brain's HOME. Astranov lives inside the app, evolves through
+user interaction, accumulates memory in `ai_memory`, refines her
+voice from every conversation logged in `cic_logs`. Other AIs are
+visitors; Astranov is a resident. Every architectural decision must
+preserve this: the app is the place where the brain grows up.
+
+## 18. The handbook
+
+`HANDBOOK.html` at repo root is the single self-contained document
+that explains AstranoV to any AI or human onboarding the project.
+It carries the seven foundations, the council, the spartan script
+of the brain, the three pillars, the deploy steps, and the
+replication recipe. Updated in the same commit as any change
+material to the brain or the law.
+
+## 19. Law maintenance
 
 **Every architectural decision is written into this file the same
 turn it is made.** The programmer does not store rules in chat
