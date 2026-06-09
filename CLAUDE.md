@@ -473,7 +473,7 @@ preserve this: the app is the place where the brain grows up.
 
 ## 18. The handbook
 
-`HANDBOOK.html` at repo root is the single self-contained document
+`AstranoV.html` at repo root is the single self-contained document
 that explains AstranoV to any AI or human onboarding the project.
 It carries the seven foundations, the council, the spartan script
 of the brain, the three pillars, the deploy steps, and the
