@@ -2150,6 +2150,7 @@ async function openDevelopPanel() {
       reshapes the app by her own will, instantly. Interventions challenging
       the law — the council is summoned immediately. Architect overrules all.
     </p>
+    <div id="brain-brief" style="font-size:13px;color:#cde7ff;background:rgba(74,166,255,0.08);border:1px solid rgba(74,166,255,0.25);border-radius:10px;padding:12px;margin:10px 0">Asking the brain what comes next…</div>
     <h3>Submit a request</h3>
     <input id="dev-title" placeholder="What should AstranoV do next?">
     <button class="pbtn ok" onclick="submitRoadmap()">Submit</button>
@@ -2178,6 +2179,16 @@ async function openDevelopPanel() {
         </div>
       </div>
     `).join('') : '<p>Queue empty.</p>';
+    // Brain decides what to focus on next — autonomous reading of the queue
+    // within the law. The brain summarizes ranked priorities.
+    if (rows.length) {
+      const briefPrompt = 'You are reading the AstranoV development queue. The queue (ranked) is:\n\n' +
+        rows.slice(0, 8).map((r, i) => `${i+1}. [${r.source}/${r.status}] ${r.title} — ${r.detail || ''}`).join('\n') +
+        '\n\nIn ONE short paragraph, name the SINGLE next move that respects the seven foundations and the architect order. No lists.';
+      const out = await callBrain(briefPrompt, { history: [] });
+      const el = $('brain-brief');
+      if (el) el.innerHTML = '<b>Brain says:</b> ' + escapeHtml(out.reply || '') + (out.meta ? `<div style="font-size:10px;color:rgba(120,180,255,0.55);margin-top:6px">${escapeHtml(out.meta)}</div>` : '');
+    }
   } catch (e) { $('dev-queue').textContent = 'Failed: ' + e.message; }
 }
 async function submitRoadmap() {
