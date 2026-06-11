@@ -15,34 +15,28 @@
 
 <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Widgets/widgets.css" />
 <script src="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Cesium.js"></script>
-<!-- supabase-js UMD. Primary = self-hosted (no CDN dependency).
-     If the static file fails (404, deploy in flight), fall through to
-     jsdelivr. bootSupabase() handles any remaining CDN fallback in JS. -->
+<!-- supabase-js — self-hosted first, jsdelivr fallback. No CDN dependency in brain path. -->
 <script src="/vendor/supabase.min.js"
         onerror="document.write('<script src=&quot;https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js&quot;><\/script>')"></script>
 
 <style>
-  :root { --t-quick: 0.18s; --ease: cubic-bezier(0.32, 0.72, 0, 1); --aegean: #4aa6ff; --deep: #1e6cff; }
+  :root { --t-quick: 0.18s; --ease: cubic-bezier(0.32, 0.72, 0, 1); --aegean: #4aa6ff; }
   *, *::before, *::after { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; height: 100%; background: #010615; overflow: hidden;
     color: #cde7ff; font-family: 'Quicksand', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
   body { position: fixed; inset: 0; }
-  button { font-family: inherit; }
-  input, textarea, select { font-family: inherit; }
+  button, input, textarea, select { font-family: inherit; }
 
   #cesiumContainer { position: absolute; inset: 0; }
   .cesium-widget-credits, .cesium-viewer-bottom { display: none !important; }
 
   /* WORDMARK */
-  #app-name {
-    position: fixed; top: max(10px, env(safe-area-inset-top)); left: 50%;
+  #app-name { position: fixed; top: max(10px, env(safe-area-inset-top)); left: 50%;
     transform: translateX(-50%); z-index: 200; cursor: pointer;
     font-weight: 700; font-size: 21px; letter-spacing: 0.34em; text-indent: 0.34em;
     color: #cde7ff; user-select: none;
-    text-shadow: 0 0 4px #ffffff, 0 0 10px #4aa6ff, 0 0 22px #1e6cff,
-                 0 0 40px #0040d8, 0 0 70px #001a66;
-    transition: transform var(--t-quick) var(--ease);
-  }
+    text-shadow: 0 0 4px #fff, 0 0 10px #4aa6ff, 0 0 22px #1e6cff, 0 0 40px #0040d8, 0 0 70px #001a66;
+    transition: transform var(--t-quick) var(--ease); }
   #app-name:active { transform: translateX(-50%) scale(0.96); }
 
   /* BOOT */
@@ -57,8 +51,7 @@
     animation: spin 0.95s linear infinite; margin-bottom: 22px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   #boot .name { font-weight: 700; font-size: 21px; letter-spacing: 0.34em; text-indent: 0.34em;
-    color: #cde7ff; text-shadow: 0 0 4px #ffffff, 0 0 10px #4aa6ff, 0 0 22px #1e6cff,
-                                  0 0 40px #0040d8, 0 0 70px #001a66; }
+    color: #cde7ff; text-shadow: 0 0 4px #fff, 0 0 10px #4aa6ff, 0 0 22px #1e6cff, 0 0 40px #0040d8; }
 
   /* CHAT */
   #chat { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
@@ -67,18 +60,12 @@
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
     border-top: 1px solid rgba(93,178,255,0.55); border-radius: 22px 22px 0 0;
     box-shadow: 0 -10px 28px rgba(45,108,196,0.18), inset 0 1px 0 rgba(207,226,255,0.18);
-    transform: translateY(100%); transition: transform 0.4s var(--ease);
-    overflow: hidden; }
+    transform: translateY(100%); transition: transform 0.4s var(--ease); overflow: hidden; }
   #chat.open { transform: translateY(0); }
   #chat-handle { padding: 8px 14px; display: flex; align-items: center; justify-content: center;
-    gap: 10px; cursor: grab; user-select: none; position: relative; }
+    gap: 10px; cursor: grab; user-select: none; position: relative; touch-action: none; }
   #chat-handle::before { content: ''; width: 36px; height: 4px; border-radius: 2px;
     background: rgba(120,180,255,0.35); }
-  #chat.thinking #chat-handle::after { content: ''; position: absolute; left: 50%; top: 0;
-    transform: translateX(-50%); width: 60%; height: 2px;
-    background: linear-gradient(90deg, transparent, #4aa6ff, transparent);
-    animation: think 1.4s linear infinite; }
-  @keyframes think { 0%{transform:translateX(-50%) translateX(-30%);opacity:0} 50%{transform:translateX(-50%);opacity:1} 100%{transform:translateX(-50%) translateX(30%);opacity:0} }
   #chat-msgs { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 16px 8px;
     -webkit-overflow-scrolling: touch; }
   #chat-msgs:empty { display: none; }
@@ -97,6 +84,7 @@
     background: rgba(8,18,38,0.55); border: 1px solid rgba(93,178,255,0.40);
     border-radius: 22px; color: #e8eef8; outline: none; }
   #chat-input:focus { border-color: rgba(93,178,255,0.85); box-shadow: 0 0 12px rgba(45,108,196,0.4); }
+
   .btn { width: 44px; height: 44px; border-radius: 50%; cursor: pointer; flex: 0 0 auto;
     background: rgba(8,18,38,0.55); border: 1px solid rgba(93,178,255,0.5);
     color: #cde7ff; font-size: 16px; display: flex; align-items: center; justify-content: center;
@@ -104,74 +92,52 @@
   .btn:active { transform: scale(0.92); }
   .btn.primary { background: rgba(20,52,120,0.75); border-color: rgba(93,178,255,0.9);
     box-shadow: 0 0 12px rgba(45,108,196,0.55); }
-  .btn.listening { border-color: #7eebb4; color: #7eebb4;
-    box-shadow: 0 0 14px rgba(126,235,180,0.7); }
   .btn.danger { background: rgba(120,30,30,0.75); border-color: rgba(255,80,80,0.9); color: #ffd6d6; }
-  .btn.ok { background: rgba(20,80,40,0.75); border-color: rgba(126,235,180,0.85); color: #d6f7e6; }
 
   #chat-reopen { position: fixed; left: 50%; transform: translateX(-50%);
     bottom: calc(var(--orb-bottom, 12px) + env(safe-area-inset-bottom)); z-index: 200;
     width: 64px; height: 22px; cursor: pointer;
-    background: radial-gradient(circle at 50% 50%, rgba(74,166,255,0.35) 0%,
-                                                    rgba(30,108,255,0.18) 45%,
-                                                    rgba(0,26,102,0) 70%);
-    border-radius: 12px 12px 0 0;
-    border-top: 1px solid rgba(74,166,255,0.55);
+    background: radial-gradient(circle at 50% 50%, rgba(74,166,255,0.35) 0%, rgba(30,108,255,0.18) 45%, rgba(0,26,102,0) 70%);
+    border-radius: 12px 12px 0 0; border-top: 1px solid rgba(74,166,255,0.55);
     display: flex; align-items: flex-end; justify-content: center; padding-bottom: 3px;
     transition: bottom 0.32s var(--ease), opacity 0.25s var(--ease); }
   #chat-reopen::after { content: '◈'; color: #cde7ff; font-size: 13px;
     text-shadow: 0 0 6px #4aa6ff, 0 0 14px #1e6cff; }
-  body.chat-open #chat-reopen { opacity: 0; pointer-events: none; }
-  body.panel-open #chat-reopen { opacity: 0; pointer-events: none; }
+  body.chat-open #chat-reopen, body.panel-open #chat-reopen { opacity: 0; pointer-events: none; }
 
-  /* Pilot orb — bottom-right Earth thumbnail. Appears when you have
-     zoomed in. Tap = warp camera to global view. Drag = relocate. */
-  #pilot-orb { position: fixed; right: 16px;
-    bottom: calc(var(--orb-bottom, 80px) + env(safe-area-inset-bottom));
+  /* LOGIN ORB */
+  #login-orb { position: fixed; right: 16px; top: calc(58px + env(safe-area-inset-top));
     z-index: 250; width: 54px; height: 54px; border-radius: 50%;
     cursor: grab; display: none; touch-action: none;
-    background:
-      radial-gradient(circle at 35% 35%, #5fa7ff 0%, #1e6cff 38%, #0a2c6e 70%, #02060d 100%);
-    border: 2px solid rgba(207,226,255,0.55);
-    box-shadow: 0 0 14px rgba(74,166,255,0.5),
-                inset -6px -10px 18px rgba(0,0,0,0.45);
-    transition: transform 0.18s var(--ease), opacity 0.25s var(--ease), bottom 0.32s var(--ease);
-  }
-  #pilot-orb.on { display: block; }
-  #pilot-orb.dragged { transition: none; }
-  #pilot-orb::after { content: 'GLOBE'; position: absolute; left: 50%; bottom: -14px;
-    transform: translateX(-50%); font-size: 9px; letter-spacing: 0.22em;
-    color: rgba(207,226,255,0.7); }
-  #pilot-orb:active { transform: scale(0.92); cursor: grabbing; }
-
-  /* Login orb — visible on every cold boot until the user is signed
-     in. Pulsing aegean-blue ◈, top-right by default, draggable.
-     Tap = open the auth panel. Disappears when signed in. */
-  #login-orb { position: fixed; right: 16px;
-    top: calc(58px + env(safe-area-inset-top));
-    z-index: 250; width: 54px; height: 54px; border-radius: 50%;
-    cursor: grab; display: none; touch-action: none;
-    background: radial-gradient(circle at 50% 50%,
-      rgba(74,166,255,0.85) 0%, rgba(30,108,255,0.5) 55%, rgba(0,26,102,0) 80%);
+    background: radial-gradient(circle at 50% 50%, rgba(74,166,255,0.85) 0%, rgba(30,108,255,0.5) 55%, rgba(0,26,102,0) 80%);
     border: 2px solid rgba(207,226,255,0.7);
-    color: #cde7ff; align-items: center; justify-content: center;
-    font-size: 22px; font-weight: 700;
+    color: #cde7ff; align-items: center; justify-content: center; font-size: 22px; font-weight: 700;
     box-shadow: 0 0 14px rgba(74,166,255,0.55);
     animation: pulse 1.6s ease-in-out infinite;
-    transition: transform 0.18s var(--ease);
-  }
+    transition: transform 0.18s var(--ease); }
   #login-orb.on { display: flex; }
   #login-orb.dragged { animation: none; transition: none; }
   #login-orb:active { transform: scale(0.92); cursor: grabbing; }
   #login-orb::after { content: 'SIGN IN'; position: absolute; left: 50%; bottom: -14px;
-    transform: translateX(-50%); font-size: 9px; letter-spacing: 0.22em;
-    color: rgba(207,226,255,0.85); white-space: nowrap; }
+    transform: translateX(-50%); font-size: 9px; letter-spacing: 0.22em; color: rgba(207,226,255,0.85); }
   body.signed-in #login-orb { display: none; }
 
-  /* Test-call chrome orb is gone — test peers materialise on the globe
-     as draggable Cesium entities. See _renderPeerOrbs(). */
+  /* PILOT ORB */
+  #pilot-orb { position: fixed; right: 16px;
+    bottom: calc(var(--orb-bottom, 80px) + env(safe-area-inset-bottom));
+    z-index: 250; width: 54px; height: 54px; border-radius: 50%;
+    cursor: grab; display: none; touch-action: none;
+    background: radial-gradient(circle at 35% 35%, #5fa7ff 0%, #1e6cff 38%, #0a2c6e 70%, #02060d 100%);
+    border: 2px solid rgba(207,226,255,0.55);
+    box-shadow: 0 0 14px rgba(74,166,255,0.5), inset -6px -10px 18px rgba(0,0,0,0.45);
+    transition: transform 0.18s var(--ease), opacity 0.25s var(--ease), bottom 0.32s var(--ease); }
+  #pilot-orb.on { display: block; }
+  #pilot-orb.dragged { transition: none; }
+  #pilot-orb::after { content: 'GLOBE'; position: absolute; left: 50%; bottom: -14px;
+    transform: translateX(-50%); font-size: 9px; letter-spacing: 0.22em; color: rgba(207,226,255,0.7); }
+  #pilot-orb:active { transform: scale(0.92); cursor: grabbing; }
 
-  /* PANEL — bottom drawer for content surfaces */
+  /* PANEL */
   #panel { position: fixed; left: 0; right: 0; bottom: 0; z-index: 70;
     max-height: 75vh; overflow-y: auto; padding: 0 18px calc(28px + env(safe-area-inset-bottom));
     background: linear-gradient(180deg, rgba(8,18,38,0.55), rgba(2,6,18,0.72));
@@ -186,7 +152,6 @@
     background: linear-gradient(180deg, rgba(8,18,38,0.85), rgba(8,18,38,0)); }
   #panel-handle::before { content: ''; width: 42px; height: 4px; border-radius: 2px;
     background: rgba(120,180,255,0.45); }
-  #panel-handle:active { cursor: grabbing; }
   #panel-body { padding-top: 8px; }
   #panel h2 { margin: 0 0 4px; font-size: 18px; letter-spacing: 0.18em;
     text-transform: uppercase; color: #cde7ff; }
@@ -197,7 +162,6 @@
     width: 100%; padding: 10px 12px; font-size: 16px; margin: 6px 0;
     background: rgba(8,18,38,0.65); border: 1px solid rgba(93,178,255,0.35);
     border-radius: 10px; color: #e8eef8; outline: none; }
-  #panel input:focus, #panel textarea:focus { border-color: rgba(93,178,255,0.85); }
   #panel .pbtn { display: inline-flex; align-items: center; justify-content: center;
     padding: 10px 16px; margin: 4px 4px 4px 0; cursor: pointer; font-size: 13px; font-weight: 600;
     background: rgba(20,52,120,0.65); border: 1px solid rgba(93,178,255,0.6);
@@ -212,15 +176,14 @@
     font-size: 13px; color: #cde7ff; gap: 8px; }
   #panel .row:last-child { border-bottom: 0; }
   #panel .card { padding: 10px 12px; margin: 6px 0; border-radius: 12px;
-    background: rgba(8,18,38,0.45); border: 1px solid rgba(93,178,255,0.18);
-    cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    background: rgba(8,18,38,0.45); border: 1px solid rgba(93,178,255,0.18); cursor: pointer; }
   #panel .card:hover { border-color: rgba(93,178,255,0.55); }
   #panel .card .ct { font-size: 14px; color: #cfe2ff; line-height: 1.35; }
   #panel .card .cm { font-size: 11px; color: rgba(168,200,238,0.65); margin-top: 4px; }
   #panel .close { position: absolute; top: 8px; right: 12px; padding: 4px 10px;
     background: transparent; border: 0; color: rgba(168,200,238,0.6); font-size: 18px; cursor: pointer; }
 
-  /* CALL STAGE — fullscreen video overlay */
+  /* CALL STAGE */
   #call-stage { position: fixed; inset: 0; z-index: 500; background: #000;
     display: none; flex-direction: column; }
   #call-stage.on { display: flex; }
@@ -236,41 +199,33 @@
     bottom: calc(20px + env(safe-area-inset-bottom));
     display: flex; justify-content: center; gap: 18px; z-index: 511; }
   #call-controls .btn { width: 56px; height: 56px; font-size: 22px; }
-  /* Agent call input strip — only visible during agent calls */
   #agent-input-wrap { position: absolute; left: 0; right: 0;
     bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 511;
     padding: 0 14px; display: none; flex-direction: column; gap: 8px; }
   #agent-input-wrap.on { display: flex; }
-  #agent-log { max-height: 30vh; overflow-y: auto;
+  #agent-log { max-height: 28vh; overflow-y: auto;
     background: rgba(2,6,18,0.55); border: 1px solid rgba(93,178,255,0.35);
     border-radius: 14px; padding: 8px 12px; color: #cde7ff;
     font-size: 12px; line-height: 1.4; }
   #agent-log .ag-line { padding: 4px 0; border-bottom: 1px solid rgba(93,178,255,0.10); }
   #agent-log .ag-you { color: rgba(120,180,255,0.85); }
-  #agent-log .ag-agent { color: #cde7ff; }
-  #agent-log .ag-meta { color: rgba(120,180,255,0.55); font-size: 10px; }
   #agent-form { display: flex; gap: 8px; align-items: center; }
   #agent-form input { flex: 1; padding: 10px 14px; font-size: 16px;
     background: rgba(2,6,18,0.7); border: 1px solid rgba(93,178,255,0.55);
     border-radius: 22px; color: #e8eef8; outline: none; }
-  /* Incoming — a single ignore pill at the top. The PRIMARY answer
-     surface is the glowing orb that pulses on the globe at the
-     caller's GPS point. Tap orb = answer. Tap ✕ = ignore. */
+
+  /* INCOMING — fallback when caller GPS missing */
   #incoming { position: fixed; top: max(14px, env(safe-area-inset-top));
     left: 50%; transform: translateX(-50%); z-index: 400;
     background: rgba(8,18,38,0.85); backdrop-filter: blur(8px);
     border: 1px solid rgba(126,235,180,0.6); border-radius: 22px;
-    padding: 8px 14px; color: #cde7ff; display: none; gap: 10px;
-    align-items: center; font-size: 13px;
-    box-shadow: 0 6px 24px rgba(0,0,0,0.5);
-    animation: ringPulse 1.4s ease infinite; }
+    padding: 8px 14px; color: #cde7ff; display: none; gap: 10px; align-items: center; font-size: 13px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5); animation: ringPulse 1.4s ease infinite; }
   #incoming.on { display: flex; }
   @keyframes ringPulse { 0%,100%{box-shadow:0 0 0 0 rgba(126,235,180,0.35)} 50%{box-shadow:0 0 0 10px rgba(126,235,180,0)} }
   #incoming .name { font-weight: 700; color: #7eebb4; }
   #incoming .ign { padding: 4px 10px; cursor: pointer; border-radius: 18px;
-    border: 1px solid rgba(255,120,120,0.5); color: #ffd6d6;
-    background: rgba(80,20,20,0.5); font-size: 12px; }
-  #incoming .ign:active { transform: scale(0.94); }
+    border: 1px solid rgba(255,120,120,0.5); color: #ffd6d6; background: rgba(80,20,20,0.5); font-size: 12px; }
 
   /* TOAST */
   #toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
@@ -282,16 +237,13 @@
   #toast.err  { border-color: rgba(255,120,120,0.7); color: #ffd6d6; }
   #toast.ok   { border-color: rgba(126,235,180,0.7); color: #d6f7e6; }
 
-  /* MENU items in vendor panel */
+  /* MENU items */
   .mi { display: flex; align-items: center; gap: 10px; padding: 10px;
     background: rgba(8,18,38,0.45); border: 1px solid rgba(93,178,255,0.18);
-    border-radius: 12px; margin: 6px 0; cursor: pointer;
-    -webkit-tap-highlight-color: transparent; transition: border-color 0.18s var(--ease); }
-  .mi:hover { border-color: rgba(93,178,255,0.55); }
+    border-radius: 12px; margin: 6px 0; cursor: pointer; }
   .mi .mi-name { flex: 1; font-size: 14px; color: #cfe2ff; }
   .mi .mi-price { font-size: 13px; color: #ffd47e; font-weight: 600; }
   .mi .mi-add { font-size: 20px; color: #7eebb4; }
-
   .cart-row { display: flex; align-items: center; justify-content: space-between;
     padding: 8px 0; border-bottom: 1px dashed rgba(93,178,255,0.15); font-size: 13px; }
   .cart-x { color: rgba(255,120,120,0.8); cursor: pointer; padding: 0 6px; }
@@ -301,14 +253,11 @@
 
 <!--
 ================================================================================
-ASTRANOV — minimal scaffold + three pillars built on the architect's order:
-1. WebRTC video calling between users
-2. News fetch agent (signals + informant-feed Edge fn)
-3. Delivery marketplace (vendors menu + drivers acceptance + orders)
-Architect: Notis Astranov. Per CLAUDE.md §1, architect overrides every clause.
-Pre-nuke state preserved at git tag pre-nuke-2026-06-05-1202.
-Backend (27 Edge functions, all RPCs, all tables) unchanged on
-Supabase project lkoatrkhuigdolnjsbie.
+ASTRANOV — Post-nuke rebuild from the law in AstranoV.html
+Three pillars: video calling (peer + circles) · crawler news · marketplace.
+Brain: aicycle (OUR brain), never silent fallback. The Seven Foundations
+in every reply. Delivery algorithm: base €1/km + multipliers.
+Architect: Notis Astranov. Pre-nuke tag: pre-nuke-2026-06-11-1200.
 ================================================================================
 -->
 
@@ -322,8 +271,8 @@ Supabase project lkoatrkhuigdolnjsbie.
 </div>
 
 <div id="chat-reopen" title="Open Astranov"></div>
-<div id="login-orb" title="Sign in"            onclick="openAuthPanel()">◈</div>
-<div id="pilot-orb" title="Back to the globe"  onclick="pilotHome()"></div>
+<div id="login-orb" title="Sign in" onclick="openAuthPanel()">◈</div>
+<div id="pilot-orb" title="Back to the globe" onclick="pilotHome()"></div>
 
 <div id="chat">
   <div id="chat-handle"></div>
@@ -331,7 +280,7 @@ Supabase project lkoatrkhuigdolnjsbie.
   <form id="chat-form" autocomplete="off">
     <button id="btn-mic" type="button" class="btn" title="Speak" aria-label="Microphone">🔴</button>
     <input id="chat-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
-      enterkeyhint="send" placeholder="Try: news · call NAME · pizza · sign in · wallet" />
+      enterkeyhint="send" placeholder="Try: news · pizza · people · circles · call NAME · diag" />
     <button id="btn-send" type="submit" class="btn primary" title="Send" aria-label="Send">↑</button>
   </form>
 </div>
@@ -373,15 +322,26 @@ Supabase project lkoatrkhuigdolnjsbie.
 <script>
 'use strict';
 
+/* ============================== Constants ============================== */
 const SUPABASE_URL = 'https://lkoatrkhuigdolnjsbie.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI';
+
+const TEST_PEER_ID = '4af6d2f4-675e-4423-9a9b-35d5711963ae';
+
+// WebRTC — Google STUN + Open Relay free TURN (honest NAT ceiling — strict
+// corporate/mobile-carrier NATs may still fail; that's a known limit).
+const ICE_SERVERS = [
+  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:global.stun.twilio.com:3478'] },
+  { urls: 'turn:openrelay.metered.ca:80',  username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+];
 
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 let toastTimer = 0;
 function toast(msg, kind = '') {
-  const t = $('toast'); t.textContent = String(msg).slice(0, 100);
+  const t = $('toast'); t.textContent = String(msg).slice(0, 140);
   t.className = 'show ' + (kind || '');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { t.className = ''; }, 3200);
@@ -396,7 +356,15 @@ function formatRelative(ts) {
   return Math.round(h / 24) + 'd';
 }
 
-/* ============================== Cesium ============================== */
+// Haversine — meters between (lat1,lng1) and (lat2,lng2).
+function distMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000, toRad = x => x * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+/* ============================== Cesium — trackball globe ============================== */
 let viewer = null;
 let _userLat = null, _userLng = null;
 
@@ -406,10 +374,7 @@ async function bootCesium() {
       animation: false, baseLayerPicker: false, fullscreenButton: false,
       vrButton: false, geocoder: false, homeButton: false, infoBox: false,
       sceneModePicker: false, selectionIndicator: false, timeline: false,
-      navigationHelpButton: false,
-      // requestRenderMode off — tiles paint in as they arrive (no "fake
-      // static" feel) and pin animations / drags stay smooth on mobile.
-      requestRenderMode: false,
+      navigationHelpButton: false, requestRenderMode: false,
       baseLayer: false, scene3DOnly: false,
       skyAtmosphere: new Cesium.SkyAtmosphere(), msaaSamples: 1,
     });
@@ -417,20 +382,17 @@ async function bootCesium() {
     viewer.scene.globe.enableLighting = false;
     viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#02060d');
     try { viewer.scene.globe.dynamicAtmosphereLighting = false; } catch (_) {}
-    try { if (viewer.scene.postProcessStages.fxaa) viewer.scene.postProcessStages.fxaa.enabled = false; } catch (_) {}
     try { viewer.scene.fog.enabled = false; } catch (_) {}
+    // TRACKBALL — every Cesium input enabled. Touch devices sometimes
+    // silently disable inputs; we re-assert here on every boot.
     const cc = viewer.scene.screenSpaceCameraController;
-    // Make sure every input is on (some Cesium builds default these off
-    // on touch devices). Pinch is on by default and now stays on.
     cc.enableInputs = true; cc.enableZoom = true; cc.enableRotate = true;
     cc.enableTilt = true; cc.enableLook = true; cc.enableTranslate = true;
     cc.minimumZoomDistance = 5; cc.maximumZoomDistance = 2_000_000_000;
     viewer.resolutionScale = Math.min(1.25, window.devicePixelRatio || 1);
     viewer.scene.globe.maximumScreenSpaceError = 2.0;
     viewer.scene.globe.preloadSiblings = false;
-    // REAL Earth — Esri World Imagery (free public service, no token,
-    // served over HTTPS; tile host already in sw.js TILE_HOSTS so it
-    // gets cached for offline). Replaces the cartoon Natural Earth II.
+    // REAL Earth — Esri World Imagery
     const base = new Cesium.UrlTemplateImageryProvider({
       url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       maximumLevel: 19, credit: 'Esri',
@@ -440,15 +402,11 @@ async function bootCesium() {
       destination: Cesium.Cartesian3.fromDegrees(20, 35, 28_000_000),
       duration: 0,
     });
-    // Cesium event handlers
+    // Click & gesture handlers
     const h = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
     h.setInputAction(onCanvasClick, Cesium.ScreenSpaceEventType.LEFT_CLICK);
-    // Google Maps style: double-tap / double-click → zoom IN to that point
     h.setInputAction(onDoubleClickZoom, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
-    // Custom multi-touch gestures (two-finger tap to zoom out, two-finger
-    // vertical drag to zoom in/out). Pinch zoom still works by default.
     _bindTouchGestures(viewer.scene.canvas);
-    // Watch altitude → toggle the pilot orb (back-to-globe shortcut).
     viewer.camera.changed.addEventListener(_updatePilotOrb);
     viewer.camera.changed.raiseEventThreshold = 0.05;
     // Dismiss boot on first paint
@@ -466,11 +424,7 @@ async function bootCesium() {
   }
 }
 
-/* ---------- Google-Maps-style gestures ---------- */
-
-function _cameraAlt() {
-  return viewer ? viewer.camera.positionCartographic.height : 0;
-}
+function _cameraAlt() { return viewer ? viewer.camera.positionCartographic.height : 0; }
 function _cameraLngLat() {
   if (!viewer) return [0, 0];
   const c = viewer.camera.positionCartographic;
@@ -479,20 +433,15 @@ function _cameraLngLat() {
 
 function onDoubleClickZoom(click) {
   if (!viewer) return;
-  // Don't dive when the user is targeting an orb / pin — that gesture
-  // is for that orb's action (call, answer, vendor panel).
   const picked = viewer.scene.pick(click.position);
-  if (picked?.id?.__callOrb || picked?.id?.__peerOrb || picked?.primitive?.__vendorId) return;
+  if (picked?.id?.__peerOrb || picked?.id?.__callOrb || picked?.id?.__circle || picked?.primitive?.__vendorId) return;
   const ray = viewer.camera.getPickRay(click.position);
   const cart = ray && viewer.scene.globe.pick(ray, viewer.scene);
   let lng, lat;
   if (cart) {
     const c = Cesium.Cartographic.fromCartesian(cart);
-    lng = Cesium.Math.toDegrees(c.longitude);
-    lat = Cesium.Math.toDegrees(c.latitude);
-  } else {
-    [lng, lat] = _cameraLngLat();
-  }
+    lng = Cesium.Math.toDegrees(c.longitude); lat = Cesium.Math.toDegrees(c.latitude);
+  } else { [lng, lat] = _cameraLngLat(); }
   const newAlt = Math.max(400, _cameraAlt() * 0.35);
   viewer.camera.flyTo({
     destination: Cesium.Cartesian3.fromDegrees(lng, lat, newAlt),
@@ -512,7 +461,7 @@ function zoomOutOneStep() {
 }
 
 function _bindTouchGestures(canvas) {
-  let t0 = 0, sx1 = 0, sy1 = 0, sx2 = 0, sy2 = 0, moved = false;
+  let t0 = 0, sy1 = 0, sy2 = 0, sx1 = 0, sx2 = 0, moved = false;
   canvas.addEventListener('touchstart', (e) => {
     if (e.touches.length === 2) {
       t0 = Date.now(); moved = false;
@@ -526,9 +475,9 @@ function _bindTouchGestures(canvas) {
     const dx = ((e.touches[0].clientX - sx1) + (e.touches[1].clientX - sx2)) / 2;
     if (Math.abs(dy) < 6 && Math.abs(dx) < 6) return;
     moved = true;
-    // Vertical-dominant drag → zoom (top→down = zoom IN, bottom→up = zoom OUT)
+    // Vertical-dominant drag → zoom (down = IN, up = OUT)
     if (Math.abs(dy) > Math.abs(dx) * 1.5) {
-      const factor = Math.exp(-dy / 220);  // dy > 0 (down) → factor < 1 → zoom in
+      const factor = Math.exp(-dy / 220);
       const [lng, lat] = _cameraLngLat();
       const newAlt = Math.max(400, Math.min(28_000_000, _cameraAlt() * factor));
       viewer.camera.setView({ destination: Cesium.Cartesian3.fromDegrees(lng, lat, newAlt) });
@@ -536,27 +485,38 @@ function _bindTouchGestures(canvas) {
     }
   }, { passive: true });
   canvas.addEventListener('touchend', (e) => {
-    // Two-finger TAP (quick, no real motion, both fingers lifted) → zoom OUT one step.
-    if (t0 && !moved && e.touches.length === 0 && (Date.now() - t0) < 280) {
-      zoomOutOneStep();
-    }
+    if (t0 && !moved && e.touches.length === 0 && (Date.now() - t0) < 280) zoomOutOneStep();
     t0 = 0;
   }, { passive: true });
 }
 
+function onCanvasClick(click) {
+  if (!viewer) return;
+  const picked = viewer.scene.pick(click.position);
+  if (picked?.id?.__callOrb) { acceptIncoming(); return; }
+  if (picked?.id?.__peerOrb) {
+    const p = picked.id.__peerOrb;
+    if (p.is_agent) startAgentCall(p);
+    else            startCall(p.id, p.display_name);
+    return;
+  }
+  if (picked?.id?.__circle) { openCirclePanel(picked.id.__circle); return; }
+  if (picked?.primitive?.__vendorId) {
+    const p = vendorIndex.get(picked.primitive.__vendorId);
+    if (p) openVendorPanel(p);
+  }
+}
+
 async function locateMe() {
-  if (!navigator.geolocation) return null;
+  if (!navigator.geolocation) return ipWarmup();
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
       pos => {
         _userLat = pos.coords.latitude; _userLng = pos.coords.longitude;
-        maybeMoveTestPeerHere();
-        maybePinMyselfHere();
+        maybePinMyselfHere(); maybeMoveTestPeerHere();
         resolve({ lat: _userLat, lng: _userLng });
       },
-      () => { ipWarmup().then((r) => {
-        maybeMoveTestPeerHere(); maybePinMyselfHere(); resolve(r);
-      }); },
+      () => ipWarmup().then((r) => { maybePinMyselfHere(); maybeMoveTestPeerHere(); resolve(r); }),
       { enableHighAccuracy: true, timeout: 10_000 }
     );
   });
@@ -574,19 +534,13 @@ async function ipWarmup() {
   return null;
 }
 
-// Staged descent: globe → national → city → street. The architect's
-// LAW §10: zoom never teleports above the planet; every dive lands
-// with the user's neighbourhood actually visible.
 async function diveToMe() {
-  if (_userLat == null) {
-    toast('Locating…');
-    await locateMe();
-    if (_userLat == null) { toast('Need your location', 'err'); return false; }
-  }
+  if (_userLat == null) { toast('Locating…'); await locateMe(); }
+  if (_userLat == null) { toast('Need your location', 'err'); return false; }
   if (!viewer) return false;
-  await _flyStage(_userLng, _userLat, 1_400_000, 0.9, -90);  // national
-  await _flyStage(_userLng, _userLat,    35_000, 0.9, -75);  // city
-  await _flyStage(_userLng, _userLat,     1_200, 0.8, -65);  // street
+  await _flyStage(_userLng, _userLat, 1_400_000, 0.9, -90);
+  await _flyStage(_userLng, _userLat,    35_000, 0.9, -75);
+  await _flyStage(_userLng, _userLat,     1_200, 0.8, -65);
   return true;
 }
 
@@ -614,28 +568,7 @@ async function pilotHome() {
 
 function _updatePilotOrb() {
   const el = $('pilot-orb'); if (!el) return;
-  // Show the back-to-globe orb only when zoomed in below ~12 000 km.
-  const alt = _cameraAlt();
-  el.classList.toggle('on', alt < 12_000_000);
-}
-
-function onCanvasClick(click) {
-  if (!viewer) return;
-  const picked = viewer.scene.pick(click.position);
-  // Glowing incoming-call orb has top priority — tap = answer
-  if (picked?.id?.__callOrb) { acceptIncoming(); return; }
-  // Peer orb on the globe — tap = ring them. Agents route to the
-  // synthesized-video call surface; humans get full WebRTC.
-  if (picked?.id?.__peerOrb) {
-    const p = picked.id.__peerOrb;
-    if (p.is_agent) startAgentCall(p);
-    else            startCall(p.id, p.display_name);
-    return;
-  }
-  if (picked?.primitive?.__vendorId) {
-    const p = vendorIndex.get(picked.primitive.__vendorId);
-    if (p) openVendorPanel(p);
-  }
+  el.classList.toggle('on', _cameraAlt() < 12_000_000);
 }
 
 /* ============================== Supabase ============================== */
@@ -643,9 +576,6 @@ let sb = null, session = null, profile = null;
 
 function bootSupabase() {
   if (!window.supabase || typeof window.supabase.createClient !== 'function') {
-    // The SDK script never landed (CDN flake, blocked, etc.). Reloading
-    // won't fix it — tell the user honestly and try a one-shot dynamic
-    // fallback to a second CDN, then a third.
     console.error('[Supabase] SDK not loaded — attempting fallback');
     _loadSupabaseFallback();
     return;
@@ -659,11 +589,9 @@ function bootSupabase() {
     });
     sb.auth.onAuthStateChange((_e, s) => {
       const becameSignedIn = !session && s;
-      session = s;
-      _reflectSignedIn();
+      session = s; _reflectSignedIn();
       if (s) {
-        loadProfile().then(_greetSignedIn);
-        listenForIncomingCalls();
+        loadProfile().then(_greetSignedIn); listenForIncomingCalls();
         if (becameSignedIn) closePanel();
       } else { profile = null; }
     });
@@ -671,8 +599,6 @@ function bootSupabase() {
 }
 
 function _loadSupabaseFallback() {
-  // Defensive: if the inline <script onerror> chain failed too, try one
-  // last time from a third CDN. After this, surface the real reason.
   const tried = (window._sbTried = window._sbTried || []);
   const candidates = [
     'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js',
@@ -680,12 +606,11 @@ function _loadSupabaseFallback() {
     'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
   ];
   const next = candidates.find(u => !tried.includes(u));
-  if (!next) { toast('Supabase SDK did not load from any CDN. Network blocked?', 'err'); return; }
+  if (!next) { toast('Supabase SDK did not load. Network blocked?', 'err'); return; }
   tried.push(next);
-  const s = document.createElement('script');
-  s.src = next; s.async = false;
+  const s = document.createElement('script'); s.src = next; s.async = false;
   s.onload  = () => { console.log('[Supabase] loaded from', next); bootSupabase(); };
-  s.onerror = () => { console.error('[Supabase] failed', next); _loadSupabaseFallback(); };
+  s.onerror = () => _loadSupabaseFallback();
   document.head.appendChild(s);
 }
 
@@ -697,8 +622,7 @@ function _reflectSignedIn() {
 
 let _greeted = false;
 function _greetSignedIn() {
-  if (_greeted || !session) return;
-  _greeted = true;
+  if (_greeted || !session) return; _greeted = true;
   const name = profile?.display_name || session.user?.email || 'friend';
   toast('Welcome back, ' + name, 'ok');
 }
@@ -711,12 +635,37 @@ async function loadProfile() {
   } catch (_) {}
 }
 
-/* ============================== Panel ============================== */
+// Architect-only: move the test peer next to me on first GPS resolve.
+let _testPinDone = false;
+async function maybeMoveTestPeerHere() {
+  if (_testPinDone || !session || !profile?.is_owner) return;
+  if (_userLat == null || _userLng == null) return;
+  _testPinDone = true;
+  try {
+    await sb.rpc('architect_set_peer_home', {
+      target: TEST_PEER_ID, lat: _userLat + 0.0014, lng: _userLng + 0.0014,
+    });
+    refreshPeerOrbs();
+  } catch (_) {}
+}
+
+// Every signed-in user: write own home_location so others can find you.
+let _selfPinDone = false;
+async function maybePinMyselfHere() {
+  if (_selfPinDone || !session) return;
+  if (_userLat == null || _userLng == null) return;
+  _selfPinDone = true;
+  try {
+    await sb.rpc('set_home_location', { lat: _userLat, lng: _userLng, country: null, city_name: null });
+    await loadProfile(); refreshPeerOrbs();
+  } catch (_) {}
+}
+
+/* ============================== Panel + chat ============================== */
 function openPanel(html) {
   $('panel-body').innerHTML = html;
   $('panel').classList.add('open');
   document.body.classList.add('panel-open');
-  // Let the layout settle so we read the real panel height.
   requestAnimationFrame(_pushOrbsAboveDrawers);
   setTimeout(_pushOrbsAboveDrawers, 360);
 }
@@ -725,58 +674,51 @@ function closePanel() {
   document.body.classList.remove('panel-open');
   setTimeout(_pushOrbsAboveDrawers, 360);
 }
-
-/* ============================== Orbs (trackball + push) ============================== */
-
-// LAW §10: drawers push orbs above the drawer; orbs are never covered.
+function openChat() {
+  $('chat').classList.add('open');
+  document.body.classList.add('chat-open');
+  setTimeout(_pushOrbsAboveDrawers, 360);
+}
+function closeChat() {
+  $('chat').classList.remove('open');
+  document.body.classList.remove('chat-open');
+  setTimeout(_pushOrbsAboveDrawers, 360);
+}
 function _pushOrbsAboveDrawers() {
   let bottom = 12;
   const panel = $('panel'), chat = $('chat');
-  if (panel?.classList.contains('open')) {
-    bottom = Math.max(bottom, panel.offsetHeight + 18);
-  }
-  if (chat?.classList.contains('open')) {
-    bottom = Math.max(bottom, chat.offsetHeight + 14);
-  }
+  if (panel?.classList.contains('open')) bottom = Math.max(bottom, panel.offsetHeight + 18);
+  if (chat?.classList.contains('open'))  bottom = Math.max(bottom, chat.offsetHeight + 14);
   document.documentElement.style.setProperty('--orb-bottom', bottom + 'px');
 }
 
-// LAW §10: every floating orb is trackball-draggable; position persists.
-function _bindOrbDrag(el, storageKey) {
+function _bindOrbDrag(el, key) {
   if (!el) return;
-  // Restore saved position
   try {
-    const pos = JSON.parse(localStorage.getItem(storageKey) || 'null');
-    if (pos && Number.isFinite(pos.left) && Number.isFinite(pos.top)) {
-      _applyAbsPos(el, pos.left, pos.top);
-    }
+    const pos = JSON.parse(localStorage.getItem(key) || 'null');
+    if (pos && Number.isFinite(pos.left) && Number.isFinite(pos.top)) _applyAbsPos(el, pos.left, pos.top);
   } catch (_) {}
-  let dragging = false, downX = 0, downY = 0, offX = 0, offY = 0;
+  let dragging = false, dx = 0, dy = 0, ox = 0, oy = 0;
   el.addEventListener('pointerdown', (e) => {
-    dragging = false;
-    downX = e.clientX; downY = e.clientY;
-    const r = el.getBoundingClientRect();
-    offX = e.clientX - r.left; offY = e.clientY - r.top;
+    dragging = false; dx = e.clientX; dy = e.clientY;
+    const r = el.getBoundingClientRect(); ox = e.clientX - r.left; oy = e.clientY - r.top;
     el.setPointerCapture(e.pointerId);
   });
   el.addEventListener('pointermove', (e) => {
     if (!el.hasPointerCapture(e.pointerId)) return;
-    const dx = e.clientX - downX, dy = e.clientY - downY;
-    if (!dragging && (dx*dx + dy*dy) < 36) return;  // 6px threshold
+    if (!dragging && ((e.clientX - dx)**2 + (e.clientY - dy)**2) < 36) return;
     dragging = true;
-    const left = Math.max(4, Math.min(window.innerWidth  - el.offsetWidth  - 4, e.clientX - offX));
-    const top  = Math.max(4, Math.min(window.innerHeight - el.offsetHeight - 4, e.clientY - offY));
+    const left = Math.max(4, Math.min(window.innerWidth  - el.offsetWidth  - 4, e.clientX - ox));
+    const top  = Math.max(4, Math.min(window.innerHeight - el.offsetHeight - 4, e.clientY - oy));
     _applyAbsPos(el, left, top);
   });
   el.addEventListener('pointerup', (e) => {
     try { el.releasePointerCapture(e.pointerId); } catch (_) {}
     if (dragging) {
-      try { localStorage.setItem(storageKey, JSON.stringify({ left: el.offsetLeft, top: el.offsetTop })); } catch (_) {}
+      try { localStorage.setItem(key, JSON.stringify({ left: el.offsetLeft, top: el.offsetTop })); } catch (_) {}
       el._suppressClick = Date.now();
     }
   });
-  // Swallow the click that follows a drag so a relocate never triggers
-  // the orb's tap action.
   el.addEventListener('click', (e) => {
     if (el._suppressClick && (Date.now() - el._suppressClick) < 300) {
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
@@ -784,18 +726,43 @@ function _bindOrbDrag(el, storageKey) {
   }, true);
 }
 function _applyAbsPos(el, left, top) {
-  el.classList.add('dragged');
-  el.style.left = left + 'px';
-  el.style.top  = top  + 'px';
-  el.style.right = 'auto';
-  el.style.bottom = 'auto';
+  el.classList.add('dragged'); el.style.left = left + 'px'; el.style.top = top + 'px';
+  el.style.right = 'auto'; el.style.bottom = 'auto';
+}
+
+function _bindPanelDragHandle() {
+  const h = $('panel-handle'), p = $('panel'); if (!h || !p) return;
+  let startY = 0, dy = 0, dragging = false;
+  h.addEventListener('pointerdown', (e) => { h.setPointerCapture(e.pointerId); startY = e.clientY; dy = 0; dragging = true; p.style.transition = 'none'; });
+  h.addEventListener('pointermove', (e) => { if (!dragging) return; dy = Math.max(0, e.clientY - startY); p.style.transform = `translateY(${dy}px)`; _pushOrbsAboveDrawers(); });
+  h.addEventListener('pointerup', (e) => {
+    dragging = false; try { h.releasePointerCapture(e.pointerId); } catch (_) {}
+    p.style.transition = ''; p.style.transform = '';
+    if (dy > 80) closePanel();
+    setTimeout(_pushOrbsAboveDrawers, 360);
+  });
+}
+function _bindChatDragHandle() {
+  const h = $('chat-handle'); if (!h) return;
+  let startY = 0, startH = 0, dragging = false;
+  h.addEventListener('pointerdown', (e) => { h.setPointerCapture(e.pointerId); startY = e.clientY; startH = $('chat').getBoundingClientRect().height; dragging = true; });
+  h.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const delta = startY - e.clientY;
+    const newH = Math.max(60, Math.min(window.innerHeight * 0.6, startH + delta));
+    $('chat').style.maxHeight = newH + 'px';
+  });
+  h.addEventListener('pointerup', (e) => {
+    dragging = false; try { h.releasePointerCapture(e.pointerId); } catch (_) {}
+    if ($('chat').getBoundingClientRect().height < 80) closeChat();
+  });
 }
 
 /* ============================== Auth ============================== */
 function openAuthPanel() {
   openPanel(`
     <h2>Sign in</h2>
-    <p>Email + password, magic link, or Google. New here? Tap Register.</p>
+    <p>Email + password, magic link, Google. Test peers + architect shortcuts below.</p>
     <input id="auth-email" type="email" placeholder="you@example.com" autocomplete="email">
     <input id="auth-pass" type="password" placeholder="Password (blank for magic link)" autocomplete="current-password">
     <div style="margin-top:10px">
@@ -805,36 +772,24 @@ function openAuthPanel() {
       <button class="pbtn muted" onclick="signInGoogle()">Google</button>
     </div>
     <div style="margin-top:14px;padding:10px 12px;border:1px dashed rgba(126,235,180,0.45);border-radius:10px;font-size:12px;color:#a8c8ee">
-      <b>Architect</b> — one-tap magic link to
-      <b style="color:#7eebb4">notisastranov@gmail.com</b>.
+      <b>Architect</b> — one-tap magic link to <b style="color:#7eebb4">notisastranov@gmail.com</b>.
       <div style="margin-top:8px"><button class="pbtn muted" onclick="architectMagic()">Send architect magic link</button></div>
       <div style="margin-top:12px;border-top:1px solid rgba(93,178,255,0.18);padding-top:10px">
-        <b>Test peer</b> — sign in on a second device, then call "Astranov" from your main account.
-        <div style="margin-top:8px">
-          <button class="pbtn muted" onclick="useTestCreds()">Use test credentials</button>
-        </div>
+        <b>Test peer</b> — <code>astranov@astranov.eu</code> / <code>astranov2026</code>. Sign in on a second device, then call "Astranov" from your main account.
+        <div style="margin-top:8px"><button class="pbtn muted" onclick="useTestCreds()">Use test credentials</button></div>
       </div>
     </div>
     <div id="auth-status" style="font-size:11px;color:rgba(168,200,238,0.65);margin-top:10px"></div>
   `);
 }
-
-function useTestCreds() {
-  $('auth-email').value = 'astranov@astranov.eu';
-  $('auth-pass').value  = 'astranov2026';
-}
-
+function useTestCreds() { $('auth-email').value = 'astranov@astranov.eu'; $('auth-pass').value = 'astranov2026'; }
 async function architectMagic() {
   const email = 'notisastranov@gmail.com';
   $('auth-email').value = email;
   $('auth-status').textContent = 'Sending magic link to ' + email + '…';
-  const { error } = await sb.auth.signInWithOtp({
-    email, options: { emailRedirectTo: location.origin },
-  });
-  if (error) $('auth-status').textContent = 'Magic link failed: ' + error.message;
-  else $('auth-status').textContent = 'Magic link sent — check your inbox.';
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } });
+  $('auth-status').textContent = error ? ('Failed: ' + error.message) : 'Magic link sent — check your inbox.';
 }
-
 async function signInPassword() {
   const email = $('auth-email').value.trim(); const password = $('auth-pass').value;
   if (!email || !password) return $('auth-status').textContent = 'Email + password required.';
@@ -842,257 +797,124 @@ async function signInPassword() {
   if (error) $('auth-status').textContent = error.message;
   else { toast('Signed in', 'ok'); closePanel(); }
 }
-
 async function signUpPassword() {
   const email = $('auth-email').value.trim(); const password = $('auth-pass').value;
   if (!email || !password) return $('auth-status').textContent = 'Email + password required.';
   const { error } = await sb.auth.signUp({ email, password });
-  if (error) $('auth-status').textContent = error.message;
-  else $('auth-status').textContent = 'Check your email to confirm.';
+  $('auth-status').textContent = error ? error.message : 'Check your email to confirm.';
 }
-
 async function sendMagicLink() {
   const email = $('auth-email').value.trim();
   if (!email) return $('auth-status').textContent = 'Email required.';
   const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } });
-  if (error) $('auth-status').textContent = error.message;
-  else $('auth-status').textContent = 'Magic link sent — check your email.';
+  $('auth-status').textContent = error ? error.message : 'Magic link sent — check your email.';
 }
-
 async function signInGoogle() {
   const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin } });
   if (error) $('auth-status').textContent = error.message;
 }
+async function signOut() { await sb.auth.signOut(); toast('Signed out', ''); closePanel(); }
 
-async function signOut() {
-  await sb.auth.signOut();
-  toast('Signed out', '');
-  closePanel();
-}
+/* ============================== Brain (aicycle) — OUR brain only ============================== */
+const aicycleHistory = [];
 
-/* ============================== News ============================== */
-const DEFAULT_INFORMANTS = [
-  { id: 'world',   name: 'World',   category: 'news',    queries: ['world headlines'] },
-  { id: 'tech',    name: 'Tech',    category: 'news',    queries: ['technology'] },
-  { id: 'sports',  name: 'Sports',  category: 'news',    queries: ['sports'] },
-  { id: 'sci',     name: 'Science', category: 'news',    queries: ['science'] },
-  { id: 'biz',     name: 'Business',category: 'commerce',queries: ['business markets'] },
-];
-
-async function openNewsPanel() {
-  openPanel(`
-    <h2>News</h2>
-    <p>Real signals from the globe + informant feeds. Tap a card to read.</p>
-    <div id="news-list">Loading…</div>
-  `);
-  const problems = [];
-  let signals = [];
-  try {
-    const r = await sb.from('signals')
-      .select('id, title, body, source_name, source_url, created_at, category')
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(50);
-    if (r.error) throw r.error;
-    signals = r.data || [];
-  } catch (e) { problems.push('signals: ' + (e.message || e)); }
-  let informants = [];
-  try {
-    const r = await sb.functions.invoke('informant-feed', { body: { informants: DEFAULT_INFORMANTS } });
-    if (r.error) throw r.error;
-    if (r.data && r.data.ok === false) throw new Error(r.data.error || 'informant-feed failed');
-    if (r.data?.findings) {
-      for (const arr of Object.values(r.data.findings)) {
-        if (Array.isArray(arr)) informants.push(...arr);
-      }
-    }
-  } catch (e) { problems.push('informants: ' + (e.message || e)); }
-  const items = [
-    ...signals.map(s => ({
-      title: s.title, src: s.source_name || s.category || 'signal',
-      t: s.created_at, url: s.source_url, body: s.body,
-    })),
-    ...informants.map(f => ({
-      title: f.title || '(untitled)',
-      src: f.source_name || f.source || 'informant',
-      t: f.published_at || f.created_at || new Date().toISOString(),
-      url: f.source_url || f.url, body: f.summary,
-    })),
-  ].sort((a, b) => new Date(b.t) - new Date(a.t)).slice(0, 80);
-  if (!items.length) {
-    $('news-list').innerHTML = `<p>No news landed. ${
-      problems.length ? '<br>' + problems.map(escapeHtml).join('<br>') : ''
-    }</p>`;
-    return;
+function appendMsg(role, text, meta) {
+  const div = document.createElement('div'); div.className = 'msg ' + role; div.textContent = text;
+  if (meta) {
+    const m = document.createElement('div'); m.className = 'msg-meta'; m.textContent = meta;
+    div.appendChild(m);
   }
-  $('news-list').innerHTML = items.map((it) => `
-    <div class="card" onclick="${it.url ? `window.open('${escapeHtml(it.url)}','_blank','noopener')` : `toast('No link')`}">
-      <div class="ct">${escapeHtml(it.title)}</div>
-      <div class="cm">${escapeHtml(it.src)} · ${formatRelative(it.t)}</div>
-    </div>
-  `).join('');
+  const msgs = $('chat-msgs');
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+function appendThinking() {
+  const div = document.createElement('div');
+  div.className = 'msg ai thinking-stub'; div.textContent = '…';
+  const msgs = $('chat-msgs');
+  msgs.appendChild(div); msgs.scrollTop = msgs.scrollHeight;
+  return div;
 }
 
-/* ============================== Messages ============================== */
-let _activePeer = null;
-
-async function openMessagesPanel() {
-  if (!session) return openAuthPanel();
-  openPanel(`
-    <h2>Messages</h2>
-    <p>Recent conversations. Search by name to start a new one.</p>
-    <div id="msg-inbox">Loading…</div>
-    <h3>Find someone</h3>
-    <input id="msg-search" placeholder="Name or username…" oninput="findPeer(this.value)">
-    <div id="msg-found"></div>
-  `);
-  let inbox = [];
+async function callBrain(prompt, opts) {
+  if (!sb) return { reply: '◈ Supabase SDK did not load. Reload will not fix this — network or CDN block.', meta: '', failed: true };
+  const history = opts?.history || aicycleHistory.slice(-6);
+  const persona = opts?.persona;
+  const body = persona
+    ? { prompt, history, engine: 'astranov', persona }
+    : { prompt, history, engine: 'astranov' };
   try {
-    const r = await sb.rpc('message_inbox', { max_results: 30 });
-    inbox = r.data || [];
-  } catch (_) {}
-  if (!inbox.length) { $('msg-inbox').innerHTML = '<p>No threads yet.</p>'; return; }
-  $('msg-inbox').innerHTML = inbox.map(c => `
-    <div class="card" onclick="openConversation('${c.peer_id}', ${JSON.stringify(c.peer_display || 'Friend').replace(/"/g, '&quot;')})">
-      <div class="ct">${escapeHtml(c.peer_display || 'Friend')}${Number(c.unread_count) > 0 ? ' · <b style="color:#7eebb4">' + c.unread_count + ' new</b>' : ''}</div>
-      <div class="cm">${escapeHtml((c.last_body || '').slice(0, 80))} · ${formatRelative(c.last_at)}</div>
-    </div>
-  `).join('');
+    const t0 = Date.now();
+    const { data, error } = await sb.functions.invoke('aicycle', { body });
+    if (error) throw error;
+    if (data && data.error) throw new Error(data.error);
+    const reply = (data && (data.response || data.text)) || '(no reply)';
+    const ms    = Number(data?.latencyMs) || (Date.now() - t0);
+    const label = data?.engineLabel || data?.engine || 'brain';
+    const model = data?.model ? String(data.model).split('/').pop() : '';
+    const meta  = `via ${label}${model ? ' · ' + model : ''} · ${(ms/1000).toFixed(1)}s`;
+    if (!persona) {
+      aicycleHistory.push({ role: 'user', content: prompt });
+      aicycleHistory.push({ role: 'assistant', content: reply });
+    }
+    return { reply, meta, raw: data };
+  } catch (e) {
+    return { reply: '◈ Brain unreachable — ' + (e.message || e), meta: '', failed: true };
+  }
 }
 
-async function findPeer(q) {
-  const out = $('msg-found'); if (!out) return;
-  q = (q || '').trim();
-  if (q.length < 2) { out.innerHTML = ''; return; }
+$('chat-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = $('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  appendMsg('user', text);
+  input.value = '';
+  if (routeLocal(text)) return;
+  const stub = appendThinking();
+  $('chat').classList.add('thinking');
+  const out = await callBrain(text);
+  $('chat').classList.remove('thinking');
+  stub.classList.remove('thinking-stub');
+  stub.textContent = out.reply;
+  if (out.meta) { const m = document.createElement('div'); m.className = 'msg-meta'; m.textContent = out.meta; stub.appendChild(m); }
+  if (out.failed) {
+    const r = document.createElement('div'); r.className = 'msg-meta';
+    r.innerHTML = '<button class="pbtn ok" style="padding:4px 10px;font-size:11px" onclick="_retryBrain(this)">Retry</button>'
+      + '<span style="margin-left:8px;color:rgba(168,200,238,0.55)">our brain only — no silent fallback</span>';
+    r._brainPrompt = text;
+    stub.appendChild(r);
+  }
+  const msgs = $('chat-msgs'); msgs.scrollTop = msgs.scrollHeight;
+});
+
+async function _retryBrain(btn) {
+  const wrap = btn.closest('.msg-meta');
+  const stubMsg = wrap?.parentElement; const text = wrap?._brainPrompt;
+  if (!text || !stubMsg) return;
+  wrap.remove(); stubMsg.textContent = '…'; stubMsg.classList.add('thinking-stub');
+  const out = await callBrain(text);
+  stubMsg.classList.remove('thinking-stub');
+  stubMsg.textContent = out.reply;
+  if (out.meta) { const m = document.createElement('div'); m.className = 'msg-meta'; m.textContent = out.meta; stubMsg.appendChild(m); }
+}
+
+$('chat-reopen').addEventListener('click', openChat);
+
+async function _brainHeartbeat() {
+  if (!sb) { toast('SDK did not load — see chat', 'err'); return; }
   try {
-    const { data } = await sb.rpc('find_peer', { q });
-    const rows = (data || []).filter(r => r.id !== session?.user.id);
-    out.innerHTML = rows.length ? rows.map(r => {
-      const fn = r.is_agent
-        ? `startAgentCall(${JSON.stringify({id: r.id, display_name: r.display_name, is_agent: true})})`
-        : `openConversation('${r.id}', ${JSON.stringify(r.display_name || 'Friend').replace(/"/g, '&quot;')})`;
-      return `
-        <div class="card" onclick='${fn}'>
-          <div class="ct">${escapeHtml(r.display_name || 'Friend')}</div>
-          <div class="cm">${r.is_agent ? '◈ tap to call' : 'Tap to write or call'}</div>
-        </div>`;
-    }).join('') : '<p>No one with that name.</p>';
-  } catch (_) { out.innerHTML = ''; }
+    const r = await sb.functions.invoke('aicycle', { body: { prompt: '_ping_', history: [], engine: 'astranov' } });
+    if (r.error || (r.data && r.data.error)) throw r.error || new Error(r.data.error);
+    console.log('[Brain] online · ' + (r.data?.engineLabel || ''));
+  } catch (e) {
+    toast('Brain unreachable: ' + (e.message || e), 'err');
+  }
 }
 
-async function openConversation(peerId, name) {
-  _activePeer = { id: peerId, name };
-  openPanel(`
-    <h2>${escapeHtml(name)}</h2>
-    <div style="margin-bottom:8px">
-      <button class="pbtn ok" onclick="startCall('${peerId}', ${JSON.stringify(name).replace(/"/g, '&quot;')})">◈ Video call</button>
-    </div>
-    <div id="thread" style="max-height:42vh;overflow-y:auto;padding:8px 0;display:flex;flex-direction:column;gap:6px"></div>
-    <form id="msg-send-form" style="display:flex;gap:8px;margin-top:10px">
-      <input id="msg-body" placeholder="Message…" autocomplete="off">
-      <button type="submit" class="pbtn ok">Send</button>
-    </form>
-  `);
-  try {
-    const { data } = await sb.rpc('get_conversation', { peer: peerId, max_results: 50 });
-    renderThread(data || []);
-  } catch (_) {}
-  try { await sb.rpc('mark_messages_read', { peer: peerId }); } catch (_) {}
-  $('msg-send-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const body = $('msg-body').value.trim();
-    if (!body) return;
-    $('msg-body').value = '';
-    try {
-      await sb.from('messages').insert({ recipient_id: peerId, sender_id: session.user.id, body });
-      const { data } = await sb.rpc('get_conversation', { peer: peerId, max_results: 50 });
-      renderThread(data || []);
-    } catch (e) { toast(e.message, 'err'); }
-  });
-}
-
-function renderThread(msgs) {
-  const el = $('thread'); if (!el) return;
-  el.innerHTML = msgs.map(m => {
-    const mine = m.sender_id === session?.user.id;
-    return `<div class="msg ${mine ? 'user' : 'ai'}" style="${mine ? 'align-self:flex-end' : 'align-self:flex-start'}">
-      ${escapeHtml(m.body)}
-    </div>`;
-  }).join('');
-  el.scrollTop = el.scrollHeight;
-}
-
-/* ============================== Video Calling (WebRTC) ============================== */
-const ICE_SERVERS = [
-  { urls: ['stun:stun.l.google.com:19302'] },
-  { urls: ['stun:stun1.l.google.com:19302'] },
-  { urls: ['stun:global.stun.twilio.com:3478'] },
-  // Open Relay TURN (free fallback)
-  { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-  { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-];
-
-let pc = null, localStream = null, callChannel = null, currentCall = null;
-let _pendingIncoming = null, _inboxChannel = null;
-let _callOrb = null, _callOrbTimeout = 0;
-
-function listenForIncomingCalls() {
-  if (!sb || !session) return;
-  try { _inboxChannel?.unsubscribe(); } catch (_) {}
-  _inboxChannel = sb.channel('user:' + session.user.id, { config: { broadcast: { ack: false } } });
-  _inboxChannel.on('broadcast', { event: 'incoming-call' }, ({ payload }) => onIncomingInvite(payload));
-  _inboxChannel.subscribe();
-}
-
-// Spawn a pulsing green orb on the globe at the caller's GPS point and
-// fly the camera to it. Tap orb = accept. Tap ✕ pill = ignore.
-function _spawnCallOrb(lat, lng, callerName) {
-  _killCallOrb();
-  if (!viewer || lat == null || lng == null) return false;
-  _callOrb = viewer.entities.add({
-    position: Cesium.Cartesian3.fromDegrees(lng, lat),
-    point: {
-      pixelSize: new Cesium.CallbackProperty(() => 22 + 10 * (0.5 + 0.5 * Math.sin(Date.now() / 220)), false),
-      color: Cesium.Color.fromCssColorString('#7eebb4'),
-      outlineColor: new Cesium.CallbackProperty(
-        () => Cesium.Color.fromCssColorString('#7eebb4').withAlpha(0.25 + 0.55 * (0.5 + 0.5 * Math.sin(Date.now() / 220))),
-        false),
-      outlineWidth: new Cesium.CallbackProperty(() => 6 + 8 * (0.5 + 0.5 * Math.sin(Date.now() / 220)), false),
-      disableDepthTestDistance: Number.POSITIVE_INFINITY,
-    },
-    label: {
-      text: '◈ ' + (callerName || 'Caller'),
-      font: '600 14px Quicksand, sans-serif',
-      fillColor: Cesium.Color.fromCssColorString('#cde7ff'),
-      outlineColor: Cesium.Color.fromCssColorString('#020a1c'),
-      outlineWidth: 3,
-      style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-      pixelOffset: new Cesium.Cartesian2(0, -42),
-      showBackground: true,
-      backgroundColor: Cesium.Color.fromCssColorString('#020a1c').withAlpha(0.55),
-      backgroundPadding: new Cesium.Cartesian2(8, 4),
-      disableDepthTestDistance: Number.POSITIVE_INFINITY,
-    },
-  });
-  _callOrb.__callOrb = true;
-  // Fly to city-level altitude so the caller's point is clearly visible.
-  viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(lng, lat, 35_000),
-    duration: 1.4,
-    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-65), roll: 0 },
-  });
-  return true;
-}
-
-function _killCallOrb() {
-  if (_callOrb && viewer) { try { viewer.entities.remove(_callOrb); } catch (_) {} }
-  _callOrb = null;
-  clearTimeout(_callOrbTimeout); _callOrbTimeout = 0;
-}
-
-/* ---------- Peer orbs (every discoverable user, on the globe) ---------- */
-
-const _peerEntities = new Map();   // peer.id → Cesium.Entity
+/* ============================== Peer orbs — humans + agents same visual ============================== */
+const _peerEntities = new Map();
 
 async function refreshPeerOrbs() {
   if (!sb || !viewer) return;
@@ -1103,36 +925,27 @@ async function refreshPeerOrbs() {
     for (const p of peers) {
       if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) continue;
       seen.add(p.id);
-      // LAW: agents appear as normal users — same aegean orb, same label
-      // shape. The agent flag only changes the call surface behind the
-      // scenes (synthesized canvas instead of WebRTC). Visually one tribe.
-      const baseHex = '#4aa6ff';
       const labelText = '◈ ' + (p.display_name || 'Friend');
       const existing = _peerEntities.get(p.id);
       if (existing) {
         existing.position = Cesium.Cartesian3.fromDegrees(p.lng, p.lat);
         if (existing.label) existing.label.text = labelText;
-        existing.__peerOrb = p;
-        continue;
+        existing.__peerOrb = p; continue;
       }
-      const c = Cesium.Color.fromCssColorString(baseHex);
+      const c = Cesium.Color.fromCssColorString('#4aa6ff');
       const ent = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),
         point: {
           pixelSize: new Cesium.CallbackProperty(() => 16 + 6 * (0.5 + 0.5 * Math.sin(Date.now() / 380)), false),
           color: c,
-          outlineColor: new Cesium.CallbackProperty(
-            () => c.withAlpha(0.25 + 0.45 * (0.5 + 0.5 * Math.sin(Date.now() / 380))),
-            false),
+          outlineColor: new Cesium.CallbackProperty(() => c.withAlpha(0.25 + 0.45 * (0.5 + 0.5 * Math.sin(Date.now() / 380))), false),
           outlineWidth: new Cesium.CallbackProperty(() => 4 + 6 * (0.5 + 0.5 * Math.sin(Date.now() / 380)), false),
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
         label: {
-          text: labelText,
-          font: '600 12px Quicksand, sans-serif',
+          text: labelText, font: '600 12px Quicksand, sans-serif',
           fillColor: Cesium.Color.fromCssColorString('#cde7ff'),
-          outlineColor: Cesium.Color.fromCssColorString('#020a1c'),
-          outlineWidth: 3,
+          outlineColor: Cesium.Color.fromCssColorString('#020a1c'), outlineWidth: 3,
           style: Cesium.LabelStyle.FILL_AND_OUTLINE,
           pixelOffset: new Cesium.Cartesian2(0, -32),
           showBackground: true,
@@ -1146,70 +959,236 @@ async function refreshPeerOrbs() {
       _peerEntities.set(p.id, ent);
     }
     for (const [id, ent] of _peerEntities) {
-      if (!seen.has(id)) {
-        try { viewer.entities.remove(ent); } catch (_) {}
-        _peerEntities.delete(id);
-      }
+      if (!seen.has(id)) { try { viewer.entities.remove(ent); } catch (_) {} _peerEntities.delete(id); }
     }
   } catch (e) { console.error('[peers]', e); }
 }
 
-// Architect-only: pin the test peer near you the first time you get a
-// GPS fix so the orb is in your city instead of stuck on Athens.
-let _testPinDone = false;
-async function maybeMoveTestPeerHere() {
-  if (_testPinDone) return;
-  if (!session || !profile?.is_owner) return;
-  if (_userLat == null || _userLng == null) return;
-  _testPinDone = true;
-  const lat = _userLat + 0.0014;
-  const lng = _userLng + 0.0014;
+/* ============================== Social circles — shapes by member count ============================== */
+const _circleEntities = new Map();
+
+async function refreshCircleShapes() {
+  if (!sb || !viewer) return;
   try {
-    await sb.rpc('architect_set_peer_home', {
-      target: '4af6d2f4-675e-4423-9a9b-35d5711963ae', lat, lng,
-    });
-    refreshPeerOrbs();
-  } catch (_) {}
+    const { data: circles, error } = await sb.from('circles').select('id, name, emoji, owner_id');
+    if (error) throw error;
+    const seen = new Set();
+    for (const c of (circles || [])) {
+      seen.add(c.id);
+      // Get members with locations to compute the polygon
+      const { data: members } = await sb.rpc('discoverable_peers');
+      const { data: mids } = await sb.from('circle_members').select('profile_id').eq('circle_id', c.id);
+      const memberIds = new Set((mids || []).map(m => m.profile_id));
+      const memberPts = (members || []).filter(m => memberIds.has(m.id));
+      if (memberPts.length < 2) { _killCircle(c.id); continue; }
+      const positions = memberPts.flatMap(m => [m.lng, m.lat]);
+      let existing = _circleEntities.get(c.id);
+      const shape = memberPts.length === 2 ? 'AXLE'
+                  : memberPts.length === 3 ? 'TRIANGLE'
+                  : memberPts.length <= 5 ? 'POLYGON' : 'CLOUD';
+      if (existing) { try { viewer.entities.remove(existing); } catch (_) {} _circleEntities.delete(c.id); }
+      const ent = (memberPts.length === 2)
+        ? viewer.entities.add({
+            polyline: {
+              positions: Cesium.Cartesian3.fromDegreesArray(positions),
+              width: 4,
+              material: new Cesium.PolylineDashMaterialProperty({
+                color: Cesium.Color.fromCssColorString('#a98cff').withAlpha(0.7),
+                dashLength: 12,
+              }),
+              clampToGround: true,
+            },
+            label: { text: '◈ ' + (c.name || 'Circle') + ' · ' + shape, font: '600 11px Quicksand', fillColor: Cesium.Color.fromCssColorString('#e8e0ff'), outlineColor: Cesium.Color.BLACK, outlineWidth: 2, style: Cesium.LabelStyle.FILL_AND_OUTLINE, position: Cesium.Cartesian3.fromDegrees(memberPts[0].lng, memberPts[0].lat), pixelOffset: new Cesium.Cartesian2(0, -20), showBackground: true, backgroundColor: Cesium.Color.fromCssColorString('#1a1530').withAlpha(0.7), backgroundPadding: new Cesium.Cartesian2(6, 3), distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 5_000_000), disableDepthTestDistance: Number.POSITIVE_INFINITY },
+            position: Cesium.Cartesian3.fromDegrees(memberPts[0].lng, memberPts[0].lat),
+          })
+        : viewer.entities.add({
+            polygon: {
+              hierarchy: new Cesium.PolygonHierarchy(Cesium.Cartesian3.fromDegreesArray(positions)),
+              material: Cesium.Color.fromCssColorString('#a98cff').withAlpha(0.18),
+              outline: true,
+              outlineColor: Cesium.Color.fromCssColorString('#a98cff'),
+              height: 0,
+              perPositionHeight: false,
+              extrudedHeight: 0,
+              arcType: Cesium.ArcType.GEODESIC,
+            },
+            label: { text: '◈ ' + (c.name || 'Circle') + ' · ' + shape, font: '600 11px Quicksand', fillColor: Cesium.Color.fromCssColorString('#e8e0ff'), outlineColor: Cesium.Color.BLACK, outlineWidth: 2, style: Cesium.LabelStyle.FILL_AND_OUTLINE, position: Cesium.Cartesian3.fromDegrees(memberPts[0].lng, memberPts[0].lat), pixelOffset: new Cesium.Cartesian2(0, -20), showBackground: true, backgroundColor: Cesium.Color.fromCssColorString('#1a1530').withAlpha(0.7), backgroundPadding: new Cesium.Cartesian2(6, 3), distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 5_000_000), disableDepthTestDistance: Number.POSITIVE_INFINITY },
+            position: Cesium.Cartesian3.fromDegrees(memberPts[0].lng, memberPts[0].lat),
+          });
+      ent.__circle = { ...c, shape, members: memberPts };
+      _circleEntities.set(c.id, ent);
+    }
+    for (const [id, ent] of _circleEntities) {
+      if (!seen.has(id)) _killCircle(id);
+    }
+  } catch (e) { console.error('[circles]', e); }
+}
+function _killCircle(id) {
+  const e = _circleEntities.get(id);
+  if (e && viewer) { try { viewer.entities.remove(e); } catch (_) {} }
+  _circleEntities.delete(id);
 }
 
-// Every signed-in user: write your own home_location so a second
-// device (or another peer) can see your orb on the globe and ring you.
-let _selfPinDone = false;
-async function maybePinMyselfHere() {
-  if (_selfPinDone) return;
-  if (!session || _userLat == null || _userLng == null) return;
-  _selfPinDone = true;
+async function openCirclePanel(circle) {
+  if (!session) return openAuthPanel();
+  openPanel(`
+    <h2>${escapeHtml(circle.name || 'Circle')} · ${escapeHtml(circle.shape || '')}</h2>
+    <p>${(circle.members || []).length} members.</p>
+    <h3>Members</h3>
+    ${(circle.members || []).map(m => `
+      <div class="card" onclick="${m.is_agent ? `startAgentCall(${JSON.stringify({id:m.id,display_name:m.display_name,is_agent:true})})` : `startCall('${m.id}', ${JSON.stringify(m.display_name).replace(/"/g,'&quot;')})`}">
+        <div class="ct">${escapeHtml(m.display_name)}</div>
+        <div class="cm">◈ tap to call</div>
+      </div>
+    `).join('')}
+    <div style="margin-top:12px"><button class="pbtn ok" onclick="circleGroupCall('${circle.id}')">Group video host</button></div>
+  `);
+}
+async function circleGroupCall(circleId) {
+  // Group calls are a future surface — for now, ring everyone in sequence is too much.
+  // Tell the architect honestly.
+  toast('Group video host coming — call members one by one for now', '');
+}
+
+async function openCirclesPanel() {
+  if (!session) return openAuthPanel();
+  openPanel(`
+    <h2>Social Circles</h2>
+    <p>Each circle renders on the globe by its member count — 2 = AXLE · 3 = TRIANGLE · 4-5 = POLYGON · 6+ = CLOUD.</p>
+    <h3>Create a new circle</h3>
+    <input id="cir-name" placeholder="Circle name (e.g. Athens runners)">
+    <button class="pbtn ok" onclick="createCircle()">Create circle</button>
+    <h3>Your circles</h3>
+    <div id="cir-list">Loading…</div>
+  `);
   try {
-    await sb.rpc('set_home_location', {
-      lat: _userLat, lng: _userLng, country: null, city_name: null,
-    });
-    await loadProfile();
-    refreshPeerOrbs();
-  } catch (_) {}
+    const { data } = await sb.from('circles').select('id, name, emoji').eq('owner_id', session.user.id);
+    const list = data || [];
+    $('cir-list').innerHTML = list.length ? list.map(c => `
+      <div class="card" onclick="manageCircle('${c.id}', ${JSON.stringify(c.name).replace(/"/g,'&quot;')})">
+        <div class="ct">${escapeHtml(c.name)}</div>
+        <div class="cm">Tap to manage members</div>
+      </div>
+    `).join('') : '<p>None yet. Create one above.</p>';
+  } catch (e) { $('cir-list').textContent = e.message; }
+}
+async function createCircle() {
+  const name = $('cir-name').value.trim();
+  if (!name) return toast('Name required', 'err');
+  try {
+    const { error } = await sb.from('circles').insert({ name, owner_id: session.user.id, emoji: '◈' });
+    if (error) throw error;
+    toast('Circle created · add members', 'ok');
+    openCirclesPanel();
+    refreshCircleShapes();
+  } catch (e) { toast(e.message, 'err'); }
+}
+async function manageCircle(id, name) {
+  openPanel(`
+    <h2>${escapeHtml(name)}</h2>
+    <p>Add members by searching their name.</p>
+    <input id="mem-search" placeholder="Search…" oninput="searchAddMember('${id}', this.value)">
+    <div id="mem-found"></div>
+    <h3>Current members</h3>
+    <div id="mem-list">Loading…</div>
+  `);
+  await reloadCircleMembers(id);
+}
+async function reloadCircleMembers(id) {
+  try {
+    const { data } = await sb.from('circle_members').select('profile_id, role').eq('circle_id', id);
+    const peers = (await sb.rpc('discoverable_peers')).data || [];
+    const ids = new Set((data || []).map(d => d.profile_id));
+    const list = peers.filter(p => ids.has(p.id));
+    $('mem-list').innerHTML = list.length ? list.map(m => `
+      <div class="row">
+        <span>${escapeHtml(m.display_name)}</span>
+        <span class="cart-x" onclick="removeMember('${id}', '${m.id}')">✕</span>
+      </div>
+    `).join('') : '<p>No members yet.</p>';
+  } catch (e) { $('mem-list').textContent = e.message; }
+}
+async function searchAddMember(circleId, q) {
+  const out = $('mem-found'); if (!out) return;
+  q = (q || '').trim(); if (q.length < 2) { out.innerHTML = ''; return; }
+  try {
+    const { data } = await sb.rpc('find_peer', { q });
+    const rows = (data || []).filter(r => r.id !== session.user.id);
+    out.innerHTML = rows.length ? rows.map(r => `
+      <div class="card" onclick="addMember('${circleId}', '${r.id}')">
+        <div class="ct">${escapeHtml(r.display_name)}</div>
+        <div class="cm">Tap to add</div>
+      </div>
+    `).join('') : '<p>No match.</p>';
+  } catch (_) { out.innerHTML = ''; }
+}
+async function addMember(circleId, profileId) {
+  try {
+    await sb.from('circle_members').insert({ circle_id: circleId, profile_id: profileId, role: 'member' });
+    toast('Member added', 'ok');
+    reloadCircleMembers(circleId); refreshCircleShapes();
+  } catch (e) { toast(e.message, 'err'); }
+}
+async function removeMember(circleId, profileId) {
+  try {
+    await sb.from('circle_members').delete().eq('circle_id', circleId).eq('profile_id', profileId);
+    toast('Member removed', 'ok');
+    reloadCircleMembers(circleId); refreshCircleShapes();
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+/* ============================== WebRTC calls (humans) ============================== */
+let pc = null, localStream = null, callChannel = null, currentCall = null;
+let _pendingIncoming = null, _inboxChannel = null;
+let _callOrb = null, _callOrbTimeout = 0;
+let _outgoingTimer = 0;
+
+function listenForIncomingCalls() {
+  if (!sb || !session) return;
+  try { _inboxChannel?.unsubscribe(); } catch (_) {}
+  _inboxChannel = sb.channel('user:' + session.user.id, { config: { broadcast: { ack: false } } });
+  _inboxChannel.on('broadcast', { event: 'incoming-call' }, ({ payload }) => onIncomingInvite(payload));
+  _inboxChannel.subscribe();
+}
+
+function _spawnCallOrb(lat, lng, name) {
+  _killCallOrb();
+  if (!viewer || lat == null || lng == null) return false;
+  _callOrb = viewer.entities.add({
+    position: Cesium.Cartesian3.fromDegrees(lng, lat),
+    point: {
+      pixelSize: new Cesium.CallbackProperty(() => 22 + 10 * (0.5 + 0.5 * Math.sin(Date.now() / 220)), false),
+      color: Cesium.Color.fromCssColorString('#7eebb4'),
+      outlineColor: new Cesium.CallbackProperty(() => Cesium.Color.fromCssColorString('#7eebb4').withAlpha(0.25 + 0.55 * (0.5 + 0.5 * Math.sin(Date.now() / 220))), false),
+      outlineWidth: new Cesium.CallbackProperty(() => 6 + 8 * (0.5 + 0.5 * Math.sin(Date.now() / 220)), false),
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+    },
+    label: { text: '◈ ' + (name || 'Caller'), font: '600 14px Quicksand', fillColor: Cesium.Color.fromCssColorString('#cde7ff'), outlineColor: Cesium.Color.fromCssColorString('#020a1c'), outlineWidth: 3, style: Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset: new Cesium.Cartesian2(0, -42), showBackground: true, backgroundColor: Cesium.Color.fromCssColorString('#020a1c').withAlpha(0.55), backgroundPadding: new Cesium.Cartesian2(8, 4), disableDepthTestDistance: Number.POSITIVE_INFINITY },
+  });
+  _callOrb.__callOrb = true;
+  viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(lng, lat, 35_000), duration: 1.4, orientation: { heading: 0, pitch: Cesium.Math.toRadians(-65), roll: 0 } });
+  return true;
+}
+function _killCallOrb() {
+  if (_callOrb && viewer) { try { viewer.entities.remove(_callOrb); } catch (_) {} }
+  _callOrb = null;
+  clearTimeout(_callOrbTimeout); _callOrbTimeout = 0;
 }
 
 function onIncomingInvite(p) {
-  if (currentCall) return;   // ignore if already on a call
+  if (currentCall) return;
   _pendingIncoming = p;
-  // Close anything covering the globe so the orb is the focus.
-  try { closePanel(); } catch (_) {}
-  try { closeChat(); } catch (_) {}
+  try { closePanel(); closeChat(); } catch (_) {}
   $('inc-name').textContent = p.fromName || 'Caller';
   $('incoming').classList.add('on');
-  // Try the geographic answer surface first. If the caller didn't share
-  // a location, the top pill alone still works.
   _spawnCallOrb(p.callerLat, p.callerLng, p.fromName);
-  // Auto-decline after 30s of silence — frees both ends.
-  _callOrbTimeout = setTimeout(() => {
-    if (_pendingIncoming === p) declineIncoming();
-  }, 30_000);
+  _callOrbTimeout = setTimeout(() => { if (_pendingIncoming === p) declineIncoming(); }, 30_000);
 }
 
 async function acceptIncoming() {
   if (!_pendingIncoming) return;
   const p = _pendingIncoming; _pendingIncoming = null;
-  $('incoming').classList.remove('on');
-  _killCallOrb();
+  $('incoming').classList.remove('on'); _killCallOrb();
   try { localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true }); }
   catch (e) { toast('Mic/cam blocked', 'err'); return; }
   currentCall = { id: p.callId, peerId: p.fromId, peerName: p.fromName, role: 'callee' };
@@ -1224,27 +1203,21 @@ async function acceptIncoming() {
   callChannel.on('broadcast', { event: 'bye' }, () => endCall());
   callChannel.subscribe();
   await callChannel.send({ type: 'broadcast', event: 'answer', payload: answer });
-  try {
-    await sb.from('calls').update({ status: 'accepted', accepted_at: new Date().toISOString() }).eq('id', p.callId);
-  } catch (_) {}
+  try { await sb.from('calls').update({ status: 'accepted', accepted_at: new Date().toISOString() }).eq('id', p.callId); } catch (_) {}
   showCallStage();
 }
-
 async function declineIncoming() {
   if (!_pendingIncoming) return;
   const p = _pendingIncoming; _pendingIncoming = null;
-  $('incoming').classList.remove('on');
-  _killCallOrb();
+  $('incoming').classList.remove('on'); _killCallOrb();
   try {
-    const ch = sb.channel('call:' + p.callId);
-    await ch.subscribe();
+    const ch = sb.channel('call:' + p.callId); await ch.subscribe();
     await ch.send({ type: 'broadcast', event: 'bye', payload: { reason: 'declined' } });
     ch.unsubscribe();
     await sb.from('calls').update({ status: 'declined', ended_at: new Date().toISOString() }).eq('id', p.callId);
   } catch (_) {}
 }
 
-let _outgoingTimer = 0;
 async function startCall(peerId, peerName) {
   if (!session) return openAuthPanel();
   if (currentCall) return toast('Already on a call', 'err');
@@ -1254,12 +1227,8 @@ async function startCall(peerId, peerName) {
   let row;
   try {
     const r = await sb.from('calls').insert({ caller_id: session.user.id, callee_id: peerId }).select().single();
-    if (r.error) throw r.error;
-    row = r.data;
-  } catch (e) {
-    stopLocalStream();
-    return toast('Call create failed: ' + e.message, 'err');
-  }
+    if (r.error) throw r.error; row = r.data;
+  } catch (e) { stopLocalStream(); return toast('Call create failed: ' + e.message, 'err'); }
   currentCall = { id: row.id, peerId, peerName, role: 'caller' };
   $('call-peer').textContent = peerName || 'Calling…';
   $('call-status').textContent = 'ringing…';
@@ -1271,32 +1240,19 @@ async function startCall(peerId, peerName) {
   callChannel.on('broadcast', { event: 'ice' }, ({ payload }) => onRemoteIce(payload));
   callChannel.on('broadcast', { event: 'bye' }, () => endCall());
   callChannel.subscribe();
-  // Tell the callee via their user channel + push notification.
-  // The caller's live GPS rides along so the orb materialises at the
-  // exact point the call is coming from.
   if (_userLat == null) { try { await locateMe(); } catch (_) {} }
   const userCh = sb.channel('user:' + peerId);
   await userCh.subscribe();
   await userCh.send({
     type: 'broadcast', event: 'incoming-call',
-    payload: { callId: row.id, fromId: session.user.id,
-      fromName: (profile?.display_name || session.user.email || 'Caller'),
-      callerLat: _userLat, callerLng: _userLng, offer },
+    payload: { callId: row.id, fromId: session.user.id, fromName: (profile?.display_name || session.user.email || 'Caller'), callerLat: _userLat, callerLng: _userLng, offer },
   });
   userCh.unsubscribe();
-  try {
-    await sb.functions.invoke('push-notify', { body: {
-      target_profile_id: peerId, type: 'call', callId: row.id,
-      title: 'Incoming call', body: (profile?.display_name || 'Friend') + ' is calling you',
-    }});
-  } catch (_) {}
-  // 30 s outgoing-call timeout — if the callee never accepts, hang up
-  // cleanly with a "no answer" toast instead of ringing forever.
+  try { await sb.functions.invoke('push-notify', { body: { target_profile_id: peerId, type: 'call', callId: row.id, title: 'Incoming call', body: (profile?.display_name || 'Friend') + ' is calling' } }); } catch (_) {}
   clearTimeout(_outgoingTimer);
   _outgoingTimer = setTimeout(() => {
     if (currentCall && currentCall.id === row.id && pc?.connectionState !== 'connected') {
-      toast('No answer from ' + (peerName || 'peer'), 'err');
-      endCall();
+      toast('No answer from ' + (peerName || 'peer'), 'err'); endCall();
     }
   }, 30_000);
   showCallStage();
@@ -1306,8 +1262,7 @@ function buildPC() {
   pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
   if (localStream) localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
   pc.ontrack = (e) => {
-    const r = $('call-remote');
-    if (r.srcObject !== e.streams[0]) r.srcObject = e.streams[0];
+    const r = $('call-remote'); if (r.srcObject !== e.streams[0]) r.srcObject = e.streams[0];
     $('call-status').textContent = 'connected';
   };
   pc.onicecandidate = (e) => {
@@ -1323,15 +1278,8 @@ function buildPC() {
   $('call-local').srcObject = localStream;
 }
 
-async function onRemoteAnswer(answer) {
-  try { await pc.setRemoteDescription(answer); $('call-status').textContent = 'connecting…'; } catch (_) {}
-}
-
-async function onRemoteIce(c) {
-  if (!c) return;
-  try { await pc.addIceCandidate(c); } catch (_) {}
-}
-
+async function onRemoteAnswer(answer) { try { await pc.setRemoteDescription(answer); $('call-status').textContent = 'connecting…'; } catch (_) {} }
+async function onRemoteIce(c) { if (!c) return; try { await pc.addIceCandidate(c); } catch (_) {} }
 function showCallStage() { $('call-stage').classList.add('on'); }
 function hideCallStage() { $('call-stage').classList.remove('on'); }
 
@@ -1339,27 +1287,19 @@ function endCall() {
   if (!currentCall && !pc) return;
   clearTimeout(_outgoingTimer); _outgoingTimer = 0;
   try { if (callChannel) callChannel.send({ type: 'broadcast', event: 'bye', payload: {} }); } catch (_) {}
-  try { callChannel?.unsubscribe(); } catch (_) {}
-  callChannel = null;
-  try { pc?.close(); } catch (_) {}
-  pc = null;
+  try { callChannel?.unsubscribe(); } catch (_) {} callChannel = null;
+  try { pc?.close(); } catch (_) {} pc = null;
   stopLocalStream();
-  // Agent call cleanup — synthesized canvas stream, captions, log strip.
   try { _agentStream?.getTracks().forEach(t => t.stop()); } catch (_) {}
   _agentStream = null; _agentCanvas = null; _agentCtx = null; _agentCaption = '';
   $('agent-input-wrap')?.classList.remove('on');
   try { speechSynthesis.cancel(); } catch (_) {}
-  // Real human calls land in the calls table; self-test + agent calls don't.
-  if (currentCall && currentCall.role !== 'self' && currentCall.role !== 'agent' && currentCall.id !== 'self-test') {
+  if (currentCall && currentCall.role !== 'agent' && currentCall.id !== 'self-test') {
     try { sb.from('calls').update({ status: 'ended', ended_at: new Date().toISOString() }).eq('id', currentCall.id); } catch (_) {}
   }
-  currentCall = null; _currentAgentKey = null;
-  _killCallOrb();
-  hideCallStage();
-  // If a new SW shell wanted to claim while we were on a call, take it now.
-  if (window._swReloadPending) { window._swReloadPending = false; setTimeout(() => location.reload(), 400); }
+  currentCall = null;
+  _killCallOrb(); hideCallStage();
 }
-
 function stopLocalStream() {
   try { localStream?.getTracks().forEach(t => t.stop()); } catch (_) {}
   localStream = null;
@@ -1367,49 +1307,42 @@ function stopLocalStream() {
   try { $('call-remote').srcObject = null; } catch (_) {}
 }
 
-/* ---------- Agent video call ---------- */
-// A council seat is not a real human peer, so we don't carry an SDP
-// offer. We open the same call stage, paint a synthesized canvas as
-// the "remote" video, and route every typed line through OUR BRAIN
-// (aicycle) with the agent's persona prepended. Captions land on the
-// canvas; SpeechSynthesis speaks them when available.
+$('btn-end').addEventListener('click', endCall);
+$('btn-mute').addEventListener('click', () => {
+  if (!localStream) return;
+  const a = localStream.getAudioTracks()[0]; if (!a) return;
+  a.enabled = !a.enabled; $('btn-mute').classList.toggle('danger', !a.enabled);
+});
+$('btn-cam').addEventListener('click', () => {
+  if (!localStream) return;
+  const v = localStream.getVideoTracks()[0]; if (!v) return;
+  v.enabled = !v.enabled; $('btn-cam').classList.toggle('danger', !v.enabled);
+});
 
+/* ============================== Agent calls — synthesized canvas + brain via persona ============================== */
 const AGENT_PERSONAS = {
-  leonidas:  { color: '#ffaa33', remit: 'TACTICS',
-    sys: 'You are Leonidas, head of the Tactics seat in the AstranoV council. Speak briefly, military-tactical, no fluff. Plan the next move. Single short paragraph.' },
-  onasis:    { color: '#7eebb4', remit: 'BUSINESS INTEL',
-    sys: 'You are Onasis, head of Business Intel. Read the market, name the revenue surface, size opportunities. Single short paragraph.' },
-  athena:    { color: '#4aa6ff', remit: 'WISDOM',
-    sys: 'You are Athena, head of Wisdom. Hold the long view; weigh design against the law and the product soul. Single short paragraph.' },
-  myrmidons: { color: '#d96e6e', remit: 'STORMING',
-    sys: 'You are the Myrmidons, head of Storming. Bulk execution. Blunt. Tell the architect what to ship next. Single short paragraph.' },
-  spartans:  { color: '#a98cff', remit: 'ENFORCEMENT',
-    sys: 'You are the Spartans, Enforcement. Hold the line on the law, deploy contract, security, code quality. Single short paragraph.' },
-  krypteia:  { color: '#cde7ff', remit: 'OVERLOOK',
-    sys: 'You are Krypteia, Overlook. Silent audit. Name the drift, abuse, regression others miss. Single short paragraph.' },
+  leonidas:  { color: '#ffaa33', remit: 'TACTICS',        sys: 'You are Leonidas, head of Tactics in the AstranoV council. Speak briefly, military-tactical, no fluff. Plan the next move. Single short paragraph.' },
+  onasis:    { color: '#7eebb4', remit: 'BUSINESS INTEL', sys: 'You are Onasis, personal helper and Business Intel seat. Take the user\'s blocked goal, NAME the wall, inventory OVER / UNDER / AROUND, ship the closest lawful detour. Single short paragraph.' },
+  athena:    { color: '#4aa6ff', remit: 'WISDOM',         sys: 'You are Athena, head of Wisdom. Hold the long view; weigh design against the law and the product soul. Single short paragraph.' },
+  myrmidons: { color: '#d96e6e', remit: 'STORMING',       sys: 'You are the Myrmidons, head of Storming. Bulk execution. Blunt. Tell the architect what to ship next. Single short paragraph.' },
+  spartans:  { color: '#a98cff', remit: 'ENFORCEMENT',    sys: 'You are the Spartans, Enforcement. Hold the line on the law, deploy contract, security, code quality. Single short paragraph.' },
+  krypteia:  { color: '#cde7ff', remit: 'OVERLOOK',       sys: 'You are Krypteia, Overlook. Silent audit. Name the drift, abuse, regression others miss. Single short paragraph.' },
 };
+function _agentKey(name) { return String(name || '').toLowerCase().replace(/[^a-z]/g, '').slice(0, 16); }
 
-let _agentAnim = 0, _agentCanvas = null, _agentCtx = null, _agentStream = null;
-let _agentCaption = '', _currentAgentKey = null;
-
-function _agentKey(name) {
-  return String(name || '').toLowerCase().replace(/[^a-z]/g, '').slice(0, 16);
-}
+let _agentCanvas = null, _agentCtx = null, _agentStream = null, _agentCaption = '', _agentAnim = 0;
 
 async function startAgentCall(agent) {
   if (currentCall) return toast('Already on a call', 'err');
   const key = _agentKey(agent.display_name);
   const persona = AGENT_PERSONAS[key] || { color: '#cde7ff', remit: 'AGENT', sys: 'You are an AstranoV council seat. Speak briefly.' };
-  _currentAgentKey = key;
   currentCall = { id: 'agent-' + agent.id, peerId: agent.id, peerName: agent.display_name, role: 'agent', persona };
   $('call-peer').textContent = agent.display_name + ' · ' + persona.remit;
   $('call-status').textContent = 'connected · brain via aicycle';
-  // Architect's own camera in the local slot — optional, never required.
   try {
     localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
     $('call-local').srcObject = localStream;
-  } catch (_) { /* fine — agent call works without camera */ }
-  // Synthesized canvas drives the remote video slot.
+  } catch (_) {}
   _agentCanvas = document.createElement('canvas');
   _agentCanvas.width = 540; _agentCanvas.height = 960;
   _agentCtx = _agentCanvas.getContext('2d');
@@ -1417,10 +1350,7 @@ async function startAgentCall(agent) {
   _agentAnim = 0;
   _drawAgentFrame();
   _agentStream = _agentCanvas.captureStream(30);
-  const rv = $('call-remote');
-  rv.srcObject = _agentStream;
-  rv.muted = true;
-  // Show the agent input strip and clear prior log
+  const rv = $('call-remote'); rv.srcObject = _agentStream; rv.muted = true;
   $('agent-input-wrap').classList.add('on');
   $('agent-log').innerHTML = '';
   showCallStage();
@@ -1429,37 +1359,27 @@ async function startAgentCall(agent) {
 function _drawAgentFrame() {
   if (!currentCall || currentCall.role !== 'agent' || !_agentCtx) return;
   _agentAnim += 0.025;
-  const c = _agentCanvas, ctx = _agentCtx;
-  const persona = currentCall.persona;
+  const c = _agentCanvas, ctx = _agentCtx, persona = currentCall.persona;
   const w = c.width, h = c.height;
-  // Background gradient
   const g = ctx.createRadialGradient(w/2, h*0.45, 30, w/2, h*0.45, Math.max(w, h));
   g.addColorStop(0, '#0a1730'); g.addColorStop(1, '#020613');
   ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
-  // Animated multi-band waveform
   ctx.lineWidth = 2.5; ctx.shadowColor = persona.color; ctx.shadowBlur = 14;
   for (let band = 0; band < 3; band++) {
     ctx.beginPath();
     const off = band * 0.7;
     for (let x = 0; x <= w; x += 4) {
-      const y = h*0.5
-        + Math.sin(x/40 + _agentAnim + off) * 60 * (1 - band*0.15)
-        + Math.cos(x/26 + _agentAnim*1.3 + off) * 30;
+      const y = h*0.5 + Math.sin(x/40 + _agentAnim + off) * 60 * (1 - band*0.15) + Math.cos(x/26 + _agentAnim*1.3 + off) * 30;
       x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     }
     ctx.strokeStyle = persona.color + (band === 0 ? '' : band === 1 ? 'aa' : '55');
     ctx.stroke();
   }
   ctx.shadowBlur = 0;
-  // Header
-  ctx.fillStyle = '#cde7ff';
-  ctx.font = '700 38px Quicksand, sans-serif';
-  ctx.textAlign = 'center';
+  ctx.fillStyle = '#cde7ff'; ctx.font = '700 38px Quicksand, sans-serif'; ctx.textAlign = 'center';
   ctx.fillText('◈ ' + currentCall.peerName, w/2, 110);
-  ctx.font = '500 14px Quicksand, sans-serif';
-  ctx.fillStyle = persona.color;
+  ctx.font = '500 14px Quicksand, sans-serif'; ctx.fillStyle = persona.color;
   ctx.fillText(persona.remit, w/2, 140);
-  // Caption block (the agent's last reply, or prompt)
   if (_agentCaption) {
     ctx.fillStyle = 'rgba(207,226,255,0.92)';
     ctx.font = '500 22px Quicksand, sans-serif';
@@ -1467,13 +1387,12 @@ function _drawAgentFrame() {
   }
   requestAnimationFrame(_drawAgentFrame);
 }
-
 function _wrapText(ctx, text, x, y, maxWidth, lineHeight) {
   const words = String(text).split(/\s+/);
   let line = '', lines = [];
-  for (const word of words) {
-    const test = line ? line + ' ' + word : word;
-    if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = word; }
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = w; }
     else line = test;
   }
   if (line) lines.push(line);
@@ -1482,9 +1401,6 @@ function _wrapText(ctx, text, x, y, maxWidth, lineHeight) {
   for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], x, top + i * lineHeight);
 }
 
-// LAW §10: iOS Safari only allows speechSynthesis after a direct user
-// gesture. Prime it the FIRST time the architect submits, synchronously,
-// so the agent's first reply actually speaks.
 let _ttsPrimed = false;
 function onAgentFormSubmit(e) {
   e.preventDefault();
@@ -1492,140 +1408,117 @@ function onAgentFormSubmit(e) {
     try { speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(' ')); } catch (_) {}
     _ttsPrimed = true;
   }
-  const i = document.getElementById('agent-input');
-  const v = i.value; i.value = '';
+  const i = $('agent-input'); const v = i.value; i.value = '';
   agentSend(v);
 }
 
 function _pickVoice() {
   if (!('speechSynthesis' in window)) return null;
-  const all = speechSynthesis.getVoices() || [];
-  if (!all.length) return null;
+  const all = speechSynthesis.getVoices() || []; if (!all.length) return null;
   const en = all.filter(v => /^en[-_]/i.test(v.lang));
   const pool = en.length ? en : all;
   const score = (v) => {
-    const n = String(v.name || '');
-    let s = 0;
+    const n = String(v.name || ''); let s = 0;
     if (/premium|enhanced|neural|natural/i.test(n)) s += 10;
-    if (/siri/i.test(n))            s += 8;
-    if (/google/i.test(n))          s += 6;
+    if (/siri/i.test(n)) s += 8; if (/google/i.test(n)) s += 6;
     if (/samantha|alex|daniel|karen|tessa/i.test(n)) s += 4;
     return s;
   };
-  pool.sort((a, b) => score(b) - score(a));
+  pool.sort((a,b) => score(b) - score(a));
   return pool[0];
 }
 
 async function agentSend(rawText) {
   if (!currentCall || currentCall.role !== 'agent') return;
-  const text = (rawText || '').trim();
-  if (!text) return;
+  const text = (rawText || '').trim(); if (!text) return;
   const log = $('agent-log');
-  log.insertAdjacentHTML('beforeend',
-    `<div class="ag-line ag-you">you · ${escapeHtml(text)}</div>`);
+  log.insertAdjacentHTML('beforeend', `<div class="ag-line ag-you">you · ${escapeHtml(text)}</div>`);
   log.scrollTop = log.scrollHeight;
   _agentCaption = 'thinking…';
-  const out = await callBrain(text, null, {
-    persona: currentCall.persona.sys,
-    history: [],
-  });
+  const out = await callBrain(text, { persona: currentCall.persona.sys, history: [] });
   const reply = out.reply || '(no reply)';
   _agentCaption = reply;
-  log.insertAdjacentHTML('beforeend',
-    `<div class="ag-line ag-agent">${escapeHtml(currentCall.peerName)} · ${escapeHtml(reply)}` +
-    (out.meta ? `<span class="ag-meta"> · ${escapeHtml(out.meta)}</span>` : '') + `</div>`);
+  log.insertAdjacentHTML('beforeend', `<div class="ag-line">${escapeHtml(currentCall.peerName)} · ${escapeHtml(reply)}${out.meta ? `<span class="msg-meta" style="margin-left:6px">${escapeHtml(out.meta)}</span>` : ''}</div>`);
   log.scrollTop = log.scrollHeight;
-  // Re-focus the input so the conversation flows turn-by-turn.
   try { $('agent-input')?.focus(); } catch (_) {}
   if ('speechSynthesis' in window && !out.failed) {
     try {
-      const u = new SpeechSynthesisUtterance(reply);
-      const v = _pickVoice(); if (v) u.voice = v;
+      const u = new SpeechSynthesisUtterance(reply); const v = _pickVoice(); if (v) u.voice = v;
       u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
       speechSynthesis.cancel(); speechSynthesis.speak(u);
     } catch (_) {}
   }
 }
 
-// Single-device self-test (still useful for camera/mic verification).
-async function startSelfCallTest() {
-  if (currentCall) return toast('Already on a call', 'err');
-  try {
-    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-  } catch (e) { toast('Mic/cam blocked: ' + e.message, 'err'); return; }
-  currentCall = { id: 'self-test', peerId: 'self', peerName: 'Self-test loopback', role: 'self' };
-  $('call-peer').textContent = 'Self-test · loopback';
-  $('call-status').textContent = 'connected · this is YOU';
-  $('call-local').srcObject  = localStream;
-  $('call-remote').srcObject = localStream;
-  // Mute the remote element so you don't hear your own voice through it.
-  try { $('call-remote').muted = true; } catch (_) {}
-  showCallStage();
-}
+/* ============================== News ============================== */
+const DEFAULT_INFORMANTS = [
+  { id: 'world',  name: 'World',    category: 'news',     queries: ['world headlines'] },
+  { id: 'tech',   name: 'Tech',     category: 'news',     queries: ['technology'] },
+  { id: 'sci',    name: 'Science',  category: 'news',     queries: ['science'] },
+  { id: 'biz',    name: 'Business', category: 'commerce', queries: ['business markets'] },
+];
 
-$('btn-end').addEventListener('click', endCall);
-$('btn-mute').addEventListener('click', () => {
-  if (!localStream) return;
-  const a = localStream.getAudioTracks()[0]; if (!a) return;
-  a.enabled = !a.enabled;
-  $('btn-mute').classList.toggle('danger', !a.enabled);
-});
-$('btn-cam').addEventListener('click', () => {
-  if (!localStream) return;
-  const v = localStream.getVideoTracks()[0]; if (!v) return;
-  v.enabled = !v.enabled;
-  $('btn-cam').classList.toggle('danger', !v.enabled);
-});
-
-async function openCallPicker() {
-  if (!session) return openAuthPanel();
-  openPanel(`
-    <h2>Call</h2>
-    <p>Recent contacts. Tap to ring.</p>
-    <div id="call-peers">Loading…</div>
-    <h3>Find someone</h3>
-    <input id="call-search" placeholder="Name or username…" oninput="findPeerForCall(this.value)">
-    <div id="call-found"></div>
-  `);
-  let peers = [];
+async function openNewsPanel() {
+  openPanel(`<h2>News</h2><p>Real signals + informant feeds. Tap a card to read.</p><div id="news-list">Loading…</div>`);
+  const problems = [];
+  let signals = [];
   try {
-    const r = await sb.rpc('message_inbox', { max_results: 30 });
-    peers = (r.data || []).filter(c => c.peer_id);
-  } catch (_) {}
-  $('call-peers').innerHTML = peers.length ? peers.map(c => `
-    <div class="card" onclick="startCall('${c.peer_id}', ${JSON.stringify(c.peer_display || 'Friend').replace(/"/g, '&quot;')})">
-      <div class="ct">${escapeHtml(c.peer_display || 'Friend')}</div>
-      <div class="cm">◈ video call</div>
+    const r = await sb.from('signals').select('id, title, body, source_name, source_url, created_at, category').eq('status', 'active').order('created_at', { ascending: false }).limit(50);
+    if (r.error) throw r.error; signals = r.data || [];
+  } catch (e) { problems.push('signals: ' + e.message); }
+  let informants = [];
+  try {
+    const r = await sb.functions.invoke('informant-feed', { body: { informants: DEFAULT_INFORMANTS } });
+    if (r.error) throw r.error;
+    if (r.data?.ok === false) throw new Error(r.data.error || 'informant-feed failed');
+    for (const arr of Object.values(r.data?.findings || {})) if (Array.isArray(arr)) informants.push(...arr);
+  } catch (e) { problems.push('informants: ' + e.message); }
+  const items = [
+    ...signals.map(s => ({ title: s.title, src: s.source_name || s.category || 'signal', t: s.created_at, url: s.source_url })),
+    ...informants.map(f => ({ title: f.title || '(untitled)', src: f.source_name || f.source || 'informant', t: f.published_at || f.created_at || new Date().toISOString(), url: f.source_url || f.url })),
+  ].sort((a,b) => new Date(b.t) - new Date(a.t)).slice(0, 80);
+  if (!items.length) {
+    $('news-list').innerHTML = `<p>No news landed.${problems.length ? '<br>' + problems.map(escapeHtml).join('<br>') : ''}</p>`;
+    return;
+  }
+  $('news-list').innerHTML = items.map(it => `
+    <div class="card" onclick="${it.url ? `window.open('${escapeHtml(it.url)}','_blank','noopener')` : `toast('No link')`}">
+      <div class="ct">${escapeHtml(it.title)}</div>
+      <div class="cm">${escapeHtml(it.src)} · ${formatRelative(it.t)}</div>
     </div>
-  `).join('') : '<p>No recent peers. Search below to find someone.</p>';
+  `).join('');
 }
 
-async function findPeerForCall(q) {
-  const out = $('call-found'); if (!out) return;
-  q = (q || '').trim();
-  if (q.length < 2) { out.innerHTML = ''; return; }
-  try {
-    const { data } = await sb.rpc('find_peer', { q });
-    const rows = (data || []).filter(r => r.id !== session?.user.id);
-    out.innerHTML = rows.length ? rows.map(r => {
-      const fn = r.is_agent
-        ? `startAgentCall(${JSON.stringify({id: r.id, display_name: r.display_name, is_agent: true})})`
-        : `startCall('${r.id}', ${JSON.stringify(r.display_name || 'Friend').replace(/"/g, '&quot;')})`;
-      return `
-        <div class="card" onclick='${fn}'>
-          <div class="ct">${escapeHtml(r.display_name || 'Friend')}</div>
-          <div class="cm">◈ video call</div>
-        </div>`;
-    }).join('') : '<p>No one with that name.</p>';
-  } catch (_) { out.innerHTML = ''; }
-}
-
-/* ============================== Delivery marketplace ============================== */
+/* ============================== Marketplace + delivery algorithm ============================== */
 let vendorPins = null;
 const vendorIndex = new Map();
 let _currentVendor = null, _menu = [], _cart = [];
 
-// Category colors light the pin's halo; the emoji says WHAT it is.
+// Pricing constants — base €1/km + multipliers (LAW: delivery algorithm)
+const PRICING = {
+  base_per_km: 1.0,     // €1 per kilometer floor
+  min_fee:     3.0,     // €3 minimum fee
+  night_multiplier:    1.30,   // 22:00 – 06:00
+  long_haul_multiplier:1.15,   // > 5 km
+  platform_fee_pct:    0.05,   // 5% on subtotal
+};
+
+function _isNightLocal() {
+  const h = new Date().getHours();
+  return h >= 22 || h < 6;
+}
+
+// Delivery fee — Haversine × €1/km × multipliers. Returns { km, fee, breakdown }
+function computeDeliveryFee(pickup, dropoff) {
+  if (!pickup || !dropoff || pickup.lat == null || dropoff.lat == null) return { km: 0, fee: PRICING.min_fee, breakdown: ['min'] };
+  const km = distMeters(pickup.lat, pickup.lng, dropoff.lat, dropoff.lng) / 1000;
+  let fee = Math.max(PRICING.min_fee, km * PRICING.base_per_km);
+  const breakdown = [`${km.toFixed(2)} km × €${PRICING.base_per_km}/km`];
+  if (_isNightLocal())    { fee *= PRICING.night_multiplier;     breakdown.push('night ×' + PRICING.night_multiplier); }
+  if (km > 5)             { fee *= PRICING.long_haul_multiplier; breakdown.push('long-haul ×' + PRICING.long_haul_multiplier); }
+  return { km, fee: Math.round(fee * 100) / 100, breakdown };
+}
+
 function _pinColor(cat) {
   const c = String(cat || '').toLowerCase();
   if (/restaurant|cafe|fast_food|bakery|ice_cream|food/.test(c)) return '#ffaa33';
@@ -1635,9 +1528,7 @@ function _pinColor(cat) {
   if (/shop|supermarket|grocery|convenience|store/.test(c))       return '#4aa6ff';
   return '#cde7ff';
 }
-
 function _pinEmoji(p) {
-  // Trust the crawler's emoji unless it's the placeholder.
   if (p?.emoji && p.emoji !== '🎪') return p.emoji;
   const c = String(p?.category || '').toLowerCase();
   if (/cafe/.test(c))                       return '☕';
@@ -1650,12 +1541,11 @@ function _pinEmoji(p) {
   if (/hotel/.test(c))                      return '🏨';
   return '◍';
 }
-
 function _makePinCanvas(emoji, color) {
   const c = document.createElement('canvas'); c.width = 64; c.height = 64;
   const ctx = c.getContext('2d');
   const g = ctx.createRadialGradient(32, 28, 4, 32, 32, 28);
-  g.addColorStop(0, '#ffffff'); g.addColorStop(0.45, color); g.addColorStop(1, '#08163c');
+  g.addColorStop(0, '#fff'); g.addColorStop(0.45, color); g.addColorStop(1, '#08163c');
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(32, 32, 26, 0, Math.PI * 2); ctx.fill();
   ctx.font = '24px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -1663,28 +1553,15 @@ function _makePinCanvas(emoji, color) {
   return c;
 }
 
-function _distMeters(lat1, lng1, lat2, lng2) {
-  const R = 6371000, toRad = x => x * Math.PI / 180;
-  const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
-
-// Pull every active vendor near the user. Each row is tagged with
-// _published (has at least one priced item) so the UI can render
-// published pins bright and unpublished pins dim — the empty/unclaimed
-// places still appear so they can be claimed and published.
 async function fetchNearbyVendors(lat, lng, keyword) {
   try {
     const r = await sb.from('vendors').select('*').eq('is_active', true).limit(400);
     if (r.error) throw r.error;
     let list = (r.data || []).filter(v => v.lat && v.lng).map(v => ({
-      ...v,
-      _published: Array.isArray(v.items) && v.items.some(i => Number(i?.price) > 0),
+      ...v, _published: Array.isArray(v.items) && v.items.some(i => Number(i?.price) > 0),
     }));
     if (lat != null && lng != null) {
-      list = list
-        .map(v => ({ ...v, _dist: _distMeters(lat, lng, v.lat, v.lng) }))
+      list = list.map(v => ({ ...v, _dist: distMeters(lat, lng, v.lat, v.lng) }))
         .filter(v => v._dist <= 5000)
         .sort((a, b) => a._dist - b._dist);
     }
@@ -1710,43 +1587,32 @@ function renderVendorPins(places) {
       position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),
       image: _makePinCanvas(_pinEmoji(p), _pinColor(p.category)),
       width: 30, height: 30,
-      // Unpublished places get a dim, ghost-like pin.
       color: p._published ? Cesium.Color.WHITE : Cesium.Color.WHITE.withAlpha(0.45),
       scaleByDistance: new Cesium.NearFarScalar(200, 1.0, 1.2e6, 0.2),
       translucencyByDistance: new Cesium.NearFarScalar(7e5, 1.0, 1.8e6, 0),
       disableDepthTestDistance: Number.POSITIVE_INFINITY,
     });
-    bb.__vendorId = p.id;
-    vendorIndex.set(p.id, p);
+    bb.__vendorId = p.id; vendorIndex.set(p.id, p);
   }
   viewer.scene.requestRender();
 }
 
 async function diveToVendors(keyword) {
-  const ok = await diveToMe();
-  if (!ok) return;
+  const ok = await diveToMe(); if (!ok) return;
   toast('Searching nearby…');
   let places = await fetchNearbyVendors(_userLat, _userLng, keyword);
   if (!places.length) {
     toast('Crawler sweeping the area…');
     try {
-      const { data, error } = await sb.functions.invoke('vendor-crawler', {
-        body: { lat: _userLat, lng: _userLng, radius: 2500 },
-      });
+      const { data, error } = await sb.functions.invoke('vendor-crawler', { body: { lat: _userLat, lng: _userLng, radius: 2500 } });
       if (error) throw error;
       if (data?.ok === false) throw new Error(data.error || 'crawler failed');
       toast('Crawler found ' + (data?.count ?? 0) + ' places', 'ok');
-    } catch (e) {
-      toast('Crawler error: ' + (e.message || e), 'err');
-    }
+    } catch (e) { toast('Crawler error: ' + e.message, 'err'); }
     places = await fetchNearbyVendors(_userLat, _userLng, keyword);
   }
   if (!places.length) {
-    openPanel(`
-      <h2>Nothing nearby yet</h2>
-      <p>Crawler came up empty. List your business and you'll be the first pin on the globe here.</p>
-      <button class="pbtn ok" onclick="openVendorClaim()">List my business</button>
-    `);
+    openPanel(`<h2>Nothing nearby</h2><p>Crawler empty. List your business to be the first pin.</p>`);
     return;
   }
   renderVendorPins(places);
@@ -1754,48 +1620,26 @@ async function diveToVendors(keyword) {
   toast(`${places.length} nearby · ${pub} with menus`, 'ok');
   if (keyword && session) {
     const k = keyword.toLowerCase();
-    const match = places.find(p => p._published && JSON.stringify(p).toLowerCase().includes(k))
-               || places.find(p => JSON.stringify(p).toLowerCase().includes(k));
+    const match = places.find(p => p._published && JSON.stringify(p).toLowerCase().includes(k)) || places.find(p => JSON.stringify(p).toLowerCase().includes(k));
     if (match) setTimeout(() => openVendorPanel(match), 1400);
   }
-}
-
-async function seedNearbyVendors() {
-  if (_userLat == null) await locateMe();
-  if (_userLat == null) return toast('Need your location to seed', 'err');
-  toast('Crawler dispatched — please wait…');
-  try {
-    const { data, error } = await sb.functions.invoke('vendor-crawler', {
-      body: { lat: _userLat, lng: _userLng, radius: 2500 },
-    });
-    if (error) throw error;
-    toast('Seeded ' + (data?.count ?? 0) + ' places. Vendors must publish menus before they show.', 'ok');
-    setTimeout(() => diveToVendors(), 600);
-  } catch (e) { toast('Seed failed: ' + (e.message || e), 'err'); }
 }
 
 async function openVendorPanel(p) {
   if (!session) return openAuthPanel();
   _currentVendor = p; _cart = []; _menu = Array.isArray(p.items) ? p.items.slice() : [];
-  const subtitle = [p.tags?.cuisine, p.address?.street, p.address?.city]
-    .filter(Boolean).join(' · ');
-  const ownerOrArchitect = profile?.is_owner || (p.owner_id && p.owner_id === session?.user.id);
-  // Unpublished places have no priced items — open a publish-on-their-
-  // behalf surface instead of an empty cart.
+  const subtitle = [p.tags?.cuisine, p.address?.street, p.address?.city].filter(Boolean).join(' · ');
   if (!p._published) {
     openPanel(`
       <h2>${escapeHtml(p.name)}</h2>
       <p>${escapeHtml(subtitle)}</p>
-      <p>This place hasn't published a menu yet. Be the first to enter what they sell — they can take over later by claiming the listing.</p>
-      <button class="pbtn ok" onclick="openVendorEdit('${p.id}')">Publish menu on their behalf</button>
-      ${ownerOrArchitect ? '' : `<button class="pbtn muted" onclick="pubClaim('${p.id}')">This is my business</button>`}
+      <p>No menu published. The first menu we add becomes the listing.</p>
     `);
     return;
   }
   openPanel(`
     <h2>${escapeHtml(p.name)}</h2>
     <p>${escapeHtml(subtitle)}</p>
-    ${ownerOrArchitect ? `<button class="pbtn muted" onclick="openVendorEdit('${p.id}')">Edit menu</button>` : ''}
     <h3>Menu</h3>
     <div id="vendor-menu"></div>
     <h3>Cart</h3>
@@ -1805,134 +1649,45 @@ async function openVendorPanel(p) {
   `);
   renderMenu();
 }
-
-async function openVendorEdit(vendorId) {
-  if (!session) return openAuthPanel();
-  const r = await sb.from('vendors').select('*').eq('id', vendorId).single();
-  if (r.error || !r.data) return toast('Vendor not found', 'err');
-  const v = r.data;
-  if (!profile?.is_owner && v.owner_id !== session.user.id) return toast('Not yours to edit', 'err');
-  const items = Array.isArray(v.items) ? v.items : [];
-  openPanel(`
-    <h2>Publish menu — ${escapeHtml(v.name)}</h2>
-    <p>Add items with prices. They appear on the globe the moment you save. Outside Google.</p>
-    <div id="pub-items">${items.map((it, i) => _pubRow(it, i)).join('')}</div>
-    <button class="pbtn" onclick="pubAdd()">+ Add item</button>
-    <div style="margin-top:14px">
-      <button class="pbtn ok" onclick="pubSave('${vendorId}')">Save & publish</button>
-      <button class="pbtn muted" onclick="pubClaim('${vendorId}')">${v.owner_id ? 'Claimed' : 'Claim this listing'}</button>
-    </div>
-  `);
-}
-
-function _pubRow(it, i) {
-  return `
-    <div class="row" style="gap:6px" data-pub-row="${i}">
-      <input style="flex:2" placeholder="Item name" value="${escapeHtml(it?.name || '')}" data-pub="name">
-      <input style="flex:1" placeholder="Price €" type="number" min="0" step="0.5" value="${escapeHtml(it?.price ?? '')}" data-pub="price">
-      <button class="cart-x" onclick="this.closest('[data-pub-row]').remove()">✕</button>
-    </div>`;
-}
-
-function pubAdd() {
-  const wrap = $('pub-items');
-  const idx  = wrap.children.length;
-  wrap.insertAdjacentHTML('beforeend', _pubRow({}, idx));
-}
-
-async function pubSave(vendorId) {
-  const rows = Array.from(document.querySelectorAll('[data-pub-row]'));
-  const items = rows.map(r => ({
-    name:  r.querySelector('[data-pub="name"]').value.trim(),
-    price: Number(r.querySelector('[data-pub="price"]').value),
-  })).filter(x => x.name && x.price > 0);
-  if (!items.length) return toast('Add at least one item with a price', 'err');
-  try {
-    const { error } = await sb.from('vendors').update({ items, is_active: true }).eq('id', vendorId);
-    if (error) throw error;
-    toast('Menu published · ' + items.length + ' items', 'ok');
-    setTimeout(() => diveToVendors(), 400);
-  } catch (e) { toast('Save failed: ' + (e.message || e), 'err'); }
-}
-
-async function pubClaim(vendorId) {
-  try {
-    const { error } = await sb.from('vendors').update({ owner_id: session.user.id }).eq('id', vendorId);
-    if (error) throw error;
-    toast('Claimed. You can edit + receive orders now.', 'ok');
-    openVendorEdit(vendorId);
-  } catch (e) { toast('Claim failed: ' + (e.message || e), 'err'); }
-}
-
-async function openVendorClaim() {
-  if (!session) return openAuthPanel();
-  if (_userLat == null) await locateMe();
-  openPanel(`
-    <h2>List my business</h2>
-    <p>Drop your business onto the globe so people near you can order. You publish the menu — no Google in the loop.</p>
-    <input id="vc-name" placeholder="Business name">
-    <input id="vc-cat"  placeholder="Category (restaurant, cafe, bakery, shop, …)" value="restaurant">
-    <button class="pbtn ok" onclick="vcCreate()">Create & open menu editor</button>
-  `);
-}
-
-async function vcCreate() {
-  const name = $('vc-name').value.trim();
-  const cat  = $('vc-cat').value.trim() || 'shop';
-  if (!name) return toast('Name required', 'err');
-  if (_userLat == null) return toast('Need your location', 'err');
-  try {
-    const r = await sb.from('vendors').insert({
-      name, category: cat, lat: _userLat, lng: _userLng,
-      emoji: _pinEmoji({ category: cat }),
-      owner_id: session.user.id, is_active: true, items: [],
-    }).select().single();
-    if (r.error) throw r.error;
-    toast('Created — now publish your menu', 'ok');
-    openVendorEdit(r.data.id);
-  } catch (e) { toast('Create failed: ' + (e.message || e), 'err'); }
-}
-
 function renderMenu() {
   if (!_menu.length) { $('vendor-menu').textContent = 'No menu items.'; return; }
   $('vendor-menu').innerHTML = _menu.map((m, i) => `
     <div class="mi" onclick="addToCart(${i})">
-      <div class="mi-name">${escapeHtml(m.name)}${m.desc ? '<br><span style="font-size:11px;color:rgba(168,200,238,0.55)">' + escapeHtml(m.desc) + '</span>' : ''}</div>
+      <div class="mi-name">${escapeHtml(m.name)}</div>
       <div class="mi-price">€${m.price}</div>
       <div class="mi-add">＋</div>
     </div>
   `).join('');
 }
-
 function addToCart(i) {
   const m = _menu[i]; if (!m) return;
   const ex = _cart.find(x => x.name === m.name);
   if (ex) ex.qty++; else _cart.push({ name: m.name, qty: 1, price: m.price });
   renderCart();
 }
-
 function removeFromCart(i) { _cart.splice(i, 1); renderCart(); }
 
 function renderCart() {
-  const c = $('vendor-cart'); const t = $('vendor-total'); const b = $('btn-place');
+  const c = $('vendor-cart'), t = $('vendor-total'), b = $('btn-place');
   if (!c) return;
-  if (!_cart.length) {
-    c.innerHTML = '<p>Tap menu items to add.</p>';
-    t.innerHTML = ''; b.disabled = true; return;
-  }
+  if (!_cart.length) { c.innerHTML = '<p>Tap menu items to add.</p>'; t.innerHTML = ''; b.disabled = true; return; }
   c.innerHTML = _cart.map((it, i) => `
     <div class="cart-row">
       <span>${escapeHtml(it.name)} ×${it.qty}</span>
       <span>€${(it.qty * it.price).toFixed(2)} <span class="cart-x" onclick="removeFromCart(${i})">✕</span></span>
     </div>
   `).join('');
-  const sub = _cart.reduce((s, it) => s + it.qty * it.price, 0);
-  const del = 3, plat = Math.max(1, Math.round(sub * 0.05));
-  const total = sub + del + plat;
+  const sub  = _cart.reduce((s, it) => s + it.qty * it.price, 0);
+  const plat = Math.max(1, Math.round(sub * PRICING.platform_fee_pct));
+  const pickup  = { lat: _currentVendor.lat, lng: _currentVendor.lng };
+  const dropoff = { lat: _userLat, lng: _userLng };
+  const fee = computeDeliveryFee(pickup, dropoff);
+  const total = sub + fee.fee + plat;
   const bal = Number(profile?.eur_balance || 0);
   t.innerHTML = `
     <div class="row"><span>Subtotal</span><span>€${sub.toFixed(2)}</span></div>
-    <div class="row"><span>Delivery</span><span>€${del}</span></div>
+    <div class="row"><span>Delivery</span><span>€${fee.fee.toFixed(2)}</span></div>
+    <div class="row" style="color:rgba(168,200,238,0.6);font-size:11px"><span>${escapeHtml(fee.breakdown.join(' · '))}</span><span></span></div>
     <div class="row"><span>Platform fee</span><span>€${plat}</span></div>
     <div class="row" style="font-weight:700"><span>Total</span><span>€${total.toFixed(2)}</span></div>
     <div class="row" style="color:${bal >= total ? '#7eebb4' : '#ff9e9e'}"><span>Your balance</span><span>€${bal.toFixed(2)}</span></div>
@@ -1945,20 +1700,18 @@ async function placeOrder() {
   if (!session) return openAuthPanel();
   if (!_currentVendor || !_cart.length) return;
   const p = _currentVendor;
-  const sub = _cart.reduce((s, it) => s + it.qty * it.price, 0);
-  const del = 3, plat = Math.max(1, Math.round(sub * 0.05));
-  const total = sub + del + plat;
+  const sub  = _cart.reduce((s, it) => s + it.qty * it.price, 0);
+  const plat = Math.max(1, Math.round(sub * PRICING.platform_fee_pct));
+  const fee  = computeDeliveryFee({ lat: p.lat, lng: p.lng }, { lat: _userLat, lng: _userLng });
+  const total = sub + fee.fee + plat;
   toast('Sending order…');
   try {
     const { data, error } = await sb.functions.invoke('order-intake', { body: {
       vendor_id: p.id,
-      vendor: { id: p.id, osm_id: p.osm_id || null, name: p.name,
-        category: p.category || 'shop',
-        lat: p.lat, lng: p.lng, address: p.address || {}, tags: p.tags || {} },
+      vendor: { id: p.id, osm_id: p.osm_id || null, name: p.name, category: p.category || 'shop', lat: p.lat, lng: p.lng, address: p.address || {}, tags: p.tags || {} },
       items: _cart,
-      calc: { subtotal: sub, delivery_fee: del, platform_fee: plat, total, currency: 'EUR' },
-      delivery_lat: _userLat, delivery_lng: _userLng,
-      delivery_address: '', notes: '',
+      calc: { subtotal: sub, delivery_fee: fee.fee, platform_fee: plat, total, currency: 'EUR', km: fee.km, breakdown: fee.breakdown },
+      delivery_lat: _userLat, delivery_lng: _userLng, delivery_address: '', notes: '',
     }});
     if (error) throw error;
     if (!data?.ok) throw new Error(data?.error || 'order failed');
@@ -1971,7 +1724,7 @@ async function placeOrder() {
     if (msg.includes('insufficient_funds') || msg.includes('402')) {
       toast('Not enough euros — top up to order', 'err');
       try { await loadProfile(); } catch (_) {}
-      setTimeout(openBuyPanel, 400);
+      setTimeout(openWalletPanel, 400);
       return;
     }
     toast('Order failed: ' + msg, 'err');
@@ -1984,17 +1737,13 @@ async function openOrderTrack(orderId) {
   if (!o) return toast('Order not found', 'err');
   _renderOrder(o);
   const ch = sb.channel('order-' + orderId).on('broadcast', { event: 'status' }, ({ payload }) => {
-    if (payload?.order_id === orderId) {
-      sb.from('orders').select('*').eq('id', orderId).single().then(({ data }) => data && _renderOrder(data));
-    }
+    if (payload?.order_id === orderId) sb.from('orders').select('*').eq('id', orderId).single().then(({ data }) => data && _renderOrder(data));
   });
   ch.subscribe();
 }
-
 function _renderOrder(o) {
   const steps = ['pending', 'accepted', 'preparing', 'in_transit', 'delivered'];
   const idx = Math.max(0, steps.indexOf(o.status));
-  const items = (o.items || []).map(it => `<div class="row"><span>${escapeHtml(it.name)} ×${it.qty}</span><span>€${(it.qty * it.price).toFixed(2)}</span></div>`).join('');
   openPanel(`
     <h2>Order ${escapeHtml(o.short_id || '')}</h2>
     <p>${escapeHtml(o.status.toUpperCase().replace('_', ' '))}</p>
@@ -2002,31 +1751,23 @@ function _renderOrder(o) {
       ${steps.map((s, i) => `<div style="flex:1;height:6px;border-radius:3px;background:${i <= idx ? '#7eebb4' : 'rgba(93,178,255,0.18)'}" title="${s}"></div>`).join('')}
     </div>
     <h3>Items</h3>
-    ${items}
+    ${(o.items || []).map(it => `<div class="row"><span>${escapeHtml(it.name)} ×${it.qty}</span><span>€${(it.qty * it.price).toFixed(2)}</span></div>`).join('')}
     <h3>Total</h3>
     <div class="row"><span>Paid</span><span>€${Number(o.calc?.total ?? 0).toFixed(2)}</span></div>
-    <p style="margin-top:14px;font-size:11px;color:rgba(168,200,238,0.55)">Updates live as the vendor and driver advance the order.</p>
+    <p style="margin-top:14px;font-size:11px;color:rgba(168,200,238,0.55)">Live updates as vendor + driver advance the order.</p>
   `);
 }
 
-/* ============================== Driver flow ============================== */
+/* ============================== Driver — architect only (LAW §11) ============================== */
 async function openDriverPanel() {
   if (!session) return openAuthPanel();
-  // Architect-only for the bootstrap. The driver pool grows when the
-  // architect names the next runner; until then deliveries route to him.
   if (!profile?.is_owner) {
-    openPanel(`
-      <h2>Driver</h2>
-      <p>Driver onboarding opens after the bootstrap. Right now the
-      architect runs every delivery from his real location. Tap below
-      to request access when it's time.</p>
-      <button class="pbtn muted" onclick="toast('Noted — you will be invited.', 'ok')">Notify me</button>
-    `);
+    openPanel(`<h2>Driver</h2><p>Driver onboarding opens after the bootstrap. Right now the architect runs every delivery.</p>`);
     return;
   }
   openPanel(`
     <h2>Driver — Architect</h2>
-    <p>Open delivery requests near your real GPS. Tap Accept to take one.</p>
+    <p>Open delivery requests. Tap Accept to take one. Architect radius = 5 000 km for testing.</p>
     <div id="drv-list">Loading…</div>
     <h3>Your active runs</h3>
     <div id="drv-runs">Loading…</div>
@@ -2034,26 +1775,23 @@ async function openDriverPanel() {
   if (_userLat == null) await locateMe();
   let nearby = [];
   try {
-    // Architect sees Athens seed deliveries even when testing from
-    // another country — bump the radius so the driver flow is
-    // demoable end-to-end. Other runners use a normal city radius.
     const radius = profile?.is_owner ? 5_000_000 : 8_000;
     const r = await sb.rpc('nearby_deliveries', { lat: _userLat ?? 37.97, lng: _userLng ?? 23.73, radius_meters: radius, max_results: 30 });
     nearby = (r.data || []).filter(d => d.status === 'requested');
   } catch (e) { $('drv-list').textContent = 'Failed: ' + e.message; }
   $('drv-list').innerHTML = nearby.length ? nearby.map(d => `
     <div class="card">
-      <div class="ct">#${d.id.slice(0, 8)} — €${Number(d.reward_avc || 0).toFixed(2)}</div>
-      <div class="cm">${escapeHtml(d.pickup_address || '')} → ${escapeHtml(d.dropoff_address || '')}</div>
+      <div class="ct">#${d.id.slice(0,8)} — €${Number(d.reward_avc || 0).toFixed(2)}</div>
+      <div class="cm">${escapeHtml(d.pickup_address || '')} → ${escapeHtml(d.dropoff_address || '')}<br>${(d.pickup_distance_meters/1000).toFixed(1)} km away · ${(d.trip_distance_meters/1000).toFixed(1)} km trip</div>
       <button class="pbtn ok" style="margin-top:6px" onclick="acceptDelivery('${d.id}')">Accept</button>
     </div>
-  `).join('') : '<p>No deliveries nearby. Try again later.</p>';
+  `).join('') : '<p>No deliveries waiting.</p>';
   try {
     const r = await sb.from('deliveries').select('*').eq('runner_id', session.user.id).in('status', ['accepted', 'en_route', 'picked_up']).order('created_at', { ascending: false });
     const runs = r.data || [];
     $('drv-runs').innerHTML = runs.length ? runs.map(d => `
       <div class="card">
-        <div class="ct">#${d.id.slice(0, 8)} — ${escapeHtml(d.status)}</div>
+        <div class="ct">#${d.id.slice(0,8)} — ${escapeHtml(d.status)}</div>
         <div class="cm">€${Number(d.reward_avc || 0).toFixed(2)} reward</div>
         <button class="pbtn" onclick="advanceDelivery('${d.id}','picked_up')">Mark picked up</button>
         <button class="pbtn ok" onclick="advanceDelivery('${d.id}','delivered')">Mark delivered</button>
@@ -2061,65 +1799,13 @@ async function openDriverPanel() {
     `).join('') : '<p>No active runs.</p>';
   } catch (_) {}
 }
-
 async function acceptDelivery(id) {
-  try {
-    const { error } = await sb.rpc('accept_delivery', { delivery_id: id });
-    if (error) throw error;
-    toast('Delivery accepted', 'ok');
-    openDriverPanel();
-  } catch (e) { toast(e.message, 'err'); }
+  try { const { error } = await sb.rpc('accept_delivery', { delivery_id: id }); if (error) throw error; toast('Accepted', 'ok'); openDriverPanel(); }
+  catch (e) { toast(e.message, 'err'); }
 }
-
-async function advanceDelivery(id, newStatus) {
-  try {
-    const { error } = await sb.rpc('update_delivery_status', { delivery_id: id, new_status: newStatus });
-    if (error) throw error;
-    toast(newStatus, 'ok');
-    openDriverPanel();
-  } catch (e) { toast(e.message, 'err'); }
-}
-
-/* ============================== Vendor (your orders if you sell) ============================== */
-async function openVendorOrdersPanel() {
-  if (!session) return openAuthPanel();
-  openPanel(`
-    <h2>Vendor — Incoming orders</h2>
-    <p>Orders to fulfil. Advance the status as you prepare and hand off.</p>
-    <div id="vo-list">Loading…</div>
-  `);
-  try {
-    const v = await sb.from('vendors').select('id').eq('owner_id', session.user.id);
-    const ids = (v.data || []).map(r => r.id);
-    if (!ids.length) {
-      $('vo-list').innerHTML = '<p>You have no vendor profiles yet. Sell something to receive orders here.</p>';
-      return;
-    }
-    const r = await sb.from('orders').select('*').in('vendor_id', ids)
-      .order('created_at', { ascending: false }).limit(30);
-    const orders = r.data || [];
-    if (!orders.length) {
-      $('vo-list').innerHTML = '<p>No orders yet.</p>';
-      return;
-    }
-    $('vo-list').innerHTML = orders.map(o => `
-      <div class="card">
-        <div class="ct">${escapeHtml(o.short_id || o.id.slice(0, 8))} — €${Number(o.calc?.total ?? 0).toFixed(2)} — <b>${escapeHtml(o.status)}</b></div>
-        <div class="cm">${(o.items || []).map(i => `${i.qty}× ${i.name}`).join(', ')}</div>
-        <button class="pbtn" onclick="vendorAdvance('${o.id}','accepted')">Accept</button>
-        <button class="pbtn" onclick="vendorAdvance('${o.id}','preparing')">Preparing</button>
-        <button class="pbtn ok" onclick="vendorAdvance('${o.id}','in_transit')">Hand off</button>
-      </div>
-    `).join('');
-  } catch (e) { $('vo-list').textContent = 'Failed: ' + e.message; }
-}
-
-async function vendorAdvance(id, status) {
-  try {
-    await sb.functions.invoke('order-status', { body: { order_id: id, new_status: status } });
-    toast(status, 'ok');
-    openVendorOrdersPanel();
-  } catch (e) { toast(e.message, 'err'); }
+async function advanceDelivery(id, st) {
+  try { const { error } = await sb.rpc('update_delivery_status', { delivery_id: id, new_status: st }); if (error) throw error; toast(st, 'ok'); openDriverPanel(); }
+  catch (e) { toast(e.message, 'err'); }
 }
 
 /* ============================== Wallet ============================== */
@@ -2129,77 +1815,91 @@ async function openWalletPanel() {
   const eur = Number(profile?.eur_balance || 0);
   openPanel(`
     <h2>Wallet</h2>
-    <p>Your euros and recent activity.</p>
-    <div class="row" style="font-size:24px;font-weight:300;color:#ffd47e">
-      <span>Balance</span><span>€${eur.toFixed(2)}</span>
-    </div>
+    <div class="row" style="font-size:24px;color:#ffd47e"><span>Balance</span><span>€${eur.toFixed(2)}</span></div>
     <div style="margin:14px 0">
       <button class="pbtn ok" onclick="openBuyPanel()">Top up</button>
       <button class="pbtn" onclick="openDriverPanel()">Drive (earn)</button>
-      <button class="pbtn" onclick="openVendorOrdersPanel()">Vendor orders</button>
       <button class="pbtn danger" onclick="signOut()">Sign out</button>
     </div>
   `);
 }
-
 async function openBuyPanel() {
-  if (!session) return openAuthPanel();
   openPanel(`
     <h2>Top up</h2>
-    <p>Add euros to your wallet. Settled by Stripe / Revolut / PayPal.</p>
     <input id="buy-amt" type="number" min="1" max="2500" value="10" placeholder="EUR">
     <div style="margin-top:10px">
       <button class="pbtn ok" onclick="payProvider('stripe')">Stripe</button>
       <button class="pbtn" onclick="payProvider('revolut')">Revolut</button>
       <button class="pbtn" onclick="payProvider('paypal')">PayPal</button>
     </div>
-    <p style="font-size:11px;color:rgba(168,200,238,0.55);margin-top:12px">
-      A 3 % Orbital License royalty is booked server-side; you receive the full top-up.
-    </p>
   `);
 }
-
 async function payProvider(provider) {
   const eur = parseFloat($('buy-amt').value) || 10;
   const amount_cents = Math.round(eur * 100);
-  const success_url = location.origin + '/?paid=1';
-  const cancel_url  = location.origin + '/?paid=0';
-  const item_name   = `AstranoV top-up €${eur}`;
-  // Stripe is fronted by the unified `payments` Edge fn; the others are
-  // named after their provider. Body params differ per provider.
   const slug = provider === 'stripe' ? 'payments' : provider;
   const body = provider === 'stripe'
-    ? { mode: 'payment', amount_cents, currency: 'eur', item_name, success_url, cancel_url }
-    : { amount_cents, currency: 'EUR', item_name, return_url: success_url, cancel_url };
+    ? { mode: 'payment', amount_cents, currency: 'eur', item_name: `Top-up €${eur}`, success_url: location.origin + '/?paid=1', cancel_url: location.origin + '/?paid=0' }
+    : { amount_cents, currency: 'EUR', item_name: `Top-up €${eur}`, return_url: location.origin + '/?paid=1', cancel_url: location.origin + '/?paid=0' };
   try {
     const { data, error } = await sb.functions.invoke(slug, { body });
     if (error) throw error;
     if (data?.url) { location.href = data.url; return; }
-    toast('Payment session failed: ' + (data?.error || 'no url'), 'err');
-  } catch (e) { toast(e.message || String(e), 'err'); }
+    toast('Payment failed: ' + (data?.error || 'no url'), 'err');
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+/* ============================== People + diag ============================== */
+async function openPeoplePanel() {
+  if (!session) return openAuthPanel();
+  openPanel(`<h2>People on the globe</h2><div id="peers-list">Loading…</div>`);
+  try {
+    const { data } = await sb.rpc('discoverable_peers');
+    const peers = (data || []).slice().sort((a,b) => String(a.display_name||'').localeCompare(String(b.display_name||'')));
+    $('peers-list').innerHTML = peers.length ? peers.map(p => {
+      const fn = p.is_agent
+        ? `startAgentCall(${JSON.stringify({id:p.id,display_name:p.display_name,is_agent:true,bio:p.bio||''})})`
+        : `startCall('${p.id}', ${JSON.stringify(p.display_name).replace(/"/g,'&quot;')})`;
+      return `<div class="card" onclick='${fn}'><div class="ct">${escapeHtml(p.display_name)}</div><div class="cm">◈ tap to call</div></div>`;
+    }).join('') : '<p>Nobody on the globe yet.</p>';
+  } catch (e) { $('peers-list').textContent = e.message; }
+}
+
+async function runDiag() {
+  const lines = [];
+  try {
+    const t0 = Date.now();
+    const r = await sb.functions.invoke('aicycle', { body: { prompt: 'ping', history: [], engine: 'astranov' } });
+    if (r.error) throw r.error;
+    lines.push(`◈ BRAIN ✓ ${r.data?.engineLabel || 'brain'} · ${Date.now()-t0}ms`);
+  } catch (e) { lines.push('◆ BRAIN ✕ ' + e.message); }
+  try {
+    const r = await sb.rpc('discoverable_peers'); if (r.error) throw r.error;
+    const peers = r.data || [];
+    lines.push(`◈ CALLS ✓ ${peers.length} peers (${peers.filter(p => p.is_agent).length} agents)`);
+  } catch (e) { lines.push('◆ CALLS ✕ ' + e.message); }
+  try {
+    const r = await sb.functions.invoke('informant-feed', { body: { informants: DEFAULT_INFORMANTS.slice(0,1) } });
+    if (r.error) throw r.error;
+    const total = Object.values(r.data?.findings || {}).reduce((s,a) => s + (Array.isArray(a)?a.length:0), 0);
+    lines.push(`◈ NEWS ✓ ${total} fresh items`);
+  } catch (e) { lines.push('◆ NEWS ✕ ' + e.message); }
+  try {
+    const r = await sb.from('vendors').select('id, items').eq('is_active', true).limit(400);
+    if (r.error) throw r.error;
+    const priced = (r.data || []).filter(v => Array.isArray(v.items) && v.items.length > 0).length;
+    lines.push(`◈ MARKET ✓ ${r.data.length} vendors · ${priced} with menus`);
+  } catch (e) { lines.push('◆ MARKET ✕ ' + e.message); }
+  try {
+    const r = await sb.from('circles').select('id', { count: 'exact', head: true });
+    lines.push(`◈ CIRCLES ✓ ${r.count ?? 0} circles`);
+  } catch (e) { lines.push('◆ CIRCLES ✕ ' + e.message); }
+  if (session && profile) lines.push(`◈ YOU ✓ ${profile.display_name || 'signed in'} · €${Number(profile.eur_balance||0).toFixed(2)}${profile.is_owner ? ' · architect' : ''}`);
+  else lines.push('◇ YOU — not signed in');
+  appendMsg('ai', lines.join('\n'));
 }
 
 /* ============================== Chat router ============================== */
-function openChat() {
-  $('chat').classList.add('open');
-  document.body.classList.add('chat-open');
-  setTimeout(_pushOrbsAboveDrawers, 360);
-}
-function closeChat() {
-  $('chat').classList.remove('open');
-  document.body.classList.remove('chat-open');
-  setTimeout(_pushOrbsAboveDrawers, 360);
-}
-
-const aicycleHistory = [];
-function appendMsg(role, text) {
-  const div = document.createElement('div'); div.className = 'msg ' + role; div.textContent = text;
-  const msgs = $('chat-msgs');
-  const nearBottom = (msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight) < 80;
-  msgs.appendChild(div);
-  if (nearBottom) msgs.scrollTop = msgs.scrollHeight;
-}
-
 function _routedFire(line, fn) {
   appendMsg('ai', line);
   try { fn(); } catch (e) { console.error(e); }
@@ -2208,17 +1908,25 @@ function _routedFire(line, fn) {
 
 function routeLocal(raw) {
   const t = (raw || '').toLowerCase().trim();
-  if (/\b(news|headlines|feed|νέα|ειδήσεις)\b/.test(t))                              { _routedFire('Opening the news.', openNewsPanel); return true; }
-  if (/\b(messages?|inbox|dm|chats?|μηνύματα|μήνυμ)\b/.test(t))                        { _routedFire(session ? 'Opening your messages.' : 'Sign in first.', () => session ? openMessagesPanel() : openAuthPanel()); return true; }
-  if (/\b(wallet|balance|money|euros|πορτοφόλι|λεφτά|ευρώ)\b/.test(t))                 { _routedFire(session ? 'Opening your wallet.' : 'Sign in first.', () => session ? openWalletPanel() : openAuthPanel()); return true; }
-  if (/\b(top\s*up|add money|buy euros|αγορά ευρώ)\b/.test(t))                         { _routedFire(session ? 'Opening top-up.' : 'Sign in first.', () => session ? openBuyPanel() : openAuthPanel()); return true; }
-  if (/\b(drive|delivery|deliver|driver|courier|οδηγός|παράδοση)\b/.test(t))           { _routedFire(session ? 'Opening driver dashboard.' : 'Sign in to drive.', () => session ? openDriverPanel() : openAuthPanel()); return true; }
-  if (/\b(vendor|my orders|incoming orders|παραγγελίες μου)\b/.test(t))                { _routedFire(session ? 'Opening your vendor orders.' : 'Sign in first.', () => session ? openVendorOrdersPanel() : openAuthPanel()); return true; }
-  if (/\b(home|globe|world|earth|σπίτι|κόσμος)\b/.test(t))                              { _routedFire('Warping home.', pilotHome); return true; }
-  if (/\b(sign\s*in|log\s*in|sign\s*up|register|εγγραφή|σύνδεση)\b/.test(t))           { _routedFire('Sign-in panel.', openAuthPanel); return true; }
-  if (/\b(sign\s*out|log\s*out|αποσύνδεση)\b/.test(t) && session)                       { _routedFire('Signing you out.', signOut); return true; }
-  // Call NAME / video NAME
-  const callMatch = t.match(/\b(?:call|ring|video|videocall|κάλεσε)\s+([a-zà-ÿα-ω][a-zà-ÿα-ω\s']{1,40}?)(?:[.,!?]|$)/i);
+  if (/\b(news|headlines|feed|νέα|ειδήσεις)\b/.test(t))                           { _routedFire('Opening the news.', openNewsPanel); return true; }
+  if (/\b(wallet|balance|money|euros|πορτοφόλι)\b/.test(t))                       { _routedFire(session ? 'Opening wallet.' : 'Sign in first.', () => session ? openWalletPanel() : openAuthPanel()); return true; }
+  if (/\b(top\s*up|add money|αγορά ευρώ)\b/.test(t))                              { _routedFire(session ? 'Top up.' : 'Sign in first.', () => session ? openBuyPanel() : openAuthPanel()); return true; }
+  if (/\b(drive|delivery|deliver|driver|courier|οδηγός|παράδοση)\b/.test(t))      { _routedFire(session ? 'Opening driver.' : 'Sign in first.', () => session ? openDriverPanel() : openAuthPanel()); return true; }
+  if (/\b(home|globe|world|earth|σπίτι|κόσμος)\b/.test(t))                         { _routedFire('Warping home.', pilotHome); return true; }
+  if (/\b(sign\s*in|log\s*in|sign\s*up|register|εγγραφή|σύνδεση)\b/.test(t))      { _routedFire('Sign-in.', openAuthPanel); return true; }
+  if (/\b(sign\s*out|log\s*out|αποσύνδεση)\b/.test(t) && session)                  { _routedFire('Signing out.', signOut); return true; }
+  if (/\b(people|everyone|peers?|κόσμος)\b/.test(t))                              { _routedFire('Showing everyone.', openPeoplePanel); return true; }
+  if (/\b(circles?|κύκλος|κύκλοι)\b/.test(t))                                     { _routedFire('Opening circles.', openCirclesPanel); return true; }
+  if (/\b(council|agents?|σύμβουλιο|πράκτορες)\b/.test(t)) {
+    _routedFire('Showing the council.', () => {
+      if (!viewer) return;
+      viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(23.5, 38.4, 800_000), duration: 1.6, orientation: { heading: 0, pitch: Cesium.Math.toRadians(-80), roll: 0 } });
+      refreshPeerOrbs();
+    });
+    return true;
+  }
+  if (/\b(diag|diagnose|status|smoke|τεστ)\b/.test(t))                            { _routedFire('Probing the pillars…', runDiag); return true; }
+  const callMatch = t.match(/\b(?:call|ring|video|κάλεσε)\s+([a-zà-ÿα-ω][a-zà-ÿα-ω\s']{1,40}?)(?:[.,!?]|$)/i);
   if (callMatch) {
     const name = callMatch[1].trim();
     _routedFire('Calling ' + name + '.', async () => {
@@ -2228,11 +1936,10 @@ function routeLocal(raw) {
       if (peer) {
         if (peer.is_agent) startAgentCall({ id: peer.id, display_name: peer.display_name, is_agent: true });
         else               startCall(peer.id, peer.display_name);
-      } else openCallPicker();
+      } else toast('Not found', 'err');
     });
     return true;
   }
-  // Bare agent name (leonidas / onasis / athena / myrmidons / spartans / krypteia)
   const agentName = t.match(/\b(leonidas|onasis|athena|myrmidons?|spartans?|krypteia)\b/i);
   if (agentName) {
     const q = agentName[1];
@@ -2245,258 +1952,21 @@ function routeLocal(raw) {
     });
     return true;
   }
-  // Council / agents → fly camera to Greece, show every agent orb
-  if (/\b(council|agents?|σύμβουλιο|πράκτορες)\b/.test(t)) {
-    _routedFire('Showing the council.', () => {
-      if (!viewer) return;
-      viewer.camera.flyTo({
-        destination: Cesium.Cartesian3.fromDegrees(23.5, 38.4, 800_000),
-        duration: 1.6,
-        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-80), roll: 0 },
-      });
-      refreshPeerOrbs();
-    });
-    return true;
-  }
-  if (/\b(call|ring|κάλεσε)\b/.test(t)) { _routedFire(session ? 'Opening contacts.' : 'Sign in first.', () => session ? openCallPicker() : openAuthPanel()); return true; }
-  // Message NAME body
-  const msgMatch = t.match(/\b(?:message|text|dm|talk to|tell|γράψε)\s+([a-zà-ÿα-ω][a-zà-ÿα-ω\s']{1,40}?)(?:\s+(.+))?$/i);
-  if (msgMatch) {
-    const name = msgMatch[1].trim();
-    const body = (msgMatch[2] || '').trim();
-    _routedFire('Looking for ' + name + '.', async () => {
-      if (!session) { openAuthPanel(); return; }
-      const { data } = await sb.rpc('find_peer', { q: name });
-      const peer = (data || [])[0];
-      if (peer) {
-        openConversation(peer.id, peer.display_name);
-        if (body) setTimeout(() => {
-          const inp = document.getElementById('msg-body');
-          if (inp) { inp.value = body; $('msg-send-form')?.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); }
-        }, 500);
-      } else { openMessagesPanel(); }
-    });
-    return true;
-  }
-  // Food / order
-  const foodMatch = t.match(/\b(pizza|burger|sushi|kebab|gyros|souvlaki|coffee|tea|wine|beer|food|eat|hungry|order|delivery|deliver|drink|πίτσα|σουβλάκι|καφέ|μπύρα|παραγγελ|φαγητ|πεινάω)\b/);
-  if (foodMatch) {
-    const kw = foodMatch[1];
-    _routedFire('Looking for ' + kw + ' nearby.', () => diveToVendors(kw));
-    return true;
-  }
-  // Everyone on the globe — fast list of callable peers.
-  if (/\b(people|everyone|peers?|κόσμος|όλοι)\b/.test(t)) {
-    _routedFire('Showing every callable peer.', openPeoplePanel);
-    return true;
-  }
-  if (/\b(help|commands|τι μπορείς|βοήθεια)\b/.test(t)) {
-    _routedFire('Try one word: news · pizza · people · council · call NAME · wallet · drive · diag.', () => {});
-    return true;
-  }
-  // diag — one-word health check across the three pillars.
-  if (/\b(diag|diagnose|status|smoke|τεστ)\b/.test(t)) {
-    _routedFire('Probing the three pillars…', runDiag);
+  const foodMatch = t.match(/\b(pizza|burger|sushi|kebab|gyros|souvlaki|coffee|tea|wine|beer|food|eat|hungry|order|drink|πίτσα|σουβλάκι|καφέ|μπύρα|φαγητ|πεινάω)\b/);
+  if (foodMatch) { _routedFire('Looking for ' + foodMatch[1] + ' nearby.', () => diveToVendors(foodMatch[1])); return true; }
+  if (/\b(help|commands|τι μπορείς)\b/.test(t)) {
+    _routedFire('Try: news · pizza · people · circles · council · call NAME · wallet · drive · diag.', () => {});
     return true;
   }
   return false;
 }
 
-function appendThinking() {
-  const div = document.createElement('div');
-  div.className = 'msg ai thinking-stub';
-  div.textContent = '…';
-  const msgs = $('chat-msgs');
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
-  return div;
-}
-
-async function callBrain(prompt, stub, opts) {
-  // LAW §10/§13 — our brain (aicycle) is the only voice. We never
-  // silently route the user's words elsewhere. On failure, surface
-  // the actual error and let the architect decide what to do next.
-  if (!sb) return { reply: '◈ Supabase SDK did not load from any CDN. Reloading will not fix this — likely a network block. Check /vendor or report the URL.', meta: '', failed: true, err: 'sdk-missing' };
-  const history = (opts?.history) || aicycleHistory.slice(-6);
-  const persona = opts?.persona;
-  const payload = persona
-    ? { prompt: '[' + persona + ']\n\n' + prompt, history, engine: 'astranov', persona }
-    : { prompt, history, engine: 'astranov' };
-  try {
-    $('chat').classList.add('thinking');
-    const t0 = Date.now();
-    const { data, error } = await sb.functions.invoke('aicycle', { body: payload });
-    if (error) throw error;
-    if (data && data.error) throw new Error(data.error);
-    const reply = (data && (data.response || data.text)) || '(no reply)';
-    const ms   = Number(data?.latencyMs) || (Date.now() - t0);
-    const label= data?.engineLabel || data?.engine || 'brain';
-    const model= data?.model ? String(data.model).split('/').pop() : '';
-    const meta = `via ${label}${model ? ' · ' + model : ''} · ${(ms/1000).toFixed(1)}s`;
-    if (!persona) {
-      aicycleHistory.push({ role: 'user', content: prompt });
-      aicycleHistory.push({ role: 'assistant', content: reply });
-    }
-    return { reply, meta, raw: data };
-  } catch (e) {
-    return { reply: '◈ Brain unreachable — ' + (e.message || e), meta: '', failed: true, err: e };
-  } finally {
-    $('chat').classList.remove('thinking');
-    if (stub) stub.classList.remove('thinking-stub');
-  }
-}
-
-$('chat-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const input = $('chat-input');
-  const text = input.value.trim();
-  if (!text) return;
-  appendMsg('user', text);
-  input.value = '';
-  if (routeLocal(text)) return;
-  const stub = appendThinking();
-  const out = await callBrain(text, stub);
-  stub.textContent = out.reply;
-  if (out.meta) {
-    const m = document.createElement('div');
-    m.className = 'msg-meta';
-    m.textContent = out.meta;
-    stub.appendChild(m);
-  }
-  // LAW §13 — on brain failure, never silently fall back. Surface the
-  // failure with a single visible retry control. The architect chooses.
-  if (out.failed) {
-    const r = document.createElement('div');
-    r.className = 'msg-meta';
-    r.innerHTML = '<button class="pbtn ok" style="padding:4px 10px;font-size:11px" onclick="_retryBrain(this)">Retry</button>'
-                + '<span style="margin-left:8px;color:rgba(168,200,238,0.55)">our brain only — no silent fallback</span>';
-    r._brainPrompt = text;
-    stub.appendChild(r);
-  }
-  const msgs = $('chat-msgs'); msgs.scrollTop = msgs.scrollHeight;
-});
-
-async function _retryBrain(btn) {
-  const wrap = btn.closest('.msg-meta');
-  const stubMsg = wrap?.parentElement;
-  const text = wrap?._brainPrompt;
-  if (!text || !stubMsg) return;
-  wrap.remove();
-  stubMsg.textContent = '…';
-  stubMsg.classList.add('thinking-stub');
-  const out = await callBrain(text, stubMsg);
-  stubMsg.textContent = out.reply;
-  if (out.meta) {
-    const m = document.createElement('div'); m.className = 'msg-meta'; m.textContent = out.meta;
-    stubMsg.appendChild(m);
-  }
-}
-
-$('chat-reopen').addEventListener('click', openChat);
-
-/* ---------- People panel ---------- */
-async function openPeoplePanel() {
-  if (!session) return openAuthPanel();
-  openPanel(`
-    <h2>People on the globe</h2>
-    <p>Tap a card to ring them. Agents (violet) run on our brain; humans (aegean) get real WebRTC.</p>
-    <div id="peers-list">Loading…</div>
-  `);
-  try {
-    const { data, error } = await sb.rpc('discoverable_peers');
-    if (error) throw error;
-    const peers = (data || []).slice().sort((a, b) =>
-      String(a.display_name||'').localeCompare(String(b.display_name||''))
-    );
-    if (!peers.length) { $('peers-list').innerHTML = '<p>Nobody on the globe yet.</p>'; return; }
-    $('peers-list').innerHTML = peers.map(p => {
-      // Agents route to startAgentCall (synthesized canvas); humans get
-      // real WebRTC. Card UI is identical for both — same one tribe.
-      const fn = p.is_agent
-        ? `startAgentCall(${JSON.stringify({id:p.id, display_name:p.display_name, is_agent:true, bio:p.bio||''})})`
-        : `startCall('${p.id}', ${JSON.stringify(p.display_name || 'Friend').replace(/"/g,'&quot;')})`;
-      return `
-        <div class="card" onclick='${fn}'>
-          <div class="ct">${escapeHtml(p.display_name || 'Friend')}</div>
-          <div class="cm">◈ tap to call</div>
-        </div>`;
-    }).join('');
-  } catch (e) {
-    $('peers-list').innerHTML = '<p>Failed to load peers: ' + escapeHtml(e.message || String(e)) + '</p>';
-  }
-}
-
-async function _brainHeartbeat() {
-  if (!sb) { toast('SDK did not load — see chat for details', 'err'); return; }
-  try {
-    const t0 = Date.now();
-    const { data, error } = await sb.functions.invoke('aicycle', {
-      body: { prompt: '_ping_', history: [], engine: 'astranov' },
-    });
-    if (error || (data && data.error)) throw error || new Error(data.error);
-    console.log('[Brain] online · ' + (Date.now() - t0) + 'ms · ' + (data?.engineLabel || ''));
-  } catch (e) {
-    toast('Brain unreachable: ' + (e.message || e), 'err');
-    console.error('[Brain] offline', e);
-  }
-}
-
-/* ---------- Diagnostics ---------- */
-async function runDiag() {
-  const lines = [];
-  // Brain
-  try {
-    const t0 = Date.now();
-    const r = await sb.functions.invoke('aicycle', { body: { prompt: 'ping', history: [], engine: 'astranov' } });
-    const ms = Date.now() - t0;
-    if (r.error) lines.push('◆ BRAIN ✕ ' + r.error.message);
-    else lines.push(`◈ BRAIN ✓ ${r.data?.engineLabel || 'brain'} · ${ms}ms`);
-  } catch (e) { lines.push('◆ BRAIN ✕ ' + (e.message || e)); }
-  // Peers (calls pillar supply)
-  try {
-    const r = await sb.rpc('discoverable_peers');
-    if (r.error) throw r.error;
-    const peers = r.data || [];
-    const agents = peers.filter(p => p.is_agent).length;
-    lines.push(`◈ CALLS ✓ ${peers.length} peers (${agents} council agents)`);
-  } catch (e) { lines.push('◆ CALLS ✕ ' + (e.message || e)); }
-  // News
-  try {
-    const r = await sb.functions.invoke('informant-feed', { body: { informants: DEFAULT_INFORMANTS.slice(0,1) } });
-    if (r.error) throw r.error;
-    const findings = r.data?.findings || {};
-    const total = Object.values(findings).reduce((s,a) => s + (Array.isArray(a)?a.length:0), 0);
-    lines.push(`◈ NEWS ✓ ${total} fresh items`);
-  } catch (e) { lines.push('◆ NEWS ✕ ' + (e.message || e)); }
-  // Marketplace
-  try {
-    const r = await sb.from('vendors').select('id, items', { count: 'exact', head: false })
-      .eq('is_active', true).limit(400);
-    if (r.error) throw r.error;
-    const total = r.data?.length || 0;
-    const priced = (r.data || []).filter(v => Array.isArray(v.items) && v.items.length > 0).length;
-    lines.push(`◈ MARKET ✓ ${total} vendors · ${priced} with menus`);
-  } catch (e) { lines.push('◆ MARKET ✕ ' + (e.message || e)); }
-  // Architect wallet
-  if (session) {
-    try {
-      const { data } = await sb.rpc('my_profile');
-      const p = Array.isArray(data) ? data[0] : data;
-      if (p) lines.push(`◈ YOU ✓ ${p.display_name || 'signed in'} · €${Number(p.eur_balance||0).toFixed(2)}${p.is_owner?' · architect':''}`);
-    } catch (_) {}
-  } else {
-    lines.push('◇ YOU — not signed in (tap the SIGN IN orb)');
-  }
-  appendMsg('ai', lines.join('\n'));
-}
-
-/* ---------- Voice (manual opt-in) ---------- */
+/* ============================== Voice (manual opt-in) ============================== */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = null, listening = false;
 if (SR) {
   recognition = new SR();
-  recognition.continuous = false;
-  recognition.interimResults = false;
+  recognition.continuous = false; recognition.interimResults = false;
   recognition.lang = navigator.language || 'en-US';
   recognition.onresult = (evt) => {
     const t = evt.results?.[0]?.[0]?.transcript?.trim();
@@ -2506,100 +1976,48 @@ if (SR) {
   recognition.onerror = () => { listening = false; $('btn-mic').classList.remove('listening'); };
 }
 $('btn-mic').addEventListener('click', () => {
-  if (!recognition) return toast('Voice not supported here', 'err');
+  if (!recognition) return toast('Voice not supported on this device', 'err');
   if (listening) { try { recognition.stop(); } catch (_) {} listening = false; $('btn-mic').classList.remove('listening'); return; }
   try { recognition.start(); listening = true; $('btn-mic').classList.add('listening'); } catch (_) {}
 });
 
-/* ---------- Chat drag handle ---------- */
-(function () {
-  const h = $('chat-handle'); if (!h) return;
-  let startY = 0, startH = 0, dragging = false;
-  h.addEventListener('pointerdown', (e) => {
-    h.setPointerCapture(e.pointerId);
-    startY = e.clientY; startH = $('chat').getBoundingClientRect().height; dragging = true;
-  });
-  h.addEventListener('pointermove', (e) => {
-    if (!dragging) return;
-    const delta = startY - e.clientY;
-    const newH = Math.max(60, Math.min(window.innerHeight * 0.6, startH + delta));
-    $('chat').style.maxHeight = newH + 'px';
-  });
-  h.addEventListener('pointerup', (e) => {
-    dragging = false; try { h.releasePointerCapture(e.pointerId); } catch (_) {}
-    if ($('chat').getBoundingClientRect().height < 80) closeChat();
-  });
-})();
-
-/* ---------- Panel drag handle (drawer drag-down-to-close) ---------- */
-function _bindPanelDragHandle() {
-  const h = $('panel-handle'), panel = $('panel'); if (!h || !panel) return;
-  let startY = 0, dy = 0, dragging = false;
-  h.addEventListener('pointerdown', (e) => {
-    h.setPointerCapture(e.pointerId);
-    startY = e.clientY; dy = 0; dragging = true;
-    panel.style.transition = 'none';
-  });
-  h.addEventListener('pointermove', (e) => {
-    if (!dragging) return;
-    dy = Math.max(0, e.clientY - startY);
-    panel.style.transform = `translateY(${dy}px)`;
-    // Push the orbs up by the diminishing drawer height as it drags down.
-    _pushOrbsAboveDrawers();
-  });
-  h.addEventListener('pointerup', (e) => {
-    dragging = false; try { h.releasePointerCapture(e.pointerId); } catch (_) {}
-    panel.style.transition = '';
-    panel.style.transform = '';
-    if (dy > 80) closePanel();
-    setTimeout(_pushOrbsAboveDrawers, 360);
-  });
-}
-
-/* ---------- Boot ---------- */
+/* ============================== Boot ============================== */
 window.addEventListener('load', () => {
   bootCesium();
   bootSupabase();
   ipWarmup();
-  // Trackball drag on every floating orb. Position survives reloads.
   _bindOrbDrag($('login-orb'), 'astranov.orb.login');
   _bindOrbDrag($('pilot-orb'), 'astranov.orb.pilot');
-  // Initial orb-resting position so they sit above the chat once it opens.
+  _bindPanelDragHandle();
+  _bindChatDragHandle();
   _pushOrbsAboveDrawers();
   window.addEventListener('resize', _pushOrbsAboveDrawers);
-  _bindPanelDragHandle();
-  // Peer orbs on the globe — refresh once now and every 25 s thereafter.
   setTimeout(refreshPeerOrbs, 1800);
+  setTimeout(refreshCircleShapes, 2200);
   setInterval(refreshPeerOrbs, 25_000);
-  // One-shot silent brain heartbeat so the architect sees a failure
-  // BEFORE typing rather than after waiting on a dead reply.
+  setInterval(refreshCircleShapes, 60_000);
   setTimeout(_brainHeartbeat, 2500);
-  // Greet after a short pause.
   setTimeout(() => {
     openChat();
     const h = new Date().getHours();
     const tod = h < 5 ? 'Up late' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
-    appendMsg('ai', tod + ". I'm Astranov. Try: news · pizza · council · call NAME · wallet · drive · diag.");
+    appendMsg('ai', tod + ". I'm Astranov. Try: news · pizza · people · circles · council · call NAME · drive · diag.");
   }, 1400);
-  // Handle ?paid=1 from a payment provider redirect.
   try {
     const paid = new URL(location.href).searchParams.get('paid');
-    if (paid === '1') setTimeout(() => { loadProfile().then(openWalletPanel); toast('Payment received — balance updates shortly', 'ok'); }, 900);
+    if (paid === '1') setTimeout(() => { loadProfile().then(openWalletPanel); toast('Payment received', 'ok'); }, 900);
     if (paid === '0') setTimeout(() => toast('Payment cancelled', 'err'), 900);
   } catch (_) {}
 });
 
-// Escape closes chat / panel.
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
-    document.activeElement.blur(); return;
-  }
+  if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') { document.activeElement.blur(); return; }
   if ($('panel').classList.contains('open')) { closePanel(); return; }
   if ($('chat').classList.contains('open')) closeChat();
 });
 
-// Service worker — auto-reload on update, but never mid-call.
+// Service worker
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(reg => {
     reg.update().catch(()=>{});
@@ -2612,3 +2030,4 @@ if ('serviceWorker' in navigator) {
 </script>
 </body>
 </html>
+</parameter>
