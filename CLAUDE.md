@@ -308,10 +308,28 @@ immediately — nothing records until a call starts) so calls and
 voice start instantly later. The greeting is SPOKEN aloud via
 `speakGreeting()` with the best available voice. Honest gap: mobile
 browsers may mute TTS before the first user gesture — if blocked,
-the greeting re-arms and speaks on the first tap anywhere. The 🔴
-mic button stays the explicit voice-input toggle (recognition
-cannot self-activate; browser security), but with permission
-pre-warmed it starts instantly.
+the greeting re-arms and speaks on the first tap anywhere.
+
+**Always listening — the LISTEN orb.** A pulsing green ◉ orb sits
+bottom-left, draggable, proving the mic is hot. SpeechRecognition
+runs in `continuous` + `interimResults` mode and auto-restarts on
+every `onend`. The orb flips to blue "SPEAKING" while Astranov
+replies, to dim red "MIC OFF" when muted. Tap the orb (or the
+🔴 mic button in the chat) to toggle.
+
+**Barge-in.** The moment the listener picks up new speech
+(`onspeechstart` or any interim result), `ttsCancel()` fires and
+Astranov shuts up. The brain never talks over the user — it is a
+structural rule, not a hope.
+
+**Voice turns reply SPARTAN.** Recognition-driven submits set
+`VOICE.voiceTurnPending`; the chat handler passes `mode: 'spartan'`
+to aicycle so the brain answers in 1–2 short sentences. Typed
+turns keep their normal length.
+
+**Stale replies never speak.** `VOICE.currentTurn` is bumped on
+every submit. A late-landing reply only speaks if it is still the
+latest turn AND the chat is open AND the brain succeeded.
 
 **Brain visibility.** Every AI reply shows which model answered, in
 the form `via {provider} · {model} · {latency}s` under the message.

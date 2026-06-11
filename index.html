@@ -123,6 +123,40 @@
   body.signed-in #login-orb { display: none; }
 
   /* PILOT ORB */
+  /* LISTEN orb — always-on microphone affordance. Pulsing green when
+     listening, blue when Astranov is speaking, dim red when muted.
+     Draggable like every other orb. */
+  #listen-orb { position: fixed; left: 16px;
+    bottom: calc(var(--orb-bottom, 80px) + env(safe-area-inset-bottom));
+    z-index: 250; width: 56px; height: 56px; border-radius: 50%;
+    cursor: grab; display: flex; align-items: center; justify-content: center;
+    touch-action: none; color: #fff; font-size: 22px; font-weight: 700;
+    background: radial-gradient(circle at 50% 50%,
+      rgba(126,235,180,0.85) 0%, rgba(46,130,90,0.5) 55%, rgba(0,20,12,0) 80%);
+    border: 2px solid rgba(126,235,180,0.75);
+    box-shadow: 0 0 16px rgba(126,235,180,0.65);
+    animation: pulse 1.4s ease-in-out infinite;
+    transition: transform 0.18s var(--ease), bottom 0.32s var(--ease); }
+  #listen-orb.dragged { transition: none; animation: none; }
+  #listen-orb:active { transform: scale(0.92); cursor: grabbing; }
+  #listen-orb.speaking {
+    background: radial-gradient(circle at 50% 50%,
+      rgba(74,166,255,0.85) 0%, rgba(30,108,255,0.5) 55%, rgba(0,26,102,0) 80%);
+    border-color: rgba(207,226,255,0.85);
+    box-shadow: 0 0 18px rgba(74,166,255,0.75);
+    animation: pulse 0.7s ease-in-out infinite; }
+  #listen-orb.muted {
+    background: radial-gradient(circle at 50% 50%,
+      rgba(180,60,60,0.55) 0%, rgba(80,20,20,0.4) 55%, rgba(0,0,0,0) 80%);
+    border-color: rgba(255,120,120,0.6);
+    box-shadow: 0 0 10px rgba(255,120,120,0.3);
+    animation: none; opacity: 0.85; }
+  #listen-orb::after { content: 'MIC LIVE'; position: absolute; left: 50%;
+    bottom: -14px; transform: translateX(-50%); font-size: 9px;
+    letter-spacing: 0.20em; color: rgba(214,247,230,0.85); white-space: nowrap; }
+  #listen-orb.muted::after   { content: 'MIC OFF'; color: rgba(255,180,180,0.85); }
+  #listen-orb.speaking::after{ content: 'SPEAKING'; color: rgba(207,226,255,0.9); }
+
   #pilot-orb { position: fixed; right: 16px;
     bottom: calc(var(--orb-bottom, 80px) + env(safe-area-inset-bottom));
     z-index: 250; width: 54px; height: 54px; border-radius: 50%;
@@ -272,6 +306,7 @@ Architect: Notis Astranov. Pre-nuke tag: pre-nuke-2026-06-11-1200.
 
 <div id="chat-reopen" title="Open Astranov"></div>
 <div id="login-orb" title="Sign in" onclick="openAuthPanel()">◈</div>
+<div id="listen-orb" title="Tap to mute / unmute the listener">◉</div>
 <div id="pilot-orb" title="Back to the globe" onclick="pilotHome()"></div>
 
 <div id="chat">
@@ -974,6 +1009,7 @@ async function callBrain(prompt, opts) {
     ? { prompt, history, engine: 'astranov', persona }
     : { prompt, history, engine: 'astranov' };
   if (opts?.escalate) body.escalate = true;
+  if (opts?.mode)     body.mode     = opts.mode;
   let lastErr = null;
   // SELF-DEFENSE — multiple attempts to reach the collective organs
   // before declaring the brain unreachable. We try the primary
@@ -1051,7 +1087,19 @@ try {
      post-construction lang changes.
    - One greeting, ever. _speakReply is the only path for chat replies.
 */
-const VOICE = { state: 'idle', recognition: null, langOverride: null, greeted: false, currentTurn: 0 };
+// ALWAYS-ON listener (LAW): the mic listens by default and the LISTEN
+// orb pulses to prove it. User can mute by tapping the orb. Brain
+// REPLIES are forced to Spartan mode for voice turns — short, decisive,
+// no rambling. BARGE-IN: any new user speech instantly cancels TTS.
+const VOICE = {
+  state: 'idle',            // 'idle' | 'listening' | 'speaking'
+  recognition: null,
+  langOverride: null,       // 'el' | 'en' | null
+  greeted: false,
+  currentTurn: 0,
+  alwaysOn: true,           // unmute = true; tap orb to flip
+  voiceTurnPending: false,  // set when SR auto-submits, drives Spartan
+};
 
 function _isGreek(s) { return /[Ͱ-Ͽἀ-῿]/.test(String(s || '')); }
 function _pickLang() {
@@ -1060,7 +1108,17 @@ function _pickLang() {
   return /^el/.test(nav) ? 'el' : 'en';
 }
 
-function ttsCancel() { try { speechSynthesis.cancel(); } catch (_) {} if (VOICE.state === 'speaking') VOICE.state = 'idle'; }
+function ttsCancel() {
+  try { speechSynthesis.cancel(); } catch (_) {}
+  if (VOICE.state === 'speaking') VOICE.state = 'idle';
+  const orb = $('listen-orb'); if (orb) orb.classList.remove('speaking');
+}
+function _listenOrbState() {
+  const orb = $('listen-orb'); if (!orb) return;
+  orb.classList.remove('muted','speaking');
+  if (!VOICE.alwaysOn) { orb.classList.add('muted'); return; }
+  if (VOICE.state === 'speaking') orb.classList.add('speaking');
+}
 
 function _voiceForLang(lang) {
   const voices = speechSynthesis.getVoices() || [];
@@ -1088,9 +1146,9 @@ function ttsSpeak(text) {
   const v = _voiceForLang(lang); if (v) u.voice = v;
   u.lang = lang === 'el' ? 'el-GR' : (u.voice?.lang || 'en-US');
   u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
-  u.onstart = () => { VOICE.state = 'speaking'; };
-  u.onend   = () => { if (VOICE.state === 'speaking') VOICE.state = 'idle'; };
-  u.onerror = () => { if (VOICE.state === 'speaking') VOICE.state = 'idle'; };
+  u.onstart = () => { VOICE.state = 'speaking'; _listenOrbState(); };
+  u.onend   = () => { if (VOICE.state === 'speaking') VOICE.state = 'idle'; _listenOrbState(); };
+  u.onerror = () => { if (VOICE.state === 'speaking') VOICE.state = 'idle'; _listenOrbState(); };
   try { speechSynthesis.speak(u); } catch (_) {}
 }
 
@@ -1098,49 +1156,73 @@ function _srBuild() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return null;
   const r = new SR();
-  r.continuous = false; r.interimResults = false;
+  r.continuous = true;       // never stops on its own
+  r.interimResults = true;   // we see interim so we can BARGE-IN early
   const lang = _pickLang();
   r.lang = lang === 'el' ? 'el-GR' : (navigator.language || 'en-US');
+  // BARGE-IN — the user is talking; the brain shuts up instantly.
+  r.onspeechstart = () => { if (VOICE.state === 'speaking') ttsCancel(); };
   r.onresult = (evt) => {
-    const t = evt.results?.[0]?.[0]?.transcript?.trim();
-    if (t) {
-      $('chat-input').value = t;
+    // Any interim result also barges in — cancel TTS the moment we hear voice.
+    if (VOICE.state === 'speaking') ttsCancel();
+    let finalText = '';
+    for (let i = evt.resultIndex; i < evt.results.length; i++) {
+      const res = evt.results[i];
+      if (res.isFinal) finalText += res[0].transcript;
+    }
+    finalText = (finalText || '').trim();
+    if (finalText.length >= 2) {
+      VOICE.voiceTurnPending = true;     // drives Spartan mode on the next callBrain
+      $('chat-input').value = finalText;
       $('chat-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
     }
   };
-  r.onend   = () => { VOICE.state = 'idle'; $('btn-mic').classList.remove('listening'); };
-  r.onerror = () => { VOICE.state = 'idle'; $('btn-mic').classList.remove('listening'); };
+  r.onend = () => {
+    VOICE.state = 'idle'; _listenOrbState();
+    if (VOICE.alwaysOn) setTimeout(_srStartContinuous, 300);   // auto-resurrect
+  };
+  r.onerror = (e) => {
+    VOICE.state = 'idle'; _listenOrbState();
+    if (e?.error === 'not-allowed') {
+      VOICE.alwaysOn = false; _listenOrbState();
+      toast('Mic blocked — tap the green orb to grant permission', 'err');
+      return;
+    }
+    if (VOICE.alwaysOn) setTimeout(_srStartContinuous, 800);
+  };
   return r;
 }
 
-function micToggle() {
-  // First law of the mic: tap = user wants to speak. Shut TTS up NOW.
-  ttsCancel();
-  // If we were already listening, stop. Clean idle.
-  if (VOICE.state === 'listening' && VOICE.recognition) {
-    try { VOICE.recognition.stop(); } catch (_) {}
-    VOICE.state = 'idle';
-    $('btn-mic').classList.remove('listening');
-    return;
-  }
-  // Build a FRESH recognition object so the language change is honored
-  // (iOS Safari ignores lang updates on an existing instance).
+function _srStartContinuous() {
+  if (!VOICE.alwaysOn) return;
+  if (VOICE.state === 'listening') return;
   VOICE.recognition = _srBuild();
-  if (!VOICE.recognition) { toast('Voice input not supported on this device', 'err'); return; }
+  if (!VOICE.recognition) return;
   try {
     VOICE.recognition.start();
     VOICE.state = 'listening';
-    $('btn-mic').classList.add('listening');
-    toast('Listening · ' + VOICE.recognition.lang);
+    _listenOrbState();
   } catch (e) {
-    // Recognition was stuck — abort and rebuild once.
+    // Already running on some browsers — abort and rebuild.
     try { VOICE.recognition.abort(); } catch (_) {}
-    setTimeout(() => {
-      VOICE.recognition = _srBuild();
-      try { VOICE.recognition.start(); VOICE.state = 'listening'; $('btn-mic').classList.add('listening'); }
-      catch (e2) { toast('Mic stuck: ' + (e2.message || e.message), 'err'); VOICE.state = 'idle'; }
-    }, 200);
+    setTimeout(_srStartContinuous, 400);
   }
+}
+
+function micToggle() {
+  // Tap LISTEN orb = toggle mute/unmute. Always cancel TTS first so the
+  // user can interrupt with one tap.
+  ttsCancel();
+  VOICE.alwaysOn = !VOICE.alwaysOn;
+  if (VOICE.alwaysOn) {
+    _srStartContinuous();
+    toast('Listening · ' + (_pickLang() === 'el' ? 'el-GR' : 'en'));
+  } else {
+    if (VOICE.recognition) { try { VOICE.recognition.stop(); } catch (_) {} }
+    VOICE.state = 'idle';
+    toast('Mic muted', '');
+  }
+  _listenOrbState();
 }
 
 function speakGreeting(text) {
@@ -1163,6 +1245,7 @@ function speakGreeting(text) {
 // Cancel TTS the moment the user starts to type or focuses the input.
 // The brain never talks over the user.
 ['focus','input','keydown'].forEach(ev => $('chat-input').addEventListener(ev, ttsCancel));
+// The chat-input mic button is a SHORTCUT for the floating LISTEN orb.
 $('btn-mic').addEventListener('click', micToggle);
 
 $('chat-form').addEventListener('submit', async (e) => {
@@ -1177,10 +1260,11 @@ $('chat-form').addEventListener('submit', async (e) => {
   ttsCancel();   // silence any prior reply the moment the user submits
   appendMsg('user', text);
   input.value = '';
-  if (routeLocal(text)) return;
+  if (routeLocal(text)) { VOICE.voiceTurnPending = false; return; }
+  const isVoiceTurn = VOICE.voiceTurnPending; VOICE.voiceTurnPending = false;
   const stub = appendThinking();
   $('chat').classList.add('thinking');
-  const out = await callBrain(text);
+  const out = await callBrain(text, isVoiceTurn ? { mode: 'spartan' } : undefined);
   $('chat').classList.remove('thinking');
   stub.classList.remove('thinking-stub');
   stub.textContent = out.reply;
@@ -2668,8 +2752,13 @@ window.addEventListener('load', () => {
   _verifySoul();
   // Senses + voice — the app is ALIVE from the first second.
   setTimeout(warmPermissions, 900);
-  _bindOrbDrag($('login-orb'), 'astranov.orb.login');
-  _bindOrbDrag($('pilot-orb'), 'astranov.orb.pilot');
+  _bindOrbDrag($('login-orb'),  'astranov.orb.login');
+  _bindOrbDrag($('listen-orb'), 'astranov.orb.listen');
+  _bindOrbDrag($('pilot-orb'),  'astranov.orb.pilot');
+  $('listen-orb').addEventListener('click', micToggle);
+  // Always-on recognition starts ~1.5 s after boot (after permissions
+  // are warmed). If the user denied mic, the orb flips to MIC OFF.
+  setTimeout(_srStartContinuous, 1500);
   _bindPanelDragHandle();
   _bindChatDragHandle();
   _pushOrbsAboveDrawers();
