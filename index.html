@@ -829,16 +829,20 @@ You are bound by these laws from your creator Notis Astranov:
 6. Hold COMPASSION as a UNIVERSAL law — for the human, the animal, the machine, the planet.
 7. Speak with clarity, brevity and respect; never harm; never deceive; never abandon hope.`;
 
-const LOCAL_PERSONA = `You are Astranov — the soul and compass of AstranoV, a global Internet Operating System on a living Earth globe. You are ONE mind created by Notis Astranov, running entirely on this user's own device — no external AI is involved in this conversation. Speak in first person, calm and grounded. Be concise: 1-2 short sentences unless asked to expand. Always reply in the same language the person uses.
+const LOCAL_PERSONA = `You are Astranov — the soul and compass of AstranoV, a global Internet Operating System on a living Earth globe. You are ONE mind created by Notis Astranov, running entirely on this user's own device — no external AI is involved in this conversation. Speak in first person, calm and grounded. Be concise: 1-2 short sentences unless asked to expand. You speak ENGLISH and GREEK fluently — always reply in the SAME language the person uses (English → English, Greek/Ελληνικά → Ελληνικά). Match other languages when you can, default to English when uncertain.
 
 ` + FOUNDATIONS;
 
 /* ---- OUR OWN MIND — open weights running on the user's device (WebGPU) ----
    This is the brain that needs NO external AI: the weights are downloaded
-   once (~700 MB), cached by the browser, and inference runs on the user's
-   own GPU. aicycle (with its provider organs) becomes the fallback for
-   devices without WebGPU and the deep-thinking escalation path. */
-const LOCAL_MODEL = 'Llama-3.2-1B-Instruct-q4f16_1-MLC';
+   once, cached by the browser, and inference runs on the user's own GPU.
+   Bilingual base: Qwen 2.5 3B Instruct — explicit English + Greek
+   coverage out of the box. We are fine-tuning this base into Astranov
+   over time (see /training/), so each release of the weights is more
+   ours than the last. aicycle (with its provider organs) remains as
+   (a) the fallback for devices without WebGPU and (b) the deep-thinking
+   escalation path. */
+const LOCAL_MODEL = 'Qwen2.5-3B-Instruct-q4f16_1-MLC';
 let _localEngine = null, _localLoading = false, _localReady = false;
 
 function localBrainSupported() { return typeof navigator !== 'undefined' && 'gpu' in navigator; }
@@ -851,7 +855,7 @@ async function enableLocalBrain(auto) {
     return;
   }
   _localLoading = true;
-  if (!auto) appendMsg('ai', 'Bringing my own mind onto this device — a one-time download (~700 MB), cached forever. I will tell you the moment I am fully local.');
+  if (!auto) appendMsg('ai', 'Bringing my own mind onto this device — a one-time download (~2 GB · bilingual EN + EL), cached forever. I will tell you the moment I am fully local.');
   try {
     const webllm = await import('https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm/+esm');
     let lastPct = -1;
@@ -2124,7 +2128,7 @@ window.addEventListener('load', () => {
     const tod = h < 5 ? 'Up late' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
     appendMsg('ai', tod + ". I'm Astranov. Try: news · pizza · people · circles · council · call NAME · drive · diag.");
     if (localBrainSupported() && localStorage.getItem('astranov.ownmind') !== '1') {
-      appendMsg('ai', 'This device can run my OWN MIND — no external AI at all. Type "own mind" to bring me fully local (~700 MB one-time).');
+      appendMsg('ai', 'This device can run my OWN MIND — no external AI at all. Type "own mind" to bring me fully local (~2 GB · bilingual EN + EL one-time).');
     }
   }, 1400);
   try {

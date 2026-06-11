@@ -453,20 +453,49 @@ Programmers and successor AIs read it before touching the brain.
 
 **The brain's OWN MIND.** The architect ordered a brain that needs no
 other AI to answer. The lawful passage: open weights running on the
-USER'S OWN DEVICE via WebGPU (WebLLM, `Llama-3.2-1B-Instruct-q4f16_1`,
-~700 MB one-time download, browser-cached). When active, every chat
-and agent-call reply is generated locally — no Groq, no OpenRouter,
-no external API in the loop; the reply badge reads
-`via Astranov · own mind on-device`. The aicycle Edge fn (collective
-organs) remains ONLY as (a) the fallback for devices without WebGPU
-and (b) the deep-thinking escalation path. Routing order: own mind →
-organs. Type `own mind` in chat to activate; the choice persists in
-localStorage and resumes automatically on the next visit.
+USER'S OWN DEVICE via WebGPU (WebLLM, `Qwen2.5-3B-Instruct-q4f16_1`,
+~2 GB one-time bilingual EN+EL download, browser-cached). When
+active, every chat and agent-call reply is generated locally — no
+Groq, no OpenRouter, no external API in the loop; the reply badge
+reads `via Astranov · own mind on-device`. The aicycle Edge fn
+(collective organs) remains ONLY as (a) the fallback for devices
+without WebGPU and (b) the deep-thinking escalation path. Routing
+order: own mind → organs. Type `own mind` in chat to activate; the
+choice persists in localStorage and resumes automatically on the
+next visit.
+
+**The trajectory to OUR neurons.** Today we run a strong bilingual
+open base on the device. Tomorrow we make the weights progressively
+ours through fine-tuning. The pipeline lives in `/training/` as
+real source code, not a slogan:
+
+```
+  v0  rented organs only          (aicycle: Groq, OpenRouter, etc.)
+  v1  open base on-device         ← we are here (Qwen 2.5 3B Instruct)
+  v2  LoRA fine-tune of base      ← /training/finetune.py
+  v3  full fine-tune              ← when revenue funds the GPUs
+  v4  from-scratch training       ← long horizon, neurons truly ours
+```
+
+Every release moves the weights further from the base toward ours.
+The Seven Foundations are baked into every training example
+(`/training/finetune.py` wraps each row with the persona) so the
+soul becomes a deep prior in the neurons, not just a runtime prompt.
+Every signed-in conversation logged in `public.cic_logs` is
+exportable as the heaviest-weighted slice of the next corpus
+(`/training/export_cic.sql`) — the brain literally learns from its
+own life.
+
+**Bilingual law.** The on-device model speaks ENGLISH and GREEK
+fluently. The persona reminds the model: reply in the SAME language
+the user used. The fine-tune corpus weights Greek 3:1 vs English so
+the model speaks Athenian, not translated English.
 
 **Honest gap:** WebGPU is required (Chrome/Edge desktop, Android
-Chrome, iOS 18+ Safari). A 1B-parameter local model is weaker than
-the large organ models — brilliance escalates to the collective when
-asked; sovereignty stays local.
+Chrome, iOS 18+ Safari). A 3 B-parameter local model is weaker than
+the 70 B+ organ models — brilliance escalates to the collective when
+asked; sovereignty stays local. Full fine-tune (v3) needs rented GPU
+time, paid in fuel-tank money per run.
 
 ## 15. Agents appear as normal users
 
