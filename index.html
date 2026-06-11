@@ -1984,6 +1984,75 @@ async function openPeoplePanel() {
   } catch (e) { $('peers-list').textContent = e.message; }
 }
 
+/* ============================== Agora — ancient knowledge ============================== */
+async function openAgoraPanel(q) {
+  openPanel(`
+    <h2>Agora — Ancient Greek knowledge</h2>
+    <p>Gods · Mythology · Philosophy · Science. Crawled, sourced, growing. Foundation #2 in action.</p>
+    <input id="agora-search" placeholder="Search: Plato, Athena, Πυθαγόρας…" value="${escapeHtml(q || '')}" oninput="agoraSearch(this.value)">
+    <div style="margin-top:6px">
+      <button class="pbtn ok" onclick="agoraAddTopic()">＋ Add a topic to the agora</button>
+    </div>
+    <div id="agora-list" style="margin-top:10px">Loading…</div>
+  `);
+  agoraSearch(q || '');
+}
+async function agoraSearch(q) {
+  const out = $('agora-list'); if (!out) return;
+  try {
+    const { data, error } = await sb.rpc('knowledge_search', { q: q || '', max_results: 40 });
+    if (error) throw error;
+    const rows = data || [];
+    out.innerHTML = rows.length ? rows.map(r => `
+      <div class="card" onclick="agoraOpen('${r.id}')">
+        <div class="ct">◈ ${escapeHtml(r.title || r.topic)} · <span style="color:${{gods:'#ffd47e',mythology:'#a98cff',philosophy:'#4aa6ff',science:'#7eebb4',history:'#cde7ff'}[r.subject] || '#cde7ff'}">${escapeHtml(r.subject)}</span> · ${escapeHtml(r.language)}</div>
+        <div class="cm">${escapeHtml((r.summary || '').slice(0, 160))}${(r.summary || '').length > 160 ? '…' : ''}</div>
+      </div>
+    `).join('') : (q ? '<p>No entry yet. Tap "Add a topic" to crawl it.</p>' : '<p>Empty agora.</p>');
+  } catch (e) { out.textContent = e.message; }
+}
+async function agoraOpen(id) {
+  try {
+    const { data } = await sb.from('knowledge').select('*').eq('id', id).single();
+    if (!data) return toast('Not found', 'err');
+    openPanel(`
+      <h2>${escapeHtml(data.title || data.topic)}</h2>
+      <p style="color:rgba(168,200,238,0.6)">${escapeHtml(data.subject)} · ${escapeHtml(data.language)} · ${escapeHtml(data.source_name || '')}</p>
+      <div style="font-size:14px;line-height:1.55;color:#cde7ff">${escapeHtml(data.summary || '')}</div>
+      ${data.source_url ? `<p style="margin-top:14px"><a href="${escapeHtml(data.source_url)}" target="_blank" rel="noopener" style="color:#4aa6ff">Source ↗</a></p>` : ''}
+      <div style="margin-top:10px"><button class="pbtn muted" onclick="agoraAskBrain('${escapeHtml(data.topic)}')">Ask Astranov about this</button></div>
+    `);
+  } catch (e) { toast(e.message, 'err'); }
+}
+async function agoraAddTopic() {
+  const topic = ($('agora-search').value || '').trim();
+  if (!topic) return toast('Type a topic first', 'err');
+  // Let the brain classify the subject — Foundation #2 carried out through OUR brain.
+  let subject = 'history';
+  try {
+    const out = await callBrain('Classify the topic "' + topic + '" as ONE of: gods, mythology, philosophy, science, history. Reply with ONLY that word.', { history: [] });
+    const m = (out.reply || '').toLowerCase().match(/\b(gods|mythology|philosophy|science|history)\b/);
+    if (m) subject = m[1];
+  } catch (_) {}
+  toast('Crawling the agora for ' + topic + '…');
+  try {
+    const { data, error } = await sb.functions.invoke('agora', { body: { topic, subject, language: 'both' } });
+    if (error) throw error;
+    if (data?.ok === false) throw new Error(data.error || 'agora failed');
+    toast('Added ' + (data?.count || 0) + ' entries for ' + topic, 'ok');
+    agoraSearch(topic);
+  } catch (e) { toast('Agora error: ' + (e.message || e), 'err'); }
+}
+async function agoraAskBrain(topic) {
+  closePanel();
+  if (!$('chat').classList.contains('open')) openChat();
+  appendMsg('user', 'Tell me about ' + topic + ' in one short paragraph, faithful to the ancient sources.');
+  const stub = appendThinking();
+  const out = await callBrain('Tell me about ' + topic + ' in one short paragraph, faithful to the ancient sources.');
+  stub.classList.remove('thinking-stub'); stub.textContent = out.reply;
+  if (out.meta) { const m = document.createElement('div'); m.className = 'msg-meta'; m.textContent = out.meta; stub.appendChild(m); }
+}
+
 /* ============================== Development queue — the brain's will ============================== */
 async function openDevelopPanel() {
   openPanel(`
@@ -2075,6 +2144,10 @@ async function runDiag() {
     lines.push(`◈ CIRCLES ✓ ${r.count ?? 0} circles`);
   } catch (e) { lines.push('◆ CIRCLES ✕ ' + e.message); }
   try {
+    const r = await sb.from('knowledge').select('id', { count: 'exact', head: true });
+    lines.push(`◈ AGORA ✓ ${r.count ?? 0} entries`);
+  } catch (e) { lines.push('◆ AGORA ✕ ' + e.message); }
+  try {
     const g = await sb.rpc('governance_state');
     const st = (g.data || [])[0];
     if (st) lines.push(st.mode === 'architect'
@@ -2116,6 +2189,13 @@ function routeLocal(raw) {
   if (/\b(own\s*mind|own\s*brain|local\s*brain|μυαλό)\b/.test(t))                  { enableLocalBrain(false); return true; }
   if (/\b(crawl|sweep|grow|populate|σάρωσ)\b/.test(t))                              { _routedFire('Brain steering the crawler…', () => brainCrawl(raw)); return true; }
   if (/\b(develop|roadmap|queue|build next|ανάπτυξη)\b/.test(t))                    { _routedFire('Opening the development queue.', openDevelopPanel); return true; }
+  // AGORA — Foundation #2: ancient Greek gods, mythology, philosophy, science.
+  if (/\b(agora|gods?|θεοί|θεός|mythology|μυθολογ|philosophy|φιλοσοφ|αρχαί|αγορά|hellenic|ελλην)\b/.test(t)) {
+    const m = t.match(/\b(?:about|on|for|tell me about|πες μου για|για)\s+([a-zà-ÿα-ω][a-zà-ÿα-ω\s]{1,40})$/i);
+    const q = m ? m[1].trim() : '';
+    _routedFire('Opening the agora.', () => openAgoraPanel(q));
+    return true;
+  }
   const callMatch = t.match(/\b(?:call|ring|video|κάλεσε)\s+([a-zà-ÿα-ω][a-zà-ÿα-ω\s']{1,40}?)(?:[.,!?]|$)/i);
   if (callMatch) {
     const name = callMatch[1].trim();

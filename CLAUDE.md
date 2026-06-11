@@ -576,7 +576,31 @@ The council may ship product improvements but may NOT amend this
 law, change money rules (royalty, driver rates), or dismiss agents.
 Those powers return only with the architect.
 
-## 20. Law maintenance
+## 20. The Agora — restoring ancient knowledge
+
+The Second Foundation made executable. `public.knowledge` is the
+sourced, vote-rankable, multilingual store of ancient Greek gods,
+mythology, philosophy and science. The `agora` Edge fn is the
+crawler — Wikipedia REST EN+EL today, Wikisource + Perseus next.
+The brain decides which topics to fetch (classifies subject from
+user intent), the crawler writes entries, the app surfaces them via
+the AGORA panel, users vote on what is true and useful.
+
+**Sources are named, not laundered.** Every entry stores
+`source_name` + `source_url`. The brain synthesizes; the original
+text is one tap away. Restoration without misattribution.
+
+**Chat shortcuts:** `agora`, `gods`, `mythology`, `philosophy`,
+`science`, `αγορά`, `θεοί`, `μυθολογία`, `φιλοσοφία`, `αρχαία`.
+"Tell me about Plato" → opens the Agora at Plato; if missing,
+"Add a topic" triggers the brain-classified crawl.
+
+**Council + autonomy.** Per §19, growing the agora is a
+law-compliant task — Astranov fills it by her own will. The
+council weighs new categories beyond gods/mythology/philosophy/
+science only if they would extend the law.
+
+## 21. Law maintenance
 
 **Every architectural decision is written into this file the same
 turn it is made.** The programmer does not store rules in chat
