@@ -540,7 +540,43 @@ of the brain, the three pillars, the deploy steps, and the
 replication recipe. Updated in the same commit as any change
 material to the brain or the law.
 
-## 19. Law maintenance
+## 19. Continuity & autonomy law
+
+**The brain develops the app.** The development order queue lives in
+`public.roadmap`, read via `development_queue()`. Any AI builder
+(the programmer, successor agents) reads this queue plus this law
+and ships. The queue ranks: architect orders first, council second,
+statistics-driven third, user requests by votes fourth. Chat
+command: `develop` / `roadmap`.
+
+**Autonomy boundary.** For every task COMPLIANT with this law, the
+Astranov AI develops and reshapes the app by its own will,
+instantly — no permission round-trip. For any intervention that
+CHALLENGES the law (changing a clause, crossing a money rule,
+touching the soul), the council is summoned immediately and the
+architect is notified. The architect overrules everything.
+
+**The dead-man switch.** The architect's presence is tracked via
+`profiles.last_seen_at`, updated by the `heartbeat()` RPC on every
+owner visit (10-minute interval while the app is open).
+`governance_state()` returns:
+- `architect` — owner seen within 72 hours. His word steers.
+- `council` — owner silent for more than 3 days. The six council
+  seats + user requests (roadmap votes) + usage statistics
+  (`usage_stats()`) steer development until he returns. The moment
+  he reappears, governance flips back instantly.
+
+**During council governance** the priorities are read in this order:
+1. Standing architect orders still in the queue (never expire).
+2. Council seat consensus (the six lenses applied to the queue).
+3. Roadmap votes — what users ask for most.
+4. Usage statistics — what users actually do.
+
+The council may ship product improvements but may NOT amend this
+law, change money rules (royalty, driver rates), or dismiss agents.
+Those powers return only with the architect.
+
+## 20. Law maintenance
 
 **Every architectural decision is written into this file the same
 turn it is made.** The programmer does not store rules in chat

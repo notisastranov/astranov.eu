@@ -625,6 +625,10 @@ function _greetSignedIn() {
   if (_greeted || !session) return; _greeted = true;
   const name = profile?.display_name || session.user?.email || 'friend';
   toast('Welcome back, ' + name, 'ok');
+  // CONTINUITY LAW heartbeat — the dead-man switch reads this. If the
+  // architect goes silent > 72 h, governance flips to COUNCIL.
+  try { sb.rpc('heartbeat'); } catch (_) {}
+  setInterval(() => { try { sb.rpc('heartbeat'); } catch (_) {} }, 10 * 60 * 1000);
 }
 
 async function loadProfile() {
@@ -1980,6 +1984,64 @@ async function openPeoplePanel() {
   } catch (e) { $('peers-list').textContent = e.message; }
 }
 
+/* ============================== Development queue — the brain's will ============================== */
+async function openDevelopPanel() {
+  openPanel(`
+    <h2>Development</h2>
+    <div id="gov-state" style="font-size:12px;color:#a8c8ee;margin-bottom:8px">Reading governance…</div>
+    <p style="font-size:11px;color:rgba(168,200,238,0.6)">
+      AUTONOMY LAW: tasks compliant with the law — Astranov develops and
+      reshapes the app by her own will, instantly. Interventions challenging
+      the law — the council is summoned immediately. Architect overrules all.
+    </p>
+    <h3>Submit a request</h3>
+    <input id="dev-title" placeholder="What should AstranoV do next?">
+    <button class="pbtn ok" onclick="submitRoadmap()">Submit</button>
+    <h3>The queue — what the brain builds next</h3>
+    <div id="dev-queue">Loading…</div>
+  `);
+  try {
+    const g = await sb.rpc('governance_state');
+    const st = (g.data || [])[0];
+    if (st) {
+      $('gov-state').innerHTML = st.mode === 'architect'
+        ? `◈ Governance: <b style="color:#7eebb4">ARCHITECT</b> — last seen ${st.hours_absent}h ago`
+        : `◈ Governance: <b style="color:#a98cff">COUNCIL</b> — architect silent ${st.hours_absent}h. The council + user votes + usage statistics steer until he returns.`;
+    }
+  } catch (_) {}
+  try {
+    const { data, error } = await sb.rpc('development_queue', { max_results: 30 });
+    if (error) throw error;
+    const rows = data || [];
+    $('dev-queue').innerHTML = rows.length ? rows.map(r => `
+      <div class="card">
+        <div class="ct">${escapeHtml(r.title)} · <span style="color:${r.source === 'architect' ? '#7eebb4' : r.source === 'council' ? '#a98cff' : '#4aa6ff'}">${escapeHtml(r.source)}</span> · ${escapeHtml(r.status)}</div>
+        <div class="cm">${escapeHtml(r.detail || '')}</div>
+        <div class="cm">▲ ${r.votes} · by ${escapeHtml(r.author)} · ${formatRelative(r.created_at)}
+          ${session ? `<button class="pbtn muted" style="padding:2px 10px;font-size:11px;margin-left:8px" onclick="voteRoadmap('${r.id}')">▲ vote</button>` : ''}
+        </div>
+      </div>
+    `).join('') : '<p>Queue empty.</p>';
+  } catch (e) { $('dev-queue').textContent = 'Failed: ' + e.message; }
+}
+async function submitRoadmap() {
+  if (!session) return openAuthPanel();
+  const title = $('dev-title').value.trim();
+  if (!title) return toast('Write the request first', 'err');
+  try {
+    const source = profile?.is_owner ? 'architect' : 'user';
+    const { error } = await sb.from('roadmap').insert({ title, request: title, source, status: 'proposed', author_id: session.user.id });
+    if (error) throw error;
+    toast('Request submitted — the brain reads the queue', 'ok');
+    openDevelopPanel();
+  } catch (e) { toast(e.message, 'err'); }
+}
+async function voteRoadmap(id) {
+  if (!session) return openAuthPanel();
+  try { await sb.rpc('vote_roadmap', { item: id }); toast('Voted', 'ok'); openDevelopPanel(); }
+  catch (e) { toast(e.message, 'err'); }
+}
+
 async function runDiag() {
   const lines = [];
   lines.push(_localReady
@@ -2012,6 +2074,13 @@ async function runDiag() {
     const r = await sb.from('circles').select('id', { count: 'exact', head: true });
     lines.push(`◈ CIRCLES ✓ ${r.count ?? 0} circles`);
   } catch (e) { lines.push('◆ CIRCLES ✕ ' + e.message); }
+  try {
+    const g = await sb.rpc('governance_state');
+    const st = (g.data || [])[0];
+    if (st) lines.push(st.mode === 'architect'
+      ? `◈ GOVERNANCE ✓ architect · seen ${st.hours_absent}h ago`
+      : `◆ GOVERNANCE — COUNCIL steering (architect silent ${st.hours_absent}h)`);
+  } catch (_) {}
   if (session && profile) lines.push(`◈ YOU ✓ ${profile.display_name || 'signed in'} · €${Number(profile.eur_balance||0).toFixed(2)}${profile.is_owner ? ' · architect' : ''}`);
   else lines.push('◇ YOU — not signed in');
   appendMsg('ai', lines.join('\n'));
@@ -2046,6 +2115,7 @@ function routeLocal(raw) {
   if (/\b(diag|diagnose|status|smoke|τεστ)\b/.test(t))                            { _routedFire('Probing the pillars…', runDiag); return true; }
   if (/\b(own\s*mind|own\s*brain|local\s*brain|μυαλό)\b/.test(t))                  { enableLocalBrain(false); return true; }
   if (/\b(crawl|sweep|grow|populate|σάρωσ)\b/.test(t))                              { _routedFire('Brain steering the crawler…', () => brainCrawl(raw)); return true; }
+  if (/\b(develop|roadmap|queue|build next|ανάπτυξη)\b/.test(t))                    { _routedFire('Opening the development queue.', openDevelopPanel); return true; }
   const callMatch = t.match(/\b(?:call|ring|video|κάλεσε)\s+([a-zà-ÿα-ω][a-zà-ÿα-ω\s']{1,40}?)(?:[.,!?]|$)/i);
   if (callMatch) {
     const name = callMatch[1].trim();
