@@ -302,9 +302,16 @@ city-altitude so the receiver sees who is calling from where. Tap orb
 = answer. A small Ignore ✕ pill is the only chrome; 30 s silence =
 auto-decline. Banner UI is wrong.
 
-**Voice.** Mobile browsers block self-activating the microphone
-without a user gesture. The 🔴 mic button is the explicit toggle.
-State this honestly; do not pretend it could be otherwise.
+**Alive at boot.** The app asks for its SENSES up front: at +0.9 s
+`warmPermissions()` requests mic + camera once (tracks stopped
+immediately — nothing records until a call starts) so calls and
+voice start instantly later. The greeting is SPOKEN aloud via
+`speakGreeting()` with the best available voice. Honest gap: mobile
+browsers may mute TTS before the first user gesture — if blocked,
+the greeting re-arms and speaks on the first tap anywhere. The 🔴
+mic button stays the explicit voice-input toggle (recognition
+cannot self-activate; browser security), but with permission
+pre-warmed it starts instantly.
 
 **Brain visibility.** Every AI reply shows which model answered, in
 the form `via {provider} · {model} · {latency}s` under the message.

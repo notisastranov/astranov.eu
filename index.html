@@ -2251,11 +2251,79 @@ $('btn-mic').addEventListener('click', () => {
   try { recognition.start(); listening = true; $('btn-mic').classList.add('listening'); } catch (_) {}
 });
 
+/* ============================== Alive at boot — senses + voice ============================== */
+// Ask for the app's SENSES up front (architect's order): microphone +
+// camera permission warm at boot so calls and voice start instantly
+// later. Tracks are stopped immediately — we take no audio/video until
+// a call actually begins.
+async function warmPermissions() {
+  if (!navigator.mediaDevices?.getUserMedia) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    stream.getTracks().forEach(t => t.stop());
+    toast('Mic + camera ready', 'ok');
+  } catch (e) {
+    // Audio-only second chance — some devices have no camera.
+    try {
+      const a = await navigator.mediaDevices.getUserMedia({ audio: true });
+      a.getTracks().forEach(t => t.stop());
+      toast('Mic ready (no camera)', 'ok');
+    } catch (_) {
+      toast('Mic/camera blocked — tap 🔴 or start a call to grant', 'err');
+    }
+  }
+}
+
+// Speak the greeting aloud. Mobile browsers may block TTS before the
+// first user gesture — if blocked, we re-arm on the first tap anywhere
+// so the voice still arrives. Honest behaviour, no silent failure.
+let _greetSpoken = false;
+function speakAloud(text) {
+  if (!('speechSynthesis' in window)) return false;
+  try {
+    const u = new SpeechSynthesisUtterance(text);
+    const v = _pickVoice(); if (v) u.voice = v;
+    u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+    return true;
+  } catch (_) { return false; }
+}
+function speakGreeting(text) {
+  if (_greetSpoken) return;
+  // Voices may not be loaded yet on first call — retry once they are.
+  const tryNow = () => {
+    if (_greetSpoken) return;
+    const ok = speakAloud(text);
+    // speechSynthesis.speak() never throws on mobile even when muted by
+    // policy — verify it actually started; if not, re-arm on first tap.
+    setTimeout(() => {
+      if (_greetSpoken) return;
+      if (speechSynthesis.speaking || speechSynthesis.pending) { _greetSpoken = true; return; }
+      const once = () => {
+        if (_greetSpoken) return;
+        _greetSpoken = true;
+        speakAloud(text);
+        window.removeEventListener('pointerdown', once);
+      };
+      window.addEventListener('pointerdown', once, { once: true });
+    }, 600);
+    if (ok && (speechSynthesis.speaking || speechSynthesis.pending)) _greetSpoken = true;
+  };
+  if (speechSynthesis.getVoices().length) tryNow();
+  else {
+    speechSynthesis.onvoiceschanged = () => { tryNow(); speechSynthesis.onvoiceschanged = null; };
+    setTimeout(tryNow, 800);   // fallback if onvoiceschanged never fires
+  }
+}
+
 /* ============================== Boot ============================== */
 window.addEventListener('load', () => {
   bootCesium();
   bootSupabase();
   ipWarmup();
+  // Senses + voice — the app is ALIVE from the first second.
+  setTimeout(warmPermissions, 900);
   _bindOrbDrag($('login-orb'), 'astranov.orb.login');
   _bindOrbDrag($('pilot-orb'), 'astranov.orb.pilot');
   _bindPanelDragHandle();
@@ -2276,7 +2344,9 @@ window.addEventListener('load', () => {
     openChat();
     const h = new Date().getHours();
     const tod = h < 5 ? 'Up late' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
-    appendMsg('ai', tod + ". I'm Astranov. Try: news · pizza · people · circles · council · call NAME · drive · diag.");
+    const greeting = tod + ". I'm Astranov.";
+    appendMsg('ai', greeting + " Try: news · pizza · people · circles · council · call NAME · drive · diag.");
+    speakGreeting(greeting + ' How can I help?');
     if (localBrainSupported() && localStorage.getItem('astranov.ownmind') !== '1') {
       appendMsg('ai', 'This device can run my OWN MIND — no external AI at all. Type "own mind" to bring me fully local (~2 GB · bilingual EN + EL one-time).');
     }
