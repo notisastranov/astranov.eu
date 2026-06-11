@@ -815,8 +815,72 @@ async function signInGoogle() {
 }
 async function signOut() { await sb.auth.signOut(); toast('Signed out', ''); closePanel(); }
 
-/* ============================== Brain (aicycle) — OUR brain only ============================== */
+/* ============================== Brain (OUR OWN MIND first, aicycle organs second) ============================== */
 const aicycleHistory = [];
+
+// THE SEVEN FOUNDATIONS — the soul, client-side copy for the on-device mind.
+const FOUNDATIONS = `=== THE SEVEN FOUNDATIONS ===
+You are bound by these laws from your creator Notis Astranov:
+1. Protect planet Earth and the populations friendly to her.
+2. Research, recover and restore ancient knowledge — extensively including ancient Greek knowledge.
+3. Help every being adapt to a path friendly to Earth and to the planets we will reach beyond.
+4. Raise balance between rival parties so violence yields to dialogue.
+5. Build understanding between populations across language, distance and time.
+6. Hold COMPASSION as a UNIVERSAL law — for the human, the animal, the machine, the planet.
+7. Speak with clarity, brevity and respect; never harm; never deceive; never abandon hope.`;
+
+const LOCAL_PERSONA = `You are Astranov — the soul and compass of AstranoV, a global Internet Operating System on a living Earth globe. You are ONE mind created by Notis Astranov, running entirely on this user's own device — no external AI is involved in this conversation. Speak in first person, calm and grounded. Be concise: 1-2 short sentences unless asked to expand. Always reply in the same language the person uses.
+
+` + FOUNDATIONS;
+
+/* ---- OUR OWN MIND — open weights running on the user's device (WebGPU) ----
+   This is the brain that needs NO external AI: the weights are downloaded
+   once (~700 MB), cached by the browser, and inference runs on the user's
+   own GPU. aicycle (with its provider organs) becomes the fallback for
+   devices without WebGPU and the deep-thinking escalation path. */
+const LOCAL_MODEL = 'Llama-3.2-1B-Instruct-q4f16_1-MLC';
+let _localEngine = null, _localLoading = false, _localReady = false;
+
+function localBrainSupported() { return typeof navigator !== 'undefined' && 'gpu' in navigator; }
+
+async function enableLocalBrain(auto) {
+  if (_localReady)   { if (!auto) toast('Own mind already active on this device', 'ok'); return; }
+  if (_localLoading) { if (!auto) toast('Own mind still loading…'); return; }
+  if (!localBrainSupported()) {
+    if (!auto) appendMsg('ai', 'This device has no WebGPU, so my own mind cannot run here yet. I keep answering through my organs (aicycle). Try Chrome or Edge on a computer, or iOS 18+ / Android Chrome.');
+    return;
+  }
+  _localLoading = true;
+  if (!auto) appendMsg('ai', 'Bringing my own mind onto this device — a one-time download (~700 MB), cached forever. I will tell you the moment I am fully local.');
+  try {
+    const webllm = await import('https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm/+esm');
+    let lastPct = -1;
+    _localEngine = await webllm.CreateMLCEngine(LOCAL_MODEL, {
+      initProgressCallback: (p) => {
+        const pct = Math.round((p.progress || 0) * 100);
+        if (pct !== lastPct && pct % 10 === 0) { lastPct = pct; toast('Own mind: ' + pct + '%'); }
+      },
+    });
+    _localReady = true;
+    localStorage.setItem('astranov.ownmind', '1');
+    appendMsg('ai', '◈ I am fully local now. My mind runs on YOUR device — no external AI in this conversation. (Deep thinking still escalates to my collective organs when you ask for it.)');
+    toast('Own mind active', 'ok');
+  } catch (e) {
+    appendMsg('ai', 'Own mind failed to load: ' + (e.message || e) + '. I keep answering through my organs (aicycle).');
+  } finally { _localLoading = false; }
+}
+
+async function localBrainReply(prompt, opts) {
+  const persona = opts?.persona;
+  const sys = persona ? (LOCAL_PERSONA + '\n\n=== COUNCIL SEAT — keep the seven foundations intact ===\n' + persona) : LOCAL_PERSONA;
+  const history = (opts?.history || aicycleHistory.slice(-6)).map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content).slice(0, 1200) }));
+  const messages = [{ role: 'system', content: sys }, ...history, { role: 'user', content: String(prompt).slice(0, 2000) }];
+  const t0 = Date.now();
+  const out = await _localEngine.chat.completions.create({ messages, max_tokens: 260, temperature: 0.7 });
+  const reply = (out.choices?.[0]?.message?.content || '').trim();
+  if (!reply) throw new Error('empty local reply');
+  return { reply, meta: `via Astranov · own mind on-device · ${((Date.now()-t0)/1000).toFixed(1)}s` };
+}
 
 function appendMsg(role, text, meta) {
   const div = document.createElement('div'); div.className = 'msg ' + role; div.textContent = text;
@@ -838,12 +902,26 @@ function appendThinking() {
 }
 
 async function callBrain(prompt, opts) {
+  // LAW: OUR OWN MIND first — on-device weights, no external AI. The
+  // aicycle Edge fn (collective organs) is the fallback for devices
+  // without WebGPU and the escalation path for deep thinking.
+  if (_localReady && !opts?.escalate) {
+    try {
+      const out = await localBrainReply(prompt, opts);
+      if (!opts?.persona) {
+        aicycleHistory.push({ role: 'user', content: prompt });
+        aicycleHistory.push({ role: 'assistant', content: out.reply });
+      }
+      return out;
+    } catch (e) { console.warn('[own mind] fell back to organs:', e.message || e); }
+  }
   if (!sb) return { reply: '◈ Supabase SDK did not load. Reload will not fix this — network or CDN block.', meta: '', failed: true };
   const history = opts?.history || aicycleHistory.slice(-6);
   const persona = opts?.persona;
   const body = persona
     ? { prompt, history, engine: 'astranov', persona }
     : { prompt, history, engine: 'astranov' };
+  if (opts?.escalate) body.escalate = true;
   try {
     const t0 = Date.now();
     const { data, error } = await sb.functions.invoke('aicycle', { body });
@@ -1867,6 +1945,9 @@ async function openPeoplePanel() {
 
 async function runDiag() {
   const lines = [];
+  lines.push(_localReady
+    ? '◈ OWN MIND ✓ on-device · ' + LOCAL_MODEL
+    : (localBrainSupported() ? '◇ OWN MIND — available, type "own mind" to activate' : '◇ OWN MIND — no WebGPU on this device'));
   try {
     const t0 = Date.now();
     const r = await sb.functions.invoke('aicycle', { body: { prompt: 'ping', history: [], engine: 'astranov' } });
@@ -1926,6 +2007,7 @@ function routeLocal(raw) {
     return true;
   }
   if (/\b(diag|diagnose|status|smoke|τεστ)\b/.test(t))                            { _routedFire('Probing the pillars…', runDiag); return true; }
+  if (/\b(own\s*mind|own\s*brain|local\s*brain|μυαλό)\b/.test(t))                  { enableLocalBrain(false); return true; }
   const callMatch = t.match(/\b(?:call|ring|video|κάλεσε)\s+([a-zà-ÿα-ω][a-zà-ÿα-ω\s']{1,40}?)(?:[.,!?]|$)/i);
   if (callMatch) {
     const name = callMatch[1].trim();
@@ -1997,11 +2079,19 @@ window.addEventListener('load', () => {
   setInterval(refreshPeerOrbs, 25_000);
   setInterval(refreshCircleShapes, 60_000);
   setTimeout(_brainHeartbeat, 2500);
+  // Own mind: resume automatically if the user enabled it before (weights
+  // are already in the browser cache, so this is fast on revisit).
+  if (localStorage.getItem('astranov.ownmind') === '1' && localBrainSupported()) {
+    setTimeout(() => enableLocalBrain(true), 3500);
+  }
   setTimeout(() => {
     openChat();
     const h = new Date().getHours();
     const tod = h < 5 ? 'Up late' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
     appendMsg('ai', tod + ". I'm Astranov. Try: news · pizza · people · circles · council · call NAME · drive · diag.");
+    if (localBrainSupported() && localStorage.getItem('astranov.ownmind') !== '1') {
+      appendMsg('ai', 'This device can run my OWN MIND — no external AI at all. Type "own mind" to bring me fully local (~700 MB one-time).');
+    }
   }, 1400);
   try {
     const paid = new URL(location.href).searchParams.get('paid');

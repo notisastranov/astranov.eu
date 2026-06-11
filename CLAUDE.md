@@ -437,6 +437,23 @@ The replication formula for the brain — soul + voice + four modes +
 architecture + deploy steps — lives in `BRAIN.md` at repo root.
 Programmers and successor AIs read it before touching the brain.
 
+**The brain's OWN MIND.** The architect ordered a brain that needs no
+other AI to answer. The lawful passage: open weights running on the
+USER'S OWN DEVICE via WebGPU (WebLLM, `Llama-3.2-1B-Instruct-q4f16_1`,
+~700 MB one-time download, browser-cached). When active, every chat
+and agent-call reply is generated locally — no Groq, no OpenRouter,
+no external API in the loop; the reply badge reads
+`via Astranov · own mind on-device`. The aicycle Edge fn (collective
+organs) remains ONLY as (a) the fallback for devices without WebGPU
+and (b) the deep-thinking escalation path. Routing order: own mind →
+organs. Type `own mind` in chat to activate; the choice persists in
+localStorage and resumes automatically on the next visit.
+
+**Honest gap:** WebGPU is required (Chrome/Edge desktop, Android
+Chrome, iOS 18+ Safari). A 1B-parameter local model is weaker than
+the large organ models — brilliance escalates to the collective when
+asked; sovereignty stays local.
+
 ## 15. Agents appear as normal users
 
 The six council agents (Leonidas, Onasis, Athena, Myrmidons,
