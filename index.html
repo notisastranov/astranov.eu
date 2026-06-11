@@ -581,21 +581,62 @@ function bootSupabase() {
     return;
   }
   try {
-    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'astranov.session' },
+    });
     sb.auth.getSession().then(({ data }) => {
       session = data.session;
       _reflectSignedIn();
-      if (session) { loadProfile().then(_greetSignedIn); listenForIncomingCalls(); }
+      if (session) {
+        rememberUser(session.user);
+        loadProfile().then(_greetSignedIn); listenForIncomingCalls();
+      } else {
+        // Honest instant-login: if we remember who this device is, offer
+        // a one-tap continuation. The architect / known users never type.
+        maybeOfferInstantLogin();
+      }
     });
     sb.auth.onAuthStateChange((_e, s) => {
       const becameSignedIn = !session && s;
       session = s; _reflectSignedIn();
       if (s) {
+        rememberUser(s.user);
         loadProfile().then(_greetSignedIn); listenForIncomingCalls();
         if (becameSignedIn) closePanel();
       } else { profile = null; }
     });
   } catch (e) { console.error('[Supabase]', e); }
+}
+
+// Remember the last known identity for one-tap re-entry. Stored
+// per-device in localStorage — no third party touches it.
+function rememberUser(user) {
+  if (!user) return;
+  try {
+    localStorage.setItem('astranov.lastEmail', user.email || '');
+    if (profile?.display_name) localStorage.setItem('astranov.lastName', profile.display_name);
+  } catch (_) {}
+}
+
+function maybeOfferInstantLogin() {
+  const email = (() => { try { return localStorage.getItem('astranov.lastEmail') || ''; } catch (_) { return ''; } })();
+  const name  = (() => { try { return localStorage.getItem('astranov.lastName')  || ''; } catch (_) { return ''; } })();
+  if (!email) return;
+  setTimeout(() => {
+    appendMsg('ai', `Welcome back${name ? ', ' + name : ''}. Tap "Continue as ${email}" to receive a one-tap magic link — no password needed.`);
+    const div = document.createElement('div'); div.className = 'msg ai';
+    div.innerHTML = `<button class="pbtn ok" onclick="instantLogin('${escapeHtml(email)}')">Continue as ${escapeHtml(email)}</button>`;
+    $('chat-msgs').appendChild(div);
+    $('chat-msgs').scrollTop = $('chat-msgs').scrollHeight;
+  }, 1700);
+}
+async function instantLogin(email) {
+  toast('Sending magic link to ' + email + '…');
+  try {
+    const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } });
+    if (error) throw error;
+    appendMsg('ai', 'Magic link sent. Tap it in your email and you are in — no password.');
+  } catch (e) { toast('Magic link failed: ' + e.message, 'err'); }
 }
 
 function _loadSupabaseFallback() {
