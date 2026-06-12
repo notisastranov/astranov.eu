@@ -2,7 +2,7 @@
 // Handles: offline shell, push notifications, notification click routing
 'use strict';
 
-const SHELL_CACHE = 'astranov-shell-v71';
+const SHELL_CACHE = 'astranov-shell-v72';
 const TILE_CACHE  = 'astranov-tiles-v1';
 const TILE_HOSTS = [
   'basemaps.cartocdn.com',           // CARTO dark/voyager/light
