@@ -2952,13 +2952,52 @@ async function openStellarPanel() {
   const jd  = _julianDate(now);
   const sun = _sunPosition(jd);
   const lst = _localSiderealTime(jd, _userLng ?? 0);
-  // Apparent altitude/azimuth of the Sun at the user's location.
-  const ha  = lst - sun.ra;   // hour angle
+  const ha  = lst - sun.ra;
   const alt = _altitude(sun.dec, ha, _userLat ?? 0);
   const az  = _azimuth(sun.dec, ha, _userLat ?? 0);
+  const altDeg = alt * 180 / Math.PI;
+  const azDeg  = az  * 180 / Math.PI;
+  // SVG sky chart — horizon circle, cardinal points, Sun marker at
+  // (altitude, azimuth). Above-horizon → solid amber, below → dim
+  // crimson under the horizon ring. Selene aesthetic.
+  const sz = 220, cx = 110, cy = 110, R = 100;
+  // Stereographic projection: r = R · (1 - alt/90°); az measured from N clockwise
+  const r = R * Math.max(0, 1 - Math.abs(altDeg) / 90);
+  const a = az;
+  const sx = cx + r * Math.sin(a);
+  const sy = cy - r * Math.cos(a);
+  const aboveHorizon = altDeg >= 0;
   openPanel(`
     <h2>Stellar Navigation</h2>
-    <p>The sextant the ancient sailors used, in your pocket. Sun + sidereal fix from your current GPS and the live UTC clock.</p>
+    <p style="color:var(--bone);opacity:0.85">Sextant + sidereal fix from your GPS and live UTC.</p>
+    <div style="display:flex;justify-content:center;margin:10px 0">
+      <svg width="${sz}" height="${sz}" viewBox="0 0 ${sz} ${sz}" style="overflow:visible">
+        <defs>
+          <radialGradient id="skyG" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#0a1334"/>
+            <stop offset="100%" stop-color="#02060d"/>
+          </radialGradient>
+        </defs>
+        <circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#skyG)" stroke="rgba(74,166,255,0.45)" stroke-width="1.5"/>
+        <circle cx="${cx}" cy="${cy}" r="${R*0.66}" fill="none" stroke="rgba(74,166,255,0.20)" stroke-width="1"/>
+        <circle cx="${cx}" cy="${cy}" r="${R*0.33}" fill="none" stroke="rgba(74,166,255,0.20)" stroke-width="1"/>
+        <line x1="${cx}" y1="${cy-R}" x2="${cx}" y2="${cy+R}" stroke="rgba(74,166,255,0.18)" stroke-width="1"/>
+        <line x1="${cx-R}" y1="${cy}" x2="${cx+R}" y2="${cy}" stroke="rgba(74,166,255,0.18)" stroke-width="1"/>
+        <text x="${cx}" y="${cy-R-6}" text-anchor="middle" fill="var(--selene)" font-size="11" font-family="Quicksand" font-weight="700" letter-spacing="2">N</text>
+        <text x="${cx+R+10}" y="${cy+4}" text-anchor="middle" fill="var(--selene)" font-size="11" font-family="Quicksand" font-weight="700" letter-spacing="2">E</text>
+        <text x="${cx}" y="${cy+R+14}" text-anchor="middle" fill="var(--selene)" font-size="11" font-family="Quicksand" font-weight="700" letter-spacing="2">S</text>
+        <text x="${cx-R-10}" y="${cy+4}" text-anchor="middle" fill="var(--selene)" font-size="11" font-family="Quicksand" font-weight="700" letter-spacing="2">W</text>
+        ${aboveHorizon ? `
+          <circle cx="${sx}" cy="${sy}" r="9" fill="var(--gold)" filter="url(#sunGlow)"/>
+          <circle cx="${sx}" cy="${sy}" r="14" fill="var(--gold)" opacity="0.20"/>
+          <circle cx="${sx}" cy="${sy}" r="20" fill="var(--gold)" opacity="0.08"/>
+        ` : `
+          <circle cx="${sx}" cy="${sy}" r="6" fill="var(--crimson)" opacity="0.4"/>
+          <text x="${cx}" y="${cy+4}" text-anchor="middle" fill="var(--crimson)" font-size="10" letter-spacing="2" opacity="0.7">SUN BELOW HORIZON</text>
+        `}
+      </svg>
+    </div>
+    <div style="text-align:center;color:var(--bone);font-size:12px;opacity:0.75">Sun altitude ${altDeg.toFixed(2)}° · azimuth ${azDeg.toFixed(2)}° from true N</div>
     <h3>Now</h3>
     <div class="row"><span>UTC</span><span>${now.toISOString().replace('T',' ').slice(0,19)}</span></div>
     <div class="row"><span>Local position</span><span>${_userLat != null ? _userLat.toFixed(4) + '°, ' + _userLng.toFixed(4) + '°' : '—'}</span></div>
@@ -2967,12 +3006,10 @@ async function openStellarPanel() {
     <h3>Sun</h3>
     <div class="row"><span>Right ascension</span><span>${(sun.ra*12/Math.PI).toFixed(3)} h</span></div>
     <div class="row"><span>Declination</span><span>${(sun.dec*180/Math.PI).toFixed(2)}°</span></div>
-    <div class="row"><span>Altitude (apparent)</span><span>${(alt*180/Math.PI).toFixed(2)}°</span></div>
-    <div class="row"><span>Azimuth (true N)</span><span>${(az*180/Math.PI).toFixed(2)}°</span></div>
     <p style="font-size:11px;color:rgba(168,200,238,0.55);margin-top:14px">
-      Honest gap: this is a simplified sun-only fix (no refraction, no nutation, no parallax
-      correction). For real ocean navigation, cross with a full almanac and at least two more
-      bodies. Future work in the queue: Moon, Polaris, star catalog, intercept method.
+      Honest gap: simplified sun-only fix (no refraction, nutation or parallax). For real ocean
+      navigation cross with a full almanac and at least two more bodies. Moon · Polaris · star
+      catalog · intercept method queued.
     </p>
   `);
 }
