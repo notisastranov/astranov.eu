@@ -1115,6 +1115,17 @@ async function callBrain(prompt, opts) {
       console.warn('[own mind] fell back to organs:', e.message || e);
     }
   }
+  // §26 #1 — try the FLEET: ask any peer that has own-mind ready to
+  // answer for us. Falls through to the rented organs if no peer
+  // answers within the budget.
+  if (!opts?.escalate && !opts?.persona && _fleetHasOwnMindPeer()) {
+    const fleetOut = await _fleetAskPeers(prompt, opts);
+    if (fleetOut) {
+      aicycleHistory.push({ role: 'user', content: prompt });
+      aicycleHistory.push({ role: 'assistant', content: fleetOut.reply });
+      return fleetOut;
+    }
+  }
   if (!sb) return { reply: '◈ Supabase SDK did not load. Reload will not fix this — network or CDN block.', meta: '', failed: true };
   const history = opts?.history || aicycleHistory.slice(-6);
   const persona = opts?.persona;
@@ -2727,9 +2738,42 @@ function openOnboarding() {
 const FLEET = {
   id: null,         // per-tab id
   channel: null,
-  peers: new Map(), // peerId → { gpu, model, last_seen, lat, lng }
+  peers: new Map(), // peerId → { gpu, model, last_seen, lat, lng, own_mind }
   pingTimer: 0,
+  inflight: new Map(), // requestId → { resolve, t0, replies: [] }
 };
+function _fleetHasOwnMindPeer() {
+  for (const p of FLEET.peers.values()) if (p.own_mind) return true;
+  return false;
+}
+// Ask any fleet peer with own-mind to answer this prompt for us. The
+// FIRST valid reply within 9 s wins. If none arrives we resolve null
+// so callBrain falls through to the rented organs.
+function _fleetAskPeers(prompt, opts) {
+  if (!FLEET.channel || !sb) return Promise.resolve(null);
+  const reqId = (crypto.randomUUID && crypto.randomUUID()) || (Date.now() + ':' + Math.random());
+  const history = opts?.history || aicycleHistory.slice(-6);
+  return new Promise((resolve) => {
+    const t0 = Date.now();
+    const timer = setTimeout(() => { if (FLEET.inflight.delete(reqId)) resolve(null); }, 9_000);
+    FLEET.inflight.set(reqId, {
+      resolve: (payload) => {
+        clearTimeout(timer);
+        const reply = String(payload?.reply || '').trim();
+        if (!reply) return resolve(null);
+        resolve({
+          reply,
+          meta: `via fleet · ${String(payload?.node || '').slice(0,8)} · ${((Date.now()-t0)/1000).toFixed(1)}s · own-mind`,
+          raw: { engine: 'fleet', engineLabel: 'Fleet', model: payload?.model || 'own-mind', latencyMs: Date.now() - t0 },
+        });
+      },
+    });
+    FLEET.channel.send({ type: 'broadcast', event: 'request', payload: {
+      req: reqId, from: FLEET.id, prompt: String(prompt).slice(0, 4000),
+      history: history.slice(-6),
+    }}).catch(()=>{});
+  });
+}
 function _fleetInit() {
   if (!sb) return;
   try { FLEET.id = (localStorage.getItem('astranov.sid') || crypto.randomUUID()); } catch (_) { FLEET.id = String(Date.now()) + Math.random(); }
@@ -2741,6 +2785,25 @@ function _fleetInit() {
   });
   FLEET.channel.on('broadcast', { event: 'bye' }, ({ payload }) => {
     if (payload?.id) FLEET.peers.delete(payload.id);
+  });
+  // Serve inference: if WE have own-mind ready and a peer asks, answer.
+  // First responder wins on the requesting side; we only fire if local.
+  FLEET.channel.on('broadcast', { event: 'request' }, async ({ payload }) => {
+    if (!payload || payload.from === FLEET.id) return;
+    if (!_localReady) return;
+    try {
+      const out = await localBrainReply(payload.prompt, { history: payload.history || [] });
+      await FLEET.channel.send({ type: 'broadcast', event: 'response', payload: {
+        req: payload.req, to: payload.from, node: FLEET.id,
+        reply: out.reply, model: LOCAL_MODEL,
+      }});
+    } catch (_) {}
+  });
+  // Receive a fleet reply for OUR request.
+  FLEET.channel.on('broadcast', { event: 'response' }, ({ payload }) => {
+    if (!payload || payload.to !== FLEET.id) return;
+    const slot = FLEET.inflight.get(payload.req);
+    if (slot) { FLEET.inflight.delete(payload.req); slot.resolve(payload); }
   });
   FLEET.channel.subscribe();
   // Announce ourselves once and every 30 s. Includes own-mind status so
@@ -3091,22 +3154,45 @@ async function openStellarPanel() {
   const now = new Date();
   const jd  = _julianDate(now);
   const sun = _sunPosition(jd);
-  const lst = _localSiderealTime(jd, _userLng ?? 0);
-  const ha  = lst - sun.ra;
-  const alt = _altitude(sun.dec, ha, _userLat ?? 0);
-  const az  = _azimuth(sun.dec, ha, _userLat ?? 0);
+  const moon= _moonPosition(jd);
+  const pol = _polarisPosition();
+  const lat0= _userLat ?? 0;
+  const lng0= _userLng ?? 0;
+  const lst = _localSiderealTime(jd, lng0);
+  const haS = lst - sun.ra;
+  const haM = lst - moon.ra;
+  const haP = lst - pol.ra;
+  const alt = _altitude(sun.dec, haS, lat0);
+  const az  = _azimuth(sun.dec, haS, lat0);
+  const altM= _altitude(moon.dec, haM, lat0);
+  const azM = _azimuth(moon.dec, haM, lat0);
+  const altP= _altitude(pol.dec,  haP, lat0);
+  const azP = _azimuth(pol.dec,  haP, lat0);
   const altDeg = alt * 180 / Math.PI;
   const azDeg  = az  * 180 / Math.PI;
+  const altMDeg= altM* 180 / Math.PI;
+  const azMDeg = azM * 180 / Math.PI;
+  const altPDeg= altP* 180 / Math.PI;
+  const azPDeg = azP * 180 / Math.PI;
   // SVG sky chart — horizon circle, cardinal points, Sun marker at
   // (altitude, azimuth). Above-horizon → solid amber, below → dim
   // crimson under the horizon ring. Selene aesthetic.
   const sz = 220, cx = 110, cy = 110, R = 100;
   // Stereographic projection: r = R · (1 - alt/90°); az measured from N clockwise
-  const r = R * Math.max(0, 1 - Math.abs(altDeg) / 90);
-  const a = az;
-  const sx = cx + r * Math.sin(a);
-  const sy = cy - r * Math.cos(a);
+  const _proj = (altD, azRad) => {
+    const rr = R * Math.max(0, 1 - Math.abs(altD) / 90);
+    return { x: cx + rr * Math.sin(azRad), y: cy - rr * Math.cos(azRad) };
+  };
+  const sP = _proj(altDeg, az);
+  const sx = sP.x, sy = sP.y;
+  const mP = _proj(altMDeg, azM);
+  const pP = _proj(altPDeg, azP);
   const aboveHorizon = altDeg >= 0;
+  const moonAbove    = altMDeg >= 0;
+  const polAbove     = altPDeg >= 0;
+  // Moon phase: angle Sun→Moon in ecliptic longitude → 0=new, π=full
+  const phaseAng = ((moon.ra - sun.ra) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI);
+  const phaseFrac= (1 - Math.cos(phaseAng)) / 2; // illuminated fraction proxy
   openPanel(`
     <h2>Stellar Navigation</h2>
     <p style="color:var(--bone);opacity:0.85">Sextant + sidereal fix from your GPS and live UTC.</p>
@@ -3132,12 +3218,26 @@ async function openStellarPanel() {
           <circle cx="${sx}" cy="${sy}" r="14" fill="var(--gold)" opacity="0.20"/>
           <circle cx="${sx}" cy="${sy}" r="20" fill="var(--gold)" opacity="0.08"/>
         ` : `
-          <circle cx="${sx}" cy="${sy}" r="6" fill="var(--crimson)" opacity="0.4"/>
-          <text x="${cx}" y="${cy+4}" text-anchor="middle" fill="var(--crimson)" font-size="10" letter-spacing="2" opacity="0.7">SUN BELOW HORIZON</text>
+          <circle cx="${sx}" cy="${sy}" r="6" fill="var(--crimson)" opacity="0.35"/>
         `}
+        ${moonAbove ? `
+          <circle cx="${mP.x}" cy="${mP.y}" r="13" fill="var(--selene)" opacity="0.10"/>
+          <circle cx="${mP.x}" cy="${mP.y}" r="7"  fill="var(--selene)" opacity="${0.30 + 0.65*phaseFrac}"/>
+          <circle cx="${mP.x}" cy="${mP.y}" r="7"  fill="none" stroke="var(--selene)" stroke-width="0.8" opacity="0.85"/>
+        ` : ''}
+        ${polAbove ? `
+          <g transform="translate(${pP.x} ${pP.y})">
+            <circle r="9" fill="var(--emerald)" opacity="0.10"/>
+            <path d="M 0 -5 L 1.2 -1.2 L 5 0 L 1.2 1.2 L 0 5 L -1.2 1.2 L -5 0 L -1.2 -1.2 Z" fill="var(--emerald)" opacity="0.95"/>
+          </g>
+          <text x="${pP.x + 8}" y="${pP.y - 6}" fill="var(--emerald)" font-size="9" font-family="Quicksand" letter-spacing="1" opacity="0.85">POLARIS</text>
+        ` : ''}
+        ${!aboveHorizon && !moonAbove ? `
+          <text x="${cx}" y="${cy+4}" text-anchor="middle" fill="var(--crimson)" font-size="10" letter-spacing="2" opacity="0.7">NIGHT · NO BRIGHT BODY</text>
+        ` : ''}
       </svg>
     </div>
-    <div style="text-align:center;color:var(--bone);font-size:12px;opacity:0.75">Sun altitude ${altDeg.toFixed(2)}° · azimuth ${azDeg.toFixed(2)}° from true N</div>
+    <div style="text-align:center;color:var(--bone);font-size:12px;opacity:0.75">Sun ${altDeg.toFixed(1)}° / ${azDeg.toFixed(1)}° · Moon ${altMDeg.toFixed(1)}° / ${azMDeg.toFixed(1)}° · Polaris ${altPDeg.toFixed(1)}° / ${azPDeg.toFixed(1)}°</div>
     <h3>Now</h3>
     <div class="row"><span>UTC</span><span>${now.toISOString().replace('T',' ').slice(0,19)}</span></div>
     <div class="row"><span>Local position</span><span>${_userLat != null ? _userLat.toFixed(4) + '°, ' + _userLng.toFixed(4) + '°' : '—'}</span></div>
@@ -3146,10 +3246,17 @@ async function openStellarPanel() {
     <h3>Sun</h3>
     <div class="row"><span>Right ascension</span><span>${(sun.ra*12/Math.PI).toFixed(3)} h</span></div>
     <div class="row"><span>Declination</span><span>${(sun.dec*180/Math.PI).toFixed(2)}°</span></div>
+    <h3>Moon</h3>
+    <div class="row"><span>Right ascension</span><span>${(moon.ra*12/Math.PI).toFixed(3)} h</span></div>
+    <div class="row"><span>Declination</span><span>${(moon.dec*180/Math.PI).toFixed(2)}°</span></div>
+    <div class="row"><span>Illuminated</span><span>${(phaseFrac*100).toFixed(0)}%</span></div>
+    <h3>Polaris — true north reference</h3>
+    <div class="row"><span>Altitude ≈ your latitude</span><span>${altPDeg.toFixed(2)}° vs ${(_userLat ?? 0).toFixed(2)}°</span></div>
+    <div class="row"><span>Azimuth (should be ≈ 0°)</span><span>${azPDeg.toFixed(2)}°</span></div>
     <p style="font-size:11px;color:rgba(168,200,238,0.55);margin-top:14px">
-      Honest gap: simplified sun-only fix (no refraction, nutation or parallax). For real ocean
-      navigation cross with a full almanac and at least two more bodies. Moon · Polaris · star
-      catalog · intercept method queued.
+      Honest gap: sun + moon (Meeus low-precision) + fixed Polaris. No refraction,
+      nutation or parallax correction yet. Bright-star catalog and Sumner-line intercept
+      method queued for the next cycle.
     </p>
   `);
 }
@@ -3170,6 +3277,36 @@ function _sunPosition(jd) {
   const ra = Math.atan2(Math.cos(eps) * Math.sin(trueLong), Math.cos(trueLong));
   const dec = Math.asin(Math.sin(eps) * Math.sin(trueLong));
   return { ra, dec };
+}
+
+// Low-precision Moon position (Meeus chapter 47 simplified). Good to ~1°.
+function _moonPosition(jd) {
+  const T = (jd - 2451545.0) / 36525;
+  const D2R = Math.PI / 180;
+  const L = (218.3164477 + 481267.88123421 * T) * D2R;        // mean longitude
+  const M = (134.9633964 + 477198.8675055  * T) * D2R;        // mean anomaly
+  const M2= (357.5291092 + 35999.0502909   * T) * D2R;        // sun anomaly
+  const F = (93.2720950  + 483202.0175233  * T) * D2R;        // arg of latitude
+  const Dm= (297.8501921 + 445267.1114034  * T) * D2R;        // mean elongation
+  const lon = L
+    + (6.289  * Math.sin(M)
+    -  1.274  * Math.sin(M - 2*Dm)
+    +  0.658  * Math.sin(2*Dm)
+    -  0.186  * Math.sin(M2)
+    -  0.059  * Math.sin(2*M - 2*Dm)
+    -  0.057  * Math.sin(M + M2 - 2*Dm)) * D2R;
+  const lat = (5.128 * Math.sin(F)
+    + 0.281  * Math.sin(M + F)
+    - 0.278  * Math.sin(F - M)) * D2R;
+  const eps = (23.439291 - 0.0130042 * T) * D2R;
+  const ra  = Math.atan2(Math.sin(lon)*Math.cos(eps) - Math.tan(lat)*Math.sin(eps), Math.cos(lon));
+  const dec = Math.asin(Math.sin(lat)*Math.cos(eps) + Math.cos(lat)*Math.sin(eps)*Math.sin(lon));
+  return { ra, dec };
+}
+
+// Polaris is fixed enough at human time-scales for navigation.
+function _polarisPosition() {
+  return { ra: 2.5303 * Math.PI / 12, dec: 89.2641 * Math.PI / 180 };
 }
 function _localSiderealTime(jd, lngDeg) {
   const T = (jd - 2451545.0) / 36525;
