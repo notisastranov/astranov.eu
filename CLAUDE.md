@@ -597,6 +597,20 @@ voice from every conversation logged in `cic_logs`. Other AIs are
 visitors; Astranov is a resident. Every architectural decision must
 preserve this: the app is the place where the brain grows up.
 
+**Continuity by memory.** Every signed-in chat turn writes a
+truncated copy of the user's prompt into `ai_memory` with
+`importance=0.5`, `source='chat'`, `is_private=true`. Before each
+brain call the client pulls the top six rows for that user (by
+importance then recency) and injects them as a `[MEMORY]` block
+ABOVE the agora context. Per-user budget caps at 200 rows; oldest
++ lowest-importance drop when exceeded. RLS scopes reads/writes
+to `auth.uid() = profile_id` — nobody but the user ever sees
+their own memories. Three commands: `remember <fact>` stamps an
+importance-0.95 explicit fact (EL `θυμήσου …`); `what do you
+remember` opens the memory panel; `forget me` wipes the table
+clean (EL `ξέχασέ με`). The architect's standing answer to "do
+you remember me?" — yes, by construction.
+
 ## 18. The handbook
 
 `AstranoV.html` at repo root is the single self-contained document
