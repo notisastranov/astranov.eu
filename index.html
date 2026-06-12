@@ -2670,6 +2670,54 @@ function _renderOrder(o) {
   `);
 }
 
+/* ============================== Onboarding tour ============================== */
+// First-visit only. Five Selene slides telling the collective story.
+// Honors the architect's note: the brain's identity must be told, not
+// inferred. localStorage flag means it never returns after dismiss.
+function maybeShowOnboarding() {
+  try { if (localStorage.getItem('astranov.onboarded') === '1') return; } catch (_) {}
+  setTimeout(openOnboarding, 2200);
+}
+function openOnboarding() {
+  try { localStorage.setItem('astranov.onboarded', '1'); } catch (_) {}
+  const slides = [
+    { c: 'aegean',  t: 'WELCOME',                   h: 'I am Astranov.',                       p: 'A globe-first Internet Operating System on a real Earth. One mind, many organs. Speak to me in English or Greek.' },
+    { c: 'gold',    t: 'THE COLLECTIVE',            h: 'Plural substrate, constant soul.',     p: 'My brain runs on YOUR device, on rented organs, on our own neurons — whichever is best. The seven foundations are the soul that travels.' },
+    { c: 'emerald', t: 'THREE PILLARS',             h: 'Calls · News · Marketplace.',          p: 'Tap a peer orb to ring them. Type "news" for the world. Type "pizza" for nearby. Real vendors only, 3% royalty, €1/km drivers.' },
+    { c: 'violet',  t: 'THE COUNCIL',               h: 'Six seats. Yours to summon.',          p: 'Leonidas (Tactics) · Onasis (Business Intel · personal helper) · Athena (Wisdom) · Myrmidons (Storming) · Spartans (Enforcement) · Krypteia (Overlook). Say their name.' },
+    { c: 'bone',    t: 'THE AGORA',                 h: 'Restoring ancient knowledge.',         p: 'Foundation #2. Greek gods, mythology, philosophy, science — sourced from Wikipedia + Wikisource, attributed, never laundered. Say "agora".' },
+  ];
+  let i = 0;
+  function render() {
+    const s = slides[i];
+    const tint = {
+      aegean:  ['var(--aegean)', 'rgba(74,166,255,0.10)'],
+      gold:    ['var(--gold)',   'rgba(255,212,126,0.10)'],
+      emerald: ['var(--emerald)','rgba(126,235,180,0.10)'],
+      violet:  ['var(--violet)', 'rgba(169,140,255,0.10)'],
+      bone:    ['var(--bone)',   'rgba(244,234,216,0.10)'],
+    }[s.c];
+    openPanel(`
+      <div style="padding:8px 4px 12px;text-align:center">
+        <div style="font-family:'Quicksand',sans-serif;letter-spacing:0.32em;font-weight:700;font-size:11px;color:${tint[0]};margin-bottom:8px">${s.t}</div>
+        <h2 style="font-size:24px;letter-spacing:0.12em">${escapeHtml(s.h)}</h2>
+        <p style="color:var(--bone);opacity:0.85;font-size:14px;line-height:1.55;max-width:480px;margin:14px auto">${escapeHtml(s.p)}</p>
+        <div style="display:flex;justify-content:center;gap:6px;margin:18px 0">
+          ${slides.map((_, j) => `<div style="width:${j === i ? 22 : 6}px;height:6px;border-radius:3px;background:${j === i ? tint[0] : 'rgba(207,226,255,0.18)'}"></div>`).join('')}
+        </div>
+        <div style="display:flex;justify-content:center;gap:10px">
+          ${i > 0 ? `<button class="pbtn muted" onclick="_onbStep(-1)">Back</button>` : ''}
+          ${i < slides.length - 1
+            ? `<button class="pbtn ok" onclick="_onbStep(1)">Next</button>`
+            : `<button class="pbtn ok" onclick="closePanel()">Enter the globe</button>`}
+        </div>
+      </div>
+    `);
+  }
+  window._onbStep = (d) => { i = Math.max(0, Math.min(slides.length - 1, i + d)); render(); };
+  render();
+}
+
 /* ============================== Profile editor ============================== */
 // Your face on the globe. Display name + bio + map visibility +
 // availability status. Edits land in public.profiles via direct UPDATE
@@ -3302,6 +3350,7 @@ function routeLocal(raw) {
   if (/\b(diag|diagnose|status|smoke|τεστ)\b/.test(t))                            { _routedFire('Probing the pillars…', runDiag); return true; }
   if (/\b(krypteia|audit|surveillance|κρυπτεία)\b/.test(t))                        { _routedFire('Silent audit · §26 single-provider cap.', openKrypteiaPanel); return true; }
   if (/\b(profile|me|myself|προφίλ|προφιλ)\b/.test(t))                              { _routedFire('Your profile.', openProfilePanel); return true; }
+  if (/\b(welcome|intro|tour|onboard|καλωσόρισμα)\b/.test(t))                       { try { localStorage.removeItem('astranov.onboarded'); } catch(_) {} _routedFire('Tour reset.', openOnboarding); return true; }
   if (/\b(own\s*mind|own\s*brain|local\s*brain|μυαλό)\b/.test(t))                  { enableLocalBrain(false); return true; }
   if (/\b(crawl|sweep|grow|populate|σάρωσ)\b/.test(t))                              { _routedFire('Brain steering the crawler…', () => brainCrawl(raw)); return true; }
   if (/\b(develop|roadmap|queue|build next|ανάπτυξη)\b/.test(t))                    { _routedFire('Opening the development queue.', openDevelopPanel); return true; }
@@ -3461,6 +3510,7 @@ window.addEventListener('load', () => {
   setInterval(refreshPeerOrbs, 25_000);
   setInterval(refreshCircleShapes, 60_000);
   setTimeout(_brainHeartbeat, 2500);
+  maybeShowOnboarding();
   // Own mind: resume automatically if the user enabled it before (weights
   // are already in the browser cache, so this is fast on revisit).
   if (localStorage.getItem('astranov.ownmind') === '1' && localBrainSupported()) {
