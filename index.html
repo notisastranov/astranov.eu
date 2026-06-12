@@ -1512,6 +1512,68 @@ ${text}`,
     };
   } catch (_) { return null; }
 }
+// §17 — AstranoV is the brain's HOME. ai_memory carries what a user
+// has told Astranov across sessions so she actually evolves with them
+// instead of restarting clean every visit. We write a small line per
+// turn, fetch the latest few into the next prompt, and keep the table
+// bounded per user. RLS already scopes reads/writes to the row owner.
+const MEMORY_BUDGET_PER_USER = 200;
+const MEMORY_INJECT_COUNT    = 6;
+async function _memoryFetchForUser() {
+  if (!session || !sb) return [];
+  try {
+    const r = await sb.from('ai_memory')
+      .select('content, importance, created_at')
+      .eq('profile_id', session.user.id)
+      .order('importance', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false })
+      .limit(MEMORY_INJECT_COUNT);
+    if (r.error) return [];
+    return r.data || [];
+  } catch (_) { return []; }
+}
+async function _memoryWrite(content, importance, source) {
+  if (!session || !sb) return;
+  const trimmed = (content || '').trim().slice(0, 480);
+  if (trimmed.length < 8) return;
+  try {
+    await sb.from('ai_memory').insert({
+      profile_id: session.user.id,
+      content: trimmed,
+      source: source || 'chat',
+      importance: importance ?? 0.5,
+      is_private: true,
+    });
+    // Keep table bounded per user: trim oldest below importance budget.
+    const c = await sb.from('ai_memory')
+      .select('id', { count: 'exact', head: true })
+      .eq('profile_id', session.user.id);
+    const n = c.count || 0;
+    if (n > MEMORY_BUDGET_PER_USER) {
+      const drop = await sb.from('ai_memory')
+        .select('id')
+        .eq('profile_id', session.user.id)
+        .order('importance', { ascending: true, nullsFirst: true })
+        .order('created_at', { ascending: true })
+        .limit(n - MEMORY_BUDGET_PER_USER);
+      const ids = (drop.data || []).map(r => r.id);
+      if (ids.length) await sb.from('ai_memory').delete().in('id', ids);
+    }
+  } catch (_) { /* memory is best-effort, never fail a chat send */ }
+}
+async function _memoryForgetAll() {
+  if (!session || !sb) return 0;
+  const r = await sb.from('ai_memory').delete().eq('profile_id', session.user.id).select('id');
+  return (r.data || []).length;
+}
+function _memoryContextBlock(rows) {
+  if (!rows.length) return null;
+  const lines = rows.map((r, i) => `[${i+1}] ${(r.content || '').slice(0, 220)}`).join('\n');
+  return `[MEMORY — what this user has told Astranov before, treat as context, do not quote verbatim unless asked]
+${lines}
+
+[CURRENT TURN]`;
+}
 $('chat-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const input = $('chat-input');
@@ -1532,7 +1594,15 @@ $('chat-form').addEventListener('submit', async (e) => {
   // Reach for Agora context BEFORE the brain call. The injected prompt
   // grounds the reply in real entries; citations render under it.
   const agora = await _agoraReachForChat(text);
-  const promptForBrain = agora ? agora.contextBlock : text;
+  // §17 — memory: fetch what this user has told Astranov before. Both
+  // blocks combine if relevant; memory always sits ABOVE the agora ctx
+  // so the brain sees who's asking before what they're asking about.
+  const memRows = await _memoryFetchForUser();
+  const memBlock = _memoryContextBlock(memRows);
+  let promptForBrain = text;
+  if (agora && memBlock)      promptForBrain = memBlock + '\n\n' + agora.contextBlock;
+  else if (agora)             promptForBrain = agora.contextBlock;
+  else if (memBlock)          promptForBrain = memBlock + '\n' + text;
   const out = await callBrain(promptForBrain, isVoiceTurn ? { mode: 'spartan' } : undefined);
   $('chat').classList.remove('thinking');
   document.body.classList.remove('brain-thinking');
@@ -1571,6 +1641,12 @@ $('chat-form').addEventListener('submit', async (e) => {
   // AND the brain succeeded. Stale replies stay silent.
   if (!out.failed && turn === VOICE.currentTurn && $('chat').classList.contains('open')) {
     ttsSpeak(out.reply);
+  }
+  // §17 — write this turn into ai_memory so next session Astranov
+  // already knows. Best-effort, never blocks the chat. Skip when the
+  // user opted out via 'forget me'.
+  if (!out.failed && session) {
+    _memoryWrite(text, 0.5, 'chat').catch(()=>{});
   }
   const msgs = $('chat-msgs'); msgs.scrollTop = msgs.scrollHeight;
 });
@@ -4054,6 +4130,35 @@ function routeLocal(raw) {
   if (/\b(crawl|sweep|grow|populate|σάρωσ)\b/.test(t))                              { _routedFire('Brain steering the crawler…', () => brainCrawl(raw)); return true; }
   if (/\b(develop|roadmap|queue|build next|ανάπτυξη)\b/.test(t))                    { _routedFire('Opening the development queue.', openDevelopPanel); return true; }
   if (/\b(stellar|sextant|navigation|αστερισμ|ναυτιλ)\b/.test(t))                   { _routedFire('Stellar navigation — summoned.', openStellarPanel); return true; }
+  // §17 — explicit memory commands. 'remember X' stamps a high-importance
+  // fact; 'forget me' wipes everything Astranov knows about the user.
+  const remM = raw.match(/^\s*(?:remember|θυμήσου|θυμησου)\s*[:,\-]?\s*(.{4,})$/i);
+  if (remM && session) {
+    _routedFire('Remembered.', async () => {
+      await _memoryWrite(remM[1], 0.95, 'explicit');
+      toast('◈ Remembered: ' + remM[1].slice(0, 80), 'ok');
+    });
+    return true;
+  }
+  if (/^\s*(forget me|forget everything|ξέχασέ με|ξέχασε τα πάντα)\s*$/i.test(t) && session) {
+    _routedFire('Wiping memory.', async () => {
+      const n = await _memoryForgetAll();
+      toast('Forgot ' + n + ' memories. Astranov starts fresh with you.', 'ok');
+    });
+    return true;
+  }
+  if (/^\s*(what do you remember|τι θυμάσαι)\s*$/i.test(t) && session) {
+    _routedFire('Showing memory.', async () => {
+      const rows = await _memoryFetchForUser();
+      openPanel(`
+        <h2>What Astranov remembers about you</h2>
+        <p style="color:var(--bone);opacity:0.8">Stored on your account; private to you. Type 'forget me' to wipe.</p>
+        ${rows.length ? rows.map(r => `<div class="card"><div class="ct">${escapeHtml(r.content)}</div><div class="cm">${escapeHtml(r.source || '')} · ${formatRelative(r.created_at)}</div></div>`).join('') : '<p>Nothing yet. Tell me about yourself and I will remember next session.</p>'}
+        <p style="margin-top:12px"><button class="pbtn danger" onclick="(async()=>{const n=await _memoryForgetAll();toast('Forgot '+n+' memories','ok');closePanel();})()">Forget everything</button></p>
+      `);
+    });
+    return true;
+  }
   // AGORA — Foundation #2: ancient Greek gods, mythology, philosophy, science.
   if (/\b(agora|gods?|θεοί|θεός|mythology|μυθολογ|philosophy|φιλοσοφ|αρχαί|αγορά|hellenic|ελλην)\b/.test(t)) {
     const m = t.match(/\b(?:about|on|for|tell me about|πες μου για|για)\s+([a-zà-ÿα-ω][a-zà-ÿα-ω\s]{1,40})$/i);
