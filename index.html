@@ -63,6 +63,28 @@
   body.brain-thinking #app-name { animation-duration: 1.8s; }
   #app-name:active { transform: translateX(-50%) scale(0.96); }
 
+  /* ALIVE pill — pulse-count of online nodes (you + fleet peers).
+     Sits below the wordmark, taps open the fleet panel. The empty
+     globe gets a heartbeat. Hidden until at least the local fleet
+     announces (avoids a hard "1" before init). */
+  #alive-pill { position: fixed; top: calc(max(10px, env(safe-area-inset-top)) + 40px);
+    left: 50%; transform: translateX(-50%); z-index: 199;
+    display: none; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 999px;
+    background: rgba(126,235,180,0.08);
+    border: 1px solid rgba(126,235,180,0.35);
+    color: var(--bone); cursor: pointer; user-select: none;
+    font-family: 'Quicksand', sans-serif; font-weight: 700;
+    font-size: 10.5px; letter-spacing: 0.22em;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    transition: transform var(--t-quick) var(--ease), opacity var(--t-quick) var(--ease); }
+  #alive-pill.on { display: inline-flex; }
+  #alive-pill:active { transform: translateX(-50%) scale(0.94); }
+  #alive-pill .dot { width: 6px; height: 6px; border-radius: 50%;
+    background: var(--emerald); box-shadow: 0 0 8px var(--emerald);
+    animation: pulse 1.8s ease-in-out infinite; }
+  #alive-pill .n { font-variant-numeric: tabular-nums; color: var(--selene); }
+
   /* BOOT */
   #boot { position: fixed; inset: 0; z-index: 100;
     background: radial-gradient(ellipse at 50% 45%, #04122e 0%, #020a1c 55%, #010615 100%);
@@ -368,6 +390,7 @@ Architect: Notis Astranov. Pre-nuke tag: pre-nuke-2026-06-11-1200.
 <div id="cesiumContainer"></div>
 
 <div id="app-name" onclick="location.reload(true)" title="AstranoV — tap to reload">ASTRANOV</div>
+<div id="alive-pill" title="Compute fleet — tap to see the nodes" onclick="openFleetPanel()"><span class="dot"></span><span class="n">1</span><span>ALIVE</span></div>
 
 <div id="boot">
   <div class="loader"></div>
@@ -2850,6 +2873,13 @@ function _fleetAskPeers(prompt, opts) {
     }}).catch(()=>{});
   });
 }
+function _alivePillUpdate() {
+  const el = document.getElementById('alive-pill');
+  if (!el) return;
+  const n = 1 + FLEET.peers.size;     // self + heard peers
+  el.querySelector('.n').textContent = n;
+  el.classList.add('on');
+}
 function _fleetInit() {
   if (!sb) return;
   try { FLEET.id = (localStorage.getItem('astranov.sid') || crypto.randomUUID()); } catch (_) { FLEET.id = String(Date.now()) + Math.random(); }
@@ -2858,9 +2888,11 @@ function _fleetInit() {
   FLEET.channel.on('broadcast', { event: 'hello' }, ({ payload }) => {
     if (!payload || payload.id === FLEET.id) return;
     FLEET.peers.set(payload.id, { ...payload, last_seen: Date.now() });
+    _alivePillUpdate();
   });
   FLEET.channel.on('broadcast', { event: 'bye' }, ({ payload }) => {
     if (payload?.id) FLEET.peers.delete(payload.id);
+    _alivePillUpdate();
   });
   // Serve inference: if WE have own-mind ready and a peer asks, answer.
   // First responder wins on the requesting side; we only fire if local.
@@ -2896,12 +2928,14 @@ function _fleetInit() {
     }}).catch(()=>{});
   };
   ping();
+  _alivePillUpdate();
   clearInterval(FLEET.pingTimer);
   FLEET.pingTimer = setInterval(() => {
     ping();
     // Evict peers we haven't heard from in 75 s.
     const cutoff = Date.now() - 75_000;
     for (const [id, p] of FLEET.peers) if (p.last_seen < cutoff) FLEET.peers.delete(id);
+    _alivePillUpdate();
   }, 30_000);
   // Polite hangup so peers can drop us instantly.
   window.addEventListener('beforeunload', () => {
