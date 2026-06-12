@@ -3397,6 +3397,9 @@ async function openStellarPanel() {
   // Moon phase: angle Sun→Moon in ecliptic longitude → 0=new, π=full
   const phaseAng = ((moon.ra - sun.ra) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI);
   const phaseFrac= (1 - Math.cos(phaseAng)) / 2; // illuminated fraction proxy
+  // Navigational stars above the horizon right now. Plotted only when
+  // the sun is down (they are invisible to a sextant in daylight).
+  const navStars = aboveHorizon ? [] : _visibleNavStars(lst, lat0);
   openPanel(`
     <h2>Stellar Navigation</h2>
     <p style="color:var(--bone);opacity:0.85">Sextant + sidereal fix from your GPS and live UTC.</p>
@@ -3436,7 +3439,14 @@ async function openStellarPanel() {
           </g>
           <text x="${pP.x + 8}" y="${pP.y - 6}" fill="var(--emerald)" font-size="9" font-family="Quicksand" letter-spacing="1" opacity="0.85">POLARIS</text>
         ` : ''}
-        ${!aboveHorizon && !moonAbove ? `
+        ${navStars.map(s => {
+          const p = _proj(s.altDeg, s.azRad);
+          const r2 = Math.max(1.2, 3.2 - s.mag * 0.8);
+          return `
+          <circle cx="${p.x}" cy="${p.y}" r="${r2}" fill="var(--selene)" opacity="0.9"/>
+          ${s.altDeg > 18 && s.mag < 1.0 ? `<text x="${p.x + 5}" y="${p.y - 4}" fill="var(--selene)" font-size="8" font-family="Inter" opacity="0.6">${s.name}</text>` : ''}`;
+        }).join('')}
+        ${!aboveHorizon && !moonAbove && !navStars.length ? `
           <text x="${cx}" y="${cy+4}" text-anchor="middle" fill="var(--crimson)" font-size="10" letter-spacing="2" opacity="0.7">NIGHT · NO BRIGHT BODY</text>
         ` : ''}
       </svg>
@@ -3457,10 +3467,17 @@ async function openStellarPanel() {
     <h3>Polaris — true north reference</h3>
     <div class="row"><span>Altitude ≈ your latitude</span><span>${altPDeg.toFixed(2)}° vs ${(_userLat ?? 0).toFixed(2)}°</span></div>
     <div class="row"><span>Azimuth (should be ≈ 0°)</span><span>${azPDeg.toFixed(2)}°</span></div>
+    ${navStars.length ? `
+    <h3>Best stars for a fix — now</h3>
+    ${navStars.slice(0, 6).map(s =>
+      `<div class="row"><span>${s.name} <span style="opacity:0.5">mag ${s.mag.toFixed(1)}</span></span><span>${s.altDeg.toFixed(1)}° / ${s.azDeg.toFixed(0)}°</span></div>`
+    ).join('')}
+    <p style="font-size:11px;color:rgba(168,200,238,0.55)">Pick two or three with wide azimuth spread; shoot each with the sextant, note the UTC second.</p>
+    ` : (aboveHorizon ? '<p style="font-size:11px;color:rgba(168,200,238,0.55)">Stars hidden — daylight. The sun line is your fix until dusk.</p>' : '')}
     <p style="font-size:11px;color:rgba(168,200,238,0.55);margin-top:14px">
-      Honest gap: sun + moon (Meeus low-precision) + fixed Polaris. No refraction,
-      nutation or parallax correction yet. Bright-star catalog and Sumner-line intercept
-      method queued for the next cycle.
+      Honest gap: sun + moon (Meeus low-precision) + Polaris + 20 navigational stars
+      (J2000, no precession/refraction/parallax correction — good to ~1°). The
+      Sumner-line intercept method is the remaining queued piece.
     </p>
   `);
 }
@@ -3511,6 +3528,46 @@ function _moonPosition(jd) {
 // Polaris is fixed enough at human time-scales for navigation.
 function _polarisPosition() {
   return { ra: 2.5303 * Math.PI / 12, dec: 89.2641 * Math.PI / 180 };
+}
+// The classic navigational stars (subset of the almanac's 57) —
+// J2000 RA (hours) / Dec (degrees), magnitude. Fixed at human
+// time-scales; precession is ~0.014°/yr, far under our 1° budget.
+const NAV_STARS = [
+  { name: 'Sirius',     ra:  6.7525, dec: -16.7161, mag: -1.46 },
+  { name: 'Canopus',    ra:  6.3992, dec: -52.6957, mag: -0.74 },
+  { name: 'Arcturus',   ra: 14.2610, dec:  19.1825, mag: -0.05 },
+  { name: 'Vega',       ra: 18.6156, dec:  38.7837, mag:  0.03 },
+  { name: 'Capella',    ra:  5.2782, dec:  45.9980, mag:  0.08 },
+  { name: 'Rigel',      ra:  5.2423, dec:  -8.2016, mag:  0.13 },
+  { name: 'Procyon',    ra:  7.6550, dec:   5.2250, mag:  0.34 },
+  { name: 'Achernar',   ra:  1.6286, dec: -57.2368, mag:  0.46 },
+  { name: 'Betelgeuse', ra:  5.9195, dec:   7.4071, mag:  0.50 },
+  { name: 'Altair',     ra: 19.8464, dec:   8.8683, mag:  0.77 },
+  { name: 'Aldebaran',  ra:  4.5987, dec:  16.5093, mag:  0.85 },
+  { name: 'Antares',    ra: 16.4901, dec: -26.4320, mag:  0.96 },
+  { name: 'Spica',      ra: 13.4199, dec: -11.1613, mag:  0.97 },
+  { name: 'Pollux',     ra:  7.7553, dec:  28.0262, mag:  1.14 },
+  { name: 'Fomalhaut',  ra: 22.9608, dec: -29.6222, mag:  1.16 },
+  { name: 'Deneb',      ra: 20.6905, dec:  45.2803, mag:  1.25 },
+  { name: 'Regulus',    ra: 10.1395, dec:  11.9672, mag:  1.36 },
+  { name: 'Castor',     ra:  7.5767, dec:  31.8883, mag:  1.58 },
+  { name: 'Bellatrix',  ra:  5.4188, dec:   6.3497, mag:  1.64 },
+  { name: 'Dubhe',      ra: 11.0621, dec:  61.7510, mag:  1.79 },
+];
+// Stars above the horizon NOW for the given observer, sorted by
+// altitude. Each carries alt/az in degrees ready for the chart.
+function _visibleNavStars(lst, latDeg) {
+  const out = [];
+  for (const s of NAV_STARS) {
+    const ra  = s.ra  * Math.PI / 12;
+    const dec = s.dec * Math.PI / 180;
+    const ha  = lst - ra;
+    const alt = _altitude(dec, ha, latDeg) * 180 / Math.PI;
+    if (alt <= 2) continue;            // skip horizon murk
+    const az = _azimuth(dec, ha, latDeg);
+    out.push({ ...s, altDeg: alt, azRad: az, azDeg: az * 180 / Math.PI });
+  }
+  return out.sort((a, b) => b.altDeg - a.altDeg);
 }
 function _localSiderealTime(jd, lngDeg) {
   const T = (jd - 2451545.0) / 36525;
