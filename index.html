@@ -2378,10 +2378,108 @@ async function openOrderTrack(orderId) {
   const { data: o } = await sb.from('orders').select('*').eq('id', orderId).single();
   if (!o) return toast('Order not found', 'err');
   _renderOrder(o);
-  const ch = sb.channel('order-' + orderId).on('broadcast', { event: 'status' }, ({ payload }) => {
-    if (payload?.order_id === orderId) sb.from('orders').select('*').eq('id', orderId).single().then(({ data }) => data && _renderOrder(data));
-  });
+  // Subscribe to status updates AND live driver position.
+  const ch = sb.channel('order-' + orderId)
+    .on('broadcast', { event: 'status' }, ({ payload }) => {
+      if (payload?.order_id === orderId) sb.from('orders').select('*').eq('id', orderId).single().then(({ data }) => data && _renderOrder(data));
+    })
+    .on('broadcast', { event: 'driver-ping' }, ({ payload }) => {
+      if (payload?.order_id !== orderId) return;
+      _drawDriverPing(orderId, payload.lat, payload.lng, o.delivery_lat, o.delivery_lng);
+    });
   ch.subscribe();
+}
+
+// REAL-TIME DRIVER TRACKING (LAW §11 driver clause, queue #4).
+// Driver position lands as a moving emerald orb on the globe with a
+// thin gold polyline drawn from driver → dropoff. Updates every ping.
+const _driverEntities = new Map();   // orderId → { orb, line }
+function _drawDriverPing(orderId, dLat, dLng, toLat, toLng) {
+  if (!viewer || !Number.isFinite(dLat) || !Number.isFinite(dLng)) return;
+  let rec = _driverEntities.get(orderId);
+  const pos  = Cesium.Cartesian3.fromDegrees(dLng, dLat);
+  if (!rec) {
+    const orb = viewer.entities.add({
+      position: pos,
+      point: {
+        pixelSize: new Cesium.CallbackProperty(() => 14 + 6 * (0.5 + 0.5 * Math.sin(Date.now()/280)), false),
+        color: Cesium.Color.fromCssColorString('#7eebb4'),
+        outlineColor: Cesium.Color.fromCssColorString('#7eebb4').withAlpha(0.45),
+        outlineWidth: 4,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+      label: { text: '◈ driver', font: '600 11px Inter, sans-serif',
+        fillColor: Cesium.Color.fromCssColorString('#cde3ff'),
+        outlineColor: Cesium.Color.fromCssColorString('#020a1c'), outlineWidth: 2,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        pixelOffset: new Cesium.Cartesian2(0, -22),
+        distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 600_000),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+    });
+    let line = null;
+    if (Number.isFinite(toLat) && Number.isFinite(toLng)) {
+      line = viewer.entities.add({
+        polyline: {
+          positions: Cesium.Cartesian3.fromDegreesArray([dLng, dLat, toLng, toLat]),
+          width: 2.5,
+          material: new Cesium.PolylineDashMaterialProperty({
+            color: Cesium.Color.fromCssColorString('#ffd47e').withAlpha(0.8), dashLength: 10,
+          }),
+          clampToGround: true, arcType: Cesium.ArcType.GEODESIC,
+        },
+      });
+    }
+    rec = { orb, line, toLat, toLng };
+    _driverEntities.set(orderId, rec);
+  } else {
+    rec.orb.position = pos;
+    if (rec.line) {
+      rec.line.polyline.positions = Cesium.Cartesian3.fromDegreesArray([dLng, dLat, rec.toLng, rec.toLat]);
+    }
+  }
+}
+function _killDriverTrack(orderId) {
+  const rec = _driverEntities.get(orderId);
+  if (!rec || !viewer) return;
+  try { if (rec.orb)  viewer.entities.remove(rec.orb);  } catch (_) {}
+  try { if (rec.line) viewer.entities.remove(rec.line); } catch (_) {}
+  _driverEntities.delete(orderId);
+}
+
+// DRIVER side — every time advanceDelivery fires the driver's GPS is
+// captured and broadcast on the per-order channel so the customer sees
+// the pin move. We broadcast continuously while there's an active run.
+let _driverPingInterval = 0;
+function _driverPingsStart() {
+  if (_driverPingInterval) return;
+  _driverPingInterval = setInterval(_driverPingsTick, 8_000);
+  _driverPingsTick();
+}
+function _driverPingsStop() {
+  clearInterval(_driverPingInterval); _driverPingInterval = 0;
+}
+async function _driverPingsTick() {
+  if (!session || !profile?.is_owner) return;
+  if (_userLat == null) return;
+  try {
+    const r = await sb.from('deliveries').select('id').eq('runner_id', session.user.id)
+      .in('status', ['accepted','en_route','picked_up']);
+    const active = r.data || []; if (!active.length) { _driverPingsStop(); return; }
+    // Each active delivery → broadcast our GPS on its order channel. We
+    // resolve orderId from the delivery's description prefix ('Order #shortId · …')
+    for (const d of active) {
+      const desc = (d.description || '');
+      const m = desc.match(/^Order\s+([A-Z0-9-]+)/i);
+      if (!m) continue;
+      const { data: o } = await sb.from('orders').select('id').eq('short_id', m[1]).single();
+      if (!o) continue;
+      const ch = sb.channel('order-' + o.id);
+      await ch.subscribe();
+      await ch.send({ type: 'broadcast', event: 'driver-ping', payload: { order_id: o.id, lat: _userLat, lng: _userLng } });
+      ch.unsubscribe();
+    }
+  } catch (_) {}
 }
 function _renderOrder(o) {
   const steps = ['pending', 'accepted', 'preparing', 'in_transit', 'delivered'];
@@ -2481,12 +2579,26 @@ async function openDriverPanel() {
   } catch (_) {}
 }
 async function acceptDelivery(id) {
-  try { const { error } = await sb.rpc('accept_delivery', { delivery_id: id }); if (error) throw error; toast('Accepted', 'ok'); openDriverPanel(); }
-  catch (e) { toast(e.message, 'err'); }
+  try {
+    const { error } = await sb.rpc('accept_delivery', { delivery_id: id });
+    if (error) throw error;
+    toast('Accepted · pings live', 'ok');
+    _driverPingsStart();
+    openDriverPanel();
+  } catch (e) { toast(e.message, 'err'); }
 }
 async function advanceDelivery(id, st) {
-  try { const { error } = await sb.rpc('update_delivery_status', { delivery_id: id, new_status: st }); if (error) throw error; toast(st, 'ok'); openDriverPanel(); }
-  catch (e) { toast(e.message, 'err'); }
+  try {
+    const { error } = await sb.rpc('update_delivery_status', { delivery_id: id, new_status: st });
+    if (error) throw error;
+    toast(st, 'ok');
+    if (st === 'delivered' || st === 'cancelled') {
+      // After delivery, check if any active runs remain.
+      const r = await sb.from('deliveries').select('id').eq('runner_id', session.user.id).in('status', ['accepted','en_route','picked_up']);
+      if (!(r.data || []).length) _driverPingsStop();
+    }
+    openDriverPanel();
+  } catch (e) { toast(e.message, 'err'); }
 }
 
 /* ============================== Wallet ============================== */
