@@ -2565,7 +2565,21 @@ async function openOrderTrack(orderId) {
 // REAL-TIME DRIVER TRACKING (LAW §11 driver clause, queue #4).
 // Driver position lands as a moving emerald orb on the globe with a
 // thin gold polyline drawn from driver → dropoff. Updates every ping.
-const _driverEntities = new Map();   // orderId → { orb, line }
+// The polyline follows REAL roads via OSRM (router.project-osrm.org) so
+// the customer sees the driver curling through streets, not cutting
+// across buildings. Falls back to a straight geodesic if OSRM is down.
+const _driverEntities = new Map();   // orderId → { orb, line, routedKey, routing }
+async function _osrmRoute(fromLng, fromLat, toLng, toLat) {
+  const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`;
+  const r = await fetch(url, { mode: 'cors' });
+  if (!r.ok) throw new Error('OSRM ' + r.status);
+  const j = await r.json();
+  const coords = j?.routes?.[0]?.geometry?.coordinates;
+  if (!Array.isArray(coords) || coords.length < 2) throw new Error('OSRM no route');
+  const flat = [];
+  for (const c of coords) { flat.push(c[0], c[1]); }
+  return flat;
+}
 function _drawDriverPing(orderId, dLat, dLng, toLat, toLng) {
   if (!viewer || !Number.isFinite(dLat) || !Number.isFinite(dLng)) return;
   let rec = _driverEntities.get(orderId);
@@ -2594,20 +2608,34 @@ function _drawDriverPing(orderId, dLat, dLng, toLat, toLng) {
       line = viewer.entities.add({
         polyline: {
           positions: Cesium.Cartesian3.fromDegreesArray([dLng, dLat, toLng, toLat]),
-          width: 2.5,
+          width: 3,
           material: new Cesium.PolylineDashMaterialProperty({
-            color: Cesium.Color.fromCssColorString('#ffd47e').withAlpha(0.8), dashLength: 10,
+            color: Cesium.Color.fromCssColorString('#ffd47e').withAlpha(0.85), dashLength: 12,
           }),
           clampToGround: true, arcType: Cesium.ArcType.GEODESIC,
         },
       });
     }
-    rec = { orb, line, toLat, toLng };
+    rec = { orb, line, toLat, toLng, routedKey: null, routing: false };
     _driverEntities.set(orderId, rec);
   } else {
     rec.orb.position = pos;
-    if (rec.line) {
-      rec.line.polyline.positions = Cesium.Cartesian3.fromDegreesArray([dLng, dLat, rec.toLng, rec.toLat]);
+  }
+  // OSRM road-following route. Re-fetch when the driver has moved
+  // >120 m from the last routed origin (cheap budget guard). Falls back
+  // silently to whatever positions the polyline currently holds.
+  if (rec.line && Number.isFinite(rec.toLat) && Number.isFinite(rec.toLng) && !rec.routing) {
+    const key = `${dLat.toFixed(3)},${dLng.toFixed(3)}→${rec.toLat.toFixed(4)},${rec.toLng.toFixed(4)}`;
+    if (key !== rec.routedKey) {
+      rec.routing = true;
+      _osrmRoute(dLng, dLat, rec.toLng, rec.toLat)
+        .then(flat => {
+          if (!_driverEntities.has(orderId)) return;
+          rec.line.polyline.positions = Cesium.Cartesian3.fromDegreesArray(flat);
+          rec.routedKey = key;
+        })
+        .catch(() => { /* keep straight line — better than nothing */ })
+        .finally(() => { rec.routing = false; });
     }
   }
 }
