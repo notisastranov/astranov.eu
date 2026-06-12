@@ -2718,7 +2718,99 @@ function openOnboarding() {
   render();
 }
 
-/* ============================== Profile editor ============================== */
+/* ============================== Compute fleet — §26 #1 ============================== */
+// Browser-device pooling MVP. Every device with WebGPU and an active
+// own-mind announces itself on a 'fleet:compute' Realtime channel.
+// Discovery only in this cycle; routing tasks across devices arrives
+// next. The DeBug ORB / compute-donation reward (13 AVC per device-hour)
+// is the economic spine and lives in the queue.
+const FLEET = {
+  id: null,         // per-tab id
+  channel: null,
+  peers: new Map(), // peerId → { gpu, model, last_seen, lat, lng }
+  pingTimer: 0,
+};
+function _fleetInit() {
+  if (!sb) return;
+  try { FLEET.id = (localStorage.getItem('astranov.sid') || crypto.randomUUID()); } catch (_) { FLEET.id = String(Date.now()) + Math.random(); }
+  try { FLEET.channel?.unsubscribe(); } catch (_) {}
+  FLEET.channel = sb.channel('fleet:compute', { config: { broadcast: { ack: false } } });
+  FLEET.channel.on('broadcast', { event: 'hello' }, ({ payload }) => {
+    if (!payload || payload.id === FLEET.id) return;
+    FLEET.peers.set(payload.id, { ...payload, last_seen: Date.now() });
+  });
+  FLEET.channel.on('broadcast', { event: 'bye' }, ({ payload }) => {
+    if (payload?.id) FLEET.peers.delete(payload.id);
+  });
+  FLEET.channel.subscribe();
+  // Announce ourselves once and every 30 s. Includes own-mind status so
+  // a fleet that knows what each node CAN do can route work later.
+  const ping = () => {
+    if (!FLEET.channel) return;
+    FLEET.channel.send({ type: 'broadcast', event: 'hello', payload: {
+      id: FLEET.id,
+      gpu: localBrainSupported(),
+      own_mind: !!_localReady,
+      model: _localReady ? LOCAL_MODEL : null,
+      lat: _userLat, lng: _userLng,
+      ts: Date.now(),
+    }}).catch(()=>{});
+  };
+  ping();
+  clearInterval(FLEET.pingTimer);
+  FLEET.pingTimer = setInterval(() => {
+    ping();
+    // Evict peers we haven't heard from in 75 s.
+    const cutoff = Date.now() - 75_000;
+    for (const [id, p] of FLEET.peers) if (p.last_seen < cutoff) FLEET.peers.delete(id);
+  }, 30_000);
+  // Polite hangup so peers can drop us instantly.
+  window.addEventListener('beforeunload', () => {
+    try { FLEET.channel?.send({ type: 'broadcast', event: 'bye', payload: { id: FLEET.id } }); } catch (_) {}
+  });
+}
+
+async function openFleetPanel() {
+  const me = { id: FLEET.id, gpu: localBrainSupported(), own_mind: !!_localReady, model: _localReady ? LOCAL_MODEL : null };
+  const peers = [...FLEET.peers.values()];
+  const gpuPeers = peers.filter(p => p.gpu).length;
+  const mindPeers = peers.filter(p => p.own_mind).length;
+  openPanel(`
+    <h2>Compute fleet</h2>
+    <p style="color:var(--bone);opacity:0.85">§26 — Plural substrate. Every open AstranoV tab is a node. Discovery is live; cross-device task routing lands in the next cycle.</p>
+    <div style="display:flex;gap:10px;margin:14px 0;flex-wrap:wrap">
+      <div style="flex:1;min-width:140px;padding:14px;border-radius:14px;background:rgba(74,166,255,0.10);border:1px solid rgba(74,166,255,0.35)">
+        <div style="font-family:'Quicksand',sans-serif;font-weight:700;letter-spacing:0.16em;font-size:11px;color:var(--aegean);text-transform:uppercase">Nodes online</div>
+        <div style="font-size:28px;margin-top:6px;font-variant-numeric:tabular-nums">${1 + peers.length}</div>
+        <div style="font-size:11px;color:rgba(168,200,238,0.6)">you + ${peers.length} other</div>
+      </div>
+      <div style="flex:1;min-width:140px;padding:14px;border-radius:14px;background:rgba(126,235,180,0.10);border:1px solid rgba(126,235,180,0.35)">
+        <div style="font-family:'Quicksand',sans-serif;font-weight:700;letter-spacing:0.16em;font-size:11px;color:var(--emerald);text-transform:uppercase">WebGPU capable</div>
+        <div style="font-size:28px;margin-top:6px;font-variant-numeric:tabular-nums">${(me.gpu ? 1 : 0) + gpuPeers}</div>
+        <div style="font-size:11px;color:rgba(168,200,238,0.6)">can run own mind</div>
+      </div>
+      <div style="flex:1;min-width:140px;padding:14px;border-radius:14px;background:rgba(255,212,126,0.10);border:1px solid rgba(255,212,126,0.35)">
+        <div style="font-family:'Quicksand',sans-serif;font-weight:700;letter-spacing:0.16em;font-size:11px;color:var(--gold);text-transform:uppercase">Own-mind active</div>
+        <div style="font-size:28px;margin-top:6px;font-variant-numeric:tabular-nums">${(me.own_mind ? 1 : 0) + mindPeers}</div>
+        <div style="font-size:11px;color:rgba(168,200,238,0.6)">weights loaded</div>
+      </div>
+    </div>
+    <h3>This device</h3>
+    <div class="row"><span>WebGPU</span><span>${me.gpu ? '✓ available' : '✕ not supported'}</span></div>
+    <div class="row"><span>Own mind</span><span>${me.own_mind ? '✓ ' + escapeHtml(me.model || '') : '✕ not loaded'}</span></div>
+    ${!me.own_mind && me.gpu ? `<button class="pbtn ok" onclick="enableLocalBrain(false); closePanel();" style="margin-top:8px">Bring my own mind online</button>` : ''}
+    <h3>Other nodes</h3>
+    ${peers.length ? peers.map(p => `
+      <div class="row" style="font-variant-numeric:tabular-nums">
+        <span>◈ node ${escapeHtml(String(p.id).slice(0,8))}</span>
+        <span style="color:${p.own_mind ? 'var(--emerald)' : p.gpu ? 'var(--gold)' : 'var(--bone)'}">${p.own_mind ? 'own-mind ✓' : p.gpu ? 'gpu ready' : 'cpu'}</span>
+      </div>
+    `).join('') : '<p style="color:rgba(168,200,238,0.6)">No other nodes online right now. Open AstranoV in a second tab to see the fleet grow.</p>'}
+    <p style="font-size:11px;color:rgba(168,200,238,0.55);margin-top:14px">
+      Apple silicon does not talk to non-Apple silicon by design. Our fleet talks to anything that runs a browser. That is the §26 advantage made visible.
+    </p>
+  `);
+}
 // Your face on the globe. Display name + bio + map visibility +
 // availability status. Edits land in public.profiles via direct UPDATE
 // (auth.uid() must equal id by RLS).
@@ -3351,6 +3443,7 @@ function routeLocal(raw) {
   if (/\b(krypteia|audit|surveillance|κρυπτεία)\b/.test(t))                        { _routedFire('Silent audit · §26 single-provider cap.', openKrypteiaPanel); return true; }
   if (/\b(profile|me|myself|προφίλ|προφιλ)\b/.test(t))                              { _routedFire('Your profile.', openProfilePanel); return true; }
   if (/\b(welcome|intro|tour|onboard|καλωσόρισμα)\b/.test(t))                       { try { localStorage.removeItem('astranov.onboarded'); } catch(_) {} _routedFire('Tour reset.', openOnboarding); return true; }
+  if (/\b(fleet|pool|compute|mesh|στόλος)\b/.test(t))                                { _routedFire('Compute fleet · §26 #1.', openFleetPanel); return true; }
   if (/\b(own\s*mind|own\s*brain|local\s*brain|μυαλό)\b/.test(t))                  { enableLocalBrain(false); return true; }
   if (/\b(crawl|sweep|grow|populate|σάρωσ)\b/.test(t))                              { _routedFire('Brain steering the crawler…', () => brainCrawl(raw)); return true; }
   if (/\b(develop|roadmap|queue|build next|ανάπτυξη)\b/.test(t))                    { _routedFire('Opening the development queue.', openDevelopPanel); return true; }
@@ -3510,6 +3603,7 @@ window.addEventListener('load', () => {
   setInterval(refreshPeerOrbs, 25_000);
   setInterval(refreshCircleShapes, 60_000);
   setTimeout(_brainHeartbeat, 2500);
+  setTimeout(_fleetInit, 3500);
   maybeShowOnboarding();
   // Own mind: resume automatically if the user enabled it before (weights
   // are already in the browser cache, so this is fast on revisit).
