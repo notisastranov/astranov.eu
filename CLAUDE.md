@@ -32,7 +32,12 @@ the frontend. Backend = Supabase (`lkoatrkhuigdolnjsbie`):
   `admin_transfer_avc_to_eur`, `order_debit_eur`, `order_refund_eur`,
   `my_avc_transactions`, `set_home_location`, `match_memories`,
   `cosmos_stats`, `brain_stats`, `recent_aicycle_calls`,
-  `bump_signal_amplitude`, `is_owner`, `is_circle_member`.
+  `bump_signal_amplitude`, `is_owner`, `is_circle_member`,
+  `vendor_advance_order`, `knowledge_search`, `development_queue`,
+  `governance_state`, `heartbeat`, `usage_stats`, `provider_share`.
+- **Storage buckets**: `vendor-photos` (public read; authenticated
+  upload scoped by RLS to the uploader's own `{uid}/` folder; 5 MB,
+  image MIME only), `debug-pub`.
 - **Edge Functions** (Deno): `aicycle` (the brain), `debug-credit`,
   `order-intake`, `order-status`, `vendor-menu`, `informant-feed`,
   `crawl`, `payments`, `stripe-webhook`, `revolut`, `revolut-webhook`,
@@ -418,6 +423,31 @@ dropoff coords from the order. `reward_avc` defaults to the order's
 `delivery_fee`. This closes the marketplace ↔ driver loop without any
 client change — place an order, the driver panel sees it immediately.
 
+**Vendor order desk.** The third corner of the order loop. `order
+desk` / `my business` in chat opens a live desk listing every open
+order across all vendors the user owns. Accept (pending→accepted),
+Start preparing (accepted→preparing) and Cancel (only before food
+moves) call the SECURITY DEFINER `vendor_advance_order` RPC, which
+verifies `vendors.owner_id = auth.uid()` server-side and enforces
+lawful transitions. Vendor owners have a SELECT policy on the
+orders addressed to them. Every advance broadcasts `status` on
+`order-{id}` so the customer's tracker repaints live.
+
+**Vendor photo upload.** The menu editor's "📷 Shoot / pick" button
+opens the phone camera (`capture=environment`), downscales the shot
+client-side to ≤1280 px WebP (JPEG fallback) via canvas, uploads to
+the `vendor-photos` bucket and drops the public URL into the photo
+field. A pasted URL still works. §11 honesty applies: real photos
+of the actual goods, always.
+
+**Driver tracking + ETA.** While a delivery runs, the driver's GPS
+broadcasts on `order-{id}` every 8 s. The customer sees a moving
+emerald orb plus a gold dashed polyline that follows REAL roads via
+OSRM (`router.project-osrm.org`), re-routed only after the driver
+moves >120 m. The same OSRM response feeds the live ETA card on the
+order panel: distance, minutes, arrival clock. OSRM down → straight
+geodesic line, never a blank.
+
 **Money.** EUR everywhere in the UI. AVC = €1 internal accounting unit.
 A 3 % Orbital License royalty is booked server-side on every top-up;
 the user receives the full amount. Money RPCs (`credit_eur`,
@@ -631,6 +661,20 @@ text is one tap away. Restoration without misattribution.
 "Tell me about Plato" → opens the Agora at Plato; if missing,
 "Add a topic" triggers the brain-classified crawl.
 
+**The brain reaches into the Agora.** Every chat send is pattern-
+matched against a broad ancient-Greek vocabulary (EN + EL). On
+match, the top 3 `knowledge` rows are injected into the brain's
+prompt as an `[AGORA CONTEXT]` block (quote conservatively, name
+the source numbers, never launder), and bone-tinted citation chips
+`[n] Title` render under the reply — one tap opens the entry.
+
+**Agora anchors on the globe.** Opening the Agora drops bone ◈
+pins at REAL coordinates from the `AGORA_ANCHORS` dictionary
+(Acropolis for Athena, Delphi for Apollo, Stagira for Aristotle,
+Samos for Pythagoras, …). §11 applies to knowledge too: topics
+without a known canonical anchor stay unpinned — never invent a
+location. Anchors clear on every panel swap.
+
 **Council + autonomy.** Per §19, growing the agora is a
 law-compliant task — Astranov fills it by her own will. The
 council weighs new categories beyond gods/mythology/philosophy/
@@ -729,8 +773,14 @@ Chat shortcuts `stellar` / `sextant` / `navigation` / `αστερισμ` /
 `ναυτιλ` summon the celestial-fix panel. Computes from the user's
 GPS + live UTC: Julian date, local sidereal time, sun right
 ascension + declination (Meeus chapter 25), apparent altitude +
-azimuth. Honest gap printed in the panel — simplified sun-only fix;
-real ocean navigation needs the full almanac and additional bodies.
+azimuth. The SVG planisphere also plots the Moon (Meeus chapter 47
+simplified, illumination by phase), Polaris (the two-line true-north
+check: altitude ≈ latitude, azimuth ≈ 0°) and, at night, 20
+navigational stars (J2000 RA/Dec, sized by magnitude) with a "Best
+stars for a fix — now" table of the top 6 by altitude. Honest gap
+printed in the panel — low-precision, no refraction / nutation /
+parallax (~1°); the Sumner-line intercept method is the remaining
+queued piece.
 
 ## 26. The collective-substrate doctrine
 
@@ -762,6 +812,13 @@ as standing orders (entered into the roadmap with source =
    per device-hour) is the economic spine. Apple silicon cannot
    talk to non-Apple silicon by design; our fleet talks to
    anything that runs a browser.
+   *Shipped so far:* every tab announces on the `fleet:compute`
+   Realtime channel (hello / bye / 30 s ping, 75 s eviction);
+   `callBrain()` tries `_fleetAskPeers()` between the local own
+   mind and the rented organs — a peer with weights loaded answers
+   inference for a peer without (9 s budget, first responder wins).
+   The ALIVE pill under the wordmark shows the live node count;
+   tap = fleet panel.
 
 2. **Single-provider cap.** No rented organ may exceed 60% of
    monthly token volume. Mechanical sovereignty: if any one
