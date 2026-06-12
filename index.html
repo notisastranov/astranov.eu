@@ -3037,6 +3037,32 @@ async function voteRoadmap(id) {
   catch (e) { toast(e.message, 'err'); }
 }
 
+// Krypteia panel — the silent-audit seat made visible. Shows the
+// 30-day provider distribution against §26's 60% single-provider cap.
+async function openKrypteiaPanel() {
+  openPanel(`<h2>Krypteia — silent audit</h2><p style="color:var(--bone);opacity:0.8">30-day rented-organ token share. §26 caps any one provider at 60% of monthly volume — mechanical sovereignty.</p><div id="kr-list">Loading…</div>`);
+  try {
+    const r = await sb.rpc('provider_share', { days: 30 });
+    const rows = (r.data || []).filter(x => x.provider !== 'astranov');
+    if (!rows.length) { $('kr-list').innerHTML = '<p>No rented-organ activity yet.</p>'; return; }
+    $('kr-list').innerHTML = rows.map(x => {
+      const pct = Number(x.pct) || 0;
+      const over = pct > 60;
+      const fill = Math.min(100, pct);
+      return `
+        <div class="row" style="border-bottom:1px solid rgba(74,166,255,0.10);padding:10px 0">
+          <span style="flex:1">
+            <div style="font-weight:600;color:${over ? 'var(--crimson)' : 'var(--selene)'}">${escapeHtml(x.provider)}</div>
+            <div style="height:6px;background:rgba(74,166,255,0.12);border-radius:3px;margin-top:6px;overflow:hidden">
+              <div style="height:100%;width:${fill}%;background:${over ? 'var(--crimson)' : 'var(--aegean)'}"></div>
+            </div>
+          </span>
+          <span style="font-variant-numeric:tabular-nums;color:${over ? 'var(--crimson)' : 'var(--selene)'};font-weight:600">${x.pct}%</span>
+        </div>`;
+    }).join('');
+  } catch (e) { $('kr-list').textContent = 'Failed: ' + e.message; }
+}
+
 async function runDiag() {
   const lines = [];
   lines.push(_localReady
@@ -3073,6 +3099,18 @@ async function runDiag() {
     const r = await sb.from('knowledge').select('id', { count: 'exact', head: true });
     lines.push(`◈ AGORA ✓ ${r.count ?? 0} entries`);
   } catch (e) { lines.push('◆ AGORA ✕ ' + e.message); }
+  // §26 #2 — single-provider cap. Surface if any organ crosses 60%.
+  try {
+    const r = await sb.rpc('provider_share', { days: 30 });
+    const rows = r.data || [];
+    const top = rows[0];
+    if (top) {
+      const over = rows.find(x => x.provider !== 'astranov' && Number(x.pct) > 60);
+      lines.push(over
+        ? `◆ SOVEREIGNTY ✕ ${escapeHtml(over.provider)} at ${over.pct}% (cap 60%) — diversify`
+        : `◈ SOVEREIGNTY ✓ top organ ${escapeHtml(top.provider)} ${top.pct}%`);
+    }
+  } catch (_) {}
   try {
     const g = await sb.rpc('governance_state');
     const st = (g.data || [])[0];
@@ -3112,6 +3150,7 @@ function routeLocal(raw) {
     return true;
   }
   if (/\b(diag|diagnose|status|smoke|τεστ)\b/.test(t))                            { _routedFire('Probing the pillars…', runDiag); return true; }
+  if (/\b(krypteia|audit|surveillance|κρυπτεία)\b/.test(t))                        { _routedFire('Silent audit · §26 single-provider cap.', openKrypteiaPanel); return true; }
   if (/\b(own\s*mind|own\s*brain|local\s*brain|μυαλό)\b/.test(t))                  { enableLocalBrain(false); return true; }
   if (/\b(crawl|sweep|grow|populate|σάρωσ)\b/.test(t))                              { _routedFire('Brain steering the crawler…', () => brainCrawl(raw)); return true; }
   if (/\b(develop|roadmap|queue|build next|ανάπτυξη)\b/.test(t))                    { _routedFire('Opening the development queue.', openDevelopPanel); return true; }
