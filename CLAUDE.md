@@ -372,20 +372,39 @@ may still populate `vendors` rows, but those rows wait silently
 until a real menu with photos is published.
 
 **NO FABRICATED INVENTORY.** The programmer NEVER seeds, invents,
-mocks, or synthesises vendor names, menus, prices, or photos.
-Every vendor on the globe is REAL — either crawled from OSM with
-real metadata, or published by its real owner inside AstranoV. If
-the map is empty in a city, the map is honestly empty until a real
-vendor publishes. Stock photos attached to invented business names
-are a violation of Foundation #7 (never deceive). Earned the hard
-way: a previous turn seeded four fabricated Athens vendors with
-Unsplash photos; the architect saw fakes; they were purged. Never
-again.
+mocks, or synthesises vendor names, menus, prices, photos, OR
+DRIVER PERSONAS. Every vendor on the globe is REAL — either
+crawled from OSM with real metadata, or published by its real
+owner inside AstranoV. Every driver name on an order is a real
+runner who accepted the delivery — until then `driver_name` and
+`driver_emoji` are NULL, never a randomly-chosen "Stavros 🚴".
+If the map is empty in a city, the map is honestly empty until a
+real vendor publishes. Stock photos attached to invented business
+names are a violation of Foundation #7 (never deceive). Earned
+the hard way twice: first a turn seeded four fabricated Athens
+vendors with Unsplash photos; later, order-intake was stamping
+every paid order with a random fictional courier. The architect
+saw the fakes both times; both were purged. The rule is permanent:
+no fabricated person, no fabricated price, no fabricated photo.
 
 **Royalty.** 3% on every transaction (delivery orders, top-ups,
-vendor settlements). `PRICING.platform_fee_pct = 0.03`. The number
-appears once in the client and once server-side; the architect is
-the only one who may change it.
+vendor settlements). `PRICING.platform_fee_pct = 0.03` client-side
+AND `PLATFORM_FEE_PCT = 0.03` in order-intake. The number appears
+in TWO places — client and server — and they must always match.
+If they ever disagree, the server number is the authority and the
+client is the bug. Earned the hard way: order-intake silently
+charged 5% while the client displayed 3% for weeks. The architect
+is the only one who may change either side; both move in the same
+commit.
+
+**Delivery fee is server-validated, not server-decided.** The
+client computes the lawful fee from `computeDeliveryFee()` — €1/km
+haversine × night × long-haul × surge, clamped to `surge_max =
+2.50`. order-intake re-runs the €1/km haversine base and accepts
+the client's fee only inside `[base, base × 3.75]`; outside the
+band it clamps to the recomputed base. The server never silently
+substitutes a flat €3 — earned the hard way: it once did, and
+every fare multiplier vanished between checkout and the ledger.
 
 **Crawlers evolve through the brain.** The user names a goal in plain
 language; OUR BRAIN (own mind first, organs second) decides the
