@@ -3226,6 +3226,11 @@ async function vendorMenuAdd(vendorId) {
 // advance we broadcast 'status' on the order channel so the customer's
 // tracker repaints live.
 let _vendorOrdersTimer = 0;
+const _vendorOrderChannels = [];
+function _vendorOrdersUnlisten() {
+  for (const ch of _vendorOrderChannels) { try { ch.unsubscribe(); } catch (_) {} }
+  _vendorOrderChannels.length = 0;
+}
 async function openVendorOrders() {
   if (!session) return openAuthPanel();
   openPanel(`
@@ -3236,9 +3241,25 @@ async function openVendorOrders() {
   clearInterval(_vendorOrdersTimer);
   _vendorOrdersTimer = setInterval(() => {
     if (document.getElementById('vo-list')) _vendorOrdersRefresh();
-    else clearInterval(_vendorOrdersTimer);
+    else { clearInterval(_vendorOrdersTimer); _vendorOrdersUnlisten(); }
   }, 20_000);
   _vendorOrdersRefresh();
+  // Instant pings: order-intake broadcasts new_order on the per-vendor
+  // channel the moment a customer pays. Subscribe for every vendor we
+  // own; the 20 s poll stays as the safety net.
+  _vendorOrdersUnlisten();
+  try {
+    const mv = await sb.from('vendors').select('id').eq('owner_id', session.user.id);
+    for (const v of (mv.data || [])) {
+      const ch = sb.channel('vendor-orders-' + v.id)
+        .on('broadcast', { event: 'new_order' }, () => {
+          toast('◈ New order', 'ok');
+          _vendorOrdersRefresh();
+        });
+      ch.subscribe();
+      _vendorOrderChannels.push(ch);
+    }
+  } catch (_) {}
 }
 async function _vendorOrdersRefresh() {
   const out = document.getElementById('vo-list'); if (!out) return;
