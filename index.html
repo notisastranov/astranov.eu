@@ -1089,23 +1089,22 @@ try {
      post-construction lang changes.
    - One greeting, ever. _speakReply is the only path for chat replies.
 */
-// ALWAYS-ON listener (LAW). Two recognizers run in parallel — one
-// English (en-US), one Greek (el-GR). Architect's order: detect EN +
-// EL immediately, ignore everything else. Whichever recognizer
-// produces a final transcript whose script matches its language wins
-// the turn; the other is silently ignored. If a browser cannot host
-// two simultaneous recognizers we degrade gracefully to a single
-// language-toggling recognizer.
+// ALWAYS-ON listener (LAW). ONE recognizer at a time — restarting two
+// in parallel made browsers beep on every cycle AND eat Astranov's
+// own TTS. Single SR with auto-toggle (en-US ↔ el-GR) based on the
+// last detected script. While TTS is speaking, the mic is STOPPED
+// (the brain cannot hear herself) and resumes when she finishes.
 const VOICE = {
   state: 'idle',            // 'idle' | 'listening' | 'speaking'
-  recognizers: { en: null, el: null },
-  langOverride: null,       // 'el' | 'en' | null
+  recognition: null,
+  recognitionLang: null,    // 'el-GR' | 'en-US'
+  langOverride: null,       // 'el' | 'en' | null (chat-command lock)
   greeted: false,
   currentTurn: 0,
-  alwaysOn: true,           // unmute = true; tap orb to flip
-  voiceTurnPending: false,  // set when SR auto-submits, drives Spartan
-  dualFailed: false,        // flips true if either recognizer cannot coexist
-  lastFinalAt: 0,           // dedupe near-simultaneous winners
+  alwaysOn: true,
+  voiceTurnPending: false,
+  lastFinalAt: 0,
+  pausedForTTS: false,      // we deliberately stopped SR while speaking
 };
 
 function _isGreek(s) { return /[Ͱ-Ͽἀ-῿]/.test(String(s || '')); }
@@ -1153,24 +1152,36 @@ function ttsSpeak(text) {
   const v = _voiceForLang(lang); if (v) u.voice = v;
   u.lang = lang === 'el' ? 'el-GR' : (u.voice?.lang || 'en-US');
   u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
+  // Stop the recognizer BEFORE we speak so we don't hear ourselves and
+  // beep on every restart. We'll resume after the utterance ends.
+  _srPauseForTTS();
   u.onstart = () => { VOICE.state = 'speaking'; _listenOrbState(); };
-  u.onend   = () => { if (VOICE.state === 'speaking') VOICE.state = 'idle'; _listenOrbState(); };
-  u.onerror = () => { if (VOICE.state === 'speaking') VOICE.state = 'idle'; _listenOrbState(); };
+  u.onend   = () => { if (VOICE.state === 'speaking') VOICE.state = 'idle'; _listenOrbState(); _srResumeAfterTTS(); };
+  u.onerror = () => { if (VOICE.state === 'speaking') VOICE.state = 'idle'; _listenOrbState(); _srResumeAfterTTS(); };
   try { speechSynthesis.speak(u); } catch (_) {}
 }
 
-function _srBuildLang(langCode) {
+function _ttsBusy() { return speechSynthesis.speaking || speechSynthesis.pending; }
+
+function _srBuild() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return null;
   const r = new SR();
   r.continuous = true;
   r.interimResults = true;
-  r.lang = langCode === 'el' ? 'el-GR' : 'en-US';
-  r.__lang = langCode;
-  // BARGE-IN works regardless of which recognizer caught the speech.
-  r.onspeechstart = () => { if (VOICE.state === 'speaking') ttsCancel(); };
+  const lang = VOICE.langOverride || _pickLang();
+  VOICE.recognitionLang = lang === 'el' ? 'el-GR' : 'en-US';
+  r.lang = VOICE.recognitionLang;
+  r.onspeechstart = () => {
+    // Drop barge-in entirely while WE are speaking — what the mic
+    // hears is our own TTS, not the user. Avoids the feedback loop
+    // that the architect named.
+    if (VOICE.state === 'speaking' || _ttsBusy()) return;
+  };
   r.onresult = (evt) => {
-    if (VOICE.state === 'speaking') ttsCancel();
+    // Same rule for results: if our TTS is playing, the recognizer is
+    // hearing US. Drop the transcript silently.
+    if (VOICE.state === 'speaking' || _ttsBusy()) return;
     let finalText = '';
     for (let i = evt.resultIndex; i < evt.results.length; i++) {
       const res = evt.results[i];
@@ -1178,92 +1189,86 @@ function _srBuildLang(langCode) {
     }
     finalText = (finalText || '').trim();
     if (finalText.length < 2) return;
-    // Decide which recognizer wins this utterance: the one whose
-    // language matches the produced script. If the en-US recognizer
-    // produces Greek text or the el-GR recognizer produces Latin
-    // text, we drop it — let the matching recognizer's result land.
-    const isGreek = _isGreek(finalText);
-    const matches = (langCode === 'el' && isGreek) || (langCode === 'en' && !isGreek);
-    if (!matches && !VOICE.dualFailed) return;
-    // Dedupe near-simultaneous wins from both recognizers.
+    // Auto-toggle language for the NEXT start based on what the user
+    // actually said: Greek script → flip to el-GR; Latin → en-US.
+    VOICE.langOverride = _isGreek(finalText) ? 'el' : 'en';
     const now = Date.now();
     if (now - VOICE.lastFinalAt < 600) return;
     VOICE.lastFinalAt = now;
-    VOICE.langOverride = langCode;
     VOICE.voiceTurnPending = true;
     $('chat-input').value = finalText;
     $('chat-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
   };
   r.onend = () => {
-    if (VOICE.alwaysOn) setTimeout(() => _srStartLang(langCode), 250);
+    VOICE.state = 'idle'; _listenOrbState();
+    // Do NOT restart while we are speaking — would re-trigger Chrome's
+    // recognition-start beep AND feed our own audio back in.
+    if (VOICE.alwaysOn && !VOICE.pausedForTTS && !_ttsBusy()) {
+      setTimeout(_srStart, 700);
+    }
   };
   r.onerror = (e) => {
+    VOICE.state = 'idle'; _listenOrbState();
     const err = e?.error || '';
     if (err === 'not-allowed') {
       VOICE.alwaysOn = false; _listenOrbState();
       toast('Mic blocked — tap the green orb to grant permission', 'err');
       return;
     }
-    if (err === 'language-not-supported' || err === 'service-not-allowed') {
-      VOICE.recognizers[langCode] = 'unsupported';
-      console.warn('[voice]', langCode, 'unsupported on this browser');
+    if (err === 'language-not-supported') {
+      // Fallback to en-US once and keep going.
+      VOICE.langOverride = 'en';
+      if (VOICE.alwaysOn) setTimeout(_srStart, 600);
       return;
     }
-    if (err === 'audio-capture' && VOICE.recognizers.en && VOICE.recognizers.el && !VOICE.dualFailed) {
-      // Two recognizers cannot share the mic on this browser — degrade
-      // gracefully to ONE recognizer that toggles language per turn.
-      VOICE.dualFailed = true;
-      console.warn('[voice] dual recognition unsupported — falling back to single recognizer with auto-toggle');
-      const drop = langCode === 'en' ? 'en' : 'el';
-      const k = VOICE.recognizers[drop]; if (k && k !== 'unsupported') { try { k.abort(); } catch (_) {} }
-      VOICE.recognizers[drop] = 'fallback';
-      return;
-    }
-    if (VOICE.alwaysOn) setTimeout(() => _srStartLang(langCode), 800);
+    if (VOICE.alwaysOn && !_ttsBusy()) setTimeout(_srStart, 1200);
   };
   return r;
 }
 
-function _srStartLang(langCode) {
+function _srStart() {
   if (!VOICE.alwaysOn) return;
-  if (VOICE.recognizers[langCode] === 'unsupported') return;
-  // In single-recognizer fallback mode, only run the language that matches
-  // the current preference (toggles based on the last detected script).
-  if (VOICE.dualFailed) {
-    const prefer = VOICE.langOverride || _pickLang();
-    if (langCode !== prefer) return;
-  }
-  VOICE.recognizers[langCode] = _srBuildLang(langCode);
-  const r = VOICE.recognizers[langCode];
-  if (!r) return;
+  if (_ttsBusy()) { setTimeout(_srStart, 400); return; }
+  // If a recognizer is already listening in the right language, keep it.
+  const wantLang = (VOICE.langOverride || _pickLang()) === 'el' ? 'el-GR' : 'en-US';
+  if (VOICE.recognition && VOICE.state === 'listening' && VOICE.recognitionLang === wantLang) return;
+  // Otherwise (wrong language or none), tear down and start fresh.
+  if (VOICE.recognition) { try { VOICE.recognition.abort(); } catch (_) {} VOICE.recognition = null; }
+  VOICE.recognition = _srBuild();
+  if (!VOICE.recognition) return;
   try {
-    r.start();
+    VOICE.recognition.start();
     VOICE.state = 'listening';
+    VOICE.pausedForTTS = false;
     _listenOrbState();
   } catch (_) {
-    setTimeout(() => _srStartLang(langCode), 400);
+    try { VOICE.recognition.abort(); } catch (_) {}
+    setTimeout(_srStart, 600);
   }
 }
 
-function _srStartContinuous() {
-  if (!VOICE.alwaysOn) return;
-  // Start BOTH recognizers in parallel — EN + EL, racing for every
-  // utterance. Architect's order: scan both immediately.
-  _srStartLang('en');
-  _srStartLang('el');
+function _srPauseForTTS() {
+  if (!VOICE.recognition) return;
+  VOICE.pausedForTTS = true;
+  try { VOICE.recognition.stop(); } catch (_) {}
+  VOICE.state = 'idle';
+  _listenOrbState();
+}
+
+function _srResumeAfterTTS() {
+  VOICE.pausedForTTS = false;
+  // Speaker decay + audio echo can briefly trigger SR — wait 500 ms.
+  if (VOICE.alwaysOn) setTimeout(_srStart, 500);
 }
 
 function micToggle() {
   ttsCancel();
   VOICE.alwaysOn = !VOICE.alwaysOn;
   if (VOICE.alwaysOn) {
-    _srStartContinuous();
-    toast('Listening · EN + EL');
+    _srStart();
+    toast('Listening · EN ↔ EL');
   } else {
-    for (const k of ['en','el']) {
-      const r = VOICE.recognizers[k];
-      if (r && r !== 'unsupported' && r !== 'fallback') { try { r.stop(); } catch (_) {} }
-    }
+    if (VOICE.recognition) { try { VOICE.recognition.stop(); } catch (_) {} }
     VOICE.state = 'idle';
     toast('Mic muted', '');
   }
@@ -2803,7 +2808,7 @@ window.addEventListener('load', () => {
   $('listen-orb').addEventListener('click', micToggle);
   // Always-on recognition starts ~1.5 s after boot (after permissions
   // are warmed). If the user denied mic, the orb flips to MIC OFF.
-  setTimeout(_srStartContinuous, 1500);
+  setTimeout(_srStart, 1500);
   _bindPanelDragHandle();
   _bindChatDragHandle();
   _pushOrbsAboveDrawers();

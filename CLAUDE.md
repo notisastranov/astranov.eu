@@ -667,14 +667,25 @@ device that has already taken her home.
 
 ## 22. Languages — English and Greek, instantly
 
-The mic recognizes English and Greek and nothing else. Two
-`SpeechRecognition` instances run in parallel — `en-US` and `el-GR`
-— racing for every utterance. The recognizer whose produced script
-matches its language wins (Latin → en-US, Greek → el-GR); the other
-is ignored. If a browser refuses to host two simultaneous
-recognizers (audio-capture error), the system degrades to a single
-recognizer with auto-toggle on the next utterance. Other languages
-are out of scope.
+The mic recognizes English and Greek and nothing else. ONE
+`SpeechRecognition` instance runs at a time with `continuous` +
+`interimResults` and AUTO-TOGGLES language based on the script of
+the last accepted final transcript (Greek script → next start is
+`el-GR`; Latin → `en-US`). One recognizer, not two, because
+parallel recognizers caused (a) every browser to play a "blip" on
+each start, and (b) feedback when the user's mic picked up our own
+TTS. Other languages are out of scope.
+
+**No feedback loop.** Whenever TTS is playing or pending,
+`_srPauseForTTS()` stops the recognizer; `_srResumeAfterTTS()`
+restarts it 500 ms after the utterance ends so speaker decay does
+not retrigger SR. Results received while TTS is busy are dropped
+silently — the brain cannot hear herself.
+
+**No beep storm.** The recognizer auto-restarts only when (a) the
+listener is unmuted, (b) we did not stop it intentionally, and
+(c) TTS is not busy. The `onend` cooldown is 700 ms; error cooldown
+is 1200 ms. Tap the LISTEN orb to mute completely.
 
 ## 23. Legitimate law, not theatrical law
 
