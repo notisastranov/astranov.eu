@@ -6,13 +6,7 @@
     <title>ASTRANOV</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@600;700&display=swap');
-        
-        :root {
-            --deep-blue: #0a1a3a;
-            --gold: #ffd700;
-            --electric: #00d4ff;
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Exo+2:wght@600;700&display=swap');
         
         * { margin:0; padding:0; box-sizing:border-box; }
         
@@ -25,66 +19,85 @@
             position: relative;
         }
         
-        /* Deep space background */
+        /* Deep space background matching reference */
         #space-bg {
             position: absolute;
             inset: 0;
-            background: radial-gradient(circle at center, #0a1a3a 0%, #000 70%);
+            background: 
+                radial-gradient(circle at 50% 30%, #0a1a3a 0%, transparent 60%),
+                radial-gradient(circle at 50% 80%, #001133 0%, #000 70%),
+                #000;
             z-index: 1;
         }
         
-        #stars {
+        #nebula {
             position: absolute;
-            inset: 0;
-            background-image: 
-                radial-gradient(1px 1px at 25% 30%, white, transparent),
-                radial-gradient(1px 1px at 60% 70%, white, transparent),
-                radial-gradient(1px 1px at 40% 15%, white, transparent),
-                radial-gradient(1px 1px at 80% 45%, white, transparent);
-            background-size: 180px 180px;
-            opacity: 0.6;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 45%;
+            background: 
+                radial-gradient(ellipse at center bottom, rgba(0,100,255,0.15) 0%, transparent 70%);
             z-index: 2;
+            pointer-events: none;
         }
         
-        /* Logo - Deep blue glowing, round corners */
+        /* Logo - Exact style from reference (glowing blue text, no pill) */
         #logo {
             position: absolute;
-            top: 24px;
-            left: 32px;
+            top: 18%;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 100;
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 2.4rem;
+            font-family: 'Exo 2', 'Inter', sans-serif;
+            font-size: 4.2rem;
             font-weight: 700;
-            letter-spacing: 5px;
+            letter-spacing: 8px;
             color: #00d4ff;
-            text-shadow: 0 0 25px #00d4ff, 0 0 50px #0066aa;
-            background: rgba(10,26,58,0.6);
-            padding: 8px 28px;
-            border-radius: 9999px;
-            border: 1px solid rgba(0,212,255,0.3);
+            text-shadow: 
+                0 0 20px #00d4ff,
+                0 0 40px #0088ff,
+                0 0 80px #0066cc;
             cursor: pointer;
-            transition: all 0.2s ease;
             user-select: none;
+            white-space: nowrap;
         }
         
         #logo:hover {
-            box-shadow: 0 0 40px #00d4ff;
-            transform: scale(1.02);
+            text-shadow: 
+                0 0 30px #00d4ff,
+                0 0 60px #0088ff,
+                0 0 100px #0066cc;
         }
         
-        /* Globe container */
+        /* Status */
+        #status {
+            position: absolute;
+            top: 28%;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            background: rgba(0,20,50,0.4);
+            padding: 4px 16px;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            border: 1px solid rgba(0,212,255,0.25);
+            color: #00d4ff;
+            letter-spacing: 1px;
+        }
+        
+        /* Globe */
         #globe-container {
             position: absolute;
-            inset: 0;
+            top: 38%;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 10;
-            display: flex;
-            align-items: center;
-            justify-content: center;
         }
         
         #globe-canvas {
-            width: 620px;
-            height: 620px;
+            width: 520px;
+            height: 520px;
             border-radius: 50%;
             cursor: grab;
         }
@@ -93,54 +106,39 @@
             cursor: grabbing;
         }
         
-        /* Minimal status */
-        #status {
-            position: absolute;
-            top: 24px;
-            right: 32px;
-            z-index: 100;
-            background: rgba(10,26,58,0.6);
-            padding: 6px 18px;
-            border-radius: 9999px;
-            font-size: 0.85rem;
-            border: 1px solid rgba(0,212,255,0.25);
-            color: #00d4ff;
-        }
-        
-        /* Pilot orb - minimal for now */
+        /* Pilot orb */
         #pilot-orb {
             position: absolute;
-            bottom: 80px;
+            bottom: 60px;
             right: 50px;
-            width: 78px;
-            height: 78px;
+            width: 72px;
+            height: 72px;
             background: radial-gradient(circle at 30% 30%, #fff, #00d4ff, #006688);
             border-radius: 50%;
-            box-shadow: 0 0 60px #00d4ff, inset 0 0 30px #fff;
-            border: 2px solid rgba(0,212,255,0.6);
+            box-shadow: 0 0 50px #00d4ff, inset 0 0 25px #fff;
+            border: 2px solid rgba(0,212,255,0.5);
             cursor: pointer;
             z-index: 100;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             font-weight: 700;
             color: #000;
             letter-spacing: 1px;
-            transition: all 0.2s ease;
         }
         
         #pilot-orb:hover {
-            transform: scale(1.1);
-            box-shadow: 0 0 90px #00d4ff;
+            transform: scale(1.08);
+            box-shadow: 0 0 80px #00d4ff;
         }
     </style>
 </head>
 <body>
     <div id="space-bg"></div>
-    <div id="stars"></div>
+    <div id="nebula"></div>
     
-    <!-- Logo: Deep blue glowing, round corners, click = hard reset -->
+    <!-- Logo: Exact glowing blue style from reference -->
     <div id="logo" onclick="hardReset()">ASTRANOV</div>
     
     <!-- Status -->
@@ -148,14 +146,13 @@
     
     <!-- Globe -->
     <div id="globe-container">
-        <canvas id="globe-canvas" width="620" height="620"></canvas>
+        <canvas id="globe-canvas" width="520" height="520"></canvas>
     </div>
     
-    <!-- Pilot orb (minimal) -->
+    <!-- Pilot orb -->
     <div id="pilot-orb" onclick="activatePilot()">PILOT</div>
     
     <script>
-        // Hard reset function - clears cache and returns to global view
         function hardReset() {
             if (confirm('Hard reset to global view?')) {
                 localStorage.clear();
@@ -164,97 +161,52 @@
             }
         }
         
-        // Three.js Globe - Reliable draggable Earth
-        let scene, camera, renderer, globe, isDragging = false, previousMouseX = 0, previousMouseY = 0;
+        // Three.js Globe
+        let scene, camera, renderer, globe, isDragging = false, previousMouseX = 0;
         
         function initGlobe() {
             const canvas = document.getElementById('globe-canvas');
-            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
-            renderer.setSize(620, 620);
+            renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+            renderer.setSize(520, 520);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             
             scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
-            camera.position.z = 2.8;
+            camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
+            camera.position.z = 2.6;
             
-            // Globe
-            const geometry = new THREE.SphereGeometry(1.6, 64, 64);
+            const geometry = new THREE.SphereGeometry(1.5, 64, 64);
             const material = new THREE.MeshPhongMaterial({
-                color: 0x3366aa,
-                emissive: 0x112244,
-                shininess: 12,
-                polygonOffset: true,
-                polygonOffsetFactor: 1,
-                polygonOffsetUnits: 1
+                color: 0x2255aa,
+                emissive: 0x0a2244,
+                shininess: 10
             });
             globe = new THREE.Mesh(geometry, material);
             scene.add(globe);
             
-            // Atmosphere glow
-            const atmosphereGeometry = new THREE.SphereGeometry(1.68, 64, 64);
-            const atmosphereMaterial = new THREE.MeshPhongMaterial({
+            // Atmosphere
+            const atmGeo = new THREE.SphereGeometry(1.58, 64, 64);
+            const atmMat = new THREE.MeshPhongMaterial({
                 color: 0x00d4ff,
                 transparent: true,
-                opacity: 0.15,
+                opacity: 0.12,
                 side: THREE.BackSide
             });
-            const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
-            scene.add(atmosphere);
+            scene.add(new THREE.Mesh(atmGeo, atmMat));
             
-            // Lights
-            const ambientLight = new THREE.AmbientLight(0x334466, 0.6);
-            scene.add(ambientLight);
+            const light = new THREE.DirectionalLight(0xffffff, 1);
+            light.position.set(5, 3, 5);
+            scene.add(light);
+            scene.add(new THREE.AmbientLight(0x334466, 0.5));
             
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9);
-            directionalLight.position.set(5, 3, 5);
-            scene.add(directionalLight);
+            globe.userData.rotationSpeed = 0.0007;
             
-            // Simple rotation
-            globe.userData.rotationSpeed = 0.0008;
-            
-            // Mouse drag controls
-            canvas.addEventListener('mousedown', (e) => {
-                isDragging = true;
-                previousMouseX = e.clientX;
-                previousMouseY = e.clientY;
-            });
-            
+            // Drag controls
+            canvas.addEventListener('mousedown', e => { isDragging = true; previousMouseX = e.clientX; });
             window.addEventListener('mouseup', () => isDragging = false);
-            
-            window.addEventListener('mousemove', (e) => {
+            window.addEventListener('mousemove', e => {
                 if (!isDragging) return;
-                
-                const deltaMoveX = e.clientX - previousMouseX;
-                const deltaMoveY = e.clientY - previousMouseY;
-                
-                globe.rotation.y += deltaMoveX * 0.005;
-                globe.rotation.x += deltaMoveY * 0.005;
-                
+                globe.rotation.y += (e.clientX - previousMouseX) * 0.005;
                 previousMouseX = e.clientX;
-                previousMouseY = e.clientY;
-            });
-            
-            // Touch support
-            canvas.addEventListener('touchstart', (e) => {
-                isDragging = true;
-                previousMouseX = e.touches[0].clientX;
-                previousMouseY = e.touches[0].clientY;
-            });
-            
-            canvas.addEventListener('touchend', () => isDragging = false);
-            
-            canvas.addEventListener('touchmove', (e) => {
-                if (!isDragging) return;
-                e.preventDefault();
-                
-                const deltaMoveX = e.touches[0].clientX - previousMouseX;
-                const deltaMoveY = e.touches[0].clientY - previousMouseY;
-                
-                globe.rotation.y += deltaMoveX * 0.005;
-                globe.rotation.x += deltaMoveY * 0.005;
-                
-                previousMouseX = e.touches[0].clientX;
-                previousMouseY = e.touches[0].clientY;
             });
             
             animate();
@@ -262,33 +214,21 @@
         
         function animate() {
             requestAnimationFrame(animate);
-            
-            if (globe && !isDragging) {
-                globe.rotation.y += globe.userData.rotationSpeed;
-            }
-            
+            if (globe && !isDragging) globe.rotation.y += globe.userData.rotationSpeed;
             renderer.render(scene, camera);
         }
         
         function activatePilot() {
             const orb = document.getElementById('pilot-orb');
-            orb.style.boxShadow = '0 0 120px #00d4ff, 0 0 60px #ffd700';
-            
+            orb.style.boxShadow = '0 0 100px #00d4ff, 0 0 40px #ffd700';
             setTimeout(() => {
-                orb.style.boxShadow = '0 0 60px #00d4ff, inset 0 0 30px #fff';
-                alert('Pilot orb activated. Globe control engaged. (Full pilot system coming next)');
-            }, 600);
+                orb.style.boxShadow = '0 0 50px #00d4ff, inset 0 0 25px #fff';
+                alert('Pilot engaged. (Full system next)');
+            }, 500);
         }
         
-        // Boot
         window.onload = () => {
             initGlobe();
-            
-            // Auto subtle glow on logo
-            setTimeout(() => {
-                const logo = document.getElementById('logo');
-                logo.style.boxShadow = '0 0 30px #00d4ff';
-            }, 800);
         };
     </script>
 </body>
