@@ -158,13 +158,13 @@
         <div class="logo">ASTRANOV</div>
         <div class="status">
             <span style="color:#00ff99">●</span> 
-            <span>PILOT ACTIVE • 312 DRONES</span>
+            <span>PILOT ACTIVE • 300 DRONES</span>
         </div>
     </header>
     
     <div id="pilot-orb" onclick="activatePilot()">PILOT</div>
     
-    <div class="drone-count" id="drone-count">312 DRONES READY</div>
+    <div class="drone-count" id="drone-count">300 DRONES READY</div>
     
     <div id="chat">
         <div id="messages" style="max-height: 140px; overflow-y: auto; margin-bottom: 12px;"></div>
@@ -175,8 +175,8 @@
     </div>
 
     <script>
-        // Initialize Cesium Globe - Realistic Earth with drag/rotate
-        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJlYWE1OWUxNy1mNjQ0LTQ0ZjMtOWM2My1kYjkzMjM2ZjQwN2QiLCJpZCI6MjYxMzUsImlhdCI6MTY4NjQ4ODI2NH0.2J2Z2Z2Z2Z2Z2Z2Z2Z2Z2Z2Z2Z2Z2Z2Z2Z2Z2Z2Z'; // Demo token - replace with real one later
+        // Initialize Cesium Globe - Realistic draggable Earth
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJlYWE1OWUxNy1mNjQ0LTQ0ZjMtOWM2My1kYjkzMjM2ZjQwN2QiLCJpZCI6MjYxMzUsImlhdCI6MTY4NjQ4ODI2NH0.2J2Z2Z2Z2Z2Z2Z2Z2Z2Z2Z2Z2Z2Z2Z2Z2Z2Z2Z2Z';
         
         const viewer = new Cesium.Viewer('cesiumContainer', {
             animation: false,
@@ -191,35 +191,22 @@
             navigationHelpButton: false,
             shouldAnimate: true,
             skyBox: false,
-            skyAtmosphere: false,
-            baseLayerPicker: false
+            skyAtmosphere: false
         });
         
-        // Realistic Earth with night lights
         viewer.scene.globe.enableLighting = true;
         viewer.scene.globe.atmosphereLightIntensity = 8.0;
         
-        // Add real imagery
-        viewer.imageryLayers.addImageryProvider(
-            new Cesium.IonImageryProvider({ assetId: 3 }) // Bing Maps aerial
-        );
+        // Real imagery layers
+        viewer.imageryLayers.addImageryProvider(new Cesium.IonImageryProvider({ assetId: 3 }));
+        viewer.imageryLayers.addImageryProvider(new Cesium.IonImageryProvider({ assetId: 3812 }));
         
-        // Night lights layer
-        viewer.imageryLayers.addImageryProvider(
-            new Cesium.IonImageryProvider({ assetId: 3812 }) // Night lights
-        );
-        
-        // Initial view - dramatic angle
         viewer.camera.setView({
             destination: Cesium.Cartesian3.fromDegrees(23.5, 37.5, 2500000),
-            orientation: {
-                heading: Cesium.Math.toRadians(0),
-                pitch: Cesium.Math.toRadians(-45),
-                roll: 0.0
-            }
+            orientation: { heading: Cesium.Math.toRadians(0), pitch: Cesium.Math.toRadians(-45), roll: 0 }
         });
         
-        let drones = 312;
+        let drones = 300;
         let pilotActive = false;
         
         function updateDroneCount() {
@@ -229,7 +216,7 @@
         function addMessage(sender, text) {
             const container = document.getElementById('messages');
             const msg = document.createElement('div');
-            msg.style.cssText = 'background: rgba(255,215,0,0.08); padding: 10px 16px; border-radius: 12px; margin: 6px 0; border-left: 3px solid #ffd700; font-size: 0.95rem;';
+            msg.style.cssText = 'background:rgba(255,215,0,0.08);padding:10px 16px;border-radius:12px;margin:6px 0;border-left:3px solid #ffd700;font-size:0.95rem;';
             msg.innerHTML = `<strong style="color:#ffd700">${sender}:</strong> ${text}`;
             container.appendChild(msg);
             container.scrollTop = container.scrollHeight;
@@ -242,14 +229,13 @@
             if (pilotActive) {
                 orb.classList.add('active');
                 orb.style.boxShadow = '0 0 200px #ffd700, 0 0 100px #00f0ff';
-                addMessage('PILOT', 'Pilot orb engaged. 312 drones under command. Ready for orders, Captain.');
+                addMessage('PILOT', 'Pilot orb engaged. 300 drones under command. Ready for orders, Captain.');
                 
-                // Launch initial drone patrol
                 setTimeout(() => {
                     addMessage('DRONE FLEET', '3 drones dispatched to scan your area. All friendly players protected.');
                     drones = Math.max(0, drones - 3);
                     updateDroneCount();
-                }, 1200);
+                }, 1100);
             } else {
                 orb.classList.remove('active');
                 orb.style.boxShadow = '0 0 100px #00f0ff, inset 0 0 50px #fff, 0 0 30px #ffd700';
@@ -269,7 +255,7 @@
                 const lower = text.toLowerCase();
                 
                 if (lower.includes('launch') || lower.includes('drone')) {
-                    const num = Math.floor(Math.random() * 8) + 5;
+                    const num = Math.floor(Math.random() * 6) + 4;
                     addMessage('PILOT', `${num} drones launched. Scanning area and protecting all friendlies.`);
                     drones = Math.max(0, drones - num);
                     updateDroneCount();
@@ -280,7 +266,7 @@
                     updateDroneCount();
                 } 
                 else if (lower.includes('attack') || lower.includes('scan')) {
-                    addMessage('DRONE FLEET', '3 drones en route to scan and neutralize threat. Area will be secured.');
+                    addMessage('DRONE FLEET', '3 drones en route to scan and neutralize threat. Area secured.');
                     drones = Math.max(0, drones - 3);
                     updateDroneCount();
                 } 
@@ -290,18 +276,15 @@
                 else {
                     addMessage('PILOT', 'Command received. Executing with Spartan precision. Our mind only.');
                 }
-            }, 700);
+            }, 650);
         }
         
-        // Boot
         window.onload = () => {
-            addMessage('ASTRANOV', 'Welcome back, Captain. Realistic Cesium globe active. Pilot orb ready. 312 drones standing by. Our brain only.');
-            
-            // Auto-highlight pilot orb
+            addMessage('ASTRANOV', 'Welcome back, Captain. Realistic Cesium globe active. Pilot orb ready. 300 drones standing by. Our brain only.');
             setTimeout(() => {
                 const orb = document.getElementById('pilot-orb');
                 orb.style.boxShadow = '0 0 140px #00f0ff, 0 0 40px #ffd700';
-            }, 1500);
+            }, 1400);
         };
     </script>
 </body>
