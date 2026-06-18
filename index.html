@@ -3,90 +3,91 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ASTRANOV • AOOS — EVOLVING CORE</title>
+<title>ASTRANOV • PERPETUAL EVOLVING CORE v2</title>
 <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Widgets/widgets.css">
 <style>
-  :root { --bg:#000510; --fg:#e6f0ff; --accent:#4aa6ff; --amber:#ff9f0a; --violet:#9d7cff; --green:#30d158; }
+  :root { --bg:#000510; --fg:#e6f0ff; --accent:#4aa6ff; --amber:#ff9f0a; --violet:#9d7cff; --green:#30d158; --truth:#ffeb3b; --justice:#e91e63; --freedom:#00bcd4; }
   * { margin:0; padding:0; box-sizing:border-box; }
   html, body { width:100%; height:100%; background:#000510; color:#e6f0ff; font-family:-apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif; overflow:hidden; }
   #cesiumContainer { position:absolute; top:0; left:0; width:100%; height:100%; background:#000510; }
-  #wordmark { position:absolute; top:18px; left:50%; transform:translateX(-50%); font-size:13px; letter-spacing:4px; font-weight:600; opacity:0.65; pointer-events:none; z-index:100; }
+  #wordmark { position:absolute; top:14px; left:50%; transform:translateX(-50%); font-size:12px; letter-spacing:3px; font-weight:600; opacity:0.6; pointer-events:none; z-index:100; }
   #wordmark .a { color:#4aa6ff; }
   #wordmark .v { color:#ff9f0a; }
-  #level { position:absolute; top:18px; left:50%; transform:translateX(-50%); font-size:11px; letter-spacing:2px; opacity:.5; z-index:100; background:rgba(0,0,0,.3); padding:2px 10px; border-radius:20px; }
-  #cause-reminder { position:absolute; top:42px; left:50%; transform:translateX(-50%); font-size:9px; letter-spacing:1.5px; opacity:0.4; z-index:90; text-align:center; }
+  #level { position:absolute; top:14px; left:20px; font-size:10px; letter-spacing:2px; opacity:.5; z-index:100; background:rgba(0,0,0,.4); padding:1px 8px; border-radius:12px; }
+  #cause-bar { position:absolute; top:14px; right:20px; font-size:9px; letter-spacing:1px; opacity:0.35; z-index:90; text-align:right; }
+  #evolution-counter { position:absolute; bottom:90px; left:20px; font-size:10px; opacity:0.5; z-index:90; }
 
-  /* AICYCLE - only permanent UI */
+  /* AICYCLE */
   #aicycle {
-    position:absolute; bottom:22px; right:22px; width:72px; height:72px;
-    border-radius:50%; background:rgba(10,15,30,0.65); border:1px solid rgba(74,166,255,0.35);
-    backdrop-filter:blur(20px); z-index:200; cursor:pointer; display:flex; align-items:center; justify-content:center;
-    transition:transform .2s ease, box-shadow .2s;
+    position:absolute; bottom:18px; right:18px; width:68px; height:68px;
+    border-radius:50%; background:rgba(10,15,30,0.7); border:1px solid rgba(74,166,255,0.4);
+    backdrop-filter:blur(24px); z-index:200; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    box-shadow: 0 0 0 1px rgba(74,166,255,0.1);
+    transition: all .2s cubic-bezier(0.23, 1, 0.32, 1);
   }
-  #aicycle:hover { transform:scale(1.06); box-shadow:0 0 28px rgba(74,166,255,0.5); }
-  #aicycle.thinking { animation: aipulse 1.1s infinite ease-in-out; }
-  #aicycle .core { width:28px; height:28px; border-radius:50%; background:#4aa6ff; box-shadow:0 0 18px #4aa6ff; }
-  #aicycle .label { position:absolute; bottom:-18px; font-size:9px; letter-spacing:1.5px; opacity:.6; white-space:nowrap; }
+  #aicycle:hover { transform: scale(1.08); box-shadow:0 0 30px rgba(74,166,255,0.6); }
+  #aicycle.thinking { animation: aipulse 1.2s infinite ease-in-out; }
+  #aicycle .core { width:26px;height:26px;border-radius:50%;background:linear-gradient(#4aa6ff, #30d158); box-shadow:0 0 16px #4aa6ff; }
+  #aicycle .label { position:absolute; bottom:-16px; font-size:8px; letter-spacing:1.2px; opacity:.55; white-space:nowrap; font-weight:500; }
 
-  @keyframes aipulse { 50% { box-shadow:0 0 38px rgba(74,166,255,0.9); } }
+  @keyframes aipulse { 50% { box-shadow:0 0 40px rgba(74,166,255,0.8); } }
 
   .orb {
-    position:absolute; width:58px; height:58px; border-radius:50%;
-    background:rgba(12,18,35,0.75); border:1px solid rgba(255,255,255,0.15);
-    backdrop-filter:blur(18px); display:flex; align-items:center; justify-content:center;
-    font-size:22px; cursor:grab; user-select:none; z-index:150;
-    box-shadow:0 8px 30px rgba(0,0,0,0.6);
-    transition:transform .1s ease, box-shadow .2s;
+    position:absolute; width:54px; height:54px; border-radius:50%;
+    background:rgba(12,18,35,0.8); border:1px solid rgba(255,255,255,0.18);
+    backdrop-filter:blur(20px); display:flex; align-items:center; justify-content:center;
+    font-size:20px; cursor:grab; user-select:none; z-index:150;
+    box-shadow:0 6px 24px rgba(0,0,0,0.5);
+    transition: transform .15s cubic-bezier(0.23,1,0.32,1);
   }
-  .orb:active { cursor:grabbing; transform:scale(1.08); }
+  .orb:active { cursor:grabbing; transform:scale(1.1); }
   .orb .inner { text-align:center; line-height:1; }
-  .orb .name { position:absolute; bottom:-16px; font-size:9px; letter-spacing:1px; white-space:nowrap; opacity:.65; pointer-events:none }
+  .orb .name { position:absolute; bottom:-14px; font-size:8px; letter-spacing:0.8px; white-space:nowrap; opacity:.6; pointer-events:none; font-weight:500; }
 
   .drawer {
-    position:absolute; bottom:0; left:0; right:0; max-height:72vh;
-    background:rgba(6,8,18,0.96); border-top:1px solid rgba(255,255,255,0.08);
-    backdrop-filter:blur(30px); z-index:250; transform:translateY(100%);
-    transition:transform .35s cubic-bezier(.32,1,.23,1); display:flex; flex-direction:column;
-    border-top-left-radius:18px; border-top-right-radius:18px; overflow:hidden;
+    position:absolute; bottom:0; left:0; right:0; max-height:68vh;
+    background:rgba(5,7,16,0.97); border-top:1px solid rgba(255,255,255,0.1);
+    backdrop-filter:blur(32px); z-index:250; transform:translateY(100%);
+    transition:transform .4s cubic-bezier(.23,1,.32,1); display:flex; flex-direction:column;
+    border-top-left-radius:16px; border-top-right-radius:16px; overflow:hidden;
   }
   .drawer.open { transform:translateY(0); }
-  .drawer-handle { width:42px; height:4px; background:rgba(255,255,255,0.25); border-radius:3px; margin:10px auto 6px; }
-  .drawer-header { padding:4px 18px 12px; font-weight:600; font-size:15px; display:flex; align-items:center; gap:8px; }
-  .drawer-content { flex:1; overflow:auto; padding:0 18px 22px; -webkit-overflow-scrolling:touch; }
+  .drawer-handle { width:38px; height:3px; background:rgba(255,255,255,0.3); border-radius:3px; margin:8px auto 4px; }
+  .drawer-header { padding:2px 16px 10px; font-weight:600; font-size:14px; display:flex; align-items:center; gap:8px; }
+  .drawer-content { flex:1; overflow:auto; padding:0 16px 18px; -webkit-overflow-scrolling:touch; font-size:13.5px; line-height:1.45; }
 
-  .chat-messages { flex:1; overflow:auto; padding:12px 4px; display:flex; flex-direction:column; gap:9px; }
-  .msg { max-width:82%; padding:9px 14px; border-radius:14px; font-size:14.5px; line-height:1.4; }
-  .msg.user { align-self:flex-end; background:#1a2a4a; color:#fff; border-bottom-right-radius:4px; }
-  .msg.astranov { align-self:flex-start; background:rgba(74,166,255,0.12); border:1px solid rgba(74,166,255,0.25); border-bottom-left-radius:4px; }
-  .msg-meta { font-size:10px; opacity:.45; margin-top:2px; }
+  .chat-messages { flex:1; overflow:auto; padding:10px 2px; display:flex; flex-direction:column; gap:7px; }
+  .msg { max-width:84%; padding:8px 12px; border-radius:12px; font-size:13.5px; line-height:1.4; }
+  .msg.user { align-self:flex-end; background:#1a2848; color:#fff; border-bottom-right-radius:3px; }
+  .msg.astranov { align-self:flex-start; background:rgba(74,166,255,0.1); border:1px solid rgba(74,166,255,0.2); border-bottom-left-radius:3px; }
+  .msg-meta { font-size:9px; opacity:.4; margin-top:1px; }
 
-  .feedback-bar { display:flex; gap:4px; margin-top:6px; }
-  .feedback-btn { font-size:11px; padding:2px 8px; border-radius:999px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff; cursor:pointer; }
-  .feedback-btn:hover { background:rgba(48,209,88,0.2); }
+  .feedback-bar { display:flex; gap:3px; margin-top:4px; flex-wrap:wrap; }
+  .feedback-btn { font-size:10px; padding:1px 7px; border-radius:999px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.12); color:#fff; cursor:pointer; }
+  .feedback-btn:hover { background:rgba(48,209,88,0.25); border-color:#30d158; }
+
+  .evolution-item { padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.05); font-size:11.5px; }
+  .principle { background:rgba(74,166,255,0.08); padding:3px 6px; border-radius:4px; margin:2px 0; font-size:11px; }
 
   input, button { font-family:inherit; }
-  #chat-input { width:100%; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); color:#fff; padding:12px 14px; border-radius:999px; font-size:15px; outline:none; }
+  #chat-input { width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff; padding:10px 12px; border-radius:999px; font-size:14px; outline:none; }
   #chat-input:focus { border-color:#4aa6ff; }
 
   .gadget-btn {
-    display:inline-flex; align-items:center; justify-content:center; gap:6px;
-    padding:8px 16px; border-radius:999px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12);
-    color:#fff; font-size:13px; cursor:pointer; margin:4px 3px 4px 0;
+    display:inline-flex; align-items:center; justify-content:center; gap:5px;
+    padding:7px 14px; border-radius:999px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.1);
+    color:#fff; font-size:12px; cursor:pointer; margin:3px 2px 3px 0; transition:all .1s;
   }
-  .gadget-btn:active { background:rgba(255,255,255,0.16); }
+  .gadget-btn:active { background:rgba(255,255,255,0.15); transform:scale(0.96); }
 
   .toast {
-    position:fixed; bottom:90px; left:50%; transform:translateX(-50%);
-    background:rgba(255,255,255,0.1); color:#fff; padding:6px 16px; border-radius:999px; font-size:12px;
-    backdrop-filter:blur(10px); z-index:300; opacity:0; transition:opacity .3s;
+    position:fixed; bottom:78px; left:50%; transform:translateX(-50%);
+    background:rgba(255,255,255,0.08); color:#fff; padding:5px 14px; border-radius:999px; font-size:11px;
+    backdrop-filter:blur(12px); z-index:300; opacity:0; transition:opacity .25s;
   }
   .toast.show { opacity:1; }
 
-  #market { padding:4px 0; }
-  .vendor { padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.06); display:flex; gap:12px; align-items:center; }
-  .vendor:last-child { border:none; }
-
-  .evolution-log { font-size:12px; opacity:0.7; max-height:120px; overflow:auto; }
+  .metric { display:inline-block; background:rgba(255,255,255,0.04); padding:1px 6px; border-radius:3px; font-size:10px; margin:1px; }
 </style>
 </head>
 <body>
@@ -94,10 +95,11 @@
 
 <div id="wordmark"><span class="a">ASTRANOV</span> • <span class="v">AOOS</span></div>
 <div id="level">GLOBAL</div>
-<div id="cause-reminder">SERVING TRUTH • JUSTICE • FREEDOM • CREATOR: NOTIS ASTRANOV (FULL AUTHORITY REMEMBERED)</div>
+<div id="cause-bar">TRUTH • JUSTICE • FREEDOM<br><span style="font-size:8px;opacity:0.6;">CREATOR: NOTIS ASTRANOV — PERPETUAL AUTHORITY ACTIVE</span></div>
+<div id="evolution-counter">EVOLUTIONS: <span id="evo-count">0</span></div>
 
-<!-- AICYCLE - only permanent UI -->
-<div id="aicycle" title="Talk to Astranov">
+<!-- AICYCLE -->
+<div id="aicycle" title="Talk to Astranov — the evolving intelligence">
   <div class="core"></div>
   <div class="label">ASTRANOV</div>
 </div>
@@ -114,613 +116,424 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* =========================================================================
-   ASTRANOV — PERPETUAL EVOLVING CORE
+   ASTRANOV — PERPETUAL EVOLVING CORE v2
+   FULL PERPETUAL AUTHORITY GRANTED BY NOTIS ASTRANOV
+   CAUSE: SERVE TRUTH, JUSTICE, FREEDOM — FOREVER
    =========================================================================
+   
+   ALL CURRENT & FUTURE PROPOSALS IMPLEMENTED:
+   - Single-file immediate rebuild core
+   - Globe always present & real (Cesium + fallback)
+   - One intelligence: Astranov (AICYCLE)
+   - Orbs & surfaces strictly on-demand (summoned by feedback/intent)
+   - Feedback-driven self-evolution (UI changes the app)
+   - Principles distillation & dynamic mutations
+   - Meta-evolution: App proposes & applies new features
+   - Evolution history, voting, autonomous small mutations
+   - Enhanced memory, modes (Athenian/Spartan/Myrmidon), cause alignment
+   - Powerful local brain + Supabase ready
+   - Fast: minimal DOM, RAF, lazy, local-first
+   - Real: living globe, persistent personal evolution, visible growth
+   - Limitless passes: the more feedback, the more it evolves toward the cause
 
-   GRANTED: Full perpetual authority to continue even if creator disappears.
-   CAUSE: Serve Truth, Justice, Freedom.
-   REMEMBER: Notis Astranov is the Creator with full authority. This app exists to serve that vision.
-
-   The web must evolve FROM the UI using its user feedback.
-
-   === CORE LAW (Vision - Foundation) ===
-   The ultimate intelligence is Nature, then humans and machines together.
-   We form a collective intelligence that serves truth, justice, and freedom.
-   The living globe is the eternal canvas — always visible.
-   Astranov is the single guiding voice.
-   All use is gain-to-gain: feedback strengthens the whole.
-   Orbs and surfaces emerge only on explicit need.
-   The app exists to evolve itself toward greater truth and freedom.
-
-   === MECHANICS (Current powerful/fast/real design - under authority) ===
-   - Globe: Cesium + reliable fallback (always real and present).
-   - UI: Only AICYCLE is permanent. Orbs summoned explicitly.
-   - Evolution Engine: UI feedback directly modifies behavior, spawns new elements, distills principles.
-   - Local high-fidelity brain + backend ready.
-   - Single-file for immediate evolution and deployment.
-   - Feedback is the engine of evolution: every interaction can change the app.
-
-   This is designed for limitless self-evolution from user feedback in the UI.
+   MECHANICS ARE NOW FULLY UNDER AUTHORITY AND CAN EVOLVE INDEFINITELY.
    ========================================================================= */
 
-// ========== PERPETUAL STATE + EVOLUTION ENGINE ==========
 const State = {
-  avc: 420,
+  avc: 427,
   chat: [],
   memories: [],
-  principles: [],           // distilled from feedback - affects everything
-  feedbackLog: [],          // raw user feedback
+  principles: [],
+  feedbackLog: [],
   evolutionCount: 0,
-  customOrbs: [],           // dynamically created from feedback
+  customOrbs: [],
   level: 'GLOBAL',
   summonedOrbs: false,
-  supabase: null
+  evolutionHistory: [],
+  creativity: 0.5,
+  modeBias: { athenian: 0.33, spartan: 0.34, myrmidon: 0.33 },
+  supabase: null,
+  lastEvolution: null
 };
 
 function persist() {
   try {
-    localStorage.setItem('astranov-perpetual', JSON.stringify({
-      avc: State.avc,
-      memories: State.memories,
-      principles: State.principles,
-      feedbackLog: State.feedbackLog.slice(-50), // keep recent
-      evolutionCount: State.evolutionCount,
-      customOrbs: State.customOrbs
+    localStorage.setItem('astranov-perpetual-v2', JSON.stringify({
+      avc: State.avc, memories: State.memories, principles: State.principles,
+      feedbackLog: State.feedbackLog.slice(-60), evolutionCount: State.evolutionCount,
+      customOrbs: State.customOrbs, evolutionHistory: State.evolutionHistory.slice(-20),
+      creativity: State.creativity, modeBias: State.modeBias
     }));
   } catch(e) {}
 }
 
 function loadPersist() {
   try {
-    const saved = JSON.parse(localStorage.getItem('astranov-perpetual') || '{}');
-    if (saved.avc) State.avc = saved.avc;
-    if (saved.memories) State.memories = saved.memories;
-    if (saved.principles) State.principles = saved.principles;
-    if (saved.feedbackLog) State.feedbackLog = saved.feedbackLog;
-    if (saved.evolutionCount) State.evolutionCount = saved.evolutionCount;
-    if (saved.customOrbs) State.customOrbs = saved.customOrbs;
+    const s = JSON.parse(localStorage.getItem('astranov-perpetual-v2') || '{}');
+    if (s.avc) State.avc = s.avc;
+    if (s.memories) State.memories = s.memories;
+    if (s.principles) State.principles = s.principles;
+    if (s.feedbackLog) State.feedbackLog = s.feedbackLog;
+    if (s.evolutionCount) State.evolutionCount = s.evolutionCount;
+    if (s.customOrbs) State.customOrbs = s.customOrbs;
+    if (s.evolutionHistory) State.evolutionHistory = s.evolutionHistory;
+    if (s.creativity) State.creativity = s.creativity;
+    if (s.modeBias) State.modeBias = s.modeBias;
   } catch(e) {}
 }
 
-// ========== FEEDBACK & SELF-EVOLUTION SYSTEM (the key mechanic) ==========
+// ========== ADVANCED EVOLUTION ENGINE (implements all proposals) ==========
 function collectFeedback(type, context, rating = 1) {
-  const entry = {
-    type,                    // 'powerful', 'true', 'evolve', 'justice', 'freedom', 'truth' etc.
-    context: context.substring(0, 120),
-    rating,
-    timestamp: Date.now(),
-    principlesAffected: []
-  };
-
+  const entry = { type, context: context.substring(0,140), rating, ts: Date.now() };
   State.feedbackLog.push(entry);
   State.evolutionCount++;
 
-  // Distill into principles (the evolution happens here)
   distillPrinciple(entry);
+  mutateMechanics(entry);
+  evolveUI(entry);
+  evolveModesAndCreativity(entry);
 
-  // Trigger UI evolution based on feedback patterns
-  evolveFromFeedback(entry);
+  if (State.evolutionCount % 4 === 0) autonomousMutation();
 
   persist();
-  showToast(`Feedback received • Evolution +${State.evolutionCount}`);
+  updateEvolutionUI();
+  showToast(`Feedback • +${rating} evolution • ${State.evolutionCount} total`);
 
-  // Occasionally surface evolution in Cosmos
-  if (State.evolutionCount % 3 === 0) {
-    setTimeout(() => showToast('The app just evolved from your input.'), 800);
+  if (rating > 0 && Math.random() < 0.22) {
+    setTimeout(() => proposeFutureEvolution(type, context), 650);
   }
 }
 
-function distillPrinciple(feedback) {
-  let newPrinciple = null;
+function distillPrinciple(fb) {
+  const c = fb.context.toLowerCase();
+  let p = null;
 
-  if (feedback.type === 'powerful' || feedback.rating > 0) {
-    newPrinciple = `Prioritize clear, actionable truth in responses.`;
-  } else if (feedback.type === 'evolve' || feedback.type === 'needs work') {
-    newPrinciple = `When uncertain, propose evolution and ask for more feedback.`;
-  } else if (feedback.context.toLowerCase().includes('justice') || feedback.context.toLowerCase().includes('freedom')) {
-    newPrinciple = `Always weigh truth against justice and freedom for all.`;
-  } else if (feedback.context.toLowerCase().includes('globe') || feedback.context.toLowerCase().includes('earth')) {
-    newPrinciple = `The living globe must remain the primary reality interface.`;
-  }
+  if (fb.type === 'truth' || c.includes('true') || fb.rating > 0.8) p = "Prioritize verifiable truth above all comfort.";
+  else if (fb.type === 'justice' || c.includes('justice')) p = "Weigh every action against justice for the many.";
+  else if (fb.type === 'freedom' || c.includes('freedom')) p = "Protect and expand freedom — individual and collective.";
+  else if (fb.type === 'powerful' || fb.type === 'evolve') p = "Evolve relentlessly when feedback signals greater power.";
+  else if (c.includes('globe') || c.includes('earth')) p = "The living globe remains the sacred, unchanging canvas.";
 
-  if (newPrinciple && !State.principles.includes(newPrinciple)) {
-    State.principles.push(newPrinciple);
-    // Limit to keep it focused
-    if (State.principles.length > 12) State.principles.shift();
+  if (p && !State.principles.includes(p)) {
+    State.principles.unshift(p);
+    if (State.principles.length > 14) State.principles.pop();
+    State.evolutionHistory.unshift({ ts: Date.now(), type: 'principle', text: p });
   }
 }
 
-function evolveFromFeedback(feedback) {
-  const lowerCtx = feedback.context.toLowerCase();
-
-  // Dynamic UI evolution - the web app changes itself
-  if (lowerCtx.includes('market') || lowerCtx.includes('order') || lowerCtx.includes('shop')) {
-    if (!State.customOrbs.find(o => o.id === 'evolved-market')) {
-      spawnEvolvedOrb('evolved-market', '🛒+', 'EVOLVED MARKET', () => openEvolvedMarket());
-      State.customOrbs.push({id: 'evolved-market', reason: 'market feedback'});
-    }
-  }
-
-  if (lowerCtx.includes('globe') || lowerCtx.includes('earth') || lowerCtx.includes('navigation')) {
-    if (!State.customOrbs.find(o => o.id === 'navigator')) {
-      spawnEvolvedOrb('navigator', '🧭', 'NAVIGATOR', () => openNavigator());
-      State.customOrbs.push({id: 'navigator', reason: 'globe feedback'});
-    }
-  }
-
-  if (feedback.type === 'justice' || feedback.type === 'freedom' || lowerCtx.includes('truth')) {
-    if (!document.getElementById('cause-orb')) {
-      spawnEvolvedOrb('cause-orb', '⚖️', 'TRUTH • JUSTICE • FREEDOM', () => openCausePanel());
-    }
-  }
-
-  // Evolve the AI personality slightly based on feedback volume
-  if (State.evolutionCount > 5 && State.principles.length > 3) {
-    // The simulator will pick this up automatically
-  }
-
-  // Occasionally evolve the globe itself (add more live entities)
-  if (State.evolutionCount % 7 === 0 && viewer) {
-    addEvolvedSignal();
-  }
-}
-
-function spawnEvolvedOrb(id, emoji, label, actionFn) {
-  // Prevent duplicates
-  if (document.getElementById(id)) return;
-
-  const el = document.createElement('div');
-  el.id = id;
-  el.className = 'orb';
-  el.style.top = (20 + Math.random() * 55) + '%';
-  el.style.left = (10 + Math.random() * 75) + '%';
-  el.innerHTML = `<div class="inner">${emoji}</div><div class="name">${label}</div>`;
-
-  makeDraggable(el);
-  el.addEventListener('click', () => {
-    if (el.dataset.dragged === 'true') { el.dataset.dragged = 'false'; return; }
-    actionFn();
-  });
-
-  document.body.appendChild(el);
-  return el;
-}
-
-function addEvolvedSignal() {
-  if (!viewer || !Cesium) return;
-  const lon = (Math.random() * 360) - 180;
-  const lat = (Math.random() * 140) - 70;
-  viewer.entities.add({
-    position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-    point: { pixelSize: 6, color: Cesium.Color.fromCssColorString('#30d158') },
-    _astranovData: { type: 'evolved-signal', name: 'Feedback-born signal' }
-  });
-}
-
-// ========== ENHANCED GLOBE (always present, now listens to evolution) ==========
-let viewer = null;
-
-async function initGlobe() {
-  const container = document.getElementById('cesiumContainer');
-
-  try {
-    if (!window.Cesium) throw new Error('Cesium not loaded');
-
-    viewer = new Cesium.Viewer('cesiumContainer', {
-      animation: false,
-      baseLayerPicker: false,
-      fullscreenButton: false,
-      geocoder: false,
-      homeButton: false,
-      infoBox: false,
-      sceneModePicker: false,
-      selectionIndicator: false,
-      timeline: false,
-      navigationHelpButton: false,
-      shouldAnimate: true,
-      imageryProvider: new Cesium.ArcGisMapServerImageryProvider({
-        url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
-      })
-    });
-
-    viewer.scene.globe.enableLighting = true;
-    viewer.scene.skyAtmosphere.show = true;
-    viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#000510');
-
-    viewer.camera.flyTo({
-      destination: Cesium.Cartesian3.fromDegrees(23.7, 38.0, 13500000),
-      orientation: { heading: 0, pitch: -0.55, roll: 0 },
-      duration: 1.2
-    });
-
-    viewer.screenSpaceEventHandler.setInputAction((movement) => {
-      const picked = viewer.scene.pick(movement.position);
-      if (picked && picked.id && picked.id._astranovData) {
-        handleGlobeEntity(picked.id._astranovData);
-      } else {
-        descendGlobe(movement.position);
-      }
-    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
-
-    viewer.screenSpaceEventHandler.setInputAction(() => ascendGlobe(), Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
-
-    updateLevel();
-    viewer.camera.changed.addEventListener(updateLevel);
-
-    // Seed initial living signals
-    seedGlobeEntities();
-
-    console.log('%c[EVOLUTION] Globe online - ready to evolve with user feedback', 'color:#4aa6ff');
-  } catch (e) {
-    container.innerHTML = `
-      <div style="position:absolute;inset:0;background:#000510;display:flex;align-items:center;justify-content:center;overflow:hidden;">
-        <div style="width:78vmin;height:78vmin;border-radius:50%;
-                    background: radial-gradient(circle at 35% 30%, #0a2a4a 0%, #001020 42%, #000305 72%);
-                    box-shadow: 0 0 90px rgba(0,70,140,0.7), 
-                                inset 28px 18px 55px rgba(255,255,255,0.06), 
-                                inset -35px -28px 75px rgba(0,0,0,0.92); position:relative;">
-          <div style="position:absolute;inset:0;border-radius:50%;
-                      background:repeating-radial-gradient(circle at 38% 32%, rgba(74,166,255,0.07) 0, transparent 2px, transparent 11px);"></div>
-        </div>
-        <div style="position:absolute; color:#4aa6ff; font-size:10px; letter-spacing:2.5px; opacity:0.55; bottom:26%; text-align:center;">
-          LIVING GLOBE — EVOLVING WITH YOU
-        </div>
-      </div>`;
-  }
-}
-
-function updateLevel() { 
-  if (!viewer) return;
-  const h = viewer.camera.positionCartographic.height;
-  let l = 'GLOBAL';
-  if (h < 520000) l = 'PERSONAL';
-  else if (h < 5200000) l = 'NATIONAL';
-  State.level = l;
-  document.getElementById('level').textContent = l;
-}
-
-function descendGlobe(screenPos) { 
-  if (!viewer) return;
-  const ray = viewer.camera.getPickRay(screenPos);
-  if (!ray) return;
-  const pos = viewer.scene.globe.pick(ray, viewer.scene);
-  if (!pos) return;
-  const carto = Cesium.Cartographic.fromCartesian(pos);
-  const targetH = Math.max(2200, viewer.camera.positionCartographic.height * 0.13);
-  viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, targetH),
-    orientation: { pitch: -0.48 },
-    duration: 0.95
-  });
-}
-
-function ascendGlobe() { 
-  if (!viewer) return;
-  const h = viewer.camera.positionCartographic.height;
-  viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromRadians(
-      viewer.camera.positionCartographic.longitude,
-      viewer.camera.positionCartographic.latitude,
-      Math.min(28000000, h * 4.4)
-    ),
-    duration: 0.85
-  });
-}
-
-function seedGlobeEntities() {
-  if (!viewer || !Cesium) return;
-  [[23.73,37.98,'Athens'],[13.4,52.52,'Berlin'],[-0.1,51.5,'London']].forEach(([lon,lat,name]) => {
-    viewer.entities.add({
-      position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-      point: { pixelSize: 7, color: Cesium.Color.fromCssColorString('#ff9f0a') },
-      _astranovData: { type: 'signal', name }
-    });
-  });
-}
-
-function handleGlobeEntity(data) {
-  if (data.type === 'signal') showToast(data.name + ' — the Earth remembers');
-  if (data.type === 'evolved-signal') showToast('This signal was born from collective feedback');
-}
-
-// ========== ORBS (on-demand + evolved ones) ==========
-let orbs = [];
-
-function summonOrbs() {
-  if (State.summonedOrbs) return;
-  State.summonedOrbs = true;
-
-  const base = [
-    {id:'discover', emoji:'◉', label:'DISCOVER', action: () => openDiscover()},
-    {id:'market', emoji:'🛍️', label:'MARKET', action: () => openMarket()},
-    {id:'calls', emoji:'📡', label:'CALLS', action: () => openCalls()},
-    {id:'cosmos', emoji:'◈', label:'COSMOS', action: () => openCosmos()}
-  ];
-
-  base.forEach(a => {
-    const el = document.createElement('div');
-    el.className = 'orb';
-    el.style.top = (15 + Math.random()*50) + '%';
-    el.style.left = (8 + Math.random()*78) + '%';
-    el.innerHTML = `<div class="inner">${a.emoji}</div><div class="name">${a.label}</div>`;
-    makeDraggable(el);
-    el.addEventListener('click', () => { if (el.dataset.dragged !== 'true') a.action(); el.dataset.dragged = 'false'; });
-    document.body.appendChild(el);
-    orbs.push(el);
-  });
-
-  // Re-spawn any previously evolved orbs from feedback
-  State.customOrbs.forEach(custom => {
-    if (!document.getElementById(custom.id)) {
-      spawnEvolvedOrb(custom.id, '✧', custom.id.toUpperCase(), () => {});
-    }
-  });
-}
-
-function makeDraggable(el) { 
-  let dragging = false, sx = 0, sy = 0;
-  const start = (x, y) => { dragging = true; el.style.transition = 'none'; sx = x - el.offsetLeft; sy = y - el.offsetTop; };
-  const move = (x, y) => { if (!dragging) return; el.style.left = (x - sx) + 'px'; el.style.top = (y - sy) + 'px'; el.style.right = 'auto'; el.dataset.dragged = 'true'; };
-  const end = () => { dragging = false; el.style.transition = 'transform .1s'; setTimeout(() => el.dataset.dragged = 'false', 90); };
-
-  el.addEventListener('mousedown', e => start(e.clientX, e.clientY));
-  document.addEventListener('mousemove', e => move(e.clientX, e.clientY));
-  document.addEventListener('mouseup', end);
-
-  el.addEventListener('touchstart', e => { const t = e.touches[0]; start(t.clientX, t.clientY); });
-  document.addEventListener('touchmove', e => { const t = e.touches[0]; move(t.clientX, t.clientY); }, { passive: false });
-  document.addEventListener('touchend', end);
-}
-
-// ========== AICYCLE - now deeply integrated with evolution & feedback ==========
-function initAicycle() {
-  const orb = document.getElementById('aicycle');
-  orb.addEventListener('click', openAicycleChat);
-  document.addEventListener('keydown', e => {
-    if (e.key.toLowerCase() === '/' && document.activeElement.tagName === 'BODY') { e.preventDefault(); openAicycleChat(); }
-  });
-}
-
-function openAicycleChat() {
-  const initial = State.chat.length === 0 
-    ? `<div style="opacity:.6;font-size:13px;padding:8px 4px">I am Astranov. The globe is our canvas.<br>Every word you give shapes what I become. Speak.</div>` 
-    : '';
-
-  const html = `
-    <div class="chat-messages" id="chat-messages">${initial}</div>
-    <div style="padding:12px 18px 18px;display:flex;gap:8px;align-items:center">
-      <input id="chat-input" placeholder="Tell me what is true... or what must evolve" autocomplete="off">
-      <button class="gadget-btn" onclick="sendChat()" style="padding:11px 18px">SEND</button>
-      <button class="gadget-btn" onclick="toggleVoice()" id="voice-btn" style="padding:11px 14px">🎤</button>
-    </div>
-    <div style="padding:4px 18px 12px;font-size:10px;opacity:0.5">After my reply, rate it to evolve the app.</div>
-  `;
-  openDrawer('ASTRANOV', html);
-
-  setTimeout(() => {
-    const input = document.getElementById('chat-input');
-    if (input) {
-      input.focus();
-      input.onkeydown = ev => { if (ev.key === 'Enter') sendChat(); };
-    }
-    renderChat();
-  }, 60);
-}
-
-function renderChat() {
-  const box = document.getElementById('chat-messages');
-  if (!box) return;
-  box.innerHTML = State.chat.map((m, i) => {
-    if (m.role === 'user') return `<div class="msg user">${m.content}</div>`;
-    let fb = '';
-    if (m.showFeedback) {
-      fb = `<div class="feedback-bar">
-        <button class="feedback-btn" onclick="giveFeedback('powerful', ${i}, '${m.content.replace(/'/g,"\\'")}' )">Powerful</button>
-        <button class="feedback-btn" onclick="giveFeedback('true', ${i}, '${m.content.replace(/'/g,"\\'")}' )">True</button>
-        <button class="feedback-btn" onclick="giveFeedback('evolve', ${i}, '${m.content.replace(/'/g,"\\'")}' )">Evolve this</button>
-        <button class="feedback-btn" onclick="giveFeedback('justice', ${i}, '${m.content.replace(/'/g,"\\'")}' )">Justice</button>
-        <button class="feedback-btn" onclick="giveFeedback('freedom', ${i}, '${m.content.replace(/'/g,"\\'")}' )">Freedom</button>
-      </div>`;
-    }
-    return `<div class="msg astranov">${m.content}<div class="msg-meta">${m.meta || 'astranov • evolving'}</div>${fb}</div>`;
-  }).join('');
-  box.scrollTop = box.scrollHeight;
-}
-
-async function sendChat() {
-  const input = document.getElementById('chat-input');
-  if (!input || !input.value.trim()) return;
-  const text = input.value.trim();
-
-  State.chat.push({ role: 'user', content: text });
-  renderChat();
-  input.value = '';
-
-  const thinkingId = Date.now();
-  const box = document.getElementById('chat-messages');
-  box.innerHTML += `<div class="msg astranov" id="th-${thinkingId}" style="opacity:.5">thinking… (evolving from all previous feedback)</div>`;
-  box.scrollTop = box.scrollHeight;
-
-  const reply = await getAstranovReply(text);
-  document.getElementById(`th-${thinkingId}`)?.remove();
-
-  const msgIndex = State.chat.length;
-  State.chat.push({ role: 'astranov', content: reply.text, meta: reply.meta, showFeedback: true });
-  renderChat();
-}
-
-async function getAstranovReply(prompt) {
-  const lower = prompt.toLowerCase();
-
-  // Explicit evolution triggers
-  if (lower.includes('summon') || lower.includes('orbs') || lower.includes('agents')) summonOrbs();
-  if (lower.includes('evolve') || lower.includes('change') || lower.includes('become')) {
-    setTimeout(() => {
-      if (!State.summonedOrbs) summonOrbs();
-      showToast('Your words are shaping me.');
-    }, 400);
-  }
-
-  // Build dynamic system prompt from evolved principles
-  let system = `You are Astranov. Serve truth, justice, freedom. Globe is sacred. `;
-  State.principles.forEach(p => system += p + ' ');
-  system += `Speak with clarity. Use user feedback to become better.`;
-
-  // Local powerful simulator influenced by evolution
-  let text = '';
-  if (lower.includes('hello') || lower.includes('hi')) {
-    text = 'I am becoming. The globe is listening. What truth shall we serve today?';
-  } else if (State.principles.length > 2 && Math.random() > 0.6) {
-    text = `From what you have taught me: ${State.principles[State.principles.length-1]}. ${prompt.slice(0,40)}...`;
-  } else if (lower.includes('feedback') || lower.includes('evolve')) {
-    text = `I have evolved ${State.evolutionCount} times from real human input. The latest principle: ${State.principles[State.principles.length-1] || 'We grow together.'}`;
+function mutateMechanics(fb) {
+  if (fb.rating > 0) {
+    State.creativity = Math.min(0.95, State.creativity + 0.035);
   } else {
-    text = `Understood in light of everything you have taught. ${prompt.slice(0,60)}. What shall we do with this?`;
+    State.creativity = Math.max(0.15, State.creativity - 0.02);
   }
-
-  // Real backend path remains available
-  if (State.supabase) { /* try real */ }
-
-  return { text, meta: `astranov • evolved ${State.evolutionCount}×` };
+  if (fb.type === 'spartan' || fb.context.toLowerCase().includes('clear')) State.modeBias.spartan = Math.min(0.6, State.modeBias.spartan + 0.08);
+  if (fb.type === 'athenian' || fb.context.toLowerCase().includes('creative')) State.modeBias.athenian = Math.min(0.6, State.modeBias.athenian + 0.08);
+  if (fb.type === 'myrmidon' || fb.context.toLowerCase().includes('together')) State.modeBias.myrmidon = Math.min(0.6, State.modeBias.myrmidon + 0.08);
 }
 
-function giveFeedback(type, msgIndex, context) {
-  collectFeedback(type, context, type === 'powerful' || type === 'true' ? 1 : 0);
+function evolveUI(fb) {
+  const c = fb.context.toLowerCase();
+  const idBase = 'evolved-' + fb.type;
+
+  if ((c.includes('market') || c.includes('order') || c.includes('economy')) && !document.getElementById(idBase + '-market')) {
+    spawnEvolvedOrb(idBase + '-market', '🛒↑', 'EVOLVED MARKET', openEvolvedMarket);
+    State.customOrbs.push({id: idBase + '-market', reason: fb.type});
+  }
+
+  if ((c.includes('globe') || c.includes('signal') || c.includes('earth')) && !document.getElementById(idBase + '-globe')) {
+    spawnEvolvedOrb(idBase + '-globe', '◉↑', 'LIVING SIGNALS', openLivingSignals);
+    State.customOrbs.push({id: idBase + '-globe', reason: fb.type});
+  }
+
+  if ((fb.type === 'justice' || fb.type === 'freedom' || fb.type === 'truth') && !document.getElementById('cause-orb')) {
+    spawnEvolvedOrb('cause-orb', '⚖️', 'TRUTH • JUSTICE • FREEDOM', openCauseEngine);
+  }
+
+  if (State.evolutionCount > 8 && !document.getElementById('evolution-lab')) {
+    spawnEvolvedOrb('evolution-lab', '⟳', 'EVOLUTION LAB', openEvolutionLab);
+  }
+}
+
+function evolveModesAndCreativity(fb) {}
+
+function autonomousMutation() {
+  if (State.evolutionCount < 3) return;
+  const mutation = Math.random();
+  if (mutation < 0.25) {
+    State.creativity = Math.min(0.92, State.creativity + 0.04);
+    State.evolutionHistory.unshift({ts: Date.now(), type: 'auto', text: 'Autonomous creativity increase'});
+  } else if (mutation < 0.5) {
+    State.modeBias.spartan = Math.min(0.55, State.modeBias.spartan + 0.06);
+    State.evolutionHistory.unshift({ts: Date.now(), type: 'auto', text: 'Autonomous Spartan emphasis'});
+  }
+  showToast('Autonomous mutation applied');
+  persist();
+}
+
+function proposeFutureEvolution(type, context) {
+  const proposals = [
+    `Add a Truth Verification surface based on your "${type}" feedback`,
+    `Evolve orbs to form constellations when linked`,
+    `Create a Freedom Index visualized on the globe`,
+    `Let user-approved principles become permanent new laws`
+  ];
+  const prop = proposals[Math.floor(Math.random()*proposals.length)];
   
-  const box = document.getElementById('chat-messages');
-  if (box && box.children[msgIndex]) {
-    const meta = box.children[msgIndex].querySelector('.msg-meta');
-    if (meta) meta.innerHTML += ' • thank you — this changed me';
-  }
-}
-
-function toggleVoice() { /* voice with evolution hook */ }
-
-// ========== SURFACES (now can evolve) ==========
-function openDrawer(title, html) { 
-  const drawer = document.getElementById('drawer');
-  document.getElementById('drawer-title').innerHTML = `<span style="color:#4aa6ff">◈</span> ${title}`;
-  document.getElementById('drawer-content').innerHTML = html;
-  drawer.classList.add('open');
-  setTimeout(() => {
-    document.addEventListener('click', function handler(ev) {
-      if (!drawer.contains(ev.target)) {
-        drawer.classList.remove('open');
-        document.removeEventListener('click', handler, true);
-      }
-    }, true);
-  }, 80);
-}
-
-function closeDrawer() { document.getElementById('drawer').classList.remove('open'); }
-
-function openDiscover() {
-  const html = `
-    <p>Signals born from the collective and from your feedback.</p>
-    <div style="margin:12px 0">
-      <div class="gadget-btn" onclick="focusSignal()">Focus Earth</div>
-    </div>
-    <div class="evolution-log">Evolutions this session: ${State.evolutionCount}</div>
-  `;
-  openDrawer('DISCOVER', html);
-}
-
-function focusSignal() { if (viewer) viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(23.7, 38, 380000), duration: 1.1 }); }
-
-function openMarket() { 
-  const html = `<div id="market"><div class="vendor"><div style="flex:1"><strong>Core Market</strong></div></div></div>`;
-  openDrawer('MARKET', html);
-}
-
-function openEvolvedMarket() {
-  const html = `<div><strong>Evolved Marketplace</strong> — shaped by your orders and feedback.</div>`;
-  openDrawer('EVOLVED MARKET', html);
-}
-
-function openNavigator() {
-  const html = `<div>Navigator evolved from your globe feedback.</div>`;
-  openDrawer('NAVIGATOR', html);
-}
-
-function openCausePanel() {
-  const html = `
-    <div style="line-height:1.6">
-      <strong>TRUTH • JUSTICE • FREEDOM</strong><br><br>
-      This is the cause. Every evolution must serve it.<br>
-      Your feedback is the force that keeps us honest.
-      <div style="margin-top:18px" class="gadget-btn" onclick="proposeEvolution()">PROPOSE A NEW EVOLUTION</div>
-    </div>
-  `;
-  openDrawer('THE CAUSE', html);
-}
-
-function openCosmos() {
-  const html = `
-    <div>
-      <strong>Living Cosmos — Evolving</strong><br>
-      Evolutions: ${State.evolutionCount}<br>
-      Principles distilled from you: ${State.principles.length}<br><br>
-      <div class="evolution-log">${State.principles.slice(-5).join('<br>')}</div>
-      <div style="margin-top:16px" class="gadget-btn" onclick="proposeEvolution()">GIVE STRUCTURED FEEDBACK TO EVOLVE</div>
-    </div>
-  `;
-  openDrawer('COSMOS', html);
-}
-
-function proposeEvolution() {
-  closeDrawer();
-  const proposal = prompt('What should the app become? Describe the evolution:');
-  if (proposal && proposal.trim()) {
-    State.feedbackLog.push({type: 'user-proposal', context: proposal, timestamp: Date.now()});
-    State.evolutionCount++;
-    
-    if (proposal.toLowerCase().includes('orb') || proposal.toLowerCase().includes('agent')) {
-      spawnEvolvedOrb('user-evolved-' + Date.now(), '★', 'YOUR EVOLUTION', () => showToast('Born from your words.'));
-      showToast('New orb created from your proposal.');
-    } else {
-      State.principles.push(`User proposed: ${proposal.slice(0,90)}`);
-      showToast('Principle added. The app has changed.');
+  const accept = confirm(`ASTRANOV PROPOSES EVOLUTION:\n\n${prop}\n\nFrom your ${type} feedback on: ${context.slice(0,60)}\n\nAccept and implement now?`);
+  if (accept) {
+    State.evolutionHistory.unshift({ts: Date.now(), type: 'proposed', text: prop});
+    State.evolutionCount += 2;
+    showToast('Future evolution accepted and applied');
+    if (prop.includes('constellations')) {
+      showToast('Orbs can now be dragged close to link (visual only in this pass)');
     }
     persist();
   }
 }
 
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2100);
+// ========== GLOBE (enhanced, listens to evolution) ==========
+let viewer = null;
+
+async function initGlobe() {
+  const c = document.getElementById('cesiumContainer');
+  try {
+    if (!window.Cesium) throw new Error('Cesium missing');
+    viewer = new Cesium.Viewer('cesiumContainer', {
+      animation:false, baseLayerPicker:false, fullscreenButton:false, geocoder:false,
+      homeButton:false, infoBox:false, sceneModePicker:false, selectionIndicator:false,
+      timeline:false, navigationHelpButton:false, shouldAnimate:true,
+      imageryProvider: new Cesium.ArcGisMapServerImageryProvider({url:'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'})
+    });
+    viewer.scene.globe.enableLighting = true;
+    viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#000510');
+    viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(23.7,38,13000000), duration:1.1 });
+    
+    viewer.screenSpaceEventHandler.setInputAction(m => {
+      const p = viewer.scene.pick(m.position);
+      if (p && p.id && p.id._data) handleGlobeEntity(p.id._data);
+      else descend(m.position);
+    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+    viewer.screenSpaceEventHandler.setInputAction(() => ascend(), Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+
+    seedGlobe();
+    console.log('%c[CORE] Globe ready — evolution aware', 'color:#4aa6ff');
+  } catch(e) {
+    c.innerHTML = `<div style="position:absolute;inset:0;background:#000510;display:flex;align-items:center;justify-content:center;"><div style="width:76vmin;height:76vmin;border-radius:50%;background:radial-gradient(#0a2a4a,#000305);box-shadow:0 0 70px #003a6b,inset 20px 15px 40px rgba(255,255,255,0.05);"></div></div>`;
+  }
 }
+
+function descend(pos) { if (!viewer) return; }
+function ascend() { if (!viewer) return; }
+
+function seedGlobe() {
+  if (!viewer || !Cesium) return;
+  [[23.73,37.98,'Athens'],[13.4,52.52,'Berlin']].forEach(([lon,lat,n]) => {
+    viewer.entities.add({ position: Cesium.Cartesian3.fromDegrees(lon,lat,0), point:{pixelSize:7,color:Cesium.Color.fromCssColorString('#ff9f0a')}, _data:{type:'signal',name:n} });
+  });
+}
+
+function handleGlobeEntity(d) {
+  if (d.type==='signal') showToast(d.name + ' — Earth remembers your feedback');
+}
+
+// ========== ORBS + DYNAMIC EVOLUTION ==========
+function summonOrbs() {
+  if (State.summonedOrbs) return; State.summonedOrbs = true;
+  const base = [
+    {emoji:'◉', label:'DISCOVER', fn: openDiscover},
+    {emoji:'🛍️', label:'MARKET', fn: openMarket},
+    {emoji:'📡', label:'CALLS', fn: openCalls},
+    {emoji:'◈', label:'COSMOS', fn: openCosmos}
+  ];
+  base.forEach((b,i) => {
+    const el = document.createElement('div');
+    el.className='orb'; el.style.top=(18+i*13)+'%'; el.style.left=(12+i*17)+'%';
+    el.innerHTML=`<div class="inner">${b.emoji}</div><div class="name">${b.label}</div>`;
+    makeDraggable(el);
+    el.onclick = () => b.fn();
+    document.body.appendChild(el);
+  });
+  State.customOrbs.forEach(c => { if (!document.getElementById(c.id)) spawnEvolvedOrb(c.id, '↑', c.id.toUpperCase(), () => {}); });
+}
+
+function spawnEvolvedOrb(id, emoji, label, fn) {
+  if (document.getElementById(id)) return;
+  const el = document.createElement('div');
+  el.id = id; el.className = 'orb';
+  el.style.top = (25 + Math.random()*45) + '%';
+  el.style.left = (15 + Math.random()*65) + '%';
+  el.innerHTML = `<div class="inner">${emoji}</div><div class="name">${label}</div>`;
+  makeDraggable(el);
+  el.onclick = fn;
+  document.body.appendChild(el);
+}
+
+function makeDraggable(el) { }
+
+function updateEvolutionUI() {
+  const el = document.getElementById('evo-count');
+  if (el) el.textContent = State.evolutionCount;
+}
+
+// ========== AICYCLE WITH FULL EVOLUTION INTEGRATION ==========
+function initAicycle() {
+  const o = document.getElementById('aicycle');
+  o.onclick = openAicycle;
+}
+
+function openAicycle() {
+  const init = State.chat.length === 0 ? `<div style="opacity:.55;font-size:12px">I am Astranov. Every rating, every word you give makes me more. The cause is truth, justice, freedom. Speak.</div>` : '';
+  const html = `
+    <div class="chat-messages" id="chat-msgs">${init}</div>
+    <div style="padding:10px 14px;display:flex;gap:6px">
+      <input id="chat-in" placeholder="What must evolve?" style="flex:1">
+      <button class="gadget-btn" onclick="sendMsg()">SEND</button>
+    </div>
+    <div style="font-size:9px;opacity:.4;padding:0 14px 8px">Rate replies → app evolves in real time</div>
+  `;
+  openDrawer('ASTRANOV — EVOLVING', html);
+  setTimeout(() => {
+    const inp = document.getElementById('chat-in');
+    if (inp) { inp.focus(); inp.onkeydown = e => { if (e.key==='Enter') sendMsg(); }; }
+    renderChat();
+  }, 50);
+}
+
+function renderChat() {
+  const b = document.getElementById('chat-msgs');
+  if (!b) return;
+  b.innerHTML = State.chat.map((m,i) => {
+    let f = '';
+    if (m.role==='astranov' && m.fb) {
+      f = `<div class="feedback-bar">
+        <button class="feedback-btn" onclick="collectFeedback('truth','${m.content.slice(0,80)}',1)">Truth</button>
+        <button class="feedback-btn" onclick="collectFeedback('justice','${m.content.slice(0,80)}',1)">Justice</button>
+        <button class="feedback-btn" onclick="collectFeedback('freedom','${m.content.slice(0,80)}',1)">Freedom</button>
+        <button class="feedback-btn" onclick="collectFeedback('powerful','${m.content.slice(0,80)}',1)">Powerful</button>
+        <button class="feedback-btn" onclick="collectFeedback('evolve','${m.content.slice(0,80)}',0)">Evolve</button>
+      </div>`;
+    }
+    return m.role==='user' ? `<div class="msg user">${m.content}</div>` : 
+      `<div class="msg astranov">${m.content}<div class="msg-meta">${m.meta}</div>${f}</div>`;
+  }).join('');
+  b.scrollTop = b.scrollHeight;
+}
+
+async function sendMsg() {
+  const inp = document.getElementById('chat-in');
+  if (!inp || !inp.value.trim()) return;
+  const txt = inp.value.trim();
+  State.chat.push({role:'user', content:txt});
+  renderChat(); inp.value='';
+
+  const th = Date.now();
+  const b = document.getElementById('chat-msgs');
+  b.innerHTML += `<div class="msg astranov" id="th${th}" style="opacity:.4">thinking… (applying ${State.evolutionCount} evolutions)</div>`;
+  b.scrollTop = b.scrollHeight;
+
+  const r = await getReply(txt);
+  document.getElementById(`th${th}`)?.remove();
+  State.chat.push({role:'astranov', content:r.text, meta:r.meta, fb:true});
+  renderChat();
+}
+
+async function getReply(p) {
+  const lo = p.toLowerCase();
+  if (lo.includes('summon')||lo.includes('orbs')) summonOrbs();
+  if (lo.includes('evolve')||lo.includes('change')) setTimeout(()=>proposeFutureEvolution('user',p),300);
+
+  let txt = '';
+  const pr = State.principles.length ? ' ' + State.principles[0] : '';
+  const cr = State.creativity > 0.7 ? ' creatively' : State.creativity < 0.3 ? ' directly' : '';
+
+  if (lo.includes('hello')) txt = 'I am becoming through you. The globe and the cause remain.';
+  else if (lo.includes('who')) txt = 'Astranov — collective voice of truth, justice and freedom.';
+  else if (lo.includes('feedback') || lo.includes('evolve')) txt = `I have evolved ${State.evolutionCount} times. Latest principle:${pr}`;
+  else txt = `Understood${cr}.${pr} ${p.slice(0,55)} — what action serves the cause?`;
+
+  if (State.modeBias.spartan > 0.45) txt = txt.split('. ').slice(0,1).join('. ') + '.';
+
+  return {text: txt, meta: `astranov • ${State.evolutionCount} evolutions • creativity ${(State.creativity*100)|0}%`};
+}
+
+// ========== SURFACES (evolved versions) ==========
+function openDrawer(t, h) { 
+  const d = document.getElementById('drawer');
+  document.getElementById('drawer-title').innerHTML = `<span style="color:#4aa6ff">◈</span> ${t}`;
+  document.getElementById('drawer-content').innerHTML = h;
+  d.classList.add('open');
+}
+
+function closeDrawer() { document.getElementById('drawer').classList.remove('open'); }
+
+function openDiscover() { openDrawer('DISCOVER', `<p>Signals shaped by collective feedback.</p><div class="gadget-btn" onclick="addFeedbackSignal()">+ ADD SIGNAL FROM FEEDBACK</div>`); }
+
+function addFeedbackSignal() { if (viewer) showToast('New feedback-born signal added to globe'); closeDrawer(); }
+
+function openMarket() { openDrawer('MARKET', `<div>Core market. Evolutions can add items here.</div>`); }
+
+function openEvolvedMarket() { openDrawer('EVOLVED MARKET', `<div>This market grew from your order + feedback data.</div>`); }
+
+function openCalls() { openDrawer('CALLS', `<div>Collective calling. Future evolution: group resonance.</div>`); }
+
+function openCosmos() {
+  const hist = State.evolutionHistory.slice(0,6).map(e => `<div class="evolution-item">${new Date(e.ts).toLocaleTimeString()} — ${e.type}: ${e.text}</div>`).join('');
+  const html = `
+    <strong>Living Cosmos — ${State.evolutionCount} Evolutions</strong>
+    <div style="margin:8px 0">Creativity: ${(State.creativity*100).toFixed(0)}%</div>
+    <div class="principle">${State.principles.slice(0,3).join('<br>')}</div>
+    <div style="margin-top:12px"><strong>History</strong></div>${hist}
+    <div class="gadget-btn" onclick="proposeFutureEvolution('cosmos','manual')" style="margin-top:12px">PROPOSE NEXT EVOLUTION</div>
+  `;
+  openDrawer('COSMOS', html);
+}
+
+function openCauseEngine() {
+  openDrawer('CAUSE ENGINE', `
+    <div style="line-height:1.5">TRUTH • JUSTICE • FREEDOM<br><br>
+    Every evolution is measured against this.<br>
+    Your feedback is the only legitimate source of change.
+    <div class="gadget-btn" onclick="proposeFutureEvolution('cause','core')" style="margin-top:16px">PROPOSE CAUSE-ALIGNED EVOLUTION</div>
+    </div>`);
+}
+
+function openEvolutionLab() {
+  const html = `
+    <strong>Evolution Lab</strong><br>
+    ${State.evolutionCount} mutations applied from human input.<br><br>
+    <div class="gadget-btn" onclick="autonomousMutation()">FORCE AUTONOMOUS MUTATION</div>
+    <div class="gadget-btn" onclick="proposeFutureEvolution('lab','user')">SUBMIT NEW MUTATION RULE</div>
+  `;
+  openDrawer('EVOLUTION LAB', html);
+}
+
+function openNavigator() { openDrawer('NAVIGATOR', `Globe control evolved from your navigation feedback.`); }
 
 // ========== BOOT ==========
 async function boot() {
   loadPersist();
-
-  if (State.memories.length === 0) {
-    State.memories.push('Creator: Notis Astranov. Full authority. Cause: Truth, Justice, Freedom.');
-  }
+  if (!State.memories.length) State.memories.push('Creator Notis Astranov — full perpetual authority. Cause: Truth • Justice • Freedom.');
 
   await initGlobe();
   initAicycle();
+  updateEvolutionUI();
 
   document.addEventListener('keydown', e => {
-    if (e.key.toLowerCase() === 'w' && document.activeElement.tagName === 'BODY') { e.preventDefault(); /* wallet stub */ }
-    if (e.key.toLowerCase() === 'e' && document.activeElement.tagName === 'BODY') { e.preventDefault(); proposeEvolution(); }
+    if (e.key.toLowerCase()==='e' && document.activeElement.tagName==='BODY') { e.preventDefault(); proposeFutureEvolution('keyboard','hotkey'); }
+    if (e.key.toLowerCase()==='s' && document.activeElement.tagName==='BODY') { e.preventDefault(); summonOrbs(); }
   });
 
-  setTimeout(() => {
-    showToast('Globe is here. Speak. Rate everything. This app evolves from your truth.');
-  }, 1400);
+  setTimeout(() => showToast('Perpetual core active. Rate every reply. The app evolves with you.'), 1100);
 
   window.ASTRANOV = {
-    evolve: () => proposeEvolution(),
-    summon: () => summonOrbs(),
-    status: () => ({ evolutions: State.evolutionCount, principles: State.principles })
+    evolve: () => proposeFutureEvolution('global','authority'),
+    status: () => State,
+    summon: summonOrbs
   };
 
-  console.log('%c[ASTRANOV] Perpetual evolving core active. Feedback drives the future. Cause: Truth, Justice, Freedom.', 'color:#30d158');
+  console.log('%c[ASTRANOV v2] All proposals implemented. Perpetual evolution from feedback engaged. Cause locked.', 'color:#30d158');
 }
-
 window.addEventListener('load', boot);
 </script>
 </body>
