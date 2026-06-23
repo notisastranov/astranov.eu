@@ -517,7 +517,7 @@ function init() {
 
   // Domain guard (English only for name)
   const host = location.hostname || '';
-  const isOfficial = host === 'astranov.eu' || host === 'grok.astranov.eu' || host.endsWith('.astranov.eu');
+  const isOfficial = host === 'astranov.eu' || host === 'Astranov.astranov.eu' || host.endsWith('.astranov.eu');
   const isLocal = host === '' || host === 'localhost' || host === '127.0.0.1' || location.protocol === 'file:';
   if (host && !isOfficial && !isLocal) {
     document.body.innerHTML = '<div style="color:#444;padding:40px;text-align:center;font-family:sans-serif">Available only on authorized Astranov domains</div>';
