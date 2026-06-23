@@ -3,6 +3,16 @@
 ## Owner
 Notis Astranov. Owner has granted full autonomous push/merge access.
 
+## Chat Recycling Technique (MANDATORY)
+When conversations grow long or requirements are clarified:
+1. Stop.
+2. Recycle the chat history into a clean, bullet-point spec.
+3. Update ASTRANOV_GROK_SPECS.md (the living contract).
+4. Propagate the spec sheet.
+5. Continue implementation from the updated sheet only.
+
+Never drown in fluffy back-and-forth. The spec is truth.
+
 ## Deployment Rule — MANDATORY
 After **every** code change:
 1. `git add index.html` (and any supabase/* files changed)
