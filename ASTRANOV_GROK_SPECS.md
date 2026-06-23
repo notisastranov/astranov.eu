@@ -2,7 +2,7 @@
 
 **Purpose of this document:** Single source of truth. Recycled from all chat history into pure, actionable requirements. No fluff, no history of arguments. Update this sheet when vision changes. Future work recycles from here.
 
-**Date recycled:** 2026-06-23
+**Date recycled:** 2026-06-23 (multiple iterations until compliant)
 **Primary source file:** astranov-grok.html (the single-file app)
 **Deployed as:** index.html in repos
 
@@ -142,6 +142,12 @@ After every meaningful change to the app:
 
 ---
 
+**Compliance achieved (this recycle cycle):**
+- All identified violations fixed in source (dupes removed, simulate purged, branding strings cleaned to Αστρανόβ / orbital only, showOrbitalSignal real impl, domain msg fixed, have fun removed, on-demand + provoke + globe-first confirmed).
+- Source synced to both indexes.
+- Pushed + merged to both repos (central main + feature branch).
+- Repeated audit + recycle performed.
+
 **This sheet is the contract.** When in doubt, recycle chat → update here → implement exactly. No drifting.
 
-— Recycled for Notis Astranov / Astranov
+— Recycled for Notis Astranov / Astranov (until fork compliant)
