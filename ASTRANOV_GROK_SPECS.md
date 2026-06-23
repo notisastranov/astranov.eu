@@ -121,18 +121,18 @@ After every meaningful change to the app:
 - Cat (Astri) or other non-specified creatures unless explicitly added later.
 - Fast/pulsing animations that were previously removed for safety (keep calm where possible, but pilot delivery can be visible).
 
-## 12. Current Implementation Snapshot (as of recycle)
+## 12. Current Implementation Snapshot (as of latest recycle)
 
-- File: astranov-grok.html (pure globe, Three.js r128)
-- AIGraphics + RoutingEngine present and used.
-- Real WebRTC + orbitalSats + requestOrbitalTech (clipboard).
-- Voice with el-GR + provoke + handleVoiceCommand on marker click.
-- 3D pilot (showPilotTelemachos) + drone in groupOrder with routed animation.
-- placeMe (green marker), showOtherUsers.
-- onGlobeClick + focus + cityLevel.
-- Domain guard in Greek.
-- No panels in body/CSS/JS (comments confirm pure globe mode).
-- Default start: silent, user can drag/zoom/click immediately.
+- File: astranov-grok.html (pure globe, Three.js r128) — source of truth.
+- AIGraphics (procedural canvas) + RoutingEngine (cycling + safety) fully used.
+- Real WebRTC (getUserMedia + RTCPeerConnection + STUN + clipboard offer) + orbitalSats viz + requestOrbitalTech.
+- Voice: el-GR, marker-triggered only, short prompts, stop-to-listen + provokeAnswer ("Τι θες Αξάς;").
+- 3D procedural pilot ΤΗΛΕΜΑΧΟΣ (group with body/cockpit/wings/thrusters + particles) + droneGroup animation on routed paths in groupOrder.
+- placeMe (green Αξάς marker), other users, onGlobeClick raycast focus.
+- Domain guard (astranov.eu / grok.astranov.eu only) with Greek message.
+- No permanent panels/windows (only <div id="globe"> + minimal temp UI during active call).
+- Default start: completely silent, user drags/zooms/clicks globe immediately. on-demand location/voice.
+- All "Astranov"/"have fun"/"satellite tech"/simulate removed. Only Αστρανόβ / orbital / real.
 
 ## 13. Repos (both must stay in sync)
 

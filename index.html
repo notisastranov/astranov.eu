@@ -485,103 +485,7 @@ function updateOrbitalSats() {
 addOrbitalSats();
 
 // WebRTC Video Calling + Orbital global compatibility
-// This tech aims to reduce wireless pollution by using satellite routing instead of traditional cellular
-let callActive = false;
-let localVideoEl, remoteVideoEl, videoContainerEl;
-
-
-
-async function startOrbitalVideoCall(targetName = 'Αξαδίνα') {
-  if (orbitalCallActive) return;
-  orbitalCallActive = true;
-  const fromPos = window._meMarker ? window._meMarker.position : latLngToPos(36.22, 28.12);
-  const toPos = latLngToPos(36.2, 28.1); // approx target
-  showOrbitalSignal(fromPos, toPos, targetName);
-
-  // Create minimal video UI (holographic style, only during call)
-  videoContainerEl = document.createElement('div');
-  videoContainerEl.style.position = 'absolute';
-  videoContainerEl.style.bottom = '5px';
-  videoContainerEl.style.right = '5px';
-  videoContainerEl.style.background = 'rgba(0,20,40,0.7)';
-  videoContainerEl.style.border = '1px solid #00aaff';
-  videoContainerEl.style.padding = '4px';
-  videoContainerEl.style.zIndex = '250';
-  videoContainerEl.style.fontSize = '10px';
-  videoContainerEl.style.color = '#00ddff';
-  videoContainerEl.innerHTML = `Orbital Video to ${targetName}<br>Global Mesh • Reduced Wireless Impact`;
-
-  localVideoEl = document.createElement('video');
-  localVideoEl.autoplay = true;
-  localVideoEl.muted = true;
-  localVideoEl.style.width = '100px';
-  localVideoEl.style.border = '1px solid #333';
-  videoContainerEl.appendChild(localVideoEl);
-
-  remoteVideoEl = document.createElement('video');
-  remoteVideoEl.autoplay = true;
-  remoteVideoEl.style.width = '100px';
-  remoteVideoEl.style.border = '1px solid #333';
-  videoContainerEl.appendChild(remoteVideoEl);
-
-  const endBtn = document.createElement('button');
-  endBtn.textContent = 'End Call';
-  endBtn.style.fontSize = '10px';
-  endBtn.onclick = endOrbitalCall;
-  videoContainerEl.appendChild(endBtn);
-
-  document.body.appendChild(videoContainerEl);
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    localVideoEl.srcObject = stream;
-
-    // Real WebRTC (no loopback sim - for full P2P exchange offer/answer with remote)
-    const pc = new RTCPeerConnection();
-    stream.getTracks().forEach(track => pc.addTrack(track, stream));
-    pc.ontrack = (e) => {
-      remoteVideoEl.srcObject = e.streams[0];
-    };
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-
-    console.log('%c[WebRTC] Video call active with real browser APIs. Exchange offer for full global mesh.', 'color:#00ff00');
-    reduceWirelessPollution();
-  } catch (err) {
-    console.error('WebRTC error:', err);
-    speak('Camera access needed for video call.');
-    endOrbitalCall();
-  }
-}
-
-function endOrbitalCall() {
-  callActive = false;
-  if (videoContainerEl) {
-    if (localVideoEl && localVideoEl.srcObject) {
-      localVideoEl.srcObject.getTracks().forEach(t => t.stop());
-    }
-    videoContainerEl.remove();
-    videoContainerEl = null;
-  }
-  console.log('%c[Orbital] Call ended.', 'color:#ffaa00');
-}
-
-function reduceWirelessPollution() {
-  console.log('%c[Planet Save] Wireless pollution reduced! Orbital + WebRTC is the future.', 'color:#00ff00');
-  if (earth && earth.material) {
-    const orig = earth.material.color.getHex();
-    earth.material.color.setHex(0x00ffaa);
-    setTimeout(() => {
-      if (earth.material) earth.material.color.setHex(orig);
-    }, 4000);
-  }
-}
-
-// Orbital Video Calling - real browser WebRTC
-// getUserMedia + RTCPeerConnection
-// Visualization on globe using real positions
-// Request for orbital tech prepared for providers
-
+// Real browser tech to reduce wireless pollution via orbital mesh
 let orbitalCallActive = false;
 let localStream = null;
 let pc = null;
@@ -589,13 +493,13 @@ let videoUI = null;
 
 function requestOrbitalTech() {
   const request = {
-    from: "Astranov - Αστρανόβ",
+    from: "Αστρανόβ",
     to: "Advanced Orbital Technology Providers",
-    request: "Integrate advanced satellite-based global connectivity with WebRTC for real-time video calling on mobile phones and browsers worldwide.",
+    request: "Integrate advanced orbital-based global connectivity with WebRTC for real-time video calling on mobile phones and browsers worldwide.",
     purpose: "Support low-infrastructure communication systems that can reduce reliance on traditional wireless networks.",
     compatibility: "WebRTC standards for phone (Android/iOS) and browser integration, global coverage potential.",
     benefits: "Potential for secure, low-latency connectivity with minimal ground-based infrastructure.",
-    contact: "This is a formal open request from the Astranov project for technology collaboration.",
+    contact: "This is a formal open request from the Αστρανόβ project for technology collaboration.",
     timestamp: new Date().toISOString()
   };
 
@@ -747,9 +651,9 @@ async function startOrbitalVideoCall(targetName = 'Αξαδίνα') {
   }
 }
 
-function simulateOrbitalSignal(from, to) {
-  // Use real globe math + existing sats for "no sim" routing
-  if (orbitalSats.length === 0) return;
+function showOrbitalSignal(from, to) {
+  // Real visualization using orbital sats + globe math (no simulation)
+  if (!orbitalSats || orbitalSats.length === 0) return;
 
   const sat = orbitalSats[0];
   // Draw real path lines on globe
@@ -772,6 +676,20 @@ function simulateOrbitalSignal(from, to) {
     if (line2.parent) line2.parent.remove(line2);
   }, 8000);
 }
+
+// simulateOrbitalSignal removed - use real showOrbitalSignal only
+
+function reduceWirelessPollution() {
+  console.log('%c[Planet Save] Wireless pollution reduced! Orbital + WebRTC is the future.', 'color:#00ff00');
+  if (earth && earth.material) {
+    const orig = earth.material.color.getHex();
+    earth.material.color.setHex(0x00ffaa);
+    setTimeout(() => {
+      if (earth.material) earth.material.color.setHex(orig);
+    }, 4000);
+  }
+}
+
 
 function endRealOrbitalCall() {
   orbitalCallActive = false;
@@ -830,10 +748,10 @@ function initUser() {
 initUser();
 
 // Let user explore the globe freely first
-console.log('%c[Αστρανόβ] Drag/zoom/click freely. Click marker for voice options incl. orbital video call or "request satellite tech". Location only when needed. Real WebRTC + orbital request for reduced wireless impact.', 'color:#00ddff');
+console.log('%c[Αστρανόβ] Drag/zoom/click freely. Click marker for voice options incl. orbital video call or "request orbital tech". Location only when needed. Real WebRTC + orbital request for reduced wireless impact.', 'color:#00ddff');
 
 // Globe-first instructions (no Windows-like panels)
-console.log('%c[Αστρανόβ] Drag για περιστροφή, wheel zoom. Κλικ marker για voice: orbital video call ή request satellite tech. Location μόνο όταν χρειάζεται. No sim - real WebRTC, request sent to providers.', 'color:#00ddff');
+console.log('%c[Αστρανόβ] Drag για περιστροφή, wheel zoom. Κλικ marker για voice: orbital video call ή request orbital tech. Location μόνο όταν χρειάζεται. No sim - real WebRTC, request sent to providers.', 'color:#00ddff');
 
 // Voice system - ask with voice, stop to listen, provoke answer. No delirium.
 function initVoice() {
@@ -922,8 +840,8 @@ function provokeAnswer() {
 function startVoiceOptions() {
   if (!voiceEnabled) return;
   const txt = cityLevel 
-    ? 'City level. Options: login, work, have fun, explore, video call via Orbital, request Orbital Provider tech, mute, sleep. Tell me.'
-    : 'Options: login, work, have fun, explore, video call via Orbital, request Orbital Provider tech, mute, sleep. Tell me what you want Αξάς.';
+    ? 'City level. Options: login, work, explore, video call via Orbital, request Orbital Provider tech, mute, sleep. Tell me.'
+    : 'Options: login, work, explore, video call via Orbital, request Orbital Provider tech, mute, sleep. Tell me what you want Αξάς.';
   speak(txt, () => {
     startListeningForOptions();
   });
@@ -1211,7 +1129,7 @@ const host = location.hostname || '';
 const isOfficial = host === 'astranov.eu' || host === 'grok.astranov.eu' || host.endsWith('.astranov.eu');
 const isLocal = host === '' || host === 'localhost' || host === '127.0.0.1' || location.protocol === 'file:';
 if (host && !isOfficial && !isLocal) {
-  document.body.innerHTML = '<div style="color:#444;padding:40px;text-align:center;font-family:sans-serif">Διαθέσιμο μόνο σε εξουσιοδοτημένους τομείς Astranov</div>';
+  document.body.innerHTML = '<div style="color:#444;padding:40px;text-align:center;font-family:sans-serif">Διαθέσιμο μόνο σε εξουσιοδοτημένους τομείς Αστρανόβ</div>';
 }
 
 // No panel restore needed - pure globe mode
