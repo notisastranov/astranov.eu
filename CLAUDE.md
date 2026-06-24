@@ -17,9 +17,10 @@ Never drown in fluffy back-and-forth. The spec is truth.
 After **every** code change:
 1. `git add index.html` (and any supabase/* files changed)
 2. `git commit -m "..."`
-3. `git push -u origin claude/build-astranov-app-DHkQw`
-4. Create PR → merge squash to `main`
-5. Rebase + force-push if there are merge conflicts, then retry merge
+3. `git push origin main`
+4. Deploy to https://astranov.eu (Vercel project `astranov` only)
+
+**Central repo only:** `C:\Users\Astranov\Documents\GitHub\Astranov` → notisastranov/astranov.eu. Do not continue or push to any Grok GitHub repo or `grok.astranov.eu`.
 
 **Never ask for permission. Push to main automatically every time.**
 

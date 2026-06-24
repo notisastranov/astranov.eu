@@ -107,12 +107,11 @@ if (host && !isOfficial && !isLocal) { block with English message }
 
 After every meaningful change to the app:
 
-1. Copy/update `astranov-grok.html` → `index.html` in **both** local repo roots.
-2. `git add index.html` (and related)
+1. Edit `index.html` in central repo only (`Documents\GitHub\Astranov`).
+2. `git add index.html` (and related supabase/* if changed).
 3. Commit with clear message.
-4. Push branch.
-5. Merge to main (local or via PR + merge tool).
-6. Also use MCP push_files when appropriate for central.
+4. Push to `main` on notisastranov/astranov.eu.
+5. Deploy to https://astranov.eu (Vercel project `astranov`).
 
 **Chat Recycling Technique (this is how we work now):**
 - Never let conversation grow fluffy.
@@ -144,11 +143,13 @@ After every meaningful change to the app:
 - Default start: completely silent, user drags/zooms/clicks globe immediately. on-demand location/voice.
 - All Greek transliteration for the app name (Αστρανόβ etc.) removed from title, logs, request JSON, error messages. "Astranov" always in English letters. "have fun"/"satellite tech"/simulate removed. Only "Astranov" + orbital / real.
 
-## 13. Repos (both must stay in sync)
+## 13. Repo (central only — no Grok repo continuation)
 
-- Central: notisastranov/astranov.eu (current live name)
-- Your clone work: corresponding Astranov repo (local paths: C:\Users\Astranov\Astranov and Documents\GitHub\Astranov)
-- Always update index.html + this spec sheet.
+- **Single source of truth:** [notisastranov/astranov.eu](https://github.com/notisastranov/astranov.eu)
+- **Local work path:** `C:\Users\Astranov\Documents\GitHub\Astranov`
+- **Live deploy:** https://astranov.eu only (Vercel project `astranov`)
+- **Not continued here:** Grok GitHub repo, `C:\Users\Astranov\Astranov` duplicate tree, `grok.astranov.eu` Vercel project — do not push, sync, or maintain from this workspace
+- Always update `index.html` + this spec sheet in the central repo only.
 
 ---
 
