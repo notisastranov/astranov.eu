@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.aci]
 verify_jwt = false
+
+[functions.voice]
+verify_jwt = false

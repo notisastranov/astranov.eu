@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Astranov</title>
-<meta name="compliance-check" content="aci-connect-voice-fix-2026-06-24">
+<meta name="compliance-check" content="astranov-voice-female-calm-2026-06-24">
 <meta name="aci-session" content="Astranov Collective Intelligence">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -196,16 +196,20 @@ function latLngToPos(lat, lng, r = 1) {
 }
 
 // === VOICE + MAP DEPICT ===
-// Natural speech: Greek, English, Greklish — never spell letter-by-letter.
-// Every ACI action gets a visual on the globe; user can intervene anytime.
+// Astranov Voice: synthesized female, mid-tone, calm (server TTS + browser fallback).
+// Greek, English, Greklish — full sentences, never spell letter-by-letter.
 
 const Voice = {
+  persona: { name: 'Astranov', style: 'female calm mid-tone' },
   voices: [],
   ready: false,
   speaking: false,
   stopped: false,
   preferredListenLang: 'el-GR',
   _voicesReady: null,
+  _audio: null,
+  _blobUrl: null,
+  engine: 'astranov',
 
   init() {
     const load = () => {
@@ -240,17 +244,73 @@ const Voice = {
     return g >= l * 0.25 ? 'el-GR' : 'en-US';
   },
 
-  pickVoice(lang) {
+  pickFemaleCalm(lang) {
     const v = this.voices;
     if (!v.length) return null;
+    const isFemale = x => /female|zira|samantha|susan|hazel|aria|victoria|linda|karen|moira|fiona|tessa|melina|elena|google.*γυναικ|natural.*female/i.test(x.name);
     if (lang === 'el-GR') {
-      return v.find(x => /stefanos|melina|google.*ελληνικά|greek/i.test(x.name))
-        || v.find(x => /^el[-_]?GR$/i.test(x.lang))
-        || v.find(x => /el/i.test(x.lang) && !/en/i.test(x.name));
+      return v.find(x => isFemale(x) && /el/i.test(x.lang))
+        || v.find(x => /melina|elena|ελληνικά/i.test(x.name))
+        || v.find(x => /^el[-_]?GR$/i.test(x.lang) && !/stefanos|male|nikos/i.test(x.name));
     }
-    return v.find(x => /zira|samantha|google.*english.*united states|natural/i.test(x.name))
-      || v.find(x => /^en[-_]?US$/i.test(x.lang))
-      || v.find(x => /^en[-_]?GB$/i.test(x.lang));
+    return v.find(x => isFemale(x) && /^en/i.test(x.lang))
+      || v.find(x => /zira|samantha|hazel|aria|victoria/i.test(x.name))
+      || v.find(x => /^en[-_]?US$/i.test(x.lang));
+  },
+
+  async synthHeaders() {
+    if (window.Auth?.authHeaders) return Auth.authHeaders();
+    return { 'Content-Type': 'application/json', apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY };
+  },
+
+  releaseAudio() {
+    if (this._audio) { try { this._audio.pause(); } catch (_) {} this._audio = null; }
+    if (this._blobUrl) { try { URL.revokeObjectURL(this._blobUrl); } catch (_) {} this._blobUrl = null; }
+  },
+
+  playBlob(blob) {
+    return new Promise(resolve => {
+      if (this.stopped) { resolve(); return; }
+      this.releaseAudio();
+      this._blobUrl = URL.createObjectURL(blob);
+      this._audio = new Audio(this._blobUrl);
+      this._audio.onended = () => { this.releaseAudio(); resolve(); };
+      this._audio.onerror = () => { this.releaseAudio(); resolve(); };
+      this.speaking = true;
+      this._audio.play().catch(() => resolve());
+    });
+  },
+
+  async synthServer(text, lang) {
+    try {
+      const r = await fetch(SB_URL + '/functions/v1/voice', {
+        method: 'POST',
+        headers: await this.synthHeaders(),
+        body: JSON.stringify({ text, lang, persona: this.persona.name })
+      });
+      if (r.ok && (r.headers.get('content-type') || '').includes('audio')) {
+        this.engine = r.headers.get('X-Astranov-Voice') || 'astranov';
+        return await r.blob();
+      }
+    } catch (_) {}
+    return null;
+  },
+
+  speakBrowserSentence(sentence) {
+    return new Promise(resolve => {
+      if (this.stopped) { resolve(); return; }
+      const utter = new SpeechSynthesisUtterance(sentence.text);
+      utter.lang = sentence.lang;
+      utter.rate = 0.88;
+      utter.pitch = 0.94;
+      const voice = this.pickFemaleCalm(sentence.lang);
+      if (voice) utter.voice = voice;
+      utter.onend = () => resolve();
+      utter.onerror = () => resolve();
+      this.engine = 'browser-female';
+      this.speaking = true;
+      speechSynthesis.speak(utter);
+    });
   },
 
   humanize(text) {
@@ -282,40 +342,32 @@ const Voice = {
   stop() {
     this.stopped = true;
     this.speaking = false;
+    this.releaseAudio();
     try { speechSynthesis.cancel(); } catch (_) {}
   },
 
-  speak(text, onEnd) {
+  async speak(text, onEnd) {
     if (!voiceEnabled) { if (onEnd) onEnd(); return; }
     const clean = this.humanize(text);
     if (!this.shouldSpeak(clean)) { if (onEnd) onEnd(); return; }
 
     this.stop();
     this.stopped = false;
+    await this.ensureVoices();
 
-    this.ensureVoices().then(() => {
-      const sentences = this.splitSentences(clean);
-      let idx = 0;
-      const speakNext = () => {
-        if (this.stopped || idx >= sentences.length) {
-          this.speaking = false;
-          if (onEnd && !this.stopped) onEnd();
-          return;
-        }
-        const { text: t, lang } = sentences[idx++];
-        const utter = new SpeechSynthesisUtterance(t);
-        utter.lang = lang;
-        utter.rate = 0.95;
-        utter.pitch = 1.0;
-        const voice = this.pickVoice(lang);
-        if (voice) utter.voice = voice;
-        utter.onend = speakNext;
-        utter.onerror = speakNext;
-        this.speaking = true;
-        speechSynthesis.speak(utter);
-      };
-      speakNext();
-    });
+    const sentences = this.splitSentences(clean);
+    for (const sentence of sentences) {
+      if (this.stopped) break;
+      const blob = await this.synthServer(sentence.text, sentence.lang);
+      if (blob && !this.stopped) {
+        await this.playBlob(blob);
+      } else if (!this.stopped) {
+        await this.speakBrowserSentence(sentence);
+      }
+    }
+
+    this.speaking = false;
+    if (onEnd && !this.stopped) onEnd();
   }
 };
 
