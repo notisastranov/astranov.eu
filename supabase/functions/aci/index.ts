@@ -67,6 +67,51 @@ async function invokeFn(base: string, apikey: string, authToken: string, name: s
   try { return await r.json() } catch { return { error: 'bad json', status: r.status } }
 }
 
+async function codersLlmFallback(
+  sb: SupabaseClient,
+  base: string, anon: string, authToken: string, caller: { callerId: string | null; isOwner: boolean },
+  summonId: number | null, task: string, history: unknown[], reason: string,
+) {
+  const result = await invokeFn(base, anon, authToken, 'aicycle', {
+    prompt: task,
+    profile_id: caller.callerId,
+    mode: 'coders',
+    coder_engine: 'fallback',
+    fallback: true,
+    agent_system: `Composer queue unavailable (${reason}). Answer as Astranov coders via available LLM. Summon #${summonId}.`,
+    history: Array.isArray(history) ? history : [],
+  })
+  const via = String(result.via || result.provider || 'llm')
+  const answer = String(result.text || result.response || '').trim()
+  const label = String(result.label || `Astranov Coders · Fallback (${via})`)
+  const notice = `⚠ Cursor Composer unavailable (${reason}). Using fallback coder: ${via}.`
+  const text = answer ? `${notice}\n\n${answer}` : `${notice}\n\nNo coding model responded — try again shortly.`
+
+  if (summonId && answer) {
+    await sb.from('cic_queue').update({
+      status: 'answered',
+      answer: text.slice(0, 8000),
+      answered_at: new Date().toISOString(),
+    }).eq('id', summonId).catch(() => {})
+  }
+
+  return json({
+    ok: !!answer,
+    bridged: true,
+    pending: false,
+    fallback: true,
+    fallback_reason: reason,
+    summon_id: summonId,
+    text,
+    response: text,
+    label,
+    coder_engine: 'fallback',
+    via,
+    queued: !!summonId,
+    owner: caller.isOwner,
+  })
+}
+
 async function resolveCaller(req: Request, sb: SupabaseClient, anon: string) {
   const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')
   if (!token || token === anon) {
@@ -238,39 +283,67 @@ serve(async (req) => {
         }).catch(() => {})
       }
 
-      // Composer = Cursor Composer async queue (NOT Anthropic / NOT a fake LLM)
+      // Composer = Cursor Composer async queue; fallback to LLM coders if queue/bridge down
       if (engine === 'composer') {
-        const bridge = `${base}/functions/v1/coders-bridge`
-        await fetch(bridge, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: anon,
-            Authorization: `Bearer ${anon}`,
-          },
-          body: JSON.stringify({
-            mode: 'register',
-            summon_id: summonId,
-            task,
-            user_id: caller.callerId,
-            email: caller.email,
-          }),
-        }).catch(() => {})
+        const downReasons: string[] = []
+        if (qerr || !summonId) downReasons.push(qerr?.message || 'queue insert failed')
 
-        const text = `Summon #${summonId} queued for Cursor Composer (Anysphere). Poll: coders poll ${summonId}`
-        return json({
-          ok: true,
-          bridged: true,
-          pending: true,
-          summon_id: summonId,
-          text,
-          response: text,
-          label: 'Astranov Coders · Cursor Composer',
-          coder_engine: 'composer',
-          via: 'cursor/queue',
-          queued: true,
-          owner: caller.isOwner,
-        })
+        let bridgeOk = false
+        if (summonId) {
+          const bridge = `${base}/functions/v1/coders-bridge`
+          try {
+            const health = await fetch(bridge, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', apikey: anon, Authorization: `Bearer ${anon}` },
+              body: JSON.stringify({ mode: 'pending', limit: 1 }),
+            })
+            if (!health.ok) downReasons.push('bridge health check failed')
+            else bridgeOk = true
+
+            if (bridgeOk) {
+              const reg = await fetch(bridge, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', apikey: anon, Authorization: `Bearer ${anon}` },
+                body: JSON.stringify({
+                  mode: 'register',
+                  summon_id: summonId,
+                  task,
+                  user_id: caller.callerId,
+                  email: caller.email,
+                }),
+              })
+              if (!reg.ok) {
+                bridgeOk = false
+                downReasons.push('bridge register failed')
+              }
+            }
+          } catch {
+            downReasons.push('bridge unreachable')
+          }
+        }
+
+        if (summonId && bridgeOk && !qerr) {
+          const text = `Summon #${summonId} queued for Cursor Composer. Poll: coders poll ${summonId}`
+          return json({
+            ok: true,
+            bridged: true,
+            pending: true,
+            summon_id: summonId,
+            text,
+            response: text,
+            label: 'Astranov Coders · Cursor Composer',
+            coder_engine: 'composer',
+            via: 'cursor/queue',
+            queued: true,
+            owner: caller.isOwner,
+          })
+        }
+
+        return await codersLlmFallback(
+          sb, base, anon, caller.authToken, caller, summonId, task,
+          Array.isArray(body.history) ? body.history : [],
+          downReasons.join('; ') || 'composer unavailable',
+        )
       }
 
       // Grok = xAI / Grok APIs (sync)

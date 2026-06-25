@@ -1211,6 +1211,7 @@ const AciCoders = {
     if (AciCli) {
       AciCli.print('◇ Coders → Cursor Composer (ready)', 'ok');
       AciCli.print('  type: coders <task>  or just your task', 'dim');
+      AciCli.print('  if Composer is down → auto fallback LLM (you will be told)', 'dim');
     }
     this.updateHud();
     window._aciCodersReady = true;
@@ -1230,7 +1231,14 @@ const AciCoders = {
     this._pollTimer = setInterval(async () => {
       tries++;
       const r = await this.poll(summonId, true);
-      if (r?.status === 'answered' || tries > 36) this.stopPoll();
+      if (r?.status === 'answered') this.stopPoll();
+      if (tries === 12 && r?.pending && AciCli) {
+        AciCli.print('Composer still working… #' + summonId + ' (poll continues)', 'dim');
+      }
+      if (tries > 36) {
+        this.stopPoll();
+        if (AciCli) AciCli.print('Composer slow — keep: coders poll ' + summonId, 'dim');
+      }
     }, 5000);
   },
 
@@ -1384,13 +1392,21 @@ const AciCoders = {
     }
 
     if (AciCli) {
+      if (r.fallback) {
+        AciCli.print('⚠ Composer down → fallback: ' + (r.via || 'llm'), 'dim');
+        if (r.fallback_reason) AciCli.print('  reason: ' + r.fallback_reason, 'dim');
+      }
       if (r.summon_id) {
-        AciCli.print('summon #' + r.summon_id + ' · ' + tag + (r.via ? ' · ' + r.via : ''), r.pending ? 'dim' : 'ok');
+        const eng = r.fallback ? 'fallback' : tag;
+        AciCli.print('summon #' + r.summon_id + ' · ' + eng + (r.via ? ' · ' + r.via : ''), r.pending ? 'dim' : 'ok');
       }
       AciCli.print(label + ': ' + text.slice(0, 880), r.ok !== false ? 'out' : 'err');
       if (r.pending) AciCli.print('polling… type: coders poll ' + r.summon_id, 'dim');
     }
-    ACIControl?.reply(label + (r.summon_id ? ' #' + r.summon_id : '') + ': ' + text.slice(0, 150));
+    const hud = r.fallback
+      ? 'Fallback coder (' + (r.via || 'llm') + ')'
+      : label + (r.summon_id ? ' #' + r.summon_id : '');
+    ACIControl?.reply(hud + ': ' + text.slice(0, 150));
 
     if (r.pending && r.summon_id) this.startPoll(r.summon_id);
     else this.stopPoll();

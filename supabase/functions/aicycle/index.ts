@@ -220,8 +220,9 @@ serve(async (req) => {
     let provider = 'astranov'
 
     if (mode === 'coders') {
-      provider = 'astranov-coders-grok'
-      if (coderEngine === 'composer') {
+      const isFallback = body.fallback === true || coderEngine === 'fallback'
+      provider = isFallback ? 'astranov-coders-fallback' : 'astranov-coders-grok'
+      if (coderEngine === 'composer' && !isFallback) {
         raw = 'Composer summons use the Cursor queue — not this LLM path. Type: coders poll <id>'
         via = 'cursor/queue-only'
       } else {
@@ -230,8 +231,13 @@ serve(async (req) => {
           raw = await callOpenRouter(OPENROUTER, system, messages, Deno.env.get('GROK_OPENROUTER_MODEL') || 'x-ai/grok-4-fast')
           if (raw) via = 'grok/openrouter'
         }
-        if (!raw && GROQ) { raw = await callGroq(GROQ, system, messages); if (raw) via = 'grok/groq-fallback' }
-        if (!raw && GEMINI) { raw = await callGemini(GEMINI, system, messages); if (raw) via = 'grok/gemini-fallback' }
+        if (!raw && OPENROUTER) {
+          raw = await callOpenRouter(OPENROUTER, system, messages, Deno.env.get('CODERS_OPENROUTER_MODEL') || 'qwen/qwen-2.5-coder-32b-instruct')
+          if (raw) via = 'coder/openrouter-qwen'
+        }
+        if (!raw && GROQ) { raw = await callGroq(GROQ, system, messages); if (raw) via = 'coder/groq' }
+        if (!raw && isOwner && ANTHROPIC) { raw = await callAnthropic(ANTHROPIC, system, messages); if (raw) via = 'coder/anthropic' }
+        if (!raw && GEMINI) { raw = await callGemini(GEMINI, system, messages); if (raw) via = 'coder/gemini' }
       }
     } else {
       if (isOwner && ANTHROPIC) raw = await callAnthropic(ANTHROPIC, system, messages)
@@ -270,7 +276,10 @@ serve(async (req) => {
     } catch (e) { console.error('backfill:', e) }
 
     const latencyMs = Date.now() - t0
-    const label = mode === 'coders' ? 'Astranov Coders · Grok' : 'Astranov'
+    const isCodersFallback = mode === 'coders' && (body.fallback === true || String(body.coder_engine || '').toLowerCase() === 'fallback')
+    const label = mode === 'coders'
+      ? (isCodersFallback ? `Astranov Coders · Fallback (${via || 'llm'})` : 'Astranov Coders · Grok')
+      : 'Astranov'
     try {
       await supabase.from('cic_logs').insert({
         profile_id: profileId, query: prompt.slice(0, 2000), response: raw.slice(0, 4000),
