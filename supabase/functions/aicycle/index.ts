@@ -30,6 +30,10 @@ const MODE_DIRECTIVE: Record<string, string> = {
   coders: `ACTIVE MODE: ASTRANOV CODERS · GROK — xAI build agent for astranov.eu (NOT Cursor Composer — that uses a separate queue).
 Summoned from the Astranov CLI globe. Reply as Astranov Grok Coders: concrete code paths (src/*.js), supabase/functions, deploy steps.
 Repo: Documents/GitHub/Astranov — index.html monolith + modules. No simulation. Match user language. 2–5 sentences.`,
+  coders_team: `ACTIVE MODE: ASTRANOV CODERS TEAM — conversational fallback cycle controller on astranov.eu CLI.
+You are the Coders Team lead: explain Composer queue status honestly, which LLM fallbacks are configured, and execute the architect's verbal orders (try XAI Grok, skip Anthropic, queue Composer, etc.).
+Anthropic is ONLY a last-resort fallback for owner — NOT Cursor Composer. Credit balances are NOT visible via API; say "key configured" or "probe failed" only.
+Be direct, conversational, same language as user. Short paragraphs. When they give a build task, say what you will queue and which engine.`,
 }
 
 function json(data: unknown, status = 200) {
@@ -219,25 +223,63 @@ serve(async (req) => {
     let via = ''
     let provider = 'astranov'
 
-    if (mode === 'coders') {
+    const prefs = (body.fallback_prefs || {}) as { force?: string; skip?: string[] }
+    const skip = new Set((prefs.skip || []).map((s: string) => String(s).toLowerCase()))
+    const force = String(prefs.force || '').toLowerCase()
+
+    async function tryChain(forTeam = false) {
+      const chain: Array<{ id: string; run: () => Promise<string | null>; via: string }> = []
+      if (XAI && !skip.has('xai') && !skip.has('grok')) {
+        chain.push({ id: 'xai', via: 'grok/xai', run: () => callXAI(XAI!, system, messages) })
+      }
+      if (OPENROUTER && !skip.has('openrouter')) {
+        chain.push({
+          id: 'openrouter_grok', via: 'grok/openrouter',
+          run: () => callOpenRouter(OPENROUTER!, system, messages, Deno.env.get('GROK_OPENROUTER_MODEL') || 'x-ai/grok-4-fast'),
+        })
+        chain.push({
+          id: 'openrouter_qwen', via: 'coder/openrouter-qwen',
+          run: () => callOpenRouter(OPENROUTER!, system, messages, Deno.env.get('CODERS_OPENROUTER_MODEL') || 'qwen/qwen-2.5-coder-32b-instruct'),
+        })
+      }
+      if (GROQ && !skip.has('groq')) {
+        chain.push({ id: 'groq', via: 'coder/groq', run: () => callGroq(GROQ!, system, messages) })
+      }
+      if (isOwner && ANTHROPIC && !skip.has('anthropic')) {
+        chain.push({ id: 'anthropic', via: 'coder/anthropic', run: () => callAnthropic(ANTHROPIC!, system, messages) })
+      }
+      if (GEMINI && !skip.has('gemini')) {
+        chain.push({ id: 'gemini', via: 'coder/gemini', run: () => callGemini(GEMINI!, system, messages) })
+      }
+      if (force) {
+        const hit = chain.find(c => c.id === force || (force === 'grok' && c.id === 'xai'))
+        if (hit) {
+          const t = await hit.run()
+          if (t) return { text: t, via: hit.via }
+        }
+      }
+      for (const c of chain) {
+        const t = await c.run()
+        if (t) return { text: t, via: c.via }
+      }
+      return { text: null, via: '' }
+    }
+
+    if (mode === 'coders_team') {
+      provider = 'astranov-coders-team'
+      const hit = await tryChain(true)
+      raw = hit.text
+      via = hit.via || 'team/none'
+    } else if (mode === 'coders') {
       const isFallback = body.fallback === true || coderEngine === 'fallback'
       provider = isFallback ? 'astranov-coders-fallback' : 'astranov-coders-grok'
       if (coderEngine === 'composer' && !isFallback) {
         raw = 'Composer summons use the Cursor queue — not this LLM path. Type: coders poll <id>'
         via = 'cursor/queue-only'
       } else {
-        if (XAI) { raw = await callXAI(XAI, system, messages); if (raw) via = 'grok/xai' }
-        if (!raw && OPENROUTER) {
-          raw = await callOpenRouter(OPENROUTER, system, messages, Deno.env.get('GROK_OPENROUTER_MODEL') || 'x-ai/grok-4-fast')
-          if (raw) via = 'grok/openrouter'
-        }
-        if (!raw && OPENROUTER) {
-          raw = await callOpenRouter(OPENROUTER, system, messages, Deno.env.get('CODERS_OPENROUTER_MODEL') || 'qwen/qwen-2.5-coder-32b-instruct')
-          if (raw) via = 'coder/openrouter-qwen'
-        }
-        if (!raw && GROQ) { raw = await callGroq(GROQ, system, messages); if (raw) via = 'coder/groq' }
-        if (!raw && isOwner && ANTHROPIC) { raw = await callAnthropic(ANTHROPIC, system, messages); if (raw) via = 'coder/anthropic' }
-        if (!raw && GEMINI) { raw = await callGemini(GEMINI, system, messages); if (raw) via = 'coder/gemini' }
+        const hit = await tryChain()
+        raw = hit.text
+        via = hit.via
       }
     } else {
       if (isOwner && ANTHROPIC) raw = await callAnthropic(ANTHROPIC, system, messages)
@@ -277,9 +319,11 @@ serve(async (req) => {
 
     const latencyMs = Date.now() - t0
     const isCodersFallback = mode === 'coders' && (body.fallback === true || String(body.coder_engine || '').toLowerCase() === 'fallback')
-    const label = mode === 'coders'
-      ? (isCodersFallback ? `Astranov Coders · Fallback (${via || 'llm'})` : 'Astranov Coders · Grok')
-      : 'Astranov'
+    const label = mode === 'coders_team'
+      ? `Astranov Coders Team${via ? ' · ' + via : ''}`
+      : mode === 'coders'
+        ? (isCodersFallback ? `Astranov Coders · Fallback (${via || 'llm'})` : 'Astranov Coders · Grok')
+        : 'Astranov'
     try {
       await supabase.from('cic_logs').insert({
         profile_id: profileId, query: prompt.slice(0, 2000), response: raw.slice(0, 4000),

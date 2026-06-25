@@ -67,10 +67,59 @@ async function invokeFn(base: string, apikey: string, authToken: string, name: s
   try { return await r.json() } catch { return { error: 'bad json', status: r.status } }
 }
 
+type FallbackPrefs = { force?: string | null; skip?: string[] }
+
+async function checkComposerStatus(base: string, anon: string) {
+  try {
+    const r = await fetch(`${base}/functions/v1/coders-bridge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: anon, Authorization: `Bearer ${anon}` },
+      body: JSON.stringify({ mode: 'pending', limit: 1 }),
+    })
+    if (!r.ok) return { ok: false, reason: `bridge HTTP ${r.status}` }
+    const j = await r.json().catch(() => ({}))
+    if (j.error) return { ok: false, reason: String(j.error) }
+    return { ok: true, reason: 'bridge reachable' }
+  } catch (e) {
+    return { ok: false, reason: String(e) }
+  }
+}
+
+function providerRoster(isOwner: boolean) {
+  return {
+    composer: { label: 'Cursor Composer', role: 'primary async queue (Anysphere — NOT Anthropic)', configured: true },
+    xai: { label: 'XAI Grok', configured: !!Deno.env.get('XAI_API_KEY'), credits: 'API key only — balance not exposed' },
+    openrouter: { label: 'OpenRouter', configured: !!(Deno.env.get('OPENROUTER_API_KEY') || Deno.env.get('OPENROUTER')) },
+    groq: { label: 'Groq', configured: !!Deno.env.get('GROQ_API_KEY') },
+    anthropic: { label: 'Anthropic Claude', configured: !!(Deno.env.get('ANTHROPIC_API_KEY') || Deno.env.get('ANTHROPIC_PAID_API_KEY')), owner_only: true, credits: 'key configured — credit balance NOT visible via API; owner-only last resort' },
+    gemini: { label: 'Gemini', configured: !!Deno.env.get('GEMINI_API_KEY') },
+  }
+}
+
+function parseFallbackDirectives(msg: string, prefs: FallbackPrefs): FallbackPrefs {
+  const m = msg.toLowerCase()
+  const skipSet = new Set((prefs.skip || []).map(s => String(s).toLowerCase()))
+  let force = prefs.force || null
+  if (/skip\s+anthropic|no\s+anthropic|without\s+anthropic|don't\s+use\s+anthropic|μην\s+χρησιμοποιείς\s+anthropic/i.test(m)) skipSet.add('anthropic')
+  if (/skip\s+groq|no\s+groq/i.test(m)) skipSet.add('groq')
+  if (/try\s+(xai\s+)?grok|use\s+(xai\s+)?grok|force\s+grok|δοκίμασε\s+grok/i.test(m)) force = 'xai'
+  if (/try\s+groq|use\s+groq/i.test(m)) force = 'groq'
+  if (/try\s+anthropic|use\s+anthropic|use\s+claude/i.test(m)) force = 'anthropic'
+  if (/use\s+composer|queue\s+composer|back\s+to\s+composer/i.test(m)) force = 'composer'
+  return { force, skip: [...skipSet] }
+}
+
+function isBuildTask(msg: string): boolean {
+  const m = msg.toLowerCase().trim()
+  if (/^(why|what|how|do we|list|status|credits|explain)\b/.test(m) || /\?\s*$/.test(msg)) return false
+  return /fix|build|implement|add|remove|refactor|deploy|change|update|create|vendor|order|globe|mobile|φτιάξε|φτιαξε|πρόσθεσε/.test(m) && msg.length >= 10
+}
+
 async function codersLlmFallback(
   sb: SupabaseClient,
   base: string, anon: string, authToken: string, caller: { callerId: string | null; isOwner: boolean },
   summonId: number | null, task: string, history: unknown[], reason: string,
+  prefs: FallbackPrefs = {},
 ) {
   const result = await invokeFn(base, anon, authToken, 'aicycle', {
     prompt: task,
@@ -78,6 +127,7 @@ async function codersLlmFallback(
     mode: 'coders',
     coder_engine: 'fallback',
     fallback: true,
+    fallback_prefs: prefs,
     agent_system: `Composer queue unavailable (${reason}). Answer as Astranov coders via available LLM. Summon #${summonId}.`,
     history: Array.isArray(history) ? history : [],
   })
@@ -247,6 +297,90 @@ serve(async (req) => {
       return json({ ok: true, summons: rows })
     }
 
+    if (mode === 'coders_chat') {
+      if (!caller.callerId) return json({ error: 'login required' }, 401)
+      const message = String(body.message || body.task || body.prompt || '').trim().slice(0, 2000)
+      if (message.length < 1) return json({ error: 'message required' }, 400)
+
+      const incomingPrefs = (body.fallback_prefs || {}) as FallbackPrefs
+      const prefs = parseFallbackDirectives(message, incomingPrefs)
+      const composer = await checkComposerStatus(base, anon)
+      const roster = providerRoster(caller.isOwner)
+      const openSummons = await sb.from('cic_queue').select('id', { count: 'exact', head: true })
+        .eq('reason', 'coder_summon').eq('status', 'open')
+
+      const statusCtx = JSON.stringify({
+        composer,
+        roster,
+        fallback_prefs: prefs,
+        open_summons: openSummons.count ?? 0,
+        note: 'Anthropic is fallback only for owner — NOT Cursor Composer. Cannot read credit balances via API.',
+      }, null, 0)
+
+      const result = await invokeFn(base, anon, caller.authToken, 'aicycle', {
+        prompt: message,
+        profile_id: caller.callerId,
+        mode: 'coders_team',
+        fallback_prefs: prefs,
+        history: Array.isArray(body.history) ? body.history : [],
+        agent_system: `LIVE STATUS:\n${statusCtx}`,
+      })
+
+      let action: Record<string, unknown> | null = null
+      const force = String(prefs.force || '').toLowerCase()
+      const tryLlm = /try\s+(xai\s+)?grok|use\s+(xai\s+)?grok|try\s+groq|use\s+groq|try\s+anthropic|probe|test\s+(grok|xai|anthropic)/i.test(message)
+      const runBuild = isBuildTask(message) && force !== 'composer' && !tryLlm
+
+      if (tryLlm && force && force !== 'composer') {
+        const probe = await invokeFn(base, anon, caller.authToken, 'aicycle', {
+          prompt: 'Reply with exactly: online',
+          profile_id: caller.callerId,
+          mode: 'coders',
+          coder_engine: 'fallback',
+          fallback: true,
+          fallback_prefs: { force, skip: prefs.skip },
+        })
+        action = { type: 'probe', force, via: probe.via, ok: !!(probe.text || probe.response) }
+      }
+
+      if (runBuild || (isBuildTask(message) && force === 'composer') || (isBuildTask(message) && !composer.ok)) {
+        const engine = force === 'grok' || force === 'xai' ? 'grok' : (force === 'composer' || composer.ok) ? 'composer' : 'grok'
+        const inner = await invokeFn(base, anon, caller.authToken, 'aci', {
+          mode: 'coders',
+          task: message,
+          coder_engine: engine,
+          fallback_prefs: prefs,
+          history: body.history,
+        })
+        action = { type: 'summon', engine, summon_id: inner.summon_id, pending: inner.pending, via: inner.via }
+      }
+
+      const text = String(result.text || result.response || 'Coders team listening.')
+      const via = String(result.via || 'team')
+      let full = text
+      if (action?.type === 'probe') {
+        full += `\n\n[Probe ${action.force}: ${action.ok ? 'online via ' + action.via : 'failed'}]`
+      }
+      if (action?.type === 'summon') {
+        full += `\n\n[Action: ${action.pending ? 'queued Composer' : 'ran coder'} #${action.summon_id || '?'} · ${action.via || action.engine}]`
+      }
+
+      return json({
+        ok: true,
+        team: true,
+        text: full,
+        response: full,
+        label: 'Astranov Coders Team',
+        via,
+        composer_status: composer,
+        roster,
+        fallback_prefs: prefs,
+        action,
+        pending: action?.pending === true,
+        summon_id: action?.summon_id ?? null,
+      })
+    }
+
     if (mode === 'coders') {
       if (!caller.callerId) return json({ error: 'login required — sign in to summon Astranov Coders' }, 401)
       const task = String(body.task || body.prompt || '').trim().slice(0, 2000)
@@ -343,6 +477,7 @@ serve(async (req) => {
           sb, base, anon, caller.authToken, caller, summonId, task,
           Array.isArray(body.history) ? body.history : [],
           downReasons.join('; ') || 'composer unavailable',
+          (body.fallback_prefs || {}) as FallbackPrefs,
         )
       }
 

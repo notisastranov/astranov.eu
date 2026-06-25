@@ -199,7 +199,8 @@ const ACIControl = {
     if (/^(cli|terminal|console|κονσόλα)$/.test(low)) { AciCli.toggle(); this.reply('CLI panel'); say('CLI.'); return { executed: true }; }
     if (/^summon\s+coders?\s*/i.test(text) || /^coders\b/i.test(low)) {
       const task = text.replace(/^summon\s+coders?\s*/i, '').replace(/^coders\s*/i, '').trim();
-      await AciCoders?.handleCodersCommand(task);
+      if (!task) await AciCoders?.openTeam();
+      else await AciCoders?.chat(task);
       return { executed: true, action: 'coders' };
     }
     if (/^(use\s+)?(grok|composer)$/.test(low) || /^switch\s+(to\s+)?(grok|composer)$/.test(low)) {

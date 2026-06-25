@@ -53,7 +53,10 @@ const AciCli = {
     if (window.AciConnect && !window._aciConnected) {
       await AciConnect.connect(false);
     }
-    if (window.AciCoders) await AciCoders.ensureBridge();
+    if (window.AciCoders) {
+      await AciCoders.ensureBridge();
+      AciCoders.armed = true;
+    }
   },
 
   loadHistory() {
@@ -88,8 +91,8 @@ const AciCli = {
       if (Auth.isOwner) {
         this.print('OWNER — seed · distill · council · evolve · deploy');
       }
-      this.print('coders = Cursor Composer — type coders then your task');
-      this.print('coders <task> · vendors · order · think <prompt> · help');
+      this.print('coders = open Coders team — talk normally, control fallbacks');
+      this.print('vendors · order · think <prompt> · help');
     }
     const panel = document.getElementById('aci-cli');
     if (panel) panel.classList.add('visible');
@@ -180,11 +183,10 @@ const AciCli = {
           this.print('council list     — council cases');
           this.print('council convene <title> | <desc>');
         }
-        this.print('coders                     — Cursor Composer (me) — ready');
-        this.print('coders <task>              — send task to Cursor');
-        this.print('<task>                     — any text → Cursor when coders active');
-        this.print('coders grok <task>         — optional xAI instant path');
-        this.print('coders list | poll <id>');
+        this.print('coders                     — open conversational Coders team');
+        this.print('<any text>                 — control fallbacks, ask status, give tasks');
+        this.print('  e.g. why Composer down? · try XAI Grok · skip Anthropic');
+        this.print('coders list | poll <id> | exit');
         this.print('connect | open     — link collective AI');
         this.print('deploy <task>      — deployment plan (owner)');
         this.print('roles              — your hats: client+driver+vendor');
@@ -311,9 +313,9 @@ const AciCli = {
         return;
       }
 
-      if (Auth?.user && (AciCoders?.armed || AciCoders?.engine === 'composer') && line.length >= 3
-          && !/^(think|order|vendors|help|deploy|connect|logout|clear|exit)\b/i.test(line)) {
-        await AciCoders.summon(line);
+      if (Auth?.user && AciCoders?.teamActive && line.length >= 1
+          && !/^(think|order|vendors|help|deploy|connect|logout|clear|exit|close)\b/i.test(line)) {
+        await AciCoders.chat(line);
         return;
       }
       if (!window._aciConnected) await AciConnect.connect(false);
