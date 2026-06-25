@@ -54,6 +54,7 @@ AstranovNode.init();
 Auth.init();
 FieldBrain.init();
 FieldBrain.hookFeed();
+GlobeDeck.init();
 AciCli.init();
 setTimeout(() => Auth.refreshAuthority(), 800);
 ACIControl.init();

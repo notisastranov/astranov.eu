@@ -6,6 +6,7 @@
     { "file": "05-speak-map.js", "marker": "// === VOICE + MAP DEPICT ===" },
     { "file": "11-glyphs.js", "marker": "// === ASTRO GLYPHS" },
     { "file": "12-auth.js", "marker": "// === GOOGLE AUTH (Supabase) ===" },
+    { "file": "13-globe-deck.js", "marker": "// === GLOBE DECK" },
     { "file": "14-aci-cli.js", "marker": "// === ACI CLI" },
     { "file": "16-aci-connect.js", "marker": "// === ACI CONNECT" },
     { "file": "18-aci-coders.js", "marker": "// === ASTRANOV CODERS BRIDGE" },

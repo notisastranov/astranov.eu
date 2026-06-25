@@ -181,9 +181,9 @@ const ACIControl = {
     if (batchBtn) batchBtn.onclick = () => AstranovNode?.launchBatch?.();
   },
   reply(text) {
-    const el = document.getElementById('aci-reply');
-    if (el) el.textContent = (text || '').slice(0, 220);
-    if (window.AciCli?.open) AciCli.print((text || '').slice(0, 280), 'out');
+    const msg = (text || '').slice(0, 280);
+    GlobeDeck?.log(msg, 'reply');
+    if (!GlobeDeck?.expanded) GlobeDeck?.setPreview(msg);
   },
 
   voiceAck(msg, fromVoice) {

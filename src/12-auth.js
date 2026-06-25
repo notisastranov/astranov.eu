@@ -74,12 +74,11 @@ const Auth = {
 
   updateOwnerUI() {
     const chip = document.getElementById('user-chip');
-    const cliHdr = document.querySelector('#aci-cli-header span');
     if (this.isOwner && chip) {
       chip.textContent = (this.user?.user_metadata?.full_name || this.user?.email?.split('@')[0] || 'Owner') + ' · OWNER';
       chip.style.color = '#8f8';
     }
-    if (cliHdr && this.isOwner) cliHdr.textContent = 'Astranov Collective CLI · FULL AUTHORITY';
+    if (this.isOwner) GlobeDeck?.setTitle('Astranov Collective CLI · FULL AUTHORITY');
     const prompt = document.getElementById('aci-cli-prompt');
     if (prompt && this.isOwner) {
       const name = this.user?.email?.split('@')[0] || 'owner';

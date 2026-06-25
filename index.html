@@ -24,8 +24,8 @@
   #drive-guide { position:fixed; top:36px; left:10px; right:10px; z-index:42; font:12px/1.35 system-ui; color:#7df; background:rgba(0,20,40,0.75); border:1px solid rgba(68,170,255,0.35); border-radius:12px; padding:8px 12px; display:none; pointer-events:none; }
   #drive-guide.open { display:block; }
   #aci-hud { position:fixed; left:0; right:0; bottom:0; z-index:50; pointer-events:none; }
-  #sat-radio { display:none; margin:0 8px 6px; padding:10px 12px; background:rgba(8,12,8,0.92); border:1px solid rgba(255,220,80,0.45); border-radius:16px; pointer-events:auto; font:11px/1.45 system-ui; color:#dda; }
-  #sat-radio.open { display:block; }
+  #sat-radio { display:none; padding:10px 12px; background:rgba(8,12,8,0.92); pointer-events:auto; font:11px/1.45 system-ui; color:#dda; }
+  #sat-radio.open, #sat-radio.deck-active { display:block; }
   #sat-radio .sr-row { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; }
   #sat-radio .sr-freq { color:#ff8; font-weight:600; }
   #sat-radio .sr-honest { color:#9cb; font-size:10px; margin-bottom:8px; line-height:1.4; }
@@ -50,26 +50,37 @@
   #aci-locate { font-size:16px; }
   #aci-login { font-weight:700; font-size:13px; }
   #aci-stop { background:rgba(120,20,40,0.45); border-color:rgba(255,80,100,0.5); color:#faa; }
-  #map-action { margin:0 12px 2px; padding:4px 12px; font:11px/1.3 system-ui; color:#8cf; max-height:32px; overflow:hidden; opacity:0.85; pointer-events:none; }
-  #aci-reply { margin:0 12px 4px; padding:6px 12px; font:12px/1.4 system-ui; color:#9fd; max-height:48px; overflow:hidden; opacity:0.9; pointer-events:none; }
   #news-ticker { display:none; margin:8px 8px 0; padding:6px 12px; background:rgba(10,0,20,0.75); border:1px solid rgba(180,100,255,0.3); border-radius:14px; font:11px system-ui; color:#ddaaff; white-space:nowrap; overflow:hidden; pointer-events:auto; }
   #zoom-label { position:fixed; top:10px; left:10px; z-index:40; font:11px system-ui; color:rgba(150,220,255,0.7); pointer-events:none; }
-  #aci-cli { display:none; margin:0 8px 6px; max-height:42vh; background:rgba(0,4,12,0.94); border:1px solid rgba(0,255,160,0.35); border-radius:14px; pointer-events:auto; font:12px/1.4 ui-monospace,monospace; overflow:hidden; flex-direction:column; }
-  #aci-cli.visible { display:flex; }
-  #aci-cli-header { display:flex; justify-content:space-between; align-items:center; padding:6px 10px; background:rgba(0,40,30,0.5); color:#6fc; font:11px system-ui; border-bottom:1px solid rgba(0,255,160,0.2); }
-  #aci-cli-close { background:transparent; border:none; color:#8aa; cursor:pointer; font-size:14px; }
-  #aci-cli-out { flex:1; overflow-y:auto; padding:8px 10px; min-height:80px; max-height:28vh; color:#9fd; }
-  #aci-cli-out .cli-cmd { color:#6df; }
-  #aci-cli-out .cli-out { color:#cfa; white-space:pre-wrap; }
-  #aci-cli-out .cli-ok { color:#8f8; }
-  #aci-cli-out .cli-err { color:#f88; }
-  #aci-cli-out .cli-dim { color:#567; }
-  #aci-cli-input-row { display:flex; align-items:center; gap:6px; padding:8px 10px; border-top:1px solid rgba(0,255,160,0.15); }
+  #globe-deck { display:flex; flex-direction:column; margin:0 8px 6px; max-height:40px; background:rgba(0,4,12,0.94); border:1px solid rgba(0,255,160,0.35); border-radius:14px; pointer-events:auto; font:12px/1.4 ui-monospace,monospace; overflow:hidden; transition:max-height 0.22s ease; }
+  #globe-deck.expanded { max-height:min(56vh,520px); }
+  #globe-deck-header { display:flex; align-items:center; gap:8px; padding:8px 10px; background:rgba(0,40,30,0.5); color:#6fc; font:11px system-ui; touch-action:pan-y; cursor:pointer; flex-shrink:0; user-select:none; min-height:24px; }
+  #globe-deck.expanded #globe-deck-header { border-bottom:1px solid rgba(0,255,160,0.2); }
+  #globe-deck-title { flex:0 1 auto; max-width:42%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+  #globe-deck-preview { flex:1; font-size:10px; color:#8cf; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; opacity:0.9; }
+  #globe-deck:not(.has-preview):not(.expanded) #globe-deck-preview { display:none; }
+  #globe-deck-handle { background:transparent; border:none; color:#8aa; cursor:pointer; font-size:16px; padding:2px 6px; flex-shrink:0; }
+  #globe-deck-body { display:none; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
+  #globe-deck.expanded #globe-deck-body { display:flex; }
+  #globe-deck-log { flex:1; overflow-y:auto; padding:8px 10px; min-height:56px; max-height:28vh; color:#9fd; -webkit-overflow-scrolling:touch; }
+  #globe-deck-log .deck-cmd { color:#6df; }
+  #globe-deck-log .deck-out, #globe-deck-log .deck-reply { color:#cfa; white-space:pre-wrap; }
+  #globe-deck-log .deck-ok { color:#8f8; }
+  #globe-deck-log .deck-err { color:#f88; }
+  #globe-deck-log .deck-dim { color:#567; }
+  #globe-deck-log .deck-map { color:#8cf; font-size:11px; }
+  #globe-deck-stage { flex-shrink:0; max-height:34vh; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  #globe-deck-stage > * { display:none !important; margin:0 !important; border-radius:0 !important; max-height:none; }
+  #globe-deck-stage > .deck-active { display:block !important; }
+  #globe-deck-stage > #vendor-menu.deck-active { display:flex !important; flex-direction:column; }
+  #globe-deck-stage #sat-radio, #globe-deck-stage #node-batch { border:none; border-top:1px solid rgba(255,255,255,0.06); }
+  #globe-deck-stage #vendor-menu { border:none; border-top:1px solid rgba(255,170,60,0.2); overflow:hidden; }
+  #globe-deck-input-row { display:flex; align-items:center; gap:6px; padding:8px 10px; border-top:1px solid rgba(0,255,160,0.15); flex-shrink:0; }
   #aci-cli-prompt { color:#6fc; flex-shrink:0; font-size:11px; }
   #aci-cli-in { flex:1; background:transparent; border:none; color:#e8f4ff; font:inherit; outline:none; min-width:0; }
   #aci-cli-toggle { display:inline-flex; background:rgba(0,60,40,0.5); border:1px solid rgba(0,255,160,0.4); color:#6fc; border-radius:50%; width:38px; height:38px; cursor:pointer; font-size:15px; flex-shrink:0; align-items:center; justify-content:center; }
-  #vendor-menu { display:none; margin:0 8px 6px; max-height:38vh; background:rgba(8,6,0,0.94); border:1px solid rgba(255,170,60,0.45); border-radius:14px; pointer-events:auto; font:12px/1.4 system-ui; overflow:hidden; flex-direction:column; }
-  #vendor-menu.open { display:flex; }
+  #vendor-menu { display:none; background:rgba(8,6,0,0.94); pointer-events:auto; font:12px/1.4 system-ui; overflow:hidden; flex-direction:column; }
+  #vendor-menu.open, #vendor-menu.deck-active { display:flex; }
   #vm-header { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:rgba(60,30,0,0.45); color:#fc8; border-bottom:1px solid rgba(255,170,60,0.25); }
   #vm-close { background:transparent; border:1px solid #666; color:#aaa; border-radius:8px; padding:2px 8px; cursor:pointer; }
   #vm-body { flex:1; overflow-y:auto; padding:8px 10px; }
@@ -96,8 +107,8 @@
   #vm-confirm-pay { width:calc(100% - 16px); margin:8px; padding:12px; border:none; border-radius:12px; background:rgba(40,120,60,0.55); border:2px solid #4c8; color:#fff; font-weight:700; cursor:pointer; font-size:13px; }
   #vm-compare-back { background:transparent; border:none; color:#9cb; cursor:pointer; font-size:11px; padding:4px 0 8px; }
   #vm-back { background:transparent; border:none; color:#9cb; cursor:pointer; font-size:11px; padding:4px 0 8px; }
-  #node-batch { display:none; margin:0 8px 6px; padding:10px 12px; background:rgba(0,12,28,0.94); border:1px solid rgba(100,180,255,0.45); border-radius:16px; pointer-events:auto; font:11px/1.45 system-ui; color:#bdf; }
-  #node-batch.open { display:block; }
+  #node-batch { display:none; padding:10px 12px; background:rgba(0,12,28,0.94); pointer-events:auto; font:11px/1.45 system-ui; color:#bdf; }
+  #node-batch.open, #node-batch.deck-active { display:block; }
   #node-batch .nb-row { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; }
   .nb-step { display:flex; gap:8px; align-items:flex-start; margin:6px 0; padding:6px 8px; border-radius:8px; background:rgba(0,0,0,0.3); }
   .nb-step.nb-done { border-left:3px solid #4c8; }
@@ -120,16 +131,15 @@
   <div id="drive-guide"></div>
   <div id="aci-hud">
     <div id="news-ticker">Astranov Collective Intelligence — loading news…</div>
-    <div id="map-action"></div>
-    <div id="aci-reply"></div>
-    <div id="aci-cli">
-      <div id="aci-cli-header"><span>Collective CLI — tasks &amp; conversation</span><button id="aci-cli-close" type="button" title="Close">▁</button></div>
-      <div id="aci-cli-out"></div>
-      <div id="aci-cli-input-row">
-        <span id="aci-cli-prompt">collective $</span>
-        <input id="aci-cli-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="help" />
+    <div id="globe-deck" class="collapsed">
+      <div id="globe-deck-header">
+        <span id="globe-deck-title">Collective — globe deck</span>
+        <span id="globe-deck-preview"></span>
+        <button id="globe-deck-handle" type="button" title="Tap or swipe to expand/collapse">▔</button>
       </div>
-    </div>
+      <div id="globe-deck-body">
+        <div id="globe-deck-log"></div>
+        <div id="globe-deck-stage">
     <div id="sat-radio">
       <div class="sr-row"><span class="sr-ch">EU PMR Ch 11</span><span class="sr-freq">446.13125 MHz</span><span>peers: <b id="sr-peers">0</b></span><button id="sr-close" type="button">✖️</button></div>
       <div class="sr-honest">RF: tune YOUR PMR446 handheld to Ch 11 (446.13125 MHz) — browser cannot transmit on 446 MHz. In-app: real mic + WebRTC voice to other Astranov users on this channel.</div>
@@ -162,6 +172,13 @@
     <div id="vendor-menu">
       <div id="vm-header"><span id="vm-title">Καταστήματα</span><button id="vm-close" type="button">✖️</button></div>
       <div id="vm-body"><div id="vm-list"></div><div id="vm-detail" style="display:none"><button id="vm-back" type="button">← όλα τα καταστήματα</button><div id="vm-empty" style="display:none"></div><div id="vm-items"></div><button id="vm-request" type="button" style="display:none">Ζήτησε μενού από κατάστημα</button><button id="vm-place" type="button">Παραγγελία</button></div><div id="vm-compare" style="display:none"><button id="vm-compare-back" type="button">← όλα τα καταστήματα</button><div id="vm-wanted"></div><div id="vm-matches"></div><div id="vm-drivers"></div><div id="vm-balance"></div><button id="vm-confirm-pay" type="button" style="display:none">Επιβεβαίωση &amp; Πληρωμή</button></div></div>
+    </div>
+        </div>
+        <div id="globe-deck-input-row">
+          <span id="aci-cli-prompt">collective $</span>
+          <input id="aci-cli-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="help" />
+        </div>
+      </div>
     </div>
     <div id="aci-bar">
       <button id="aci-login" title="Sign in with Google" type="button">G</button>
@@ -480,8 +497,8 @@ const MapDepict = {
   },
 
   setHud(label, detail) {
-    const ma = document.getElementById('map-action');
-    if (ma) ma.textContent = detail ? label + ' — ' + detail : label;
+    const line = detail ? label + ' — ' + detail : label;
+    GlobeDeck?.log(line, 'map');
   },
 
   cancelAll() {
@@ -492,8 +509,7 @@ const MapDepict = {
     });
     this.overlays = [];
     this.current = '';
-    const ma = document.getElementById('map-action');
-    if (ma) ma.textContent = '';
+    GlobeDeck?.setPreview('');
   },
 
   pulse(lat, lng, color, label, duration = 9000) {
@@ -687,8 +703,7 @@ function userIntervene() {
   if (recognition) { try { recognition.stop(); } catch (_) {} }
   isListening = false;
   if (ACI) ACI.evolving = false;
-  const ma = document.getElementById('map-action');
-  if (ma) ma.textContent = (AstroGlyphs?.stop || '🛑') + ' Διακοπή — εσύ παίρνεις τον έλεγχο';
+  GlobeDeck?.log((AstroGlyphs?.stop || '🛑') + ' Διακοπή — εσύ παίρνεις τον έλεγχο', 'map');
   if (window.ACIControl) ACIControl.reply('Stopped — globe is yours. Drag · pinch · tap.');
 }
 
@@ -824,12 +839,11 @@ const Auth = {
 
   updateOwnerUI() {
     const chip = document.getElementById('user-chip');
-    const cliHdr = document.querySelector('#aci-cli-header span');
     if (this.isOwner && chip) {
       chip.textContent = (this.user?.user_metadata?.full_name || this.user?.email?.split('@')[0] || 'Owner') + ' · OWNER';
       chip.style.color = '#8f8';
     }
-    if (cliHdr && this.isOwner) cliHdr.textContent = 'Astranov Collective CLI · FULL AUTHORITY';
+    if (this.isOwner) GlobeDeck?.setTitle('Astranov Collective CLI · FULL AUTHORITY');
     const prompt = document.getElementById('aci-cli-prompt');
     if (prompt && this.isOwner) {
       const name = this.user?.email?.split('@')[0] || 'owner';
@@ -900,6 +914,164 @@ const Auth = {
 };
 window.Auth = Auth;
 
+// === GLOBE DECK — one scrollable window over the globe ===
+const GlobeDeck = {
+  expanded: false,
+  activeTask: null,
+  _touchY: 0,
+  _touchT: 0,
+
+  init() {
+    const hdr = document.getElementById('globe-deck-header');
+    const handle = document.getElementById('globe-deck-handle');
+    if (handle) handle.onclick = e => { e.stopPropagation(); this.toggle(); };
+    if (hdr) {
+      hdr.onclick = () => this.toggle();
+      hdr.addEventListener('touchstart', e => {
+        if (e.touches.length !== 1) return;
+        this._touchY = e.touches[0].clientY;
+        this._touchT = Date.now();
+      }, { passive: true });
+      hdr.addEventListener('touchend', e => {
+        if (e.changedTouches.length !== 1) return;
+        const dy = e.changedTouches[0].clientY - this._touchY;
+        const dt = Date.now() - this._touchT;
+        if (dt > 600) return;
+        if (dy < -28) this.expand();
+        else if (dy > 28) this.collapse();
+      }, { passive: true });
+    }
+    ['sat-radio', 'node-batch', 'vendor-menu'].forEach(id => {
+      const el = document.getElementById(id);
+      const stage = document.getElementById('globe-deck-stage');
+      if (el && stage && el.parentElement !== stage) stage.appendChild(el);
+    });
+    this.setTitle('Collective — globe deck');
+  },
+
+  deck() { return document.getElementById('globe-deck'); },
+  logEl() { return document.getElementById('globe-deck-log'); },
+
+  setTitle(text) {
+    const el = document.getElementById('globe-deck-title');
+    if (el) el.textContent = text || 'Collective — globe deck';
+  },
+
+  setPreview(text) {
+    const el = document.getElementById('globe-deck-preview');
+    if (el) el.textContent = (text || '').slice(0, 120);
+    if (!this.expanded && text) this.deck()?.classList.add('has-preview');
+    else if (!text) this.deck()?.classList.remove('has-preview');
+  },
+
+  log(text, cls) {
+    const out = this.logEl();
+    if (!out) return;
+    const line = document.createElement('div');
+    const kind = cls || 'out';
+    line.className = 'deck-line deck-' + kind;
+    line.textContent = text;
+    out.appendChild(line);
+    while (out.children.length > 200) out.removeChild(out.firstChild);
+    out.scrollTop = out.scrollHeight;
+    if (kind === 'map' || kind === 'reply') this.setPreview(text);
+    else if (!this.expanded) this.setPreview(text);
+  },
+
+  clearLog() {
+    const out = this.logEl();
+    if (out) out.innerHTML = '';
+    this.setPreview('');
+  },
+
+  expand(title) {
+    if (title) this.setTitle(title);
+    this.expanded = true;
+    const d = this.deck();
+    if (d) {
+      d.classList.add('expanded');
+      d.classList.remove('collapsed');
+    }
+    const handle = document.getElementById('globe-deck-handle');
+    if (handle) handle.textContent = '▁';
+    if (window.AciCli) AciCli.open = true;
+  },
+
+  collapse() {
+    this.expanded = false;
+    const d = this.deck();
+    if (d) {
+      d.classList.remove('expanded');
+      d.classList.add('collapsed');
+    }
+    const handle = document.getElementById('globe-deck-handle');
+    if (handle) handle.textContent = '▔';
+    if (window.AciCli) AciCli.open = false;
+  },
+
+  toggle() {
+    this.expanded ? this.collapse() : this.expand();
+  },
+
+  showStage(panelId, task, title) {
+    this.activeTask = task || panelId;
+    const stage = document.getElementById('globe-deck-stage');
+    if (!stage) return;
+    stage.querySelectorAll('.deck-active').forEach(el => el.classList.remove('deck-active', 'open'));
+    const panel = document.getElementById(panelId);
+    if (panel) {
+      panel.classList.add('deck-active', 'open');
+    }
+    this.expand(title || this.stageTitle(panelId));
+  },
+
+  hideStage() {
+    const stage = document.getElementById('globe-deck-stage');
+    if (stage) {
+      stage.querySelectorAll('.deck-active').forEach(el => {
+        el.classList.remove('deck-active', 'open');
+      });
+    }
+    if (window.PmrRadio) PmrRadio.open = false;
+    if (window.AstranovNode) AstranovNode._open = false;
+  },
+
+  stageTitle(panelId) {
+    const titles = {
+      'vendor-menu': 'Καταστήματα · παραγγελία',
+      'node-batch': 'Work together · Astranov node',
+      'sat-radio': 'EU PMR Ch 11 · comms',
+    };
+    return titles[panelId] || 'Collective — globe deck';
+  },
+
+  completeTask(task) {
+    const keep = ['coders', 'radio', 'batch', 'commerce'];
+    if (this.activeTask && keep.includes(this.activeTask) && task === 'cli') return;
+    if (this.activeTask && this.activeTask !== task && task !== 'cli') return;
+    this.hideStage();
+    this.collapse();
+    this.activeTask = null;
+    this.setTitle('Collective — globe deck');
+  },
+
+  isOneShotCmd(cmd) {
+    const one = new Set([
+      'think', 'evolve', 'teach', 'stats', 'owner', 'seed', 'distill', 'council',
+      'mode', 'locate', 'gps', 'me', 'drive', 'news', 'roles', 'claim', 'field_stats',
+      'deploy', 'help', '?', 'clear', 'logout', 'connect', 'open', 'vendor',
+    ]);
+    return one.has((cmd || '').toLowerCase());
+  },
+
+  finishCliIfOneShot(cmd) {
+    if (this.isOneShotCmd(cmd)) {
+      setTimeout(() => this.completeTask('cli'), 400);
+    }
+  },
+};
+window.GlobeDeck = GlobeDeck;
+
 // === ACI CLI — Collective dev terminal (login required) ===
 const AciCli = {
   open: false,
@@ -910,9 +1082,7 @@ const AciCli = {
   init() {
     const input = document.getElementById('aci-cli-in');
     const toggle = document.getElementById('aci-cli-toggle');
-    const close = document.getElementById('aci-cli-close');
     if (toggle) toggle.onclick = () => this.toggle();
-    if (close) close.onclick = () => this.hide();
     if (input) {
       input.addEventListener('keydown', e => this.onKey(e));
       input.addEventListener('input', () => { this.buffer = input.value; });
@@ -928,7 +1098,6 @@ const AciCli = {
   },
 
   onAuthChange() {
-    const panel = document.getElementById('aci-cli');
     const toggle = document.getElementById('aci-cli-toggle');
     const logged = !!(Auth && Auth.user);
     if (toggle) toggle.style.display = 'inline-flex';
@@ -936,7 +1105,7 @@ const AciCli = {
       this._welcomed = false;
       this._sessionOpened = false;
       this.hide();
-      if (panel) panel.classList.remove('visible');
+      GlobeDeck?.collapse();
       return;
     }
     const name = Auth.user.user_metadata?.full_name || Auth.user.email?.split('@')[0] || 'dev';
@@ -998,25 +1167,18 @@ const AciCli = {
       this.print('coders = open Coders team — talk normally, control fallbacks');
       this.print('vendors · order · think <prompt> · help');
     }
-    const panel = document.getElementById('aci-cli');
-    if (panel) panel.classList.add('visible');
+    GlobeDeck?.expand('Collective CLI — tasks & conversation');
     document.getElementById('aci-cli-in')?.focus();
     MapDepict?.action('think', { detail: 'CLI open' });
   },
 
   hide() {
     this.open = false;
-    document.getElementById('aci-cli')?.classList.remove('visible');
+    GlobeDeck?.collapse();
   },
 
   print(text, cls) {
-    const out = document.getElementById('aci-cli-out');
-    if (!out) return;
-    const line = document.createElement('div');
-    line.className = 'cli-line' + (cls ? ' cli-' + cls : '');
-    line.textContent = text;
-    out.appendChild(line);
-    out.scrollTop = out.scrollHeight;
+    GlobeDeck?.log(text, cls || 'out');
   },
 
   async api(body) {
@@ -1102,33 +1264,38 @@ const AciCli = {
         if (Auth?.isOwner) this.print('field_stats        — field usage → brain (owner)');
         this.print('clear | exit | logout');
         this.print('…or any free text → think');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'coders' || cmd === 'composer' || cmd === 'cursor' ||
           (cmd === 'summon' && /^coders?$/i.test(parts[1] || ''))) {
         const task = cmd === 'summon' ? parts.slice(2).join(' ')
           : (cmd === 'coders' ? rest : rest || '');
+        GlobeDeck.activeTask = 'coders';
         await AciCoders?.handleCodersCommand(cmd === 'composer' || cmd === 'cursor' ? ('composer ' + task).trim() : task);
         return;
       }
       if (cmd === 'grok') {
+        GlobeDeck.activeTask = 'coders';
         await AciCoders?.handleCodersCommand(rest ? ('grok ' + rest) : 'grok');
         return;
       }
       if (cmd === 'connect' || cmd === 'open') {
         await AciConnect.connect(cmd === 'open');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'deploy') {
         await AciConnect.deploy(rest || 'continue deployment');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'clear') {
-        const out = document.getElementById('aci-cli-out');
-        if (out) out.innerHTML = '';
+        GlobeDeck?.clearLog();
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
-      if (cmd === 'exit' || cmd === 'close') { this.hide(); return; }
+      if (cmd === 'exit' || cmd === 'close') { GlobeDeck?.completeTask('cli'); return; }
       if (cmd === 'logout') { await Auth.signOut(); this.print('signed out', 'ok'); return; }
 
       if (cmd === 'think') {
@@ -1139,24 +1306,28 @@ const AciCli = {
         this.print(r || '(empty)', 'out');
         ACIControl?.reply(r);
         if (voiceSessionActive && Voice.shouldSpeak(r)) speak(r.slice(0, 200));
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'evolve') {
         this.print('evolving…', 'dim');
         const r = await ACI.evolve(rest || 'cli');
         this.print(JSON.stringify(r || { ok: true }).slice(0, 400), 'out');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'teach') {
         if (!rest) { this.print('usage: teach <content>', 'err'); return; }
         await ACI.teach(rest);
         this.print('remembered · neuron spawned', 'ok');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'stats' || cmd === 'owner') {
         const r = await this.api({ mode: cmd === 'owner' ? 'owner_sync' : 'stats' });
         this.print(JSON.stringify(r, null, 0).slice(0, 600), 'out');
         if (r.is_owner) Auth.isOwner = true;
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'seed') {
@@ -1164,6 +1335,7 @@ const AciCli = {
         const r = await this.api({ mode: 'seed' });
         this.print(JSON.stringify(r).slice(0, 400), 'out');
         await ACI.init();
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'distill') {
@@ -1171,6 +1343,7 @@ const AciCli = {
         this.print('distilling…', 'dim');
         const r = await this.api({ mode: 'distill' });
         this.print(JSON.stringify(r).slice(0, 500), 'out');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'council') {
@@ -1182,83 +1355,103 @@ const AciCli = {
         if (sub === 'convene') { body.title = title || 'CLI case'; body.description = desc || title; }
         const r = await this.api(body);
         this.print(JSON.stringify(r).slice(0, 600), 'out');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'mode') {
         ACI.thinkMode = rest || '';
         this.print('mode: ' + (ACI.thinkMode || 'default'), 'ok');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'batch') {
         await AstranovNode?.launchBatch?.();
         this.print('batch panel — install node then work together', 'ok');
+        GlobeDeck.activeTask = 'batch';
         return;
       }
-      if (cmd === 'vendors') { await Commerce.showPicker(); this.print('vendor picker open — tap globe or list', 'ok'); return; }
+      if (cmd === 'vendors') {
+        await Commerce.showPicker();
+        this.print('vendor picker open — tap globe or list', 'ok');
+        GlobeDeck.activeTask = 'commerce';
+        return;
+      }
       if (cmd === 'order') {
         await Commerce.openOrderFlow(rest);
         this.print(rest ? 'order · ' + rest : 'pick vendor — real menu only', 'ok');
+        GlobeDeck.activeTask = 'commerce';
         return;
       }
       if (cmd === 'vendor') {
         const sub = (parts[1] || '').toLowerCase();
         if (sub === 'menu') {
           const r = await Commerce.cliVendorMenu(parts.slice(2));
-          if (r.error) { this.print(r.error, 'err'); return; }
+          if (r.error) { this.print(r.error, 'err'); GlobeDeck?.finishCliIfOneShot('vendor'); return; }
           if (r.vendors) {
             r.vendors.forEach(v => this.print(v.name + ' · ' + v.items + ' items · ' + v.id, 'ok'));
+            GlobeDeck?.finishCliIfOneShot('vendor');
             return;
           }
           if (r.menu) {
             this.print(r.vendor + ' menu:', 'ok');
             r.menu.forEach(i => this.print('  ' + i.name + ' · ' + i.price + ' AVC', 'dim'));
+            GlobeDeck?.finishCliIfOneShot('vendor');
             return;
           }
           this.print(r.message || JSON.stringify(r), 'ok');
+          GlobeDeck?.finishCliIfOneShot('vendor');
           return;
         }
         if (sub === 'requests') {
           const r = await Commerce.listMenuRequests();
-          if (r.error) { this.print(r.error, 'err'); return; }
-          if (!r.requests?.length) { this.print('no pending menu requests', 'dim'); return; }
+          if (r.error) { this.print(r.error, 'err'); GlobeDeck?.finishCliIfOneShot('vendor'); return; }
+          if (!r.requests?.length) { this.print('no pending menu requests', 'dim'); GlobeDeck?.finishCliIfOneShot('vendor'); return; }
           r.requests.forEach(req => this.print((req.vendor_name || req.vendor_id) + ' · ' + (req.notes || 'menu needed') + ' · ' + req.id.slice(0, 8), 'ok'));
+          GlobeDeck?.finishCliIfOneShot('vendor');
           return;
         }
         this.print('usage: vendor menu list|add|show|clear | vendor requests', 'err');
+        GlobeDeck?.finishCliIfOneShot('vendor');
         return;
       }
       if (cmd === 'locate' || cmd === 'gps' || cmd === 'me') {
         locateMe();
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
-      if (cmd === 'vhf') { Comms.startVHF(); this.print('PMR panel open', 'ok'); return; }
+      if (cmd === 'vhf') { Comms.startVHF(); this.print('PMR panel open', 'ok'); GlobeDeck.activeTask = 'radio'; return; }
       if (cmd === 'drive') {
         DrivingView?.activate?.();
         this.print('driving view (needs GPS speed)', 'ok');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
-      if (cmd === 'news') { NewsFeed.flash(); this.print('news', 'ok'); return; }
+      if (cmd === 'news') { NewsFeed.flash(); this.print('news', 'ok'); GlobeDeck?.finishCliIfOneShot(cmd); return; }
       if (cmd === 'roles') {
         await FieldBrain?.onAuth();
         this.print('roles: ' + (FieldBrain?.roles || []).join(' + '), 'ok');
         if (FieldBrain?.vendorIds?.length) this.print('vendors: ' + FieldBrain.vendorIds.join(', '), 'dim');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'claim') {
         if (!rest) { this.print('usage: claim <order_id>', 'err'); return; }
         const r = await FieldBrain?.claimDelivery(rest);
         this.print(r?.ok ? 'claimed ' + (r.short_id || rest) : (r?.error || 'failed'), r?.ok ? 'ok' : 'err');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'field_stats') {
         if (!Auth?.isOwner) { this.print('owner only', 'err'); return; }
         const r = await this.api({ mode: 'field_stats' });
         this.print(JSON.stringify(r).slice(0, 700), 'out');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
 
       if (Auth?.user && line.length >= 1 && !/^(think|order|vendors|vendor|batch|help|deploy|connect|logout|clear|exit|close|locate|gps)\b/i.test(line)) {
         if (AciCoders?.teamActive || /^(add|fix|build|implement|create|remove|locate|why|try|skip|use)\b/i.test(line)) {
+          GlobeDeck.activeTask = 'coders';
           await AciCoders.chat(line);
           if (AstranovNode?.batchId) AstranovNode.broadcastTask(line);
           return;
@@ -1270,6 +1463,7 @@ const AciCli = {
       this.print(ans || '(empty)', 'out');
       ACIControl?.reply(ans);
       if (voiceSessionActive && Voice.shouldSpeak(ans)) speak(ans.slice(0, 200));
+      GlobeDeck?.finishCliIfOneShot('think');
     } catch (err) {
       this.print('error: ' + (err.message || err), 'err');
     }
@@ -1391,11 +1585,10 @@ const AciCoders = {
   toggleEngine() { return true; },
 
   updateHud() {
-    const hdr = document.querySelector('#aci-cli-header span');
-    if (hdr && Auth?.user) {
-      hdr.textContent = this.teamActive
+    if (Auth?.user) {
+      GlobeDeck?.setTitle(this.teamActive
         ? 'Collective CLI — coders team'
-        : 'Collective CLI — coders';
+        : 'Collective CLI — coders');
     }
   },
 
@@ -1941,9 +2134,9 @@ const ACIControl = {
     if (batchBtn) batchBtn.onclick = () => AstranovNode?.launchBatch?.();
   },
   reply(text) {
-    const el = document.getElementById('aci-reply');
-    if (el) el.textContent = (text || '').slice(0, 220);
-    if (window.AciCli?.open) AciCli.print((text || '').slice(0, 280), 'out');
+    const msg = (text || '').slice(0, 280);
+    GlobeDeck?.log(msg, 'reply');
+    if (!GlobeDeck?.expanded) GlobeDeck?.setPreview(msg);
   },
 
   voiceAck(msg, fromVoice) {
@@ -2215,7 +2408,10 @@ const Commerce = {
     if (this._uiReady) return;
     this._uiReady = true;
     const panel = document.getElementById('vendor-menu');
-    document.getElementById('vm-close')?.addEventListener('click', () => this.hideMenu());
+    document.getElementById('vm-close')?.addEventListener('click', () => {
+      this.hideMenu();
+      GlobeDeck?.completeTask('commerce');
+    });
     document.getElementById('vm-back')?.addEventListener('click', () => this.showPicker());
     document.getElementById('vm-compare-back')?.addEventListener('click', () => this.showPicker());
     document.getElementById('vm-place')?.addEventListener('click', () => this.placeCart());
@@ -2226,11 +2422,11 @@ const Commerce = {
 
   showMenu() {
     this.initUI();
-    document.getElementById('vendor-menu')?.classList.add('open');
+    GlobeDeck?.showStage('vendor-menu', 'commerce');
   },
 
   hideMenu() {
-    document.getElementById('vendor-menu')?.classList.remove('open');
+    document.getElementById('vendor-menu')?.classList.remove('open', 'deck-active');
     this.selected = null;
     this.cart = {};
     this._menuRequestSent = false;
@@ -2721,6 +2917,7 @@ const Commerce = {
           : 'Παραγγελία ' + (ordId || '') + ' στο ' + vendor.name + paid + '. Οδηγός: ' + (driver || 'pending') + '.';
         if (orderResult.balance_after != null) this._balance = orderResult.balance_after;
         this.hideMenu();
+        GlobeDeck?.completeTask('commerce');
       } else {
         msg = 'Παραγγελία απέτυχε: ' + (errMsg || 'server error') + '. Δοκίμασε ξανά.';
       }
@@ -3029,7 +3226,7 @@ const AstranovNode = {
 
   showPanel() {
     this._open = true;
-    document.getElementById('node-batch')?.classList.add('open');
+    GlobeDeck?.showStage('node-batch', 'batch');
     this.renderPlatform();
     this.updateInstallUI();
     MapDepict?.action('batch', { detail: 'work together · install node' });
@@ -3037,7 +3234,8 @@ const AstranovNode = {
 
   hidePanel() {
     this._open = false;
-    document.getElementById('node-batch')?.classList.remove('open');
+    document.getElementById('node-batch')?.classList.remove('open', 'deck-active');
+    if (GlobeDeck?.activeTask === 'batch') GlobeDeck?.completeTask('batch');
   },
 
   renderPlatform() {
@@ -3325,8 +3523,7 @@ const PmrRadio = {
 
   async show() {
     this.open = true;
-    const panel = document.getElementById('sat-radio');
-    if (panel) panel.classList.add('open');
+    GlobeDeck?.showStage('sat-radio', 'radio');
     this.setFreqUI();
     this.setStep(1, 'active', 'Tap Enable Mic — browser will ask permission');
     const up = window._lastPos || { lat: 36.22, lng: 28.12 };
@@ -3337,7 +3534,8 @@ const PmrRadio = {
   hide() {
     this.open = false;
     this.pttDown = false;
-    document.getElementById('sat-radio')?.classList.remove('open');
+    document.getElementById('sat-radio')?.classList.remove('open', 'deck-active');
+    if (GlobeDeck?.activeTask === 'radio') GlobeDeck?.completeTask('radio');
     if (this.vuAnim) cancelAnimationFrame(this.vuAnim);
     this.teardown();
     if (Comms) Comms.vhfActive = false;
@@ -5064,6 +5262,7 @@ AstranovNode.init();
 Auth.init();
 FieldBrain.init();
 FieldBrain.hookFeed();
+GlobeDeck.init();
 AciCli.init();
 setTimeout(() => Auth.refreshAuthority(), 800);
 ACIControl.init();

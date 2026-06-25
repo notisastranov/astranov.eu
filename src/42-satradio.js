@@ -22,8 +22,7 @@ const PmrRadio = {
 
   async show() {
     this.open = true;
-    const panel = document.getElementById('sat-radio');
-    if (panel) panel.classList.add('open');
+    GlobeDeck?.showStage('sat-radio', 'radio');
     this.setFreqUI();
     this.setStep(1, 'active', 'Tap Enable Mic — browser will ask permission');
     const up = window._lastPos || { lat: 36.22, lng: 28.12 };
@@ -34,7 +33,8 @@ const PmrRadio = {
   hide() {
     this.open = false;
     this.pttDown = false;
-    document.getElementById('sat-radio')?.classList.remove('open');
+    document.getElementById('sat-radio')?.classList.remove('open', 'deck-active');
+    if (GlobeDeck?.activeTask === 'radio') GlobeDeck?.completeTask('radio');
     if (this.vuAnim) cancelAnimationFrame(this.vuAnim);
     this.teardown();
     if (Comms) Comms.vhfActive = false;

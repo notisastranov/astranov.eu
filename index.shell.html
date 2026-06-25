@@ -24,8 +24,8 @@
   #drive-guide { position:fixed; top:36px; left:10px; right:10px; z-index:42; font:12px/1.35 system-ui; color:#7df; background:rgba(0,20,40,0.75); border:1px solid rgba(68,170,255,0.35); border-radius:12px; padding:8px 12px; display:none; pointer-events:none; }
   #drive-guide.open { display:block; }
   #aci-hud { position:fixed; left:0; right:0; bottom:0; z-index:50; pointer-events:none; }
-  #sat-radio { display:none; margin:0 8px 6px; padding:10px 12px; background:rgba(8,12,8,0.92); border:1px solid rgba(255,220,80,0.45); border-radius:16px; pointer-events:auto; font:11px/1.45 system-ui; color:#dda; }
-  #sat-radio.open { display:block; }
+  #sat-radio { display:none; padding:10px 12px; background:rgba(8,12,8,0.92); pointer-events:auto; font:11px/1.45 system-ui; color:#dda; }
+  #sat-radio.open, #sat-radio.deck-active { display:block; }
   #sat-radio .sr-row { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; }
   #sat-radio .sr-freq { color:#ff8; font-weight:600; }
   #sat-radio .sr-honest { color:#9cb; font-size:10px; margin-bottom:8px; line-height:1.4; }
@@ -50,26 +50,37 @@
   #aci-locate { font-size:16px; }
   #aci-login { font-weight:700; font-size:13px; }
   #aci-stop { background:rgba(120,20,40,0.45); border-color:rgba(255,80,100,0.5); color:#faa; }
-  #map-action { margin:0 12px 2px; padding:4px 12px; font:11px/1.3 system-ui; color:#8cf; max-height:32px; overflow:hidden; opacity:0.85; pointer-events:none; }
-  #aci-reply { margin:0 12px 4px; padding:6px 12px; font:12px/1.4 system-ui; color:#9fd; max-height:48px; overflow:hidden; opacity:0.9; pointer-events:none; }
   #news-ticker { display:none; margin:8px 8px 0; padding:6px 12px; background:rgba(10,0,20,0.75); border:1px solid rgba(180,100,255,0.3); border-radius:14px; font:11px system-ui; color:#ddaaff; white-space:nowrap; overflow:hidden; pointer-events:auto; }
   #zoom-label { position:fixed; top:10px; left:10px; z-index:40; font:11px system-ui; color:rgba(150,220,255,0.7); pointer-events:none; }
-  #aci-cli { display:none; margin:0 8px 6px; max-height:42vh; background:rgba(0,4,12,0.94); border:1px solid rgba(0,255,160,0.35); border-radius:14px; pointer-events:auto; font:12px/1.4 ui-monospace,monospace; overflow:hidden; flex-direction:column; }
-  #aci-cli.visible { display:flex; }
-  #aci-cli-header { display:flex; justify-content:space-between; align-items:center; padding:6px 10px; background:rgba(0,40,30,0.5); color:#6fc; font:11px system-ui; border-bottom:1px solid rgba(0,255,160,0.2); }
-  #aci-cli-close { background:transparent; border:none; color:#8aa; cursor:pointer; font-size:14px; }
-  #aci-cli-out { flex:1; overflow-y:auto; padding:8px 10px; min-height:80px; max-height:28vh; color:#9fd; }
-  #aci-cli-out .cli-cmd { color:#6df; }
-  #aci-cli-out .cli-out { color:#cfa; white-space:pre-wrap; }
-  #aci-cli-out .cli-ok { color:#8f8; }
-  #aci-cli-out .cli-err { color:#f88; }
-  #aci-cli-out .cli-dim { color:#567; }
-  #aci-cli-input-row { display:flex; align-items:center; gap:6px; padding:8px 10px; border-top:1px solid rgba(0,255,160,0.15); }
+  #globe-deck { display:flex; flex-direction:column; margin:0 8px 6px; max-height:40px; background:rgba(0,4,12,0.94); border:1px solid rgba(0,255,160,0.35); border-radius:14px; pointer-events:auto; font:12px/1.4 ui-monospace,monospace; overflow:hidden; transition:max-height 0.22s ease; }
+  #globe-deck.expanded { max-height:min(56vh,520px); }
+  #globe-deck-header { display:flex; align-items:center; gap:8px; padding:8px 10px; background:rgba(0,40,30,0.5); color:#6fc; font:11px system-ui; touch-action:pan-y; cursor:pointer; flex-shrink:0; user-select:none; min-height:24px; }
+  #globe-deck.expanded #globe-deck-header { border-bottom:1px solid rgba(0,255,160,0.2); }
+  #globe-deck-title { flex:0 1 auto; max-width:42%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+  #globe-deck-preview { flex:1; font-size:10px; color:#8cf; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; opacity:0.9; }
+  #globe-deck:not(.has-preview):not(.expanded) #globe-deck-preview { display:none; }
+  #globe-deck-handle { background:transparent; border:none; color:#8aa; cursor:pointer; font-size:16px; padding:2px 6px; flex-shrink:0; }
+  #globe-deck-body { display:none; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
+  #globe-deck.expanded #globe-deck-body { display:flex; }
+  #globe-deck-log { flex:1; overflow-y:auto; padding:8px 10px; min-height:56px; max-height:28vh; color:#9fd; -webkit-overflow-scrolling:touch; }
+  #globe-deck-log .deck-cmd { color:#6df; }
+  #globe-deck-log .deck-out, #globe-deck-log .deck-reply { color:#cfa; white-space:pre-wrap; }
+  #globe-deck-log .deck-ok { color:#8f8; }
+  #globe-deck-log .deck-err { color:#f88; }
+  #globe-deck-log .deck-dim { color:#567; }
+  #globe-deck-log .deck-map { color:#8cf; font-size:11px; }
+  #globe-deck-stage { flex-shrink:0; max-height:34vh; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  #globe-deck-stage > * { display:none !important; margin:0 !important; border-radius:0 !important; max-height:none; }
+  #globe-deck-stage > .deck-active { display:block !important; }
+  #globe-deck-stage > #vendor-menu.deck-active { display:flex !important; flex-direction:column; }
+  #globe-deck-stage #sat-radio, #globe-deck-stage #node-batch { border:none; border-top:1px solid rgba(255,255,255,0.06); }
+  #globe-deck-stage #vendor-menu { border:none; border-top:1px solid rgba(255,170,60,0.2); overflow:hidden; }
+  #globe-deck-input-row { display:flex; align-items:center; gap:6px; padding:8px 10px; border-top:1px solid rgba(0,255,160,0.15); flex-shrink:0; }
   #aci-cli-prompt { color:#6fc; flex-shrink:0; font-size:11px; }
   #aci-cli-in { flex:1; background:transparent; border:none; color:#e8f4ff; font:inherit; outline:none; min-width:0; }
   #aci-cli-toggle { display:inline-flex; background:rgba(0,60,40,0.5); border:1px solid rgba(0,255,160,0.4); color:#6fc; border-radius:50%; width:38px; height:38px; cursor:pointer; font-size:15px; flex-shrink:0; align-items:center; justify-content:center; }
-  #vendor-menu { display:none; margin:0 8px 6px; max-height:38vh; background:rgba(8,6,0,0.94); border:1px solid rgba(255,170,60,0.45); border-radius:14px; pointer-events:auto; font:12px/1.4 system-ui; overflow:hidden; flex-direction:column; }
-  #vendor-menu.open { display:flex; }
+  #vendor-menu { display:none; background:rgba(8,6,0,0.94); pointer-events:auto; font:12px/1.4 system-ui; overflow:hidden; flex-direction:column; }
+  #vendor-menu.open, #vendor-menu.deck-active { display:flex; }
   #vm-header { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:rgba(60,30,0,0.45); color:#fc8; border-bottom:1px solid rgba(255,170,60,0.25); }
   #vm-close { background:transparent; border:1px solid #666; color:#aaa; border-radius:8px; padding:2px 8px; cursor:pointer; }
   #vm-body { flex:1; overflow-y:auto; padding:8px 10px; }
@@ -96,8 +107,8 @@
   #vm-confirm-pay { width:calc(100% - 16px); margin:8px; padding:12px; border:none; border-radius:12px; background:rgba(40,120,60,0.55); border:2px solid #4c8; color:#fff; font-weight:700; cursor:pointer; font-size:13px; }
   #vm-compare-back { background:transparent; border:none; color:#9cb; cursor:pointer; font-size:11px; padding:4px 0 8px; }
   #vm-back { background:transparent; border:none; color:#9cb; cursor:pointer; font-size:11px; padding:4px 0 8px; }
-  #node-batch { display:none; margin:0 8px 6px; padding:10px 12px; background:rgba(0,12,28,0.94); border:1px solid rgba(100,180,255,0.45); border-radius:16px; pointer-events:auto; font:11px/1.45 system-ui; color:#bdf; }
-  #node-batch.open { display:block; }
+  #node-batch { display:none; padding:10px 12px; background:rgba(0,12,28,0.94); pointer-events:auto; font:11px/1.45 system-ui; color:#bdf; }
+  #node-batch.open, #node-batch.deck-active { display:block; }
   #node-batch .nb-row { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; }
   .nb-step { display:flex; gap:8px; align-items:flex-start; margin:6px 0; padding:6px 8px; border-radius:8px; background:rgba(0,0,0,0.3); }
   .nb-step.nb-done { border-left:3px solid #4c8; }
@@ -120,16 +131,15 @@
   <div id="drive-guide"></div>
   <div id="aci-hud">
     <div id="news-ticker">Astranov Collective Intelligence — loading news…</div>
-    <div id="map-action"></div>
-    <div id="aci-reply"></div>
-    <div id="aci-cli">
-      <div id="aci-cli-header"><span>Collective CLI — tasks &amp; conversation</span><button id="aci-cli-close" type="button" title="Close">▁</button></div>
-      <div id="aci-cli-out"></div>
-      <div id="aci-cli-input-row">
-        <span id="aci-cli-prompt">collective $</span>
-        <input id="aci-cli-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="help" />
+    <div id="globe-deck" class="collapsed">
+      <div id="globe-deck-header">
+        <span id="globe-deck-title">Collective — globe deck</span>
+        <span id="globe-deck-preview"></span>
+        <button id="globe-deck-handle" type="button" title="Tap or swipe to expand/collapse">▔</button>
       </div>
-    </div>
+      <div id="globe-deck-body">
+        <div id="globe-deck-log"></div>
+        <div id="globe-deck-stage">
     <div id="sat-radio">
       <div class="sr-row"><span class="sr-ch">EU PMR Ch 11</span><span class="sr-freq">446.13125 MHz</span><span>peers: <b id="sr-peers">0</b></span><button id="sr-close" type="button">✖️</button></div>
       <div class="sr-honest">RF: tune YOUR PMR446 handheld to Ch 11 (446.13125 MHz) — browser cannot transmit on 446 MHz. In-app: real mic + WebRTC voice to other Astranov users on this channel.</div>
@@ -162,6 +172,13 @@
     <div id="vendor-menu">
       <div id="vm-header"><span id="vm-title">Καταστήματα</span><button id="vm-close" type="button">✖️</button></div>
       <div id="vm-body"><div id="vm-list"></div><div id="vm-detail" style="display:none"><button id="vm-back" type="button">← όλα τα καταστήματα</button><div id="vm-empty" style="display:none"></div><div id="vm-items"></div><button id="vm-request" type="button" style="display:none">Ζήτησε μενού από κατάστημα</button><button id="vm-place" type="button">Παραγγελία</button></div><div id="vm-compare" style="display:none"><button id="vm-compare-back" type="button">← όλα τα καταστήματα</button><div id="vm-wanted"></div><div id="vm-matches"></div><div id="vm-drivers"></div><div id="vm-balance"></div><button id="vm-confirm-pay" type="button" style="display:none">Επιβεβαίωση &amp; Πληρωμή</button></div></div>
+    </div>
+        </div>
+        <div id="globe-deck-input-row">
+          <span id="aci-cli-prompt">collective $</span>
+          <input id="aci-cli-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="help" />
+        </div>
+      </div>
     </div>
     <div id="aci-bar">
       <button id="aci-login" title="Sign in with Google" type="button">G</button>

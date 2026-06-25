@@ -209,8 +209,8 @@ const MapDepict = {
   },
 
   setHud(label, detail) {
-    const ma = document.getElementById('map-action');
-    if (ma) ma.textContent = detail ? label + ' — ' + detail : label;
+    const line = detail ? label + ' — ' + detail : label;
+    GlobeDeck?.log(line, 'map');
   },
 
   cancelAll() {
@@ -221,8 +221,7 @@ const MapDepict = {
     });
     this.overlays = [];
     this.current = '';
-    const ma = document.getElementById('map-action');
-    if (ma) ma.textContent = '';
+    GlobeDeck?.setPreview('');
   },
 
   pulse(lat, lng, color, label, duration = 9000) {
@@ -416,8 +415,7 @@ function userIntervene() {
   if (recognition) { try { recognition.stop(); } catch (_) {} }
   isListening = false;
   if (ACI) ACI.evolving = false;
-  const ma = document.getElementById('map-action');
-  if (ma) ma.textContent = (AstroGlyphs?.stop || '🛑') + ' Διακοπή — εσύ παίρνεις τον έλεγχο';
+  GlobeDeck?.log((AstroGlyphs?.stop || '🛑') + ' Διακοπή — εσύ παίρνεις τον έλεγχο', 'map');
   if (window.ACIControl) ACIControl.reply('Stopped — globe is yours. Drag · pinch · tap.');
 }
 

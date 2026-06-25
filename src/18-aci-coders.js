@@ -32,11 +32,10 @@ const AciCoders = {
   toggleEngine() { return true; },
 
   updateHud() {
-    const hdr = document.querySelector('#aci-cli-header span');
-    if (hdr && Auth?.user) {
-      hdr.textContent = this.teamActive
+    if (Auth?.user) {
+      GlobeDeck?.setTitle(this.teamActive
         ? 'Collective CLI — coders team'
-        : 'Collective CLI — coders';
+        : 'Collective CLI — coders');
     }
   },
 

@@ -8,9 +8,7 @@ const AciCli = {
   init() {
     const input = document.getElementById('aci-cli-in');
     const toggle = document.getElementById('aci-cli-toggle');
-    const close = document.getElementById('aci-cli-close');
     if (toggle) toggle.onclick = () => this.toggle();
-    if (close) close.onclick = () => this.hide();
     if (input) {
       input.addEventListener('keydown', e => this.onKey(e));
       input.addEventListener('input', () => { this.buffer = input.value; });
@@ -26,7 +24,6 @@ const AciCli = {
   },
 
   onAuthChange() {
-    const panel = document.getElementById('aci-cli');
     const toggle = document.getElementById('aci-cli-toggle');
     const logged = !!(Auth && Auth.user);
     if (toggle) toggle.style.display = 'inline-flex';
@@ -34,7 +31,7 @@ const AciCli = {
       this._welcomed = false;
       this._sessionOpened = false;
       this.hide();
-      if (panel) panel.classList.remove('visible');
+      GlobeDeck?.collapse();
       return;
     }
     const name = Auth.user.user_metadata?.full_name || Auth.user.email?.split('@')[0] || 'dev';
@@ -96,25 +93,18 @@ const AciCli = {
       this.print('coders = open Coders team — talk normally, control fallbacks');
       this.print('vendors · order · think <prompt> · help');
     }
-    const panel = document.getElementById('aci-cli');
-    if (panel) panel.classList.add('visible');
+    GlobeDeck?.expand('Collective CLI — tasks & conversation');
     document.getElementById('aci-cli-in')?.focus();
     MapDepict?.action('think', { detail: 'CLI open' });
   },
 
   hide() {
     this.open = false;
-    document.getElementById('aci-cli')?.classList.remove('visible');
+    GlobeDeck?.collapse();
   },
 
   print(text, cls) {
-    const out = document.getElementById('aci-cli-out');
-    if (!out) return;
-    const line = document.createElement('div');
-    line.className = 'cli-line' + (cls ? ' cli-' + cls : '');
-    line.textContent = text;
-    out.appendChild(line);
-    out.scrollTop = out.scrollHeight;
+    GlobeDeck?.log(text, cls || 'out');
   },
 
   async api(body) {
@@ -200,33 +190,38 @@ const AciCli = {
         if (Auth?.isOwner) this.print('field_stats        — field usage → brain (owner)');
         this.print('clear | exit | logout');
         this.print('…or any free text → think');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'coders' || cmd === 'composer' || cmd === 'cursor' ||
           (cmd === 'summon' && /^coders?$/i.test(parts[1] || ''))) {
         const task = cmd === 'summon' ? parts.slice(2).join(' ')
           : (cmd === 'coders' ? rest : rest || '');
+        GlobeDeck.activeTask = 'coders';
         await AciCoders?.handleCodersCommand(cmd === 'composer' || cmd === 'cursor' ? ('composer ' + task).trim() : task);
         return;
       }
       if (cmd === 'grok') {
+        GlobeDeck.activeTask = 'coders';
         await AciCoders?.handleCodersCommand(rest ? ('grok ' + rest) : 'grok');
         return;
       }
       if (cmd === 'connect' || cmd === 'open') {
         await AciConnect.connect(cmd === 'open');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'deploy') {
         await AciConnect.deploy(rest || 'continue deployment');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'clear') {
-        const out = document.getElementById('aci-cli-out');
-        if (out) out.innerHTML = '';
+        GlobeDeck?.clearLog();
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
-      if (cmd === 'exit' || cmd === 'close') { this.hide(); return; }
+      if (cmd === 'exit' || cmd === 'close') { GlobeDeck?.completeTask('cli'); return; }
       if (cmd === 'logout') { await Auth.signOut(); this.print('signed out', 'ok'); return; }
 
       if (cmd === 'think') {
@@ -237,24 +232,28 @@ const AciCli = {
         this.print(r || '(empty)', 'out');
         ACIControl?.reply(r);
         if (voiceSessionActive && Voice.shouldSpeak(r)) speak(r.slice(0, 200));
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'evolve') {
         this.print('evolving…', 'dim');
         const r = await ACI.evolve(rest || 'cli');
         this.print(JSON.stringify(r || { ok: true }).slice(0, 400), 'out');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'teach') {
         if (!rest) { this.print('usage: teach <content>', 'err'); return; }
         await ACI.teach(rest);
         this.print('remembered · neuron spawned', 'ok');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'stats' || cmd === 'owner') {
         const r = await this.api({ mode: cmd === 'owner' ? 'owner_sync' : 'stats' });
         this.print(JSON.stringify(r, null, 0).slice(0, 600), 'out');
         if (r.is_owner) Auth.isOwner = true;
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'seed') {
@@ -262,6 +261,7 @@ const AciCli = {
         const r = await this.api({ mode: 'seed' });
         this.print(JSON.stringify(r).slice(0, 400), 'out');
         await ACI.init();
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'distill') {
@@ -269,6 +269,7 @@ const AciCli = {
         this.print('distilling…', 'dim');
         const r = await this.api({ mode: 'distill' });
         this.print(JSON.stringify(r).slice(0, 500), 'out');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'council') {
@@ -280,83 +281,103 @@ const AciCli = {
         if (sub === 'convene') { body.title = title || 'CLI case'; body.description = desc || title; }
         const r = await this.api(body);
         this.print(JSON.stringify(r).slice(0, 600), 'out');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'mode') {
         ACI.thinkMode = rest || '';
         this.print('mode: ' + (ACI.thinkMode || 'default'), 'ok');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'batch') {
         await AstranovNode?.launchBatch?.();
         this.print('batch panel — install node then work together', 'ok');
+        GlobeDeck.activeTask = 'batch';
         return;
       }
-      if (cmd === 'vendors') { await Commerce.showPicker(); this.print('vendor picker open — tap globe or list', 'ok'); return; }
+      if (cmd === 'vendors') {
+        await Commerce.showPicker();
+        this.print('vendor picker open — tap globe or list', 'ok');
+        GlobeDeck.activeTask = 'commerce';
+        return;
+      }
       if (cmd === 'order') {
         await Commerce.openOrderFlow(rest);
         this.print(rest ? 'order · ' + rest : 'pick vendor — real menu only', 'ok');
+        GlobeDeck.activeTask = 'commerce';
         return;
       }
       if (cmd === 'vendor') {
         const sub = (parts[1] || '').toLowerCase();
         if (sub === 'menu') {
           const r = await Commerce.cliVendorMenu(parts.slice(2));
-          if (r.error) { this.print(r.error, 'err'); return; }
+          if (r.error) { this.print(r.error, 'err'); GlobeDeck?.finishCliIfOneShot('vendor'); return; }
           if (r.vendors) {
             r.vendors.forEach(v => this.print(v.name + ' · ' + v.items + ' items · ' + v.id, 'ok'));
+            GlobeDeck?.finishCliIfOneShot('vendor');
             return;
           }
           if (r.menu) {
             this.print(r.vendor + ' menu:', 'ok');
             r.menu.forEach(i => this.print('  ' + i.name + ' · ' + i.price + ' AVC', 'dim'));
+            GlobeDeck?.finishCliIfOneShot('vendor');
             return;
           }
           this.print(r.message || JSON.stringify(r), 'ok');
+          GlobeDeck?.finishCliIfOneShot('vendor');
           return;
         }
         if (sub === 'requests') {
           const r = await Commerce.listMenuRequests();
-          if (r.error) { this.print(r.error, 'err'); return; }
-          if (!r.requests?.length) { this.print('no pending menu requests', 'dim'); return; }
+          if (r.error) { this.print(r.error, 'err'); GlobeDeck?.finishCliIfOneShot('vendor'); return; }
+          if (!r.requests?.length) { this.print('no pending menu requests', 'dim'); GlobeDeck?.finishCliIfOneShot('vendor'); return; }
           r.requests.forEach(req => this.print((req.vendor_name || req.vendor_id) + ' · ' + (req.notes || 'menu needed') + ' · ' + req.id.slice(0, 8), 'ok'));
+          GlobeDeck?.finishCliIfOneShot('vendor');
           return;
         }
         this.print('usage: vendor menu list|add|show|clear | vendor requests', 'err');
+        GlobeDeck?.finishCliIfOneShot('vendor');
         return;
       }
       if (cmd === 'locate' || cmd === 'gps' || cmd === 'me') {
         locateMe();
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
-      if (cmd === 'vhf') { Comms.startVHF(); this.print('PMR panel open', 'ok'); return; }
+      if (cmd === 'vhf') { Comms.startVHF(); this.print('PMR panel open', 'ok'); GlobeDeck.activeTask = 'radio'; return; }
       if (cmd === 'drive') {
         DrivingView?.activate?.();
         this.print('driving view (needs GPS speed)', 'ok');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
-      if (cmd === 'news') { NewsFeed.flash(); this.print('news', 'ok'); return; }
+      if (cmd === 'news') { NewsFeed.flash(); this.print('news', 'ok'); GlobeDeck?.finishCliIfOneShot(cmd); return; }
       if (cmd === 'roles') {
         await FieldBrain?.onAuth();
         this.print('roles: ' + (FieldBrain?.roles || []).join(' + '), 'ok');
         if (FieldBrain?.vendorIds?.length) this.print('vendors: ' + FieldBrain.vendorIds.join(', '), 'dim');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'claim') {
         if (!rest) { this.print('usage: claim <order_id>', 'err'); return; }
         const r = await FieldBrain?.claimDelivery(rest);
         this.print(r?.ok ? 'claimed ' + (r.short_id || rest) : (r?.error || 'failed'), r?.ok ? 'ok' : 'err');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
       if (cmd === 'field_stats') {
         if (!Auth?.isOwner) { this.print('owner only', 'err'); return; }
         const r = await this.api({ mode: 'field_stats' });
         this.print(JSON.stringify(r).slice(0, 700), 'out');
+        GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
 
       if (Auth?.user && line.length >= 1 && !/^(think|order|vendors|vendor|batch|help|deploy|connect|logout|clear|exit|close|locate|gps)\b/i.test(line)) {
         if (AciCoders?.teamActive || /^(add|fix|build|implement|create|remove|locate|why|try|skip|use)\b/i.test(line)) {
+          GlobeDeck.activeTask = 'coders';
           await AciCoders.chat(line);
           if (AstranovNode?.batchId) AstranovNode.broadcastTask(line);
           return;
@@ -368,6 +389,7 @@ const AciCli = {
       this.print(ans || '(empty)', 'out');
       ACIControl?.reply(ans);
       if (voiceSessionActive && Voice.shouldSpeak(ans)) speak(ans.slice(0, 200));
+      GlobeDeck?.finishCliIfOneShot('think');
     } catch (err) {
       this.print('error: ' + (err.message || err), 'err');
     }

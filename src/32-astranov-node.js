@@ -76,7 +76,7 @@ const AstranovNode = {
 
   showPanel() {
     this._open = true;
-    document.getElementById('node-batch')?.classList.add('open');
+    GlobeDeck?.showStage('node-batch', 'batch');
     this.renderPlatform();
     this.updateInstallUI();
     MapDepict?.action('batch', { detail: 'work together · install node' });
@@ -84,7 +84,8 @@ const AstranovNode = {
 
   hidePanel() {
     this._open = false;
-    document.getElementById('node-batch')?.classList.remove('open');
+    document.getElementById('node-batch')?.classList.remove('open', 'deck-active');
+    if (GlobeDeck?.activeTask === 'batch') GlobeDeck?.completeTask('batch');
   },
 
   renderPlatform() {

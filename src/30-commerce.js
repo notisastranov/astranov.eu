@@ -103,7 +103,10 @@ const Commerce = {
     if (this._uiReady) return;
     this._uiReady = true;
     const panel = document.getElementById('vendor-menu');
-    document.getElementById('vm-close')?.addEventListener('click', () => this.hideMenu());
+    document.getElementById('vm-close')?.addEventListener('click', () => {
+      this.hideMenu();
+      GlobeDeck?.completeTask('commerce');
+    });
     document.getElementById('vm-back')?.addEventListener('click', () => this.showPicker());
     document.getElementById('vm-compare-back')?.addEventListener('click', () => this.showPicker());
     document.getElementById('vm-place')?.addEventListener('click', () => this.placeCart());
@@ -114,11 +117,11 @@ const Commerce = {
 
   showMenu() {
     this.initUI();
-    document.getElementById('vendor-menu')?.classList.add('open');
+    GlobeDeck?.showStage('vendor-menu', 'commerce');
   },
 
   hideMenu() {
-    document.getElementById('vendor-menu')?.classList.remove('open');
+    document.getElementById('vendor-menu')?.classList.remove('open', 'deck-active');
     this.selected = null;
     this.cart = {};
     this._menuRequestSent = false;
@@ -609,6 +612,7 @@ const Commerce = {
           : 'Παραγγελία ' + (ordId || '') + ' στο ' + vendor.name + paid + '. Οδηγός: ' + (driver || 'pending') + '.';
         if (orderResult.balance_after != null) this._balance = orderResult.balance_after;
         this.hideMenu();
+        GlobeDeck?.completeTask('commerce');
       } else {
         msg = 'Παραγγελία απέτυχε: ' + (errMsg || 'server error') + '. Δοκίμασε ξανά.';
       }
