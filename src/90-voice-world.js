@@ -111,11 +111,38 @@ function placeMe(lat, lng) {
   window._meMarker = m;
   userLocated = true;
   MapDepict.action('location', { lat, lng, detail: me ? me.name : 'You' });
-  // Focus
-  camera.position.set(pos.x*0.6, pos.y*0.6 + 0.4, 1.6);
-  camera.lookAt(pos.x*0.2, pos.y*0.2, 0);
-  console.log('%c[Map] You are here (green dot). Drag to look around.', 'color:#0f0');
+  if (typeof flyToPoint === 'function') {
+    flyToPoint(new THREE.Vector3(pos.x, pos.y, pos.z), 1.38);
+  } else {
+    camera.position.set(pos.x*0.6, pos.y*0.6 + 0.4, 1.6);
+    camera.lookAt(pos.x*0.2, pos.y*0.2, 0);
+  }
+  FieldBrain?.pulse('location', 'locate me', { role: 'client' });
 }
+
+function locateMe() {
+  if (!navigator.geolocation) {
+    ACIControl?.reply('Geolocation not supported in this browser');
+    return;
+  }
+  ACIControl?.reply('Locating you…');
+  AciCli?.print('locating…', 'dim');
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      placeMe(pos.coords.latitude, pos.coords.longitude);
+      const msg = 'You · ' + pos.coords.latitude.toFixed(4) + ', ' + pos.coords.longitude.toFixed(4);
+      ACIControl?.reply(msg);
+      AciCli?.print('located · ' + msg, 'ok');
+    },
+    err => {
+      const msg = 'Location denied or unavailable — enable GPS for locate me';
+      ACIControl?.reply(msg);
+      AciCli?.print(msg, 'err');
+    },
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+  );
+}
+window.locateMe = locateMe;
 
 function showOtherUsers() {
   others = [

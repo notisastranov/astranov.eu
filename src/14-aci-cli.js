@@ -56,6 +56,8 @@ const AciCli = {
     if (window.AciCoders) {
       await AciCoders.ensureBridge();
       AciCoders.armed = true;
+      AciCoders.teamActive = true;
+      AciCoders.updateHud();
     }
   },
 
@@ -129,7 +131,9 @@ const AciCli = {
       method: 'POST', headers,
       body: JSON.stringify({ ...body, cli_user: Auth?.user?.id, cli_email: Auth?.user?.email })
     });
-    return r.json().catch(() => ({ error: 'bad response' }));
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok && !j.error) j.error = 'HTTP ' + r.status;
+    return j;
   },
 
   onKey(e) {
@@ -287,6 +291,10 @@ const AciCli = {
         this.print(rest ? 'order · ' + rest : 'pick vendor — menu open', 'ok');
         return;
       }
+      if (cmd === 'locate' || cmd === 'gps' || cmd === 'me') {
+        locateMe();
+        return;
+      }
       if (cmd === 'vhf') { Comms.startVHF(); this.print('PMR panel open', 'ok'); return; }
       if (cmd === 'drive') {
         DrivingView?.activate?.();
@@ -313,10 +321,11 @@ const AciCli = {
         return;
       }
 
-      if (Auth?.user && AciCoders?.teamActive && line.length >= 1
-          && !/^(think|order|vendors|help|deploy|connect|logout|clear|exit|close)\b/i.test(line)) {
-        await AciCoders.chat(line);
-        return;
+      if (Auth?.user && line.length >= 1 && !/^(think|order|vendors|help|deploy|connect|logout|clear|exit|close|locate|gps)\b/i.test(line)) {
+        if (AciCoders?.teamActive || /^(add|fix|build|implement|create|remove|locate|why|try|skip|use)\b/i.test(line)) {
+          await AciCoders.chat(line);
+          return;
+        }
       }
       if (!window._aciConnected) await AciConnect.connect(false);
       this.print('…', 'dim');

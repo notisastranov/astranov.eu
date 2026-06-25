@@ -172,6 +172,8 @@ const ACIControl = {
     const stopBtn = document.getElementById('aci-stop');
     if (stopBtn) stopBtn.onclick = () => userIntervene();
     document.getElementById('aci-order').onclick = () => Commerce.showPicker();
+    const locBtn = document.getElementById('aci-locate');
+    if (locBtn) locBtn.onclick = () => locateMe();
     document.getElementById('aci-vhf').onclick = () => Comms.startVHF();
     document.getElementById('aci-call').onclick = () => Comms.startPhone();
   },

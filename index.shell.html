@@ -38,7 +38,8 @@
   #sr-close { background:transparent; border:1px solid #666; color:#aaa; border-radius:8px; padding:4px 10px; cursor:pointer; }
   #aci-bar { display:flex; gap:6px; padding:8px 10px; margin:0 8px 8px; background:rgba(0,8,18,0.82); border:1px solid rgba(0,180,255,0.35); border-radius:24px; pointer-events:auto; backdrop-filter:blur(12px); align-items:center; justify-content:center; flex-wrap:wrap; }
   #aci-input, #aci-send { display:none !important; }
-  #aci-mic, #aci-send, #aci-order, #aci-vhf, #aci-call, #aci-stop, #aci-login { background:rgba(0,100,180,0.35); border:1px solid rgba(0,200,255,0.4); color:#aaf; border-radius:50%; width:38px; height:38px; cursor:pointer; font-size:14px; flex-shrink:0; }
+  #aci-mic, #aci-send, #aci-order, #aci-locate, #aci-vhf, #aci-call, #aci-stop, #aci-login { background:rgba(0,100,180,0.35); border:1px solid rgba(0,200,255,0.4); color:#aaf; border-radius:50%; width:38px; height:38px; cursor:pointer; font-size:14px; flex-shrink:0; }
+  #aci-locate { font-size:16px; }
   #aci-login { font-weight:700; font-size:13px; }
   #aci-stop { background:rgba(120,20,40,0.45); border-color:rgba(255,80,100,0.5); color:#faa; }
   #map-action { margin:0 12px 2px; padding:4px 12px; font:11px/1.3 system-ui; color:#8cf; max-height:32px; overflow:hidden; opacity:0.85; pointer-events:none; }
@@ -114,6 +115,7 @@
       <button id="aci-cli-toggle" title="CLI panel — tasks &amp; conversation (login for full access)" type="button">⌨</button>
       <button id="aci-stop" title="Stop — take control" type="button">⏹</button>
       <button id="aci-mic" title="Voice (tap while speaking to interrupt)" type="button">🎙</button>
+      <button id="aci-locate" title="Locate me on globe" type="button">📍</button>
       <input id="aci-input" placeholder="connect · order · claim · roles · deploy · login G…" />
       <button id="aci-send" title="Send" type="button">→</button>
       <button id="aci-order" title="Order — pick vendor on globe" type="button">🥙</button>

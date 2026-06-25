@@ -38,7 +38,8 @@
   #sr-close { background:transparent; border:1px solid #666; color:#aaa; border-radius:8px; padding:4px 10px; cursor:pointer; }
   #aci-bar { display:flex; gap:6px; padding:8px 10px; margin:0 8px 8px; background:rgba(0,8,18,0.82); border:1px solid rgba(0,180,255,0.35); border-radius:24px; pointer-events:auto; backdrop-filter:blur(12px); align-items:center; justify-content:center; flex-wrap:wrap; }
   #aci-input, #aci-send { display:none !important; }
-  #aci-mic, #aci-send, #aci-order, #aci-vhf, #aci-call, #aci-stop, #aci-login { background:rgba(0,100,180,0.35); border:1px solid rgba(0,200,255,0.4); color:#aaf; border-radius:50%; width:38px; height:38px; cursor:pointer; font-size:14px; flex-shrink:0; }
+  #aci-mic, #aci-send, #aci-order, #aci-locate, #aci-vhf, #aci-call, #aci-stop, #aci-login { background:rgba(0,100,180,0.35); border:1px solid rgba(0,200,255,0.4); color:#aaf; border-radius:50%; width:38px; height:38px; cursor:pointer; font-size:14px; flex-shrink:0; }
+  #aci-locate { font-size:16px; }
   #aci-login { font-weight:700; font-size:13px; }
   #aci-stop { background:rgba(120,20,40,0.45); border-color:rgba(255,80,100,0.5); color:#faa; }
   #map-action { margin:0 12px 2px; padding:4px 12px; font:11px/1.3 system-ui; color:#8cf; max-height:32px; overflow:hidden; opacity:0.85; pointer-events:none; }
@@ -114,6 +115,7 @@
       <button id="aci-cli-toggle" title="CLI panel — tasks &amp; conversation (login for full access)" type="button">⌨</button>
       <button id="aci-stop" title="Stop — take control" type="button">⏹</button>
       <button id="aci-mic" title="Voice (tap while speaking to interrupt)" type="button">🎙</button>
+      <button id="aci-locate" title="Locate me on globe" type="button">📍</button>
       <input id="aci-input" placeholder="connect · order · claim · roles · deploy · login G…" />
       <button id="aci-send" title="Send" type="button">→</button>
       <button id="aci-order" title="Order — pick vendor on globe" type="button">🥙</button>
@@ -801,6 +803,8 @@ const AciCli = {
     if (window.AciCoders) {
       await AciCoders.ensureBridge();
       AciCoders.armed = true;
+      AciCoders.teamActive = true;
+      AciCoders.updateHud();
     }
   },
 
@@ -874,7 +878,9 @@ const AciCli = {
       method: 'POST', headers,
       body: JSON.stringify({ ...body, cli_user: Auth?.user?.id, cli_email: Auth?.user?.email })
     });
-    return r.json().catch(() => ({ error: 'bad response' }));
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok && !j.error) j.error = 'HTTP ' + r.status;
+    return j;
   },
 
   onKey(e) {
@@ -1032,6 +1038,10 @@ const AciCli = {
         this.print(rest ? 'order · ' + rest : 'pick vendor — menu open', 'ok');
         return;
       }
+      if (cmd === 'locate' || cmd === 'gps' || cmd === 'me') {
+        locateMe();
+        return;
+      }
       if (cmd === 'vhf') { Comms.startVHF(); this.print('PMR panel open', 'ok'); return; }
       if (cmd === 'drive') {
         DrivingView?.activate?.();
@@ -1058,10 +1068,11 @@ const AciCli = {
         return;
       }
 
-      if (Auth?.user && AciCoders?.teamActive && line.length >= 1
-          && !/^(think|order|vendors|help|deploy|connect|logout|clear|exit|close)\b/i.test(line)) {
-        await AciCoders.chat(line);
-        return;
+      if (Auth?.user && line.length >= 1 && !/^(think|order|vendors|help|deploy|connect|logout|clear|exit|close|locate|gps)\b/i.test(line)) {
+        if (AciCoders?.teamActive || /^(add|fix|build|implement|create|remove|locate|why|try|skip|use)\b/i.test(line)) {
+          await AciCoders.chat(line);
+          return;
+        }
       }
       if (!window._aciConnected) await AciConnect.connect(false);
       this.print('…', 'dim');
@@ -1318,6 +1329,33 @@ const AciCoders = {
     return r;
   },
 
+  isBuildTask(m) {
+    const s = String(m || '').toLowerCase();
+    if (/^(why|what|how|do we|list|status|credits|explain|try|skip|use)\b/.test(s)) return false;
+    return /fix|build|implement|add|create|remove|button|locate|globe|vendor|order|mobile|φτιάξε|πρόσθεσε/.test(s) && s.length >= 8;
+  },
+
+  async queueComposer(task) {
+    if (AciCli) AciCli.print('queuing Composer…', 'dim');
+    const q = await AciCli.api({
+      mode: 'coders',
+      task: task,
+      coder_engine: 'composer',
+      history: this.history.slice(-6),
+      fallback_prefs: this.fallbackPrefs,
+    });
+    if (q.error && AciCli) AciCli.print('queue error: ' + q.error, 'err');
+    if (q.summon_id) {
+      this.lastSummonId = q.summon_id;
+      if (AciCli) {
+        AciCli.print('summon #' + q.summon_id + (q.pending ? ' · Composer queued' : ' · ' + (q.via || 'answered')), q.pending ? 'ok' : 'out');
+        if (q.pending) AciCli.print('polling… coders poll ' + q.summon_id, 'dim');
+      }
+      if (q.pending) this.startPoll(q.summon_id);
+    }
+    return q;
+  },
+
   async chat(message) {
     if (!Auth?.user) {
       ACIControl?.reply('Login required');
@@ -1332,14 +1370,55 @@ const AciCoders = {
     this.updateHud();
     MapDepict?.action('think', { detail: 'coders: ' + m.slice(0, 40) });
 
-    if (AciCli) AciCli.print('coders team…', 'dim');
-    const r = await AciCli.api({
-      mode: 'coders_chat',
-      message: m,
-      history: this.history.slice(-10),
-      fallback_prefs: this.fallbackPrefs,
-    });
-    return this._applyResponse(r, m);
+    try {
+      if (/locate\s+me|locate\s+button|📍/i.test(m)) {
+        locateMe();
+      }
+
+      let q = null;
+      if (this.isBuildTask(m)) {
+        q = await this.queueComposer(m);
+        if (q.text && !q.error) {
+          return this._applyResponse({ ...q, label: q.label || 'Astranov Coders · Composer', team: true }, m);
+        }
+      }
+
+      if (AciCli) AciCli.print('coders team…', 'dim');
+      const r = await AciCli.api({
+        mode: 'coders_chat',
+        message: m,
+        history: this.history.slice(-10),
+        fallback_prefs: this.fallbackPrefs,
+      });
+
+      if (r.error && !q) {
+        if (this.isBuildTask(m)) {
+          q = await this.queueComposer(m);
+          if (q.summon_id) return this._applyResponse({ ...q, text: (q.text || '') + '\n(chat fallback → Composer queue)', team: true }, m);
+        }
+        if (AciCli) AciCli.print('coders error: ' + r.error, 'err');
+        ACIControl?.reply('Coders error: ' + r.error);
+        return r;
+      }
+
+      if (this.isBuildTask(m) && !r.summon_id && !q) {
+        q = await this.queueComposer(m);
+        if (q.summon_id) {
+          r.summon_id = q.summon_id;
+          r.pending = q.pending;
+          r.text = (r.text || r.response || '') + '\n\n[Queued Composer #' + q.summon_id + ']';
+          r.response = r.text;
+        }
+      }
+
+      return this._applyResponse(r, m);
+    } catch (e) {
+      const msg = String(e.message || e);
+      if (AciCli) AciCli.print('coders failed: ' + msg, 'err');
+      ACIControl?.reply('Coders failed: ' + msg);
+      if (this.isBuildTask(m)) return this.queueComposer(m);
+      return { error: msg };
+    }
   },
 
   async handleCodersCommand(rest) {
@@ -1661,6 +1740,8 @@ const ACIControl = {
     const stopBtn = document.getElementById('aci-stop');
     if (stopBtn) stopBtn.onclick = () => userIntervene();
     document.getElementById('aci-order').onclick = () => Commerce.showPicker();
+    const locBtn = document.getElementById('aci-locate');
+    if (locBtn) locBtn.onclick = () => locateMe();
     document.getElementById('aci-vhf').onclick = () => Comms.startVHF();
     document.getElementById('aci-call').onclick = () => Comms.startPhone();
   },
@@ -3638,11 +3719,38 @@ function placeMe(lat, lng) {
   window._meMarker = m;
   userLocated = true;
   MapDepict.action('location', { lat, lng, detail: me ? me.name : 'You' });
-  // Focus
-  camera.position.set(pos.x*0.6, pos.y*0.6 + 0.4, 1.6);
-  camera.lookAt(pos.x*0.2, pos.y*0.2, 0);
-  console.log('%c[Map] You are here (green dot). Drag to look around.', 'color:#0f0');
+  if (typeof flyToPoint === 'function') {
+    flyToPoint(new THREE.Vector3(pos.x, pos.y, pos.z), 1.38);
+  } else {
+    camera.position.set(pos.x*0.6, pos.y*0.6 + 0.4, 1.6);
+    camera.lookAt(pos.x*0.2, pos.y*0.2, 0);
+  }
+  FieldBrain?.pulse('location', 'locate me', { role: 'client' });
 }
+
+function locateMe() {
+  if (!navigator.geolocation) {
+    ACIControl?.reply('Geolocation not supported in this browser');
+    return;
+  }
+  ACIControl?.reply('Locating you…');
+  AciCli?.print('locating…', 'dim');
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      placeMe(pos.coords.latitude, pos.coords.longitude);
+      const msg = 'You · ' + pos.coords.latitude.toFixed(4) + ', ' + pos.coords.longitude.toFixed(4);
+      ACIControl?.reply(msg);
+      AciCli?.print('located · ' + msg, 'ok');
+    },
+    err => {
+      const msg = 'Location denied or unavailable — enable GPS for locate me';
+      ACIControl?.reply(msg);
+      AciCli?.print(msg, 'err');
+    },
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+  );
+}
+window.locateMe = locateMe;
 
 function showOtherUsers() {
   others = [

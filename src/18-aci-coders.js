@@ -160,6 +160,33 @@ const AciCoders = {
     return r;
   },
 
+  isBuildTask(m) {
+    const s = String(m || '').toLowerCase();
+    if (/^(why|what|how|do we|list|status|credits|explain|try|skip|use)\b/.test(s)) return false;
+    return /fix|build|implement|add|create|remove|button|locate|globe|vendor|order|mobile|φτιάξε|πρόσθεσε/.test(s) && s.length >= 8;
+  },
+
+  async queueComposer(task) {
+    if (AciCli) AciCli.print('queuing Composer…', 'dim');
+    const q = await AciCli.api({
+      mode: 'coders',
+      task: task,
+      coder_engine: 'composer',
+      history: this.history.slice(-6),
+      fallback_prefs: this.fallbackPrefs,
+    });
+    if (q.error && AciCli) AciCli.print('queue error: ' + q.error, 'err');
+    if (q.summon_id) {
+      this.lastSummonId = q.summon_id;
+      if (AciCli) {
+        AciCli.print('summon #' + q.summon_id + (q.pending ? ' · Composer queued' : ' · ' + (q.via || 'answered')), q.pending ? 'ok' : 'out');
+        if (q.pending) AciCli.print('polling… coders poll ' + q.summon_id, 'dim');
+      }
+      if (q.pending) this.startPoll(q.summon_id);
+    }
+    return q;
+  },
+
   async chat(message) {
     if (!Auth?.user) {
       ACIControl?.reply('Login required');
@@ -174,14 +201,55 @@ const AciCoders = {
     this.updateHud();
     MapDepict?.action('think', { detail: 'coders: ' + m.slice(0, 40) });
 
-    if (AciCli) AciCli.print('coders team…', 'dim');
-    const r = await AciCli.api({
-      mode: 'coders_chat',
-      message: m,
-      history: this.history.slice(-10),
-      fallback_prefs: this.fallbackPrefs,
-    });
-    return this._applyResponse(r, m);
+    try {
+      if (/locate\s+me|locate\s+button|📍/i.test(m)) {
+        locateMe();
+      }
+
+      let q = null;
+      if (this.isBuildTask(m)) {
+        q = await this.queueComposer(m);
+        if (q.text && !q.error) {
+          return this._applyResponse({ ...q, label: q.label || 'Astranov Coders · Composer', team: true }, m);
+        }
+      }
+
+      if (AciCli) AciCli.print('coders team…', 'dim');
+      const r = await AciCli.api({
+        mode: 'coders_chat',
+        message: m,
+        history: this.history.slice(-10),
+        fallback_prefs: this.fallbackPrefs,
+      });
+
+      if (r.error && !q) {
+        if (this.isBuildTask(m)) {
+          q = await this.queueComposer(m);
+          if (q.summon_id) return this._applyResponse({ ...q, text: (q.text || '') + '\n(chat fallback → Composer queue)', team: true }, m);
+        }
+        if (AciCli) AciCli.print('coders error: ' + r.error, 'err');
+        ACIControl?.reply('Coders error: ' + r.error);
+        return r;
+      }
+
+      if (this.isBuildTask(m) && !r.summon_id && !q) {
+        q = await this.queueComposer(m);
+        if (q.summon_id) {
+          r.summon_id = q.summon_id;
+          r.pending = q.pending;
+          r.text = (r.text || r.response || '') + '\n\n[Queued Composer #' + q.summon_id + ']';
+          r.response = r.text;
+        }
+      }
+
+      return this._applyResponse(r, m);
+    } catch (e) {
+      const msg = String(e.message || e);
+      if (AciCli) AciCli.print('coders failed: ' + msg, 'err');
+      ACIControl?.reply('Coders failed: ' + msg);
+      if (this.isBuildTask(m)) return this.queueComposer(m);
+      return { error: msg };
+    }
   },
 
   async handleCodersCommand(rest) {

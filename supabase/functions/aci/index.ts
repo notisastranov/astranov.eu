@@ -111,8 +111,8 @@ function parseFallbackDirectives(msg: string, prefs: FallbackPrefs): FallbackPre
 
 function isBuildTask(msg: string): boolean {
   const m = msg.toLowerCase().trim()
-  if (/^(why|what|how|do we|list|status|credits|explain)\b/.test(m) || /\?\s*$/.test(msg)) return false
-  return /fix|build|implement|add|remove|refactor|deploy|change|update|create|vendor|order|globe|mobile|φτιάξε|φτιαξε|πρόσθεσε/.test(m) && msg.length >= 10
+  if (/^(why|what|how|do we|list|status|credits|explain|try|skip|use)\b/.test(m)) return false
+  return /fix|build|implement|add|remove|refactor|deploy|change|update|create|button|locate|vendor|order|globe|mobile|φτιάξε|φτιαξε|πρόσθεσε/.test(m) && msg.length >= 8
 }
 
 async function codersLlmFallback(
