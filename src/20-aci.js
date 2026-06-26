@@ -233,7 +233,7 @@ const ACIControl = {
       return { executed: true, action: 'coders_engine' };
     }
     if (/^(connect|open|link|σύνδεση aci)$/.test(low)) { await AciConnect.open(); return { executed: true }; }
-    if (/^batch|work together|δουλεψε μαζ|εγκατάσταση|install app|native app|node\b|μαζί/.test(low)) {
+    if (/^super batch|superbatch|batch|work together|δουλεψε μαζ|εγκατάσταση|install app|native app|node\b|μαζί/.test(low)) {
       await AstranovNode?.launchBatch?.();
       return { executed: true, action: 'batch' };
     }
