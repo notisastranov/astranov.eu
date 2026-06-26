@@ -18,7 +18,7 @@ function initUser() {
   showOtherUsers();
 
   // Default position on globe (Greece area) - no geo yet
-  placeMe(36.22, 28.12);
+  placeMe(36.22, 28.12, { quiet: true, markerOnly: true });
   userLocated = false;
 
   // optional camera/storage only if ever needed later
@@ -88,7 +88,7 @@ function requestLocationIfNeeded(onLocated) {
     return;
   }
   navigator.geolocation.getCurrentPosition(pos => {
-    placeMe(pos.coords.latitude, pos.coords.longitude, { quiet: true });
+    placeMe(pos.coords.latitude, pos.coords.longitude, { quiet: true, markerOnly: true });
     window._lastPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
     userLocated = true;
     if (onLocated) onLocated();
@@ -100,7 +100,10 @@ function requestLocationIfNeeded(onLocated) {
 
 
 function placeMe(lat, lng, opts) {
-  const quiet = opts && opts.quiet;
+  opts = opts || {};
+  const quiet = !!opts.quiet;
+  const markerOnly = !!opts.markerOnly;
+  const shouldFly = !!opts.fly || (!markerOnly && GlobeControl?.shouldAutoFly?.());
   window._lastPos = { lat, lng };
   if (window._meMarker && window._meMarker.parent) window._meMarker.parent.remove(window._meMarker);
   const pos = latLngToPos(lat, lng, 1.03);
@@ -116,11 +119,13 @@ function placeMe(lat, lng, opts) {
   } else {
     MapDepict.action('location', { lat, lng, detail: me ? me.name : 'You' });
   }
-  if (typeof flyToPoint === 'function') {
-    flyToPoint(new THREE.Vector3(pos.x, pos.y, pos.z), 1.38);
-  } else {
+  if (shouldFly && typeof flyToPoint === 'function') {
+    flyToPoint(new THREE.Vector3(pos.x, pos.y, pos.z), opts.zoom || 1.38);
+    GlobeControl?.noteAutoFly?.();
+  } else if (shouldFly) {
     camera.position.set(pos.x*0.6, pos.y*0.6 + 0.4, 1.6);
     camera.lookAt(pos.x*0.2, pos.y*0.2, 0);
+    GlobeControl?.noteAutoFly?.();
   }
   if (!quiet) FieldBrain?.pulse('location', 'locate me', { role: 'client' });
 }
@@ -131,9 +136,10 @@ function locateMe() {
     return;
   }
   GlobeDeck?.setMapStatus('Locating…');
+  GlobeControl?.engageFollow?.('locate');
   navigator.geolocation.getCurrentPosition(
     pos => {
-      placeMe(pos.coords.latitude, pos.coords.longitude, { quiet: true });
+      placeMe(pos.coords.latitude, pos.coords.longitude, { quiet: true, fly: true });
       ACIControl?.reply('Located · ' + pos.coords.latitude.toFixed(2) + ', ' + pos.coords.longitude.toFixed(2));
     },
     () => {

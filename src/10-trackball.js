@@ -26,6 +26,7 @@ function trackballMove(clientX, clientY) {
 
 function trackballStart(clientX, clientY) {
   window._globeFly = null;
+  GlobeControl?.userTookGlobe?.('drag');
   drag = true;
   dragging = true;
   px = clientX;

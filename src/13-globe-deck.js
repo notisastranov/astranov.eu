@@ -16,28 +16,52 @@ const GlobeDeck = {
     const hdr = document.getElementById('globe-deck-header');
     const handle = document.getElementById('globe-deck-handle');
     if (handle) handle.onclick = e => { e.stopPropagation(); this.toggle(); };
-    if (hdr) {
-      hdr.onclick = () => this.toggle();
-      hdr.addEventListener('touchstart', e => {
-        if (e.touches.length !== 1) return;
-        this._touchY = e.touches[0].clientY;
-        this._touchT = Date.now();
-      }, { passive: true });
-      hdr.addEventListener('touchend', e => {
-        if (e.changedTouches.length !== 1) return;
-        const dy = e.changedTouches[0].clientY - this._touchY;
-        const dt = Date.now() - this._touchT;
-        if (dt > 600) return;
-        if (dy < -28) this.expand();
-        else if (dy > 28) this.collapse();
-      }, { passive: true });
-    }
+    if (hdr) hdr.onclick = () => this.toggle();
+    this.bindDeckGestures();
     ['sat-radio', 'node-batch', 'vendor-menu'].forEach(id => {
       const el = document.getElementById(id);
       const stage = document.getElementById('globe-deck-stage');
       if (el && stage && el.parentElement !== stage) stage.appendChild(el);
     });
     this.setTitle('Collective — globe deck');
+  },
+
+  bindDeckGestures() {
+    const deck = this.deck();
+    if (!deck || this._gesturesBound) return;
+    this._gesturesBound = true;
+    let sy = 0, st = 0, sx = 0, moved = false;
+    const scrollable = t => t?.closest?.('#globe-deck-log, #globe-deck-stage, #globe-deck-input-row');
+    const interactive = t => t?.closest?.('button, input, a, #super-cli-bar button');
+
+    deck.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1 || interactive(e.target)) return;
+      sy = e.touches[0].clientY;
+      sx = e.touches[0].clientX;
+      st = Date.now();
+      moved = false;
+      this._touchY = sy;
+      this._touchT = st;
+    }, { passive: true });
+
+    deck.addEventListener('touchmove', e => {
+      if (e.touches.length !== 1) return;
+      const dy = Math.abs(e.touches[0].clientY - sy);
+      const dx = Math.abs(e.touches[0].clientX - sx);
+      if (dy > 10 || dx > 10) moved = true;
+      if (this.expanded && scrollable(e.target) && dy > dx) return;
+    }, { passive: true });
+
+    deck.addEventListener('touchend', e => {
+      if (e.changedTouches.length !== 1 || interactive(e.target)) return;
+      const dy = e.changedTouches[0].clientY - sy;
+      const dt = Date.now() - st;
+      if (dt > 750) return;
+      if (this.expanded && scrollable(e.target) && moved) return;
+      if (Math.abs(dy) < 28) return;
+      if (dy < -28) this.expand();
+      else if (dy > 28) this.collapse();
+    }, { passive: true });
   },
 
   deck() { return document.getElementById('globe-deck'); },
@@ -204,6 +228,7 @@ const GlobeDeck = {
       d.classList.remove('has-stage');
     }
     this.expand(title || this.stageTitle(panelId));
+    SuperCli?.setContext?.(SuperCli.inferContext?.());
   },
 
   hideStage() {
@@ -236,6 +261,7 @@ const GlobeDeck = {
     this.collapse();
     this.activeTask = null;
     this.setTitle('Collective — globe deck');
+    SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
   },
 
   isOneShotCmd(cmd) {

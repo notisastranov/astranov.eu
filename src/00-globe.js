@@ -88,3 +88,66 @@ function latLngToPos(lat, lng, r = 1) {
     z: r * Math.sin(phi) * Math.sin(theta)
   };
 }
+
+// Globe follow vs free explore — release when user drags the globe
+const GlobeControl = {
+  followMode: 'free',
+  userExploring: false,
+  _exploreUntil: 0,
+  _lastAutoFly: 0,
+  _snapConflicts: 0,
+
+  isEarthView() {
+    const z = camera?.position?.z ?? 2.5;
+    const level = CosmicZoom?.level || 'earth';
+    return level === 'earth' && z < 3.5;
+  },
+
+  shouldAutoFly() {
+    if (drag || dragging) return false;
+    if (this.userExploring && Date.now() < this._exploreUntil) return false;
+    return this.followMode !== 'free';
+  },
+
+  engageFollow(mode) {
+    this.followMode = mode || 'locate';
+    this.userExploring = false;
+    this._exploreUntil = 0;
+    const btn = document.getElementById('aci-locate');
+    if (btn) btn.classList.toggle('deck-btn-active', mode === 'locate');
+  },
+
+  userTookGlobe(reason) {
+    if (this.userExploring && Date.now() - this._lastAutoFly < 2500) {
+      this._snapConflicts++;
+      window.AciCoders?.observeActivity?.('ui_struggle', 'globe snap-back · user freed globe', { conflicts: this._snapConflicts });
+    }
+    this.userExploring = true;
+    this._exploreUntil = Date.now() + 180000;
+    this.followMode = 'free';
+    window._globeFly = null;
+    const btn = document.getElementById('aci-locate');
+    if (btn) btn.classList.remove('deck-btn-active');
+    if (window.DrivingView) DrivingView._cameraFollow = false;
+    GlobeDeck?.setPreview('🌍 Globe free — drag to explore');
+    window.SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
+    if (reason !== 'silent') {
+      window.AciCoders?.observeActivity?.('ui', 'user explore globe · follow released', { reason: reason || 'drag' });
+    }
+  },
+
+  noteAutoFly() {
+    this._lastAutoFly = Date.now();
+  },
+
+  flyToLatLng(lat, lng, label, targetZ) {
+    if (!this.isEarthView()) return false;
+    const p = latLngToPos(lat, lng, 1.04);
+    if (typeof flyToPoint !== 'function') return false;
+    flyToPoint(new THREE.Vector3(p.x, p.y, p.z), targetZ || 1.48);
+    this.noteAutoFly();
+    MapDepict?.pulse?.(lat, lng, 0x00ddff, label || 'task', 8000);
+    return true;
+  },
+};
+window.GlobeControl = GlobeControl;

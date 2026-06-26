@@ -324,6 +324,10 @@ const MapDepict = {
     }
     if (type === 'news' && opts.worldLat != null) {
       this.pulse(opts.worldLat, opts.worldLng, color, 'World news', 10000);
+      GlobeControl?.flyToLatLng?.(opts.worldLat, opts.worldLng, 'news', 1.52);
+    }
+    if (type === 'batch') {
+      GlobeControl?.flyToLatLng?.(lat, lng, 'batch', 1.46);
     }
     if (type === 'evolve') {
       [{ lat: 36.22, lng: 28.12 }, { lat: 40, lng: 20 }, { lat: -15, lng: 45 }, { lat: 55, lng: -30 }]
@@ -406,6 +410,7 @@ function userIntervene() {
   Voice.flush();
   voiceSessionActive = false;
   voiceEnabled = false;
+  GlobeControl?.userTookGlobe?.('stop');
   if (window.PmrRadio) PmrRadio.hide();
   if (window.DrivingView) DrivingView.deactivate();
   MapDepict.cancelAll();

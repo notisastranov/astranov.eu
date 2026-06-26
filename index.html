@@ -61,7 +61,10 @@
   #super-cli-bar #aci-stop { background:rgba(120,20,40,0.45); border-color:rgba(255,80,100,0.5); color:#faa; }
   #super-cli-bar #aci-cli-toggle { border-radius:50%; width:34px; }
   #super-cli-bar #globe-deck-send { border-radius:10px; width:auto; padding:0 10px; font-size:12px; }
+  #super-cli-bar button[hidden] { display:none !important; }
+  #super-cli-bar #aci-locate.deck-btn-active { background:rgba(0,140,80,0.5); border-color:rgba(0,255,160,0.65); color:#8fc; box-shadow:0 0 8px rgba(0,255,160,0.25); }
   #globe-deck.collapsed #globe-deck-input-row { display:none; }
+  #globe-deck-log, #globe-deck-stage { -webkit-overflow-scrolling:touch; touch-action:pan-y; }
   #aci-bar { display:none !important; }
   #news-ticker { display:none !important; }
   #drive-guide { display:none !important; }
@@ -303,6 +306,69 @@ function latLngToPos(lat, lng, r = 1) {
     z: r * Math.sin(phi) * Math.sin(theta)
   };
 }
+
+// Globe follow vs free explore — release when user drags the globe
+const GlobeControl = {
+  followMode: 'free',
+  userExploring: false,
+  _exploreUntil: 0,
+  _lastAutoFly: 0,
+  _snapConflicts: 0,
+
+  isEarthView() {
+    const z = camera?.position?.z ?? 2.5;
+    const level = CosmicZoom?.level || 'earth';
+    return level === 'earth' && z < 3.5;
+  },
+
+  shouldAutoFly() {
+    if (drag || dragging) return false;
+    if (this.userExploring && Date.now() < this._exploreUntil) return false;
+    return this.followMode !== 'free';
+  },
+
+  engageFollow(mode) {
+    this.followMode = mode || 'locate';
+    this.userExploring = false;
+    this._exploreUntil = 0;
+    const btn = document.getElementById('aci-locate');
+    if (btn) btn.classList.toggle('deck-btn-active', mode === 'locate');
+  },
+
+  userTookGlobe(reason) {
+    if (this.userExploring && Date.now() - this._lastAutoFly < 2500) {
+      this._snapConflicts++;
+      window.AciCoders?.observeActivity?.('ui_struggle', 'globe snap-back · user freed globe', { conflicts: this._snapConflicts });
+    }
+    this.userExploring = true;
+    this._exploreUntil = Date.now() + 180000;
+    this.followMode = 'free';
+    window._globeFly = null;
+    const btn = document.getElementById('aci-locate');
+    if (btn) btn.classList.remove('deck-btn-active');
+    if (window.DrivingView) DrivingView._cameraFollow = false;
+    GlobeDeck?.setPreview('🌍 Globe free — drag to explore');
+    window.SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
+    if (reason !== 'silent') {
+      window.AciCoders?.observeActivity?.('ui', 'user explore globe · follow released', { reason: reason || 'drag' });
+    }
+  },
+
+  noteAutoFly() {
+    this._lastAutoFly = Date.now();
+  },
+
+  flyToLatLng(lat, lng, label, targetZ) {
+    if (!this.isEarthView()) return false;
+    const p = latLngToPos(lat, lng, 1.04);
+    if (typeof flyToPoint !== 'function') return false;
+    flyToPoint(new THREE.Vector3(p.x, p.y, p.z), targetZ || 1.48);
+    this.noteAutoFly();
+    MapDepict?.pulse?.(lat, lng, 0x00ddff, label || 'task', 8000);
+    return true;
+  },
+};
+window.GlobeControl = GlobeControl;
 
 // === VOICE + MAP DEPICT ===
 // Astranov Voice: ONE calm female persona, ONE utterance at a time (queued).
@@ -630,6 +696,10 @@ const MapDepict = {
     }
     if (type === 'news' && opts.worldLat != null) {
       this.pulse(opts.worldLat, opts.worldLng, color, 'World news', 10000);
+      GlobeControl?.flyToLatLng?.(opts.worldLat, opts.worldLng, 'news', 1.52);
+    }
+    if (type === 'batch') {
+      GlobeControl?.flyToLatLng?.(lat, lng, 'batch', 1.46);
     }
     if (type === 'evolve') {
       [{ lat: 36.22, lng: 28.12 }, { lat: 40, lng: 20 }, { lat: -15, lng: 45 }, { lat: 55, lng: -30 }]
@@ -712,6 +782,7 @@ function userIntervene() {
   Voice.flush();
   voiceSessionActive = false;
   voiceEnabled = false;
+  GlobeControl?.userTookGlobe?.('stop');
   if (window.PmrRadio) PmrRadio.hide();
   if (window.DrivingView) DrivingView.deactivate();
   MapDepict.cancelAll();
@@ -979,28 +1050,52 @@ const GlobeDeck = {
     const hdr = document.getElementById('globe-deck-header');
     const handle = document.getElementById('globe-deck-handle');
     if (handle) handle.onclick = e => { e.stopPropagation(); this.toggle(); };
-    if (hdr) {
-      hdr.onclick = () => this.toggle();
-      hdr.addEventListener('touchstart', e => {
-        if (e.touches.length !== 1) return;
-        this._touchY = e.touches[0].clientY;
-        this._touchT = Date.now();
-      }, { passive: true });
-      hdr.addEventListener('touchend', e => {
-        if (e.changedTouches.length !== 1) return;
-        const dy = e.changedTouches[0].clientY - this._touchY;
-        const dt = Date.now() - this._touchT;
-        if (dt > 600) return;
-        if (dy < -28) this.expand();
-        else if (dy > 28) this.collapse();
-      }, { passive: true });
-    }
+    if (hdr) hdr.onclick = () => this.toggle();
+    this.bindDeckGestures();
     ['sat-radio', 'node-batch', 'vendor-menu'].forEach(id => {
       const el = document.getElementById(id);
       const stage = document.getElementById('globe-deck-stage');
       if (el && stage && el.parentElement !== stage) stage.appendChild(el);
     });
     this.setTitle('Collective — globe deck');
+  },
+
+  bindDeckGestures() {
+    const deck = this.deck();
+    if (!deck || this._gesturesBound) return;
+    this._gesturesBound = true;
+    let sy = 0, st = 0, sx = 0, moved = false;
+    const scrollable = t => t?.closest?.('#globe-deck-log, #globe-deck-stage, #globe-deck-input-row');
+    const interactive = t => t?.closest?.('button, input, a, #super-cli-bar button');
+
+    deck.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1 || interactive(e.target)) return;
+      sy = e.touches[0].clientY;
+      sx = e.touches[0].clientX;
+      st = Date.now();
+      moved = false;
+      this._touchY = sy;
+      this._touchT = st;
+    }, { passive: true });
+
+    deck.addEventListener('touchmove', e => {
+      if (e.touches.length !== 1) return;
+      const dy = Math.abs(e.touches[0].clientY - sy);
+      const dx = Math.abs(e.touches[0].clientX - sx);
+      if (dy > 10 || dx > 10) moved = true;
+      if (this.expanded && scrollable(e.target) && dy > dx) return;
+    }, { passive: true });
+
+    deck.addEventListener('touchend', e => {
+      if (e.changedTouches.length !== 1 || interactive(e.target)) return;
+      const dy = e.changedTouches[0].clientY - sy;
+      const dt = Date.now() - st;
+      if (dt > 750) return;
+      if (this.expanded && scrollable(e.target) && moved) return;
+      if (Math.abs(dy) < 28) return;
+      if (dy < -28) this.expand();
+      else if (dy > 28) this.collapse();
+    }, { passive: true });
   },
 
   deck() { return document.getElementById('globe-deck'); },
@@ -1167,6 +1262,7 @@ const GlobeDeck = {
       d.classList.remove('has-stage');
     }
     this.expand(title || this.stageTitle(panelId));
+    SuperCli?.setContext?.(SuperCli.inferContext?.());
   },
 
   hideStage() {
@@ -1199,6 +1295,7 @@ const GlobeDeck = {
     this.collapse();
     this.activeTask = null;
     this.setTitle('Collective — globe deck');
+    SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
   },
 
   isOneShotCmd(cmd) {
@@ -1225,12 +1322,48 @@ window.GlobeDeck = GlobeDeck;
 // === SUPER CLI — one window: toolbar + log + stage + input ===
 const SuperCli = {
   _bound: false,
+  _context: 'idle',
+
+  CORE: ['aci-login', 'aci-cli-toggle', 'aci-stop', 'globe-deck-send'],
+  CONTEXT_BTNS: {
+    idle: ['aci-mic', 'aci-locate', 'aci-order', 'aci-batch', 'aci-vhf', 'aci-call'],
+    guest: ['aci-mic', 'aci-locate', 'aci-order', 'aci-vhf', 'aci-call'],
+    commerce: ['aci-mic', 'aci-locate', 'aci-order'],
+    batch: ['aci-batch', 'aci-vhf', 'aci-locate'],
+    radio: ['aci-vhf', 'aci-mic', 'aci-call'],
+    drive: ['aci-locate', 'aci-order', 'aci-stop'],
+    phone: ['aci-call', 'aci-mic'],
+    news: ['aci-mic', 'aci-locate'],
+  },
 
   init() {
     if (this._bound) return;
     this._bound = true;
     this.bindToolbar();
+    this.setContext(this.inferContext());
     GlobeDeck?.setTitle('Super CLI — Collective');
+  },
+
+  inferContext() {
+    if (DrivingView?.active) return 'drive';
+    const task = GlobeDeck?.activeTask;
+    if (task === 'commerce') return 'commerce';
+    if (task === 'batch') return 'batch';
+    if (task === 'radio') return 'radio';
+    if (task === 'phone') return 'phone';
+    if (!Auth?.user) return 'guest';
+    return 'idle';
+  },
+
+  setContext(ctx) {
+    this._context = ctx || 'idle';
+    const bar = document.getElementById('super-cli-bar');
+    if (!bar) return;
+    bar.dataset.ctx = this._context;
+    const allowed = new Set([...this.CORE, ...(this.CONTEXT_BTNS[this._context] || this.CONTEXT_BTNS.idle)]);
+    bar.querySelectorAll('button').forEach(btn => {
+      btn.hidden = !allowed.has(btn.id);
+    });
   },
 
   bindToolbar() {
@@ -1254,41 +1387,74 @@ const SuperCli = {
     });
   },
 
+  flyForTask(act, opts) {
+    if (!GlobeControl?.isEarthView?.()) return;
+    const u = window._lastPos || { lat: 36.22, lng: 28.12 };
+    if (act === 'news' && opts?.worldLat != null) {
+      GlobeControl.flyToLatLng(opts.worldLat, opts.worldLng, 'news', 1.52);
+      return;
+    }
+    if (act === 'order' || act === 'commerce') {
+      const v = Commerce?.vendors?.[0] || Commerce?.selected;
+      if (v?.lat != null) GlobeControl.flyToLatLng(v.lat, v.lng, 'order', 1.48);
+      else GlobeControl.flyToLatLng(u.lat, u.lng, 'order', 1.42);
+      return;
+    }
+    if (act === 'batch') GlobeControl.flyToLatLng(u.lat, u.lng, 'batch', 1.44);
+    if (act === 'vhf' || act === 'radio') GlobeControl.flyToLatLng(u.lat, u.lng, 'comms', 1.4);
+  },
+
   async run(action, opts) {
     const act = String(action || '').toLowerCase();
     GlobeDeck?.superAction(act, opts);
+    this.setContext(this.inferContext());
     AciCli?.print('▸ ' + act, 'cmd');
 
     switch (act) {
       case 'locate':
+        if (GlobeControl?.followMode === 'locate' && !GlobeControl?.userExploring) {
+          GlobeControl.userTookGlobe('locate-off');
+          AciCli?.print('Locate released — globe is yours', 'ok');
+          break;
+        }
         locateMe?.();
         GlobeDeck?.finishCliIfOneShot('locate');
         break;
       case 'order':
+        this.flyForTask('order');
         await Commerce?.showPicker?.(opts?.filter);
+        this.setContext('commerce');
         break;
       case 'batch':
+        this.flyForTask('batch');
         await AstranovNode?.launchBatch?.();
+        this.setContext('batch');
         break;
       case 'vhf':
       case 'radio':
       case 'pmr':
+        this.flyForTask('vhf');
         Comms?.startVHF?.();
+        this.setContext('radio');
         break;
       case 'phone':
       case 'call':
         GlobeDeck?.hideStage();
         GlobeDeck?.expand('Super CLI — phone');
+        this.setContext('phone');
         AciCli?.print('Type: call +30… (e.g. call +306912345678)', 'ok');
         ACIControl?.reply('Type call +number in Super CLI');
         document.getElementById('aci-cli-in')?.focus();
         break;
       case 'news':
+        this.flyForTask('news', opts);
         NewsFeed?.flash?.();
+        this.setContext('news');
         GlobeDeck?.finishCliIfOneShot('news');
         break;
       case 'drive':
         DrivingView?.activate?.();
+        this.setContext('drive');
         break;
       case 'cli':
         GlobeDeck?.expand('Super CLI');
@@ -1360,6 +1526,7 @@ const AciCli = {
       setTimeout(() => this.openOnLogin(), 500);
     }
     if (window.AciCoders) AciCoders.autoStart();
+    SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
   },
 
   async openOnLogin() {
@@ -3081,7 +3248,7 @@ const Commerce = {
     if (!userLocated && navigator.geolocation) {
       ACIControl?.reply('Zoom στον χάρτη σου…');
       navigator.geolocation.getCurrentPosition(pos => {
-        placeMe(pos.coords.latitude, pos.coords.longitude, { quiet: true });
+        placeMe(pos.coords.latitude, pos.coords.longitude, { quiet: true, markerOnly: true });
         run();
       }, () => run());
     } else {
@@ -3986,7 +4153,9 @@ const NewsFeed = {
   },
   flash() {
     this.fetch();
-    MapDepict.action('news', { worldLat: 51.5, worldLng: -0.12, detail: (this.items[0] || '').slice(0, 50) });
+    const worldLat = 51.5, worldLng = -0.12;
+    MapDepict.action('news', { worldLat, worldLng, detail: (this.items[0] || '').slice(0, 50) });
+    SuperCli?.flyForTask?.('news', { worldLat, worldLng });
     if (Voice.maySpeak()) speak((this.items[0] || 'News').slice(0, 100), () => resumeListening());
   }
 };
@@ -4382,6 +4551,7 @@ function trackballMove(clientX, clientY) {
 
 function trackballStart(clientX, clientY) {
   window._globeFly = null;
+  GlobeControl?.userTookGlobe?.('drag');
   drag = true;
   dragging = true;
   px = clientX;
@@ -5005,7 +5175,7 @@ const DrivingView = {
     this.lastFix = { lat, lng };
     this.lastTime = now;
     window._lastPos = { lat, lng };
-    if (typeof placeMe === 'function') placeMe(lat, lng);
+    if (typeof placeMe === 'function') placeMe(lat, lng, { quiet: true, markerOnly: true });
 
     const prev = this.mode;
     if (this.speed < 0.6) this.mode = 'still';
@@ -5031,6 +5201,9 @@ const DrivingView = {
 
   activate() {
     this.active = true;
+    this._cameraFollow = true;
+    GlobeControl?.engageFollow?.('drive');
+    SuperCli?.setContext?.('drive');
     cityLevel = true;
     camera.position.z = 1.28;
     GlobeDeck?.setPreview('DRIVE VIEW · ' + Math.round(this.speed * 3.6) + ' km/h');
@@ -5046,6 +5219,9 @@ const DrivingView = {
 
   deactivate() {
     this.active = false;
+    this._cameraFollow = false;
+    if (GlobeControl?.followMode === 'drive') GlobeControl.followMode = 'free';
+    SuperCli?.setContext?.(SuperCli?.inferContext?.() || 'idle');
     GlobeDeck?.setPreview('');
     if (this.routeLine?.parent) this.routeLine.parent.remove(this.routeLine);
     this.routeLine = null;
@@ -5053,6 +5229,7 @@ const DrivingView = {
   },
 
   updateCamera(pos) {
+    if (!this._cameraFollow || GlobeControl?.userExploring) return;
     camera.position.z = this.mode === 'drive' ? 1.22 : 1.32;
     const h = pos.coords.heading;
     if (h != null && !isNaN(h) && window._meMarker) {
@@ -5372,7 +5549,7 @@ function initUser() {
   showOtherUsers();
 
   // Default position on globe (Greece area) - no geo yet
-  placeMe(36.22, 28.12);
+  placeMe(36.22, 28.12, { quiet: true, markerOnly: true });
   userLocated = false;
 
   // optional camera/storage only if ever needed later
@@ -5442,7 +5619,7 @@ function requestLocationIfNeeded(onLocated) {
     return;
   }
   navigator.geolocation.getCurrentPosition(pos => {
-    placeMe(pos.coords.latitude, pos.coords.longitude, { quiet: true });
+    placeMe(pos.coords.latitude, pos.coords.longitude, { quiet: true, markerOnly: true });
     window._lastPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
     userLocated = true;
     if (onLocated) onLocated();
@@ -5454,7 +5631,10 @@ function requestLocationIfNeeded(onLocated) {
 
 
 function placeMe(lat, lng, opts) {
-  const quiet = opts && opts.quiet;
+  opts = opts || {};
+  const quiet = !!opts.quiet;
+  const markerOnly = !!opts.markerOnly;
+  const shouldFly = !!opts.fly || (!markerOnly && GlobeControl?.shouldAutoFly?.());
   window._lastPos = { lat, lng };
   if (window._meMarker && window._meMarker.parent) window._meMarker.parent.remove(window._meMarker);
   const pos = latLngToPos(lat, lng, 1.03);
@@ -5470,11 +5650,13 @@ function placeMe(lat, lng, opts) {
   } else {
     MapDepict.action('location', { lat, lng, detail: me ? me.name : 'You' });
   }
-  if (typeof flyToPoint === 'function') {
-    flyToPoint(new THREE.Vector3(pos.x, pos.y, pos.z), 1.38);
-  } else {
+  if (shouldFly && typeof flyToPoint === 'function') {
+    flyToPoint(new THREE.Vector3(pos.x, pos.y, pos.z), opts.zoom || 1.38);
+    GlobeControl?.noteAutoFly?.();
+  } else if (shouldFly) {
     camera.position.set(pos.x*0.6, pos.y*0.6 + 0.4, 1.6);
     camera.lookAt(pos.x*0.2, pos.y*0.2, 0);
+    GlobeControl?.noteAutoFly?.();
   }
   if (!quiet) FieldBrain?.pulse('location', 'locate me', { role: 'client' });
 }
@@ -5485,9 +5667,10 @@ function locateMe() {
     return;
   }
   GlobeDeck?.setMapStatus('Locating…');
+  GlobeControl?.engageFollow?.('locate');
   navigator.geolocation.getCurrentPosition(
     pos => {
-      placeMe(pos.coords.latitude, pos.coords.longitude, { quiet: true });
+      placeMe(pos.coords.latitude, pos.coords.longitude, { quiet: true, fly: true });
       ACIControl?.reply('Located · ' + pos.coords.latitude.toFixed(2) + ', ' + pos.coords.longitude.toFixed(2));
     },
     () => {

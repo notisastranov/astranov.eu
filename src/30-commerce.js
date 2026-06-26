@@ -332,7 +332,7 @@ const Commerce = {
     if (!userLocated && navigator.geolocation) {
       ACIControl?.reply('Zoom στον χάρτη σου…');
       navigator.geolocation.getCurrentPosition(pos => {
-        placeMe(pos.coords.latitude, pos.coords.longitude, { quiet: true });
+        placeMe(pos.coords.latitude, pos.coords.longitude, { quiet: true, markerOnly: true });
         run();
       }, () => run());
     } else {

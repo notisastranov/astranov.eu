@@ -44,7 +44,9 @@ const NewsFeed = {
   },
   flash() {
     this.fetch();
-    MapDepict.action('news', { worldLat: 51.5, worldLng: -0.12, detail: (this.items[0] || '').slice(0, 50) });
+    const worldLat = 51.5, worldLng = -0.12;
+    MapDepict.action('news', { worldLat, worldLng, detail: (this.items[0] || '').slice(0, 50) });
+    SuperCli?.flyForTask?.('news', { worldLat, worldLng });
     if (Voice.maySpeak()) speak((this.items[0] || 'News').slice(0, 100), () => resumeListening());
   }
 };

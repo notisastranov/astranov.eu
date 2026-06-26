@@ -57,6 +57,7 @@ const AciCli = {
       setTimeout(() => this.openOnLogin(), 500);
     }
     if (window.AciCoders) AciCoders.autoStart();
+    SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
   },
 
   async openOnLogin() {

@@ -52,7 +52,7 @@ const DrivingView = {
     this.lastFix = { lat, lng };
     this.lastTime = now;
     window._lastPos = { lat, lng };
-    if (typeof placeMe === 'function') placeMe(lat, lng);
+    if (typeof placeMe === 'function') placeMe(lat, lng, { quiet: true, markerOnly: true });
 
     const prev = this.mode;
     if (this.speed < 0.6) this.mode = 'still';
@@ -78,6 +78,9 @@ const DrivingView = {
 
   activate() {
     this.active = true;
+    this._cameraFollow = true;
+    GlobeControl?.engageFollow?.('drive');
+    SuperCli?.setContext?.('drive');
     cityLevel = true;
     camera.position.z = 1.28;
     GlobeDeck?.setPreview('DRIVE VIEW · ' + Math.round(this.speed * 3.6) + ' km/h');
@@ -93,6 +96,9 @@ const DrivingView = {
 
   deactivate() {
     this.active = false;
+    this._cameraFollow = false;
+    if (GlobeControl?.followMode === 'drive') GlobeControl.followMode = 'free';
+    SuperCli?.setContext?.(SuperCli?.inferContext?.() || 'idle');
     GlobeDeck?.setPreview('');
     if (this.routeLine?.parent) this.routeLine.parent.remove(this.routeLine);
     this.routeLine = null;
@@ -100,6 +106,7 @@ const DrivingView = {
   },
 
   updateCamera(pos) {
+    if (!this._cameraFollow || GlobeControl?.userExploring) return;
     camera.position.z = this.mode === 'drive' ? 1.22 : 1.32;
     const h = pos.coords.heading;
     if (h != null && !isNaN(h) && window._meMarker) {
