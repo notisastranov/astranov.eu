@@ -277,6 +277,24 @@ const AciCli = {
         GlobeDeck.activeTask = 'commerce';
         return;
       }
+      if (cmd === 'book' || cmd === 'booker' || cmd === 'site') {
+        try {
+          const r = await SuperBookingProvision?.cli?.(parts);
+          if (r?.error) { this.print(r.error, 'err'); GlobeDeck?.finishCliIfOneShot(cmd); return; }
+          if (r?.sites) {
+            if (!r.sites.length) { this.print('no SuperBooking sites yet — book create my-name', 'dim'); }
+            else r.sites.forEach(s => this.print((s.domain || s.id) + ' · ' + s.business_type + ' · ' + s.mode, 'ok'));
+            GlobeDeck?.finishCliIfOneShot(cmd);
+            return;
+          }
+          if (r?.url) this.print('live → ' + r.url, 'ok');
+          GlobeDeck?.finishCliIfOneShot(cmd);
+        } catch (e) {
+          this.print(e.message || String(e), 'err');
+          GlobeDeck?.finishCliIfOneShot(cmd);
+        }
+        return;
+      }
       if (cmd === 'vendor') {
         const sub = (parts[1] || '').toLowerCase();
         if (sub === 'menu') {

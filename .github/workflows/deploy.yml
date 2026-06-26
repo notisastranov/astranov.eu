@@ -24,7 +24,7 @@ jobs:
           set +e
           supabase link --project-ref "$SUPABASE_PROJECT_REF"
           CRITICAL="aci aicycle coders-bridge"
-          OPTIONAL="vendor-crawler order-intake menu-request node-batch debug-write debug-reader ai-router astranov-api brain council voice"
+          OPTIONAL="vendor-crawler order-intake menu-request site-provision node-batch debug-write debug-reader ai-router astranov-api brain council voice"
           FAILED=""
           deploy_one() {
             local fn="$1"

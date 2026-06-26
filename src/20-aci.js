@@ -283,9 +283,19 @@ const ACIControl = {
       return { executed: true, action: 'video' };
     }
     if (/news|νέα|ειδήσει/.test(low)) { NewsFeed.flash(); return { executed: true }; }
-    if (/vendor|κατάστη|shop|menu|μενού/.test(low)) {
+    if (/vendor|κατάστη|shop|menu|μενού/.test(low) && !/superbook|booking site|web presence|my site|\.astranov\.eu/.test(low)) {
       await Commerce.showPicker();
       return { executed: true };
+    }
+    if (/superbook|booking site|web presence|my site|create.*site|make.*site|\.astranov\.eu|astranov subdomain/.test(low)) {
+      if (!Auth?.user) { Auth.signInGoogle(); this.reply('Sign in (G) — then ask again for your site'); return { executed: true }; }
+      try {
+        const parsed = SuperBookingProvision.parseAsk(text);
+        await SuperBookingProvision.provision(parsed);
+      } catch (e) {
+        this.reply(e.message || 'Site creation failed');
+      }
+      return { executed: true, action: 'site_provision' };
     }
     if (/explore|εξερεύ|πήγαινε|go to|focus/.test(low)) {
       requestLocationIfNeeded(() => {

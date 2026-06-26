@@ -225,7 +225,7 @@
   <div id="globe"></div>
   <div id="superspace-hud"></div>
   <div id="city-life-chip"></div>
-  <button id="super-add-fab" type="button" title="Super Add — post video · vendor · driver · map">+</button>
+  <button id="super-add-fab" type="button" title="Super Add — post · vendor · SuperBooking site · driver">+</button>
   <div id="globe-entity-labels"></div>
   <div id="globe-entity-hud">
     <div id="ge-hud-type">◎ Place</div>
@@ -320,6 +320,9 @@
         <label><input id="sa-as-vendor" type="checkbox" /> Add me as vendor (shop on map)</label>
         <input id="sa-vendor-name" type="text" placeholder="Shop name (if vendor)" />
         <label><input id="sa-as-driver" type="checkbox" /> Add me as delivery driver</label>
+        <label><input id="sa-as-booker" type="checkbox" /> Create SuperBooking site (yourname.astranov.eu)</label>
+        <input id="sa-booker-slug" type="text" placeholder="Subdomain e.g. marina-diving" style="display:none" />
+        <input id="sa-booker-name" type="text" placeholder="Business / profile name" style="display:none" />
       </div>
     </div>
     <div id="globe-youtube">
@@ -2437,6 +2440,24 @@ const AciCli = {
         GlobeDeck.activeTask = 'commerce';
         return;
       }
+      if (cmd === 'book' || cmd === 'booker' || cmd === 'site') {
+        try {
+          const r = await SuperBookingProvision?.cli?.(parts);
+          if (r?.error) { this.print(r.error, 'err'); GlobeDeck?.finishCliIfOneShot(cmd); return; }
+          if (r?.sites) {
+            if (!r.sites.length) { this.print('no SuperBooking sites yet — book create my-name', 'dim'); }
+            else r.sites.forEach(s => this.print((s.domain || s.id) + ' · ' + s.business_type + ' · ' + s.mode, 'ok'));
+            GlobeDeck?.finishCliIfOneShot(cmd);
+            return;
+          }
+          if (r?.url) this.print('live → ' + r.url, 'ok');
+          GlobeDeck?.finishCliIfOneShot(cmd);
+        } catch (e) {
+          this.print(e.message || String(e), 'err');
+          GlobeDeck?.finishCliIfOneShot(cmd);
+        }
+        return;
+      }
       if (cmd === 'vendor') {
         const sub = (parts[1] || '').toLowerCase();
         if (sub === 'menu') {
@@ -3727,9 +3748,19 @@ const ACIControl = {
       return { executed: true, action: 'video' };
     }
     if (/news|νέα|ειδήσει/.test(low)) { NewsFeed.flash(); return { executed: true }; }
-    if (/vendor|κατάστη|shop|menu|μενού/.test(low)) {
+    if (/vendor|κατάστη|shop|menu|μενού/.test(low) && !/superbook|booking site|web presence|my site|\.astranov\.eu/.test(low)) {
       await Commerce.showPicker();
       return { executed: true };
+    }
+    if (/superbook|booking site|web presence|my site|create.*site|make.*site|\.astranov\.eu|astranov subdomain/.test(low)) {
+      if (!Auth?.user) { Auth.signInGoogle(); this.reply('Sign in (G) — then ask again for your site'); return { executed: true }; }
+      try {
+        const parsed = SuperBookingProvision.parseAsk(text);
+        await SuperBookingProvision.provision(parsed);
+      } catch (e) {
+        this.reply(e.message || 'Site creation failed');
+      }
+      return { executed: true, action: 'site_provision' };
     }
     if (/explore|εξερεύ|πήγαινε|go to|focus/.test(low)) {
       requestLocationIfNeeded(() => {
@@ -4902,12 +4933,28 @@ const AstranovNode = {
     if (!this.isInstalled()) this.setStep(2, 'active', 'Εγκατάστασε node για πλήρη native relay');
     else this.setStep(2, 'done', 'Node ενεργό — decentralized server applet');
 
+    this.registerSuperBookingSync();
+
     const msg = 'Batch ' + r.short_id + ' live · ' + this.peerCount + ' node(s) · δουλεύουμε μαζί';
     ACIControl?.reply(msg);
     MapDepict?.action('batch', { lat: pos.lat, lng: pos.lng, detail: r.short_id + ' · ' + this.peerCount + ' nodes' });
     FieldBrain?.pulse('batch', r.short_id + ' · peers ' + this.peerCount, { role: 'client', props: { batch_id: r.batch_id, node_id: r.node_id } });
 
     if (Voice.maySpeak()) speak(msg.slice(0, 120), () => resumeListening());
+  },
+
+  /** Register local Astranov Decentralized Server for SuperBooking sync relay */
+  registerSuperBookingSync() {
+    const port = localStorage.getItem('astranov_decentral_port') || '8787';
+    const url = 'http://127.0.0.1:' + port;
+    const meta = { platform: this.platform(), nodeId: this.nodeId, batchId: this.batchId };
+    try {
+      localStorage.setItem('astranov_decentral_node_v1', JSON.stringify({ url, registeredAt: Date.now(), ...meta }));
+    } catch { /* */ }
+    if (window.SuperBookingDecentral?.registerNode) {
+      SuperBookingDecentral.registerNode(url, meta);
+    }
+    AciCli?.print('SuperBooking sync node · ' + url + '/superbooking/sync', 'ok');
   },
 
   async joinBatchChannel(name) {
@@ -5842,6 +5889,13 @@ const SuperAdd = {
       const n = document.getElementById('sa-vendor-name');
       if (n) n.style.display = e.target.checked ? 'block' : 'none';
     });
+    document.getElementById('sa-as-booker')?.addEventListener('change', e => {
+      const on = e.target.checked;
+      ['sa-booker-slug', 'sa-booker-name'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = on ? 'block' : 'none';
+      });
+    });
     document.getElementById('super-add-fab')?.addEventListener('click', e => {
       e.preventDefault(); e.stopPropagation();
       this.open();
@@ -6039,7 +6093,7 @@ const SuperAdd = {
     await Commerce?.loadVendors?.();
     MapDepict?.pulse?.(pos.lat, pos.lng, 0xff8844, vname, 16000);
     AciCli?.print('vendor added on map · ' + vname, 'ok');
-    return id;
+    return body.id;
   },
 
   async pinMapDiscovery(caption, channel) {
@@ -6057,8 +6111,11 @@ const SuperAdd = {
     const caption = (document.getElementById('sa-caption')?.value || '').trim();
     const asVendor = document.getElementById('sa-as-vendor')?.checked;
     const asDriver = document.getElementById('sa-as-driver')?.checked;
+    const asBooker = document.getElementById('sa-as-booker')?.checked;
     const asMap = document.getElementById('sa-as-map')?.checked;
     const vendorName = (document.getElementById('sa-vendor-name')?.value || '').trim();
+    const bookerSlug = (document.getElementById('sa-booker-slug')?.value || '').trim();
+    const bookerName = (document.getElementById('sa-booker-name')?.value || '').trim();
     const channel = this._channelValue();
 
     if (!Auth?.user) {
@@ -6105,7 +6162,18 @@ const SuperAdd = {
       }
 
       if (asDriver) await this.registerDriver();
-      if (asVendor) await this.registerVendor(vendorName || caption);
+      let vendorId = null;
+      if (asVendor) vendorId = await this.registerVendor(vendorName || caption);
+      if (asBooker) {
+        const parsed = SuperBookingProvision?.parseAsk?.(bookerSlug || bookerName || caption || vendorName) || {};
+        await SuperBookingProvision?.provision?.({
+          slug: bookerSlug || parsed.slug,
+          business_name: bookerName || parsed.name || vendorName || caption,
+          business_type: parsed.businessType,
+          mode: parsed.mode,
+          vendor_id: vendorId,
+        });
+      }
       if (asMap || url) this._placeMarker(pos.lat, pos.lng, caption || author, channel, url);
 
       if (channel === 'global' || channel === 'local') {
@@ -6114,7 +6182,7 @@ const SuperAdd = {
 
       FieldBrain?.pulse?.('post', channel + ' · ' + (caption || 'video').slice(0, 80), { role: 'client' });
       AciCli?.print('posted → ' + channel + (url ? ' · video' : ' · pin'), 'ok');
-      ACIControl?.reply('Posted to ' + channel + (asVendor ? ' · vendor on map' : '') + (asDriver ? ' · driver on' : ''));
+      ACIControl?.reply('Posted to ' + channel + (asVendor ? ' · vendor on map' : '') + (asBooker ? ' · SuperBooking site' : '') + (asDriver ? ' · driver on' : ''));
       GlobeDeck?.setPreview?.('➕ posted · ' + channel);
 
       this._blob = null;
@@ -6149,6 +6217,122 @@ const SuperAdd = {
   },
 };
 window.SuperAdd = SuperAdd;
+
+// === SUPERBOOKING PROVISION — instant {slug}.astranov.eu web presence ===
+const SuperBookingProvision = {
+  BASE_DOMAIN: 'astranov.eu',
+
+  slugify(text) {
+    return String(text || '')
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 32);
+  },
+
+  parseAsk(text) {
+    const raw = String(text || '').trim();
+    const low = raw.toLowerCase();
+    const m = raw.match(/(?:create|make|start|open|provision|build)\s+(?:my\s+)?(?:site|shop|page|presence|profile|booking|superbook(?:er|ing)?)\s*(?:at|on|for)?\s*([a-z0-9][a-z0-9-]{1,30}[a-z0-9])?/i)
+      || raw.match(/([a-z0-9][a-z0-9-]{1,30}[a-z0-9])\.astranov\.eu/i)
+      || raw.match(/(?:^|\s)([a-z0-9][a-z0-9-]{2,30}[a-z0-9])(?:\s|$)/i);
+    let slug = m?.[1] ? this.slugify(m[1]) : '';
+    let name = '';
+    if (/diving|scuba|dive/.test(low)) name = 'Diving school';
+    else if (/yacht|charter|boat/.test(low)) name = 'Yacht charter';
+    else if (/restaurant|tavern|food|cafe/.test(low)) name = 'Restaurant';
+    else if (/hotel|rooms|stay/.test(low)) name = 'Hotel';
+    else if (/rental|car/.test(low)) name = 'Rental';
+    const businessType = /yacht|charter|boat/.test(low) ? 'yacht_charter'
+      : /diving|scuba/.test(low) ? 'diving_school'
+      : /restaurant|tavern|food|cafe/.test(low) ? 'restaurant'
+      : /hotel/.test(low) ? 'hotel'
+      : /rental|car/.test(low) ? 'rental_car'
+      : 'generic';
+    const mode = /charter|yacht|week|range/.test(low) ? 'range' : 'slot';
+    if (!slug) {
+      const words = raw.replace(/\.astranov\.eu/gi, '').split(/\s+/).filter(w => w.length > 2 && !/^(my|the|a|an|for|at|on|create|make|site|shop|page)$/i.test(w));
+      slug = this.slugify(words.slice(0, 2).join('-') || Auth?.user?.email?.split('@')[0] || 'my-place');
+    }
+    if (!name) name = slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    return { slug, name, businessType, mode };
+  },
+
+  async provision(opts = {}) {
+    if (!Auth?.user) {
+      Auth?.signInGoogle?.();
+      throw new Error('Sign in (G) to create your site.');
+    }
+    const slug = this.slugify(opts.slug);
+    if (!slug || slug.length < 3) throw new Error('Choose a subdomain (3+ letters, e.g. my-shop).');
+
+    const pos = window._lastPos || {};
+    const headers = await Auth.authHeaders();
+    const r = await fetch(SB_URL + '/functions/v1/site-provision', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        slug,
+        business_name: opts.business_name || opts.name || slug,
+        business_type: opts.business_type || 'generic',
+        mode: opts.mode || 'slot',
+        vendor_id: opts.vendor_id || null,
+        lat: pos.lat,
+        lng: pos.lng,
+        branding: opts.branding || {},
+        contact: opts.contact || {},
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || j.message || 'Site provision failed');
+
+    this._onLive(j, opts);
+    return j;
+  },
+
+  _onLive(result, opts = {}) {
+    const url = result.url || ('https://' + (result.domain || result.slug + '.astranov.eu'));
+    const pos = window._lastPos || { lat: 36.44, lng: 28.22 };
+    const title = opts.business_name || result.slug;
+
+    GlobeEntity?.register?.({
+      id: 'booker-' + result.site_id,
+      type: 'place',
+      lat: pos.lat,
+      lng: pos.lng,
+      title,
+      subtitle: result.domain,
+      actionLabel: 'Open site',
+      onAction: () => window.open(url, '_blank', 'noopener'),
+      urgency: 2,
+    });
+
+    MapDepict?.pulse?.(pos.lat, pos.lng, 0x49b7ff, title + ' · live', 14000);
+    FieldBrain?.pulse?.('commerce', 'site live · ' + result.domain, { role: 'client', props: { site_id: result.site_id } });
+    AciCli?.print('SuperBooking live → ' + url, 'ok');
+    ACIControl?.reply('Your site is live: ' + url);
+    GlobeDeck?.setPreview?.('◎ ' + result.domain);
+  },
+
+  async cli(parts) {
+    const sub = (parts[1] || 'create').toLowerCase();
+    if (sub === 'list' || sub === 'mine') {
+      if (!Auth?.user) return { error: 'login_required' };
+      const headers = await Auth.authHeaders();
+      const r = await fetch(SB_URL + '/rest/v1/booker_sites?select=id,slug,domain,business_type,mode,active&owner_id=eq.' + Auth.user.id + '&order=created_at.desc', { headers });
+      const rows = r.ok ? await r.json() : [];
+      return { sites: rows };
+    }
+    if (sub === 'create' || sub === 'open' || sub === 'provision') {
+      const slug = parts[2] || '';
+      const name = parts.slice(3).join(' ') || slug;
+      return this.provision({ slug, business_name: name });
+    }
+    return { error: 'usage: book create <slug> [name] | book list' };
+  },
+};
+window.SuperBookingProvision = SuperBookingProvision;
 
 // === GLOBE ENTITIES — every map thing has a name, proximity label, tap action ===
 const GlobeEntity = {

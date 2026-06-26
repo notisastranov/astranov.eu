@@ -52,6 +52,7 @@ jobs:
           supabase functions deploy coders-bridge  --no-verify-jwt
           supabase functions deploy order-intake   --no-verify-jwt
           supabase functions deploy menu-request   --no-verify-jwt
+          supabase functions deploy site-provision --no-verify-jwt
           supabase functions deploy node-batch     --no-verify-jwt
           supabase functions deploy brain          --no-verify-jwt
           supabase functions deploy council        --no-verify-jwt

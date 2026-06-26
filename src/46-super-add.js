@@ -25,6 +25,13 @@ const SuperAdd = {
       const n = document.getElementById('sa-vendor-name');
       if (n) n.style.display = e.target.checked ? 'block' : 'none';
     });
+    document.getElementById('sa-as-booker')?.addEventListener('change', e => {
+      const on = e.target.checked;
+      ['sa-booker-slug', 'sa-booker-name'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = on ? 'block' : 'none';
+      });
+    });
     document.getElementById('super-add-fab')?.addEventListener('click', e => {
       e.preventDefault(); e.stopPropagation();
       this.open();
@@ -222,7 +229,7 @@ const SuperAdd = {
     await Commerce?.loadVendors?.();
     MapDepict?.pulse?.(pos.lat, pos.lng, 0xff8844, vname, 16000);
     AciCli?.print('vendor added on map · ' + vname, 'ok');
-    return id;
+    return body.id;
   },
 
   async pinMapDiscovery(caption, channel) {
@@ -240,8 +247,11 @@ const SuperAdd = {
     const caption = (document.getElementById('sa-caption')?.value || '').trim();
     const asVendor = document.getElementById('sa-as-vendor')?.checked;
     const asDriver = document.getElementById('sa-as-driver')?.checked;
+    const asBooker = document.getElementById('sa-as-booker')?.checked;
     const asMap = document.getElementById('sa-as-map')?.checked;
     const vendorName = (document.getElementById('sa-vendor-name')?.value || '').trim();
+    const bookerSlug = (document.getElementById('sa-booker-slug')?.value || '').trim();
+    const bookerName = (document.getElementById('sa-booker-name')?.value || '').trim();
     const channel = this._channelValue();
 
     if (!Auth?.user) {
@@ -288,7 +298,18 @@ const SuperAdd = {
       }
 
       if (asDriver) await this.registerDriver();
-      if (asVendor) await this.registerVendor(vendorName || caption);
+      let vendorId = null;
+      if (asVendor) vendorId = await this.registerVendor(vendorName || caption);
+      if (asBooker) {
+        const parsed = SuperBookingProvision?.parseAsk?.(bookerSlug || bookerName || caption || vendorName) || {};
+        await SuperBookingProvision?.provision?.({
+          slug: bookerSlug || parsed.slug,
+          business_name: bookerName || parsed.name || vendorName || caption,
+          business_type: parsed.businessType,
+          mode: parsed.mode,
+          vendor_id: vendorId,
+        });
+      }
       if (asMap || url) this._placeMarker(pos.lat, pos.lng, caption || author, channel, url);
 
       if (channel === 'global' || channel === 'local') {
@@ -297,7 +318,7 @@ const SuperAdd = {
 
       FieldBrain?.pulse?.('post', channel + ' · ' + (caption || 'video').slice(0, 80), { role: 'client' });
       AciCli?.print('posted → ' + channel + (url ? ' · video' : ' · pin'), 'ok');
-      ACIControl?.reply('Posted to ' + channel + (asVendor ? ' · vendor on map' : '') + (asDriver ? ' · driver on' : ''));
+      ACIControl?.reply('Posted to ' + channel + (asVendor ? ' · vendor on map' : '') + (asBooker ? ' · SuperBooking site' : '') + (asDriver ? ' · driver on' : ''));
       GlobeDeck?.setPreview?.('➕ posted · ' + channel);
 
       this._blob = null;
