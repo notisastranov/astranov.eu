@@ -10,6 +10,7 @@ const GlobeDeck = {
   _lastSay: '',
   _lastSayT: 0,
   _userEngaged: false,
+  _expandAt: 0,
 
   init() {
     const hdr = document.getElementById('globe-deck-header');
@@ -84,7 +85,8 @@ const GlobeDeck = {
     if (this._lastSay === key && now - this._lastSayT < 5000) return;
     this._lastSay = key;
     this._lastSayT = now;
-    if (this._userEngaged || kind === 'err' || kind === 'cmd') this.expand();
+    if (kind === 'cmd' || kind === 'err') this.expand();
+    else if (this._userEngaged && this.expanded && (kind === 'reply' || kind === 'out' || kind === 'ok')) { /* stay open */ }
     const line = document.createElement('div');
     line.className = 'deck-line deck-' + kind;
     line.textContent = text;
@@ -151,7 +153,9 @@ const GlobeDeck = {
   },
 
   expand(title) {
-    if (title) this.setTitle(title);
+    const now = Date.now();
+    if (title && (!this.expanded || now - this._expandAt > 400)) this.setTitle(title);
+    this._expandAt = now;
     this.expanded = true;
     const d = this.deck();
     if (d) {
@@ -161,6 +165,12 @@ const GlobeDeck = {
     const handle = document.getElementById('globe-deck-handle');
     if (handle) handle.textContent = '▁';
     if (window.AciCli) AciCli.open = true;
+  },
+
+  superAction(action) {
+    this._userEngaged = true;
+    if (this._collapseTimer) { clearTimeout(this._collapseTimer); this._collapseTimer = null; }
+    this.expand('Super CLI — ' + (action || 'collective'));
   },
 
   collapse() {
@@ -181,13 +191,17 @@ const GlobeDeck = {
   },
 
   showStage(panelId, task, title) {
+    this.hideStage();
     this.activeTask = task || panelId;
     const stage = document.getElementById('globe-deck-stage');
+    const d = this.deck();
     if (!stage) return;
-    stage.querySelectorAll('.deck-active').forEach(el => el.classList.remove('deck-active', 'open'));
     const panel = document.getElementById(panelId);
     if (panel) {
       panel.classList.add('deck-active', 'open');
+      if (d) d.classList.add('has-stage');
+    } else if (d) {
+      d.classList.remove('has-stage');
     }
     this.expand(title || this.stageTitle(panelId));
   },
@@ -199,6 +213,7 @@ const GlobeDeck = {
         el.classList.remove('deck-active', 'open');
       });
     }
+    this.deck()?.classList.remove('has-stage');
     if (window.PmrRadio) PmrRadio.open = false;
     if (window.AstranovNode) AstranovNode._open = false;
   },

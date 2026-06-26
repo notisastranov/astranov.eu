@@ -49,13 +49,17 @@ console.log('');
 await check('assemble + syntax', () => {
   execSync('node scripts/assemble.mjs', { cwd: ROOT, stdio: 'pipe' });
   execSync('node scripts/verify.mjs', { cwd: ROOT, stdio: 'pipe' });
-  return 'index.html OK';
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const superCli = ['super-cli-bar', 'globe-deck-stage', 'SuperCli', 'superAction'];
+  const missing = superCli.filter(m => !html.includes(m));
+  if (missing.length) throw new Error('Super CLI missing: ' + missing.join(', '));
+  return 'index.html OK · Super CLI present';
 });
 
 await check('live site has coders bridge', async () => {
   const r = await fetch(SITE + '/index.html');
   const html = await r.text();
-  const markers = ['AciCoders', 'alwaysOn', 'startListening', 'observeActivity'];
+  const markers = ['AciCoders', 'alwaysOn', 'startListening', 'observeActivity', 'super-cli-bar', 'SuperCli'];
   const missing = markers.filter(m => !html.includes(m));
   if (missing.length) throw new Error('missing: ' + missing.join(', '));
   return markers.length + ' markers present';

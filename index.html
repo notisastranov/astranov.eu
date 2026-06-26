@@ -54,6 +54,15 @@
   #zoom-label { position:fixed; top:10px; left:10px; z-index:40; font:11px system-ui; color:rgba(150,220,255,0.7); pointer-events:none; }
   #globe-deck { display:flex; flex-direction:column; margin:0 8px 6px; max-height:40px; background:rgba(0,4,12,0.94); border:1px solid rgba(0,255,160,0.35); border-radius:14px; pointer-events:auto; font:12px/1.4 ui-monospace,monospace; overflow:hidden; transition:max-height 0.22s ease; }
   #globe-deck.expanded { max-height:min(56vh,520px); }
+  #globe-deck.expanded.has-stage { max-height:min(72vh,640px); }
+  #super-cli-bar { display:flex; gap:5px; padding:6px 8px; flex-wrap:wrap; align-items:center; justify-content:center; border-bottom:1px solid rgba(0,255,160,0.12); flex-shrink:0; background:rgba(0,8,18,0.5); }
+  #super-cli-bar button { background:rgba(0,100,180,0.35); border:1px solid rgba(0,200,255,0.4); color:#aaf; border-radius:50%; width:34px; height:34px; cursor:pointer; font-size:13px; flex-shrink:0; }
+  #super-cli-bar #aci-stop { background:rgba(120,20,40,0.45); border-color:rgba(255,80,100,0.5); color:#faa; }
+  #super-cli-bar #aci-cli-toggle { border-radius:10px; width:auto; padding:0 10px; font-size:12px; border-radius:50%; width:34px; }
+  #aci-bar { display:none !important; }
+  #news-ticker { display:none !important; }
+  #drive-guide { display:none !important; }
+  #sat-radio:not(.deck-active), #node-batch:not(.deck-active), #vendor-menu:not(.deck-active) { display:none !important; }
   #globe-deck.deck-ping { border-color:rgba(0,255,200,0.85); box-shadow:0 0 12px rgba(0,255,160,0.35); }
   #globe-deck.deck-thinking #globe-deck-title { color:#fc8; }
   #globe-deck-log .deck-thinking-line { animation:deck-pulse 1s ease infinite; }
@@ -126,7 +135,7 @@
   #nb-join-comms { background:rgba(60,50,0,0.45); border:2px solid #da4; color:#fda; }
   #nb-ios-steps { display:none; color:#9cb; font-size:10px; margin:8px 0; line-height:1.5; }
   #nb-close { background:transparent; border:1px solid #666; color:#aaa; border-radius:8px; padding:2px 8px; cursor:pointer; }
-  @media (min-width:720px) { #news-ticker { display:block; } }
+
 </style>
 </head>
 <body>
@@ -143,6 +152,17 @@
         <button id="globe-deck-handle" type="button" title="Tap or swipe to expand/collapse">▔</button>
       </div>
       <div id="globe-deck-body">
+        <div id="super-cli-bar">
+          <button id="aci-login" title="Sign in with Google" type="button">G</button>
+          <button id="aci-cli-toggle" title="Expand/collapse Super CLI" type="button">💻</button>
+          <button id="aci-stop" title="Stop" type="button">🛑</button>
+          <button id="aci-mic" title="Voice" type="button">🎤</button>
+          <button id="aci-locate" title="Locate me" type="button">🎯</button>
+          <button id="aci-order" title="Order" type="button">🛒</button>
+          <button id="aci-batch" title="Batch" type="button">🔗</button>
+          <button id="aci-vhf" title="PMR radio" type="button">📡</button>
+          <button id="aci-call" title="Phone" type="button">☎️</button>
+        </div>
         <div id="globe-deck-log"></div>
         <div id="globe-deck-stage">
     <div id="sat-radio">
@@ -186,19 +206,8 @@
         </div>
       </div>
     </div>
-    <div id="aci-bar">
-      <button id="aci-login" title="Sign in with Google" type="button">G</button>
-      <button id="aci-cli-toggle" title="CLI panel — tasks &amp; conversation (login for full access)" type="button">💻</button>
-      <button id="aci-stop" title="Stop — take control" type="button">🛑</button>
-      <button id="aci-mic" title="Voice (tap while speaking to interrupt)" type="button">🎤</button>
-      <button id="aci-locate" title="Locate me on globe" type="button">🎯</button>
-      <input id="aci-input" placeholder="connect · order · claim · roles · deploy · login G…" />
-      <button id="aci-send" title="Send" type="button">➡️</button>
-      <button id="aci-order" title="Order — pick vendor on globe" type="button">🛒</button>
-      <button id="aci-batch" title="Install node + launch batch — work together" type="button">🔗</button>
-      <button id="aci-vhf" title="EU PMR Ch11 — real mic + WebRTC (see steps)" type="button">📡</button>
-      <button id="aci-call" title="Phone call" type="button">☎️</button>
-    </div>
+    <input id="aci-input" placeholder="" style="display:none" />
+    <button id="aci-send" type="button" style="display:none" title="Send">➡️</button>
   </div>
 <script>
 const container = document.getElementById('globe');
@@ -961,6 +970,7 @@ const GlobeDeck = {
   _lastSay: '',
   _lastSayT: 0,
   _userEngaged: false,
+  _expandAt: 0,
 
   init() {
     const hdr = document.getElementById('globe-deck-header');
@@ -1035,7 +1045,8 @@ const GlobeDeck = {
     if (this._lastSay === key && now - this._lastSayT < 5000) return;
     this._lastSay = key;
     this._lastSayT = now;
-    if (this._userEngaged || kind === 'err' || kind === 'cmd') this.expand();
+    if (kind === 'cmd' || kind === 'err') this.expand();
+    else if (this._userEngaged && this.expanded && (kind === 'reply' || kind === 'out' || kind === 'ok')) { /* stay open */ }
     const line = document.createElement('div');
     line.className = 'deck-line deck-' + kind;
     line.textContent = text;
@@ -1102,7 +1113,9 @@ const GlobeDeck = {
   },
 
   expand(title) {
-    if (title) this.setTitle(title);
+    const now = Date.now();
+    if (title && (!this.expanded || now - this._expandAt > 400)) this.setTitle(title);
+    this._expandAt = now;
     this.expanded = true;
     const d = this.deck();
     if (d) {
@@ -1112,6 +1125,12 @@ const GlobeDeck = {
     const handle = document.getElementById('globe-deck-handle');
     if (handle) handle.textContent = '▁';
     if (window.AciCli) AciCli.open = true;
+  },
+
+  superAction(action) {
+    this._userEngaged = true;
+    if (this._collapseTimer) { clearTimeout(this._collapseTimer); this._collapseTimer = null; }
+    this.expand('Super CLI — ' + (action || 'collective'));
   },
 
   collapse() {
@@ -1132,13 +1151,17 @@ const GlobeDeck = {
   },
 
   showStage(panelId, task, title) {
+    this.hideStage();
     this.activeTask = task || panelId;
     const stage = document.getElementById('globe-deck-stage');
+    const d = this.deck();
     if (!stage) return;
-    stage.querySelectorAll('.deck-active').forEach(el => el.classList.remove('deck-active', 'open'));
     const panel = document.getElementById(panelId);
     if (panel) {
       panel.classList.add('deck-active', 'open');
+      if (d) d.classList.add('has-stage');
+    } else if (d) {
+      d.classList.remove('has-stage');
     }
     this.expand(title || this.stageTitle(panelId));
   },
@@ -1150,6 +1173,7 @@ const GlobeDeck = {
         el.classList.remove('deck-active', 'open');
       });
     }
+    this.deck()?.classList.remove('has-stage');
     if (window.PmrRadio) PmrRadio.open = false;
     if (window.AstranovNode) AstranovNode._open = false;
   },
@@ -1194,6 +1218,85 @@ const GlobeDeck = {
   },
 };
 window.GlobeDeck = GlobeDeck;
+
+// === SUPER CLI — one window: toolbar + log + stage + input ===
+const SuperCli = {
+  _bound: false,
+
+  init() {
+    if (this._bound) return;
+    this._bound = true;
+    this.bindToolbar();
+    GlobeDeck?.setTitle('Super CLI — Collective');
+  },
+
+  bindToolbar() {
+    const actions = {
+      'aci-login': () => Auth?.user ? Auth.signOut() : Auth?.signInGoogle(),
+      'aci-cli-toggle': () => GlobeDeck?.toggle(),
+      'aci-stop': () => userIntervene?.(),
+      'aci-mic': () => {
+        if (Voice?.speaking || voiceSessionActive) userIntervene?.();
+        else startVoiceOptions?.();
+      },
+      'aci-locate': () => this.run('locate'),
+      'aci-order': () => this.run('order'),
+      'aci-batch': () => this.run('batch'),
+      'aci-vhf': () => this.run('vhf'),
+      'aci-call': () => this.run('phone'),
+    };
+    Object.entries(actions).forEach(([id, fn]) => {
+      const el = document.getElementById(id);
+      if (el) el.onclick = e => { e.preventDefault(); e.stopPropagation(); fn(); };
+    });
+  },
+
+  async run(action, opts) {
+    const act = String(action || '').toLowerCase();
+    GlobeDeck?.superAction(act, opts);
+    AciCli?.print('▸ ' + act, 'cmd');
+
+    switch (act) {
+      case 'locate':
+        locateMe?.();
+        GlobeDeck?.finishCliIfOneShot('locate');
+        break;
+      case 'order':
+        await Commerce?.showPicker?.(opts?.filter);
+        break;
+      case 'batch':
+        await AstranovNode?.launchBatch?.();
+        break;
+      case 'vhf':
+      case 'radio':
+      case 'pmr':
+        Comms?.startVHF?.();
+        break;
+      case 'phone':
+      case 'call':
+        GlobeDeck?.hideStage();
+        GlobeDeck?.expand('Super CLI — phone');
+        AciCli?.print('Type: call +30… (e.g. call +306912345678)', 'ok');
+        ACIControl?.reply('Type call +number in Super CLI');
+        document.getElementById('aci-cli-in')?.focus();
+        break;
+      case 'news':
+        NewsFeed?.flash?.();
+        GlobeDeck?.finishCliIfOneShot('news');
+        break;
+      case 'drive':
+        DrivingView?.activate?.();
+        break;
+      case 'cli':
+        GlobeDeck?.expand('Super CLI');
+        document.getElementById('aci-cli-in')?.focus();
+        break;
+      default:
+        if (AciCli && act) await AciCli.run(act + (opts?.rest ? ' ' + opts.rest : ''));
+    }
+  },
+};
+window.SuperCli = SuperCli;
 
 // === ACI CLI — Collective dev terminal (login required) ===
 const AciCli = {
@@ -1269,11 +1372,12 @@ const AciCli = {
 
   toggle() {
     if (!Auth?.user) {
-      GlobeDeck?.onUserMessage('Guest — sign in for Coders');
+      GlobeDeck?.onUserMessage('Guest — Super CLI');
       this.showGuest();
       return;
     }
-    this.open ? this.hide() : this.show();
+    GlobeDeck?.toggle();
+    this.open = !!GlobeDeck?.expanded;
   },
 
   showGuest() {
@@ -1467,14 +1571,9 @@ const AciCli = {
         GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
-      if (cmd === 'batch') {
-        await AstranovNode?.launchBatch?.();
-        this.print('batch panel — install node then work together', 'ok');
-        GlobeDeck.activeTask = 'batch';
-        return;
-      }
-      if (cmd === 'vendors') {
-        await Commerce.showPicker();
+      if (cmd === 'batch') { await SuperCli?.run('batch'); return; }
+      if (cmd === 'vendors' || cmd === 'shops') {
+        await SuperCli?.run('order');
         this.print('vendor picker open — tap globe or list', 'ok');
         GlobeDeck.activeTask = 'commerce';
         return;
@@ -1524,11 +1623,22 @@ const AciCli = {
         return;
       }
       if (cmd === 'locate' || cmd === 'gps' || cmd === 'me') {
-        locateMe();
+        await SuperCli?.run('locate');
+        return;
+      }
+      if (cmd === 'vhf') { await SuperCli?.run('vhf'); return; }
+      if (cmd === 'call' || cmd === 'phone') {
+        const num = rest || parts.slice(1).join(' ');
+        if (num && /^\+?\d/.test(num)) {
+          MapDepict?.action('phone', { detail: num });
+          window.location.href = 'tel:' + num.replace(/\s/g, '');
+          this.print('calling ' + num, 'ok');
+        } else {
+          await SuperCli?.run('phone');
+        }
         GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
-      if (cmd === 'vhf') { Comms.startVHF(); this.print('PMR panel open', 'ok'); GlobeDeck.activeTask = 'radio'; return; }
       if (cmd === 'drive') {
         DrivingView?.activate?.();
         this.print('driving view (needs GPS speed)', 'ok');
@@ -2461,23 +2571,7 @@ const sbHeaders = () => ({ apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'C
 // ── ACI CONTROL (text + buttons — you command the collective) ──
 const ACIControl = {
   init() {
-    const mic = document.getElementById('aci-mic');
-    mic.onclick = () => {
-      if (Voice.speaking || voiceSessionActive) {
-        userIntervene();
-        return;
-      }
-      startVoiceOptions();
-    };
-    const stopBtn = document.getElementById('aci-stop');
-    if (stopBtn) stopBtn.onclick = () => userIntervene();
-    document.getElementById('aci-order').onclick = () => Commerce.showPicker();
-    const locBtn = document.getElementById('aci-locate');
-    if (locBtn) locBtn.onclick = () => locateMe();
-    document.getElementById('aci-vhf').onclick = () => Comms.startVHF();
-    document.getElementById('aci-call').onclick = () => Comms.startPhone();
-    const batchBtn = document.getElementById('aci-batch');
-    if (batchBtn) batchBtn.onclick = () => AstranovNode?.launchBatch?.();
+    SuperCli?.init?.();
   },
   reply(text) {
     const msg = (text || '').slice(0, 280);
@@ -3840,18 +3934,14 @@ const Comms = {
   pmr: { channel: 11, freqMHz: 446.13125, label: 'EU PMR 11' },
 
   async startPhone() {
-    const num = prompt('Phone number to call (e.g. +3069...):', '+30');
-    if (num && /^\+?\d[\d\s-]{6,}$/.test(num)) {
-      const up = window._lastPos || { lat: 36.22, lng: 28.12 };
-      MapDepict.action('phone', { lat: up.lat, lng: up.lng, detail: num });
-      window.location.href = 'tel:' + num.replace(/\s/g, '');
-      ACIControl.reply('Τηλέφωνο: ' + num);
-      if (Voice.maySpeak()) speak('Calling.', () => resumeListening());
-    } else if (Voice.maySpeak()) speak('Wrong number.');
+    await SuperCli?.run('phone');
   },
 
   startVHF() {
-    if (this.vhfActive) return;
+    if (this.vhfActive && PmrRadio?.open) {
+      GlobeDeck?.showStage('sat-radio', 'radio');
+      return;
+    }
     this.vhfActive = true;
     PmrRadio.show();
   },
@@ -3875,10 +3965,12 @@ const NewsFeed = {
     this.tick();
   },
   tick() {
-    const el = document.getElementById('news-ticker');
-    if (!el || !this.items.length) return;
+    if (!this.items.length) return;
     const i = Math.floor(Date.now() / 12000) % this.items.length;
-    el.textContent = (AstroGlyphs?.news || '📰') + ' ' + this.items[i];
+    const line = (AstroGlyphs?.news || '📰') + ' ' + this.items[i];
+    if (GlobeDeck && !GlobeDeck.thinking && !GlobeDeck._userEngaged) {
+      GlobeDeck.setPreview(line);
+    }
   },
   flash() {
     this.fetch();
@@ -4920,9 +5012,8 @@ const DrivingView = {
       FieldBrain?.pulse('drive', this.mode + ' ' + Math.round(this.speed * 3.6) + 'km/h', { role: 'driver' });
     }
     if (prev !== this.mode && fast) {
-      const el = document.getElementById('drive-guide');
       const g = AstroGlyphs || { drive: '🚗', fast: '⚡' };
-      if (el) el.textContent = (this.mode === 'drive' ? g.drive + ' DRIVING' : g.fast + ' FAST') + ' · ' + Math.round(this.speed * 3.6) + ' km/h';
+      GlobeDeck?.setPreview((this.mode === 'drive' ? g.drive + ' DRIVING' : g.fast + ' FAST') + ' · ' + Math.round(this.speed * 3.6) + ' km/h');
     }
   },
 
@@ -4930,7 +5021,7 @@ const DrivingView = {
     this.active = true;
     cityLevel = true;
     camera.position.z = 1.28;
-    document.getElementById('drive-guide')?.classList.add('open');
+    GlobeDeck?.setPreview('DRIVE VIEW · ' + Math.round(this.speed * 3.6) + ' km/h');
     document.getElementById('zoom-label').textContent = (this.mode === 'drive' ? 'DRIVE VIEW' : 'RUN VIEW');
     MapDepict?.action('drive', { detail: Math.round(this.speed * 3.6) + ' km/h' });
     if (!this.destination) {
@@ -4943,7 +5034,7 @@ const DrivingView = {
 
   deactivate() {
     this.active = false;
-    document.getElementById('drive-guide')?.classList.remove('open');
+    GlobeDeck?.setPreview('');
     if (this.routeLine?.parent) this.routeLine.parent.remove(this.routeLine);
     this.routeLine = null;
     CosmicZoom?.update(camera.position.z);
@@ -4999,11 +5090,10 @@ const DrivingView = {
   },
 
   showStep(step) {
-    const el = document.getElementById('drive-guide');
-    if (!el) return;
     const km = step.dist > 1000 ? (step.dist / 1000).toFixed(1) + ' km' : Math.round(step.dist) + ' m';
-    el.textContent = '➤ ' + step.instruction + ' · ' + km;
-    ACIControl?.reply(el.textContent);
+    const line = '➤ ' + step.instruction + ' · ' + km;
+    GlobeDeck?.setPreview(line);
+    ACIControl?.reply(line);
     if (step.loc) MapDepict?.pulse(step.loc.lat, step.loc.lng, 0x44aaff, step.instruction.slice(0, 40), 5000);
   },
 
@@ -5651,6 +5741,7 @@ Auth.init();
 FieldBrain.init();
 FieldBrain.hookFeed();
 GlobeDeck.init();
+SuperCli.init();
 AciCli.init();
 setTimeout(() => Auth.refreshAuthority(), 800);
 setTimeout(() => AciCoders?.autoStart?.(), 1200);

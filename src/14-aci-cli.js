@@ -72,11 +72,12 @@ const AciCli = {
 
   toggle() {
     if (!Auth?.user) {
-      GlobeDeck?.onUserMessage('Guest — sign in for Coders');
+      GlobeDeck?.onUserMessage('Guest — Super CLI');
       this.showGuest();
       return;
     }
-    this.open ? this.hide() : this.show();
+    GlobeDeck?.toggle();
+    this.open = !!GlobeDeck?.expanded;
   },
 
   showGuest() {
@@ -270,14 +271,9 @@ const AciCli = {
         GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
-      if (cmd === 'batch') {
-        await AstranovNode?.launchBatch?.();
-        this.print('batch panel — install node then work together', 'ok');
-        GlobeDeck.activeTask = 'batch';
-        return;
-      }
-      if (cmd === 'vendors') {
-        await Commerce.showPicker();
+      if (cmd === 'batch') { await SuperCli?.run('batch'); return; }
+      if (cmd === 'vendors' || cmd === 'shops') {
+        await SuperCli?.run('order');
         this.print('vendor picker open — tap globe or list', 'ok');
         GlobeDeck.activeTask = 'commerce';
         return;
@@ -327,11 +323,22 @@ const AciCli = {
         return;
       }
       if (cmd === 'locate' || cmd === 'gps' || cmd === 'me') {
-        locateMe();
+        await SuperCli?.run('locate');
+        return;
+      }
+      if (cmd === 'vhf') { await SuperCli?.run('vhf'); return; }
+      if (cmd === 'call' || cmd === 'phone') {
+        const num = rest || parts.slice(1).join(' ');
+        if (num && /^\+?\d/.test(num)) {
+          MapDepict?.action('phone', { detail: num });
+          window.location.href = 'tel:' + num.replace(/\s/g, '');
+          this.print('calling ' + num, 'ok');
+        } else {
+          await SuperCli?.run('phone');
+        }
         GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
-      if (cmd === 'vhf') { Comms.startVHF(); this.print('PMR panel open', 'ok'); GlobeDeck.activeTask = 'radio'; return; }
       if (cmd === 'drive') {
         DrivingView?.activate?.();
         this.print('driving view (needs GPS speed)', 'ok');

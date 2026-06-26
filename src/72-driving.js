@@ -71,9 +71,8 @@ const DrivingView = {
       FieldBrain?.pulse('drive', this.mode + ' ' + Math.round(this.speed * 3.6) + 'km/h', { role: 'driver' });
     }
     if (prev !== this.mode && fast) {
-      const el = document.getElementById('drive-guide');
       const g = AstroGlyphs || { drive: '🚗', fast: '⚡' };
-      if (el) el.textContent = (this.mode === 'drive' ? g.drive + ' DRIVING' : g.fast + ' FAST') + ' · ' + Math.round(this.speed * 3.6) + ' km/h';
+      GlobeDeck?.setPreview((this.mode === 'drive' ? g.drive + ' DRIVING' : g.fast + ' FAST') + ' · ' + Math.round(this.speed * 3.6) + ' km/h');
     }
   },
 
@@ -81,7 +80,7 @@ const DrivingView = {
     this.active = true;
     cityLevel = true;
     camera.position.z = 1.28;
-    document.getElementById('drive-guide')?.classList.add('open');
+    GlobeDeck?.setPreview('DRIVE VIEW · ' + Math.round(this.speed * 3.6) + ' km/h');
     document.getElementById('zoom-label').textContent = (this.mode === 'drive' ? 'DRIVE VIEW' : 'RUN VIEW');
     MapDepict?.action('drive', { detail: Math.round(this.speed * 3.6) + ' km/h' });
     if (!this.destination) {
@@ -94,7 +93,7 @@ const DrivingView = {
 
   deactivate() {
     this.active = false;
-    document.getElementById('drive-guide')?.classList.remove('open');
+    GlobeDeck?.setPreview('');
     if (this.routeLine?.parent) this.routeLine.parent.remove(this.routeLine);
     this.routeLine = null;
     CosmicZoom?.update(camera.position.z);
@@ -150,11 +149,10 @@ const DrivingView = {
   },
 
   showStep(step) {
-    const el = document.getElementById('drive-guide');
-    if (!el) return;
     const km = step.dist > 1000 ? (step.dist / 1000).toFixed(1) + ' km' : Math.round(step.dist) + ' m';
-    el.textContent = '➤ ' + step.instruction + ' · ' + km;
-    ACIControl?.reply(el.textContent);
+    const line = '➤ ' + step.instruction + ' · ' + km;
+    GlobeDeck?.setPreview(line);
+    ACIControl?.reply(line);
     if (step.loc) MapDepict?.pulse(step.loc.lat, step.loc.lng, 0x44aaff, step.instruction.slice(0, 40), 5000);
   },
 

@@ -173,23 +173,7 @@ const sbHeaders = () => ({ apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'C
 // ── ACI CONTROL (text + buttons — you command the collective) ──
 const ACIControl = {
   init() {
-    const mic = document.getElementById('aci-mic');
-    mic.onclick = () => {
-      if (Voice.speaking || voiceSessionActive) {
-        userIntervene();
-        return;
-      }
-      startVoiceOptions();
-    };
-    const stopBtn = document.getElementById('aci-stop');
-    if (stopBtn) stopBtn.onclick = () => userIntervene();
-    document.getElementById('aci-order').onclick = () => Commerce.showPicker();
-    const locBtn = document.getElementById('aci-locate');
-    if (locBtn) locBtn.onclick = () => locateMe();
-    document.getElementById('aci-vhf').onclick = () => Comms.startVHF();
-    document.getElementById('aci-call').onclick = () => Comms.startPhone();
-    const batchBtn = document.getElementById('aci-batch');
-    if (batchBtn) batchBtn.onclick = () => AstranovNode?.launchBatch?.();
+    SuperCli?.init?.();
   },
   reply(text) {
     const msg = (text || '').slice(0, 280);

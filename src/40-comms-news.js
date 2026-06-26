@@ -4,18 +4,14 @@ const Comms = {
   pmr: { channel: 11, freqMHz: 446.13125, label: 'EU PMR 11' },
 
   async startPhone() {
-    const num = prompt('Phone number to call (e.g. +3069...):', '+30');
-    if (num && /^\+?\d[\d\s-]{6,}$/.test(num)) {
-      const up = window._lastPos || { lat: 36.22, lng: 28.12 };
-      MapDepict.action('phone', { lat: up.lat, lng: up.lng, detail: num });
-      window.location.href = 'tel:' + num.replace(/\s/g, '');
-      ACIControl.reply('Τηλέφωνο: ' + num);
-      if (Voice.maySpeak()) speak('Calling.', () => resumeListening());
-    } else if (Voice.maySpeak()) speak('Wrong number.');
+    await SuperCli?.run('phone');
   },
 
   startVHF() {
-    if (this.vhfActive) return;
+    if (this.vhfActive && PmrRadio?.open) {
+      GlobeDeck?.showStage('sat-radio', 'radio');
+      return;
+    }
     this.vhfActive = true;
     PmrRadio.show();
   },
@@ -39,10 +35,12 @@ const NewsFeed = {
     this.tick();
   },
   tick() {
-    const el = document.getElementById('news-ticker');
-    if (!el || !this.items.length) return;
+    if (!this.items.length) return;
     const i = Math.floor(Date.now() / 12000) % this.items.length;
-    el.textContent = (AstroGlyphs?.news || '📰') + ' ' + this.items[i];
+    const line = (AstroGlyphs?.news || '📰') + ' ' + this.items[i];
+    if (GlobeDeck && !GlobeDeck.thinking && !GlobeDeck._userEngaged) {
+      GlobeDeck.setPreview(line);
+    }
   },
   flash() {
     this.fetch();
