@@ -24,6 +24,36 @@ const GlobeDeck = {
       if (el && stage && el.parentElement !== stage) stage.appendChild(el);
     });
     this.setTitle(window.SuperCli?.title || 'Astranov Command Line');
+    this.restoreLog();
+  },
+
+  deckLogKey() {
+    return AstranovIdentity?.deckKey?.(Auth?.user?.id) || ('deck-log-guest-' + (AstranovIdentity?.deviceId?.() || 'anon'));
+  },
+
+  saveLog() {
+    const out = this.logEl();
+    if (!out) return;
+    const lines = [];
+    out.querySelectorAll('.deck-line').forEach(el => {
+      const cls = (el.className.match(/deck-(\w+)/) || [])[1] || 'out';
+      if (cls === 'dim' && el.classList.contains('deck-thinking-line')) return;
+      lines.push({ text: el.textContent || '', cls });
+    });
+    try { localStorage.setItem(this.deckLogKey(), JSON.stringify(lines.slice(-48))); } catch (_) {}
+  },
+
+  restoreLog() {
+    const out = this.logEl();
+    if (!out) return;
+    try {
+      const lines = JSON.parse(localStorage.getItem(this.deckLogKey()) || '[]');
+      if (!lines.length) return;
+      this._restoringLog = true;
+      out.innerHTML = '';
+      lines.forEach(row => this.log(row.text, row.cls || 'out'));
+    } catch (_) {}
+    finally { this._restoringLog = false; }
   },
 
   bindDeckGestures() {
@@ -119,6 +149,7 @@ const GlobeDeck = {
     out.scrollTop = out.scrollHeight;
     if (kind === 'reply' || kind === 'out' || kind === 'ok') this.setPreview(text);
     if (this._userEngaged && (kind === 'reply' || kind === 'out' || kind === 'err')) this.ping();
+    if (!this._restoringLog) this.saveLog();
   },
 
   say(text, cls) {
@@ -174,6 +205,7 @@ const GlobeDeck = {
     const out = this.logEl();
     if (out) out.innerHTML = '';
     this.setPreview('');
+    try { localStorage.removeItem(this.deckLogKey()); } catch (_) {}
   },
 
   expand(title) {

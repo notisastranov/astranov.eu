@@ -31,8 +31,12 @@ const AciCli = {
     if (!logged) {
       this._welcomed = false;
       this._sessionOpened = false;
-      this.hide();
-      GlobeDeck?.collapse();
+      this.loadHistory();
+      GlobeDeck?.restoreLog?.();
+      if (!this.open) {
+        this.hide();
+        GlobeDeck?.collapse();
+      }
       return;
     }
     const name = Auth.user.user_metadata?.full_name || Auth.user.email?.split('@')[0] || 'dev';
@@ -53,17 +57,19 @@ const AciCli = {
     if (window.AciCoders) await AciCoders.autoStart();
   },
 
+  historyKey() {
+    return AstranovIdentity?.cliKey?.(Auth.user?.id) || ('aci-cli-guest-' + (AstranovIdentity?.deviceId?.() || 'anon'));
+  },
+
   loadHistory() {
     try {
-      const key = 'aci-cli-' + (Auth.user?.id || 'anon');
-      this.history = JSON.parse(localStorage.getItem(key) || '[]');
+      this.history = JSON.parse(localStorage.getItem(this.historyKey()) || '[]');
     } catch { this.history = []; }
   },
 
   saveHistory() {
     try {
-      const key = 'aci-cli-' + (Auth.user?.id || 'anon');
-      localStorage.setItem(key, JSON.stringify(this.history.slice(-80)));
+      localStorage.setItem(this.historyKey(), JSON.stringify(this.history.slice(-80)));
     } catch (_) {}
   },
 
@@ -79,6 +85,8 @@ const AciCli = {
 
   showGuest() {
     this.open = true;
+    this.loadHistory();
+    GlobeDeck?.restoreLog?.();
     AciCoders?.autoStart?.();
     GlobeDeck?.expand('Coders online — Justice → Truth → Freedom · G to sign in');
     if (!this._guestWelcomed) {
@@ -123,7 +131,12 @@ const AciCli = {
     }
     const j = await fetchJson(SB_URL + '/functions/v1/aci', {
       method: 'POST', headers,
-      body: JSON.stringify({ ...body, cli_user: Auth?.user?.id, cli_email: Auth?.user?.email })
+      body: JSON.stringify({
+        ...body,
+        cli_user: Auth?.user?.id || AstranovIdentity?.deviceId?.(),
+        cli_email: Auth?.user?.email,
+        device_id: AstranovIdentity?.deviceId?.()
+      })
     }, 55000);
     if (j._httpStatus === 401) j.error = j.error || 'login required — tap G to sign in';
     return j;

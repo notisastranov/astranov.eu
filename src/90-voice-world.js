@@ -5,11 +5,9 @@ let hidden = false;
 
 
 
-// Auto join as Αξάς (no floating windows - everything on the globe)
-me = {
-  id: 'u' + Date.now(),
-  name: 'Αξάς'
-};
+// Auto join as Αξάς — stable device id until G sign-in binds Supabase profile
+me = window.AstranovIdentity?.guestMe?.() || { id: 'guest', name: 'Αξάς', guest: true };
+window.me = me;
 
 try { Voice.init(); initVoice(); } catch(e){ console.warn('Voice init skipped:', e.message); }
 

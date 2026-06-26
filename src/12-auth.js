@@ -1,3 +1,114 @@
+// === ASTRANOV IDENTITY — one person across devices (guest device id → auth profile) ===
+const AstranovIdentity = {
+  DEVICE_KEY: 'astranov_device_id_v1',
+  NODE_KEY: 'astranov_node_id',
+
+  _uuid() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+  },
+
+  deviceId() {
+    try {
+      let id = localStorage.getItem(this.DEVICE_KEY);
+      if (!id) {
+        id = localStorage.getItem(this.NODE_KEY) || ('dev-' + this._uuid());
+        localStorage.setItem(this.DEVICE_KEY, id);
+        if (!localStorage.getItem(this.NODE_KEY)) localStorage.setItem(this.NODE_KEY, id);
+      }
+      return id;
+    } catch {
+      return 'dev-fallback';
+    }
+  },
+
+  cliKey(userId) {
+    return userId ? ('aci-cli-' + userId) : ('aci-cli-guest-' + this.deviceId());
+  },
+
+  deckKey(userId) {
+    return userId ? ('deck-log-' + userId) : ('deck-log-guest-' + this.deviceId());
+  },
+
+  guestMe() {
+    return { id: this.deviceId(), name: 'Αξάς', guest: true };
+  },
+
+  syncMe(user) {
+    const target = (typeof me !== 'undefined' && me) ? me : (window.me = this.guestMe());
+    if (user) {
+      target.id = user.id;
+      target.email = user.email;
+      target.name = user.user_metadata?.full_name || user.user_metadata?.name
+        || (user.email || '').split('@')[0] || 'User';
+      target.guest = false;
+      target.isOwner = !!(Auth?.isOwner);
+    } else {
+      const g = this.guestMe();
+      target.id = g.id;
+      target.name = g.name;
+      target.guest = true;
+      delete target.email;
+      delete target.isOwner;
+    }
+    window.me = target;
+    return target;
+  },
+
+  _readJson(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch {
+      return fallback;
+    }
+  },
+
+  _mergeUnique(...arrays) {
+    const seen = new Set();
+    const out = [];
+    for (const arr of arrays) {
+      for (const item of (arr || [])) {
+        const k = typeof item === 'string' ? item : JSON.stringify(item);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push(item);
+      }
+    }
+    return out;
+  },
+
+  mergeLocalStores(userId) {
+    if (!userId) return { cli: [], deck: [] };
+    const targetCli = this.cliKey(userId);
+    const targetDeck = this.deckKey(userId);
+    const cliParts = [this._readJson(targetCli, [])];
+    const deckParts = [this._readJson(targetDeck, [])];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || k === targetCli || k === targetDeck) continue;
+        if (k === 'aci-cli-anon' || k.startsWith('aci-cli-guest-') || /^aci-cli-u\d+$/.test(k)) {
+          cliParts.push(this._readJson(k, []));
+        }
+        if (k === 'deck-log-anon' || k.startsWith('deck-log-guest-')) {
+          deckParts.push(this._readJson(k, []));
+        }
+      }
+    } catch (_) {}
+    const cli = this._mergeUnique(...cliParts).slice(-80);
+    const deck = this._mergeUnique(...deckParts).slice(-48);
+    try {
+      localStorage.setItem(targetCli, JSON.stringify(cli));
+      localStorage.setItem(targetDeck, JSON.stringify(deck));
+    } catch (_) {}
+    return { cli, deck };
+  }
+};
+window.AstranovIdentity = AstranovIdentity;
+
 // === ASTRANOV IDENTITY — unified login (globe + all *.astranov.eu sites) ===
 const Auth = {
   client: null,
@@ -17,9 +128,12 @@ const Auth = {
     this.client = supabase.createClient(SB_URL, SB_KEY, {
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'astranov_auth_v2' }
     });
-    this.client.auth.onAuthStateChange((_ev, session) => {
+    this.client.auth.onAuthStateChange((ev, session) => {
       this.session = session;
       this.user = session?.user || null;
+      if (this.user && (ev === 'SIGNED_IN' || ev === 'INITIAL_SESSION')) {
+        AstranovIdentity.mergeLocalStores(this.user.id);
+      }
       this.applyUser();
       this.refreshAuthority();
       this.broadcastToShell();
@@ -27,6 +141,7 @@ const Auth = {
     this.client.auth.getSession().then(({ data }) => {
       this.session = data?.session || null;
       this.user = data?.session?.user || null;
+      if (this.user) AstranovIdentity.mergeLocalStores(this.user.id);
       this.applyUser();
       this.refreshAuthority();
       this.broadcastToShell();
@@ -323,14 +438,10 @@ const Auth = {
         }
       }
       if (chip && !this.isOwner) chip.textContent = name;
-      if (typeof me !== 'undefined' && me) {
-        me.name = name;
-        me.id = this.user.id;
-        me.email = this.user.email;
-        me.isOwner = this.isOwner;
-      }
+      AstranovIdentity.syncMe(this.user);
       ACI?.feed('login', name);
       if (window.AciCli) AciCli.onAuthChange();
+      if (window.GlobeDeck) GlobeDeck.restoreLog?.();
     } else {
       if (btn) {
         btn.title = 'Sign in — Google · email · phone';
@@ -338,7 +449,9 @@ const Auth = {
         btn.style.backgroundImage = '';
       }
       if (chip) chip.textContent = '';
+      AstranovIdentity.syncMe(null);
       if (window.AciCli) AciCli.onAuthChange();
+      if (window.GlobeDeck) GlobeDeck.restoreLog?.();
     }
   }
 };
