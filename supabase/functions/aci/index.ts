@@ -405,14 +405,16 @@ serve(async (req) => {
       }
 
       if (memoryOwnerId && full) {
-        await sb.from('ai_memory').insert({
-          profile_id: memoryOwnerId,
-          content: `[coders${isGuest ? '-guest' : ''}] Q: ${message.slice(0, 160)} A: ${full.slice(0, 320)}`,
-          is_private: false,
-          source: 'cic_log',
-          importance: 1.15,
-          distilled: false,
-        }).catch(() => {})
+        try {
+          await sb.from('ai_memory').insert({
+            profile_id: memoryOwnerId,
+            content: `[coders${isGuest ? '-guest' : ''}] Q: ${message.slice(0, 160)} A: ${full.slice(0, 320)}`,
+            is_private: false,
+            source: 'cic_log',
+            importance: 1.15,
+            distilled: false,
+          })
+        } catch { /* non-fatal */ }
       }
 
       return json({
