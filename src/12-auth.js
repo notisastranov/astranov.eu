@@ -96,7 +96,9 @@ const Auth = {
 
   async signInGoogle() {
     if (!this.client) return;
-    MapDepict?.action('think', { detail: 'Google sign-in' });
+    GlobeDeck?.setPreview('Sign in to Astranov.eu · Google');
+    ACIControl?.reply('Sign in to Astranov.eu — secured by Google');
+    MapDepict?.action('think', { detail: 'Astranov sign-in' });
     const redirectTo = window.location.origin + window.location.pathname;
     await this.client.auth.signInWithOAuth({
       provider: 'google',

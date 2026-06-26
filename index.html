@@ -971,7 +971,9 @@ const Auth = {
 
   async signInGoogle() {
     if (!this.client) return;
-    MapDepict?.action('think', { detail: 'Google sign-in' });
+    GlobeDeck?.setPreview('Sign in to Astranov.eu · Google');
+    ACIControl?.reply('Sign in to Astranov.eu — secured by Google');
+    MapDepict?.action('think', { detail: 'Astranov sign-in' });
     const redirectTo = window.location.origin + window.location.pathname;
     await this.client.auth.signInWithOAuth({
       provider: 'google',
@@ -2578,9 +2580,15 @@ window.FieldBrain = FieldBrain;
 // === ASTRANOV COLLECTIVE INTELLIGENCE (ACI) — FINAL ===
 // Synthesized from all AI specs: pure globe + three modes + council + self-evolving neurons.
 // Single API: /functions/v1/aci (think | evolve | log | teach | stats | seed)
+const SUPABASE_REF = 'lkoatrkhuigdolnjsbie';
+const SUPABASE_CUSTOM_URL = 'https://api.astranov.eu';
+const SUPABASE_DEFAULT_URL = 'https://' + SUPABASE_REF + '.supabase.co';
+// Flip true after api.astranov.eu is activated — removes random ref from Google OAuth
+const SUPABASE_USE_CUSTOM_DOMAIN = false;
+
 const ACI = {
   name: 'Astranov Collective Intelligence',
-  url: 'https://lkoatrkhuigdolnjsbie.supabase.co',
+  url: SUPABASE_USE_CUSTOM_DOMAIN ? SUPABASE_CUSTOM_URL : SUPABASE_DEFAULT_URL,
   key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI',
   neurons: [],
   history: [],
