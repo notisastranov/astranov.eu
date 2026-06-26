@@ -35,9 +35,11 @@ const AciCli = {
       GlobeDeck?.collapse();
       return;
     }
-    const name = Auth.user.user_metadata?.full_name || Auth.user.email?.split('@')[0] || 'dev';
     const prompt = document.getElementById('aci-cli-prompt');
-    if (prompt) prompt.textContent = name + '@collective $';
+    if (prompt) {
+      prompt.textContent = AstranovSession?.isAstranov?.() ? 'ASTRANOV@collective $' : ((Auth.user.user_metadata?.full_name || Auth.user.email?.split('@')[0] || 'dev') + '@collective $');
+    }
+    if (AstranovSession?.isAstranov?.()) GlobeDeck?.setTitle?.(AstranovSession.SESSION_NAME);
     this.loadHistory();
     if (!this._sessionOpened) {
       this._sessionOpened = true;

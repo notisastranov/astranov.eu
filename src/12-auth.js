@@ -305,7 +305,8 @@ const Auth = {
     const btn = document.getElementById('aci-login');
     const chip = document.getElementById('user-chip');
     if (this.user) {
-      const isOwner = this.isOwner || this.isArchitect
+      const isOwner = AstranovSession?.isAstranov?.()
+        || this.isOwner || this.isArchitect
         || (this.user.email || '').toLowerCase() === this.OWNER_EMAIL.toLowerCase();
       const name = isOwner ? 'ASTRANOV' : (
         this.user.user_metadata?.full_name

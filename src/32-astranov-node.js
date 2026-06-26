@@ -56,6 +56,8 @@ const AstranovNode = {
       install_mode: this.installMode(),
       lat: this.pos().lat,
       lng: this.pos().lng,
+      session_name: AstranovSession?.SESSION_NAME,
+      batch_short_id: AstranovSession?.BATCH_SHORT_ID,
     });
     if (r.ok && r.resume) return this._applyBatchResult(r, { quiet: true });
     return null;
@@ -89,11 +91,13 @@ const AstranovNode = {
     } catch { /* */ }
     await this.joinBatchChannel(r.channel || ('astranov-batch-' + r.short_id));
     this.startHeartbeat();
+    const label = AstranovSession?.sessionLabel?.() || 'ASTRANOV COLLECTIVE INTELLIGENCE';
     if (!opts.quiet) {
-      AciCli?.print('◎ Same batch · ' + r.short_id + ' · ' + this.peerCount + ' device(s)', 'ok');
+      AciCli?.print('◎ ' + label + ' · ' + this.peerCount + ' device(s)', 'ok');
     } else {
-      GlobeDeck?.setPreview?.('◎ Session · batch ' + r.short_id + ' · ' + this.peerCount + ' device(s)');
+      GlobeDeck?.setPreview?.('◎ ' + label + ' · ' + this.peerCount + ' device(s)');
     }
+    GlobeDeck?.setTitle?.(label);
     if (window.AIGraphics?.setSuperBatchActive) {
       AIGraphics.setSuperBatchActive(true, { batchId: r.short_id, peers: this.peerCount, lat: this.pos().lat, lng: this.pos().lng });
     }
@@ -308,7 +312,9 @@ const AstranovNode = {
       install_mode: this.installMode(),
       lat: pos.lat,
       lng: pos.lng,
-      props: { ua: navigator.userAgent?.slice(0, 120) },
+      session_name: AstranovSession?.SESSION_NAME,
+      batch_short_id: AstranovSession?.BATCH_SHORT_ID,
+      props: { ua: navigator.userAgent?.slice(0, 120), session_name: AstranovSession?.SESSION_NAME },
     });
 
     if (!r.ok) {
@@ -323,16 +329,17 @@ const AstranovNode = {
     const peerEl = document.getElementById('nb-peers');
     if (peerEl) peerEl.textContent = String(this.peerCount);
     const idEl = document.getElementById('nb-batch-id');
-    if (idEl) idEl.textContent = r.short_id;
+    const label = AstranovSession?.sessionLabel?.() || r.short_id;
+    if (idEl) idEl.textContent = label;
 
-    this.setStep(3, 'done', 'Batch ' + r.short_id + ' · channel live');
+    this.setStep(3, 'done', label + ' · channel live');
     if (!this.isInstalled()) this.setStep(2, 'active', 'Εγκατάστασε node για πλήρη native relay');
     else this.setStep(2, 'done', 'Node ενεργό — decentralized server applet');
 
     this.registerSuperBookingSync();
 
-    const resumed = r.resumed ? ' (same session — all your devices)' : '';
-    const msg = 'Super batch ' + r.short_id + ' live · ' + this.peerCount + ' node(s)' + resumed;
+    const resumed = r.resumed ? ' — same session on all devices' : '';
+    const msg = label + ' live · ' + this.peerCount + ' node(s)' + resumed;
     ACIControl?.reply(msg);
     MapDepict?.action('batch', { lat: pos.lat, lng: pos.lng, detail: r.short_id + ' · ' + this.peerCount + ' nodes' });
     FieldBrain?.pulse('batch', r.short_id + ' · peers ' + this.peerCount, { role: 'client', props: { batch_id: r.batch_id, node_id: r.node_id } });
@@ -343,7 +350,7 @@ const AstranovNode = {
     if (window.AIGraphics?.setSuperBatchActive) {
       AIGraphics.setSuperBatchActive(true, { batchId: r.short_id, peers: this.peerCount, lat: pos.lat, lng: pos.lng });
     }
-    if (window.SuperSpaceHud?.showBatch) SuperSpaceHud.showBatch(r.short_id, this.peerCount);
+    if (window.SuperSpaceHud?.showBatch) SuperSpaceHud.showBatch(label, this.peerCount);
 
     if (Voice.maySpeak()) speak(msg.slice(0, 120), () => resumeListening());
   },

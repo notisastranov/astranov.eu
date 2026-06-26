@@ -10,6 +10,9 @@ const cors = {
   'Content-Type': 'application/json',
 }
 
+const COLLECTIVE_SESSION_NAME = 'ASTRANOV COLLECTIVE INTELLIGENCE'
+const COLLECTIVE_BATCH_SHORT_ID = 'ACI'
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
@@ -78,10 +81,24 @@ serve(async (req) => {
       let batch = forceNew ? null : await findActiveBatch(sb, userId)
 
       if (!batch) {
-        const { data: created, error } = await sb.from('astranov_batches').insert({
+        const shortId = String(body.batch_short_id || COLLECTIVE_BATCH_SHORT_ID)
+        let created = null
+        let error = null
+        const ins = await sb.from('astranov_batches').insert({
           owner_id: userId,
           status: 'open',
+          short_id: shortId,
         }).select().single()
+        created = ins.data
+        error = ins.error
+        if (error?.code === '23505') {
+          const retry = await sb.from('astranov_batches').insert({
+            owner_id: userId,
+            status: 'open',
+          }).select().single()
+          created = retry.data
+          error = retry.error
+        }
         if (error) throw error
         batch = created
       }
@@ -126,6 +143,7 @@ serve(async (req) => {
         resumed: !forceNew && !!batch,
         batch_id: batch!.id,
         short_id: batch!.short_id,
+        session_name: COLLECTIVE_SESSION_NAME,
         node_id: nodeId,
         channel: 'astranov-batch-' + batch!.short_id,
         peers,
@@ -193,6 +211,15 @@ serve(async (req) => {
 
 async function findActiveBatch(sb: ReturnType<typeof createClient>, userId: string) {
   const since = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString()
+
+  const { data: canonical } = await sb.from('astranov_batches')
+    .select('id, short_id, status, created_at')
+    .eq('owner_id', userId)
+    .eq('short_id', COLLECTIVE_BATCH_SHORT_ID)
+    .eq('status', 'open')
+    .maybeSingle()
+  if (canonical) return canonical
+
   const { data: batch } = await sb.from('astranov_batches')
     .select('id, short_id, status, created_at')
     .eq('owner_id', userId)

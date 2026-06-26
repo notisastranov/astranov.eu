@@ -1,10 +1,12 @@
-// === ASTRANOV SESSION — one user, one session, all devices ===
+// === ASTRANOV SESSION — one user (ASTRANOV), one session, all devices ===
 const COLLECTIVE_SESSION_NAME = 'ASTRANOV COLLECTIVE INTELLIGENCE';
+const COLLECTIVE_BATCH_SHORT_ID = 'ACI';
 
 const AstranovSession = {
   DEVICE_KEY: 'astranov_device_id',
   LOCAL_KEY: 'astranov_globe_session_v1',
   SESSION_NAME: COLLECTIVE_SESSION_NAME,
+  BATCH_SHORT_ID: COLLECTIVE_BATCH_SHORT_ID,
   _deviceId: null,
   _syncTimer: null,
   _lastPull: 0,
@@ -38,11 +40,21 @@ const AstranovSession = {
     return this._deviceId || this._loadDeviceId();
   },
 
+  isAstranov() {
+    if (!Auth?.user) return false;
+    const email = (Auth.user.email || '').toLowerCase();
+    const owner = (Auth.OWNER_EMAIL || 'notisastranov@gmail.com').toLowerCase();
+    return email === owner || !!Auth.isOwner || !!Auth.isArchitect;
+  },
+
+  sessionLabel() {
+    return this.SESSION_NAME;
+  },
+
   identity() {
     if (Auth?.user?.id) {
-      const isOwner = Auth.isOwner || Auth.isArchitect
-        || (Auth.user.email || '').toLowerCase() === (Auth.OWNER_EMAIL || '').toLowerCase();
-      const name = isOwner ? 'ASTRANOV' : (
+      const isAstranov = this.isAstranov();
+      const name = isAstranov ? 'ASTRANOV' : (
         Auth.user.user_metadata?.full_name
         || Auth.user.user_metadata?.name
         || (Auth.user.email || '').split('@')[0]
@@ -53,12 +65,21 @@ const AstranovSession = {
         name,
         deviceId: this.deviceId(),
         isGuest: false,
-        isOwner,
+        isAstranov,
+        isOwner: isAstranov,
         email: Auth.user.email,
         sessionName: this.SESSION_NAME,
+        batchShortId: this.BATCH_SHORT_ID,
       };
     }
-    return { userId: 'guest-' + this.deviceId(), name: 'Αξάς', deviceId: this.deviceId(), isGuest: true, sessionName: this.SESSION_NAME };
+    return {
+      userId: 'guest-' + this.deviceId(),
+      name: 'Αξάς',
+      deviceId: this.deviceId(),
+      isGuest: true,
+      sessionName: this.SESSION_NAME,
+      batchShortId: this.BATCH_SHORT_ID,
+    };
   },
 
   nodeStorageKey() {
@@ -88,7 +109,9 @@ const AstranovSession = {
       me.name = id.name;
       me.deviceId = id.deviceId;
       me.isGuest = id.isGuest;
+      me.isAstranov = !!id.isAstranov;
       if (id.email) me.email = id.email;
+      if (id.isAstranov) me.sessionName = this.SESSION_NAME;
     }
     window._astranovIdentity = id;
   },
@@ -101,7 +124,8 @@ const AstranovSession = {
       updatedAt: Date.now(),
       lastPos: window._lastPos || null,
       batchId: AstranovNode?.batchId || null,
-      shortId: AstranovNode?.shortId || null,
+      shortId: AstranovNode?.shortId || this.BATCH_SHORT_ID,
+      batchLabel: this.SESSION_NAME,
       nodeId: AstranovNode?.nodeId || this.getDeviceNodeId(),
       theme: AstranovTheme?.mode || 'dark',
       followMode: GlobeControl?.followMode || 'free',
@@ -147,7 +171,11 @@ const AstranovSession = {
       await this.pull();
       await AstranovNode?.resumeSession?.();
       setTimeout(() => AstranovWishlist?.announceRecovered?.(), 900);
-      GlobeDeck?.setTitle?.(this.SESSION_NAME);
+      if (this.isAstranov()) {
+        GlobeDeck?.setTitle?.(this.SESSION_NAME);
+        const chip = document.getElementById('user-chip');
+        if (chip) chip.textContent = 'ASTRANOV · OWNER';
+      }
     } else {
       this._applyLocal();
     }

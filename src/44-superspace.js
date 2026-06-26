@@ -322,8 +322,9 @@ const SuperSpaceHud = {
   showBatch(shortId, peers) {
     const hud = document.getElementById('superspace-hud');
     if (!hud) return;
-    hud.innerHTML = '<div class="ss-title">◎ Super batch · evolved mesh</div>'
-      + '<div class="ss-row">Batch <b>' + (shortId || '—') + '</b></div>'
+    const label = AstranovSession?.sessionLabel?.() || shortId || 'ASTRANOV COLLECTIVE INTELLIGENCE';
+    hud.innerHTML = '<div class="ss-title">◎ ' + label + '</div>'
+      + '<div class="ss-row">Session <b>' + label + '</b></div>'
       + '<div class="ss-row">Peers <b>' + (peers || 0) + '</b> · AI graphics linked</div>'
       + '<div class="ss-tri">Earth browser · sites · collective CLI</div>';
     hud.classList.add('open');
