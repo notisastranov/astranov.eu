@@ -205,19 +205,30 @@ const CosmicZoom = {
     if (this.meshRing) this.meshRing.visible = showMesh;
   },
 
-  update(camZ) {
-    let level = 'earth', label = 'EARTH';
-    if (camZ > 14) { level = 'galaxy'; label = 'GALAXY'; }
-    else if (camZ > 6) { level = 'system'; label = 'SOLAR SYSTEM'; }
-    else if (camZ > 4.8) { level = 'orbit'; label = 'ORBIT'; }
+  update(camZ, opts) {
+    opts = opts || {};
+    let level = opts.cosmic || 'earth';
+    let label = opts.label || 'GLOBAL';
+    if (!opts.tier) {
+      if (camZ > 14) { level = 'galaxy'; label = 'GALAXY'; }
+      else if (camZ > 5.5) { level = 'system'; label = 'SOLAR SYSTEM'; }
+      else if (camZ > 4.8) { level = 'orbit'; label = 'ORBIT'; }
+      else {
+        level = 'earth';
+        const tier = window.ZoomTiers?.current?.();
+        label = tier?.label || (camZ > 2.2 ? 'GLOBAL' : camZ > 1.55 ? 'NATIONAL' : 'CITY');
+      }
+    }
     if (level !== this.level) this.level = level;
     const zl = document.getElementById('zoom-label');
     if (zl && !DrivingView?.active) {
       if (CityMap?.active) {
-        zl.textContent = 'CITY MAP · satellite · streets · friends · drivers (z=' + camZ.toFixed(2) + ')';
+        const tier = window.ZoomTiers?.current?.();
+        const tierLabel = tier?.id === 'neighborhood' ? 'NEIGHBORHOOD MAP' : 'CITY MAP';
+        zl.textContent = tierLabel + ' · satellite · streets · friends · drivers';
       } else {
-        const hint = level === 'orbit' ? ' · ISS · Starlink' : level === 'system' ? ' · planets' : level === 'galaxy' ? ' · star field' : camZ < 3.4 ? ' · ☀ day/night live' : '';
-        zl.textContent = label + hint + ' (z=' + camZ.toFixed(1) + ')';
+        const hint = level === 'orbit' ? ' · ISS · Starlink' : level === 'system' ? ' · planets' : label === 'GLOBAL' ? ' · ☀ day/night' : '';
+        zl.textContent = label + hint;
       }
     }
     CityMap?.onCamera?.(camZ, level);

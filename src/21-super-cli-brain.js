@@ -66,6 +66,15 @@ Object.assign(SuperCli, {
   out(text, cls) { AciCli?.print(text, cls || 'out'); },
 
   zoomTo(level) {
+    const map = {
+      earth: 'global', global: 'global', national: 'national', country: 'national',
+      city: 'city', neighborhood: 'neighborhood', solar: 'solar', system: 'solar',
+    };
+    const id = map[(level || 'global').toLowerCase()] || (level || 'global').toLowerCase();
+    if (ZoomTiers?.goTo?.(id)) {
+      this.out('zoom → ' + ZoomTiers.current().label, 'ok');
+      return;
+    }
     const z = this.ZOOM[(level || 'earth').toLowerCase()] || this.ZOOM.earth;
     window._globeFly = {
       fromY: globePivot.rotation.y,

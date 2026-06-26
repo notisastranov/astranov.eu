@@ -68,6 +68,7 @@ PmrRadio.bindUI();
 GlobeVideo.init();
 DrivingView.init();
 CosmicZoom.init();
+ZoomTiers.init();
 AstranovTheme.init();
 CityMap.init();
 EarthRealism.init();

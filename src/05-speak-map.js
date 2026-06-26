@@ -374,11 +374,13 @@ const MapDepict = {
     return { type, lat, lng };
   },
 
-  zoomToUser(zoom = 1.26) {
+  zoomToUser(zoom) {
     const u = this.userPos();
     this.action('location', { lat: u.lat, lng: u.lng, detail: 'εσύ · αναζήτηση' });
+    const z = zoom || ZoomTiers?.tierZ?.('city') || 1.38;
+    if (ZoomTiers && zoom == null) ZoomTiers.goTo('city', false);
     const fp = latLngToPos(u.lat, u.lng, 1.04);
-    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(fp.x, fp.y, fp.z), zoom);
+    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(fp.x, fp.y, fp.z), z);
     else focusOnGlobePoint(new THREE.Vector3(fp.x, fp.y, fp.z));
     return u;
   },

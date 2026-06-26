@@ -509,7 +509,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 
 const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.set(0, 0.25, 2.5);
+camera.position.set(0, 0.25, 2.55);
 camera.lookAt(0, 0, 0);
 
 scene.add(new THREE.AmbientLight(0x667788, 1.0));
@@ -996,11 +996,13 @@ const MapDepict = {
     return { type, lat, lng };
   },
 
-  zoomToUser(zoom = 1.26) {
+  zoomToUser(zoom) {
     const u = this.userPos();
     this.action('location', { lat: u.lat, lng: u.lng, detail: 'εσύ · αναζήτηση' });
+    const z = zoom || ZoomTiers?.tierZ?.('city') || 1.38;
+    if (ZoomTiers && zoom == null) ZoomTiers.goTo('city', false);
     const fp = latLngToPos(u.lat, u.lng, 1.04);
-    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(fp.x, fp.y, fp.z), zoom);
+    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(fp.x, fp.y, fp.z), z);
     else focusOnGlobePoint(new THREE.Vector3(fp.x, fp.y, fp.z));
     return u;
   },
@@ -2060,6 +2062,15 @@ Object.assign(SuperCli, {
   out(text, cls) { AciCli?.print(text, cls || 'out'); },
 
   zoomTo(level) {
+    const map = {
+      earth: 'global', global: 'global', national: 'national', country: 'national',
+      city: 'city', neighborhood: 'neighborhood', solar: 'solar', system: 'solar',
+    };
+    const id = map[(level || 'global').toLowerCase()] || (level || 'global').toLowerCase();
+    if (ZoomTiers?.goTo?.(id)) {
+      this.out('zoom → ' + ZoomTiers.current().label, 'ok');
+      return;
+    }
     const z = this.ZOOM[(level || 'earth').toLowerCase()] || this.ZOOM.earth;
     window._globeFly = {
       fromY: globePivot.rotation.y,
@@ -7740,19 +7751,30 @@ const CosmicZoom = {
     if (this.meshRing) this.meshRing.visible = showMesh;
   },
 
-  update(camZ) {
-    let level = 'earth', label = 'EARTH';
-    if (camZ > 14) { level = 'galaxy'; label = 'GALAXY'; }
-    else if (camZ > 6) { level = 'system'; label = 'SOLAR SYSTEM'; }
-    else if (camZ > 4.8) { level = 'orbit'; label = 'ORBIT'; }
+  update(camZ, opts) {
+    opts = opts || {};
+    let level = opts.cosmic || 'earth';
+    let label = opts.label || 'GLOBAL';
+    if (!opts.tier) {
+      if (camZ > 14) { level = 'galaxy'; label = 'GALAXY'; }
+      else if (camZ > 5.5) { level = 'system'; label = 'SOLAR SYSTEM'; }
+      else if (camZ > 4.8) { level = 'orbit'; label = 'ORBIT'; }
+      else {
+        level = 'earth';
+        const tier = window.ZoomTiers?.current?.();
+        label = tier?.label || (camZ > 2.2 ? 'GLOBAL' : camZ > 1.55 ? 'NATIONAL' : 'CITY');
+      }
+    }
     if (level !== this.level) this.level = level;
     const zl = document.getElementById('zoom-label');
     if (zl && !DrivingView?.active) {
       if (CityMap?.active) {
-        zl.textContent = 'CITY MAP · satellite · streets · friends · drivers (z=' + camZ.toFixed(2) + ')';
+        const tier = window.ZoomTiers?.current?.();
+        const tierLabel = tier?.id === 'neighborhood' ? 'NEIGHBORHOOD MAP' : 'CITY MAP';
+        zl.textContent = tierLabel + ' · satellite · streets · friends · drivers';
       } else {
-        const hint = level === 'orbit' ? ' · ISS · Starlink' : level === 'system' ? ' · planets' : level === 'galaxy' ? ' · star field' : camZ < 3.4 ? ' · ☀ day/night live' : '';
-        zl.textContent = label + hint + ' (z=' + camZ.toFixed(1) + ')';
+        const hint = level === 'orbit' ? ' · ISS · Starlink' : level === 'system' ? ' · planets' : label === 'GLOBAL' ? ' · ☀ day/night' : '';
+        zl.textContent = label + hint;
       }
     }
     CityMap?.onCamera?.(camZ, level);
@@ -7800,22 +7822,125 @@ const CosmicZoom = {
 };
 window.CosmicZoom = CosmicZoom;
 
+// === ZOOM TIERS — solar → global → national → city → neighborhood ===
+const ZoomTiers = {
+  TIERS: [
+    { id: 'solar', z: 7.2, label: 'SOLAR SYSTEM', cosmic: 'system' },
+    { id: 'global', z: 2.55, label: 'GLOBAL', cosmic: 'earth' },
+    { id: 'national', z: 1.82, label: 'NATIONAL', cosmic: 'earth' },
+    { id: 'city', z: 1.38, label: 'CITY', cosmic: 'earth', city: true },
+    { id: 'neighborhood', z: 1.08, label: 'NEIGHBORHOOD', cosmic: 'earth', city: true },
+  ],
+  START_ID: 'global',
+  _index: 1,
+  _wheelAccum: 0,
+  _pinchAccum: 0,
+  WHEEL_THRESH: 28,
+  PINCH_THRESH: 14,
+
+  init() {
+    const i = this.TIERS.findIndex(t => t.id === this.START_ID);
+    this._index = i >= 0 ? i : 1;
+    this.snap(false);
+  },
+
+  current() {
+    return this.TIERS[this._index] || this.TIERS[1];
+  },
+
+  indexOf(id) {
+    return this.TIERS.findIndex(t => t.id === id);
+  },
+
+  step(delta) {
+    const next = Math.max(0, Math.min(this.TIERS.length - 1, this._index + delta));
+    if (next === this._index) return false;
+    this._index = next;
+    this.snap(true);
+    return true;
+  },
+
+  stepIn() { return this.step(1); },
+  stepOut() { return this.step(-1); },
+
+  goTo(id, animate) {
+    const i = this.indexOf(id);
+    if (i < 0) return false;
+    this._index = i;
+    this.snap(animate !== false);
+    return true;
+  },
+
+  onWheel(deltaY) {
+    this._wheelAccum += deltaY;
+    if (Math.abs(this._wheelAccum) < this.WHEEL_THRESH) return;
+    const out = this._wheelAccum > 0;
+    this._wheelAccum = 0;
+    this.step(out ? -1 : 1);
+  },
+
+  onPinch(delta) {
+    this._pinchAccum += delta;
+    if (Math.abs(this._pinchAccum) < this.PINCH_THRESH) return;
+    const out = this._pinchAccum > 0;
+    this._pinchAccum = 0;
+    this.step(out ? -1 : 1);
+  },
+
+  resetAccum() {
+    this._wheelAccum = 0;
+    this._pinchAccum = 0;
+  },
+
+  snap(animate) {
+    const t = this.current();
+    window._globeFly = null;
+    if (animate) {
+      window._globeFly = {
+        fromY: globePivot.rotation.y,
+        fromX: globePivot.rotation.x,
+        fromZ: camera.position.z,
+        toY: globePivot.rotation.y,
+        toX: globePivot.rotation.x,
+        toZ: t.z,
+        t0: performance.now(),
+        dur: 620,
+        tierId: t.id,
+        onTier: true,
+      };
+    } else {
+      camera.position.z = t.z;
+      camera.lookAt(0, 0, 0);
+      this._apply(t);
+    }
+    MapDepict?.setHud?.(t.label, 'zoom-tier');
+  },
+
+  _apply(t) {
+    const tier = t || this.current();
+    const cosmic = tier.cosmic || 'earth';
+    CosmicZoom.update(camera.position.z, { tier: tier.id, label: tier.label, cosmic });
+    CityMap?.onCamera?.(camera.position.z, cosmic);
+    cityLevel = !!tier.city;
+    const zl = document.getElementById('zoom-label');
+    if (zl && !DrivingView?.active && !CityMap?.active) {
+      zl.textContent = tier.label + (tier.id === 'global' ? ' · ☀ day/night' : '');
+    }
+  },
+
+  tierZ(id) {
+    const t = this.TIERS.find(x => x.id === id);
+    return t ? t.z : 2.55;
+  },
+};
+window.ZoomTiers = ZoomTiers;
+
 // Globe gestures — primary UI (Google Earth / Maps style). CLI is secondary.
 const canvas = renderer.domElement;
 const TRACK_SENS = 0.0028;
 const ZOOM_MIN = 1.05;
 const ZOOM_MAX = 18;
 const ZOOM_SMOOTH = 0.09;
-const ZOOM_TIERS = [
-  { id: 'city', z: 1.42, label: 'CITY' },
-  { id: 'national', z: 2.05, label: 'NATIONAL' },
-  { id: 'earth', z: 3.0, label: 'EARTH' },
-  { id: 'orbit', z: 4.8, label: 'ORBIT' },
-  { id: 'solar', z: 8.0, label: 'SOLAR' },
-  { id: 'galaxy', z: 16.0, label: 'GALAXY' },
-];
-let _zoomSnapTimer = null;
-let _lastZoomAt = 0;
 
 let pinchDist = 0;
 let pinching = false;
@@ -7853,7 +7978,7 @@ function trackballStart(clientX, clientY) {
   clearTimeout(pressTimer);
   pressTimer = setTimeout(() => {
     if (!drag) return;
-    zoomAt(pressStartX, pressStartY, 0.85);
+    ZoomTiers?.stepOut?.();
     MapDepict?.setHud('Zoom out', 'long-press');
   }, 750);
 }
@@ -7869,7 +7994,7 @@ function trackballEnd(clientX, clientY, opts) {
 function registerTap(clientX, clientY) {
   const now = Date.now();
   if (now - lastTapAt < 340 && Math.hypot(clientX - lastTapX, clientY - lastTapY) < 36) {
-    zoomAt(clientX, clientY, -0.18);
+    ZoomTiers?.stepIn?.();
     MapDepict?.setHud('Zoom in', 'double-tap');
     lastTapAt = 0;
     return;
@@ -7879,37 +8004,6 @@ function registerTap(clientX, clientY) {
   lastTapY = clientY;
 }
 
-function scheduleTierSnap() {
-  _lastZoomAt = Date.now();
-  clearTimeout(_zoomSnapTimer);
-  _zoomSnapTimer = setTimeout(snapToNearestTier, 220);
-}
-
-function snapToNearestTier() {
-  if (Date.now() - _lastZoomAt < 180) return;
-  if (window._globeFly || pinching || drag || DrivingView?.active) return;
-  const z = camera.position.z;
-  let best = null;
-  let bestDist = Infinity;
-  ZOOM_TIERS.forEach(t => {
-    const d = Math.abs(Math.log(z / t.z));
-    if (d < bestDist) { bestDist = d; best = t; }
-  });
-  if (!best || bestDist > 0.14) return;
-  if (Math.abs(z - best.z) < 0.04) return;
-  window._globeFly = {
-    fromY: globePivot.rotation.y,
-    fromX: globePivot.rotation.x,
-    fromZ: z,
-    toY: globePivot.rotation.y,
-    toX: globePivot.rotation.x,
-    toZ: best.z,
-    t0: performance.now(),
-    dur: 520,
-  };
-  MapDepict?.setHud?.(best.label + ' view', 'tier-snap');
-}
-
 function zoomBy(delta) {
   const factor = Math.exp((delta || 0) * ZOOM_SMOOTH);
   const next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, camera.position.z * factor));
@@ -7917,7 +8011,6 @@ function zoomBy(delta) {
   camera.lookAt(0, 0, 0);
   CosmicZoom.update(camera.position.z);
   CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
-  scheduleTierSnap();
 }
 
 function zoomAt(clientX, clientY, delta, opts) {
@@ -7943,8 +8036,12 @@ function onWheelZoom(e) {
   e.preventDefault();
   trackVelX = 0;
   trackVelY = 0;
-  const scale = e.deltaMode === 1 ? 0.035 : 0.00022;
-  zoomAt(e.clientX, e.clientY, e.deltaY * scale, { zoomOnly: true });
+  const dy = e.deltaMode === 1 ? e.deltaY * 1.2 : e.deltaY;
+  if (ZoomTiers) ZoomTiers.onWheel(dy);
+  else {
+    const scale = e.deltaMode === 1 ? 0.035 : 0.00022;
+    zoomAt(e.clientX, e.clientY, e.deltaY * scale, { zoomOnly: true });
+  }
 }
 
 canvas.addEventListener('mousedown', e => { if (e.button === 0) trackballStart(e.clientX, e.clientY); });
@@ -7998,7 +8095,9 @@ canvas.addEventListener('touchmove', e => {
     );
     const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
     const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-    zoomAt(midX, midY, (pinchDist - d) * 0.0022, { zoomOnly: true });
+    const pinchDelta = (pinchDist - d) * 0.35;
+    if (ZoomTiers) ZoomTiers.onPinch(pinchDelta);
+    else zoomAt(midX, midY, pinchDelta * 0.006, { zoomOnly: true });
     pinchDist = d;
     return;
   }
@@ -8025,7 +8124,7 @@ canvas.addEventListener('touchend', e => {
 
 canvas.addEventListener('dblclick', e => {
   e.preventDefault();
-  zoomAt(e.clientX, e.clientY, -0.2);
+  ZoomTiers?.stepIn?.();
 });
 
 window.addEventListener('resize', () => {
@@ -8083,28 +8182,34 @@ function onGlobeClick(e) {
 
   const intersects = raycaster.intersectObject(earth);
   if (intersects.length > 0) {
-    flyToPoint(intersects[0].point, 1.82);
-    cityLevel = true;
+    flyToPoint(intersects[0].point, ZoomTiers?.tierZ?.('national') || 1.82);
     MapDepict.action('explore', { detail: 'tap' });
   }
 }
 
-function flyToPoint(point, targetZ = 1.65) {
+function flyToPoint(point, targetZ = 1.82) {
   const dir = point.clone().normalize();
   const toY = -Math.atan2(dir.x, dir.z);
   const toX = Math.max(-0.85, Math.min(0.85, -Math.asin(Math.max(-1, Math.min(1, dir.y))) * 0.45));
   let dy = toY - globePivot.rotation.y;
   while (dy > Math.PI) dy -= Math.PI * 2;
   while (dy < -Math.PI) dy += Math.PI * 2;
+  const z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, targetZ));
+  if (ZoomTiers) {
+    const near = ZoomTiers.TIERS.reduce((best, t) =>
+      Math.abs(t.z - z) < Math.abs(best.z - z) ? t : best, ZoomTiers.TIERS[0]);
+    ZoomTiers._index = ZoomTiers.indexOf(near.id);
+  }
   window._globeFly = {
     fromY: globePivot.rotation.y,
     fromX: globePivot.rotation.x,
     fromZ: camera.position.z,
     toY: globePivot.rotation.y + dy,
     toX,
-    toZ: Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, targetZ)),
+    toZ: z,
     t0: performance.now(),
-    dur: 880
+    dur: 880,
+    tierId: ZoomTiers?.current?.()?.id,
   };
 }
 
@@ -8125,9 +8230,20 @@ function tickGlobeFly() {
   CosmicZoom.update(camera.position.z);
   CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
   if (p >= 1) {
+    const tid = f.tierId;
     window._globeFly = null;
-    cityLevel = camera.position.z <= 1.65;
-    CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
+    if (f.onTier && tid && ZoomTiers) {
+      const i = ZoomTiers.indexOf(tid);
+      if (i >= 0) ZoomTiers._index = i;
+      ZoomTiers._apply(ZoomTiers.current());
+    } else if (tid && ZoomTiers) {
+      const i = ZoomTiers.indexOf(tid);
+      if (i >= 0) ZoomTiers._index = i;
+      ZoomTiers._apply(ZoomTiers.current());
+    } else {
+      cityLevel = camera.position.z <= 1.55;
+      CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
+    }
   }
 }
 window.tickGlobeFly = tickGlobeFly;
@@ -8136,7 +8252,7 @@ function showGestureHint() {
   if (sessionStorage.getItem('astranov-gesture-hint')) return;
   const el = document.createElement('div');
   el.id = 'gesture-hint';
-  el.textContent = 'Drag to spin · Pinch/scroll to zoom · Tap marker or label to fly';
+  el.textContent = 'Drag to spin · Scroll/pinch steps zoom tiers · Double-tap zoom in';
   el.style.cssText = 'position:fixed;bottom:72px;left:50%;transform:translateX(-50%);padding:8px 14px;background:rgba(0,12,24,0.82);border:1px solid rgba(0,180,255,0.35);border-radius:20px;font:12px system-ui;color:#9fd;z-index:44;pointer-events:none;opacity:1;transition:opacity 1.2s';
   document.body.appendChild(el);
   sessionStorage.setItem('astranov-gesture-hint', '1');
@@ -8147,8 +8263,8 @@ setTimeout(showGestureHint, 600);
 
 // === CITY MAP — satellite + streets when zoomed to city level ===
 const CityMap = {
-  ENTER_Z: 1.58,
-  EXIT_Z: 1.72,
+  ENTER_Z: 1.52,
+  EXIT_Z: 1.62,
   active: false,
   map: null,
   _ready: false,
@@ -8250,9 +8366,11 @@ const CityMap = {
   },
 
   camZToZoom(camZ) {
-    const z = Math.max(1.02, Math.min(1.58, camZ));
-    const t = (1.58 - z) / (1.58 - 1.02);
-    return Math.round(10 + t * 9);
+    if (camZ <= 1.12) return 17;
+    if (camZ <= 1.32) return 15;
+    const z = Math.max(1.02, Math.min(1.48, camZ));
+    const t = (1.48 - z) / (1.48 - 1.02);
+    return Math.round(11 + t * 4);
   },
 
   _bindZoomBridge(el) {
@@ -8264,8 +8382,9 @@ const CityMap = {
       if (!this.active) return;
       e.preventDefault();
       e.stopPropagation();
-      const scale = e.deltaMode === 1 ? 0.035 : 0.00022;
-      if (typeof zoomBy === 'function') zoomBy(e.deltaY * scale);
+      const dy = e.deltaMode === 1 ? e.deltaY * 1.2 : e.deltaY;
+      if (ZoomTiers) ZoomTiers.onWheel(dy);
+      else if (typeof zoomBy === 'function') zoomBy(e.deltaY * (e.deltaMode === 1 ? 0.035 : 0.00022));
     }, { passive: false });
 
     el.addEventListener('touchstart', e => {
@@ -8283,9 +8402,10 @@ const CityMap = {
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY
       );
-      const delta = (pinchDist - d) * 0.004;
+      const delta = (pinchDist - d) * 0.35;
       pinchDist = d;
-      if (typeof zoomBy === 'function') zoomBy(delta);
+      if (ZoomTiers) ZoomTiers.onPinch(delta);
+      else if (typeof zoomBy === 'function') zoomBy(delta * 0.004);
     }, { passive: false });
 
     el.addEventListener('touchend', () => { pinchDist = 0; });
@@ -10601,6 +10721,7 @@ PmrRadio.bindUI();
 GlobeVideo.init();
 DrivingView.init();
 CosmicZoom.init();
+ZoomTiers.init();
 AstranovTheme.init();
 CityMap.init();
 EarthRealism.init();

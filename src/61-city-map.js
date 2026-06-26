@@ -1,7 +1,7 @@
 // === CITY MAP — satellite + streets when zoomed to city level ===
 const CityMap = {
-  ENTER_Z: 1.58,
-  EXIT_Z: 1.72,
+  ENTER_Z: 1.52,
+  EXIT_Z: 1.62,
   active: false,
   map: null,
   _ready: false,
@@ -103,9 +103,11 @@ const CityMap = {
   },
 
   camZToZoom(camZ) {
-    const z = Math.max(1.02, Math.min(1.58, camZ));
-    const t = (1.58 - z) / (1.58 - 1.02);
-    return Math.round(10 + t * 9);
+    if (camZ <= 1.12) return 17;
+    if (camZ <= 1.32) return 15;
+    const z = Math.max(1.02, Math.min(1.48, camZ));
+    const t = (1.48 - z) / (1.48 - 1.02);
+    return Math.round(11 + t * 4);
   },
 
   _bindZoomBridge(el) {
@@ -117,8 +119,9 @@ const CityMap = {
       if (!this.active) return;
       e.preventDefault();
       e.stopPropagation();
-      const scale = e.deltaMode === 1 ? 0.035 : 0.00022;
-      if (typeof zoomBy === 'function') zoomBy(e.deltaY * scale);
+      const dy = e.deltaMode === 1 ? e.deltaY * 1.2 : e.deltaY;
+      if (ZoomTiers) ZoomTiers.onWheel(dy);
+      else if (typeof zoomBy === 'function') zoomBy(e.deltaY * (e.deltaMode === 1 ? 0.035 : 0.00022));
     }, { passive: false });
 
     el.addEventListener('touchstart', e => {
@@ -136,9 +139,10 @@ const CityMap = {
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY
       );
-      const delta = (pinchDist - d) * 0.004;
+      const delta = (pinchDist - d) * 0.35;
       pinchDist = d;
-      if (typeof zoomBy === 'function') zoomBy(delta);
+      if (ZoomTiers) ZoomTiers.onPinch(delta);
+      else if (typeof zoomBy === 'function') zoomBy(delta * 0.004);
     }, { passive: false });
 
     el.addEventListener('touchend', () => { pinchDist = 0; });

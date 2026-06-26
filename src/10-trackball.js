@@ -4,16 +4,6 @@ const TRACK_SENS = 0.0028;
 const ZOOM_MIN = 1.05;
 const ZOOM_MAX = 18;
 const ZOOM_SMOOTH = 0.09;
-const ZOOM_TIERS = [
-  { id: 'city', z: 1.42, label: 'CITY' },
-  { id: 'national', z: 2.05, label: 'NATIONAL' },
-  { id: 'earth', z: 3.0, label: 'EARTH' },
-  { id: 'orbit', z: 4.8, label: 'ORBIT' },
-  { id: 'solar', z: 8.0, label: 'SOLAR' },
-  { id: 'galaxy', z: 16.0, label: 'GALAXY' },
-];
-let _zoomSnapTimer = null;
-let _lastZoomAt = 0;
 
 let pinchDist = 0;
 let pinching = false;
@@ -51,7 +41,7 @@ function trackballStart(clientX, clientY) {
   clearTimeout(pressTimer);
   pressTimer = setTimeout(() => {
     if (!drag) return;
-    zoomAt(pressStartX, pressStartY, 0.85);
+    ZoomTiers?.stepOut?.();
     MapDepict?.setHud('Zoom out', 'long-press');
   }, 750);
 }
@@ -67,7 +57,7 @@ function trackballEnd(clientX, clientY, opts) {
 function registerTap(clientX, clientY) {
   const now = Date.now();
   if (now - lastTapAt < 340 && Math.hypot(clientX - lastTapX, clientY - lastTapY) < 36) {
-    zoomAt(clientX, clientY, -0.18);
+    ZoomTiers?.stepIn?.();
     MapDepict?.setHud('Zoom in', 'double-tap');
     lastTapAt = 0;
     return;
@@ -77,37 +67,6 @@ function registerTap(clientX, clientY) {
   lastTapY = clientY;
 }
 
-function scheduleTierSnap() {
-  _lastZoomAt = Date.now();
-  clearTimeout(_zoomSnapTimer);
-  _zoomSnapTimer = setTimeout(snapToNearestTier, 220);
-}
-
-function snapToNearestTier() {
-  if (Date.now() - _lastZoomAt < 180) return;
-  if (window._globeFly || pinching || drag || DrivingView?.active) return;
-  const z = camera.position.z;
-  let best = null;
-  let bestDist = Infinity;
-  ZOOM_TIERS.forEach(t => {
-    const d = Math.abs(Math.log(z / t.z));
-    if (d < bestDist) { bestDist = d; best = t; }
-  });
-  if (!best || bestDist > 0.14) return;
-  if (Math.abs(z - best.z) < 0.04) return;
-  window._globeFly = {
-    fromY: globePivot.rotation.y,
-    fromX: globePivot.rotation.x,
-    fromZ: z,
-    toY: globePivot.rotation.y,
-    toX: globePivot.rotation.x,
-    toZ: best.z,
-    t0: performance.now(),
-    dur: 520,
-  };
-  MapDepict?.setHud?.(best.label + ' view', 'tier-snap');
-}
-
 function zoomBy(delta) {
   const factor = Math.exp((delta || 0) * ZOOM_SMOOTH);
   const next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, camera.position.z * factor));
@@ -115,7 +74,6 @@ function zoomBy(delta) {
   camera.lookAt(0, 0, 0);
   CosmicZoom.update(camera.position.z);
   CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
-  scheduleTierSnap();
 }
 
 function zoomAt(clientX, clientY, delta, opts) {
@@ -141,8 +99,12 @@ function onWheelZoom(e) {
   e.preventDefault();
   trackVelX = 0;
   trackVelY = 0;
-  const scale = e.deltaMode === 1 ? 0.035 : 0.00022;
-  zoomAt(e.clientX, e.clientY, e.deltaY * scale, { zoomOnly: true });
+  const dy = e.deltaMode === 1 ? e.deltaY * 1.2 : e.deltaY;
+  if (ZoomTiers) ZoomTiers.onWheel(dy);
+  else {
+    const scale = e.deltaMode === 1 ? 0.035 : 0.00022;
+    zoomAt(e.clientX, e.clientY, e.deltaY * scale, { zoomOnly: true });
+  }
 }
 
 canvas.addEventListener('mousedown', e => { if (e.button === 0) trackballStart(e.clientX, e.clientY); });
@@ -196,7 +158,9 @@ canvas.addEventListener('touchmove', e => {
     );
     const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
     const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-    zoomAt(midX, midY, (pinchDist - d) * 0.0022, { zoomOnly: true });
+    const pinchDelta = (pinchDist - d) * 0.35;
+    if (ZoomTiers) ZoomTiers.onPinch(pinchDelta);
+    else zoomAt(midX, midY, pinchDelta * 0.006, { zoomOnly: true });
     pinchDist = d;
     return;
   }
@@ -223,7 +187,7 @@ canvas.addEventListener('touchend', e => {
 
 canvas.addEventListener('dblclick', e => {
   e.preventDefault();
-  zoomAt(e.clientX, e.clientY, -0.2);
+  ZoomTiers?.stepIn?.();
 });
 
 window.addEventListener('resize', () => {
@@ -281,28 +245,34 @@ function onGlobeClick(e) {
 
   const intersects = raycaster.intersectObject(earth);
   if (intersects.length > 0) {
-    flyToPoint(intersects[0].point, 1.82);
-    cityLevel = true;
+    flyToPoint(intersects[0].point, ZoomTiers?.tierZ?.('national') || 1.82);
     MapDepict.action('explore', { detail: 'tap' });
   }
 }
 
-function flyToPoint(point, targetZ = 1.65) {
+function flyToPoint(point, targetZ = 1.82) {
   const dir = point.clone().normalize();
   const toY = -Math.atan2(dir.x, dir.z);
   const toX = Math.max(-0.85, Math.min(0.85, -Math.asin(Math.max(-1, Math.min(1, dir.y))) * 0.45));
   let dy = toY - globePivot.rotation.y;
   while (dy > Math.PI) dy -= Math.PI * 2;
   while (dy < -Math.PI) dy += Math.PI * 2;
+  const z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, targetZ));
+  if (ZoomTiers) {
+    const near = ZoomTiers.TIERS.reduce((best, t) =>
+      Math.abs(t.z - z) < Math.abs(best.z - z) ? t : best, ZoomTiers.TIERS[0]);
+    ZoomTiers._index = ZoomTiers.indexOf(near.id);
+  }
   window._globeFly = {
     fromY: globePivot.rotation.y,
     fromX: globePivot.rotation.x,
     fromZ: camera.position.z,
     toY: globePivot.rotation.y + dy,
     toX,
-    toZ: Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, targetZ)),
+    toZ: z,
     t0: performance.now(),
-    dur: 880
+    dur: 880,
+    tierId: ZoomTiers?.current?.()?.id,
   };
 }
 
@@ -323,9 +293,20 @@ function tickGlobeFly() {
   CosmicZoom.update(camera.position.z);
   CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
   if (p >= 1) {
+    const tid = f.tierId;
     window._globeFly = null;
-    cityLevel = camera.position.z <= 1.65;
-    CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
+    if (f.onTier && tid && ZoomTiers) {
+      const i = ZoomTiers.indexOf(tid);
+      if (i >= 0) ZoomTiers._index = i;
+      ZoomTiers._apply(ZoomTiers.current());
+    } else if (tid && ZoomTiers) {
+      const i = ZoomTiers.indexOf(tid);
+      if (i >= 0) ZoomTiers._index = i;
+      ZoomTiers._apply(ZoomTiers.current());
+    } else {
+      cityLevel = camera.position.z <= 1.55;
+      CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
+    }
   }
 }
 window.tickGlobeFly = tickGlobeFly;
@@ -334,7 +315,7 @@ function showGestureHint() {
   if (sessionStorage.getItem('astranov-gesture-hint')) return;
   const el = document.createElement('div');
   el.id = 'gesture-hint';
-  el.textContent = 'Drag to spin · Pinch/scroll to zoom · Tap marker or label to fly';
+  el.textContent = 'Drag to spin · Scroll/pinch steps zoom tiers · Double-tap zoom in';
   el.style.cssText = 'position:fixed;bottom:72px;left:50%;transform:translateX(-50%);padding:8px 14px;background:rgba(0,12,24,0.82);border:1px solid rgba(0,180,255,0.35);border-radius:20px;font:12px system-ui;color:#9fd;z-index:44;pointer-events:none;opacity:1;transition:opacity 1.2s';
   document.body.appendChild(el);
   sessionStorage.setItem('astranov-gesture-hint', '1');
