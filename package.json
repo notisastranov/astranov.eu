@@ -5,7 +5,9 @@
   "main": "sw.js",
   "scripts": {
     "test": "node scripts/user-scenarios.mjs",
-    "assemble": "node scripts/assemble.mjs"
+    "assemble": "node scripts/assemble.mjs",
+    "bootstrap": "node scripts/bootstrap-index.mjs",
+    "deploy": "node scripts/bootstrap-index.mjs && node scripts/push-github.mjs"
   },
   "repository": {
     "type": "git",
