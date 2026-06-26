@@ -42,7 +42,9 @@ const AstranovNode = {
   },
 
   init() {
-    try { this.nodeId = localStorage.getItem('astranov_node_id'); } catch { /* */ }
+    try {
+      this.nodeId = window.AstranovIdentity?.deviceId?.() || localStorage.getItem('astranov_node_id');
+    } catch { /* */ }
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       this.deferredPrompt = e;

@@ -27,10 +27,6 @@ const GlobeDeck = {
     this.restoreLog();
   },
 
-  deckLogKey() {
-    return AstranovIdentity?.deckKey?.(Auth?.user?.id) || ('deck-log-guest-' + (AstranovIdentity?.deviceId?.() || 'anon'));
-  },
-
   saveLog() {
     const out = this.logEl();
     if (!out) return;
@@ -40,14 +36,14 @@ const GlobeDeck = {
       if (cls === 'dim' && el.classList.contains('deck-thinking-line')) return;
       lines.push({ text: el.textContent || '', cls });
     });
-    try { localStorage.setItem(this.deckLogKey(), JSON.stringify(lines.slice(-48))); } catch (_) {}
+    AstranovIdentity?.setDeck?.(lines);
   },
 
   restoreLog() {
     const out = this.logEl();
     if (!out) return;
     try {
-      const lines = JSON.parse(localStorage.getItem(this.deckLogKey()) || '[]');
+      const lines = AstranovIdentity?.getDeck?.() || [];
       if (!lines.length) return;
       this._restoringLog = true;
       out.innerHTML = '';
@@ -205,7 +201,7 @@ const GlobeDeck = {
     const out = this.logEl();
     if (out) out.innerHTML = '';
     this.setPreview('');
-    try { localStorage.removeItem(this.deckLogKey()); } catch (_) {}
+    AstranovIdentity?.setDeck?.([]);
   },
 
   expand(title) {

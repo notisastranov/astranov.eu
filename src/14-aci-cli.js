@@ -57,20 +57,12 @@ const AciCli = {
     if (window.AciCoders) await AciCoders.autoStart();
   },
 
-  historyKey() {
-    return AstranovIdentity?.cliKey?.(Auth.user?.id) || ('aci-cli-guest-' + (AstranovIdentity?.deviceId?.() || 'anon'));
-  },
-
   loadHistory() {
-    try {
-      this.history = JSON.parse(localStorage.getItem(this.historyKey()) || '[]');
-    } catch { this.history = []; }
+    this.history = AstranovIdentity?.getCli?.() || [];
   },
 
   saveHistory() {
-    try {
-      localStorage.setItem(this.historyKey(), JSON.stringify(this.history.slice(-80)));
-    } catch (_) {}
+    AstranovIdentity?.setCli?.(this.history);
   },
 
   toggle() {
@@ -133,9 +125,10 @@ const AciCli = {
       method: 'POST', headers,
       body: JSON.stringify({
         ...body,
-        cli_user: Auth?.user?.id || AstranovIdentity?.deviceId?.(),
+        cli_user: AstranovIdentity?.activeId?.(),
         cli_email: Auth?.user?.email,
-        device_id: AstranovIdentity?.deviceId?.()
+        device_id: AstranovIdentity?.deviceId?.(),
+        session_id: AstranovIdentity?.sessionId?.()
       })
     }, 55000);
     if (j._httpStatus === 401) j.error = j.error || 'login required — tap G to sign in';

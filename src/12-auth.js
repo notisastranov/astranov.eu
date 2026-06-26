@@ -1,7 +1,24 @@
-// === ASTRANOV IDENTITY — one person across devices (guest device id → auth profile) ===
+// === ASTRANOV IDENTITY — one user · one session · one conversation ===
 const AstranovIdentity = {
+  UNIFIED_KEY: 'astranov_unified_v1',
   DEVICE_KEY: 'astranov_device_id_v1',
   NODE_KEY: 'astranov_node_id',
+  MAX_CLI: 80,
+  MAX_DECK: 48,
+  _cache: null,
+
+  _keepExact: new Set([
+    'astranov_unified_v1',
+    'astranov_auth_v2',
+    'astranov_theme_v1',
+    'astranov_installed',
+    'astranov_decentral_port',
+    'astranov_decentral_node_v1',
+    'aci-coders-prefs',
+    'astranov-session-hold-v1',
+    'astranov_device_id_v1',
+    'astranov_node_id',
+  ]),
 
   _uuid() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -10,26 +27,165 @@ const AstranovIdentity = {
     });
   },
 
-  deviceId() {
+  _readJson(key, fallback) {
     try {
-      let id = localStorage.getItem(this.DEVICE_KEY);
-      if (!id) {
-        id = localStorage.getItem(this.NODE_KEY) || ('dev-' + this._uuid());
-        localStorage.setItem(this.DEVICE_KEY, id);
-        if (!localStorage.getItem(this.NODE_KEY)) localStorage.setItem(this.NODE_KEY, id);
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch {
+      return fallback;
+    }
+  },
+
+  _mergeUnique(...arrays) {
+    const seen = new Set();
+    const out = [];
+    for (const arr of arrays) {
+      for (const item of (arr || [])) {
+        const k = typeof item === 'string' ? item : JSON.stringify(item);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push(item);
       }
+    }
+    return out;
+  },
+
+  _ensureDeviceId() {
+    try {
+      let id = localStorage.getItem(this.DEVICE_KEY)
+        || localStorage.getItem(this.NODE_KEY)
+        || ('dev-' + this._uuid());
+      localStorage.setItem(this.DEVICE_KEY, id);
+      localStorage.setItem(this.NODE_KEY, id);
       return id;
     } catch {
       return 'dev-fallback';
     }
   },
 
-  cliKey(userId) {
-    return userId ? ('aci-cli-' + userId) : ('aci-cli-guest-' + this.deviceId());
+  _load() {
+    if (this._cache) return this._cache;
+    let u = this._readJson(this.UNIFIED_KEY, null);
+    if (!u || typeof u !== 'object') {
+      u = { deviceId: null, userId: null, sessionId: null, cli: [], deck: [] };
+    }
+    if (!u.deviceId) u.deviceId = this._ensureDeviceId();
+    if (!u.sessionId) u.sessionId = 'ses-' + this._uuid();
+    if (!Array.isArray(u.cli)) u.cli = [];
+    if (!Array.isArray(u.deck)) u.deck = [];
+    this._cache = u;
+    return u;
   },
 
-  deckKey(userId) {
-    return userId ? ('deck-log-' + userId) : ('deck-log-guest-' + this.deviceId());
+  _save() {
+    try {
+      const u = this._load();
+      u.updatedAt = Date.now();
+      localStorage.setItem(this.UNIFIED_KEY, JSON.stringify(u));
+      localStorage.setItem(this.DEVICE_KEY, u.deviceId);
+      localStorage.setItem(this.NODE_KEY, u.deviceId);
+    } catch (_) {}
+  },
+
+  _shouldDelete(key) {
+    if (!key || this._keepExact.has(key)) return false;
+    if (key === this.UNIFIED_KEY) return false;
+    if (key.includes('-auth-token')) return false;
+    if (key.startsWith('aci-cli')) return true;
+    if (key.startsWith('deck-log')) return true;
+    if (key === 'astranov_auth_v1') return true;
+    if (/^aci-cli-u\d+$/.test(key)) return true;
+    return false;
+  },
+
+  _purgeLegacy() {
+    const drop = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (this._shouldDelete(k)) drop.push(k);
+      }
+      drop.forEach(k => { try { localStorage.removeItem(k); } catch (_) {} });
+      localStorage.removeItem('astranov_auth_v1');
+    } catch (_) {}
+  },
+
+  _clearStaleSessionHold(userId) {
+    try {
+      const raw = localStorage.getItem('astranov-session-hold-v1');
+      if (!raw) return;
+      const held = JSON.parse(raw);
+      const snapUser = held?.snapshot?.userId;
+      const active = userId || this.deviceId();
+      if (snapUser && snapUser !== active) localStorage.removeItem('astranov-session-hold-v1');
+    } catch (_) {
+      try { localStorage.removeItem('astranov-session-hold-v1'); } catch { /* */ }
+    }
+  },
+
+  unify(userId) {
+    const u = this._load();
+    const cliParts = [u.cli];
+    const deckParts = [u.deck];
+    const keys = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
+    } catch (_) {}
+    for (const k of keys) {
+      if (!k) continue;
+      if (k.startsWith('aci-cli')) cliParts.push(this._readJson(k, []));
+      else if (k.startsWith('deck-log')) deckParts.push(this._readJson(k, []));
+      else if ((k === this.DEVICE_KEY || k === this.NODE_KEY) && !u.deviceId) {
+        const id = localStorage.getItem(k);
+        if (id) u.deviceId = id;
+      }
+    }
+    const prevBound = u.boundTo;
+    const boundTo = userId || u.deviceId;
+    if (prevBound && prevBound !== boundTo) u.sessionId = 'ses-' + this._uuid();
+    u.boundTo = boundTo;
+    u.userId = userId || null;
+    u.deviceId = u.deviceId || this._ensureDeviceId();
+    u.cli = this._mergeUnique(...cliParts).slice(-this.MAX_CLI);
+    u.deck = this._mergeUnique(...deckParts).slice(-this.MAX_DECK);
+    this._cache = u;
+    this._save();
+    this._purgeLegacy();
+    this._clearStaleSessionHold(userId);
+    return u;
+  },
+
+  deviceId() {
+    return this._load().deviceId;
+  },
+
+  sessionId() {
+    return this._load().sessionId;
+  },
+
+  activeId() {
+    const u = this._load();
+    return u.userId || u.deviceId;
+  },
+
+  getCli() {
+    return this._load().cli.slice();
+  },
+
+  setCli(arr) {
+    const u = this._load();
+    u.cli = (arr || []).slice(-this.MAX_CLI);
+    this._save();
+  },
+
+  getDeck() {
+    return this._load().deck.slice();
+  },
+
+  setDeck(arr) {
+    const u = this._load();
+    u.deck = (arr || []).slice(-this.MAX_DECK);
+    this._save();
   },
 
   guestMe() {
@@ -57,57 +213,12 @@ const AstranovIdentity = {
     return target;
   },
 
-  _readJson(key, fallback) {
-    try {
-      const raw = localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : fallback;
-    } catch {
-      return fallback;
-    }
-  },
-
-  _mergeUnique(...arrays) {
-    const seen = new Set();
-    const out = [];
-    for (const arr of arrays) {
-      for (const item of (arr || [])) {
-        const k = typeof item === 'string' ? item : JSON.stringify(item);
-        if (seen.has(k)) continue;
-        seen.add(k);
-        out.push(item);
-      }
-    }
-    return out;
-  },
-
   mergeLocalStores(userId) {
-    if (!userId) return { cli: [], deck: [] };
-    const targetCli = this.cliKey(userId);
-    const targetDeck = this.deckKey(userId);
-    const cliParts = [this._readJson(targetCli, [])];
-    const deckParts = [this._readJson(targetDeck, [])];
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (!k || k === targetCli || k === targetDeck) continue;
-        if (k === 'aci-cli-anon' || k.startsWith('aci-cli-guest-') || /^aci-cli-u\d+$/.test(k)) {
-          cliParts.push(this._readJson(k, []));
-        }
-        if (k === 'deck-log-anon' || k.startsWith('deck-log-guest-')) {
-          deckParts.push(this._readJson(k, []));
-        }
-      }
-    } catch (_) {}
-    const cli = this._mergeUnique(...cliParts).slice(-80);
-    const deck = this._mergeUnique(...deckParts).slice(-48);
-    try {
-      localStorage.setItem(targetCli, JSON.stringify(cli));
-      localStorage.setItem(targetDeck, JSON.stringify(deck));
-    } catch (_) {}
-    return { cli, deck };
+    return this.unify(userId);
   }
 };
 window.AstranovIdentity = AstranovIdentity;
+try { AstranovIdentity.unify(null); } catch (_) {}
 
 // === ASTRANOV IDENTITY — unified login (globe + all *.astranov.eu sites) ===
 const Auth = {
@@ -131,9 +242,8 @@ const Auth = {
     this.client.auth.onAuthStateChange((ev, session) => {
       this.session = session;
       this.user = session?.user || null;
-      if (this.user && (ev === 'SIGNED_IN' || ev === 'INITIAL_SESSION')) {
-        AstranovIdentity.mergeLocalStores(this.user.id);
-      }
+      if (this.user) AstranovIdentity.unify(this.user.id);
+      else AstranovIdentity.unify(null);
       this.applyUser();
       this.refreshAuthority();
       this.broadcastToShell();
@@ -141,7 +251,8 @@ const Auth = {
     this.client.auth.getSession().then(({ data }) => {
       this.session = data?.session || null;
       this.user = data?.session?.user || null;
-      if (this.user) AstranovIdentity.mergeLocalStores(this.user.id);
+      if (this.user) AstranovIdentity.unify(this.user.id);
+      else AstranovIdentity.unify(null);
       this.applyUser();
       this.refreshAuthority();
       this.broadcastToShell();
@@ -405,6 +516,7 @@ const Auth = {
   async signOut() {
     if (!this.client) return;
     await this.client.auth.signOut();
+    AstranovIdentity.unify(null);
     this.user = null;
     this.session = null;
     this.isOwner = false;
