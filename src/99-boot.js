@@ -63,6 +63,7 @@ ACIControl.init();
 PmrRadio.bindUI();
 DrivingView.init();
 CosmicZoom.init();
+if (typeof orbitalSats !== 'undefined') CosmicZoom.registerOrbitalSats(orbitalSats);
 Commerce.loadVendors().then(() => Commerce.initUI());
 NewsFeed.fetch();
 setInterval(() => NewsFeed.tick(), 12000);
