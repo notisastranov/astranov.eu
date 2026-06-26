@@ -29,7 +29,7 @@ const SessionHold = {
       batchId: AstranovNode?.batchId || null,
       vhfActive: !!Comms?.vhfActive,
       driving: !!DrivingView?.active,
-      userId: Auth?.user?.id || null,
+      userId: AstranovIdentity?.activeId?.() || null,
     };
   },
 
@@ -117,6 +117,11 @@ const SessionHold = {
   restoreIfNeeded() {
     const saved = this.loadPersisted();
     if (!saved?.held || !saved.snapshot) return;
+    const active = AstranovIdentity?.activeId?.();
+    if (saved.snapshot.userId && active && saved.snapshot.userId !== active) {
+      this.clearPersist();
+      return;
+    }
     this._snapshot = saved.snapshot;
     sessionHeld = true;
     voiceSessionActive = false;

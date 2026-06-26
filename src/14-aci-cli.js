@@ -31,8 +31,12 @@ const AciCli = {
     if (!logged) {
       this._welcomed = false;
       this._sessionOpened = false;
-      this.hide();
-      GlobeDeck?.collapse();
+      this.loadHistory();
+      GlobeDeck?.restoreLog?.();
+      if (!this.open) {
+        this.hide();
+        GlobeDeck?.collapse();
+      }
       return;
     }
     const name = Auth.user.user_metadata?.full_name || Auth.user.email?.split('@')[0] || 'dev';
@@ -54,17 +58,11 @@ const AciCli = {
   },
 
   loadHistory() {
-    try {
-      const key = 'aci-cli-' + (Auth.user?.id || 'anon');
-      this.history = JSON.parse(localStorage.getItem(key) || '[]');
-    } catch { this.history = []; }
+    this.history = AstranovIdentity?.getCli?.() || [];
   },
 
   saveHistory() {
-    try {
-      const key = 'aci-cli-' + (Auth.user?.id || 'anon');
-      localStorage.setItem(key, JSON.stringify(this.history.slice(-80)));
-    } catch (_) {}
+    AstranovIdentity?.setCli?.(this.history);
   },
 
   toggle() {
@@ -79,6 +77,8 @@ const AciCli = {
 
   showGuest() {
     this.open = true;
+    this.loadHistory();
+    GlobeDeck?.restoreLog?.();
     AciCoders?.autoStart?.();
     GlobeDeck?.expand('Coders online — Justice → Truth → Freedom · G to sign in');
     if (!this._guestWelcomed) {
@@ -123,7 +123,13 @@ const AciCli = {
     }
     const j = await fetchJson(SB_URL + '/functions/v1/aci', {
       method: 'POST', headers,
-      body: JSON.stringify({ ...body, cli_user: Auth?.user?.id, cli_email: Auth?.user?.email })
+      body: JSON.stringify({
+        ...body,
+        cli_user: AstranovIdentity?.activeId?.(),
+        cli_email: Auth?.user?.email,
+        device_id: AstranovIdentity?.deviceId?.(),
+        session_id: AstranovIdentity?.sessionId?.()
+      })
     }, 55000);
     if (j._httpStatus === 401) j.error = j.error || 'login required — tap G to sign in';
     return j;

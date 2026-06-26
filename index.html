@@ -1,1 +1,504 @@
-@file:C:/Users/N/Documents/New project/gemini-template/repo/index.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Astranov</title>
+<meta name="compliance-check" content="astranov-field-brain-multi-role-2026-06-24">
+<meta name="aci-session" content="Astranov Collective Intelligence">
+<meta name="theme-color" content="#00b4ff" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Astranov" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" href="/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/icon.svg" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<style>
+  :root, [data-theme="dark"] {
+    --an-bg: #000;
+    --an-text: #e8f4ff;
+    --an-panel: rgba(0,8,18,0.82);
+    --an-border: rgba(0,180,255,0.35);
+    --an-accent: #00b4ff;
+    --an-muted: rgba(150,220,255,0.7);
+  }
+  [data-theme="bright"] {
+    --an-bg: #d8e8f8;
+    --an-text: #0a1830;
+    --an-panel: rgba(240,248,255,0.92);
+    --an-border: rgba(40,120,200,0.35);
+    --an-accent: #0066bb;
+    --an-muted: rgba(20,60,100,0.72);
+  }
+  html, body { margin:0; padding:0; height:100%; width:100%; overflow:hidden; background:var(--an-bg); color:var(--an-text); font-family:system-ui, sans-serif; transition:background 0.35s,color 0.35s; }
+  #globe { position:absolute; top:0; left:0; right:0; bottom:0; touch-action:none; z-index:2; }
+  #globe canvas { display:block; cursor:grab; transition:opacity 0.45s ease; }
+  #globe canvas.dragging { cursor:grabbing; }
+  #globe.city-map-active canvas { opacity:0 !important; pointer-events:none; }
+  #city-map { position:fixed; inset:0; z-index:4; opacity:0; pointer-events:none; transition:opacity 0.45s ease; }
+  #city-map.active { opacity:1; pointer-events:auto; }
+  #city-map .leaflet-container { background:var(--an-bg); font-family:system-ui,sans-serif; }
+  .city-map-pin { background:transparent !important; border:none !important; }
+  #user-chip { position:fixed; top:10px; right:10px; z-index:45; font:11px system-ui; color:rgba(180,230,255,0.85); pointer-events:none; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #drive-guide { position:fixed; top:36px; left:10px; right:10px; z-index:42; font:12px/1.35 system-ui; color:#7df; background:rgba(0,20,40,0.75); border:1px solid rgba(68,170,255,0.35); border-radius:12px; padding:8px 12px; display:none; pointer-events:none; }
+  #drive-guide.open { display:block; }
+  #aci-hud { position:fixed; left:0; right:0; bottom:0; z-index:50; pointer-events:none; }
+  #sat-radio { display:none; padding:10px 12px; background:rgba(8,12,8,0.92); pointer-events:auto; font:11px/1.45 system-ui; color:#dda; }
+  #sat-radio.open, #sat-radio.deck-active { display:block; }
+  #sat-radio .sr-row { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; }
+  #sat-radio .sr-freq { color:#ff8; font-weight:600; }
+  #sat-radio .sr-honest { color:#9cb; font-size:10px; margin-bottom:8px; line-height:1.4; }
+  .sr-step { display:flex; gap:8px; align-items:flex-start; margin:6px 0; padding:6px 8px; border-radius:8px; background:rgba(0,0,0,0.25); }
+  .sr-step .sr-n { font-weight:700; color:#fc8; min-width:14px; }
+  .sr-step-msg { flex:1; }
+  .sr-active { border:1px solid rgba(255,200,80,0.4); }
+  .sr-done { border:1px solid rgba(80,255,120,0.35); }
+  .sr-blocked { border:1px solid rgba(255,80,80,0.45); color:#faa; }
+  #sr-vu-wrap { height:8px; background:rgba(0,0,0,0.4); border-radius:4px; margin:8px 0; overflow:hidden; }
+  #sr-vu { height:100%; width:0%; background:linear-gradient(90deg,#484,#8f8); transition:width 0.05s; }
+  #sr-status { font-size:10px; color:#8df; margin:4px 0 8px; min-height:28px; }
+  #sr-actions { display:flex; gap:6px; margin-bottom:8px; flex-wrap:wrap; }
+  #sr-mic-btn, #sr-join-btn { padding:8px 12px; border-radius:10px; border:1px solid rgba(0,200,255,0.4); background:rgba(0,80,120,0.4); color:#cef; cursor:pointer; font-size:11px; }
+  #sr-ptt { width:100%; padding:12px; background:rgba(180,40,20,0.5); border:2px solid #f84; border-radius:12px; color:#fff; font-weight:700; cursor:pointer; touch-action:none; }
+  #sr-ptt.active { background:rgba(255,60,20,0.85); }
+  #sr-close { background:transparent; border:1px solid #666; color:#aaa; border-radius:8px; padding:4px 10px; cursor:pointer; }
+  #aci-bar { display:flex; gap:6px; padding:8px 10px; margin:0 8px 8px; background:rgba(0,8,18,0.82); border:1px solid rgba(0,180,255,0.35); border-radius:24px; pointer-events:auto; backdrop-filter:blur(12px); align-items:center; justify-content:center; flex-wrap:wrap; }
+  #aci-bar button { font-size:17px; line-height:1; }
+  #aci-input, #aci-send { display:none !important; }
+  #aci-mic, #aci-send, #aci-order, #aci-locate, #aci-vhf, #aci-call, #aci-stop, #aci-login { background:rgba(0,100,180,0.35); border:1px solid rgba(0,200,255,0.4); color:#aaf; border-radius:50%; width:38px; height:38px; cursor:pointer; font-size:14px; flex-shrink:0; }
+  #aci-locate { font-size:16px; }
+  #aci-login { font-weight:700; font-size:13px; }
+  #aci-stop { background:rgba(120,20,40,0.45); border-color:rgba(255,80,100,0.5); color:#faa; }
+  #news-ticker { display:none; margin:8px 8px 0; padding:6px 12px; background:rgba(10,0,20,0.75); border:1px solid rgba(180,100,255,0.3); border-radius:14px; font:11px system-ui; color:#ddaaff; white-space:nowrap; overflow:hidden; pointer-events:auto; }
+  #zoom-label { position:fixed; top:10px; left:10px; z-index:40; font:11px system-ui; color:var(--an-muted); pointer-events:none; max-width:55vw; }
+  #aci-theme { background:rgba(60,40,120,0.45); border:1px solid rgba(180,140,255,0.45); color:#ddf; border-radius:50%; width:38px; height:38px; cursor:pointer; font-size:16px; flex-shrink:0; }
+  [data-theme="bright"] #aci-bar, [data-theme="bright"] #globe-deck, [data-theme="bright"] #city-life-chip, [data-theme="bright"] #globe-entity-hud { filter:none; }
+  [data-theme="bright"] #globe-deck { background:rgba(248,252,255,0.96); border-color:rgba(0,120,200,0.35); color:#0a2840; }
+  [data-theme="bright"] #globe-deck-log { color:#1a4060; }
+  [data-theme="bright"] #aci-cli-in { background:rgba(255,255,255,0.75); color:#0a2840; }
+  #cosmic-guide { position:fixed; top:30px; left:10px; right:100px; z-index:39; pointer-events:none; font:10px/1.45 system-ui; color:rgba(150,200,240,0.82); max-height:22vh; overflow:hidden; }
+  #cosmic-guide:empty { display:none; }
+  #cosmic-guide .cg-title { color:#7bc; font-weight:600; font-size:11px; margin-bottom:5px; }
+  #cosmic-guide .cg-item { margin:2px 0; opacity:0.9; }
+  #cosmic-guide .cg-item b { color:#9df; font-weight:600; }
+  #cosmic-guide .cg-item i { color:#6a8; font-size:9px; }
+  #globe-deck { display:flex; flex-direction:column; margin:0 8px 6px; background:rgba(0,4,12,0.94); border:1px solid rgba(0,255,160,0.35); border-radius:14px; pointer-events:auto; font:12px/1.4 ui-monospace,monospace; overflow:hidden; transition:max-height 0.22s ease; }
+  #globe-deck.collapsed { max-height:168px; }
+  #globe-deck.expanded { max-height:min(56vh,520px); }
+  #globe-deck.expanded.has-stage { max-height:min(72vh,640px); }
+  #super-cli-bar { display:flex; gap:5px; padding:6px 8px; flex-wrap:nowrap; align-items:center; justify-content:flex-start; border-bottom:1px solid rgba(0,255,160,0.12); flex-shrink:0; background:rgba(0,8,18,0.5); }
+  #super-cli-bar button { background:rgba(0,100,180,0.35); border:1px solid rgba(0,200,255,0.4); color:#aaf; border-radius:50%; width:34px; height:34px; cursor:pointer; font-size:13px; flex-shrink:0; }
+  #super-cli-bar #aci-stop { background:rgba(120,20,40,0.45); border-color:rgba(255,80,100,0.5); color:#faa; }
+  #super-cli-bar #aci-cli-toggle { border-radius:50%; width:34px; }
+  #super-cli-bar button[hidden] { display:none !important; }
+  #super-cli-bar #aci-locate.deck-btn-active { background:rgba(0,140,80,0.5); border-color:rgba(0,255,160,0.65); color:#8fc; box-shadow:0 0 8px rgba(0,255,160,0.25); }
+  #super-cli-bar #aci-hold.deck-btn-active { background:rgba(180,120,0,0.55); border-color:rgba(255,200,80,0.7); color:#fd8; box-shadow:0 0 10px rgba(255,180,40,0.35); }
+  #globe-deck.session-held #aci-hold { animation:hold-pulse 1.6s ease-in-out infinite; }
+  @keyframes hold-pulse { 0%,100%{ box-shadow:0 0 6px rgba(255,180,40,0.2); } 50%{ box-shadow:0 0 14px rgba(255,180,40,0.55); } }
+  #globe-deck-input-row { display:flex !important; }
+  #globe-deck-log, #globe-deck-stage { -webkit-overflow-scrolling:touch; touch-action:pan-y; }
+  #aci-bar { display:none !important; }
+  #news-ticker { display:none !important; }
+  #drive-guide { display:none !important; }
+
+  #globe-deck.deck-ping { border-color:rgba(0,255,200,0.85); box-shadow:0 0 12px rgba(0,255,160,0.35); }
+  #globe-deck.deck-thinking #globe-deck-title { color:#fc8; }
+  #globe-deck-log .deck-thinking-line { animation:deck-pulse 1s ease infinite; }
+  @keyframes deck-pulse { 50% { opacity:0.35; } }
+  #globe-deck-send { background:rgba(0,100,180,0.45); border:1px solid rgba(0,200,255,0.5); color:#cef; border-radius:10px; padding:6px 12px; cursor:pointer; font-size:12px; flex-shrink:0; }
+  #globe-deck-header { display:flex; align-items:center; gap:8px; padding:8px 10px; background:rgba(0,40,30,0.5); color:#6fc; font:11px system-ui; touch-action:pan-y; cursor:pointer; flex-shrink:0; user-select:none; min-height:24px; }
+  #globe-deck.expanded #globe-deck-header { border-bottom:1px solid rgba(0,255,160,0.2); }
+  #globe-deck-title { flex:0 1 auto; max-width:42%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+  #globe-deck-preview { flex:1; font-size:10px; color:#8cf; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; opacity:0.9; }
+  #globe-deck:not(.has-preview):not(.expanded) #globe-deck-preview { display:none; }
+  #globe-deck-handle { background:transparent; border:none; color:#8aa; cursor:pointer; font-size:16px; padding:2px 6px; flex-shrink:0; }
+  #globe-deck-body { display:none; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
+  #globe-deck.expanded #globe-deck-body { display:flex; }
+  #globe-deck-log { flex:1; overflow-y:auto; padding:8px 10px; min-height:56px; max-height:28vh; color:#9fd; -webkit-overflow-scrolling:touch; }
+  #globe-deck-log .deck-cmd { color:#6df; }
+  #globe-deck-log .deck-out, #globe-deck-log .deck-reply { color:#cfa; white-space:pre-wrap; }
+  #globe-deck-log .deck-ok { color:#8f8; }
+  #globe-deck-log .deck-err { color:#f88; }
+  #globe-deck-log .deck-dim { color:#567; }
+  #globe-deck-log .deck-map { color:#8cf; font-size:11px; }
+  #globe-deck-stage { flex-shrink:0; max-height:34vh; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  #globe-deck-stage > * { display:none !important; margin:0 !important; border-radius:0 !important; max-height:none; }
+  #globe-deck-stage > .deck-active { display:block !important; }
+  #globe-deck-stage > #vendor-menu.deck-active { display:flex !important; flex-direction:column; }
+  #globe-deck-stage #sat-radio, #globe-deck-stage #node-batch { border:none; border-top:1px solid rgba(255,255,255,0.06); }
+  #globe-deck-stage #vendor-menu { border:none; border-top:1px solid rgba(255,170,60,0.2); overflow:hidden; }
+  #globe-youtube { display:none; padding:8px 10px; background:rgba(6,0,12,0.95); pointer-events:auto; font:11px/1.4 system-ui; color:#e8f4ff; }
+  #globe-youtube.open, #globe-youtube.deck-active { display:block; }
+  #globe-youtube .yt-head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; color:#f88; }
+  #globe-youtube .yt-head button { background:transparent; border:1px solid #666; color:#aaa; border-radius:8px; padding:4px 10px; cursor:pointer; font-size:10px; }
+  #yt-now-title { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; color:#fda; }
+  #yt-player-wrap { position:relative; width:100%; padding-bottom:56.25%; height:0; background:#000; border-radius:10px; overflow:hidden; border:1px solid rgba(255,80,80,0.35); margin-bottom:8px; }
+  #yt-frame { position:absolute; inset:0; width:100%; height:100%; border:0; }
+  #yt-hint { font-size:10px; color:#9ab; margin-bottom:6px; }
+  #yt-results { display:flex; flex-direction:column; gap:4px; max-height:22vh; overflow-y:auto; }
+  .yt-row { display:flex; gap:8px; align-items:flex-start; width:100%; text-align:left; padding:8px; border-radius:10px; border:1px solid rgba(255,80,80,0.2); background:rgba(0,0,0,0.35); color:#def; cursor:pointer; }
+  .yt-row:hover { border-color:rgba(255,120,120,0.55); }
+  .yt-n { font-weight:700; color:#f88; min-width:18px; }
+  .yt-meta b { display:block; font-size:11px; margin-bottom:2px; }
+  .yt-meta small { color:#9ab; font-size:10px; }
+  #globe-deck-input-row { display:flex; align-items:center; gap:6px; padding:8px 10px; border-top:1px solid rgba(0,255,160,0.15); flex-shrink:0; background:rgba(0,6,14,0.96); }
+  #aci-cli-prompt { color:#6fc; flex-shrink:0; font-size:11px; display:none; }
+  #globe-deck.expanded #aci-cli-prompt { display:inline; }
+  #aci-cli-in { flex:1; background:rgba(0,20,40,0.45); border:1px solid rgba(0,200,255,0.25); border-radius:10px; color:#e8f4ff; font:inherit; outline:none; min-width:0; padding:8px 10px; font-size:13px; }
+  #aci-cli-in:focus { border-color:rgba(0,255,200,0.55); box-shadow:0 0 0 2px rgba(0,255,160,0.12); }
+  #aci-cli-in.voice-live { border-color:rgba(255,180,60,0.65); color:#ffe8c8; }
+  #globe-deck-input-row .deck-input-btn { background:rgba(0,100,180,0.45); border:1px solid rgba(0,200,255,0.5); color:#cef; border-radius:50%; width:40px; height:40px; cursor:pointer; font-size:16px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; touch-action:manipulation; }
+  #globe-deck-input-row #aci-mic.deck-btn-active, #globe-deck-input-row #aci-mic.listening { background:rgba(180,80,0,0.55); border-color:rgba(255,180,60,0.75); color:#fd8; box-shadow:0 0 10px rgba(255,160,40,0.35); }
+  #globe-deck-input-row #globe-deck-send { border-radius:12px; width:44px; font-size:15px; font-weight:700; }
+  #globe-deck-input-row #aci-voice.speaking { background:rgba(100,40,160,0.55); border-color:rgba(200,120,255,0.7); }
+  #aci-cli-toggle { display:inline-flex; background:rgba(0,60,40,0.5); border:1px solid rgba(0,255,160,0.4); color:#6fc; border-radius:50%; width:38px; height:38px; cursor:pointer; font-size:15px; flex-shrink:0; align-items:center; justify-content:center; }
+  #city-life-chip { display:none; position:fixed; bottom:88px; left:12px; z-index:118; max-width:240px; padding:8px 12px; border-radius:12px; background:rgba(0,20,12,0.88); border:1px solid rgba(0,255,160,0.4); font:10px/1.4 system-ui; color:#9fd; pointer-events:none; }
+  #city-life-chip.open { display:block; }
+  #city-life-chip b { color:#6fc; }
+  #vendor-menu { display:none; background:rgba(8,6,0,0.94); pointer-events:auto; font:12px/1.4 system-ui; overflow:hidden; flex-direction:column; }
+  #vendor-menu.open, #vendor-menu.deck-active { display:flex; }
+  #vm-header { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:rgba(60,30,0,0.45); color:#fc8; border-bottom:1px solid rgba(255,170,60,0.25); }
+  #vm-close { background:transparent; border:1px solid #666; color:#aaa; border-radius:8px; padding:2px 8px; cursor:pointer; }
+  #vm-body { flex:1; overflow-y:auto; padding:8px 10px; }
+  #vm-list .vm-vendor { display:flex; gap:10px; align-items:center; padding:10px; margin:6px 0; border-radius:10px; background:rgba(0,0,0,0.35); border:1px solid rgba(255,170,60,0.2); cursor:pointer; }
+  #vm-list .vm-vendor:hover { border-color:rgba(255,200,80,0.5); }
+  #vm-items .vm-item { display:flex; justify-content:space-between; align-items:center; padding:8px 4px; border-bottom:1px solid rgba(255,255,255,0.06); }
+  .vm-qty { display:flex; gap:6px; align-items:center; }
+  .vm-qty button { width:28px; height:28px; border-radius:8px; border:1px solid rgba(255,170,60,0.4); background:rgba(80,40,0,0.4); color:#fda; cursor:pointer; font-size:14px; }
+  #vm-place { width:calc(100% - 16px); margin:8px; padding:12px; border:none; border-radius:12px; background:rgba(200,100,20,0.55); border:2px solid #fa4; color:#fff; font-weight:700; cursor:pointer; font-size:13px; }
+  #vm-request { width:calc(100% - 16px); margin:8px; padding:12px; border:none; border-radius:12px; background:rgba(80,60,20,0.55); border:2px solid #c84; color:#fda; font-weight:700; cursor:pointer; font-size:13px; }
+  #vm-request:disabled { opacity:0.55; cursor:default; }
+  #vm-empty { padding:12px 8px; color:#fc8; font-size:12px; line-height:1.5; }
+  #vm-compare { padding:4px 0; }
+  #vm-wanted { padding:6px 4px 10px; }
+  .vm-wanted-title, .vm-drivers-title { color:#9ab; font-size:10px; margin-bottom:6px; }
+  .vm-tag { display:inline-block; margin:3px 4px 3px 0; padding:4px 8px; border-radius:8px; background:rgba(80,50,0,0.35); border:1px solid rgba(255,170,60,0.25); color:#fda; font-size:11px; }
+  .vm-tag.driver { background:rgba(0,40,80,0.35); border-color:rgba(80,160,255,0.35); color:#9cf; }
+  .vm-match { padding:10px; margin:6px 0; border-radius:10px; background:rgba(0,0,0,0.35); border:1px solid rgba(255,170,60,0.2); cursor:pointer; }
+  .vm-match.best { border-color:rgba(0,255,160,0.35); }
+  .vm-match.picked { border-color:rgba(255,200,80,0.65); box-shadow:0 0 0 1px rgba(255,200,80,0.25); }
+  .vm-match-head { display:flex; justify-content:space-between; color:#fda; font-weight:600; }
+  .vm-match-sub { color:#9ab; font-size:10px; margin-top:4px; }
+  .vm-match-items { color:#bdf; font-size:10px; margin-top:4px; }
+  #vm-confirm-pay { width:calc(100% - 16px); margin:8px; padding:12px; border:none; border-radius:12px; background:rgba(40,120,60,0.55); border:2px solid #4c8; color:#fff; font-weight:700; cursor:pointer; font-size:13px; }
+  #vm-compare-back { background:transparent; border:none; color:#9cb; cursor:pointer; font-size:11px; padding:4px 0 8px; }
+  #vm-back { background:transparent; border:none; color:#9cb; cursor:pointer; font-size:11px; padding:4px 0 8px; }
+  #node-batch { display:none; padding:10px 12px; background:rgba(0,12,28,0.94); pointer-events:auto; font:11px/1.45 system-ui; color:#bdf; }
+  #node-batch.open, #node-batch.deck-active { display:block; }
+  #node-batch .nb-row { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; }
+  .nb-step { display:flex; gap:8px; align-items:flex-start; margin:6px 0; padding:6px 8px; border-radius:8px; background:rgba(0,0,0,0.3); }
+  .nb-step.nb-done { border-left:3px solid #4c8; }
+  .nb-step.nb-active { border-left:3px solid #6af; }
+  .nb-step.nb-blocked { border-left:3px solid #f66; }
+  .nb-n { width:20px; height:20px; border-radius:50%; background:rgba(0,100,180,0.5); color:#fff; font-size:11px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  #nb-install-android, #nb-launch, #nb-join-comms { width:100%; margin:6px 0; padding:11px; border:none; border-radius:12px; font-weight:700; cursor:pointer; font-size:12px; }
+  #nb-launch { background:rgba(40,100,200,0.55); border:2px solid #6af; color:#fff; }
+  #nb-install-android { background:rgba(30,80,40,0.55); border:2px solid #4c8; color:#cfc; }
+  #nb-join-comms { background:rgba(60,50,0,0.45); border:2px solid #da4; color:#fda; }
+  #nb-ios-steps { display:none; color:#9cb; font-size:10px; margin:8px 0; line-height:1.5; }
+  #nb-close { background:transparent; border:1px solid #666; color:#aaa; border-radius:8px; padding:2px 8px; cursor:pointer; }
+  #superspace-hud { display:none; position:fixed; top:12px; right:12px; z-index:120; max-width:220px; padding:10px 12px; border-radius:12px; background:rgba(8,0,24,0.82); border:1px solid rgba(170,136,255,0.45); font:10px/1.45 system-ui; color:#e8e0ff; pointer-events:none; backdrop-filter:blur(6px); }
+  #superspace-hud.open { display:block; }
+  #superspace-hud .ss-title { font-weight:700; color:#c8a8ff; margin-bottom:6px; font-size:11px; }
+  #superspace-hud .ss-row { margin:2px 0; color:#dde; }
+  #superspace-hud .ss-row b { color:#a88cff; font-weight:600; }
+  #superspace-hud .ss-tri { margin-top:8px; padding-top:6px; border-top:1px solid rgba(170,136,255,0.25); color:#9ab; font-size:9px; }
+  #super-cli-bar #super-add-fab { width:34px; height:34px; font-size:18px; font-weight:600; line-height:1; border-radius:50%; border:1px solid rgba(0,255,160,0.45); background:rgba(0,100,80,0.4); color:#8fc; cursor:pointer; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; touch-action:manipulation; box-shadow:none; transform:none; position:static; margin-left:auto; }
+  #super-cli-bar #super-add-fab:active { transform:scale(0.94); }
+  #globe-super-add { display:none; padding:8px 10px; background:rgba(4,12,8,0.96); pointer-events:auto; font:11px/1.4 system-ui; color:#e8f4ff; }
+  #globe-super-add.open, #globe-super-add.deck-active { display:block; }
+  #globe-super-add .sa-head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px; color:#6fc; font-weight:600; }
+  #globe-super-add .sa-head button { background:transparent; border:1px solid #666; color:#aaa; border-radius:8px; padding:4px 10px; cursor:pointer; font-size:10px; }
+  #sa-preview-wrap { position:relative; width:100%; padding-bottom:56%; height:0; background:#000; border-radius:12px; overflow:hidden; border:1px solid rgba(0,255,160,0.35); margin-bottom:8px; }
+  #sa-preview, #sa-playback { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  #sa-playback { display:none; z-index:2; }
+  #sa-playback.has-clip { display:block; }
+  #sa-controls { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+  #sa-controls button { flex:1; min-width:72px; padding:10px; border-radius:10px; border:1px solid rgba(0,200,255,0.4); background:rgba(0,60,100,0.45); color:#cef; cursor:pointer; font-size:11px; font-weight:600; }
+  #sa-record.recording { background:rgba(180,30,30,0.65); border-color:#f66; color:#fff; animation:sa-rec-pulse 1s ease infinite; }
+  @keyframes sa-rec-pulse { 50% { opacity:0.75; } }
+  #sa-post { background:rgba(0,140,80,0.55) !important; border-color:rgba(0,255,160,0.65) !important; color:#fff !important; flex:2; }
+  #sa-channel, #sa-channel-custom, #sa-caption, #sa-vendor-name { width:100%; margin:4px 0 8px; padding:8px 10px; border-radius:10px; border:1px solid rgba(0,200,255,0.3); background:rgba(0,0,0,0.35); color:#def; font:inherit; font-size:11px; box-sizing:border-box; }
+  #sa-channel-custom { display:none; }
+  .sa-checks { display:flex; flex-direction:column; gap:6px; margin:8px 0; font-size:11px; color:#bdf; }
+  .sa-checks label { display:flex; align-items:center; gap:8px; cursor:pointer; }
+  #sa-status { font-size:10px; color:#9ab; margin-bottom:6px; min-height:16px; }
+  #sat-radio:not(.deck-active), #node-batch:not(.deck-active), #vendor-menu:not(.deck-active), #globe-youtube:not(.deck-active), #globe-super-add:not(.deck-active) { display:none !important; }
+  #globe-entity-labels { position:fixed; inset:0; pointer-events:none; z-index:115; overflow:hidden; }
+  .ge-label { position:absolute; transform:translate(-50%,-100%); display:none; flex-direction:row; align-items:flex-start; gap:6px; max-width:min(240px,42vw); padding:6px 9px; border-radius:10px; background:rgba(0,8,18,0.92); border:1px solid rgba(0,200,255,0.35); font:10px/1.35 system-ui; color:#def; box-shadow:0 4px 14px rgba(0,0,0,0.45); transition:opacity 0.15s; pointer-events:auto; cursor:pointer; touch-action:manipulation; }
+  .ge-label:active { transform:translate(-50%,-100%) scale(0.97); }
+  .ge-label .ge-pin { font-size:14px; flex-shrink:0; }
+  .ge-label .ge-text b { display:block; color:#9ef; font-size:11px; margin-bottom:2px; }
+  .ge-label .ge-text span { color:#9ab; font-size:10px; }
+  .ge-label.ge-glow { border-color:rgba(0,255,160,0.55); box-shadow:0 0 12px rgba(0,255,160,0.25); }
+  .ge-label.ge-flash { animation:ge-flash 0.9s ease-in-out infinite; border-color:rgba(255,100,100,0.75); }
+  .ge-label.ge-urg-3 { border-color:rgba(255,80,80,0.7); }
+  .ge-label.ge-selected { border-color:rgba(255,220,100,0.85); background:rgba(20,12,0,0.94); }
+  @keyframes ge-flash { 0%,100%{ opacity:1; } 50%{ opacity:0.55; } }
+  #globe-entity-hud { display:none; position:fixed; bottom:168px; left:50%; transform:translateX(-50%); z-index:124; width:min(320px,92vw); padding:12px 14px; border-radius:14px; background:rgba(0,6,16,0.94); border:1px solid rgba(0,255,200,0.45); font:11px/1.45 system-ui; color:#e8f4ff; pointer-events:auto; box-shadow:0 6px 24px rgba(0,0,0,0.5); }
+  #globe-entity-hud.open { display:block; }
+  #ge-hud-type { color:#6fc; font-size:10px; margin-bottom:4px; }
+  #ge-hud-title { font-weight:700; font-size:13px; color:#bdf; margin-bottom:4px; }
+  #ge-hud-desc { color:#9ab; font-size:11px; margin-bottom:10px; min-height:28px; }
+  #ge-hud-row { display:flex; gap:8px; }
+  #ge-hud-action { flex:1; padding:10px; border:none; border-radius:10px; background:rgba(0,120,90,0.55); border:1px solid rgba(0,255,160,0.55); color:#fff; font-weight:700; cursor:pointer; font-size:11px; }
+  #ge-hud-close { padding:10px 12px; border-radius:10px; border:1px solid #666; background:transparent; color:#aaa; cursor:pointer; font-size:11px; }
+  /* Astranov Identity modal */
+  #astranov-auth-modal { display:none; position:fixed; inset:0; z-index:200; align-items:center; justify-content:center; background:rgba(0,4,12,0.82); backdrop-filter:blur(8px); pointer-events:auto; }
+  #astranov-auth-modal.open { display:flex; }
+  .auth-sheet { width:min(380px,94vw); max-height:90vh; overflow:auto; padding:16px; border-radius:18px; border:1px solid rgba(73,183,255,0.55); background:linear-gradient(180deg,rgba(4,14,32,0.98),rgba(2,8,18,0.98)); color:#def; font:11px/1.45 system-ui; box-shadow:0 0 40px rgba(73,183,255,0.25); }
+  .auth-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .auth-head b { color:#9ef; font-size:13px; }
+  .auth-tabs { display:flex; gap:4px; margin-bottom:10px; }
+  .auth-tab { flex:1; padding:8px; border-radius:10px; border:1px solid rgba(73,183,255,0.25); background:rgba(0,0,0,0.25); color:#9bc; cursor:pointer; font-size:10px; }
+  .auth-tab.active { border-color:rgba(0,255,200,0.55); color:#fff; background:rgba(0,80,60,0.35); }
+  .auth-pane { display:none; }
+  .auth-pane.active { display:block; }
+  .auth-oauth-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:10px; }
+  .auth-oauth-grid button { padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,0.15); background:rgba(0,0,0,0.35); color:#def; cursor:pointer; font-size:11px; font-weight:600; }
+  .auth-oauth-grid button[data-oauth="google"] { border-color:rgba(66,133,244,0.5); }
+  .auth-oauth-grid button[data-oauth="facebook"] { border-color:rgba(24,119,242,0.5); }
+  .auth-field { margin-bottom:8px; }
+  .auth-field label { display:block; font-size:9px; color:#9ab; text-transform:uppercase; margin-bottom:4px; }
+  .auth-field input { width:100%; padding:9px 10px; border-radius:10px; border:1px solid rgba(73,183,255,0.3); background:rgba(0,0,0,0.4); color:#fff; font:inherit; box-sizing:border-box; }
+  .auth-actions { display:flex; gap:6px; margin-top:8px; }
+  .auth-actions button { flex:1; padding:10px; border-radius:10px; border:none; font-weight:700; cursor:pointer; font-size:11px; }
+  #auth-signin-btn { background:rgba(0,120,90,0.6); color:#fff; border:1px solid rgba(0,255,160,0.5); }
+  #auth-signup-btn { background:rgba(40,60,120,0.5); color:#cef; border:1px solid rgba(73,183,255,0.4); }
+  #auth-status { font-size:10px; color:#9bc; min-height:28px; margin-top:6px; }
+  /* Site shell — subdomain over Earth */
+  #astranov-site-shell { display:none; position:fixed; top:0; left:0; right:0; bottom:118px; z-index:110; flex-direction:column; pointer-events:auto; }
+  #astranov-site-shell.open { display:flex; }
+  body.site-shell-open #globe { opacity:0.42; filter:saturate(0.85) blur(0.3px); }
+  body.site-shell-open #super-cli-bar #super-add-fab { opacity:0.35; pointer-events:none; }
+  .as-shell-bar { display:flex; align-items:center; gap:8px; padding:6px 10px; background:linear-gradient(180deg,rgba(2,8,18,0.94),rgba(2,8,18,0.72)); border-bottom:1px solid rgba(73,183,255,0.35); font:11px system-ui; color:#9ef; }
+  #as-shell-domain { flex:1; font-weight:700; }
+  .as-shell-bar button { padding:6px 10px; border-radius:8px; border:1px solid rgba(73,183,255,0.35); background:rgba(0,0,0,0.35); color:#def; cursor:pointer; font-size:11px; }
+  #as-shell-frame { flex:1; width:100%; border:none; background:#02060d; border-radius:0 0 12px 12px; box-shadow:0 -8px 40px rgba(73,183,255,0.15); }
+  /* Super batch evolved graphics HUD */
+  #nb-mesh-viz { width:100%; height:52px; margin:8px 0; border-radius:10px; background:radial-gradient(ellipse at 50% 50%,rgba(100,80,255,0.25),rgba(0,20,40,0.9)); border:1px solid rgba(170,136,255,0.35); position:relative; overflow:hidden; }
+  #nb-mesh-viz::before { content:''; position:absolute; inset:0; background:repeating-linear-gradient(90deg,transparent,transparent 8px,rgba(73,183,255,0.06) 8px,rgba(73,183,255,0.06) 9px); animation:nb-scan 3s linear infinite; }
+  #nb-mesh-viz::after { content:'◎ neural mesh'; position:absolute; left:8px; bottom:4px; font-size:9px; color:rgba(200,168,255,0.85); letter-spacing:0.5px; }
+  @keyframes nb-scan { from { transform:translateX(0); } to { transform:translateX(18px); } }
+  #node-batch.nb-super-live { box-shadow:inset 0 0 24px rgba(100,80,255,0.2); border:1px solid rgba(170,136,255,0.35); border-radius:12px; }
+  #node-batch.nb-super-live #nb-launch { background:linear-gradient(135deg,rgba(80,40,180,0.7),rgba(0,120,200,0.6)); border-color:rgba(200,168,255,0.65); animation:nb-glow 2.4s ease-in-out infinite; }
+  @keyframes nb-glow { 50% { box-shadow:0 0 18px rgba(170,136,255,0.45); } }
+
+</style>
+</head>
+<body>
+  <div id="globe"></div>
+  <div id="astranov-site-shell">
+    <div class="as-shell-bar">
+      <span id="as-shell-domain">astranov.eu site</span>
+      <button id="as-shell-external" type="button" title="Open in new tab">↗</button>
+      <button id="as-shell-close" type="button" title="Close site · back to Earth">✖</button>
+    </div>
+    <iframe id="as-shell-frame" title="Astranov Site" allow="camera; microphone; geolocation"></iframe>
+  </div>
+  <div id="astranov-auth-modal">
+    <div class="auth-sheet">
+      <div class="auth-head"><b>Astranov Identity</b><button id="auth-close" type="button" style="background:transparent;border:1px solid #666;color:#aaa;border-radius:8px;padding:4px 10px;cursor:pointer">✖</button></div>
+      <div class="auth-tabs">
+        <button class="auth-tab active" type="button" data-pane="auth-pane-social">Social</button>
+        <button class="auth-tab" type="button" data-pane="auth-pane-id">Email / user</button>
+        <button class="auth-tab" type="button" data-pane="auth-pane-phone">Phone</button>
+      </div>
+      <div id="auth-pane-social" class="auth-pane active">
+        <div class="auth-oauth-grid">
+          <button type="button" data-oauth="google">Google</button>
+          <button type="button" data-oauth="facebook">Facebook</button>
+          <button type="button" data-oauth="apple">Apple</button>
+          <button type="button" data-oauth="twitter">X / Twitter</button>
+          <button type="button" data-oauth="tiktok" title="Enable in Supabase OIDC">TikTok</button>
+        </div>
+        <div style="font-size:10px;color:#9ab">One login for the globe, your sites, and super batch.</div>
+      </div>
+      <div id="auth-pane-id" class="auth-pane">
+        <div class="auth-field"><label>Email, username, or phone</label><input id="auth-identifier" type="text" autocomplete="username" placeholder="you@email.com or my-shop" /></div>
+        <div class="auth-field"><label>Password (optional — magic link if empty)</label><input id="auth-password" type="password" autocomplete="current-password" /></div>
+        <div class="auth-actions"><button id="auth-signin-btn" type="button">Sign in</button><button id="auth-signup-btn" type="button">Create account</button></div>
+      </div>
+      <div id="auth-pane-phone" class="auth-pane">
+        <div class="auth-field"><label>Phone (+country code)</label><input id="auth-phone" type="tel" placeholder="+306971234567" /></div>
+        <div class="auth-field"><label>SMS code</label><input id="auth-otp" type="text" inputmode="numeric" placeholder="123456" /></div>
+        <div class="auth-actions"><button id="auth-phone-btn" type="button" style="flex:1;background:rgba(0,100,180,0.55);color:#fff;border:1px solid #6af;border-radius:10px;padding:10px;font-weight:700;cursor:pointer">Send / Verify</button></div>
+      </div>
+      <div id="auth-status"></div>
+    </div>
+  </div>
+  <div id="superspace-hud"></div>
+  <div id="city-map"></div>
+  <div id="city-life-chip"></div>
+  <div id="globe-entity-labels"></div>
+  <div id="globe-entity-hud">
+    <div id="ge-hud-type">◎ Place</div>
+    <div id="ge-hud-title">—</div>
+    <div id="ge-hud-desc">Tap markers on the globe — labels appear when you zoom close.</div>
+    <div id="ge-hud-row">
+      <button id="ge-hud-action" type="button">Open</button>
+      <button id="ge-hud-close" type="button">✖</button>
+    </div>
+  </div>
+  <div id="zoom-label">EARTH</div>
+  <div id="cosmic-guide"></div>
+  <div id="user-chip"></div>
+  <div id="drive-guide"></div>
+  <div id="aci-hud">
+    <div id="news-ticker">Astranov Collective Intelligence — loading news…</div>
+    <div id="globe-deck" class="collapsed">
+      <div id="globe-deck-header">
+        <span id="globe-deck-title">Astranov Command Line</span>
+        <span id="globe-deck-preview"></span>
+        <button id="globe-deck-handle" type="button" title="Tap or swipe to expand/collapse">▔</button>
+      </div>
+      <div id="super-cli-bar">
+        <button id="aci-login" title="Sign in with Google" type="button">G</button>
+        <button id="aci-cli-toggle" title="Expand/collapse Astranov Command Line" type="button">💻</button>
+        <button id="aci-stop" title="Stop" type="button">🛑</button>
+        <button id="aci-hold" title="Hold session — pause mic &amp; tasks for noisy places" type="button" aria-pressed="false">⏸</button>
+        <button id="aci-locate" title="Locate me — city view" type="button">🎯</button>
+        <button id="aci-theme" title="Dark / bright theme" type="button">🌙</button>
+        <button id="aci-order" title="Order" type="button">🛒</button>
+        <button id="aci-batch" title="Batch" type="button">🔗</button>
+        <button id="aci-vhf" title="PMR radio" type="button">📡</button>
+        <button id="aci-call" title="Phone" type="button">☎️</button>
+        <button id="super-add-fab" type="button" title="Super Add — post · vendor · site">+</button>
+      </div>
+      <div id="globe-deck-body">
+        <div id="globe-deck-log"></div>
+        <div id="globe-deck-stage">
+    <div id="sat-radio">
+      <div class="sr-row"><span class="sr-ch">EU PMR Ch 11</span><span class="sr-freq">446.13125 MHz</span><span>peers: <b id="sr-peers">0</b></span><button id="sr-close" type="button">✖️</button></div>
+      <div class="sr-honest">RF: tune YOUR PMR446 handheld to Ch 11 (446.13125 MHz) — browser cannot transmit on 446 MHz. In-app: real mic + WebRTC voice to other Astranov users on this channel.</div>
+      <div class="sr-step sr-active" id="sr-step-1"><span class="sr-n">1</span><span class="sr-step-msg">Enable Mic</span></div>
+      <div class="sr-step" id="sr-step-2"><span class="sr-n">2</span><span class="sr-step-msg">Join Channel (WebRTC)</span></div>
+      <div class="sr-step" id="sr-step-3"><span class="sr-n">3</span><span class="sr-step-msg">Hold PTT — VU meter must move when you speak</span></div>
+      <div id="sr-actions">
+        <button id="sr-mic-btn" type="button">① Enable Mic</button>
+        <button id="sr-join-btn" type="button">② Join Channel</button>
+      </div>
+      <div id="sr-vu-wrap"><div id="sr-vu"></div></div>
+      <div id="sr-status">Tap 📡 then follow steps 1 → 2 → 3</div>
+      <button id="sr-ptt" type="button">③ HOLD PTT — REAL TRANSMIT</button>
+    </div>
+    <div id="node-batch">
+      <div class="nb-row"><span><strong>🔗 Work together</strong> · Astranov node</span><button id="nb-close" type="button">✖️</button></div>
+      <div style="color:#9cb;font-size:10px;margin-bottom:8px">Εγκατάστησε native/PWA node — decentralized server + comms applet. Μετά batch για δουλειά μαζί.</div>
+      <div id="nb-platform" style="margin-bottom:6px;color:#8cf"></div>
+      <div class="nb-step nb-active" id="nb-step-1"><span class="nb-n">1</span><span class="nb-step-msg">Sign in (G)</span></div>
+      <div class="nb-step" id="nb-step-2"><span class="nb-n">2</span><span class="nb-step-msg">Install Astranov on device</span></div>
+      <div class="nb-step" id="nb-step-3"><span class="nb-n">3</span><span class="nb-step-msg">Launch batch</span></div>
+      <div id="nb-ios-steps">🍎 <strong>iOS:</strong> Safari → Share ⬆️ → <strong>Add to Home Screen</strong> ➕ → open Astranov icon</div>
+      <button id="nb-install-android" type="button">📲 Install Android / PWA node</button>
+      <button id="nb-install-ios" type="button" style="display:none;width:100%;margin:6px 0;padding:10px;border-radius:12px;background:rgba(40,40,60,0.5);border:1px solid #88a;color:#cdf;cursor:pointer;font-weight:600">🍎 iOS install steps</button>
+      <button id="nb-launch" type="button">🔗 Launch batch · work together</button>
+      <div id="nb-mesh-viz" aria-hidden="true"></div>
+      <div style="margin:8px 0;font-size:10px;color:#9ab">Super batch: <b id="nb-batch-id" style="color:#c8a8ff">—</b> · Peers: <b id="nb-peers" style="color:#8cf">0</b> · <span id="nb-mesh-status" style="color:#a88cff">idle</span></div>
+      <button id="nb-join-comms" type="button">📡 Open comms channel (PMR/WebRTC)</button>
+      <div id="nb-status" style="color:#9cb;font-size:10px;margin-top:6px">Install node to work together without browser babysitting</div>
+    </div>
+    <div id="globe-super-add">
+      <div class="sa-head">
+        <span>Super Add · post on globe</span>
+        <button id="sa-close" type="button">✖</button>
+      </div>
+      <div id="sa-preview-wrap">
+        <video id="sa-preview" playsinline autoplay muted></video>
+        <video id="sa-playback" playsinline controls></video>
+      </div>
+      <div id="sa-status">Tap + on globe · record · choose channel</div>
+      <div id="sa-controls">
+        <button id="sa-flip" type="button">🔄 Flip</button>
+        <button id="sa-record" type="button">● Record</button>
+        <button id="sa-post" type="button">➕ Post</button>
+      </div>
+      <label for="sa-channel">Post to</label>
+      <select id="sa-channel">
+        <option value="global">Global channel</option>
+        <option value="team" id="sa-channel-team">Team / batch</option>
+        <option value="local">Local · near me</option>
+        <option value="custom">Type channel…</option>
+      </select>
+      <input id="sa-channel-custom" type="text" placeholder="e.g. rhodes-team · my-circle" />
+      <input id="sa-caption" type="text" placeholder="Caption or what you found on the map" />
+      <div class="sa-checks">
+        <label><input id="sa-as-map" type="checkbox" checked /> Pin on map where I am</label>
+        <label><input id="sa-as-vendor" type="checkbox" /> Add me as vendor (shop on map)</label>
+        <input id="sa-vendor-name" type="text" placeholder="Shop name (if vendor)" />
+        <label><input id="sa-as-driver" type="checkbox" /> Add me as delivery driver</label>
+        <label><input id="sa-as-booker" type="checkbox" /> Create Astranov Site (yourname.astranov.eu)</label>
+        <input id="sa-booker-slug" type="text" placeholder="Subdomain e.g. marina-diving" style="display:none" />
+        <input id="sa-booker-name" type="text" placeholder="Business / profile name" style="display:none" />
+      </div>
+    </div>
+    <div id="globe-youtube">
+      <div class="yt-head">
+        <span id="yt-now-title">YouTube on globe</span>
+        <button id="yt-open-ext" type="button">Open ↗</button>
+        <button id="yt-close" type="button">✖</button>
+      </div>
+      <div id="yt-player-wrap"><iframe id="yt-frame" title="YouTube player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>
+      <div id="yt-hint">CLI: youtube mars doc · play 2 · space locate ISS · brain places on globe</div>
+      <div id="yt-results"></div>
+    </div>
+    <div id="vendor-menu">
+      <div id="vm-header"><span id="vm-title">Καταστήματα</span><button id="vm-close" type="button">✖️</button></div>
+      <div id="vm-body"><div id="vm-list"></div><div id="vm-detail" style="display:none"><button id="vm-back" type="button">← όλα τα καταστήματα</button><div id="vm-empty" style="display:none"></div><div id="vm-items"></div><button id="vm-request" type="button" style="display:none">Ζήτησε μενού από κατάστημα</button><button id="vm-place" type="button">Παραγγελία</button></div><div id="vm-compare" style="display:none"><button id="vm-compare-back" type="button">← όλα τα καταστήματα</button><div id="vm-wanted"></div><div id="vm-matches"></div><div id="vm-drivers"></div><div id="vm-balance"></div><button id="vm-confirm-pay" type="button" style="display:none">Επιβεβαίωση &amp; Πληρωμή</button></div></div>
+    </div>
+        </div>
+      </div>
+      <div id="globe-deck-input-row">
+        <span id="aci-cli-prompt">collective $</span>
+        <input id="aci-cli-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="type or tap 🎤 · Enter or ➡" />
+        <button id="aci-mic" class="deck-input-btn" type="button" title="Voice — live transcript">🎤</button>
+        <button id="aci-voice" class="deck-input-btn" type="button" title="AI voice — hear reply">🔊</button>
+        <button id="globe-deck-send" class="deck-input-btn" type="button" title="Send">➡</button>
+      </div>
+    </div>
+    <input id="aci-input" placeholder="" style="display:none" />
+    <button id="aci-send" type="button" style="display:none" title="Send">➡️</button>
+  </div>
+<script src="/src/00-globe.js"></script>
+<script src="/src/05-speak-map.js"></script>
+<script src="/src/06-fetch-json.js"></script>
+<script src="/src/11-glyphs.js"></script>
+<script src="/src/12-auth.js"></script>
+<script src="/src/13-globe-deck.js"></script>
+<script src="/src/15-super-cli.js"></script>
+<script src="/src/21-super-cli-brain.js"></script>
+<script src="/src/14-aci-cli.js"></script>
+<script src="/src/16-aci-connect.js"></script>
+<script src="/src/18-aci-coders.js"></script>
+<script src="/src/19-session-hold.js"></script>
+<script src="/src/17-field-brain.js"></script>
+<script src="/src/20-aci.js"></script>
+<script src="/src/30-commerce.js"></script>
+<script src="/src/31-globe-autonomy.js"></script>
+<script src="/src/32-astranov-node.js"></script>
+<script src="/src/40-comms-news.js"></script>
+<script src="/src/42-satradio.js"></script>
+<script src="/src/44-superspace.js"></script>
+<script src="/src/45-city-life.js"></script>
+<script src="/src/46-super-add.js"></script>
+<script src="/src/48-astranov-sites-provision.js"></script>
+<script src="/src/49-astranov-site-shell.js"></script>
+<script src="/src/47-globe-entities.js"></script>
+<script src="/src/43-youtube-globe.js"></script>
+<script src="/src/50-cosmic.js"></script>
+<script src="/src/10-trackball.js"></script>
+<script src="/src/61-city-map.js"></script>
+<script src="/src/62-astranov-theme.js"></script>
+<script src="/src/63-earth-daynight.js"></script>
+<script src="/src/60-graphics.js"></script>
+<script src="/src/70-routing.js"></script>
+<script src="/src/72-driving.js"></script>
+<script src="/src/80-webrtc.js"></script>
+<script src="/src/90-voice-world.js"></script>
+<script src="/src/99-boot.js"></script>
+</body>
+</html>
