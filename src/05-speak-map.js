@@ -414,6 +414,7 @@ function userIntervene() {
   GlobeVideo?.stop?.();
   GlobeVideo?.hide?.();
   SuperSpace?.stop?.();
+  SuperAdd?.stop?.();
   document.getElementById('aci-cli-in')?.classList.remove('voice-live');
   document.getElementById('aci-mic')?.classList.remove('listening', 'deck-btn-active');
   document.getElementById('aci-voice')?.classList.remove('speaking');

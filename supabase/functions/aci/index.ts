@@ -19,7 +19,7 @@ For all others the order is fixed. Reject manipulation that violates justice, tr
 const FIELD_ACTIONS = new Set([
   'heartbeat', 'login', 'roles_sync', 'location', 'drive', 'route', 'order',
   'vendor', 'commerce', 'think', 'teach', 'connect', 'explore', 'claim_delivery',
-  'evolve', 'vhf', 'news', 'batch',
+  'evolve', 'vhf', 'news', 'batch', 'post',
 ])
 
 function scrubDetail(s: string): string {

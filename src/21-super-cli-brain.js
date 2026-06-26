@@ -56,7 +56,7 @@ Object.assign(SuperCli, {
       'teach', 'stats', 'owner', 'seed', 'distill', 'council', 'mode', 'batch', 'vendors',
       'shops', 'order', 'vendor', 'ping', 'locate', 'gps', 'me', 'vhf', 'call', 'phone',
       'drive', 'news', 'roles', 'claim', 'field_stats', 'hold', 'resume', 'stop',
-      'youtube', 'yt', 'watch', 'play', 'space', 'scenario',
+      'youtube', 'yt', 'watch', 'play', 'space', 'scenario', 'add', 'post', 'superadd',
     ]);
     return known.has(c);
   },
@@ -115,6 +115,7 @@ Object.assign(SuperCli, {
     this.out('youtube <search> · watch <url> · play 2 (pick result)', 'ok');
     this.out('space locate <topic> · space status — brain places media on globe/cosmos', 'ok');
     this.out('scenario wake|city|groceries|youtube|reviews|list — real user flows', 'ok');
+    this.out('add · post — Super Add camera · global/team/local channel', 'ok');
     this.out('Tri-UI: SuperCli + SuperVoice + SuperSpace · mic+send at bottom bar', 'dim');
     this.out('brain think|evolve|teach|coders|listen on|off|status · brain order <task>', owner ? 'ok' : 'dim');
     this.out('locate · order · batch · vhf · coders · deploy · think · type anything', 'ok');
@@ -399,6 +400,10 @@ Object.assign(SuperCli, {
       }
       if (cmd === 'scenario' || cmd === 'day') {
         await this.cmdScenario(parts, rest);
+        return { handled: true };
+      }
+      if (cmd === 'add' || cmd === 'post' || cmd === 'superadd') {
+        SuperAdd?.open?.();
         return { handled: true };
       }
       if (cmd === 'status') {

@@ -68,6 +68,7 @@ DrivingView.init();
 CosmicZoom.init();
 SuperSpace.init();
 CityLife.init();
+SuperAdd.init();
 if (typeof orbitalSats !== 'undefined') CosmicZoom.registerOrbitalSats(orbitalSats);
 Commerce.loadVendors().then(() => Commerce.initUI());
 NewsFeed.fetch();

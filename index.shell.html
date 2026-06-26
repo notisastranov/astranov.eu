@@ -76,7 +76,7 @@
   #aci-bar { display:none !important; }
   #news-ticker { display:none !important; }
   #drive-guide { display:none !important; }
-  #sat-radio:not(.deck-active), #node-batch:not(.deck-active), #vendor-menu:not(.deck-active), #globe-youtube:not(.deck-active) { display:none !important; }
+
   #globe-deck.deck-ping { border-color:rgba(0,255,200,0.85); box-shadow:0 0 12px rgba(0,255,160,0.35); }
   #globe-deck.deck-thinking #globe-deck-title { color:#fc8; }
   #globe-deck-log .deck-thinking-line { animation:deck-pulse 1s ease infinite; }
@@ -179,6 +179,27 @@
   #superspace-hud .ss-row { margin:2px 0; color:#dde; }
   #superspace-hud .ss-row b { color:#a88cff; font-weight:600; }
   #superspace-hud .ss-tri { margin-top:8px; padding-top:6px; border-top:1px solid rgba(170,136,255,0.25); color:#9ab; font-size:9px; }
+  #super-add-fab { position:fixed; bottom:96px; left:50%; transform:translateX(-50%); z-index:125; width:58px; height:58px; border-radius:50%; border:2px solid rgba(0,255,200,0.75); background:linear-gradient(145deg,rgba(0,120,90,0.92),rgba(0,60,120,0.92)); color:#fff; font-size:32px; font-weight:300; line-height:1; cursor:pointer; box-shadow:0 4px 22px rgba(0,255,160,0.35); display:flex; align-items:center; justify-content:center; touch-action:manipulation; pointer-events:auto; }
+  #super-add-fab:active { transform:translateX(-50%) scale(0.94); }
+  #globe-super-add { display:none; padding:8px 10px; background:rgba(4,12,8,0.96); pointer-events:auto; font:11px/1.4 system-ui; color:#e8f4ff; }
+  #globe-super-add.open, #globe-super-add.deck-active { display:block; }
+  #globe-super-add .sa-head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px; color:#6fc; font-weight:600; }
+  #globe-super-add .sa-head button { background:transparent; border:1px solid #666; color:#aaa; border-radius:8px; padding:4px 10px; cursor:pointer; font-size:10px; }
+  #sa-preview-wrap { position:relative; width:100%; padding-bottom:56%; height:0; background:#000; border-radius:12px; overflow:hidden; border:1px solid rgba(0,255,160,0.35); margin-bottom:8px; }
+  #sa-preview, #sa-playback { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  #sa-playback { display:none; z-index:2; }
+  #sa-playback.has-clip { display:block; }
+  #sa-controls { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+  #sa-controls button { flex:1; min-width:72px; padding:10px; border-radius:10px; border:1px solid rgba(0,200,255,0.4); background:rgba(0,60,100,0.45); color:#cef; cursor:pointer; font-size:11px; font-weight:600; }
+  #sa-record.recording { background:rgba(180,30,30,0.65); border-color:#f66; color:#fff; animation:sa-rec-pulse 1s ease infinite; }
+  @keyframes sa-rec-pulse { 50% { opacity:0.75; } }
+  #sa-post { background:rgba(0,140,80,0.55) !important; border-color:rgba(0,255,160,0.65) !important; color:#fff !important; flex:2; }
+  #sa-channel, #sa-channel-custom, #sa-caption, #sa-vendor-name { width:100%; margin:4px 0 8px; padding:8px 10px; border-radius:10px; border:1px solid rgba(0,200,255,0.3); background:rgba(0,0,0,0.35); color:#def; font:inherit; font-size:11px; box-sizing:border-box; }
+  #sa-channel-custom { display:none; }
+  .sa-checks { display:flex; flex-direction:column; gap:6px; margin:8px 0; font-size:11px; color:#bdf; }
+  .sa-checks label { display:flex; align-items:center; gap:8px; cursor:pointer; }
+  #sa-status { font-size:10px; color:#9ab; margin-bottom:6px; min-height:16px; }
+  #sat-radio:not(.deck-active), #node-batch:not(.deck-active), #vendor-menu:not(.deck-active), #globe-youtube:not(.deck-active), #globe-super-add:not(.deck-active) { display:none !important; }
 
 </style>
 </head>
@@ -186,6 +207,7 @@
   <div id="globe"></div>
   <div id="superspace-hud"></div>
   <div id="city-life-chip"></div>
+  <button id="super-add-fab" type="button" title="Super Add — post video · vendor · driver · map">+</button>
   <div id="zoom-label">EARTH</div>
   <div id="cosmic-guide"></div>
   <div id="user-chip"></div>
@@ -240,6 +262,37 @@
       <div style="margin:8px 0;font-size:10px;color:#9ab">Batch: <b id="nb-batch-id" style="color:#8cf">—</b> · Peers: <b id="nb-peers" style="color:#8cf">0</b></div>
       <button id="nb-join-comms" type="button">📡 Open comms channel (PMR/WebRTC)</button>
       <div id="nb-status" style="color:#9cb;font-size:10px;margin-top:6px">Install node to work together without browser babysitting</div>
+    </div>
+    <div id="globe-super-add">
+      <div class="sa-head">
+        <span>Super Add · post on globe</span>
+        <button id="sa-close" type="button">✖</button>
+      </div>
+      <div id="sa-preview-wrap">
+        <video id="sa-preview" playsinline autoplay muted></video>
+        <video id="sa-playback" playsinline controls></video>
+      </div>
+      <div id="sa-status">Tap + on globe · record · choose channel</div>
+      <div id="sa-controls">
+        <button id="sa-flip" type="button">🔄 Flip</button>
+        <button id="sa-record" type="button">● Record</button>
+        <button id="sa-post" type="button">➕ Post</button>
+      </div>
+      <label for="sa-channel">Post to</label>
+      <select id="sa-channel">
+        <option value="global">Global channel</option>
+        <option value="team" id="sa-channel-team">Team / batch</option>
+        <option value="local">Local · near me</option>
+        <option value="custom">Type channel…</option>
+      </select>
+      <input id="sa-channel-custom" type="text" placeholder="e.g. rhodes-team · my-circle" />
+      <input id="sa-caption" type="text" placeholder="Caption or what you found on the map" />
+      <div class="sa-checks">
+        <label><input id="sa-as-map" type="checkbox" checked /> Pin on map where I am</label>
+        <label><input id="sa-as-vendor" type="checkbox" /> Add me as vendor (shop on map)</label>
+        <input id="sa-vendor-name" type="text" placeholder="Shop name (if vendor)" />
+        <label><input id="sa-as-driver" type="checkbox" /> Add me as delivery driver</label>
+      </div>
     </div>
     <div id="globe-youtube">
       <div class="yt-head">

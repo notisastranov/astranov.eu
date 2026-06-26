@@ -18,7 +18,7 @@ const GlobeDeck = {
     if (handle) handle.onclick = e => { e.stopPropagation(); this.toggle(); };
     if (hdr) hdr.onclick = () => this.toggle();
     this.bindDeckGestures();
-    ['sat-radio', 'node-batch', 'vendor-menu', 'globe-youtube'].forEach(id => {
+    ['sat-radio', 'node-batch', 'vendor-menu', 'globe-youtube', 'globe-super-add'].forEach(id => {
       const el = document.getElementById(id);
       const stage = document.getElementById('globe-deck-stage');
       if (el && stage && el.parentElement !== stage) stage.appendChild(el);
@@ -249,6 +249,7 @@ const GlobeDeck = {
       'node-batch': 'Work together · Astranov node',
       'sat-radio': 'EU PMR Ch 11 · comms',
       'globe-youtube': 'YouTube on globe',
+      'globe-super-add': 'Super Add · post video',
     };
     return titles[panelId] || 'Collective — globe deck';
   },

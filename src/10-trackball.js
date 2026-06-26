@@ -216,6 +216,11 @@ function onGlobeClick(e) {
     const root = hit.userData?.vendor ? hit : (hit.parent?.userData?.vendor ? hit.parent : hit);
     const ud = root.userData || hit.userData || {};
 
+    if (ud.type === 'post') {
+      MapDepict?.action?.('video', { detail: ud.label || 'post' });
+      AciCli?.print('post · ' + (ud.label || 'on globe') + (ud.channel ? ' · ' + ud.channel : ''), 'ok');
+      return;
+    }
     if (ud.vendor) {
       if (window.Commerce?.openVendor) Commerce.openVendor(ud.vendor);
       else {

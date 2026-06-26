@@ -17,6 +17,7 @@ const SuperCli = {
     drive: ['aci-locate', 'aci-order', 'aci-stop'],
     phone: ['aci-call'],
     news: ['aci-locate'],
+    add: ['aci-locate', 'aci-order'],
   },
 
   init() {
@@ -35,6 +36,7 @@ const SuperCli = {
     if (task === 'batch') return 'batch';
     if (task === 'radio') return 'radio';
     if (task === 'phone') return 'phone';
+    if (task === 'add') return 'add';
     if (!Auth?.user) return 'guest';
     return 'idle';
   },
@@ -188,6 +190,12 @@ const SuperCli = {
       case 'drive':
         DrivingView?.activate?.();
         this.setContext('drive');
+        break;
+      case 'add':
+      case 'post':
+      case 'superadd':
+        SuperAdd?.open?.();
+        this.setContext('add');
         break;
       case 'cli':
         GlobeDeck?.expand(ACL_TITLE);

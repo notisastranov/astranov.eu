@@ -76,7 +76,7 @@
   #aci-bar { display:none !important; }
   #news-ticker { display:none !important; }
   #drive-guide { display:none !important; }
-  #sat-radio:not(.deck-active), #node-batch:not(.deck-active), #vendor-menu:not(.deck-active), #globe-youtube:not(.deck-active) { display:none !important; }
+
   #globe-deck.deck-ping { border-color:rgba(0,255,200,0.85); box-shadow:0 0 12px rgba(0,255,160,0.35); }
   #globe-deck.deck-thinking #globe-deck-title { color:#fc8; }
   #globe-deck-log .deck-thinking-line { animation:deck-pulse 1s ease infinite; }
@@ -179,6 +179,27 @@
   #superspace-hud .ss-row { margin:2px 0; color:#dde; }
   #superspace-hud .ss-row b { color:#a88cff; font-weight:600; }
   #superspace-hud .ss-tri { margin-top:8px; padding-top:6px; border-top:1px solid rgba(170,136,255,0.25); color:#9ab; font-size:9px; }
+  #super-add-fab { position:fixed; bottom:96px; left:50%; transform:translateX(-50%); z-index:125; width:58px; height:58px; border-radius:50%; border:2px solid rgba(0,255,200,0.75); background:linear-gradient(145deg,rgba(0,120,90,0.92),rgba(0,60,120,0.92)); color:#fff; font-size:32px; font-weight:300; line-height:1; cursor:pointer; box-shadow:0 4px 22px rgba(0,255,160,0.35); display:flex; align-items:center; justify-content:center; touch-action:manipulation; pointer-events:auto; }
+  #super-add-fab:active { transform:translateX(-50%) scale(0.94); }
+  #globe-super-add { display:none; padding:8px 10px; background:rgba(4,12,8,0.96); pointer-events:auto; font:11px/1.4 system-ui; color:#e8f4ff; }
+  #globe-super-add.open, #globe-super-add.deck-active { display:block; }
+  #globe-super-add .sa-head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px; color:#6fc; font-weight:600; }
+  #globe-super-add .sa-head button { background:transparent; border:1px solid #666; color:#aaa; border-radius:8px; padding:4px 10px; cursor:pointer; font-size:10px; }
+  #sa-preview-wrap { position:relative; width:100%; padding-bottom:56%; height:0; background:#000; border-radius:12px; overflow:hidden; border:1px solid rgba(0,255,160,0.35); margin-bottom:8px; }
+  #sa-preview, #sa-playback { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  #sa-playback { display:none; z-index:2; }
+  #sa-playback.has-clip { display:block; }
+  #sa-controls { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+  #sa-controls button { flex:1; min-width:72px; padding:10px; border-radius:10px; border:1px solid rgba(0,200,255,0.4); background:rgba(0,60,100,0.45); color:#cef; cursor:pointer; font-size:11px; font-weight:600; }
+  #sa-record.recording { background:rgba(180,30,30,0.65); border-color:#f66; color:#fff; animation:sa-rec-pulse 1s ease infinite; }
+  @keyframes sa-rec-pulse { 50% { opacity:0.75; } }
+  #sa-post { background:rgba(0,140,80,0.55) !important; border-color:rgba(0,255,160,0.65) !important; color:#fff !important; flex:2; }
+  #sa-channel, #sa-channel-custom, #sa-caption, #sa-vendor-name { width:100%; margin:4px 0 8px; padding:8px 10px; border-radius:10px; border:1px solid rgba(0,200,255,0.3); background:rgba(0,0,0,0.35); color:#def; font:inherit; font-size:11px; box-sizing:border-box; }
+  #sa-channel-custom { display:none; }
+  .sa-checks { display:flex; flex-direction:column; gap:6px; margin:8px 0; font-size:11px; color:#bdf; }
+  .sa-checks label { display:flex; align-items:center; gap:8px; cursor:pointer; }
+  #sa-status { font-size:10px; color:#9ab; margin-bottom:6px; min-height:16px; }
+  #sat-radio:not(.deck-active), #node-batch:not(.deck-active), #vendor-menu:not(.deck-active), #globe-youtube:not(.deck-active), #globe-super-add:not(.deck-active) { display:none !important; }
 
 </style>
 </head>
@@ -186,6 +207,7 @@
   <div id="globe"></div>
   <div id="superspace-hud"></div>
   <div id="city-life-chip"></div>
+  <button id="super-add-fab" type="button" title="Super Add — post video · vendor · driver · map">+</button>
   <div id="zoom-label">EARTH</div>
   <div id="cosmic-guide"></div>
   <div id="user-chip"></div>
@@ -240,6 +262,37 @@
       <div style="margin:8px 0;font-size:10px;color:#9ab">Batch: <b id="nb-batch-id" style="color:#8cf">—</b> · Peers: <b id="nb-peers" style="color:#8cf">0</b></div>
       <button id="nb-join-comms" type="button">📡 Open comms channel (PMR/WebRTC)</button>
       <div id="nb-status" style="color:#9cb;font-size:10px;margin-top:6px">Install node to work together without browser babysitting</div>
+    </div>
+    <div id="globe-super-add">
+      <div class="sa-head">
+        <span>Super Add · post on globe</span>
+        <button id="sa-close" type="button">✖</button>
+      </div>
+      <div id="sa-preview-wrap">
+        <video id="sa-preview" playsinline autoplay muted></video>
+        <video id="sa-playback" playsinline controls></video>
+      </div>
+      <div id="sa-status">Tap + on globe · record · choose channel</div>
+      <div id="sa-controls">
+        <button id="sa-flip" type="button">🔄 Flip</button>
+        <button id="sa-record" type="button">● Record</button>
+        <button id="sa-post" type="button">➕ Post</button>
+      </div>
+      <label for="sa-channel">Post to</label>
+      <select id="sa-channel">
+        <option value="global">Global channel</option>
+        <option value="team" id="sa-channel-team">Team / batch</option>
+        <option value="local">Local · near me</option>
+        <option value="custom">Type channel…</option>
+      </select>
+      <input id="sa-channel-custom" type="text" placeholder="e.g. rhodes-team · my-circle" />
+      <input id="sa-caption" type="text" placeholder="Caption or what you found on the map" />
+      <div class="sa-checks">
+        <label><input id="sa-as-map" type="checkbox" checked /> Pin on map where I am</label>
+        <label><input id="sa-as-vendor" type="checkbox" /> Add me as vendor (shop on map)</label>
+        <input id="sa-vendor-name" type="text" placeholder="Shop name (if vendor)" />
+        <label><input id="sa-as-driver" type="checkbox" /> Add me as delivery driver</label>
+      </div>
     </div>
     <div id="globe-youtube">
       <div class="yt-head">
@@ -839,6 +892,7 @@ function userIntervene() {
   GlobeVideo?.stop?.();
   GlobeVideo?.hide?.();
   SuperSpace?.stop?.();
+  SuperAdd?.stop?.();
   document.getElementById('aci-cli-in')?.classList.remove('voice-live');
   document.getElementById('aci-mic')?.classList.remove('listening', 'deck-btn-active');
   document.getElementById('aci-voice')?.classList.remove('speaking');
@@ -1116,7 +1170,7 @@ const GlobeDeck = {
     if (handle) handle.onclick = e => { e.stopPropagation(); this.toggle(); };
     if (hdr) hdr.onclick = () => this.toggle();
     this.bindDeckGestures();
-    ['sat-radio', 'node-batch', 'vendor-menu', 'globe-youtube'].forEach(id => {
+    ['sat-radio', 'node-batch', 'vendor-menu', 'globe-youtube', 'globe-super-add'].forEach(id => {
       const el = document.getElementById(id);
       const stage = document.getElementById('globe-deck-stage');
       if (el && stage && el.parentElement !== stage) stage.appendChild(el);
@@ -1347,6 +1401,7 @@ const GlobeDeck = {
       'node-batch': 'Work together · Astranov node',
       'sat-radio': 'EU PMR Ch 11 · comms',
       'globe-youtube': 'YouTube on globe',
+      'globe-super-add': 'Super Add · post video',
     };
     return titles[panelId] || 'Collective — globe deck';
   },
@@ -1404,6 +1459,7 @@ const SuperCli = {
     drive: ['aci-locate', 'aci-order', 'aci-stop'],
     phone: ['aci-call'],
     news: ['aci-locate'],
+    add: ['aci-locate', 'aci-order'],
   },
 
   init() {
@@ -1422,6 +1478,7 @@ const SuperCli = {
     if (task === 'batch') return 'batch';
     if (task === 'radio') return 'radio';
     if (task === 'phone') return 'phone';
+    if (task === 'add') return 'add';
     if (!Auth?.user) return 'guest';
     return 'idle';
   },
@@ -1576,6 +1633,12 @@ const SuperCli = {
         DrivingView?.activate?.();
         this.setContext('drive');
         break;
+      case 'add':
+      case 'post':
+      case 'superadd':
+        SuperAdd?.open?.();
+        this.setContext('add');
+        break;
       case 'cli':
         GlobeDeck?.expand(ACL_TITLE);
         document.getElementById('aci-cli-in')?.focus();
@@ -1645,7 +1708,7 @@ Object.assign(SuperCli, {
       'teach', 'stats', 'owner', 'seed', 'distill', 'council', 'mode', 'batch', 'vendors',
       'shops', 'order', 'vendor', 'ping', 'locate', 'gps', 'me', 'vhf', 'call', 'phone',
       'drive', 'news', 'roles', 'claim', 'field_stats', 'hold', 'resume', 'stop',
-      'youtube', 'yt', 'watch', 'play', 'space', 'scenario',
+      'youtube', 'yt', 'watch', 'play', 'space', 'scenario', 'add', 'post', 'superadd',
     ]);
     return known.has(c);
   },
@@ -1704,6 +1767,7 @@ Object.assign(SuperCli, {
     this.out('youtube <search> · watch <url> · play 2 (pick result)', 'ok');
     this.out('space locate <topic> · space status — brain places media on globe/cosmos', 'ok');
     this.out('scenario wake|city|groceries|youtube|reviews|list — real user flows', 'ok');
+    this.out('add · post — Super Add camera · global/team/local channel', 'ok');
     this.out('Tri-UI: SuperCli + SuperVoice + SuperSpace · mic+send at bottom bar', 'dim');
     this.out('brain think|evolve|teach|coders|listen on|off|status · brain order <task>', owner ? 'ok' : 'dim');
     this.out('locate · order · batch · vhf · coders · deploy · think · type anything', 'ok');
@@ -1988,6 +2052,10 @@ Object.assign(SuperCli, {
       }
       if (cmd === 'scenario' || cmd === 'day') {
         await this.cmdScenario(parts, rest);
+        return { handled: true };
+      }
+      if (cmd === 'add' || cmd === 'post' || cmd === 'superadd') {
+        SuperAdd?.open?.();
         return { handled: true };
       }
       if (cmd === 'status') {
@@ -3229,7 +3297,7 @@ window.SessionHold = SessionHold;
 const FIELD_SCOPE = new Set([
   'heartbeat', 'login', 'roles_sync', 'location', 'drive', 'route', 'order',
   'vendor', 'commerce', 'think', 'teach', 'connect', 'explore', 'claim_delivery',
-  'evolve', 'vhf', 'news', 'batch'
+  'evolve', 'vhf', 'news', 'batch', 'post'
 ]);
 
 const FieldBrain = {
@@ -5723,6 +5791,353 @@ const CityLife = {
 };
 window.CityLife = CityLife;
 
+// === SUPER ADD (+) — camera video post · channels · vendor · driver · map pin ===
+const SuperAdd = {
+  _stream: null,
+  _recorder: null,
+  _chunks: [],
+  _blob: null,
+  _facing: 'user',
+  _recording: false,
+  _markers: [],
+
+  CHANNELS: [
+    { id: 'global', label: 'Global channel' },
+    { id: 'team', label: 'Team / batch' },
+    { id: 'local', label: 'Local · near me' },
+    { id: 'custom', label: 'Type channel…' },
+  ],
+
+  init() {
+    document.getElementById('sa-close')?.addEventListener('click', () => this.hide());
+    document.getElementById('sa-flip')?.addEventListener('click', () => this.flipCamera());
+    document.getElementById('sa-record')?.addEventListener('click', () => this.toggleRecord());
+    document.getElementById('sa-post')?.addEventListener('click', () => this.publish());
+    document.getElementById('sa-channel')?.addEventListener('change', () => this._syncChannelUi());
+    document.getElementById('sa-as-vendor')?.addEventListener('change', e => {
+      const n = document.getElementById('sa-vendor-name');
+      if (n) n.style.display = e.target.checked ? 'block' : 'none';
+    });
+    document.getElementById('super-add-fab')?.addEventListener('click', e => {
+      e.preventDefault(); e.stopPropagation();
+      this.open();
+    });
+    this._syncChannelUi();
+    this.loadPostsOnGlobe();
+  },
+
+  open() {
+    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+    this.showPanel();
+    this.startCamera();
+    SuperCli?.setContext?.('add');
+    AciCli?.print('▸ super add · camera', 'cmd');
+  },
+
+  hide() {
+    this.stopCamera();
+    document.getElementById('globe-super-add')?.classList.remove('open', 'deck-active');
+    if (GlobeDeck?.activeTask === 'add') GlobeDeck?.completeTask?.('add');
+    SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
+  },
+
+  showPanel() {
+    GlobeDeck?.showStage?.('globe-super-add', 'add', 'Super Add · post video');
+    const panel = document.getElementById('globe-super-add');
+    if (panel) panel.classList.add('open', 'deck-active');
+    const batch = AstranovNode?.shortId;
+    const teamOpt = document.getElementById('sa-channel-team');
+    if (teamOpt) teamOpt.textContent = batch ? ('Team · batch ' + batch) : 'Team · launch batch first';
+  },
+
+  _syncChannelUi() {
+    const sel = document.getElementById('sa-channel');
+    const custom = document.getElementById('sa-channel-custom');
+    if (!sel || !custom) return;
+    custom.style.display = sel.value === 'custom' ? 'block' : 'none';
+  },
+
+  _videoEl() {
+    return document.getElementById('sa-preview');
+  },
+
+  async startCamera() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      ACIControl?.reply('Camera not supported in this browser');
+      return;
+    }
+    try {
+      await this.stopCamera();
+      this._stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: this._facing, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: true,
+      });
+      const v = this._videoEl();
+      if (v) {
+        v.srcObject = this._stream;
+        v.muted = true;
+        await v.play().catch(() => {});
+      }
+      document.getElementById('sa-status')?.replaceChildren(document.createTextNode('Camera ready · tap ● to record'));
+    } catch (e) {
+      ACIControl?.reply('Camera denied — allow camera in browser settings');
+      AciCli?.print('camera error: ' + (e.message || e), 'err');
+    }
+  },
+
+  async stopCamera() {
+    if (this._recording) await this.stopRecord();
+    if (this._stream) {
+      this._stream.getTracks().forEach(t => t.stop());
+      this._stream = null;
+    }
+    const v = this._videoEl();
+    if (v) v.srcObject = null;
+  },
+
+  async flipCamera() {
+    this._facing = this._facing === 'user' ? 'environment' : 'user';
+    await this.startCamera();
+    AciCli?.print('camera → ' + (this._facing === 'user' ? 'front' : 'back'), 'dim');
+  },
+
+  async toggleRecord() {
+    if (this._recording) await this.stopRecord();
+    else await this.startRecord();
+  },
+
+  async startRecord() {
+    if (!this._stream) { await this.startCamera(); if (!this._stream) return; }
+    this._chunks = [];
+    this._blob = null;
+    const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+      ? 'video/webm;codecs=vp9,opus'
+      : (MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4');
+    try {
+      this._recorder = new MediaRecorder(this._stream, { mimeType: mime });
+    } catch {
+      this._recorder = new MediaRecorder(this._stream);
+    }
+    this._recorder.ondataavailable = e => { if (e.data?.size) this._chunks.push(e.data); };
+    this._recorder.onstop = () => {
+      this._blob = new Blob(this._chunks, { type: this._recorder.mimeType || 'video/webm' });
+      const playback = document.getElementById('sa-playback');
+      if (playback) {
+        playback.src = URL.createObjectURL(this._blob);
+        playback.classList.add('has-clip');
+      }
+    };
+    this._recorder.start(400);
+    this._recording = true;
+    const btn = document.getElementById('sa-record');
+    if (btn) { btn.textContent = '■ Stop'; btn.classList.add('recording'); }
+    document.getElementById('sa-status')?.replaceChildren(document.createTextNode('Recording…'));
+  },
+
+  async stopRecord() {
+    if (!this._recorder || this._recorder.state === 'inactive') {
+      this._recording = false;
+      return;
+    }
+    return new Promise(resolve => {
+      this._recorder.onstop = () => {
+        this._blob = new Blob(this._chunks, { type: this._recorder.mimeType || 'video/webm' });
+        const playback = document.getElementById('sa-playback');
+        if (playback) {
+          playback.src = URL.createObjectURL(this._blob);
+          playback.classList.add('has-clip');
+        }
+        resolve();
+      };
+      this._recorder.stop();
+      this._recording = false;
+      const btn = document.getElementById('sa-record');
+      if (btn) { btn.textContent = '● Record'; btn.classList.remove('recording'); }
+      document.getElementById('sa-status')?.replaceChildren(document.createTextNode('Clip ready · choose channel & post'));
+    });
+  },
+
+  _channelValue() {
+    const sel = document.getElementById('sa-channel');
+    const custom = document.getElementById('sa-channel-custom');
+    const v = sel?.value || 'global';
+    if (v === 'team') return AstranovNode?.channel || ('batch-' + (AstranovNode?.shortId || 'team'));
+    if (v === 'local') return 'local';
+    if (v === 'custom') return (custom?.value || '').trim() || 'custom';
+    return 'global';
+  },
+
+  async _uploadVideo(blob) {
+    if (!Auth?.user || !Auth?.client) throw new Error('login required — tap G');
+    const ext = (blob.type || '').includes('mp4') ? 'mp4' : 'webm';
+    const path = Auth.user.id + '/' + Date.now() + '.' + ext;
+    const { error } = await Auth.client.storage.from('posts').upload(path, blob, {
+      contentType: blob.type || 'video/webm',
+      upsert: false,
+    });
+    if (error) throw new Error(error.message || 'upload failed');
+    const { data } = Auth.client.storage.from('posts').getPublicUrl(path);
+    return data?.publicUrl || (SB_URL + '/storage/v1/object/public/posts/' + path);
+  },
+
+  async registerDriver() {
+    if (!Auth?.user) return;
+    const pos = window._lastPos || {};
+    const roles = Array.from(new Set([...(FieldBrain?.roles || ['client']), 'driver']));
+    const headers = await Auth.authHeaders();
+    await fetch(SB_URL + '/rest/v1/profiles?id=eq.' + Auth.user.id, {
+      method: 'PATCH', headers,
+      body: JSON.stringify({ roles, field_lat: pos.lat ?? null, field_lng: pos.lng ?? null, field_seen_at: new Date().toISOString() }),
+    });
+    FieldBrain.roles = roles;
+    FieldBrain?.updateChip?.();
+    FieldBrain?.pulse?.('roles_sync', 'driver via Super Add', { role: 'driver' });
+    AciCli?.print('registered as driver · visible to deliveries', 'ok');
+  },
+
+  async registerVendor(name) {
+    if (!Auth?.user) return;
+    const pos = window._lastPos || { lat: 36.44, lng: 28.22 };
+    const vname = String(name || '').trim() || (Auth.user.user_metadata?.full_name || 'My shop');
+    const id = 'v-' + Auth.user.id.slice(0, 8) + '-' + Date.now().toString(36);
+    const headers = await Auth.authHeaders();
+    const body = {
+      id, owner_id: Auth.user.id, name: vname, emoji: '🏬',
+      lat: pos.lat, lng: pos.lng, country: 'GR', city: 'field',
+      items: [], is_active: true, delivery_enabled: true, category: 'field_add',
+    };
+    const r = await fetch(SB_URL + '/rest/v1/vendors', { method: 'POST', headers, body: JSON.stringify(body) });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      throw new Error(j.message || j.error || 'vendor create failed');
+    }
+    await FieldBrain?.onAuth?.();
+    await Commerce?.loadVendors?.();
+    MapDepict?.pulse?.(pos.lat, pos.lng, 0xff8844, vname, 16000);
+    AciCli?.print('vendor added on map · ' + vname, 'ok');
+    return id;
+  },
+
+  async pinMapDiscovery(caption, channel) {
+    const pos = window._lastPos || { lat: 36.44, lng: 28.22 };
+    MapDepict?.action?.('explore', { lat: pos.lat, lng: pos.lng, detail: caption || 'discovery' });
+    this._placeMarker(pos.lat, pos.lng, caption || 'Found here', channel);
+    FieldBrain?.pulse?.('explore', caption || 'map discovery', { role: 'client' });
+  },
+
+  _placeMarker(lat, lng, label, channel) {
+    const p = latLngToPos(lat, lng, 1.03);
+    const g = new THREE.Group();
+    const plane = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.05, 0.05),
+      new THREE.MeshBasicMaterial({ color: 0xff66aa, transparent: true, opacity: 0.9, side: THREE.DoubleSide })
+    );
+    g.add(plane);
+    g.position.set(p.x, p.y, p.z);
+    g.lookAt(0, 0, 0);
+    g.userData = { type: 'post', label, channel };
+    globePivot.add(g);
+    this._markers.push(g);
+    MapDepict?.pulse?.(lat, lng, 0xff66aa, '▶ ' + (label || 'post'), 20000);
+  },
+
+  async publish() {
+    const caption = (document.getElementById('sa-caption')?.value || '').trim();
+    const asVendor = document.getElementById('sa-as-vendor')?.checked;
+    const asDriver = document.getElementById('sa-as-driver')?.checked;
+    const asMap = document.getElementById('sa-as-map')?.checked;
+    const vendorName = (document.getElementById('sa-vendor-name')?.value || '').trim();
+    const channel = this._channelValue();
+
+    if (!Auth?.user) {
+      ACIControl?.reply('Sign in (G) to post');
+      Auth?.signInGoogle?.();
+      return;
+    }
+
+    if (!userLocated && navigator.geolocation) {
+      await new Promise(resolve => {
+        navigator.geolocation.getCurrentPosition(p => {
+          placeMe(p.coords.latitude, p.coords.longitude, { quiet: true, markerOnly: true });
+          resolve();
+        }, () => resolve());
+      });
+    }
+
+    const pos = window._lastPos || { lat: 36.44, lng: 28.22 };
+    const author = Auth.user.user_metadata?.full_name || Auth.user.email?.split('@')[0] || 'user';
+    GlobeDeck?.setThinking?.(true, 'Posting…');
+
+    try {
+      let url = '';
+      if (this._blob && this._blob.size > 800) {
+        url = await this._uploadVideo(this._blob);
+      }
+
+      const postId = 'p-' + Date.now().toString(36);
+      const headers = await Auth.authHeaders();
+      const row = {
+        id: postId,
+        channel,
+        author,
+        url: url || null,
+        mode: url ? 'video' : 'text',
+        lat: pos.lat,
+        lng: pos.lng,
+        text: caption || (asMap ? 'Map discovery' : 'Super Add'),
+      };
+      const ins = await fetch(SB_URL + '/rest/v1/posts', { method: 'POST', headers, body: JSON.stringify(row) });
+      if (!ins.ok) {
+        const j = await ins.json().catch(() => ({}));
+        throw new Error(j.message || j.error || 'post save failed');
+      }
+
+      if (asDriver) await this.registerDriver();
+      if (asVendor) await this.registerVendor(vendorName || caption);
+      if (asMap || url) this._placeMarker(pos.lat, pos.lng, caption || author, channel);
+
+      if (channel === 'global' || channel === 'local') {
+        MapDepict?.action?.('video', { lat: pos.lat, lng: pos.lng, detail: caption || 'posted' });
+      }
+
+      FieldBrain?.pulse?.('post', channel + ' · ' + (caption || 'video').slice(0, 80), { role: 'client' });
+      AciCli?.print('posted → ' + channel + (url ? ' · video' : ' · pin'), 'ok');
+      ACIControl?.reply('Posted to ' + channel + (asVendor ? ' · vendor on map' : '') + (asDriver ? ' · driver on' : ''));
+      GlobeDeck?.setPreview?.('➕ posted · ' + channel);
+
+      this._blob = null;
+      this._chunks = [];
+      const playback = document.getElementById('sa-playback');
+      if (playback) { playback.removeAttribute('src'); playback.classList.remove('has-clip'); }
+      const cap = document.getElementById('sa-caption');
+      if (cap) cap.value = '';
+    } catch (e) {
+      AciCli?.print('post failed: ' + (e.message || e), 'err');
+      ACIControl?.reply('Post failed — ' + (e.message || e));
+    } finally {
+      GlobeDeck?.setThinking?.(false);
+    }
+  },
+
+  async loadPostsOnGlobe() {
+    try {
+      const r = await fetch(SB_URL + '/rest/v1/posts?select=id,channel,author,url,mode,lat,lng,text&order=created_at.desc&limit=24', {
+        headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY },
+      });
+      const rows = r.ok ? await r.json() : [];
+      rows.forEach(p => {
+        if (p.lat == null) return;
+        this._placeMarker(p.lat, p.lng, (p.text || p.author || 'post').slice(0, 40), p.channel);
+      });
+    } catch { /* */ }
+  },
+
+  stop() {
+    this.stopCamera();
+  },
+};
+window.SuperAdd = SuperAdd;
+
 // === YOUTUBE ON GLOBE — search + watch in Astranov Command Line deck ===
 const GlobeVideo = {
   _results: [],
@@ -6391,6 +6806,11 @@ function onGlobeClick(e) {
     const root = hit.userData?.vendor ? hit : (hit.parent?.userData?.vendor ? hit.parent : hit);
     const ud = root.userData || hit.userData || {};
 
+    if (ud.type === 'post') {
+      MapDepict?.action?.('video', { detail: ud.label || 'post' });
+      AciCli?.print('post · ' + (ud.label || 'on globe') + (ud.channel ? ' · ' + ud.channel : ''), 'ok');
+      return;
+    }
     if (ud.vendor) {
       if (window.Commerce?.openVendor) Commerce.openVendor(ud.vendor);
       else {
@@ -7771,6 +8191,7 @@ DrivingView.init();
 CosmicZoom.init();
 SuperSpace.init();
 CityLife.init();
+SuperAdd.init();
 if (typeof orbitalSats !== 'undefined') CosmicZoom.registerOrbitalSats(orbitalSats);
 Commerce.loadVendors().then(() => Commerce.initUI());
 NewsFeed.fetch();
