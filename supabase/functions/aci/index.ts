@@ -52,6 +52,7 @@ const VISUAL_TRUTH_NEURONS = [
   'Visual honesty: arcs, pulses, and zoom reflect real lat/lng from GPS, vendors, and online drivers — not simulation.',
   'Helpful autonomy: suggest best bundle (coverage, price, distance), speak outcome, assign driver — user confirms once, system does the rest.',
   'Work together via Astranov node: install PWA/native on Android or Apple, launch batch — each device is a decentralized relay + comms applet.',
+  'Batch launch law: always run preflight verify (session, ACI think, coders-bridge) before launching batch — never deploy or start batch on a broken baseline.',
 ]
 
 const ALL_PRINCIPLES = [...FOUNDING_NEURONS, ...VISUAL_TRUTH_NEURONS]

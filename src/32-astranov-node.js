@@ -162,6 +162,55 @@ const AstranovNode = {
     if (box) box.style.display = 'block';
   },
 
+  /** Rule: always verify basics before batch launch (think, session, bridge). */
+  BATCH_RULE: 'Verify production basics before launching batch — never skip preflight.',
+
+  async preflightVerify() {
+    const checks = [];
+    const record = (name, ok, detail) => { checks.push({ name, ok, detail }); return ok; };
+
+    const session = Auth?.ensureSession ? await Auth.ensureSession() : null;
+    if (!record('session', !!(session?.access_token), session?.access_token ? 'jwt ok' : 'expired — sign in again')) {
+      return { ok: false, checks, error: 'session expired — tap G' };
+    }
+
+    try {
+      const think = AciCli?.api
+        ? await AciCli.api({ mode: 'think', prompt: 'ping' })
+        : await ACI.api({ mode: 'think', prompt: 'ping' });
+      const thinkText = String(think?.text || think?.response || '').trim();
+      if (!record('aci think', !!thinkText && !think.error, thinkText ? thinkText.slice(0, 40) : (think?.error || 'no response'))) {
+        return { ok: false, checks, error: 'ACI think unreachable' };
+      }
+    } catch (e) {
+      record('aci think', false, String(e.message || e));
+      return { ok: false, checks, error: 'ACI think failed' };
+    }
+
+    try {
+      const headers = await Auth.authHeaders();
+      const bridge = await fetchJson(SB_URL + '/functions/v1/coders-bridge', {
+        method: 'POST', headers,
+        body: JSON.stringify({ mode: 'pending', limit: 3 }),
+      }, 20000);
+      if (!record('coders bridge', !!bridge.ok, bridge.ok ? 'reachable' : (bridge.error || 'down'))) {
+        return { ok: false, checks, error: 'coders bridge down' };
+      }
+    } catch (e) {
+      record('coders bridge', false, String(e.message || e));
+      return { ok: false, checks, error: 'coders bridge failed' };
+    }
+
+    try {
+      const sync = await AciCli?.api({ mode: 'owner_sync' });
+      record('owner sync', !!sync.ok, sync.is_owner ? 'owner' : 'user');
+    } catch (e) {
+      record('owner sync', false, String(e.message || e));
+    }
+
+    return { ok: true, checks };
+  },
+
   async launchBatch() {
     if (!Auth?.user) {
       this.showPanel();
@@ -173,6 +222,20 @@ const AstranovNode = {
 
     this.showPanel();
     this.setStep(1, 'done', 'Συνδεδεμένος · ' + (Auth.user.email?.split('@')[0] || 'user'));
+    this.setStep(3, 'active', 'Preflight verify…');
+
+    const pre = await this.preflightVerify();
+    if (!pre.ok) {
+      this.setStep(3, 'blocked', pre.error || 'preflight failed');
+      const failed = (pre.checks || []).filter(c => !c.ok).map(c => c.name).join(', ');
+      AciCli?.print('batch blocked — verify failed: ' + (failed || pre.error), 'err');
+      ACIControl?.reply('Batch blocked — fix: ' + (pre.error || failed));
+      return { ok: false, preflight: pre };
+    }
+
+    if (AciCli) {
+      AciCli.print('preflight OK — ' + pre.checks.map(c => c.name).join(', '), 'ok');
+    }
     this.setStep(3, 'active', 'Εκκίνηση batch…');
 
     const pos = this.pos();
