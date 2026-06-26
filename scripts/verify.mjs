@@ -26,7 +26,7 @@ console.log(`Modules: ${manifest.modules.length}`);
 console.log(`Script match: ${scriptOk ? 'OK' : 'DIFF (' + script.length + ' vs ' + joined.length + ' bytes)'}`);
 console.log(`Full HTML match: ${htmlOk ? 'OK' : 'DIFF'}`);
 
-const tmp = path.join(SRC, '.assembled-check.js');
+const tmp = path.join(SRC, `.assembled-check-${process.pid}.js`);
 fs.writeFileSync(tmp, parseIndex(assembled).script, 'utf8');
 try {
   execSync(`node --check "${tmp}"`, { stdio: 'pipe' });

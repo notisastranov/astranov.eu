@@ -1849,6 +1849,18 @@ Object.assign(SuperCli, {
         GlobeDeck?.finishCliIfOneShot('status');
         return { handled: true };
       }
+      if (cmd === 'hold' || cmd === 'pause') {
+        SessionHold?.hold?.();
+        return { handled: true };
+      }
+      if (cmd === 'resume' || cmd === 'unhold') {
+        await SessionHold?.resume?.();
+        return { handled: true };
+      }
+      if (cmd === 'stop') {
+        userIntervene?.();
+        return { handled: true };
+      }
 
       if (this.devMode && !this.isStructuredCmd(cmd)) {
         await this.devBrain(raw);

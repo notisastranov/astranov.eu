@@ -50,19 +50,44 @@ await check('assemble + syntax', () => {
   execSync('node scripts/assemble.mjs', { cwd: ROOT, stdio: 'pipe' });
   execSync('node scripts/verify.mjs', { cwd: ROOT, stdio: 'pipe' });
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  const superCli = ['super-cli-bar', 'globe-deck-stage', 'SuperCli', 'superAction'];
+  const superCli = [
+    'super-cli-bar', 'globe-deck-stage', 'SuperCli', 'superAction',
+    'SessionHold', 'initBrain', 'aci-hold', 'preflightVerify',
+    'cmdDev', 'cmdUi', 'cmdBrain', 'submitVoiceToCli', 'async exec',
+  ];
   const missing = superCli.filter(m => !html.includes(m));
   if (missing.length) throw new Error('Super CLI missing: ' + missing.join(', '));
-  return 'index.html OK · Super CLI present';
+  const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+  const cache = sw.match(/CACHE\s*=\s*'([^']+)'/)?.[1];
+  if (!cache || !/^astranov-v\d+$/.test(cache)) throw new Error('sw.js CACHE invalid: ' + cache);
+  return 'index.html OK · ' + superCli.length + ' markers · ' + cache;
 });
 
-await check('live site has coders bridge', async () => {
-  const r = await fetch(SITE + '/index.html');
-  const html = await r.text();
-  const markers = ['AciCoders', 'alwaysOn', 'startListening', 'observeActivity', 'super-cli-bar', 'SuperCli'];
+await check('live site v16+ brain layer', async () => {
+  const [htmlR, swR] = await Promise.all([
+    fetch(SITE + '/index.html'),
+    fetch(SITE + '/sw.js'),
+  ]);
+  const html = await htmlR.text();
+  const sw = await swR.text();
+  const markers = [
+    'AciCoders', 'alwaysOn', 'startListening', 'observeActivity',
+    'super-cli-bar', 'SuperCli', 'SessionHold', 'initBrain', 'aci-hold',
+    'preflightVerify', 'cmdDev', 'submitVoiceToCli',
+  ];
   const missing = markers.filter(m => !html.includes(m));
   if (missing.length) throw new Error('missing: ' + missing.join(', '));
-  return markers.length + ' markers present';
+  const liveCache = sw.match(/CACHE\s*=\s*'([^']+)'/)?.[1];
+  if (!liveCache || !/^astranov-v\d+$/.test(liveCache)) throw new Error('live sw CACHE invalid');
+  return markers.length + ' markers · live ' + liveCache;
+});
+
+await check('node-batch auth gate', async () => {
+  const j = await api('/functions/v1/node-batch', { action: 'launch' });
+  if (j.status !== 401 || !String(j.error || '').includes('login')) {
+    throw new Error('expected 401 login_required, got ' + JSON.stringify(j));
+  }
+  return '401 login_required (correct)';
 });
 
 await check('coders-bridge pending', async () => {
