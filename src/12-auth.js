@@ -323,12 +323,15 @@ const Auth = {
         }
       }
       if (chip && !this.isOwner) chip.textContent = name;
+      AstranovSession?._applyIdentity?.();
       if (typeof me !== 'undefined' && me) {
         me.name = name;
         me.id = this.user.id;
         me.email = this.user.email;
         me.isOwner = this.isOwner;
+        me.isGuest = false;
       }
+      AstranovSession?.onAuth?.();
       ACI?.feed('login', name);
       if (window.AciCli) AciCli.onAuthChange();
     } else {

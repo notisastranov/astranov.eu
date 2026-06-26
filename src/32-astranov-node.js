@@ -41,8 +41,69 @@ const AstranovNode = {
     return window._lastPos || { lat: 36.4239, lng: 28.2245 };
   },
 
+  getDeviceNodeId() {
+    return AstranovSession?.getDeviceNodeId?.() || this.nodeId;
+  },
+
+  async resumeSession() {
+    if (!Auth?.user) return null;
+    const nodeId = this.getDeviceNodeId();
+    const r = await this.api({
+      action: 'resume',
+      node_id: nodeId,
+      device_id: AstranovSession?.deviceId?.(),
+      platform: this.platform(),
+      install_mode: this.installMode(),
+      lat: this.pos().lat,
+      lng: this.pos().lng,
+    });
+    if (r.ok && r.resume) return this._applyBatchResult(r, { quiet: true });
+    return null;
+  },
+
+  resumeFromServer(session) {
+    if (!session?.shortId || !Auth?.user) return;
+    if (this.batchId && this.shortId === session.shortId) return;
+    this.api({
+      action: 'resume',
+      node_id: session.nodeId || this.getDeviceNodeId(),
+      device_id: AstranovSession?.deviceId?.(),
+      platform: this.platform(),
+      install_mode: this.installMode(),
+      lat: session.lastPos?.lat ?? this.pos().lat,
+      lng: session.lastPos?.lng ?? this.pos().lng,
+    }).then(r => {
+      if (r.ok && (r.resume || r.batch_id)) this._applyBatchResult(r, { quiet: true });
+    }).catch(() => {});
+  },
+
+  async _applyBatchResult(r, opts) {
+    opts = opts || {};
+    this.batchId = r.batch_id;
+    this.shortId = r.short_id;
+    this.nodeId = r.node_id;
+    this.peerCount = r.peers || 1;
+    try {
+      const key = AstranovSession?.nodeStorageKey?.() || 'astranov_node_id';
+      localStorage.setItem(key, this.nodeId);
+    } catch { /* */ }
+    await this.joinBatchChannel(r.channel || ('astranov-batch-' + r.short_id));
+    this.startHeartbeat();
+    if (!opts.quiet) {
+      AciCli?.print('◎ Same batch · ' + r.short_id + ' · ' + this.peerCount + ' device(s)', 'ok');
+    } else {
+      GlobeDeck?.setPreview?.('◎ Session · batch ' + r.short_id + ' · ' + this.peerCount + ' device(s)');
+    }
+    if (window.AIGraphics?.setSuperBatchActive) {
+      AIGraphics.setSuperBatchActive(true, { batchId: r.short_id, peers: this.peerCount, lat: this.pos().lat, lng: this.pos().lng });
+    }
+    return r;
+  },
+
   init() {
-    try { this.nodeId = localStorage.getItem('astranov_node_id'); } catch { /* */ }
+    try {
+      this.nodeId = AstranovSession?.getDeviceNodeId?.() || localStorage.getItem('astranov_node_id');
+    } catch { /* */ }
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       this.deferredPrompt = e;
@@ -241,7 +302,8 @@ const AstranovNode = {
     const pos = this.pos();
     const r = await this.api({
       action: 'launch',
-      node_id: this.nodeId || undefined,
+      node_id: this.getDeviceNodeId() || undefined,
+      device_id: AstranovSession?.deviceId?.(),
       platform: this.platform(),
       install_mode: this.installMode(),
       lat: pos.lat,
@@ -255,14 +317,8 @@ const AstranovNode = {
       return;
     }
 
-    this.batchId = r.batch_id;
-    this.shortId = r.short_id;
-    this.nodeId = r.node_id;
-    try { localStorage.setItem('astranov_node_id', this.nodeId); } catch { /* */ }
+    await this._applyBatchResult(r);
     this.peerCount = r.peers || 1;
-
-    await this.joinBatchChannel(r.channel || ('astranov-batch-' + r.short_id));
-    this.startHeartbeat();
 
     const peerEl = document.getElementById('nb-peers');
     if (peerEl) peerEl.textContent = String(this.peerCount);
@@ -275,7 +331,8 @@ const AstranovNode = {
 
     this.registerSuperBookingSync();
 
-    const msg = 'Super batch ' + r.short_id + ' live · ' + this.peerCount + ' node(s) · evolved AI mesh active';
+    const resumed = r.resumed ? ' (same session — all your devices)' : '';
+    const msg = 'Super batch ' + r.short_id + ' live · ' + this.peerCount + ' node(s)' + resumed;
     ACIControl?.reply(msg);
     MapDepict?.action('batch', { lat: pos.lat, lng: pos.lng, detail: r.short_id + ' · ' + this.peerCount + ' nodes' });
     FieldBrain?.pulse('batch', r.short_id + ' · peers ' + this.peerCount, { role: 'client', props: { batch_id: r.batch_id, node_id: r.node_id } });

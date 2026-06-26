@@ -31,7 +31,7 @@ const AciConnect = {
     });
 
     this.connected = !!(conn.ok && conn.connected);
-    this.sessionId = conn.session_id || Auth.user.id;
+    this.sessionId = Auth.user.id;
     window._aciConnected = this.connected;
     GlobeDeck?.setThinking(false);
 

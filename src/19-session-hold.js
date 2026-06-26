@@ -5,6 +5,21 @@ const SessionHold = {
   STORAGE_KEY: 'astranov-session-hold-v1',
   _snapshot: null,
 
+  storageKey() {
+    const uid = Auth?.user?.id || 'guest';
+    return this.STORAGE_KEY + '_' + uid;
+  },
+
+  clearForeignHold() {
+    const saved = this.loadPersisted();
+    if (!saved?.snapshot) return;
+    const cur = Auth?.user?.id || null;
+    if (saved.snapshot.userId && cur && saved.snapshot.userId !== cur) {
+      this.release();
+      AciCli?.print('cleared hold from another account — same login on all devices', 'dim');
+    }
+  },
+
   init() {
     const btn = document.getElementById('aci-hold');
     if (btn) btn.onclick = e => { e.preventDefault(); e.stopPropagation(); this.toggle(); };
@@ -35,12 +50,12 @@ const SessionHold = {
 
   persist(snapshot) {
     try {
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify({ held: true, snapshot }));
+      localStorage.setItem(this.storageKey(), JSON.stringify({ held: true, snapshot }));
     } catch (_) {}
   },
 
   clearPersist() {
-    try { localStorage.removeItem(this.STORAGE_KEY); } catch (_) {}
+    try { localStorage.removeItem(this.storageKey()); } catch (_) {}
   },
 
   pauseListening() {
@@ -108,7 +123,7 @@ const SessionHold = {
 
   loadPersisted() {
     try {
-      const raw = localStorage.getItem(this.STORAGE_KEY);
+      const raw = localStorage.getItem(this.storageKey());
       if (!raw) return null;
       return JSON.parse(raw);
     } catch { return null; }

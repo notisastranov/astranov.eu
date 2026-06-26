@@ -71,6 +71,7 @@ CosmicZoom.init();
 AstranovTheme.init();
 CityMap.init();
 EarthRealism.init();
+AstranovSession.init();
 SuperSpace.init();
 CityLife.init();
 SuperAdd.init();

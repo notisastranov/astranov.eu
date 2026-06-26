@@ -38,46 +38,96 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'login_required' }), { status: 401, headers: cors })
     }
 
-    if (action === 'launch') {
-      const { data: batch, error } = await sb.from('astranov_batches').insert({
-        owner_id: userId,
-        status: 'open',
-      }).select().single()
-      if (error) throw error
+    if (action === 'session_get') {
+      const { data } = await sb.from('profiles').select('globe_session').eq('id', userId).maybeSingle()
+      return new Response(JSON.stringify({ ok: true, session: data?.globe_session || {} }), { headers: cors })
+    }
 
-      const nodeId = String(body.node_id || ('node-' + userId.slice(0, 8) + '-' + Date.now().toString(36)))
-      await sb.from('astranov_nodes').upsert({
-        node_id: nodeId,
-        user_id: userId,
-        batch_id: batch.id,
-        platform: body.platform ?? 'web',
-        install_mode: body.install_mode ?? 'browser',
-        lat: typeof body.lat === 'number' ? body.lat : null,
-        lng: typeof body.lng === 'number' ? body.lng : null,
-        props: body.props ?? {},
-        last_seen: new Date().toISOString(),
-        is_active: true,
-      }, { onConflict: 'node_id' })
+    if (action === 'session_save') {
+      const session = body.session && typeof body.session === 'object' ? body.session : {}
+      await sb.from('profiles').update({ globe_session: session, updated_at: new Date().toISOString() }).eq('id', userId)
+      return new Response(JSON.stringify({ ok: true }), { headers: cors })
+    }
 
-      await sb.from('field_events').insert({
-        user_id: userId,
-        role: 'client',
-        action: 'batch',
-        detail: `batch launch ${batch.short_id}`,
-        lat: typeof body.lat === 'number' ? body.lat : null,
-        lng: typeof body.lng === 'number' ? body.lng : null,
-        props: { batch_id: batch.id, node_id: nodeId },
-        brain_synced: true,
-      }).catch(() => {})
-
+    if (action === 'resume') {
+      const batch = await findActiveBatch(sb, userId)
+      if (!batch) {
+        return new Response(JSON.stringify({ ok: false, resume: false, error: 'no_active_batch' }), { headers: cors })
+      }
+      const nodeId = resolveNodeId(userId, body)
+      const joined = await registerNode(sb, {
+        nodeId,
+        userId,
+        batchId: batch.id,
+        body,
+      })
       const peers = await peerCount(sb, batch.id)
+      return new Response(JSON.stringify({
+        ok: true,
+        resume: true,
+        batch_id: batch.id,
+        short_id: batch.short_id,
+        node_id: joined.nodeId,
+        channel: 'astranov-batch-' + batch.short_id,
+        peers,
+      }), { headers: cors })
+    }
+
+    if (action === 'launch') {
+      const forceNew = !!body.force_new
+      let batch = forceNew ? null : await findActiveBatch(sb, userId)
+
+      if (!batch) {
+        const { data: created, error } = await sb.from('astranov_batches').insert({
+          owner_id: userId,
+          status: 'open',
+        }).select().single()
+        if (error) throw error
+        batch = created
+      }
+
+      const nodeId = resolveNodeId(userId, body)
+      await registerNode(sb, {
+        nodeId,
+        userId,
+        batchId: batch!.id,
+        body,
+      })
+
+      if (!forceNew && batch) {
+        const detail = `batch join ${batch.short_id}`
+        await sb.from('field_events').insert({
+          user_id: userId,
+          role: 'client',
+          action: 'batch',
+          detail,
+          lat: typeof body.lat === 'number' ? body.lat : null,
+          lng: typeof body.lng === 'number' ? body.lng : null,
+          props: { batch_id: batch.id, node_id: nodeId, resumed: !forceNew },
+          brain_synced: true,
+        }).catch(() => {})
+      } else {
+        await sb.from('field_events').insert({
+          user_id: userId,
+          role: 'client',
+          action: 'batch',
+          detail: `batch launch ${batch!.short_id}`,
+          lat: typeof body.lat === 'number' ? body.lat : null,
+          lng: typeof body.lng === 'number' ? body.lng : null,
+          props: { batch_id: batch!.id, node_id: nodeId },
+          brain_synced: true,
+        }).catch(() => {})
+      }
+
+      const peers = await peerCount(sb, batch!.id)
 
       return new Response(JSON.stringify({
         ok: true,
-        batch_id: batch.id,
-        short_id: batch.short_id,
+        resumed: !forceNew && !!batch,
+        batch_id: batch!.id,
+        short_id: batch!.short_id,
         node_id: nodeId,
-        channel: 'astranov-batch-' + batch.short_id,
+        channel: 'astranov-batch-' + batch!.short_id,
         peers,
       }), { headers: cors })
     }
@@ -87,20 +137,8 @@ serve(async (req) => {
       if (!batchId) {
         return new Response(JSON.stringify({ error: 'batch_id required' }), { status: 400, headers: cors })
       }
-      const nodeId = String(body.node_id || ('node-' + userId.slice(0, 8) + '-' + Date.now().toString(36)))
-      const { error } = await sb.from('astranov_nodes').upsert({
-        node_id: nodeId,
-        user_id: userId,
-        batch_id: batchId,
-        platform: body.platform ?? 'web',
-        install_mode: body.install_mode ?? 'browser',
-        lat: typeof body.lat === 'number' ? body.lat : null,
-        lng: typeof body.lng === 'number' ? body.lng : null,
-        props: body.props ?? {},
-        last_seen: new Date().toISOString(),
-        is_active: true,
-      }, { onConflict: 'node_id' })
-      if (error) throw error
+      const nodeId = resolveNodeId(userId, body)
+      await registerNode(sb, { nodeId, userId, batchId, body })
       const peers = await peerCount(sb, batchId)
       const { data: batch } = await sb.from('astranov_batches').select('short_id').eq('id', batchId).single()
       return new Response(JSON.stringify({
@@ -143,12 +181,54 @@ serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, peers: nodes?.length || 0, nodes: nodes || [] }), { headers: cors })
     }
 
-    return new Response(JSON.stringify({ error: 'unknown action', actions: ['launch', 'register', 'heartbeat', 'peers'] }), { status: 400, headers: cors })
+    return new Response(JSON.stringify({
+      error: 'unknown action',
+      actions: ['launch', 'resume', 'register', 'heartbeat', 'peers', 'session_get', 'session_save'],
+    }), { status: 400, headers: cors })
   } catch (e) {
     const err = e && typeof e === 'object' && 'message' in e ? String((e as { message?: string }).message) : String(e)
     return new Response(JSON.stringify({ ok: false, error: err }), { status: 500, headers: cors })
   }
 })
+
+async function findActiveBatch(sb: ReturnType<typeof createClient>, userId: string) {
+  const since = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString()
+  const { data: batch } = await sb.from('astranov_batches')
+    .select('id, short_id, status, created_at')
+    .eq('owner_id', userId)
+    .eq('status', 'open')
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return batch
+}
+
+function resolveNodeId(userId: string, body: Record<string, unknown>) {
+  if (body.node_id) return String(body.node_id)
+  const device = String(body.device_id || 'web').slice(0, 12)
+  return 'node-' + userId.slice(0, 8) + '-' + device
+}
+
+async function registerNode(
+  sb: ReturnType<typeof createClient>,
+  opts: { nodeId: string; userId: string; batchId: string; body: Record<string, unknown> },
+) {
+  const { nodeId, userId, batchId, body } = opts
+  await sb.from('astranov_nodes').upsert({
+    node_id: nodeId,
+    user_id: userId,
+    batch_id: batchId,
+    platform: body.platform ?? 'web',
+    install_mode: body.install_mode ?? 'browser',
+    lat: typeof body.lat === 'number' ? body.lat : null,
+    lng: typeof body.lng === 'number' ? body.lng : null,
+    props: { ...(body.props as object || {}), device_id: body.device_id || null },
+    last_seen: new Date().toISOString(),
+    is_active: true,
+  }, { onConflict: 'node_id' })
+  return { nodeId }
+}
 
 async function peerCount(sb: ReturnType<typeof createClient>, batchId: string) {
   const since = new Date(Date.now() - 5 * 60 * 1000).toISOString()

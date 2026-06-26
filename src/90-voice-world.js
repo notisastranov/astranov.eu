@@ -5,16 +5,19 @@ let hidden = false;
 
 
 
-// Auto join as Αξάς (no floating windows - everything on the globe)
-me = {
-  id: 'u' + Date.now(),
-  name: 'Αξάς'
-};
+// Identity unified via AstranovSession (same user across devices when signed in)
+me = null;
+window.me = me;
 
 try { Voice.init(); initVoice(); } catch(e){ console.warn('Voice init skipped:', e.message); }
 
 // Silent init (no panels, all on the globe) - user can play freely first
 function initUser() {
+  AstranovSession?._applyIdentity?.();
+  if (!me) {
+    me = { id: 'guest-pending', name: 'Αξάς', isGuest: true };
+    window.me = me;
+  }
   showOtherUsers();
 
   // Default position on globe (Greece area) - no geo yet

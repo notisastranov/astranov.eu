@@ -37,6 +37,7 @@
     { "file": "70-routing.js", "marker": "// STRONG ROUTING FALLBACK PROVIDER CYCLING ENGINE" },
     { "file": "72-driving.js", "marker": "// === DRIVING VIEW + OSRM ROAD ROUTING ===" },
     { "file": "80-webrtc.js", "marker": "// WebRTC Video Calling + Orbital global compatibility" },
+    { "file": "64-astranov-session.js", "marker": "// === ASTRANOV SESSION" },
     { "file": "90-voice-world.js", "marker": "// Flow" },
     { "file": "99-boot.js", "marker": "function animate()" }
   ]
