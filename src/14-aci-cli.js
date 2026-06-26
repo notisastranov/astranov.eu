@@ -60,10 +60,24 @@ const AciCli = {
     } catch { this.history = []; }
   },
 
+  mergeHistory(remote) {
+    if (!Array.isArray(remote) || !remote.length) return;
+    const seen = new Set(this.history.map(h => String(h).trim()));
+    remote.forEach(line => {
+      const t = String(line || '').trim();
+      if (!t || seen.has(t)) return;
+      seen.add(t);
+      this.history.push(t);
+    });
+    if (this.history.length > 80) this.history = this.history.slice(-80);
+    this.saveHistory();
+  },
+
   saveHistory() {
     try {
       const key = 'aci-cli-' + (Auth.user?.id || 'anon');
       localStorage.setItem(key, JSON.stringify(this.history.slice(-80)));
+      AstranovSession?.push?.();
     } catch (_) {}
   },
 
@@ -157,6 +171,7 @@ const AciCli = {
 
   async run(line, opts = {}) {
     GlobeDeck?.onUserMessage('CLI — ' + line.slice(0, 40));
+    AstranovWishlist?.captureCliLine?.(line);
     this.history.push(line);
     this.histIdx = -1;
     this.saveHistory();

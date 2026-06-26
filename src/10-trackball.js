@@ -4,6 +4,16 @@ const TRACK_SENS = 0.0028;
 const ZOOM_MIN = 1.05;
 const ZOOM_MAX = 18;
 const ZOOM_SMOOTH = 0.09;
+const ZOOM_TIERS = [
+  { id: 'city', z: 1.42, label: 'CITY' },
+  { id: 'national', z: 2.05, label: 'NATIONAL' },
+  { id: 'earth', z: 3.0, label: 'EARTH' },
+  { id: 'orbit', z: 4.8, label: 'ORBIT' },
+  { id: 'solar', z: 8.0, label: 'SOLAR' },
+  { id: 'galaxy', z: 16.0, label: 'GALAXY' },
+];
+let _zoomSnapTimer = null;
+let _lastZoomAt = 0;
 
 let pinchDist = 0;
 let pinching = false;
@@ -67,6 +77,37 @@ function registerTap(clientX, clientY) {
   lastTapY = clientY;
 }
 
+function scheduleTierSnap() {
+  _lastZoomAt = Date.now();
+  clearTimeout(_zoomSnapTimer);
+  _zoomSnapTimer = setTimeout(snapToNearestTier, 220);
+}
+
+function snapToNearestTier() {
+  if (Date.now() - _lastZoomAt < 180) return;
+  if (window._globeFly || pinching || drag || DrivingView?.active) return;
+  const z = camera.position.z;
+  let best = null;
+  let bestDist = Infinity;
+  ZOOM_TIERS.forEach(t => {
+    const d = Math.abs(Math.log(z / t.z));
+    if (d < bestDist) { bestDist = d; best = t; }
+  });
+  if (!best || bestDist > 0.14) return;
+  if (Math.abs(z - best.z) < 0.04) return;
+  window._globeFly = {
+    fromY: globePivot.rotation.y,
+    fromX: globePivot.rotation.x,
+    fromZ: z,
+    toY: globePivot.rotation.y,
+    toX: globePivot.rotation.x,
+    toZ: best.z,
+    t0: performance.now(),
+    dur: 520,
+  };
+  MapDepict?.setHud?.(best.label + ' view', 'tier-snap');
+}
+
 function zoomBy(delta) {
   const factor = Math.exp((delta || 0) * ZOOM_SMOOTH);
   const next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, camera.position.z * factor));
@@ -74,6 +115,7 @@ function zoomBy(delta) {
   camera.lookAt(0, 0, 0);
   CosmicZoom.update(camera.position.z);
   CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
+  scheduleTierSnap();
 }
 
 function zoomAt(clientX, clientY, delta, opts) {

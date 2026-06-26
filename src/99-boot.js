@@ -72,6 +72,7 @@ AstranovTheme.init();
 CityMap.init();
 EarthRealism.init();
 AstranovSession.init();
+AstranovWishlist.init();
 SuperSpace.init();
 CityLife.init();
 SuperAdd.init();

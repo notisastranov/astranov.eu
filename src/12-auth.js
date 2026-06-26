@@ -276,14 +276,13 @@ const Auth = {
   updateOwnerUI() {
     const chip = document.getElementById('user-chip');
     if (this.isOwner && chip) {
-      chip.textContent = (this.user?.user_metadata?.full_name || this.user?.email?.split('@')[0] || 'Owner') + ' · OWNER';
+      chip.textContent = 'ASTRANOV · OWNER';
       chip.style.color = '#8f8';
     }
-    if (this.isOwner) GlobeDeck?.setTitle('Astranov Collective CLI · FULL AUTHORITY');
+    if (this.isOwner) GlobeDeck?.setTitle(AstranovSession?.SESSION_NAME || 'ASTRANOV COLLECTIVE INTELLIGENCE');
     const prompt = document.getElementById('aci-cli-prompt');
     if (prompt && this.isOwner) {
-      const name = this.user?.email?.split('@')[0] || 'owner';
-      prompt.textContent = name + '@owner $';
+      prompt.textContent = 'ASTRANOV@collective $';
     }
   },
 
@@ -306,10 +305,14 @@ const Auth = {
     const btn = document.getElementById('aci-login');
     const chip = document.getElementById('user-chip');
     if (this.user) {
-      const name = this.user.user_metadata?.full_name
+      const isOwner = this.isOwner || this.isArchitect
+        || (this.user.email || '').toLowerCase() === this.OWNER_EMAIL.toLowerCase();
+      const name = isOwner ? 'ASTRANOV' : (
+        this.user.user_metadata?.full_name
         || this.user.user_metadata?.name
         || (this.user.email || '').split('@')[0]
-        || 'User';
+        || 'User'
+      );
       const avatar = this.user.user_metadata?.avatar_url || this.user.user_metadata?.picture;
       if (btn) {
         btn.title = 'Sign out · ' + name;

@@ -36,6 +36,7 @@ console.log('%c[Astranov] Globe UI: drag rotate · wheel/pinch zoom · tap/doubl
 
 // Voice → Astranov Command Line (live transcript in input, same path as typing)
 let _voiceBusy = false;
+window._handsFreeVoice = false;
 
 function openVoiceCli() {
   const title = window.SuperCli?.title || 'Astranov Command Line';
@@ -50,11 +51,14 @@ function openVoiceCli() {
 
 function scheduleVoiceResume() {
   if (sessionHeld || SessionHold?.isHeld?.()) return;
-  if (!voiceSessionActive || !voiceEnabled || isListening || Voice.speaking || _voiceBusy) return;
+  const active = voiceSessionActive || window._handsFreeVoice;
+  if (!active || !voiceEnabled || isListening || Voice.speaking || _voiceBusy) return;
   setTimeout(() => {
-    if (!voiceSessionActive || !voiceEnabled || isListening || Voice.speaking || _voiceBusy) return;
+    if (sessionHeld || SessionHold?.isHeld?.()) return;
+    const on = voiceSessionActive || window._handsFreeVoice;
+    if (!on || !voiceEnabled || isListening || Voice.speaking || _voiceBusy) return;
     startListeningForOptions();
-  }, 700);
+  }, window._handsFreeVoice ? 450 : 700);
 }
 
 function voiceWantsAciControl(line) {
@@ -216,13 +220,22 @@ function startVoiceOptions() {
   Voice.flush();
   voiceSessionActive = true;
   voiceEnabled = true;
+  window._handsFreeVoice = true;
   openVoiceCli();
-  AciCli?.print('🎤 listening — speak commands (locate, order, batch, help, stop)', 'dim');
+  AciCli?.print('🎤 hands-free — speak anytime (locate, order, batch, help, stop)', 'dim');
   const input = document.getElementById('aci-cli-in');
-  if (input) input.placeholder = '🎤 listening…';
-  ACIControl.reply('Mic on — voice controls Astranov Command Line');
+  if (input) input.placeholder = '🎤 hands-free listening…';
+  ACIControl.reply('Hands-free on — Astranov Command Line');
+  AstranovSession?.push?.();
   speak('Listening.', () => startListeningForOptions(), true);
 }
+
+function stopHandsFree() {
+  window._handsFreeVoice = false;
+  voiceSessionActive = false;
+  AstranovSession?.push?.();
+}
+window.stopHandsFree = stopHandsFree;
 
 function requestLocationIfNeeded(onLocated) {
   if (userLocated || !navigator.geolocation) {

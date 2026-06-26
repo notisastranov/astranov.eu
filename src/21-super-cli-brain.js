@@ -56,6 +56,7 @@ Object.assign(SuperCli, {
       'teach', 'stats', 'owner', 'seed', 'distill', 'council', 'mode', 'batch', 'vendors',
       'shops', 'order', 'vendor', 'ping', 'locate', 'gps', 'me', 'vhf', 'call', 'phone',
       'drive', 'news', 'roles', 'claim', 'field_stats', 'hold', 'resume', 'stop',
+      'sync', 'requests', 'wishlist',
       'youtube', 'yt', 'watch', 'play', 'space', 'scenario', 'add', 'post', 'superadd',
       'theme', 'dark', 'bright', 'light',
     ]);
@@ -424,6 +425,24 @@ Object.assign(SuperCli, {
       if (cmd === 'status') {
         this.out(JSON.stringify(this.statusSnapshot(), null, 0).slice(0, 800), 'out');
         GlobeDeck?.finishCliIfOneShot('status');
+        return { handled: true };
+      }
+      if (cmd === 'sync') {
+        await AstranovSession?.pull?.();
+        await AstranovSession?.push?.(true);
+        AstranovWishlist?.announceRecovered?.();
+        this.out('◎ Session synced — ' + (AstranovSession?.SESSION_NAME || 'collective'), 'ok');
+        return { handled: true };
+      }
+      if (cmd === 'requests' || cmd === 'wishlist') {
+        const pending = AstranovWishlist?.pending?.() || [];
+        if (!pending.length) {
+          this.out('No pending requests — all recovered items done or empty', 'dim');
+        } else {
+          pending.forEach((it, i) => {
+            this.out((i + 1) + '. ' + it.text.slice(0, 140), 'ok');
+          });
+        }
         return { handled: true };
       }
       if (cmd === 'hold' || cmd === 'pause') {

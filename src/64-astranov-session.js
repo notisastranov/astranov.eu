@@ -1,10 +1,14 @@
 // === ASTRANOV SESSION — one user, one session, all devices ===
+const COLLECTIVE_SESSION_NAME = 'ASTRANOV COLLECTIVE INTELLIGENCE';
+
 const AstranovSession = {
   DEVICE_KEY: 'astranov_device_id',
   LOCAL_KEY: 'astranov_globe_session_v1',
+  SESSION_NAME: COLLECTIVE_SESSION_NAME,
   _deviceId: null,
   _syncTimer: null,
   _lastPull: 0,
+  _lastRemote: null,
 
   init() {
     this._deviceId = this._loadDeviceId();
@@ -36,13 +40,25 @@ const AstranovSession = {
 
   identity() {
     if (Auth?.user?.id) {
-      const name = Auth.user.user_metadata?.full_name
+      const isOwner = Auth.isOwner || Auth.isArchitect
+        || (Auth.user.email || '').toLowerCase() === (Auth.OWNER_EMAIL || '').toLowerCase();
+      const name = isOwner ? 'ASTRANOV' : (
+        Auth.user.user_metadata?.full_name
         || Auth.user.user_metadata?.name
         || (Auth.user.email || '').split('@')[0]
-        || 'User';
-      return { userId: Auth.user.id, name, deviceId: this.deviceId(), isGuest: false, email: Auth.user.email };
+        || 'User'
+      );
+      return {
+        userId: Auth.user.id,
+        name,
+        deviceId: this.deviceId(),
+        isGuest: false,
+        isOwner,
+        email: Auth.user.email,
+        sessionName: this.SESSION_NAME,
+      };
     }
-    return { userId: 'guest-' + this.deviceId(), name: 'Αξάς', deviceId: this.deviceId(), isGuest: true };
+    return { userId: 'guest-' + this.deviceId(), name: 'Αξάς', deviceId: this.deviceId(), isGuest: true, sessionName: this.SESSION_NAME };
   },
 
   nodeStorageKey() {
@@ -81,6 +97,7 @@ const AstranovSession = {
     return {
       userId: Auth?.user?.id || null,
       deviceId: this.deviceId(),
+      sessionName: this.SESSION_NAME,
       updatedAt: Date.now(),
       lastPos: window._lastPos || null,
       batchId: AstranovNode?.batchId || null,
@@ -91,11 +108,15 @@ const AstranovSession = {
       deckExpanded: !!GlobeDeck?.expanded,
       activeTask: GlobeDeck?.activeTask || null,
       context: SuperCli?._context || 'idle',
+      handsFree: !!window._handsFreeVoice,
+      wishlist: AstranovWishlist?.snapshot?.() || [],
+      cliHistory: AciCli?.history?.slice?.(-40) || [],
     };
   },
 
   applyRemote(session) {
     if (!session || typeof session !== 'object') return;
+    this._lastRemote = session;
     if (session.lastPos?.lat != null) {
       window._lastPos = session.lastPos;
       placeMe?.(session.lastPos.lat, session.lastPos.lng, { quiet: true, markerOnly: true });
@@ -104,6 +125,19 @@ const AstranovSession = {
     if (session.shortId && AstranovNode?.resumeFromServer) {
       AstranovNode.resumeFromServer(session);
     }
+    if (session.wishlist?.length && AstranovWishlist?.applyRemote) {
+      AstranovWishlist.applyRemote(session.wishlist);
+    }
+    if (session.cliHistory?.length && AciCli?.mergeHistory) {
+      AciCli.mergeHistory(session.cliHistory);
+    }
+    if (session.handsFree && !SessionHold?.isHeld?.()) {
+      window._handsFreeVoice = true;
+      voiceSessionActive = true;
+      voiceEnabled = true;
+      setTimeout(() => scheduleVoiceResume?.(), 1200);
+    }
+    window.dispatchEvent(new CustomEvent('astranov-session-pulled', { detail: session }));
   },
 
   async onAuth() {
@@ -112,6 +146,8 @@ const AstranovSession = {
       SessionHold?.clearForeignHold?.();
       await this.pull();
       await AstranovNode?.resumeSession?.();
+      setTimeout(() => AstranovWishlist?.announceRecovered?.(), 900);
+      GlobeDeck?.setTitle?.(this.SESSION_NAME);
     } else {
       this._applyLocal();
     }

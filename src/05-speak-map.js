@@ -423,6 +423,7 @@ function userIntervene() {
   Voice.flush();
   voiceSessionActive = false;
   voiceEnabled = false;
+  if (window.stopHandsFree) window.stopHandsFree();
   SessionHold?.release?.();
   GlobeVideo?.stop?.();
   GlobeVideo?.hide?.();
