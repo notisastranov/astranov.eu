@@ -222,7 +222,9 @@ const ACIControl = {
     }
     if (/^(cli|terminal|console|κονσόλα)$/.test(low)) { AciCli.toggle(); this.reply('CLI panel'); say('CLI.'); return { executed: true }; }
     if (/^summon\s+coders?\s*/i.test(text) || /^coders\b/i.test(low)) {
-      await AciCoders?.handleMessage(text);
+      const bare = /^coders?\s*$/i.test(text.trim()) || /^summon\s+coders?\s*$/i.test(text.trim());
+      if (bare) await AciCoders?.enterSession?.({ fromVoice });
+      else await AciCoders?.handleMessage(text, { fromVoice });
       return { executed: true, action: 'coders' };
     }
     if (/^(use\s+)?(grok|composer)$/.test(low) || /^switch\s+(to\s+)?(grok|composer)$/.test(low)) {
@@ -379,13 +381,18 @@ const ACIControl = {
       return { executed: true, action: 'locate' };
     }
 
+    if (GlobeDeck?.activeTask === 'coders' || window._aciCodersAlwaysOn) {
+      await AciCoders?.handleMessage(text, { fromVoice });
+      return { executed: true, action: 'coders' };
+    }
+
     if (low.length < 4) {
-      this.reply('Use globe gestures · or open ' + (AstroGlyphs?.cli || '💻') + ' CLI · or say order, explore, stop');
-      if (fromVoice) say('Say order, explore, or stop.');
+      this.reply('Use globe gestures · or open ' + (AstroGlyphs?.cli || '💻') + ' CLI · or say coders, order, explore');
+      if (fromVoice) say('Say coders, order, or explore.');
       return { executed: false };
     }
 
-    await AciCoders?.handleMessage(text);
+    await AciCoders?.handleMessage(text, { fromVoice });
     return { executed: true, action: 'coders' };
   }
 };

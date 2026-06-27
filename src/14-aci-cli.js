@@ -168,6 +168,7 @@ const AciCli = {
         input.value = this.histIdx < this.history.length ? this.history[this.histIdx] : '';
       }
     } else if (e.key === 'Escape') {
+      if (GlobeDeck?.activeTask === 'coders') { input?.blur(); return; }
       this.hide();
     }
   },
@@ -193,15 +194,14 @@ const AciCli = {
           (cmd === 'summon' && /^coders?$/i.test(parts[1] || ''))) {
         const task = cmd === 'summon' ? parts.slice(2).join(' ')
           : (cmd === 'coders' ? rest : rest || '');
-        GlobeDeck.activeTask = 'coders';
-        AppShortcuts?.track?.('coders', 'Coders');
-        await AciCoders?.handleCodersCommand(cmd === 'composer' || cmd === 'cursor' ? ('composer ' + task).trim() : task);
+        await AciCoders?.handleCodersCommand(
+          cmd === 'composer' || cmd === 'cursor' ? ('composer ' + task).trim() : task,
+          { fromVoice: !!opts.fromVoice }
+        );
         return;
       }
       if (cmd === 'grok') {
-        GlobeDeck.activeTask = 'coders';
-        AppShortcuts?.track?.('coders', 'Coders');
-        await AciCoders?.handleCodersCommand(rest ? ('grok ' + rest) : 'grok');
+        await AciCoders?.handleCodersCommand(rest ? ('grok ' + rest) : 'grok', { fromVoice: !!opts.fromVoice });
         return;
       }
       if (cmd === 'connect' || cmd === 'open') {
@@ -441,8 +441,7 @@ const AciCli = {
         return;
       }
 
-      GlobeDeck.activeTask = 'coders';
-      await AciCoders?.handleMessage(line);
+      await AciCoders?.handleMessage(line, { fromVoice: !!opts.fromVoice });
       if (AstranovNode?.batchId) AstranovNode.broadcastTask(line);
       if (!AciCoders?.alwaysOn) GlobeDeck?.finishCliIfOneShot('coders');
     } catch (err) {

@@ -10,11 +10,7 @@ const AppShortcuts = {
       icon: '🧠',
       title: 'Coders',
       activate() {
-        GlobeDeck?.hideStage?.();
-        GlobeDeck.activeTask = 'coders';
-        GlobeDeck?.expand?.('Collective Coders');
-        SuperCli?.setContext?.('idle');
-        document.getElementById('aci-cli-in')?.focus();
+        void AciCoders?.enterSession?.({ ping: true });
       },
       close() {
         GlobeDeck.activeTask = null;

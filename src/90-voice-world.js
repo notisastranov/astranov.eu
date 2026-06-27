@@ -334,7 +334,7 @@ async function submitVoiceToCli(transcript) {
     if (voiceWantsAciControl(line)) {
       await ACIControl.handle(line, { fromVoice: true });
     } else if (window.AciCli) {
-      await AciCli.run(line);
+      await AciCli.run(line, { fromVoice: true });
     } else {
       await ACIControl.handle(line, { fromVoice: true });
     }

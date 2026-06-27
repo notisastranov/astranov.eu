@@ -185,8 +185,6 @@ const AciCoders = {
     this.teamActive = true;
     this.armed = true;
     await this.ensureBridge();
-    if (GlobeDeck) GlobeDeck.activeTask = 'coders';
-    AppShortcuts?.track?.('coders', 'Coders');
     this.updateHud();
     if (this._started) {
       this.startListening();
@@ -197,6 +195,50 @@ const AciCoders = {
     this.startListening();
   },
 
+  /** Open live Coders chat — expanded CLI, mic ready, replies visible */
+  async enterSession(opts = {}) {
+    opts = opts || {};
+    await this.autoStart();
+    GlobeDeck?.onUserMessage?.('Coders — talk here');
+    GlobeDeck?.expand?.('Collective Coders — talk here');
+    if (GlobeDeck) GlobeDeck.activeTask = 'coders';
+    AppShortcuts?.track?.('coders', 'Coders');
+    if (window.AciCli) AciCli.open = true;
+
+    const input = document.getElementById('aci-cli-in');
+    if (input) {
+      input.placeholder = 'Talk to Coders — type or tap 🎧 · Enter to send';
+      input.classList.remove('voice-live');
+      if (opts.focus !== false) {
+        setTimeout(() => input.focus(), 60);
+      }
+    }
+
+    if (opts.fromVoice || window._handsFreeVoice || voiceSessionActive) {
+      if (!window._handsFreeVoice && typeof startVoiceOptions === 'function') {
+        startVoiceOptions();
+      } else {
+        scheduleVoiceResume?.();
+      }
+    }
+
+    this.updateHud();
+
+    if (!this._sessionWelcomed || opts.ping) {
+      if (!this._sessionWelcomed) this._sessionWelcomed = true;
+      const line = opts.ping
+        ? 'Coders still here — keep talking (type or 🎧)'
+        : 'Coders ready — talk normally here. Type or tap 🎧 and say anything.';
+      AciCli?.print(line, 'ok');
+      ACIControl?.reply(line.slice(0, 200));
+      if ((opts.fromVoice || window._handsFreeVoice) && Voice?.maySpeak?.()) {
+        speak('Coders ready. Talk normally.', () => resumeListening?.());
+      }
+    }
+
+    return { ok: true, session: true };
+  },
+
   /** Strip optional legacy "coders" prefix — coders listen to all messages. */
   normalizeMessage(message) {
     return String(message || '').trim()
@@ -205,9 +247,9 @@ const AciCoders = {
       .trim();
   },
 
-  async handleMessage(message) {
+  async handleMessage(message, opts = {}) {
     const raw = (window.fixVoiceHotwords || (x => x))(String(message || '').trim());
-    if (!raw) return { error: 'empty' };
+    if (!raw) return this.enterSession({ fromVoice: !!opts.fromVoice });
 
     const parts = raw.split(/\s+/);
     const sub = (parts[0] || '').toLowerCase();
@@ -230,6 +272,12 @@ const AciCoders = {
           return this.chat('use ' + sub + ' from now on');
         }
       }
+      if (parts.length === 1) {
+        return this.enterSession({
+          ping: !!this._sessionWelcomed,
+          fromVoice: !!opts.fromVoice || !!window._handsFreeVoice || !!voiceSessionActive,
+        });
+      }
     }
 
     if (this.isPowerUser() && this.isExplicitRef(raw)) {
@@ -240,8 +288,14 @@ const AciCoders = {
       return this.executeOrder(task, raw);
     }
 
-    const text = this.normalizeMessage(raw) || raw;
-    return this.chat(text);
+    const text = (this.normalizeMessage(raw) || raw).trim();
+    if (/^coders?$/i.test(text)) {
+      return this.enterSession({
+        ping: !!this._sessionWelcomed,
+        fromVoice: !!opts.fromVoice || !!window._handsFreeVoice || !!voiceSessionActive,
+      });
+    }
+    return this.chat(text, opts);
   },
 
   async executeOrder(task, raw, opts) {
@@ -394,7 +448,10 @@ const AciCoders = {
     const reply = text.slice(0, 900);
     if (reply) {
       const prefix = r.explicit_order || r.order_executed ? 'ORDER: ' : '';
+      const kind = r.error ? 'err' : 'reply';
+      AciCli?.print(prefix + reply, kind);
       ACIControl?.reply(prefix + reply.slice(0, 260));
+      GlobeDeck?.expand?.('Collective Coders — reply');
     }
 
     const composerQueued = r.composer_queued || (r.pending && r.summon_id);
@@ -402,8 +459,12 @@ const AciCoders = {
     if (composerQueued) this.startPoll(composerQueued);
     else this.stopPoll();
 
-    if (!r.pending && Voice.maySpeak() && Voice.shouldSpeak(text)) {
-      speak(text.slice(0, 120), () => resumeListening());
+    if (!r.pending) {
+      if (Voice.maySpeak() && Voice.shouldSpeak(text)) {
+        speak(text.slice(0, 120), () => resumeListening?.());
+      } else if (window._handsFreeVoice || voiceSessionActive) {
+        scheduleVoiceResume?.();
+      }
     }
 
     this.observeActivity('chat', userMsg, { coders: true, guest: !!r.guest });
@@ -443,20 +504,19 @@ const AciCoders = {
     return q;
   },
 
-  async chat(message) {
-    await this.autoStart();
-
+  async chat(message, opts = {}) {
     const m = String(message || '').trim();
-    if (m.length < 1) return { error: 'empty' };
+    if (m.length < 1) return this.enterSession({ fromVoice: !!opts.fromVoice });
+
+    await this.enterSession({
+      focus: false,
+      fromVoice: !!opts.fromVoice || !!window._handsFreeVoice || !!voiceSessionActive,
+    });
 
     if (Auth?.user && !(await this.ensureSession())) return { error: 'session expired' };
 
     const build = this.isBuildTask(m);
     const fast = !build && !this.wantsComposer(m);
-
-    GlobeDeck?.onUserMessage(Auth?.user ? 'Coders' : 'Coders · guest');
-    if (GlobeDeck) GlobeDeck.activeTask = 'coders';
-    AppShortcuts?.track?.('coders', 'Coders');
     if (!fast) MapDepict?.action('think', { detail: 'coders: ' + m.slice(0, 40) });
 
     this._cliBusy = true;
@@ -528,8 +588,15 @@ const AciCoders = {
     }
   },
 
-  async handleCodersCommand(rest) {
-    return this.handleMessage(rest ? ('coders ' + rest) : 'coders');
+  async handleCodersCommand(rest, opts = {}) {
+    const msg = String(rest || '').trim();
+    if (!msg || /^coders?$/i.test(msg)) {
+      return this.enterSession({
+        ping: !!this._sessionWelcomed,
+        fromVoice: !!opts.fromVoice || !!window._handsFreeVoice || !!voiceSessionActive,
+      });
+    }
+    return this.handleMessage(msg, opts);
   },
 
   async openTeam(intro) {
