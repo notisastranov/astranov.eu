@@ -5,7 +5,8 @@
   "main": "sw.js",
   "scripts": {
     "test": "node scripts/user-scenarios.mjs",
-    "assemble": "node scripts/assemble.mjs"
+    "assemble": "node scripts/assemble.mjs",
+    "push:both": "node scripts/push-both.mjs"
   },
   "repository": {
     "type": "git",

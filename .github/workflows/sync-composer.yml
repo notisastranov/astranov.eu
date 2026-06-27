@@ -1,0 +1,46 @@
+name: Sync Composer backup
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    name: Mirror main → composer.astranov.eu
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to composer.astranov.eu
+        env:
+          TOKEN: ${{ secrets.COMPOSER_SYNC_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::warning::COMPOSER_SYNC_TOKEN not set — add a GitHub PAT with push access to composer.astranov.eu"
+            echo "Until then, run locally: npm run push:both"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add composer "https://x-access-token:${TOKEN}@github.com/notisastranov/composer.astranov.eu.git"
+          git push composer HEAD:main
+
+      - name: Verify mirror
+        env:
+          GH_TOKEN: ${{ secrets.COMPOSER_SYNC_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then exit 0; fi
+          CENTRAL=$(git rev-parse HEAD)
+          REMOTE=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/notisastranov/composer.astranov.eu/commits/main" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin).get('sha',''))")
+          echo "central:  $CENTRAL"
+          echo "composer: $REMOTE"
+          if [ "$CENTRAL" != "$REMOTE" ]; then
+            echo "::error::composer.astranov.eu out of sync with astranov.eu"
+            exit 1
+          fi
+          echo "composer.astranov.eu in sync"
