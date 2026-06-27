@@ -134,8 +134,8 @@ const SCENARIOS = [
       });
       if (!r.active) throw new Error('city map not active after dropIn');
       if (!r.pos || Math.abs(r.pos.lat - 36.44) > 0.01) throw new Error('position not set');
-      if (r.friends < 1) throw new Error('no friends in window.others');
-      if (r.friendMarkers < 1) throw new Error('no friend markers on city map');
+      if (r.friends !== 0) throw new Error('demo users must not appear — single user only');
+      if (r.friendMarkers !== 0) throw new Error('no friend markers on city map');
       return r;
     },
   },

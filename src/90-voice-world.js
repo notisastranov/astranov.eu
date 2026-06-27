@@ -320,22 +320,10 @@ function locateMe() {
 window.locateMe = locateMe;
 
 function showOtherUsers() {
-  if (Auth?.user || AstranovSession?.isAstranov?.()) {
-    others = [];
-    window.others = others;
-    GlobeEntity?.syncFriends?.([]);
-    window._friendMarkers = [];
-    return;
-  }
-  const base = window._lastPos || { lat: 36.22, lng: 28.12 };
-  others = [
-    { id: 'o1', name: 'Αξαδίνα', lat: base.lat + 0.008, lng: base.lng + 0.006, hidden: false, emoji: '🛸' },
-    { id: 'o3', name: 'Αξάς', lat: base.lat - 0.005, lng: base.lng + 0.012, hidden: false, emoji: '🛸' },
-    { id: 'o2', name: 'Σταύρος', lat: base.lat + 0.004, lng: base.lng - 0.009, hidden: false, emoji: '🍻' },
-  ];
+  others = [];
   window.others = others;
-  GlobeEntity?.syncFriends?.(others);
-  window._friendMarkers = [...(GlobeEntity?.entities?.values() || [])].filter(e => e.type === 'friend').map(e => e.mesh);
+  GlobeEntity?.syncFriends?.([]);
+  window._friendMarkers = [];
 }
 
 function toggleKryfto() {

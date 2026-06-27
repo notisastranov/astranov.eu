@@ -290,7 +290,11 @@ const AstranovNode = {
     this.setStep(1, 'done', 'Συνδεδεμένος · ' + who);
     this.setStep(3, 'active', 'Σύνδεση στη συλλογική συνεδρία…');
 
-    const existing = await this.resumeSession();
+    let existing = await this.resumeSession();
+    if (!existing && AstranovSession?.isAstranov?.()) {
+      await AstranovNode.api({ action: 'session_purge' });
+      existing = await this.resumeSession();
+    }
     if (existing) {
       const label = AstranovSession?.sessionLabel?.() || 'ASTRANOV COLLECTIVE INTELLIGENCE';
       const peerEl = document.getElementById('nb-peers');
@@ -300,6 +304,12 @@ const AstranovNode = {
       this.setStep(3, 'done', label + ' · ' + this.peerCount + ' device(s)');
       ACIControl?.reply(label + ' · resumed on this device');
       return existing;
+    }
+
+    if (AstranovSession?.isAstranov?.()) {
+      this.setStep(3, 'blocked', 'Collective session missing — retry');
+      ACIControl?.reply('Collective session unavailable — refresh and sign in as ASTRANOV');
+      return { ok: false, error: 'collective_unavailable' };
     }
 
     this.setStep(3, 'active', 'Preflight verify…');

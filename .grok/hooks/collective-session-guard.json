@@ -1,0 +1,30 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"collective-session-guard.ps1\"",
+            "timeout": 8,
+            "env": {
+              "ASTRANOV_COLLECTIVE_SESSION": "019efdcc-ee91-7572-9b29-240c4edaa26c"
+            }
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -Command \"Write-Host 'ASTRANOV COLLECTIVE INTELLIGENCE — one user, one session' -ForegroundColor Cyan\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}

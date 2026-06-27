@@ -58,6 +58,7 @@ serve(async (req) => {
     }
 
     if (action === 'resume') {
+      await unifyOwnerSession(sb, userId)
       const batch = await findActiveBatch(sb, userId)
       if (!batch) {
         return new Response(JSON.stringify({ ok: false, resume: false, error: 'no_active_batch' }), { headers: cors })
@@ -82,30 +83,35 @@ serve(async (req) => {
     }
 
     if (action === 'launch') {
-      const forceNew = !!body.force_new
-      let batch = forceNew ? null : await findActiveBatch(sb, userId)
+      if (body.force_new) {
+        return new Response(JSON.stringify({
+          ok: false,
+          error: 'force_new_disabled',
+          message: 'Single collective session only — use resume',
+        }), { status: 403, headers: cors })
+      }
+
+      await unifyOwnerSession(sb, userId)
+      let batch = await findActiveBatch(sb, userId)
 
       if (!batch) {
-        const shortId = String(body.batch_short_id || COLLECTIVE_BATCH_SHORT_ID)
-        let created = null
-        let error = null
         const ins = await sb.from('astranov_batches').insert({
           owner_id: userId,
           status: 'open',
-          short_id: shortId,
+          short_id: COLLECTIVE_BATCH_SHORT_ID,
         }).select().single()
-        created = ins.data
-        error = ins.error
-        if (error?.code === '23505') {
-          const retry = await sb.from('astranov_batches').insert({
-            owner_id: userId,
-            status: 'open',
-          }).select().single()
-          created = retry.data
-          error = retry.error
+        if (ins.error?.code === '23505') {
+          const retry = await sb.from('astranov_batches')
+            .select('id, short_id, status, created_at')
+            .eq('owner_id', userId)
+            .eq('short_id', COLLECTIVE_BATCH_SHORT_ID)
+            .eq('status', 'open')
+            .maybeSingle()
+          batch = retry.data
+        } else {
+          if (ins.error) throw ins.error
+          batch = ins.data
         }
-        if (error) throw error
-        batch = created
       }
 
       const nodeId = resolveNodeId(userId, body)
@@ -116,36 +122,23 @@ serve(async (req) => {
         body,
       })
 
-      if (!forceNew && batch) {
-        const detail = `batch join ${batch.short_id}`
-        await sb.from('field_events').insert({
-          user_id: userId,
-          role: 'client',
-          action: 'batch',
-          detail,
-          lat: typeof body.lat === 'number' ? body.lat : null,
-          lng: typeof body.lng === 'number' ? body.lng : null,
-          props: { batch_id: batch.id, node_id: nodeId, resumed: !forceNew },
-          brain_synced: true,
-        }).catch(() => {})
-      } else {
-        await sb.from('field_events').insert({
-          user_id: userId,
-          role: 'client',
-          action: 'batch',
-          detail: `batch launch ${batch!.short_id}`,
-          lat: typeof body.lat === 'number' ? body.lat : null,
-          lng: typeof body.lng === 'number' ? body.lng : null,
-          props: { batch_id: batch!.id, node_id: nodeId },
-          brain_synced: true,
-        }).catch(() => {})
-      }
+      const detail = `batch join ${batch!.short_id}`
+      await sb.from('field_events').insert({
+        user_id: userId,
+        role: 'client',
+        action: 'batch',
+        detail,
+        lat: typeof body.lat === 'number' ? body.lat : null,
+        lng: typeof body.lng === 'number' ? body.lng : null,
+        props: { batch_id: batch!.id, node_id: nodeId, resumed: true },
+        brain_synced: true,
+      }).catch(() => {})
 
       const peers = await peerCount(sb, batch!.id)
 
       return new Response(JSON.stringify({
         ok: true,
-        resumed: !forceNew && !!batch,
+        resumed: true,
         batch_id: batch!.id,
         short_id: batch!.short_id,
         session_name: COLLECTIVE_SESSION_NAME,

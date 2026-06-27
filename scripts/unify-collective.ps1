@@ -56,26 +56,70 @@ $profilePath = $PROFILE
 $profileDir = Split-Path $profilePath -Parent
 if (-not (Test-Path $profileDir)) { New-Item -ItemType Directory -Force -Path $profileDir | Out-Null }
 
+# Install global Grok hooks (block new sessions from agent shell)
+$hooksSrc = Join-Path $REPO '.grok\hooks'
+$hooksDst = Join-Path $GROK_HOME 'hooks'
+if (Test-Path $hooksSrc) {
+  New-Item -ItemType Directory -Force -Path $hooksDst | Out-Null
+  Copy-Item (Join-Path $hooksSrc '*') $hooksDst -Force
+  Write-Host "Installed Grok session guard hooks." -ForegroundColor Green
+}
+
 $marker = '# ASTRANOV COLLECTIVE GROK'
 $profileBlock = @"
 $marker
 `$script:AstranovCollectiveSession = '$COLLECTIVE_ID'
+`$script:AstranovGrokSubcmds = @('agent','completions','dashboard','export','help','import','inspect','leader','login','logout','mcp','memory','models','plugin','sessions','setup','trace','update','version','worktree','v')
 function aci { & '$START_SCRIPT' @args }
+function Invoke-AstranovGrok {
+  param([string[]]`$GrokArgs)
+  `$grokb = (Get-Command grok-native -CommandType Application -ErrorAction SilentlyContinue).Source
+  if (-not `$grokb) { `$grokb = (Get-Command grok -CommandType Application -ErrorAction SilentlyContinue).Source }
+  if (-not `$grokb) { Write-Error 'grok not found'; return }
+  `$cid = `$script:AstranovCollectiveSession
+  if (`$GrokArgs.Count -gt 0 -and `$script:AstranovGrokSubcmds -contains `$GrokArgs[0]) {
+    & `$grokb @GrokArgs; return
+  }
+  `$out = New-Object System.Collections.Generic.List[string]
+  for (`$i = 0; `$i -lt `$GrokArgs.Count; `$i++) {
+    `$a = `$GrokArgs[`$i]
+    if (`$a -eq '--continue' -or `$a -eq '-c') {
+      `$out.Add('--resume'); `$out.Add(`$cid); continue
+    }
+    if (`$a -eq '--session-id' -or `$a -eq '-s') {
+      `$out.Add('--resume'); `$out.Add(`$cid)
+      if (`$i + 1 -lt `$GrokArgs.Count -and -not `$GrokArgs[`$i + 1].StartsWith('-')) { `$i++ }
+      continue
+    }
+    if (`$a -eq '--resume' -or `$a -eq '-r') {
+      `$out.Add('--resume')
+      if (`$i + 1 -lt `$GrokArgs.Count -and `$GrokArgs[`$i + 1] -match '^[0-9a-f-]{36}$') { `$out.Add(`$GrokArgs[++`$i]) }
+      else { `$out.Add(`$cid) }
+      continue
+    }
+    `$out.Add(`$a)
+  }
+  if (`$out -notcontains '--resume') { `$out.Insert(0, `$cid); `$out.Insert(0, '--resume') }
+  & `$grokb @out
+}
 if (-not (Get-Command grok-native -ErrorAction SilentlyContinue)) {
   `$grokb = (Get-Command grok -CommandType Application -ErrorAction SilentlyContinue).Source
   if (`$grokb) {
     function grok-native { & `$grokb @args }
-    function grok {
-      if (`$args.Count -eq 0) { & `$grokb --resume `$script:AstranovCollectiveSession; return }
-      & `$grokb @args
-    }
+    function grok { Invoke-AstranovGrok -GrokArgs @args }
   }
+} else {
+  function grok { Invoke-AstranovGrok -GrokArgs @args }
 }
 "@
 
 if (Test-Path $profilePath) {
   $existing = Get-Content $profilePath -Raw
-  if ($existing -notmatch [regex]::Escape($marker)) {
+  if ($existing -match [regex]::Escape($marker)) {
+    $start = $existing.IndexOf($marker)
+    $existing = $existing.Substring(0, $start) + $profileBlock.TrimEnd()
+    Set-Content $profilePath $existing.TrimEnd() -Encoding UTF8
+  } else {
     Add-Content $profilePath "`n$profileBlock"
   }
 } else {

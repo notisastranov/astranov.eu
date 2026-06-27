@@ -19,8 +19,21 @@ const AstranovSession = {
       Auth.client.auth.onAuthStateChange(() => this.onAuth());
     }
     setTimeout(() => this.onAuth(), 600);
+    setTimeout(() => this.guardCollective(), 1800);
     this._syncTimer = setInterval(() => this.push(), 45000);
+    this._guardTimer = setInterval(() => {
+      if (Auth?.user && this.isAstranov()) this.guardCollective();
+    }, 90000);
     window.addEventListener('beforeunload', () => this.push(true));
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && Auth?.user && this.isAstranov()) this.guardCollective();
+    });
+  },
+
+  async guardCollective() {
+    if (!Auth?.user || !this.isAstranov()) return;
+    this.purgeLocalForeignState();
+    await this.unifyCollective();
   },
 
   _loadDeviceId() {

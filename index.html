@@ -5347,7 +5347,11 @@ const AstranovNode = {
     this.setStep(1, 'done', 'Συνδεδεμένος · ' + who);
     this.setStep(3, 'active', 'Σύνδεση στη συλλογική συνεδρία…');
 
-    const existing = await this.resumeSession();
+    let existing = await this.resumeSession();
+    if (!existing && AstranovSession?.isAstranov?.()) {
+      await AstranovNode.api({ action: 'session_purge' });
+      existing = await this.resumeSession();
+    }
     if (existing) {
       const label = AstranovSession?.sessionLabel?.() || 'ASTRANOV COLLECTIVE INTELLIGENCE';
       const peerEl = document.getElementById('nb-peers');
@@ -5357,6 +5361,12 @@ const AstranovNode = {
       this.setStep(3, 'done', label + ' · ' + this.peerCount + ' device(s)');
       ACIControl?.reply(label + ' · resumed on this device');
       return existing;
+    }
+
+    if (AstranovSession?.isAstranov?.()) {
+      this.setStep(3, 'blocked', 'Collective session missing — retry');
+      ACIControl?.reply('Collective session unavailable — refresh and sign in as ASTRANOV');
+      return { ok: false, error: 'collective_unavailable' };
     }
 
     this.setStep(3, 'active', 'Preflight verify…');
@@ -9778,8 +9788,21 @@ const AstranovSession = {
       Auth.client.auth.onAuthStateChange(() => this.onAuth());
     }
     setTimeout(() => this.onAuth(), 600);
+    setTimeout(() => this.guardCollective(), 1800);
     this._syncTimer = setInterval(() => this.push(), 45000);
+    this._guardTimer = setInterval(() => {
+      if (Auth?.user && this.isAstranov()) this.guardCollective();
+    }, 90000);
     window.addEventListener('beforeunload', () => this.push(true));
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && Auth?.user && this.isAstranov()) this.guardCollective();
+    });
+  },
+
+  async guardCollective() {
+    if (!Auth?.user || !this.isAstranov()) return;
+    this.purgeLocalForeignState();
+    await this.unifyCollective();
   },
 
   _loadDeviceId() {
@@ -10529,22 +10552,10 @@ function locateMe() {
 window.locateMe = locateMe;
 
 function showOtherUsers() {
-  if (Auth?.user || AstranovSession?.isAstranov?.()) {
-    others = [];
-    window.others = others;
-    GlobeEntity?.syncFriends?.([]);
-    window._friendMarkers = [];
-    return;
-  }
-  const base = window._lastPos || { lat: 36.22, lng: 28.12 };
-  others = [
-    { id: 'o1', name: 'Αξαδίνα', lat: base.lat + 0.008, lng: base.lng + 0.006, hidden: false, emoji: '🛸' },
-    { id: 'o3', name: 'Αξάς', lat: base.lat - 0.005, lng: base.lng + 0.012, hidden: false, emoji: '🛸' },
-    { id: 'o2', name: 'Σταύρος', lat: base.lat + 0.004, lng: base.lng - 0.009, hidden: false, emoji: '🍻' },
-  ];
+  others = [];
   window.others = others;
-  GlobeEntity?.syncFriends?.(others);
-  window._friendMarkers = [...(GlobeEntity?.entities?.values() || [])].filter(e => e.type === 'friend').map(e => e.mesh);
+  GlobeEntity?.syncFriends?.([]);
+  window._friendMarkers = [];
 }
 
 function toggleKryfto() {
@@ -10811,7 +10822,7 @@ CityLife.init();
 SuperAdd.init();
 AstranovSiteShell.init();
 GlobeEntity.init();
-if (window.others?.length && !Auth?.user) GlobeEntity.syncFriends(others);
+
 if (window._lastPos) GlobeEntity.syncMe(_lastPos.lat, _lastPos.lng, me?.name || 'You');
 if (typeof orbitalSats !== 'undefined') CosmicZoom.registerOrbitalSats(orbitalSats);
 Commerce.loadVendors().then(() => Commerce.initUI());
