@@ -21,7 +21,7 @@ const AciCoders = {
   _lastListenAt: 0,
 
   CAUSE: 'Justice → Truth → Freedom',
-  LISTEN_MS: 120000,
+  LISTEN_MS: 300000,
   _cliBusy: false,
   EVOLVE_MS: 180000,
 
@@ -104,7 +104,7 @@ const AciCoders = {
   },
 
   async listenTick() {
-    if (this._cliBusy || this._listenBusy) return;
+    if (window._handsFreeVoice || isListening || Voice?.speaking || this._cliBusy || this._listenBusy) return;
     this._listenBusy = true;
     this._listenTicks++;
     try {
@@ -149,6 +149,7 @@ const AciCoders = {
   },
 
   async evolveTick() {
+    if (window._handsFreeVoice || isListening || Voice?.speaking) return;
     if (this._activityCount < 2) return;
     try {
       await ACI?.evolve?.('coders-active-listen');
@@ -228,7 +229,7 @@ const AciCoders = {
       AciCli?.print(line, 'ok');
       ACIControl?.reply(line.slice(0, 200));
       if ((opts.fromVoice || window._handsFreeVoice) && Voice?.maySpeak?.()) {
-        speak('Coders ready. Talk normally.', () => resumeListening?.());
+        speak('Coders ready. Talk normally.', () => resumeListening?.(), true);
       }
     }
 
@@ -460,7 +461,7 @@ const AciCoders = {
 
     if (!r.pending) {
       if (Voice.maySpeak() && Voice.shouldSpeak(text)) {
-        speak(text.slice(0, 120), () => resumeListening?.());
+        speak(text.slice(0, 120), () => resumeListening?.(), true);
       } else if (window._handsFreeVoice || voiceSessionActive) {
         scheduleVoiceResume?.();
       }
@@ -596,7 +597,11 @@ const AciCoders = {
           fallback_prefs: this.fallbackPrefs,
         }, { timeoutMs: 12000 }).catch(() => {});
         GlobeDeck?.setThinking(false);
-        return this._applyResponse({ text: this.localReply(m), via: 'local/ping' }, m);
+        const pingReply = this.localReply(m);
+        if (window._handsFreeVoice && Voice?.maySpeak?.()) {
+          speak(pingReply.slice(0, 100), () => resumeListening?.(), true);
+        }
+        return this._applyResponse({ text: pingReply, via: 'local/ping' }, m);
       }
 
       let r = await AciCli.api({

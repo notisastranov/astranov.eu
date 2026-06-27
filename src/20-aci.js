@@ -189,7 +189,7 @@ const ACIControl = {
 
   voiceAck(msg, fromVoice) {
     if (!fromVoice || !Voice.maySpeak()) return;
-    speak(String(msg || '').slice(0, 120), () => resumeListening());
+    speak(String(msg || '').slice(0, 120), () => resumeListening(), !!window._handsFreeVoice);
   },
 
   async handle(text, opts = {}) {

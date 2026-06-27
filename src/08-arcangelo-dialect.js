@@ -129,8 +129,37 @@ const ArcangeloDialect = {
     return this._greek.test(t) && /[a-zA-Z]{2,}/.test(t);
   },
 
-  normalizeForRouting(text) {
+  listenLang(draft) {
+    const t = String(draft || '');
+    if (this.detect(t).active || this.detect(t).mixed || this._greek.test(t)) return 'el-GR';
+    const g = (t.match(/[\u0370-\u03FF\u1F00-\u1FFF]/g) || []).length;
+    const l = (t.match(/[a-zA-Z]/g) || []).length;
+    return g >= l * 0.18 ? 'el-GR' : 'en-US';
+  },
+
+  repairTranscript(text) {
     let s = String(text || '').trim();
+    if (!s) return s;
+    const rules = [
+      [/\b(άστρανοβ|αστρανοβ|astranof|astronov|astra nov)\b/gi, 'astranov'],
+      [/\b(αρχάγγελο|αρχαγγελο|arch angel|archangelo?s?)\b/gi, 'arcangelo'],
+      [/\b(κόντερ|κοντερ|konter|counter|quarter)\b/gi, 'coders'],
+      [/\b(κόντερς|κοντερς|counters|quarters)\b/gi, 'coders'],
+      [/\b(έλα ρε|ελα ρε|ela re)\b/gi, 'ela re'],
+      [/\b(τι θες|ti thes)\b/gi, 'ti thes'],
+      [/\b(πάμε|pame)\b/gi, 'pame'],
+      [/\b(πες μου|pes mou)\b/gi, 'pes mou'],
+      [/\b(τζαι|tzai)\b/gi, 'tzai'],
+      [/\b(αξάς|αξας|aksas|axas)\b/gi, 'aksas'],
+      [/\b(αξάκι|αξακι|aksaki)\b/gi, 'aksaki'],
+      [/\b(code\s*us|code\s*her?s)\b/gi, 'coders'],
+    ];
+    for (const [re, rep] of rules) s = s.replace(re, rep);
+    return s.replace(/\s+/g, ' ').trim();
+  },
+
+  normalizeForRouting(text) {
+    let s = this.repairTranscript(text);
     if (!s) return s;
     this.ingest(s);
     for (const [re, rep] of this._routeMap) {

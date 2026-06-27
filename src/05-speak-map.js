@@ -154,7 +154,8 @@ const Voice = {
   },
 
   maySpeak() {
-    return voiceEnabled && voiceSessionActive && !this.stopped;
+    return (voiceEnabled && voiceSessionActive && !this.stopped)
+      || (window._handsFreeVoice && voiceEnabled && !this.stopped);
   },
 
   enqueue(text, onEnd, forceBrowser) {
@@ -173,6 +174,7 @@ const Voice = {
     this.stopped = false;
     this.speaking = true;
     window.syncHandsFreeBtn?.();
+    window.pauseVoiceRecognition?.();
     this.releaseAudio();
     try { speechSynthesis.cancel(); } catch (_) {}
 
@@ -195,6 +197,7 @@ const Voice = {
     if (gen === this._gen) {
       this.speaking = false;
       window.syncHandsFreeBtn?.();
+      window.resumeVoiceRecognition?.();
     }
     if (onEnd && gen === this._gen && !this.stopped) onEnd();
   }
