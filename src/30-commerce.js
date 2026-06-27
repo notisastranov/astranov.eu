@@ -78,7 +78,7 @@ const Commerce = {
   flyToVendor(v) {
     if (!v || v.lat == null) return;
     const p = latLngToPos(v.lat, v.lng, 1.03);
-    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(p.x, p.y, p.z), 1.42);
+    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(p.x, p.y, p.z), GlobeControl?.Z?.national || 1.82);
     MapDepict?.action('vendor', { lat: v.lat, lng: v.lng, detail: v.name });
   },
 
@@ -322,7 +322,7 @@ const Commerce = {
         run();
       }, () => run());
     } else {
-      MapDepict?.zoomToUser(1.22);
+      MapDepict?.zoomToUser(GlobeControl?.Z?.national || 1.82);
       run();
     }
   },

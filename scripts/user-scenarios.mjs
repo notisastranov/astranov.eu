@@ -96,8 +96,8 @@ const SCENARIOS = [
       if (active) throw new Error('city map active too early at z=2.5');
 
       await page.evaluate(() => {
-        camera.position.z = 1.5;
-        CityMap.onCamera(1.5, 'earth');
+        camera.position.z = 1.34;
+        CityMap.onCamera(1.34, 'earth');
       });
       await page.waitForTimeout(600);
       active = await page.evaluate(() => ({
@@ -105,7 +105,7 @@ const SCENARIOS = [
         hasTiles: !!document.querySelector('#city-map .leaflet-tile-loaded'),
         cls: document.getElementById('city-map')?.classList.contains('active'),
       }));
-      if (!active.active || !active.cls) throw new Error('city map did not activate at z=1.5: ' + JSON.stringify(active));
+      if (!active.active || !active.cls) throw new Error('city map did not activate at z=1.34: ' + JSON.stringify(active));
 
       await page.evaluate(() => {
         for (let i = 0; i < 8 && CityMap.active; i++) {
@@ -122,7 +122,6 @@ const SCENARIOS = [
     run: async (page) => {
       const r = await page.evaluate(async () => {
         await CityLife.dropIn(36.44, 28.22, { label: 'Rhodes test' });
-        await new Promise(r => setTimeout(r, 1200));
         return {
           active: CityMap.active,
           pos: window._lastPos,
@@ -143,6 +142,10 @@ const SCENARIOS = [
     name: 'scenario drivers — markers with coords',
     run: async (page) => {
       const r = await page.evaluate(async () => {
+        if (!CityMap.active) {
+          camera.position.z = 1.34;
+          CityMap.onCamera(1.34, 'earth');
+        }
         await CityMap._tickDrivers();
         const keys = Object.keys(CityMap._markers || {}).filter(k => k.startsWith('drv_'));
         const demo = CityMap._demoDrivers?.length || 0;
@@ -156,6 +159,10 @@ const SCENARIOS = [
     name: 'routing — OSRM polyline on city map',
     run: async (page) => {
       const r = await page.evaluate(async () => {
+        if (!CityMap.active) {
+          camera.position.z = 1.34;
+          CityMap.onCamera(1.34, 'earth');
+        }
         window._lastPos = { lat: 36.44, lng: 28.22 };
         DrivingView.destination = { lat: 36.46, lng: 28.24 };
         await DrivingView.fetchRoadRoute();

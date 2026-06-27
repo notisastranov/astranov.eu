@@ -1,7 +1,7 @@
 // === CITY MAP — satellite + streets when zoomed to city level ===
 const CityMap = {
-  ENTER_Z: 1.52,
-  EXIT_Z: 1.62,
+  ENTER_Z: 1.36,
+  EXIT_Z: 1.48,
   active: false,
   map: null,
   _ready: false,

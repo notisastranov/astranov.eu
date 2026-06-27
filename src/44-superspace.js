@@ -260,7 +260,9 @@ const SuperSpace = {
 
     if (p.realm === 'earth' && Number.isFinite(p.lat) && Number.isFinite(p.lng)) {
       const pos = latLngToPos(p.lat, p.lng, 1.04);
-      if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(pos.x, pos.y, pos.z), 1.5);
+      if (typeof flyToPoint === 'function') {
+        flyToPoint(new THREE.Vector3(pos.x, pos.y, pos.z), GlobeControl?.Z?.global || 2.55);
+      }
       GlobeControl?.noteAutoFly?.();
       this.placeScreenAtLatLng(p.lat, p.lng, p.label);
     } else if (p.realm === 'orbit') {

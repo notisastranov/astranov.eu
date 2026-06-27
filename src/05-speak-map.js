@@ -340,15 +340,15 @@ const MapDepict = {
       const v0 = opts.vendors[0];
       if (v0 && typeof flyToPoint === 'function') {
         const fp = latLngToPos(v0.lat, v0.lng, 1.04);
-        flyToPoint(new THREE.Vector3(fp.x, fp.y, fp.z), 1.48);
+        flyToPoint(new THREE.Vector3(fp.x, fp.y, fp.z), GlobeControl?.Z?.national || 1.82);
       }
     }
     if (type === 'news' && opts.worldLat != null) {
       this.pulse(opts.worldLat, opts.worldLng, color, 'World news', 10000);
-      GlobeControl?.flyToLatLng?.(opts.worldLat, opts.worldLng, 'news', 1.52);
+      GlobeControl?.flyToLatLng?.(opts.worldLat, opts.worldLng, 'news');
     }
     if (type === 'batch') {
-      GlobeControl?.flyToLatLng?.(lat, lng, 'batch', 1.46);
+      GlobeControl?.flyToLatLng?.(lat, lng, 'batch');
     }
     if (type === 'evolve') {
       [{ lat: 36.22, lng: 28.12 }, { lat: 40, lng: 20 }, { lat: -15, lng: 45 }, { lat: 55, lng: -30 }]
@@ -382,18 +382,19 @@ const MapDepict = {
   zoomToUser(zoom) {
     const u = this.userPos();
     this.action('location', { lat: u.lat, lng: u.lng, detail: 'εσύ · αναζήτηση' });
-    const z = zoom || ZoomTiers?.tierZ?.('city') || 1.38;
-    if (ZoomTiers && zoom == null) ZoomTiers.goTo('city', false);
+    const cityZ = GlobeControl?.Z?.city || 1.38;
+    const z = zoom != null && zoom <= cityZ ? zoom : (GlobeControl?.Z?.national || 1.82);
+    if (ZoomTiers && zoom == null) ZoomTiers.goTo('global', true);
     const fp = latLngToPos(u.lat, u.lng, 1.04);
     if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(fp.x, fp.y, fp.z), z);
-    else focusOnGlobePoint(new THREE.Vector3(fp.x, fp.y, fp.z));
+    else focusOnGlobePoint(new THREE.Vector3(fp.x, fp.y, fp.z), z);
     return u;
   },
 
   showOrderSearch(opts = {}) {
     const u = opts.userLat != null ? { lat: opts.userLat, lng: opts.userLng } : this.userPos();
     const wanted = (opts.wantedLabels || []).join(' · ');
-    this.zoomToUser(opts.zoom || 1.24);
+    this.zoomToUser(opts.zoom || GlobeControl?.Z?.national || 1.82);
     if (opts.matches?.length) {
       this.action('compare', { lat: u.lat, lng: u.lng, detail: wanted, matches: opts.matches });
     }

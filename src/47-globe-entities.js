@@ -188,7 +188,8 @@ const GlobeEntity = {
     this._hud?.classList.remove('open');
   },
 
-  flyTo(entity, targetZ = 1.32) {
+  flyTo(entity, targetZ) {
+    if (targetZ == null) targetZ = GlobeControl?.Z?.national || 1.82;
     if (!entity || entity.lat == null) return;
     window._globeFly = null;
     const fp = latLngToPos(entity.lat, entity.lng, 1.04);
@@ -242,7 +243,8 @@ const GlobeEntity = {
 
   _defaultTap(entity) {
     const fp = latLngToPos(entity.lat, entity.lng, 1.04);
-    flyToPoint?.(new THREE.Vector3(fp.x, fp.y, fp.z), entity.type === 'vendor' ? 1.18 : 1.28);
+    const z = entity.type === 'vendor' ? (GlobeControl?.Z?.regional || 1.65) : (GlobeControl?.Z?.national || 1.82);
+    flyToPoint?.(new THREE.Vector3(fp.x, fp.y, fp.z), z);
     GlobeControl?.noteAutoFly?.();
 
     switch (entity.type) {
@@ -266,9 +268,8 @@ const GlobeEntity = {
         }
         break;
       case 'me':
-        this.flyTo(entity, 1.3);
-        ACIControl?.reply('Zoomed to your location — city view');
-        setTimeout(() => CityLife?.dropIn?.(entity.lat, entity.lng, { openShops: true }), 450);
+        this.flyTo(entity, GlobeControl?.Z?.global || 2.55);
+        ACIControl?.reply('On globe — zoom in or say city view for shops');
         break;
       case 'news':
         NewsFeed?.flash?.();
@@ -418,7 +419,7 @@ const GlobeEntity = {
         data: { user: u },
         onTap: (e) => {
           const p = latLngToPos(e.lat, e.lng, 1.04);
-          flyToPoint?.(new THREE.Vector3(p.x, p.y, p.z), 1.22);
+          flyToPoint?.(new THREE.Vector3(p.x, p.y, p.z), GlobeControl?.Z?.national || 1.82);
           ACIControl?.reply(u.name + ' on the globe');
         },
       });
@@ -438,9 +439,8 @@ const GlobeEntity = {
       persist: true,
       _actionLabel: 'Zoom to me',
       onTap: (e) => {
-        this.flyTo(e, 1.3);
-        ACIControl?.reply('Zoomed to your location');
-        setTimeout(() => CityLife?.dropIn?.(e.lat, e.lng, { openShops: true }), 450);
+        this.flyTo(e, GlobeControl?.Z?.global || 2.55);
+        ACIControl?.reply('On globe — say city view for shops');
       },
     });
   },

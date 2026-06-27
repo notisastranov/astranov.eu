@@ -84,15 +84,16 @@ Object.assign(SuperCli, {
       toX: globePivot.rotation.x,
       toZ: z,
       t0: performance.now(),
-      dur: 900,
+      dur: GlobeControl?.flyDuration?.(camera.position.z, z) || 1400,
     };
     CosmicZoom.update(z);
     this.out('zoom → ' + (level || 'earth') + ' (z=' + z + ')', 'ok');
   },
 
-  async flyTo(lat, lng, label) {
+  async flyTo(lat, lng, label, opts) {
+    const z = opts?.city ? (GlobeControl?.Z?.city || 1.38) : (GlobeControl?.Z?.global || 2.55);
     const p = latLngToPos(lat, lng, 1.04);
-    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(p.x, p.y, p.z), 1.48);
+    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z);
     MapDepict?.pulse?.(lat, lng, 0x00ddff, label || 'fly', 8000);
     GlobeControl?.noteAutoFly?.();
     this.out('fly → ' + (label || lat.toFixed(2) + ', ' + lng.toFixed(2)), 'ok');
@@ -457,6 +458,10 @@ Object.assign(SuperCli, {
             this.out((i + 1) + '. ' + it.text.slice(0, 140), 'ok');
           });
         }
+        return { handled: true };
+      }
+      if (cmd === 'city' || cmd === 'cityview') {
+        await enterCityView?.();
         return { handled: true };
       }
       if (cmd === 'hold' || cmd === 'pause') {

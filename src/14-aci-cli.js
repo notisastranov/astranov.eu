@@ -363,6 +363,12 @@ const AciCli = {
         await SuperCli?.run('locate');
         return;
       }
+      if (cmd === 'city' || cmd === 'cityview') {
+        const r = await enterCityView?.();
+        if (r?.error) this.print(r.error, 'err');
+        else this.print('city view · ' + (r?.vendors?.length ?? 0) + ' shops', 'ok');
+        return;
+      }
       if (cmd === 'vhf') { await SuperCli?.run('vhf'); return; }
       if (cmd === 'call' || cmd === 'phone') {
         const num = rest || parts.slice(1).join(' ');

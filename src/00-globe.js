@@ -141,14 +141,45 @@ const GlobeControl = {
     this._lastAutoFly = Date.now();
   },
 
-  flyToLatLng(lat, lng, label, targetZ) {
+  Z: { global: 2.55, national: 1.82, regional: 1.65, city: 1.38 },
+
+  /** Z depth that activates the flat city map (explicit city entry only) */
+  cityEntryZ() {
+    const enter = CityMap?.ENTER_Z ?? 1.36;
+    return Math.min(this.Z.city, enter - 0.02);
+  },
+
+  flyDuration(fromZ, toZ) {
+    const a = fromZ ?? camera?.position?.z ?? 2.55;
+    const b = toZ ?? 2.55;
+    return Math.round(1100 + Math.abs(a - b) * 950);
+  },
+
+  /** Default fly — global view; never drops to city unless opts.city === true */
+  flyToLatLng(lat, lng, label, targetZ, opts) {
     if (!this.isEarthView()) return false;
+    const o = opts && typeof opts === 'object' ? opts : {};
+    let z = targetZ;
+    if (z == null) z = o.city ? this.Z.city : this.Z.global;
+    else if (!o.city && z < this.Z.regional) z = this.Z.national;
     const p = latLngToPos(lat, lng, 1.04);
     if (typeof flyToPoint !== 'function') return false;
-    flyToPoint(new THREE.Vector3(p.x, p.y, p.z), targetZ || 1.48);
+    flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z, { dur: o.dur });
+    if (z > this.Z.regional) cityLevel = false;
     this.noteAutoFly();
     MapDepict?.pulse?.(lat, lng, 0x00ddff, label || 'task', 8000);
     return true;
   },
+
+  async enterCity(lat, lng, opts) {
+    const pos = lat != null && lng != null ? { lat, lng } : window._lastPos;
+    if (!pos?.lat) return { error: 'no location — locate first' };
+    return CityLife?.dropIn?.(pos.lat, pos.lng, opts || {});
+  },
 };
 window.GlobeControl = GlobeControl;
+
+async function enterCityView(lat, lng, opts) {
+  return GlobeControl.enterCity(lat, lng, opts);
+}
+window.enterCityView = enterCityView;

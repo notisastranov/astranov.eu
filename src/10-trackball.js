@@ -238,19 +238,20 @@ function onGlobeClick(e) {
       const entity = GlobeEntity?.entities?.get('me');
       if (entity) { GlobeEntity.activate(entity); return; }
       const up = window._lastPos || { lat: 36.22, lng: 28.12 };
-      MapDepict?.zoomToUser?.(1.3);
+      MapDepict?.zoomToUser?.(GlobeControl?.Z?.national || 1.82);
       return;
     }
   }
 
   const intersects = raycaster.intersectObject(earth);
   if (intersects.length > 0) {
-    flyToPoint(intersects[0].point, ZoomTiers?.tierZ?.('national') || 1.82);
+    flyToPoint(intersects[0].point, ZoomTiers?.tierZ?.('global') || 2.55);
     MapDepict.action('explore', { detail: 'tap' });
   }
 }
 
-function flyToPoint(point, targetZ = 1.82) {
+function flyToPoint(point, targetZ = 1.82, opts) {
+  opts = opts || {};
   const dir = point.clone().normalize();
   const toY = -Math.atan2(dir.x, dir.z);
   const toX = Math.max(-0.85, Math.min(0.85, -Math.asin(Math.max(-1, Math.min(1, dir.y))) * 0.45));
@@ -263,22 +264,23 @@ function flyToPoint(point, targetZ = 1.82) {
       Math.abs(t.z - z) < Math.abs(best.z - z) ? t : best, ZoomTiers.TIERS[0]);
     ZoomTiers._index = ZoomTiers.indexOf(near.id);
   }
+  const fromZ = camera.position.z;
   window._globeFly = {
     fromY: globePivot.rotation.y,
     fromX: globePivot.rotation.x,
-    fromZ: camera.position.z,
+    fromZ,
     toY: globePivot.rotation.y + dy,
     toX,
     toZ: z,
     t0: performance.now(),
-    dur: 880,
+    dur: opts.dur || GlobeControl?.flyDuration?.(fromZ, z) || 1400,
     tierId: ZoomTiers?.current?.()?.id,
+    onDone: typeof opts.onDone === 'function' ? opts.onDone : null,
   };
 }
 
-function focusOnGlobePoint(point) {
-  flyToPoint(point, 1.45);
-  cityLevel = true;
+function focusOnGlobePoint(point, targetZ) {
+  flyToPoint(point, targetZ || GlobeControl?.Z?.national || 1.82);
 }
 
 function tickGlobeFly() {
@@ -294,6 +296,7 @@ function tickGlobeFly() {
   CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
   if (p >= 1) {
     const tid = f.tierId;
+    const done = f.onDone;
     window._globeFly = null;
     if (f.onTier && tid && ZoomTiers) {
       const i = ZoomTiers.indexOf(tid);
@@ -307,9 +310,25 @@ function tickGlobeFly() {
       cityLevel = camera.position.z <= 1.55;
       CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
     }
+    try { done?.(); } catch (_) {}
   }
 }
+
+function waitForGlobeFly(timeout = 9000) {
+  return new Promise(resolve => {
+    if (!window._globeFly) return resolve();
+    const t0 = performance.now();
+    const id = setInterval(() => {
+      tickGlobeFly();
+      if (!window._globeFly || performance.now() - t0 > timeout) {
+        clearInterval(id);
+        resolve();
+      }
+    }, 16);
+  });
+}
 window.tickGlobeFly = tickGlobeFly;
+window.waitForGlobeFly = waitForGlobeFly;
 
 function showGestureHint() {
   if (sessionStorage.getItem('astranov-gesture-hint')) return;

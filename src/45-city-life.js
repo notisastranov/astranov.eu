@@ -1,6 +1,8 @@
 // === CITY LIFE — real-user scenarios: locate → city → shops · drivers · friends · news ===
 const CityLife = {
-  CITY_ZOOM: 1.42,
+  get CITY_ZOOM() {
+    return GlobeControl?.cityEntryZ?.() ?? 1.34;
+  },
   NEARBY_KM: 12,
   _friendTimer: null,
   _lastDrop: null,
@@ -19,10 +21,16 @@ const CityLife = {
     cityLevel = true;
   },
 
-  flyToCity(lat, lng, label) {
+  async flyToCity(lat, lng, label) {
     this.ensureEarthView();
+    const z = this.CITY_ZOOM;
     const p = latLngToPos(lat, lng, 1.04);
-    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(p.x, p.y, p.z), this.CITY_ZOOM);
+    if (typeof flyToPoint === 'function') {
+      flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z, {
+        dur: GlobeControl?.flyDuration?.(camera?.position?.z, z),
+      });
+      if (typeof waitForGlobeFly === 'function') await waitForGlobeFly();
+    }
     GlobeControl?.engageFollow?.('locate');
     GlobeControl?.noteAutoFly?.();
     MapDepict?.pulse?.(lat, lng, 0x00ffcc, label || 'Your city', 14000);
@@ -38,7 +46,7 @@ const CityLife = {
     window._lastPos = { lat, lng };
     userLocated = true;
     this._lastDrop = { lat, lng, t: Date.now() };
-    this.flyToCity(lat, lng, opts.label || 'Your city');
+    await this.flyToCity(lat, lng, opts.label || 'Your city');
     CityMap?.flyTo?.(lat, lng, CityMap?.camZToZoom?.(this.CITY_ZOOM));
 
     if (Commerce?.loadVendors) await Commerce.loadVendors();
@@ -55,7 +63,7 @@ const CityLife = {
     this._showLocalNews(lat, lng);
     this._updateChip(nearby.length, drivers.length);
 
-    CityMap?.onCamera?.(camera?.position?.z ?? CityLife.CITY_ZOOM, 'earth');
+    if (!window._globeFly) CityMap?.onCamera?.(CityLife.CITY_ZOOM, 'earth');
     const msg = nearby.length + ' shops · ' + drivers.length + ' drivers · ' + (window.others?.length || 0) + ' friends nearby';
     GlobeDeck?.setPreview('🏙 ' + msg);
     AciCli?.print('◎ City view · ' + msg, 'ok');
@@ -113,9 +121,8 @@ const CityLife = {
       navigator.geolocation.getCurrentPosition(
         async pos => {
           const lat = pos.coords.latitude, lng = pos.coords.longitude;
-          placeMe(lat, lng, { quiet: false, fly: true, zoom: this.CITY_ZOOM, cityDrop: true });
-          const r = await this.dropIn(lat, lng);
-          resolve(r);
+          placeMe(lat, lng, { quiet: false, fly: true, zoom: GlobeControl?.Z?.global || 2.55 });
+          resolve({ lat, lng });
         },
         err => reject(err),
         { enableHighAccuracy: true, timeout: 14000, maximumAge: 30000 }
@@ -138,7 +145,10 @@ const CityLife = {
     youtube: async (q) => {
       await GlobeVideo?.find?.(q || 'interesting places earth documentary');
     },
-    locate: async () => { await CityLife.locateAndDropIn(); },
+    locate: async () => {
+      await CityLife.locateAndDropIn();
+      ACIControl?.reply('On globe — say city view or scenario city for shops');
+    },
     city: async () => {
       const u = CityLife.userPos();
       await CityLife.dropIn(u.lat, u.lng, { openShops: true });

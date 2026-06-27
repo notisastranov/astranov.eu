@@ -460,6 +460,11 @@ const AciCoders = {
     this._cliBusy = true;
     try {
       GlobeDeck?.setThinking(true, fast ? 'Coders…' : ('Coders — ' + this.CAUSE + '…'));
+      if (/^city\s*(view|level)?$/i.test(m.trim())) {
+        await enterCityView?.();
+        GlobeDeck?.setThinking(false);
+        return { ok: true, city: true };
+      }
       if (/^locate\s*(me|button)?$/i.test(m.trim()) || /^🎯|📍$/.test(m.trim())) {
         locateMe();
         GlobeDeck?.setThinking(false);

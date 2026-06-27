@@ -366,6 +366,17 @@ const ACIControl = {
       startVoiceOptions();
       return { executed: true };
     }
+    if (/^(city\s*view|city\s*level|city\s*map|πόλη|go\s+to\s+city|drop\s+in)$/i.test(low) || /^city\s+view\b/i.test(low)) {
+      const r = await enterCityView?.();
+      const shops = r?.vendors?.length ?? 0;
+      this.reply('City view · ' + shops + ' shops nearby');
+      say('City view.');
+      return { executed: true, action: 'city' };
+    }
+    if (/^(locate|gps|where am i|που είμαι|βρες με)$/i.test(low) || /^locate\s*(me)?$/i.test(low)) {
+      locateMe?.();
+      return { executed: true, action: 'locate' };
+    }
 
     if (low.length < 4) {
       this.reply('Use globe gestures · or open ' + (AstroGlyphs?.cli || '💻') + ' CLI · or say order, explore, stop');

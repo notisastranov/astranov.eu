@@ -614,17 +614,48 @@ const GlobeControl = {
     this._lastAutoFly = Date.now();
   },
 
-  flyToLatLng(lat, lng, label, targetZ) {
+  Z: { global: 2.55, national: 1.82, regional: 1.65, city: 1.38 },
+
+  /** Z depth that activates the flat city map (explicit city entry only) */
+  cityEntryZ() {
+    const enter = CityMap?.ENTER_Z ?? 1.36;
+    return Math.min(this.Z.city, enter - 0.02);
+  },
+
+  flyDuration(fromZ, toZ) {
+    const a = fromZ ?? camera?.position?.z ?? 2.55;
+    const b = toZ ?? 2.55;
+    return Math.round(1100 + Math.abs(a - b) * 950);
+  },
+
+  /** Default fly — global view; never drops to city unless opts.city === true */
+  flyToLatLng(lat, lng, label, targetZ, opts) {
     if (!this.isEarthView()) return false;
+    const o = opts && typeof opts === 'object' ? opts : {};
+    let z = targetZ;
+    if (z == null) z = o.city ? this.Z.city : this.Z.global;
+    else if (!o.city && z < this.Z.regional) z = this.Z.national;
     const p = latLngToPos(lat, lng, 1.04);
     if (typeof flyToPoint !== 'function') return false;
-    flyToPoint(new THREE.Vector3(p.x, p.y, p.z), targetZ || 1.48);
+    flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z, { dur: o.dur });
+    if (z > this.Z.regional) cityLevel = false;
     this.noteAutoFly();
     MapDepict?.pulse?.(lat, lng, 0x00ddff, label || 'task', 8000);
     return true;
   },
+
+  async enterCity(lat, lng, opts) {
+    const pos = lat != null && lng != null ? { lat, lng } : window._lastPos;
+    if (!pos?.lat) return { error: 'no location — locate first' };
+    return CityLife?.dropIn?.(pos.lat, pos.lng, opts || {});
+  },
 };
 window.GlobeControl = GlobeControl;
+
+async function enterCityView(lat, lng, opts) {
+  return GlobeControl.enterCity(lat, lng, opts);
+}
+window.enterCityView = enterCityView;
 
 // === VOICE + MAP DEPICT ===
 // Astranov Voice: ONE calm female persona, ONE utterance at a time (queued).
@@ -968,15 +999,15 @@ const MapDepict = {
       const v0 = opts.vendors[0];
       if (v0 && typeof flyToPoint === 'function') {
         const fp = latLngToPos(v0.lat, v0.lng, 1.04);
-        flyToPoint(new THREE.Vector3(fp.x, fp.y, fp.z), 1.48);
+        flyToPoint(new THREE.Vector3(fp.x, fp.y, fp.z), GlobeControl?.Z?.national || 1.82);
       }
     }
     if (type === 'news' && opts.worldLat != null) {
       this.pulse(opts.worldLat, opts.worldLng, color, 'World news', 10000);
-      GlobeControl?.flyToLatLng?.(opts.worldLat, opts.worldLng, 'news', 1.52);
+      GlobeControl?.flyToLatLng?.(opts.worldLat, opts.worldLng, 'news');
     }
     if (type === 'batch') {
-      GlobeControl?.flyToLatLng?.(lat, lng, 'batch', 1.46);
+      GlobeControl?.flyToLatLng?.(lat, lng, 'batch');
     }
     if (type === 'evolve') {
       [{ lat: 36.22, lng: 28.12 }, { lat: 40, lng: 20 }, { lat: -15, lng: 45 }, { lat: 55, lng: -30 }]
@@ -1010,18 +1041,19 @@ const MapDepict = {
   zoomToUser(zoom) {
     const u = this.userPos();
     this.action('location', { lat: u.lat, lng: u.lng, detail: 'εσύ · αναζήτηση' });
-    const z = zoom || ZoomTiers?.tierZ?.('city') || 1.38;
-    if (ZoomTiers && zoom == null) ZoomTiers.goTo('city', false);
+    const cityZ = GlobeControl?.Z?.city || 1.38;
+    const z = zoom != null && zoom <= cityZ ? zoom : (GlobeControl?.Z?.national || 1.82);
+    if (ZoomTiers && zoom == null) ZoomTiers.goTo('global', true);
     const fp = latLngToPos(u.lat, u.lng, 1.04);
     if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(fp.x, fp.y, fp.z), z);
-    else focusOnGlobePoint(new THREE.Vector3(fp.x, fp.y, fp.z));
+    else focusOnGlobePoint(new THREE.Vector3(fp.x, fp.y, fp.z), z);
     return u;
   },
 
   showOrderSearch(opts = {}) {
     const u = opts.userLat != null ? { lat: opts.userLat, lng: opts.userLng } : this.userPos();
     const wanted = (opts.wantedLabels || []).join(' · ');
-    this.zoomToUser(opts.zoom || 1.24);
+    this.zoomToUser(opts.zoom || GlobeControl?.Z?.national || 1.82);
     if (opts.matches?.length) {
       this.action('compare', { lat: u.lat, lng: u.lng, detail: wanted, matches: opts.matches });
     }
@@ -1979,17 +2011,17 @@ const SuperCli = {
     if (!GlobeControl?.isEarthView?.()) return;
     const u = window._lastPos || { lat: 36.22, lng: 28.12 };
     if (act === 'news' && opts?.worldLat != null) {
-      GlobeControl.flyToLatLng(opts.worldLat, opts.worldLng, 'news', 1.52);
+      GlobeControl.flyToLatLng(opts.worldLat, opts.worldLng, 'news');
       return;
     }
     if (act === 'order' || act === 'commerce') {
       const v = Commerce?.vendors?.[0] || Commerce?.selected;
-      if (v?.lat != null) GlobeControl.flyToLatLng(v.lat, v.lng, 'order', 1.48);
-      else GlobeControl.flyToLatLng(u.lat, u.lng, 'order', 1.42);
+      if (v?.lat != null) GlobeControl.flyToLatLng(v.lat, v.lng, 'order');
+      else GlobeControl.flyToLatLng(u.lat, u.lng, 'order');
       return;
     }
-    if (act === 'batch') GlobeControl.flyToLatLng(u.lat, u.lng, 'batch', 1.44);
-    if (act === 'vhf' || act === 'radio') GlobeControl.flyToLatLng(u.lat, u.lng, 'comms', 1.4);
+    if (act === 'batch') GlobeControl.flyToLatLng(u.lat, u.lng, 'batch');
+    if (act === 'vhf' || act === 'radio') GlobeControl.flyToLatLng(u.lat, u.lng, 'comms');
   },
 
   async run(action, opts) {
@@ -2148,15 +2180,16 @@ Object.assign(SuperCli, {
       toX: globePivot.rotation.x,
       toZ: z,
       t0: performance.now(),
-      dur: 900,
+      dur: GlobeControl?.flyDuration?.(camera.position.z, z) || 1400,
     };
     CosmicZoom.update(z);
     this.out('zoom → ' + (level || 'earth') + ' (z=' + z + ')', 'ok');
   },
 
-  async flyTo(lat, lng, label) {
+  async flyTo(lat, lng, label, opts) {
+    const z = opts?.city ? (GlobeControl?.Z?.city || 1.38) : (GlobeControl?.Z?.global || 2.55);
     const p = latLngToPos(lat, lng, 1.04);
-    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(p.x, p.y, p.z), 1.48);
+    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z);
     MapDepict?.pulse?.(lat, lng, 0x00ddff, label || 'fly', 8000);
     GlobeControl?.noteAutoFly?.();
     this.out('fly → ' + (label || lat.toFixed(2) + ', ' + lng.toFixed(2)), 'ok');
@@ -2521,6 +2554,10 @@ Object.assign(SuperCli, {
             this.out((i + 1) + '. ' + it.text.slice(0, 140), 'ok');
           });
         }
+        return { handled: true };
+      }
+      if (cmd === 'city' || cmd === 'cityview') {
+        await enterCityView?.();
         return { handled: true };
       }
       if (cmd === 'hold' || cmd === 'pause') {
@@ -2939,6 +2976,12 @@ const AciCli = {
       }
       if (cmd === 'locate' || cmd === 'gps' || cmd === 'me') {
         await SuperCli?.run('locate');
+        return;
+      }
+      if (cmd === 'city' || cmd === 'cityview') {
+        const r = await enterCityView?.();
+        if (r?.error) this.print(r.error, 'err');
+        else this.print('city view · ' + (r?.vendors?.length ?? 0) + ' shops', 'ok');
         return;
       }
       if (cmd === 'vhf') { await SuperCli?.run('vhf'); return; }
@@ -3553,6 +3596,11 @@ const AciCoders = {
     this._cliBusy = true;
     try {
       GlobeDeck?.setThinking(true, fast ? 'Coders…' : ('Coders — ' + this.CAUSE + '…'));
+      if (/^city\s*(view|level)?$/i.test(m.trim())) {
+        await enterCityView?.();
+        GlobeDeck?.setThinking(false);
+        return { ok: true, city: true };
+      }
       if (/^locate\s*(me|button)?$/i.test(m.trim()) || /^🎯|📍$/.test(m.trim())) {
         locateMe();
         GlobeDeck?.setThinking(false);
@@ -4299,6 +4347,17 @@ const ACIControl = {
       startVoiceOptions();
       return { executed: true };
     }
+    if (/^(city\s*view|city\s*level|city\s*map|πόλη|go\s+to\s+city|drop\s+in)$/i.test(low) || /^city\s+view\b/i.test(low)) {
+      const r = await enterCityView?.();
+      const shops = r?.vendors?.length ?? 0;
+      this.reply('City view · ' + shops + ' shops nearby');
+      say('City view.');
+      return { executed: true, action: 'city' };
+    }
+    if (/^(locate|gps|where am i|που είμαι|βρες με)$/i.test(low) || /^locate\s*(me)?$/i.test(low)) {
+      locateMe?.();
+      return { executed: true, action: 'locate' };
+    }
 
     if (low.length < 4) {
       this.reply('Use globe gestures · or open ' + (AstroGlyphs?.cli || '💻') + ' CLI · or say order, explore, stop');
@@ -4391,7 +4450,7 @@ const Commerce = {
   flyToVendor(v) {
     if (!v || v.lat == null) return;
     const p = latLngToPos(v.lat, v.lng, 1.03);
-    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(p.x, p.y, p.z), 1.42);
+    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(p.x, p.y, p.z), GlobeControl?.Z?.national || 1.82);
     MapDepict?.action('vendor', { lat: v.lat, lng: v.lng, detail: v.name });
   },
 
@@ -4635,7 +4694,7 @@ const Commerce = {
         run();
       }, () => run());
     } else {
-      MapDepict?.zoomToUser(1.22);
+      MapDepict?.zoomToUser(GlobeControl?.Z?.national || 1.82);
       run();
     }
   },
@@ -6170,7 +6229,9 @@ const SuperSpace = {
 
     if (p.realm === 'earth' && Number.isFinite(p.lat) && Number.isFinite(p.lng)) {
       const pos = latLngToPos(p.lat, p.lng, 1.04);
-      if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(pos.x, pos.y, pos.z), 1.5);
+      if (typeof flyToPoint === 'function') {
+        flyToPoint(new THREE.Vector3(pos.x, pos.y, pos.z), GlobeControl?.Z?.global || 2.55);
+      }
       GlobeControl?.noteAutoFly?.();
       this.placeScreenAtLatLng(p.lat, p.lng, p.label);
     } else if (p.realm === 'orbit') {
@@ -6247,7 +6308,9 @@ window.SuperSpaceHud = SuperSpaceHud;
 
 // === CITY LIFE — real-user scenarios: locate → city → shops · drivers · friends · news ===
 const CityLife = {
-  CITY_ZOOM: 1.42,
+  get CITY_ZOOM() {
+    return GlobeControl?.cityEntryZ?.() ?? 1.34;
+  },
   NEARBY_KM: 12,
   _friendTimer: null,
   _lastDrop: null,
@@ -6266,10 +6329,16 @@ const CityLife = {
     cityLevel = true;
   },
 
-  flyToCity(lat, lng, label) {
+  async flyToCity(lat, lng, label) {
     this.ensureEarthView();
+    const z = this.CITY_ZOOM;
     const p = latLngToPos(lat, lng, 1.04);
-    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(p.x, p.y, p.z), this.CITY_ZOOM);
+    if (typeof flyToPoint === 'function') {
+      flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z, {
+        dur: GlobeControl?.flyDuration?.(camera?.position?.z, z),
+      });
+      if (typeof waitForGlobeFly === 'function') await waitForGlobeFly();
+    }
     GlobeControl?.engageFollow?.('locate');
     GlobeControl?.noteAutoFly?.();
     MapDepict?.pulse?.(lat, lng, 0x00ffcc, label || 'Your city', 14000);
@@ -6285,7 +6354,7 @@ const CityLife = {
     window._lastPos = { lat, lng };
     userLocated = true;
     this._lastDrop = { lat, lng, t: Date.now() };
-    this.flyToCity(lat, lng, opts.label || 'Your city');
+    await this.flyToCity(lat, lng, opts.label || 'Your city');
     CityMap?.flyTo?.(lat, lng, CityMap?.camZToZoom?.(this.CITY_ZOOM));
 
     if (Commerce?.loadVendors) await Commerce.loadVendors();
@@ -6302,7 +6371,7 @@ const CityLife = {
     this._showLocalNews(lat, lng);
     this._updateChip(nearby.length, drivers.length);
 
-    CityMap?.onCamera?.(camera?.position?.z ?? CityLife.CITY_ZOOM, 'earth');
+    if (!window._globeFly) CityMap?.onCamera?.(CityLife.CITY_ZOOM, 'earth');
     const msg = nearby.length + ' shops · ' + drivers.length + ' drivers · ' + (window.others?.length || 0) + ' friends nearby';
     GlobeDeck?.setPreview('🏙 ' + msg);
     AciCli?.print('◎ City view · ' + msg, 'ok');
@@ -6360,9 +6429,8 @@ const CityLife = {
       navigator.geolocation.getCurrentPosition(
         async pos => {
           const lat = pos.coords.latitude, lng = pos.coords.longitude;
-          placeMe(lat, lng, { quiet: false, fly: true, zoom: this.CITY_ZOOM, cityDrop: true });
-          const r = await this.dropIn(lat, lng);
-          resolve(r);
+          placeMe(lat, lng, { quiet: false, fly: true, zoom: GlobeControl?.Z?.global || 2.55 });
+          resolve({ lat, lng });
         },
         err => reject(err),
         { enableHighAccuracy: true, timeout: 14000, maximumAge: 30000 }
@@ -6385,7 +6453,10 @@ const CityLife = {
     youtube: async (q) => {
       await GlobeVideo?.find?.(q || 'interesting places earth documentary');
     },
-    locate: async () => { await CityLife.locateAndDropIn(); },
+    locate: async () => {
+      await CityLife.locateAndDropIn();
+      ACIControl?.reply('On globe — say city view or scenario city for shops');
+    },
     city: async () => {
       const u = CityLife.userPos();
       await CityLife.dropIn(u.lat, u.lng, { openShops: true });
@@ -7180,7 +7251,8 @@ const GlobeEntity = {
     this._hud?.classList.remove('open');
   },
 
-  flyTo(entity, targetZ = 1.32) {
+  flyTo(entity, targetZ) {
+    if (targetZ == null) targetZ = GlobeControl?.Z?.national || 1.82;
     if (!entity || entity.lat == null) return;
     window._globeFly = null;
     const fp = latLngToPos(entity.lat, entity.lng, 1.04);
@@ -7234,7 +7306,8 @@ const GlobeEntity = {
 
   _defaultTap(entity) {
     const fp = latLngToPos(entity.lat, entity.lng, 1.04);
-    flyToPoint?.(new THREE.Vector3(fp.x, fp.y, fp.z), entity.type === 'vendor' ? 1.18 : 1.28);
+    const z = entity.type === 'vendor' ? (GlobeControl?.Z?.regional || 1.65) : (GlobeControl?.Z?.national || 1.82);
+    flyToPoint?.(new THREE.Vector3(fp.x, fp.y, fp.z), z);
     GlobeControl?.noteAutoFly?.();
 
     switch (entity.type) {
@@ -7258,9 +7331,8 @@ const GlobeEntity = {
         }
         break;
       case 'me':
-        this.flyTo(entity, 1.3);
-        ACIControl?.reply('Zoomed to your location — city view');
-        setTimeout(() => CityLife?.dropIn?.(entity.lat, entity.lng, { openShops: true }), 450);
+        this.flyTo(entity, GlobeControl?.Z?.global || 2.55);
+        ACIControl?.reply('On globe — zoom in or say city view for shops');
         break;
       case 'news':
         NewsFeed?.flash?.();
@@ -7410,7 +7482,7 @@ const GlobeEntity = {
         data: { user: u },
         onTap: (e) => {
           const p = latLngToPos(e.lat, e.lng, 1.04);
-          flyToPoint?.(new THREE.Vector3(p.x, p.y, p.z), 1.22);
+          flyToPoint?.(new THREE.Vector3(p.x, p.y, p.z), GlobeControl?.Z?.national || 1.82);
           ACIControl?.reply(u.name + ' on the globe');
         },
       });
@@ -7430,9 +7502,8 @@ const GlobeEntity = {
       persist: true,
       _actionLabel: 'Zoom to me',
       onTap: (e) => {
-        this.flyTo(e, 1.3);
-        ACIControl?.reply('Zoomed to your location');
-        setTimeout(() => CityLife?.dropIn?.(e.lat, e.lng, { openShops: true }), 450);
+        this.flyTo(e, GlobeControl?.Z?.global || 2.55);
+        ACIControl?.reply('On globe — say city view for shops');
       },
     });
   },
@@ -8012,7 +8083,7 @@ const ZoomTiers = {
         toX: globePivot.rotation.x,
         toZ: t.z,
         t0: performance.now(),
-        dur: 620,
+        dur: 1400,
         tierId: t.id,
         onTier: true,
       };
@@ -8283,19 +8354,20 @@ function onGlobeClick(e) {
       const entity = GlobeEntity?.entities?.get('me');
       if (entity) { GlobeEntity.activate(entity); return; }
       const up = window._lastPos || { lat: 36.22, lng: 28.12 };
-      MapDepict?.zoomToUser?.(1.3);
+      MapDepict?.zoomToUser?.(GlobeControl?.Z?.national || 1.82);
       return;
     }
   }
 
   const intersects = raycaster.intersectObject(earth);
   if (intersects.length > 0) {
-    flyToPoint(intersects[0].point, ZoomTiers?.tierZ?.('national') || 1.82);
+    flyToPoint(intersects[0].point, ZoomTiers?.tierZ?.('global') || 2.55);
     MapDepict.action('explore', { detail: 'tap' });
   }
 }
 
-function flyToPoint(point, targetZ = 1.82) {
+function flyToPoint(point, targetZ = 1.82, opts) {
+  opts = opts || {};
   const dir = point.clone().normalize();
   const toY = -Math.atan2(dir.x, dir.z);
   const toX = Math.max(-0.85, Math.min(0.85, -Math.asin(Math.max(-1, Math.min(1, dir.y))) * 0.45));
@@ -8308,22 +8380,23 @@ function flyToPoint(point, targetZ = 1.82) {
       Math.abs(t.z - z) < Math.abs(best.z - z) ? t : best, ZoomTiers.TIERS[0]);
     ZoomTiers._index = ZoomTiers.indexOf(near.id);
   }
+  const fromZ = camera.position.z;
   window._globeFly = {
     fromY: globePivot.rotation.y,
     fromX: globePivot.rotation.x,
-    fromZ: camera.position.z,
+    fromZ,
     toY: globePivot.rotation.y + dy,
     toX,
     toZ: z,
     t0: performance.now(),
-    dur: 880,
+    dur: opts.dur || GlobeControl?.flyDuration?.(fromZ, z) || 1400,
     tierId: ZoomTiers?.current?.()?.id,
+    onDone: typeof opts.onDone === 'function' ? opts.onDone : null,
   };
 }
 
-function focusOnGlobePoint(point) {
-  flyToPoint(point, 1.45);
-  cityLevel = true;
+function focusOnGlobePoint(point, targetZ) {
+  flyToPoint(point, targetZ || GlobeControl?.Z?.national || 1.82);
 }
 
 function tickGlobeFly() {
@@ -8339,6 +8412,7 @@ function tickGlobeFly() {
   CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
   if (p >= 1) {
     const tid = f.tierId;
+    const done = f.onDone;
     window._globeFly = null;
     if (f.onTier && tid && ZoomTiers) {
       const i = ZoomTiers.indexOf(tid);
@@ -8352,9 +8426,25 @@ function tickGlobeFly() {
       cityLevel = camera.position.z <= 1.55;
       CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
     }
+    try { done?.(); } catch (_) {}
   }
 }
+
+function waitForGlobeFly(timeout = 9000) {
+  return new Promise(resolve => {
+    if (!window._globeFly) return resolve();
+    const t0 = performance.now();
+    const id = setInterval(() => {
+      tickGlobeFly();
+      if (!window._globeFly || performance.now() - t0 > timeout) {
+        clearInterval(id);
+        resolve();
+      }
+    }, 16);
+  });
+}
 window.tickGlobeFly = tickGlobeFly;
+window.waitForGlobeFly = waitForGlobeFly;
 
 function showGestureHint() {
   if (sessionStorage.getItem('astranov-gesture-hint')) return;
@@ -8371,8 +8461,8 @@ setTimeout(showGestureHint, 600);
 
 // === CITY MAP — satellite + streets when zoomed to city level ===
 const CityMap = {
-  ENTER_Z: 1.52,
-  EXIT_Z: 1.62,
+  ENTER_Z: 1.36,
+  EXIT_Z: 1.48,
   active: false,
   map: null,
   _ready: false,
@@ -9514,7 +9604,14 @@ const DrivingView = {
     GlobeControl?.engageFollow?.('drive');
     SuperCli?.setContext?.('drive');
     cityLevel = true;
-    camera.position.z = 1.28;
+    const pos = window._lastPos || { lat: 36.44, lng: 28.22 };
+    const p = latLngToPos(pos.lat, pos.lng, 1.04);
+    if (typeof flyToPoint === 'function') {
+      flyToPoint(new THREE.Vector3(p.x, p.y, p.z), 1.28, {
+        dur: GlobeControl?.flyDuration?.(camera?.position?.z, 1.28),
+      });
+      GlobeControl?.noteAutoFly?.();
+    }
     GlobeDeck?.setPreview('DRIVE VIEW · ' + Math.round(this.speed * 3.6) + ' km/h');
     document.getElementById('zoom-label').textContent = (this.mode === 'drive' ? 'DRIVE VIEW' : 'RUN VIEW');
     MapDepict?.action('drive', { detail: Math.round(this.speed * 3.6) + ' km/h' });
@@ -10675,16 +10772,15 @@ function placeMe(lat, lng, opts) {
     MapDepict.action('location', { lat, lng, detail: me ? me.name : 'You' });
   }
   if (shouldFly && typeof flyToPoint === 'function') {
-    const z = opts.zoom || (opts.cityDrop ? (CityLife?.CITY_ZOOM || 1.12) : 1.38);
+    const gz = GlobeControl?.Z?.global || 2.55;
+    const nz = GlobeControl?.Z?.national || 1.82;
+    const cz = CityLife?.CITY_ZOOM || GlobeControl?.Z?.city || 1.38;
+    const z = opts.zoom ?? (opts.cityDrop ? cz : gz);
     flyToPoint(new THREE.Vector3(pos.x, pos.y, pos.z), z);
-    cityLevel = z <= 1.65;
+    cityLevel = !!opts.cityDrop && z <= (GlobeControl?.Z?.regional || 1.65);
     GlobeControl?.noteAutoFly?.();
     CosmicZoom?.update?.(z);
-    CityMap?.onCamera?.(z, 'earth');
-  } else if (shouldFly) {
-    camera.position.set(pos.x*0.6, pos.y*0.6 + 0.4, 1.6);
-    camera.lookAt(pos.x*0.2, pos.y*0.2, 0);
-    GlobeControl?.noteAutoFly?.();
+    if (opts.cityDrop && !window._globeFly) CityMap?.onCamera?.(z, 'earth');
   }
   if (!quiet) FieldBrain?.pulse('location', 'locate me', { role: 'client' });
 }
@@ -10696,18 +10792,13 @@ function locateMe() {
   }
   GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
   GlobeDeck?.setMapStatus('Locating…');
-  GlobeControl?.engageFollow?.('locate');
+  GlobeControl?.userTookGlobe?.('silent');
   navigator.geolocation.getCurrentPosition(
     async pos => {
       const lat = pos.coords.latitude, lng = pos.coords.longitude;
-      placeMe(lat, lng, { quiet: false, fly: true, zoom: CityLife?.CITY_ZOOM || 1.12, cityDrop: true });
-      try {
-        const r = await CityLife?.dropIn?.(lat, lng);
-        const shops = r?.vendors?.length ?? 0;
-        ACIControl?.reply('City view · ' + lat.toFixed(2) + ', ' + lng.toFixed(2) + ' · ' + shops + ' shops nearby');
-      } catch (_) {
-        ACIControl?.reply('Located · ' + lat.toFixed(2) + ', ' + lng.toFixed(2));
-      }
+      placeMe(lat, lng, { quiet: false, fly: true, zoom: GlobeControl?.Z?.global || 2.55 });
+      ACIControl?.reply('On globe · ' + lat.toFixed(2) + ', ' + lng.toFixed(2) + ' — zoom in or say city view for shops');
+      GlobeDeck?.setMapStatus('🌍 Global · ' + lat.toFixed(2) + ', ' + lng.toFixed(2));
     },
     () => {
       ACIControl?.reply('Location denied — enable GPS in browser');
@@ -10739,11 +10830,12 @@ function groupOrder() {
   // Εμφάνισε τον Πιλότο ΤΗΛΕΜΑΧΟΣ να κάνει την δουλειά
   showPilotTelemachos();
   
-  // Focus view on the pilot/delivery area so user sees it clearly
-  globePivot.rotation.y = -28.1 * Math.PI / 180 + Math.PI / 2;
-  globePivot.rotation.x = -0.01;
-  camera.position.z = 1.6;
-  camera.lookAt(0, 0, 0);
+  // Fly to delivery area — no instant camera jumps
+  const focus = latLngToPos(36.5, 28.0, 1.04);
+  if (typeof flyToPoint === 'function') {
+    flyToPoint(new THREE.Vector3(focus.x, focus.y, focus.z), GlobeControl?.Z?.national || 1.82);
+    GlobeControl?.noteAutoFly?.();
+  }
   
   // STRONG ROUTING FALLBACK PROVIDER CYCLING for safety
   const vendorLat = 36.8, vendorLng = 27.5;

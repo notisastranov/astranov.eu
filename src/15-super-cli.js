@@ -100,17 +100,17 @@ const SuperCli = {
     if (!GlobeControl?.isEarthView?.()) return;
     const u = window._lastPos || { lat: 36.22, lng: 28.12 };
     if (act === 'news' && opts?.worldLat != null) {
-      GlobeControl.flyToLatLng(opts.worldLat, opts.worldLng, 'news', 1.52);
+      GlobeControl.flyToLatLng(opts.worldLat, opts.worldLng, 'news');
       return;
     }
     if (act === 'order' || act === 'commerce') {
       const v = Commerce?.vendors?.[0] || Commerce?.selected;
-      if (v?.lat != null) GlobeControl.flyToLatLng(v.lat, v.lng, 'order', 1.48);
-      else GlobeControl.flyToLatLng(u.lat, u.lng, 'order', 1.42);
+      if (v?.lat != null) GlobeControl.flyToLatLng(v.lat, v.lng, 'order');
+      else GlobeControl.flyToLatLng(u.lat, u.lng, 'order');
       return;
     }
-    if (act === 'batch') GlobeControl.flyToLatLng(u.lat, u.lng, 'batch', 1.44);
-    if (act === 'vhf' || act === 'radio') GlobeControl.flyToLatLng(u.lat, u.lng, 'comms', 1.4);
+    if (act === 'batch') GlobeControl.flyToLatLng(u.lat, u.lng, 'batch');
+    if (act === 'vhf' || act === 'radio') GlobeControl.flyToLatLng(u.lat, u.lng, 'comms');
   },
 
   async run(action, opts) {

@@ -80,7 +80,7 @@ const ZoomTiers = {
         toX: globePivot.rotation.x,
         toZ: t.z,
         t0: performance.now(),
-        dur: 620,
+        dur: 1400,
         tierId: t.id,
         onTier: true,
       };

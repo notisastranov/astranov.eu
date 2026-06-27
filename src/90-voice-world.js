@@ -401,16 +401,15 @@ function placeMe(lat, lng, opts) {
     MapDepict.action('location', { lat, lng, detail: me ? me.name : 'You' });
   }
   if (shouldFly && typeof flyToPoint === 'function') {
-    const z = opts.zoom || (opts.cityDrop ? (CityLife?.CITY_ZOOM || 1.12) : 1.38);
+    const gz = GlobeControl?.Z?.global || 2.55;
+    const nz = GlobeControl?.Z?.national || 1.82;
+    const cz = CityLife?.CITY_ZOOM || GlobeControl?.Z?.city || 1.38;
+    const z = opts.zoom ?? (opts.cityDrop ? cz : gz);
     flyToPoint(new THREE.Vector3(pos.x, pos.y, pos.z), z);
-    cityLevel = z <= 1.65;
+    cityLevel = !!opts.cityDrop && z <= (GlobeControl?.Z?.regional || 1.65);
     GlobeControl?.noteAutoFly?.();
     CosmicZoom?.update?.(z);
-    CityMap?.onCamera?.(z, 'earth');
-  } else if (shouldFly) {
-    camera.position.set(pos.x*0.6, pos.y*0.6 + 0.4, 1.6);
-    camera.lookAt(pos.x*0.2, pos.y*0.2, 0);
-    GlobeControl?.noteAutoFly?.();
+    if (opts.cityDrop && !window._globeFly) CityMap?.onCamera?.(z, 'earth');
   }
   if (!quiet) FieldBrain?.pulse('location', 'locate me', { role: 'client' });
 }
@@ -422,18 +421,13 @@ function locateMe() {
   }
   GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
   GlobeDeck?.setMapStatus('Locating…');
-  GlobeControl?.engageFollow?.('locate');
+  GlobeControl?.userTookGlobe?.('silent');
   navigator.geolocation.getCurrentPosition(
     async pos => {
       const lat = pos.coords.latitude, lng = pos.coords.longitude;
-      placeMe(lat, lng, { quiet: false, fly: true, zoom: CityLife?.CITY_ZOOM || 1.12, cityDrop: true });
-      try {
-        const r = await CityLife?.dropIn?.(lat, lng);
-        const shops = r?.vendors?.length ?? 0;
-        ACIControl?.reply('City view · ' + lat.toFixed(2) + ', ' + lng.toFixed(2) + ' · ' + shops + ' shops nearby');
-      } catch (_) {
-        ACIControl?.reply('Located · ' + lat.toFixed(2) + ', ' + lng.toFixed(2));
-      }
+      placeMe(lat, lng, { quiet: false, fly: true, zoom: GlobeControl?.Z?.global || 2.55 });
+      ACIControl?.reply('On globe · ' + lat.toFixed(2) + ', ' + lng.toFixed(2) + ' — zoom in or say city view for shops');
+      GlobeDeck?.setMapStatus('🌍 Global · ' + lat.toFixed(2) + ', ' + lng.toFixed(2));
     },
     () => {
       ACIControl?.reply('Location denied — enable GPS in browser');
@@ -465,11 +459,12 @@ function groupOrder() {
   // Εμφάνισε τον Πιλότο ΤΗΛΕΜΑΧΟΣ να κάνει την δουλειά
   showPilotTelemachos();
   
-  // Focus view on the pilot/delivery area so user sees it clearly
-  globePivot.rotation.y = -28.1 * Math.PI / 180 + Math.PI / 2;
-  globePivot.rotation.x = -0.01;
-  camera.position.z = 1.6;
-  camera.lookAt(0, 0, 0);
+  // Fly to delivery area — no instant camera jumps
+  const focus = latLngToPos(36.5, 28.0, 1.04);
+  if (typeof flyToPoint === 'function') {
+    flyToPoint(new THREE.Vector3(focus.x, focus.y, focus.z), GlobeControl?.Z?.national || 1.82);
+    GlobeControl?.noteAutoFly?.();
+  }
   
   // STRONG ROUTING FALLBACK PROVIDER CYCLING for safety
   const vendorLat = 36.8, vendorLng = 27.5;

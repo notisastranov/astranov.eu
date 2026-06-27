@@ -82,7 +82,14 @@ const DrivingView = {
     GlobeControl?.engageFollow?.('drive');
     SuperCli?.setContext?.('drive');
     cityLevel = true;
-    camera.position.z = 1.28;
+    const pos = window._lastPos || { lat: 36.44, lng: 28.22 };
+    const p = latLngToPos(pos.lat, pos.lng, 1.04);
+    if (typeof flyToPoint === 'function') {
+      flyToPoint(new THREE.Vector3(p.x, p.y, p.z), 1.28, {
+        dur: GlobeControl?.flyDuration?.(camera?.position?.z, 1.28),
+      });
+      GlobeControl?.noteAutoFly?.();
+    }
     GlobeDeck?.setPreview('DRIVE VIEW · ' + Math.round(this.speed * 3.6) + ' km/h');
     document.getElementById('zoom-label').textContent = (this.mode === 'drive' ? 'DRIVE VIEW' : 'RUN VIEW');
     MapDepict?.action('drive', { detail: Math.round(this.speed * 3.6) + ' km/h' });
