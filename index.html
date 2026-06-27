@@ -26,8 +26,8 @@
     --an-accent: #1a6fd4;
     --an-muted: rgba(100,140,180,0.62);
     --ax-void: #000;
-    --ax-panel: rgba(0,4,12,0.88);
-    --ax-panel-strong: rgba(0,6,16,0.94);
+    --ax-panel: rgba(0,0,0,0.58);
+    --ax-panel-strong: rgba(0,0,0,0.72);
     --ax-blue: #1a6fd4;
     --ax-blue-bright: #3d9eff;
     --ax-blue-glow: rgba(26,111,212,0.55);
@@ -291,10 +291,10 @@
   #sa-status { font-size:10px; color:#9ab; margin-bottom:6px; min-height:16px; }
   #sat-radio:not(.deck-active), #node-batch:not(.deck-active), #vendor-menu:not(.deck-active), #globe-youtube:not(.deck-active), #globe-super-add:not(.deck-active) { display:none !important; }
   #globe-entity-labels { position:fixed; inset:0; pointer-events:none; z-index:115; overflow:hidden; }
-  .ge-label { position:absolute; transform:translate(-50%,-100%); display:none; flex-direction:row; align-items:flex-start; gap:6px; max-width:min(240px,42vw); padding:6px 9px; border-radius:10px; background:rgba(0,8,18,0.92); border:1px solid rgba(0,200,255,0.35); font:10px/1.35 system-ui; color:#def; box-shadow:0 4px 14px rgba(0,0,0,0.45); transition:opacity 0.15s; pointer-events:auto; cursor:pointer; touch-action:manipulation; }
+  .ge-label { position:absolute; transform:translate(-50%,-100%); display:none; flex-direction:row; align-items:flex-start; gap:6px; max-width:min(240px,42vw); padding:6px 9px; border-radius:10px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); font:10px/1.35 system-ui; color:var(--an-text); box-shadow:0 4px 14px rgba(0,0,0,0.45), 0 0 8px var(--ax-blue-glow); transition:opacity 0.15s; pointer-events:auto; cursor:pointer; touch-action:manipulation; backdrop-filter:blur(8px); }
   .ge-label:active { transform:translate(-50%,-100%) scale(0.97); }
   .ge-label .ge-pin { font-size:14px; flex-shrink:0; }
-  .ge-label .ge-text b { display:block; color:#9ef; font-size:11px; margin-bottom:2px; }
+  .ge-label .ge-text b { display:block; color:var(--ax-blue-bright); font-size:11px; margin-bottom:2px; text-shadow:0 0 6px var(--ax-blue-glow); }
   .ge-label .ge-text span { color:#9ab; font-size:10px; }
   .ge-label.ge-glow { border-color:var(--ax-green-border); box-shadow:0 0 12px var(--ax-green-glow); }
   .ge-label.ge-flash { animation:ge-flash 0.9s ease-in-out infinite; border-color:var(--ax-red-border); box-shadow:0 0 14px var(--ax-red-glow); }
@@ -1015,8 +1015,8 @@ const MapDepict = {
       vhf: 0xffdd44,
       news: 0xcc88ff,
       explore: 0x00aaff,
-      video: 0x00ffcc,
-      location: 0x00ffcc,
+      video: 0x3d9eff,
+      location: 0x3d9eff,
       mode: 0x88aaff,
       stop: 0xff4466,
       drive: 0x44aaff,
@@ -6926,7 +6926,7 @@ const CityLife = {
     }
     GlobeControl?.engageFollow?.('locate');
     GlobeControl?.noteAutoFly?.();
-    MapDepict?.pulse?.(lat, lng, 0x00ffcc, label || 'Your city', 14000);
+    MapDepict?.pulse?.(lat, lng, 0x3d9eff, label || 'Your city', 14000);
   },
 
   nearbyVendors(lat, lng) {
@@ -7657,16 +7657,16 @@ const GlobeEntity = {
   _hud: null,
 
   TYPES: {
-    vendor: { color: 0xff8844, icon: '🏬', label: 'Shop' },
-    driver: { color: 0x4488ff, icon: '🚚', label: 'Driver' },
-    friend: { color: 0xffaa33, icon: '👤', label: 'Friend' },
-    post: { color: 0xff66aa, icon: '▶', label: 'Post' },
-    me: { color: 0x00ffcc, icon: '📍', label: 'You' },
-    news: { color: 0xcc88ff, icon: '📰', label: 'News' },
-    order: { color: 0xffaa44, icon: '🛒', label: 'Order' },
-    media: { color: 0xff4466, icon: '🎬', label: 'Media' },
-    pilot: { color: 0x00ccff, icon: '🛸', label: 'Delivery' },
-    place: { color: 0x00aaff, icon: '◎', label: 'Place' },
+    vendor: { color: 0x3d9eff, icon: '🏬', label: 'Shop' },
+    driver: { color: 0x1a6fd4, icon: '🚚', label: 'Driver' },
+    friend: { color: 0x3d9eff, icon: '👤', label: 'Friend' },
+    post: { color: 0x1a6fd4, icon: '▶', label: 'Post' },
+    me: { color: 0x3d9eff, icon: '📍', label: 'You' },
+    news: { color: 0x1a6fd4, icon: '📰', label: 'News' },
+    order: { color: 0x3d9eff, icon: '🛒', label: 'Order' },
+    media: { color: 0x1a6fd4, icon: '🎬', label: 'Media' },
+    pilot: { color: 0x3d9eff, icon: '🛸', label: 'Delivery' },
+    place: { color: 0x1a6fd4, icon: '◎', label: 'Place' },
   },
 
   init() {
@@ -9311,19 +9311,19 @@ const CityMap = {
     const me = window._lastPos;
     if (me) {
       this._setMarker('me', me.lat, me.lng, {
-        emoji: '📍', color: 'rgba(0,200,255,0.95)', title: me?.name || 'You',
+        emoji: '📍', color: 'rgba(26,111,212,0.92)', title: me?.name || 'You',
         onClick: () => GlobeEntity?.entities?.get('me') && GlobeEntity.activate(GlobeEntity.entities.get('me')),
       });
     }
     (window.others || []).forEach((u, i) => {
       this._setMarker('friend_' + (u.id || i), u.lat, u.lng, {
-        emoji: u.emoji || '👤', color: 'rgba(255,170,50,0.92)', title: u.name,
+        emoji: u.emoji || '👤', color: 'rgba(61,158,255,0.88)', title: u.name,
       });
     });
     (Commerce?.vendors || []).forEach((v, i) => {
       if (v.lat == null) return;
       this._setMarker('shop_' + (v.id || i), v.lat, v.lng, {
-        emoji: '🏪', color: 'rgba(255,140,40,0.9)', title: v.name || 'Shop',
+        emoji: '🏪', color: 'rgba(26,111,212,0.88)', title: v.name || 'Shop',
         onClick: () => Commerce?.openVendor?.(v),
       });
     });
@@ -11460,7 +11460,7 @@ function placeMe(lat, lng, opts) {
   window._lastPos = { lat, lng };
   if (window._meMarker && window._meMarker.parent) window._meMarker.parent.remove(window._meMarker);
   const pos = latLngToPos(lat, lng, 1.03);
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.028,8,8), new THREE.MeshBasicMaterial({color:0x00ffcc}));
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.028,8,8), new THREE.MeshBasicMaterial({color:0x3d9eff}));
   m.position.set(pos.x,pos.y,pos.z);
   m.userData = {type:'me', name: me ? me.name : 'You'};
   globePivot.add(m);
@@ -11468,7 +11468,7 @@ function placeMe(lat, lng, opts) {
   userLocated = true;
   GlobeEntity?.syncMe?.(lat, lng, me ? me.name : 'You');
   if (quiet) {
-    MapDepict.pulse(lat, lng, 0x00ffcc, 'You', 6000);
+    MapDepict.pulse(lat, lng, 0x3d9eff, 'You', 6000);
     GlobeDeck?.setMapStatus('📍 ' + lat.toFixed(2) + ', ' + lng.toFixed(2));
   } else {
     MapDepict.action('location', { lat, lng, detail: me ? me.name : 'You' });

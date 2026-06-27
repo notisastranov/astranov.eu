@@ -33,7 +33,7 @@ const CityLife = {
     }
     GlobeControl?.engageFollow?.('locate');
     GlobeControl?.noteAutoFly?.();
-    MapDepict?.pulse?.(lat, lng, 0x00ffcc, label || 'Your city', 14000);
+    MapDepict?.pulse?.(lat, lng, 0x3d9eff, label || 'Your city', 14000);
   },
 
   nearbyVendors(lat, lng) {

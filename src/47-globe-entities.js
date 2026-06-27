@@ -6,16 +6,16 @@ const GlobeEntity = {
   _hud: null,
 
   TYPES: {
-    vendor: { color: 0xff8844, icon: '🏬', label: 'Shop' },
-    driver: { color: 0x4488ff, icon: '🚚', label: 'Driver' },
-    friend: { color: 0xffaa33, icon: '👤', label: 'Friend' },
-    post: { color: 0xff66aa, icon: '▶', label: 'Post' },
-    me: { color: 0x00ffcc, icon: '📍', label: 'You' },
-    news: { color: 0xcc88ff, icon: '📰', label: 'News' },
-    order: { color: 0xffaa44, icon: '🛒', label: 'Order' },
-    media: { color: 0xff4466, icon: '🎬', label: 'Media' },
-    pilot: { color: 0x00ccff, icon: '🛸', label: 'Delivery' },
-    place: { color: 0x00aaff, icon: '◎', label: 'Place' },
+    vendor: { color: 0x3d9eff, icon: '🏬', label: 'Shop' },
+    driver: { color: 0x1a6fd4, icon: '🚚', label: 'Driver' },
+    friend: { color: 0x3d9eff, icon: '👤', label: 'Friend' },
+    post: { color: 0x1a6fd4, icon: '▶', label: 'Post' },
+    me: { color: 0x3d9eff, icon: '📍', label: 'You' },
+    news: { color: 0x1a6fd4, icon: '📰', label: 'News' },
+    order: { color: 0x3d9eff, icon: '🛒', label: 'Order' },
+    media: { color: 0x1a6fd4, icon: '🎬', label: 'Media' },
+    pilot: { color: 0x3d9eff, icon: '🛸', label: 'Delivery' },
+    place: { color: 0x1a6fd4, icon: '◎', label: 'Place' },
   },
 
   init() {

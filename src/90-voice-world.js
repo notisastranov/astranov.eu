@@ -499,7 +499,7 @@ function placeMe(lat, lng, opts) {
   window._lastPos = { lat, lng };
   if (window._meMarker && window._meMarker.parent) window._meMarker.parent.remove(window._meMarker);
   const pos = latLngToPos(lat, lng, 1.03);
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.028,8,8), new THREE.MeshBasicMaterial({color:0x00ffcc}));
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.028,8,8), new THREE.MeshBasicMaterial({color:0x3d9eff}));
   m.position.set(pos.x,pos.y,pos.z);
   m.userData = {type:'me', name: me ? me.name : 'You'};
   globePivot.add(m);
@@ -507,7 +507,7 @@ function placeMe(lat, lng, opts) {
   userLocated = true;
   GlobeEntity?.syncMe?.(lat, lng, me ? me.name : 'You');
   if (quiet) {
-    MapDepict.pulse(lat, lng, 0x00ffcc, 'You', 6000);
+    MapDepict.pulse(lat, lng, 0x3d9eff, 'You', 6000);
     GlobeDeck?.setMapStatus('📍 ' + lat.toFixed(2) + ', ' + lng.toFixed(2));
   } else {
     MapDepict.action('location', { lat, lng, detail: me ? me.name : 'You' });

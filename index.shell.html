@@ -26,8 +26,8 @@
     --an-accent: #1a6fd4;
     --an-muted: rgba(100,140,180,0.62);
     --ax-void: #000;
-    --ax-panel: rgba(0,4,12,0.88);
-    --ax-panel-strong: rgba(0,6,16,0.94);
+    --ax-panel: rgba(0,0,0,0.58);
+    --ax-panel-strong: rgba(0,0,0,0.72);
     --ax-blue: #1a6fd4;
     --ax-blue-bright: #3d9eff;
     --ax-blue-glow: rgba(26,111,212,0.55);
@@ -291,10 +291,10 @@
   #sa-status { font-size:10px; color:#9ab; margin-bottom:6px; min-height:16px; }
   #sat-radio:not(.deck-active), #node-batch:not(.deck-active), #vendor-menu:not(.deck-active), #globe-youtube:not(.deck-active), #globe-super-add:not(.deck-active) { display:none !important; }
   #globe-entity-labels { position:fixed; inset:0; pointer-events:none; z-index:115; overflow:hidden; }
-  .ge-label { position:absolute; transform:translate(-50%,-100%); display:none; flex-direction:row; align-items:flex-start; gap:6px; max-width:min(240px,42vw); padding:6px 9px; border-radius:10px; background:rgba(0,8,18,0.92); border:1px solid rgba(0,200,255,0.35); font:10px/1.35 system-ui; color:#def; box-shadow:0 4px 14px rgba(0,0,0,0.45); transition:opacity 0.15s; pointer-events:auto; cursor:pointer; touch-action:manipulation; }
+  .ge-label { position:absolute; transform:translate(-50%,-100%); display:none; flex-direction:row; align-items:flex-start; gap:6px; max-width:min(240px,42vw); padding:6px 9px; border-radius:10px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); font:10px/1.35 system-ui; color:var(--an-text); box-shadow:0 4px 14px rgba(0,0,0,0.45), 0 0 8px var(--ax-blue-glow); transition:opacity 0.15s; pointer-events:auto; cursor:pointer; touch-action:manipulation; backdrop-filter:blur(8px); }
   .ge-label:active { transform:translate(-50%,-100%) scale(0.97); }
   .ge-label .ge-pin { font-size:14px; flex-shrink:0; }
-  .ge-label .ge-text b { display:block; color:#9ef; font-size:11px; margin-bottom:2px; }
+  .ge-label .ge-text b { display:block; color:var(--ax-blue-bright); font-size:11px; margin-bottom:2px; text-shadow:0 0 6px var(--ax-blue-glow); }
   .ge-label .ge-text span { color:#9ab; font-size:10px; }
   .ge-label.ge-glow { border-color:var(--ax-green-border); box-shadow:0 0 12px var(--ax-green-glow); }
   .ge-label.ge-flash { animation:ge-flash 0.9s ease-in-out infinite; border-color:var(--ax-red-border); box-shadow:0 0 14px var(--ax-red-glow); }

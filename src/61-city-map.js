@@ -262,19 +262,19 @@ const CityMap = {
     const me = window._lastPos;
     if (me) {
       this._setMarker('me', me.lat, me.lng, {
-        emoji: '📍', color: 'rgba(0,200,255,0.95)', title: me?.name || 'You',
+        emoji: '📍', color: 'rgba(26,111,212,0.92)', title: me?.name || 'You',
         onClick: () => GlobeEntity?.entities?.get('me') && GlobeEntity.activate(GlobeEntity.entities.get('me')),
       });
     }
     (window.others || []).forEach((u, i) => {
       this._setMarker('friend_' + (u.id || i), u.lat, u.lng, {
-        emoji: u.emoji || '👤', color: 'rgba(255,170,50,0.92)', title: u.name,
+        emoji: u.emoji || '👤', color: 'rgba(61,158,255,0.88)', title: u.name,
       });
     });
     (Commerce?.vendors || []).forEach((v, i) => {
       if (v.lat == null) return;
       this._setMarker('shop_' + (v.id || i), v.lat, v.lng, {
-        emoji: '🏪', color: 'rgba(255,140,40,0.9)', title: v.name || 'Shop',
+        emoji: '🏪', color: 'rgba(26,111,212,0.88)', title: v.name || 'Shop',
         onClick: () => Commerce?.openVendor?.(v),
       });
     });
