@@ -13,6 +13,7 @@ const GlobeDeck = {
   _expandAt: 0,
 
   init() {
+    AppShortcuts?.init?.();
     const hdr = document.getElementById('globe-deck-header');
     const handle = document.getElementById('globe-deck-handle');
     if (handle) handle.onclick = e => { e.stopPropagation(); this.toggle(); };
@@ -228,7 +229,9 @@ const GlobeDeck = {
       d.classList.remove('has-stage');
     }
     this.expand(title || this.stageTitle(panelId));
+    AppShortcuts?.track?.(task || panelId, title || this.stageTitle(panelId));
     SuperCli?.setContext?.(SuperCli.inferContext?.());
+    AppShortcuts?.render?.();
   },
 
   hideStage() {
@@ -259,11 +262,14 @@ const GlobeDeck = {
     if (task === 'cli' && this.activeTask && keep.includes(this.activeTask)) return;
     if (this.activeTask && this.activeTask !== task && task !== 'cli') return;
     if (this._collapseTimer) { clearTimeout(this._collapseTimer); this._collapseTimer = null; }
+    const done = task === 'cli' ? this.activeTask : task;
     this.hideStage();
     this.collapse();
     this.activeTask = null;
+    if (done) AppShortcuts?.untrack?.(done);
     this.setTitle(window.SuperCli?.title || 'Astranov Command Line');
     SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
+    AppShortcuts?.render?.();
   },
 
   isOneShotCmd(cmd) {

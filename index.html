@@ -97,7 +97,13 @@
   #globe-deck.expanded { max-height:min(56vh,520px); }
   #globe-deck.expanded.has-stage { max-height:min(72vh,640px); }
   #super-cli-bar { display:flex; gap:5px; padding:6px 8px; flex-wrap:nowrap; align-items:center; justify-content:flex-start; border-bottom:1px solid rgba(0,255,160,0.12); flex-shrink:0; background:rgba(0,8,18,0.5); min-height:46px; }
-  #super-cli-bar button:not(#aci-login):not(#super-add-fab) { display:none !important; }
+  #super-cli-bar button:not(#aci-login):not(#super-add-fab):not(.app-shortcut-btn) { display:none !important; }
+  #app-shortcut-row { display:flex; gap:4px; align-items:center; flex:1; min-width:0; overflow-x:auto; overflow-y:hidden; padding:0 2px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+  #app-shortcut-row::-webkit-scrollbar { display:none; }
+  #super-cli-bar .app-shortcut-btn { display:inline-flex !important; align-items:center; justify-content:center; width:32px; height:32px; font-size:15px; border-radius:10px; background:rgba(0,80,120,0.38); border:1px solid rgba(0,200,255,0.32); color:#cef; cursor:pointer; flex-shrink:0; touch-action:manipulation; transition:background 0.15s,border-color 0.15s,transform 0.1s; }
+  #super-cli-bar .app-shortcut-btn:hover { border-color:rgba(0,255,200,0.55); background:rgba(0,110,90,0.42); }
+  #super-cli-bar .app-shortcut-btn.active { background:rgba(0,140,90,0.55); border-color:rgba(0,255,160,0.7); color:#8fc; box-shadow:0 0 8px rgba(0,255,160,0.28); }
+  #super-cli-bar .app-shortcut-btn:active { transform:scale(0.92); }
   #super-cli-bar button { background:rgba(0,100,180,0.35); border:1px solid rgba(0,200,255,0.4); color:#aaf; border-radius:50%; width:34px; height:34px; cursor:pointer; font-size:13px; flex-shrink:0; }
   #super-cli-bar #aci-stop { background:rgba(120,20,40,0.45); border-color:rgba(255,80,100,0.5); color:#faa; }
   #super-cli-bar #aci-cli-toggle { border-radius:50%; width:34px; }
@@ -366,6 +372,7 @@
       </div>
       <div id="super-cli-bar">
         <button id="aci-login" title="Sign in with Google" type="button">G</button>
+        <div id="app-shortcut-row" role="toolbar" aria-label="Open applications"></div>
         <button id="aci-cli-toggle" title="Expand/collapse Astranov Command Line" type="button">💻</button>
         <button id="aci-stop" title="Stop" type="button">🛑</button>
         <button id="aci-hold" title="Hold session — pause mic &amp; tasks for noisy places" type="button" aria-pressed="false">⏸</button>
@@ -1634,6 +1641,7 @@ const GlobeDeck = {
   _expandAt: 0,
 
   init() {
+    AppShortcuts?.init?.();
     const hdr = document.getElementById('globe-deck-header');
     const handle = document.getElementById('globe-deck-handle');
     if (handle) handle.onclick = e => { e.stopPropagation(); this.toggle(); };
@@ -1849,7 +1857,9 @@ const GlobeDeck = {
       d.classList.remove('has-stage');
     }
     this.expand(title || this.stageTitle(panelId));
+    AppShortcuts?.track?.(task || panelId, title || this.stageTitle(panelId));
     SuperCli?.setContext?.(SuperCli.inferContext?.());
+    AppShortcuts?.render?.();
   },
 
   hideStage() {
@@ -1880,11 +1890,14 @@ const GlobeDeck = {
     if (task === 'cli' && this.activeTask && keep.includes(this.activeTask)) return;
     if (this.activeTask && this.activeTask !== task && task !== 'cli') return;
     if (this._collapseTimer) { clearTimeout(this._collapseTimer); this._collapseTimer = null; }
+    const done = task === 'cli' ? this.activeTask : task;
     this.hideStage();
     this.collapse();
     this.activeTask = null;
+    if (done) AppShortcuts?.untrack?.(done);
     this.setTitle(window.SuperCli?.title || 'Astranov Command Line');
     SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
+    AppShortcuts?.render?.();
   },
 
   isOneShotCmd(cmd) {
@@ -1908,6 +1921,255 @@ const GlobeDeck = {
   },
 };
 window.GlobeDeck = GlobeDeck;
+
+// === APP SHORTCUTS — open CLI apps as top-bar icons (account · apps · +) ===
+const AppShortcuts = {
+  _row: null,
+  _order: [],
+  _labels: {},
+  _siteMeta: null,
+
+  APPS: {
+    coders: {
+      icon: '🧠',
+      title: 'Coders',
+      activate() {
+        GlobeDeck?.hideStage?.();
+        GlobeDeck.activeTask = 'coders';
+        GlobeDeck?.expand?.('Collective Coders');
+        SuperCli?.setContext?.('idle');
+        document.getElementById('aci-cli-in')?.focus();
+      },
+      close() {
+        GlobeDeck.activeTask = null;
+        GlobeDeck?.hideStage?.();
+        GlobeDeck?.setTitle?.(SuperCli?.title || 'Astranov Command Line');
+        SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
+      },
+    },
+    commerce: {
+      icon: '🛒',
+      title: 'Shops',
+      activate() {
+        Commerce?.initUI?.();
+        if (Commerce?.selected) {
+          Commerce.showMenu();
+          const list = document.getElementById('vm-list');
+          const detail = document.getElementById('vm-detail');
+          if (list) list.style.display = 'none';
+          if (detail) detail.style.display = 'block';
+          const title = document.getElementById('vm-title');
+          if (title) title.textContent = (Commerce.selected.icon || '🏪') + ' ' + Commerce.selected.name;
+          Commerce.renderCart?.();
+        } else {
+          Commerce?.showPicker?.();
+        }
+        SuperCli?.setContext?.('commerce');
+      },
+      close() {
+        Commerce?.hideMenu?.();
+        if (GlobeDeck?.activeTask === 'commerce') GlobeDeck?.completeTask?.('commerce');
+      },
+    },
+    batch: {
+      icon: '🔗',
+      title: 'Batch',
+      activate() {
+        AstranovNode?.showPanel?.();
+        SuperCli?.setContext?.('batch');
+      },
+      close() {
+        AstranovNode?.hidePanel?.();
+      },
+    },
+    radio: {
+      icon: '📡',
+      title: 'PMR',
+      activate() {
+        PmrRadio?.show?.();
+        SuperCli?.setContext?.('radio');
+      },
+      close() {
+        PmrRadio?.hide?.();
+      },
+    },
+    video: {
+      icon: '▶️',
+      title: 'Video',
+      activate() {
+        GlobeVideo?.showPanel?.(GlobeVideo?._lastQuery || 'YouTube on globe');
+        if (GlobeVideo?._currentId) void GlobeVideo?.play?.(GlobeVideo._currentId);
+      },
+      close() {
+        GlobeVideo?.hide?.();
+      },
+    },
+    add: {
+      icon: '📹',
+      title: 'Post',
+      activate() {
+        SuperAdd?.showPanel?.();
+        SuperAdd?.startCamera?.();
+        SuperCli?.setContext?.('add');
+      },
+      close() {
+        SuperAdd?.hide?.();
+      },
+    },
+    drive: {
+      icon: '🚗',
+      title: 'Drive',
+      activate() {
+        DrivingView?.activate?.();
+        SuperCli?.setContext?.('drive');
+      },
+      close() {
+        if (DrivingView?.active) DrivingView.deactivate();
+        else AppShortcuts.untrack('drive');
+      },
+    },
+    phone: {
+      icon: '☎️',
+      title: 'Phone',
+      activate() {
+        GlobeDeck?.hideStage?.();
+        GlobeDeck.activeTask = 'phone';
+        GlobeDeck?.expand?.((SuperCli?.title || 'Astranov Command Line') + ' — phone');
+        SuperCli?.setContext?.('phone');
+        document.getElementById('aci-cli-in')?.focus();
+      },
+      close() {
+        if (GlobeDeck?.activeTask === 'phone') GlobeDeck.activeTask = null;
+        SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
+      },
+    },
+    site: {
+      icon: '🌐',
+      title: 'Site',
+      activate() {
+        const meta = AstranovSiteShell?.active || AppShortcuts._siteMeta;
+        if (meta?.url) AstranovSiteShell?.open?.(meta.url, meta);
+      },
+      close() {
+        AstranovSiteShell?.close?.();
+      },
+    },
+  },
+
+  init() {
+    const bar = document.getElementById('super-cli-bar');
+    const login = document.getElementById('aci-login');
+    if (!bar || !login) return;
+    let row = document.getElementById('app-shortcut-row');
+    if (!row) {
+      row = document.createElement('div');
+      row.id = 'app-shortcut-row';
+      row.setAttribute('role', 'toolbar');
+      row.setAttribute('aria-label', 'Open applications');
+      login.insertAdjacentElement('afterend', row);
+    }
+    this._row = row;
+    this.render();
+  },
+
+  isOpen(id) {
+    return this._order.includes(id);
+  },
+
+  active() {
+    return GlobeDeck?.activeTask || this._order[this._order.length - 1] || null;
+  },
+
+  track(id, label) {
+    const key = this._norm(id);
+    if (!key || !this.APPS[key]) return;
+    if (!this._order.includes(key)) this._order.push(key);
+    if (label) this._labels[key] = String(label).slice(0, 48);
+    this.render();
+  },
+
+  untrack(id) {
+    const key = this._norm(id);
+    if (!key) return;
+    this._order = this._order.filter(x => x !== key);
+    delete this._labels[key];
+    if (key === 'site') this._siteMeta = null;
+    this.render();
+  },
+
+  rememberSite(meta) {
+    if (meta?.url) this._siteMeta = { ...meta };
+  },
+
+  _norm(id) {
+    const s = String(id || '').toLowerCase();
+    if (s === 'vhf' || s === 'pmr') return 'radio';
+    if (s === 'node' || s === 'node-batch') return 'batch';
+    if (s === 'youtube' || s === 'yt') return 'video';
+    if (s === 'vendor-menu' || s === 'order' || s === 'shop' || s === 'shops') return 'commerce';
+    if (s === 'globe-super-add' || s === 'superadd' || s === 'post') return 'add';
+    return s;
+  },
+
+  switchTo(id) {
+    const key = this._norm(id);
+    if (!key || !this.APPS[key] || !this.isOpen(key)) return;
+    if (GlobeDeck) GlobeDeck._userEngaged = true;
+    try {
+      this.APPS[key].activate();
+      GlobeDeck.activeTask = key === 'phone' || key === 'coders' ? key : (GlobeDeck?.activeTask || key);
+      this.render();
+    } catch (e) {
+      console.warn('[AppShortcuts] switch', key, e);
+    }
+  },
+
+  closeApp(id) {
+    const key = this._norm(id);
+    if (!key || !this.APPS[key]) return false;
+    try {
+      this.APPS[key].close?.();
+    } catch (e) {
+      console.warn('[AppShortcuts] close', key, e);
+    }
+    this.untrack(key);
+    return true;
+  },
+
+  closeCurrent() {
+    const id = GlobeDeck?.activeTask || this._order[this._order.length - 1];
+    if (id && this.isOpen(id)) return this.closeApp(id);
+    if (AstranovSiteShell?.isOpen?.()) return this.closeApp('site');
+    return false;
+  },
+
+  render() {
+    if (!this._row) return;
+    this._row.innerHTML = '';
+    const focus = GlobeDeck?.activeTask || null;
+    for (const id of this._order) {
+      const app = this.APPS[id];
+      if (!app) continue;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'app-shortcut-btn';
+      btn.dataset.app = id;
+      btn.title = this._labels[id] || app.title;
+      btn.setAttribute('aria-label', this._labels[id] || app.title);
+      btn.textContent = app.icon;
+      if (id === focus || (id === 'site' && AstranovSiteShell?.isOpen?.())) {
+        btn.classList.add('active');
+      }
+      btn.onclick = e => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.switchTo(id);
+      };
+      this._row.appendChild(btn);
+    }
+  },
+};
+window.AppShortcuts = AppShortcuts;
 
 // === SUPER CLI — one window: toolbar + log + stage + input ===
 const ACL_TITLE = 'Astranov Command Line';
@@ -1949,8 +2211,10 @@ const SuperCli = {
     bar.dataset.ctx = this._context;
     const allowed = new Set(this.TOOLBAR_VISIBLE);
     bar.querySelectorAll('button').forEach(btn => {
+      if (btn.classList.contains('app-shortcut-btn')) return;
       btn.hidden = !allowed.has(btn.id);
     });
+    AppShortcuts?.render?.();
     this.INPUT_BTNS.forEach(id => {
       const b = document.getElementById(id);
       if (b) b.hidden = false;
@@ -2061,7 +2325,9 @@ const SuperCli = {
       case 'phone':
       case 'call':
         GlobeDeck?.hideStage();
+        GlobeDeck.activeTask = 'phone';
         GlobeDeck?.expand(ACL_TITLE + ' — phone');
+        AppShortcuts?.track?.('phone', 'Phone');
         this.setContext('phone');
         AciCli?.print('Type: call +30… (e.g. call +306912345678)', 'ok');
         ACIControl?.reply('Type call +number in Astranov Command Line');
@@ -2075,6 +2341,7 @@ const SuperCli = {
         break;
       case 'drive':
         DrivingView?.activate?.();
+        AppShortcuts?.track?.('drive', 'Drive');
         this.setContext('drive');
         break;
       case 'add':
@@ -2809,11 +3076,13 @@ const AciCli = {
         const task = cmd === 'summon' ? parts.slice(2).join(' ')
           : (cmd === 'coders' ? rest : rest || '');
         GlobeDeck.activeTask = 'coders';
+        AppShortcuts?.track?.('coders', 'Coders');
         await AciCoders?.handleCodersCommand(cmd === 'composer' || cmd === 'cursor' ? ('composer ' + task).trim() : task);
         return;
       }
       if (cmd === 'grok') {
         GlobeDeck.activeTask = 'coders';
+        AppShortcuts?.track?.('coders', 'Coders');
         await AciCoders?.handleCodersCommand(rest ? ('grok ' + rest) : 'grok');
         return;
       }
@@ -2832,7 +3101,12 @@ const AciCli = {
         GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
-      if (cmd === 'exit' || cmd === 'close') { GlobeDeck?.completeTask('cli'); return; }
+      if (cmd === 'exit' || cmd === 'close') {
+        if (rest && AppShortcuts?.closeApp?.(rest)) return;
+        if (AppShortcuts?.closeCurrent?.()) return;
+        GlobeDeck?.completeTask('cli');
+        return;
+      }
       if (cmd === 'logout') { await Auth.signOut(); this.print('signed out', 'ok'); return; }
 
       if (cmd === 'theme' || cmd === 'dark' || cmd === 'bright' || cmd === 'light') {
@@ -3323,6 +3597,7 @@ const AciCoders = {
     this.armed = true;
     await this.ensureBridge();
     if (GlobeDeck) GlobeDeck.activeTask = 'coders';
+    AppShortcuts?.track?.('coders', 'Coders');
     this.updateHud();
     if (this._started) {
       this.startListening();
@@ -3592,6 +3867,7 @@ const AciCoders = {
 
     GlobeDeck?.onUserMessage(Auth?.user ? 'Coders' : 'Coders · guest');
     if (GlobeDeck) GlobeDeck.activeTask = 'coders';
+    AppShortcuts?.track?.('coders', 'Coders');
     if (!fast) MapDepict?.action('think', { detail: 'coders: ' + m.slice(0, 40) });
 
     this._cliBusy = true;
@@ -7044,6 +7320,8 @@ const AstranovSiteShell = {
     if (window.AIGraphics?.setSiteShellMode) AIGraphics.setSiteShellMode(true);
     GlobeDeck?.collapse?.();
     GlobeDeck?.setPreview?.('◎ ' + (meta.domain || full));
+    AppShortcuts?.rememberSite?.({ url: full, ...meta });
+    AppShortcuts?.track?.('site', meta.domain || meta.title || new URL(full).hostname);
     AciCli?.print?.('site shell · ' + (meta.domain || full), 'ok');
     setTimeout(() => Auth?.broadcastToShell?.(), 1200);
   },
@@ -7055,6 +7333,7 @@ const AstranovSiteShell = {
     document.body.classList.remove('site-shell-open');
     if (frame) frame.src = 'about:blank';
     this.active = null;
+    AppShortcuts?.untrack?.('site');
     if (window.AIGraphics?.setSiteShellMode) AIGraphics.setSiteShellMode(false);
     GlobeDeck?.setPreview?.('');
   },
@@ -9622,6 +9901,7 @@ const DrivingView = {
       this.destination = v ? { lat: v.lat, lng: v.lng } : { lat: 36.89, lng: 27.29 };
     }
     this.fetchRoadRoute();
+    AppShortcuts?.track?.('drive', 'Drive');
     if (Voice.maySpeak()) speak('Driving on.', () => resumeListening());
   },
 
@@ -9629,6 +9909,7 @@ const DrivingView = {
     this.active = false;
     this._cameraFollow = false;
     if (GlobeControl?.followMode === 'drive') GlobeControl.followMode = 'free';
+    AppShortcuts?.untrack?.('drive');
     SuperCli?.setContext?.(SuperCli?.inferContext?.() || 'idle');
     GlobeDeck?.setPreview('');
     if (this.routeLine?.parent) this.routeLine.parent.remove(this.routeLine);

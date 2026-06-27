@@ -194,11 +194,13 @@ const AciCli = {
         const task = cmd === 'summon' ? parts.slice(2).join(' ')
           : (cmd === 'coders' ? rest : rest || '');
         GlobeDeck.activeTask = 'coders';
+        AppShortcuts?.track?.('coders', 'Coders');
         await AciCoders?.handleCodersCommand(cmd === 'composer' || cmd === 'cursor' ? ('composer ' + task).trim() : task);
         return;
       }
       if (cmd === 'grok') {
         GlobeDeck.activeTask = 'coders';
+        AppShortcuts?.track?.('coders', 'Coders');
         await AciCoders?.handleCodersCommand(rest ? ('grok ' + rest) : 'grok');
         return;
       }
@@ -217,7 +219,12 @@ const AciCli = {
         GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
-      if (cmd === 'exit' || cmd === 'close') { GlobeDeck?.completeTask('cli'); return; }
+      if (cmd === 'exit' || cmd === 'close') {
+        if (rest && AppShortcuts?.closeApp?.(rest)) return;
+        if (AppShortcuts?.closeCurrent?.()) return;
+        GlobeDeck?.completeTask('cli');
+        return;
+      }
       if (cmd === 'logout') { await Auth.signOut(); this.print('signed out', 'ok'); return; }
 
       if (cmd === 'theme' || cmd === 'dark' || cmd === 'bright' || cmd === 'light') {

@@ -186,6 +186,7 @@ const AciCoders = {
     this.armed = true;
     await this.ensureBridge();
     if (GlobeDeck) GlobeDeck.activeTask = 'coders';
+    AppShortcuts?.track?.('coders', 'Coders');
     this.updateHud();
     if (this._started) {
       this.startListening();
@@ -455,6 +456,7 @@ const AciCoders = {
 
     GlobeDeck?.onUserMessage(Auth?.user ? 'Coders' : 'Coders · guest');
     if (GlobeDeck) GlobeDeck.activeTask = 'coders';
+    AppShortcuts?.track?.('coders', 'Coders');
     if (!fast) MapDepict?.action('think', { detail: 'coders: ' + m.slice(0, 40) });
 
     this._cliBusy = true;

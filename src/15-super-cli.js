@@ -38,8 +38,10 @@ const SuperCli = {
     bar.dataset.ctx = this._context;
     const allowed = new Set(this.TOOLBAR_VISIBLE);
     bar.querySelectorAll('button').forEach(btn => {
+      if (btn.classList.contains('app-shortcut-btn')) return;
       btn.hidden = !allowed.has(btn.id);
     });
+    AppShortcuts?.render?.();
     this.INPUT_BTNS.forEach(id => {
       const b = document.getElementById(id);
       if (b) b.hidden = false;
@@ -150,7 +152,9 @@ const SuperCli = {
       case 'phone':
       case 'call':
         GlobeDeck?.hideStage();
+        GlobeDeck.activeTask = 'phone';
         GlobeDeck?.expand(ACL_TITLE + ' — phone');
+        AppShortcuts?.track?.('phone', 'Phone');
         this.setContext('phone');
         AciCli?.print('Type: call +30… (e.g. call +306912345678)', 'ok');
         ACIControl?.reply('Type call +number in Astranov Command Line');
@@ -164,6 +168,7 @@ const SuperCli = {
         break;
       case 'drive':
         DrivingView?.activate?.();
+        AppShortcuts?.track?.('drive', 'Drive');
         this.setContext('drive');
         break;
       case 'add':

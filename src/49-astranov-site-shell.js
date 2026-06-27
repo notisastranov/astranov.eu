@@ -36,6 +36,8 @@ const AstranovSiteShell = {
     if (window.AIGraphics?.setSiteShellMode) AIGraphics.setSiteShellMode(true);
     GlobeDeck?.collapse?.();
     GlobeDeck?.setPreview?.('◎ ' + (meta.domain || full));
+    AppShortcuts?.rememberSite?.({ url: full, ...meta });
+    AppShortcuts?.track?.('site', meta.domain || meta.title || new URL(full).hostname);
     AciCli?.print?.('site shell · ' + (meta.domain || full), 'ok');
     setTimeout(() => Auth?.broadcastToShell?.(), 1200);
   },
@@ -47,6 +49,7 @@ const AstranovSiteShell = {
     document.body.classList.remove('site-shell-open');
     if (frame) frame.src = 'about:blank';
     this.active = null;
+    AppShortcuts?.untrack?.('site');
     if (window.AIGraphics?.setSiteShellMode) AIGraphics.setSiteShellMode(false);
     GlobeDeck?.setPreview?.('');
   },

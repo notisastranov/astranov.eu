@@ -98,6 +98,7 @@ const DrivingView = {
       this.destination = v ? { lat: v.lat, lng: v.lng } : { lat: 36.89, lng: 27.29 };
     }
     this.fetchRoadRoute();
+    AppShortcuts?.track?.('drive', 'Drive');
     if (Voice.maySpeak()) speak('Driving on.', () => resumeListening());
   },
 
@@ -105,6 +106,7 @@ const DrivingView = {
     this.active = false;
     this._cameraFollow = false;
     if (GlobeControl?.followMode === 'drive') GlobeControl.followMode = 'free';
+    AppShortcuts?.untrack?.('drive');
     SuperCli?.setContext?.(SuperCli?.inferContext?.() || 'idle');
     GlobeDeck?.setPreview('');
     if (this.routeLine?.parent) this.routeLine.parent.remove(this.routeLine);

@@ -97,7 +97,13 @@
   #globe-deck.expanded { max-height:min(56vh,520px); }
   #globe-deck.expanded.has-stage { max-height:min(72vh,640px); }
   #super-cli-bar { display:flex; gap:5px; padding:6px 8px; flex-wrap:nowrap; align-items:center; justify-content:flex-start; border-bottom:1px solid rgba(0,255,160,0.12); flex-shrink:0; background:rgba(0,8,18,0.5); min-height:46px; }
-  #super-cli-bar button:not(#aci-login):not(#super-add-fab) { display:none !important; }
+  #super-cli-bar button:not(#aci-login):not(#super-add-fab):not(.app-shortcut-btn) { display:none !important; }
+  #app-shortcut-row { display:flex; gap:4px; align-items:center; flex:1; min-width:0; overflow-x:auto; overflow-y:hidden; padding:0 2px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+  #app-shortcut-row::-webkit-scrollbar { display:none; }
+  #super-cli-bar .app-shortcut-btn { display:inline-flex !important; align-items:center; justify-content:center; width:32px; height:32px; font-size:15px; border-radius:10px; background:rgba(0,80,120,0.38); border:1px solid rgba(0,200,255,0.32); color:#cef; cursor:pointer; flex-shrink:0; touch-action:manipulation; transition:background 0.15s,border-color 0.15s,transform 0.1s; }
+  #super-cli-bar .app-shortcut-btn:hover { border-color:rgba(0,255,200,0.55); background:rgba(0,110,90,0.42); }
+  #super-cli-bar .app-shortcut-btn.active { background:rgba(0,140,90,0.55); border-color:rgba(0,255,160,0.7); color:#8fc; box-shadow:0 0 8px rgba(0,255,160,0.28); }
+  #super-cli-bar .app-shortcut-btn:active { transform:scale(0.92); }
   #super-cli-bar button { background:rgba(0,100,180,0.35); border:1px solid rgba(0,200,255,0.4); color:#aaf; border-radius:50%; width:34px; height:34px; cursor:pointer; font-size:13px; flex-shrink:0; }
   #super-cli-bar #aci-stop { background:rgba(120,20,40,0.45); border-color:rgba(255,80,100,0.5); color:#faa; }
   #super-cli-bar #aci-cli-toggle { border-radius:50%; width:34px; }
@@ -366,6 +372,7 @@
       </div>
       <div id="super-cli-bar">
         <button id="aci-login" title="Sign in with Google" type="button">G</button>
+        <div id="app-shortcut-row" role="toolbar" aria-label="Open applications"></div>
         <button id="aci-cli-toggle" title="Expand/collapse Astranov Command Line" type="button">💻</button>
         <button id="aci-stop" title="Stop" type="button">🛑</button>
         <button id="aci-hold" title="Hold session — pause mic &amp; tasks for noisy places" type="button" aria-pressed="false">⏸</button>
