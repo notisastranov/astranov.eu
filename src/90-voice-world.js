@@ -47,6 +47,117 @@ window._handsFreeVoice = false;
 const VOICE_SILENCE_MS = 1100;
 const EXECUTE_SUFFIX = /\s*(?:go(?:\s+(?:ahead|do(?:\s+it)?|now))?|do\s+it|execute(?:\s+it)?|run\s+it|send\s+it|now|πήγαινε|κάντο|καντο|εκτέλεσε|ξεκίνα|τρέξε)\s*$/i;
 const EXECUTE_PREFIX = /^(?:go(?:\s+(?:ahead|do|and))?|please\s+)?\s*/i;
+const CODERS_CANON = 'coders';
+
+function voiceEditDist(a, b) {
+  a = String(a || '').toLowerCase();
+  b = String(b || '').toLowerCase();
+  const m = a.length, n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  const prev = new Array(n + 1);
+  const curr = new Array(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    for (let j = 0; j <= n; j++) prev[j] = curr[j];
+  }
+  return prev[n];
+}
+
+function cleanVoiceToken(tok) {
+  return String(tok || '').toLowerCase().replace(/[''´`]/g, '').replace(/[^\w\u0370-\u03FF]/g, '');
+}
+
+const CODERS_MISHEAR_EXACT = new Set([
+  'coders', 'coder', 'corders', 'corder', 'codas', 'coda', 'cooters', 'coaters',
+  'colders', 'colder', 'koders', 'koder', 'goders', 'gorder', 'couders', 'coderrs',
+  'codehers', 'codeus', 'quarters', 'quarter', 'κοντερ', 'κοντερς', 'κόντερ', 'κόντερς',
+  'κοντερσ', 'κοντρς', 'κοντρ', 'κοντερσ',
+]);
+
+function tokenSoundsLikeCoders(tok) {
+  const w = cleanVoiceToken(tok);
+  if (!w) return false;
+  if (CODERS_MISHEAR_EXACT.has(w)) return true;
+  if (w === 'coders' || w.startsWith('coder')) return true;
+  if (/^c[o0q][od][aeiou]*r/.test(w) && w.length <= 10) return true;
+  if (/^κ[oό]?ντ[εη]?ρ/.test(w)) return true;
+  if (w.length >= 4 && w.length <= 10 && voiceEditDist(w, 'coders') <= 2) return true;
+  if (w.length >= 4 && w.length <= 8 && voiceEditDist(w, 'coder') <= 1) return true;
+  return false;
+}
+
+function phraseIsCodersMishear(text) {
+  const core = String(text || '').trim().toLowerCase().replace(EXECUTE_SUFFIX, '').trim();
+  if (!core) return false;
+  if (tokenSoundsLikeCoders(core)) return true;
+  if (/^code\s+her?s$/i.test(core)) return true;
+  if (/^code\s+us$/i.test(core)) return true;
+  if (/^call\s+her?s$/i.test(core)) return true;
+  if (/^go\s+ders?$/i.test(core)) return true;
+  return false;
+}
+
+/** Suspect "coders" before other garbage — runs on every voice transcript */
+function fixVoiceHotwords(text) {
+  let s = String(text || '').trim();
+  if (!s) return s;
+
+  const suffix = EXECUTE_SUFFIX.test(s) ? (s.match(EXECUTE_SUFFIX)?.[0] || '') : '';
+  let core = suffix ? s.replace(EXECUTE_SUFFIX, '').trim() : s;
+
+  const summon = core.match(/^(summon)\s+(\S+)(?:\s+(.*))?$/i);
+  if (summon && tokenSoundsLikeCoders(summon[2])) {
+    core = 'summon coders' + (summon[3] ? ' ' + summon[3] : '');
+    return (core + suffix).trim();
+  }
+
+  const codeHer = core.match(/^code\s+(her|hers|us|errors?)\s+(.*)$/i);
+  if (codeHer) return (CODERS_CANON + ' ' + codeHer[2] + suffix).trim();
+
+  const parts = core.split(/\s+/);
+  const first = parts[0] || '';
+
+  if (tokenSoundsLikeCoders(first)) {
+    const rest = parts.slice(1).join(' ');
+    if (!rest || phraseIsCodersMishear(core)) return (CODERS_CANON + (rest ? ' ' + rest : '') + suffix).trim();
+    return (CODERS_CANON + (rest ? ' ' + rest : '') + suffix).trim();
+  }
+
+  if (parts.length <= 3 && phraseIsCodersMishear(core)) return (CODERS_CANON + suffix).trim();
+
+  if (parts.length >= 2 && parts.length <= 6 && tokenSoundsLikeCoders(parts[parts.length - 1])) {
+    parts[parts.length - 1] = CODERS_CANON;
+    return (parts.join(' ') + suffix).trim();
+  }
+
+  return s;
+}
+window.fixVoiceHotwords = fixVoiceHotwords;
+
+function codersTranscriptScore(text) {
+  const fixed = fixVoiceHotwords(String(text || '').trim());
+  if (/^coders\b/i.test(fixed)) return 100;
+  const first = cleanVoiceToken(String(text || '').split(/\s+/)[0]);
+  if (tokenSoundsLikeCoders(first)) return 80 - voiceEditDist(first, 'coders');
+  return 0;
+}
+
+function pickVoiceTranscript(result) {
+  let best = result[0]?.transcript || '';
+  let bestScore = codersTranscriptScore(best);
+  for (let j = 1; j < result.length; j++) {
+    const alt = result[j]?.transcript || '';
+    const score = codersTranscriptScore(alt);
+    if (score > bestScore) { bestScore = score; best = alt; }
+  }
+  return fixVoiceHotwords(best);
+}
 
 function defaultListenLang() {
   const nav = (navigator.language || 'en-US').toLowerCase();
@@ -56,7 +167,7 @@ function defaultListenLang() {
 }
 
 function normalizeVoiceCommand(text) {
-  let s = String(text || '').trim();
+  let s = fixVoiceHotwords(String(text || '').trim());
   if (!s) return '';
   if (EXECUTE_SUFFIX.test(s)) s = s.replace(EXECUTE_SUFFIX, '').trim();
   if (/^(go|do|run|execute)\s+\S/i.test(s)) s = s.replace(EXECUTE_PREFIX, '').trim();
@@ -250,6 +361,7 @@ function initVoice() {
     recognition.lang = Voice.preferredListenLang;
     recognition.continuous = true;
     recognition.interimResults = true;
+    recognition.maxAlternatives = 5;
     recognition.onresult = handleVoiceCommand;
     recognition.onerror = (e) => {
       isListening = false;
@@ -286,7 +398,7 @@ function handleVoiceCommand(event) {
   let final = '';
 
   for (let i = event.resultIndex; i < event.results.length; i++) {
-    const t = event.results[i][0].transcript || '';
+    const t = pickVoiceTranscript(event.results[i]);
     if (event.results[i].isFinal) final += t;
     else interim += t;
   }

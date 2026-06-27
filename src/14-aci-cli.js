@@ -173,6 +173,7 @@ const AciCli = {
   },
 
   async run(line, opts = {}) {
+    line = (window.fixVoiceHotwords || (x => x))(String(line || '').trim());
     GlobeDeck?.onUserMessage('CLI — ' + line.slice(0, 40));
     AstranovWishlist?.captureCliLine?.(line);
     this.history.push(line);

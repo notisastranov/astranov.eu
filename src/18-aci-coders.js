@@ -205,7 +205,7 @@ const AciCoders = {
   },
 
   async handleMessage(message) {
-    const raw = String(message || '').trim();
+    const raw = (window.fixVoiceHotwords || (x => x))(String(message || '').trim());
     if (!raw) return { error: 'empty' };
 
     const parts = raw.split(/\s+/);

@@ -194,6 +194,7 @@ const ACIControl = {
 
   async handle(text, opts = {}) {
     if (!text) return { executed: false };
+    text = (window.fixVoiceHotwords || (x => x))(String(text).trim());
     GlobeDeck?.onUserMessage('Collective — ' + text.slice(0, 36));
     const fromVoice = !!opts.fromVoice;
     const low = text.toLowerCase().trim();
