@@ -1048,7 +1048,8 @@ window.Voice = Voice;
 window.MapDepict = MapDepict;
 
 function userIntervene() {
-  Voice.flush();
+  if (window.voiceInterrupt) window.voiceInterrupt({ keepHandsFree: false });
+  else Voice.flush();
   voiceSessionActive = false;
   voiceEnabled = false;
   if (window.stopHandsFree) window.stopHandsFree();
@@ -10229,7 +10230,65 @@ console.log('%c[Astranov] Globe UI: drag rotate · wheel/pinch zoom · tap/doubl
 
 // Voice → Astranov Command Line (live transcript in input, same path as typing)
 let _voiceBusy = false;
+let _voiceGen = 0;
+let _voiceSilenceTimer = null;
+let _voiceCommitting = false;
+let _lastVoiceCommit = '';
+let _lastVoiceCommitT = 0;
+let _voiceDraft = '';
 window._handsFreeVoice = false;
+
+const VOICE_SILENCE_MS = 1100;
+const EXECUTE_SUFFIX = /\s*(?:go(?:\s+(?:ahead|do(?:\s+it)?|now))?|do\s+it|execute(?:\s+it)?|run\s+it|send\s+it|now|πήγαινε|κάντο|καντο|εκτέλεσε|ξεκίνα|τρέξε)\s*$/i;
+const EXECUTE_PREFIX = /^(?:go(?:\s+(?:ahead|do|and))?|please\s+)?\s*/i;
+
+function defaultListenLang() {
+  const nav = (navigator.language || 'en-US').toLowerCase();
+  if (nav.startsWith('el')) return 'el-GR';
+  if (nav.startsWith('en')) return 'en-US';
+  return 'el-GR';
+}
+
+function normalizeVoiceCommand(text) {
+  let s = String(text || '').trim();
+  if (!s) return '';
+  if (EXECUTE_SUFFIX.test(s)) s = s.replace(EXECUTE_SUFFIX, '').trim();
+  if (/^(go|do|run|execute)\s+\S/i.test(s)) s = s.replace(EXECUTE_PREFIX, '').trim();
+  return s;
+}
+
+function wantsExecuteNow(text) {
+  const s = String(text || '').trim();
+  if (!s) return false;
+  return EXECUTE_SUFFIX.test(s) || /^(go|do|run|execute)\s+\S/i.test(s);
+}
+
+function syncListenLang(draft) {
+  if (!recognition || !draft || !Voice?.detectLang) return;
+  const lang = Voice.detectLang(draft);
+  if (lang === recognition.lang) return;
+  recognition.lang = lang;
+  Voice.preferredListenLang = lang;
+  if (isListening) {
+    try { recognition.stop(); } catch (_) {}
+    isListening = false;
+    setTimeout(() => startListeningForOptions(), 60);
+  }
+}
+
+function voiceInterrupt(opts) {
+  opts = opts || {};
+  _voiceGen++;
+  _voiceBusy = false;
+  _voiceCommitting = false;
+  if (_voiceSilenceTimer) { clearTimeout(_voiceSilenceTimer); _voiceSilenceTimer = null; }
+  Voice?.flush?.();
+  GlobeDeck?.setThinking?.(false);
+  if (window._aciAbort) { try { window._aciAbort.abort(); } catch (_) {} window._aciAbort = null; }
+  if (!opts.keepHandsFree) return;
+  if (window._handsFreeVoice && !isListening) setTimeout(() => startListeningForOptions(), 80);
+}
+window.voiceInterrupt = voiceInterrupt;
 
 function syncHandsFreeBtn() {
   const btn = document.getElementById('aci-handsfree');
@@ -10254,13 +10313,46 @@ function openVoiceCli() {
 function scheduleVoiceResume() {
   if (sessionHeld || SessionHold?.isHeld?.()) return;
   const active = voiceSessionActive || window._handsFreeVoice;
-  if (!active || !voiceEnabled || isListening || Voice.speaking || _voiceBusy) return;
+  if (!active || !voiceEnabled || isListening) return;
+  if (!window._handsFreeVoice && (_voiceBusy || Voice.speaking)) return;
   setTimeout(() => {
     if (sessionHeld || SessionHold?.isHeld?.()) return;
     const on = voiceSessionActive || window._handsFreeVoice;
-    if (!on || !voiceEnabled || isListening || Voice.speaking || _voiceBusy) return;
+    if (!on || !voiceEnabled || isListening) return;
+    if (!window._handsFreeVoice && (_voiceBusy || Voice.speaking)) return;
     startListeningForOptions();
-  }, window._handsFreeVoice ? 280 : 500);
+  }, window._handsFreeVoice ? 200 : 500);
+}
+
+function scheduleSilenceSubmit(draft) {
+  if (!window._handsFreeVoice || !draft || _voiceCommitting) return;
+  if (_voiceSilenceTimer) clearTimeout(_voiceSilenceTimer);
+  _voiceSilenceTimer = setTimeout(() => {
+    _voiceSilenceTimer = null;
+    if (_voiceCommitting || _voiceBusy) return;
+    const input = document.getElementById('aci-cli-in');
+    const line = normalizeVoiceCommand((input?.value || draft).trim());
+    if (line.length >= 3) commitVoiceCommand(line);
+  }, VOICE_SILENCE_MS);
+}
+
+function commitVoiceCommand(raw) {
+  const line = normalizeVoiceCommand(raw);
+  if (!line || line.length < 2 || _voiceCommitting) return;
+  const now = Date.now();
+  if (_lastVoiceCommit === line && now - _lastVoiceCommitT < 2200) return;
+  _lastVoiceCommit = line;
+  _lastVoiceCommitT = now;
+  _voiceCommitting = true;
+  if (_voiceSilenceTimer) { clearTimeout(_voiceSilenceTimer); _voiceSilenceTimer = null; }
+  const input = document.getElementById('aci-cli-in');
+  if (input) { input.value = ''; if (AciCli) AciCli.buffer = ''; }
+  if (!window._handsFreeVoice) {
+    isListening = false;
+    try { recognition?.stop(); } catch (_) {}
+  }
+  console.log('Voice commit:', line);
+  submitVoiceToCli(line).finally(() => { _voiceCommitting = false; });
 }
 
 function voiceWantsAciControl(line) {
@@ -10276,41 +10368,43 @@ function voiceWantsAciControl(line) {
 }
 
 async function submitVoiceToCli(transcript) {
-  const line = (transcript || '').trim();
-  if (!line || _voiceBusy) return;
+  const line = normalizeVoiceCommand(transcript);
+  if (!line) return;
+  const gen = ++_voiceGen;
   _voiceBusy = true;
   openVoiceCli();
-  const input = document.getElementById('aci-cli-in');
-  if (input && !input.value.trim()) { if (AciCli) AciCli.buffer = ''; }
+  if (window._handsFreeVoice && !isListening) setTimeout(() => startListeningForOptions(), 350);
 
   const low = line.toLowerCase();
+  if (gen !== _voiceGen) return;
+
   if (/^(hold|pause session|quiet mode|κράτα|κρατα|σίγαση|σιγαση)\b/.test(low)) {
-    _voiceBusy = false;
+    if (gen === _voiceGen) _voiceBusy = false;
     SessionHold?.hold?.();
     return;
   }
   if (/^(resume|unhold|continue|συνέχισε|συνεχισε|ξανα)\b/.test(low)) {
-    _voiceBusy = false;
+    if (gen === _voiceGen) _voiceBusy = false;
     await SessionHold?.resume?.();
     return;
   }
   if (sessionHeld || SessionHold?.isHeld?.()) {
-    _voiceBusy = false;
+    if (gen === _voiceGen) _voiceBusy = false;
     AciCli?.print('⏸ session held — say resume or tap ▶', 'dim');
     return;
   }
   if (/^(stop|σταμάτα|σταματα|pause|διακοπή|quiet|σιωπή|mute)\b/.test(low)) {
-    _voiceBusy = false;
+    if (gen === _voiceGen) _voiceBusy = false;
     userIntervene();
     return;
   }
-  if (/^(mic|voice|μίκροφωνο|ακού)\b/.test(low)) {
-    _voiceBusy = false;
+  if (/^(mic|voice|handsfree|hands-free|μίκροφωνο|ακού)\b/.test(low)) {
+    if (gen === _voiceGen) _voiceBusy = false;
     startVoiceOptions();
     return;
   }
   if (/^(dark|bright|light)\s*(theme|mode)?\b/.test(low) || /^theme\s+(dark|bright|light)\b/.test(low)) {
-    _voiceBusy = false;
+    if (gen === _voiceGen) _voiceBusy = false;
     const mode = /bright|light/.test(low) ? 'bright' : 'dark';
     AstranovTheme?.set?.(mode);
     AciCli?.print('theme → ' + mode, 'ok');
@@ -10318,8 +10412,9 @@ async function submitVoiceToCli(transcript) {
   }
 
   try {
+    AciCli?.print('🎧 ' + line, 'cmd');
+    if (gen !== _voiceGen) return;
     if (voiceWantsAciControl(line)) {
-      AciCli?.print('🎤 ' + line, 'cmd');
       await ACIControl.handle(line, { fromVoice: true });
     } else if (window.AciCli) {
       await AciCli.run(line);
@@ -10327,13 +10422,15 @@ async function submitVoiceToCli(transcript) {
       await ACIControl.handle(line, { fromVoice: true });
     }
   } catch (e) {
-    AciCli?.print('voice error: ' + (e.message || e), 'err');
+    if (gen === _voiceGen) AciCli?.print('voice error: ' + (e.message || e), 'err');
   } finally {
-    _voiceBusy = false;
-    const input = document.getElementById('aci-cli-in');
-    if (input) input.classList.remove('voice-live');
-    syncHandsFreeBtn();
-    scheduleVoiceResume();
+    if (gen === _voiceGen) {
+      _voiceBusy = false;
+      const input = document.getElementById('aci-cli-in');
+      if (input) input.classList.remove('voice-live');
+      syncHandsFreeBtn();
+      scheduleVoiceResume();
+    }
   }
 }
 window.submitVoiceToCli = submitVoiceToCli;
@@ -10343,6 +10440,7 @@ function initVoice() {
   if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRec();
+    Voice.preferredListenLang = Voice.preferredListenLang || defaultListenLang();
     recognition.lang = Voice.preferredListenLang;
     recognition.continuous = true;
     recognition.interimResults = true;
@@ -10363,7 +10461,8 @@ function initVoice() {
 
 function startListeningForOptions() {
   if (sessionHeld || SessionHold?.isHeld?.()) return;
-  if (!recognition || isListening || _voiceBusy || Voice.speaking) return;
+  if (!recognition || isListening) return;
+  if (!window._handsFreeVoice && (_voiceBusy || Voice.speaking)) return;
   openVoiceCli();
   isListening = true;
   syncHandsFreeBtn();
@@ -10387,26 +10486,37 @@ function handleVoiceCommand(event) {
   }
 
   const draft = (final || interim).trim();
-  if (draft) {
-    voiceSessionActive = true;
-    voiceEnabled = true;
-    openVoiceCli();
-    if (input) {
-      input.value = draft;
-      input.classList.add('voice-live');
-      if (AciCli) AciCli.buffer = draft;
-      input.scrollLeft = input.scrollWidth;
-    }
-    GlobeDeck?.setPreview('🎧 ' + draft.slice(0, 96));
-    syncHandsFreeBtn();
+  if (!draft) return;
+
+  if ((_voiceBusy || Voice.speaking || _voiceCommitting) && draft !== _voiceDraft) {
+    voiceInterrupt({ keepHandsFree: true });
   }
+  _voiceDraft = draft;
 
-  if (!final.trim()) return;
+  voiceSessionActive = true;
+  voiceEnabled = true;
+  syncListenLang(draft);
+  openVoiceCli();
+  if (input) {
+    input.value = draft;
+    input.classList.add('voice-live');
+    if (AciCli) AciCli.buffer = draft;
+    input.scrollLeft = input.scrollWidth;
+  }
+  GlobeDeck?.setPreview('🎧 ' + draft.slice(0, 96));
+  syncHandsFreeBtn();
 
-  isListening = false;
-  try { recognition.stop(); } catch (_) {}
-  console.log('User said:', final.trim());
-  submitVoiceToCli(final.trim());
+  const live = (final || interim).trim();
+  if (final.trim()) {
+    commitVoiceCommand(final.trim());
+    return;
+  }
+  if (wantsExecuteNow(live)) {
+    const cmd = normalizeVoiceCommand(live);
+    if (cmd.length >= 2) commitVoiceCommand(cmd);
+    return;
+  }
+  scheduleSilenceSubmit(live);
 }
 
 function resumeListening() {
@@ -10424,10 +10534,14 @@ function startVoiceOptions() {
   voiceEnabled = true;
   window._handsFreeVoice = true;
   openVoiceCli();
-  AciCli?.print('🎧 AI hands-free — speak anytime (locate, order, batch, help, stop)', 'dim');
+  _voiceDraft = '';
+  _lastVoiceCommit = '';
+  Voice.preferredListenLang = defaultListenLang();
+  if (recognition) recognition.lang = Voice.preferredListenLang;
+  AciCli?.print('🎧 hands-free · EN+EL · pause or say go/do it · speak to interrupt', 'dim');
   const input = document.getElementById('aci-cli-in');
-  if (input) input.placeholder = '🎧 hands-free listening…';
-  ACIControl.reply('Hands-free on — listen & speak');
+  if (input) input.placeholder = '🎧 speak — auto-runs when you pause';
+  ACIControl.reply('Hands-free — English or Greek, runs when you finish');
   AstranovSession?.push?.();
   syncHandsFreeBtn();
   startListeningForOptions();
@@ -10436,6 +10550,8 @@ function startVoiceOptions() {
 function stopHandsFree() {
   window._handsFreeVoice = false;
   voiceSessionActive = false;
+  _voiceDraft = '';
+  if (_voiceSilenceTimer) { clearTimeout(_voiceSilenceTimer); _voiceSilenceTimer = null; }
   AstranovSession?.push?.();
 }
 window.stopHandsFree = stopHandsFree;

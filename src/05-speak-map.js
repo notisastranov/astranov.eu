@@ -427,7 +427,8 @@ window.Voice = Voice;
 window.MapDepict = MapDepict;
 
 function userIntervene() {
-  Voice.flush();
+  if (window.voiceInterrupt) window.voiceInterrupt({ keepHandsFree: false });
+  else Voice.flush();
   voiceSessionActive = false;
   voiceEnabled = false;
   if (window.stopHandsFree) window.stopHandsFree();
