@@ -5,6 +5,16 @@ const AciCli = {
   histIdx: -1,
   buffer: '',
 
+  primeCodersCli() {
+    AciCoders?.autoStart?.();
+    if (GlobeDeck) GlobeDeck.activeTask = 'coders';
+    CliRibbon?.setActive?.('Coders');
+    const input = document.getElementById('aci-cli-in');
+    if (input) {
+      input.placeholder = 'Talk to Coders — type or tap 🎧 · Enter to send';
+    }
+  },
+
   init() {
     const input = document.getElementById('aci-cli-in');
     const toggle = document.getElementById('aci-cli-toggle');
@@ -13,6 +23,13 @@ const AciCli = {
     if (input) {
       input.addEventListener('keydown', e => this.onKey(e));
       input.addEventListener('input', () => { this.buffer = input.value; });
+      if (!input._codersFocusBound) {
+        input._codersFocusBound = true;
+        input.addEventListener('focus', () => {
+          AciCoders?.enterSession?.({ focus: false, ping: false });
+          GlobeDeck?.expand?.('Coders');
+        });
+      }
     }
     window.addEventListener('keydown', e => {
       if (!Auth?.user) return;
@@ -31,8 +48,9 @@ const AciCli = {
     if (!logged) {
       this._welcomed = false;
       this._sessionOpened = false;
-      this.hide();
+      this.open = false;
       GlobeDeck?.collapse();
+      this.primeCodersCli();
       return;
     }
     const prompt = document.getElementById('aci-cli-prompt');
@@ -177,7 +195,12 @@ const AciCli = {
 
   async run(line, opts = {}) {
     line = (window.fixVoiceHotwords || (x => x))(String(line || '').trim());
-    GlobeDeck?.onUserMessage('CLI — ' + line.slice(0, 40));
+    if (!line) {
+      await AciCoders?.enterSession?.({ focus: true, ping: false });
+      return;
+    }
+    await AciCoders?.enterSession?.({ focus: false, ping: false });
+    GlobeDeck?.onUserMessage('Coders — ' + line.slice(0, 40));
     AstranovWishlist?.captureCliLine?.(line);
     this.history.push(line);
     this.histIdx = -1;

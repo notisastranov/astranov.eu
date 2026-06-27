@@ -71,8 +71,11 @@ const SuperCli = {
         e.preventDefault(); e.stopPropagation();
         const input = document.getElementById('aci-cli-in');
         const line = (input?.value || '').trim();
+        if (!line) {
+          AciCoders?.enterSession?.({ focus: true, ping: false });
+          return;
+        }
         GlobeDeck?.expand?.(ACL_TITLE);
-        if (!line) { input?.focus(); return; }
         if (input) input.value = '';
         if (AciCli) { AciCli.buffer = ''; AciCli.run(line); }
       };

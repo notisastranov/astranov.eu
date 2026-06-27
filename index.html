@@ -520,7 +520,7 @@
       </div>
       <div id="globe-deck-input-row">
         <span id="aci-cli-prompt">collective $</span>
-        <input id="aci-cli-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="type or tap 🎧 · Enter or ➡" />
+        <input id="aci-cli-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Talk to Coders — type or tap 🎧 · Enter to send" />
         <button id="aci-handsfree" class="deck-input-btn" type="button" title="AI hands-free — listen &amp; speak">🎧</button>
         <button id="globe-deck-send" class="deck-input-btn" type="button" title="Send">➡</button>
       </div>
@@ -2615,8 +2615,11 @@ const SuperCli = {
         e.preventDefault(); e.stopPropagation();
         const input = document.getElementById('aci-cli-in');
         const line = (input?.value || '').trim();
+        if (!line) {
+          AciCoders?.enterSession?.({ focus: true, ping: false });
+          return;
+        }
         GlobeDeck?.expand?.(ACL_TITLE);
-        if (!line) { input?.focus(); return; }
         if (input) input.value = '';
         if (AciCli) { AciCli.buffer = ''; AciCli.run(line); }
       };
@@ -3267,6 +3270,16 @@ const AciCli = {
   histIdx: -1,
   buffer: '',
 
+  primeCodersCli() {
+    AciCoders?.autoStart?.();
+    if (GlobeDeck) GlobeDeck.activeTask = 'coders';
+    CliRibbon?.setActive?.('Coders');
+    const input = document.getElementById('aci-cli-in');
+    if (input) {
+      input.placeholder = 'Talk to Coders — type or tap 🎧 · Enter to send';
+    }
+  },
+
   init() {
     const input = document.getElementById('aci-cli-in');
     const toggle = document.getElementById('aci-cli-toggle');
@@ -3275,6 +3288,13 @@ const AciCli = {
     if (input) {
       input.addEventListener('keydown', e => this.onKey(e));
       input.addEventListener('input', () => { this.buffer = input.value; });
+      if (!input._codersFocusBound) {
+        input._codersFocusBound = true;
+        input.addEventListener('focus', () => {
+          AciCoders?.enterSession?.({ focus: false, ping: false });
+          GlobeDeck?.expand?.('Coders');
+        });
+      }
     }
     window.addEventListener('keydown', e => {
       if (!Auth?.user) return;
@@ -3293,8 +3313,9 @@ const AciCli = {
     if (!logged) {
       this._welcomed = false;
       this._sessionOpened = false;
-      this.hide();
+      this.open = false;
       GlobeDeck?.collapse();
+      this.primeCodersCli();
       return;
     }
     const prompt = document.getElementById('aci-cli-prompt');
@@ -3439,7 +3460,12 @@ const AciCli = {
 
   async run(line, opts = {}) {
     line = (window.fixVoiceHotwords || (x => x))(String(line || '').trim());
-    GlobeDeck?.onUserMessage('CLI — ' + line.slice(0, 40));
+    if (!line) {
+      await AciCoders?.enterSession?.({ focus: true, ping: false });
+      return;
+    }
+    await AciCoders?.enterSession?.({ focus: false, ping: false });
+    GlobeDeck?.onUserMessage('Coders — ' + line.slice(0, 40));
     AstranovWishlist?.captureCliLine?.(line);
     this.history.push(line);
     this.histIdx = -1;
@@ -11992,7 +12018,10 @@ SuperCli.init();
 SessionHold.init();
 AciCli.init();
 setTimeout(() => Auth.refreshAuthority(), 800);
-setTimeout(() => AciCoders?.autoStart?.(), 1200);
+setTimeout(() => {
+  AciCoders?.autoStart?.();
+  AciCli?.primeCodersCli?.();
+}, 1200);
 ACIControl.init();
 PmrRadio.bindUI();
 GlobeVideo.init();

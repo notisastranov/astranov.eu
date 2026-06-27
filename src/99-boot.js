@@ -62,7 +62,10 @@ SuperCli.init();
 SessionHold.init();
 AciCli.init();
 setTimeout(() => Auth.refreshAuthority(), 800);
-setTimeout(() => AciCoders?.autoStart?.(), 1200);
+setTimeout(() => {
+  AciCoders?.autoStart?.();
+  AciCli?.primeCodersCli?.();
+}, 1200);
 ACIControl.init();
 PmrRadio.bindUI();
 GlobeVideo.init();
