@@ -12,12 +12,14 @@ $COLLECTIVE_ID = '019efdcc-ee91-7572-9b29-240c4edaa26c'
 $COLLECTIVE_NAME = 'ASTRANOV COLLECTIVE INTELLIGENCE'
 $REPO = Split-Path $PSScriptRoot -Parent
 $EXPORTS = Join-Path $REPO '.collective-exports'
+$ACI_HOME = Join-Path $env:USERPROFILE '.astranov'
 $GROK_HOME = Join-Path $env:USERPROFILE '.grok'
 $WORKSPACE = $env:USERPROFILE
 
 function Get-EncodedCwd([string]$Path) {
-  $resolved = (Resolve-Path $Path).Path
-  return [uri]::EscapeDataString($resolved)
+  $p = $Path
+  if (Test-Path -LiteralPath $p) { $p = (Get-Item -LiteralPath $p).FullName }
+  return [uri]::EscapeDataString($p)
 }
 
 function Get-SessionDir {
@@ -26,7 +28,24 @@ function Get-SessionDir {
 }
 
 function Get-DefaultZip {
-  return Join-Path $EXPORTS 'aci-session-pack.zip'
+  $candidates = @(
+    (Join-Path $ACI_HOME 'aci-session-pack.zip'),
+    (Join-Path $EXPORTS 'aci-session-pack.zip'),
+    (Join-Path $PSScriptRoot 'aci-session-pack.zip')
+  )
+  foreach ($z in $candidates) {
+    if (Test-Path -LiteralPath $z) { return $z }
+  }
+  return (Join-Path $ACI_HOME 'aci-session-pack.zip')
+}
+
+function Remove-PathSpecificSessionFiles([string]$SessionDir) {
+  foreach ($drop in @('rewind_points.jsonl', 'hunk_records.jsonl')) {
+    $f = Join-Path $SessionDir $drop
+    if (Test-Path -LiteralPath $f) { Remove-Item -LiteralPath $f -Force }
+  }
+  $term = Join-Path $SessionDir 'terminal'
+  if (Test-Path -LiteralPath $term) { Remove-Item -LiteralPath $term -Recurse -Force }
 }
 
 function Patch-Summary([string]$SessionDir) {
@@ -55,12 +74,12 @@ function Write-Status {
     $mb = [math]::Round((($files | Measure-Object Length -Sum).Sum / 1MB), 1)
     Write-Host "Status:     LOCAL ($($files.Count) files, $mb MB)" -ForegroundColor Green
   } else {
-    Write-Host "Status:     MISSING - /resume will fail with path not found" -ForegroundColor Red
+    Write-Host "Status:     MISSING (OS ERROR 3 / FS_NOT_FOUND if you use /resume)" -ForegroundColor Red
     Write-Host ""
-    Write-Host "On the PC that has the session, run:" -ForegroundColor Yellow
-    Write-Host "  powershell -ExecutionPolicy Bypass -File scripts\sync-collective-session.ps1 -Action pack"
-    Write-Host "Copy .collective-exports\aci-session-pack.zip here, then run:" -ForegroundColor Yellow
-    Write-Host "  powershell -ExecutionPolicy Bypass -File scripts\sync-collective-session.ps1 -Action install"
+    Write-Host "Copy aci-session-pack.zip to:" -ForegroundColor Yellow
+    Write-Host "  $ACI_HOME\aci-session-pack.zip"
+    Write-Host "Then run:" -ForegroundColor Yellow
+    Write-Host "  powershell -ExecutionPolicy Bypass -File install-aci-only.ps1"
   }
 }
 
@@ -89,9 +108,13 @@ switch ($Action) {
     if (Test-Path $zip) { Remove-Item $zip -Force }
     Compress-Archive -Path (Join-Path $staging '*') -DestinationPath $zip -Force
     Remove-Item $staging -Recurse -Force
-    $mb = [math]::Round((Get-Item $zip).Length / 1MB, 1)
+    New-Item -ItemType Directory -Force -Path $ACI_HOME | Out-Null
+    Copy-Item -LiteralPath $zip -Destination (Join-Path $ACI_HOME 'aci-session-pack.zip') -Force
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'install-aci-only.ps1') -Destination $ACI_HOME -Force -ErrorAction SilentlyContinue
+    $mb = [math]::Round((Get-Item -LiteralPath $zip).Length / 1MB, 1)
     Write-Host "Packed -> $zip ($mb MB)" -ForegroundColor Green
-    Write-Host "Copy this zip to the other PC (USB, OneDrive, etc.), then run -Action install"
+    Write-Host "Also copied to $ACI_HOME for portable install"
+    Write-Host "On other PC: copy zip + install-aci-only.ps1, then run install-aci-only.ps1"
     break
   }
 
@@ -115,6 +138,9 @@ switch ($Action) {
       Get-ChildItem $staging -File | Copy-Item -Destination $dest
     }
     Patch-Summary $dest
+    Remove-PathSpecificSessionFiles $dest
+    New-Item -ItemType Directory -Force -Path $ACI_HOME | Out-Null
+    Copy-Item -LiteralPath $zip -Destination (Join-Path $ACI_HOME 'aci-session-pack.zip') -Force
     Remove-Item $staging -Recurse -Force
 
     $required = @('summary.json', 'updates.jsonl')

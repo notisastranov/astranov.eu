@@ -24,7 +24,9 @@ if ($env:USERNAME -ne 'Astranov') {
 [Environment]::SetEnvironmentVariable('ASTRANOV_COLLECTIVE_SESSION', $COLLECTIVE_ID, 'User')
 [Environment]::SetEnvironmentVariable('ASTRANOV_COLLECTIVE_USER', 'ASTRANOV', 'User')
 
-$encodedCwd = [uri]::EscapeDataString((Resolve-Path $WORKSPACE).Path)
+$wsPath = $WORKSPACE
+if (Test-Path -LiteralPath $wsPath) { $wsPath = (Get-Item -LiteralPath $wsPath).FullName }
+$encodedCwd = [uri]::EscapeDataString($wsPath)
 $summaryPath = Join-Path $GROK_HOME "sessions\$encodedCwd\$COLLECTIVE_ID\summary.json"
 if (Test-Path $summaryPath) {
   $raw = Get-Content $summaryPath -Raw
@@ -41,8 +43,8 @@ $toDelete = @(
   '019e739e-cf5c-7d11-8c5e-f036fec61b9c'
 )
 
-Set-Location $WORKSPACE
-New-Item -ItemType Directory -Force -Path $EXPORTS | Out-Null
+if (Test-Path -LiteralPath $WORKSPACE) { Set-Location -LiteralPath $WORKSPACE }
+New-Item -ItemType Directory -Force -Path $EXPORTS -ErrorAction SilentlyContinue | Out-Null
 
 foreach ($id in $toDelete) {
   $safe = $id.Split('-')[0]

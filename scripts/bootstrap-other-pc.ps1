@@ -1,7 +1,11 @@
-# One-shot setup on a second PC. Fixes FS_NOT_FOUND / path not found from /resume.
+# One-shot setup on a second PC. Fixes FS_NOT_FOUND / OS ERROR 3 from /resume.
+param([string]$ZipPath = '')
 $ErrorActionPreference = 'Stop'
 $REPO = Split-Path $PSScriptRoot -Parent
-$zip = Join-Path $REPO '.collective-exports\aci-session-pack.zip'
+$ACI_HOME = Join-Path $env:USERPROFILE '.astranov'
+$zip = if ($ZipPath) { $ZipPath } else { Join-Path $REPO '.collective-exports\aci-session-pack.zip' }
+if (-not (Test-Path -LiteralPath $zip)) { $zip = Join-Path $ACI_HOME 'aci-session-pack.zip' }
+$installer = Join-Path $PSScriptRoot 'install-aci-only.ps1'
 $sync = Join-Path $PSScriptRoot 'sync-collective-session.ps1'
 $unify = Join-Path $PSScriptRoot 'unify-collective.ps1'
 
@@ -10,19 +14,25 @@ Write-Host "User: $env:USERNAME"
 Write-Host "Home: $env:USERPROFILE"
 Write-Host ""
 
-if (-not (Test-Path $zip)) {
-  Write-Host "MISSING: $zip" -ForegroundColor Red
-  Write-Host ""
-  Write-Host "On your MAIN PC run:" -ForegroundColor Yellow
-  Write-Host "  powershell -ExecutionPolicy Bypass -File scripts\sync-collective-session.ps1 -Action pack"
-  Write-Host "Copy aci-session-pack.zip to this folder:" -ForegroundColor Yellow
-  Write-Host "  $zip"
+if (-not (Test-Path -LiteralPath $zip)) {
+  Write-Host 'OS ERROR 3: aci-session-pack.zip not found.' -ForegroundColor Red
+  Write-Host "Tried: $zip"
+  Write-Host ''
+  Write-Host 'Easiest fix - copy TWO files to a USB folder:' -ForegroundColor Yellow
+  Write-Host '  aci-session-pack.zip'
+  Write-Host '  install-aci-only.ps1'
+  Write-Host 'On other PC run:'
+  Write-Host '  powershell -ExecutionPolicy Bypass -File install-aci-only.ps1'
   exit 1
 }
 
-& $sync -Action install -ZipPath $zip
-& $unify
-& $sync -Action status
+if (Test-Path -LiteralPath $installer) {
+  & $installer -ZipPath $zip
+} else {
+  & $sync -Action install -ZipPath $zip
+}
+if (Test-Path -LiteralPath $unify) { & $unify }
+if (Test-Path -LiteralPath $sync) { & $sync -Action status }
 
 Write-Host ""
 Write-Host "Do NOT use /resume (causes FS_NOT_FOUND on cloud entries)." -ForegroundColor Yellow

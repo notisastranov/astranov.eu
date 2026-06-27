@@ -20,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -NoProfile -Command \"Write-Host 'ASTRANOV COLLECTIVE INTELLIGENCE — one user, one session' -ForegroundColor Cyan\"",
+            "command": "powershell -NoProfile -Command \"Write-Host 'ASTRANOV COLLECTIVE INTELLIGENCE - one user, one session' -ForegroundColor Cyan\"",
             "timeout": 3
           }
         ]
