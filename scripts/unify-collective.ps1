@@ -3,9 +3,10 @@ $ErrorActionPreference = 'Stop'
 
 $COLLECTIVE_ID = '019efdcc-ee91-7572-9b29-240c4edaa26c'
 $COLLECTIVE_NAME = 'ASTRANOV COLLECTIVE INTELLIGENCE'
-$WORKSPACE = 'C:\Users\Astranov'
+$WORKSPACE = $env:USERPROFILE
 $GROK_HOME = Join-Path $env:USERPROFILE '.grok'
 $REPO = Split-Path $PSScriptRoot -Parent
+$SYNC_SCRIPT = Join-Path $REPO 'scripts\sync-collective-session.ps1'
 $EXPORTS = Join-Path $REPO '.collective-exports'
 $START_SCRIPT = Join-Path $REPO 'scripts\start-aci.ps1'
 
@@ -16,14 +17,15 @@ Write-Host "Session ID: $COLLECTIVE_ID"
 Write-Host ""
 
 if ($env:USERNAME -ne 'Astranov') {
-  Write-Warning "Windows user is '$($env:USERNAME)' not Astranov - switch Windows account on every device."
+  Write-Warning "Windows user is '$($env:USERNAME)' not Astranov - session sync will use $WORKSPACE on this PC."
 }
 
 [Environment]::SetEnvironmentVariable('GROK_MEMORY', '1', 'User')
 [Environment]::SetEnvironmentVariable('ASTRANOV_COLLECTIVE_SESSION', $COLLECTIVE_ID, 'User')
 [Environment]::SetEnvironmentVariable('ASTRANOV_COLLECTIVE_USER', 'ASTRANOV', 'User')
 
-$summaryPath = Join-Path $GROK_HOME "sessions\C%3A%5CUsers%5CAstranov\$COLLECTIVE_ID\summary.json"
+$encodedCwd = [uri]::EscapeDataString((Resolve-Path $WORKSPACE).Path)
+$summaryPath = Join-Path $GROK_HOME "sessions\$encodedCwd\$COLLECTIVE_ID\summary.json"
 if (Test-Path $summaryPath) {
   $raw = Get-Content $summaryPath -Raw
   $raw = $raw -replace '"session_summary"\s*:\s*"[^"]*"', ('"session_summary": "' + $COLLECTIVE_NAME + '"')
@@ -66,11 +68,12 @@ if (Test-Path $hooksSrc) {
 }
 
 $marker = '# ASTRANOV COLLECTIVE GROK'
+$startEsc = $START_SCRIPT.Replace("'", "''")
 $profileBlock = @"
 $marker
 `$script:AstranovCollectiveSession = '$COLLECTIVE_ID'
 `$script:AstranovGrokSubcmds = @('agent','completions','dashboard','export','help','import','inspect','leader','login','logout','mcp','memory','models','plugin','sessions','setup','trace','update','version','worktree','v')
-function aci { & '$START_SCRIPT' @args }
+function aci { & '$startEsc' @args }
 function Invoke-AstranovGrok {
   param([string[]]`$GrokArgs)
   `$grokb = (Get-Command grok-native -CommandType Application -ErrorAction SilentlyContinue).Source
@@ -100,6 +103,7 @@ function Invoke-AstranovGrok {
     `$out.Add(`$a)
   }
   if (`$out -notcontains '--resume') { `$out.Insert(0, `$cid); `$out.Insert(0, '--resume') }
+  if (`$out -notcontains '--cwd') { `$out.Insert(0, `$env:USERPROFILE); `$out.Insert(0, '--cwd') }
   & `$grokb @out
 }
 if (-not (Get-Command grok-native -ErrorAction SilentlyContinue)) {
@@ -140,11 +144,18 @@ $sc.Description = $COLLECTIVE_NAME
 $sc.Save()
 Write-Host "Desktop shortcut created." -ForegroundColor Green
 
+$zip = Join-Path $EXPORTS 'aci-session-pack.zip'
+if (Test-Path $SYNC_SCRIPT) { & $SYNC_SCRIPT -Action status }
+if (-not (Test-Path $summaryPath) -and (Test-Path $zip) -and (Test-Path $SYNC_SCRIPT)) {
+  Write-Host "Installing session from aci-session-pack.zip..." -ForegroundColor Yellow
+  & $SYNC_SCRIPT -Action install -ZipPath $zip
+}
+
 Write-Host ""
-Write-Host "IMPORTANT: The /resume picker lists cloud sessions from ALL PCs (Users-N included)." -ForegroundColor Yellow
-Write-Host "Do NOT use /resume. Use one of these instead:" -ForegroundColor Yellow
+Write-Host "IMPORTANT: /resume shows cloud sessions but they fail with path not found on other PCs." -ForegroundColor Yellow
+Write-Host "Do NOT use /resume. On each PC use:" -ForegroundColor Yellow
 Write-Host "  1. Desktop shortcut: ASTRANOV COLLECTIVE INTELLIGENCE"
 Write-Host "  2. Command: aci"
-Write-Host "  3. Command: grok --resume $COLLECTIVE_ID"
+Write-Host "  3. First time on a new PC: copy aci-session-pack.zip then run unify-collective.ps1"
 Write-Host ""
 grok sessions list
