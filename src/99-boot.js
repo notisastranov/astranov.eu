@@ -70,6 +70,7 @@ DrivingView.init();
 CosmicZoom.init();
 ZoomTiers.init();
 AstranovTheme.init();
+AstranovLogo.init();
 CityMap.init();
 EarthRealism.init();
 AstranovSession.init();

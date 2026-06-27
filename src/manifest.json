@@ -5,6 +5,7 @@
     { "file": "00-globe.js", "marker": null },
     { "file": "05-speak-map.js", "marker": "// === VOICE + MAP DEPICT ===" },
     { "file": "06-fetch-json.js", "marker": "// === FETCH JSON" },
+    { "file": "07-astranov-logo.js", "marker": "// === ASTRANOV LOGO" },
     { "file": "11-glyphs.js", "marker": "// === ASTRO GLYPHS" },
     { "file": "12-auth.js", "marker": "// === GOOGLE AUTH (Supabase) ===" },
     { "file": "13-globe-deck.js", "marker": "// === GLOBE DECK" },

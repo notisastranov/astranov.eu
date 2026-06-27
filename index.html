@@ -43,6 +43,12 @@
   #city-map.active { opacity:1; pointer-events:auto; }
   #city-map .leaflet-container { background:var(--an-bg); font-family:system-ui,sans-serif; }
   .city-map-pin { background:transparent !important; border:none !important; }
+  #astranov-logo { position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:48; margin:0; padding:6px 14px; border-radius:999px; background:rgba(0,12,28,0.55); border:1px solid rgba(0,200,255,0.28); backdrop-filter:blur(10px); cursor:pointer; font-family:"Segoe UI Variable Display","Segoe UI Variable","Segoe UI","Segoe UI Rounded",system-ui,sans-serif; font-size:15px; font-weight:600; letter-spacing:0.34em; text-indent:0.34em; text-transform:uppercase; color:rgba(175,235,255,0.95); text-shadow:0 0 18px rgba(0,200,255,0.35); box-shadow:0 2px 14px rgba(0,0,0,0.28); transition:color 0.2s,border-color 0.2s,box-shadow 0.2s,background 0.2s,transform 0.15s; pointer-events:auto; touch-action:manipulation; user-select:none; -webkit-tap-highlight-color:transparent; }
+  #astranov-logo:hover { color:#fff; border-color:rgba(0,255,220,0.55); box-shadow:0 0 20px rgba(0,200,255,0.28); background:rgba(0,20,40,0.72); }
+  #astranov-logo:active { transform:translateX(-50%) scale(0.97); }
+  #astranov-logo:disabled { opacity:0.55; cursor:wait; letter-spacing:0.2em; }
+  [data-theme="bright"] #astranov-logo { background:rgba(255,255,255,0.82); color:#0a5088; border-color:rgba(0,120,200,0.35); text-shadow:none; box-shadow:0 2px 12px rgba(0,80,160,0.12); }
+  [data-theme="bright"] #astranov-logo:hover { color:#003d70; border-color:rgba(0,140,220,0.55); }
   #user-chip { position:fixed; top:10px; right:10px; z-index:45; font:11px system-ui; color:rgba(180,230,255,0.85); pointer-events:none; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   #drive-guide { position:fixed; top:36px; left:10px; right:10px; z-index:42; font:12px/1.35 system-ui; color:#7df; background:rgba(0,20,40,0.75); border:1px solid rgba(68,170,255,0.35); border-radius:12px; padding:8px 12px; display:none; pointer-events:none; }
   #drive-guide.open { display:block; }
@@ -345,6 +351,7 @@
       <button id="ge-hud-close" type="button">✖</button>
     </div>
   </div>
+  <button id="astranov-logo" type="button" title="Hard reset — clear cache · reload · global view" aria-label="ASTRANOV hard reset reload">ASTRANOV</button>
   <div id="zoom-label">EARTH</div>
   <div id="cosmic-guide"></div>
   <div id="user-chip"></div>
@@ -1099,6 +1106,79 @@ async function fetchJson(url, options, timeoutMs) {
   }
 }
 window.fetchJson = fetchJson;
+
+// === ASTRANOV LOGO — top-center hard reset to global view ===
+const AstranovLogo = {
+  _bound: false,
+
+  init() {
+    const el = document.getElementById('astranov-logo');
+    if (!el || this._bound) return;
+    this._bound = true;
+    el.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.hardReset();
+    });
+  },
+
+  resetToGlobalView() {
+    userIntervene?.();
+    GlobeControl?.userTookGlobe?.('silent');
+    DrivingView?.deactivate?.();
+    SuperSpace?.stop?.();
+    GlobeVideo?.stop?.();
+    GlobeVideo?.hide?.();
+    SuperAdd?.stop?.();
+    GlobeEntity?.clearSelection?.();
+    GlobeDeck?.collapse?.();
+    GlobeDeck?.hideStage?.();
+    GlobeDeck?.setPreview?.('ASTRANOV — global view');
+    window._globeFly = null;
+    if (typeof globePivot !== 'undefined' && globePivot) {
+      globePivot.rotation.y = 0;
+      globePivot.rotation.x = 0.12;
+    }
+    if (typeof camera !== 'undefined' && camera) {
+      camera.position.z = ZoomTiers?.tierZ?.('global') || 2.55;
+      camera.lookAt(0, 0, 0);
+    }
+    ZoomTiers?.goTo?.('global', true);
+    CityMap?.onCamera?.(2.55, 'earth');
+    CosmicZoom?.update?.(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
+    cityLevel = false;
+    const zl = document.getElementById('zoom-label');
+    if (zl && !DrivingView?.active) zl.textContent = 'GLOBAL · ☀ day/night';
+    const chip = document.getElementById('city-life-chip');
+    if (chip) chip.classList.remove('open');
+  },
+
+  async hardReset() {
+    const el = document.getElementById('astranov-logo');
+    if (el?._resetting) return;
+    if (el) {
+      el._resetting = true;
+      el.disabled = true;
+      el.textContent = '…';
+    }
+    this.resetToGlobalView();
+    try {
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+      }
+    } catch (_) { /* best-effort */ }
+    const url = new URL(location.href);
+    url.searchParams.set('v', String(Date.now()));
+    url.hash = '';
+    location.replace(url.toString());
+  },
+};
+window.AstranovLogo = AstranovLogo;
 
 // === ASTRO GLYPHS — high-contrast icons for globe HUD (readable at small size) ===
 const AstroGlyphs = {
@@ -10900,6 +10980,7 @@ DrivingView.init();
 CosmicZoom.init();
 ZoomTiers.init();
 AstranovTheme.init();
+AstranovLogo.init();
 CityMap.init();
 EarthRealism.init();
 AstranovSession.init();
