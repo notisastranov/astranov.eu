@@ -16,7 +16,7 @@ const SuperCli = {
     this.bindToolbar();
     this.bindInputBar();
     this.setContext(this.inferContext());
-    GlobeDeck?.setTitle(ACL_TITLE);
+    CliRibbon?.setActive?.('CLI');
   },
 
   inferContext() {

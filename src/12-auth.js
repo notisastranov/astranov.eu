@@ -279,7 +279,7 @@ const Auth = {
       chip.textContent = 'ASTRANOV · OWNER';
       chip.style.color = '#8f8';
     }
-    if (this.isOwner) GlobeDeck?.setTitle(AstranovSession?.SESSION_NAME || 'ASTRANOV COLLECTIVE INTELLIGENCE');
+    if (this.isOwner) CliRibbon?.setActive?.('owner');
     const prompt = document.getElementById('aci-cli-prompt');
     if (prompt && this.isOwner) {
       prompt.textContent = 'ASTRANOV@collective $';

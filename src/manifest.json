@@ -9,6 +9,7 @@
     { "file": "11-glyphs.js", "marker": "// === ASTRO GLYPHS" },
     { "file": "12-auth.js", "marker": "// === GOOGLE AUTH (Supabase) ===" },
     { "file": "13-globe-deck.js", "marker": "// === GLOBE DECK" },
+    { "file": "13-cli-ribbon.js", "marker": "// === CLI RIBBON" },
     { "file": "13-app-shortcuts.js", "marker": "// === APP SHORTCUTS" },
     { "file": "15-super-cli.js", "marker": "// === SUPER CLI" },
     { "file": "21-super-cli-brain.js", "marker": "// === SUPER CLI BRAIN" },

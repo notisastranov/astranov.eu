@@ -13,18 +13,15 @@ const GlobeDeck = {
   _expandAt: 0,
 
   init() {
+    CliRibbon?.init?.();
     AppShortcuts?.init?.();
-    const hdr = document.getElementById('globe-deck-header');
-    const handle = document.getElementById('globe-deck-handle');
-    if (handle) handle.onclick = e => { e.stopPropagation(); this.toggle(); };
-    if (hdr) hdr.onclick = () => this.toggle();
     this.bindDeckGestures();
     ['sat-radio', 'node-batch', 'vendor-menu', 'globe-youtube', 'globe-super-add', 'globe-site-browser'].forEach(id => {
       const el = document.getElementById(id);
       const stage = document.getElementById('globe-deck-stage');
       if (el && stage && el.parentElement !== stage) stage.appendChild(el);
     });
-    this.setTitle(window.SuperCli?.title || 'Astranov Command Line');
+    CliRibbon?.setActive?.('CLI');
   },
 
   bindDeckGestures() {
@@ -69,15 +66,15 @@ const GlobeDeck = {
   logEl() { return document.getElementById('globe-deck-log'); },
 
   setTitle(text) {
-    const el = document.getElementById('globe-deck-title');
-    if (el) el.textContent = text || (window.SuperCli?.title || 'Astranov Command Line');
+    CliRibbon?.setActive?.(text || CliRibbon?.TASK_LABEL?.[this.activeTask] || 'CLI');
   },
 
   setPreview(text) {
-    const el = document.getElementById('globe-deck-preview');
-    if (el) el.textContent = (text || '').slice(0, 120);
-    if (!this.expanded && text) this.deck()?.classList.add('has-preview');
-    else if (!text) this.deck()?.classList.remove('has-preview');
+    const s = (text || '').slice(0, 120);
+    if (s) CliRibbon?.setNotice?.(s);
+    else CliRibbon?.clearNotice?.();
+    if (!this.expanded && s) this.deck()?.classList.add('has-preview');
+    else if (!s) this.deck()?.classList.remove('has-preview');
   },
 
   setMapStatus(text) {
@@ -119,6 +116,7 @@ const GlobeDeck = {
     while (out.children.length > 48) out.removeChild(out.firstChild);
     out.scrollTop = out.scrollHeight;
     if (kind === 'reply' || kind === 'out' || kind === 'ok') this.setPreview(text);
+    if (kind === 'err') CliRibbon?.setNotice?.(text, 'err');
     if (this._userEngaged && (kind === 'reply' || kind === 'out' || kind === 'err')) this.ping();
   },
 
@@ -146,6 +144,9 @@ const GlobeDeck = {
     this.thinking = !!on;
     const d = this.deck();
     if (d) d.classList.toggle('deck-thinking', this.thinking);
+    if (on && hint) CliRibbon?.setNotice?.(hint);
+    else if (!on) CliRibbon?.clearNotice?.();
+    CliRibbon?.render?.();
     if (on) {
       this.expand(hint || 'Collective — thinking…');
       const out = this.logEl();
@@ -187,8 +188,7 @@ const GlobeDeck = {
       d.classList.add('expanded');
       d.classList.remove('collapsed');
     }
-    const handle = document.getElementById('globe-deck-handle');
-    if (handle) handle.textContent = '▁';
+    CliRibbon?.render?.();
     if (window.AciCli) AciCli.open = true;
   },
 
@@ -206,8 +206,7 @@ const GlobeDeck = {
       d.classList.remove('expanded');
       d.classList.add('collapsed');
     }
-    const handle = document.getElementById('globe-deck-handle');
-    if (handle) handle.textContent = '▔';
+    CliRibbon?.render?.();
     if (window.AciCli) AciCli.open = false;
   },
 
@@ -267,7 +266,8 @@ const GlobeDeck = {
     this.collapse();
     this.activeTask = null;
     if (done) AppShortcuts?.untrack?.(done);
-    this.setTitle(window.SuperCli?.title || 'Astranov Command Line');
+    CliRibbon?.setActive?.('CLI');
+    CliRibbon?.clearNotice?.();
     SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
     AppShortcuts?.render?.();
   },

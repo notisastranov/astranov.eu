@@ -239,6 +239,7 @@ const AppShortcuts = {
       };
       this._row.appendChild(btn);
     }
+    CliRibbon?.render?.();
   },
 };
 window.AppShortcuts = AppShortcuts;

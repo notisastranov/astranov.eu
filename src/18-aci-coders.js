@@ -69,12 +69,11 @@ const AciCoders = {
   },
 
   updateHud() {
-    const listen = this._listening ? ' · listening' : '';
-    const evo = this._activityCount > 0 ? ' · evolving' : '';
-    const judge = this.isPowerUser() ? ' · JUDGE' : '';
-    const title = (this.isPowerUser() ? 'Architect · ' : 'Collective ') + 'Coders · ' + this.CAUSE + judge + listen + (Auth?.user ? '' : ' · guest');
-    GlobeDeck?.setTitle(title);
-    GlobeDeck?.setMapStatus?.('Coders ' + (this._listening ? 'listening · evolving' : 'online') + (this.isPowerUser() ? ' · orders execute' : ''));
+    const bits = [this._listening ? 'listening' : 'online'];
+    if (this._activityCount > 0) bits.push('evolving');
+    if (this.isPowerUser()) bits.push('owner');
+    CliRibbon?.setActive?.('Coders');
+    CliRibbon?.setNotice?.(bits.join(' · '));
   },
 
   observeActivity(source, detail, props) {
@@ -199,8 +198,8 @@ const AciCoders = {
   async enterSession(opts = {}) {
     opts = opts || {};
     await this.autoStart();
-    GlobeDeck?.onUserMessage?.('Coders — talk here');
-    GlobeDeck?.expand?.('Collective Coders — talk here');
+    GlobeDeck?.onUserMessage?.('Coders');
+    GlobeDeck?.expand?.('Coders');
     if (GlobeDeck) GlobeDeck.activeTask = 'coders';
     AppShortcuts?.track?.('coders', 'Coders');
     if (window.AciCli) AciCli.open = true;
@@ -261,7 +260,7 @@ const AciCoders = {
         return this.poll(id, false);
       }
       if (sub === 'exit' || sub === 'close' || sub === 'leave') {
-        AciCli?.print('Coders stay always on — Justice → Truth → Freedom', 'ok');
+        AciCli?.print('Coders stay always on', 'ok');
         ACIControl?.reply('Coders always active — building the collective brain');
         return { ok: true, always_on: true };
       }
@@ -451,7 +450,7 @@ const AciCoders = {
       const kind = r.error ? 'err' : 'reply';
       AciCli?.print(prefix + reply, kind);
       ACIControl?.reply(prefix + reply.slice(0, 260));
-      GlobeDeck?.expand?.('Collective Coders — reply');
+      CliRibbon?.setNotice?.('reply');
     }
 
     const composerQueued = r.composer_queued || (r.pending && r.summon_id);
@@ -521,7 +520,7 @@ const AciCoders = {
 
     this._cliBusy = true;
     try {
-      GlobeDeck?.setThinking(true, fast ? 'Coders…' : ('Coders — ' + this.CAUSE + '…'));
+      GlobeDeck?.setThinking(true, fast ? 'Coders…' : 'Coders…');
       if (/^city\s*(view|level)?$/i.test(m.trim())) {
         await enterCityView?.();
         GlobeDeck?.setThinking(false);

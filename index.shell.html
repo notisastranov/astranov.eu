@@ -93,10 +93,16 @@
   #cosmic-guide .cg-item b { color:#9df; font-weight:600; }
   #cosmic-guide .cg-item i { color:#6a8; font-size:9px; }
   #globe-deck { display:flex; flex-direction:column; margin:0 8px 6px; background:rgba(0,4,12,0.94); border:1px solid rgba(0,255,160,0.35); border-radius:14px; pointer-events:auto; font:12px/1.4 ui-monospace,monospace; overflow:hidden; transition:max-height 0.22s ease; }
-  #globe-deck.collapsed { max-height:168px; }
+  #globe-deck.collapsed { max-height:118px; }
   #globe-deck.expanded { max-height:min(56vh,520px); }
   #globe-deck.expanded.has-stage { max-height:min(72vh,640px); }
-  #super-cli-bar { display:flex; gap:5px; padding:6px 8px; flex-wrap:nowrap; align-items:center; justify-content:flex-start; border-bottom:1px solid rgba(0,255,160,0.12); flex-shrink:0; background:rgba(0,8,18,0.5); min-height:46px; }
+  #globe-deck-header { display:none !important; }
+  #super-cli-bar { display:flex; gap:5px; padding:5px 8px; flex-wrap:nowrap; align-items:center; justify-content:flex-start; border-bottom:1px solid rgba(0,255,160,0.12); flex-shrink:0; background:rgba(0,8,18,0.5); min-height:42px; }
+  #cli-ribbon-status { flex:1; min-width:0; font:10px/1.25 system-ui; color:#9fd; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:0 4px; opacity:0.95; }
+  #cli-ribbon-status.thinking { color:#fc8; }
+  #cli-ribbon-status.alert { color:#f99; }
+  #cli-ribbon-status.hold { color:#fd8; }
+  #super-cli-bar #globe-deck-handle { background:transparent; border:none; color:#8aa; cursor:pointer; font-size:15px; padding:2px 6px; width:auto; height:auto; border-radius:8px; flex-shrink:0; }
   #super-cli-bar button:not(#aci-login):not(#super-add-fab):not(.app-shortcut-btn) { display:none !important; }
   #app-shortcut-row { display:flex; gap:4px; align-items:center; flex:1; min-width:0; overflow-x:auto; overflow-y:hidden; padding:0 2px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
   #app-shortcut-row::-webkit-scrollbar { display:none; }
@@ -220,7 +226,7 @@
   #superspace-hud .ss-row { margin:2px 0; color:#dde; }
   #superspace-hud .ss-row b { color:#a88cff; font-weight:600; }
   #superspace-hud .ss-tri { margin-top:8px; padding-top:6px; border-top:1px solid rgba(170,136,255,0.25); color:#9ab; font-size:9px; }
-  #super-cli-bar #super-add-fab { width:34px; height:34px; font-size:18px; font-weight:600; line-height:1; border-radius:50%; border:1px solid rgba(0,255,160,0.45); background:rgba(0,100,80,0.4); color:#8fc; cursor:pointer; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; touch-action:manipulation; box-shadow:none; transform:none; position:static; margin-left:auto; }
+  #super-cli-bar #super-add-fab { width:34px; height:34px; font-size:18px; font-weight:600; line-height:1; border-radius:50%; border:1px solid rgba(0,255,160,0.45); background:rgba(0,100,80,0.4); color:#8fc; cursor:pointer; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; touch-action:manipulation; box-shadow:none; transform:none; position:static; margin-left:0; }
   #super-cli-bar #super-add-fab:active { transform:scale(0.94); }
   #globe-super-add { display:none; padding:8px 10px; background:rgba(4,12,8,0.96); pointer-events:auto; font:11px/1.4 system-ui; color:#e8f4ff; }
   #globe-super-add.open, #globe-super-add.deck-active { display:block; }
@@ -373,6 +379,9 @@
       <div id="super-cli-bar">
         <button id="aci-login" title="Sign in with Google" type="button">G</button>
         <div id="app-shortcut-row" role="toolbar" aria-label="Open applications"></div>
+        <span id="cli-ribbon-status" aria-live="polite"></span>
+        <button id="super-add-fab" type="button" title="Super Add — post · vendor · site">+</button>
+        <button id="globe-deck-handle" type="button" title="Expand/collapse CLI">▔</button>
         <button id="aci-cli-toggle" title="Expand/collapse Astranov Command Line" type="button">💻</button>
         <button id="aci-stop" title="Stop" type="button">🛑</button>
         <button id="aci-hold" title="Hold session — pause mic &amp; tasks for noisy places" type="button" aria-pressed="false">⏸</button>
@@ -382,7 +391,6 @@
         <button id="aci-batch" title="Batch" type="button">🔗</button>
         <button id="aci-vhf" title="PMR radio" type="button">📡</button>
         <button id="aci-call" title="Phone" type="button">☎️</button>
-        <button id="super-add-fab" type="button" title="Super Add — post · vendor · site">+</button>
       </div>
       <div id="globe-deck-body">
         <div id="globe-deck-log"></div>

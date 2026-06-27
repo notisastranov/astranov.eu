@@ -39,7 +39,7 @@ const AciCli = {
     if (prompt) {
       prompt.textContent = AstranovSession?.isAstranov?.() ? 'ASTRANOV@collective $' : ((Auth.user.user_metadata?.full_name || Auth.user.email?.split('@')[0] || 'dev') + '@collective $');
     }
-    if (AstranovSession?.isAstranov?.()) GlobeDeck?.setTitle?.(AstranovSession.SESSION_NAME);
+    if (AstranovSession?.isAstranov?.()) CliRibbon?.setActive?.('ACI');
     this.loadHistory();
     if (!this._sessionOpened) {
       this._sessionOpened = true;
@@ -96,7 +96,7 @@ const AciCli = {
   showGuest() {
     this.open = true;
     AciCoders?.autoStart?.();
-    GlobeDeck?.expand('Coders online — Justice → Truth → Freedom · G to sign in');
+    GlobeDeck?.expand('Coders');
     if (!this._guestWelcomed) {
       this._guestWelcomed = true;
       this.print('Coders always on — dev on · ui status · brain status · G for sync', 'dim');
@@ -112,7 +112,7 @@ const AciCli = {
       this._welcomed = true;
       this.print('Coders always on — dev on for full brain+UI · help', 'dim');
     }
-    GlobeDeck?.expand('Collective Coders — talk here');
+    GlobeDeck?.expand('Coders');
     document.getElementById('aci-cli-in')?.focus();
   },
 
