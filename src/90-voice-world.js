@@ -136,6 +136,7 @@ function fixVoiceHotwords(text) {
     return (parts.join(' ') + suffix).trim();
   }
 
+  if (window.ArcangeloDialect) s = ArcangeloDialect.normalizeForRouting(s) || s;
   return s;
 }
 window.fixVoiceHotwords = fixVoiceHotwords;
@@ -156,6 +157,7 @@ function pickVoiceTranscript(result) {
     const score = codersTranscriptScore(alt);
     if (score > bestScore) { bestScore = score; best = alt; }
   }
+  ArcangeloDialect?.ingest?.(best);
   return fixVoiceHotwords(best);
 }
 

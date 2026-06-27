@@ -122,7 +122,8 @@ const AciCli = {
   },
 
   print(text, cls) {
-    GlobeDeck?.log(text, cls || 'out');
+    const line = ArcangeloDialect?.sanitizeUi?.(text) ?? text;
+    GlobeDeck?.log(line, cls || 'out');
   },
 
   async api(body, opts = {}) {
@@ -138,9 +139,10 @@ const AciCli = {
       headers.Authorization = 'Bearer ' + SB_KEY;
     }
     const timeoutMs = opts.timeoutMs || (body.fast ? 28000 : 55000);
+    const lane = ArcangeloDialect?.apiContext?.() || {};
     const j = await fetchJson(SB_URL + '/functions/v1/aci', {
       method: 'POST', headers,
-      body: JSON.stringify({ ...body, cli_user: Auth?.user?.id, cli_email: Auth?.user?.email })
+      body: JSON.stringify({ ...body, ...lane, cli_user: Auth?.user?.id, cli_email: Auth?.user?.email })
     }, timeoutMs);
     if (j._httpStatus === 401) j.error = j.error || 'login required — tap G to sign in';
     return j;

@@ -44,6 +44,7 @@ const Voice = {
   },
 
   detectLang(s) {
+    if (ArcangeloDialect?.looksMixed?.(s) || ArcangeloDialect?.detect?.(s)?.active) return 'el-GR';
     const g = (s.match(/[\u0370-\u03FF\u1F00-\u1FFF]/g) || []).length;
     const l = (s.match(/[a-zA-Z]/g) || []).length;
     return g >= l * 0.25 ? 'el-GR' : 'en-US';

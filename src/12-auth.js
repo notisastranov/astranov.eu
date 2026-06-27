@@ -298,6 +298,7 @@ const Auth = {
     this.applyUser();
     this.updateOwnerUI();
     this.broadcastToShell();
+    ArcangeloDialect?.reset?.();
     if (Voice.maySpeak()) speak('Signed out.', () => {}, true);
   },
 

@@ -441,12 +441,12 @@ const AciCoders = {
       if (this.history.length > 20) this.history = this.history.slice(-20);
     }
 
-    const reply = text.slice(0, 900);
+    const reply = (ArcangeloDialect?.sanitizeReply?.(text) ?? text).slice(0, 900);
     if (reply && !this.isFailedReply(reply)) {
       const prefix = r.explicit_order || r.order_executed ? 'ORDER: ' : '';
       const kind = r.error ? 'err' : 'reply';
       AciCli?.print(prefix + reply, kind);
-      ACIControl?.reply(prefix + reply.slice(0, 260));
+      ACIControl?.reply(prefix + (ArcangeloDialect?.sanitizeReply?.(reply.slice(0, 260)) ?? reply.slice(0, 260)));
     } else if (this.isFailedReply(reply)) {
       const local = this.localReply(userMsg);
       AciCli?.print(local, 'ok');
