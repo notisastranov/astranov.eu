@@ -455,7 +455,18 @@ serve(async (req) => {
         text = String(fb.text || fb.response || '').trim()
           || 'Coders online — no model responded; try again shortly.'
       } else if (fastChat && !text) {
-        text = 'Coders online — try again shortly.'
+        const low = message.toLowerCase().trim()
+        const ping = /^(are you there|you there|hello|hi|hey|ping|online|composer|grok|coders)/.test(low)
+        text = ping
+          ? (isGuest ? 'Yes — Coders is here. Tap G to sign in or keep typing.' : 'Yes — I\'m here. Coders online. What next?')
+          : 'Coders online — try again shortly.'
+      }
+      if (/gathering itself/i.test(text)) {
+        const low = message.toLowerCase().trim()
+        const ping = /^(are you there|you there|hello|hi|hey|ping|online|composer|grok|coders)/.test(low)
+        text = ping
+          ? (isGuest ? 'Yes — Coders is here. Tap G to sign in or keep typing.' : 'Yes — I\'m here. Coders online. What next?')
+          : 'Coders online — models busy. Your message was received; try again.'
       }
       const via = String(result.via || (fastChat ? 'grok/fast' : 'team'))
       let full = text

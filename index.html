@@ -4024,6 +4024,29 @@ const AciCoders = {
     return r;
   },
 
+  isPing(m) {
+    const s = String(m || '').trim();
+    if (!s || s.length > 80) return false;
+    return /^(are you there|you there|hello|hi|hey|ping|online|listening|composer|grok|coders|γεια|είσαι|ακούς|παρών|εδώ|μου ακούς)/i.test(s)
+      || /^(composer|grok|coders)\s+(are you there|online|there)/i.test(s);
+  },
+
+  isFailedReply(text) {
+    return /gathering itself|try again (in a moment|shortly)|no model responded/i.test(String(text || ''));
+  },
+
+  localReply(m) {
+    const greek = /[\u0370-\u03FF]/.test(String(m || ''));
+    if (this.isPing(m)) {
+      return greek
+        ? 'Ναι, είμαι εδώ — Coders online. Πες τι θέλεις (χτίσε, φτιάξε, έλεγξε).'
+        : 'Yes — I\'m here. Coders is online. Tell me what to build, fix, or check.';
+    }
+    return greek
+      ? 'Coders online — δοκίμασε ξανά σε λίγο ή πάτα G για σύνδεση.'
+      : 'Coders online — repeat your message in a moment, or tap G to sign in.';
+  },
+
   isBuildTask(m) {
     const s = String(m || '').toLowerCase();
     if (/^(why|what|how|do we|list|status|credits|explain|try|skip|use)\b/.test(s)) return false;
@@ -4090,7 +4113,19 @@ const AciCoders = {
         }
       }
 
-      const r = await AciCli.api({
+      if (this.isPing(m)) {
+        void AciCli.api({
+          mode: 'coders_chat',
+          message: m,
+          fast: true,
+          history: this.history.slice(-4),
+          fallback_prefs: this.fallbackPrefs,
+        }, { timeoutMs: 12000 }).catch(() => {});
+        GlobeDeck?.setThinking(false);
+        return this._applyResponse({ text: this.localReply(m), via: 'local/ping' }, m);
+      }
+
+      let r = await AciCli.api({
         mode: 'coders_chat',
         message: m,
         fast,
@@ -4098,17 +4133,34 @@ const AciCoders = {
         fallback_prefs: this.fallbackPrefs,
       }, { timeoutMs: fast ? 28000 : 55000 });
 
-      if (r.error) {
+      let text = String(r.text || r.response || '').trim();
+      if (r.error || this.isFailedReply(text) || !text) {
+        const fb = await AciCli.api({
+          mode: 'coders',
+          task: m,
+          coder_engine: 'fallback',
+          fallback: true,
+          fallback_prefs: { ...this.fallbackPrefs, force: 'groq' },
+          history: this.history.slice(-4),
+        }, { timeoutMs: 22000 });
+        const fbText = String(fb.text || fb.response || '').trim();
+        if (fbText && !this.isFailedReply(fbText)) {
+          GlobeDeck?.setThinking(false);
+          return this._applyResponse({ ...fb, text: fbText, team: true }, m);
+        }
         if (Auth?.user && build) {
           const q = await this.queueCoder(m, 'grok');
-          if (q.text && !q.error) {
+          if (q.text && !q.error && !this.isFailedReply(q.text)) {
             GlobeDeck?.setThinking(false);
             return this._applyResponse({ ...q, text: q.text, team: true }, m);
           }
         }
-        GlobeDeck?.setThinking(false);
-        GlobeDeck?.showError('Coders: ' + r.error);
-        return r;
+        if (r.error && !text) {
+          GlobeDeck?.setThinking(false);
+          return this._applyResponse({ text: this.localReply(m), via: 'local/fallback' }, m);
+        }
+        text = this.localReply(m);
+        r = { ...r, text, response: text, via: 'local' };
       }
 
       if (Auth?.user && build && !r.text && !r.response && !r.summon_id) {

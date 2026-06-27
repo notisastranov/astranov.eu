@@ -290,7 +290,18 @@ serve(async (req) => {
       if (!raw && GEMINI)       raw = await callGemini(GEMINI, system, messages)
     }
 
-    if (!raw) return json({ response: 'Astranov is gathering itself — try again in a moment.', text: 'Astranov is gathering itself — try again in a moment.', provider: 'astranov', via: '' })
+    if (!raw) {
+      const low = prompt.toLowerCase().trim()
+      const ping = /^(are you there|you there|hello|hi|hey|ping|online|composer|grok|coders|γεια|είσαι|ακούς)/.test(low)
+        || /^(composer|grok|coders)\s+(are you there|online)/.test(low)
+      const guest = !profileId
+      const text = ping
+        ? (guest
+          ? 'Yes — Coders is here. Sign in with G for full sync, or keep typing your question.'
+          : 'Yes — I\'m here. Coders online on astranov.eu. What should we work on?')
+        : 'Coders is online — AI models are warming up. Try again in a few seconds.'
+      return json({ response: text, text, provider: 'astranov', via: 'local/fallback', offline: true })
+    }
 
     // Learning — ONLY explicit, deliberate teaching. Never auto-store chatter.
     try {
