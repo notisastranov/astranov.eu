@@ -850,7 +850,8 @@ const Voice = {
 
   shouldSpeak(text) {
     const t = (text || '').trim();
-    if (t.length < 4) return false;
+    const minLen = window._handsFreeVoice ? 2 : 4;
+    if (t.length < minLen) return false;
     if (/^[\d\s.,:;+\-/]+$/.test(t)) return false;
     if (t.startsWith('{') || t.startsWith('[') || /^\s*"ok"/.test(t)) return false;
     if ((t.match(/[a-zA-Z\u0370-\u03FF]/g) || []).length < 3) return false;
@@ -883,7 +884,7 @@ const Voice = {
   },
 
   async _speakOne(text, onEnd, forceBrowser) {
-    if (!voiceEnabled) { if (onEnd) onEnd(); return; }
+    if (!voiceEnabled && !window._handsFreeVoice) { if (onEnd) onEnd(); return; }
     const clean = this.humanize(text).slice(0, 420);
     if (!this.shouldSpeak(clean)) { if (onEnd) onEnd(); return; }
 
@@ -899,16 +900,19 @@ const Voice = {
     if (gen !== this._gen) return;
 
     const lang = this.detectLang(clean);
-    const blob = await this.synthServer(clean, lang);
-    if (gen !== this._gen) return;
+    const handsFree = !!window._handsFreeVoice;
+    const browserFirst = handsFree || !!forceBrowser;
 
-    if (blob) {
-      await this.playBlob(blob, gen);
-    } else if (forceBrowser) {
+    if (browserFirst) {
       await this.speakBrowser(clean, lang, gen);
     } else {
-      this.engine = 'text-only';
-      if (window.ACIControl) ACIControl.reply(clean.slice(0, 160));
+      const blob = await this.synthServer(clean, lang);
+      if (gen !== this._gen) return;
+      if (blob) {
+        await this.playBlob(blob, gen);
+      } else {
+        await this.speakBrowser(clean, lang, gen);
+      }
     }
 
     if (gen === this._gen) {
@@ -921,8 +925,10 @@ const Voice = {
 };
 
 function speak(text, onEnd, force) {
-  if (!force && !Voice.maySpeak()) { if (onEnd) onEnd(); return Promise.resolve(); }
-  return Voice.enqueue(text, onEnd, !!force);
+  const handsFree = !!window._handsFreeVoice;
+  if (!force && !handsFree && !Voice.maySpeak()) { if (onEnd) onEnd(); return Promise.resolve(); }
+  if (handsFree && !voiceEnabled) voiceEnabled = true;
+  return Voice.enqueue(text, onEnd, !!(force || handsFree));
 }
 function stopSpeaking() { Voice.flush(); }
 
@@ -1153,6 +1159,7 @@ function userIntervene() {
   else Voice.flush();
   voiceSessionActive = false;
   voiceEnabled = false;
+  if (window.setVoicePerfMode) window.setVoicePerfMode(false);
   if (window.stopHandsFree) window.stopHandsFree();
   SessionHold?.release?.();
   GlobeVideo?.stop?.();
@@ -1406,29 +1413,37 @@ const ArcangeloDialect = {
   },
 
   listenLang(draft) {
+    if (window._handsFreeVoice) return 'el-GR';
     const t = String(draft || '');
     if (this.detect(t).active || this.detect(t).mixed || this._greek.test(t)) return 'el-GR';
     const g = (t.match(/[\u0370-\u03FF\u1F00-\u1FFF]/g) || []).length;
     const l = (t.match(/[a-zA-Z]/g) || []).length;
-    return g >= l * 0.18 ? 'el-GR' : 'en-US';
+    return g >= l * 0.12 ? 'el-GR' : 'en-US';
   },
 
   repairTranscript(text) {
     let s = String(text || '').trim();
     if (!s) return s;
     const rules = [
-      [/\b(άστρανοβ|αστρανοβ|astranof|astronov|astra nov)\b/gi, 'astranov'],
-      [/\b(αρχάγγελο|αρχαγγελο|arch angel|archangelo?s?)\b/gi, 'arcangelo'],
-      [/\b(κόντερ|κοντερ|konter|counter|quarter)\b/gi, 'coders'],
-      [/\b(κόντερς|κοντερς|counters|quarters)\b/gi, 'coders'],
-      [/\b(έλα ρε|ελα ρε|ela re)\b/gi, 'ela re'],
-      [/\b(τι θες|ti thes)\b/gi, 'ti thes'],
-      [/\b(πάμε|pame)\b/gi, 'pame'],
-      [/\b(πες μου|pes mou)\b/gi, 'pes mou'],
-      [/\b(τζαι|tzai)\b/gi, 'tzai'],
-      [/\b(αξάς|αξας|aksas|axas)\b/gi, 'aksas'],
-      [/\b(αξάκι|αξακι|aksaki)\b/gi, 'aksaki'],
-      [/\b(code\s*us|code\s*her?s)\b/gi, 'coders'],
+      [/\b(άστρανοβ|αστρανοβ|astranof|astronov|astra nov|αστρα νοβ)\b/gi, 'astranov'],
+      [/\b(αρχάγγελο|αρχαγγελο|αρχανγελο|arch angel|archangelo?s?|αρχαντζελο)\b/gi, 'arcangelo'],
+      [/\b(κόντερ|κοντερ|konter|counter|quarter|κοντρ|κοντρς)\b/gi, 'coders'],
+      [/\b(κόντερς|κοντερς|counters|quarters|κοντερσ)\b/gi, 'coders'],
+      [/\b(έλα ρε|ελα ρε|ela re|έλα ρε μαλάκα|ela re malaka)\b/gi, 'ela re'],
+      [/\b(τι θες|τι θέλεις|ti thes|ti theleis)\b/gi, 'ti thes'],
+      [/\b(πάμε|pame|παμε)\b/gi, 'pame'],
+      [/\b(πες μου|pes mou|πες μου ρε)\b/gi, 'pes mou'],
+      [/\b(τζαι|tzai|και)\b/gi, 'tzai'],
+      [/\b(αξάς|αξας|aksas|axas|αξα)\b/gi, 'aksas'],
+      [/\b(αξάκι|αξακι|aksaki|αξακο)\b/gi, 'aksaki'],
+      [/\b(αξαδίνα|αξαδινα|axadina)\b/gi, 'axadina'],
+      [/\b(ρε μου|re mou|ρε συ)\b/gi, 're'],
+      [/\b(εντάξει|entaxi|ενταξει|οκ εντάξει)\b/gi, 'entaxi'],
+      [/\b(μίλα|μιλα|mila|μίλησε|milise)\b/gi, 'mila'],
+      [/\b(ακούς|ακους|akous|μου ακούς)\b/gi, 'akous'],
+      [/\b(code\s*us|code\s*her?s|call\s*her?s)\b/gi, 'coders'],
+      [/\b(γεια|geia|hello|hi)\b/gi, 'geia'],
+      [/\b(locate\s*me|λοκέιτ|λοκειτ)\b/gi, 'locate me'],
     ];
     for (const [re, rep] of rules) s = s.replace(re, rep);
     return s.replace(/\s+/g, ' ').trim();
@@ -4310,8 +4325,9 @@ const AciCoders = {
     else this.stopPoll();
 
     if (!r.pending) {
-      if (Voice.maySpeak() && Voice.shouldSpeak(text)) {
-        speak(text.slice(0, 120), () => resumeListening?.(), true);
+      const spoken = reply || text;
+      if ((Voice.maySpeak() || window._handsFreeVoice) && Voice.shouldSpeak(spoken)) {
+        speak(spoken.slice(0, 120), () => resumeListening?.(), true);
       } else if (window._handsFreeVoice || voiceSessionActive) {
         scheduleVoiceResume?.();
       }
@@ -9994,6 +10010,8 @@ const AIGraphics = {
   batchNodes: null,
   superBatchActive: false,
   shellDim: false,
+  voicePerf: false,
+  _frameSkip: 0,
 
   init(parent, earthRadius = 1) {
     this._parent = parent;
@@ -10119,6 +10137,10 @@ const AIGraphics = {
 
   // Advanced particle effect for AI/gaming visuals (pilot, drone, deliveries)
   spawnEffect(originPos, color = 0x00ffcc, count = 25, life = 45) {
+    if (this.voicePerf) {
+      count = Math.min(count, 8);
+      life = Math.min(life, 24);
+    }
     const positions = new Float32Array(count * 3);
     const vel = [];
     for (let i = 0; i < count; i++) {
@@ -10157,6 +10179,23 @@ const AIGraphics = {
     this.shellDim = !!on;
     if (this.atmosphere) this.atmosphere.material.opacity = on ? 0.12 : 0.06;
     if (this.idleNodes) this.idleNodes.material.opacity = on ? 0.55 : 0.35;
+  },
+
+  setVoicePerfMode(on) {
+    this.voicePerf = !!on;
+    if (this.atmosphere) this.atmosphere.material.opacity = on ? 0.04 : (this.shellDim ? 0.12 : 0.06);
+    if (this.clouds) this.clouds.visible = !on;
+    if (this.idleNodes) this.idleNodes.visible = !on;
+    if (on) {
+      while (this.activeEffects.length > 6) {
+        const eff = this.activeEffects.pop();
+        if (eff?.points) {
+          scene.remove(eff.points);
+          eff.points.geometry?.dispose?.();
+          eff.points.material?.dispose?.();
+        }
+      }
+    }
   },
 
   setSuperBatchActive(on, meta = {}) {
@@ -10227,6 +10266,10 @@ const AIGraphics = {
   },
 
   update() {
+    if (this.voicePerf) {
+      this._frameSkip = (this._frameSkip + 1) % 2;
+      if (this._frameSkip) return;
+    }
     const t = Date.now() * 0.001;
     if (this.batchRing && this.superBatchActive) {
       this.batchRing.rotation.z = t * 0.6;
@@ -11292,11 +11335,14 @@ let _lastVoiceCommitT = 0;
 let _voiceDraft = '';
 window._handsFreeVoice = false;
 
-const VOICE_SILENCE_MS = 850;
+const VOICE_SILENCE_MS = 900;
 let _voiceLangLocked = false;
 let _recognitionPaused = false;
 let _listenRestartAt = 0;
-const VOICE_RESTART_GAP_MS = 900;
+let _voiceResumeTimer = null;
+let _listenFailStreak = 0;
+const VOICE_RESTART_GAP_MS = 1800;
+const VOICE_RESTART_GAP_MAX_MS = 5200;
 const EXECUTE_SUFFIX = /\s*(?:go(?:\s+(?:ahead|do(?:\s+it)?|now))?|do\s+it|execute(?:\s+it)?|run\s+it|send\s+it|now|πήγαινε|κάντο|καντο|εκτέλεσε|ξεκίνα|τρέξε)\s*$/i;
 const EXECUTE_PREFIX = /^(?:go(?:\s+(?:ahead|do|and))?|please\s+)?\s*/i;
 const CODERS_CANON = 'coders';
@@ -11424,10 +11470,21 @@ function defaultListenLang() {
 function normalizeVoiceCommand(text) {
   let s = fixVoiceHotwords(String(text || '').trim());
   if (!s) return '';
+  if (window.ArcangeloDialect) s = ArcangeloDialect.normalizeForRouting(s) || s;
   if (EXECUTE_SUFFIX.test(s)) s = s.replace(EXECUTE_SUFFIX, '').trim();
   if (/^(go|do|run|execute)\s+\S/i.test(s)) s = s.replace(EXECUTE_PREFIX, '').trim();
   return s;
 }
+
+function voiceListenBlocked() {
+  return _recognitionPaused || Voice?.speaking || _voiceBusy || _voiceCommitting;
+}
+
+function setVoicePerfMode(on) {
+  window._voicePerfMode = !!on;
+  if (window.AIGraphics?.setVoicePerfMode) AIGraphics.setVoicePerfMode(!!on);
+}
+window.setVoicePerfMode = setVoicePerfMode;
 
 function wantsExecuteNow(text) {
   const s = String(text || '').trim();
@@ -11469,6 +11526,7 @@ function voiceInterrupt(opts) {
   _voiceGen++;
   _voiceBusy = false;
   _voiceCommitting = false;
+  if (_voiceResumeTimer) { clearTimeout(_voiceResumeTimer); _voiceResumeTimer = null; }
   if (_voiceSilenceTimer) { clearTimeout(_voiceSilenceTimer); _voiceSilenceTimer = null; }
   Voice?.flush?.();
   GlobeDeck?.setThinking?.(false);
@@ -11501,15 +11559,19 @@ function openVoiceCli() {
 function scheduleVoiceResume() {
   if (sessionHeld || SessionHold?.isHeld?.()) return;
   const active = voiceSessionActive || window._handsFreeVoice;
-  if (!active || !voiceEnabled || isListening) return;
-  if (!window._handsFreeVoice && (_voiceBusy || Voice.speaking)) return;
-  setTimeout(() => {
+  if (!active || !voiceEnabled || isListening || voiceListenBlocked()) return;
+  if (_voiceResumeTimer) return;
+  const wait = Math.max(
+    _listenRestartAt - Date.now(),
+    window._handsFreeVoice ? VOICE_RESTART_GAP_MS : 500
+  );
+  _voiceResumeTimer = setTimeout(() => {
+    _voiceResumeTimer = null;
     if (sessionHeld || SessionHold?.isHeld?.()) return;
     const on = voiceSessionActive || window._handsFreeVoice;
-    if (!on || !voiceEnabled || isListening) return;
-    if (!window._handsFreeVoice && (_voiceBusy || Voice.speaking)) return;
+    if (!on || !voiceEnabled || isListening || voiceListenBlocked()) return;
     startListeningForOptions();
-  }, window._handsFreeVoice ? 200 : 500);
+  }, wait);
 }
 
 function scheduleSilenceSubmit(draft) {
@@ -11562,7 +11624,6 @@ async function submitVoiceToCli(transcript) {
   const gen = ++_voiceGen;
   _voiceBusy = true;
   openVoiceCli();
-  if (window._handsFreeVoice && !isListening) setTimeout(() => startListeningForOptions(), 350);
 
   const low = line.toLowerCase();
   if (gen !== _voiceGen) return;
@@ -11618,7 +11679,7 @@ async function submitVoiceToCli(transcript) {
       const input = document.getElementById('aci-cli-in');
       if (input) input.classList.remove('voice-live');
       syncHandsFreeBtn();
-      scheduleVoiceResume();
+      if (window._handsFreeVoice && !Voice?.speaking) scheduleVoiceResume();
     }
   }
 }
@@ -11637,18 +11698,38 @@ function initVoice() {
     recognition.onresult = handleVoiceCommand;
     recognition.onerror = (e) => {
       isListening = false;
-      if (e.error === 'no-speech' || e.error === 'aborted') return;
+      if (e.error === 'aborted' || _recognitionPaused) return;
+      if (e.error === 'no-speech') {
+        _listenFailStreak = Math.min(_listenFailStreak + 1, 6);
+        if (voiceSessionActive || window._handsFreeVoice) {
+          const gap = Math.min(
+            VOICE_RESTART_GAP_MS + _listenFailStreak * 400,
+            VOICE_RESTART_GAP_MAX_MS
+          );
+          _listenRestartAt = Date.now() + gap;
+          scheduleVoiceResume();
+        }
+        return;
+      }
       console.log('Voice error', e.error || e);
-      if ((voiceSessionActive || window._handsFreeVoice) && e.error !== 'aborted') {
-        _listenRestartAt = Date.now() + VOICE_RESTART_GAP_MS;
+      _listenFailStreak = Math.min(_listenFailStreak + 1, 6);
+      if ((voiceSessionActive || window._handsFreeVoice) && !voiceListenBlocked()) {
+        const gap = Math.min(
+          VOICE_RESTART_GAP_MS + _listenFailStreak * 500,
+          VOICE_RESTART_GAP_MAX_MS
+        );
+        _listenRestartAt = Date.now() + gap;
         scheduleVoiceResume();
       }
     };
     recognition.onend = () => {
       isListening = false;
-      if (_recognitionPaused || Voice?.speaking) return;
+      if (_recognitionPaused || Voice?.speaking || voiceListenBlocked()) return;
       if ((voiceSessionActive || window._handsFreeVoice) && voiceEnabled) {
-        _listenRestartAt = Date.now() + VOICE_RESTART_GAP_MS;
+        const gap = _listenFailStreak > 0
+          ? Math.min(VOICE_RESTART_GAP_MS + _listenFailStreak * 350, VOICE_RESTART_GAP_MAX_MS)
+          : VOICE_RESTART_GAP_MS;
+        _listenRestartAt = Date.now() + gap;
         scheduleVoiceResume();
       }
     };
@@ -11659,12 +11740,15 @@ function initVoice() {
 
 function startListeningForOptions() {
   if (sessionHeld || SessionHold?.isHeld?.()) return;
-  if (!recognition || isListening || _recognitionPaused) return;
-  if (Voice?.speaking) return;
-  if (!window._handsFreeVoice && (_voiceBusy || Voice.speaking)) return;
+  if (!recognition || isListening || voiceListenBlocked()) return;
   const wait = _listenRestartAt - Date.now();
   if (wait > 0) {
-    setTimeout(() => startListeningForOptions(), wait);
+    if (!_voiceResumeTimer) {
+      _voiceResumeTimer = setTimeout(() => {
+        _voiceResumeTimer = null;
+        startListeningForOptions();
+      }, wait);
+    }
     return;
   }
   openVoiceCli();
@@ -11672,11 +11756,16 @@ function startListeningForOptions() {
   syncHandsFreeBtn();
   try {
     recognition.start();
+    _listenFailStreak = 0;
     _listenRestartAt = Date.now() + VOICE_RESTART_GAP_MS;
   } catch (e) {
     isListening = false;
+    _listenFailStreak = Math.min(_listenFailStreak + 1, 6);
     if (e?.name === 'InvalidStateError') {
-      _listenRestartAt = Date.now() + VOICE_RESTART_GAP_MS * 2;
+      _listenRestartAt = Date.now() + Math.min(
+        VOICE_RESTART_GAP_MS * 2 + _listenFailStreak * 600,
+        VOICE_RESTART_GAP_MAX_MS
+      );
       if (voiceSessionActive || window._handsFreeVoice) scheduleVoiceResume();
     }
   }
@@ -11756,11 +11845,15 @@ function startVoiceOptions() {
   voiceSessionActive = true;
   voiceEnabled = true;
   window._handsFreeVoice = true;
+  setVoicePerfMode(true);
   AciCoders?.enterSession?.({ focus: false, ping: false });
   openVoiceCli();
   _voiceDraft = '';
   _lastVoiceCommit = '';
-  const lang = ArcangeloDialect?.listenLang?.('ela re ti thes') || defaultListenLang();
+  _listenFailStreak = 0;
+  _listenRestartAt = 0;
+  if (_voiceResumeTimer) { clearTimeout(_voiceResumeTimer); _voiceResumeTimer = null; }
+  const lang = 'el-GR';
   Voice.preferredListenLang = lang;
   if (recognition) {
     recognition.lang = lang;
@@ -11769,11 +11862,9 @@ function startVoiceOptions() {
   AciCli?.print('🎧 hands-free on — speak, pause, I reply', 'dim');
   const input = document.getElementById('aci-cli-in');
   if (input) input.placeholder = '🎧 speak — auto-runs when you pause';
-  ACIControl.reply('Hands-free on — speak and pause');
   AstranovSession?.push?.();
   syncHandsFreeBtn();
-  startListeningForOptions();
-  speak('Listening.', () => resumeListening(), true);
+  speak('Ακούω. Μίλα.', () => scheduleVoiceResume(), true);
 }
 
 function stopHandsFree() {
@@ -11781,7 +11872,10 @@ function stopHandsFree() {
   voiceSessionActive = false;
   _voiceLangLocked = false;
   _recognitionPaused = false;
+  _listenFailStreak = 0;
   _voiceDraft = '';
+  setVoicePerfMode(false);
+  if (_voiceResumeTimer) { clearTimeout(_voiceResumeTimer); _voiceResumeTimer = null; }
   if (_voiceSilenceTimer) { clearTimeout(_voiceSilenceTimer); _voiceSilenceTimer = null; }
   AstranovSession?.push?.();
 }
@@ -12089,7 +12183,7 @@ function animate() {
   AIGraphics.update();
   updateOrbital();
 
-  if (window.AstranovCollectiveIntelligence) {
+  if (window.AstranovCollectiveIntelligence && !window._voicePerfMode) {
     ACI.tick();
     ACI.neurons.forEach(n => {
       if (!n.userData) return;

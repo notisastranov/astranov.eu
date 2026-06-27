@@ -460,8 +460,9 @@ const AciCoders = {
     else this.stopPoll();
 
     if (!r.pending) {
-      if (Voice.maySpeak() && Voice.shouldSpeak(text)) {
-        speak(text.slice(0, 120), () => resumeListening?.(), true);
+      const spoken = reply || text;
+      if ((Voice.maySpeak() || window._handsFreeVoice) && Voice.shouldSpeak(spoken)) {
+        speak(spoken.slice(0, 120), () => resumeListening?.(), true);
       } else if (window._handsFreeVoice || voiceSessionActive) {
         scheduleVoiceResume?.();
       }

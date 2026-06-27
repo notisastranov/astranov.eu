@@ -133,7 +133,8 @@ const Voice = {
 
   shouldSpeak(text) {
     const t = (text || '').trim();
-    if (t.length < 4) return false;
+    const minLen = window._handsFreeVoice ? 2 : 4;
+    if (t.length < minLen) return false;
     if (/^[\d\s.,:;+\-/]+$/.test(t)) return false;
     if (t.startsWith('{') || t.startsWith('[') || /^\s*"ok"/.test(t)) return false;
     if ((t.match(/[a-zA-Z\u0370-\u03FF]/g) || []).length < 3) return false;
@@ -166,7 +167,7 @@ const Voice = {
   },
 
   async _speakOne(text, onEnd, forceBrowser) {
-    if (!voiceEnabled) { if (onEnd) onEnd(); return; }
+    if (!voiceEnabled && !window._handsFreeVoice) { if (onEnd) onEnd(); return; }
     const clean = this.humanize(text).slice(0, 420);
     if (!this.shouldSpeak(clean)) { if (onEnd) onEnd(); return; }
 
@@ -182,16 +183,19 @@ const Voice = {
     if (gen !== this._gen) return;
 
     const lang = this.detectLang(clean);
-    const blob = await this.synthServer(clean, lang);
-    if (gen !== this._gen) return;
+    const handsFree = !!window._handsFreeVoice;
+    const browserFirst = handsFree || !!forceBrowser;
 
-    if (blob) {
-      await this.playBlob(blob, gen);
-    } else if (forceBrowser) {
+    if (browserFirst) {
       await this.speakBrowser(clean, lang, gen);
     } else {
-      this.engine = 'text-only';
-      if (window.ACIControl) ACIControl.reply(clean.slice(0, 160));
+      const blob = await this.synthServer(clean, lang);
+      if (gen !== this._gen) return;
+      if (blob) {
+        await this.playBlob(blob, gen);
+      } else {
+        await this.speakBrowser(clean, lang, gen);
+      }
     }
 
     if (gen === this._gen) {
@@ -204,8 +208,10 @@ const Voice = {
 };
 
 function speak(text, onEnd, force) {
-  if (!force && !Voice.maySpeak()) { if (onEnd) onEnd(); return Promise.resolve(); }
-  return Voice.enqueue(text, onEnd, !!force);
+  const handsFree = !!window._handsFreeVoice;
+  if (!force && !handsFree && !Voice.maySpeak()) { if (onEnd) onEnd(); return Promise.resolve(); }
+  if (handsFree && !voiceEnabled) voiceEnabled = true;
+  return Voice.enqueue(text, onEnd, !!(force || handsFree));
 }
 function stopSpeaking() { Voice.flush(); }
 
@@ -436,6 +442,7 @@ function userIntervene() {
   else Voice.flush();
   voiceSessionActive = false;
   voiceEnabled = false;
+  if (window.setVoicePerfMode) window.setVoicePerfMode(false);
   if (window.stopHandsFree) window.stopHandsFree();
   SessionHold?.release?.();
   GlobeVideo?.stop?.();

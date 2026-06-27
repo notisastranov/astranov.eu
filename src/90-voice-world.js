@@ -44,11 +44,14 @@ let _lastVoiceCommitT = 0;
 let _voiceDraft = '';
 window._handsFreeVoice = false;
 
-const VOICE_SILENCE_MS = 850;
+const VOICE_SILENCE_MS = 900;
 let _voiceLangLocked = false;
 let _recognitionPaused = false;
 let _listenRestartAt = 0;
-const VOICE_RESTART_GAP_MS = 900;
+let _voiceResumeTimer = null;
+let _listenFailStreak = 0;
+const VOICE_RESTART_GAP_MS = 1800;
+const VOICE_RESTART_GAP_MAX_MS = 5200;
 const EXECUTE_SUFFIX = /\s*(?:go(?:\s+(?:ahead|do(?:\s+it)?|now))?|do\s+it|execute(?:\s+it)?|run\s+it|send\s+it|now|πήγαινε|κάντο|καντο|εκτέλεσε|ξεκίνα|τρέξε)\s*$/i;
 const EXECUTE_PREFIX = /^(?:go(?:\s+(?:ahead|do|and))?|please\s+)?\s*/i;
 const CODERS_CANON = 'coders';
@@ -176,10 +179,21 @@ function defaultListenLang() {
 function normalizeVoiceCommand(text) {
   let s = fixVoiceHotwords(String(text || '').trim());
   if (!s) return '';
+  if (window.ArcangeloDialect) s = ArcangeloDialect.normalizeForRouting(s) || s;
   if (EXECUTE_SUFFIX.test(s)) s = s.replace(EXECUTE_SUFFIX, '').trim();
   if (/^(go|do|run|execute)\s+\S/i.test(s)) s = s.replace(EXECUTE_PREFIX, '').trim();
   return s;
 }
+
+function voiceListenBlocked() {
+  return _recognitionPaused || Voice?.speaking || _voiceBusy || _voiceCommitting;
+}
+
+function setVoicePerfMode(on) {
+  window._voicePerfMode = !!on;
+  if (window.AIGraphics?.setVoicePerfMode) AIGraphics.setVoicePerfMode(!!on);
+}
+window.setVoicePerfMode = setVoicePerfMode;
 
 function wantsExecuteNow(text) {
   const s = String(text || '').trim();
@@ -221,6 +235,7 @@ function voiceInterrupt(opts) {
   _voiceGen++;
   _voiceBusy = false;
   _voiceCommitting = false;
+  if (_voiceResumeTimer) { clearTimeout(_voiceResumeTimer); _voiceResumeTimer = null; }
   if (_voiceSilenceTimer) { clearTimeout(_voiceSilenceTimer); _voiceSilenceTimer = null; }
   Voice?.flush?.();
   GlobeDeck?.setThinking?.(false);
@@ -253,15 +268,19 @@ function openVoiceCli() {
 function scheduleVoiceResume() {
   if (sessionHeld || SessionHold?.isHeld?.()) return;
   const active = voiceSessionActive || window._handsFreeVoice;
-  if (!active || !voiceEnabled || isListening) return;
-  if (!window._handsFreeVoice && (_voiceBusy || Voice.speaking)) return;
-  setTimeout(() => {
+  if (!active || !voiceEnabled || isListening || voiceListenBlocked()) return;
+  if (_voiceResumeTimer) return;
+  const wait = Math.max(
+    _listenRestartAt - Date.now(),
+    window._handsFreeVoice ? VOICE_RESTART_GAP_MS : 500
+  );
+  _voiceResumeTimer = setTimeout(() => {
+    _voiceResumeTimer = null;
     if (sessionHeld || SessionHold?.isHeld?.()) return;
     const on = voiceSessionActive || window._handsFreeVoice;
-    if (!on || !voiceEnabled || isListening) return;
-    if (!window._handsFreeVoice && (_voiceBusy || Voice.speaking)) return;
+    if (!on || !voiceEnabled || isListening || voiceListenBlocked()) return;
     startListeningForOptions();
-  }, window._handsFreeVoice ? 200 : 500);
+  }, wait);
 }
 
 function scheduleSilenceSubmit(draft) {
@@ -314,7 +333,6 @@ async function submitVoiceToCli(transcript) {
   const gen = ++_voiceGen;
   _voiceBusy = true;
   openVoiceCli();
-  if (window._handsFreeVoice && !isListening) setTimeout(() => startListeningForOptions(), 350);
 
   const low = line.toLowerCase();
   if (gen !== _voiceGen) return;
@@ -370,7 +388,7 @@ async function submitVoiceToCli(transcript) {
       const input = document.getElementById('aci-cli-in');
       if (input) input.classList.remove('voice-live');
       syncHandsFreeBtn();
-      scheduleVoiceResume();
+      if (window._handsFreeVoice && !Voice?.speaking) scheduleVoiceResume();
     }
   }
 }
@@ -389,18 +407,38 @@ function initVoice() {
     recognition.onresult = handleVoiceCommand;
     recognition.onerror = (e) => {
       isListening = false;
-      if (e.error === 'no-speech' || e.error === 'aborted') return;
+      if (e.error === 'aborted' || _recognitionPaused) return;
+      if (e.error === 'no-speech') {
+        _listenFailStreak = Math.min(_listenFailStreak + 1, 6);
+        if (voiceSessionActive || window._handsFreeVoice) {
+          const gap = Math.min(
+            VOICE_RESTART_GAP_MS + _listenFailStreak * 400,
+            VOICE_RESTART_GAP_MAX_MS
+          );
+          _listenRestartAt = Date.now() + gap;
+          scheduleVoiceResume();
+        }
+        return;
+      }
       console.log('Voice error', e.error || e);
-      if ((voiceSessionActive || window._handsFreeVoice) && e.error !== 'aborted') {
-        _listenRestartAt = Date.now() + VOICE_RESTART_GAP_MS;
+      _listenFailStreak = Math.min(_listenFailStreak + 1, 6);
+      if ((voiceSessionActive || window._handsFreeVoice) && !voiceListenBlocked()) {
+        const gap = Math.min(
+          VOICE_RESTART_GAP_MS + _listenFailStreak * 500,
+          VOICE_RESTART_GAP_MAX_MS
+        );
+        _listenRestartAt = Date.now() + gap;
         scheduleVoiceResume();
       }
     };
     recognition.onend = () => {
       isListening = false;
-      if (_recognitionPaused || Voice?.speaking) return;
+      if (_recognitionPaused || Voice?.speaking || voiceListenBlocked()) return;
       if ((voiceSessionActive || window._handsFreeVoice) && voiceEnabled) {
-        _listenRestartAt = Date.now() + VOICE_RESTART_GAP_MS;
+        const gap = _listenFailStreak > 0
+          ? Math.min(VOICE_RESTART_GAP_MS + _listenFailStreak * 350, VOICE_RESTART_GAP_MAX_MS)
+          : VOICE_RESTART_GAP_MS;
+        _listenRestartAt = Date.now() + gap;
         scheduleVoiceResume();
       }
     };
@@ -411,12 +449,15 @@ function initVoice() {
 
 function startListeningForOptions() {
   if (sessionHeld || SessionHold?.isHeld?.()) return;
-  if (!recognition || isListening || _recognitionPaused) return;
-  if (Voice?.speaking) return;
-  if (!window._handsFreeVoice && (_voiceBusy || Voice.speaking)) return;
+  if (!recognition || isListening || voiceListenBlocked()) return;
   const wait = _listenRestartAt - Date.now();
   if (wait > 0) {
-    setTimeout(() => startListeningForOptions(), wait);
+    if (!_voiceResumeTimer) {
+      _voiceResumeTimer = setTimeout(() => {
+        _voiceResumeTimer = null;
+        startListeningForOptions();
+      }, wait);
+    }
     return;
   }
   openVoiceCli();
@@ -424,11 +465,16 @@ function startListeningForOptions() {
   syncHandsFreeBtn();
   try {
     recognition.start();
+    _listenFailStreak = 0;
     _listenRestartAt = Date.now() + VOICE_RESTART_GAP_MS;
   } catch (e) {
     isListening = false;
+    _listenFailStreak = Math.min(_listenFailStreak + 1, 6);
     if (e?.name === 'InvalidStateError') {
-      _listenRestartAt = Date.now() + VOICE_RESTART_GAP_MS * 2;
+      _listenRestartAt = Date.now() + Math.min(
+        VOICE_RESTART_GAP_MS * 2 + _listenFailStreak * 600,
+        VOICE_RESTART_GAP_MAX_MS
+      );
       if (voiceSessionActive || window._handsFreeVoice) scheduleVoiceResume();
     }
   }
@@ -508,11 +554,15 @@ function startVoiceOptions() {
   voiceSessionActive = true;
   voiceEnabled = true;
   window._handsFreeVoice = true;
+  setVoicePerfMode(true);
   AciCoders?.enterSession?.({ focus: false, ping: false });
   openVoiceCli();
   _voiceDraft = '';
   _lastVoiceCommit = '';
-  const lang = ArcangeloDialect?.listenLang?.('ela re ti thes') || defaultListenLang();
+  _listenFailStreak = 0;
+  _listenRestartAt = 0;
+  if (_voiceResumeTimer) { clearTimeout(_voiceResumeTimer); _voiceResumeTimer = null; }
+  const lang = 'el-GR';
   Voice.preferredListenLang = lang;
   if (recognition) {
     recognition.lang = lang;
@@ -521,11 +571,9 @@ function startVoiceOptions() {
   AciCli?.print('🎧 hands-free on — speak, pause, I reply', 'dim');
   const input = document.getElementById('aci-cli-in');
   if (input) input.placeholder = '🎧 speak — auto-runs when you pause';
-  ACIControl.reply('Hands-free on — speak and pause');
   AstranovSession?.push?.();
   syncHandsFreeBtn();
-  startListeningForOptions();
-  speak('Listening.', () => resumeListening(), true);
+  speak('Ακούω. Μίλα.', () => scheduleVoiceResume(), true);
 }
 
 function stopHandsFree() {
@@ -533,7 +581,10 @@ function stopHandsFree() {
   voiceSessionActive = false;
   _voiceLangLocked = false;
   _recognitionPaused = false;
+  _listenFailStreak = 0;
   _voiceDraft = '';
+  setVoicePerfMode(false);
+  if (_voiceResumeTimer) { clearTimeout(_voiceResumeTimer); _voiceResumeTimer = null; }
   if (_voiceSilenceTimer) { clearTimeout(_voiceSilenceTimer); _voiceSilenceTimer = null; }
   AstranovSession?.push?.();
 }

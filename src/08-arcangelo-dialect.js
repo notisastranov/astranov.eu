@@ -130,29 +130,37 @@ const ArcangeloDialect = {
   },
 
   listenLang(draft) {
+    if (window._handsFreeVoice) return 'el-GR';
     const t = String(draft || '');
     if (this.detect(t).active || this.detect(t).mixed || this._greek.test(t)) return 'el-GR';
     const g = (t.match(/[\u0370-\u03FF\u1F00-\u1FFF]/g) || []).length;
     const l = (t.match(/[a-zA-Z]/g) || []).length;
-    return g >= l * 0.18 ? 'el-GR' : 'en-US';
+    return g >= l * 0.12 ? 'el-GR' : 'en-US';
   },
 
   repairTranscript(text) {
     let s = String(text || '').trim();
     if (!s) return s;
     const rules = [
-      [/\b(άστρανοβ|αστρανοβ|astranof|astronov|astra nov)\b/gi, 'astranov'],
-      [/\b(αρχάγγελο|αρχαγγελο|arch angel|archangelo?s?)\b/gi, 'arcangelo'],
-      [/\b(κόντερ|κοντερ|konter|counter|quarter)\b/gi, 'coders'],
-      [/\b(κόντερς|κοντερς|counters|quarters)\b/gi, 'coders'],
-      [/\b(έλα ρε|ελα ρε|ela re)\b/gi, 'ela re'],
-      [/\b(τι θες|ti thes)\b/gi, 'ti thes'],
-      [/\b(πάμε|pame)\b/gi, 'pame'],
-      [/\b(πες μου|pes mou)\b/gi, 'pes mou'],
-      [/\b(τζαι|tzai)\b/gi, 'tzai'],
-      [/\b(αξάς|αξας|aksas|axas)\b/gi, 'aksas'],
-      [/\b(αξάκι|αξακι|aksaki)\b/gi, 'aksaki'],
-      [/\b(code\s*us|code\s*her?s)\b/gi, 'coders'],
+      [/\b(άστρανοβ|αστρανοβ|astranof|astronov|astra nov|αστρα νοβ)\b/gi, 'astranov'],
+      [/\b(αρχάγγελο|αρχαγγελο|αρχανγελο|arch angel|archangelo?s?|αρχαντζελο)\b/gi, 'arcangelo'],
+      [/\b(κόντερ|κοντερ|konter|counter|quarter|κοντρ|κοντρς)\b/gi, 'coders'],
+      [/\b(κόντερς|κοντερς|counters|quarters|κοντερσ)\b/gi, 'coders'],
+      [/\b(έλα ρε|ελα ρε|ela re|έλα ρε μαλάκα|ela re malaka)\b/gi, 'ela re'],
+      [/\b(τι θες|τι θέλεις|ti thes|ti theleis)\b/gi, 'ti thes'],
+      [/\b(πάμε|pame|παμε)\b/gi, 'pame'],
+      [/\b(πες μου|pes mou|πες μου ρε)\b/gi, 'pes mou'],
+      [/\b(τζαι|tzai|και)\b/gi, 'tzai'],
+      [/\b(αξάς|αξας|aksas|axas|αξα)\b/gi, 'aksas'],
+      [/\b(αξάκι|αξακι|aksaki|αξακο)\b/gi, 'aksaki'],
+      [/\b(αξαδίνα|αξαδινα|axadina)\b/gi, 'axadina'],
+      [/\b(ρε μου|re mou|ρε συ)\b/gi, 're'],
+      [/\b(εντάξει|entaxi|ενταξει|οκ εντάξει)\b/gi, 'entaxi'],
+      [/\b(μίλα|μιλα|mila|μίλησε|milise)\b/gi, 'mila'],
+      [/\b(ακούς|ακους|akous|μου ακούς)\b/gi, 'akous'],
+      [/\b(code\s*us|code\s*her?s|call\s*her?s)\b/gi, 'coders'],
+      [/\b(γεια|geia|hello|hi)\b/gi, 'geia'],
+      [/\b(locate\s*me|λοκέιτ|λοκειτ)\b/gi, 'locate me'],
     ];
     for (const [re, rep] of rules) s = s.replace(re, rep);
     return s.replace(/\s+/g, ' ').trim();

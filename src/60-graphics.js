@@ -12,6 +12,8 @@ const AIGraphics = {
   batchNodes: null,
   superBatchActive: false,
   shellDim: false,
+  voicePerf: false,
+  _frameSkip: 0,
 
   init(parent, earthRadius = 1) {
     this._parent = parent;
@@ -137,6 +139,10 @@ const AIGraphics = {
 
   // Advanced particle effect for AI/gaming visuals (pilot, drone, deliveries)
   spawnEffect(originPos, color = 0x00ffcc, count = 25, life = 45) {
+    if (this.voicePerf) {
+      count = Math.min(count, 8);
+      life = Math.min(life, 24);
+    }
     const positions = new Float32Array(count * 3);
     const vel = [];
     for (let i = 0; i < count; i++) {
@@ -175,6 +181,23 @@ const AIGraphics = {
     this.shellDim = !!on;
     if (this.atmosphere) this.atmosphere.material.opacity = on ? 0.12 : 0.06;
     if (this.idleNodes) this.idleNodes.material.opacity = on ? 0.55 : 0.35;
+  },
+
+  setVoicePerfMode(on) {
+    this.voicePerf = !!on;
+    if (this.atmosphere) this.atmosphere.material.opacity = on ? 0.04 : (this.shellDim ? 0.12 : 0.06);
+    if (this.clouds) this.clouds.visible = !on;
+    if (this.idleNodes) this.idleNodes.visible = !on;
+    if (on) {
+      while (this.activeEffects.length > 6) {
+        const eff = this.activeEffects.pop();
+        if (eff?.points) {
+          scene.remove(eff.points);
+          eff.points.geometry?.dispose?.();
+          eff.points.material?.dispose?.();
+        }
+      }
+    }
   },
 
   setSuperBatchActive(on, meta = {}) {
@@ -245,6 +268,10 @@ const AIGraphics = {
   },
 
   update() {
+    if (this.voicePerf) {
+      this._frameSkip = (this._frameSkip + 1) % 2;
+      if (this._frameSkip) return;
+    }
     const t = Date.now() * 0.001;
     if (this.batchRing && this.superBatchActive) {
       this.batchRing.rotation.z = t * 0.6;
