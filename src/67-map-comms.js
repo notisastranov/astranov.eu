@@ -67,6 +67,39 @@ const MapComms = {
     return list.filter(m => m.lat != null && m.lng != null);
   },
 
+  async openPrivateCloud(opts) {
+    opts = opts || {};
+    const target = opts.target;
+    const circleId = opts.circleId;
+    if (!Auth?.user || !target?.id || !circleId) return null;
+    this.kind = 'dm';
+    this.dmUser = { id: target.id, name: target.name, lat: target.lat, lng: target.lng, emoji: target.emoji };
+    this.teamId = circleId;
+    this.teamName = 'DM · ' + (target.name || 'User');
+    this.members.clear();
+    const self = this.selfMember();
+    this.members.set(self.id, self);
+    this.members.set(target.id, {
+      id: target.id,
+      name: target.name || 'User',
+      lat: target.lat ?? self.lat,
+      lng: target.lng ?? self.lng,
+      emoji: target.emoji || '👤',
+    });
+    this.messages = (opts.messages || []).map((m) => ({
+      author: m.author || '?',
+      name: m.author,
+      body: m.body || m.text,
+      t: m.t || Date.now(),
+      author_id: m.author_id,
+    }));
+    await this._joinChannel(circleId);
+    this._openCloud(this.teamName);
+    this._rebuildViz();
+    this._renderMessages();
+    return circleId;
+  },
+
   async openSession(opts) {
     opts = opts || {};
     if (!Auth?.user) {
@@ -133,11 +166,13 @@ const MapComms = {
       return;
     }
     const teamId = (id || '').trim();
-    if (!teamId.startsWith('mapteam-')) {
-      ACIControl?.reply('usage: team join mapteam-…');
+    if (!teamId.startsWith('mapteam-') && !teamId.startsWith('mapdm-')) {
+      ACIControl?.reply('usage: team join mapteam-… · mapdm-…');
       return;
     }
     this.teamId = teamId;
+    this.kind = teamId.startsWith('mapdm-') ? 'dm' : 'team';
+    if (this.kind !== 'dm') this.dmUser = null;
     try {
       const { data } = await Auth.client.from('circles').select('name,map_members').eq('id', teamId).maybeSingle();
       if (data?.name) this.teamName = data.name;
@@ -151,11 +186,38 @@ const MapComms = {
     } catch (_) {}
     const self = this.selfMember();
     this.members.set(self.id, self);
+    if (this.kind === 'dm') {
+      const other = [...this.members.values()].find((m) => m.id && m.id !== Auth.user.id);
+      if (other) {
+        this.dmUser = { id: other.id, name: other.name, lat: other.lat, lng: other.lng, emoji: other.emoji };
+        if (!this.teamName || this.teamName === teamId) this.teamName = 'DM · ' + (other.name || 'User');
+      } else {
+        const peerId = teamId.replace(/^mapdm-/, '').split('--').find((p) => p && p !== Auth.user.id);
+        if (peerId) {
+          try {
+            const { data: prof } = await Auth.client.from('profiles')
+              .select('id, display_name, field_lat, field_lng, avatar_emoji')
+              .eq('id', peerId).maybeSingle();
+            if (prof) {
+              this.dmUser = {
+                id: prof.id,
+                name: prof.display_name || 'User',
+                lat: prof.field_lat,
+                lng: prof.field_lng,
+                emoji: prof.avatar_emoji || '👤',
+              };
+              this.members.set(prof.id, this.dmUser);
+              if (!this.teamName || this.teamName === teamId) this.teamName = 'DM · ' + (prof.display_name || 'User');
+            }
+          } catch (_) {}
+        }
+      }
+    }
     await this._joinChannel(teamId);
     this._openCloud(this.teamName);
     this._rebuildViz();
     this._renderMessages();
-    ACICli?.print('◎ joined ' + this.teamName, 'ok');
+    AciCli?.print('◎ joined ' + this.teamName, 'ok');
   },
 
   async leaveTeam() {
@@ -226,6 +288,7 @@ const MapComms = {
       await Auth.client.from('circle_messages').insert({
         circle_id: this.teamId,
         author: msg.author || msg.name || 'user',
+        author_id: msg.author_id || Auth?.user?.id || null,
         text: msg.body,
         ts: msg.t || Date.now(),
       });
@@ -256,6 +319,9 @@ const MapComms = {
     this._onChat(msg);
     this.rtChannel?.send({ type: 'broadcast', event: 'chat', payload: msg });
     if (this.dmUser) this._sendDm(msg);
+    if (this.kind === 'dm' && this.dmUser?.id) {
+      CliHub?.queueLine?.(msg.body, 'out', { peer_id: this.dmUser.id, circle_id: this.teamId });
+    }
   },
 
   _renderMessages() {
@@ -335,6 +401,10 @@ const MapComms = {
     document.getElementById('map-comms-contact')?.classList.remove('open');
     const m = (mode || 'message').toLowerCase();
     if (m === 'message' || m === 'msg' || m === 'chat') {
+      if (CliHub?.startPrivateCloud) {
+        await CliHub.startPrivateCloud(u.id);
+        return;
+      }
       this.dmUser = u;
       this._openCloud('DM · ' + u.name);
       ACIControl?.reply('Message ' + u.name + ' in the cloud above the map');

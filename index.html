@@ -208,6 +208,23 @@
   .yt-n { font-weight:700; color:var(--ax-blue-bright); min-width:18px; }
   .yt-meta b { display:block; font-size:11px; margin-bottom:2px; }
   .yt-meta small { color:#9ab; font-size:10px; }
+  #cli-hub-bar { display:none; align-items:center; gap:6px; padding:6px 10px; border-bottom:1px solid var(--ax-blue-border); background:rgba(0,0,0,0.5); flex-shrink:0; }
+  #globe-deck.expanded #cli-hub-bar { display:flex; }
+  #cli-hub-search { flex:1; min-width:0; padding:7px 10px; border-radius:10px; border:1px solid var(--ax-blue-border); background:rgba(0,8,20,0.65); color:var(--an-text); font:12px system-ui; outline:none; }
+  #cli-hub-search:focus { border-color:var(--ax-blue-bright); box-shadow:0 0 0 2px var(--ax-blue-glow); }
+  #cli-hub-search-btn { background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); border-radius:10px; padding:6px 10px; cursor:pointer; font-size:14px; flex-shrink:0; }
+  #cli-hub-panel { display:none; padding:8px 10px; background:rgba(0,10,24,0.92); pointer-events:auto; font:11px/1.4 system-ui; max-height:32vh; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  #cli-hub-panel.open, #cli-hub-panel.deck-active { display:block; }
+  #cli-hub-panel .ch-head { color:var(--ax-blue-bright); font-weight:600; margin-bottom:8px; font-size:11px; }
+  #cli-hub-panel .ch-section { color:var(--an-muted); font-size:10px; margin:10px 0 4px; text-transform:uppercase; letter-spacing:0.04em; }
+  #cli-hub-panel .ch-row { display:flex; flex-direction:column; align-items:flex-start; width:100%; text-align:left; padding:8px 10px; margin:4px 0; border-radius:10px; border:1px solid var(--ax-blue-border); background:rgba(0,0,0,0.35); color:var(--an-text); cursor:pointer; }
+  #cli-hub-panel .ch-row:hover { border-color:var(--ax-blue-bright); }
+  #cli-hub-panel .ch-name { font-weight:600; color:var(--ax-blue-bright); }
+  #cli-hub-panel .ch-sub { color:var(--an-muted); font-size:10px; margin-top:3px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #cli-hub-panel .ch-link { color:var(--ax-green-bright); font-size:10px; margin-top:4px; }
+  #cli-hub-panel .ch-line { padding:4px 0; color:var(--an-text); font-size:10px; border-bottom:1px solid rgba(255,255,255,0.04); }
+  #cli-hub-panel .ch-mini { font-size:9px; padding:2px 6px; border-radius:6px; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); cursor:pointer; margin-right:4px; }
+  #cli-hub-panel .ch-empty { color:var(--an-muted); padding:12px 4px; }
   #globe-deck-input-row { display:flex; align-items:center; gap:6px; padding:8px 10px; border-top:1px solid var(--ax-blue-border); flex-shrink:0; background:rgba(0,0,0,0.72); }
   #aci-cli-prompt { color:var(--ax-blue-bright); flex-shrink:0; font-size:11px; display:none; text-shadow:0 0 6px var(--ax-blue-glow); }
   #globe-deck.expanded #aci-cli-prompt { display:inline; }
@@ -508,9 +525,16 @@
         <button id="aci-vhf" title="PMR radio" type="button">📡</button>
         <button id="aci-call" title="Phone" type="button">☎️</button>
       </div>
+      <div id="cli-hub-bar">
+        <input id="cli-hub-search" type="search" autocomplete="off" spellcheck="false" placeholder="Search users · conversations · CLI…" aria-label="Search CLI hub" />
+        <button id="cli-hub-search-btn" type="button" title="Search CLI hub">⌕</button>
+      </div>
       <div id="globe-deck-body">
         <div id="globe-deck-log"></div>
         <div id="globe-deck-stage">
+    <div id="cli-hub-panel">
+      <div id="cli-hub-results"><div class="ch-empty">Search users or open cli users</div></div>
+    </div>
     <div id="sat-radio">
       <div class="sr-row"><span class="sr-ch">EU PMR Ch 11</span><span class="sr-freq">446.13125 MHz</span><span>peers: <b id="sr-peers">0</b></span><button id="sr-close" type="button">✖️</button></div>
       <div class="sr-honest">RF: tune YOUR PMR446 handheld to Ch 11 (446.13125 MHz) — browser cannot transmit on 446 MHz. In-app: real mic + WebRTC voice to other Astranov users on this channel.</div>
@@ -1992,7 +2016,7 @@ const GlobeDeck = {
     AppShortcuts?.init?.();
     this.bindHandle();
     this.bindDeckGestures();
-    ['sat-radio', 'node-batch', 'vendor-menu', 'globe-youtube', 'globe-super-add', 'globe-site-browser'].forEach(id => {
+    ['sat-radio', 'node-batch', 'vendor-menu', 'globe-youtube', 'globe-super-add', 'globe-site-browser', 'cli-hub-panel'].forEach(id => {
       const el = document.getElementById(id);
       const stage = document.getElementById('globe-deck-stage');
       if (el && stage && el.parentElement !== stage) stage.appendChild(el);
@@ -2115,6 +2139,7 @@ const GlobeDeck = {
     if (kind === 'reply' || kind === 'out' || kind === 'ok') this.setPreview(text);
     if (kind === 'err') CliRibbon?.setNotice?.(text, 'err');
     if (this._userEngaged && (kind === 'reply' || kind === 'out' || kind === 'err')) this.ping();
+    if (kind !== 'dim' && kind !== 'map') CliHub?.queueLine?.(text, kind);
   },
 
   say(text, cls) {
@@ -2249,6 +2274,7 @@ const GlobeDeck = {
       'sat-radio': 'EU PMR Ch 11 · comms',
       'globe-youtube': 'YouTube on globe',
       'globe-super-add': 'Super Add · post video',
+      'cli-hub-panel': 'CLI · search & chats',
     };
     return titles[panelId] || 'Collective — globe deck';
   },
@@ -2308,6 +2334,7 @@ const CliRibbon = {
     phone: 'Phone',
     site: 'Site',
     cli: 'CLI',
+    chats: 'Chats',
   },
 
   MOTTO_RE: /justice\s*→\s*truth\s*→\s*freedom|collective intelligence|astranov command line\s*—|architect\s*·\s*collective|δικαιοσύνη|αλήθεια|ελευθερία/gi,
@@ -2547,6 +2574,17 @@ const AppShortcuts = {
       close() {
         if (GlobeDeck?.activeTask === 'phone') GlobeDeck.activeTask = null;
         SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
+      },
+    },
+    chats: {
+      icon: '💬',
+      title: 'Chats',
+      activate() {
+        CliHub?.openPanel?.();
+        SuperCli?.setContext?.('chats');
+      },
+      close() {
+        CliHub?.closePanel?.();
       },
     },
     site: {
@@ -3007,6 +3045,7 @@ Object.assign(SuperCli, {
     this.out('scenario wake|city|groceries|youtube|reviews|list — real user flows', 'ok');
     this.out('players · friends · kryfto · hide · seek — map presence (sign in)', 'ok');
     this.out('team create <name> · team join <id> · contact video|voice|message <name>', 'ok');
+    this.out('cli search <text> · cli users · cli view <name> · cloud dm <name> · chat <name> <msg>', 'ok');
     this.out('drivers · driver <name> — pick delivery driver on map/cloud', 'ok');
     this.out('tilemaxos — takeover ANY drone (FPV priority) · flyback to pilot · scan · evolve', 'ok');
     this.out('profile me · match <site> dates [pax] · match field <site> <name> · site approve <slug>', 'ok');
@@ -3419,6 +3458,24 @@ Object.assign(SuperCli, {
         await AstranovSitesProvision?.cli?.(parts);
         return { handled: true };
       }
+      if (cmd === 'cli') {
+        await CliHub?.cmd?.(parts);
+        return { handled: true };
+      }
+      if (cmd === 'cloud' && (parts[1] || '').toLowerCase() === 'dm') {
+        await CliHub?.startPrivateCloud?.(parts.slice(2).join(' '));
+        return { handled: true };
+      }
+      if (cmd === 'chat' && parts[1]) {
+        const msg = parts.slice(2).join(' ');
+        if (msg && MapComms?.dmUser && MapComms?.kind === 'dm') {
+          MapComms.sendMessage(msg);
+        } else {
+          await CliHub?.startPrivateCloud?.(parts[1]);
+          if (msg) MapComms?.sendMessage?.(msg);
+        }
+        return { handled: true };
+      }
       if (cmd === 'contact') {
         await MapComms?.contactCmd?.(parts);
         return { handled: true };
@@ -3483,6 +3540,302 @@ SuperCli.init = function () {
   _superInit();
   SuperCli.initBrain();
 };
+
+// === CLI HUB — cloud transcripts · search users/chats · private cloud DM ===
+const CliHub = {
+  _pending: [],
+  _flushTimer: null,
+  _viewUserId: null,
+  _searchDebounce: null,
+
+  init() {
+    this._bindUi();
+    if (Auth?.client) {
+      Auth.client.auth.onAuthStateChange((_e, s) => {
+        if (s?.user) this._subscribe();
+        else this._viewUserId = null;
+      });
+    }
+    setTimeout(() => { if (Auth?.user) this._subscribe(); }, 2000);
+  },
+
+  async api(body) {
+    const headers = Auth?.authHeaders ? await Auth.authHeaders() : { 'Content-Type': 'application/json', apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY };
+    const r = await fetch(SB_URL + '/functions/v1/cli-hub', {
+      method: 'POST', headers,
+      body: JSON.stringify(body),
+    });
+    return r.json().catch(() => ({ error: 'network' }));
+  },
+
+  canViewAll() {
+    return !!(AstranovSession?.isAstranov?.() || Auth?.isOwner);
+  },
+
+  queueLine(line, cls, opts) {
+    if (!Auth?.user || !line) return;
+    opts = opts || {};
+    this._pending.push({
+      line: String(line).slice(0, 2000),
+      cls: String(cls || 'out').slice(0, 24),
+      circle_id: opts.circle_id || MapComms?.teamId || null,
+      peer_id: opts.peer_id || MapComms?.dmUser?.id || null,
+    });
+    if (this._pending.length > 32) this._pending = this._pending.slice(-32);
+    if (!this._flushTimer) {
+      this._flushTimer = setTimeout(() => this._flush(), 1800);
+    }
+  },
+
+  async _flush() {
+    this._flushTimer = null;
+    if (!this._pending.length || !Auth?.user) return;
+    const batch = this._pending.splice(0, 24);
+    await this.api({ action: 'append', lines: batch });
+  },
+
+  _bindUi() {
+    const search = document.getElementById('cli-hub-search');
+    const btn = document.getElementById('cli-hub-search-btn');
+    if (search && !search.dataset.bound) {
+      search.dataset.bound = '1';
+      search.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); this.runSearch(search.value); }
+        if (e.key === 'Escape') this.closePanel();
+      });
+      search.addEventListener('input', () => {
+        clearTimeout(this._searchDebounce);
+        const q = search.value.trim();
+        if (q.length < 2) return;
+        this._searchDebounce = setTimeout(() => this.runSearch(q), 420);
+      });
+    }
+    if (btn && !btn.dataset.bound) {
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', () => {
+        const q = document.getElementById('cli-hub-search')?.value?.trim();
+        if (q) this.runSearch(q);
+        else this.openPanel();
+      });
+    }
+    const panel = document.getElementById('cli-hub-panel');
+    if (panel && !panel.dataset.bound) {
+      panel.dataset.bound = '1';
+      panel.addEventListener('click', (e) => {
+        const el = e.target.closest('[data-ch-action]');
+        if (!el) return;
+        const act = el.dataset.chAction;
+        const uid = el.dataset.chUser;
+        const cid = el.dataset.chCircle;
+        if (act === 'view' && uid) this.viewUser(uid);
+        if (act === 'dm' && uid) this.startPrivateCloud(uid);
+        if (act === 'chat' && cid) MapComms?.joinTeam?.(cid);
+      });
+    }
+  },
+
+  esc(s) {
+    return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  },
+
+  openPanel() {
+    GlobeDeck?.showStage?.('cli-hub-panel', 'chats');
+    GlobeDeck?.expand?.('CLI · search');
+    document.getElementById('cli-hub-bar')?.classList.add('open');
+    document.getElementById('cli-hub-search')?.focus();
+    if (this.canViewAll()) this.listUsers();
+  },
+
+  closePanel() {
+    document.getElementById('cli-hub-bar')?.classList.remove('open');
+    const panel = document.getElementById('cli-hub-panel');
+    if (panel) panel.classList.remove('deck-active');
+    if (GlobeDeck?.activeTask === 'chats') GlobeDeck?.completeTask?.('chats');
+  },
+
+  async listUsers() {
+    const r = await this.api({ action: 'users' });
+    const box = document.getElementById('cli-hub-results');
+    if (!box) return;
+    if (!r.ok) {
+      box.innerHTML = '<div class="ch-empty">' + this.esc(r.error || 'login required') + '</div>';
+      return;
+    }
+    const head = this.canViewAll()
+      ? '<div class="ch-head">◎ All users · cloud CLI' + (r.owner ? ' · owner view' : '') + '</div>'
+      : '<div class="ch-head">◎ Players on field</div>';
+    box.innerHTML = head + (r.users || []).map((u) => {
+      const last = u.last_cli?.line ? u.last_cli.line.slice(0, 72) : '—';
+      return '<button type="button" class="ch-row" data-ch-action="view" data-ch-user="' + this.esc(u.id) + '">'
+        + '<span class="ch-name">' + this.esc(u.emoji) + ' ' + this.esc(u.name) + (u.self ? ' · you' : '') + (u.live ? ' · live' : '') + '</span>'
+        + '<span class="ch-sub">' + this.esc(last) + '</span>'
+        + '<span class="ch-actions">'
+        + '<span class="ch-link" data-ch-action="dm" data-ch-user="' + this.esc(u.id) + '">cloud dm</span>'
+        + '</span></button>';
+    }).join('') || '<div class="ch-empty">No live users — invite sign-in</div>';
+    this.openPanel();
+  },
+
+  async runSearch(q) {
+    q = String(q || '').trim();
+    if (q.length < 2) {
+      ACIControl?.reply('Search: 2+ chars — users · chats · CLI lines');
+      return;
+    }
+    const r = await this.api({ action: 'search', q });
+    const box = document.getElementById('cli-hub-results');
+    if (!box) return;
+    if (!r.ok) {
+      box.innerHTML = '<div class="ch-empty">' + this.esc(r.error) + '</div>';
+      this.openPanel();
+      return;
+    }
+    let html = '<div class="ch-head">Search · «' + this.esc(q) + '»</div>';
+    if (r.users?.length) {
+      html += '<div class="ch-section">Users</div>';
+      html += r.users.map((u) =>
+        '<button type="button" class="ch-row" data-ch-action="view" data-ch-user="' + this.esc(u.id) + '">'
+        + '<span class="ch-name">' + this.esc(u.emoji) + ' ' + this.esc(u.name) + '</span>'
+        + '<span class="ch-link" data-ch-action="dm" data-ch-user="' + this.esc(u.id) + '">cloud dm →</span></button>'
+      ).join('');
+    }
+    if (r.chats?.length) {
+      html += '<div class="ch-section">Conversations</div>';
+      html += r.chats.slice(0, 12).map((c) =>
+        '<button type="button" class="ch-row" data-ch-action="chat" data-ch-circle="' + this.esc(c.circle_id) + '">'
+        + '<span class="ch-name">' + this.esc(c.author || '?') + '</span>'
+        + '<span class="ch-sub">' + this.esc(c.text?.slice(0, 80)) + '</span></button>'
+      ).join('');
+    }
+    if (r.cli_lines?.length) {
+      html += '<div class="ch-section">CLI lines</div>';
+      html += r.cli_lines.slice(0, 10).map((l) =>
+        '<div class="ch-line deck-' + this.esc(l.cls || 'out') + '">'
+        + '<button type="button" class="ch-mini" data-ch-action="view" data-ch-user="' + this.esc(l.user_id) + '">view</button> '
+        + this.esc(l.line?.slice(0, 120)) + '</div>'
+      ).join('');
+    }
+    if (!r.users?.length && !r.chats?.length && !r.cli_lines?.length) {
+      html += '<div class="ch-empty">No matches</div>';
+    }
+    box.innerHTML = html;
+    this.openPanel();
+    AciCli?.print?.('search · ' + q + ' · ' + (r.users?.length || 0) + ' users', 'dim');
+  },
+
+  async viewUser(userId) {
+    if (!userId) return;
+    const owner = this.canViewAll();
+    if (userId !== Auth?.user?.id && !owner) {
+      ACIControl?.reply('Owner only — or view your own CLI');
+      return;
+    }
+    const r = await this.api({ action: 'feed', user_id: userId, limit: 50 });
+    if (!r.ok) {
+      AciCli?.print('view failed · ' + (r.error || '?'), 'err');
+      return;
+    }
+    this._viewUserId = userId;
+    const name = r.user?.display_name || String(userId).slice(0, 8);
+    GlobeDeck?.clearLog?.();
+    GlobeDeck?.expand('CLI · ' + name + (r.owner_view ? ' · owner' : ''));
+    AciCli?.print('── Cloud CLI · ' + name + ' ──', 'dim');
+    (r.lines || []).forEach((row) => {
+      GlobeDeck?.log?.(row.line, row.cls || 'out');
+    });
+    if (!(r.lines || []).length) AciCli?.print('(no cloud lines yet)', 'dim');
+    CliRibbon?.setActive?.('CLI · ' + name);
+  },
+
+  async startPrivateCloud(targetRef) {
+    if (!Auth?.user) {
+      Auth?.signInGoogle?.();
+      return;
+    }
+    let targetId = String(targetRef || '');
+    if (!targetId.match(/^[0-9a-f-]{36}$/i)) {
+      const q = targetRef.toLowerCase();
+      const hit = (window.others || []).find((u) => (u.name || '').toLowerCase().includes(q))
+        || [...(MapComms?.members?.values() || [])].find((u) => (u.name || '').toLowerCase().includes(q));
+      if (hit?.id) targetId = hit.id;
+      else {
+        const sr = await this.api({ action: 'search', q: targetRef });
+        if (sr.users?.[0]?.id) targetId = sr.users[0].id;
+      }
+    }
+    if (!targetId) {
+      ACIControl?.reply('User not found — search name in CLI hub');
+      return;
+    }
+    const r = await this.api({ action: 'open_dm', target_user_id: targetId });
+    if (!r.ok) {
+      AciCli?.print('dm failed · ' + (r.error || '?'), 'err');
+      return;
+    }
+    const target = {
+      id: r.target.id,
+      name: r.target.display_name || 'User',
+      lat: r.target.field_lat,
+      lng: r.target.field_lng,
+      emoji: r.target.avatar_emoji || '👤',
+    };
+    const msgs = (r.messages || []).map((m) => ({
+      author: m.author || '?',
+      body: m.text,
+      t: m.ts || Date.now(),
+      author_id: m.author_id,
+    }));
+    await MapComms?.openPrivateCloud?.({
+      circleId: r.circle_id,
+      target,
+      messages: msgs,
+    });
+    AciCli?.print('◎ Private cloud · ' + target.name + ' · mapdm open', 'ok');
+    ACIControl?.reply('Cloud DM with ' + target.name + ' — type in cloud or: chat ' + target.name + ' <message>');
+  },
+
+  async cmd(parts) {
+    const sub = (parts[1] || 'help').toLowerCase();
+    const rest = parts.slice(2).join(' ').trim();
+    if (sub === 'search' && rest) return this.runSearch(rest);
+    if (sub === 'users' || sub === 'list') return this.listUsers();
+    if (sub === 'view' && rest) {
+      const q = rest.toLowerCase();
+      if (q === 'me' || q === 'self') return this.viewUser(Auth.user.id);
+      const sr = await this.api({ action: 'search', q: rest });
+      const uid = sr.users?.[0]?.id;
+      if (uid) return this.viewUser(uid);
+      AciCli?.print('no user · ' + rest, 'err');
+      return;
+    }
+    if (sub === 'dm' && rest) return this.startPrivateCloud(rest);
+    if (sub === 'open') { this.openPanel(); return; }
+    AciCli?.print([
+      'cli search <text> — users · chats · CLI lines',
+      'cli users — live roster' + (this.canViewAll() ? ' (owner: all CLIs)' : ''),
+      'cli view <name> — cloud transcript',
+      'cli dm <name> — private cloud conversation',
+      'cloud dm <name> — same',
+    ].join('\n'), 'ok');
+  },
+
+  _subscribe() {
+    if (!Auth?.client || this._rtChannel) return;
+    if (!this.canViewAll()) return;
+    this._rtChannel = Auth.client.channel('cli-hub-owner');
+    this._rtChannel.on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'cli_transcripts',
+    }, ({ new: row }) => {
+      if (!row || row.user_id === Auth?.user?.id) return;
+      if (this._viewUserId === row.user_id) {
+        GlobeDeck?.log?.(row.line, row.cls || 'out');
+      }
+    });
+    this._rtChannel.subscribe();
+  },
+};
+
+window.CliHub = CliHub;
 
 // === ACI CLI — Collective dev terminal (login required) ===
 const AciCli = {
@@ -3692,6 +4045,7 @@ const AciCli = {
     this.histIdx = -1;
     this.saveHistory();
     this.print((document.getElementById('aci-cli-prompt')?.textContent || '$') + ' ' + line, 'cmd');
+    CliHub?.queueLine?.(line, 'cmd');
 
     const routed = await SuperCli?.exec?.(line, opts);
     if (routed?.handled) return;
@@ -12030,6 +12384,39 @@ const MapComms = {
     return list.filter(m => m.lat != null && m.lng != null);
   },
 
+  async openPrivateCloud(opts) {
+    opts = opts || {};
+    const target = opts.target;
+    const circleId = opts.circleId;
+    if (!Auth?.user || !target?.id || !circleId) return null;
+    this.kind = 'dm';
+    this.dmUser = { id: target.id, name: target.name, lat: target.lat, lng: target.lng, emoji: target.emoji };
+    this.teamId = circleId;
+    this.teamName = 'DM · ' + (target.name || 'User');
+    this.members.clear();
+    const self = this.selfMember();
+    this.members.set(self.id, self);
+    this.members.set(target.id, {
+      id: target.id,
+      name: target.name || 'User',
+      lat: target.lat ?? self.lat,
+      lng: target.lng ?? self.lng,
+      emoji: target.emoji || '👤',
+    });
+    this.messages = (opts.messages || []).map((m) => ({
+      author: m.author || '?',
+      name: m.author,
+      body: m.body || m.text,
+      t: m.t || Date.now(),
+      author_id: m.author_id,
+    }));
+    await this._joinChannel(circleId);
+    this._openCloud(this.teamName);
+    this._rebuildViz();
+    this._renderMessages();
+    return circleId;
+  },
+
   async openSession(opts) {
     opts = opts || {};
     if (!Auth?.user) {
@@ -12096,11 +12483,13 @@ const MapComms = {
       return;
     }
     const teamId = (id || '').trim();
-    if (!teamId.startsWith('mapteam-')) {
-      ACIControl?.reply('usage: team join mapteam-…');
+    if (!teamId.startsWith('mapteam-') && !teamId.startsWith('mapdm-')) {
+      ACIControl?.reply('usage: team join mapteam-… · mapdm-…');
       return;
     }
     this.teamId = teamId;
+    this.kind = teamId.startsWith('mapdm-') ? 'dm' : 'team';
+    if (this.kind !== 'dm') this.dmUser = null;
     try {
       const { data } = await Auth.client.from('circles').select('name,map_members').eq('id', teamId).maybeSingle();
       if (data?.name) this.teamName = data.name;
@@ -12114,11 +12503,38 @@ const MapComms = {
     } catch (_) {}
     const self = this.selfMember();
     this.members.set(self.id, self);
+    if (this.kind === 'dm') {
+      const other = [...this.members.values()].find((m) => m.id && m.id !== Auth.user.id);
+      if (other) {
+        this.dmUser = { id: other.id, name: other.name, lat: other.lat, lng: other.lng, emoji: other.emoji };
+        if (!this.teamName || this.teamName === teamId) this.teamName = 'DM · ' + (other.name || 'User');
+      } else {
+        const peerId = teamId.replace(/^mapdm-/, '').split('--').find((p) => p && p !== Auth.user.id);
+        if (peerId) {
+          try {
+            const { data: prof } = await Auth.client.from('profiles')
+              .select('id, display_name, field_lat, field_lng, avatar_emoji')
+              .eq('id', peerId).maybeSingle();
+            if (prof) {
+              this.dmUser = {
+                id: prof.id,
+                name: prof.display_name || 'User',
+                lat: prof.field_lat,
+                lng: prof.field_lng,
+                emoji: prof.avatar_emoji || '👤',
+              };
+              this.members.set(prof.id, this.dmUser);
+              if (!this.teamName || this.teamName === teamId) this.teamName = 'DM · ' + (prof.display_name || 'User');
+            }
+          } catch (_) {}
+        }
+      }
+    }
     await this._joinChannel(teamId);
     this._openCloud(this.teamName);
     this._rebuildViz();
     this._renderMessages();
-    ACICli?.print('◎ joined ' + this.teamName, 'ok');
+    AciCli?.print('◎ joined ' + this.teamName, 'ok');
   },
 
   async leaveTeam() {
@@ -12189,6 +12605,7 @@ const MapComms = {
       await Auth.client.from('circle_messages').insert({
         circle_id: this.teamId,
         author: msg.author || msg.name || 'user',
+        author_id: msg.author_id || Auth?.user?.id || null,
         text: msg.body,
         ts: msg.t || Date.now(),
       });
@@ -12219,6 +12636,9 @@ const MapComms = {
     this._onChat(msg);
     this.rtChannel?.send({ type: 'broadcast', event: 'chat', payload: msg });
     if (this.dmUser) this._sendDm(msg);
+    if (this.kind === 'dm' && this.dmUser?.id) {
+      CliHub?.queueLine?.(msg.body, 'out', { peer_id: this.dmUser.id, circle_id: this.teamId });
+    }
   },
 
   _renderMessages() {
@@ -12298,6 +12718,10 @@ const MapComms = {
     document.getElementById('map-comms-contact')?.classList.remove('open');
     const m = (mode || 'message').toLowerCase();
     if (m === 'message' || m === 'msg' || m === 'chat') {
+      if (CliHub?.startPrivateCloud) {
+        await CliHub.startPrivateCloud(u.id);
+        return;
+      }
       this.dmUser = u;
       this._openCloud('DM · ' + u.name);
       ACIControl?.reply('Message ' + u.name + ' in the cloud above the map');
@@ -15794,6 +16218,7 @@ FieldBrain.hookFeed();
 GlobeDeck.init();
 SuperCli.init();
 SessionHold.init();
+CliHub.init();
 AciCli.init();
 setTimeout(() => Auth.refreshAuthority(), 800);
 setTimeout(() => {

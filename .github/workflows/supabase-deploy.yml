@@ -58,6 +58,7 @@ jobs:
           supabase functions deploy council        --no-verify-jwt
           supabase functions deploy voice          --no-verify-jwt
           supabase functions deploy pilot-command  --no-verify-jwt
+          supabase functions deploy cli-hub       --no-verify-jwt
 
       - name: Set Edge Function secrets
         env:

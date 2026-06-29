@@ -206,6 +206,7 @@ const AciCli = {
     this.histIdx = -1;
     this.saveHistory();
     this.print((document.getElementById('aci-cli-prompt')?.textContent || '$') + ' ' + line, 'cmd');
+    CliHub?.queueLine?.(line, 'cmd');
 
     const routed = await SuperCli?.exec?.(line, opts);
     if (routed?.handled) return;

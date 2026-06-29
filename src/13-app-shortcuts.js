@@ -115,6 +115,17 @@ const AppShortcuts = {
         SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
       },
     },
+    chats: {
+      icon: '💬',
+      title: 'Chats',
+      activate() {
+        CliHub?.openPanel?.();
+        SuperCli?.setContext?.('chats');
+      },
+      close() {
+        CliHub?.closePanel?.();
+      },
+    },
     site: {
       icon: '🌐',
       title: 'Site',

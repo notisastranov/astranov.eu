@@ -17,7 +17,7 @@ const GlobeDeck = {
     AppShortcuts?.init?.();
     this.bindHandle();
     this.bindDeckGestures();
-    ['sat-radio', 'node-batch', 'vendor-menu', 'globe-youtube', 'globe-super-add', 'globe-site-browser'].forEach(id => {
+    ['sat-radio', 'node-batch', 'vendor-menu', 'globe-youtube', 'globe-super-add', 'globe-site-browser', 'cli-hub-panel'].forEach(id => {
       const el = document.getElementById(id);
       const stage = document.getElementById('globe-deck-stage');
       if (el && stage && el.parentElement !== stage) stage.appendChild(el);
@@ -140,6 +140,7 @@ const GlobeDeck = {
     if (kind === 'reply' || kind === 'out' || kind === 'ok') this.setPreview(text);
     if (kind === 'err') CliRibbon?.setNotice?.(text, 'err');
     if (this._userEngaged && (kind === 'reply' || kind === 'out' || kind === 'err')) this.ping();
+    if (kind !== 'dim' && kind !== 'map') CliHub?.queueLine?.(text, kind);
   },
 
   say(text, cls) {
@@ -274,6 +275,7 @@ const GlobeDeck = {
       'sat-radio': 'EU PMR Ch 11 · comms',
       'globe-youtube': 'YouTube on globe',
       'globe-super-add': 'Super Add · post video',
+      'cli-hub-panel': 'CLI · search & chats',
     };
     return titles[panelId] || 'Collective — globe deck';
   },

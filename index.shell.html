@@ -208,6 +208,23 @@
   .yt-n { font-weight:700; color:var(--ax-blue-bright); min-width:18px; }
   .yt-meta b { display:block; font-size:11px; margin-bottom:2px; }
   .yt-meta small { color:#9ab; font-size:10px; }
+  #cli-hub-bar { display:none; align-items:center; gap:6px; padding:6px 10px; border-bottom:1px solid var(--ax-blue-border); background:rgba(0,0,0,0.5); flex-shrink:0; }
+  #globe-deck.expanded #cli-hub-bar { display:flex; }
+  #cli-hub-search { flex:1; min-width:0; padding:7px 10px; border-radius:10px; border:1px solid var(--ax-blue-border); background:rgba(0,8,20,0.65); color:var(--an-text); font:12px system-ui; outline:none; }
+  #cli-hub-search:focus { border-color:var(--ax-blue-bright); box-shadow:0 0 0 2px var(--ax-blue-glow); }
+  #cli-hub-search-btn { background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); border-radius:10px; padding:6px 10px; cursor:pointer; font-size:14px; flex-shrink:0; }
+  #cli-hub-panel { display:none; padding:8px 10px; background:rgba(0,10,24,0.92); pointer-events:auto; font:11px/1.4 system-ui; max-height:32vh; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  #cli-hub-panel.open, #cli-hub-panel.deck-active { display:block; }
+  #cli-hub-panel .ch-head { color:var(--ax-blue-bright); font-weight:600; margin-bottom:8px; font-size:11px; }
+  #cli-hub-panel .ch-section { color:var(--an-muted); font-size:10px; margin:10px 0 4px; text-transform:uppercase; letter-spacing:0.04em; }
+  #cli-hub-panel .ch-row { display:flex; flex-direction:column; align-items:flex-start; width:100%; text-align:left; padding:8px 10px; margin:4px 0; border-radius:10px; border:1px solid var(--ax-blue-border); background:rgba(0,0,0,0.35); color:var(--an-text); cursor:pointer; }
+  #cli-hub-panel .ch-row:hover { border-color:var(--ax-blue-bright); }
+  #cli-hub-panel .ch-name { font-weight:600; color:var(--ax-blue-bright); }
+  #cli-hub-panel .ch-sub { color:var(--an-muted); font-size:10px; margin-top:3px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #cli-hub-panel .ch-link { color:var(--ax-green-bright); font-size:10px; margin-top:4px; }
+  #cli-hub-panel .ch-line { padding:4px 0; color:var(--an-text); font-size:10px; border-bottom:1px solid rgba(255,255,255,0.04); }
+  #cli-hub-panel .ch-mini { font-size:9px; padding:2px 6px; border-radius:6px; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); cursor:pointer; margin-right:4px; }
+  #cli-hub-panel .ch-empty { color:var(--an-muted); padding:12px 4px; }
   #globe-deck-input-row { display:flex; align-items:center; gap:6px; padding:8px 10px; border-top:1px solid var(--ax-blue-border); flex-shrink:0; background:rgba(0,0,0,0.72); }
   #aci-cli-prompt { color:var(--ax-blue-bright); flex-shrink:0; font-size:11px; display:none; text-shadow:0 0 6px var(--ax-blue-glow); }
   #globe-deck.expanded #aci-cli-prompt { display:inline; }
@@ -508,9 +525,16 @@
         <button id="aci-vhf" title="PMR radio" type="button">📡</button>
         <button id="aci-call" title="Phone" type="button">☎️</button>
       </div>
+      <div id="cli-hub-bar">
+        <input id="cli-hub-search" type="search" autocomplete="off" spellcheck="false" placeholder="Search users · conversations · CLI…" aria-label="Search CLI hub" />
+        <button id="cli-hub-search-btn" type="button" title="Search CLI hub">⌕</button>
+      </div>
       <div id="globe-deck-body">
         <div id="globe-deck-log"></div>
         <div id="globe-deck-stage">
+    <div id="cli-hub-panel">
+      <div id="cli-hub-results"><div class="ch-empty">Search users or open cli users</div></div>
+    </div>
     <div id="sat-radio">
       <div class="sr-row"><span class="sr-ch">EU PMR Ch 11</span><span class="sr-freq">446.13125 MHz</span><span>peers: <b id="sr-peers">0</b></span><button id="sr-close" type="button">✖️</button></div>
       <div class="sr-honest">RF: tune YOUR PMR446 handheld to Ch 11 (446.13125 MHz) — browser cannot transmit on 446 MHz. In-app: real mic + WebRTC voice to other Astranov users on this channel.</div>

@@ -134,6 +134,7 @@ Object.assign(SuperCli, {
     this.out('scenario wake|city|groceries|youtube|reviews|list — real user flows', 'ok');
     this.out('players · friends · kryfto · hide · seek — map presence (sign in)', 'ok');
     this.out('team create <name> · team join <id> · contact video|voice|message <name>', 'ok');
+    this.out('cli search <text> · cli users · cli view <name> · cloud dm <name> · chat <name> <msg>', 'ok');
     this.out('drivers · driver <name> — pick delivery driver on map/cloud', 'ok');
     this.out('tilemaxos — takeover ANY drone (FPV priority) · flyback to pilot · scan · evolve', 'ok');
     this.out('profile me · match <site> dates [pax] · match field <site> <name> · site approve <slug>', 'ok');
@@ -544,6 +545,24 @@ Object.assign(SuperCli, {
       }
       if (cmd === 'site' || cmd === 'sites' || cmd === 'book') {
         await AstranovSitesProvision?.cli?.(parts);
+        return { handled: true };
+      }
+      if (cmd === 'cli') {
+        await CliHub?.cmd?.(parts);
+        return { handled: true };
+      }
+      if (cmd === 'cloud' && (parts[1] || '').toLowerCase() === 'dm') {
+        await CliHub?.startPrivateCloud?.(parts.slice(2).join(' '));
+        return { handled: true };
+      }
+      if (cmd === 'chat' && parts[1]) {
+        const msg = parts.slice(2).join(' ');
+        if (msg && MapComms?.dmUser && MapComms?.kind === 'dm') {
+          MapComms.sendMessage(msg);
+        } else {
+          await CliHub?.startPrivateCloud?.(parts[1]);
+          if (msg) MapComms?.sendMessage?.(msg);
+        }
         return { handled: true };
       }
       if (cmd === 'contact') {

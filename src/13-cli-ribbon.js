@@ -15,6 +15,7 @@ const CliRibbon = {
     phone: 'Phone',
     site: 'Site',
     cli: 'CLI',
+    chats: 'Chats',
   },
 
   MOTTO_RE: /justice\s*→\s*truth\s*→\s*freedom|collective intelligence|astranov command line\s*—|architect\s*·\s*collective|δικαιοσύνη|αλήθεια|ελευθερία/gi,
