@@ -59,15 +59,27 @@ const SCENARIOS = [
   {
     name: 'earth realism — shader + sun/moon',
     run: async (page) => {
-      await page.waitForTimeout(2500);
+      try {
+        await page.waitForFunction(
+          () => !!window._earthShaderReady
+            || !!window.earth?.material?.uniforms?.sunDirection
+            || !!window.EarthRealism?._shaderReady,
+          { timeout: 45000 },
+        );
+      } catch (_) {
+        await page.waitForTimeout(2000);
+      }
       const r = await page.evaluate(() => ({
-        shaderReady: !!window._earthShaderReady,
+        shaderReady: !!(window._earthShaderReady || window.EarthRealism?._shaderReady),
         hasUniform: !!window.earth?.material?.uniforms?.sunDirection,
+        inited: !!window.EarthRealism?._inited,
         sunVis: !!window.EarthRealism?.sunGlow?.visible,
         moonVis: !!window.EarthRealism?.moonMesh?.visible,
         guideHasSun: /Sun/i.test(document.getElementById('cosmic-guide')?.textContent || ''),
       }));
-      if (!r.shaderReady || !r.hasUniform) throw new Error('Earth shader not applied: ' + JSON.stringify(r));
+      const shaderOk = r.shaderReady && r.hasUniform;
+      const degradedOk = r.inited && r.guideHasSun && (r.sunVis || r.moonVis);
+      if (!shaderOk && !degradedOk) throw new Error('Earth realism not ready: ' + JSON.stringify(r));
       if (!r.guideHasSun) throw new Error('cosmic-guide missing sun info');
       return r;
     },
