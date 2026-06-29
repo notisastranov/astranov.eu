@@ -331,6 +331,9 @@
   .ge-label.ge-flash { animation:ge-flash 0.9s ease-in-out infinite; border-color:var(--ax-red-border); box-shadow:0 0 14px var(--ax-red-glow); }
   .ge-label.ge-urg-3 { border-color:var(--ax-red-border); box-shadow:0 0 10px var(--ax-red-glow); }
   .ge-label.ge-selected { border-color:var(--ax-yellow-border); background:rgba(0,0,0,0.88); box-shadow:0 0 10px var(--ax-yellow-glow); }
+  .ge-label.ge-travel-label { display:flex !important; border-color:#ffdd44; box-shadow:0 0 14px rgba(255,221,68,0.45); z-index:12; }
+  .ge-travel-arrow { font-size:18px; color:#ffdd44; text-shadow:0 0 8px rgba(255,221,68,0.8); flex-shrink:0; line-height:1; }
+  #super-cli-bar[data-truth="travel"] { border-bottom-color:#ffdd44; }
   @keyframes ge-flash { 0%,100%{ opacity:1; } 50%{ opacity:0.55; } }
   #globe-entity-hud { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:180; width:min(320px,92vw); padding:12px 14px; border-radius:14px; background:var(--ax-panel-strong); border:1px solid var(--ax-blue-border); font:11px/1.45 system-ui; color:var(--an-text); pointer-events:auto; box-shadow:0 6px 24px rgba(0,0,0,0.55), 0 0 16px var(--ax-blue-glow); backdrop-filter:blur(12px); }
   #globe-entity-hud.open { display:block; }

@@ -619,6 +619,19 @@ function placeMe(lat, lng, opts) {
   const quiet = !!opts.quiet;
   const markerOnly = !!opts.markerOnly;
   const shouldFly = !!opts.fly || (!markerOnly && GlobeControl?.shouldAutoFly?.());
+  if (GhostTravel?.active?.()) {
+    GhostTravel.setTruePos(lat, lng);
+    window._truePos = { lat, lng };
+    userLocated = true;
+    const g = GhostTravel.publicPos();
+    if (shouldFly && typeof flyToPoint === 'function') {
+      const pos = latLngToPos(g.lat, g.lng, 1.03);
+      flyToPoint(new THREE.Vector3(pos.x, pos.y, pos.z), opts.zoom ?? (GlobeControl?.Z?.global || 2.55));
+    }
+    GhostTravel._applyVisual?.();
+    if (!quiet) FieldBrain?.pulse('location', 'ghost route · real GPS private', { role: 'client', props: { visual_truth: true } });
+    return;
+  }
   window._lastPos = { lat, lng };
   if (window._meMarker && window._meMarker.parent) window._meMarker.parent.remove(window._meMarker);
   const pos = latLngToPos(lat, lng, 1.03);

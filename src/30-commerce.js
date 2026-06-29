@@ -32,6 +32,7 @@ const Commerce = {
   },
 
   userLatLng() {
+    if (GhostTravel?.active?.() && window._truePos) return { lat: window._truePos.lat, lng: window._truePos.lng };
     if (userLocated && window._lastPos) return { lat: window._lastPos.lat, lng: window._lastPos.lng };
     return { lat: 36.4239, lng: 28.2245 };
   },

@@ -80,6 +80,14 @@ const ContextTruth = {
     if (task === 'add') {
       return { mode: 'add', ctx: 'add', label: 'Super Add', detail: 'Post · vendor · site' };
     }
+    if (GhostTravel?.active?.() && GhostTravel._target) {
+      return {
+        mode: 'travel',
+        ctx: 'travel',
+        label: '→ ' + GhostTravel._target.city,
+        detail: 'Ghost route · ' + GhostTravel._target.name + ' · ' + GhostTravel.SPEED_KMH + ' km/h',
+      };
+    }
     if (TelemachosPilot?.edition && (GlobeDeck?.activeTask === 'telemachos' || window._pilot)) {
       return {
         mode: 'telemachos',

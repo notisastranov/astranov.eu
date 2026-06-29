@@ -72,7 +72,9 @@ const FieldBrain = {
       AciCoders.observeActivity(action, detail, opts.props);
     }
     if (!Auth?.user || !FIELD_SCOPE.has(action)) return;
-    const pos = window._lastPos || {};
+    const pos = GhostTravel?.active?.() ? GhostTravel.publicPos() : (window._lastPos || {});
+    const props = { ...(opts.props || {}) };
+    if (GhostTravel?.active?.()) props.visual_truth = true;
     ACI.api({
       mode: 'field_pulse',
       action,
@@ -80,7 +82,7 @@ const FieldBrain = {
       detail: String(detail || '').slice(0, 220),
       lat: pos.lat ?? null,
       lng: pos.lng ?? null,
-      props: opts.props || {}
+      props,
     });
   },
 

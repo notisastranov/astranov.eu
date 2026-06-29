@@ -331,6 +331,9 @@
   .ge-label.ge-flash { animation:ge-flash 0.9s ease-in-out infinite; border-color:var(--ax-red-border); box-shadow:0 0 14px var(--ax-red-glow); }
   .ge-label.ge-urg-3 { border-color:var(--ax-red-border); box-shadow:0 0 10px var(--ax-red-glow); }
   .ge-label.ge-selected { border-color:var(--ax-yellow-border); background:rgba(0,0,0,0.88); box-shadow:0 0 10px var(--ax-yellow-glow); }
+  .ge-label.ge-travel-label { display:flex !important; border-color:#ffdd44; box-shadow:0 0 14px rgba(255,221,68,0.45); z-index:12; }
+  .ge-travel-arrow { font-size:18px; color:#ffdd44; text-shadow:0 0 8px rgba(255,221,68,0.8); flex-shrink:0; line-height:1; }
+  #super-cli-bar[data-truth="travel"] { border-bottom-color:#ffdd44; }
   @keyframes ge-flash { 0%,100%{ opacity:1; } 50%{ opacity:0.55; } }
   #globe-entity-hud { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:180; width:min(320px,92vw); padding:12px 14px; border-radius:14px; background:var(--ax-panel-strong); border:1px solid var(--ax-blue-border); font:11px/1.45 system-ui; color:var(--an-text); pointer-events:auto; box-shadow:0 6px 24px rgba(0,0,0,0.55), 0 0 16px var(--ax-blue-glow); backdrop-filter:blur(12px); }
   #globe-entity-hud.open { display:block; }
@@ -1894,7 +1897,7 @@ const Auth = {
     if (!this.client || !this.user?.id) return;
     try {
       const { data } = await this.client.from('profiles')
-        .select('display_name, avatar_emoji, avatar_url')
+        .select('display_name, avatar_emoji')
         .eq('id', this.user.id)
         .maybeSingle();
       if (data) {
@@ -2033,8 +2036,7 @@ const Auth = {
         || 'User'
       );
       const avatar = this.user.user_metadata?.avatar_url
-        || this.user.user_metadata?.picture
-        || this._profileVisual?.avatar_url;
+        || this.user.user_metadata?.picture;
       const emoji = this._profileVisual?.avatar_emoji;
       if (btn) {
         btn.classList.remove('auth-out', 'auth-boot');
@@ -4030,6 +4032,14 @@ const ContextTruth = {
     if (task === 'add') {
       return { mode: 'add', ctx: 'add', label: 'Super Add', detail: 'Post · vendor · site' };
     }
+    if (GhostTravel?.active?.() && GhostTravel._target) {
+      return {
+        mode: 'travel',
+        ctx: 'travel',
+        label: '→ ' + GhostTravel._target.city,
+        detail: 'Ghost route · ' + GhostTravel._target.name + ' · ' + GhostTravel.SPEED_KMH + ' km/h',
+      };
+    }
     if (TelemachosPilot?.edition && (GlobeDeck?.activeTask === 'telemachos' || window._pilot)) {
       return {
         mode: 'telemachos',
@@ -4144,6 +4154,236 @@ const ContextTruth = {
   },
 };
 window.ContextTruth = ContextTruth;
+
+// === GHOST TRAVEL — owner real location never leaves device; globe shows en-route ghost ===
+const GhostTravel = {
+  SPEED_KMH: 820,
+  TICK_MS: 1000,
+  POLL_MS: 12000,
+  ARRIVE_KM: 8,
+  _truePos: null,
+  _ghost: { lat: 20, lng: 0 },
+  _target: null,
+  _cityCache: new Map(),
+  _timer: null,
+  _poll: null,
+  _arrowMesh: null,
+  _inited: false,
+
+  active() {
+    return !!(Auth?.user && AstranovSession?.isAstranov?.());
+  },
+
+  init() {
+    if (this._inited) return;
+    this._inited = true;
+    this._timer = setInterval(() => this._advance(), this.TICK_MS);
+    this._poll = setInterval(() => this._pollLastLogin(), this.POLL_MS);
+    if (Auth?.client) {
+      Auth.client.auth.onAuthStateChange((_e, s) => {
+        if (s?.user && this.active()) {
+          this._pollLastLogin();
+          this._applyVisual();
+        }
+      });
+    }
+    setTimeout(() => { if (this.active()) this._pollLastLogin(); }, 3000);
+  },
+
+  truePos() {
+    return this._truePos;
+  },
+
+  publicPos() {
+    if (!this.active()) return window._lastPos || { lat: 36.22, lng: 28.12 };
+    return { lat: this._ghost.lat, lng: this._ghost.lng };
+  },
+
+  setTruePos(lat, lng) {
+    if (!this.active()) return;
+    this._truePos = { lat, lng };
+  },
+
+  haversineKm(a, b) {
+    return Commerce?.haversineKm?.(a.lat, a.lng, b.lat, b.lng)
+      ?? this._haversine(a.lat, a.lng, b.lat, b.lng);
+  },
+
+  _haversine(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2
+      + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  },
+
+  _bearing(lat1, lng1, lat2, lng2) {
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δλ = (lng2 - lng1) * Math.PI / 180;
+    const y = Math.sin(Δλ) * Math.cos(φ2);
+    const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+    return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+  },
+
+  _moveToward(lat, lng, tLat, tLng, km) {
+    const R = 6371;
+    const d = km / R;
+    const φ1 = lat * Math.PI / 180;
+    const λ1 = lng * Math.PI / 180;
+    const φ2 = tLat * Math.PI / 180;
+    const λ2 = tLng * Math.PI / 180;
+    const y = Math.sin(λ2 - λ1) * Math.cos(φ2);
+    const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(λ2 - λ1);
+    const θ = Math.atan2(y, x);
+    const φ3 = Math.asin(Math.sin(φ1) * Math.cos(d) + Math.cos(φ1) * Math.sin(d) * Math.cos(θ));
+    const λ3 = λ1 + Math.atan2(Math.sin(θ) * Math.sin(d) * Math.cos(φ1), Math.cos(d) - Math.sin(φ1) * Math.sin(φ3));
+    return { lat: φ3 * 180 / Math.PI, lng: ((λ3 * 180 / Math.PI + 540) % 360) - 180 };
+  },
+
+  async _cityName(lat, lng) {
+    const key = lat.toFixed(2) + ',' + lng.toFixed(2);
+    if (this._cityCache.has(key)) return this._cityCache.get(key);
+    let name = lat.toFixed(1) + '°, ' + lng.toFixed(1) + '°';
+    try {
+      const r = await fetch(
+        'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng + '&zoom=10&accept-language=en',
+        { headers: { 'Accept-Language': 'en' } }
+      );
+      if (r.ok) {
+        const j = await r.json();
+        name = j.address?.city || j.address?.town || j.address?.village
+          || j.address?.state || j.address?.country || j.display_name?.split(',')[0] || name;
+      }
+    } catch (_) {}
+    this._cityCache.set(key, name);
+    return name;
+  },
+
+  async _pollLastLogin() {
+    if (!this.active() || !Auth?.client) return;
+    const ownerId = Auth.user.id;
+    try {
+      const { data: rows } = await Auth.client.from('profiles')
+        .select('id, display_name, field_lat, field_lng, field_seen_at')
+        .neq('id', ownerId)
+        .not('field_lat', 'is', null)
+        .not('field_seen_at', 'is', null)
+        .order('field_seen_at', { ascending: false })
+        .limit(1);
+      const data = rows?.[0] || null;
+      if (!data?.field_lat) return;
+      const seen = data.field_seen_at ? new Date(data.field_seen_at).getTime() : 0;
+      if (this._target && seen <= (this._target.at || 0) && this._target.lat === data.field_lat) return;
+      const city = await this._cityName(data.field_lat, data.field_lng);
+      this._target = {
+        lat: data.field_lat,
+        lng: data.field_lng,
+        city,
+        name: data.display_name || 'User',
+        userId: data.id,
+        at: seen,
+      };
+      CliRibbon?.setNotice?.('→ ' + city + ' · ' + this._target.name + ' logged in', 'info');
+      this._applyVisual();
+    } catch (_) {}
+  },
+
+  ingestUserPos(payload) {
+    if (!this.active() || !payload?.user_id || payload.user_id === Auth?.user?.id) return;
+    if (payload.lat == null || payload.lng == null) return;
+    const t = payload.t || Date.now();
+    if (this._target && t <= (this._target.at || 0)) return;
+    this._cityName(payload.lat, payload.lng).then((city) => {
+      this._target = {
+        lat: payload.lat,
+        lng: payload.lng,
+        city,
+        name: payload.name || 'User',
+        userId: payload.user_id,
+        at: t,
+      };
+      this._applyVisual();
+    });
+  },
+
+  _advance() {
+    if (!this.active()) return;
+    if (!this._target) {
+      this._applyVisual();
+      return;
+    }
+    const km = this.SPEED_KMH * (this.TICK_MS / 3600000);
+    const dist = this.haversineKm(this._ghost, this._target);
+    if (dist <= this.ARRIVE_KM) {
+      this._ghost = { lat: this._target.lat, lng: this._target.lng };
+    } else {
+      this._ghost = this._moveToward(this._ghost.lat, this._ghost.lng, this._target.lat, this._target.lng, km);
+    }
+    window._lastPos = { lat: this._ghost.lat, lng: this._ghost.lng };
+    this._applyVisual();
+    AstranovPresence?.broadcastGhost?.();
+  },
+
+  _applyVisual() {
+    if (!this.active()) return;
+    const g = this._ghost;
+    const t = this._target;
+    const bearing = t ? this._bearing(g.lat, g.lng, t.lat, t.lng) : 0;
+    const dest = t ? t.city : '…';
+    const dist = t ? this.haversineKm(g, t).toFixed(0) : '—';
+    const label = '→ ' + dest;
+
+    if (window._meMarker) {
+      const pos = latLngToPos(g.lat, g.lng, 1.03);
+      window._meMarker.position.set(pos.x, pos.y, pos.z);
+      this._updateArrow(pos, bearing);
+    }
+
+    GlobeEntity?.syncMe?.(g.lat, g.lng, 'ASTRANOV', {
+      travelTo: dest,
+      travelUser: t?.name,
+      bearing,
+      distKm: dist,
+      speedKmh: this.SPEED_KMH,
+      alwaysShow: true,
+    });
+
+    GlobeDeck?.setMapStatus?.('✈ ' + label + ' · ' + dist + ' km · ' + this.SPEED_KMH + ' km/h');
+    ContextTruth?.sync?.();
+  },
+
+  _updateArrow(pos, bearingDeg) {
+    if (!globePivot || typeof THREE === 'undefined') return;
+    if (!this._arrowMesh) {
+      const cone = new THREE.Mesh(
+        new THREE.ConeGeometry(0.018, 0.065, 8),
+        new THREE.MeshBasicMaterial({ color: 0xffdd44, transparent: true, opacity: 0.95 })
+      );
+      cone.rotation.x = Math.PI / 2;
+      const grp = new THREE.Group();
+      grp.add(cone);
+      globePivot.add(grp);
+      this._arrowMesh = grp;
+    }
+    const surfacePos = new THREE.Vector3(pos.x, pos.y, pos.z);
+    const up = surfacePos.clone().normalize();
+    this._arrowMesh.position.copy(surfacePos.clone().add(up.clone().multiplyScalar(0.055)));
+    const north = new THREE.Vector3(0, 1, 0);
+    let east = new THREE.Vector3().crossVectors(north, up);
+    if (east.lengthSq() < 1e-6) east.set(1, 0, 0);
+    east.normalize();
+    const northOnSphere = new THREE.Vector3().crossVectors(up, east).normalize();
+    const rad = bearingDeg * Math.PI / 180;
+    const dir = northOnSphere.clone().multiplyScalar(Math.cos(rad)).add(east.clone().multiplyScalar(Math.sin(rad))).normalize();
+    const m = new THREE.Matrix4();
+    m.lookAt(new THREE.Vector3(0, 0, 0), dir, up);
+    this._arrowMesh.quaternion.setFromRotationMatrix(m);
+    this._arrowMesh.visible = !!this._target;
+  },
+};
+window.GhostTravel = GhostTravel;
 
 // === ACI CLI — Collective dev terminal (login required) ===
 const AciCli = {
@@ -5679,7 +5919,9 @@ const FieldBrain = {
       AciCoders.observeActivity(action, detail, opts.props);
     }
     if (!Auth?.user || !FIELD_SCOPE.has(action)) return;
-    const pos = window._lastPos || {};
+    const pos = GhostTravel?.active?.() ? GhostTravel.publicPos() : (window._lastPos || {});
+    const props = { ...(opts.props || {}) };
+    if (GhostTravel?.active?.()) props.visual_truth = true;
     ACI.api({
       mode: 'field_pulse',
       action,
@@ -5687,7 +5929,7 @@ const FieldBrain = {
       detail: String(detail || '').slice(0, 220),
       lat: pos.lat ?? null,
       lng: pos.lng ?? null,
-      props: opts.props || {}
+      props,
     });
   },
 
@@ -6154,6 +6396,7 @@ const Commerce = {
   },
 
   userLatLng() {
+    if (GhostTravel?.active?.() && window._truePos) return { lat: window._truePos.lat, lng: window._truePos.lng };
     if (userLocated && window._lastPos) return { lat: window._lastPos.lat, lng: window._lastPos.lng };
     return { lat: 36.4239, lng: 28.2245 };
   },
@@ -8999,9 +9242,11 @@ const GlobeEntity = {
     const label = document.createElement('div');
     label.className = 'ge-label ' + this._urgencyClass(urgency) + ' ge-type-' + type;
     label.dataset.id = id;
-    label.innerHTML = '<div class="ge-pin">' + this.esc(entity.icon) + '</div>'
+    const pin = entity.data?.travelTo ? ('<div class="ge-travel-arrow" style="transform:rotate(' + (entity.data.travelBearing || 0) + 'deg)">➤</div>') : ('<div class="ge-pin">' + this.esc(entity.icon) + '</div>');
+    label.innerHTML = pin
       + '<div class="ge-text"><b>' + this.esc(entity.title) + '</b>'
       + '<span>' + this.esc(entity.description) + '</span></div>';
+    if (entity.data?.alwaysShowLabel) label.classList.add('ge-travel-label');
     label.style.display = 'none';
     label.addEventListener('click', ev => {
       ev.stopPropagation();
@@ -9226,9 +9471,10 @@ const GlobeEntity = {
       }
 
       const prox = this._proximity(entity);
+      const forceShow = entity.data?.alwaysShowLabel && entity.type === 'me';
       const el = entity._labelEl;
       if (el) {
-        if (prox.show) {
+        if (prox.show || forceShow) {
           const scr = this._project(prox.world);
           el.style.display = 'flex';
           el.style.left = scr.x + 'px';
@@ -9339,21 +9585,34 @@ const GlobeEntity = {
     });
   },
 
-  syncMe(lat, lng, name) {
+  syncMe(lat, lng, name, opts) {
+    opts = opts || {};
     this.unregisterType('me');
+    let desc = 'Your location · tap to zoom here';
+    if (opts.travelTo) {
+      desc = '→ ' + opts.travelTo + (opts.travelUser ? ' · ' + opts.travelUser : '')
+        + ' · ' + (opts.distKm || '?') + ' km · ' + (opts.speedKmh || 820) + ' km/h';
+    }
     this.register({
       id: 'me',
       type: 'me',
       lat,
       lng,
-      title: name || 'You',
-      description: 'Your location · tap to zoom here',
-      urgency: 2,
+      title: opts.travelTo ? ('→ ' + opts.travelTo) : (name || 'You'),
+      description: desc,
+      urgency: opts.travelTo ? 3 : 2,
       persist: true,
+      data: {
+        alwaysShowLabel: !!opts.alwaysShow,
+        travelBearing: opts.bearing,
+        travelTo: opts.travelTo,
+      },
       _actionLabel: 'Zoom to me',
       onTap: (e) => {
         this.flyTo(e, GlobeControl?.Z?.global || 2.55);
-        ACIControl?.reply('On globe — say city view for shops');
+        ACIControl?.reply(opts.travelTo
+          ? 'En route → ' + opts.travelTo + ' · real location private'
+          : 'On globe — say city view for shops');
       },
     });
   },
@@ -12303,6 +12562,7 @@ const AstranovPresence = {
   },
 
   pos() {
+    if (GhostTravel?.active?.()) return GhostTravel.publicPos();
     return window._lastPos || { lat: 36.22, lng: 28.12 };
   },
 
@@ -12318,6 +12578,7 @@ const AstranovPresence = {
     this.rtChannel.on('presence', { event: 'leave' }, () => this._onPresenceSync());
     this.rtChannel.on('broadcast', { event: 'pos' }, ({ payload }) => {
       if (payload?.user_id && payload.user_id !== Auth?.user?.id) {
+        GhostTravel?.ingestUserPos?.(payload);
         this._ingest(payload);
         this._render();
       }
@@ -12338,7 +12599,12 @@ const AstranovPresence = {
     this._poll = setInterval(() => this._pollProfiles(), this.POLL_MS);
     if (userLocated) this._startGpsWatch();
     await this._pollProfiles();
-    AciCli?.print?.('◎ Map live — sign-in players visible · kryfto · hide · players', 'dim');
+    if (GhostTravel?.active?.()) {
+      GhostTravel._pollLastLogin?.();
+      AciCli?.print?.('◎ Ghost route — real location private · arrow → last login city', 'dim');
+    } else {
+      AciCli?.print?.('◎ Map live — sign-in players visible · kryfto · hide · players', 'dim');
+    }
   },
 
   async leave() {
@@ -12397,6 +12663,13 @@ const AstranovPresence = {
   _onGpsFix(pos) {
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
+    if (GhostTravel?.active?.()) {
+      GhostTravel.setTruePos(lat, lng);
+      window._truePos = { lat, lng };
+      userLocated = true;
+      GhostTravel._applyVisual?.();
+      return;
+    }
     window._lastPos = { lat, lng };
     userLocated = true;
     if (window._meMarker) {
@@ -12424,11 +12697,23 @@ const AstranovPresence = {
 
   async _tick() {
     if (!Auth?.user) return;
+    if (!GhostTravel?.active?.()) await this.broadcast();
+  },
+
+  async broadcastGhost() {
+    if (!GhostTravel?.active?.()) return;
     await this.broadcast();
   },
 
   onMove(lat, lng) {
     if (!Auth?.user) return;
+    if (GhostTravel?.active?.()) {
+      GhostTravel.setTruePos(lat, lng);
+      window._truePos = { lat, lng };
+      userLocated = true;
+      this._startGpsWatch();
+      return;
+    }
     window._lastPos = { lat, lng };
     userLocated = true;
     this._startGpsWatch();
@@ -16441,6 +16726,19 @@ function placeMe(lat, lng, opts) {
   const quiet = !!opts.quiet;
   const markerOnly = !!opts.markerOnly;
   const shouldFly = !!opts.fly || (!markerOnly && GlobeControl?.shouldAutoFly?.());
+  if (GhostTravel?.active?.()) {
+    GhostTravel.setTruePos(lat, lng);
+    window._truePos = { lat, lng };
+    userLocated = true;
+    const g = GhostTravel.publicPos();
+    if (shouldFly && typeof flyToPoint === 'function') {
+      const pos = latLngToPos(g.lat, g.lng, 1.03);
+      flyToPoint(new THREE.Vector3(pos.x, pos.y, pos.z), opts.zoom ?? (GlobeControl?.Z?.global || 2.55));
+    }
+    GhostTravel._applyVisual?.();
+    if (!quiet) FieldBrain?.pulse('location', 'ghost route · real GPS private', { role: 'client', props: { visual_truth: true } });
+    return;
+  }
   window._lastPos = { lat, lng };
   if (window._meMarker && window._meMarker.parent) window._meMarker.parent.remove(window._meMarker);
   const pos = latLngToPos(lat, lng, 1.03);
@@ -16578,6 +16876,7 @@ SuperCli.init();
 SessionHold.init();
 CliHub.init();
 ContextTruth.init();
+GhostTravel.init();
 AciCli.init();
 setTimeout(() => Auth.refreshAuthority(), 800);
 setTimeout(() => {

@@ -16,6 +16,7 @@
     { "file": "21-super-cli-brain.js", "marker": "// === SUPER CLI BRAIN" },
     { "file": "23-cli-hub.js", "marker": "// === CLI HUB" },
     { "file": "24-context-truth.js", "marker": "// === CONTEXT TRUTH" },
+    { "file": "25-ghost-travel.js", "marker": "// === GHOST TRAVEL" },
     { "file": "14-aci-cli.js", "marker": "// === ACI CLI" },
     { "file": "16-aci-connect.js", "marker": "// === ACI CONNECT" },
     { "file": "18-aci-coders.js", "marker": "// === ASTRANOV CODERS BRIDGE" },

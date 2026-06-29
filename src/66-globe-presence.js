@@ -46,6 +46,7 @@ const AstranovPresence = {
   },
 
   pos() {
+    if (GhostTravel?.active?.()) return GhostTravel.publicPos();
     return window._lastPos || { lat: 36.22, lng: 28.12 };
   },
 
@@ -61,6 +62,7 @@ const AstranovPresence = {
     this.rtChannel.on('presence', { event: 'leave' }, () => this._onPresenceSync());
     this.rtChannel.on('broadcast', { event: 'pos' }, ({ payload }) => {
       if (payload?.user_id && payload.user_id !== Auth?.user?.id) {
+        GhostTravel?.ingestUserPos?.(payload);
         this._ingest(payload);
         this._render();
       }
@@ -81,7 +83,12 @@ const AstranovPresence = {
     this._poll = setInterval(() => this._pollProfiles(), this.POLL_MS);
     if (userLocated) this._startGpsWatch();
     await this._pollProfiles();
-    AciCli?.print?.('◎ Map live — sign-in players visible · kryfto · hide · players', 'dim');
+    if (GhostTravel?.active?.()) {
+      GhostTravel._pollLastLogin?.();
+      AciCli?.print?.('◎ Ghost route — real location private · arrow → last login city', 'dim');
+    } else {
+      AciCli?.print?.('◎ Map live — sign-in players visible · kryfto · hide · players', 'dim');
+    }
   },
 
   async leave() {
@@ -140,6 +147,13 @@ const AstranovPresence = {
   _onGpsFix(pos) {
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
+    if (GhostTravel?.active?.()) {
+      GhostTravel.setTruePos(lat, lng);
+      window._truePos = { lat, lng };
+      userLocated = true;
+      GhostTravel._applyVisual?.();
+      return;
+    }
     window._lastPos = { lat, lng };
     userLocated = true;
     if (window._meMarker) {
@@ -167,11 +181,23 @@ const AstranovPresence = {
 
   async _tick() {
     if (!Auth?.user) return;
+    if (!GhostTravel?.active?.()) await this.broadcast();
+  },
+
+  async broadcastGhost() {
+    if (!GhostTravel?.active?.()) return;
     await this.broadcast();
   },
 
   onMove(lat, lng) {
     if (!Auth?.user) return;
+    if (GhostTravel?.active?.()) {
+      GhostTravel.setTruePos(lat, lng);
+      window._truePos = { lat, lng };
+      userLocated = true;
+      this._startGpsWatch();
+      return;
+    }
     window._lastPos = { lat, lng };
     userLocated = true;
     this._startGpsWatch();

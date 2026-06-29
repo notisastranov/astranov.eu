@@ -103,9 +103,11 @@ const GlobeEntity = {
     const label = document.createElement('div');
     label.className = 'ge-label ' + this._urgencyClass(urgency) + ' ge-type-' + type;
     label.dataset.id = id;
-    label.innerHTML = '<div class="ge-pin">' + this.esc(entity.icon) + '</div>'
+    const pin = entity.data?.travelTo ? ('<div class="ge-travel-arrow" style="transform:rotate(' + (entity.data.travelBearing || 0) + 'deg)">➤</div>') : ('<div class="ge-pin">' + this.esc(entity.icon) + '</div>');
+    label.innerHTML = pin
       + '<div class="ge-text"><b>' + this.esc(entity.title) + '</b>'
       + '<span>' + this.esc(entity.description) + '</span></div>';
+    if (entity.data?.alwaysShowLabel) label.classList.add('ge-travel-label');
     label.style.display = 'none';
     label.addEventListener('click', ev => {
       ev.stopPropagation();
@@ -330,9 +332,10 @@ const GlobeEntity = {
       }
 
       const prox = this._proximity(entity);
+      const forceShow = entity.data?.alwaysShowLabel && entity.type === 'me';
       const el = entity._labelEl;
       if (el) {
-        if (prox.show) {
+        if (prox.show || forceShow) {
           const scr = this._project(prox.world);
           el.style.display = 'flex';
           el.style.left = scr.x + 'px';
@@ -443,21 +446,34 @@ const GlobeEntity = {
     });
   },
 
-  syncMe(lat, lng, name) {
+  syncMe(lat, lng, name, opts) {
+    opts = opts || {};
     this.unregisterType('me');
+    let desc = 'Your location · tap to zoom here';
+    if (opts.travelTo) {
+      desc = '→ ' + opts.travelTo + (opts.travelUser ? ' · ' + opts.travelUser : '')
+        + ' · ' + (opts.distKm || '?') + ' km · ' + (opts.speedKmh || 820) + ' km/h';
+    }
     this.register({
       id: 'me',
       type: 'me',
       lat,
       lng,
-      title: name || 'You',
-      description: 'Your location · tap to zoom here',
-      urgency: 2,
+      title: opts.travelTo ? ('→ ' + opts.travelTo) : (name || 'You'),
+      description: desc,
+      urgency: opts.travelTo ? 3 : 2,
       persist: true,
+      data: {
+        alwaysShowLabel: !!opts.alwaysShow,
+        travelBearing: opts.bearing,
+        travelTo: opts.travelTo,
+      },
       _actionLabel: 'Zoom to me',
       onTap: (e) => {
         this.flyTo(e, GlobeControl?.Z?.global || 2.55);
-        ACIControl?.reply('On globe — say city view for shops');
+        ACIControl?.reply(opts.travelTo
+          ? 'En route → ' + opts.travelTo + ' · real location private'
+          : 'On globe — say city view for shops');
       },
     });
   },
