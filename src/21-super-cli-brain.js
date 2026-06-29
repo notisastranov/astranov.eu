@@ -133,7 +133,7 @@ Object.assign(SuperCli, {
     this.out('players · friends · kryfto · hide · seek — map presence (sign in)', 'ok');
     this.out('team create <name> · team join <id> · contact video|voice|message <name>', 'ok');
     this.out('drivers · driver <name> — pick delivery driver on map/cloud', 'ok');
-    this.out('profile me · profile save · yacht match <site> dates · site approve <slug>', 'ok');
+    this.out('profile me · match <site> dates [pax] · match field <site> <name> · site approve <slug>', 'ok');
     this.out('theme dark|bright · or just: dark · bright — globe + city map + UI', 'ok');
     this.out('add · post — Super Add camera · global/team/local channel', 'ok');
     this.out('Tri-UI: SuperCli + SuperVoice + SuperSpace · mic+send at bottom bar', 'dim');
@@ -527,7 +527,7 @@ Object.assign(SuperCli, {
         await ProfileSite?.cmd?.(parts);
         return { handled: true };
       }
-      if (cmd === 'yacht' || cmd === 'charter') {
+      if (cmd === 'yacht' || cmd === 'charter' || cmd === 'match') {
         await YachtMatcher?.cli?.(parts);
         return { handled: true };
       }

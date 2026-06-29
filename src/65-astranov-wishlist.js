@@ -22,6 +22,7 @@ const AstranovWishlist = {
     { text: 'Profile page for every user/vendor — tap to open, fill on demand', status: 'done', tag: 'sites' },
     { text: 'Subdomain on admin approval · profile live immediately', status: 'done', tag: 'sites' },
     { text: 'Yacht matcher — demand/supply, captain+crew, 300/200/100 EUR per day', status: 'done', tag: 'commerce' },
+    { text: 'Universal match engine in superbooking — all business types, activatable fields, Coders field requests', status: 'done', tag: 'sites' },
     { text: 'Hellenic canon — Greek mythology & philosophy as Coders truth layer', status: 'done', tag: 'brain' },
     { text: 'Logged-in users on map — collab + κρυφτό hide-and-seek', status: 'done', tag: 'globe' },
     { text: 'Map team polygon + cloud chat + video/voice/phone/message any user', status: 'done', tag: 'comms' },

@@ -565,13 +565,16 @@ const AciCoders = {
       AstranovPresence?.startKryfto?.();
       return { ok: true, game: 'kryfto' };
     }
-    if (/yacht|charter|crew|captain|ενοικ/.test(m.toLowerCase())) {
+    if (/yacht|charter|crew|captain|match|ενοικ|supply|demand|field\s+\w+/.test(m.toLowerCase())) {
       const ev = await YachtMatcher?.evolveFromText?.(m);
       if (ev?.best) {
         GlobeDeck?.setThinking(false);
         const msg = YachtMatcher.formatMatch(ev.best);
         ACIControl?.reply(msg);
         return { ok: true, yacht: ev };
+      }
+      if (/field|parameter|develop/.test(m.toLowerCase())) {
+        this.observeActivity('field_evolve', m.slice(0, 100), {});
       }
     }
     if (/hellenic|ξενία|arete|logos|μῆτις|καιρός/i.test(m)) {

@@ -10,6 +10,13 @@ const AstranovSiteShell = {
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape' && this.active) this.close();
     });
+    window.addEventListener('message', (e) => {
+      if (e.data?.type === 'astranov-match-field-request') {
+        AciCoders?.observeActivity?.('field_request', JSON.stringify(e.data.spec || {}).slice(0, 80), e.data);
+        ACIControl?.reply('Field request from site — Coders notified');
+        void AciCli?.api?.({ mode: 'coders_chat', message: 'Develop booking field for site ' + e.data.siteId + ': ' + JSON.stringify(e.data.spec), fast: false });
+      }
+    });
   },
 
   shellUrl(url) {
