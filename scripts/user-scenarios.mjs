@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Real-user scenario tests for Astranov globe (city map, theme, earth realism).
- * Run: node scripts/user-scenarios.mjs [--url http://127.0.0.1:8765]
+ * Run: node scripts/user-scenarios.mjs [--url http://127.0.0.1:PORT]
  */
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
@@ -10,14 +10,14 @@ import { join, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
-const PORT = 8765;
+const DEFAULT_PORT = 8765;
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
   '.json': 'application/json', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json',
 };
 
-function startServer() {
-  return new Promise(resolve => {
+function startServer(port = 0) {
+  return new Promise((resolve, reject) => {
     const srv = createServer((req, res) => {
       const p = join(ROOT, (req.url || '/').split('?')[0].replace(/^\//, '') || 'index.html');
       const file = existsSync(p) && !p.endsWith('..') ? p : join(ROOT, 'index.html');
@@ -29,7 +29,11 @@ function startServer() {
         res.writeHead(404); res.end('not found');
       }
     });
-    srv.listen(PORT, '127.0.0.1', () => resolve(srv));
+    srv.on('error', reject);
+    srv.listen(port, '127.0.0.1', () => {
+      const bound = srv.address();
+      resolve({ srv, port: typeof bound === 'object' ? bound.port : port });
+    });
   });
 }
 
@@ -246,9 +250,11 @@ const SCENARIOS = [
 async function main() {
   const argUrl = process.argv.find((a, i) => process.argv[i - 1] === '--url');
   let srv;
-  let url = argUrl || `http://127.0.0.1:${PORT}/index.html`;
+  let url = argUrl || '';
   if (!argUrl) {
-    srv = await startServer();
+    const started = await startServer(0);
+    srv = started.srv;
+    url = `http://127.0.0.1:${started.port}/index.html`;
     console.log('Local server →', url);
   }
 
@@ -304,7 +310,7 @@ async function main() {
   if (srv) srv.close();
 
   console.log('\n---', results.filter(r => r.ok).length + '/' + results.length, 'passed ---');
-  if (failed) process.exit(1);
+  process.exit(failed ? 1 : 0);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
