@@ -330,10 +330,8 @@ const Auth = {
       chip.style.color = '#00dd77';
     }
     if (this.isOwner) CliRibbon?.setActive?.('owner');
-    const prompt = document.getElementById('aci-cli-prompt');
-    if (prompt && this.isOwner) {
-      prompt.textContent = 'ASTRANOV@collective $';
-    }
+    const prefix = document.getElementById('aci-cli-prefix');
+    if (prefix && this.isOwner) prefix.textContent = 'ASTRANOV ›';
   },
 
   async signOut() {

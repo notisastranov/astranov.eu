@@ -305,8 +305,7 @@ function commitVoiceCommand(raw) {
   _lastVoiceCommitT = now;
   _voiceCommitting = true;
   if (_voiceSilenceTimer) { clearTimeout(_voiceSilenceTimer); _voiceSilenceTimer = null; }
-  const input = document.getElementById('aci-cli-in');
-  if (input) { input.value = ''; if (AciCli) AciCli.buffer = ''; }
+  GlobeDeck?.clearCompose?.();
   if (!window._handsFreeVoice) {
     isListening = false;
     try { recognition?.stop(); } catch (_) {}
@@ -506,7 +505,10 @@ function handleVoiceCommand(event) {
       input.value = draft;
       input.classList.add('voice-live');
       if (AciCli) AciCli.buffer = draft;
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, window.innerHeight * 0.22) + 'px';
     }
+    GlobeDeck?.setCompose?.(draft);
     _voiceDraft = draft;
     return;
   }
@@ -523,9 +525,10 @@ function handleVoiceCommand(event) {
     input.value = draft;
     input.classList.add('voice-live');
     if (AciCli) AciCli.buffer = draft;
-    input.scrollLeft = input.scrollWidth;
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, window.innerHeight * 0.22) + 'px';
   }
-  GlobeDeck?.setPreview('🎧 ' + draft.slice(0, 96));
+  GlobeDeck?.setCompose?.(draft);
   syncHandsFreeBtn();
 
   const live = (final || interim).trim();

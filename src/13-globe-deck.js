@@ -3,14 +3,18 @@ const GlobeDeck = {
   expanded: false,
   activeTask: null,
   thinking: false,
+  _size: 'collapsed',
   _touchY: 0,
   _touchT: 0,
   _collapseTimer: null,
   _thinkLine: null,
+  _composeLine: null,
   _lastSay: '',
   _lastSayT: 0,
   _userEngaged: false,
   _expandAt: 0,
+  _handleDrag: 0,
+  _NOISE_RE: /^(thinking|warming|owner-sync|heartbeat|field_pulse|subscribe|channel joined|token refresh|postgres_changes|Map live|Ghost route|hands-free on|Coders always|session held|pull failed)/i,
 
   init() {
     CliRibbon?.init?.();
@@ -26,21 +30,81 @@ const GlobeDeck = {
   },
 
   bindHandle() {
-    const toggle = e => {
+    const handle = document.getElementById('cli-deck-handle');
+    if (!handle || handle._deckBound) return;
+    handle._deckBound = true;
+    let sy = 0, sh = 0, moved = 0;
+    const onTap = (e) => {
+      if (moved > 14) return;
       e.preventDefault();
       e.stopPropagation();
-      this.toggle();
+      this.cycleSize();
     };
-    document.querySelectorAll('#cli-deck-handle, #globe-deck-handle').forEach(handle => {
-      if (handle._deckBound) return;
-      handle._deckBound = true;
-      handle.addEventListener('click', toggle);
-      handle.addEventListener('touchend', e => {
-        if (e.cancelable) e.preventDefault();
-        e.stopPropagation();
-        toggle(e);
-      }, { passive: false });
-    });
+    handle.addEventListener('click', onTap);
+    handle.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      sy = e.touches[0].clientY;
+      sh = this.deck()?.getBoundingClientRect().height || 0;
+      moved = 0;
+      this._handleDrag = sy;
+    }, { passive: true });
+    handle.addEventListener('touchmove', (e) => {
+      if (e.touches.length !== 1) return;
+      const dy = sy - e.touches[0].clientY;
+      moved = Math.max(moved, Math.abs(dy));
+      const d = this.deck();
+      if (!d || moved < 6) return;
+      const minH = 118;
+      const maxH = Math.min(window.innerHeight * 0.94, window.innerHeight - 36);
+      const nh = Math.min(maxH, Math.max(minH, sh + dy));
+      d.style.maxHeight = nh + 'px';
+      d.style.minHeight = nh + 'px';
+      d.classList.remove('collapsed');
+      d.classList.add('expanded');
+      d.classList.remove('size-third', 'size-full');
+      this.expanded = true;
+      this._size = nh > window.innerHeight * 0.62 ? 'full' : 'third';
+    }, { passive: true });
+    handle.addEventListener('touchend', (e) => {
+      if (moved > 14) {
+        const d = this.deck();
+        const h = d?.getBoundingClientRect().height || 0;
+        const third = window.innerHeight * 0.33;
+        const full = window.innerHeight * 0.88;
+        if (h < 160) this._size = 'collapsed';
+        else if (h < (third + full) / 2) this._size = 'third';
+        else this._size = 'full';
+        this.applySize();
+        return;
+      }
+      if (e.cancelable) e.preventDefault();
+      onTap(e);
+    }, { passive: false });
+  },
+
+  cycleSize() {
+    const order = ['collapsed', 'third', 'full'];
+    const i = order.indexOf(this._size);
+    this._size = order[(i + 1) % order.length];
+    this.applySize();
+  },
+
+  applySize() {
+    const d = this.deck();
+    if (!d) return;
+    d.style.maxHeight = '';
+    d.style.minHeight = '';
+    d.classList.remove('collapsed', 'expanded', 'size-third', 'size-full');
+    if (this._size === 'collapsed') {
+      d.classList.add('collapsed');
+      this.expanded = false;
+      if (window.AciCli) AciCli.open = false;
+    } else {
+      d.classList.add('expanded', this._size === 'full' ? 'size-full' : 'size-third');
+      this.expanded = true;
+      if (window.AciCli) AciCli.open = true;
+    }
+    CliRibbon?.render?.();
   },
 
   bindDeckGestures() {
@@ -48,8 +112,8 @@ const GlobeDeck = {
     if (!deck || this._gesturesBound) return;
     this._gesturesBound = true;
     let sy = 0, st = 0, sx = 0, moved = false;
-    const scrollable = t => t?.closest?.('#globe-deck-log, #globe-deck-stage, #globe-deck-input-row');
-    const interactive = t => t?.closest?.('button, input, a, #super-cli-bar button, #globe-deck-input-row button, #globe-deck-input-row input');
+    const scrollable = t => t?.closest?.('#globe-deck-log, #globe-deck-stage, #globe-deck-compose');
+    const interactive = t => t?.closest?.('button, input, textarea, a, #super-cli-bar button, #globe-deck-compose button, #globe-deck-compose textarea, #cli-deck-handle');
 
     deck.addEventListener('touchstart', e => {
       if (e.touches.length !== 1 || interactive(e.target)) return;
@@ -103,12 +167,54 @@ const GlobeDeck = {
     this.setPreview(s);
   },
 
+  shouldLog(text, kind) {
+    const t = String(text || '').trim();
+    if (!t) return false;
+    if (CliRibbon?.isGlobeHint?.(t)) return false;
+    if (CliRibbon?.MOTTO_RE?.test(t)) return false;
+    if (this._NOISE_RE.test(t)) return false;
+    if (kind === 'dim' && /^(◎|…|\.{2,})\s/.test(t) && t.length < 90) return false;
+    if (/^\{.*\}$/.test(t) || /^HTTP \d/.test(t)) return false;
+    return true;
+  },
+
+  setCompose(text) {
+    const t = String(text || '');
+    const out = this.logEl();
+    if (!out) return;
+    if (!t) {
+      if (this._composeLine?.parentNode) this._composeLine.remove();
+      this._composeLine = null;
+      return;
+    }
+    if (!this._composeLine) {
+      this._composeLine = document.createElement('div');
+      this._composeLine.id = 'deck-compose-line';
+      this._composeLine.className = 'deck-line deck-compose';
+      out.appendChild(this._composeLine);
+    }
+    this._composeLine.textContent = '› ' + t;
+    out.scrollTop = out.scrollHeight;
+    this.expand();
+  },
+
+  clearCompose() {
+    this.setCompose('');
+    const input = document.getElementById('aci-cli-in');
+    if (input) {
+      input.value = '';
+      input.style.height = 'auto';
+    }
+    if (window.AciCli) AciCli.buffer = '';
+  },
+
   log(text, cls) {
     const kind = cls || 'out';
     if (kind === 'map') {
       this.setMapStatus(text);
       return;
     }
+    if (!this.shouldLog(text, kind)) return;
     const out = this.logEl();
     if (!out) return;
     if (kind === 'dim') {
@@ -205,13 +311,8 @@ const GlobeDeck = {
     const now = Date.now();
     if (title && (!this.expanded || now - this._expandAt > 400)) this.setTitle(title);
     this._expandAt = now;
-    this.expanded = true;
-    const d = this.deck();
-    if (d) {
-      d.classList.add('expanded');
-      d.classList.remove('collapsed');
-    }
-    CliRibbon?.render?.();
+    if (this._size === 'collapsed') this._size = 'third';
+    this.applySize();
     if (window.AciCli) AciCli.open = true;
   },
 
@@ -222,19 +323,13 @@ const GlobeDeck = {
   },
 
   collapse() {
-    this.expanded = false;
+    this._size = 'collapsed';
     this._userEngaged = false;
-    const d = this.deck();
-    if (d) {
-      d.classList.remove('expanded');
-      d.classList.add('collapsed');
-    }
-    CliRibbon?.render?.();
-    if (window.AciCli) AciCli.open = false;
+    this.applySize();
   },
 
   toggle() {
-    this.expanded ? this.collapse() : this.expand();
+    this.cycleSize();
   },
 
   showStage(panelId, task, title) {

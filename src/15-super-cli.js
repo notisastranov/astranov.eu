@@ -7,8 +7,8 @@ const SuperCli = {
   title: ACL_TITLE,
 
   // Top bar: login + Super Add only — everything else via CLI (locate, order, batch, vhf, theme, hold, stop…)
-  TOOLBAR_VISIBLE: ['aci-login', 'super-add-fab'],
-  INPUT_BTNS: ['aci-handsfree', 'globe-deck-send'],
+  TOOLBAR_VISIBLE: ['aci-login', 'aci-handsfree', 'super-add-fab', 'cli-deck-handle'],
+  INPUT_BTNS: ['globe-deck-send'],
 
   init() {
     if (this._bound) return;
@@ -79,8 +79,8 @@ const SuperCli = {
           return;
         }
         GlobeDeck?.expand?.(ACL_TITLE);
-        if (input) input.value = '';
-        if (AciCli) { AciCli.buffer = ''; AciCli.run(line); }
+        GlobeDeck?.clearCompose?.();
+        if (AciCli) AciCli.run(line);
       };
     }
   },

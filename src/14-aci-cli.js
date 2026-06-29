@@ -22,7 +22,12 @@ const AciCli = {
     SuperCli?.bindInputBar?.();
     if (input) {
       input.addEventListener('keydown', e => this.onKey(e));
-      input.addEventListener('input', () => { this.buffer = input.value; });
+      input.addEventListener('input', () => {
+        this.buffer = input.value;
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, window.innerHeight * 0.22) + 'px';
+        GlobeDeck?.setCompose?.(input.value);
+      });
       if (!input._codersFocusBound) {
         input._codersFocusBound = true;
         input.addEventListener('focus', () => {
@@ -53,9 +58,9 @@ const AciCli = {
       this.primeCodersCli();
       return;
     }
-    const prompt = document.getElementById('aci-cli-prompt');
-    if (prompt) {
-      prompt.textContent = AstranovSession?.isAstranov?.() ? 'ASTRANOV@collective $' : ((Auth.user.user_metadata?.full_name || Auth.user.email?.split('@')[0] || 'dev') + '@collective $');
+    const prefix = document.getElementById('aci-cli-prefix');
+    if (prefix) {
+      prefix.textContent = AstranovSession?.isAstranov?.() ? 'ASTRANOV ›' : '›';
     }
     if (AstranovSession?.isAstranov?.()) CliRibbon?.setActive?.('ACI');
     this.loadHistory();
@@ -168,12 +173,11 @@ const AciCli = {
 
   onKey(e) {
     const input = document.getElementById('aci-cli-in');
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       const line = (input?.value || '').trim();
       if (!line) return;
-      input.value = '';
-      this.buffer = '';
+      GlobeDeck?.clearCompose?.();
       this.run(line);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
@@ -205,7 +209,7 @@ const AciCli = {
     this.history.push(line);
     this.histIdx = -1;
     this.saveHistory();
-    this.print((document.getElementById('aci-cli-prompt')?.textContent || '$') + ' ' + line, 'cmd');
+    this.print('› ' + line, 'cmd');
     CliHub?.queueLine?.(line, 'cmd');
 
     const routed = await SuperCli?.exec?.(line, opts);
