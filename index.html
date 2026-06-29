@@ -11955,6 +11955,18 @@ const DrivingView = {
     } catch (e) {
       console.warn('[DrivingView] OSRM failed', e);
     }
+    if ((this.routeCoords?.length || 0) < 2 && from && to) {
+      const fallback = [];
+      for (let i = 0; i <= 12; i++) {
+        const t = i / 12;
+        fallback.push({
+          lat: from.lat + (to.lat - from.lat) * t,
+          lng: from.lng + (to.lng - from.lng) * t,
+        });
+      }
+      this.routeCoords = fallback;
+      this.drawRoute();
+    }
   },
 
   drawRoute() {
