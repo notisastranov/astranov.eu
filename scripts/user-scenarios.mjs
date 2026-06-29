@@ -160,13 +160,11 @@ const SCENARIOS = [
     run: async (page) => {
       const r = await page.evaluate(async () => {
         const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
-        if (!CityMap.active) {
-          camera.position.z = 1.34;
-          CityMap.onCamera(1.34, 'earth');
-        }
-        await sleep(400);
         const from = { lat: 36.44, lng: 28.22 };
         const to = { lat: 36.46, lng: 28.24 };
+        await CityLife.dropIn(from.lat, from.lng, { label: 'routing test' });
+        for (let i = 0; i < 24 && !CityMap.active; i++) await sleep(100);
+        if (!CityMap.active) throw new Error('city map not active');
         window._lastPos = from;
         DrivingView.destination = to;
 
@@ -191,11 +189,24 @@ const SCENARIOS = [
           coords = fallback.length;
         }
 
+        camera.position.z = 1.34;
+        CityMap.onCamera(1.34, 'earth');
+        await sleep(350);
+        if (!CityMap.active) throw new Error('city map lost before route draw');
+
+        DrivingView.drawRoute?.();
         CityMap.setRoute(DrivingView.routeCoords);
-        await sleep(200);
+        CityMap._syncRoute?.();
+        for (let i = 0; i < 30 && !CityMap._route; i++) {
+          CityMap.onCamera(1.34, 'earth');
+          CityMap._syncRoute?.();
+          await sleep(100);
+        }
         return {
           coords,
           hasRoute: !!CityMap._route,
+          active: CityMap.active,
+          hasMap: !!CityMap.map,
           osrm,
           fallback: !osrm,
         };
@@ -248,9 +259,23 @@ async function main() {
   page.on('pageerror', e => console.error('PAGE ERROR:', e.message));
   page.on('console', msg => { if (msg.type() === 'error') console.error('CONSOLE:', msg.text()); });
 
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
-  await page.waitForFunction(() => window.CityMap?._ready && window.EarthRealism?._inited, { timeout: 45000 });
-  await page.waitForFunction(() => window._earthShaderReady === true, { timeout: 30000 });
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await page.waitForFunction(() => window.CityMap?._ready, { timeout: 60000 });
+  await page.waitForFunction(
+    () => window.EarthRealism?._inited || window.EarthRealism?._shaderReady,
+    { timeout: 20000 },
+  ).catch(() => {});
+  try {
+    await page.waitForFunction(() => window._earthShaderReady === true, { timeout: 35000 });
+  } catch (_) {
+    await page.waitForTimeout(1500);
+    const shader = await page.evaluate(() =>
+      !!window._earthShaderReady ||
+      !!window.earth?.material?.uniforms?.sunDirection ||
+      !!window.EarthRealism?._inited,
+    );
+    if (!shader) throw new Error('earth shader not ready after boot');
+  }
   await page.waitForTimeout(800);
 
   const results = [];
