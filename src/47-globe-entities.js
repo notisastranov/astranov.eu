@@ -430,7 +430,9 @@ const GlobeEntity = {
         lat: u.lat,
         lng: u.lng,
         title: (u.emoji || (isRed ? '🔴' : '👤')) + ' ' + u.name,
-        description: isRed
+        description: u.domain
+          ? (u.domain + ' · Grok Heavy agent')
+          : isRed
           ? (fed ? 'RED · fed ✓ · blue team won slice' : 'RED rival · deliver pitogyro/beer/burger/tsigareta')
           : 'Player on map · tap to fly here · collab or κρυφτό',
         urgency: isRed && !fed ? 3 : 1,

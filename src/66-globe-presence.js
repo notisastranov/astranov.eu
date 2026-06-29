@@ -372,9 +372,12 @@ const AstranovPresence = {
     GlobeDeck.activeTask = 'game';
     ContextTruth?.sync?.();
     AciCli?.print('◎ GAME START · κρυφτό / hide and seek · ' + total + ' on map', 'ok');
-    const msg = n > 0
-      ? 'Κρυφτό ξεκίνησε! ' + total + ' παίκτες. Πες hide για να κρυφτείς · players για αναζήτηση'
-      : 'Κρυφτό ξεκίνησε! Πες hide για να κρυφτείς — φίλοι πρέπει να συνδεθούν στον χάρτη';
+    const olympians = others.filter(u => u.agent === 'grok-heavy').length;
+    const msg = olympians >= 12
+      ? 'Κρυφτό · 12 Olympian agents on map. Πες hide · players'
+      : n > 0
+      ? 'Κρυφτό ξεκίνησε! ' + total + ' παίκτες. Πες hide · players'
+      : 'Κρυφτό ξεκίνησε! Πες hide — ή players για τους 12 θεούς';
     ACIControl?.reply(msg);
     if (Voice.maySpeak()) speak('Κρυφτό. Πες hide.', () => resumeListening?.());
     FieldBrain?.pulse?.('play', 'kryfto started', { role: 'client', props: { players: total } });
@@ -391,7 +394,8 @@ const AstranovPresence = {
     list.forEach((u) => {
       MapDepict?.pulse?.(u.lat, u.lng, 0xffaa33, (u.emoji || '👤') + ' ' + u.name, 12000);
     });
-    AciCli?.print(list.map((u) => (u.emoji || '👤') + ' ' + u.name + ' · ' + u.lat.toFixed(3)).join(' · '), 'ok');
+    AciCli?.print(list.map((u) => (u.emoji || '👤') + ' ' + u.name
+      + (u.domain ? ' · ' + u.domain : '') + ' · ' + u.lat.toFixed(3)).join(' · '), 'ok');
     ACIControl?.reply(list.length + ' on map — tap a marker or type locate');
     return list;
   },

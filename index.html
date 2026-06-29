@@ -3251,7 +3251,7 @@ Object.assign(SuperCli, {
     this.out('youtube <search> · watch <url> · play 2 (pick result)', 'ok');
     this.out('space locate <topic> · space status — brain places media on globe/cosmos', 'ok');
     this.out('scenario wake|city|groceries|youtube|reviews|list — real user flows', 'ok');
-    this.out('players · kryfto · housekeeping · pyramid · willa — demo games on globe', 'ok');
+    this.out('players · kryfto · housekeeping · pyramid · willa — 12 Olympian Grok Heavy agents', 'ok');
     this.out('team create <name> · team join <id> · contact video|voice|message <name>', 'ok');
     this.out('cli search <text> · cli users · cli view <name> · cloud dm <name> · chat <name> <msg>', 'ok');
     this.out('drivers · driver <name> — pick delivery driver on map/cloud', 'ok');
@@ -9793,7 +9793,9 @@ const GlobeEntity = {
         lat: u.lat,
         lng: u.lng,
         title: (u.emoji || (isRed ? '🔴' : '👤')) + ' ' + u.name,
-        description: isRed
+        description: u.domain
+          ? (u.domain + ' · Grok Heavy agent')
+          : isRed
           ? (fed ? 'RED · fed ✓ · blue team won slice' : 'RED rival · deliver pitogyro/beer/burger/tsigareta')
           : 'Player on map · tap to fly here · collab or κρυφτό',
         urgency: isRed && !fed ? 3 : 1,
@@ -13166,9 +13168,12 @@ const AstranovPresence = {
     GlobeDeck.activeTask = 'game';
     ContextTruth?.sync?.();
     AciCli?.print('◎ GAME START · κρυφτό / hide and seek · ' + total + ' on map', 'ok');
-    const msg = n > 0
-      ? 'Κρυφτό ξεκίνησε! ' + total + ' παίκτες. Πες hide για να κρυφτείς · players για αναζήτηση'
-      : 'Κρυφτό ξεκίνησε! Πες hide για να κρυφτείς — φίλοι πρέπει να συνδεθούν στον χάρτη';
+    const olympians = others.filter(u => u.agent === 'grok-heavy').length;
+    const msg = olympians >= 12
+      ? 'Κρυφτό · 12 Olympian agents on map. Πες hide · players'
+      : n > 0
+      ? 'Κρυφτό ξεκίνησε! ' + total + ' παίκτες. Πες hide · players'
+      : 'Κρυφτό ξεκίνησε! Πες hide — ή players για τους 12 θεούς';
     ACIControl?.reply(msg);
     if (Voice.maySpeak()) speak('Κρυφτό. Πες hide.', () => resumeListening?.());
     FieldBrain?.pulse?.('play', 'kryfto started', { role: 'client', props: { players: total } });
@@ -13185,7 +13190,8 @@ const AstranovPresence = {
     list.forEach((u) => {
       MapDepict?.pulse?.(u.lat, u.lng, 0xffaa33, (u.emoji || '👤') + ' ' + u.name, 12000);
     });
-    AciCli?.print(list.map((u) => (u.emoji || '👤') + ' ' + u.name + ' · ' + u.lat.toFixed(3)).join(' · '), 'ok');
+    AciCli?.print(list.map((u) => (u.emoji || '👤') + ' ' + u.name
+      + (u.domain ? ' · ' + u.domain : '') + ' · ' + u.lat.toFixed(3)).join(' · '), 'ok');
     ACIControl?.reply(list.length + ' on map — tap a marker or type locate');
     return list;
   },
@@ -13201,12 +13207,36 @@ const WillaGames = {
   _pyramids: [],
   active: null,
 
-  KRYFTO_DEMO: [
-    { id: 'demo-maria', name: 'Maria', emoji: '🔍', role: 'seeker', hidden: false, lat: 36.452, lng: 28.231 },
-    { id: 'demo-kostas', name: 'Kostas', emoji: '🙈', role: 'hider', hidden: true, lat: 36.438, lng: 28.209 },
-    { id: 'demo-eleni', name: 'Eleni', emoji: '🧹', role: 'housekeeping', hidden: false, lat: 36.461, lng: 28.198 },
-    { id: 'demo-alex', name: 'Alex', emoji: '🏃', role: 'hider', hidden: true, lat: 36.429, lng: 28.245 },
+  // Twelve Olympians — same roster as Grok Heavy / Council of Thirteen (minus Astranov 13th seat)
+  OLYMPIAN_AGENTS: [
+    { id: 'god-zeus', name: 'Zeus', domain: 'sovereignty & order', emoji: '⚡', lat: 40.085, lng: 22.358, role: 'seeker', hidden: false },
+    { id: 'god-hera', name: 'Hera', domain: 'community & bonds', emoji: '👑', lat: 37.638, lng: 21.630, role: 'housekeeping', hidden: false },
+    { id: 'god-poseidon', name: 'Poseidon', domain: 'infrastructure & flow', emoji: '🌊', lat: 36.62, lng: 27.85, role: 'housekeeping', hidden: false },
+    { id: 'god-demeter', name: 'Demeter', domain: 'resources & economy', emoji: '🌾', lat: 38.033, lng: 23.542, role: 'housekeeping', hidden: false },
+    { id: 'god-athena', name: 'Athena', domain: 'wisdom & strategy', emoji: '🦉', lat: 37.971, lng: 23.726, role: 'seeker', hidden: false },
+    { id: 'god-apollo', name: 'Apollo', domain: 'truth & clarity', emoji: '☀️', lat: 38.482, lng: 22.501, role: 'seeker', hidden: false },
+    { id: 'god-artemis', name: 'Artemis', domain: 'protection of the vulnerable', emoji: '🏹', lat: 36.48, lng: 28.12, role: 'hider', hidden: true },
+    { id: 'god-ares', name: 'Ares', domain: 'enforcement & conflict', emoji: '⚔️', lat: 37.074, lng: 22.430, role: 'seeker', hidden: false },
+    { id: 'god-aphrodite', name: 'Aphrodite', domain: 'harmony & relationships', emoji: '💫', lat: 34.756, lng: 32.408, role: 'hider', hidden: true },
+    { id: 'god-hephaestus', name: 'Hephaestus', domain: 'the craft & the build', emoji: '🔨', lat: 39.916, lng: 25.250, role: 'housekeeping', hidden: false },
+    { id: 'god-hermes', name: 'Hermes', domain: 'communication & exchange', emoji: '🪽', lat: 37.92, lng: 22.88, role: 'hider', hidden: true },
+    { id: 'god-dionysus', name: 'Dionysus', domain: 'culture & freedom', emoji: '🍇', lat: 37.103, lng: 25.376, role: 'hider', hidden: true },
   ],
+
+  WILLA_UNIT_MAP: {
+    'god-zeus': { unit: 'spaceforce', domain: 'air', team: 'blue' },
+    'god-hera': { unit: 'ground', domain: 'ground', team: 'blue' },
+    'god-poseidon': { unit: 'navy', domain: 'sea', team: 'blue' },
+    'god-demeter': { unit: 'ground', domain: 'ground', team: 'blue' },
+    'god-athena': { unit: 'airfighter', domain: 'air', team: 'blue' },
+    'god-apollo': { unit: 'airfighter', domain: 'air', team: 'blue' },
+    'god-artemis': { unit: 'spy', domain: 'fpv', team: 'blue' },
+    'god-ares': { unit: 'ground', domain: 'ground', team: 'blue' },
+    'god-aphrodite': { unit: 'spy', domain: 'ground', team: 'blue' },
+    'god-hephaestus': { unit: 'drone', domain: 'ground', team: 'blue' },
+    'god-hermes': { unit: 'drone', domain: 'fpv', team: 'blue' },
+    'god-dionysus': { unit: 'seals', domain: 'underwater', team: 'blue' },
+  },
 
   PYRAMID_SITES: [
     { id: 'pyr-giza', name: 'Giza Great Pyramid', lat: 29.9792, lng: 31.1342, height: '146 m' },
@@ -13214,24 +13244,7 @@ const WillaGames = {
     { id: 'pyr-chichen', name: 'Chichen Itza', lat: 20.6843, lng: -88.5678, height: 'El Castillo' },
   ],
 
-  WILLA_ROSTER: [
-    { id: 'w-b1', name: 'F-16 Aegean', unit: 'airfighter', domain: 'air', team: 'blue', emoji: '✈️', lat: 36.55, lng: 27.9 },
-    { id: 'w-b2', name: 'Orbital Shield', unit: 'spaceforce', domain: 'air', team: 'blue', emoji: '🛰️', lat: 36.2, lng: 28.0, alt: 1.07 },
-    { id: 'w-b3', name: 'Hellenic Frigate', unit: 'navy', domain: 'sea', team: 'blue', emoji: '🚢', lat: 36.15, lng: 28.35 },
-    { id: 'w-b4', name: '3rd Marines', unit: 'ground', domain: 'ground', team: 'blue', emoji: '🪖', lat: 36.44, lng: 28.18 },
-    { id: 'w-b5', name: 'SEAL Alpha', unit: 'seals', domain: 'underwater', team: 'blue', emoji: '🤿', lat: 36.42, lng: 28.28 },
-    { id: 'w-b6', name: 'Agent Shadow', unit: 'spy', domain: 'ground', team: 'blue', emoji: '🕵️', lat: 36.46, lng: 28.22 },
-    { id: 'w-b7', name: 'MQ-9 Reaper', unit: 'drone', domain: 'air', team: 'blue', emoji: '🛸', lat: 36.48, lng: 28.05 },
-    { id: 'w-b8', name: 'FPV Ghost', unit: 'drone', domain: 'fpv', team: 'blue', emoji: '🥽', lat: 36.435, lng: 28.21 },
-    { id: 'w-b9', name: 'UGV Scout', unit: 'drone', domain: 'ground', team: 'blue', emoji: '🚙', lat: 36.445, lng: 28.19 },
-    { id: 'w-b10', name: 'USV Patrol', unit: 'drone', domain: 'sea', team: 'blue', emoji: '🚤', lat: 36.41, lng: 28.32 },
-    { id: 'w-b11', name: 'UUV Hunter', unit: 'drone', domain: 'underwater', team: 'blue', emoji: '🔱', lat: 36.40, lng: 28.26 },
-    { id: 'w-r1', name: 'MiG demo', unit: 'airfighter', domain: 'air', team: 'red', emoji: '✈️', lat: 36.62, lng: 28.1 },
-    { id: 'w-r2', name: 'Red Corvette', unit: 'navy', domain: 'sea', team: 'red', emoji: '⚓', lat: 36.08, lng: 28.42 },
-    { id: 'w-r3', name: 'Red Guard', unit: 'ground', domain: 'ground', team: 'red', emoji: '⛺', lat: 36.50, lng: 28.30 },
-    { id: 'w-r4', name: 'Red Spy', unit: 'spy', domain: 'ground', team: 'red', emoji: '🕶️', lat: 36.43, lng: 28.24 },
-    { id: 'w-r5', name: 'Kamikaze FPV', unit: 'drone', domain: 'fpv', team: 'red', emoji: '🥽', lat: 36.47, lng: 28.15 },
-  ],
+
 
   DOMAIN_ALT: {
     air: 1.06, fpv: 1.07, ground: 1.025, sea: 1.02, underwater: 1.015,
@@ -13247,7 +13260,30 @@ const WillaGames = {
 
   boot() {
     CosmicZoom?.trackISS?.();
-    AciCli?.print?.('◎ Solar view · ISS live · games: kryfto · pyramid · willa', 'dim');
+    AciCli?.print?.('◎ Solar view · ISS live · 12 Olympian agents · kryfto · pyramid · willa', 'dim');
+  },
+
+  _buildOlympians(game) {
+    return this.OLYMPIAN_AGENTS.map(g => ({
+      ...g,
+      demo: true,
+      agent: 'grok-heavy',
+      game: game || 'lobby',
+      t: Date.now(),
+    }));
+  },
+
+  _buildWillaRoster() {
+    return this.OLYMPIAN_AGENTS.map(g => {
+      const w = this.WILLA_UNIT_MAP[g.id] || { unit: 'unit', domain: 'ground', team: 'blue' };
+      return {
+        ...g,
+        ...w,
+        demo: true,
+        agent: 'grok-heavy',
+        t: Date.now(),
+      };
+    });
   },
 
   wantsPyramid(line) {
@@ -13266,13 +13302,8 @@ const WillaGames = {
   ensureDemoPlayers(mode) {
     const real = (window.others || []).filter(u => !u.demo);
     if (real.length) return real;
-    if (!this._demo.length || mode === 'kryfto') {
-      this._demo = this.KRYFTO_DEMO.map(p => ({
-        ...p,
-        demo: true,
-        game: 'kryfto',
-        t: Date.now(),
-      }));
+    if (!this._demo.length || mode === 'kryfto' || mode === 'lobby') {
+      this._demo = this._buildOlympians(mode === 'kryfto' ? 'kryfto' : 'lobby');
     }
     AstranovPresence?._applyOthers?.(this._demo);
     return this._demo;
@@ -13297,18 +13328,19 @@ const WillaGames = {
     window.hidden = false;
     const others = window.others || [];
     others.forEach(u => {
-      if (!u.hidden) MapDepict?.pulse?.(u.lat, u.lng, 0x3d9eff, (u.emoji || '👤') + ' ' + u.name + ' · seek', 16000);
+      const tag = u.hidden ? 'hidden' : (u.role || 'agent');
+      if (!u.hidden) MapDepict?.pulse?.(u.lat, u.lng, 0x3d9eff, (u.emoji || '⚡') + ' ' + u.name + ' · ' + tag, 16000);
     });
     const p = window._lastPos || { lat: 36.44, lng: 28.22 };
     MapDepict?.action?.('play', { lat: p.lat, lng: p.lng, detail: 'κρυφτό · housekeeping demo' });
     MapDepict?.pulse?.(p.lat, p.lng, 0x1a6fd4, 'ΚΡΥΦΤΟ DEMO', 18000);
     GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
     GlobeDeck?.setTitle?.('ΚΡΥΦΤΟ · DEMO');
-    GlobeDeck?.setPreview?.('◎ ' + (others.length + 1) + ' players · hide · seek · housekeeping');
+    GlobeDeck?.setPreview?.('◎ 12 Olympians · hide · seek · housekeeping');
     GlobeDeck.activeTask = 'game';
     ContextTruth?.sync?.();
-    AciCli?.print('◎ DEMO κρυφτό / hide & seek / housekeeping · ' + others.length + ' NPCs', 'ok');
-    ACIControl?.reply('Demo κρυφτό — type hide to vanish · players to seek · 4 demo players on Rhodes');
+    AciCli?.print('◎ κρυφτό · 12 Olympian agents (Grok Heavy) on the map', 'ok');
+    ACIControl?.reply('Twelve gods — Zeus · Athena · Hermes… · hide to vanish · players to seek');
     FieldBrain?.pulse?.('play', 'kryfto demo', { role: 'client', props: { players: others.length + 1, demo: true } });
   },
 
@@ -13347,15 +13379,15 @@ const WillaGames = {
   startWilla() {
     this.active = 'willa';
     AstranovPresence.game = 'willa';
-    this._units = this.WILLA_ROSTER.map(u => ({ ...u, demo: true, t: Date.now() }));
+    this._units = this._buildWillaRoster();
     this._renderWillaUnits();
     GlobeDeck?.expand?.('Willa game');
     GlobeDeck?.setPreview?.('⚔ Willa · air · sea · ground · space · spies · drones');
     GlobeDeck.activeTask = 'game';
     ContextTruth?.sync?.();
     const n = this._units.length;
-    AciCli?.print('◎ WILLA GAME · ' + n + ' units · blue vs red · multi-domain', 'ok');
-    ACIControl?.reply('Willa warfare — fighters · navy · spaceforce · ground · SEALs · spies · drones all domains');
+    AciCli?.print('◎ WILLA GAME · ' + n + ' Olympian agents · multi-domain warfare', 'ok');
+    ACIControl?.reply('Willa — twelve gods as commanders · air · sea · ground · space · spies · drones');
     FieldBrain?.pulse?.('play', 'willa game', { role: 'client', props: { units: n } });
     TelemachosPilot?.refreshTeamStatus?.({ quiet: true });
   },
@@ -13378,7 +13410,7 @@ const WillaGames = {
         lng: u.lng,
         altitude: alt,
         title: (u.emoji || '⚔') + ' ' + u.name,
-        description: (u.team || '').toUpperCase() + ' · ' + (u.unit || 'unit') + ' · ' + (dom.label || u.domain),
+        description: (u.domain || u.unit || '') + ' · ' + (dom.label || u.domain) + ' · Grok Heavy',
         urgency: u.team === 'red' ? 3 : 2,
         color: teamColor,
         icon: u.emoji || dom.emoji || '⚔',
@@ -13421,9 +13453,10 @@ const WillaGames = {
       return this._pyramids.map((s, i) => (i + 1) + '. ' + s.name).join(' · ');
     }
     if (this.active === 'willa') {
-      return this._units.length + ' units · blue ' + this._units.filter(u => u.team === 'blue').length
-        + ' · red ' + this._units.filter(u => u.team === 'red').length;
+      return this._units.length + ' Olympian agents · ' + this._units.map(u => u.name).join(' · ');
     }
+    const gods = (window.others || []).filter(u => u.agent === 'grok-heavy');
+    if (gods.length) return gods.map(u => u.emoji + ' ' + u.name).join(' · ');
     return (window.others || []).length + ' demo/live players';
   },
 };
