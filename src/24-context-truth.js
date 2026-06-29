@@ -21,13 +21,29 @@ const ContextTruth = {
         intruder: c,
       };
     }
-    if (AstranovPresence?.game === 'kryfto') {
+    if (AstranovPresence?.game === 'kryfto' || WillaGames?.active === 'kryfto') {
       const hidden = !!window.hidden;
       return {
         mode: 'game',
         ctx: 'game',
         label: hidden ? 'ΚΡΥΦΤό · hidden' : 'ΚΡΥΦΤό · hide & seek',
         detail: hidden ? 'You are hidden on the map' : 'Housekeeping / hide and seek LIVE',
+      };
+    }
+    if (AstranovPresence?.game === 'pyramid' || WillaGames?.active === 'pyramid') {
+      return {
+        mode: 'game',
+        ctx: 'game',
+        label: '🔺 Pyramid hunt',
+        detail: 'Find apex markers · Giza · Rhodes · Chichen Itza',
+      };
+    }
+    if (AstranovPresence?.game === 'willa' || WillaGames?.active === 'willa') {
+      return {
+        mode: 'game',
+        ctx: 'game',
+        label: '⚔ Willa game',
+        detail: 'Air · sea · ground · space · SEALs · spies · drones',
       };
     }
     if (MapComms?.teamId && MapComms?.kind === 'dm' && MapComms?.dmUser) {

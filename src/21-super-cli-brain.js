@@ -57,7 +57,7 @@ Object.assign(SuperCli, {
       'shops', 'order', 'vendor', 'ping', 'locate', 'gps', 'me', 'vhf', 'call', 'phone',
       'drive', 'news', 'roles', 'claim', 'field_stats', 'hold', 'resume', 'stop',
       'sync', 'requests', 'wishlist', 'players', 'friends', 'kryfto', 'hide', 'seek', 'collab',
-      'hideandseek', 'housekeeping',
+      'hideandseek', 'housekeeping', 'pyramid', 'pyramids', 'willa', 'willagame',
       'team', 'contact', 'msg',
       'telemachos', 'tilemaxos', 'telemachus', 'tilemachos', 'teledromos', 'teledromus',
       'pilot', 'drone', 'drones', 'fleet',
@@ -132,7 +132,7 @@ Object.assign(SuperCli, {
     this.out('youtube <search> · watch <url> · play 2 (pick result)', 'ok');
     this.out('space locate <topic> · space status — brain places media on globe/cosmos', 'ok');
     this.out('scenario wake|city|groceries|youtube|reviews|list — real user flows', 'ok');
-    this.out('players · friends · kryfto · hide · seek — map presence (sign in)', 'ok');
+    this.out('players · kryfto · housekeeping · pyramid · willa — demo games on globe', 'ok');
     this.out('team create <name> · team join <id> · contact video|voice|message <name>', 'ok');
     this.out('cli search <text> · cli users · cli view <name> · cloud dm <name> · chat <name> <msg>', 'ok');
     this.out('drivers · driver <name> — pick delivery driver on map/cloud', 'ok');
@@ -408,6 +408,18 @@ Object.assign(SuperCli, {
       }
       if (AstranovPresence?.wantsKryftoStart?.(raw)) {
         AstranovPresence?.startKryfto?.();
+        return { handled: true };
+      }
+      if (WillaGames?.wantsPyramid?.(raw)) {
+        WillaGames?.startPyramid?.();
+        return { handled: true };
+      }
+      if (WillaGames?.wantsWilla?.(raw) || cmd === 'willa' || cmd === 'willagame') {
+        WillaGames?.startWilla?.();
+        return { handled: true };
+      }
+      if (cmd === 'pyramid' || cmd === 'pyramids') {
+        WillaGames?.startPyramid?.();
         return { handled: true };
       }
       if (AciCoders?.isLocalGlobeCmd?.(raw)) {

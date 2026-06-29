@@ -16,6 +16,10 @@ const GlobeEntity = {
     media: { color: 0x1a6fd4, icon: '🎬', label: 'Media' },
     pilot: { color: 0x3d9eff, icon: '🛸', label: 'Delivery' },
     place: { color: 0x1a6fd4, icon: '◎', label: 'Place' },
+    unit: { color: 0xffaa33, icon: '⚔', label: 'Unit' },
+    drone: { color: 0x44ccff, icon: '🛸', label: 'Drone' },
+    spy: { color: 0xaa44ff, icon: '🕵', label: 'Spy' },
+    pyramid: { color: 0xffdd44, icon: '🔺', label: 'Pyramid' },
   },
 
   init() {

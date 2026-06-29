@@ -5,6 +5,8 @@ const CosmicZoom = {
   galaxyPts: null,
   satGroup: null,
   issMarker: null,
+  _issTarget: null,
+  _issLastFetch: 0,
   orbitLines: [],
   leoRings: [],
   meshRing: null,
@@ -94,7 +96,7 @@ const CosmicZoom = {
     ];
     this.issOrbit = this.leoRings[2];
     this.trackISS();
-    setInterval(() => this.trackISS(), 30000);
+    setInterval(() => this.trackISS(), 20000);
   },
 
   spawnStarlinkShell() {
@@ -143,19 +145,47 @@ const CosmicZoom = {
   },
 
   async trackISS() {
+    let lat = null;
+    let lng = null;
     try {
       const r = await fetch('https://api.open-notify.org/iss-now.json');
       const j = await r.json();
-      if (j.iss_position && this.issMarker) {
-        const lat = parseFloat(j.iss_position.latitude);
-        const lng = parseFloat(j.iss_position.longitude);
-        const p = latLngToPos(lat, lng, 1.065);
-        this.issMarker.position.set(p.x, p.y, p.z);
-        this.issMarker.userData.lat = lat;
-        this.issMarker.userData.lng = lng;
-        window._lastPos = window._lastPos || {};
+      if (j.iss_position) {
+        lat = parseFloat(j.iss_position.latitude);
+        lng = parseFloat(j.iss_position.longitude);
       }
     } catch (_) {}
+    if (lat == null) {
+      try {
+        const r = await fetch('https://api.wheretheiss.at/v1/satellites/25544');
+        const j = await r.json();
+        if (j.latitude != null) {
+          lat = +j.latitude;
+          lng = +j.longitude;
+        }
+      } catch (_) {}
+    }
+    if (lat == null || lng == null || !this.issMarker) return;
+    this._issTarget = { lat, lng, t: Date.now() };
+    this._issLastFetch = Date.now();
+    this.issMarker.userData.lat = lat;
+    this.issMarker.userData.lng = lng;
+    this.issMarker.userData.desc = 'ISS · live ' + lat.toFixed(2) + '° ' + lng.toFixed(2) + '° · ~400 km';
+    const p = latLngToPos(lat, lng, 1.065);
+    if (!this._issTarget.from) {
+      this.issMarker.position.set(p.x, p.y, p.z);
+      this._issTarget.from = { x: p.x, y: p.y, z: p.z };
+    }
+    this.updateGuide(this.level, camera?.position?.z || 7.2);
+  },
+
+  _lerpIss() {
+    if (!this.issMarker || this._issTarget?.lat == null) return;
+    const tgt = latLngToPos(this._issTarget.lat, this._issTarget.lng, 1.065);
+    const m = this.issMarker.position;
+    m.x += (tgt.x - m.x) * 0.18;
+    m.y += (tgt.y - m.y) * 0.18;
+    m.z += (tgt.z - m.z) * 0.18;
   },
 
   updateGuide(level, camZ) {
@@ -178,13 +208,19 @@ const CosmicZoom = {
         + '<div class="cg-item"><b>Dashed rings</b> — altitude shells · semi-transparent guides</div>'
         + '<div class="cg-item"><b>Mesh relays</b> — Astranov orbital connectivity</div>';
     } else if (level === 'system') {
+      const iss = this.issMarker?.userData;
       html = '<div class="cg-title">Solar system (scaled view)</div>'
         + '<div class="cg-item"><b>Sun</b> — G-type star · system center</div>';
+      if (iss?.lat != null) {
+        html += '<div class="cg-item"><b>ISS</b> — live ' + iss.lat.toFixed(2) + '° · ' + iss.lng.toFixed(2) + '° · zoom in for orbit</div>';
+      } else {
+        html += '<div class="cg-item"><b>ISS</b> — tracking live position…</div>';
+      }
       this.planets.forEach(p => {
         const ud = p.userData;
         html += '<div class="cg-item"><b>' + ud.name + '</b> — ' + (ud.desc || '') + '</div>';
       });
-      html += '<div class="cg-item"><i>Dashed paths = discrete orbits · not to scale</i></div>';
+      html += '<div class="cg-item"><i>Dashed paths = discrete orbits · Earth shows real ISS</i></div>';
     } else if (level === 'galaxy') {
       html = '<div class="cg-title">Galaxy view</div>'
         + '<div class="cg-item"><b>Star field</b> — discrete points · spiral arm hint</div>'
@@ -239,6 +275,8 @@ const CosmicZoom = {
     if (this.solarGroup) this.solarGroup.visible = level === 'system';
     if (this.galaxyPts) this.galaxyPts.visible = level === 'galaxy';
     if (this.satGroup) this.satGroup.visible = camZ < 10;
+    if (this.issMarker) this.issMarker.visible = camZ < 10;
+    this._lerpIss();
 
     if (this.solarGroup?.visible) {
       const t = Date.now() * 0.001;

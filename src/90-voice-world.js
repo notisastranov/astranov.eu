@@ -368,6 +368,18 @@ async function submitVoiceToCli(transcript) {
     if (window._handsFreeVoice && !Voice?.speaking) scheduleVoiceResume();
     return;
   }
+  if (WillaGames?.wantsPyramid?.(line)) {
+    if (gen === _voiceGen) _voiceBusy = false;
+    AciCli?.print('🎧 ' + line, 'cmd');
+    WillaGames?.startPyramid?.();
+    return;
+  }
+  if (WillaGames?.wantsWilla?.(line)) {
+    if (gen === _voiceGen) _voiceBusy = false;
+    AciCli?.print('🎧 ' + line, 'cmd');
+    WillaGames?.startWilla?.();
+    return;
+  }
   if (/^(dark|bright|light)\s*(theme|mode)?\b/.test(low) || /^theme\s+(dark|bright|light)\b/.test(low)) {
     if (gen === _voiceGen) _voiceBusy = false;
     const mode = /bright|light/.test(low) ? 'bright' : 'dark';

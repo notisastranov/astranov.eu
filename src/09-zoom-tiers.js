@@ -7,8 +7,8 @@ const ZoomTiers = {
     { id: 'city', z: 1.38, label: 'CITY', cosmic: 'earth', city: true },
     { id: 'neighborhood', z: 1.08, label: 'NEIGHBORHOOD', cosmic: 'earth', city: true },
   ],
-  START_ID: 'global',
-  _index: 1,
+  START_ID: 'solar',
+  _index: 0,
   _wheelAccum: 0,
   _pinchAccum: 0,
   WHEEL_THRESH: 28,
@@ -21,7 +21,7 @@ const ZoomTiers = {
   },
 
   current() {
-    return this.TIERS[this._index] || this.TIERS[1];
+    return this.TIERS[this._index] || this.TIERS[0];
   },
 
   indexOf(id) {

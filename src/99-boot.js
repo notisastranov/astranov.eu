@@ -83,6 +83,7 @@ EarthRealism.init();
 AstranovSession.init();
 AstranovWishlist.init();
 AstranovPresence.init();
+WillaGames.init();
 MapComms.init();
 ProfileSite.init();
 setTimeout(() => HellenicSource?.seedToBrain?.(), 2400);
@@ -98,10 +99,7 @@ Commerce.loadVendors().then(() => Commerce.initUI());
 NewsFeed.fetch();
 setInterval(() => NewsFeed.tick(), 12000);
 
-// Demo auto show after permissions
-setTimeout(() => {
-  // auto demo if needed (globe focused)
-}, 25000);
+
 
 // Domain guard
 const host = location.hostname || '';

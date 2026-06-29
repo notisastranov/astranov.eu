@@ -280,6 +280,7 @@ const AstranovPresence = {
   },
 
   _applyOthers(users) {
+    users = WillaGames?.mergeLivePlayers?.(users) || users;
     window.others = users;
     if (typeof others !== 'undefined') others = users;
     GlobeEntity?.syncFriends?.(users);
@@ -313,10 +314,11 @@ const AstranovPresence = {
 
   startKryfto() {
     if (!Auth?.user) {
-      ACIControl?.reply('Sign in with G — then say κρυφτό or hide and seek');
-      Auth?.openLoginModal?.('Sign in to play κρυφτό on the map');
+      WillaGames?.ensureDemoPlayers?.('kryfto');
+      WillaGames?.startKryftoDemo?.();
       return;
     }
+    WillaGames?.ensureDemoPlayers?.('kryfto');
     this.game = 'kryfto';
     this._gameStartedAt = Date.now();
     window.hidden = false;
@@ -379,10 +381,11 @@ const AstranovPresence = {
   },
 
   listPlayers() {
+    WillaGames?.ensureDemoPlayers?.(this.game || 'lobby');
     const list = window.others || [];
     if (!list.length) {
-      AciCli?.print('No other players on map — friends must sign in', 'dim');
-      ACIControl?.reply('No other players yet — invite friends to sign in at astranov.eu');
+      AciCli?.print('No other players on map — try: kryfto · pyramid · willa', 'dim');
+      ACIControl?.reply('No players yet — say kryfto · pyramid game · willa game for demos');
       return list;
     }
     list.forEach((u) => {

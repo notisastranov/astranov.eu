@@ -48,6 +48,7 @@
     { "file": "64-astranov-session.js", "marker": "// === ASTRANOV SESSION" },
     { "file": "65-astranov-wishlist.js", "marker": "// === ASTRANOV WISHLIST" },
     { "file": "66-globe-presence.js", "marker": "// === GLOBE PRESENCE" },
+    { "file": "68-willa-games.js", "marker": "// === WILLA GAMES" },
     { "file": "67-map-comms.js", "marker": "// === MAP COMMS" },
     { "file": "68-marketplace-comms.js", "marker": "// ASTRANOV — Marketplace Comms" },
     { "file": "69-profile-site.js", "marker": "// === PROFILE SITE" },
