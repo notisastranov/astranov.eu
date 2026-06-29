@@ -90,14 +90,45 @@ serve(async (req) => {
     if (action === 'users') {
       const owner = await isOwner(sb, userId!)
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-      const { data: profiles } = await sb.from('profiles')
-        .select('id, display_name, avatar_emoji, field_seen_at, field_lat, field_lng, map_hidden')
-        .gte('field_seen_at', since)
-        .not('field_seen_at', 'is', null)
-        .order('field_seen_at', { ascending: false })
-        .limit(owner ? 120 : 40)
+      const profCols = 'id, display_name, avatar_emoji, field_seen_at, field_lat, field_lng, map_hidden'
+      let profiles: { id: string; display_name: string | null; avatar_emoji: string | null; field_seen_at: string | null; field_lat: number | null; field_lng: number | null; map_hidden: boolean | null }[] = []
 
-      const ids = (profiles || []).map((p) => p.id)
+      if (owner) {
+        const { data: fieldRows } = await sb.from('profiles')
+          .select(profCols)
+          .gte('field_seen_at', since)
+          .not('field_seen_at', 'is', null)
+          .order('field_seen_at', { ascending: false })
+          .limit(80)
+        const seen = new Set<string>()
+        profiles = (fieldRows || []).filter((p) => { seen.add(p.id); return true })
+
+        const cliSince = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+        const { data: cliRows } = await sb.from('cli_transcripts')
+          .select('user_id')
+          .gte('created_at', cliSince)
+          .order('created_at', { ascending: false })
+          .limit(400)
+        const cliIds = [...new Set((cliRows || []).map((r) => r.user_id).filter((id) => !seen.has(id)))]
+        if (cliIds.length) {
+          const { data: cliProfs } = await sb.from('profiles').select(profCols).in('id', cliIds.slice(0, 120))
+          ;(cliProfs || []).forEach((p) => { if (!seen.has(p.id)) { seen.add(p.id); profiles.push(p) } })
+        }
+        if (profiles.length < 40) {
+          const { data: more } = await sb.from('profiles').select(profCols).order('field_seen_at', { ascending: false, nullsFirst: false }).limit(120)
+          ;(more || []).forEach((p) => { if (!seen.has(p.id)) { seen.add(p.id); profiles.push(p) } })
+        }
+      } else {
+        const { data: rows } = await sb.from('profiles')
+          .select(profCols)
+          .gte('field_seen_at', since)
+          .not('field_seen_at', 'is', null)
+          .order('field_seen_at', { ascending: false })
+          .limit(40)
+        profiles = rows || []
+      }
+
+      const ids = profiles.map((p) => p.id)
       const lastByUser = new Map<string, { line: string; cls: string; at: string }>()
       if (ids.length) {
         const { data: lastLines } = await sb.from('cli_transcripts')
@@ -112,7 +143,7 @@ serve(async (req) => {
         }
       }
 
-      const users = (profiles || [])
+      const users = profiles
         .filter((p) => owner || p.id === userId || !p.map_hidden)
         .map((p) => ({
           id: p.id,
