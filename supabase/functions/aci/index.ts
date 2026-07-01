@@ -981,6 +981,84 @@ serve(async (req) => {
       return json({ ok: true, taught: true, owner: caller.isOwner })
     }
 
+    if (mode === 'booker_chat') {
+      const message = String(body.message || body.prompt || '').trim().slice(0, 2000)
+      if (message.length < 1) return json({ error: 'message required' }, 400)
+
+      const siteId = String(body.site_id || 'yachts').slice(0, 64)
+      const stage = String(body.stage || 'collect').slice(0, 32)
+      const demand = (body.demand && typeof body.demand === 'object') ? body.demand : {}
+      const matchIn = (body.match && typeof body.match === 'object') ? body.match : null
+      const suggestions = Array.isArray(body.suggestions) ? body.suggestions.slice(0, 8) : []
+      const history = Array.isArray(body.history) ? body.history : []
+
+      const bookingCtx = JSON.stringify({
+        site_id: siteId,
+        stage,
+        demand,
+        match: matchIn,
+        suggestions: suggestions.map((s: { label?: string; id?: string }) => ({ id: s.id, label: s.label })),
+        agent: 'booker',
+        brain: 'astranov',
+      }, null, 0)
+
+      const guestNote = !caller.callerId
+        ? 'Guest charter session — collect contact before transmit.'
+        : `Signed-in charter user ${caller.email || caller.callerId}`
+
+      const result = await invokeFn(base, anon, caller.authToken, 'aicycle', {
+        prompt: message,
+        profile_id: caller.callerId || undefined,
+        mode: 'booker',
+        history,
+        agent_system: `${COLLECTIVE_CAUSE}\n\n${guestNote}\n\nLIVE BOOKING STATE:\n${bookingCtx}`,
+      })
+
+      let text = String(result.text || result.response || '').trim()
+      let patch: Record<string, unknown> | null = null
+      let action = 'reply'
+      const patchM = text.match(/BOOKER_PATCH=(\{[\s\S]*\})\s*$/m)
+      if (patchM) {
+        try {
+          const parsed = JSON.parse(patchM[1]) as { patch?: Record<string, unknown>; action?: string }
+          patch = parsed.patch || null
+          action = String(parsed.action || 'reply').slice(0, 32)
+          text = text.replace(/BOOKER_PATCH=\{[\s\S]*\}\s*$/m, '').trim()
+        } catch { /* keep full text */ }
+      }
+
+      if (!text) {
+        text = 'Booker online — tell me your voyage dates, guests, and budget.'
+      }
+
+      if (memoryOwnerId && text) {
+        try {
+          await sb.from('ai_memory').insert({
+            profile_id: memoryOwnerId,
+            content: `[booker${caller.callerId ? '' : '-guest'}] Q: ${message.slice(0, 160)} A: ${text.slice(0, 320)}`,
+            is_private: false,
+            source: 'cic_log',
+            importance: 1.05,
+            distilled: false,
+          })
+        } catch { /* non-fatal */ }
+      }
+
+      return json({
+        ok: true,
+        text,
+        response: text,
+        patch,
+        action,
+        agent: 'booker',
+        brain: 'astranov',
+        provider: 'astranov',
+        via: result.via || 'booker',
+        site_id: siteId,
+        owner: caller.isOwner,
+      })
+    }
+
     if (mode === 'think') {
       const prompt = String(body.prompt || '').trim()
       if (!prompt) return json({ error: 'prompt required' }, 400)
@@ -1065,7 +1143,7 @@ serve(async (req) => {
 
     return json({
       error: 'unknown mode',
-      modes: ['think', 'evolve', 'log', 'teach', 'stats', 'seed', 'ensure_neurons', 'owner_sync', 'connect', 'coders', 'coders_chat', 'coders_listen', 'coders_poll', 'coders_status', 'coders_list', 'deploy', 'distill', 'council', 'roles_sync', 'field_pulse', 'claim_delivery', 'field_stats'],
+      modes: ['think', 'evolve', 'log', 'teach', 'stats', 'seed', 'ensure_neurons', 'owner_sync', 'connect', 'coders', 'coders_chat', 'booker_chat', 'coders_listen', 'coders_poll', 'coders_status', 'coders_list', 'deploy', 'distill', 'council', 'roles_sync', 'field_pulse', 'claim_delivery', 'field_stats'],
     }, 400)
   } catch (e) {
     return json({ error: String(e) }, 500)
