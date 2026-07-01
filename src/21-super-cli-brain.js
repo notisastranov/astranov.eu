@@ -63,6 +63,7 @@ Object.assign(SuperCli, {
       'pilot', 'drone', 'drones', 'fleet',
       'youtube', 'yt', 'watch', 'play', 'space', 'scenario', 'add', 'post', 'superadd',
       'theme', 'dark', 'bright', 'light',
+      'yacht', 'yachts', 'charter', 'booker',
     ]);
     return known.has(c);
   },
@@ -547,12 +548,20 @@ Object.assign(SuperCli, {
         await ProfileSite?.cmd?.(parts);
         return { handled: true };
       }
-      if (cmd === 'yacht' || cmd === 'charter' || cmd === 'match') {
+      if (cmd === 'booker') {
+        await YachtMatcher?.bookerCli?.(parts);
+        return { handled: true };
+      }
+      if (cmd === 'yacht' || cmd === 'yachts' || cmd === 'charter' || (cmd === 'match' && (parts[2] || '').toLowerCase() === 'yachts')) {
         await YachtMatcher?.cli?.(parts);
         return { handled: true };
       }
       if (cmd === 'hellenic' || cmd === 'hellas') {
         HellenicSource?.cli?.(parts);
+        return { handled: true };
+      }
+      if (cmd === 'book' && /^\d{4}-\d{2}-\d{2}/.test(parts[1] || '')) {
+        await YachtMatcher?.cli?.(['yacht', 'book', ...parts.slice(1)]);
         return { handled: true };
       }
       if (cmd === 'site' || cmd === 'sites' || cmd === 'book') {

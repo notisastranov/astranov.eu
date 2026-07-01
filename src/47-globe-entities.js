@@ -25,6 +25,7 @@ const GlobeEntity = {
     spy: { color: 0xaa44ff, icon: '🕵', label: 'Spy' },
     pyramid: { color: 0xffdd44, icon: '🔺', label: 'Pyramid' },
     cluster: { color: 0x3d9eff, icon: '☁', label: 'Cloud' },
+    yacht: { color: 0x69f5d0, icon: '⛵', label: 'Yacht' },
   },
 
   CLUSTER_TYPES: new Set(['post', 'place', 'media', 'news']),
@@ -268,6 +269,7 @@ const GlobeEntity = {
       media: 'Play media',
       pilot: 'Track delivery',
       place: 'Go here',
+      yacht: 'Book charter',
     };
     return map[entity.type] || 'Interact';
   },
@@ -337,6 +339,10 @@ const GlobeEntity = {
         break;
       case 'news':
         NewsFeed?.flash?.();
+        break;
+      case 'yacht':
+        if (entity.data?.yacht) YachtMatcher?.openBooking?.(entity.data.yacht);
+        else YachtMatcher?.openBooking?.(null, { tab: 'booker' });
         break;
       default:
         ACIControl?.reply(entity.title + (entity.description ? ' — ' + entity.description : ''));
@@ -544,6 +550,34 @@ const GlobeEntity = {
   },
 
   // ── Adapters for existing systems ──
+
+  syncYachts(yachts) {
+    this.unregisterType('yacht');
+    const ym = window.YachtMatcher;
+    (yachts || []).forEach((y, i) => {
+      const c = ym?.coordsFor?.(y, i) || [36.44, 28.22];
+      const lat = c[0];
+      const lng = c[1];
+      const minC = ym?._engine?.()?.effectiveMinimumCrew?.(y) ?? y.minimum_crew ?? 3;
+      this.register({
+        id: 'yacht-' + y.id,
+        type: 'yacht',
+        lat,
+        lng,
+        title: '⛵ ' + (y.name || 'Yacht'),
+        subtitle: 'yachts.astranov.eu',
+        description: (y.yacht_type || 'Yacht') + (y.length_m ? ' · ' + y.length_m + 'm' : '')
+          + ' · ' + (y.guest_capacity || '?') + ' guests · min crew ' + minC
+          + (y.price_week ? ' · ' + Number(y.price_week).toLocaleString() + ' EUR/wk' : '')
+          + ' · tap to book',
+        urgency: i === 0 ? 2 : 1,
+        radius: 0.018,
+        data: { yacht: y, url: ym?.bookingUrl?.(y, { tab: 'booker' }) },
+        _actionLabel: 'Book ' + (y.name || 'yacht'),
+        onTap: () => ym?.openBooking?.(y, { tab: 'booker' }),
+      });
+    });
+  },
 
   syncVendors(vendors) {
     this.unregisterType('vendor');

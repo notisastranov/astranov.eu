@@ -97,6 +97,8 @@ GlobeEntity.init();
 if (window._lastPos) GlobeEntity.syncMe(_lastPos.lat, _lastPos.lng, me?.name || 'You');
 if (typeof orbitalSats !== 'undefined') CosmicZoom.registerOrbitalSats(orbitalSats);
 Commerce.loadVendors().then(() => Commerce.initUI());
+YachtMatcher?.loadAndSyncGlobe?.();
+setInterval(() => YachtMatcher?.loadAndSyncGlobe?.(), 300000);
 NewsFeed.fetch();
 setInterval(() => NewsFeed.tick(), 12000);
 

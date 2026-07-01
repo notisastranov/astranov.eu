@@ -395,7 +395,22 @@ const AciCli = {
         GlobeDeck.activeTask = 'commerce';
         return;
       }
-      if (cmd === 'book' || cmd === 'booker' || cmd === 'site' || cmd === 'sites') {
+      if (cmd === 'booker') {
+        await YachtMatcher?.bookerCli?.(parts);
+        GlobeDeck?.finishCliIfOneShot(cmd);
+        return;
+      }
+      if (cmd === 'yacht' || cmd === 'yachts' || cmd === 'charter') {
+        await YachtMatcher?.cli?.(parts);
+        GlobeDeck?.finishCliIfOneShot(cmd);
+        return;
+      }
+      if (cmd === 'book' && /^\d{4}-\d{2}-\d{2}/.test(parts[1] || '')) {
+        await YachtMatcher?.cli?.(['yacht', 'book', ...parts.slice(1)]);
+        GlobeDeck?.finishCliIfOneShot(cmd);
+        return;
+      }
+      if (cmd === 'book' || cmd === 'site' || cmd === 'sites') {
         try {
           const prov = window.AstranovSitesProvision || window.SuperBookingProvision;
           const r = await prov?.cli?.(parts);
