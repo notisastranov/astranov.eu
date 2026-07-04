@@ -1,5 +1,6 @@
 function animate() {
   requestAnimationFrame(animate);
+  if (window._cycleTurbo) return;
   if (!drag) {
     globePivot.rotation.y += idleRoll + trackVelX;
     globePivot.rotation.x += trackVelY;

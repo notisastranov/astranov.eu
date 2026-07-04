@@ -6,8 +6,8 @@
   "scripts": {
     "test": "node scripts/user-scenarios.mjs",
     "test:matrix": "node scripts/million-cycles.mjs --cycles 500 --quick",
-    "test:million": "node scripts/million-cycles.mjs --cycles 3000000 --turbo --workers 1 --max-ms 21600000",
-    "test:million:continue": "node scripts/million-cycles.mjs --continue --cycles 3000000 --turbo --workers 1 --max-ms 21600000",
+    "test:million": "node scripts/million-cycles.mjs --cycles 3000000 --turbo --workers 1 --batch 48 --max-ms 21600000",
+    "test:million:continue": "node scripts/million-cycles.mjs --continue --cycles 3000000 --turbo --workers 1 --batch 48 --max-ms 21600000",
     "verify": "node scripts/verify-all.mjs",
     "assemble": "node scripts/assemble.mjs",
     "push:both": "node scripts/push-both.mjs"

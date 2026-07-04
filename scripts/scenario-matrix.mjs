@@ -639,3 +639,149 @@ export const STRESS_IDS = new Set([
 
 /** Lightweight scenarios safe for millions of repeat cycles (no heavy map/CLI side effects). */
 export const STRESS_MATRIX = MATRIX.filter(m => STRESS_IDS.has(m.id));
+
+/** Pure in-page checks — no SuperCli, syncGlobe, neuron spawn, or async CLI. Batched in one evaluate. */
+export const TURBO_STRESS_IDS = new Set([
+  'boot-three', 'boot-modules', 'boot-perf-flag',
+  'theme-dark', 'theme-bright', 'theme-toggle',
+  'commerce-parse-pitogyra', 'commerce-platform-rate',
+  'yacht-demo-fleet', 'yacht-booking-url',
+  'auditor-open-url',
+  'coders-intent-build',
+  'voice-hotword-coders', 'voice-hotword-konter', 'voice-normalize-order',
+  'voice-queue-single', 'voice-should-speak-filter', 'voice-pause-while-speaking',
+  'driving-haversine', 'driving-deferred-watch',
+  'avc-peg-1to1', 'avc-format',
+  'unified-pillars',
+  'coin-portal-url',
+  'brain-adult-neurons', 'brain-local-converse',
+]);
+
+export const TURBO_STRESS_MATRIX = MATRIX.filter(m => TURBO_STRESS_IDS.has(m.id));
+
+/** Run many turbo scenarios in a single page.evaluate (one IPC round-trip). */
+export async function runTurboBatch(page, ids) {
+  await page.evaluate(async (idList) => {
+    for (const id of idList) {
+      switch (id) {
+        case 'boot-three':
+          if (!window.THREE || !window.CityMap?._ready) throw new Error('boot-three');
+          break;
+        case 'boot-modules': {
+          const r = {
+            commerce: !!window.Commerce, yacht: !!window.YachtMatcher, auditor: !!window.AuditorPortal,
+            avc: !!window.AvcJustice, unified: !!window.AstranovUnified, coin: !!window.CoinPortal,
+            brain: !!window.BrainConversation, coders: !!window.AciCoders,
+            voice: typeof window.fixVoiceHotwords === 'function', super: !!window.SuperCli,
+          };
+          if (!r.commerce || !r.yacht || !r.auditor || !r.avc || !r.coin || !r.brain || !r.unified || !r.coders || !r.voice || !r.super) {
+            throw new Error('boot-modules: ' + JSON.stringify(r));
+          }
+          break;
+        }
+        case 'boot-perf-flag':
+          window.setVoicePerfMode?.(true);
+          if (!window._voicePerfMode) throw new Error('boot-perf-flag');
+          break;
+        case 'theme-dark':
+          AstranovTheme.set('dark');
+          if (AstranovTheme.mode !== 'dark') throw new Error('theme-dark');
+          break;
+        case 'theme-bright':
+          AstranovTheme.set('bright');
+          if (AstranovTheme.mode !== 'bright') throw new Error('theme-bright');
+          break;
+        case 'theme-toggle':
+          AstranovTheme.toggle();
+          if (!AstranovTheme.mode) throw new Error('theme-toggle');
+          break;
+        case 'commerce-parse-pitogyra': {
+          const w = Commerce.parseWantedItems('order pitogyra mpironia tsigareta');
+          if (w.length < 2) throw new Error('commerce-parse-pitogyra');
+          break;
+        }
+        case 'commerce-platform-rate':
+          if (DeliveryPricing.PLATFORM_RATE !== 0.03) throw new Error('commerce-platform-rate');
+          break;
+        case 'yacht-demo-fleet':
+          if ((YachtMatcher._demoYachts?.() || []).length < 1) throw new Error('yacht-demo-fleet');
+          break;
+        case 'yacht-booking-url': {
+          const y = (YachtMatcher._demoYachts?.() || [])[0];
+          const u = YachtMatcher.bookingUrl?.(y, { tab: 'booker' }) || '';
+          if (!/yachts\.astranov\.eu/.test(u)) throw new Error('yacht-booking-url');
+          break;
+        }
+        case 'auditor-open-url': {
+          const u = AuditorPortal.open({ tab: 'dashboard' });
+          if (!/auditors\.astranov\.eu/.test(u)) throw new Error('auditor-open-url');
+          break;
+        }
+        case 'coders-intent-build':
+          if (!AciCoders.isCodersIntent('fix the voice lag')) throw new Error('coders-intent-build');
+          break;
+        case 'voice-hotword-coders': {
+          const s = window.fixVoiceHotwords('code us fix the lag');
+          if (!/^coders\b/i.test(s)) throw new Error('voice-hotword-coders');
+          break;
+        }
+        case 'voice-hotword-konter': {
+          const s = window.fixVoiceHotwords('κοντερ φτιάξε το cli');
+          if (!/^coders\b/i.test(s)) throw new Error('voice-hotword-konter');
+          break;
+        }
+        case 'voice-normalize-order': {
+          const fn = window.normalizeVoiceCommand || (x => x);
+          const s = fn('order pitogyra mpironia go');
+          if (!/pitogyra/i.test(s)) throw new Error('voice-normalize-order');
+          break;
+        }
+        case 'voice-queue-single':
+          Voice.flush();
+          if (typeof Voice.enqueue !== 'function' || !(Voice._queue instanceof Promise)) throw new Error('voice-queue-single');
+          break;
+        case 'voice-should-speak-filter':
+          if (Voice.shouldSpeak('{}') || !Voice.shouldSpeak('hello world')) throw new Error('voice-should-speak-filter');
+          break;
+        case 'voice-pause-while-speaking':
+          if (window.Voice) Voice.speaking = false;
+          if (typeof window.pauseVoiceRecognition !== 'function' || !window.Voice?.enqueue) throw new Error('voice-pause-while-speaking');
+          break;
+        case 'driving-haversine': {
+          const d = DrivingView.haversineM(36.44, 28.22, 36.46, 28.24);
+          if (d < 100 || d > 50000) throw new Error('driving-haversine');
+          break;
+        }
+        case 'driving-deferred-watch':
+          if (typeof DrivingView._ensureWatch !== 'function' || DrivingView.watchId) throw new Error('driving-deferred-watch');
+          break;
+        case 'avc-peg-1to1': {
+          const r = { peg: AvcJustice.PEG_EUR, coin: AvcJustice.COIN, eur: AvcJustice.eurToAvc(10) };
+          if (r.peg !== 1 || r.coin !== 'AVC' || r.eur !== 10) throw new Error('avc-peg-1to1');
+          break;
+        }
+        case 'avc-format': {
+          const s = AvcJustice.formatAvc(12.5);
+          if (!/12\.50 AVC.*12\.50 EUR/.test(s)) throw new Error('avc-format');
+          break;
+        }
+        case 'unified-pillars':
+          if (AstranovUnified.PILLARS?.length !== 5) throw new Error('unified-pillars');
+          break;
+        case 'coin-portal-url':
+          if (CoinPortal.SITE_URL !== 'https://coin.astranov.eu') throw new Error('coin-portal-url');
+          break;
+        case 'brain-adult-neurons':
+          if ((BrainConversation.ADULT_NEURONS?.length || 0) < 6) throw new Error('brain-adult-neurons');
+          break;
+        case 'brain-local-converse': {
+          const t = BrainConversation._matchLocal('hello');
+          if (!t || t.length <= 10) throw new Error('brain-local-converse');
+          break;
+        }
+        default:
+          throw new Error('unknown turbo id: ' + id);
+      }
+    }
+  }, ids);
+}

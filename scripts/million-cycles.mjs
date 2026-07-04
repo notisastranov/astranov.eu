@@ -11,7 +11,10 @@ import { createServer } from 'node:http';
 import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MATRIX, STRESS_MATRIX, GROUPS, STRESS_IDS } from './scenario-matrix.mjs';
+import {
+  MATRIX, STRESS_MATRIX, TURBO_STRESS_MATRIX, TURBO_STRESS_IDS,
+  GROUPS, STRESS_IDS, runTurboBatch,
+} from './scenario-matrix.mjs';
 
 const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const MIME = {
@@ -34,6 +37,7 @@ const MAX_MS = parseInt(arg('--max-ms', String(CYCLES > 100000 ? 3600000 : 60000
 const QUICK = process.argv.includes('--quick') || process.argv.includes('--turbo');
 const TURBO = process.argv.includes('--turbo');
 const WORKERS = Math.max(1, Math.min(8, parseInt(arg('--workers', '1'), 10) || 1));
+const BATCH = Math.max(1, parseInt(arg('--batch', TURBO ? '48' : '1'), 10) || 1);
 const BRAIN_EVERY = parseInt(arg('--brain-every', TURBO ? '2000' : '1000'), 10) || 1000;
 const SEED = parseInt(arg('--seed', '42'), 10);
 
@@ -90,16 +94,34 @@ async function bootPage(browser, url) {
   return { context, page };
 }
 
+async function applyStressHardening(page) {
+  await page.evaluate(() => {
+    window._cycleTurbo = true;
+    window.setVoicePerfMode?.(true);
+    if (window.CityMap?.active) {
+      CityMap.active = false;
+      document.getElementById('city-map')?.classList.remove('active');
+    }
+    if (window.AciCoders) {
+      window.AciCoders._listenBusy = false;
+      window.AciCoders._cliBusy = false;
+    }
+  });
+}
+
 async function main() {
   const started = await startServer(0);
   const url = `http://127.0.0.1:${started.port}/index.html`;
-  const stressPool = STRESS_MATRIX.length ? STRESS_MATRIX : MATRIX;
+  const stressPool = TURBO && TURBO_STRESS_MATRIX.length
+    ? TURBO_STRESS_MATRIX
+    : (STRESS_MATRIX.length ? STRESS_MATRIX : MATRIX);
+  const turboIds = stressPool.map(s => s.id);
   const prevCycles = PREV?.cumulativeCycles ?? PREV?.completedCycles ?? 0;
   const prevBrain = PREV?.brain || {};
   const remainingCycles = Math.max(0, CYCLES - prevCycles);
 
-  console.log(`Scenario matrix: ${MATRIX.length} unique paths · ${stressPool.length} fast stress paths · ${GROUPS.length} groups`);
-  console.log(`Target cycles: ${CYCLES.toLocaleString()} · workers ${WORKERS} · max wall ${(MAX_MS / 1000).toFixed(0)}s`);
+  console.log(`Scenario matrix: ${MATRIX.length} unique paths · ${stressPool.length} stress paths · ${GROUPS.length} groups`);
+  console.log(`Target cycles: ${CYCLES.toLocaleString()} · workers ${WORKERS} · batch ${BATCH} · max wall ${(MAX_MS / 1000).toFixed(0)}s`);
   if (CONTINUE && prevCycles) {
     console.log(`Continue from prior: ${prevCycles.toLocaleString()} cycles · brain maturity ${prevBrain.maturity ?? 0}`);
     console.log(`Remaining toward ${CYCLES.toLocaleString()}: ${remainingCycles.toLocaleString()} cycles`);
@@ -129,7 +151,7 @@ async function main() {
     }
   }
 
-  const phase1 = TURBO ? MATRIX.filter(m => STRESS_IDS.has(m.id)) : MATRIX;
+  const phase1 = TURBO ? MATRIX.filter(m => TURBO_STRESS_IDS.has(m.id)) : MATRIX;
   console.log(`\n── Phase 1: matrix pass (${phase1.length}${TURBO ? ' fast' : ''}) ──`);
   for (const sc of phase1) {
     total++;
@@ -147,26 +169,60 @@ async function main() {
   const stressTarget = CONTINUE
     ? Math.max(0, remainingCycles - phase1.length)
     : Math.max(0, CYCLES - phase1.length);
-  console.log(`\n── Phase 2: stress cycles (${WORKERS} workers) ──`);
+  console.log(`\n── Phase 2: stress cycles (${WORKERS} worker${WORKERS > 1 ? 's' : ''} · batch ${BATCH}) ──`);
 
-  async function stressWorker(workerId) {
+  await applyStressHardening(matrixPage);
+
+  async function runStressBatch(page, rnd, count) {
+    const batchIds = [];
+    for (let i = 0; i < count; i++) {
+      batchIds.push(turboIds[Math.floor(rnd() * turboIds.length)]);
+    }
+    const timeout = TURBO ? Math.min(20000, 400 + count * 80) : 45000;
+    if (TURBO && BATCH > 1) {
+      await Promise.race([
+        runTurboBatch(page, batchIds),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('batch timeout')), timeout)),
+      ]);
+      return count;
+    }
+    let pass = 0;
+    for (const id of batchIds) {
+      const sc = stressPool.find(s => s.id === id) || stressPool[0];
+      if (await runScenario(page, sc, 'stress')) pass++;
+    }
+    return pass;
+  }
+
+  async function stressWorker(workerId, reusePage) {
     const rnd = mulberry32(SEED + workerId * 997);
-    const { page, context } = await bootPage(browser, url);
+    let page = reusePage;
+    let context = null;
+    if (!page) {
+      const booted = await bootPage(browser, url);
+      page = booted.page;
+      context = booted.context;
+      await applyStressHardening(page);
+    }
     let localPass = 0;
     try {
       while (!shared.stop) {
         if (shared.stress >= stressTarget || Date.now() - t0 >= MAX_MS) break;
-        const idx = Math.floor(rnd() * stressPool.length);
-        const sc = stressPool[idx];
-        shared.stress++;
-        total++;
-        if (await runScenario(page, sc, 'stress')) {
-          passes.stress++;
-          localPass++;
+        const left = stressTarget - shared.stress;
+        const n = Math.min(BATCH, left);
+        shared.stress += n;
+        total += n;
+        try {
+          const got = await runStressBatch(page, rnd, n);
+          passes.stress += got;
+          localPass += got;
+        } catch (e) {
+          const msg = e.message || String(e);
+          if (!failures.has('stress-batch')) failures.set('stress-batch', { group: 'stress', error: msg, label: 'stress' });
         }
       }
     } finally {
-      await context.close().catch(() => {});
+      if (context) await context.close().catch(() => {});
     }
     return localPass;
   }
@@ -175,10 +231,14 @@ async function main() {
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
     const rate = total > 0 ? (total / (Date.now() - t0) * 1000).toFixed(0) : '0';
     console.log(`  … ${shared.stress.toLocaleString()} / ${stressTarget.toLocaleString()} stress · ${total.toLocaleString()} total · ${rate}/s · ${elapsed}s`);
-  }, TURBO ? 20000 : 15000);
+  }, TURBO ? 15000 : 15000);
 
   shared.stop = false;
-  await Promise.all(Array.from({ length: WORKERS }, (_, w) => stressWorker(w)));
+  if (WORKERS === 1) {
+    await stressWorker(0, matrixPage);
+  } else {
+    await Promise.all(Array.from({ length: WORKERS }, (_, w) => stressWorker(w, null)));
+  }
   clearInterval(logTimer);
   shared.stop = true;
 
@@ -220,6 +280,7 @@ async function main() {
     cumulativeCycles: cumulative,
     stressCycles: shared.stress,
     workers: WORKERS,
+    batchSize: BATCH,
     passed: passTotal,
     failedUnique: failures.size,
     elapsedMs: elapsed,

@@ -50,6 +50,7 @@ const BrainConversation = {
   learnFromScenario(scenarioId, group) {
     this.CYCLE_LEARNS++;
     this.MATURITY = Math.min(100, this.MATURITY + 0.00025);
+    if (window._cycleTurbo) return;
     const g = String(group || 'boot');
     const hit = this.ADULT_NEURONS.find(n => n.id === g || scenarioId?.includes(n.id));
     if (hit) hit.strength = Math.min(3, hit.strength + 0.0002);
