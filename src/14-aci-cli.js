@@ -539,6 +539,14 @@ const AciCli = {
         return;
       }
 
+      if (AciCoders?.isCodersIntent?.(line)) {
+        await AciCoders.handleMessage(
+          /^coders?\b/i.test(line) ? line : ('coders ' + line),
+          { fromVoice: !!opts.fromVoice },
+        );
+        GlobeDeck?.finishCliIfOneShot('coders');
+        return;
+      }
       await AciCoders?.handleMessage(line, { fromVoice: !!opts.fromVoice });
       if (AstranovNode?.batchId) AstranovNode.broadcastTask(line);
       if (!AciCoders?.alwaysOn) GlobeDeck?.finishCliIfOneShot('coders');

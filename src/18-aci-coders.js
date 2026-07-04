@@ -442,7 +442,8 @@ const AciCoders = {
       if (this.history.length > 20) this.history = this.history.slice(-20);
     }
 
-    const reply = (ArcangeloDialect?.sanitizeReply?.(text) ?? text).slice(0, 900);
+    const honest = this.formatHonestReply(r, userMsg);
+    const reply = (ArcangeloDialect?.sanitizeReply?.(honest || text) ?? (honest || text)).slice(0, 900);
     if (reply && !this.isFailedReply(reply)) {
       const prefix = r.explicit_order || r.order_executed ? 'ORDER: ' : '';
       const kind = r.error ? 'err' : 'reply';
@@ -525,7 +526,60 @@ const AciCoders = {
   isBuildTask(m) {
     const s = String(m || '').toLowerCase();
     if (/^(why|what|how|do we|list|status|credits|explain|try|skip|use)\b/.test(s)) return false;
-    return /fix|build|implement|add|create|remove|button|locate|globe|vendor|order|mobile|φτιάξε|πρόσθεσε/.test(s) && s.length >= 8;
+    return /fix|build|implement|add|create|remove|button|locate|globe|vendor|order|mobile|lag|hang|slow|broken|crash|φτιάξε|πρόσθεσε|διόρθωσε|κολλάει/.test(s) && s.length >= 6;
+  },
+
+  isCodersIntent(m) {
+    const s = String(m || '').trim();
+    if (this.isExplicitRef(s)) return true;
+    return this.isBuildTask(s) || /call\s+coders?|ask\s+coders?|tell\s+coders?/i.test(s);
+  },
+
+  tryLocalFix(m) {
+    const low = String(m || '').toLowerCase();
+    if ((/cli|input|voice|transcri|compose|lag|hang|slow/.test(low)) && /fix|clear|reset|φτιάξε|διόρθωσε/.test(low)) {
+      GlobeDeck?.setCompose?.('');
+      window.setVoicePerfMode?.(true);
+      const input = document.getElementById('aci-cli-in');
+      if (input) {
+        input.classList.remove('voice-live');
+        window.resizeCliInput?.(input);
+        input.focus();
+      }
+      AciCoders._cliBusy = false;
+      return 'CLI reset · perf mode on — edit the input or speak again';
+    }
+    if ((/vendor|shop|καταστήμα|driver|οδηγ/.test(low)) && /fix|find|show|list|scan|βρες/.test(low)) {
+      Commerce?.openOrderFlow?.('');
+      return 'Vendor scan opened on globe — pick shop or say order pitogyra';
+    }
+    if (/locate|zoom|map|πόσο|where am i/.test(low)) {
+      this.runLocalGlobeCmd('locate me');
+      return 'Located on globe';
+    }
+    if (/refresh|reload|συγχρον/.test(low) && /app|globe|page/.test(low)) {
+      YachtMatcher?.loadAndSyncGlobe?.();
+      Commerce?.loadVendors?.();
+      return 'Globe data refreshed — yachts · vendors · drivers';
+    }
+    if (/audit|invoice|accountant|λογιστ/.test(low)) {
+      AuditorPortal?.open?.({ tab: 'dashboard' });
+      return 'Opened auditors.astranov.eu';
+    }
+    return null;
+  },
+
+  formatHonestReply(r, userMsg) {
+    const text = String(r.text || r.response || '').trim();
+    const id = r.summon_id || r.composer_queued;
+    const local = this.tryLocalFix(userMsg);
+    if (local) return local + (id ? '\n\nAlso queued #' + id + ' for Composer review.' : '');
+    if (id && this.isBuildTask(userMsg)) {
+      const stripped = text.replace(/\b(done|fixed|implemented|completed|applied)\b/gi, '').trim();
+      return (stripped ? stripped.slice(0, 280) + '\n\n' : '')
+        + 'Build queued #' + id + ' — Composer applies code. Say: coders poll ' + id;
+    }
+    return text;
   },
 
   wantsComposer(m) {
@@ -552,8 +606,20 @@ const AciCoders = {
   },
 
   async chat(message, opts = {}) {
-    const m = String(message || '').trim();
+    const m = String((window.fixVoiceHotwords || (x => x))(String(message || ''))).trim();
     if (m.length < 1) return this.enterSession({ fromVoice: !!opts.fromVoice });
+
+    const localFix = this.tryLocalFix(m);
+    if (localFix) {
+      AciCli?.print(localFix, 'ok');
+      ACIControl?.reply(localFix.slice(0, 260));
+      if (Auth?.user && this.isBuildTask(m)) {
+        const q = await this.queueCoder(m, 'grok').catch(() => ({}));
+        if (q.summon_id) AciCli?.print('Also queued #' + q.summon_id + ' for Composer', 'dim');
+      }
+      if (opts.fromVoice || window._handsFreeVoice) scheduleVoiceResume?.();
+      return { ok: true, local: true, text: localFix };
+    }
 
     const localGlobe = this.runLocalGlobeCmd(m);
     if (localGlobe) {
@@ -669,13 +735,12 @@ const AciCoders = {
         r = { ...r, text, response: text, via: 'local' };
       }
 
-      if (Auth?.user && build && !r.text && !r.response && !r.summon_id) {
-        const q = await this.queueCoder(m, 'grok');
-        if (q.text) {
-          r.text = q.text;
-          r.response = q.text;
+      if (Auth?.user && build && !r.summon_id) {
+        const q = await this.queueCoder(m, this.wantsComposer(m) ? 'composer' : 'grok');
+        if (q.summon_id) {
           r.summon_id = q.summon_id;
           r.composer_queued = q.composer_queued;
+          if (!r.text && q.text) { r.text = q.text; r.response = q.text; }
         }
       }
 

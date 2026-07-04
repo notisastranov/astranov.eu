@@ -556,6 +556,10 @@ Object.assign(SuperCli, {
         await YachtMatcher?.cli?.(parts);
         return { handled: true };
       }
+      if (cmd === 'auditor' || cmd === 'auditors' || cmd === 'audit') {
+        await AuditorPortal?.cli?.(parts);
+        return { handled: true };
+      }
       if (cmd === 'hellenic' || cmd === 'hellas') {
         HellenicSource?.cli?.(parts);
         return { handled: true };

@@ -300,7 +300,9 @@ function commitVoiceCommand(raw) {
   const minLen = ArcangeloDialect?.sessionActive?.() ? 2 : 2;
   if (!line || line.length < minLen || _voiceCommitting) return;
   const now = Date.now();
-  if (_lastVoiceCommit === line && now - _lastVoiceCommitT < 2200) return;
+  const codersLine = /^coders?\b|fix\s|build\s|implement|call\s+coders?/i.test(line);
+  const dedupMs = codersLine ? 600 : 2200;
+  if (_lastVoiceCommit === line && now - _lastVoiceCommitT < dedupMs) return;
   _lastVoiceCommit = line;
   _lastVoiceCommitT = now;
   _voiceCommitting = true;
@@ -391,7 +393,11 @@ async function submitVoiceToCli(transcript) {
   try {
     AciCli?.print('🎧 ' + line, 'cmd');
     if (gen !== _voiceGen) return;
-    if (voiceWantsAciControl(line)) {
+    const codersIntent = AciCoders?.isCodersIntent?.(line) || /^coders?\b/i.test(line);
+    if (codersIntent && window.AciCoders) {
+      const msg = /^coders?\b/i.test(line) ? line : ('coders ' + line);
+      await AciCoders.handleMessage(msg, { fromVoice: true });
+    } else if (voiceWantsAciControl(line)) {
       await ACIControl.handle(line, { fromVoice: true });
     } else if (window.AciCli) {
       await AciCli.run(line, { fromVoice: true });
@@ -512,13 +518,21 @@ function handleVoiceCommand(event) {
   const draft = (final || interim).trim();
   if (!draft) return;
 
-  if (_voiceBusy || _voiceCommitting) {
+  if (_voiceCommitting) {
     if (input) {
       input.value = draft;
       input.classList.add('voice-live');
       if (AciCli) AciCli.buffer = draft;
       window.resizeCliInput?.(input);
     }
+    _voiceDraft = draft;
+    return;
+  }
+  if (_voiceBusy && input) {
+    input.value = draft;
+    input.classList.add('voice-live');
+    if (AciCli) AciCli.buffer = draft;
+    window.resizeCliInput?.(input);
     _voiceDraft = draft;
     return;
   }

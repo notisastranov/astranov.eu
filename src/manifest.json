@@ -58,6 +58,7 @@
     { "file": "70-yacht-matcher.js", "marker": "// === YACHT MATCHER" },
     { "file": "71-hellenic-source.js", "marker": "// === HELLENIC SOURCE" },
     { "file": "74-telemachos-pilot.js", "marker": "// === TELEMACHOS PILOT" },
+    { "file": "78-auditor-portal.js", "marker": "// === AUDITOR PORTAL" },
     { "file": "90-voice-world.js", "marker": "// Flow" },
     { "file": "99-boot.js", "marker": "function animate()" }
   ]
