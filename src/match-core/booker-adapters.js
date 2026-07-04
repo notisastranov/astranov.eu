@@ -2,7 +2,7 @@
 window.AstranovSitesAdapters = {
   range(config) {
     const tables = {
-      profiles: 'astranov_profiles',
+      profiles: 'profiles',
       catalog: 'yachting_yachts',
       availability: 'yachting_availability',
       bookings: 'yachting_booking_requests',

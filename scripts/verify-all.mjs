@@ -64,6 +64,8 @@ check('globe-src', 'auditor-api config.toml', hasFile(join(ROOT, 'supabase/confi
 check('globe-src', 'coin portal module', hasFile(join(ROOT, 'src/80-coin-portal.js'), 'coin.astranov.eu'));
 check('globe-src', 'avc-ledger config.toml', hasFile(join(ROOT, 'supabase/config.toml'), '[functions.avc-ledger]'));
 check('globe-src', 'coin booker migration', hasFile(join(ROOT, 'supabase/migrations/202607050001_avc_transparent_ledger.sql'), 'coin.astranov.eu'));
+check('globe-src', 'one-database module', hasFile(join(ROOT, 'src/81-one-database.js'), 'lkoatrkhuigdolnjsbie'));
+check('globe-src', 'one-database migration', hasFile(join(ROOT, 'supabase/migrations/202607050002_one_database_unified.sql'), 'one_database'));
 
 // ── Group 4–6: Auditors repo ──
 check('auditors', 'index.html', hasFile(join(AUDITORS, 'index.html')));
@@ -75,6 +77,8 @@ check('auditors', 'vercel.json', hasFile(join(AUDITORS, 'vercel.json')));
 // ── Coin repo ──
 check('coin', 'index.html', hasFile(join(COIN, 'index.html'), 'AVC Justice Coin'));
 check('coin', 'superbooking-config central DB', hasFile(join(COIN, 'core/superbooking-config.js'), 'lkoatrkhuigdolnjsbie'));
+check('coin', 'ONE_DATABASE flag', hasFile(join(COIN, 'core/superbooking-config.js'), 'ONE_DATABASE'));
+check('coin', 'profiles table canonical', hasFile(join(COIN, 'core/superbooking-config.js'), "profilesTable: 'profiles'"));
 check('coin', 'avc-api client', hasFile(join(COIN, 'core/avc-api.js'), 'avc-ledger'));
 check('coin', 'auth bridge shared session', hasFile(join(COIN, 'core/astranov-auth-bridge.js'), 'astranov_auth_v2'));
 check('coin', 'vercel.json', hasFile(join(COIN, 'vercel.json')));
@@ -124,6 +128,11 @@ if (!skipRemote) {
     const rows = booker.ok ? await booker.json() : [];
     const coinSite = rows?.[0];
     check('supabase-live', 'booker_sites coin row', coinSite?.domain === 'coin.astranov.eu' && coinSite?.active === true, coinSite?.domain || 'missing');
+    const globeSite = await fetch('https://lkoatrkhuigdolnjsbie.supabase.co/rest/v1/booker_sites?id=eq.astranov&select=id,config', {
+      headers: { apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI' },
+      signal: AbortSignal.timeout(12000),
+    }).then(r => r.json()).catch(() => []);
+    check('supabase-live', 'one_database config flag', globeSite?.[0]?.config?.one_database === true || globeSite?.[0]?.config?.database === 'central', JSON.stringify(globeSite?.[0]?.config || {}).slice(0, 60));
   } catch (e) {
     check('supabase-live', 'avc-ledger constitution', false, String(e.message || e));
     check('supabase-live', 'booker_sites coin row', false, 'fetch failed');
