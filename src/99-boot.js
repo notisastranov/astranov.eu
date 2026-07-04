@@ -34,8 +34,9 @@ function animate() {
   updateOrbital();
 
   const heavyGlobe = (GlobeEntity?.entities?.size || 0) > 48;
-  if (heavyGlobe && !window._voicePerfMode) setVoicePerfMode?.(true);
-  if (window.AstranovCollectiveIntelligence && !window._voicePerfMode && !heavyGlobe) {
+  const codersBusy = window.AciCoders?._cliBusy || window.AciCoders?._listenBusy;
+  if ((heavyGlobe || codersBusy) && !window._voicePerfMode) setVoicePerfMode?.(true);
+  if (window.AstranovCollectiveIntelligence && !window._voicePerfMode && !heavyGlobe && !codersBusy) {
     ACI.tick();
     ACI.neurons.forEach(n => {
       if (!n.userData) return;
@@ -68,10 +69,12 @@ ContextTruth.init();
 GhostTravel.init();
 AciCli.init();
 setTimeout(() => Auth.refreshAuthority(), 800);
+setTimeout(() => setVoicePerfMode?.(true), 400);
 setTimeout(() => {
-  AciCoders?.autoStart?.();
   AciCli?.primeCodersCli?.();
-}, 1200);
+  AciCoders?.ensureBridge?.();
+}, 1800);
+setTimeout(() => AciCoders?.autoStart?.(), 8000);
 ACIControl.init();
 PmrRadio.bindUI();
 GlobeVideo.init();

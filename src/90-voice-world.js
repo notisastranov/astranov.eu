@@ -156,14 +156,17 @@ function codersTranscriptScore(text) {
   return 0;
 }
 
-function pickVoiceTranscript(result) {
+function pickVoiceTranscript(result, isFinal) {
   let best = result[0]?.transcript || '';
-  let bestScore = codersTranscriptScore(best);
-  for (let j = 1; j < result.length; j++) {
-    const alt = result[j]?.transcript || '';
-    const score = codersTranscriptScore(alt);
-    if (score > bestScore) { bestScore = score; best = alt; }
+  if (isFinal && result.length > 1) {
+    let bestScore = codersTranscriptScore(best);
+    for (let j = 1; j < result.length; j++) {
+      const alt = result[j]?.transcript || '';
+      const score = codersTranscriptScore(alt);
+      if (score > bestScore) { bestScore = score; best = alt; }
+    }
   }
+  if (!isFinal) return fixVoiceHotwords(best);
   const repaired = ArcangeloDialect?.repairTranscript?.(best) || best;
   ArcangeloDialect?.ingest?.(repaired);
   return fixVoiceHotwords(repaired);
@@ -267,6 +270,7 @@ function openVoiceCli() {
 
 function scheduleVoiceResume() {
   if (sessionHeld || SessionHold?.isHeld?.()) return;
+  if (Voice?.speaking) return;
   const active = voiceSessionActive || window._handsFreeVoice;
   if (!active || !voiceEnabled || isListening || voiceListenBlocked()) return;
   if (_voiceResumeTimer) return;
@@ -427,7 +431,7 @@ function initVoice() {
     recognition.lang = Voice.preferredListenLang;
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.maxAlternatives = 3;
+    recognition.maxAlternatives = 1;
     recognition.onresult = handleVoiceCommand;
     recognition.onerror = (e) => {
       isListening = false;
@@ -509,14 +513,17 @@ function handleVoiceCommand(event) {
   let interim = '';
   let final = '';
 
+  let hasFinal = false;
   for (let i = event.resultIndex; i < event.results.length; i++) {
-    const t = pickVoiceTranscript(event.results[i]);
-    if (event.results[i].isFinal) final += t;
+    const isFinal = !!event.results[i].isFinal;
+    const t = pickVoiceTranscript(event.results[i], isFinal);
+    if (isFinal) { final += t; hasFinal = true; }
     else interim += t;
   }
 
   const draft = (final || interim).trim();
   if (!draft) return;
+  if (Voice?.speaking && !hasFinal) return;
 
   if (_voiceCommitting) {
     if (input) {

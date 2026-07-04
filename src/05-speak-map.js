@@ -201,7 +201,7 @@ const Voice = {
     if (gen === this._gen) {
       this.speaking = false;
       window.syncHandsFreeBtn?.();
-      window.resumeVoiceRecognition?.();
+      if (!onEnd) window.resumeVoiceRecognition?.();
     }
     if (onEnd && gen === this._gen && !this.stopped) onEnd();
   }

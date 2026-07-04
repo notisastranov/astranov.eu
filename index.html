@@ -1067,7 +1067,7 @@ const Voice = {
     if (gen === this._gen) {
       this.speaking = false;
       window.syncHandsFreeBtn?.();
-      window.resumeVoiceRecognition?.();
+      if (!onEnd) window.resumeVoiceRecognition?.();
     }
     if (onEnd && gen === this._gen && !this.stopped) onEnd();
   }
@@ -5261,9 +5261,9 @@ const AciCoders = {
   _lastListenAt: 0,
 
   CAUSE: 'Justice → Truth → Freedom',
-  LISTEN_MS: 300000,
+  LISTEN_MS: 900000,
   _cliBusy: false,
-  EVOLVE_MS: 180000,
+  EVOLVE_MS: 600000,
 
   loadPrefs() {
     try {
@@ -5334,7 +5334,6 @@ const AciCoders = {
     this.updateHud();
     this._listenTimer = setInterval(() => this.listenTick(), this.LISTEN_MS);
     this._evolveTimer = setInterval(() => this.evolveTick(), this.EVOLVE_MS);
-    setTimeout(() => this.listenTick(), 20000);
   },
 
   stopListening() {
@@ -5344,7 +5343,9 @@ const AciCoders = {
   },
 
   async listenTick() {
+    if (document.hidden || window._voicePerfMode) return;
     if (window._handsFreeVoice || isListening || Voice?.speaking || this._cliBusy || this._listenBusy) return;
+    if (this._activityCount < 1 && this._listenTicks > 0) return;
     this._listenBusy = true;
     this._listenTicks++;
     try {
@@ -5468,7 +5469,7 @@ const AciCoders = {
         : 'Coders ready — talk normally here. Type or tap 🎧 and say anything.';
       AciCli?.print(line, 'ok');
       ACIControl?.reply(line.slice(0, 200));
-      if ((opts.fromVoice || window._handsFreeVoice) && Voice?.maySpeak?.()) {
+      if (opts.fromVoice && window._handsFreeVoice && Voice?.maySpeak?.()) {
         speak('Coders ready. Talk normally.', () => resumeListening?.(), true);
       }
     }
@@ -5702,7 +5703,7 @@ const AciCoders = {
 
     if (!r.pending) {
       const spoken = reply || text;
-      if ((Voice.maySpeak() || window._handsFreeVoice) && Voice.shouldSpeak(spoken)) {
+      if (window._handsFreeVoice && Voice.shouldSpeak(spoken)) {
         speak(spoken.slice(0, 120), () => resumeListening?.(), true);
       } else if (window._handsFreeVoice || voiceSessionActive) {
         scheduleVoiceResume?.();
@@ -5930,7 +5931,7 @@ const AciCoders = {
         }, { timeoutMs: 12000 }).catch(() => {});
         GlobeDeck?.setThinking(false);
         const pingReply = this.localReply(m);
-        if (window._handsFreeVoice && Voice?.maySpeak?.()) {
+        if (window._handsFreeVoice && Voice?.shouldSpeak?.(pingReply)) {
           speak(pingReply.slice(0, 100), () => resumeListening?.(), true);
         }
         return this._applyResponse({ text: pingReply, via: 'local/ping' }, m);
@@ -17953,14 +17954,17 @@ function codersTranscriptScore(text) {
   return 0;
 }
 
-function pickVoiceTranscript(result) {
+function pickVoiceTranscript(result, isFinal) {
   let best = result[0]?.transcript || '';
-  let bestScore = codersTranscriptScore(best);
-  for (let j = 1; j < result.length; j++) {
-    const alt = result[j]?.transcript || '';
-    const score = codersTranscriptScore(alt);
-    if (score > bestScore) { bestScore = score; best = alt; }
+  if (isFinal && result.length > 1) {
+    let bestScore = codersTranscriptScore(best);
+    for (let j = 1; j < result.length; j++) {
+      const alt = result[j]?.transcript || '';
+      const score = codersTranscriptScore(alt);
+      if (score > bestScore) { bestScore = score; best = alt; }
+    }
   }
+  if (!isFinal) return fixVoiceHotwords(best);
   const repaired = ArcangeloDialect?.repairTranscript?.(best) || best;
   ArcangeloDialect?.ingest?.(repaired);
   return fixVoiceHotwords(repaired);
@@ -18064,6 +18068,7 @@ function openVoiceCli() {
 
 function scheduleVoiceResume() {
   if (sessionHeld || SessionHold?.isHeld?.()) return;
+  if (Voice?.speaking) return;
   const active = voiceSessionActive || window._handsFreeVoice;
   if (!active || !voiceEnabled || isListening || voiceListenBlocked()) return;
   if (_voiceResumeTimer) return;
@@ -18224,7 +18229,7 @@ function initVoice() {
     recognition.lang = Voice.preferredListenLang;
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.maxAlternatives = 3;
+    recognition.maxAlternatives = 1;
     recognition.onresult = handleVoiceCommand;
     recognition.onerror = (e) => {
       isListening = false;
@@ -18306,14 +18311,17 @@ function handleVoiceCommand(event) {
   let interim = '';
   let final = '';
 
+  let hasFinal = false;
   for (let i = event.resultIndex; i < event.results.length; i++) {
-    const t = pickVoiceTranscript(event.results[i]);
-    if (event.results[i].isFinal) final += t;
+    const isFinal = !!event.results[i].isFinal;
+    const t = pickVoiceTranscript(event.results[i], isFinal);
+    if (isFinal) { final += t; hasFinal = true; }
     else interim += t;
   }
 
   const draft = (final || interim).trim();
   if (!draft) return;
+  if (Voice?.speaking && !hasFinal) return;
 
   if (_voiceCommitting) {
     if (input) {
@@ -18562,8 +18570,9 @@ function animate() {
   updateOrbital();
 
   const heavyGlobe = (GlobeEntity?.entities?.size || 0) > 48;
-  if (heavyGlobe && !window._voicePerfMode) setVoicePerfMode?.(true);
-  if (window.AstranovCollectiveIntelligence && !window._voicePerfMode && !heavyGlobe) {
+  const codersBusy = window.AciCoders?._cliBusy || window.AciCoders?._listenBusy;
+  if ((heavyGlobe || codersBusy) && !window._voicePerfMode) setVoicePerfMode?.(true);
+  if (window.AstranovCollectiveIntelligence && !window._voicePerfMode && !heavyGlobe && !codersBusy) {
     ACI.tick();
     ACI.neurons.forEach(n => {
       if (!n.userData) return;
@@ -18596,10 +18605,12 @@ ContextTruth.init();
 GhostTravel.init();
 AciCli.init();
 setTimeout(() => Auth.refreshAuthority(), 800);
+setTimeout(() => setVoicePerfMode?.(true), 400);
 setTimeout(() => {
-  AciCoders?.autoStart?.();
   AciCli?.primeCodersCli?.();
-}, 1200);
+  AciCoders?.ensureBridge?.();
+}, 1800);
+setTimeout(() => AciCoders?.autoStart?.(), 8000);
 ACIControl.init();
 PmrRadio.bindUI();
 GlobeVideo.init();

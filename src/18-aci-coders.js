@@ -21,9 +21,9 @@ const AciCoders = {
   _lastListenAt: 0,
 
   CAUSE: 'Justice → Truth → Freedom',
-  LISTEN_MS: 300000,
+  LISTEN_MS: 900000,
   _cliBusy: false,
-  EVOLVE_MS: 180000,
+  EVOLVE_MS: 600000,
 
   loadPrefs() {
     try {
@@ -94,7 +94,6 @@ const AciCoders = {
     this.updateHud();
     this._listenTimer = setInterval(() => this.listenTick(), this.LISTEN_MS);
     this._evolveTimer = setInterval(() => this.evolveTick(), this.EVOLVE_MS);
-    setTimeout(() => this.listenTick(), 20000);
   },
 
   stopListening() {
@@ -104,7 +103,9 @@ const AciCoders = {
   },
 
   async listenTick() {
+    if (document.hidden || window._voicePerfMode) return;
     if (window._handsFreeVoice || isListening || Voice?.speaking || this._cliBusy || this._listenBusy) return;
+    if (this._activityCount < 1 && this._listenTicks > 0) return;
     this._listenBusy = true;
     this._listenTicks++;
     try {
@@ -228,7 +229,7 @@ const AciCoders = {
         : 'Coders ready — talk normally here. Type or tap 🎧 and say anything.';
       AciCli?.print(line, 'ok');
       ACIControl?.reply(line.slice(0, 200));
-      if ((opts.fromVoice || window._handsFreeVoice) && Voice?.maySpeak?.()) {
+      if (opts.fromVoice && window._handsFreeVoice && Voice?.maySpeak?.()) {
         speak('Coders ready. Talk normally.', () => resumeListening?.(), true);
       }
     }
@@ -462,7 +463,7 @@ const AciCoders = {
 
     if (!r.pending) {
       const spoken = reply || text;
-      if ((Voice.maySpeak() || window._handsFreeVoice) && Voice.shouldSpeak(spoken)) {
+      if (window._handsFreeVoice && Voice.shouldSpeak(spoken)) {
         speak(spoken.slice(0, 120), () => resumeListening?.(), true);
       } else if (window._handsFreeVoice || voiceSessionActive) {
         scheduleVoiceResume?.();
@@ -690,7 +691,7 @@ const AciCoders = {
         }, { timeoutMs: 12000 }).catch(() => {});
         GlobeDeck?.setThinking(false);
         const pingReply = this.localReply(m);
-        if (window._handsFreeVoice && Voice?.maySpeak?.()) {
+        if (window._handsFreeVoice && Voice?.shouldSpeak?.(pingReply)) {
           speak(pingReply.slice(0, 100), () => resumeListening?.(), true);
         }
         return this._applyResponse({ text: pingReply, via: 'local/ping' }, m);
