@@ -1,5 +1,5 @@
 {
-  "at": "2026-07-04T12:55:45.978Z",
+  "at": "2026-07-04T18:56:17.680Z",
   "matrixSize": 82,
   "groups": [
     "boot",
@@ -18,17 +18,19 @@
     "cli",
     "voice-path"
   ],
-  "targetCycles": 100,
-  "completedCycles": 100,
-  "stressCycles": 18,
-  "passed": 100,
+  "targetCycles": 3000000,
+  "completedCycles": 394146,
+  "cumulativeCycles": 394146,
+  "runCycles": 394146,
+  "stressCycles": 394064,
+  "passed": 394146,
   "failedUnique": 0,
-  "elapsedMs": 11810,
-  "cyclesPerSec": 8.46740050804403,
+  "elapsedMs": 21618242,
+  "cyclesPerSec": 18.232102314332497,
   "failures": [],
   "brain": {
-    "maturity": 0.007949999999999999,
-    "learns": 53,
-    "neurons": 33
+    "maturity": 1.501200000000241,
+    "learns": 10008,
+    "neurons": 88
   }
 }

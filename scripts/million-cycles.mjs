@@ -94,12 +94,16 @@ async function main() {
   const started = await startServer(0);
   const url = `http://127.0.0.1:${started.port}/index.html`;
   const stressPool = STRESS_MATRIX.length ? STRESS_MATRIX : MATRIX;
-  const prevCycles = PREV?.completedCycles || 0;
+  const prevCycles = PREV?.cumulativeCycles ?? PREV?.completedCycles ?? 0;
   const prevBrain = PREV?.brain || {};
+  const remainingCycles = Math.max(0, CYCLES - prevCycles);
 
   console.log(`Scenario matrix: ${MATRIX.length} unique paths · ${stressPool.length} fast stress paths · ${GROUPS.length} groups`);
   console.log(`Target cycles: ${CYCLES.toLocaleString()} · workers ${WORKERS} · max wall ${(MAX_MS / 1000).toFixed(0)}s`);
-  if (CONTINUE && prevCycles) console.log(`Continue from prior: ${prevCycles.toLocaleString()} cycles · brain maturity ${prevBrain.maturity ?? 0}`);
+  if (CONTINUE && prevCycles) {
+    console.log(`Continue from prior: ${prevCycles.toLocaleString()} cycles · brain maturity ${prevBrain.maturity ?? 0}`);
+    console.log(`Remaining toward ${CYCLES.toLocaleString()}: ${remainingCycles.toLocaleString()} cycles`);
+  }
   console.log('Local server →', url);
 
   const browser = await chromium.launch({ headless: true });
@@ -140,7 +144,9 @@ async function main() {
     console.log(`\n✓ Matrix ${passes.matrix}/${phase1.length} green`);
   }
 
-  const stressTarget = Math.max(0, CYCLES - phase1.length);
+  const stressTarget = CONTINUE
+    ? Math.max(0, remainingCycles - phase1.length)
+    : Math.max(0, CYCLES - phase1.length);
   console.log(`\n── Phase 2: stress cycles (${WORKERS} workers) ──`);
 
   async function stressWorker(workerId) {
@@ -209,7 +215,8 @@ async function main() {
     matrixSize: MATRIX.length,
     groups: GROUPS,
     targetCycles: CYCLES,
-    completedCycles: total,
+    completedCycles: cumulative,
+    runCycles: total,
     cumulativeCycles: cumulative,
     stressCycles: shared.stress,
     workers: WORKERS,
