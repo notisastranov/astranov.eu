@@ -54,6 +54,13 @@ const FOUNDING_NEURONS = [
   'Self-evolve without babysitting: brain distills, council judges, neurons strengthen.',
 ]
 
+const CONVERSATION_NEURONS = [
+  'Adult conversation: greet clearly, offer coin · order · unified · db status — no childish filler.',
+  'Ground every reply in scenario-tested paths — delivery, AVC, globe, one database lkoatrkhuigdolnjsbie.',
+  'When user chats without a build command, converse first via local neurons then think — mature tone.',
+  'Greek or English — match user language. Justice → Truth → Freedom in every financial answer.',
+]
+
 const VISUAL_TRUTH_NEURONS = [
   'Globe is truth UI: every order, vendor, driver, payment, and locate must pulse on the map — zoom to the human when it matters.',
   'Commerce without babysitting: parse intent (e.g. pitogyra mpironia tsigareta), locate user, match real vendor menus, compare prices, show drivers, confirm and pay — autonomously.',
@@ -64,7 +71,7 @@ const VISUAL_TRUTH_NEURONS = [
   'Batch launch law: always run preflight verify (session, ACI think, coders-bridge) before launching batch — never deploy or start batch on a broken baseline.',
 ]
 
-const ALL_PRINCIPLES = [...FOUNDING_NEURONS, ...VISUAL_TRUTH_NEURONS]
+const ALL_PRINCIPLES = [...FOUNDING_NEURONS, ...CONVERSATION_NEURONS, ...VISUAL_TRUTH_NEURONS]
 
 async function embedText(key: string, text: string): Promise<number[] | null> {
   try {

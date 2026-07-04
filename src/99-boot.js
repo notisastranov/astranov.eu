@@ -56,6 +56,7 @@ function animate() {
 }
 animate();
 ACI.init();
+setTimeout(() => BrainConversation?.seedAdultNeurons?.(), 3200);
 GlobeAutonomy.init();
 AstranovNode.init();
 Auth.init();

@@ -1,6 +1,6 @@
 {
-  "at": "2026-07-04T12:28:01.955Z",
-  "matrixSize": 76,
+  "at": "2026-07-04T12:55:45.978Z",
+  "matrixSize": 82,
   "groups": [
     "boot",
     "theme",
@@ -14,15 +14,21 @@
     "coders",
     "voice",
     "driving",
+    "brain",
     "cli",
     "voice-path"
   ],
-  "targetCycles": 200,
-  "completedCycles": 200,
-  "stressCycles": 124,
-  "passed": 200,
+  "targetCycles": 100,
+  "completedCycles": 100,
+  "stressCycles": 18,
+  "passed": 100,
   "failedUnique": 0,
-  "elapsedMs": 17988,
-  "cyclesPerSec": 11.118523460084502,
-  "failures": []
+  "elapsedMs": 11810,
+  "cyclesPerSec": 8.46740050804403,
+  "failures": [],
+  "brain": {
+    "maturity": 0.007949999999999999,
+    "learns": 53,
+    "neurons": 33
+  }
 }

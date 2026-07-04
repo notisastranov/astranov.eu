@@ -24,11 +24,12 @@ export const MATRIX = [
         avc: !!window.AvcJustice,
         unified: !!window.AstranovUnified,
         coin: !!window.CoinPortal,
+        brain: !!window.BrainConversation,
         coders: !!window.AciCoders,
         voice: typeof window.fixVoiceHotwords === 'function',
         super: !!window.SuperCli,
       }));
-      if (!r.commerce || !r.yacht || !r.auditor || !r.avc || !r.coin || !r.unified || !r.coders || !r.voice || !r.super) {
+      if (!r.commerce || !r.yacht || !r.auditor || !r.avc || !r.coin || !r.brain || !r.unified || !r.coders || !r.voice || !r.super) {
         throw new Error('module missing: ' + JSON.stringify(r));
       }
     },
@@ -474,6 +475,50 @@ export const MATRIX = [
     },
   },
 
+  // ── Brain conversation neurons ──
+  {
+    id: 'brain-adult-neurons',
+    group: 'brain',
+    run: async (page) => {
+      const n = await page.evaluate(() => BrainConversation.ADULT_NEURONS?.length);
+      if (n < 6) throw new Error('adult neurons missing: ' + n);
+    },
+  },
+  {
+    id: 'brain-local-converse',
+    group: 'brain',
+    run: async (page) => {
+      const r = await page.evaluate(() => {
+        const t = BrainConversation._matchLocal('hello');
+        return { ok: !!t && t.length > 10 };
+      });
+      if (!r.ok) throw new Error('local converse failed');
+    },
+  },
+  {
+    id: 'brain-learn-scenario',
+    group: 'brain',
+    run: async (page) => {
+      const m = await page.evaluate(() => {
+        BrainConversation.learnFromScenario('test-cycle', 'commerce');
+        return BrainConversation.CYCLE_LEARNS;
+      });
+      if (m < 1) throw new Error('learn failed');
+    },
+  },
+  {
+    id: 'brain-maturity-grows',
+    group: 'brain',
+    run: async (page) => {
+      const r = await page.evaluate(() => {
+        const before = BrainConversation.MATURITY;
+        for (let i = 0; i < 50; i++) BrainConversation.learnFromScenario('stress', 'avc');
+        return BrainConversation.MATURITY > before;
+      });
+      if (!r) throw new Error('maturity did not grow');
+    },
+  },
+
   // ── CLI routing (SuperCli) ──
   ...cliCases(),
 
@@ -498,6 +543,8 @@ function cliCases() {
     ['auditors open', true],
     ['avc justice', true],
     ['coin balance', true],
+    ['brain status', true],
+    ['db status', true],
     ['drivers', true],
     ['hold', true],
     ['resume', true],
@@ -575,6 +622,7 @@ const STRESS_IDS = new Set([
   'avc-peg-1to1', 'avc-format', 'avc-globe-pin',
   'unified-pillars', 'unified-globe-pin',
   'coin-portal-url', 'coin-globe-pin',
+  'brain-adult-neurons', 'brain-local-converse', 'brain-learn-scenario',
   'voice-cli-audit-open', 'voice-cli-yacht-list', 'voice-cli-locate-me',
 ]);
 

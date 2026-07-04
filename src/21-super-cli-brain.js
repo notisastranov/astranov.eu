@@ -560,6 +560,10 @@ Object.assign(SuperCli, {
         await AuditorPortal?.cli?.(parts);
         return { handled: true };
       }
+      if (cmd === 'brain' || cmd === 'converse' || cmd === 'talk') {
+        await BrainConversation?.cli?.(parts);
+        return { handled: true };
+      }
       if (cmd === 'db' || cmd === 'database' || cmd === 'onedb') {
         await AstranovOneDatabase?.cli?.(parts);
         return { handled: true };

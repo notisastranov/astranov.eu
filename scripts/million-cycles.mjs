@@ -29,7 +29,9 @@ function arg(name, def) {
 
 const CYCLES = Math.max(1, parseInt(arg('--cycles', '1000'), 10) || 1000);
 const MAX_MS = parseInt(arg('--max-ms', String(CYCLES > 100000 ? 3600000 : 600000)), 10);
-const QUICK = process.argv.includes('--quick');
+const QUICK = process.argv.includes('--quick') || process.argv.includes('--turbo');
+const TURBO = process.argv.includes('--turbo');
+const BRAIN_EVERY = parseInt(arg('--brain-every', TURBO ? '500' : '1000'), 10) || 1000;
 const SEED = parseInt(arg('--seed', '42'), 10);
 
 function startServer(port = 0) {
@@ -79,7 +81,7 @@ async function bootPage(url) {
   });
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.waitForFunction(() => window.CityMap?._ready, { timeout: 60000 });
-  await page.waitForTimeout(QUICK ? 800 : 2500);
+  await page.waitForTimeout(TURBO ? 300 : QUICK ? 800 : 2500);
   await page.evaluate(() => {
     if (window.Commerce && !Commerce.vendors?.length) {
       Commerce.vendors = (Commerce.DEMO_VENDORS || []).map(v => ({ ...v }));
@@ -144,16 +146,31 @@ async function main() {
     const sc = stressPool[idx];
     total++;
     stress++;
-    if (await runScenario(sc, 'stress')) passes.stress++;
-    else if (failures.size <= 20) console.error(`✗ [stress#${stress}] ${sc.id}: ${failures.get(sc.id)?.error}`);
+    if (await runScenario(sc, 'stress')) {
+      passes.stress++;
+      if (stress % BRAIN_EVERY === 0) {
+        await page.evaluate(({ id, group }) => {
+          BrainConversation?.learnFromScenario?.(id, group);
+        }, { id: sc.id, group: sc.group }).catch(() => {});
+      }
+    } else if (failures.size <= 20) console.error(`✗ [stress#${stress}] ${sc.id}: ${failures.get(sc.id)?.error}`);
 
-    if (stress % 500 === 0 || Date.now() - lastLog > 15000) {
+    if (stress % (TURBO ? 5000 : 500) === 0 || Date.now() - lastLog > 15000) {
       const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
       const rate = (total / (Date.now() - t0) * 1000).toFixed(0);
       console.log(`  … ${stress.toLocaleString()} / ${stressTarget.toLocaleString()} stress cycles · ${total.toLocaleString()} total · ${rate}/s · ${elapsed}s`);
       lastLog = Date.now();
     }
   }
+
+  let brainState = {};
+  try {
+    brainState = await page.evaluate(() => ({
+      maturity: BrainConversation?.MATURITY ?? 0,
+      learns: BrainConversation?.CYCLE_LEARNS ?? 0,
+      neurons: ACI?.neurons?.length ?? 0,
+    }));
+  } catch (_) { /* page may be closing */ }
 
   await browser.close();
   started.srv.close();
@@ -173,6 +190,7 @@ async function main() {
     elapsedMs: elapsed,
     cyclesPerSec: total / (elapsed / 1000),
     failures: [...failures.entries()].map(([id, v]) => ({ id, ...v })),
+    brain: brainState,
   };
 
   const reportPath = join(ROOT, 'test-cycles-report.json');
@@ -181,6 +199,9 @@ async function main() {
   console.log('\n═══ Cycle report ═══');
   console.log(`Completed: ${total.toLocaleString()} cycles in ${(elapsed / 1000).toFixed(1)}s (${report.cyclesPerSec.toFixed(0)}/s)`);
   console.log(`Passed: ${passTotal.toLocaleString()} · Unique failures: ${failCount}`);
+  if (brainState.maturity != null) {
+    console.log(`Brain: maturity ${Number(brainState.maturity).toFixed(3)} · learns ${brainState.learns} · globe neurons ${brainState.neurons}`);
+  }
   console.log(`Report: ${reportPath}`);
 
   if (failCount) {

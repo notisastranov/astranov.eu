@@ -392,6 +392,17 @@ const ACIControl = {
       return { executed: false };
     }
 
+    const local = BrainConversation?._matchLocal?.(text);
+    if (local) {
+      await BrainConversation?.converse?.(text, { fromVoice });
+      return { executed: true, action: 'brain_local' };
+    }
+
+    if (/^(chat|talk|converse|tell me|explain|what is|ποιος|τι είναι|πες μου)\b/i.test(low) || (low.length > 12 && !AciCoders?.isBuildTask?.(text))) {
+      await BrainConversation?.converse?.(text, { fromVoice, forceThink: /explain|why|how|τι είναι/.test(low) });
+      return { executed: true, action: 'brain_converse' };
+    }
+
     await AciCoders?.handleMessage(text, { fromVoice });
     return { executed: true, action: 'coders' };
   }
