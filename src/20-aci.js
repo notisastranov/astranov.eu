@@ -70,10 +70,10 @@ const ACI = {
     });
   },
 
-  async think(prompt) {
+  async think(prompt, opts = {}) {
     if (window._aciAbort) { try { window._aciAbort.abort(); } catch (_) {} }
     window._aciAbort = new AbortController();
-    const up = window._lastPos || { lat: 36.22, lng: 28.12 };
+    const fast = opts.fast !== false && String(prompt || '').length < 600;
     GlobeDeck?.setMapStatus('ACI — thinking…');
     GlobeDeck?.setThinking(true, 'ACI — thinking…');
     const h = await this.headers();
@@ -81,8 +81,12 @@ const ACI = {
     try {
       r = await fetchJson(this.url + '/functions/v1/aci', {
         method: 'POST', headers: h,
-        body: JSON.stringify({ mode: 'think', prompt, history: this.history.slice(-8), aci_mode: this.thinkMode || undefined }),
-      }, 55000);
+        body: JSON.stringify({
+          mode: 'think', prompt, fast,
+          history: this.history.slice(-6),
+          aci_mode: this.thinkMode || undefined,
+        }),
+      }, fast ? 32000 : 55000);
     } catch (e) {
       r = { error: String(e.message || e) };
     }
@@ -99,6 +103,7 @@ const ACI = {
     if (this.history.length > 20) this.history = this.history.slice(-20);
     this.feed('think', prompt.slice(0, 80));
     this.pulse(1.4);
+    GlobeDeck?.say(text, 'reply');
     return text;
   },
 
@@ -392,15 +397,19 @@ const ACIControl = {
       return { executed: false };
     }
 
-    const local = BrainConversation?._matchLocal?.(text);
-    if (local) {
-      await BrainConversation?.converse?.(text, { fromVoice });
-      return { executed: true, action: 'brain_local' };
+    if (/^(chat|talk|converse|tell me|explain|what is|ποιος|τι είναι|πες μου)\b/i.test(low)
+      || (low.length > 8 && !AciCoders?.isBuildTask?.(text) && !AciCoders?.isCodersIntent?.(text))) {
+      await BrainConversation?.converse?.(text, {
+        fromVoice,
+        forceThink: /explain|why|how|τι είναι|\?/.test(low) || low.length > 28,
+      });
+      return { executed: true, action: 'brain_converse' };
     }
 
-    if (/^(chat|talk|converse|tell me|explain|what is|ποιος|τι είναι|πες μου)\b/i.test(low) || (low.length > 12 && !AciCoders?.isBuildTask?.(text))) {
-      await BrainConversation?.converse?.(text, { fromVoice, forceThink: /explain|why|how|τι είναι/.test(low) });
-      return { executed: true, action: 'brain_converse' };
+    const ping = BrainConversation?._matchLocal?.(text);
+    if (ping) {
+      await BrainConversation?.converse?.(text, { fromVoice });
+      return { executed: true, action: 'brain_local' };
     }
 
     await AciCoders?.handleMessage(text, { fromVoice });

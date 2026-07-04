@@ -1071,7 +1071,8 @@ serve(async (req) => {
       if (!prompt) return json({ error: 'prompt required' }, 400)
       const history = Array.isArray(body.history) ? body.history : []
       const thinkMode = String(body.aci_mode || body.think_mode || '').toLowerCase()
-      const aicycleBody: Record<string, unknown> = { prompt, history, mode: thinkMode }
+      const fast = body.fast === true || (!thinkMode && prompt.length < 600)
+      const aicycleBody: Record<string, unknown> = { prompt, history, mode: thinkMode, fast }
       if (caller.callerId) aicycleBody.profile_id = caller.callerId
       const result = await invokeFn(base, anon, caller.authToken, 'aicycle', aicycleBody)
       let text = String(result.text || result.response || '').trim()

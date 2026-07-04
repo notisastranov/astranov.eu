@@ -6461,10 +6461,10 @@ const ACI = {
     });
   },
 
-  async think(prompt) {
+  async think(prompt, opts = {}) {
     if (window._aciAbort) { try { window._aciAbort.abort(); } catch (_) {} }
     window._aciAbort = new AbortController();
-    const up = window._lastPos || { lat: 36.22, lng: 28.12 };
+    const fast = opts.fast !== false && String(prompt || '').length < 600;
     GlobeDeck?.setMapStatus('ACI — thinking…');
     GlobeDeck?.setThinking(true, 'ACI — thinking…');
     const h = await this.headers();
@@ -6472,8 +6472,12 @@ const ACI = {
     try {
       r = await fetchJson(this.url + '/functions/v1/aci', {
         method: 'POST', headers: h,
-        body: JSON.stringify({ mode: 'think', prompt, history: this.history.slice(-8), aci_mode: this.thinkMode || undefined }),
-      }, 55000);
+        body: JSON.stringify({
+          mode: 'think', prompt, fast,
+          history: this.history.slice(-6),
+          aci_mode: this.thinkMode || undefined,
+        }),
+      }, fast ? 32000 : 55000);
     } catch (e) {
       r = { error: String(e.message || e) };
     }
@@ -6490,6 +6494,7 @@ const ACI = {
     if (this.history.length > 20) this.history = this.history.slice(-20);
     this.feed('think', prompt.slice(0, 80));
     this.pulse(1.4);
+    GlobeDeck?.say(text, 'reply');
     return text;
   },
 
@@ -6783,15 +6788,19 @@ const ACIControl = {
       return { executed: false };
     }
 
-    const local = BrainConversation?._matchLocal?.(text);
-    if (local) {
-      await BrainConversation?.converse?.(text, { fromVoice });
-      return { executed: true, action: 'brain_local' };
+    if (/^(chat|talk|converse|tell me|explain|what is|ποιος|τι είναι|πες μου)\b/i.test(low)
+      || (low.length > 8 && !AciCoders?.isBuildTask?.(text) && !AciCoders?.isCodersIntent?.(text))) {
+      await BrainConversation?.converse?.(text, {
+        fromVoice,
+        forceThink: /explain|why|how|τι είναι|\?/.test(low) || low.length > 28,
+      });
+      return { executed: true, action: 'brain_converse' };
     }
 
-    if (/^(chat|talk|converse|tell me|explain|what is|ποιος|τι είναι|πες μου)\b/i.test(low) || (low.length > 12 && !AciCoders?.isBuildTask?.(text))) {
-      await BrainConversation?.converse?.(text, { fromVoice, forceThink: /explain|why|how|τι είναι/.test(low) });
-      return { executed: true, action: 'brain_converse' };
+    const ping = BrainConversation?._matchLocal?.(text);
+    if (ping) {
+      await BrainConversation?.converse?.(text, { fromVoice });
+      return { executed: true, action: 'brain_local' };
     }
 
     await AciCoders?.handleMessage(text, { fromVoice });
@@ -18279,19 +18288,21 @@ const BrainConversation = {
   ],
 
   _matchLocal(text) {
-    const low = String(text || '').toLowerCase();
-    for (const n of this.ADULT_NEURONS) {
-      if (low.includes(n.id) || (n.id === 'help' && /help|\?|τι κάν|what can/.test(low))) {
-        return n.text;
-      }
-    }
-    if (/hello|hi|γεια|καλησπέρα/.test(low)) {
+    const low = String(text || '').toLowerCase().trim();
+    if (!low) return null;
+    if (/^(hello|hi|hey|γεια|καλησπέρα|good morning|good evening)\b/.test(low)) {
       return 'Astranov Collective Intelligence — adult brain online. Delivery · globe · AVC justice coin. Say order, coin, or unified status.';
     }
-    if (/who are you|τι είσαι|what are you/.test(low)) {
+    if (/^(who are you|what are you|τι είσαι)\b/.test(low)) {
       return 'I am ACI — collective brain on the globe. One database, work-based AVC, real human work mints coins.';
     }
-    if (/database|db|one database/.test(low)) {
+    if (/^(brain status|brain tier)\b/.test(low)) {
+      return this.statusText();
+    }
+    if (/^(help|\?)$/.test(low)) {
+      return 'Concrete CLI: coin · order · yacht list · avc balance · unified status · db status.';
+    }
+    if (/^(db status|one database)\b/.test(low)) {
       return AstranovOneDatabase?.status?.()?.central
         ? 'One database lkoatrkhuigdolnjsbie — all *.astranov.eu tenants share profiles, orders, avc_ledger.'
         : 'Central database active for Astranov platform.';
@@ -18302,6 +18313,7 @@ const BrainConversation = {
   learnFromScenario(scenarioId, group) {
     this.CYCLE_LEARNS++;
     this.MATURITY = Math.min(100, this.MATURITY + 0.00025);
+    if (window._cycleTurbo) return;
     const g = String(group || 'boot');
     const hit = this.ADULT_NEURONS.find(n => n.id === g || scenarioId?.includes(n.id));
     if (hit) hit.strength = Math.min(3, hit.strength + 0.0002);
@@ -18334,14 +18346,20 @@ const BrainConversation = {
   async converse(text, opts = {}) {
     const prompt = String(text || '').trim();
     if (!prompt) return '';
-    const local = this._matchLocal(prompt);
-    if (local && !opts.forceThink) {
+    const wantsThink = opts.forceThink || prompt.length > 24 || /[?]/.test(prompt)
+      || /^(explain|why|how|what is|tell me|describe|ποιος|τι είναι|πες μου|γιατί)\b/i.test(prompt);
+    const local = !wantsThink ? this._matchLocal(prompt) : null;
+    if (local) {
       ACI?.history?.push?.({ role: 'user', content: prompt });
       ACI?.history?.push?.({ role: 'assistant', content: local });
       ACIControl?.reply(local);
       return local;
     }
-    return ACI?.think?.(prompt) || '';
+    const out = await ACI?.think?.(prompt, { fast: prompt.length < 500 }) || '';
+    if (out && !/^ACI error:/i.test(out)) return out;
+    const fallback = this._matchLocal(prompt) || 'Coders online — try again in a moment or say coders <task>.';
+    ACIControl?.reply(fallback);
+    return fallback;
   },
 
   statusText() {
@@ -19120,6 +19138,7 @@ function showPilotTelemachos() {
 
 function animate() {
   requestAnimationFrame(animate);
+  if (window._cycleTurbo) return;
   if (!drag) {
     globePivot.rotation.y += idleRoll + trackVelX;
     globePivot.rotation.x += trackVelY;
@@ -19156,14 +19175,16 @@ function animate() {
   const heavyGlobe = (GlobeEntity?.entities?.size || 0) > 48;
   const codersBusy = window.AciCoders?._cliBusy || window.AciCoders?._listenBusy;
   if ((heavyGlobe || codersBusy) && !window._voicePerfMode) setVoicePerfMode?.(true);
-  if (window.AstranovCollectiveIntelligence && !window._voicePerfMode && !heavyGlobe && !codersBusy) {
+  if (window.AstranovCollectiveIntelligence && !heavyGlobe && !codersBusy) {
     ACI.tick();
-    ACI.neurons.forEach(n => {
-      if (!n.userData) return;
-      const t = Date.now() / 700;
-      const s = 1 + Math.sin(t + (n.userData.id ? n.userData.id.length : 0)) * 0.07 * Math.min(1.8, n.userData.strength || 1);
-      n.scale.set(s, s, s);
-    });
+    if (!window._voicePerfMode) {
+      ACI.neurons.forEach(n => {
+        if (!n.userData) return;
+        const t = Date.now() / 700;
+        const s = 1 + Math.sin(t + (n.userData.id ? n.userData.id.length : 0)) * 0.07 * Math.min(1.8, n.userData.strength || 1);
+        n.scale.set(s, s, s);
+      });
+    }
   }
 
   if (window.MapDepict) MapDepict.tick();

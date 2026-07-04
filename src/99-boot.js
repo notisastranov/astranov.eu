@@ -37,14 +37,16 @@ function animate() {
   const heavyGlobe = (GlobeEntity?.entities?.size || 0) > 48;
   const codersBusy = window.AciCoders?._cliBusy || window.AciCoders?._listenBusy;
   if ((heavyGlobe || codersBusy) && !window._voicePerfMode) setVoicePerfMode?.(true);
-  if (window.AstranovCollectiveIntelligence && !window._voicePerfMode && !heavyGlobe && !codersBusy) {
+  if (window.AstranovCollectiveIntelligence && !heavyGlobe && !codersBusy) {
     ACI.tick();
-    ACI.neurons.forEach(n => {
-      if (!n.userData) return;
-      const t = Date.now() / 700;
-      const s = 1 + Math.sin(t + (n.userData.id ? n.userData.id.length : 0)) * 0.07 * Math.min(1.8, n.userData.strength || 1);
-      n.scale.set(s, s, s);
-    });
+    if (!window._voicePerfMode) {
+      ACI.neurons.forEach(n => {
+        if (!n.userData) return;
+        const t = Date.now() / 700;
+        const s = 1 + Math.sin(t + (n.userData.id ? n.userData.id.length : 0)) * 0.07 * Math.min(1.8, n.userData.strength || 1);
+        n.scale.set(s, s, s);
+      });
+    }
   }
 
   if (window.MapDepict) MapDepict.tick();

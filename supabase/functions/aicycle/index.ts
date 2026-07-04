@@ -82,13 +82,28 @@ async function callAnthropic(key: string, system: string, messages: Msg[]): Prom
   } catch { return null }
 }
 
+const LLM_TIMEOUT_MS = 14000
+
+async function withTimeout<T>(p: Promise<T>, ms = LLM_TIMEOUT_MS): Promise<T | null> {
+  try {
+    return await Promise.race([
+      p,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+    ])
+  } catch { return null }
+}
+
 async function callOpenAICompat(url: string, key: string, model: string, system: string, messages: Msg[], extraHeaders: Record<string, string> = {}): Promise<string | null> {
   try {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), LLM_TIMEOUT_MS)
     const r = await fetch(url, {
       method: 'POST',
+      signal: ctrl.signal,
       headers: { 'Authorization': `Bearer ${key}`, 'content-type': 'application/json', ...extraHeaders },
       body: JSON.stringify({ model, max_tokens: 900, messages: [{ role: 'system', content: system }, ...messages] }),
     })
+    clearTimeout(timer)
     if (!r.ok) return null
     const j = await r.json()
     return j.choices?.[0]?.message?.content || null
@@ -187,11 +202,12 @@ serve(async (req) => {
       ownerId = owner?.id ?? null
     } catch { /* none yet */ }
 
+    const fast = body.fast === true
     const creatorMind: string[] = []
     const userMemory: string[] = []
     const searchIds = [ownerId, profileId].filter((x): x is string => !!x)
     let qEmbedding: number[] | null = null
-    if (GEMINI && searchIds.length) qEmbedding = await embedText(GEMINI, prompt)
+    if (!fast && GEMINI && searchIds.length) qEmbedding = await embedText(GEMINI, prompt)
 
     if (qEmbedding) {
       const { data: hits } = await supabase.rpc('match_memories', {
@@ -289,11 +305,17 @@ serve(async (req) => {
         raw = hit.text
         via = hit.via
       }
+    } else if (fast) {
+      const hit = await tryChain()
+      raw = hit.text
+      via = hit.via || 'fast/none'
     } else {
-      if (isOwner && ANTHROPIC) raw = await callAnthropic(ANTHROPIC, system, messages)
-      if (!raw && OPENROUTER)   raw = await callOpenRouter(OPENROUTER, system, messages)
-      if (!raw && GROQ)         raw = await callGroq(GROQ, system, messages)
-      if (!raw && GEMINI)       raw = await callGemini(GEMINI, system, messages)
+      const slowSkip = new Set((prefs.skip || []).map((s: string) => String(s).toLowerCase()))
+      if (isOwner && ANTHROPIC) raw = await withTimeout(callAnthropic(ANTHROPIC, system, messages))
+      if (!raw && XAI && !slowSkip.has('xai')) raw = await withTimeout(callXAI(XAI, system, messages))
+      if (!raw && GROQ)         raw = await withTimeout(callGroq(GROQ, system, messages))
+      if (!raw && OPENROUTER)   raw = await withTimeout(callOpenRouter(OPENROUTER, system, messages))
+      if (!raw && GEMINI)       raw = await withTimeout(callGemini(GEMINI, system, messages))
     }
 
     if (!raw) {

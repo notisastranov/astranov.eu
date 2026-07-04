@@ -27,19 +27,21 @@ const BrainConversation = {
   ],
 
   _matchLocal(text) {
-    const low = String(text || '').toLowerCase();
-    for (const n of this.ADULT_NEURONS) {
-      if (low.includes(n.id) || (n.id === 'help' && /help|\?|τι κάν|what can/.test(low))) {
-        return n.text;
-      }
-    }
-    if (/hello|hi|γεια|καλησπέρα/.test(low)) {
+    const low = String(text || '').toLowerCase().trim();
+    if (!low) return null;
+    if (/^(hello|hi|hey|γεια|καλησπέρα|good morning|good evening)\b/.test(low)) {
       return 'Astranov Collective Intelligence — adult brain online. Delivery · globe · AVC justice coin. Say order, coin, or unified status.';
     }
-    if (/who are you|τι είσαι|what are you/.test(low)) {
+    if (/^(who are you|what are you|τι είσαι)\b/.test(low)) {
       return 'I am ACI — collective brain on the globe. One database, work-based AVC, real human work mints coins.';
     }
-    if (/database|db|one database/.test(low)) {
+    if (/^(brain status|brain tier)\b/.test(low)) {
+      return this.statusText();
+    }
+    if (/^(help|\?)$/.test(low)) {
+      return 'Concrete CLI: coin · order · yacht list · avc balance · unified status · db status.';
+    }
+    if (/^(db status|one database)\b/.test(low)) {
       return AstranovOneDatabase?.status?.()?.central
         ? 'One database lkoatrkhuigdolnjsbie — all *.astranov.eu tenants share profiles, orders, avc_ledger.'
         : 'Central database active for Astranov platform.';
@@ -83,14 +85,20 @@ const BrainConversation = {
   async converse(text, opts = {}) {
     const prompt = String(text || '').trim();
     if (!prompt) return '';
-    const local = this._matchLocal(prompt);
-    if (local && !opts.forceThink) {
+    const wantsThink = opts.forceThink || prompt.length > 24 || /[?]/.test(prompt)
+      || /^(explain|why|how|what is|tell me|describe|ποιος|τι είναι|πες μου|γιατί)\b/i.test(prompt);
+    const local = !wantsThink ? this._matchLocal(prompt) : null;
+    if (local) {
       ACI?.history?.push?.({ role: 'user', content: prompt });
       ACI?.history?.push?.({ role: 'assistant', content: local });
       ACIControl?.reply(local);
       return local;
     }
-    return ACI?.think?.(prompt) || '';
+    const out = await ACI?.think?.(prompt, { fast: prompt.length < 500 }) || '';
+    if (out && !/^ACI error:/i.test(out)) return out;
+    const fallback = this._matchLocal(prompt) || 'Coders online — try again in a moment or say coders <task>.';
+    ACIControl?.reply(fallback);
+    return fallback;
   },
 
   statusText() {
