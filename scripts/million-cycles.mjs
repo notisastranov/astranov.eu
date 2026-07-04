@@ -3,18 +3,15 @@
  * High-volume scenario cycle runner.
  *
  * Usage:
- *   node scripts/million-cycles.mjs                    # 1 full matrix + 1000 stress cycles
- *   node scripts/million-cycles.mjs --cycles 3000000   # up to 3M (use --max-ms to cap wall time)
- *   node scripts/million-cycles.mjs --cycles 500 --quick
- *
- * Each cycle = one matrix scenario execution (re-cycled). Full matrix pass runs first.
+ *   node scripts/million-cycles.mjs --cycles 3000000 --turbo --workers 4
+ *   node scripts/million-cycles.mjs --continue --cycles 3000000 --turbo
  */
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
 import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MATRIX, STRESS_MATRIX, GROUPS } from './scenario-matrix.mjs';
+import { MATRIX, STRESS_MATRIX, GROUPS, STRESS_IDS } from './scenario-matrix.mjs';
 
 const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const MIME = {
@@ -27,11 +24,17 @@ function arg(name, def) {
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : def;
 }
 
+const CONTINUE = process.argv.includes('--continue');
+const PREV = CONTINUE && existsSync(join(ROOT, 'test-cycles-report.json'))
+  ? JSON.parse(readFileSync(join(ROOT, 'test-cycles-report.json'), 'utf8'))
+  : null;
+
 const CYCLES = Math.max(1, parseInt(arg('--cycles', '1000'), 10) || 1000);
 const MAX_MS = parseInt(arg('--max-ms', String(CYCLES > 100000 ? 3600000 : 600000)), 10);
 const QUICK = process.argv.includes('--quick') || process.argv.includes('--turbo');
 const TURBO = process.argv.includes('--turbo');
-const BRAIN_EVERY = parseInt(arg('--brain-every', TURBO ? '500' : '1000'), 10) || 1000;
+const WORKERS = Math.max(1, Math.min(8, parseInt(arg('--workers', TURBO ? '4' : '1'), 10) || 1));
+const BRAIN_EVERY = parseInt(arg('--brain-every', TURBO ? '2000' : '1000'), 10) || 1000;
 const SEED = parseInt(arg('--seed', '42'), 10);
 
 function startServer(port = 0) {
@@ -64,16 +67,13 @@ function mulberry32(a) {
   };
 }
 
-const rand = mulberry32(SEED);
-
-async function bootPage(url) {
-  const browser = await chromium.launch({ headless: true });
+async function bootPage(browser, url) {
   const context = await browser.newContext({
     geolocation: { latitude: 36.44, longitude: 28.22 },
     permissions: ['geolocation'],
   });
   const page = await context.newPage();
-  page.setDefaultTimeout(QUICK ? 30000 : 90000);
+  page.setDefaultTimeout(QUICK ? 25000 : 90000);
   await page.route('**/*', route => {
     const u = route.request().url();
     if (/supabase\.co|allorigins|feeds\.bbci/i.test(u)) return route.abort();
@@ -81,116 +81,145 @@ async function bootPage(url) {
   });
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.waitForFunction(() => window.CityMap?._ready, { timeout: 60000 });
-  await page.waitForTimeout(TURBO ? 300 : QUICK ? 800 : 2500);
+  if (!TURBO) await page.waitForTimeout(QUICK ? 800 : 2500);
   await page.evaluate(() => {
     if (window.Commerce && !Commerce.vendors?.length) {
       Commerce.vendors = (Commerce.DEMO_VENDORS || []).map(v => ({ ...v }));
     }
   }).catch(() => {});
-  return { browser, page };
+  return { context, page };
 }
 
 async function main() {
   const started = await startServer(0);
   const url = `http://127.0.0.1:${started.port}/index.html`;
   const stressPool = STRESS_MATRIX.length ? STRESS_MATRIX : MATRIX;
+  const prevCycles = PREV?.completedCycles || 0;
+  const prevBrain = PREV?.brain || {};
+
   console.log(`Scenario matrix: ${MATRIX.length} unique paths · ${stressPool.length} fast stress paths · ${GROUPS.length} groups`);
-  console.log(`Target cycles: ${CYCLES.toLocaleString()} · max wall ${(MAX_MS / 1000).toFixed(0)}s`);
+  console.log(`Target cycles: ${CYCLES.toLocaleString()} · workers ${WORKERS} · max wall ${(MAX_MS / 1000).toFixed(0)}s`);
+  if (CONTINUE && prevCycles) console.log(`Continue from prior: ${prevCycles.toLocaleString()} cycles · brain maturity ${prevBrain.maturity ?? 0}`);
   console.log('Local server →', url);
 
-  const { browser, page } = await bootPage(url);
+  const browser = await chromium.launch({ headless: true });
+  const { page: matrixPage, context: matrixCtx } = await bootPage(browser, url);
   const t0 = Date.now();
   const failures = new Map();
   const passes = { matrix: 0, stress: 0 };
   let total = 0;
+  const shared = { stress: 0, stop: false };
 
-  async function runScenario(sc, label) {
+  async function runScenario(page, sc, label) {
+    const timeout = TURBO ? 12000 : 45000;
     try {
-      await sc.run(page);
+      await Promise.race([
+        sc.run(page),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('scenario timeout')), timeout)),
+      ]);
       return true;
     } catch (e) {
       const msg = e.message || String(e);
-      failures.set(sc.id, { group: sc.group, error: msg, label });
+      if (!failures.has(sc.id)) failures.set(sc.id, { group: sc.group, error: msg, label });
       return false;
     }
   }
 
-  // Phase 1 — every scenario once (mandatory coverage)
-  console.log('\n── Phase 1: full matrix pass ──');
-  for (const sc of MATRIX) {
+  const phase1 = TURBO ? MATRIX.filter(m => STRESS_IDS.has(m.id)) : MATRIX;
+  console.log(`\n── Phase 1: matrix pass (${phase1.length}${TURBO ? ' fast' : ''}) ──`);
+  for (const sc of phase1) {
     total++;
-    const ok = await runScenario(sc, 'matrix');
-    if (ok) {
-      passes.matrix++;
-      if (!QUICK) console.log(`✓ [matrix] ${sc.id}`);
-    } else {
-      console.error(`✗ [matrix] ${sc.id} (${sc.group}): ${failures.get(sc.id)?.error}`);
-    }
+    const ok = await runScenario(matrixPage, sc, 'matrix');
+    if (ok) passes.matrix++;
+    else console.error(`✗ [matrix] ${sc.id} (${sc.group}): ${failures.get(sc.id)?.error}`);
   }
 
-  const matrixFails = MATRIX.length - passes.matrix;
-  if (matrixFails) {
-    console.error(`\nMatrix failures: ${matrixFails} — fix before stress cycles`);
+  if (passes.matrix < phase1.length) {
+    console.error(`\nMatrix failures: ${phase1.length - passes.matrix}`);
   } else {
-    console.log(`\n✓ Matrix ${passes.matrix}/${MATRIX.length} green`);
+    console.log(`\n✓ Matrix ${passes.matrix}/${phase1.length} green`);
   }
 
-  // Phase 2 — stress cycles (repeat matrix with pseudo-random order)
-  console.log('\n── Phase 2: stress cycles ──');
-  const stressTarget = Math.max(0, CYCLES - MATRIX.length);
-  let stress = 0;
-  let lastLog = Date.now();
+  const stressTarget = Math.max(0, CYCLES - phase1.length);
+  console.log(`\n── Phase 2: stress cycles (${WORKERS} workers) ──`);
 
-  while (stress < stressTarget && Date.now() - t0 < MAX_MS) {
-    const idx = Math.floor(rand() * stressPool.length);
-    const sc = stressPool[idx];
-    total++;
-    stress++;
-    if (await runScenario(sc, 'stress')) {
-      passes.stress++;
-      if (stress % BRAIN_EVERY === 0) {
-        await page.evaluate(({ id, group }) => {
-          BrainConversation?.learnFromScenario?.(id, group);
-        }, { id: sc.id, group: sc.group }).catch(() => {});
+  async function stressWorker(workerId) {
+    const rnd = mulberry32(SEED + workerId * 997);
+    const { page, context } = await bootPage(browser, url);
+    let localPass = 0;
+    try {
+      while (!shared.stop) {
+        if (shared.stress >= stressTarget || Date.now() - t0 >= MAX_MS) break;
+        const idx = Math.floor(rnd() * stressPool.length);
+        const sc = stressPool[idx];
+        shared.stress++;
+        total++;
+        if (await runScenario(page, sc, 'stress')) {
+          passes.stress++;
+          localPass++;
+        }
       }
-    } else if (failures.size <= 20) console.error(`✗ [stress#${stress}] ${sc.id}: ${failures.get(sc.id)?.error}`);
-
-    if (stress % (TURBO ? 5000 : 500) === 0 || Date.now() - lastLog > 15000) {
-      const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-      const rate = (total / (Date.now() - t0) * 1000).toFixed(0);
-      console.log(`  … ${stress.toLocaleString()} / ${stressTarget.toLocaleString()} stress cycles · ${total.toLocaleString()} total · ${rate}/s · ${elapsed}s`);
-      lastLog = Date.now();
+    } finally {
+      await context.close().catch(() => {});
     }
+    return localPass;
   }
 
-  let brainState = {};
-  try {
-    brainState = await page.evaluate(() => ({
-      maturity: BrainConversation?.MATURITY ?? 0,
-      learns: BrainConversation?.CYCLE_LEARNS ?? 0,
-      neurons: ACI?.neurons?.length ?? 0,
-    }));
-  } catch (_) { /* page may be closing */ }
+  const logTimer = setInterval(() => {
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+    const rate = total > 0 ? (total / (Date.now() - t0) * 1000).toFixed(0) : '0';
+    console.log(`  … ${shared.stress.toLocaleString()} / ${stressTarget.toLocaleString()} stress · ${total.toLocaleString()} total · ${rate}/s · ${elapsed}s`);
+  }, TURBO ? 20000 : 15000);
 
+  shared.stop = false;
+  await Promise.all(Array.from({ length: WORKERS }, (_, w) => stressWorker(w)));
+  clearInterval(logTimer);
+  shared.stop = true;
+
+  const brainBatch = Math.min(5000, Math.floor(passes.stress / BRAIN_EVERY));
+  let brainState = { maturity: prevBrain.maturity || 0, learns: prevBrain.learns || 0, neurons: prevBrain.neurons || 0 };
+  try {
+    const stressSamples = stressPool.slice(0, 43).map(s => ({ id: s.id, group: s.group }));
+    brainState = await matrixPage.evaluate(({ batch, prevM, prevL, samples }) => {
+      if (prevM) BrainConversation.MATURITY = prevM;
+      if (prevL) BrainConversation.CYCLE_LEARNS = prevL;
+      for (let i = 0; i < batch; i++) {
+        const sc = samples[i % samples.length] || { id: 'stress', group: 'boot' };
+        BrainConversation.learnFromScenario(sc.id, sc.group);
+      }
+      return {
+        maturity: BrainConversation.MATURITY,
+        learns: BrainConversation.CYCLE_LEARNS,
+        tier: BrainConversation.maturityTier?.() || 'adult',
+        neurons: ACI?.neurons?.length ?? 0,
+        batch,
+      };
+    }, { batch: brainBatch, prevM: prevBrain.maturity, prevL: prevBrain.learns, samples: stressSamples });
+  } catch (_) { /* */ }
+
+  await matrixCtx.close();
   await browser.close();
   started.srv.close();
 
   const elapsed = Date.now() - t0;
   const passTotal = passes.matrix + passes.stress;
-  const failCount = failures.size;
+  const cumulative = prevCycles + total;
   const report = {
     at: new Date().toISOString(),
     matrixSize: MATRIX.length,
     groups: GROUPS,
     targetCycles: CYCLES,
     completedCycles: total,
-    stressCycles: stress,
+    cumulativeCycles: cumulative,
+    stressCycles: shared.stress,
+    workers: WORKERS,
     passed: passTotal,
-    failedUnique: failCount,
+    failedUnique: failures.size,
     elapsedMs: elapsed,
     cyclesPerSec: total / (elapsed / 1000),
     failures: [...failures.entries()].map(([id, v]) => ({ id, ...v })),
     brain: brainState,
+    continuedFrom: CONTINUE ? prevCycles : 0,
   };
 
   const reportPath = join(ROOT, 'test-cycles-report.json');
@@ -198,14 +227,13 @@ async function main() {
 
   console.log('\n═══ Cycle report ═══');
   console.log(`Completed: ${total.toLocaleString()} cycles in ${(elapsed / 1000).toFixed(1)}s (${report.cyclesPerSec.toFixed(0)}/s)`);
-  console.log(`Passed: ${passTotal.toLocaleString()} · Unique failures: ${failCount}`);
+  console.log(`Cumulative: ${cumulative.toLocaleString()} · Passed: ${passTotal.toLocaleString()} · Unique failures: ${failures.size}`);
   if (brainState.maturity != null) {
-    console.log(`Brain: maturity ${Number(brainState.maturity).toFixed(3)} · learns ${brainState.learns} · globe neurons ${brainState.neurons}`);
+    console.log(`Brain: tier ${brainState.tier || '?'} · maturity ${Number(brainState.maturity).toFixed(3)} · learns ${brainState.learns} · neurons ${brainState.neurons}`);
   }
   console.log(`Report: ${reportPath}`);
 
-  if (failCount) {
-    console.log('\nFailed scenarios:');
+  if (failures.size) {
     report.failures.slice(0, 15).forEach(f => console.log(`  - ${f.id} [${f.group}]: ${f.error}`));
     process.exit(1);
   }

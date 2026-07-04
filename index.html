@@ -18254,7 +18254,15 @@ window.AstranovOneDatabase = AstranovOneDatabase;
 const BrainConversation = {
   MATURITY: 0,
   CYCLE_LEARNS: 0,
-  MAX_LOCAL: 48,
+  MAX_LOCAL: 64,
+
+  maturityTier() {
+    const m = this.MATURITY;
+    if (m >= 5) return 'sage';
+    if (m >= 2) return 'adult';
+    if (m >= 0.5) return 'teen';
+    return 'child';
+  },
 
   ADULT_NEURONS: [
     { id: 'justice', strength: 1.5, text: 'Speak with justice first — AVC work-mint, transparent ledger, no fiat keyboard money. 1 AVC = 1 EUR.' },
@@ -18265,6 +18273,9 @@ const BrainConversation = {
     { id: 'converse', strength: 1.6, text: 'Converse like an adult: short, grounded, no hallucination — use memory neurons and real app state only.' },
     { id: 'greek', strength: 1.2, text: 'Match user language — Greek or English — Arcangelo dialect ok for UI labels.' },
     { id: 'help', strength: 1.3, text: 'When unsure, offer concrete CLI: coin · order · yacht list · avc balance · unified status · db status.' },
+    { id: 'brain', strength: 1.5, text: 'Brain trains on millions of scenario cycles — maturity grows, neurons strengthen, conversation becomes adult.' },
+    { id: 'voice', strength: 1.2, text: 'Voice paths: coders fix lag, order pitogyra, yacht list, audit open — hotwords normalized before CLI.' },
+    { id: 'boot', strength: 1.1, text: 'Boot loads commerce, yacht, auditor, coin, unified, brain — one database lkoatrkhuigdolnjsbie.' },
   ],
 
   _matchLocal(text) {
@@ -18290,7 +18301,7 @@ const BrainConversation = {
 
   learnFromScenario(scenarioId, group) {
     this.CYCLE_LEARNS++;
-    this.MATURITY = Math.min(100, this.MATURITY + 0.00015);
+    this.MATURITY = Math.min(100, this.MATURITY + 0.00025);
     const g = String(group || 'boot');
     const hit = this.ADULT_NEURONS.find(n => n.id === g || scenarioId?.includes(n.id));
     if (hit) hit.strength = Math.min(3, hit.strength + 0.0002);
@@ -18334,8 +18345,8 @@ const BrainConversation = {
   },
 
   statusText() {
-    return 'Brain maturity ' + this.MATURITY.toFixed(2) + ' · cycles learned ' + this.CYCLE_LEARNS
-      + ' · neurons ' + (ACI?.neurons?.length || 0) + ' · adult conversation ready';
+    return 'Brain tier ' + this.maturityTier() + ' · maturity ' + this.MATURITY.toFixed(2)
+      + ' · cycles learned ' + this.CYCLE_LEARNS + ' · neurons ' + (ACI?.neurons?.length || 0);
   },
 
   async cli(parts) {

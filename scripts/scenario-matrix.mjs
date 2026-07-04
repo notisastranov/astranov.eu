@@ -518,6 +518,17 @@ export const MATRIX = [
       if (!r) throw new Error('maturity did not grow');
     },
   },
+  {
+    id: 'brain-tier-adult',
+    group: 'brain',
+    run: async (page) => {
+      const t = await page.evaluate(() => {
+        BrainConversation.MATURITY = 2.5;
+        return BrainConversation.maturityTier();
+      });
+      if (t !== 'adult' && t !== 'sage') throw new Error('tier expected adult, got ' + t);
+    },
+  },
 
   // ── CLI routing (SuperCli) ──
   ...cliCases(),
@@ -607,7 +618,7 @@ function voiceCases() {
 
 export const GROUPS = [...new Set(MATRIX.map(m => m.group))];
 
-const STRESS_IDS = new Set([
+export const STRESS_IDS = new Set([
   'boot-three', 'boot-modules', 'boot-perf-flag',
   'theme-dark', 'theme-bright', 'theme-toggle',
   'commerce-parse-pitogyra', 'commerce-demo-drivers', 'commerce-platform-rate', 'commerce-quote-math',
