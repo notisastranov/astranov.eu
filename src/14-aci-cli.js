@@ -262,7 +262,11 @@ const AciCli = {
     this.history.push(line);
     this.histIdx = -1;
     this.saveHistory();
-    this.print((document.getElementById('aci-cli-prompt')?.textContent || '›') + ' ' + line, 'cmd');
+    if (opts.fromVoice) {
+      this.print('🎧 ' + line, 'dim');
+    } else {
+      this.print((document.getElementById('aci-cli-prompt')?.textContent || '›') + ' ' + line, 'cmd');
+    }
     CliHub?.queueLine?.(line, 'cmd');
 
     const routed = await SuperCli?.exec?.(line, opts);

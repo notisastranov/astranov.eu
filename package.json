@@ -5,6 +5,7 @@
   "main": "sw.js",
   "scripts": {
     "test": "node scripts/user-scenarios.mjs",
+    "verify": "node scripts/verify-all.mjs",
     "assemble": "node scripts/assemble.mjs",
     "push:both": "node scripts/push-both.mjs"
   },

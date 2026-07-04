@@ -129,7 +129,18 @@ const YachtMatcher = {
       customer_id: Auth?.user?.id,
     };
     const supa = Auth?.client;
-    if (!supa) throw new Error('Sign in for yacht match');
+    if (!supa) {
+      const demo = this.yachts?.length ? this.yachts : this._demoYachts();
+      const best = demo[0];
+      if (!best) throw new Error('No yachts — say yacht refresh');
+      return {
+        best,
+        demand: opts,
+        guest: true,
+        via: 'demo',
+        text: this.formatMatch(best),
+      };
+    }
     const r = await eng.matchDemand(supa, cfg, opts);
     if (opts.persist !== false && r.best) {
       try { await eng.persistMatch(supa, cfg, r.demand, r); } catch (_) {}

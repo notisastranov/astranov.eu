@@ -3,6 +3,24 @@ const AuditorPortal = {
   SITE_ID: 'auditors',
   SITE_URL: 'https://auditors.astranov.eu',
 
+  syncGlobe() {
+    const u = window._lastPos || { lat: 37.98, lng: 23.73 };
+    GlobeEntity?.register?.({
+      id: 'site-auditors',
+      type: 'site',
+      lat: u.lat + 0.08,
+      lng: u.lng - 0.06,
+      title: '◎ Astranov Auditors',
+      subtitle: 'auditors.astranov.eu',
+      description: 'Finance portal · invoices · payments · KPIs · tap to open',
+      urgency: 1,
+      radius: 0.016,
+      data: { site_id: this.SITE_ID },
+      _actionLabel: 'Open auditors',
+      onTap: () => this.open({ tab: 'dashboard' }),
+    });
+  },
+
   open(opts) {
     const u = new URL(this.SITE_URL);
     if (opts?.tab) u.searchParams.set('tab', opts.tab);

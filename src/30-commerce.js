@@ -110,7 +110,6 @@ const Commerce = {
     GlobeEntity?.syncVendors?.(this.vendors);
     this.markers = [...(GlobeEntity?.entities?.values() || [])].filter(e => e.type === 'vendor').map(e => e.mesh);
     MapDepict?.setHud?.('Καταστήματα', this.vendors.length + ' shops · zoom in · tap for menu');
-    this.flyToVendor(this.vendors[0]);
   },
 
   initUI() {
@@ -235,6 +234,20 @@ const Commerce = {
     } catch { return []; }
   },
 
+  demoDrivers(lat, lng) {
+    const u = { lat: lat ?? 36.44, lng: lng ?? 28.22 };
+    return [
+      { id: 'demo-drv-1', display_name: 'Nikos · delivery', field_lat: u.lat + 0.004, field_lng: u.lng - 0.003 },
+      { id: 'demo-drv-2', display_name: 'Elena · courier', field_lat: u.lat - 0.003, field_lng: u.lng + 0.005 },
+      { id: 'demo-drv-3', display_name: 'Alex · ride', field_lat: u.lat + 0.002, field_lng: u.lng + 0.004 },
+    ];
+  },
+
+  async driversNear(lat, lng) {
+    const rows = await this.fetchNearbyDrivers(lat, lng);
+    return rows.length ? rows : this.demoDrivers(lat, lng);
+  },
+
   async fetchBalance() {
     if (!Auth?.user) return 0;
     try {
@@ -351,7 +364,7 @@ const Commerce = {
       });
       matches.sort((a, b) => b.score - a.score || a.total - b.total || a.km - b.km);
 
-      const drivers = await this.fetchNearbyDrivers(u.lat, u.lng);
+      const drivers = await this.driversNear(u.lat, u.lng);
       this.showDriversOnGlobe(drivers);
       MapDepict?.showOrderSearch({ userLat: u.lat, userLng: u.lng, wantedLabels: wants.map(w => w.label), matches, drivers, zoom: 1.22 });
 

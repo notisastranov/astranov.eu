@@ -112,10 +112,11 @@ const SCENARIOS = [
       if (active) throw new Error('city map active too early at z=2.5');
 
       await page.evaluate(() => {
-        camera.position.z = 1.34;
-        CityMap.onCamera(1.34, 'earth');
+        const z = (CityMap.ENTER_Z || 1.36) - 0.02;
+        camera.position.z = z;
+        CityMap.onCamera(z, 'earth');
       });
-      await page.waitForTimeout(600);
+      await page.waitForTimeout(800);
       active = await page.evaluate(() => ({
         active: CityMap.active,
         hasTiles: !!document.querySelector('#city-map .leaflet-tile-loaded'),

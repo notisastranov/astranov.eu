@@ -561,7 +561,21 @@ const AciCoders = {
     if (/refresh|reload|συγχρον/.test(low) && /app|globe|page/.test(low)) {
       YachtMatcher?.loadAndSyncGlobe?.();
       Commerce?.loadVendors?.();
-      return 'Globe data refreshed — yachts · vendors · drivers';
+      AuditorPortal?.syncGlobe?.();
+      return 'Globe data refreshed — yachts · vendors · drivers · auditors';
+    }
+    if (/city\s*view|zoom\s*in|shops|καταστήμα/.test(low)) {
+      enterCityView?.();
+      return 'City view — vendors and drivers on map';
+    }
+    if (/theme|bright|dark|φωτειν|σκοτειν/.test(low)) {
+      const mode = /bright|light|φωτειν/.test(low) ? 'bright' : 'dark';
+      AstranovTheme?.set?.(mode);
+      return 'Theme → ' + mode;
+    }
+    if (/yacht|charter|booker|ενοικ/.test(low) && /open|list|show|άνοιξε|δείξε/.test(low)) {
+      YachtMatcher?.openBooking?.(null, { tab: 'booker' });
+      return 'Opened yachts.astranov.eu Booker';
     }
     if (/audit|invoice|accountant|λογιστ/.test(low)) {
       AuditorPortal?.open?.({ tab: 'dashboard' });

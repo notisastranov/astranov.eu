@@ -395,7 +395,6 @@ async function submitVoiceToCli(transcript) {
   }
 
   try {
-    AciCli?.print('🎧 ' + line, 'cmd');
     if (gen !== _voiceGen) return;
     const codersIntent = AciCoders?.isCodersIntent?.(line) || /^coders?\b/i.test(line);
     if (codersIntent && window.AciCoders) {
@@ -562,7 +561,17 @@ function handleVoiceCommand(event) {
 
   const live = (final || interim).trim();
   if (final.trim()) {
-    commitVoiceCommand(final.trim());
+    if (window._handsFreeVoice) {
+      commitVoiceCommand(final.trim());
+    } else {
+      const input = document.getElementById('aci-cli-in');
+      if (input) {
+        input.value = normalizeVoiceCommand(final.trim());
+        input.classList.add('voice-live');
+        window.resizeCliInput?.(input);
+        input.focus();
+      }
+    }
     return;
   }
   if (wantsExecuteNow(live)) {

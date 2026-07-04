@@ -101,10 +101,13 @@ GlobeEntity.init();
 
 if (window._lastPos) GlobeEntity.syncMe(_lastPos.lat, _lastPos.lng, me?.name || 'You');
 if (typeof orbitalSats !== 'undefined') CosmicZoom.registerOrbitalSats(orbitalSats);
-Commerce.loadVendors().then(() => Commerce.initUI());
-YachtMatcher?.loadAndSyncGlobe?.();
+setTimeout(() => {
+  Commerce.loadVendors().then(() => Commerce.initUI());
+  YachtMatcher?.loadAndSyncGlobe?.();
+  AuditorPortal?.syncGlobe?.();
+}, 2200);
 setInterval(() => YachtMatcher?.loadAndSyncGlobe?.(), 300000);
-NewsFeed.fetch();
+setTimeout(() => NewsFeed.fetch(), 4000);
 setInterval(() => NewsFeed.tick(), 12000);
 
 

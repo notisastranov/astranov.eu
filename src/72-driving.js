@@ -23,7 +23,11 @@ const DrivingView = {
   },
 
   init() {
-    if (!navigator.geolocation) return;
+    this._geoReady = !!navigator.geolocation;
+  },
+
+  _ensureWatch() {
+    if (this.watchId || !this._geoReady) return;
     this.watchId = navigator.geolocation.watchPosition(
       pos => this.onFix(pos),
       () => {},
@@ -77,6 +81,7 @@ const DrivingView = {
   },
 
   activate() {
+    this._ensureWatch();
     this.active = true;
     this._cameraFollow = true;
     GlobeControl?.engageFollow?.('drive');
