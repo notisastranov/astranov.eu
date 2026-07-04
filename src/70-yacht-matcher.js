@@ -128,8 +128,7 @@ const YachtMatcher = {
       businessType: opts.business_type || 'yacht_charter',
       customer_id: Auth?.user?.id,
     };
-    const supa = Auth?.client;
-    if (!supa) {
+    if (!Auth?.user) {
       const demo = this.yachts?.length ? this.yachts : this._demoYachts();
       const best = demo[0];
       if (!best) throw new Error('No yachts — say yacht refresh');
@@ -138,12 +137,12 @@ const YachtMatcher = {
         demand: opts,
         guest: true,
         via: 'demo',
-        text: this.formatMatch(best),
+        text: (best?.name || 'Yacht') + ' · guest demo match',
       };
     }
-    const r = await eng.matchDemand(supa, cfg, opts);
+    const r = await eng.matchDemand(Auth.client, cfg, opts);
     if (opts.persist !== false && r.best) {
-      try { await eng.persistMatch(supa, cfg, r.demand, r); } catch (_) {}
+      try { await eng.persistMatch(Auth.client, cfg, r.demand, r); } catch (_) {}
     }
     return r;
   },

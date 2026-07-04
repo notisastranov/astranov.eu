@@ -16,6 +16,7 @@ const DEMO_VENDORS = [
 ];
 
 const Commerce = {
+  DEMO_VENDORS,
   vendors: [],
   markers: [],
   driverMarkers: [],
@@ -852,3 +853,4 @@ const Commerce = {
     await this.smartOrder('pitogyra mpironia tsigareta');
   },
 };
+window.Commerce = Commerce;
