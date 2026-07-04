@@ -581,6 +581,10 @@ const AciCoders = {
       AuditorPortal?.open?.({ tab: 'dashboard' });
       return 'Opened auditors.astranov.eu';
     }
+    if (/avc|coin|ledger|justice|κρυπτο|νόμισμα/.test(low) && /balance|ledger|open|show|δείξε/.test(low)) {
+      AvcJustice?.cli?.(['avc', /ledger|διαφάν|transparen/.test(low) ? 'ledger' : 'balance']);
+      return 'AVC justice ledger — 1 AVC = 1 EUR · work-mint only';
+    }
     return null;
   },
 

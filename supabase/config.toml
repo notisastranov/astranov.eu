@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.auditor-api]
 verify_jwt = false
+
+[functions.avc-ledger]
+verify_jwt = false

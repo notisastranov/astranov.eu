@@ -155,7 +155,7 @@ const Commerce = {
       + '<div class="muted">' + quote.km.toFixed(1) + ' km · ' + quote.kg + ' kg'
       + (sur ? ' · ' + sur : '')
       + (quote.weather?.bad ? ' · ⚠ weather' : '') + '</div>'
-      + '<div>Total <strong>' + quote.total_eur.toFixed(2) + '€</strong> · driver paid on dispatch</div>';
+      + '<div>Total <strong>' + quote.total_avc.toFixed(2) + ' AVC</strong> (= ' + quote.total_eur.toFixed(2) + ' EUR) · driver paid on dispatch · work-mint ledger</div>';
     if (walletBtn) {
       walletBtn.style.display = GoogleWalletPay?.supported?.() ? 'block' : 'none';
       walletBtn.textContent = 'Google Wallet · ' + quote.total_eur.toFixed(2) + '€';

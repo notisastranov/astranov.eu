@@ -21,11 +21,13 @@ export const MATRIX = [
         commerce: !!window.Commerce,
         yacht: !!window.YachtMatcher,
         auditor: !!window.AuditorPortal,
+        avc: !!window.AvcJustice,
+        unified: !!window.AstranovUnified,
         coders: !!window.AciCoders,
         voice: typeof window.fixVoiceHotwords === 'function',
         super: !!window.SuperCli,
       }));
-      if (!r.commerce || !r.yacht || !r.auditor || !r.coders || !r.voice || !r.super) {
+      if (!r.commerce || !r.yacht || !r.auditor || !r.avc || !r.unified || !r.coders || !r.voice || !r.super) {
         throw new Error('module missing: ' + JSON.stringify(r));
       }
     },
@@ -160,6 +162,56 @@ export const MATRIX = [
     run: async (page) => {
       const r = await page.evaluate(() => DeliveryPricing.PLATFORM_RATE);
       if (r !== 0.03) throw new Error('platform rate not 3%');
+    },
+  },
+  {
+    id: 'avc-peg-1to1',
+    group: 'avc',
+    run: async (page) => {
+      const r = await page.evaluate(() => ({
+        peg: AvcJustice.PEG_EUR,
+        coin: AvcJustice.COIN,
+        eur: AvcJustice.eurToAvc(10),
+      }));
+      if (r.peg !== 1 || r.coin !== 'AVC' || r.eur !== 10) throw new Error('peg failed: ' + JSON.stringify(r));
+    },
+  },
+  {
+    id: 'avc-format',
+    group: 'avc',
+    run: async (page) => {
+      const s = await page.evaluate(() => AvcJustice.formatAvc(12.5));
+      if (!/12\.50 AVC.*12\.50 EUR/.test(s)) throw new Error('format: ' + s);
+    },
+  },
+  {
+    id: 'avc-globe-pin',
+    group: 'avc',
+    run: async (page) => {
+      const ok = await page.evaluate(() => {
+        AvcJustice.syncGlobe();
+        return GlobeEntity?.entities?.has('site-avc-ledger');
+      });
+      if (!ok) throw new Error('avc globe pin missing');
+    },
+  },
+  {
+    id: 'unified-pillars',
+    group: 'unified',
+    run: async (page) => {
+      const n = await page.evaluate(() => AstranovUnified.PILLARS?.length);
+      if (n !== 5) throw new Error('expected 5 pillars, got ' + n);
+    },
+  },
+  {
+    id: 'unified-globe-pin',
+    group: 'unified',
+    run: async (page) => {
+      const ok = await page.evaluate(() => {
+        AstranovUnified.syncGlobe();
+        return GlobeEntity?.entities?.has('site-astranov-unified');
+      });
+      if (!ok) throw new Error('unified globe pin missing');
     },
   },
   {
@@ -424,6 +476,8 @@ function cliCases() {
     ['booker motor yacht rhodes', true],
     ['audit open', true],
     ['auditors open', true],
+    ['avc justice', true],
+    ['coin balance', true],
     ['drivers', true],
     ['hold', true],
     ['resume', true],
@@ -498,6 +552,8 @@ const STRESS_IDS = new Set([
   'voice-queue-single', 'voice-should-speak-filter', 'voice-pause-while-speaking',
   'driving-haversine', 'driving-deferred-watch',
   'voice-cli-coders-fix-the-lag', 'voice-cli-order-pitogyra-mpironia',
+  'avc-peg-1to1', 'avc-format', 'avc-globe-pin',
+  'unified-pillars', 'unified-globe-pin',
   'voice-cli-audit-open', 'voice-cli-yacht-list', 'voice-cli-locate-me',
 ]);
 

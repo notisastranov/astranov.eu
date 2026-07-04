@@ -105,6 +105,9 @@ setTimeout(() => {
   Commerce.loadVendors().then(() => Commerce.initUI());
   YachtMatcher?.loadAndSyncGlobe?.();
   AuditorPortal?.syncGlobe?.();
+  AvcJustice?.loadConstitution?.();
+  AvcJustice?.syncGlobe?.();
+  AstranovUnified?.syncGlobe?.();
 }, 2200);
 setInterval(() => YachtMatcher?.loadAndSyncGlobe?.(), 300000);
 setTimeout(() => NewsFeed.fetch(), 4000);

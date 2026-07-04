@@ -139,6 +139,49 @@ serve(async (req) => {
       }), { headers: cors })
     }
 
+    if (mode === 'avc_ledger' || mode === 'avc') {
+      let lq = sb.from('avc_ledger')
+        .select('seq,created_at,user_id,delta_avc,balance_after,work_type,order_id,public_note,entry_hash,prev_hash')
+      lq = dateFilter(lq, 'created_at')
+      const { data: rows, error } = await lq.order('seq', { ascending: false }).limit(300)
+      if (error) throw error
+
+      const { data: constitution } = await sb.from('avc_constitution').select('*').eq('id', 1).maybeSingle()
+      const peg = Number(constitution?.peg_eur ?? 1)
+      const minted = (rows || []).filter(r => Number(r.delta_avc) > 0)
+        .reduce((s, r) => s + Number(r.delta_avc), 0)
+      const spent = (rows || []).filter(r => Number(r.delta_avc) < 0)
+        .reduce((s, r) => s + Math.abs(Number(r.delta_avc)), 0)
+      const byWork: Record<string, number> = {}
+      for (const r of rows || []) {
+        const wt = String(r.work_type || 'unknown')
+        byWork[wt] = (byWork[wt] || 0) + Number(r.delta_avc)
+      }
+
+      let chainValid = true
+      let prev = 'genesis'
+      const asc = [...(rows || [])].sort((a, b) => Number(a.seq) - Number(b.seq))
+      for (const r of asc) {
+        if (r.prev_hash !== prev) { chainValid = false; break }
+        prev = String(r.entry_hash)
+      }
+
+      return new Response(JSON.stringify({
+        ok: true,
+        peg_eur: peg,
+        motto: constitution?.mint_rule,
+        chain_valid: chainValid,
+        kpis: {
+          entries: rows?.length ?? 0,
+          minted_avc: Math.round(minted * 100) / 100,
+          spent_avc: Math.round(spent * 100) / 100,
+          minted_eur: Math.round(minted * peg * 100) / 100,
+        },
+        by_work_type: byWork,
+        rows: rows || [],
+      }), { headers: cors })
+    }
+
     if (mode === 'vendors' || mode === 'drivers') {
       if (mode === 'vendors') {
         const { data } = await sb.from('vendors').select('id,name,category,lat,lng,is_active').order('name')

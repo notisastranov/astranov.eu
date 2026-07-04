@@ -1,11 +1,13 @@
 {
-  "at": "2026-07-04T11:39:23.358Z",
-  "matrixSize": 67,
+  "at": "2026-07-04T12:14:28.715Z",
+  "matrixSize": 74,
   "groups": [
     "boot",
     "theme",
     "city",
     "commerce",
+    "avc",
+    "unified",
     "yacht",
     "auditor",
     "coders",
@@ -14,12 +16,12 @@
     "cli",
     "voice-path"
   ],
-  "targetCycles": 50000,
-  "completedCycles": 5680,
-  "stressCycles": 5613,
-  "passed": 5680,
+  "targetCycles": 500,
+  "completedCycles": 500,
+  "stressCycles": 426,
+  "passed": 500,
   "failedUnique": 0,
-  "elapsedMs": 300345,
-  "cyclesPerSec": 18.911585010571176,
+  "elapsedMs": 34852,
+  "cyclesPerSec": 14.346378973946978,
   "failures": []
 }

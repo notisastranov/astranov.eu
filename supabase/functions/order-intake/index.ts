@@ -251,7 +251,14 @@ serve(async (req) => {
           needed: totalAvc,
         }), { status: 402, headers: cors })
       }
-      const { error: payErr } = await sb.rpc('add_balance', { uid: customerId, delta: -totalAvc })
+      const { error: payErr } = await sb.rpc('avc_ledger_append', {
+        p_user_id: customerId,
+        p_delta: -totalAvc,
+        p_work_type: 'order_payment',
+        p_work_proof: { vendor_id, items_count: items.length, peg_eur: 1 },
+        p_order_id: null,
+        p_public_note: `Order payment · ${totalAvc} AVC (= EUR)`,
+      })
       if (payErr) throw payErr
       balanceAfter = balance - totalAvc
       paid = true
@@ -315,14 +322,23 @@ serve(async (req) => {
         delivery_fee: calcOut.delivery_eur ?? 0,
         platform_fee: calcOut.platform_fee_eur ?? 0,
         total: totalAvc,
-        currency: calcOut.currency || 'EUR',
+        currency: 'AVC',
         period_month: period,
         status: 'issued',
       }).catch(() => {})
     }
 
     if (driver && driverPayout > 0 && !driver.self) {
-      await sb.rpc('add_balance', { uid: driver.id, delta: driverPayout }).catch(() => {})
+      await sb.rpc('avc_ledger_append', {
+        p_user_id: driver.id,
+        p_delta: driverPayout,
+        p_work_type: 'delivery_work',
+        p_work_proof: { order_id: order.id, payout_eur: driverPayout, peg_eur: 1 },
+        p_order_id: String(order.id),
+        p_lat: dLat,
+        p_lng: dLng,
+        p_public_note: `Driver delivery work · ${driverPayout} AVC`,
+      }).catch(() => {})
       await sb.from('field_events').insert({
         user_id: driver.id,
         role: 'driver',

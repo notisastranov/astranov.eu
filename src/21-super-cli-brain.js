@@ -560,6 +560,18 @@ Object.assign(SuperCli, {
         await AuditorPortal?.cli?.(parts);
         return { handled: true };
       }
+      if (cmd === 'unified' || cmd === 'astranov' || cmd === 'platform') {
+        await AstranovUnified?.cli?.(parts);
+        return { handled: true };
+      }
+      if (cmd === 'avc' || cmd === 'coin') {
+        await AvcJustice?.cli?.(parts);
+        return { handled: true };
+      }
+      if (cmd === 'ledger' || cmd === 'justice') {
+        await AvcJustice?.cli?.(['avc', cmd, ...parts.slice(1)]);
+        return { handled: true };
+      }
       if (cmd === 'hellenic' || cmd === 'hellas') {
         HellenicSource?.cli?.(parts);
         return { handled: true };
