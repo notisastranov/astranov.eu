@@ -24,13 +24,18 @@ const CoinPortal = {
   open(tab) {
     const u = new URL(this.SITE_URL)
     if (tab) u.searchParams.set('tab', tab)
-    if (Auth?.session?.access_token) {
-      u.searchParams.set('shell', '1')
+    const meta = {
+      domain: 'coin.astranov.eu',
+      site_id: this.SITE_ID,
+      title: 'AVC Justice Coin',
+      url: u.toString(),
     }
-    window.open(u.toString(), '_blank', 'noopener')
+    if (window.AstranovSiteShell?.open) AstranovSiteShell.open(u.toString(), meta)
+    else window.open(u.toString(), '_blank', 'noopener')
     GlobeDeck?.expand?.('AVC · coin.astranov.eu')
     AciCli?.print?.('◎ coin.astranov.eu — wallet for all users', 'ok')
     ACIControl?.reply('AVC wallet · 1:1 EUR · work-mint only')
+    return u.toString()
   },
 
   async cli(parts) {

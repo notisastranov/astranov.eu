@@ -126,6 +126,17 @@ const AppShortcuts = {
         CliHub?.closePanel?.();
       },
     },
+    coin: {
+      icon: '◎',
+      title: 'AVC',
+      activate() {
+        CoinPortal?.open?.('wallet');
+        SuperCli?.setContext?.('coin');
+      },
+      close() {
+        AstranovSiteShell?.close?.();
+      },
+    },
     site: {
       icon: '🌐',
       title: 'Site',

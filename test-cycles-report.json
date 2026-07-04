@@ -1,6 +1,6 @@
 {
-  "at": "2026-07-04T12:14:28.715Z",
-  "matrixSize": 74,
+  "at": "2026-07-04T12:28:01.955Z",
+  "matrixSize": 76,
   "groups": [
     "boot",
     "theme",
@@ -8,6 +8,7 @@
     "commerce",
     "avc",
     "unified",
+    "coin",
     "yacht",
     "auditor",
     "coders",
@@ -16,12 +17,12 @@
     "cli",
     "voice-path"
   ],
-  "targetCycles": 500,
-  "completedCycles": 500,
-  "stressCycles": 426,
-  "passed": 500,
+  "targetCycles": 200,
+  "completedCycles": 200,
+  "stressCycles": 124,
+  "passed": 200,
   "failedUnique": 0,
-  "elapsedMs": 34852,
-  "cyclesPerSec": 14.346378973946978,
+  "elapsedMs": 17988,
+  "cyclesPerSec": 11.118523460084502,
   "failures": []
 }
