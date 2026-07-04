@@ -517,10 +517,8 @@ function handleVoiceCommand(event) {
       input.value = draft;
       input.classList.add('voice-live');
       if (AciCli) AciCli.buffer = draft;
-      input.style.height = 'auto';
-      input.style.height = Math.min(input.scrollHeight, window.innerHeight * 0.22) + 'px';
+      window.resizeCliInput?.(input);
     }
-    GlobeDeck?.setCompose?.(draft);
     _voiceDraft = draft;
     return;
   }
@@ -537,10 +535,8 @@ function handleVoiceCommand(event) {
     input.value = draft;
     input.classList.add('voice-live');
     if (AciCli) AciCli.buffer = draft;
-    input.style.height = 'auto';
-    input.style.height = Math.min(input.scrollHeight, window.innerHeight * 0.22) + 'px';
+    window.resizeCliInput?.(input);
   }
-  GlobeDeck?.setCompose?.(draft);
   syncHandsFreeBtn();
 
   const live = (final || interim).trim();

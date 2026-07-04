@@ -82,6 +82,7 @@ const DrivingView = {
     GlobeControl?.engageFollow?.('drive');
     SuperCli?.setContext?.('drive');
     cityLevel = true;
+    CityMap?.onCamera?.(1.22, 'earth');
     const pos = window._lastPos || { lat: 36.44, lng: 28.22 };
     const p = latLngToPos(pos.lat, pos.lng, 1.04);
     if (typeof flyToPoint === 'function') {
@@ -111,6 +112,19 @@ const DrivingView = {
     GlobeDeck?.setPreview('');
     if (this.routeLine?.parent) this.routeLine.parent.remove(this.routeLine);
     this.routeLine = null;
+    CityMap?.setRoute?.([]);
+    const pos = window._lastPos || this.lastFix;
+    const cityZ = GlobeControl?.Z?.city || 1.38;
+    if (pos && typeof flyToPoint === 'function') {
+      const p = latLngToPos(pos.lat, pos.lng, 1.04);
+      flyToPoint(new THREE.Vector3(p.x, p.y, p.z), cityZ, { dur: 0.85 });
+      GlobeControl?.noteAutoFly?.();
+    }
+    cityLevel = true;
+    camera.position.z = cityZ;
+    CityMap?.onCamera?.(cityZ, 'earth');
+    document.getElementById('zoom-label').textContent = 'CITY VIEW';
+    MapDepict?.pulse?.(pos?.lat, pos?.lng, 0x3d9eff, 'Stopped · city view', 5000);
     CosmicZoom?.update(camera.position.z);
   },
 

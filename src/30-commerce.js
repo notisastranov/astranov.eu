@@ -9,6 +9,12 @@ const ORDER_ITEM_ALIASES = [
 
 const TEAM_WIN_ITEM_IDS = new Set(['pita', 'beer', 'cigarettes', 'burger']);
 
+const DEMO_VENDORS = [
+  { id: 'demo-pitogyra', name: 'Πιτογύρα Rhodes', emoji: '🥙', lat: 36.4412, lng: 28.2225, category: 'food', is_active: true, delivery_enabled: true, items: [{ name: 'Πιτογύρα χοιρινό', price: 3.5 }, { name: 'Μπύρα Alpha', price: 2.5 }, { name: 'Τσιγάρα Marlboro', price: 5.5 }, { name: 'Burger classic', price: 6 }] },
+  { id: 'demo-kafeneio', name: 'Kafeneio Astranov', emoji: '☕', lat: 36.4358, lng: 28.2188, category: 'cafe', is_active: true, delivery_enabled: true, items: [{ name: 'Φραπέ', price: 2.2 }, { name: 'Μπύρα Fix', price: 2.8 }, { name: 'Νερό 500ml', price: 0.5 }] },
+  { id: 'demo-minimarket', name: 'Mini Market Kos', emoji: '🏪', lat: 36.8932, lng: 27.288, category: 'grocery', is_active: true, delivery_enabled: true, items: [{ name: 'Μπύρα Heineken', price: 2.9 }, { name: 'Τσιγάρα Winston', price: 5.2 }, { name: 'Burger frozen', price: 4.5 }, { name: 'Νερό', price: 0.6 }] },
+];
+
 const Commerce = {
   vendors: [],
   markers: [],
@@ -18,6 +24,7 @@ const Commerce = {
   _uiReady: false,
   _menuRequestSent: false,
   _suggestion: null,
+  _quote: null,
   _balance: null,
   _preferredDriverId: null,
   _preferredDriver: null,
@@ -57,6 +64,7 @@ const Commerce = {
       });
       this.vendors = r.ok ? await r.json() : [];
     } catch { this.vendors = []; }
+    if (!this.vendors.length) this.vendors = DEMO_VENDORS.map(v => ({ ...v }));
     const u = this.userLatLng();
     this.vendors.sort((a, b) => this.haversineKm(u.lat, u.lng, a.lat, a.lng) - this.haversineKm(u.lat, u.lng, b.lat, b.lng));
     this.showOnGlobe();
@@ -88,9 +96,11 @@ const Commerce = {
 
   flyToVendor(v) {
     if (!v || v.lat == null) return;
+    const u = this.userLatLng();
+    MapDepict?.scanCity?.({ userLat: u.lat, userLng: u.lng, vendors: [v], label: 'Found · ' + v.name, zoom: GlobeControl?.Z?.city || 1.32 });
     const p = latLngToPos(v.lat, v.lng, 1.03);
-    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(p.x, p.y, p.z), GlobeControl?.Z?.national || 1.82);
-    MapDepict?.action('vendor', { lat: v.lat, lng: v.lng, detail: v.name });
+    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(p.x, p.y, p.z), GlobeControl?.Z?.city || 1.32);
+    MapDepict?.action('vendor', { lat: v.lat, lng: v.lng, detail: v.name, vendors: [v] });
   },
 
   showOnGlobe() {
@@ -115,8 +125,41 @@ const Commerce = {
     document.getElementById('vm-compare-back')?.addEventListener('click', () => this.showPicker());
     document.getElementById('vm-place')?.addEventListener('click', () => this.placeCart());
     document.getElementById('vm-request')?.addEventListener('click', () => this.requestMenu());
-    document.getElementById('vm-confirm-pay')?.addEventListener('click', () => this.confirmAndPay());
+    document.getElementById('vm-confirm-pay')?.addEventListener('click', () => this.confirmAndPay(false));
+    document.getElementById('vm-wallet-pay')?.addEventListener('click', () => this.confirmAndPay(true));
     if (panel) panel.addEventListener('click', e => e.stopPropagation());
+  },
+
+  async buildQuote(suggestion) {
+    const sug = suggestion || this._suggestion;
+    if (!sug) return null;
+    const u = this.userLatLng();
+    const km = this.haversineKm(u.lat, u.lng, sug.vendor.lat, sug.vendor.lng);
+    const kg = 3 + (sug.picks?.length || 1);
+    const quote = await DeliveryPricing?.quote?.({
+      km, kg, subtotal_eur: sug.total, lat: u.lat, lng: u.lng,
+    });
+    this._quote = quote;
+    return quote;
+  },
+
+  renderPricing(quote) {
+    const box = document.getElementById('vm-pricing');
+    const walletBtn = document.getElementById('vm-wallet-pay');
+    if (!box || !quote) { if (box) box.style.display = 'none'; return; }
+    box.style.display = 'block';
+    const sur = (quote.surcharges || []).map(s => s.label + ' +' + s.eur.toFixed(2) + '€').join(' · ');
+    box.innerHTML = '<div class="vm-pricing-title">Delivery quote</div>'
+      + '<div>Goods <strong>' + quote.subtotal_eur.toFixed(2) + '€</strong> · Delivery <strong>' + quote.delivery_eur.toFixed(2) + '€</strong>'
+      + ' · Platform 3% <strong>' + quote.platform_fee_eur.toFixed(2) + '€</strong></div>'
+      + '<div class="muted">' + quote.km.toFixed(1) + ' km · ' + quote.kg + ' kg'
+      + (sur ? ' · ' + sur : '')
+      + (quote.weather?.bad ? ' · ⚠ weather' : '') + '</div>'
+      + '<div>Total <strong>' + quote.total_eur.toFixed(2) + '€</strong> · driver paid on dispatch</div>';
+    if (walletBtn) {
+      walletBtn.style.display = GoogleWalletPay?.supported?.() ? 'block' : 'none';
+      walletBtn.textContent = 'Google Wallet · ' + quote.total_eur.toFixed(2) + '€';
+    }
   },
 
   showMenu() {
@@ -282,7 +325,8 @@ const Commerce = {
     }
     if (confirmBtn && this._suggestion) {
       confirmBtn.style.display = 'block';
-      confirmBtn.textContent = 'Επιβεβαίωση & Πληρωμή · ' + this._suggestion.vendor.name + ' · ' + this._suggestion.total.toFixed(1) + ' AVC';
+      confirmBtn.textContent = 'Επιβεβαίωση & Πληρωμή · AVC balance';
+      this.buildQuote(this._suggestion).then(q => this.renderPricing(q)).catch(() => {});
     }
   },
 
@@ -356,7 +400,7 @@ const Commerce = {
     }
   },
 
-  async confirmAndPay() {
+  async confirmAndPay(useWallet) {
     const sug = this._suggestion;
     if (!sug) { ACIControl?.reply('Διάλεξε πρόταση από τη λίστα'); return; }
     if (!Auth?.user) {
@@ -364,20 +408,34 @@ const Commerce = {
       Auth?.signInGoogle();
       return;
     }
-    const balance = await this.fetchBalance();
-    if (balance < sug.total) {
-      const msg = 'Ανεπαρκές υπόλοιπο (' + balance.toFixed(1) + ' AVC) — χρειάζεσαι ' + sug.total.toFixed(1) + ' AVC';
-      ACIControl?.reply(msg);
-      return;
+    const quote = await this.buildQuote(sug);
+    const total = quote?.total_eur ?? sug.total;
+    let walletPayment = null;
+    if (useWallet) {
+      try {
+        walletPayment = await GoogleWalletPay.pay(total, sug.vendor.name + ' · Astranov', { test: location.hostname === 'localhost' });
+      } catch (e) {
+        ACIControl?.reply('Wallet payment cancelled or unavailable — try AVC balance');
+        return;
+      }
+    } else {
+      const balance = await this.fetchBalance();
+      if (balance < total) {
+        const msg = 'Ανεπαρκές υπόλοιπο (' + balance.toFixed(1) + ' EUR) — χρειάζεσαι ' + total.toFixed(2) + ' EUR ή Google Wallet';
+        ACIControl?.reply(msg);
+        return;
+      }
     }
     const items = sug.picks.map(p => ({ name: p.item.name, qty: 1, price: p.item.price }));
     const vendor = sug.vendor;
     MapDepict?.action('pay', {
       lat: this.userLatLng().lat, lng: this.userLatLng().lng,
       vendorLat: vendor.lat, vendorLng: vendor.lng,
-      detail: vendor.name + ' · ' + sug.total.toFixed(1) + ' AVC',
+      detail: vendor.name + ' · ' + total.toFixed(2) + ' EUR',
     });
-    await this.placeOrder(vendor, items, 'Smart order · ' + sug.picks.map(p => p.want.label).join(' + '), true);
+    await this.placeOrder(vendor, items, 'Smart order · ' + sug.picks.map(p => p.want.label).join(' + '), !useWallet, {
+      quote, walletPayment, payWithWallet: !!walletPayment,
+    });
   },
 
   async showPicker(filter) {
@@ -569,7 +627,10 @@ const Commerce = {
       const u = this.userLatLng();
       let dLat = opts.deliveryLat ?? u.lat;
       let dLng = opts.deliveryLng ?? u.lng;
-      const total = items.reduce((s, i) => s + (i.qty || 1) * (i.price || 0), 0);
+      const subtotal = items.reduce((s, i) => s + (i.qty || 1) * (i.price || 0), 0);
+      const km = this.haversineKm(u.lat, u.lng, vendor.lat, vendor.lng);
+      const quote = opts.quote || await DeliveryPricing?.quote?.({ km, kg: 3 + items.length, subtotal_eur: subtotal, lat: dLat, lng: dLng });
+      const total = quote?.total_eur ?? subtotal;
       let orderResult = null;
       let errMsg = '';
       try {
@@ -582,8 +643,16 @@ const Commerce = {
             delivery_lat: dLat,
             delivery_lng: dLng,
             notes: notes || ('Astranov order · ' + vendor.name),
-            calc: { total_avc: total },
-            pay_with_balance: !!payWithBalance,
+            calc: {
+              ...(quote || {}),
+              subtotal_eur: subtotal,
+              total_avc: total,
+              goods_eur: subtotal,
+              wallet_payment: opts.walletPayment || null,
+              paid_via: opts.payWithWallet ? 'google_wallet' : (payWithBalance ? 'avc_balance' : null),
+            },
+            pay_with_balance: !!payWithBalance && !opts.payWithWallet,
+            pay_with_wallet: !!opts.payWithWallet,
             preferred_driver_id: this._preferredDriverId || null,
             target_user_id: opts.targetUserId || null,
           }),
@@ -753,10 +822,12 @@ const Commerce = {
       return this.smartOrder(q);
     }
     await this.loadVendors();
+    const u = this.userLatLng();
     if (!this.vendors.length) {
       ACIControl?.reply('No vendors on map yet');
       return;
     }
+    MapDepict?.scanCity?.({ userLat: u.lat, userLng: u.lng, vendors: this.vendors.slice(0, 8), label: q || 'Shops near you' });
     if (q.length >= 2) {
       const hit = this.vendors.find(v => (v.name + ' ' + v.category).toLowerCase().includes(q.toLowerCase()));
       if (hit) { this.openVendor(hit); return; }

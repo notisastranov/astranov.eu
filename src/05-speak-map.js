@@ -402,10 +402,42 @@ const MapDepict = {
     return u;
   },
 
+  scanCity(opts = {}) {
+    const u = opts.userLat != null ? { lat: opts.userLat, lng: opts.userLng } : this.userPos();
+    const vendors = opts.vendors || Commerce?.vendors || [];
+    const label = opts.label || 'Scanning city…';
+    this.cancelAll();
+    this.setHud('City scan', label);
+    this.zoomToUser(opts.zoom || GlobeControl?.Z?.city || 1.32);
+    CityMap?.onCamera?.(opts.zoom || 1.28, 'earth');
+    const rings = [0, 1, 2, 3];
+    rings.forEach((i) => {
+      setTimeout(() => {
+        const jitter = i * 0.0018;
+        this.pulse(u.lat + jitter, u.lng - jitter, 0x3d9eff, label, 4200 + i * 800);
+        if (vendors[i]) {
+          const v = vendors[i];
+          this.pulse(v.lat, v.lng, 0xff8844, v.name, 9000);
+          this.arc(v.lat, v.lng, u.lat, u.lng, 0x66ffcc, 11000);
+        }
+      }, i * 420);
+    });
+    if (vendors.length) {
+      GlobeEntity?.syncVendors?.(vendors);
+      this.action('vendor', { lat: u.lat, lng: u.lng, detail: vendors.length + ' shops', vendors });
+    }
+    return u;
+  },
+
   showOrderSearch(opts = {}) {
     const u = opts.userLat != null ? { lat: opts.userLat, lng: opts.userLng } : this.userPos();
     const wanted = (opts.wantedLabels || []).join(' · ');
-    this.zoomToUser(opts.zoom || GlobeControl?.Z?.national || 1.82);
+    this.scanCity({
+      userLat: u.lat, userLng: u.lng,
+      vendors: (opts.matches || []).map(m => m.vendor).filter(Boolean).slice(0, 8),
+      label: wanted || 'Order search',
+      zoom: opts.zoom || GlobeControl?.Z?.city || 1.32,
+    });
     if (opts.matches?.length) {
       this.action('compare', { lat: u.lat, lng: u.lng, detail: wanted, matches: opts.matches });
     }

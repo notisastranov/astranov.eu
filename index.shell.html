@@ -195,8 +195,7 @@
   #globe-deck-body { display:none; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
   #globe-deck.expanded #globe-deck-body { display:flex; }
   #globe-deck-log { flex:1; overflow-y:auto; padding:8px 10px 4px; min-height:48px; max-height:none; color:var(--an-text); -webkit-overflow-scrolling:touch; }
-  #globe-deck-log .deck-compose { color:var(--ax-blue-bright); white-space:pre-wrap; word-break:break-word; border-left:2px solid var(--ax-blue-bright); padding-left:8px; margin-top:6px; text-shadow:0 0 6px var(--ax-blue-glow); animation:compose-pulse 1.2s ease-in-out infinite; }
-  @keyframes compose-pulse { 50% { opacity:0.88; } }
+  #globe-deck-log .deck-compose { display:none !important; }
   #globe-deck-log .deck-cmd { color:var(--ax-blue-bright); text-shadow:0 0 4px var(--ax-blue-glow); }
   #globe-deck-log .deck-out, #globe-deck-log .deck-reply { color:var(--ax-blue-bright); white-space:pre-wrap; }
   #globe-deck-log .deck-ok { color:var(--ax-green-bright); text-shadow:0 0 6px var(--ax-green-glow); }
@@ -241,10 +240,9 @@
   #cli-hub-panel .ch-line { padding:4px 0; color:var(--an-text); font-size:10px; border-bottom:1px solid rgba(255,255,255,0.04); }
   #cli-hub-panel .ch-mini { font-size:9px; padding:2px 6px; border-radius:6px; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); cursor:pointer; margin-right:4px; }
   #cli-hub-panel .ch-empty { color:var(--an-muted); padding:12px 4px; }
-  #aci-cli-prompt { color:var(--ax-blue-bright); flex-shrink:0; font-size:11px; display:none; text-shadow:0 0 6px var(--ax-blue-glow); }
-  #globe-deck.expanded #aci-cli-prompt { display:inline; }
-  #aci-cli-form { flex:1; min-width:0; display:flex; }
-  #aci-cli-in { flex:1; width:100%; background:rgba(0,8,20,0.65); border:1px solid var(--ax-blue-border); border-radius:10px; color:var(--an-text); font:inherit; outline:none; min-width:0; padding:8px 10px; font-size:13px; line-height:1.45; min-height:20px; max-height:22vh; resize:none; overflow-y:auto; white-space:pre-wrap; word-break:break-word; }
+  #aci-cli-prompt { display:none !important; width:0; overflow:hidden; padding:0; margin:0; }
+  #aci-cli-form { flex:1; min-width:0; display:flex; width:100%; }
+  #aci-cli-in { flex:1; width:100%; background:rgba(0,8,20,0.65); border:1px solid var(--ax-blue-border); border-radius:10px; color:var(--an-text); font:inherit; outline:none; min-width:0; padding:10px 12px; font-size:14px; line-height:1.5; min-height:44px; max-height:min(38vh,220px); resize:vertical; overflow-y:auto; white-space:pre-wrap; word-break:break-word; }
   #aci-cli-in:focus { border-color:var(--ax-blue-bright); box-shadow:0 0 0 2px var(--ax-blue-glow); }
   #aci-cli-in::placeholder { color:var(--an-muted); opacity:0.85; }
   #aci-cli-in.voice-live { border-color:var(--ax-blue-bright); color:var(--ax-blue-bright); box-shadow:0 0 10px var(--ax-blue-glow); }
@@ -277,6 +275,9 @@
   .vm-tag { display:inline-block; margin:3px 4px 3px 0; padding:4px 8px; border-radius:8px; background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); font-size:11px; }
   .vm-tag.driver { background:var(--ax-blue-bg); border-color:var(--ax-blue-border); color:var(--ax-blue-bright); }
   .vm-match { padding:10px; margin:6px 0; border-radius:10px; background:rgba(0,0,0,0.35); border:1px solid var(--ax-blue-border); cursor:pointer; }
+  .vm-pricing { margin:8px 0; padding:10px; border-radius:10px; border:1px solid var(--ax-green-border); background:rgba(0,40,24,0.35); font-size:11px; line-height:1.45; }
+  .vm-pricing-title { color:var(--ax-green-bright); font-weight:700; margin-bottom:4px; }
+  #vm-wallet-pay { width:calc(100% - 16px); margin:6px 8px; padding:12px; border-radius:12px; background:linear-gradient(180deg,#1a3a5c,#0d2240); border:2px solid #4285f4; color:#fff; font-weight:700; cursor:pointer; }
   .vm-match.best { border-color:var(--ax-green-border); box-shadow:0 0 6px var(--ax-green-glow); }
   .vm-match.picked { border-color:var(--ax-yellow-border); box-shadow:0 0 0 1px var(--ax-yellow-glow); }
   .vm-match-head { display:flex; justify-content:space-between; color:var(--ax-blue-bright); font-weight:600; }
@@ -660,7 +661,7 @@
     </div>
     <div id="vendor-menu">
       <div id="vm-header"><span id="vm-title">Καταστήματα</span><button id="vm-close" type="button">✖️</button></div>
-      <div id="vm-body"><div id="vm-list"></div><div id="vm-detail" style="display:none"><button id="vm-back" type="button">← όλα τα καταστήματα</button><div id="vm-empty" style="display:none"></div><div id="vm-items"></div><button id="vm-request" type="button" style="display:none">Ζήτησε μενού από κατάστημα</button><button id="vm-place" type="button">Παραγγελία</button></div><div id="vm-compare" style="display:none"><button id="vm-compare-back" type="button">← όλα τα καταστήματα</button><div id="vm-wanted"></div><div id="vm-matches"></div><div id="vm-drivers"></div><div id="vm-balance"></div><button id="vm-confirm-pay" type="button" style="display:none">Επιβεβαίωση &amp; Πληρωμή</button></div></div>
+      <div id="vm-body"><div id="vm-list"></div><div id="vm-detail" style="display:none"><button id="vm-back" type="button">← όλα τα καταστήματα</button><div id="vm-empty" style="display:none"></div><div id="vm-items"></div><button id="vm-request" type="button" style="display:none">Ζήτησε μενού από κατάστημα</button><button id="vm-place" type="button">Παραγγελία</button></div><div id="vm-compare" style="display:none"><button id="vm-compare-back" type="button">← όλα τα καταστήματα</button><div id="vm-wanted"></div><div id="vm-matches"></div><div id="vm-drivers"></div><div id="vm-pricing" class="vm-pricing" style="display:none"></div><div id="vm-balance"></div><button id="vm-wallet-pay" type="button" style="display:none">Google Wallet · Pay vendor</button><button id="vm-confirm-pay" type="button" style="display:none">Επιβεβαίωση &amp; Πληρωμή · AVC balance</button></div></div>
     </div>
         </div>
       </div>

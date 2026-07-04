@@ -505,8 +505,14 @@ const GlobeEntity = {
   },
 
   tick() {
-    this._applyGlobalClusters();
     const now = Date.now();
+    if (!this._tickLast) this._tickLast = 0;
+    if (now - this._tickLast < (window._voicePerfMode ? 180 : 90)) return;
+    this._tickLast = now;
+    if (!this._clusterLast || now - this._clusterLast > 500) {
+      this._clusterLast = now;
+      this._applyGlobalClusters();
+    }
     const toRemove = [];
 
     this.entities.forEach((entity, id) => {

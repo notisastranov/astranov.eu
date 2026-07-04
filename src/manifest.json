@@ -23,6 +23,7 @@
     { "file": "19-session-hold.js", "marker": "// === SESSION HOLD" },
     { "file": "17-field-brain.js", "marker": "// === FIELD BRAIN" },
     { "file": "20-aci.js", "marker": "// === ASTRANOV COLLECTIVE INTELLIGENCE (ACI)" },
+    { "file": "29-delivery-pricing.js", "marker": "// === DELIVERY PRICING + WEATHER + GOOGLE WALLET ===" },
     { "file": "30-commerce.js", "marker": "// ── COMMERCE:" },
     { "file": "31-globe-autonomy.js", "marker": "// === GLOBE AUTONOMY" },
     { "file": "32-astranov-node.js", "marker": "// === ASTRANOV NODE" },

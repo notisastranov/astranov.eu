@@ -48,8 +48,8 @@ const CityMap = {
     });
     this._bindZoomBridge(el);
     this._ready = true;
-    this._driverTimer = setInterval(() => this._tickDrivers(), 2800);
-    this._syncTimer = setInterval(() => this._syncMarkers(), 1200);
+    this._driverTimer = setInterval(() => this._tickDrivers(), 4500);
+    this._syncTimer = setInterval(() => { if (this.active) this._syncMarkers(); }, 2000);
   },
 
   _invalidate() {

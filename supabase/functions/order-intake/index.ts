@@ -167,7 +167,7 @@ serve(async (req) => {
       }), { headers: cors })
     }
 
-    const { vendor_id, items, calc, delivery_lat, delivery_lng, delivery_address, notes, pay_with_balance, preferred_driver_id, target_user_id } = body
+    const { vendor_id, items, calc, delivery_lat, delivery_lng, delivery_address, notes, pay_with_balance, pay_with_wallet, preferred_driver_id, target_user_id } = body
 
     if (!vendor_id || !Array.isArray(items) || items.length === 0) {
       return new Response(JSON.stringify({ error: 'vendor_id and items required' }), { status: 400, headers: cors })
@@ -219,15 +219,22 @@ serve(async (req) => {
       driver = await loadDriver(sb, preferred_driver_id, customerId)
     }
 
+    const goodsSubtotal = (items as Array<{ qty?: number; price?: number }>).reduce(
+      (s, i) => s + (i.qty || 1) * (i.price || 0), 0,
+    )
     const totalAvc = typeof calc?.total_avc === 'number'
       ? calc.total_avc
-      : (items as Array<{ qty?: number; price?: number }>).reduce(
-        (s, i) => s + (i.qty || 1) * (i.price || 0), 0,
-      )
+      : typeof calc?.total_eur === 'number'
+        ? calc.total_eur
+        : goodsSubtotal
 
     let balanceAfter: number | null = null
     let paid = false
-    if (pay_with_balance) {
+    const walletPaid = !!(pay_with_wallet && calc?.wallet_payment?.paid)
+    if (walletPaid) {
+      paid = true
+    }
+    if (pay_with_balance && !walletPaid) {
       if (!customerId) {
         return new Response(JSON.stringify({ error: 'login_required' }), { status: 401, headers: cors })
       }
@@ -250,10 +257,25 @@ serve(async (req) => {
       paid = true
     }
 
+    const driverPayout = typeof calc?.driver_payout_eur === 'number'
+      ? calc.driver_payout_eur
+      : typeof calc?.delivery_eur === 'number'
+        ? Math.round(calc.delivery_eur * 0.85 * 100) / 100
+        : 0
+
     const calcOut = {
       ...(calc ?? {}),
+      goods_eur: goodsSubtotal,
       total_avc: totalAvc,
-      ...(paid ? { paid: true, paid_at: new Date().toISOString(), balance_after: balanceAfter } : {}),
+      driver_payout_eur: driverPayout,
+      platform_fee_eur: calc?.platform_fee_eur ?? Math.round(totalAvc * 0.03 * 100) / 100,
+      invoice_batch: 'monthly',
+      ...(paid ? {
+        paid: true,
+        paid_at: new Date().toISOString(),
+        balance_after: balanceAfter,
+        paid_via: walletPaid ? 'google_wallet' : 'avc_balance',
+      } : {}),
     }
 
     const row: Record<string, unknown> = {
@@ -280,16 +302,36 @@ serve(async (req) => {
     if (error) throw error
 
     if (paid && customerId) {
+      const invId = 'INV-' + String(order.short_id || order.id).replace(/^ORD-/, '')
+      const period = new Date().toISOString().slice(0, 7)
       await sb.from('invoices').insert({
-        id: 'INV-' + String(order.short_id || order.id).replace(/^ORD-/, ''),
+        id: invId,
+        mark: invId,
         order_id: String(order.id),
         vendor_name: vendor.name,
         buyer_id: customerId,
         items,
-        subtotal: totalAvc,
+        subtotal: goodsSubtotal,
+        delivery_fee: calcOut.delivery_eur ?? 0,
+        platform_fee: calcOut.platform_fee_eur ?? 0,
         total: totalAvc,
-        currency: 'AVC',
-        status: 'paid',
+        currency: calcOut.currency || 'EUR',
+        period_month: period,
+        status: 'issued',
+      }).catch(() => {})
+    }
+
+    if (driver && driverPayout > 0 && !driver.self) {
+      await sb.rpc('add_balance', { uid: driver.id, delta: driverPayout }).catch(() => {})
+      await sb.from('field_events').insert({
+        user_id: driver.id,
+        role: 'driver',
+        action: 'payout',
+        detail: `instant delivery ${driverPayout} EUR · ${order.short_id}`,
+        lat: dLat,
+        lng: dLng,
+        props: { order_id: order.id, payout_eur: driverPayout, invoice_batch: 'monthly' },
+        brain_synced: true,
       }).catch(() => {})
     }
 

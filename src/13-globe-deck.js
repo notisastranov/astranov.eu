@@ -180,22 +180,15 @@ const GlobeDeck = {
 
   setCompose(text) {
     const t = String(text || '');
-    if (!t) {
-      if (this._composeLine?.parentNode) this._composeLine.remove();
-      this._composeLine = null;
-      return;
+    if (this._composeLine?.parentNode) this._composeLine.remove();
+    this._composeLine = null;
+    const input = document.getElementById('aci-cli-in');
+    if (!input) return;
+    if (t && document.activeElement !== input && !input.value) {
+      input.value = t;
+      if (window.AciCli) AciCli.buffer = t;
     }
-    if (!this.expanded) return;
-    const out = this.logEl();
-    if (!out) return;
-    if (!this._composeLine) {
-      this._composeLine = document.createElement('div');
-      this._composeLine.id = 'deck-compose-line';
-      this._composeLine.className = 'deck-line deck-compose';
-      out.appendChild(this._composeLine);
-    }
-    this._composeLine.textContent = '› ' + t;
-    out.scrollTop = out.scrollHeight;
+    window.resizeCliInput?.(input);
   },
 
   clearCompose() {

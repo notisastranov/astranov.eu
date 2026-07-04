@@ -37,9 +37,7 @@ const AciCli = {
       }
       input.addEventListener('input', () => {
         this.buffer = input.value;
-        input.style.height = 'auto';
-        input.style.height = Math.min(input.scrollHeight, window.innerHeight * 0.22) + 'px';
-        GlobeDeck?.setCompose?.(input.value);
+        window.resizeCliInput?.(input);
       });
       if (!input._codersFocusBound) {
         input._codersFocusBound = true;

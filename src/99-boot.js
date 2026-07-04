@@ -33,7 +33,9 @@ function animate() {
   AIGraphics.update();
   updateOrbital();
 
-  if (window.AstranovCollectiveIntelligence && !window._voicePerfMode) {
+  const heavyGlobe = (GlobeEntity?.entities?.size || 0) > 48;
+  if (heavyGlobe && !window._voicePerfMode) setVoicePerfMode?.(true);
+  if (window.AstranovCollectiveIntelligence && !window._voicePerfMode && !heavyGlobe) {
     ACI.tick();
     ACI.neurons.forEach(n => {
       if (!n.userData) return;

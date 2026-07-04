@@ -195,8 +195,7 @@
   #globe-deck-body { display:none; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
   #globe-deck.expanded #globe-deck-body { display:flex; }
   #globe-deck-log { flex:1; overflow-y:auto; padding:8px 10px 4px; min-height:48px; max-height:none; color:var(--an-text); -webkit-overflow-scrolling:touch; }
-  #globe-deck-log .deck-compose { color:var(--ax-blue-bright); white-space:pre-wrap; word-break:break-word; border-left:2px solid var(--ax-blue-bright); padding-left:8px; margin-top:6px; text-shadow:0 0 6px var(--ax-blue-glow); animation:compose-pulse 1.2s ease-in-out infinite; }
-  @keyframes compose-pulse { 50% { opacity:0.88; } }
+  #globe-deck-log .deck-compose { display:none !important; }
   #globe-deck-log .deck-cmd { color:var(--ax-blue-bright); text-shadow:0 0 4px var(--ax-blue-glow); }
   #globe-deck-log .deck-out, #globe-deck-log .deck-reply { color:var(--ax-blue-bright); white-space:pre-wrap; }
   #globe-deck-log .deck-ok { color:var(--ax-green-bright); text-shadow:0 0 6px var(--ax-green-glow); }
@@ -241,10 +240,9 @@
   #cli-hub-panel .ch-line { padding:4px 0; color:var(--an-text); font-size:10px; border-bottom:1px solid rgba(255,255,255,0.04); }
   #cli-hub-panel .ch-mini { font-size:9px; padding:2px 6px; border-radius:6px; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); cursor:pointer; margin-right:4px; }
   #cli-hub-panel .ch-empty { color:var(--an-muted); padding:12px 4px; }
-  #aci-cli-prompt { color:var(--ax-blue-bright); flex-shrink:0; font-size:11px; display:none; text-shadow:0 0 6px var(--ax-blue-glow); }
-  #globe-deck.expanded #aci-cli-prompt { display:inline; }
-  #aci-cli-form { flex:1; min-width:0; display:flex; }
-  #aci-cli-in { flex:1; width:100%; background:rgba(0,8,20,0.65); border:1px solid var(--ax-blue-border); border-radius:10px; color:var(--an-text); font:inherit; outline:none; min-width:0; padding:8px 10px; font-size:13px; line-height:1.45; min-height:20px; max-height:22vh; resize:none; overflow-y:auto; white-space:pre-wrap; word-break:break-word; }
+  #aci-cli-prompt { display:none !important; width:0; overflow:hidden; padding:0; margin:0; }
+  #aci-cli-form { flex:1; min-width:0; display:flex; width:100%; }
+  #aci-cli-in { flex:1; width:100%; background:rgba(0,8,20,0.65); border:1px solid var(--ax-blue-border); border-radius:10px; color:var(--an-text); font:inherit; outline:none; min-width:0; padding:10px 12px; font-size:14px; line-height:1.5; min-height:44px; max-height:min(38vh,220px); resize:vertical; overflow-y:auto; white-space:pre-wrap; word-break:break-word; }
   #aci-cli-in:focus { border-color:var(--ax-blue-bright); box-shadow:0 0 0 2px var(--ax-blue-glow); }
   #aci-cli-in::placeholder { color:var(--an-muted); opacity:0.85; }
   #aci-cli-in.voice-live { border-color:var(--ax-blue-bright); color:var(--ax-blue-bright); box-shadow:0 0 10px var(--ax-blue-glow); }
@@ -277,6 +275,9 @@
   .vm-tag { display:inline-block; margin:3px 4px 3px 0; padding:4px 8px; border-radius:8px; background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); font-size:11px; }
   .vm-tag.driver { background:var(--ax-blue-bg); border-color:var(--ax-blue-border); color:var(--ax-blue-bright); }
   .vm-match { padding:10px; margin:6px 0; border-radius:10px; background:rgba(0,0,0,0.35); border:1px solid var(--ax-blue-border); cursor:pointer; }
+  .vm-pricing { margin:8px 0; padding:10px; border-radius:10px; border:1px solid var(--ax-green-border); background:rgba(0,40,24,0.35); font-size:11px; line-height:1.45; }
+  .vm-pricing-title { color:var(--ax-green-bright); font-weight:700; margin-bottom:4px; }
+  #vm-wallet-pay { width:calc(100% - 16px); margin:6px 8px; padding:12px; border-radius:12px; background:linear-gradient(180deg,#1a3a5c,#0d2240); border:2px solid #4285f4; color:#fff; font-weight:700; cursor:pointer; }
   .vm-match.best { border-color:var(--ax-green-border); box-shadow:0 0 6px var(--ax-green-glow); }
   .vm-match.picked { border-color:var(--ax-yellow-border); box-shadow:0 0 0 1px var(--ax-yellow-glow); }
   .vm-match-head { display:flex; justify-content:space-between; color:var(--ax-blue-bright); font-weight:600; }
@@ -660,7 +661,7 @@
     </div>
     <div id="vendor-menu">
       <div id="vm-header"><span id="vm-title">Καταστήματα</span><button id="vm-close" type="button">✖️</button></div>
-      <div id="vm-body"><div id="vm-list"></div><div id="vm-detail" style="display:none"><button id="vm-back" type="button">← όλα τα καταστήματα</button><div id="vm-empty" style="display:none"></div><div id="vm-items"></div><button id="vm-request" type="button" style="display:none">Ζήτησε μενού από κατάστημα</button><button id="vm-place" type="button">Παραγγελία</button></div><div id="vm-compare" style="display:none"><button id="vm-compare-back" type="button">← όλα τα καταστήματα</button><div id="vm-wanted"></div><div id="vm-matches"></div><div id="vm-drivers"></div><div id="vm-balance"></div><button id="vm-confirm-pay" type="button" style="display:none">Επιβεβαίωση &amp; Πληρωμή</button></div></div>
+      <div id="vm-body"><div id="vm-list"></div><div id="vm-detail" style="display:none"><button id="vm-back" type="button">← όλα τα καταστήματα</button><div id="vm-empty" style="display:none"></div><div id="vm-items"></div><button id="vm-request" type="button" style="display:none">Ζήτησε μενού από κατάστημα</button><button id="vm-place" type="button">Παραγγελία</button></div><div id="vm-compare" style="display:none"><button id="vm-compare-back" type="button">← όλα τα καταστήματα</button><div id="vm-wanted"></div><div id="vm-matches"></div><div id="vm-drivers"></div><div id="vm-pricing" class="vm-pricing" style="display:none"></div><div id="vm-balance"></div><button id="vm-wallet-pay" type="button" style="display:none">Google Wallet · Pay vendor</button><button id="vm-confirm-pay" type="button" style="display:none">Επιβεβαίωση &amp; Πληρωμή · AVC balance</button></div></div>
     </div>
         </div>
       </div>
@@ -1267,10 +1268,42 @@ const MapDepict = {
     return u;
   },
 
+  scanCity(opts = {}) {
+    const u = opts.userLat != null ? { lat: opts.userLat, lng: opts.userLng } : this.userPos();
+    const vendors = opts.vendors || Commerce?.vendors || [];
+    const label = opts.label || 'Scanning city…';
+    this.cancelAll();
+    this.setHud('City scan', label);
+    this.zoomToUser(opts.zoom || GlobeControl?.Z?.city || 1.32);
+    CityMap?.onCamera?.(opts.zoom || 1.28, 'earth');
+    const rings = [0, 1, 2, 3];
+    rings.forEach((i) => {
+      setTimeout(() => {
+        const jitter = i * 0.0018;
+        this.pulse(u.lat + jitter, u.lng - jitter, 0x3d9eff, label, 4200 + i * 800);
+        if (vendors[i]) {
+          const v = vendors[i];
+          this.pulse(v.lat, v.lng, 0xff8844, v.name, 9000);
+          this.arc(v.lat, v.lng, u.lat, u.lng, 0x66ffcc, 11000);
+        }
+      }, i * 420);
+    });
+    if (vendors.length) {
+      GlobeEntity?.syncVendors?.(vendors);
+      this.action('vendor', { lat: u.lat, lng: u.lng, detail: vendors.length + ' shops', vendors });
+    }
+    return u;
+  },
+
   showOrderSearch(opts = {}) {
     const u = opts.userLat != null ? { lat: opts.userLat, lng: opts.userLng } : this.userPos();
     const wanted = (opts.wantedLabels || []).join(' · ');
-    this.zoomToUser(opts.zoom || GlobeControl?.Z?.national || 1.82);
+    this.scanCity({
+      userLat: u.lat, userLng: u.lng,
+      vendors: (opts.matches || []).map(m => m.vendor).filter(Boolean).slice(0, 8),
+      label: wanted || 'Order search',
+      zoom: opts.zoom || GlobeControl?.Z?.city || 1.32,
+    });
     if (opts.matches?.length) {
       this.action('compare', { lat: u.lat, lng: u.lng, detail: wanted, matches: opts.matches });
     }
@@ -2305,22 +2338,15 @@ const GlobeDeck = {
 
   setCompose(text) {
     const t = String(text || '');
-    if (!t) {
-      if (this._composeLine?.parentNode) this._composeLine.remove();
-      this._composeLine = null;
-      return;
+    if (this._composeLine?.parentNode) this._composeLine.remove();
+    this._composeLine = null;
+    const input = document.getElementById('aci-cli-in');
+    if (!input) return;
+    if (t && document.activeElement !== input && !input.value) {
+      input.value = t;
+      if (window.AciCli) AciCli.buffer = t;
     }
-    if (!this.expanded) return;
-    const out = this.logEl();
-    if (!out) return;
-    if (!this._composeLine) {
-      this._composeLine = document.createElement('div');
-      this._composeLine.id = 'deck-compose-line';
-      this._composeLine.className = 'deck-line deck-compose';
-      out.appendChild(this._composeLine);
-    }
-    this._composeLine.textContent = '› ' + t;
-    out.scrollTop = out.scrollHeight;
+    window.resizeCliInput?.(input);
   },
 
   clearCompose() {
@@ -4613,9 +4639,7 @@ const AciCli = {
       }
       input.addEventListener('input', () => {
         this.buffer = input.value;
-        input.style.height = 'auto';
-        input.style.height = Math.min(input.scrollHeight, window.innerHeight * 0.22) + 'px';
-        GlobeDeck?.setCompose?.(input.value);
+        window.resizeCliInput?.(input);
       });
       if (!input._codersFocusBound) {
         input._codersFocusBound = true;
@@ -6628,6 +6652,173 @@ const ACIControl = {
   }
 };
 
+// === DELIVERY PRICING + WEATHER + GOOGLE WALLET ===
+const DeliveryPricing = {
+  PLATFORM_RATE: 0.03,
+  BASE_DELIVERY_EUR: 3,
+  BLOCK_EUR: 3,
+  KM_BLOCK: 3,
+  KG_BLOCK: 3,
+  INCLUDED_KM: 3,
+  INCLUDED_KG: 3,
+  SURCHARGE_EUR: 3,
+
+  _cache: null,
+  _cacheAt: 0,
+
+  blockFee(units, blockSize) {
+    const extra = Math.max(0, units - blockSize);
+    if (extra <= 0) return 0;
+    return Math.ceil(extra / blockSize) * this.BLOCK_EUR;
+  },
+
+  isNightOrMorning(date) {
+    const h = (date || new Date()).getHours();
+    return h < 9 || h >= 21;
+  },
+
+  async fetchWeather(lat, lng) {
+    const now = Date.now();
+    if (this._cache && now - this._cacheAt < 600000) return this._cache;
+    try {
+      const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lng
+        + '&current=weather_code,precipitation,wind_speed_10m&timezone=auto';
+      const r = await fetch(url);
+      const j = await r.json();
+      const c = j.current || {};
+      const code = c.weather_code ?? 0;
+      const precip = c.precipitation ?? 0;
+      const wind = c.wind_speed_10m ?? 0;
+      const bad = precip > 0.4 || wind > 40 || [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 71, 73, 75, 77, 80, 81, 82, 85, 86, 95, 96, 99].includes(code);
+      this._cache = { bad, precip, wind, code, at: now };
+      this._cacheAt = now;
+      return this._cache;
+    } catch (_) {
+      return { bad: false, precip: 0, wind: 0, code: 0 };
+    }
+  },
+
+  async quote(opts) {
+    opts = opts || {};
+    const km = Math.max(0, Number(opts.km) || 0);
+    const kg = Math.max(0, Number(opts.kg) || 3);
+    const subtotal = Math.max(0, Number(opts.subtotal_eur) || 0);
+    const when = opts.at ? new Date(opts.at) : new Date();
+    const weather = opts.weather || (opts.lat != null ? await this.fetchWeather(opts.lat, opts.lng) : { bad: false });
+
+    const distanceFee = this.BASE_DELIVERY_EUR + this.blockFee(km, this.KM_BLOCK);
+    const weightFee = this.blockFee(kg, this.KG_BLOCK);
+    let surcharges = [];
+    if (this.isNightOrMorning(when)) surcharges.push({ id: 'night_morning', label: 'Night / before 09:00', eur: this.SURCHARGE_EUR });
+    if (weather.bad) surcharges.push({ id: 'weather', label: 'Bad weather', eur: this.SURCHARGE_EUR });
+
+    const deliveryEur = distanceFee + weightFee + surcharges.reduce((s, x) => s + x.eur, 0);
+    const goodsEur = subtotal;
+    const platformEur = Math.round((goodsEur + deliveryEur) * this.PLATFORM_RATE * 100) / 100;
+    const totalEur = Math.round((goodsEur + deliveryEur + platformEur) * 100) / 100;
+    const driverPayoutEur = Math.round(deliveryEur * 0.85 * 100) / 100;
+
+    return {
+      currency: 'EUR',
+      km, kg,
+      subtotal_eur: goodsEur,
+      delivery_eur: deliveryEur,
+      distance_fee_eur: distanceFee,
+      weight_fee_eur: weightFee,
+      surcharges,
+      platform_fee_eur: platformEur,
+      platform_rate: this.PLATFORM_RATE,
+      total_eur: totalEur,
+      total_avc: totalEur,
+      driver_payout_eur: driverPayoutEur,
+      weather,
+      invoice_note: 'Monthly invoice · platform 3% · driver paid on delivery',
+    };
+  },
+
+  formatQuote(q) {
+    if (!q) return '';
+    let s = q.total_eur.toFixed(2) + ' EUR';
+    s += ' · delivery ' + q.delivery_eur.toFixed(2);
+    if (q.surcharges?.length) s += ' · ' + q.surcharges.map(x => x.label).join(', ');
+    s += ' · fee 3%';
+    return s;
+  },
+};
+
+const GoogleWalletPay = {
+  supported() {
+    try {
+      return typeof PaymentRequest !== 'undefined';
+    } catch (_) { return false; }
+  },
+
+  async pay(amountEur, label, opts) {
+    opts = opts || {};
+    if (!this.supported()) throw new Error('Google Pay / Wallet not available in this browser');
+    const total = Math.max(0.01, Number(amountEur) || 0);
+    const methods = [{
+      supportedMethods: 'https://google.com/pay',
+      data: {
+        environment: opts.test ? 'TEST' : 'PRODUCTION',
+        apiVersion: 2,
+        apiVersionMinor: 0,
+        allowedPaymentMethods: [{
+          type: 'CARD',
+          parameters: {
+            allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
+            allowedCardNetworks: ['MASTERCARD', 'VISA'],
+          },
+          tokenizationSpecification: {
+            type: 'PAYMENT_GATEWAY',
+            parameters: { gateway: 'example', gatewayMerchantId: 'astranov' },
+          },
+        }],
+        merchantInfo: { merchantName: 'Astranov', merchantId: opts.merchantId || 'astranov' },
+        transactionInfo: {
+          totalPriceStatus: 'FINAL',
+          totalPrice: total.toFixed(2),
+          currencyCode: 'EUR',
+          countryCode: 'GR',
+        },
+      },
+    }];
+    const fallback = [{
+      supportedMethods: 'basic-card',
+      data: { supportedNetworks: ['visa', 'mastercard'], supportedTypes: ['debit', 'credit'] },
+    }];
+    let pr;
+    try {
+      pr = new PaymentRequest(methods, { total: { label: label || 'Astranov order', amount: { currency: 'EUR', value: total.toFixed(2) } } });
+      const can = await pr.canMakePayment();
+      if (!can) pr = new PaymentRequest(fallback, { total: { label: label || 'Astranov order', amount: { currency: 'EUR', value: total.toFixed(2) } } });
+    } catch (_) {
+      pr = new PaymentRequest(fallback, { total: { label: label || 'Astranov order', amount: { currency: 'EUR', value: total.toFixed(2) } } });
+    }
+    const resp = await pr.show();
+    const detail = {
+      method: resp.methodName,
+      paid: true,
+      amount_eur: total,
+      at: new Date().toISOString(),
+      wallet: /google/i.test(resp.methodName || '') ? 'google_wallet' : 'card',
+    };
+    await resp.complete('success');
+    return detail;
+  },
+};
+
+window.DeliveryPricing = DeliveryPricing;
+window.GoogleWalletPay = GoogleWalletPay;
+
+function resizeCliInput(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  const max = Math.min(window.innerHeight * 0.38, 220);
+  el.style.height = Math.min(Math.max(el.scrollHeight, 40), max) + 'px';
+}
+window.resizeCliInput = resizeCliInput;
+
 // ── COMMERCE: real vendors, real menus only, smart order on globe ──
 const ORDER_ITEM_ALIASES = [
   { id: 'pita', label: 'Πιτογύρα', keys: ['πιτογυρ', 'πιτογύρα', 'pitogyra', 'pita', 'πιτο', 'gyro', 'γύρο', 'gyros', 'pitogyro'], match: /πιτο|pita|gyro|γύρο|pitogyra|pitogyro/i },
@@ -6639,6 +6830,12 @@ const ORDER_ITEM_ALIASES = [
 
 const TEAM_WIN_ITEM_IDS = new Set(['pita', 'beer', 'cigarettes', 'burger']);
 
+const DEMO_VENDORS = [
+  { id: 'demo-pitogyra', name: 'Πιτογύρα Rhodes', emoji: '🥙', lat: 36.4412, lng: 28.2225, category: 'food', is_active: true, delivery_enabled: true, items: [{ name: 'Πιτογύρα χοιρινό', price: 3.5 }, { name: 'Μπύρα Alpha', price: 2.5 }, { name: 'Τσιγάρα Marlboro', price: 5.5 }, { name: 'Burger classic', price: 6 }] },
+  { id: 'demo-kafeneio', name: 'Kafeneio Astranov', emoji: '☕', lat: 36.4358, lng: 28.2188, category: 'cafe', is_active: true, delivery_enabled: true, items: [{ name: 'Φραπέ', price: 2.2 }, { name: 'Μπύρα Fix', price: 2.8 }, { name: 'Νερό 500ml', price: 0.5 }] },
+  { id: 'demo-minimarket', name: 'Mini Market Kos', emoji: '🏪', lat: 36.8932, lng: 27.288, category: 'grocery', is_active: true, delivery_enabled: true, items: [{ name: 'Μπύρα Heineken', price: 2.9 }, { name: 'Τσιγάρα Winston', price: 5.2 }, { name: 'Burger frozen', price: 4.5 }, { name: 'Νερό', price: 0.6 }] },
+];
+
 const Commerce = {
   vendors: [],
   markers: [],
@@ -6648,6 +6845,7 @@ const Commerce = {
   _uiReady: false,
   _menuRequestSent: false,
   _suggestion: null,
+  _quote: null,
   _balance: null,
   _preferredDriverId: null,
   _preferredDriver: null,
@@ -6687,6 +6885,7 @@ const Commerce = {
       });
       this.vendors = r.ok ? await r.json() : [];
     } catch { this.vendors = []; }
+    if (!this.vendors.length) this.vendors = DEMO_VENDORS.map(v => ({ ...v }));
     const u = this.userLatLng();
     this.vendors.sort((a, b) => this.haversineKm(u.lat, u.lng, a.lat, a.lng) - this.haversineKm(u.lat, u.lng, b.lat, b.lng));
     this.showOnGlobe();
@@ -6718,9 +6917,11 @@ const Commerce = {
 
   flyToVendor(v) {
     if (!v || v.lat == null) return;
+    const u = this.userLatLng();
+    MapDepict?.scanCity?.({ userLat: u.lat, userLng: u.lng, vendors: [v], label: 'Found · ' + v.name, zoom: GlobeControl?.Z?.city || 1.32 });
     const p = latLngToPos(v.lat, v.lng, 1.03);
-    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(p.x, p.y, p.z), GlobeControl?.Z?.national || 1.82);
-    MapDepict?.action('vendor', { lat: v.lat, lng: v.lng, detail: v.name });
+    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(p.x, p.y, p.z), GlobeControl?.Z?.city || 1.32);
+    MapDepict?.action('vendor', { lat: v.lat, lng: v.lng, detail: v.name, vendors: [v] });
   },
 
   showOnGlobe() {
@@ -6745,8 +6946,41 @@ const Commerce = {
     document.getElementById('vm-compare-back')?.addEventListener('click', () => this.showPicker());
     document.getElementById('vm-place')?.addEventListener('click', () => this.placeCart());
     document.getElementById('vm-request')?.addEventListener('click', () => this.requestMenu());
-    document.getElementById('vm-confirm-pay')?.addEventListener('click', () => this.confirmAndPay());
+    document.getElementById('vm-confirm-pay')?.addEventListener('click', () => this.confirmAndPay(false));
+    document.getElementById('vm-wallet-pay')?.addEventListener('click', () => this.confirmAndPay(true));
     if (panel) panel.addEventListener('click', e => e.stopPropagation());
+  },
+
+  async buildQuote(suggestion) {
+    const sug = suggestion || this._suggestion;
+    if (!sug) return null;
+    const u = this.userLatLng();
+    const km = this.haversineKm(u.lat, u.lng, sug.vendor.lat, sug.vendor.lng);
+    const kg = 3 + (sug.picks?.length || 1);
+    const quote = await DeliveryPricing?.quote?.({
+      km, kg, subtotal_eur: sug.total, lat: u.lat, lng: u.lng,
+    });
+    this._quote = quote;
+    return quote;
+  },
+
+  renderPricing(quote) {
+    const box = document.getElementById('vm-pricing');
+    const walletBtn = document.getElementById('vm-wallet-pay');
+    if (!box || !quote) { if (box) box.style.display = 'none'; return; }
+    box.style.display = 'block';
+    const sur = (quote.surcharges || []).map(s => s.label + ' +' + s.eur.toFixed(2) + '€').join(' · ');
+    box.innerHTML = '<div class="vm-pricing-title">Delivery quote</div>'
+      + '<div>Goods <strong>' + quote.subtotal_eur.toFixed(2) + '€</strong> · Delivery <strong>' + quote.delivery_eur.toFixed(2) + '€</strong>'
+      + ' · Platform 3% <strong>' + quote.platform_fee_eur.toFixed(2) + '€</strong></div>'
+      + '<div class="muted">' + quote.km.toFixed(1) + ' km · ' + quote.kg + ' kg'
+      + (sur ? ' · ' + sur : '')
+      + (quote.weather?.bad ? ' · ⚠ weather' : '') + '</div>'
+      + '<div>Total <strong>' + quote.total_eur.toFixed(2) + '€</strong> · driver paid on dispatch</div>';
+    if (walletBtn) {
+      walletBtn.style.display = GoogleWalletPay?.supported?.() ? 'block' : 'none';
+      walletBtn.textContent = 'Google Wallet · ' + quote.total_eur.toFixed(2) + '€';
+    }
   },
 
   showMenu() {
@@ -6912,7 +7146,8 @@ const Commerce = {
     }
     if (confirmBtn && this._suggestion) {
       confirmBtn.style.display = 'block';
-      confirmBtn.textContent = 'Επιβεβαίωση & Πληρωμή · ' + this._suggestion.vendor.name + ' · ' + this._suggestion.total.toFixed(1) + ' AVC';
+      confirmBtn.textContent = 'Επιβεβαίωση & Πληρωμή · AVC balance';
+      this.buildQuote(this._suggestion).then(q => this.renderPricing(q)).catch(() => {});
     }
   },
 
@@ -6986,7 +7221,7 @@ const Commerce = {
     }
   },
 
-  async confirmAndPay() {
+  async confirmAndPay(useWallet) {
     const sug = this._suggestion;
     if (!sug) { ACIControl?.reply('Διάλεξε πρόταση από τη λίστα'); return; }
     if (!Auth?.user) {
@@ -6994,20 +7229,34 @@ const Commerce = {
       Auth?.signInGoogle();
       return;
     }
-    const balance = await this.fetchBalance();
-    if (balance < sug.total) {
-      const msg = 'Ανεπαρκές υπόλοιπο (' + balance.toFixed(1) + ' AVC) — χρειάζεσαι ' + sug.total.toFixed(1) + ' AVC';
-      ACIControl?.reply(msg);
-      return;
+    const quote = await this.buildQuote(sug);
+    const total = quote?.total_eur ?? sug.total;
+    let walletPayment = null;
+    if (useWallet) {
+      try {
+        walletPayment = await GoogleWalletPay.pay(total, sug.vendor.name + ' · Astranov', { test: location.hostname === 'localhost' });
+      } catch (e) {
+        ACIControl?.reply('Wallet payment cancelled or unavailable — try AVC balance');
+        return;
+      }
+    } else {
+      const balance = await this.fetchBalance();
+      if (balance < total) {
+        const msg = 'Ανεπαρκές υπόλοιπο (' + balance.toFixed(1) + ' EUR) — χρειάζεσαι ' + total.toFixed(2) + ' EUR ή Google Wallet';
+        ACIControl?.reply(msg);
+        return;
+      }
     }
     const items = sug.picks.map(p => ({ name: p.item.name, qty: 1, price: p.item.price }));
     const vendor = sug.vendor;
     MapDepict?.action('pay', {
       lat: this.userLatLng().lat, lng: this.userLatLng().lng,
       vendorLat: vendor.lat, vendorLng: vendor.lng,
-      detail: vendor.name + ' · ' + sug.total.toFixed(1) + ' AVC',
+      detail: vendor.name + ' · ' + total.toFixed(2) + ' EUR',
     });
-    await this.placeOrder(vendor, items, 'Smart order · ' + sug.picks.map(p => p.want.label).join(' + '), true);
+    await this.placeOrder(vendor, items, 'Smart order · ' + sug.picks.map(p => p.want.label).join(' + '), !useWallet, {
+      quote, walletPayment, payWithWallet: !!walletPayment,
+    });
   },
 
   async showPicker(filter) {
@@ -7199,7 +7448,10 @@ const Commerce = {
       const u = this.userLatLng();
       let dLat = opts.deliveryLat ?? u.lat;
       let dLng = opts.deliveryLng ?? u.lng;
-      const total = items.reduce((s, i) => s + (i.qty || 1) * (i.price || 0), 0);
+      const subtotal = items.reduce((s, i) => s + (i.qty || 1) * (i.price || 0), 0);
+      const km = this.haversineKm(u.lat, u.lng, vendor.lat, vendor.lng);
+      const quote = opts.quote || await DeliveryPricing?.quote?.({ km, kg: 3 + items.length, subtotal_eur: subtotal, lat: dLat, lng: dLng });
+      const total = quote?.total_eur ?? subtotal;
       let orderResult = null;
       let errMsg = '';
       try {
@@ -7212,8 +7464,16 @@ const Commerce = {
             delivery_lat: dLat,
             delivery_lng: dLng,
             notes: notes || ('Astranov order · ' + vendor.name),
-            calc: { total_avc: total },
-            pay_with_balance: !!payWithBalance,
+            calc: {
+              ...(quote || {}),
+              subtotal_eur: subtotal,
+              total_avc: total,
+              goods_eur: subtotal,
+              wallet_payment: opts.walletPayment || null,
+              paid_via: opts.payWithWallet ? 'google_wallet' : (payWithBalance ? 'avc_balance' : null),
+            },
+            pay_with_balance: !!payWithBalance && !opts.payWithWallet,
+            pay_with_wallet: !!opts.payWithWallet,
             preferred_driver_id: this._preferredDriverId || null,
             target_user_id: opts.targetUserId || null,
           }),
@@ -7383,10 +7643,12 @@ const Commerce = {
       return this.smartOrder(q);
     }
     await this.loadVendors();
+    const u = this.userLatLng();
     if (!this.vendors.length) {
       ACIControl?.reply('No vendors on map yet');
       return;
     }
+    MapDepict?.scanCity?.({ userLat: u.lat, userLng: u.lng, vendors: this.vendors.slice(0, 8), label: q || 'Shops near you' });
     if (q.length >= 2) {
       const hit = this.vendors.find(v => (v.name + ' ' + v.category).toLowerCase().includes(q.toLowerCase()));
       if (hit) { this.openVendor(hit); return; }
@@ -9911,8 +10173,14 @@ const GlobeEntity = {
   },
 
   tick() {
-    this._applyGlobalClusters();
     const now = Date.now();
+    if (!this._tickLast) this._tickLast = 0;
+    if (now - this._tickLast < (window._voicePerfMode ? 180 : 90)) return;
+    this._tickLast = now;
+    if (!this._clusterLast || now - this._clusterLast > 500) {
+      this._clusterLast = now;
+      this._applyGlobalClusters();
+    }
     const toRemove = [];
 
     this.entities.forEach((entity, id) => {
@@ -11143,8 +11411,8 @@ const CityMap = {
     });
     this._bindZoomBridge(el);
     this._ready = true;
-    this._driverTimer = setInterval(() => this._tickDrivers(), 2800);
-    this._syncTimer = setInterval(() => this._syncMarkers(), 1200);
+    this._driverTimer = setInterval(() => this._tickDrivers(), 4500);
+    this._syncTimer = setInterval(() => { if (this.active) this._syncMarkers(); }, 2000);
   },
 
   _invalidate() {
@@ -12286,6 +12554,7 @@ const DrivingView = {
     GlobeControl?.engageFollow?.('drive');
     SuperCli?.setContext?.('drive');
     cityLevel = true;
+    CityMap?.onCamera?.(1.22, 'earth');
     const pos = window._lastPos || { lat: 36.44, lng: 28.22 };
     const p = latLngToPos(pos.lat, pos.lng, 1.04);
     if (typeof flyToPoint === 'function') {
@@ -12315,6 +12584,19 @@ const DrivingView = {
     GlobeDeck?.setPreview('');
     if (this.routeLine?.parent) this.routeLine.parent.remove(this.routeLine);
     this.routeLine = null;
+    CityMap?.setRoute?.([]);
+    const pos = window._lastPos || this.lastFix;
+    const cityZ = GlobeControl?.Z?.city || 1.38;
+    if (pos && typeof flyToPoint === 'function') {
+      const p = latLngToPos(pos.lat, pos.lng, 1.04);
+      flyToPoint(new THREE.Vector3(p.x, p.y, p.z), cityZ, { dur: 0.85 });
+      GlobeControl?.noteAutoFly?.();
+    }
+    cityLevel = true;
+    camera.position.z = cityZ;
+    CityMap?.onCamera?.(cityZ, 'earth');
+    document.getElementById('zoom-label').textContent = 'CITY VIEW';
+    MapDepict?.pulse?.(pos?.lat, pos?.lng, 0x3d9eff, 'Stopped · city view', 5000);
     CosmicZoom?.update(camera.position.z);
   },
 
@@ -17920,10 +18202,8 @@ function handleVoiceCommand(event) {
       input.value = draft;
       input.classList.add('voice-live');
       if (AciCli) AciCli.buffer = draft;
-      input.style.height = 'auto';
-      input.style.height = Math.min(input.scrollHeight, window.innerHeight * 0.22) + 'px';
+      window.resizeCliInput?.(input);
     }
-    GlobeDeck?.setCompose?.(draft);
     _voiceDraft = draft;
     return;
   }
@@ -17940,10 +18220,8 @@ function handleVoiceCommand(event) {
     input.value = draft;
     input.classList.add('voice-live');
     if (AciCli) AciCli.buffer = draft;
-    input.style.height = 'auto';
-    input.style.height = Math.min(input.scrollHeight, window.innerHeight * 0.22) + 'px';
+    window.resizeCliInput?.(input);
   }
-  GlobeDeck?.setCompose?.(draft);
   syncHandsFreeBtn();
 
   const live = (final || interim).trim();
@@ -18157,7 +18435,9 @@ function animate() {
   AIGraphics.update();
   updateOrbital();
 
-  if (window.AstranovCollectiveIntelligence && !window._voicePerfMode) {
+  const heavyGlobe = (GlobeEntity?.entities?.size || 0) > 48;
+  if (heavyGlobe && !window._voicePerfMode) setVoicePerfMode?.(true);
+  if (window.AstranovCollectiveIntelligence && !window._voicePerfMode && !heavyGlobe) {
     ACI.tick();
     ACI.neurons.forEach(n => {
       if (!n.userData) return;
