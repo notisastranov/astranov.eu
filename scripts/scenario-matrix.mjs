@@ -23,11 +23,12 @@ export const MATRIX = [
         auditor: !!window.AuditorPortal,
         avc: !!window.AvcJustice,
         unified: !!window.AstranovUnified,
+        coin: !!window.CoinPortal,
         coders: !!window.AciCoders,
         voice: typeof window.fixVoiceHotwords === 'function',
         super: !!window.SuperCli,
       }));
-      if (!r.commerce || !r.yacht || !r.auditor || !r.avc || !r.unified || !r.coders || !r.voice || !r.super) {
+      if (!r.commerce || !r.yacht || !r.auditor || !r.avc || !r.coin || !r.unified || !r.coders || !r.voice || !r.super) {
         throw new Error('module missing: ' + JSON.stringify(r));
       }
     },
@@ -212,6 +213,25 @@ export const MATRIX = [
         return GlobeEntity?.entities?.has('site-astranov-unified');
       });
       if (!ok) throw new Error('unified globe pin missing');
+    },
+  },
+  {
+    id: 'coin-portal-url',
+    group: 'coin',
+    run: async (page) => {
+      const u = await page.evaluate(() => CoinPortal.SITE_URL);
+      if (u !== 'https://coin.astranov.eu') throw new Error('coin url: ' + u);
+    },
+  },
+  {
+    id: 'coin-globe-pin',
+    group: 'coin',
+    run: async (page) => {
+      const ok = await page.evaluate(() => {
+        CoinPortal.syncGlobe();
+        return GlobeEntity?.entities?.has('site-coin');
+      });
+      if (!ok) throw new Error('coin globe pin missing');
     },
   },
   {
@@ -554,6 +574,7 @@ const STRESS_IDS = new Set([
   'voice-cli-coders-fix-the-lag', 'voice-cli-order-pitogyra-mpironia',
   'avc-peg-1to1', 'avc-format', 'avc-globe-pin',
   'unified-pillars', 'unified-globe-pin',
+  'coin-portal-url', 'coin-globe-pin',
   'voice-cli-audit-open', 'voice-cli-yacht-list', 'voice-cli-locate-me',
 ]);
 

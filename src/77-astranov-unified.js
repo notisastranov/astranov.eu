@@ -39,7 +39,7 @@ const AstranovUnified = {
       icon: '◎',
       label: 'AVC Justice Coin',
       hint: '1 AVC = 1 EUR · work-mint · transparent ledger',
-      run: () => AvcJustice?.openLedger?.(),
+      run: () => CoinPortal?.open?.('wallet'),
     },
   ],
 

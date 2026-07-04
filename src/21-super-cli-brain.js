@@ -564,7 +564,11 @@ Object.assign(SuperCli, {
         await AstranovUnified?.cli?.(parts);
         return { handled: true };
       }
-      if (cmd === 'avc' || cmd === 'coin') {
+      if (cmd === 'coin' || cmd === 'wallet' || cmd === 'money') {
+        await CoinPortal?.cli?.(parts.length > 1 && cmd === 'coin' ? parts : ['coin', ...parts.slice(1)]);
+        return { handled: true };
+      }
+      if (cmd === 'avc') {
         await AvcJustice?.cli?.(parts);
         return { handled: true };
       }

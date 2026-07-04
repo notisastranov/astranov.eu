@@ -581,9 +581,10 @@ const AciCoders = {
       AuditorPortal?.open?.({ tab: 'dashboard' });
       return 'Opened auditors.astranov.eu';
     }
-    if (/avc|coin|ledger|justice|κρυπτο|νόμισμα/.test(low) && /balance|ledger|open|show|δείξε/.test(low)) {
-      AvcJustice?.cli?.(['avc', /ledger|διαφάν|transparen/.test(low) ? 'ledger' : 'balance']);
-      return 'AVC justice ledger — 1 AVC = 1 EUR · work-mint only';
+    if (/avc|coin|ledger|justice|wallet|κρυπτο|νόμισμα/.test(low) && /balance|ledger|open|show|wallet|δείξε/.test(low)) {
+      if (/open|wallet|show|δείξε/.test(low)) CoinPortal?.open?.(/ledger|transparen/.test(low) ? 'transparency' : 'wallet');
+      else AvcJustice?.cli?.(['avc', /ledger|διαφάν|transparen/.test(low) ? 'ledger' : 'balance']);
+      return 'coin.astranov.eu — AVC wallet · 1 AVC = 1 EUR · work-mint only';
     }
     return null;
   },

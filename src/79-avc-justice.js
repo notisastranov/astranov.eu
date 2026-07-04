@@ -3,6 +3,7 @@ const AvcJustice = {
   COIN: 'AVC',
   PEG_EUR: 1,
   MOTTO: 'Justice → Truth → Freedom',
+  SITE_URL: 'https://coin.astranov.eu',
   _constitution: null,
 
   async api(mode, payload = {}) {
@@ -53,14 +54,14 @@ const AvcJustice = {
       urgency: 2,
       radius: 0.017,
       data: { coin: 'AVC' },
-      _actionLabel: 'Open AVC ledger',
+      _actionLabel: 'Open coin.astranov.eu',
       onTap: () => this.openLedger(),
     });
   },
 
   openLedger() {
-    GlobeDeck?.expand?.('AVC Justice Ledger');
-    this.cli(['avc', 'ledger']);
+    CoinPortal?.open?.('wallet') || window.open(this.SITE_URL, '_blank', 'noopener');
+    GlobeDeck?.expand?.('AVC · coin.astranov.eu');
   },
 
   async showBalance() {

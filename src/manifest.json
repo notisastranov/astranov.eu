@@ -61,6 +61,7 @@
     { "file": "77-astranov-unified.js", "marker": "// === ASTRANOV UNIFIED" },
     { "file": "78-auditor-portal.js", "marker": "// === AUDITOR PORTAL" },
     { "file": "79-avc-justice.js", "marker": "// === AVC JUSTICE COIN" },
+    { "file": "80-coin-portal.js", "marker": "// === COIN PORTAL" },
     { "file": "90-voice-world.js", "marker": "// Flow" },
     { "file": "99-boot.js", "marker": "function animate()" }
   ]

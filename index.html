@@ -3728,7 +3728,11 @@ Object.assign(SuperCli, {
         await AstranovUnified?.cli?.(parts);
         return { handled: true };
       }
-      if (cmd === 'avc' || cmd === 'coin') {
+      if (cmd === 'coin' || cmd === 'wallet' || cmd === 'money') {
+        await CoinPortal?.cli?.(parts.length > 1 && cmd === 'coin' ? parts : ['coin', ...parts.slice(1)]);
+        return { handled: true };
+      }
+      if (cmd === 'avc') {
         await AvcJustice?.cli?.(parts);
         return { handled: true };
       }
@@ -5837,9 +5841,10 @@ const AciCoders = {
       AuditorPortal?.open?.({ tab: 'dashboard' });
       return 'Opened auditors.astranov.eu';
     }
-    if (/avc|coin|ledger|justice|κρυπτο|νόμισμα/.test(low) && /balance|ledger|open|show|δείξε/.test(low)) {
-      AvcJustice?.cli?.(['avc', /ledger|διαφάν|transparen/.test(low) ? 'ledger' : 'balance']);
-      return 'AVC justice ledger — 1 AVC = 1 EUR · work-mint only';
+    if (/avc|coin|ledger|justice|wallet|κρυπτο|νόμισμα/.test(low) && /balance|ledger|open|show|wallet|δείξε/.test(low)) {
+      if (/open|wallet|show|δείξε/.test(low)) CoinPortal?.open?.(/ledger|transparen/.test(low) ? 'transparency' : 'wallet');
+      else AvcJustice?.cli?.(['avc', /ledger|διαφάν|transparen/.test(low) ? 'ledger' : 'balance']);
+      return 'coin.astranov.eu — AVC wallet · 1 AVC = 1 EUR · work-mint only';
     }
     return null;
   },
@@ -7089,7 +7094,7 @@ const Commerce = {
       + '<div class="muted">' + quote.km.toFixed(1) + ' km · ' + quote.kg + ' kg'
       + (sur ? ' · ' + sur : '')
       + (quote.weather?.bad ? ' · ⚠ weather' : '') + '</div>'
-      + '<div>Total <strong>' + quote.total_avc.toFixed(2) + ' AVC</strong> (= ' + quote.total_eur.toFixed(2) + ' EUR) · driver paid on dispatch · work-mint ledger</div>';
+      + '<div>Total <strong>' + quote.total_avc.toFixed(2) + ' AVC</strong> (= ' + quote.total_eur.toFixed(2) + ' EUR) · <a href="https://coin.astranov.eu" target="_blank" rel="noopener" style="color:#e8c547">coin.astranov.eu</a> · work-mint ledger</div>';
     if (walletBtn) {
       walletBtn.style.display = GoogleWalletPay?.supported?.() ? 'block' : 'none';
       walletBtn.textContent = 'Google Wallet · ' + quote.total_eur.toFixed(2) + '€';
@@ -17867,7 +17872,7 @@ const AstranovUnified = {
       icon: '◎',
       label: 'AVC Justice Coin',
       hint: '1 AVC = 1 EUR · work-mint · transparent ledger',
-      run: () => AvcJustice?.openLedger?.(),
+      run: () => CoinPortal?.open?.('wallet'),
     },
   ],
 
@@ -17998,6 +18003,7 @@ const AvcJustice = {
   COIN: 'AVC',
   PEG_EUR: 1,
   MOTTO: 'Justice → Truth → Freedom',
+  SITE_URL: 'https://coin.astranov.eu',
   _constitution: null,
 
   async api(mode, payload = {}) {
@@ -18048,14 +18054,14 @@ const AvcJustice = {
       urgency: 2,
       radius: 0.017,
       data: { coin: 'AVC' },
-      _actionLabel: 'Open AVC ledger',
+      _actionLabel: 'Open coin.astranov.eu',
       onTap: () => this.openLedger(),
     });
   },
 
   openLedger() {
-    GlobeDeck?.expand?.('AVC Justice Ledger');
-    this.cli(['avc', 'ledger']);
+    CoinPortal?.open?.('wallet') || window.open(this.SITE_URL, '_blank', 'noopener');
+    GlobeDeck?.expand?.('AVC · coin.astranov.eu');
   },
 
   async showBalance() {
@@ -18117,6 +18123,56 @@ const AvcJustice = {
   },
 }
 window.AvcJustice = AvcJustice
+
+// === COIN PORTAL — coin.astranov.eu money platform for all users ===
+const CoinPortal = {
+  SITE_ID: 'coin',
+  SITE_URL: 'https://coin.astranov.eu',
+
+  syncGlobe() {
+    const u = window._lastPos || { lat: 37.98, lng: 23.73 }
+    GlobeEntity?.register?.({
+      id: 'site-coin',
+      type: 'site',
+      lat: u.lat - 0.04,
+      lng: u.lng + 0.1,
+      title: '◎ AVC Wallet',
+      subtitle: 'coin.astranov.eu',
+      description: 'Money for all Astranov users — 1 AVC = 1 EUR · work-mint · transparent ledger.',
+      urgency: 3,
+      radius: 0.018,
+      data: { coin: 'AVC', peg: 1 },
+      _actionLabel: 'Open AVC wallet',
+      onTap: () => this.open(),
+    })
+  },
+
+  open(tab) {
+    const u = new URL(this.SITE_URL)
+    if (tab) u.searchParams.set('tab', tab)
+    if (Auth?.session?.access_token) {
+      u.searchParams.set('shell', '1')
+    }
+    window.open(u.toString(), '_blank', 'noopener')
+    GlobeDeck?.expand?.('AVC · coin.astranov.eu')
+    AciCli?.print?.('◎ coin.astranov.eu — wallet for all users', 'ok')
+    ACIControl?.reply('AVC wallet · 1:1 EUR · work-mint only')
+  },
+
+  async cli(parts) {
+    const sub = (parts[1] || 'open').toLowerCase()
+    if (sub === 'help' || sub === '?') {
+      ACIControl?.reply('coin open · coin wallet · coin transparency')
+      AciCli?.print('coin — coin.astranov.eu · AVC money platform for all users', 'ok')
+      return
+    }
+    if (sub === 'wallet' || sub === 'balance') return AvcJustice?.showBalance?.()
+    if (sub === 'ledger' || sub === 'transparency') return this.open('transparency')
+    if (sub === 'earn' || sub === 'justice') return this.open(sub === 'earn' ? 'earn' : 'justice')
+    return this.open(parts[2] || null)
+  },
+}
+window.CoinPortal = CoinPortal
 
 // Flow
 let me = null;
@@ -18974,6 +19030,7 @@ setTimeout(() => {
   AuditorPortal?.syncGlobe?.();
   AvcJustice?.loadConstitution?.();
   AvcJustice?.syncGlobe?.();
+  CoinPortal?.syncGlobe?.();
   AstranovUnified?.syncGlobe?.();
 }, 2200);
 setInterval(() => YachtMatcher?.loadAndSyncGlobe?.(), 300000);

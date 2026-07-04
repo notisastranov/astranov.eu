@@ -107,6 +107,7 @@ setTimeout(() => {
   AuditorPortal?.syncGlobe?.();
   AvcJustice?.loadConstitution?.();
   AvcJustice?.syncGlobe?.();
+  CoinPortal?.syncGlobe?.();
   AstranovUnified?.syncGlobe?.();
 }, 2200);
 setInterval(() => YachtMatcher?.loadAndSyncGlobe?.(), 300000);
