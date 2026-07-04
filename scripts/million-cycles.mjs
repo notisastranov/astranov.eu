@@ -33,7 +33,7 @@ const CYCLES = Math.max(1, parseInt(arg('--cycles', '1000'), 10) || 1000);
 const MAX_MS = parseInt(arg('--max-ms', String(CYCLES > 100000 ? 3600000 : 600000)), 10);
 const QUICK = process.argv.includes('--quick') || process.argv.includes('--turbo');
 const TURBO = process.argv.includes('--turbo');
-const WORKERS = Math.max(1, Math.min(8, parseInt(arg('--workers', TURBO ? '4' : '1'), 10) || 1));
+const WORKERS = Math.max(1, Math.min(8, parseInt(arg('--workers', '1'), 10) || 1));
 const BRAIN_EVERY = parseInt(arg('--brain-every', TURBO ? '2000' : '1000'), 10) || 1000;
 const SEED = parseInt(arg('--seed', '42'), 10);
 
