@@ -48,7 +48,15 @@ window.TelemachosPilot = TelemachosPilot;
 const BrainConversation = {
   seedAdultNeurons() {},
   _matchLocal() { return null; },
-  async converse(text) { return String(text || ''); },
+  async converse(text, opts = {}) {
+    const m = String(text || '').trim();
+    if (!m) return '';
+    if (window.AciCoders?.chat) {
+      const r = await AciCoders.chat(m, { fromVoice: !!opts.fromVoice });
+      return String(r?.text || r?.response || '').trim();
+    }
+    return '';
+  },
 };
 window.BrainConversation = BrainConversation;
 

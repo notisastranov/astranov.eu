@@ -29,6 +29,23 @@ function scrubDetail(s: string): string {
     .slice(0, 400)
 }
 
+/** Fix brand mishears in user-facing AI text — never expose Supabase ref */
+function repairBrands(text: string): string {
+  let s = String(text || '').trim()
+  if (!s) return s
+  s = s.replace(/\b[\w-]+\.supabase\.co\b/gi, 'astranov.eu')
+  s = s.replace(/\blkoatrkhuigdolnjsbie\b/gi, 'astranov.eu')
+  const rules: [RegExp, string][] = [
+    [/\b(astranof|astronov|astronoff|astra\s*nov|astrano\s*v|astro\s*nov|asstranov)\b/gi, 'Astranov'],
+    [/\b(κόντερ|κοντερ|konter|counter|quarter|κοντρ|kontur|kontre)\b/gi, 'coders'],
+    [/\b(counters|quarters)\b/gi, 'coders'],
+    [/\b(code\s*us|code\s*her?s|call\s*her?s|corders?|cooters?)\b/gi, 'coders'],
+    [/\bsupabase\b/gi, 'Astranov'],
+  ]
+  for (const [re, rep] of rules) s = s.replace(re, rep)
+  return s.replace(/\s+/g, ' ').trim()
+}
+
 function haversineM(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371000
   const dLat = (lat2 - lat1) * Math.PI / 180
@@ -475,6 +492,7 @@ serve(async (req) => {
           ? (isGuest ? 'Yes — Coders is here. Tap G to sign in or keep typing.' : 'Yes — I\'m here. Coders online. What next?')
           : 'Coders online — models busy. Your message was received; try again.'
       }
+      text = repairBrands(text)
       const via = String(result.via || (fastChat ? 'grok/fast' : 'team'))
       let full = text
       if (action?.type === 'probe') {
@@ -1075,11 +1093,11 @@ serve(async (req) => {
       const aicycleBody: Record<string, unknown> = { prompt, history, mode: thinkMode, fast }
       if (caller.callerId) aicycleBody.profile_id = caller.callerId
       const result = await invokeFn(base, anon, caller.authToken, 'aicycle', aicycleBody)
-      let text = String(result.text || result.response || '').trim()
+      let text = repairBrands(String(result.text || result.response || '').trim())
       if (!text) {
         text = result.error
-          ? String(result.error).slice(0, 300)
-          : 'Astranov is gathering itself — try again in a moment.'
+          ? repairBrands(String(result.error).slice(0, 300))
+          : 'Coders online — try again in a moment.'
       }
       if (memoryOwnerId && text) {
         try {

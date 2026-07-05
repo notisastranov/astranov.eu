@@ -434,27 +434,27 @@ const AciCoders = {
       this.savePrefs();
       this.loadEngine();
     }
-    const text = r.text || r.response || r.error || '';
+    const raw = String(r.text || r.response || '').trim();
+    const err = String(r.error || '').trim();
     if (r.summon_id) this.lastSummonId = r.summon_id;
 
     this.history.push({ role: 'user', content: userMsg });
-    if (text) {
-      this.history.push({ role: 'assistant', content: text });
-      if (this.history.length > 20) this.history = this.history.slice(-20);
+
+    const honest = raw ? this.formatHonestReply(r, userMsg) : '';
+    let reply = ArcangeloDialect?.repairBrands?.(honest || raw || err) ?? (honest || raw || err);
+    reply = String(reply || '').slice(0, 900);
+    if (!reply || this.isFailedReply(reply)) reply = this.localReply(userMsg);
+    if (err && !raw && reply === this.localReply(userMsg)) {
+      reply = this.localReply(userMsg) + ' (' + err.slice(0, 120) + ')';
     }
 
-    const honest = this.formatHonestReply(r, userMsg);
-    const reply = (ArcangeloDialect?.sanitizeReply?.(honest || text) ?? (honest || text)).slice(0, 900);
-    if (reply && !this.isFailedReply(reply)) {
-      const prefix = r.explicit_order || r.order_executed ? 'ORDER: ' : '';
-      const kind = r.error ? 'err' : 'reply';
-      AciCli?.print(prefix + reply, kind);
-      ACIControl?.reply(prefix + (ArcangeloDialect?.sanitizeReply?.(reply.slice(0, 260)) ?? reply.slice(0, 260)));
-    } else if (this.isFailedReply(reply)) {
-      const local = this.localReply(userMsg);
-      AciCli?.print(local, 'ok');
-      ACIControl?.reply(local.slice(0, 260));
-    }
+    this.history.push({ role: 'assistant', content: reply });
+    if (this.history.length > 20) this.history = this.history.slice(-20);
+
+    const prefix = r.explicit_order || r.order_executed ? 'ORDER: ' : '';
+    const kind = r.error && !raw ? 'err' : 'reply';
+    AciCli?.print(prefix + reply, kind);
+    ACIControl?.reply(prefix + reply.slice(0, 260));
 
     const composerQueued = r.composer_queued || (r.pending && r.summon_id);
     if (composerQueued && AciCli) AciCli.print('Composer also queued #' + composerQueued, 'dim');
@@ -591,9 +591,8 @@ const AciCoders = {
 
   formatHonestReply(r, userMsg) {
     const text = String(r.text || r.response || '').trim();
+    if (!text) return '';
     const id = r.summon_id || r.composer_queued;
-    const local = this.tryLocalFix(userMsg);
-    if (local) return local + (id ? '\n\nAlso queued #' + id + ' for Composer review.' : '');
     if (id && this.isBuildTask(userMsg)) {
       const stripped = text.replace(/\b(done|fixed|implemented|completed|applied)\b/gi, '').trim();
       return (stripped ? stripped.slice(0, 280) + '\n\n' : '')
@@ -680,7 +679,7 @@ const AciCoders = {
     if (Auth?.user && !(await this.ensureSession())) return { error: 'session expired' };
 
     const build = this.isBuildTask(m);
-    const fast = !build && !this.wantsComposer(m);
+    const fast = (!build && !this.wantsComposer(m)) || m.length < 600;
     if (!fast) MapDepict?.action('think', { detail: 'coders: ' + m.slice(0, 40) });
 
     this._cliBusy = true;

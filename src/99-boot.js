@@ -77,10 +77,8 @@ AstranovPresence.init();
 ProfileSite.init();
 
 setTimeout(() => Auth.refreshAuthority(), 800);
-setTimeout(() => {
-  AciCli?.primeCodersCli?.();
-  AciCoders?.ensureBridge?.();
-}, 2000);
+AciCli?.primeCodersCli?.();
+AciCoders?.ensureBridge?.();
 setTimeout(() => Commerce.loadVendors().then(() => Commerce.initUI()), 800);
 
 if (window._lastPos) GlobeEntity.syncMe(_lastPos.lat, _lastPos.lng, me?.name || 'You');

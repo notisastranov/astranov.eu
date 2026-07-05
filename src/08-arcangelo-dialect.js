@@ -138,49 +138,61 @@ const ArcangeloDialect = {
     return g >= l * 0.12 ? 'el-GR' : 'en-US';
   },
 
+  _brandRules: [
+    [/\b(άστρονοβ|αστρονοβ|άστρανοβ|αστρανοβ|αστρονόβ|αστρονόφ|αστρανόβ|αστρανόφ|αστρα\s*νοβ|αστρα\s*νοφ|astranof|astronov|astronoff|astra\s*nov|astrano\s*v|astro\s*nov|as\s*tranov|asstranov|ast\s*ranov|αστρονοφ|astronaut\s*nov)\b/gi, 'Astranov'],
+    [/\b(αρχάγγελο|αρχαγγελο|αρχανγελο|arch\s*angel|archangelo?s?|αρχαντζελο|arc\s*angelo)\b/gi, 'Arcangelo'],
+    [/\b(κόντερ|κοντερ|konter|counter|quarter|κοντρ|κοντρς|kontur|kontre|κόντερς|κοντερς|κοντερσ|κοντέρ)\b/gi, 'coders'],
+    [/\b(counters|quarters|quarterback|κοντερσ)\b/gi, 'coders'],
+    [/\b(code\s*us|code\s*her?s|call\s*her?s|corders?|cooters?|koders?|go\s*ders?)\b/gi, 'coders'],
+    [/\b(pitogyro|πιτογυρο|πιτόγυρο|πιτογύρο)\b/gi, 'pitogyra'],
+    [/\b(telemachus|tilemachos|tilemaxos|telmaxos|telmachos|τηλεμαχοσ|τηλεμαχός|τηλεμαχος)\b/gi, 'Telemachos'],
+    [/\b(teledromus|tilestromos|τηλεδρομος|τηλεδρομός|τηλεδρομος)\b/gi, 'Teledromos'],
+    [/\b(supabase\s+project|project\s+ref|supabase\s+url|supabase\s+key)\b/gi, 'Astranov'],
+    [/\bsupabase\b/gi, 'Astranov'],
+  ],
+
+  _dialectRules: [
+    [/\b(έλα ρε|ελα ρε|ela re|έλα ρε μαλάκα|ela re malaka)\b/gi, 'ela re'],
+    [/\b(τι θες|τι θέλεις|ti thes|ti theleis)\b/gi, 'ti thes'],
+    [/\b(πάμε|pame|παμε)\b/gi, 'pame'],
+    [/\b(πες μου|pes mou|πες μου ρε)\b/gi, 'pes mou'],
+    [/\b(αξάς|αξας|aksas|axas|αξα)\b/gi, 'aksas'],
+    [/\b(αξάκι|αξακι|aksaki|αξακο)\b/gi, 'aksaki'],
+    [/\b(αξαδίνα|αξαδινα|axadina)\b/gi, 'axadina'],
+    [/\b(locate\s*me|λοκέιτ|λοκειτ)\b/gi, 'locate me'],
+  ],
+
+  _scrubSecrets(s) {
+    return String(s || '')
+      .replace(/\b[\w-]+\.supabase\.co\b/gi, 'astranov.eu')
+      .replace(/\blkoatrkhuigdolnjsbie\.supabase\.co\b/gi, 'astranov.eu')
+      .replace(/\blkoatrkhuigdolnjsbie\b/gi, 'astranov.eu')
+      .replace(/\bfunctions\/v1\/\w+\b/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  },
+
+  repairBrands(text) {
+    let s = this._scrubSecrets(text);
+    if (!s) return s;
+    for (const [re, rep] of this._brandRules) s = s.replace(re, rep);
+    return s.replace(/\s+/g, ' ').trim();
+  },
+
   repairOutbound(text, kind) {
     let s = String(text || '').trim();
     if (!s) return s;
-    s = this.repairTranscript(s);
+    s = this.repairBrands(s);
     if (kind === 'cmd' && window.fixVoiceHotwords) s = window.fixVoiceHotwords(s);
-    return this.sanitizeReply(s);
+    if (this.mirrorAllowed()) return s;
+    for (const re of this._stripOutbound) s = s.replace(re, '').replace(/\s+/g, ' ').trim();
+    return s;
   },
 
   repairTranscript(text) {
-    let s = String(text || '').trim();
+    let s = this.repairBrands(text);
     if (!s) return s;
-    s = s.replace(/\b[\w-]+\.supabase\.co\b/gi, 'astranov.eu');
-    s = s.replace(/\blkoatrkhuigdolnjsbie\.supabase\.co\b/gi, 'astranov.eu');
-    s = s.replace(/\blkoatrkhuigdolnjsbie\b/gi, 'astranov.eu');
-    s = s.replace(/\bfunctions\/v1\/\w+\b/gi, '');
-    const rules = [
-      [/\b(άστρονοβ|αστρονοβ|άστρανοβ|αστρανοβ|αστρονόβ|αστρονόφ|αστρανόβ|αστρανόφ|αστρα\s*νοβ|αστρα\s*νοφ|astranof|astronov|astronoff|astra\s*nov|astrano\s*v|astro\s*nov|as\s*tranov|asstranov|ast\s*ranov|αστρονοφ)\b/gi, 'Astranov'],
-      [/\b(αρχάγγελο|αρχαγγελο|αρχανγελο|arch\s*angel|archangelo?s?|αρχαντζελο|arc\s*angelo)\b/gi, 'Arcangelo'],
-      [/\b(κόντερ|κοντερ|konter|counter|quarter|κοντρ|κοντρς|kontur|kontre|κόντερς|κοντερς|κοντερσ|κοντέρ)\b/gi, 'coders'],
-      [/\b(counters|quarters|quarterback|κοντερσ)\b/gi, 'coders'],
-      [/\b(code\s*us|code\s*her?s|call\s*her?s|corders?|cooters?|coders?|koders?|go\s*ders?)\b/gi, 'coders'],
-      [/\b(pitogyro|πιτογυρο|πιτόγυρο|πιτογύρο)\b/gi, 'pitogyra'],
-      [/\b(telemachus|tilemachos|tilemaxos|telmaxos|telmachos|τηλεμαχοσ|τηλεμαχός|τηλεμαχος)\b/gi, 'Telemachos'],
-      [/\b(teledromus|tilestromos|τηλεδρομος|τηλεδρομός|τηλεδρομος)\b/gi, 'Teledromos'],
-      [/\b(supabase\s+project|project\s+ref|supabase\s+url|supabase\s+key)\b/gi, 'Astranov'],
-      [/\bsupabase\b/gi, 'Astranov'],
-      [/\b(έλα ρε|ελα ρε|ela re|έλα ρε μαλάκα|ela re malaka)\b/gi, 'ela re'],
-      [/\b(τι θες|τι θέλεις|ti thes|ti theleis)\b/gi, 'ti thes'],
-      [/\b(πάμε|pame|παμε)\b/gi, 'pame'],
-      [/\b(πες μου|pes mou|πες μου ρε)\b/gi, 'pes mou'],
-      [/\b(τζαι|tzai|και)\b/gi, 'tzai'],
-      [/\b(αξάς|αξας|aksas|axas|αξα)\b/gi, 'aksas'],
-      [/\b(αξάκι|αξακι|aksaki|αξακο)\b/gi, 'aksaki'],
-      [/\b(αξαδίνα|αξαδινα|axadina)\b/gi, 'axadina'],
-      [/\b(ρε μου|re mou|ρε συ)\b/gi, 're'],
-      [/\b(εντάξει|entaxi|ενταξει|οκ εντάξει)\b/gi, 'entaxi'],
-      [/\b(μίλα|μιλα|mila|μίλησε|milise)\b/gi, 'mila'],
-      [/\b(ακούς|ακους|akous|μου ακούς)\b/gi, 'akous'],
-      [/\b(code\s*us|code\s*her?s|call\s*her?s)\b/gi, 'coders'],
-      [/\b(γεια|geia|hello|hi)\b/gi, 'geia'],
-      [/\b(locate\s*me|λοκέιτ|λοκειτ)\b/gi, 'locate me'],
-    ];
-    for (const [re, rep] of rules) s = s.replace(re, rep);
+    for (const [re, rep] of this._dialectRules) s = s.replace(re, rep);
     return s.replace(/\s+/g, ' ').trim();
   },
 
@@ -195,11 +207,7 @@ const ArcangeloDialect = {
   },
 
   sanitizeReply(text) {
-    let s = this.repairTranscript(String(text || ''));
-    if (!s) return s;
-    if (this.mirrorAllowed()) return s;
-    for (const re of this._stripOutbound) s = s.replace(re, '').replace(/\s+/g, ' ').trim();
-    return s;
+    return this.repairOutbound(text, 'reply');
   },
 
   sanitizeUi(text) {

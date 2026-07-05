@@ -121,7 +121,7 @@ const Voice = {
   },
 
   humanize(text) {
-    let s = ArcangeloDialect?.repairTranscript?.(String(text || '')) || String(text || '');
+    let s = ArcangeloDialect?.repairBrands?.(String(text || '')) || String(text || '');
     return s
       .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
       .replace(/https?:\/\/\S+/gi, '')
