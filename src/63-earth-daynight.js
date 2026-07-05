@@ -9,6 +9,9 @@ const EarthRealism = {
   _dayTex: null,
   _nightTex: null,
   _hudTimer: 0,
+  _tickLast: 0,
+  _sunLocalCache: null,
+  _sunLocalAt: 0,
 
   _canvasTex(c1, c2) {
     const c = document.createElement('canvas');
@@ -197,12 +200,24 @@ const EarthRealism = {
 
   _sunLocal(sunDir) {
     if (!earth) return sunDir;
-    earth.updateMatrixWorld(true);
+    const now = Date.now();
+    if (this._sunLocalCache && now - this._sunLocalAt < 400) return this._sunLocalCache;
+    earth.updateMatrixWorld(false);
     const m = new THREE.Matrix4().copy(earth.matrixWorld).invert();
-    return sunDir.clone().transformDirection(m).normalize();
+    this._sunLocalCache = sunDir.clone().transformDirection(m).normalize();
+    this._sunLocalAt = now;
+    return this._sunLocalCache;
   },
 
   tick() {
+    const now = Date.now();
+    const camZ = camera?.position?.z ?? 7.2;
+    const level = CosmicZoom?.level || 'earth';
+    const earthView = (level === 'earth' || level === 'orbit') && camZ < 4.8;
+    if (!earthView) return;
+    if (now - this._tickLast < (window._globePerfLite ? 500 : 250)) return;
+    this._tickLast = now;
+
     const sunDir = this._solarPosition();
     this.sunDir.copy(sunDir);
     if (earth) {
@@ -228,10 +243,7 @@ const EarthRealism = {
     }
     this._updateTerminator(sunDir);
 
-    const level = CosmicZoom?.level || 'earth';
-    const camZ = camera?.position?.z ?? 2.5;
     if (level === 'earth' && camZ < 3.4 && !CityMap?.active) {
-      const now = Date.now();
       if (!this._hudTimer || now - this._hudTimer > 3500) {
         this._hudTimer = now;
         const el = document.getElementById('cosmic-guide');

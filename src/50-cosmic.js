@@ -11,6 +11,9 @@ const CosmicZoom = {
   leoRings: [],
   meshRing: null,
   planets: [],
+  _lastCamZ: -1,
+  _lastLevel: '',
+  _guideAt: 0,
   _EPOCH_MS: Date.UTC(2000, 0, 1, 12, 0, 0),
   _DAY_MS: 86400000,
   _TAU: Math.PI * 2,
@@ -142,7 +145,7 @@ const CosmicZoom = {
     });
 
     const gPos = [];
-    for (let i = 0; i < 4000; i++) {
+    for (let i = 0; i < 1800; i++) {
       const arm = (i % 4) * 0.4;
       const t = Math.random() * Math.PI * 2;
       const rad = 8 + Math.random() * 25 + arm * 3;
@@ -326,9 +329,12 @@ const CosmicZoom = {
         label = tier?.label || (camZ > 2.2 ? 'GLOBAL' : camZ > 1.55 ? 'NATIONAL' : 'CITY');
       }
     }
-    if (level !== this.level) this.level = level;
+    const levelChanged = level !== this.level;
+    if (levelChanged) this.level = level;
+    const camChanged = Math.abs(camZ - this._lastCamZ) > 0.08;
+    const now = Date.now();
     const zl = document.getElementById('zoom-label');
-    if (zl && !DrivingView?.active) {
+    if (zl && !DrivingView?.active && (levelChanged || camChanged)) {
       if (CityMap?.active) {
         const tier = window.ZoomTiers?.current?.();
         const tierLabel = tier?.id === 'neighborhood' ? 'NEIGHBORHOOD MAP' : 'CITY MAP';
@@ -338,9 +344,14 @@ const CosmicZoom = {
         zl.textContent = label + hint;
       }
     }
-    CityMap?.onCamera?.(camZ, level);
-    this.updateGuide(level, camZ);
-    this.setOrbitVisibility(level);
+    if (levelChanged || camChanged) CityMap?.onCamera?.(camZ, level);
+    if (levelChanged || camChanged || now - this._guideAt > 4000) {
+      this._guideAt = now;
+      this.updateGuide(level, camZ);
+    }
+    if (levelChanged) this.setOrbitVisibility(level);
+    this._lastCamZ = camZ;
+    this._lastLevel = level;
 
     globePivot.visible = camZ < 12;
     if (this.solarGroup) this.solarGroup.visible = level === 'system';
@@ -350,7 +361,6 @@ const CosmicZoom = {
     this._lerpIss();
 
     if (this.solarGroup?.visible) {
-      const now = Date.now();
       this.planets.forEach(c => {
         const ud = c.userData;
         if (!ud?.periodDays) return;

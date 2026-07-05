@@ -713,7 +713,7 @@ try {
   renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
   renderer.setClearColor(0x000000, 1);
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, window.innerWidth < 768 ? 1.25 : 1.5));
   container.appendChild(renderer.domElement);
 } catch (e) {
   const fb = document.createElement('div');
@@ -750,7 +750,7 @@ scene.add(sun);
 
 // Stars - bigger/brighter to guarantee visibility against black
 const starPos = [];
-for (let i=0; i<14000; i++) {
+for (let i=0; i<4500; i++) {
   const r = 140 + Math.random()*900;
   const t = Math.random()*Math.PI*2;
   const p = Math.acos(2*Math.random()-1);
@@ -772,7 +772,7 @@ new THREE.TextureLoader().load(
 globePivot = new THREE.Group();
 scene.add(globePivot);
 
-const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 64), earthMat);
+const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 32), earthMat);
 globePivot.add(earth);
 globePivot.rotation.y = 0.82;
 window.earth = earth;
@@ -6823,8 +6823,8 @@ const ACI = {
     const stats = await this.api({ mode: 'stats' });
     if (stats.principles && stats.principles.length) {
       this.syncNeuronsFromPrinciples(stats.principles.map(p => p.content || p));
-    } else {
-      [{ lat: 36.22, lng: 28.12 }, { lat: 40, lng: 20 }, { lat: -15, lng: 45 }, { lat: 55, lng: -30 }]
+    } else if (!window._globePerfLite) {
+      [{ lat: 36.22, lng: 28.12 }, { lat: 40, lng: 20 }]
         .forEach(s => this.spawnNeuron(s.lat, s.lng, 1.2));
     }
     this.attachHeartbeat();
@@ -10640,7 +10640,8 @@ const GlobeEntity = {
     const now = Date.now();
     if (!this._tickLast) this._tickLast = 0;
     if (document.hidden) return;
-    if (now - this._tickLast < (window._voicePerfMode ? 220 : 110)) return;
+    const perf = window._voicePerfMode || window._globePerfLite;
+    if (now - this._tickLast < (perf ? 320 : 160)) return;
     this._tickLast = now;
     if (!this._clusterLast || now - this._clusterLast > 500) {
       this._clusterLast = now;
@@ -11065,6 +11066,9 @@ const CosmicZoom = {
   leoRings: [],
   meshRing: null,
   planets: [],
+  _lastCamZ: -1,
+  _lastLevel: '',
+  _guideAt: 0,
   _EPOCH_MS: Date.UTC(2000, 0, 1, 12, 0, 0),
   _DAY_MS: 86400000,
   _TAU: Math.PI * 2,
@@ -11196,7 +11200,7 @@ const CosmicZoom = {
     });
 
     const gPos = [];
-    for (let i = 0; i < 4000; i++) {
+    for (let i = 0; i < 1800; i++) {
       const arm = (i % 4) * 0.4;
       const t = Math.random() * Math.PI * 2;
       const rad = 8 + Math.random() * 25 + arm * 3;
@@ -11380,9 +11384,12 @@ const CosmicZoom = {
         label = tier?.label || (camZ > 2.2 ? 'GLOBAL' : camZ > 1.55 ? 'NATIONAL' : 'CITY');
       }
     }
-    if (level !== this.level) this.level = level;
+    const levelChanged = level !== this.level;
+    if (levelChanged) this.level = level;
+    const camChanged = Math.abs(camZ - this._lastCamZ) > 0.08;
+    const now = Date.now();
     const zl = document.getElementById('zoom-label');
-    if (zl && !DrivingView?.active) {
+    if (zl && !DrivingView?.active && (levelChanged || camChanged)) {
       if (CityMap?.active) {
         const tier = window.ZoomTiers?.current?.();
         const tierLabel = tier?.id === 'neighborhood' ? 'NEIGHBORHOOD MAP' : 'CITY MAP';
@@ -11392,9 +11399,14 @@ const CosmicZoom = {
         zl.textContent = label + hint;
       }
     }
-    CityMap?.onCamera?.(camZ, level);
-    this.updateGuide(level, camZ);
-    this.setOrbitVisibility(level);
+    if (levelChanged || camChanged) CityMap?.onCamera?.(camZ, level);
+    if (levelChanged || camChanged || now - this._guideAt > 4000) {
+      this._guideAt = now;
+      this.updateGuide(level, camZ);
+    }
+    if (levelChanged) this.setOrbitVisibility(level);
+    this._lastCamZ = camZ;
+    this._lastLevel = level;
 
     globePivot.visible = camZ < 12;
     if (this.solarGroup) this.solarGroup.visible = level === 'system';
@@ -11404,7 +11416,6 @@ const CosmicZoom = {
     this._lerpIss();
 
     if (this.solarGroup?.visible) {
-      const now = Date.now();
       this.planets.forEach(c => {
         const ud = c.userData;
         if (!ud?.periodDays) return;
@@ -12334,6 +12345,9 @@ const EarthRealism = {
   _dayTex: null,
   _nightTex: null,
   _hudTimer: 0,
+  _tickLast: 0,
+  _sunLocalCache: null,
+  _sunLocalAt: 0,
 
   _canvasTex(c1, c2) {
     const c = document.createElement('canvas');
@@ -12522,12 +12536,24 @@ const EarthRealism = {
 
   _sunLocal(sunDir) {
     if (!earth) return sunDir;
-    earth.updateMatrixWorld(true);
+    const now = Date.now();
+    if (this._sunLocalCache && now - this._sunLocalAt < 400) return this._sunLocalCache;
+    earth.updateMatrixWorld(false);
     const m = new THREE.Matrix4().copy(earth.matrixWorld).invert();
-    return sunDir.clone().transformDirection(m).normalize();
+    this._sunLocalCache = sunDir.clone().transformDirection(m).normalize();
+    this._sunLocalAt = now;
+    return this._sunLocalCache;
   },
 
   tick() {
+    const now = Date.now();
+    const camZ = camera?.position?.z ?? 7.2;
+    const level = CosmicZoom?.level || 'earth';
+    const earthView = (level === 'earth' || level === 'orbit') && camZ < 4.8;
+    if (!earthView) return;
+    if (now - this._tickLast < (window._globePerfLite ? 500 : 250)) return;
+    this._tickLast = now;
+
     const sunDir = this._solarPosition();
     this.sunDir.copy(sunDir);
     if (earth) {
@@ -12553,10 +12579,7 @@ const EarthRealism = {
     }
     this._updateTerminator(sunDir);
 
-    const level = CosmicZoom?.level || 'earth';
-    const camZ = camera?.position?.z ?? 2.5;
     if (level === 'earth' && camZ < 3.4 && !CityMap?.active) {
-      const now = Date.now();
       if (!this._hudTimer || now - this._hudTimer > 3500) {
         this._hudTimer = now;
         const el = document.getElementById('cosmic-guide');
@@ -12595,7 +12618,7 @@ const AIGraphics = {
 
   // Atmospheric glow - classic advanced space graphics
   addAtmosphere(parent, r) {
-    const geo = new THREE.SphereGeometry(r * 1.018, 48, 48);
+    const geo = new THREE.SphereGeometry(r * 1.018, 24, 24);
     const mat = new THREE.MeshBasicMaterial({
       color: 0x2288cc,
       transparent: true,
@@ -12630,7 +12653,7 @@ const AIGraphics = {
     ctx.globalAlpha = 1;
 
     const cloudTex = new THREE.CanvasTexture(canvas);
-    const geo = new THREE.SphereGeometry(r * 1.008, 48, 48);
+    const geo = new THREE.SphereGeometry(r * 1.008, 24, 24);
     const mat = new THREE.MeshBasicMaterial({
       map: cloudTex,
       transparent: true,
@@ -12646,7 +12669,7 @@ const AIGraphics = {
   addCityLights(parent, r) {
     const pos = [];
     const cols = [];
-    for (let i = 0; i < 2200; i++) {
+    for (let i = 0; i < 720; i++) {
       let lat = Math.random() * 170 - 85;
       let lng = Math.random() * 360 - 180;
       // Bias toward "populated" bands for gaming realism
@@ -12837,7 +12860,8 @@ const AIGraphics = {
   },
 
   update() {
-    if (this.voicePerf) {
+    const lite = this.voicePerf || window._globePerfLite;
+    if (lite) {
       this._frameSkip = (this._frameSkip + 1) % 2;
       if (this._frameSkip) return;
     }
@@ -12849,10 +12873,9 @@ const AIGraphics = {
     if (this.batchNodes && this.superBatchActive) {
       this.batchNodes.rotation.y = t * 0.5;
     }
-    if (this.clouds && !this.shellDim) this.clouds.rotation.y += 0.00008;
+    if (this.clouds && !this.shellDim && !lite) this.clouds.rotation.y += 0.00008;
 
-    // Subtle city light pulse
-    if (this.cityLights) {
+    if (this.cityLights && !lite) {
       this.cityLights.material.opacity = 0.65 + Math.sin(Date.now() * 0.0015) * 0.1;
     }
 
@@ -12888,10 +12911,7 @@ const AIGraphics = {
 // Initialize the engine right after Earth
 AIGraphics.init(globePivot);
 
-// Immediate visual confirmation burst (green particles near front) so user sees activity instantly
-setTimeout(() => {
-  try { AIGraphics.spawnEffect(new THREE.Vector3(0.6, 0.3, 1.1), 0x00ffaa, 28, 32); } catch(_) {}
-}, 180);
+
 
 // =====================================================
 
@@ -14627,6 +14647,7 @@ const WillaGames = {
       }
     }
     if (this.active === 'willa' && this._units.length) {
+      let moved = false;
       this._units.forEach(u => {
         const drift = u.domain === 'sea' || u.domain === 'underwater' ? 0.006 : 0.003;
         const prevLat = u._prevLat ?? u.lat;
@@ -14645,10 +14666,14 @@ const WillaGames = {
             MapDepict?.pulse?.(tipLat, tipLng, this.OLYMPUS_GLOW, u.name + ' · launch', 14000);
           }
         }
+        if (Math.abs(u.lat - prevLat) > 0.0003 || Math.abs(u.lng - prevLng) > 0.0003) moved = true;
         u._prevLat = u.lat;
         u._prevLng = u.lng;
       });
-      this._renderWillaUnits();
+      if (moved || !(this._renderAt && Date.now() - this._renderAt < 12000)) {
+        this._renderAt = Date.now();
+        this._renderWillaUnits();
+      }
     }
   },
 
@@ -19461,7 +19486,7 @@ function voiceListenBlocked() {
 
 function setVoicePerfMode(on) {
   window._voicePerfMode = !!on;
-  if (window.AIGraphics?.setVoicePerfMode) AIGraphics.setVoicePerfMode(!!on);
+  if (window.AIGraphics?.setVoicePerfMode) AIGraphics.setVoicePerfMode(!!on || !!window._globePerfLite);
 }
 window.setVoicePerfMode = setVoicePerfMode;
 
@@ -20013,15 +20038,41 @@ function showPilotTelemachos() {
 }
 
 window._cycleTurbo = false;
+window._globePerfLite = false;
+window._animFrame = 0;
+
+function globePerfActive() {
+  return !!(window._voicePerfMode || window._globePerfLite);
+}
+
 function animate() {
   requestAnimationFrame(animate);
   if (window._cycleTurbo) return;
-  if (!drag) {
+  window._animFrame = (window._animFrame + 1) | 0;
+  const frame = window._animFrame;
+  const hidden = document.hidden;
+  if (hidden && frame % 24 !== 0) {
+    renderer.render(scene, camera);
+    return;
+  }
+
+  const camZ = camera?.position?.z ?? 7.2;
+  const level = CosmicZoom?.level || 'system';
+  const entityCount = GlobeEntity?.entities?.size || 0;
+  const earthView = (level === 'earth' || level === 'orbit') && camZ < 4.8;
+  const solarView = level === 'system' || level === 'galaxy' || camZ > 5.5;
+  const mobile = window.innerWidth < 768 || (navigator.hardwareConcurrency || 8) <= 4;
+  window._globePerfLite = solarView || entityCount > 22 || mobile;
+
+  if (!drag && earthView && !globePerfActive()) {
     globePivot.rotation.y += idleRoll + trackVelX;
     globePivot.rotation.x += trackVelY;
     globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x));
     trackVelX *= 0.94;
     trackVelY *= 0.94;
+  } else if (!drag) {
+    trackVelX *= 0.9;
+    trackVelY *= 0.9;
   }
   // pilot pulse to make it alive
   if (window._pilot) {
@@ -20038,28 +20089,25 @@ function animate() {
       });
     }
 
-    // Occasional thruster particle bursts (when pilot active)
-    if (Date.now() % 380 < 30 && window._pilot) {
+    if (!globePerfActive() && Date.now() % 380 < 30 && window._pilot) {
       AIGraphics.spawnEffect(window._pilot.position, 0xff5500, 5, 18);
     }
   }
 
-  // ASTRANOV AI Graphics Engine tick
-  tickGlobeFly?.();
-  AIGraphics.update();
-  updateOrbital();
-
-  const hidden = document.hidden;
-  const entityCount = GlobeEntity?.entities?.size || 0;
-  const heavyGlobe = entityCount > 72;
+  const perf = globePerfActive();
   const codersBusy = window.AciCoders?._cliBusy || window.AciCoders?._listenBusy;
   const voiceActive = window._handsFreeVoice || isListening;
   const thinkBusy = GlobeDeck?.thinking;
-  if (voiceActive || codersBusy || heavyGlobe || thinkBusy) setVoicePerfMode?.(true);
+  if (voiceActive || codersBusy || entityCount > 40 || thinkBusy) setVoicePerfMode?.(true);
   else if (window._voicePerfMode) setVoicePerfMode?.(false);
-  if (window.AstranovCollectiveIntelligence && !hidden && !window._voicePerfMode) {
+
+  tickGlobeFly?.();
+  if (!perf || frame % 2 === 0) AIGraphics.update();
+  if (!perf || frame % 3 === 0) updateOrbital();
+
+  if (window.AstranovCollectiveIntelligence && !hidden && earthView && (!perf || frame % 2 === 0)) {
     ACI.tick();
-    if (!window._voicePerfMode && entityCount < 80) {
+    if (!perf && entityCount < 48) {
       ACI.neurons.forEach(n => {
         if (!n.userData) return;
         const t = Date.now() / 700;
@@ -20070,14 +20118,18 @@ function animate() {
   }
 
   if (!hidden) {
-    if (window.MapDepict) MapDepict.tick();
-    GlobeEntity?.tick?.();
-    MapComms?.tick?.();
+    if (!perf || frame % 2 === 0) MapDepict?.tick?.();
+    if (!perf || frame % 2 === 0) GlobeEntity?.tick?.();
+    if (!perf || frame % 3 === 0) MapComms?.tick?.();
     SuperSpace?.tick?.();
   }
-  if (!window._voicePerfMode) CosmicZoom.update(camera.position.z);
-  else if (Date.now() % 3 === 0) CosmicZoom.update(camera.position.z);
-  if (!window._voicePerfMode) EarthRealism?.tick?.();
+
+  if (solarView || camZ > 4.8) {
+    if (!perf || frame % 2 === 0) CosmicZoom.update(camZ);
+  } else if (frame % 4 === 0) CosmicZoom.update(camZ);
+
+  if (earthView && (!perf || frame % 2 === 0)) EarthRealism?.tick?.();
+
   renderer.render(scene, camera);
 }
 animate();

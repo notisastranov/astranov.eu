@@ -26,7 +26,7 @@ const AIGraphics = {
 
   // Atmospheric glow - classic advanced space graphics
   addAtmosphere(parent, r) {
-    const geo = new THREE.SphereGeometry(r * 1.018, 48, 48);
+    const geo = new THREE.SphereGeometry(r * 1.018, 24, 24);
     const mat = new THREE.MeshBasicMaterial({
       color: 0x2288cc,
       transparent: true,
@@ -61,7 +61,7 @@ const AIGraphics = {
     ctx.globalAlpha = 1;
 
     const cloudTex = new THREE.CanvasTexture(canvas);
-    const geo = new THREE.SphereGeometry(r * 1.008, 48, 48);
+    const geo = new THREE.SphereGeometry(r * 1.008, 24, 24);
     const mat = new THREE.MeshBasicMaterial({
       map: cloudTex,
       transparent: true,
@@ -77,7 +77,7 @@ const AIGraphics = {
   addCityLights(parent, r) {
     const pos = [];
     const cols = [];
-    for (let i = 0; i < 2200; i++) {
+    for (let i = 0; i < 720; i++) {
       let lat = Math.random() * 170 - 85;
       let lng = Math.random() * 360 - 180;
       // Bias toward "populated" bands for gaming realism
@@ -268,7 +268,8 @@ const AIGraphics = {
   },
 
   update() {
-    if (this.voicePerf) {
+    const lite = this.voicePerf || window._globePerfLite;
+    if (lite) {
       this._frameSkip = (this._frameSkip + 1) % 2;
       if (this._frameSkip) return;
     }
@@ -280,10 +281,9 @@ const AIGraphics = {
     if (this.batchNodes && this.superBatchActive) {
       this.batchNodes.rotation.y = t * 0.5;
     }
-    if (this.clouds && !this.shellDim) this.clouds.rotation.y += 0.00008;
+    if (this.clouds && !this.shellDim && !lite) this.clouds.rotation.y += 0.00008;
 
-    // Subtle city light pulse
-    if (this.cityLights) {
+    if (this.cityLights && !lite) {
       this.cityLights.material.opacity = 0.65 + Math.sin(Date.now() * 0.0015) * 0.1;
     }
 
@@ -319,9 +319,6 @@ const AIGraphics = {
 // Initialize the engine right after Earth
 AIGraphics.init(globePivot);
 
-// Immediate visual confirmation burst (green particles near front) so user sees activity instantly
-setTimeout(() => {
-  try { AIGraphics.spawnEffect(new THREE.Vector3(0.6, 0.3, 1.1), 0x00ffaa, 28, 32); } catch(_) {}
-}, 180);
+
 
 // =====================================================

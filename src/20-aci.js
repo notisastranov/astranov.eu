@@ -145,8 +145,8 @@ const ACI = {
     const stats = await this.api({ mode: 'stats' });
     if (stats.principles && stats.principles.length) {
       this.syncNeuronsFromPrinciples(stats.principles.map(p => p.content || p));
-    } else {
-      [{ lat: 36.22, lng: 28.12 }, { lat: 40, lng: 20 }, { lat: -15, lng: 45 }, { lat: 55, lng: -30 }]
+    } else if (!window._globePerfLite) {
+      [{ lat: 36.22, lng: 28.12 }, { lat: 40, lng: 20 }]
         .forEach(s => this.spawnNeuron(s.lat, s.lng, 1.2));
     }
     this.attachHeartbeat();

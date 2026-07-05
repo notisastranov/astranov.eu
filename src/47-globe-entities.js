@@ -508,7 +508,8 @@ const GlobeEntity = {
     const now = Date.now();
     if (!this._tickLast) this._tickLast = 0;
     if (document.hidden) return;
-    if (now - this._tickLast < (window._voicePerfMode ? 220 : 110)) return;
+    const perf = window._voicePerfMode || window._globePerfLite;
+    if (now - this._tickLast < (perf ? 320 : 160)) return;
     this._tickLast = now;
     if (!this._clusterLast || now - this._clusterLast > 500) {
       this._clusterLast = now;

@@ -1,13 +1,39 @@
 window._cycleTurbo = false;
+window._globePerfLite = false;
+window._animFrame = 0;
+
+function globePerfActive() {
+  return !!(window._voicePerfMode || window._globePerfLite);
+}
+
 function animate() {
   requestAnimationFrame(animate);
   if (window._cycleTurbo) return;
-  if (!drag) {
+  window._animFrame = (window._animFrame + 1) | 0;
+  const frame = window._animFrame;
+  const hidden = document.hidden;
+  if (hidden && frame % 24 !== 0) {
+    renderer.render(scene, camera);
+    return;
+  }
+
+  const camZ = camera?.position?.z ?? 7.2;
+  const level = CosmicZoom?.level || 'system';
+  const entityCount = GlobeEntity?.entities?.size || 0;
+  const earthView = (level === 'earth' || level === 'orbit') && camZ < 4.8;
+  const solarView = level === 'system' || level === 'galaxy' || camZ > 5.5;
+  const mobile = window.innerWidth < 768 || (navigator.hardwareConcurrency || 8) <= 4;
+  window._globePerfLite = solarView || entityCount > 22 || mobile;
+
+  if (!drag && earthView && !globePerfActive()) {
     globePivot.rotation.y += idleRoll + trackVelX;
     globePivot.rotation.x += trackVelY;
     globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x));
     trackVelX *= 0.94;
     trackVelY *= 0.94;
+  } else if (!drag) {
+    trackVelX *= 0.9;
+    trackVelY *= 0.9;
   }
   // pilot pulse to make it alive
   if (window._pilot) {
@@ -24,28 +50,25 @@ function animate() {
       });
     }
 
-    // Occasional thruster particle bursts (when pilot active)
-    if (Date.now() % 380 < 30 && window._pilot) {
+    if (!globePerfActive() && Date.now() % 380 < 30 && window._pilot) {
       AIGraphics.spawnEffect(window._pilot.position, 0xff5500, 5, 18);
     }
   }
 
-  // ASTRANOV AI Graphics Engine tick
-  tickGlobeFly?.();
-  AIGraphics.update();
-  updateOrbital();
-
-  const hidden = document.hidden;
-  const entityCount = GlobeEntity?.entities?.size || 0;
-  const heavyGlobe = entityCount > 72;
+  const perf = globePerfActive();
   const codersBusy = window.AciCoders?._cliBusy || window.AciCoders?._listenBusy;
   const voiceActive = window._handsFreeVoice || isListening;
   const thinkBusy = GlobeDeck?.thinking;
-  if (voiceActive || codersBusy || heavyGlobe || thinkBusy) setVoicePerfMode?.(true);
+  if (voiceActive || codersBusy || entityCount > 40 || thinkBusy) setVoicePerfMode?.(true);
   else if (window._voicePerfMode) setVoicePerfMode?.(false);
-  if (window.AstranovCollectiveIntelligence && !hidden && !window._voicePerfMode) {
+
+  tickGlobeFly?.();
+  if (!perf || frame % 2 === 0) AIGraphics.update();
+  if (!perf || frame % 3 === 0) updateOrbital();
+
+  if (window.AstranovCollectiveIntelligence && !hidden && earthView && (!perf || frame % 2 === 0)) {
     ACI.tick();
-    if (!window._voicePerfMode && entityCount < 80) {
+    if (!perf && entityCount < 48) {
       ACI.neurons.forEach(n => {
         if (!n.userData) return;
         const t = Date.now() / 700;
@@ -56,14 +79,18 @@ function animate() {
   }
 
   if (!hidden) {
-    if (window.MapDepict) MapDepict.tick();
-    GlobeEntity?.tick?.();
-    MapComms?.tick?.();
+    if (!perf || frame % 2 === 0) MapDepict?.tick?.();
+    if (!perf || frame % 2 === 0) GlobeEntity?.tick?.();
+    if (!perf || frame % 3 === 0) MapComms?.tick?.();
     SuperSpace?.tick?.();
   }
-  if (!window._voicePerfMode) CosmicZoom.update(camera.position.z);
-  else if (Date.now() % 3 === 0) CosmicZoom.update(camera.position.z);
-  if (!window._voicePerfMode) EarthRealism?.tick?.();
+
+  if (solarView || camZ > 4.8) {
+    if (!perf || frame % 2 === 0) CosmicZoom.update(camZ);
+  } else if (frame % 4 === 0) CosmicZoom.update(camZ);
+
+  if (earthView && (!perf || frame % 2 === 0)) EarthRealism?.tick?.();
+
   renderer.render(scene, camera);
 }
 animate();

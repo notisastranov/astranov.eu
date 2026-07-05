@@ -316,6 +316,7 @@ const WillaGames = {
       }
     }
     if (this.active === 'willa' && this._units.length) {
+      let moved = false;
       this._units.forEach(u => {
         const drift = u.domain === 'sea' || u.domain === 'underwater' ? 0.006 : 0.003;
         const prevLat = u._prevLat ?? u.lat;
@@ -334,10 +335,14 @@ const WillaGames = {
             MapDepict?.pulse?.(tipLat, tipLng, this.OLYMPUS_GLOW, u.name + ' · launch', 14000);
           }
         }
+        if (Math.abs(u.lat - prevLat) > 0.0003 || Math.abs(u.lng - prevLng) > 0.0003) moved = true;
         u._prevLat = u.lat;
         u._prevLng = u.lng;
       });
-      this._renderWillaUnits();
+      if (moved || !(this._renderAt && Date.now() - this._renderAt < 12000)) {
+        this._renderAt = Date.now();
+        this._renderWillaUnits();
+      }
     }
   },
 
