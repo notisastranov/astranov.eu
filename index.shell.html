@@ -102,8 +102,22 @@
   .coders-primary, .coders-ghost, .coders-open { border-radius:10px; padding:8px 12px; cursor:pointer; font:inherit; font-size:10px; font-weight:600; touch-action:manipulation; }
   .coders-primary { border:1px solid rgba(126,184,255,0.42); color:#b8d9ff; background:rgba(61,142,255,0.14); }
   .coders-ghost { border:1px solid rgba(126,184,255,0.18); color:#8ab; background:transparent; }
+  #coders-hub-live-count { display:inline-grid; place-items:center; min-width:18px; height:18px; padding:0 5px; border-radius:999px; background:rgba(0,170,85,0.35); border:1px solid rgba(0,170,85,0.5); font-size:9px; color:#00dd77; }
+  #coders-hub-trigger[data-pinging] #coders-hub-live-count { opacity:0.5; animation:coders-pulse 1s ease infinite; }
+  @keyframes coders-pulse { 50% { opacity:1; } }
+  #coders-race-board { margin:0 0 10px; padding:8px 10px; border-radius:10px; background:rgba(0,40,90,0.35); border:1px solid rgba(126,184,255,0.16); font-size:9px; color:#9bc; }
+  #coders-refresh-labs { margin-left:auto; padding:4px 8px; border-radius:8px; border:1px solid rgba(126,184,255,0.2); background:transparent; color:#8ab; cursor:pointer; font:inherit; font-size:9px; }
   #coders-hub-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
-  .coders-card { border:1px solid rgba(126,184,255,0.14); border-radius:12px; padding:12px; background:rgba(0,0,0,0.35); }
+  .coders-card { border:1px solid rgba(126,184,255,0.14); border-radius:12px; padding:12px; background:rgba(0,0,0,0.35); position:relative; }
+  .coders-card.is-off { opacity:0.55; }
+  .coders-status { position:absolute; top:10px; right:10px; font-size:8px; font-weight:700; letter-spacing:0.06em; padding:2px 6px; border-radius:6px; }
+  .coders-status-live { color:#00dd77; background:rgba(0,170,85,0.2); border:1px solid rgba(0,170,85,0.35); }
+  .coders-status-slow { color:#ffd633; background:rgba(201,160,0,0.15); border:1px solid rgba(201,160,0,0.3); }
+  .coders-status-off { color:#ff6677; background:rgba(196,30,42,0.15); border:1px solid rgba(196,30,42,0.3); }
+  .coders-status-soon { color:#8ab; background:rgba(100,140,180,0.12); border:1px solid rgba(100,140,180,0.25); }
+  .coders-status-check { color:#7a9; background:rgba(0,0,0,0.3); border:1px solid rgba(126,184,255,0.15); }
+  .coders-team { display:block; font-size:8px; color:#7a9; margin-top:2px; }
+  .coders-card-provider { margin:0 0 6px; font-size:8px; color:rgba(126,184,255,0.75); }
   .coders-card.is-here { border-color:color-mix(in srgb, var(--lab-accent,#7eb8ff) 45%, transparent); box-shadow:0 0 20px color-mix(in srgb, var(--lab-accent,#7eb8ff) 15%, transparent); }
   .coders-card-top { display:flex; align-items:center; gap:10px; }
   .coders-card-glyph { display:grid; place-items:center; width:36px; height:36px; border-radius:50%; border:1px solid color-mix(in srgb, var(--lab-accent,#7eb8ff) 40%, transparent); font-size:10px; color:var(--lab-accent,#7eb8ff); }
@@ -534,11 +548,12 @@
     <div class="eb-earth-wrap"><img class="eb-earth" src="https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57730/land_ocean_ice_2048.jpg" alt=""><div class="eb-terminator"></div></div>
   </div>
   <div id="globe"></div>
-  <button id="coders-hub-trigger" type="button" aria-label="Open AI coders hub" title="AI Coders — switch lab and continue the job"><span>⬡</span><span>Coders</span></button>
+  <button id="coders-hub-trigger" type="button" aria-label="Open AI coders hub" title="AI Coders race — switch team and continue the job"><span>⬡</span><span>Coders</span><span id="coders-hub-live-count">8</span></button>
   <aside id="coders-hub-panel" aria-label="AI coder labs" aria-hidden="true">
-    <div id="coders-hub-head"><div><p style="margin:0;font-size:9px;color:#7a9">AI coder labs</p><h2>Continue the job</h2></div><button id="coders-hub-close" type="button" aria-label="Close" style="background:transparent;border:1px solid #555;color:#aaa;border-radius:8px;padding:4px 10px;cursor:pointer">✖</button></div>
+    <div id="coders-hub-head"><div><p style="margin:0;font-size:9px;color:#7a9">AI coder teams racing</p><h2>Coders Hub</h2></div><button id="coders-refresh-labs" type="button">Refresh</button><button id="coders-hub-close" type="button" aria-label="Close" style="background:transparent;border:1px solid #555;color:#aaa;border-radius:8px;padding:4px 10px;cursor:pointer">✖</button></div>
     <div id="coders-hub-body">
-      <p class="coders-lead">Switch between AI coder labs on the same shared brain. Save your thread here, then open any lab to continue.</p>
+      <p id="coders-race-board">Checking teams…</p>
+      <p class="coders-lead">Every AI coder team has its own subdomain. Save your job here, then open any live lab to continue on the shared brain.</p>
       <div class="coders-continuation">
         <div class="coders-continuation-head"><span>Active job</span><span id="coders-job-meta">No saved job</span></div>
         <p class="coders-continuation-text" id="coders-job-preview">Save your CLI thread to hand off to ChatGPT, Claude, Grok, or another lab.</p>

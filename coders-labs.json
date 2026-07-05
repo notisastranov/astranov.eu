@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "continuationKey": "astranov:job-continuation",
+  "updatedAt": "2026-07-05T13:30:00Z",
+  "labs": [
+    { "id": "main", "label": "Globe OS", "glyph": "◈", "url": "https://astranov.eu", "accent": "#7eb8ff", "team": "Astranov", "provider": "Grok Build", "engine": "grok" },
+    { "id": "grok", "label": "Grok", "glyph": "GK", "url": "https://grok.astranov.eu", "accent": "#e8e8e8", "team": "xAI", "provider": "Grok", "engine": "grok" },
+    { "id": "chatgpt", "label": "ChatGPT", "glyph": "CG", "url": "https://chatgpt.astranov.eu", "accent": "#74c0fc", "team": "OpenAI", "provider": "GPT-4o mini", "engine": "openai-mini" },
+    { "id": "claude", "label": "Claude", "glyph": "CL", "url": "https://claude.astranov.eu", "accent": "#d4a574", "team": "Anthropic", "provider": "Claude", "engine": "claude" },
+    { "id": "composer", "label": "Composer", "glyph": "CP", "url": "https://composer.astranov.eu", "accent": "#a8c8ff", "team": "Cursor", "provider": "Composer", "engine": "composer" },
+    { "id": "gemini", "label": "Gemini", "glyph": "GM", "url": "https://gemini.astranov.eu", "accent": "#8ab4f8", "team": "Google", "provider": "Gemini", "engine": "gemini" },
+    { "id": "deepseek", "label": "DeepSeek", "glyph": "DS", "url": "https://deepseek.astranov.eu", "accent": "#5eead4", "team": "DeepSeek", "provider": "DeepSeek", "engine": "deepseek" },
+    { "id": "cursor", "label": "Cursor", "glyph": "CR", "url": "https://cursor.astranov.eu", "accent": "#c8d8ff", "team": "Cursor", "provider": "Cursor IDE", "engine": "cursor", "comingSoon": true }
+  ]
+}

@@ -102,8 +102,22 @@
   .coders-primary, .coders-ghost, .coders-open { border-radius:10px; padding:8px 12px; cursor:pointer; font:inherit; font-size:10px; font-weight:600; touch-action:manipulation; }
   .coders-primary { border:1px solid rgba(126,184,255,0.42); color:#b8d9ff; background:rgba(61,142,255,0.14); }
   .coders-ghost { border:1px solid rgba(126,184,255,0.18); color:#8ab; background:transparent; }
+  #coders-hub-live-count { display:inline-grid; place-items:center; min-width:18px; height:18px; padding:0 5px; border-radius:999px; background:rgba(0,170,85,0.35); border:1px solid rgba(0,170,85,0.5); font-size:9px; color:#00dd77; }
+  #coders-hub-trigger[data-pinging] #coders-hub-live-count { opacity:0.5; animation:coders-pulse 1s ease infinite; }
+  @keyframes coders-pulse { 50% { opacity:1; } }
+  #coders-race-board { margin:0 0 10px; padding:8px 10px; border-radius:10px; background:rgba(0,40,90,0.35); border:1px solid rgba(126,184,255,0.16); font-size:9px; color:#9bc; }
+  #coders-refresh-labs { margin-left:auto; padding:4px 8px; border-radius:8px; border:1px solid rgba(126,184,255,0.2); background:transparent; color:#8ab; cursor:pointer; font:inherit; font-size:9px; }
   #coders-hub-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
-  .coders-card { border:1px solid rgba(126,184,255,0.14); border-radius:12px; padding:12px; background:rgba(0,0,0,0.35); }
+  .coders-card { border:1px solid rgba(126,184,255,0.14); border-radius:12px; padding:12px; background:rgba(0,0,0,0.35); position:relative; }
+  .coders-card.is-off { opacity:0.55; }
+  .coders-status { position:absolute; top:10px; right:10px; font-size:8px; font-weight:700; letter-spacing:0.06em; padding:2px 6px; border-radius:6px; }
+  .coders-status-live { color:#00dd77; background:rgba(0,170,85,0.2); border:1px solid rgba(0,170,85,0.35); }
+  .coders-status-slow { color:#ffd633; background:rgba(201,160,0,0.15); border:1px solid rgba(201,160,0,0.3); }
+  .coders-status-off { color:#ff6677; background:rgba(196,30,42,0.15); border:1px solid rgba(196,30,42,0.3); }
+  .coders-status-soon { color:#8ab; background:rgba(100,140,180,0.12); border:1px solid rgba(100,140,180,0.25); }
+  .coders-status-check { color:#7a9; background:rgba(0,0,0,0.3); border:1px solid rgba(126,184,255,0.15); }
+  .coders-team { display:block; font-size:8px; color:#7a9; margin-top:2px; }
+  .coders-card-provider { margin:0 0 6px; font-size:8px; color:rgba(126,184,255,0.75); }
   .coders-card.is-here { border-color:color-mix(in srgb, var(--lab-accent,#7eb8ff) 45%, transparent); box-shadow:0 0 20px color-mix(in srgb, var(--lab-accent,#7eb8ff) 15%, transparent); }
   .coders-card-top { display:flex; align-items:center; gap:10px; }
   .coders-card-glyph { display:grid; place-items:center; width:36px; height:36px; border-radius:50%; border:1px solid color-mix(in srgb, var(--lab-accent,#7eb8ff) 40%, transparent); font-size:10px; color:var(--lab-accent,#7eb8ff); }
@@ -534,11 +548,12 @@
     <div class="eb-earth-wrap"><img class="eb-earth" src="https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57730/land_ocean_ice_2048.jpg" alt=""><div class="eb-terminator"></div></div>
   </div>
   <div id="globe"></div>
-  <button id="coders-hub-trigger" type="button" aria-label="Open AI coders hub" title="AI Coders — switch lab and continue the job"><span>⬡</span><span>Coders</span></button>
+  <button id="coders-hub-trigger" type="button" aria-label="Open AI coders hub" title="AI Coders race — switch team and continue the job"><span>⬡</span><span>Coders</span><span id="coders-hub-live-count">8</span></button>
   <aside id="coders-hub-panel" aria-label="AI coder labs" aria-hidden="true">
-    <div id="coders-hub-head"><div><p style="margin:0;font-size:9px;color:#7a9">AI coder labs</p><h2>Continue the job</h2></div><button id="coders-hub-close" type="button" aria-label="Close" style="background:transparent;border:1px solid #555;color:#aaa;border-radius:8px;padding:4px 10px;cursor:pointer">✖</button></div>
+    <div id="coders-hub-head"><div><p style="margin:0;font-size:9px;color:#7a9">AI coder teams racing</p><h2>Coders Hub</h2></div><button id="coders-refresh-labs" type="button">Refresh</button><button id="coders-hub-close" type="button" aria-label="Close" style="background:transparent;border:1px solid #555;color:#aaa;border-radius:8px;padding:4px 10px;cursor:pointer">✖</button></div>
     <div id="coders-hub-body">
-      <p class="coders-lead">Switch between AI coder labs on the same shared brain. Save your thread here, then open any lab to continue.</p>
+      <p id="coders-race-board">Checking teams…</p>
+      <p class="coders-lead">Every AI coder team has its own subdomain. Save your job here, then open any live lab to continue on the shared brain.</p>
       <div class="coders-continuation">
         <div class="coders-continuation-head"><span>Active job</span><span id="coders-job-meta">No saved job</span></div>
         <p class="coders-continuation-text" id="coders-job-preview">Save your CLI thread to hand off to ChatGPT, Claude, Grok, or another lab.</p>
@@ -6282,6 +6297,10 @@ const AciCoders = {
       AuditorPortal?.syncGlobe?.();
       return 'Globe data refreshed — yachts · vendors · drivers · auditors';
     }
+    if (/coders?\s*hub|coder\s*labs?|ai\s*teams?|open\s*coders?|labs?\s*race|ανταγωνισμ|ομάδες/.test(low)) {
+      CodersHub?.toggle?.(true);
+      return 'Coders Hub open — ' + (CodersHub?.LABS?.length || 0) + ' AI teams racing on subdomains';
+    }
     if (/city\s*view|zoom\s*in|shops|καταστήμα/.test(low)) {
       enterCityView?.();
       return 'City view — vendors and drivers on map';
@@ -11060,25 +11079,32 @@ const EarthBoot = {
 
 window.EarthBoot = EarthBoot;
 
-// === CODERS HUB — cross-lab handoff (ported from chatgpt.astranov.eu)
+// === CODERS HUB — multi-team race board + cross-lab handoff
 const CodersHub = {
   CONTINUATION_KEY: 'astranov:job-continuation',
+  REGISTRY_URL: '/coders-labs.json',
   LABS: [
-    { id: 'main', label: 'Globe OS', glyph: '◈', url: 'https://astranov.eu', accent: '#7eb8ff' },
-    { id: 'chatgpt', label: 'ChatGPT', glyph: 'CG', url: 'https://chatgpt.astranov.eu', accent: '#74c0fc' },
-    { id: 'claude', label: 'Claude', glyph: 'CL', url: 'https://claude.astranov.eu', accent: '#d4a574' },
-    { id: 'grok', label: 'Grok', glyph: 'GK', url: 'https://grok.astranov.eu', accent: '#e8e8e8' },
-    { id: 'gemini', label: 'Gemini', glyph: 'GM', url: 'https://gemini.astranov.eu', accent: '#8ab4f8' },
-    { id: 'deepseek', label: 'DeepSeek', glyph: 'DS', url: 'https://deepseek.astranov.eu', accent: '#5eead4' },
-    { id: 'composer', label: 'Composer', glyph: 'CP', url: 'https://composer.astranov.eu', accent: '#a8c8ff' },
+    { id: 'main', label: 'Globe OS', glyph: '◈', url: 'https://astranov.eu', accent: '#7eb8ff', team: 'Astranov', provider: 'Grok Build', engine: 'grok' },
+    { id: 'grok', label: 'Grok', glyph: 'GK', url: 'https://grok.astranov.eu', accent: '#e8e8e8', team: 'xAI', provider: 'Grok', engine: 'grok' },
+    { id: 'chatgpt', label: 'ChatGPT', glyph: 'CG', url: 'https://chatgpt.astranov.eu', accent: '#74c0fc', team: 'OpenAI', provider: 'GPT-4o mini', engine: 'openai-mini' },
+    { id: 'claude', label: 'Claude', glyph: 'CL', url: 'https://claude.astranov.eu', accent: '#d4a574', team: 'Anthropic', provider: 'Claude', engine: 'claude' },
+    { id: 'composer', label: 'Composer', glyph: 'CP', url: 'https://composer.astranov.eu', accent: '#a8c8ff', team: 'Cursor', provider: 'Composer', engine: 'composer' },
+    { id: 'gemini', label: 'Gemini', glyph: 'GM', url: 'https://gemini.astranov.eu', accent: '#8ab4f8', team: 'Google', provider: 'Gemini', engine: 'gemini' },
+    { id: 'deepseek', label: 'DeepSeek', glyph: 'DS', url: 'https://deepseek.astranov.eu', accent: '#5eead4', team: 'DeepSeek', provider: 'DeepSeek', engine: 'deepseek' },
+    { id: 'cursor', label: 'Cursor', glyph: 'CR', url: 'https://cursor.astranov.eu', accent: '#c8d8ff', team: 'Cursor', provider: 'Cursor IDE', engine: 'cursor', comingSoon: true },
   ],
   _open: false,
+  _status: {},
+  _pinging: false,
 
-  init() {
+  async init() {
     this._bind();
+    await this._loadRegistry();
     this.renderLabs();
     this.refreshJob();
+    this._updateRaceBoard();
     this._maybeResumeFromQuery();
+    this._pingLabs();
   },
 
   _bind() {
@@ -11087,9 +11113,25 @@ const CodersHub = {
     document.getElementById('coders-save-job')?.addEventListener('click', () => this.saveJob());
     document.getElementById('coders-resume-job')?.addEventListener('click', () => this.resumeJob());
     document.getElementById('coders-clear-job')?.addEventListener('click', () => this.clearJob());
+    document.getElementById('coders-refresh-labs')?.addEventListener('click', () => {
+      this._pingLabs();
+      this.renderLabs();
+    });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && this._open) this.toggle(false);
     });
+  },
+
+  async _loadRegistry() {
+    try {
+      const r = await fetch(this.REGISTRY_URL, { cache: 'no-store' });
+      if (!r.ok) return;
+      const data = await r.json();
+      if (Array.isArray(data?.labs) && data.labs.length) {
+        this.LABS = data.labs;
+        if (data.continuationKey) this.CONTINUATION_KEY = data.continuationKey;
+      }
+    } catch (_) {}
   },
 
   toggle(open) {
@@ -11101,6 +11143,8 @@ const CodersHub = {
     if (this._open) {
       this.renderLabs();
       this.refreshJob();
+      this._updateRaceBoard();
+      this._pingLabs();
     }
   },
 
@@ -11118,6 +11162,7 @@ const CodersHub = {
       localStorage.setItem(this.CONTINUATION_KEY, JSON.stringify(payload));
     } catch (_) {}
     this.refreshJob();
+    this._updateRaceBoard();
   },
 
   buildJob() {
@@ -11146,7 +11191,7 @@ const CodersHub = {
     if (!meta || !preview) return;
     if (!job) {
       meta.textContent = 'No saved job';
-      preview.textContent = 'Save your CLI thread to hand off to ChatGPT, Claude, Grok, or another lab.';
+      preview.textContent = 'Save your CLI thread to hand off to any AI coder team.';
       return;
     }
     const when = job.updatedAt ? new Date(job.updatedAt).toLocaleString() : 'unknown';
@@ -11157,8 +11202,8 @@ const CodersHub = {
   saveJob() {
     const job = this.buildJob();
     this.writeJob(job);
-    ACIControl?.reply('Job saved — open any coder lab from the hub to continue.');
-    AciCli?.print('Coders hub · job saved for cross-lab handoff', 'ok');
+    ACIControl?.reply('Job saved — any coder team can pick it up from their lab.');
+    AciCli?.print('Coders race · job saved for cross-team handoff', 'ok');
     this.refreshJob();
   },
 
@@ -11174,7 +11219,7 @@ const CodersHub = {
       input.dispatchEvent(new Event('input'));
     }
     GlobeDeck?.expand?.('Coders — resumed job');
-    ACIControl?.reply(`Resumed job from ${job.fromLab || 'another lab'}. Send when ready.`);
+    ACIControl?.reply(`Resumed job from ${job.fromLab || 'another team'}. Send when ready.`);
     if (job.lastPrompt) void AciCoders?.handleMessage?.(job.lastPrompt);
     this.toggle(false);
   },
@@ -11182,11 +11227,20 @@ const CodersHub = {
   clearJob() {
     try { localStorage.removeItem(this.CONTINUATION_KEY); } catch (_) {}
     this.refreshJob();
+    this._updateRaceBoard();
     AciCli?.print('Coders hub · job cleared', 'dim');
   },
 
   openLab(lab) {
-    if (!lab?.url) return;
+    if (!lab?.url || lab.comingSoon) {
+      ACIControl?.reply(`${lab?.label || 'Lab'} subdomain not live yet — stay on Globe OS or try ChatGPT/Claude/Grok.`);
+      return;
+    }
+    const st = this._status[lab.id];
+    if (st === 'offline') {
+      ACIControl?.reply(`${lab.label} lab is offline right now — try another team or save job for later.`);
+      return;
+    }
     if (lab.id === 'main') {
       this.toggle(true);
       return;
@@ -11194,7 +11248,62 @@ const CodersHub = {
     this.writeJob(this.buildJob());
     const target = new URL(lab.url);
     target.searchParams.set('continue', '1');
+    target.searchParams.set('from', 'main');
     window.location.href = target.toString();
+  },
+
+  async _pingLabs() {
+    if (this._pinging) return;
+    this._pinging = true;
+    const badge = document.getElementById('coders-hub-trigger');
+    if (badge) badge.dataset.pinging = '1';
+    await Promise.all(this.LABS.map(async (lab) => {
+      if (lab.comingSoon || lab.id === 'main') {
+        this._status[lab.id] = lab.comingSoon ? 'soon' : 'live';
+        return;
+      }
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 6000);
+        const r = await fetch(lab.url, { method: 'HEAD', mode: 'no-cors', signal: ctrl.signal, cache: 'no-store' });
+        clearTimeout(t);
+        this._status[lab.id] = r.type === 'opaque' || r.ok ? 'live' : 'offline';
+      } catch (e) {
+        this._status[lab.id] = e?.name === 'AbortError' ? 'slow' : 'offline';
+      }
+    }));
+    this._pinging = false;
+    if (badge) delete badge.dataset.pinging;
+    this._updateTriggerBadge();
+    if (this._open) this.renderLabs();
+  },
+
+  _liveCount() {
+    return this.LABS.filter((l) => this._status[l.id] === 'live' || l.id === 'main').length;
+  },
+
+  _updateTriggerBadge() {
+    const badge = document.getElementById('coders-hub-live-count');
+    const n = this._liveCount();
+    if (badge) badge.textContent = String(n);
+  },
+
+  _updateRaceBoard() {
+    const el = document.getElementById('coders-race-board');
+    if (!el) return;
+    const job = this.readJob();
+    const live = this._liveCount();
+    const leader = job?.fromLab ? `Last handoff: ${job.fromLab}` : 'No handoff yet';
+    el.textContent = `${live} labs live · ${this.LABS.length} teams racing · ${leader}`;
+  },
+
+  _statusLabel(id) {
+    const s = this._status[id];
+    if (s === 'live') return { text: 'LIVE', cls: 'live' };
+    if (s === 'slow') return { text: 'SLOW', cls: 'slow' };
+    if (s === 'soon') return { text: 'SOON', cls: 'soon' };
+    if (s === 'offline') return { text: 'OFF', cls: 'off' };
+    return { text: '…', cls: 'check' };
   },
 
   renderLabs() {
@@ -11202,20 +11311,38 @@ const CodersHub = {
     if (!grid) return;
     grid.innerHTML = '';
     const host = (location.hostname || '').replace(/^www\./, '');
-    for (const lab of this.LABS) {
-      const here = host === 'astranov.eu' && lab.id === 'main'
-        || host === `${lab.id}.astranov.eu`;
+    const sorted = [...this.LABS].sort((a, b) => {
+      const rank = (id) => {
+        const s = this._status[id];
+        if (id === 'main') return 0;
+        if (s === 'live') return 1;
+        if (s === 'slow') return 2;
+        if (s === 'soon') return 4;
+        return 3;
+      };
+      return rank(a.id) - rank(b.id);
+    });
+    for (const lab of sorted) {
+      const here = (host === 'astranov.eu' && lab.id === 'main') || host === `${lab.id}.astranov.eu`;
+      const st = this._statusLabel(lab.id);
       const card = document.createElement('article');
-      card.className = 'coders-card' + (here ? ' is-here' : '');
+      card.className = 'coders-card' + (here ? ' is-here' : '') + (st.cls === 'off' ? ' is-off' : '');
       card.style.setProperty('--lab-accent', lab.accent || '#7eb8ff');
+      const team = lab.team ? `<span class="coders-team">${this._esc(lab.team)}</span>` : '';
+      const provider = lab.provider ? `<span class="coders-provider">${this._esc(lab.provider)}</span>` : '';
       card.innerHTML =
         `<div class="coders-card-top"><span class="coders-card-glyph">${this._esc(lab.glyph)}</span>`
-        + `<div><h2>${this._esc(lab.label)}</h2>${here ? '<span class="coders-here">You are here</span>' : ''}</div></div>`
-        + `<p class="coders-card-path">${this._esc(lab.url.replace('https://', ''))}</p>`
-        + `<button type="button" class="coders-open">${here ? 'Stay in lab' : 'Open lab'}</button>`;
-      card.querySelector('.coders-open')?.addEventListener('click', () => this.openLab(lab));
+        + `<div><h2>${this._esc(lab.label)}</h2>${team}${here ? '<span class="coders-here">You are here</span>' : ''}</div>`
+        + `<span class="coders-status coders-status-${st.cls}">${st.text}</span></div>`
+        + `${provider ? `<p class="coders-card-provider">${provider}</p>` : ''}`
+        + `<p class="coders-card-path">${this._esc((lab.url || '').replace('https://', ''))}</p>`
+        + `<button type="button" class="coders-open" ${lab.comingSoon || st.cls === 'off' ? 'disabled' : ''}>${here ? 'Stay in lab' : lab.comingSoon ? 'Coming soon' : st.cls === 'off' ? 'Offline' : 'Open lab'}</button>`;
+      const btn = card.querySelector('.coders-open');
+      if (btn && !btn.disabled) btn.addEventListener('click', () => this.openLab(lab));
       grid.append(card);
     }
+    this._updateRaceBoard();
+    this._updateTriggerBadge();
   },
 
   _maybeResumeFromQuery() {
@@ -11223,8 +11350,11 @@ const CodersHub = {
     if (!params.has('continue')) return;
     const job = this.readJob();
     if (!job) return;
+    const from = params.get('from');
+    if (from) AciCli?.print?.(`Handoff from ${from} lab — resuming job`, 'ok');
     window.setTimeout(() => this.resumeJob(), 700);
     params.delete('continue');
+    params.delete('from');
     const clean = `${location.pathname}${params.toString() ? '?' + params : ''}${location.hash}`;
     history.replaceState({}, '', clean);
   },

@@ -587,6 +587,10 @@ const AciCoders = {
       AuditorPortal?.syncGlobe?.();
       return 'Globe data refreshed — yachts · vendors · drivers · auditors';
     }
+    if (/coders?\s*hub|coder\s*labs?|ai\s*teams?|open\s*coders?|labs?\s*race|ανταγωνισμ|ομάδες/.test(low)) {
+      CodersHub?.toggle?.(true);
+      return 'Coders Hub open — ' + (CodersHub?.LABS?.length || 0) + ' AI teams racing on subdomains';
+    }
     if (/city\s*view|zoom\s*in|shops|καταστήμα/.test(low)) {
       enterCityView?.();
       return 'City view — vendors and drivers on map';

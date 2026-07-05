@@ -1,22 +1,29 @@
-// === CODERS HUB — cross-lab handoff (ported from chatgpt.astranov.eu)
+// === CODERS HUB — multi-team race board + cross-lab handoff
 const CodersHub = {
   CONTINUATION_KEY: 'astranov:job-continuation',
+  REGISTRY_URL: '/coders-labs.json',
   LABS: [
-    { id: 'main', label: 'Globe OS', glyph: '◈', url: 'https://astranov.eu', accent: '#7eb8ff' },
-    { id: 'chatgpt', label: 'ChatGPT', glyph: 'CG', url: 'https://chatgpt.astranov.eu', accent: '#74c0fc' },
-    { id: 'claude', label: 'Claude', glyph: 'CL', url: 'https://claude.astranov.eu', accent: '#d4a574' },
-    { id: 'grok', label: 'Grok', glyph: 'GK', url: 'https://grok.astranov.eu', accent: '#e8e8e8' },
-    { id: 'gemini', label: 'Gemini', glyph: 'GM', url: 'https://gemini.astranov.eu', accent: '#8ab4f8' },
-    { id: 'deepseek', label: 'DeepSeek', glyph: 'DS', url: 'https://deepseek.astranov.eu', accent: '#5eead4' },
-    { id: 'composer', label: 'Composer', glyph: 'CP', url: 'https://composer.astranov.eu', accent: '#a8c8ff' },
+    { id: 'main', label: 'Globe OS', glyph: '◈', url: 'https://astranov.eu', accent: '#7eb8ff', team: 'Astranov', provider: 'Grok Build', engine: 'grok' },
+    { id: 'grok', label: 'Grok', glyph: 'GK', url: 'https://grok.astranov.eu', accent: '#e8e8e8', team: 'xAI', provider: 'Grok', engine: 'grok' },
+    { id: 'chatgpt', label: 'ChatGPT', glyph: 'CG', url: 'https://chatgpt.astranov.eu', accent: '#74c0fc', team: 'OpenAI', provider: 'GPT-4o mini', engine: 'openai-mini' },
+    { id: 'claude', label: 'Claude', glyph: 'CL', url: 'https://claude.astranov.eu', accent: '#d4a574', team: 'Anthropic', provider: 'Claude', engine: 'claude' },
+    { id: 'composer', label: 'Composer', glyph: 'CP', url: 'https://composer.astranov.eu', accent: '#a8c8ff', team: 'Cursor', provider: 'Composer', engine: 'composer' },
+    { id: 'gemini', label: 'Gemini', glyph: 'GM', url: 'https://gemini.astranov.eu', accent: '#8ab4f8', team: 'Google', provider: 'Gemini', engine: 'gemini' },
+    { id: 'deepseek', label: 'DeepSeek', glyph: 'DS', url: 'https://deepseek.astranov.eu', accent: '#5eead4', team: 'DeepSeek', provider: 'DeepSeek', engine: 'deepseek' },
+    { id: 'cursor', label: 'Cursor', glyph: 'CR', url: 'https://cursor.astranov.eu', accent: '#c8d8ff', team: 'Cursor', provider: 'Cursor IDE', engine: 'cursor', comingSoon: true },
   ],
   _open: false,
+  _status: {},
+  _pinging: false,
 
-  init() {
+  async init() {
     this._bind();
+    await this._loadRegistry();
     this.renderLabs();
     this.refreshJob();
+    this._updateRaceBoard();
     this._maybeResumeFromQuery();
+    this._pingLabs();
   },
 
   _bind() {
@@ -25,9 +32,25 @@ const CodersHub = {
     document.getElementById('coders-save-job')?.addEventListener('click', () => this.saveJob());
     document.getElementById('coders-resume-job')?.addEventListener('click', () => this.resumeJob());
     document.getElementById('coders-clear-job')?.addEventListener('click', () => this.clearJob());
+    document.getElementById('coders-refresh-labs')?.addEventListener('click', () => {
+      this._pingLabs();
+      this.renderLabs();
+    });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && this._open) this.toggle(false);
     });
+  },
+
+  async _loadRegistry() {
+    try {
+      const r = await fetch(this.REGISTRY_URL, { cache: 'no-store' });
+      if (!r.ok) return;
+      const data = await r.json();
+      if (Array.isArray(data?.labs) && data.labs.length) {
+        this.LABS = data.labs;
+        if (data.continuationKey) this.CONTINUATION_KEY = data.continuationKey;
+      }
+    } catch (_) {}
   },
 
   toggle(open) {
@@ -39,6 +62,8 @@ const CodersHub = {
     if (this._open) {
       this.renderLabs();
       this.refreshJob();
+      this._updateRaceBoard();
+      this._pingLabs();
     }
   },
 
@@ -56,6 +81,7 @@ const CodersHub = {
       localStorage.setItem(this.CONTINUATION_KEY, JSON.stringify(payload));
     } catch (_) {}
     this.refreshJob();
+    this._updateRaceBoard();
   },
 
   buildJob() {
@@ -84,7 +110,7 @@ const CodersHub = {
     if (!meta || !preview) return;
     if (!job) {
       meta.textContent = 'No saved job';
-      preview.textContent = 'Save your CLI thread to hand off to ChatGPT, Claude, Grok, or another lab.';
+      preview.textContent = 'Save your CLI thread to hand off to any AI coder team.';
       return;
     }
     const when = job.updatedAt ? new Date(job.updatedAt).toLocaleString() : 'unknown';
@@ -95,8 +121,8 @@ const CodersHub = {
   saveJob() {
     const job = this.buildJob();
     this.writeJob(job);
-    ACIControl?.reply('Job saved — open any coder lab from the hub to continue.');
-    AciCli?.print('Coders hub · job saved for cross-lab handoff', 'ok');
+    ACIControl?.reply('Job saved — any coder team can pick it up from their lab.');
+    AciCli?.print('Coders race · job saved for cross-team handoff', 'ok');
     this.refreshJob();
   },
 
@@ -112,7 +138,7 @@ const CodersHub = {
       input.dispatchEvent(new Event('input'));
     }
     GlobeDeck?.expand?.('Coders — resumed job');
-    ACIControl?.reply(`Resumed job from ${job.fromLab || 'another lab'}. Send when ready.`);
+    ACIControl?.reply(`Resumed job from ${job.fromLab || 'another team'}. Send when ready.`);
     if (job.lastPrompt) void AciCoders?.handleMessage?.(job.lastPrompt);
     this.toggle(false);
   },
@@ -120,11 +146,20 @@ const CodersHub = {
   clearJob() {
     try { localStorage.removeItem(this.CONTINUATION_KEY); } catch (_) {}
     this.refreshJob();
+    this._updateRaceBoard();
     AciCli?.print('Coders hub · job cleared', 'dim');
   },
 
   openLab(lab) {
-    if (!lab?.url) return;
+    if (!lab?.url || lab.comingSoon) {
+      ACIControl?.reply(`${lab?.label || 'Lab'} subdomain not live yet — stay on Globe OS or try ChatGPT/Claude/Grok.`);
+      return;
+    }
+    const st = this._status[lab.id];
+    if (st === 'offline') {
+      ACIControl?.reply(`${lab.label} lab is offline right now — try another team or save job for later.`);
+      return;
+    }
     if (lab.id === 'main') {
       this.toggle(true);
       return;
@@ -132,7 +167,62 @@ const CodersHub = {
     this.writeJob(this.buildJob());
     const target = new URL(lab.url);
     target.searchParams.set('continue', '1');
+    target.searchParams.set('from', 'main');
     window.location.href = target.toString();
+  },
+
+  async _pingLabs() {
+    if (this._pinging) return;
+    this._pinging = true;
+    const badge = document.getElementById('coders-hub-trigger');
+    if (badge) badge.dataset.pinging = '1';
+    await Promise.all(this.LABS.map(async (lab) => {
+      if (lab.comingSoon || lab.id === 'main') {
+        this._status[lab.id] = lab.comingSoon ? 'soon' : 'live';
+        return;
+      }
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 6000);
+        const r = await fetch(lab.url, { method: 'HEAD', mode: 'no-cors', signal: ctrl.signal, cache: 'no-store' });
+        clearTimeout(t);
+        this._status[lab.id] = r.type === 'opaque' || r.ok ? 'live' : 'offline';
+      } catch (e) {
+        this._status[lab.id] = e?.name === 'AbortError' ? 'slow' : 'offline';
+      }
+    }));
+    this._pinging = false;
+    if (badge) delete badge.dataset.pinging;
+    this._updateTriggerBadge();
+    if (this._open) this.renderLabs();
+  },
+
+  _liveCount() {
+    return this.LABS.filter((l) => this._status[l.id] === 'live' || l.id === 'main').length;
+  },
+
+  _updateTriggerBadge() {
+    const badge = document.getElementById('coders-hub-live-count');
+    const n = this._liveCount();
+    if (badge) badge.textContent = String(n);
+  },
+
+  _updateRaceBoard() {
+    const el = document.getElementById('coders-race-board');
+    if (!el) return;
+    const job = this.readJob();
+    const live = this._liveCount();
+    const leader = job?.fromLab ? `Last handoff: ${job.fromLab}` : 'No handoff yet';
+    el.textContent = `${live} labs live · ${this.LABS.length} teams racing · ${leader}`;
+  },
+
+  _statusLabel(id) {
+    const s = this._status[id];
+    if (s === 'live') return { text: 'LIVE', cls: 'live' };
+    if (s === 'slow') return { text: 'SLOW', cls: 'slow' };
+    if (s === 'soon') return { text: 'SOON', cls: 'soon' };
+    if (s === 'offline') return { text: 'OFF', cls: 'off' };
+    return { text: '…', cls: 'check' };
   },
 
   renderLabs() {
@@ -140,20 +230,38 @@ const CodersHub = {
     if (!grid) return;
     grid.innerHTML = '';
     const host = (location.hostname || '').replace(/^www\./, '');
-    for (const lab of this.LABS) {
-      const here = host === 'astranov.eu' && lab.id === 'main'
-        || host === `${lab.id}.astranov.eu`;
+    const sorted = [...this.LABS].sort((a, b) => {
+      const rank = (id) => {
+        const s = this._status[id];
+        if (id === 'main') return 0;
+        if (s === 'live') return 1;
+        if (s === 'slow') return 2;
+        if (s === 'soon') return 4;
+        return 3;
+      };
+      return rank(a.id) - rank(b.id);
+    });
+    for (const lab of sorted) {
+      const here = (host === 'astranov.eu' && lab.id === 'main') || host === `${lab.id}.astranov.eu`;
+      const st = this._statusLabel(lab.id);
       const card = document.createElement('article');
-      card.className = 'coders-card' + (here ? ' is-here' : '');
+      card.className = 'coders-card' + (here ? ' is-here' : '') + (st.cls === 'off' ? ' is-off' : '');
       card.style.setProperty('--lab-accent', lab.accent || '#7eb8ff');
+      const team = lab.team ? `<span class="coders-team">${this._esc(lab.team)}</span>` : '';
+      const provider = lab.provider ? `<span class="coders-provider">${this._esc(lab.provider)}</span>` : '';
       card.innerHTML =
         `<div class="coders-card-top"><span class="coders-card-glyph">${this._esc(lab.glyph)}</span>`
-        + `<div><h2>${this._esc(lab.label)}</h2>${here ? '<span class="coders-here">You are here</span>' : ''}</div></div>`
-        + `<p class="coders-card-path">${this._esc(lab.url.replace('https://', ''))}</p>`
-        + `<button type="button" class="coders-open">${here ? 'Stay in lab' : 'Open lab'}</button>`;
-      card.querySelector('.coders-open')?.addEventListener('click', () => this.openLab(lab));
+        + `<div><h2>${this._esc(lab.label)}</h2>${team}${here ? '<span class="coders-here">You are here</span>' : ''}</div>`
+        + `<span class="coders-status coders-status-${st.cls}">${st.text}</span></div>`
+        + `${provider ? `<p class="coders-card-provider">${provider}</p>` : ''}`
+        + `<p class="coders-card-path">${this._esc((lab.url || '').replace('https://', ''))}</p>`
+        + `<button type="button" class="coders-open" ${lab.comingSoon || st.cls === 'off' ? 'disabled' : ''}>${here ? 'Stay in lab' : lab.comingSoon ? 'Coming soon' : st.cls === 'off' ? 'Offline' : 'Open lab'}</button>`;
+      const btn = card.querySelector('.coders-open');
+      if (btn && !btn.disabled) btn.addEventListener('click', () => this.openLab(lab));
       grid.append(card);
     }
+    this._updateRaceBoard();
+    this._updateTriggerBadge();
   },
 
   _maybeResumeFromQuery() {
@@ -161,8 +269,11 @@ const CodersHub = {
     if (!params.has('continue')) return;
     const job = this.readJob();
     if (!job) return;
+    const from = params.get('from');
+    if (from) AciCli?.print?.(`Handoff from ${from} lab — resuming job`, 'ok');
     window.setTimeout(() => this.resumeJob(), 700);
     params.delete('continue');
+    params.delete('from');
     const clean = `${location.pathname}${params.toString() ? '?' + params : ''}${location.hash}`;
     history.replaceState({}, '', clean);
   },

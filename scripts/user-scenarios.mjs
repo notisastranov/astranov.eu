@@ -254,7 +254,7 @@ const SCENARIOS = [
         return { saved: !!job?.fromLab, cards, hasChatgpt: !!CodersHub.LABS.find(l => l.id === 'chatgpt') };
       });
       if (!r.saved) throw new Error('job save failed');
-      if (r.cards < 5) throw new Error('coders hub labs missing: ' + r.cards);
+      if (r.cards < 8) throw new Error('coders hub labs missing: ' + r.cards);
       if (!r.hasChatgpt) throw new Error('chatgpt lab missing');
       return r;
     },
