@@ -44,7 +44,7 @@ let _lastVoiceCommitT = 0;
 let _voiceDraft = '';
 window._handsFreeVoice = false;
 
-const VOICE_SILENCE_MS = 900;
+const VOICE_SILENCE_MS = 650;
 let _voiceLangLocked = false;
 let _recognitionPaused = false;
 let _listenRestartAt = 0;
@@ -423,14 +423,16 @@ async function submitVoiceToCli(transcript) {
 
   try {
     if (gen !== _voiceGen) return;
-    const codersIntent = AciCoders?.isCodersIntent?.(line) || /^coders?\b/i.test(line);
-    if (codersIntent && window.AciCoders) {
-      const msg = /^coders?\b/i.test(line) ? line : ('coders ' + line);
-      await AciCoders.handleMessage(msg, { fromVoice: true });
+    const low = line.toLowerCase();
+    const cliCmd = /^(order|locate|city|theme|dark|bright|batch|vhf|phone|drive|logout|login|sign|help|ping)\b/.test(low);
+    if (!cliCmd && !voiceWantsAciControl(line) && window.AciCoders) {
+      await AciCoders.chat(line, { fromVoice: true });
     } else if (voiceWantsAciControl(line)) {
       await ACIControl.handle(line, { fromVoice: true });
     } else if (window.AciCli) {
       await AciCli.run(line, { fromVoice: true });
+    } else if (window.AciCoders) {
+      await AciCoders.chat(line, { fromVoice: true });
     } else {
       await ACIControl.handle(line, { fromVoice: true });
     }
@@ -650,13 +652,24 @@ function startVoiceOptions() {
     _voiceLangLocked = true;
   }
   AciCli?.print('🎧 listening — speak, pause ~1s, I reply in ribbon + voice', 'dim');
-  ACIControl?.reply('Listening — speak now');
+  ACIControl?.reply('Grok listening — speak now');
   const input = document.getElementById('aci-cli-in');
-  if (input) input.placeholder = '🎧 listening — pause to send';
+  if (input) input.placeholder = '🎧 Grok listening — pause to send';
   AstranovSession?.push?.();
   syncHandsFreeBtn();
-  speak('Listening.', () => scheduleVoiceResume(), false);
+  speak('Grok listening.', () => scheduleVoiceResume(), false);
 }
+
+function primeGrokVoice() {
+  if (window._handsFreeVoice || isListening) return;
+  const row = document.getElementById('globe-deck-input-row');
+  if (!row || row.dataset.grokPrimed) return;
+  row.dataset.grokPrimed = '1';
+  row.addEventListener('click', () => {
+    if (!window._handsFreeVoice && !isListening && !Voice?.speaking) startVoiceOptions();
+  }, { once: true, passive: true });
+}
+window.primeGrokVoice = primeGrokVoice;
 
 function stopHandsFree() {
   window._handsFreeVoice = false;

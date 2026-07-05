@@ -11,7 +11,7 @@ const AciCli = {
     CliRibbon?.setActive?.('Coders');
     const input = document.getElementById('aci-cli-in');
     if (input) {
-      input.placeholder = 'Talk to Coders — type or tap 🎧 · Enter to send';
+      input.placeholder = 'Talk to Grok — type or tap 🎧 · Enter to send';
     }
   },
 
@@ -210,9 +210,9 @@ const AciCli = {
     }
     this._lastSentLine = line;
     this._lastSendAt = now;
-    GlobeDeck?.onUserMessage?.('Coders — ' + line.slice(0, 40));
-    GlobeDeck?.setThinking?.(true, 'Coders…');
-    GlobeDeck?.setPreview?.('Coders…');
+    GlobeDeck?.onUserMessage?.('Grok — ' + line.slice(0, 40));
+    GlobeDeck?.setThinking?.(true, 'Grok…');
+    GlobeDeck?.setPreview?.('Grok…');
     GlobeDeck?.clearCompose?.();
     this.run(line);
     return true;

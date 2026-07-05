@@ -8,7 +8,7 @@ const AciCoders = {
   lastSummonId: null,
   engine: 'grok',
   armed: false,
-  fallbackPrefs: { force: null, skip: [] },
+  fallbackPrefs: { force: 'xai', skip: [] },
   _pollTimer: null,
   _listenTimer: null,
   _evolveTimer: null,
@@ -30,8 +30,11 @@ const AciCoders = {
       const p = JSON.parse(localStorage.getItem('aci-coders-prefs') || '{}');
       if (p.skip) this.fallbackPrefs.skip = p.skip;
       if (p.force) this.fallbackPrefs.force = p.force;
+      else this.fallbackPrefs.force = 'xai';
       if (p.causeJudge) this.fallbackPrefs.causeJudge = p.causeJudge;
-    } catch (_) {}
+    } catch (_) {
+      this.fallbackPrefs.force = 'xai';
+    }
   },
 
   savePrefs() {
@@ -231,7 +234,7 @@ const AciCoders = {
 
     const input = document.getElementById('aci-cli-in');
     if (input) {
-      input.placeholder = 'Talk to Coders — type or tap 🎧 · Enter to send';
+      input.placeholder = 'Talk to Grok — type or tap 🎧 · Enter to send';
       input.classList.remove('voice-live');
       if (opts.focus !== false) {
         setTimeout(() => input.focus(), 60);
@@ -251,8 +254,8 @@ const AciCoders = {
     if (!this._sessionWelcomed || opts.ping) {
       if (!this._sessionWelcomed) this._sessionWelcomed = true;
       const line = opts.ping
-        ? 'Coders still here — keep talking (type or 🎧)'
-        : 'Coders ready — talk normally here. Type or tap 🎧 and say anything.';
+        ? 'Grok still here — keep talking (type or 🎧)'
+        : 'Talk straight to Grok — type or tap 🎧 and speak. I reply in ribbon + voice.';
       AciCli?.print(line, 'ok');
       ACIControl?.reply(line.slice(0, 200));
       if (opts.fromVoice && window._handsFreeVoice && Voice?.maySpeak?.()) {
@@ -489,9 +492,10 @@ const AciCoders = {
 
     const spoken = ArcangeloDialect?.repairOutbound?.(reply, 'reply') ?? reply;
     if (!r.pending) {
-      const wantVoice = window._handsFreeVoice || voiceSessionActive || Voice?.maySpeak?.();
+      const wantVoice = window._handsFreeVoice || voiceSessionActive;
       if (wantVoice && Voice.shouldSpeak(spoken)) {
-        speak(spoken.slice(0, 120), () => resumeListening?.(), false);
+        voiceEnabled = true;
+        speak(spoken.slice(0, 160), () => resumeListening?.(), false);
       } else if (window._handsFreeVoice || voiceSessionActive) {
         scheduleVoiceResume?.();
       }
@@ -550,8 +554,8 @@ const AciCoders = {
         : 'Yes — I\'m here. Coders is online. Tell me what to build, fix, or check.';
     }
     return greek
-      ? 'Coders online — δοκίμασε ξανά σε λίγο ή πάτα G για σύνδεση.'
-      : 'Coders online — repeat your message in a moment, or tap G to sign in.';
+      ? 'Grok εδώ — δοκίμασε ξανά ή πάτα 🎧 να μιλήσεις.'
+      : 'Grok here — say it again or tap 🎧 to talk.';
   },
 
   isBuildTask(m) {
@@ -739,7 +743,7 @@ const AciCoders = {
       GlobeDeck?.setThinking?.(false);
     }, 55000);
     try {
-      GlobeDeck?.setThinking(true, 'Coders…');
+      GlobeDeck?.setThinking(true, 'Grok…');
       if (/^city\s*(view|level|map)?$/i.test(m.trim())) {
         const city = await Promise.race([
           enterCityView?.(),
@@ -776,30 +780,14 @@ const AciCoders = {
         return this._applyResponse({ text: pingReply, via: 'local/ping' }, m);
       }
 
-      if (!build && AiRouter?.shouldRoute?.(m, opts)) {
-        const ar = await AiRouter.ask(m, {
-          history: this.history.slice(-6),
-          timeoutMs: GlobeDeck?._isMobileDeck?.() ? 18000 : 24000,
-        });
-        const arText = String(ar.text || '').trim();
-        if (arText && !this.isFailedReply(arText)) {
-          GlobeDeck?.setThinking(false);
-          return this._applyResponse({
-            text: arText,
-            via: 'ai-router/' + (ar.provider || AiRouter.current()?.id),
-            action: ar.action,
-          }, m);
-        }
-        if (ar.error && AciCli) AciCli.print('ai-router: ' + String(ar.error).slice(0, 80), 'dim');
-      }
-
+      const grokPrefs = { ...this.fallbackPrefs, force: this.fallbackPrefs.force || 'xai' };
       let r = await AciCli.api({
         mode: 'coders_chat',
         message: m,
-        fast,
-        history: this.history.slice(fast ? -4 : -8),
-        fallback_prefs: this.fallbackPrefs,
-      }, { timeoutMs: fast ? 28000 : 55000 });
+        fast: true,
+        history: this.history.slice(-8),
+        fallback_prefs: grokPrefs,
+      }, { timeoutMs: GlobeDeck?._isMobileDeck?.() ? 32000 : 38000 });
 
       let text = String(r.text || r.response || '').trim();
       if (this.isFailedReply(text)) text = '';

@@ -104,7 +104,9 @@ setTimeout(() => {
     ZoomTiers?.goTo?.('global', false);
   }
   CosmicZoom.update(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
-  ACIControl?.reply?.('Earth ready · tap 🎯 Locate · type in CLI for AI');
+  ACIControl?.reply?.('Earth ready · tap 🎧 talk straight to Grok');
+  primeGrokVoice?.();
+  setTimeout(() => AciCoders?.enterSession?.({ ping: false, focus: false }), 2500);
   const zl = document.getElementById('zoom-label');
   if (zl) zl.textContent = 'GLOBAL · tap 🎯 Locate for city map';
 }, 1200);

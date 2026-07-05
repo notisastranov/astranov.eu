@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260705200801" />
+<meta name="astranov-build" content="20260705233458" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -787,7 +787,7 @@
       <div id="globe-deck-input-row">
         <span id="aci-cli-prompt">›</span>
         <form id="aci-cli-form" action="#" autocomplete="off">
-          <textarea id="aci-cli-in" name="cli" rows="1" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" inputmode="text" placeholder="Talk to Coders — type or tap 🎧 · Enter to send"></textarea>
+          <textarea id="aci-cli-in" name="cli" rows="1" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" inputmode="text" placeholder="Talk to Grok — type or tap 🎧 · Enter to send"></textarea>
         </form>
         <button id="globe-deck-send" class="deck-input-btn" type="submit" form="aci-cli-form" title="Send command">➡</button>
       </div>
@@ -2092,7 +2092,14 @@ const Auth = {
         this.closeLoginModal();
         this.applyUser();
         this.refreshAuthority();
-        ACIControl?.reply('Signed in · welcome to Astranov');
+        ACIControl?.reply('Signed in · tap 🎧 talk straight to Grok');
+        setTimeout(() => {
+          primeGrokVoice?.();
+          const owner = (session.user.email || '').toLowerCase() === this.OWNER_EMAIL.toLowerCase();
+          if (owner && typeof startVoiceOptions === 'function' && !window._handsFreeVoice) {
+            try { startVoiceOptions(); } catch (_) {}
+          }
+        }, 800);
         try {
           const clean = location.pathname + (location.search || '').replace(/[?&]code=[^&]*/g, '').replace(/[?&]error=[^&]*/g, '').replace(/\?&/, '?').replace(/\?$/, '');
           if (location.search || location.hash) history.replaceState(null, '', clean || '/');
@@ -3313,7 +3320,7 @@ const CliRibbon = {
   _kind: 'idle',
 
   TASK_LABEL: {
-    coders: 'Coders',
+    coders: 'Grok',
     commerce: 'Shops',
     batch: 'Batch',
     radio: 'PMR',
@@ -5133,7 +5140,7 @@ const AciCli = {
     CliRibbon?.setActive?.('Coders');
     const input = document.getElementById('aci-cli-in');
     if (input) {
-      input.placeholder = 'Talk to Coders — type or tap 🎧 · Enter to send';
+      input.placeholder = 'Talk to Grok — type or tap 🎧 · Enter to send';
     }
   },
 
@@ -5332,9 +5339,9 @@ const AciCli = {
     }
     this._lastSentLine = line;
     this._lastSendAt = now;
-    GlobeDeck?.onUserMessage?.('Coders — ' + line.slice(0, 40));
-    GlobeDeck?.setThinking?.(true, 'Coders…');
-    GlobeDeck?.setPreview?.('Coders…');
+    GlobeDeck?.onUserMessage?.('Grok — ' + line.slice(0, 40));
+    GlobeDeck?.setThinking?.(true, 'Grok…');
+    GlobeDeck?.setPreview?.('Grok…');
     GlobeDeck?.clearCompose?.();
     this.run(line);
     return true;
@@ -5788,7 +5795,7 @@ const AciCoders = {
   lastSummonId: null,
   engine: 'grok',
   armed: false,
-  fallbackPrefs: { force: null, skip: [] },
+  fallbackPrefs: { force: 'xai', skip: [] },
   _pollTimer: null,
   _listenTimer: null,
   _evolveTimer: null,
@@ -5810,8 +5817,11 @@ const AciCoders = {
       const p = JSON.parse(localStorage.getItem('aci-coders-prefs') || '{}');
       if (p.skip) this.fallbackPrefs.skip = p.skip;
       if (p.force) this.fallbackPrefs.force = p.force;
+      else this.fallbackPrefs.force = 'xai';
       if (p.causeJudge) this.fallbackPrefs.causeJudge = p.causeJudge;
-    } catch (_) {}
+    } catch (_) {
+      this.fallbackPrefs.force = 'xai';
+    }
   },
 
   savePrefs() {
@@ -6011,7 +6021,7 @@ const AciCoders = {
 
     const input = document.getElementById('aci-cli-in');
     if (input) {
-      input.placeholder = 'Talk to Coders — type or tap 🎧 · Enter to send';
+      input.placeholder = 'Talk to Grok — type or tap 🎧 · Enter to send';
       input.classList.remove('voice-live');
       if (opts.focus !== false) {
         setTimeout(() => input.focus(), 60);
@@ -6031,8 +6041,8 @@ const AciCoders = {
     if (!this._sessionWelcomed || opts.ping) {
       if (!this._sessionWelcomed) this._sessionWelcomed = true;
       const line = opts.ping
-        ? 'Coders still here — keep talking (type or 🎧)'
-        : 'Coders ready — talk normally here. Type or tap 🎧 and say anything.';
+        ? 'Grok still here — keep talking (type or 🎧)'
+        : 'Talk straight to Grok — type or tap 🎧 and speak. I reply in ribbon + voice.';
       AciCli?.print(line, 'ok');
       ACIControl?.reply(line.slice(0, 200));
       if (opts.fromVoice && window._handsFreeVoice && Voice?.maySpeak?.()) {
@@ -6269,9 +6279,10 @@ const AciCoders = {
 
     const spoken = ArcangeloDialect?.repairOutbound?.(reply, 'reply') ?? reply;
     if (!r.pending) {
-      const wantVoice = window._handsFreeVoice || voiceSessionActive || Voice?.maySpeak?.();
+      const wantVoice = window._handsFreeVoice || voiceSessionActive;
       if (wantVoice && Voice.shouldSpeak(spoken)) {
-        speak(spoken.slice(0, 120), () => resumeListening?.(), false);
+        voiceEnabled = true;
+        speak(spoken.slice(0, 160), () => resumeListening?.(), false);
       } else if (window._handsFreeVoice || voiceSessionActive) {
         scheduleVoiceResume?.();
       }
@@ -6330,8 +6341,8 @@ const AciCoders = {
         : 'Yes — I\'m here. Coders is online. Tell me what to build, fix, or check.';
     }
     return greek
-      ? 'Coders online — δοκίμασε ξανά σε λίγο ή πάτα G για σύνδεση.'
-      : 'Coders online — repeat your message in a moment, or tap G to sign in.';
+      ? 'Grok εδώ — δοκίμασε ξανά ή πάτα 🎧 να μιλήσεις.'
+      : 'Grok here — say it again or tap 🎧 to talk.';
   },
 
   isBuildTask(m) {
@@ -6519,7 +6530,7 @@ const AciCoders = {
       GlobeDeck?.setThinking?.(false);
     }, 55000);
     try {
-      GlobeDeck?.setThinking(true, 'Coders…');
+      GlobeDeck?.setThinking(true, 'Grok…');
       if (/^city\s*(view|level|map)?$/i.test(m.trim())) {
         const city = await Promise.race([
           enterCityView?.(),
@@ -6556,30 +6567,14 @@ const AciCoders = {
         return this._applyResponse({ text: pingReply, via: 'local/ping' }, m);
       }
 
-      if (!build && AiRouter?.shouldRoute?.(m, opts)) {
-        const ar = await AiRouter.ask(m, {
-          history: this.history.slice(-6),
-          timeoutMs: GlobeDeck?._isMobileDeck?.() ? 18000 : 24000,
-        });
-        const arText = String(ar.text || '').trim();
-        if (arText && !this.isFailedReply(arText)) {
-          GlobeDeck?.setThinking(false);
-          return this._applyResponse({
-            text: arText,
-            via: 'ai-router/' + (ar.provider || AiRouter.current()?.id),
-            action: ar.action,
-          }, m);
-        }
-        if (ar.error && AciCli) AciCli.print('ai-router: ' + String(ar.error).slice(0, 80), 'dim');
-      }
-
+      const grokPrefs = { ...this.fallbackPrefs, force: this.fallbackPrefs.force || 'xai' };
       let r = await AciCli.api({
         mode: 'coders_chat',
         message: m,
-        fast,
-        history: this.history.slice(fast ? -4 : -8),
-        fallback_prefs: this.fallbackPrefs,
-      }, { timeoutMs: fast ? 28000 : 55000 });
+        fast: true,
+        history: this.history.slice(-8),
+        fallback_prefs: grokPrefs,
+      }, { timeoutMs: GlobeDeck?._isMobileDeck?.() ? 32000 : 38000 });
 
       let text = String(r.text || r.response || '').trim();
       if (this.isFailedReply(text)) text = '';
@@ -11479,6 +11474,7 @@ window.openCodersHub = () => CodersHub.toggle(true);
 // === AI ROUTER — OpenAI Mini / Astranov Cycle / Groq / Gemini (shared with coder labs)
 const AiRouter = {
   PROVIDERS: [
+    { id: 'grok', label: 'Grok', short: 'GK' },
     { id: 'astranov', label: 'Cycle', short: 'AV' },
     { id: 'openai-mini', label: 'OpenAI', short: 'AI' },
     { id: 'groq', label: 'Groq', short: 'GQ' },
@@ -11486,7 +11482,7 @@ const AiRouter = {
     { id: 'deepseek', label: 'DeepSeek', short: 'DS' },
   ],
   LAB_ENGINES: {
-    main: 'astranov',
+    main: 'grok',
     chatgpt: 'openai-mini',
     grok: 'astranov',
     gemini: 'gemini',
@@ -11494,7 +11490,7 @@ const AiRouter = {
     claude: 'astranov',
     composer: 'astranov',
   },
-  _provider: 'astranov',
+  _provider: 'grok',
   _sessionId: null,
 
   init() {
@@ -16872,7 +16868,7 @@ let _lastVoiceCommitT = 0;
 let _voiceDraft = '';
 window._handsFreeVoice = false;
 
-const VOICE_SILENCE_MS = 900;
+const VOICE_SILENCE_MS = 650;
 let _voiceLangLocked = false;
 let _recognitionPaused = false;
 let _listenRestartAt = 0;
@@ -17251,14 +17247,16 @@ async function submitVoiceToCli(transcript) {
 
   try {
     if (gen !== _voiceGen) return;
-    const codersIntent = AciCoders?.isCodersIntent?.(line) || /^coders?\b/i.test(line);
-    if (codersIntent && window.AciCoders) {
-      const msg = /^coders?\b/i.test(line) ? line : ('coders ' + line);
-      await AciCoders.handleMessage(msg, { fromVoice: true });
+    const low = line.toLowerCase();
+    const cliCmd = /^(order|locate|city|theme|dark|bright|batch|vhf|phone|drive|logout|login|sign|help|ping)\b/.test(low);
+    if (!cliCmd && !voiceWantsAciControl(line) && window.AciCoders) {
+      await AciCoders.chat(line, { fromVoice: true });
     } else if (voiceWantsAciControl(line)) {
       await ACIControl.handle(line, { fromVoice: true });
     } else if (window.AciCli) {
       await AciCli.run(line, { fromVoice: true });
+    } else if (window.AciCoders) {
+      await AciCoders.chat(line, { fromVoice: true });
     } else {
       await ACIControl.handle(line, { fromVoice: true });
     }
@@ -17478,13 +17476,24 @@ function startVoiceOptions() {
     _voiceLangLocked = true;
   }
   AciCli?.print('🎧 listening — speak, pause ~1s, I reply in ribbon + voice', 'dim');
-  ACIControl?.reply('Listening — speak now');
+  ACIControl?.reply('Grok listening — speak now');
   const input = document.getElementById('aci-cli-in');
-  if (input) input.placeholder = '🎧 listening — pause to send';
+  if (input) input.placeholder = '🎧 Grok listening — pause to send';
   AstranovSession?.push?.();
   syncHandsFreeBtn();
-  speak('Listening.', () => scheduleVoiceResume(), false);
+  speak('Grok listening.', () => scheduleVoiceResume(), false);
 }
+
+function primeGrokVoice() {
+  if (window._handsFreeVoice || isListening) return;
+  const row = document.getElementById('globe-deck-input-row');
+  if (!row || row.dataset.grokPrimed) return;
+  row.dataset.grokPrimed = '1';
+  row.addEventListener('click', () => {
+    if (!window._handsFreeVoice && !isListening && !Voice?.speaking) startVoiceOptions();
+  }, { once: true, passive: true });
+}
+window.primeGrokVoice = primeGrokVoice;
 
 function stopHandsFree() {
   window._handsFreeVoice = false;
@@ -17720,7 +17729,9 @@ setTimeout(() => {
     ZoomTiers?.goTo?.('global', false);
   }
   CosmicZoom.update(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
-  ACIControl?.reply?.('Earth ready · tap 🎯 Locate · type in CLI for AI');
+  ACIControl?.reply?.('Earth ready · tap 🎧 talk straight to Grok');
+  primeGrokVoice?.();
+  setTimeout(() => AciCoders?.enterSession?.({ ping: false, focus: false }), 2500);
   const zl = document.getElementById('zoom-label');
   if (zl) zl.textContent = 'GLOBAL · tap 🎯 Locate for city map';
 }, 1200);

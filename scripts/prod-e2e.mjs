@@ -58,7 +58,7 @@ const SCENARIOS = [
         if (!text || /gathering itself|warming up|no model responded/i.test(text)) {
           return { ok: false, error: res.error || text || 'empty' };
         }
-        await AciCoders.chat('prod verify hello', { forceTest: true });
+        await AciCoders.chat('hello grok prod verify', { forceTest: true });
         const ribbon = document.getElementById('cli-ribbon-status')?.textContent || '';
         const preview = document.getElementById('globe-deck-preview')?.textContent || '';
         const logLines = [...(document.querySelectorAll('#globe-deck-log .deck-reply, #globe-deck-log .deck-ok') || [])]

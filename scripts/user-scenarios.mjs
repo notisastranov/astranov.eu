@@ -301,6 +301,20 @@ const SCENARIOS = [
     },
   },
   {
+    name: 'Grok — direct chat path wired',
+    run: async (page) => {
+      const r = await page.evaluate(() => ({
+        force: AciCoders?.fallbackPrefs?.force,
+        placeholder: document.getElementById('aci-cli-in')?.placeholder || '',
+        prime: typeof primeGrokVoice === 'function',
+      }));
+      if (r.force !== 'xai') throw new Error('grok force not xai: ' + r.force);
+      if (!/grok/i.test(r.placeholder)) throw new Error('placeholder not Grok: ' + r.placeholder);
+      if (!r.prime) throw new Error('primeGrokVoice missing');
+      return r;
+    },
+  },
+  {
     name: 'AI — reply survives thinking + shows in ribbon',
     run: async (page) => {
       const r = await page.evaluate(async () => {

@@ -30,7 +30,14 @@ const Auth = {
         this.closeLoginModal();
         this.applyUser();
         this.refreshAuthority();
-        ACIControl?.reply('Signed in · welcome to Astranov');
+        ACIControl?.reply('Signed in · tap 🎧 talk straight to Grok');
+        setTimeout(() => {
+          primeGrokVoice?.();
+          const owner = (session.user.email || '').toLowerCase() === this.OWNER_EMAIL.toLowerCase();
+          if (owner && typeof startVoiceOptions === 'function' && !window._handsFreeVoice) {
+            try { startVoiceOptions(); } catch (_) {}
+          }
+        }, 800);
         try {
           const clean = location.pathname + (location.search || '').replace(/[?&]code=[^&]*/g, '').replace(/[?&]error=[^&]*/g, '').replace(/\?&/, '?').replace(/\?$/, '');
           if (location.search || location.hash) history.replaceState(null, '', clean || '/');

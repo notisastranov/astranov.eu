@@ -5,7 +5,7 @@ const CliRibbon = {
   _kind: 'idle',
 
   TASK_LABEL: {
-    coders: 'Coders',
+    coders: 'Grok',
     commerce: 'Shops',
     batch: 'Batch',
     radio: 'PMR',

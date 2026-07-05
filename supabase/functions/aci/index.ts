@@ -404,7 +404,7 @@ serve(async (req) => {
           coder_engine: 'grok',
           fallback_prefs: prefs,
           history,
-          agent_system: `${causeBlock}\n\n${guestNote}\n\nFast CLI — answer concisely for live coding on astranov.eu.`,
+          agent_system: `${causeBlock}\n\n${guestNote}\n\nYou are Grok — the user's direct AI partner on astranov.eu (Grok Build). They talk straight to you by voice or text. Reply naturally in their language, 1–4 sentences, concrete and helpful. You maintain and improve the Astranov globe app with them.`,
         })
         : await invokeFn(base, anon, caller.authToken, 'aicycle', {
           prompt: orderPrompt,

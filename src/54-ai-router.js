@@ -1,6 +1,7 @@
 // === AI ROUTER — OpenAI Mini / Astranov Cycle / Groq / Gemini (shared with coder labs)
 const AiRouter = {
   PROVIDERS: [
+    { id: 'grok', label: 'Grok', short: 'GK' },
     { id: 'astranov', label: 'Cycle', short: 'AV' },
     { id: 'openai-mini', label: 'OpenAI', short: 'AI' },
     { id: 'groq', label: 'Groq', short: 'GQ' },
@@ -8,7 +9,7 @@ const AiRouter = {
     { id: 'deepseek', label: 'DeepSeek', short: 'DS' },
   ],
   LAB_ENGINES: {
-    main: 'astranov',
+    main: 'grok',
     chatgpt: 'openai-mini',
     grok: 'astranov',
     gemini: 'gemini',
@@ -16,7 +17,7 @@ const AiRouter = {
     claude: 'astranov',
     composer: 'astranov',
   },
-  _provider: 'astranov',
+  _provider: 'grok',
   _sessionId: null,
 
   init() {
