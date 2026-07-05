@@ -35,15 +35,16 @@ function animate() {
   AIGraphics.update();
   updateOrbital();
 
+  const hidden = document.hidden;
   const entityCount = GlobeEntity?.entities?.size || 0;
-  const heavyGlobe = entityCount > 96;
+  const heavyGlobe = entityCount > 128;
   const codersBusy = window.AciCoders?._cliBusy || window.AciCoders?._listenBusy;
   const voiceActive = window._handsFreeVoice || isListening;
   if (voiceActive || codersBusy || heavyGlobe) setVoicePerfMode?.(true);
   else if (window._voicePerfMode) setVoicePerfMode?.(false);
-  if (window.AstranovCollectiveIntelligence) {
+  if (window.AstranovCollectiveIntelligence && !hidden) {
     ACI.tick();
-    if (!window._voicePerfMode) {
+    if (!window._voicePerfMode && entityCount < 80) {
       ACI.neurons.forEach(n => {
         if (!n.userData) return;
         const t = Date.now() / 700;
@@ -53,10 +54,12 @@ function animate() {
     }
   }
 
-  if (window.MapDepict) MapDepict.tick();
-  GlobeEntity?.tick?.();
-  MapComms?.tick?.();
-  SuperSpace?.tick?.();
+  if (!hidden) {
+    if (window.MapDepict) MapDepict.tick();
+    GlobeEntity?.tick?.();
+    MapComms?.tick?.();
+    SuperSpace?.tick?.();
+  }
   CosmicZoom.update(camera.position.z);
   EarthRealism?.tick?.();
   renderer.render(scene, camera);
@@ -99,6 +102,8 @@ AstranovPresence.init();
 WillaGames.init();
 MapComms.init();
 ProfileSite.init();
+Responsive3D.init();
+OrderTracking.init();
 setTimeout(() => HellenicSource?.seedToBrain?.(), 2400);
 SuperSpace.init();
 CityLife.init();

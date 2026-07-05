@@ -14,11 +14,15 @@ const GlobeDeck = {
   _userEngaged: false,
   _expandAt: 0,
   _handleDrag: 0,
+  _freeHeight: 0,
+  _HEIGHT_KEY: 'astranov-deck-height',
+  _scrollTouch: false,
   _NOISE_RE: /^(thinking|warming|owner-sync|heartbeat|field_pulse|subscribe|channel joined|token refresh|postgres_changes|Map live|Ghost route|hands-free on|Coders always|session held|pull failed)/i,
 
   init() {
     CliRibbon?.init?.();
     AppShortcuts?.init?.();
+    this._restoreHeight();
     this.bindHandle();
     this.bindDeckGestures();
     ['sat-radio', 'node-batch', 'vendor-menu', 'globe-youtube', 'globe-super-add', 'globe-site-browser', 'cli-hub-panel'].forEach(id => {
@@ -27,6 +31,7 @@ const GlobeDeck = {
       if (el && stage && el.parentElement !== stage) stage.appendChild(el);
     });
     CliRibbon?.setActive?.('CLI');
+    if (this._size === 'free' && this._freeHeight) this.applySize();
   },
 
   bindHandle() {
@@ -69,17 +74,37 @@ const GlobeDeck = {
       if (moved > 14) {
         const d = this.deck();
         const h = d?.getBoundingClientRect().height || 0;
-        const third = window.innerHeight * 0.33;
-        const full = window.innerHeight * 0.88;
-        if (h < 160) this._size = 'collapsed';
-        else if (h < (third + full) / 2) this._size = 'third';
-        else this._size = 'full';
+        if (h < 130) {
+          this._size = 'collapsed';
+        } else {
+          this._size = 'free';
+          this._saveHeight(h);
+        }
         this.applySize();
         return;
       }
       if (e.cancelable) e.preventDefault();
       onTap(e);
     }, { passive: false });
+  },
+
+  _restoreHeight() {
+    try {
+      const h = parseInt(localStorage.getItem(this._HEIGHT_KEY), 10);
+      const maxH = Math.min(window.innerHeight * 0.94, window.innerHeight - 36);
+      if (h >= 118 && h <= maxH) {
+        this._freeHeight = h;
+        if (h > 130) {
+          this._size = 'free';
+          this.expanded = true;
+        }
+      }
+    } catch (_) { /* */ }
+  },
+
+  _saveHeight(h) {
+    this._freeHeight = Math.round(h);
+    try { localStorage.setItem(this._HEIGHT_KEY, String(this._freeHeight)); } catch (_) { /* */ }
   },
 
   cycleSize() {
@@ -94,11 +119,17 @@ const GlobeDeck = {
     if (!d) return;
     d.style.maxHeight = '';
     d.style.minHeight = '';
-    d.classList.remove('collapsed', 'expanded', 'size-third', 'size-full');
+    d.classList.remove('collapsed', 'expanded', 'size-third', 'size-full', 'size-free');
     if (this._size === 'collapsed') {
       d.classList.add('collapsed');
       this.expanded = false;
       if (window.AciCli) AciCli.open = false;
+    } else if (this._size === 'free' && this._freeHeight) {
+      d.classList.add('expanded', 'size-free');
+      d.style.maxHeight = this._freeHeight + 'px';
+      d.style.minHeight = this._freeHeight + 'px';
+      this.expanded = true;
+      if (window.AciCli) AciCli.open = true;
     } else {
       d.classList.add('expanded', this._size === 'full' ? 'size-full' : 'size-third');
       this.expanded = true;
@@ -121,6 +152,7 @@ const GlobeDeck = {
       sx = e.touches[0].clientX;
       st = Date.now();
       moved = false;
+      this._scrollTouch = !!scrollable(e.target);
       this._touchY = sy;
       this._touchT = st;
     }, { passive: true });
@@ -129,19 +161,25 @@ const GlobeDeck = {
       if (e.touches.length !== 1) return;
       const dy = Math.abs(e.touches[0].clientY - sy);
       const dx = Math.abs(e.touches[0].clientX - sx);
-      if (dy > 10 || dx > 10) moved = true;
+      if (dy > 8 || dx > 8) moved = true;
+      if (this._scrollTouch && dy > dx) return;
       if (this.expanded && scrollable(e.target) && dy > dx) return;
     }, { passive: true });
 
     deck.addEventListener('touchend', e => {
       if (e.changedTouches.length !== 1 || interactive(e.target)) return;
+      if (this._scrollTouch && moved) {
+        this._scrollTouch = false;
+        return;
+      }
       const dy = e.changedTouches[0].clientY - sy;
       const dt = Date.now() - st;
       if (dt > 750) return;
       if (this.expanded && scrollable(e.target) && moved) return;
-      if (Math.abs(dy) < 28) return;
-      if (dy < -28) this.expand();
-      else if (dy > 28) this.collapse();
+      if (Math.abs(dy) < 36) return;
+      if (dy < -36) this.expand();
+      else if (dy > 36) this.collapse();
+      this._scrollTouch = false;
     }, { passive: true });
   },
 

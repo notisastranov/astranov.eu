@@ -148,6 +148,7 @@
   #globe-deck.collapsed { max-height:118px; }
   #globe-deck.expanded.size-third { max-height:33vh; min-height:33vh; }
   #globe-deck.expanded.size-full { max-height:min(92dvh, calc(100dvh - 44px)); min-height:min(92dvh, calc(100dvh - 44px)); }
+  #globe-deck.expanded.size-free { transition:none; }
   #globe-deck.expanded.has-stage.size-third { max-height:38vh; min-height:38vh; }
   #globe-deck.expanded.has-stage.size-full { max-height:min(94dvh, calc(100dvh - 40px)); min-height:min(94dvh, calc(100dvh - 40px)); }
   #globe-deck-header { display:none !important; }
@@ -455,6 +456,11 @@
   .ps-tag { display:inline-block; margin:2px 4px 2px 0; padding:3px 8px; border-radius:8px; background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); font-size:9px; }
   .ps-line { margin:4px 0; color:#bde; }
   .ps-hint { font-size:8px; color:#7a9; margin-top:4px; }
+  .ps-roles-title { font-size:9px; font-weight:700; color:var(--ax-blue-bright); margin:10px 0 6px; }
+  .ps-role-row { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+  .ps-role-btn { padding:8px 10px; border-radius:10px; border:1px solid var(--ax-blue-border); background:rgba(0,40,90,0.45); color:#cde; cursor:pointer; font:inherit; font-size:9px; touch-action:manipulation; }
+  .ps-role-btn.active { background:var(--ax-green-bg); border-color:var(--ax-green-border); color:var(--ax-green-bright); box-shadow:0 0 8px var(--ax-green-glow); }
+  #ps-logout { width:100%; margin-top:6px; background:var(--ax-red-bg) !important; border-color:var(--ax-red-border) !important; color:var(--ax-red-bright) !important; }
   #ps-foot { display:flex; flex-wrap:wrap; gap:6px; padding:8px 10px; border-top:1px solid rgba(26,111,212,0.2); }
   #ps-foot button { padding:7px 10px; border-radius:8px; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); cursor:pointer; font-size:9px; font-weight:600; }
   #ps-status { width:100%; font-size:8px; color:#ffd633; }
@@ -526,6 +532,7 @@
       <button id="ps-site-req" type="button" style="display:none">Request subdomain</button>
       <button id="ps-open-site" type="button" style="display:none">Open site</button>
       <button id="ps-shop" type="button" style="display:none">Shop</button>
+      <button id="ps-logout" type="button" style="display:none">Logout</button>
     </div>
   </div>
   <div id="map-comms-contact">
@@ -832,7 +839,7 @@ const GlobeControl = {
   flyDuration(fromZ, toZ) {
     const a = fromZ ?? camera?.position?.z ?? 2.55;
     const b = toZ ?? 2.55;
-    return Math.round(1100 + Math.abs(a - b) * 950);
+    return Math.min(3200, Math.round(2000 + Math.abs(a - b) * 1100));
   },
 
   /** Default fly — global view; never drops to city unless opts.city === true */
@@ -1787,7 +1794,7 @@ const Auth = {
       if (this.user) this.loadProfileVisual();
     });
     const btn = document.getElementById('aci-login');
-    if (btn) btn.onclick = () => this.user ? this.signOut() : this.openLoginModal();
+    if (btn) btn.onclick = () => this.user ? this.openLoggedInProfile() : this.openLoginModal();
     this.bindAuthModal();
     window.addEventListener('message', e => this._onChildMessage(e));
   },
@@ -1812,6 +1819,48 @@ const Auth = {
         if (pane) pane.classList.add('active');
       });
     });
+  },
+
+  async openLoggedInProfile() {
+    if (!this.user) return this.openLoginModal();
+    Responsive3D?.visualReact?.('profile', {});
+    GlobeDeck?.expand?.('Your profile · 3D');
+    const openProfile = () => {
+      const lat = window._lastPos?.lat;
+      const lng = window._lastPos?.lng;
+      const name = this._profileVisual?.display_name
+        || this.user.user_metadata?.full_name
+        || (this.user.email || '').split('@')[0]
+        || 'You';
+      if (lat != null && lng != null) {
+        GlobeEntity?.syncMe?.(lat, lng, name, { alwaysShow: true });
+        const fp = latLngToPos(lat, lng, 1.04);
+        const z = GlobeControl?.Z?.national || 1.82;
+        const dur = GlobeControl?.flyDuration?.(camera?.position?.z, z) || 2200;
+        flyToPoint?.(new THREE.Vector3(fp.x, fp.y, fp.z), z, { dur });
+        GlobeControl?.noteAutoFly?.();
+        MapDepict?.pulse?.(lat, lng, 0x49b7ff, name, 8000);
+      } else {
+        locateMe?.();
+      }
+      ProfileSite?.openSelf?.();
+    };
+    if (window._lastPos?.lat != null) {
+      openProfile();
+      return;
+    }
+    if (!navigator.geolocation) {
+      openProfile();
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        placeMe(pos.coords.latitude, pos.coords.longitude, { fly: true, zoom: GlobeControl?.Z?.national || 1.82 });
+        openProfile();
+      },
+      () => openProfile(),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 45000 }
+    );
   },
 
   openLoginModal(hint) {
@@ -2099,7 +2148,7 @@ const Auth = {
         btn.classList.remove('auth-out', 'auth-boot');
         btn.classList.add(this._authDegraded ? 'auth-degraded' : 'auth-in');
         btn.dataset.auth = this._authDegraded ? 'degraded' : 'in';
-        btn.title = (this._authDegraded ? 'Session refreshing · ' : 'Signed in · ') + name + ' — tap to sign out';
+        btn.title = (this._authDegraded ? 'Session refreshing · ' : 'Signed in · ') + name + ' — tap to fly to you & edit profile';
         btn.style.backgroundSize = 'cover';
         btn.style.backgroundPosition = 'center';
         if (avatar) {
@@ -2172,11 +2221,15 @@ const GlobeDeck = {
   _userEngaged: false,
   _expandAt: 0,
   _handleDrag: 0,
+  _freeHeight: 0,
+  _HEIGHT_KEY: 'astranov-deck-height',
+  _scrollTouch: false,
   _NOISE_RE: /^(thinking|warming|owner-sync|heartbeat|field_pulse|subscribe|channel joined|token refresh|postgres_changes|Map live|Ghost route|hands-free on|Coders always|session held|pull failed)/i,
 
   init() {
     CliRibbon?.init?.();
     AppShortcuts?.init?.();
+    this._restoreHeight();
     this.bindHandle();
     this.bindDeckGestures();
     ['sat-radio', 'node-batch', 'vendor-menu', 'globe-youtube', 'globe-super-add', 'globe-site-browser', 'cli-hub-panel'].forEach(id => {
@@ -2185,6 +2238,7 @@ const GlobeDeck = {
       if (el && stage && el.parentElement !== stage) stage.appendChild(el);
     });
     CliRibbon?.setActive?.('CLI');
+    if (this._size === 'free' && this._freeHeight) this.applySize();
   },
 
   bindHandle() {
@@ -2227,17 +2281,37 @@ const GlobeDeck = {
       if (moved > 14) {
         const d = this.deck();
         const h = d?.getBoundingClientRect().height || 0;
-        const third = window.innerHeight * 0.33;
-        const full = window.innerHeight * 0.88;
-        if (h < 160) this._size = 'collapsed';
-        else if (h < (third + full) / 2) this._size = 'third';
-        else this._size = 'full';
+        if (h < 130) {
+          this._size = 'collapsed';
+        } else {
+          this._size = 'free';
+          this._saveHeight(h);
+        }
         this.applySize();
         return;
       }
       if (e.cancelable) e.preventDefault();
       onTap(e);
     }, { passive: false });
+  },
+
+  _restoreHeight() {
+    try {
+      const h = parseInt(localStorage.getItem(this._HEIGHT_KEY), 10);
+      const maxH = Math.min(window.innerHeight * 0.94, window.innerHeight - 36);
+      if (h >= 118 && h <= maxH) {
+        this._freeHeight = h;
+        if (h > 130) {
+          this._size = 'free';
+          this.expanded = true;
+        }
+      }
+    } catch (_) { /* */ }
+  },
+
+  _saveHeight(h) {
+    this._freeHeight = Math.round(h);
+    try { localStorage.setItem(this._HEIGHT_KEY, String(this._freeHeight)); } catch (_) { /* */ }
   },
 
   cycleSize() {
@@ -2252,11 +2326,17 @@ const GlobeDeck = {
     if (!d) return;
     d.style.maxHeight = '';
     d.style.minHeight = '';
-    d.classList.remove('collapsed', 'expanded', 'size-third', 'size-full');
+    d.classList.remove('collapsed', 'expanded', 'size-third', 'size-full', 'size-free');
     if (this._size === 'collapsed') {
       d.classList.add('collapsed');
       this.expanded = false;
       if (window.AciCli) AciCli.open = false;
+    } else if (this._size === 'free' && this._freeHeight) {
+      d.classList.add('expanded', 'size-free');
+      d.style.maxHeight = this._freeHeight + 'px';
+      d.style.minHeight = this._freeHeight + 'px';
+      this.expanded = true;
+      if (window.AciCli) AciCli.open = true;
     } else {
       d.classList.add('expanded', this._size === 'full' ? 'size-full' : 'size-third');
       this.expanded = true;
@@ -2279,6 +2359,7 @@ const GlobeDeck = {
       sx = e.touches[0].clientX;
       st = Date.now();
       moved = false;
+      this._scrollTouch = !!scrollable(e.target);
       this._touchY = sy;
       this._touchT = st;
     }, { passive: true });
@@ -2287,19 +2368,25 @@ const GlobeDeck = {
       if (e.touches.length !== 1) return;
       const dy = Math.abs(e.touches[0].clientY - sy);
       const dx = Math.abs(e.touches[0].clientX - sx);
-      if (dy > 10 || dx > 10) moved = true;
+      if (dy > 8 || dx > 8) moved = true;
+      if (this._scrollTouch && dy > dx) return;
       if (this.expanded && scrollable(e.target) && dy > dx) return;
     }, { passive: true });
 
     deck.addEventListener('touchend', e => {
       if (e.changedTouches.length !== 1 || interactive(e.target)) return;
+      if (this._scrollTouch && moved) {
+        this._scrollTouch = false;
+        return;
+      }
       const dy = e.changedTouches[0].clientY - sy;
       const dt = Date.now() - st;
       if (dt > 750) return;
       if (this.expanded && scrollable(e.target) && moved) return;
-      if (Math.abs(dy) < 28) return;
-      if (dy < -28) this.expand();
-      else if (dy > 28) this.collapse();
+      if (Math.abs(dy) < 36) return;
+      if (dy < -36) this.expand();
+      else if (dy > 36) this.collapse();
+      this._scrollTouch = false;
     }, { passive: true });
   },
 
@@ -5033,6 +5120,12 @@ const AciCli = {
         return;
       }
       if (cmd === 'order') {
+        const sub = (parts[1] || '').toLowerCase();
+        if (sub === 'status' || sub === 'track' || sub === 'list' || sub === 'fly' || sub === 'last' || sub === 'active') {
+          await OrderTracking?.cli?.(parts);
+          GlobeDeck?.finishCliIfOneShot?.('order');
+          return;
+        }
         await Commerce.openOrderFlow(rest);
         this.print(rest ? 'order · ' + rest : 'pick vendor — real menu only', 'ok');
         GlobeDeck.activeTask = 'commerce';
@@ -6464,20 +6557,22 @@ const ACI = {
   async think(prompt, opts = {}) {
     if (window._aciAbort) { try { window._aciAbort.abort(); } catch (_) {} }
     window._aciAbort = new AbortController();
-    const fast = opts.fast !== false && String(prompt || '').length < 600;
-    GlobeDeck?.setMapStatus('ACI — thinking…');
-    GlobeDeck?.setThinking(true, 'ACI — thinking…');
+    const fast = opts.fast !== false;
+    if (!opts._wrapped) {
+      GlobeDeck?.setMapStatus('ACI — thinking…');
+      GlobeDeck?.setThinking(true, '◎ 3D think…');
+    }
     const h = await this.headers();
     let r;
     try {
       r = await fetchJson(this.url + '/functions/v1/aci', {
         method: 'POST', headers: h,
         body: JSON.stringify({
-          mode: 'think', prompt, fast,
-          history: this.history.slice(-6),
+          mode: 'think', prompt, fast: true,
+          history: this.history.slice(-4),
           aci_mode: this.thinkMode || undefined,
         }),
-      }, fast ? 32000 : 55000);
+      }, Responsive3D?.FAST_MS || 8000);
     } catch (e) {
       r = { error: String(e.message || e) };
     }
@@ -6654,6 +6749,10 @@ const ACIControl = {
     }
     if (/^(logout|sign out|αποσύνδεση)$/.test(low)) { Auth.signOut(); return { executed: true }; }
     if (/telecom|sat radio|satellite radio|ασύρματος/.test(low)) { Comms.startTelecomms(); return { executed: true }; }
+    if (/^order\s+(status|track|list|fly|last|active)\b/i.test(low)) {
+      await OrderTracking?.cli?.(text.trim().split(/\s+/));
+      return { executed: true, action: 'order_track' };
+    }
     if (/pitogyra|πιτογυρ|μπίρ|τσιγαρ|order|παραγγελ|goals|work|δουλειά|delivery|διανομ|mpiro|tsigar|beer|cigar/.test(low)) {
       const q = text.replace(/^(order|παραγγελία?)\s*/i, '').trim();
       const wants = Commerce.parseWantedItems?.(q) || [];
@@ -7706,6 +7805,7 @@ const Commerce = {
             deliveryLng: dLng,
           });
         }
+        OrderTracking?.onOrderPlaced?.(orderResult.order, vendor, driverObj);
       } else {
         msg = 'Παραγγελία απέτυχε: ' + (errMsg || 'server error') + '. Δοκίμασε ξανά.';
       }
@@ -10346,7 +10446,8 @@ const GlobeEntity = {
   tick() {
     const now = Date.now();
     if (!this._tickLast) this._tickLast = 0;
-    if (now - this._tickLast < (window._voicePerfMode ? 180 : 90)) return;
+    if (document.hidden) return;
+    if (now - this._tickLast < (window._voicePerfMode ? 220 : 110)) return;
     this._tickLast = now;
     if (!this._clusterLast || now - this._clusterLast > 500) {
       this._clusterLast = now;
@@ -11476,7 +11577,9 @@ function tickGlobeFly() {
   const f = window._globeFly;
   if (!f) return;
   const p = Math.min(1, (performance.now() - f.t0) / f.dur);
-  const ease = 1 - Math.pow(1 - p, 3);
+  const ease = p < 0.5
+    ? 4 * p * p * p
+    : 1 - Math.pow(-2 * p + 2, 3) / 2;
   globePivot.rotation.y = f.fromY + (f.toY - f.fromY) * ease;
   globePivot.rotation.x = f.fromX + (f.toX - f.fromX) * ease;
   camera.position.z = f.fromZ + (f.toZ - f.fromZ) * ease;
@@ -15385,6 +15488,7 @@ const ProfileSite = {
     document.getElementById('ps-shop')?.addEventListener('click', () => {
       if (this._vendor) Commerce?.openVendor?.(this._vendor);
     });
+    document.getElementById('ps-logout')?.addEventListener('click', () => Auth?.signOut?.());
   },
 
   esc(s) {
@@ -15418,7 +15522,14 @@ const ProfileSite = {
     }
     this._render(prof);
     document.getElementById('profile-site-panel')?.classList.add('open');
-    MapDepict?.pulse?.(window._lastPos?.lat, window._lastPos?.lng, 0x49b7ff, prof.display_name || 'Profile', 8000);
+    const lat = window._lastPos?.lat;
+    const lng = window._lastPos?.lng;
+    if (lat != null && this.isSelf(userId)) {
+      Responsive3D?.visualReact?.('profile', { lat, lng });
+      GlobeEntity?.syncMe?.(lat, lng, prof.display_name || 'You', { alwaysShow: true });
+    } else {
+      MapDepict?.pulse?.(lat, lng, 0x49b7ff, prof.display_name || 'Profile', 8000);
+    }
   },
 
   async openVendor(vendor) {
@@ -15474,9 +15585,12 @@ const ProfileSite = {
         + '<label class="ps-field">Phone<input id="ps-in-phone" value="' + this.esc(this._draft.phone) + '" /></label>'
         + '<label class="ps-field">Public email<input id="ps-in-email" value="' + this.esc(this._draft.email) + '" /></label>'
         + '<label class="ps-field">Subdomain slug<input id="ps-in-slug" placeholder="my-yachts" value="' + this.esc(this._draft.site_slug) + '" /></label>'
-        + '<div class="ps-hint">Subdomain needs admin approval · profile page is live now on tap</div>';
+        + '<div class="ps-hint">Subdomain needs admin approval · profile page is live now on tap</div>'
+        + this._rolesHtml(prof.roles);
       document.getElementById('ps-save').style.display = 'inline-block';
       document.getElementById('ps-site-req').style.display = 'inline-block';
+      document.getElementById('ps-logout').style.display = 'inline-block';
+      this._bindRoleToggles();
     } else {
       body.innerHTML = ''
         + (about ? '<div class="ps-about">' + this.esc(about) + '</div>' : '')
@@ -15486,6 +15600,7 @@ const ProfileSite = {
         + (prof.site_slug ? '<div class="ps-line">◎ ' + this.esc(prof.site_slug) + '.astranov.eu · ' + this.esc(prof.site_request_status || 'none') + '</div>' : '');
       document.getElementById('ps-save').style.display = 'none';
       document.getElementById('ps-site-req').style.display = 'none';
+      document.getElementById('ps-logout').style.display = 'none';
     }
 
     const shopBtn = document.getElementById('ps-shop');
@@ -15518,6 +15633,75 @@ const ProfileSite = {
     document.getElementById('ps-site-req').style.display = 'none';
     document.getElementById('ps-shop').style.display = 'inline-block';
     this._vendor = vendor;
+  },
+
+  _normRoles(roles) {
+    const arr = Array.isArray(roles) ? roles.slice() : ['client', 'driver'];
+    if (!arr.includes('client')) arr.unshift('client');
+    return arr;
+  },
+
+  _rolesHtml(roles) {
+    const r = this._normRoles(roles);
+    const defs = [
+      { id: 'client', label: 'Customer', icon: '🧑' },
+      { id: 'driver', label: 'Delivery driver', icon: '🚚' },
+      { id: 'vendor', label: 'Vendor', icon: '🏬' },
+    ];
+    return '<div class="ps-roles-title">Active roles · tap to toggle</div>'
+      + '<div class="ps-role-row">'
+      + defs.map(d => {
+        const on = r.includes(d.id);
+        return '<button type="button" class="ps-role-btn' + (on ? ' active' : '') + '" data-role="' + d.id + '">'
+          + d.icon + ' ' + d.label + '</button>';
+      }).join('')
+      + '</div>';
+  },
+
+  _bindRoleToggles() {
+    document.querySelectorAll('.ps-role-btn[data-role]').forEach(btn => {
+      if (btn.dataset.bound) return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', () => this.toggleRole(btn.dataset.role));
+    });
+  },
+
+  async toggleRole(role) {
+    if (!Auth?.user || !this.isSelf(this.targetId)) return;
+    const allowed = ['client', 'driver', 'vendor'];
+    if (!allowed.includes(role)) return;
+    const prof = await this.loadProfile(Auth.user.id);
+    const roles = this._normRoles(prof?.roles);
+    const i = roles.indexOf(role);
+    if (role === 'client') {
+      if (i < 0) roles.push('client');
+    } else if (i >= 0) {
+      if (role === 'driver' && roles.length <= 1) {
+        ACIControl?.reply('Keep at least customer role active');
+        return;
+      }
+      roles.splice(i, 1);
+    } else {
+      roles.push(role);
+    }
+    try {
+      const headers = await Auth.authHeaders();
+      await fetch(SB_URL + '/rest/v1/profiles?id=eq.' + Auth.user.id, {
+        method: 'PATCH', headers,
+        body: JSON.stringify({
+          roles,
+          is_vendor: roles.includes('vendor'),
+          updated_at: new Date().toISOString(),
+        }),
+      });
+      FieldBrain.roles = roles;
+      FieldBrain?.updateChip?.();
+      ACIControl?.reply('Roles: ' + roles.join(' · '));
+      Responsive3D?.visualReact?.('profile', {});
+      await this.openUser(Auth.user.id, { vendor: this._vendor });
+    } catch (e) {
+      ACIControl?.reply('Role update failed: ' + (e.message || e));
+    }
   },
 
   _collectDraft() {
@@ -18388,6 +18572,434 @@ const BrainConversation = {
 };
 window.BrainConversation = BrainConversation;
 
+// === ORDER TRACKING — live status on globe + CLI (delivery parity) ===
+const OrderTracking = {
+  active: null,
+  _poll: null,
+  _vendorCache: new Map(),
+
+  STATUS: {
+    pending: { label: 'Pending', icon: '⏳', step: 0, color: 0xffaa33 },
+    seeking_driver: { label: 'Finding driver', icon: '🔍', step: 1, color: 0xffaa33 },
+    assigned: { label: 'Driver assigned', icon: '🚚', step: 2, color: 0x3d9eff },
+    picked_up: { label: 'Picked up', icon: '📦', step: 3, color: 0x44ccff },
+    en_route: { label: 'On the way', icon: '🛵', step: 4, color: 0x00ddff },
+    delivered: { label: 'Delivered', icon: '✅', step: 5, color: 0x00ff88 },
+    cancelled: { label: 'Cancelled', icon: '❌', step: -1, color: 0xff3344 },
+  },
+
+  FLOW: ['pending', 'seeking_driver', 'assigned', 'picked_up', 'en_route', 'delivered'],
+
+  init() {
+    if (Auth?.user) setTimeout(() => this.trackLatest({ quiet: true }), 3500);
+  },
+
+  meta(status) {
+    return this.STATUS[status] || { label: status || 'Unknown', icon: '🛒', step: 0, color: 0x3d9eff };
+  },
+
+  async fetchOrder(idOrShort) {
+    if (!Auth?.user) return null;
+    const q = String(idOrShort || '').trim();
+    if (!q) return null;
+    try {
+      const headers = await Auth.authHeaders();
+      const isUuid = /^[0-9a-f-]{36}$/i.test(q);
+      const filter = isUuid ? ('id=eq.' + q) : ('short_id=eq.' + q.toUpperCase());
+      const r = await fetch(SB_URL + '/rest/v1/orders?select=*&customer_id=eq.' + Auth.user.id + '&' + filter + '&limit=1', { headers });
+      if (!r.ok) return null;
+      const rows = await r.json();
+      return rows[0] || null;
+    } catch { return null; }
+  },
+
+  async fetchLatest() {
+    if (!Auth?.user) return null;
+    try {
+      const headers = await Auth.authHeaders();
+      const r = await fetch(SB_URL + '/rest/v1/orders?select=*&customer_id=eq.' + Auth.user.id + '&order=created_at.desc&limit=1', { headers });
+      if (!r.ok) return null;
+      const rows = await r.json();
+      return rows[0] || null;
+    } catch { return null; }
+  },
+
+  async resolveVendor(vendorId) {
+    if (!vendorId) return null;
+    if (this._vendorCache.has(vendorId)) return this._vendorCache.get(vendorId);
+    try {
+      const r = await fetch(SB_URL + '/rest/v1/vendors?select=id,name,lat,lng,emoji&id=eq.' + encodeURIComponent(vendorId) + '&limit=1', {
+        headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY },
+      });
+      const rows = r.ok ? await r.json() : [];
+      const v = rows[0] || null;
+      if (v) this._vendorCache.set(vendorId, v);
+      return v;
+    } catch { return null; }
+  },
+
+  onOrderPlaced(order, vendor, driver) {
+    if (!order) return;
+    this.active = order;
+    this.showOnGlobe(order, vendor, driver);
+    this.startPoll();
+    const m = this.meta(order.status);
+    const msg = m.icon + ' Order ' + (order.short_id || order.id?.slice(0, 8)) + ' · ' + m.label
+      + (driver?.name ? ' · ' + driver.name : '');
+    GlobeDeck?.say?.(msg, 'ok');
+    Responsive3D?.visualReact?.('order', { order, vendor, lat: order.delivery_lat, lng: order.delivery_lng });
+  },
+
+  showOnGlobe(order, vendor, driver) {
+    if (!order) return;
+    const st = this.meta(order.status);
+    const dLat = order.delivery_lat;
+    const dLng = order.delivery_lng;
+    const v = vendor || null;
+
+    GlobeEntity?.unregisterType?.('order');
+    GlobeEntity?.unregisterType?.('pilot');
+
+    if (dLat != null && dLng != null) {
+      GlobeEntity?.register?.({
+        id: 'order-delivery',
+        type: 'order',
+        lat: dLat,
+        lng: dLng,
+        title: st.icon + ' ' + (order.short_id || 'Order'),
+        description: st.label + ' · tap to track',
+        urgency: order.status === 'delivered' ? 1 : 3,
+        persist: true,
+        data: { order, vendor: v },
+        _actionLabel: 'Track order',
+        onTap: () => this.flyToOrder(order, v),
+      });
+    }
+
+    if (v?.lat != null && v?.lng != null) {
+      GlobeEntity?.register?.({
+        id: 'order-vendor',
+        type: 'vendor',
+        lat: v.lat,
+        lng: v.lng,
+        title: (v.emoji || '🏬') + ' ' + (v.name || 'Shop'),
+        description: 'Order source · ' + st.label,
+        urgency: 2,
+        persist: true,
+        data: { vendor: v, order },
+        onTap: () => Commerce?.openVendor?.(v),
+      });
+    }
+
+    if (driver?.field_lat != null && driver?.field_lng != null) {
+      GlobeEntity?.register?.({
+        id: 'order-driver',
+        type: 'driver',
+        lat: driver.field_lat,
+        lng: driver.field_lng,
+        title: (driver.avatar_emoji || '🚚') + ' ' + (driver.display_name || order.driver_name || 'Driver'),
+        description: st.label + ' · your delivery',
+        urgency: 3,
+        persist: true,
+        data: { driver, order },
+        onTap: () => this.flyToOrder(order, v),
+      });
+    } else if (order.driver_name && dLat != null) {
+      const off = 0.006;
+      GlobeEntity?.register?.({
+        id: 'order-driver',
+        type: 'pilot',
+        lat: dLat + off,
+        lng: dLng - off,
+        title: (order.driver_emoji || '🚚') + ' ' + order.driver_name,
+        description: st.label,
+        urgency: 2,
+        persist: true,
+        data: { order },
+        onTap: () => this.flyToOrder(order, v),
+      });
+    }
+
+    MapDepict?.action?.('order', {
+      lat: dLat,
+      lng: dLng,
+      vendorLat: v?.lat,
+      vendorLng: v?.lng,
+      detail: (order.short_id || '') + ' · ' + st.label,
+    });
+  },
+
+  async flyToOrder(order, vendor) {
+    order = order || this.active;
+    if (!order) return;
+    const v = vendor || await this.resolveVendor(order.vendor_id);
+    const dLat = order.delivery_lat ?? window._lastPos?.lat;
+    const dLng = order.delivery_lng ?? window._lastPos?.lng;
+    if (dLat == null) {
+      ACIControl?.reply('No delivery coordinates on this order');
+      return;
+    }
+    const dur = GlobeControl?.flyDuration?.(camera?.position?.z, GlobeControl?.Z?.national || 1.82) || 2200;
+    GlobeControl?.flyToLatLng?.(dLat, dLng, this.meta(order.status).label, GlobeControl?.Z?.national || 1.82, { dur });
+    if (v?.lat != null) {
+      setTimeout(() => {
+        MapDepict?.pulse?.(v.lat, v.lng, 0x3d9eff, v.name || 'Shop', 5000);
+      }, dur * 0.55);
+    }
+    this.renderStatus(order, v);
+    Responsive3D?.visualReact?.('track', { lat: dLat, lng: dLng, order });
+  },
+
+  renderStatus(order, vendor) {
+    if (!order) return '';
+    const m = this.meta(order.status);
+    const items = Array.isArray(order.items) ? order.items : [];
+    const total = order.calc?.total_avc ?? order.calc?.total_eur ?? items.reduce((s, i) => s + (i.qty || 1) * (i.price || 0), 0);
+    const lines = [
+      m.icon + ' ' + (order.short_id || order.id?.slice(0, 8)) + ' · ' + m.label,
+      (vendor?.name || order.vendor_id || 'vendor') + ' · ' + Number(total).toFixed(1) + ' AVC',
+    ];
+    if (order.driver_name) lines.push('Driver: ' + order.driver_name);
+    const step = m.step;
+    if (step >= 0) {
+      const bar = this.FLOW.map((s, i) => (i <= step ? '●' : '○')).join(' ');
+      lines.push(bar);
+    }
+    const msg = lines.join('\n');
+    ACIControl?.reply(msg);
+    AciCli?.print(msg, 'ok');
+    GlobeDeck?.setPreview?.(m.icon + ' ' + m.label + ' · ' + (order.short_id || ''));
+    return msg;
+  },
+
+  async refresh(opts) {
+    opts = opts || {};
+    const order = this.active?.id
+      ? await this.fetchOrder(this.active.short_id || this.active.id)
+      : await this.fetchLatest();
+    if (!order) {
+      if (!opts.quiet) ACIControl?.reply('No orders yet — say: order pitogyra mpironia');
+      return null;
+    }
+    const prev = this.active?.status;
+    this.active = order;
+    const vendor = await this.resolveVendor(order.vendor_id);
+    let driver = null;
+    if (order.driver_id) {
+      try {
+        const headers = await Auth.authHeaders();
+        const r = await fetch(SB_URL + '/rest/v1/profiles?select=id,display_name,avatar_emoji,field_lat,field_lng&id=eq.' + order.driver_id + '&limit=1', { headers });
+        const rows = r.ok ? await r.json() : [];
+        driver = rows[0] || null;
+      } catch { /* */ }
+    }
+    this.showOnGlobe(order, vendor, driver);
+    if (!opts.quiet && prev && prev !== order.status) {
+      const m = this.meta(order.status);
+      GlobeDeck?.say?.(m.icon + ' ' + (order.short_id || '') + ' → ' + m.label, 'ok');
+      if (Voice.maySpeak?.()) speak(m.label, () => resumeListening?.());
+      Responsive3D?.visualReact?.('order_update', { order, lat: order.delivery_lat, lng: order.delivery_lng });
+    }
+    if (order.status === 'delivered' || order.status === 'cancelled') this.stopPoll();
+    return order;
+  },
+
+  startPoll() {
+    this.stopPoll();
+    this._poll = setInterval(() => this.refresh({ quiet: true }), 14000);
+  },
+
+  stopPoll() {
+    if (this._poll) { clearInterval(this._poll); this._poll = null; }
+  },
+
+  async trackLatest(opts) {
+    opts = opts || {};
+    const order = await this.fetchLatest();
+    if (!order) {
+      if (!opts.quiet) ACIControl?.reply('No active orders — order from CLI or tap a shop');
+      return null;
+    }
+    this.active = order;
+    const vendor = await this.resolveVendor(order.vendor_id);
+    await this.flyToOrder(order, vendor);
+    if (order.status !== 'delivered' && order.status !== 'cancelled') this.startPoll();
+    return order;
+  },
+
+  async trackId(id) {
+    const order = await this.fetchOrder(id);
+    if (!order) {
+      ACIControl?.reply('Order not found: ' + id);
+      return null;
+    }
+    this.active = order;
+    const vendor = await this.resolveVendor(order.vendor_id);
+    await this.flyToOrder(order, vendor);
+    if (order.status !== 'delivered' && order.status !== 'cancelled') this.startPoll();
+    return order;
+  },
+
+  async cli(parts) {
+    const sub = (parts[1] || 'status').toLowerCase();
+    const arg = parts.slice(2).join(' ').trim();
+    if (sub === 'track' || sub === 'fly') {
+      if (arg) return this.trackId(arg);
+      return this.trackLatest();
+    }
+    if (sub === 'status' || sub === 'last' || sub === 'active') {
+      const order = arg ? await this.fetchOrder(arg) : (this.active || await this.fetchLatest());
+      if (!order) {
+        ACIControl?.reply('No orders — say: order pitogyra mpironia');
+        return;
+      }
+      this.active = order;
+      const vendor = await this.resolveVendor(order.vendor_id);
+      this.showOnGlobe(order, vendor, null);
+      this.renderStatus(order, vendor);
+      if (order.status !== 'delivered' && order.status !== 'cancelled') this.startPoll();
+      return;
+    }
+    if (sub === 'list') {
+      if (!Auth?.user) return Auth?.openLoginModal?.();
+      const headers = await Auth.authHeaders();
+      const r = await fetch(SB_URL + '/rest/v1/orders?select=short_id,status,created_at&customer_id=eq.' + Auth.user.id + '&order=created_at.desc&limit=8', { headers });
+      const rows = r.ok ? await r.json() : [];
+      if (!rows.length) { ACIControl?.reply('No orders yet'); return; }
+      rows.forEach(o => {
+        const m = this.meta(o.status);
+        AciCli?.print(m.icon + ' ' + o.short_id + ' · ' + m.label, 'ok');
+      });
+      return;
+    }
+    ACIControl?.reply('order status · order track · order track ORD-xxx · order list');
+  },
+};
+
+window.OrderTracking = OrderTracking;
+
+// === 3D RESPONSIVENESS — instant ack + parallel fast think (CLI · voice · globe) ===
+const Responsive3D = {
+  FAST_MS: 8000,
+  _pending: 0,
+  _origThink: null,
+  _origConverse: null,
+
+  ACKS: [
+    '◎ On it…',
+    '◎ Globe synced…',
+    '◎ Thinking fast…',
+    '◎ 3D path active…',
+    '◎ Collective pulse…',
+  ],
+
+  init() {
+    this._wrapACI();
+    this._wrapBrain();
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && OrderTracking?.active) OrderTracking.refresh({ quiet: true });
+    });
+  },
+
+  _pickAck(text) {
+    const low = String(text || '').toLowerCase();
+    if (/order|παραγγελ|delivery|διανομ/.test(low)) return '🛒 Tracking on globe…';
+    if (/locate|gps|where|που/.test(low)) return '📍 Flying to you…';
+    if (/profile|login|account|ρόλ/.test(low)) return '👤 Profile orbit…';
+    if (/coin|wallet|avc|balance/.test(low)) return '◎ AVC pulse…';
+    return this.ACKS[this._pending % this.ACKS.length];
+  },
+
+  instantAck(text, source) {
+    const ack = this._pickAck(text);
+    this._pending++;
+    GlobeDeck?.say?.(ack, 'dim');
+    CliRibbon?.setNotice?.(ack);
+    const pos = window._lastPos || { lat: 36.44, lng: 28.22 };
+    MapDepict?.pulse?.(pos.lat, pos.lng, 0x3d9eff, ack.replace(/^[^\s]+\s*/, ''), 2800);
+    if (source === 'voice' && Voice.maySpeak?.()) {
+      speak(ack.replace(/◎\s*/, '').slice(0, 48), () => {}, true);
+    }
+    return ack;
+  },
+
+  visualReact(kind, opts) {
+    opts = opts || {};
+    const lat = opts.lat ?? opts.order?.delivery_lat ?? window._lastPos?.lat;
+    const lng = opts.lng ?? opts.order?.delivery_lng ?? window._lastPos?.lng;
+    if (lat == null) return;
+
+    const colors = {
+      think: 0x3d9eff,
+      order: 0x00ddff,
+      order_update: 0x00ff88,
+      track: 0x44ccff,
+      profile: 0x49b7ff,
+      voice: 0x69f5d0,
+    };
+    const color = colors[kind] || 0x3d9eff;
+    MapDepict?.pulse?.(lat, lng, color, kind, 4200);
+
+    if (kind === 'profile' || kind === 'track' || kind === 'order') {
+      const z = kind === 'profile' ? (GlobeControl?.Z?.national || 1.82) : (GlobeControl?.Z?.regional || 1.65);
+      const dur = GlobeControl?.flyDuration?.(camera?.position?.z, z) || 2200;
+      GlobeControl?.flyToLatLng?.(lat, lng, kind, z, { dur });
+    }
+
+    if (window.AIGraphics && kind === 'think') {
+      const p = latLngToPos(lat, lng, 1.05);
+      AIGraphics.spawnEffect(new THREE.Vector3(p.x, p.y, p.z), color, 4, 14);
+    }
+  },
+
+  _wrapACI() {
+    if (!window.ACI || this._origThink) return;
+    this._origThink = ACI.think.bind(ACI);
+    ACI.think = async (prompt, opts = {}) => {
+      if (!opts._noAck) {
+        this.instantAck(prompt, opts.fromVoice ? 'voice' : 'cli');
+        this.visualReact('think', {});
+      }
+      GlobeDeck?.setThinking(true, '◎ 3D think…');
+      const out = await this._origThink(prompt, { ...opts, fast: true, _wrapped: true });
+      GlobeDeck?.setThinking(false);
+      return out;
+    };
+  },
+
+  _wrapBrain() {
+    if (!window.BrainConversation || this._origConverse) return;
+    this._origConverse = BrainConversation.converse.bind(BrainConversation);
+    BrainConversation.converse = async (text, opts = {}) => {
+      const prompt = String(text || '').trim();
+      if (!prompt) return '';
+      const wantsThink = opts.forceThink || prompt.length > 20 || /[?]/.test(prompt)
+        || /^(explain|why|how|what|tell|describe|ποιος|τι|γιατί|πες)\b/i.test(prompt);
+      if (!wantsThink) return this._origConverse(text, opts);
+
+      const local = BrainConversation._matchLocal(prompt);
+      if (local && !opts.forceThink && prompt.length < 28) {
+        ACI?.history?.push?.({ role: 'user', content: prompt });
+        ACI?.history?.push?.({ role: 'assistant', content: local });
+        ACIControl?.reply(local);
+        return local;
+      }
+
+      if (window.ACI && this._origThink) {
+        const out = await ACI.think(prompt, { fast: true, fromVoice: opts.fromVoice });
+        if (out && !/^ACI error:/i.test(out)) return out;
+      }
+      return this._origConverse(text, { ...opts, forceThink: true });
+    };
+  },
+
+  async fastConverse(text, opts = {}) {
+    return BrainConversation?.converse?.(text, { ...opts, forceThink: true });
+  },
+};
+
+window.Responsive3D = Responsive3D;
+
 // Flow
 let me = null;
 let others = [];
@@ -19172,15 +19784,16 @@ function animate() {
   AIGraphics.update();
   updateOrbital();
 
+  const hidden = document.hidden;
   const entityCount = GlobeEntity?.entities?.size || 0;
-  const heavyGlobe = entityCount > 96;
+  const heavyGlobe = entityCount > 128;
   const codersBusy = window.AciCoders?._cliBusy || window.AciCoders?._listenBusy;
   const voiceActive = window._handsFreeVoice || isListening;
   if (voiceActive || codersBusy || heavyGlobe) setVoicePerfMode?.(true);
   else if (window._voicePerfMode) setVoicePerfMode?.(false);
-  if (window.AstranovCollectiveIntelligence) {
+  if (window.AstranovCollectiveIntelligence && !hidden) {
     ACI.tick();
-    if (!window._voicePerfMode) {
+    if (!window._voicePerfMode && entityCount < 80) {
       ACI.neurons.forEach(n => {
         if (!n.userData) return;
         const t = Date.now() / 700;
@@ -19190,10 +19803,12 @@ function animate() {
     }
   }
 
-  if (window.MapDepict) MapDepict.tick();
-  GlobeEntity?.tick?.();
-  MapComms?.tick?.();
-  SuperSpace?.tick?.();
+  if (!hidden) {
+    if (window.MapDepict) MapDepict.tick();
+    GlobeEntity?.tick?.();
+    MapComms?.tick?.();
+    SuperSpace?.tick?.();
+  }
   CosmicZoom.update(camera.position.z);
   EarthRealism?.tick?.();
   renderer.render(scene, camera);
@@ -19236,6 +19851,8 @@ AstranovPresence.init();
 WillaGames.init();
 MapComms.init();
 ProfileSite.init();
+Responsive3D.init();
+OrderTracking.init();
 setTimeout(() => HellenicSource?.seedToBrain?.(), 2400);
 SuperSpace.init();
 CityLife.init();

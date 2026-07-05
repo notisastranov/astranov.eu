@@ -93,6 +93,32 @@ serve(async (req) => {
 
     const body = await req.json().catch(() => ({}))
 
+    if (body.action === 'status') {
+      if (!customerId) {
+        return new Response(JSON.stringify({ error: 'login_required' }), { status: 401, headers: cors })
+      }
+      const q = body.order_id || body.short_id
+      if (!q) {
+        const { data: latest } = await sb.from('orders')
+          .select('*')
+          .eq('customer_id', customerId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        return new Response(JSON.stringify({ ok: true, order: latest || null }), { headers: cors })
+      }
+      const isUuid = /^[0-9a-f-]{36}$/i.test(String(q))
+      const { data: order, error: sErr } = await sb.from('orders')
+        .select('*')
+        .eq(isUuid ? 'id' : 'short_id', isUuid ? q : String(q).toUpperCase())
+        .eq('customer_id', customerId)
+        .maybeSingle()
+      if (sErr || !order) {
+        return new Response(JSON.stringify({ error: 'order_not_found' }), { status: 404, headers: cors })
+      }
+      return new Response(JSON.stringify({ ok: true, order }), { headers: cors })
+    }
+
     if (body.action === 'assign_driver') {
       if (!customerId) {
         return new Response(JSON.stringify({ error: 'login_required' }), { status: 401, headers: cors })

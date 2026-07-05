@@ -60,7 +60,7 @@ const Auth = {
       if (this.user) this.loadProfileVisual();
     });
     const btn = document.getElementById('aci-login');
-    if (btn) btn.onclick = () => this.user ? this.signOut() : this.openLoginModal();
+    if (btn) btn.onclick = () => this.user ? this.openLoggedInProfile() : this.openLoginModal();
     this.bindAuthModal();
     window.addEventListener('message', e => this._onChildMessage(e));
   },
@@ -85,6 +85,48 @@ const Auth = {
         if (pane) pane.classList.add('active');
       });
     });
+  },
+
+  async openLoggedInProfile() {
+    if (!this.user) return this.openLoginModal();
+    Responsive3D?.visualReact?.('profile', {});
+    GlobeDeck?.expand?.('Your profile · 3D');
+    const openProfile = () => {
+      const lat = window._lastPos?.lat;
+      const lng = window._lastPos?.lng;
+      const name = this._profileVisual?.display_name
+        || this.user.user_metadata?.full_name
+        || (this.user.email || '').split('@')[0]
+        || 'You';
+      if (lat != null && lng != null) {
+        GlobeEntity?.syncMe?.(lat, lng, name, { alwaysShow: true });
+        const fp = latLngToPos(lat, lng, 1.04);
+        const z = GlobeControl?.Z?.national || 1.82;
+        const dur = GlobeControl?.flyDuration?.(camera?.position?.z, z) || 2200;
+        flyToPoint?.(new THREE.Vector3(fp.x, fp.y, fp.z), z, { dur });
+        GlobeControl?.noteAutoFly?.();
+        MapDepict?.pulse?.(lat, lng, 0x49b7ff, name, 8000);
+      } else {
+        locateMe?.();
+      }
+      ProfileSite?.openSelf?.();
+    };
+    if (window._lastPos?.lat != null) {
+      openProfile();
+      return;
+    }
+    if (!navigator.geolocation) {
+      openProfile();
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        placeMe(pos.coords.latitude, pos.coords.longitude, { fly: true, zoom: GlobeControl?.Z?.national || 1.82 });
+        openProfile();
+      },
+      () => openProfile(),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 45000 }
+    );
   },
 
   openLoginModal(hint) {
@@ -372,7 +414,7 @@ const Auth = {
         btn.classList.remove('auth-out', 'auth-boot');
         btn.classList.add(this._authDegraded ? 'auth-degraded' : 'auth-in');
         btn.dataset.auth = this._authDegraded ? 'degraded' : 'in';
-        btn.title = (this._authDegraded ? 'Session refreshing · ' : 'Signed in · ') + name + ' — tap to sign out';
+        btn.title = (this._authDegraded ? 'Session refreshing · ' : 'Signed in · ') + name + ' — tap to fly to you & edit profile';
         btn.style.backgroundSize = 'cover';
         btn.style.backgroundPosition = 'center';
         if (avatar) {

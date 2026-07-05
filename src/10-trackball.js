@@ -287,7 +287,9 @@ function tickGlobeFly() {
   const f = window._globeFly;
   if (!f) return;
   const p = Math.min(1, (performance.now() - f.t0) / f.dur);
-  const ease = 1 - Math.pow(1 - p, 3);
+  const ease = p < 0.5
+    ? 4 * p * p * p
+    : 1 - Math.pow(-2 * p + 2, 3) / 2;
   globePivot.rotation.y = f.fromY + (f.toY - f.fromY) * ease;
   globePivot.rotation.x = f.fromX + (f.toX - f.fromX) * ease;
   camera.position.z = f.fromZ + (f.toZ - f.fromZ) * ease;

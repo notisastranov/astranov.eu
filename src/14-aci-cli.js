@@ -392,6 +392,12 @@ const AciCli = {
         return;
       }
       if (cmd === 'order') {
+        const sub = (parts[1] || '').toLowerCase();
+        if (sub === 'status' || sub === 'track' || sub === 'list' || sub === 'fly' || sub === 'last' || sub === 'active') {
+          await OrderTracking?.cli?.(parts);
+          GlobeDeck?.finishCliIfOneShot?.('order');
+          return;
+        }
         await Commerce.openOrderFlow(rest);
         this.print(rest ? 'order · ' + rest : 'pick vendor — real menu only', 'ok');
         GlobeDeck.activeTask = 'commerce';

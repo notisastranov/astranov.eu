@@ -729,6 +729,7 @@ const Commerce = {
             deliveryLng: dLng,
           });
         }
+        OrderTracking?.onOrderPlaced?.(orderResult.order, vendor, driverObj);
       } else {
         msg = 'Παραγγελία απέτυχε: ' + (errMsg || 'server error') + '. Δοκίμασε ξανά.';
       }

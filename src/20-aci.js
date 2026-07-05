@@ -73,20 +73,22 @@ const ACI = {
   async think(prompt, opts = {}) {
     if (window._aciAbort) { try { window._aciAbort.abort(); } catch (_) {} }
     window._aciAbort = new AbortController();
-    const fast = opts.fast !== false && String(prompt || '').length < 600;
-    GlobeDeck?.setMapStatus('ACI — thinking…');
-    GlobeDeck?.setThinking(true, 'ACI — thinking…');
+    const fast = opts.fast !== false;
+    if (!opts._wrapped) {
+      GlobeDeck?.setMapStatus('ACI — thinking…');
+      GlobeDeck?.setThinking(true, '◎ 3D think…');
+    }
     const h = await this.headers();
     let r;
     try {
       r = await fetchJson(this.url + '/functions/v1/aci', {
         method: 'POST', headers: h,
         body: JSON.stringify({
-          mode: 'think', prompt, fast,
-          history: this.history.slice(-6),
+          mode: 'think', prompt, fast: true,
+          history: this.history.slice(-4),
           aci_mode: this.thinkMode || undefined,
         }),
-      }, fast ? 32000 : 55000);
+      }, Responsive3D?.FAST_MS || 8000);
     } catch (e) {
       r = { error: String(e.message || e) };
     }
@@ -263,6 +265,10 @@ const ACIControl = {
     }
     if (/^(logout|sign out|αποσύνδεση)$/.test(low)) { Auth.signOut(); return { executed: true }; }
     if (/telecom|sat radio|satellite radio|ασύρματος/.test(low)) { Comms.startTelecomms(); return { executed: true }; }
+    if (/^order\s+(status|track|list|fly|last|active)\b/i.test(low)) {
+      await OrderTracking?.cli?.(text.trim().split(/\s+/));
+      return { executed: true, action: 'order_track' };
+    }
     if (/pitogyra|πιτογυρ|μπίρ|τσιγαρ|order|παραγγελ|goals|work|δουλειά|delivery|διανομ|mpiro|tsigar|beer|cigar/.test(low)) {
       const q = text.replace(/^(order|παραγγελία?)\s*/i, '').trim();
       const wants = Commerce.parseWantedItems?.(q) || [];

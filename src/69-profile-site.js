@@ -20,6 +20,7 @@ const ProfileSite = {
     document.getElementById('ps-shop')?.addEventListener('click', () => {
       if (this._vendor) Commerce?.openVendor?.(this._vendor);
     });
+    document.getElementById('ps-logout')?.addEventListener('click', () => Auth?.signOut?.());
   },
 
   esc(s) {
@@ -53,7 +54,14 @@ const ProfileSite = {
     }
     this._render(prof);
     document.getElementById('profile-site-panel')?.classList.add('open');
-    MapDepict?.pulse?.(window._lastPos?.lat, window._lastPos?.lng, 0x49b7ff, prof.display_name || 'Profile', 8000);
+    const lat = window._lastPos?.lat;
+    const lng = window._lastPos?.lng;
+    if (lat != null && this.isSelf(userId)) {
+      Responsive3D?.visualReact?.('profile', { lat, lng });
+      GlobeEntity?.syncMe?.(lat, lng, prof.display_name || 'You', { alwaysShow: true });
+    } else {
+      MapDepict?.pulse?.(lat, lng, 0x49b7ff, prof.display_name || 'Profile', 8000);
+    }
   },
 
   async openVendor(vendor) {
@@ -109,9 +117,12 @@ const ProfileSite = {
         + '<label class="ps-field">Phone<input id="ps-in-phone" value="' + this.esc(this._draft.phone) + '" /></label>'
         + '<label class="ps-field">Public email<input id="ps-in-email" value="' + this.esc(this._draft.email) + '" /></label>'
         + '<label class="ps-field">Subdomain slug<input id="ps-in-slug" placeholder="my-yachts" value="' + this.esc(this._draft.site_slug) + '" /></label>'
-        + '<div class="ps-hint">Subdomain needs admin approval · profile page is live now on tap</div>';
+        + '<div class="ps-hint">Subdomain needs admin approval · profile page is live now on tap</div>'
+        + this._rolesHtml(prof.roles);
       document.getElementById('ps-save').style.display = 'inline-block';
       document.getElementById('ps-site-req').style.display = 'inline-block';
+      document.getElementById('ps-logout').style.display = 'inline-block';
+      this._bindRoleToggles();
     } else {
       body.innerHTML = ''
         + (about ? '<div class="ps-about">' + this.esc(about) + '</div>' : '')
@@ -121,6 +132,7 @@ const ProfileSite = {
         + (prof.site_slug ? '<div class="ps-line">◎ ' + this.esc(prof.site_slug) + '.astranov.eu · ' + this.esc(prof.site_request_status || 'none') + '</div>' : '');
       document.getElementById('ps-save').style.display = 'none';
       document.getElementById('ps-site-req').style.display = 'none';
+      document.getElementById('ps-logout').style.display = 'none';
     }
 
     const shopBtn = document.getElementById('ps-shop');
@@ -153,6 +165,75 @@ const ProfileSite = {
     document.getElementById('ps-site-req').style.display = 'none';
     document.getElementById('ps-shop').style.display = 'inline-block';
     this._vendor = vendor;
+  },
+
+  _normRoles(roles) {
+    const arr = Array.isArray(roles) ? roles.slice() : ['client', 'driver'];
+    if (!arr.includes('client')) arr.unshift('client');
+    return arr;
+  },
+
+  _rolesHtml(roles) {
+    const r = this._normRoles(roles);
+    const defs = [
+      { id: 'client', label: 'Customer', icon: '🧑' },
+      { id: 'driver', label: 'Delivery driver', icon: '🚚' },
+      { id: 'vendor', label: 'Vendor', icon: '🏬' },
+    ];
+    return '<div class="ps-roles-title">Active roles · tap to toggle</div>'
+      + '<div class="ps-role-row">'
+      + defs.map(d => {
+        const on = r.includes(d.id);
+        return '<button type="button" class="ps-role-btn' + (on ? ' active' : '') + '" data-role="' + d.id + '">'
+          + d.icon + ' ' + d.label + '</button>';
+      }).join('')
+      + '</div>';
+  },
+
+  _bindRoleToggles() {
+    document.querySelectorAll('.ps-role-btn[data-role]').forEach(btn => {
+      if (btn.dataset.bound) return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', () => this.toggleRole(btn.dataset.role));
+    });
+  },
+
+  async toggleRole(role) {
+    if (!Auth?.user || !this.isSelf(this.targetId)) return;
+    const allowed = ['client', 'driver', 'vendor'];
+    if (!allowed.includes(role)) return;
+    const prof = await this.loadProfile(Auth.user.id);
+    const roles = this._normRoles(prof?.roles);
+    const i = roles.indexOf(role);
+    if (role === 'client') {
+      if (i < 0) roles.push('client');
+    } else if (i >= 0) {
+      if (role === 'driver' && roles.length <= 1) {
+        ACIControl?.reply('Keep at least customer role active');
+        return;
+      }
+      roles.splice(i, 1);
+    } else {
+      roles.push(role);
+    }
+    try {
+      const headers = await Auth.authHeaders();
+      await fetch(SB_URL + '/rest/v1/profiles?id=eq.' + Auth.user.id, {
+        method: 'PATCH', headers,
+        body: JSON.stringify({
+          roles,
+          is_vendor: roles.includes('vendor'),
+          updated_at: new Date().toISOString(),
+        }),
+      });
+      FieldBrain.roles = roles;
+      FieldBrain?.updateChip?.();
+      ACIControl?.reply('Roles: ' + roles.join(' · '));
+      Responsive3D?.visualReact?.('profile', {});
+      await this.openUser(Auth.user.id, { vendor: this._vendor });
+    } catch (e) {
+      ACIControl?.reply('Role update failed: ' + (e.message || e));
+    }
   },
 
   _collectDraft() {

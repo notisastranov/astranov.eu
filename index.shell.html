@@ -148,6 +148,7 @@
   #globe-deck.collapsed { max-height:118px; }
   #globe-deck.expanded.size-third { max-height:33vh; min-height:33vh; }
   #globe-deck.expanded.size-full { max-height:min(92dvh, calc(100dvh - 44px)); min-height:min(92dvh, calc(100dvh - 44px)); }
+  #globe-deck.expanded.size-free { transition:none; }
   #globe-deck.expanded.has-stage.size-third { max-height:38vh; min-height:38vh; }
   #globe-deck.expanded.has-stage.size-full { max-height:min(94dvh, calc(100dvh - 40px)); min-height:min(94dvh, calc(100dvh - 40px)); }
   #globe-deck-header { display:none !important; }
@@ -455,6 +456,11 @@
   .ps-tag { display:inline-block; margin:2px 4px 2px 0; padding:3px 8px; border-radius:8px; background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); font-size:9px; }
   .ps-line { margin:4px 0; color:#bde; }
   .ps-hint { font-size:8px; color:#7a9; margin-top:4px; }
+  .ps-roles-title { font-size:9px; font-weight:700; color:var(--ax-blue-bright); margin:10px 0 6px; }
+  .ps-role-row { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+  .ps-role-btn { padding:8px 10px; border-radius:10px; border:1px solid var(--ax-blue-border); background:rgba(0,40,90,0.45); color:#cde; cursor:pointer; font:inherit; font-size:9px; touch-action:manipulation; }
+  .ps-role-btn.active { background:var(--ax-green-bg); border-color:var(--ax-green-border); color:var(--ax-green-bright); box-shadow:0 0 8px var(--ax-green-glow); }
+  #ps-logout { width:100%; margin-top:6px; background:var(--ax-red-bg) !important; border-color:var(--ax-red-border) !important; color:var(--ax-red-bright) !important; }
   #ps-foot { display:flex; flex-wrap:wrap; gap:6px; padding:8px 10px; border-top:1px solid rgba(26,111,212,0.2); }
   #ps-foot button { padding:7px 10px; border-radius:8px; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); cursor:pointer; font-size:9px; font-weight:600; }
   #ps-status { width:100%; font-size:8px; color:#ffd633; }
@@ -526,6 +532,7 @@
       <button id="ps-site-req" type="button" style="display:none">Request subdomain</button>
       <button id="ps-open-site" type="button" style="display:none">Open site</button>
       <button id="ps-shop" type="button" style="display:none">Shop</button>
+      <button id="ps-logout" type="button" style="display:none">Logout</button>
     </div>
   </div>
   <div id="map-comms-contact">

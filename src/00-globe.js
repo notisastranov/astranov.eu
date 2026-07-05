@@ -152,7 +152,7 @@ const GlobeControl = {
   flyDuration(fromZ, toZ) {
     const a = fromZ ?? camera?.position?.z ?? 2.55;
     const b = toZ ?? 2.55;
-    return Math.round(1100 + Math.abs(a - b) * 950);
+    return Math.min(3200, Math.round(2000 + Math.abs(a - b) * 1100));
   },
 
   /** Default fly — global view; never drops to city unless opts.city === true */
