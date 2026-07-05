@@ -1,7 +1,7 @@
 // === CITY MAP — satellite + streets when zoomed to city level ===
 const CityMap = {
-  ENTER_Z: 1.36,
-  EXIT_Z: 1.48,
+  ENTER_Z: 1.42,
+  EXIT_Z: 1.52,
   active: false,
   map: null,
   _ready: false,
@@ -164,6 +164,20 @@ const CityMap = {
   flyTo(lat, lng, zoom) {
     this._center = { lat, lng };
     if (this.map) this.map.setView([lat, lng], zoom || 15, { animate: true });
+  },
+
+  async enter(lat, lng, opts) {
+    if (CityLife?.dropIn) return CityLife.dropIn(lat, lng, opts || {});
+    const c = lat != null && lng != null ? { lat, lng } : (window._lastPos || this.globeCenterLatLng());
+    if (!c?.lat) return { error: 'no location' };
+    const z = GlobeControl?.cityEntryZ?.() ?? this.ENTER_Z - 0.06;
+    const p = latLngToPos(c.lat, c.lng, 1.04);
+    if (typeof flyToPoint === 'function') {
+      flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z);
+      if (typeof waitForGlobeFly === 'function') await waitForGlobeFly();
+    }
+    this.onCamera(z, 'earth');
+    return { lat: c.lat, lng: c.lng };
   },
 
   onCamera(camZ, level) {

@@ -93,20 +93,5 @@ const SuperSpace = {
 };
 window.SuperSpace = SuperSpace;
 
-const CityLife = {
-  CITY_ZOOM: 1.38,
-  userPos() { return window._lastPos || { lat: 36.44, lng: 28.22 }; },
-  init() {},
-  async dropIn(lat, lng, opts) {
-    if (CityMap?.enter) return CityMap.enter(lat, lng, opts || {});
-    return { ok: true };
-  },
-  async locateAndDropIn() {
-    const u = this.userPos();
-    return this.dropIn(u.lat, u.lng, {});
-  },
-};
-window.CityLife = CityLife;
-
 const GlobeAutonomy = { init() {} };
 window.GlobeAutonomy = GlobeAutonomy;

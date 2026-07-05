@@ -714,10 +714,18 @@ function locateMe() {
   GlobeControl?.userTookGlobe?.('silent');
   navigator.geolocation.getCurrentPosition(
     async pos => {
-      const lat = pos.coords.latitude, lng = pos.coords.longitude;
-      placeMe(lat, lng, { quiet: false, fly: true, zoom: GlobeControl?.Z?.global || 2.55 });
-      ACIControl?.reply('On globe · ' + lat.toFixed(2) + ', ' + lng.toFixed(2) + ' — zoom in or say city view for shops');
-      GlobeDeck?.setMapStatus('🌍 Global · ' + lat.toFixed(2) + ', ' + lng.toFixed(2));
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      try {
+        const r = await enterCityView?.(lat, lng);
+        if (r?.error) {
+          placeMe(lat, lng, { quiet: false, fly: true, zoom: GlobeControl?.Z?.global || 2.55 });
+          ACIControl?.reply('On globe · ' + lat.toFixed(2) + ', ' + lng.toFixed(2) + ' — say city view for map');
+        }
+      } catch (_) {
+        placeMe(lat, lng, { quiet: false, fly: true, cityDrop: true });
+        ACIControl?.reply('City view · ' + lat.toFixed(2) + ', ' + lng.toFixed(2));
+      }
     },
     () => {
       ACIControl?.reply('Location denied — enable GPS in browser');

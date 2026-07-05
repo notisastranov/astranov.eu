@@ -68,6 +68,7 @@ ZoomTiers.init();
 AstranovTheme.init();
 AstranovLogo.init();
 CityMap.init();
+CityLife.init();
 EarthRealism.init();
 GlobeEntity.init();
 Responsive3D.init();

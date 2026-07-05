@@ -1,0 +1,224 @@
+// === CITY LIFE — locate → fly → city satellite map · shops · drivers ===
+const CityLife = {
+  get CITY_ZOOM() {
+    return GlobeControl?.cityEntryZ?.() ?? 1.34;
+  },
+  NEARBY_KM: 12,
+  _friendTimer: null,
+  _lastDrop: null,
+
+  init() {
+    this._startFriendMotion();
+  },
+
+  userPos() {
+    return window._lastPos || { lat: 36.44, lng: 28.22 };
+  },
+
+  ensureEarthView() {
+    if (CosmicZoom) CosmicZoom.level = 'earth';
+    ZoomTiers?.goTo?.('city', false);
+    CosmicZoom?.update?.(this.CITY_ZOOM, { tier: 'city', label: 'CITY', cosmic: 'earth' });
+    cityLevel = true;
+  },
+
+  async flyToCity(lat, lng, label) {
+    this.ensureEarthView();
+    const z = this.CITY_ZOOM;
+    const p = latLngToPos(lat, lng, 1.04);
+    if (typeof flyToPoint === 'function') {
+      flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z, {
+        dur: GlobeControl?.flyDuration?.(camera?.position?.z, z),
+      });
+      if (typeof waitForGlobeFly === 'function') await waitForGlobeFly();
+    }
+    GlobeControl?.engageFollow?.('locate');
+    GlobeControl?.noteAutoFly?.();
+    MapDepict?.pulse?.(lat, lng, 0x3d9eff, label || 'Your city', 14000);
+  },
+
+  nearbyVendors(lat, lng) {
+    const list = Commerce?.vendors || [];
+    if (!list.length || !Commerce?.haversineKm) return list;
+    return list.filter(v => v.lat != null && Commerce.haversineKm(lat, lng, v.lat, v.lng) <= this.NEARBY_KM);
+  },
+
+  async dropIn(lat, lng, opts) {
+    opts = opts || {};
+    const pos = lat != null && lng != null ? { lat, lng } : this.userPos();
+    if (!pos?.lat) return { error: 'no location — allow GPS or say locate' };
+
+    window._lastPos = { lat: pos.lat, lng: pos.lng };
+    userLocated = true;
+    this._lastDrop = { lat: pos.lat, lng: pos.lng, t: Date.now() };
+
+    GlobeDeck?.setMapStatus('Flying to city…');
+    await this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
+    CityMap?.flyTo?.(pos.lat, pos.lng, CityMap?.camZToZoom?.(this.CITY_ZOOM));
+
+    if (Commerce?.loadVendors) await Commerce.loadVendors();
+    const nearby = this.nearbyVendors(pos.lat, pos.lng);
+    if (nearby.length) {
+      Commerce.vendors = nearby.concat((Commerce.vendors || []).filter(v => !nearby.includes(v))).slice(0, 40);
+    }
+    Commerce?.showOnGlobe?.();
+    GlobeEntity?.syncVendors?.(Commerce.vendors);
+
+    const drivers = Commerce?.fetchNearbyDrivers ? await Commerce.fetchNearbyDrivers(pos.lat, pos.lng) : [];
+    Commerce?.showDriversOnGlobe?.(drivers);
+    this._pulseFriends();
+    this._showLocalNews(pos.lat, pos.lng);
+    this._updateChip(nearby.length, drivers.length);
+
+    CityMap?.onCamera?.(this.CITY_ZOOM, 'earth');
+    const msg = nearby.length + ' shops · ' + drivers.length + ' drivers · ' + (window.others?.length || 0) + ' friends nearby';
+    GlobeDeck?.setPreview('🏙 ' + msg);
+    AciCli?.print('◎ City view · ' + msg, 'ok');
+    ACIControl?.reply('City map open — ' + msg + ' · tap a shop or type: order pitogyra');
+    FieldBrain?.pulse?.('city', msg, { role: 'client', props: { lat: pos.lat, lng: pos.lng, shops: nearby.length } });
+
+    if (opts.openShops && nearby.length) {
+      GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+      await Commerce?.showPicker?.();
+    }
+    return { vendors: nearby, drivers, lat: pos.lat, lng: pos.lng };
+  },
+
+  _pulseFriends() {
+    (window.others || []).forEach(u => {
+      MapDepict?.pulse?.(u.lat, u.lng, 0xffaa33, (u.emoji || '') + ' ' + u.name, 15000);
+    });
+  },
+
+  _showLocalNews(lat, lng) {
+    NewsFeed?.fetch?.();
+    const item = (NewsFeed?.items || [])[0] || 'News near you';
+    MapDepict?.action?.('news', { lat, lng, detail: item.slice(0, 55), worldLat: lat, worldLng: lng });
+    if (!GlobeDeck?.thinking) GlobeDeck?.setPreview('📰 ' + item.slice(0, 72));
+  },
+
+  _updateChip(shops, drivers) {
+    const el = document.getElementById('city-life-chip');
+    if (!el) return;
+    el.classList.add('open');
+    el.innerHTML = '<b>City</b> · ' + shops + ' shops · ' + drivers + ' drivers · friends live';
+  },
+
+  _startFriendMotion() {
+    if (this._friendTimer) return;
+    this._friendTimer = setInterval(() => this._tickFriends(), 3500);
+  },
+
+  _tickFriends() {
+    if (Auth?.user || AstranovPresence?.rtChannel) return;
+    if (!(window.others || []).length) return;
+    const friends = window.others || [];
+    friends.forEach((u) => {
+      u.lat += (Math.random() - 0.5) * 0.0012;
+      u.lng += (Math.random() - 0.5) * 0.0012;
+    });
+    window.others = friends;
+    GlobeEntity?.syncFriends?.(friends);
+    if (CityMap?.active) CityMap._syncMarkers?.();
+  },
+
+  async locateAndDropIn() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) { reject(new Error('no geolocation')); return; }
+      GlobeDeck?.setMapStatus('Locating…');
+      navigator.geolocation.getCurrentPosition(
+        async pos => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          placeMe(lat, lng, { quiet: true, markerOnly: true });
+          resolve(await this.dropIn(lat, lng, { label: 'Your city' }));
+        },
+        err => reject(err),
+        { enableHighAccuracy: true, timeout: 14000, maximumAge: 30000 }
+      );
+    });
+  },
+
+  SCENARIOS: {
+    wake: async () => {
+      AciCli?.print('scenario · wake — news on globe', 'cmd');
+      NewsFeed?.flash?.();
+      const u = CityLife.userPos();
+      await CityLife.dropIn(u.lat, u.lng, { label: 'Morning' });
+    },
+    news: async () => {
+      NewsFeed?.flash?.();
+      const u = CityLife.userPos();
+      CityLife._showLocalNews(u.lat, u.lng);
+    },
+    youtube: async (q) => {
+      await GlobeVideo?.find?.(q || 'interesting places earth documentary');
+    },
+    locate: async () => {
+      await CityLife.locateAndDropIn();
+    },
+    city: async () => {
+      const u = CityLife.userPos();
+      await CityLife.dropIn(u.lat, u.lng, { openShops: true });
+    },
+    friends: async () => {
+      CityLife._pulseFriends();
+      AciCli?.print((window.others || []).map(u => u.name + ' · ' + u.lat.toFixed(3)).join(' · '), 'ok');
+    },
+    drivers: async () => {
+      const u = CityLife.userPos();
+      const d = await Commerce?.fetchNearbyDrivers?.(u.lat, u.lng);
+      Commerce?.showDriversOnGlobe?.(d);
+      AciCli?.print(d.length ? d.map(x => (x.display_name || 'Driver')).join(' · ') : 'no active drivers — order to summon', 'ok');
+    },
+    shops: async () => {
+      const u = CityLife.userPos();
+      await CityLife.dropIn(u.lat, u.lng, { openShops: true });
+    },
+    groceries: async () => { await Commerce?.smartOrder?.('pitogyra mpironia tsigareta'); },
+    order: async (rest) => { await Commerce?.smartOrder?.(rest || 'pitogyra beer'); },
+    reviews: async (rest) => {
+      const q = rest || 'best restaurant near me';
+      AciCli?.print('brain · reviews · ' + q, 'dim');
+      const r = await ACI?.think?.('Summarize Google-style reviews for: ' + q + '. Short bullet list, best pick.');
+      ACIControl?.reply(r || 'No reviews');
+    },
+    task: async (rest) => {
+      await AciCoders?.handleMessage?.(rest || 'find best grocery offer near me and assign driver');
+    },
+    assign: async (rest) => {
+      if (rest) await FieldBrain?.claimDelivery?.(rest);
+      else AciCli?.print('usage: scenario assign <order_id>', 'err');
+    },
+    explore: async () => {
+      const u = CityLife.userPos();
+      MapDepict?.action?.('explore', { lat: u.lat, lng: u.lng, detail: 'things to do' });
+      ACIControl?.reply('Drag globe · tap shops · type order or youtube');
+    },
+    list: async () => {
+      const names = Object.keys(CityLife.SCENARIOS).filter(k => k !== 'list').join(' · ');
+      AciCli?.print('scenarios: ' + names, 'ok');
+    },
+  },
+
+  async run(name, rest) {
+    const key = (name || 'list').toLowerCase();
+    const fn = this.SCENARIOS[key];
+    if (!fn) {
+      AciCli?.print('unknown scenario — try: scenario list', 'err');
+      return { error: 'unknown' };
+    }
+    try {
+      await fn(rest);
+      return { ok: true, scenario: key };
+    } catch (e) {
+      AciCli?.print('scenario error: ' + (e.message || e), 'err');
+      return { error: e.message };
+    }
+  },
+
+  listScenarios() {
+    return Object.keys(this.SCENARIOS).filter(k => k !== 'list');
+  },
+};
+window.CityLife = CityLife;
