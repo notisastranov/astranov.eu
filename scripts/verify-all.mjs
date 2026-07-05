@@ -66,6 +66,9 @@ check('globe-src', 'avc-ledger config.toml', hasFile(join(ROOT, 'supabase/config
 check('globe-src', 'coin booker migration', hasFile(join(ROOT, 'supabase/migrations/202607050001_avc_transparent_ledger.sql'), 'coin.astranov.eu'));
 check('globe-src', 'one-database module', hasFile(join(ROOT, 'src/81-one-database.js'), 'lkoatrkhuigdolnjsbie'));
 check('globe-src', 'one-database migration', hasFile(join(ROOT, 'supabase/migrations/202607050002_one_database_unified.sql'), 'one_database'));
+check('globe-src', 'auth url resolver', hasFile(join(ROOT, 'src/01-astranov-auth-url.js'), 'resolveAstranovSupabaseUrl'));
+check('globe-src', 'vercel auth proxy', hasFile(join(ROOT, 'vercel.json'), '"/auth/:path*"'));
+check('globe-src', 'auth modal shows astranov.eu', hasFile(join(ROOT, 'index.shell.html'), 'auth-origin-url'));
 
 // ── Group 4–6: Auditors repo ──
 check('auditors', 'index.html', hasFile(join(AUDITORS, 'index.html')));

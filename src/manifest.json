@@ -3,6 +3,7 @@
   "description": "Module load order for index.html monolith. Regenerate via: node scripts/extract.mjs | node scripts/assemble.mjs",
   "modules": [
     { "file": "00-globe.js", "marker": null },
+    { "file": "01-astranov-auth-url.js", "marker": "// === ASTRANOV AUTH URL" },
     { "file": "05-speak-map.js", "marker": "// === VOICE + MAP DEPICT ===" },
     { "file": "06-fetch-json.js", "marker": "// === FETCH JSON" },
     { "file": "07-astranov-logo.js", "marker": "// === ASTRANOV LOGO" },

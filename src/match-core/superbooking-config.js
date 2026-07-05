@@ -4,7 +4,7 @@ window.ASTRANOV_CENTRAL_DB = {
   supabaseRef: 'lkoatrkhuigdolnjsbie',
   supabaseUrl: 'https://lkoatrkhuigdolnjsbie.supabase.co',
   customUrl: 'https://api.astranov.eu',
-  useCustomDomain: false,
+  useCustomDomain: false, /* same-origin proxy via vercel.json on *.astranov.eu */
   supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI',
   profilesTable: 'profiles',
   tenants: ['astranov.eu', 'coin.astranov.eu', 'auditors.astranov.eu', 'yachts.astranov.eu'],
@@ -22,6 +22,7 @@ window.ASTRANOV_SITES_DEFAULTS = {
 window.ASTRANOV_SUPERBOOKING_DEFAULTS = window.ASTRANOV_SITES_DEFAULTS;
 
 function astranovCentralSupabaseUrl() {
+  if (typeof resolveAstranovSupabaseUrl === 'function') return resolveAstranovSupabaseUrl();
   const c = window.ASTRANOV_CENTRAL_DB;
   return c.useCustomDomain && c.customUrl ? c.customUrl : c.supabaseUrl;
 }

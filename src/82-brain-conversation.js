@@ -43,7 +43,7 @@ const BrainConversation = {
     }
     if (/^(db status|one database)\b/.test(low)) {
       return AstranovOneDatabase?.status?.()?.central
-        ? 'One database lkoatrkhuigdolnjsbie — all *.astranov.eu tenants share profiles, orders, avc_ledger.'
+        ? 'One Astranov database — all *.astranov.eu tenants share profiles, orders, avc_ledger.'
         : 'Central database active for Astranov platform.';
     }
     return null;

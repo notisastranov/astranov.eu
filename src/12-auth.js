@@ -129,13 +129,20 @@ const Auth = {
     );
   },
 
+  publicOrigin() {
+    return typeof astranovPublicOrigin === 'function' ? astranovPublicOrigin() : (location.origin || 'https://astranov.eu');
+  },
+
   openLoginModal(hint) {
     const modal = document.getElementById('astranov-auth-modal');
     if (!modal) return this.signInOAuth('google');
     const status = document.getElementById('auth-status');
-    if (status) status.textContent = hint || 'One Astranov account — globe, sites, batch.';
+    const origin = this.publicOrigin();
+    if (status) status.textContent = hint || ('Official login · ' + origin + ' · one account for globe & sites');
+    const originEl = document.getElementById('auth-origin-url');
+    if (originEl) originEl.textContent = origin;
     modal.classList.add('open');
-    GlobeDeck?.expand?.('Sign in · Astranov Identity');
+    GlobeDeck?.expand?.('Sign in · ' + origin);
   },
 
   closeLoginModal() {
@@ -150,12 +157,17 @@ const Auth = {
     }
     if (!this.OAUTH_PROVIDERS.includes(provider)) return;
     this.closeLoginModal();
-    GlobeDeck?.setPreview?.('Sign in · ' + provider);
-    ACIControl?.reply('Sign in with ' + provider + ' — secured by Astranov');
-    const redirectTo = window.location.origin + window.location.pathname;
+    const origin = this.publicOrigin();
+    GlobeDeck?.setPreview?.('Sign in · ' + origin);
+    ACIControl?.reply('Sign in at ' + origin + ' with ' + provider + ' — official Astranov');
+    const redirectTo = window.location.origin + window.location.pathname + (window.location.search || '');
     await this.client.auth.signInWithOAuth({
       provider,
-      options: { redirectTo, skipBrowserRedirect: false }
+      options: {
+        redirectTo,
+        skipBrowserRedirect: false,
+        scopes: provider === 'google' || provider === 'facebook' ? 'email profile' : undefined,
+      },
     });
   },
 
@@ -197,7 +209,7 @@ const Auth = {
       this.closeLoginModal();
       ACIControl?.reply('Signed in — Astranov Identity active');
     } catch (e) {
-      if (status) status.textContent = e.message || 'Sign in failed';
+      if (status) status.textContent = typeof scrubSupabaseLeak === 'function' ? scrubSupabaseLeak(e.message) : (e.message || 'Sign in failed');
     }
   },
 
@@ -454,7 +466,7 @@ const Auth = {
         btn.classList.remove('auth-in', 'auth-degraded');
         btn.classList.add(this._authBoot ? 'auth-boot' : 'auth-out');
         btn.dataset.auth = 'out';
-        btn.title = 'Sign in — Google · email · phone';
+        btn.title = 'Sign in at astranov.eu — Google · email · phone';
         btn.textContent = 'G';
         btn.style.backgroundImage = '';
         btn.style.fontSize = '13px';

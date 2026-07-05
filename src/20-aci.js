@@ -2,14 +2,14 @@
 // Synthesized from all AI specs: pure globe + three modes + council + self-evolving neurons.
 // Single API: /functions/v1/aci (think | evolve | log | teach | stats | seed)
 const SUPABASE_REF = 'lkoatrkhuigdolnjsbie';
-const SUPABASE_CUSTOM_URL = 'https://api.astranov.eu';
 const SUPABASE_DEFAULT_URL = 'https://' + SUPABASE_REF + '.supabase.co';
-// Flip true after api.astranov.eu is activated — removes random ref from Google OAuth
-const SUPABASE_USE_CUSTOM_DOMAIN = false;
+const SB_URL = typeof resolveAstranovSupabaseUrl === 'function'
+  ? resolveAstranovSupabaseUrl()
+  : SUPABASE_DEFAULT_URL;
 
 const ACI = {
   name: 'Astranov Collective Intelligence',
-  url: SUPABASE_USE_CUSTOM_DOMAIN ? SUPABASE_CUSTOM_URL : SUPABASE_DEFAULT_URL,
+  url: SB_URL,
   key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI',
   neurons: [],
   history: [],
@@ -179,7 +179,6 @@ const ACI = {
 };
 window.AstranovCollectiveIntelligence = ACI;
 
-const SB_URL = ACI.url;
 const SB_KEY = ACI.key;
 const sbHeaders = () => ({ apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' });
 

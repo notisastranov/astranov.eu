@@ -358,6 +358,8 @@
   /* Astranov Identity modal */
   #astranov-auth-modal { display:none; position:fixed; inset:0; z-index:200; align-items:center; justify-content:center; background:rgba(0,4,12,0.82); backdrop-filter:blur(8px); pointer-events:auto; }
   #astranov-auth-modal.open { display:flex; }
+  .auth-origin { font-size:11px; color:var(--ax-green-bright); margin-top:4px; font-weight:600; letter-spacing:0.02em; text-shadow:0 0 8px var(--ax-green-glow); }
+  .auth-trust { font-size:9px; color:var(--an-muted); margin-top:6px; line-height:1.4; }
   .auth-sheet { width:min(380px,94vw); max-height:90vh; overflow:auto; padding:16px; border-radius:18px; border:1px solid rgba(73,183,255,0.55); background:linear-gradient(180deg,rgba(4,14,32,0.98),rgba(2,8,18,0.98)); color:#def; font:11px/1.45 system-ui; box-shadow:0 0 40px rgba(73,183,255,0.25); }
   .auth-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
   .auth-head b { color:#9ef; font-size:13px; }
@@ -479,7 +481,14 @@
   </div>
   <div id="astranov-auth-modal">
     <div class="auth-sheet">
-      <div class="auth-head"><b>Astranov Identity</b><button id="auth-close" type="button" style="background:transparent;border:1px solid #666;color:#aaa;border-radius:8px;padding:4px 10px;cursor:pointer">✖</button></div>
+      <div class="auth-head">
+        <div>
+          <b>Astranov Identity</b>
+          <div class="auth-origin" id="auth-origin-url">https://astranov.eu</div>
+          <div class="auth-trust">You are signing in on our official domain — not a third-party project name.</div>
+        </div>
+        <button id="auth-close" type="button" style="background:transparent;border:1px solid #666;color:#aaa;border-radius:8px;padding:4px 10px;cursor:pointer">✖</button>
+      </div>
       <div class="auth-tabs">
         <button class="auth-tab active" type="button" data-pane="auth-pane-social">Social</button>
         <button class="auth-tab" type="button" data-pane="auth-pane-id">Email / user</button>
@@ -870,6 +879,37 @@ async function enterCityView(lat, lng, opts) {
   return GlobeControl.enterCity(lat, lng, opts);
 }
 window.enterCityView = enterCityView;
+
+// === ASTRANOV AUTH URL — never expose classified Supabase project ref to users ===
+function resolveAstranovSupabaseUrl() {
+  try {
+    const host = location.hostname || '';
+    if (host === 'astranov.eu' || host.endsWith('.astranov.eu')) {
+      return location.origin;
+    }
+  } catch (_) { /* */ }
+  const c = window.ASTRANOV_CENTRAL_DB;
+  if (c?.useCustomDomain && c?.customUrl) return c.customUrl;
+  return 'https://lkoatrkhuigdolnjsbie.supabase.co';
+}
+
+function astranovPublicOrigin() {
+  try {
+    const host = location.hostname || '';
+    if (host === 'astranov.eu' || host.endsWith('.astranov.eu')) return location.origin;
+  } catch (_) { /* */ }
+  return 'https://astranov.eu';
+}
+
+function scrubSupabaseLeak(text) {
+  return String(text || '')
+    .replace(/[a-z0-9]{18,}\.supabase\.co/gi, 'astranov.eu')
+    .replace(/\bsupabase\b/gi, 'Astranov');
+}
+
+window.resolveAstranovSupabaseUrl = resolveAstranovSupabaseUrl;
+window.astranovPublicOrigin = astranovPublicOrigin;
+window.scrubSupabaseLeak = scrubSupabaseLeak;
 
 // === VOICE + MAP DEPICT ===
 // Astranov Voice: ONE calm female persona, ONE utterance at a time (queued).
@@ -1863,13 +1903,20 @@ const Auth = {
     );
   },
 
+  publicOrigin() {
+    return typeof astranovPublicOrigin === 'function' ? astranovPublicOrigin() : (location.origin || 'https://astranov.eu');
+  },
+
   openLoginModal(hint) {
     const modal = document.getElementById('astranov-auth-modal');
     if (!modal) return this.signInOAuth('google');
     const status = document.getElementById('auth-status');
-    if (status) status.textContent = hint || 'One Astranov account — globe, sites, batch.';
+    const origin = this.publicOrigin();
+    if (status) status.textContent = hint || ('Official login · ' + origin + ' · one account for globe & sites');
+    const originEl = document.getElementById('auth-origin-url');
+    if (originEl) originEl.textContent = origin;
     modal.classList.add('open');
-    GlobeDeck?.expand?.('Sign in · Astranov Identity');
+    GlobeDeck?.expand?.('Sign in · ' + origin);
   },
 
   closeLoginModal() {
@@ -1884,12 +1931,17 @@ const Auth = {
     }
     if (!this.OAUTH_PROVIDERS.includes(provider)) return;
     this.closeLoginModal();
-    GlobeDeck?.setPreview?.('Sign in · ' + provider);
-    ACIControl?.reply('Sign in with ' + provider + ' — secured by Astranov');
-    const redirectTo = window.location.origin + window.location.pathname;
+    const origin = this.publicOrigin();
+    GlobeDeck?.setPreview?.('Sign in · ' + origin);
+    ACIControl?.reply('Sign in at ' + origin + ' with ' + provider + ' — official Astranov');
+    const redirectTo = window.location.origin + window.location.pathname + (window.location.search || '');
     await this.client.auth.signInWithOAuth({
       provider,
-      options: { redirectTo, skipBrowserRedirect: false }
+      options: {
+        redirectTo,
+        skipBrowserRedirect: false,
+        scopes: provider === 'google' || provider === 'facebook' ? 'email profile' : undefined,
+      },
     });
   },
 
@@ -1931,7 +1983,7 @@ const Auth = {
       this.closeLoginModal();
       ACIControl?.reply('Signed in — Astranov Identity active');
     } catch (e) {
-      if (status) status.textContent = e.message || 'Sign in failed';
+      if (status) status.textContent = typeof scrubSupabaseLeak === 'function' ? scrubSupabaseLeak(e.message) : (e.message || 'Sign in failed');
     }
   },
 
@@ -2188,7 +2240,7 @@ const Auth = {
         btn.classList.remove('auth-in', 'auth-degraded');
         btn.classList.add(this._authBoot ? 'auth-boot' : 'auth-out');
         btn.dataset.auth = 'out';
-        btn.title = 'Sign in — Google · email · phone';
+        btn.title = 'Sign in at astranov.eu — Google · email · phone';
         btn.textContent = 'G';
         btn.style.backgroundImage = '';
         btn.style.fontSize = '13px';
@@ -6486,14 +6538,14 @@ window.FieldBrain = FieldBrain;
 // Synthesized from all AI specs: pure globe + three modes + council + self-evolving neurons.
 // Single API: /functions/v1/aci (think | evolve | log | teach | stats | seed)
 const SUPABASE_REF = 'lkoatrkhuigdolnjsbie';
-const SUPABASE_CUSTOM_URL = 'https://api.astranov.eu';
 const SUPABASE_DEFAULT_URL = 'https://' + SUPABASE_REF + '.supabase.co';
-// Flip true after api.astranov.eu is activated — removes random ref from Google OAuth
-const SUPABASE_USE_CUSTOM_DOMAIN = false;
+const SB_URL = typeof resolveAstranovSupabaseUrl === 'function'
+  ? resolveAstranovSupabaseUrl()
+  : SUPABASE_DEFAULT_URL;
 
 const ACI = {
   name: 'Astranov Collective Intelligence',
-  url: SUPABASE_USE_CUSTOM_DOMAIN ? SUPABASE_CUSTOM_URL : SUPABASE_DEFAULT_URL,
+  url: SB_URL,
   key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI',
   neurons: [],
   history: [],
@@ -6663,7 +6715,6 @@ const ACI = {
 };
 window.AstranovCollectiveIntelligence = ACI;
 
-const SB_URL = ACI.url;
 const SB_KEY = ACI.key;
 const sbHeaders = () => ({ apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' });
 
@@ -18429,7 +18480,7 @@ const AstranovOneDatabase = {
     const sub = (parts[1] || 'status').toLowerCase();
     const s = this.status();
     if (sub === 'help' || sub === '?') {
-      ACIControl?.reply('db status · one database · all tenants share lkoatrkhuigdolnjsbie');
+      ACIControl?.reply('db status · one database · all *.astranov.eu tenants unified');
       return;
     }
     AciCli?.print('── ONE DATABASE · ' + s.ref + ' ──', 'ok');
@@ -18487,7 +18538,7 @@ const BrainConversation = {
     }
     if (/^(db status|one database)\b/.test(low)) {
       return AstranovOneDatabase?.status?.()?.central
-        ? 'One database lkoatrkhuigdolnjsbie — all *.astranov.eu tenants share profiles, orders, avc_ledger.'
+        ? 'One Astranov database — all *.astranov.eu tenants share profiles, orders, avc_ledger.'
         : 'Central database active for Astranov platform.';
     }
     return null;

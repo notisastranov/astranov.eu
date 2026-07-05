@@ -26,7 +26,7 @@ const AstranovOneDatabase = {
     const sub = (parts[1] || 'status').toLowerCase();
     const s = this.status();
     if (sub === 'help' || sub === '?') {
-      ACIControl?.reply('db status · one database · all tenants share lkoatrkhuigdolnjsbie');
+      ACIControl?.reply('db status · one database · all *.astranov.eu tenants unified');
       return;
     }
     AciCli?.print('── ONE DATABASE · ' + s.ref + ' ──', 'ok');

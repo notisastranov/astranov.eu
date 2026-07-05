@@ -358,6 +358,8 @@
   /* Astranov Identity modal */
   #astranov-auth-modal { display:none; position:fixed; inset:0; z-index:200; align-items:center; justify-content:center; background:rgba(0,4,12,0.82); backdrop-filter:blur(8px); pointer-events:auto; }
   #astranov-auth-modal.open { display:flex; }
+  .auth-origin { font-size:11px; color:var(--ax-green-bright); margin-top:4px; font-weight:600; letter-spacing:0.02em; text-shadow:0 0 8px var(--ax-green-glow); }
+  .auth-trust { font-size:9px; color:var(--an-muted); margin-top:6px; line-height:1.4; }
   .auth-sheet { width:min(380px,94vw); max-height:90vh; overflow:auto; padding:16px; border-radius:18px; border:1px solid rgba(73,183,255,0.55); background:linear-gradient(180deg,rgba(4,14,32,0.98),rgba(2,8,18,0.98)); color:#def; font:11px/1.45 system-ui; box-shadow:0 0 40px rgba(73,183,255,0.25); }
   .auth-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
   .auth-head b { color:#9ef; font-size:13px; }
@@ -479,7 +481,14 @@
   </div>
   <div id="astranov-auth-modal">
     <div class="auth-sheet">
-      <div class="auth-head"><b>Astranov Identity</b><button id="auth-close" type="button" style="background:transparent;border:1px solid #666;color:#aaa;border-radius:8px;padding:4px 10px;cursor:pointer">✖</button></div>
+      <div class="auth-head">
+        <div>
+          <b>Astranov Identity</b>
+          <div class="auth-origin" id="auth-origin-url">https://astranov.eu</div>
+          <div class="auth-trust">You are signing in on our official domain — not a third-party project name.</div>
+        </div>
+        <button id="auth-close" type="button" style="background:transparent;border:1px solid #666;color:#aaa;border-radius:8px;padding:4px 10px;cursor:pointer">✖</button>
+      </div>
       <div class="auth-tabs">
         <button class="auth-tab active" type="button" data-pane="auth-pane-social">Social</button>
         <button class="auth-tab" type="button" data-pane="auth-pane-id">Email / user</button>
