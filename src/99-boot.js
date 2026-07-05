@@ -22,16 +22,9 @@ function animate() {
   const earthView = (level === 'earth' || level === 'orbit') && camZ < 4.8;
   const solarView = level === 'system' || level === 'galaxy' || camZ > 5.5;
 
-  if (!drag && earthView) {
-    const roll = globePerfActive() ? idleRoll * 0.35 : idleRoll;
-    globePivot.rotation.y += roll + trackVelX;
-    globePivot.rotation.x += trackVelY;
-    globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x));
-    trackVelX *= 0.94;
-    trackVelY *= 0.94;
-  } else if (!drag) {
-    trackVelX *= 0.9;
-    trackVelY *= 0.9;
+  if (drag) {
+    trackVelX = 0;
+    trackVelY = 0;
   }
 
   const voiceActive = window._handsFreeVoice || isListening;

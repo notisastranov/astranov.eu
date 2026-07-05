@@ -28,7 +28,7 @@ try {
 // Hoisted top-level mutable state (must be declared BEFORE any top-level calls like initVoice/initUser)
 let drag = false, px = 0, py = 0;
 let dragging = false;
-let idleRoll = 0.00035;
+let idleRoll = 0;
 let globePivot;
 let trackVelX = 0, trackVelY = 0;
 let cityLevel = false;

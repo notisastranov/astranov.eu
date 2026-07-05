@@ -133,7 +133,7 @@ const ACI = {
       if (r.principles && r.principles.length) this.syncNeuronsFromPrinciples(r.principles);
       if (window.AIGraphics) AIGraphics.spawnEffect(new THREE.Vector3(0, 1.2, 0), 0x00ff88, 35, 45);
       const avg = this.neurons.length ? this.neurons.reduce((s, n) => s + (n.userData.strength || 1), 0) / this.neurons.length : 1;
-      idleRoll = 0.00035 * (0.5 + avg * 0.35);
+      idleRoll = 0;
       this.pulse(2.0);
       console.log('%c[ACI FINAL] evolved', 'color:#00ff88', r);
       return r;

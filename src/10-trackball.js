@@ -22,8 +22,6 @@ function trackballMove(clientX, clientY) {
   globePivot.rotation.y += dx * TRACK_SENS;
   globePivot.rotation.x += dy * TRACK_SENS;
   globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x));
-  trackVelX = dx * TRACK_SENS * 0.18;
-  trackVelY = dy * TRACK_SENS * 0.18;
 }
 
 function trackballStart(clientX, clientY) {
@@ -35,8 +33,6 @@ function trackballStart(clientX, clientY) {
   py = clientY;
   pressStartX = clientX;
   pressStartY = clientY;
-  trackVelX = 0;
-  trackVelY = 0;
   canvas.classList.add('dragging');
   clearTimeout(pressTimer);
   pressTimer = setTimeout(() => {
@@ -49,6 +45,8 @@ function trackballStart(clientX, clientY) {
 function trackballEnd(clientX, clientY, opts) {
   clearTimeout(pressTimer);
   drag = false;
+  trackVelX = 0;
+  trackVelY = 0;
   canvas.classList.remove('dragging');
   setTimeout(() => { dragging = false; }, 100);
   if (!opts?.skipTap && clientX != null && clientY != null) registerTap(clientX, clientY);
@@ -336,7 +334,7 @@ function showGestureHint() {
   if (sessionStorage.getItem('astranov-gesture-hint')) return;
   const el = document.createElement('div');
   el.id = 'gesture-hint';
-  el.textContent = 'Drag to spin · Scroll/pinch steps zoom tiers · Double-tap zoom in';
+  el.textContent = 'Drag to move · Scroll/pinch zoom · Double-tap zoom in · stops when you release';
   el.style.cssText = 'position:fixed;bottom:72px;left:50%;transform:translateX(-50%);padding:8px 14px;background:rgba(0,4,12,0.88);border:1px solid rgba(26,111,212,0.45);border-radius:20px;font:12px system-ui;color:#3d9eff;text-shadow:0 0 8px rgba(26,111,212,0.45);z-index:44;pointer-events:none;opacity:1;transition:opacity 1.2s';
   document.body.appendChild(el);
   sessionStorage.setItem('astranov-gesture-hint', '1');
