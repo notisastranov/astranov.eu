@@ -63,7 +63,7 @@ ZoomTiers.init();
 if (typeof globePivot !== 'undefined' && globePivot) {
   globePivot.rotation.x = 0.12;
 }
-CosmicZoom.update(camera.position.z, { tier: 'solar', label: 'SOLAR SYSTEM', cosmic: 'system' });
+CosmicZoom.update(camera.position.z, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
 AstranovTheme.init();
 AstranovLogo.init();
 CityMap.init();
@@ -82,6 +82,12 @@ AciCoders?.ensureBridge?.();
 setTimeout(() => Commerce.loadVendors().then(() => Commerce.initUI()), 800);
 
 if (window._lastPos) GlobeEntity.syncMe(_lastPos.lat, _lastPos.lng, me?.name || 'You');
+
+setTimeout(() => {
+  ACIControl?.reply?.('Earth view ready · tap 🎯 Locate for YOUR city map · type: city · order');
+  const zl = document.getElementById('zoom-label');
+  if (zl) zl.textContent = 'GLOBAL · tap 🎯 Locate for city map';
+}, 2200);
 
 const host = location.hostname || '';
 const isOfficial = host === 'astranov.eu' || host.endsWith('.astranov.eu');

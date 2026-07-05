@@ -79,8 +79,9 @@
   #globe canvas { display:block; cursor:grab; transition:opacity 0.45s ease; }
   #globe canvas.dragging { cursor:grabbing; }
   #globe.city-map-active canvas { opacity:0 !important; pointer-events:none; }
-  #city-map { position:fixed; inset:0; z-index:10; opacity:0; pointer-events:none; transition:opacity 0.45s ease; }
-  #city-map.active { opacity:1; pointer-events:auto; }
+  #city-map { position:fixed; inset:0; z-index:10; opacity:0; pointer-events:none; transition:opacity 0.35s ease; }
+  #city-map.active { z-index:150; opacity:1; pointer-events:auto; }
+  body.city-map-active #city-map { z-index:150; }
   #city-map .leaflet-container { background:var(--an-bg); font-family:system-ui,sans-serif; }
   #city-map[data-theme="bright"] .leaflet-container { background:#e8f0f8; }
   #city-map[data-theme="dark"] .leaflet-container { background:#0a1020; }
@@ -766,7 +767,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 
 const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.set(0, 0.25, 7.2);
+camera.position.set(0, 0.25, 2.55);
 camera.lookAt(0, 0, 0);
 
 scene.add(new THREE.AmbientLight(0x667788, 1.0));
@@ -1677,7 +1678,7 @@ window.SuperSpace = SuperSpace;
 const GlobeAutonomy = { init() {} };
 window.GlobeAutonomy = GlobeAutonomy;
 
-// === ASTRANOV LOGO — top-center hard reset to solar view ===
+// === ASTRANOV LOGO — top-center hard reset to global earth view ===
 const AstranovLogo = {
   _bound: false,
 
@@ -1703,22 +1704,23 @@ const AstranovLogo = {
     GlobeEntity?.clearSelection?.();
     GlobeDeck?.collapse?.();
     GlobeDeck?.hideStage?.();
-    GlobeDeck?.setPreview?.('ASTRANOV — solar system');
+    GlobeDeck?.setPreview?.('ASTRANOV — global earth · tap 🎯 Locate');
     window._globeFly = null;
+    window._cityDropLock = false;
     if (typeof globePivot !== 'undefined' && globePivot) {
       globePivot.rotation.y = 0;
       globePivot.rotation.x = 0.12;
     }
     if (typeof camera !== 'undefined' && camera) {
-      camera.position.z = ZoomTiers?.tierZ?.('solar') || 7.2;
+      camera.position.z = ZoomTiers?.tierZ?.('global') || 2.55;
       camera.lookAt(0, 0, 0);
     }
-    ZoomTiers?.goTo?.('solar', true);
-    CityMap?.onCamera?.(7.2, 'system');
-    CosmicZoom?.update?.(7.2, { tier: 'solar', label: 'SOLAR SYSTEM', cosmic: 'system' });
+    ZoomTiers?.goTo?.('global', true);
+    CityMap?._exit?.();
+    CosmicZoom?.update?.(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
     cityLevel = false;
     const zl = document.getElementById('zoom-label');
-    if (zl && !DrivingView?.active) zl.textContent = 'SOLAR SYSTEM · planets · ISS';
+    if (zl && !DrivingView?.active) zl.textContent = 'GLOBAL · tap 🎯 Locate for city map';
     const chip = document.getElementById('city-life-chip');
     if (chip) chip.classList.remove('open');
   },
@@ -10932,7 +10934,7 @@ const ZoomTiers = {
     { id: 'city', z: 1.38, label: 'CITY', cosmic: 'earth', city: true },
     { id: 'neighborhood', z: 1.08, label: 'NEIGHBORHOOD', cosmic: 'earth', city: true },
   ],
-  START_ID: 'solar',
+  START_ID: 'global',
   _index: 0,
   _wheelAccum: 0,
   _pinchAccum: 0,
@@ -11897,14 +11899,15 @@ const CityLife = {
     this._lastDrop = { lat: pos.lat, lng: pos.lng, t: Date.now() };
 
     try {
-      GlobeDeck?.setMapStatus('Flying to city…');
-      await this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
-
+      GlobeDeck?.setMapStatus('Opening city map…');
       const opened = await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
       if (!opened) {
         CityMap?.onCamera?.(this.CITY_ZOOM, 'earth');
-        GlobeDeck?.setMapStatus('City map loading…');
+        if (!CityMap?.active) CityMap?._enter?.(this.CITY_ZOOM);
       }
+      GlobeDeck?.setMapStatus('City map · flying to you…');
+      await this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
+      await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
 
       if (Commerce?.loadVendors) {
         await Promise.race([
@@ -16635,18 +16638,17 @@ function placeMe(lat, lng, opts) {
 
 function locateMe() {
   GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
-  GlobeDeck?.setMapStatus('Locating…');
+  GlobeDeck?.setMapStatus('Locating your city…');
   GlobeControl?.engageFollow?.('locate');
+  ACIControl?.reply('Locating — city map opening…');
   if (!navigator.geolocation) {
-    ACIControl?.reply('No GPS — opening default city map');
-    enterCityView?.();
+    enterCityView?.(null, null, { openShops: false });
     return;
   }
   if (CityLife?.locateAndDropIn) {
     CityLife.locateAndDropIn().catch(() => {
-      ACIControl?.reply('Location denied — enable GPS, or type: city');
-      AciCli?.print('GPS denied — allow location for your city map', 'err');
-      enterCityView?.();
+      ACIControl?.reply('GPS denied — opening Rhodes demo map · allow location for your city');
+      enterCityView?.(36.44, 28.22);
     });
     return;
   }
@@ -16747,7 +16749,7 @@ ZoomTiers.init();
 if (typeof globePivot !== 'undefined' && globePivot) {
   globePivot.rotation.x = 0.12;
 }
-CosmicZoom.update(camera.position.z, { tier: 'solar', label: 'SOLAR SYSTEM', cosmic: 'system' });
+CosmicZoom.update(camera.position.z, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
 AstranovTheme.init();
 AstranovLogo.init();
 CityMap.init();
@@ -16766,6 +16768,12 @@ AciCoders?.ensureBridge?.();
 setTimeout(() => Commerce.loadVendors().then(() => Commerce.initUI()), 800);
 
 if (window._lastPos) GlobeEntity.syncMe(_lastPos.lat, _lastPos.lng, me?.name || 'You');
+
+setTimeout(() => {
+  ACIControl?.reply?.('Earth view ready · tap 🎯 Locate for YOUR city map · type: city · order');
+  const zl = document.getElementById('zoom-label');
+  if (zl) zl.textContent = 'GLOBAL · tap 🎯 Locate for city map';
+}, 2200);
 
 const host = location.hostname || '';
 const isOfficial = host === 'astranov.eu' || host.endsWith('.astranov.eu');

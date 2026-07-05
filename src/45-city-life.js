@@ -54,14 +54,15 @@ const CityLife = {
     this._lastDrop = { lat: pos.lat, lng: pos.lng, t: Date.now() };
 
     try {
-      GlobeDeck?.setMapStatus('Flying to city…');
-      await this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
-
+      GlobeDeck?.setMapStatus('Opening city map…');
       const opened = await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
       if (!opened) {
         CityMap?.onCamera?.(this.CITY_ZOOM, 'earth');
-        GlobeDeck?.setMapStatus('City map loading…');
+        if (!CityMap?.active) CityMap?._enter?.(this.CITY_ZOOM);
       }
+      GlobeDeck?.setMapStatus('City map · flying to you…');
+      await this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
+      await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
 
       if (Commerce?.loadVendors) {
         await Promise.race([

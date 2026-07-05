@@ -79,8 +79,9 @@
   #globe canvas { display:block; cursor:grab; transition:opacity 0.45s ease; }
   #globe canvas.dragging { cursor:grabbing; }
   #globe.city-map-active canvas { opacity:0 !important; pointer-events:none; }
-  #city-map { position:fixed; inset:0; z-index:10; opacity:0; pointer-events:none; transition:opacity 0.45s ease; }
-  #city-map.active { opacity:1; pointer-events:auto; }
+  #city-map { position:fixed; inset:0; z-index:10; opacity:0; pointer-events:none; transition:opacity 0.35s ease; }
+  #city-map.active { z-index:150; opacity:1; pointer-events:auto; }
+  body.city-map-active #city-map { z-index:150; }
   #city-map .leaflet-container { background:var(--an-bg); font-family:system-ui,sans-serif; }
   #city-map[data-theme="bright"] .leaflet-container { background:#e8f0f8; }
   #city-map[data-theme="dark"] .leaflet-container { background:#0a1020; }

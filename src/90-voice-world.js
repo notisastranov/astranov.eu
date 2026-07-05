@@ -706,18 +706,17 @@ function placeMe(lat, lng, opts) {
 
 function locateMe() {
   GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
-  GlobeDeck?.setMapStatus('Locating…');
+  GlobeDeck?.setMapStatus('Locating your city…');
   GlobeControl?.engageFollow?.('locate');
+  ACIControl?.reply('Locating — city map opening…');
   if (!navigator.geolocation) {
-    ACIControl?.reply('No GPS — opening default city map');
-    enterCityView?.();
+    enterCityView?.(null, null, { openShops: false });
     return;
   }
   if (CityLife?.locateAndDropIn) {
     CityLife.locateAndDropIn().catch(() => {
-      ACIControl?.reply('Location denied — enable GPS, or type: city');
-      AciCli?.print('GPS denied — allow location for your city map', 'err');
-      enterCityView?.();
+      ACIControl?.reply('GPS denied — opening Rhodes demo map · allow location for your city');
+      enterCityView?.(36.44, 28.22);
     });
     return;
   }

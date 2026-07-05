@@ -1,4 +1,4 @@
-// === ASTRANOV LOGO — top-center hard reset to solar view ===
+// === ASTRANOV LOGO — top-center hard reset to global earth view ===
 const AstranovLogo = {
   _bound: false,
 
@@ -24,22 +24,23 @@ const AstranovLogo = {
     GlobeEntity?.clearSelection?.();
     GlobeDeck?.collapse?.();
     GlobeDeck?.hideStage?.();
-    GlobeDeck?.setPreview?.('ASTRANOV — solar system');
+    GlobeDeck?.setPreview?.('ASTRANOV — global earth · tap 🎯 Locate');
     window._globeFly = null;
+    window._cityDropLock = false;
     if (typeof globePivot !== 'undefined' && globePivot) {
       globePivot.rotation.y = 0;
       globePivot.rotation.x = 0.12;
     }
     if (typeof camera !== 'undefined' && camera) {
-      camera.position.z = ZoomTiers?.tierZ?.('solar') || 7.2;
+      camera.position.z = ZoomTiers?.tierZ?.('global') || 2.55;
       camera.lookAt(0, 0, 0);
     }
-    ZoomTiers?.goTo?.('solar', true);
-    CityMap?.onCamera?.(7.2, 'system');
-    CosmicZoom?.update?.(7.2, { tier: 'solar', label: 'SOLAR SYSTEM', cosmic: 'system' });
+    ZoomTiers?.goTo?.('global', true);
+    CityMap?._exit?.();
+    CosmicZoom?.update?.(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
     cityLevel = false;
     const zl = document.getElementById('zoom-label');
-    if (zl && !DrivingView?.active) zl.textContent = 'SOLAR SYSTEM · planets · ISS';
+    if (zl && !DrivingView?.active) zl.textContent = 'GLOBAL · tap 🎯 Locate for city map';
     const chip = document.getElementById('city-life-chip');
     if (chip) chip.classList.remove('open');
   },
