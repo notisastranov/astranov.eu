@@ -7,7 +7,7 @@ const ZoomTiers = {
     { id: 'city', z: 1.38, label: 'CITY', cosmic: 'earth', city: true },
     { id: 'neighborhood', z: 1.08, label: 'NEIGHBORHOOD', cosmic: 'earth', city: true },
   ],
-  START_ID: 'global',
+  START_ID: 'solar',
   _index: 0,
   _wheelAccum: 0,
   _pinchAccum: 0,
@@ -100,7 +100,9 @@ const ZoomTiers = {
     cityLevel = !!tier.city;
     const zl = document.getElementById('zoom-label');
     if (zl && !DrivingView?.active && !CityMap?.active) {
-      zl.textContent = tier.label + (tier.id === 'global' ? ' · ☀ day/night' : '');
+      if (tier.id === 'solar') zl.textContent = 'SOLAR SYSTEM · planets · ISS';
+      else if (tier.id === 'global') zl.textContent = 'GLOBAL · ☀ day/night';
+      else zl.textContent = tier.label;
     }
   },
 

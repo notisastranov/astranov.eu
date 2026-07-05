@@ -58,6 +58,10 @@ ACIControl.init();
 ACI.init();
 CosmicZoom.init();
 ZoomTiers.init();
+if (typeof globePivot !== 'undefined' && globePivot) {
+  globePivot.rotation.x = 0.12;
+}
+CosmicZoom.update(camera.position.z, { tier: 'solar', label: 'SOLAR SYSTEM', cosmic: 'system' });
 AstranovTheme.init();
 AstranovLogo.init();
 CityMap.init();

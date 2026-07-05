@@ -575,7 +575,7 @@
     </div>
   </div>
   <button id="astranov-logo" type="button" title="Hard reset — clear cache · reload · global view" aria-label="ASTRANOV hard reset reload">ASTRANOV</button>
-  <div id="zoom-label">EARTH</div>
+  <div id="zoom-label">SOLAR SYSTEM</div>
   <div id="cosmic-guide"></div>
   <div id="user-chip"></div>
   <div id="drive-guide"></div>
@@ -748,7 +748,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 
 const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.set(0, 0.25, 2.55);
+camera.position.set(0, 0.25, 7.2);
 camera.lookAt(0, 0, 0);
 
 scene.add(new THREE.AmbientLight(0x667788, 1.0));
@@ -10441,7 +10441,7 @@ const ZoomTiers = {
     { id: 'city', z: 1.38, label: 'CITY', cosmic: 'earth', city: true },
     { id: 'neighborhood', z: 1.08, label: 'NEIGHBORHOOD', cosmic: 'earth', city: true },
   ],
-  START_ID: 'global',
+  START_ID: 'solar',
   _index: 0,
   _wheelAccum: 0,
   _pinchAccum: 0,
@@ -10534,7 +10534,9 @@ const ZoomTiers = {
     cityLevel = !!tier.city;
     const zl = document.getElementById('zoom-label');
     if (zl && !DrivingView?.active && !CityMap?.active) {
-      zl.textContent = tier.label + (tier.id === 'global' ? ' · ☀ day/night' : '');
+      if (tier.id === 'solar') zl.textContent = 'SOLAR SYSTEM · planets · ISS';
+      else if (tier.id === 'global') zl.textContent = 'GLOBAL · ☀ day/night';
+      else zl.textContent = tier.label;
     }
   },
 
@@ -16146,6 +16148,10 @@ ACIControl.init();
 ACI.init();
 CosmicZoom.init();
 ZoomTiers.init();
+if (typeof globePivot !== 'undefined' && globePivot) {
+  globePivot.rotation.x = 0.12;
+}
+CosmicZoom.update(camera.position.z, { tier: 'solar', label: 'SOLAR SYSTEM', cosmic: 'system' });
 AstranovTheme.init();
 AstranovLogo.init();
 CityMap.init();
