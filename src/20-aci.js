@@ -179,8 +179,9 @@ const ACIControl = {
     SuperCli?.init?.();
   },
   reply(text) {
-    const msg = String(ArcangeloDialect?.repairOutbound?.(text, 'reply') ?? text ?? '').slice(0, 280);
-    if (!msg) return;
+    let msg = ArcangeloDialect?.repairBrands?.(String(text || '')) ?? String(text || '');
+    msg = String(ArcangeloDialect?.repairOutbound?.(msg, 'reply') ?? msg).slice(0, 280);
+    if (!msg.trim()) msg = 'Coders online.';
     GlobeDeck?.say(msg, 'reply');
   },
 

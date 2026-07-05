@@ -56,7 +56,12 @@ const CityLife = {
     await this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
     CityMap?.flyTo?.(pos.lat, pos.lng, CityMap?.camZToZoom?.(this.CITY_ZOOM));
 
-    if (Commerce?.loadVendors) await Commerce.loadVendors();
+    if (Commerce?.loadVendors) {
+      await Promise.race([
+        Commerce.loadVendors(),
+        new Promise(resolve => setTimeout(() => resolve(null), 8000)),
+      ]);
+    }
     const nearby = this.nearbyVendors(pos.lat, pos.lng);
     if (nearby.length) {
       Commerce.vendors = nearby.concat((Commerce.vendors || []).filter(v => !nearby.includes(v))).slice(0, 40);
@@ -64,7 +69,12 @@ const CityLife = {
     Commerce?.showOnGlobe?.();
     GlobeEntity?.syncVendors?.(Commerce.vendors);
 
-    const drivers = Commerce?.fetchNearbyDrivers ? await Commerce.fetchNearbyDrivers(pos.lat, pos.lng) : [];
+    const drivers = Commerce?.fetchNearbyDrivers
+      ? await Promise.race([
+        Commerce.fetchNearbyDrivers(pos.lat, pos.lng),
+        new Promise(resolve => setTimeout(() => resolve([]), 6000)),
+      ])
+      : [];
     Commerce?.showDriversOnGlobe?.(drivers);
     this._pulseFriends();
     this._showLocalNews(pos.lat, pos.lng);

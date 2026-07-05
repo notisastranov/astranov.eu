@@ -227,7 +227,7 @@ const GlobeDeck = {
     const t = String(text || '').trim();
     if (!t) return false;
     if (CliRibbon?.isGlobeHint?.(t)) return false;
-    if (CliRibbon?.MOTTO_RE?.test(t)) return false;
+    if (kind !== 'reply' && kind !== 'ok' && kind !== 'out' && kind !== 'err' && kind !== 'cmd' && CliRibbon?.MOTTO_RE?.test(t)) return false;
     if (this._NOISE_RE.test(t)) return false;
     if (kind === 'dim' && /^(◎|…|\.{2,})\s/.test(t) && t.length < 90) return false;
     if (/^\{.*\}$/.test(t) || /^HTTP \d/.test(t)) return false;

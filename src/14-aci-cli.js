@@ -158,8 +158,15 @@ const AciCli = {
   },
 
   print(text, cls) {
-    const line = ArcangeloDialect?.sanitizeUi?.(text) ?? text;
-    GlobeDeck?.log(line, cls || 'out');
+    const kind = cls || 'out';
+    let line = String(text || '');
+    if (kind === 'reply' || kind === 'ok') {
+      line = ArcangeloDialect?.repairBrands?.(line) ?? line;
+    } else {
+      line = ArcangeloDialect?.sanitizeUi?.(line) ?? line;
+    }
+    if (!line.trim() && kind === 'reply') line = 'Coders online.';
+    GlobeDeck?.log(line, kind);
   },
 
   async api(body, opts = {}) {

@@ -172,10 +172,30 @@ const AciCoders = {
   async ensureBridge() {
     this.loadPrefs();
     this.loadEngine();
+    this.alwaysOn = true;
+    window._aciCodersAlwaysOn = true;
     if (this.ready) { this.updateHud(); return; }
     this.ready = true;
     window._aciCodersReady = true;
     this.updateHud();
+  },
+
+  _guaranteeReply(userMsg, r, extra) {
+    const payload = { ...(r || {}), ...(extra || {}) };
+    const raw = String(payload.text || payload.response || '').trim();
+    if (!raw || this.isFailedReply(raw)) {
+      payload.text = this.localReply(userMsg);
+      payload.response = payload.text;
+      payload.via = payload.via || 'local/guarantee';
+    } else {
+      payload.text = raw;
+      payload.response = raw;
+    }
+    if (payload.error && !payload.text) {
+      payload.text = this.localReply(userMsg) + ' (' + String(payload.error).slice(0, 100) + ')';
+      payload.response = payload.text;
+    }
+    return this._applyResponse(payload, userMsg);
   },
 
   async autoStart() {
@@ -679,19 +699,32 @@ const AciCoders = {
       fromVoice: !!opts.fromVoice || !!window._handsFreeVoice || !!voiceSessionActive,
     });
 
-    if (Auth?.user && !(await this.ensureSession())) return { error: 'session expired' };
+    if (Auth?.user && !(await this.ensureSession())) {
+      return this._guaranteeReply(m, { error: 'session expired', text: 'Session expired — tap G to sign in again.' });
+    }
 
     const build = this.isBuildTask(m);
     const fast = (!build && !this.wantsComposer(m)) || m.length < 600;
     if (!fast) MapDepict?.action('think', { detail: 'coders: ' + m.slice(0, 40) });
 
     this._cliBusy = true;
+    if (this._chatWatchdog) clearTimeout(this._chatWatchdog);
+    this._chatWatchdog = setTimeout(() => {
+      this._cliBusy = false;
+      GlobeDeck?.setThinking?.(false);
+    }, 55000);
     try {
       GlobeDeck?.setThinking(true, 'Coders…');
-      if (/^city\s*(view|level)?$/i.test(m.trim())) {
-        await enterCityView?.();
-        GlobeDeck?.setThinking(false);
-        return { ok: true, city: true };
+      if (/^city\s*(view|level|map)?$/i.test(m.trim())) {
+        const city = await Promise.race([
+          enterCityView?.(),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('city view timeout')), 22000)),
+        ]).catch(e => ({ error: String(e.message || e) }));
+        const shops = city?.vendors?.length ?? 0;
+        const msg = city?.error
+          ? 'City view failed — ' + city.error + '. Try locate first.'
+          : 'City map open — ' + shops + ' shops nearby. Tap a pin or type order.';
+        return this._guaranteeReply(m, { text: msg, via: 'local/city' });
       }
 
       if (Auth?.user && this.wantsComposer(m) && build) {
@@ -766,19 +799,19 @@ const AciCoders = {
         }
       }
 
-      GlobeDeck?.setThinking(false);
-      return this._applyResponse(r, m);
+      return this._guaranteeReply(m, r);
     } catch (e) {
-      GlobeDeck?.setThinking(false);
       const msg = String(e.message || e);
       GlobeDeck?.showError('Coders failed: ' + msg);
       if (Auth?.user && build) {
-        const q = await this.queueCoder(m, 'grok');
-        if (q.text) return this._applyResponse({ ...q, team: true }, m);
+        const q = await this.queueCoder(m, 'grok').catch(() => ({}));
+        if (q.text) return this._guaranteeReply(m, { ...q, team: true });
       }
-      return { error: msg };
+      return this._guaranteeReply(m, { error: msg, via: 'local/error' });
     } finally {
+      if (this._chatWatchdog) { clearTimeout(this._chatWatchdog); this._chatWatchdog = null; }
       this._cliBusy = false;
+      GlobeDeck?.setThinking?.(false);
     }
   },
 
