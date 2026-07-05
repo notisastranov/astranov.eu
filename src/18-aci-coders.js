@@ -550,8 +550,8 @@ const AciCoders = {
     const greek = /[\u0370-\u03FF]/.test(String(m || ''));
     if (this.isPing(m)) {
       return greek
-        ? 'Ναι, είμαι εδώ — Coders online. Πες τι θέλεις (χτίσε, φτιάξε, έλεγξε).'
-        : 'Yes — I\'m here. Coders is online. Tell me what to build, fix, or check.';
+        ? 'Ναι, είμαι εδώ — Grok online. Μίλα κανονικά ή πάτα 🎧.'
+        : 'Yes — Grok here. Talk straight to me — type or tap 🎧.';
     }
     return greek
       ? 'Grok εδώ — δοκίμασε ξανά ή πάτα 🎧 να μιλήσεις.'
