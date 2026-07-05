@@ -82,6 +82,14 @@
   #city-map { position:fixed; inset:0; z-index:4; opacity:0; pointer-events:none; transition:opacity 0.45s ease; }
   #city-map.active { opacity:1; pointer-events:auto; }
   #city-map .leaflet-container { background:var(--an-bg); font-family:system-ui,sans-serif; }
+  #city-map[data-theme="bright"] .leaflet-container { background:#e8f0f8; }
+  #city-map[data-theme="dark"] .leaflet-container { background:#0a1020; }
+  @media (prefers-color-scheme: light) {
+    #city-map:not([data-theme]) .leaflet-container { background:#e8f0f8; }
+  }
+  @media (prefers-color-scheme: dark) {
+    #city-map:not([data-theme]) .leaflet-container { background:#0a1020; }
+  }
   .city-map-pin { background:transparent !important; border:none !important; }
   #astranov-logo { position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:48; margin:0; padding:6px 14px; border-radius:999px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); backdrop-filter:blur(10px); cursor:pointer; font-family:"Segoe UI Variable Display","Segoe UI Variable","Segoe UI","Segoe UI Rounded",system-ui,sans-serif; font-size:15px; font-weight:600; letter-spacing:0.34em; text-indent:0.34em; text-transform:uppercase; color:var(--ax-blue-bright); text-shadow:0 0 18px var(--ax-blue-glow); box-shadow:0 2px 14px rgba(0,0,0,0.45); transition:color 0.2s,border-color 0.2s,box-shadow 0.2s,background 0.2s,transform 0.15s; pointer-events:auto; touch-action:manipulation; user-select:none; -webkit-tap-highlight-color:transparent; }
   #astranov-logo:hover { color:#fff; border-color:var(--ax-blue-bright); box-shadow:0 0 22px var(--ax-blue-glow); background:var(--ax-panel-strong); }
@@ -10966,20 +10974,26 @@ const CityMap = {
     this._applyBaseLayers();
   },
 
+  _mapTheme() {
+    return AstranovTheme?.effectiveMode?.() || AstranovTheme?.systemMode?.() || AstranovTheme?.mode || 'dark';
+  },
+
   _applyBaseLayers() {
     if (!this.map) return;
     this._onMap.forEach(l => { try { this.map.removeLayer(l); } catch (_) {} });
     this._onMap.clear();
-    const mode = AstranovTheme?.mode || 'dark';
+    const mode = this._mapTheme();
+    const el = document.getElementById('city-map');
+    if (el) el.dataset.theme = mode;
     const add = l => { l.addTo(this.map); this._onMap.add(l); };
     if (mode === 'bright') {
       add(this._layers.sat);
-      this._layers.brightStreets.setOpacity(0.55);
+      this._layers.brightStreets.setOpacity(0.58);
       add(this._layers.brightStreets);
     } else {
       add(this._layers.sat);
-      this._layers.streets.setOpacity(0.42);
-      add(this._layers.streets);
+      this._layers.darkStreets.setOpacity(0.72);
+      add(this._layers.darkStreets);
     }
     if (this.active) this._invalidate();
   },
@@ -11081,6 +11095,7 @@ const CityMap = {
   _enter(camZ) {
     this.active = true;
     cityLevel = true;
+    this._applyBaseLayers();
     const el = document.getElementById('city-map');
     const globe = document.getElementById('globe');
     if (el) el.classList.add('active');
@@ -11247,7 +11262,7 @@ const CityMap = {
     if (!coords.length || !this.active) return;
     const latlngs = coords.map(c => [c.lat, c.lng]);
     this._route = L.polyline(latlngs, {
-      color: AstranovTheme?.mode === 'bright' ? '#0066cc' : '#44ccff',
+      color: (AstranovTheme?.effectiveMode?.() || AstranovTheme?.mode) === 'bright' ? '#0066cc' : '#44ccff',
       weight: 5,
       opacity: 0.88,
     }).addTo(this.map);
@@ -11493,14 +11508,49 @@ window.CityLife = CityLife;
 // === ASTRANOV THEME — dark / bright for globe, city map, and UI ===
 const AstranovTheme = {
   mode: 'dark',
+  followSystem: true,
   KEY: 'astranov_theme_v1',
   _maps: [],
+
+  systemMode() {
+    try {
+      if (window.matchMedia?.('(prefers-color-scheme: light)')?.matches) return 'bright';
+    } catch (_) {}
+    return 'dark';
+  },
+
+  effectiveMode() {
+    return this.followSystem ? this.systemMode() : this.mode;
+  },
+
+  _watchSystem() {
+    if (!window.matchMedia) return;
+    const mql = window.matchMedia('(prefers-color-scheme: light)');
+    const onChange = () => {
+      if (!this.followSystem) return;
+      this.mode = this.systemMode();
+      this.apply();
+    };
+    if (mql.addEventListener) mql.addEventListener('change', onChange);
+    else if (mql.addListener) mql.addListener(onChange);
+    this._systemMql = mql;
+  },
 
   init() {
     try {
       const saved = localStorage.getItem(this.KEY);
-      if (saved === 'bright' || saved === 'dark') this.mode = saved;
-    } catch (_) {}
+      if (saved === 'bright' || saved === 'dark') {
+        this.mode = saved;
+        this.followSystem = false;
+      } else {
+        this.followSystem = true;
+        this.mode = this.systemMode();
+      }
+    } catch (_) {
+      this.followSystem = true;
+      this.mode = this.systemMode();
+    }
+    this._watchSystem();
     this.apply();
     const btn = document.getElementById('aci-theme');
     if (btn) {
@@ -11518,12 +11568,25 @@ const AstranovTheme = {
   },
 
   toggle() {
-    this.set(this.mode === 'dark' ? 'bright' : 'dark');
+    if (this.followSystem) {
+      const sys = this.systemMode();
+      this.followSystem = false;
+      this.mode = sys === 'bright' ? 'dark' : 'bright';
+    } else {
+      this.mode = this.mode === 'dark' ? 'bright' : 'dark';
+    }
+    try { localStorage.setItem(this.KEY, this.mode); } catch (_) {}
+    this.apply();
+    AciCli?.print?.('theme → ' + this.mode + ' (manual)', 'ok');
+    GlobeDeck?.setPreview?.((this.mode === 'bright' ? '☀️' : '🌙') + ' ' + this.mode + ' theme');
+    if (Voice?.maySpeak?.()) speak('Theme ' + this.mode + '.', () => resumeListening?.());
+    return this.mode;
   },
 
   set(mode) {
     const next = mode === 'bright' ? 'bright' : 'dark';
-    if (next === this.mode) return this.mode;
+    if (!this.followSystem && next === this.mode) return this.mode;
+    this.followSystem = false;
     this.mode = next;
     try { localStorage.setItem(this.KEY, next); } catch (_) {}
     this.apply();
@@ -11534,13 +11597,14 @@ const AstranovTheme = {
   },
 
   apply() {
-    document.documentElement.dataset.theme = this.mode;
+    const active = this.effectiveMode();
+    document.documentElement.dataset.theme = active;
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = this.mode === 'bright' ? '#1a6fd4' : '#0a1020';
+    if (meta) meta.content = active === 'bright' ? '#1a6fd4' : '#0a1020';
     if (scene?.background) {
-      scene.background = new THREE.Color(this.mode === 'bright' ? 0x040810 : 0x000000);
+      scene.background = new THREE.Color(active === 'bright' ? 0x040810 : 0x000000);
     }
-    if (renderer) renderer.setClearColor(this.mode === 'bright' ? 0x040810 : 0x000000, 1);
+    if (renderer) renderer.setClearColor(active === 'bright' ? 0x040810 : 0x000000, 1);
     EarthRealism?.onThemeChange?.();
     this._maps.forEach(m => m.onThemeChange?.());
     this._syncBtn();
@@ -11549,9 +11613,13 @@ const AstranovTheme = {
   _syncBtn() {
     const btn = document.getElementById('aci-theme');
     if (!btn) return;
-    btn.textContent = this.mode === 'bright' ? '☀️' : '🌙';
-    btn.title = this.mode === 'bright' ? 'Bright theme — tap for dark' : 'Dark theme — tap for bright';
-    btn.classList.toggle('deck-btn-active', this.mode === 'bright');
+    const active = this.effectiveMode();
+    btn.textContent = active === 'bright' ? '☀️' : '🌙';
+    btn.title = this.followSystem
+      ? ('Device ' + active + ' theme — tap to override')
+      : (active === 'bright' ? 'Bright theme — tap for dark' : 'Dark theme — tap for bright');
+    btn.classList.toggle('deck-btn-active', active === 'bright');
+    btn.classList.toggle('deck-btn-system', this.followSystem);
   },
 };
 window.AstranovTheme = AstranovTheme;

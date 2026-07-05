@@ -80,20 +80,26 @@ const CityMap = {
     this._applyBaseLayers();
   },
 
+  _mapTheme() {
+    return AstranovTheme?.effectiveMode?.() || AstranovTheme?.systemMode?.() || AstranovTheme?.mode || 'dark';
+  },
+
   _applyBaseLayers() {
     if (!this.map) return;
     this._onMap.forEach(l => { try { this.map.removeLayer(l); } catch (_) {} });
     this._onMap.clear();
-    const mode = AstranovTheme?.mode || 'dark';
+    const mode = this._mapTheme();
+    const el = document.getElementById('city-map');
+    if (el) el.dataset.theme = mode;
     const add = l => { l.addTo(this.map); this._onMap.add(l); };
     if (mode === 'bright') {
       add(this._layers.sat);
-      this._layers.brightStreets.setOpacity(0.55);
+      this._layers.brightStreets.setOpacity(0.58);
       add(this._layers.brightStreets);
     } else {
       add(this._layers.sat);
-      this._layers.streets.setOpacity(0.42);
-      add(this._layers.streets);
+      this._layers.darkStreets.setOpacity(0.72);
+      add(this._layers.darkStreets);
     }
     if (this.active) this._invalidate();
   },
@@ -195,6 +201,7 @@ const CityMap = {
   _enter(camZ) {
     this.active = true;
     cityLevel = true;
+    this._applyBaseLayers();
     const el = document.getElementById('city-map');
     const globe = document.getElementById('globe');
     if (el) el.classList.add('active');
@@ -361,7 +368,7 @@ const CityMap = {
     if (!coords.length || !this.active) return;
     const latlngs = coords.map(c => [c.lat, c.lng]);
     this._route = L.polyline(latlngs, {
-      color: AstranovTheme?.mode === 'bright' ? '#0066cc' : '#44ccff',
+      color: (AstranovTheme?.effectiveMode?.() || AstranovTheme?.mode) === 'bright' ? '#0066cc' : '#44ccff',
       weight: 5,
       opacity: 0.88,
     }).addTo(this.map);

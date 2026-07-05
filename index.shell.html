@@ -82,6 +82,14 @@
   #city-map { position:fixed; inset:0; z-index:4; opacity:0; pointer-events:none; transition:opacity 0.45s ease; }
   #city-map.active { opacity:1; pointer-events:auto; }
   #city-map .leaflet-container { background:var(--an-bg); font-family:system-ui,sans-serif; }
+  #city-map[data-theme="bright"] .leaflet-container { background:#e8f0f8; }
+  #city-map[data-theme="dark"] .leaflet-container { background:#0a1020; }
+  @media (prefers-color-scheme: light) {
+    #city-map:not([data-theme]) .leaflet-container { background:#e8f0f8; }
+  }
+  @media (prefers-color-scheme: dark) {
+    #city-map:not([data-theme]) .leaflet-container { background:#0a1020; }
+  }
   .city-map-pin { background:transparent !important; border:none !important; }
   #astranov-logo { position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:48; margin:0; padding:6px 14px; border-radius:999px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); backdrop-filter:blur(10px); cursor:pointer; font-family:"Segoe UI Variable Display","Segoe UI Variable","Segoe UI","Segoe UI Rounded",system-ui,sans-serif; font-size:15px; font-weight:600; letter-spacing:0.34em; text-indent:0.34em; text-transform:uppercase; color:var(--ax-blue-bright); text-shadow:0 0 18px var(--ax-blue-glow); box-shadow:0 2px 14px rgba(0,0,0,0.45); transition:color 0.2s,border-color 0.2s,box-shadow 0.2s,background 0.2s,transform 0.15s; pointer-events:auto; touch-action:manipulation; user-select:none; -webkit-tap-highlight-color:transparent; }
   #astranov-logo:hover { color:#fff; border-color:var(--ax-blue-bright); box-shadow:0 0 22px var(--ax-blue-glow); background:var(--ax-panel-strong); }
