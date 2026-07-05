@@ -11,6 +11,69 @@ const CosmicZoom = {
   leoRings: [],
   meshRing: null,
   planets: [],
+  _EPOCH_MS: Date.UTC(2000, 0, 1, 12, 0, 0),
+  _DAY_MS: 86400000,
+  _TAU: Math.PI * 2,
+
+  _deg(d) { return d * Math.PI / 180; },
+
+  heliocentricPosition(ud, nowMs) {
+    const days = (nowMs - this._EPOCH_MS) / this._DAY_MS;
+    const M = this._deg(ud.M0) + (this._TAU / ud.periodDays) * days;
+    const incl = this._deg(ud.incl);
+    const Omega = this._deg(ud.omega);
+    const r = ud.dist;
+    const cosM = Math.cos(M);
+    const sinM = Math.sin(M);
+    const cosO = Math.cos(Omega);
+    const sinO = Math.sin(Omega);
+    const cosI = Math.cos(incl);
+    const sinI = Math.sin(incl);
+    return {
+      x: r * (cosO * cosM - sinO * sinM * cosI),
+      y: r * (sinO * cosM + cosO * sinM * cosI),
+      z: r * sinM * sinI,
+    };
+  },
+
+  makeInclinedOrbit(ud, color, opacity, parent, opts) {
+    opts = opts || {};
+    const segs = opts.segments || 72;
+    const pts = [];
+    const incl = this._deg(ud.incl);
+    const Omega = this._deg(ud.omega);
+    const r = ud.dist;
+    const cosO = Math.cos(Omega);
+    const sinO = Math.sin(Omega);
+    const cosI = Math.cos(incl);
+    const sinI = Math.sin(incl);
+    for (let i = 0; i <= segs; i++) {
+      const M = (i / segs) * this._TAU;
+      const cosM = Math.cos(M);
+      const sinM = Math.sin(M);
+      pts.push(new THREE.Vector3(
+        r * (cosO * cosM - sinO * sinM * cosI),
+        r * (sinO * cosM + cosO * sinM * cosI),
+        r * sinM * sinI
+      ));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const mat = new THREE.LineDashedMaterial({
+      color,
+      transparent: true,
+      opacity,
+      dashSize: opts.dash || 0.04,
+      gapSize: opts.gap || 0.1,
+      depthWrite: false,
+    });
+    const line = new THREE.Line(geo, mat);
+    line.computeLineDistances();
+    line.visible = false;
+    line.userData = { type: 'orbit-line', body: ud.name || opts.body || '' };
+    if (parent) parent.add(line);
+    this.orbitLines.push(line);
+    return line;
+  },
 
   makeDashedOrbit(radius, color, opacity, parent, opts) {
     opts = opts || {};
@@ -53,21 +116,29 @@ const CosmicZoom = {
     this.solarGroup.add(sun);
 
     const planetDefs = [
-      { n: 'Mercury', desc: 'Rocky · 88-day orbit · 167°C avg', c: 0xaaaaaa, r: 0.04, dist: 0.7, sp: 0.004 },
-      { n: 'Venus', desc: 'Cloud cover · 225-day orbit', c: 0xddbb88, r: 0.06, dist: 1.0, sp: 0.003 },
-      { n: 'Mars', desc: 'Red desert · 687-day orbit', c: 0xff6644, r: 0.05, dist: 1.5, sp: 0.0025 },
-      { n: 'Jupiter', desc: 'Gas giant · 12-year orbit', c: 0xccaa77, r: 0.12, dist: 2.2, sp: 0.0015 },
-      { n: 'Saturn', desc: 'Rings (not shown) · 29-year orbit', c: 0xddcc99, r: 0.1, dist: 3.0, sp: 0.001 },
+      { n: 'Mercury', desc: 'Rocky · 87.97-day sidereal orbit · 7.0° incl', c: 0xaaaaaa, r: 0.04, dist: 0.7, periodDays: 87.969, incl: 7.005, omega: 48.331, M0: 174.796 },
+      { n: 'Venus', desc: 'Cloud cover · 224.7-day sidereal orbit · 3.4° incl', c: 0xddbb88, r: 0.06, dist: 1.0, periodDays: 224.701, incl: 3.395, omega: 76.680, M0: 50.416 },
+      { n: 'Mars', desc: 'Red desert · 687-day sidereal orbit · 1.9° incl', c: 0xff6644, r: 0.05, dist: 1.5, periodDays: 686.980, incl: 1.850, omega: 49.558, M0: 19.373 },
+      { n: 'Jupiter', desc: 'Gas giant · 11.86-year sidereal orbit · 1.3° incl', c: 0xccaa77, r: 0.12, dist: 2.2, periodDays: 4332.589, incl: 1.305, omega: 100.464, M0: 20.020 },
+      { n: 'Saturn', desc: 'Rings (not shown) · 29.46-year sidereal orbit · 2.5° incl', c: 0xddcc99, r: 0.1, dist: 3.0, periodDays: 10759.22, incl: 2.485, omega: 113.666, M0: 317.020 },
     ];
-    planetDefs.forEach((p, i) => {
+    planetDefs.forEach(p => {
       const m = new THREE.Mesh(
         new THREE.SphereGeometry(p.r, 10, 10),
         new THREE.MeshBasicMaterial({ color: p.c })
       );
-      m.userData = { dist: p.dist, speed: p.sp, phase: i, name: p.n, desc: p.desc };
+      m.userData = {
+        dist: p.dist,
+        periodDays: p.periodDays,
+        incl: p.incl,
+        omega: p.omega,
+        M0: p.M0,
+        name: p.n,
+        desc: p.desc,
+      };
       this.solarGroup.add(m);
       this.planets.push(m);
-      this.makeDashedOrbit(p.dist, p.c, 0.16, this.solarGroup, { body: p.n, tilt: 0.04 * (i % 3), dash: 0.04, gap: 0.1 });
+      this.makeInclinedOrbit(m.userData, p.c, 0.16, this.solarGroup, { body: p.n, dash: 0.04, gap: 0.1 });
     });
 
     const gPos = [];
@@ -220,7 +291,7 @@ const CosmicZoom = {
         const ud = p.userData;
         html += '<div class="cg-item"><b>' + ud.name + '</b> — ' + (ud.desc || '') + '</div>';
       });
-      html += '<div class="cg-item"><i>Dashed paths = discrete orbits · Earth shows real ISS</i></div>';
+      html += '<div class="cg-item"><i>Orbits = real sidereal periods &amp; ecliptic inclinations (J2000 epoch)</i></div>';
     } else if (level === 'galaxy') {
       html = '<div class="cg-title">Galaxy view</div>'
         + '<div class="cg-item"><b>Star field</b> — discrete points · spiral arm hint</div>'
@@ -279,11 +350,12 @@ const CosmicZoom = {
     this._lerpIss();
 
     if (this.solarGroup?.visible) {
-      const t = Date.now() * 0.001;
-      this.solarGroup.children.forEach((c, i) => {
-        if (i === 0 || !c.userData.dist) return;
-        const a = t * c.userData.speed * 200 + c.userData.phase;
-        c.position.set(Math.cos(a) * c.userData.dist, Math.sin(a * 0.3) * 0.2, Math.sin(a) * c.userData.dist);
+      const now = Date.now();
+      this.planets.forEach(c => {
+        const ud = c.userData;
+        if (!ud?.periodDays) return;
+        const pos = this.heliocentricPosition(ud, now);
+        c.position.set(pos.x, pos.y, pos.z);
       });
     }
 
