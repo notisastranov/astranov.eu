@@ -97,41 +97,37 @@ const Auth = {
     if (!this.user) return this.openLoginModal();
     Responsive3D?.visualReact?.('profile', {});
     GlobeDeck?.expand?.('Your profile · 3D');
-    const openProfile = () => {
-      const lat = window._lastPos?.lat;
-      const lng = window._lastPos?.lng;
-      const name = this._profileVisual?.display_name
-        || this.user.user_metadata?.full_name
-        || (this.user.email || '').split('@')[0]
-        || 'You';
-      if (lat != null && lng != null) {
-        GlobeEntity?.syncMe?.(lat, lng, name, { alwaysShow: true });
-        const fp = latLngToPos(lat, lng, 1.04);
-        const z = GlobeControl?.Z?.national || 1.82;
-        const dur = GlobeControl?.flyDuration?.(camera?.position?.z, z) || 2200;
-        flyToPoint?.(new THREE.Vector3(fp.x, fp.y, fp.z), z, { dur });
-        GlobeControl?.noteAutoFly?.();
-        MapDepict?.pulse?.(lat, lng, 0x49b7ff, name, 8000);
-      } else {
-        locateMe?.();
-      }
+    const name = this._profileVisual?.display_name
+      || this.user.user_metadata?.full_name
+      || (this.user.email || '').split('@')[0]
+      || 'You';
+    const flyToMe = (lat, lng) => {
+      if (lat == null || lng == null) return;
+      GlobeEntity?.syncMe?.(lat, lng, name, { alwaysShow: true });
+      const fp = latLngToPos(lat, lng, 1.04);
+      const z = GlobeControl?.Z?.national || 1.82;
+      const dur = GlobeControl?.flyDuration?.(camera?.position?.z, z) || 2200;
+      flyToPoint?.(new THREE.Vector3(fp.x, fp.y, fp.z), z, { dur });
+      GlobeControl?.noteAutoFly?.();
+      MapDepict?.pulse?.(lat, lng, 0x49b7ff, name, 8000);
+      ACIControl?.reply('Flying to you · ' + lat.toFixed(2) + ', ' + lng.toFixed(2));
+    };
+    const openProfile = (skipFly) => {
+      if (!skipFly && window._lastPos) flyToMe(window._lastPos.lat, window._lastPos.lng);
       ProfileSite?.openSelf?.();
     };
-    if (window._lastPos?.lat != null) {
-      openProfile();
-      return;
-    }
     if (!navigator.geolocation) {
-      openProfile();
+      openProfile(false);
       return;
     }
+    GlobeDeck?.setMapStatus?.('Locating…');
     navigator.geolocation.getCurrentPosition(
       pos => {
         placeMe(pos.coords.latitude, pos.coords.longitude, { fly: true, zoom: GlobeControl?.Z?.national || 1.82 });
-        openProfile();
+        openProfile(true);
       },
-      () => openProfile(),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 45000 }
+      () => openProfile(false),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 }
     );
   },
 

@@ -50,8 +50,22 @@ const Commerce = {
   },
 
   menuFor(vendor) {
-    const items = Array.isArray(vendor?.items) ? vendor.items.filter(i => i && i.name) : [];
+    let raw = vendor?.items;
+    if (typeof raw === 'string') {
+      try { raw = JSON.parse(raw); } catch { raw = []; }
+    }
+    const items = Array.isArray(raw) ? raw.filter(i => i && i.name) : [];
     return items;
+  },
+
+  _normalizeVendor(v) {
+    if (!v) return v;
+    if (this.menuFor(v).length) return v;
+    const demo = DEMO_VENDORS.find(d =>
+      d.id === v.id
+      || (v.name && d.name.toLowerCase().includes(String(v.name).toLowerCase().slice(0, 5)))
+    );
+    return demo ? { ...v, items: demo.items, delivery_enabled: v.delivery_enabled !== false } : v;
   },
 
   hasMenu(vendor) {
@@ -66,6 +80,7 @@ const Commerce = {
       this.vendors = r.ok ? await r.json() : [];
     } catch { this.vendors = []; }
     if (!this.vendors.length) this.vendors = DEMO_VENDORS.map(v => ({ ...v }));
+    else this.vendors = this.vendors.map(v => this._normalizeVendor(v));
     const u = this.userLatLng();
     this.vendors.sort((a, b) => this.haversineKm(u.lat, u.lng, a.lat, a.lng) - this.haversineKm(u.lat, u.lng, b.lat, b.lng));
     this.showOnGlobe();
@@ -185,6 +200,43 @@ const Commerce = {
     this.clearDriverMarkers();
     GlobeEntity?.syncDrivers?.(drivers || []);
     this.driverMarkers = [...(GlobeEntity?.entities?.values() || [])].filter(e => e.type === 'driver').map(e => e.mesh);
+  },
+
+  async renderDriverPick() {
+    const box = document.getElementById('vm-drivers-pick');
+    if (!box) return;
+    const u = this.userLatLng();
+    const drivers = await this.driversNear(u.lat, u.lng);
+    this.showDriversOnGlobe(drivers);
+    if (!drivers.length) {
+      box.style.display = 'none';
+      box.innerHTML = '';
+      return;
+    }
+    box.style.display = 'block';
+    box.innerHTML = '<div class="vm-drivers-title">' + (AstroGlyphs?.driver || '🚚') + ' Pick driver (tap):</div>'
+      + drivers.slice(0, 5).map(d => {
+        const km = this.haversineKm(u.lat, u.lng, d.field_lat, d.field_lng).toFixed(1);
+        const picked = this._preferredDriverId === d.id ? ' picked' : '';
+        return '<span class="vm-tag driver' + picked + '" data-driver-id="' + d.id + '">'
+          + driverIcon(d) + ' ' + (d.display_name || 'Driver') + ' · ' + km + ' km</span>';
+      }).join('');
+    box.querySelectorAll('.vm-tag.driver[data-driver-id]').forEach(tag => {
+      tag.onclick = (e) => {
+        e.stopPropagation();
+        const id = tag.dataset.driverId;
+        const d = drivers.find(x => x.id === id);
+        MarketplaceComms?.selectDriver?.(id, d);
+        box.querySelectorAll('.vm-tag.driver').forEach(el => el.classList.remove('picked'));
+        tag.classList.add('picked');
+      };
+    });
+    MarketplaceComms?.openForBrowse?.({
+      vendor: this.selected,
+      drivers,
+      wants: this._lastWants?.map?.(w => w.label)?.join(' + ') || '',
+      preferredDriverId: this._preferredDriverId,
+    });
   },
 
   parseWantedItems(text) {
@@ -454,6 +506,17 @@ const Commerce = {
 
   async showPicker(filter) {
     await this.loadVendors();
+    if (!userLocated && navigator.geolocation) {
+      await new Promise(resolve => {
+        navigator.geolocation.getCurrentPosition(
+          pos => { placeMe(pos.coords.latitude, pos.coords.longitude, { fly: true, quiet: true }); resolve(); },
+          () => resolve(),
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+        );
+      });
+    } else if (window._lastPos) {
+      placeMe(window._lastPos.lat, window._lastPos.lng, { fly: true, quiet: true });
+    }
     this.showMenu();
     this.selected = null;
     this.cart = {};
@@ -485,10 +548,11 @@ const Commerce = {
       list.appendChild(row);
     });
     if (rows[0]) this.flyToVendor(rows[0]);
-    ACIControl?.reply('Tap vendor on globe or list — ' + rows.length + ' shops');
+    await this.renderDriverPick();
+    ACIControl?.reply('Tap vendor on globe or list — ' + rows.length + ' shops · pick driver above');
   },
 
-  openVendor(vendor) {
+  async openVendor(vendor) {
     if (!vendor) return;
     this.selected = vendor;
     this.cart = {};
@@ -505,6 +569,7 @@ const Commerce = {
     const title = document.getElementById('vm-title');
     if (title) title.textContent = vendorIcon(vendor) + ' ' + vendor.name;
     this.renderCart();
+    await this.renderDriverPick();
     GlobeDeck?.setMapStatus(this.hasMenu(vendor) ? vendor.name + ' — add items' : vendor.name + ' — request menu');
   },
 

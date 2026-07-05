@@ -23,7 +23,8 @@ function animate() {
   const solarView = level === 'system' || level === 'galaxy' || camZ > 5.5;
 
   if (!drag && earthView) {
-    globePivot.rotation.y += idleRoll + trackVelX;
+    const roll = globePerfActive() ? idleRoll * 0.35 : idleRoll;
+    globePivot.rotation.y += roll + trackVelX;
     globePivot.rotation.x += trackVelY;
     globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x));
     trackVelX *= 0.94;
@@ -41,7 +42,7 @@ function animate() {
   tickGlobeFly?.();
   if (frame % 3 === 0) updateOrbital?.();
 
-  if (!hidden && frame % 3 === 0) {
+  if (!hidden && frame % 6 === 0) {
     MapDepict?.tick?.();
     GlobeEntity?.tick?.();
   }
@@ -80,7 +81,7 @@ setTimeout(() => {
   AciCli?.primeCodersCli?.();
   AciCoders?.ensureBridge?.();
 }, 2000);
-setTimeout(() => Commerce.loadVendors().then(() => Commerce.initUI()), 3000);
+setTimeout(() => Commerce.loadVendors().then(() => Commerce.initUI()), 800);
 
 if (window._lastPos) GlobeEntity.syncMe(_lastPos.lat, _lastPos.lng, me?.name || 'You');
 

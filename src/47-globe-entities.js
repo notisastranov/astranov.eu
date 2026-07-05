@@ -509,7 +509,7 @@ const GlobeEntity = {
     if (!this._tickLast) this._tickLast = 0;
     if (document.hidden) return;
     const perf = window._voicePerfMode || window._globePerfLite;
-    if (now - this._tickLast < (perf ? 320 : 160)) return;
+    if (now - this._tickLast < (perf ? 520 : 200)) return;
     this._tickLast = now;
     if (!this._clusterLast || now - this._clusterLast > 500) {
       this._clusterLast = now;
@@ -697,10 +697,22 @@ const GlobeEntity = {
       },
       _actionLabel: 'Zoom to me',
       onTap: (e) => {
-        this.flyTo(e, GlobeControl?.Z?.global || 2.55);
+        const flyHere = (lat, lng) => {
+          if (lat == null) { this.flyTo(e, GlobeControl?.Z?.global || 2.55); return; }
+          placeMe(lat, lng, { fly: true, zoom: GlobeControl?.Z?.global || 2.55, quiet: false });
+        };
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            pos => flyHere(pos.coords.latitude, pos.coords.longitude),
+            () => flyHere(e.lat, e.lng),
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 20000 }
+          );
+        } else {
+          flyHere(e.lat, e.lng);
+        }
         ACIControl?.reply(opts.travelTo
           ? 'En route → ' + opts.travelTo + ' · real location private'
-          : 'On globe — say city view for shops');
+          : 'Flying to you — zoom in or say city view for shops');
       },
     });
   },

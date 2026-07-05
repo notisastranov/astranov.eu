@@ -15,7 +15,7 @@ try {
   renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
   renderer.setClearColor(0x000000, 1);
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, window._globePerfLite ? 1.0 : 1.25));
   container.appendChild(renderer.domElement);
 } catch (e) {
   const fb = document.createElement('div');
@@ -157,7 +157,6 @@ const GlobeControl = {
 
   /** Default fly — global view; never drops to city unless opts.city === true */
   flyToLatLng(lat, lng, label, targetZ, opts) {
-    if (!this.isEarthView()) return false;
     const o = opts && typeof opts === 'object' ? opts : {};
     let z = targetZ;
     if (z == null) z = o.city ? this.Z.city : this.Z.global;

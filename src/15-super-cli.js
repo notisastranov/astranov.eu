@@ -7,7 +7,7 @@ const SuperCli = {
   title: ACL_TITLE,
 
   // Top bar: login + Super Add — everything else via CLI (locate, order, batch, vhf, theme, hold, stop…)
-  TOOLBAR_VISIBLE: ['aci-login', 'super-add-fab', 'aci-handsfree'],
+  TOOLBAR_VISIBLE: ['aci-login', 'aci-locate', 'aci-order', 'super-add-fab', 'aci-handsfree'],
   INPUT_BTNS: ['globe-deck-send'],
 
   init() {
@@ -80,7 +80,7 @@ const SuperCli = {
 
   bindToolbar() {
     const actions = {
-      'aci-login': () => Auth?.user ? Auth.signOut() : (Auth?.openLoginModal?.() || Auth?.signInGoogle?.()),
+      'aci-login': () => Auth?.user ? Auth.openLoggedInProfile() : (Auth?.openLoginModal?.() || Auth?.signInGoogle?.()),
       'aci-cli-toggle': () => GlobeDeck?.toggle(),
       'aci-stop': () => userIntervene?.(),
       'aci-hold': () => SessionHold?.toggle?.(),

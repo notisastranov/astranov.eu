@@ -680,7 +680,7 @@
     </div>
     <div id="vendor-menu">
       <div id="vm-header"><span id="vm-title">Καταστήματα</span><button id="vm-close" type="button">✖️</button></div>
-      <div id="vm-body"><div id="vm-list"></div><div id="vm-detail" style="display:none"><button id="vm-back" type="button">← όλα τα καταστήματα</button><div id="vm-empty" style="display:none"></div><div id="vm-items"></div><button id="vm-request" type="button" style="display:none">Ζήτησε μενού από κατάστημα</button><button id="vm-place" type="button">Παραγγελία</button></div><div id="vm-compare" style="display:none"><button id="vm-compare-back" type="button">← όλα τα καταστήματα</button><div id="vm-wanted"></div><div id="vm-matches"></div><div id="vm-drivers"></div><div id="vm-pricing" class="vm-pricing" style="display:none"></div><div id="vm-balance"></div><button id="vm-wallet-pay" type="button" style="display:none">Google Wallet · Pay vendor</button><button id="vm-confirm-pay" type="button" style="display:none">Επιβεβαίωση &amp; Πληρωμή · AVC balance</button></div></div>
+      <div id="vm-body"><div id="vm-list"></div><div id="vm-detail" style="display:none"><button id="vm-back" type="button">← όλα τα καταστήματα</button><div id="vm-empty" style="display:none"></div><div id="vm-items"></div><div id="vm-drivers-pick" class="vm-drivers-pick" style="display:none"></div><button id="vm-request" type="button" style="display:none">Ζήτησε μενού από κατάστημα</button><button id="vm-place" type="button">Παραγγελία</button></div><div id="vm-compare" style="display:none"><button id="vm-compare-back" type="button">← όλα τα καταστήματα</button><div id="vm-wanted"></div><div id="vm-matches"></div><div id="vm-drivers"></div><div id="vm-pricing" class="vm-pricing" style="display:none"></div><div id="vm-balance"></div><button id="vm-wallet-pay" type="button" style="display:none">Google Wallet · Pay vendor</button><button id="vm-confirm-pay" type="button" style="display:none">Επιβεβαίωση &amp; Πληρωμή · AVC balance</button></div></div>
     </div>
         </div>
       </div>
@@ -713,7 +713,7 @@ try {
   renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
   renderer.setClearColor(0x000000, 1);
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, window._globePerfLite ? 1.0 : 1.25));
   container.appendChild(renderer.domElement);
 } catch (e) {
   const fb = document.createElement('div');
@@ -855,7 +855,6 @@ const GlobeControl = {
 
   /** Default fly — global view; never drops to city unless opts.city === true */
   flyToLatLng(lat, lng, label, targetZ, opts) {
-    if (!this.isEarthView()) return false;
     const o = opts && typeof opts === 'object' ? opts : {};
     let z = targetZ;
     if (z == null) z = o.city ? this.Z.city : this.Z.global;
@@ -1960,41 +1959,37 @@ const Auth = {
     if (!this.user) return this.openLoginModal();
     Responsive3D?.visualReact?.('profile', {});
     GlobeDeck?.expand?.('Your profile · 3D');
-    const openProfile = () => {
-      const lat = window._lastPos?.lat;
-      const lng = window._lastPos?.lng;
-      const name = this._profileVisual?.display_name
-        || this.user.user_metadata?.full_name
-        || (this.user.email || '').split('@')[0]
-        || 'You';
-      if (lat != null && lng != null) {
-        GlobeEntity?.syncMe?.(lat, lng, name, { alwaysShow: true });
-        const fp = latLngToPos(lat, lng, 1.04);
-        const z = GlobeControl?.Z?.national || 1.82;
-        const dur = GlobeControl?.flyDuration?.(camera?.position?.z, z) || 2200;
-        flyToPoint?.(new THREE.Vector3(fp.x, fp.y, fp.z), z, { dur });
-        GlobeControl?.noteAutoFly?.();
-        MapDepict?.pulse?.(lat, lng, 0x49b7ff, name, 8000);
-      } else {
-        locateMe?.();
-      }
+    const name = this._profileVisual?.display_name
+      || this.user.user_metadata?.full_name
+      || (this.user.email || '').split('@')[0]
+      || 'You';
+    const flyToMe = (lat, lng) => {
+      if (lat == null || lng == null) return;
+      GlobeEntity?.syncMe?.(lat, lng, name, { alwaysShow: true });
+      const fp = latLngToPos(lat, lng, 1.04);
+      const z = GlobeControl?.Z?.national || 1.82;
+      const dur = GlobeControl?.flyDuration?.(camera?.position?.z, z) || 2200;
+      flyToPoint?.(new THREE.Vector3(fp.x, fp.y, fp.z), z, { dur });
+      GlobeControl?.noteAutoFly?.();
+      MapDepict?.pulse?.(lat, lng, 0x49b7ff, name, 8000);
+      ACIControl?.reply('Flying to you · ' + lat.toFixed(2) + ', ' + lng.toFixed(2));
+    };
+    const openProfile = (skipFly) => {
+      if (!skipFly && window._lastPos) flyToMe(window._lastPos.lat, window._lastPos.lng);
       ProfileSite?.openSelf?.();
     };
-    if (window._lastPos?.lat != null) {
-      openProfile();
-      return;
-    }
     if (!navigator.geolocation) {
-      openProfile();
+      openProfile(false);
       return;
     }
+    GlobeDeck?.setMapStatus?.('Locating…');
     navigator.geolocation.getCurrentPosition(
       pos => {
         placeMe(pos.coords.latitude, pos.coords.longitude, { fly: true, zoom: GlobeControl?.Z?.national || 1.82 });
-        openProfile();
+        openProfile(true);
       },
-      () => openProfile(),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 45000 }
+      () => openProfile(false),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 }
     );
   },
 
@@ -3351,7 +3346,7 @@ const SuperCli = {
   title: ACL_TITLE,
 
   // Top bar: login + Super Add — everything else via CLI (locate, order, batch, vhf, theme, hold, stop…)
-  TOOLBAR_VISIBLE: ['aci-login', 'super-add-fab', 'aci-handsfree'],
+  TOOLBAR_VISIBLE: ['aci-login', 'aci-locate', 'aci-order', 'super-add-fab', 'aci-handsfree'],
   INPUT_BTNS: ['globe-deck-send'],
 
   init() {
@@ -3424,7 +3419,7 @@ const SuperCli = {
 
   bindToolbar() {
     const actions = {
-      'aci-login': () => Auth?.user ? Auth.signOut() : (Auth?.openLoginModal?.() || Auth?.signInGoogle?.()),
+      'aci-login': () => Auth?.user ? Auth.openLoggedInProfile() : (Auth?.openLoginModal?.() || Auth?.signInGoogle?.()),
       'aci-cli-toggle': () => GlobeDeck?.toggle(),
       'aci-stop': () => userIntervene?.(),
       'aci-hold': () => SessionHold?.toggle?.(),
@@ -6999,8 +6994,22 @@ const Commerce = {
   },
 
   menuFor(vendor) {
-    const items = Array.isArray(vendor?.items) ? vendor.items.filter(i => i && i.name) : [];
+    let raw = vendor?.items;
+    if (typeof raw === 'string') {
+      try { raw = JSON.parse(raw); } catch { raw = []; }
+    }
+    const items = Array.isArray(raw) ? raw.filter(i => i && i.name) : [];
     return items;
+  },
+
+  _normalizeVendor(v) {
+    if (!v) return v;
+    if (this.menuFor(v).length) return v;
+    const demo = DEMO_VENDORS.find(d =>
+      d.id === v.id
+      || (v.name && d.name.toLowerCase().includes(String(v.name).toLowerCase().slice(0, 5)))
+    );
+    return demo ? { ...v, items: demo.items, delivery_enabled: v.delivery_enabled !== false } : v;
   },
 
   hasMenu(vendor) {
@@ -7015,6 +7024,7 @@ const Commerce = {
       this.vendors = r.ok ? await r.json() : [];
     } catch { this.vendors = []; }
     if (!this.vendors.length) this.vendors = DEMO_VENDORS.map(v => ({ ...v }));
+    else this.vendors = this.vendors.map(v => this._normalizeVendor(v));
     const u = this.userLatLng();
     this.vendors.sort((a, b) => this.haversineKm(u.lat, u.lng, a.lat, a.lng) - this.haversineKm(u.lat, u.lng, b.lat, b.lng));
     this.showOnGlobe();
@@ -7134,6 +7144,43 @@ const Commerce = {
     this.clearDriverMarkers();
     GlobeEntity?.syncDrivers?.(drivers || []);
     this.driverMarkers = [...(GlobeEntity?.entities?.values() || [])].filter(e => e.type === 'driver').map(e => e.mesh);
+  },
+
+  async renderDriverPick() {
+    const box = document.getElementById('vm-drivers-pick');
+    if (!box) return;
+    const u = this.userLatLng();
+    const drivers = await this.driversNear(u.lat, u.lng);
+    this.showDriversOnGlobe(drivers);
+    if (!drivers.length) {
+      box.style.display = 'none';
+      box.innerHTML = '';
+      return;
+    }
+    box.style.display = 'block';
+    box.innerHTML = '<div class="vm-drivers-title">' + (AstroGlyphs?.driver || '🚚') + ' Pick driver (tap):</div>'
+      + drivers.slice(0, 5).map(d => {
+        const km = this.haversineKm(u.lat, u.lng, d.field_lat, d.field_lng).toFixed(1);
+        const picked = this._preferredDriverId === d.id ? ' picked' : '';
+        return '<span class="vm-tag driver' + picked + '" data-driver-id="' + d.id + '">'
+          + driverIcon(d) + ' ' + (d.display_name || 'Driver') + ' · ' + km + ' km</span>';
+      }).join('');
+    box.querySelectorAll('.vm-tag.driver[data-driver-id]').forEach(tag => {
+      tag.onclick = (e) => {
+        e.stopPropagation();
+        const id = tag.dataset.driverId;
+        const d = drivers.find(x => x.id === id);
+        MarketplaceComms?.selectDriver?.(id, d);
+        box.querySelectorAll('.vm-tag.driver').forEach(el => el.classList.remove('picked'));
+        tag.classList.add('picked');
+      };
+    });
+    MarketplaceComms?.openForBrowse?.({
+      vendor: this.selected,
+      drivers,
+      wants: this._lastWants?.map?.(w => w.label)?.join(' + ') || '',
+      preferredDriverId: this._preferredDriverId,
+    });
   },
 
   parseWantedItems(text) {
@@ -7403,6 +7450,17 @@ const Commerce = {
 
   async showPicker(filter) {
     await this.loadVendors();
+    if (!userLocated && navigator.geolocation) {
+      await new Promise(resolve => {
+        navigator.geolocation.getCurrentPosition(
+          pos => { placeMe(pos.coords.latitude, pos.coords.longitude, { fly: true, quiet: true }); resolve(); },
+          () => resolve(),
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+        );
+      });
+    } else if (window._lastPos) {
+      placeMe(window._lastPos.lat, window._lastPos.lng, { fly: true, quiet: true });
+    }
     this.showMenu();
     this.selected = null;
     this.cart = {};
@@ -7434,10 +7492,11 @@ const Commerce = {
       list.appendChild(row);
     });
     if (rows[0]) this.flyToVendor(rows[0]);
-    ACIControl?.reply('Tap vendor on globe or list — ' + rows.length + ' shops');
+    await this.renderDriverPick();
+    ACIControl?.reply('Tap vendor on globe or list — ' + rows.length + ' shops · pick driver above');
   },
 
-  openVendor(vendor) {
+  async openVendor(vendor) {
     if (!vendor) return;
     this.selected = vendor;
     this.cart = {};
@@ -7454,6 +7513,7 @@ const Commerce = {
     const title = document.getElementById('vm-title');
     if (title) title.textContent = vendorIcon(vendor) + ' ' + vendor.name;
     this.renderCart();
+    await this.renderDriverPick();
     GlobeDeck?.setMapStatus(this.hasMenu(vendor) ? vendor.name + ' — add items' : vendor.name + ' — request menu');
   },
 
@@ -9451,7 +9511,7 @@ const GlobeEntity = {
     if (!this._tickLast) this._tickLast = 0;
     if (document.hidden) return;
     const perf = window._voicePerfMode || window._globePerfLite;
-    if (now - this._tickLast < (perf ? 320 : 160)) return;
+    if (now - this._tickLast < (perf ? 520 : 200)) return;
     this._tickLast = now;
     if (!this._clusterLast || now - this._clusterLast > 500) {
       this._clusterLast = now;
@@ -9639,10 +9699,22 @@ const GlobeEntity = {
       },
       _actionLabel: 'Zoom to me',
       onTap: (e) => {
-        this.flyTo(e, GlobeControl?.Z?.global || 2.55);
+        const flyHere = (lat, lng) => {
+          if (lat == null) { this.flyTo(e, GlobeControl?.Z?.global || 2.55); return; }
+          placeMe(lat, lng, { fly: true, zoom: GlobeControl?.Z?.global || 2.55, quiet: false });
+        };
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            pos => flyHere(pos.coords.latitude, pos.coords.longitude),
+            () => flyHere(e.lat, e.lng),
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 20000 }
+          );
+        } else {
+          flyHere(e.lat, e.lng);
+        }
         ACIControl?.reply(opts.travelTo
           ? 'En route → ' + opts.travelTo + ' · real location private'
-          : 'On globe — say city view for shops');
+          : 'Flying to you — zoom in or say city view for shops');
       },
     });
   },
@@ -15592,7 +15664,8 @@ function animate() {
   const solarView = level === 'system' || level === 'galaxy' || camZ > 5.5;
 
   if (!drag && earthView) {
-    globePivot.rotation.y += idleRoll + trackVelX;
+    const roll = globePerfActive() ? idleRoll * 0.35 : idleRoll;
+    globePivot.rotation.y += roll + trackVelX;
     globePivot.rotation.x += trackVelY;
     globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x));
     trackVelX *= 0.94;
@@ -15610,7 +15683,7 @@ function animate() {
   tickGlobeFly?.();
   if (frame % 3 === 0) updateOrbital?.();
 
-  if (!hidden && frame % 3 === 0) {
+  if (!hidden && frame % 6 === 0) {
     MapDepict?.tick?.();
     GlobeEntity?.tick?.();
   }
@@ -15649,7 +15722,7 @@ setTimeout(() => {
   AciCli?.primeCodersCli?.();
   AciCoders?.ensureBridge?.();
 }, 2000);
-setTimeout(() => Commerce.loadVendors().then(() => Commerce.initUI()), 3000);
+setTimeout(() => Commerce.loadVendors().then(() => Commerce.initUI()), 800);
 
 if (window._lastPos) GlobeEntity.syncMe(_lastPos.lat, _lastPos.lng, me?.name || 'You');
 
