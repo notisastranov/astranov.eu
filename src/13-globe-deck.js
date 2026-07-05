@@ -14,6 +14,7 @@ const GlobeDeck = {
   _userEngaged: false,
   _expandAt: 0,
   _handleDrag: 0,
+  _lastResizeDrag: 0,
   _freeHeight: 0,
   _HEIGHT_KEY: 'astranov-deck-height',
   _scrollTouch: false,
@@ -23,6 +24,7 @@ const GlobeDeck = {
     CliRibbon?.init?.();
     AppShortcuts?.init?.();
     this._restoreHeight();
+    this.bindDeckResize();
     this.bindHandle();
     this.bindDeckGestures();
     ['sat-radio', 'node-batch', 'vendor-menu', 'globe-youtube', 'globe-super-add', 'globe-site-browser', 'cli-hub-panel'].forEach(id => {
@@ -38,54 +40,120 @@ const GlobeDeck = {
     const handle = document.getElementById('cli-deck-handle');
     if (!handle || handle._deckBound) return;
     handle._deckBound = true;
-    let sy = 0, sh = 0, moved = 0;
-    const onTap = (e) => {
-      if (moved > 14) return;
+    handle.addEventListener('click', (e) => {
+      if (this._lastResizeDrag && Date.now() - this._lastResizeDrag < 400) return;
       e.preventDefault();
       e.stopPropagation();
       this.cycleSize();
-    };
-    handle.addEventListener('click', onTap);
-    handle.addEventListener('touchstart', (e) => {
-      if (e.touches.length !== 1) return;
-      sy = e.touches[0].clientY;
-      sh = this.deck()?.getBoundingClientRect().height || 0;
-      moved = 0;
-      this._handleDrag = sy;
-    }, { passive: true });
-    handle.addEventListener('touchmove', (e) => {
-      if (e.touches.length !== 1) return;
-      const dy = sy - e.touches[0].clientY;
-      moved = Math.max(moved, Math.abs(dy));
+    });
+  },
+
+  _deckMinH() { return 118; },
+  _deckMaxH() { return Math.min(window.innerHeight * 0.94, window.innerHeight - 36); },
+
+  _deckInteractive(target) {
+    return target?.closest?.('button, input, textarea, select, form, a, [contenteditable], #aci-cli-form, label');
+  },
+
+  _deckCanScroll(el, fingerDy) {
+    if (!el) return false;
+    const max = el.scrollHeight - el.clientHeight;
+    if (max < 4) return false;
+    if (fingerDy < 0 && el.scrollTop > 0) return true;
+    if (fingerDy > 0 && el.scrollTop < max - 1) return true;
+    return false;
+  },
+
+  bindDeckResize() {
+    const deck = this.deck();
+    if (!deck || deck._resizeBound) return;
+    deck._resizeBound = true;
+    let active = false;
+    let resizing = false;
+    let sy = 0;
+    let sh = 0;
+    let moved = 0;
+    let scrollEl = null;
+
+    const applyHeight = (nh) => {
       const d = this.deck();
-      if (!d || moved < 6) return;
-      const minH = 118;
-      const maxH = Math.min(window.innerHeight * 0.94, window.innerHeight - 36);
-      const nh = Math.min(maxH, Math.max(minH, sh + dy));
+      if (!d) return;
+      nh = Math.min(this._deckMaxH(), Math.max(this._deckMinH(), nh));
       d.style.maxHeight = nh + 'px';
       d.style.minHeight = nh + 'px';
-      d.classList.remove('collapsed');
-      d.classList.add('expanded');
-      d.classList.remove('size-third', 'size-full');
-      this.expanded = true;
-      this._size = nh > window.innerHeight * 0.62 ? 'full' : 'third';
-    }, { passive: true });
-    handle.addEventListener('touchend', (e) => {
-      if (moved > 14) {
-        const d = this.deck();
-        const h = d?.getBoundingClientRect().height || 0;
-        if (h < 130) {
-          this._size = 'collapsed';
-        } else {
-          this._size = 'free';
-          this._saveHeight(h);
-        }
+      d.classList.remove('collapsed', 'size-third', 'size-full');
+      d.classList.add('expanded', 'deck-resizing');
+      this.expanded = nh > 130;
+      this._size = 'free';
+      if (window.AciCli) AciCli.open = this.expanded;
+    };
+
+    const finish = () => {
+      const d = this.deck();
+      if (!d) return;
+      d.classList.remove('deck-resizing');
+      if (resizing || moved > 10) {
+        this._lastResizeDrag = Date.now();
+        const h = d.getBoundingClientRect().height;
+        if (h < 130) this._size = 'collapsed';
+        else { this._size = 'free'; this._saveHeight(h); }
         this.applySize();
-        return;
       }
-      if (e.cancelable) e.preventDefault();
-      onTap(e);
+      active = false;
+      resizing = false;
+      scrollEl = null;
+      moved = 0;
+    };
+
+    const onMove = (clientY, e) => {
+      if (!active) return;
+      const dy = sy - clientY;
+      moved = Math.max(moved, Math.abs(dy));
+      if (!resizing && scrollEl && this._deckCanScroll(scrollEl, dy) && moved < 28) return;
+      if (moved < 6) return;
+      resizing = true;
+      if (e?.cancelable) e.preventDefault();
+      applyHeight(sh + dy);
+    };
+
+    const onStart = (clientY, target) => {
+      if (this._deckInteractive(target)) return;
+      scrollEl = target?.closest?.('#globe-deck-log, #globe-deck-stage');
+      active = true;
+      resizing = false;
+      sy = clientY;
+      sh = deck.getBoundingClientRect().height;
+      moved = 0;
+    };
+
+    deck.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      onStart(e.touches[0].clientY, e.target);
+    }, { passive: true });
+
+    deck.addEventListener('touchmove', (e) => {
+      if (!active || e.touches.length !== 1) return;
+      onMove(e.touches[0].clientY, e);
     }, { passive: false });
+
+    deck.addEventListener('touchend', () => finish(), { passive: true });
+    deck.addEventListener('touchcancel', () => finish(), { passive: true });
+
+    deck.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      if (this._deckInteractive(e.target)) return;
+      onStart(e.clientY, e.target);
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!active) return;
+      onMove(e.clientY, e);
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (!active) return;
+      finish();
+    });
   },
 
   _restoreHeight() {
@@ -139,48 +207,7 @@ const GlobeDeck = {
   },
 
   bindDeckGestures() {
-    const deck = this.deck();
-    if (!deck || this._gesturesBound) return;
-    this._gesturesBound = true;
-    let sy = 0, st = 0, sx = 0, moved = false;
-    const scrollable = t => t?.closest?.('#globe-deck-log, #globe-deck-stage, #globe-deck-input-row');
-    const interactive = t => t?.closest?.('button, input, textarea, form, a, #super-cli-bar button, #globe-deck-input-row button, #globe-deck-input-row textarea, #aci-cli-form, #cli-deck-handle');
-
-    deck.addEventListener('touchstart', e => {
-      if (e.touches.length !== 1 || interactive(e.target)) return;
-      sy = e.touches[0].clientY;
-      sx = e.touches[0].clientX;
-      st = Date.now();
-      moved = false;
-      this._scrollTouch = !!scrollable(e.target);
-      this._touchY = sy;
-      this._touchT = st;
-    }, { passive: true });
-
-    deck.addEventListener('touchmove', e => {
-      if (e.touches.length !== 1) return;
-      const dy = Math.abs(e.touches[0].clientY - sy);
-      const dx = Math.abs(e.touches[0].clientX - sx);
-      if (dy > 8 || dx > 8) moved = true;
-      if (this._scrollTouch && dy > dx) return;
-      if (this.expanded && scrollable(e.target) && dy > dx) return;
-    }, { passive: true });
-
-    deck.addEventListener('touchend', e => {
-      if (e.changedTouches.length !== 1 || interactive(e.target)) return;
-      if (this._scrollTouch && moved) {
-        this._scrollTouch = false;
-        return;
-      }
-      const dy = e.changedTouches[0].clientY - sy;
-      const dt = Date.now() - st;
-      if (dt > 750) return;
-      if (this.expanded && scrollable(e.target) && moved) return;
-      if (Math.abs(dy) < 36) return;
-      if (dy < -36) this.expand();
-      else if (dy > 36) this.collapse();
-      this._scrollTouch = false;
-    }, { passive: true });
+    /* scroll lives in log/stage via touch-action:pan-y; resize is bindDeckResize on whole deck */
   },
 
   deck() { return document.getElementById('globe-deck'); },
