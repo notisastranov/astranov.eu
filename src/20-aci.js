@@ -383,6 +383,11 @@ const ACIControl = {
       locateMe?.();
       return { executed: true, action: 'locate' };
     }
+    if (/^(stars?|constellations?|celestial|ship nav|navigation)$/i.test(low) || /τι αστερισμ/i.test(low)) {
+      ZoomTiers?.goTo?.('global', true);
+      CelestialNav?.printReport?.();
+      return { executed: true, action: 'stars' };
+    }
 
     if (GlobeDeck?.activeTask === 'coders' || window._aciCodersAlwaysOn) {
       await AciCoders?.handleMessage(text, { fromVoice });

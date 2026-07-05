@@ -44,6 +44,7 @@ function animate() {
   else if (frame % 8 === 0) CosmicZoom.update(camZ);
 
   if (earthView && frame % 4 === 0) EarthRealism?.tick?.();
+  if (earthView && frame % 3 === 0) CelestialNav?.tick?.();
 
   renderer.render(scene, camera);
 }
@@ -57,6 +58,7 @@ AciCli.init();
 ACIControl.init();
 ACI.init();
 CosmicZoom.init();
+CelestialNav.init();
 ZoomTiers.init();
 if (typeof globePivot !== 'undefined' && globePivot) {
   globePivot.rotation.x = 0.12;

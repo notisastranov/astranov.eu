@@ -511,6 +511,12 @@ const AciCli = {
         GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
+      if (cmd === 'stars' || cmd === 'constellations' || cmd === 'constellation' || cmd === 'nav') {
+        ZoomTiers?.goTo?.('global', true);
+        CelestialNav?.printReport?.();
+        GlobeDeck?.finishCliIfOneShot(cmd);
+        return;
+      }
       if (cmd === 'news') { NewsFeed.flash(); this.print('news', 'ok'); GlobeDeck?.finishCliIfOneShot(cmd); return; }
       if (cmd === 'youtube' || cmd === 'yt') {
         await GlobeVideo?.find?.(rest);

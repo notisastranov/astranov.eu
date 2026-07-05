@@ -251,8 +251,12 @@ const CosmicZoom = {
           + '<div class="cg-item"><b>Satellite</b> — buildings & streets · pinch to zoom closer</div>'
           + '<div class="cg-item"><b>Live</b> — friends · drivers · OSRM routing when driving</div>'
           + '<div class="cg-item"><i>Zoom out to return to globe · theme 🌙/☀️</i></div>';
+        return;
       }
-      return;
+      if (CelestialNav?.isGlobalNavView?.(camZ)) {
+        el.innerHTML = CelestialNav.renderGuideHtml(camZ);
+        return;
+      }
     }
     let html = '';
     if (level === 'orbit') {
@@ -323,7 +327,8 @@ const CosmicZoom = {
         const tierLabel = tier?.id === 'neighborhood' ? 'NEIGHBORHOOD MAP' : 'CITY MAP';
         zl.textContent = tierLabel + ' · satellite · streets · friends · drivers';
       } else {
-        const hint = level === 'orbit' ? ' · ISS · Starlink' : level === 'system' ? ' · planets' : label === 'GLOBAL' ? ' · ☀ day/night' : '';
+        const hint = level === 'orbit' ? ' · ISS · Starlink' : level === 'system' ? ' · planets'
+          : label === 'GLOBAL' ? ' · ☀ day/night · ✦ constellations' : '';
         zl.textContent = label + hint;
       }
     }

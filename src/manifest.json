@@ -32,6 +32,7 @@
     { "file": "47-globe-entities.js", "marker": "// === GLOBE ENTITIES" },
     { "file": "43-youtube-globe.js", "marker": "// === YOUTUBE ON GLOBE" },
     { "file": "50-cosmic.js", "marker": "// ── COSMIC ZOOM:" },
+    { "file": "51-celestial-nav.js", "marker": "// === CELESTIAL NAV" },
     { "file": "09-zoom-tiers.js", "marker": "// === ZOOM TIERS" },
     { "file": "10-trackball.js", "marker": "// Trackball — rotate entire globe pivot" },
     { "file": "61-city-map.js", "marker": "// === CITY MAP" },

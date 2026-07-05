@@ -220,6 +220,14 @@ const CityLife = {
       MapDepict?.action?.('explore', { lat: u.lat, lng: u.lng, detail: 'things to do' });
       ACIControl?.reply('Drag globe · tap shops · type order or youtube');
     },
+    stars: async () => {
+      ZoomTiers?.goTo?.('global', true);
+      CelestialNav?.printReport?.();
+    },
+    nav: async () => {
+      ZoomTiers?.goTo?.('global', true);
+      CelestialNav?.printReport?.();
+    },
     list: async () => {
       const names = Object.keys(CityLife.SCENARIOS).filter(k => k !== 'list').join(' · ');
       AciCli?.print('scenarios: ' + names, 'ok');

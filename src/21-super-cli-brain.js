@@ -626,6 +626,11 @@ Object.assign(SuperCli, {
         await enterCityView?.();
         return { handled: true };
       }
+      if (cmd === 'stars' || cmd === 'constellations' || cmd === 'constellation' || cmd === 'nav') {
+        ZoomTiers?.goTo?.('global', true);
+        CelestialNav?.printReport?.();
+        return { handled: true };
+      }
       if (cmd === 'hold' || cmd === 'pause') {
         SessionHold?.hold?.();
         return { handled: true };
