@@ -252,7 +252,7 @@ const ACIControl = {
       return { executed: true };
     }
     if (/^(login|sign in|google|facebook|apple|twitter)$/.test(low) || /^σύνδεση$/.test(low)) {
-      Auth.openLoginModal?.('Sign in — one account for globe and sites') || Auth.signInGoogle();
+      Auth.signInGoogle?.() || Auth.openLoginModal?.('Sign in — one account for globe and sites');
       return { executed: true };
     }
     if (/^(logout|sign out|αποσύνδεση)$/.test(low)) { Auth.signOut(); return { executed: true }; }

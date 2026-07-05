@@ -301,6 +301,25 @@ const SCENARIOS = [
     },
   },
   {
+    name: 'auth — Google redirect primary',
+    run: async (page) => {
+      const r = await page.evaluate(() => ({
+        signInGoogle: typeof Auth?.signInGoogle === 'function',
+        oauthReturn: typeof Auth?._handleOAuthReturn === 'function',
+        oauthRedirectTo: typeof Auth?._oauthRedirectTo === 'function',
+        googleBtn: !!document.getElementById('auth-google-continue'),
+        googleLabel: (document.getElementById('auth-google-continue')?.textContent || '').trim(),
+        noBlockedBanner: !document.getElementById('auth-google-warn'),
+      }));
+      if (!r.signInGoogle || !r.oauthReturn || !r.oauthRedirectTo || !r.googleBtn) {
+        throw new Error('auth wiring missing: ' + JSON.stringify(r));
+      }
+      if (!/google/i.test(r.googleLabel)) throw new Error('Google button not primary: ' + r.googleLabel);
+      if (!r.noBlockedBanner) throw new Error('blocked banner still shown');
+      return r;
+    },
+  },
+  {
     name: 'CLI — theme + scenario commands',
     run: async (page) => {
       const r = await page.evaluate(async () => {

@@ -66,6 +66,7 @@ const Auth = {
       this.broadcastToShell();
       if (this.user) this.loadProfileVisual();
     });
+    this._handleOAuthReturn();
     this.client.auth.getSession().then(({ data }) => {
       this._authBoot = false;
       this.session = data?.session || null;
@@ -76,7 +77,7 @@ const Auth = {
       if (this.user) this.loadProfileVisual();
     });
     const btn = document.getElementById('aci-login');
-    if (btn) btn.onclick = () => this.user ? this.openLoggedInProfile() : this.openLoginModal();
+    if (btn) btn.onclick = () => this.user ? this.openLoggedInProfile() : this.signInGoogle();
     this.bindAuthModal();
     this._recoverFromAuthError();
     window.addEventListener('message', e => this._onChildMessage(e));
@@ -125,7 +126,7 @@ const Auth = {
     modal.querySelectorAll('[data-oauth]').forEach(btn => {
       btn.addEventListener('click', () => this.signInOAuth(btn.dataset.oauth));
     });
-    this._mountGoogleButton();
+    // Redirect OAuth only — GSI needs GCP JS origins per host and fails on astranov.eu
     modal.querySelectorAll('.auth-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         modal.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
@@ -179,6 +180,46 @@ const Auth = {
     return typeof astranovPublicOrigin === 'function' ? astranovPublicOrigin() : (location.origin || 'https://astranov.eu');
   },
 
+  _useGoogleRedirectOnly() {
+    try {
+      const host = location.hostname || '';
+      return host === 'astranov.eu' || host.endsWith('.astranov.eu');
+    } catch (_) {
+      return true;
+    }
+  },
+
+  _oauthRedirectTo() {
+    try {
+      const url = new URL(window.location.href);
+      ['code', 'error', 'error_description', 'error_code'].forEach((k) => url.searchParams.delete(k));
+      url.hash = '';
+      return url.origin + url.pathname + (url.search || '');
+    } catch (_) {
+      return this.publicOrigin() + '/';
+    }
+  },
+
+  async _handleOAuthReturn() {
+    if (!this.client) return;
+    const params = new URLSearchParams(location.search);
+    const code = params.get('code');
+    const err = params.get('error') || params.get('error_description');
+    if (err) return;
+    if (!code) return;
+    const status = document.getElementById('auth-status');
+    if (status) status.textContent = 'Completing Google sign-in…';
+    GlobeDeck?.setPreview?.('Signing in…');
+    try {
+      const { error } = await this.client.auth.exchangeCodeForSession(code);
+      if (error) throw error;
+    } catch (e) {
+      const msg = typeof scrubSupabaseLeak === 'function' ? scrubSupabaseLeak(e.message) : (e.message || e);
+      this.openLoginModal('Google sign-in failed — ' + msg);
+      ACIControl?.reply('Google sign-in failed — try email link below');
+    }
+  },
+
   openLoginModal(hint) {
     const modal = document.getElementById('astranov-auth-modal');
     if (!modal) return;
@@ -196,10 +237,10 @@ const Auth = {
       setTimeout(() => emailQuick.focus(), 300);
     }
     if (status) {
-      status.textContent = hint || 'Enter email · tap Send sign-in link · open email on this phone';
+      status.textContent = hint || 'Continue with Google — or enter email for a sign-in link';
     }
-    GlobeDeck?.expand?.('Sign in · email link');
-    ACIControl?.reply('Google may be blocked — use email sign-in link');
+    GlobeDeck?.expand?.('Sign in · Google or email');
+    if (!hint) ACIControl?.reply('Tap Continue with Google — or use email link');
   },
 
   closeLoginModal() {
@@ -294,16 +335,7 @@ const Auth = {
 
   async continueWithGoogle() {
     if (!this.client) return;
-    const status = document.getElementById('auth-status');
-    if (status) status.textContent = 'Trying Google… if blocked, use email link above';
-    try {
-      await this._signInGoogleRedirect();
-    } catch (e) {
-      const msg = typeof scrubSupabaseLeak === 'function' ? scrubSupabaseLeak(e.message) : (e.message || e);
-      if (status) status.textContent = 'Google blocked — ' + msg + ' · use email link';
-      ACIControl?.reply('Google blocked — tap Send sign-in link');
-      this._activateSignInPane();
-    }
+    return this._signInGoogleRedirect();
   },
 
   async sendMagicLink() {
@@ -335,56 +367,34 @@ const Auth = {
   async signInGoogle() {
     if (!this.client) return;
     const origin = this.publicOrigin();
-    this.openLoginModal();
-    const status = document.getElementById('auth-status');
     GlobeDeck?.setPreview?.('Sign in · ' + origin);
-
-    try {
-      await this._ensureGoogleGsi();
-      if (!this.GOOGLE_CLIENT_ID || !window.google?.accounts?.id) {
-        return this._signInGoogleRedirect();
-      }
-      this._initGoogleCredential();
-      const host = document.getElementById('auth-google-btn');
-      if (host) host.classList.add('desktop');
-      this._renderGoogleButton(host);
-      if (status) status.textContent = 'Tap Continue with Google above — or the blue button';
-      window.google.accounts.id.prompt((n) => {
-        if (n?.isNotDisplayed?.() || n?.isSkippedMoment?.()) {
-          if (status) status.textContent = 'Tap Continue with Google or the blue button below';
-        }
-      });
-    } catch (e) {
-      const msg = typeof scrubSupabaseLeak === 'function' ? scrubSupabaseLeak(e.message) : (e.message || e);
-      if (status) status.textContent = msg;
-      try {
-        await this._signInGoogleRedirect();
-      } catch (e2) {
-        ACIControl?.reply('Google sign-in failed — use Email sign-in link · ' + (e2.message || msg));
-      }
-    }
+    return this._signInGoogleRedirect();
   },
 
   async _signInGoogleRedirect() {
     if (!this.client) return;
     const origin = this.publicOrigin();
     const status = document.getElementById('auth-status');
-    if (status) status.textContent = 'Opening Google… you will return to ' + origin.replace(/^https?:\/\//, '');
+    if (status) status.textContent = 'Opening Google… returning to ' + origin.replace(/^https?:\/\//, '');
     GlobeDeck?.setPreview?.('Sign in · ' + origin);
-    const redirectTo = window.location.origin + window.location.pathname + (window.location.search || '');
-    const { error } = await this.client.auth.signInWithOAuth({
+    ACIControl?.reply('Opening Google sign-in…');
+    const redirectTo = this._oauthRedirectTo();
+    const { data, error } = await this.client.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo,
         scopes: 'email profile',
-        queryParams: { prompt: 'select_account' },
+        queryParams: { prompt: 'select_account', access_type: 'offline' },
+        skipBrowserRedirect: false,
       },
     });
     if (error) {
       const msg = typeof scrubSupabaseLeak === 'function' ? scrubSupabaseLeak(error.message) : error.message;
-      if (status) status.textContent = msg + ' — try Email sign-in link';
+      this.openLoginModal('Google sign-in failed — ' + msg);
+      ACIControl?.reply('Google failed — use email sign-in link');
       throw error;
     }
+    if (data?.url) window.location.assign(data.url);
   },
 
   async signInOAuth(provider) {
@@ -399,14 +409,15 @@ const Auth = {
     const origin = this.publicOrigin();
     GlobeDeck?.setPreview?.('Sign in · ' + origin);
     ACIControl?.reply('Sign in at ' + origin + ' with ' + provider);
-    const redirectTo = window.location.origin + window.location.pathname + (window.location.search || '');
-    const { error } = await this.client.auth.signInWithOAuth({
+    const redirectTo = this._oauthRedirectTo();
+    const { data, error } = await this.client.auth.signInWithOAuth({
       provider,
       options: {
         redirectTo,
         scopes: provider === 'facebook' ? 'email profile' : undefined,
       },
     });
+    if (data?.url) window.location.assign(data.url);
     if (error) throw error;
   },
 

@@ -69,6 +69,7 @@ check('globe-src', 'one-database migration', hasFile(join(ROOT, 'supabase/migrat
 check('globe-src', 'auth url resolver', hasFile(join(ROOT, 'src/01-astranov-auth-url.js'), 'resolveAstranovSupabaseUrl'));
 check('globe-src', 'vercel auth proxy', hasFile(join(ROOT, 'vercel.json'), '"/auth/:path*"'));
 check('globe-src', 'auth modal shows astranov.eu', hasFile(join(ROOT, 'index.shell.html'), 'auth-origin-url'));
+check('globe-src', 'google redirect primary', hasFile(join(ROOT, 'src/12-auth.js'), '_signInGoogleRedirect') && hasFile(join(ROOT, 'index.shell.html'), 'Continue with Google'));
 
 // ── Group 4–6: Auditors repo ──
 check('auditors', 'index.html', hasFile(join(AUDITORS, 'index.html')));

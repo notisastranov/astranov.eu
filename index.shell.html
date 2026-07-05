@@ -589,22 +589,22 @@
         <button class="auth-tab" type="button" data-pane="auth-pane-phone">Phone</button>
       </div>
       <div id="auth-pane-signin" class="auth-pane active">
-        <div class="auth-google-warn" id="auth-google-warn">Google OAuth is blocked until Cloud Console is fixed — <b>email link works now</b></div>
+        <button type="button" id="auth-google-continue" class="auth-primary-btn google">Continue with Google</button>
+        <div id="auth-google-btn" class="auth-gis-host"></div>
+        <div class="auth-trust-line">Sign in on <b id="auth-origin-inline">astranov.eu</b> · one account for globe and sites</div>
+        <div class="auth-trust-line" style="margin:12px 0 8px;opacity:0.75">— or use email —</div>
         <input id="auth-email-quick" type="email" autocomplete="email" inputmode="email" placeholder="your@gmail.com" class="auth-email-quick" />
-        <button type="button" id="auth-email-link" class="auth-primary-btn auth-email-primary">Send sign-in link to my email</button>
+        <button type="button" id="auth-email-link" class="auth-secondary-btn auth-email-primary">Send sign-in link to my email</button>
         <div class="auth-trust-line">Open the email on <b>this phone</b> · tap the Astranov link · check spam</div>
-        <a href="https://github.com/notisastranov/astranov.eu/issues/98" id="auth-oauth-help" class="auth-oauth-help" target="_blank" rel="noopener">Why is Google blocked? · GCP fix steps</a>
         <details class="auth-more-oauth">
-          <summary>Google · Facebook · Apple · X</summary>
-          <button type="button" id="auth-google-continue" class="auth-primary-btn google auth-google-fallback">Try Google (may be blocked)</button>
-          <div id="auth-google-btn" class="auth-gis-host"></div>
+          <summary>Facebook · Apple · X</summary>
           <div class="auth-oauth-grid">
             <button type="button" data-oauth="facebook">Facebook</button>
             <button type="button" data-oauth="apple">Apple</button>
             <button type="button" data-oauth="twitter">X</button>
           </div>
         </details>
-        <div class="auth-trust-line">Official · <b id="auth-origin-inline">astranov.eu</b></div>
+        <a href="https://github.com/notisastranov/astranov.eu/issues/98" id="auth-oauth-help" class="auth-oauth-help" target="_blank" rel="noopener">Google login troubleshooting</a>
       </div>
       <div id="auth-pane-id" class="auth-pane">
         <div class="auth-field"><label>Email, username, or phone</label><input id="auth-identifier" type="text" autocomplete="username" placeholder="you@email.com or my-shop" /></div>

@@ -80,7 +80,7 @@ const SuperCli = {
 
   bindToolbar() {
     const actions = {
-      'aci-login': () => Auth?.user ? Auth.openLoggedInProfile() : (Auth?.openLoginModal?.() || Auth?.signInGoogle?.()),
+      'aci-login': () => Auth?.user ? Auth.openLoggedInProfile() : (Auth?.signInGoogle?.() || Auth?.openLoginModal?.()),
       'aci-cli-toggle': () => GlobeDeck?.toggle(),
       'aci-stop': () => userIntervene?.(),
       'aci-hold': () => SessionHold?.toggle?.(),
