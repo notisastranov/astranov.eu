@@ -35,6 +35,7 @@
     { "file": "51-celestial-nav.js", "marker": "// === CELESTIAL NAV" },
     { "file": "53-coders-hub.js", "marker": "// === CODERS HUB" },
     { "file": "54-ai-router.js", "marker": "// === AI ROUTER" },
+    { "file": "55-lab-orbs.js", "marker": "// === LAB ORBS" },
     { "file": "09-zoom-tiers.js", "marker": "// === ZOOM TIERS" },
     { "file": "10-trackball.js", "marker": "// Trackball — rotate entire globe pivot" },
     { "file": "61-city-map.js", "marker": "// === CITY MAP" },

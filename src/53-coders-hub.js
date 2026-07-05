@@ -32,6 +32,7 @@ const CodersHub = {
     document.getElementById('coders-save-job')?.addEventListener('click', () => this.saveJob());
     document.getElementById('coders-resume-job')?.addEventListener('click', () => this.resumeJob());
     document.getElementById('coders-clear-job')?.addEventListener('click', () => this.clearJob());
+    document.getElementById('coders-summon-composer')?.addEventListener('click', () => this.summonComposer());
     document.getElementById('coders-refresh-labs')?.addEventListener('click', () => {
       this._pingLabs();
       this.renderLabs();
@@ -150,13 +151,39 @@ const CodersHub = {
     AciCli?.print('Coders hub · job cleared', 'dim');
   },
 
+  _inlineLabs: new Set(['gemini', 'deepseek']),
+
+  canInline(lab) {
+    if (!lab || lab.comingSoon || lab.id === 'main') return false;
+    if (lab.inlineFallback || this._inlineLabs.has(lab.id)) return true;
+    const st = this._status[lab.id];
+    return st === 'offline' || st === 'soon' || st === 'slow';
+  },
+
+  openLabInline(lab) {
+    const job = this.buildJob();
+    this.writeJob(job);
+    const prov = AiRouter?.applyLab?.(lab);
+    GlobeDeck?.expand?.(lab.label + ' · inline on Globe OS');
+    const input = document.getElementById('aci-cli-in');
+    if (input && job.lastPrompt) {
+      input.value = `Continue on ${lab.label}: ${job.lastPrompt}`;
+      input.dispatchEvent(new Event('input'));
+    }
+    ACIControl?.reply(`${lab.label} inline — AI provider → ${prov?.label || lab.provider} (subdomain ${this._status[lab.id] || 'pending'})`);
+    AciCli?.print(`${lab.label} lab routed via ai-router · ${prov?.id || lab.engine}`, 'ok');
+    this.toggle(false);
+    void AciCoders?.enterSession?.({ focus: true });
+  },
+
   openLab(lab) {
     if (!lab?.url || lab.comingSoon) {
       ACIControl?.reply(`${lab?.label || 'Lab'} subdomain not live yet — stay on Globe OS or try ChatGPT/Claude/Grok.`);
       return;
     }
     const st = this._status[lab.id];
-    if (st === 'offline') {
+    if (st === 'offline' || (this.canInline(lab) && st !== 'live')) {
+      if (this.canInline(lab)) return this.openLabInline(lab);
       ACIControl?.reply(`${lab.label} lab is offline right now — try another team or save job for later.`);
       return;
     }
@@ -169,6 +196,26 @@ const CodersHub = {
     target.searchParams.set('continue', '1');
     target.searchParams.set('from', 'main');
     window.location.href = target.toString();
+  },
+
+  async summonComposer() {
+    const job = this.buildJob();
+    this.writeJob(job);
+    const task = job.lastPrompt || job.summary || 'Continue Globe OS development';
+    if (!Auth?.user) {
+      ACIControl?.reply('Sign in with G first — then Summon Composer queues your build.');
+      Auth?.openLoginModal?.('Sign in to summon Composer on your job');
+      return;
+    }
+    AciCli?.print('Summoning Composer…', 'dim');
+    const q = await AciCoders?.queueCoder?.(task, 'composer');
+    if (q?.summon_id) {
+      ACIControl?.reply(`Composer queued #${q.summon_id} — polling for answer`);
+      AciCli?.print('Composer #' + q.summon_id + ' · say "coders poll" or wait', 'ok');
+    } else {
+      ACIControl?.reply(q?.text || q?.error || 'Composer queue failed — try again');
+    }
+    this.toggle(false);
   },
 
   async _pingLabs() {
@@ -255,7 +302,7 @@ const CodersHub = {
         + `<span class="coders-status coders-status-${st.cls}">${st.text}</span></div>`
         + `${provider ? `<p class="coders-card-provider">${provider}</p>` : ''}`
         + `<p class="coders-card-path">${this._esc((lab.url || '').replace('https://', ''))}</p>`
-        + `<button type="button" class="coders-open" ${lab.comingSoon || st.cls === 'off' ? 'disabled' : ''}>${here ? 'Stay in lab' : lab.comingSoon ? 'Coming soon' : st.cls === 'off' ? 'Offline' : 'Open lab'}</button>`;
+        + `<button type="button" class="coders-open" ${lab.comingSoon ? 'disabled' : ''}>${here ? 'Stay in lab' : lab.comingSoon ? 'Coming soon' : st.cls === 'off' && this.canInline(lab) ? 'Open inline' : st.cls === 'off' ? 'Offline' : 'Open lab'}</button>`;
       const btn = card.querySelector('.coders-open');
       if (btn && !btn.disabled) btn.addEventListener('click', () => this.openLab(lab));
       grid.append(card);

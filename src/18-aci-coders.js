@@ -587,10 +587,19 @@ const AciCoders = {
       AuditorPortal?.syncGlobe?.();
       return 'Globe data refreshed — yachts · vendors · drivers · auditors';
     }
-    if (/^(use\s+)?(openai|gpt|groq|gemini|cycle|astranov)\b/i.test(low)) {
-      const prov = /openai|gpt/.test(low) ? 'openai-mini' : /groq/.test(low) ? 'groq' : /gemini/.test(low) ? 'gemini' : 'astranov';
+    if (/^(use\s+)?(openai|gpt|groq|gemini|deepseek|deep\s*seek|cycle|astranov)\b/i.test(low)) {
+      const prov = /openai|gpt/.test(low) ? 'openai-mini'
+        : /groq/.test(low) ? 'groq'
+        : /gemini/.test(low) ? 'gemini'
+        : /deep/.test(low) ? 'deepseek'
+        : 'astranov';
       AiRouter?.setProvider?.(prov);
+      LabOrbs?._syncGlyphs?.();
       return 'AI provider → ' + (AiRouter.current()?.label || prov);
+    }
+    if (/^summon\s+composer|^use\s+composer|^queue\s+composer/i.test(low)) {
+      void CodersHub?.summonComposer?.();
+      return 'Summoning Composer on your saved job…';
     }
     if (/coders?\s*hub|coder\s*labs?|ai\s*teams?|open\s*coders?|labs?\s*race|ανταγωνισμ|ομάδες/.test(low)) {
       CodersHub?.toggle?.(true);
@@ -635,7 +644,7 @@ const AciCoders = {
 
   wantsComposer(m) {
     return this.fallbackPrefs.force === 'composer'
-      || /^use\s+composer|queue\s+composer|back\s+to\s+composer/i.test(String(m || ''));
+      || /^use\s+composer|queue\s+composer|summon\s+composer|back\s+to\s+composer/i.test(String(m || ''));
   },
 
   async queueCoder(task, engine) {

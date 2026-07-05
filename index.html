@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
+<meta name="astranov-build" content="20260705141058" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -441,7 +442,18 @@
   .auth-more-oauth summary { cursor:pointer; padding:6px 0; }
   .auth-trust-line { font-size:10px; color:#9ab; margin-top:8px; text-align:center; }
   .auth-google-warn { font-size:11px; color:#ffcc66; background:rgba(80,50,0,0.35); border:1px solid rgba(255,200,80,0.45); border-radius:10px; padding:10px 12px; margin:0 0 10px; line-height:1.45; }
+  .auth-oauth-help { display:block; margin:6px 0 0; font-size:10px; color:#8ab; text-align:center; }
   .auth-email-primary { background:var(--ax-green-bg) !important; color:#fff !important; border:1px solid var(--ax-green-border) !important; box-shadow:0 0 12px var(--ax-green-glow); }
+  #lab-orb-layer { position:fixed; left:max(10px,env(safe-area-inset-left)); bottom:calc(72px + env(safe-area-inset-bottom)); z-index:48; pointer-events:none; }
+  #lab-orb-tray { pointer-events:auto; display:flex; align-items:center; gap:6px; padding:8px 12px; border-radius:999px; border:1px solid rgba(109,242,189,0.28); background:rgba(0,0,0,0.55); backdrop-filter:blur(12px); color:#9ef; cursor:pointer; font:inherit; font-size:11px; font-weight:600; touch-action:manipulation; }
+  #lab-orb-tray:hover { border-color:#6df2bd; box-shadow:0 0 16px rgba(109,242,189,0.25); }
+  .lab-orb { pointer-events:none; position:fixed; width:44px; height:44px; border-radius:50%; border:1px solid color-mix(in srgb, var(--orb-color) 55%, transparent); background:rgba(0,0,0,0.62); color:var(--orb-color); cursor:pointer; display:grid; place-items:center; font-size:11px; font-weight:700; opacity:0; transform:scale(0.4); transition:opacity .22s ease, transform .22s ease; touch-action:manipulation; box-shadow:0 0 14px color-mix(in srgb, var(--orb-color) 35%, transparent); }
+  .lab-orb .lab-orb-label { display:none; }
+  #lab-orb-layer.open .lab-orb { pointer-events:auto; opacity:1; transform:scale(1); }
+  #lab-orb-layer.intro .lab-orb { transition-delay:calc(var(--orb-i, 0) * 60ms); }
+  #aci-provider[data-provider="deepseek"] { background:rgba(94,234,212,0.18); border-color:rgba(94,234,212,0.45); color:#5eead4; }
+  #aci-provider[data-provider="gemini"] { background:rgba(138,180,248,0.18); border-color:rgba(138,180,248,0.45); color:#8ab4f8; }
+  .coders-summon { margin-top:8px; width:100%; padding:10px; border-radius:10px; border:1px solid rgba(168,200,255,0.35); background:rgba(61,142,255,0.12); color:#c8d8ff; font:inherit; font-size:11px; font-weight:700; cursor:pointer; }
   .auth-google-fallback { opacity:0.72; font-size:12px !important; padding:10px !important; }
   /* Site shell — subdomain over Earth */
   #astranov-site-shell { display:none; position:fixed; top:0; left:0; right:0; bottom:118px; z-index:110; flex-direction:column; pointer-events:auto; }
@@ -547,6 +559,7 @@
           <button type="button" class="coders-primary" id="coders-save-job">Save &amp; continue later</button>
           <button type="button" class="coders-ghost" id="coders-resume-job">Resume saved job</button>
           <button type="button" class="coders-ghost" id="coders-clear-job">Clear job</button>
+          <button type="button" id="coders-summon-composer" class="coders-summon">Summon Composer on this job</button>
         </div>
       </div>
       <div id="coders-hub-grid" aria-label="AI coder labs"></div>
@@ -579,7 +592,8 @@
         <div class="auth-google-warn" id="auth-google-warn">Google OAuth is blocked until Cloud Console is fixed — <b>email link works now</b></div>
         <input id="auth-email-quick" type="email" autocomplete="email" inputmode="email" placeholder="your@gmail.com" class="auth-email-quick" />
         <button type="button" id="auth-email-link" class="auth-primary-btn auth-email-primary">Send sign-in link to my email</button>
-        <div class="auth-trust-line">Open the email on <b>this phone</b> · tap the Astranov link</div>
+        <div class="auth-trust-line">Open the email on <b>this phone</b> · tap the Astranov link · check spam</div>
+        <a href="https://github.com/notisastranov/astranov.eu/issues/98" id="auth-oauth-help" class="auth-oauth-help" target="_blank" rel="noopener">Why is Google blocked? · GCP fix steps</a>
         <details class="auth-more-oauth">
           <summary>Google · Facebook · Apple · X</summary>
           <button type="button" id="auth-google-continue" class="auth-primary-btn google auth-google-fallback">Try Google (may be blocked)</button>
@@ -2161,6 +2175,15 @@ const Auth = {
     document.getElementById('auth-phone-btn')?.addEventListener('click', () => this.signInPhoneOtp());
     document.getElementById('auth-google-continue')?.addEventListener('click', () => this.continueWithGoogle());
     document.getElementById('auth-email-link')?.addEventListener('click', () => this.sendMagicLink());
+    document.getElementById('auth-email-quick')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); this.sendMagicLink(); }
+    });
+    document.getElementById('auth-oauth-help')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      const status = document.getElementById('auth-status');
+      if (status) status.textContent = 'GCP fix: add redirect URI lkoatrkhuigdolnjsbie.supabase.co/auth/v1/callback + JS origin astranov.eu';
+      ACIControl?.reply('Google OAuth needs GCP Console fix — email link works now');
+    });
     modal.querySelectorAll('[data-oauth]').forEach(btn => {
       btn.addEventListener('click', () => this.signInOAuth(btn.dataset.oauth));
     });
@@ -2362,7 +2385,7 @@ const Auth = {
         options: { emailRedirectTo: redirectTo, shouldCreateUser: true },
       });
       if (error) throw error;
-      if (status) status.textContent = '✓ Link sent to ' + email + ' — open Gmail on THIS phone and tap the link';
+      if (status) status.textContent = '✓ Link sent to ' + email + ' — open Gmail on THIS phone · check spam · tap Astranov link';
       ACIControl?.reply('Email sent — open inbox on this phone');
     } catch (e) {
       const msg = typeof scrubSupabaseLeak === 'function' ? scrubSupabaseLeak(e.message) : (e.message || e);
@@ -6284,10 +6307,19 @@ const AciCoders = {
       AuditorPortal?.syncGlobe?.();
       return 'Globe data refreshed — yachts · vendors · drivers · auditors';
     }
-    if (/^(use\s+)?(openai|gpt|groq|gemini|cycle|astranov)\b/i.test(low)) {
-      const prov = /openai|gpt/.test(low) ? 'openai-mini' : /groq/.test(low) ? 'groq' : /gemini/.test(low) ? 'gemini' : 'astranov';
+    if (/^(use\s+)?(openai|gpt|groq|gemini|deepseek|deep\s*seek|cycle|astranov)\b/i.test(low)) {
+      const prov = /openai|gpt/.test(low) ? 'openai-mini'
+        : /groq/.test(low) ? 'groq'
+        : /gemini/.test(low) ? 'gemini'
+        : /deep/.test(low) ? 'deepseek'
+        : 'astranov';
       AiRouter?.setProvider?.(prov);
+      LabOrbs?._syncGlyphs?.();
       return 'AI provider → ' + (AiRouter.current()?.label || prov);
+    }
+    if (/^summon\s+composer|^use\s+composer|^queue\s+composer/i.test(low)) {
+      void CodersHub?.summonComposer?.();
+      return 'Summoning Composer on your saved job…';
     }
     if (/coders?\s*hub|coder\s*labs?|ai\s*teams?|open\s*coders?|labs?\s*race|ανταγωνισμ|ομάδες/.test(low)) {
       CodersHub?.toggle?.(true);
@@ -6332,7 +6364,7 @@ const AciCoders = {
 
   wantsComposer(m) {
     return this.fallbackPrefs.force === 'composer'
-      || /^use\s+composer|queue\s+composer|back\s+to\s+composer/i.test(String(m || ''));
+      || /^use\s+composer|queue\s+composer|summon\s+composer|back\s+to\s+composer/i.test(String(m || ''));
   },
 
   async queueCoder(task, engine) {
@@ -8363,7 +8395,28 @@ const AstranovNode = {
       FieldBrain?.pulse('batch', 'pwa installed', { props: { visual_truth: true } });
     });
     if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
+      navigator.serviceWorker.register('/sw.js').then(reg => {
+        reg.addEventListener('updatefound', () => {
+          const worker = reg.installing;
+          if (!worker) return;
+          worker.addEventListener('statechange', () => {
+            if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+              ACIControl?.reply('New Astranov build — tap logo to refresh');
+            }
+          });
+        });
+      }).catch(() => {});
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (reloaded) return;
+        reloaded = true;
+        const build = document.querySelector('meta[name="astranov-build"]')?.content;
+        if (build) {
+          const url = new URL(location.href);
+          url.searchParams.set('v', build);
+          location.replace(url.toString());
+        }
+      });
     }
     this.bindUI();
     if (Auth?.client) {
@@ -11049,6 +11102,7 @@ const CodersHub = {
     document.getElementById('coders-save-job')?.addEventListener('click', () => this.saveJob());
     document.getElementById('coders-resume-job')?.addEventListener('click', () => this.resumeJob());
     document.getElementById('coders-clear-job')?.addEventListener('click', () => this.clearJob());
+    document.getElementById('coders-summon-composer')?.addEventListener('click', () => this.summonComposer());
     document.getElementById('coders-refresh-labs')?.addEventListener('click', () => {
       this._pingLabs();
       this.renderLabs();
@@ -11167,13 +11221,39 @@ const CodersHub = {
     AciCli?.print('Coders hub · job cleared', 'dim');
   },
 
+  _inlineLabs: new Set(['gemini', 'deepseek']),
+
+  canInline(lab) {
+    if (!lab || lab.comingSoon || lab.id === 'main') return false;
+    if (lab.inlineFallback || this._inlineLabs.has(lab.id)) return true;
+    const st = this._status[lab.id];
+    return st === 'offline' || st === 'soon' || st === 'slow';
+  },
+
+  openLabInline(lab) {
+    const job = this.buildJob();
+    this.writeJob(job);
+    const prov = AiRouter?.applyLab?.(lab);
+    GlobeDeck?.expand?.(lab.label + ' · inline on Globe OS');
+    const input = document.getElementById('aci-cli-in');
+    if (input && job.lastPrompt) {
+      input.value = `Continue on ${lab.label}: ${job.lastPrompt}`;
+      input.dispatchEvent(new Event('input'));
+    }
+    ACIControl?.reply(`${lab.label} inline — AI provider → ${prov?.label || lab.provider} (subdomain ${this._status[lab.id] || 'pending'})`);
+    AciCli?.print(`${lab.label} lab routed via ai-router · ${prov?.id || lab.engine}`, 'ok');
+    this.toggle(false);
+    void AciCoders?.enterSession?.({ focus: true });
+  },
+
   openLab(lab) {
     if (!lab?.url || lab.comingSoon) {
       ACIControl?.reply(`${lab?.label || 'Lab'} subdomain not live yet — stay on Globe OS or try ChatGPT/Claude/Grok.`);
       return;
     }
     const st = this._status[lab.id];
-    if (st === 'offline') {
+    if (st === 'offline' || (this.canInline(lab) && st !== 'live')) {
+      if (this.canInline(lab)) return this.openLabInline(lab);
       ACIControl?.reply(`${lab.label} lab is offline right now — try another team or save job for later.`);
       return;
     }
@@ -11186,6 +11266,26 @@ const CodersHub = {
     target.searchParams.set('continue', '1');
     target.searchParams.set('from', 'main');
     window.location.href = target.toString();
+  },
+
+  async summonComposer() {
+    const job = this.buildJob();
+    this.writeJob(job);
+    const task = job.lastPrompt || job.summary || 'Continue Globe OS development';
+    if (!Auth?.user) {
+      ACIControl?.reply('Sign in with G first — then Summon Composer queues your build.');
+      Auth?.openLoginModal?.('Sign in to summon Composer on your job');
+      return;
+    }
+    AciCli?.print('Summoning Composer…', 'dim');
+    const q = await AciCoders?.queueCoder?.(task, 'composer');
+    if (q?.summon_id) {
+      ACIControl?.reply(`Composer queued #${q.summon_id} — polling for answer`);
+      AciCli?.print('Composer #' + q.summon_id + ' · say "coders poll" or wait', 'ok');
+    } else {
+      ACIControl?.reply(q?.text || q?.error || 'Composer queue failed — try again');
+    }
+    this.toggle(false);
   },
 
   async _pingLabs() {
@@ -11272,7 +11372,7 @@ const CodersHub = {
         + `<span class="coders-status coders-status-${st.cls}">${st.text}</span></div>`
         + `${provider ? `<p class="coders-card-provider">${provider}</p>` : ''}`
         + `<p class="coders-card-path">${this._esc((lab.url || '').replace('https://', ''))}</p>`
-        + `<button type="button" class="coders-open" ${lab.comingSoon || st.cls === 'off' ? 'disabled' : ''}>${here ? 'Stay in lab' : lab.comingSoon ? 'Coming soon' : st.cls === 'off' ? 'Offline' : 'Open lab'}</button>`;
+        + `<button type="button" class="coders-open" ${lab.comingSoon ? 'disabled' : ''}>${here ? 'Stay in lab' : lab.comingSoon ? 'Coming soon' : st.cls === 'off' && this.canInline(lab) ? 'Open inline' : st.cls === 'off' ? 'Offline' : 'Open lab'}</button>`;
       const btn = card.querySelector('.coders-open');
       if (btn && !btn.disabled) btn.addEventListener('click', () => this.openLab(lab));
       grid.append(card);
@@ -11312,7 +11412,17 @@ const AiRouter = {
     { id: 'openai-mini', label: 'OpenAI', short: 'AI' },
     { id: 'groq', label: 'Groq', short: 'GQ' },
     { id: 'gemini', label: 'Gemini', short: 'GM' },
+    { id: 'deepseek', label: 'DeepSeek', short: 'DS' },
   ],
+  LAB_ENGINES: {
+    main: 'astranov',
+    chatgpt: 'openai-mini',
+    grok: 'astranov',
+    gemini: 'gemini',
+    deepseek: 'deepseek',
+    claude: 'astranov',
+    composer: 'astranov',
+  },
   _provider: 'astranov',
   _sessionId: null,
 
@@ -11356,7 +11466,19 @@ const AiRouter = {
     const next = this.PROVIDERS[(i + 1) % this.PROVIDERS.length];
     this.setProvider(next.id);
     AciCli?.print('AI provider → ' + next.label + ' (' + next.id + ')', 'ok');
+    LabOrbs?._syncGlyphs?.();
     return next;
+  },
+
+  forLab(lab) {
+    const id = lab?.engine || lab?.id;
+    return this.LAB_ENGINES[id] || (this.PROVIDERS.some(p => p.id === id) ? id : 'astranov');
+  },
+
+  applyLab(lab) {
+    const prov = this.forLab(lab);
+    this.setProvider(prov);
+    return this.current();
   },
 
   _bindUi() {
@@ -11427,6 +11549,151 @@ const AiRouter = {
 };
 
 window.AiRouter = AiRouter;
+
+// === LAB ORBS — ChatGPT-lab affordances on real WebGL globe (no static Earth overlay)
+const LabOrbs = {
+  ORBS: [
+    { id: 'coders', label: 'Coders', glyph: 'CD', color: '#b8d4ff', angle: -68, panel: 'coders' },
+    { id: 'locate', label: 'Locate', glyph: '🎯', color: '#54e6ff', angle: -22, panel: 'locate' },
+    { id: 'provider', label: 'AI', glyph: 'AV', color: '#6df2bd', angle: 22, panel: 'provider' },
+    { id: 'theme', label: 'Theme', glyph: '☀', color: '#ffd166', angle: 68, panel: 'theme' },
+    { id: 'hub', label: 'Labs', glyph: '⬡', color: '#8fb7ff', angle: 130, panel: 'hub' },
+  ],
+  _open: false,
+  _bound: false,
+  _introDone: false,
+
+  init() {
+    if (this._bound) return;
+    this._bound = true;
+    this._mount();
+    this._bind();
+    this._layout();
+    window.addEventListener('resize', () => this._layout());
+    window.setTimeout(() => this._runIntro(), 600);
+  },
+
+  _mount() {
+    if (document.getElementById('lab-orb-layer')) return;
+    const layer = document.createElement('div');
+    layer.id = 'lab-orb-layer';
+    layer.setAttribute('aria-label', 'Quick actions');
+    const tray = document.createElement('button');
+    tray.id = 'lab-orb-tray';
+    tray.type = 'button';
+    tray.title = 'Astranov orbs — tap for Coders, Locate, AI provider';
+    tray.innerHTML = '<span class="lab-orb-tray-glyph">◈</span><span class="lab-orb-tray-label">Orbs</span>';
+    layer.appendChild(tray);
+    for (const orb of this.ORBS) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'lab-orb';
+      btn.dataset.orb = orb.id;
+      btn.dataset.panel = orb.panel;
+      btn.title = orb.label;
+      btn.style.setProperty('--orb-color', orb.color);
+      btn.innerHTML = `<span class="lab-orb-glyph">${orb.glyph}</span><span class="lab-orb-label">${orb.label}</span>`;
+      layer.appendChild(btn);
+    }
+    document.body.appendChild(layer);
+  },
+
+  _bind() {
+    document.getElementById('lab-orb-tray')?.addEventListener('click', () => this.toggle());
+    document.querySelectorAll('#lab-orb-layer .lab-orb').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this._activate(btn.dataset.panel, btn.dataset.orb);
+      });
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this._open) this.toggle(false);
+    });
+  },
+
+  toggle(open) {
+    const layer = document.getElementById('lab-orb-layer');
+    if (!layer) return;
+    this._open = open !== false ? !this._open : false;
+    layer.classList.toggle('open', this._open);
+    if (this._open) this._syncGlyphs();
+  },
+
+  _syncGlyphs() {
+    const prov = document.querySelector('#lab-orb-layer .lab-orb[data-orb="provider"] .lab-orb-glyph');
+    if (prov && window.AiRouter) prov.textContent = AiRouter.current()?.short || 'AV';
+    const theme = document.querySelector('#lab-orb-layer .lab-orb[data-orb="theme"] .lab-orb-glyph');
+    if (theme) theme.textContent = AstranovTheme?.mode === 'bright' ? '☀' : '🌙';
+  },
+
+  _layout() {
+    const layer = document.getElementById('lab-orb-layer');
+    if (!layer) return;
+    const tray = document.getElementById('lab-orb-tray');
+    const rect = tray?.getBoundingClientRect();
+    const cx = (rect?.left || 48) + (rect?.width || 44) / 2;
+    const cy = (rect?.top || window.innerHeight - 120) + (rect?.height || 44) / 2;
+    const radius = Math.min(92, window.innerWidth * 0.22);
+    layer.querySelectorAll('.lab-orb').forEach((btn, i) => {
+      const orb = this.ORBS[i];
+      if (!orb) return;
+      const rad = (orb.angle * Math.PI) / 180;
+      const x = cx + Math.cos(rad) * radius - 22;
+      const y = cy + Math.sin(rad) * radius - 22;
+      btn.style.left = x + 'px';
+      btn.style.top = y + 'px';
+    });
+  },
+
+  _runIntro() {
+    if (this._introDone || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    this._introDone = true;
+    const layer = document.getElementById('lab-orb-layer');
+    if (!layer) return;
+    layer.classList.add('intro');
+    window.setTimeout(() => {
+      layer.classList.add('open');
+      this._open = true;
+      this._syncGlyphs();
+      window.setTimeout(() => {
+        layer.classList.remove('open', 'intro');
+        this._open = false;
+      }, 2400);
+    }, 400);
+  },
+
+  _activate(panel, orbId) {
+    this.toggle(false);
+    if (panel === 'coders') {
+      GlobeDeck?.expand?.('Coders');
+      void AciCoders?.enterSession?.({ focus: true });
+      return;
+    }
+    if (panel === 'locate') {
+      locateMe?.();
+      return;
+    }
+    if (panel === 'provider') {
+      const next = AiRouter?.cycle?.();
+      ACIControl?.reply('AI provider → ' + (next?.label || 'Cycle'));
+      this._syncGlyphs();
+      return;
+    }
+    if (panel === 'theme') {
+      AstranovTheme?.toggle?.();
+      ACIControl?.reply('Theme → ' + (AstranovTheme?.mode || 'dark'));
+      this._syncGlyphs();
+      return;
+    }
+    if (panel === 'hub') {
+      CodersHub?.toggle?.(true);
+      return;
+    }
+    ACIControl?.reply('Orb · ' + (orbId || panel));
+  },
+};
+
+window.LabOrbs = LabOrbs;
 
 // === ZOOM TIERS — solar → global → national → city → neighborhood ===
 const ZoomTiers = {
@@ -16872,6 +17139,33 @@ async function submitVoiceToCli(transcript) {
     AciCli?.print('theme → ' + mode, 'ok');
     return;
   }
+  if (/^(use\s+)?(openai|gpt|groq|gemini|deepseek|deep\s*seek|cycle|astranov)\b/i.test(low)) {
+    if (gen === _voiceGen) _voiceBusy = false;
+    const prov = /openai|gpt/.test(low) ? 'openai-mini'
+      : /groq/.test(low) ? 'groq'
+      : /gemini/.test(low) ? 'gemini'
+      : /deep/.test(low) ? 'deepseek'
+      : 'astranov';
+    AiRouter?.setProvider?.(prov);
+    LabOrbs?._syncGlyphs?.();
+    AciCli?.print('AI provider → ' + (AiRouter.current()?.label || prov), 'ok');
+    ACIControl?.reply('AI provider → ' + (AiRouter.current()?.label || prov));
+    if (window._handsFreeVoice && !Voice?.speaking) scheduleVoiceResume();
+    return;
+  }
+  if (/^summon\s+composer|^use\s+composer|^queue\s+composer/i.test(low)) {
+    if (gen === _voiceGen) _voiceBusy = false;
+    void CodersHub?.summonComposer?.();
+    if (window._handsFreeVoice && !Voice?.speaking) scheduleVoiceResume();
+    return;
+  }
+  if (/coders?\s*hub|open\s*labs?|ai\s*teams?/i.test(low)) {
+    if (gen === _voiceGen) _voiceBusy = false;
+    CodersHub?.toggle?.(true);
+    ACIControl?.reply('Coders Hub open');
+    if (window._handsFreeVoice && !Voice?.speaking) scheduleVoiceResume();
+    return;
+  }
 
   try {
     if (gen !== _voiceGen) return;
@@ -17308,6 +17602,7 @@ AstranovPresence.init();
 ProfileSite.init();
 CodersHub.init();
 AiRouter.init();
+LabOrbs.init();
 
 setTimeout(() => Auth.refreshAuthority(), 800);
 AciCli?.primeCodersCli?.();

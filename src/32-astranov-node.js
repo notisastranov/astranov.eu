@@ -117,7 +117,28 @@ const AstranovNode = {
       FieldBrain?.pulse('batch', 'pwa installed', { props: { visual_truth: true } });
     });
     if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
+      navigator.serviceWorker.register('/sw.js').then(reg => {
+        reg.addEventListener('updatefound', () => {
+          const worker = reg.installing;
+          if (!worker) return;
+          worker.addEventListener('statechange', () => {
+            if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+              ACIControl?.reply('New Astranov build — tap logo to refresh');
+            }
+          });
+        });
+      }).catch(() => {});
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (reloaded) return;
+        reloaded = true;
+        const build = document.querySelector('meta[name="astranov-build"]')?.content;
+        if (build) {
+          const url = new URL(location.href);
+          url.searchParams.set('v', build);
+          location.replace(url.toString());
+        }
+      });
     }
     this.bindUI();
     if (Auth?.client) {

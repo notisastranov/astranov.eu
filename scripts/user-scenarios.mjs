@@ -48,12 +48,13 @@ const SCENARIOS = [
         earth: !!window.EarthRealism,
         codersHub: !!window.CodersHub,
         aiRouter: !!window.AiRouter,
+        labOrbs: !!window.LabOrbs,
         leaflet: !!window.L,
         renderer: !!window.renderer,
         cityReady: window.CityMap?._ready,
         globeCanvas: !!document.querySelector('#globe canvas'),
       }));
-      if (!r.three || !r.cityMap || !r.theme || !r.earth || !r.codersHub || !r.aiRouter) throw new Error('missing globals: ' + JSON.stringify(r));
+      if (!r.three || !r.cityMap || !r.theme || !r.earth || !r.codersHub || !r.aiRouter || !r.labOrbs) throw new Error('missing globals: ' + JSON.stringify(r));
       if (!r.globeCanvas) throw new Error('real WebGL globe canvas missing');
       if (!r.leaflet) throw new Error('Leaflet not loaded');
       if (!r.cityReady) throw new Error('CityMap not initialized');
@@ -257,6 +258,26 @@ const SCENARIOS = [
       if (!r.saved) throw new Error('job save failed');
       if (r.cards < 8) throw new Error('coders hub labs missing: ' + r.cards);
       if (!r.hasChatgpt) throw new Error('chatgpt lab missing');
+      return r;
+    },
+  },
+  {
+    name: 'ai router — deepseek + lab orbs',
+    run: async (page) => {
+      const r = await page.evaluate(() => {
+        AiRouter.setProvider('deepseek');
+        const ds = AiRouter.current()?.id;
+        AiRouter.setProvider('gemini');
+        const gm = AiRouter.current()?.id;
+        LabOrbs.init();
+        const layer = !!document.getElementById('lab-orb-layer');
+        const orbs = document.querySelectorAll('#lab-orb-layer .lab-orb').length;
+        const geminiLab = CodersHub.LABS.find(l => l.id === 'gemini');
+        return { ds, gm, layer, orbs, inline: !!geminiLab?.inlineFallback };
+      });
+      if (r.ds !== 'deepseek' || r.gm !== 'gemini') throw new Error('provider cycle failed: ' + JSON.stringify(r));
+      if (!r.layer || r.orbs < 5) throw new Error('lab orbs missing: ' + JSON.stringify(r));
+      if (!r.inline) throw new Error('gemini inline fallback missing');
       return r;
     },
   },

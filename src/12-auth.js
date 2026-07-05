@@ -113,6 +113,15 @@ const Auth = {
     document.getElementById('auth-phone-btn')?.addEventListener('click', () => this.signInPhoneOtp());
     document.getElementById('auth-google-continue')?.addEventListener('click', () => this.continueWithGoogle());
     document.getElementById('auth-email-link')?.addEventListener('click', () => this.sendMagicLink());
+    document.getElementById('auth-email-quick')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); this.sendMagicLink(); }
+    });
+    document.getElementById('auth-oauth-help')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      const status = document.getElementById('auth-status');
+      if (status) status.textContent = 'GCP fix: add redirect URI lkoatrkhuigdolnjsbie.supabase.co/auth/v1/callback + JS origin astranov.eu';
+      ACIControl?.reply('Google OAuth needs GCP Console fix — email link works now');
+    });
     modal.querySelectorAll('[data-oauth]').forEach(btn => {
       btn.addEventListener('click', () => this.signInOAuth(btn.dataset.oauth));
     });
@@ -314,7 +323,7 @@ const Auth = {
         options: { emailRedirectTo: redirectTo, shouldCreateUser: true },
       });
       if (error) throw error;
-      if (status) status.textContent = '✓ Link sent to ' + email + ' — open Gmail on THIS phone and tap the link';
+      if (status) status.textContent = '✓ Link sent to ' + email + ' — open Gmail on THIS phone · check spam · tap Astranov link';
       ACIControl?.reply('Email sent — open inbox on this phone');
     } catch (e) {
       const msg = typeof scrubSupabaseLeak === 'function' ? scrubSupabaseLeak(e.message) : (e.message || e);

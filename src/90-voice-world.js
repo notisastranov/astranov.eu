@@ -393,6 +393,33 @@ async function submitVoiceToCli(transcript) {
     AciCli?.print('theme → ' + mode, 'ok');
     return;
   }
+  if (/^(use\s+)?(openai|gpt|groq|gemini|deepseek|deep\s*seek|cycle|astranov)\b/i.test(low)) {
+    if (gen === _voiceGen) _voiceBusy = false;
+    const prov = /openai|gpt/.test(low) ? 'openai-mini'
+      : /groq/.test(low) ? 'groq'
+      : /gemini/.test(low) ? 'gemini'
+      : /deep/.test(low) ? 'deepseek'
+      : 'astranov';
+    AiRouter?.setProvider?.(prov);
+    LabOrbs?._syncGlyphs?.();
+    AciCli?.print('AI provider → ' + (AiRouter.current()?.label || prov), 'ok');
+    ACIControl?.reply('AI provider → ' + (AiRouter.current()?.label || prov));
+    if (window._handsFreeVoice && !Voice?.speaking) scheduleVoiceResume();
+    return;
+  }
+  if (/^summon\s+composer|^use\s+composer|^queue\s+composer/i.test(low)) {
+    if (gen === _voiceGen) _voiceBusy = false;
+    void CodersHub?.summonComposer?.();
+    if (window._handsFreeVoice && !Voice?.speaking) scheduleVoiceResume();
+    return;
+  }
+  if (/coders?\s*hub|open\s*labs?|ai\s*teams?/i.test(low)) {
+    if (gen === _voiceGen) _voiceBusy = false;
+    CodersHub?.toggle?.(true);
+    ACIControl?.reply('Coders Hub open');
+    if (window._handsFreeVoice && !Voice?.speaking) scheduleVoiceResume();
+    return;
+  }
 
   try {
     if (gen !== _voiceGen) return;

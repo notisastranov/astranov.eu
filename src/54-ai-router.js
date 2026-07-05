@@ -5,7 +5,17 @@ const AiRouter = {
     { id: 'openai-mini', label: 'OpenAI', short: 'AI' },
     { id: 'groq', label: 'Groq', short: 'GQ' },
     { id: 'gemini', label: 'Gemini', short: 'GM' },
+    { id: 'deepseek', label: 'DeepSeek', short: 'DS' },
   ],
+  LAB_ENGINES: {
+    main: 'astranov',
+    chatgpt: 'openai-mini',
+    grok: 'astranov',
+    gemini: 'gemini',
+    deepseek: 'deepseek',
+    claude: 'astranov',
+    composer: 'astranov',
+  },
   _provider: 'astranov',
   _sessionId: null,
 
@@ -49,7 +59,19 @@ const AiRouter = {
     const next = this.PROVIDERS[(i + 1) % this.PROVIDERS.length];
     this.setProvider(next.id);
     AciCli?.print('AI provider → ' + next.label + ' (' + next.id + ')', 'ok');
+    LabOrbs?._syncGlyphs?.();
     return next;
+  },
+
+  forLab(lab) {
+    const id = lab?.engine || lab?.id;
+    return this.LAB_ENGINES[id] || (this.PROVIDERS.some(p => p.id === id) ? id : 'astranov');
+  },
+
+  applyLab(lab) {
+    const prov = this.forLab(lab);
+    this.setProvider(prov);
+    return this.current();
   },
 
   _bindUi() {

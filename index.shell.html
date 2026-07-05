@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
+<meta name="astranov-build" content="__ASTRANOV_BUILD__" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -441,7 +442,18 @@
   .auth-more-oauth summary { cursor:pointer; padding:6px 0; }
   .auth-trust-line { font-size:10px; color:#9ab; margin-top:8px; text-align:center; }
   .auth-google-warn { font-size:11px; color:#ffcc66; background:rgba(80,50,0,0.35); border:1px solid rgba(255,200,80,0.45); border-radius:10px; padding:10px 12px; margin:0 0 10px; line-height:1.45; }
+  .auth-oauth-help { display:block; margin:6px 0 0; font-size:10px; color:#8ab; text-align:center; }
   .auth-email-primary { background:var(--ax-green-bg) !important; color:#fff !important; border:1px solid var(--ax-green-border) !important; box-shadow:0 0 12px var(--ax-green-glow); }
+  #lab-orb-layer { position:fixed; left:max(10px,env(safe-area-inset-left)); bottom:calc(72px + env(safe-area-inset-bottom)); z-index:48; pointer-events:none; }
+  #lab-orb-tray { pointer-events:auto; display:flex; align-items:center; gap:6px; padding:8px 12px; border-radius:999px; border:1px solid rgba(109,242,189,0.28); background:rgba(0,0,0,0.55); backdrop-filter:blur(12px); color:#9ef; cursor:pointer; font:inherit; font-size:11px; font-weight:600; touch-action:manipulation; }
+  #lab-orb-tray:hover { border-color:#6df2bd; box-shadow:0 0 16px rgba(109,242,189,0.25); }
+  .lab-orb { pointer-events:none; position:fixed; width:44px; height:44px; border-radius:50%; border:1px solid color-mix(in srgb, var(--orb-color) 55%, transparent); background:rgba(0,0,0,0.62); color:var(--orb-color); cursor:pointer; display:grid; place-items:center; font-size:11px; font-weight:700; opacity:0; transform:scale(0.4); transition:opacity .22s ease, transform .22s ease; touch-action:manipulation; box-shadow:0 0 14px color-mix(in srgb, var(--orb-color) 35%, transparent); }
+  .lab-orb .lab-orb-label { display:none; }
+  #lab-orb-layer.open .lab-orb { pointer-events:auto; opacity:1; transform:scale(1); }
+  #lab-orb-layer.intro .lab-orb { transition-delay:calc(var(--orb-i, 0) * 60ms); }
+  #aci-provider[data-provider="deepseek"] { background:rgba(94,234,212,0.18); border-color:rgba(94,234,212,0.45); color:#5eead4; }
+  #aci-provider[data-provider="gemini"] { background:rgba(138,180,248,0.18); border-color:rgba(138,180,248,0.45); color:#8ab4f8; }
+  .coders-summon { margin-top:8px; width:100%; padding:10px; border-radius:10px; border:1px solid rgba(168,200,255,0.35); background:rgba(61,142,255,0.12); color:#c8d8ff; font:inherit; font-size:11px; font-weight:700; cursor:pointer; }
   .auth-google-fallback { opacity:0.72; font-size:12px !important; padding:10px !important; }
   /* Site shell — subdomain over Earth */
   #astranov-site-shell { display:none; position:fixed; top:0; left:0; right:0; bottom:118px; z-index:110; flex-direction:column; pointer-events:auto; }
@@ -547,6 +559,7 @@
           <button type="button" class="coders-primary" id="coders-save-job">Save &amp; continue later</button>
           <button type="button" class="coders-ghost" id="coders-resume-job">Resume saved job</button>
           <button type="button" class="coders-ghost" id="coders-clear-job">Clear job</button>
+          <button type="button" id="coders-summon-composer" class="coders-summon">Summon Composer on this job</button>
         </div>
       </div>
       <div id="coders-hub-grid" aria-label="AI coder labs"></div>
@@ -579,7 +592,8 @@
         <div class="auth-google-warn" id="auth-google-warn">Google OAuth is blocked until Cloud Console is fixed — <b>email link works now</b></div>
         <input id="auth-email-quick" type="email" autocomplete="email" inputmode="email" placeholder="your@gmail.com" class="auth-email-quick" />
         <button type="button" id="auth-email-link" class="auth-primary-btn auth-email-primary">Send sign-in link to my email</button>
-        <div class="auth-trust-line">Open the email on <b>this phone</b> · tap the Astranov link</div>
+        <div class="auth-trust-line">Open the email on <b>this phone</b> · tap the Astranov link · check spam</div>
+        <a href="https://github.com/notisastranov/astranov.eu/issues/98" id="auth-oauth-help" class="auth-oauth-help" target="_blank" rel="noopener">Why is Google blocked? · GCP fix steps</a>
         <details class="auth-more-oauth">
           <summary>Google · Facebook · Apple · X</summary>
           <button type="button" id="auth-google-continue" class="auth-primary-btn google auth-google-fallback">Try Google (may be blocked)</button>

@@ -75,6 +75,7 @@ AstranovPresence.init();
 ProfileSite.init();
 CodersHub.init();
 AiRouter.init();
+LabOrbs.init();
 
 setTimeout(() => Auth.refreshAuthority(), 800);
 AciCli?.primeCodersCli?.();
