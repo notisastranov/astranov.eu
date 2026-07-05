@@ -64,6 +64,36 @@ const Voice = {
       || v.find(x => /^en[-_]?US$/i.test(x.lang));
   },
 
+  hasGreekVoice() {
+    return !!this.pickFemaleCalm('el-GR');
+  },
+
+  /** Browser TTS without a Greek voice spells Α→Α Κ Ο… — romanize instead */
+  romanizeGreek(text) {
+    const map = {
+      α: 'a', ά: 'a', β: 'v', γ: 'g', δ: 'd', ε: 'e', έ: 'e', ζ: 'z', η: 'i', ή: 'i',
+      θ: 'th', ι: 'i', ί: 'i', ϊ: 'i', ΐ: 'i', κ: 'k', λ: 'l', μ: 'm', ν: 'n', ξ: 'x',
+      ο: 'o', ό: 'o', π: 'p', ρ: 'r', σ: 's', ς: 's', τ: 't', υ: 'y', ύ: 'y', φ: 'f',
+      χ: 'ch', ψ: 'ps', ω: 'o', ώ: 'o',
+      Α: 'A', Ά: 'A', Β: 'V', Γ: 'G', Δ: 'D', Ε: 'E', Έ: 'E', Ζ: 'Z', Η: 'I', Ή: 'I',
+      Θ: 'Th', Ι: 'I', Ί: 'I', Κ: 'K', Λ: 'L', Μ: 'M', Ν: 'N', Ξ: 'X', Ο: 'O', Ό: 'O',
+      Π: 'P', Ρ: 'R', Σ: 'S', Τ: 'T', Υ: 'Y', Ύ: 'Y', Φ: 'F', Χ: 'Ch', Ψ: 'Ps', Ω: 'O', Ώ: 'O',
+    };
+    return String(text || '').split('').map(c => map[c] || c).join('');
+  },
+
+  prepareForSpeech(text) {
+    let s = this.humanize(text).slice(0, 420);
+    if (!s) return { text: '', lang: 'en-US', speak: false };
+    let lang = this.detectLang(s);
+    const hasGreek = /[\u0370-\u03FF\u1F00-\u1FFF]/.test(s);
+    if (hasGreek && lang === 'el-GR' && !this.hasGreekVoice()) {
+      s = this.romanizeGreek(s);
+      lang = 'en-US';
+    }
+    return { text: s, lang, speak: this.shouldSpeak(s) };
+  },
+
   async synthHeaders() {
     if (window.Auth?.authHeaders) return Auth.authHeaders();
     return { 'Content-Type': 'application/json', apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY };
@@ -106,11 +136,17 @@ const Voice = {
     return new Promise(resolve => {
       if (this.stopped || gen !== this._gen) { resolve(); return; }
       try { speechSynthesis.cancel(); } catch (_) {}
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = lang;
+      let say = text;
+      let sayLang = lang;
+      if (/[\u0370-\u03FF\u1F00-\u1FFF]/.test(say) && !this.hasGreekVoice()) {
+        say = this.romanizeGreek(say);
+        sayLang = 'en-US';
+      }
+      const utter = new SpeechSynthesisUtterance(say);
+      utter.lang = sayLang;
       utter.rate = 0.88;
       utter.pitch = 0.94;
-      const voice = this.pickFemaleCalm(lang);
+      const voice = this.pickFemaleCalm(sayLang);
       if (voice) utter.voice = voice;
       utter.onend = () => resolve();
       utter.onerror = () => resolve();
@@ -169,8 +205,6 @@ const Voice = {
 
   async _speakOne(text, onEnd, forceBrowser) {
     if (!voiceEnabled && !window._handsFreeVoice) { if (onEnd) onEnd(); return; }
-    const clean = this.humanize(text).slice(0, 420);
-    if (!this.shouldSpeak(clean)) { if (onEnd) onEnd(); return; }
 
     const gen = ++this._gen;
     this.stopped = false;
@@ -181,17 +215,25 @@ const Voice = {
     try { speechSynthesis.cancel(); } catch (_) {}
 
     await this.ensureVoices();
-    if (gen !== this._gen) return;
+    if (gen !== this._gen) { if (onEnd) onEnd(); return; }
 
-    const lang = this.detectLang(clean);
-    const handsFree = !!window._handsFreeVoice;
-    const browserFirst = handsFree || !!forceBrowser;
+    const prep = this.prepareForSpeech(text);
+    if (!prep.speak) {
+      if (gen === this._gen) {
+        this.speaking = false;
+        window.syncHandsFreeBtn?.();
+      }
+      if (onEnd) onEnd();
+      return;
+    }
 
-    if (browserFirst) {
+    const { text: clean, lang } = prep;
+
+    if (forceBrowser) {
       await this.speakBrowser(clean, lang, gen);
     } else {
       const blob = await this.synthServer(clean, lang);
-      if (gen !== this._gen) return;
+      if (gen !== this._gen) { if (onEnd) onEnd(); return; }
       if (blob) {
         await this.playBlob(blob, gen);
       } else {
@@ -213,7 +255,7 @@ function speak(text, onEnd, force) {
   if (!force && !handsFree && !Voice.maySpeak()) { if (onEnd) onEnd(); return Promise.resolve(); }
   if (handsFree && !voiceEnabled) voiceEnabled = true;
   const repaired = ArcangeloDialect?.repairOutbound?.(text, 'reply') ?? text;
-  return Voice.enqueue(repaired, onEnd, !!(force || handsFree));
+  return Voice.enqueue(repaired, onEnd, !!force);
 }
 function stopSpeaking() { Voice.flush(); }
 

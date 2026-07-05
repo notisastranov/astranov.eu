@@ -230,7 +230,7 @@ const AciCoders = {
       AciCli?.print(line, 'ok');
       ACIControl?.reply(line.slice(0, 200));
       if (opts.fromVoice && window._handsFreeVoice && Voice?.maySpeak?.()) {
-        speak('Coders ready. Talk normally.', () => resumeListening?.(), true);
+        speak('Coders ready. Talk normally.', () => resumeListening?.(), false);
       }
     }
 
@@ -461,13 +461,16 @@ const AciCoders = {
     if (composerQueued) this.startPoll(composerQueued);
     else this.stopPoll();
 
+    GlobeDeck?.setThinking?.(false);
+    const spoken = ArcangeloDialect?.repairOutbound?.(reply, 'reply') ?? reply;
     if (!r.pending) {
-      const spoken = ArcangeloDialect?.repairOutbound?.(reply || text, 'reply') ?? (reply || text);
       if (window._handsFreeVoice && Voice.shouldSpeak(spoken)) {
-        speak(spoken.slice(0, 120), () => resumeListening?.(), true);
+        speak(spoken.slice(0, 120), () => resumeListening?.(), false);
       } else if (window._handsFreeVoice || voiceSessionActive) {
         scheduleVoiceResume?.();
       }
+    } else if (window._handsFreeVoice || voiceSessionActive) {
+      scheduleVoiceResume?.();
     }
 
     this.observeActivity('chat', userMsg, { coders: true, guest: !!r.guest });
@@ -710,7 +713,7 @@ const AciCoders = {
         GlobeDeck?.setThinking(false);
         const pingReply = this.localReply(m);
         if (window._handsFreeVoice && Voice?.shouldSpeak?.(pingReply)) {
-          speak(pingReply.slice(0, 100), () => resumeListening?.(), true);
+          speak(pingReply.slice(0, 100), () => resumeListening?.(), false);
         }
         return this._applyResponse({ text: pingReply, via: 'local/ping' }, m);
       }

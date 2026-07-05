@@ -187,7 +187,7 @@ const ACIControl = {
   voiceAck(msg, fromVoice) {
     if (!fromVoice || !Voice.maySpeak()) return;
     const line = ArcangeloDialect?.repairOutbound?.(msg, 'reply') ?? msg;
-    speak(String(line || '').slice(0, 120), () => resumeListening(), !!window._handsFreeVoice);
+    speak(String(line || '').slice(0, 120), () => resumeListening(), false);
   },
 
   async handle(text, opts = {}) {

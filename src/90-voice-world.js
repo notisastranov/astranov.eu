@@ -50,7 +50,7 @@ let _recognitionPaused = false;
 let _listenRestartAt = 0;
 let _voiceResumeTimer = null;
 let _listenFailStreak = 0;
-const VOICE_RESTART_GAP_MS = 1800;
+const VOICE_RESTART_GAP_MS = 650;
 const VOICE_RESTART_GAP_MAX_MS = 5200;
 const EXECUTE_SUFFIX = /\s*(?:go(?:\s+(?:ahead|do(?:\s+it)?|now))?|do\s+it|execute(?:\s+it)?|run\s+it|send\s+it|now|πήγαινε|κάντο|καντο|εκτέλεσε|ξεκίνα|τρέξε)\s*$/i;
 const EXECUTE_PREFIX = /^(?:go(?:\s+(?:ahead|do|and))?|please\s+)?\s*/i;
@@ -621,7 +621,7 @@ function startVoiceOptions() {
   if (input) input.placeholder = '🎧 speak — auto-runs when you pause';
   AstranovSession?.push?.();
   syncHandsFreeBtn();
-  speak('Ακούω. Μίλα.', () => scheduleVoiceResume(), true);
+  speak('Listening.', () => scheduleVoiceResume(), false);
 }
 
 function stopHandsFree() {
