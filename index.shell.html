@@ -399,6 +399,9 @@
   .auth-more-oauth { margin-top:8px; font-size:10px; color:#8ab; }
   .auth-more-oauth summary { cursor:pointer; padding:6px 0; }
   .auth-trust-line { font-size:10px; color:#9ab; margin-top:8px; text-align:center; }
+  .auth-google-warn { font-size:11px; color:#ffcc66; background:rgba(80,50,0,0.35); border:1px solid rgba(255,200,80,0.45); border-radius:10px; padding:10px 12px; margin:0 0 10px; line-height:1.45; }
+  .auth-email-primary { background:var(--ax-green-bg) !important; color:#fff !important; border:1px solid var(--ax-green-border) !important; box-shadow:0 0 12px var(--ax-green-glow); }
+  .auth-google-fallback { opacity:0.72; font-size:12px !important; padding:10px !important; }
   /* Site shell — subdomain over Earth */
   #astranov-site-shell { display:none; position:fixed; top:0; left:0; right:0; bottom:118px; z-index:110; flex-direction:column; pointer-events:auto; }
   #astranov-site-shell.open { display:flex; }
@@ -509,24 +512,26 @@
         <button id="auth-close" type="button" style="background:transparent;border:1px solid #666;color:#aaa;border-radius:8px;padding:4px 10px;cursor:pointer">✖</button>
       </div>
       <div class="auth-tabs">
-        <button class="auth-tab active" type="button" data-pane="auth-pane-social">Social</button>
-        <button class="auth-tab" type="button" data-pane="auth-pane-id">Email / user</button>
+        <button class="auth-tab active" type="button" data-pane="auth-pane-signin">Sign in</button>
+        <button class="auth-tab" type="button" data-pane="auth-pane-id">Password</button>
         <button class="auth-tab" type="button" data-pane="auth-pane-phone">Phone</button>
       </div>
-      <div id="auth-pane-social" class="auth-pane active">
-        <button type="button" id="auth-google-continue" class="auth-primary-btn google">Continue with Google</button>
-        <div id="auth-google-btn" class="auth-gis-host"></div>
-        <input id="auth-email-quick" type="email" autocomplete="email" placeholder="your@gmail.com" class="auth-email-quick" />
-        <button type="button" id="auth-email-link" class="auth-secondary-btn">Email me a sign-in link</button>
+      <div id="auth-pane-signin" class="auth-pane active">
+        <div class="auth-google-warn" id="auth-google-warn">Google OAuth is blocked until Cloud Console is fixed — <b>email link works now</b></div>
+        <input id="auth-email-quick" type="email" autocomplete="email" inputmode="email" placeholder="your@gmail.com" class="auth-email-quick" />
+        <button type="button" id="auth-email-link" class="auth-primary-btn auth-email-primary">Send sign-in link to my email</button>
+        <div class="auth-trust-line">Open the email on <b>this phone</b> · tap the Astranov link</div>
         <details class="auth-more-oauth">
-          <summary>Facebook · Apple · X</summary>
+          <summary>Google · Facebook · Apple · X</summary>
+          <button type="button" id="auth-google-continue" class="auth-primary-btn google auth-google-fallback">Try Google (may be blocked)</button>
+          <div id="auth-google-btn" class="auth-gis-host"></div>
           <div class="auth-oauth-grid">
             <button type="button" data-oauth="facebook">Facebook</button>
             <button type="button" data-oauth="apple">Apple</button>
-            <button type="button" data-oauth="twitter">X / Twitter</button>
+            <button type="button" data-oauth="twitter">X</button>
           </div>
         </details>
-        <div class="auth-trust-line">Official · <b id="auth-origin-inline">astranov.eu</b> · one account</div>
+        <div class="auth-trust-line">Official · <b id="auth-origin-inline">astranov.eu</b></div>
       </div>
       <div id="auth-pane-id" class="auth-pane">
         <div class="auth-field"><label>Email, username, or phone</label><input id="auth-identifier" type="text" autocomplete="username" placeholder="you@email.com or my-shop" /></div>

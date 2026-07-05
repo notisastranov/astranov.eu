@@ -78,7 +78,29 @@ const Auth = {
     const btn = document.getElementById('aci-login');
     if (btn) btn.onclick = () => this.user ? this.openLoggedInProfile() : this.openLoginModal();
     this.bindAuthModal();
+    this._recoverFromAuthError();
     window.addEventListener('message', e => this._onChildMessage(e));
+  },
+
+  _recoverFromAuthError() {
+    const q = location.search + location.hash;
+    if (!/[?&#]error=/i.test(q) && !/access.denied|invalid_client|oauth/i.test(q)) return;
+    setTimeout(() => {
+      this.openLoginModal('Google blocked you — use email sign-in link below');
+      this._activateSignInPane();
+      ACIControl?.reply('Google OAuth blocked — tap Send sign-in link');
+    }, 400);
+  },
+
+  _activateSignInPane() {
+    const modal = document.getElementById('astranov-auth-modal');
+    if (!modal) return;
+    modal.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+    modal.querySelectorAll('.auth-pane').forEach(p => p.classList.remove('active'));
+    const tab = modal.querySelector('[data-pane="auth-pane-signin"]');
+    const pane = document.getElementById('auth-pane-signin');
+    if (tab) tab.classList.add('active');
+    if (pane) pane.classList.add('active');
   },
 
   bindAuthModal() {
@@ -150,25 +172,25 @@ const Auth = {
 
   openLoginModal(hint) {
     const modal = document.getElementById('astranov-auth-modal');
-    if (!modal) return this.signInGoogle();
+    if (!modal) return;
     const status = document.getElementById('auth-status');
     const origin = this.publicOrigin();
-    if (status) status.textContent = hint || ('Official login · ' + origin + ' · one account for globe & sites');
     const originEl = document.getElementById('auth-origin-url');
     if (originEl) originEl.textContent = origin;
     const inline = document.getElementById('auth-origin-inline');
     if (inline) inline.textContent = origin.replace(/^https?:\/\//, '');
     modal.classList.add('open');
-    const gisHost = document.getElementById('auth-google-btn');
-    const mobile = this._isMobileClient();
-    if (gisHost) gisHost.classList.toggle('desktop', !mobile);
+    this._activateSignInPane();
     const emailQuick = document.getElementById('auth-email-quick');
-    if (emailQuick && !emailQuick.value) emailQuick.placeholder = 'your@gmail.com';
-    const gBtn = document.getElementById('auth-google-continue');
-    if (gBtn) gBtn.textContent = mobile ? 'Continue with Google' : 'Continue with Google';
-    if (!mobile) this._mountGoogleButton();
-    if (status && mobile) status.textContent = 'Tap Continue with Google — or use email link below';
-    GlobeDeck?.expand?.('Sign in · ' + origin);
+    if (emailQuick && !emailQuick.value) {
+      emailQuick.placeholder = this.OWNER_EMAIL;
+      setTimeout(() => emailQuick.focus(), 300);
+    }
+    if (status) {
+      status.textContent = hint || 'Enter email · tap Send sign-in link · open email on this phone';
+    }
+    GlobeDeck?.expand?.('Sign in · email link');
+    ACIControl?.reply('Google may be blocked — use email sign-in link');
   },
 
   closeLoginModal() {
@@ -263,8 +285,16 @@ const Auth = {
 
   async continueWithGoogle() {
     if (!this.client) return;
-    if (this._isMobileClient()) return this._signInGoogleRedirect();
-    return this.signInGoogle();
+    const status = document.getElementById('auth-status');
+    if (status) status.textContent = 'Trying Google… if blocked, use email link above';
+    try {
+      await this._signInGoogleRedirect();
+    } catch (e) {
+      const msg = typeof scrubSupabaseLeak === 'function' ? scrubSupabaseLeak(e.message) : (e.message || e);
+      if (status) status.textContent = 'Google blocked — ' + msg + ' · use email link';
+      ACIControl?.reply('Google blocked — tap Send sign-in link');
+      this._activateSignInPane();
+    }
   },
 
   async sendMagicLink() {
@@ -273,19 +303,19 @@ const Auth = {
     const emailEl = document.getElementById('auth-email-quick');
     let email = this._normalizeId(emailEl?.value || document.getElementById('auth-identifier')?.value);
     if (!email || !email.includes('@')) {
-      if (status) status.textContent = 'Enter your email above, then tap Email sign-in link';
-      emailEl?.focus?.();
-      return;
+      email = this.OWNER_EMAIL;
+      if (emailEl) emailEl.value = email;
     }
     try {
+      if (status) status.textContent = 'Sending link to ' + email + '…';
       const redirectTo = window.location.origin + window.location.pathname;
       const { error } = await this.client.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo: redirectTo },
+        options: { emailRedirectTo: redirectTo, shouldCreateUser: true },
       });
       if (error) throw error;
-      if (status) status.textContent = 'Link sent to ' + email + ' — open it on this device';
-      ACIControl?.reply('Check email · tap Astranov sign-in link');
+      if (status) status.textContent = '✓ Link sent to ' + email + ' — open Gmail on THIS phone and tap the link';
+      ACIControl?.reply('Email sent — open inbox on this phone');
     } catch (e) {
       const msg = typeof scrubSupabaseLeak === 'function' ? scrubSupabaseLeak(e.message) : (e.message || e);
       if (status) status.textContent = msg;
