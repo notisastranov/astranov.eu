@@ -179,14 +179,15 @@ const ACIControl = {
     SuperCli?.init?.();
   },
   reply(text) {
-    const msg = String(ArcangeloDialect?.sanitizeUi?.(text) ?? text ?? '').slice(0, 280);
+    const msg = String(ArcangeloDialect?.repairOutbound?.(text, 'reply') ?? text ?? '').slice(0, 280);
     if (!msg) return;
     GlobeDeck?.say(msg, 'reply');
   },
 
   voiceAck(msg, fromVoice) {
     if (!fromVoice || !Voice.maySpeak()) return;
-    speak(String(msg || '').slice(0, 120), () => resumeListening(), !!window._handsFreeVoice);
+    const line = ArcangeloDialect?.repairOutbound?.(msg, 'reply') ?? msg;
+    speak(String(line || '').slice(0, 120), () => resumeListening(), !!window._handsFreeVoice);
   },
 
   async handle(text, opts = {}) {

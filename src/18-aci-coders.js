@@ -462,7 +462,7 @@ const AciCoders = {
     else this.stopPoll();
 
     if (!r.pending) {
-      const spoken = reply || text;
+      const spoken = ArcangeloDialect?.repairOutbound?.(reply || text, 'reply') ?? (reply || text);
       if (window._handsFreeVoice && Voice.shouldSpeak(spoken)) {
         speak(spoken.slice(0, 120), () => resumeListening?.(), true);
       } else if (window._handsFreeVoice || voiceSessionActive) {

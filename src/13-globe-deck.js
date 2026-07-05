@@ -204,8 +204,12 @@ const GlobeDeck = {
     CliRibbon?.setActive?.(text || CliRibbon?.TASK_LABEL?.[this.activeTask] || 'CLI');
   },
 
+  _repairLine(text, kind) {
+    return ArcangeloDialect?.repairOutbound?.(text, kind) ?? String(text || '');
+  },
+
   setPreview(text) {
-    const s = (text || '').slice(0, 120);
+    const s = this._repairLine(text, 'out').slice(0, 120);
     if (s && CliRibbon?.isGlobeHint?.(s)) return;
     if (s) CliRibbon?.setNotice?.(s);
     else CliRibbon?.clearNotice?.();
@@ -214,7 +218,7 @@ const GlobeDeck = {
   },
 
   setMapStatus(text) {
-    const s = String(text || '');
+    const s = this._repairLine(text, 'map');
     if (!s || CliRibbon?.isGlobeHint?.(s)) return;
     this.setPreview(s);
   },
@@ -255,48 +259,48 @@ const GlobeDeck = {
 
   log(text, cls) {
     const kind = cls || 'out';
+    const repaired = this._repairLine(text, kind);
     if (kind === 'map') {
-      this.setMapStatus(text);
+      this.setMapStatus(repaired);
       return;
     }
-    if (!this.shouldLog(text, kind)) return;
+    if (!this.shouldLog(repaired, kind)) return;
     const out = this.logEl();
     if (!out) return;
     if (kind === 'dim') {
       if (this._thinkLine?.parentNode) {
-        this._thinkLine.textContent = text;
+        this._thinkLine.textContent = repaired;
         return;
       }
-      const line = document.createElement('div');
-      line.className = 'deck-line deck-dim';
-      line.textContent = text;
-      out.appendChild(line);
+      const el = document.createElement('div');
+      el.className = 'deck-line deck-dim';
+      el.textContent = repaired;
+      out.appendChild(el);
       while (out.children.length > 48) out.removeChild(out.firstChild);
       out.scrollTop = out.scrollHeight;
       return;
     }
-    const key = kind + ':' + (text || '').slice(0, 100);
+    const key = kind + ':' + repaired.slice(0, 100);
     const now = Date.now();
     if (this._lastSay === key && now - this._lastSayT < 5000) return;
     this._lastSay = key;
     this._lastSayT = now;
     if (kind === 'cmd' || kind === 'err') this.expand();
     else if (this._userEngaged && this.expanded && (kind === 'reply' || kind === 'out' || kind === 'ok')) { /* stay open */ }
-    const line = document.createElement('div');
-    line.className = 'deck-line deck-' + kind;
-    line.textContent = text;
-    out.appendChild(line);
+    const row = document.createElement('div');
+    row.className = 'deck-line deck-' + kind;
+    row.textContent = repaired;
+    out.appendChild(row);
     while (out.children.length > 48) out.removeChild(out.firstChild);
     out.scrollTop = out.scrollHeight;
-    if (kind === 'reply' || kind === 'out' || kind === 'ok') this.setPreview(text);
-    if (kind === 'err') CliRibbon?.setNotice?.(text, 'err');
+    if (kind === 'reply' || kind === 'out' || kind === 'ok') this.setPreview(repaired);
+    if (kind === 'err') CliRibbon?.setNotice?.(repaired, 'err');
     if (this._userEngaged && (kind === 'reply' || kind === 'out' || kind === 'err')) this.ping();
-    if (kind !== 'dim' && kind !== 'map') CliHub?.queueLine?.(text, kind);
+    if (kind !== 'dim' && kind !== 'map') CliHub?.queueLine?.(repaired, kind);
   },
 
   say(text, cls) {
-    const line = ArcangeloDialect?.sanitizeUi?.(text) ?? text;
-    this.log(line, cls || 'out');
+    this.log(text, cls || 'out');
   },
 
   onUserMessage(title) {
@@ -329,7 +333,7 @@ const GlobeDeck = {
         if (this._thinkLine?.parentNode) this._thinkLine.remove();
         this._thinkLine = document.createElement('div');
         this._thinkLine.className = 'deck-line deck-dim deck-thinking-line';
-        this._thinkLine.textContent = hint || '… thinking';
+        this._thinkLine.textContent = this._repairLine(hint || '… thinking', 'dim');
         out.appendChild(this._thinkLine);
         out.scrollTop = out.scrollHeight;
       }

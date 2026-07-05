@@ -212,7 +212,8 @@ function speak(text, onEnd, force) {
   const handsFree = !!window._handsFreeVoice;
   if (!force && !handsFree && !Voice.maySpeak()) { if (onEnd) onEnd(); return Promise.resolve(); }
   if (handsFree && !voiceEnabled) voiceEnabled = true;
-  return Voice.enqueue(text, onEnd, !!(force || handsFree));
+  const repaired = ArcangeloDialect?.repairOutbound?.(text, 'reply') ?? text;
+  return Voice.enqueue(repaired, onEnd, !!(force || handsFree));
 }
 function stopSpeaking() { Voice.flush(); }
 

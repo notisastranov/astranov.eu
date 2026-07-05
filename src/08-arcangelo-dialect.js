@@ -138,21 +138,32 @@ const ArcangeloDialect = {
     return g >= l * 0.12 ? 'el-GR' : 'en-US';
   },
 
+  repairOutbound(text, kind) {
+    let s = String(text || '').trim();
+    if (!s) return s;
+    s = this.repairTranscript(s);
+    if (kind === 'cmd' && window.fixVoiceHotwords) s = window.fixVoiceHotwords(s);
+    return this.sanitizeReply(s);
+  },
+
   repairTranscript(text) {
     let s = String(text || '').trim();
     if (!s) return s;
+    s = s.replace(/\b[\w-]+\.supabase\.co\b/gi, 'astranov.eu');
     s = s.replace(/\blkoatrkhuigdolnjsbie\.supabase\.co\b/gi, 'astranov.eu');
     s = s.replace(/\blkoatrkhuigdolnjsbie\b/gi, 'astranov.eu');
+    s = s.replace(/\bfunctions\/v1\/\w+\b/gi, '');
     const rules = [
-      [/\b(άστρονοβ|αστρονοβ|άστρανοβ|αστρανοβ|astranof|astronov|astra\s*nov|αστρα\s*νοβ|astrano\s*v)\b/gi, 'Astranov'],
-      [/\b(αρχάγγελο|αρχαγγελο|αρχανγελο|arch\s*angel|archangelo?s?|αρχαντζελο)\b/gi, 'Arcangelo'],
-      [/\b(κόντερ|κοντερ|konter|counter|quarter|κοντρ|κοντρς)\b/gi, 'coders'],
-      [/\b(κόντερς|κοντερς|counters|quarters|κοντερσ)\b/gi, 'coders'],
-      [/\b(code\s*us|code\s*her?s|call\s*her?s|corders?|cooters?)\b/gi, 'coders'],
-      [/\b(pitogyro|πιτογυρο|πιτόγυρο)\b/gi, 'pitogyra'],
-      [/\b(telemachus|tilemachos|tilemaxos|telmaxos|telmachos|τηλεμαχοσ|τηλεμαχός)\b/gi, 'Telemachos'],
-      [/\b(teledromus|tilestromos|τηλεδρομος|τηλεδρομός)\b/gi, 'Teledromos'],
-      [/\b(supabase\s+project|project\s+ref)\b/gi, 'Astranov'],
+      [/\b(άστρονοβ|αστρονοβ|άστρανοβ|αστρανοβ|αστρονόβ|αστρονόφ|αστρανόβ|αστρανόφ|αστρα\s*νοβ|αστρα\s*νοφ|astranof|astronov|astronoff|astra\s*nov|astrano\s*v|astro\s*nov|as\s*tranov|asstranov|ast\s*ranov|αστρονοφ)\b/gi, 'Astranov'],
+      [/\b(αρχάγγελο|αρχαγγελο|αρχανγελο|arch\s*angel|archangelo?s?|αρχαντζελο|arc\s*angelo)\b/gi, 'Arcangelo'],
+      [/\b(κόντερ|κοντερ|konter|counter|quarter|κοντρ|κοντρς|kontur|kontre|κόντερς|κοντερς|κοντερσ|κοντέρ)\b/gi, 'coders'],
+      [/\b(counters|quarters|quarterback|κοντερσ)\b/gi, 'coders'],
+      [/\b(code\s*us|code\s*her?s|call\s*her?s|corders?|cooters?|coders?|koders?|go\s*ders?)\b/gi, 'coders'],
+      [/\b(pitogyro|πιτογυρο|πιτόγυρο|πιτογύρο)\b/gi, 'pitogyra'],
+      [/\b(telemachus|tilemachos|tilemaxos|telmaxos|telmachos|τηλεμαχοσ|τηλεμαχός|τηλεμαχος)\b/gi, 'Telemachos'],
+      [/\b(teledromus|tilestromos|τηλεδρομος|τηλεδρομός|τηλεδρομος)\b/gi, 'Teledromos'],
+      [/\b(supabase\s+project|project\s+ref|supabase\s+url|supabase\s+key)\b/gi, 'Astranov'],
+      [/\bsupabase\b/gi, 'Astranov'],
       [/\b(έλα ρε|ελα ρε|ela re|έλα ρε μαλάκα|ela re malaka)\b/gi, 'ela re'],
       [/\b(τι θες|τι θέλεις|ti thes|ti theleis)\b/gi, 'ti thes'],
       [/\b(πάμε|pame|παμε)\b/gi, 'pame'],
@@ -192,7 +203,7 @@ const ArcangeloDialect = {
   },
 
   sanitizeUi(text) {
-    return this.sanitizeReply(text);
+    return this.repairOutbound(text);
   },
 
   apiContext() {
