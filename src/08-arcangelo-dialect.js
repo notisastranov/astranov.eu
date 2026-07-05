@@ -141,11 +141,18 @@ const ArcangeloDialect = {
   repairTranscript(text) {
     let s = String(text || '').trim();
     if (!s) return s;
+    s = s.replace(/\blkoatrkhuigdolnjsbie\.supabase\.co\b/gi, 'astranov.eu');
+    s = s.replace(/\blkoatrkhuigdolnjsbie\b/gi, 'astranov.eu');
     const rules = [
-      [/\b(άστρανοβ|αστρανοβ|astranof|astronov|astra nov|αστρα νοβ)\b/gi, 'astranov'],
-      [/\b(αρχάγγελο|αρχαγγελο|αρχανγελο|arch angel|archangelo?s?|αρχαντζελο)\b/gi, 'arcangelo'],
+      [/\b(άστρονοβ|αστρονοβ|άστρανοβ|αστρανοβ|astranof|astronov|astra\s*nov|αστρα\s*νοβ|astrano\s*v)\b/gi, 'Astranov'],
+      [/\b(αρχάγγελο|αρχαγγελο|αρχανγελο|arch\s*angel|archangelo?s?|αρχαντζελο)\b/gi, 'Arcangelo'],
       [/\b(κόντερ|κοντερ|konter|counter|quarter|κοντρ|κοντρς)\b/gi, 'coders'],
       [/\b(κόντερς|κοντερς|counters|quarters|κοντερσ)\b/gi, 'coders'],
+      [/\b(code\s*us|code\s*her?s|call\s*her?s|corders?|cooters?)\b/gi, 'coders'],
+      [/\b(pitogyro|πιτογυρο|πιτόγυρο)\b/gi, 'pitogyra'],
+      [/\b(telemachus|tilemachos|tilemaxos|telmaxos|telmachos|τηλεμαχοσ|τηλεμαχός)\b/gi, 'Telemachos'],
+      [/\b(teledromus|tilestromos|τηλεδρομος|τηλεδρομός)\b/gi, 'Teledromos'],
+      [/\b(supabase\s+project|project\s+ref)\b/gi, 'Astranov'],
       [/\b(έλα ρε|ελα ρε|ela re|έλα ρε μαλάκα|ela re malaka)\b/gi, 'ela re'],
       [/\b(τι θες|τι θέλεις|ti thes|ti theleis)\b/gi, 'ti thes'],
       [/\b(πάμε|pame|παμε)\b/gi, 'pame'],
@@ -177,8 +184,9 @@ const ArcangeloDialect = {
   },
 
   sanitizeReply(text) {
-    let s = String(text || '');
-    if (!s || this.mirrorAllowed()) return s;
+    let s = this.repairTranscript(String(text || ''));
+    if (!s) return s;
+    if (this.mirrorAllowed()) return s;
     for (const re of this._stripOutbound) s = s.replace(re, '').replace(/\s+/g, ' ').trim();
     return s;
   },

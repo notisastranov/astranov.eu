@@ -295,7 +295,8 @@ const GlobeDeck = {
   },
 
   say(text, cls) {
-    this.log(text, cls || 'out');
+    const line = ArcangeloDialect?.sanitizeUi?.(text) ?? text;
+    this.log(line, cls || 'out');
   },
 
   onUserMessage(title) {

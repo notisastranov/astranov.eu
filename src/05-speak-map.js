@@ -121,7 +121,8 @@ const Voice = {
   },
 
   humanize(text) {
-    return String(text || '')
+    let s = ArcangeloDialect?.repairTranscript?.(String(text || '')) || String(text || '');
+    return s
       .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
       .replace(/https?:\/\/\S+/gi, '')
       .replace(/[{}[\]"`#*_~|<>@$]/g, ' ')

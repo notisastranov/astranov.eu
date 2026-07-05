@@ -1,4 +1,14 @@
 {
+  "headers": [
+    {
+      "source": "/",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
+    },
+    {
+      "source": "/index.html",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
+    }
+  ],
   "rewrites": [
     { "source": "/auth/:path*", "destination": "https://lkoatrkhuigdolnjsbie.supabase.co/auth/:path*" },
     { "source": "/rest/:path*", "destination": "https://lkoatrkhuigdolnjsbie.supabase.co/rest/:path*" },

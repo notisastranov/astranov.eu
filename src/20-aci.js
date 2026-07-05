@@ -99,7 +99,8 @@ const ACI = {
       GlobeDeck?.showError(err);
       return err;
     }
-    const text = (r.text || r.response || '').trim() || 'Το Astranov συγκεντρώνεται — δοκίμασε ξανά.';
+    const raw = (r.text || r.response || '').trim() || 'Το Astranov συγκεντρώνεται — δοκίμασε ξανά.';
+    const text = ArcangeloDialect?.repairTranscript?.(raw) || raw;
     this.history.push({ role: 'user', content: prompt });
     this.history.push({ role: 'assistant', content: text });
     if (this.history.length > 20) this.history = this.history.slice(-20);
