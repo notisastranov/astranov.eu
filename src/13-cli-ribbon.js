@@ -133,14 +133,6 @@ const CliRibbon = {
       + (this._kind === 'hold' ? ' hold' : '')
       + (this._kind === 'ready' ? ' ready' : '');
 
-    const handle = document.getElementById('cli-deck-handle');
-    if (handle) {
-      const sz = GlobeDeck?._size || 'collapsed';
-      handle.textContent = sz === 'full' ? '▁' : sz === 'third' ? '▬' : '▔';
-      handle.setAttribute('aria-expanded', sz !== 'collapsed' ? 'true' : 'false');
-      handle.title = sz === 'full' ? 'Full screen — tap to minimize' : sz === 'third' ? '⅓ screen — drag or tap for full' : 'Minimized — tap to open';
-    }
-
     const title = document.getElementById('globe-deck-title');
     const preview = document.getElementById('globe-deck-preview');
     if (title) title.textContent = active;

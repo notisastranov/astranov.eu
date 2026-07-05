@@ -163,9 +163,7 @@
   #cli-ribbon-status.hold { color:var(--ax-yellow-bright); text-shadow:0 0 8px var(--ax-yellow-glow); }
   #cli-ribbon-status.ready { color:var(--ax-green-bright); text-shadow:0 0 8px var(--ax-green-glow); }
   @keyframes cli-think-glow { 0%,100%{ opacity:0.85; } 50%{ opacity:1; text-shadow:0 0 12px var(--ax-blue-glow); } }
-  #super-cli-bar #cli-deck-handle { background:transparent; border:none; color:var(--ax-blue-bright); cursor:grab; font-size:18px; padding:6px 12px; min-width:44px; min-height:38px; width:auto; height:auto; border-radius:10px; flex-shrink:0; touch-action:none; -webkit-tap-highlight-color:transparent; text-shadow:0 0 6px var(--ax-blue-glow); border-bottom:2px solid var(--ax-blue-border); }
-  #super-cli-bar #cli-deck-handle:active { cursor:grabbing; transform:scale(0.96); border-bottom-color:var(--ax-blue-bright); }
-  #super-cli-bar button:not(#aci-login):not(#super-add-fab):not(#cli-deck-handle):not(.app-shortcut-btn) { display:none !important; }
+  #super-cli-bar button:not(#aci-login):not(#super-add-fab):not(#aci-handsfree):not(.app-shortcut-btn) { display:none !important; }
   #app-shortcut-row { display:flex; gap:4px; align-items:center; flex:1; min-width:0; overflow-x:auto; overflow-y:hidden; padding:0 2px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
   #app-shortcut-row::-webkit-scrollbar { display:none; }
   #super-cli-bar .app-shortcut-btn { display:inline-flex !important; align-items:center; justify-content:center; width:32px; height:32px; font-size:15px; border-radius:10px; background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); cursor:pointer; flex-shrink:0; touch-action:manipulation; transition:background 0.15s,border-color 0.15s,transform 0.1s; }
@@ -252,8 +250,8 @@
   #aci-cli-in::placeholder { color:var(--an-muted); opacity:0.85; }
   #aci-cli-in.voice-live { border-color:var(--ax-blue-bright); color:var(--ax-blue-bright); box-shadow:0 0 10px var(--ax-blue-glow); }
   #globe-deck-input-row .deck-input-btn { background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); border-radius:50%; width:40px; height:40px; cursor:pointer; font-size:16px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; touch-action:manipulation; }
-  #globe-deck-input-row #aci-handsfree.deck-btn-active, #globe-deck-input-row #aci-handsfree.listening { background:var(--ax-blue-bg); border-color:var(--ax-blue-bright); color:var(--ax-blue-bright); box-shadow:0 0 12px var(--ax-blue-glow); }
-  #globe-deck-input-row #aci-handsfree.speaking { background:var(--ax-green-bg); border-color:var(--ax-green-border); color:var(--ax-green-bright); box-shadow:0 0 10px var(--ax-green-glow); }
+  #super-cli-bar #aci-handsfree.deck-btn-active, #super-cli-bar #aci-handsfree.listening { background:var(--ax-blue-bg); border-color:var(--ax-blue-bright); color:var(--ax-blue-bright); box-shadow:0 0 12px var(--ax-blue-glow); }
+  #super-cli-bar #aci-handsfree.speaking { background:var(--ax-green-bg); border-color:var(--ax-green-border); color:var(--ax-green-bright); box-shadow:0 0 10px var(--ax-green-glow); }
   #globe-deck-input-row #globe-deck-send { border-radius:12px; width:44px; font-size:15px; font-weight:700; }
   #aci-cli-toggle { display:inline-flex; background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); border-radius:50%; width:38px; height:38px; cursor:pointer; font-size:15px; flex-shrink:0; align-items:center; justify-content:center; }
   #city-life-chip { display:none; position:fixed; top:52px; left:12px; bottom:auto; z-index:38; max-width:min(240px,calc(100vw - 24px)); padding:8px 12px; border-radius:12px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); font:10px/1.4 system-ui; color:var(--an-text); pointer-events:none; backdrop-filter:blur(8px); }
@@ -585,7 +583,7 @@
         <div id="app-shortcut-row" role="toolbar" aria-label="Open applications"></div>
         <span id="cli-ribbon-status" aria-live="polite"></span>
         <button id="super-add-fab" type="button" title="Super Add — post · vendor · site">+</button>
-        <button id="cli-deck-handle" type="button" title="Drag CLI anywhere to resize · tap to cycle" aria-expanded="false">▔</button>
+        <button id="aci-handsfree" type="button" title="AI hands-free — listen &amp; speak">🎧</button>
         <button id="aci-cli-toggle" title="Expand/collapse Astranov Command Line" type="button">💻</button>
         <button id="aci-stop" title="Stop" type="button">🛑</button>
         <button id="aci-hold" title="Hold session — pause mic &amp; tasks for noisy places" type="button" aria-pressed="false">⏸</button>
@@ -691,7 +689,6 @@
         <form id="aci-cli-form" action="#" autocomplete="off">
           <textarea id="aci-cli-in" name="cli" rows="1" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" inputmode="text" placeholder="Talk to Coders — type or tap 🎧 · Enter to send"></textarea>
         </form>
-        <button id="aci-handsfree" class="deck-input-btn" type="button" title="AI hands-free — listen &amp; speak">🎧</button>
         <button id="globe-deck-send" class="deck-input-btn" type="submit" form="aci-cli-form" title="Send command">➡</button>
       </div>
     </div>
@@ -2421,7 +2418,6 @@ const GlobeDeck = {
     AppShortcuts?.init?.();
     this._restoreHeight();
     this.bindDeckResize();
-    this.bindHandle();
     this.bindDeckGestures();
     ['sat-radio', 'node-batch', 'vendor-menu', 'globe-youtube', 'globe-super-add', 'globe-site-browser', 'cli-hub-panel'].forEach(id => {
       const el = document.getElementById(id);
@@ -2430,18 +2426,6 @@ const GlobeDeck = {
     });
     CliRibbon?.setActive?.('CLI');
     if (this._size === 'free' && this._freeHeight) this.applySize();
-  },
-
-  bindHandle() {
-    const handle = document.getElementById('cli-deck-handle');
-    if (!handle || handle._deckBound) return;
-    handle._deckBound = true;
-    handle.addEventListener('click', (e) => {
-      if (this._lastResizeDrag && Date.now() - this._lastResizeDrag < 400) return;
-      e.preventDefault();
-      e.stopPropagation();
-      this.cycleSize();
-    });
   },
 
   _deckMinH() { return 118; },
@@ -3005,14 +2989,6 @@ const CliRibbon = {
       + (this._kind === 'hold' ? ' hold' : '')
       + (this._kind === 'ready' ? ' ready' : '');
 
-    const handle = document.getElementById('cli-deck-handle');
-    if (handle) {
-      const sz = GlobeDeck?._size || 'collapsed';
-      handle.textContent = sz === 'full' ? '▁' : sz === 'third' ? '▬' : '▔';
-      handle.setAttribute('aria-expanded', sz !== 'collapsed' ? 'true' : 'false');
-      handle.title = sz === 'full' ? 'Full screen — tap to minimize' : sz === 'third' ? '⅓ screen — drag or tap for full' : 'Minimized — tap to open';
-    }
-
     const title = document.getElementById('globe-deck-title');
     const preview = document.getElementById('globe-deck-preview');
     if (title) title.textContent = active;
@@ -3298,8 +3274,8 @@ const SuperCli = {
   title: ACL_TITLE,
 
   // Top bar: login + Super Add — everything else via CLI (locate, order, batch, vhf, theme, hold, stop…)
-  TOOLBAR_VISIBLE: ['aci-login', 'super-add-fab', 'cli-deck-handle'],
-  INPUT_BTNS: ['aci-handsfree', 'globe-deck-send'],
+  TOOLBAR_VISIBLE: ['aci-login', 'super-add-fab', 'aci-handsfree'],
+  INPUT_BTNS: ['globe-deck-send'],
 
   init() {
     if (this._bound) return;
