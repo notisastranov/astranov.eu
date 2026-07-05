@@ -143,18 +143,29 @@ const GlobeDeck = {
     });
   },
 
+  _isMobileDeck() {
+    try {
+      return (navigator.maxTouchPoints > 0 && window.innerWidth < 900)
+        || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+    } catch (_) {
+      return window.innerWidth < 900;
+    }
+  },
+
+  _mobileDeckCap() {
+    return Math.min(Math.round(window.innerHeight * 0.38), 320);
+  },
+
   _restoreHeight() {
     try {
       const h = parseInt(localStorage.getItem(this._HEIGHT_KEY), 10);
-      const maxH = Math.min(window.innerHeight * 0.94, window.innerHeight - 36);
+      const maxH = this._isMobileDeck() ? this._mobileDeckCap() : Math.min(window.innerHeight * 0.94, window.innerHeight - 36);
       if (h >= 118 && h <= maxH) {
-        this._freeHeight = h;
-        if (h > 130) {
-          this._size = 'free';
-          this.expanded = true;
-        }
+        this._freeHeight = Math.min(h, maxH);
       }
     } catch (_) { /* */ }
+    this._size = 'collapsed';
+    this.expanded = false;
   },
 
   _saveHeight(h) {
@@ -293,7 +304,10 @@ const GlobeDeck = {
     out.appendChild(row);
     while (out.children.length > 48) out.removeChild(out.firstChild);
     out.scrollTop = out.scrollHeight;
-    if (kind === 'reply' || kind === 'out' || kind === 'ok') this.setPreview(repaired);
+    if (kind === 'reply' || kind === 'out' || kind === 'ok') {
+      this.setPreview(repaired);
+      CliRibbon?.setNotice?.(repaired.slice(0, 120), 'ready');
+    }
     if (kind === 'err') CliRibbon?.setNotice?.(repaired, 'err');
     if (this._userEngaged && (kind === 'reply' || kind === 'out' || kind === 'err')) this.ping();
     if (kind !== 'dim' && kind !== 'map') CliHub?.queueLine?.(repaired, kind);
@@ -306,7 +320,10 @@ const GlobeDeck = {
   onUserMessage(title) {
     this._userEngaged = true;
     if (this._collapseTimer) { clearTimeout(this._collapseTimer); this._collapseTimer = null; }
-    this.expand(title || 'Collective — listening');
+    const t = title || 'Collective — listening';
+    this.setTitle(t);
+    this.setPreview(t);
+    if (!this._isMobileDeck()) this.expand(t);
     this.ping();
   },
 
@@ -320,16 +337,18 @@ const GlobeDeck = {
   },
 
   setThinking(on, hint) {
+    if (this._thinkWatchdog) { clearTimeout(this._thinkWatchdog); this._thinkWatchdog = null; }
     this.thinking = !!on;
     const d = this.deck();
     if (d) d.classList.toggle('deck-thinking', this.thinking);
-    if (on && hint) CliRibbon?.setNotice?.(hint);
+    if (on && hint) CliRibbon?.setNotice?.(hint, 'thinking');
     else if (!on) CliRibbon?.clearNotice?.();
     CliRibbon?.render?.();
     if (on) {
-      this.expand(hint || 'Collective — thinking…');
+      this.setPreview(hint || '… thinking');
+      if (!this._isMobileDeck()) this.expand(hint || 'Collective — thinking…');
       const out = this.logEl();
-      if (out) {
+      if (out && this.expanded) {
         if (this._thinkLine?.parentNode) this._thinkLine.remove();
         this._thinkLine = document.createElement('div');
         this._thinkLine.className = 'deck-line deck-dim deck-thinking-line';
@@ -337,6 +356,10 @@ const GlobeDeck = {
         out.appendChild(this._thinkLine);
         out.scrollTop = out.scrollHeight;
       }
+      this._thinkWatchdog = setTimeout(() => {
+        this._thinkWatchdog = null;
+        if (this.thinking) this.setThinking(false);
+      }, 45000);
     } else if (this._thinkLine?.parentNode) {
       this._thinkLine.remove();
       this._thinkLine = null;
@@ -362,10 +385,26 @@ const GlobeDeck = {
     if (title && (!this.expanded || now - this._expandAt > 400)) this.setTitle(title);
     this._expandAt = now;
     if (this._size === 'collapsed') {
-      this._size = this._freeHeight > 130 ? 'free' : 'third';
+      if (this._isMobileDeck()) {
+        this._size = 'third';
+        this._freeHeight = 0;
+      } else {
+        const cap = this._mobileDeckCap();
+        this._size = (this._freeHeight > 130 && this._freeHeight <= cap) ? 'free' : 'third';
+      }
     }
     this.applySize();
     if (window.AciCli) AciCli.open = true;
+  },
+
+  bootCollapsed() {
+    this._size = 'collapsed';
+    this.expanded = false;
+    this._userEngaged = false;
+    this.thinking = false;
+    this.applySize();
+    this.deck()?.classList.remove('deck-thinking', 'has-preview', 'deck-ping');
+    CliRibbon?.clearNotice?.();
   },
 
   superAction(action) {

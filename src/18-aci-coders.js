@@ -217,9 +217,15 @@ const AciCoders = {
   async enterSession(opts = {}) {
     opts = opts || {};
     await this.autoStart();
-    GlobeDeck?.onUserMessage?.('Coders');
-    GlobeDeck?.expand?.('Coders');
     if (GlobeDeck) GlobeDeck.activeTask = 'coders';
+    if (opts.expand) {
+      GlobeDeck?.onUserMessage?.('Coders');
+      GlobeDeck?.expand?.('Coders');
+    } else {
+      GlobeDeck?.setTitle?.('Coders');
+      GlobeDeck?.setPreview?.('Coders ready — type below');
+      CliRibbon?.setActive?.('Coders');
+    }
     AppShortcuts?.track?.('coders', 'Coders');
     if (window.AciCli) AciCli.open = true;
 
@@ -769,10 +775,10 @@ const AciCoders = {
         return this._applyResponse({ text: pingReply, via: 'local/ping' }, m);
       }
 
-      if (fast && AiRouter?.shouldRoute?.(m, opts)) {
+      if (!build && AiRouter?.shouldRoute?.(m, opts)) {
         const ar = await AiRouter.ask(m, {
           history: this.history.slice(-6),
-          timeoutMs: 24000,
+          timeoutMs: GlobeDeck?._isMobileDeck?.() ? 18000 : 24000,
         });
         const arText = String(ar.text || '').trim();
         if (arText && !this.isFailedReply(arText)) {
@@ -783,6 +789,7 @@ const AciCoders = {
             action: ar.action,
           }, m);
         }
+        if (ar.error && AciCli) AciCli.print('ai-router: ' + String(ar.error).slice(0, 80), 'dim');
       }
 
       let r = await AciCli.api({

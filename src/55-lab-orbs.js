@@ -11,6 +11,15 @@ const LabOrbs = {
   _bound: false,
   _introDone: false,
 
+  _isMobile() {
+    try {
+      return (navigator.maxTouchPoints > 0 && window.innerWidth < 900)
+        || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+    } catch (_) {
+      return window.innerWidth < 900;
+    }
+  },
+
   init() {
     if (this._bound) return;
     this._bound = true;
@@ -18,7 +27,9 @@ const LabOrbs = {
     this._bind();
     this._layout();
     window.addEventListener('resize', () => this._layout());
-    window.setTimeout(() => this._runIntro(), 600);
+    if (!this._isMobile() && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      window.setTimeout(() => this._runIntro(), 1200);
+    }
   },
 
   _mount() {

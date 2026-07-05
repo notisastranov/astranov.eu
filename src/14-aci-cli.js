@@ -42,8 +42,7 @@ const AciCli = {
       if (!input._codersFocusBound) {
         input._codersFocusBound = true;
         input.addEventListener('focus', () => {
-          AciCoders?.enterSession?.({ focus: false, ping: false });
-          GlobeDeck?.expand?.('Coders');
+          AciCoders?.enterSession?.({ focus: false, ping: false, expand: false });
         });
       }
     }
@@ -211,7 +210,7 @@ const AciCli = {
     }
     this._lastSentLine = line;
     this._lastSendAt = now;
-    GlobeDeck?.expand?.('Coders');
+    GlobeDeck?.setPreview?.('Coders…');
     GlobeDeck?.clearCompose?.();
     this.run(line);
     return true;
@@ -263,8 +262,8 @@ const AciCli = {
       await AciCoders?.enterSession?.({ focus: true, ping: false });
       return;
     }
-    await AciCoders?.enterSession?.({ focus: false, ping: false });
-    GlobeDeck?.onUserMessage('Coders — ' + line.slice(0, 40));
+    await AciCoders?.enterSession?.({ focus: false, ping: false, expand: false });
+    GlobeDeck?.setPreview?.('Coders — ' + line.slice(0, 60));
     AstranovWishlist?.captureCliLine?.(line);
     this.history.push(line);
     this.histIdx = -1;

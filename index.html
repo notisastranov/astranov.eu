@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260705141058" />
+<meta name="astranov-build" content="20260705192607" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -666,7 +666,7 @@
     </div>
   </div>
   <button id="astranov-logo" type="button" title="Hard reset — clear cache · reload · global view" aria-label="ASTRANOV hard reset reload">ASTRANOV</button>
-  <div id="zoom-label">SOLAR SYSTEM</div>
+  <div id="zoom-label">GLOBAL · tap 🎯 Locate for city map</div>
   <div id="cosmic-guide"></div>
   <div id="user-chip"></div>
   <div id="drive-guide"></div>
@@ -2927,18 +2927,29 @@ const GlobeDeck = {
     });
   },
 
+  _isMobileDeck() {
+    try {
+      return (navigator.maxTouchPoints > 0 && window.innerWidth < 900)
+        || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+    } catch (_) {
+      return window.innerWidth < 900;
+    }
+  },
+
+  _mobileDeckCap() {
+    return Math.min(Math.round(window.innerHeight * 0.38), 320);
+  },
+
   _restoreHeight() {
     try {
       const h = parseInt(localStorage.getItem(this._HEIGHT_KEY), 10);
-      const maxH = Math.min(window.innerHeight * 0.94, window.innerHeight - 36);
+      const maxH = this._isMobileDeck() ? this._mobileDeckCap() : Math.min(window.innerHeight * 0.94, window.innerHeight - 36);
       if (h >= 118 && h <= maxH) {
-        this._freeHeight = h;
-        if (h > 130) {
-          this._size = 'free';
-          this.expanded = true;
-        }
+        this._freeHeight = Math.min(h, maxH);
       }
     } catch (_) { /* */ }
+    this._size = 'collapsed';
+    this.expanded = false;
   },
 
   _saveHeight(h) {
@@ -3077,7 +3088,10 @@ const GlobeDeck = {
     out.appendChild(row);
     while (out.children.length > 48) out.removeChild(out.firstChild);
     out.scrollTop = out.scrollHeight;
-    if (kind === 'reply' || kind === 'out' || kind === 'ok') this.setPreview(repaired);
+    if (kind === 'reply' || kind === 'out' || kind === 'ok') {
+      this.setPreview(repaired);
+      CliRibbon?.setNotice?.(repaired.slice(0, 120), 'ready');
+    }
     if (kind === 'err') CliRibbon?.setNotice?.(repaired, 'err');
     if (this._userEngaged && (kind === 'reply' || kind === 'out' || kind === 'err')) this.ping();
     if (kind !== 'dim' && kind !== 'map') CliHub?.queueLine?.(repaired, kind);
@@ -3090,7 +3104,10 @@ const GlobeDeck = {
   onUserMessage(title) {
     this._userEngaged = true;
     if (this._collapseTimer) { clearTimeout(this._collapseTimer); this._collapseTimer = null; }
-    this.expand(title || 'Collective — listening');
+    const t = title || 'Collective — listening';
+    this.setTitle(t);
+    this.setPreview(t);
+    if (!this._isMobileDeck()) this.expand(t);
     this.ping();
   },
 
@@ -3104,16 +3121,18 @@ const GlobeDeck = {
   },
 
   setThinking(on, hint) {
+    if (this._thinkWatchdog) { clearTimeout(this._thinkWatchdog); this._thinkWatchdog = null; }
     this.thinking = !!on;
     const d = this.deck();
     if (d) d.classList.toggle('deck-thinking', this.thinking);
-    if (on && hint) CliRibbon?.setNotice?.(hint);
+    if (on && hint) CliRibbon?.setNotice?.(hint, 'thinking');
     else if (!on) CliRibbon?.clearNotice?.();
     CliRibbon?.render?.();
     if (on) {
-      this.expand(hint || 'Collective — thinking…');
+      this.setPreview(hint || '… thinking');
+      if (!this._isMobileDeck()) this.expand(hint || 'Collective — thinking…');
       const out = this.logEl();
-      if (out) {
+      if (out && this.expanded) {
         if (this._thinkLine?.parentNode) this._thinkLine.remove();
         this._thinkLine = document.createElement('div');
         this._thinkLine.className = 'deck-line deck-dim deck-thinking-line';
@@ -3121,6 +3140,10 @@ const GlobeDeck = {
         out.appendChild(this._thinkLine);
         out.scrollTop = out.scrollHeight;
       }
+      this._thinkWatchdog = setTimeout(() => {
+        this._thinkWatchdog = null;
+        if (this.thinking) this.setThinking(false);
+      }, 45000);
     } else if (this._thinkLine?.parentNode) {
       this._thinkLine.remove();
       this._thinkLine = null;
@@ -3146,10 +3169,26 @@ const GlobeDeck = {
     if (title && (!this.expanded || now - this._expandAt > 400)) this.setTitle(title);
     this._expandAt = now;
     if (this._size === 'collapsed') {
-      this._size = this._freeHeight > 130 ? 'free' : 'third';
+      if (this._isMobileDeck()) {
+        this._size = 'third';
+        this._freeHeight = 0;
+      } else {
+        const cap = this._mobileDeckCap();
+        this._size = (this._freeHeight > 130 && this._freeHeight <= cap) ? 'free' : 'third';
+      }
     }
     this.applySize();
     if (window.AciCli) AciCli.open = true;
+  },
+
+  bootCollapsed() {
+    this._size = 'collapsed';
+    this.expanded = false;
+    this._userEngaged = false;
+    this.thinking = false;
+    this.applySize();
+    this.deck()?.classList.remove('deck-thinking', 'has-preview', 'deck-ping');
+    CliRibbon?.clearNotice?.();
   },
 
   superAction(action) {
@@ -5105,8 +5144,7 @@ const AciCli = {
       if (!input._codersFocusBound) {
         input._codersFocusBound = true;
         input.addEventListener('focus', () => {
-          AciCoders?.enterSession?.({ focus: false, ping: false });
-          GlobeDeck?.expand?.('Coders');
+          AciCoders?.enterSession?.({ focus: false, ping: false, expand: false });
         });
       }
     }
@@ -5274,7 +5312,7 @@ const AciCli = {
     }
     this._lastSentLine = line;
     this._lastSendAt = now;
-    GlobeDeck?.expand?.('Coders');
+    GlobeDeck?.setPreview?.('Coders…');
     GlobeDeck?.clearCompose?.();
     this.run(line);
     return true;
@@ -5326,8 +5364,8 @@ const AciCli = {
       await AciCoders?.enterSession?.({ focus: true, ping: false });
       return;
     }
-    await AciCoders?.enterSession?.({ focus: false, ping: false });
-    GlobeDeck?.onUserMessage('Coders — ' + line.slice(0, 40));
+    await AciCoders?.enterSession?.({ focus: false, ping: false, expand: false });
+    GlobeDeck?.setPreview?.('Coders — ' + line.slice(0, 60));
     AstranovWishlist?.captureCliLine?.(line);
     this.history.push(line);
     this.histIdx = -1;
@@ -5937,9 +5975,15 @@ const AciCoders = {
   async enterSession(opts = {}) {
     opts = opts || {};
     await this.autoStart();
-    GlobeDeck?.onUserMessage?.('Coders');
-    GlobeDeck?.expand?.('Coders');
     if (GlobeDeck) GlobeDeck.activeTask = 'coders';
+    if (opts.expand) {
+      GlobeDeck?.onUserMessage?.('Coders');
+      GlobeDeck?.expand?.('Coders');
+    } else {
+      GlobeDeck?.setTitle?.('Coders');
+      GlobeDeck?.setPreview?.('Coders ready — type below');
+      CliRibbon?.setActive?.('Coders');
+    }
     AppShortcuts?.track?.('coders', 'Coders');
     if (window.AciCli) AciCli.open = true;
 
@@ -6489,10 +6533,10 @@ const AciCoders = {
         return this._applyResponse({ text: pingReply, via: 'local/ping' }, m);
       }
 
-      if (fast && AiRouter?.shouldRoute?.(m, opts)) {
+      if (!build && AiRouter?.shouldRoute?.(m, opts)) {
         const ar = await AiRouter.ask(m, {
           history: this.history.slice(-6),
-          timeoutMs: 24000,
+          timeoutMs: GlobeDeck?._isMobileDeck?.() ? 18000 : 24000,
         });
         const arText = String(ar.text || '').trim();
         if (arText && !this.isFailedReply(arText)) {
@@ -6503,6 +6547,7 @@ const AciCoders = {
             action: ar.action,
           }, m);
         }
+        if (ar.error && AciCli) AciCli.print('ai-router: ' + String(ar.error).slice(0, 80), 'dim');
       }
 
       let r = await AciCli.api({
@@ -10679,7 +10724,10 @@ const CosmicZoom = {
     }
     let level = opts.cosmic === 'system' ? 'system' : opts.cosmic === 'galaxy' ? 'galaxy' : 'earth';
     let label = opts.label || 'GLOBAL';
-    if (!opts.tier) {
+    if (window._bootEarthLock && camZ < 6) {
+      level = 'earth';
+      label = opts.label || 'GLOBAL';
+    } else if (!opts.tier) {
       if (camZ > 14) { level = 'galaxy'; label = 'GALAXY'; }
       else if (camZ > 5.5) { level = 'system'; label = 'SOLAR SYSTEM'; }
       else if (camZ > 4.8) { level = 'orbit'; label = 'ORBIT'; }
@@ -11563,6 +11611,15 @@ const LabOrbs = {
   _bound: false,
   _introDone: false,
 
+  _isMobile() {
+    try {
+      return (navigator.maxTouchPoints > 0 && window.innerWidth < 900)
+        || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+    } catch (_) {
+      return window.innerWidth < 900;
+    }
+  },
+
   init() {
     if (this._bound) return;
     this._bound = true;
@@ -11570,7 +11627,9 @@ const LabOrbs = {
     this._bind();
     this._layout();
     window.addEventListener('resize', () => this._layout());
-    window.setTimeout(() => this._runIntro(), 600);
+    if (!this._isMobile() && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      window.setTimeout(() => this._runIntro(), 1200);
+    }
   },
 
   _mount() {
@@ -17575,8 +17634,17 @@ function animate() {
   renderer.render(scene, camera);
 }
 
+window._bootEarthLock = true;
+camera.position.z = 2.55;
+camera.lookAt(0, 0, 0);
+if (typeof globePivot !== 'undefined' && globePivot) {
+  globePivot.rotation.x = 0.12;
+  globePivot.rotation.y = 0.82;
+}
+
 Auth.init();
 GlobeDeck.init();
+GlobeDeck.bootCollapsed?.();
 SuperCli.init();
 SessionHold.init();
 AciCli.init();
@@ -17588,7 +17656,11 @@ ZoomTiers.init();
 if (typeof globePivot !== 'undefined' && globePivot) {
   globePivot.rotation.x = 0.12;
 }
-CosmicZoom.update(camera.position.z, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
+CosmicZoom.level = 'earth';
+if (CosmicZoom.solarGroup) CosmicZoom.solarGroup.visible = false;
+CosmicZoom.update(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
+const zl0 = document.getElementById('zoom-label');
+if (zl0) zl0.textContent = 'GLOBAL · tap 🎯 Locate for city map';
 AstranovTheme.init();
 AstranovLogo.init();
 CityMap.init();
@@ -17612,10 +17684,16 @@ setTimeout(() => Commerce.loadVendors().then(() => Commerce.initUI()), 800);
 if (window._lastPos) GlobeEntity.syncMe(_lastPos.lat, _lastPos.lng, me?.name || 'You');
 
 setTimeout(() => {
-  ACIControl?.reply?.('Earth view ready · tap 🎯 Locate for YOUR city map · type: city · order');
+  window._bootEarthLock = false;
+  if (camera.position.z > 4.8) {
+    camera.position.z = 2.55;
+    ZoomTiers?.goTo?.('global', false);
+  }
+  CosmicZoom.update(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
+  ACIControl?.reply?.('Earth ready · tap 🎯 Locate · type in CLI for AI');
   const zl = document.getElementById('zoom-label');
   if (zl) zl.textContent = 'GLOBAL · tap 🎯 Locate for city map';
-}, 2200);
+}, 1200);
 
 const host = location.hostname || '';
 const isOfficial = host === 'astranov.eu' || host.endsWith('.astranov.eu');
