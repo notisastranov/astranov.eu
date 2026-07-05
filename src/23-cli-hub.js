@@ -206,7 +206,7 @@ const CliHub = {
 
   async startPrivateCloud(targetRef) {
     if (!Auth?.user) {
-      Auth?.signInGoogle?.();
+      Auth?.openLoginModal?.('Sign in for CLI hub');
       return;
     }
     let targetId = String(targetRef || '');

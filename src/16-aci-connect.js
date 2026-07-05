@@ -6,7 +6,7 @@ const AciConnect = {
   async open() {
     if (!Auth?.user) {
       ACIControl?.reply('Sign in with G — then collective AI opens');
-      await Auth.signInGoogle();
+      Auth.openLoginModal?.('Sign in to connect');
       return null;
     }
     if (window.AciCli) AciCli.show();

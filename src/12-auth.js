@@ -23,6 +23,20 @@ const Auth = {
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'astranov_auth_v2' }
     });
     this.client.auth.onAuthStateChange((ev, session) => {
+      if (ev === 'SIGNED_IN' && session?.user) {
+        this.session = session;
+        this.user = session.user;
+        this._authDegraded = false;
+        this.closeLoginModal();
+        this.applyUser();
+        this.refreshAuthority();
+        ACIControl?.reply('Signed in · welcome to Astranov');
+        try {
+          const clean = location.pathname + (location.search || '').replace(/[?&]code=[^&]*/g, '').replace(/[?&]error=[^&]*/g, '').replace(/\?&/, '?').replace(/\?$/, '');
+          if (location.search || location.hash) history.replaceState(null, '', clean || '/');
+        } catch (_) {}
+        return;
+      }
       if (ev === 'TOKEN_REFRESHED' && session?.user) {
         this.session = session;
         this.user = session.user;
@@ -61,19 +75,8 @@ const Auth = {
       this.broadcastToShell();
       if (this.user) this.loadProfileVisual();
     });
-    if (/[?&#](code|access_token)=/i.test(location.search + location.hash)) {
-      setTimeout(() => {
-        this.client.auth.getSession().then(({ data }) => {
-          if (data?.session?.user) {
-            this.closeLoginModal();
-            ACIControl?.reply('Signed in · welcome back');
-            history.replaceState(null, '', location.pathname + location.search.replace(/[?&]code=[^&]+/, '').replace(/^&/, '?'));
-          }
-        });
-      }, 600);
-    }
     const btn = document.getElementById('aci-login');
-    if (btn) btn.onclick = () => this.user ? this.openLoggedInProfile() : this.signInGoogle();
+    if (btn) btn.onclick = () => this.user ? this.openLoggedInProfile() : this.openLoginModal();
     this.bindAuthModal();
     window.addEventListener('message', e => this._onChildMessage(e));
   },
@@ -86,11 +89,10 @@ const Auth = {
     document.getElementById('auth-signin-btn')?.addEventListener('click', () => this.signInIdentifier());
     document.getElementById('auth-signup-btn')?.addEventListener('click', () => this.signUpIdentifier());
     document.getElementById('auth-phone-btn')?.addEventListener('click', () => this.signInPhoneOtp());
+    document.getElementById('auth-google-continue')?.addEventListener('click', () => this.continueWithGoogle());
+    document.getElementById('auth-email-link')?.addEventListener('click', () => this.sendMagicLink());
     modal.querySelectorAll('[data-oauth]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (btn.dataset.oauth === 'google') this.signInGoogle();
-        else this.signInOAuth(btn.dataset.oauth);
-      });
+      btn.addEventListener('click', () => this.signInOAuth(btn.dataset.oauth));
     });
     this._mountGoogleButton();
     modal.querySelectorAll('.auth-tab').forEach(tab => {
@@ -157,7 +159,15 @@ const Auth = {
     const inline = document.getElementById('auth-origin-inline');
     if (inline) inline.textContent = origin.replace(/^https?:\/\//, '');
     modal.classList.add('open');
-    this._mountGoogleButton();
+    const gisHost = document.getElementById('auth-google-btn');
+    const mobile = this._isMobileClient();
+    if (gisHost) gisHost.classList.toggle('desktop', !mobile);
+    const emailQuick = document.getElementById('auth-email-quick');
+    if (emailQuick && !emailQuick.value) emailQuick.placeholder = 'your@gmail.com';
+    const gBtn = document.getElementById('auth-google-continue');
+    if (gBtn) gBtn.textContent = mobile ? 'Continue with Google' : 'Continue with Google';
+    if (!mobile) this._mountGoogleButton();
+    if (status && mobile) status.textContent = 'Tap Continue with Google — or use email link below';
     GlobeDeck?.expand?.('Sign in · ' + origin);
   },
 
@@ -251,10 +261,41 @@ const Auth = {
     });
   },
 
+  async continueWithGoogle() {
+    if (!this.client) return;
+    if (this._isMobileClient()) return this._signInGoogleRedirect();
+    return this.signInGoogle();
+  },
+
+  async sendMagicLink() {
+    if (!this.client) return;
+    const status = document.getElementById('auth-status');
+    const emailEl = document.getElementById('auth-email-quick');
+    let email = this._normalizeId(emailEl?.value || document.getElementById('auth-identifier')?.value);
+    if (!email || !email.includes('@')) {
+      if (status) status.textContent = 'Enter your email above, then tap Email sign-in link';
+      emailEl?.focus?.();
+      return;
+    }
+    try {
+      const redirectTo = window.location.origin + window.location.pathname;
+      const { error } = await this.client.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: redirectTo },
+      });
+      if (error) throw error;
+      if (status) status.textContent = 'Link sent to ' + email + ' — open it on this device';
+      ACIControl?.reply('Check email · tap Astranov sign-in link');
+    } catch (e) {
+      const msg = typeof scrubSupabaseLeak === 'function' ? scrubSupabaseLeak(e.message) : (e.message || e);
+      if (status) status.textContent = msg;
+      ACIControl?.reply('Email sign-in failed — ' + msg);
+    }
+  },
+
   async signInGoogle() {
     if (!this.client) return;
     const origin = this.publicOrigin();
-    const mobile = this._isMobileClient();
     this.openLoginModal();
     const status = document.getElementById('auth-status');
     GlobeDeck?.setPreview?.('Sign in · ' + origin);
@@ -266,17 +307,12 @@ const Auth = {
       }
       this._initGoogleCredential();
       const host = document.getElementById('auth-google-btn');
+      if (host) host.classList.add('desktop');
       this._renderGoogleButton(host);
-
-      if (mobile) {
-        if (status) status.textContent = 'Tap the blue Google button below · ' + origin.replace(/^https?:\/\//, '');
-        return;
-      }
-
-      if (status) status.textContent = 'Sign in on ' + origin + ' — choose Google below';
+      if (status) status.textContent = 'Tap Continue with Google above — or the blue button';
       window.google.accounts.id.prompt((n) => {
         if (n?.isNotDisplayed?.() || n?.isSkippedMoment?.()) {
-          if (status) status.textContent = 'Tap the Google button below · astranov.eu';
+          if (status) status.textContent = 'Tap Continue with Google or the blue button below';
         }
       });
     } catch (e) {
@@ -285,7 +321,7 @@ const Auth = {
       try {
         await this._signInGoogleRedirect();
       } catch (e2) {
-        ACIControl?.reply('Google sign-in failed — ' + (e2.message || msg));
+        ACIControl?.reply('Google sign-in failed — use Email sign-in link · ' + (e2.message || msg));
       }
     }
   },
@@ -294,19 +330,27 @@ const Auth = {
     if (!this.client) return;
     const origin = this.publicOrigin();
     const status = document.getElementById('auth-status');
-    if (status) status.textContent = 'Opening Google sign-in…';
+    if (status) status.textContent = 'Opening Google… you will return to ' + origin.replace(/^https?:\/\//, '');
     GlobeDeck?.setPreview?.('Sign in · ' + origin);
     const redirectTo = window.location.origin + window.location.pathname + (window.location.search || '');
     const { error } = await this.client.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo, scopes: 'email profile' },
+      options: {
+        redirectTo,
+        scopes: 'email profile',
+        queryParams: { prompt: 'select_account' },
+      },
     });
-    if (error) throw error;
+    if (error) {
+      const msg = typeof scrubSupabaseLeak === 'function' ? scrubSupabaseLeak(error.message) : error.message;
+      if (status) status.textContent = msg + ' — try Email sign-in link';
+      throw error;
+    }
   },
 
   async signInOAuth(provider) {
     if (!this.client) return;
-    if (provider === 'google') return this.signInGoogle();
+    if (provider === 'google') return this.continueWithGoogle();
     if (provider === 'tiktok') {
       ACIControl?.reply('TikTok login — enable custom OIDC in Supabase, then wire provider tiktok.');
       return;
@@ -317,18 +361,14 @@ const Auth = {
     GlobeDeck?.setPreview?.('Sign in · ' + origin);
     ACIControl?.reply('Sign in at ' + origin + ' with ' + provider);
     const redirectTo = window.location.origin + window.location.pathname + (window.location.search || '');
-    const { data, error } = await this.client.auth.signInWithOAuth({
+    const { error } = await this.client.auth.signInWithOAuth({
       provider,
       options: {
         redirectTo,
-        skipBrowserRedirect: true,
         scopes: provider === 'facebook' ? 'email profile' : undefined,
       },
     });
     if (error) throw error;
-    let url = data?.url;
-    if (typeof astranovizeAuthUrl === 'function') url = astranovizeAuthUrl(url);
-    if (url) window.location.href = url;
   },
 
   _normalizeId(raw) {

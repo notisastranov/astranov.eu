@@ -390,6 +390,15 @@
   #auth-signin-btn { background:var(--ax-green-bg); color:#fff; border:1px solid var(--ax-green-border); box-shadow:0 0 8px var(--ax-green-glow); }
   #auth-signup-btn { background:var(--ax-blue-bg); color:var(--ax-blue-bright); border:1px solid var(--ax-blue-border); }
   #auth-status { font-size:10px; color:#9bc; min-height:28px; margin-top:6px; }
+  .auth-primary-btn { display:block; width:100%; padding:14px 16px; margin:0 0 10px; border:none; border-radius:12px; font-size:14px; font-weight:700; cursor:pointer; touch-action:manipulation; }
+  .auth-primary-btn.google { background:#4285f4; color:#fff; box-shadow:0 4px 14px rgba(66,133,244,0.45); }
+  .auth-secondary-btn { display:block; width:100%; padding:12px 16px; margin:0 0 8px; border-radius:12px; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); font-size:13px; font-weight:700; cursor:pointer; touch-action:manipulation; }
+  .auth-email-quick { width:100%; padding:10px 12px; margin:0 0 8px; border-radius:10px; border:1px solid rgba(73,183,255,0.35); background:rgba(0,0,0,0.4); color:#fff; font:inherit; box-sizing:border-box; }
+  .auth-gis-host { display:none; justify-content:center; min-height:44px; margin:8px 0; }
+  .auth-gis-host.desktop { display:flex; }
+  .auth-more-oauth { margin-top:8px; font-size:10px; color:#8ab; }
+  .auth-more-oauth summary { cursor:pointer; padding:6px 0; }
+  .auth-trust-line { font-size:10px; color:#9ab; margin-top:8px; text-align:center; }
   /* Site shell — subdomain over Earth */
   #astranov-site-shell { display:none; position:fixed; top:0; left:0; right:0; bottom:118px; z-index:110; flex-direction:column; pointer-events:auto; }
   #astranov-site-shell.open { display:flex; }
@@ -505,15 +514,19 @@
         <button class="auth-tab" type="button" data-pane="auth-pane-phone">Phone</button>
       </div>
       <div id="auth-pane-social" class="auth-pane active">
-        <div class="auth-oauth-grid">
-          <button type="button" data-oauth="google">Google</button>
-          <button type="button" data-oauth="facebook">Facebook</button>
-          <button type="button" data-oauth="apple">Apple</button>
-          <button type="button" data-oauth="twitter">X / Twitter</button>
-          <button type="button" data-oauth="tiktok" title="Enable in Supabase OIDC">TikTok</button>
-        </div>
-        <div id="auth-google-btn" style="display:flex;justify-content:center;min-height:44px;margin:8px 0"></div>
-        <div style="font-size:10px;color:#9ab">Official domain <b id="auth-origin-inline">astranov.eu</b> · tap the blue <b>Sign in with Google</b> button · or use Email tab</div>
+        <button type="button" id="auth-google-continue" class="auth-primary-btn google">Continue with Google</button>
+        <div id="auth-google-btn" class="auth-gis-host"></div>
+        <input id="auth-email-quick" type="email" autocomplete="email" placeholder="your@gmail.com" class="auth-email-quick" />
+        <button type="button" id="auth-email-link" class="auth-secondary-btn">Email me a sign-in link</button>
+        <details class="auth-more-oauth">
+          <summary>Facebook · Apple · X</summary>
+          <div class="auth-oauth-grid">
+            <button type="button" data-oauth="facebook">Facebook</button>
+            <button type="button" data-oauth="apple">Apple</button>
+            <button type="button" data-oauth="twitter">X / Twitter</button>
+          </div>
+        </details>
+        <div class="auth-trust-line">Official · <b id="auth-origin-inline">astranov.eu</b> · one account</div>
       </div>
       <div id="auth-pane-id" class="auth-pane">
         <div class="auth-field"><label>Email, username, or phone</label><input id="auth-identifier" type="text" autocomplete="username" placeholder="you@email.com or my-shop" /></div>

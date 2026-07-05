@@ -471,7 +471,7 @@ const Commerce = {
     if (!sug) { ACIControl?.reply('Διάλεξε πρόταση από τη λίστα'); return; }
     if (!Auth?.user) {
       ACIControl?.reply('Σύνδεση για πληρωμή');
-      Auth?.signInGoogle();
+      Auth?.openLoginModal?.('Sign in to order');
       return;
     }
     const quote = await this.buildQuote(sug);
@@ -643,7 +643,7 @@ const Commerce = {
     }
     if (!Auth?.user) {
       ACIControl?.reply('Sign in to request menu');
-      Auth?.signInGoogle();
+      Auth?.openLoginModal?.('Sign in to order');
       return;
     }
     if (this._menuRequestSent) return;
@@ -694,7 +694,7 @@ const Commerce = {
     if (!items.length) { ACIControl?.reply('Add at least one item'); return; }
     if (!Auth?.user) {
       ACIControl?.reply('Sign in to place order');
-      Auth?.signInGoogle();
+      Auth?.openLoginModal?.('Sign in to order');
       return;
     }
     await this.placeOrder(vendor, items);

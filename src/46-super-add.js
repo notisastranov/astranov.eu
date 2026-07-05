@@ -256,7 +256,7 @@ const SuperAdd = {
 
     if (!Auth?.user) {
       ACIControl?.reply('Sign in (G) to post');
-      Auth?.signInGoogle?.();
+      Auth?.openLoginModal?.('Sign in to post');
       return;
     }
 

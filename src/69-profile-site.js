@@ -281,7 +281,7 @@ const ProfileSite = {
   },
 
   async requestSubdomain() {
-    if (!Auth?.user) return Auth?.signInGoogle?.();
+    if (!Auth?.user) return Auth?.openLoginModal?.('Sign in for profile');
     const d = this._collectDraft();
     const slug = AstranovSitesProvision?.slugify?.(d.site_slug) || '';
     if (!slug || slug.length < 3) {

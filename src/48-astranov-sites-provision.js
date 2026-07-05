@@ -41,7 +41,7 @@ const AstranovSitesProvision = {
 
   async provision(opts = {}) {
     if (!Auth?.user) {
-      Auth?.signInGoogle?.();
+      Auth?.openLoginModal?.('Sign in to provision site');
       throw new Error('Sign in (G) to create your Astranov Site.');
     }
     const slug = this.slugify(opts.slug);
