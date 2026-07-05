@@ -30,9 +30,8 @@ function scrubSupabaseLeak(text) {
 function astranovizeAuthUrl(url) {
   try {
     const origin = astranovPublicOrigin();
-    return String(url || '')
-      .replace(/https:\/\/[a-z0-9]{18,}\.supabase\.co/gi, origin)
-      .replace(/redirect_uri=[^&]+/i, 'redirect_uri=' + encodeURIComponent(origin + '/auth/v1/callback'));
+    // Proxy hop only — never rewrite redirect_uri (breaks Google OAuth validation)
+    return String(url || '').replace(/https:\/\/[a-z0-9]{18,}\.supabase\.co/gi, origin);
   } catch (_) {
     return url;
   }

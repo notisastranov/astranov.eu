@@ -61,6 +61,17 @@ const Auth = {
       this.broadcastToShell();
       if (this.user) this.loadProfileVisual();
     });
+    if (/[?&#](code|access_token)=/i.test(location.search + location.hash)) {
+      setTimeout(() => {
+        this.client.auth.getSession().then(({ data }) => {
+          if (data?.session?.user) {
+            this.closeLoginModal();
+            ACIControl?.reply('Signed in · welcome back');
+            history.replaceState(null, '', location.pathname + location.search.replace(/[?&]code=[^&]+/, '').replace(/^&/, '?'));
+          }
+        });
+      }, 600);
+    }
     const btn = document.getElementById('aci-login');
     if (btn) btn.onclick = () => this.user ? this.openLoggedInProfile() : this.signInGoogle();
     this.bindAuthModal();
@@ -163,9 +174,7 @@ const Auth = {
     }
   },
 
-  _preferGoogleRedirect() {
-    return this._isMobileClient();
-  },
+  _gsiInitialized: false,
 
   _ensureGoogleGsi() {
     if (window.google?.accounts?.id) return Promise.resolve();
@@ -182,99 +191,102 @@ const Auth = {
     return this._gsiReady;
   },
 
+  _renderGoogleButton(host) {
+    if (!host || !window.google?.accounts?.id) return;
+    host.innerHTML = '';
+    window.google.accounts.id.renderButton(host, {
+      type: 'standard',
+      theme: 'filled_blue',
+      size: 'large',
+      text: 'signin_with',
+      shape: 'pill',
+      logo_alignment: 'left',
+      width: Math.min(320, host.clientWidth || 280),
+    });
+  },
+
   _mountGoogleButton() {
     const host = document.getElementById('auth-google-btn');
-    if (!host || host.dataset.mounted) return;
-    host.dataset.mounted = '1';
+    if (!host) return;
     this._ensureGoogleGsi().then(() => {
-      if (!this.GOOGLE_CLIENT_ID || !window.google?.accounts?.id) return;
-      window.google.accounts.id.renderButton(host, {
-        type: 'standard',
-        theme: 'filled_blue',
-        size: 'large',
-        text: 'signin_with',
-        shape: 'pill',
-        logo_alignment: 'left',
-        width: Math.min(320, host.clientWidth || 280),
-      });
+      if (!this.GOOGLE_CLIENT_ID) return;
+      this._initGoogleCredential();
+      this._renderGoogleButton(host);
     }).catch(() => {});
+  },
+
+  _initGoogleCredential() {
+    if (this._gsiInitialized || !window.google?.accounts?.id || !this.GOOGLE_CLIENT_ID) return;
+    this._gsiInitialized = true;
+    const origin = this.publicOrigin();
+    window.google.accounts.id.initialize({
+      client_id: this.GOOGLE_CLIENT_ID,
+      callback: async (resp) => {
+        const status = document.getElementById('auth-status');
+        try {
+          if (!resp?.credential) throw new Error('Google sign-in cancelled');
+          if (status) status.textContent = 'Signing in…';
+          const { data, error } = await this.client.auth.signInWithIdToken({
+            provider: 'google',
+            token: resp.credential,
+          });
+          if (error) throw error;
+          this.closeLoginModal();
+          ACIControl?.reply('Signed in at ' + origin);
+          return data;
+        } catch (e) {
+          const msg = typeof scrubSupabaseLeak === 'function' ? scrubSupabaseLeak(e.message) : (e.message || e);
+          if (/invalid_client|no registered origin|401/i.test(msg)) {
+            if (status) status.textContent = 'Trying alternate sign-in…';
+            try { await this._signInGoogleRedirect(); return; } catch (_) {}
+          }
+          if (status) status.textContent = msg;
+          ACIControl?.reply('Google sign-in failed — ' + msg);
+        }
+      },
+      auto_select: false,
+      cancel_on_tap_outside: true,
+      context: 'signin',
+      itp_support: true,
+    });
   },
 
   async signInGoogle() {
     if (!this.client) return;
     const origin = this.publicOrigin();
+    const mobile = this._isMobileClient();
+    this.openLoginModal();
     const status = document.getElementById('auth-status');
-    if (this._preferGoogleRedirect()) {
-      if (status) status.textContent = 'Opening Google sign-in for ' + origin + '…';
-      try {
-        return await this._signInGoogleRedirect();
-      } catch (e) {
-        const msg = typeof scrubSupabaseLeak === 'function' ? scrubSupabaseLeak(e.message) : (e.message || e);
-        if (status) status.textContent = msg;
-        ACIControl?.reply('Google sign-in failed — ' + msg);
-        return;
-      }
-    }
-    if (status) status.textContent = 'Sign in on ' + origin + ' — Google popup';
     GlobeDeck?.setPreview?.('Sign in · ' + origin);
+
     try {
       await this._ensureGoogleGsi();
       if (!this.GOOGLE_CLIENT_ID || !window.google?.accounts?.id) {
         return this._signInGoogleRedirect();
       }
-      await new Promise((resolve, reject) => {
-        let settled = false;
-        const done = (fn, v) => { if (!settled) { settled = true; fn(v); } };
-        const t = setTimeout(() => done(reject, new Error('Google sign-in timed out — try again')), 120000);
-        window.google.accounts.id.initialize({
-          client_id: this.GOOGLE_CLIENT_ID,
-          callback: async (resp) => {
-            clearTimeout(t);
-            try {
-              const { data, error } = await this.client.auth.signInWithIdToken({
-                provider: 'google',
-                token: resp.credential,
-              });
-              if (error) throw error;
-              this.closeLoginModal();
-              ACIControl?.reply('Signed in at ' + origin);
-              done(resolve, data);
-            } catch (e) {
-              done(reject, e);
-            }
-          },
-          auto_select: false,
-          cancel_on_tap_outside: true,
-          context: 'signin',
-          itp_support: true,
-        });
-        window.google.accounts.id.prompt((n) => {
-          if (n?.isNotDisplayed?.() || n?.isSkippedMoment?.()) {
-            const host = document.getElementById('auth-google-btn');
-            if (host && !host.querySelector('iframe')) {
-              window.google.accounts.id.renderButton(host, {
-                type: 'standard', theme: 'filled_blue', size: 'large', text: 'signin_with', shape: 'pill', width: 280,
-              });
-            }
-            if (status) status.textContent = 'Tap the Google button below · astranov.eu';
-          }
-        });
+      this._initGoogleCredential();
+      const host = document.getElementById('auth-google-btn');
+      this._renderGoogleButton(host);
+
+      if (mobile) {
+        if (status) status.textContent = 'Tap the blue Google button below · ' + origin.replace(/^https?:\/\//, '');
+        return;
+      }
+
+      if (status) status.textContent = 'Sign in on ' + origin + ' — choose Google below';
+      window.google.accounts.id.prompt((n) => {
+        if (n?.isNotDisplayed?.() || n?.isSkippedMoment?.()) {
+          if (status) status.textContent = 'Tap the Google button below · astranov.eu';
+        }
       });
     } catch (e) {
       const msg = typeof scrubSupabaseLeak === 'function' ? scrubSupabaseLeak(e.message) : (e.message || e);
-      if (/invalid_client|no registered origin|401/i.test(msg)) {
-        if (status) status.textContent = 'Switching to secure redirect sign-in…';
-        try {
-          return await this._signInGoogleRedirect();
-        } catch (e2) {
-          const msg2 = typeof scrubSupabaseLeak === 'function' ? scrubSupabaseLeak(e2.message) : (e2.message || e2);
-          if (status) status.textContent = msg2;
-          ACIControl?.reply('Google sign-in failed — ' + msg2);
-          return;
-        }
-      }
       if (status) status.textContent = msg;
-      ACIControl?.reply('Google sign-in failed — ' + msg);
+      try {
+        await this._signInGoogleRedirect();
+      } catch (e2) {
+        ACIControl?.reply('Google sign-in failed — ' + (e2.message || msg));
+      }
     }
   },
 
@@ -282,20 +294,14 @@ const Auth = {
     if (!this.client) return;
     const origin = this.publicOrigin();
     const status = document.getElementById('auth-status');
-    if (status) status.textContent = 'Redirecting to Google · ' + origin;
+    if (status) status.textContent = 'Opening Google sign-in…';
     GlobeDeck?.setPreview?.('Sign in · ' + origin);
     const redirectTo = window.location.origin + window.location.pathname + (window.location.search || '');
-    const { data, error } = await this.client.auth.signInWithOAuth({
+    const { error } = await this.client.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo, skipBrowserRedirect: true, scopes: 'email profile' },
+      options: { redirectTo, scopes: 'email profile' },
     });
     if (error) throw error;
-    let url = data?.url;
-    if (typeof astranovizeAuthUrl === 'function') url = astranovizeAuthUrl(url);
-    if (url) {
-      this.closeLoginModal();
-      window.location.href = url;
-    }
   },
 
   async signInOAuth(provider) {
