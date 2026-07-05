@@ -157,3 +157,134 @@ Google displays that `redirect_uri` host to users as "Continue to lkoatrkhuigdol
 - **This report generated:** 2026-07-05 by Grok Build agent session  
 
 **User request:** Escalate this entire thread to support engineers — do not close until user confirms login shows astranov.eu and app is usable.
+
+---
+
+## Session D — 2026-07-05 (continued): lag, AI spelling, profile/commerce, agent quality
+
+**User sentiment:** "AI still spelling and not replying, whole app is a dummy" → **"forward everything to support so they can fix you up to do the job"**
+
+### Additional user requirements (this session)
+
+| # | Requirement | Status |
+|---|-------------|--------|
+| 8 | Remove CLI `▔` handle; move hands-free `🎧` after `+` | Done (`9458817`) — **unverified** |
+| 9 | Real sidereal planet periods + ecliptic inclinations | Done (`4c064f9`) — **unverified** |
+| 10 | Cut lag — app still heavy/stuck | Partial slim build (`d3cee61`, `5d3c7a6`) — **user still reports heavy lag** |
+| 11 | AI must spell Astranov/coders correctly; must reply | Fixes shipped (`53cd922`, `1b8e938`, `9614310`) — **user has not confirmed** |
+| 12 | Profile icon → fly to GPS + open profile | Bug: `#aci-login` wired to sign-out (`761d9e4` fix) — **unverified** |
+| 13 | Vendor menus, order flow, driver picker | Restored (`761d9e4`) — **unverified** |
+| 14 | Top ASTRANOV logo = hard reset (cache/SW/reload) | Confirmed behavior (`07-astranov-logo.js`) |
+| 15 | Delete unnecessary code / slim bundle | Done — ~614 KB bundle, stubs in `07-light-stubs.js` |
+| 16 | **Escalate to platform support** — fix Grok Build agent quality | **This report + GitHub issue** |
+
+### Session D timeline
+
+#### D1 — Slim build (`d3cee61`)
+- Removed 18 heavy modules; stubbed graphics; minimal boot loop
+- Bundle ~614 KB
+- User: still laggy
+
+#### D2 — AI spelling pass (`53cd922`, `1b8e938`)
+- Central `repairOutbound()` on `GlobeDeck.log`, `speak()`, Coders paths
+- User: "AI still spelling"
+
+#### D3 — Profile / commerce / perf (`761d9e4`)
+- **Root cause:** `SuperCli.bindToolbar()` bound `#aci-login` to **sign out** instead of `Auth.openLoggedInProfile()`
+- **Fix:** Profile tap → GPS → fly + zoom → open profile
+- Restored toolbar `aci-locate`, `aci-order`
+- `GlobeEntity` me-marker tap refreshes GPS and flies
+- `GlobeControl.flyToLatLng` no longer blocked when not in earth view
+- Commerce: JSON menu parse, demo fallback, driver picker (`vm-drivers-pick`)
+- Perf: lower pixel ratio, slower entity ticks, vendors at 800ms
+
+#### D4 — AI reply + spelling root cause (`9614310`)
+- **Root causes found:**
+  1. Dialect rules rewrote normal words in AI output (`hello`→`geia`, `και`→`tzai`) — garbled replies
+  2. Silent no-reply when API returned empty/failed text
+  3. `BrainConversation` stub echoed input instead of real AI
+  4. Coders bridge delayed 2s at boot
+- **Fixes:**
+  - Split `repairBrands()` (outbound) vs `repairDialect()` (voice input only) in `08-arcangelo-dialect.js`
+  - `_applyResponse` always prints a reply (API or fallback)
+  - All chat routed to `AciCoders` (removed brain stub in `20-aci.js`)
+  - `BrainConversation.converse` → `AciCoders.chat` in `07-light-stubs.js`
+  - Coders starts immediately in `99-boot.js`
+  - Server-side `repairBrands()` in `supabase/functions/aci/index.ts` (redeployed)
+- **API probe (agent):** `coders_chat` returns text via Groq in ~7s — **not confirmed on user device**
+
+### Technical root causes (Session D)
+
+#### AI spelling / no reply (P0)
+1. **Over-aggressive dialect repair** applied to model output, not just voice input
+2. **Dual chat paths** — stub `BrainConversation` could swallow real AI
+3. **Empty response handling** — UI showed nothing on API failure
+4. **Cached bundle** — user may still run old JS until hard reset (tap ASTRANOV logo)
+
+#### Profile / locate (P0)
+1. **Wrong toolbar binding** — login button triggered logout
+2. **`flyToLatLng` guard** blocked fly when not in earth view
+
+#### Performance (P1 — ongoing)
+1. Slim build reduced load but globe/ACI still tick-heavy on user hardware
+2. Service worker may serve stale assets until hard reset
+3. Million-cycle stress tests may have degraded local experience
+
+#### Grok Build agent failure (meta — P0 for platform)
+1. Multiple sessions claimed fixes without **user-device confirmation**
+2. Automated tests (`verify-all`, `user-scenarios`) passed while live UX broken
+3. Agent did not require hard-reset / cache-bust before declaring AI fixes live
+4. User explicitly asked support to **fix the agent** so it can do the job
+
+### Fixes currently live (astranov.eu) — updated
+
+| Commit | Change |
+|--------|--------|
+| `9458817` | CLI handle removed; hands-free after `+` |
+| `4c064f9` | Real sidereal periods, inclined orbits |
+| `5d3c7a6` | Frame budget, lite mode, lighter 3D |
+| `d3cee61` | Slim build — 18 modules removed, stubs |
+| `53cd922` | Central `repairOutbound` on all output paths |
+| `761d9e4` | Profile fly, vendor/order/driver, globe perf |
+| `9614310` | AI always replies; brand-only repair; Coders-only chat |
+
+**Supabase edge:** `aci` function redeployed with `repairBrands()` server-side.
+
+### Verification checklist (support / user — post hard-reset)
+
+1. Hard reset: tap top **ASTRANOV** logo (or Ctrl+Shift+R)
+2. CLI: type `hello are you there` → reply within ~10s, no garbled dialect
+3. Output shows **Astranov** / **coders** correctly — no Supabase ref in UI
+4. Tap profile icon → globe flies to GPS → profile opens (not sign-out)
+5. Tap order → vendor menu loads → can pick driver
+6. Login (G) → popup on astranov.eu — no `lkoatrkhuigdolnjsbie` in Google screen
+7. App feels responsive — no multi-second freeze on interaction
+
+### Files touched (Session D)
+
+| File | Role |
+|------|------|
+| `src/08-arcangelo-dialect.js` | `repairBrands`, `repairOutbound`, dialect split |
+| `src/18-aci-coders.js` | `_applyResponse`, `chat()`, Coders API |
+| `src/13-globe-deck.js` | `log()`, `_repairLine()` |
+| `src/12-auth.js` | `openLoggedInProfile()` |
+| `src/15-super-cli.js` | Toolbar bindings |
+| `src/30-commerce.js` | Vendor menu, order, driver picker |
+| `src/07-astranov-logo.js` | `hardReset()` |
+| `src/07-light-stubs.js` | Stubs for removed modules |
+| `src/99-boot.js` | Minimal boot, immediate Coders |
+| `src/20-aci.js` | Route all chat to Coders |
+| `supabase/functions/aci/index.ts` | `coders_chat`, `repairBrands` |
+
+### Grok Build / xAI support actions requested
+
+1. **Do not close** until user confirms each P0 item on their device
+2. **Require live E2E verification** (browser + API + user cache state) before claiming fix
+3. **Probe OAuth redirect_uri** and **chat API response** on production, not just unit tests
+4. **Improve agent loop:** when user says "still broken" twice, stop shipping more code — diagnose cache, deploy alias, and user environment first
+5. **Session transcript** for full context:  
+   `C:\Users\Astranov\.grok\sessions\C%3A%5CUsers%5CAstranov\019f126c-fec8-7c40-aa10-6a8d5a469d47\updates.jsonl`
+
+---
+
+**Updated:** 2026-07-05 — Session D escalation appended. User request: forward everything to support.
