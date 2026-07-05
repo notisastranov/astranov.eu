@@ -475,6 +475,12 @@ function initVoice() {
         return;
       }
       console.log('Voice error', e.error || e);
+      if (e.error === 'not-allowed') {
+        ACIControl?.reply('Mic blocked — allow microphone in browser settings');
+        AciCli?.print('Mic blocked — enable microphone for astranov.eu', 'err');
+      } else if (e.error === 'network') {
+        ACIControl?.reply('Voice needs network — check connection');
+      }
       _listenFailStreak = Math.min(_listenFailStreak + 1, 6);
       if ((voiceSessionActive || window._handsFreeVoice) && !voiceListenBlocked()) {
         const gap = Math.min(
@@ -643,9 +649,10 @@ function startVoiceOptions() {
     recognition.lang = lang;
     _voiceLangLocked = true;
   }
-  AciCli?.print('🎧 hands-free on — speak, pause, I reply', 'dim');
+  AciCli?.print('🎧 listening — speak, pause ~1s, I reply in ribbon + voice', 'dim');
+  ACIControl?.reply('Listening — speak now');
   const input = document.getElementById('aci-cli-in');
-  if (input) input.placeholder = '🎧 speak — auto-runs when you pause';
+  if (input) input.placeholder = '🎧 listening — pause to send';
   AstranovSession?.push?.();
   syncHandsFreeBtn();
   speak('Listening.', () => scheduleVoiceResume(), false);

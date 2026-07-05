@@ -305,8 +305,15 @@ const GlobeDeck = {
     while (out.children.length > 48) out.removeChild(out.firstChild);
     out.scrollTop = out.scrollHeight;
     if (kind === 'reply' || kind === 'out' || kind === 'ok') {
+      this._userEngaged = true;
       this.setPreview(repaired);
       CliRibbon?.setNotice?.(repaired.slice(0, 120), 'ready');
+      const prev = document.getElementById('globe-deck-preview');
+      if (prev) prev.textContent = repaired.slice(0, 120);
+      if (!this.expanded && this._isMobileDeck()) {
+        this.deck()?.classList.add('has-preview');
+        this.ping();
+      }
     }
     if (kind === 'err') CliRibbon?.setNotice?.(repaired, 'err');
     if (this._userEngaged && (kind === 'reply' || kind === 'out' || kind === 'err')) this.ping();
@@ -342,7 +349,6 @@ const GlobeDeck = {
     const d = this.deck();
     if (d) d.classList.toggle('deck-thinking', this.thinking);
     if (on && hint) CliRibbon?.setNotice?.(hint, 'thinking');
-    else if (!on) CliRibbon?.clearNotice?.();
     CliRibbon?.render?.();
     if (on) {
       this.setPreview(hint || '… thinking');

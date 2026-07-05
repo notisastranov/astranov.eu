@@ -210,6 +210,8 @@ const AciCli = {
     }
     this._lastSentLine = line;
     this._lastSendAt = now;
+    GlobeDeck?.onUserMessage?.('Coders — ' + line.slice(0, 40));
+    GlobeDeck?.setThinking?.(true, 'Coders…');
     GlobeDeck?.setPreview?.('Coders…');
     GlobeDeck?.clearCompose?.();
     this.run(line);

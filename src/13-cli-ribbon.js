@@ -82,7 +82,10 @@ const CliRibbon = {
 
   setNotice(text, kind) {
     if (this.isGlobeHint(text)) return;
-    const s = this.shorten(text);
+    const raw = String(text || '').trim();
+    const s = (kind === 'ready' || kind === 'thinking')
+      ? (raw.length > 100 ? raw.slice(0, 100).trim() + '…' : raw)
+      : this.shorten(text);
     this._notice = s;
     if (kind) this._kind = kind;
     else if (/error|fail|denied/i.test(s)) this._kind = 'err';

@@ -487,10 +487,10 @@ const AciCoders = {
     if (composerQueued) this.startPoll(composerQueued);
     else this.stopPoll();
 
-    GlobeDeck?.setThinking?.(false);
     const spoken = ArcangeloDialect?.repairOutbound?.(reply, 'reply') ?? reply;
     if (!r.pending) {
-      if (window._handsFreeVoice && Voice.shouldSpeak(spoken)) {
+      const wantVoice = window._handsFreeVoice || voiceSessionActive || Voice?.maySpeak?.();
+      if (wantVoice && Voice.shouldSpeak(spoken)) {
         speak(spoken.slice(0, 120), () => resumeListening?.(), false);
       } else if (window._handsFreeVoice || voiceSessionActive) {
         scheduleVoiceResume?.();
@@ -498,6 +498,7 @@ const AciCoders = {
     } else if (window._handsFreeVoice || voiceSessionActive) {
       scheduleVoiceResume?.();
     }
+    GlobeDeck?.setThinking?.(false);
 
     this.observeActivity('chat', userMsg, { coders: true, guest: !!r.guest });
     FieldBrain?.pulse?.('think', 'coders: ' + userMsg.slice(0, 48), {

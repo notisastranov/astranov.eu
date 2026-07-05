@@ -301,6 +301,23 @@ const SCENARIOS = [
     },
   },
   {
+    name: 'AI — reply survives thinking + shows in ribbon',
+    run: async (page) => {
+      const r = await page.evaluate(async () => {
+        CliRibbon.setNotice('thinking test', 'thinking');
+        GlobeDeck.setThinking(true, 'test…');
+        GlobeDeck.setThinking(false);
+        const afterThink = document.getElementById('cli-ribbon-status')?.textContent || '';
+        GlobeDeck.log('Hello from AI test reply', 'reply');
+        const ribbon = document.getElementById('cli-ribbon-status')?.textContent || '';
+        const preview = document.getElementById('globe-deck-preview')?.textContent || '';
+        return { afterThink, ribbon, preview, hasReply: /Hello from AI/i.test(ribbon + preview) };
+      });
+      if (!r.hasReply) throw new Error('reply not visible: ' + JSON.stringify(r));
+      return r;
+    },
+  },
+  {
     name: 'auth — Google redirect primary',
     run: async (page) => {
       const r = await page.evaluate(() => ({
