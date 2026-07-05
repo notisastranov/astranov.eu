@@ -47,7 +47,6 @@ function animate() {
   if (earthView && frame % 3 === 0) CelestialNav?.tick?.();
   renderer.render(scene, camera);
 }
-animate();
 
 Auth.init();
 GlobeDeck.init();
@@ -94,4 +93,6 @@ const isOfficial = host === 'astranov.eu' || host.endsWith('.astranov.eu');
 const isLocal = host === '' || host === 'localhost' || host === '127.0.0.1' || location.protocol === 'file:';
 if (host && !isOfficial && !isLocal) {
   document.body.innerHTML = '<div style="color:#444;padding:40px;text-align:center;font-family:sans-serif">Available only on authorized Astranov domains</div>';
+} else {
+  animate();
 }

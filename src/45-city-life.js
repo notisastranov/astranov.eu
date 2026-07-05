@@ -9,6 +9,15 @@ const CityLife = {
 
   init() {
     this._startFriendMotion();
+    const locateBtn = document.getElementById('aci-locate');
+    if (locateBtn && !locateBtn._cityLifeBound) {
+      locateBtn._cityLifeBound = true;
+      locateBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        locateMe?.();
+      }, { capture: true });
+    }
   },
 
   userPos() {
@@ -60,9 +69,9 @@ const CityLife = {
         CityMap?.onCamera?.(this.CITY_ZOOM, 'earth');
         if (!CityMap?.active) CityMap?._enter?.(this.CITY_ZOOM);
       }
-      GlobeDeck?.setMapStatus('City map · flying to you…');
-      await this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
-      await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
+      GlobeDeck?.setMapStatus('City map open · syncing globe…');
+      void this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
+      setTimeout(() => CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM }), 120);
 
       if (Commerce?.loadVendors) {
         await Promise.race([
@@ -160,7 +169,7 @@ const CityLife = {
           resolve(await this.dropIn(lat, lng, { label: 'Your city' }));
         },
         err => reject(err),
-        { enableHighAccuracy: true, timeout: 14000, maximumAge: 30000 }
+        { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
       );
     });
   },

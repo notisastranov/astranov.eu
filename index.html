@@ -10291,7 +10291,7 @@ window.GlobeVideo = GlobeVideo;
 
 // ── COSMIC ZOOM: Earth → satellites → solar system → galaxy ──
 const CosmicZoom = {
-  level: 'system',
+  level: 'earth',
   solarGroup: null,
   galaxyPts: null,
   satGroup: null,
@@ -10466,6 +10466,10 @@ const CosmicZoom = {
     iss.userData = { type: 'iss', name: 'ISS', desc: 'International Space Station · ~400 km' };
     this.satGroup.add(iss);
     this.issMarker = iss;
+    this.level = 'earth';
+    this.setOrbitVisibility('earth');
+    if (this.solarGroup) this.solarGroup.visible = false;
+    if (this.galaxyPts) this.galaxyPts.visible = false;
   },
 
   registerOrbitalSats(sats) {
@@ -10595,7 +10599,7 @@ const CosmicZoom = {
     if (window._cityDropLock && !opts.cosmic) {
       opts = Object.assign({}, opts, { cosmic: 'earth', tier: opts.tier || 'city', label: opts.label || 'CITY' });
     }
-    let level = opts.cosmic || 'earth';
+    let level = opts.cosmic === 'system' ? 'system' : opts.cosmic === 'galaxy' ? 'galaxy' : 'earth';
     let label = opts.label || 'GLOBAL';
     if (!opts.tier) {
       if (camZ > 14) { level = 'galaxy'; label = 'GALAXY'; }
@@ -12216,6 +12220,15 @@ const CityLife = {
 
   init() {
     this._startFriendMotion();
+    const locateBtn = document.getElementById('aci-locate');
+    if (locateBtn && !locateBtn._cityLifeBound) {
+      locateBtn._cityLifeBound = true;
+      locateBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        locateMe?.();
+      }, { capture: true });
+    }
   },
 
   userPos() {
@@ -12267,9 +12280,9 @@ const CityLife = {
         CityMap?.onCamera?.(this.CITY_ZOOM, 'earth');
         if (!CityMap?.active) CityMap?._enter?.(this.CITY_ZOOM);
       }
-      GlobeDeck?.setMapStatus('City map · flying to you…');
-      await this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
-      await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
+      GlobeDeck?.setMapStatus('City map open · syncing globe…');
+      void this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
+      setTimeout(() => CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM }), 120);
 
       if (Commerce?.loadVendors) {
         await Promise.race([
@@ -12367,7 +12380,7 @@ const CityLife = {
           resolve(await this.dropIn(lat, lng, { label: 'Your city' }));
         },
         err => reject(err),
-        { enableHighAccuracy: true, timeout: 14000, maximumAge: 30000 }
+        { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
       );
     });
   },
@@ -17095,7 +17108,6 @@ function animate() {
   if (earthView && frame % 3 === 0) CelestialNav?.tick?.();
   renderer.render(scene, camera);
 }
-animate();
 
 Auth.init();
 GlobeDeck.init();
@@ -17142,6 +17154,8 @@ const isOfficial = host === 'astranov.eu' || host.endsWith('.astranov.eu');
 const isLocal = host === '' || host === 'localhost' || host === '127.0.0.1' || location.protocol === 'file:';
 if (host && !isOfficial && !isLocal) {
   document.body.innerHTML = '<div style="color:#444;padding:40px;text-align:center;font-family:sans-serif">Available only on authorized Astranov domains</div>';
+} else {
+  animate();
 }
 </script>
 </body>

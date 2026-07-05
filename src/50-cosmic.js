@@ -1,6 +1,6 @@
 // ── COSMIC ZOOM: Earth → satellites → solar system → galaxy ──
 const CosmicZoom = {
-  level: 'system',
+  level: 'earth',
   solarGroup: null,
   galaxyPts: null,
   satGroup: null,
@@ -175,6 +175,10 @@ const CosmicZoom = {
     iss.userData = { type: 'iss', name: 'ISS', desc: 'International Space Station · ~400 km' };
     this.satGroup.add(iss);
     this.issMarker = iss;
+    this.level = 'earth';
+    this.setOrbitVisibility('earth');
+    if (this.solarGroup) this.solarGroup.visible = false;
+    if (this.galaxyPts) this.galaxyPts.visible = false;
   },
 
   registerOrbitalSats(sats) {
@@ -304,7 +308,7 @@ const CosmicZoom = {
     if (window._cityDropLock && !opts.cosmic) {
       opts = Object.assign({}, opts, { cosmic: 'earth', tier: opts.tier || 'city', label: opts.label || 'CITY' });
     }
-    let level = opts.cosmic || 'earth';
+    let level = opts.cosmic === 'system' ? 'system' : opts.cosmic === 'galaxy' ? 'galaxy' : 'earth';
     let label = opts.label || 'GLOBAL';
     if (!opts.tier) {
       if (camZ > 14) { level = 'galaxy'; label = 'GALAXY'; }
