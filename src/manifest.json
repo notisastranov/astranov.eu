@@ -33,7 +33,6 @@
     { "file": "43-youtube-globe.js", "marker": "// === YOUTUBE ON GLOBE" },
     { "file": "50-cosmic.js", "marker": "// ── COSMIC ZOOM:" },
     { "file": "51-celestial-nav.js", "marker": "// === CELESTIAL NAV" },
-    { "file": "52-earth-boot.js", "marker": "// === EARTH BOOT" },
     { "file": "53-coders-hub.js", "marker": "// === CODERS HUB" },
     { "file": "09-zoom-tiers.js", "marker": "// === ZOOM TIERS" },
     { "file": "10-trackball.js", "marker": "// Trackball — rotate entire globe pivot" },

@@ -38,7 +38,6 @@ const AstranovLogo = {
     ZoomTiers?.goTo?.('global', true);
     CityMap?._exit?.();
     CosmicZoom?.update?.(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
-    EarthBoot?.forceEarth?.(8000);
     cityLevel = false;
     const zl = document.getElementById('zoom-label');
     if (zl && !DrivingView?.active) zl.textContent = 'GLOBAL · tap 🎯 Locate for city map';

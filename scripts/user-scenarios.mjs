@@ -46,14 +46,14 @@ const SCENARIOS = [
         cityMap: !!window.CityMap,
         theme: !!window.AstranovTheme,
         earth: !!window.EarthRealism,
-        earthBoot: !!window.EarthBoot,
         codersHub: !!window.CodersHub,
         leaflet: !!window.L,
         renderer: !!window.renderer,
         cityReady: window.CityMap?._ready,
-        earthBootActive: document.body.classList.contains('earth-boot-active'),
+        globeCanvas: !!document.querySelector('#globe canvas'),
       }));
-      if (!r.three || !r.cityMap || !r.theme || !r.earth || !r.earthBoot || !r.codersHub) throw new Error('missing globals: ' + JSON.stringify(r));
+      if (!r.three || !r.cityMap || !r.theme || !r.earth || !r.codersHub) throw new Error('missing globals: ' + JSON.stringify(r));
+      if (!r.globeCanvas) throw new Error('real WebGL globe canvas missing');
       if (!r.leaflet) throw new Error('Leaflet not loaded');
       if (!r.cityReady) throw new Error('CityMap not initialized');
       return r;

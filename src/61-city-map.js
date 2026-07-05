@@ -292,7 +292,6 @@ const CityMap = {
     if (!this.map) return;
     this.active = true;
     cityLevel = true;
-    EarthBoot?.hide?.();
     this._applyBaseLayers();
     const el = document.getElementById('city-map');
     const globe = document.getElementById('globe');
@@ -322,7 +321,6 @@ const CityMap = {
     if (el) el.classList.remove('active');
     if (globe) globe.classList.remove('city-map-active');
     document.body.classList.remove('city-map-active');
-    EarthBoot?.tick?.(camera?.position?.z, CosmicZoom?.level);
     EarthRealism?._hudTimer && (EarthRealism._hudTimer = 0);
     const chip = document.getElementById('city-life-chip');
     if (chip) chip.classList.remove('open');
