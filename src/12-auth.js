@@ -11,6 +11,8 @@ const Auth = {
   _profileVisual: null,
   _authDegraded: false,
   _authBoot: true,
+  _gsiReady: null,
+  GOOGLE_CLIENT_ID: typeof ASTRANOV_GOOGLE_CLIENT_ID !== 'undefined' ? ASTRANOV_GOOGLE_CLIENT_ID : '',
 
   init() {
     if (typeof supabase === 'undefined') {
@@ -60,7 +62,7 @@ const Auth = {
       if (this.user) this.loadProfileVisual();
     });
     const btn = document.getElementById('aci-login');
-    if (btn) btn.onclick = () => this.user ? this.openLoggedInProfile() : this.openLoginModal();
+    if (btn) btn.onclick = () => this.user ? this.openLoggedInProfile() : this.signInGoogle();
     this.bindAuthModal();
     window.addEventListener('message', e => this._onChildMessage(e));
   },
@@ -74,8 +76,12 @@ const Auth = {
     document.getElementById('auth-signup-btn')?.addEventListener('click', () => this.signUpIdentifier());
     document.getElementById('auth-phone-btn')?.addEventListener('click', () => this.signInPhoneOtp());
     modal.querySelectorAll('[data-oauth]').forEach(btn => {
-      btn.addEventListener('click', () => this.signInOAuth(btn.dataset.oauth));
+      btn.addEventListener('click', () => {
+        if (btn.dataset.oauth === 'google') this.signInGoogle();
+        else this.signInOAuth(btn.dataset.oauth);
+      });
     });
+    this._mountGoogleButton();
     modal.querySelectorAll('.auth-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         modal.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
@@ -135,13 +141,16 @@ const Auth = {
 
   openLoginModal(hint) {
     const modal = document.getElementById('astranov-auth-modal');
-    if (!modal) return this.signInOAuth('google');
+    if (!modal) return this.signInGoogle();
     const status = document.getElementById('auth-status');
     const origin = this.publicOrigin();
     if (status) status.textContent = hint || ('Official login · ' + origin + ' · one account for globe & sites');
     const originEl = document.getElementById('auth-origin-url');
     if (originEl) originEl.textContent = origin;
+    const inline = document.getElementById('auth-origin-inline');
+    if (inline) inline.textContent = origin.replace(/^https?:\/\//, '');
     modal.classList.add('open');
+    this._mountGoogleButton();
     GlobeDeck?.expand?.('Sign in · ' + origin);
   },
 
@@ -149,8 +158,114 @@ const Auth = {
     document.getElementById('astranov-auth-modal')?.classList.remove('open');
   },
 
+  _ensureGoogleGsi() {
+    if (window.google?.accounts?.id) return Promise.resolve();
+    if (this._gsiReady) return this._gsiReady;
+    this._gsiReady = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://accounts.google.com/gsi/client';
+      s.async = true;
+      s.defer = true;
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('Google sign-in script failed'));
+      document.head.appendChild(s);
+    });
+    return this._gsiReady;
+  },
+
+  _mountGoogleButton() {
+    const host = document.getElementById('auth-google-btn');
+    if (!host || host.dataset.mounted) return;
+    host.dataset.mounted = '1';
+    this._ensureGoogleGsi().then(() => {
+      if (!this.GOOGLE_CLIENT_ID || !window.google?.accounts?.id) return;
+      window.google.accounts.id.renderButton(host, {
+        type: 'standard',
+        theme: 'filled_blue',
+        size: 'large',
+        text: 'signin_with',
+        shape: 'pill',
+        logo_alignment: 'left',
+        width: Math.min(320, host.clientWidth || 280),
+      });
+    }).catch(() => {});
+  },
+
+  async signInGoogle() {
+    if (!this.client) return;
+    const origin = this.publicOrigin();
+    const status = document.getElementById('auth-status');
+    if (status) status.textContent = 'Sign in on ' + origin + ' — Google popup, no redirect';
+    GlobeDeck?.setPreview?.('Sign in · ' + origin);
+    try {
+      await this._ensureGoogleGsi();
+      if (!this.GOOGLE_CLIENT_ID || !window.google?.accounts?.id) {
+        return this._signInGoogleRedirect();
+      }
+      await new Promise((resolve, reject) => {
+        let settled = false;
+        const done = (fn, v) => { if (!settled) { settled = true; fn(v); } };
+        const t = setTimeout(() => done(reject, new Error('Google sign-in timed out — try again')), 120000);
+        window.google.accounts.id.initialize({
+          client_id: this.GOOGLE_CLIENT_ID,
+          callback: async (resp) => {
+            clearTimeout(t);
+            try {
+              const { data, error } = await this.client.auth.signInWithIdToken({
+                provider: 'google',
+                token: resp.credential,
+              });
+              if (error) throw error;
+              this.closeLoginModal();
+              ACIControl?.reply('Signed in at ' + origin);
+              done(resolve, data);
+            } catch (e) {
+              done(reject, e);
+            }
+          },
+          auto_select: false,
+          cancel_on_tap_outside: true,
+          context: 'signin',
+          itp_support: true,
+        });
+        window.google.accounts.id.prompt((n) => {
+          if (n?.isNotDisplayed?.() || n?.isSkippedMoment?.()) {
+            const host = document.getElementById('auth-google-btn');
+            if (host && !host.querySelector('iframe')) {
+              window.google.accounts.id.renderButton(host, {
+                type: 'standard', theme: 'filled_blue', size: 'large', text: 'signin_with', shape: 'pill', width: 280,
+              });
+            }
+            if (status) status.textContent = 'Tap the Google button below · astranov.eu';
+          }
+        });
+      });
+    } catch (e) {
+      const msg = typeof scrubSupabaseLeak === 'function' ? scrubSupabaseLeak(e.message) : (e.message || e);
+      if (status) status.textContent = msg;
+      ACIControl?.reply('Google sign-in failed — ' + msg);
+    }
+  },
+
+  async _signInGoogleRedirect() {
+    if (!this.client) return;
+    this.closeLoginModal();
+    const origin = this.publicOrigin();
+    GlobeDeck?.setPreview?.('Sign in · ' + origin);
+    const redirectTo = window.location.origin + window.location.pathname + (window.location.search || '');
+    const { data, error } = await this.client.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo, skipBrowserRedirect: true, scopes: 'email profile' },
+    });
+    if (error) throw error;
+    let url = data?.url;
+    if (typeof astranovizeAuthUrl === 'function') url = astranovizeAuthUrl(url);
+    if (url) window.location.href = url;
+  },
+
   async signInOAuth(provider) {
     if (!this.client) return;
+    if (provider === 'google') return this.signInGoogle();
     if (provider === 'tiktok') {
       ACIControl?.reply('TikTok login — enable custom OIDC in Supabase, then wire provider tiktok.');
       return;
@@ -159,19 +274,21 @@ const Auth = {
     this.closeLoginModal();
     const origin = this.publicOrigin();
     GlobeDeck?.setPreview?.('Sign in · ' + origin);
-    ACIControl?.reply('Sign in at ' + origin + ' with ' + provider + ' — official Astranov');
+    ACIControl?.reply('Sign in at ' + origin + ' with ' + provider);
     const redirectTo = window.location.origin + window.location.pathname + (window.location.search || '');
-    await this.client.auth.signInWithOAuth({
+    const { data, error } = await this.client.auth.signInWithOAuth({
       provider,
       options: {
         redirectTo,
-        skipBrowserRedirect: false,
-        scopes: provider === 'google' || provider === 'facebook' ? 'email profile' : undefined,
+        skipBrowserRedirect: true,
+        scopes: provider === 'facebook' ? 'email profile' : undefined,
       },
     });
+    if (error) throw error;
+    let url = data?.url;
+    if (typeof astranovizeAuthUrl === 'function') url = astranovizeAuthUrl(url);
+    if (url) window.location.href = url;
   },
-
-  signInGoogle() { return this.signInOAuth('google'); },
 
   _normalizeId(raw) {
     return String(raw || '').trim();

@@ -342,7 +342,9 @@ const GlobeDeck = {
     const now = Date.now();
     if (title && (!this.expanded || now - this._expandAt > 400)) this.setTitle(title);
     this._expandAt = now;
-    if (this._size === 'collapsed') this._size = 'third';
+    if (this._size === 'collapsed') {
+      this._size = this._freeHeight > 130 ? 'free' : 'third';
+    }
     this.applySize();
     if (window.AciCli) AciCli.open = true;
   },

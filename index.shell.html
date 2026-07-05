@@ -502,7 +502,8 @@
           <button type="button" data-oauth="twitter">X / Twitter</button>
           <button type="button" data-oauth="tiktok" title="Enable in Supabase OIDC">TikTok</button>
         </div>
-        <div style="font-size:10px;color:#9ab">One login for the globe, your sites, and super batch.</div>
+        <div id="auth-google-btn" style="display:flex;justify-content:center;min-height:44px;margin:8px 0"></div>
+        <div style="font-size:10px;color:#9ab">Sign in stays on <b id="auth-origin-inline">astranov.eu</b> — Google popup, no Supabase redirect.</div>
       </div>
       <div id="auth-pane-id" class="auth-pane">
         <div class="auth-field"><label>Email, username, or phone</label><input id="auth-identifier" type="text" autocomplete="username" placeholder="you@email.com or my-shop" /></div>

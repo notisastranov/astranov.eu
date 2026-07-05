@@ -37,12 +37,13 @@ function animate() {
 
   const hidden = document.hidden;
   const entityCount = GlobeEntity?.entities?.size || 0;
-  const heavyGlobe = entityCount > 128;
+  const heavyGlobe = entityCount > 72;
   const codersBusy = window.AciCoders?._cliBusy || window.AciCoders?._listenBusy;
   const voiceActive = window._handsFreeVoice || isListening;
-  if (voiceActive || codersBusy || heavyGlobe) setVoicePerfMode?.(true);
+  const thinkBusy = GlobeDeck?.thinking;
+  if (voiceActive || codersBusy || heavyGlobe || thinkBusy) setVoicePerfMode?.(true);
   else if (window._voicePerfMode) setVoicePerfMode?.(false);
-  if (window.AstranovCollectiveIntelligence && !hidden) {
+  if (window.AstranovCollectiveIntelligence && !hidden && !window._voicePerfMode) {
     ACI.tick();
     if (!window._voicePerfMode && entityCount < 80) {
       ACI.neurons.forEach(n => {
@@ -60,13 +61,14 @@ function animate() {
     MapComms?.tick?.();
     SuperSpace?.tick?.();
   }
-  CosmicZoom.update(camera.position.z);
-  EarthRealism?.tick?.();
+  if (!window._voicePerfMode) CosmicZoom.update(camera.position.z);
+  else if (Date.now() % 3 === 0) CosmicZoom.update(camera.position.z);
+  if (!window._voicePerfMode) EarthRealism?.tick?.();
   renderer.render(scene, camera);
 }
 animate();
 ACI.init();
-setTimeout(() => BrainConversation?.seedAdultNeurons?.(), 3200);
+setTimeout(() => { if (!window._voicePerfMode) BrainConversation?.seedAdultNeurons?.(); }, 8000);
 GlobeAutonomy.init();
 AstranovNode.init();
 Auth.init();
@@ -84,7 +86,7 @@ setTimeout(() => {
   AciCli?.primeCodersCli?.();
   AciCoders?.ensureBridge?.();
 }, 1800);
-setTimeout(() => AciCoders?.autoStart?.(), 8000);
+// Coders auto-start only when user opens CLI — avoids boot lag
 ACIControl.init();
 PmrRadio.bindUI();
 GlobeVideo.init();
