@@ -397,19 +397,18 @@ const ACIControl = {
       return { executed: false };
     }
 
-    if (/^(chat|talk|converse|tell me|explain|what is|ποιος|τι είναι|πες μου)\b/i.test(low)
-      || (low.length > 8 && !AciCoders?.isBuildTask?.(text) && !AciCoders?.isCodersIntent?.(text))) {
-      await BrainConversation?.converse?.(text, {
-        fromVoice,
-        forceThink: /explain|why|how|τι είναι|\?/.test(low) || low.length > 28,
-      });
-      return { executed: true, action: 'brain_converse' };
-    }
-
     const ping = BrainConversation?._matchLocal?.(text);
     if (ping) {
       await BrainConversation?.converse?.(text, { fromVoice });
       return { executed: true, action: 'brain_local' };
+    }
+
+    if (low.length > 6 && !AciCoders?.isBuildTask?.(text) && !AciCoders?.isCodersIntent?.(text)) {
+      await BrainConversation?.converse?.(text, {
+        fromVoice,
+        forceThink: true,
+      });
+      return { executed: true, action: 'brain_converse' };
     }
 
     await AciCoders?.handleMessage(text, { fromVoice });

@@ -103,7 +103,7 @@ const AciCoders = {
   },
 
   async listenTick() {
-    if (document.hidden || window._voicePerfMode) return;
+    if (document.hidden) return;
     if (window._handsFreeVoice || isListening || Voice?.speaking || this._cliBusy || this._listenBusy) return;
     if (this._activityCount < 1 && this._listenTicks > 0) return;
     this._listenBusy = true;

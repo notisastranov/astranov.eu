@@ -1,3 +1,4 @@
+window._cycleTurbo = false;
 function animate() {
   requestAnimationFrame(animate);
   if (window._cycleTurbo) return;
@@ -34,10 +35,13 @@ function animate() {
   AIGraphics.update();
   updateOrbital();
 
-  const heavyGlobe = (GlobeEntity?.entities?.size || 0) > 48;
+  const entityCount = GlobeEntity?.entities?.size || 0;
+  const heavyGlobe = entityCount > 96;
   const codersBusy = window.AciCoders?._cliBusy || window.AciCoders?._listenBusy;
-  if ((heavyGlobe || codersBusy) && !window._voicePerfMode) setVoicePerfMode?.(true);
-  if (window.AstranovCollectiveIntelligence && !heavyGlobe && !codersBusy) {
+  const voiceActive = window._handsFreeVoice || isListening;
+  if (voiceActive || codersBusy || heavyGlobe) setVoicePerfMode?.(true);
+  else if (window._voicePerfMode) setVoicePerfMode?.(false);
+  if (window.AstranovCollectiveIntelligence) {
     ACI.tick();
     if (!window._voicePerfMode) {
       ACI.neurons.forEach(n => {
@@ -73,7 +77,6 @@ ContextTruth.init();
 GhostTravel.init();
 AciCli.init();
 setTimeout(() => Auth.refreshAuthority(), 800);
-setTimeout(() => setVoicePerfMode?.(true), 400);
 setTimeout(() => {
   AciCli?.primeCodersCli?.();
   AciCoders?.ensureBridge?.();

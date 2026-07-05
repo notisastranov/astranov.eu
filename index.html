@@ -5382,7 +5382,7 @@ const AciCoders = {
   },
 
   async listenTick() {
-    if (document.hidden || window._voicePerfMode) return;
+    if (document.hidden) return;
     if (window._handsFreeVoice || isListening || Voice?.speaking || this._cliBusy || this._listenBusy) return;
     if (this._activityCount < 1 && this._listenTicks > 0) return;
     this._listenBusy = true;
@@ -6788,19 +6788,18 @@ const ACIControl = {
       return { executed: false };
     }
 
-    if (/^(chat|talk|converse|tell me|explain|what is|ποιος|τι είναι|πες μου)\b/i.test(low)
-      || (low.length > 8 && !AciCoders?.isBuildTask?.(text) && !AciCoders?.isCodersIntent?.(text))) {
-      await BrainConversation?.converse?.(text, {
-        fromVoice,
-        forceThink: /explain|why|how|τι είναι|\?/.test(low) || low.length > 28,
-      });
-      return { executed: true, action: 'brain_converse' };
-    }
-
     const ping = BrainConversation?._matchLocal?.(text);
     if (ping) {
       await BrainConversation?.converse?.(text, { fromVoice });
       return { executed: true, action: 'brain_local' };
+    }
+
+    if (low.length > 6 && !AciCoders?.isBuildTask?.(text) && !AciCoders?.isCodersIntent?.(text)) {
+      await BrainConversation?.converse?.(text, {
+        fromVoice,
+        forceThink: true,
+      });
+      return { executed: true, action: 'brain_converse' };
     }
 
     await AciCoders?.handleMessage(text, { fromVoice });
@@ -19136,6 +19135,7 @@ function showPilotTelemachos() {
   return TelemachosPilot?.showPilot?.();
 }
 
+window._cycleTurbo = false;
 function animate() {
   requestAnimationFrame(animate);
   if (window._cycleTurbo) return;
@@ -19172,10 +19172,13 @@ function animate() {
   AIGraphics.update();
   updateOrbital();
 
-  const heavyGlobe = (GlobeEntity?.entities?.size || 0) > 48;
+  const entityCount = GlobeEntity?.entities?.size || 0;
+  const heavyGlobe = entityCount > 96;
   const codersBusy = window.AciCoders?._cliBusy || window.AciCoders?._listenBusy;
-  if ((heavyGlobe || codersBusy) && !window._voicePerfMode) setVoicePerfMode?.(true);
-  if (window.AstranovCollectiveIntelligence && !heavyGlobe && !codersBusy) {
+  const voiceActive = window._handsFreeVoice || isListening;
+  if (voiceActive || codersBusy || heavyGlobe) setVoicePerfMode?.(true);
+  else if (window._voicePerfMode) setVoicePerfMode?.(false);
+  if (window.AstranovCollectiveIntelligence) {
     ACI.tick();
     if (!window._voicePerfMode) {
       ACI.neurons.forEach(n => {
@@ -19211,7 +19214,6 @@ ContextTruth.init();
 GhostTravel.init();
 AciCli.init();
 setTimeout(() => Auth.refreshAuthority(), 800);
-setTimeout(() => setVoicePerfMode?.(true), 400);
 setTimeout(() => {
   AciCli?.primeCodersCli?.();
   AciCoders?.ensureBridge?.();
