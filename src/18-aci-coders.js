@@ -587,6 +587,11 @@ const AciCoders = {
       AuditorPortal?.syncGlobe?.();
       return 'Globe data refreshed — yachts · vendors · drivers · auditors';
     }
+    if (/^(use\s+)?(openai|gpt|groq|gemini|cycle|astranov)\b/i.test(low)) {
+      const prov = /openai|gpt/.test(low) ? 'openai-mini' : /groq/.test(low) ? 'groq' : /gemini/.test(low) ? 'gemini' : 'astranov';
+      AiRouter?.setProvider?.(prov);
+      return 'AI provider → ' + (AiRouter.current()?.label || prov);
+    }
     if (/coders?\s*hub|coder\s*labs?|ai\s*teams?|open\s*coders?|labs?\s*race|ανταγωνισμ|ομάδες/.test(low)) {
       CodersHub?.toggle?.(true);
       return 'Coders Hub open — ' + (CodersHub?.LABS?.length || 0) + ' AI teams racing on subdomains';
@@ -753,6 +758,22 @@ const AciCoders = {
           speak(pingReply.slice(0, 100), () => resumeListening?.(), false);
         }
         return this._applyResponse({ text: pingReply, via: 'local/ping' }, m);
+      }
+
+      if (fast && AiRouter?.shouldRoute?.(m, opts)) {
+        const ar = await AiRouter.ask(m, {
+          history: this.history.slice(-6),
+          timeoutMs: 24000,
+        });
+        const arText = String(ar.text || '').trim();
+        if (arText && !this.isFailedReply(arText)) {
+          GlobeDeck?.setThinking(false);
+          return this._applyResponse({
+            text: arText,
+            via: 'ai-router/' + (ar.provider || AiRouter.current()?.id),
+            action: ar.action,
+          }, m);
+        }
       }
 
       let r = await AciCli.api({

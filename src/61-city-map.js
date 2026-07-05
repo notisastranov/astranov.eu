@@ -103,10 +103,33 @@ const CityMap = {
     } catch (_) {}
   },
 
+  _tileLayer(url, opts) {
+    const layer = L.tileLayer(url, opts);
+    layer.on('tileerror', () => {
+      if (layer._fallbackApplied) return;
+      layer._fallbackApplied = true;
+      const fb = this._layers?.satFallback;
+      if (fb && this.map && this.active) {
+        try {
+          this.map.removeLayer(layer);
+          this._onMap.delete(layer);
+          fb.addTo(this.map);
+          this._onMap.add(fb);
+          this._invalidate();
+        } catch (_) {}
+      }
+    });
+    return layer;
+  },
+
   _buildLayers() {
-    const sat = L.tileLayer(
+    const sat = this._tileLayer(
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       { maxZoom: 20, attribution: 'Esri' }
+    );
+    const satFallback = L.tileLayer(
+      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { maxZoom: 19, attribution: '© OSM fallback' }
     );
     const streets = L.tileLayer(
       'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -120,7 +143,7 @@ const CityMap = {
       'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
       { maxZoom: 20, attribution: '© CARTO © OSM' }
     );
-    this._layers = { sat, streets, darkStreets, brightStreets };
+    this._layers = { sat, satFallback, streets, darkStreets, brightStreets };
     this._applyBaseLayers();
   },
 

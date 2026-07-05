@@ -164,6 +164,8 @@
   #aci-input, #aci-send { display:none !important; }
   #aci-handsfree, #aci-send, #aci-order, #aci-locate, #aci-vhf, #aci-call, #aci-stop, #aci-login { background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); border-radius:50%; width:38px; height:38px; cursor:pointer; font-size:14px; flex-shrink:0; }
   #aci-locate { font-size:16px; }
+  #aci-provider { font-family:ui-monospace,monospace; font-size:10px; font-weight:700; letter-spacing:0.04em; min-width:38px; }
+  #aci-provider[data-provider="openai-mini"] { background:var(--ax-green-bg); border-color:var(--ax-green-border); color:var(--ax-green-bright); }
   #aci-login { font-weight:700; font-size:13px; position:relative; overflow:visible; background-position:center; }
   #aci-login.auth-in { border:2px solid var(--ax-green-border); box-shadow:0 0 12px var(--ax-green-glow); }
   #aci-login.auth-in::after { content:''; position:absolute; right:-3px; bottom:-3px; width:11px; height:11px; border-radius:50%; background:#00dd77; border:2px solid #020810; box-shadow:0 0 6px #00dd77; pointer-events:none; }
@@ -671,6 +673,7 @@
         <button id="aci-stop" title="Stop" type="button">🛑</button>
         <button id="aci-hold" title="Hold session — pause mic &amp; tasks for noisy places" type="button" aria-pressed="false">⏸</button>
         <button id="aci-locate" title="Locate me — city view" type="button">🎯</button>
+        <button id="aci-provider" type="button" title="AI provider — tap to cycle" data-provider="astranov">AV</button>
         <button id="aci-theme" title="Dark / bright theme" type="button">🌙</button>
         <button id="aci-order" title="Order" type="button">🛒</button>
         <button id="aci-batch" title="Batch" type="button">🔗</button>
@@ -3644,7 +3647,7 @@ const SuperCli = {
   title: ACL_TITLE,
 
   // Top bar: login + Super Add — everything else via CLI (locate, order, batch, vhf, theme, hold, stop…)
-  TOOLBAR_VISIBLE: ['aci-login', 'aci-locate', 'aci-order', 'super-add-fab', 'aci-handsfree'],
+  TOOLBAR_VISIBLE: ['aci-login', 'aci-locate', 'aci-provider', 'aci-order', 'super-add-fab', 'aci-handsfree'],
   INPUT_BTNS: ['globe-deck-send'],
 
   init() {
@@ -3723,6 +3726,7 @@ const SuperCli = {
       'aci-hold': () => SessionHold?.toggle?.(),
       'aci-theme': () => AstranovTheme?.toggle?.(),
       'aci-locate': () => this.run('locate'),
+      'aci-provider': () => AiRouter?.cycle?.(),
       'aci-order': () => this.run('order'),
       'aci-batch': () => this.run('batch'),
       'aci-vhf': () => this.run('vhf'),
@@ -6280,6 +6284,11 @@ const AciCoders = {
       AuditorPortal?.syncGlobe?.();
       return 'Globe data refreshed — yachts · vendors · drivers · auditors';
     }
+    if (/^(use\s+)?(openai|gpt|groq|gemini|cycle|astranov)\b/i.test(low)) {
+      const prov = /openai|gpt/.test(low) ? 'openai-mini' : /groq/.test(low) ? 'groq' : /gemini/.test(low) ? 'gemini' : 'astranov';
+      AiRouter?.setProvider?.(prov);
+      return 'AI provider → ' + (AiRouter.current()?.label || prov);
+    }
     if (/coders?\s*hub|coder\s*labs?|ai\s*teams?|open\s*coders?|labs?\s*race|ανταγωνισμ|ομάδες/.test(low)) {
       CodersHub?.toggle?.(true);
       return 'Coders Hub open — ' + (CodersHub?.LABS?.length || 0) + ' AI teams racing on subdomains';
@@ -6446,6 +6455,22 @@ const AciCoders = {
           speak(pingReply.slice(0, 100), () => resumeListening?.(), false);
         }
         return this._applyResponse({ text: pingReply, via: 'local/ping' }, m);
+      }
+
+      if (fast && AiRouter?.shouldRoute?.(m, opts)) {
+        const ar = await AiRouter.ask(m, {
+          history: this.history.slice(-6),
+          timeoutMs: 24000,
+        });
+        const arText = String(ar.text || '').trim();
+        if (arText && !this.isFailedReply(arText)) {
+          GlobeDeck?.setThinking(false);
+          return this._applyResponse({
+            text: arText,
+            via: 'ai-router/' + (ar.provider || AiRouter.current()?.id),
+            action: ar.action,
+          }, m);
+        }
       }
 
       let r = await AciCli.api({
@@ -11279,6 +11304,129 @@ const CodersHub = {
 window.CodersHub = CodersHub;
 window.openCodersHub = () => CodersHub.toggle(true);
 
+// === AI ROUTER — OpenAI Mini / Astranov Cycle / Groq / Gemini (shared with coder labs)
+const AiRouter = {
+  PROVIDERS: [
+    { id: 'astranov', label: 'Cycle', short: 'AV' },
+    { id: 'openai-mini', label: 'OpenAI', short: 'AI' },
+    { id: 'groq', label: 'Groq', short: 'GQ' },
+    { id: 'gemini', label: 'Gemini', short: 'GM' },
+  ],
+  _provider: 'astranov',
+  _sessionId: null,
+
+  init() {
+    try {
+      const saved = localStorage.getItem('astranov:ai-provider');
+      if (saved && this.PROVIDERS.some(p => p.id === saved)) this._provider = saved;
+    } catch (_) {}
+    this._sessionId = this._loadSession();
+    this._bindUi();
+    this._syncUi();
+  },
+
+  _loadSession() {
+    try {
+      return localStorage.getItem('astranov:ai-session') || (window.crypto?.randomUUID?.() || 's-' + Date.now());
+    } catch (_) {
+      return 's-' + Date.now();
+    }
+  },
+
+  _saveSession() {
+    try { localStorage.setItem('astranov:ai-session', this._sessionId); } catch (_) {}
+  },
+
+  current() {
+    return this.PROVIDERS.find(p => p.id === this._provider) || this.PROVIDERS[0];
+  },
+
+  setProvider(id) {
+    if (!this.PROVIDERS.some(p => p.id === id)) return false;
+    this._provider = id;
+    try { localStorage.setItem('astranov:ai-provider', id); } catch (_) {}
+    this._syncUi();
+    CliRibbon?.render?.();
+    return true;
+  },
+
+  cycle() {
+    const i = this.PROVIDERS.findIndex(p => p.id === this._provider);
+    const next = this.PROVIDERS[(i + 1) % this.PROVIDERS.length];
+    this.setProvider(next.id);
+    AciCli?.print('AI provider → ' + next.label + ' (' + next.id + ')', 'ok');
+    return next;
+  },
+
+  _bindUi() {
+    document.getElementById('aci-provider')?.addEventListener('click', () => this.cycle());
+  },
+
+  _syncUi() {
+    const btn = document.getElementById('aci-provider');
+    const p = this.current();
+    if (btn) {
+      btn.title = 'AI provider: ' + p.label + ' — tap to cycle';
+      btn.textContent = p.short;
+      btn.dataset.provider = p.id;
+    }
+  },
+
+  async ask(prompt, opts) {
+    opts = opts || {};
+    const text = String(prompt || '').trim();
+    if (!text) return { error: 'empty prompt' };
+    const headers = { 'Content-Type': 'application/json', apikey: SB_KEY };
+    if (Auth?.ensureSession) {
+      const session = await Auth.ensureSession();
+      headers.Authorization = session?.access_token ? 'Bearer ' + session.access_token : 'Bearer ' + SB_KEY;
+    } else {
+      headers.Authorization = 'Bearer ' + SB_KEY;
+    }
+    const history = (opts.history || []).slice(-8).map(m => ({
+      role: m.role === 'assistant' ? 'assistant' : 'user',
+      content: String(m.content || m.text || m.reply || '').slice(0, 2000),
+    }));
+    const body = {
+      text,
+      prompt: text,
+      level: 'global',
+      preferred_provider: opts.provider || this._provider,
+      session_id: this._sessionId,
+      source: 'astranov.eu-main',
+      messages: history,
+    };
+    const timeout = opts.timeoutMs || 25000;
+    try {
+      const j = await fetchJson(SB_URL + '/functions/v1/ai-router', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      }, timeout);
+      if (j.error && !j.text && !j.response) return { error: j.error, raw: j };
+      return {
+        text: String(j.text || j.response || j.message || '').trim(),
+        provider: j.provider || j.via || body.preferred_provider,
+        model: j.model || '',
+        action: j.action || null,
+        raw: j,
+      };
+    } catch (e) {
+      return { error: String(e.message || e) };
+    }
+  },
+
+  shouldRoute(message, opts) {
+    if (opts?.forceAci) return false;
+    if (AciCoders?.isBuildTask?.(message)) return false;
+    if (AciCoders?.wantsComposer?.(message)) return false;
+    if (/^coders\s+poll|^summon\s+coders?/i.test(message)) return false;
+    return true;
+  },
+};
+
+window.AiRouter = AiRouter;
+
 // === ZOOM TIERS — solar → global → national → city → neighborhood ===
 const ZoomTiers = {
   TIERS: [
@@ -11845,10 +11993,33 @@ const CityMap = {
     } catch (_) {}
   },
 
+  _tileLayer(url, opts) {
+    const layer = L.tileLayer(url, opts);
+    layer.on('tileerror', () => {
+      if (layer._fallbackApplied) return;
+      layer._fallbackApplied = true;
+      const fb = this._layers?.satFallback;
+      if (fb && this.map && this.active) {
+        try {
+          this.map.removeLayer(layer);
+          this._onMap.delete(layer);
+          fb.addTo(this.map);
+          this._onMap.add(fb);
+          this._invalidate();
+        } catch (_) {}
+      }
+    });
+    return layer;
+  },
+
   _buildLayers() {
-    const sat = L.tileLayer(
+    const sat = this._tileLayer(
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       { maxZoom: 20, attribution: 'Esri' }
+    );
+    const satFallback = L.tileLayer(
+      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { maxZoom: 19, attribution: '© OSM fallback' }
     );
     const streets = L.tileLayer(
       'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -11862,7 +12033,7 @@ const CityMap = {
       'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
       { maxZoom: 20, attribution: '© CARTO © OSM' }
     );
-    this._layers = { sat, streets, darkStreets, brightStreets };
+    this._layers = { sat, satFallback, streets, darkStreets, brightStreets };
     this._applyBaseLayers();
   },
 
@@ -17135,6 +17306,7 @@ AstranovSession.init();
 AstranovPresence.init();
 ProfileSite.init();
 CodersHub.init();
+AiRouter.init();
 
 setTimeout(() => Auth.refreshAuthority(), 800);
 AciCli?.primeCodersCli?.();

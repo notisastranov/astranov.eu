@@ -7,7 +7,7 @@ const SuperCli = {
   title: ACL_TITLE,
 
   // Top bar: login + Super Add — everything else via CLI (locate, order, batch, vhf, theme, hold, stop…)
-  TOOLBAR_VISIBLE: ['aci-login', 'aci-locate', 'aci-order', 'super-add-fab', 'aci-handsfree'],
+  TOOLBAR_VISIBLE: ['aci-login', 'aci-locate', 'aci-provider', 'aci-order', 'super-add-fab', 'aci-handsfree'],
   INPUT_BTNS: ['globe-deck-send'],
 
   init() {
@@ -86,6 +86,7 @@ const SuperCli = {
       'aci-hold': () => SessionHold?.toggle?.(),
       'aci-theme': () => AstranovTheme?.toggle?.(),
       'aci-locate': () => this.run('locate'),
+      'aci-provider': () => AiRouter?.cycle?.(),
       'aci-order': () => this.run('order'),
       'aci-batch': () => this.run('batch'),
       'aci-vhf': () => this.run('vhf'),
