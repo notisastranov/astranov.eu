@@ -19,16 +19,28 @@ const CityMap = {
 
   async _loadLeaflet() {
     if (window.L) return true;
+    const sources = [
+      { css: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', js: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js' },
+      { css: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css', js: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js' },
+    ];
+    for (const src of sources) {
+      const ok = await this._injectLeaflet(src.css, src.js);
+      if (ok) return true;
+    }
+    return false;
+  },
+
+  _injectLeaflet(cssUrl, jsUrl) {
     return new Promise(resolve => {
       if (!document.querySelector('link[href*="leaflet"]')) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        link.href = cssUrl;
         link.crossOrigin = '';
         document.head.appendChild(link);
       }
       const script = document.createElement('script');
-      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.src = jsUrl;
       script.crossOrigin = '';
       script.onload = () => resolve(!!window.L);
       script.onerror = () => resolve(false);
@@ -280,6 +292,7 @@ const CityMap = {
     if (!this.map) return;
     this.active = true;
     cityLevel = true;
+    EarthBoot?.hide?.();
     this._applyBaseLayers();
     const el = document.getElementById('city-map');
     const globe = document.getElementById('globe');
@@ -309,6 +322,7 @@ const CityMap = {
     if (el) el.classList.remove('active');
     if (globe) globe.classList.remove('city-map-active');
     document.body.classList.remove('city-map-active');
+    EarthBoot?.tick?.(camera?.position?.z, CosmicZoom?.level);
     EarthRealism?._hudTimer && (EarthRealism._hudTimer = 0);
     const chip = document.getElementById('city-life-chip');
     if (chip) chip.classList.remove('open');

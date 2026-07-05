@@ -45,6 +45,7 @@ function animate() {
 
   if (earthView && frame % 4 === 0) EarthRealism?.tick?.();
   if (earthView && frame % 3 === 0) CelestialNav?.tick?.();
+  if (frame % 4 === 0) EarthBoot?.tick?.(camZ, level);
 
   renderer.render(scene, camera);
 }
@@ -58,12 +59,14 @@ AciCli.init();
 ACIControl.init();
 ACI.init();
 CosmicZoom.init();
+EarthBoot.init();
 CelestialNav.init();
 ZoomTiers.init();
 if (typeof globePivot !== 'undefined' && globePivot) {
   globePivot.rotation.x = 0.12;
 }
 CosmicZoom.update(camera.position.z, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
+EarthBoot.forceEarth(6000);
 AstranovTheme.init();
 AstranovLogo.init();
 CityMap.init();
@@ -75,6 +78,7 @@ OrderTracking.init();
 AstranovSession.init();
 AstranovPresence.init();
 ProfileSite.init();
+CodersHub.init();
 
 setTimeout(() => Auth.refreshAuthority(), 800);
 AciCli?.primeCodersCli?.();

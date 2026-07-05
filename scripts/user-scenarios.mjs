@@ -46,11 +46,14 @@ const SCENARIOS = [
         cityMap: !!window.CityMap,
         theme: !!window.AstranovTheme,
         earth: !!window.EarthRealism,
+        earthBoot: !!window.EarthBoot,
+        codersHub: !!window.CodersHub,
         leaflet: !!window.L,
         renderer: !!window.renderer,
         cityReady: window.CityMap?._ready,
+        earthBootActive: document.body.classList.contains('earth-boot-active'),
       }));
-      if (!r.three || !r.cityMap || !r.theme || !r.earth) throw new Error('missing globals: ' + JSON.stringify(r));
+      if (!r.three || !r.cityMap || !r.theme || !r.earth || !r.earthBoot || !r.codersHub) throw new Error('missing globals: ' + JSON.stringify(r));
       if (!r.leaflet) throw new Error('Leaflet not loaded');
       if (!r.cityReady) throw new Error('CityMap not initialized');
       return r;
@@ -238,6 +241,21 @@ const SCENARIOS = [
       if (r.coords < 2) throw new Error('route coords missing');
       if (!r.hasRoute) throw new Error('route not drawn on city map');
       if (r.fallback) console.log('  ↳ OSRM offline — verified city-map polyline via fallback');
+      return r;
+    },
+  },
+  {
+    name: 'coders hub — labs + job save',
+    run: async (page) => {
+      const r = await page.evaluate(() => {
+        CodersHub.saveJob();
+        const job = CodersHub.readJob();
+        const cards = document.querySelectorAll('#coders-hub-grid .coders-card').length;
+        return { saved: !!job?.fromLab, cards, hasChatgpt: !!CodersHub.LABS.find(l => l.id === 'chatgpt') };
+      });
+      if (!r.saved) throw new Error('job save failed');
+      if (r.cards < 5) throw new Error('coders hub labs missing: ' + r.cards);
+      if (!r.hasChatgpt) throw new Error('chatgpt lab missing');
       return r;
     },
   },
