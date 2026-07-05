@@ -6,6 +6,7 @@
     { "file": "01-astranov-auth-url.js", "marker": "// === ASTRANOV AUTH URL" },
     { "file": "05-speak-map.js", "marker": "// === VOICE + MAP DEPICT ===" },
     { "file": "06-fetch-json.js", "marker": "// === FETCH JSON" },
+    { "file": "11-glyphs.js", "marker": "// === ASTRO GLYPHS" },
     { "file": "07-light-stubs.js", "marker": "// === LIGHT STUBS" },
     { "file": "07-astranov-logo.js", "marker": "// === ASTRANOV LOGO" },
     { "file": "08-arcangelo-dialect.js", "marker": "// === ARCANGELO VILLAGE DIALECT" },

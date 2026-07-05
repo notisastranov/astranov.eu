@@ -993,6 +993,36 @@ const Voice = {
       || v.find(x => /^en[-_]?US$/i.test(x.lang));
   },
 
+  hasGreekVoice() {
+    return !!this.pickFemaleCalm('el-GR');
+  },
+
+  /** Browser TTS without a Greek voice spells Α→Α Κ Ο… — romanize instead */
+  romanizeGreek(text) {
+    const map = {
+      α: 'a', ά: 'a', β: 'v', γ: 'g', δ: 'd', ε: 'e', έ: 'e', ζ: 'z', η: 'i', ή: 'i',
+      θ: 'th', ι: 'i', ί: 'i', ϊ: 'i', ΐ: 'i', κ: 'k', λ: 'l', μ: 'm', ν: 'n', ξ: 'x',
+      ο: 'o', ό: 'o', π: 'p', ρ: 'r', σ: 's', ς: 's', τ: 't', υ: 'y', ύ: 'y', φ: 'f',
+      χ: 'ch', ψ: 'ps', ω: 'o', ώ: 'o',
+      Α: 'A', Ά: 'A', Β: 'V', Γ: 'G', Δ: 'D', Ε: 'E', Έ: 'E', Ζ: 'Z', Η: 'I', Ή: 'I',
+      Θ: 'Th', Ι: 'I', Ί: 'I', Κ: 'K', Λ: 'L', Μ: 'M', Ν: 'N', Ξ: 'X', Ο: 'O', Ό: 'O',
+      Π: 'P', Ρ: 'R', Σ: 'S', Τ: 'T', Υ: 'Y', Ύ: 'Y', Φ: 'F', Χ: 'Ch', Ψ: 'Ps', Ω: 'O', Ώ: 'O',
+    };
+    return String(text || '').split('').map(c => map[c] || c).join('');
+  },
+
+  prepareForSpeech(text) {
+    let s = this.humanize(text).slice(0, 420);
+    if (!s) return { text: '', lang: 'en-US', speak: false };
+    let lang = this.detectLang(s);
+    const hasGreek = /[\u0370-\u03FF\u1F00-\u1FFF]/.test(s);
+    if (hasGreek && lang === 'el-GR' && !this.hasGreekVoice()) {
+      s = this.romanizeGreek(s);
+      lang = 'en-US';
+    }
+    return { text: s, lang, speak: this.shouldSpeak(s) };
+  },
+
   async synthHeaders() {
     if (window.Auth?.authHeaders) return Auth.authHeaders();
     return { 'Content-Type': 'application/json', apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY };
@@ -1035,11 +1065,17 @@ const Voice = {
     return new Promise(resolve => {
       if (this.stopped || gen !== this._gen) { resolve(); return; }
       try { speechSynthesis.cancel(); } catch (_) {}
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = lang;
+      let say = text;
+      let sayLang = lang;
+      if (/[\u0370-\u03FF\u1F00-\u1FFF]/.test(say) && !this.hasGreekVoice()) {
+        say = this.romanizeGreek(say);
+        sayLang = 'en-US';
+      }
+      const utter = new SpeechSynthesisUtterance(say);
+      utter.lang = sayLang;
       utter.rate = 0.88;
       utter.pitch = 0.94;
-      const voice = this.pickFemaleCalm(lang);
+      const voice = this.pickFemaleCalm(sayLang);
       if (voice) utter.voice = voice;
       utter.onend = () => resolve();
       utter.onerror = () => resolve();
@@ -1098,8 +1134,6 @@ const Voice = {
 
   async _speakOne(text, onEnd, forceBrowser) {
     if (!voiceEnabled && !window._handsFreeVoice) { if (onEnd) onEnd(); return; }
-    const clean = this.humanize(text).slice(0, 420);
-    if (!this.shouldSpeak(clean)) { if (onEnd) onEnd(); return; }
 
     const gen = ++this._gen;
     this.stopped = false;
@@ -1110,17 +1144,25 @@ const Voice = {
     try { speechSynthesis.cancel(); } catch (_) {}
 
     await this.ensureVoices();
-    if (gen !== this._gen) return;
+    if (gen !== this._gen) { if (onEnd) onEnd(); return; }
 
-    const lang = this.detectLang(clean);
-    const handsFree = !!window._handsFreeVoice;
-    const browserFirst = handsFree || !!forceBrowser;
+    const prep = this.prepareForSpeech(text);
+    if (!prep.speak) {
+      if (gen === this._gen) {
+        this.speaking = false;
+        window.syncHandsFreeBtn?.();
+      }
+      if (onEnd) onEnd();
+      return;
+    }
 
-    if (browserFirst) {
+    const { text: clean, lang } = prep;
+
+    if (forceBrowser) {
       await this.speakBrowser(clean, lang, gen);
     } else {
       const blob = await this.synthServer(clean, lang);
-      if (gen !== this._gen) return;
+      if (gen !== this._gen) { if (onEnd) onEnd(); return; }
       if (blob) {
         await this.playBlob(blob, gen);
       } else {
@@ -1142,7 +1184,7 @@ function speak(text, onEnd, force) {
   if (!force && !handsFree && !Voice.maySpeak()) { if (onEnd) onEnd(); return Promise.resolve(); }
   if (handsFree && !voiceEnabled) voiceEnabled = true;
   const repaired = ArcangeloDialect?.repairOutbound?.(text, 'reply') ?? text;
-  return Voice.enqueue(repaired, onEnd, !!(force || handsFree));
+  return Voice.enqueue(repaired, onEnd, !!force);
 }
 function stopSpeaking() { Voice.flush(); }
 
@@ -1454,6 +1496,58 @@ async function fetchJson(url, options, timeoutMs) {
   }
 }
 window.fetchJson = fetchJson;
+
+// === ASTRO GLYPHS — high-contrast icons for globe HUD (readable at small size) ===
+const AstroGlyphs = {
+  client: '🧑',
+  driver: '🚚',
+  vendor: '🏬',
+  shop: '🛍️',
+  order: '🛒',
+  locate: '🎯',
+  mic: '🎤',
+  cli: '💻',
+  stop: '🛑',
+  vhf: '📡',
+  phone: '☎️',
+  news: '📰',
+  drive: '🚗',
+  fast: '⚡',
+  send: '➡️',
+  close: '✖️',
+  ok: '✔️',
+  err: '❌',
+  pilot: '🛸',
+  beer: '🍻',
+  menu: '📋',
+};
+
+const CATEGORY_GLYPH = {
+  restaurant: '🍴', cafe: '☕', fast_food: '🍟', bakery: '🥖', bar: '🍻',
+  pharmacy: '💊', supermarket: '🛒', shop: '🛍️', service: '💇', fitness: '🏃',
+  hotel: '🏨', health: '🏥',
+};
+
+const LEGACY_VENDOR_EMOJI = new Set(['🎪', '🏪', '🍽️', '🍔', '🥐', '🍦', '🍺', '👗', '📱', '📚', '⚽', '✂️', '🏋️']);
+
+function vendorIcon(v) {
+  if (!v) return AstroGlyphs.shop;
+  const e = v.emoji;
+  if (e && !LEGACY_VENDOR_EMOJI.has(e)) return e;
+  return CATEGORY_GLYPH[v.category] || AstroGlyphs.shop;
+}
+
+const LEGACY_DRIVER_EMOJI = new Set(['🚴', '👤', '🛵']);
+
+function driverIcon(d) {
+  const e = d && (d.avatar_emoji || d.emoji);
+  if (e && !LEGACY_DRIVER_EMOJI.has(e)) return e;
+  return AstroGlyphs.driver;
+}
+
+window.AstroGlyphs = AstroGlyphs;
+window.vendorIcon = vendorIcon;
+window.driverIcon = driverIcon;
 
 // === LIGHT STUBS — removed heavy subsystems; keep optional chaining safe ===
 const FieldBrain = {
@@ -5616,7 +5710,7 @@ const AciCoders = {
       AciCli?.print(line, 'ok');
       ACIControl?.reply(line.slice(0, 200));
       if (opts.fromVoice && window._handsFreeVoice && Voice?.maySpeak?.()) {
-        speak('Coders ready. Talk normally.', () => resumeListening?.(), true);
+        speak('Coders ready. Talk normally.', () => resumeListening?.(), false);
       }
     }
 
@@ -5847,13 +5941,16 @@ const AciCoders = {
     if (composerQueued) this.startPoll(composerQueued);
     else this.stopPoll();
 
+    GlobeDeck?.setThinking?.(false);
+    const spoken = ArcangeloDialect?.repairOutbound?.(reply, 'reply') ?? reply;
     if (!r.pending) {
-      const spoken = ArcangeloDialect?.repairOutbound?.(reply || text, 'reply') ?? (reply || text);
       if (window._handsFreeVoice && Voice.shouldSpeak(spoken)) {
-        speak(spoken.slice(0, 120), () => resumeListening?.(), true);
+        speak(spoken.slice(0, 120), () => resumeListening?.(), false);
       } else if (window._handsFreeVoice || voiceSessionActive) {
         scheduleVoiceResume?.();
       }
+    } else if (window._handsFreeVoice || voiceSessionActive) {
+      scheduleVoiceResume?.();
     }
 
     this.observeActivity('chat', userMsg, { coders: true, guest: !!r.guest });
@@ -6096,7 +6193,7 @@ const AciCoders = {
         GlobeDeck?.setThinking(false);
         const pingReply = this.localReply(m);
         if (window._handsFreeVoice && Voice?.shouldSpeak?.(pingReply)) {
-          speak(pingReply.slice(0, 100), () => resumeListening?.(), true);
+          speak(pingReply.slice(0, 100), () => resumeListening?.(), false);
         }
         return this._applyResponse({ text: pingReply, via: 'local/ping' }, m);
       }
@@ -6563,7 +6660,7 @@ const ACIControl = {
   voiceAck(msg, fromVoice) {
     if (!fromVoice || !Voice.maySpeak()) return;
     const line = ArcangeloDialect?.repairOutbound?.(msg, 'reply') ?? msg;
-    speak(String(line || '').slice(0, 120), () => resumeListening(), !!window._handsFreeVoice);
+    speak(String(line || '').slice(0, 120), () => resumeListening(), false);
   },
 
   async handle(text, opts = {}) {
@@ -11643,7 +11740,7 @@ const DrivingView = {
       FieldBrain?.pulse('drive', this.mode + ' ' + Math.round(this.speed * 3.6) + 'km/h', { role: 'driver' });
     }
     if (prev !== this.mode && fast) {
-      const g = AstroGlyphs || { drive: '🚗', fast: '⚡' };
+      const g = window.AstroGlyphs || { drive: '🚗', fast: '⚡' };
       GlobeDeck?.setPreview((this.mode === 'drive' ? g.drive + ' DRIVING' : g.fast + ' FAST') + ' · ' + Math.round(this.speed * 3.6) + ' km/h');
     }
   },
@@ -14945,7 +15042,7 @@ let _recognitionPaused = false;
 let _listenRestartAt = 0;
 let _voiceResumeTimer = null;
 let _listenFailStreak = 0;
-const VOICE_RESTART_GAP_MS = 1800;
+const VOICE_RESTART_GAP_MS = 650;
 const VOICE_RESTART_GAP_MAX_MS = 5200;
 const EXECUTE_SUFFIX = /\s*(?:go(?:\s+(?:ahead|do(?:\s+it)?|now))?|do\s+it|execute(?:\s+it)?|run\s+it|send\s+it|now|πήγαινε|κάντο|καντο|εκτέλεσε|ξεκίνα|τρέξε)\s*$/i;
 const EXECUTE_PREFIX = /^(?:go(?:\s+(?:ahead|do|and))?|please\s+)?\s*/i;
@@ -15516,7 +15613,7 @@ function startVoiceOptions() {
   if (input) input.placeholder = '🎧 speak — auto-runs when you pause';
   AstranovSession?.push?.();
   syncHandsFreeBtn();
-  speak('Ακούω. Μίλα.', () => scheduleVoiceResume(), true);
+  speak('Listening.', () => scheduleVoiceResume(), false);
 }
 
 function stopHandsFree() {

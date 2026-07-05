@@ -75,7 +75,7 @@ const DrivingView = {
       FieldBrain?.pulse('drive', this.mode + ' ' + Math.round(this.speed * 3.6) + 'km/h', { role: 'driver' });
     }
     if (prev !== this.mode && fast) {
-      const g = AstroGlyphs || { drive: '🚗', fast: '⚡' };
+      const g = window.AstroGlyphs || { drive: '🚗', fast: '⚡' };
       GlobeDeck?.setPreview((this.mode === 'drive' ? g.drive + ' DRIVING' : g.fast + ' FAST') + ' · ' + Math.round(this.speed * 3.6) + ' km/h');
     }
   },
