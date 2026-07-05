@@ -10968,6 +10968,7 @@ const CelestialNav = {
     const sky = this.summary();
     const names = sky.sets.map(s => s.short || s.name).join(' · ') || 'none above horizon yet';
     let html = '<div class="cg-title">Celestial navigation · your sky</div>';
+    html += '<div class="cg-item"><b>Sun</b> — live day/night terminator on globe</div>';
     html += '<div class="cg-item"><b>Visible</b> — ' + names + '</div>';
     if (sky.obs?.lat != null) {
       html += '<div class="cg-item"><b>Observer</b> — ' + sky.obs.lat.toFixed(2) + '° · ' + sky.obs.lng.toFixed(2) + '°';
