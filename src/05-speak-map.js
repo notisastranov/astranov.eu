@@ -386,7 +386,7 @@ const MapDepict = {
     }
 
     if (window.FieldBrain?.pulse) {
-      FieldBrain.pulse(type, detail || labels[type] || type, { role: opts.role });
+      FieldBrain?.pulse?.(type, detail || labels[type] || type, { role: opts.role });
     }
     return { type, lat, lng };
   },

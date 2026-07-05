@@ -7,7 +7,7 @@ const ZoomTiers = {
     { id: 'city', z: 1.38, label: 'CITY', cosmic: 'earth', city: true },
     { id: 'neighborhood', z: 1.08, label: 'NEIGHBORHOOD', cosmic: 'earth', city: true },
   ],
-  START_ID: 'solar',
+  START_ID: 'global',
   _index: 0,
   _wheelAccum: 0,
   _pinchAccum: 0,

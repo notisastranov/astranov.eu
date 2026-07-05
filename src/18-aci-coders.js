@@ -660,7 +660,7 @@ const AciCoders = {
       const ev = await YachtMatcher?.evolveFromText?.(m);
       if (ev?.best) {
         GlobeDeck?.setThinking(false);
-        const msg = YachtMatcher.formatMatch(ev.best);
+        const msg = YachtMatcher?.formatMatch?.(ev.best) || '';
         ACIControl?.reply(msg);
         return { ok: true, yacht: ev };
       }

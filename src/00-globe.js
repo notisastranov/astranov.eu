@@ -15,7 +15,7 @@ try {
   renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
   renderer.setClearColor(0x000000, 1);
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, window.innerWidth < 768 ? 1.25 : 1.5));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
   container.appendChild(renderer.domElement);
 } catch (e) {
   const fb = document.createElement('div');
@@ -42,7 +42,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 
 const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.set(0, 0.25, 7.2);
+camera.position.set(0, 0.25, 2.55);
 camera.lookAt(0, 0, 0);
 
 scene.add(new THREE.AmbientLight(0x667788, 1.0));
@@ -52,7 +52,7 @@ scene.add(sun);
 
 // Stars - bigger/brighter to guarantee visibility against black
 const starPos = [];
-for (let i=0; i<4500; i++) {
+for (let i=0; i<1200; i++) {
   const r = 140 + Math.random()*900;
   const t = Math.random()*Math.PI*2;
   const p = Math.acos(2*Math.random()-1);
@@ -74,7 +74,7 @@ new THREE.TextureLoader().load(
 globePivot = new THREE.Group();
 scene.add(globePivot);
 
-const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 32), earthMat);
+const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 24), earthMat);
 globePivot.add(earth);
 globePivot.rotation.y = 0.82;
 window.earth = earth;

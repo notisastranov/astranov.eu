@@ -145,7 +145,7 @@ const CosmicZoom = {
     });
 
     const gPos = [];
-    for (let i = 0; i < 1800; i++) {
+    for (let i = 0; i < 400; i++) {
       const arm = (i % 4) * 0.4;
       const t = Math.random() * Math.PI * 2;
       const rad = 8 + Math.random() * 25 + arm * 3;
@@ -162,32 +162,12 @@ const CosmicZoom = {
 
     this.satGroup = new THREE.Group();
     globePivot.add(this.satGroup);
-    this.spawnStarlinkShell();
     this.leoRings = [
       this.makeDashedOrbit(1.052, 0x336699, 0.1, this.satGroup, { body: 'LEO shell 1', tilt: 0.03, dash: 0.03, gap: 0.12 }),
       this.makeDashedOrbit(1.062, 0x4488bb, 0.14, this.satGroup, { body: 'LEO shell 2', tilt: 0.05, wobble: 2, dash: 0.035, gap: 0.11 }),
       this.makeDashedOrbit(1.072, 0x55aacc, 0.1, this.satGroup, { body: 'ISS / Starlink', tilt: 0.08, dash: 0.04, gap: 0.1 }),
     ];
     this.issOrbit = this.leoRings[2];
-    this.trackISS();
-    setInterval(() => this.trackISS(), 20000);
-  },
-
-  spawnStarlinkShell() {
-    const count = 48;
-    for (let i = 0; i < count; i++) {
-      const phi = Math.acos(2 * Math.random() - 1);
-      const theta = Math.random() * Math.PI * 2;
-      const shell = i % 3;
-      const r = 1.052 + shell * 0.01 + (i % 7) * 0.001;
-      const m = new THREE.Mesh(
-        new THREE.SphereGeometry(0.003, 4, 4),
-        new THREE.MeshBasicMaterial({ color: 0x88aaff, transparent: true, opacity: 0.5 })
-      );
-      m.position.set(r * Math.sin(phi) * Math.cos(theta), r * Math.cos(phi), r * Math.sin(phi) * Math.sin(theta));
-      m.userData = { orb: i * 0.01, r, name: 'Starlink', desc: 'LEO broadband · shell ' + (shell + 1), idx: i };
-      this.satGroup.add(m);
-    }
     const iss = new THREE.Mesh(
       new THREE.SphereGeometry(0.014, 8, 8),
       new THREE.MeshBasicMaterial({ color: 0x00ffcc })
@@ -369,22 +349,9 @@ const CosmicZoom = {
       });
     }
 
-    if (this.satGroup && level === 'orbit') {
-      const t = Date.now() * 0.0003;
-      this.satGroup.children.forEach(c => {
-        if (c.userData.type === 'iss') return;
-        if (c.userData.orb == null) return;
-        c.visible = c.userData.idx % 4 === 0;
-        const a = t + c.userData.orb * 50;
-        const r = c.userData.r;
-        c.position.x = r * Math.cos(a);
-        c.position.z = r * Math.sin(a);
-      });
-      if (this.issMarker) this.issMarker.visible = true;
-    } else if (this.satGroup) {
-      this.satGroup.children.forEach(c => {
-        if (c.userData.orb != null) c.visible = false;
-      });
+    if (level === 'orbit' || level === 'system') {
+      if (!this._issLastFetch || now - this._issLastFetch > 120000) this.trackISS();
+      if (this.issMarker) this.issMarker.visible = camZ < 10;
     }
 
     if (this._orbitalSats && (level === 'orbit' || level === 'system')) {

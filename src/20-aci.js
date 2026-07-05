@@ -141,17 +141,7 @@ const ACI = {
   },
 
   async init() {
-    await this.api({ mode: 'ensure_neurons' });
-    if (window._aciOwner || Auth?.isOwner) await this.api({ mode: 'seed' });
-    const stats = await this.api({ mode: 'stats' });
-    if (stats.principles && stats.principles.length) {
-      this.syncNeuronsFromPrinciples(stats.principles.map(p => p.content || p));
-    } else if (!window._globePerfLite) {
-      [{ lat: 36.22, lng: 28.12 }, { lat: 40, lng: 20 }]
-        .forEach(s => this.spawnNeuron(s.lat, s.lng, 1.2));
-    }
-    this.attachHeartbeat();
-    console.log('%c[ACI] Collective Intelligence ready — evolve on voice/command only', 'color:#00ddff', stats);
+    console.log('%c[ACI] ready — lazy on first think', 'color:#00ddff');
   },
 
   attachHeartbeat() {
