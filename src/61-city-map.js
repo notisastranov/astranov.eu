@@ -14,12 +14,44 @@ const CityMap = {
   _syncTimer: null,
   _demoDrivers: [],
   _demoPhase: 0,
+  _forceOpen: false,
+  _initAttempts: 0,
+
+  async _loadLeaflet() {
+    if (window.L) return true;
+    return new Promise(resolve => {
+      if (!document.querySelector('link[href*="leaflet"]')) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        link.crossOrigin = '';
+        document.head.appendChild(link);
+      }
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.crossOrigin = '';
+      script.onload = () => resolve(!!window.L);
+      script.onerror = () => resolve(false);
+      document.head.appendChild(script);
+    });
+  },
+
+  async ensureReady() {
+    if (this._ready && this.map) return true;
+    if (!window.L) await this._loadLeaflet();
+    if (!this._ready && this._initAttempts < 4) {
+      this._initAttempts++;
+      this.init();
+    }
+    return !!(this._ready && this.map);
+  },
 
   init() {
     if (!window.L) {
       console.warn('[CityMap] Leaflet not loaded');
       return;
     }
+    if (this._ready && this.map) return;
     let el = document.getElementById('city-map');
     if (!el) {
       el = document.createElement('div');
@@ -172,6 +204,50 @@ const CityMap = {
     if (this.map) this.map.setView([lat, lng], zoom || 15, { animate: true });
   },
 
+  /** Force-open city map at coordinates — bypasses camera threshold race conditions */
+  async openAt(lat, lng, opts) {
+    opts = opts || {};
+    const ready = await this.ensureReady();
+    if (!ready || !this.map) {
+      GlobeDeck?.setMapStatus('City map failed to load — tap ASTRANOV to reset');
+      AciCli?.print('city map init failed — reload or hard-reset (tap logo)', 'err');
+      return false;
+    }
+    const c = lat != null && lng != null
+      ? { lat, lng }
+      : (window._lastPos || this._center);
+    if (!c?.lat) return false;
+
+    this._center = c;
+    window._lastPos = { lat: c.lat, lng: c.lng };
+    userLocated = true;
+
+    const camZ = opts.camZ ?? CityLife?.CITY_ZOOM ?? GlobeControl?.cityEntryZ?.() ?? 1.34;
+    if (typeof camera !== 'undefined' && camera) {
+      camera.position.z = camZ;
+      camera.lookAt(0, 0, 0);
+    }
+    CosmicZoom?.update?.(camZ, { tier: 'city', label: 'CITY', cosmic: 'earth' });
+    ZoomTiers?.goTo?.('city', false);
+    cityLevel = true;
+
+    this._forceOpen = true;
+    const lz = opts.zoom ?? this.camZToZoom(camZ);
+    if (!this.active) this._enter(camZ);
+    else {
+      this.map.setView([c.lat, c.lng], lz, { animate: false });
+      this._invalidate();
+      this._syncMarkers();
+      this._syncRoute();
+    }
+    if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
+    this.map.panTo([c.lat, c.lng], { animate: false });
+    setTimeout(() => { this._forceOpen = false; }, 4000);
+    setTimeout(() => this._invalidate(), 80);
+    setTimeout(() => this._invalidate(), 400);
+    return true;
+  },
+
   async enter(lat, lng, opts) {
     if (CityLife?.dropIn) return CityLife.dropIn(lat, lng, opts || {});
     const c = lat != null && lng != null ? { lat, lng } : (window._lastPos || this.globeCenterLatLng());
@@ -188,10 +264,12 @@ const CityMap = {
 
   onCamera(camZ, level) {
     if (!this._ready) return;
-    const earth = (level || CosmicZoom?.level || 'earth') === 'earth';
+    const earth = window._cityDropLock || this._forceOpen
+      || (level || CosmicZoom?.level || 'earth') === 'earth';
     const driving = !!DrivingView?.active;
-    const shouldEnter = earth && (camZ <= this.ENTER_Z || driving);
-    const shouldExit = !earth || (camZ > this.EXIT_Z && !driving);
+    const shouldEnter = earth && (camZ <= this.ENTER_Z || driving || this._forceOpen || window._cityDropLock);
+    const shouldExit = !this._forceOpen && !window._cityDropLock
+      && (!earth || (camZ > this.EXIT_Z && !driving));
 
     if (shouldEnter && !this.active) this._enter(camZ);
     else if (shouldExit && this.active) this._exit();
@@ -199,6 +277,7 @@ const CityMap = {
   },
 
   _enter(camZ) {
+    if (!this.map) return;
     this.active = true;
     cityLevel = true;
     this._applyBaseLayers();

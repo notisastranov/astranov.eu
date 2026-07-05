@@ -131,6 +131,13 @@ const SuperCli = {
         locateMe?.();
         GlobeDeck?.finishCliIfOneShot('locate');
         break;
+      case 'city':
+      case 'map':
+        GlobeDeck?.expand?.(ACL_TITLE);
+        GlobeDeck?.setMapStatus('Opening city map…');
+        await enterCityView?.(null, null, { openShops: true });
+        GlobeDeck?.finishCliIfOneShot('city');
+        break;
       case 'order':
         this.flyForTask('order');
         await Commerce?.showPicker?.(opts?.filter);

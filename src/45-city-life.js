@@ -48,20 +48,27 @@ const CityLife = {
     const pos = lat != null && lng != null ? { lat, lng } : this.userPos();
     if (!pos?.lat) return { error: 'no location — allow GPS or say locate' };
 
+    window._cityDropLock = true;
     window._lastPos = { lat: pos.lat, lng: pos.lng };
     userLocated = true;
     this._lastDrop = { lat: pos.lat, lng: pos.lng, t: Date.now() };
 
-    GlobeDeck?.setMapStatus('Flying to city…');
-    await this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
-    CityMap?.flyTo?.(pos.lat, pos.lng, CityMap?.camZToZoom?.(this.CITY_ZOOM));
+    try {
+      GlobeDeck?.setMapStatus('Flying to city…');
+      await this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
 
-    if (Commerce?.loadVendors) {
-      await Promise.race([
-        Commerce.loadVendors(),
-        new Promise(resolve => setTimeout(() => resolve(null), 8000)),
-      ]);
-    }
+      const opened = await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
+      if (!opened) {
+        CityMap?.onCamera?.(this.CITY_ZOOM, 'earth');
+        GlobeDeck?.setMapStatus('City map loading…');
+      }
+
+      if (Commerce?.loadVendors) {
+        await Promise.race([
+          Commerce.loadVendors(),
+          new Promise(resolve => setTimeout(() => resolve(null), 8000)),
+        ]);
+      }
     const nearby = this.nearbyVendors(pos.lat, pos.lng);
     if (nearby.length) {
       Commerce.vendors = nearby.concat((Commerce.vendors || []).filter(v => !nearby.includes(v))).slice(0, 40);
@@ -80,18 +87,26 @@ const CityLife = {
     this._showLocalNews(pos.lat, pos.lng);
     this._updateChip(nearby.length, drivers.length);
 
-    CityMap?.onCamera?.(this.CITY_ZOOM, 'earth');
-    const msg = nearby.length + ' shops · ' + drivers.length + ' drivers · ' + (window.others?.length || 0) + ' friends nearby';
-    GlobeDeck?.setPreview('🏙 ' + msg);
-    AciCli?.print('◎ City view · ' + msg, 'ok');
-    ACIControl?.reply('City map open — ' + msg + ' · tap a shop or type: order pitogyra');
-    FieldBrain?.pulse?.('city', msg, { role: 'client', props: { lat: pos.lat, lng: pos.lng, shops: nearby.length } });
+      CityMap?.onCamera?.(this.CITY_ZOOM, 'earth');
+      const msg = nearby.length + ' shops · ' + drivers.length + ' drivers · ' + (window.others?.length || 0) + ' friends nearby';
+      GlobeDeck?.setMapStatus('🏙 City map · ' + pos.lat.toFixed(2) + ', ' + pos.lng.toFixed(2));
+      GlobeDeck?.setPreview('🏙 ' + msg);
+      AciCli?.print('◎ City view · ' + msg, 'ok');
+      ACIControl?.reply('City map open — ' + msg + ' · tap a shop or type: order pitogyra');
+      FieldBrain?.pulse?.('city', msg, { role: 'client', props: { lat: pos.lat, lng: pos.lng, shops: nearby.length } });
 
-    if (opts.openShops && nearby.length) {
-      GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
-      await Commerce?.showPicker?.();
+      if (opts.openShops && nearby.length) {
+        GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+        await Commerce?.showPicker?.();
+      }
+      return { vendors: nearby, drivers, lat: pos.lat, lng: pos.lng, mapActive: !!CityMap?.active };
+    } catch (e) {
+      AciCli?.print('city drop error: ' + (e.message || e), 'err');
+      await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
+      return { error: e.message || 'city drop failed', lat: pos.lat, lng: pos.lng, mapActive: !!CityMap?.active };
+    } finally {
+      window._cityDropLock = false;
     }
-    return { vendors: nearby, drivers, lat: pos.lat, lng: pos.lng };
   },
 
   _pulseFriends() {

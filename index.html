@@ -79,7 +79,7 @@
   #globe canvas { display:block; cursor:grab; transition:opacity 0.45s ease; }
   #globe canvas.dragging { cursor:grabbing; }
   #globe.city-map-active canvas { opacity:0 !important; pointer-events:none; }
-  #city-map { position:fixed; inset:0; z-index:4; opacity:0; pointer-events:none; transition:opacity 0.45s ease; }
+  #city-map { position:fixed; inset:0; z-index:10; opacity:0; pointer-events:none; transition:opacity 0.45s ease; }
   #city-map.active { opacity:1; pointer-events:auto; }
   #city-map .leaflet-container { background:var(--an-bg); font-family:system-ui,sans-serif; }
   #city-map[data-theme="bright"] .leaflet-container { background:#e8f0f8; }
@@ -877,9 +877,14 @@ const GlobeControl = {
   },
 
   async enterCity(lat, lng, opts) {
-    const pos = lat != null && lng != null ? { lat, lng } : window._lastPos;
-    if (!pos?.lat) return { error: 'no location — locate first' };
-    return CityLife?.dropIn?.(pos.lat, pos.lng, opts || {});
+    if (lat != null && lng != null) return CityLife?.dropIn?.(lat, lng, opts || {});
+    if (window._lastPos?.lat) return CityLife?.dropIn?.(window._lastPos.lat, window._lastPos.lng, opts || {});
+    if (navigator.geolocation && CityLife?.locateAndDropIn) {
+      try {
+        return await CityLife.locateAndDropIn();
+      } catch (_) {}
+    }
+    return CityLife?.dropIn?.(undefined, undefined, opts || {});
   },
 };
 window.GlobeControl = GlobeControl;
@@ -3572,6 +3577,13 @@ const SuperCli = {
         GlobeDeck?.expand?.(ACL_TITLE);
         locateMe?.();
         GlobeDeck?.finishCliIfOneShot('locate');
+        break;
+      case 'city':
+      case 'map':
+        GlobeDeck?.expand?.(ACL_TITLE);
+        GlobeDeck?.setMapStatus('Opening city map…');
+        await enterCityView?.(null, null, { openShops: true });
+        GlobeDeck?.finishCliIfOneShot('city');
         break;
       case 'order':
         this.flyForTask('order');
@@ -10366,6 +10378,9 @@ const CosmicZoom = {
 
   update(camZ, opts) {
     opts = opts || {};
+    if (window._cityDropLock && !opts.cosmic) {
+      opts = Object.assign({}, opts, { cosmic: 'earth', tier: opts.tier || 'city', label: opts.label || 'CITY' });
+    }
     let level = opts.cosmic || 'earth';
     let label = opts.label || 'GLOBAL';
     if (!opts.tier) {
@@ -10842,7 +10857,8 @@ function tickGlobeFly() {
   camera.position.z = f.fromZ + (f.toZ - f.fromZ) * ease;
   camera.lookAt(0, 0, 0);
   CosmicZoom.update(camera.position.z);
-  CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
+  const flyLevel = window._cityDropLock ? 'earth' : CosmicZoom?.level;
+  CityMap?.onCamera?.(camera.position.z, flyLevel);
   if (p >= 1) {
     const tid = f.tierId;
     const done = f.onDone;
@@ -10908,12 +10924,44 @@ const CityMap = {
   _syncTimer: null,
   _demoDrivers: [],
   _demoPhase: 0,
+  _forceOpen: false,
+  _initAttempts: 0,
+
+  async _loadLeaflet() {
+    if (window.L) return true;
+    return new Promise(resolve => {
+      if (!document.querySelector('link[href*="leaflet"]')) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        link.crossOrigin = '';
+        document.head.appendChild(link);
+      }
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.crossOrigin = '';
+      script.onload = () => resolve(!!window.L);
+      script.onerror = () => resolve(false);
+      document.head.appendChild(script);
+    });
+  },
+
+  async ensureReady() {
+    if (this._ready && this.map) return true;
+    if (!window.L) await this._loadLeaflet();
+    if (!this._ready && this._initAttempts < 4) {
+      this._initAttempts++;
+      this.init();
+    }
+    return !!(this._ready && this.map);
+  },
 
   init() {
     if (!window.L) {
       console.warn('[CityMap] Leaflet not loaded');
       return;
     }
+    if (this._ready && this.map) return;
     let el = document.getElementById('city-map');
     if (!el) {
       el = document.createElement('div');
@@ -11066,6 +11114,50 @@ const CityMap = {
     if (this.map) this.map.setView([lat, lng], zoom || 15, { animate: true });
   },
 
+  /** Force-open city map at coordinates — bypasses camera threshold race conditions */
+  async openAt(lat, lng, opts) {
+    opts = opts || {};
+    const ready = await this.ensureReady();
+    if (!ready || !this.map) {
+      GlobeDeck?.setMapStatus('City map failed to load — tap ASTRANOV to reset');
+      AciCli?.print('city map init failed — reload or hard-reset (tap logo)', 'err');
+      return false;
+    }
+    const c = lat != null && lng != null
+      ? { lat, lng }
+      : (window._lastPos || this._center);
+    if (!c?.lat) return false;
+
+    this._center = c;
+    window._lastPos = { lat: c.lat, lng: c.lng };
+    userLocated = true;
+
+    const camZ = opts.camZ ?? CityLife?.CITY_ZOOM ?? GlobeControl?.cityEntryZ?.() ?? 1.34;
+    if (typeof camera !== 'undefined' && camera) {
+      camera.position.z = camZ;
+      camera.lookAt(0, 0, 0);
+    }
+    CosmicZoom?.update?.(camZ, { tier: 'city', label: 'CITY', cosmic: 'earth' });
+    ZoomTiers?.goTo?.('city', false);
+    cityLevel = true;
+
+    this._forceOpen = true;
+    const lz = opts.zoom ?? this.camZToZoom(camZ);
+    if (!this.active) this._enter(camZ);
+    else {
+      this.map.setView([c.lat, c.lng], lz, { animate: false });
+      this._invalidate();
+      this._syncMarkers();
+      this._syncRoute();
+    }
+    if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
+    this.map.panTo([c.lat, c.lng], { animate: false });
+    setTimeout(() => { this._forceOpen = false; }, 4000);
+    setTimeout(() => this._invalidate(), 80);
+    setTimeout(() => this._invalidate(), 400);
+    return true;
+  },
+
   async enter(lat, lng, opts) {
     if (CityLife?.dropIn) return CityLife.dropIn(lat, lng, opts || {});
     const c = lat != null && lng != null ? { lat, lng } : (window._lastPos || this.globeCenterLatLng());
@@ -11082,10 +11174,12 @@ const CityMap = {
 
   onCamera(camZ, level) {
     if (!this._ready) return;
-    const earth = (level || CosmicZoom?.level || 'earth') === 'earth';
+    const earth = window._cityDropLock || this._forceOpen
+      || (level || CosmicZoom?.level || 'earth') === 'earth';
     const driving = !!DrivingView?.active;
-    const shouldEnter = earth && (camZ <= this.ENTER_Z || driving);
-    const shouldExit = !earth || (camZ > this.EXIT_Z && !driving);
+    const shouldEnter = earth && (camZ <= this.ENTER_Z || driving || this._forceOpen || window._cityDropLock);
+    const shouldExit = !this._forceOpen && !window._cityDropLock
+      && (!earth || (camZ > this.EXIT_Z && !driving));
 
     if (shouldEnter && !this.active) this._enter(camZ);
     else if (shouldExit && this.active) this._exit();
@@ -11093,6 +11187,7 @@ const CityMap = {
   },
 
   _enter(camZ) {
+    if (!this.map) return;
     this.active = true;
     cityLevel = true;
     this._applyBaseLayers();
@@ -11320,20 +11415,27 @@ const CityLife = {
     const pos = lat != null && lng != null ? { lat, lng } : this.userPos();
     if (!pos?.lat) return { error: 'no location — allow GPS or say locate' };
 
+    window._cityDropLock = true;
     window._lastPos = { lat: pos.lat, lng: pos.lng };
     userLocated = true;
     this._lastDrop = { lat: pos.lat, lng: pos.lng, t: Date.now() };
 
-    GlobeDeck?.setMapStatus('Flying to city…');
-    await this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
-    CityMap?.flyTo?.(pos.lat, pos.lng, CityMap?.camZToZoom?.(this.CITY_ZOOM));
+    try {
+      GlobeDeck?.setMapStatus('Flying to city…');
+      await this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
 
-    if (Commerce?.loadVendors) {
-      await Promise.race([
-        Commerce.loadVendors(),
-        new Promise(resolve => setTimeout(() => resolve(null), 8000)),
-      ]);
-    }
+      const opened = await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
+      if (!opened) {
+        CityMap?.onCamera?.(this.CITY_ZOOM, 'earth');
+        GlobeDeck?.setMapStatus('City map loading…');
+      }
+
+      if (Commerce?.loadVendors) {
+        await Promise.race([
+          Commerce.loadVendors(),
+          new Promise(resolve => setTimeout(() => resolve(null), 8000)),
+        ]);
+      }
     const nearby = this.nearbyVendors(pos.lat, pos.lng);
     if (nearby.length) {
       Commerce.vendors = nearby.concat((Commerce.vendors || []).filter(v => !nearby.includes(v))).slice(0, 40);
@@ -11352,18 +11454,26 @@ const CityLife = {
     this._showLocalNews(pos.lat, pos.lng);
     this._updateChip(nearby.length, drivers.length);
 
-    CityMap?.onCamera?.(this.CITY_ZOOM, 'earth');
-    const msg = nearby.length + ' shops · ' + drivers.length + ' drivers · ' + (window.others?.length || 0) + ' friends nearby';
-    GlobeDeck?.setPreview('🏙 ' + msg);
-    AciCli?.print('◎ City view · ' + msg, 'ok');
-    ACIControl?.reply('City map open — ' + msg + ' · tap a shop or type: order pitogyra');
-    FieldBrain?.pulse?.('city', msg, { role: 'client', props: { lat: pos.lat, lng: pos.lng, shops: nearby.length } });
+      CityMap?.onCamera?.(this.CITY_ZOOM, 'earth');
+      const msg = nearby.length + ' shops · ' + drivers.length + ' drivers · ' + (window.others?.length || 0) + ' friends nearby';
+      GlobeDeck?.setMapStatus('🏙 City map · ' + pos.lat.toFixed(2) + ', ' + pos.lng.toFixed(2));
+      GlobeDeck?.setPreview('🏙 ' + msg);
+      AciCli?.print('◎ City view · ' + msg, 'ok');
+      ACIControl?.reply('City map open — ' + msg + ' · tap a shop or type: order pitogyra');
+      FieldBrain?.pulse?.('city', msg, { role: 'client', props: { lat: pos.lat, lng: pos.lng, shops: nearby.length } });
 
-    if (opts.openShops && nearby.length) {
-      GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
-      await Commerce?.showPicker?.();
+      if (opts.openShops && nearby.length) {
+        GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+        await Commerce?.showPicker?.();
+      }
+      return { vendors: nearby, drivers, lat: pos.lat, lng: pos.lng, mapActive: !!CityMap?.active };
+    } catch (e) {
+      AciCli?.print('city drop error: ' + (e.message || e), 'err');
+      await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
+      return { error: e.message || 'city drop failed', lat: pos.lat, lng: pos.lng, mapActive: !!CityMap?.active };
+    } finally {
+      window._cityDropLock = false;
     }
-    return { vendors: nearby, drivers, lat: pos.lat, lng: pos.lng };
   },
 
   _pulseFriends() {
@@ -16040,31 +16150,31 @@ function placeMe(lat, lng, opts) {
 }
 
 function locateMe() {
-  if (!navigator.geolocation) {
-    ACIControl?.reply('Geolocation not supported');
-    return;
-  }
   GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
   GlobeDeck?.setMapStatus('Locating…');
-  GlobeControl?.userTookGlobe?.('silent');
+  GlobeControl?.engageFollow?.('locate');
+  if (!navigator.geolocation) {
+    ACIControl?.reply('No GPS — opening default city map');
+    enterCityView?.();
+    return;
+  }
+  if (CityLife?.locateAndDropIn) {
+    CityLife.locateAndDropIn().catch(() => {
+      ACIControl?.reply('Location denied — enable GPS, or type: city');
+      AciCli?.print('GPS denied — allow location for your city map', 'err');
+      enterCityView?.();
+    });
+    return;
+  }
   navigator.geolocation.getCurrentPosition(
     async pos => {
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
-      try {
-        const r = await enterCityView?.(lat, lng);
-        if (r?.error) {
-          placeMe(lat, lng, { quiet: false, fly: true, zoom: GlobeControl?.Z?.global || 2.55 });
-          ACIControl?.reply('On globe · ' + lat.toFixed(2) + ', ' + lng.toFixed(2) + ' — say city view for map');
-        }
-      } catch (_) {
-        placeMe(lat, lng, { quiet: false, fly: true, cityDrop: true });
-        ACIControl?.reply('City view · ' + lat.toFixed(2) + ', ' + lng.toFixed(2));
-      }
+      await enterCityView?.(lat, lng);
     },
     () => {
       ACIControl?.reply('Location denied — enable GPS in browser');
-      AciCli?.print('GPS denied — allow location for city view', 'err');
+      enterCityView?.();
     },
     { enableHighAccuracy: true, timeout: 14000, maximumAge: 30000 }
   );

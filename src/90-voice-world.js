@@ -705,31 +705,31 @@ function placeMe(lat, lng, opts) {
 }
 
 function locateMe() {
-  if (!navigator.geolocation) {
-    ACIControl?.reply('Geolocation not supported');
-    return;
-  }
   GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
   GlobeDeck?.setMapStatus('Locating…');
-  GlobeControl?.userTookGlobe?.('silent');
+  GlobeControl?.engageFollow?.('locate');
+  if (!navigator.geolocation) {
+    ACIControl?.reply('No GPS — opening default city map');
+    enterCityView?.();
+    return;
+  }
+  if (CityLife?.locateAndDropIn) {
+    CityLife.locateAndDropIn().catch(() => {
+      ACIControl?.reply('Location denied — enable GPS, or type: city');
+      AciCli?.print('GPS denied — allow location for your city map', 'err');
+      enterCityView?.();
+    });
+    return;
+  }
   navigator.geolocation.getCurrentPosition(
     async pos => {
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
-      try {
-        const r = await enterCityView?.(lat, lng);
-        if (r?.error) {
-          placeMe(lat, lng, { quiet: false, fly: true, zoom: GlobeControl?.Z?.global || 2.55 });
-          ACIControl?.reply('On globe · ' + lat.toFixed(2) + ', ' + lng.toFixed(2) + ' — say city view for map');
-        }
-      } catch (_) {
-        placeMe(lat, lng, { quiet: false, fly: true, cityDrop: true });
-        ACIControl?.reply('City view · ' + lat.toFixed(2) + ', ' + lng.toFixed(2));
-      }
+      await enterCityView?.(lat, lng);
     },
     () => {
       ACIControl?.reply('Location denied — enable GPS in browser');
-      AciCli?.print('GPS denied — allow location for city view', 'err');
+      enterCityView?.();
     },
     { enableHighAccuracy: true, timeout: 14000, maximumAge: 30000 }
   );

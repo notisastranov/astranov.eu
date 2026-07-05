@@ -171,9 +171,14 @@ const GlobeControl = {
   },
 
   async enterCity(lat, lng, opts) {
-    const pos = lat != null && lng != null ? { lat, lng } : window._lastPos;
-    if (!pos?.lat) return { error: 'no location — locate first' };
-    return CityLife?.dropIn?.(pos.lat, pos.lng, opts || {});
+    if (lat != null && lng != null) return CityLife?.dropIn?.(lat, lng, opts || {});
+    if (window._lastPos?.lat) return CityLife?.dropIn?.(window._lastPos.lat, window._lastPos.lng, opts || {});
+    if (navigator.geolocation && CityLife?.locateAndDropIn) {
+      try {
+        return await CityLife.locateAndDropIn();
+      } catch (_) {}
+    }
+    return CityLife?.dropIn?.(undefined, undefined, opts || {});
   },
 };
 window.GlobeControl = GlobeControl;

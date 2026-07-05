@@ -297,6 +297,9 @@ const CosmicZoom = {
 
   update(camZ, opts) {
     opts = opts || {};
+    if (window._cityDropLock && !opts.cosmic) {
+      opts = Object.assign({}, opts, { cosmic: 'earth', tier: opts.tier || 'city', label: opts.label || 'CITY' });
+    }
     let level = opts.cosmic || 'earth';
     let label = opts.label || 'GLOBAL';
     if (!opts.tier) {

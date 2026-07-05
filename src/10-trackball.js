@@ -293,7 +293,8 @@ function tickGlobeFly() {
   camera.position.z = f.fromZ + (f.toZ - f.fromZ) * ease;
   camera.lookAt(0, 0, 0);
   CosmicZoom.update(camera.position.z);
-  CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
+  const flyLevel = window._cityDropLock ? 'earth' : CosmicZoom?.level;
+  CityMap?.onCamera?.(camera.position.z, flyLevel);
   if (p >= 1) {
     const tid = f.tierId;
     const done = f.onDone;
