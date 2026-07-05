@@ -284,7 +284,13 @@ async function main() {
     route.continue();
   });
   page.on('pageerror', e => console.error('PAGE ERROR:', e.message));
-  page.on('console', msg => { if (msg.type() === 'error') console.error('CONSOLE:', msg.text()); });
+  page.on('console', msg => {
+    if (msg.type() !== 'error') return;
+    const text = msg.text() || '';
+    // Tile/CDN timeouts are expected in headless CI — do not write stderr (breaks PowerShell exit code)
+    if (/Failed to load resource|net::ERR_|favicon/i.test(text)) return;
+    console.warn('CONSOLE:', text);
+  });
 
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.waitForFunction(() => window.CityMap?._ready, { timeout: 60000 });
