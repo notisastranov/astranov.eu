@@ -154,6 +154,19 @@ const Auth = {
     document.getElementById('astranov-auth-modal')?.classList.remove('open');
   },
 
+  _isMobileClient() {
+    try {
+      if (navigator.maxTouchPoints > 1 && window.innerWidth < 1024) return true;
+      return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+    } catch (_) {
+      return false;
+    }
+  },
+
+  _preferGoogleRedirect() {
+    return this._isMobileClient();
+  },
+
   _ensureGoogleGsi() {
     if (window.google?.accounts?.id) return Promise.resolve();
     if (this._gsiReady) return this._gsiReady;
@@ -191,7 +204,18 @@ const Auth = {
     if (!this.client) return;
     const origin = this.publicOrigin();
     const status = document.getElementById('auth-status');
-    if (status) status.textContent = 'Sign in on ' + origin + ' — Google popup, no redirect';
+    if (this._preferGoogleRedirect()) {
+      if (status) status.textContent = 'Opening Google sign-in for ' + origin + '…';
+      try {
+        return await this._signInGoogleRedirect();
+      } catch (e) {
+        const msg = typeof scrubSupabaseLeak === 'function' ? scrubSupabaseLeak(e.message) : (e.message || e);
+        if (status) status.textContent = msg;
+        ACIControl?.reply('Google sign-in failed — ' + msg);
+        return;
+      }
+    }
+    if (status) status.textContent = 'Sign in on ' + origin + ' — Google popup';
     GlobeDeck?.setPreview?.('Sign in · ' + origin);
     try {
       await this._ensureGoogleGsi();
@@ -238,6 +262,17 @@ const Auth = {
       });
     } catch (e) {
       const msg = typeof scrubSupabaseLeak === 'function' ? scrubSupabaseLeak(e.message) : (e.message || e);
+      if (/invalid_client|no registered origin|401/i.test(msg)) {
+        if (status) status.textContent = 'Switching to secure redirect sign-in…';
+        try {
+          return await this._signInGoogleRedirect();
+        } catch (e2) {
+          const msg2 = typeof scrubSupabaseLeak === 'function' ? scrubSupabaseLeak(e2.message) : (e2.message || e2);
+          if (status) status.textContent = msg2;
+          ACIControl?.reply('Google sign-in failed — ' + msg2);
+          return;
+        }
+      }
       if (status) status.textContent = msg;
       ACIControl?.reply('Google sign-in failed — ' + msg);
     }
@@ -245,8 +280,9 @@ const Auth = {
 
   async _signInGoogleRedirect() {
     if (!this.client) return;
-    this.closeLoginModal();
     const origin = this.publicOrigin();
+    const status = document.getElementById('auth-status');
+    if (status) status.textContent = 'Redirecting to Google · ' + origin;
     GlobeDeck?.setPreview?.('Sign in · ' + origin);
     const redirectTo = window.location.origin + window.location.pathname + (window.location.search || '');
     const { data, error } = await this.client.auth.signInWithOAuth({
@@ -256,7 +292,10 @@ const Auth = {
     if (error) throw error;
     let url = data?.url;
     if (typeof astranovizeAuthUrl === 'function') url = astranovizeAuthUrl(url);
-    if (url) window.location.href = url;
+    if (url) {
+      this.closeLoginModal();
+      window.location.href = url;
+    }
   },
 
   async signInOAuth(provider) {
