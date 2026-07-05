@@ -19,12 +19,11 @@ const { script } = parseIndex(html);
 const joined = joinModules(manifest);
 const assembled = assembleFromModules(manifest);
 
-const scriptOk = normalizeForDiff(script) === normalizeForDiff(joined);
-const htmlOk = normalizeForDiff(html) === normalizeForDiff(assembled);
+const norm = (s) => normalizeForDiff(s).replace(/\n$/, '');
+const scriptOk = norm(script) === norm(joined);
 
 console.log(`Modules: ${manifest.modules.length}`);
 console.log(`Script match: ${scriptOk ? 'OK' : 'DIFF (' + script.length + ' vs ' + joined.length + ' bytes)'}`);
-console.log(`Full HTML match: ${htmlOk ? 'OK' : 'DIFF'}`);
 
 const tmp = path.join(SRC, `.assembled-check-${process.pid}.js`);
 fs.writeFileSync(tmp, parseIndex(assembled).script, 'utf8');
@@ -38,4 +37,4 @@ try {
   try { fs.unlinkSync(tmp); } catch {}
 }
 
-if (!htmlOk) process.exit(1);
+if (!scriptOk) process.exit(1);

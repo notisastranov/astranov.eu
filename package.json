@@ -5,6 +5,8 @@
   "main": "sw.js",
   "scripts": {
     "test": "node scripts/user-scenarios.mjs",
+    "test:prod": "node scripts/prod-e2e.mjs",
+    "verify:prod": "node scripts/prod-verify.mjs",
     "test:matrix": "node scripts/million-cycles.mjs --cycles 500 --quick",
     "test:million": "node scripts/million-cycles.mjs --cycles 3000000 --turbo --workers 1 --batch 48 --max-ms 21600000",
     "test:million:continue": "node scripts/million-cycles.mjs --continue --cycles 3000000 --turbo --workers 1 --batch 48 --max-ms 21600000",

@@ -90,6 +90,25 @@ const SCENARIOS = [
     },
   },
   {
+    name: 'boot — earth GLOBAL not solar',
+    run: async (page) => {
+      await page.waitForTimeout(1400);
+      const r = await page.evaluate(() => ({
+        camZ: camera?.position?.z,
+        level: CosmicZoom?.level,
+        solarVis: !!CosmicZoom?.solarGroup?.visible,
+        zoomLabel: document.getElementById('zoom-label')?.textContent || '',
+        deckCollapsed: document.getElementById('globe-deck')?.classList.contains('collapsed'),
+      }));
+      if (r.camZ > 4.5) throw new Error('camera z too high: ' + r.camZ);
+      if (r.level === 'system' || r.level === 'galaxy') throw new Error('wrong level: ' + r.level);
+      if (r.solarVis) throw new Error('solar visible at boot');
+      if (!/GLOBAL/i.test(r.zoomLabel)) throw new Error('label: ' + r.zoomLabel);
+      if (!r.deckCollapsed) throw new Error('deck should start collapsed');
+      return r;
+    },
+  },
+  {
     name: 'theme — dark/bright toggle',
     run: async (page) => {
       const r = await page.evaluate(() => {
