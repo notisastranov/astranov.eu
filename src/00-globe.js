@@ -78,7 +78,15 @@ scene.add(globePivot);
 const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 24), earthMat);
 globePivot.add(earth);
 globePivot.rotation.y = 0.82;
+globePivot.rotation.x = 0.12;
+globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
 window.earth = earth;
+
+function syncGlobePivotRotation() {
+  if (!globePivot) return;
+  globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
+}
+window.syncGlobePivotRotation = syncGlobePivotRotation;
 
 // lat/lng to 3D sphere position
 function latLngToPos(lat, lng, r = 1) {
@@ -160,6 +168,7 @@ const GlobeControl = {
   flyToLatLng(lat, lng, label, targetZ, opts) {
     const o = opts && typeof opts === 'object' ? opts : {};
     if (!TrackballGuard?.beforeFly?.(lat, lng, o)) return false;
+    syncGlobePivotRotation?.();
     window._globeFly = null;
     let z = targetZ;
     if (z == null) z = o.city ? this.Z.city : this.Z.global;

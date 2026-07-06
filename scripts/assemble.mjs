@@ -31,6 +31,30 @@ fs.writeFileSync(path.join(ROOT, 'build.json'), JSON.stringify({ buildId, builtA
 
 const coreScript = joinModules(manifest, 'core');
 const deferredScript = joinModules(manifest, 'deferred');
+
+const TRACKBALL_CONTRACT = [
+  'function trackballStart',
+  'function trackballMove',
+  'function trackballEnd',
+  'function tickGlobeFly',
+  'function flyToPoint',
+  'function bindTrackballEvents',
+  'TrackballGuard',
+  'applyInertia',
+  "mode: 'quat'",
+  '__trackballContract',
+];
+for (const token of TRACKBALL_CONTRACT) {
+  if (!coreScript.includes(token)) {
+    console.error(`Trackball contract FAILED — missing: ${token}`);
+    process.exit(1);
+  }
+}
+if (coreScript.includes('fromY:') || coreScript.includes('toY:')) {
+  console.error('Trackball contract FAILED — deprecated euler fly (fromY/toY) found in core');
+  process.exit(1);
+}
+console.log('Trackball contract: OK');
 const assembled = shell.replace(/\s*$/, '\n') + '<script>\n' + coreScript + '</script>\n' + deferredScriptTag(buildId) + '</body>\n</html>\n';
 
 if (process.argv.includes('--stdout')) {

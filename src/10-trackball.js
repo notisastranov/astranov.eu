@@ -48,8 +48,6 @@ function trackballStart(clientX, clientY) {
 function trackballEnd(clientX, clientY, opts) {
   clearTimeout(pressTimer);
   drag = false;
-  trackVelX = 0;
-  trackVelY = 0;
   canvas.classList.remove('dragging');
   setTimeout(() => { dragging = false; }, 100);
   if (!opts?.skipTap && clientX != null && clientY != null) registerTap(clientX, clientY);
@@ -108,18 +106,18 @@ function onWheelZoom(e) {
   }
 }
 
-canvas.__trackballBound = true;
-canvas.addEventListener('mousedown', e => { if (e.button === 0) trackballStart(e.clientX, e.clientY); });
-window.addEventListener('mouseup', e => { if (drag) trackballEnd(e.clientX, e.clientY); });
-canvas.addEventListener('mousemove', e => {
-  if (!drag) return;
-  if (Math.hypot(e.clientX - pressStartX, e.clientY - pressStartY) > 12) clearTimeout(pressTimer);
-  trackballMove(e.clientX, e.clientY);
-});
-canvas.addEventListener('wheel', onWheelZoom, { passive: false });
-container.addEventListener('wheel', onWheelZoom, { passive: false });
-
-canvas.addEventListener('touchstart', e => {
+function bindTrackballEvents(targetCanvas) {
+  const c = targetCanvas || canvas;
+  if (!c || c.__trackballBound) return c;
+  c.__trackballBound = true;
+  c.addEventListener('mousedown', e => { if (e.button === 0) trackballStart(e.clientX, e.clientY); });
+  c.addEventListener('mousemove', e => {
+    if (!drag) return;
+    if (Math.hypot(e.clientX - pressStartX, e.clientY - pressStartY) > 12) clearTimeout(pressTimer);
+    trackballMove(e.clientX, e.clientY);
+  });
+  c.addEventListener('wheel', onWheelZoom, { passive: false });
+  c.addEventListener('touchstart', e => {
   if (e.touches.length === 2) {
     if (drag) trackballEnd(null, null, { skipTap: true });
     clearTimeout(pressTimer);
@@ -140,9 +138,8 @@ canvas.addEventListener('touchstart', e => {
     e.preventDefault();
     trackballStart(e.touches[0].clientX, e.touches[0].clientY);
   }
-}, { passive: false });
-
-canvas.addEventListener('touchmove', e => {
+  }, { passive: false });
+  c.addEventListener('touchmove', e => {
   if (e.touches.length === 2) {
     e.preventDefault();
     if (!pinchDist) {
@@ -174,9 +171,8 @@ canvas.addEventListener('touchmove', e => {
     }
     trackballMove(e.touches[0].clientX, e.touches[0].clientY);
   }
-}, { passive: false });
-
-canvas.addEventListener('touchend', e => {
+  }, { passive: false });
+  c.addEventListener('touchend', e => {
   if (e.touches.length < 2) {
     pinchDist = 0;
     pinching = false;
@@ -185,12 +181,18 @@ canvas.addEventListener('touchend', e => {
     const t = e.changedTouches[0];
     trackballEnd(t ? t.clientX : null, t ? t.clientY : null);
   }
-});
+  });
+  c.addEventListener('dblclick', e => {
+    e.preventDefault();
+    ZoomTiers?.stepIn?.();
+  });
+  return c;
+}
 
-canvas.addEventListener('dblclick', e => {
-  e.preventDefault();
-  ZoomTiers?.stepIn?.();
-});
+bindTrackballEvents(canvas);
+window.addEventListener('mouseup', e => { if (drag) trackballEnd(e.clientX, e.clientY); });
+container.addEventListener('wheel', onWheelZoom, { passive: false });
+window.bindTrackballEvents = bindTrackballEvents;
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -264,6 +266,7 @@ function flyToPoint(point, targetZ = 1.82, opts) {
     GlobeControl?.userTookGlobe?.('silent');
     window._globeFly = null;
   }
+  syncGlobePivotRotation?.();
   const dir = point.clone().normalize();
   const toE = eulerFromDir(dir);
   const qTo = new THREE.Quaternion().setFromEuler(toE);
@@ -303,12 +306,15 @@ function tickGlobeFly() {
   const ease = p < 0.5
     ? 4 * p * p * p
     : 1 - Math.pow(-2 * p + 2, 3) / 2;
-  if (f.mode === 'quat' && f.fromQ && f.toQ) {
+  if (f.mode === 'zoom') {
+    /* camera-only — globe bearing unchanged */
+  } else if (f.mode === 'quat' && f.fromQ && f.toQ) {
     globePivot.quaternion.slerpQuaternions(f.fromQ, f.toQ, ease);
     globePivot.rotation.setFromQuaternion(globePivot.quaternion, 'YXZ');
   } else {
-    globePivot.rotation.y = f.fromY + (f.toY - f.fromY) * ease;
-    globePivot.rotation.x = f.fromX + (f.toX - f.fromX) * ease;
+    console.warn('[trackball] deprecated euler fly blocked — use quat or zoom');
+    window._globeFly = null;
+    return;
   }
   trackVelX = 0;
   trackVelY = 0;
@@ -356,6 +362,11 @@ window.trackballStart = trackballStart;
 window.trackballMove = trackballMove;
 window.trackballEnd = trackballEnd;
 window.flyToPoint = flyToPoint;
+window.__trackballContract = Object.freeze({
+  v: 2,
+  exports: ['trackballStart', 'trackballMove', 'trackballEnd', 'tickGlobeFly', 'flyToPoint', 'bindTrackballEvents'],
+  flyMode: 'quat',
+});
 
 function showGestureHint() {
   if (sessionStorage.getItem('astranov-gesture-hint')) return;

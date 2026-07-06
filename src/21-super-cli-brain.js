@@ -82,11 +82,8 @@ Object.assign(SuperCli, {
     }
     const z = this.ZOOM[(level || 'earth').toLowerCase()] || this.ZOOM.earth;
     window._globeFly = {
-      fromY: globePivot.rotation.y,
-      fromX: globePivot.rotation.x,
+      mode: 'zoom',
       fromZ: camera.position.z,
-      toY: globePivot.rotation.y,
-      toX: globePivot.rotation.x,
       toZ: z,
       t0: performance.now(),
       dur: GlobeControl?.flyDuration?.(camera.position.z, z) || 1400,

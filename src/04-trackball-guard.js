@@ -4,6 +4,7 @@ const TrackballGuard = {
   _lastCheck: 0,
   FRICTION: 0.91,
   MIN_VEL: 0.00008,
+  CONTRACT: ['trackballStart', 'trackballMove', 'trackballEnd', 'tickGlobeFly', 'flyToPoint', 'bindTrackballEvents'],
 
   verify() {
     const ok = !!(
@@ -13,7 +14,12 @@ const TrackballGuard = {
       && typeof trackballMove === 'function'
       && typeof trackballEnd === 'function'
       && typeof tickGlobeFly === 'function'
+      && typeof flyToPoint === 'function'
+      && typeof bindTrackballEvents === 'function'
+      && typeof trackVelX === 'number'
+      && typeof trackVelY === 'number'
       && renderer.domElement.__trackballBound
+      && window.__trackballContract?.flyMode === 'quat'
     );
     this._ok = ok;
     this._lastCheck = Date.now();
@@ -23,30 +29,25 @@ const TrackballGuard = {
 
   repair() {
     const canvas = renderer?.domElement;
-    if (!canvas || canvas.__trackballBound) return this.verify();
-    try {
-      canvas.addEventListener('mousedown', e => { if (e.button === 0) trackballStart(e.clientX, e.clientY); });
-      canvas.addEventListener('mousemove', e => {
-        if (!drag) return;
-        if (Math.hypot(e.clientX - pressStartX, e.clientY - pressStartY) > 12) clearTimeout(pressTimer);
-        trackballMove(e.clientX, e.clientY);
-      });
-      canvas.addEventListener('wheel', onWheelZoom, { passive: false });
-      canvas.__trackballBound = true;
-    } catch (e) {
-      console.error('[TrackballGuard] repair failed', e);
+    if (!canvas) return this.verify();
+    if (!canvas.__trackballBound && typeof bindTrackballEvents === 'function') {
+      try { bindTrackballEvents(canvas); } catch (e) {
+        console.error('[TrackballGuard] rebind failed', e);
+      }
     }
+    syncGlobePivotRotation?.();
     return this.verify();
   },
 
   applyInertia() {
-    if (drag || dragging || window._globeFly) return;
+    if (drag || window._globeFly) return;
     if (typeof trackVelX !== 'number' || typeof trackVelY !== 'number') return;
     if (Math.abs(trackVelX) < this.MIN_VEL && Math.abs(trackVelY) < this.MIN_VEL) return;
     if (!globePivot) return;
     globePivot.rotation.y += trackVelX;
     globePivot.rotation.x += trackVelY;
     globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x));
+    syncGlobePivotRotation?.();
     trackVelX *= this.FRICTION;
     trackVelY *= this.FRICTION;
     if (Math.abs(trackVelX) < this.MIN_VEL) trackVelX = 0;
@@ -71,6 +72,7 @@ const TrackballGuard = {
 
   facingLatLng() {
     if (!globePivot) return { lat: 0, lng: 0 };
+    syncGlobePivotRotation?.();
     const e = new THREE.Euler().setFromQuaternion(globePivot.quaternion, 'YXZ');
     const lat = THREE.MathUtils.radToDeg(e.x) * -2.2;
     const lng = THREE.MathUtils.radToDeg(-e.y) - 180;
@@ -87,12 +89,13 @@ const TrackballGuard = {
   },
 
   init() {
-    if (renderer?.domElement) renderer.domElement.__trackballBound = true;
+    if (renderer?.domElement) bindTrackballEvents?.(renderer.domElement);
     if (!this.verify()) this.repair();
     setInterval(() => {
       if (!this.verify()) this.repair();
     }, 8000);
     window.__trackballGuardOk = () => this._ok;
+    window.__trackballGuardVerify = () => this.verify();
   },
 };
 window.TrackballGuard = TrackballGuard;

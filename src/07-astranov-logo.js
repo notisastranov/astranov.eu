@@ -120,26 +120,41 @@ const AstranovLogo = {
     return out;
   },
 
-  _draw(bars, color) {
+  _drawBars(bars, color, x0, width, barCount) {
     const ctx = this._ctx;
     const c = this._canvas;
-    if (!ctx || !c) return;
-    const w = c.width;
+    if (!ctx || !c || !width) return;
     const h = c.height;
-    ctx.clearRect(0, 0, w, h);
-    const gap = w / this._bars;
+    const n = barCount || bars.length;
+    const gap = width / n;
     const mid = h * 0.5;
-    for (let i = 0; i < bars.length; i++) {
-      const amp = Math.max(0.06, bars[i]);
+    for (let i = 0; i < n; i++) {
+      const amp = Math.max(0.06, bars[i] || 0);
       const bh = amp * h * 0.88;
-      const x = i * gap + gap * 0.15;
+      const x = x0 + i * gap + gap * 0.15;
       const bw = gap * 0.7;
       const grad = ctx.createLinearGradient(0, mid - bh, 0, mid + bh);
       grad.addColorStop(0, color);
-      grad.addColorStop(1, color.replace('1)', '0.35)').replace('rgb', 'rgba'));
+      grad.addColorStop(1, color.replace('0.95)', '0.35)').replace('0.92)', '0.35)'));
       ctx.fillStyle = grad;
       ctx.fillRect(x, mid - bh * 0.5, bw, bh);
     }
+  },
+
+  _draw(bars, color) {
+    const c = this._canvas;
+    if (!this._ctx || !c) return;
+    this._ctx.clearRect(0, 0, c.width, c.height);
+    this._drawBars(bars, color, 0, c.width, bars.length);
+  },
+
+  _drawDual(micBars, aiBars) {
+    const c = this._canvas;
+    if (!this._ctx || !c) return;
+    this._ctx.clearRect(0, 0, c.width, c.height);
+    const half = Math.floor(this._bars / 2);
+    this._drawBars(micBars, 'rgba(255,55,55,0.95)', 0, c.width * 0.5, half);
+    this._drawBars(aiBars, 'rgba(0,230,110,0.95)', c.width * 0.5, c.width * 0.5, this._bars - half);
   },
 
   _loop() {
@@ -153,11 +168,8 @@ const AstranovLogo = {
     if (micOn && aiOn) {
       const micBars = this._readBars(this._micAnalyser, 0.2);
       const aiBars = this._readBars(this._aiAnalyser, 0.55);
-      const mix = micBars.map((v, i) => Math.max(v * 0.55, aiBars[i] * 0.85));
-      this._draw(mix, 'rgba(255,70,70,0.95)');
-      if (el) {
-        el.classList.add('voice-mic', 'voice-ai');
-      }
+      this._drawDual(micBars, aiBars);
+      if (el) el.classList.add('voice-mic', 'voice-ai');
     } else if (aiOn) {
       this._draw(this._readBars(this._aiAnalyser, 0.5 + 0.2 * Math.sin(performance.now() * 0.01)), 'rgba(0,230,110,0.95)');
     } else if (micOn) {

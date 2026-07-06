@@ -24,11 +24,6 @@ function animate() {
   const earthView = (level === 'earth' || level === 'orbit') && camZ < 4.8;
   const solarView = level === 'system' || level === 'galaxy' || camZ > 5.5;
 
-  if (drag) {
-    trackVelX = 0;
-    trackVelY = 0;
-  }
-
   const voiceActive = window._handsFreeVoice || isListening;
   const codersBusy = window.AciCoders?._cliBusy || window.AciCoders?._listenBusy;
   if (voiceActive || codersBusy || GlobeDeck?.thinking) setVoicePerfMode?.(true);
@@ -59,6 +54,7 @@ camera.lookAt(0, 0, 0);
 if (typeof globePivot !== 'undefined' && globePivot) {
   globePivot.rotation.x = 0.12;
   globePivot.rotation.y = 0.82;
+  syncGlobePivotRotation?.();
 }
 
 Auth.init();

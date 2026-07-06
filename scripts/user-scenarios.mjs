@@ -362,10 +362,62 @@ const SCENARIOS = [
           before,
           after: globePivot.rotation.y,
           guard: typeof window.__trackballGuardOk === 'function' ? window.__trackballGuardOk() : null,
+          contract: window.__trackballContract?.flyMode,
         };
       });
       if (Math.abs(r.after - r.before) < 0.02) throw new Error('trackball did not rotate: ' + JSON.stringify(r));
       if (r.guard === false) throw new Error('trackball guard not ok');
+      if (r.contract !== 'quat') throw new Error('trackball contract broken: ' + JSON.stringify(r));
+      return r;
+    },
+  },
+  {
+    name: 'trackball — spin inertia after release',
+    run: async (page) => {
+      const r = await page.evaluate(() => {
+        trackVelX = 0;
+        trackVelY = 0;
+        trackballStart(100, 100);
+        for (let i = 0; i < 8; i++) trackballMove(100 + i * 18, 100);
+        const velAtRelease = trackVelX;
+        trackballEnd(244, 100, { skipTap: true });
+        const before = globePivot.rotation.y;
+        for (let i = 0; i < 12; i++) TrackballGuard.applyInertia();
+        return {
+          velAtRelease,
+          moved: Math.abs(globePivot.rotation.y - before),
+          afterEndVel: trackVelX,
+        };
+      });
+      if (Math.abs(r.velAtRelease) < 0.0001) throw new Error('no velocity at release: ' + JSON.stringify(r));
+      if (r.moved < 0.001) throw new Error('inertia did not spin globe: ' + JSON.stringify(r));
+      return r;
+    },
+  },
+  {
+    name: 'fly — great-circle quat (no euler snap)',
+    run: async (page) => {
+      const r = await page.evaluate(() => {
+        syncGlobePivotRotation();
+        const greece = latLngToPos(36.44, 28.22, 1.04);
+        flyToPoint(new THREE.Vector3(greece.x, greece.y, greece.z), 2.55, { dur: 900 });
+        const start = window._globeFly;
+        const progress = [];
+        for (let i = 0; i < 16; i++) {
+          if (!window._globeFly?.fromQ) break;
+          progress.push(start.fromQ.angleTo(globePivot.quaternion));
+          tickGlobeFly();
+        }
+        const monotonic = progress.every((v, i) => i === 0 || v >= progress[i - 1] - 0.02);
+        return {
+          mode: start?.mode,
+          hasQuat: !!(start?.fromQ && start?.toQ),
+          progress: progress.length,
+          monotonic,
+        };
+      });
+      if (r.mode !== 'quat' || !r.hasQuat) throw new Error('fly not using quaternion slerp: ' + JSON.stringify(r));
+      if (r.progress < 4 || !r.monotonic) throw new Error('fly path not smooth: ' + JSON.stringify(r));
       return r;
     },
   },

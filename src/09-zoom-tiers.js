@@ -73,11 +73,8 @@ const ZoomTiers = {
     window._globeFly = null;
     if (animate) {
       window._globeFly = {
-        fromY: globePivot.rotation.y,
-        fromX: globePivot.rotation.x,
+        mode: 'zoom',
         fromZ: camera.position.z,
-        toY: globePivot.rotation.y,
-        toX: globePivot.rotation.x,
         toZ: t.z,
         t0: performance.now(),
         dur: 1400,

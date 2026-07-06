@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260706074443" />
+<meta name="astranov-build" content="20260706075408" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -883,7 +883,15 @@ scene.add(globePivot);
 const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 24), earthMat);
 globePivot.add(earth);
 globePivot.rotation.y = 0.82;
+globePivot.rotation.x = 0.12;
+globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
 window.earth = earth;
+
+function syncGlobePivotRotation() {
+  if (!globePivot) return;
+  globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
+}
+window.syncGlobePivotRotation = syncGlobePivotRotation;
 
 // lat/lng to 3D sphere position
 function latLngToPos(lat, lng, r = 1) {
@@ -965,6 +973,7 @@ const GlobeControl = {
   flyToLatLng(lat, lng, label, targetZ, opts) {
     const o = opts && typeof opts === 'object' ? opts : {};
     if (!TrackballGuard?.beforeFly?.(lat, lng, o)) return false;
+    syncGlobePivotRotation?.();
     window._globeFly = null;
     let z = targetZ;
     if (z == null) z = o.city ? this.Z.city : this.Z.global;
@@ -2502,26 +2511,41 @@ const AstranovLogo = {
     return out;
   },
 
-  _draw(bars, color) {
+  _drawBars(bars, color, x0, width, barCount) {
     const ctx = this._ctx;
     const c = this._canvas;
-    if (!ctx || !c) return;
-    const w = c.width;
+    if (!ctx || !c || !width) return;
     const h = c.height;
-    ctx.clearRect(0, 0, w, h);
-    const gap = w / this._bars;
+    const n = barCount || bars.length;
+    const gap = width / n;
     const mid = h * 0.5;
-    for (let i = 0; i < bars.length; i++) {
-      const amp = Math.max(0.06, bars[i]);
+    for (let i = 0; i < n; i++) {
+      const amp = Math.max(0.06, bars[i] || 0);
       const bh = amp * h * 0.88;
-      const x = i * gap + gap * 0.15;
+      const x = x0 + i * gap + gap * 0.15;
       const bw = gap * 0.7;
       const grad = ctx.createLinearGradient(0, mid - bh, 0, mid + bh);
       grad.addColorStop(0, color);
-      grad.addColorStop(1, color.replace('1)', '0.35)').replace('rgb', 'rgba'));
+      grad.addColorStop(1, color.replace('0.95)', '0.35)').replace('0.92)', '0.35)'));
       ctx.fillStyle = grad;
       ctx.fillRect(x, mid - bh * 0.5, bw, bh);
     }
+  },
+
+  _draw(bars, color) {
+    const c = this._canvas;
+    if (!this._ctx || !c) return;
+    this._ctx.clearRect(0, 0, c.width, c.height);
+    this._drawBars(bars, color, 0, c.width, bars.length);
+  },
+
+  _drawDual(micBars, aiBars) {
+    const c = this._canvas;
+    if (!this._ctx || !c) return;
+    this._ctx.clearRect(0, 0, c.width, c.height);
+    const half = Math.floor(this._bars / 2);
+    this._drawBars(micBars, 'rgba(255,55,55,0.95)', 0, c.width * 0.5, half);
+    this._drawBars(aiBars, 'rgba(0,230,110,0.95)', c.width * 0.5, c.width * 0.5, this._bars - half);
   },
 
   _loop() {
@@ -2535,11 +2559,8 @@ const AstranovLogo = {
     if (micOn && aiOn) {
       const micBars = this._readBars(this._micAnalyser, 0.2);
       const aiBars = this._readBars(this._aiAnalyser, 0.55);
-      const mix = micBars.map((v, i) => Math.max(v * 0.55, aiBars[i] * 0.85));
-      this._draw(mix, 'rgba(255,70,70,0.95)');
-      if (el) {
-        el.classList.add('voice-mic', 'voice-ai');
-      }
+      this._drawDual(micBars, aiBars);
+      if (el) el.classList.add('voice-mic', 'voice-ai');
     } else if (aiOn) {
       this._draw(this._readBars(this._aiAnalyser, 0.5 + 0.2 * Math.sin(performance.now() * 0.01)), 'rgba(0,230,110,0.95)');
     } else if (micOn) {
@@ -8118,11 +8139,8 @@ const ZoomTiers = {
     window._globeFly = null;
     if (animate) {
       window._globeFly = {
-        fromY: globePivot.rotation.y,
-        fromX: globePivot.rotation.x,
+        mode: 'zoom',
         fromZ: camera.position.z,
-        toY: globePivot.rotation.y,
-        toX: globePivot.rotation.x,
         toZ: t.z,
         t0: performance.now(),
         dur: 1400,
@@ -8208,8 +8226,6 @@ function trackballStart(clientX, clientY) {
 function trackballEnd(clientX, clientY, opts) {
   clearTimeout(pressTimer);
   drag = false;
-  trackVelX = 0;
-  trackVelY = 0;
   canvas.classList.remove('dragging');
   setTimeout(() => { dragging = false; }, 100);
   if (!opts?.skipTap && clientX != null && clientY != null) registerTap(clientX, clientY);
@@ -8268,18 +8284,18 @@ function onWheelZoom(e) {
   }
 }
 
-canvas.__trackballBound = true;
-canvas.addEventListener('mousedown', e => { if (e.button === 0) trackballStart(e.clientX, e.clientY); });
-window.addEventListener('mouseup', e => { if (drag) trackballEnd(e.clientX, e.clientY); });
-canvas.addEventListener('mousemove', e => {
-  if (!drag) return;
-  if (Math.hypot(e.clientX - pressStartX, e.clientY - pressStartY) > 12) clearTimeout(pressTimer);
-  trackballMove(e.clientX, e.clientY);
-});
-canvas.addEventListener('wheel', onWheelZoom, { passive: false });
-container.addEventListener('wheel', onWheelZoom, { passive: false });
-
-canvas.addEventListener('touchstart', e => {
+function bindTrackballEvents(targetCanvas) {
+  const c = targetCanvas || canvas;
+  if (!c || c.__trackballBound) return c;
+  c.__trackballBound = true;
+  c.addEventListener('mousedown', e => { if (e.button === 0) trackballStart(e.clientX, e.clientY); });
+  c.addEventListener('mousemove', e => {
+    if (!drag) return;
+    if (Math.hypot(e.clientX - pressStartX, e.clientY - pressStartY) > 12) clearTimeout(pressTimer);
+    trackballMove(e.clientX, e.clientY);
+  });
+  c.addEventListener('wheel', onWheelZoom, { passive: false });
+  c.addEventListener('touchstart', e => {
   if (e.touches.length === 2) {
     if (drag) trackballEnd(null, null, { skipTap: true });
     clearTimeout(pressTimer);
@@ -8300,9 +8316,8 @@ canvas.addEventListener('touchstart', e => {
     e.preventDefault();
     trackballStart(e.touches[0].clientX, e.touches[0].clientY);
   }
-}, { passive: false });
-
-canvas.addEventListener('touchmove', e => {
+  }, { passive: false });
+  c.addEventListener('touchmove', e => {
   if (e.touches.length === 2) {
     e.preventDefault();
     if (!pinchDist) {
@@ -8334,9 +8349,8 @@ canvas.addEventListener('touchmove', e => {
     }
     trackballMove(e.touches[0].clientX, e.touches[0].clientY);
   }
-}, { passive: false });
-
-canvas.addEventListener('touchend', e => {
+  }, { passive: false });
+  c.addEventListener('touchend', e => {
   if (e.touches.length < 2) {
     pinchDist = 0;
     pinching = false;
@@ -8345,12 +8359,18 @@ canvas.addEventListener('touchend', e => {
     const t = e.changedTouches[0];
     trackballEnd(t ? t.clientX : null, t ? t.clientY : null);
   }
-});
+  });
+  c.addEventListener('dblclick', e => {
+    e.preventDefault();
+    ZoomTiers?.stepIn?.();
+  });
+  return c;
+}
 
-canvas.addEventListener('dblclick', e => {
-  e.preventDefault();
-  ZoomTiers?.stepIn?.();
-});
+bindTrackballEvents(canvas);
+window.addEventListener('mouseup', e => { if (drag) trackballEnd(e.clientX, e.clientY); });
+container.addEventListener('wheel', onWheelZoom, { passive: false });
+window.bindTrackballEvents = bindTrackballEvents;
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -8424,6 +8444,7 @@ function flyToPoint(point, targetZ = 1.82, opts) {
     GlobeControl?.userTookGlobe?.('silent');
     window._globeFly = null;
   }
+  syncGlobePivotRotation?.();
   const dir = point.clone().normalize();
   const toE = eulerFromDir(dir);
   const qTo = new THREE.Quaternion().setFromEuler(toE);
@@ -8463,12 +8484,15 @@ function tickGlobeFly() {
   const ease = p < 0.5
     ? 4 * p * p * p
     : 1 - Math.pow(-2 * p + 2, 3) / 2;
-  if (f.mode === 'quat' && f.fromQ && f.toQ) {
+  if (f.mode === 'zoom') {
+    /* camera-only — globe bearing unchanged */
+  } else if (f.mode === 'quat' && f.fromQ && f.toQ) {
     globePivot.quaternion.slerpQuaternions(f.fromQ, f.toQ, ease);
     globePivot.rotation.setFromQuaternion(globePivot.quaternion, 'YXZ');
   } else {
-    globePivot.rotation.y = f.fromY + (f.toY - f.fromY) * ease;
-    globePivot.rotation.x = f.fromX + (f.toX - f.fromX) * ease;
+    console.warn('[trackball] deprecated euler fly blocked — use quat or zoom');
+    window._globeFly = null;
+    return;
   }
   trackVelX = 0;
   trackVelY = 0;
@@ -8516,6 +8540,11 @@ window.trackballStart = trackballStart;
 window.trackballMove = trackballMove;
 window.trackballEnd = trackballEnd;
 window.flyToPoint = flyToPoint;
+window.__trackballContract = Object.freeze({
+  v: 2,
+  exports: ['trackballStart', 'trackballMove', 'trackballEnd', 'tickGlobeFly', 'flyToPoint', 'bindTrackballEvents'],
+  flyMode: 'quat',
+});
 
 function showGestureHint() {
   if (sessionStorage.getItem('astranov-gesture-hint')) return;
@@ -8536,6 +8565,7 @@ const TrackballGuard = {
   _lastCheck: 0,
   FRICTION: 0.91,
   MIN_VEL: 0.00008,
+  CONTRACT: ['trackballStart', 'trackballMove', 'trackballEnd', 'tickGlobeFly', 'flyToPoint', 'bindTrackballEvents'],
 
   verify() {
     const ok = !!(
@@ -8545,7 +8575,12 @@ const TrackballGuard = {
       && typeof trackballMove === 'function'
       && typeof trackballEnd === 'function'
       && typeof tickGlobeFly === 'function'
+      && typeof flyToPoint === 'function'
+      && typeof bindTrackballEvents === 'function'
+      && typeof trackVelX === 'number'
+      && typeof trackVelY === 'number'
       && renderer.domElement.__trackballBound
+      && window.__trackballContract?.flyMode === 'quat'
     );
     this._ok = ok;
     this._lastCheck = Date.now();
@@ -8555,30 +8590,25 @@ const TrackballGuard = {
 
   repair() {
     const canvas = renderer?.domElement;
-    if (!canvas || canvas.__trackballBound) return this.verify();
-    try {
-      canvas.addEventListener('mousedown', e => { if (e.button === 0) trackballStart(e.clientX, e.clientY); });
-      canvas.addEventListener('mousemove', e => {
-        if (!drag) return;
-        if (Math.hypot(e.clientX - pressStartX, e.clientY - pressStartY) > 12) clearTimeout(pressTimer);
-        trackballMove(e.clientX, e.clientY);
-      });
-      canvas.addEventListener('wheel', onWheelZoom, { passive: false });
-      canvas.__trackballBound = true;
-    } catch (e) {
-      console.error('[TrackballGuard] repair failed', e);
+    if (!canvas) return this.verify();
+    if (!canvas.__trackballBound && typeof bindTrackballEvents === 'function') {
+      try { bindTrackballEvents(canvas); } catch (e) {
+        console.error('[TrackballGuard] rebind failed', e);
+      }
     }
+    syncGlobePivotRotation?.();
     return this.verify();
   },
 
   applyInertia() {
-    if (drag || dragging || window._globeFly) return;
+    if (drag || window._globeFly) return;
     if (typeof trackVelX !== 'number' || typeof trackVelY !== 'number') return;
     if (Math.abs(trackVelX) < this.MIN_VEL && Math.abs(trackVelY) < this.MIN_VEL) return;
     if (!globePivot) return;
     globePivot.rotation.y += trackVelX;
     globePivot.rotation.x += trackVelY;
     globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x));
+    syncGlobePivotRotation?.();
     trackVelX *= this.FRICTION;
     trackVelY *= this.FRICTION;
     if (Math.abs(trackVelX) < this.MIN_VEL) trackVelX = 0;
@@ -8603,6 +8633,7 @@ const TrackballGuard = {
 
   facingLatLng() {
     if (!globePivot) return { lat: 0, lng: 0 };
+    syncGlobePivotRotation?.();
     const e = new THREE.Euler().setFromQuaternion(globePivot.quaternion, 'YXZ');
     const lat = THREE.MathUtils.radToDeg(e.x) * -2.2;
     const lng = THREE.MathUtils.radToDeg(-e.y) - 180;
@@ -8619,12 +8650,13 @@ const TrackballGuard = {
   },
 
   init() {
-    if (renderer?.domElement) renderer.domElement.__trackballBound = true;
+    if (renderer?.domElement) bindTrackballEvents?.(renderer.domElement);
     if (!this.verify()) this.repair();
     setInterval(() => {
       if (!this.verify()) this.repair();
     }, 8000);
     window.__trackballGuardOk = () => this._ok;
+    window.__trackballGuardVerify = () => this.verify();
   },
 };
 window.TrackballGuard = TrackballGuard;
@@ -10616,11 +10648,6 @@ function animate() {
   const earthView = (level === 'earth' || level === 'orbit') && camZ < 4.8;
   const solarView = level === 'system' || level === 'galaxy' || camZ > 5.5;
 
-  if (drag) {
-    trackVelX = 0;
-    trackVelY = 0;
-  }
-
   const voiceActive = window._handsFreeVoice || isListening;
   const codersBusy = window.AciCoders?._cliBusy || window.AciCoders?._listenBusy;
   if (voiceActive || codersBusy || GlobeDeck?.thinking) setVoicePerfMode?.(true);
@@ -10651,6 +10678,7 @@ camera.lookAt(0, 0, 0);
 if (typeof globePivot !== 'undefined' && globePivot) {
   globePivot.rotation.x = 0.12;
   globePivot.rotation.y = 0.82;
+  syncGlobePivotRotation?.();
 }
 
 Auth.init();
@@ -10710,6 +10738,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260706074443" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260706075408" data-astranov-deferred></script>
 </body>
 </html>
