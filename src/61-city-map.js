@@ -19,6 +19,62 @@ const CityMap = {
   _demoPhase: 0,
   _forceOpen: false,
   _initAttempts: 0,
+  _blend: 0,
+
+  _globeZ() {
+    return ZoomTiers?.tierZ?.('global') ?? GlobeControl?.Z?.global ?? 2.55;
+  },
+
+  _nationalZ() {
+    return ZoomTiers?.tierZ?.('national') ?? GlobeControl?.Z?.national ?? 1.82;
+  },
+
+  _setGlobeSurfaceVisible(show) {
+    if (window.earth) window.earth.visible = !!show;
+    const g = window.AIGraphics;
+    if (!g) return;
+    ['atmosphere', 'clouds', 'cityLights', 'neuralLayer', 'idleNodes'].forEach((k) => {
+      if (g[k]) g[k].visible = !!show;
+    });
+  },
+
+  _applyGlobeMapCrossfade(camZ) {
+    if (this.active) {
+      document.documentElement.style.setProperty('--globe-opacity', '0');
+      document.documentElement.style.setProperty('--map-opacity', '1');
+      this._setGlobeSurfaceVisible(false);
+      return;
+    }
+    const z0 = this._globeZ();
+    const z1 = this._nationalZ();
+    let t = 0;
+    if (camZ <= z1) t = 1;
+    else if (camZ < z0) t = 1 - (camZ - z1) / (z0 - z1);
+    t = Math.max(0, Math.min(1, Math.pow(t, 0.82)));
+    this._blend = t;
+    document.documentElement.style.setProperty('--globe-opacity', String(1 - t));
+    document.documentElement.style.setProperty('--map-opacity', String(t));
+    this._setGlobeSurfaceVisible(t < 0.92);
+    const mapEl = document.getElementById('city-map');
+    if (mapEl && t > 0.04 && !this.active) {
+      if (!mapEl.classList.contains('national-active')) mapEl.classList.add('national-active');
+      if (this.map) {
+        const c = window._lastPos || this.globeCenterLatLng();
+        this._center = c;
+        const lz = this.nationalLeafletZoom(camZ);
+        if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
+        const cur = this.map.getCenter();
+        if (Math.abs(cur.lat - c.lat) > 0.03 || Math.abs(cur.lng - c.lng) > 0.03) {
+          this.map.panTo([c.lat, c.lng], { animate: false });
+        }
+        this._applyBaseLayers();
+        this._invalidate();
+      }
+    } else if (mapEl && !this._nationalActive && t <= 0.04) {
+      mapEl.classList.remove('national-active');
+      mapEl.style.removeProperty('opacity');
+    }
+  },
 
   async _loadLeaflet() {
     if (window.L) return true;
@@ -200,7 +256,7 @@ const CityMap = {
     let pinchDist = 0;
 
     el.addEventListener('wheel', e => {
-      if (!this.active) return;
+      if (!this.active && !this._nationalActive) return;
       e.preventDefault();
       e.stopPropagation();
       const dy = e.deltaMode === 1 ? e.deltaY * 1.2 : e.deltaY;
@@ -209,7 +265,7 @@ const CityMap = {
     }, { passive: false });
 
     el.addEventListener('touchstart', e => {
-      if (!this.active || e.touches.length !== 2) return;
+      if ((!this.active && !this._nationalActive) || e.touches.length !== 2) return;
       pinchDist = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY
@@ -217,7 +273,7 @@ const CityMap = {
     }, { passive: true });
 
     el.addEventListener('touchmove', e => {
-      if (!this.active || e.touches.length !== 2 || !pinchDist) return;
+      if ((!this.active && !this._nationalActive) || e.touches.length !== 2 || !pinchDist) return;
       e.preventDefault();
       const d = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
@@ -310,6 +366,7 @@ const CityMap = {
 
   onCamera(camZ, level) {
     if (!this._ready) return;
+    this._applyGlobeMapCrossfade(camZ);
     const earth = window._cityDropLock || this._forceOpen
       || (level || CosmicZoom?.level || 'earth') === 'earth';
     const driving = !!DrivingView?.active;
@@ -347,6 +404,9 @@ const CityMap = {
     if (el) el.classList.add('active');
     if (globe) globe.classList.add('city-map-active');
     document.body.classList.add('city-map-active');
+    this._setGlobeSurfaceVisible(false);
+    document.documentElement.style.setProperty('--globe-opacity', '0');
+    document.documentElement.style.setProperty('--map-opacity', '1');
     const c = window._lastPos || this.globeCenterLatLng();
     this._center = c;
     this.map.setView([c.lat, c.lng], this.camZToZoom(camZ), { animate: false });
@@ -371,6 +431,9 @@ const CityMap = {
     if (globe) { globe.classList.add('national-map-active'); globe.classList.remove('city-map-active'); }
     document.body.classList.add('national-map-active');
     document.body.classList.remove('city-map-active');
+    this._setGlobeSurfaceVisible(false);
+    document.documentElement.style.setProperty('--globe-opacity', '0');
+    document.documentElement.style.setProperty('--map-opacity', '1');
     this._applyBaseLayers();
     const c = window._lastPos || this.globeCenterLatLng();
     this._center = c;
@@ -397,6 +460,8 @@ const CityMap = {
     if (el) el.classList.remove('national-active');
     if (globe) globe.classList.remove('national-map-active');
     document.body.classList.remove('national-map-active');
+    const camZ = camera?.position?.z ?? this._globeZ();
+    this._applyGlobeMapCrossfade(camZ);
   },
 
   _exit() {
@@ -408,6 +473,8 @@ const CityMap = {
     if (globe) { globe.classList.remove('city-map-active'); globe.classList.remove('national-map-active'); }
     document.body.classList.remove('city-map-active');
     document.body.classList.remove('national-map-active');
+    const camZ = camera?.position?.z ?? this._globeZ();
+    this._applyGlobeMapCrossfade(camZ);
     EarthRealism?._hudTimer && (EarthRealism._hudTimer = 0);
     const chip = document.getElementById('city-life-chip');
     if (chip) chip.classList.remove('open');

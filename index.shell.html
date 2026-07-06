@@ -115,16 +115,17 @@
   .coders-here { display:block; margin-top:2px; font-size:8px; color:rgba(126,184,255,0.75); }
   .coders-card-path { margin:8px 0 10px; font-size:8px; color:#6b8299; font-family:ui-monospace,monospace; }
   .coders-open { width:100%; border:1px solid color-mix(in srgb, var(--lab-accent,#7eb8ff) 32%, transparent); color:color-mix(in srgb, var(--lab-accent,#7eb8ff) 85%, white); background:rgba(0,0,0,0.35); }
+  :root { --globe-opacity:1; --map-opacity:0; }
   #globe { position:absolute; top:0; left:0; right:0; bottom:0; touch-action:none; z-index:2; }
-  #globe canvas { display:block; cursor:grab; transition:opacity 0.45s ease; }
+  #globe canvas { display:block; cursor:grab; opacity:var(--globe-opacity,1); transition:opacity 0.55s cubic-bezier(0.4,0,0.2,1); }
   #globe canvas.dragging { cursor:grabbing; }
   #globe.city-map-active canvas { opacity:0 !important; pointer-events:none; }
-  #city-map { position:fixed; inset:0; z-index:10; opacity:0; pointer-events:none; transition:opacity 0.35s ease; }
-  #city-map.national-active { z-index:12; opacity:0.48; pointer-events:none; }
+  #globe.national-map-active canvas { opacity:0 !important; pointer-events:none; }
+  #city-map { position:fixed; inset:0; z-index:10; opacity:0; pointer-events:none; transition:opacity 0.55s cubic-bezier(0.4,0,0.2,1); }
+  #city-map.national-active { z-index:12; opacity:var(--map-opacity,1); pointer-events:none; }
   #city-map.active { z-index:150; opacity:1; pointer-events:auto; }
   body.city-map-active #city-map { z-index:150; }
-  body.national-map-active #city-map.national-active { z-index:12; }
-  #globe.national-map-active canvas { opacity:0.42 !important; pointer-events:auto; }
+  body.national-map-active #city-map.national-active { z-index:12; opacity:var(--map-opacity,1); }
   #city-map .leaflet-container { background:var(--an-bg); font-family:system-ui,sans-serif; }
   #city-map[data-theme="bright"] .leaflet-container { background:#e8f0f8; }
   #city-map[data-theme="dark"] .leaflet-container { background:#0a1020; }

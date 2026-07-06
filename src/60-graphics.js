@@ -23,10 +23,7 @@ const AIGraphics = {
   _paths: [],
   _flyer: null,
   _flyerFrame: 0,
-  _flyerPack: null,
   _flyerFlying: false,
-  _flyerImageTex: null,
-  _flyerImageLoading: false,
 
   init(parent, earthRadius = 1) {
     if (this._inited) return;
@@ -40,28 +37,8 @@ const AIGraphics = {
     this.addIdleAIEffects(this._parent, earthRadius, lite ? 40 : 80);
     this.addNeuralField(this._parent, earthRadius);
     this._mountGamingHud();
-    this._loadFlyerImage();
     console.log('%c[Astranov AI Graphics Engine] Gaming procedural graphics live — zero model assets', 'color:#00ddff;font-weight:700');
     window._aiGraphicsReady = true;
-  },
-
-  _loadFlyerImage() {
-    if (this._flyerImageLoading || this._flyerImageTex) return;
-    this._flyerImageLoading = true;
-    new THREE.TextureLoader().load(
-      'astranov-flyer.png',
-      (tex) => {
-        tex.anisotropy = 4;
-        this._flyerImageTex = tex;
-        if (this._flyer?.material) {
-          this._flyer.material.map = tex;
-          this._flyer.material.blending = THREE.NormalBlending;
-          this._flyer.material.needsUpdate = true;
-        }
-      },
-      undefined,
-      () => { this._flyerImageLoading = false; },
-    );
   },
 
   _latLngToPos(lat, lng, r = 1) {
@@ -462,63 +439,148 @@ const AIGraphics = {
     ctx.restore();
   },
 
-  _ensureFlyerPack() {
-    if (this._flyerPack) return this._flyerPack;
-    this._flyerPack = this._procCanvas(256, 256, (ctx, w, h) => {
-      this._paintAstranovCharacter(ctx, w, h, 0, {});
+  _buildProceduralHumanoid(lat, lng, opts = {}) {
+    const cyan = 0x00e8ff;
+    const silver = 0xb8c8d8;
+    const dark = 0x1a2838;
+    const g = new THREE.Group();
+    const torso = new THREE.Mesh(
+      new THREE.BoxGeometry(0.028, 0.044, 0.02),
+      new THREE.MeshBasicMaterial({ color: dark }),
+    );
+    g.add(torso);
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.013, 10, 10),
+      new THREE.MeshBasicMaterial({ color: silver }),
+    );
+    head.position.y = 0.032;
+    g.add(head);
+    const visor = new THREE.Mesh(
+      new THREE.BoxGeometry(0.024, 0.007, 0.01),
+      new THREE.MeshBasicMaterial({ color: cyan, transparent: true, opacity: 0.92 }),
+    );
+    visor.position.set(0, 0.034, 0.012);
+    g.add(visor);
+    const arms = [];
+    [-1, 1].forEach((side) => {
+      const arm = new THREE.Mesh(
+        new THREE.BoxGeometry(0.009, 0.026, 0.009),
+        new THREE.MeshBasicMaterial({ color: 0x6a7a8a }),
+      );
+      arm.position.set(side * 0.022, 0.012, 0);
+      g.add(arm);
+      arms.push(arm);
     });
-    return this._flyerPack;
+    const legs = [];
+    [-1, 1].forEach((side) => {
+      const leg = new THREE.Mesh(
+        new THREE.BoxGeometry(0.009, 0.024, 0.009),
+        new THREE.MeshBasicMaterial({ color: 0x5a6a78 }),
+      );
+      leg.position.set(side * 0.01, -0.03, 0);
+      g.add(leg);
+      legs.push(leg);
+    });
+    const wings = [];
+    [-1, 1].forEach((side) => {
+      const wing = new THREE.Group();
+      const root = new THREE.Mesh(
+        new THREE.BoxGeometry(0.036, 0.004, 0.014),
+        new THREE.MeshBasicMaterial({ color: silver }),
+      );
+      root.position.x = side * 0.02;
+      wing.add(root);
+      const tip = new THREE.Mesh(
+        new THREE.BoxGeometry(0.028, 0.003, 0.01),
+        new THREE.MeshBasicMaterial({ color: cyan, transparent: true, opacity: 0.75 }),
+      );
+      tip.position.set(side * 0.048, 0.01, -0.004);
+      wing.add(tip);
+      wing.position.set(side * 0.014, 0.01, -0.008);
+      g.add(wing);
+      wings.push(wing);
+    });
+    const thrusters = [];
+    [-1, 1].forEach((side) => {
+      const thr = new THREE.Mesh(
+        new THREE.ConeGeometry(0.005, 0.02, 6),
+        new THREE.MeshBasicMaterial({ color: cyan, transparent: true, opacity: 0.85 }),
+      );
+      thr.rotation.x = Math.PI;
+      thr.position.set(side * 0.012, -0.026, -0.014);
+      g.add(thr);
+      thrusters.push(thr);
+    });
+    const core = new THREE.Mesh(
+      new THREE.SphereGeometry(0.009, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 }),
+    );
+    core.position.y = 0.004;
+    g.add(core);
+    const alt = opts.alt || 1.09;
+    const p = this._latLngToPos(lat ?? 36.44, lng ?? 28.22, alt);
+    g.position.set(p.x, p.y, p.z);
+    const n = new THREE.Vector3(p.x, p.y, p.z).normalize();
+    g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
+    g.userData = {
+      type: 'astranov-flyer',
+      procedural3d: true,
+      name: opts.label || 'Astranov',
+      lat, lng, alt,
+      wings, arms, legs, thrusters, core,
+      edition: opts.edition?.id || 'astranov',
+    };
+    return g;
   },
 
-  _syncFlyerTexture(flying) {
-    if (this._flyerImageTex) {
-      if (this._flyer?.material) {
-        const pulse = flying ? 1 + Math.sin(this._flyerFrame * 0.14) * 0.06 : 1;
-        this._flyer.scale.set(
-          this._flyer.userData._baseScale * pulse,
-          this._flyer.userData._baseScale * pulse,
-          1,
-        );
-      }
-      return;
+  _animateFlyerPose(mesh, flying) {
+    const ud = mesh?.userData;
+    if (!ud?.procedural3d) return;
+    const t = this._flyerFrame * 0.12;
+    const flap = Math.sin(t) * (flying ? 0.42 : 0.22);
+    ud.wings?.forEach((wing, i) => {
+      wing.rotation.z = (i === 0 ? 1 : -1) * flap;
+    });
+    ud.legs?.forEach((leg, i) => {
+      leg.rotation.x = Math.sin(t * 0.9 + i) * 0.12;
+    });
+    ud.arms?.forEach((arm, i) => {
+      arm.rotation.z = (i === 0 ? 1 : -1) * (0.08 + Math.sin(t * 0.7) * 0.06);
+    });
+    if (ud.core?.material) {
+      ud.core.material.opacity = 0.45 + Math.sin(t * 1.6) * 0.25;
     }
-    const pack = this._ensureFlyerPack();
-    const glow = Voice?.speaking ? '#00ff88' : '#00e8ff';
-    this._paintAstranovCharacter(pack.ctx, 256, 256, this._flyerFrame, { glow, jet: !!flying });
-    pack.tex.needsUpdate = true;
+    ud.thrusters?.forEach((thr, i) => {
+      if (!thr.material) return;
+      thr.material.opacity = flying
+        ? 0.7 + Math.sin(t * 2 + i) * 0.3
+        : 0.35 + Math.sin(t + i) * 0.15;
+      thr.scale.y = flying ? 1.1 + Math.sin(t * 1.4 + i) * 0.35 : 0.75;
+    });
+  },
+
+  _orientFlyerOnGlobe(mesh, pos) {
+    if (!mesh || !pos) return;
+    const n = pos.clone().normalize();
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
+  },
+
+  _scaleFlyer(mesh, camZ) {
+    if (!mesh?.userData?.procedural3d) return;
+    const scale = Math.max(0.85, Math.min(2.4, 1.35 * (camZ / 2.2)));
+    mesh.scale.setScalar(scale);
   },
 
   spawnAstranovFlyer(lat, lng, opts = {}) {
     if (this._flyer?.parent) this._flyer.parent.remove(this._flyer);
-    this._loadFlyerImage();
-    const pack = this._ensureFlyerPack();
-    this._syncFlyerTexture(false);
-    const useImage = !!this._flyerImageTex;
-    const mat = new THREE.SpriteMaterial({
-      map: useImage ? this._flyerImageTex : pack.tex,
-      transparent: true,
-      depthWrite: false,
-      blending: useImage ? THREE.NormalBlending : THREE.AdditiveBlending,
-      opacity: useImage ? 0.98 : 1,
-    });
-    const sprite = new THREE.Sprite(mat);
-    const alt = opts.alt || 1.09;
-    const p = this._latLngToPos(lat ?? 36.44, lng ?? 28.22, alt);
-    sprite.position.set(p.x, p.y, p.z);
-    const baseScale = 0.2;
-    sprite.scale.set(baseScale, baseScale, 1);
-    sprite.userData = {
-      type: 'astranov-flyer',
-      name: opts.label || 'Astranov',
-      lat, lng, alt, _baseScale: baseScale,
-      edition: opts.edition?.id || 'astranov',
-    };
-    globePivot.add(sprite);
-    this._flyer = sprite;
-    window._astranovFlyer = sprite;
-    window._pilot = sprite;
-    this.spawnEffect(sprite.position, opts.color || 0x3d9eff, 22, 48);
-    return sprite;
+    const robot = this._buildProceduralHumanoid(lat, lng, opts);
+    globePivot.add(robot);
+    this._flyer = robot;
+    window._astranovFlyer = robot;
+    window._pilot = robot;
+    this._animateFlyerPose(robot, false);
+    this.spawnEffect(robot.position, opts.color || 0x3d9eff, 22, 48);
+    return robot;
   },
 
   _greatCircleCurve(fromVec, toVec, alt = 1.09, segments = 36) {
@@ -615,17 +677,13 @@ const AIGraphics = {
       const prog = Math.min(1, (now - p.t0) / p.dur);
       const pt = p.curve.getPoint(prog);
       p.mesh.position.copy(pt);
-      if (!p.isFlyer) {
-        const n = pt.clone().normalize();
-        p.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
-      }
+      const n = pt.clone().normalize();
+      p.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
       const camZ = camera?.position?.z ?? 2.55;
-      const scale = Math.max(0.1, Math.min(0.28, 0.14 * (camZ / 2.2)));
-      if (p.isFlyer && p.mesh.isSprite) {
-        p.mesh.userData._baseScale = scale;
-        p.mesh.scale.set(scale, scale, 1);
+      if (p.isFlyer) {
         this._flyerFrame++;
-        this._syncFlyerTexture(true);
+        this._scaleFlyer(p.mesh, camZ);
+        this._animateFlyerPose(p.mesh, true);
       }
       if (Math.floor(prog * 40) % (p.isFlyer ? 2 : 3) === 0) {
         this.spawnEffect(pt, p.trailColor, p.isFlyer ? 6 : 4, p.isFlyer ? 22 : 18);
@@ -649,11 +707,13 @@ const AIGraphics = {
     const lng = this._flyer.userData?.lng ?? 28.22;
     const p = this._latLngToPos(lat, lng, alt);
     this._flyer.position.set(p.x, p.y, p.z);
+    this._orientFlyerOnGlobe(this._flyer, this._flyer.position);
     const camZ = camera?.position?.z ?? 2.55;
-    const scale = Math.max(0.12, Math.min(0.28, 0.2 * (camZ / 2.2)));
-    this._flyer.userData._baseScale = scale;
-    this._flyer.scale.set(scale, scale, 1);
-    this._syncFlyerTexture(false);
+    this._scaleFlyer(this._flyer, camZ);
+    this._animateFlyerPose(this._flyer, false);
+    if (this._flyerFrame % 18 === 0) {
+      this.spawnEffect(this._flyer.position, 0x3d9eff, 4, 16);
+    }
   },
 
   setSiteShellMode(on) {
@@ -791,6 +851,7 @@ const AIGraphics = {
       this.neuralLayer.rotation.y += 0.00012;
     }
     this._tickAstranovFlyer();
+    this._tickPilotThrusters();
     this._tickPaths();
 
     for (let i = this.activeEffects.length - 1; i >= 0; i--) {
