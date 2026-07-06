@@ -76,7 +76,8 @@
       radial-gradient(1px 1px at 92% 78%, rgba(180,210,255,0.35), transparent),
       radial-gradient(1px 1px at 45% 92%, rgba(255,255,255,0.25), transparent);
   }
-  #coders-hub-trigger { position:fixed; top:max(10px,env(safe-area-inset-top)); right:max(10px,env(safe-area-inset-right)); z-index:49; display:flex; align-items:center; gap:6px; padding:8px 12px; border-radius:999px; border:1px solid rgba(126,184,255,0.28); background:rgba(0,0,0,0.55); backdrop-filter:blur(12px); color:#b8d9ff; cursor:pointer; font:inherit; font-size:11px; font-weight:600; touch-action:manipulation; }
+  /* Coders hub — CLI only (say "coders"); no top chrome button overlapping logo */
+  #coders-hub-trigger { display:none !important; }
   #coders-hub-trigger:hover { border-color:var(--ax-blue-bright); box-shadow:0 0 16px var(--ax-blue-glow); }
   #coders-hub-panel { display:none; position:fixed; inset:auto 0 0 0; z-index:140; max-height:min(78vh,520px); overflow:hidden; flex-direction:column; border-radius:18px 18px 0 0; background:rgba(2,6,14,0.96); border:1px solid rgba(126,184,255,0.22); border-bottom:none; box-shadow:0 -8px 40px rgba(0,0,0,0.55); pointer-events:auto; font:11px/1.45 system-ui; color:var(--an-text); }
   #coders-hub-panel.open { display:flex; }
@@ -131,7 +132,9 @@
     #city-map:not([data-theme]) .leaflet-container { background:#0a1020; }
   }
   .city-map-pin { background:transparent !important; border:none !important; }
-  #astranov-logo { position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:48; margin:0; padding:6px 14px; border-radius:999px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); backdrop-filter:blur(10px); cursor:pointer; font-family:"Segoe UI Variable Display","Segoe UI Variable","Segoe UI","Segoe UI Rounded",system-ui,sans-serif; font-size:15px; font-weight:600; letter-spacing:0.34em; text-indent:0.34em; text-transform:uppercase; color:var(--ax-blue-bright); text-shadow:0 0 18px var(--ax-blue-glow); box-shadow:0 2px 14px rgba(0,0,0,0.45); transition:color 0.2s,border-color 0.2s,box-shadow 0.2s,background 0.2s,transform 0.15s; pointer-events:auto; touch-action:manipulation; user-select:none; -webkit-tap-highlight-color:transparent; display:flex; align-items:center; justify-content:center; min-width:min(220px,72vw); min-height:40px; overflow:hidden; }
+  #astranov-logo { position:fixed; top:max(10px,env(safe-area-inset-top)); left:50%; transform:translateX(-50%); z-index:210; margin:0; padding:6px 14px; border-radius:999px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); backdrop-filter:blur(10px); cursor:pointer; font-family:"Segoe UI Variable Display","Segoe UI Variable","Segoe UI","Segoe UI Rounded",system-ui,sans-serif; font-size:15px; font-weight:600; letter-spacing:0.34em; text-indent:0.34em; text-transform:uppercase; color:var(--ax-blue-bright); text-shadow:0 0 18px var(--ax-blue-glow); box-shadow:0 2px 14px rgba(0,0,0,0.45); transition:color 0.2s,border-color 0.2s,box-shadow 0.2s,background 0.2s,transform 0.15s; pointer-events:auto; touch-action:manipulation; user-select:none; -webkit-tap-highlight-color:transparent; display:flex; align-items:center; justify-content:center; min-width:min(200px,62vw); min-height:40px; overflow:hidden; opacity:1; visibility:visible; isolation:isolate; }
+  body.globe-flying #astranov-logo, body.city-map-active #astranov-logo { z-index:210; opacity:1 !important; visibility:visible !important; pointer-events:auto !important; }
+  body.globe-flying #zoom-label { top:max(52px,calc(10px + env(safe-area-inset-top) + 42px)); }
   #astranov-logo-wave { position:absolute; inset:2px 4px; width:calc(100% - 8px); height:calc(100% - 4px); pointer-events:none; opacity:0.92; border-radius:999px; }
   .astranov-logo-label { position:relative; z-index:1; pointer-events:none; letter-spacing:0.34em; text-indent:0.34em; }
   #astranov-logo.voice-mic { border-color:rgba(255,55,55,0.72); box-shadow:0 0 18px rgba(255,55,55,0.5); color:#ffb0b0; }
@@ -549,8 +552,12 @@
 </style>
 </head>
 <body>
+  <button id="astranov-logo" type="button" title="Hard reset — clear cache · reload · global view · red=your mic · green=Grok voice" aria-label="ASTRANOV hard reset reload">
+    <canvas id="astranov-logo-wave" aria-hidden="true"></canvas>
+    <span class="astranov-logo-label">ASTRANOV</span>
+  </button>
   <div id="globe"></div>
-  <button id="coders-hub-trigger" type="button" aria-label="Open AI coders hub" title="AI Coders race — switch team and continue the job"><span>⬡</span><span>Coders</span><span id="coders-hub-live-count">8</span></button>
+  <button id="coders-hub-trigger" type="button" aria-hidden="true" tabindex="-1" hidden><span>⬡</span><span>Coders</span><span id="coders-hub-live-count">8</span></button>
   <aside id="coders-hub-panel" aria-label="AI coder labs" aria-hidden="true">
     <div id="coders-hub-head"><div><p style="margin:0;font-size:9px;color:#7a9">AI coder teams racing</p><h2>Coders Hub</h2></div><button id="coders-refresh-labs" type="button">Refresh</button><button id="coders-hub-close" type="button" aria-label="Close" style="background:transparent;border:1px solid #555;color:#aaa;border-radius:8px;padding:4px 10px;cursor:pointer">✖</button></div>
     <div id="coders-hub-body">
@@ -669,10 +676,6 @@
       <button id="ge-hud-close" type="button">✖</button>
     </div>
   </div>
-  <button id="astranov-logo" type="button" title="Hard reset — clear cache · reload · global view · red=your mic · green=Grok voice" aria-label="ASTRANOV hard reset reload">
-    <canvas id="astranov-logo-wave" aria-hidden="true"></canvas>
-    <span class="astranov-logo-label">ASTRANOV</span>
-  </button>
   <div id="zoom-label">GLOBAL · tap 🎯 Locate for city map</div>
   <div id="cosmic-guide"></div>
   <div id="user-chip"></div>

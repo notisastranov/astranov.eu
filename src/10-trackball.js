@@ -301,6 +301,7 @@ function focusOnGlobePoint(point, targetZ) {
 
 function tickGlobeFly() {
   const f = window._globeFly;
+  document.body.classList.toggle('globe-flying', !!(f && !drag && !dragging));
   if (!f || drag || dragging) return;
   const p = Math.min(1, (performance.now() - f.t0) / f.dur);
   const ease = p < 0.5
@@ -314,6 +315,7 @@ function tickGlobeFly() {
   } else {
     console.warn('[trackball] deprecated euler fly blocked — use quat or zoom');
     window._globeFly = null;
+    document.body.classList.remove('globe-flying');
     return;
   }
   trackVelX = 0;
@@ -327,6 +329,7 @@ function tickGlobeFly() {
     const tid = f.tierId;
     const done = f.onDone;
     window._globeFly = null;
+    document.body.classList.remove('globe-flying');
     if (f.onTier && tid && ZoomTiers) {
       const i = ZoomTiers.indexOf(tid);
       if (i >= 0) ZoomTiers._index = i;
