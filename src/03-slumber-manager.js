@@ -8,6 +8,7 @@ const SlumberManager = {
   _userPinned: false,
 
   TIER_LABEL: {
+    gaming: 'Gaming',
     full: 'Full power',
     balanced: 'Balanced',
     conserve: 'Conserve',
@@ -15,6 +16,22 @@ const SlumberManager = {
   },
 
   PRESETS: {
+    gaming: {
+      pixelRatio: 2.0,
+      earthHd: true,
+      earthTickMs: 180,
+      entityTickMs: 160,
+      newsIntervalMs: 12000,
+      newsMax: 8,
+      cityMaxZoom: 20,
+      cityDriverMs: 4000,
+      deferredDelayMs: 400,
+      anim: { orbital: 2, entity: 4, earth: 2, celestial: 2, cosmic: 6 },
+      codersPing: true,
+      labOrbs: true,
+      presence: true,
+      gamingGraphics: true,
+    },
     full: {
       pixelRatio: 1.25,
       earthHd: true,
@@ -150,7 +167,8 @@ const SlumberManager = {
     if (p.slowNet) score -= 2;
     if (p.saveData) score -= 2;
     if (p.width < 380) score -= 1;
-    if (score >= 5) return 'full';
+    if (score >= 6) return 'gaming';
+    if (score >= 4) return 'full';
     if (score >= 2) return 'balanced';
     if (score >= 0) return 'conserve';
     return 'slumber';
@@ -160,7 +178,7 @@ const SlumberManager = {
     if (!this.PRESETS[tier]) tier = 'balanced';
     this.tier = tier;
     this.quality = { ...this.PRESETS[tier] };
-    window._globePerfLite = tier !== 'full';
+    window._globePerfLite = tier !== 'full' && tier !== 'gaming';
     window._slumberTier = tier;
     document.body.dataset.slumber = tier;
     this._applySubsystemDefaults(tier);
@@ -174,7 +192,7 @@ const SlumberManager = {
     set('globe', 'awake');
     set('grok', 'awake');
     set('cli', 'awake');
-    set('earth_hd', q.earthHd ? (tier === 'full' ? 'awake' : 'drowsy') : 'sleeping');
+    set('earth_hd', q.earthHd ? (tier === 'full' || tier === 'gaming' ? 'awake' : 'drowsy') : 'sleeping');
     set('deferred', tier === 'slumber' ? 'sleeping' : tier === 'conserve' ? 'drowsy' : 'awake');
     set('news', q.newsMax > 0 ? (tier === 'full' ? 'awake' : 'drowsy') : 'sleeping');
     set('coders_ping', q.codersPing ? 'drowsy' : 'sleeping');

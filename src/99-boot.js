@@ -1,5 +1,5 @@
 window._cycleTurbo = false;
-window._globePerfLite = true;
+window._globePerfLite = false;
 window._animFrame = 0;
 const _slumberDiv = (k) => SlumberManager?.frameDivisor?.(k) || 6;
 
