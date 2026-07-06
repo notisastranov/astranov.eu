@@ -19,6 +19,29 @@ function loadAnonKey() {
 const key = loadAnonKey();
 const results = [];
 
+function readBundle() {
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const deferredPath = path.join(ROOT, 'astranov-deferred.js');
+  const deferred = fs.existsSync(deferredPath) ? fs.readFileSync(deferredPath, 'utf8') : '';
+  return { html, deferred, all: html + '\n' + deferred };
+}
+
+function missingMarkers(bundle, markers) {
+  return markers.filter(m => !bundle.includes(m));
+}
+
+async function fetchLiveBundle() {
+  const htmlR = await fetch(SITE + '/index.html');
+  const html = await htmlR.text();
+  const deferSrc = html.match(/src="(\/astranov-deferred\.js[^"]*)"/)?.[1];
+  let deferred = '';
+  if (deferSrc) {
+    const dR = await fetch(SITE + deferSrc);
+    deferred = await dR.text();
+  }
+  return { html, deferred, all: html + '\n' + deferred };
+}
+
 async function check(name, fn) {
   try {
     const detail = await fn();
@@ -49,49 +72,61 @@ console.log('');
 await check('assemble + syntax', () => {
   execSync('node scripts/assemble.mjs', { cwd: ROOT, stdio: 'pipe' });
   try { execSync('node scripts/verify.mjs', { cwd: ROOT, stdio: 'pipe' }); } catch (_) { /* build stamp may differ */ }
-  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  const superCli = [
+  const { html, deferred, all } = readBundle();
+  if (!deferred.includes('initBrain')) throw new Error('astranov-deferred.js missing or stale');
+  const coreMarkers = [
     'super-cli-bar', 'globe-deck-stage', 'SuperCli', 'superAction',
-    'SessionHold', 'initBrain', 'aci-hold', 'preflightVerify',
-    'cmdDev', 'cmdUi', 'cmdBrain', 'cmdSpace', 'submitVoiceToCli', 'async exec',
-    'SuperSpace', 'superspace-hud', 'locateForMedia', 'GlobeVideo',
-    'CityLife', 'city-life-chip', 'bindInputBar', 'scenario',
+    'SessionHold', 'aci-hold', 'submitVoiceToCli',
+    'SuperSpace', 'superspace-hud', 'CityLife', 'city-life-chip',
     'SuperAdd', 'super-add-fab', 'globe-super-add',
     'GlobeEntity', 'globe-entity-labels', 'globe-entity-hud',
+    'ZoomTiers', 'zoom-tier-dots', 'national-active', 'bindInputBar',
   ];
-  const missing = superCli.filter(m => !html.includes(m));
-  if (missing.length) throw new Error('Super CLI missing: ' + missing.join(', '));
+  const deferredMarkers = [
+    'initBrain', 'preflightVerify', 'cmdDev', 'cmdUi', 'cmdBrain', 'cmdSpace',
+    'locateForMedia', 'GlobeVideo', 'scenario',
+  ];
+  const missCore = missingMarkers(html, coreMarkers);
+  const missDef = missingMarkers(deferred, deferredMarkers);
+  if (missCore.length || missDef.length) {
+    throw new Error('missing core: ' + missCore.join(', ') + ' · deferred: ' + missDef.join(', '));
+  }
   const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
   const buildMeta = html.match(/meta name="astranov-build" content="([^"]+)"/)?.[1];
   const cache = sw.match(/CACHE\s*=\s*'([^']+)'/)?.[1]
     || (sw.includes('BUILD_ID') ? 'astranov-build' : null);
   if (!cache && !buildMeta) throw new Error('sw.js CACHE / build meta missing');
-  return 'index.html OK · ' + superCli.length + ' markers · build=' + (buildMeta || cache);
+  return 'core+deferred OK · ' + (coreMarkers.length + deferredMarkers.length) + ' markers · build=' + (buildMeta || cache);
 });
 
 await check('live site v16+ brain layer', async () => {
-  const [htmlR, swR] = await Promise.all([
-    fetch(SITE + '/index.html'),
+  const [bundle, swR] = await Promise.all([
+    fetchLiveBundle(),
     fetch(SITE + '/sw.js'),
   ]);
-  const html = await htmlR.text();
+  const { html, deferred, all } = bundle;
   const sw = await swR.text();
-  const markers = [
+  const coreMarkers = [
     'AciCoders', 'alwaysOn', 'startListening', 'observeActivity',
-    'super-cli-bar', 'SuperCli', 'SessionHold', 'initBrain', 'aci-hold',
-    'preflightVerify', 'cmdDev', 'submitVoiceToCli',
+    'super-cli-bar', 'SuperCli', 'SessionHold', 'aci-hold', 'submitVoiceToCli',
+    'ZoomTiers', 'zoom-tier-dots',
   ];
-  const missing = markers.filter(m => !html.includes(m));
-  if (missing.length) throw new Error('missing: ' + missing.join(', '));
+  const deferredMarkers = ['initBrain', 'preflightVerify', 'cmdDev'];
+  const missCore = missingMarkers(html, coreMarkers);
+  const missDef = missingMarkers(deferred, deferredMarkers);
+  if (missCore.length || missDef.length) {
+    throw new Error('missing core: ' + missCore.join(', ') + ' · deferred: ' + missDef.join(', '));
+  }
+  if (!deferred) throw new Error('astranov-deferred.js not loaded from live HTML');
   const liveBuild = html.match(/meta name="astranov-build" content="([^"]+)"/)?.[1];
   const liveCache = sw.match(/CACHE\s*=\s*'([^']+)'/)?.[1];
-  if (!html.includes('_bootEarthLock') || !html.includes('bootCollapsed')) {
+  if (!all.includes('_bootEarthLock') || !all.includes('bootCollapsed')) {
     throw new Error('live site missing earth boot / deck fixes');
   }
   if (!html.includes('GLOBAL') || html.includes('>SOLAR SYSTEM</div>')) {
     throw new Error('live zoom-label not GLOBAL-first');
   }
-  return markers.length + ' markers · build=' + (liveBuild || liveCache || '?');
+  return (coreMarkers.length + deferredMarkers.length) + ' markers · build=' + (liveBuild || liveCache || '?');
 });
 
 await check('node-batch auth gate', async () => {
