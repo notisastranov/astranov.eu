@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
+import { chromium } from 'playwright';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SB_URL = process.env.SUPABASE_URL || 'https://lkoatrkhuigdolnjsbie.supabase.co';
@@ -109,13 +110,15 @@ await check('live site v16+ brain layer', async () => {
   const coreMarkers = [
     'AciCoders', 'alwaysOn', 'startListening', 'observeActivity',
     'super-cli-bar', 'SuperCli', 'SessionHold', 'aci-hold', 'submitVoiceToCli',
-    'ZoomTiers', 'zoom-tier-dots',
+    'ZoomTiers', 'zoom-tier-dots', 'resolveAstranovSupabaseClientUrl',
   ];
+  const deferredMarkersAuth = ['window.MapComms = MapComms'];
   const deferredMarkers = ['initBrain', 'preflightVerify', 'cmdDev'];
   const missCore = missingMarkers(html, coreMarkers);
   const missDef = missingMarkers(deferred, deferredMarkers);
-  if (missCore.length || missDef.length) {
-    throw new Error('missing core: ' + missCore.join(', ') + ' · deferred: ' + missDef.join(', '));
+  const missAuth = missingMarkers(deferred, deferredMarkersAuth);
+  if (missCore.length || missDef.length || missAuth.length) {
+    throw new Error('missing core: ' + missCore.join(', ') + ' · deferred: ' + missDef.join(', ') + ' · auth: ' + missAuth.join(', '));
   }
   if (!deferred) throw new Error('astranov-deferred.js not loaded from live HTML');
   const liveBuild = html.match(/meta name="astranov-build" content="([^"]+)"/)?.[1];
@@ -167,6 +170,41 @@ await check('coders_listen active evolution', async () => {
   });
   if (!j.ok || !j.listening) throw new Error(JSON.stringify(j));
   return 'listening · evolved=' + !!j.evolved;
+});
+
+await check('live console — zero errors (guest boot)', async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  const pageErrors = [];
+  const consoleErrors = [];
+  const badApi = [];
+  page.on('pageerror', (e) => pageErrors.push(e.message));
+  page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+  page.on('response', (r) => {
+    const u = r.url();
+    if (r.status() >= 400 && /supabase\.co\/(rest|functions|realtime|auth)/i.test(u)) {
+      badApi.push(r.status() + ' ' + u.slice(0, 100));
+    }
+  });
+  await page.goto(SITE + '/', { waitUntil: 'domcontentloaded', timeout: 90000 });
+  await page.waitForFunction(() => window.CityMap?._ready, { timeout: 90000 });
+  try { await page.waitForFunction(() => window._deferredBootDone, { timeout: 30000 }); } catch (_) {}
+  await page.waitForTimeout(6000);
+  const state = await page.evaluate(() => ({
+    build: document.querySelector('meta[name=astranov-build]')?.content,
+    clientUrl: window.Auth?.client?.supabaseUrl || '',
+    mapComms: typeof window.MapComms?.postSystem === 'function',
+  }));
+  await browser.close();
+  if (!state.clientUrl.includes('lkoatrkhuigdolnjsbie.supabase.co')) {
+    throw new Error('Supabase client not direct · ' + state.clientUrl);
+  }
+  if (!state.mapComms) throw new Error('MapComms stub not replaced by deferred bundle');
+  const noise = consoleErrors.filter((t) => !/favicon|ResizeObserver|leaflet/i.test(t));
+  if (pageErrors.length || noise.length || badApi.length) {
+    throw new Error(JSON.stringify({ pageErrors, consoleErrors: noise, badApi, state }));
+  }
+  return 'build=' + (state.build || '?') + ' · direct client · 0 errors';
 });
 
 const secretPath = path.join(ROOT, 'scripts', '.coders-bridge-secret');

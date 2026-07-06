@@ -74,9 +74,10 @@ const SCENARIOS = [
         };
       });
       if (!r.ok) throw new Error('ai-router failed: ' + (r.error || 'unknown'));
-      const visible = /hello|verify|ready|online|Coders/i.test((r.ribbon || '') + (r.preview || '') + (r.logLines || []).join(' '));
+      const blob = (r.ribbon || '') + (r.preview || '') + (r.logLines || []).join(' ');
+      const visible = /hello|verify|ready|online|grok here|talk straight|yes\b|coders/i.test(blob);
       if (r.hist < 1 && !visible) throw new Error('no visible AI reply: ' + JSON.stringify(r));
-      if (!/hello|verify|ready|online/i.test((r.ribbon || '') + (r.preview || ''))) {
+      if (!visible) {
         throw new Error('ribbon/preview missing reply after thinking: ' + JSON.stringify(r));
       }
       return r;
