@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260706100050" />
+<meta name="astranov-build" content="20260706101121" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -8347,7 +8347,11 @@ function registerTap(clientX, clientY) {
 
 function zoomBy(delta) {
   if (ZoomTiers && delta > 0 && (CityMap?.active || CityMap?._nationalActive)) {
-    ZoomTiers.stepOut();
+    ZoomTiers.syncFromCamZ?.(camera.position.z, false);
+    const next = Math.max(0, ZoomTiers._index - 1);
+    if (next === ZoomTiers._index) return;
+    ZoomTiers._index = next;
+    ZoomTiers.snap(false);
     return;
   }
   const factor = Math.exp((delta || 0) * ZOOM_SMOOTH);
@@ -11743,6 +11747,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260706100050" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260706101121" data-astranov-deferred></script>
 </body>
 </html>

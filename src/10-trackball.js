@@ -68,7 +68,11 @@ function registerTap(clientX, clientY) {
 
 function zoomBy(delta) {
   if (ZoomTiers && delta > 0 && (CityMap?.active || CityMap?._nationalActive)) {
-    ZoomTiers.stepOut();
+    ZoomTiers.syncFromCamZ?.(camera.position.z, false);
+    const next = Math.max(0, ZoomTiers._index - 1);
+    if (next === ZoomTiers._index) return;
+    ZoomTiers._index = next;
+    ZoomTiers.snap(false);
     return;
   }
   const factor = Math.exp((delta || 0) * ZOOM_SMOOTH);
