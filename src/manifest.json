@@ -52,6 +52,7 @@
     { "file": "55-lab-orbs.js", "marker": "// === LAB ORBS" },
     { "file": "70-routing.js", "marker": "// STRONG ROUTING FALLBACK PROVIDER CYCLING ENGINE" },
     { "file": "72-driving.js", "marker": "// === DRIVING VIEW + OSRM ROAD ROUTING ===" },
+    { "file": "74-telemachos-pilot.js", "marker": "// === TELEMACHOS PILOT" },
     { "file": "80-webrtc.js", "marker": "// WebRTC Video Calling + Orbital global compatibility" },
     { "file": "64-astranov-session.js", "marker": "// === ASTRANOV SESSION" },
     { "file": "65-astranov-wishlist.js", "marker": "// === ASTRANOV WISHLIST" },

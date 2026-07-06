@@ -41,6 +41,7 @@ function animate() {
   if (solarView && frame % _slumberDiv('cosmic') === 0) CosmicZoom.update(camZ);
   else if (frame % Math.max(_slumberDiv('cosmic'), 8) === 0) CosmicZoom.update(camZ);
 
+  if (earthView && frame % Math.max(_slumberDiv('earth'), 2) === 0) AIGraphics?.update?.();
   if (earthView && frame % _slumberDiv('earth') === 0) EarthRealism?.tick?.();
   if (earthView && frame % _slumberDiv('celestial') === 0 && SlumberManager?.allows?.('celestial')) {
     window.CelestialNav?.tick?.();

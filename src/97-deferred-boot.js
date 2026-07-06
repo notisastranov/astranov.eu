@@ -18,6 +18,7 @@ const DeferredBoot = {
     go('coders_ping', () => window.CodersHub?.init?.());
     go('lab_orbs', () => window.LabOrbs?.init?.());
     go('cli', () => window.SuperCli?.initBrain?.());
+    go('globe', () => window.TelemachosPilot?.init?.());
 
     if (sl?.allows('commerce')) {
       setTimeout(() => {

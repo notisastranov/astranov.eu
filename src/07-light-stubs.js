@@ -36,14 +36,23 @@ const WillaGames = {
 };
 window.WillaGames = WillaGames;
 
-const TelemachosPilot = {
-  edition: { name_gr: 'Pilot', name_latin: 'Pilot' },
-  DOMAINS: {},
-  async cli() { ACIControl?.reply('Pilot offline — use CLI order/locate'); },
-  refreshTeamStatus() {},
-  deliverToRed() {},
+window.TelemachosPilot = {
+  edition: { name_gr: 'ΤΗΛΕΜΑΧΟΣ', name_latin: 'telemachos', color: 0x00ccff },
+  DOMAINS: {
+    fpv: { emoji: '🥽', label: 'FPV', color: 0xff66cc, alt: 1.07 },
+    air: { emoji: '🛸', label: 'Air', color: 0x44ccff, alt: 1.06 },
+    ground: { emoji: '🚙', label: 'Ground', color: 0xffaa33, alt: 1.025 },
+    sea: { emoji: '🚤', label: 'Sea', color: 0x0088ff, alt: 1.02 },
+    underwater: { emoji: '🤿', label: 'Underwater', color: 0x2266aa, alt: 1.015 },
+  },
+  _stub() { return LazyModules.ensure(); },
+  async cli(...a) { await this._stub(); return window.TelemachosPilot?.cli?.(...a); },
+  showPilot(...a) { return this._stub().then(() => window.TelemachosPilot?.showPilot?.(...a)); },
+  runDemoDelivery() { return this._stub().then(() => window.TelemachosPilot?.runDemoDelivery?.()); },
+  refreshTeamStatus(...a) { return this._stub().then(() => window.TelemachosPilot?.refreshTeamStatus?.(...a)); },
+  deliverToRed(...a) { return this._stub().then(() => window.TelemachosPilot?.deliverToRed?.(...a)); },
+  wantsCmd(t) { return /telemach|tilemax|pilot|drone|τηλεμαχ/i.test(String(t || '')); },
 };
-window.TelemachosPilot = TelemachosPilot;
 
 const BrainConversation = {
   seedAdultNeurons() {},

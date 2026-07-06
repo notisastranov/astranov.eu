@@ -351,6 +351,27 @@ const SCENARIOS = [
     },
   },
   {
+    name: 'AI graphics — procedural engine live',
+    run: async (page) => {
+      const r = await page.evaluate(() => ({
+        ready: !!window._aiGraphicsReady,
+        atmosphere: !!window.AIGraphics?.atmosphere,
+        cityLights: !!window.AIGraphics?.cityLights,
+        neural: !!window.AIGraphics?.neuralLayer,
+        hud: !!document.getElementById('ai-gaming-hud'),
+        spawn: typeof window.AIGraphics?.spawnEffect === 'function',
+        pilot: typeof window.AIGraphics?.buildProceduralPilot === 'function',
+        drone: typeof window.AIGraphics?.buildProceduralDrone === 'function',
+      }));
+      if (!r.ready || !r.atmosphere || !r.spawn) throw new Error('AIGraphics not initialized: ' + JSON.stringify(r));
+      await page.evaluate(() => {
+        AIGraphics.setThinkMode(true);
+        AIGraphics.spawnEffect(new THREE.Vector3(0.5, 0.4, 1.05), 0x00ffcc, 12, 30);
+      });
+      return r;
+    },
+  },
+  {
     name: 'trackball — drag rotates globe',
     run: async (page) => {
       const r = await page.evaluate(() => {
