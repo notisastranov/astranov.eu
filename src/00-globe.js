@@ -182,6 +182,7 @@ const GlobeControl = {
     ) || 0;
     const dur = o.dur || Math.min(5200, Math.max(900, this.flyDuration(camera?.position?.z, z) + dist * 0.14));
     flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z, { dur, onTier: !!o.onTier, force: !!o.force });
+    AIGraphics?.flyAstranovTo?.(lat, lng, { dur, color: 0x3d9eff });
     if (z > this.Z.regional) cityLevel = false;
     this.noteAutoFly();
     MapDepict?.pulse?.(lat, lng, 0x00ddff, label || 'task', 8000);

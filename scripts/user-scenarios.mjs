@@ -361,6 +361,8 @@ const SCENARIOS = [
         hud: !!document.getElementById('ai-gaming-hud'),
         spawn: typeof window.AIGraphics?.spawnEffect === 'function',
         pilot: typeof window.AIGraphics?.buildProceduralPilot === 'function',
+        flyer: typeof window.AIGraphics?.spawnAstranovFlyer === 'function',
+        astranovFlyer: !!window._astranovFlyer,
         drone: typeof window.AIGraphics?.buildProceduralDrone === 'function',
       }));
       if (!r.ready || !r.atmosphere || !r.spawn) throw new Error('AIGraphics not initialized: ' + JSON.stringify(r));

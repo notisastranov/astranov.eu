@@ -830,9 +830,18 @@ const Pilot = {
 
   showPilot(lat, lng, editionId) {
     if (editionId) this._setEdition(editionId);
+    const e = this.edition;
+    if (AIGraphics?.spawnAstranovFlyer) {
+      if (window._pilot?.parent) window._pilot.parent.remove(window._pilot);
+      const col = e.id === 'tilemaxos' ? 0xff3366 : (e.color || 0x00ccff);
+      window._pilot = AIGraphics.spawnAstranovFlyer(lat ?? this.HOME.lat, lng ?? this.HOME.lng, {
+        edition: e, label: e.name_gr, color: col,
+      });
+      MapDepict?.pulse?.(lat ?? this.HOME.lat, lng ?? this.HOME.lng, col, e.name_gr, 12000);
+      return window._pilot;
+    }
     if (window._pilot && window._pilot.parent) window._pilot.parent.remove(window._pilot);
 
-    const e = this.edition;
     const pos = latLngToPos(lat ?? this.HOME.lat, lng ?? this.HOME.lng, 1.04);
     const pilotGroup = new THREE.Group();
     const bodyColor = e.color || 0x00ccff;

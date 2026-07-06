@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260706081839" />
+<meta name="astranov-build" content="20260706091714" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -990,6 +990,7 @@ const GlobeControl = {
     ) || 0;
     const dur = o.dur || Math.min(5200, Math.max(900, this.flyDuration(camera?.position?.z, z) + dist * 0.14));
     flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z, { dur, onTier: !!o.onTier, force: !!o.force });
+    AIGraphics?.flyAstranovTo?.(lat, lng, { dur, color: 0x3d9eff });
     if (z > this.Z.regional) cityLevel = false;
     this.noteAutoFly();
     MapDepict?.pulse?.(lat, lng, 0x00ddff, label || 'task', 8000);
@@ -9844,6 +9845,10 @@ const AIGraphics = {
   _hudRaf: 0,
   _seed: (Date.now() % 9973) / 9973,
   _paths: [],
+  _flyer: null,
+  _flyerFrame: 0,
+  _flyerPack: null,
+  _flyerFlying: false,
 
   init(parent, earthRadius = 1) {
     if (this._inited) return;
@@ -10121,42 +10126,196 @@ const AIGraphics = {
     this.activeEffects.push({ points: pts, velocities: vel, life, maxLife: life });
   },
 
+  _paintAstranovCharacter(ctx, w, h, frame, opts = {}) {
+    const t = frame * 0.14;
+    const flap = Math.sin(t) * 0.22;
+    const hover = Math.sin(t * 0.7) * 3;
+    const cx = w * 0.5;
+    const cy = h * 0.42 + hover;
+    const accent = opts.accent || '#3d9eff';
+    const glow = opts.glow || '#00ffcc';
+    const wing = opts.wing || '#1a6fd4';
+
+    ctx.clearRect(0, 0, w, h);
+
+    const aura = ctx.createRadialGradient(cx, cy, 4, cx, cy, w * 0.48);
+    aura.addColorStop(0, 'rgba(0,220,255,0.35)');
+    aura.addColorStop(0.55, 'rgba(61,142,255,0.12)');
+    aura.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = aura;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.globalCompositeOperation = 'lighter';
+
+    const drawWing = (side) => {
+      const s = side * (1 + flap * 0.35);
+      ctx.beginPath();
+      ctx.moveTo(8 * s, -6);
+      ctx.quadraticCurveTo(42 * s, -28 - flap * 18, 58 * s, 4);
+      ctx.quadraticCurveTo(36 * s, 10, 10 * s, 2);
+      const wg = ctx.createLinearGradient(0, -20, 50 * s, 10);
+      wg.addColorStop(0, wing);
+      wg.addColorStop(1, 'rgba(0,255,200,0.15)');
+      ctx.fillStyle = wg;
+      ctx.fill();
+      ctx.strokeStyle = glow;
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    };
+    drawWing(-1);
+    drawWing(1);
+
+    const body = ctx.createLinearGradient(0, -18, 0, 36);
+    body.addColorStop(0, accent);
+    body.addColorStop(0.5, '#0a2848');
+    body.addColorStop(1, 'rgba(0,40,80,0.2)');
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.moveTo(-10, -14);
+    ctx.lineTo(10, -14);
+    ctx.lineTo(14, 28);
+    ctx.lineTo(-14, 28);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = glow;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(0, -22, 11, 0, Math.PI * 2);
+    ctx.stroke();
+    const head = ctx.createRadialGradient(0, -22, 1, 0, -22, 11);
+    head.addColorStop(0, '#ffffff');
+    head.addColorStop(0.35, accent);
+    head.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = head;
+    ctx.beginPath();
+    ctx.arc(0, -22, 10, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.font = 'bold 22px system-ui,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#e8f8ff';
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = 10;
+    ctx.fillText('A', 0, 2);
+    ctx.shadowBlur = 0;
+
+    ctx.strokeStyle = 'rgba(0,255,180,0.7)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-6, 30);
+    ctx.lineTo(-10, 46 + Math.sin(t) * 4);
+    ctx.moveTo(6, 30);
+    ctx.lineTo(10, 46 - Math.sin(t) * 4);
+    ctx.stroke();
+
+    if (opts.jet) {
+      const jet = ctx.createLinearGradient(0, 34, 0, h);
+      jet.addColorStop(0, glow);
+      jet.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = jet;
+      ctx.fillRect(-5, 34, 10, h - 34);
+    }
+
+    ctx.restore();
+  },
+
+  _ensureFlyerPack() {
+    if (this._flyerPack) return this._flyerPack;
+    this._flyerPack = this._procCanvas(128, 192, (ctx, w, h) => {
+      this._paintAstranovCharacter(ctx, w, h, 0, {});
+    });
+    return this._flyerPack;
+  },
+
+  _syncFlyerTexture(flying) {
+    const pack = this._ensureFlyerPack();
+    const accent = Voice?.speaking ? '#00e86e' : '#3d9eff';
+    const glow = Voice?.speaking ? '#88ffbb' : '#00ddff';
+    this._paintAstranovCharacter(pack.ctx, 128, 192, this._flyerFrame, {
+      accent, glow, wing: '#1a6fd4', jet: !!flying,
+    });
+    pack.tex.needsUpdate = true;
+  },
+
+  spawnAstranovFlyer(lat, lng, opts = {}) {
+    if (this._flyer?.parent) this._flyer.parent.remove(this._flyer);
+    const pack = this._ensureFlyerPack();
+    this._syncFlyerTexture(false);
+    const mat = new THREE.SpriteMaterial({
+      map: pack.tex,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const sprite = new THREE.Sprite(mat);
+    const alt = opts.alt || 1.09;
+    const p = this._latLngToPos(lat ?? 36.44, lng ?? 28.22, alt);
+    sprite.position.set(p.x, p.y, p.z);
+    sprite.userData = {
+      type: 'astranov-flyer',
+      name: opts.label || 'Astranov',
+      lat, lng, alt,
+      edition: opts.edition?.id || 'astranov',
+    };
+    sprite.scale.set(0.16, 0.24, 1);
+    globePivot.add(sprite);
+    this._flyer = sprite;
+    window._astranovFlyer = sprite;
+    window._pilot = sprite;
+    this.spawnEffect(sprite.position, opts.color || 0x3d9eff, 22, 48);
+    return sprite;
+  },
+
+  _greatCircleCurve(fromVec, toVec, alt = 1.09, segments = 36) {
+    const a = fromVec.clone().normalize();
+    const b = toVec.clone().normalize();
+    const qA = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), a);
+    const qB = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), b);
+    const pts = [];
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      const q = qA.clone().slerp(qB, t);
+      pts.push(new THREE.Vector3(0, 0, alt).applyQuaternion(q));
+    }
+    return new THREE.CatmullRomCurve3(pts);
+  },
+
+  flyAstranovTo(lat, lng, opts = {}) {
+    if (!this._flyer) {
+      const u = window._lastPos || { lat: 36.44, lng: 28.22 };
+      this.spawnAstranovFlyer(u.lat, u.lng, opts);
+    }
+    const alt = opts.alt || this._flyer.userData?.alt || 1.09;
+    const toP = this._latLngToPos(lat, lng, alt);
+    const to = new THREE.Vector3(toP.x, toP.y, toP.z);
+    const from = this._flyer.position.clone();
+    const dist = TrackballGuard?.greatCircleKm?.(
+      this._flyer.userData?.lat ?? 0,
+      this._flyer.userData?.lng ?? 0,
+      lat, lng
+    ) || 800;
+    const dur = opts.dur || Math.min(6200, Math.max(1400, dist * 2.8));
+    const curve = this._greatCircleCurve(from, to, alt);
+    this._flyerFlying = true;
+    this._flyer.userData.lat = lat;
+    this._flyer.userData.lng = lng;
+    return this.animateAlongPath(this._flyer, curve, {
+      dur,
+      color: opts.color || 0x3d9eff,
+      isFlyer: true,
+      onDone: () => {
+        this._flyerFlying = false;
+        opts.onDone?.();
+      },
+    });
+  },
+
   buildProceduralPilot(lat, lng, opts = {}) {
-    const e = opts.edition || { color: 0x00ccff, name_gr: 'ΤΗΛΕΜΑΧΟΣ', id: 'telemachos' };
-    const pos = this._latLngToPos(lat ?? 36.2, lng ?? 28.1, 1.045);
-    const g = new THREE.Group();
-    const bodyColor = e.color || 0x00ccff;
-    const body = new THREE.Mesh(
-      new THREE.SphereGeometry(0.022, 8, 8),
-      new THREE.MeshBasicMaterial({ color: bodyColor }),
-    );
-    g.add(body);
-    const cockpit = new THREE.Mesh(
-      new THREE.ConeGeometry(0.014, 0.032, 4),
-      new THREE.MeshBasicMaterial({ color: 0xaaddff }),
-    );
-    cockpit.position.set(0, 0.02, 0.012);
-    cockpit.rotation.x = Math.PI / 2;
-    g.add(cockpit);
-    const wing = new THREE.Mesh(
-      new THREE.BoxGeometry(0.05, 0.005, 0.01),
-      new THREE.MeshBasicMaterial({ color: bodyColor, transparent: true, opacity: 0.85 }),
-    );
-    g.add(wing);
-    const thr1 = new THREE.Mesh(new THREE.ConeGeometry(0.006, 0.018, 4), new THREE.MeshBasicMaterial({ color: 0xff6600 }));
-    thr1.position.set(0.015, 0, -0.02);
-    thr1.rotation.x = Math.PI;
-    g.add(thr1);
-    const thr2 = thr1.clone();
-    thr2.position.set(-0.015, 0, -0.02);
-    g.add(thr2);
-    g.userData = { type: 'pilot', name: e.name_gr, edition: e.id, thrusters: [thr1, thr2] };
-    g.position.set(pos.x, pos.y, pos.z);
-    const n = new THREE.Vector3(pos.x, pos.y, pos.z).normalize();
-    g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
-    globePivot.add(g);
-    this.spawnEffect(g.position, e.id === 'tilemaxos' ? 0xff3366 : 0x00ff99, 18, 55);
-    return g;
+    return this.spawnAstranovFlyer(lat, lng, { ...opts, label: opts.edition?.name_gr || 'Astranov' });
   },
 
   buildProceduralDrone(lat, lng, domain = 'air', color = 0x44ccff) {
@@ -10192,8 +10351,9 @@ const AIGraphics = {
     const dur = opts.dur || 4200;
     const trailColor = opts.color || 0x00ddff;
     const t0 = performance.now();
-    const id = { mesh, curve, t0, dur, trailColor, done: false };
+    const id = { mesh, curve, t0, dur, trailColor, done: false, isFlyer: !!opts.isFlyer, onDone: opts.onDone };
     this._paths.push(id);
+    if (opts.isFlyer) this._flyerFlying = true;
     return id;
   },
 
@@ -10204,16 +10364,43 @@ const AIGraphics = {
       const prog = Math.min(1, (now - p.t0) / p.dur);
       const pt = p.curve.getPoint(prog);
       p.mesh.position.copy(pt);
-      const n = pt.clone().normalize();
-      p.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
-      if (Math.floor(prog * 40) % 3 === 0) this.spawnEffect(pt, p.trailColor, 4, 18);
+      if (!p.isFlyer) {
+        const n = pt.clone().normalize();
+        p.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
+      }
+      const camZ = camera?.position?.z ?? 2.55;
+      const scale = Math.max(0.1, Math.min(0.28, 0.14 * (camZ / 2.2)));
+      if (p.isFlyer && p.mesh.isSprite) {
+        p.mesh.scale.set(scale, scale * 1.5, 1);
+        this._flyerFrame++;
+        this._syncFlyerTexture(true);
+      }
+      if (Math.floor(prog * 40) % (p.isFlyer ? 2 : 3) === 0) {
+        this.spawnEffect(pt, p.trailColor, p.isFlyer ? 6 : 4, p.isFlyer ? 22 : 18);
+      }
       if (prog >= 1) {
         p.done = true;
         this.spawnEffect(pt, p.trailColor, 16, 40);
         this._paths.splice(i, 1);
+        if (p.isFlyer) this._flyerFlying = false;
         p.onDone?.();
       }
     }
+  },
+
+  _tickAstranovFlyer() {
+    if (!this._flyer || this._flyerFlying) return;
+    this._flyerFrame++;
+    const t = Date.now() * 0.001;
+    const alt = (this._flyer.userData?.alt || 1.09) + Math.sin(t * 2.2) * 0.004;
+    const lat = this._flyer.userData?.lat ?? 36.44;
+    const lng = this._flyer.userData?.lng ?? 28.22;
+    const p = this._latLngToPos(lat, lng, alt);
+    this._flyer.position.set(p.x, p.y, p.z);
+    const camZ = camera?.position?.z ?? 2.55;
+    const scale = Math.max(0.1, Math.min(0.26, 0.13 * (camZ / 2.2)));
+    this._flyer.scale.set(scale, scale * 1.5, 1);
+    this._syncFlyerTexture(false);
   },
 
   setSiteShellMode(on) {
@@ -10350,7 +10537,7 @@ const AIGraphics = {
       this._neuralPack.tex.needsUpdate = true;
       this.neuralLayer.rotation.y += 0.00012;
     }
-    this._tickPilotThrusters();
+    this._tickAstranovFlyer();
     this._tickPaths();
 
     for (let i = this.activeEffects.length - 1; i >= 0; i--) {
@@ -10381,8 +10568,17 @@ window.AIGraphics = AIGraphics;
 AIGraphics.init(globePivot);
 
 setTimeout(() => {
-  try { AIGraphics.spawnEffect(new THREE.Vector3(0.6, 0.3, 1.1), 0x00ffaa, 28, 32); } catch (_) {}
-}, 180);
+  try {
+    AIGraphics.spawnEffect(new THREE.Vector3(0.6, 0.3, 1.1), 0x00ffaa, 28, 32);
+    const u = window._lastPos || { lat: 36.44, lng: 28.22 };
+    AIGraphics.spawnAstranovFlyer(u.lat, u.lng, { label: 'Astranov' });
+  } catch (_) {}
+}, 480);
+
+window.AstranovFlyer = {
+  spawn: (lat, lng, opts) => AIGraphics.spawnAstranovFlyer(lat, lng, opts),
+  flyTo: (lat, lng, opts) => AIGraphics.flyAstranovTo(lat, lng, opts),
+};
 
 // Flow
 let me = null;
@@ -11305,6 +11501,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260706081839" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260706091714" data-astranov-deferred></script>
 </body>
 </html>
