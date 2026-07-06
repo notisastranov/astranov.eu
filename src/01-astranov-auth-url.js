@@ -16,9 +16,14 @@ function resolveAstranovSupabaseUrl() {
   return ASTRANOV_SUPABASE_DIRECT;
 }
 
-/** Vercel rewrites cannot proxy WebSocket — realtime must hit Supabase directly */
-function resolveAstranovRealtimeUrl() {
-  return 'wss://' + ASTRANOV_SUPABASE_REF + '.supabase.co/realtime/v1';
+/** Supabase JS client (auth · realtime · .from()) — always direct; Vercel cannot proxy WebSocket */
+function resolveAstranovSupabaseClientUrl() {
+  return ASTRANOV_SUPABASE_DIRECT;
+}
+
+/** Edge functions — direct URL so JWT validation is reliable */
+function resolveAstranovFunctionsUrl() {
+  return resolveAstranovSupabaseClientUrl() + '/functions/v1';
 }
 
 function astranovPublicOrigin() {
@@ -47,7 +52,8 @@ function astranovizeAuthUrl(url) {
 
 window.ASTRANOV_GOOGLE_CLIENT_ID = ASTRANOV_GOOGLE_CLIENT_ID;
 window.resolveAstranovSupabaseUrl = resolveAstranovSupabaseUrl;
-window.resolveAstranovRealtimeUrl = resolveAstranovRealtimeUrl;
+window.resolveAstranovSupabaseClientUrl = resolveAstranovSupabaseClientUrl;
+window.resolveAstranovFunctionsUrl = resolveAstranovFunctionsUrl;
 window.astranovPublicOrigin = astranovPublicOrigin;
 window.scrubSupabaseLeak = scrubSupabaseLeak;
 window.astranovizeAuthUrl = astranovizeAuthUrl;

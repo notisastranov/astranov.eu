@@ -109,8 +109,10 @@ const Pilot = {
   },
 
   async api(body) {
+    if (Auth?.whenReady) await Auth.whenReady();
     const headers = Auth?.authHeaders ? await Auth.authHeaders() : sbHeaders();
-    const r = await fetch(SB_URL + '/functions/v1/pilot-command', {
+    const fnBase = typeof resolveAstranovFunctionsUrl === 'function' ? resolveAstranovFunctionsUrl() : (SB_URL + '/functions/v1');
+    const r = await fetch(fnBase + '/pilot-command', {
       method: 'POST', headers,
       body: JSON.stringify(body),
     });

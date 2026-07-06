@@ -521,7 +521,7 @@ Object.assign(SuperCli, {
         return { handled: true };
       }
       if (cmd === 'team') {
-        await MapComms?.cmd?.(parts);
+        await window.MapComms?.cmd?.(parts);
         return { handled: true };
       }
       if (cmd === 'drivers') {
@@ -603,20 +603,20 @@ Object.assign(SuperCli, {
       }
       if (cmd === 'chat' && parts[1]) {
         const msg = parts.slice(2).join(' ');
-        if (msg && MapComms?.dmUser && MapComms?.kind === 'dm') {
-          MapComms.sendMessage(msg);
+        if (msg && window.MapComms?.dmUser && window.MapComms?.kind === 'dm') {
+          window.MapComms.sendMessage(msg);
         } else {
           await CliHub?.startPrivateCloud?.(parts[1]);
-          if (msg) MapComms?.sendMessage?.(msg);
+          if (msg) window.MapComms?.sendMessage?.(msg);
         }
         return { handled: true };
       }
       if (cmd === 'contact') {
-        await MapComms?.contactCmd?.(parts);
+        await window.MapComms?.contactCmd?.(parts);
         return { handled: true };
       }
       if (cmd === 'msg' && parts[1]) {
-        MapComms?.sendMessage?.(parts.slice(1).join(' '));
+        window.MapComms?.sendMessage?.(parts.slice(1).join(' '));
         return { handled: true };
       }
       if (cmd === 'city' || cmd === 'cityview') {

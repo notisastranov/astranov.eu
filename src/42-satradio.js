@@ -111,7 +111,8 @@ const PmrRadio = {
       return;
     }
     this.setStep(2, 'active', 'Joining voice channel pmr-ch11…');
-    const sb = typeof supabase !== 'undefined' ? supabase.createClient(SB_URL, SB_KEY) : null;
+    const sbUrl = typeof resolveAstranovSupabaseClientUrl === 'function' ? resolveAstranovSupabaseClientUrl() : SB_URL;
+    const sb = typeof supabase !== 'undefined' ? supabase.createClient(sbUrl, SB_KEY) : null;
     if (!sb) {
       this.setStep(2, 'blocked', 'Supabase unavailable — cannot open live voice channel');
       return;

@@ -29,8 +29,10 @@ const AstranovNode = {
   },
 
   async api(body) {
+    if (Auth?.whenReady) await Auth.whenReady();
     const headers = Auth?.authHeaders ? await Auth.authHeaders() : sbHeaders();
-    const r = await fetch(SB_URL + '/functions/v1/node-batch', {
+    const fnBase = typeof resolveAstranovFunctionsUrl === 'function' ? resolveAstranovFunctionsUrl() : (SB_URL + '/functions/v1');
+    const r = await fetch(fnBase + '/node-batch', {
       method: 'POST', headers,
       body: JSON.stringify(body),
     });

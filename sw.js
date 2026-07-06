@@ -1,5 +1,5 @@
 /* Astranov service worker — versioned PWA shell; network-first for app HTML */
-const BUILD_ID = '20260706071851';
+const BUILD_ID = '20260706094838';
 const CACHE = 'astranov-' + BUILD_ID;
 const SHELL = ['/manifest.webmanifest', '/icon.svg'];
 

@@ -244,22 +244,21 @@ const AstranovPresence = {
   },
 
   async _pollProfiles() {
-    if (!Auth?.user) return;
+    if (!Auth?.user || !Auth?.client) return;
+    if (Auth?.whenReady) await Auth.whenReady();
     try {
-      const headers = await Auth.authHeaders();
       const since = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-      const q = SB_URL + '/rest/v1/profiles'
-        + '?select=id,display_name,avatar_emoji,field_lat,field_lng,field_seen_at,map_hidden'
-        + '&field_seen_at=gte.' + encodeURIComponent(since)
-        + '&field_lat=not.is.null'
-        + '&field_lng=not.is.null'
-        + '&map_hidden=eq.false'
-        + '&id=neq.' + encodeURIComponent(Auth.user.id)
-        + '&limit=80';
-      const r = await fetch(q, { headers });
-      if (!r.ok) return;
-      const rows = await r.json();
-      rows.forEach((row) => {
+      const { data: rows, error } = await Auth.client
+        .from('profiles')
+        .select('id,display_name,avatar_emoji,field_lat,field_lng,field_seen_at,map_hidden')
+        .gte('field_seen_at', since)
+        .not('field_lat', 'is', null)
+        .not('field_lng', 'is', null)
+        .eq('map_hidden', false)
+        .neq('id', Auth.user.id)
+        .limit(80);
+      if (error) return;
+      (rows || []).forEach((row) => {
         this._ingest({
           user_id: row.id,
           name: row.display_name || 'User',

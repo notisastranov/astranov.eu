@@ -19,10 +19,11 @@ const Auth = {
       console.warn('[Auth] Supabase SDK missing — login unavailable');
       return;
     }
-    const rtUrl = typeof resolveAstranovRealtimeUrl === 'function' ? resolveAstranovRealtimeUrl() : null;
-    this.client = supabase.createClient(SB_URL, SB_KEY, {
+    const clientUrl = typeof resolveAstranovSupabaseClientUrl === 'function'
+      ? resolveAstranovSupabaseClientUrl()
+      : SB_URL;
+    this.client = supabase.createClient(clientUrl, SB_KEY, {
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'astranov_auth_v2' },
-      realtime: rtUrl ? { url: rtUrl } : undefined,
     });
     this.client.auth.onAuthStateChange((ev, session) => {
       if (ev === 'SIGNED_IN' && session?.user) {

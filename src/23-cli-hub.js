@@ -35,8 +35,8 @@ const CliHub = {
     this._pending.push({
       line: String(line).slice(0, 2000),
       cls: String(cls || 'out').slice(0, 24),
-      circle_id: opts.circle_id || MapComms?.teamId || null,
-      peer_id: opts.peer_id || MapComms?.dmUser?.id || null,
+      circle_id: opts.circle_id || window.MapComms?.teamId || null,
+      peer_id: opts.peer_id || window.MapComms?.dmUser?.id || null,
     });
     if (this._pending.length > 32) this._pending = this._pending.slice(-32);
     if (!this._flushTimer) {
@@ -86,7 +86,7 @@ const CliHub = {
         const cid = el.dataset.chCircle;
         if (act === 'view' && uid) this.viewUser(uid);
         if (act === 'dm' && uid) this.startPrivateCloud(uid);
-        if (act === 'chat' && cid) MapComms?.joinTeam?.(cid);
+        if (act === 'chat' && cid) window.MapComms?.joinTeam?.(cid);
       });
     }
   },
@@ -213,7 +213,7 @@ const CliHub = {
     if (!targetId.match(/^[0-9a-f-]{36}$/i)) {
       const q = targetRef.toLowerCase();
       const hit = (window.others || []).find((u) => (u.name || '').toLowerCase().includes(q))
-        || [...(MapComms?.members?.values() || [])].find((u) => (u.name || '').toLowerCase().includes(q));
+        || [...(window.MapComms?.members?.values() || [])].find((u) => (u.name || '').toLowerCase().includes(q));
       if (hit?.id) targetId = hit.id;
       else {
         const sr = await this.api({ action: 'search', q: targetRef });
@@ -242,7 +242,7 @@ const CliHub = {
       t: m.ts || Date.now(),
       author_id: m.author_id,
     }));
-    await MapComms?.openPrivateCloud?.({
+    await window.MapComms?.openPrivateCloud?.({
       circleId: r.circle_id,
       target,
       messages: msgs,

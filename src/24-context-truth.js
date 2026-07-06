@@ -11,8 +11,8 @@ const ContextTruth = {
   },
 
   infer() {
-    if (MapComms?.compromised || this.compromised) {
-      const c = MapComms?.compromised || this.compromised;
+    if (window.MapComms?.compromised || this.compromised) {
+      const c = window.MapComms?.compromised || this.compromised;
       return {
         mode: 'compromised',
         ctx: 'compromised',
@@ -46,21 +46,21 @@ const ContextTruth = {
         detail: 'Olympians 🔵 vs Cronians 🔴 · Kronos leads red · multi-domain warfare',
       };
     }
-    if (MapComms?.teamId && MapComms?.kind === 'dm' && MapComms?.dmUser) {
+    if (window.MapComms?.teamId && window.MapComms?.kind === 'dm' && window.MapComms?.dmUser) {
       return {
         mode: 'dm',
         ctx: 'dm',
-        label: 'DM · ' + (MapComms.dmUser.name || 'User'),
-        detail: 'Private cloud · ' + (MapComms.teamId || ''),
-        peer: MapComms.dmUser,
+        label: 'DM · ' + (window.MapComms.dmUser.name || 'User'),
+        detail: 'Private cloud · ' + (window.MapComms.teamId || ''),
+        peer: window.MapComms.dmUser,
       };
     }
-    if (MapComms?.teamId && MapComms?.kind === 'team') {
+    if (window.MapComms?.teamId && window.MapComms?.kind === 'team') {
       return {
         mode: 'team',
         ctx: 'team',
-        label: 'Team · ' + (MapComms.teamName || 'Cloud'),
-        detail: (MapComms.members?.size || 0) + ' on map cloud',
+        label: 'Team · ' + (window.MapComms.teamName || 'Cloud'),
+        detail: (window.MapComms.members?.size || 0) + ' on map cloud',
       };
     }
     if (MarketplaceComms?.teamId) {
@@ -129,15 +129,15 @@ const ContextTruth = {
     this.compromised = intruder || null;
     if (intruder) {
       CliRibbon?.setNotice?.('⚠ compromised · ' + (intruder.name || '?'), 'err');
-      MapComms?._applyCloudTruth?.();
+      window.MapComms?._applyCloudTruth?.();
     }
     this.sync();
   },
 
   clearCompromised() {
     this.compromised = null;
-    if (MapComms) MapComms.compromised = null;
-    MapComms?._applyCloudTruth?.();
+    if (window.MapComms) window.MapComms.compromised = null;
+    window.MapComms?._applyCloudTruth?.();
     CliRibbon?.clearNotice?.();
     this.sync();
   },
@@ -154,7 +154,7 @@ const ContextTruth = {
 
     const cloud = document.getElementById('map-comms-cloud');
     if (cloud?.classList.contains('open')) {
-      cloud.dataset.truth = ctx.mode === 'compromised' ? 'compromised' : (MapComms?.kind || 'team');
+      cloud.dataset.truth = ctx.mode === 'compromised' ? 'compromised' : (window.MapComms?.kind || 'team');
       this._renderCloudBadge(ctx);
     }
 
@@ -205,10 +205,10 @@ const ContextTruth = {
         CliHub?.viewUser?.(ctx.intruder.id);
         ACIControl?.reply('Compromised cloud — intruder: ' + (ctx.intruder.name || ctx.intruder.id));
       });
-    } else if (MapComms?.kind === 'dm') {
+    } else if (window.MapComms?.kind === 'dm') {
       badge.className = 'mc-badge mc-badge-dm';
       badge.textContent = '🔒 private';
-    } else if (MapComms?.kind === 'team') {
+    } else if (window.MapComms?.kind === 'team') {
       badge.className = 'mc-badge mc-badge-team';
       badge.textContent = '◎ team';
     } else {

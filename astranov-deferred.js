@@ -521,7 +521,7 @@ Object.assign(SuperCli, {
         return { handled: true };
       }
       if (cmd === 'team') {
-        await MapComms?.cmd?.(parts);
+        await window.MapComms?.cmd?.(parts);
         return { handled: true };
       }
       if (cmd === 'drivers') {
@@ -603,20 +603,20 @@ Object.assign(SuperCli, {
       }
       if (cmd === 'chat' && parts[1]) {
         const msg = parts.slice(2).join(' ');
-        if (msg && MapComms?.dmUser && MapComms?.kind === 'dm') {
-          MapComms.sendMessage(msg);
+        if (msg && window.MapComms?.dmUser && window.MapComms?.kind === 'dm') {
+          window.MapComms.sendMessage(msg);
         } else {
           await CliHub?.startPrivateCloud?.(parts[1]);
-          if (msg) MapComms?.sendMessage?.(msg);
+          if (msg) window.MapComms?.sendMessage?.(msg);
         }
         return { handled: true };
       }
       if (cmd === 'contact') {
-        await MapComms?.contactCmd?.(parts);
+        await window.MapComms?.contactCmd?.(parts);
         return { handled: true };
       }
       if (cmd === 'msg' && parts[1]) {
-        MapComms?.sendMessage?.(parts.slice(1).join(' '));
+        window.MapComms?.sendMessage?.(parts.slice(1).join(' '));
         return { handled: true };
       }
       if (cmd === 'city' || cmd === 'cityview') {
@@ -718,8 +718,8 @@ const CliHub = {
     this._pending.push({
       line: String(line).slice(0, 2000),
       cls: String(cls || 'out').slice(0, 24),
-      circle_id: opts.circle_id || MapComms?.teamId || null,
-      peer_id: opts.peer_id || MapComms?.dmUser?.id || null,
+      circle_id: opts.circle_id || window.MapComms?.teamId || null,
+      peer_id: opts.peer_id || window.MapComms?.dmUser?.id || null,
     });
     if (this._pending.length > 32) this._pending = this._pending.slice(-32);
     if (!this._flushTimer) {
@@ -769,7 +769,7 @@ const CliHub = {
         const cid = el.dataset.chCircle;
         if (act === 'view' && uid) this.viewUser(uid);
         if (act === 'dm' && uid) this.startPrivateCloud(uid);
-        if (act === 'chat' && cid) MapComms?.joinTeam?.(cid);
+        if (act === 'chat' && cid) window.MapComms?.joinTeam?.(cid);
       });
     }
   },
@@ -896,7 +896,7 @@ const CliHub = {
     if (!targetId.match(/^[0-9a-f-]{36}$/i)) {
       const q = targetRef.toLowerCase();
       const hit = (window.others || []).find((u) => (u.name || '').toLowerCase().includes(q))
-        || [...(MapComms?.members?.values() || [])].find((u) => (u.name || '').toLowerCase().includes(q));
+        || [...(window.MapComms?.members?.values() || [])].find((u) => (u.name || '').toLowerCase().includes(q));
       if (hit?.id) targetId = hit.id;
       else {
         const sr = await this.api({ action: 'search', q: targetRef });
@@ -925,7 +925,7 @@ const CliHub = {
       t: m.ts || Date.now(),
       author_id: m.author_id,
     }));
-    await MapComms?.openPrivateCloud?.({
+    await window.MapComms?.openPrivateCloud?.({
       circleId: r.circle_id,
       target,
       messages: msgs,
@@ -990,8 +990,8 @@ const ContextTruth = {
   },
 
   infer() {
-    if (MapComms?.compromised || this.compromised) {
-      const c = MapComms?.compromised || this.compromised;
+    if (window.MapComms?.compromised || this.compromised) {
+      const c = window.MapComms?.compromised || this.compromised;
       return {
         mode: 'compromised',
         ctx: 'compromised',
@@ -1025,21 +1025,21 @@ const ContextTruth = {
         detail: 'Olympians 🔵 vs Cronians 🔴 · Kronos leads red · multi-domain warfare',
       };
     }
-    if (MapComms?.teamId && MapComms?.kind === 'dm' && MapComms?.dmUser) {
+    if (window.MapComms?.teamId && window.MapComms?.kind === 'dm' && window.MapComms?.dmUser) {
       return {
         mode: 'dm',
         ctx: 'dm',
-        label: 'DM · ' + (MapComms.dmUser.name || 'User'),
-        detail: 'Private cloud · ' + (MapComms.teamId || ''),
-        peer: MapComms.dmUser,
+        label: 'DM · ' + (window.MapComms.dmUser.name || 'User'),
+        detail: 'Private cloud · ' + (window.MapComms.teamId || ''),
+        peer: window.MapComms.dmUser,
       };
     }
-    if (MapComms?.teamId && MapComms?.kind === 'team') {
+    if (window.MapComms?.teamId && window.MapComms?.kind === 'team') {
       return {
         mode: 'team',
         ctx: 'team',
-        label: 'Team · ' + (MapComms.teamName || 'Cloud'),
-        detail: (MapComms.members?.size || 0) + ' on map cloud',
+        label: 'Team · ' + (window.MapComms.teamName || 'Cloud'),
+        detail: (window.MapComms.members?.size || 0) + ' on map cloud',
       };
     }
     if (MarketplaceComms?.teamId) {
@@ -1108,15 +1108,15 @@ const ContextTruth = {
     this.compromised = intruder || null;
     if (intruder) {
       CliRibbon?.setNotice?.('⚠ compromised · ' + (intruder.name || '?'), 'err');
-      MapComms?._applyCloudTruth?.();
+      window.MapComms?._applyCloudTruth?.();
     }
     this.sync();
   },
 
   clearCompromised() {
     this.compromised = null;
-    if (MapComms) MapComms.compromised = null;
-    MapComms?._applyCloudTruth?.();
+    if (window.MapComms) window.MapComms.compromised = null;
+    window.MapComms?._applyCloudTruth?.();
     CliRibbon?.clearNotice?.();
     this.sync();
   },
@@ -1133,7 +1133,7 @@ const ContextTruth = {
 
     const cloud = document.getElementById('map-comms-cloud');
     if (cloud?.classList.contains('open')) {
-      cloud.dataset.truth = ctx.mode === 'compromised' ? 'compromised' : (MapComms?.kind || 'team');
+      cloud.dataset.truth = ctx.mode === 'compromised' ? 'compromised' : (window.MapComms?.kind || 'team');
       this._renderCloudBadge(ctx);
     }
 
@@ -1184,10 +1184,10 @@ const ContextTruth = {
         CliHub?.viewUser?.(ctx.intruder.id);
         ACIControl?.reply('Compromised cloud — intruder: ' + (ctx.intruder.name || ctx.intruder.id));
       });
-    } else if (MapComms?.kind === 'dm') {
+    } else if (window.MapComms?.kind === 'dm') {
       badge.className = 'mc-badge mc-badge-dm';
       badge.textContent = '🔒 private';
-    } else if (MapComms?.kind === 'team') {
+    } else if (window.MapComms?.kind === 'team') {
       badge.className = 'mc-badge mc-badge-team';
       badge.textContent = '◎ team';
     } else {
@@ -2392,8 +2392,10 @@ const AstranovNode = {
   },
 
   async api(body) {
+    if (Auth?.whenReady) await Auth.whenReady();
     const headers = Auth?.authHeaders ? await Auth.authHeaders() : sbHeaders();
-    const r = await fetch(SB_URL + '/functions/v1/node-batch', {
+    const fnBase = typeof resolveAstranovFunctionsUrl === 'function' ? resolveAstranovFunctionsUrl() : (SB_URL + '/functions/v1');
+    const r = await fetch(fnBase + '/node-batch', {
       method: 'POST', headers,
       body: JSON.stringify(body),
     });
@@ -3027,7 +3029,8 @@ const PmrRadio = {
       return;
     }
     this.setStep(2, 'active', 'Joining voice channel pmr-ch11…');
-    const sb = typeof supabase !== 'undefined' ? supabase.createClient(SB_URL, SB_KEY) : null;
+    const sbUrl = typeof resolveAstranovSupabaseClientUrl === 'function' ? resolveAstranovSupabaseClientUrl() : SB_URL;
+    const sb = typeof supabase !== 'undefined' ? supabase.createClient(sbUrl, SB_KEY) : null;
     if (!sb) {
       this.setStep(2, 'blocked', 'Supabase unavailable — cannot open live voice channel');
       return;
@@ -3636,7 +3639,7 @@ const GlobeVideo = {
     this._currentId = id;
     const title = meta?.title || id;
     await SuperSpace?.locateForMedia?.(searchQuery || title, meta);
-    MapComms?.showCloudVideo?.(id, title);
+    window.MapComms?.showCloudVideo?.(id, title);
     this.showPanel(title.slice(0, 48));
     const frame = document.getElementById('yt-frame');
     const titleEl = document.getElementById('yt-now-title');
@@ -5777,8 +5780,10 @@ const Pilot = {
   },
 
   async api(body) {
+    if (Auth?.whenReady) await Auth.whenReady();
     const headers = Auth?.authHeaders ? await Auth.authHeaders() : sbHeaders();
-    const r = await fetch(SB_URL + '/functions/v1/pilot-command', {
+    const fnBase = typeof resolveAstranovFunctionsUrl === 'function' ? resolveAstranovFunctionsUrl() : (SB_URL + '/functions/v1');
+    const r = await fetch(fnBase + '/pilot-command', {
       method: 'POST', headers,
       body: JSON.stringify(body),
     });
@@ -8011,22 +8016,21 @@ const AstranovPresence = {
   },
 
   async _pollProfiles() {
-    if (!Auth?.user) return;
+    if (!Auth?.user || !Auth?.client) return;
+    if (Auth?.whenReady) await Auth.whenReady();
     try {
-      const headers = await Auth.authHeaders();
       const since = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-      const q = SB_URL + '/rest/v1/profiles'
-        + '?select=id,display_name,avatar_emoji,field_lat,field_lng,field_seen_at,map_hidden'
-        + '&field_seen_at=gte.' + encodeURIComponent(since)
-        + '&field_lat=not.is.null'
-        + '&field_lng=not.is.null'
-        + '&map_hidden=eq.false'
-        + '&id=neq.' + encodeURIComponent(Auth.user.id)
-        + '&limit=80';
-      const r = await fetch(q, { headers });
-      if (!r.ok) return;
-      const rows = await r.json();
-      rows.forEach((row) => {
+      const { data: rows, error } = await Auth.client
+        .from('profiles')
+        .select('id,display_name,avatar_emoji,field_lat,field_lng,field_seen_at,map_hidden')
+        .gte('field_seen_at', since)
+        .not('field_lat', 'is', null)
+        .not('field_lng', 'is', null)
+        .eq('map_hidden', false)
+        .neq('id', Auth.user.id)
+        .limit(80);
+      if (error) return;
+      (rows || []).forEach((row) => {
         this._ingest({
           user_id: row.id,
           name: row.display_name || 'User',
