@@ -15,7 +15,8 @@ try {
   renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
   renderer.setClearColor(0x000000, 1);
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, window._globePerfLite ? 1.0 : 1.25));
+  const _dprCap = window.SlumberManager?.quality?.pixelRatio ?? (window._globePerfLite ? 1.0 : 1.25);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, _dprCap));
   container.appendChild(renderer.domElement);
 } catch (e) {
   const fb = document.createElement('div');

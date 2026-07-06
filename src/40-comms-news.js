@@ -30,19 +30,24 @@ const NewsFeed = {
       const r = await fetch(url);
       const xml = await r.text();
       const titles = [...xml.matchAll(/<title>(?:<!\[CDATA\[)?([^\]<]+)/g)].map(m => m[1]).filter(t => t.length > 12 && !t.includes('BBC'));
-      this.items = titles.slice(0, 8);
+      const max = SlumberManager?.quality?.newsMax ?? 8;
+      this.items = max > 0 ? titles.slice(0, max) : [];
     } catch { this.items = ['Astranov Collective Intelligence online', 'Globe trackball active', 'ACI ready for orders and comms']; }
     this.tick();
   },
   tick() {
+    if (!SlumberManager?.allows?.('news')) return;
     if (!this.items.length) return;
-    const i = Math.floor(Date.now() / 12000) % this.items.length;
+    const interval = SlumberManager?.tickMs?.('news') || 12000;
+    if (!interval) return;
+    const i = Math.floor(Date.now() / interval) % this.items.length;
     const line = (AstroGlyphs?.news || '📰') + ' ' + this.items[i];
     if (GlobeDeck && !GlobeDeck.thinking && !GlobeDeck._userEngaged) {
       GlobeDeck.setPreview(line);
     }
   },
   flash() {
+    SlumberManager?.wake?.('news', 'news');
     this.fetch();
     const worldLat = 51.5, worldLng = -0.12;
     MapDepict.action('news', { worldLat, worldLng, detail: (this.items[0] || '').slice(0, 50) });

@@ -23,7 +23,7 @@ const CodersHub = {
     this.refreshJob();
     this._updateRaceBoard();
     this._maybeResumeFromQuery();
-    this._pingLabs();
+    if (SlumberManager?.allows?.('coders_ping')) this._pingLabs();
   },
 
   _bind() {
@@ -34,7 +34,8 @@ const CodersHub = {
     document.getElementById('coders-clear-job')?.addEventListener('click', () => this.clearJob());
     document.getElementById('coders-summon-composer')?.addEventListener('click', () => this.summonComposer());
     document.getElementById('coders-refresh-labs')?.addEventListener('click', () => {
-      this._pingLabs();
+      SlumberManager?.wake?.('coders_ping', 'refresh');
+      if (SlumberManager?.allows?.('coders_ping')) this._pingLabs();
       this.renderLabs();
     });
     document.addEventListener('keydown', (e) => {
@@ -64,7 +65,7 @@ const CodersHub = {
       this.renderLabs();
       this.refreshJob();
       this._updateRaceBoard();
-      this._pingLabs();
+      if (SlumberManager?.allows?.('coders_ping')) this._pingLabs();
     }
   },
 
@@ -219,6 +220,7 @@ const CodersHub = {
   },
 
   async _pingLabs() {
+    if (!SlumberManager?.allows?.('coders_ping')) return;
     if (this._pinging) return;
     this._pinging = true;
     const badge = document.getElementById('coders-hub-trigger');

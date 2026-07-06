@@ -2889,19 +2889,24 @@ const NewsFeed = {
       const r = await fetch(url);
       const xml = await r.text();
       const titles = [...xml.matchAll(/<title>(?:<!\[CDATA\[)?([^\]<]+)/g)].map(m => m[1]).filter(t => t.length > 12 && !t.includes('BBC'));
-      this.items = titles.slice(0, 8);
+      const max = SlumberManager?.quality?.newsMax ?? 8;
+      this.items = max > 0 ? titles.slice(0, max) : [];
     } catch { this.items = ['Astranov Collective Intelligence online', 'Globe trackball active', 'ACI ready for orders and comms']; }
     this.tick();
   },
   tick() {
+    if (!SlumberManager?.allows?.('news')) return;
     if (!this.items.length) return;
-    const i = Math.floor(Date.now() / 12000) % this.items.length;
+    const interval = SlumberManager?.tickMs?.('news') || 12000;
+    if (!interval) return;
+    const i = Math.floor(Date.now() / interval) % this.items.length;
     const line = (AstroGlyphs?.news || '📰') + ' ' + this.items[i];
     if (GlobeDeck && !GlobeDeck.thinking && !GlobeDeck._userEngaged) {
       GlobeDeck.setPreview(line);
     }
   },
   flash() {
+    SlumberManager?.wake?.('news', 'news');
     this.fetch();
     const worldLat = 51.5, worldLng = -0.12;
     MapDepict.action('news', { worldLat, worldLng, detail: (this.items[0] || '').slice(0, 50) });
@@ -4065,7 +4070,7 @@ const CodersHub = {
     this.refreshJob();
     this._updateRaceBoard();
     this._maybeResumeFromQuery();
-    this._pingLabs();
+    if (SlumberManager?.allows?.('coders_ping')) this._pingLabs();
   },
 
   _bind() {
@@ -4076,7 +4081,8 @@ const CodersHub = {
     document.getElementById('coders-clear-job')?.addEventListener('click', () => this.clearJob());
     document.getElementById('coders-summon-composer')?.addEventListener('click', () => this.summonComposer());
     document.getElementById('coders-refresh-labs')?.addEventListener('click', () => {
-      this._pingLabs();
+      SlumberManager?.wake?.('coders_ping', 'refresh');
+      if (SlumberManager?.allows?.('coders_ping')) this._pingLabs();
       this.renderLabs();
     });
     document.addEventListener('keydown', (e) => {
@@ -4106,7 +4112,7 @@ const CodersHub = {
       this.renderLabs();
       this.refreshJob();
       this._updateRaceBoard();
-      this._pingLabs();
+      if (SlumberManager?.allows?.('coders_ping')) this._pingLabs();
     }
   },
 
@@ -4261,6 +4267,7 @@ const CodersHub = {
   },
 
   async _pingLabs() {
+    if (!SlumberManager?.allows?.('coders_ping')) return;
     if (this._pinging) return;
     this._pinging = true;
     const badge = document.getElementById('coders-hub-trigger');
@@ -4400,6 +4407,7 @@ const LabOrbs = {
   },
 
   init() {
+    if (!SlumberManager?.allows?.('lab_orbs')) return;
     if (this._bound) return;
     this._bound = true;
     this._mount();
@@ -5566,6 +5574,7 @@ const AstranovPresence = {
   },
 
   init() {
+    if (!SlumberManager?.allows?.('presence')) return;
     if (Auth?.client) {
       Auth.client.auth.onAuthStateChange((_ev, session) => {
         if (session?.user) setTimeout(() => this.join(), 400);
@@ -5591,6 +5600,7 @@ const AstranovPresence = {
   },
 
   async join() {
+    if (!SlumberManager?.allows?.('presence')) return;
     if (!Auth?.client || !Auth?.user) return;
     if (this.rtChannel) return;
     const uid = Auth.user.id;
@@ -7981,23 +7991,27 @@ const DeferredBoot = {
     if (this._done) return;
     this._done = true;
     window._deferredBootDone = true;
+    const sl = window.SlumberManager;
+    const go = (id, fn) => { if (!sl || sl.shouldInit(id)) fn?.(); };
 
-    window.CelestialNav?.init?.();
-    window.Responsive3D?.init?.();
-    window.OrderTracking?.init?.();
-    window.AstranovSession?.init?.();
-    window.AstranovPresence?.init?.();
-    window.ProfileSite?.init?.();
-    window.CodersHub?.init?.();
-    window.LabOrbs?.init?.();
-    window.SuperCli?.initBrain?.();
+    go('celestial', () => window.CelestialNav?.init?.());
+    go('globe', () => window.Responsive3D?.init?.());
+    go('commerce', () => window.OrderTracking?.init?.());
+    go('presence', () => window.AstranovSession?.init?.());
+    go('presence', () => window.AstranovPresence?.init?.());
+    go('cli', () => window.ProfileSite?.init?.());
+    go('coders_ping', () => window.CodersHub?.init?.());
+    go('lab_orbs', () => window.LabOrbs?.init?.());
+    go('cli', () => window.SuperCli?.initBrain?.());
 
-    setTimeout(() => {
-      const c = window.Commerce;
-      if (c?.loadVendors) {
-        c.loadVendors().then(() => c.initUI?.()).catch(() => {});
-      }
-    }, 400);
+    if (sl?.allows('commerce')) {
+      setTimeout(() => {
+        const c = window.Commerce;
+        if (c?.loadVendors) {
+          c.loadVendors().then(() => c.initUI?.()).catch(() => {});
+        }
+      }, sl?.tier === 'slumber' ? 1200 : 400);
+    }
   },
 };
 window.DeferredBoot = DeferredBoot;

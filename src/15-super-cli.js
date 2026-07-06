@@ -117,7 +117,8 @@ const SuperCli = {
 
   async run(action, opts) {
     const act = String(action || '').toLowerCase();
-    if (!['locate', 'city', 'map', 'cli', 'dark', 'bright', 'theme'].includes(act)) {
+    SlumberManager?.wakeForAction?.(act);
+    if (!['locate', 'city', 'map', 'cli', 'dark', 'bright', 'theme', 'slumber', 'wake', 'sleep'].includes(act)) {
       await LazyModules.ensure();
     }
     GlobeDeck?.superAction(act, opts);

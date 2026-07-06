@@ -27,6 +27,7 @@ const AstranovPresence = {
   },
 
   init() {
+    if (!SlumberManager?.allows?.('presence')) return;
     if (Auth?.client) {
       Auth.client.auth.onAuthStateChange((_ev, session) => {
         if (session?.user) setTimeout(() => this.join(), 400);
@@ -52,6 +53,7 @@ const AstranovPresence = {
   },
 
   async join() {
+    if (!SlumberManager?.allows?.('presence')) return;
     if (!Auth?.client || !Auth?.user) return;
     if (this.rtChannel) return;
     const uid = Auth.user.id;

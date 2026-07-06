@@ -508,8 +508,9 @@ const GlobeEntity = {
     const now = Date.now();
     if (!this._tickLast) this._tickLast = 0;
     if (document.hidden) return;
-    const perf = window._voicePerfMode || window._globePerfLite;
-    if (now - this._tickLast < (perf ? 520 : 200)) return;
+    if (!SlumberManager?.allows?.('entities')) return;
+    const minGap = SlumberManager?.tickMs?.('entity') || (window._voicePerfMode || window._globePerfLite ? 520 : 200);
+    if (now - this._tickLast < minGap) return;
     this._tickLast = now;
     if (!this._clusterLast || now - this._clusterLast > 500) {
       this._clusterLast = now;

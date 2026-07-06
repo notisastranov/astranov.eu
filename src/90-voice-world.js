@@ -194,6 +194,7 @@ function voiceListenBlocked() {
 
 function setVoicePerfMode(on) {
   window._voicePerfMode = !!on;
+  if (on) SlumberManager?.wake?.('voice', 'voice');
   if (window.AIGraphics?.setVoicePerfMode) AIGraphics.setVoicePerfMode(!!on || !!window._globePerfLite);
 }
 window.setVoicePerfMode = setVoicePerfMode;

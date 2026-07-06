@@ -38,18 +38,23 @@ const EarthRealism = {
   init() {
     if (this._inited || !earth) return;
     this._inited = true;
-    const loader = new THREE.TextureLoader();
-    const dayUrl = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg';
-    const nightUrl = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_lights_2048.png';
-    const onDay = (tex) => { this._dayTex = tex; this._applyShader(); };
-    const onNight = (tex) => { this._nightTex = tex; this._applyShader(); };
-    loader.load(dayUrl, onDay, undefined, () => {
-      if (!this._dayTex) { this._dayTex = this._canvasTex('#1a4a7a', '#2d8f4e'); this._applyShader(); }
-    });
-    loader.load(nightUrl, onNight, undefined, () => {
-      if (!this._nightTex) { this._nightTex = this._canvasTex('#0a1830', '#334466'); this._applyShader(); }
-    });
-    setTimeout(() => this._ensureFallbackTextures(), 10000);
+    const useHd = SlumberManager?.allows?.('earth_hd') && SlumberManager?.quality?.earthHd !== false;
+    if (!useHd) {
+      this._ensureFallbackTextures();
+    } else {
+      const loader = new THREE.TextureLoader();
+      const dayUrl = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg';
+      const nightUrl = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_lights_2048.png';
+      const onDay = (tex) => { this._dayTex = tex; this._applyShader(); };
+      const onNight = (tex) => { this._nightTex = tex; this._applyShader(); };
+      loader.load(dayUrl, onDay, undefined, () => {
+        if (!this._dayTex) { this._dayTex = this._canvasTex('#1a4a7a', '#2d8f4e'); this._applyShader(); }
+      });
+      loader.load(nightUrl, onNight, undefined, () => {
+        if (!this._nightTex) { this._nightTex = this._canvasTex('#0a1830', '#334466'); this._applyShader(); }
+      });
+      setTimeout(() => this._ensureFallbackTextures(), 10000);
+    }
     this._buildSkyBodies();
     this._buildTerminator();
     this.tick();
@@ -215,7 +220,8 @@ const EarthRealism = {
     const level = CosmicZoom?.level || 'earth';
     const earthView = (level === 'earth' || level === 'orbit') && camZ < 4.8;
     if (!earthView) return;
-    if (now - this._tickLast < (window._globePerfLite ? 500 : 250)) return;
+    const earthGap = SlumberManager?.tickMs?.('earth') || (window._globePerfLite ? 500 : 250);
+    if (now - this._tickLast < earthGap) return;
     this._tickLast = now;
 
     const sunDir = this._solarPosition();

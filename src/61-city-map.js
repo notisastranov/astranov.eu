@@ -92,7 +92,8 @@ const CityMap = {
     });
     this._bindZoomBridge(el);
     this._ready = true;
-    this._driverTimer = setInterval(() => this._tickDrivers(), 4500);
+    const driverMs = SlumberManager?.tickMs?.('cityDriver') || 4500;
+    this._driverTimer = setInterval(() => this._tickDrivers(), driverMs);
     this._syncTimer = setInterval(() => { if (this.active) this._syncMarkers(); }, 2000);
   },
 
@@ -123,9 +124,10 @@ const CityMap = {
   },
 
   _buildLayers() {
+    const maxZ = SlumberManager?.quality?.cityMaxZoom || 20;
     const sat = this._tileLayer(
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: 20, attribution: 'Esri' }
+      { maxZoom: maxZ, attribution: 'Esri' }
     );
     const satFallback = L.tileLayer(
       'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -313,6 +315,7 @@ const CityMap = {
 
   _enter(camZ) {
     if (!this.map) return;
+    SlumberManager?.wake?.('city_hd', 'city map');
     this.active = true;
     cityLevel = true;
     this._applyBaseLayers();

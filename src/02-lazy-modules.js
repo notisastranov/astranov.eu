@@ -4,11 +4,14 @@ const LazyModules = {
   _loaded: false,
 
   schedule() {
-    const run = () => this.load().catch(() => {});
+    const delay = window.SlumberManager?.deferredDelay?.() || 1400;
+    const run = () => {
+      if (window.SlumberManager?.allows?.('deferred')) this.load().catch(() => {});
+    };
     if (typeof requestIdleCallback === 'function') {
-      requestIdleCallback(run, { timeout: 1800 });
+      requestIdleCallback(run, { timeout: Math.max(delay, 800) });
     } else {
-      setTimeout(run, 80);
+      setTimeout(run, Math.max(delay, 80));
     }
   },
 
@@ -47,6 +50,7 @@ const LazyModules = {
   },
 
   ensure() {
+    SlumberManager?.wake?.('deferred', 'needed');
     return this.load().then(() => {
       if (!window._deferredBootDone && window.DeferredBoot?.run) {
         window.DeferredBoot.run();

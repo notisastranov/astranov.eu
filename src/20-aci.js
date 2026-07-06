@@ -220,6 +220,13 @@ const ACIControl = {
       return { executed: true, action: 'stop' };
     }
     if (/^(cli|terminal|console|κονσόλα)$/.test(low)) { AciCli.toggle(); this.reply('CLI panel'); say('CLI.'); return { executed: true }; }
+    if (/^slumber\b|^performance\b|^wake\b|^sleep\b/.test(low)) {
+      let parts = text.trim().split(/\s+/);
+      if (/^slumber\b/i.test(parts[0])) parts = parts.length > 1 ? parts.slice(1) : ['status'];
+      if (/^performance\b/i.test(parts[0])) parts = ['status'];
+      await SlumberManager?.cli?.(parts);
+      return { executed: true, action: 'slumber' };
+    }
     if (/^summon\s+coders?\s*/i.test(text) || /^coders\b/i.test(low)) {
       const bare = /^coders?\s*$/i.test(text.trim()) || /^summon\s+coders?\s*$/i.test(text.trim());
       if (bare) await AciCoders?.enterSession?.({ fromVoice });

@@ -21,6 +21,7 @@ const LabOrbs = {
   },
 
   init() {
+    if (!SlumberManager?.allows?.('lab_orbs')) return;
     if (this._bound) return;
     this._bound = true;
     this._mount();

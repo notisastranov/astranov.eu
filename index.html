@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260706072113" />
+<meta name="astranov-build" content="20260706072813" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -813,7 +813,8 @@ try {
   renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
   renderer.setClearColor(0x000000, 1);
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, window._globePerfLite ? 1.0 : 1.25));
+  const _dprCap = window.SlumberManager?.quality?.pixelRatio ?? (window._globePerfLite ? 1.0 : 1.25);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, _dprCap));
   container.appendChild(renderer.domElement);
 } catch (e) {
   const fb = document.createElement('div');
@@ -1850,11 +1851,14 @@ const LazyModules = {
   _loaded: false,
 
   schedule() {
-    const run = () => this.load().catch(() => {});
+    const delay = window.SlumberManager?.deferredDelay?.() || 1400;
+    const run = () => {
+      if (window.SlumberManager?.allows?.('deferred')) this.load().catch(() => {});
+    };
     if (typeof requestIdleCallback === 'function') {
-      requestIdleCallback(run, { timeout: 1800 });
+      requestIdleCallback(run, { timeout: Math.max(delay, 800) });
     } else {
-      setTimeout(run, 80);
+      setTimeout(run, Math.max(delay, 80));
     }
   },
 
@@ -1893,6 +1897,7 @@ const LazyModules = {
   },
 
   ensure() {
+    SlumberManager?.wake?.('deferred', 'needed');
     return this.load().then(() => {
       if (!window._deferredBootDone && window.DeferredBoot?.run) {
         window.DeferredBoot.run();
@@ -1901,6 +1906,458 @@ const LazyModules = {
   },
 };
 window.LazyModules = LazyModules;
+
+// === SLUMBER MANAGER — probe hardware, sleep/wake subsystems, scale quality ===
+const SlumberManager = {
+  tier: 'balanced',
+  _inited: false,
+  _fpsSamples: [],
+  _lastFrame: 0,
+  _monitor: null,
+  _userPinned: false,
+
+  TIER_LABEL: {
+    full: 'Full power',
+    balanced: 'Balanced',
+    conserve: 'Conserve',
+    slumber: 'Slumber',
+  },
+
+  PRESETS: {
+    full: {
+      pixelRatio: 1.25,
+      earthHd: true,
+      earthTickMs: 250,
+      entityTickMs: 200,
+      newsIntervalMs: 12000,
+      newsMax: 8,
+      cityMaxZoom: 20,
+      cityDriverMs: 4500,
+      deferredDelayMs: 600,
+      anim: { orbital: 3, entity: 6, earth: 4, celestial: 3, cosmic: 8 },
+      codersPing: true,
+      labOrbs: true,
+      presence: true,
+    },
+    balanced: {
+      pixelRatio: 1.0,
+      earthHd: true,
+      earthTickMs: 400,
+      entityTickMs: 320,
+      newsIntervalMs: 20000,
+      newsMax: 5,
+      cityMaxZoom: 18,
+      cityDriverMs: 7000,
+      deferredDelayMs: 1400,
+      anim: { orbital: 4, entity: 8, earth: 6, celestial: 6, cosmic: 10 },
+      codersPing: true,
+      labOrbs: true,
+      presence: true,
+    },
+    conserve: {
+      pixelRatio: 0.9,
+      earthHd: false,
+      earthTickMs: 650,
+      entityTickMs: 520,
+      newsIntervalMs: 45000,
+      newsMax: 3,
+      cityMaxZoom: 16,
+      cityDriverMs: 12000,
+      deferredDelayMs: 3200,
+      anim: { orbital: 6, entity: 12, earth: 8, celestial: 12, cosmic: 16 },
+      codersPing: false,
+      labOrbs: false,
+      presence: false,
+    },
+    slumber: {
+      pixelRatio: 0.75,
+      earthHd: false,
+      earthTickMs: 900,
+      entityTickMs: 780,
+      newsIntervalMs: 0,
+      newsMax: 0,
+      cityMaxZoom: 15,
+      cityDriverMs: 18000,
+      deferredDelayMs: 6000,
+      anim: { orbital: 9, entity: 18, earth: 12, celestial: 18, cosmic: 24 },
+      codersPing: false,
+      labOrbs: false,
+      presence: false,
+    },
+  },
+
+  SUBSYSTEMS: {
+    globe: { label: 'Earth globe', essential: true },
+    grok: { label: 'Grok voice/text', essential: true },
+    cli: { label: 'Command line', essential: true },
+    earth_hd: { label: 'HD earth textures' },
+    deferred: { label: 'Shops · coders · comms pack' },
+    news: { label: 'News ticker' },
+    coders_ping: { label: 'Coders lab health checks' },
+    lab_orbs: { label: 'Lab quick-orbs' },
+    presence: { label: 'Live presence on map' },
+    entities: { label: 'Globe entity labels' },
+    commerce: { label: 'Shops & delivery' },
+    celestial: { label: 'Constellation overlay' },
+    city_hd: { label: 'City satellite tiles' },
+    webrtc: { label: 'Voice/video calls' },
+    voice: { label: 'Hands-free voice' },
+  },
+
+  init() {
+    if (this._inited) return;
+    this._inited = true;
+    this.profile = this.probeHardware();
+    this.states = {};
+    Object.keys(this.SUBSYSTEMS).forEach(id => { this.states[id] = 'drowsy'; });
+    ['globe', 'grok', 'cli'].forEach(id => { this.states[id] = 'awake'; });
+    this.applyTier(this.pickInitialTier(), 'hardware probe');
+    this._bind();
+    this._startMonitor();
+    setTimeout(() => this._announceLimits(), 1800);
+  },
+
+  probeHardware() {
+    const nav = navigator;
+    const conn = nav.connection || nav.mozConnection || nav.webkitConnection;
+    const mem = nav.deviceMemory || 0;
+    const cores = nav.hardwareConcurrency || 2;
+    const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(nav.userAgent || '')
+      || (nav.maxTouchPoints > 1 && window.innerWidth < 900);
+    let gpu = '';
+    try {
+      const gl = document.createElement('canvas').getContext('webgl');
+      const dbg = gl?.getExtension('WEBGL_debug_renderer_info');
+      if (dbg && gl) gpu = gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) || '';
+    } catch (_) {}
+    const saveData = !!(conn?.saveData);
+    const effectiveType = conn?.effectiveType || '';
+    const lowEndGpu = /swiftshader|llvmpipe|intel hd [2-4]|mali-[34]|adreno [23]/i.test(gpu);
+    return {
+      cores,
+      memoryGb: mem,
+      mobile,
+      gpu: gpu.slice(0, 80),
+      lowEndGpu,
+      saveData,
+      connection: effectiveType,
+      slowNet: saveData || effectiveType === 'slow-2g' || effectiveType === '2g',
+      width: window.innerWidth,
+      height: window.innerHeight,
+    };
+  },
+
+  pickInitialTier() {
+    const p = this.profile;
+    let score = 0;
+    if (p.cores >= 8) score += 2;
+    else if (p.cores >= 4) score += 1;
+    if (p.memoryGb >= 8) score += 2;
+    else if (p.memoryGb >= 4) score += 1;
+    if (!p.mobile) score += 1;
+    if (p.lowEndGpu) score -= 2;
+    if (p.slowNet) score -= 2;
+    if (p.saveData) score -= 2;
+    if (p.width < 380) score -= 1;
+    if (score >= 5) return 'full';
+    if (score >= 2) return 'balanced';
+    if (score >= 0) return 'conserve';
+    return 'slumber';
+  },
+
+  applyTier(tier, reason) {
+    if (!this.PRESETS[tier]) tier = 'balanced';
+    this.tier = tier;
+    this.quality = { ...this.PRESETS[tier] };
+    window._globePerfLite = tier !== 'full';
+    window._slumberTier = tier;
+    document.body.dataset.slumber = tier;
+    this._applySubsystemDefaults(tier);
+    this.applyQuality();
+    if (reason && reason !== 'hardware probe') this.notify(`Slumber · ${this.TIER_LABEL[tier]} — ${reason}`);
+  },
+
+  _applySubsystemDefaults(tier) {
+    const q = this.quality;
+    const set = (id, state) => { if (this.SUBSYSTEMS[id]) this.states[id] = state; };
+    set('globe', 'awake');
+    set('grok', 'awake');
+    set('cli', 'awake');
+    set('earth_hd', q.earthHd ? (tier === 'full' ? 'awake' : 'drowsy') : 'sleeping');
+    set('deferred', tier === 'slumber' ? 'sleeping' : tier === 'conserve' ? 'drowsy' : 'awake');
+    set('news', q.newsMax > 0 ? (tier === 'full' ? 'awake' : 'drowsy') : 'sleeping');
+    set('coders_ping', q.codersPing ? 'drowsy' : 'sleeping');
+    set('lab_orbs', q.labOrbs ? 'drowsy' : 'sleeping');
+    set('presence', q.presence ? 'drowsy' : 'sleeping');
+    set('entities', tier === 'slumber' ? 'drowsy' : 'awake');
+    set('commerce', 'sleeping');
+    set('celestial', tier === 'full' || tier === 'balanced' ? 'drowsy' : 'sleeping');
+    set('city_hd', 'sleeping');
+    set('webrtc', 'sleeping');
+    set('voice', 'drowsy');
+  },
+
+  applyQuality() {
+    const q = this.quality;
+    if (window.renderer?.setPixelRatio) {
+      const dpr = window.devicePixelRatio || 1;
+      window.renderer.setPixelRatio(Math.min(dpr, q.pixelRatio));
+    }
+    if (window.EarthRealism?._inited) window.EarthRealism.tick?.();
+    if (window.CityMap?.map && q.cityMaxZoom) {
+      try { window.CityMap.map.setMaxZoom(q.cityMaxZoom); } catch (_) {}
+    }
+  },
+
+  wake(id, reason) {
+    if (!this.SUBSYSTEMS[id]) return;
+    const prev = this.states[id];
+    if (prev === 'awake') return;
+    this.states[id] = 'awake';
+    if (id === 'deferred') LazyModules?.ensure?.();
+    if (id === 'news' && window.NewsFeed?.fetch) window.NewsFeed.fetch();
+    if (id === 'commerce' && window.Commerce?.loadVendors) {
+      window.Commerce.loadVendors().then(() => window.Commerce?.initUI?.()).catch(() => {});
+    }
+    if (id === 'coders_ping' && window.CodersHub?._pingLabs) window.CodersHub._pingLabs();
+    if (id === 'lab_orbs' && window.LabOrbs?.init) window.LabOrbs.init();
+    if (id === 'presence' && window.AstranovPresence?.join) window.AstranovPresence.join();
+    if (id === 'city_hd' && window.CityMap?.active) window.CityMap._invalidate?.();
+    if (reason && prev === 'sleeping') this.notify(`Awake · ${this.SUBSYSTEMS[id].label}`, 'ready');
+  },
+
+  sleep(id, reason) {
+    if (!this.SUBSYSTEMS[id] || this.SUBSYSTEMS[id].essential) return;
+    if (this.states[id] === 'sleeping') return;
+    this.states[id] = 'sleeping';
+    if (id === 'news') {
+      const preview = document.getElementById('globe-deck-preview');
+      if (preview && /📰|news/i.test(preview.textContent || '')) preview.textContent = '';
+    }
+    if (id === 'coders_ping' && document.getElementById('coders-hub-trigger')) {
+      delete document.getElementById('coders-hub-trigger').dataset.pinging;
+    }
+    if (id === 'lab_orbs') document.getElementById('lab-orb-layer')?.classList.remove('open', 'intro');
+    if (id === 'presence' && window.AstranovPresence?.leave) window.AstranovPresence.leave();
+    if (reason) this.notify(`Sleep · ${this.SUBSYSTEMS[id].label}`, 'hold');
+  },
+
+  isAwake(id) {
+    return this.states[id] === 'awake';
+  },
+
+  allows(id) {
+    const s = this.states[id];
+    return s === 'awake' || s === 'drowsy';
+  },
+
+  shouldInit(id) {
+    return this.allows(id);
+  },
+
+  frameDivisor(kind) {
+    return this.quality?.anim?.[kind] || 6;
+  },
+
+  tickMs(kind) {
+    const q = this.quality || {};
+    if (kind === 'earth') return q.earthTickMs || 400;
+    if (kind === 'entity') return q.entityTickMs || 320;
+    if (kind === 'news') return q.newsIntervalMs || 20000;
+    if (kind === 'cityDriver') return q.cityDriverMs || 7000;
+    return 500;
+  },
+
+  deferredDelay() {
+    return this.quality?.deferredDelayMs || 1400;
+  },
+
+  wakeForAction(action) {
+    const act = String(action || '').toLowerCase();
+    const map = {
+      order: ['commerce', 'deferred', 'entities'],
+      commerce: ['commerce', 'deferred', 'entities'],
+      batch: ['deferred', 'presence'],
+      vhf: ['deferred', 'webrtc'],
+      radio: ['deferred', 'webrtc'],
+      pmr: ['deferred', 'webrtc'],
+      phone: ['deferred', 'webrtc'],
+      call: ['deferred', 'webrtc'],
+      news: ['news', 'deferred'],
+      drive: ['deferred', 'city_hd'],
+      city: ['city_hd'],
+      map: ['city_hd'],
+      coders: ['deferred', 'coders_ping'],
+      add: ['deferred'],
+      post: ['deferred'],
+      superadd: ['deferred'],
+      locate: ['entities'],
+    };
+    (map[act] || []).forEach(id => this.wake(id, act));
+    if (['order', 'commerce', 'batch', 'vhf', 'radio', 'news', 'drive', 'coders', 'add'].includes(act)) {
+      this.wake('voice', act);
+    }
+  },
+
+  tickFrame() {
+    const now = performance.now();
+    if (this._lastFrame) {
+      const dt = now - this._lastFrame;
+      if (dt > 0 && dt < 200) {
+        this._fpsSamples.push(1000 / dt);
+        if (this._fpsSamples.length > 48) this._fpsSamples.shift();
+      }
+    }
+    this._lastFrame = now;
+    if (this._fpsSamples.length >= 24 && !this._userPinned) this._maybeDowngrade();
+  },
+
+  _avgFps() {
+    if (!this._fpsSamples.length) return 60;
+    return this._fpsSamples.reduce((a, b) => a + b, 0) / this._fpsSamples.length;
+  },
+
+  _maybeDowngrade() {
+    const fps = this._avgFps();
+    const order = ['full', 'balanced', 'conserve', 'slumber'];
+    const idx = order.indexOf(this.tier);
+    if (fps < 22 && idx < order.length - 1) {
+      this.applyTier(order[idx + 1], `FPS ${fps.toFixed(0)} — easing load`);
+      this._fpsSamples = [];
+    }
+  },
+
+  _bind() {
+    document.addEventListener('visibilitychange', () => this._onVisibility());
+    window.addEventListener('resize', () => {
+      clearTimeout(this._resizeT);
+      this._resizeT = setTimeout(() => this.applyQuality(), 200);
+    });
+  },
+
+  _onVisibility() {
+    if (document.hidden) {
+      this.sleep('news', 'tab hidden');
+      this.sleep('coders_ping', 'tab hidden');
+      this.sleep('lab_orbs', 'tab hidden');
+      this.sleep('presence', 'tab hidden');
+      this.sleep('celestial', 'tab hidden');
+    } else {
+      if (this.quality.newsMax > 0) this.wake('news', 'tab visible');
+      if (this.quality.codersPing) this.wake('coders_ping', 'tab visible');
+      if (this.quality.labOrbs) this.wake('lab_orbs', 'tab visible');
+      if (this.quality.presence && Auth?.user) this.wake('presence', 'tab visible');
+      if (this.tier === 'full' || this.tier === 'balanced') this.wake('celestial', 'tab visible');
+    }
+  },
+
+  _startMonitor() {
+    clearInterval(this._monitor);
+    this._monitor = setInterval(() => this._idleSweep(), 30000);
+  },
+
+  _idleSweep() {
+    if (document.hidden) return;
+    const task = GlobeDeck?.activeTask;
+    const voice = window._handsFreeVoice || isListening;
+    if (!voice && task !== 'commerce') this.sleep('commerce', 'idle');
+    if (!voice && task !== 'radio') this.sleep('webrtc', 'idle');
+    if (!CityMap?.active) this.sleep('city_hd', 'idle');
+    if (!voice && !GlobeDeck?.thinking) this.sleep('voice', 'idle');
+  },
+
+  _limitsText() {
+    const p = this.profile;
+    const parts = [this.TIER_LABEL[this.tier]];
+    if (p.mobile) parts.push('mobile');
+    if (p.cores) parts.push(p.cores + ' cores');
+    if (p.memoryGb) parts.push(p.memoryGb + 'GB RAM');
+    if (p.slowNet) parts.push('slow net');
+    if (p.lowEndGpu) parts.push('basic GPU');
+    if (!this.quality.earthHd) parts.push('SD earth');
+    if (!this.quality.newsMax) parts.push('news off');
+    else if (this.quality.newsMax < 8) parts.push('news×' + this.quality.newsMax);
+    const sleeping = Object.entries(this.states).filter(([, s]) => s === 'sleeping').map(([id]) => this.SUBSYSTEMS[id]?.label).filter(Boolean);
+    if (sleeping.length) parts.push('sleeping: ' + sleeping.slice(0, 3).join(', '));
+    return parts.join(' · ');
+  },
+
+  _announceLimits() {
+    const line = this._limitsText();
+    this.notify(line, 'info');
+    const zl = document.getElementById('zoom-label');
+    if (zl && this.tier !== 'full') {
+      zl.title = 'Slumber ' + this.tier + ' — ' + line;
+    }
+    ACIControl?.reply?.('Slumber · ' + line + ' · say "slumber status" or "wake shops"');
+  },
+
+  notify(text, kind) {
+    CliRibbon?.setNotice?.(String(text || '').slice(0, 120), kind || 'info');
+  },
+
+  statusReport() {
+    const awake = [];
+    const sleeping = [];
+    Object.entries(this.states).forEach(([id, s]) => {
+      const label = this.SUBSYSTEMS[id]?.label || id;
+      if (s === 'sleeping') sleeping.push(label);
+      else awake.push(label + (s === 'drowsy' ? '↓' : ''));
+    });
+    return {
+      tier: this.tier,
+      label: this.TIER_LABEL[this.tier],
+      fps: this._avgFps().toFixed(0),
+      profile: this.profile,
+      quality: this.quality,
+      awake,
+      sleeping,
+      line: this._limitsText(),
+    };
+  },
+
+  async cli(parts) {
+    const cmd = String(parts?.[0] || 'status').toLowerCase();
+    if (cmd === 'status' || cmd === 'info' || cmd === 'limits') {
+      const r = this.statusReport();
+      AciCli?.print?.('Slumber · ' + r.line, 'ok');
+      AciCli?.print?.('Awake: ' + r.awake.join(', '), 'dim');
+      if (r.sleeping.length) AciCli?.print?.('Sleeping: ' + r.sleeping.join(', '), 'dim');
+      AciCli?.print?.('FPS ~' + r.fps + ' · tier ' + r.tier, 'dim');
+      this.notify(r.line);
+      return r;
+    }
+    if (cmd === 'wake' && parts[1]) {
+      const key = parts[1].toLowerCase();
+      const id = Object.keys(this.SUBSYSTEMS).find(k => k.includes(key) || this.SUBSYSTEMS[k].label.toLowerCase().includes(key));
+      if (id) { this.wake(id, 'user'); AciCli?.print?.('Awake · ' + this.SUBSYSTEMS[id].label, 'ok'); }
+      else AciCli?.print?.('Unknown subsystem — try shops, news, coders, presence', 'err');
+      return;
+    }
+    if (cmd === 'sleep' && parts[1]) {
+      const key = parts[1].toLowerCase();
+      const id = Object.keys(this.SUBSYSTEMS).find(k => k.includes(key) || this.SUBSYSTEMS[k].label.toLowerCase().includes(key));
+      if (id) { this.sleep(id, 'user'); AciCli?.print?.('Sleep · ' + this.SUBSYSTEMS[id].label, 'ok'); }
+      return;
+    }
+    if (['full', 'balanced', 'conserve', 'slumber'].includes(cmd)) {
+      this._userPinned = true;
+      this.applyTier(cmd, 'you asked');
+      const r = this.statusReport();
+      AciCli?.print?.('Slumber mode · ' + r.label, 'ok');
+      return r;
+    }
+    if (cmd === 'auto') {
+      this._userPinned = false;
+      this.applyTier(this.pickInitialTier(), 'auto');
+      AciCli?.print?.('Slumber auto · ' + this.TIER_LABEL[this.tier], 'ok');
+      return;
+    }
+    AciCli?.print?.('slumber status | wake shops | sleep news | balanced | conserve | slumber | auto', 'dim');
+  },
+};
+window.SlumberManager = SlumberManager;
+SlumberManager.init();
 
 // === ASTRANOV LOGO — top-center hard reset to global earth view ===
 const AstranovLogo = {
@@ -3591,6 +4048,9 @@ const CliRibbon = {
       parts.push((Auth._authDegraded ? '⟳ ' : '● ') + who);
     } else parts.push('guest · sign in');
 
+    if (window.SlumberManager?.tier && window.SlumberManager.tier !== 'full') {
+      parts.push('⚡' + (window.SlumberManager.TIER_LABEL[window.SlumberManager.tier] || window.SlumberManager.tier));
+    }
     if (this._notice) parts.push(this._notice);
 
     const line = parts.filter(Boolean).join(' · ').slice(0, 140);
@@ -3997,7 +4457,8 @@ const SuperCli = {
 
   async run(action, opts) {
     const act = String(action || '').toLowerCase();
-    if (!['locate', 'city', 'map', 'cli', 'dark', 'bright', 'theme'].includes(act)) {
+    SlumberManager?.wakeForAction?.(act);
+    if (!['locate', 'city', 'map', 'cli', 'dark', 'bright', 'theme', 'slumber', 'wake', 'sleep'].includes(act)) {
       await LazyModules.ensure();
     }
     GlobeDeck?.superAction(act, opts);
@@ -5942,6 +6403,13 @@ const ACIControl = {
       return { executed: true, action: 'stop' };
     }
     if (/^(cli|terminal|console|κονσόλα)$/.test(low)) { AciCli.toggle(); this.reply('CLI panel'); say('CLI.'); return { executed: true }; }
+    if (/^slumber\b|^performance\b|^wake\b|^sleep\b/.test(low)) {
+      let parts = text.trim().split(/\s+/);
+      if (/^slumber\b/i.test(parts[0])) parts = parts.length > 1 ? parts.slice(1) : ['status'];
+      if (/^performance\b/i.test(parts[0])) parts = ['status'];
+      await SlumberManager?.cli?.(parts);
+      return { executed: true, action: 'slumber' };
+    }
     if (/^summon\s+coders?\s*/i.test(text) || /^coders\b/i.test(low)) {
       const bare = /^coders?\s*$/i.test(text.trim()) || /^summon\s+coders?\s*$/i.test(text.trim());
       if (bare) await AciCoders?.enterSession?.({ fromVoice });
@@ -6637,8 +7105,9 @@ const GlobeEntity = {
     const now = Date.now();
     if (!this._tickLast) this._tickLast = 0;
     if (document.hidden) return;
-    const perf = window._voicePerfMode || window._globePerfLite;
-    if (now - this._tickLast < (perf ? 520 : 200)) return;
+    if (!SlumberManager?.allows?.('entities')) return;
+    const minGap = SlumberManager?.tickMs?.('entity') || (window._voicePerfMode || window._globePerfLite ? 520 : 200);
+    if (now - this._tickLast < minGap) return;
     this._tickLast = now;
     if (!this._clusterLast || now - this._clusterLast > 500) {
       this._clusterLast = now;
@@ -7949,7 +8418,8 @@ const CityMap = {
     });
     this._bindZoomBridge(el);
     this._ready = true;
-    this._driverTimer = setInterval(() => this._tickDrivers(), 4500);
+    const driverMs = SlumberManager?.tickMs?.('cityDriver') || 4500;
+    this._driverTimer = setInterval(() => this._tickDrivers(), driverMs);
     this._syncTimer = setInterval(() => { if (this.active) this._syncMarkers(); }, 2000);
   },
 
@@ -7980,9 +8450,10 @@ const CityMap = {
   },
 
   _buildLayers() {
+    const maxZ = SlumberManager?.quality?.cityMaxZoom || 20;
     const sat = this._tileLayer(
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: 20, attribution: 'Esri' }
+      { maxZoom: maxZ, attribution: 'Esri' }
     );
     const satFallback = L.tileLayer(
       'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -8170,6 +8641,7 @@ const CityMap = {
 
   _enter(camZ) {
     if (!this.map) return;
+    SlumberManager?.wake?.('city_hd', 'city map');
     this.active = true;
     cityLevel = true;
     this._applyBaseLayers();
@@ -8774,18 +9246,23 @@ const EarthRealism = {
   init() {
     if (this._inited || !earth) return;
     this._inited = true;
-    const loader = new THREE.TextureLoader();
-    const dayUrl = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg';
-    const nightUrl = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_lights_2048.png';
-    const onDay = (tex) => { this._dayTex = tex; this._applyShader(); };
-    const onNight = (tex) => { this._nightTex = tex; this._applyShader(); };
-    loader.load(dayUrl, onDay, undefined, () => {
-      if (!this._dayTex) { this._dayTex = this._canvasTex('#1a4a7a', '#2d8f4e'); this._applyShader(); }
-    });
-    loader.load(nightUrl, onNight, undefined, () => {
-      if (!this._nightTex) { this._nightTex = this._canvasTex('#0a1830', '#334466'); this._applyShader(); }
-    });
-    setTimeout(() => this._ensureFallbackTextures(), 10000);
+    const useHd = SlumberManager?.allows?.('earth_hd') && SlumberManager?.quality?.earthHd !== false;
+    if (!useHd) {
+      this._ensureFallbackTextures();
+    } else {
+      const loader = new THREE.TextureLoader();
+      const dayUrl = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg';
+      const nightUrl = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_lights_2048.png';
+      const onDay = (tex) => { this._dayTex = tex; this._applyShader(); };
+      const onNight = (tex) => { this._nightTex = tex; this._applyShader(); };
+      loader.load(dayUrl, onDay, undefined, () => {
+        if (!this._dayTex) { this._dayTex = this._canvasTex('#1a4a7a', '#2d8f4e'); this._applyShader(); }
+      });
+      loader.load(nightUrl, onNight, undefined, () => {
+        if (!this._nightTex) { this._nightTex = this._canvasTex('#0a1830', '#334466'); this._applyShader(); }
+      });
+      setTimeout(() => this._ensureFallbackTextures(), 10000);
+    }
     this._buildSkyBodies();
     this._buildTerminator();
     this.tick();
@@ -8951,7 +9428,8 @@ const EarthRealism = {
     const level = CosmicZoom?.level || 'earth';
     const earthView = (level === 'earth' || level === 'orbit') && camZ < 4.8;
     if (!earthView) return;
-    if (now - this._tickLast < (window._globePerfLite ? 500 : 250)) return;
+    const earthGap = SlumberManager?.tickMs?.('earth') || (window._globePerfLite ? 500 : 250);
+    if (now - this._tickLast < earthGap) return;
     this._tickLast = now;
 
     const sunDir = this._solarPosition();
@@ -9198,6 +9676,7 @@ function voiceListenBlocked() {
 
 function setVoicePerfMode(on) {
   window._voicePerfMode = !!on;
+  if (on) SlumberManager?.wake?.('voice', 'voice');
   if (window.AIGraphics?.setVoicePerfMode) AIGraphics.setVoicePerfMode(!!on || !!window._globePerfLite);
 }
 window.setVoicePerfMode = setVoicePerfMode;
@@ -9806,6 +10285,7 @@ function showPilotTelemachos() {
 window._cycleTurbo = false;
 window._globePerfLite = true;
 window._animFrame = 0;
+const _slumberDiv = (k) => SlumberManager?.frameDivisor?.(k) || 6;
 
 function globePerfActive() {
   return !!(window._voicePerfMode || window._globePerfLite);
@@ -9814,6 +10294,7 @@ function globePerfActive() {
 function animate() {
   requestAnimationFrame(animate);
   if (window._cycleTurbo) return;
+  SlumberManager?.tickFrame?.();
   window._animFrame = (window._animFrame + 1) | 0;
   const frame = window._animFrame;
   const hidden = document.hidden;
@@ -9838,18 +10319,20 @@ function animate() {
   else if (window._voicePerfMode) setVoicePerfMode?.(false);
 
   tickGlobeFly?.();
-  if (frame % 3 === 0) window.updateOrbital?.();
+  if (frame % _slumberDiv('orbital') === 0) window.updateOrbital?.();
 
-  if (!hidden && frame % 6 === 0) {
+  if (!hidden && frame % _slumberDiv('entity') === 0) {
     MapDepict?.tick?.();
-    GlobeEntity?.tick?.();
+    if (SlumberManager?.allows?.('entities')) GlobeEntity?.tick?.();
   }
 
-  if (solarView && frame % 3 === 0) CosmicZoom.update(camZ);
-  else if (frame % 8 === 0) CosmicZoom.update(camZ);
+  if (solarView && frame % _slumberDiv('cosmic') === 0) CosmicZoom.update(camZ);
+  else if (frame % Math.max(_slumberDiv('cosmic'), 8) === 0) CosmicZoom.update(camZ);
 
-  if (earthView && frame % 4 === 0) EarthRealism?.tick?.();
-  if (earthView && frame % 3 === 0) window.CelestialNav?.tick?.();
+  if (earthView && frame % _slumberDiv('earth') === 0) EarthRealism?.tick?.();
+  if (earthView && frame % _slumberDiv('celestial') === 0 && SlumberManager?.allows?.('celestial')) {
+    window.CelestialNav?.tick?.();
+  }
   renderer.render(scene, camera);
 }
 
@@ -9918,6 +10401,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260706072113" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260706072813" data-astranov-deferred></script>
 </body>
 </html>

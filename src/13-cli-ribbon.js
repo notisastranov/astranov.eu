@@ -125,6 +125,9 @@ const CliRibbon = {
       parts.push((Auth._authDegraded ? '⟳ ' : '● ') + who);
     } else parts.push('guest · sign in');
 
+    if (window.SlumberManager?.tier && window.SlumberManager.tier !== 'full') {
+      parts.push('⚡' + (window.SlumberManager.TIER_LABEL[window.SlumberManager.tier] || window.SlumberManager.tier));
+    }
     if (this._notice) parts.push(this._notice);
 
     const line = parts.filter(Boolean).join(' · ').slice(0, 140);

@@ -9,6 +9,7 @@
     { "file": "11-glyphs.js", "marker": "// === ASTRO GLYPHS" },
     { "file": "07-light-stubs.js", "marker": "// === LIGHT STUBS" },
     { "file": "02-lazy-modules.js", "marker": "// === LAZY MODULES" },
+    { "file": "03-slumber-manager.js", "marker": "// === SLUMBER MANAGER" },
     { "file": "07-astranov-logo.js", "marker": "// === ASTRANOV LOGO" },
     { "file": "08-arcangelo-dialect.js", "marker": "// === ARCANGELO VILLAGE DIALECT" },
     { "file": "12-auth.js", "marker": "// === GOOGLE AUTH (Supabase) ===" },

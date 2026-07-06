@@ -1,6 +1,7 @@
 window._cycleTurbo = false;
 window._globePerfLite = true;
 window._animFrame = 0;
+const _slumberDiv = (k) => SlumberManager?.frameDivisor?.(k) || 6;
 
 function globePerfActive() {
   return !!(window._voicePerfMode || window._globePerfLite);
@@ -9,6 +10,7 @@ function globePerfActive() {
 function animate() {
   requestAnimationFrame(animate);
   if (window._cycleTurbo) return;
+  SlumberManager?.tickFrame?.();
   window._animFrame = (window._animFrame + 1) | 0;
   const frame = window._animFrame;
   const hidden = document.hidden;
@@ -33,18 +35,20 @@ function animate() {
   else if (window._voicePerfMode) setVoicePerfMode?.(false);
 
   tickGlobeFly?.();
-  if (frame % 3 === 0) window.updateOrbital?.();
+  if (frame % _slumberDiv('orbital') === 0) window.updateOrbital?.();
 
-  if (!hidden && frame % 6 === 0) {
+  if (!hidden && frame % _slumberDiv('entity') === 0) {
     MapDepict?.tick?.();
-    GlobeEntity?.tick?.();
+    if (SlumberManager?.allows?.('entities')) GlobeEntity?.tick?.();
   }
 
-  if (solarView && frame % 3 === 0) CosmicZoom.update(camZ);
-  else if (frame % 8 === 0) CosmicZoom.update(camZ);
+  if (solarView && frame % _slumberDiv('cosmic') === 0) CosmicZoom.update(camZ);
+  else if (frame % Math.max(_slumberDiv('cosmic'), 8) === 0) CosmicZoom.update(camZ);
 
-  if (earthView && frame % 4 === 0) EarthRealism?.tick?.();
-  if (earthView && frame % 3 === 0) window.CelestialNav?.tick?.();
+  if (earthView && frame % _slumberDiv('earth') === 0) EarthRealism?.tick?.();
+  if (earthView && frame % _slumberDiv('celestial') === 0 && SlumberManager?.allows?.('celestial')) {
+    window.CelestialNav?.tick?.();
+  }
   renderer.render(scene, camera);
 }
 
