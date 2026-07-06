@@ -113,6 +113,8 @@ const Voice = {
       this._audio.onended = () => { this.releaseAudio(); resolve(); };
       this._audio.onerror = () => { this.releaseAudio(); resolve(); };
       this.speaking = true;
+      AstranovLogo?.hookAiAudio?.(this._audio);
+      window.syncHandsFreeBtn?.();
       this._audio.play().catch(() => resolve());
     });
   },
@@ -209,6 +211,7 @@ const Voice = {
     const gen = ++this._gen;
     this.stopped = false;
     this.speaking = true;
+    AstranovLogo?.setAiActive?.(true);
     window.syncHandsFreeBtn?.();
     window.pauseVoiceRecognition?.();
     this.releaseAudio();
@@ -243,6 +246,7 @@ const Voice = {
 
     if (gen === this._gen) {
       this.speaking = false;
+      AstranovLogo?.setAiActive?.(false);
       window.syncHandsFreeBtn?.();
       if (!onEnd) window.resumeVoiceRecognition?.();
     }
@@ -398,16 +402,18 @@ const MapDepict = {
         flyToPoint(new THREE.Vector3(fp.x, fp.y, fp.z), GlobeControl?.Z?.national || 1.82);
       }
     }
-    if (type === 'news' && opts.worldLat != null) {
-      this.pulse(opts.worldLat, opts.worldLng, color, 'World news', 10000);
-      GlobeControl?.flyToLatLng?.(opts.worldLat, opts.worldLng, 'news');
+    if (type === 'news') {
+      const nlat = opts.worldLat ?? opts.lat ?? this.userPos().lat;
+      const nlng = opts.worldLng ?? opts.lng ?? this.userPos().lng;
+      this.pulse(nlat, nlng, color, 'News', 10000);
+      GlobeControl?.flyToLatLng?.(nlat, nlng, 'news', GlobeControl?.Z?.global);
     }
     if (type === 'batch') {
       GlobeControl?.flyToLatLng?.(lat, lng, 'batch');
     }
     if (type === 'evolve') {
-      [{ lat: 36.22, lng: 28.12 }, { lat: 40, lng: 20 }, { lat: -15, lng: 45 }, { lat: 55, lng: -30 }]
-        .forEach(s => this.pulse(s.lat, s.lng, color, 'neuron', 11000));
+      const u = this.userPos();
+      this.pulse(u.lat, u.lng, color, 'neuron', 11000);
     }
     if (type === 'think') {
       const fp = latLngToPos(lat, lng, 1.04);

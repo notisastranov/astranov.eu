@@ -26,6 +26,7 @@
     { "file": "54-ai-router.js", "marker": "// === AI ROUTER" },
     { "file": "09-zoom-tiers.js", "marker": "// === ZOOM TIERS" },
     { "file": "10-trackball.js", "marker": "// Trackball — rotate entire globe pivot" },
+    { "file": "04-trackball-guard.js", "marker": "// === TRACKBALL GUARD" },
     { "file": "61-city-map.js", "marker": "// === CITY MAP" },
     { "file": "45-city-life.js", "marker": "// === CITY LIFE" },
     { "file": "62-astranov-theme.js", "marker": "// === ASTRANOV THEME" },

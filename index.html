@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260706072813" />
+<meta name="astranov-build" content="20260706074443" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -131,7 +131,11 @@
     #city-map:not([data-theme]) .leaflet-container { background:#0a1020; }
   }
   .city-map-pin { background:transparent !important; border:none !important; }
-  #astranov-logo { position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:48; margin:0; padding:6px 14px; border-radius:999px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); backdrop-filter:blur(10px); cursor:pointer; font-family:"Segoe UI Variable Display","Segoe UI Variable","Segoe UI","Segoe UI Rounded",system-ui,sans-serif; font-size:15px; font-weight:600; letter-spacing:0.34em; text-indent:0.34em; text-transform:uppercase; color:var(--ax-blue-bright); text-shadow:0 0 18px var(--ax-blue-glow); box-shadow:0 2px 14px rgba(0,0,0,0.45); transition:color 0.2s,border-color 0.2s,box-shadow 0.2s,background 0.2s,transform 0.15s; pointer-events:auto; touch-action:manipulation; user-select:none; -webkit-tap-highlight-color:transparent; }
+  #astranov-logo { position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:48; margin:0; padding:6px 14px; border-radius:999px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); backdrop-filter:blur(10px); cursor:pointer; font-family:"Segoe UI Variable Display","Segoe UI Variable","Segoe UI","Segoe UI Rounded",system-ui,sans-serif; font-size:15px; font-weight:600; letter-spacing:0.34em; text-indent:0.34em; text-transform:uppercase; color:var(--ax-blue-bright); text-shadow:0 0 18px var(--ax-blue-glow); box-shadow:0 2px 14px rgba(0,0,0,0.45); transition:color 0.2s,border-color 0.2s,box-shadow 0.2s,background 0.2s,transform 0.15s; pointer-events:auto; touch-action:manipulation; user-select:none; -webkit-tap-highlight-color:transparent; display:flex; align-items:center; justify-content:center; min-width:min(220px,72vw); min-height:40px; overflow:hidden; }
+  #astranov-logo-wave { position:absolute; inset:2px 4px; width:calc(100% - 8px); height:calc(100% - 4px); pointer-events:none; opacity:0.92; border-radius:999px; }
+  .astranov-logo-label { position:relative; z-index:1; pointer-events:none; letter-spacing:0.34em; text-indent:0.34em; }
+  #astranov-logo.voice-mic { border-color:rgba(255,55,55,0.72); box-shadow:0 0 18px rgba(255,55,55,0.5); color:#ffb0b0; }
+  #astranov-logo.voice-ai { border-color:rgba(0,220,100,0.72); box-shadow:0 0 18px rgba(0,220,100,0.5); color:#b0ffd0; }
   #astranov-logo:hover { color:#fff; border-color:var(--ax-blue-bright); box-shadow:0 0 22px var(--ax-blue-glow); background:var(--ax-panel-strong); }
   #astranov-logo:active { transform:translateX(-50%) scale(0.97); }
   #astranov-logo:disabled { opacity:0.55; cursor:wait; letter-spacing:0.2em; }
@@ -665,7 +669,10 @@
       <button id="ge-hud-close" type="button">✖</button>
     </div>
   </div>
-  <button id="astranov-logo" type="button" title="Hard reset — clear cache · reload · global view" aria-label="ASTRANOV hard reset reload">ASTRANOV</button>
+  <button id="astranov-logo" type="button" title="Hard reset — clear cache · reload · global view · red=your mic · green=Grok voice" aria-label="ASTRANOV hard reset reload">
+    <canvas id="astranov-logo-wave" aria-hidden="true"></canvas>
+    <span class="astranov-logo-label">ASTRANOV</span>
+  </button>
   <div id="zoom-label">GLOBAL · tap 🎯 Locate for city map</div>
   <div id="cosmic-guide"></div>
   <div id="user-chip"></div>
@@ -957,12 +964,20 @@ const GlobeControl = {
   /** Default fly — global view; never drops to city unless opts.city === true */
   flyToLatLng(lat, lng, label, targetZ, opts) {
     const o = opts && typeof opts === 'object' ? opts : {};
+    if (!TrackballGuard?.beforeFly?.(lat, lng, o)) return false;
+    window._globeFly = null;
     let z = targetZ;
     if (z == null) z = o.city ? this.Z.city : this.Z.global;
     else if (!o.city && z < this.Z.regional) z = this.Z.national;
     const p = latLngToPos(lat, lng, 1.04);
     if (typeof flyToPoint !== 'function') return false;
-    flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z, { dur: o.dur });
+    const dist = TrackballGuard?.greatCircleKm?.(
+      TrackballGuard.facingLatLng().lat,
+      TrackballGuard.facingLatLng().lng,
+      lat, lng
+    ) || 0;
+    const dur = o.dur || Math.min(5200, Math.max(900, this.flyDuration(camera?.position?.z, z) + dist * 0.14));
+    flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z, { dur, onTier: !!o.onTier, force: !!o.force });
     if (z > this.Z.regional) cityLevel = false;
     this.noteAutoFly();
     MapDepict?.pulse?.(lat, lng, 0x00ddff, label || 'task', 8000);
@@ -1147,6 +1162,8 @@ const Voice = {
       this._audio.onended = () => { this.releaseAudio(); resolve(); };
       this._audio.onerror = () => { this.releaseAudio(); resolve(); };
       this.speaking = true;
+      AstranovLogo?.hookAiAudio?.(this._audio);
+      window.syncHandsFreeBtn?.();
       this._audio.play().catch(() => resolve());
     });
   },
@@ -1243,6 +1260,7 @@ const Voice = {
     const gen = ++this._gen;
     this.stopped = false;
     this.speaking = true;
+    AstranovLogo?.setAiActive?.(true);
     window.syncHandsFreeBtn?.();
     window.pauseVoiceRecognition?.();
     this.releaseAudio();
@@ -1277,6 +1295,7 @@ const Voice = {
 
     if (gen === this._gen) {
       this.speaking = false;
+      AstranovLogo?.setAiActive?.(false);
       window.syncHandsFreeBtn?.();
       if (!onEnd) window.resumeVoiceRecognition?.();
     }
@@ -1432,16 +1451,18 @@ const MapDepict = {
         flyToPoint(new THREE.Vector3(fp.x, fp.y, fp.z), GlobeControl?.Z?.national || 1.82);
       }
     }
-    if (type === 'news' && opts.worldLat != null) {
-      this.pulse(opts.worldLat, opts.worldLng, color, 'World news', 10000);
-      GlobeControl?.flyToLatLng?.(opts.worldLat, opts.worldLng, 'news');
+    if (type === 'news') {
+      const nlat = opts.worldLat ?? opts.lat ?? this.userPos().lat;
+      const nlng = opts.worldLng ?? opts.lng ?? this.userPos().lng;
+      this.pulse(nlat, nlng, color, 'News', 10000);
+      GlobeControl?.flyToLatLng?.(nlat, nlng, 'news', GlobeControl?.Z?.global);
     }
     if (type === 'batch') {
       GlobeControl?.flyToLatLng?.(lat, lng, 'batch');
     }
     if (type === 'evolve') {
-      [{ lat: 36.22, lng: 28.12 }, { lat: 40, lng: 20 }, { lat: -15, lng: 45 }, { lat: 55, lng: -30 }]
-        .forEach(s => this.pulse(s.lat, s.lng, color, 'neuron', 11000));
+      const u = this.userPos();
+      this.pulse(u.lat, u.lng, color, 'neuron', 11000);
     }
     if (type === 'think') {
       const fp = latLngToPos(lat, lng, 1.04);
@@ -2359,19 +2380,175 @@ const SlumberManager = {
 window.SlumberManager = SlumberManager;
 SlumberManager.init();
 
-// === ASTRANOV LOGO — top-center hard reset to global earth view ===
+// === ASTRANOV LOGO — top-center reset + live mic/AI waveform ===
 const AstranovLogo = {
   _bound: false,
+  _canvas: null,
+  _ctx: null,
+  _raf: 0,
+  _micAnalyser: null,
+  _aiAnalyser: null,
+  _micCtx: null,
+  _micStream: null,
+  _aiSynth: 0,
+  _bars: 24,
 
   init() {
     const el = document.getElementById('astranov-logo');
     if (!el || this._bound) return;
     this._bound = true;
+    this._mountWave(el);
     el.addEventListener('click', e => {
       e.preventDefault();
       e.stopPropagation();
       this.hardReset();
     });
+    this._loop();
+  },
+
+  _mountWave(el) {
+    let canvas = document.getElementById('astranov-logo-wave');
+    if (!canvas) {
+      canvas = document.createElement('canvas');
+      canvas.id = 'astranov-logo-wave';
+      canvas.setAttribute('aria-hidden', 'true');
+      const label = el.querySelector('.astranov-logo-label');
+      if (label) el.insertBefore(canvas, label);
+      else el.appendChild(canvas);
+    }
+    this._canvas = canvas;
+    this._ctx = canvas.getContext('2d');
+    this._resize();
+    window.addEventListener('resize', () => this._resize());
+  },
+
+  _resize() {
+    if (!this._canvas) return;
+    const r = this._canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this._canvas.width = Math.max(120, Math.floor(r.width * dpr));
+    this._canvas.height = Math.max(28, Math.floor(r.height * dpr));
+  },
+
+  async ensureMicAnalyser() {
+    if (this._micAnalyser) return this._micAnalyser;
+    if (!navigator.mediaDevices?.getUserMedia) return null;
+    try {
+      this._micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      this._micCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = this._micCtx.createMediaStreamSource(this._micStream);
+      const an = this._micCtx.createAnalyser();
+      an.fftSize = 64;
+      an.smoothingTimeConstant = 0.72;
+      src.connect(an);
+      this._micAnalyser = an;
+      return an;
+    } catch (_) {
+      return null;
+    }
+  },
+
+  setMicActive(on) {
+    const el = document.getElementById('astranov-logo');
+    if (!el) return;
+    if (on) {
+      el.classList.add('voice-mic');
+      void this.ensureMicAnalyser();
+    } else {
+      el.classList.remove('voice-mic');
+    }
+  },
+
+  setAiActive(on) {
+    const el = document.getElementById('astranov-logo');
+    if (!el) return;
+    el.classList.toggle('voice-ai', !!on);
+    if (on) this._aiSynth = performance.now();
+    else this._aiAnalyser = null;
+  },
+
+  hookAiAudio(audioEl) {
+    if (!audioEl) return;
+    try {
+      const ctx = this._micCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (!this._micCtx) this._micCtx = ctx;
+      const src = ctx.createMediaElementSource(audioEl);
+      const an = ctx.createAnalyser();
+      an.fftSize = 64;
+      an.smoothingTimeConstant = 0.68;
+      src.connect(an);
+      an.connect(ctx.destination);
+      this._aiAnalyser = an;
+    } catch (_) {}
+  },
+
+  _readBars(analyser, fallback) {
+    const out = new Array(this._bars).fill(0);
+    if (analyser) {
+      const buf = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(buf);
+      const step = Math.max(1, Math.floor(buf.length / this._bars));
+      for (let i = 0; i < this._bars; i++) {
+        let v = 0;
+        for (let j = 0; j < step; j++) v = Math.max(v, buf[i * step + j] || 0);
+        out[i] = v / 255;
+      }
+      return out;
+    }
+    const t = performance.now() * 0.006;
+    for (let i = 0; i < this._bars; i++) {
+      out[i] = fallback * (0.35 + 0.65 * Math.abs(Math.sin(t + i * 0.55)));
+    }
+    return out;
+  },
+
+  _draw(bars, color) {
+    const ctx = this._ctx;
+    const c = this._canvas;
+    if (!ctx || !c) return;
+    const w = c.width;
+    const h = c.height;
+    ctx.clearRect(0, 0, w, h);
+    const gap = w / this._bars;
+    const mid = h * 0.5;
+    for (let i = 0; i < bars.length; i++) {
+      const amp = Math.max(0.06, bars[i]);
+      const bh = amp * h * 0.88;
+      const x = i * gap + gap * 0.15;
+      const bw = gap * 0.7;
+      const grad = ctx.createLinearGradient(0, mid - bh, 0, mid + bh);
+      grad.addColorStop(0, color);
+      grad.addColorStop(1, color.replace('1)', '0.35)').replace('rgb', 'rgba'));
+      ctx.fillStyle = grad;
+      ctx.fillRect(x, mid - bh * 0.5, bw, bh);
+    }
+  },
+
+  _loop() {
+    const el = document.getElementById('astranov-logo');
+    const micOn = isListening || window._handsFreeVoice;
+    const aiOn = !!Voice?.speaking;
+    if (micOn) this.setMicActive(true);
+    else this.setMicActive(false);
+    this.setAiActive(aiOn);
+
+    if (micOn && aiOn) {
+      const micBars = this._readBars(this._micAnalyser, 0.2);
+      const aiBars = this._readBars(this._aiAnalyser, 0.55);
+      const mix = micBars.map((v, i) => Math.max(v * 0.55, aiBars[i] * 0.85));
+      this._draw(mix, 'rgba(255,70,70,0.95)');
+      if (el) {
+        el.classList.add('voice-mic', 'voice-ai');
+      }
+    } else if (aiOn) {
+      this._draw(this._readBars(this._aiAnalyser, 0.5 + 0.2 * Math.sin(performance.now() * 0.01)), 'rgba(0,230,110,0.95)');
+    } else if (micOn) {
+      this._draw(this._readBars(this._micAnalyser, 0.25 + 0.15 * Math.sin(performance.now() * 0.012)), 'rgba(255,60,60,0.95)');
+    } else if (this._ctx && this._canvas) {
+      this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
+    }
+
+    this._raf = requestAnimationFrame(() => this._loop());
   },
 
   resetToGlobalView() {
@@ -2391,6 +2568,7 @@ const AstranovLogo = {
     if (typeof globePivot !== 'undefined' && globePivot) {
       globePivot.rotation.y = 0;
       globePivot.rotation.x = 0.12;
+      globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
     }
     if (typeof camera !== 'undefined' && camera) {
       camera.position.z = ZoomTiers?.tierZ?.('global') || 2.55;
@@ -2409,10 +2587,11 @@ const AstranovLogo = {
   async hardReset() {
     const el = document.getElementById('astranov-logo');
     if (el?._resetting) return;
+    const label = el?.querySelector('.astranov-logo-label');
     if (el) {
       el._resetting = true;
       el.disabled = true;
-      el.textContent = '…';
+      if (label) label.textContent = '…';
     }
     this.resetToGlobalView();
     try {
@@ -4441,8 +4620,9 @@ const SuperCli = {
   flyForTask(act, opts) {
     if (!GlobeControl?.isEarthView?.()) return;
     const u = window._lastPos || { lat: 36.22, lng: 28.12 };
-    if (act === 'news' && opts?.worldLat != null) {
-      GlobeControl.flyToLatLng(opts.worldLat, opts.worldLng, 'news');
+    if (act === 'news') {
+      const u = window._lastPos || { lat: 36.44, lng: 28.22 };
+      GlobeControl.flyToLatLng(opts?.worldLat ?? u.lat, opts?.worldLng ?? u.lng, 'news', GlobeControl?.Z?.global);
       return;
     }
     if (act === 'order' || act === 'commerce') {
@@ -8002,6 +8182,9 @@ function trackballMove(clientX, clientY) {
   globePivot.rotation.y += dx * TRACK_SENS;
   globePivot.rotation.x += dy * TRACK_SENS;
   globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x));
+  globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
+  trackVelX = dx * TRACK_SENS * 0.42;
+  trackVelY = dy * TRACK_SENS * 0.42;
 }
 
 function trackballStart(clientX, clientY) {
@@ -8085,6 +8268,7 @@ function onWheelZoom(e) {
   }
 }
 
+canvas.__trackballBound = true;
 canvas.addEventListener('mousedown', e => { if (e.button === 0) trackballStart(e.clientX, e.clientY); });
 window.addEventListener('mouseup', e => { if (drag) trackballEnd(e.clientX, e.clientY); });
 canvas.addEventListener('mousemove', e => {
@@ -8228,14 +8412,23 @@ function onGlobeClick(e) {
   }
 }
 
-function flyToPoint(point, targetZ = 1.82, opts) {
-  opts = opts || {};
-  const dir = point.clone().normalize();
+function eulerFromDir(dir) {
   const toY = -Math.atan2(dir.x, dir.z);
   const toX = Math.max(-0.85, Math.min(0.85, -Math.asin(Math.max(-1, Math.min(1, dir.y))) * 0.45));
-  let dy = toY - globePivot.rotation.y;
-  while (dy > Math.PI) dy -= Math.PI * 2;
-  while (dy < -Math.PI) dy += Math.PI * 2;
+  return new THREE.Euler(toX, toY, 0, 'YXZ');
+}
+
+function flyToPoint(point, targetZ = 1.82, opts) {
+  opts = opts || {};
+  if (drag || dragging) {
+    GlobeControl?.userTookGlobe?.('silent');
+    window._globeFly = null;
+  }
+  const dir = point.clone().normalize();
+  const toE = eulerFromDir(dir);
+  const qTo = new THREE.Quaternion().setFromEuler(toE);
+  const qFrom = globePivot.quaternion.clone();
+  const angle = qFrom.angleTo(qTo);
   const z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, targetZ));
   if (ZoomTiers) {
     const near = ZoomTiers.TIERS.reduce((best, t) =>
@@ -8243,17 +8436,19 @@ function flyToPoint(point, targetZ = 1.82, opts) {
     ZoomTiers._index = ZoomTiers.indexOf(near.id);
   }
   const fromZ = camera.position.z;
+  const baseDur = opts.dur || GlobeControl?.flyDuration?.(fromZ, z) || 1400;
+  const dur = Math.max(700, Math.min(5200, baseDur + angle * 820));
   window._globeFly = {
-    fromY: globePivot.rotation.y,
-    fromX: globePivot.rotation.x,
+    mode: 'quat',
+    fromQ: qFrom,
+    toQ: qTo,
     fromZ,
-    toY: globePivot.rotation.y + dy,
-    toX,
     toZ: z,
     t0: performance.now(),
-    dur: opts.dur || GlobeControl?.flyDuration?.(fromZ, z) || 1400,
+    dur,
     tierId: ZoomTiers?.current?.()?.id,
     onDone: typeof opts.onDone === 'function' ? opts.onDone : null,
+    onTier: !!opts.onTier,
   };
 }
 
@@ -8263,13 +8458,20 @@ function focusOnGlobePoint(point, targetZ) {
 
 function tickGlobeFly() {
   const f = window._globeFly;
-  if (!f) return;
+  if (!f || drag || dragging) return;
   const p = Math.min(1, (performance.now() - f.t0) / f.dur);
   const ease = p < 0.5
     ? 4 * p * p * p
     : 1 - Math.pow(-2 * p + 2, 3) / 2;
-  globePivot.rotation.y = f.fromY + (f.toY - f.fromY) * ease;
-  globePivot.rotation.x = f.fromX + (f.toX - f.fromX) * ease;
+  if (f.mode === 'quat' && f.fromQ && f.toQ) {
+    globePivot.quaternion.slerpQuaternions(f.fromQ, f.toQ, ease);
+    globePivot.rotation.setFromQuaternion(globePivot.quaternion, 'YXZ');
+  } else {
+    globePivot.rotation.y = f.fromY + (f.toY - f.fromY) * ease;
+    globePivot.rotation.x = f.fromX + (f.toX - f.fromX) * ease;
+  }
+  trackVelX = 0;
+  trackVelY = 0;
   camera.position.z = f.fromZ + (f.toZ - f.fromZ) * ease;
   camera.lookAt(0, 0, 0);
   CosmicZoom.update(camera.position.z);
@@ -8310,6 +8512,10 @@ function waitForGlobeFly(timeout = 9000) {
 }
 window.tickGlobeFly = tickGlobeFly;
 window.waitForGlobeFly = waitForGlobeFly;
+window.trackballStart = trackballStart;
+window.trackballMove = trackballMove;
+window.trackballEnd = trackballEnd;
+window.flyToPoint = flyToPoint;
 
 function showGestureHint() {
   if (sessionStorage.getItem('astranov-gesture-hint')) return;
@@ -8323,6 +8529,106 @@ function showGestureHint() {
   setTimeout(() => { el.remove(); }, 4500);
 }
 setTimeout(showGestureHint, 600);
+
+// === TRACKBALL GUARD — never lose globe drag/spin; regression shield ===
+const TrackballGuard = {
+  _ok: false,
+  _lastCheck: 0,
+  FRICTION: 0.91,
+  MIN_VEL: 0.00008,
+
+  verify() {
+    const ok = !!(
+      typeof globePivot !== 'undefined' && globePivot
+      && typeof renderer !== 'undefined' && renderer?.domElement
+      && typeof trackballStart === 'function'
+      && typeof trackballMove === 'function'
+      && typeof trackballEnd === 'function'
+      && typeof tickGlobeFly === 'function'
+      && renderer.domElement.__trackballBound
+    );
+    this._ok = ok;
+    this._lastCheck = Date.now();
+    if (!ok) console.warn('[TrackballGuard] bindings missing — attempting repair');
+    return ok;
+  },
+
+  repair() {
+    const canvas = renderer?.domElement;
+    if (!canvas || canvas.__trackballBound) return this.verify();
+    try {
+      canvas.addEventListener('mousedown', e => { if (e.button === 0) trackballStart(e.clientX, e.clientY); });
+      canvas.addEventListener('mousemove', e => {
+        if (!drag) return;
+        if (Math.hypot(e.clientX - pressStartX, e.clientY - pressStartY) > 12) clearTimeout(pressTimer);
+        trackballMove(e.clientX, e.clientY);
+      });
+      canvas.addEventListener('wheel', onWheelZoom, { passive: false });
+      canvas.__trackballBound = true;
+    } catch (e) {
+      console.error('[TrackballGuard] repair failed', e);
+    }
+    return this.verify();
+  },
+
+  applyInertia() {
+    if (drag || dragging || window._globeFly) return;
+    if (typeof trackVelX !== 'number' || typeof trackVelY !== 'number') return;
+    if (Math.abs(trackVelX) < this.MIN_VEL && Math.abs(trackVelY) < this.MIN_VEL) return;
+    if (!globePivot) return;
+    globePivot.rotation.y += trackVelX;
+    globePivot.rotation.x += trackVelY;
+    globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x));
+    trackVelX *= this.FRICTION;
+    trackVelY *= this.FRICTION;
+    if (Math.abs(trackVelX) < this.MIN_VEL) trackVelX = 0;
+    if (Math.abs(trackVelY) < this.MIN_VEL) trackVelY = 0;
+  },
+
+  beforeFly(lat, lng, opts) {
+    if (opts?.force) return true;
+    if (drag || dragging) {
+      GlobeControl?.userTookGlobe?.('silent');
+      return true;
+    }
+    if (typeof lat !== 'number' || typeof lng !== 'number') return false;
+    const cur = this.facingLatLng();
+    const dist = this.greatCircleKm(cur.lat, cur.lng, lat, lng);
+    if (dist > 12000 && !opts?.allowLongHaul) {
+      CliRibbon?.setNotice?.('Fly blocked — too far · drag globe or say locate', 'hold');
+      return false;
+    }
+    return true;
+  },
+
+  facingLatLng() {
+    if (!globePivot) return { lat: 0, lng: 0 };
+    const e = new THREE.Euler().setFromQuaternion(globePivot.quaternion, 'YXZ');
+    const lat = THREE.MathUtils.radToDeg(e.x) * -2.2;
+    const lng = THREE.MathUtils.radToDeg(-e.y) - 180;
+    return { lat: Math.max(-85, Math.min(85, lat)), lng: ((lng + 540) % 360) - 180 };
+  },
+
+  greatCircleKm(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2
+      + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  },
+
+  init() {
+    if (renderer?.domElement) renderer.domElement.__trackballBound = true;
+    if (!this.verify()) this.repair();
+    setInterval(() => {
+      if (!this.verify()) this.repair();
+    }, 8000);
+    window.__trackballGuardOk = () => this._ok;
+  },
+};
+window.TrackballGuard = TrackballGuard;
+TrackballGuard.init();
 
 // === CITY MAP — satellite + streets when zoomed to city level ===
 const CityMap = {
@@ -9738,6 +10044,8 @@ function syncHandsFreeBtn() {
   btn.classList.toggle('deck-btn-active', on);
   btn.classList.toggle('listening', isListening);
   btn.classList.toggle('speaking', !!Voice?.speaking);
+  if (isListening || on) AstranovLogo?.setMicActive?.(true);
+  else if (!Voice?.speaking) AstranovLogo?.setMicActive?.(false);
 }
 window.syncHandsFreeBtn = syncHandsFreeBtn;
 
@@ -10318,6 +10626,7 @@ function animate() {
   if (voiceActive || codersBusy || GlobeDeck?.thinking) setVoicePerfMode?.(true);
   else if (window._voicePerfMode) setVoicePerfMode?.(false);
 
+  if (!drag && !window._globeFly) TrackballGuard?.applyInertia?.();
   tickGlobeFly?.();
   if (frame % _slumberDiv('orbital') === 0) window.updateOrbital?.();
 
@@ -10401,6 +10710,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260706072813" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260706074443" data-astranov-deferred></script>
 </body>
 </html>

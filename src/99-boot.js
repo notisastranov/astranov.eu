@@ -34,6 +34,7 @@ function animate() {
   if (voiceActive || codersBusy || GlobeDeck?.thinking) setVoicePerfMode?.(true);
   else if (window._voicePerfMode) setVoicePerfMode?.(false);
 
+  if (!drag && !window._globeFly) TrackballGuard?.applyInertia?.();
   tickGlobeFly?.();
   if (frame % _slumberDiv('orbital') === 0) window.updateOrbital?.();
 

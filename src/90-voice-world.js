@@ -256,6 +256,8 @@ function syncHandsFreeBtn() {
   btn.classList.toggle('deck-btn-active', on);
   btn.classList.toggle('listening', isListening);
   btn.classList.toggle('speaking', !!Voice?.speaking);
+  if (isListening || on) AstranovLogo?.setMicActive?.(true);
+  else if (!Voice?.speaking) AstranovLogo?.setMicActive?.(false);
 }
 window.syncHandsFreeBtn = syncHandsFreeBtn;
 

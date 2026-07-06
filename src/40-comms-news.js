@@ -49,9 +49,9 @@ const NewsFeed = {
   flash() {
     SlumberManager?.wake?.('news', 'news');
     this.fetch();
-    const worldLat = 51.5, worldLng = -0.12;
-    MapDepict.action('news', { worldLat, worldLng, detail: (this.items[0] || '').slice(0, 50) });
-    SuperCli?.flyForTask?.('news', { worldLat, worldLng });
+    const u = window._lastPos || { lat: 36.44, lng: 28.22 };
+    MapDepict.action('news', { lat: u.lat, lng: u.lng, detail: (this.items[0] || '').slice(0, 50) });
+    GlobeControl?.flyToLatLng?.(u.lat, u.lng, 'news', GlobeControl?.Z?.global);
     if (Voice.maySpeak()) speak((this.items[0] || 'News').slice(0, 100), () => resumeListening());
   }
 };

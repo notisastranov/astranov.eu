@@ -101,8 +101,9 @@ const SuperCli = {
   flyForTask(act, opts) {
     if (!GlobeControl?.isEarthView?.()) return;
     const u = window._lastPos || { lat: 36.22, lng: 28.12 };
-    if (act === 'news' && opts?.worldLat != null) {
-      GlobeControl.flyToLatLng(opts.worldLat, opts.worldLng, 'news');
+    if (act === 'news') {
+      const u = window._lastPos || { lat: 36.44, lng: 28.22 };
+      GlobeControl.flyToLatLng(opts?.worldLat ?? u.lat, opts?.worldLng ?? u.lng, 'news', GlobeControl?.Z?.global);
       return;
     }
     if (act === 'order' || act === 'commerce') {

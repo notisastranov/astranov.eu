@@ -159,12 +159,20 @@ const GlobeControl = {
   /** Default fly — global view; never drops to city unless opts.city === true */
   flyToLatLng(lat, lng, label, targetZ, opts) {
     const o = opts && typeof opts === 'object' ? opts : {};
+    if (!TrackballGuard?.beforeFly?.(lat, lng, o)) return false;
+    window._globeFly = null;
     let z = targetZ;
     if (z == null) z = o.city ? this.Z.city : this.Z.global;
     else if (!o.city && z < this.Z.regional) z = this.Z.national;
     const p = latLngToPos(lat, lng, 1.04);
     if (typeof flyToPoint !== 'function') return false;
-    flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z, { dur: o.dur });
+    const dist = TrackballGuard?.greatCircleKm?.(
+      TrackballGuard.facingLatLng().lat,
+      TrackballGuard.facingLatLng().lng,
+      lat, lng
+    ) || 0;
+    const dur = o.dur || Math.min(5200, Math.max(900, this.flyDuration(camera?.position?.z, z) + dist * 0.14));
+    flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z, { dur, onTier: !!o.onTier, force: !!o.force });
     if (z > this.Z.regional) cityLevel = false;
     this.noteAutoFly();
     MapDepict?.pulse?.(lat, lng, 0x00ddff, label || 'task', 8000);

@@ -96,9 +96,9 @@ Object.assign(SuperCli, {
   },
 
   async flyTo(lat, lng, label, opts) {
+    if (!TrackballGuard?.beforeFly?.(lat, lng, opts)) return;
     const z = opts?.city ? (GlobeControl?.Z?.city || 1.38) : (GlobeControl?.Z?.global || 2.55);
-    const p = latLngToPos(lat, lng, 1.04);
-    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z);
+    GlobeControl?.flyToLatLng?.(lat, lng, label || 'fly', z, { city: !!opts?.city, force: !!opts?.force });
     MapDepict?.pulse?.(lat, lng, 0x00ddff, label || 'fly', 8000);
     GlobeControl?.noteAutoFly?.();
     this.out('fly → ' + (label || lat.toFixed(2) + ', ' + lng.toFixed(2)), 'ok');

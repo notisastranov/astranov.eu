@@ -351,6 +351,25 @@ const SCENARIOS = [
     },
   },
   {
+    name: 'trackball — drag rotates globe',
+    run: async (page) => {
+      const r = await page.evaluate(() => {
+        const before = globePivot.rotation.y;
+        trackballStart(120, 120);
+        trackballMove(220, 120);
+        trackballEnd(220, 120, { skipTap: true });
+        return {
+          before,
+          after: globePivot.rotation.y,
+          guard: typeof window.__trackballGuardOk === 'function' ? window.__trackballGuardOk() : null,
+        };
+      });
+      if (Math.abs(r.after - r.before) < 0.02) throw new Error('trackball did not rotate: ' + JSON.stringify(r));
+      if (r.guard === false) throw new Error('trackball guard not ok');
+      return r;
+    },
+  },
+  {
     name: 'CLI — theme + scenario commands',
     run: async (page) => {
       const r = await page.evaluate(async () => {

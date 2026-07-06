@@ -96,9 +96,9 @@ Object.assign(SuperCli, {
   },
 
   async flyTo(lat, lng, label, opts) {
+    if (!TrackballGuard?.beforeFly?.(lat, lng, opts)) return;
     const z = opts?.city ? (GlobeControl?.Z?.city || 1.38) : (GlobeControl?.Z?.global || 2.55);
-    const p = latLngToPos(lat, lng, 1.04);
-    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z);
+    GlobeControl?.flyToLatLng?.(lat, lng, label || 'fly', z, { city: !!opts?.city, force: !!opts?.force });
     MapDepict?.pulse?.(lat, lng, 0x00ddff, label || 'fly', 8000);
     GlobeControl?.noteAutoFly?.();
     this.out('fly → ' + (label || lat.toFixed(2) + ', ' + lng.toFixed(2)), 'ok');
@@ -2908,9 +2908,9 @@ const NewsFeed = {
   flash() {
     SlumberManager?.wake?.('news', 'news');
     this.fetch();
-    const worldLat = 51.5, worldLng = -0.12;
-    MapDepict.action('news', { worldLat, worldLng, detail: (this.items[0] || '').slice(0, 50) });
-    SuperCli?.flyForTask?.('news', { worldLat, worldLng });
+    const u = window._lastPos || { lat: 36.44, lng: 28.22 };
+    MapDepict.action('news', { lat: u.lat, lng: u.lng, detail: (this.items[0] || '').slice(0, 50) });
+    GlobeControl?.flyToLatLng?.(u.lat, u.lng, 'news', GlobeControl?.Z?.global);
     if (Voice.maySpeak()) speak((this.items[0] || 'News').slice(0, 100), () => resumeListening());
   }
 };

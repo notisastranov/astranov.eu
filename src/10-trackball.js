@@ -22,6 +22,9 @@ function trackballMove(clientX, clientY) {
   globePivot.rotation.y += dx * TRACK_SENS;
   globePivot.rotation.x += dy * TRACK_SENS;
   globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x));
+  globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
+  trackVelX = dx * TRACK_SENS * 0.42;
+  trackVelY = dy * TRACK_SENS * 0.42;
 }
 
 function trackballStart(clientX, clientY) {
@@ -105,6 +108,7 @@ function onWheelZoom(e) {
   }
 }
 
+canvas.__trackballBound = true;
 canvas.addEventListener('mousedown', e => { if (e.button === 0) trackballStart(e.clientX, e.clientY); });
 window.addEventListener('mouseup', e => { if (drag) trackballEnd(e.clientX, e.clientY); });
 canvas.addEventListener('mousemove', e => {
@@ -248,14 +252,23 @@ function onGlobeClick(e) {
   }
 }
 
-function flyToPoint(point, targetZ = 1.82, opts) {
-  opts = opts || {};
-  const dir = point.clone().normalize();
+function eulerFromDir(dir) {
   const toY = -Math.atan2(dir.x, dir.z);
   const toX = Math.max(-0.85, Math.min(0.85, -Math.asin(Math.max(-1, Math.min(1, dir.y))) * 0.45));
-  let dy = toY - globePivot.rotation.y;
-  while (dy > Math.PI) dy -= Math.PI * 2;
-  while (dy < -Math.PI) dy += Math.PI * 2;
+  return new THREE.Euler(toX, toY, 0, 'YXZ');
+}
+
+function flyToPoint(point, targetZ = 1.82, opts) {
+  opts = opts || {};
+  if (drag || dragging) {
+    GlobeControl?.userTookGlobe?.('silent');
+    window._globeFly = null;
+  }
+  const dir = point.clone().normalize();
+  const toE = eulerFromDir(dir);
+  const qTo = new THREE.Quaternion().setFromEuler(toE);
+  const qFrom = globePivot.quaternion.clone();
+  const angle = qFrom.angleTo(qTo);
   const z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, targetZ));
   if (ZoomTiers) {
     const near = ZoomTiers.TIERS.reduce((best, t) =>
@@ -263,17 +276,19 @@ function flyToPoint(point, targetZ = 1.82, opts) {
     ZoomTiers._index = ZoomTiers.indexOf(near.id);
   }
   const fromZ = camera.position.z;
+  const baseDur = opts.dur || GlobeControl?.flyDuration?.(fromZ, z) || 1400;
+  const dur = Math.max(700, Math.min(5200, baseDur + angle * 820));
   window._globeFly = {
-    fromY: globePivot.rotation.y,
-    fromX: globePivot.rotation.x,
+    mode: 'quat',
+    fromQ: qFrom,
+    toQ: qTo,
     fromZ,
-    toY: globePivot.rotation.y + dy,
-    toX,
     toZ: z,
     t0: performance.now(),
-    dur: opts.dur || GlobeControl?.flyDuration?.(fromZ, z) || 1400,
+    dur,
     tierId: ZoomTiers?.current?.()?.id,
     onDone: typeof opts.onDone === 'function' ? opts.onDone : null,
+    onTier: !!opts.onTier,
   };
 }
 
@@ -283,13 +298,20 @@ function focusOnGlobePoint(point, targetZ) {
 
 function tickGlobeFly() {
   const f = window._globeFly;
-  if (!f) return;
+  if (!f || drag || dragging) return;
   const p = Math.min(1, (performance.now() - f.t0) / f.dur);
   const ease = p < 0.5
     ? 4 * p * p * p
     : 1 - Math.pow(-2 * p + 2, 3) / 2;
-  globePivot.rotation.y = f.fromY + (f.toY - f.fromY) * ease;
-  globePivot.rotation.x = f.fromX + (f.toX - f.fromX) * ease;
+  if (f.mode === 'quat' && f.fromQ && f.toQ) {
+    globePivot.quaternion.slerpQuaternions(f.fromQ, f.toQ, ease);
+    globePivot.rotation.setFromQuaternion(globePivot.quaternion, 'YXZ');
+  } else {
+    globePivot.rotation.y = f.fromY + (f.toY - f.fromY) * ease;
+    globePivot.rotation.x = f.fromX + (f.toX - f.fromX) * ease;
+  }
+  trackVelX = 0;
+  trackVelY = 0;
   camera.position.z = f.fromZ + (f.toZ - f.fromZ) * ease;
   camera.lookAt(0, 0, 0);
   CosmicZoom.update(camera.position.z);
@@ -330,6 +352,10 @@ function waitForGlobeFly(timeout = 9000) {
 }
 window.tickGlobeFly = tickGlobeFly;
 window.waitForGlobeFly = waitForGlobeFly;
+window.trackballStart = trackballStart;
+window.trackballMove = trackballMove;
+window.trackballEnd = trackballEnd;
+window.flyToPoint = flyToPoint;
 
 function showGestureHint() {
   if (sessionStorage.getItem('astranov-gesture-hint')) return;
