@@ -236,7 +236,7 @@ const ACIControl = {
     }
     if (/^(connect|open|link|σύνδεση aci)$/.test(low)) { await AciConnect.open(); return { executed: true }; }
     if (/^super batch|superbatch|batch|work together|δουλεψε μαζ|εγκατάσταση|install app|native app|node\b|μαζί/.test(low)) {
-      await AstranovNode?.launchBatch?.();
+      await window.AstranovNode?.launchBatch?.();
       return { executed: true, action: 'batch' };
     }
     if (/^deploy/.test(low)) { await AciConnect.deploy(text.replace(/^deploy\s*/i, '')); return { executed: true }; }
@@ -256,31 +256,31 @@ const ACIControl = {
       return { executed: true };
     }
     if (/^(logout|sign out|αποσύνδεση)$/.test(low)) { Auth.signOut(); return { executed: true }; }
-    if (/telecom|sat radio|satellite radio|ασύρματος/.test(low)) { Comms.startTelecomms(); return { executed: true }; }
+    if (/telecom|sat radio|satellite radio|ασύρματος/.test(low)) { window.Comms?.startTelecomms?.(); return { executed: true }; }
     if (/^order\s+(status|track|list|fly|last|active)\b/i.test(low)) {
-      await OrderTracking?.cli?.(text.trim().split(/\s+/));
+      await window.OrderTracking?.cli?.(text.trim().split(/\s+/));
       return { executed: true, action: 'order_track' };
     }
     if (/pitogyra|πιτογυρ|μπίρ|τσιγαρ|order|παραγγελ|goals|work|δουλειά|delivery|διανομ|mpiro|tsigar|beer|cigar/.test(low)) {
       const q = text.replace(/^(order|παραγγελία?)\s*/i, '').trim();
-      const wants = Commerce.parseWantedItems?.(q) || [];
+      const wants = window.Commerce?.parseWantedItems?.(q) || [];
       if (wants.length >= 1 && !/^goals$/i.test(q.trim())) {
-        await Commerce.smartOrder(q || text);
+        await window.Commerce?.smartOrder?.(q || text);
       } else {
         const vendorQ = low.match(/goals|πιτο|pit|pizza|supermarket|bar/)?.[0] || '';
-        await Commerce.openOrderFlow(vendorQ || q);
+        await window.Commerce?.openOrderFlow?.(vendorQ || q);
       }
       return { executed: true, action: 'order' };
     }
     if (/^drive|οδήγ|οδηγ/.test(low)) {
-      if (window.DrivingView) DrivingView.activate();
+      if (window.DrivingView) window.DrivingView.activate();
       MapDepict.action('drive', { detail: 'road mode' });
       this.reply('Driving view on globe');
       say('Driving.');
       return { executed: true, action: 'drive' };
     }
-    if (/vhf|ασυρμ/.test(low) && !/video|βίντεο|youtube/.test(low)) { Comms.startVHF(); return { executed: true }; }
-    if (/phone|τηλέφων/.test(low) && !/video|βίντεο|youtube/.test(low)) { Comms.startPhone(); return { executed: true }; }
+    if (/vhf|ασυρμ/.test(low) && !/video|βίντεο|youtube/.test(low)) { window.Comms?.startVHF?.(); return { executed: true }; }
+    if (/phone|τηλέφων/.test(low) && !/video|βίντεο|youtube/.test(low)) { window.Comms?.startPhone?.(); return { executed: true }; }
     if (GlobeVideo?.wantsYoutube?.(text)) {
       const q = GlobeVideo.queryFromText(text) || text;
       await GlobeVideo.find(q);
@@ -291,9 +291,9 @@ const ACIControl = {
       startOrbitalVideoCall('Αξαδίνα');
       return { executed: true, action: 'video' };
     }
-    if (/news|νέα|ειδήσει/.test(low)) { NewsFeed.flash(); return { executed: true }; }
+    if (/news|νέα|ειδήσει/.test(low)) { window.NewsFeed?.flash?.(); return { executed: true }; }
     if (/vendor|κατάστη|shop|menu|μενού/.test(low) && !/superbook|booking site|web presence|my site|\.astranov\.eu/.test(low)) {
-      await Commerce.showPicker();
+      await window.Commerce?.showPicker?.();
       return { executed: true };
     }
     if (/astranov\s*sites?|superbook|booking site|web presence|my site|create.*site|make.*site|\.astranov\.eu|astranov subdomain/.test(low)) {

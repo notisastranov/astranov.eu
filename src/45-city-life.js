@@ -47,9 +47,9 @@ const CityLife = {
   },
 
   nearbyVendors(lat, lng) {
-    const list = Commerce?.vendors || [];
-    if (!list.length || !Commerce?.haversineKm) return list;
-    return list.filter(v => v.lat != null && Commerce.haversineKm(lat, lng, v.lat, v.lng) <= this.NEARBY_KM);
+    const list = window.Commerce?.vendors || [];
+    if (!list.length || !window.Commerce?.haversineKm) return list;
+    return list.filter(v => v.lat != null && window.Commerce.haversineKm(lat, lng, v.lat, v.lng) <= this.NEARBY_KM);
   },
 
   async dropIn(lat, lng, opts) {
@@ -73,26 +73,26 @@ const CityLife = {
       void this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
       setTimeout(() => CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM }), 120);
 
-      if (Commerce?.loadVendors) {
+      if (window.Commerce?.loadVendors) {
         await Promise.race([
-          Commerce.loadVendors(),
+          window.Commerce.loadVendors(),
           new Promise(resolve => setTimeout(() => resolve(null), 8000)),
         ]);
       }
     const nearby = this.nearbyVendors(pos.lat, pos.lng);
     if (nearby.length) {
-      Commerce.vendors = nearby.concat((Commerce.vendors || []).filter(v => !nearby.includes(v))).slice(0, 40);
+      window.Commerce.vendors = nearby.concat((window.Commerce.vendors || []).filter(v => !nearby.includes(v))).slice(0, 40);
     }
-    Commerce?.showOnGlobe?.();
-    GlobeEntity?.syncVendors?.(Commerce.vendors);
+    window.Commerce?.showOnGlobe?.();
+    GlobeEntity?.syncVendors?.(window.Commerce.vendors);
 
-    const drivers = Commerce?.fetchNearbyDrivers
+    const drivers = window.Commerce?.fetchNearbyDrivers
       ? await Promise.race([
-        Commerce.fetchNearbyDrivers(pos.lat, pos.lng),
+        window.Commerce.fetchNearbyDrivers(pos.lat, pos.lng),
         new Promise(resolve => setTimeout(() => resolve([]), 6000)),
       ])
       : [];
-    Commerce?.showDriversOnGlobe?.(drivers);
+    window.Commerce?.showDriversOnGlobe?.(drivers);
     this._pulseFriends();
     this._showLocalNews(pos.lat, pos.lng);
     this._updateChip(nearby.length, drivers.length);
@@ -107,7 +107,7 @@ const CityLife = {
 
       if (opts.openShops && nearby.length) {
         GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
-        await Commerce?.showPicker?.();
+        await window.Commerce?.showPicker?.();
       }
       return { vendors: nearby, drivers, lat: pos.lat, lng: pos.lng, mapActive: !!CityMap?.active };
     } catch (e) {
@@ -202,16 +202,16 @@ const CityLife = {
     },
     drivers: async () => {
       const u = CityLife.userPos();
-      const d = await Commerce?.fetchNearbyDrivers?.(u.lat, u.lng);
-      Commerce?.showDriversOnGlobe?.(d);
+      const d = await window.Commerce?.fetchNearbyDrivers?.(u.lat, u.lng);
+      window.Commerce?.showDriversOnGlobe?.(d);
       AciCli?.print(d.length ? d.map(x => (x.display_name || 'Driver')).join(' · ') : 'no active drivers — order to summon', 'ok');
     },
     shops: async () => {
       const u = CityLife.userPos();
       await CityLife.dropIn(u.lat, u.lng, { openShops: true });
     },
-    groceries: async () => { await Commerce?.smartOrder?.('pitogyra mpironia tsigareta'); },
-    order: async (rest) => { await Commerce?.smartOrder?.(rest || 'pitogyra beer'); },
+    groceries: async () => { await window.Commerce?.smartOrder?.('pitogyra mpironia tsigareta'); },
+    order: async (rest) => { await window.Commerce?.smartOrder?.(rest || 'pitogyra beer'); },
     reviews: async (rest) => {
       const q = rest || 'best restaurant near me';
       AciCli?.print('brain · reviews · ' + q, 'dim');

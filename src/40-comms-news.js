@@ -50,3 +50,5 @@ const NewsFeed = {
     if (Voice.maySpeak()) speak((this.items[0] || 'News').slice(0, 100), () => resumeListening());
   }
 };
+window.Comms = Comms;
+window.NewsFeed = NewsFeed;

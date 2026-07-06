@@ -419,6 +419,7 @@ async function main() {
     if (!shader) throw new Error('earth shader not ready after boot');
   }
   await page.waitForTimeout(800);
+  await page.waitForFunction(() => window._deferredBootDone === true, { timeout: 45000 });
 
   const results = [];
   let failed = 0;

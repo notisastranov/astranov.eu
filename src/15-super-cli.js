@@ -20,8 +20,8 @@ const SuperCli = {
   },
 
   inferContext() {
-    if (ContextTruth?.infer) return ContextTruth.infer().ctx;
-    if (DrivingView?.active) return 'drive';
+    if (window.ContextTruth?.infer) return window.ContextTruth.infer().ctx;
+    if (window.DrivingView?.active) return 'drive';
     const task = GlobeDeck?.activeTask;
     if (task === 'commerce') return 'commerce';
     if (task === 'batch') return 'batch';
@@ -106,7 +106,7 @@ const SuperCli = {
       return;
     }
     if (act === 'order' || act === 'commerce') {
-      const v = Commerce?.vendors?.[0] || Commerce?.selected;
+      const v = window.Commerce?.vendors?.[0] || window.Commerce?.selected;
       if (v?.lat != null) GlobeControl.flyToLatLng(v.lat, v.lng, 'order');
       else GlobeControl.flyToLatLng(u.lat, u.lng, 'order');
       return;
@@ -117,6 +117,9 @@ const SuperCli = {
 
   async run(action, opts) {
     const act = String(action || '').toLowerCase();
+    if (!['locate', 'city', 'map', 'cli', 'dark', 'bright', 'theme'].includes(act)) {
+      await LazyModules.ensure();
+    }
     GlobeDeck?.superAction(act, opts);
     this.setContext(this.inferContext());
     AciCli?.print('▸ ' + act, 'cmd');
@@ -141,19 +144,19 @@ const SuperCli = {
         break;
       case 'order':
         this.flyForTask('order');
-        await Commerce?.showPicker?.(opts?.filter);
+        await window.Commerce?.showPicker?.(opts?.filter);
         this.setContext('commerce');
         break;
       case 'batch':
         this.flyForTask('batch');
-        await AstranovNode?.launchBatch?.();
+        await window.AstranovNode?.launchBatch?.();
         this.setContext('batch');
         break;
       case 'vhf':
       case 'radio':
       case 'pmr':
         this.flyForTask('vhf');
-        Comms?.startVHF?.();
+        window.Comms?.startVHF?.();
         this.setContext('radio');
         break;
       case 'phone':
@@ -169,19 +172,19 @@ const SuperCli = {
         break;
       case 'news':
         this.flyForTask('news', opts);
-        NewsFeed?.flash?.();
+        window.NewsFeed?.flash?.();
         this.setContext('news');
         GlobeDeck?.finishCliIfOneShot('news');
         break;
       case 'drive':
-        DrivingView?.activate?.();
+        window.DrivingView?.activate?.();
         AppShortcuts?.track?.('drive', 'Drive');
         this.setContext('drive');
         break;
       case 'add':
       case 'post':
       case 'superadd':
-        SuperAdd?.open?.();
+        window.SuperAdd?.open?.();
         this.setContext('add');
         break;
       case 'cli':

@@ -33,7 +33,7 @@ function animate() {
   else if (window._voicePerfMode) setVoicePerfMode?.(false);
 
   tickGlobeFly?.();
-  if (frame % 3 === 0) updateOrbital?.();
+  if (frame % 3 === 0) window.updateOrbital?.();
 
   if (!hidden && frame % 6 === 0) {
     MapDepict?.tick?.();
@@ -44,7 +44,7 @@ function animate() {
   else if (frame % 8 === 0) CosmicZoom.update(camZ);
 
   if (earthView && frame % 4 === 0) EarthRealism?.tick?.();
-  if (earthView && frame % 3 === 0) CelestialNav?.tick?.();
+  if (earthView && frame % 3 === 0) window.CelestialNav?.tick?.();
   renderer.render(scene, camera);
 }
 
@@ -65,7 +65,6 @@ AciCli.init();
 ACIControl.init();
 ACI.init();
 CosmicZoom.init();
-CelestialNav.init();
 ZoomTiers.init();
 if (typeof globePivot !== 'undefined' && globePivot) {
   globePivot.rotation.x = 0.12;
@@ -81,19 +80,13 @@ CityMap.init();
 CityLife.init();
 EarthRealism.init();
 GlobeEntity.init();
-Responsive3D.init();
-OrderTracking.init();
-AstranovSession.init();
-AstranovPresence.init();
-ProfileSite.init();
-CodersHub.init();
 AiRouter.init();
-LabOrbs.init();
+
+LazyModules.schedule();
 
 setTimeout(() => Auth.refreshAuthority(), 800);
 AciCli?.primeCodersCli?.();
 AciCoders?.ensureBridge?.();
-setTimeout(() => Commerce.loadVendors().then(() => Commerce.initUI()), 800);
 
 if (window._lastPos) GlobeEntity.syncMe(_lastPos.lat, _lastPos.lng, me?.name || 'You');
 

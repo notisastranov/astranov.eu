@@ -309,7 +309,7 @@ const GlobeEntity = {
     switch (entity.type) {
       case 'vendor':
         if (entity.data?.vendor) ProfileSite?.openVendor?.(entity.data.vendor);
-        else Commerce?.showPicker?.();
+        else window.Commerce?.showPicker?.();
         break;
       case 'driver':
         if (entity.data?.driver?.id) MarketplaceComms?.selectDriver?.(entity.data.driver.id, entity.data.driver);
@@ -360,7 +360,7 @@ const GlobeEntity = {
             id: 'vendor-' + v.id, type: 'vendor', lat: v.lat, lng: v.lng,
             title: v.name, description: (v.category || 'shop') + ' · tap to order',
             data: { vendor: v },
-            onTap: () => Commerce?.openVendor?.(v),
+            onTap: () => window.Commerce?.openVendor?.(v),
           });
       }
       if (o.userData?.driver) {
@@ -591,8 +591,8 @@ const GlobeEntity = {
     this.unregisterType('vendor');
     (vendors || []).forEach((v, i) => {
       if (v.lat == null) return;
-      const km = Commerce?.haversineKm?.(Commerce.userLatLng().lat, Commerce.userLatLng().lng, v.lat, v.lng);
-      const menu = Commerce?.menuFor?.(v)?.length || 0;
+      const km = window.Commerce?.haversineKm?.(window.Commerce.userLatLng().lat, window.Commerce.userLatLng().lng, v.lat, v.lng);
+      const menu = window.Commerce?.menuFor?.(v)?.length || 0;
       this.register({
         id: 'vendor-' + v.id,
         type: 'vendor',
@@ -603,7 +603,7 @@ const GlobeEntity = {
         urgency: i === 0 ? 2 : 1,
         data: { vendor: v },
         _actionLabel: 'Open ' + v.name,
-        onTap: () => Commerce?.openVendor?.(v),
+        onTap: () => window.Commerce?.openVendor?.(v),
       });
     });
   },
@@ -612,7 +612,7 @@ const GlobeEntity = {
     this.unregisterType('driver');
     (drivers || []).forEach((d, i) => {
       if (d.field_lat == null) return;
-      const km = Commerce?.haversineKm?.(Commerce.userLatLng().lat, Commerce.userLatLng().lng, d.field_lat, d.field_lng);
+      const km = window.Commerce?.haversineKm?.(window.Commerce.userLatLng().lat, window.Commerce.userLatLng().lng, d.field_lat, d.field_lng);
       this.register({
         id: 'driver-' + d.id,
         type: 'driver',

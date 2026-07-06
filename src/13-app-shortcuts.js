@@ -23,23 +23,23 @@ const AppShortcuts = {
       icon: '🛒',
       title: 'Shops',
       activate() {
-        Commerce?.initUI?.();
-        if (Commerce?.selected) {
-          Commerce.showMenu();
+        window.Commerce?.initUI?.();
+        if (window.Commerce?.selected) {
+          window.Commerce.showMenu();
           const list = document.getElementById('vm-list');
           const detail = document.getElementById('vm-detail');
           if (list) list.style.display = 'none';
           if (detail) detail.style.display = 'block';
           const title = document.getElementById('vm-title');
-          if (title) title.textContent = (Commerce.selected.icon || '🏪') + ' ' + Commerce.selected.name;
-          Commerce.renderCart?.();
+          if (title) title.textContent = (window.Commerce.selected.icon || '🏪') + ' ' + window.Commerce.selected.name;
+          window.Commerce.renderCart?.();
         } else {
-          Commerce?.showPicker?.();
+          window.Commerce?.showPicker?.();
         }
         SuperCli?.setContext?.('commerce');
       },
       close() {
-        Commerce?.hideMenu?.();
+        window.Commerce?.hideMenu?.();
         if (GlobeDeck?.activeTask === 'commerce') GlobeDeck?.completeTask?.('commerce');
       },
     },
@@ -47,11 +47,11 @@ const AppShortcuts = {
       icon: '🔗',
       title: 'Batch',
       activate() {
-        AstranovNode?.showPanel?.();
+        window.AstranovNode?.showPanel?.();
         SuperCli?.setContext?.('batch');
       },
       close() {
-        AstranovNode?.hidePanel?.();
+        window.AstranovNode?.hidePanel?.();
       },
     },
     radio: {
@@ -80,23 +80,23 @@ const AppShortcuts = {
       icon: '📹',
       title: 'Post',
       activate() {
-        SuperAdd?.showPanel?.();
-        SuperAdd?.startCamera?.();
+        window.SuperAdd?.showPanel?.();
+        window.SuperAdd?.startCamera?.();
         SuperCli?.setContext?.('add');
       },
       close() {
-        SuperAdd?.hide?.();
+        window.SuperAdd?.hide?.();
       },
     },
     drive: {
       icon: '🚗',
       title: 'Drive',
       activate() {
-        DrivingView?.activate?.();
+        window.DrivingView?.activate?.();
         SuperCli?.setContext?.('drive');
       },
       close() {
-        if (DrivingView?.active) DrivingView.deactivate();
+        if (window.DrivingView?.active) window.DrivingView.deactivate();
         else AppShortcuts.untrack('drive');
       },
     },
@@ -119,11 +119,11 @@ const AppShortcuts = {
       icon: '💬',
       title: 'Chats',
       activate() {
-        CliHub?.openPanel?.();
+        window.CliHub?.openPanel?.();
         SuperCli?.setContext?.('chats');
       },
       close() {
-        CliHub?.closePanel?.();
+        window.CliHub?.closePanel?.();
       },
     },
     coin: {

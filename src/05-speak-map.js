@@ -448,7 +448,7 @@ const MapDepict = {
 
   scanCity(opts = {}) {
     const u = opts.userLat != null ? { lat: opts.userLat, lng: opts.userLng } : this.userPos();
-    const vendors = opts.vendors || Commerce?.vendors || [];
+    const vendors = opts.vendors || window.Commerce?.vendors || [];
     const label = opts.label || 'Scanning city…';
     this.cancelAll();
     this.setHud('City scan', label);
@@ -525,7 +525,7 @@ function userIntervene() {
   GlobeVideo?.stop?.();
   GlobeVideo?.hide?.();
   SuperSpace?.stop?.();
-  SuperAdd?.stop?.();
+  window.SuperAdd?.stop?.();
   GlobeEntity?.clearSelection?.();
   document.getElementById('aci-cli-in')?.classList.remove('voice-live');
   document.getElementById('aci-handsfree')?.classList.remove('listening', 'deck-btn-active', 'speaking');
@@ -533,11 +533,11 @@ function userIntervene() {
   if (cliIn) cliIn.placeholder = 'type or tap 🎧 · Enter or ➡';
   GlobeControl?.userTookGlobe?.('stop');
   if (window.PmrRadio) PmrRadio.hide();
-  if (window.DrivingView) DrivingView.deactivate();
+    if (window.DrivingView) window.DrivingView.deactivate();
   MapDepict.cancelAll();
   if (window._aciAbort) { try { window._aciAbort.abort(); } catch (_) {} }
   if (window._droneAnim) { clearInterval(window._droneAnim); window._droneAnim = null; }
-  if (Comms) Comms.vhfActive = false;
+  if (window.Comms) window.Comms.vhfActive = false;
   if (recognition) { try { recognition.stop(); } catch (_) {} }
   isListening = false;
   if (ACI) ACI.evolving = false;

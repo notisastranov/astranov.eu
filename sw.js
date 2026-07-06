@@ -1,5 +1,5 @@
 /* Astranov service worker — versioned PWA shell; network-first for app HTML */
-const BUILD_ID = '20260705141058';
+const BUILD_ID = '20260706071851';
 const CACHE = 'astranov-' + BUILD_ID;
 const SHELL = ['/manifest.webmanifest', '/icon.svg'];
 
@@ -25,7 +25,8 @@ function isVolatile(url) {
   return isAppHtml(url)
     || url.pathname === '/sw.js'
     || url.pathname === '/build.json'
-    || url.pathname === '/coders-labs.json';
+    || url.pathname === '/coders-labs.json'
+    || url.pathname === '/astranov-deferred.js';
 }
 
 self.addEventListener('fetch', (e) => {

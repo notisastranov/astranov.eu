@@ -41,9 +41,9 @@ const SessionHold = {
       inputBuffer: input?.value || AciCli?.buffer || '',
       context: SuperCli?._context || 'idle',
       followMode: GlobeControl?.followMode || null,
-      batchId: AstranovNode?.batchId || null,
-      vhfActive: !!Comms?.vhfActive,
-      driving: !!DrivingView?.active,
+      batchId: window.AstranovNode?.batchId || null,
+      vhfActive: !!window.Comms?.vhfActive,
+      driving: !!window.DrivingView?.active,
       userId: Auth?.user?.id || null,
     };
   },

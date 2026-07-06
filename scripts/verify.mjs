@@ -5,6 +5,7 @@ import { execSync } from 'node:child_process';
 import path from 'node:path';
 import {
   INDEX,
+  DEFERRED,
   SRC,
   readManifest,
   parseIndex,
@@ -15,26 +16,35 @@ import {
 
 const manifest = readManifest();
 const html = fs.readFileSync(INDEX, 'utf8');
-const { script } = parseIndex(html);
-const joined = joinModules(manifest);
+const { script: coreScript } = parseIndex(html);
+const deferredOnDisk = fs.existsSync(DEFERRED) ? fs.readFileSync(DEFERRED, 'utf8') : '';
+const joinedCore = joinModules(manifest, 'core');
+const joinedDeferred = joinModules(manifest, 'deferred');
 const assembled = assembleFromModules(manifest);
 
 const norm = (s) => normalizeForDiff(s).replace(/\n$/, '');
-const scriptOk = norm(script) === norm(joined);
+const coreOk = norm(coreScript) === norm(joinedCore);
+const deferredOk = norm(deferredOnDisk) === norm(joinedDeferred);
 
-console.log(`Modules: ${manifest.modules.length}`);
-console.log(`Script match: ${scriptOk ? 'OK' : 'DIFF (' + script.length + ' vs ' + joined.length + ' bytes)'}`);
+console.log(`Core modules: ${manifest.core.length}`);
+console.log(`Deferred modules: ${manifest.deferred.length}`);
+console.log(`Core script match: ${coreOk ? 'OK' : 'DIFF (' + coreScript.length + ' vs ' + joinedCore.length + ' bytes)'}`);
+console.log(`Deferred script match: ${deferredOk ? 'OK' : 'DIFF (' + deferredOnDisk.length + ' vs ' + joinedDeferred.length + ' bytes)'}`);
 
-const tmp = path.join(SRC, `.assembled-check-${process.pid}.js`);
-fs.writeFileSync(tmp, parseIndex(assembled).script, 'utf8');
+const tmpCore = path.join(SRC, `.assembled-check-core-${process.pid}.js`);
+const tmpDeferred = path.join(SRC, `.assembled-check-deferred-${process.pid}.js`);
+fs.writeFileSync(tmpCore, parseIndex(assembled).script, 'utf8');
+fs.writeFileSync(tmpDeferred, joinedDeferred, 'utf8');
 try {
-  execSync(`node --check "${tmp}"`, { stdio: 'pipe' });
+  execSync(`node --check "${tmpCore}"`, { stdio: 'pipe' });
+  execSync(`node --check "${tmpDeferred}"`, { stdio: 'pipe' });
   console.log('Syntax check: OK');
 } catch (e) {
   console.error('Syntax check: FAIL');
   process.exit(1);
 } finally {
-  try { fs.unlinkSync(tmp); } catch {}
+  try { fs.unlinkSync(tmpCore); } catch {}
+  try { fs.unlinkSync(tmpDeferred); } catch {}
 }
 
-if (!scriptOk) process.exit(1);
+if (!coreOk || !deferredOk) process.exit(1);

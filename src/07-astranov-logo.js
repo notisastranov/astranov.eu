@@ -16,11 +16,11 @@ const AstranovLogo = {
   resetToGlobalView() {
     userIntervene?.();
     GlobeControl?.userTookGlobe?.('silent');
-    DrivingView?.deactivate?.();
+    window.DrivingView?.deactivate?.();
     SuperSpace?.stop?.();
     GlobeVideo?.stop?.();
     GlobeVideo?.hide?.();
-    SuperAdd?.stop?.();
+    window.SuperAdd?.stop?.();
     GlobeEntity?.clearSelection?.();
     GlobeDeck?.collapse?.();
     GlobeDeck?.hideStage?.();
@@ -40,7 +40,7 @@ const AstranovLogo = {
     CosmicZoom?.update?.(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
     cityLevel = false;
     const zl = document.getElementById('zoom-label');
-    if (zl && !DrivingView?.active) zl.textContent = 'GLOBAL · tap 🎯 Locate for city map';
+    if (zl && !window.DrivingView?.active) zl.textContent = 'GLOBAL · tap 🎯 Locate for city map';
     const chip = document.getElementById('city-life-chip');
     if (chip) chip.classList.remove('open');
   },

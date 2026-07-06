@@ -585,7 +585,7 @@ const AciCoders = {
       return 'CLI reset · perf mode on — edit the input or speak again';
     }
     if ((/vendor|shop|καταστήμα|driver|οδηγ/.test(low)) && /fix|find|show|list|scan|βρες/.test(low)) {
-      Commerce?.openOrderFlow?.('');
+      window.Commerce?.openOrderFlow?.('');
       return 'Vendor scan opened on globe — pick shop or say order pitogyra';
     }
     if (/locate|zoom|map|πόσο|where am i/.test(low)) {
@@ -594,7 +594,7 @@ const AciCoders = {
     }
     if (/refresh|reload|συγχρον/.test(low) && /app|globe|page/.test(low)) {
       YachtMatcher?.loadAndSyncGlobe?.();
-      Commerce?.loadVendors?.();
+      window.Commerce?.loadVendors?.();
       AuditorPortal?.syncGlobe?.();
       return 'Globe data refreshed — yachts · vendors · drivers · auditors';
     }

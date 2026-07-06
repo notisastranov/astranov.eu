@@ -129,7 +129,7 @@ const GlobeControl = {
     window._globeFly = null;
     const btn = document.getElementById('aci-locate');
     if (btn) btn.classList.remove('deck-btn-active');
-    if (window.DrivingView) DrivingView._cameraFollow = false;
+    if (window.DrivingView) window.DrivingView._cameraFollow = false;
     GlobeDeck?.setPreview('🌍 Globe free — drag to explore');
     window.SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
     if (reason !== 'silent') {

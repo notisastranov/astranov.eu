@@ -404,11 +404,11 @@ const CityMap = {
         emoji: u.emoji || '👤', color: 'rgba(61,158,255,0.88)', title: u.name,
       });
     });
-    (Commerce?.vendors || []).forEach((v, i) => {
+    (window.Commerce?.vendors || []).forEach((v, i) => {
       if (v.lat == null) return;
       this._setMarker('shop_' + (v.id || i), v.lat, v.lng, {
         emoji: '🏪', color: 'rgba(26,111,212,0.88)', title: v.name || 'Shop',
-        onClick: () => Commerce?.openVendor?.(v),
+        onClick: () => window.Commerce?.openVendor?.(v),
       });
     });
   },
@@ -441,15 +441,15 @@ const CityMap = {
   async _tickDrivers() {
     if (!this.active) return;
     const u = window._lastPos || this._center;
-    let drivers = Commerce?.fetchNearbyDrivers
-      ? await Commerce.fetchNearbyDrivers(u.lat, u.lng)
+    let drivers = window.Commerce?.fetchNearbyDrivers
+      ? await window.Commerce.fetchNearbyDrivers(u.lat, u.lng)
       : [];
     if (!drivers.length) {
       this._seedDemoDrivers(u);
       this._animateDemoDrivers();
       drivers = this._demoDrivers;
     }
-    Commerce?.showDriversOnGlobe?.(drivers);
+    window.Commerce?.showDriversOnGlobe?.(drivers);
     const seen = new Set();
     drivers.forEach((d, i) => {
       const p = this._driverLatLng(d, u, i);

@@ -257,8 +257,8 @@ const CosmicZoom = {
           + '<div class="cg-item"><i>Zoom out to return to globe · theme 🌙/☀️</i></div>';
         return;
       }
-      if (CelestialNav?.isGlobalNavView?.(camZ)) {
-        el.innerHTML = CelestialNav.renderGuideHtml(camZ);
+      if (window.CelestialNav?.isGlobalNavView?.(camZ)) {
+        el.innerHTML = window.CelestialNav.renderGuideHtml(camZ);
         return;
       }
     }

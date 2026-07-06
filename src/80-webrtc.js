@@ -225,5 +225,4 @@ function endRealOrbitalCall() {
 function updateOrbital() {
   updateOrbitalSats();
 }
-
-// Call in animate loop - will add below
+window.updateOrbital = updateOrbital;

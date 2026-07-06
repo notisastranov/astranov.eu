@@ -406,7 +406,7 @@ const AciCli = {
           GlobeDeck?.finishCliIfOneShot?.('order');
           return;
         }
-        await Commerce.openOrderFlow(rest);
+        await window.Commerce.openOrderFlow(rest);
         this.print(rest ? 'order · ' + rest : 'pick vendor — real menu only', 'ok');
         GlobeDeck.activeTask = 'commerce';
         return;
@@ -448,7 +448,7 @@ const AciCli = {
       if (cmd === 'vendor') {
         const sub = (parts[1] || '').toLowerCase();
         if (sub === 'menu') {
-          const r = await Commerce.cliVendorMenu(parts.slice(2));
+          const r = await window.Commerce.cliVendorMenu(parts.slice(2));
           if (r.error) { this.print(r.error, 'err'); GlobeDeck?.finishCliIfOneShot('vendor'); return; }
           if (r.vendors) {
             r.vendors.forEach(v => this.print(v.name + ' · ' + v.items + ' items · ' + v.id, 'ok'));
@@ -466,7 +466,7 @@ const AciCli = {
           return;
         }
         if (sub === 'requests') {
-          const r = await Commerce.listMenuRequests();
+          const r = await window.Commerce.listMenuRequests();
           if (r.error) { this.print(r.error, 'err'); GlobeDeck?.finishCliIfOneShot('vendor'); return; }
           if (!r.requests?.length) { this.print('no pending menu requests', 'dim'); GlobeDeck?.finishCliIfOneShot('vendor'); return; }
           r.requests.forEach(req => this.print((req.vendor_name || req.vendor_id) + ' · ' + (req.notes || 'menu needed') + ' · ' + req.id.slice(0, 8), 'ok'));

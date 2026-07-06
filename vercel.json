@@ -19,6 +19,10 @@
     {
       "source": "/coders-labs.json",
       "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
+    },
+    {
+      "source": "/astranov-deferred.js",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600, must-revalidate" }]
     }
   ],
   "rewrites": [

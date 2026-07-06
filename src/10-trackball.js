@@ -206,7 +206,7 @@ function globeClickTargets() {
   }
   const targets = [];
   if (window._meMarker) targets.push(window._meMarker);
-  if (window.Commerce?.markers) targets.push(...Commerce.markers);
+  if (window.Commerce?.markers) targets.push(...window.Commerce.markers);
   globePivot.children.forEach(c => {
     if (c.userData?.globeEntity || c.userData?.name || c.userData?.vendor || c.userData?.type === 'me' || c.userData?.type === 'pilot' || c.userData?.type === 'post') {
       if (!targets.includes(c)) targets.push(c);
@@ -231,7 +231,7 @@ function onGlobeClick(e) {
     }
     const root = hit.userData?.vendor ? hit : (hit.parent?.userData?.vendor ? hit.parent : hit);
     const ud = root.userData || hit.userData || {};
-    if (ud.vendor && Commerce?.openVendor) { Commerce.openVendor(ud.vendor); return; }
+    if (ud.vendor && window.Commerce?.openVendor) { window.Commerce.openVendor(ud.vendor); return; }
     if (ud.type === 'me' || root === window._meMarker) {
       const entity = GlobeEntity?.entities?.get('me');
       if (entity) { GlobeEntity.activate(entity); return; }

@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /**
- * Assemble index.shell.html + src/*.js → index.html (canonical deploy artifact)
+ * Assemble index.shell.html + src/*.js → index.html (core inline) + astranov-deferred.js
  */
 import fs from 'node:fs';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
 import {
   INDEX,
+  DEFERRED,
   ROOT,
   SHELL,
   SRC,
@@ -14,6 +15,7 @@ import {
   joinModules,
   normalizeForDiff,
   parseIndex,
+  deferredScriptTag,
 } from './lib/monolith.mjs';
 
 const manifest = readManifest();
@@ -26,7 +28,10 @@ if (fs.existsSync(swPath)) {
   fs.writeFileSync(swPath, sw, 'utf8');
 }
 fs.writeFileSync(path.join(ROOT, 'build.json'), JSON.stringify({ buildId, builtAt: new Date().toISOString() }, null, 2) + '\n', 'utf8');
-const assembled = shell.replace(/\s*$/, '\n') + '<script>\n' + joinModules(manifest) + '</script>\n</body>\n</html>\n';
+
+const coreScript = joinModules(manifest, 'core');
+const deferredScript = joinModules(manifest, 'deferred');
+const assembled = shell.replace(/\s*$/, '\n') + '<script>\n' + coreScript + '</script>\n' + deferredScriptTag(buildId) + '</body>\n</html>\n';
 
 if (process.argv.includes('--stdout')) {
   process.stdout.write(assembled);
@@ -34,18 +39,26 @@ if (process.argv.includes('--stdout')) {
 }
 
 const prev = fs.existsSync(INDEX) ? fs.readFileSync(INDEX, 'utf8') : '';
+const prevDeferred = fs.existsSync(DEFERRED) ? fs.readFileSync(DEFERRED, 'utf8') : '';
 fs.writeFileSync(INDEX, assembled, 'utf8');
-const same = normalizeForDiff(prev) === normalizeForDiff(assembled);
-console.log(`Assembled → ${INDEX} (${assembled.length} bytes) build=${buildId}${same ? ' — unchanged' : ''}`);
+fs.writeFileSync(DEFERRED, deferredScript, 'utf8');
 
-const tmpScript = path.join(SRC, '.assembled-check.js');
+const same = normalizeForDiff(prev) === normalizeForDiff(assembled)
+  && normalizeForDiff(prevDeferred) === normalizeForDiff(deferredScript);
+console.log(`Assembled → ${INDEX} (${assembled.length} bytes) + ${DEFERRED} (${deferredScript.length} bytes) build=${buildId}${same ? ' — unchanged' : ''}`);
+
+const tmpCore = path.join(SRC, '.assembled-check-core.js');
+const tmpDeferred = path.join(SRC, '.assembled-check-deferred.js');
 try {
-  fs.writeFileSync(tmpScript, parseIndex(assembled).script, 'utf8');
-  execSync(`node --check "${tmpScript}"`, { stdio: 'pipe' });
-  console.log('Syntax check: OK');
+  fs.writeFileSync(tmpCore, parseIndex(assembled).script, 'utf8');
+  fs.writeFileSync(tmpDeferred, deferredScript, 'utf8');
+  execSync(`node --check "${tmpCore}"`, { stdio: 'pipe' });
+  execSync(`node --check "${tmpDeferred}"`, { stdio: 'pipe' });
+  console.log('Syntax check: OK (core + deferred)');
 } catch (e) {
   console.error('Syntax check FAILED:', e.stderr?.toString() || e.message);
   process.exit(1);
 } finally {
-  try { fs.unlinkSync(tmpScript); } catch {}
+  try { fs.unlinkSync(tmpCore); } catch {}
+  try { fs.unlinkSync(tmpDeferred); } catch {}
 }

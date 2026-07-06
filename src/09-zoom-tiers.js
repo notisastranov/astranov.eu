@@ -99,7 +99,7 @@ const ZoomTiers = {
     CityMap?.onCamera?.(camera.position.z, cosmic);
     cityLevel = !!tier.city;
     const zl = document.getElementById('zoom-label');
-    if (zl && !DrivingView?.active && !CityMap?.active) {
+    if (zl && !window.DrivingView?.active && !CityMap?.active) {
       if (tier.id === 'solar') zl.textContent = 'SOLAR SYSTEM · planets · ISS';
       else if (tier.id === 'global') zl.textContent = 'GLOBAL · ☀ day/night';
       else zl.textContent = tier.label;

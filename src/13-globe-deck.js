@@ -317,7 +317,7 @@ const GlobeDeck = {
     }
     if (kind === 'err') CliRibbon?.setNotice?.(repaired, 'err');
     if (this._userEngaged && (kind === 'reply' || kind === 'out' || kind === 'err')) this.ping();
-    if (kind !== 'dim' && kind !== 'map') CliHub?.queueLine?.(repaired, kind);
+    if (kind !== 'dim' && kind !== 'map') window.CliHub?.queueLine?.(repaired, kind);
   },
 
   say(text, cls) {
@@ -458,7 +458,7 @@ const GlobeDeck = {
     }
     this.deck()?.classList.remove('has-stage');
     if (window.PmrRadio) PmrRadio.open = false;
-    if (window.AstranovNode) AstranovNode._open = false;
+    if (window.AstranovNode) window.AstranovNode._open = false;
   },
 
   stageTitle(panelId) {
