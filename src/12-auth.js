@@ -19,8 +19,10 @@ const Auth = {
       console.warn('[Auth] Supabase SDK missing — login unavailable');
       return;
     }
+    const rtUrl = typeof resolveAstranovRealtimeUrl === 'function' ? resolveAstranovRealtimeUrl() : null;
     this.client = supabase.createClient(SB_URL, SB_KEY, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'astranov_auth_v2' }
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'astranov_auth_v2' },
+      realtime: rtUrl ? { url: rtUrl } : undefined,
     });
     this.client.auth.onAuthStateChange((ev, session) => {
       if (ev === 'SIGNED_IN' && session?.user) {
@@ -514,8 +516,16 @@ const Auth = {
     }
   },
 
+  async whenReady() {
+    return this.ensureSession();
+  },
+
   async ensureSession() {
     if (!this.client) return null;
+    if (this.session?.access_token) {
+      const exp = this.session.expires_at ? this.session.expires_at * 1000 : 0;
+      if (!exp || exp >= Date.now() + 120000) return this.session;
+    }
     const { data } = await this.client.auth.getSession();
     let session = data?.session || null;
     if (!session?.access_token) return null;
@@ -550,8 +560,12 @@ const Auth = {
 
   async authHeaders() {
     const h = { 'Content-Type': 'application/json', apikey: SB_KEY };
-    const session = await this.ensureSession();
-    h.Authorization = session?.access_token ? 'Bearer ' + session.access_token : 'Bearer ' + SB_KEY;
+    let token = this.session?.access_token;
+    if (!token) {
+      const session = await this.ensureSession();
+      token = session?.access_token;
+    }
+    h.Authorization = token ? 'Bearer ' + token : 'Bearer ' + SB_KEY;
     return h;
   },
 

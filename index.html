@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260706091714" />
+<meta name="astranov-build" content="20260706093536" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -1018,6 +1018,9 @@ window.enterCityView = enterCityView;
 // === ASTRANOV AUTH URL — never expose classified Supabase project ref to users ===
 const ASTRANOV_GOOGLE_CLIENT_ID = '73846897360-va7gcqngfc370gfp7rl059no0vd4ts11.apps.googleusercontent.com';
 
+const ASTRANOV_SUPABASE_REF = 'lkoatrkhuigdolnjsbie';
+const ASTRANOV_SUPABASE_DIRECT = 'https://' + ASTRANOV_SUPABASE_REF + '.supabase.co';
+
 function resolveAstranovSupabaseUrl() {
   try {
     const host = location.hostname || '';
@@ -1027,7 +1030,12 @@ function resolveAstranovSupabaseUrl() {
   } catch (_) { /* */ }
   const c = window.ASTRANOV_CENTRAL_DB;
   if (c?.useCustomDomain && c?.customUrl) return c.customUrl;
-  return 'https://lkoatrkhuigdolnjsbie.supabase.co';
+  return ASTRANOV_SUPABASE_DIRECT;
+}
+
+/** Vercel rewrites cannot proxy WebSocket — realtime must hit Supabase directly */
+function resolveAstranovRealtimeUrl() {
+  return 'wss://' + ASTRANOV_SUPABASE_REF + '.supabase.co/realtime/v1';
 }
 
 function astranovPublicOrigin() {
@@ -1056,6 +1064,7 @@ function astranovizeAuthUrl(url) {
 
 window.ASTRANOV_GOOGLE_CLIENT_ID = ASTRANOV_GOOGLE_CLIENT_ID;
 window.resolveAstranovSupabaseUrl = resolveAstranovSupabaseUrl;
+window.resolveAstranovRealtimeUrl = resolveAstranovRealtimeUrl;
 window.astranovPublicOrigin = astranovPublicOrigin;
 window.scrubSupabaseLeak = scrubSupabaseLeak;
 window.astranovizeAuthUrl = astranovizeAuthUrl;
@@ -2902,8 +2911,10 @@ const Auth = {
       console.warn('[Auth] Supabase SDK missing — login unavailable');
       return;
     }
+    const rtUrl = typeof resolveAstranovRealtimeUrl === 'function' ? resolveAstranovRealtimeUrl() : null;
     this.client = supabase.createClient(SB_URL, SB_KEY, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'astranov_auth_v2' }
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'astranov_auth_v2' },
+      realtime: rtUrl ? { url: rtUrl } : undefined,
     });
     this.client.auth.onAuthStateChange((ev, session) => {
       if (ev === 'SIGNED_IN' && session?.user) {
@@ -3397,8 +3408,16 @@ const Auth = {
     }
   },
 
+  async whenReady() {
+    return this.ensureSession();
+  },
+
   async ensureSession() {
     if (!this.client) return null;
+    if (this.session?.access_token) {
+      const exp = this.session.expires_at ? this.session.expires_at * 1000 : 0;
+      if (!exp || exp >= Date.now() + 120000) return this.session;
+    }
     const { data } = await this.client.auth.getSession();
     let session = data?.session || null;
     if (!session?.access_token) return null;
@@ -3433,8 +3452,12 @@ const Auth = {
 
   async authHeaders() {
     const h = { 'Content-Type': 'application/json', apikey: SB_KEY };
-    const session = await this.ensureSession();
-    h.Authorization = session?.access_token ? 'Bearer ' + session.access_token : 'Bearer ' + SB_KEY;
+    let token = this.session?.access_token;
+    if (!token) {
+      const session = await this.ensureSession();
+      token = session?.access_token;
+    }
+    h.Authorization = token ? 'Bearer ' + token : 'Bearer ' + SB_KEY;
     return h;
   },
 
@@ -9849,6 +9872,8 @@ const AIGraphics = {
   _flyerFrame: 0,
   _flyerPack: null,
   _flyerFlying: false,
+  _flyerImageTex: null,
+  _flyerImageLoading: false,
 
   init(parent, earthRadius = 1) {
     if (this._inited) return;
@@ -9862,8 +9887,28 @@ const AIGraphics = {
     this.addIdleAIEffects(this._parent, earthRadius, lite ? 40 : 80);
     this.addNeuralField(this._parent, earthRadius);
     this._mountGamingHud();
+    this._loadFlyerImage();
     console.log('%c[Astranov AI Graphics Engine] Gaming procedural graphics live — zero model assets', 'color:#00ddff;font-weight:700');
     window._aiGraphicsReady = true;
+  },
+
+  _loadFlyerImage() {
+    if (this._flyerImageLoading || this._flyerImageTex) return;
+    this._flyerImageLoading = true;
+    new THREE.TextureLoader().load(
+      'astranov-flyer.png',
+      (tex) => {
+        tex.anisotropy = 4;
+        this._flyerImageTex = tex;
+        if (this._flyer?.material) {
+          this._flyer.material.map = tex;
+          this._flyer.material.blending = THREE.NormalBlending;
+          this._flyer.material.needsUpdate = true;
+        }
+      },
+      undefined,
+      () => { this._flyerImageLoading = false; },
+    );
   },
 
   _latLngToPos(lat, lng, r = 1) {
@@ -10127,141 +10172,194 @@ const AIGraphics = {
   },
 
   _paintAstranovCharacter(ctx, w, h, frame, opts = {}) {
-    const t = frame * 0.14;
-    const flap = Math.sin(t) * 0.22;
-    const hover = Math.sin(t * 0.7) * 3;
+    const t = frame * 0.12;
+    const flap = Math.sin(t) * 0.12;
     const cx = w * 0.5;
-    const cy = h * 0.42 + hover;
-    const accent = opts.accent || '#3d9eff';
-    const glow = opts.glow || '#00ffcc';
-    const wing = opts.wing || '#1a6fd4';
+    const cy = h * 0.46 + Math.sin(t * 0.65) * 2;
+    const cyan = opts.glow || '#00e8ff';
+    const silver = '#b8c8d8';
+    const dark = '#0a1420';
 
     ctx.clearRect(0, 0, w, h);
 
-    const aura = ctx.createRadialGradient(cx, cy, 4, cx, cy, w * 0.48);
-    aura.addColorStop(0, 'rgba(0,220,255,0.35)');
-    aura.addColorStop(0.55, 'rgba(61,142,255,0.12)');
-    aura.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = aura;
+    const bg = ctx.createRadialGradient(cx, cy, 8, cx, cy, w * 0.52);
+    bg.addColorStop(0, 'rgba(0,40,80,0.5)');
+    bg.addColorStop(0.6, 'rgba(0,10,24,0.25)');
+    bg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, w, h);
+
+    for (let i = 0; i < 40; i++) {
+      const sx = (Math.sin(i * 2.17 + frame * 0.02) * 0.5 + 0.5) * w;
+      const sy = (Math.cos(i * 1.73) * 0.5 + 0.5) * h;
+      ctx.fillStyle = i % 5 === 0 ? 'rgba(180,220,255,0.9)' : 'rgba(100,160,255,0.45)';
+      ctx.fillRect(sx, sy, 1.2, 1.2);
+    }
 
     ctx.save();
     ctx.translate(cx, cy);
     ctx.globalCompositeOperation = 'lighter';
 
-    const drawWing = (side) => {
-      const s = side * (1 + flap * 0.35);
-      ctx.beginPath();
-      ctx.moveTo(8 * s, -6);
-      ctx.quadraticCurveTo(42 * s, -28 - flap * 18, 58 * s, 4);
-      ctx.quadraticCurveTo(36 * s, 10, 10 * s, 2);
-      const wg = ctx.createLinearGradient(0, -20, 50 * s, 10);
-      wg.addColorStop(0, wing);
-      wg.addColorStop(1, 'rgba(0,255,200,0.15)');
-      ctx.fillStyle = wg;
-      ctx.fill();
-      ctx.strokeStyle = glow;
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
+    const drawMechWing = (side) => {
+      const s = side;
+      const tilt = flap * 8 * s;
+      const segs = [
+        [[6 * s, -4], [52 * s, -36 + tilt], [72 * s, -8 + tilt], [38 * s, 6]],
+        [[10 * s, 2], [58 * s, -18 + tilt], [78 * s, 8 + tilt], [42 * s, 14]],
+        [[14 * s, 10], [48 * s, 4 + tilt], [62 * s, 22 + tilt], [32 * s, 20]],
+      ];
+      segs.forEach((pts, i) => {
+        ctx.beginPath();
+        ctx.moveTo(pts[0][0], pts[0][1]);
+        pts.slice(1).forEach(p => ctx.lineTo(p[0], p[1]));
+        ctx.closePath();
+        const g = ctx.createLinearGradient(0, -30, 60 * s, 20);
+        g.addColorStop(0, silver);
+        g.addColorStop(0.45, '#4a5a6a');
+        g.addColorStop(1, dark);
+        ctx.fillStyle = g;
+        ctx.fill();
+        ctx.strokeStyle = i === 0 ? cyan : 'rgba(0,200,255,0.35)';
+        ctx.lineWidth = i === 0 ? 1.8 : 1;
+        ctx.stroke();
+      });
     };
-    drawWing(-1);
-    drawWing(1);
-
-    const body = ctx.createLinearGradient(0, -18, 0, 36);
-    body.addColorStop(0, accent);
-    body.addColorStop(0.5, '#0a2848');
-    body.addColorStop(1, 'rgba(0,40,80,0.2)');
-    ctx.fillStyle = body;
-    ctx.beginPath();
-    ctx.moveTo(-10, -14);
-    ctx.lineTo(10, -14);
-    ctx.lineTo(14, 28);
-    ctx.lineTo(-14, 28);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.strokeStyle = glow;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(0, -22, 11, 0, Math.PI * 2);
-    ctx.stroke();
-    const head = ctx.createRadialGradient(0, -22, 1, 0, -22, 11);
-    head.addColorStop(0, '#ffffff');
-    head.addColorStop(0.35, accent);
-    head.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = head;
-    ctx.beginPath();
-    ctx.arc(0, -22, 10, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.font = 'bold 22px system-ui,sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#e8f8ff';
-    ctx.shadowColor = glow;
-    ctx.shadowBlur = 10;
-    ctx.fillText('A', 0, 2);
-    ctx.shadowBlur = 0;
-
-    ctx.strokeStyle = 'rgba(0,255,180,0.7)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(-6, 30);
-    ctx.lineTo(-10, 46 + Math.sin(t) * 4);
-    ctx.moveTo(6, 30);
-    ctx.lineTo(10, 46 - Math.sin(t) * 4);
-    ctx.stroke();
 
     if (opts.jet) {
-      const jet = ctx.createLinearGradient(0, 34, 0, h);
-      jet.addColorStop(0, glow);
-      jet.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = jet;
-      ctx.fillRect(-5, 34, 10, h - 34);
+      const jetLen = 38 + Math.sin(t * 2) * 8;
+      [-1, 1].forEach((side) => {
+        const jg = ctx.createLinearGradient(side * 20, 8, side * 20, 8 + jetLen);
+        jg.addColorStop(0, cyan);
+        jg.addColorStop(0.4, 'rgba(0,180,255,0.55)');
+        jg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = jg;
+        ctx.beginPath();
+        ctx.moveTo(side * 14, 10);
+        ctx.lineTo(side * 28, 10);
+        ctx.lineTo(side * 18, 10 + jetLen);
+        ctx.closePath();
+        ctx.fill();
+      });
     }
+
+    drawMechWing(-1);
+    drawMechWing(1);
+
+    ctx.globalCompositeOperation = 'source-over';
+    const torso = ctx.createLinearGradient(0, -20, 0, 32);
+    torso.addColorStop(0, silver);
+    torso.addColorStop(0.35, '#5a6a7a');
+    torso.addColorStop(0.7, dark);
+    torso.addColorStop(1, '#1a2838');
+    ctx.fillStyle = torso;
+    ctx.beginPath();
+    ctx.moveTo(-14, -12);
+    ctx.lineTo(14, -12);
+    ctx.lineTo(18, 8);
+    ctx.lineTo(12, 30);
+    ctx.lineTo(-12, 30);
+    ctx.lineTo(-18, 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = cyan;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    const corePulse = 0.75 + Math.sin(t * 1.6) * 0.25;
+    const core = ctx.createRadialGradient(0, 4, 1, 0, 4, 10);
+    core.addColorStop(0, '#ffffff');
+    core.addColorStop(0.35, cyan);
+    core.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalAlpha = corePulse;
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.arc(0, 4, 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    [-1, 1].forEach((side) => {
+      ctx.fillStyle = '#6a7a8a';
+      ctx.fillRect(side * 10, -8, 8, 22);
+      ctx.fillStyle = cyan;
+      ctx.fillRect(side * 12, 2, 5, 8);
+      ctx.beginPath();
+      ctx.ellipse(side * 22, -2, 10, 6, side * 0.3, 0, Math.PI * 2);
+      ctx.fillStyle = '#7a8a9a';
+      ctx.fill();
+    });
+
+    const helm = ctx.createLinearGradient(-12, -34, 12, -18);
+    helm.addColorStop(0, '#e8f0ff');
+    helm.addColorStop(0.5, silver);
+    helm.addColorStop(1, '#4a5a68');
+    ctx.fillStyle = helm;
+    ctx.beginPath();
+    ctx.ellipse(0, -24, 13, 15, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = cyan;
+    ctx.shadowColor = cyan;
+    ctx.shadowBlur = 12;
+    ctx.fillRect(-11, -26, 22, 5);
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = '#5a6a78';
+    ctx.fillRect(-7, 28, 5, 14);
+    ctx.fillRect(2, 30, 5, 12);
 
     ctx.restore();
   },
 
   _ensureFlyerPack() {
     if (this._flyerPack) return this._flyerPack;
-    this._flyerPack = this._procCanvas(128, 192, (ctx, w, h) => {
+    this._flyerPack = this._procCanvas(256, 256, (ctx, w, h) => {
       this._paintAstranovCharacter(ctx, w, h, 0, {});
     });
     return this._flyerPack;
   },
 
   _syncFlyerTexture(flying) {
+    if (this._flyerImageTex) {
+      if (this._flyer?.material) {
+        const pulse = flying ? 1 + Math.sin(this._flyerFrame * 0.14) * 0.06 : 1;
+        this._flyer.scale.set(
+          this._flyer.userData._baseScale * pulse,
+          this._flyer.userData._baseScale * pulse,
+          1,
+        );
+      }
+      return;
+    }
     const pack = this._ensureFlyerPack();
-    const accent = Voice?.speaking ? '#00e86e' : '#3d9eff';
-    const glow = Voice?.speaking ? '#88ffbb' : '#00ddff';
-    this._paintAstranovCharacter(pack.ctx, 128, 192, this._flyerFrame, {
-      accent, glow, wing: '#1a6fd4', jet: !!flying,
-    });
+    const glow = Voice?.speaking ? '#00ff88' : '#00e8ff';
+    this._paintAstranovCharacter(pack.ctx, 256, 256, this._flyerFrame, { glow, jet: !!flying });
     pack.tex.needsUpdate = true;
   },
 
   spawnAstranovFlyer(lat, lng, opts = {}) {
     if (this._flyer?.parent) this._flyer.parent.remove(this._flyer);
+    this._loadFlyerImage();
     const pack = this._ensureFlyerPack();
     this._syncFlyerTexture(false);
+    const useImage = !!this._flyerImageTex;
     const mat = new THREE.SpriteMaterial({
-      map: pack.tex,
+      map: useImage ? this._flyerImageTex : pack.tex,
       transparent: true,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      blending: useImage ? THREE.NormalBlending : THREE.AdditiveBlending,
+      opacity: useImage ? 0.98 : 1,
     });
     const sprite = new THREE.Sprite(mat);
     const alt = opts.alt || 1.09;
     const p = this._latLngToPos(lat ?? 36.44, lng ?? 28.22, alt);
     sprite.position.set(p.x, p.y, p.z);
+    const baseScale = 0.2;
+    sprite.scale.set(baseScale, baseScale, 1);
     sprite.userData = {
       type: 'astranov-flyer',
       name: opts.label || 'Astranov',
-      lat, lng, alt,
+      lat, lng, alt, _baseScale: baseScale,
       edition: opts.edition?.id || 'astranov',
     };
-    sprite.scale.set(0.16, 0.24, 1);
     globePivot.add(sprite);
     this._flyer = sprite;
     window._astranovFlyer = sprite;
@@ -10371,7 +10469,8 @@ const AIGraphics = {
       const camZ = camera?.position?.z ?? 2.55;
       const scale = Math.max(0.1, Math.min(0.28, 0.14 * (camZ / 2.2)));
       if (p.isFlyer && p.mesh.isSprite) {
-        p.mesh.scale.set(scale, scale * 1.5, 1);
+        p.mesh.userData._baseScale = scale;
+        p.mesh.scale.set(scale, scale, 1);
         this._flyerFrame++;
         this._syncFlyerTexture(true);
       }
@@ -10398,8 +10497,9 @@ const AIGraphics = {
     const p = this._latLngToPos(lat, lng, alt);
     this._flyer.position.set(p.x, p.y, p.z);
     const camZ = camera?.position?.z ?? 2.55;
-    const scale = Math.max(0.1, Math.min(0.26, 0.13 * (camZ / 2.2)));
-    this._flyer.scale.set(scale, scale * 1.5, 1);
+    const scale = Math.max(0.12, Math.min(0.28, 0.2 * (camZ / 2.2)));
+    this._flyer.userData._baseScale = scale;
+    this._flyer.scale.set(scale, scale, 1);
     this._syncFlyerTexture(false);
   },
 
@@ -11501,6 +11601,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260706091714" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260706093536" data-astranov-deferred></script>
 </body>
 </html>

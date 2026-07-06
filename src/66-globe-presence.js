@@ -55,6 +55,7 @@ const AstranovPresence = {
   async join() {
     if (!SlumberManager?.allows?.('presence')) return;
     if (!Auth?.client || !Auth?.user) return;
+    if (Auth?.whenReady) await Auth.whenReady();
     if (this.rtChannel) return;
     const uid = Auth.user.id;
     this.rtChannel = Auth.client.channel(this.CHANNEL, {

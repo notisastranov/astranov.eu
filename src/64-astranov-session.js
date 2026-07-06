@@ -107,6 +107,8 @@ const AstranovSession = {
   },
 
   async unifyCollective() {
+    if (Auth?.whenReady) await Auth.whenReady();
+    if (!Auth?.user) return;
     this._applyIdentity();
     this.purgeAllLocalState();
     SessionHold?.clearForeignHold?.();

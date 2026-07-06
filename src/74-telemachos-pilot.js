@@ -98,10 +98,11 @@ const Pilot = {
   get NAME_GR() { return this.edition.name_gr; },
   get NAME_LATIN() { return this.edition.name_latin; },
 
-  init() {
+  async init() {
     this._loadEvolutionLocal();
     this._initRealtime();
     this._initTeamRealtime();
+    if (Auth?.whenReady) await Auth.whenReady();
     this._loadEvolutionFromServer();
     this._subscribeC2Signals();
     if (Auth?.user) this.refreshTeamStatus({ quiet: true });
@@ -185,7 +186,7 @@ const Pilot = {
   _blueAllyIds() {
     const ids = [];
     if (Auth?.user?.id) ids.push(Auth.user.id);
-    (MapComms?.members ? [...MapComms.members.keys()] : []).forEach((id) => {
+    (window.MapComms?.members ? [...window.MapComms.members.keys()] : []).forEach((id) => {
       if (id && id !== Auth?.user?.id) ids.push(id);
     });
     return ids;
@@ -502,7 +503,7 @@ const Pilot = {
   _friendlyIds() {
     const ids = new Set();
     if (Auth?.user?.id) ids.add(Auth.user.id);
-    (MapComms?.members ? [...MapComms.members.keys()] : []).forEach((id) => ids.add(id));
+    (window.MapComms?.members ? [...window.MapComms.members.keys()] : []).forEach((id) => ids.add(id));
     return ids;
   },
 
@@ -1421,5 +1422,4 @@ const Pilot = {
 
 window.TelemachosPilot = Pilot;
 window.showPilotTelemachos = function () { return Pilot.showPilot(); };
-Pilot.init();
 })();
