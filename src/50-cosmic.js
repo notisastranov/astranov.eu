@@ -333,6 +333,9 @@ const CosmicZoom = {
         const tier = window.ZoomTiers?.current?.();
         const tierLabel = tier?.id === 'neighborhood' ? 'NEIGHBORHOOD MAP' : 'CITY MAP';
         zl.textContent = tierLabel + ' · satellite · streets · friends · drivers';
+      } else if (CityMap?._nationalActive) {
+        const tier = window.ZoomTiers?.current?.();
+        zl.textContent = (tier?.label || 'NATIONAL') + ' · ' + (window.ZoomTiers?.countryHint?.() || 'region') + ' · country map · pinch for city';
       } else {
         const hint = level === 'orbit' ? ' · ISS · Starlink' : level === 'system' ? ' · planets'
           : label === 'GLOBAL' ? ' · ☀ day/night · ✦ constellations' : '';

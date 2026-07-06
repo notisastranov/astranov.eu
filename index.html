@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260706094838" />
+<meta name="astranov-build" content="20260706100050" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -120,8 +120,11 @@
   #globe canvas.dragging { cursor:grabbing; }
   #globe.city-map-active canvas { opacity:0 !important; pointer-events:none; }
   #city-map { position:fixed; inset:0; z-index:10; opacity:0; pointer-events:none; transition:opacity 0.35s ease; }
+  #city-map.national-active { z-index:12; opacity:0.48; pointer-events:none; }
   #city-map.active { z-index:150; opacity:1; pointer-events:auto; }
   body.city-map-active #city-map { z-index:150; }
+  body.national-map-active #city-map.national-active { z-index:12; }
+  #globe.national-map-active canvas { opacity:0.42 !important; pointer-events:auto; }
   #city-map .leaflet-container { background:var(--an-bg); font-family:system-ui,sans-serif; }
   #city-map[data-theme="bright"] .leaflet-container { background:#e8f0f8; }
   #city-map[data-theme="dark"] .leaflet-container { background:#0a1020; }
@@ -190,6 +193,9 @@
   #aci-stop { background:var(--ax-red-bg); border-color:var(--ax-red-border); color:var(--ax-red-bright); box-shadow:0 0 8px var(--ax-red-glow); }
   #news-ticker { display:none; margin:8px 8px 0; padding:6px 12px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); border-radius:14px; font:11px system-ui; color:var(--ax-blue-bright); white-space:nowrap; overflow:hidden; pointer-events:auto; }
   #zoom-label { position:fixed; top:10px; left:10px; z-index:40; font:11px system-ui; color:var(--an-muted); pointer-events:none; max-width:55vw; }
+  #zoom-tier-dots { position:fixed; top:10px; right:10px; z-index:40; display:flex; flex-direction:column; gap:4px; pointer-events:none; font-family:var(--fhud,system-ui); }
+  #zoom-tier-dots .ztd { width:5px; height:5px; border-radius:50%; background:rgba(0,200,255,0.22); box-shadow:0 0 4px rgba(0,200,255,0.15); transition:all 0.25s; }
+  #zoom-tier-dots .ztd.on { background:#00c8ff; opacity:1; box-shadow:0 0 8px rgba(0,200,255,0.55); transform:scale(1.35); }
   #aci-theme { background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); border-radius:50%; width:38px; height:38px; cursor:pointer; font-size:16px; flex-shrink:0; }
   [data-theme="bright"] #aci-bar, [data-theme="bright"] #globe-deck, [data-theme="bright"] #city-life-chip, [data-theme="bright"] #globe-entity-hud { filter:none; }
   [data-theme="bright"] #globe-deck { background:var(--ax-panel-strong); border-color:var(--ax-blue-border); color:var(--an-text); }
@@ -676,7 +682,8 @@
       <button id="ge-hud-close" type="button">✖</button>
     </div>
   </div>
-  <div id="zoom-label">GLOBAL · tap 🎯 Locate for city map</div>
+  <div id="zoom-label">GLOBAL · pinch in for national · 🎯 Locate</div>
+  <div id="zoom-tier-dots" aria-hidden="true"></div>
   <div id="cosmic-guide"></div>
   <div id="user-chip"></div>
   <div id="drive-guide"></div>
@@ -1522,7 +1529,7 @@ const MapDepict = {
     this.action('location', { lat: u.lat, lng: u.lng, detail: 'εσύ · αναζήτηση' });
     const cityZ = GlobeControl?.Z?.city || 1.38;
     const z = zoom != null && zoom <= cityZ ? zoom : (GlobeControl?.Z?.national || 1.82);
-    if (ZoomTiers && zoom == null) ZoomTiers.goTo('global', true);
+    if (ZoomTiers && zoom == null) ZoomTiers.goTo('national', true);
     const fp = latLngToPos(u.lat, u.lng, 1.04);
     if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(fp.x, fp.y, fp.z), z);
     else focusOnGlobePoint(new THREE.Vector3(fp.x, fp.y, fp.z), z);
@@ -7916,6 +7923,9 @@ const CosmicZoom = {
         const tier = window.ZoomTiers?.current?.();
         const tierLabel = tier?.id === 'neighborhood' ? 'NEIGHBORHOOD MAP' : 'CITY MAP';
         zl.textContent = tierLabel + ' · satellite · streets · friends · drivers';
+      } else if (CityMap?._nationalActive) {
+        const tier = window.ZoomTiers?.current?.();
+        zl.textContent = (tier?.label || 'NATIONAL') + ' · ' + (window.ZoomTiers?.countryHint?.() || 'region') + ' · country map · pinch for city';
       } else {
         const hint = level === 'orbit' ? ' · ISS · Starlink' : level === 'system' ? ' · planets'
           : label === 'GLOBAL' ? ' · ☀ day/night · ✦ constellations' : '';
@@ -8107,12 +8117,13 @@ const AiRouter = {
 
 window.AiRouter = AiRouter;
 
-// === ZOOM TIERS — solar → global → national → city → neighborhood ===
+// === ZOOM TIERS — solar → global → national → regional → city → neighborhood ===
 const ZoomTiers = {
   TIERS: [
     { id: 'solar', z: 7.2, label: 'SOLAR SYSTEM', cosmic: 'system' },
     { id: 'global', z: 2.55, label: 'GLOBAL', cosmic: 'earth' },
-    { id: 'national', z: 1.82, label: 'NATIONAL', cosmic: 'earth' },
+    { id: 'national', z: 1.82, label: 'NATIONAL', cosmic: 'earth', national: true },
+    { id: 'regional', z: 1.65, label: 'REGIONAL', cosmic: 'earth', national: true },
     { id: 'city', z: 1.38, label: 'CITY', cosmic: 'earth', city: true },
     { id: 'neighborhood', z: 1.08, label: 'NEIGHBORHOOD', cosmic: 'earth', city: true },
   ],
@@ -8127,6 +8138,43 @@ const ZoomTiers = {
     const i = this.TIERS.findIndex(t => t.id === this.START_ID);
     this._index = i >= 0 ? i : 1;
     this.snap(false);
+    this.updateDots();
+  },
+
+  countryHint() {
+    const p = window._lastPos || { lat: 36.44, lng: 28.22 };
+    if (p.lat > 34 && p.lat < 42 && p.lng > 19 && p.lng < 30) return 'Greece';
+    if (p.lat > 24 && p.lat < 50 && p.lng > -10 && p.lng < 40) return 'Europe';
+    if (p.lat > -35 && p.lat < 35) return 'equatorial belt';
+    return 'region';
+  },
+
+  syncFromCamZ(camZ, animate) {
+    if (camZ == null || !Number.isFinite(camZ)) return false;
+    let best = this._index;
+    let bestDist = Infinity;
+    const enterZ = CityMap?.ENTER_Z ?? 1.4;
+    this.TIERS.forEach((t, i) => {
+      if (t.city && camZ > enterZ + 0.06) return;
+      const d = Math.abs(t.z - camZ);
+      if (d < bestDist) { bestDist = d; best = i; }
+    });
+    if (best === this._index) return false;
+    this._index = best;
+    if (animate) this.snap(true);
+    else this._apply(this.current());
+    return true;
+  },
+
+  updateDots() {
+    const el = document.getElementById('zoom-tier-dots');
+    if (!el) return;
+    const show = this.TIERS.filter(t => t.id !== 'solar');
+    el.innerHTML = show.map((t) => {
+      const i = this.TIERS.findIndex(x => x.id === t.id);
+      const on = i === this._index ? ' on' : '';
+      return '<span class="ztd' + on + '" data-tier="' + t.id + '" title="' + t.label + '"></span>';
+    }).join('');
   },
 
   current() {
@@ -8207,9 +8255,19 @@ const ZoomTiers = {
     const zl = document.getElementById('zoom-label');
     if (zl && !window.DrivingView?.active && !CityMap?.active) {
       if (tier.id === 'solar') zl.textContent = 'SOLAR SYSTEM · planets · ISS';
-      else if (tier.id === 'global') zl.textContent = 'GLOBAL · ☀ day/night';
+      else if (tier.id === 'global') zl.textContent = 'GLOBAL · ☀ day/night · pinch in';
+      else if (tier.national) zl.textContent = tier.label + ' · ' + this.countryHint() + ' · pinch for city';
+      else if (tier.city) zl.textContent = tier.label + ' · pinch for streets';
       else zl.textContent = tier.label;
     }
+    if (tier.national && window._lastPos && typeof flyToPoint === 'function') {
+      const p = latLngToPos(window._lastPos.lat, window._lastPos.lng, 1.04);
+      const cur = TrackballGuard?.facingLatLng?.() || { lat: 0, lng: 0 };
+      const far = TrackballGuard?.greatCircleKm?.(cur.lat, cur.lng, window._lastPos.lat, window._lastPos.lng) > 800;
+      if (far) flyToPoint(new THREE.Vector3(p.x, p.y, p.z), tier.z, { dur: 1200, onTier: true });
+    }
+    this.updateDots();
+    MapDepict?.setHud?.(tier.label, 'zoom-tier');
   },
 
   tierZ(id) {
@@ -8288,12 +8346,17 @@ function registerTap(clientX, clientY) {
 }
 
 function zoomBy(delta) {
+  if (ZoomTiers && delta > 0 && (CityMap?.active || CityMap?._nationalActive)) {
+    ZoomTiers.stepOut();
+    return;
+  }
   const factor = Math.exp((delta || 0) * ZOOM_SMOOTH);
   const next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, camera.position.z * factor));
   camera.position.z = next;
   camera.lookAt(0, 0, 0);
   CosmicZoom.update(camera.position.z);
   CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
+  ZoomTiers?.syncFromCamZ?.(camera.position.z, false);
 }
 
 function zoomAt(clientX, clientY, delta, opts) {
@@ -8560,7 +8623,8 @@ function tickGlobeFly() {
       if (i >= 0) ZoomTiers._index = i;
       ZoomTiers._apply(ZoomTiers.current());
     } else {
-      cityLevel = camera.position.z <= 1.55;
+      ZoomTiers?.syncFromCamZ?.(camera.position.z, false);
+      cityLevel = camera.position.z <= (CityMap?.ENTER_Z ?? 1.34);
       CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
     }
     try { done?.(); } catch (_) {}
@@ -8710,9 +8774,12 @@ TrackballGuard.init();
 
 // === CITY MAP — satellite + streets when zoomed to city level ===
 const CityMap = {
-  ENTER_Z: 1.42,
-  EXIT_Z: 1.52,
+  NATIONAL_ENTER_Z: 1.92,
+  NATIONAL_EXIT_Z: 1.44,
+  ENTER_Z: 1.40,
+  EXIT_Z: 1.50,
   active: false,
+  _nationalActive: false,
   map: null,
   _ready: false,
   _center: { lat: 36.44, lng: 28.22 },
@@ -8895,6 +8962,12 @@ const CityMap = {
     return Math.round(11 + t * 4);
   },
 
+  nationalLeafletZoom(camZ) {
+    if (camZ >= 1.78) return 6;
+    if (camZ >= 1.62) return 8;
+    return 10;
+  },
+
   _bindZoomBridge(el) {
     if (!el || el._cityZoomBridge) return;
     el._cityZoomBridge = true;
@@ -9014,13 +9087,27 @@ const CityMap = {
     const earth = window._cityDropLock || this._forceOpen
       || (level || CosmicZoom?.level || 'earth') === 'earth';
     const driving = !!DrivingView?.active;
-    const shouldEnter = earth && (camZ <= this.ENTER_Z || driving || this._forceOpen || window._cityDropLock);
-    const shouldExit = !this._forceOpen && !window._cityDropLock
+    const cityTier = earth && (camZ <= this.ENTER_Z || driving || this._forceOpen || window._cityDropLock);
+    const nationalTier = earth && !cityTier && camZ <= this.NATIONAL_ENTER_Z && camZ > this.NATIONAL_EXIT_Z;
+    const leaveAll = !this._forceOpen && !window._cityDropLock
       && (!earth || (camZ > this.EXIT_Z && !driving));
 
-    if (shouldEnter && !this.active) this._enter(camZ);
-    else if (shouldExit && this.active) this._exit();
-    else if (this.active) this._syncView(camZ);
+    if (cityTier && !this.active) {
+      if (this._nationalActive) this._exitNational();
+      this._enter(camZ);
+    } else if (leaveAll && this.active) {
+      this._exit();
+    } else if (cityTier && this.active) {
+      this._syncView(camZ);
+    } else if (nationalTier) {
+      if (this.active) this._exit();
+      if (!this._nationalActive) this._enterNational(camZ);
+      else this._syncNational(camZ);
+    } else if (this._nationalActive && leaveAll) {
+      this._exitNational();
+    } else if (this._nationalActive && cityTier) {
+      this._exitNational();
+    }
   },
 
   _enter(camZ) {
@@ -9049,14 +9136,52 @@ const CityMap = {
     );
   },
 
+  _enterNational(camZ) {
+    if (!this.map) return;
+    this._nationalActive = true;
+    const el = document.getElementById('city-map');
+    const globe = document.getElementById('globe');
+    if (el) { el.classList.add('national-active'); el.classList.remove('active'); }
+    if (globe) { globe.classList.add('national-map-active'); globe.classList.remove('city-map-active'); }
+    document.body.classList.add('national-map-active');
+    document.body.classList.remove('city-map-active');
+    this._applyBaseLayers();
+    const c = window._lastPos || this.globeCenterLatLng();
+    this._center = c;
+    this.map.setView([c.lat, c.lng], this.nationalLeafletZoom(camZ), { animate: false });
+    this._invalidate();
+    GlobeDeck?.setPreview?.('National · ' + (ZoomTiers?.countryHint?.() || 'region') + ' · pinch in for city');
+  },
+
+  _syncNational(camZ) {
+    const c = window._lastPos || this.globeCenterLatLng();
+    this._center = c;
+    const lz = this.nationalLeafletZoom(camZ);
+    if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
+    const cur = this.map.getCenter();
+    if (Math.abs(cur.lat - c.lat) > 0.02 || Math.abs(cur.lng - c.lng) > 0.02) {
+      this.map.panTo([c.lat, c.lng], { animate: false });
+    }
+  },
+
+  _exitNational() {
+    this._nationalActive = false;
+    const el = document.getElementById('city-map');
+    const globe = document.getElementById('globe');
+    if (el) el.classList.remove('national-active');
+    if (globe) globe.classList.remove('national-map-active');
+    document.body.classList.remove('national-map-active');
+  },
+
   _exit() {
     this.active = false;
     cityLevel = false;
     const el = document.getElementById('city-map');
     const globe = document.getElementById('globe');
-    if (el) el.classList.remove('active');
-    if (globe) globe.classList.remove('city-map-active');
+    if (el) { el.classList.remove('active'); el.classList.remove('national-active'); }
+    if (globe) { globe.classList.remove('city-map-active'); globe.classList.remove('national-map-active'); }
     document.body.classList.remove('city-map-active');
+    document.body.classList.remove('national-map-active');
     EarthRealism?._hudTimer && (EarthRealism._hudTimer = 0);
     const chip = document.getElementById('city-life-chip');
     if (chip) chip.classList.remove('open');
@@ -9231,9 +9356,9 @@ const CityLife = {
 
   ensureEarthView() {
     if (CosmicZoom) CosmicZoom.level = 'earth';
-    ZoomTiers?.goTo?.('city', false);
-    CosmicZoom?.update?.(this.CITY_ZOOM, { tier: 'city', label: 'CITY', cosmic: 'earth' });
-    cityLevel = true;
+    ZoomTiers?.goTo?.('national', false);
+    CosmicZoom?.update?.(GlobeControl?.Z?.national || 1.82, { tier: 'national', label: 'NATIONAL', cosmic: 'earth' });
+    cityLevel = false;
   },
 
   async flyToCity(lat, lng, label) {
@@ -9268,6 +9393,14 @@ const CityLife = {
     this._lastDrop = { lat: pos.lat, lng: pos.lng, t: Date.now() };
 
     try {
+      GlobeDeck?.setMapStatus('National view…');
+      ZoomTiers?.goTo?.('national', true);
+      CityMap?.onCamera?.(GlobeControl?.Z?.national || 1.82, 'earth');
+      if (!opts.immediate) {
+        GlobeDeck?.setPreview?.('Atmosphere lock… descending toward the surface.');
+        await new Promise(r => setTimeout(r, 420));
+      }
+      ZoomTiers?.goTo?.('city', true);
       GlobeDeck?.setMapStatus('Opening city map…');
       const opened = await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
       if (!opened) {
@@ -11429,15 +11562,17 @@ function placeMe(lat, lng, opts) {
     MapDepict.action('location', { lat, lng, detail: me ? me.name : 'You' });
   }
   if (shouldFly && typeof flyToPoint === 'function') {
-    const gz = GlobeControl?.Z?.global || 2.55;
-    const nz = GlobeControl?.Z?.national || 1.82;
     const cz = CityLife?.CITY_ZOOM || GlobeControl?.Z?.city || 1.38;
-    const z = opts.zoom ?? (opts.cityDrop ? cz : gz);
+    const nz = GlobeControl?.Z?.national || 1.82;
+    const z = opts.zoom ?? (opts.cityDrop ? cz : nz);
+    if (ZoomTiers && !opts.cityDrop) ZoomTiers.goTo('national', true);
+    else if (ZoomTiers && opts.cityDrop) ZoomTiers.goTo('city', true);
     flyToPoint(new THREE.Vector3(pos.x, pos.y, pos.z), z);
     cityLevel = !!opts.cityDrop && z <= (GlobeControl?.Z?.regional || 1.65);
     GlobeControl?.noteAutoFly?.();
     CosmicZoom?.update?.(z);
-    if (opts.cityDrop && !window._globeFly) CityMap?.onCamera?.(z, 'earth');
+    CityMap?.onCamera?.(z, 'earth');
+    if (!window._globeFly) ZoomTiers?.syncFromCamZ?.(z, false);
   }
   if (!quiet) FieldBrain?.pulse('location', 'locate me', { role: 'client' });
   AstranovPresence?.onMove?.(lat, lng);
@@ -11447,7 +11582,7 @@ function locateMe() {
   GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
   GlobeDeck?.setMapStatus('Locating your city…');
   GlobeControl?.engageFollow?.('locate');
-  ACIControl?.reply('Locating — city map opening…');
+  ACIControl?.reply('Locating — national view first · pinch in for city map…');
   if (!navigator.geolocation) {
     enterCityView?.(null, null, { openShops: false });
     return;
@@ -11608,6 +11743,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260706094838" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260706100050" data-astranov-deferred></script>
 </body>
 </html>

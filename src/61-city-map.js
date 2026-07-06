@@ -1,8 +1,11 @@
 // === CITY MAP — satellite + streets when zoomed to city level ===
 const CityMap = {
-  ENTER_Z: 1.42,
-  EXIT_Z: 1.52,
+  NATIONAL_ENTER_Z: 1.92,
+  NATIONAL_EXIT_Z: 1.44,
+  ENTER_Z: 1.40,
+  EXIT_Z: 1.50,
   active: false,
+  _nationalActive: false,
   map: null,
   _ready: false,
   _center: { lat: 36.44, lng: 28.22 },
@@ -185,6 +188,12 @@ const CityMap = {
     return Math.round(11 + t * 4);
   },
 
+  nationalLeafletZoom(camZ) {
+    if (camZ >= 1.78) return 6;
+    if (camZ >= 1.62) return 8;
+    return 10;
+  },
+
   _bindZoomBridge(el) {
     if (!el || el._cityZoomBridge) return;
     el._cityZoomBridge = true;
@@ -304,13 +313,27 @@ const CityMap = {
     const earth = window._cityDropLock || this._forceOpen
       || (level || CosmicZoom?.level || 'earth') === 'earth';
     const driving = !!DrivingView?.active;
-    const shouldEnter = earth && (camZ <= this.ENTER_Z || driving || this._forceOpen || window._cityDropLock);
-    const shouldExit = !this._forceOpen && !window._cityDropLock
+    const cityTier = earth && (camZ <= this.ENTER_Z || driving || this._forceOpen || window._cityDropLock);
+    const nationalTier = earth && !cityTier && camZ <= this.NATIONAL_ENTER_Z && camZ > this.NATIONAL_EXIT_Z;
+    const leaveAll = !this._forceOpen && !window._cityDropLock
       && (!earth || (camZ > this.EXIT_Z && !driving));
 
-    if (shouldEnter && !this.active) this._enter(camZ);
-    else if (shouldExit && this.active) this._exit();
-    else if (this.active) this._syncView(camZ);
+    if (cityTier && !this.active) {
+      if (this._nationalActive) this._exitNational();
+      this._enter(camZ);
+    } else if (leaveAll && this.active) {
+      this._exit();
+    } else if (cityTier && this.active) {
+      this._syncView(camZ);
+    } else if (nationalTier) {
+      if (this.active) this._exit();
+      if (!this._nationalActive) this._enterNational(camZ);
+      else this._syncNational(camZ);
+    } else if (this._nationalActive && leaveAll) {
+      this._exitNational();
+    } else if (this._nationalActive && cityTier) {
+      this._exitNational();
+    }
   },
 
   _enter(camZ) {
@@ -339,14 +362,52 @@ const CityMap = {
     );
   },
 
+  _enterNational(camZ) {
+    if (!this.map) return;
+    this._nationalActive = true;
+    const el = document.getElementById('city-map');
+    const globe = document.getElementById('globe');
+    if (el) { el.classList.add('national-active'); el.classList.remove('active'); }
+    if (globe) { globe.classList.add('national-map-active'); globe.classList.remove('city-map-active'); }
+    document.body.classList.add('national-map-active');
+    document.body.classList.remove('city-map-active');
+    this._applyBaseLayers();
+    const c = window._lastPos || this.globeCenterLatLng();
+    this._center = c;
+    this.map.setView([c.lat, c.lng], this.nationalLeafletZoom(camZ), { animate: false });
+    this._invalidate();
+    GlobeDeck?.setPreview?.('National · ' + (ZoomTiers?.countryHint?.() || 'region') + ' · pinch in for city');
+  },
+
+  _syncNational(camZ) {
+    const c = window._lastPos || this.globeCenterLatLng();
+    this._center = c;
+    const lz = this.nationalLeafletZoom(camZ);
+    if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
+    const cur = this.map.getCenter();
+    if (Math.abs(cur.lat - c.lat) > 0.02 || Math.abs(cur.lng - c.lng) > 0.02) {
+      this.map.panTo([c.lat, c.lng], { animate: false });
+    }
+  },
+
+  _exitNational() {
+    this._nationalActive = false;
+    const el = document.getElementById('city-map');
+    const globe = document.getElementById('globe');
+    if (el) el.classList.remove('national-active');
+    if (globe) globe.classList.remove('national-map-active');
+    document.body.classList.remove('national-map-active');
+  },
+
   _exit() {
     this.active = false;
     cityLevel = false;
     const el = document.getElementById('city-map');
     const globe = document.getElementById('globe');
-    if (el) el.classList.remove('active');
-    if (globe) globe.classList.remove('city-map-active');
+    if (el) { el.classList.remove('active'); el.classList.remove('national-active'); }
+    if (globe) { globe.classList.remove('city-map-active'); globe.classList.remove('national-map-active'); }
     document.body.classList.remove('city-map-active');
+    document.body.classList.remove('national-map-active');
     EarthRealism?._hudTimer && (EarthRealism._hudTimer = 0);
     const chip = document.getElementById('city-life-chip');
     if (chip) chip.classList.remove('open');

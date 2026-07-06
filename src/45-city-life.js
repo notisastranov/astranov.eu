@@ -26,9 +26,9 @@ const CityLife = {
 
   ensureEarthView() {
     if (CosmicZoom) CosmicZoom.level = 'earth';
-    ZoomTiers?.goTo?.('city', false);
-    CosmicZoom?.update?.(this.CITY_ZOOM, { tier: 'city', label: 'CITY', cosmic: 'earth' });
-    cityLevel = true;
+    ZoomTiers?.goTo?.('national', false);
+    CosmicZoom?.update?.(GlobeControl?.Z?.national || 1.82, { tier: 'national', label: 'NATIONAL', cosmic: 'earth' });
+    cityLevel = false;
   },
 
   async flyToCity(lat, lng, label) {
@@ -63,6 +63,14 @@ const CityLife = {
     this._lastDrop = { lat: pos.lat, lng: pos.lng, t: Date.now() };
 
     try {
+      GlobeDeck?.setMapStatus('National view…');
+      ZoomTiers?.goTo?.('national', true);
+      CityMap?.onCamera?.(GlobeControl?.Z?.national || 1.82, 'earth');
+      if (!opts.immediate) {
+        GlobeDeck?.setPreview?.('Atmosphere lock… descending toward the surface.');
+        await new Promise(r => setTimeout(r, 420));
+      }
+      ZoomTiers?.goTo?.('city', true);
       GlobeDeck?.setMapStatus('Opening city map…');
       const opened = await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
       if (!opened) {

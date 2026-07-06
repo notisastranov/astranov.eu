@@ -445,7 +445,7 @@ const MapDepict = {
     this.action('location', { lat: u.lat, lng: u.lng, detail: 'εσύ · αναζήτηση' });
     const cityZ = GlobeControl?.Z?.city || 1.38;
     const z = zoom != null && zoom <= cityZ ? zoom : (GlobeControl?.Z?.national || 1.82);
-    if (ZoomTiers && zoom == null) ZoomTiers.goTo('global', true);
+    if (ZoomTiers && zoom == null) ZoomTiers.goTo('national', true);
     const fp = latLngToPos(u.lat, u.lng, 1.04);
     if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(fp.x, fp.y, fp.z), z);
     else focusOnGlobePoint(new THREE.Vector3(fp.x, fp.y, fp.z), z);

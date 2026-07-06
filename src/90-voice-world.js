@@ -740,15 +740,17 @@ function placeMe(lat, lng, opts) {
     MapDepict.action('location', { lat, lng, detail: me ? me.name : 'You' });
   }
   if (shouldFly && typeof flyToPoint === 'function') {
-    const gz = GlobeControl?.Z?.global || 2.55;
-    const nz = GlobeControl?.Z?.national || 1.82;
     const cz = CityLife?.CITY_ZOOM || GlobeControl?.Z?.city || 1.38;
-    const z = opts.zoom ?? (opts.cityDrop ? cz : gz);
+    const nz = GlobeControl?.Z?.national || 1.82;
+    const z = opts.zoom ?? (opts.cityDrop ? cz : nz);
+    if (ZoomTiers && !opts.cityDrop) ZoomTiers.goTo('national', true);
+    else if (ZoomTiers && opts.cityDrop) ZoomTiers.goTo('city', true);
     flyToPoint(new THREE.Vector3(pos.x, pos.y, pos.z), z);
     cityLevel = !!opts.cityDrop && z <= (GlobeControl?.Z?.regional || 1.65);
     GlobeControl?.noteAutoFly?.();
     CosmicZoom?.update?.(z);
-    if (opts.cityDrop && !window._globeFly) CityMap?.onCamera?.(z, 'earth');
+    CityMap?.onCamera?.(z, 'earth');
+    if (!window._globeFly) ZoomTiers?.syncFromCamZ?.(z, false);
   }
   if (!quiet) FieldBrain?.pulse('location', 'locate me', { role: 'client' });
   AstranovPresence?.onMove?.(lat, lng);
@@ -758,7 +760,7 @@ function locateMe() {
   GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
   GlobeDeck?.setMapStatus('Locating your city…');
   GlobeControl?.engageFollow?.('locate');
-  ACIControl?.reply('Locating — city map opening…');
+  ACIControl?.reply('Locating — national view first · pinch in for city map…');
   if (!navigator.geolocation) {
     enterCityView?.(null, null, { openShops: false });
     return;

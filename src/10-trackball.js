@@ -67,12 +67,17 @@ function registerTap(clientX, clientY) {
 }
 
 function zoomBy(delta) {
+  if (ZoomTiers && delta > 0 && (CityMap?.active || CityMap?._nationalActive)) {
+    ZoomTiers.stepOut();
+    return;
+  }
   const factor = Math.exp((delta || 0) * ZOOM_SMOOTH);
   const next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, camera.position.z * factor));
   camera.position.z = next;
   camera.lookAt(0, 0, 0);
   CosmicZoom.update(camera.position.z);
   CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
+  ZoomTiers?.syncFromCamZ?.(camera.position.z, false);
 }
 
 function zoomAt(clientX, clientY, delta, opts) {
@@ -339,7 +344,8 @@ function tickGlobeFly() {
       if (i >= 0) ZoomTiers._index = i;
       ZoomTiers._apply(ZoomTiers.current());
     } else {
-      cityLevel = camera.position.z <= 1.55;
+      ZoomTiers?.syncFromCamZ?.(camera.position.z, false);
+      cityLevel = camera.position.z <= (CityMap?.ENTER_Z ?? 1.34);
       CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
     }
     try { done?.(); } catch (_) {}
