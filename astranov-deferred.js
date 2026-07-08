@@ -3995,35 +3995,7 @@ const CelestialNav = {
   },
 
   renderGuideHtml(camZ) {
-    if (!this.isGlobalNavView(camZ)) return '';
-    const sky = this.summary();
-    const names = sky.sets.map(s => s.short || s.name).join(' · ') || 'none above horizon yet';
-    let html = '<div class="cg-title">Celestial navigation · your sky</div>';
-    html += '<div class="cg-item"><b>Sun</b> — live day/night terminator on globe</div>';
-    html += '<div class="cg-item"><b>Visible</b> — ' + names + '</div>';
-    if (sky.obs?.lat != null) {
-      html += '<div class="cg-item"><b>Observer</b> — ' + sky.obs.lat.toFixed(2) + '° · ' + sky.obs.lng.toFixed(2) + '°';
-      if (!userLocated) html += ' <i>(locate for your position)</i>';
-      html += '</div>';
-    }
-    if (sky.obs.lat >= 5) {
-      const pol = sky.stars.Polaris;
-      if (pol?.visible) {
-        html += '<div class="cg-item"><b>Polaris</b> — ' + pol.bearing + ' · alt ' + pol.alt.toFixed(0) + '° ≈ latitude</div>';
-      }
-    }
-    if (sky.obs.lat < 5) {
-      const crux = sky.sets.find(s => s.id === 'cru');
-      if (crux) html += '<div class="cg-item"><b>Southern Cross</b> — long axis → south · ship heading reference</div>';
-    }
-    sky.navStars.slice(0, 4).forEach(s => {
-      const tip = s.label || s.name;
-      html += '<div class="cg-item"><b>' + tip + '</b> — ' + s.bearing + ' · alt ' + s.alt.toFixed(0) + '°</div>';
-    });
-    const uma = sky.sets.find(s => s.id === 'uma');
-    if (uma) html += '<div class="cg-item"><i>Big Dipper bowl → outer lip stars point to Polaris (north)</i></div>';
-    html += '<div class="cg-item"><i>CLI: stars · constellations · nav</i></div>';
-    return html;
+    return '';
   },
 
   printReport() {
