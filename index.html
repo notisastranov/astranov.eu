@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260708180000" />
+<meta name="astranov-build" content="20260708181500" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -7258,6 +7258,96 @@ const MapPins = {
 };
 window.MapPins = MapPins;
 
+// === MAP OVERLAY DISMISS — tap map outside any panel → close it ===
+const MapOverlayDismiss = {
+  PANEL_IDS: [
+    'profile-site-panel',
+    'globe-entity-hud',
+    'map-comms-contact',
+    'map-comms-cloud',
+    'astranov-auth-modal',
+    'coders-hub-panel',
+    'astranov-site-shell',
+  ],
+  STAGE_IDS: [
+    'vendor-menu',
+    'globe-super-add',
+    'globe-youtube',
+    'sat-radio',
+    'node-batch',
+    'cli-hub-panel',
+  ],
+
+  init() {
+    if (this._bound) return;
+    this._bound = true;
+    document.addEventListener('click', (e) => this._onDocClick(e), true);
+  },
+
+  _isOpen(el) {
+    if (!el) return false;
+    return el.classList.contains('open') || el.classList.contains('deck-active');
+  },
+
+  anyOpen() {
+    return this.PANEL_IDS.some(id => this._isOpen(document.getElementById(id)))
+      || this.STAGE_IDS.some(id => this._isOpen(document.getElementById(id)));
+  },
+
+  isInsidePanel(target) {
+    if (!target?.closest) return false;
+    const roots = [...this.PANEL_IDS, ...this.STAGE_IDS, 'globe-deck', 'globe-deck-stage', 'globe-deck-body', 'globe-deck-input-row', 'auth-sheet'];
+    return roots.some(sel => target.closest('#' + sel) || target.closest('.' + sel));
+  },
+
+  isMapTarget(target) {
+    if (!target) return false;
+    if (target.closest('#globe')) return true;
+    if (target.closest('#city-map')) return true;
+    if (target.closest('#globe-entity-labels .ge-label')) return true;
+    if (target.closest('#zoom-label') || target.closest('#cosmic-guide')) return true;
+    return false;
+  },
+
+  closeAll() {
+    MapPlaceMenu?.close?.();
+    ProfileSite?.close?.();
+    Auth?.closeLoginModal?.();
+    window.Commerce?.hideMenu?.();
+    window.SuperAdd?.hide?.();
+    window.GlobeVideo?.hide?.();
+    window.AstranovNode?.hidePanel?.();
+    window.PmrRadio?.hide?.();
+    window.SatRadio?.hide?.();
+    window.MapComms?.closeCloud?.();
+    document.getElementById('coders-hub-panel')?.classList.remove('open');
+    window.AstranovSiteShell?.close?.();
+    GlobeEntity?.clearSelection?.();
+    if (GlobeDeck?.activeTask) {
+      const t = GlobeDeck.activeTask;
+      if (t === 'commerce' || t === 'add' || t === 'video' || t === 'batch') GlobeDeck?.completeTask?.(t);
+    }
+  },
+
+  handleMapClick(e) {
+    if (!this.anyOpen()) return false;
+    if (this.isInsidePanel(e?.target)) return false;
+    if (!this.isMapTarget(e?.target)) return false;
+    this.closeAll();
+    return true;
+  },
+
+  _onDocClick(e) {
+    if (!this.anyOpen()) return;
+    if (this.isInsidePanel(e.target)) return;
+    if (!this.isMapTarget(e.target)) return;
+    this.closeAll();
+    e.stopPropagation();
+    e.preventDefault();
+  },
+};
+window.MapOverlayDismiss = MapOverlayDismiss;
+
 // === MAP PLACE MENU — tap globe/map · pick action (no surprise fly) ===
 const MapPlaceMenu = {
   _pin: null,
@@ -9099,6 +9189,7 @@ function globeClickTargets() {
 
 function onGlobeClick(e) {
   if (dragging) return;
+  if (MapOverlayDismiss.handleMapClick(e)) return;
   mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
@@ -9516,6 +9607,8 @@ const CityMap = {
     });
     this.map.on('click', (e) => {
       if (!this.active && !this._nationalActive) return;
+      const dom = e.originalEvent;
+      if (MapOverlayDismiss.handleMapClick(dom || { target: document.getElementById('city-map') })) return;
       MapPlaceMenu?.openAt?.(e.latlng.lat, e.latlng.lng, { source: 'City map', hint: 'What do you want to do here?' });
     });
     window.addEventListener('resize', () => {
@@ -12663,6 +12756,7 @@ CityMap.init();
 CityLife.init();
 EarthRealism.init();
 MapPins.init();
+MapOverlayDismiss.init();
 GlobeEntity.init();
 DrivingView.init();
 AiRouter.init();
