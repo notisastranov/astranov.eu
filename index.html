@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260709000000" />
+<meta name="astranov-build" content="20260709120000" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -2011,7 +2011,36 @@ const YachtMatcher = {
 };
 window.YachtMatcher = YachtMatcher;
 
-const AuditorPortal = { syncGlobe() {} };
+const AuditorPortal = {
+  open(opts) {
+    opts = opts || {};
+    const tab = opts.tab || 'company';
+    const url = 'https://auditors.astranov.eu/?tab=' + encodeURIComponent(tab) + '&from_app=1';
+    const sess = window.Auth?.session;
+    const w = window.open(url, 'astranov_auditors');
+    const bridge = () => {
+      if (!w || w.closed || !sess?.access_token) return;
+      try {
+        w.postMessage({
+          type: 'astranov-auth',
+          access_token: sess.access_token,
+          refresh_token: sess.refresh_token,
+        }, 'https://auditors.astranov.eu');
+      } catch (_) {}
+    };
+    setTimeout(bridge, 500);
+    setTimeout(bridge, 1500);
+    setTimeout(bridge, 3000);
+    GlobeDeck?.setPreview?.('📊 auditors.astranov.eu · λογιστική');
+    AciCli?.print?.('Άνοιγμα auditors.astranov.eu · καθολικό · ισολογισμός', 'ok');
+  },
+  async cli(parts) {
+    const sub = String(parts[1] || 'open').toLowerCase();
+    const tabs = { ledger: 'ledger', trial: 'trial', balance: 'balance', tax: 'tax', payroll: 'payroll', ισολογισμός: 'balance', ισοζύγιο: 'trial', καθολικό: 'ledger', λογιστική: 'company', company: 'company' };
+    this.open({ tab: tabs[sub] || 'company' });
+  },
+  syncGlobe() {},
+};
 window.AuditorPortal = AuditorPortal;
 
 const AvcJustice = { loadConstitution() {}, syncGlobe() {} };
@@ -6600,9 +6629,14 @@ const AciCoders = {
       YachtMatcher?.openBooking?.(null, { tab: 'booker' });
       return 'Opened yachts.astranov.eu Booker';
     }
-    if (/audit|invoice|accountant|λογιστ/.test(low)) {
-      AuditorPortal?.open?.({ tab: 'dashboard' });
-      return 'Opened auditors.astranov.eu';
+    if (/audit|auditor|accountant|λογιστ|λογιστή|λογιστές|ισολογισμ|ισοζύγι|καθολικ/.test(low) && /open|άνοιξε|show|δείξε|πήγαινε|go|start|^audit|^λογιστ/.test(low)) {
+      const tab = /ισολογισμ/.test(low) ? 'balance' : /ισοζύγι/.test(low) ? 'trial' : /καθολικ|ledger/.test(low) ? 'ledger' : /μισθοδοσ/.test(low) ? 'payroll' : /φόρ|tax/.test(low) ? 'tax' : 'company';
+      AuditorPortal?.open?.({ tab });
+      return 'Άνοιγμα auditors.astranov.eu · ' + tab;
+    }
+    if (/^(audit|auditors|λογιστ)/.test(low)) {
+      AuditorPortal?.open?.({ tab: 'company' });
+      return 'Άνοιγμα auditors.astranov.eu';
     }
     if (/avc|coin|ledger|justice|wallet|κρυπτο|νόμισμα/.test(low) && /balance|ledger|open|show|wallet|δείξε/.test(low)) {
       if (/open|wallet|show|δείξε/.test(low)) CoinPortal?.open?.(/ledger|transparen/.test(low) ? 'transparency' : 'wallet');
@@ -13365,6 +13399,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260709000000" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260709120000" data-astranov-deferred></script>
 </body>
 </html>
