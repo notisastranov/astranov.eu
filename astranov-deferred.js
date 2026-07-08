@@ -9547,42 +9547,76 @@ const AstranovSitesProvision = {
 window.SuperBookingProvision = AstranovSitesProvision;
 window.AstranovSitesProvision = AstranovSitesProvision;
 
-// === AVC BALANCE — live wallet chip in top CLI row ===
+// === AVC BALANCE — live wallet chip in top CLI row (1 AVC = 1 EUR · USD via live FX) ===
 const AvcBalance = {
   _btn: null,
   _timer: null,
   _last: null,
+  _fx: null,
+  _fxAt: 0,
+  EUR_USD_FALLBACK: 1.08,
 
-  format(n) {
+  formatFiat(n, symbol) {
     const v = Number(n);
-    if (!Number.isFinite(v)) return '…';
-    if (v >= 10000) return (v / 1000).toFixed(1) + 'k';
-    if (v >= 1000) return v.toFixed(0);
-    return v.toFixed(1);
+    if (!Number.isFinite(v)) return symbol + '…';
+    if (v >= 10000) return symbol + (v / 1000).toFixed(1) + 'k';
+    if (v >= 1000) return symbol + v.toFixed(0);
+    return symbol + v.toFixed(1);
   },
 
-  render(balance, guest) {
+  async fetchFx() {
+    const now = Date.now();
+    if (this._fx && now - this._fxAt < 3600000) return this._fx;
+    try {
+      const r = await fetch('https://api.frankfurter.app/latest?from=EUR&to=USD', {
+        headers: { Accept: 'application/json' },
+      });
+      if (r.ok) {
+        const data = await r.json();
+        const rate = Number(data?.rates?.USD);
+        if (rate > 0) {
+          this._fx = rate;
+          this._fxAt = now;
+          return rate;
+        }
+      }
+    } catch (_) {}
+    return this._fx || this.EUR_USD_FALLBACK;
+  },
+
+  render(balance, guest, eurUsd) {
     const btn = this._btn || document.getElementById('aci-avc');
     if (!btn) return;
     this._btn = btn;
     const isGuest = guest || !Auth?.user;
-    const amt = isGuest ? '—' : this.format(balance);
-    const emoji = btn.querySelector('.avc-emoji');
-    const amtEl = btn.querySelector('.avc-amt');
+    const avc = Number(balance || 0);
+    const fx = eurUsd || this._fx || this.EUR_USD_FALLBACK;
+    const eurTxt = isGuest ? '€—' : this.formatFiat(avc, '€');
+    const usdTxt = isGuest ? '$—' : this.formatFiat(avc * fx, '$');
+    let emoji = btn.querySelector('.avc-emoji');
+    let eurEl = btn.querySelector('.avc-eur');
+    let usdEl = btn.querySelector('.avc-usd');
+    if (!emoji || !eurEl || !usdEl) {
+      btn.innerHTML = '<span class="avc-emoji">◎</span><span class="avc-fiat"><span class="avc-eur"></span><span class="avc-usd"></span></span>';
+      emoji = btn.querySelector('.avc-emoji');
+      eurEl = btn.querySelector('.avc-eur');
+      usdEl = btn.querySelector('.avc-usd');
+    }
     if (emoji) emoji.textContent = '◎';
-    if (amtEl) amtEl.textContent = amt;
-    else btn.innerHTML = '<span class="avc-emoji">◎</span><span class="avc-amt">' + amt + '</span>';
+    if (eurEl) eurEl.textContent = eurTxt;
+    if (usdEl) usdEl.textContent = usdTxt;
     btn.title = isGuest
-      ? 'AVC wallet · sign in to see balance'
-      : 'AVC balance · ' + Number(balance || 0).toFixed(2) + ' AVC (= EUR) · tap for wallet';
+      ? 'AVC wallet · sign in to see € / $ balance'
+      : avc.toFixed(2) + ' AVC · €' + avc.toFixed(2) + ' · $' + (avc * fx).toFixed(2)
+        + ' · 1 AVC = 1 EUR · USD @ ' + fx.toFixed(4) + ' · tap for wallet';
     btn.classList.toggle('avc-guest', isGuest);
     btn.classList.toggle('avc-loaded', !isGuest);
-    if (!isGuest && this._last != null && balance != null && Math.abs(Number(balance) - this._last) > 0.001) {
+    if (!isGuest && this._last != null && balance != null && Math.abs(avc - this._last) > 0.001) {
       btn.classList.add('avc-changed');
       clearTimeout(btn._chgT);
       btn._chgT = setTimeout(() => btn.classList.remove('avc-changed'), 1200);
     }
-    if (!isGuest && balance != null) this._last = Number(balance);
+    if (!isGuest && balance != null) this._last = avc;
   },
 
   async refresh(opts) {
@@ -9591,8 +9625,11 @@ const AvcBalance = {
       this.render(null, true);
       return 0;
     }
-    const bal = window.Commerce?.fetchBalance ? await window.Commerce.fetchBalance() : 0;
-    this.render(bal, false);
+    const [bal, fx] = await Promise.all([
+      window.Commerce?.fetchBalance ? window.Commerce.fetchBalance() : Promise.resolve(0),
+      this.fetchFx(),
+    ]);
+    this.render(bal, false, fx);
     return bal;
   },
 
@@ -9629,8 +9666,10 @@ if (window.CoinPortal) {
         return;
       }
       const bal = await AvcBalance.refresh();
-      AciCli?.print?.('◎ AVC balance · ' + Number(bal || 0).toFixed(2) + ' AVC (= EUR)', 'ok');
-      GlobeDeck?.setPreview?.('◎ ' + Number(bal || 0).toFixed(2) + ' AVC');
+      const fx = await AvcBalance.fetchFx();
+      const eur = Number(bal || 0);
+      AciCli?.print?.('◎ ' + eur.toFixed(2) + ' AVC · €' + eur.toFixed(2) + ' · $' + (eur * fx).toFixed(2), 'ok');
+      GlobeDeck?.setPreview?.('◎ €' + eur.toFixed(2) + ' · $' + (eur * fx).toFixed(2));
     },
     syncGlobe() {},
   });
