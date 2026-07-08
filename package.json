@@ -5,14 +5,11 @@
   "main": "sw.js",
   "scripts": {
     "test": "node scripts/user-scenarios.mjs",
-    "test:prod": "node scripts/prod-e2e.mjs",
-    "verify:prod": "node scripts/prod-verify.mjs",
-    "test:matrix": "node scripts/million-cycles.mjs --cycles 500 --quick",
-    "test:million": "node scripts/million-cycles.mjs --cycles 3000000 --turbo --workers 1 --batch 48 --max-ms 21600000",
-    "test:million:continue": "node scripts/million-cycles.mjs --continue --cycles 3000000 --turbo --workers 1 --batch 48 --max-ms 21600000",
-    "verify": "node scripts/verify-all.mjs",
     "assemble": "node scripts/assemble.mjs",
-    "push:both": "node scripts/push-both.mjs"
+    "bootstrap": "node scripts/bootstrap-index.mjs",
+    "warm-auth": "node scripts/warm-github-auth.mjs",
+    "deploy": "node scripts/warm-github-auth.mjs && node scripts/owner-push.mjs",
+    "push": "node scripts/warm-github-auth.mjs && node scripts/owner-push.mjs"
   },
   "repository": {
     "type": "git",
