@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260709120000" />
+<meta name="astranov-build" content="20260708200000" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -2015,24 +2015,41 @@ const AuditorPortal = {
   open(opts) {
     opts = opts || {};
     const tab = opts.tab || 'company';
-    const url = 'https://auditors.astranov.eu/?tab=' + encodeURIComponent(tab) + '&from_app=1';
+    window.AstranovSiteShell?.close?.();
     const sess = window.Auth?.session;
-    const w = window.open(url, 'astranov_auditors');
+    if (!sess?.access_token) {
+      AciCli?.print?.('Συνδεθείτε πρώτα στο Astranov — μετά Λογιστές', 'warn');
+      Auth?.openLoginModal?.('Σύνδεση για auditors.astranov.eu');
+      return;
+    }
+    const url = 'https://auditors.astranov.eu/?tab=' + encodeURIComponent(tab) + '&from_app=1';
+    let w = null;
+    try { w = window.open(url, 'astranov_auditors'); } catch (_) {}
+    if (!w) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = 'astranov_auditors';
+      a.rel = 'noopener';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
     const bridge = () => {
-      if (!w || w.closed || !sess?.access_token) return;
+      const s = window.Auth?.session;
+      if (!s?.access_token) return;
+      const payload = {
+        type: 'astranov-auth',
+        access_token: s.access_token,
+        refresh_token: s.refresh_token,
+      };
       try {
-        w.postMessage({
-          type: 'astranov-auth',
-          access_token: sess.access_token,
-          refresh_token: sess.refresh_token,
-        }, 'https://auditors.astranov.eu');
+        if (w && !w.closed) w.postMessage(payload, 'https://auditors.astranov.eu');
       } catch (_) {}
     };
-    setTimeout(bridge, 500);
-    setTimeout(bridge, 1500);
-    setTimeout(bridge, 3000);
+    [400, 900, 1500, 3000, 5000, 8000].forEach((ms) => setTimeout(bridge, ms));
     GlobeDeck?.setPreview?.('📊 auditors.astranov.eu · λογιστική');
-    AciCli?.print?.('Άνοιγμα auditors.astranov.eu · καθολικό · ισολογισμός', 'ok');
+    AciCli?.print?.('Άνοιγμα auditors.astranov.eu · πλήρης οθόνη · καθολικό Τ', 'ok');
   },
   async cli(parts) {
     const sub = String(parts[1] || 'open').toLowerCase();
@@ -3968,8 +3985,15 @@ const Auth = {
 
   _onChildMessage(e) {
     if (!e.data || e.data.type !== 'astranov-auth-request') return;
+    const ok = !e.origin || e.origin.endsWith('.astranov.eu') || e.origin === 'https://astranov.eu';
+    if (!ok) return;
     const payload = this.handoffPayload();
-    if (payload && e.source) e.source.postMessage(payload, '*');
+    if (payload && e.source) {
+      const target = (e.origin && e.origin.startsWith('http')) ? e.origin : '*';
+      try { e.source.postMessage(payload, target); } catch (_) {
+        try { e.source.postMessage(payload, '*'); } catch (_2) {}
+      }
+    }
   },
 
   async isSiteOwner(siteId) {
