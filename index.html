@@ -2726,7 +2726,7 @@ const ArcangeloDialect = {
   _greeklish: [
     /\bela\b/i, /\bέλα\b/i, /\bti\s+thes\b/i, /\bτι\s+θες\b/i, /\bpame\b/i, /\bπάμε\b/i,
     /\bpes\s+mou\b/i, /\bπες\s+μου\b/i, /\bdouleia\b/i, /\bδουλειά\b/i,
-    /\bthelo\b/i, /\bθέλω\b/i, /\bkatalava\b/i, /\bκόντ��ρ/i,
+    /\bthelo\b/i, /\bθέλω\b/i, /\bkatalava\b/i, /\bκόντερ/i,
   ],
   _greek: /[\u0370-\u03FF]/,
 
@@ -3643,7 +3643,7 @@ const Auth = {
         }
       }
       if (chip && !this.isOwner) {
-        chip.textContent = name + (this._authDegraded ? ' · ⟳' : ' �� ●');
+        chip.textContent = name + (this._authDegraded ? ' · ⟳' : ' · ●');
         chip.style.color = this._authDegraded ? '#ffaa44' : '';
       }
       AstranovSession?._applyIdentity?.();
@@ -5918,7 +5918,7 @@ const AciCoders = {
   isPing(m) {
     const s = String(m || '').trim();
     if (!s || s.length > 80) return false;
-    return /^(are you there|you there|hello|hi|hey|ping|online|listening|composer|grok|coders|γεια|είσαι|ακούς|π��ρών|εδώ|μου ακούς)/i.test(s)
+    return /^(are you there|you there|hello|hi|hey|ping|online|listening|composer|grok|coders|γεια|είσαι|ακούς|παρών|εδώ|μου ακούς)/i.test(s)
       || /^(composer|grok|coders)\s+(are you there|online|there)/i.test(s);
   },
 
@@ -6674,7 +6674,7 @@ const ACIControl = {
       say('Held. Say resume when ready.');
       return { executed: false, action: 'held' };
     }
-    if (/^(stop|στα��άτα|σταματα|pause|διακοπή|quiet|σιωπή|mute)/.test(low)) {
+    if (/^(stop|σταμάτα|σταματα|pause|διακοπή|quiet|σιωπή|mute)/.test(low)) {
       userIntervene();
       return { executed: true, action: 'stop' };
     }
@@ -6722,7 +6722,7 @@ const ACIControl = {
       return { executed: true };
     }
     if (/^(logout|sign out|αποσύνδεση)$/.test(low)) { Auth.signOut(); return { executed: true }; }
-    if (/telecom|sat radio|satellite radio|ασύρματο��/.test(low)) { window.Comms?.startTelecomms?.(); return { executed: true }; }
+    if (/telecom|sat radio|satellite radio|ασύρματος/.test(low)) { window.Comms?.startTelecomms?.(); return { executed: true }; }
     if (/^order\s+(status|track|list|fly|last|active)\b/i.test(low)) {
       await window.OrderTracking?.cli?.(text.trim().split(/\s+/));
       return { executed: true, action: 'order_track' };
@@ -9358,7 +9358,7 @@ const CityMap = {
     if (this._demoDrivers.length) return;
     this._demoDrivers = [
       { id: 'demo1', display_name: 'Nikos · delivery', field_lat: u.lat + 0.004, field_lng: u.lng - 0.003 },
-      { id: 'demo2', display_name: 'Elena �� courier', field_lat: u.lat - 0.003, field_lng: u.lng + 0.005 },
+      { id: 'demo2', display_name: 'Elena · courier', field_lat: u.lat - 0.003, field_lng: u.lng + 0.005 },
       { id: 'demo3', display_name: 'Alex · ride', field_lat: u.lat + 0.002, field_lng: u.lng + 0.004 },
     ];
   },
