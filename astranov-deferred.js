@@ -1449,6 +1449,131 @@ const ORDER_ITEM_ALIASES = [
 
 const TEAM_WIN_ITEM_IDS = new Set(['pita', 'beer', 'cigarettes', 'burger']);
 
+// === ASTRANOV CITY SHOP — virtual under-construction shop at each login city center ===
+const AstranovCityShop = {
+  LOGO: '/icon.svg',
+  _cache: new Map(),
+  _current: null,
+
+  _tags(v) {
+    let t = v?.tags;
+    if (typeof t === 'string') { try { t = JSON.parse(t); } catch { t = {}; } }
+    return (t && typeof t === 'object') ? t : {};
+  },
+
+  cityKey(city, lat, lng) {
+    const c = String(city || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    return c || ('loc-' + lat.toFixed(2) + '-' + lng.toFixed(2));
+  },
+
+  async resolveCityCenter(lat, lng) {
+    const probe = `${lat.toFixed(3)}_${lng.toFixed(3)}`;
+    if (this._cache.has(probe)) return this._cache.get(probe);
+    let out = null;
+    try {
+      const url = 'https://nominatim.openstreetmap.org/reverse?lat=' + encodeURIComponent(lat)
+        + '&lon=' + encodeURIComponent(lng) + '&format=json&addressdetails=1&zoom=10';
+      const r = await fetch(url, {
+        headers: { Accept: 'application/json', 'User-Agent': 'Astranov/1.0 (astranov.eu; city-shop)' },
+      });
+      if (r.ok) {
+        const data = await r.json();
+        const addr = data.address || {};
+        const city = addr.city || addr.town || addr.village || addr.municipality || addr.county || data.name || 'Your city';
+        let cLat = lat;
+        let cLng = lng;
+        const bb = data.boundingbox;
+        if (bb && bb.length === 4) {
+          cLat = (parseFloat(bb[0]) + parseFloat(bb[1])) / 2;
+          cLng = (parseFloat(bb[2]) + parseFloat(bb[3])) / 2;
+        }
+        out = { lat: cLat, lng: cLng, city, cityKey: this.cityKey(city, cLat, cLng) };
+      }
+    } catch (_) {}
+    if (!out) out = { lat, lng, city: 'Your city', cityKey: this.cityKey('', lat, lng) };
+    this._cache.set(probe, out);
+    return out;
+  },
+
+  buildVendor(center) {
+    const city = center.city || 'Your city';
+    return {
+      id: 'astranov-city-' + center.cityKey,
+      name: 'Astranov Shop',
+      emoji: '🏬',
+      lat: center.lat,
+      lng: center.lng,
+      category: 'field_shop',
+      is_active: true,
+      delivery_enabled: false,
+      under_construction: true,
+      tags: {
+        profile_url: this.LOGO,
+        cover_url: this.LOGO,
+        about: 'Under Construction — Astranov marketplace opening soon in ' + city + '.',
+        construction: true,
+        city,
+      },
+      items: [],
+    };
+  },
+
+  ensureInVendorList() {
+    if (!this._current || !window.Commerce) return;
+    const v = this._current;
+    Commerce.vendors = (Commerce.vendors || []).filter(x => !String(x.id).startsWith('astranov-city-'));
+    Commerce.vendors.unshift(v);
+  },
+
+  injectCurrent() {
+    if (!this._current) return;
+    this.ensureInVendorList();
+    Commerce?.showOnGlobe?.();
+    CityMap?.syncMapPins?.();
+  },
+
+  async placeForUser(lat, lng, opts) {
+    opts = opts || {};
+    if (lat == null || lng == null) return null;
+    const center = await this.resolveCityCenter(lat, lng);
+    const prevKey = this._current?.id;
+    const vendor = this.buildVendor(center);
+    this._current = vendor;
+    try {
+      localStorage.setItem('astranov_city_shop_v1', JSON.stringify({
+        lat: center.lat, lng: center.lng, city: center.city, cityKey: center.cityKey, placedAt: Date.now(),
+      }));
+    } catch (_) {}
+    this.ensureInVendorList();
+    Commerce?.showOnGlobe?.();
+    CityMap?.syncMapPins?.();
+    const cityLabel = center.city || 'city center';
+    MapDepict?.pulse?.(center.lat, center.lng, 0x1a6fd4, 'Astranov Shop · Under Construction · ' + cityLabel, 16000);
+    GlobeDeck?.setPreview?.('🏬 Astranov Shop · Under Construction · ' + cityLabel);
+    if (opts.fly && Commerce?.flyToVendor) Commerce.flyToVendor(vendor);
+    if (prevKey !== vendor.id) {
+      AciCli?.print?.('Astranov Shop placed at ' + cityLabel + ' center · under construction', 'ok');
+    }
+    return vendor;
+  },
+
+  loadPersisted() {
+    try {
+      const raw = localStorage.getItem('astranov_city_shop_v1');
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data?.lat == null) return;
+      this._current = this.buildVendor(data);
+      this.ensureInVendorList();
+    } catch (_) {}
+  },
+
+  isConstructionVendor(v) {
+    return !!(v?.under_construction || this._tags(v).construction);
+  },
+};
+window.AstranovCityShop = AstranovCityShop;
+
 const DEMO_VENDORS = [
   { id: 'demo-pitogyra', name: 'Πιτογύρα Rhodes', emoji: '🥙', lat: 36.4412, lng: 28.2225, category: 'food', is_active: true, delivery_enabled: true, items: [{ name: 'Πιτογύρα χοιρινό', price: 3.5 }, { name: 'Μπύρα Alpha', price: 2.5 }, { name: 'Τσιγάρα Marlboro', price: 5.5 }, { name: 'Burger classic', price: 6 }] },
   { id: 'demo-kafeneio', name: 'Kafeneio Astranov', emoji: '☕', lat: 36.4358, lng: 28.2188, category: 'cafe', is_active: true, delivery_enabled: true, items: [{ name: 'Φραπέ', price: 2.2 }, { name: 'Μπύρα Fix', price: 2.8 }, { name: 'Νερό 500ml', price: 0.5 }] },
@@ -1523,8 +1648,13 @@ const Commerce = {
     } catch { this.vendors = []; }
     if (!this.vendors.length) this.vendors = DEMO_VENDORS.map(v => ({ ...v }));
     else this.vendors = this.vendors.map(v => this._normalizeVendor(v));
+    AstranovCityShop?.ensureInVendorList?.();
     const u = this.userLatLng();
-    this.vendors.sort((a, b) => this.haversineKm(u.lat, u.lng, a.lat, a.lng) - this.haversineKm(u.lat, u.lng, b.lat, b.lng));
+    this.vendors.sort((a, b) => {
+      if (AstranovCityShop?.isConstructionVendor?.(a)) return -1;
+      if (AstranovCityShop?.isConstructionVendor?.(b)) return 1;
+      return this.haversineKm(u.lat, u.lng, a.lat, a.lng) - this.haversineKm(u.lat, u.lng, b.lat, b.lng);
+    });
     this.showOnGlobe();
     return this.vendors;
   },
@@ -1984,15 +2114,53 @@ const Commerce = {
     rows.slice(0, 24).forEach(v => {
       const km = this.haversineKm(u.lat, u.lng, v.lat, v.lng).toFixed(1);
       const hasMenu = this.hasMenu(v);
+      const under = AstranovCityShop?.isConstructionVendor?.(v);
+      const logo = window.MapPins?.vendorLogo?.(v) || '';
+      const icon = logo
+        ? '<img class="vm-vendor-logo" src="' + logo.replace(/"/g, '') + '" alt="" />'
+        : '<span style="font-size:22px">' + vendorIcon(v) + '</span>';
       const row = document.createElement('div');
-      row.className = 'vm-vendor';
-      row.innerHTML = '<span style="font-size:22px">' + vendorIcon(v) + '</span><div><div style="color:#3d9eff;font-weight:600">' + v.name + '</div><div style="color:#9ab;font-size:10px">' + (v.category || 'shop') + ' · ' + km + ' km' + (hasMenu ? '' : ' · <span style="color:#ffd633">χωρίς μενού</span>') + '</div></div>';
+      row.className = 'vm-vendor' + (under ? ' vm-vendor-construction' : '');
+      const sub = under
+        ? '<span style="color:#ffd633">🚧 Under Construction · ' + (AstranovCityShop._tags(v).city || 'city center') + '</span>'
+        : (v.category || 'shop') + ' · ' + km + ' km' + (hasMenu ? '' : ' · <span style="color:#ffd633">χωρίς μενού</span>');
+      row.innerHTML = icon + '<div><div style="color:#3d9eff;font-weight:600">' + v.name + '</div><div style="color:#9ab;font-size:10px">' + sub + '</div></div>';
       row.onclick = () => this.openVendor(v);
       list.appendChild(row);
     });
     if (rows[0]) this.flyToVendor(rows[0]);
     await this.renderDriverPick();
     ACIControl?.reply('Tap vendor on globe or list — ' + rows.length + ' shops · pick driver above');
+  },
+
+  _renderUnderConstruction(vendor) {
+    const tags = AstranovCityShop?._tags?.(vendor) || {};
+    const city = tags.city || 'your city';
+    const logo = tags.profile_url || AstranovCityShop?.LOGO || '/icon.svg';
+    const box = document.getElementById('vm-items');
+    const empty = document.getElementById('vm-empty');
+    const placeBtn = document.getElementById('vm-place');
+    const requestBtn = document.getElementById('vm-request');
+    const drivers = document.getElementById('vm-drivers-pick');
+    if (placeBtn) placeBtn.style.display = 'none';
+    if (requestBtn) requestBtn.style.display = 'none';
+    if (drivers) { drivers.style.display = 'none'; drivers.innerHTML = ''; }
+    if (empty) empty.style.display = 'none';
+    if (box) {
+      box.innerHTML = ''
+        + '<div class="vm-construction">'
+        + '<div class="vm-construction-cover" style="background-image:url(' + logo + ')"></div>'
+        + '<img class="vm-construction-logo" src="' + logo + '" alt="Astranov" />'
+        + '<h3>Astranov Shop</h3>'
+        + '<p class="vm-construction-badge">🚧 Under Construction</p>'
+        + '<p class="vm-construction-city">City center · ' + city + '</p>'
+        + '<p class="vm-construction-about">' + (tags.about || 'Opening soon — marketplace, delivery &amp; local vendors.') + '</p>'
+        + '</div>';
+    }
+    const title = document.getElementById('vm-title');
+    if (title) title.textContent = 'Astranov Shop · Under Construction';
+    GlobeDeck?.setMapStatus('🚧 Astranov Shop · Under Construction · ' + city);
+    ACIControl?.reply('Astranov Shop is under construction at the center of ' + city + ' — opening soon.');
   },
 
   async openVendor(vendor) {
@@ -2009,6 +2177,10 @@ const Commerce = {
     if (detail) detail.style.display = 'block';
     const compare = document.getElementById('vm-compare');
     if (compare) compare.style.display = 'none';
+    if (AstranovCityShop?.isConstructionVendor?.(vendor)) {
+      this._renderUnderConstruction(vendor);
+      return;
+    }
     const title = document.getElementById('vm-title');
     if (title) title.textContent = vendorIcon(vendor) + ' ' + vendor.name;
     this.renderCart();
@@ -9902,8 +10074,14 @@ const DeferredBoot = {
           MapDepict?.setHud?.('Business map', (c.vendors?.length || 0) + ' vendors · tap shop · order via deck');
         }).catch(() => {});
       };
-      bootCommerce();
-      setTimeout(bootCommerce, sl?.tier === 'slumber' ? 800 : 200);
+      const boot = () => {
+        bootCommerce();
+        AstranovCityShop?.loadPersisted?.();
+        const u = window._lastPos;
+        if (u?.lat != null) void AstranovCityShop?.placeForUser?.(u.lat, u.lng);
+      };
+      boot();
+      setTimeout(boot, sl?.tier === 'slumber' ? 800 : 200);
     }
   },
 };
