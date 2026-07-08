@@ -9407,6 +9407,7 @@ const DeferredBoot = {
     go('lab_orbs', () => window.LabOrbs?.init?.());
     go('cli', () => window.SuperCli?.initBrain?.());
     go('globe', () => window.TelemachosPilot?.init?.());
+    go('globe', () => window.DrivingView?.init?.());
 
     if (sl?.allows('commerce')) {
       const bootCommerce = () => {
