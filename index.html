@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260706120014" />
+<meta name="astranov-build" content="20260708120000" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -2615,20 +2615,11 @@ const AstranovLogo = {
     if (micOn) this.setMicActive(true);
     else this.setMicActive(false);
     this.setAiActive(aiOn);
-
-    if (micOn && aiOn) {
-      const micBars = this._readBars(this._micAnalyser, 0.2);
-      const aiBars = this._readBars(this._aiAnalyser, 0.55);
-      this._drawDual(micBars, aiBars);
-      if (el) el.classList.add('voice-mic', 'voice-ai');
-    } else if (aiOn) {
-      this._draw(this._readBars(this._aiAnalyser, 0.5 + 0.2 * Math.sin(performance.now() * 0.01)), 'rgba(0,230,110,0.95)');
-    } else if (micOn) {
-      this._draw(this._readBars(this._micAnalyser, 0.25 + 0.15 * Math.sin(performance.now() * 0.012)), 'rgba(255,60,60,0.95)');
-    } else if (this._ctx && this._canvas) {
+    if (this._ctx && this._canvas) {
       this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
     }
-
+    if (el) el.classList.toggle('voice-mic', !!micOn);
+    if (el) el.classList.toggle('voice-ai', !!aiOn);
     this._raf = requestAnimationFrame(() => this._loop());
   },
 
@@ -2726,7 +2717,7 @@ const ArcangeloDialect = {
   _greeklish: [
     /\bela\b/i, /\bέλα\b/i, /\bti\s+thes\b/i, /\bτι\s+θες\b/i, /\bpame\b/i, /\bπάμε\b/i,
     /\bpes\s+mou\b/i, /\bπες\s+μου\b/i, /\bdouleia\b/i, /\bδουλειά\b/i,
-    /\bthelo\b/i, /\bθέλω\b/i, /\bkatalava\b/i, /\bκόντερ/i,
+    /\bthelo\b/i, /\bθέλω\b/i, /\bkatalava\b/i, /\bκόντ��ρ/i,
   ],
   _greek: /[\u0370-\u03FF]/,
 
@@ -3643,7 +3634,7 @@ const Auth = {
         }
       }
       if (chip && !this.isOwner) {
-        chip.textContent = name + (this._authDegraded ? ' · ⟳' : ' · ●');
+        chip.textContent = name + (this._authDegraded ? ' · ⟳' : ' �� ●');
         chip.style.color = this._authDegraded ? '#ffaa44' : '';
       }
       AstranovSession?._applyIdentity?.();
@@ -5918,7 +5909,7 @@ const AciCoders = {
   isPing(m) {
     const s = String(m || '').trim();
     if (!s || s.length > 80) return false;
-    return /^(are you there|you there|hello|hi|hey|ping|online|listening|composer|grok|coders|γεια|είσαι|ακούς|παρών|εδώ|μου ακούς)/i.test(s)
+    return /^(are you there|you there|hello|hi|hey|ping|online|listening|composer|grok|coders|γεια|είσαι|ακούς|π��ρών|εδώ|μου ακούς)/i.test(s)
       || /^(composer|grok|coders)\s+(are you there|online|there)/i.test(s);
   },
 
@@ -6674,7 +6665,7 @@ const ACIControl = {
       say('Held. Say resume when ready.');
       return { executed: false, action: 'held' };
     }
-    if (/^(stop|σταμάτα|σταματα|pause|διακοπή|quiet|σιωπή|mute)/.test(low)) {
+    if (/^(stop|στα��άτα|σταματα|pause|διακοπή|quiet|σιωπή|mute)/.test(low)) {
       userIntervene();
       return { executed: true, action: 'stop' };
     }
@@ -6722,7 +6713,7 @@ const ACIControl = {
       return { executed: true };
     }
     if (/^(logout|sign out|αποσύνδεση)$/.test(low)) { Auth.signOut(); return { executed: true }; }
-    if (/telecom|sat radio|satellite radio|ασύρματος/.test(low)) { window.Comms?.startTelecomms?.(); return { executed: true }; }
+    if (/telecom|sat radio|satellite radio|ασύρματο��/.test(low)) { window.Comms?.startTelecomms?.(); return { executed: true }; }
     if (/^order\s+(status|track|list|fly|last|active)\b/i.test(low)) {
       await window.OrderTracking?.cli?.(text.trim().split(/\s+/));
       return { executed: true, action: 'order_track' };
@@ -7075,6 +7066,14 @@ const GlobeEntity = {
     const z = camera.position.z;
     const zoomNear = Math.max(0, Math.min(1, (2.45 - z) / 1.35));
     const u = entity.urgency;
+    const business = ['vendor', 'driver', 'friend', 'order', 'pilot', 'me'].includes(entity.type);
+    if (business) {
+      const behind = this._project(world).behind;
+      const show = !behind && (dot > 0.42 || z < 2.4);
+      const flash = u >= 3 && dot > 0.35;
+      const glow = u >= 2 || (entity.type === 'vendor' && z < 2.8);
+      return { show, flash, glow, dot, zoomNear, world };
+    }
     const thresh = 0.94 - u * 0.12 - zoomNear * 0.22;
     const show = dot > thresh && !this._project(world).behind;
     const flash = u >= 3 && dot > 0.45;
@@ -7399,7 +7398,13 @@ const GlobeEntity = {
       }
 
       const prox = this._proximity(entity);
-      const forceShow = entity.data?.alwaysShowLabel && entity.type === 'me';
+      const forceShow = !!entity.data?.alwaysShowLabel || (entity.type === 'me' && entity.data?.alwaysShow);
+      if (entity.mesh && ['vendor', 'driver', 'friend', 'order', 'pilot', 'me'].includes(entity.type)) {
+        entity.mesh.visible = true;
+        const z = camera?.position?.z ?? 2.5;
+        const scale = entity.type === 'vendor' ? (z > 2 ? 1.8 : 1.2) : (z > 2 ? 1.4 : 1);
+        entity.mesh.scale.set(scale, scale, scale);
+      }
       const el = entity._labelEl;
       if (el) {
         if (prox.show || forceShow) {
@@ -7474,8 +7479,9 @@ const GlobeEntity = {
         lng: v.lng,
         title: v.name,
         description: (menu ? menu + ' items' : 'menu on request') + (km != null ? ' · ' + km.toFixed(1) + ' km' : '') + ' · tap to order',
-        urgency: i === 0 ? 2 : 1,
-        data: { vendor: v },
+        urgency: i === 0 ? 3 : 2,
+        radius: 0.022,
+        data: { vendor: v, alwaysShowLabel: i < 6 },
         _actionLabel: 'Open ' + v.name,
         onTap: () => window.Commerce?.openVendor?.(v),
       });
@@ -8259,7 +8265,7 @@ const ZoomTiers = {
         fromZ: camera.position.z,
         toZ: t.z,
         t0: performance.now(),
-        dur: 1400,
+        dur: 2600,
         tierId: t.id,
         onTier: true,
       };
@@ -8637,6 +8643,7 @@ function tickGlobeFly() {
   camera.lookAt(0, 0, 0);
   CosmicZoom.update(camera.position.z);
   const flyLevel = window._cityDropLock ? 'earth' : CosmicZoom?.level;
+  CityMap?._applyGlobeMapCrossfade?.(camera.position.z);
   CityMap?.onCamera?.(camera.position.z, flyLevel);
   if (p >= 1) {
     const tid = f.tierId;
@@ -8853,7 +8860,7 @@ const CityMap = {
     let t = 0;
     if (camZ <= z1) t = 1;
     else if (camZ < z0) t = 1 - (camZ - z1) / (z0 - z1);
-    t = Math.max(0, Math.min(1, Math.pow(t, 0.82)));
+    t = Math.max(0, Math.min(1, Math.pow(t, 0.65)));
     this._blend = t;
     document.documentElement.style.setProperty('--globe-opacity', String(1 - t));
     document.documentElement.style.setProperty('--map-opacity', String(t));
@@ -9207,9 +9214,7 @@ const CityMap = {
     if (el) el.classList.add('active');
     if (globe) globe.classList.add('city-map-active');
     document.body.classList.add('city-map-active');
-    this._setGlobeSurfaceVisible(false);
-    document.documentElement.style.setProperty('--globe-opacity', '0');
-    document.documentElement.style.setProperty('--map-opacity', '1');
+    this._applyGlobeMapCrossfade(camZ);
     const c = window._lastPos || this.globeCenterLatLng();
     this._center = c;
     this.map.setView([c.lat, c.lng], this.camZToZoom(camZ), { animate: false });
@@ -9234,9 +9239,7 @@ const CityMap = {
     if (globe) { globe.classList.add('national-map-active'); globe.classList.remove('city-map-active'); }
     document.body.classList.add('national-map-active');
     document.body.classList.remove('city-map-active');
-    this._setGlobeSurfaceVisible(false);
-    document.documentElement.style.setProperty('--globe-opacity', '0');
-    document.documentElement.style.setProperty('--map-opacity', '1');
+    this._applyGlobeMapCrossfade(camZ);
     this._applyBaseLayers();
     const c = window._lastPos || this.globeCenterLatLng();
     this._center = c;
@@ -9358,7 +9361,7 @@ const CityMap = {
     if (this._demoDrivers.length) return;
     this._demoDrivers = [
       { id: 'demo1', display_name: 'Nikos · delivery', field_lat: u.lat + 0.004, field_lng: u.lng - 0.003 },
-      { id: 'demo2', display_name: 'Elena · courier', field_lat: u.lat - 0.003, field_lng: u.lng + 0.005 },
+      { id: 'demo2', display_name: 'Elena �� courier', field_lat: u.lat - 0.003, field_lng: u.lng + 0.005 },
       { id: 'demo3', display_name: 'Alex · ride', field_lat: u.lat + 0.002, field_lng: u.lng + 0.004 },
     ];
   },
@@ -10116,9 +10119,7 @@ const AIGraphics = {
     this.addAtmosphere(this._parent, earthRadius);
     if (!lite) this.addClouds(this._parent, earthRadius);
     this.addCityLights(this._parent, earthRadius, lite ? 900 : 2200);
-    this.addIdleAIEffects(this._parent, earthRadius, lite ? 40 : 80);
-    this.addNeuralField(this._parent, earthRadius);
-    this._mountGamingHud();
+    /* Space globe only — no idle waveform / neural overlay / gaming HUD scanlines */
     if (SlumberManager?.quality?.gamingGraphics && !this._gamingLight) {
       this._gamingLight = new THREE.PointLight(0x00e8ff, 1.4, 4.5);
       this._gamingLight.position.set(0.3, 0.5, 1.2);
@@ -12085,6 +12086,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260706120014" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260708120000" data-astranov-deferred></script>
 </body>
 </html>
