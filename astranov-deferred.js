@@ -1565,7 +1565,8 @@ const Commerce = {
     if (!this.vendors.length) return;
     GlobeEntity?.syncVendors?.(this.vendors);
     this.markers = [...(GlobeEntity?.entities?.values() || [])].filter(e => e.type === 'vendor').map(e => e.mesh);
-    MapDepict?.setHud?.('Καταστήματα', this.vendors.length + ' shops · zoom in · tap for menu');
+    MapDepict?.setHud?.('Καταστήματα', this.vendors.length + ' shops on globe · tap marker or deck commerce');
+    GlobeDeck?.setPreview?.(this.vendors.length + ' vendors · team · clients — tap 🏬 or marker to order');
   },
 
   initUI() {
@@ -9436,12 +9437,18 @@ const DeferredBoot = {
     go('globe', () => window.TelemachosPilot?.init?.());
 
     if (sl?.allows('commerce')) {
-      setTimeout(() => {
+      const bootCommerce = () => {
         const c = window.Commerce;
-        if (c?.loadVendors) {
-          c.loadVendors().then(() => c.initUI?.()).catch(() => {});
-        }
-      }, sl?.tier === 'slumber' ? 1200 : 400);
+        if (!c?.loadVendors) return;
+        c.loadVendors().then(() => {
+          c.initUI?.();
+          c.showOnGlobe?.();
+          window.AstranovPresence?.refresh?.();
+          MapDepict?.setHud?.('Business map', (c.vendors?.length || 0) + ' vendors · tap shop · order via deck');
+        }).catch(() => {});
+      };
+      bootCommerce();
+      setTimeout(bootCommerce, sl?.tier === 'slumber' ? 800 : 200);
     }
   },
 };
