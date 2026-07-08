@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260708183000" />
+<meta name="astranov-build" content="20260708184500" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -136,6 +136,11 @@
     #city-map:not([data-theme]) .leaflet-container { background:#0a1020; }
   }
   .city-map-pin { background:transparent !important; border:none !important; }
+  #map-style-switch { display:none; position:fixed; top:max(48px,calc(8px + env(safe-area-inset-top) + 36px)); right:10px; z-index:165; flex-direction:column; gap:4px; padding:5px; border-radius:12px; background:var(--ax-panel-strong); border:1px solid var(--ax-blue-border); box-shadow:0 4px 16px rgba(0,0,0,0.45),0 0 10px var(--ax-blue-glow); pointer-events:auto; backdrop-filter:blur(10px); font:9px system-ui; }
+  #map-style-switch.visible { display:flex; }
+  #map-style-switch button { width:36px; height:34px; border-radius:9px; border:1px solid var(--ax-blue-border); background:rgba(0,40,90,0.45); color:var(--ax-blue-bright); cursor:pointer; font-size:14px; line-height:1; touch-action:manipulation; }
+  #map-style-switch button.active { background:var(--ax-green-bg); border-color:var(--ax-green-border); color:var(--ax-green-bright); box-shadow:0 0 8px var(--ax-green-glow); }
+  #map-style-switch .mss-lbl { text-align:center; font-size:7px; color:#7a9; letter-spacing:0.06em; text-transform:uppercase; margin-bottom:2px; }
   #astranov-logo { position:fixed; top:max(10px,env(safe-area-inset-top)); left:50%; transform:translateX(-50%); z-index:210; margin:0; padding:6px 14px; border-radius:999px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); backdrop-filter:blur(10px); cursor:pointer; font-family:"Segoe UI Variable Display","Segoe UI Variable","Segoe UI","Segoe UI Rounded",system-ui,sans-serif; font-size:15px; font-weight:600; letter-spacing:0.34em; text-indent:0.34em; text-transform:uppercase; color:var(--ax-blue-bright); text-shadow:0 0 18px var(--ax-blue-glow); box-shadow:0 2px 14px rgba(0,0,0,0.45); transition:color 0.2s,border-color 0.2s,box-shadow 0.2s,background 0.2s,transform 0.15s; pointer-events:auto; touch-action:manipulation; user-select:none; -webkit-tap-highlight-color:transparent; display:flex; align-items:center; justify-content:center; min-width:min(200px,62vw); min-height:40px; overflow:hidden; opacity:1; visibility:visible; isolation:isolate; }
   body.globe-flying #astranov-logo, body.city-map-active #astranov-logo { z-index:210; opacity:1 !important; visibility:visible !important; pointer-events:auto !important; }
   body.globe-flying #zoom-label { top:max(52px,calc(10px + env(safe-area-inset-top) + 42px)); }
@@ -661,6 +666,12 @@
   </div>
   <div id="superspace-hud"></div>
   <div id="city-map"></div>
+  <div id="map-style-switch" aria-label="Map style">
+    <span class="mss-lbl">Map</span>
+    <button type="button" data-ms="satellite" title="Satellite imagery">🛰</button>
+    <button type="button" data-ms="bright" title="Bright streets · names · blocks">☀️</button>
+    <button type="button" data-ms="dark" title="Dark streets · names">🌙</button>
+  </div>
   <div id="city-life-chip"></div>
   <div id="globe-entity-labels"></div>
   <svg id="map-comms-beam" aria-hidden="true"></svg>
@@ -911,14 +922,23 @@ const sgeo = new THREE.BufferGeometry();
 sgeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos,3));
 scene.add(new THREE.Points(sgeo, new THREE.PointsMaterial({color:0xffffff, size:2.8, sizeAttenuation:false})));
 
-// Earth - use BasicMaterial for guaranteed visibility (Phong can look black depending on lighting)
+// Earth — NASA Blue Marble (upgraded before EarthRealism shader takes over)
+const EARTH_TEX = {
+  day: 'https://unpkg.com/three-globe@2.31.1/example/img/earth-blue-marble.jpg',
+  night: 'https://unpkg.com/three-globe@2.31.1/example/img/earth-night.jpg',
+  fallback: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg',
+};
+window.EARTH_TEX = EARTH_TEX;
 const earthMat = new THREE.MeshBasicMaterial({ color: 0x44aaff });
-const earthTexUrl = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg';
 new THREE.TextureLoader().load(
-  earthTexUrl,
+  EARTH_TEX.day,
   (tex) => { earthMat.map = tex; earthMat.needsUpdate = true; },
   undefined,
-  () => { console.log('Earth texture fallback active'); }
+  () => {
+    new THREE.TextureLoader().load(EARTH_TEX.fallback, (fb) => {
+      earthMat.map = fb; earthMat.needsUpdate = true;
+    });
+  }
 );
 globePivot = new THREE.Group();
 scene.add(globePivot);
@@ -5416,6 +5436,15 @@ const AciCli = {
         this.print('theme → ' + (AstranovTheme?.mode || 'dark'), 'ok');
         return;
       }
+      if (cmd === 'map') {
+        const sub = (parts[1] || '').toLowerCase();
+        const pick = sub === 'style' ? (parts[2] || '').toLowerCase() : sub;
+        if (pick === 'satellite' || pick === 'bright' || pick === 'dark') CityMap?.setMapStyle?.(pick);
+        else CityMap?.cycleMapStyle?.();
+        this.print('map style → ' + (CityMap?.getMapStyle?.() || 'satellite') + ' (city level)', 'ok');
+        GlobeDeck?.finishCliIfOneShot(cmd);
+        return;
+      }
       if (cmd === 'think') {
         if (!rest) { ACIControl?.reply('usage: think <prompt>'); return; }
         const r = await ACI.think(rest);
@@ -7296,7 +7325,7 @@ const MapOverlayDismiss = {
 
   isInsidePanel(target) {
     if (!target?.closest) return false;
-    const roots = [...this.PANEL_IDS, ...this.STAGE_IDS, 'globe-deck', 'globe-deck-stage', 'globe-deck-body', 'globe-deck-input-row', 'auth-sheet'];
+    const roots = [...this.PANEL_IDS, ...this.STAGE_IDS, 'globe-deck', 'globe-deck-stage', 'globe-deck-body', 'globe-deck-input-row', 'auth-sheet', 'map-style-switch'];
     return roots.some(sel => target.closest('#' + sel) || target.closest('.' + sel));
   },
 
@@ -9518,6 +9547,8 @@ const CityMap = {
   _forceOpen: false,
   _initAttempts: 0,
   _blend: 0,
+  _mapStyle: 'satellite',
+  STYLE_KEY: 'astranov_map_style_v1',
 
   _globeZ() {
     return ZoomTiers?.tierZ?.('global') ?? GlobeControl?.Z?.global ?? 2.55;
@@ -9573,6 +9604,7 @@ const CityMap = {
       mapEl.classList.remove('national-active');
       mapEl.style.removeProperty('opacity');
     }
+    this._updateStyleSwitchVisible();
   },
 
   async _loadLeaflet() {
@@ -9655,6 +9687,8 @@ const CityMap = {
       if (this.active) this._invalidate();
     });
     this._bindZoomBridge(el);
+    this._bindStyleSwitch();
+    this._loadMapStyle();
     this._ready = true;
     const driverMs = SlumberManager?.tickMs?.('cityDriver') || 4500;
     this._driverTimer = setInterval(() => this._tickDrivers(), driverMs);
@@ -9687,29 +9721,93 @@ const CityMap = {
     return layer;
   },
 
+  _loadMapStyle() {
+    try {
+      const s = localStorage.getItem(this.STYLE_KEY);
+      if (s === 'satellite' || s === 'bright' || s === 'dark') this._mapStyle = s;
+    } catch (_) {}
+    return this._mapStyle;
+  },
+
+  getMapStyle() {
+    return this._mapStyle || 'satellite';
+  },
+
+  setMapStyle(style) {
+    const s = style === 'bright' || style === 'dark' ? style : 'satellite';
+    this._mapStyle = s;
+    try { localStorage.setItem(this.STYLE_KEY, s); } catch (_) {}
+    this._applyBaseLayers();
+    this._syncStyleUi();
+    const labels = { satellite: 'Satellite', bright: 'Bright streets', dark: 'Dark streets' };
+    GlobeDeck?.setPreview?.('Map · ' + (labels[s] || s));
+    AciCli?.print?.('map style → ' + s, 'ok');
+    return s;
+  },
+
+  cycleMapStyle() {
+    const order = ['satellite', 'bright', 'dark'];
+    const i = order.indexOf(this.getMapStyle());
+    return this.setMapStyle(order[(i + 1) % order.length]);
+  },
+
+  _syncStyleUi() {
+    const ui = document.getElementById('map-style-switch');
+    if (!ui) return;
+    const cur = this.getMapStyle();
+    ui.querySelectorAll('[data-ms]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.ms === cur);
+    });
+  },
+
+  _updateStyleSwitchVisible() {
+    const ui = document.getElementById('map-style-switch');
+    if (!ui) return;
+    ui.classList.toggle('visible', !!this.active);
+  },
+
+  _bindStyleSwitch() {
+    const ui = document.getElementById('map-style-switch');
+    if (!ui || ui.dataset.bound) return;
+    ui.dataset.bound = '1';
+    ui.querySelectorAll('[data-ms]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.setMapStyle(btn.dataset.ms);
+      });
+    });
+    this._syncStyleUi();
+  },
+
   _buildLayers() {
-    const maxZ = SlumberManager?.quality?.cityMaxZoom || 20;
+    const maxZ = Math.max(20, SlumberManager?.quality?.cityMaxZoom || 20);
     const sat = this._tileLayer(
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: maxZ, attribution: 'Esri' }
+      { maxZoom: maxZ, attribution: 'Esri · satellite' }
     );
     const satFallback = L.tileLayer(
       'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
       { maxZoom: 19, attribution: '© OSM fallback' }
     );
-    const streets = L.tileLayer(
-      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      { maxZoom: 19, opacity: 0.42, attribution: '© OSM' }
+    const streetLabels = L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png',
+      { maxZoom: 20, opacity: 1, attribution: '© CARTO © OSM' }
+    );
+    const placeLabels = this._tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+      { maxZoom: 20, minZoom: 10, opacity: 0.92, attribution: 'Esri · places' }
+    );
+    const voyager = L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+      { maxZoom: 20, attribution: '© CARTO © OSM · streets & blocks' }
     );
     const darkStreets = L.tileLayer(
       'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-      { maxZoom: 20, attribution: '© CARTO © OSM' }
+      { maxZoom: 20, attribution: '© CARTO © OSM · dark' }
     );
-    const brightStreets = L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-      { maxZoom: 20, attribution: '© CARTO © OSM' }
-    );
-    this._layers = { sat, satFallback, streets, darkStreets, brightStreets };
+    this._layers = { sat, satFallback, streetLabels, placeLabels, voyager, brightStreets: voyager, darkStreets, streets: voyager };
+    this._loadMapStyle();
     this._applyBaseLayers();
   },
 
@@ -9718,31 +9816,45 @@ const CityMap = {
   },
 
   _applyBaseLayers() {
-    if (!this.map) return;
+    if (!this.map || !this._layers?.sat) return;
     this._onMap.forEach(l => { try { this.map.removeLayer(l); } catch (_) {} });
     this._onMap.clear();
-    const mode = this._mapTheme();
+    const uiTheme = this._mapTheme();
     const el = document.getElementById('city-map');
-    if (el) el.dataset.theme = mode;
+    const savedStyle = this.getMapStyle();
+    const style = this.active ? savedStyle : 'satellite';
+    if (el) {
+      el.dataset.theme = uiTheme;
+      el.dataset.mapStyle = style;
+    }
     const add = l => { l.addTo(this.map); this._onMap.add(l); };
-    if (mode === 'bright') {
+    if (style === 'satellite') {
       add(this._layers.sat);
-      this._layers.brightStreets.setOpacity(0.58);
-      add(this._layers.brightStreets);
+      this._layers.streetLabels.setOpacity(this.active ? 1 : 0.82);
+      add(this._layers.streetLabels);
+      this._layers.placeLabels.setOpacity(this.active ? 0.92 : 0.75);
+      add(this._layers.placeLabels);
+    } else if (style === 'bright') {
+      this._layers.voyager.setOpacity(1);
+      add(this._layers.voyager);
     } else {
-      add(this._layers.sat);
-      this._layers.darkStreets.setOpacity(0.72);
+      this._layers.darkStreets.setOpacity(1);
       add(this._layers.darkStreets);
     }
-    if (this.active) this._invalidate();
+    this._syncStyleUi();
+    this._updateStyleSwitchVisible();
+    if (this.active || this._nationalActive) this._invalidate();
   },
 
   onThemeChange() {
-    this._applyBaseLayers();
+    const el = document.getElementById('city-map');
+    if (el) el.dataset.theme = this._mapTheme();
   },
 
   camZToZoom(camZ) {
+    if (camZ <= 1.06) return 18;
     if (camZ <= 1.12) return 17;
+    if (camZ <= 1.22) return 16;
     if (camZ <= 1.32) return 15;
     const z = Math.max(1.02, Math.min(1.48, camZ));
     const t = (1.48 - z) / (1.48 - 1.02);
@@ -9953,6 +10065,7 @@ const CityMap = {
       (CityLife?.nearbyVendors?.(c.lat, c.lng) || []).length,
       Object.keys(this._markers).filter(k => k.startsWith('drv_')).length
     );
+    this._updateStyleSwitchVisible();
   },
 
   _enterNational(camZ) {
@@ -9972,6 +10085,7 @@ const CityMap = {
     this.map.setView([c.lat, c.lng], this.nationalLeafletZoom(camZ), { animate: false });
     this._invalidate();
     GlobeDeck?.setPreview?.('National · ' + (ZoomTiers?.countryHint?.() || 'region') + ' · pinch in for city');
+    this._updateStyleSwitchVisible();
   },
 
   _syncNational(camZ) {
@@ -9994,6 +10108,7 @@ const CityMap = {
     document.body.classList.remove('national-map-active');
     const camZ = camera?.position?.z ?? this._globeZ();
     this._applyGlobeMapCrossfade(camZ);
+    this._updateStyleSwitchVisible();
   },
 
   _exit() {
@@ -10011,6 +10126,7 @@ const CityMap = {
     const chip = document.getElementById('city-life-chip');
     if (chip) chip.classList.remove('open');
     CliRibbon?.clearGlobeHint?.();
+    this._updateStyleSwitchVisible();
   },
 
   _syncView(camZ) {
@@ -10118,7 +10234,7 @@ const CityMap = {
     if (this._demoDrivers.length) return;
     this._demoDrivers = [
       { id: 'demo1', display_name: 'Nikos · delivery', field_lat: u.lat + 0.004, field_lng: u.lng - 0.003 },
-      { id: 'demo2', display_name: 'Elena �� courier', field_lat: u.lat - 0.003, field_lng: u.lng + 0.005 },
+      { id: 'demo2', display_name: 'Elena · courier', field_lat: u.lat - 0.003, field_lng: u.lng + 0.005 },
       { id: 'demo3', display_name: 'Alex · ride', field_lat: u.lat + 0.002, field_lng: u.lng + 0.004 },
     ];
   },
@@ -10624,8 +10740,8 @@ const EarthRealism = {
       this._ensureFallbackTextures();
     } else {
       const loader = new THREE.TextureLoader();
-      const dayUrl = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg';
-      const nightUrl = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_lights_2048.png';
+      const dayUrl = window.EARTH_TEX?.day || 'https://unpkg.com/three-globe@2.31.1/example/img/earth-blue-marble.jpg';
+      const nightUrl = window.EARTH_TEX?.night || 'https://unpkg.com/three-globe@2.31.1/example/img/earth-night.jpg';
       const onDay = (tex) => { this._dayTex = tex; this._applyShader(); };
       const onNight = (tex) => { this._nightTex = tex; this._applyShader(); };
       loader.load(dayUrl, onDay, undefined, () => {
