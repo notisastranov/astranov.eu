@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260708120000" />
+<meta name="astranov-build" content="20260708121500" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -193,7 +193,7 @@
   #globe-deck[data-truth="compromised"] { border-color:var(--ax-red-border); box-shadow:0 0 18px var(--ax-red-glow); }
   #aci-stop { background:var(--ax-red-bg); border-color:var(--ax-red-border); color:var(--ax-red-bright); box-shadow:0 0 8px var(--ax-red-glow); }
   #news-ticker { display:none; margin:8px 8px 0; padding:6px 12px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); border-radius:14px; font:11px system-ui; color:var(--ax-blue-bright); white-space:nowrap; overflow:hidden; pointer-events:auto; }
-  #zoom-label { position:fixed; top:10px; left:10px; z-index:40; font:11px system-ui; color:var(--an-muted); pointer-events:none; max-width:55vw; }
+  #zoom-label { position:fixed; top:10px; left:10px; z-index:40; font:12px/1.35 system-ui; font-weight:600; color:var(--an-text); text-shadow:0 1px 8px rgba(0,0,0,0.85); pointer-events:none; max-width:min(280px,72vw); }
   #zoom-tier-dots { position:fixed; top:10px; right:10px; z-index:40; display:flex; flex-direction:column; gap:4px; pointer-events:none; font-family:var(--fhud,system-ui); }
   #zoom-tier-dots .ztd { width:5px; height:5px; border-radius:50%; background:rgba(0,200,255,0.22); box-shadow:0 0 4px rgba(0,200,255,0.15); transition:all 0.25s; }
   #zoom-tier-dots .ztd.on { background:#00c8ff; opacity:1; box-shadow:0 0 8px rgba(0,200,255,0.55); transform:scale(1.35); }
@@ -202,8 +202,7 @@
   [data-theme="bright"] #globe-deck { background:var(--ax-panel-strong); border-color:var(--ax-blue-border); color:var(--an-text); }
   [data-theme="bright"] #globe-deck-log { color:var(--an-text); }
   [data-theme="bright"] #aci-cli-in { background:rgba(0,12,28,0.65); color:var(--an-text); }
-  #cosmic-guide { position:fixed; top:30px; left:10px; right:100px; z-index:39; pointer-events:none; font:10px/1.45 system-ui; color:rgba(150,200,240,0.82); max-height:22vh; overflow:hidden; }
-  #cosmic-guide:empty { display:none; }
+  #cosmic-guide { display:none; }
   #cosmic-guide .cg-title { color:var(--ax-blue-bright); font-weight:600; font-size:11px; margin-bottom:5px; text-shadow:0 0 6px var(--ax-blue-glow); }
   #cosmic-guide .cg-item { margin:2px 0; opacity:0.9; }
   #cosmic-guide .cg-item b { color:var(--ax-blue-bright); font-weight:600; }
@@ -683,7 +682,7 @@
       <button id="ge-hud-close" type="button">✖</button>
     </div>
   </div>
-  <div id="zoom-label">GLOBAL · pinch in for national · 🎯 Locate</div>
+  <div id="zoom-label">GLOBAL</div>
   <div id="zoom-tier-dots" aria-hidden="true"></div>
   <div id="cosmic-guide"></div>
   <div id="user-chip"></div>
@@ -2651,7 +2650,7 @@ const AstranovLogo = {
     CosmicZoom?.update?.(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
     cityLevel = false;
     const zl = document.getElementById('zoom-label');
-    if (zl && !window.DrivingView?.active) zl.textContent = 'GLOBAL · tap 🎯 Locate for city map';
+    if (zl && !window.DrivingView?.active) zl.textContent = 'GLOBAL';
     const chip = document.getElementById('city-life-chip');
     if (chip) chip.classList.remove('open');
   },
@@ -7869,47 +7868,7 @@ const CosmicZoom = {
 
   updateGuide(level, camZ) {
     const el = document.getElementById('cosmic-guide');
-    if (!el) return;
-    if (level === 'earth' && camZ < 3.4) {
-      if (CityMap?.active) {
-        el.innerHTML = '<div class="cg-title">City map</div>'
-          + '<div class="cg-item"><b>Satellite</b> — buildings & streets · pinch to zoom closer</div>'
-          + '<div class="cg-item"><b>Live</b> — friends · drivers · OSRM routing when driving</div>'
-          + '<div class="cg-item"><i>Zoom out to return to globe · theme 🌙/☀️</i></div>';
-        return;
-      }
-      if (window.CelestialNav?.isGlobalNavView?.(camZ)) {
-        el.innerHTML = window.CelestialNav.renderGuideHtml(camZ);
-        return;
-      }
-    }
-    let html = '';
-    if (level === 'orbit') {
-      html = '<div class="cg-title">Near-Earth orbit</div>'
-        + '<div class="cg-item"><b>ISS</b> — crew station · live position · ~90 min orbit</div>'
-        + '<div class="cg-item"><b>Starlink</b> — LEO broadband constellation (sampled)</div>'
-        + '<div class="cg-item"><b>Dashed rings</b> — altitude shells · semi-transparent guides</div>'
-        + '<div class="cg-item"><b>Mesh relays</b> — Astranov orbital connectivity</div>';
-    } else if (level === 'system') {
-      const iss = this.issMarker?.userData;
-      html = '<div class="cg-title">Solar system (scaled view)</div>'
-        + '<div class="cg-item"><b>Sun</b> — G-type star · system center</div>';
-      if (iss?.lat != null) {
-        html += '<div class="cg-item"><b>ISS</b> — live ' + iss.lat.toFixed(2) + '° · ' + iss.lng.toFixed(2) + '° · zoom in for orbit</div>';
-      } else {
-        html += '<div class="cg-item"><b>ISS</b> — tracking live position…</div>';
-      }
-      this.planets.forEach(p => {
-        const ud = p.userData;
-        html += '<div class="cg-item"><b>' + ud.name + '</b> — ' + (ud.desc || '') + '</div>';
-      });
-      html += '<div class="cg-item"><i>Orbits = real sidereal periods &amp; ecliptic inclinations (J2000 epoch)</i></div>';
-    } else if (level === 'galaxy') {
-      html = '<div class="cg-title">Galaxy view</div>'
-        + '<div class="cg-item"><b>Star field</b> — discrete points · spiral arm hint</div>'
-        + '<div class="cg-item"><b>Earth</b> — hidden at this scale · zoom in to return</div>';
-    }
-    el.innerHTML = html;
+    if (el) el.innerHTML = '';
   },
 
   setOrbitVisibility(level) {
@@ -7953,14 +7912,16 @@ const CosmicZoom = {
       if (CityMap?.active) {
         const tier = window.ZoomTiers?.current?.();
         const tierLabel = tier?.id === 'neighborhood' ? 'NEIGHBORHOOD MAP' : 'CITY MAP';
-        zl.textContent = tierLabel + ' · satellite · streets · friends · drivers';
+        zl.textContent = tierLabel;
       } else if (CityMap?._nationalActive) {
         const tier = window.ZoomTiers?.current?.();
-        zl.textContent = (tier?.label || 'NATIONAL') + ' · ' + (window.ZoomTiers?.countryHint?.() || 'region') + ' · country map · pinch for city';
+        zl.textContent = (tier?.label || 'NATIONAL') + ' · ' + (window.ZoomTiers?.countryHint?.() || 'region');
       } else {
-        const hint = level === 'orbit' ? ' · ISS · Starlink' : level === 'system' ? ' · planets'
-          : label === 'GLOBAL' ? ' · ☀ day/night · ✦ constellations' : '';
-        zl.textContent = label + hint;
+        if (level === 'orbit') zl.textContent = 'ORBIT';
+        else if (level === 'system') zl.textContent = 'SOLAR SYSTEM';
+        else if (level === 'galaxy') zl.textContent = 'GALAXY';
+        else if (label === 'GLOBAL') zl.textContent = 'GLOBAL';
+        else zl.textContent = label;
       }
     }
     if (levelChanged || camChanged) CityMap?.onCamera?.(camZ, level);
@@ -8285,10 +8246,10 @@ const ZoomTiers = {
     cityLevel = !!tier.city;
     const zl = document.getElementById('zoom-label');
     if (zl && !window.DrivingView?.active && !CityMap?.active) {
-      if (tier.id === 'solar') zl.textContent = 'SOLAR SYSTEM · planets · ISS';
-      else if (tier.id === 'global') zl.textContent = 'GLOBAL · ☀ day/night · pinch in';
-      else if (tier.national) zl.textContent = tier.label + ' · ' + this.countryHint() + ' · pinch for city';
-      else if (tier.city) zl.textContent = tier.label + ' · pinch for streets';
+      if (tier.id === 'solar') zl.textContent = 'SOLAR SYSTEM';
+      else if (tier.id === 'global') zl.textContent = 'GLOBAL';
+      else if (tier.national) zl.textContent = tier.label + ' · ' + this.countryHint();
+      else if (tier.city) zl.textContent = tier.label;
       else zl.textContent = tier.label;
     }
     if (tier.national && window._lastPos && typeof flyToPoint === 'function') {
@@ -10073,13 +10034,7 @@ const EarthRealism = {
     }
     this._updateTerminator(sunDir);
 
-    if (level === 'earth' && camZ < 3.4 && !CityMap?.active) {
-      if (!this._hudTimer || now - this._hudTimer > 3500) {
-        this._hudTimer = now;
-        const el = document.getElementById('cosmic-guide');
-        if (el) el.innerHTML = this._formatHud(sunDir);
-      }
-    }
+    /* cosmic-guide disabled — tier label only (zoom-label) */
   },
 };
 window.EarthRealism = EarthRealism;
@@ -12086,6 +12041,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260708120000" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260708121500" data-astranov-deferred></script>
 </body>
 </html>
