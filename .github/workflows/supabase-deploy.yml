@@ -24,7 +24,7 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.20.12
 
       - name: Link project
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
@@ -33,13 +33,45 @@ jobs:
         continue-on-error: true
         run: |
           if [ -z "$SUPABASE_DB_PASSWORD" ]; then
-            echo "SUPABASE_DB_PASSWORD not set — skipping db push (schema managed via dashboard/query)"
+            echo "SUPABASE_DB_PASSWORD not set — skipping db push"
             exit 0
           fi
           supabase db push --include-all || {
             echo "db push skipped — remote migration history diverged; apply SQL manually if needed"
             exit 0
           }
+
+      - name: Apply auditor schema (Management API)
+        continue-on-error: true
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "SUPABASE_ACCESS_TOKEN not set — skipping auditor schema"
+            exit 0
+          fi
+          node <<'NODE'
+          const fs = require('fs');
+          const ref = process.env.SUPABASE_PROJECT_REF;
+          const token = process.env.SUPABASE_ACCESS_TOKEN;
+          const files = [
+            'supabase/migrations/20260709000000_auditor_accounting.sql',
+            'supabase/migrations/20260709100000_auditor_payroll_expenses.sql',
+          ];
+          const sql = files.map((f) => fs.readFileSync(f, 'utf8')).join('\n')
+            + "\nUPDATE profiles SET is_auditor = true, is_owner = true"
+            + " WHERE id IN (SELECT id FROM auth.users WHERE lower(email) = 'notisastranov@gmail.com');";
+          fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query: sql }),
+          }).then(async (r) => {
+            const text = await r.text();
+            console.log('auditor schema status', r.status, text.slice(0, 800));
+            if (!r.ok) process.exit(1);
+          }).catch((e) => { console.error(e); process.exit(1); });
+          NODE
 
       - name: Deploy Edge Functions
         run: |
