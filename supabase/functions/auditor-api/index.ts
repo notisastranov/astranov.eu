@@ -1,203 +1,466 @@
-// auditor-api — financial dashboard for auditors.astranov.eu
+/**
+ * auditor-api — auditors.astranov.eu
+ * Γενικό καθολικό · ισοζύγιο · ισολογισμός · φόροι · AVC ledger
+ * Deploy: supabase functions deploy auditor-api
+ */
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-const cors = {
+const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Content-Type': 'application/json',
 }
 
-async function callerFrom(req: Request) {
-  const auth = req.headers.get('authorization') ?? ''
-  if (!auth.startsWith('Bearer ')) return { id: null as string | null, email: '', ok: false }
-  const sb = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-    { global: { headers: { authorization: auth } }, auth: { persistSession: false } },
-  )
-  const { data: { user } } = await sb.auth.getUser()
-  if (!user) return { id: null, email: '', ok: false }
-  const { data: prof } = await sb.from('profiles').select('id,email,roles,display_name').eq('id', user.id).maybeSingle()
-  const roles = Array.isArray(prof?.roles) ? prof.roles : []
-  const email = (prof?.email || user.email || '').toLowerCase()
-  const ok = email === 'notisastranov@gmail.com'
-    || roles.includes('auditor')
-    || roles.includes('accountant')
-    || roles.includes('admin')
-  return { id: user.id, email, ok, name: prof?.display_name || email }
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...CORS, 'Content-Type': 'application/json' },
+  })
+}
+
+function num(v: unknown) {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+
+function periodMonth(d: Date) {
+  return d.toISOString().slice(0, 7)
+}
+
+function inRange(iso: string | null | undefined, from: string | null, to: string | null) {
+  if (!iso) return false
+  const day = iso.slice(0, 10)
+  if (from && day < from) return false
+  if (to && day > to) return false
+  return true
+}
+
+type Profile = { id: string; is_owner?: boolean; is_auditor?: boolean; display_name?: string; balance?: number }
+
+async function resolveCaller(sb: ReturnType<typeof createClient>, authHeader: string) {
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim()
+  if (!token) return { error: 'Unauthorized', status: 401 as const }
+  const { data: { user }, error } = await sb.auth.getUser(token)
+  if (error || !user) return { error: 'Unauthorized', status: 401 as const }
+  const { data: prof } = await sb.from('profiles').select('id,is_owner,is_auditor,display_name,balance').eq('id', user.id).single()
+  const p = (prof || { id: user.id }) as Profile
+  const isOwner = p.is_owner === true
+  const isAuditor = p.is_auditor === true || isOwner
+  const ownerEmail = (Deno.env.get('OWNER_EMAIL') || 'notisastranov@gmail.com').toLowerCase()
+  const isArchitect = (user.email || '').toLowerCase() === ownerEmail
+  return {
+    user,
+    profile: p,
+    isOwner: isOwner || isArchitect,
+    isAuditor: isAuditor || isArchitect,
+    canCompany: isOwner || isAuditor || isArchitect,
+  }
+}
+
+function buildJournalFromInvoices(invoices: Array<Record<string, unknown>>) {
+  const lines: Array<Record<string, unknown>> = []
+  for (const inv of invoices) {
+    const sub = num(inv.subtotal)
+    const del = num(inv.delivery_fee)
+    const plat = num(inv.platform_fee)
+    const total = num(inv.total)
+    const vatFood = sub * num(inv.vat_food ?? 0.13)
+    const vatSvc = (del + plat) * num(inv.vat_service ?? 0.24)
+    const vat = vatFood + vatSvc
+    const net = total - vat
+    const day = String(inv.issued_at || inv.created_at || '').slice(0, 10)
+    const id = String(inv.id || inv.mark || '')
+    const memo = `Τιμολόγιο ${inv.mark || id} · ${inv.vendor_name || ''}`
+    if (sub > 0) lines.push({ entry_date: day, account_code: '70', debit: 0, credit: sub, memo, source_type: 'invoice', source_id: id })
+    if (del > 0) lines.push({ entry_date: day, account_code: '72', debit: 0, credit: del, memo, source_type: 'invoice', source_id: id })
+    if (plat > 0) lines.push({ entry_date: day, account_code: '71', debit: 0, credit: plat, memo, source_type: 'invoice', source_id: id })
+    if (vat > 0) lines.push({ entry_date: day, account_code: '54', debit: 0, credit: vat, memo: memo + ' · ΦΠΑ', source_type: 'invoice', source_id: id })
+    if (total > 0) lines.push({ entry_date: day, account_code: '30', debit: total, credit: 0, memo, source_type: 'invoice', source_id: id })
+    const goodsCost = sub * 0.7
+    if (goodsCost > 0) lines.push({ entry_date: day, account_code: '40', debit: 0, credit: goodsCost, memo: memo + ' · προμηθευτής', source_type: 'invoice', source_id: id })
+    if (del > 0) lines.push({ entry_date: day, account_code: '64', debit: del * 0.85, credit: 0, memo: memo + ' · οδηγός', source_type: 'invoice', source_id: id })
+  }
+  return lines
+}
+
+function trialBalance(lines: Array<Record<string, unknown>>, accounts: Array<Record<string, unknown>>) {
+  const map = new Map<string, { debit: number; credit: number }>()
+  for (const l of lines) {
+    const code = String(l.account_code)
+    const cur = map.get(code) || { debit: 0, credit: 0 }
+    cur.debit += num(l.debit)
+    cur.credit += num(l.credit)
+    map.set(code, cur)
+  }
+  const acctMap = new Map(accounts.map((a) => [String(a.code), a]))
+  const rows = [...map.entries()].map(([code, v]) => {
+    const a = acctMap.get(code) || {}
+    const balance = v.debit - v.credit
+    return {
+      code,
+      name_el: a.name_el || code,
+      name_en: a.name_en || '',
+      category: a.category || 'asset',
+      debit: Math.round(v.debit * 100) / 100,
+      credit: Math.round(v.credit * 100) / 100,
+      balance: Math.round(balance * 100) / 100,
+    }
+  }).sort((a, b) => a.code.localeCompare(b.code))
+  const totalDebit = rows.reduce((s, r) => s + r.debit, 0)
+  const totalCredit = rows.reduce((s, r) => s + r.credit, 0)
+  return { rows, total_debit: totalDebit, total_credit: totalCredit, balanced: Math.abs(totalDebit - totalCredit) < 0.02 }
+}
+
+function balanceSheetFromTrial(tb: ReturnType<typeof trialBalance>, userLiabilities: number, projected = false) {
+  const byCat = (cat: string) => tb.rows.filter((r) => r.category === cat)
+  const sumBal = (rows: typeof tb.rows, sign: 1 | -1) =>
+    rows.reduce((s, r) => s + (sign === 1 ? Math.max(0, r.balance) : Math.max(0, -r.balance)), 0)
+
+  let assets = sumBal(byCat('asset'), 1)
+  let liabilities = sumBal(byCat('liability'), -1) + userLiabilities
+  const equityBook = sumBal(byCat('equity'), -1)
+  const revenue = sumBal(byCat('revenue'), -1)
+  const expenses = sumBal(byCat('expense'), 1)
+  const retained = revenue - expenses
+  const equity = equityBook + retained
+  assets += userLiabilities
+
+  const lines = {
+    assets: [
+      { label: 'Ταμείο / AVC', amount: tb.rows.find((r) => r.code === '10')?.balance || 0 },
+      { label: 'Απαιτήσεις', amount: tb.rows.find((r) => r.code === '30')?.balance || 0 },
+      { label: 'AVC χρηστών (ενεργητικό αντιστάθμιση)', amount: userLiabilities },
+    ],
+    liabilities: [
+      { label: 'Υποχρεώσεις AVC χρηστών', amount: userLiabilities },
+      { label: 'Υποχρεώσεις προμηθευτών', amount: tb.rows.find((r) => r.code === '40')?.balance ? -tb.rows.find((r) => r.code === '40')!.balance : 0 },
+      { label: 'ΦΠΑ πληρωτέο', amount: tb.rows.find((r) => r.code === '54')?.balance ? -tb.rows.find((r) => r.code === '54')!.balance : 0 },
+    ],
+    equity: [
+      { label: 'Κεφάλαιο', amount: equityBook },
+      { label: 'Αποτελέσματα χρήσης (τρέχον)', amount: retained },
+    ],
+  }
+
+  return {
+    projected,
+    as_of: new Date().toISOString().slice(0, 10),
+    assets: Math.round(assets * 100) / 100,
+    liabilities: Math.round(liabilities * 100) / 100,
+    equity: Math.round(equity * 100) / 100,
+    lines,
+    balanced: Math.abs(assets - (liabilities + equity)) < 1,
+  }
+}
+
+function taxEstimate(invoices: Array<Record<string, unknown>>, orders: Array<Record<string, unknown>>) {
+  let vatPayable = 0
+  let revenue = 0
+  for (const inv of invoices) {
+    const sub = num(inv.subtotal)
+    const del = num(inv.delivery_fee)
+    const plat = num(inv.platform_fee)
+    revenue += sub + del + plat
+    vatPayable += sub * num(inv.vat_food ?? 0.13) + (del + plat) * num(inv.vat_service ?? 0.24)
+  }
+  let pendingRevenue = 0
+  for (const o of orders) {
+    if (String(o.status) === 'cancelled') continue
+    const c = (o.calc || {}) as Record<string, unknown>
+    pendingRevenue += num(c.total_eur ?? c.total_avc ?? c.goods_eur)
+  }
+  const grossProfit = revenue * 0.28
+  const corporateTax = grossProfit * 0.22
+  const solidarity = grossProfit * 0.05
+  return {
+    period_revenue_eur: Math.round(revenue * 100) / 100,
+    vat_payable_eur: Math.round(vatPayable * 100) / 100,
+    estimated_profit_eur: Math.round(grossProfit * 100) / 100,
+    corporate_tax_22pct_eur: Math.round(corporateTax * 100) / 100,
+    solidarity_5pct_eur: Math.round(solidarity * 100) / 100,
+    total_tax_estimate_eur: Math.round((vatPayable + corporateTax + solidarity) * 100) / 100,
+    pending_orders_revenue_eur: Math.round(pendingRevenue * 100) / 100,
+    invoices_count: invoices.length,
+    note: 'Εκτίμηση · όχι φορολογική συμβουλή · ΦΠΑ από τιμολόγια · φόρος εισοδήματος 22%+5% επί εκτιμώμενου κέρδους',
+  }
+}
+
+async function fetchInvoices(sb: ReturnType<typeof createClient>, from: string | null, to: string | null) {
+  let q = sb.from('invoices').select('*').order('issued_at', { ascending: false }).limit(500)
+  if (from) q = q.gte('issued_at', from + 'T00:00:00Z')
+  if (to) q = q.lte('issued_at', to + 'T23:59:59Z')
+  const { data } = await q
+  return (data || []) as Array<Record<string, unknown>>
+}
+
+async function fetchOrders(sb: ReturnType<typeof createClient>, from: string | null, to: string | null, vendorId: string | null, driverId: string | null) {
+  let q = sb.from('orders').select('*').order('created_at', { ascending: false }).limit(500)
+  if (from) q = q.gte('created_at', from + 'T00:00:00Z')
+  if (to) q = q.lte('created_at', to + 'T23:59:59Z')
+  if (vendorId) q = q.eq('vendor_id', vendorId)
+  if (driverId) q = q.eq('driver_id', driverId)
+  const { data } = await q
+  return (data || []) as Array<Record<string, unknown>>
+}
+
+async function userAvcTotal(sb: ReturnType<typeof createClient>) {
+  const { data } = await sb.from('balance_ledger').select('balance')
+  return (data || []).reduce((s: number, r: { balance?: number }) => s + num(r.balance), 0)
+}
+
+async function modeDashboard(sb: ReturnType<typeof createClient>, filters: Record<string, unknown>) {
+  const from = filters.from as string | null
+  const to = filters.to as string | null
+  const orders = await fetchOrders(sb, from, to, filters.vendor_id as string | null, filters.driver_id as string | null)
+  const invoices = await fetchInvoices(sb, from, to)
+  let goods = 0, delivery = 0, platform = 0, driverPayouts = 0
+  for (const o of orders) {
+    const c = (o.calc || {}) as Record<string, unknown>
+    goods += num(c.goods_eur ?? c.subtotal_eur)
+    delivery += num(c.delivery_eur ?? c.delivery_fee)
+    platform += num(c.platform_eur ?? c.platform_fee)
+    driverPayouts += num(c.driver_payout_eur ?? c.delivery_eur) * 0.85
+  }
+  return {
+    kpis: {
+      orders: orders.length,
+      goods_eur: goods,
+      delivery_eur: delivery,
+      platform_eur: platform,
+      driver_payouts_eur: driverPayouts,
+      invoices_sent: invoices.filter((i) => i.status === 'issued' || i.status === 'submitted').length,
+      invoices_pending: invoices.filter((i) => i.status !== 'issued' && i.status !== 'submitted').length,
+    },
+    recent_orders: orders.slice(0, 12),
+  }
+}
+
+async function modeAvcLedger(sb: ReturnType<typeof createClient>, filters: Record<string, unknown>) {
+  const from = filters.from as string | null
+  const to = filters.to as string | null
+  let q = sb.from('avc_ledger').select('*').order('seq', { ascending: false }).limit(200)
+  if (from) q = q.gte('created_at', from + 'T00:00:00Z')
+  if (to) q = q.lte('created_at', to + 'T23:59:59Z')
+  const { data: rows } = await q
+  const list = (rows || []) as Array<Record<string, unknown>>
+  let minted = 0, spent = 0
+  let chainValid = true
+  let prevHash = ''
+  const asc = [...list].sort((a, b) => num(a.seq) - num(b.seq))
+  for (const e of asc) {
+    if (num(e.delta_avc) >= 0) minted += num(e.delta_avc)
+    else spent += Math.abs(num(e.delta_avc))
+    if (e.prev_hash && prevHash && e.prev_hash !== prevHash) chainValid = false
+    prevHash = String(e.entry_hash || '')
+  }
+  if (!list.length) {
+    const { data: led } = await sb.from('balance_ledger').select('user_id,balance,updated_at').limit(100)
+    return {
+      kpis: { entries: 0, minted_avc: 0, spent_avc: 0 },
+      rows: [],
+      chain_valid: true,
+      note: 'AVC ledger κενό — χρησιμοποιείται balance_ledger · ' + (led?.length || 0) + ' λογαριασμοί',
+      balances: led || [],
+    }
+  }
+  return {
+    kpis: { entries: list.length, minted_avc: minted, spent_avc: spent },
+    rows: list,
+    chain_valid: chainValid,
+  }
+}
+
+async function modeGeneralLedger(sb: ReturnType<typeof createClient>, filters: Record<string, unknown>, canCompany: boolean) {
+  if (!canCompany) return { error: 'Auditor or owner role required', status: 403 }
+  const from = filters.from as string | null
+  const to = filters.to as string | null
+  const { data: stored } = await sb.from('gl_journal_entries').select('*').order('entry_date', { ascending: false }).limit(300)
+  const invoices = await fetchInvoices(sb, from, to)
+  const generated = buildJournalFromInvoices(invoices)
+  const storedFiltered = ((stored || []) as Array<Record<string, unknown>>).filter((e) => inRange(String(e.entry_date), from, to))
+  const lines = [...generated, ...storedFiltered].sort((a, b) => String(b.entry_date).localeCompare(String(a.entry_date)))
+  const { data: accounts } = await sb.from('gl_accounts').select('*').order('sort_order')
+  return { rows: lines.slice(0, 400), accounts: accounts || [], source: 'invoices+stored' }
+}
+
+async function modeTrialBalance(sb: ReturnType<typeof createClient>, filters: Record<string, unknown>, canCompany: boolean) {
+  if (!canCompany) return { error: 'Auditor or owner role required', status: 403 }
+  const gl = await modeGeneralLedger(sb, filters, canCompany)
+  if ('error' in gl) return gl
+  const userLiab = await userAvcTotal(sb)
+  const tb = trialBalance(gl.rows as Array<Record<string, unknown>>, gl.accounts as Array<Record<string, unknown>>)
+  if (userLiab > 0) {
+    tb.rows.push({
+      code: '38',
+      name_el: 'Υποχρεώσεις AVC χρηστών',
+      name_en: 'User AVC',
+      category: 'liability',
+      debit: 0,
+      credit: userLiab,
+      balance: -userLiab,
+    })
+    tb.total_credit += userLiab
+  }
+  return { ...tb, user_avc_liabilities: userLiab }
+}
+
+async function modeBalanceSheet(sb: ReturnType<typeof createClient>, filters: Record<string, unknown>, canCompany: boolean, projected = false) {
+  if (!canCompany) return { error: 'Auditor or owner role required', status: 403 }
+  const tb = await modeTrialBalance(sb, filters, canCompany)
+  if ('error' in tb) return tb
+  const userLiab = tb.user_avc_liabilities as number
+  let sheet = balanceSheetFromTrial(tb as ReturnType<typeof trialBalance>, userLiab, projected)
+  if (projected) {
+    const orders = await fetchOrders(sb, filters.from as string | null, filters.to as string | null, null, null)
+    const pending = orders.filter((o) => !['delivered', 'cancelled', 'completed'].includes(String(o.status)))
+    const pendingVal = pending.reduce((s, o) => {
+      const c = (o.calc || {}) as Record<string, unknown>
+      return s + num(c.total_eur ?? c.total_avc)
+    }, 0)
+    sheet = {
+      ...sheet,
+      projected_additions: { pending_orders: pending.length, pending_revenue_eur: pendingVal },
+      assets: sheet.assets + pendingVal * 0.15,
+      liabilities: sheet.liabilities + pendingVal * 0.85,
+    }
+  }
+  return sheet
+}
+
+async function modeBalanceHistory(sb: ReturnType<typeof createClient>) {
+  const { data } = await sb.from('gl_balance_snapshots').select('*').order('period_end', { ascending: false }).limit(24)
+  return { rows: data || [] }
+}
+
+async function modeSnapshotSave(sb: ReturnType<typeof createClient>, filters: Record<string, unknown>, userId: string) {
+  const sheet = await modeBalanceSheet(sb, filters, true, false)
+  if ('error' in sheet) return sheet
+  const periodEnd = (filters.to as string) || new Date().toISOString().slice(0, 10)
+  const row = {
+    period_end: periodEnd,
+    snapshot_type: 'monthly',
+    label: 'Ισολογισμός ' + periodEnd,
+    assets: sheet.assets,
+    liabilities: sheet.liabilities,
+    equity: sheet.equity,
+    data: sheet,
+    created_by: userId,
+  }
+  const { data, error } = await sb.from('gl_balance_snapshots').upsert(row, { onConflict: 'period_end,snapshot_type' }).select().single()
+  if (error) return { error: error.message, status: 500 }
+  return { ok: true, snapshot: data }
+}
+
+async function modeMyFinancials(sb: ReturnType<typeof createClient>, userId: string, filters: Record<string, unknown>) {
+  const from = filters.from as string | null
+  const to = filters.to as string | null
+  const { data: prof } = await sb.from('profiles').select('balance,display_name').eq('id', userId).single()
+  const { data: balRow } = await sb.from('balance_ledger').select('balance').eq('user_id', userId).maybeSingle()
+  const balance = num(balRow?.balance ?? prof?.balance)
+  let invQ = sb.from('invoices').select('*').eq('buyer_id', userId).order('issued_at', { ascending: false }).limit(100)
+  if (from) invQ = invQ.gte('issued_at', from + 'T00:00:00Z')
+  if (to) invQ = invQ.lte('issued_at', to + 'T23:59:59Z')
+  const { data: invoices } = await invQ
+  let ordQ = sb.from('orders').select('*').eq('customer_id', userId).order('created_at', { ascending: false }).limit(100)
+  if (from) ordQ = ordQ.gte('created_at', from + 'T00:00:00Z')
+  if (to) ordQ = ordQ.lte('created_at', to + 'T23:59:59Z')
+  const { data: orders } = await ordQ
+  const spent = (invoices || []).reduce((s: number, i: { total?: number }) => s + num(i.total), 0)
+  return {
+    user_id: userId,
+    display_name: prof?.display_name,
+    avc_balance: balance,
+    eur_equivalent: balance,
+    invoices: invoices || [],
+    orders: orders || [],
+    summary: {
+      invoices_count: (invoices || []).length,
+      orders_count: (orders || []).length,
+      spent_avc: spent,
+    },
+  }
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
+  const sb = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  )
+  const caller = await resolveCaller(sb, req.headers.get('Authorization') || '')
+  if ('error' in caller) return json({ error: caller.error }, caller.status)
+
+  let body: Record<string, unknown> = {}
+  try { body = await req.json() } catch { /* */ }
+  const mode = String(body.mode || 'dashboard')
+  const filters = {
+    from: body.from ? String(body.from) : null,
+    to: body.to ? String(body.to) : null,
+    vendor_id: body.vendor_id ? String(body.vendor_id) : null,
+    driver_id: body.driver_id ? String(body.driver_id) : null,
+  }
+
   try {
-    const caller = await callerFrom(req)
-    if (!caller.ok) return new Response(JSON.stringify({ error: 'auditor_access_required' }), { status: 403, headers: cors })
-
-    const sb = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-    )
-    const body = await req.json().catch(() => ({}))
-    const mode = String(body.mode || 'dashboard')
-
-    const from = body.from ? String(body.from) : null
-    const to = body.to ? String(body.to) : null
-    const vendorId = body.vendor_id || null
-    const driverId = body.driver_id || null
-
-    const dateFilter = (q: ReturnType<typeof sb.from>, col: string) => {
-      if (from) q = q.gte(col, from)
-      if (to) q = q.lte(col, to + 'T23:59:59')
-      return q
-    }
-
-    if (mode === 'dashboard') {
-      let oq = sb.from('orders').select('id,status,calc,created_at,vendor_id,driver_id', { count: 'exact' })
-      oq = dateFilter(oq, 'created_at')
-      const { data: orders, count: orderCount } = await oq.order('created_at', { ascending: false }).limit(500)
-
-      let iq = sb.from('invoices').select('id,total,subtotal,delivery_fee,platform_fee,status,period_month,created_at', { count: 'exact' })
-      iq = dateFilter(iq, 'created_at')
-      const { data: invoices, count: invoiceCount } = await iq.order('created_at', { ascending: false }).limit(500)
-
-      const goods = (orders || []).reduce((s, o) => s + Number((o.calc as Record<string, unknown>)?.goods_eur ?? (o.calc as Record<string, unknown>)?.subtotal_eur ?? 0), 0)
-      const delivery = (orders || []).reduce((s, o) => s + Number((o.calc as Record<string, unknown>)?.delivery_eur ?? 0), 0)
-      const platform = (orders || []).reduce((s, o) => s + Number((o.calc as Record<string, unknown>)?.platform_fee_eur ?? 0), 0)
-      const paidInvoices = (invoices || []).filter(i => i.status === 'issued' || i.status === 'paid').length
-      const pendingInvoices = (invoices || []).filter(i => !['issued', 'paid', 'submitted'].includes(String(i.status))).length
-
-      let pq = sb.from('field_events').select('id,detail,props,created_at,user_id').eq('action', 'payout')
-      pq = dateFilter(pq, 'created_at')
-      const { data: payouts } = await pq.order('created_at', { ascending: false }).limit(200)
-      const driverPayouts = (payouts || []).reduce((s, p) => s + Number((p.props as Record<string, unknown>)?.payout_eur ?? 0), 0)
-
-      return new Response(JSON.stringify({
-        ok: true,
-        kpis: {
-          orders: orderCount ?? orders?.length ?? 0,
-          invoices: invoiceCount ?? invoices?.length ?? 0,
-          goods_eur: Math.round(goods * 100) / 100,
-          delivery_eur: Math.round(delivery * 100) / 100,
-          platform_eur: Math.round(platform * 100) / 100,
-          driver_payouts_eur: Math.round(driverPayouts * 100) / 100,
-          invoices_sent: paidInvoices,
-          invoices_pending: pendingInvoices,
-        },
-        recent_orders: (orders || []).slice(0, 12),
-        recent_invoices: (invoices || []).slice(0, 12),
-      }), { headers: cors })
-    }
-
-    if (mode === 'orders') {
-      let q = sb.from('orders').select('*, vendors(name)')
-      q = dateFilter(q, 'created_at')
-      if (vendorId) q = q.eq('vendor_id', vendorId)
-      if (driverId) q = q.eq('driver_id', driverId)
-      const { data, error } = await q.order('created_at', { ascending: false }).limit(200)
-      if (error) throw error
-      return new Response(JSON.stringify({ ok: true, rows: data || [] }), { headers: cors })
-    }
-
-    if (mode === 'invoices') {
-      let q = sb.from('invoices').select('*')
-      q = dateFilter(q, 'created_at')
-      if (body.period_month) q = q.eq('period_month', body.period_month)
-      if (vendorId) q = q.ilike('vendor_name', '%' + String(vendorId) + '%')
-      const { data, error } = await q.order('created_at', { ascending: false }).limit(200)
-      if (error) throw error
-      return new Response(JSON.stringify({ ok: true, rows: data || [] }), { headers: cors })
-    }
-
-    if (mode === 'payments') {
-      let oq = sb.from('orders').select('id,short_id,vendor_id,driver_id,driver_name,calc,status,created_at,items')
-      oq = dateFilter(oq, 'created_at')
-      if (vendorId) oq = oq.eq('vendor_id', vendorId)
-      if (driverId) oq = oq.eq('driver_id', driverId)
-      const { data: orders } = await oq.order('created_at', { ascending: false }).limit(150)
-
-      let pq = sb.from('field_events').select('*').in('action', ['payout', 'pay', 'order'])
-      pq = dateFilter(pq, 'created_at')
-      if (driverId) pq = pq.eq('user_id', driverId)
-      const { data: events } = await pq.order('created_at', { ascending: false }).limit(150)
-
-      const { data: vendors } = await sb.from('vendors').select('id,name').eq('is_active', true).order('name')
-      const since = new Date(Date.now() - 7 * 86400000).toISOString()
-      const { data: drivers } = await sb.from('profiles')
-        .select('id,display_name,avatar_emoji')
-        .contains('roles', ['driver'])
-        .gte('field_seen_at', since)
-        .limit(80)
-
-      return new Response(JSON.stringify({
-        ok: true,
-        orders: orders || [],
-        events: events || [],
-        vendors: vendors || [],
-        drivers: drivers || [],
-      }), { headers: cors })
-    }
-
-    if (mode === 'avc_ledger' || mode === 'avc') {
-      let lq = sb.from('avc_ledger')
-        .select('seq,created_at,user_id,delta_avc,balance_after,work_type,order_id,public_note,entry_hash,prev_hash')
-      lq = dateFilter(lq, 'created_at')
-      const { data: rows, error } = await lq.order('seq', { ascending: false }).limit(300)
-      if (error) throw error
-
-      const { data: constitution } = await sb.from('avc_constitution').select('*').eq('id', 1).maybeSingle()
-      const peg = Number(constitution?.peg_eur ?? 1)
-      const minted = (rows || []).filter(r => Number(r.delta_avc) > 0)
-        .reduce((s, r) => s + Number(r.delta_avc), 0)
-      const spent = (rows || []).filter(r => Number(r.delta_avc) < 0)
-        .reduce((s, r) => s + Math.abs(Number(r.delta_avc)), 0)
-      const byWork: Record<string, number> = {}
-      for (const r of rows || []) {
-        const wt = String(r.work_type || 'unknown')
-        byWork[wt] = (byWork[wt] || 0) + Number(r.delta_avc)
+    switch (mode) {
+      case 'dashboard':
+        return json(await modeDashboard(sb, filters))
+      case 'payments':
+      case 'orders': {
+        const rows = await fetchOrders(sb, filters.from, filters.to, filters.vendor_id, filters.driver_id)
+        const { data: vendors } = await sb.from('vendors').select('id,name').limit(80)
+        const { data: drivers } = await sb.from('profiles').select('id,display_name').limit(80)
+        return json({ orders: rows, rows, vendors: vendors || [], drivers: drivers || [], events: [] })
       }
-
-      let chainValid = true
-      let prev = 'genesis'
-      const asc = [...(rows || [])].sort((a, b) => Number(a.seq) - Number(b.seq))
-      for (const r of asc) {
-        if (r.prev_hash !== prev) { chainValid = false; break }
-        prev = String(r.entry_hash)
+      case 'invoices': {
+        const rows = await fetchInvoices(sb, filters.from, filters.to)
+        return json({ rows })
       }
-
-      return new Response(JSON.stringify({
-        ok: true,
-        peg_eur: peg,
-        motto: constitution?.mint_rule,
-        chain_valid: chainValid,
-        kpis: {
-          entries: rows?.length ?? 0,
-          minted_avc: Math.round(minted * 100) / 100,
-          spent_avc: Math.round(spent * 100) / 100,
-          minted_eur: Math.round(minted * peg * 100) / 100,
-        },
-        by_work_type: byWork,
-        rows: rows || [],
-      }), { headers: cors })
+      case 'avc_ledger':
+        return json(await modeAvcLedger(sb, filters))
+      case 'general_ledger':
+        return json(await modeGeneralLedger(sb, filters, caller.canCompany))
+      case 'trial_balance':
+        return json(await modeTrialBalance(sb, filters, caller.canCompany))
+      case 'balance_sheet':
+        return json(await modeBalanceSheet(sb, filters, caller.canCompany, false))
+      case 'balance_sheet_projected':
+        return json(await modeBalanceSheet(sb, filters, caller.canCompany, true))
+      case 'balance_sheet_history':
+        return json(await modeBalanceHistory(sb))
+      case 'snapshot_save':
+        if (!caller.canCompany) return json({ error: 'Auditor or owner required' }, 403)
+        return json(await modeSnapshotSave(sb, filters, caller.user.id))
+      case 'tax_estimate':
+        if (!caller.canCompany) return json({ error: 'Auditor or owner required' }, 403)
+        return json(taxEstimate(
+          await fetchInvoices(sb, filters.from, filters.to),
+          await fetchOrders(sb, filters.from, filters.to, null, null),
+        ))
+      case 'my_financials':
+        return json(await modeMyFinancials(sb, caller.user.id, filters))
+      case 'company_summary':
+        if (!caller.canCompany) return json({ error: 'Auditor or owner required' }, 403)
+        return json({
+          trial_balance: await modeTrialBalance(sb, filters, true),
+          balance_sheet: await modeBalanceSheet(sb, filters, true, false),
+          projected: await modeBalanceSheet(sb, filters, true, true),
+          tax: taxEstimate(
+            await fetchInvoices(sb, filters.from, filters.to),
+            await fetchOrders(sb, filters.from, filters.to, null, null),
+          ),
+        })
+      case 'whoami':
+        return json({
+          user_id: caller.user.id,
+          email: caller.user.email,
+          is_owner: caller.isOwner,
+          is_auditor: caller.isAuditor,
+          can_company: caller.canCompany,
+        })
+      default:
+        return json({ error: 'Unknown mode: ' + mode }, 400)
     }
-
-    if (mode === 'vendors' || mode === 'drivers') {
-      if (mode === 'vendors') {
-        const { data } = await sb.from('vendors').select('id,name,category,lat,lng,is_active').order('name')
-        return new Response(JSON.stringify({ ok: true, rows: data || [] }), { headers: cors })
-      }
-      const since = new Date(Date.now() - 30 * 86400000).toISOString()
-      const { data } = await sb.from('profiles')
-        .select('id,display_name,avatar_emoji,field_lat,field_lng,field_seen_at')
-        .contains('roles', ['driver'])
-        .gte('field_seen_at', since)
-        .order('display_name')
-      return new Response(JSON.stringify({ ok: true, rows: data || [] }), { headers: cors })
-    }
-
-    return new Response(JSON.stringify({ error: 'unknown_mode' }), { status: 400, headers: cors })
   } catch (e) {
-    return new Response(JSON.stringify({ error: String((e as Error).message || e) }), { status: 500, headers: cors })
+    return json({ error: String(e) }, 500)
   }
 })
