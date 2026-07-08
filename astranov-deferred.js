@@ -8421,6 +8421,8 @@ const ProfileSite = {
   targetType: 'user',
   _vendor: null,
   _draft: null,
+  _shopMode: false,
+  _shopDraft: null,
 
   init() {
     this._bind();
@@ -8431,7 +8433,10 @@ const ProfileSite = {
     if (!panel || panel.dataset.bound) return;
     panel.dataset.bound = '1';
     document.getElementById('ps-close')?.addEventListener('click', () => this.close());
-    document.getElementById('ps-save')?.addEventListener('click', () => this.save());
+    document.getElementById('ps-save')?.addEventListener('click', () => {
+      if (this._shopMode) this.saveShop();
+      else this.save();
+    });
     document.getElementById('ps-site-req')?.addEventListener('click', () => this.requestSubdomain());
     document.getElementById('ps-open-site')?.addEventListener('click', () => this.openLiveSite());
     document.getElementById('ps-shop')?.addEventListener('click', () => {
@@ -8536,7 +8541,8 @@ const ProfileSite = {
         + '<label class="ps-field">Subdomain slug<input id="ps-in-slug" placeholder="my-yachts" value="' + this.esc(this._draft.site_slug) + '" /></label>'
         + '<div class="ps-hint">Subdomain needs admin approval · profile page is live now on tap</div>'
         + this._rolesHtml(prof.roles);
-      document.getElementById('ps-save').style.display = 'inline-block';
+      const saveBtn = document.getElementById('ps-save');
+      if (saveBtn) { saveBtn.style.display = 'inline-block'; saveBtn.textContent = 'Save profile'; }
       document.getElementById('ps-site-req').style.display = 'inline-block';
       document.getElementById('ps-logout').style.display = 'inline-block';
       this._bindRoleToggles();
@@ -8728,9 +8734,374 @@ const ProfileSite = {
   },
 
   close() {
-    document.getElementById('profile-site-panel')?.classList.remove('open');
+    const panel = document.getElementById('profile-site-panel');
+    panel?.classList.remove('open', 'shop-mode');
     this.targetId = null;
     this._vendor = null;
+    this._shopMode = false;
+    this._shopDraft = null;
+  },
+
+  formatCoords(lat, lng) {
+    return Number(lat).toFixed(4) + ', ' + Number(lng).toFixed(4);
+  },
+
+  _vendorTags(vendor) {
+    const t = vendor?.tags;
+    return (t && typeof t === 'object') ? t : {};
+  },
+
+  async _fetchOwnedVendors() {
+    if (!Auth?.user) return [];
+    try {
+      const headers = await Auth.authHeaders();
+      const r = await fetch(SB_URL + '/rest/v1/vendors?select=id,name,emoji,lat,lng,items,tags,category,owner_id&owner_id=eq.' + Auth.user.id, { headers });
+      return r.ok ? await r.json() : [];
+    } catch { return []; }
+  },
+
+  async _vendorNear(lat, lng, owned) {
+    const list = owned || await this._fetchOwnedVendors();
+    let best = null;
+    let bestKm = 0.12;
+    list.forEach(v => {
+      if (v.lat == null || v.lng == null) return;
+      const km = Commerce?.haversineKm?.(lat, lng, v.lat, v.lng) ?? 999;
+      if (km < bestKm) { bestKm = km; best = v; }
+    });
+    return best;
+  },
+
+  async _uploadShopImage(file) {
+    if (!Auth?.user || !Auth?.client) throw new Error('login required — tap G');
+    const ext = String(file.name || '').split('.').pop()?.toLowerCase() || 'jpg';
+    const safeExt = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext) ? ext : 'jpg';
+    const path = Auth.user.id + '/shop/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.' + safeExt;
+    const { error } = await Auth.client.storage.from('posts').upload(path, file, {
+      contentType: file.type || 'image/jpeg',
+      upsert: false,
+    });
+    if (error) throw new Error(error.message || 'upload failed');
+    const { data } = Auth.client.storage.from('posts').getPublicUrl(path);
+    return data?.publicUrl || (SB_URL + '/storage/v1/object/public/posts/' + path);
+  },
+
+  async openShopEditor(lat, lng) {
+    if (!Auth?.user) return Auth?.openLoginModal?.('Sign in to set up your shop');
+    lat = Number(lat);
+    lng = Number(lng);
+    if (!isFinite(lat) || !isFinite(lng)) return;
+    window._lastPos = { lat, lng };
+    window._pendingShopLatLng = { lat, lng };
+
+    this._shopMode = true;
+    this.targetType = 'shop';
+    this.targetId = Auth.user.id;
+
+    const prof = await this.loadProfile(Auth.user.id);
+    const owned = await this._fetchOwnedVendors();
+    const vendor = await this._vendorNear(lat, lng, owned);
+    const tags = this._vendorTags(vendor);
+    const menu = vendor ? Commerce?.menuFor?.(vendor) || [] : [];
+
+    this._shopDraft = {
+      vendorId: vendor?.id || null,
+      lat,
+      lng,
+      name: vendor?.name || prof?.display_name || Auth.user.user_metadata?.full_name || 'My shop',
+      phone: tags.phone || prof?.phone || '',
+      email: tags.email || prof?.public_email || Auth.user.email || '',
+      about: tags.about || prof?.bio || '',
+      coverUrl: tags.cover_url || '',
+      profileUrl: tags.profile_url || '',
+      coverFile: null,
+      profileFile: null,
+      menuRows: menu.length
+        ? menu.map(i => ({ name: i.name || '', price: i.price ?? '', imageUrl: i.image || i.photo || '', imageFile: null }))
+        : [{ name: '', price: '', imageUrl: '', imageFile: null }],
+    };
+    this._vendor = vendor;
+    this._renderShopEditor();
+    document.getElementById('profile-site-panel')?.classList.add('open', 'shop-mode');
+    MapDepict?.pulse?.(lat, lng, 0xff8844, this._shopDraft.name, 12000);
+    Responsive3D?.visualReact?.('profile', { lat, lng });
+  },
+
+  _renderShopEditor() {
+    const d = this._shopDraft;
+    if (!d) return;
+    const panel = document.getElementById('profile-site-panel');
+    if (!panel) return;
+
+    document.getElementById('ps-title').textContent = '🏬 Shop profile';
+    document.getElementById('ps-sub').textContent = d.vendorId ? 'Edit your shop at this address' : 'New shop at this pin';
+    const body = document.getElementById('ps-body');
+    if (!body) return;
+
+    const coverStyle = d.coverUrl ? ' style="background-image:url(' + this.esc(d.coverUrl) + ')"' : '';
+    const avatarStyle = d.profileUrl ? ' style="background-image:url(' + this.esc(d.profileUrl) + ')"' : '';
+
+    body.innerHTML = ''
+      + '<div class="ps-shop-cover"' + coverStyle + '><button type="button" class="ps-shop-cover-btn" id="ps-shop-cover-pick">'
+      + (d.coverUrl ? 'Change cover' : '+ Cover photo') + '</button>'
+      + '<div class="ps-shop-avatar"' + avatarStyle + '><button type="button" class="ps-shop-avatar-btn" id="ps-shop-avatar-pick">'
+      + (d.profileUrl ? '' : '📷') + '</button></div></div>'
+      + '<input type="file" id="ps-shop-cover-in" accept="image/*" hidden />'
+      + '<input type="file" id="ps-shop-avatar-in" accept="image/*" hidden />'
+      + '<div class="ps-shop-addr">📍 ' + this.esc(this.formatCoords(d.lat, d.lng)) + '</div>'
+      + '<label class="ps-field">Shop name<input id="ps-shop-name" value="' + this.esc(d.name) + '" /></label>'
+      + '<label class="ps-field">Phone<input id="ps-shop-phone" type="tel" value="' + this.esc(d.phone) + '" /></label>'
+      + '<label class="ps-field">Email<input id="ps-shop-email" type="email" value="' + this.esc(d.email) + '" /></label>'
+      + '<label class="ps-field">About<textarea id="ps-shop-about" rows="2">' + this.esc(d.about) + '</textarea></label>'
+      + '<div class="ps-menu-title">Menu · photo + price</div>'
+      + '<div id="ps-menu-rows">' + this._shopMenuRowsHtml(d.menuRows) + '</div>'
+      + '<button type="button" id="ps-menu-add">+ Add menu item</button>'
+      + '<div class="ps-hint">Saved to map · customers order from your menu</div>';
+
+    document.getElementById('ps-save').style.display = 'inline-block';
+    document.getElementById('ps-save').textContent = 'Save shop';
+    document.getElementById('ps-site-req').style.display = 'none';
+    document.getElementById('ps-open-site').style.display = 'none';
+    document.getElementById('ps-shop').style.display = d.vendorId ? 'inline-block' : 'none';
+    document.getElementById('ps-logout').style.display = 'none';
+
+    const statusEl = document.getElementById('ps-status');
+    if (statusEl) statusEl.textContent = d.vendorId ? 'Editing existing shop' : 'Creates shop on save';
+
+    this._bindShopEditor();
+  },
+
+  _shopMenuRowsHtml(rows) {
+    return rows.map((row, i) => {
+      const thumbStyle = row.imageUrl ? ' style="background-image:url(' + this.esc(row.imageUrl) + ')"' : '';
+      return '<div class="ps-menu-row" data-menu-idx="' + i + '">'
+        + '<div class="ps-menu-thumb"' + thumbStyle + '><input type="file" accept="image/*" data-menu-photo="' + i + '" title="Photo" /></div>'
+        + '<input type="text" data-menu-name="' + i + '" placeholder="Item name" value="' + this.esc(row.name) + '" />'
+        + '<input type="number" step="0.1" min="0" data-menu-price="' + i + '" placeholder="AVC" value="' + (row.price === '' ? '' : this.esc(String(row.price))) + '" />'
+        + '<button type="button" class="ps-menu-rm" data-menu-rm="' + i + '" title="Remove">×</button>'
+        + '</div>';
+    }).join('');
+  },
+
+  _bindShopEditor() {
+    const pickCover = () => document.getElementById('ps-shop-cover-in')?.click();
+    const pickAvatar = () => document.getElementById('ps-shop-avatar-in')?.click();
+
+    document.getElementById('ps-shop-cover-pick')?.addEventListener('click', pickCover);
+    document.getElementById('ps-shop-avatar-pick')?.addEventListener('click', pickAvatar);
+
+    document.getElementById('ps-shop-cover-in')?.addEventListener('change', (e) => {
+      const f = e.target.files?.[0];
+      if (!f || !this._shopDraft) return;
+      this._shopDraft.coverFile = f;
+      const url = URL.createObjectURL(f);
+      this._shopDraft.coverUrl = url;
+      const el = document.querySelector('.ps-shop-cover');
+      if (el) { el.style.backgroundImage = 'url(' + url + ')'; el.querySelector('.ps-shop-cover-btn').textContent = 'Change cover'; }
+    });
+
+    document.getElementById('ps-shop-avatar-in')?.addEventListener('change', (e) => {
+      const f = e.target.files?.[0];
+      if (!f || !this._shopDraft) return;
+      this._shopDraft.profileFile = f;
+      const url = URL.createObjectURL(f);
+      this._shopDraft.profileUrl = url;
+      const el = document.querySelector('.ps-shop-avatar');
+      if (el) { el.style.backgroundImage = 'url(' + url + ')'; }
+    });
+
+    document.getElementById('ps-menu-add')?.addEventListener('click', () => {
+      if (!this._shopDraft) return;
+      this._collectShopMenuFromDom();
+      this._shopDraft.menuRows.push({ name: '', price: '', imageUrl: '', imageFile: null });
+      const box = document.getElementById('ps-menu-rows');
+      if (box) box.innerHTML = this._shopMenuRowsHtml(this._shopDraft.menuRows);
+      this._bindShopMenuRows();
+    });
+
+    this._bindShopMenuRows();
+  },
+
+  _bindShopMenuRows() {
+    document.querySelectorAll('[data-menu-photo]').forEach(inp => {
+      inp.onchange = (e) => {
+        const i = parseInt(inp.dataset.menuPhoto, 10);
+        const f = e.target.files?.[0];
+        if (!f || !this._shopDraft?.menuRows[i]) return;
+        this._shopDraft.menuRows[i].imageFile = f;
+        const url = URL.createObjectURL(f);
+        this._shopDraft.menuRows[i].imageUrl = url;
+        const thumb = inp.closest('.ps-menu-thumb');
+        if (thumb) thumb.style.backgroundImage = 'url(' + url + ')';
+      };
+    });
+    document.querySelectorAll('[data-menu-rm]').forEach(btn => {
+      btn.onclick = () => {
+        const i = parseInt(btn.dataset.menuRm, 10);
+        if (!this._shopDraft) return;
+        this._collectShopMenuFromDom();
+        this._shopDraft.menuRows.splice(i, 1);
+        if (!this._shopDraft.menuRows.length) {
+          this._shopDraft.menuRows.push({ name: '', price: '', imageUrl: '', imageFile: null });
+        }
+        const box = document.getElementById('ps-menu-rows');
+        if (box) box.innerHTML = this._shopMenuRowsHtml(this._shopDraft.menuRows);
+        this._bindShopMenuRows();
+      };
+    });
+  },
+
+  _collectShopMenuFromDom() {
+    if (!this._shopDraft) return;
+    this._shopDraft.menuRows.forEach((row, i) => {
+      row.name = document.querySelector('[data-menu-name="' + i + '"]')?.value?.trim() || row.name || '';
+      const p = document.querySelector('[data-menu-price="' + i + '"]')?.value;
+      row.price = p === '' || p == null ? row.price : parseFloat(p);
+    });
+  },
+
+  _collectShopDraft() {
+    const d = this._shopDraft;
+    if (!d) return null;
+    this._collectShopMenuFromDom();
+    d.name = document.getElementById('ps-shop-name')?.value?.trim() || d.name || 'My shop';
+    d.phone = document.getElementById('ps-shop-phone')?.value?.trim() || '';
+    d.email = document.getElementById('ps-shop-email')?.value?.trim() || '';
+    d.about = document.getElementById('ps-shop-about')?.value?.trim() || '';
+    return d;
+  },
+
+  async saveShop() {
+    if (!Auth?.user || !this._shopMode) return;
+    const d = this._collectShopDraft();
+    if (!d) return;
+
+    const statusEl = document.getElementById('ps-status');
+    if (statusEl) statusEl.textContent = 'Saving shop…';
+    GlobeDeck?.setThinking?.(true, 'Saving shop…');
+
+    try {
+      let coverUrl = d.coverUrl;
+      let profileUrl = d.profileUrl;
+      if (d.coverFile) coverUrl = await this._uploadShopImage(d.coverFile);
+      if (d.profileFile) profileUrl = await this._uploadShopImage(d.profileFile);
+
+      const items = [];
+      for (const row of d.menuRows) {
+        const name = String(row.name || '').trim();
+        if (!name) continue;
+        let image = row.imageUrl || '';
+        if (row.imageFile) image = await this._uploadShopImage(row.imageFile);
+        else if (image.startsWith('blob:')) image = '';
+        const price = parseFloat(row.price);
+        const item = { name, price: isNaN(price) ? 0 : price };
+        if (image && !image.startsWith('blob:')) item.image = image;
+        items.push(item);
+      }
+
+      const tags = {
+        cover_url: coverUrl && !coverUrl.startsWith('blob:') ? coverUrl : '',
+        profile_url: profileUrl && !profileUrl.startsWith('blob:') ? profileUrl : '',
+        phone: d.phone,
+        email: d.email,
+        about: d.about,
+        updated_at: new Date().toISOString(),
+      };
+
+      const headers = await Auth.authHeaders();
+      let vendorId = d.vendorId;
+
+      if (!vendorId) {
+        vendorId = 'v-' + Auth.user.id.slice(0, 8) + '-' + Date.now().toString(36);
+        const body = {
+          id: vendorId,
+          owner_id: Auth.user.id,
+          name: d.name,
+          emoji: '🏬',
+          lat: d.lat,
+          lng: d.lng,
+          country: 'GR',
+          city: 'field',
+          items,
+          tags,
+          is_active: true,
+          delivery_enabled: true,
+          category: 'field_shop',
+        };
+        const r = await fetch(SB_URL + '/rest/v1/vendors', { method: 'POST', headers, body: JSON.stringify(body) });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          throw new Error(j.message || j.error || 'shop create failed');
+        }
+      } else {
+        const r = await fetch(SB_URL + '/rest/v1/vendors?id=eq.' + encodeURIComponent(vendorId), {
+          method: 'PATCH',
+          headers: { ...headers, Prefer: 'return=representation' },
+          body: JSON.stringify({
+            name: d.name,
+            lat: d.lat,
+            lng: d.lng,
+            items,
+            tags,
+            updated_at: new Date().toISOString(),
+          }),
+        });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          throw new Error(j.message || j.error || 'shop update failed');
+        }
+      }
+
+      const profPage = {
+        contact: { phone: d.phone, email: d.email },
+        about: d.about,
+        updated_at: new Date().toISOString(),
+      };
+      await fetch(SB_URL + '/rest/v1/profiles?id=eq.' + Auth.user.id, {
+        method: 'PATCH', headers,
+        body: JSON.stringify({
+          phone: d.phone || null,
+          public_email: d.email || null,
+          bio: d.about || undefined,
+          profile_page: profPage,
+          is_vendor: true,
+          updated_at: new Date().toISOString(),
+        }),
+      });
+
+      const roles = Array.from(new Set([...(FieldBrain?.roles || ['client']), 'vendor']));
+      if (!roles.includes('vendor')) roles.push('vendor');
+      await fetch(SB_URL + '/rest/v1/profiles?id=eq.' + Auth.user.id, {
+        method: 'PATCH', headers,
+        body: JSON.stringify({ roles, is_vendor: true }),
+      });
+      FieldBrain.roles = roles;
+      FieldBrain?.updateChip?.();
+
+      await Commerce?.loadVendors?.();
+      MapDepict?.pulse?.(d.lat, d.lng, 0xff8844, d.name, 16000);
+      GlobeEntity?.syncVendors?.(Commerce?.vendors || []);
+
+      d.vendorId = vendorId;
+      d.coverUrl = tags.cover_url;
+      d.profileUrl = tags.profile_url;
+      d.coverFile = null;
+      d.profileFile = null;
+      d.menuRows = items.length
+        ? items.map(i => ({ name: i.name, price: i.price, imageUrl: i.image || '', imageFile: null }))
+        : [{ name: '', price: '', imageUrl: '', imageFile: null }];
+
+      if (statusEl) statusEl.textContent = '✓ Shop saved on map';
+      ACIControl?.reply('Shop saved — cover, menu & prices live at ' + this.formatCoords(d.lat, d.lng));
+      AciCli?.print('shop profile saved · ' + d.name + ' · ' + items.length + ' items', 'ok');
+      document.getElementById('ps-shop').style.display = 'inline-block';
+      this._vendor = { id: vendorId, name: d.name, lat: d.lat, lng: d.lng, items, tags };
+    } catch (e) {
+      if (statusEl) statusEl.textContent = 'Save failed';
+      ACIControl?.reply('Shop save failed: ' + (e.message || e));
+    } finally {
+      GlobeDeck?.setThinking?.(false);
+    }
   },
 
   async openSelf() {
@@ -8741,7 +9112,16 @@ const ProfileSite = {
   async cmd(parts) {
     const sub = (parts[1] || 'me').toLowerCase();
     if (sub === 'me' || sub === 'edit') return this.openSelf();
-    if (sub === 'save') return this.save();
+    if (sub === 'shop') {
+      const pos = window._pendingShopLatLng || window._lastPos;
+      if (pos?.lat != null) return this.openShopEditor(pos.lat, pos.lng);
+      ACIControl?.reply('Tap map · Shop address to pin your shop first');
+      return;
+    }
+    if (sub === 'save') {
+      if (this._shopMode) return this.saveShop();
+      return this.save();
+    }
     const name = parts.slice(1).join(' ').toLowerCase();
     const hit = (window.others || []).find(u => (u.name || '').toLowerCase().includes(name));
     if (hit?.id) return this.openUser(hit.id);
