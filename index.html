@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260708200000" />
+<meta name="astranov-build" content="20260708210000" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -392,6 +392,15 @@
   #vm-body { flex:1; overflow-y:auto; padding:8px 10px; }
   #vm-list .vm-vendor { display:flex; gap:10px; align-items:center; padding:10px; margin:6px 0; border-radius:10px; background:rgba(0,0,0,0.35); border:1px solid var(--ax-blue-border); cursor:pointer; }
   #vm-list .vm-vendor:hover { border-color:var(--ax-blue-bright); box-shadow:0 0 8px var(--ax-blue-glow); }
+  #vm-list .vm-vendor.vm-vendor-construction { border-color:rgba(255,214,51,0.55); box-shadow:0 0 10px rgba(255,214,51,0.2); }
+  #vm-list .vm-vendor-logo { width:36px; height:36px; border-radius:10px; object-fit:cover; border:1px solid var(--ax-blue-border); background:#0a1628; flex-shrink:0; }
+  .vm-construction { text-align:center; padding:18px 14px 22px; }
+  .vm-construction-cover { height:88px; margin:-8px -10px 14px; border-radius:12px; background:center/cover no-repeat; opacity:0.35; filter:blur(1px); }
+  .vm-construction-logo { width:76px; height:76px; border-radius:18px; border:2px solid var(--ax-blue-bright); box-shadow:0 0 18px var(--ax-blue-glow); margin:0 auto 12px; display:block; background:#0a1628; object-fit:cover; }
+  .vm-construction h3 { margin:0 0 6px; color:var(--ax-blue-bright); font-size:16px; text-shadow:0 0 8px var(--ax-blue-glow); }
+  .vm-construction-badge { margin:0 0 6px; color:#ffd633; font-weight:700; font-size:13px; }
+  .vm-construction-city { margin:0 0 10px; color:#9ab; font-size:11px; }
+  .vm-construction-about { margin:0; color:#b8c8dc; font-size:12px; line-height:1.5; }
   #vm-items .vm-item { display:flex; justify-content:space-between; align-items:center; padding:8px 4px; border-bottom:1px solid rgba(255,255,255,0.06); }
   .vm-qty { display:flex; gap:6px; align-items:center; }
   .vm-qty button { width:28px; height:28px; border-radius:8px; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); cursor:pointer; font-size:14px; }
@@ -3971,6 +3980,18 @@ const Auth = {
     MapPins?.loadFromProfile?.();
     this.loadProfileVisual();
     ContextTruth?.syncAuth?.();
+    if (this.user) {
+      const pos = window._lastPos;
+      if (pos?.lat != null) {
+        void window.AstranovCityShop?.placeForUser?.(pos.lat, pos.lng);
+      } else if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (p) => void window.AstranovCityShop?.placeForUser?.(p.coords.latitude, p.coords.longitude),
+          () => {},
+          { enableHighAccuracy: false, timeout: 12000, maximumAge: 600000 }
+        );
+      }
+    }
   },
 
   updateOwnerUI() {
@@ -7520,6 +7541,7 @@ const MapPins = {
   },
 
   vendorLogo(v) {
+    if (window.AstranovCityShop?.isConstructionVendor?.(v)) return window.AstranovCityShop.LOGO || '/icon.svg';
     let t = v?.tags;
     if (typeof t === 'string') { try { t = JSON.parse(t); } catch { t = {}; } }
     return this._firstUrl(t?.profile_url, t?.logo_url, t?.avatar_url);
@@ -8451,18 +8473,22 @@ const GlobeEntity = {
       const km = window.Commerce?.haversineKm?.(window.Commerce.userLatLng().lat, window.Commerce.userLatLng().lng, v.lat, v.lng);
       const menu = window.Commerce?.menuFor?.(v)?.length || 0;
       const logoUrl = MapPins?.vendorLogo?.(v) || '';
+      const isConstruction = window.AstranovCityShop?.isConstructionVendor?.(v);
+      const city = isConstruction ? (window.AstranovCityShop?._tags?.(v)?.city || 'city center') : '';
       this.register({
         id: 'vendor-' + v.id,
         type: 'vendor',
         lat: v.lat,
         lng: v.lng,
-        title: v.name,
-        description: (menu ? menu + ' items · menu w/ photos' : 'menu on request') + (km != null ? ' · ' + km.toFixed(1) + ' km' : '') + ' · tap to order',
-        urgency: i === 0 ? 3 : 2,
-        radius: 0.022,
-        logoUrl,
-        data: { vendor: v, logoUrl, alwaysShowLabel: i < 8 },
-        _actionLabel: 'Open ' + v.name,
+        title: isConstruction ? 'Astranov Shop · Under Construction' : v.name,
+        description: isConstruction
+          ? '🚧 Under Construction · ' + city + ' center · Astranov marketplace opening soon · tap to preview'
+          : (menu ? menu + ' items · menu w/ photos' : 'menu on request') + (km != null ? ' · ' + km.toFixed(1) + ' km' : '') + ' · tap to order',
+        urgency: isConstruction ? 4 : (i === 0 ? 3 : 2),
+        radius: isConstruction ? 0.034 : 0.022,
+        logoUrl: logoUrl || (isConstruction ? '/icon.svg' : ''),
+        data: { vendor: v, logoUrl: logoUrl || (isConstruction ? '/icon.svg' : ''), alwaysShowLabel: isConstruction || i < 8 },
+        _actionLabel: isConstruction ? 'Astranov Shop · Under Construction' : 'Open ' + v.name,
         onTap: () => window.Commerce?.openVendor?.(v),
       });
     });
@@ -10725,10 +10751,14 @@ const CityLife = {
           new Promise(resolve => setTimeout(() => resolve(null), 8000)),
         ]);
       }
-    const nearby = this.nearbyVendors(pos.lat, pos.lng);
-    if (nearby.length) {
-      window.Commerce.vendors = nearby.concat((window.Commerce.vendors || []).filter(v => !nearby.includes(v))).slice(0, 40);
-    }
+      await window.AstranovCityShop?.placeForUser?.(pos.lat, pos.lng);
+      let nearby = this.nearbyVendors(pos.lat, pos.lng);
+      const construction = (window.Commerce?.vendors || []).find(v => window.AstranovCityShop?.isConstructionVendor?.(v));
+      if (construction && !nearby.some(v => v.id === construction.id)) nearby = [construction].concat(nearby);
+      if (nearby.length) {
+        window.Commerce.vendors = nearby.concat((window.Commerce.vendors || []).filter(v => !nearby.includes(v))).slice(0, 40);
+      }
+      window.AstranovCityShop?.ensureInVendorList?.();
     window.Commerce?.showOnGlobe?.();
     GlobeEntity?.syncVendors?.(window.Commerce.vendors);
 
@@ -13143,6 +13173,7 @@ function placeMe(lat, lng, opts) {
   }
   if (!quiet) FieldBrain?.pulse('location', 'locate me', { role: 'client' });
   AstranovPresence?.onMove?.(lat, lng);
+  void window.AstranovCityShop?.placeForUser?.(lat, lng, { fly: false });
 }
 
 function locateMe() {
@@ -13311,6 +13342,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260708193000" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260708210000" data-astranov-deferred></script>
 </body>
 </html>
