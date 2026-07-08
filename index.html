@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260708190000" />
+<meta name="astranov-build" content="20260708191500" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -138,9 +138,36 @@
   .city-map-pin { background:transparent !important; border:none !important; }
   #map-style-switch { display:none; position:fixed; top:max(48px,calc(8px + env(safe-area-inset-top) + 36px)); right:10px; z-index:165; flex-direction:column; gap:4px; padding:5px; border-radius:12px; background:var(--ax-panel-strong); border:1px solid var(--ax-blue-border); box-shadow:0 4px 16px rgba(0,0,0,0.45),0 0 10px var(--ax-blue-glow); pointer-events:auto; backdrop-filter:blur(10px); font:9px system-ui; }
   #map-style-switch.visible { display:flex; }
-  #map-style-switch button { width:36px; height:34px; border-radius:9px; border:1px solid var(--ax-blue-border); background:rgba(0,40,90,0.45); color:var(--ax-blue-bright); cursor:pointer; font-size:14px; line-height:1; touch-action:manipulation; }
+  #map-style-switch button { display:flex; align-items:center; justify-content:center; width:36px; height:34px; border-radius:9px; border:1px solid var(--ax-blue-border); background:rgba(0,40,90,0.45); color:var(--ax-blue-bright); cursor:pointer; font-size:14px; line-height:1; touch-action:manipulation; padding:0; }
   #map-style-switch button.active { background:var(--ax-green-bg); border-color:var(--ax-green-border); color:var(--ax-green-bright); box-shadow:0 0 8px var(--ax-green-glow); }
   #map-style-switch .mss-lbl { text-align:center; font-size:7px; color:#7a9; letter-spacing:0.06em; text-transform:uppercase; margin-bottom:2px; }
+  #map-style-switch button .ai-glyph { width:22px; height:22px; }
+  .ai-glyph { position:relative; display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; color:var(--ai-color, var(--ax-blue-bright)); pointer-events:none; }
+  .ai-glyph svg { width:100%; height:100%; display:block; filter:drop-shadow(0 0 5px var(--ai-color, var(--ax-blue-glow))); transition:filter 0.2s, transform 0.2s; }
+  .ai-ring { position:absolute; inset:-5px; border-radius:50%; border:2px solid var(--ai-color, var(--ax-blue-bright)); opacity:0; pointer-events:none; }
+  .ai-ring-b { inset:-9px; border-width:1px; opacity:0; }
+  #super-cli-bar #aci-handsfree, #super-cli-bar #aci-stop { width:42px; height:42px; border-radius:50%; padding:0; display:inline-flex; align-items:center; justify-content:center; --ai-color:var(--ax-blue-bright); transition:box-shadow 0.25s,border-color 0.25s,background 0.25s; }
+  #super-cli-bar #aci-handsfree .ai-glyph { width:28px; height:28px; }
+  #super-cli-bar #aci-stop { --ai-color:var(--ax-red-bright); }
+  #super-cli-bar #aci-stop .ai-glyph { width:24px; height:24px; }
+  #super-cli-bar #aci-handsfree.deck-btn-active { --ai-color:#5ecbff; box-shadow:0 0 16px rgba(60,180,255,0.55), inset 0 0 12px rgba(60,180,255,0.12); animation:ai-core-breathe 2.6s ease-in-out infinite; }
+  #super-cli-bar #aci-handsfree.listening { --ai-color:#ff3d5a; border-color:rgba(255,60,90,0.85); box-shadow:0 0 20px rgba(255,50,80,0.65); }
+  #super-cli-bar #aci-handsfree.listening .ai-ring { animation:ai-ring-pulse 1.15s ease-out infinite; opacity:0.75; border-color:#ff3d5a; }
+  #super-cli-bar #aci-handsfree.listening .ai-ring-b { animation:ai-ring-pulse 1.15s ease-out 0.35s infinite; border-color:#ff7790; }
+  #super-cli-bar #aci-handsfree.speaking { --ai-color:#00f0a0; border-color:rgba(0,240,160,0.8); box-shadow:0 0 22px rgba(0,240,160,0.6); }
+  #super-cli-bar #aci-handsfree.speaking .ai-ring { animation:ai-ring-pulse 0.85s ease-out infinite; opacity:0.8; border-color:#00f0a0; }
+  #super-cli-bar #aci-handsfree.speaking .ai-ring-b { animation:ai-ring-pulse 0.85s ease-out 0.28s infinite; border-color:#66ffc8; }
+  #super-cli-bar #aci-handsfree.speaking.listening .ai-glyph svg { filter:drop-shadow(0 0 8px #ff3d5a) drop-shadow(0 0 10px #00f0a0); }
+  #super-cli-bar #aci-handsfree.ai-flash-stop { --ai-color:#ffaa22; animation:ai-stop-flash 0.65s ease-out; }
+  #super-cli-bar #aci-stop:hover .ai-glyph svg { filter:drop-shadow(0 0 12px var(--ax-red-glow)); transform:scale(1.06); }
+  #map-style-switch button[data-ms].active { --ai-color:var(--ax-green-bright); }
+  #map-style-switch button[data-ms="satellite"] { --ai-color:#8ec8ff; }
+  #map-style-switch button[data-ms="bright"] { --ai-color:#ffd060; }
+  #map-style-switch button[data-ms="dark"] { --ai-color:#9a7cff; }
+  #map-style-switch button.active .ai-ring { animation:ai-ring-pulse 2.4s ease-out infinite; opacity:0.5; border-color:var(--ai-color); }
+  @keyframes ai-core-breathe { 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.04); } }
+  @keyframes ai-ring-pulse { 0%{ transform:scale(0.82); opacity:0.85; } 100%{ transform:scale(1.55); opacity:0; } }
+  @keyframes ai-stop-flash { 0%{ box-shadow:0 0 28px rgba(255,170,40,0.9); } 100%{ box-shadow:0 0 8px rgba(255,170,40,0.2); } }
   #astranov-logo { position:fixed; top:max(10px,env(safe-area-inset-top)); left:50%; transform:translateX(-50%); z-index:210; margin:0; padding:6px 14px; border-radius:999px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); backdrop-filter:blur(10px); cursor:pointer; font-family:"Segoe UI Variable Display","Segoe UI Variable","Segoe UI","Segoe UI Rounded",system-ui,sans-serif; font-size:15px; font-weight:600; letter-spacing:0.34em; text-indent:0.34em; text-transform:uppercase; color:var(--ax-blue-bright); text-shadow:0 0 18px var(--ax-blue-glow); box-shadow:0 2px 14px rgba(0,0,0,0.45); transition:color 0.2s,border-color 0.2s,box-shadow 0.2s,background 0.2s,transform 0.15s; pointer-events:auto; touch-action:manipulation; user-select:none; -webkit-tap-highlight-color:transparent; display:flex; align-items:center; justify-content:center; min-width:min(200px,62vw); min-height:40px; overflow:hidden; opacity:1; visibility:visible; isolation:isolate; }
   body.globe-flying #astranov-logo, body.city-map-active #astranov-logo { z-index:210; opacity:1 !important; visibility:visible !important; pointer-events:auto !important; }
   body.globe-flying #zoom-label { top:max(52px,calc(10px + env(safe-area-inset-top) + 42px)); }
@@ -325,8 +352,8 @@
   #aci-cli-in::placeholder { color:var(--an-muted); opacity:0.85; }
   #aci-cli-in.voice-live { border-color:var(--ax-blue-bright); color:var(--ax-blue-bright); box-shadow:0 0 10px var(--ax-blue-glow); }
   #globe-deck-input-row .deck-input-btn { background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); border-radius:50%; width:40px; height:40px; cursor:pointer; font-size:16px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; touch-action:manipulation; }
-  #super-cli-bar #aci-handsfree.deck-btn-active, #super-cli-bar #aci-handsfree.listening { background:var(--ax-blue-bg); border-color:var(--ax-blue-bright); color:var(--ax-blue-bright); box-shadow:0 0 12px var(--ax-blue-glow); }
-  #super-cli-bar #aci-handsfree.speaking { background:var(--ax-green-bg); border-color:var(--ax-green-border); color:var(--ax-green-bright); box-shadow:0 0 10px var(--ax-green-glow); }
+  #super-cli-bar #aci-handsfree.deck-btn-active, #super-cli-bar #aci-handsfree.listening { background:rgba(0,30,70,0.55); border-color:var(--ax-blue-bright); }
+  #super-cli-bar #aci-handsfree.speaking { background:rgba(0,40,28,0.55); }
   #globe-deck-input-row #globe-deck-send { border-radius:12px; width:44px; font-size:15px; font-weight:700; }
   #aci-cli-toggle { display:inline-flex; background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); border-radius:50%; width:38px; height:38px; cursor:pointer; font-size:15px; flex-shrink:0; align-items:center; justify-content:center; }
   #city-life-chip { display:none; position:fixed; top:52px; left:12px; bottom:auto; z-index:38; max-width:min(240px,calc(100vw - 24px)); padding:8px 12px; border-radius:12px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); font:10px/1.4 system-ui; color:var(--an-text); pointer-events:none; backdrop-filter:blur(8px); }
@@ -672,9 +699,9 @@
   <div id="city-map"></div>
   <div id="map-style-switch" aria-label="Map style">
     <span class="mss-lbl">Map</span>
-    <button type="button" data-ms="satellite" title="Satellite imagery">🛰</button>
-    <button type="button" data-ms="bright" title="Bright streets · names · blocks">☀️</button>
-    <button type="button" data-ms="dark" title="Dark streets · names">🌙</button>
+    <button type="button" data-ms="satellite" title="Satellite imagery"></button>
+    <button type="button" data-ms="bright" title="Bright streets · names · blocks"></button>
+    <button type="button" data-ms="dark" title="Dark streets · names"></button>
   </div>
   <div id="city-life-chip"></div>
   <div id="globe-entity-labels"></div>
@@ -740,14 +767,14 @@
         </div>
         <div id="super-cli-edge-right" class="super-cli-edge-right">
           <button id="super-add-fab" type="button" title="Super Add — post · vendor · site">+</button>
-          <button id="aci-handsfree" type="button" title="AI hands-free — listen &amp; speak">🎧</button>
+          <button id="aci-handsfree" type="button" title="AI hands-free — listen &amp; speak" data-voice-state="off"></button>
         </div>
         <button id="aci-cli-toggle" title="Expand/collapse Astranov Command Line" type="button">💻</button>
-        <button id="aci-stop" title="Stop" type="button">🛑</button>
+        <button id="aci-stop" title="Stop AI · voice · tasks" type="button"></button>
         <button id="aci-hold" title="Hold session — pause mic &amp; tasks for noisy places" type="button" aria-pressed="false">⏸</button>
         <button id="aci-locate" title="Locate me — city view" type="button">🎯</button>
         <button id="aci-provider" type="button" title="AI provider — tap to cycle" data-provider="astranov">AV</button>
-        <button id="aci-theme" title="Dark / bright theme" type="button">🌙</button>
+        <button id="aci-theme" title="Dark / bright theme" type="button"></button>
         <button id="aci-order" title="Order" type="button">🛒</button>
         <button id="aci-batch" title="Batch" type="button">🔗</button>
         <button id="aci-vhf" title="PMR radio" type="button">📡</button>
@@ -1328,6 +1355,9 @@ const Voice = {
     this.speaking = false;
     this.releaseAudio();
     try { speechSynthesis.cancel(); } catch (_) {}
+    AstranovLogo?.setAiActive?.(false);
+    window.syncHandsFreeBtn?.();
+    AiGlyphs?.syncVoice?.();
   },
 
   flush() {
@@ -1676,9 +1706,13 @@ function userIntervene() {
   window.SuperAdd?.stop?.();
   GlobeEntity?.clearSelection?.();
   document.getElementById('aci-cli-in')?.classList.remove('voice-live');
+  AstranovLogo?.setMicActive?.(false);
+  AstranovLogo?.setAiActive?.(false);
   document.getElementById('aci-handsfree')?.classList.remove('listening', 'deck-btn-active', 'speaking');
+  AiGlyphs?.flashStop?.();
+  AiGlyphs?.syncVoice?.();
   const cliIn = document.getElementById('aci-cli-in');
-  if (cliIn) cliIn.placeholder = 'type or tap 🎧 · Enter or ➡';
+  if (cliIn) cliIn.placeholder = 'Talk to Grok — type or tap voice · Enter to send';
   GlobeControl?.userTookGlobe?.('stop');
   if (window.PmrRadio) PmrRadio.hide();
     if (window.DrivingView) window.DrivingView.deactivate();
@@ -1689,7 +1723,7 @@ function userIntervene() {
   if (recognition) { try { recognition.stop(); } catch (_) {} }
   isListening = false;
   if (ACI) ACI.evolving = false;
-  GlobeDeck?.setMapStatus((AstroGlyphs?.stop || '🛑') + ' Stopped — globe is yours');
+  GlobeDeck?.setMapStatus('◼ Stopped — globe is yours');
   if (window.ACIControl) ACIControl.reply('Stopped — globe is yours.');
 }
 
@@ -1767,6 +1801,80 @@ function driverIcon(d) {
 window.AstroGlyphs = AstroGlyphs;
 window.vendorIcon = vendorIcon;
 window.driverIcon = driverIcon;
+
+// === AI GLYPHS — glowing SVG state icons (voice · stop · map · theme) ===
+const AiGlyphs = {
+  _svgs: {
+    voice: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2.8" fill="currentColor"/><circle cx="12" cy="12" r="6.5" stroke="currentColor" stroke-width="1.4" opacity="0.55"/><circle cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="1" opacity="0.28"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.45"/></svg>',
+    stop: '<svg viewBox="0 0 24 24" fill="none"><rect x="7" y="7" width="10" height="10" rx="2.2" fill="currentColor"/><rect x="7" y="7" width="10" height="10" rx="2.2" stroke="currentColor" stroke-width="1.5" opacity="0.45"/><path d="M4 4l16 16" stroke="currentColor" stroke-width="1.2" opacity="0.35" stroke-linecap="round"/></svg>',
+    satellite: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" fill="currentColor"/><ellipse cx="12" cy="12" rx="10" ry="4.2" stroke="currentColor" stroke-width="1.3" opacity="0.7"/><ellipse cx="12" cy="12" rx="10" ry="4.2" stroke="currentColor" stroke-width="1" opacity="0.35" transform="rotate(58 12 12)"/><circle cx="19" cy="6" r="1.4" fill="currentColor" opacity="0.8"/></svg>',
+    bright: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4.2" fill="currentColor"/><path d="M12 2.5v2.8M12 18.7V21.5M2.5 12h2.8M18.7 12H21.5M5.1 5.1l2 2M16.9 16.9l2 2M18.9 5.1l-2 2M7.1 16.9l-2 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+    dark: '<svg viewBox="0 0 24 24" fill="none"><path d="M14.8 4.2a7.2 7.2 0 1 0 5 11.8A8.8 8.8 0 1 1 14.8 4.2z" fill="currentColor"/><circle cx="17.5" cy="6.8" r="1" fill="currentColor" opacity="0.55"/></svg>',
+    themeDark: '<svg viewBox="0 0 24 24" fill="none"><path d="M14.6 4.4a6.8 6.8 0 1 0 4.8 11.2A8.2 8.2 0 1 1 14.6 4.4z" fill="currentColor"/></svg>',
+    themeBright: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+  },
+
+  wrap(name) {
+    const svg = this._svgs[name] || this._svgs.voice;
+    return '<span class="ai-glyph ai-glyph-' + name + '" aria-hidden="true">' + svg + '<span class="ai-ring"></span><span class="ai-ring ai-ring-b"></span></span>';
+  },
+
+  mount(id, name) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.dataset.aiGlyph !== name) {
+      el.innerHTML = this.wrap(name);
+      el.dataset.aiGlyph = name;
+    }
+  },
+
+  mountMapStyles() {
+    const map = { satellite: 'satellite', bright: 'bright', dark: 'dark' };
+    document.querySelectorAll('#map-style-switch [data-ms]').forEach(btn => {
+      const g = map[btn.dataset.ms] || 'satellite';
+      if (btn.dataset.aiGlyph !== g) {
+        btn.innerHTML = this.wrap(g);
+        btn.dataset.aiGlyph = g;
+      }
+    });
+  },
+
+  syncTheme() {
+    const bright = (AstranovTheme?.effectiveMode?.() || AstranovTheme?.mode || 'dark') === 'bright';
+    this.mount('aci-theme', bright ? 'themeBright' : 'themeDark');
+  },
+
+  syncVoice() {
+    const btn = document.getElementById('aci-handsfree');
+    if (!btn) return;
+    const on = !!(voiceSessionActive || window._handsFreeVoice);
+    const listening = !!isListening;
+    const speaking = !!Voice?.speaking;
+    let state = 'off';
+    if (speaking && listening) state = 'duplex';
+    else if (speaking) state = 'speaking';
+    else if (listening) state = 'listening';
+    else if (on) state = 'on';
+    btn.dataset.voiceState = state;
+  },
+
+  flashStop() {
+    const hf = document.getElementById('aci-handsfree');
+    if (!hf) return;
+    hf.classList.add('ai-flash-stop');
+    clearTimeout(this._stopFlash);
+    this._stopFlash = setTimeout(() => hf.classList.remove('ai-flash-stop'), 700);
+  },
+
+  init() {
+    this.mount('aci-handsfree', 'voice');
+    this.mount('aci-stop', 'stop');
+    this.mountMapStyles();
+    this.syncTheme();
+    this.syncVoice();
+  },
+};
+window.AiGlyphs = AiGlyphs;
 
 // === LIGHT STUBS — removed heavy subsystems; keep optional chaining safe ===
 const FieldBrain = {
@@ -9808,6 +9916,7 @@ const CityMap = {
       });
     });
     this._syncStyleUi();
+    AiGlyphs?.mountMapStyles?.();
   },
 
   _buildLayers() {
@@ -10709,13 +10818,14 @@ const AstranovTheme = {
     EarthRealism?.onThemeChange?.();
     this._maps.forEach(m => m.onThemeChange?.());
     this._syncBtn();
+    AiGlyphs?.syncTheme?.();
   },
 
   _syncBtn() {
     const btn = document.getElementById('aci-theme');
     if (!btn) return;
     const active = this.effectiveMode();
-    btn.textContent = active === 'bright' ? '☀️' : '🌙';
+    AiGlyphs?.syncTheme?.();
     btn.title = this.followSystem
       ? ('Device ' + active + ' theme — tap to override')
       : (active === 'bright' ? 'Bright theme — tap for dark' : 'Dark theme — tap for bright');
@@ -12304,6 +12414,8 @@ function voiceInterrupt(opts) {
   if (_voiceResumeTimer) { clearTimeout(_voiceResumeTimer); _voiceResumeTimer = null; }
   if (_voiceSilenceTimer) { clearTimeout(_voiceSilenceTimer); _voiceSilenceTimer = null; }
   Voice?.flush?.();
+  AstranovLogo?.setAiActive?.(false);
+  syncHandsFreeBtn?.();
   GlobeDeck?.setThinking?.(false);
   if (window._aciAbort) { try { window._aciAbort.abort(); } catch (_) {} window._aciAbort = null; }
   if (!opts.keepHandsFree) return;
@@ -12315,11 +12427,15 @@ function syncHandsFreeBtn() {
   const btn = document.getElementById('aci-handsfree');
   if (!btn) return;
   const on = voiceSessionActive || window._handsFreeVoice;
+  const speaking = !!Voice?.speaking;
+  const listening = !!isListening;
   btn.classList.toggle('deck-btn-active', on);
-  btn.classList.toggle('listening', isListening);
-  btn.classList.toggle('speaking', !!Voice?.speaking);
-  if (isListening || on) AstranovLogo?.setMicActive?.(true);
-  else if (!Voice?.speaking) AstranovLogo?.setMicActive?.(false);
+  btn.classList.toggle('listening', listening);
+  btn.classList.toggle('speaking', speaking);
+  if (listening || on) AstranovLogo?.setMicActive?.(true);
+  else if (!speaking) AstranovLogo?.setMicActive?.(false);
+  if (!speaking) AstranovLogo?.setAiActive?.(false);
+  AiGlyphs?.syncVoice?.();
 }
 window.syncHandsFreeBtn = syncHandsFreeBtn;
 
@@ -12957,6 +13073,7 @@ CosmicZoom.level = 'earth';
 if (CosmicZoom.solarGroup) CosmicZoom.solarGroup.visible = false;
 CosmicZoom.update(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
 AstranovTheme.init();
+AiGlyphs.init();
 AstranovLogo.init();
 CityMap.init();
 CityLife.init();
