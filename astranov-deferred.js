@@ -1485,6 +1485,7 @@ const Commerce = {
       if (m) return m;
       return GhostTravel.publicPos?.() || { lat: 36.4239, lng: 28.2245 };
     }
+    if (window._clientDelivery?.lat != null) return { lat: window._clientDelivery.lat, lng: window._clientDelivery.lng };
     if (userLocated && window._lastPos) return { lat: window._lastPos.lat, lng: window._lastPos.lng };
     return { lat: 36.4239, lng: 28.2245 };
   },
@@ -1500,6 +1501,7 @@ const Commerce = {
 
   _normalizeVendor(v) {
     if (!v) return v;
+    if (v.owner_id || v.category === 'field_shop') return v;
     if (this.menuFor(v).length) return v;
     const demo = DEMO_VENDORS.find(d =>
       d.id === v.id
@@ -1514,7 +1516,7 @@ const Commerce = {
 
   async loadVendors() {
     try {
-      const r = await fetch(SB_URL + '/rest/v1/vendors?select=id,name,emoji,lat,lng,category,items,is_active,delivery_enabled&is_active=eq.true&limit=80', {
+      const r = await fetch(SB_URL + '/rest/v1/vendors?select=id,name,emoji,lat,lng,category,items,tags,owner_id,is_active,delivery_enabled&is_active=eq.true&limit=80', {
         headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY },
       });
       this.vendors = r.ok ? await r.json() : [];
@@ -2047,7 +2049,9 @@ const Commerce = {
       const qty = this.cart[key] || 0;
       const row = document.createElement('div');
       row.className = 'vm-item';
-      row.innerHTML = '<span>' + item.name + ' <small style="color:#9ab">' + (item.price || 0) + ' AVC</small></span>';
+      const img = item.image || item.photo || '';
+      const imgHtml = img ? '<img class="vm-item-img" src="' + img.replace(/"/g, '') + '" alt="" />' : '';
+      row.innerHTML = imgHtml + '<span class="vm-item-body">' + item.name + ' <small style="color:#9ab">' + (item.price || 0) + ' AVC</small></span>';
       const q = document.createElement('div');
       q.className = 'vm-qty';
       const minus = document.createElement('button');
@@ -2190,12 +2194,25 @@ const Commerce = {
       const driver = driverObj?.name || orderResult?.order?.driver_name || (orderResult?.seeking_driver ? 'seeking driver' : null);
       const ordId = orderResult?.order?.short_id || orderResult?.order?.id;
 
+      const clientAddr = window._clientDelivery || { lat: dLat, lng: dLng, label: 'Delivery' };
+      const driverBase = window._driverBase || u;
       MapDepict?.action('order', {
-        lat: dLat, lng: dLng,
+        lat: clientAddr.lat, lng: clientAddr.lng,
         vendorLat: vendor.lat, vendorLng: vendor.lng,
         detail: vendor.name + (ordId ? ' · ' + ordId : ''),
       });
-      if (window.DrivingView) DrivingView.setDestination(vendor.lat, vendor.lng);
+      if (window.DrivingView) {
+        DrivingView.setRoutePlan?.({
+          from: driverBase,
+          via: { lat: vendor.lat, lng: vendor.lng },
+          to: { lat: clientAddr.lat, lng: clientAddr.lng },
+        });
+        DrivingView.setDestination(clientAddr.lat, clientAddr.lng);
+        DrivingView.fetchRoadRoute?.().then?.(() => {
+          CityMap?.setRoute?.(DrivingView.routeCoords || []);
+        });
+      }
+      MapPins?.syncGlobe?.();
 
       let msg;
       if (orderResult?.order) {
@@ -4670,6 +4687,10 @@ const DrivingView = {
     if (this.active) this.fetchRoadRoute();
   },
 
+  setRoutePlan(plan) {
+    this._routePlan = plan || null;
+  },
+
   onFix(pos) {
     const now = Date.now();
     const lat = pos.coords.latitude;
@@ -4772,13 +4793,21 @@ const DrivingView = {
     }
   },
 
+  setRoutePlan(plan) {
+    this._routePlan = plan || null;
+  },
+
   async fetchRoadRoute() {
-    const from = window._lastPos || this.lastFix;
-    const to = this.destination;
+    const plan = this._routePlan;
+    const from = plan?.from || window._driverBase || window._lastPos || this.lastFix;
+    const via = plan?.via;
+    const to = plan?.to || this.destination;
     if (!from || !to) return;
     try {
+      const pts = [from, via, to].filter(p => p && p.lat != null && p.lng != null);
+      const coordStr = pts.map(p => p.lng + ',' + p.lat).join(';');
       const url = 'https://router.project-osrm.org/route/v1/driving/'
-        + from.lng + ',' + from.lat + ';' + to.lng + ',' + to.lat
+        + coordStr
         + '?overview=full&geometries=geojson&steps=true';
       const r = await fetch(url);
       const j = await r.json();
@@ -8791,7 +8820,6 @@ const ProfileSite = {
     lat = Number(lat);
     lng = Number(lng);
     if (!isFinite(lat) || !isFinite(lng)) return;
-    window._lastPos = { lat, lng };
     window._pendingShopLatLng = { lat, lng };
 
     this._shopMode = true;
@@ -9081,6 +9109,8 @@ const ProfileSite = {
       await Commerce?.loadVendors?.();
       MapDepict?.pulse?.(d.lat, d.lng, 0xff8844, d.name, 16000);
       GlobeEntity?.syncVendors?.(Commerce?.vendors || []);
+      MapPins?.syncGlobe?.();
+      CityMap?.syncMapPins?.();
 
       d.vendorId = vendorId;
       d.coverUrl = tags.cover_url;
