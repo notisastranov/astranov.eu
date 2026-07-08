@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260708162000" />
+<meta name="astranov-build" content="20260708173000" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -559,6 +559,19 @@
   #ps-foot { display:flex; flex-wrap:wrap; gap:6px; padding:8px 10px; border-top:1px solid rgba(26,111,212,0.2); }
   #ps-foot button { padding:7px 10px; border-radius:8px; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); cursor:pointer; font-size:9px; font-weight:600; }
   #ps-status { width:100%; font-size:8px; color:#ffd633; }
+  #profile-site-panel.shop-mode { width:min(340px,94vw); max-height:min(82vh,560px); }
+  .ps-shop-cover { position:relative; height:72px; margin:-2px -12px 30px; border-radius:10px 10px 0 0; background:rgba(0,0,0,0.35) center/cover no-repeat; border-bottom:1px solid rgba(26,111,212,0.25); }
+  .ps-shop-cover-btn { position:absolute; inset:0; border:none; background:rgba(0,0,0,0.25); color:#cde; font:inherit; font-size:9px; cursor:pointer; border-radius:10px 10px 0 0; }
+  .ps-shop-avatar { position:absolute; left:12px; bottom:-22px; width:48px; height:48px; border-radius:50%; border:2px solid var(--ax-blue-border); background:rgba(0,40,90,0.6) center/cover no-repeat; box-shadow:0 2px 8px rgba(0,0,0,0.45); }
+  .ps-shop-avatar-btn { position:absolute; inset:0; border:none; border-radius:50%; background:transparent; color:#fff; font-size:8px; cursor:pointer; }
+  .ps-shop-addr { font-size:8px; color:#7a9; margin-bottom:8px; }
+  .ps-menu-title { font-size:9px; font-weight:700; color:var(--ax-blue-bright); margin:10px 0 6px; }
+  .ps-menu-row { display:grid; grid-template-columns:44px 1fr 52px 24px; gap:5px; align-items:center; margin-bottom:6px; }
+  .ps-menu-thumb { width:44px; height:44px; border-radius:8px; border:1px solid var(--ax-blue-border); background:rgba(0,0,0,0.35) center/cover no-repeat; position:relative; overflow:hidden; }
+  .ps-menu-thumb input { position:absolute; inset:0; opacity:0; cursor:pointer; }
+  .ps-menu-row input[type="text"], .ps-menu-row input[type="number"] { padding:5px 6px; border-radius:7px; border:1px solid var(--ax-blue-border); background:rgba(0,0,0,0.4); color:#fff; font:inherit; font-size:9px; box-sizing:border-box; width:100%; }
+  .ps-menu-rm { padding:4px; border:none; border-radius:6px; background:var(--ax-red-bg); color:var(--ax-red-bright); cursor:pointer; font-size:11px; line-height:1; }
+  #ps-menu-add { width:100%; margin-top:4px; padding:7px; border-radius:8px; border:1px dashed var(--ax-blue-border); background:transparent; color:var(--ax-blue-bright); cursor:pointer; font:inherit; font-size:9px; }
 
 </style>
 </head>
@@ -7209,19 +7222,18 @@ const MapPlaceMenu = {
     }
     if (action === 'shop') {
       window._pendingShopLatLng = { lat, lng };
+      window._lastPos = { lat, lng };
       const go = async () => {
         await LazyModules.ensure();
-        window.SuperAdd?.showPanel?.();
-        const av = document.getElementById('sa-as-vendor');
-        const am = document.getElementById('sa-as-map');
-        const vn = document.getElementById('sa-vendor-name');
-        if (av) av.checked = true;
-        if (am) am.checked = true;
-        if (vn && !vn.value) vn.value = Auth?.user?.user_metadata?.full_name || 'My shop';
+        if (!Auth?.user) {
+          Auth?.openLoginModal?.('Sign in to set up your shop profile');
+          return;
+        }
+        await ProfileSite?.openShopEditor?.(lat, lng);
       };
       void go();
       placeMe(lat, lng, { quiet: true, markerOnly: true });
-      ACIControl?.reply?.('Shop address pinned — complete vendor in Super Add (+)');
+      ACIControl?.reply?.('Shop address pinned — add cover, menu & prices');
       AppShortcuts?.track?.('add', 'Shop');
       this.close();
       return;
