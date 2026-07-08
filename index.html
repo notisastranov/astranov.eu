@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260708194500" />
+<meta name="astranov-build" content="20260708200000" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -246,10 +246,29 @@
   #cosmic-guide .cg-item { margin:2px 0; opacity:0.9; }
   #cosmic-guide .cg-item b { color:var(--ax-blue-bright); font-weight:600; }
   #cosmic-guide .cg-item i { color:var(--an-muted); font-size:9px; }
-  #globe-deck { display:flex; flex-direction:column; margin:0 8px 6px; position:relative; background:linear-gradient(165deg,rgba(4,14,36,0.96) 0%,rgba(6,20,52,0.94) 48%,rgba(3,10,28,0.97) 100%); border:1px solid var(--cli-deep-border); border-radius:16px; pointer-events:auto; font:12px/1.4 ui-monospace,monospace; overflow:hidden; transition:max-height 0.22s ease,box-shadow 0.3s,border-color 0.3s; box-shadow:0 0 28px var(--cli-deep-glow),0 0 56px var(--cli-deep-glow-soft),0 8px 32px rgba(0,0,0,0.55),inset 0 0 40px rgba(26,111,212,0.09),inset 0 1px 0 rgba(80,160,255,0.12); backdrop-filter:blur(16px); animation:cli-frame-glow 4.5s ease-in-out infinite; }
-  #globe-deck::before { content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; box-shadow:inset 0 0 0 1px rgba(61,158,255,0.18); z-index:0; }
+  #globe-deck { display:flex; flex-direction:column; margin:0 8px 6px; position:relative; --cli-g1:26,111,212; --cli-g2:13,71,161; --cli-bd:20,90,180; --cli-bg1:4,14,36; --cli-bg2:6,20,52; --cli-speed:4.6s; background:linear-gradient(165deg,rgba(var(--cli-bg1),0.96) 0%,rgba(var(--cli-bg2),0.94) 48%,rgba(3,10,28,0.97) 100%); border:1px solid rgba(var(--cli-bd),0.72); border-radius:16px; pointer-events:auto; font:12px/1.4 ui-monospace,monospace; overflow:hidden; transition:max-height 0.22s ease,background 1.4s ease; backdrop-filter:blur(16px); animation:cli-state-breathe var(--cli-speed) ease-in-out infinite; }
+  #globe-deck::before { content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; box-shadow:inset 0 0 0 1px rgba(var(--cli-g1),0.22); z-index:0; transition:box-shadow 1.4s ease; }
+  #globe-deck::after { content:''; position:absolute; inset:-2px; border-radius:inherit; pointer-events:none; z-index:0; opacity:0.42; background:radial-gradient(ellipse 80% 55% at 50% 0%,rgba(var(--cli-g1),0.28),transparent 68%); animation:cli-aura-drift calc(var(--cli-speed) * 1.35) ease-in-out infinite; }
   #globe-deck > * { position:relative; z-index:1; }
-  @keyframes cli-frame-glow { 0%,100%{ box-shadow:0 0 24px var(--cli-deep-glow),0 0 48px var(--cli-deep-glow-soft),0 8px 32px rgba(0,0,0,0.55),inset 0 0 36px rgba(26,111,212,0.08),inset 0 1px 0 rgba(80,160,255,0.1); border-color:rgba(20,90,180,0.68); } 50%{ box-shadow:0 0 36px rgba(20,100,220,0.75),0 0 72px rgba(26,111,212,0.42),0 8px 36px rgba(0,0,0,0.58),inset 0 0 48px rgba(26,111,212,0.14),inset 0 1px 0 rgba(100,180,255,0.2); border-color:rgba(40,120,220,0.82); } }
+  @keyframes cli-state-breathe { 0%,100%{ box-shadow:0 0 22px rgba(var(--cli-g1),0.52),0 0 46px rgba(var(--cli-g2),0.26),0 8px 32px rgba(0,0,0,0.55),inset 0 0 34px rgba(var(--cli-g1),0.07),inset 0 1px 0 rgba(var(--cli-g1),0.14); border-color:rgba(var(--cli-bd),0.62); } 50%{ box-shadow:0 0 40px rgba(var(--cli-g1),0.82),0 0 78px rgba(var(--cli-g2),0.44),0 8px 38px rgba(0,0,0,0.58),inset 0 0 54px rgba(var(--cli-g1),0.15),inset 0 1px 0 rgba(var(--cli-g1),0.26); border-color:rgba(var(--cli-g1),0.88); } }
+  @keyframes cli-aura-drift { 0%,100%{ opacity:0.34; transform:scale(1); } 50%{ opacity:0.58; transform:scale(1.02); } }
+  #globe-deck[data-cli-state="idle"] { --cli-g1:26,111,212; --cli-g2:13,71,161; --cli-bd:20,90,180; --cli-bg1:4,14,36; --cli-bg2:6,20,52; --cli-speed:4.6s; }
+  #globe-deck[data-cli-state="thinking"] { --cli-g1:80,190,255; --cli-g2:26,111,212; --cli-bd:50,140,240; --cli-bg1:6,18,44; --cli-bg2:10,28,62; --cli-speed:2.3s; }
+  #globe-deck[data-cli-state="listening"] { --cli-g1:255,70,100; --cli-g2:180,40,70; --cli-bd:220,50,80; --cli-bg1:28,8,18; --cli-bg2:44,10,24; --cli-speed:2s; }
+  #globe-deck[data-cli-state="speaking"] { --cli-g1:0,240,150; --cli-g2:0,170,100; --cli-bd:0,200,120; --cli-bg1:4,24,18; --cli-bg2:6,36,26; --cli-speed:1.85s; }
+  #globe-deck[data-cli-state="error"] { --cli-g1:255,60,80; --cli-g2:196,30,42; --cli-bd:220,40,55; --cli-bg1:32,6,10; --cli-bg2:48,8,14; --cli-speed:2.1s; }
+  #globe-deck[data-cli-state="hold"] { --cli-g1:255,200,60; --cli-g2:201,160,0; --cli-bd:220,170,40; --cli-bg1:28,22,4; --cli-bg2:40,32,6; --cli-speed:3.2s; }
+  #globe-deck[data-cli-state="ready"], #globe-deck[data-cli-state="success"] { --cli-g1:0,230,120; --cli-g2:0,170,85; --cli-bd:0,200,100; --cli-bg1:4,22,14; --cli-bg2:6,32,20; --cli-speed:3.4s; }
+  #globe-deck[data-cli-state="commerce"] { --cli-g1:255,190,70; --cli-g2:220,140,30; --cli-bd:240,170,50; --cli-bg1:24,16,4; --cli-bg2:36,22,6; --cli-speed:3.6s; }
+  #globe-deck[data-cli-state="coders"] { --cli-g1:160,120,255; --cli-g2:100,60,220; --cli-bd:140,100,255; --cli-bg1:14,8,32; --cli-bg2:22,12,48; --cli-speed:3s; }
+  #globe-deck[data-cli-state="batch"] { --cli-g1:0,210,190; --cli-g2:0,150,140; --cli-bd:0,180,165; --cli-bg1:4,20,22; --cli-bg2:6,30,32; --cli-speed:3.5s; }
+  #globe-deck[data-cli-state="radio"] { --cli-g1:255,150,60; --cli-g2:220,100,20; --cli-bd:255,130,40; --cli-bg1:28,12,4; --cli-bg2:40,18,6; --cli-speed:2.8s; }
+  #globe-deck[data-cli-state="drive"] { --cli-g1:255,220,80; --cli-g2:220,170,30; --cli-bd:240,200,60; --cli-bg1:24,20,4; --cli-bg2:36,28,6; --cli-speed:2.6s; }
+  #globe-deck[data-cli-state="phone"] { --cli-g1:100,200,255; --cli-g2:40,140,220; --cli-bd:70,170,255; --cli-bg1:6,16,32; --cli-bg2:10,24,48; --cli-speed:3.2s; }
+  #globe-deck[data-cli-state="chats"] { --cli-g1:120,200,255; --cli-g2:61,158,255; --cli-bd:90,180,255; --cli-bg1:6,14,32; --cli-bg2:10,22,48; --cli-speed:3.8s; }
+  #globe-deck[data-cli-state="add"] { --cli-g1:255,120,200; --cli-g2:200,60,160; --cli-bd:240,100,190; --cli-bg1:24,6,20; --cli-bg2:36,10,30; --cli-speed:3.4s; }
+  #globe-deck[data-cli-state="active"] { --cli-g1:90,170,255; --cli-g2:40,120,220; --cli-bd:60,150,255; --cli-bg1:6,16,40; --cli-bg2:10,24,56; --cli-speed:3.6s; }
+  #globe-deck.expanded { --cli-speed:calc(var(--cli-speed) * 0.92); }
   #globe-deck.collapsed { max-height:118px; }
   #globe-deck.expanded.size-third { max-height:33vh; min-height:33vh; }
   #globe-deck.expanded.size-full { max-height:min(92dvh, calc(100dvh - 44px)); min-height:min(92dvh, calc(100dvh - 44px)); }
@@ -292,8 +311,7 @@
   #news-ticker { display:none !important; }
   #drive-guide { display:none !important; }
 
-  #globe-deck.deck-ping { border-color:var(--ax-green-border); box-shadow:0 0 20px var(--ax-green-glow),0 0 40px rgba(0,170,85,0.25),inset 0 0 30px rgba(0,170,85,0.08); animation:none; }
-  #globe-deck.expanded { box-shadow:0 0 32px rgba(20,100,220,0.7),0 0 64px rgba(26,111,212,0.38),0 12px 40px rgba(0,0,0,0.6),inset 0 0 48px rgba(26,111,212,0.12); }
+  #globe-deck.deck-ping { animation-duration:1.6s; }
   #globe-deck.deck-thinking #globe-deck-title { color:var(--ax-blue-bright); text-shadow:0 0 8px var(--ax-blue-glow); }
   #globe-deck-log .deck-thinking-line { animation:deck-pulse 1s ease infinite; color:var(--ax-blue-bright); }
   @keyframes deck-pulse { 50% { opacity:0.35; } }
@@ -4083,6 +4101,39 @@ const GlobeDeck = {
   _scrollTouch: false,
   _NOISE_RE: /^(thinking|warming|owner-sync|heartbeat|field_pulse|subscribe|channel joined|token refresh|postgres_changes|Map live|Ghost route|hands-free on|Coders always|session held|pull failed)/i,
 
+  _taskPulseState(task) {
+    const map = {
+      coders: 'coders', commerce: 'commerce', batch: 'batch', radio: 'radio',
+      drive: 'drive', phone: 'phone', chats: 'chats', add: 'add', video: 'add',
+      telemachos: 'drive', game: 'coders', site: 'active', cli: 'active',
+    };
+    return map[task] || (task ? 'active' : 'idle');
+  },
+
+  syncCliPulse() {
+    const d = this.deck();
+    if (!d) return;
+    let state = 'idle';
+    if (this._pulseOverride) {
+      state = this._pulseOverride;
+    } else if (CliRibbon?._kind === 'err') {
+      state = 'error';
+    } else if (sessionHeld || SessionHold?.isHeld?.()) {
+      state = 'hold';
+    } else if (Voice?.speaking) {
+      state = 'speaking';
+    } else if (isListening || window._handsFreeVoice) {
+      state = 'listening';
+    } else if (this.thinking) {
+      state = 'thinking';
+    } else if (this.activeTask) {
+      state = this._taskPulseState(this.activeTask);
+    } else if (CliRibbon?._kind === 'ready') {
+      state = 'ready';
+    }
+    if (d.dataset.cliState !== state) d.dataset.cliState = state;
+  },
+
   init() {
     CliRibbon?.init?.();
     AppShortcuts?.init?.();
@@ -4096,6 +4147,10 @@ const GlobeDeck = {
     });
     CliRibbon?.setActive?.('CLI');
     if (this._size === 'free' && this._freeHeight) this.applySize();
+    this.syncCliPulse();
+    if (!this._pulseLoop) {
+      this._pulseLoop = setInterval(() => this.syncCliPulse(), 900);
+    }
   },
 
   _deckMinH() { return 118; },
@@ -4265,6 +4320,7 @@ const GlobeDeck = {
       if (window.AciCli) AciCli.open = true;
     }
     CliRibbon?.render?.();
+    this.syncCliPulse();
   },
 
   bindDeckGestures() {
@@ -4400,10 +4456,17 @@ const GlobeDeck = {
   ping() {
     const d = this.deck();
     if (!d) return;
+    this._pulseOverride = 'success';
+    this.syncCliPulse();
     d.classList.remove('deck-ping');
     void d.offsetWidth;
     d.classList.add('deck-ping');
-    setTimeout(() => d.classList.remove('deck-ping'), 1200);
+    if (this._pulseTimer) clearTimeout(this._pulseTimer);
+    this._pulseTimer = setTimeout(() => {
+      this._pulseOverride = null;
+      d.classList.remove('deck-ping');
+      this.syncCliPulse();
+    }, 1400);
   },
 
   setThinking(on, hint) {
@@ -4413,6 +4476,7 @@ const GlobeDeck = {
     if (d) d.classList.toggle('deck-thinking', this.thinking);
     if (on && hint) CliRibbon?.setNotice?.(hint, 'thinking');
     CliRibbon?.render?.();
+    this.syncCliPulse();
     if (on) {
       this.setPreview(hint || '… thinking');
       if (!this._isMobileDeck()) this.expand(hint || 'Collective — thinking…');
@@ -4510,6 +4574,7 @@ const GlobeDeck = {
     SuperCli?.setContext?.(SuperCli.inferContext?.());
     ContextTruth?.sync?.();
     AppShortcuts?.render?.();
+    this.syncCliPulse();
   },
 
   hideStage() {
@@ -4550,6 +4615,7 @@ const GlobeDeck = {
     CliRibbon?.clearNotice?.();
     SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
     AppShortcuts?.render?.();
+    this.syncCliPulse();
   },
 
   isOneShotCmd(cmd) {
@@ -4714,6 +4780,7 @@ const CliRibbon = {
     const preview = document.getElementById('globe-deck-preview');
     if (title) title.textContent = active;
     if (preview) preview.textContent = this._notice || '';
+    GlobeDeck?.syncCliPulse?.();
   },
 };
 window.CliRibbon = CliRibbon;
@@ -6810,6 +6877,7 @@ const SessionHold = {
     AciCli?.print('⏸ Session held — leave noisy area, tap ▶ to resume', 'dim');
     if (!opts.quiet) ACIControl?.reply('Held — tap ▶ when ready to resume');
     SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
+    GlobeDeck?.syncCliPulse?.();
   },
 
   async resume(opts = {}) {
@@ -6849,6 +6917,7 @@ const SessionHold = {
       scheduleVoiceResume?.();
     }
     SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
+    GlobeDeck?.syncCliPulse?.();
   },
 
   loadPersisted() {
@@ -6877,6 +6946,7 @@ const SessionHold = {
     setTimeout(() => {
       AciCli?.print('⏸ Restored held session — tap ▶ to resume', 'dim');
     }, 600);
+    GlobeDeck?.syncCliPulse?.();
   },
 
   release() {
@@ -6889,6 +6959,7 @@ const SessionHold = {
     if (deck) deck.classList.remove('session-held');
     const input = document.getElementById('aci-cli-in');
     if (input) input.placeholder = 'type or tap 🎤 · Enter or ➡';
+    GlobeDeck?.syncCliPulse?.();
   },
 
   toggle() {
@@ -12562,6 +12633,7 @@ function syncHandsFreeBtn() {
   else if (!speaking) AstranovLogo?.setMicActive?.(false);
   if (!speaking) AstranovLogo?.setAiActive?.(false);
   AiGlyphs?.syncVoice?.();
+  GlobeDeck?.syncCliPulse?.();
 }
 window.syncHandsFreeBtn = syncHandsFreeBtn;
 
