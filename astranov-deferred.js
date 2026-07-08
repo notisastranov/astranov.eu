@@ -9646,6 +9646,35 @@ const AvcBalance = {
 };
 window.AvcBalance = AvcBalance;
 
+if (window.AuditorPortal) {
+  Object.assign(window.AuditorPortal, {
+    open(opts) {
+      opts = opts || {};
+      const tab = opts.tab || 'company';
+      const url = 'https://auditors.astranov.eu/?tab=' + encodeURIComponent(tab);
+      if (window.AstranovSiteShell?.open) {
+        AstranovSiteShell.open(url, { domain: 'auditors.astranov.eu', title: 'Astranov Auditors · Λογιστική' });
+      } else {
+        window.open(url, '_blank', 'noopener');
+      }
+      AppShortcuts?.track?.('auditors', 'Auditors');
+      SuperCli?.setContext?.('auditors');
+      AciCli?.print?.('auditors.astranov.eu · γενικό καθολικό · ισολογισμός', 'ok');
+    },
+    async cli(parts) {
+      const sub = String(parts[1] || 'open').toLowerCase();
+      const tabMap = {
+        open: 'company', dashboard: 'dashboard', ledger: 'ledger', trial: 'trial',
+        balance: 'balance', invoices: 'invoices', tax: 'tax', mine: 'mine',
+        ισολογισμός: 'balance', ισοζύγιο: 'trial', καθολικό: 'ledger', λογιστική: 'company',
+      };
+      const tab = tabMap[sub] || 'company';
+      this.open({ tab });
+    },
+    syncGlobe() {},
+  });
+}
+
 if (window.CoinPortal) {
   Object.assign(window.CoinPortal, {
     open(tab) {
