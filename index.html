@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260708184500" />
+<meta name="astranov-build" content="20260708190000" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -144,15 +144,19 @@
   #astranov-logo { position:fixed; top:max(10px,env(safe-area-inset-top)); left:50%; transform:translateX(-50%); z-index:210; margin:0; padding:6px 14px; border-radius:999px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); backdrop-filter:blur(10px); cursor:pointer; font-family:"Segoe UI Variable Display","Segoe UI Variable","Segoe UI","Segoe UI Rounded",system-ui,sans-serif; font-size:15px; font-weight:600; letter-spacing:0.34em; text-indent:0.34em; text-transform:uppercase; color:var(--ax-blue-bright); text-shadow:0 0 18px var(--ax-blue-glow); box-shadow:0 2px 14px rgba(0,0,0,0.45); transition:color 0.2s,border-color 0.2s,box-shadow 0.2s,background 0.2s,transform 0.15s; pointer-events:auto; touch-action:manipulation; user-select:none; -webkit-tap-highlight-color:transparent; display:flex; align-items:center; justify-content:center; min-width:min(200px,62vw); min-height:40px; overflow:hidden; opacity:1; visibility:visible; isolation:isolate; }
   body.globe-flying #astranov-logo, body.city-map-active #astranov-logo { z-index:210; opacity:1 !important; visibility:visible !important; pointer-events:auto !important; }
   body.globe-flying #zoom-label { top:max(52px,calc(10px + env(safe-area-inset-top) + 42px)); }
-  #astranov-logo-wave { position:absolute; inset:2px 4px; width:calc(100% - 8px); height:calc(100% - 4px); pointer-events:none; opacity:0.92; border-radius:999px; }
-  .astranov-logo-label { position:relative; z-index:1; pointer-events:none; letter-spacing:0.34em; text-indent:0.34em; }
-  #astranov-logo.voice-mic { border-color:rgba(255,55,55,0.72); box-shadow:0 0 18px rgba(255,55,55,0.5); color:#ffb0b0; }
-  #astranov-logo.voice-ai { border-color:rgba(0,220,100,0.72); box-shadow:0 0 18px rgba(0,220,100,0.5); color:#b0ffd0; }
+  #astranov-logo-wave { position:absolute; inset:2px 4px; width:calc(100% - 8px); height:calc(100% - 4px); z-index:0; pointer-events:none; opacity:1; border-radius:999px; }
+  .astranov-logo-label { position:relative; z-index:2; pointer-events:none; letter-spacing:0.34em; text-indent:0.34em; mix-blend-mode:screen; }
+  #astranov-logo.voice-mic { border-color:rgba(255,55,55,0.72); box-shadow:0 0 18px rgba(255,55,55,0.5); color:#ffb0b0; background:rgba(8,14,28,0.38); }
+  #astranov-logo.voice-ai { border-color:rgba(0,220,100,0.72); box-shadow:0 0 18px rgba(0,220,100,0.5); color:#b0ffd0; background:rgba(8,14,28,0.38); }
+  #astranov-logo.voice-mic.voice-ai { background:rgba(8,14,28,0.32); }
   #astranov-logo:hover { color:#fff; border-color:var(--ax-blue-bright); box-shadow:0 0 22px var(--ax-blue-glow); background:var(--ax-panel-strong); }
   #astranov-logo:active { transform:translateX(-50%) scale(0.97); }
   #astranov-logo:disabled { opacity:0.55; cursor:wait; letter-spacing:0.2em; }
   [data-theme="bright"] #astranov-logo { background:var(--ax-panel); color:var(--ax-blue-bright); border-color:var(--ax-blue-border); text-shadow:0 0 14px var(--ax-blue-glow); box-shadow:0 2px 12px rgba(0,0,0,0.35); }
   [data-theme="bright"] #astranov-logo:hover { color:#fff; border-color:var(--ax-blue-bright); }
+  [data-theme="bright"] #astranov-logo.voice-mic,
+  [data-theme="bright"] #astranov-logo.voice-ai { background:rgba(255,255,255,0.42); }
+  [data-theme="bright"] .astranov-logo-label { mix-blend-mode:multiply; }
   #user-chip { position:fixed; top:10px; right:10px; z-index:45; font:11px system-ui; color:var(--an-muted); pointer-events:none; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   #drive-guide { position:fixed; top:36px; left:10px; right:10px; z-index:42; font:12px/1.35 system-ui; color:#7df; background:rgba(0,20,40,0.75); border:1px solid rgba(68,170,255,0.35); border-radius:12px; padding:8px 12px; display:none; pointer-events:none; }
   #drive-guide.open { display:block; }
@@ -2818,18 +2822,44 @@ const AstranovLogo = {
     this._drawBars(aiBars, 'rgba(0,230,110,0.95)', c.width * 0.5, c.width * 0.5, this._bars - half);
   },
 
+  _ensureCanvasSize() {
+    if (!this._canvas) return;
+    const r = this._canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.max(120, Math.floor(r.width * dpr));
+    const h = Math.max(28, Math.floor(r.height * dpr));
+    if (w !== this._canvas.width || h !== this._canvas.height) {
+      this._canvas.width = w;
+      this._canvas.height = h;
+    }
+  },
+
   _loop() {
     const el = document.getElementById('astranov-logo');
-    const micOn = isListening || window._handsFreeVoice;
+    const micOn = !!(isListening || window._handsFreeVoice);
     const aiOn = !!Voice?.speaking;
     if (micOn) this.setMicActive(true);
     else this.setMicActive(false);
     this.setAiActive(aiOn);
-    if (this._ctx && this._canvas) {
-      this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
+    if (el) {
+      el.classList.toggle('voice-mic', micOn);
+      el.classList.toggle('voice-ai', aiOn);
     }
-    if (el) el.classList.toggle('voice-mic', !!micOn);
-    if (el) el.classList.toggle('voice-ai', !!aiOn);
+    if (this._ctx && this._canvas) {
+      this._ensureCanvasSize();
+      const idle = 0.14;
+      if (micOn && aiOn) {
+        const micBars = this._readBars(this._micAnalyser, idle + 0.22);
+        const aiBars = this._readBars(this._aiAnalyser, idle + 0.22);
+        this._drawDual(micBars, aiBars);
+      } else if (micOn) {
+        this._draw(this._readBars(this._micAnalyser, idle + 0.28), 'rgba(255,55,55,0.95)');
+      } else if (aiOn) {
+        this._draw(this._readBars(this._aiAnalyser, idle + 0.28), 'rgba(0,230,110,0.95)');
+      } else {
+        this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
+      }
+    }
     this._raf = requestAnimationFrame(() => this._loop());
   },
 
