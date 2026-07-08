@@ -1890,6 +1890,7 @@ const Commerce = {
         return this._balance;
       }
     } catch { /* */ }
+    window.AvcBalance?.render?.(this._balance ?? 0, !Auth?.user);
     return 0;
   },
 
@@ -2393,6 +2394,7 @@ const Commerce = {
           ? 'Παραγγελία ' + (ordId || '') + ' στο ' + vendor.name + paid + '. Αναζητούμε οδηγό — claim στο CLI.'
           : 'Παραγγελία ' + (ordId || '') + ' στο ' + vendor.name + paid + '. Οδηγός: ' + (driver || 'pending') + '.';
         if (orderResult.balance_after != null) this._balance = orderResult.balance_after;
+        window.AvcBalance?.render?.(this._balance, false);
         this.hideMenu();
         GlobeDeck?.completeTask('commerce');
         const nearDrivers = await this.fetchNearbyDrivers(dLat, dLng);
@@ -9545,6 +9547,95 @@ const AstranovSitesProvision = {
 window.SuperBookingProvision = AstranovSitesProvision;
 window.AstranovSitesProvision = AstranovSitesProvision;
 
+// === AVC BALANCE — live wallet chip in top CLI row ===
+const AvcBalance = {
+  _btn: null,
+  _timer: null,
+  _last: null,
+
+  format(n) {
+    const v = Number(n);
+    if (!Number.isFinite(v)) return '…';
+    if (v >= 10000) return (v / 1000).toFixed(1) + 'k';
+    if (v >= 1000) return v.toFixed(0);
+    return v.toFixed(1);
+  },
+
+  render(balance, guest) {
+    const btn = this._btn || document.getElementById('aci-avc');
+    if (!btn) return;
+    this._btn = btn;
+    const isGuest = guest || !Auth?.user;
+    const amt = isGuest ? '—' : this.format(balance);
+    const emoji = btn.querySelector('.avc-emoji');
+    const amtEl = btn.querySelector('.avc-amt');
+    if (emoji) emoji.textContent = '◎';
+    if (amtEl) amtEl.textContent = amt;
+    else btn.innerHTML = '<span class="avc-emoji">◎</span><span class="avc-amt">' + amt + '</span>';
+    btn.title = isGuest
+      ? 'AVC wallet · sign in to see balance'
+      : 'AVC balance · ' + Number(balance || 0).toFixed(2) + ' AVC (= EUR) · tap for wallet';
+    btn.classList.toggle('avc-guest', isGuest);
+    btn.classList.toggle('avc-loaded', !isGuest);
+    if (!isGuest && this._last != null && balance != null && Math.abs(Number(balance) - this._last) > 0.001) {
+      btn.classList.add('avc-changed');
+      clearTimeout(btn._chgT);
+      btn._chgT = setTimeout(() => btn.classList.remove('avc-changed'), 1200);
+    }
+    if (!isGuest && balance != null) this._last = Number(balance);
+  },
+
+  async refresh(opts) {
+    opts = opts || {};
+    if (opts.guest || !Auth?.user) {
+      this.render(null, true);
+      return 0;
+    }
+    const bal = window.Commerce?.fetchBalance ? await window.Commerce.fetchBalance() : 0;
+    this.render(bal, false);
+    return bal;
+  },
+
+  init() {
+    const btn = document.getElementById('aci-avc');
+    if (!btn || btn._avcInit) return;
+    btn._avcInit = true;
+    this._btn = btn;
+    this.render(null, !Auth?.user);
+    void this.refresh({ quiet: true });
+    if (this._timer) clearInterval(this._timer);
+    this._timer = setInterval(() => void this.refresh({ quiet: true }), 60000);
+  },
+};
+window.AvcBalance = AvcBalance;
+
+if (window.CoinPortal) {
+  Object.assign(window.CoinPortal, {
+    open(tab) {
+      const path = tab === 'transparency' ? '/transparency' : '';
+      const url = 'https://coin.astranov.eu' + path;
+      if (window.AstranovSiteShell?.open) {
+        AstranovSiteShell.open(url, { domain: 'coin.astranov.eu', title: 'AVC · Astranov Coin' });
+      } else {
+        window.open(url, '_blank', 'noopener');
+      }
+      AppShortcuts?.track?.('coin', 'AVC');
+      SuperCli?.setContext?.('coin');
+    },
+    async cli(parts) {
+      const sub = String(parts[1] || 'balance').toLowerCase();
+      if (sub === 'open' || sub === 'wallet') {
+        this.open('wallet');
+        return;
+      }
+      const bal = await AvcBalance.refresh();
+      AciCli?.print?.('◎ AVC balance · ' + Number(bal || 0).toFixed(2) + ' AVC (= EUR)', 'ok');
+      GlobeDeck?.setPreview?.('◎ ' + Number(bal || 0).toFixed(2) + ' AVC');
+    },
+    syncGlobe() {},
+  });
+}
+
 // === ASTRANOV SITE SHELL — subdomains open over the globe (Earth browser) ===
 const AstranovSiteShell = {
   active: null,
@@ -10077,8 +10168,10 @@ const DeferredBoot = {
       const boot = () => {
         bootCommerce();
         AstranovCityShop?.loadPersisted?.();
+        AvcBalance?.init?.();
         const u = window._lastPos;
         if (u?.lat != null) void AstranovCityShop?.placeForUser?.(u.lat, u.lng);
+        void AvcBalance?.refresh?.();
       };
       boot();
       setTimeout(boot, sl?.tier === 'slumber' ? 800 : 200);
