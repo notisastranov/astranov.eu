@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260708150000" />
+<meta name="astranov-build" content="20260708154500" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -220,14 +220,17 @@
   #globe-deck.expanded.has-stage.size-full { max-height:min(94dvh, calc(100dvh - 40px)); min-height:min(94dvh, calc(100dvh - 40px)); }
   #globe-deck-header { display:none !important; }
   #super-cli-bar { display:flex; gap:5px; padding:5px 8px; flex-wrap:nowrap; align-items:center; justify-content:flex-start; border-bottom:1px solid var(--ax-blue-border); flex-shrink:0; background:rgba(0,0,0,0.55); min-height:42px; }
+  #aci-login { flex-shrink:0; order:1; }
+  .super-cli-middle { display:flex; align-items:center; flex:1; min-width:0; gap:4px; overflow:hidden; order:2; }
+  .super-cli-edge-right { display:flex; align-items:center; gap:5px; flex-shrink:0; margin-left:auto; order:3; }
   #cli-ribbon-status { flex:1; min-width:0; font:10px/1.25 system-ui; color:var(--ax-blue-bright); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:0 4px; opacity:0.95; text-shadow:0 0 6px var(--ax-blue-glow); }
   #cli-ribbon-status.thinking { color:var(--ax-blue-bright); animation:cli-think-glow 1.4s ease-in-out infinite; }
   #cli-ribbon-status.alert { color:var(--ax-red-bright); text-shadow:0 0 8px var(--ax-red-glow); }
   #cli-ribbon-status.hold { color:var(--ax-yellow-bright); text-shadow:0 0 8px var(--ax-yellow-glow); }
   #cli-ribbon-status.ready { color:var(--ax-green-bright); text-shadow:0 0 8px var(--ax-green-glow); }
   @keyframes cli-think-glow { 0%,100%{ opacity:0.85; } 50%{ opacity:1; text-shadow:0 0 12px var(--ax-blue-glow); } }
-  #super-cli-bar button:not(#aci-login):not(#aci-locate):not(#super-add-fab):not(#aci-handsfree):not(.app-shortcut-btn) { display:none !important; }
-  #app-shortcut-row { display:flex; gap:4px; align-items:center; flex:1; min-width:0; overflow-x:auto; overflow-y:hidden; padding:0 2px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+  #super-cli-bar button:not(#aci-login):not(#super-add-fab):not(#aci-handsfree):not(.app-shortcut-btn) { display:none !important; }
+  #app-shortcut-row { display:flex; gap:4px; align-items:center; flex:0 1 auto; max-width:100%; min-width:0; overflow-x:auto; overflow-y:hidden; padding:0 2px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
   #app-shortcut-row::-webkit-scrollbar { display:none; }
   #super-cli-bar .app-shortcut-btn { display:inline-flex !important; align-items:center; justify-content:center; width:32px; height:32px; font-size:15px; border-radius:10px; background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); cursor:pointer; flex-shrink:0; touch-action:manipulation; transition:background 0.15s,border-color 0.15s,transform 0.1s; }
   #super-cli-bar .app-shortcut-btn:hover { border-color:var(--ax-blue-bright); box-shadow:0 0 8px var(--ax-blue-glow); }
@@ -697,10 +700,14 @@
       </div>
       <div id="super-cli-bar">
         <button id="aci-login" title="Sign in with Google" type="button">G</button>
-        <div id="app-shortcut-row" role="toolbar" aria-label="Open applications"></div>
-        <span id="cli-ribbon-status" aria-live="polite"></span>
-        <button id="super-add-fab" type="button" title="Super Add — post · vendor · site">+</button>
-        <button id="aci-handsfree" type="button" title="AI hands-free — listen &amp; speak">🎧</button>
+        <div id="super-cli-middle" class="super-cli-middle">
+          <div id="app-shortcut-row" role="toolbar" aria-label="Open applications"></div>
+          <span id="cli-ribbon-status" aria-live="polite"></span>
+        </div>
+        <div id="super-cli-edge-right" class="super-cli-edge-right">
+          <button id="super-add-fab" type="button" title="Super Add — post · vendor · site">+</button>
+          <button id="aci-handsfree" type="button" title="AI hands-free — listen &amp; speak">🎧</button>
+        </div>
         <button id="aci-cli-toggle" title="Expand/collapse Astranov Command Line" type="button">💻</button>
         <button id="aci-stop" title="Stop" type="button">🛑</button>
         <button id="aci-hold" title="Hold session — pause mic &amp; tasks for noisy places" type="button" aria-pressed="false">⏸</button>
@@ -4316,11 +4323,6 @@ const CliRibbon = {
     const active = this.TASK_LABEL[task] || this._active || 'CLI';
     parts.push(active);
 
-    const open = AppShortcuts?._order?.filter(id => id !== task) || [];
-    if (open.length) {
-      parts.push('+' + open.map(id => AppShortcuts?.APPS?.[id]?.title || id).join(','));
-    }
-
     if (GlobeDeck?.thinking) parts.push('thinking…');
     if (sessionHeld || SessionHold?.isHeld?.()) parts.push('held');
     if (window._handsFreeVoice) parts.push('hands-free');
@@ -4360,6 +4362,8 @@ const AppShortcuts = {
   _order: [],
   _labels: {},
   _siteMeta: null,
+  PINNED_INSIDE: ['locate'],
+  BASE_ORDER: ['coders', 'commerce', 'chats', 'batch', 'radio', 'video', 'add', 'drive', 'phone', 'coin', 'site'],
 
   APPS: {
     coders: {
@@ -4510,16 +4514,41 @@ const AppShortcuts = {
     const bar = document.getElementById('super-cli-bar');
     const login = document.getElementById('aci-login');
     if (!bar || !login) return;
+    SuperCli?.ensureBarLayout?.();
     let row = document.getElementById('app-shortcut-row');
     if (!row) {
       row = document.createElement('div');
       row.id = 'app-shortcut-row';
       row.setAttribute('role', 'toolbar');
       row.setAttribute('aria-label', 'Open applications');
-      login.insertAdjacentElement('afterend', row);
+      const middle = document.getElementById('super-cli-middle');
+      if (middle) middle.insertBefore(row, middle.firstChild);
+      else login.insertAdjacentElement('afterend', row);
     }
     this._row = row;
+    this._pinInsideButtons();
     this.render();
+  },
+
+  _pinInsideButtons() {
+    if (!this._row) return;
+    for (let i = this.PINNED_INSIDE.length - 1; i >= 0; i--) {
+      const id = this.PINNED_INSIDE[i];
+      const el = document.getElementById('aci-' + id);
+      if (!el) continue;
+      el.classList.add('app-shortcut-btn');
+      el.hidden = false;
+      el.dataset.pinned = '1';
+      if (!el._pinnedBound) {
+        el._pinnedBound = true;
+        el.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          SuperCli?.run?.(id);
+        };
+      }
+      this._row.prepend(el);
+    }
   },
 
   isOpen(id) {
@@ -4533,7 +4562,19 @@ const AppShortcuts = {
   track(id, label) {
     const key = this._norm(id);
     if (!key || !this.APPS[key]) return;
-    if (!this._order.includes(key)) this._order.push(key);
+    if (!this._order.includes(key)) {
+      const baseIdx = this.BASE_ORDER.indexOf(key);
+      if (baseIdx < 0) {
+        this._order.push(key);
+      } else {
+        let insertAt = this._order.length;
+        for (let i = 0; i < this._order.length; i++) {
+          const existingIdx = this.BASE_ORDER.indexOf(this._order[i]);
+          if (existingIdx > baseIdx) { insertAt = i; break; }
+        }
+        this._order.splice(insertAt, 0, key);
+      }
+    }
     if (label) this._labels[key] = String(label).slice(0, 48);
     this.render();
   },
@@ -4595,7 +4636,8 @@ const AppShortcuts = {
 
   render() {
     if (!this._row) return;
-    this._row.innerHTML = '';
+    this._pinInsideButtons();
+    this._row.querySelectorAll('.app-shortcut-btn:not([data-pinned])').forEach((btn) => btn.remove());
     const focus = GlobeDeck?.activeTask || null;
     for (const id of this._order) {
       const app = this.APPS[id];
@@ -4630,13 +4672,44 @@ const SuperCli = {
   _context: 'idle',
   title: ACL_TITLE,
 
-  // Top bar: login + Super Add — everything else via CLI (locate, order, batch, vhf, theme, hold, stop…)
-  TOOLBAR_VISIBLE: ['aci-login', 'aci-locate', 'aci-provider', 'aci-order', 'super-add-fab', 'aci-handsfree'],
+  // Edge bar: G left · + and 🎧 right · apps/locate scroll inside middle
+  TOOLBAR_VISIBLE: ['aci-login', 'super-add-fab', 'aci-handsfree'],
   INPUT_BTNS: ['globe-deck-send'],
+
+  ensureBarLayout() {
+    const bar = document.getElementById('super-cli-bar');
+    if (!bar || bar.dataset.layoutReady) return;
+    bar.dataset.layoutReady = '1';
+    const login = document.getElementById('aci-login');
+    let middle = document.getElementById('super-cli-middle');
+    let edgeRight = document.getElementById('super-cli-edge-right');
+    if (!middle) {
+      middle = document.createElement('div');
+      middle.id = 'super-cli-middle';
+      middle.className = 'super-cli-middle';
+      bar.insertBefore(middle, edgeRight || null);
+    }
+    if (!edgeRight) {
+      edgeRight = document.createElement('div');
+      edgeRight.id = 'super-cli-edge-right';
+      edgeRight.className = 'super-cli-edge-right';
+      bar.appendChild(edgeRight);
+    }
+    const row = document.getElementById('app-shortcut-row');
+    const ribbon = document.getElementById('cli-ribbon-status');
+    const fab = document.getElementById('super-add-fab');
+    const hf = document.getElementById('aci-handsfree');
+    if (login && login.parentElement !== bar) bar.prepend(login);
+    if (row && row.parentElement !== middle) middle.insertBefore(row, middle.firstChild);
+    if (ribbon && ribbon.parentElement !== middle) middle.appendChild(ribbon);
+    if (fab && fab.parentElement !== edgeRight) edgeRight.insertBefore(fab, hf || null);
+    if (hf && hf.parentElement !== edgeRight) edgeRight.appendChild(hf);
+  },
 
   init() {
     if (this._bound) return;
     this._bound = true;
+    this.ensureBarLayout();
     this.bindToolbar();
     this.bindInputBar();
     this.setContext(this.inferContext());
@@ -4685,11 +4758,15 @@ const SuperCli = {
         GlobeDeck?.expand?.(ACL_TITLE);
         document.getElementById('aci-cli-in')?.focus();
         if (SessionHold?.isHeld?.()) { SessionHold.resume(); return; }
+        if (window._handsFreeVoice && !isListening && !Voice?.speaking) {
+          startListeningForOptions();
+          return;
+        }
         if (Voice?.speaking || isListening || voiceSessionActive || window._handsFreeVoice) {
           userIntervene?.();
           return;
         }
-        startVoiceOptions?.();
+        void startVoiceOptions?.();
       };
     }
     if (send && !send._superBound) {
@@ -11764,13 +11841,18 @@ function resumeListening() {
 }
 window.resumeListening = resumeListening;
 
-function startVoiceOptions() {
+async function startVoiceOptions() {
   if (sessionHeld || SessionHold?.isHeld?.()) {
     SessionHold?.resume?.();
     return;
   }
   if (window._handsFreeVoice && isListening) {
     userIntervene();
+    return;
+  }
+  if (!recognition) {
+    AciCli?.print('Voice not supported — use Chrome or Edge', 'err');
+    ACIControl?.reply('Voice needs Chrome — type in CLI');
     return;
   }
   Voice.flush();
@@ -11789,17 +11871,25 @@ function startVoiceOptions() {
   if (_voiceResumeTimer) { clearTimeout(_voiceResumeTimer); _voiceResumeTimer = null; }
   const lang = 'el-GR';
   Voice.preferredListenLang = lang;
-  if (recognition) {
-    recognition.lang = lang;
-    _voiceLangLocked = true;
+  recognition.lang = lang;
+  _voiceLangLocked = true;
+  const mic = await (AstranovLogo?.ensureMicAnalyser?.() || Promise.resolve(null));
+  if (!mic && navigator.mediaDevices?.getUserMedia) {
+    AciCli?.print('Mic blocked — allow microphone for astranov.eu', 'err');
+    ACIControl?.reply('Mic blocked — allow mic in browser');
+    window._handsFreeVoice = false;
+    voiceSessionActive = false;
+    syncHandsFreeBtn();
+    return;
   }
   AciCli?.print('🎧 listening — speak, pause ~1s, I reply in ribbon + voice', 'dim');
-  ACIControl?.reply('Grok listening — speak now');
+  ACIControl?.reply('Listening — speak now');
   const input = document.getElementById('aci-cli-in');
-  if (input) input.placeholder = '🎧 Grok listening — pause to send';
+  if (input) input.placeholder = '🎧 listening — pause to send';
   AstranovSession?.push?.();
   syncHandsFreeBtn();
-  speak('Grok listening.', () => scheduleVoiceResume(), false);
+  CliRibbon?.setNotice?.('listening', 'ready');
+  startListeningForOptions();
 }
 
 function primeGrokVoice() {
@@ -12056,6 +12146,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260708150000" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260708154500" data-astranov-deferred></script>
 </body>
 </html>
