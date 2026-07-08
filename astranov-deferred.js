@@ -4793,10 +4793,6 @@ const DrivingView = {
     }
   },
 
-  setRoutePlan(plan) {
-    this._routePlan = plan || null;
-  },
-
   async fetchRoadRoute() {
     const plan = this._routePlan;
     const from = plan?.from || window._driverBase || window._lastPos || this.lastFix;
