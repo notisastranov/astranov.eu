@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260708121500" />
+<meta name="astranov-build" content="20260708143000" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -226,7 +226,7 @@
   #cli-ribbon-status.hold { color:var(--ax-yellow-bright); text-shadow:0 0 8px var(--ax-yellow-glow); }
   #cli-ribbon-status.ready { color:var(--ax-green-bright); text-shadow:0 0 8px var(--ax-green-glow); }
   @keyframes cli-think-glow { 0%,100%{ opacity:0.85; } 50%{ opacity:1; text-shadow:0 0 12px var(--ax-blue-glow); } }
-  #super-cli-bar button:not(#aci-login):not(#super-add-fab):not(#aci-handsfree):not(.app-shortcut-btn) { display:none !important; }
+  #super-cli-bar button:not(#aci-login):not(#aci-locate):not(#super-add-fab):not(#aci-handsfree):not(.app-shortcut-btn) { display:none !important; }
   #app-shortcut-row { display:flex; gap:4px; align-items:center; flex:1; min-width:0; overflow-x:auto; overflow-y:hidden; padding:0 2px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
   #app-shortcut-row::-webkit-scrollbar { display:none; }
   #super-cli-bar .app-shortcut-btn { display:inline-flex !important; align-items:center; justify-content:center; width:32px; height:32px; font-size:15px; border-radius:10px; background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); cursor:pointer; flex-shrink:0; touch-action:manipulation; transition:background 0.15s,border-color 0.15s,transform 0.1s; }
@@ -2633,7 +2633,7 @@ const AstranovLogo = {
     GlobeEntity?.clearSelection?.();
     GlobeDeck?.collapse?.();
     GlobeDeck?.hideStage?.();
-    GlobeDeck?.setPreview?.('ASTRANOV — global earth · tap 🎯 Locate');
+    GlobeDeck?.setPreview?.('ASTRANOV — global earth');
     window._globeFly = null;
     window._cityDropLock = false;
     if (typeof globePivot !== 'undefined' && globePivot) {
@@ -12000,8 +12000,6 @@ if (typeof globePivot !== 'undefined' && globePivot) {
 CosmicZoom.level = 'earth';
 if (CosmicZoom.solarGroup) CosmicZoom.solarGroup.visible = false;
 CosmicZoom.update(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
-const zl0 = document.getElementById('zoom-label');
-if (zl0) zl0.textContent = 'GLOBAL · tap 🎯 Locate for city map';
 AstranovTheme.init();
 AstranovLogo.init();
 CityMap.init();
@@ -12028,8 +12026,6 @@ setTimeout(() => {
   ACIControl?.reply?.('Earth ready · tap 🎧 talk straight to Grok');
   primeGrokVoice?.();
   setTimeout(() => AciCoders?.enterSession?.({ ping: false, focus: false }), 2500);
-  const zl = document.getElementById('zoom-label');
-  if (zl) zl.textContent = 'GLOBAL · tap 🎯 Locate for city map';
 }, 1200);
 
 const host = location.hostname || '';
@@ -12041,6 +12037,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260708121500" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260708143000" data-astranov-deferred></script>
 </body>
 </html>
