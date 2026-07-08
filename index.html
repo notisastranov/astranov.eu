@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260708173000" />
+<meta name="astranov-build" content="20260708174500" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -8538,7 +8538,8 @@ const ZoomTiers = {
   },
 
   countryHint() {
-    const p = window._lastPos || { lat: 36.44, lng: 28.22 };
+    const p = CityMap?.globeCenterLatLng?.() || TrackballGuard?.facingLatLng?.() || window._lastPos || { lat: 0, lng: 0 };
+    if (p.lat > 28 && p.lat < 34 && p.lng > 34 && p.lng < 40) return 'Jordan';
     if (p.lat > 34 && p.lat < 42 && p.lng > 19 && p.lng < 30) return 'Greece';
     if (p.lat > 24 && p.lat < 50 && p.lng > -10 && p.lng < 40) return 'Europe';
     if (p.lat > -35 && p.lat < 35) return 'equatorial belt';
@@ -8726,10 +8727,8 @@ function trackballEnd(clientX, clientY, opts) {
 function registerTap(clientX, clientY) {
   const now = Date.now();
   if (now - lastTapAt < 340 && Math.hypot(clientX - lastTapX, clientY - lastTapY) < 36) {
-    if (!GlobeControl?.userExploring) {
-      ZoomTiers?.stepIn?.();
-      MapDepict?.setHud('Zoom in', 'double-tap');
-    }
+    ZoomTiers?.stepIn?.();
+    MapDepict?.setHud('Zoom in', 'double-tap');
     lastTapAt = 0;
     return;
   }
@@ -9231,7 +9230,7 @@ const CityMap = {
     if (mapEl && t > 0.04 && !this.active) {
       if (!mapEl.classList.contains('national-active')) mapEl.classList.add('national-active');
       if (this.map) {
-        const c = window._lastPos || this.globeCenterLatLng();
+        const c = this.mapViewCenter();
         this._center = c;
         const lz = this.nationalLeafletZoom(camZ);
         if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
@@ -9477,6 +9476,17 @@ const CityMap = {
     return { lat, lng };
   },
 
+  /** Map viewport — follows globe bearing, not stale GPS / delivery base */
+  mapViewCenter(opts) {
+    opts = opts || {};
+    if (opts.lat != null && opts.lng != null) return { lat: opts.lat, lng: opts.lng };
+    if (DrivingView?.active && window._lastPos?.lat != null) return window._lastPos;
+    if (GlobeControl?.followMode === 'locate' && window._lastPos?.lat != null && !GlobeControl?.userExploring) {
+      return window._lastPos;
+    }
+    return this.globeCenterLatLng();
+  },
+
   flyTo(lat, lng, zoom) {
     this._center = { lat, lng };
     if (this.map) this.map.setView([lat, lng], zoom || 15, { animate: true });
@@ -9528,7 +9538,7 @@ const CityMap = {
 
   async enter(lat, lng, opts) {
     if (CityLife?.dropIn) return CityLife.dropIn(lat, lng, opts || {});
-    const c = lat != null && lng != null ? { lat, lng } : (window._lastPos || this.globeCenterLatLng());
+    const c = lat != null && lng != null ? { lat, lng } : this.mapViewCenter();
     if (!c?.lat) return { error: 'no location' };
     const z = GlobeControl?.cityEntryZ?.() ?? this.ENTER_Z - 0.06;
     const p = latLngToPos(c.lat, c.lng, 1.04);
@@ -9581,7 +9591,7 @@ const CityMap = {
     if (globe) globe.classList.add('city-map-active');
     document.body.classList.add('city-map-active');
     this._applyGlobeMapCrossfade(camZ);
-    const c = window._lastPos || this.globeCenterLatLng();
+    const c = this.mapViewCenter();
     this._center = c;
     this.map.setView([c.lat, c.lng], this.camZToZoom(camZ), { animate: false });
     this._invalidate();
@@ -9607,7 +9617,7 @@ const CityMap = {
     document.body.classList.remove('city-map-active');
     this._applyGlobeMapCrossfade(camZ);
     this._applyBaseLayers();
-    const c = window._lastPos || this.globeCenterLatLng();
+    const c = this.mapViewCenter();
     this._center = c;
     this.map.setView([c.lat, c.lng], this.nationalLeafletZoom(camZ), { animate: false });
     this._invalidate();
@@ -9615,7 +9625,7 @@ const CityMap = {
   },
 
   _syncNational(camZ) {
-    const c = window._lastPos || this.globeCenterLatLng();
+    const c = this.mapViewCenter();
     this._center = c;
     const lz = this.nationalLeafletZoom(camZ);
     if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
@@ -9654,9 +9664,7 @@ const CityMap = {
   },
 
   _syncView(camZ) {
-    const c = DrivingView?.active && window._lastPos
-      ? window._lastPos
-      : (window._lastPos || this.globeCenterLatLng());
+    const c = this.mapViewCenter();
     this._center = c;
     const lz = this.camZToZoom(camZ);
     if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
