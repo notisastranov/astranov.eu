@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260708154500" />
+<meta name="astranov-build" content="20260708162000" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -420,9 +420,11 @@
   #ge-hud-type { color:var(--ax-blue-bright); font-size:10px; margin-bottom:4px; }
   #ge-hud-title { font-weight:700; font-size:13px; color:var(--an-text); margin-bottom:4px; }
   #ge-hud-desc { color:var(--an-muted); font-size:11px; margin-bottom:10px; min-height:28px; }
-  #ge-hud-row { display:flex; gap:8px; }
-  #ge-hud-action { flex:1; padding:10px; border:none; border-radius:10px; background:var(--ax-green-bg); border:1px solid var(--ax-green-border); color:#fff; font-weight:700; cursor:pointer; font-size:11px; box-shadow:0 0 8px var(--ax-green-glow); }
-  #ge-hud-close { padding:10px 12px; border-radius:10px; border:1px solid #666; background:transparent; color:#aaa; cursor:pointer; font-size:11px; }
+  #ge-hud-actions { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px; }
+  #ge-hud-actions button { padding:9px 6px; border:none; border-radius:10px; background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); font-weight:600; cursor:pointer; font-size:10px; touch-action:manipulation; }
+  #ge-hud-actions button[data-place-act="drive"], #ge-hud-actions button[data-place-act="route"] { background:var(--ax-green-bg); border-color:var(--ax-green-border); color:#fff; }
+  #ge-hud-row { display:flex; gap:8px; justify-content:flex-end; }
+  #ge-hud-close { padding:8px 14px; border-radius:10px; border:1px solid #666; background:transparent; color:#aaa; cursor:pointer; font-size:11px; }
   /* Astranov Identity modal */
   #astranov-auth-modal { display:none; position:fixed; inset:0; z-index:200; align-items:center; justify-content:center; background:rgba(0,4,12,0.82); backdrop-filter:blur(8px); pointer-events:auto; }
   #astranov-auth-modal.open { display:flex; }
@@ -680,10 +682,10 @@
   <div id="globe-entity-hud">
     <div id="ge-hud-type">◎ Place</div>
     <div id="ge-hud-title">—</div>
-    <div id="ge-hud-desc">Tap markers on the globe — labels appear when you zoom close.</div>
+    <div id="ge-hud-desc">Tap the map — choose what to do here</div>
+    <div id="ge-hud-actions" class="ge-hud-actions"></div>
     <div id="ge-hud-row">
-      <button id="ge-hud-action" type="button">Open</button>
-      <button id="ge-hud-close" type="button">✖</button>
+      <button id="ge-hud-close" type="button">✖ Close</button>
     </div>
   </div>
   <div id="zoom-label">GLOBAL</div>
@@ -1889,7 +1891,163 @@ window.CodersHub = {
 
 window.LabOrbs = { init() {} };
 window.ContextTruth = { infer() { return { ctx: 'idle' }; } };
-window.DrivingView = { active: false, destination: null, routeCoords: [], fetchRoadRoute() { return Promise.resolve(); }, drawRoute() {}, activate() { return _defer('DrivingView', 'activate'); } };
+const DrivingView = {
+  active: false, speed: 0, mode: 'still', watchId: null, lastFix: null, lastTime: 0,
+  routeLine: null, routeCoords: [], steps: [], stepIdx: 0, destination: null,
+  WALK_THRESHOLD: 2.2, DRIVE_THRESHOLD: 4.5, _ready: true,
+  haversineM(lat1, lng1, lat2, lng2) {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  },
+  init() { this._geoReady = !!navigator.geolocation; },
+  _ensureWatch() {
+    if (this.watchId || !this._geoReady) return;
+    this.watchId = navigator.geolocation.watchPosition(
+      pos => this.onFix(pos), () => {},
+      { enableHighAccuracy: true, maximumAge: 1500, timeout: 12000 }
+    );
+  },
+  setDestination(lat, lng) {
+    this.destination = { lat, lng };
+    if (this.active) this.fetchRoadRoute();
+  },
+  onFix(pos) {
+    const now = Date.now();
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+    let speed = pos.coords.speed;
+    if (this.lastFix && this.lastTime) {
+      const dt = (now - this.lastTime) / 1000;
+      if (dt > 0.4) {
+        const d = this.haversineM(this.lastFix.lat, this.lastFix.lng, lat, lng);
+        if (speed == null || speed < 0) speed = d / dt;
+      }
+    }
+    this.speed = Math.max(0, speed || 0);
+    this.lastFix = { lat, lng };
+    this.lastTime = now;
+    window._lastPos = { lat, lng };
+    if (typeof placeMe === 'function') placeMe(lat, lng, { quiet: true, markerOnly: true });
+    const prev = this.mode;
+    if (this.speed < 0.6) this.mode = 'still';
+    else if (this.speed < this.WALK_THRESHOLD) this.mode = 'walk';
+    else if (this.speed < this.DRIVE_THRESHOLD) this.mode = 'run';
+    else this.mode = 'drive';
+    if ((this.mode === 'run' || this.mode === 'drive') && !this.active) this.activate();
+    if (this.active) { this.updateCamera(pos); this.updateGuidance(lat, lng); }
+    if (prev !== this.mode && (this.mode === 'run' || this.mode === 'drive')) {
+      GlobeDeck?.setPreview?.((this.mode === 'drive' ? '🚗 DRIVING' : '⚡ FAST') + ' · ' + Math.round(this.speed * 3.6) + ' km/h');
+    }
+  },
+  activate() {
+    this._ensureWatch();
+    this.active = true;
+    this._cameraFollow = true;
+    GlobeControl?.engageFollow?.('drive');
+    SuperCli?.setContext?.('drive');
+    AppShortcuts?.track?.('drive', 'Drive');
+    const pos = window._lastPos || this.lastFix || { lat: 36.44, lng: 28.22 };
+    const p = latLngToPos(pos.lat, pos.lng, 1.04);
+    if (typeof flyToPoint === 'function') {
+      flyToPoint(new THREE.Vector3(p.x, p.y, p.z), 1.28, { dur: GlobeControl?.flyDuration?.(camera?.position?.z, 1.28) || 1400 });
+      GlobeControl?.noteAutoFly?.();
+    }
+    GlobeDeck?.setPreview?.('DRIVE · routing…');
+    document.getElementById('zoom-label').textContent = 'DRIVE VIEW';
+    if (!this.destination) {
+      const v = window.Commerce?.vendors?.[0];
+      this.destination = v ? { lat: v.lat, lng: v.lng } : { lat: pos.lat + 0.02, lng: pos.lng + 0.02 };
+    }
+    this.fetchRoadRoute();
+    MapDepict?.action?.('drive', { detail: 'road routing' });
+    ACIControl?.reply?.('Drive mode · route on map');
+  },
+  deactivate() {
+    this.active = false;
+    this._cameraFollow = false;
+    if (GlobeControl?.followMode === 'drive') GlobeControl.followMode = 'free';
+    AppShortcuts?.untrack?.('drive');
+    SuperCli?.setContext?.(SuperCli?.inferContext?.() || 'idle');
+    GlobeDeck?.setPreview?.('');
+    if (this.routeLine?.parent) this.routeLine.parent.remove(this.routeLine);
+    this.routeLine = null;
+    CityMap?.setRoute?.([]);
+    CosmicZoom?.update?.(camera.position.z);
+  },
+  updateCamera(pos) {
+    if (!this._cameraFollow || GlobeControl?.userExploring) return;
+    camera.position.z = this.mode === 'drive' ? 1.22 : 1.32;
+    const h = pos.coords.heading;
+    if (h != null && !isNaN(h)) globePivot.rotation.y = (-h + 90) * Math.PI / 180;
+  },
+  async fetchRoadRoute() {
+    const from = window._lastPos || this.lastFix;
+    const to = this.destination;
+    if (!from || !to) return;
+    try {
+      const url = 'https://router.project-osrm.org/route/v1/driving/'
+        + from.lng + ',' + from.lat + ';' + to.lng + ',' + to.lat
+        + '?overview=full&geometries=geojson&steps=true';
+      const r = await fetch(url);
+      const j = await r.json();
+      if (j.code === 'Ok' && j.routes?.[0]) {
+        const route = j.routes[0];
+        this.routeCoords = route.geometry.coordinates.map(c => ({ lng: c[0], lat: c[1] }));
+        this.steps = (route.legs[0]?.steps || []).map(s => ({
+          instruction: (s.maneuver?.type || 'continue') + ' ' + (s.name || ''),
+          dist: s.distance,
+          loc: { lat: s.maneuver.location[1], lng: s.maneuver.location[0] },
+        }));
+        this.stepIdx = 0;
+        this.drawRoute();
+        if (this.steps[0]) this.showStep(this.steps[0]);
+        return;
+      }
+    } catch (e) { console.warn('[DrivingView] OSRM', e); }
+    const fallback = [];
+    for (let i = 0; i <= 12; i++) {
+      const t = i / 12;
+      fallback.push({ lat: from.lat + (to.lat - from.lat) * t, lng: from.lng + (to.lng - from.lng) * t });
+    }
+    this.routeCoords = fallback;
+    this.drawRoute();
+    ACIControl?.reply?.('Direct route (OSRM offline) · ' + Math.round(this.haversineM(from.lat, from.lng, to.lat, to.lng) / 1000) + ' km');
+  },
+  drawRoute() {
+    if (this.routeLine?.parent) this.routeLine.parent.remove(this.routeLine);
+    const pts = (this.routeCoords || []).map(c => {
+      const p = latLngToPos(c.lat, c.lng, 1.026);
+      return new THREE.Vector3(p.x, p.y, p.z);
+    });
+    if (pts.length < 2) return;
+    this.routeLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color: 0x44aaff, transparent: true, opacity: 0.85 })
+    );
+    globePivot.add(this.routeLine);
+    CityMap?.setRoute?.(this.routeCoords);
+    MapDepict?.pulse?.(window._lastPos?.lat, window._lastPos?.lng, 0x44aaff, 'road route', 6000);
+  },
+  showStep(step) {
+    const km = step.dist > 1000 ? (step.dist / 1000).toFixed(1) + ' km' : Math.round(step.dist) + ' m';
+    const line = '➤ ' + step.instruction + ' · ' + km;
+    GlobeDeck?.setPreview?.(line);
+    ACIControl?.reply?.(line);
+  },
+  updateGuidance(lat, lng) {
+    if (!this.steps.length) return;
+    const step = this.steps[this.stepIdx];
+    if (!step?.loc) return;
+    if (this.haversineM(lat, lng, step.loc.lat, step.loc.lng) < 35 && this.stepIdx < this.steps.length - 1) {
+      this.stepIdx++;
+      this.showStep(this.steps[this.stepIdx]);
+    }
+  },
+};
+window.DrivingView = DrivingView;
 window.Comms = {
   vhfActive: false,
   startVHF() { return _defer('Comms', 'startVHF'); },
@@ -6957,6 +7115,150 @@ const ACIControl = {
   }
 };
 
+// === MAP PLACE MENU — tap globe/map · pick action (no surprise fly) ===
+const MapPlaceMenu = {
+  _pin: null,
+
+  formatCoords(lat, lng) {
+    return Number(lat).toFixed(4) + ', ' + Number(lng).toFixed(4);
+  },
+
+  pointFromGlobeHit(point) {
+    const dir = point.clone().normalize();
+    const lat = 90 - Math.acos(Math.max(-1, Math.min(1, dir.y))) * 180 / Math.PI;
+    let lng = Math.atan2(dir.z, -dir.x) * 180 / Math.PI - 180;
+    if (lng > 180) lng -= 360;
+    if (lng < -180) lng += 360;
+    return { lat, lng };
+  },
+
+  openAt(lat, lng, opts) {
+    opts = opts || {};
+    if (lat == null || lng == null) return;
+    window._globeFly = null;
+    this._pin = { lat, lng, entity: opts.entity || null };
+    const hud = document.getElementById('globe-entity-hud');
+    if (!hud) return;
+    hud.classList.add('open');
+    document.getElementById('ge-hud-type').textContent = '◎ ' + (opts.source || 'Map');
+    document.getElementById('ge-hud-title').textContent = opts.label || this.formatCoords(lat, lng);
+    document.getElementById('ge-hud-desc').textContent = opts.hint || 'What do you want to do here?';
+    this._renderActions(opts);
+    MapDepict?.pulse?.(lat, lng, 0x00ddff, opts.label || 'here', 8000);
+    GlobeDeck?.setPreview?.('◎ ' + (opts.label || this.formatCoords(lat, lng)));
+    AciCli?.print?.('◎ ' + (opts.label || this.formatCoords(lat, lng)), 'map');
+  },
+
+  close() {
+    this._pin = null;
+    document.getElementById('globe-entity-hud')?.classList.remove('open');
+    GlobeEntity?.clearSelection?.();
+  },
+
+  _renderActions(opts) {
+    const row = document.getElementById('ge-hud-actions');
+    if (!row) return;
+    const actions = [
+      { id: 'drive', label: '🚗 Drive here' },
+      { id: 'route', label: '🛣 Show route' },
+      { id: 'delivery', label: '📍 Delivery base' },
+      { id: 'shop', label: '🏬 Shop address' },
+      { id: 'explore', label: '🔍 Shops nearby' },
+      { id: 'zoom', label: '🔎 Zoom here' },
+    ];
+    if (opts?.entity?.type === 'vendor') {
+      actions.unshift({ id: 'order', label: '🛒 Order here' });
+    }
+    row.innerHTML = actions.map(a => '<button type="button" data-place-act="' + a.id + '">' + a.label + '</button>').join('');
+    row.querySelectorAll('[data-place-act]').forEach(btn => {
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this._run(btn.dataset.placeAct);
+      };
+    });
+  },
+
+  _run(action) {
+    const p = this._pin;
+    if (!p) return;
+    const lat = p.lat;
+    const lng = p.lng;
+    if (action === 'drive' || action === 'route') {
+      const go = async () => {
+        await LazyModules.ensure();
+        DrivingView?.setDestination?.(lat, lng);
+        DrivingView?.activate?.();
+      };
+      void go();
+      this.close();
+      return;
+    }
+    if (action === 'delivery') {
+      window._lastPos = { lat, lng };
+      userLocated = true;
+      placeMe(lat, lng, { quiet: true });
+      try { localStorage.setItem('astranov_delivery_base', JSON.stringify({ lat, lng, ts: Date.now() })); } catch (_) {}
+      if (Auth?.user && Auth?.client) {
+        Auth.client.from('profiles').update({ field_lat: lat, field_lng: lng }).eq('id', Auth.user.id).then(() => {});
+      }
+      ACIControl?.reply?.('Delivery base set · ' + this.formatCoords(lat, lng));
+      MapDepict?.pulse?.(lat, lng, 0x44ff88, 'delivery base', 6000);
+      this.close();
+      return;
+    }
+    if (action === 'shop') {
+      window._pendingShopLatLng = { lat, lng };
+      const go = async () => {
+        await LazyModules.ensure();
+        window.SuperAdd?.showPanel?.();
+        const av = document.getElementById('sa-as-vendor');
+        const am = document.getElementById('sa-as-map');
+        const vn = document.getElementById('sa-vendor-name');
+        if (av) av.checked = true;
+        if (am) am.checked = true;
+        if (vn && !vn.value) vn.value = Auth?.user?.user_metadata?.full_name || 'My shop';
+      };
+      void go();
+      placeMe(lat, lng, { quiet: true, markerOnly: true });
+      ACIControl?.reply?.('Shop address pinned — complete vendor in Super Add (+)');
+      AppShortcuts?.track?.('add', 'Shop');
+      this.close();
+      return;
+    }
+    if (action === 'order') {
+      const v = p.entity?.data?.vendor;
+      const go = async () => {
+        await LazyModules.ensure();
+        if (v) window.Commerce?.openVendor?.(v);
+        else window.Commerce?.showPicker?.();
+      };
+      void go();
+      this.close();
+      return;
+    }
+    if (action === 'explore') {
+      window._lastPos = { lat, lng };
+      const go = async () => {
+        await LazyModules.ensure();
+        await window.Commerce?.loadVendors?.();
+        window.Commerce?.showPicker?.();
+      };
+      void go();
+      MapDepict?.action?.('vendor', { lat, lng, detail: 'shops near here' });
+      this.close();
+      return;
+    }
+    if (action === 'zoom') {
+      const pt = latLngToPos(lat, lng, 1.04);
+      flyToPoint?.(new THREE.Vector3(pt.x, pt.y, pt.z), GlobeControl?.Z?.national || 1.82, { dur: 1100 });
+      GlobeControl?.noteAutoFly?.();
+      this.close();
+    }
+  },
+};
+window.MapPlaceMenu = MapPlaceMenu;
+
 // === GLOBE ENTITIES — every map thing has a name, proximity label, tap action ===
 const GlobeEntity = {
   entities: new Map(),
@@ -6993,8 +7295,7 @@ const GlobeEntity = {
   init() {
     this._labelRoot = document.getElementById('globe-entity-labels');
     this._hud = document.getElementById('globe-entity-hud');
-    document.getElementById('ge-hud-close')?.addEventListener('click', () => this.clearSelection());
-    document.getElementById('ge-hud-action')?.addEventListener('click', () => this._runSelectedAction());
+    document.getElementById('ge-hud-close')?.addEventListener('click', () => MapPlaceMenu?.close?.() || this.clearSelection());
   },
 
   esc(s) {
@@ -7196,16 +7497,12 @@ const GlobeEntity = {
 
   select(entity) {
     this._selected = entity.id;
-    const hud = this._hud;
-    if (!hud) return;
-    hud.classList.add('open');
-    document.getElementById('ge-hud-type').textContent = (entity.icon || '') + ' ' + (this.TYPES[entity.type]?.label || entity.type);
-    document.getElementById('ge-hud-title').textContent = entity.title;
-    document.getElementById('ge-hud-desc').textContent = entity.description || 'Tap action below';
-    const btn = document.getElementById('ge-hud-action');
-    if (btn) btn.textContent = entity._actionLabel || this._defaultActionLabel(entity);
-    GlobeDeck?.setPreview?.(entity.icon + ' ' + entity.title + ' — ' + (entity.description || '').slice(0, 50));
-    AciCli?.print('◎ ' + entity.title + ' · ' + (entity.description || entity.type), 'map');
+    MapPlaceMenu?.openAt?.(entity.lat, entity.lng, {
+      source: this.TYPES[entity.type]?.label || entity.type,
+      label: (entity.icon || '') + ' ' + entity.title,
+      hint: entity.description || 'Choose an action',
+      entity,
+    });
   },
 
   clearSelection() {
@@ -7248,7 +7545,6 @@ const GlobeEntity = {
 
   activate(entity) {
     this._scavengeView(entity, 'tap');
-    this.select(entity);
     if (entity.onTap) {
       entity.onTap(entity);
       return;
@@ -7264,7 +7560,7 @@ const GlobeEntity = {
         return;
       }
     }
-    this._defaultTap(entity);
+    this.select(entity);
   },
 
   _defaultTap(entity) {
@@ -8316,13 +8612,14 @@ const ZoomTiers = {
   snap(animate) {
     const t = this.current();
     window._globeFly = null;
+    if (GlobeControl?.userExploring) animate = false;
     if (animate) {
       window._globeFly = {
         mode: 'zoom',
         fromZ: camera.position.z,
         toZ: t.z,
         t0: performance.now(),
-        dur: 2600,
+        dur: 1600,
         tierId: t.id,
         onTier: true,
       };
@@ -8347,12 +8644,6 @@ const ZoomTiers = {
       else if (tier.national) zl.textContent = tier.label + ' · ' + this.countryHint();
       else if (tier.city) zl.textContent = tier.label;
       else zl.textContent = tier.label;
-    }
-    if (tier.national && window._lastPos && typeof flyToPoint === 'function') {
-      const p = latLngToPos(window._lastPos.lat, window._lastPos.lng, 1.04);
-      const cur = TrackballGuard?.facingLatLng?.() || { lat: 0, lng: 0 };
-      const far = TrackballGuard?.greatCircleKm?.(cur.lat, cur.lng, window._lastPos.lat, window._lastPos.lng) > 800;
-      if (far) flyToPoint(new THREE.Vector3(p.x, p.y, p.z), tier.z, { dur: 1200, onTier: true });
     }
     this.updateDots();
     MapDepict?.setHud?.(tier.label, 'zoom-tier');
@@ -8423,8 +8714,10 @@ function trackballEnd(clientX, clientY, opts) {
 function registerTap(clientX, clientY) {
   const now = Date.now();
   if (now - lastTapAt < 340 && Math.hypot(clientX - lastTapX, clientY - lastTapY) < 36) {
-    ZoomTiers?.stepIn?.();
-    MapDepict?.setHud('Zoom in', 'double-tap');
+    if (!GlobeControl?.userExploring) {
+      ZoomTiers?.stepIn?.();
+      MapDepict?.setHud('Zoom in', 'double-tap');
+    }
     lastTapAt = 0;
     return;
   }
@@ -8625,8 +8918,8 @@ function onGlobeClick(e) {
 
   const intersects = raycaster.intersectObject(earth);
   if (intersects.length > 0) {
-    flyToPoint(intersects[0].point, ZoomTiers?.tierZ?.('global') || 2.55);
-    MapDepict.action('explore', { detail: 'tap' });
+    const pin = MapPlaceMenu?.pointFromGlobeHit?.(intersects[0].point);
+    if (pin) MapPlaceMenu?.openAt?.(pin.lat, pin.lng, { source: 'Globe', hint: 'What do you want to do here?' });
   }
 }
 
@@ -9012,6 +9305,10 @@ const CityMap = {
       if (!this.active) return;
       const c = this.map.getCenter();
       this._center = { lat: c.lat, lng: c.lng };
+    });
+    this.map.on('click', (e) => {
+      if (!this.active && !this._nationalActive) return;
+      MapPlaceMenu?.openAt?.(e.latlng.lat, e.latlng.lng, { source: 'City map', hint: 'What do you want to do here?' });
     });
     window.addEventListener('resize', () => {
       if (this.active) this._invalidate();
@@ -12115,6 +12412,7 @@ CityMap.init();
 CityLife.init();
 EarthRealism.init();
 GlobeEntity.init();
+DrivingView.init();
 AiRouter.init();
 
 LazyModules.schedule();
@@ -12146,6 +12444,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260708154500" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260708162000" data-astranov-deferred></script>
 </body>
 </html>
