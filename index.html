@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260708210000" />
+<meta name="astranov-build" content="20260708220000" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -297,6 +297,12 @@
   #super-cli-bar .app-shortcut-btn:hover { border-color:var(--ax-blue-bright); box-shadow:0 0 8px var(--ax-blue-glow); }
   #super-cli-bar .app-shortcut-btn.active { background:var(--ax-blue-bg); border-color:var(--ax-blue-bright); color:var(--ax-blue-bright); box-shadow:0 0 10px var(--ax-blue-glow); }
   #super-cli-bar .app-shortcut-btn:active { transform:scale(0.92); }
+  #super-cli-bar #aci-avc.app-shortcut-btn { width:auto; min-width:54px; height:32px; padding:0 9px; border-radius:12px; gap:4px; font-size:12px; background:var(--ax-green-bg); border-color:var(--ax-green-border); color:var(--ax-green-bright); box-shadow:0 0 8px rgba(0,221,119,0.18); }
+  #super-cli-bar #aci-avc .avc-emoji { font-size:14px; line-height:1; flex-shrink:0; }
+  #super-cli-bar #aci-avc .avc-amt { font-family:ui-monospace,monospace; font-size:11px; font-weight:700; letter-spacing:0.02em; white-space:nowrap; }
+  #super-cli-bar #aci-avc.avc-guest .avc-amt { opacity:0.5; }
+  #super-cli-bar #aci-avc.avc-changed { animation:avc-balance-pulse 1.2s ease-out; }
+  @keyframes avc-balance-pulse { 0%,100% { box-shadow:0 0 8px rgba(0,221,119,0.18); } 40% { box-shadow:0 0 18px rgba(0,221,119,0.55); border-color:var(--ax-green-bright); } }
   #super-cli-bar button { background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); border-radius:50%; width:34px; height:34px; cursor:pointer; font-size:13px; flex-shrink:0; }
   #super-cli-bar #aci-stop { background:var(--ax-red-bg); border-color:var(--ax-red-border); color:var(--ax-red-bright); }
   #super-cli-bar #aci-cli-toggle { border-radius:50%; width:34px; }
@@ -806,6 +812,7 @@
       </div>
       <div id="super-cli-bar">
         <button id="aci-login" title="Sign in with Google" type="button">G</button>
+        <button id="aci-avc" type="button" title="AVC balance · tap for wallet" aria-live="polite"><span class="avc-emoji">◎</span><span class="avc-amt">…</span></button>
         <div id="super-cli-middle" class="super-cli-middle">
           <div id="app-shortcut-row" role="toolbar" aria-label="Open applications"></div>
           <span id="cli-ribbon-status" aria-live="polite"></span>
@@ -3991,6 +3998,9 @@ const Auth = {
           { enableHighAccuracy: false, timeout: 12000, maximumAge: 600000 }
         );
       }
+      void window.AvcBalance?.refresh?.();
+    } else {
+      window.AvcBalance?.refresh?.({ guest: true });
     }
   },
 
@@ -4074,6 +4084,7 @@ const Auth = {
       AstranovSession?.onAuth?.();
       AstranovPresence?.join?.();
       ACI?.feed('login', name);
+      void window.AvcBalance?.refresh?.();
       if (window.AciCli) AciCli.onAuthChange();
       FieldBrain?.updateChip?.();
       CliRibbon?.render?.();
@@ -4093,6 +4104,7 @@ const Auth = {
         chip.style.color = '';
       }
       if (window.AciCli) AciCli.onAuthChange();
+      window.AvcBalance?.refresh?.({ guest: true });
       CliRibbon?.render?.();
       ContextTruth?.syncAuth?.();
     }
@@ -4812,7 +4824,7 @@ const AppShortcuts = {
   _order: [],
   _labels: {},
   _siteMeta: null,
-  PINNED_INSIDE: ['locate'],
+  PINNED_INSIDE: ['avc', 'locate'],
   BASE_ORDER: ['coders', 'commerce', 'chats', 'batch', 'radio', 'video', 'add', 'drive', 'phone', 'coin', 'site'],
 
   APPS: {
@@ -5278,6 +5290,15 @@ const SuperCli = {
     AciCli?.print('▸ ' + act, 'cmd');
 
     switch (act) {
+      case 'avc':
+      case 'coin':
+      case 'wallet':
+        AppShortcuts?.track?.('coin', 'AVC');
+        window.CoinPortal?.open?.('wallet');
+        void window.AvcBalance?.refresh?.();
+        AciCli?.print('◎ AVC wallet · coin.astranov.eu', 'ok');
+        this.setContext('coin');
+        break;
       case 'locate':
         if (GlobeControl?.followMode === 'locate' && !GlobeControl?.userExploring) {
           GlobeControl.userTookGlobe('locate-off');
@@ -13342,6 +13363,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260708210000" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260708220000" data-astranov-deferred></script>
 </body>
 </html>
