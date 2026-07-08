@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260708174500" />
+<meta name="astranov-build" content="20260708180000" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -400,6 +400,10 @@
   .ge-label { position:absolute; transform:translate(-50%,-100%); display:none; flex-direction:row; align-items:flex-start; gap:6px; max-width:min(240px,42vw); padding:6px 9px; border-radius:10px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); font:10px/1.35 system-ui; color:var(--an-text); box-shadow:0 4px 14px rgba(0,0,0,0.45), 0 0 8px var(--ax-blue-glow); transition:opacity 0.15s; pointer-events:auto; cursor:pointer; touch-action:manipulation; backdrop-filter:blur(8px); }
   .ge-label:active { transform:translate(-50%,-100%) scale(0.97); }
   .ge-label .ge-pin { font-size:14px; flex-shrink:0; }
+  .ge-label .ge-pin-logo { width:28px; height:28px; border-radius:50%; border:2px solid #fff; background:center/cover no-repeat; box-shadow:0 2px 8px rgba(0,0,0,0.45); }
+  #vm-items .vm-item { gap:8px; }
+  #vm-items .vm-item-img { width:40px; height:40px; border-radius:8px; object-fit:cover; border:1px solid var(--ax-blue-border); flex-shrink:0; }
+  #vm-items .vm-item-body { flex:1; min-width:0; }
   .ge-label .ge-text b { display:block; color:var(--ax-blue-bright); font-size:11px; margin-bottom:2px; text-shadow:0 0 6px var(--ax-blue-glow); }
   .ge-label .ge-text span { color:#9ab; font-size:10px; }
   .ge-label.ge-glow { border-color:var(--ax-green-border); box-shadow:0 0 12px var(--ax-green-glow); }
@@ -1927,6 +1931,9 @@ const DrivingView = {
     this.destination = { lat, lng };
     if (this.active) this.fetchRoadRoute();
   },
+  setRoutePlan(plan) {
+    this._routePlan = plan || null;
+  },
   onFix(pos) {
     const now = Date.now();
     const lat = pos.coords.latitude;
@@ -1997,12 +2004,16 @@ const DrivingView = {
     if (h != null && !isNaN(h)) globePivot.rotation.y = (-h + 90) * Math.PI / 180;
   },
   async fetchRoadRoute() {
-    const from = window._lastPos || this.lastFix;
-    const to = this.destination;
+    const plan = this._routePlan;
+    const from = plan?.from || window._driverBase || window._lastPos || this.lastFix;
+    const via = plan?.via;
+    const to = plan?.to || this.destination;
     if (!from || !to) return;
     try {
+      const pts = [from, via, to].filter(p => p && p.lat != null && p.lng != null);
+      const coordStr = pts.map(p => p.lng + ',' + p.lat).join(';');
       const url = 'https://router.project-osrm.org/route/v1/driving/'
-        + from.lng + ',' + from.lat + ';' + to.lng + ',' + to.lat
+        + coordStr
         + '?overview=full&geometries=geojson&steps=true';
       const r = await fetch(url);
       const j = await r.json();
@@ -3760,6 +3771,8 @@ const Auth = {
     this.updateOwnerUI();
     if (window.FieldBrain) FieldBrain.onAuth();
     if (window.AciCli) AciCli.onAuthChange();
+    MapPins?.init?.();
+    MapPins?.loadFromProfile?.();
     this.loadProfileVisual();
     ContextTruth?.syncAuth?.();
   },
@@ -7128,6 +7141,123 @@ const ACIControl = {
   }
 };
 
+// === MAP PINS — shops · driver base · client delivery address ===
+const MapPins = {
+  _ready: false,
+
+  init() {
+    if (this._ready) return;
+    this._ready = true;
+    this.loadLocal();
+    this.syncGlobe();
+  },
+
+  loadLocal() {
+    try {
+      const cd = localStorage.getItem('astranov_client_delivery');
+      if (cd) window._clientDelivery = JSON.parse(cd);
+    } catch (_) {}
+    try {
+      const db = localStorage.getItem('astranov_driver_base');
+      if (db) window._driverBase = JSON.parse(db);
+    } catch (_) {}
+    try {
+      const legacy = localStorage.getItem('astranov_delivery_base');
+      if (legacy && !window._driverBase) window._driverBase = JSON.parse(legacy);
+    } catch (_) {}
+  },
+
+  async loadFromProfile() {
+    if (!Auth?.user || !Auth?.client) return;
+    try {
+      const { data } = await Auth.client
+        .from('profiles')
+        .select('profile_page,field_lat,field_lng')
+        .eq('id', Auth.user.id)
+        .maybeSingle();
+      const pins = data?.profile_page?.map_pins;
+      if (pins?.client_delivery?.lat != null) {
+        window._clientDelivery = pins.client_delivery;
+        localStorage.setItem('astranov_client_delivery', JSON.stringify(pins.client_delivery));
+      }
+      if (pins?.driver_base?.lat != null) {
+        window._driverBase = pins.driver_base;
+        localStorage.setItem('astranov_driver_base', JSON.stringify(pins.driver_base));
+      } else if (data?.field_lat != null && data?.field_lng != null && !window._driverBase) {
+        window._driverBase = { lat: data.field_lat, lng: data.field_lng, label: 'Driver base' };
+      }
+      this.syncGlobe();
+    } catch (_) {}
+  },
+
+  async persist() {
+    const payload = {
+      client_delivery: window._clientDelivery || null,
+      driver_base: window._driverBase || null,
+      updated_at: new Date().toISOString(),
+    };
+    try { localStorage.setItem('astranov_map_pins', JSON.stringify(payload)); } catch (_) {}
+    if (window._clientDelivery) {
+      try { localStorage.setItem('astranov_client_delivery', JSON.stringify(window._clientDelivery)); } catch (_) {}
+    }
+    if (window._driverBase) {
+      try { localStorage.setItem('astranov_driver_base', JSON.stringify(window._driverBase)); } catch (_) {}
+    }
+    if (!Auth?.user) return;
+    try {
+      const headers = await Auth.authHeaders();
+      const prof = await Auth.client.from('profiles').select('profile_page').eq('id', Auth.user.id).maybeSingle();
+      const page = (prof?.data?.profile_page && typeof prof.data.profile_page === 'object') ? prof.data.profile_page : {};
+      page.map_pins = payload;
+      await fetch(SB_URL + '/rest/v1/profiles?id=eq.' + Auth.user.id, {
+        method: 'PATCH', headers,
+        body: JSON.stringify({ profile_page: page, updated_at: new Date().toISOString() }),
+      });
+    } catch (_) {}
+  },
+
+  vendorLogo(v) {
+    let t = v?.tags;
+    if (typeof t === 'string') { try { t = JSON.parse(t); } catch { t = {}; } }
+    return (t && t.profile_url) || '';
+  },
+
+  setClientDelivery(lat, lng, label) {
+    window._clientDelivery = { lat, lng, label: label || 'Delivery address', ts: Date.now() };
+    this.persist();
+    this.syncGlobe();
+    MapDepict?.pulse?.(lat, lng, 0x44ff88, 'delivery address', 10000);
+    ACIControl?.reply?.('Client delivery address set · orders deliver here');
+  },
+
+  async setDriverBase(lat, lng, label) {
+    window._driverBase = { lat, lng, label: label || 'Driver base', ts: Date.now() };
+    try { localStorage.setItem('astranov_driver_base', JSON.stringify(window._driverBase)); } catch (_) {}
+    if (Auth?.user && Auth?.client) {
+      const roles = Array.from(new Set([...(FieldBrain?.roles || ['client']), 'driver']));
+      Auth.client.from('profiles').update({
+        roles,
+        is_vendor: roles.includes('vendor'),
+        field_lat: lat,
+        field_lng: lng,
+        field_seen_at: new Date().toISOString(),
+      }).eq('id', Auth.user.id).then(() => {});
+      FieldBrain.roles = roles;
+      FieldBrain?.updateChip?.();
+    }
+    await this.persist();
+    this.syncGlobe();
+    MapDepict?.pulse?.(lat, lng, 0xffaa44, 'driver base', 10000);
+    ACIControl?.reply?.('Driver base set · routing starts here');
+  },
+
+  syncGlobe() {
+    GlobeEntity?.syncMapPins?.();
+    CityMap?.syncMapPins?.();
+  },
+};
+window.MapPins = MapPins;
+
 // === MAP PLACE MENU — tap globe/map · pick action (no surprise fly) ===
 const MapPlaceMenu = {
   _pin: null,
@@ -7172,10 +7302,11 @@ const MapPlaceMenu = {
     const row = document.getElementById('ge-hud-actions');
     if (!row) return;
     const actions = [
+      { id: 'shop', label: '🏬 Shop + menu' },
+      { id: 'client_addr', label: '📦 Deliver here' },
+      { id: 'driver_base', label: '🚚 Driver base' },
       { id: 'drive', label: '🚗 Drive here' },
       { id: 'route', label: '🛣 Show route' },
-      { id: 'delivery', label: '📍 Delivery base' },
-      { id: 'shop', label: '🏬 Shop address' },
       { id: 'explore', label: '🔍 Shops nearby' },
       { id: 'zoom', label: '🔎 Zoom here' },
     ];
@@ -7207,22 +7338,39 @@ const MapPlaceMenu = {
       this.close();
       return;
     }
+    if (action === 'client_addr') {
+      const go = async () => {
+        await LazyModules.ensure();
+        if (!Auth?.user) {
+          Auth?.openLoginModal?.('Sign in to set delivery address');
+          return;
+        }
+        MapPins?.setClientDelivery?.(lat, lng, 'Deliver to ' + this.formatCoords(lat, lng));
+      };
+      void go();
+      this.close();
+      return;
+    }
+    if (action === 'driver_base') {
+      const go = async () => {
+        await LazyModules.ensure();
+        if (!Auth?.user) {
+          Auth?.openLoginModal?.('Sign in to set driver base');
+          return;
+        }
+        await MapPins?.setDriverBase?.(lat, lng, 'Driver base · ' + this.formatCoords(lat, lng));
+      };
+      void go();
+      this.close();
+      return;
+    }
     if (action === 'delivery') {
-      window._lastPos = { lat, lng };
-      userLocated = true;
-      placeMe(lat, lng, { quiet: true });
-      try { localStorage.setItem('astranov_delivery_base', JSON.stringify({ lat, lng, ts: Date.now() })); } catch (_) {}
-      if (Auth?.user && Auth?.client) {
-        Auth.client.from('profiles').update({ field_lat: lat, field_lng: lng }).eq('id', Auth.user.id).then(() => {});
-      }
-      ACIControl?.reply?.('Delivery base set · ' + this.formatCoords(lat, lng));
-      MapDepict?.pulse?.(lat, lng, 0x44ff88, 'delivery base', 6000);
+      void MapPins?.setDriverBase?.(lat, lng, 'Driver base');
       this.close();
       return;
     }
     if (action === 'shop') {
       window._pendingShopLatLng = { lat, lng };
-      window._lastPos = { lat, lng };
       const go = async () => {
         await LazyModules.ensure();
         if (!Auth?.user) {
@@ -7232,8 +7380,8 @@ const MapPlaceMenu = {
         await ProfileSite?.openShopEditor?.(lat, lng);
       };
       void go();
-      placeMe(lat, lng, { quiet: true, markerOnly: true });
-      ACIControl?.reply?.('Shop address pinned — add cover, menu & prices');
+      MapDepict?.pulse?.(lat, lng, 0xff8844, 'new shop', 8000);
+      ACIControl?.reply?.('Shop editor — logo, menu photos & prices');
       AppShortcuts?.track?.('add', 'Shop');
       this.close();
       return;
@@ -7292,6 +7440,8 @@ const GlobeEntity = {
     order: { color: 0x3d9eff, icon: '🛒', label: 'Order' },
     media: { color: 0x1a6fd4, icon: '🎬', label: 'Media' },
     pilot: { color: 0x3d9eff, icon: '🛸', label: 'Delivery' },
+    client_addr: { color: 0x44ff88, icon: '📦', label: 'Deliver here' },
+    driver_base: { color: 0xffaa44, icon: '🚚', label: 'Driver base' },
     place: { color: 0x1a6fd4, icon: '◎', label: 'Place' },
     unit: { color: 0xffaa33, icon: '⚔', label: 'Unit' },
     drone: { color: 0x44ccff, icon: '🛸', label: 'Drone' },
@@ -7427,8 +7577,11 @@ const GlobeEntity = {
     const label = document.createElement('div');
     label.className = 'ge-label ' + this._urgencyClass(urgency) + ' ge-type-' + type + (olympian ? ' ge-olympian' : '');
     label.dataset.id = id;
+    const logoUrl = opts.logoUrl || entity.data?.logoUrl || '';
     const pin = entity.data?.travelTo
       ? ('<div class="ge-travel-arrow" style="transform:rotate(' + (entity.data.travelBearing || 0) + 'deg)">➤</div>')
+      : logoUrl
+      ? ('<div class="ge-pin ge-pin-logo" style="background-image:url(' + this.esc(logoUrl) + ')"></div>')
       : olympian
       ? ('<div class="ge-pin ge-olymp-flag">🏳️</div><div class="ge-pin">' + this.esc(entity.icon) + '</div>')
       : ('<div class="ge-pin">' + this.esc(entity.icon) + '</div>');
@@ -7875,20 +8028,63 @@ const GlobeEntity = {
       if (v.lat == null) return;
       const km = window.Commerce?.haversineKm?.(window.Commerce.userLatLng().lat, window.Commerce.userLatLng().lng, v.lat, v.lng);
       const menu = window.Commerce?.menuFor?.(v)?.length || 0;
+      const logoUrl = MapPins?.vendorLogo?.(v) || '';
       this.register({
         id: 'vendor-' + v.id,
         type: 'vendor',
         lat: v.lat,
         lng: v.lng,
         title: v.name,
-        description: (menu ? menu + ' items' : 'menu on request') + (km != null ? ' · ' + km.toFixed(1) + ' km' : '') + ' · tap to order',
+        description: (menu ? menu + ' items · menu w/ photos' : 'menu on request') + (km != null ? ' · ' + km.toFixed(1) + ' km' : '') + ' · tap to order',
         urgency: i === 0 ? 3 : 2,
         radius: 0.022,
-        data: { vendor: v, alwaysShowLabel: i < 6 },
+        logoUrl,
+        data: { vendor: v, logoUrl, alwaysShowLabel: i < 8 },
         _actionLabel: 'Open ' + v.name,
         onTap: () => window.Commerce?.openVendor?.(v),
       });
     });
+  },
+
+  syncMapPins() {
+    this.unregisterType('client_addr');
+    this.unregisterType('driver_base');
+    const cd = window._clientDelivery;
+    if (cd?.lat != null) {
+      this.register({
+        id: 'pin-client-delivery',
+        type: 'client_addr',
+        lat: cd.lat,
+        lng: cd.lng,
+        title: cd.label || 'Delivery address',
+        description: 'Client delivery · orders arrive here · tap to route',
+        urgency: 3,
+        persist: true,
+        data: { alwaysShowLabel: true },
+        onTap: () => {
+          DrivingView?.setRoutePlan?.({ from: window._driverBase || window._lastPos, to: cd });
+          DrivingView?.setDestination?.(cd.lat, cd.lng);
+          DrivingView?.fetchRoadRoute?.();
+        },
+      });
+    }
+    const db = window._driverBase;
+    if (db?.lat != null) {
+      this.register({
+        id: 'pin-driver-base',
+        type: 'driver_base',
+        lat: db.lat,
+        lng: db.lng,
+        title: db.label || 'Driver base',
+        description: 'Driver start · routes begin here',
+        urgency: 2,
+        persist: true,
+        data: { alwaysShowLabel: true },
+        onTap: () => {
+          placeMe(db.lat, db.lng, { fly: true, zoom: GlobeControl?.Z?.national || 1.82, quiet: true });
+        },
+      });
+    }
   },
 
   syncDrivers(drivers) {
@@ -9239,6 +9435,7 @@ const CityMap = {
           this.map.panTo([c.lat, c.lng], { animate: false });
         }
         this._applyBaseLayers();
+        this.syncMapPins();
         this._invalidate();
       }
     } else if (mapEl && !this._nationalActive && t <= 0.04) {
@@ -9617,6 +9814,7 @@ const CityMap = {
     document.body.classList.remove('city-map-active');
     this._applyGlobeMapCrossfade(camZ);
     this._applyBaseLayers();
+    this.syncMapPins();
     const c = this.mapViewCenter();
     this._center = c;
     this.map.setView([c.lat, c.lng], this.nationalLeafletZoom(camZ), { animate: false });
@@ -9674,12 +9872,51 @@ const CityMap = {
     }
   },
 
-  _icon(emoji, color) {
+  _icon(emoji, color, logoUrl) {
+    const inner = logoUrl
+      ? '<span style="background:url(' + logoUrl + ') center/cover no-repeat;border:2px solid #fff;border-radius:50%;width:28px;height:28px;display:block;box-shadow:0 2px 8px rgba(0,0,0,0.45)"></span>'
+      : '<span style="background:' + color + ';border:2px solid #fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.45)">' + emoji + '</span>';
     return L.divIcon({
       className: 'city-map-pin',
-      html: '<span style="background:' + color + ';border:2px solid #fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.45)">' + emoji + '</span>',
+      html: inner,
       iconSize: [28, 28],
       iconAnchor: [14, 14],
+    });
+  },
+
+  syncMapPins() {
+    if (!this.map) return;
+    const cd = window._clientDelivery;
+    if (cd?.lat != null) {
+      this._setMarker('pin_client', cd.lat, cd.lng, {
+        emoji: '📦', color: 'rgba(68,255,136,0.9)', title: cd.label || 'Delivery',
+      });
+    } else if (this._markers.pin_client) {
+      this.map.removeLayer(this._markers.pin_client);
+      delete this._markers.pin_client;
+    }
+    const db = window._driverBase;
+    if (db?.lat != null) {
+      this._setMarker('pin_driver', db.lat, db.lng, {
+        emoji: '🚚', color: 'rgba(255,170,68,0.92)', title: db.label || 'Driver base',
+      });
+    } else if (this._markers.pin_driver) {
+      this.map.removeLayer(this._markers.pin_driver);
+      delete this._markers.pin_driver;
+    }
+    (window.Commerce?.vendors || []).forEach((v, i) => {
+      if (v.lat == null) return;
+      const logo = MapPins?.vendorLogo?.(v);
+      const id = 'shop_' + (v.id || i);
+      const prev = this._markers[id];
+      if (prev) this.map.removeLayer(prev);
+      const m = L.marker([v.lat, v.lng], {
+        icon: this._icon('🏪', 'rgba(26,111,212,0.88)', logo),
+        title: v.name || 'Shop',
+      });
+      m.on('click', () => window.Commerce?.openVendor?.(v));
+      m.addTo(this.map);
+      this._markers[id] = m;
     });
   },
 
@@ -9692,7 +9929,7 @@ const CityMap = {
       return prev;
     }
     const m = L.marker([lat, lng], {
-      icon: this._icon(opts.emoji || '◎', opts.color || 'rgba(0,140,220,0.9)'),
+      icon: this._icon(opts.emoji || '◎', opts.color || 'rgba(0,140,220,0.9)', opts.logoUrl),
       title: opts.title || id,
     });
     if (opts.onClick) m.on('click', opts.onClick);
@@ -9715,13 +9952,7 @@ const CityMap = {
         emoji: u.emoji || '👤', color: 'rgba(61,158,255,0.88)', title: u.name,
       });
     });
-    (window.Commerce?.vendors || []).forEach((v, i) => {
-      if (v.lat == null) return;
-      this._setMarker('shop_' + (v.id || i), v.lat, v.lng, {
-        emoji: '🏪', color: 'rgba(26,111,212,0.88)', title: v.name || 'Shop',
-        onClick: () => window.Commerce?.openVendor?.(v),
-      });
-    });
+    this.syncMapPins();
   },
 
   _driverLatLng(d, u, i) {
@@ -12431,6 +12662,7 @@ AstranovLogo.init();
 CityMap.init();
 CityLife.init();
 EarthRealism.init();
+MapPins.init();
 GlobeEntity.init();
 DrivingView.init();
 AiRouter.init();
