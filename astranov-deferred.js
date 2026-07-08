@@ -1721,7 +1721,7 @@ const Commerce = {
   async fetchNearbyDrivers(lat, lng) {
     const since = new Date(Date.now() - 30 * 60 * 1000).toISOString();
     try {
-      const r = await fetch(SB_URL + '/rest/v1/profiles?select=id,display_name,avatar_emoji,field_lat,field_lng,field_seen_at&roles=cs.%5B%22driver%22%5D&field_seen_at=gte.' + since + '&field_lat=not.is.null&limit=25', {
+      const r = await fetch(SB_URL + '/rest/v1/profiles?select=id,display_name,avatar_emoji,profile_page,field_lat,field_lng,field_seen_at&roles=cs.%5B%22driver%22%5D&field_seen_at=gte.' + since + '&field_lat=not.is.null&limit=25', {
         headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY },
       });
       const rows = r.ok ? await r.json() : [];
@@ -8534,14 +8534,29 @@ const ProfileSite = {
     if (!panel) return;
     const page = this._page(prof);
     const self = this.isSelf(prof.id);
-    const emoji = prof.avatar_emoji || '👤';
+    const meta = Auth?.user?.user_metadata || {};
+    const avatarUrl = page.avatar_url || page.profile_photo_url || meta.avatar_url || meta.picture || '';
+    const entranceUrl = page.entrance_photo_url || page.delivery_entrance_url || '';
     const title = page.title || prof.display_name || prof.username || 'Profile';
     const subtitle = page.subtitle || prof.bio || '';
     const about = page.about || prof.bio || '';
     const services = Array.isArray(page.services) ? page.services : [];
     const contact = page.contact || {};
 
-    document.getElementById('ps-title').textContent = emoji + ' ' + title;
+    const titleEl = document.getElementById('ps-title');
+    if (titleEl) {
+      titleEl.textContent = title;
+      if (avatarUrl) {
+        titleEl.style.backgroundImage = 'url(' + avatarUrl + ')';
+        titleEl.style.backgroundSize = 'cover';
+        titleEl.style.backgroundPosition = 'center';
+        titleEl.style.paddingLeft = '36px';
+        titleEl.style.minHeight = '28px';
+      } else {
+        titleEl.style.backgroundImage = '';
+        titleEl.style.paddingLeft = '';
+      }
+    }
     document.getElementById('ps-sub').textContent = subtitle;
     const body = document.getElementById('ps-body');
     if (!body) return;
@@ -8555,8 +8570,18 @@ const ProfileSite = {
         phone: prof.phone || contact.phone || '',
         email: prof.public_email || contact.email || Auth?.user?.email || '',
         site_slug: prof.site_slug || '',
+        avatarUrl,
+        entranceUrl,
+        avatarFile: null,
+        entranceFile: null,
       };
+      const avStyle = avatarUrl ? ' style="background-image:url(' + this.esc(avatarUrl) + ')"' : '';
+      const enStyle = entranceUrl ? ' style="background-image:url(' + this.esc(entranceUrl) + ')"' : '';
       body.innerHTML = ''
+        + '<div class="ps-photo-row">'
+        + '<div class="ps-photo-card"><div class="ps-photo-thumb ps-photo-avatar"' + avStyle + '></div><button type="button" id="ps-avatar-pick">Profile photo</button><input type="file" id="ps-avatar-in" accept="image/*" hidden /></div>'
+        + '<div class="ps-photo-card"><div class="ps-photo-thumb ps-photo-entrance"' + enStyle + '></div><button type="button" id="ps-entrance-pick">House entrance</button><input type="file" id="ps-entrance-in" accept="image/*" hidden /></div>'
+        + '</div><div class="ps-hint">Photos appear on map pins — shop logo · driver face · delivery door</div>'
         + '<label class="ps-field">Title<input id="ps-in-title" value="' + this.esc(this._draft.title) + '" /></label>'
         + '<label class="ps-field">Subtitle<input id="ps-in-sub" value="' + this.esc(this._draft.subtitle) + '" /></label>'
         + '<label class="ps-field">About<textarea id="ps-in-about" rows="3">' + this.esc(this._draft.about) + '</textarea></label>'
@@ -8571,6 +8596,7 @@ const ProfileSite = {
       document.getElementById('ps-site-req').style.display = 'inline-block';
       document.getElementById('ps-logout').style.display = 'inline-block';
       this._bindRoleToggles();
+      this._bindProfilePhotos();
     } else {
       body.innerHTML = ''
         + (about ? '<div class="ps-about">' + this.esc(about) + '</div>' : '')
@@ -8602,8 +8628,35 @@ const ProfileSite = {
     }
   },
 
+  _bindProfilePhotos() {
+    const bindPick = (btnId, inputId, key, sel) => {
+      document.getElementById(btnId)?.addEventListener('click', () => document.getElementById(inputId)?.click());
+      document.getElementById(inputId)?.addEventListener('change', (e) => {
+        const f = e.target.files?.[0];
+        if (!f || !this._draft) return;
+        this._draft[key + 'File'] = f;
+        const url = URL.createObjectURL(f);
+        this._draft[key + 'Url'] = url;
+        const el = document.querySelector(sel);
+        if (el) el.style.backgroundImage = 'url(' + url + ')';
+      });
+    };
+    bindPick('ps-avatar-pick', 'ps-avatar-in', 'avatar', '.ps-photo-avatar');
+    bindPick('ps-entrance-pick', 'ps-entrance-in', 'entrance', '.ps-photo-entrance');
+  },
+
   _renderVendorOnly(vendor) {
-    document.getElementById('ps-title').textContent = (vendor.emoji || '🏬') + ' ' + (vendor.name || 'Shop');
+    const logo = window.MapPins?.vendorLogo?.(vendor) || '';
+    const titleEl = document.getElementById('ps-title');
+    if (titleEl) {
+      titleEl.textContent = vendor.name || 'Shop';
+      if (logo) {
+        titleEl.style.backgroundImage = 'url(' + logo + ')';
+        titleEl.style.backgroundSize = 'cover';
+        titleEl.style.backgroundPosition = 'center';
+        titleEl.style.paddingLeft = '36px';
+      } else titleEl.style.backgroundImage = '';
+    }
     document.getElementById('ps-sub').textContent = vendor.category || 'vendor';
     const body = document.getElementById('ps-body');
     if (body) {
@@ -8699,14 +8752,36 @@ const ProfileSite = {
   async save() {
     if (!Auth?.user || !this.isSelf(this.targetId)) return;
     const d = this._collectDraft();
+    let avatarUrl = this._draft?.avatarUrl || '';
+    let entranceUrl = this._draft?.entranceUrl || '';
+    try {
+      if (this._draft?.avatarFile) avatarUrl = await this._uploadShopImage(this._draft.avatarFile);
+      if (this._draft?.entranceFile) entranceUrl = await this._uploadShopImage(this._draft.entranceFile);
+    } catch (e) {
+      ACIControl?.reply('Photo upload failed: ' + (e.message || e));
+      return;
+    }
+    const prevPage = this._page(await this.loadProfile(Auth.user.id));
     const profile_page = {
+      ...prevPage,
       title: d.title,
       subtitle: d.subtitle,
       about: d.about,
       services: d.services,
       contact: { phone: d.phone, email: d.email },
+      avatar_url: avatarUrl && !avatarUrl.startsWith('blob:') ? avatarUrl : (prevPage.avatar_url || ''),
+      entrance_photo_url: entranceUrl && !entranceUrl.startsWith('blob:') ? entranceUrl : (prevPage.entrance_photo_url || ''),
       updated_at: new Date().toISOString(),
     };
+    Auth._profilePage = profile_page;
+    if (window._clientDelivery?.lat != null) {
+      window._clientDelivery.photo_url = profile_page.entrance_photo_url || profile_page.avatar_url || window._clientDelivery.photo_url;
+      MapPins?.persist?.();
+    }
+    if (window._driverBase?.lat != null) {
+      window._driverBase.photo_url = profile_page.avatar_url || window._driverBase.photo_url;
+      MapPins?.persist?.();
+    }
     try {
       const headers = await Auth.authHeaders();
       await fetch(SB_URL + '/rest/v1/profiles?id=eq.' + Auth.user.id, {
@@ -8720,7 +8795,8 @@ const ProfileSite = {
           updated_at: new Date().toISOString(),
         }),
       });
-      ACIControl?.reply('Profile saved — others see it when they tap you on the map');
+      MapPins?.syncGlobe?.();
+      ACIControl?.reply('Profile saved — photos live on map pins');
       AciCli?.print('profile saved', 'ok');
       await this.openUser(Auth.user.id, { vendor: this._vendor });
     } catch (e) {
