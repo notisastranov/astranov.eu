@@ -153,7 +153,105 @@ function balanceSheetFromTrial(tb: ReturnType<typeof trialBalance>, userLiabilit
   }
 }
 
-function taxEstimate(invoices: Array<Record<string, unknown>>, orders: Array<Record<string, unknown>>) {
+const GREEK_TAX = {
+  CORPORATE: 0.22,
+  DIVIDEND: 0.05,
+  EMPLOYEE_EFK: 0.1355,
+  EMPLOYER_EFK: 0.2229,
+}
+
+function monthlySalaryTax(gross: number) {
+  const annual = gross * 12
+  const bands: [number, number][] = [[10000, 0.09], [20000, 0.22], [30000, 0.28], [40000, 0.36], [65000, 0.44], [220000, 0.50], [1e12, 0.54]]
+  let tax = 0
+  let prev = 0
+  for (const [cap, rate] of bands) {
+    const slice = Math.min(annual, cap) - prev
+    if (slice <= 0) break
+    tax += slice * rate
+    prev = cap
+    if (annual <= cap) break
+  }
+  return Math.max(0, tax / 12)
+}
+
+function payrollCalc(gross: number) {
+  const employeeEfka = gross * GREEK_TAX.EMPLOYEE_EFK
+  const employerEfka = gross * GREEK_TAX.EMPLOYER_EFK
+  const incomeTax = monthlySalaryTax(gross)
+  return {
+    gross,
+    employee_efka: employeeEfka,
+    employer_efka: employerEfka,
+    income_tax: incomeTax,
+    net_pay: gross - employeeEfka - incomeTax,
+    employer_total: gross + employerEfka,
+  }
+}
+
+function buildJournalFromPayroll(runs: Array<Record<string, unknown>>) {
+  const lines: Array<Record<string, unknown>> = []
+  for (const r of runs) {
+    if (!r.posted) continue
+    const day = String(r.period_month || '') + '-28'
+    const id = String(r.id || '')
+    const gross = num(r.gross)
+    const empEfka = num(r.employee_efka)
+    const erEfka = num(r.employer_efka)
+    const tax = num(r.income_tax)
+    const net = num(r.net_pay)
+    const memo = 'Μισθοδοσία ' + (r.employee_name || r.period_month)
+    if (gross + erEfka > 0) lines.push({ entry_date: day, account_code: '60.01', debit: gross + erEfka, credit: 0, memo, source_type: 'payroll', source_id: id })
+    if (net > 0) lines.push({ entry_date: day, account_code: '41', debit: 0, credit: net, memo, source_type: 'payroll', source_id: id })
+    if (empEfka + erEfka > 0) lines.push({ entry_date: day, account_code: '41', debit: 0, credit: empEfka + erEfka, memo: memo + ' · ΕΦΚΑ', source_type: 'payroll', source_id: id })
+    if (tax > 0) lines.push({ entry_date: day, account_code: '55', debit: 0, credit: tax, memo: memo + ' · φόρος', source_type: 'payroll', source_id: id })
+  }
+  return lines
+}
+
+function buildJournalFromExpenses(rows: Array<Record<string, unknown>>) {
+  const lines: Array<Record<string, unknown>> = []
+  for (const e of rows) {
+    if (!e.posted) continue
+    const day = String(e.entry_date || e.period_month + '-01')
+    const id = String(e.id || '')
+    const net = num(e.amount_net)
+    const vat = num(e.vat_amount)
+    const gross = num(e.amount_gross)
+    const acct = e.expense_type === 'rent' ? '60.02' : '60.04'
+    const memo = String(e.description || e.expense_type)
+    if (net > 0) lines.push({ entry_date: day, account_code: acct, debit: net, credit: 0, memo, source_type: 'expense', source_id: id })
+    if (vat > 0) lines.push({ entry_date: day, account_code: '54', debit: vat, credit: 0, memo: memo + ' · ΦΠΑ', source_type: 'expense', source_id: id })
+    if (gross > 0) lines.push({ entry_date: day, account_code: '11', debit: 0, credit: gross, memo, source_type: 'expense', source_id: id })
+  }
+  return lines
+}
+
+function incomeStatementFromTb(tb: ReturnType<typeof trialBalance>, extraExpense = 0) {
+  const rev = tb.rows.filter((r) => r.category === 'revenue').reduce((s, r) => s + Math.max(0, -r.balance), 0)
+  const exp = tb.rows.filter((r) => r.category === 'expense').reduce((s, r) => s + Math.max(0, r.balance), 0) + extraExpense
+  const ebit = rev - exp
+  const corporateTax = Math.max(0, ebit * GREEK_TAX.CORPORATE)
+  const net = ebit - corporateTax
+  const lines = [
+    { label: 'Έσοδα πωλήσεων & υπηρεσιών', amount: rev },
+    { label: 'Λειτουργικά έξοδα', amount: -exp },
+    { label: 'Αποτέλεσμα προ φόρων (EBIT)', amount: ebit },
+    { label: 'Φόρος εισοδήματος 22%', amount: -corporateTax },
+    { label: 'Καθαρά κέρδη μετά φόρων', amount: net },
+  ]
+  return {
+    revenue: Math.round(rev * 100) / 100,
+    expenses: Math.round(exp * 100) / 100,
+    ebit: Math.round(ebit * 100) / 100,
+    corporate_tax: Math.round(corporateTax * 100) / 100,
+    net_after_tax: Math.round(net * 100) / 100,
+    lines,
+    note: 'ΕΛΠ · φόρος εισοδήματος νομικών προσώπων 22% (Ν. 4172/2013) · όχι φορολογική συμβουλή',
+  }
+}
+
+function taxEstimate(invoices: Array<Record<string, unknown>>, orders: Array<Record<string, unknown>>, netProfit = 0) {
   let vatPayable = 0
   let revenue = 0
   for (const inv of invoices) {
@@ -169,19 +267,20 @@ function taxEstimate(invoices: Array<Record<string, unknown>>, orders: Array<Rec
     const c = (o.calc || {}) as Record<string, unknown>
     pendingRevenue += num(c.total_eur ?? c.total_avc ?? c.goods_eur)
   }
-  const grossProfit = revenue * 0.28
-  const corporateTax = grossProfit * 0.22
-  const solidarity = grossProfit * 0.05
+  const profit = netProfit > 0 ? netProfit : revenue * 0.28
+  const corporateTax = profit * GREEK_TAX.CORPORATE
+  const dividendBase = Math.max(0, profit - corporateTax)
+  const dividendWh = dividendBase * GREEK_TAX.DIVIDEND
   return {
     period_revenue_eur: Math.round(revenue * 100) / 100,
     vat_payable_eur: Math.round(vatPayable * 100) / 100,
-    estimated_profit_eur: Math.round(grossProfit * 100) / 100,
+    estimated_profit_eur: Math.round(profit * 100) / 100,
     corporate_tax_22pct_eur: Math.round(corporateTax * 100) / 100,
-    solidarity_5pct_eur: Math.round(solidarity * 100) / 100,
-    total_tax_estimate_eur: Math.round((vatPayable + corporateTax + solidarity) * 100) / 100,
+    dividend_withholding_eur: Math.round(dividendWh * 100) / 100,
+    total_tax_estimate_eur: Math.round((vatPayable + corporateTax + dividendWh) * 100) / 100,
     pending_orders_revenue_eur: Math.round(pendingRevenue * 100) / 100,
     invoices_count: invoices.length,
-    note: 'Εκτίμηση · όχι φορολογική συμβουλή · ΦΠΑ από τιμολόγια · φόρος εισοδήματος 22%+5% επί εκτιμώμενου κέρδους',
+    note: 'Ελληνική νομοθεσία · ΦΠΑ 13%/24% · ΕΠΕ/ΑΕ φόρος 22% · παρακράτηση μερίσματος 5% · ΕΦΚΑ ~13.55%+22.29%',
   }
 }
 
@@ -276,7 +375,17 @@ async function modeGeneralLedger(sb: ReturnType<typeof createClient>, filters: R
   const to = filters.to as string | null
   const { data: stored } = await sb.from('gl_journal_entries').select('*').order('entry_date', { ascending: false }).limit(300)
   const invoices = await fetchInvoices(sb, from, to)
-  const generated = buildJournalFromInvoices(invoices)
+  const { data: payroll } = await sb.from('gl_payroll_runs').select('*, gl_employees(name)').eq('posted', true).limit(200)
+  const { data: opex } = await sb.from('gl_operating_expenses').select('*').eq('posted', true).limit(200)
+  const payrollRuns = ((payroll || []) as Array<Record<string, unknown>>).map((r) => ({
+    ...r,
+    employee_name: (r.gl_employees as { name?: string })?.name,
+  }))
+  const generated = [
+    ...buildJournalFromInvoices(invoices),
+    ...buildJournalFromPayroll(payrollRuns),
+    ...buildJournalFromExpenses((opex || []) as Array<Record<string, unknown>>),
+  ]
   const storedFiltered = ((stored || []) as Array<Record<string, unknown>>).filter((e) => inRange(String(e.entry_date), from, to))
   const lines = [...generated, ...storedFiltered].sort((a, b) => String(b.entry_date).localeCompare(String(a.entry_date)))
   const { data: accounts } = await sb.from('gl_accounts').select('*').order('sort_order')
@@ -381,6 +490,23 @@ async function modeMyFinancials(sb: ReturnType<typeof createClient>, userId: str
   }
 }
 
+async function postJournalLines(sb: ReturnType<typeof createClient>, lines: Array<Record<string, unknown>>, userId: string) {
+  const rows = lines.map((l) => ({
+    entry_date: l.entry_date,
+    account_code: l.account_code,
+    debit: num(l.debit),
+    credit: num(l.credit),
+    memo: l.memo,
+    source_type: l.source_type || 'manual',
+    source_id: l.source_id,
+    period_month: String(l.entry_date || '').slice(0, 7),
+    created_by: userId,
+  }))
+  const { error } = await sb.from('gl_journal_entries').insert(rows)
+  if (error) return { error: error.message, status: 500 }
+  return { ok: true, count: rows.length }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   const sb = createClient(
@@ -438,17 +564,128 @@ serve(async (req) => {
         ))
       case 'my_financials':
         return json(await modeMyFinancials(sb, caller.user.id, filters))
-      case 'company_summary':
+      case 'company_summary': {
         if (!caller.canCompany) return json({ error: 'Auditor or owner required' }, 403)
+        const tb = await modeTrialBalance(sb, filters, true)
+        const pnl = 'error' in tb ? null : incomeStatementFromTb(tb as ReturnType<typeof trialBalance>)
         return json({
-          trial_balance: await modeTrialBalance(sb, filters, true),
+          trial_balance: tb,
           balance_sheet: await modeBalanceSheet(sb, filters, true, false),
           projected: await modeBalanceSheet(sb, filters, true, true),
           tax: taxEstimate(
             await fetchInvoices(sb, filters.from, filters.to),
             await fetchOrders(sb, filters.from, filters.to, null, null),
+            pnl?.net_after_tax || 0,
           ),
         })
+      }
+      case 'income_statement': {
+        if (!caller.canCompany) return json({ error: 'Auditor or owner required' }, 403)
+        const tb = await modeTrialBalance(sb, filters, true)
+        if ('error' in tb) return json(tb)
+        return json(incomeStatementFromTb(tb as ReturnType<typeof trialBalance>))
+      }
+      case 'accounts_list': {
+        const { data } = await sb.from('gl_accounts').select('*').order('sort_order')
+        return json({ rows: data || [] })
+      }
+      case 'employee_save': {
+        if (!caller.canCompany) return json({ error: 'Forbidden' }, 403)
+        const { data, error } = await sb.from('gl_employees').insert({
+          name: String(body.name || ''),
+          afm: body.afm ? String(body.afm) : null,
+          gross_monthly: num(body.gross_monthly),
+        }).select().single()
+        if (error) return json({ error: error.message }, 500)
+        return json({ ok: true, employee: data })
+      }
+      case 'payroll_run': {
+        if (!caller.canCompany) return json({ error: 'Forbidden' }, 403)
+        const month = String(body.period_month || periodMonth(new Date()))
+        const { data: emps } = await sb.from('gl_employees').select('*').eq('is_active', true)
+        const runs = []
+        for (const e of (emps || []) as Array<Record<string, unknown>>) {
+          const calc = payrollCalc(num(e.gross_monthly))
+          const row = { period_month: month, employee_id: e.id, ...calc, posted: true }
+          const { data } = await sb.from('gl_payroll_runs').upsert(row, { onConflict: 'period_month,employee_id' }).select().single()
+          runs.push({ ...data, employee_name: e.name })
+        }
+        return json({ ok: true, runs })
+      }
+      case 'payroll_list': {
+        if (!caller.canCompany) return json({ error: 'Forbidden' }, 403)
+        const { data: emps } = await sb.from('gl_employees').select('*').order('name')
+        const { data: runs } = await sb.from('gl_payroll_runs').select('*, gl_employees(name)').order('period_month', { ascending: false }).limit(120)
+        const mapped = ((runs || []) as Array<Record<string, unknown>>).map((r) => ({
+          ...r,
+          employee_name: (r.gl_employees as { name?: string })?.name,
+        }))
+        const totals = mapped.reduce((a, r) => ({
+          employer_total: a.employer_total + num(r.employer_total),
+          net_pay: a.net_pay + num(r.net_pay),
+        }), { employer_total: 0, net_pay: 0 })
+        return json({ employees: emps || [], runs: mapped, totals })
+      }
+      case 'expense_save': {
+        if (!caller.canCompany) return json({ error: 'Forbidden' }, 403)
+        const net = num(body.amount_net)
+        const vatRate = num(body.vat_rate) || 0.24
+        const vat = net * vatRate
+        const { data, error } = await sb.from('gl_operating_expenses').insert({
+          expense_type: String(body.expense_type || 'rent'),
+          description: String(body.description || ''),
+          amount_net: net,
+          vat_rate: vatRate,
+          vat_amount: vat,
+          amount_gross: net + vat,
+          period_month: String(body.period_month || periodMonth(new Date())),
+          posted: true,
+          created_by: caller.user.id,
+        }).select().single()
+        if (error) return json({ error: error.message }, 500)
+        return json({ ok: true, expense: data })
+      }
+      case 'expenses_list': {
+        if (!caller.canCompany) return json({ error: 'Forbidden' }, 403)
+        const { data } = await sb.from('gl_operating_expenses').select('*').order('entry_date', { ascending: false }).limit(200)
+        return json({ rows: data || [] })
+      }
+      case 'journal_post': {
+        if (!caller.canCompany) return json({ error: 'Forbidden' }, 403)
+        const debit = num(body.debit)
+        const credit = num(body.credit)
+        if (debit <= 0 && credit <= 0) return json({ error: 'Χρέωση ή πίστωση απαιτείται' }, 400)
+        return json(await postJournalLines(sb, [{
+          entry_date: String(body.entry_date || new Date().toISOString().slice(0, 10)),
+          account_code: String(body.account_code || '60.04'),
+          debit, credit,
+          memo: String(body.memo || 'Χειροκίνητη εγγραφή'),
+          source_type: 'manual',
+        }], caller.user.id))
+      }
+      case 'owner_save': {
+        if (!caller.canCompany) return json({ error: 'Forbidden' }, 403)
+        const { data, error } = await sb.from('gl_owners').insert({
+          name: String(body.name || ''),
+          afm: body.afm ? String(body.afm) : null,
+          share_pct: num(body.share_pct),
+        }).select().single()
+        if (error) return json({ error: error.message }, 500)
+        return json({ ok: true, owner: data })
+      }
+      case 'owners_list': {
+        if (!caller.canCompany) return json({ error: 'Forbidden' }, 403)
+        const { data: owners } = await sb.from('gl_owners').select('*').eq('is_active', true)
+        const tb = await modeTrialBalance(sb, filters, true)
+        const pnl = 'error' in tb ? { net_after_tax: 0 } : incomeStatementFromTb(tb as ReturnType<typeof trialBalance>)
+        const pool = num(pnl.net_after_tax)
+        const distribution = ((owners || []) as Array<Record<string, unknown>>).map((o) => {
+          const gross = pool * (num(o.share_pct) / 100)
+          const withholding = gross * GREEK_TAX.DIVIDEND
+          return { name: o.name, share_pct: o.share_pct, gross_dividend: gross, withholding, net_dividend: gross - withholding }
+        })
+        return json({ owners: owners || [], distribution, profit_pool: pool })
+      }
       case 'whoami':
         return json({
           user_id: caller.user.id,
