@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260708191500" />
+<meta name="astranov-build" content="20260708193000" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -436,7 +436,13 @@
   .ge-label { position:absolute; transform:translate(-50%,-100%); display:none; flex-direction:row; align-items:flex-start; gap:6px; max-width:min(240px,42vw); padding:6px 9px; border-radius:10px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); font:10px/1.35 system-ui; color:var(--an-text); box-shadow:0 4px 14px rgba(0,0,0,0.45), 0 0 8px var(--ax-blue-glow); transition:opacity 0.15s; pointer-events:auto; cursor:pointer; touch-action:manipulation; backdrop-filter:blur(8px); }
   .ge-label:active { transform:translate(-50%,-100%) scale(0.97); }
   .ge-label .ge-pin { font-size:14px; flex-shrink:0; }
-  .ge-label .ge-pin-logo { width:28px; height:28px; border-radius:50%; border:2px solid #fff; background:center/cover no-repeat; box-shadow:0 2px 8px rgba(0,0,0,0.45); }
+  .ge-label .ge-pin-logo, .ge-label .ge-pin-photo { width:36px; height:36px; border-radius:50%; border:2px solid #fff; background:center/cover no-repeat; box-shadow:0 2px 10px rgba(0,0,0,0.5); flex-shrink:0; }
+  .ge-label.ge-type-vendor .ge-pin-photo { border-color:#7ec8ff; box-shadow:0 0 10px rgba(61,158,255,0.45),0 2px 8px rgba(0,0,0,0.45); }
+  .ge-label.ge-type-driver .ge-pin-photo, .ge-label.ge-type-driver_base .ge-pin-photo { border-color:#ffb060; box-shadow:0 0 10px rgba(255,170,68,0.45),0 2px 8px rgba(0,0,0,0.45); }
+  .ge-label.ge-type-client_addr .ge-pin-photo { border-color:#66ffaa; box-shadow:0 0 10px rgba(68,255,136,0.45),0 2px 8px rgba(0,0,0,0.45); }
+  .ge-label.ge-type-me .ge-pin-photo { border-color:#7ec8ff; box-shadow:0 0 10px rgba(26,111,212,0.5),0 2px 8px rgba(0,0,0,0.45); }
+  .city-map-pin-photo { border-radius:50%; background:center/cover no-repeat; display:block; box-shadow:0 2px 10px rgba(0,0,0,0.5); }
+  .city-map-pin-fallback { border-radius:50%; display:flex; align-items:center; justify-content:center; font:600 11px system-ui; color:#fff; text-transform:uppercase; box-shadow:0 2px 8px rgba(0,0,0,0.45); }
   #vm-items .vm-item { gap:8px; }
   #vm-items .vm-item-img { width:40px; height:40px; border-radius:8px; object-fit:cover; border:1px solid var(--ax-blue-border); flex-shrink:0; }
   #vm-items .vm-item-body { flex:1; min-width:0; }
@@ -585,6 +591,11 @@
   #ps-title { flex:1; font-weight:700; font-size:12px; color:var(--ax-blue-bright); }
   #ps-sub { font-size:9px; color:#9ab; margin-top:2px; }
   #ps-body { flex:1; overflow-y:auto; padding:8px 12px; }
+  .ps-photo-row { display:flex; gap:10px; margin-bottom:10px; }
+  .ps-photo-card { flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .ps-photo-thumb { width:56px; height:56px; border-radius:50%; border:2px solid var(--ax-blue-border); background:rgba(0,30,70,0.45) center/cover no-repeat; box-shadow:0 2px 10px rgba(0,0,0,0.4); }
+  .ps-photo-entrance { border-radius:12px; }
+  .ps-photo-card button { font-size:8px; padding:4px 8px; border-radius:8px; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); cursor:pointer; }
   .ps-field { display:block; margin-bottom:8px; font-size:9px; color:#9ab; }
   .ps-field input, .ps-field textarea { display:block; width:100%; margin-top:3px; padding:6px 8px; border-radius:8px; border:1px solid var(--ax-blue-border); background:rgba(0,0,0,0.4); color:#fff; font:inherit; box-sizing:border-box; }
   .ps-about { margin-bottom:8px; line-height:1.5; }
@@ -3835,12 +3846,14 @@ const Auth = {
     if (!this.client || !this.user?.id) return;
     try {
       const { data } = await this.client.from('profiles')
-        .select('display_name, avatar_emoji')
+        .select('display_name, avatar_emoji, profile_page')
         .eq('id', this.user.id)
         .maybeSingle();
       if (data) {
         this._profileVisual = data;
+        this._profilePage = (data.profile_page && typeof data.profile_page === 'object') ? data.profile_page : {};
         this.applyUser();
+        MapPins?.syncGlobe?.();
       }
     } catch (_) {}
   },
@@ -7342,16 +7355,28 @@ const MapPins = {
         .select('profile_page,field_lat,field_lng')
         .eq('id', Auth.user.id)
         .maybeSingle();
-      const pins = data?.profile_page?.map_pins;
+      Auth._profilePage = this._pageObj(data?.profile_page);
+      const pins = Auth._profilePage?.map_pins;
       if (pins?.client_delivery?.lat != null) {
-        window._clientDelivery = pins.client_delivery;
-        localStorage.setItem('astranov_client_delivery', JSON.stringify(pins.client_delivery));
+        window._clientDelivery = {
+          ...pins.client_delivery,
+          photo_url: this._firstUrl(pins.client_delivery.photo_url, pins.client_delivery.entrance_photo_url, this.entrancePhotoUrl(Auth._profilePage)),
+        };
+        localStorage.setItem('astranov_client_delivery', JSON.stringify(window._clientDelivery));
       }
       if (pins?.driver_base?.lat != null) {
-        window._driverBase = pins.driver_base;
-        localStorage.setItem('astranov_driver_base', JSON.stringify(pins.driver_base));
+        window._driverBase = {
+          ...pins.driver_base,
+          photo_url: this._firstUrl(pins.driver_base.photo_url, pins.driver_base.profile_photo_url, this.authAvatarUrl()),
+        };
+        localStorage.setItem('astranov_driver_base', JSON.stringify(window._driverBase));
       } else if (data?.field_lat != null && data?.field_lng != null && !window._driverBase) {
-        window._driverBase = { lat: data.field_lat, lng: data.field_lng, label: 'Driver base' };
+        window._driverBase = {
+          lat: data.field_lat,
+          lng: data.field_lng,
+          label: 'Driver base',
+          photo_url: this.authAvatarUrl(),
+        };
       }
       this.syncGlobe();
     } catch (_) {}
@@ -7383,14 +7408,70 @@ const MapPins = {
     } catch (_) {}
   },
 
+  _pageObj(page) {
+    return (page && typeof page === 'object') ? page : {};
+  },
+
+  _firstUrl() {
+    for (let i = 0; i < arguments.length; i++) {
+      const u = arguments[i];
+      if (typeof u === 'string' && u.length > 8 && !u.startsWith('blob:')) return u;
+    }
+    return '';
+  },
+
+  authAvatarUrl() {
+    const page = this._pageObj(Auth?._profilePage);
+    const meta = Auth?.user?.user_metadata || {};
+    return this._firstUrl(
+      page.avatar_url,
+      page.profile_photo_url,
+      meta.avatar_url,
+      meta.picture
+    );
+  },
+
+  entrancePhotoUrl(page) {
+    page = this._pageObj(page || Auth?._profilePage);
+    return this._firstUrl(page.entrance_photo_url, page.delivery_entrance_url, page.avatar_url, this.authAvatarUrl());
+  },
+
+  driverPhotoUrl(driver, page) {
+    page = this._pageObj(page || driver?.profile_page);
+    return this._firstUrl(page.avatar_url, page.profile_photo_url, page.driver_photo_url, driver?.photo_url, driver?.avatar_url);
+  },
+
   vendorLogo(v) {
     let t = v?.tags;
     if (typeof t === 'string') { try { t = JSON.parse(t); } catch { t = {}; } }
-    return (t && t.profile_url) || '';
+    return this._firstUrl(t?.profile_url, t?.logo_url, t?.avatar_url);
+  },
+
+  clientPinPhoto(cd) {
+    cd = cd || window._clientDelivery;
+    return this._firstUrl(cd?.photo_url, cd?.entrance_photo_url, this.entrancePhotoUrl());
+  },
+
+  driverBasePhoto(db) {
+    db = db || window._driverBase;
+    return this._firstUrl(db?.photo_url, db?.profile_photo_url, this.authAvatarUrl());
+  },
+
+  initials(name) {
+    const s = String(name || '?').trim();
+    const parts = s.split(/[\s·.]+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return (s[0] || '?').toUpperCase();
   },
 
   setClientDelivery(lat, lng, label) {
-    window._clientDelivery = { lat, lng, label: label || 'Delivery address', ts: Date.now() };
+    const photo = this.clientPinPhoto() || this.entrancePhotoUrl();
+    window._clientDelivery = {
+      lat, lng,
+      label: label || 'Delivery address',
+      photo_url: photo || '',
+      ts: Date.now(),
+    };
     this.persist();
     this.syncGlobe();
     MapDepict?.pulse?.(lat, lng, 0x44ff88, 'delivery address', 10000);
@@ -7398,7 +7479,13 @@ const MapPins = {
   },
 
   async setDriverBase(lat, lng, label) {
-    window._driverBase = { lat, lng, label: label || 'Driver base', ts: Date.now() };
+    const photo = this.driverBasePhoto() || this.authAvatarUrl();
+    window._driverBase = {
+      lat, lng,
+      label: label || 'Driver base',
+      photo_url: photo || '',
+      ts: Date.now(),
+    };
     try { localStorage.setItem('astranov_driver_base', JSON.stringify(window._driverBase)); } catch (_) {}
     if (Auth?.user && Auth?.client) {
       const roles = Array.from(new Set([...(FieldBrain?.roles || ['client']), 'driver']));
@@ -7834,11 +7921,11 @@ const GlobeEntity = {
     const label = document.createElement('div');
     label.className = 'ge-label ' + this._urgencyClass(urgency) + ' ge-type-' + type + (olympian ? ' ge-olympian' : '');
     label.dataset.id = id;
-    const logoUrl = opts.logoUrl || entity.data?.logoUrl || '';
+    const photoUrl = opts.photoUrl || opts.logoUrl || entity.data?.photoUrl || entity.data?.logoUrl || '';
     const pin = entity.data?.travelTo
       ? ('<div class="ge-travel-arrow" style="transform:rotate(' + (entity.data.travelBearing || 0) + 'deg)">➤</div>')
-      : logoUrl
-      ? ('<div class="ge-pin ge-pin-logo" style="background-image:url(' + this.esc(logoUrl) + ')"></div>')
+      : photoUrl
+      ? ('<div class="ge-pin ge-pin-photo" style="background-image:url(' + this.esc(photoUrl) + ')"></div>')
       : olympian
       ? ('<div class="ge-pin ge-olymp-flag">🏳️</div><div class="ge-pin">' + this.esc(entity.icon) + '</div>')
       : ('<div class="ge-pin">' + this.esc(entity.icon) + '</div>');
@@ -8308,6 +8395,7 @@ const GlobeEntity = {
     this.unregisterType('driver_base');
     const cd = window._clientDelivery;
     if (cd?.lat != null) {
+      const clientPhoto = MapPins?.clientPinPhoto?.(cd) || '';
       this.register({
         id: 'pin-client-delivery',
         type: 'client_addr',
@@ -8317,7 +8405,8 @@ const GlobeEntity = {
         description: 'Client delivery · orders arrive here · tap to route',
         urgency: 3,
         persist: true,
-        data: { alwaysShowLabel: true },
+        photoUrl: clientPhoto,
+        data: { alwaysShowLabel: true, photoUrl: clientPhoto },
         onTap: () => {
           DrivingView?.setRoutePlan?.({ from: window._driverBase || window._lastPos, to: cd });
           DrivingView?.setDestination?.(cd.lat, cd.lng);
@@ -8327,6 +8416,7 @@ const GlobeEntity = {
     }
     const db = window._driverBase;
     if (db?.lat != null) {
+      const basePhoto = MapPins?.driverBasePhoto?.(db) || '';
       this.register({
         id: 'pin-driver-base',
         type: 'driver_base',
@@ -8336,7 +8426,8 @@ const GlobeEntity = {
         description: 'Driver start · routes begin here',
         urgency: 2,
         persist: true,
-        data: { alwaysShowLabel: true },
+        photoUrl: basePhoto,
+        data: { alwaysShowLabel: true, photoUrl: basePhoto },
         onTap: () => {
           placeMe(db.lat, db.lng, { fly: true, zoom: GlobeControl?.Z?.national || 1.82, quiet: true });
         },
@@ -8349,6 +8440,7 @@ const GlobeEntity = {
     (drivers || []).forEach((d, i) => {
       if (d.field_lat == null) return;
       const km = window.Commerce?.haversineKm?.(window.Commerce.userLatLng().lat, window.Commerce.userLatLng().lng, d.field_lat, d.field_lng);
+      const driverPhoto = MapPins?.driverPhotoUrl?.(d) || '';
       this.register({
         id: 'driver-' + d.id,
         type: 'driver',
@@ -8357,7 +8449,8 @@ const GlobeEntity = {
         title: d.display_name || 'Driver',
         description: 'Available · ' + (km != null ? km.toFixed(1) + ' km' : 'nearby') + ' · tap to assign',
         urgency: 2,
-        data: { driver: d },
+        photoUrl: driverPhoto,
+        data: { driver: d, photoUrl: driverPhoto },
         _actionLabel: 'Assign ' + (d.display_name || 'driver'),
         onTap: (e) => {
           const driverId = e.data?.driver?.id;
@@ -8417,6 +8510,7 @@ const GlobeEntity = {
       desc = '→ ' + opts.travelTo + (opts.travelUser ? ' · ' + opts.travelUser : '')
         + ' · ' + (opts.distKm || '?') + ' km · ' + (opts.speedKmh || 820) + ' km/h';
     }
+    const mePhoto = opts.photoUrl || MapPins?.authAvatarUrl?.() || '';
     this.register({
       id: 'me',
       type: 'me',
@@ -8426,10 +8520,12 @@ const GlobeEntity = {
       description: desc,
       urgency: opts.travelTo ? 3 : 2,
       persist: true,
+      photoUrl: mePhoto,
       data: {
         alwaysShowLabel: !!opts.alwaysShow,
         travelBearing: opts.bearing,
         travelTo: opts.travelTo,
+        photoUrl: mePhoto,
       },
       _actionLabel: 'Zoom to me',
       onTap: (e) => {
@@ -10279,15 +10375,18 @@ const CityMap = {
     }
   },
 
-  _icon(emoji, color, logoUrl) {
-    const inner = logoUrl
-      ? '<span style="background:url(' + logoUrl + ') center/cover no-repeat;border:2px solid #fff;border-radius:50%;width:28px;height:28px;display:block;box-shadow:0 2px 8px rgba(0,0,0,0.45)"></span>'
-      : '<span style="background:' + color + ';border:2px solid #fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.45)">' + emoji + '</span>';
+  _icon(emoji, color, photoUrl, opts) {
+    opts = opts || {};
+    const size = photoUrl ? 36 : 28;
+    const ring = opts.ring || '#fff';
+    const inner = photoUrl
+      ? '<span class="city-map-pin-photo" style="background-image:url(' + photoUrl + ');border:2px solid ' + ring + ';width:' + size + 'px;height:' + size + 'px"></span>'
+      : '<span class="city-map-pin-fallback" style="background:' + color + ';border:2px solid ' + ring + ';width:' + size + 'px;height:' + size + 'px">' + (opts.initial || '') + '</span>';
     return L.divIcon({
       className: 'city-map-pin',
       html: inner,
-      iconSize: [28, 28],
-      iconAnchor: [14, 14],
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
     });
   },
 
@@ -10296,7 +10395,10 @@ const CityMap = {
     const cd = window._clientDelivery;
     if (cd?.lat != null) {
       this._setMarker('pin_client', cd.lat, cd.lng, {
-        emoji: '📦', color: 'rgba(68,255,136,0.9)', title: cd.label || 'Delivery',
+        color: 'rgba(68,255,136,0.9)', ring: '#66ffaa',
+        logoUrl: MapPins?.clientPinPhoto?.(cd),
+        initial: MapPins?.initials?.(cd.label || 'Deliver'),
+        title: cd.label || 'Delivery',
       });
     } else if (this._markers.pin_client) {
       this.map.removeLayer(this._markers.pin_client);
@@ -10305,7 +10407,10 @@ const CityMap = {
     const db = window._driverBase;
     if (db?.lat != null) {
       this._setMarker('pin_driver', db.lat, db.lng, {
-        emoji: '🚚', color: 'rgba(255,170,68,0.92)', title: db.label || 'Driver base',
+        color: 'rgba(255,170,68,0.92)', ring: '#ffb060',
+        logoUrl: MapPins?.driverBasePhoto?.(db),
+        initial: MapPins?.initials?.(db.label || 'Driver'),
+        title: db.label || 'Driver base',
       });
     } else if (this._markers.pin_driver) {
       this.map.removeLayer(this._markers.pin_driver);
@@ -10318,7 +10423,7 @@ const CityMap = {
       const prev = this._markers[id];
       if (prev) this.map.removeLayer(prev);
       const m = L.marker([v.lat, v.lng], {
-        icon: this._icon('🏪', 'rgba(26,111,212,0.88)', logo),
+        icon: this._icon('', 'rgba(26,111,212,0.88)', logo, { ring: '#7ec8ff', initial: MapPins?.initials?.(v.name || 'Shop') }),
         title: v.name || 'Shop',
       });
       m.on('click', () => window.Commerce?.openVendor?.(v));
@@ -10331,12 +10436,17 @@ const CityMap = {
     opts = opts || {};
     if (lat == null || lng == null) return;
     const prev = this._markers[id];
+    const icon = this._icon(opts.emoji || '', opts.color || 'rgba(0,140,220,0.9)', opts.logoUrl, {
+      ring: opts.ring || '#fff',
+      initial: opts.initial || MapPins?.initials?.(opts.title || id),
+    });
     if (prev) {
       prev.setLatLng([lat, lng]);
+      prev.setIcon(icon);
       return prev;
     }
     const m = L.marker([lat, lng], {
-      icon: this._icon(opts.emoji || '◎', opts.color || 'rgba(0,140,220,0.9)', opts.logoUrl),
+      icon,
       title: opts.title || id,
     });
     if (opts.onClick) m.on('click', opts.onClick);
@@ -10350,13 +10460,19 @@ const CityMap = {
     const me = window._lastPos;
     if (me) {
       this._setMarker('me', me.lat, me.lng, {
-        emoji: '📍', color: 'rgba(26,111,212,0.92)', title: me?.name || 'You',
+        color: 'rgba(26,111,212,0.92)', ring: '#7ec8ff',
+        logoUrl: MapPins?.authAvatarUrl?.(),
+        initial: MapPins?.initials?.(me?.name || 'You'),
+        title: me?.name || 'You',
         onClick: () => GlobeEntity?.entities?.get('me') && GlobeEntity.activate(GlobeEntity.entities.get('me')),
       });
     }
     (window.others || []).forEach((u, i) => {
       this._setMarker('friend_' + (u.id || i), u.lat, u.lng, {
-        emoji: u.emoji || '👤', color: 'rgba(61,158,255,0.88)', title: u.name,
+        color: 'rgba(61,158,255,0.88)', ring: '#7ec8ff',
+        logoUrl: u.photo_url || u.avatar_url || '',
+        initial: MapPins?.initials?.(u.name || 'User'),
+        title: u.name,
       });
     });
     this.syncMapPins();
@@ -10405,7 +10521,10 @@ const CityMap = {
       const id = 'drv_' + (d.id || i);
       seen.add(id);
       this._setMarker(id, p.lat, p.lng, {
-        emoji: '🚗', color: 'rgba(80,180,255,0.92)', title: d.display_name || 'Driver',
+        color: 'rgba(80,180,255,0.92)', ring: '#ffb060',
+        logoUrl: MapPins?.driverPhotoUrl?.(d),
+        initial: MapPins?.initials?.(d.display_name || 'Driver'),
+        title: d.display_name || 'Driver',
       });
     });
     Object.keys(this._markers).forEach(k => {
@@ -13113,6 +13232,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260708162000" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260708193000" data-astranov-deferred></script>
 </body>
 </html>
