@@ -9651,22 +9651,37 @@ if (window.AuditorPortal) {
     open(opts) {
       opts = opts || {};
       const tab = opts.tab || 'company';
-      const url = 'https://auditors.astranov.eu/?tab=' + encodeURIComponent(tab) + '&from_app=1';
+      AstranovSiteShell?.close?.();
       const sess = window.Auth?.session;
-      const w = window.open(url, 'astranov_auditors');
+      if (!sess?.access_token) {
+        AciCli?.print?.('Συνδεθείτε πρώτα στο Astranov — μετά Λογιστές', 'warn');
+        Auth?.openLoginModal?.('Σύνδεση για auditors.astranov.eu');
+        return;
+      }
+      const url = 'https://auditors.astranov.eu/?tab=' + encodeURIComponent(tab) + '&from_app=1';
+      let w = null;
+      try { w = window.open(url, 'astranov_auditors'); } catch (_) {}
+      if (!w) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = 'astranov_auditors';
+        a.rel = 'noopener';
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
       const bridge = () => {
-        if (!w || w.closed || !sess?.access_token) return;
-        try {
-          w.postMessage({ type: 'astranov-auth', access_token: sess.access_token, refresh_token: sess.refresh_token }, 'https://auditors.astranov.eu');
-        } catch (_) {}
+        const s = window.Auth?.session;
+        if (!s?.access_token) return;
+        const payload = { type: 'astranov-auth', access_token: s.access_token, refresh_token: s.refresh_token };
+        try { if (w && !w.closed) w.postMessage(payload, 'https://auditors.astranov.eu'); } catch (_) {}
       };
-      setTimeout(bridge, 500);
-      setTimeout(bridge, 1500);
-      setTimeout(bridge, 3000);
+      [400, 900, 1500, 3000, 5000, 8000].forEach((ms) => setTimeout(bridge, ms));
       AppShortcuts?.track?.('auditors', 'Auditors');
       SuperCli?.setContext?.('auditors');
       GlobeDeck?.setPreview?.('📊 auditors.astranov.eu · λογιστική');
-      AciCli?.print?.('auditors.astranov.eu · καθολικό · ισολογισμός · μισθοδοσία', 'ok');
+      AciCli?.print?.('auditors.astranov.eu · πλήρης οθόνη · καθολικό Τ', 'ok');
     },
     async cli(parts) {
       const sub = String(parts[1] || 'open').toLowerCase();
@@ -10250,6 +10265,15 @@ const DeferredBoot = {
       };
       boot();
       setTimeout(boot, sl?.tier === 'slumber' ? 800 : 200);
+    }
+
+    const p = new URLSearchParams(location.search);
+    if (p.get('open') === 'auditors') {
+      const tab = p.get('tab') || 'company';
+      p.delete('open');
+      const qs = p.toString();
+      history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
+      setTimeout(() => window.AuditorPortal?.open?.({ tab }), 900);
     }
   },
 };
