@@ -1,4 +1,5 @@
 {
   "outputDirectory": ".",
-  "installCommand": "echo no-install"
+  "installCommand": "echo no-install",
+  "buildCommand": "echo monolithic-astranov-deploy-2026070922"
 }
