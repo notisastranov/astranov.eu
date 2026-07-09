@@ -1,5 +1,4 @@
 {
-  "buildCommand": "node scripts/bootstrap-index.mjs",
   "outputDirectory": ".",
   "installCommand": "echo no-install"
 }
