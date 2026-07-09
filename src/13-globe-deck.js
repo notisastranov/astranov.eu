@@ -1,183 +1,126 @@
-// === GLOBE DECK — CELESTIAL CIRCLE VERSION (Living Truth compliant) ===
-// All UI is circles. GlobeDeck now manages content inside a spawned celestial circle.
-// No rectangles allowed.
+// === GLOBE DECK – FULLY CELESTIAL CIRCLE (Living Truth) ===
+// Refactored: no rectangle. All content in Circles.spawn AI circle.
+// Compatible with ACI, voice, coders, etc.
 
 const GlobeDeck = {
   expanded: false,
   activeTask: null,
   thinking: false,
-  _circleId: 'cli-circle',
-  _circleEl: null,
+  _circleId: 'main-cli',
+  _logEl: null,
 
   init() {
-    // Ensure Circles system
     if (!window.Circles) {
-      console.warn('Circles not ready, deferring deck');
-      setTimeout(() => this.init(), 500);
+      setTimeout(() => this.init(), 400);
       return;
     }
-    // Spawn or get the CLI circle
-    this._circleEl = document.getElementById('circle-' + this._circleId);
-    if (!this._circleEl) {
+    let c = document.getElementById('circle-' + this._circleId);
+    if (!c) {
       const spawned = Circles.spawn({
         id: this._circleId,
         type: 'ai',
         title: 'ASTRANOV CLI',
-        size: '320px',
-        content: '<div id="cli-circle-body" style="max-height:240px;overflow:auto;font:11px/1.4 monospace;"></div>'
+        size: '300px',
+        content: '<div id="cli-log-body" style="max-height:220px; overflow:auto; font:10px/1.35 monospace; white-space:pre-wrap;"></div>'
       });
-      this._circleEl = spawned.el;
+      c = spawned.el;
     }
-    // Move any old stage content if needed
-    const body = document.getElementById('cli-circle-body') || this._circleEl.querySelector('.circle-content');
-    if (body) {
-      // Bind to use this body as log
-      this._logEl = body;
-    }
-    CliRibbon?.init?.();
-    AppShortcuts?.init?.();
-    this.bindDeckGestures();
-    this._userEngaged = false;
-    console.log('%c[GlobeDeck] Now running as celestial circle', 'color:#0a0');
+    this._logEl = document.getElementById('cli-log-body') || c.querySelector('.circle-content');
+    this.expanded = true;
+    this._injectCliInput(c);
+    console.log('[GlobeDeck] Celestial circle mode active (interactive input in circle)');
   },
 
-  _deckMinH() { return 118; },
-  _deckMaxH() { return Math.min(window.innerHeight * 0.94, window.innerHeight - 36); },
+  _injectCliInput(circleEl) {
+    if (!circleEl || circleEl.querySelector('.celestial-cli-input')) return;
+    const body = circleEl.querySelector('.circle-content') || circleEl.querySelector('.cc-body');
+    if (!body) return;
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'margin-top:6px; display:flex; gap:4px; align-items:center; border-top:1px solid rgba(255,255,255,0.1); padding-top:4px;';
+    wrap.innerHTML = `
+      <input class="celestial-cli-input" type="text" placeholder="type cmd or ask ACI (e.g. think status, locate, coders...)" style="flex:1; font:10px monospace; background:rgba(0,0,0,0.4); border:1px solid rgba(61,158,255,0.3); color:#b8d4f0; padding:3px 6px; border-radius:4px;" />
+      <button class="celestial-cli-send" style="font-size:9px; padding:2px 6px; background:rgba(61,158,255,0.2); border:1px solid #3d9eff; color:#8ab; border-radius:3px; cursor:pointer;">send</button>
+    `;
+    body.appendChild(wrap);
+    const inp = wrap.querySelector('.celestial-cli-input');
+    const send = wrap.querySelector('.celestial-cli-send');
+    const execLine = (line) => {
+      if (!line) return;
+      this.say('> ' + line);
+      if (window.AciCli && typeof AciCli.exec === 'function') {
+        AciCli.exec(line);
+      } else if (window.SuperCli && typeof SuperCli.exec === 'function') {
+        SuperCli.exec(line);
+      } else if (window.ACIControl && typeof ACIControl.handle === 'function') {
+        ACIControl.handle(line);
+      } else {
+        this.say('CLI exec not wired');
+      }
+    };
+    send.onclick = () => { const v=inp.value.trim(); execLine(v); inp.value=''; };
+    inp.onkeydown = (e) => { if (e.key === 'Enter') { const v=inp.value.trim(); execLine(v); inp.value=''; } };
+    // focus helper
+    circleEl.addEventListener('click', (e) => { if (e.target === circleEl || e.target.closest('.circle-header')) inp.focus(); });
+  },
 
-  deck() { return this._circleEl; },
+  deck() { return document.getElementById('circle-' + this._circleId); },
   logEl() { return this._logEl; },
 
-  log(text, cls) {
+  log(text, cls = 'out') {
     const out = this.logEl();
     if (!out) return;
-    const kind = cls || 'out';
-    const row = document.createElement('div');
-    row.className = 'deck-line deck-' + kind;
-    row.textContent = String(text || '').slice(0, 200);
-    out.appendChild(row);
+    const div = document.createElement('div');
+    div.className = 'deck-line ' + cls;
+    div.textContent = String(text || '').slice(0, 200);
+    out.appendChild(div);
     out.scrollTop = out.scrollHeight;
-    if (kind === 'reply' || kind === 'out' || kind === 'ok') {
-      this._userEngaged = true;
-      this.setPreview(text);
-    }
   },
 
-  say(text, cls) {
-    this.log(text, cls || 'out');
-  },
-
-  onUserMessage(title) {
-    this._userEngaged = true;
-    if (this._collapseTimer) { clearTimeout(this._collapseTimer); this._collapseTimer = null; }
-    const t = title || 'Collective — listening';
-    this.expand(t);
-    this.ping();
-  },
-
-  ping() {
-    const d = this.deck();
-    if (!d) return;
-    d.style.boxShadow = '0 0 30px var(--circle-glow, #3d9eff)';
-    setTimeout(() => { if(d) d.style.boxShadow = ''; }, 1200);
-  },
-
-  setThinking(on, hint) {
-    this.thinking = !!on;
-    const d = this.deck();
-    if (d) d.classList.toggle('deck-thinking', this.thinking);
-    if (on && hint) this.setPreview(hint);
-  },
-
-  showError(msg) {
-    this._userEngaged = true;
-    this.expand('Error');
-    this.log(msg, 'err');
-    this.setPreview(msg);
-    this.ping();
-  },
-
-  clearLog() {
-    const out = this.logEl();
-    if (out) out.innerHTML = '';
-    this.setPreview('');
-  },
-
+  say(text) { this.log(text); },
   expand(title) {
-    const now = Date.now();
-    if (title) this.setTitle(title);
     const c = this.deck();
-    if (c) c.style.display = 'flex';
+    if (c) {
+      c.style.display = 'block';
+      if (title) {
+        const h = c.querySelector('.circle-header span') || c.querySelector('.cc-hdr');
+        if (h) h.textContent = title;
+      }
+    }
     this.expanded = true;
   },
-
   collapse() {
     const c = this.deck();
     if (c) c.style.display = 'none';
     this.expanded = false;
   },
-
-  toggle() {
-    this.expanded ? this.collapse() : this.expand();
-  },
-
-  setTitle(text) {
+  toggle() { this.expanded ? this.collapse() : this.expand(); },
+  ping() {
     const c = this.deck();
     if (c) {
-      const hdr = c.querySelector('.circle-header') || c.querySelector('.cc-hdr');
-      if (hdr) hdr.firstChild.textContent = text || 'CLI';
+      c.style.transition = 'box-shadow 0.1s';
+      c.style.boxShadow = '0 0 25px #3d9eff';
+      setTimeout(() => { if (c) c.style.boxShadow = ''; }, 600);
     }
   },
-
-  setPreview(text) {
-    // preview in circle header or attr
+  setPreview(t) { /* optional in header */ },
+  onUserMessage(t) { this.expand(t || 'CLI'); this.ping(); },
+  setThinking(on) {
     const c = this.deck();
-    if (c && text) {
-      c.setAttribute('data-preview', String(text).slice(0,80));
-    }
+    if (c) c.classList.toggle('thinking', !!on);
   },
-
-  setMapStatus(text) {
-    this.setPreview(text);
+  clearLog() {
+    const out = this.logEl();
+    if (out) out.innerHTML = '';
   },
+  showStage(id) { this.expand('Stage ' + id); },
+  hideStage() {},
+  completeTask() { this.collapse(); },
+  finishCliIfOneShot() {},
+  isOneShotCmd() { return false; },
 
-  shouldLog(text, kind) {
-    const t = String(text || '').trim();
-    if (!t) return false;
-    return true;
-  },
-
-  setCompose(text) { /* stub */ },
-
-  clearCompose() { /* stub */ },
-
-  showStage(panelId, task, title) {
-    this.activeTask = task || panelId;
-    this.expand(title || this.stageTitle(panelId));
-  },
-
-  hideStage() {
-    this.activeTask = null;
-  },
-
-  stageTitle(panelId) {
-    const titles = {
-      'vendor-menu': 'Καταστήματα',
-      'node-batch': 'Work together',
-      'sat-radio': 'PMR Comms',
-    };
-    return titles[panelId] || 'Collective';
-  },
-
-  completeTask(task) {
-    this.hideStage();
-    this.collapse();
-  },
-
-  isOneShotCmd(cmd) { return false; },
-
-  finishCliIfOneShot(cmd) {},
-
-  // compatibility
+  // Stubs for compatibility
+  setTitle() {},
+  setMapStatus() {},
   restoreLog() {},
   saveLog() {},
   bindDeckGestures() {},
@@ -185,6 +128,7 @@ const GlobeDeck = {
   applySize() {},
   cycleSize() {},
   bootCollapsed() { this.collapse(); },
-  superAction(action) { this.expand('Super ' + (action||'')); },
+  superAction() { this.expand('Super'); },
 };
+
 window.GlobeDeck = GlobeDeck;

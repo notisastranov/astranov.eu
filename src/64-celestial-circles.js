@@ -9,10 +9,13 @@ const Circles = {
 
   init() {
     this._injectStyles();
+    // Create primordial circles if not present
     this._ensurePrimordials();
+    // Global listeners for collapse
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.celestial-circle')) this._collapseAllNonPinned();
     });
+    // Keyboard escape
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this._collapseAllNonPinned();
     });
@@ -142,6 +145,7 @@ const Circles = {
 
     if (opts.primordial) circle.classList.add('primordial');
 
+    // Restore position from storage
     try {
       const saved = localStorage.getItem(`av_circle_pos_${id}`);
       if (saved) {
@@ -187,6 +191,7 @@ const Circles = {
       }
     });
 
+    // Touch
     circle.addEventListener('touchstart', (e) => {
       if (e.target.closest('.circle-content, .circle-close')) return;
       dragging = true;
@@ -232,7 +237,10 @@ const Circles = {
   },
 
   _makeScrollable(content) {
-    const updateArc = () => {};
+    // Basic scroll with arc indicator (simplified)
+    const updateArc = () => {
+      // Could enhance with dynamic arc, but radial mask handles most
+    };
     content.addEventListener('scroll', updateArc);
   },
 
@@ -268,6 +276,7 @@ const Circles = {
     return this._circles.get(id);
   },
 
+  // Helper to put content into a View circle (recommended for chat/menus/etc)
   showView(title, html) {
     const view = this.spawn({ id: 'view-' + Date.now(), type: 'view', title, content: html, size: '280px' });
     return view;
@@ -299,6 +308,7 @@ const Circles = {
 
 window.Circles = Circles;
 
+// Auto-init on load
 if (typeof window !== 'undefined') {
   setTimeout(() => Circles.init && Circles.init(), 120);
 }

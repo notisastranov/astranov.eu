@@ -51,13 +51,8 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
-
-// === INJECTED CELESTIAL CIRCLES (enforced source of truth) ===
-const Circles={_circles:new Map(),_nextId:1,init(){if(document.getElementById('cc-s'))return;const s=document.createElement('style');s.id='cc-s';s.textContent='.celestial-circle{position:fixed;border-radius:50%;background:rgba(0,4,12,.92);border:1px solid #3d9eff;backdrop-filter:blur(26px);z-index:150;overflow:hidden}.celestial-circle .cc-body{padding:8px;font:11px system-ui;color:#b8d4f0}';document.head.appendChild(s)},spawn(o={}){const id=o.id||'cc'+this._nextId++;const c=document.createElement('div');c.className='celestial-circle';c.style.cssText=`width:${o.size||'260px'};height:${o.size||'260px'};left:${o.left||'15%'};top:${o.top||'25%'}`;c.innerHTML=`<div style="padding:3px 8px;background:rgba(0,0,0,.4);font-size:9px">${o.title||'Circle'}<span onclick="this.closest('.celestial-circle').remove()" style="cursor:pointer">×</span></div><div class="cc-body">${o.content||''}</div>`;document.body.appendChild(c);this._circles.set(id,c);let dr=false,ox=0,oy=0;c.onmousedown=e=>{dr=true;ox=e.clientX-c.offsetLeft;oy=e.clientY-c.offsetTop;};window.onmousemove=e=>{if(dr){c.style.left=(e.clientX-ox)+'px';c.style.top=(e.clientY-oy)+'px'}};window.onmouseup=()=>dr=false;return c;}};
-window.Circles=Circles;setTimeout(()=>Circles.init(),150);
-setTimeout(()=>{Circles.spawn({id:'maincli',title:'ASTRANOV CLI',size:'300px',content:'Globe is the only surface.<br>Drag rim. All UI = circles now.<br>ACI / voice / real tech active.'});},650);
-
 ACI.init();
+Circles.init();
 
 // Enforce Celestial Circles for main UI (no rectangles) + spawn primordials
 setTimeout(() => {
@@ -81,6 +76,94 @@ setTimeout(() => {
     size: '320px',
     content: '<div id="cli-circle-content" style="font:11px monospace; max-height:240px; overflow:auto;">Astranov Collective ready.<br>Drag rim • Pinch scale.<br>Globe is yours.</div>'
   });
+
+  // Wire interactive ACI chat into AI primordial circle (full circles law)
+  setTimeout(() => {
+    const aiEl = document.getElementById('circle-ai');
+    if (aiEl && !aiEl.querySelector('.aci-chat-input')) {
+      const body = aiEl.querySelector('.circle-content') || aiEl.querySelector('.cc-body');
+      if (body) {
+        const chatWrap = document.createElement('div');
+        chatWrap.style.cssText = 'margin:6px 0 0; font-size:10px;';
+        chatWrap.innerHTML = `
+          <div style="max-height:90px;overflow:auto;font:9px/1.3 monospace;margin-bottom:3px;color:#8ab;" id="aci-circle-log">heartbeat active • tap globe or say "Τι θες Αξάς;"</div>
+          <div style="display:flex;gap:3px;">
+            <input class="aci-chat-input" placeholder="ask ACI (think ... / evolve / status)" style="flex:1;background:rgba(0,0,0,0.35);border:1px solid rgba(61,158,255,0.3);color:#b8d4f0;font:9px monospace;padding:2px 4px;border-radius:3px;" />
+            <button class="aci-chat-send" style="font-size:8px;padding:1px 5px;border:1px solid #3d9eff;background:rgba(61,158,255,0.15);color:#8ab;border-radius:2px;cursor:pointer;">send</button>
+          </div>
+          <div style="margin-top:2px;display:flex;gap:2px;flex-wrap:wrap;">
+            <button data-aci="think status" style="font:8px sans-serif;padding:1px 3px;background:rgba(0,170,85,0.2);border:1px solid #0a5;color:#0d5;">think</button>
+            <button data-aci="evolve" style="font:8px sans-serif;padding:1px 3px;background:rgba(120,60,200,0.2);border:1px solid #a6f;color:#a6f;">evolve</button>
+            <button data-aci="stats" style="font:8px sans-serif;padding:1px 3px;background:rgba(200,160,0,0.2);border:1px solid #ca0;color:#ca0;">stats</button>
+          </div>
+        `;
+        body.appendChild(chatWrap);
+        const log = chatWrap.querySelector('#aci-circle-log');
+        const inp = chatWrap.querySelector('.aci-chat-input');
+        const sendBtn = chatWrap.querySelector('.aci-chat-send');
+        const doAci = async (txt) => {
+          if (!txt) return;
+          log.textContent = '> ' + txt;
+          try {
+            if (window.ACIControl && typeof ACIControl.handle === 'function') {
+              await ACIControl.handle(txt, {fromVoice:false});
+            } else if (window.ACI && typeof ACI.api === 'function') {
+              const res = await ACI.api({mode: txt.startsWith('think')?'think':'evolve', prompt: txt});
+              log.textContent = (res && res.result ? res.result : JSON.stringify(res)).slice(0,160);
+            }
+            GlobeDeck?.say?.('ACI: ' + txt.slice(0,30));
+          } catch(e){ log.textContent = 'ACI err (see console)'; }
+        };
+        sendBtn.onclick = () => { const v = inp.value.trim(); doAci(v); inp.value=''; };
+        inp.onkeydown = e => { if(e.key==='Enter'){ const v=inp.value.trim(); doAci(v); inp.value=''; } };
+        chatWrap.querySelectorAll('button[data-aci]').forEach(b => b.onclick = () => doAci(b.getAttribute('data-aci')));
+      }
+    }
+  }, 900);
 }, 600);
 
 GlobeAutonomy.init();
+AstranovNode.init();
+Auth.init();
+FieldBrain.init();
+FieldBrain.hookFeed();
+GlobeDeck.init();
+SuperCli.init();
+SessionHold.init();
+AciCli.init();
+setTimeout(() => Auth.refreshAuthority(), 800);
+setTimeout(() => AciCoders?.autoStart?.(), 1200);
+ACIControl.init();
+PmrRadio.bindUI();
+GlobeVideo.init();
+DrivingView.init();
+CosmicZoom.init();
+AstranovTheme.init();
+CityMap.init();
+EarthRealism.init();
+SuperSpace.init();
+CityLife.init();
+SuperAdd.init();
+AstranovSiteShell.init();
+GlobeEntity.init();
+if (window.others?.length) GlobeEntity.syncFriends(others);
+if (window._lastPos) GlobeEntity.syncMe(_lastPos.lat, _lastPos.lng, me?.name || 'You');
+if (typeof orbitalSats !== 'undefined') CosmicZoom.registerOrbitalSats(orbitalSats);
+Commerce.loadVendors().then(() => Commerce.initUI());
+NewsFeed.fetch();
+setInterval(() => NewsFeed.tick(), 12000);
+
+// Demo auto show after permissions
+setTimeout(() => {
+  // auto demo if needed (globe focused)
+}, 25000);
+
+// Domain guard
+const host = location.hostname || '';
+const isOfficial = host === 'astranov.eu' || host.endsWith('.astranov.eu');
+const isLocal = host === '' || host === 'localhost' || host === '127.0.0.1' || location.protocol === 'file:';
+if (host && !isOfficial && !isLocal) {
+  document.body.innerHTML = '<div style="color:#444;padding:40px;text-align:center;font-family:sans-serif">Available only on authorized Astranov domains</div>';
+}
+
+// No panel restore needed - pure globe mode
