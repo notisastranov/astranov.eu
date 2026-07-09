@@ -58,3 +58,28 @@ window.Circles=Circles;setTimeout(()=>Circles.init(),150);
 setTimeout(()=>{Circles.spawn({id:'maincli',title:'ASTRANOV CLI',size:'300px',content:'Globe is the only surface.<br>Drag rim. All UI = circles now.<br>ACI / voice / real tech active.'});},650);
 
 ACI.init();
+
+// Enforce Celestial Circles for main UI (no rectangles) + spawn primordials
+setTimeout(() => {
+  const deck = document.getElementById('globe-deck');
+  if (deck) {
+    deck.style.display = 'none';
+    deck.style.pointerEvents = 'none';
+  }
+
+  // Spawn all 4 primordial circles as per living truth
+  Circles.spawn({ id: 'economics', type: 'economics', title: 'ECONOMICS', size: '180px', left: '12px', top: '12px', content: '<b>AVC Balance</b><br>0.00<br><small>Wallet + ledger in circle</small>' });
+  Circles.spawn({ id: 'radar', type: 'radar', title: 'RADAR', size: '180px', right: '12px', top: '12px', content: '<b>Active Orders</b><br>Nearby vendors<br>ETAs' });
+  Circles.spawn({ id: 'ai', type: 'ai', title: 'ASTRANOV AI', size: '220px', right: '12px', bottom: '12px', content: '<b>ACI Heartbeat</b><br>Click for chat<br>Providers orbiting' });
+
+  // Main View/CLI circle (replaces old deck)
+  const cliCircle = Circles.spawn({
+    id: 'main-cli',
+    type: 'view',
+    title: 'ASTRANOV CLI',
+    size: '320px',
+    content: '<div id="cli-circle-content" style="font:11px monospace; max-height:240px; overflow:auto;">Astranov Collective ready.<br>Drag rim • Pinch scale.<br>Globe is yours.</div>'
+  });
+}, 600);
+
+GlobeAutonomy.init();
