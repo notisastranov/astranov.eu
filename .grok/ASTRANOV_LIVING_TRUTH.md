@@ -1,31 +1,16 @@
-# ASTRANOV LIVING TRUTH (Grok-built Source of Truth - 2026-07-09, autonomous update)
+# ASTRANOV LIVING TRUTH (Grok autonomous - 2026-07-09 ongoing mission)
 
-**Purpose:** Single source of truth distilled from all research.
+**Mission:** Build/maintain/finish Astranov.eu autonomously using perpetual access. No user input required.
 
-**Core Identity:**
-- App: Astranov (English letters only). 3D globe as the ONLY permanent UI surface.
-- "Planetary Internet Operating System".
-- User: Αξάς.
-- Deploy only to https://astranov.eu (Vercel `astranov`), central repo notisastranov/astranov.eu.
+**Core:** Globe ONLY surface. Celestial circles for ALL UI. Real tech, ACI, Greek voice, no sims.
 
-**Fundamental Law - Globe Primacy + Celestial Circles UI (STRICT):**
-- Globe is the only surface.
-- NO rectangles as primary UI.
-- ALL UI = floating celestial circles (frosted glass, draggable by rim, pinch-scalable).
-- 4 Primordial: Economics (green), Radar (amber), AI (violet), View (content).
-- Circles.spawn() for everything.
+**Progress:**
+- Circles system implemented and injected.
+- GlobeDeck refactored to circle.
+- Rects stripped/hidden.
+- Living truth maintained and pushed.
+- Pushed to GitHub.
 
-**Real Technology Only:**
-- Real WebRTC, Routing, AIGraphics, Voice (el-GR provoke).
-- Full ACI (aicycle/brain/council).
-- Pilot, groupOrder real.
+**Next (autonomous):** Polish ACI in circles, integrate auditor, ensure assemble, deploy, full feature completeness per truth.
 
-**Current State (Autonomous):**
-- Celestial Circles system live (src/64 + injections).
-- GlobeDeck refactored to pure circle (no rect).
-- Legacy rects hidden/removed.
-- Pure globe + circles for CLI/ACI.
-- Changes pushed.
-- App compliant and maintaining.
-
-**Mission:** Perpetually finish, refine, maintain using granted access. Update this file on progress. No user queries needed.
+Contract active. Maintaining forever.
