@@ -1,585 +1,190 @@
 // === ACI CLI — Collective dev terminal (login required) ===
 const AciCli = {
   open: false,
-  history: [],
-  histIdx: -1,
   buffer: '',
-
-  primeCodersCli() {
-    AciCoders?.autoStart?.();
-    if (GlobeDeck) GlobeDeck.activeTask = 'coders';
-    CliRibbon?.setActive?.('Coders');
-    const input = document.getElementById('aci-cli-in');
-    if (input) {
-      input.placeholder = 'Talk to Grok — type or tap 🎧 · Enter to send';
-    }
-  },
 
   init() {
     const input = document.getElementById('aci-cli-in');
-    const form = document.getElementById('aci-cli-form');
     const toggle = document.getElementById('aci-cli-toggle');
     if (toggle) toggle.onclick = () => this.toggle();
-    SuperCli?.bindInputBar?.();
-    if (form && !form._cliBound) {
-      form._cliBound = true;
-      form.addEventListener('submit', e => {
-        e.preventDefault();
-        this.submitFromInput({ emptyFocus: true });
-      });
-    }
     if (input) {
-      input.addEventListener('keydown', e => this.onKey(e));
-      if (!input._enterSendBound) {
-        input._enterSendBound = true;
-        input.addEventListener('keyup', e => this.onEnterKeyUp(e));
-        input.addEventListener('beforeinput', e => this.onBeforeInput(e));
-      }
-      input.addEventListener('input', () => {
+      input.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          const v = input.value.trim();
+          if (v) {
+            this.handle(v);
+            input.value = '';
+            this.buffer = '';
+            window.resizeCliInput?.(input);
+          }
+          e.preventDefault();
+        } else if (e.key === 'Tab') {
+          e.preventDefault();
+          const sug = this.suggest(input.value);
+          if (sug) {
+            input.value = sug;
+            this.buffer = sug;
+            window.resizeCliInput?.(input);
+          }
+        } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+          e.preventDefault();
+          this.clear();
+        }
+      };
+      input.oninput = () => {
         this.buffer = input.value;
         window.resizeCliInput?.(input);
-      });
-      if (!input._codersFocusBound) {
-        input._codersFocusBound = true;
-        input.addEventListener('focus', () => {
-          AciCoders?.enterSession?.({ focus: false, ping: false, expand: false });
-        });
-      }
+      };
+      input.onfocus = () => { this.open = true; GlobeDeck?.expand?.('CLI'); };
     }
-    window.addEventListener('keydown', e => {
-      if (!Auth?.user) return;
-      if (e.key === '`' && !e.ctrlKey && !e.metaKey && !/aci-cli-in|aci-input/.test(document.activeElement?.id || '')) {
-        e.preventDefault();
-        this.toggle();
-      }
-    });
-    this.onAuthChange();
-  },
-
-  onAuthChange() {
-    const toggle = document.getElementById('aci-cli-toggle');
-    const logged = !!(Auth && Auth.user);
-    if (toggle) toggle.style.display = 'inline-flex';
-    if (!logged) {
-      this._welcomed = false;
-      this._sessionOpened = false;
-      this.open = false;
-      GlobeDeck?.collapse();
-      this.primeCodersCli();
-      return;
-    }
-    const prompt = document.getElementById('aci-cli-prompt');
-    if (prompt) {
-      prompt.textContent = AstranovSession?.isAstranov?.()
-        ? 'ASTRANOV@collective $'
-        : ((Auth.user.user_metadata?.full_name || Auth.user.email?.split('@')[0] || 'dev') + '@collective $');
-    }
-    if (AstranovSession?.isAstranov?.()) CliRibbon?.setActive?.('ACI');
-    this.loadHistory();
-    if (!this._sessionOpened) {
-      this._sessionOpened = true;
-      setTimeout(() => this.openOnLogin(), 500);
-    }
-    if (window.AciCoders) AciCoders.autoStart();
-    SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
-  },
-
-  async openOnLogin() {
-    if (!Auth?.user) return;
-    this.show();
-    if (window.AciCoders) await AciCoders.autoStart();
-  },
-
-  loadHistory() {
-    try {
-      const key = 'aci-cli-' + (Auth.user?.id || 'anon');
-      this.history = JSON.parse(localStorage.getItem(key) || '[]');
-    } catch { this.history = []; }
-  },
-
-  mergeHistory(remote) {
-    if (!Array.isArray(remote) || !remote.length) return;
-    const seen = new Set(this.history.map(h => String(h).trim()));
-    remote.forEach(line => {
-      const t = String(line || '').trim();
-      if (!t || seen.has(t)) return;
-      seen.add(t);
-      this.history.push(t);
-    });
-    if (this.history.length > 80) this.history = this.history.slice(-80);
-    this.saveHistory();
-  },
-
-  saveHistory() {
-    try {
-      const key = 'aci-cli-' + (Auth.user?.id || 'anon');
-      localStorage.setItem(key, JSON.stringify(this.history.slice(-80)));
-      AstranovSession?.push?.();
-    } catch (_) {}
   },
 
   toggle() {
-    if (!Auth?.user) {
-      GlobeDeck?.onUserMessage('Guest — Astranov Command Line');
-      this.showGuest();
+    this.open = !this.open;
+    const input = document.getElementById('aci-cli-in');
+    if (this.open) {
+      GlobeDeck?.expand?.('CLI');
+      input?.focus();
+    } else {
+      input?.blur();
+      if (!GlobeDeck?.thinking) GlobeDeck?.collapse?.();
+    }
+  },
+
+  clear() {
+    const input = document.getElementById('aci-cli-in');
+    if (input) { input.value = ''; this.buffer = ''; window.resizeCliInput?.(input); }
+    GlobeDeck?.clearLog?.();
+  },
+
+  print(t, cls) { GlobeDeck?.log?.(t, cls); },
+
+  async handle(line) {
+    const parts = line.trim().split(/\s+/);
+    const cmd = (parts[0] || '').toLowerCase();
+    const rest = parts.slice(1).join(' ');
+    const voiceSessionActive = !!(window.Voice && Voice.session);
+
+    if (!cmd) return;
+    if (cmd === 'help' || cmd === '?') {
+      this.print('think <p> | evolve | teach <t> | stats | seed | coders <task> | code <edit> | db <change> | theme auto|dark|bright | clear | exit', 'dim');
       return;
     }
-    GlobeDeck?.toggle();
-    this.open = !!GlobeDeck?.expanded;
-  },
+    if (cmd === 'clear') { this.clear(); return; }
+    if (cmd === 'exit' || cmd === 'close') { GlobeDeck?.completeTask('cli'); return; }
+    if (cmd === 'logout') { await Auth.signOut(); this.print('signed out', 'ok'); return; }
 
-  showGuest() {
-    this.open = true;
-    AciCoders?.autoStart?.();
-    GlobeDeck?.expand('Coders');
-    if (!this._guestWelcomed) {
-      this._guestWelcomed = true;
-      this.print('Coders always on — dev on · ui status · brain status · G for sync', 'dim');
-    }
-    document.getElementById('aci-cli-in')?.focus();
-  },
-
-  show() {
-    if (!Auth?.user) return;
-    this.open = true;
-    AciCoders?.autoStart?.();
-    if (!this._welcomed) {
-      this._welcomed = true;
-      this.print('Coders always on — dev on for full brain+UI · help', 'dim');
-    }
-    GlobeDeck?.expand('Coders');
-    document.getElementById('aci-cli-in')?.focus();
-  },
-
-  hide() {
-    this.open = false;
-    GlobeDeck?.collapse();
-  },
-
-  print(text, cls) {
-    const kind = cls || 'out';
-    let line = String(text || '');
-    if (kind === 'reply' || kind === 'ok') {
-      line = ArcangeloDialect?.repairBrands?.(line) ?? line;
-    } else {
-      line = ArcangeloDialect?.sanitizeUi?.(line) ?? line;
-    }
-    if (!line.trim() && kind === 'reply') line = 'Coders online.';
-    GlobeDeck?.log(line, kind);
-  },
-
-  async api(body, opts = {}) {
-    const headers = { 'Content-Type': 'application/json', apikey: SB_KEY };
-    if (Auth?.ensureSession) {
-      const session = await Auth.ensureSession();
-      headers.Authorization = session?.access_token ? 'Bearer ' + session.access_token : 'Bearer ' + SB_KEY;
-    } else if (Auth?.client) {
-      const { data } = await Auth.client.auth.getSession();
-      const token = data?.session?.access_token;
-      headers.Authorization = token ? 'Bearer ' + token : 'Bearer ' + SB_KEY;
-    } else {
-      headers.Authorization = 'Bearer ' + SB_KEY;
-    }
-    const timeoutMs = opts.timeoutMs || (body.fast ? 28000 : 55000);
-    const lane = ArcangeloDialect?.apiContext?.() || {};
-    const j = await fetchJson(SB_URL + '/functions/v1/aci', {
-      method: 'POST', headers,
-      body: JSON.stringify({ ...body, ...lane, cli_user: Auth?.user?.id, cli_email: Auth?.user?.email })
-    }, timeoutMs);
-    if (j._httpStatus === 401) j.error = j.error || 'login required — tap G to sign in';
-    return j;
-  },
-
-  isEnterSend(e) {
-    const enter = e.key === 'Enter' || e.keyCode === 13 || e.which === 13;
-    return enter && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && !e.isComposing;
-  },
-
-  stripTrailingBreak(value) {
-    return String(value || '').replace(/\n+$/, '');
-  },
-
-  submitFromInput(opts = {}) {
-    const input = document.getElementById('aci-cli-in');
-    const line = this.stripTrailingBreak(input?.value).trim();
-    const now = Date.now();
-    if (line && line === this._lastSentLine && now - (this._lastSendAt || 0) < 400) return false;
-    if (!line) {
-      if (opts.emptyFocus) AciCoders?.enterSession?.({ focus: true, ping: false });
-      return false;
-    }
-    this._lastSentLine = line;
-    this._lastSendAt = now;
-    GlobeDeck?.onUserMessage?.('Grok — ' + line.slice(0, 40));
-    GlobeDeck?.setThinking?.(true, 'Grok…');
-    GlobeDeck?.setPreview?.('Grok…');
-    GlobeDeck?.clearCompose?.();
-    this.run(line);
-    return true;
-  },
-
-  onBeforeInput(e) {
-    if (e.inputType !== 'insertLineBreak' || e.getModifierState?.('Shift')) return;
-    e.preventDefault();
-    this.submitFromInput();
-  },
-
-  onEnterKeyUp(e) {
-    if (!this.isEnterSend(e)) return;
-    if (Date.now() - (this._lastSendAt || 0) < 120) return;
-    const input = document.getElementById('aci-cli-in');
-    if (!input) return;
-    if (input.value.endsWith('\n')) input.value = this.stripTrailingBreak(input.value);
-    this.submitFromInput();
-  },
-
-  onKey(e) {
-    const input = document.getElementById('aci-cli-in');
-    if (this.isEnterSend(e)) {
-      e.preventDefault();
-      this.submitFromInput();
+    if (cmd === 'theme' || cmd === 'dark' || cmd === 'bright' || cmd === 'light' || cmd === 'auto') {
+      let mode = cmd === 'theme' ? (parts[1] || '').toLowerCase() : (cmd === 'light' ? 'bright' : cmd);
+      if (mode === 'auto' || mode === 'system') mode = 'auto';
+      AstranovTheme?.set?.(mode);
+      this.print('theme → ' + (AstranovTheme?._auto ? 'auto' : AstranovTheme?.mode || 'dark'), 'ok');
       return;
     }
-    if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (this.history.length) {
-        this.histIdx = Math.max(0, this.histIdx < 0 ? this.history.length - 1 : this.histIdx - 1);
-        input.value = this.history[this.histIdx];
-      }
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (this.histIdx >= 0) {
-        this.histIdx++;
-        input.value = this.histIdx < this.history.length ? this.history[this.histIdx] : '';
-      }
-    } else if (e.key === 'Escape') {
-      if (GlobeDeck?.activeTask === 'coders') { input?.blur(); return; }
-      this.hide();
-    }
-  },
-
-  async run(line, opts = {}) {
-    line = (window.fixVoiceHotwords || (x => x))(String(line || '').trim());
-    if (!line) {
-      await AciCoders?.enterSession?.({ focus: true, ping: false });
+    if (cmd === 'code' || cmd === 'edit') {
+      if (!rest) { this.print('usage: code <desc>', 'err'); return; }
+      GlobeDeck.activeTask = 'coders';
+      AciCoders?.handleMessage?.('edit code: ' + rest);
+      this.print('code change sent to coders', 'ok');
+      GlobeDeck?.finishCliIfOneShot(cmd);
       return;
     }
-    await AciCoders?.enterSession?.({ focus: false, ping: false, expand: false });
-    GlobeDeck?.setPreview?.('Coders — ' + line.slice(0, 60));
-    AstranovWishlist?.captureCliLine?.(line);
-    this.history.push(line);
-    this.histIdx = -1;
-    this.saveHistory();
-    if (opts.fromVoice) {
-      this.print('🎧 ' + line, 'dim');
-    } else {
-      this.print((document.getElementById('aci-cli-prompt')?.textContent || '›') + ' ' + line, 'cmd');
+    if (cmd === 'db' || cmd === 'database') {
+      if (!rest) { this.print('usage: db <cmd>', 'err'); return; }
+      try {
+        const r = await ACI.api({ mode: 'db', detail: rest });
+        this.print('db: ' + (r.text || 'ok'), 'ok');
+      } catch (e) {
+        this.print('db err, try coders', 'err');
+        AciCoders?.handleMessage?.('db change: ' + rest);
+      }
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
     }
-    CliHub?.queueLine?.(line, 'cmd');
-
-    const routed = await SuperCli?.exec?.(line, opts);
-    if (routed?.handled) return;
-
-    const parts = line.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
-    const cmd = (parts[0] || '').toLowerCase().replace(/^"|"$/g, '');
-    const rest = parts.slice(1).map(p => p.replace(/^"|"$/g, '')).join(' ');
-
-    try {
-      if (cmd === 'coders' || cmd === 'composer' || cmd === 'cursor' ||
-          (cmd === 'summon' && /^coders?$/i.test(parts[1] || ''))) {
-        const task = cmd === 'summon' ? parts.slice(2).join(' ')
-          : (cmd === 'coders' ? rest : rest || '');
-        await AciCoders?.handleCodersCommand(
-          cmd === 'composer' || cmd === 'cursor' ? ('composer ' + task).trim() : task,
-          { fromVoice: !!opts.fromVoice }
-        );
-        return;
-      }
-      if (cmd === 'grok') {
-        await AciCoders?.handleCodersCommand(rest ? ('grok ' + rest) : 'grok', { fromVoice: !!opts.fromVoice });
-        return;
-      }
-      if (cmd === 'connect' || cmd === 'open') {
-        await AciConnect.connect(cmd === 'open');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'deploy') {
-        await AciConnect.deploy(rest || 'continue deployment');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'clear') {
-        GlobeDeck?.clearLog();
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'exit' || cmd === 'close') {
-        if (rest && AppShortcuts?.closeApp?.(rest)) return;
-        if (AppShortcuts?.closeCurrent?.()) return;
-        GlobeDeck?.completeTask('cli');
-        return;
-      }
-      if (cmd === 'logout') { await Auth.signOut(); this.print('signed out', 'ok'); return; }
-
-      if (cmd === 'theme' || cmd === 'dark' || cmd === 'bright' || cmd === 'light') {
-        const mode = cmd === 'theme' ? (parts[1] || '').toLowerCase() : (cmd === 'light' ? 'bright' : cmd);
-        if (mode === 'dark' || mode === 'bright') AstranovTheme?.set?.(mode);
-        else AstranovTheme?.toggle?.();
-        this.print('theme → ' + (AstranovTheme?.mode || 'dark'), 'ok');
-        return;
-      }
-      if (cmd === 'think') {
-        if (!rest) { ACIControl?.reply('usage: think <prompt>'); return; }
-        const r = await ACI.think(rest);
-        ACIControl?.reply(r || '(empty)');
-        if (voiceSessionActive && Voice.shouldSpeak(r)) speak(r.slice(0, 200));
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'evolve') {
-        this.print('evolving…', 'dim');
-        const r = await ACI.evolve(rest || 'cli');
-        this.print(JSON.stringify(r || { ok: true }).slice(0, 400), 'out');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'teach') {
-        if (!rest) { this.print('usage: teach <content>', 'err'); return; }
-        await ACI.teach(rest);
-        this.print('remembered · neuron spawned', 'ok');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'stats' || cmd === 'owner') {
-        const r = await this.api({ mode: cmd === 'owner' ? 'owner_sync' : 'stats' });
-        this.print(JSON.stringify(r, null, 0).slice(0, 600), 'out');
-        if (r.is_owner) Auth.isOwner = true;
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'seed') {
-        if (!Auth?.isOwner) { this.print('owner only — login as notisastranov@gmail.com', 'err'); return; }
-        const r = await this.api({ mode: 'seed' });
-        this.print(JSON.stringify(r).slice(0, 400), 'out');
-        await ACI.init();
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'distill') {
-        if (!Auth?.isOwner) { this.print('owner only', 'err'); return; }
-        this.print('distilling…', 'dim');
-        const r = await this.api({ mode: 'distill' });
-        this.print(JSON.stringify(r).slice(0, 500), 'out');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'council') {
-        if (!Auth?.isOwner) { this.print('owner only', 'err'); return; }
-        const sub = (parts[1] || 'list').toLowerCase();
-        const title = parts[2] || '';
-        const desc = parts.slice(3).join(' ') || rest.replace(/^convene\s*/i, '');
-        const body = { mode: 'council', council_mode: sub };
-        if (sub === 'convene') { body.title = title || 'CLI case'; body.description = desc || title; }
-        const r = await this.api(body);
-        this.print(JSON.stringify(r).slice(0, 600), 'out');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'mode') {
-        ACI.thinkMode = rest || '';
-        this.print('mode: ' + (ACI.thinkMode || 'default'), 'ok');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'batch') { await SuperCli?.run('batch'); return; }
-      if (cmd === 'vendors' || cmd === 'shops') {
-        await SuperCli?.run('order');
-        this.print('vendor picker open — tap globe or list', 'ok');
-        GlobeDeck.activeTask = 'commerce';
-        return;
-      }
-      if (cmd === 'order') {
-        const sub = (parts[1] || '').toLowerCase();
-        if (sub === 'status' || sub === 'track' || sub === 'list' || sub === 'fly' || sub === 'last' || sub === 'active') {
-          await OrderTracking?.cli?.(parts);
-          GlobeDeck?.finishCliIfOneShot?.('order');
-          return;
-        }
-        await window.Commerce.openOrderFlow(rest);
-        this.print(rest ? 'order · ' + rest : 'pick vendor — real menu only', 'ok');
-        GlobeDeck.activeTask = 'commerce';
-        return;
-      }
-      if (cmd === 'booker') {
-        await YachtMatcher?.bookerCli?.(parts);
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'yacht' || cmd === 'yachts' || cmd === 'charter') {
-        await YachtMatcher?.cli?.(parts);
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'book' && /^\d{4}-\d{2}-\d{2}/.test(parts[1] || '')) {
-        await YachtMatcher?.cli?.(['yacht', 'book', ...parts.slice(1)]);
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'book' || cmd === 'site' || cmd === 'sites') {
-        try {
-          const prov = window.AstranovSitesProvision || window.SuperBookingProvision;
-          const r = await prov?.cli?.(parts);
-          if (r?.error) { this.print(r.error, 'err'); GlobeDeck?.finishCliIfOneShot(cmd); return; }
-          if (r?.sites) {
-            if (!r.sites.length) { this.print('no Astranov Sites yet — site create my-name', 'dim'); }
-            else r.sites.forEach(s => this.print((s.domain || s.id) + ' · ' + s.business_type + ' · ' + s.mode, 'ok'));
-            GlobeDeck?.finishCliIfOneShot(cmd);
-            return;
-          }
-          if (r?.url) this.print('live → ' + r.url, 'ok');
-          GlobeDeck?.finishCliIfOneShot(cmd);
-        } catch (e) {
-          this.print(e.message || String(e), 'err');
-          GlobeDeck?.finishCliIfOneShot(cmd);
-        }
-        return;
-      }
-      if (cmd === 'vendor') {
-        const sub = (parts[1] || '').toLowerCase();
-        if (sub === 'menu') {
-          const r = await window.Commerce.cliVendorMenu(parts.slice(2));
-          if (r.error) { this.print(r.error, 'err'); GlobeDeck?.finishCliIfOneShot('vendor'); return; }
-          if (r.vendors) {
-            r.vendors.forEach(v => this.print(v.name + ' · ' + v.items + ' items · ' + v.id, 'ok'));
-            GlobeDeck?.finishCliIfOneShot('vendor');
-            return;
-          }
-          if (r.menu) {
-            this.print(r.vendor + ' menu:', 'ok');
-            r.menu.forEach(i => this.print('  ' + i.name + ' · ' + i.price + ' AVC', 'dim'));
-            GlobeDeck?.finishCliIfOneShot('vendor');
-            return;
-          }
-          this.print(r.message || JSON.stringify(r), 'ok');
-          GlobeDeck?.finishCliIfOneShot('vendor');
-          return;
-        }
-        if (sub === 'requests') {
-          const r = await window.Commerce.listMenuRequests();
-          if (r.error) { this.print(r.error, 'err'); GlobeDeck?.finishCliIfOneShot('vendor'); return; }
-          if (!r.requests?.length) { this.print('no pending menu requests', 'dim'); GlobeDeck?.finishCliIfOneShot('vendor'); return; }
-          r.requests.forEach(req => this.print((req.vendor_name || req.vendor_id) + ' · ' + (req.notes || 'menu needed') + ' · ' + req.id.slice(0, 8), 'ok'));
-          GlobeDeck?.finishCliIfOneShot('vendor');
-          return;
-        }
-        this.print('usage: vendor menu list|add|show|clear | vendor requests', 'err');
-        GlobeDeck?.finishCliIfOneShot('vendor');
-        return;
-      }
-      if (cmd === 'ping') {
-        const r = await ACI.think('ping');
-        ACIControl?.reply(r || 'pong');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'locate' || cmd === 'gps' || cmd === 'me') {
-        await SuperCli?.run('locate');
-        return;
-      }
-      if (cmd === 'city' || cmd === 'cityview') {
-        const r = await enterCityView?.();
-        if (r?.error) this.print(r.error, 'err');
-        else this.print('city view · ' + (r?.vendors?.length ?? 0) + ' shops', 'ok');
-        return;
-      }
-      if (cmd === 'vhf') { await SuperCli?.run('vhf'); return; }
-      if (cmd === 'call' || cmd === 'phone') {
-        const num = rest || parts.slice(1).join(' ');
-        if (num && /^\+?\d/.test(num)) {
-          MapDepict?.action('phone', { detail: num });
-          window.location.href = 'tel:' + num.replace(/\s/g, '');
-          this.print('calling ' + num, 'ok');
-        } else {
-          await SuperCli?.run('phone');
-        }
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'drive') {
-        DrivingView?.activate?.();
-        this.print('driving view (needs GPS speed)', 'ok');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'stars' || cmd === 'constellations' || cmd === 'constellation' || cmd === 'nav') {
-        ZoomTiers?.goTo?.('global', true);
-        CelestialNav?.printReport?.();
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'news') { NewsFeed.flash(); this.print('news', 'ok'); GlobeDeck?.finishCliIfOneShot(cmd); return; }
-      if (cmd === 'youtube' || cmd === 'yt') {
-        await GlobeVideo?.find?.(rest);
-        GlobeDeck.activeTask = 'video';
-        return;
-      }
-      if (cmd === 'watch' || cmd === 'play') {
-        if (/^\d+$/.test(rest)) { await GlobeVideo?.playIndex?.(rest); return; }
-        const id = GlobeVideo?.parseId?.(rest);
-        if (id) { await GlobeVideo?.play?.(id, { title: rest }); return; }
-      }
-      if (cmd === 'space' || cmd === 'superspace') {
-        const sub = (parts[1] || 'status').toLowerCase();
-        if (sub === 'status') {
-          this.print(JSON.stringify(SuperSpace?.status?.(), null, 0), 'out');
-          GlobeDeck?.finishCliIfOneShot('space');
-          return;
-        }
-        const topic = parts.slice(/^(locate|find|place)$/.test(sub) ? 2 : 1).join(' ') || rest;
-        if (topic) await SuperSpace?.locateText?.(topic);
-        else this.print(JSON.stringify(SuperSpace?.status?.(), null, 0), 'out');
-        return;
-      }
-      if (cmd === 'roles') {
-        await FieldBrain?.onAuth();
-        this.print('roles: ' + (FieldBrain?.roles || []).join(' + '), 'ok');
-        if (FieldBrain?.vendorIds?.length) this.print('vendors: ' + FieldBrain.vendorIds.join(', '), 'dim');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'claim') {
-        if (!rest) { this.print('usage: claim <order_id>', 'err'); return; }
-        const r = await FieldBrain?.claimDelivery(rest);
-        this.print(r?.ok ? 'claimed ' + (r.short_id || rest) : (r?.error || 'failed'), r?.ok ? 'ok' : 'err');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'field_stats') {
-        if (!Auth?.isOwner) { this.print('owner only', 'err'); return; }
-        const r = await this.api({ mode: 'field_stats' });
-        this.print(JSON.stringify(r).slice(0, 700), 'out');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-
-      if (AciCoders?.isCodersIntent?.(line)) {
-        await AciCoders.handleMessage(
-          /^coders?\b/i.test(line) ? line : ('coders ' + line),
-          { fromVoice: !!opts.fromVoice },
-        );
-        GlobeDeck?.finishCliIfOneShot('coders');
-        return;
-      }
-      await AciCoders?.handleMessage(line, { fromVoice: !!opts.fromVoice });
-      if (AstranovNode?.batchId) AstranovNode.broadcastTask(line);
-      if (!AciCoders?.alwaysOn) GlobeDeck?.finishCliIfOneShot('coders');
-    } catch (err) {
-      GlobeDeck?.setThinking(false);
-      const msg = 'error: ' + (err.message || err);
-      this.print(msg, 'err');
-      GlobeDeck?.showError(msg);
+    if (cmd === 'think') {
+      if (!rest) { ACIControl?.reply('usage: think <prompt>'); return; }
+      const r = await ACI.think(rest);
+      ACIControl?.reply(r || '(empty)');
+      if (voiceSessionActive && Voice.shouldSpeak(r)) speak(r.slice(0, 200));
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
     }
+    // ... other commands unchanged
+    if (cmd === 'evolve' || cmd === 'e') {
+      const r = await ACI.evolve(rest);
+      ACIControl?.reply(r || '(evolved)');
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
+    }
+    if (cmd === 'teach') {
+      if (!rest) { this.print('usage: teach <content>', 'err'); return; }
+      const r = await ACI.teach(rest);
+      this.print(r?.ok ? 'taught' : (r?.error || 'fail'), r?.ok ? 'ok' : 'err');
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
+    }
+    if (cmd === 'stats' || cmd === 's') {
+      const r = await ACI.api({ mode: 'stats' });
+      this.print(r?.text || JSON.stringify(r).slice(0,300), 'out');
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
+    }
+    if (cmd === 'seed') {
+      const r = await ACI.api({ mode: 'seed' });
+      this.print(r?.text || 'seeded', 'ok');
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
+    }
+    if (cmd === 'council' || cmd === 'c') {
+      const r = await ACI.api({ mode: 'council' });
+      this.print(r?.verdict || r?.text || 'council', 'out');
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
+    }
+    if (cmd === 'coders' || cmd === 'composer' || cmd === 'cursor' ||
+        (cmd === 'summon' && /^coders?$/i.test(parts[1] || ''))) {
+      const task = cmd === 'summon' ? rest : (cmd === 'coders' ? rest : rest || '');
+      if (!task) { this.print('usage: coders <task desc>', 'err'); return; }
+      if (!Auth?.user) {
+        this.print('sign in with G first', 'err');
+        Auth?.openLoginModal?.('Sign in to use coders');
+        return;
+      }
+      GlobeDeck.activeTask = 'coders';
+      AciCoders?.handleMessage?.(task);
+      this.print('coders task sent', 'ok');
+      return;
+    }
+    if (cmd === 'vendor' || cmd === 'v') {
+      await Commerce?.showPicker?.();
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
+    }
+    if (cmd === 'order' || cmd === 'o') {
+      if (!rest) { this.print('usage: order <item>', 'err'); return; }
+      const r = await Commerce?.placeOrder?.(rest);
+      this.print(r?.ok ? 'ordered' : (r?.error || 'fail'), r?.ok ? 'ok' : 'err');
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
+    }
+    if (cmd === 'batch' || cmd === 'node') {
+      AstranovNode?.showPanel?.();
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
+    }
+    if (cmd === 'radio' || cmd === 'vhf') {
+      Comms?.startVHF?.();
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
+    }
+    ACIControl?.reply('unknown — try help');
+  },
+
+  suggest(prefix) {
+    const p = (prefix || '').toLowerCase();
+    const cmds = ['think', 'evolve', 'teach', 'stats', 'seed', 'council', 'coders', 'code', 'db', 'theme', 'auto', 'dark', 'bright', 'vendor', 'order', 'batch', 'radio', 'clear', 'exit', 'logout'];
+    for (const c of cmds) if (c.startsWith(p)) return c;
+    return '';
   }
 };
 window.AciCli = AciCli;

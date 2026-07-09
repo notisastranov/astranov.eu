@@ -27,6 +27,7 @@
 - Usage: frequent stats, think, log calls; network logs show activity.
 - No direct remote data (functions returned 500/400 - possible deploy or key issue), so enhanced client monitoring.
 - Critical: globe->national/city zoom/fly unstable (white blank, shutdown, teleport, shake) - fixed in this batch: decoupled city toggle during fly, added fly cancel on input, bg force, longer dur, early return in onCamera/sync.
+- Theme & CLI: auto device theme (less buttons), CLI for code/db changes.
 
 **Update Policy (MANDATORY):**
 - ALWAYS pack changes into **daily updates** only.

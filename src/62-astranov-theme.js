@@ -1,59 +1,45 @@
-// === ASTRANOV THEME — dark / bright for globe, city map, and UI ===
+// === ASTRANOV THEME — follows device dark/bright (prefers-color-scheme) by default; override via CLI ===
+// less buttons: no visible toggle; use CLI 'theme auto|dark|bright'
 const AstranovTheme = {
   mode: 'dark',
-  followSystem: true,
   KEY: 'astranov_theme_v1',
   _maps: [],
-
-  systemMode() {
-    try {
-      if (window.matchMedia?.('(prefers-color-scheme: light)')?.matches) return 'bright';
-    } catch (_) {}
-    return 'dark';
-  },
-
-  effectiveMode() {
-    return this.followSystem ? this.systemMode() : this.mode;
-  },
-
-  _watchSystem() {
-    if (!window.matchMedia) return;
-    const mql = window.matchMedia('(prefers-color-scheme: light)');
-    const onChange = () => {
-      if (!this.followSystem) return;
-      this.mode = this.systemMode();
-      this.apply();
-    };
-    if (mql.addEventListener) mql.addEventListener('change', onChange);
-    else if (mql.addListener) mql.addListener(onChange);
-    this._systemMql = mql;
-  },
+  _auto: true,
 
   init() {
     try {
       const saved = localStorage.getItem(this.KEY);
       if (saved === 'bright' || saved === 'dark') {
         this.mode = saved;
-        this.followSystem = false;
+        this._auto = false;
       } else {
-        this.followSystem = true;
-        this.mode = this.systemMode();
+        this._auto = true;
+        this.mode = this._getSystem();
       }
-    } catch (_) {
-      this.followSystem = true;
-      this.mode = this.systemMode();
-    }
-    this._watchSystem();
+    } catch (_) {}
     this.apply();
+    // no button onclick — removed for less UI clutter; CLI only
     const btn = document.getElementById('aci-theme');
     if (btn) {
-      btn.onclick = e => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.toggle();
-      };
-      this._syncBtn();
+      btn.style.display = 'none'; // hidden since auto + CLI
+      btn.onclick = null;
     }
+    // follow device
+    try {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      mq.addEventListener('change', () => {
+        if (this._auto) {
+          this.mode = this._getSystem();
+          this.apply();
+        }
+      });
+    } catch (_) {}
+  },
+
+  _getSystem() {
+    try {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'bright';
+    } catch (_) { return 'dark'; }
   },
 
   registerMap(mapApi) {
@@ -61,58 +47,41 @@ const AstranovTheme = {
   },
 
   toggle() {
-    if (this.followSystem) {
-      const sys = this.systemMode();
-      this.followSystem = false;
-      this.mode = sys === 'bright' ? 'dark' : 'bright';
-    } else {
-      this.mode = this.mode === 'dark' ? 'bright' : 'dark';
-    }
-    try { localStorage.setItem(this.KEY, this.mode); } catch (_) {}
-    this.apply();
-    AciCli?.print?.('theme → ' + this.mode + ' (manual)', 'ok');
-    GlobeDeck?.setPreview?.((this.mode === 'bright' ? '☀️' : '🌙') + ' ' + this.mode + ' theme');
-    if (Voice?.maySpeak?.()) speak('Theme ' + this.mode + '.', () => resumeListening?.());
-    return this.mode;
+    if (this._auto) this.set('dark');
+    else this.set(this.mode === 'dark' ? 'bright' : 'dark');
   },
 
   set(mode) {
-    const next = mode === 'bright' ? 'bright' : 'dark';
-    if (!this.followSystem && next === this.mode) return this.mode;
-    this.followSystem = false;
-    this.mode = next;
-    try { localStorage.setItem(this.KEY, next); } catch (_) {}
+    if (mode === 'auto' || mode === 'system') {
+      this._auto = true;
+      this.mode = this._getSystem();
+      try { localStorage.removeItem(this.KEY); } catch (_) {}
+    } else {
+      const next = mode === 'bright' ? 'bright' : 'dark';
+      if (next === this.mode && !this._auto) return this.mode;
+      this.mode = next;
+      this._auto = false;
+      try { localStorage.setItem(this.KEY, next); } catch (_) {}
+    }
     this.apply();
-    AciCli?.print?.('theme → ' + next, 'ok');
-    GlobeDeck?.setPreview?.((next === 'bright' ? '☀️' : '🌙') + ' ' + next + ' theme');
-    if (Voice?.maySpeak?.()) speak('Theme ' + next + '.', () => resumeListening?.());
+    AciCli?.print?.('theme → ' + (this._auto ? 'auto (' + this.mode + ')' : this.mode), 'ok');
+    GlobeDeck?.setPreview?.((this.mode === 'bright' ? '☀️' : '🌙') + ' ' + (this._auto ? 'auto' : this.mode) + ' theme');
+    if (Voice?.maySpeak?.()) speak('Theme ' + (this._auto ? 'auto' : this.mode) + '.', () => resumeListening?.());
     return this.mode;
   },
 
   apply() {
-    const active = this.effectiveMode();
-    document.documentElement.dataset.theme = active;
+    const effective = this._auto ? this._getSystem() : this.mode;
+    document.documentElement.dataset.theme = effective;
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = active === 'bright' ? '#1a6fd4' : '#0a1020';
+    if (meta) meta.content = effective === 'bright' ? '#c8e4ff' : '#00b4ff';
     if (scene?.background) {
-      scene.background = new THREE.Color(active === 'bright' ? 0x040810 : 0x000000);
+      scene.background = new THREE.Color(effective === 'bright' ? 0xc8dff0 : 0x000000);
     }
-    if (renderer) renderer.setClearColor(active === 'bright' ? 0x040810 : 0x000000, 1);
+    if (renderer) renderer.setClearColor(effective === 'bright' ? 0xc8dff0 : 0x000000, 1);
     EarthRealism?.onThemeChange?.();
     this._maps.forEach(m => m.onThemeChange?.());
-    this._syncBtn();
-  },
-
-  _syncBtn() {
-    const btn = document.getElementById('aci-theme');
-    if (!btn) return;
-    const active = this.effectiveMode();
-    btn.textContent = active === 'bright' ? '☀️' : '🌙';
-    btn.title = this.followSystem
-      ? ('Device ' + active + ' theme — tap to override')
-      : (active === 'bright' ? 'Bright theme — tap for dark' : 'Dark theme — tap for bright');
-    btn.classList.toggle('deck-btn-active', active === 'bright');
-    btn.classList.toggle('deck-btn-system', this.followSystem);
+    // no btn sync needed
   },
 };
 window.AstranovTheme = AstranovTheme;
