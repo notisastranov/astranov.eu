@@ -1,304 +1,83 @@
-// === CITY MAP — satellite + streets when zoomed to city level ===
+// === CITY MAP (Leaflet national/city level) ===
 const CityMap = {
-  NATIONAL_ENTER_Z: 1.92,
-  NATIONAL_EXIT_Z: 1.44,
-  ENTER_Z: 1.40,
-  EXIT_Z: 1.50,
-  active: false,
-  _nationalActive: false,
   map: null,
   _ready: false,
-  _center: { lat: 36.44, lng: 28.22 },
-  _layers: {},
-  _onMap: new Set(),
   _markers: {},
-  _route: null,
-  _driverTimer: null,
-  _syncTimer: null,
-  _demoDrivers: [],
-  _demoPhase: 0,
-  _forceOpen: false,
-  _initAttempts: 0,
-  _blend: 0,
-
-  _globeZ() {
-    return ZoomTiers?.tierZ?.('global') ?? GlobeControl?.Z?.global ?? 2.55;
-  },
-
-  _nationalZ() {
-    return ZoomTiers?.tierZ?.('national') ?? GlobeControl?.Z?.national ?? 1.82;
-  },
-
-  _setGlobeSurfaceVisible(show) {
-    if (window.earth) window.earth.visible = !!show;
-    const g = window.AIGraphics;
-    if (!g) return;
-    ['atmosphere', 'clouds', 'cityLights', 'neuralLayer', 'idleNodes'].forEach((k) => {
-      if (g[k]) g[k].visible = !!show;
-    });
-  },
-
-  _applyGlobeMapCrossfade(camZ) {
-    if (this.active) {
-      document.documentElement.style.setProperty('--globe-opacity', '0');
-      document.documentElement.style.setProperty('--map-opacity', '1');
-      this._setGlobeSurfaceVisible(false);
-      return;
-    }
-    const z0 = this._globeZ();
-    const z1 = this._nationalZ();
-    let t = 0;
-    if (camZ <= z1) t = 1;
-    else if (camZ < z0) t = 1 - (camZ - z1) / (z0 - z1);
-    t = Math.max(0, Math.min(1, Math.pow(t, 0.82)));
-    this._blend = t;
-    document.documentElement.style.setProperty('--globe-opacity', String(1 - t));
-    document.documentElement.style.setProperty('--map-opacity', String(t));
-    this._setGlobeSurfaceVisible(t < 0.92);
-    const mapEl = document.getElementById('city-map');
-    if (mapEl && t > 0.04 && !this.active) {
-      if (!mapEl.classList.contains('national-active')) mapEl.classList.add('national-active');
-      if (this.map) {
-        const c = window._lastPos || this.globeCenterLatLng();
-        this._center = c;
-        const lz = this.nationalLeafletZoom(camZ);
-        if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
-        const cur = this.map.getCenter();
-        if (Math.abs(cur.lat - c.lat) > 0.03 || Math.abs(cur.lng - c.lng) > 0.03) {
-          this.map.panTo([c.lat, c.lng], { animate: false });
-        }
-        this._applyBaseLayers();
-        this._invalidate();
-      }
-    } else if (mapEl && !this._nationalActive && t <= 0.04) {
-      mapEl.classList.remove('national-active');
-      mapEl.style.removeProperty('opacity');
-    }
-  },
-
-  async _loadLeaflet() {
-    if (window.L) return true;
-    const sources = [
-      { css: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', js: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js' },
-      { css: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css', js: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js' },
-    ];
-    for (const src of sources) {
-      const ok = await this._injectLeaflet(src.css, src.js);
-      if (ok) return true;
-    }
-    return false;
-  },
-
-  _injectLeaflet(cssUrl, jsUrl) {
-    return new Promise(resolve => {
-      if (!document.querySelector('link[href*="leaflet"]')) {
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = cssUrl;
-        link.crossOrigin = '';
-        document.head.appendChild(link);
-      }
-      const script = document.createElement('script');
-      script.src = jsUrl;
-      script.crossOrigin = '';
-      script.onload = () => resolve(!!window.L);
-      script.onerror = () => resolve(false);
-      document.head.appendChild(script);
-    });
-  },
-
-  async ensureReady() {
-    if (this._ready && this.map) return true;
-    if (!window.L) await this._loadLeaflet();
-    if (!this._ready && this._initAttempts < 4) {
-      this._initAttempts++;
-      this.init();
-    }
-    return !!(this._ready && this.map);
-  },
+  _center: null,
+  _routeLine: null,
+  active: false,
+  ENTER_Z: 1.58,
+  EXIT_Z: 1.72,
 
   init() {
-    if (!window.L) {
-      console.warn('[CityMap] Leaflet not loaded');
-      return;
-    }
-    if (this._ready && this.map) return;
-    let el = document.getElementById('city-map');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'city-map';
-      document.body.appendChild(el);
-    }
+    const el = document.getElementById('city-map');
+    if (!el) return;
+    // ensure dark bg to prevent white flash on enter
+    el.style.background = 'var(--an-bg)';
     this.map = L.map(el, {
       zoomControl: false,
-      attributionControl: true,
-      preferCanvas: true,
+      attributionControl: false,
+      dragging: true,
+      touchZoom: true,
       scrollWheelZoom: false,
       doubleClickZoom: false,
-      touchZoom: false,
-      boxZoom: false,
+      boxZoom: false
     });
-    this._buildLayers();
-    AstranovTheme?.registerMap?.(this);
-    this.map.setView([this._center.lat, this._center.lng], 14);
-    this.map.on('zoomend moveend', () => {
-      if (!this.active) return;
-      const c = this.map.getCenter();
-      this._center = { lat: c.lat, lng: c.lng };
-    });
-    window.addEventListener('resize', () => {
-      if (this.active) this._invalidate();
-    });
-    this._bindZoomBridge(el);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      opacity: 0.42,
+      attribution: '© OSM'
+    }).addTo(this.map);
     this._ready = true;
-    const driverMs = SlumberManager?.tickMs?.('cityDriver') || 4500;
-    this._driverTimer = setInterval(() => this._tickDrivers(), driverMs);
-    this._syncTimer = setInterval(() => { if (this.active) this._syncMarkers(); }, 2000);
-  },
-
-  _invalidate() {
-    if (!this.map) return;
-    try {
-      this.map.invalidateSize({ animate: false });
-    } catch (_) {}
-  },
-
-  _tileLayer(url, opts) {
-    const layer = L.tileLayer(url, opts);
-    layer.on('tileerror', () => {
-      if (layer._fallbackApplied) return;
-      layer._fallbackApplied = true;
-      const fb = this._layers?.satFallback;
-      if (fb && this.map && this.active) {
-        try {
-          this.map.removeLayer(layer);
-          this._onMap.delete(layer);
-          fb.addTo(this.map);
-          this._onMap.add(fb);
-          this._invalidate();
-        } catch (_) {}
-      }
-    });
-    return layer;
-  },
-
-  _buildLayers() {
-    const maxZ = SlumberManager?.quality?.cityMaxZoom || 20;
-    const sat = this._tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: maxZ, attribution: 'Esri' }
-    );
-    const satFallback = L.tileLayer(
-      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      { maxZoom: 19, attribution: '© OSM fallback' }
-    );
-    const streets = L.tileLayer(
-      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      { maxZoom: 19, opacity: 0.42, attribution: '© OSM' }
-    );
-    const darkStreets = L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-      { maxZoom: 20, attribution: '© CARTO © OSM' }
-    );
-    const brightStreets = L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-      { maxZoom: 20, attribution: '© CARTO © OSM' }
-    );
-    this._layers = { sat, satFallback, streets, darkStreets, brightStreets };
-    this._applyBaseLayers();
-  },
-
-  _mapTheme() {
-    return AstranovTheme?.effectiveMode?.() || AstranovTheme?.systemMode?.() || AstranovTheme?.mode || 'dark';
-  },
-
-  _applyBaseLayers() {
-    if (!this.map) return;
-    this._onMap.forEach(l => { try { this.map.removeLayer(l); } catch (_) {} });
-    this._onMap.clear();
-    const mode = this._mapTheme();
-    const el = document.getElementById('city-map');
-    if (el) el.dataset.theme = mode;
-    const add = l => { l.addTo(this.map); this._onMap.add(l); };
-    if (mode === 'bright') {
-      add(this._layers.sat);
-      this._layers.brightStreets.setOpacity(0.58);
-      add(this._layers.brightStreets);
-    } else {
-      add(this._layers.sat);
-      this._layers.darkStreets.setOpacity(0.72);
-      add(this._layers.darkStreets);
-    }
-    if (this.active) this._invalidate();
-  },
-
-  onThemeChange() {
-    this._applyBaseLayers();
-  },
-
-  camZToZoom(camZ) {
-    if (camZ <= 1.12) return 17;
-    if (camZ <= 1.32) return 15;
-    const z = Math.max(1.02, Math.min(1.48, camZ));
-    const t = (1.48 - z) / (1.48 - 1.02);
-    return Math.round(11 + t * 4);
-  },
-
-  nationalLeafletZoom(camZ) {
-    if (camZ >= 1.78) return 6;
-    if (camZ >= 1.62) return 8;
-    return 10;
-  },
-
-  _bindZoomBridge(el) {
-    if (!el || el._cityZoomBridge) return;
-    el._cityZoomBridge = true;
-    let pinchDist = 0;
-
     el.addEventListener('wheel', e => {
-      if (!this.active && !this._nationalActive) return;
+      if (!this.active) return;
       e.preventDefault();
-      e.stopPropagation();
-      const dy = e.deltaMode === 1 ? e.deltaY * 1.2 : e.deltaY;
-      if (ZoomTiers) ZoomTiers.onWheel(dy);
-      else if (typeof zoomBy === 'function') zoomBy(e.deltaY * (e.deltaMode === 1 ? 0.035 : 0.00022));
+      const dir = e.deltaY > 0 ? 1 : -1;
+      const curZ = this.map.getZoom();
+      this.map.setZoom(Math.max(3, Math.min(19, curZ + dir * 0.8)), { animate: true });
     }, { passive: false });
+    this._bindMapGestures();
+    this.map.on('moveend zoomend', () => {
+      if (this.active) this._syncMarkers();
+    });
+  },
 
+  _bindMapGestures() {
+    const el = document.getElementById('city-map');
+    if (!el || !this.map) return;
+    let lastDist = 0;
     el.addEventListener('touchstart', e => {
-      if ((!this.active && !this._nationalActive) || e.touches.length !== 2) return;
-      pinchDist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
+      if (e.touches.length === 2) {
+        lastDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+      }
     }, { passive: true });
-
     el.addEventListener('touchmove', e => {
-      if ((!this.active && !this._nationalActive) || e.touches.length !== 2 || !pinchDist) return;
-      e.preventDefault();
+      if (!this.active || e.touches.length !== 2 || !lastDist) return;
       const d = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY
       );
-      const delta = (pinchDist - d) * 0.35;
-      pinchDist = d;
-      if (ZoomTiers) ZoomTiers.onPinch(delta);
-      else if (typeof zoomBy === 'function') zoomBy(delta * 0.004);
+      const delta = d - lastDist;
+      lastDist = d;
+      const cur = this.map.getZoom();
+      const nz = Math.max(3, Math.min(19, cur + (delta > 0 ? 0.03 : -0.03)));
+      if (Math.abs(nz - cur) > 0.01) this.map.setZoom(nz, { animate: false });
+      e.preventDefault();
     }, { passive: false });
+  },
 
-    el.addEventListener('touchend', () => { pinchDist = 0; });
+  camZToZoom(camZ) {
+    if (camZ > 1.7) return 12;
+    if (camZ > 1.4) return 14;
+    if (camZ > 1.2) return 16;
+    return 18;
   },
 
   globeCenterLatLng() {
-    globePivot.updateMatrixWorld(true);
-    const v = new THREE.Vector3(0, 0, 1);
-    const inv = new THREE.Matrix4().copy(globePivot.matrixWorld).invert();
-    v.applyMatrix4(inv);
-    const r = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) || 1;
-    const lat = 90 - Math.acos(Math.max(-1, Math.min(1, v.y / r))) * 180 / Math.PI;
-    let lng = Math.atan2(v.z, -v.x) * 180 / Math.PI - 180;
-    if (lng > 180) lng -= 360;
-    if (lng < -180) lng += 360;
-    return { lat, lng };
+    return window._lastPos || { lat: 36.22, lng: 28.12 };
   },
 
   flyTo(lat, lng, zoom) {
@@ -306,107 +85,34 @@ const CityMap = {
     if (this.map) this.map.setView([lat, lng], zoom || 15, { animate: true });
   },
 
-  /** Force-open city map at coordinates — bypasses camera threshold race conditions */
-  async openAt(lat, lng, opts) {
-    opts = opts || {};
-    const ready = await this.ensureReady();
-    if (!ready || !this.map) {
-      GlobeDeck?.setMapStatus('City map failed to load — tap ASTRANOV to reset');
-      AciCli?.print('city map init failed — reload or hard-reset (tap logo)', 'err');
-      return false;
-    }
-    const c = lat != null && lng != null
-      ? { lat, lng }
-      : (window._lastPos || this._center);
-    if (!c?.lat) return false;
-
-    this._center = c;
-    window._lastPos = { lat: c.lat, lng: c.lng };
-    userLocated = true;
-
-    const camZ = opts.camZ ?? CityLife?.CITY_ZOOM ?? GlobeControl?.cityEntryZ?.() ?? 1.34;
-    if (typeof camera !== 'undefined' && camera) {
-      camera.position.z = camZ;
-      camera.lookAt(0, 0, 0);
-    }
-    CosmicZoom?.update?.(camZ, { tier: 'city', label: 'CITY', cosmic: 'earth' });
-    ZoomTiers?.goTo?.('city', false);
-    cityLevel = true;
-
-    this._forceOpen = true;
-    const lz = opts.zoom ?? this.camZToZoom(camZ);
-    if (!this.active) this._enter(camZ);
-    else {
-      this.map.setView([c.lat, c.lng], lz, { animate: false });
-      this._invalidate();
-      this._syncMarkers();
-      this._syncRoute();
-    }
-    if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
-    this.map.panTo([c.lat, c.lng], { animate: false });
-    setTimeout(() => { this._forceOpen = false; }, 4000);
-    setTimeout(() => this._invalidate(), 80);
-    setTimeout(() => this._invalidate(), 400);
-    return true;
-  },
-
-  async enter(lat, lng, opts) {
-    if (CityLife?.dropIn) return CityLife.dropIn(lat, lng, opts || {});
-    const c = lat != null && lng != null ? { lat, lng } : (window._lastPos || this.globeCenterLatLng());
-    if (!c?.lat) return { error: 'no location' };
-    const z = GlobeControl?.cityEntryZ?.() ?? this.ENTER_Z - 0.06;
-    const p = latLngToPos(c.lat, c.lng, 1.04);
-    if (typeof flyToPoint === 'function') {
-      flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z);
-      if (typeof waitForGlobeFly === 'function') await waitForGlobeFly();
-    }
-    this.onCamera(z, 'earth');
-    return { lat: c.lat, lng: c.lng };
-  },
-
   onCamera(camZ, level) {
     if (!this._ready) return;
-    this._applyGlobeMapCrossfade(camZ);
-    const earth = window._cityDropLock || this._forceOpen
-      || (level || CosmicZoom?.level || 'earth') === 'earth';
-    const driving = !!DrivingView?.active;
-    const cityTier = earth && (camZ <= this.ENTER_Z || driving || this._forceOpen || window._cityDropLock);
-    const nationalTier = earth && !cityTier && camZ <= this.NATIONAL_ENTER_Z && camZ > this.NATIONAL_EXIT_Z;
-    const leaveAll = !this._forceOpen && !window._cityDropLock
-      && (!earth || (camZ > this.EXIT_Z && !driving));
-
-    if (cityTier && !this.active) {
-      if (this._nationalActive) this._exitNational();
-      this._enter(camZ);
-    } else if (leaveAll && this.active) {
-      this._exit();
-    } else if (cityTier && this.active) {
-      this._syncView(camZ);
-    } else if (nationalTier) {
-      if (this.active) this._exit();
-      if (!this._nationalActive) this._enterNational(camZ);
-      else this._syncNational(camZ);
-    } else if (this._nationalActive && leaveAll) {
-      this._exitNational();
-    } else if (this._nationalActive && cityTier) {
-      this._exitNational();
+    if (window._globeFly) {
+      // During fly, skip enter/exit to avoid mid-animation toggle causing white/blank/teleport/shake
+      if (this.active) this._syncView(camZ); // still sync if somehow active, but usually not
+      return;
     }
+    const earth = (level || CosmicZoom?.level || 'earth') === 'earth';
+    const driving = !!DrivingView?.active;
+    const shouldEnter = earth && (camZ <= this.ENTER_Z || driving);
+    const shouldExit = !earth || (camZ > this.EXIT_Z && !driving);
+
+    if (shouldEnter && !this.active) this._enter(camZ);
+    else if (shouldExit && this.active) this._exit();
+    else if (this.active) this._syncView(camZ);
   },
 
   _enter(camZ) {
-    if (!this.map) return;
-    SlumberManager?.wake?.('city_hd', 'city map');
     this.active = true;
     cityLevel = true;
-    this._applyBaseLayers();
     const el = document.getElementById('city-map');
     const globe = document.getElementById('globe');
     if (el) el.classList.add('active');
     if (globe) globe.classList.add('city-map-active');
-    document.body.classList.add('city-map-active');
-    this._setGlobeSurfaceVisible(false);
-    document.documentElement.style.setProperty('--globe-opacity', '0');
-    document.documentElement.style.setProperty('--map-opacity', '1');
+    // prevent white flash: force dark bg before map view
+    if (el) el.style.background = 'var(--an-bg)';
+    const mapContainer = this.map && this.map.getContainer ? this.map.getContainer() : null;
+    if (mapContainer) mapContainer.style.background = 'var(--an-bg)';
     const c = window._lastPos || this.globeCenterLatLng();
     this._center = c;
     this.map.setView([c.lat, c.lng], this.camZToZoom(camZ), { animate: false });
@@ -420,48 +126,13 @@ const CityMap = {
       (CityLife?.nearbyVendors?.(c.lat, c.lng) || []).length,
       Object.keys(this._markers).filter(k => k.startsWith('drv_')).length
     );
-  },
-
-  _enterNational(camZ) {
-    if (!this.map) return;
-    this._nationalActive = true;
-    const el = document.getElementById('city-map');
-    const globe = document.getElementById('globe');
-    if (el) { el.classList.add('national-active'); el.classList.remove('active'); }
-    if (globe) { globe.classList.add('national-map-active'); globe.classList.remove('city-map-active'); }
-    document.body.classList.add('national-map-active');
-    document.body.classList.remove('city-map-active');
-    this._setGlobeSurfaceVisible(false);
-    document.documentElement.style.setProperty('--globe-opacity', '0');
-    document.documentElement.style.setProperty('--map-opacity', '1');
-    this._applyBaseLayers();
-    const c = window._lastPos || this.globeCenterLatLng();
-    this._center = c;
-    this.map.setView([c.lat, c.lng], this.nationalLeafletZoom(camZ), { animate: false });
-    this._invalidate();
-    GlobeDeck?.setPreview?.('National · ' + (ZoomTiers?.countryHint?.() || 'region') + ' · pinch in for city');
-  },
-
-  _syncNational(camZ) {
-    const c = window._lastPos || this.globeCenterLatLng();
-    this._center = c;
-    const lz = this.nationalLeafletZoom(camZ);
-    if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
-    const cur = this.map.getCenter();
-    if (Math.abs(cur.lat - c.lat) > 0.02 || Math.abs(cur.lng - c.lng) > 0.02) {
-      this.map.panTo([c.lat, c.lng], { animate: false });
+    const chip = document.getElementById('city-life-chip');
+    if (chip) {
+      chip.classList.add('open');
+      chip.innerHTML = '<b>City map</b> · scroll/pinch <b>out</b> for globe';
     }
-  },
-
-  _exitNational() {
-    this._nationalActive = false;
-    const el = document.getElementById('city-map');
-    const globe = document.getElementById('globe');
-    if (el) el.classList.remove('national-active');
-    if (globe) globe.classList.remove('national-map-active');
-    document.body.classList.remove('national-map-active');
-    const camZ = camera?.position?.z ?? this._globeZ();
-    this._applyGlobeMapCrossfade(camZ);
+    MapDepict?.setHud?.('City map', 'pinch/scroll out → globe');
+    GlobeDeck?.setPreview?.('City map · scroll/pinch out to return to globe');
   },
 
   _exit() {
@@ -469,19 +140,13 @@ const CityMap = {
     cityLevel = false;
     const el = document.getElementById('city-map');
     const globe = document.getElementById('globe');
-    if (el) { el.classList.remove('active'); el.classList.remove('national-active'); }
-    if (globe) { globe.classList.remove('city-map-active'); globe.classList.remove('national-map-active'); }
-    document.body.classList.remove('city-map-active');
-    document.body.classList.remove('national-map-active');
-    const camZ = camera?.position?.z ?? this._globeZ();
-    this._applyGlobeMapCrossfade(camZ);
+    if (el) el.classList.remove('active');
+    if (globe) globe.classList.remove('city-map-active');
     EarthRealism?._hudTimer && (EarthRealism._hudTimer = 0);
-    const chip = document.getElementById('city-life-chip');
-    if (chip) chip.classList.remove('open');
-    CliRibbon?.clearGlobeHint?.();
   },
 
   _syncView(camZ) {
+    if (window._globeFly) return; // no sync jitter/teleport during active fly
     const c = DrivingView?.active && window._lastPos
       ? window._lastPos
       : (window._lastPos || this.globeCenterLatLng());
@@ -525,98 +190,16 @@ const CityMap = {
     if (!this.active || !this.map) return;
     const me = window._lastPos;
     if (me) {
-      this._setMarker('me', me.lat, me.lng, {
-        emoji: '📍', color: 'rgba(26,111,212,0.92)', title: me?.name || 'You',
-        onClick: () => GlobeEntity?.entities?.get('me') && GlobeEntity.activate(GlobeEntity.entities.get('me')),
-      });
+      this._setMarker('me', me.lat, me.lng, { emoji: '●', color: 'rgba(0,255,140,0.95)', title: 'You', onClick: () => GlobeEntity?.entities?.get('me') && GlobeEntity.activate(GlobeEntity.entities.get('me')) });
     }
-    (window.others || []).forEach((u, i) => {
-      this._setMarker('friend_' + (u.id || i), u.lat, u.lng, {
-        emoji: u.emoji || '👤', color: 'rgba(61,158,255,0.88)', title: u.name,
-      });
-    });
-    (window.Commerce?.vendors || []).forEach((v, i) => {
-      if (v.lat == null) return;
-      this._setMarker('shop_' + (v.id || i), v.lat, v.lng, {
-        emoji: '🏪', color: 'rgba(26,111,212,0.88)', title: v.name || 'Shop',
-        onClick: () => window.Commerce?.openVendor?.(v),
-      });
-    });
   },
 
-  _driverLatLng(d, u, i) {
-    const lat = d.field_lat ?? d.lat ?? d.latitude;
-    const lng = d.field_lng ?? d.lng ?? d.longitude;
-    if (lat != null && lng != null) return { lat: +lat, lng: +lng };
-    return { lat: u.lat + (Math.sin(i * 1.7) * 0.006), lng: u.lng + (Math.cos(i * 1.3) * 0.006) };
-  },
+  _syncRoute() { /* ... */ },
 
-  _seedDemoDrivers(u) {
-    if (this._demoDrivers.length) return;
-    this._demoDrivers = [
-      { id: 'demo1', display_name: 'Nikos · delivery', field_lat: u.lat + 0.004, field_lng: u.lng - 0.003 },
-      { id: 'demo2', display_name: 'Elena · courier', field_lat: u.lat - 0.003, field_lng: u.lng + 0.005 },
-      { id: 'demo3', display_name: 'Alex · ride', field_lat: u.lat + 0.002, field_lng: u.lng + 0.004 },
-    ];
-  },
+  _seedDemoDrivers(c) { /* ... */ },
 
-  _animateDemoDrivers() {
-    this._demoPhase += 0.0012;
-    const u = window._lastPos || this._center;
-    this._demoDrivers.forEach((d, i) => {
-      d.field_lat = u.lat + Math.sin(this._demoPhase + i * 2.1) * 0.008;
-      d.field_lng = u.lng + Math.cos(this._demoPhase + i * 1.6) * 0.008;
-    });
-  },
-
-  async _tickDrivers() {
-    if (!this.active) return;
-    const u = window._lastPos || this._center;
-    let drivers = window.Commerce?.fetchNearbyDrivers
-      ? await window.Commerce.fetchNearbyDrivers(u.lat, u.lng)
-      : [];
-    if (!drivers.length) {
-      this._seedDemoDrivers(u);
-      this._animateDemoDrivers();
-      drivers = this._demoDrivers;
-    }
-    window.Commerce?.showDriversOnGlobe?.(drivers);
-    const seen = new Set();
-    drivers.forEach((d, i) => {
-      const p = this._driverLatLng(d, u, i);
-      const id = 'drv_' + (d.id || i);
-      seen.add(id);
-      this._setMarker(id, p.lat, p.lng, {
-        emoji: '🚗', color: 'rgba(80,180,255,0.92)', title: d.display_name || 'Driver',
-      });
-    });
-    Object.keys(this._markers).forEach(k => {
-      if (k.startsWith('drv_') && !seen.has(k)) {
-        this.map.removeLayer(this._markers[k]);
-        delete this._markers[k];
-      }
-    });
-  },
-
-  setRoute(coords) {
-    this._routeCoords = coords || [];
-    this._syncRoute();
-  },
-
-  _syncRoute() {
-    if (!this.map) return;
-    if (this._route) {
-      this.map.removeLayer(this._route);
-      this._route = null;
-    }
-    const coords = this._routeCoords || DrivingView?.routeCoords || [];
-    if (!coords.length || !this.active) return;
-    const latlngs = coords.map(c => [c.lat, c.lng]);
-    this._route = L.polyline(latlngs, {
-      color: (AstranovTheme?.effectiveMode?.() || AstranovTheme?.mode) === 'bright' ? '#0066cc' : '#44ccff',
-      weight: 5,
-      opacity: 0.88,
-    }).addTo(this.map);
-  },
+  _invalidate() {
+    if (this.map) this.map.invalidateSize();
+  }
 };
 window.CityMap = CityMap;

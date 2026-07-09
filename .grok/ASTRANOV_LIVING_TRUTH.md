@@ -20,12 +20,13 @@
 - Full ACI (aicycle/brain/council).
 - Pilot, groupOrder real.
 
-**Monitored Data (from logs, debug-reader simulation, storage, code):**
+**Monitored Data (from logs, debug-reader simulation, storage, code, user complaint):**
 - High prompt tokens in ACI think (~210k, reduced history in update).
 - Client init/render errors (added global send to debug-write).
 - ACI errors and complaints (added _sendComplaint and user button in AI circle).
 - Usage: frequent stats, think, log calls; network logs show activity.
 - No direct remote data (functions returned 500/400 - possible deploy or key issue), so enhanced client monitoring.
+- Critical: globe->national/city zoom/fly unstable (white blank, shutdown, teleport, shake) - fixed in this batch: decoupled city toggle during fly, added fly cancel on input, bg force, longer dur, early return in onCamera/sync.
 
 **Update Policy (MANDATORY):**
 - ALWAYS pack changes into **daily updates** only.
