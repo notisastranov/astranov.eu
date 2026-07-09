@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Astranov • RESTORED + MILKED + ADVANCED 2026-07-09</title>
+<title>Astranov</title>
 <meta name="compliance-check" content="astranov-field-brain-multi-role-2026-06-24">
 <meta name="aci-session" content="Astranov Collective Intelligence">
 <meta name="theme-color" content="#0a1020" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260709225300-restore-advance-milk" />
+<meta name="astranov-build" content="20260709230000-globe-deck-restored-circles-active" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -122,8 +122,8 @@
   .coders-open { width:100%; border:1px solid color-mix(in srgb, var(--lab-accent,#7eb8ff) 32%, transparent); color:color-mix(in srgb, var(--lab-accent,#7eb8ff) 85%, white); background:rgba(0,0,0,0.35); }
   :root { --globe-opacity:1; --map-opacity:0; }
   #globe { position:absolute; top:0; left:0; right:0; bottom:0; touch-action:none; z-index:2; }
-  /* Enforce celestial circles law - hide all legacy rects */
-  #coders-hub-panel, #coders-hub-trigger, .deck, [id*="modal"], [id*="panel"]:not(#globe), .rect-ui, /* globe-deck removed - now celestial circle */
+  /* Legacy rect panels hidden — globe-deck CLI + celestial circles stay active */
+  #coders-hub-panel, #coders-hub-trigger, .deck, [id*="modal"], .rect-ui { display:none !important; }
   #globe canvas { display:block; cursor:grab; opacity:var(--globe-opacity,1); transition:opacity 0.55s cubic-bezier(0.4,0,0.2,1); }
   #globe canvas.dragging { cursor:grabbing; }
   #globe.city-map-active canvas { opacity:0 !important; pointer-events:none; }
@@ -194,7 +194,7 @@
   /* user-chip removed */
   /* drive-guide removed */
   #drive-guide.open { display:block; }
-  /* aci-hud removed */
+  #aci-hud { position:fixed; left:0; right:0; bottom:0; z-index:50; pointer-events:none; }
   #sat-radio { display:none; padding:10px 12px; background:var(--ax-panel-strong); pointer-events:auto; font:11px/1.45 system-ui; color:var(--an-text); }
   #sat-radio.open, #sat-radio.deck-active { display:block; }
   #sat-radio .sr-row { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; }
@@ -248,7 +248,7 @@
   #cosmic-guide .cg-item { margin:2px 0; opacity:0.9; }
   #cosmic-guide .cg-item b { color:var(--ax-blue-bright); font-weight:600; }
   #cosmic-guide .cg-item i { color:var(--an-muted); font-size:9px; }
-  /* globe-deck removed - now celestial circle */
+  #globe-deck { display:flex; flex-direction:column; margin:0 8px 6px; background:rgba(0,4,12,0.94); border:1px solid rgba(26,111,212,0.42); border-radius:14px; pointer-events:auto; font:12px/1.4 ui-monospace,monospace; overflow:hidden; transition:max-height 0.22s ease; position:relative; }
   #globe-deck::before { content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; box-shadow:inset 0 0 0 1px rgba(var(--cli-g1),0.22); z-index:0; transition:box-shadow 1.4s ease; }
   #globe-deck::after { content:''; position:absolute; inset:-2px; border-radius:inherit; pointer-events:none; z-index:0; opacity:0.42; background:radial-gradient(ellipse 80% 55% at 50% 0%,rgba(var(--cli-g1),0.28),transparent 68%); animation:cli-aura-drift calc(var(--cli-speed) * 1.35) ease-in-out infinite; }
   #globe-deck > * { position:relative; z-index:1; }
@@ -281,7 +281,7 @@
   #globe-deck.deck-resizing #super-cli-bar, #globe-deck.deck-resizing #cli-ribbon-status { cursor:grabbing; }
   #globe-deck.expanded.has-stage.size-third { max-height:38vh; min-height:38vh; }
   #globe-deck.expanded.has-stage.size-full { max-height:min(94dvh, calc(100dvh - 40px)); min-height:min(94dvh, calc(100dvh - 40px)); }
-  #globe-deck-header { display:none !important; }
+  #globe-deck-header { display:flex; align-items:center; gap:8px; padding:8px 10px; background:rgba(0,0,0,0.45); color:var(--ax-blue-bright); font:11px system-ui; touch-action:pan-y; cursor:pointer; flex-shrink:0; user-select:none; min-height:24px; }
   #super-cli-bar { display:flex; gap:5px; padding:5px 8px; flex-wrap:nowrap; align-items:center; justify-content:flex-start; border-bottom:1px solid rgba(26,111,212,0.38); flex-shrink:0; background:linear-gradient(180deg,rgba(8,24,58,0.72),rgba(4,14,36,0.55)); min-height:42px; box-shadow:0 4px 18px rgba(13,71,161,0.22),inset 0 1px 0 rgba(61,158,255,0.1); }
   #aci-login { flex-shrink:0; order:1; }
   .super-cli-middle { display:flex; align-items:center; flex:1; min-width:0; gap:4px; overflow:hidden; order:2; }
@@ -13666,10 +13666,7 @@ const Circles = {
 
 window.Circles = Circles;
 
-// Auto-init on load
-if (typeof window !== 'undefined') {
-  setTimeout(() => Circles.init && Circles.init(), 120);
-}
+// Circles.init() called from boot — no duplicate auto-init
 
 
 function animate() {
@@ -13725,8 +13722,6 @@ if (typeof globePivot !== 'undefined' && globePivot) {
 }
 
 try { Circles.init(); } catch (e) { console.warn('Circles init:', e.message); }
-const _legacyDeck = document.getElementById('globe-deck');
-if (_legacyDeck) { _legacyDeck.style.display = 'none'; _legacyDeck.style.pointerEvents = 'none'; }
 
 Auth.init();
 GlobeDeck.init();
@@ -13759,6 +13754,21 @@ AiRouter.init();
 LazyModules.schedule();
 
 setTimeout(() => Auth.refreshAuthority(), 800);
+setTimeout(() => {
+  try {
+    const econ = document.getElementById('circle-economics');
+    const avc = document.getElementById('aci-avc')?.querySelector('.avc-fiat');
+    if (econ && avc) {
+      const body = econ.querySelector('.circle-content');
+      if (body) body.innerHTML = '<b>AVC Balance</b><br>' + avc.textContent + '<br><small>Live from wallet</small>';
+    }
+    const radar = document.getElementById('circle-radar');
+    if (radar && window.Commerce?._vendors?.length) {
+      const body = radar.querySelector('.circle-content');
+      if (body) body.innerHTML = '<b>Radar</b><br>' + Commerce._vendors.length + ' vendors nearby<br><small>Tap globe to order</small>';
+    }
+  } catch (_) {}
+}, 2500);
 AciCli?.primeCodersCli?.();
 AciCoders?.ensureBridge?.();
 
