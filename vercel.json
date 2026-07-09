@@ -1,35 +1,5 @@
 {
-  "headers": [
-    {
-      "source": "/",
-      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
-    },
-    {
-      "source": "/index.html",
-      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
-    },
-    {
-      "source": "/sw.js",
-      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
-    },
-    {
-      "source": "/build.json",
-      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
-    },
-    {
-      "source": "/coders-labs.json",
-      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
-    },
-    {
-      "source": "/astranov-deferred.js",
-      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
-    }
-  ],
-  "rewrites": [
-    { "source": "/auth/:path*", "destination": "https://lkoatrkhuigdolnjsbie.supabase.co/auth/:path*" },
-    { "source": "/rest/:path*", "destination": "https://lkoatrkhuigdolnjsbie.supabase.co/rest/:path*" },
-    { "source": "/functions/v1/:path*", "destination": "https://lkoatrkhuigdolnjsbie.supabase.co/functions/v1/:path*" },
-    { "source": "/storage/v1/:path*", "destination": "https://lkoatrkhuigdolnjsbie.supabase.co/storage/v1/:path*" },
-    { "source": "/realtime/v1/:path*", "destination": "https://lkoatrkhuigdolnjsbie.supabase.co/realtime/v1/:path*" }
-  ]
+  "buildCommand": "node scripts/bootstrap-index.mjs",
+  "outputDirectory": ".",
+  "installCommand": "echo no-install"
 }
