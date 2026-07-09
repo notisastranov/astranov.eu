@@ -70,7 +70,8 @@ setTimeout(() => {
   // Spawn all 4 primordial circles as per living truth
   Circles.spawn({ id: 'economics', type: 'economics', title: 'ECONOMICS', size: '180px', left: '12px', top: '12px', content: '<b>AVC Balance</b><br>0.00<br><small>Wallet + ledger in circle</small>' });
   Circles.spawn({ id: 'radar', type: 'radar', title: 'RADAR', size: '180px', right: '12px', top: '12px', content: '<b>Active Orders</b><br>Nearby vendors<br>ETAs' });
-  Circles.spawn({ id: 'ai', type: 'ai', title: 'ASTRANOV AI', size: '220px', right: '12px', bottom: '12px', content: '<b>ACI Heartbeat</b><br>Click for chat<br>Providers orbiting' });
+  const aiCircle = Circles.spawn({ id: 'ai', type: 'ai', title: 'ASTRANOV AI', size: '220px', right: '12px', bottom: '12px', content: '<b>ACI Heartbeat</b><br>Click for chat<br>Providers orbiting' });
+  Circles.addComplaintButton(aiCircle && aiCircle.el, 'AI circle / ACI');
 
   // Main View/CLI circle (replaces old deck)
   const cliCircle = Circles.spawn({

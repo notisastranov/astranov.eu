@@ -271,6 +271,29 @@ const Circles = {
   showView(title, html) {
     const view = this.spawn({ id: 'view-' + Date.now(), type: 'view', title, content: html, size: '280px' });
     return view;
+  },
+
+  // Monitor: add complaint sender for usage/complaints from web app
+  addComplaintButton(circleEl, context) {
+    if (!circleEl) return;
+    const body = circleEl.querySelector('.circle-content') || circleEl.querySelector('.cc-body');
+    if (!body) return;
+    const btn = document.createElement('button');
+    btn.textContent = 'Report issue / complaint';
+    btn.style.cssText = 'margin-top:8px;padding:4px 8px;font-size:10px;background:rgba(200,50,50,0.3);border:1px solid #f66;color:#f66;cursor:pointer';
+    btn.onclick = () => {
+      const detail = prompt('Describe the complaint/usage issue:', context || 'UI or feature problem');
+      if (detail) {
+        if (window.fetch) {
+          fetch('https://lkoatrkhuigdolnjsbie.supabase.co/functions/v1/debug-write', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI' },
+            body: JSON.stringify({ type: 'user_complaint', detail, context, ts: Date.now(), session: window._sessionId || 'web' })
+          }).then(() => alert('Complaint sent for monitoring.')).catch(() => {});
+        }
+      }
+    };
+    body.appendChild(btn);
   }
 };
 

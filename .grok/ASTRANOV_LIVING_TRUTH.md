@@ -20,17 +20,16 @@
 - Full ACI (aicycle/brain/council).
 - Pilot, groupOrder real.
 
-**Current State (Autonomous):**
-- Celestial Circles system live (src/64 + injections).
-- GlobeDeck refactored to pure circle.
-- Rects stripped/hidden.
-- Pure globe + circles for CLI/ACI.
-- Changes pushed.
-- App compliant and maintaining.
+**Monitored Data (from logs, debug-reader simulation, storage, code):**
+- High prompt tokens in ACI think (~210k, reduced history in update).
+- Client init/render errors (added global send to debug-write).
+- ACI errors and complaints (added _sendComplaint and user button in AI circle).
+- Usage: frequent stats, think, log calls; network logs show activity.
+- No direct remote data (functions returned 500/400 - possible deploy or key issue), so enhanced client monitoring.
 
 **Update Policy (MANDATORY):**
 - ALWAYS pack changes into **daily updates** only.
-- One batched commit/push per day (or significant session end).
+- One batched commit/push per day.
 - Multiple files in single push_files call.
 - Supabase: Batch deploys once per daily.
 - Vercel: Trigger once per daily.
