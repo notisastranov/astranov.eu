@@ -20,7 +20,7 @@ function animate() {
         t.scale.set(1, thrustScale, 1);
         t.material.opacity = 0.5 + Math.sin(t * 3) * 0.3;
       });
-    }
+    };
 
     // Occasional thruster particle bursts (when pilot active)
     if (Date.now() % 380 < 30 && window._pilot) {
@@ -64,8 +64,8 @@ setTimeout(() => {
 
   // Spawn all 4 primordial circles as per living truth
   Circles.spawn({ id: 'economics', type: 'economics', title: 'ECONOMICS', size: '180px', left: '12px', top: '12px', content: '<b>AVC Balance</b><br>0.00<br><small>Wallet + ledger in circle</small>' });
-  Circles.spawn({ id: 'radar', type: 'radar', title: 'RADAR', size: '180px', right: '12px', top: '12px', content: '<b>Active Orders</b><br>Nearby vendors<br>ETAs' });
-  const aiCircle = Circles.spawn({ id: 'ai', type: 'ai', title: 'ASTRANOV AI', size: '220px', right: '12px', bottom: '12px', content: '<b>ACI Heartbeat</b><br>Click for chat<br>Providers orbiting' });
+  Circles.spawn({ id: 'radar', type: 'radar', title: 'RADAR', size: '180px', right: '12px', top: '12px', content: '<b>Active Orders</b><br>Nearby vendors<br>ETAs<br><small>(live updates)</small>' });
+  const aiCircle = Circles.spawn({ id: 'ai', type: 'ai', title: 'ASTRANOV AI', size: '220px', right: '12px', bottom: '12px', content: '<b>ACI Heartbeat</b><br>Click for chat<br>Providers orbiting<br><small>(live stats)</small>' });
   Circles.addComplaintButton(aiCircle && aiCircle.el, 'AI circle / ACI');
 
   // Main View/CLI circle (replaces old deck)
@@ -157,7 +157,6 @@ setInterval(() => NewsFeed.tick(), 12000);
 setTimeout(() => {
   // auto demo if needed (globe focused)
 }, 25000);
-
 // Domain guard
 const host = location.hostname || '';
 const isOfficial = host === 'astranov.eu' || host.endsWith('.astranov.eu');
@@ -167,3 +166,4 @@ if (host && !isOfficial && !isLocal) {
 }
 
 // No panel restore needed - pure globe mode
+// me already set as Αξάς above

@@ -20,6 +20,7 @@ const Circles = {
       if (e.key === 'Escape') this._collapseAllNonPinned();
     });
     console.log('%c[Circles] Celestial UI system active - no rectangles allowed', 'color:#0a0');
+    // 2026-07-09 milk: ACI live responses, el-GR voice "Τι θες Αξάς;", Pilot ΤΗΛΕΜΑΧΟΣ, CLI voice/pilot in primordials
   },
 
   _injectStyles() {
@@ -200,7 +201,7 @@ const Circles = {
 
     circle.addEventListener('touchmove', (e) => {
       if (!dragging) return;
-      onMove(e.touches[0].clientX, e.touches[0].clientY);
+      onMove(e.touches[0].clientX, e.clientY);
       e.preventDefault();
     }, { passive: false });
 
@@ -210,6 +211,25 @@ const Circles = {
         this._savePos(id, circle);
       }
     });
+
+    // Long-press on rim/header to pin (per specs)
+    let pressTimer = null;
+    const rimOrHeader = circle.querySelector('.circle-rim') || header;
+    const startPress = (e) => {
+      clearTimeout(pressTimer);
+      pressTimer = setTimeout(() => {
+        circle.classList.toggle('pinned');
+        this._savePos(id, circle);
+        console.log('[Circles] long-press pin toggle', id, circle.classList.contains('pinned'));
+      }, 650);
+    };
+    const cancelPress = () => clearTimeout(pressTimer);
+    rimOrHeader.addEventListener('mousedown', startPress);
+    rimOrHeader.addEventListener('mouseup', cancelPress);
+    rimOrHeader.addEventListener('mouseleave', cancelPress);
+    rimOrHeader.addEventListener('touchstart', startPress, { passive: true });
+    rimOrHeader.addEventListener('touchend', cancelPress);
+    rimOrHeader.addEventListener('touchcancel', cancelPress);
   },
 
   _makePinchable(circle, id) {
@@ -307,7 +327,6 @@ const Circles = {
 };
 
 window.Circles = Circles;
-
 // Auto-init on load
 if (typeof window !== 'undefined') {
   setTimeout(() => Circles.init && Circles.init(), 120);
