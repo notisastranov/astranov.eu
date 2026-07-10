@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710190000-globe-navigate-vendor-tile-eta" />
+<meta name="astranov-build" content="20260710200000-support-digest-daily" />
 <meta name="astranov-mission" content="SpaceNet: solar-global-national-city-street unify internet under realistic space imagery" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
 <!-- RESTORED + MILKED + ADVANCED build 20260710132000 force deploy celestial full app -->
@@ -1039,10 +1039,19 @@ const container = document.getElementById('globe');
 // Robust WebGL + error guard so user never sees silent black
 window.addEventListener('error', function(e) {
   try {
+    window.MissionSupportReporter?.recordProblem?.('js_error', e.message || 'unknown', {
+      file: e.filename, line: e.lineno, col: e.colno,
+    });
     const msg = document.createElement('div');
     msg.style.cssText = 'position:fixed;bottom:8px;left:8px;padding:4px 8px;background:rgba(20,0,0,0.7);color:#f66;font:11px/1.3 monospace;z-index:99999;pointer-events:none;';
     msg.textContent = 'Init/Render error: ' + (e.message || 'unknown') + ' — try Chrome/Firefox, enable HW accel, check console';
     document.body.appendChild(msg);
+  } catch(_) {}
+});
+window.addEventListener('unhandledrejection', function(e) {
+  try {
+    const reason = e.reason?.message || String(e.reason || 'promise rejection');
+    window.MissionSupportReporter?.recordProblem?.('unhandled_rejection', reason.slice(0, 300));
   } catch(_) {}
 });
 
@@ -2194,9 +2203,19 @@ async function fetchJson(url, options, timeoutMs) {
     if (!r.ok && !j.error) j.error = 'HTTP ' + r.status;
     j._httpStatus = r.status;
     j._ok = r.ok;
+    if (!r.ok || j.error) {
+      const fn = String(url).match(/functions\/v1\/([^/?]+)/)?.[1];
+      if (fn) window.MissionSupportReporter?.recordProblem?.('api_error', String(j.error || r.status).slice(0, 200), { fn, status: r.status });
+    }
     return j;
   } catch (e) {
-    if (e.name === 'AbortError') return { error: 'timeout — server slow, try again', _timeout: true };
+    if (e.name === 'AbortError') {
+      const fn = String(url).match(/functions\/v1\/([^/?]+)/)?.[1];
+      if (fn) window.MissionSupportReporter?.recordProblem?.('api_timeout', fn, { fn });
+      return { error: 'timeout — server slow, try again', _timeout: true };
+    }
+    const fn = String(url).match(/functions\/v1\/([^/?]+)/)?.[1];
+    if (fn) window.MissionSupportReporter?.recordProblem?.('api_network', String(e.message || e).slice(0, 200), { fn });
     return { error: String(e.message || e.cause?.message || e || 'network failed') };
   } finally {
     clearTimeout(timer);
@@ -7028,6 +7047,7 @@ const AciCoders = {
     this._activityBuffer.push({ source: String(source || 'field'), detail: d, ts: Date.now(), props: props || {} });
     if (this._activityBuffer.length > 48) this._activityBuffer = this._activityBuffer.slice(-48);
     this._activityCount++;
+    MissionSupportReporter?.recordProgress?.(String(source || 'field'), d, props);
     this.updateHud();
   },
 
@@ -8017,6 +8037,123 @@ const SUPABASE_DEFAULT_URL = 'https://' + SUPABASE_REF + '.supabase.co';
 const SB_URL = typeof resolveAstranovSupabaseUrl === 'function'
   ? resolveAstranovSupabaseUrl()
   : SUPABASE_DEFAULT_URL;
+
+// === MISSION SUPPORT REPORTER — daily problems + progression → support digest ===
+const MissionSupportReporter = {
+  LS_DAY: 'astranov:support-digest-day',
+  LS_PROBLEMS: 'astranov:support-problems',
+  LS_WINS: 'astranov:support-wins',
+  CHECK_MS: 60 * 60 * 1000,
+  _bootAt: Date.now(),
+  _timer: null,
+  _submitting: false,
+
+  utcDay() {
+    return new Date().toISOString().slice(0, 10);
+  },
+
+  buildStamp() {
+    return document.querySelector('meta[name="astranov-build"]')?.content || '';
+  },
+
+  _load(key) {
+    try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch (_) { return []; }
+  },
+
+  _save(key, arr) {
+    try { localStorage.setItem(key, JSON.stringify(arr.slice(-80))); } catch (_) {}
+  },
+
+  recordProblem(type, message, context) {
+    const row = { type: String(type || 'problem'), message: String(message || '').slice(0, 400), ts: Date.now(), context: context || {} };
+    const buf = this._load(this.LS_PROBLEMS);
+    buf.push(row);
+    this._save(this.LS_PROBLEMS, buf);
+    if (buf.length >= 3) this._maybeSubmit('problem_threshold');
+  },
+
+  recordProgress(subsystem, detail, props) {
+    const s = String(subsystem || 'field');
+    if (!/order|commerce|route|delivery|vendor|driver|globe|city|mission|claim|evolve|crawler|channel/i.test(s + ' ' + (detail || ''))) return;
+    const row = { subsystem: s, detail: String(detail || '').slice(0, 200), ts: Date.now(), props: props || {} };
+    const buf = this._load(this.LS_WINS);
+    buf.push(row);
+    this._save(this.LS_WINS, buf);
+  },
+
+  collectStats() {
+    const missions = MarketplaceDeliveryEngine?.missions || [];
+    const active = missions.filter(m => MarketplaceDeliveryEngine?.STATUS?.[m.status]?.active).length;
+    return {
+      build: this.buildStamp(),
+      globe_tier: ZoomTiers?.current || CosmicZoom?.level || 'earth',
+      active_missions: active,
+      total_missions: missions.length,
+      session_minutes: Math.round((Date.now() - this._bootAt) / 60000),
+      coders_events: AciCoders?._activityCount || 0,
+      user_logged_in: !!Auth?.user,
+      host: location.hostname || '',
+    };
+  },
+
+  async submitDaily(trigger) {
+    if (this._submitting) return;
+    const today = this.utcDay();
+    let lastDay = '';
+    try { lastDay = localStorage.getItem(this.LS_DAY) || ''; } catch (_) {}
+    if (lastDay === today && trigger !== 'force') return;
+
+    this._submitting = true;
+    const problems = this._load(this.LS_PROBLEMS);
+    const progression = this._load(this.LS_WINS);
+    const stats = this.collectStats();
+    const fnUrl = (typeof resolveAstranovFunctionsUrl === 'function' ? resolveAstranovFunctionsUrl() : SB_URL + '/functions/v1') + '/support-digest';
+    const key = ACI?.key || '';
+    const sessionId = window._sessionId || AiRouter?._sessionId || 'web';
+
+    try {
+      const r = await fetch(fnUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: key, Authorization: 'Bearer ' + key },
+        body: JSON.stringify({
+          action: 'client_report',
+          digest_date: today,
+          session_id: sessionId,
+          build: stats.build,
+          problems,
+          progression,
+          stats,
+          trigger: trigger || 'daily',
+          force_daily: true,
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (j.ok) {
+        try { localStorage.setItem(this.LS_DAY, today); } catch (_) {}
+        this._save(this.LS_PROBLEMS, []);
+        this._save(this.LS_WINS, []);
+        if (j.notified) GlobeDeck?.log?.('Support digest sent · ' + today, 'dim');
+        else if (!j.skipped) GlobeDeck?.log?.('Support digest stored · ' + today, 'dim');
+      }
+    } catch (_) { /* retry next hour */ }
+    finally { this._submitting = false; }
+  },
+
+  _maybeSubmit(reason) {
+    const today = this.utcDay();
+    let lastDay = '';
+    try { lastDay = localStorage.getItem(this.LS_DAY) || ''; } catch (_) {}
+    if (lastDay !== today) void this.submitDaily(reason);
+  },
+
+  init() {
+    setTimeout(() => this._maybeSubmit('boot'), 8000);
+    if (this._timer) clearInterval(this._timer);
+    this._timer = setInterval(() => this._maybeSubmit('hourly'), this.CHECK_MS);
+    this.recordProgress('mission', 'SpaceNet boot · build ' + this.buildStamp(), { subsystems: ['GlobeNavigate', 'MarketplaceDeliveryEngine', 'SpaceNetBrain', 'ClassifiedTriangles'] });
+  },
+};
+window.MissionSupportReporter = MissionSupportReporter;
 
 const ACI = {
   name: 'Astranov Collective Intelligence',
@@ -15023,6 +15160,7 @@ ClassifiedTriangles.init();
 MarketplaceDeliveryEngine.init();
 DrivingView.init();
 AiRouter.init();
+MissionSupportReporter.init();
 
 LazyModules.schedule();
 
