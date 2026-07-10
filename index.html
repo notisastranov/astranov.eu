@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Astranov</title>
+<title>Astranov • RESTORED + MILKED + ADVANCED 2026-07-10</title>
 <meta name="compliance-check" content="astranov-field-brain-multi-role-2026-06-24">
 <meta name="aci-session" content="Astranov Collective Intelligence">
 <meta name="theme-color" content="#0a1020" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710210000-support-digest-spacexai" />
+<meta name="astranov-build" content="20260710220000-restore-advance-milk" />
 <meta name="astranov-mission" content="SpaceNet: solar-global-national-city-street unify internet under realistic space imagery" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
-<!-- RESTORED + MILKED + ADVANCED build 20260710132000 force deploy celestial full app -->
+<!-- RESTORED + MILKED + ADVANCED build 20260710220000 force deploy celestial full app -->
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -127,7 +127,8 @@
   #globe { position:absolute; top:0; left:0; right:0; bottom:0; touch-action:none; z-index:2; }
   /* Legacy rect panels hidden — globe-deck CLI is the UI */
   #coders-hub-panel, #coders-hub-trigger, .deck, [id*="modal"], .rect-ui { display:none !important; }
-  .celestial-circle { display:none !important; pointer-events:none !important; }
+  /* celestial-circle enabled for RESTORED + ADVANCED full UI */
+  .celestial-circle { display: block; }
   #globe canvas { display:block; cursor:grab; opacity:var(--globe-opacity,1); transition:opacity 0.55s cubic-bezier(0.4,0,0.2,1); }
   #globe canvas.dragging { cursor:grabbing; }
   #globe.city-map-active canvas { opacity:0 !important; pointer-events:none; }
