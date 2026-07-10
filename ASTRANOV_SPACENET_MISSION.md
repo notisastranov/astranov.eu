@@ -192,6 +192,18 @@ Own routing layer on OSRM:
 - **One-way protection** — warns when depart bearing conflicts with user heading  
 - Used by `DrivingView.fetchRoadRoute`
 
+### Marketplace Delivery Engine (2026-07-10)
+
+Decentralized delivery — **no central support** · client · vendor · driver P2P:
+
+- **MarketplaceDeliveryEngine** — triangle (driver→vendor→client) expands to **polygon** for multi-stop routes  
+- Routes use **AstranovRoutingEngine** (avoid lights, turns, one-ways) — glowing lines on globe + clickable Leaflet polylines  
+- Tap route → `#delivery-route-hud` (order data · message · video · phone)  
+- Order **not active** until assigned driver **accepts** (`driver_accept` via CLI `claim` or HUD button)  
+- **Instant AVC** — vendor + driver credited on accept (`order-intake` payouts)  
+- **Channel manager** — `channel_import` for Wolt/eFood/Uber Eats unification metadata  
+- **24/7/365** — `MarketplaceComms` + `MapComms` task polygon chat
+
 ### Smooth zoom law (2026-07-10)
 
 - Wheel/pinch = **continuous** `GlobeZoom` only — `ZoomTiers.syncFromCamZ` updates labels, never snaps camera mid-scroll  
