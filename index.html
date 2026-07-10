@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710160000-spacenet-brain-triangles-routing" />
+<meta name="astranov-build" content="20260710173000-marketplace-delivery-engine" />
 <meta name="astranov-mission" content="SpaceNet: solar-global-national-city-street unify internet under realistic space imagery" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
 <!-- RESTORED + MILKED + ADVANCED build 20260710132000 force deploy celestial full app -->
@@ -537,6 +537,15 @@
   #spacenet-map-plus:active { transform:scale(0.94); }
   body.globe-flying #spacenet-map-plus, body.site-shell-open #spacenet-map-plus { opacity:0.35; pointer-events:none; }
   body.cosmic-solar #spacenet-map-plus { bottom:calc(72px + env(safe-area-inset-bottom)); }
+  #delivery-route-hud { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:185; width:min(340px,94vw); padding:12px 14px; border-radius:14px; background:var(--ax-panel-strong); border:1px solid var(--ax-green-border); font:11px/1.45 system-ui; color:var(--an-text); pointer-events:auto; box-shadow:0 6px 24px rgba(0,0,0,0.55),0 0 16px var(--ax-green-glow); backdrop-filter:blur(12px); }
+  #delivery-route-hud.open { display:block; }
+  #drh-type { color:var(--ax-green-bright); font-size:10px; margin-bottom:4px; }
+  #drh-title { font-weight:700; font-size:13px; margin-bottom:6px; }
+  #drh-body { color:var(--an-muted); font-size:10px; margin-bottom:10px; white-space:pre-wrap; max-height:140px; overflow:auto; }
+  #drh-comms { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:8px; }
+  #drh-comms button { padding:9px 4px; border-radius:10px; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); font-size:10px; font-weight:600; cursor:pointer; touch-action:manipulation; }
+  #drh-accept { width:100%; padding:10px; border-radius:10px; border:1px solid var(--ax-green-border); background:var(--ax-green-bg); color:#fff; font-weight:700; cursor:pointer; margin-bottom:6px; display:none; }
+  #drh-close { width:100%; padding:8px; border-radius:10px; border:1px solid #666; background:transparent; color:#aaa; cursor:pointer; font-size:11px; }
   /* Astranov Identity modal */
   #astranov-auth-modal { display:none; position:fixed; inset:0; z-index:200; align-items:center; justify-content:center; background:rgba(0,4,12,0.82); backdrop-filter:blur(8px); pointer-events:auto; }
   #astranov-auth-modal.open { display:flex; }
@@ -781,6 +790,18 @@
     <button type="button" data-ms="dark" title="Dark streets · names"></button>
   </div>
   <button id="spacenet-map-plus" type="button" title="Plus field — tell AI what you want to do" aria-label="Open plus field">+</button>
+  <div id="delivery-route-hud" aria-label="Delivery route details">
+    <div id="drh-type">▸ Delivery route</div>
+    <div id="drh-title">—</div>
+    <div id="drh-body"></div>
+    <div id="drh-comms">
+      <button type="button" data-drh="message">💬 Message</button>
+      <button type="button" data-drh="video">📹 Video</button>
+      <button type="button" data-drh="phone">☎ Phone</button>
+    </div>
+    <button id="drh-accept" type="button">✓ Accept delivery assignment</button>
+    <button id="drh-close" type="button">✖ Close</button>
+  </div>
   <div id="city-life-chip"></div>
   <div id="globe-entity-labels"></div>
   <svg id="map-comms-beam" aria-hidden="true"></svg>
@@ -1970,6 +1991,30 @@ const FieldBrain = {
   hookFeed() {},
   pulse() {},
   onAuth() {},
+  async claimDelivery(orderId) {
+    const id = String(orderId || '').trim();
+    if (!id) return { error: 'order id required' };
+    if (!Auth?.user) return { error: 'login required' };
+    try {
+      const headers = await Auth.authHeaders?.();
+      const r = await fetch(SB_URL + '/functions/v1/order-intake', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'driver_accept', order_id: id }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (j.ok && j.order) {
+        await MarketplaceDeliveryEngine?.onDriverAccepted?.(j.order, j.vendor, j.driver);
+        ACIControl?.reply?.('Delivery accepted · triangle active · ' + (j.order.short_id || id));
+        AciCli?.print?.('driver accept · ' + (j.order.short_id || id), 'ok');
+      } else {
+        ACIControl?.reply?.('Accept failed · ' + (j.error || j.message || 'server'));
+      }
+      return j;
+    } catch (e) {
+      return { error: String(e.message || e) };
+    }
+  },
 };
 window.FieldBrain = FieldBrain;
 
@@ -2252,6 +2297,344 @@ const AstranovRoutingEngine = {
   },
 };
 window.AstranovRoutingEngine = AstranovRoutingEngine;
+
+// === MARKETPLACE DELIVERY ENGINE — triangle/polygon routes · P2P · no central support ===
+const MarketplaceDeliveryEngine = {
+  missions: [],
+  _globeGroup: null,
+  _globeMeshes: [],
+  _pulse: 0,
+  _selectedId: null,
+  CHANNELS: ['wolt', 'efood', 'box', 'uber_eats', 'glovo', 'bolt_food', 'custom'],
+
+  STATUS: {
+    pending: { label: 'Pending vendor', color: 0xffaa33, active: false },
+    seeking_driver: { label: 'Seeking driver', color: 0xffaa33, active: false },
+    assigned: { label: 'Awaiting driver sign', color: 0x3d9eff, active: false },
+    active: { label: 'Delivery active', color: 0x00dd88, active: true },
+    en_route: { label: 'On route', color: 0x44ccff, active: true },
+    delivered: { label: 'Delivered', color: 0x00ff88, active: false },
+    cancelled: { label: 'Cancelled', color: 0xff3344, active: false },
+  },
+
+  init() {
+    document.getElementById('drh-close')?.addEventListener('click', () => this.closeHud());
+    document.getElementById('drh-accept')?.addEventListener('click', () => void this.acceptFromHud());
+    document.getElementById('delivery-route-hud')?.querySelectorAll('[data-drh]').forEach(btn => {
+      btn.addEventListener('click', () => this._comms(btn.dataset.drh));
+    });
+  },
+
+  haversineM(lat1, lng1, lat2, lng2) {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  },
+
+  _isActive(order) {
+    const s = order?.status || 'pending';
+    return s === 'active' || s === 'en_route' || s === 'picked_up' || s === 'assigned' && order?.driver_accepted_at;
+  },
+
+  _stopsFromOrder(order, vendor, driver, client) {
+    const drv = driver || {};
+    const driverPt = {
+      role: 'driver',
+      lat: drv.field_lat ?? window._driverBase?.lat ?? window._lastPos?.lat,
+      lng: drv.field_lng ?? window._driverBase?.lng ?? window._lastPos?.lng,
+      label: drv.display_name || order?.driver_name || 'Driver',
+      id: drv.id || order?.driver_id,
+    };
+    const vendorPt = {
+      role: 'vendor',
+      lat: vendor?.lat ?? order?.vendor_lat,
+      lng: vendor?.lng ?? order?.vendor_lng,
+      label: vendor?.name || 'Vendor',
+      id: vendor?.id || order?.vendor_id,
+    };
+    const clientPt = {
+      role: 'client',
+      lat: client?.lat ?? order?.delivery_lat,
+      lng: client?.lng ?? order?.delivery_lng,
+      label: client?.label || 'Client',
+      id: order?.customer_id,
+    };
+    return [driverPt, vendorPt, clientPt].filter(p => p.lat != null && p.lng != null);
+  },
+
+  _orderStopsGreedy(stops) {
+    if (stops.length <= 3) return stops;
+    const driver = stops.find(s => s.role === 'driver') || stops[0];
+    const rest = stops.filter(s => s !== driver);
+    const ordered = [driver];
+    let cur = driver;
+    while (rest.length) {
+      let best = 0;
+      let bestD = Infinity;
+      rest.forEach((s, i) => {
+        const d = this.haversineM(cur.lat, cur.lng, s.lat, s.lng);
+        if (d < bestD) { bestD = d; best = i; }
+      });
+      cur = rest.splice(best, 1)[0];
+      ordered.push(cur);
+    }
+    return ordered;
+  },
+
+  async buildRoute(stops, opts) {
+    opts = opts || {};
+    const ordered = this._orderStopsGreedy(stops);
+    const allCoords = [];
+    const legs = [];
+    let totalDur = 0;
+    let totalDist = 0;
+    let totalScore = 0;
+    for (let i = 0; i < ordered.length - 1; i++) {
+      const leg = await AstranovRoutingEngine.route(ordered[i], ordered[i + 1], null, { heading: opts.heading });
+      if (!leg?.route) continue;
+      const seg = leg.route.geometry.coordinates.map(c => ({ lng: c[0], lat: c[1] }));
+      if (allCoords.length && seg.length) seg.shift();
+      allCoords.push(...seg);
+      legs.push({ from: ordered[i], to: ordered[i + 1], duration: leg.duration, distance: leg.distance, score: leg.route ? AstranovRoutingEngine.scoreRoute(leg.route) : 0 });
+      totalDur += leg.duration || 0;
+      totalDist += leg.distance || 0;
+      totalScore += legs[legs.length - 1].score;
+    }
+    return { coords: allCoords, legs, ordered, duration: totalDur, distance: totalDist, score: totalScore };
+  },
+
+  async activateTriangle({ order, vendor, driver, client, channel }) {
+    if (!order?.id) return null;
+    const stops = this._stopsFromOrder(order, vendor, driver, client);
+    if (stops.length < 2) return null;
+    const route = await this.buildRoute(stops);
+    const active = this._isActive(order) || order.status === 'assigned';
+    const mission = {
+      id: String(order.id),
+      order,
+      vendor,
+      driver,
+      client: client || { lat: order.delivery_lat, lng: order.delivery_lng },
+      stops,
+      route,
+      channel: channel || order.channel || null,
+      status: order.status,
+      active: active && !!order.driver_accepted_at,
+      createdAt: Date.now(),
+    };
+    const idx = this.missions.findIndex(m => m.id === mission.id);
+    if (idx >= 0) this.missions[idx] = mission;
+    else this.missions.push(mission);
+    if (mission.active) this.renderMission(mission);
+    else this._renderPendingTriangle(mission);
+    return mission;
+  },
+
+  async addDeliveryToRoute(missionId, extra) {
+    const m = this.missions.find(x => x.id === missionId);
+    if (!m) return null;
+    const newStop = {
+      role: 'client',
+      lat: extra.delivery_lat,
+      lng: extra.delivery_lng,
+      label: extra.label || 'Stop',
+      orderId: extra.order_id,
+    };
+    m.stops.push({ role: 'vendor', lat: extra.vendor_lat, lng: extra.vendor_lng, label: extra.vendor_name || 'Vendor' });
+    m.stops.push(newStop);
+    m.polygon = true;
+    m.route = await this.buildRoute(m.stops);
+    m.active = true;
+    this.renderMission(m);
+    return m;
+  },
+
+  _renderPendingTriangle(mission) {
+    const tri = mission.stops;
+    if (tri.length < 3) return;
+    const pts = tri.map(s => {
+      const p = latLngToPos(s.lat, s.lng, 1.028);
+      return new THREE.Vector3(p.x, p.y, p.z);
+    });
+    pts.push(pts[0].clone());
+    this._addGlobeRoute(mission.id + ':tri', pts, 0x3d9eff, 0.35, { dashed: true, mission, pending: true });
+  },
+
+  renderMission(mission) {
+    if (!mission?.route?.coords?.length) return;
+    this._clearMissionViz(mission.id);
+    const coords = mission.route.coords;
+    const pts = coords.map(c => {
+      const p = latLngToPos(c.lat, c.lng, 1.027);
+      return new THREE.Vector3(p.x, p.y, p.z);
+    });
+    const st = this.STATUS[mission.status] || this.STATUS.active;
+    const color = st.color || 0x00dd88;
+    this._addGlobeRoute(mission.id, pts, color, 0.88, { mission, clickable: true });
+    if (mission.stops?.length >= 3) {
+      const ring = mission.stops.map(s => {
+        const p = latLngToPos(s.lat, s.lng, 1.029);
+        return new THREE.Vector3(p.x, p.y, p.z);
+      });
+      ring.push(ring[0].clone());
+      this._addGlobeRoute(mission.id + ':poly', ring, color, mission.polygon ? 0.55 : 0.38, { mission, ring: true });
+    }
+    CityMap?.setDeliveryRoute?.(mission.id, coords, {
+      color: '#' + color.toString(16).padStart(6, '0'),
+      active: mission.active,
+      onClick: () => this.showHud(mission),
+    });
+    DrivingView?.setRoutePlan?.({
+      from: mission.stops[0],
+      via: mission.stops[1],
+      to: mission.stops[mission.stops.length - 1],
+    });
+    DrivingView.routeCoords = coords;
+    DrivingView.drawRoute?.();
+  },
+
+  _addGlobeRoute(key, points, color, opacity, meta) {
+    if (!globePivot || points.length < 2) return;
+    const glow = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(points),
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity: opacity * 0.28 })
+    );
+    const core = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(points),
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity })
+    );
+    glow.userData = { deliveryRoute: true, routeKey: key, ...meta };
+    core.userData = { deliveryRoute: true, routeKey: key, ...meta };
+    globePivot.add(glow);
+    globePivot.add(core);
+    this._globeMeshes.push(glow, core);
+  },
+
+  _clearMissionViz(id) {
+    this._globeMeshes = this._globeMeshes.filter(m => {
+      const k = m.userData?.routeKey || '';
+      if (String(k).startsWith(id)) {
+        if (m.parent) m.parent.remove(m);
+        return false;
+      }
+      return true;
+    });
+    CityMap?.removeDeliveryRoute?.(id);
+  },
+
+  showHud(mission) {
+    if (!mission) return;
+    this._selectedId = mission.id;
+    const hud = document.getElementById('delivery-route-hud');
+    if (!hud) return;
+    hud.classList.add('open');
+    const st = this.STATUS[mission.status] || { label: mission.status };
+    const items = Array.isArray(mission.order?.items) ? mission.order.items.map(i => (i.qty || 1) + '× ' + (i.name || i)).join(', ') : '';
+    const calc = mission.order?.calc || {};
+    const km = mission.route?.distance ? (mission.route.distance / 1000).toFixed(1) + ' km' : '?';
+    const min = mission.route?.duration ? Math.round(mission.route.duration / 60) + ' min' : '?';
+    document.getElementById('drh-type').textContent = mission.polygon ? '▸ Delivery polygon' : '▸ Delivery triangle';
+    document.getElementById('drh-title').textContent = (mission.order?.short_id || mission.id.slice(0, 8)) + ' · ' + st.label;
+    const lines = [
+      '🏬 ' + (mission.vendor?.name || 'Vendor'),
+      '🚚 ' + (mission.driver?.display_name || mission.order?.driver_name || 'Driver'),
+      '📦 ' + items.slice(0, 80),
+      '◎ Route · ' + km + ' · ~' + min + ' · score ' + Math.round(mission.route?.score || 0),
+      '💰 ' + (calc.total_avc != null ? calc.total_avc + ' AVC' : (calc.total_eur != null ? calc.total_eur + ' EUR' : '')),
+      mission.channel ? '🔗 Channel · ' + mission.channel : '24/7 · P2P · no central support',
+    ];
+    document.getElementById('drh-body').textContent = lines.filter(Boolean).join('\n');
+    const acceptBtn = document.getElementById('drh-accept');
+    const isDriver = Auth?.user?.id && (mission.order?.driver_id === Auth.user.id || FieldBrain?.roles?.includes?.('driver'));
+    const needsAccept = mission.order?.status === 'assigned' && !mission.order?.driver_accepted_at;
+    if (acceptBtn) acceptBtn.style.display = (isDriver && needsAccept) ? 'block' : 'none';
+    MapPlaceMenu?.close?.();
+    GlobeDeck?.setPreview?.('Delivery route · tap comms for vendor/client/driver');
+  },
+
+  closeHud() {
+    document.getElementById('delivery-route-hud')?.classList.remove('open');
+    this._selectedId = null;
+  },
+
+  async acceptFromHud() {
+    const m = this.missions.find(x => x.id === this._selectedId);
+    const oid = m?.order?.id || m?.order?.short_id;
+    if (!oid) return;
+    await FieldBrain?.claimDelivery?.(oid);
+    this.closeHud();
+  },
+
+  _comms(kind) {
+    const m = this.missions.find(x => x.id === this._selectedId);
+    if (!m) return;
+    const target = kind === 'message' ? (m.driver || m.vendor) : (m.driver || m.vendor);
+    const uid = target?.id || m.order?.driver_id || m.vendor?.owner_id;
+    if (!uid) {
+      ACIControl?.reply?.('Open Marketplace cloud chat — vendor · driver · client');
+      return;
+    }
+    LazyModules.ensure().then(() => {
+      if (kind === 'message') MapComms?.contactMenu?.({ id: uid, name: target?.display_name || target?.name || 'User' });
+      else if (kind === 'video') MapComms?.contactUser?.(uid, 'video');
+      else MapComms?.contactUser?.(uid, 'voice');
+    });
+  },
+
+  async onOrderPlaced(order, vendor, driver) {
+    const seeking = !order?.driver_id || order?.status === 'seeking_driver';
+    const mission = await this.activateTriangle({ order, vendor, driver, client: window._clientDelivery });
+    if (seeking) {
+      ACIControl?.reply?.('Order placed · awaiting signed driver before triangle activates');
+    } else if (!order?.driver_accepted_at) {
+      ACIControl?.reply?.('Driver assigned · must accept before route goes live');
+    }
+    return mission;
+  },
+
+  async onDriverAccepted(order, vendor, driver) {
+    if (!order) return;
+    order.driver_accepted_at = order.driver_accepted_at || new Date().toISOString();
+    order.status = 'active';
+    const mission = await this.activateTriangle({ order, vendor, driver, client: window._clientDelivery });
+    if (mission) {
+      mission.active = true;
+      this.renderMission(mission);
+      MarketplaceComms?.openForOrder?.({ order, vendor, drivers: driver ? [driver] : [], seeking_driver: false });
+    }
+    return mission;
+  },
+
+  pickFromGlobeHit(hit) {
+    const o = hit?.object;
+    if (!o?.userData?.deliveryRoute || !o.userData.mission) return false;
+    this.showHud(o.userData.mission);
+    return true;
+  },
+
+  tick() {
+    if (!this._globeMeshes.length) return;
+    this._pulse += 0.035;
+    this._globeMeshes.forEach((ln, i) => {
+      if (!ln.material || ln.userData?.pending) return;
+      const base = ln.userData?.ring ? 0.4 : 0.75;
+      ln.material.opacity = base * (0.82 + Math.sin(this._pulse + i * 0.4) * 0.18);
+    });
+  },
+
+  importChannelOrder(payload) {
+    payload = payload || {};
+    return this.activateTriangle({
+      order: payload.order,
+      vendor: payload.vendor,
+      driver: payload.driver,
+      channel: payload.channel || 'custom',
+    });
+  },
+};
+window.MarketplaceDeliveryEngine = MarketplaceDeliveryEngine;
 
 const DrivingView = {
   active: false, speed: 0, mode: 'still', watchId: null, lastFix: null, lastTime: 0,
@@ -10068,6 +10451,9 @@ function onGlobeClick(e) {
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
 
+  const routeHits = raycaster.intersectObjects(MarketplaceDeliveryEngine?._globeMeshes || [], true);
+  if (routeHits.length > 0 && MarketplaceDeliveryEngine?.pickFromGlobeHit?.(routeHits[0])) return;
+
   const markerHits = raycaster.intersectObjects(globeClickTargets(), true);
   if (markerHits.length > 0) {
     const hit = markerHits[0].object;
@@ -11121,6 +11507,48 @@ const CityMap = {
     this._syncRoute();
   },
 
+  _deliveryRoutes: {},
+
+  setDeliveryRoute(id, coords, opts) {
+    opts = opts || {};
+    if (!id) return;
+    this._deliveryRoutes[id] = { coords: coords || [], opts };
+    this._syncDeliveryRoutes();
+  },
+
+  removeDeliveryRoute(id) {
+    if (this._deliveryRoutes[id]) {
+      const layer = this._deliveryRoutes[id].layer;
+      if (layer && this.map) try { this.map.removeLayer(layer); } catch (_) {}
+      delete this._deliveryRoutes[id];
+    }
+  },
+
+  _syncDeliveryRoutes() {
+    if (!this.map) return;
+    const show = this.active || this._nationalActive || (this._blend || 0) > 0.08;
+    Object.keys(this._deliveryRoutes).forEach(id => {
+      const rec = this._deliveryRoutes[id];
+      if (rec.layer) {
+        try { this.map.removeLayer(rec.layer); } catch (_) {}
+        rec.layer = null;
+      }
+      if (!show || !rec.coords?.length) return;
+      const latlngs = rec.coords.map(c => [c.lat, c.lng]);
+      const color = rec.opts?.color || ((AstranovTheme?.effectiveMode?.() || 'dark') === 'bright' ? '#00aa66' : '#00dd88');
+      rec.layer = L.polyline(latlngs, {
+        color,
+        weight: 6,
+        opacity: 0.9,
+        className: 'delivery-route-line',
+      }).addTo(this.map);
+      rec.layer.on('click', (e) => {
+        L.DomEvent.stopPropagation(e);
+        rec.opts?.onClick?.();
+      });
+    });
+  },
+
   _syncRoute() {
     if (!this.map) return;
     if (this._route) {
@@ -11128,13 +11556,18 @@ const CityMap = {
       this._route = null;
     }
     const coords = this._routeCoords || DrivingView?.routeCoords || [];
-    if (!coords.length || !this.active) return;
+    const show = this.active || this._nationalActive || (this._blend || 0) > 0.08;
+    if (!coords.length || !show) {
+      this._syncDeliveryRoutes();
+      return;
+    }
     const latlngs = coords.map(c => [c.lat, c.lng]);
     this._route = L.polyline(latlngs, {
       color: (AstranovTheme?.effectiveMode?.() || AstranovTheme?.mode) === 'bright' ? '#0066cc' : '#44ccff',
       weight: 5,
       opacity: 0.88,
     }).addTo(this.map);
+    this._syncDeliveryRoutes();
   },
 };
 window.CityMap = CityMap;
@@ -14062,6 +14495,7 @@ function animate() {
   if (!drag && !window._globeFly) TrackballGuard?.applyInertia?.();
   GlobeZoom?.tick?.();
   tickGlobeFly?.();
+  MarketplaceDeliveryEngine?.tick?.();
   if (frame % _slumberDiv('orbital') === 0) window.updateOrbital?.();
 
   if (!hidden && frame % _slumberDiv('entity') === 0) {
@@ -14117,6 +14551,7 @@ MapPins.init();
 MapOverlayDismiss.init();
 GlobeEntity.init();
 ClassifiedTriangles.init();
+MarketplaceDeliveryEngine.init();
 DrivingView.init();
 AiRouter.init();
 
