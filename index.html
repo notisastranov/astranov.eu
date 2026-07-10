@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710220000-marketplace-live" />
+<meta name="astranov-build" content="20260710230000-trackball-effect" />
 <meta name="astranov-mission" content="SpaceNet: solar-global-national-city-street unify internet under realistic space imagery" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
 <!-- RESTORED + MILKED + ADVANCED build 20260710230000 force deploy celestial full app -->
@@ -1265,7 +1265,7 @@ const GlobeControl = {
 };
 window.GlobeControl = GlobeControl;
 
-// === GLOBE NAVIGATE — half-trackball · national stop · click city · no jumps ===
+// === GLOBE NAVIGATE — trackball · national stop · click city · no jumps ===
 const GlobeNavigate = {
   mode: 'global',
   anchor: null,
@@ -1300,7 +1300,7 @@ const GlobeNavigate = {
   _syncChip() {
     const chip = document.getElementById('map-nav-chip');
     if (!chip) return;
-    let txt = 'GLOBAL · drag half-trackball · scroll stops at national';
+    let txt = 'GLOBAL · drag trackball · scroll stops at national';
     if (this.isCity()) txt = 'CITY z' + this.LEAFLET_ZOOM + ' · tap + for intent';
     else if (this.isNational()) txt = 'NATIONAL · tap a city to descend slowly';
     chip.textContent = txt;
@@ -10951,9 +10951,34 @@ window.ZoomTiers = ZoomTiers;
 
 // Globe gestures — primary UI (Google Earth / Maps style). CLI is secondary.
 const canvas = renderer.domElement;
-const TRACK_SENS_X = 0.0022;
-const TRACK_SENS_Y = 0.0011;
-const TRACK_SENS = TRACK_SENS_X;
+const TRACK_SENS = 0.0028;
+let trackInertiaAxis = null;
+let trackInertiaAngle = 0;
+
+function resetTrackInertia() {
+  trackVelX = 0;
+  trackVelY = 0;
+  trackInertiaAxis = null;
+  trackInertiaAngle = 0;
+}
+
+function applyTrackballDrag(dx, dy, storeInertia) {
+  if (!globePivot || (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01)) return;
+  const axis = new THREE.Vector3(dy, dx, 0);
+  const mag = axis.length();
+  if (mag < 0.25) return;
+  axis.normalize();
+  const angle = mag * TRACK_SENS;
+  const dq = new THREE.Quaternion().setFromAxisAngle(axis, angle);
+  globePivot.quaternion.premultiply(dq);
+  syncGlobePivotRotation?.();
+  if (storeInertia !== false) {
+    trackInertiaAxis = axis.clone();
+    trackInertiaAngle = angle * 0.38;
+    trackVelX = dx * TRACK_SENS * 0.38;
+    trackVelY = dy * TRACK_SENS * 0.38;
+  }
+}
 const ZOOM_MIN = 1.05;
 const ZOOM_MAX = 18;
 const ZOOM_SMOOTH = 0.11;
@@ -10978,8 +11003,7 @@ const GlobeZoom = {
   impuls(clientX, clientY, dy, deltaMode) {
     const fly = window._globeFly;
     if (fly && (fly.mode === 'zoom' || fly.tierId)) window._globeFly = null;
-    trackVelX = 0;
-    trackVelY = 0;
+    resetTrackInertia();
     const impulse = this._normDy(dy, deltaMode);
     this._vel = Math.max(-this.MAX_VEL, Math.min(this.MAX_VEL, this._vel + impulse));
     this._lastX = clientX;
@@ -11029,12 +11053,7 @@ function trackballMove(clientX, clientY) {
   const dy = clientY - py;
   px = clientX;
   py = clientY;
-  globePivot.rotation.y += dx * TRACK_SENS_X;
-  globePivot.rotation.x += dy * TRACK_SENS_Y;
-  globePivot.rotation.x = Math.max(-1.05, Math.min(1.05, globePivot.rotation.x));
-  globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
-  trackVelX = dx * TRACK_SENS_X * 0.36;
-  trackVelY = dy * TRACK_SENS_Y * 0.36;
+  applyTrackballDrag(dx, dy, true);
 }
 
 function trackballStart(clientX, clientY) {
@@ -11146,8 +11165,7 @@ function bindTrackballEvents(targetCanvas) {
     pinching = true;
     drag = false;
     dragging = false;
-    trackVelX = 0;
-    trackVelY = 0;
+    resetTrackInertia();
     pinchDist = Math.hypot(
       e.touches[0].clientX - e.touches[1].clientX,
       e.touches[0].clientY - e.touches[1].clientY
@@ -11344,8 +11362,7 @@ function tickGlobeFly() {
     document.body.classList.remove('globe-flying');
     return;
   }
-  trackVelX = 0;
-  trackVelY = 0;
+  resetTrackInertia();
   camera.position.z = f.fromZ + (f.toZ - f.fromZ) * (f.mode === 'zoom' ? smooth : ease);
   camera.lookAt(0, 0, 0);
   CosmicZoom.update(camera.position.z);
@@ -11403,7 +11420,7 @@ function showGestureHint() {
   if (sessionStorage.getItem('astranov-gesture-hint')) return;
   const el = document.createElement('div');
   el.id = 'gesture-hint';
-  el.textContent = 'Drag to move · Scroll/pinch zoom · Double-tap zoom in · stops when you release';
+  el.textContent = 'Trackball drag to spin Earth · Scroll/pinch zoom · Double-tap zoom in';
   el.style.cssText = 'position:fixed;bottom:72px;left:50%;transform:translateX(-50%);padding:8px 14px;background:rgba(0,4,12,0.88);border:1px solid rgba(26,111,212,0.45);border-radius:20px;font:12px system-ui;color:#3d9eff;text-shadow:0 0 8px rgba(26,111,212,0.45);z-index:44;pointer-events:none;opacity:1;transition:opacity 1.2s';
   document.body.appendChild(el);
   sessionStorage.setItem('astranov-gesture-hint', '1');
@@ -11454,16 +11471,19 @@ const TrackballGuard = {
   },
 
   applyInertia() {
-    if (drag || window._globeFly) return;
-    if (typeof trackVelX !== 'number' || typeof trackVelY !== 'number') return;
-    if (Math.abs(trackVelX) < this.MIN_VEL && Math.abs(trackVelY) < this.MIN_VEL) return;
-    if (!globePivot) return;
-    globePivot.rotation.y += trackVelX;
-    globePivot.rotation.x += trackVelY;
-    globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x));
-    syncGlobePivotRotation?.();
-    trackVelX *= this.FRICTION;
-    trackVelY *= this.FRICTION;
+    if (drag || window._globeFly || !globePivot) return;
+    if (trackInertiaAxis && trackInertiaAngle >= this.MIN_VEL) {
+      const dq = new THREE.Quaternion().setFromAxisAngle(trackInertiaAxis, trackInertiaAngle);
+      globePivot.quaternion.premultiply(dq);
+      syncGlobePivotRotation?.();
+      trackInertiaAngle *= this.FRICTION;
+      if (trackInertiaAngle < this.MIN_VEL) {
+        trackInertiaAngle = 0;
+        trackInertiaAxis = null;
+      }
+    }
+    if (typeof trackVelX === 'number') trackVelX *= this.FRICTION;
+    if (typeof trackVelY === 'number') trackVelY *= this.FRICTION;
     if (Math.abs(trackVelX) < this.MIN_VEL) trackVelX = 0;
     if (Math.abs(trackVelY) < this.MIN_VEL) trackVelY = 0;
   },
