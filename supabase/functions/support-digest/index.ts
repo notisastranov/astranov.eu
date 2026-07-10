@@ -11,7 +11,11 @@ const cors = {
   'Content-Type': 'application/json',
 }
 
-const SUPPORT_EMAIL = 'notisastranov@gmail.com'
+const ASTRANOV_SUPPORT_EMAIL = 'notisastranov@gmail.com'
+const SPACEXAI_SUPPORT_EMAIL = 'support@x.ai'
+
+const XAI_FN_PATTERN = /aicycle|aci|ai-router|voice|coders-bridge|brain|grok|xai/i
+const XAI_TOPIC_PATTERN = /grok|xai|coders|think|evolve|voice|chat|llm|model|composer|fallback|spell|reply/i
 
 function json(d: unknown, s = 200) {
   return new Response(JSON.stringify(d), { status: s, headers: cors })
@@ -27,6 +31,41 @@ function since24h() {
 
 function esc(s: string) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function scrubPii(s: string) {
+  return s
+    .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[email]')
+    .replace(/\b\d{10,}\b/g, '[phone]')
+}
+
+function parseRecipients(envKey: string, fallback: string): string[] {
+  const raw = Deno.env.get(envKey) || fallback
+  return raw.split(/[,;]/).map((x) => x.trim()).filter(Boolean)
+}
+
+function isXaiRelevant(item: Record<string, unknown>): boolean {
+  const blob = JSON.stringify(item)
+  if (item.vendor === 'xai' || item.vendor === 'spacexai') return true
+  const fn = String(item.fn || item.context?.fn || '')
+  if (fn && XAI_FN_PATTERN.test(fn)) return true
+  const type = String(item.type || item.action || item.subsystem || '')
+  const msg = String(item.message || item.detail || '')
+  return XAI_FN_PATTERN.test(type + msg) || XAI_TOPIC_PATTERN.test(type + ' ' + msg)
+}
+
+function filterXaiItems(items: unknown[]): Record<string, unknown>[] {
+  return (items || [])
+    .filter((x) => x && typeof x === 'object' && isXaiRelevant(x as Record<string, unknown>))
+    .map((x) => {
+      const o = { ...(x as Record<string, unknown>) }
+      if (typeof o.message === 'string') o.message = scrubPii(o.message)
+      if (typeof o.detail === 'string') o.detail = scrubPii(o.detail)
+      delete o.session
+      delete o.session_id
+      return o
+    })
+    .slice(0, 40)
 }
 
 function summarizeList(items: unknown[], max = 12): string[] {
@@ -168,11 +207,11 @@ function buildDigestText(date: string, problems: unknown[], progression: unknown
   return lines.join('\n')
 }
 
-function buildDigestHtml(date: string, problems: unknown[], progression: unknown[], stats: Record<string, unknown>) {
+function buildDigestHtml(date: string, problems: unknown[], progression: unknown[], stats: Record<string, unknown>, title = 'Astranov SpaceNet — Daily Support Digest') {
   const prob = summarizeList(problems, 15).map((l) => `<li>${esc(l)}</li>`).join('') || '<li>(none)</li>'
   const prog = summarizeList(progression, 15).map((l) => `<li>${esc(l)}</li>`).join('') || '<li>(none)</li>'
   return `<!DOCTYPE html><html><body style="font-family:system-ui,sans-serif;color:#111;max-width:640px">
-<h2>Astranov SpaceNet — Daily Support Digest</h2>
+<h2>${esc(title)}</h2>
 <p><strong>Date (UTC):</strong> ${esc(date)}</p>
 <h3>Problems</h3><ul>${prob}</ul>
 <h3>Mission progression</h3><ul>${prog}</ul>
@@ -181,8 +220,28 @@ function buildDigestHtml(date: string, problems: unknown[], progression: unknown
 </body></html>`
 }
 
-async function notifySupport(subject: string, text: string, html: string): Promise<{ ok: boolean; channel: string | null; detail?: string }> {
-  const to = Deno.env.get('SUPPORT_EMAIL') || SUPPORT_EMAIL
+function buildXaiDigestText(date: string, problems: unknown[], progression: unknown[], stats: Record<string, unknown>) {
+  const probLines = summarizeList(problems, 12)
+  const progLines = summarizeList(progression, 12)
+  return [
+    'Astranov × xAI (Grok) — Daily Integration Digest',
+    `Date (UTC): ${date}`,
+    'Partner: Astranov SpaceNet (https://astranov.eu) — Grok powers voice, coders, and collective intelligence.',
+    '',
+    `=== GROK / xAI PROBLEMS (${probLines.length}) ===`,
+    ...(probLines.length ? probLines : ['(none — Grok stack healthy)']),
+    '',
+    `=== GROK / xAI PROGRESSION (${progLines.length}) ===`,
+    ...(progLines.length ? progLines : ['(no AI field activity)']),
+    '',
+    '=== AI STATS (sanitized) ===',
+    JSON.stringify(stats, null, 2),
+    '',
+    'Please use this digest to improve Grok models, API reliability, and voice for production partners.',
+  ].join('\n')
+}
+
+async function sendEmail(to: string[], subject: string, text: string, html: string): Promise<{ ok: boolean; channel: string | null; detail?: string }> {
   const resendKey = Deno.env.get('RESEND_API_KEY')
   if (resendKey) {
     try {
@@ -191,7 +250,7 @@ async function notifySupport(subject: string, text: string, html: string): Promi
         headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           from: Deno.env.get('RESEND_FROM') || 'Astranov <onboarding@resend.dev>',
-          to: [to],
+          to,
           subject,
           text,
           html,
@@ -203,23 +262,56 @@ async function notifySupport(subject: string, text: string, html: string): Promi
       return { ok: false, channel: 'resend', detail: String(e) }
     }
   }
+  return { ok: false, channel: null, detail: 'no RESEND_API_KEY' }
+}
 
-  const webhook = Deno.env.get('SUPPORT_WEBHOOK_URL')
-  if (webhook) {
-    try {
-      const r = await fetch(webhook, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to, subject, text, html, source: 'astranov-support-digest' }),
-      })
-      if (r.ok) return { ok: true, channel: 'webhook' }
-      return { ok: false, channel: 'webhook', detail: await r.text() }
-    } catch (e) {
-      return { ok: false, channel: 'webhook', detail: String(e) }
+async function postWebhook(url: string, payload: Record<string, unknown>): Promise<{ ok: boolean; channel: string; detail?: string }> {
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    if (r.ok) return { ok: true, channel: 'webhook' }
+    return { ok: false, channel: 'webhook', detail: await r.text() }
+  } catch (e) {
+    return { ok: false, channel: 'webhook', detail: String(e) }
+  }
+}
+
+async function notifyBothSupports(
+  date: string,
+  full: { subject: string; text: string; html: string },
+  xai: { subject: string; text: string; html: string },
+) {
+  const astranovTo = parseRecipients('SUPPORT_EMAIL', ASTRANOV_SUPPORT_EMAIL)
+  const spacexaiTo = parseRecipients('SPACEXAI_SUPPORT_EMAIL', SPACEXAI_SUPPORT_EMAIL)
+
+  let astranov = await sendEmail(astranovTo, full.subject, full.text, full.html)
+  if (!astranov.ok) {
+    const hook = Deno.env.get('SUPPORT_WEBHOOK_URL')
+    if (hook) {
+      const w = await postWebhook(hook, { to: astranovTo, ...full, source: 'astranov-support-digest', audience: 'astranov' })
+      astranov = { ok: w.ok, channel: w.channel, detail: w.detail }
     }
   }
 
-  return { ok: false, channel: null, detail: 'no RESEND_API_KEY or SUPPORT_WEBHOOK_URL — digest stored only' }
+  let spacexai = await sendEmail(spacexaiTo, xai.subject, xai.text, xai.html)
+  if (!spacexai.ok) {
+    const hook = Deno.env.get('SPACEXAI_SUPPORT_WEBHOOK_URL') || Deno.env.get('XAI_SUPPORT_WEBHOOK_URL')
+    if (hook) {
+      const w = await postWebhook(hook, { to: spacexaiTo, ...xai, source: 'astranov-support-digest', audience: 'spacexai' })
+      spacexai = { ok: w.ok, channel: w.channel, detail: w.detail }
+    } else if (!Deno.env.get('RESEND_API_KEY')) {
+      spacexai = { ok: false, channel: null, detail: 'no RESEND_API_KEY or SPACEXAI_SUPPORT_WEBHOOK_URL' }
+    }
+  }
+
+  return {
+    astranov: { ...astranov, recipients: astranovTo },
+    spacexai: { ...spacexai, recipients: spacexaiTo },
+    ok: astranov.ok || spacexai.ok,
+  }
 }
 
 serve(async (req) => {
@@ -294,17 +386,47 @@ serve(async (req) => {
     const summaryHtml = buildDigestHtml(digestDate, mergedProblems, mergedProgression, allStats)
     const subject = `Astranov SpaceNet digest ${digestDate} — ${mergedProblems.length} problems · ${mergedProgression.length} wins`
 
-    const notify = await notifySupport(subject, summaryText, summaryHtml)
+    const xaiProblems = filterXaiItems(mergedProblems)
+    const xaiProgression = filterXaiItems(mergedProgression)
+    const xaiStats = {
+      build: clientStats.build || null,
+      coders_events: clientStats.coders_events || 0,
+      session_minutes: clientStats.session_minutes || 0,
+      field_events_24h: agg.server_stats.field_events_24h,
+      debug_events_24h: agg.server_stats.debug_events_24h,
+      integration: 'Grok via aicycle · aci · voice · coders-bridge · ai-router',
+    }
+    const xaiText = buildXaiDigestText(digestDate, xaiProblems, xaiProgression, xaiStats)
+    const xaiHtml = buildDigestHtml(
+      digestDate,
+      xaiProblems,
+      xaiProgression,
+      xaiStats,
+      'Astranov × xAI (Grok) — Daily Integration Digest',
+    )
+    const xaiSubject = `Astranov×Grok digest ${digestDate} — ${xaiProblems.length} AI issues · ${xaiProgression.length} wins`
+
+    const notify = await notifyBothSupports(
+      digestDate,
+      { subject, text: summaryText, html: summaryHtml },
+      { subject: xaiSubject, text: xaiText, html: xaiHtml },
+    )
 
     const row = {
       digest_date: digestDate,
       problems: mergedProblems,
       progression: mergedProgression,
-      server_stats: agg.server_stats,
+      server_stats: {
+        ...agg.server_stats,
+        xai_problems: xaiProblems,
+        xai_progression: xaiProgression,
+        xai_stats: xaiStats,
+        notify,
+      },
       client_stats: clientStats,
       summary_text: summaryText.slice(0, 12000),
       notified: notify.ok,
-      notify_channel: notify.channel,
+      notify_channel: [notify.astranov.channel, notify.spacexai.channel].filter(Boolean).join('+') || null,
     }
 
     const { data: saved, error: saveErr } = existing
@@ -314,9 +436,19 @@ serve(async (req) => {
     if (saveErr) return json({ ok: false, error: saveErr.message }, 500)
 
     await sb.storage.createBucket('debug-pub', { public: true }).catch(() => {})
-    const blob = new Blob([JSON.stringify({ ...saved, notify_detail: notify.detail }, null, 2)], { type: 'application/json' })
+    const blob = new Blob([JSON.stringify({ ...saved, notify }, null, 2)], { type: 'application/json' })
+    const xaiBlob = new Blob([JSON.stringify({
+      digest_date: digestDate,
+      audience: 'spacexai',
+      problems: xaiProblems,
+      progression: xaiProgression,
+      stats: xaiStats,
+      notify: notify.spacexai,
+    }, null, 2)], { type: 'application/json' })
     await sb.storage.from('debug-pub').upload(`digests/${digestDate}.json`, blob, { contentType: 'application/json', upsert: true })
     await sb.storage.from('debug-pub').upload('digests/latest.json', blob, { contentType: 'application/json', upsert: true })
+    await sb.storage.from('debug-pub').upload(`digests/xai-${digestDate}.json`, xaiBlob, { contentType: 'application/json', upsert: true })
+    await sb.storage.from('debug-pub').upload('digests/xai-latest.json', xaiBlob, { contentType: 'application/json', upsert: true })
 
     return json({
       ok: true,
@@ -324,10 +456,12 @@ serve(async (req) => {
       id: saved?.id,
       problems: mergedProblems.length,
       progression: mergedProgression.length,
+      xai_problems: xaiProblems.length,
+      xai_progression: xaiProgression.length,
       notified: notify.ok,
-      notify_channel: notify.channel,
-      notify_detail: notify.detail,
+      notify,
       public_url: `${Deno.env.get('SUPABASE_URL')}/storage/v1/object/public/debug-pub/digests/latest.json`,
+      xai_public_url: `${Deno.env.get('SUPABASE_URL')}/storage/v1/object/public/debug-pub/digests/xai-latest.json`,
     })
   } catch (e) {
     return json({ ok: false, error: String(e) }, 500)
