@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710250000-delivery-avc-physics-lock" />
+<meta name="astranov-build" content="20260710260000-citymap-layer-fallback" />
 <meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
 <meta name="astranov-mission" content="SpaceNet: solar-global-national-city-street unify internet under realistic space imagery" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
@@ -11759,6 +11759,11 @@ const CityMap = {
   _blend: 0,
   _mapStyle: 'satellite',
   STYLE_KEY: 'astranov_map_style_v1',
+  _stackIdx: 0,
+  _tileStats: { ok: 0, err: 0, lastOk: 0 },
+  _healthTimer: null,
+  _lastEscalate: 0,
+  _leafletLoading: null,
 
   _globeZ() {
     return ZoomTiers?.tierZ?.('global') ?? GlobeControl?.Z?.global ?? 2.55;
@@ -11819,25 +11824,44 @@ const CityMap = {
 
   async _loadLeaflet() {
     if (window.L) return true;
-    const sources = [
-      { css: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', js: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js' },
-      { css: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css', js: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js' },
-    ];
-    for (const src of sources) {
-      const ok = await this._injectLeaflet(src.css, src.js);
-      if (ok) return true;
+    if (this._leafletLoading) return this._leafletLoading;
+    this._leafletLoading = (async () => {
+      const sources = [
+        { css: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', js: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js' },
+        { css: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css', js: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js' },
+        { css: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css', js: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js' },
+      ];
+      for (const src of sources) {
+        const ok = await this._injectLeaflet(src.css, src.js);
+        if (ok) return true;
+      }
+      return false;
+    })();
+    try {
+      return await this._leafletLoading;
+    } finally {
+      this._leafletLoading = null;
     }
-    return false;
   },
 
   _injectLeaflet(cssUrl, jsUrl) {
     return new Promise(resolve => {
+      if (window.L) return resolve(true);
       if (!document.querySelector('link[href*="leaflet"]')) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
         link.href = cssUrl;
         link.crossOrigin = '';
         document.head.appendChild(link);
+      }
+      const existing = document.querySelector('script[src*="leaflet"]');
+      if (existing) {
+        const done = () => resolve(!!window.L);
+        if (window.L) return done();
+        existing.addEventListener('load', done, { once: true });
+        existing.addEventListener('error', () => resolve(false), { once: true });
+        setTimeout(() => resolve(!!window.L), 4500);
+        return;
       }
       const script = document.createElement('script');
       script.src = jsUrl;
@@ -11850,10 +11874,15 @@ const CityMap = {
 
   async ensureReady() {
     if (this._ready && this.map) return true;
-    if (!window.L) await this._loadLeaflet();
-    if (!this._ready && this._initAttempts < 4) {
-      this._initAttempts++;
-      this.init();
+    const deadline = Date.now() + 14000;
+    while (Date.now() < deadline) {
+      if (!window.L) await this._loadLeaflet();
+      if (!this._ready && this._initAttempts < 8) {
+        this._initAttempts++;
+        this.init();
+      }
+      if (this._ready && this.map) return true;
+      await new Promise(r => setTimeout(r, 350));
     }
     return !!(this._ready && this.map);
   },
@@ -11916,23 +11945,132 @@ const CityMap = {
     } catch (_) {}
   },
 
-  _tileLayer(url, opts) {
-    const layer = L.tileLayer(url, opts);
-    layer.on('tileerror', () => {
-      if (layer._fallbackApplied) return;
-      layer._fallbackApplied = true;
-      const fb = this._layers?.satFallback;
-      if (fb && this.map && this.active) {
-        try {
-          this.map.removeLayer(layer);
-          this._onMap.delete(layer);
-          fb.addTo(this.map);
-          this._onMap.add(fb);
-          this._invalidate();
-        } catch (_) {}
-      }
-    });
+  _mapIsVisible() {
+    return !!(this.active || this._nationalActive || (this._blend || 0) > 0.06);
+  },
+
+  _onTileOk() {
+    this._tileStats.ok++;
+    this._tileStats.lastOk = Date.now();
+  },
+
+  _onTileErr(layerKey) {
+    this._tileStats.err++;
+    if (this._mapIsVisible()) this._maybeEscalateLayers('tileerror:' + (layerKey || '?'));
+  },
+
+  _wrapTileLayer(layer, key) {
+    if (!layer) return layer;
+    layer.on('tileload', () => this._onTileOk());
+    layer.on('tileerror', () => this._onTileErr(key));
     return layer;
+  },
+
+  _getLayerStacks() {
+    const Lyr = this._layers;
+    if (!Lyr?.sat) return [];
+    return [
+      { id: 'sat_hd', label: 'Satellite HD', layers: [
+        { layer: Lyr.sat, opacity: 1 },
+        { layer: Lyr.streetLabels, opacity: 1 },
+        { layer: Lyr.placeLabels, opacity: 0.92 },
+      ]},
+      { id: 'sat_streets', label: 'Satellite + streets', layers: [
+        { layer: Lyr.sat, opacity: 1 },
+        { layer: Lyr.voyager, opacity: 0.44 },
+      ]},
+      { id: 'osm_labels', label: 'OSM + labels', layers: [
+        { layer: Lyr.satFallback, opacity: 1 },
+        { layer: Lyr.streetLabels, opacity: 0.86 },
+      ]},
+      { id: 'voyager', label: 'Street map', layers: [
+        { layer: Lyr.voyager, opacity: 1 },
+      ]},
+      { id: 'osm', label: 'OpenStreetMap', layers: [
+        { layer: Lyr.satFallback, opacity: 1 },
+      ]},
+      { id: 'osm_alt', label: 'OSM mirror', layers: [
+        { layer: Lyr.osmAlt, opacity: 1 },
+      ]},
+      { id: 'dark', label: 'Dark streets', layers: [
+        { layer: Lyr.darkStreets, opacity: 1 },
+      ]},
+    ];
+  },
+
+  _baseStackForStyle(style) {
+    if (style === 'bright') return 3;
+    if (style === 'dark') return 6;
+    return 0;
+  },
+
+  _applyLayerStack(idx) {
+    if (!this.map) return false;
+    const stacks = this._getLayerStacks();
+    if (!stacks.length) return false;
+    idx = Math.max(0, Math.min(stacks.length - 1, idx));
+    this._stackIdx = idx;
+    const stack = stacks[idx];
+    this._onMap.forEach(l => { try { this.map.removeLayer(l); } catch (_) {} });
+    this._onMap.clear();
+    stack.layers.forEach(entry => {
+      const layer = entry.layer;
+      if (!layer) return;
+      const op = entry.opacity != null ? entry.opacity : 1;
+      if (layer.setOpacity) layer.setOpacity(op);
+      layer.addTo(this.map);
+      this._onMap.add(layer);
+    });
+    const el = document.getElementById('city-map');
+    if (el) el.dataset.layerStack = stack.id;
+    this._syncStyleUi();
+    this._updateStyleSwitchVisible();
+    if (this._mapIsVisible()) this._invalidate();
+    return true;
+  },
+
+  _maybeEscalateLayers(reason) {
+    const stacks = this._getLayerStacks();
+    if (!stacks.length || this._stackIdx >= stacks.length - 1) return false;
+    const now = Date.now();
+    if (now - (this._lastEscalate || 0) < 1600) return false;
+    this._lastEscalate = now;
+    const next = this._stackIdx + 1;
+    console.warn('[CityMap] fallback layer →', stacks[next].id, reason || '');
+    this._applyLayerStack(next);
+    this._tileStats = { ok: 0, err: 0, lastOk: this._tileStats.lastOk || 0 };
+    AciCli?.print?.('map · fallback · ' + stacks[next].label, 'warn');
+    GlobeDeck?.setPreview?.('Map · ' + stacks[next].label);
+    return true;
+  },
+
+  _startHealthWatch() {
+    this._stopHealthWatch();
+    this._tileStats = { ok: 0, err: 0, lastOk: 0 };
+    let checks = 0;
+    this._healthTimer = setInterval(() => {
+      if (!this._mapIsVisible()) {
+        this._stopHealthWatch();
+        return;
+      }
+      checks++;
+      const stale = !this._tileStats.lastOk && checks >= 2;
+      const staleLong = this._tileStats.lastOk && Date.now() - this._tileStats.lastOk > 6000;
+      const noTiles = checks >= 2 && this._tileStats.ok === 0 && this._tileStats.err >= 2;
+      const errHeavy = this._tileStats.err >= 5 && this._tileStats.err > this._tileStats.ok * 1.5;
+      if (noTiles || errHeavy || stale || staleLong) {
+        if (!this._maybeEscalateLayers('health')) this._stopHealthWatch();
+        checks = 0;
+      }
+      if (checks > 10) this._stopHealthWatch();
+    }, 2800);
+  },
+
+  _stopHealthWatch() {
+    if (this._healthTimer) {
+      clearInterval(this._healthTimer);
+      this._healthTimer = null;
+    }
   },
 
   _loadMapStyle() {
@@ -11950,6 +12088,7 @@ const CityMap = {
   setMapStyle(style) {
     const s = style === 'bright' || style === 'dark' ? style : 'satellite';
     this._mapStyle = s;
+    this._stackIdx = this._baseStackForStyle(s);
     try { localStorage.setItem(this.STYLE_KEY, s); } catch (_) {}
     this._applyBaseLayers();
     this._syncStyleUi();
@@ -11998,32 +12137,37 @@ const CityMap = {
 
   _buildLayers() {
     const maxZ = Math.max(20, SlumberManager?.quality?.cityMaxZoom || 20);
-    const sat = this._tileLayer(
+    const sat = this._wrapTileLayer(L.tileLayer(
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       { maxZoom: maxZ, attribution: 'Esri · satellite' }
-    );
-    const satFallback = L.tileLayer(
+    ), 'sat');
+    const satFallback = this._wrapTileLayer(L.tileLayer(
       'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
       { maxZoom: 19, attribution: '© OSM fallback' }
-    );
-    const streetLabels = L.tileLayer(
+    ), 'osm');
+    const osmAlt = this._wrapTileLayer(L.tileLayer(
+      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { maxZoom: 19, attribution: '© OSM mirror' }
+    ), 'osm_alt');
+    const streetLabels = this._wrapTileLayer(L.tileLayer(
       'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png',
       { maxZoom: 20, opacity: 1, attribution: '© CARTO © OSM' }
-    );
-    const placeLabels = this._tileLayer(
+    ), 'labels');
+    const placeLabels = this._wrapTileLayer(L.tileLayer(
       'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
       { maxZoom: 20, minZoom: 10, opacity: 0.92, attribution: 'Esri · places' }
-    );
-    const voyager = L.tileLayer(
+    ), 'places');
+    const voyager = this._wrapTileLayer(L.tileLayer(
       'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
       { maxZoom: 20, attribution: '© CARTO © OSM · streets & blocks' }
-    );
-    const darkStreets = L.tileLayer(
+    ), 'voyager');
+    const darkStreets = this._wrapTileLayer(L.tileLayer(
       'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
       { maxZoom: 20, attribution: '© CARTO © OSM · dark' }
-    );
-    this._layers = { sat, satFallback, streetLabels, placeLabels, voyager, brightStreets: voyager, darkStreets, streets: voyager };
+    ), 'dark');
+    this._layers = { sat, satFallback, osmAlt, streetLabels, placeLabels, voyager, brightStreets: voyager, darkStreets, streets: voyager };
     this._loadMapStyle();
+    this._stackIdx = this._baseStackForStyle(this.getMapStyle());
     this._applyBaseLayers();
   },
 
@@ -12033,8 +12177,6 @@ const CityMap = {
 
   _applyBaseLayers() {
     if (!this.map || !this._layers?.sat) return;
-    this._onMap.forEach(l => { try { this.map.removeLayer(l); } catch (_) {} });
-    this._onMap.clear();
     const uiTheme = this._mapTheme();
     const el = document.getElementById('city-map');
     let savedStyle = this.getMapStyle();
@@ -12046,23 +12188,11 @@ const CityMap = {
       el.dataset.theme = uiTheme;
       el.dataset.mapStyle = style;
     }
-    const add = l => { l.addTo(this.map); this._onMap.add(l); };
-    if (style === 'satellite') {
-      add(this._layers.sat);
-      this._layers.streetLabels.setOpacity(this.active ? 1 : 0.82);
-      add(this._layers.streetLabels);
-      this._layers.placeLabels.setOpacity(this.active ? 0.92 : 0.75);
-      add(this._layers.placeLabels);
-    } else if (style === 'bright') {
-      this._layers.voyager.setOpacity(1);
-      add(this._layers.voyager);
-    } else {
-      this._layers.darkStreets.setOpacity(1);
-      add(this._layers.darkStreets);
+    const preferred = this._baseStackForStyle(style);
+    if (this._stackIdx < preferred || !this._getLayerStacks()[this._stackIdx]) {
+      this._stackIdx = preferred;
     }
-    this._syncStyleUi();
-    this._updateStyleSwitchVisible();
-    if (this.active || this._nationalActive) this._invalidate();
+    this._applyLayerStack(this._stackIdx);
   },
 
   onThemeChange() {
@@ -12165,10 +12295,14 @@ const CityMap = {
   /** Force-open city map at coordinates — bypasses camera threshold race conditions */
   async openAt(lat, lng, opts) {
     opts = opts || {};
-    const ready = await this.ensureReady();
+    let ready = await this.ensureReady();
     if (!ready || !this.map) {
-      GlobeDeck?.setMapStatus('City map failed to load — tap ASTRANOV to reset');
-      AciCli?.print('city map init failed — reload or hard-reset (tap logo)', 'err');
+      this._initAttempts = 0;
+      ready = await this.ensureReady();
+    }
+    if (!ready || !this.map) {
+      GlobeDeck?.setMapStatus('City map failed — retrying fallback tiles…');
+      AciCli?.print('city map init failed — trying OSM fallback', 'warn');
       return false;
     }
     const c = lat != null && lng != null
@@ -12203,6 +12337,11 @@ const CityMap = {
     setTimeout(() => { this._forceOpen = false; }, 4000);
     setTimeout(() => this._invalidate(), 80);
     setTimeout(() => this._invalidate(), 400);
+    this._startHealthWatch();
+    setTimeout(() => {
+      if (this._tileStats.ok === 0 && this._tileStats.err >= 1) this._maybeEscalateLayers('open');
+    }, 3200);
+    GlobeDeck?.setMapStatus('🏙 City map · ' + c.lat.toFixed(2) + ', ' + c.lng.toFixed(2));
     return true;
   },
 
@@ -12295,6 +12434,7 @@ const CityMap = {
       Object.keys(this._markers).filter(k => k.startsWith('drv_')).length
     );
     this._updateStyleSwitchVisible();
+    this._startHealthWatch();
   },
 
   _enterNational(camZ) {
@@ -12315,6 +12455,7 @@ const CityMap = {
     this._invalidate();
     GlobeDeck?.setPreview?.('National · ' + (ZoomTiers?.countryHint?.() || 'region') + ' · pinch in for city');
     this._updateStyleSwitchVisible();
+    this._startHealthWatch();
   },
 
   _syncNational(camZ) {
@@ -12330,6 +12471,7 @@ const CityMap = {
 
   _exitNational() {
     this._nationalActive = false;
+    this._stopHealthWatch();
     const el = document.getElementById('city-map');
     const globe = document.getElementById('globe');
     if (el) el.classList.remove('national-active');
@@ -12343,6 +12485,7 @@ const CityMap = {
   _exit() {
     this.active = false;
     cityLevel = false;
+    this._stopHealthWatch();
     const el = document.getElementById('city-map');
     const globe = document.getElementById('globe');
     if (el) { el.classList.remove('active'); el.classList.remove('national-active'); }
@@ -12696,20 +12839,28 @@ const CityLife = {
 
     try {
       GlobeDeck?.setMapStatus('National view…');
-      ZoomTiers?.goTo?.('national', true);
+      window._globeFly = null;
+      ZoomTiers?.goTo?.('national', false);
       CityMap?.onCamera?.(GlobeControl?.Z?.national || 1.82, 'earth');
       if (!opts.immediate) {
         GlobeDeck?.setPreview?.('Atmosphere lock… descending toward the surface.');
         await new Promise(r => setTimeout(r, 420));
       }
-      ZoomTiers?.goTo?.('city', true);
+      window._globeFly = null;
+      ZoomTiers?.goTo?.('city', false);
       GlobeDeck?.setMapStatus('Opening city map…');
-      const opened = await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
+      let opened = await Promise.race([
+        CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM }),
+        new Promise(resolve => setTimeout(() => resolve(false), 12000)),
+      ]);
       if (!opened) {
+        await CityMap?.ensureReady?.();
+        CityMap?._applyLayerStack?.(4);
         CityMap?.onCamera?.(this.CITY_ZOOM, 'earth');
         if (!CityMap?.active) CityMap?._enter?.(this.CITY_ZOOM);
+        opened = !!CityMap?.active;
       }
-      GlobeDeck?.setMapStatus('City map open · syncing globe…');
+      GlobeDeck?.setMapStatus(opened ? 'City map open · syncing globe…' : 'City map · loading fallback tiles…');
       void this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
       setTimeout(() => CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM }), 120);
 
@@ -12756,10 +12907,17 @@ const CityLife = {
       return { vendors: nearby, drivers, lat: pos.lat, lng: pos.lng, mapActive: !!CityMap?.active };
     } catch (e) {
       AciCli?.print('city drop error: ' + (e.message || e), 'err');
+      CityMap?._applyLayerStack?.(4);
       await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
       return { error: e.message || 'city drop failed', lat: pos.lat, lng: pos.lng, mapActive: !!CityMap?.active };
     } finally {
       window._cityDropLock = false;
+      if (CityMap?.active || CityMap?._nationalActive) {
+        GlobeDeck?.setMapStatus('🏙 City map · ' + pos.lat.toFixed(2) + ', ' + pos.lng.toFixed(2));
+      } else if (CityMap?.map) {
+        CityMap?._maybeEscalateLayers?.('dropin');
+        GlobeDeck?.setMapStatus('City map · fallback tiles…');
+      }
     }
   },
 
