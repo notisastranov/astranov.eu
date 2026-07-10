@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710133000-spacenet-mission-solidified" />
+<meta name="astranov-build" content="20260710160000-spacenet-brain-triangles-routing" />
 <meta name="astranov-mission" content="SpaceNet: solar-global-national-city-street unify internet under realistic space imagery" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
 <!-- RESTORED + MILKED + ADVANCED build 20260710132000 force deploy celestial full app -->
@@ -519,6 +519,24 @@
   #ge-hud-actions button[data-place-act="drive"], #ge-hud-actions button[data-place-act="route"] { background:var(--ax-green-bg); border-color:var(--ax-green-border); color:#fff; }
   #ge-hud-row { display:flex; gap:8px; justify-content:flex-end; }
   #ge-hud-close { padding:8px 14px; border-radius:10px; border:1px solid #666; background:transparent; color:#aaa; cursor:pointer; font-size:11px; }
+  #ge-hud-plus-field { display:flex; gap:6px; margin-bottom:10px; align-items:center; }
+  #ge-hud-intent { flex:1; min-width:0; padding:10px 12px; border-radius:12px; border:1px solid var(--ax-blue-border); background:rgba(0,20,48,0.65); color:var(--an-text); font:12px system-ui; outline:none; }
+  #ge-hud-intent:focus { border-color:var(--ax-green-border); box-shadow:0 0 8px var(--ax-green-glow); }
+  #ge-hud-intent-go { width:38px; height:38px; border-radius:50%; border:1px solid var(--ax-green-border); background:var(--ax-green-bg); color:#fff; font-size:16px; font-weight:700; cursor:pointer; flex-shrink:0; touch-action:manipulation; }
+  #classified-triangles-primary { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:8px; }
+  #classified-triangles-primary.ct-loading { opacity:0.55; pointer-events:none; }
+  .ct-tri { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-height:72px; padding:8px 4px; border-radius:14px; border:1px solid var(--ax-blue-border); background:linear-gradient(145deg,rgba(0,32,72,0.75),rgba(0,12,28,0.9)); color:var(--ax-blue-bright); cursor:pointer; font-size:9px; font-weight:600; text-align:center; touch-action:manipulation; clip-path:polygon(50% 0%,100% 78%,50% 100%,0% 78%); }
+  .ct-tri .ct-icon { font-size:20px; line-height:1; }
+  .ct-tri .ct-lbl { line-height:1.2; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+  .ct-tri.ct-top { border-color:var(--ax-green-border); background:linear-gradient(145deg,rgba(0,64,32,0.55),rgba(0,20,48,0.9)); color:var(--ax-green-bright); box-shadow:0 0 10px var(--ax-green-glow); }
+  #classified-triangles-more { display:none; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+  #classified-triangles-more.open { display:flex; }
+  #classified-triangles-more button { padding:8px 10px; border-radius:10px; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); font-size:10px; font-weight:600; cursor:pointer; touch-action:manipulation; }
+  #ct-more-toggle { width:100%; padding:8px; margin-bottom:6px; border-radius:10px; border:1px dashed var(--ax-blue-border); background:transparent; color:var(--an-muted); font-size:10px; cursor:pointer; }
+  #spacenet-map-plus { display:flex; position:fixed; bottom:calc(88px + env(safe-area-inset-bottom)); right:14px; z-index:170; width:48px; height:48px; border-radius:50%; border:1px solid var(--ax-green-border); background:var(--ax-green-bg); color:#fff; font-size:26px; font-weight:600; line-height:1; align-items:center; justify-content:center; cursor:pointer; pointer-events:auto; touch-action:manipulation; box-shadow:0 4px 18px rgba(0,0,0,0.5),0 0 12px var(--ax-green-glow); }
+  #spacenet-map-plus:active { transform:scale(0.94); }
+  body.globe-flying #spacenet-map-plus, body.site-shell-open #spacenet-map-plus { opacity:0.35; pointer-events:none; }
+  body.cosmic-solar #spacenet-map-plus { bottom:calc(72px + env(safe-area-inset-bottom)); }
   /* Astranov Identity modal */
   #astranov-auth-modal { display:none; position:fixed; inset:0; z-index:200; align-items:center; justify-content:center; background:rgba(0,4,12,0.82); backdrop-filter:blur(8px); pointer-events:auto; }
   #astranov-auth-modal.open { display:flex; }
@@ -762,6 +780,7 @@
     <button type="button" data-ms="bright" title="Bright streets · names · blocks"></button>
     <button type="button" data-ms="dark" title="Dark streets · names"></button>
   </div>
+  <button id="spacenet-map-plus" type="button" title="Plus field — tell AI what you want to do" aria-label="Open plus field">+</button>
   <div id="city-life-chip"></div>
   <div id="globe-entity-labels"></div>
   <svg id="map-comms-beam" aria-hidden="true"></svg>
@@ -800,8 +819,15 @@
   <div id="globe-entity-hud">
     <div id="ge-hud-type">◎ Place</div>
     <div id="ge-hud-title">—</div>
-    <div id="ge-hud-desc">Tap the map — choose what to do here</div>
-    <div id="ge-hud-actions" class="ge-hud-actions"></div>
+    <div id="ge-hud-desc">Tap + or the map — type what you want to do</div>
+    <div id="ge-hud-plus-field">
+      <input id="ge-hud-intent" type="text" autocomplete="off" spellcheck="false" placeholder="What do you want to do here?" aria-label="Intent for this place" />
+      <button id="ge-hud-intent-go" type="button" title="Classify intent">▸</button>
+    </div>
+    <div id="classified-triangles-primary" class="ct-triangles" aria-label="Top 3 actions"></div>
+    <button id="ct-more-toggle" type="button" style="display:none">More options ▾</button>
+    <div id="classified-triangles-more" class="ct-more-wrap"></div>
+    <div id="ge-hud-actions" class="ge-hud-actions" style="display:none"></div>
     <div id="ge-hud-row">
       <button id="ge-hud-close" type="button">✖ Close</button>
     </div>
@@ -2146,6 +2172,87 @@ window.CodersHub = {
 
 window.LabOrbs = { init() {} };
 window.ContextTruth = { infer() { return { ctx: 'idle' }; } };
+
+// === ASTRANOV ROUTING ENGINE — avoids traffic lights, twisty roads, one-way traps ===
+const AstranovRoutingEngine = {
+  OSRM: 'https://router.project-osrm.org/route/v1/driving/',
+  TURN_TYPES: new Set(['turn', 'fork', 'end of road', 'roundabout', 'rotary', 'exit roundabout', 'merge']),
+  TURN_PENALTY: 9,
+  SIGNAL_PENALTY: 14,
+  SLOW_ROAD_PENALTY: 18,
+  U_TURN_PENALTY: 55,
+
+  scoreRoute(route) {
+    let score = route.duration || 0;
+    const steps = (route.legs || []).flatMap(l => l.steps || []);
+    for (const s of steps) {
+      const m = s.maneuver?.type || '';
+      const mod = s.maneuver?.modifier || '';
+      if (this.TURN_TYPES.has(m)) score += this.TURN_PENALTY;
+      if (mod === 'uturn' || mod === 'sharp uturn') score += this.U_TURN_PENALTY;
+      if ((s.distance || 0) < 45 && (s.duration || 0) > 11) score += this.SIGNAL_PENALTY;
+      const name = (s.name || '').trim();
+      if (!name && (s.distance || 0) < 280) score += this.SLOW_ROAD_PENALTY;
+      if (m === 'roundabout' || m === 'rotary') score += 6;
+    }
+    return score;
+  },
+
+  oneWayRisk(route, heading) {
+    const step = route.legs?.[0]?.steps?.[0];
+    if (!step?.maneuver || heading == null || isNaN(heading)) return null;
+    const bear = step.maneuver.bearing_after ?? step.maneuver.bearing_before;
+    if (bear == null) return null;
+    const diff = Math.abs(((bear - heading + 540) % 360) - 180);
+    if (diff > 115) {
+      return 'One-way protection — route avoids wrong-way entry';
+    }
+    return null;
+  },
+
+  async route(from, to, via, opts) {
+    opts = opts || {};
+    const pts = [from, via, to].filter(p => p && p.lat != null && p.lng != null);
+    if (pts.length < 2) return null;
+    const coordStr = pts.map(p => p.lng + ',' + p.lat).join(';');
+    const q = 'overview=full&geometries=geojson&steps=true&annotations=duration,distance&alternatives=3';
+    try {
+      const r = await fetch(this.OSRM + coordStr + '?' + q);
+      const j = await r.json();
+      if (j.code !== 'Ok' || !j.routes?.length) return null;
+      const ranked = j.routes
+        .map(rt => ({ route: rt, score: this.scoreRoute(rt) }))
+        .sort((a, b) => a.score - b.score);
+      const best = ranked[0].route;
+      return {
+        route: best,
+        alternatives: ranked.slice(1, 3).map(x => x.route),
+        oneWayWarn: this.oneWayRisk(best, opts.heading),
+        engine: 'astranov-routing-v1',
+        duration: best.duration,
+        distance: best.distance,
+      };
+    } catch (e) {
+      console.warn('[AstranovRoutingEngine]', e);
+      return null;
+    }
+  },
+
+  applyToDrivingView(dv, result) {
+    if (!result?.route || !dv) return false;
+    const route = result.route;
+    dv.routeCoords = route.geometry.coordinates.map(c => ({ lng: c[0], lat: c[1] }));
+    dv.steps = (route.legs[0]?.steps || []).map(s => ({
+      instruction: (s.maneuver?.type || 'continue') + (s.maneuver?.modifier ? ' ' + s.maneuver.modifier : '') + ' ' + (s.name || ''),
+      dist: s.distance,
+      loc: { lat: s.maneuver.location[1], lng: s.maneuver.location[0] },
+    }));
+    dv.stepIdx = 0;
+    return true;
+  },
+};
+window.AstranovRoutingEngine = AstranovRoutingEngine;
+
 const DrivingView = {
   active: false, speed: 0, mode: 'still', watchId: null, lastFix: null, lastTime: 0,
   routeLine: null, routeCoords: [], steps: [], stepIdx: 0, destination: null,
@@ -2248,27 +2355,20 @@ const DrivingView = {
     const to = plan?.to || this.destination;
     if (!from || !to) return;
     try {
-      const pts = [from, via, to].filter(p => p && p.lat != null && p.lng != null);
-      const coordStr = pts.map(p => p.lng + ',' + p.lat).join(';');
-      const url = 'https://router.project-osrm.org/route/v1/driving/'
-        + coordStr
-        + '?overview=full&geometries=geojson&steps=true';
-      const r = await fetch(url);
-      const j = await r.json();
-      if (j.code === 'Ok' && j.routes?.[0]) {
-        const route = j.routes[0];
-        this.routeCoords = route.geometry.coordinates.map(c => ({ lng: c[0], lat: c[1] }));
-        this.steps = (route.legs[0]?.steps || []).map(s => ({
-          instruction: (s.maneuver?.type || 'continue') + ' ' + (s.name || ''),
-          dist: s.distance,
-          loc: { lat: s.maneuver.location[1], lng: s.maneuver.location[0] },
-        }));
-        this.stepIdx = 0;
+      const heading = this.lastFix?.heading ?? (typeof navigator !== 'undefined' ? null : null);
+      const result = await AstranovRoutingEngine.route(from, to, via, { heading });
+      if (result && AstranovRoutingEngine.applyToDrivingView(this, result)) {
         this.drawRoute();
         if (this.steps[0]) this.showStep(this.steps[0]);
+        const km = Math.round((result.distance || 0) / 100) / 10;
+        const min = Math.round((result.duration || 0) / 60);
+        let line = 'Astranov route · ' + (km ? km + ' km' : '') + (min ? ' · ~' + min + ' min' : '');
+        if (result.oneWayWarn) line += ' · ' + result.oneWayWarn;
+        GlobeDeck?.setPreview?.(line);
+        ACIControl?.reply?.(line);
         return;
       }
-    } catch (e) { console.warn('[DrivingView] OSRM', e); }
+    } catch (e) { console.warn('[DrivingView] AstranovRoutingEngine', e); }
     const fallback = [];
     for (let i = 0; i <= 12; i++) {
       const t = i / 12;
@@ -7809,7 +7909,154 @@ const MapOverlayDismiss = {
 };
 window.MapOverlayDismiss = MapOverlayDismiss;
 
-// === MAP PLACE MENU — tap globe/map · pick action (no surprise fly) ===
+// === CLASSIFIED TRIANGLES — top 3 AI-classified actions, then more options ===
+const ClassifiedTriangles = {
+  CATALOG: [
+    { id: 'list_shop', label: 'List my shop', icon: '🏬', keywords: ['shop', 'store', 'menu', 'my shop', 'cafe', 'restaurant', 'bakery'] },
+    { id: 'list_vendor', label: 'List vendor', icon: '🏪', keywords: ['vendor', 'supplier', 'wholesale', 'list vendor', 'seller'] },
+    { id: 'driver_base', label: 'Driver base', icon: '🚚', keywords: ['driver', 'delivery', 'fleet', 'courier', 'base', 'dispatch'] },
+    { id: 'post', label: 'Post something', icon: '📝', keywords: ['post', 'share', 'announce', 'publish', 'status'] },
+    { id: 'upload_photo', label: 'Upload photo', icon: '📷', keywords: ['photo', 'picture', 'image', 'snap', 'pic'] },
+    { id: 'upload_video', label: 'Upload video', icon: '🎬', keywords: ['video', 'record', 'film', 'clip', 'reel'] },
+    { id: 'deliver_here', label: 'Deliver here', icon: '📦', keywords: ['deliver', 'delivery address', 'ship here', 'drop off'] },
+    { id: 'drive_here', label: 'Drive here', icon: '🚗', keywords: ['drive', 'navigate', 'go here', 'take me'] },
+    { id: 'route', label: 'Show route', icon: '🛣', keywords: ['route', 'directions', 'path', 'roads'] },
+    { id: 'explore', label: 'Shops nearby', icon: '🔍', keywords: ['nearby', 'explore', 'find shops', 'around', 'local'] },
+    { id: 'order', label: 'Order here', icon: '🛒', keywords: ['order', 'buy', 'purchase', 'food'] },
+  ],
+
+  DEFAULT_TOP: ['list_shop', 'list_vendor', 'driver_base'],
+
+  init() {
+    document.getElementById('ge-hud-intent-go')?.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      void this.onIntentSubmit();
+    });
+    document.getElementById('ge-hud-intent')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); void this.onIntentSubmit(); }
+    });
+    document.getElementById('ct-more-toggle')?.addEventListener('click', e => {
+      e.preventDefault();
+      const more = document.getElementById('classified-triangles-more');
+      const btn = document.getElementById('ct-more-toggle');
+      if (!more || !btn) return;
+      const open = more.classList.toggle('open');
+      btn.textContent = open ? 'Fewer options ▴' : 'More options ▾';
+    });
+    document.getElementById('spacenet-map-plus')?.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      MapPlaceMenu?.openPlusField?.();
+    });
+  },
+
+  defaultTop3() {
+    return this.DEFAULT_TOP.map(id => this.CATALOG.find(c => c.id === id)).filter(Boolean);
+  },
+
+  defaultMore() {
+    return this.CATALOG.filter(c => !this.DEFAULT_TOP.includes(c.id));
+  },
+
+  scoreLocal(text) {
+    const t = String(text || '').toLowerCase();
+    const scored = this.CATALOG.map(item => {
+      let s = 0;
+      for (const kw of item.keywords) {
+        if (t.includes(kw)) s += kw.length + 2;
+      }
+      return { ...item, score: s };
+    }).filter(x => x.score > 0).sort((a, b) => b.score - a.score);
+    if (!scored.length) return this.defaultTop3().concat(this.defaultMore());
+    const rest = this.CATALOG.filter(c => !scored.find(s => s.id === c.id));
+    return scored.concat(rest);
+  },
+
+  async onIntentSubmit() {
+    const input = document.getElementById('ge-hud-intent');
+    const text = input?.value?.trim() || '';
+    const pin = MapPlaceMenu?._pin;
+    const primary = document.getElementById('classified-triangles-primary');
+    if (primary) primary.classList.add('ct-loading');
+    const result = await SpaceNetBrain?.classifyIntent?.(text, {
+      lat: pin?.lat,
+      lng: pin?.lng,
+      pin,
+      radiusKm: 2,
+    });
+    if (primary) primary.classList.remove('ct-loading');
+    if (result) this.render(result.primary, result.more, pin);
+    if (!text) {
+      document.getElementById('ge-hud-desc').textContent = 'Pick a triangle — or type what you want to do';
+    } else {
+      document.getElementById('ge-hud-desc').textContent = '▸ ' + text;
+    }
+    AciCli?.print?.('triangles · ' + (text || 'default top 3'), 'ok');
+  },
+
+  render(primary, more, pin) {
+    const tri = document.getElementById('classified-triangles-primary');
+    const moreEl = document.getElementById('classified-triangles-more');
+    const toggle = document.getElementById('ct-more-toggle');
+    if (!tri) return;
+    const top = (primary || this.defaultTop3()).slice(0, 3);
+    tri.innerHTML = top.map((item, i) =>
+      '<button type="button" class="ct-tri ct-top" data-ct-id="' + item.id + '" title="' + item.label + '">'
+      + '<span class="ct-icon">' + item.icon + '</span><span class="ct-lbl">' + item.label + '</span></button>'
+    ).join('');
+    tri.querySelectorAll('[data-ct-id]').forEach(btn => {
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.runAction(btn.dataset.ctId, pin);
+      };
+    });
+    const extras = (more || this.defaultMore()).slice(0, 8);
+    if (moreEl) {
+      moreEl.innerHTML = extras.map(item =>
+        '<button type="button" data-ct-id="' + item.id + '">' + item.icon + ' ' + item.label + '</button>'
+      ).join('');
+      moreEl.querySelectorAll('[data-ct-id]').forEach(btn => {
+        btn.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.runAction(btn.dataset.ctId, pin);
+        };
+      });
+      moreEl.classList.remove('open');
+    }
+    if (toggle) {
+      toggle.style.display = extras.length ? 'block' : 'none';
+      toggle.textContent = 'More options ▾';
+    }
+  },
+
+  runAction(actionId, pin) {
+    const map = {
+      list_shop: 'shop',
+      list_vendor: 'shop',
+      driver_base: 'driver_base',
+      deliver_here: 'client_addr',
+      drive_here: 'drive',
+      route: 'route',
+      explore: 'explore',
+      order: 'order',
+      post: 'post',
+      upload_photo: 'upload_photo',
+      upload_video: 'upload_video',
+    };
+    const act = map[actionId] || actionId;
+    if (act === 'post' || act === 'upload_photo' || act === 'upload_video') {
+      MapPlaceMenu?._runMedia?.(act, pin);
+      return;
+    }
+    MapPlaceMenu?._run?.(act);
+  },
+};
+window.ClassifiedTriangles = ClassifiedTriangles;
+
+// === MAP PLACE MENU — tap globe/map · plus field · classified triangles ===
 const MapPlaceMenu = {
   _pin: null,
 
@@ -7826,6 +8073,11 @@ const MapPlaceMenu = {
     return { lat, lng };
   },
 
+  openPlusField() {
+    const pos = window._lastPos || CityMap?.globeCenterLatLng?.() || TrackballGuard?.facingLatLng?.() || { lat: 36.44, lng: 28.22 };
+    this.openAt(pos.lat, pos.lng, { source: 'Plus field', hint: 'Type what you want to do — AI shows top 3', focusIntent: true });
+  },
+
   openAt(lat, lng, opts) {
     opts = opts || {};
     if (lat == null || lng == null) return;
@@ -7834,44 +8086,51 @@ const MapPlaceMenu = {
     const hud = document.getElementById('globe-entity-hud');
     if (!hud) return;
     hud.classList.add('open');
-    document.getElementById('ge-hud-type').textContent = '◎ ' + (opts.source || 'Map');
+    document.getElementById('ge-hud-type').textContent = '▸ ' + (opts.source || 'Map');
     document.getElementById('ge-hud-title').textContent = opts.label || this.formatCoords(lat, lng);
-    document.getElementById('ge-hud-desc').textContent = opts.hint || 'What do you want to do here?';
-    this._renderActions(opts);
+    document.getElementById('ge-hud-desc').textContent = opts.hint || 'Type what you want to do — top 3 triangle options';
+    const intent = document.getElementById('ge-hud-intent');
+    if (intent) {
+      intent.value = opts.prefill || '';
+      if (opts.focusIntent) setTimeout(() => intent.focus(), 80);
+    }
+    const ranked = ClassifiedTriangles.defaultTop3().concat(ClassifiedTriangles.defaultMore());
+    if (opts?.entity?.type === 'vendor') {
+      const order = ClassifiedTriangles.CATALOG.find(c => c.id === 'order');
+      if (order) ranked.unshift(order);
+    }
+    ClassifiedTriangles.render(ranked.slice(0, 3), ranked.slice(3), this._pin);
+    void SpaceNetBrain?.crawlArea?.(lat, lng, 2);
     MapDepict?.pulse?.(lat, lng, 0x00ddff, opts.label || 'here', 8000);
-    GlobeDeck?.setPreview?.('◎ ' + (opts.label || this.formatCoords(lat, lng)));
-    AciCli?.print?.('◎ ' + (opts.label || this.formatCoords(lat, lng)), 'map');
+    GlobeDeck?.setPreview?.('▸ Plus field · ' + (opts.label || this.formatCoords(lat, lng)));
+    AciCli?.print?.('▸ plus field · ' + (opts.label || this.formatCoords(lat, lng)), 'map');
   },
 
   close() {
     this._pin = null;
     document.getElementById('globe-entity-hud')?.classList.remove('open');
+    const intent = document.getElementById('ge-hud-intent');
+    if (intent) intent.value = '';
+    document.getElementById('classified-triangles-more')?.classList.remove('open');
     GlobeEntity?.clearSelection?.();
   },
 
-  _renderActions(opts) {
-    const row = document.getElementById('ge-hud-actions');
-    if (!row) return;
-    const actions = [
-      { id: 'shop', label: '🏬 Shop + menu' },
-      { id: 'client_addr', label: '📦 Deliver here' },
-      { id: 'driver_base', label: '🚚 Driver base' },
-      { id: 'drive', label: '🚗 Drive here' },
-      { id: 'route', label: '🛣 Show route' },
-      { id: 'explore', label: '🔍 Shops nearby' },
-      { id: 'zoom', label: '🔎 Zoom here' },
-    ];
-    if (opts?.entity?.type === 'vendor') {
-      actions.unshift({ id: 'order', label: '🛒 Order here' });
-    }
-    row.innerHTML = actions.map(a => '<button type="button" data-place-act="' + a.id + '">' + a.label + '</button>').join('');
-    row.querySelectorAll('[data-place-act]').forEach(btn => {
-      btn.onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this._run(btn.dataset.placeAct);
-      };
-    });
+  _runMedia(action, pin) {
+    const p = pin || this._pin;
+    if (p) window._pendingShopLatLng = { lat: p.lat, lng: p.lng };
+    const go = async () => {
+      await LazyModules.ensure();
+      SuperAdd?.open?.();
+      if (action === 'upload_photo') {
+        ACIControl?.reply?.('Super Add · snap or upload photo for this place');
+      } else if (action === 'upload_video') {
+        ACIControl?.reply?.('Super Add · record video for this place');
+      } else {
+        ACIControl?.reply?.('Super Add · post at this location');
+      }
+    };
+    void go();
+    this.close();
   },
 
   _run(action) {
@@ -9273,6 +9532,106 @@ const AiRouter = {
 
 window.AiRouter = AiRouter;
 
+// === SPACENET BRAIN — orchestrates ACI, ai-router, crawlers for unified internet ingestion ===
+const SpaceNetBrain = {
+  _crawlBusy: new Set(),
+  _lastClassify: null,
+
+  ACTION_IDS: ['list_vendor', 'list_shop', 'driver_base', 'post', 'upload_photo', 'upload_video', 'deliver_here', 'drive_here', 'route', 'explore', 'order'],
+
+  _headers() {
+    const h = { 'Content-Type': 'application/json', apikey: SB_KEY };
+    if (Auth?.session?.access_token) h.Authorization = 'Bearer ' + Auth.session.access_token;
+    else h.Authorization = 'Bearer ' + SB_KEY;
+    return h;
+  },
+
+  async think(prompt, opts) {
+    opts = opts || {};
+    try {
+      const j = await fetchJson(SB_URL + '/functions/v1/aci', {
+        method: 'POST',
+        headers: await (ACI?.headers?.() || Promise.resolve(this._headers())),
+        body: JSON.stringify({ action: 'think', text: prompt, level: opts.level || 'global', source: 'spacenet-brain' }),
+      }, opts.timeoutMs || 18000);
+      return j;
+    } catch (e) {
+      return { error: String(e.message || e) };
+    }
+  },
+
+  async classifyIntent(text, ctx) {
+    ctx = ctx || {};
+    const trimmed = String(text || '').trim();
+    if (!trimmed) return { primary: ClassifiedTriangles.defaultTop3(), more: ClassifiedTriangles.defaultMore(), source: 'default' };
+
+    const local = ClassifiedTriangles.scoreLocal(trimmed);
+    const primary = local.slice(0, 3);
+    const more = local.slice(3);
+
+    void this._refineWithAi(trimmed, ctx, local);
+
+    if (ctx.lat != null && ctx.lng != null) {
+      void this.crawlArea(ctx.lat, ctx.lng, ctx.radiusKm || 2);
+    }
+
+    this._lastClassify = { text: trimmed, primary, more, at: Date.now() };
+    return { primary, more, source: 'local' };
+  },
+
+  async _refineWithAi(text, ctx, localHints) {
+    const ids = this.ACTION_IDS.join(', ');
+    const prompt = 'SpaceNet place intent at ' + (ctx.lat?.toFixed?.(4) || '?') + ',' + (ctx.lng?.toFixed?.(4) || '?')
+      + ': "' + text + '". Reply with ONLY a JSON array of action ids (max 6) from: ' + ids
+      + '. First 3 = most common for this intent.';
+    const r = await AiRouter?.ask?.(prompt, { timeoutMs: 14000 });
+    const raw = String(r?.text || r?.raw?.text || '').trim();
+    const parsed = this._parseActionIds(raw);
+    if (!parsed.length) return;
+    const catalog = ClassifiedTriangles.CATALOG;
+    const ordered = parsed.map(id => catalog.find(c => c.id === id)).filter(Boolean);
+    const rest = catalog.filter(c => !ordered.find(o => o.id === c.id));
+    const full = ordered.concat(rest);
+    ClassifiedTriangles.render(full.slice(0, 3), full.slice(3), ctx.pin);
+    this._lastClassify = { text, primary: full.slice(0, 3), more: full.slice(3), source: 'ai' };
+  },
+
+  _parseActionIds(raw) {
+    try {
+      const m = raw.match(/\[[\s\S]*?\]/);
+      if (m) {
+        const arr = JSON.parse(m[0]);
+        if (Array.isArray(arr)) return arr.map(String).filter(id => this.ACTION_IDS.includes(id));
+      }
+    } catch (_) {}
+    const found = [];
+    for (const id of this.ACTION_IDS) {
+      if (new RegExp(id.replace(/_/g, '[\\s_-]+'), 'i').test(raw)) found.push(id);
+    }
+    return found;
+  },
+
+  async crawlArea(lat, lng, radiusKm) {
+    const key = lat.toFixed(3) + ',' + lng.toFixed(3);
+    if (this._crawlBusy.has(key)) return;
+    this._crawlBusy.add(key);
+    try {
+      await fetch(SB_URL + '/functions/v1/vendor-crawler', {
+        method: 'POST',
+        headers: this._headers(),
+        body: JSON.stringify({ lat, lng, radius_km: radiusKm || 2, source: 'spacenet-brain' }),
+      });
+      AciCli?.print?.('crawler · sector ' + key, 'dim');
+    } catch (_) {}
+    setTimeout(() => this._crawlBusy.delete(key), 120000);
+  },
+
+  async orchestrate(actionId, pin) {
+    return ClassifiedTriangles.runAction(actionId, pin);
+  },
+};
+window.SpaceNetBrain = SpaceNetBrain;
+
 // === ZOOM TIERS — solar → global → national → regional → city → neighborhood ===
 const ZoomTiers = {
   TIERS: [
@@ -9318,8 +9677,8 @@ const ZoomTiers = {
     });
     if (best === this._index) return false;
     this._index = best;
-    if (animate && !window.GlobeZoom?._scrolling) this.snap(true);
-    else this._apply(this.current());
+    /* continuous zoom law — never snap camera from scroll; labels/crossfade only */
+    this._apply(this.current());
     return true;
   },
 
@@ -9387,12 +9746,13 @@ const ZoomTiers = {
     window._globeFly = null;
     if (GlobeControl?.userExploring) animate = false;
     if (animate) {
+      const dz = Math.abs(camera.position.z - t.z);
       window._globeFly = {
         mode: 'zoom',
         fromZ: camera.position.z,
         toZ: t.z,
         t0: performance.now(),
-        dur: 1600,
+        dur: Math.max(1400, Math.min(3200, 1200 + dz * 900)),
         tierId: t.id,
         onTier: true,
       };
@@ -9788,6 +10148,7 @@ function tickGlobeFly() {
   const ease = p < 0.5
     ? 4 * p * p * p
     : 1 - Math.pow(-2 * p + 2, 3) / 2;
+  const smooth = f.mode === 'zoom' ? (ease * ease * (3 - 2 * ease)) : ease;
   if (f.mode === 'zoom') {
     /* camera-only — globe bearing unchanged */
   } else if (f.mode === 'quat' && f.fromQ && f.toQ) {
@@ -9801,7 +10162,7 @@ function tickGlobeFly() {
   }
   trackVelX = 0;
   trackVelY = 0;
-  camera.position.z = f.fromZ + (f.toZ - f.fromZ) * ease;
+  camera.position.z = f.fromZ + (f.toZ - f.fromZ) * (f.mode === 'zoom' ? smooth : ease);
   camera.lookAt(0, 0, 0);
   CosmicZoom.update(camera.position.z);
   const flyLevel = window._cityDropLock ? 'earth' : CosmicZoom?.level;
@@ -10208,7 +10569,8 @@ const CityMap = {
   _updateStyleSwitchVisible() {
     const ui = document.getElementById('map-style-switch');
     if (!ui) return;
-    ui.classList.toggle('visible', !!this.active);
+    const show = !!this.active || !!this._nationalActive || (this._blend || 0) > 0.06;
+    ui.classList.toggle('visible', show);
   },
 
   _bindStyleSwitch() {
@@ -10267,8 +10629,11 @@ const CityMap = {
     this._onMap.clear();
     const uiTheme = this._mapTheme();
     const el = document.getElementById('city-map');
-    const savedStyle = this.getMapStyle();
-    const style = this.active ? savedStyle : 'satellite';
+    let savedStyle = this.getMapStyle();
+    if (!this.active && (this._nationalActive || (this._blend || 0) > 0.2) && savedStyle === 'satellite') {
+      savedStyle = uiTheme === 'bright' ? 'bright' : 'dark';
+    }
+    const style = (this.active || this._nationalActive || (this._blend || 0) > 0.12) ? savedStyle : 'satellite';
     if (el) {
       el.dataset.theme = uiTheme;
       el.dataset.mapStyle = style;
@@ -10295,6 +10660,11 @@ const CityMap = {
   onThemeChange() {
     const el = document.getElementById('city-map');
     if (el) el.dataset.theme = this._mapTheme();
+    if (!this.active && (this._nationalActive || (this._blend || 0) > 0.12)) {
+      const uiTheme = this._mapTheme();
+      if (this.getMapStyle() === 'satellite') this.setMapStyle(uiTheme === 'bright' ? 'bright' : 'dark');
+      else this._applyBaseLayers();
+    }
   },
 
   camZToZoom(camZ) {
@@ -13746,6 +14116,7 @@ EarthRealism.init();
 MapPins.init();
 MapOverlayDismiss.init();
 GlobeEntity.init();
+ClassifiedTriangles.init();
 DrivingView.init();
 AiRouter.init();
 
