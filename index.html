@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710280000-field-work-board" />
+<meta name="astranov-build" content="20260710290000-spacenet-cycle-geo" />
 <meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
 <meta name="astranov-mission" content="SpaceNet: solar-global-national-city-street unify internet under realistic space imagery" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
@@ -1340,8 +1340,8 @@ const GlobeNavigate = {
     if (!el) return;
     const vendors = (window.Commerce?.vendors || []).filter(v => v.lat != null && v.lng != null);
     const sorted = vendors.slice().sort((a, b) => {
-      const da = MarketplaceDeliveryEngine?.haversineM?.(lat, lng, a.lat, a.lng) ?? 0;
-      const db = MarketplaceDeliveryEngine?.haversineM?.(lat, lng, b.lat, b.lng) ?? 0;
+      const da = SpaceNetGeo.haversineM(lat, lng, a.lat, a.lng);
+      const db = SpaceNetGeo.haversineM(lat, lng, b.lat, b.lng);
       return da - db;
     }).slice(0, 3);
     if (!sorted.length) {
@@ -2675,15 +2675,41 @@ const FieldWork = {
     AciCli?.print?.('work list | work available <skill> <price> | work need <job> <budget> | work mine', 'dim');
   },
 
-  init() {
-    setInterval(() => {
-      if (Auth?.user && (CityMap?.active || GlobeNavigate?.isNational?.() || GlobeNavigate?.isCity?.())) {
-        void this.refresh({ quiet: true });
-      }
-    }, 120000);
-  },
+  init() {},
 };
 window.FieldWork = FieldWork;
+
+// === SPACENET CYCLE — unified realism tick · shorter code · one heartbeat ===
+const SpaceNetCycle = {
+  INTERVAL_MS: 180000,
+  _n: 0,
+  _timer: null,
+
+  _earthOrCity() {
+    const level = CosmicZoom?.level || 'earth';
+    return CityMap?.active || GlobeNavigate?.isNational?.() || GlobeNavigate?.isCity?.()
+      || level === 'earth' || level === 'orbit';
+  },
+
+  async tick() {
+    this._n++;
+    if (!TrackballGuard?.verify?.()) TrackballGuard?.repair?.();
+    if (Auth?.user && this._earthOrCity()) void FieldWork?.refresh?.({ quiet: true });
+    if (Auth?.user && window.AvcBalance?.refresh) void window.AvcBalance.refresh();
+    MissionSupportReporter?.recordProgress?.('mission', 'SpaceNet cycle ' + this._n + ' · ' + (ZoomTiers?.current || CosmicZoom?.level || 'earth'), {
+      work_posts: FieldWork?._posts?.length || 0,
+      missions: MarketplaceDeliveryEngine?.missions?.length || 0,
+      trackball_ok: !!TrackballGuard?._ok,
+    });
+  },
+
+  init() {
+    if (this._timer) clearInterval(this._timer);
+    setTimeout(() => this.tick(), 45000);
+    this._timer = setInterval(() => this.tick(), this.INTERVAL_MS);
+  },
+};
+window.SpaceNetCycle = SpaceNetCycle;
 
 // === MARKETPLACE PRESENCE — driver heartbeat so real drivers appear on map ===
 const MarketplacePresence = {
@@ -2858,13 +2884,20 @@ window.SuperSpace = SuperSpace;
 const GlobeAutonomy = { init() {} };
 window.GlobeAutonomy = GlobeAutonomy;
 
-function _haversineKm(lat1, lng1, lat2, lng2) {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
+// === SPACENET GEO — one distance math for routing · delivery · commerce · globe ===
+const SpaceNetGeo = {
+  haversineM(lat1, lng1, lat2, lng2) {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  },
+  haversineKm(lat1, lng1, lat2, lng2) { return this.haversineM(lat1, lng1, lat2, lng2) / 1000; },
+};
+window.SpaceNetGeo = SpaceNetGeo;
+
+function _haversineKm(lat1, lng1, lat2, lng2) { return SpaceNetGeo.haversineKm(lat1, lng1, lat2, lng2); }
 
 function _defer(name, method, ...args) {
   return LazyModules.ensure().then(() => window[name]?.[method]?.(...args));
@@ -2960,13 +2993,7 @@ const AstranovRoutingEngine = {
     return null;
   },
 
-  haversineM(lat1, lng1, lat2, lng2) {
-    const R = 6371000;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  },
+  haversineM(lat1, lng1, lat2, lng2) { return SpaceNetGeo.haversineM(lat1, lng1, lat2, lng2); },
 
   fallbackLeg(from, to) {
     if (!from || !to || from.lat == null || to.lat == null) return null;
@@ -3067,13 +3094,7 @@ const MarketplaceDeliveryEngine = {
     });
   },
 
-  haversineM(lat1, lng1, lat2, lng2) {
-    const R = 6371000;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  },
+  haversineM(lat1, lng1, lat2, lng2) { return SpaceNetGeo.haversineM(lat1, lng1, lat2, lng2); },
 
   _isActive(order) {
     const s = order?.status || 'pending';
@@ -3540,13 +3561,7 @@ const DrivingView = {
   active: false, speed: 0, mode: 'still', watchId: null, lastFix: null, lastTime: 0,
   routeLine: null, routeCoords: [], steps: [], stepIdx: 0, destination: null,
   WALK_THRESHOLD: 2.2, DRIVE_THRESHOLD: 4.5, _ready: true,
-  haversineM(lat1, lng1, lat2, lng2) {
-    const R = 6371000;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  },
+  haversineM(lat1, lng1, lat2, lng2) { return SpaceNetGeo.haversineM(lat1, lng1, lat2, lng2); },
   init() { this._geoReady = !!navigator.geolocation; },
   _ensureWatch() {
     if (this.watchId || !this._geoReady) return;
@@ -8660,7 +8675,7 @@ const MissionSupportReporter = {
     setTimeout(() => this._maybeSubmit('boot'), 8000);
     if (this._timer) clearInterval(this._timer);
     this._timer = setInterval(() => this._maybeSubmit('hourly'), this.CHECK_MS);
-    this.recordProgress('mission', 'SpaceNet boot · build ' + this.buildStamp(), { subsystems: ['GlobeNavigate', 'MarketplaceDeliveryEngine', 'SpaceNetBrain', 'ClassifiedTriangles'] });
+    this.recordProgress('mission', 'SpaceNet boot · build ' + this.buildStamp(), { subsystems: ['GlobeNavigate', 'MarketplaceDeliveryEngine', 'FieldWork', 'SpaceNetGeo', 'SpaceNetCycle', 'ClassifiedTriangles'] });
   },
 };
 window.MissionSupportReporter = MissionSupportReporter;
@@ -11938,14 +11953,7 @@ const TrackballGuard = {
     return { lat: Math.max(-85, Math.min(85, lat)), lng: ((lng + 540) % 360) - 180 };
   },
 
-  greatCircleKm(lat1, lng1, lat2, lng2) {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) ** 2
-      + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  },
+  greatCircleKm(lat1, lng1, lat2, lng2) { return SpaceNetGeo.haversineKm(lat1, lng1, lat2, lng2); },
 
   init() {
     if (renderer?.domElement) bindTrackballEvents?.(renderer.domElement);
@@ -15893,6 +15901,10 @@ function animate() {
   window._animFrame = (window._animFrame + 1) | 0;
   const frame = window._animFrame;
   const hidden = document.hidden;
+  if (!drag && !window._globeFly) TrackballGuard?.applyInertia?.();
+  GlobeZoom?.tick?.();
+  tickGlobeFly?.();
+  MarketplaceDeliveryEngine?.tick?.();
   if (hidden && frame % 30 !== 0) {
     renderer.render(scene, camera);
     return;
@@ -15908,10 +15920,6 @@ function animate() {
   if (voiceActive || codersBusy || GlobeDeck?.thinking) setVoicePerfMode?.(true);
   else if (window._voicePerfMode) setVoicePerfMode?.(false);
 
-  if (!drag && !window._globeFly) TrackballGuard?.applyInertia?.();
-  GlobeZoom?.tick?.();
-  tickGlobeFly?.();
-  MarketplaceDeliveryEngine?.tick?.();
   if (frame % _slumberDiv('orbital') === 0) window.updateOrbital?.();
 
   if (!hidden && frame % _slumberDiv('entity') === 0) {
@@ -15979,6 +15987,7 @@ VendorMapTile.init();
 ClassifiedTriangles.init();
 MarketplaceDeliveryEngine.init();
 FieldWork.init();
+SpaceNetCycle.init();
 DrivingView.init();
 AiRouter.init();
 MissionSupportReporter.init();
