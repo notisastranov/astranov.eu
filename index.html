@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710173000-marketplace-delivery-engine" />
+<meta name="astranov-build" content="20260710190000-globe-navigate-vendor-tile-eta" />
 <meta name="astranov-mission" content="SpaceNet: solar-global-national-city-street unify internet under realistic space imagery" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
 <!-- RESTORED + MILKED + ADVANCED build 20260710132000 force deploy celestial full app -->
@@ -546,6 +546,33 @@
   #drh-comms button { padding:9px 4px; border-radius:10px; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); font-size:10px; font-weight:600; cursor:pointer; touch-action:manipulation; }
   #drh-accept { width:100%; padding:10px; border-radius:10px; border:1px solid var(--ax-green-border); background:var(--ax-green-bg); color:#fff; font-weight:700; cursor:pointer; margin-bottom:6px; display:none; }
   #drh-close { width:100%; padding:8px; border-radius:10px; border:1px solid #666; background:transparent; color:#aaa; cursor:pointer; font-size:11px; }
+  #vendor-map-tile { display:none; position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:188; width:min(360px,94vw); max-height:min(78vh,520px); border-radius:16px; overflow:hidden; background:var(--ax-panel-strong); border:1px solid var(--ax-blue-border); box-shadow:0 8px 32px rgba(0,0,0,0.55),0 0 18px var(--ax-blue-glow); pointer-events:auto; font:11px/1.4 system-ui; color:var(--an-text); }
+  #vendor-map-tile.open { display:flex; flex-direction:column; }
+  #vmt-cover { height:88px; background:linear-gradient(135deg,rgba(0,40,90,0.9),rgba(0,12,28,0.95)); background-size:cover; background-position:center; flex-shrink:0; }
+  #vmt-head { display:flex; align-items:center; gap:10px; padding:10px 12px 8px; margin-top:-22px; }
+  #vmt-avatar { width:52px; height:52px; border-radius:14px; border:2px solid var(--ax-blue-border); object-fit:cover; background:var(--ax-blue-bg); flex-shrink:0; }
+  #vmt-meta { flex:1; min-width:0; }
+  #vmt-name { font-weight:700; font-size:14px; color:var(--ax-blue-bright); }
+  #vmt-sub { font-size:10px; color:var(--an-muted); }
+  #vmt-close { width:32px; height:32px; border-radius:50%; border:1px solid #666; background:transparent; color:#aaa; cursor:pointer; flex-shrink:0; }
+  #vmt-menu { flex:1; overflow:auto; padding:6px 10px 10px; display:flex; flex-direction:column; gap:6px; }
+  .vmt-item { display:flex; gap:8px; align-items:center; padding:8px; border-radius:12px; border:1px solid var(--ax-blue-border); background:rgba(0,20,48,0.5); cursor:pointer; touch-action:manipulation; }
+  .vmt-item img { width:48px; height:48px; border-radius:10px; object-fit:cover; flex-shrink:0; background:#123; }
+  .vmt-item-body { flex:1; min-width:0; }
+  .vmt-item-body b { display:block; font-size:11px; }
+  .vmt-item-body small { color:var(--ax-green-bright); font-weight:600; }
+  .vmt-qty { display:flex; gap:4px; align-items:center; }
+  .vmt-qty button { width:28px; height:28px; border-radius:8px; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); cursor:pointer; font-weight:700; }
+  #vmt-foot { padding:8px 10px 10px; border-top:1px solid var(--ax-blue-border); }
+  #vmt-order { width:100%; padding:11px; border-radius:12px; border:1px solid var(--ax-green-border); background:var(--ax-green-bg); color:#fff; font-weight:700; cursor:pointer; font-size:12px; }
+  #map-nav-chip { display:none; position:fixed; top:max(52px,calc(10px + env(safe-area-inset-top) + 40px)); left:50%; transform:translateX(-50%); z-index:168; padding:6px 14px; border-radius:999px; background:var(--ax-panel-strong); border:1px solid var(--ax-blue-border); font:10px system-ui; color:var(--ax-blue-bright); pointer-events:none; box-shadow:0 4px 14px rgba(0,0,0,0.4); }
+  #map-nav-chip.visible { display:block; }
+  #map-eta-labels { position:fixed; inset:0; z-index:155; pointer-events:none; overflow:hidden; }
+  .map-eta-label { position:absolute; transform:translate(-50%,-100%); padding:4px 8px; border-radius:8px; background:rgba(0,32,16,0.88); border:1px solid var(--ax-green-border); color:var(--ax-green-bright); font:9px/1.2 system-ui; font-weight:700; white-space:nowrap; box-shadow:0 0 10px var(--ax-green-glow); pointer-events:auto; cursor:pointer; touch-action:manipulation; }
+  .map-eta-label.pending { background:rgba(40,32,0,0.88); border-color:var(--ax-yellow-border); color:var(--ax-yellow-bright); }
+  #city-pick-chips { display:none; position:fixed; bottom:calc(148px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); z-index:167; gap:8px; max-width:94vw; flex-wrap:wrap; justify-content:center; pointer-events:auto; }
+  #city-pick-chips.visible { display:flex; }
+  #city-pick-chips button { padding:8px 12px; border-radius:999px; border:1px solid var(--ax-blue-border); background:var(--ax-panel-strong); color:var(--ax-blue-bright); font:10px system-ui; font-weight:600; cursor:pointer; touch-action:manipulation; }
   /* Astranov Identity modal */
   #astranov-auth-modal { display:none; position:fixed; inset:0; z-index:200; align-items:center; justify-content:center; background:rgba(0,4,12,0.82); backdrop-filter:blur(8px); pointer-events:auto; }
   #astranov-auth-modal.open { display:flex; }
@@ -790,6 +817,24 @@
     <button type="button" data-ms="dark" title="Dark streets · names"></button>
   </div>
   <button id="spacenet-map-plus" type="button" title="Plus field — tell AI what you want to do" aria-label="Open plus field">+</button>
+  <div id="map-nav-chip" aria-live="polite">GLOBAL</div>
+  <div id="city-pick-chips" aria-label="Nearby cities and shops"></div>
+  <div id="map-eta-labels" aria-label="Delivery ETAs"></div>
+  <div id="vendor-map-tile" aria-label="Vendor shop">
+    <div id="vmt-cover"></div>
+    <div id="vmt-head">
+      <img id="vmt-avatar" alt="" />
+      <div id="vmt-meta">
+        <div id="vmt-name">Shop</div>
+        <div id="vmt-sub">Tap items · fast order</div>
+      </div>
+      <button id="vmt-close" type="button" aria-label="Close">✖</button>
+    </div>
+    <div id="vmt-menu"></div>
+    <div id="vmt-foot">
+      <button id="vmt-order" type="button">Order · 0 AVC</button>
+    </div>
+  </div>
   <div id="delivery-route-hud" aria-label="Delivery route details">
     <div id="drh-type">▸ Delivery route</div>
     <div id="drh-title">—</div>
@@ -1207,6 +1252,308 @@ const GlobeControl = {
   },
 };
 window.GlobeControl = GlobeControl;
+
+// === GLOBE NAVIGATE — half-trackball · national stop · click city · no jumps ===
+const GlobeNavigate = {
+  mode: 'global',
+  anchor: null,
+  _cityUnlocked: false,
+  GLOBAL_Z: 2.55,
+  NATIONAL_Z: 1.82,
+  CITY_CAM_Z: 1.30,
+  LEAFLET_ZOOM: 11,
+  _lastClick: null,
+
+  init() {
+    this._syncChip();
+  },
+
+  camZ() {
+    return camera?.position?.z ?? this.GLOBAL_Z;
+  },
+
+  isGlobal() {
+    return this.camZ() > 2.15;
+  },
+
+  isNational() {
+    const z = this.camZ();
+    return z <= 2.15 && z > 1.44;
+  },
+
+  isCity() {
+    return this.camZ() <= 1.44;
+  },
+
+  _syncChip() {
+    const chip = document.getElementById('map-nav-chip');
+    if (!chip) return;
+    let txt = 'GLOBAL · drag half-trackball · scroll stops at national';
+    if (this.isCity()) txt = 'CITY z' + this.LEAFLET_ZOOM + ' · tap + for intent';
+    else if (this.isNational()) txt = 'NATIONAL · tap a city to descend slowly';
+    chip.textContent = txt;
+    chip.classList.add('visible');
+  },
+
+  unlockCity() {
+    this._cityUnlocked = true;
+    this.mode = 'city';
+  },
+
+  clampZ(z) {
+    let next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+    if (!this._cityUnlocked && next < this.NATIONAL_Z - 0.01) {
+      next = this.NATIONAL_Z;
+      this.mode = 'national';
+    }
+    return next;
+  },
+
+  onZoomSettle() {
+    const z = this.camZ();
+    if (!this._cityUnlocked && z < this.NATIONAL_Z && z > 1.5) {
+      window._globeFly = {
+        mode: 'zoom', fromZ: z, toZ: this.NATIONAL_Z,
+        t0: performance.now(), dur: 700, onTier: false,
+      };
+      this.mode = 'national';
+      ZoomTiers?.goTo?.('national', false);
+    } else if (z > 2.35 && this.mode !== 'global') {
+      this.mode = 'global';
+      this._cityUnlocked = false;
+      this._hideCityChips();
+    }
+    this._syncChip();
+  },
+
+  _hideCityChips() {
+    const el = document.getElementById('city-pick-chips');
+    if (el) { el.classList.remove('visible'); el.innerHTML = ''; }
+  },
+
+  _showCityChips(lat, lng) {
+    const el = document.getElementById('city-pick-chips');
+    if (!el) return;
+    const vendors = (window.Commerce?.vendors || []).filter(v => v.lat != null && v.lng != null);
+    const sorted = vendors.slice().sort((a, b) => {
+      const da = MarketplaceDeliveryEngine?.haversineM?.(lat, lng, a.lat, a.lng) ?? 0;
+      const db = MarketplaceDeliveryEngine?.haversineM?.(lat, lng, b.lat, b.lng) ?? 0;
+      return da - db;
+    }).slice(0, 3);
+    if (!sorted.length) {
+      this._hideCityChips();
+      return;
+    }
+    el.innerHTML = sorted.map(v =>
+      '<button type="button" data-city-pick="' + v.id + '">' + (v.emoji || '🏬') + ' ' + (v.name || 'Shop') + '</button>'
+    ).join('');
+    el.classList.add('visible');
+    el.querySelectorAll('[data-city-pick]').forEach(btn => {
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const v = vendors.find(x => x.id === btn.dataset.cityPick);
+        if (v) void this.handlePlaceClick(v.lat, v.lng, { fromChip: true, vendor: v });
+      };
+    });
+  },
+
+  async handlePlaceClick(lat, lng, opts) {
+    opts = opts || {};
+    if (lat == null || lng == null) return;
+    const z = this.camZ();
+    const same = this._lastClick && Math.hypot(lat - this._lastClick.lat, lng - this._lastClick.lng) < 0.35
+      && Date.now() - this._lastClick.t < 8000;
+    this._lastClick = { lat, lng, t: Date.now() };
+    this.anchor = { lat, lng };
+
+    if (opts.vendor) {
+      VendorMapTile?.open?.(opts.vendor);
+      return 'vendor';
+    }
+
+    if (this.isGlobal() || z > 2.05) {
+      this.mode = 'national';
+      this._cityUnlocked = false;
+      ZoomTiers?.goTo?.('national', false);
+      const p = latLngToPos(lat, lng, 1.04);
+      flyToPoint(new THREE.Vector3(p.x, p.y, p.z), this.NATIONAL_Z, { dur: 2400, onTier: true });
+      GlobeControl?.noteAutoFly?.();
+      CityMap?.onCamera?.(this.NATIONAL_Z, 'earth');
+      this._showCityChips(lat, lng);
+      GlobeDeck?.setPreview?.('National airspace · pick a city chip or tap again');
+      AciCli?.print?.('nav · national · ' + lat.toFixed(2) + ',' + lng.toFixed(2), 'ok');
+      this._syncChip();
+      return 'national';
+    }
+
+    if (this.isNational() || (!this._cityUnlocked && z > 1.42)) {
+      return this._enterCitySlow(lat, lng, opts);
+    }
+
+    MapPlaceMenu?.openAt?.(lat, lng, {
+      source: 'City',
+      hint: 'Type intent — we show 3 smart picks only',
+      limited: true,
+      prefill: opts.intent || '',
+    });
+    return 'place';
+  },
+
+  async _enterCitySlow(lat, lng, opts) {
+    this.unlockCity();
+    this.anchor = { lat, lng };
+    this._hideCityChips();
+    window._cityDropLock = true;
+    const p = latLngToPos(lat, lng, 1.04);
+    const dur = 3400;
+    flyToPoint(new THREE.Vector3(p.x, p.y, p.z), this.CITY_CAM_Z, { dur, onTier: true });
+    GlobeControl?.noteAutoFly?.();
+    GlobeDeck?.setPreview?.('Descending to city · zoom ' + this.LEAFLET_ZOOM + '…');
+    if (typeof waitForGlobeFly === 'function') await waitForGlobeFly(dur + 800);
+    await CityMap?.openAt?.(lat, lng, { camZ: this.CITY_CAM_Z, zoom: this.LEAFLET_ZOOM });
+    window._lastPos = { lat, lng };
+    if (window.Commerce?.loadVendors) {
+      await Promise.race([window.Commerce.loadVendors(), new Promise(r => setTimeout(r, 5000))]);
+    }
+    window.Commerce?.showOnGlobe?.();
+    GlobeEntity?.syncVendors?.(window.Commerce?.vendors || []);
+    window._cityDropLock = false;
+    GlobeDeck?.setPreview?.('City z' + this.LEAFLET_ZOOM + ' · tap shop or + for intent');
+    AciCli?.print?.('nav · city z' + this.LEAFLET_ZOOM, 'ok');
+    this._syncChip();
+    if (opts?.openShops) await window.Commerce?.showPicker?.();
+    return 'city';
+  },
+};
+window.GlobeNavigate = GlobeNavigate;
+
+// === VENDOR MAP TILE — profile + cover + menu on map (not boring lists) ===
+const VendorMapTile = {
+  _vendor: null,
+  _cart: {},
+
+  init() {
+    document.getElementById('vmt-close')?.addEventListener('click', () => this.close());
+    document.getElementById('vmt-order')?.addEventListener('click', () => void this.placeOrder());
+  },
+
+  esc(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  },
+
+  open(vendor) {
+    if (!vendor) return;
+    this._vendor = vendor;
+    this._cart = {};
+    const tile = document.getElementById('vendor-map-tile');
+    if (!tile) return;
+    tile.classList.add('open');
+    MapPlaceMenu?.close?.();
+    const cover = document.getElementById('vmt-cover');
+    const avatar = document.getElementById('vmt-avatar');
+    const coverUrl = vendor.cover_url || vendor.cover || vendor.banner_url || vendor.profile_page?.cover_url || '';
+    const logoUrl = MapPins?.vendorLogo?.(vendor) || vendor.logo_url || vendor.avatar_url || '';
+    if (cover) {
+      cover.style.backgroundImage = coverUrl ? 'url(' + coverUrl + ')' : '';
+    }
+    if (avatar) {
+      avatar.src = logoUrl || '';
+      avatar.alt = vendor.name || 'Shop';
+      if (!logoUrl) avatar.style.display = 'none';
+      else avatar.style.display = 'block';
+    }
+    document.getElementById('vmt-name').textContent = (vendor.emoji || '🏬') + ' ' + (vendor.name || 'Shop');
+    document.getElementById('vmt-sub').textContent = vendor.category || 'Vendor · tap items to order';
+    this._renderMenu();
+    if (vendor.lat != null) {
+      GlobeNavigate.anchor = { lat: vendor.lat, lng: vendor.lng };
+      const fp = latLngToPos(vendor.lat, vendor.lng, 1.04);
+      if (GlobeNavigate.isNational() || GlobeNavigate.isGlobal()) {
+        void GlobeNavigate._enterCitySlow(vendor.lat, vendor.lng, {});
+      } else {
+        flyToPoint?.(new THREE.Vector3(fp.x, fp.y, fp.z), GlobeNavigate.CITY_CAM_Z, { dur: 1800 });
+      }
+    }
+    LazyModules.ensure().then(() => {
+      if (window.Commerce) {
+        window.Commerce.selected = vendor;
+        window.Commerce.cart = this._cart;
+      }
+    });
+    MapDepict?.pulse?.(vendor.lat, vendor.lng, 0x3d9eff, vendor.name, 8000);
+  },
+
+  close() {
+    document.getElementById('vendor-map-tile')?.classList.remove('open');
+    this._vendor = null;
+  },
+
+  _menu() {
+    const v = this._vendor;
+    if (!v) return [];
+    if (window.Commerce?.menuFor) return window.Commerce.menuFor(v);
+    return Array.isArray(v.items) ? v.items : [];
+  },
+
+  _renderMenu() {
+    const box = document.getElementById('vmt-menu');
+    const btn = document.getElementById('vmt-order');
+    if (!box) return;
+    const menu = this._menu();
+    if (!menu.length) {
+      box.innerHTML = '<p style="padding:8px;color:var(--an-muted)">No menu yet — request menu from owner.</p>';
+      if (btn) btn.textContent = 'Request menu';
+      return;
+    }
+    box.innerHTML = '';
+    menu.forEach(item => {
+      const key = item.name;
+      const row = document.createElement('div');
+      row.className = 'vmt-item';
+      const img = item.image || item.photo || '';
+      row.innerHTML = (img ? '<img src="' + this.esc(img) + '" alt="" />' : '') +
+        '<div class="vmt-item-body"><b>' + this.esc(item.name) + '</b><small>' + (item.price || 0) + ' AVC</small></div>';
+      const q = document.createElement('div');
+      q.className = 'vmt-qty';
+      const minus = document.createElement('button');
+      minus.textContent = '−';
+      minus.onclick = (e) => { e.stopPropagation(); this._cart[key] = Math.max(0, (this._cart[key] || 0) - 1); this._renderMenu(); };
+      const span = document.createElement('span');
+      span.textContent = String(this._cart[key] || 0);
+      span.style.minWidth = '16px';
+      span.style.textAlign = 'center';
+      const plus = document.createElement('button');
+      plus.textContent = '+';
+      plus.onclick = (e) => { e.stopPropagation(); this._cart[key] = (this._cart[key] || 0) + 1; this._renderMenu(); };
+      q.append(minus, span, plus);
+      row.appendChild(q);
+      row.onclick = () => { this._cart[key] = (this._cart[key] || 0) + 1; this._renderMenu(); };
+      box.appendChild(row);
+    });
+    const total = menu.reduce((s, i) => s + (this._cart[i.name] || 0) * (i.price || 0), 0);
+    if (btn) btn.textContent = total > 0 ? 'Order · ' + total.toFixed(1) + ' AVC' : 'Add items to order';
+  },
+
+  async placeOrder() {
+    await LazyModules.ensure();
+    const v = this._vendor;
+    if (!v || !window.Commerce) return;
+    window.Commerce.selected = v;
+    window.Commerce.cart = { ...this._cart };
+    const items = this._menu().filter(i => (this._cart[i.name] || 0) > 0)
+      .map(i => ({ name: i.name, qty: this._cart[i.name], price: i.price }));
+    if (!items.length) {
+      window.Commerce.requestMenu?.();
+      return;
+    }
+    window.Commerce.cart = Object.fromEntries(items.map(i => [i.name, i.qty]));
+    window.Commerce.renderCart?.();
+    void window.Commerce.confirmAndPay?.(false);
+    this.close();
+  },
+};
+window.VendorMapTile = VendorMapTile;
 
 async function enterCityView(lat, lng, opts) {
   return GlobeControl.enterCity(lat, lng, opts);
@@ -2186,7 +2533,7 @@ window.Commerce = {
   async openOrderFlow(q) { await LazyModules.ensure(); return window.Commerce?.openOrderFlow?.(q); },
   async smartOrder(q) { await LazyModules.ensure(); return window.Commerce?.smartOrder?.(q); },
   showMenu() { LazyModules.ensure().then(() => window.Commerce?.showMenu?.()); },
-  openVendor() {},
+  openVendor(v) { if (v) VendorMapTile?.open?.(v); },
   renderCart() {},
   async fetchNearbyDrivers() { return []; },
   parseWantedItems() { return []; },
@@ -2429,6 +2776,7 @@ const MarketplaceDeliveryEngine = {
     else this.missions.push(mission);
     if (mission.active) this.renderMission(mission);
     else this._renderPendingTriangle(mission);
+    this.syncEtaLabels();
     return mission;
   },
 
@@ -2614,14 +2962,79 @@ const MarketplaceDeliveryEngine = {
     return true;
   },
 
-  tick() {
-    if (!this._globeMeshes.length) return;
-    this._pulse += 0.035;
-    this._globeMeshes.forEach((ln, i) => {
-      if (!ln.material || ln.userData?.pending) return;
-      const base = ln.userData?.ring ? 0.4 : 0.75;
-      ln.material.opacity = base * (0.82 + Math.sin(this._pulse + i * 0.4) * 0.18);
+  _etaEls: [],
+
+  _positionEta(el, lat, lng) {
+    if (!el || lat == null || lng == null || !globePivot || !camera) return;
+    const p = latLngToPos(lat, lng, 1.03);
+    const v = new THREE.Vector3(p.x, p.y, p.z);
+    globePivot.localToWorld(v);
+    v.project(camera);
+    if (v.z > 1) { el.style.display = 'none'; return; }
+    el.style.display = 'block';
+    el.style.left = (v.x * 0.5 + 0.5) * window.innerWidth + 'px';
+    el.style.top = (-v.y * 0.5 + 0.5) * window.innerHeight + 'px';
+  },
+
+  syncEtaLabels() {
+    const root = document.getElementById('map-eta-labels');
+    if (!root) return;
+    const show = GlobeNavigate?.isNational?.() || GlobeNavigate?.isCity?.() || CityMap?.active || CityMap?._nationalActive;
+    if (!show || !this.missions.length) {
+      root.innerHTML = '';
+      this._etaEls = [];
+      return;
+    }
+    const need = this.missions.length;
+    while (this._etaEls.length < need) {
+      const el = document.createElement('div');
+      el.className = 'map-eta-label';
+      root.appendChild(el);
+      this._etaEls.push(el);
+    }
+    while (this._etaEls.length > need) {
+      const el = this._etaEls.pop();
+      el?.remove?.();
+    }
+    this.missions.forEach((m, i) => {
+      const el = this._etaEls[i];
+      if (!el || !m.route?.coords?.length) return;
+      const mid = m.route.coords[Math.floor(m.route.coords.length * 0.55)] || m.route.coords[0];
+      const etaMin = m.route.duration ? Math.max(1, Math.round(m.route.duration / 60)) : '?';
+      const st = this.STATUS[m.status] || { label: m.status };
+      const driver = m.order?.driver_name || m.driver?.display_name || 'driver?';
+      el.className = 'map-eta-label' + (m.active ? '' : ' pending');
+      el.textContent = (m.order?.short_id || m.id.slice(0, 6)) + ' · ' + etaMin + 'm · ' + driver + ' · ' + st.label;
+      el.onclick = (e) => { e.stopPropagation(); this.showHud(m); };
+      this._positionEta(el, mid.lat, mid.lng);
     });
+  },
+
+  async refreshVendorPolygons(vendorId) {
+    if (!Auth?.user || !Auth?.client || !vendorId) return;
+    try {
+      const headers = await Auth.authHeaders?.();
+      const r = await fetch(SB_URL + '/rest/v1/orders?select=*&vendor_id=eq.' + encodeURIComponent(vendorId) + '&status=in.(assigned,active,en_route,seeking_driver)&order=created_at.desc&limit=12', { headers });
+      if (!r.ok) return;
+      const orders = await r.json();
+      for (const order of orders || []) {
+        const vendor = (window.Commerce?.vendors || []).find(v => v.id === vendorId) || { id: vendorId, lat: order.delivery_lat, lng: order.delivery_lng };
+        await this.activateTriangle({ order, vendor, driver: { id: order.driver_id, display_name: order.driver_name }, client: { lat: order.delivery_lat, lng: order.delivery_lng } });
+      }
+      this.syncEtaLabels();
+    } catch (_) {}
+  },
+
+  tick() {
+    if (this._globeMeshes.length) {
+      this._pulse += 0.035;
+      this._globeMeshes.forEach((ln, i) => {
+        if (!ln.material || ln.userData?.pending) return;
+        const base = ln.userData?.ring ? 0.4 : 0.75;
+        ln.material.opacity = base * (0.82 + Math.sin(this._pulse + i * 0.4) * 0.18);
+      });
+    }
+    if (this.missions.length) this.syncEtaLabels();
   },
 
   importChannelOrder(payload) {
@@ -8207,6 +8620,8 @@ const MapOverlayDismiss = {
   PANEL_IDS: [
     'profile-site-panel',
     'globe-entity-hud',
+    'vendor-map-tile',
+    'delivery-route-hud',
     'map-comms-contact',
     'map-comms-cloud',
     'astranov-auth-modal',
@@ -8255,6 +8670,9 @@ const MapOverlayDismiss = {
 
   closeAll() {
     MapPlaceMenu?.close?.();
+    VendorMapTile?.close?.();
+    MarketplaceDeliveryEngine?.closeHud?.();
+    GlobeNavigate?._hideCityChips?.();
     ProfileSite?.close?.();
     Auth?.closeLoginModal?.();
     window.Commerce?.hideMenu?.();
@@ -8378,12 +8796,33 @@ const ClassifiedTriangles = {
     AciCli?.print?.('triangles · ' + (text || 'default top 3'), 'ok');
   },
 
-  render(primary, more, pin) {
+  _contextTop3(pin) {
+    const atCity = GlobeNavigate?.isCity?.();
+    if (atCity) {
+      return [
+        this.CATALOG.find(c => c.id === 'order'),
+        this.CATALOG.find(c => c.id === 'deliver_here'),
+        this.CATALOG.find(c => c.id === 'explore'),
+      ].filter(Boolean);
+    }
+    if (GlobeNavigate?.isNational?.()) {
+      return [
+        this.CATALOG.find(c => c.id === 'explore'),
+        this.CATALOG.find(c => c.id === 'list_shop'),
+        this.CATALOG.find(c => c.id === 'drive_here'),
+      ].filter(Boolean);
+    }
+    return this.defaultTop3();
+  },
+
+  render(primary, more, pin, opts) {
+    opts = opts || {};
     const tri = document.getElementById('classified-triangles-primary');
     const moreEl = document.getElementById('classified-triangles-more');
     const toggle = document.getElementById('ct-more-toggle');
     if (!tri) return;
-    const top = (primary || this.defaultTop3()).slice(0, 3);
+    const limited = !!opts.limited || !!pin?.limited;
+    const top = (primary || (limited ? this._contextTop3(pin) : this.defaultTop3())).slice(0, 3);
     tri.innerHTML = top.map((item, i) =>
       '<button type="button" class="ct-tri ct-top" data-ct-id="' + item.id + '" title="' + item.label + '">'
       + '<span class="ct-icon">' + item.icon + '</span><span class="ct-lbl">' + item.label + '</span></button>'
@@ -8395,7 +8834,7 @@ const ClassifiedTriangles = {
         this.runAction(btn.dataset.ctId, pin);
       };
     });
-    const extras = (more || this.defaultMore()).slice(0, 8);
+    const extras = limited ? [] : (more || this.defaultMore()).slice(0, 5);
     if (moreEl) {
       moreEl.innerHTML = extras.map(item =>
         '<button type="button" data-ct-id="' + item.id + '">' + item.icon + ' ' + item.label + '</button>'
@@ -8410,7 +8849,7 @@ const ClassifiedTriangles = {
       moreEl.classList.remove('open');
     }
     if (toggle) {
-      toggle.style.display = extras.length ? 'block' : 'none';
+      toggle.style.display = (!limited && extras.length) ? 'block' : 'none';
       toggle.textContent = 'More options ▾';
     }
   },
@@ -8477,12 +8916,15 @@ const MapPlaceMenu = {
       intent.value = opts.prefill || '';
       if (opts.focusIntent) setTimeout(() => intent.focus(), 80);
     }
-    const ranked = ClassifiedTriangles.defaultTop3().concat(ClassifiedTriangles.defaultMore());
+    const limited = !!opts.limited;
+    const ranked = limited
+      ? ClassifiedTriangles._contextTop3(this._pin)
+      : ClassifiedTriangles.defaultTop3().concat(ClassifiedTriangles.defaultMore());
     if (opts?.entity?.type === 'vendor') {
       const order = ClassifiedTriangles.CATALOG.find(c => c.id === 'order');
-      if (order) ranked.unshift(order);
+      if (order && !limited) ranked.unshift(order);
     }
-    ClassifiedTriangles.render(ranked.slice(0, 3), ranked.slice(3), this._pin);
+    ClassifiedTriangles.render(ranked.slice(0, 3), limited ? [] : ranked.slice(3), this._pin, { limited });
     void SpaceNetBrain?.crawlArea?.(lat, lng, 2);
     MapDepict?.pulse?.(lat, lng, 0x00ddff, opts.label || 'here', 8000);
     GlobeDeck?.setPreview?.('▸ Plus field · ' + (opts.label || this.formatCoords(lat, lng)));
@@ -8929,7 +9371,7 @@ const GlobeEntity = {
 
     switch (entity.type) {
       case 'vendor':
-        if (entity.data?.vendor) ProfileSite?.openVendor?.(entity.data.vendor);
+        if (entity.data?.vendor) VendorMapTile?.open?.(entity.data.vendor);
         else window.Commerce?.showPicker?.();
         break;
       case 'driver':
@@ -10174,7 +10616,9 @@ window.ZoomTiers = ZoomTiers;
 
 // Globe gestures — primary UI (Google Earth / Maps style). CLI is secondary.
 const canvas = renderer.domElement;
-const TRACK_SENS = 0.0028;
+const TRACK_SENS_X = 0.0022;
+const TRACK_SENS_Y = 0.0011;
+const TRACK_SENS = TRACK_SENS_X;
 const ZOOM_MIN = 1.05;
 const ZOOM_MAX = 18;
 const ZOOM_SMOOTH = 0.11;
@@ -10214,7 +10658,10 @@ const GlobeZoom = {
     const now = performance.now();
     if (Math.abs(this._vel) < this.MIN_VEL) {
       this._vel = 0;
-      if (now > this._scrollEnd) this._scrolling = false;
+      if (now > this._scrollEnd) {
+        if (this._scrolling) GlobeNavigate?.onZoomSettle?.();
+        this._scrolling = false;
+      }
       return;
     }
     const step = this._vel;
@@ -10226,6 +10673,7 @@ const GlobeZoom = {
     this._vel *= this.FRICTION;
     if (now > this._scrollEnd && Math.abs(this._vel) < 0.002) {
       this._vel = 0;
+      if (this._scrolling) GlobeNavigate?.onZoomSettle?.();
       this._scrolling = false;
     }
   },
@@ -10246,12 +10694,12 @@ function trackballMove(clientX, clientY) {
   const dy = clientY - py;
   px = clientX;
   py = clientY;
-  globePivot.rotation.y += dx * TRACK_SENS;
-  globePivot.rotation.x += dy * TRACK_SENS;
-  globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x));
+  globePivot.rotation.y += dx * TRACK_SENS_X;
+  globePivot.rotation.x += dy * TRACK_SENS_Y;
+  globePivot.rotation.x = Math.max(-1.05, Math.min(1.05, globePivot.rotation.x));
   globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
-  trackVelX = dx * TRACK_SENS * 0.42;
-  trackVelY = dy * TRACK_SENS * 0.42;
+  trackVelX = dx * TRACK_SENS_X * 0.36;
+  trackVelY = dy * TRACK_SENS_Y * 0.36;
 }
 
 function trackballStart(clientX, clientY) {
@@ -10283,8 +10731,21 @@ function trackballEnd(clientX, clientY, opts) {
 function registerTap(clientX, clientY) {
   const now = Date.now();
   if (now - lastTapAt < 340 && Math.hypot(clientX - lastTapX, clientY - lastTapY) < 36) {
-    ZoomTiers?.stepIn?.();
-    MapDepict?.setHud('Zoom in', 'double-tap');
+    if (GlobeNavigate?.isGlobal?.()) {
+      ZoomTiers?.goTo?.('national', true);
+      GlobeNavigate.mode = 'national';
+      GlobeNavigate._cityUnlocked = false;
+    } else if (GlobeNavigate?.isNational?.()) {
+      mouse.x = (clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const hits = raycaster.intersectObject(earth);
+      if (hits.length) {
+        const pin = MapPlaceMenu?.pointFromGlobeHit?.(hits[0].point);
+        if (pin) void GlobeNavigate?._enterCitySlow?.(pin.lat, pin.lng, {});
+      }
+    }
+    MapDepict?.setHud('Zoom step', 'double-tap');
     lastTapAt = 0;
     return;
   }
@@ -10297,13 +10758,15 @@ function zoomBy(delta) {
   if (!delta || !Number.isFinite(delta)) return;
   const factor = Math.exp(delta * ZOOM_SMOOTH);
   const prev = camera.position.z;
-  const next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, prev * factor));
+  let next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, prev * factor));
+  if (GlobeNavigate?.clampZ) next = GlobeNavigate.clampZ(next);
   if (Math.abs(next - prev) < 0.00002) return;
   camera.position.z = next;
   camera.lookAt(0, 0, 0);
   CosmicZoom.update(next);
   CityMap?.onCamera?.(next, CosmicZoom?.level);
   ZoomTiers?.syncFromCamZ?.(next, false);
+  GlobeNavigate?._syncChip?.();
 }
 
 function zoomAt(clientX, clientY, delta, opts) {
@@ -10464,7 +10927,7 @@ function onGlobeClick(e) {
     }
     const root = hit.userData?.vendor ? hit : (hit.parent?.userData?.vendor ? hit.parent : hit);
     const ud = root.userData || hit.userData || {};
-    if (ud.vendor && window.Commerce?.openVendor) { window.Commerce.openVendor(ud.vendor); return; }
+    if (ud.vendor) { VendorMapTile?.open?.(ud.vendor); return; }
     if (ud.type === 'me' || root === window._meMarker) {
       const entity = GlobeEntity?.entities?.get('me');
       if (entity) { GlobeEntity.activate(entity); return; }
@@ -10477,7 +10940,7 @@ function onGlobeClick(e) {
   const intersects = raycaster.intersectObject(earth);
   if (intersects.length > 0) {
     const pin = MapPlaceMenu?.pointFromGlobeHit?.(intersects[0].point);
-    if (pin) MapPlaceMenu?.openAt?.(pin.lat, pin.lng, { source: 'Globe', hint: 'What do you want to do here?' });
+    if (pin) void GlobeNavigate?.handlePlaceClick?.(pin.lat, pin.lng, {});
   }
 }
 
@@ -10618,7 +11081,7 @@ setTimeout(showGestureHint, 600);
 const TrackballGuard = {
   _ok: false,
   _lastCheck: 0,
-  FRICTION: 0.91,
+  FRICTION: 0.88,
   MIN_VEL: 0.00008,
   CONTRACT: ['trackballStart', 'trackballMove', 'trackballEnd', 'tickGlobeFly', 'flyToPoint', 'bindTrackballEvents'],
 
@@ -10873,7 +11336,11 @@ const CityMap = {
       if (!this.active && !this._nationalActive) return;
       const dom = e.originalEvent;
       if (MapOverlayDismiss.handleMapClick(dom || { target: document.getElementById('city-map') })) return;
-      MapPlaceMenu?.openAt?.(e.latlng.lat, e.latlng.lng, { source: 'City map', hint: 'What do you want to do here?' });
+      if (this._nationalActive && !this.active) {
+        void GlobeNavigate?.handlePlaceClick?.(e.latlng.lat, e.latlng.lng, {});
+      } else {
+        MapPlaceMenu?.openAt?.(e.latlng.lat, e.latlng.lng, { source: 'City map', hint: '3 smart picks only', limited: true });
+      }
     });
     window.addEventListener('resize', () => {
       if (this.active) this._invalidate();
@@ -11393,7 +11860,7 @@ const CityMap = {
         icon: this._icon('', 'rgba(26,111,212,0.88)', logo, { ring: '#7ec8ff', initial: MapPins?.initials?.(v.name || 'Shop') }),
         title: v.name || 'Shop',
       });
-      m.on('click', () => window.Commerce?.openVendor?.(v));
+      m.on('click', () => VendorMapTile?.open?.(v));
       m.addTo(this.map);
       this._markers[id] = m;
     });
@@ -14550,6 +15017,8 @@ EarthRealism.init();
 MapPins.init();
 MapOverlayDismiss.init();
 GlobeEntity.init();
+GlobeNavigate.init();
+VendorMapTile.init();
 ClassifiedTriangles.init();
 MarketplaceDeliveryEngine.init();
 DrivingView.init();
