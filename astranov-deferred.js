@@ -9612,18 +9612,24 @@ const AvcBalance = {
     const isGuest = guest || !Auth?.user;
     const avc = Number(balance || 0);
     const fx = eurUsd || this._fx || this.EUR_USD_FALLBACK;
+    const avcTxt = isGuest ? '— AVC' : (avc >= 10000 ? (avc / 1000).toFixed(1) + 'k AVC' : avc.toFixed(1) + ' AVC');
     const eurTxt = isGuest ? '€—' : this.formatFiat(avc, '€');
     const usdTxt = isGuest ? '$—' : this.formatFiat(avc * fx, '$');
     let emoji = btn.querySelector('.avc-emoji');
+    let coreEl = btn.querySelector('.avc-core');
     let eurEl = btn.querySelector('.avc-eur');
     let usdEl = btn.querySelector('.avc-usd');
-    if (!emoji || !eurEl || !usdEl) {
-      btn.innerHTML = '<span class="avc-emoji">◎</span><span class="avc-fiat"><span class="avc-eur"></span><span class="avc-usd"></span></span>';
+    if (!emoji || !coreEl || !eurEl || !usdEl) {
+      btn.innerHTML = '<span class="avc-emoji">◎</span><span class="avc-core"></span><span class="avc-fiat"><span class="avc-eur"></span><span class="avc-usd"></span></span>';
+      btn.classList.add('app-shortcut-btn');
+      btn.hidden = false;
       emoji = btn.querySelector('.avc-emoji');
+      coreEl = btn.querySelector('.avc-core');
       eurEl = btn.querySelector('.avc-eur');
       usdEl = btn.querySelector('.avc-usd');
     }
     if (emoji) emoji.textContent = '◎';
+    if (coreEl) coreEl.textContent = avcTxt;
     if (eurEl) eurEl.textContent = eurTxt;
     if (usdEl) usdEl.textContent = usdTxt;
     btn.title = isGuest
@@ -9659,10 +9665,20 @@ const AvcBalance = {
     if (!btn || btn._avcInit) return;
     btn._avcInit = true;
     this._btn = btn;
+    btn.classList.add('app-shortcut-btn');
+    btn.hidden = false;
+    if (!btn._avcChipBound) {
+      btn._avcChipBound = true;
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        window.SuperCli?.run?.('wallet');
+      };
+    }
     this.render(null, !Auth?.user);
     void this.refresh({ quiet: true });
     if (this._timer) clearInterval(this._timer);
-    this._timer = setInterval(() => void this.refresh({ quiet: true }), 60000);
+    this._timer = setInterval(() => void this.refresh({ quiet: true }), 45000);
   },
 };
 window.AvcBalance = AvcBalance;
@@ -10272,6 +10288,8 @@ const DeferredBoot = {
     go('cli', () => window.SuperCli?.initBrain?.());
     go('globe', () => window.TelemachosPilot?.init?.());
     go('globe', () => window.DrivingView?.init?.());
+    go('avc_balance', () => window.AvcBalance?.init?.());
+    void window.AvcBalance?.refresh?.();
 
     if (sl?.allows('commerce')) {
       const bootCommerce = () => {
