@@ -1860,18 +1860,8 @@ const Commerce = {
     } catch { return []; }
   },
 
-  demoDrivers(lat, lng) {
-    const u = { lat: lat ?? 36.44, lng: lng ?? 28.22 };
-    return [
-      { id: 'demo-drv-1', display_name: 'Nikos · delivery', field_lat: u.lat + 0.004, field_lng: u.lng - 0.003 },
-      { id: 'demo-drv-2', display_name: 'Elena · courier', field_lat: u.lat - 0.003, field_lng: u.lng + 0.005 },
-      { id: 'demo-drv-3', display_name: 'Alex · ride', field_lat: u.lat + 0.002, field_lng: u.lng + 0.004 },
-    ];
-  },
-
   async driversNear(lat, lng) {
-    const rows = await this.fetchNearbyDrivers(lat, lng);
-    return rows.length ? rows : this.demoDrivers(lat, lng);
+    return this.fetchNearbyDrivers(lat, lng);
   },
 
   async fetchBalance() {
@@ -2061,20 +2051,20 @@ const Commerce = {
     } else {
       const balance = await this.fetchBalance();
       if (balance < total) {
-        const msg = 'Ανεπαρκές υπόλοιπο (' + balance.toFixed(1) + ' EUR) — χρειάζεσαι ' + total.toFixed(2) + ' EUR ή Google Wallet';
-        ACIControl?.reply(msg);
-        return;
+        ACIControl?.reply('Pay on delivery · AVC balance ' + balance.toFixed(1) + ' · total ' + total.toFixed(2));
       }
     }
     const items = sug.picks.map(p => ({ name: p.item.name, qty: 1, price: p.item.price }));
     const vendor = sug.vendor;
+    const balance = await this.fetchBalance();
+    const payOnDelivery = !useWallet && balance < total;
     MapDepict?.action('pay', {
       lat: this.userLatLng().lat, lng: this.userLatLng().lng,
       vendorLat: vendor.lat, vendorLng: vendor.lng,
-      detail: vendor.name + ' · ' + total.toFixed(2) + ' EUR',
+      detail: vendor.name + ' · ' + total.toFixed(2) + ' EUR' + (payOnDelivery ? ' · COD' : ''),
     });
-    await this.placeOrder(vendor, items, 'Smart order · ' + sug.picks.map(p => p.want.label).join(' + '), !useWallet, {
-      quote, walletPayment, payWithWallet: !!walletPayment,
+    await this.placeOrder(vendor, items, 'Smart order · ' + sug.picks.map(p => p.want.label).join(' + '), !useWallet && !payOnDelivery, {
+      quote, walletPayment, payWithWallet: !!walletPayment, payOnDelivery,
     });
   },
 
@@ -2329,6 +2319,8 @@ const Commerce = {
       const u = this.userLatLng();
       let dLat = opts.deliveryLat ?? u.lat;
       let dLng = opts.deliveryLng ?? u.lng;
+      window._clientDelivery = { lat: dLat, lng: dLng, label: 'Delivery' };
+      try { localStorage.setItem('astranov_client_delivery', JSON.stringify(window._clientDelivery)); } catch (_) {}
       const subtotal = items.reduce((s, i) => s + (i.qty || 1) * (i.price || 0), 0);
       const km = this.haversineKm(u.lat, u.lng, vendor.lat, vendor.lng);
       const quote = opts.quote || await DeliveryPricing?.quote?.({ km, kg: 3 + items.length, subtotal_eur: subtotal, lat: dLat, lng: dLng });
@@ -2353,7 +2345,8 @@ const Commerce = {
               wallet_payment: opts.walletPayment || null,
               paid_via: opts.payWithWallet ? 'google_wallet' : (payWithBalance ? 'avc_balance' : null),
             },
-            pay_with_balance: !!payWithBalance && !opts.payWithWallet,
+            pay_with_balance: !!payWithBalance && !opts.payWithWallet && !opts.payOnDelivery,
+            pay_on_delivery: !!opts.payOnDelivery,
             pay_with_wallet: !!opts.payWithWallet,
             preferred_driver_id: this._preferredDriverId || null,
             target_user_id: opts.targetUserId || null,
@@ -2397,8 +2390,9 @@ const Commerce = {
       let msg;
       if (orderResult?.order) {
         const paid = orderResult.paid ? ' · Πληρώθηκε ' + (orderResult.paid_amount || total).toFixed(1) + ' AVC' : '';
+        const cod = orderResult.pay_on_delivery ? ' · πληρωμή στην παράδοση' : '';
         msg = orderResult.seeking_driver
-          ? 'Παραγγελία ' + (ordId || '') + ' στο ' + vendor.name + paid + '. Αναζητούμε οδηγό — 24/7 P2P.'
+          ? 'Παραγγελία ' + (ordId || '') + ' στο ' + vendor.name + paid + cod + '. Αναζητούμε οδηγό — πες driver jobs ή driver online.'
           : orderResult.awaiting_accept
           ? 'Παραγγελία ' + (ordId || '') + ' στο ' + vendor.name + paid + '. Οδηγός ' + (driver || '') + ' — πρέπει να υπογράψει/αποδεχτεί για ενεργό triangle.'
           : 'Παραγγελία ' + (ordId || '') + ' στο ' + vendor.name + paid + '. Οδηγός: ' + (driver || 'pending') + '.';
@@ -10044,6 +10038,12 @@ const OrderTracking = {
       } catch { /* */ }
     }
     this.showOnGlobe(order, vendor, driver);
+    const v = vendor || await this.resolveVendor(order.vendor_id);
+    if (order.driver_accepted_at && (order.status === 'active' || order.status === 'en_route' || order.status === 'picked_up')) {
+      void MarketplaceDeliveryEngine?.onDriverAccepted?.(order, v, driver);
+    } else if (order.status !== 'delivered' && order.status !== 'cancelled') {
+      void MarketplaceDeliveryEngine?.onOrderPlaced?.(order, v, driver);
+    }
     if (!opts.quiet && prev && prev !== order.status) {
       const m = this.meta(order.status);
       GlobeDeck?.say?.(m.icon + ' ' + (order.short_id || '') + ' → ' + m.label, 'ok');
