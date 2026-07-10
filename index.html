@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710310000-brain-neurons-live" />
+<meta name="astranov-build" content="20260710320000-cli-plus-fixed" />
 <meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
 <meta name="astranov-mission" content="SpaceNet: solar-global-national-city-street unify internet under realistic space imagery" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
@@ -268,7 +268,7 @@
   #globe-deck[data-cli-state="add"] { --cli-g1:255,120,200; --cli-g2:200,60,160; --cli-bd:240,100,190; --cli-bg1:24,6,20; --cli-bg2:36,10,30; --cli-speed:3.4s; }
   #globe-deck[data-cli-state="active"] { --cli-g1:90,170,255; --cli-g2:40,120,220; --cli-bd:60,150,255; --cli-bg1:6,16,40; --cli-bg2:10,24,56; --cli-speed:3.6s; }
   #globe-deck.expanded { --cli-speed:calc(var(--cli-speed) * 0.92); }
-  #globe-deck.collapsed { max-height:118px; }
+  #globe-deck.collapsed { min-height:176px; max-height:176px; }
   #globe-deck.expanded.size-third { max-height:33vh; min-height:33vh; }
   #globe-deck.expanded.size-full { max-height:min(92dvh, calc(100dvh - 44px)); min-height:min(92dvh, calc(100dvh - 44px)); }
   #globe-deck.expanded.size-free { transition:none; }
@@ -528,10 +528,9 @@
   #classified-triangles-more.open { display:flex; }
   #classified-triangles-more button { padding:8px 10px; border-radius:10px; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); font-size:10px; font-weight:600; cursor:pointer; touch-action:manipulation; }
   #ct-more-toggle { width:100%; padding:8px; margin-bottom:6px; border-radius:10px; border:1px dashed var(--ax-blue-border); background:transparent; color:var(--an-muted); font-size:10px; cursor:pointer; }
-  #spacenet-map-plus { display:flex; position:fixed; bottom:calc(88px + env(safe-area-inset-bottom)); right:14px; z-index:170; width:48px; height:48px; border-radius:50%; border:1px solid var(--ax-green-border); background:var(--ax-green-bg); color:#fff; font-size:26px; font-weight:600; line-height:1; align-items:center; justify-content:center; cursor:pointer; pointer-events:auto; touch-action:manipulation; box-shadow:0 4px 18px rgba(0,0,0,0.5),0 0 12px var(--ax-green-glow); }
-  #spacenet-map-plus:active { transform:scale(0.94); }
-  body.globe-flying #spacenet-map-plus, body.site-shell-open #spacenet-map-plus { opacity:0.35; pointer-events:none; }
-  body.cosmic-solar #spacenet-map-plus { bottom:calc(72px + env(safe-area-inset-bottom)); }
+  #spacenet-map-plus { display:none !important; }
+  #globe-deck-input-row #globe-deck-plus { border-radius:50%; width:40px; height:40px; font-size:22px; font-weight:700; background:var(--ax-green-bg); border:1px solid var(--ax-green-border); color:#fff; box-shadow:0 0 10px var(--ax-green-glow); }
+  #globe-deck-input-row #globe-deck-plus:active { transform:scale(0.94); }
   #delivery-route-hud { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:185; width:min(340px,94vw); padding:12px 14px; border-radius:14px; background:var(--ax-panel-strong); border:1px solid var(--ax-green-border); font:11px/1.45 system-ui; color:var(--an-text); pointer-events:auto; box-shadow:0 6px 24px rgba(0,0,0,0.55),0 0 16px var(--ax-green-glow); backdrop-filter:blur(12px); }
   #delivery-route-hud.open { display:block; }
   #drh-type { color:var(--ax-green-bright); font-size:10px; margin-bottom:4px; }
@@ -619,7 +618,7 @@
   .coders-summon { margin-top:8px; width:100%; padding:10px; border-radius:10px; border:1px solid rgba(168,200,255,0.35); background:rgba(61,142,255,0.12); color:#c8d8ff; font:inherit; font-size:11px; font-weight:700; cursor:pointer; }
   .auth-google-fallback { opacity:0.72; font-size:12px !important; padding:10px !important; }
   /* Site shell — subdomain over Earth */
-  #astranov-site-shell { display:none; position:fixed; top:0; left:0; right:0; bottom:118px; z-index:110; flex-direction:column; pointer-events:auto; }
+  #astranov-site-shell { display:none; position:fixed; top:0; left:0; right:0; bottom:182px; z-index:110; flex-direction:column; pointer-events:auto; }
   #astranov-site-shell.open { display:flex; }
   body.site-shell-open #globe { opacity:0.42; filter:saturate(0.85) blur(0.3px); }
   body.site-shell-open #super-cli-bar #super-add-fab { opacity:0.35; pointer-events:none; }
@@ -1022,6 +1021,7 @@
         <form id="aci-cli-form" action="#" autocomplete="off">
           <textarea id="aci-cli-in" name="cli" rows="1" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" inputmode="text" placeholder="Talk to Astranov — type or tap 🎧 · Enter to send"></textarea>
         </form>
+        <button id="globe-deck-plus" class="deck-input-btn" type="button" title="Plus field — what do you want to do here?">+</button>
         <button id="globe-deck-send" class="deck-input-btn" type="submit" form="aci-cli-form" title="Send command">➡</button>
       </div>
     </div>
@@ -5836,7 +5836,7 @@ const GlobeDeck = {
     }
   },
 
-  _deckMinH() { return 118; },
+  _deckMinH() { return 176; },
   _deckMaxH() { return Math.min(window.innerHeight * 0.94, window.innerHeight - 36); },
 
   _deckInteractive(target) {
@@ -5871,7 +5871,7 @@ const GlobeDeck = {
       d.style.minHeight = nh + 'px';
       d.classList.remove('collapsed', 'size-third', 'size-full');
       d.classList.add('expanded', 'deck-resizing');
-      this.expanded = nh > 130;
+      this.expanded = nh > 168;
       this._size = 'free';
       if (window.AciCli) AciCli.open = this.expanded;
     };
@@ -5883,7 +5883,7 @@ const GlobeDeck = {
       if (resizing || moved > 10) {
         this._lastResizeDrag = Date.now();
         const h = d.getBoundingClientRect().height;
-        if (h < 130) this._size = 'collapsed';
+        if (h < 168) this._size = 'collapsed';
         else { this._size = 'free'; this._saveHeight(h); }
         this.applySize();
       }
@@ -5961,7 +5961,7 @@ const GlobeDeck = {
     try {
       const h = parseInt(localStorage.getItem(this._HEIGHT_KEY), 10);
       const maxH = this._isMobileDeck() ? this._mobileDeckCap() : Math.min(window.innerHeight * 0.94, window.innerHeight - 36);
-      if (h >= 118 && h <= maxH) {
+      if (h >= 176 && h <= maxH) {
         this._freeHeight = Math.min(h, maxH);
       }
     } catch (_) { /* */ }
@@ -6291,7 +6291,9 @@ const GlobeDeck = {
     if (this._collapseTimer) { clearTimeout(this._collapseTimer); this._collapseTimer = null; }
     const done = task === 'cli' ? this.activeTask : task;
     this.hideStage();
-    this.collapse();
+    this._size = 'collapsed';
+    this.expanded = false;
+    this.applySize();
     this.activeTask = null;
     if (done) AppShortcuts?.untrack?.(done);
     CliRibbon?.setActive?.('CLI');
@@ -6872,7 +6874,16 @@ const SuperCli = {
 
   bindInputBar() {
     const hf = document.getElementById('aci-handsfree');
+    const plus = document.getElementById('globe-deck-plus');
     const send = document.getElementById('globe-deck-send');
+    const openPlus = () => {
+      GlobeDeck?.expand?.(ACL_TITLE);
+      MapPlaceMenu?.openPlusField?.() || SuperCli?.run?.('add');
+    };
+    if (plus && !plus._superBound) {
+      plus._superBound = true;
+      plus.onclick = e => { e.preventDefault(); e.stopPropagation(); openPlus(); };
+    }
     if (hf && !hf._superBound) {
       hf._superBound = true;
       hf.onclick = e => {
@@ -6902,8 +6913,14 @@ const SuperCli = {
   },
 
   bindToolbar() {
+    const openPlus = () => {
+      GlobeDeck?.expand?.(ACL_TITLE);
+      MapPlaceMenu?.openPlusField?.() || SuperCli?.run?.('add');
+    };
     const actions = {
       'aci-login': () => Auth?.user ? Auth.openLoggedInProfile() : (Auth?.signInGoogle?.() || Auth?.openLoginModal?.()),
+      'super-add-fab': openPlus,
+      'globe-deck-plus': openPlus,
       'aci-cli-toggle': () => GlobeDeck?.toggle(),
       'aci-stop': () => userIntervene?.(),
       'aci-hold': () => SessionHold?.toggle?.(),
