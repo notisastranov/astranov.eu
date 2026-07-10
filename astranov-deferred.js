@@ -2368,13 +2368,15 @@ const Commerce = {
       const ordId = orderResult?.order?.short_id || orderResult?.order?.id;
 
       const clientAddr = window._clientDelivery || { lat: dLat, lng: dLng, label: 'Delivery' };
-      const driverBase = window._driverBase || u;
       MapDepict?.action('order', {
         lat: clientAddr.lat, lng: clientAddr.lng,
         vendorLat: vendor.lat, vendorLng: vendor.lng,
         detail: vendor.name + (ordId ? ' · ' + ordId : ''),
       });
-      if (window.DrivingView) {
+      if (orderResult?.order && window.MarketplaceDeliveryEngine) {
+        void MarketplaceDeliveryEngine.onOrderPlaced(orderResult.order, vendor, driverObj);
+      } else if (window.DrivingView) {
+        const driverBase = window._driverBase || u;
         DrivingView.setRoutePlan?.({
           from: driverBase,
           via: { lat: vendor.lat, lng: vendor.lng },
@@ -2391,7 +2393,9 @@ const Commerce = {
       if (orderResult?.order) {
         const paid = orderResult.paid ? ' · Πληρώθηκε ' + (orderResult.paid_amount || total).toFixed(1) + ' AVC' : '';
         msg = orderResult.seeking_driver
-          ? 'Παραγγελία ' + (ordId || '') + ' στο ' + vendor.name + paid + '. Αναζητούμε οδηγό — claim στο CLI.'
+          ? 'Παραγγελία ' + (ordId || '') + ' στο ' + vendor.name + paid + '. Αναζητούμε οδηγό — 24/7 P2P.'
+          : orderResult.awaiting_accept
+          ? 'Παραγγελία ' + (ordId || '') + ' στο ' + vendor.name + paid + '. Οδηγός ' + (driver || '') + ' — πρέπει να υπογράψει/αποδεχτεί για ενεργό triangle.'
           : 'Παραγγελία ' + (ordId || '') + ' στο ' + vendor.name + paid + '. Οδηγός: ' + (driver || 'pending') + '.';
         if (orderResult.balance_after != null) this._balance = orderResult.balance_after;
         window.AvcBalance?.render?.(this._balance, false);
@@ -8494,7 +8498,7 @@ window.AstranovPresence = AstranovPresence;
     if (!Auth?.client || !orderId) return null;
     const { data } = await Auth.client
       .from('orders')
-      .select('id,status,driver_id,customer_id,vendor_id')
+      .select('id,status,driver_id,customer_id,vendor_id,driver_accepted_at,short_id,delivery_lat,delivery_lng,items,calc')
       .eq('id', orderId)
       .maybeSingle();
     return data;
@@ -8509,7 +8513,12 @@ window.AstranovPresence = AstranovPresence;
       if (o.driver_id && MC.preferredDriverId !== o.driver_id) {
         MC.preferredDriverId = o.driver_id;
         const d = MC.drivers.find((x) => x.id === o.driver_id);
-        window.MapComms?.postSystem?.(`${emojiFor('driver')} Driver ${displayName(d || { id: o.driver_id })} assigned`);
+        window.MapComms?.postSystem?.(`${emojiFor('driver')} Driver ${displayName(d || { id: o.driver_id })} assigned — must accept to activate triangle`);
+        MC.awaitingAccept = !o.driver_accepted_at && o.status === 'assigned';
+      }
+      if (o.driver_accepted_at && o.status === 'active') {
+        MC.awaitingAccept = false;
+        void MarketplaceDeliveryEngine?.onDriverAccepted?.(o, MC.vendor, MC.drivers.find((x) => x.id === o.driver_id));
       }
       if (!MC.seekingDriver) window.MapComms?.hideDriverPicker?.();
       syncCloud();
@@ -8567,11 +8576,16 @@ window.AstranovPresence = AstranovPresence;
     if (MC.orderId) {
       try {
         const headers = Auth?.authHeaders ? await Auth.authHeaders() : {};
-        await fetch(SB_URL + '/functions/v1/order-intake', {
+        const r = await fetch(SB_URL + '/functions/v1/order-intake', {
           method: 'POST',
-          headers,
+          headers: { ...headers, 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'assign_driver', order_id: MC.orderId, driver_id: driverId }),
         });
+        const j = await r.json().catch(() => ({}));
+        if (j.awaiting_accept) {
+          MC.awaitingAccept = true;
+          window.MapComms?.postSystem?.('Driver must accept assignment — triangle activates on sign');
+        }
       } catch (e) {
         console.warn('[MarketplaceComms] assign_driver', e);
       }
@@ -8598,17 +8612,24 @@ window.AstranovPresence = AstranovPresence;
       .join('\n');
   }
 
+  async function acceptAssignment(orderId) {
+    const oid = orderId || MC.orderId;
+    if (!oid) return { error: 'no order' };
+    return FieldBrain?.claimDelivery?.(oid);
+  }
+
   function init() {
     window.MarketplaceComms = {
       openForBrowse,
       openForOrder,
       selectDriver,
+      acceptAssignment,
       hide,
       membersFromContext,
       get state() { return MC; },
       listDriversText,
     };
-    console.log('[MarketplaceComms] ready — vendor/client/driver polygon chats');
+    console.log('[MarketplaceComms] ready — vendor/client/driver polygon · P2P 24/7');
   }
 
   init();
@@ -9863,10 +9884,12 @@ const OrderTracking = {
     if (!order) return;
     this.active = order;
     this.showOnGlobe(order, vendor, driver);
+    void MarketplaceDeliveryEngine?.onOrderPlaced?.(order, vendor, driver);
     this.startPoll();
     const m = this.meta(order.status);
     const msg = m.icon + ' Order ' + (order.short_id || order.id?.slice(0, 8)) + ' · ' + m.label
-      + (driver?.name ? ' · ' + driver.name : '');
+      + (driver?.name ? ' · ' + driver.name : '')
+      + (order.driver_accepted_at ? '' : ' · tap route when driver accepts');
     GlobeDeck?.say?.(msg, 'ok');
     Responsive3D?.visualReact?.('order', { order, vendor, lat: order.delivery_lat, lng: order.delivery_lng });
   },
