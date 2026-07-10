@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710200000-support-digest-daily" />
+<meta name="astranov-build" content="20260710210000-support-digest-spacexai" />
 <meta name="astranov-mission" content="SpaceNet: solar-global-national-city-street unify internet under realistic space imagery" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
 <!-- RESTORED + MILKED + ADVANCED build 20260710132000 force deploy celestial full app -->
@@ -2205,17 +2205,26 @@ async function fetchJson(url, options, timeoutMs) {
     j._ok = r.ok;
     if (!r.ok || j.error) {
       const fn = String(url).match(/functions\/v1\/([^/?]+)/)?.[1];
-      if (fn) window.MissionSupportReporter?.recordProblem?.('api_error', String(j.error || r.status).slice(0, 200), { fn, status: r.status });
+      if (fn) {
+        const xaiFn = /aicycle|aci|ai-router|voice|coders-bridge|brain/i.test(fn);
+        window.MissionSupportReporter?.recordProblem?.('api_error', String(j.error || r.status).slice(0, 200), { fn, status: r.status, vendor: xaiFn ? 'xai' : 'astranov' });
+      }
     }
     return j;
   } catch (e) {
     if (e.name === 'AbortError') {
       const fn = String(url).match(/functions\/v1\/([^/?]+)/)?.[1];
-      if (fn) window.MissionSupportReporter?.recordProblem?.('api_timeout', fn, { fn });
+      if (fn) {
+        const xaiFn = /aicycle|aci|ai-router|voice|coders-bridge|brain/i.test(fn);
+        window.MissionSupportReporter?.recordProblem?.('api_timeout', fn, { fn, vendor: xaiFn ? 'xai' : 'astranov' });
+      }
       return { error: 'timeout — server slow, try again', _timeout: true };
     }
     const fn = String(url).match(/functions\/v1\/([^/?]+)/)?.[1];
-    if (fn) window.MissionSupportReporter?.recordProblem?.('api_network', String(e.message || e).slice(0, 200), { fn });
+    if (fn) {
+      const xaiFn = /aicycle|aci|ai-router|voice|coders-bridge|brain/i.test(fn);
+      window.MissionSupportReporter?.recordProblem?.('api_network', String(e.message || e).slice(0, 200), { fn, vendor: xaiFn ? 'xai' : 'astranov' });
+    }
     return { error: String(e.message || e.cause?.message || e || 'network failed') };
   } finally {
     clearTimeout(timer);
@@ -8074,7 +8083,7 @@ const MissionSupportReporter = {
 
   recordProgress(subsystem, detail, props) {
     const s = String(subsystem || 'field');
-    if (!/order|commerce|route|delivery|vendor|driver|globe|city|mission|claim|evolve|crawler|channel/i.test(s + ' ' + (detail || ''))) return;
+    if (!/order|commerce|route|delivery|vendor|driver|globe|city|mission|claim|evolve|crawler|channel|chat|coders|think|voice|grok|xai|brain/i.test(s + ' ' + (detail || ''))) return;
     const row = { subsystem: s, detail: String(detail || '').slice(0, 200), ts: Date.now(), props: props || {} };
     const buf = this._load(this.LS_WINS);
     buf.push(row);
@@ -8132,8 +8141,8 @@ const MissionSupportReporter = {
         try { localStorage.setItem(this.LS_DAY, today); } catch (_) {}
         this._save(this.LS_PROBLEMS, []);
         this._save(this.LS_WINS, []);
-        if (j.notified) GlobeDeck?.log?.('Support digest sent · ' + today, 'dim');
-        else if (!j.skipped) GlobeDeck?.log?.('Support digest stored · ' + today, 'dim');
+        if (j.notified) GlobeDeck?.log?.('Support digest sent · Astranov + xAI · ' + today, 'dim');
+        else if (!j.skipped) GlobeDeck?.log?.('Support digest stored · Astranov + xAI · ' + today, 'dim');
       }
     } catch (_) { /* retry next hour */ }
     finally { this._submitting = false; }
