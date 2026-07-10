@@ -156,13 +156,26 @@ async function handleDriverAccept(sb: ReturnType<typeof createClient>, body: Rec
   }
 
   if (!order.driver_id) {
-    const driver = await pickDriver(sb, order.delivery_lat, order.delivery_lng, order.customer_id, userId)
-    if (!driver || driver.id !== userId) {
-      return new Response(JSON.stringify({ error: 'claim_requires_assignment' }), { status: 400, headers: cors })
+    if (order.status === 'seeking_driver' || order.status === 'pending') {
+      const { data: selfProf } = await sb.from('profiles')
+        .select('id, display_name, avatar_emoji, field_lat, field_lng, roles')
+        .eq('id', userId)
+        .maybeSingle()
+      if (!selfProf?.roles?.includes?.('driver')) {
+        return new Response(JSON.stringify({ error: 'driver_role_required' }), { status: 403, headers: cors })
+      }
+      order.driver_id = userId
+      order.driver_name = selfProf.display_name || 'Driver'
+      order.driver_emoji = selfProf.avatar_emoji || '🚚'
+    } else {
+      const driver = await pickDriver(sb, order.delivery_lat, order.delivery_lng, order.customer_id, userId)
+      if (!driver || driver.id !== userId) {
+        return new Response(JSON.stringify({ error: 'claim_requires_assignment' }), { status: 400, headers: cors })
+      }
+      order.driver_id = driver.id
+      order.driver_name = driver.name
+      order.driver_emoji = driver.emoji
     }
-    order.driver_id = driver.id
-    order.driver_name = driver.name
-    order.driver_emoji = driver.emoji
   }
 
   const { data: vendor } = await sb.from('vendors').select('id, name, lat, lng, owner_id').eq('id', order.vendor_id).maybeSingle()
@@ -210,6 +223,71 @@ async function handleDriverAccept(sb: ReturnType<typeof createClient>, body: Rec
   }), { headers: cors })
 }
 
+async function handleStatusUpdate(sb: ReturnType<typeof createClient>, body: Record<string, unknown>, userId: string | null) {
+  const orderId = String(body.order_id || body.short_id || '').trim()
+  const status = String(body.status || '').toLowerCase()
+  if (!orderId || !userId) {
+    return new Response(JSON.stringify({ error: 'login and order_id required' }), { status: 401, headers: cors })
+  }
+  const allowed = new Set(['picked_up', 'en_route', 'delivered', 'active'])
+  if (!allowed.has(status)) {
+    return new Response(JSON.stringify({ error: 'invalid_status' }), { status: 400, headers: cors })
+  }
+
+  const isUuid = /^[0-9a-f-]{36}$/i.test(orderId)
+  let q = sb.from('orders').select('*')
+  q = isUuid ? q.eq('id', orderId) : q.eq('short_id', orderId.toUpperCase())
+  const { data: order } = await q.maybeSingle()
+  if (!order) return new Response(JSON.stringify({ error: 'order_not_found' }), { status: 404, headers: cors })
+  if (order.driver_id !== userId) {
+    return new Response(JSON.stringify({ error: 'driver_only' }), { status: 403, headers: cors })
+  }
+
+  const patch: Record<string, unknown> = { status, updated_at: new Date().toISOString() }
+  if (status === 'picked_up') patch.picked_up_at = new Date().toISOString()
+  if (status === 'delivered') patch.delivered_at = new Date().toISOString()
+
+  const { data: updated, error } = await sb.from('orders').update(patch).eq('id', order.id).select().single()
+  if (error) throw error
+
+  await sb.from('field_events').insert({
+    user_id: userId,
+    role: 'driver',
+    action: 'order',
+    detail: `${status} ${order.short_id || order.id}`,
+    lat: order.delivery_lat,
+    lng: order.delivery_lng,
+    props: { order_id: order.id, status },
+    brain_synced: true,
+  }).catch(() => {})
+
+  return new Response(JSON.stringify({ ok: true, order: updated }), { headers: cors })
+}
+
+async function handleListOpen(sb: ReturnType<typeof createClient>, body: Record<string, unknown>, userId: string | null) {
+  if (!userId) {
+    return new Response(JSON.stringify({ error: 'login required' }), { status: 401, headers: cors })
+  }
+  const lat = typeof body.lat === 'number' ? body.lat : null
+  const lng = typeof body.lng === 'number' ? body.lng : null
+  const { data: orders } = await sb.from('orders')
+    .select('id, short_id, status, vendor_id, vendor_name, delivery_lat, delivery_lng, items, calc, created_at, driver_id')
+    .in('status', ['seeking_driver', 'pending', 'assigned'])
+    .is('driver_accepted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(30)
+
+  let list = orders || []
+  if (lat != null && lng != null) {
+    list = [...list].sort((a, b) => {
+      const da = a.delivery_lat != null ? haversineM(lat, lng, a.delivery_lat, a.delivery_lng) : 9e9
+      const db = b.delivery_lat != null ? haversineM(lat, lng, b.delivery_lat, b.delivery_lng) : 9e9
+      return da - db
+    })
+  }
+  return new Response(JSON.stringify({ ok: true, orders: list.slice(0, 20) }), { headers: cors })
+}
+
 async function handleComplete(sb: ReturnType<typeof createClient>, body: Record<string, unknown>, userId: string | null) {
   const orderId = String(body.order_id || '')
   if (!orderId || !userId) {
@@ -247,7 +325,7 @@ async function handleChannelImport(sb: ReturnType<typeof createClient>, body: Re
 }
 
 async function handleCreateOrder(sb: ReturnType<typeof createClient>, body: Record<string, unknown>, customerId: string | null) {
-  const { vendor_id, items, calc, delivery_lat, delivery_lng, delivery_address, notes, pay_with_balance, preferred_driver_id, channel } = body
+  const { vendor_id, items, calc, delivery_lat, delivery_lng, delivery_address, notes, pay_with_balance, pay_on_delivery, preferred_driver_id, channel } = body
 
   if (!vendor_id || !Array.isArray(items) || items.length === 0) {
     return new Response(JSON.stringify({ error: 'vendor_id and items required' }), { status: 400, headers: cors })
@@ -302,7 +380,8 @@ async function handleCreateOrder(sb: ReturnType<typeof createClient>, body: Reco
 
   let balanceAfter: number | null = null
   let paid = false
-  if (pay_with_balance) {
+  const cod = !!pay_on_delivery
+  if (pay_with_balance && !cod) {
     if (!customerId) {
       return new Response(JSON.stringify({ error: 'login_required' }), { status: 401, headers: cors })
     }
@@ -329,10 +408,14 @@ async function handleCreateOrder(sb: ReturnType<typeof createClient>, body: Reco
     ...(calc as object ?? {}),
     total_avc: totalAvc,
     ...(paid ? { paid: true, paid_at: new Date().toISOString(), balance_after: balanceAfter } : {}),
+    ...(cod ? { pay_on_delivery: true } : {}),
   }
 
   const row: Record<string, unknown> = {
     vendor_id,
+    vendor_lat: vendor.lat,
+    vendor_lng: vendor.lng,
+    vendor_name: vendor.name,
     customer_id: customerId,
     items,
     calc: calcOut,
@@ -342,6 +425,7 @@ async function handleCreateOrder(sb: ReturnType<typeof createClient>, body: Reco
     delivery_address: delivery_address ?? null,
     notes: notes ?? null,
     channel: channel ?? null,
+    pay_on_delivery: cod,
     driver_accepted_at: null,
   }
   if (driver) {
@@ -421,6 +505,7 @@ async function handleCreateOrder(sb: ReturnType<typeof createClient>, body: Reco
     paid,
     paid_amount: paid ? totalAvc : null,
     balance_after: balanceAfter,
+    pay_on_delivery: cod,
     multi_role: true,
     decentralized: true,
   }), { headers: cors })
@@ -441,6 +526,8 @@ serve(async (req) => {
 
     if (action === 'assign_driver') return await handleAssignDriver(sb, body, userId)
     if (action === 'driver_accept') return await handleDriverAccept(sb, body, userId)
+    if (action === 'status_update' || action === 'order_status') return await handleStatusUpdate(sb, body, userId)
+    if (action === 'list_open' || action === 'driver_jobs') return await handleListOpen(sb, body, userId)
     if (action === 'complete' || action === 'driver_complete') return await handleComplete(sb, body, userId)
     if (action === 'channel_import') return await handleChannelImport(sb, body)
     return await handleCreateOrder(sb, body, userId)
