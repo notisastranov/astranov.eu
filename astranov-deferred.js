@@ -2166,6 +2166,11 @@ const Commerce = {
 
   async openVendor(vendor) {
     if (!vendor) return;
+    if (window.VendorMapTile?.open) {
+      window.VendorMapTile.open(vendor);
+      this.selected = vendor;
+      return;
+    }
     this.selected = vendor;
     this.cart = {};
     this._menuRequestSent = false;
@@ -2431,6 +2436,7 @@ const Commerce = {
           });
         }
         OrderTracking?.onOrderPlaced?.(orderResult.order, vendor, driverObj);
+        if (vendor?.id) void MarketplaceDeliveryEngine?.refreshVendorPolygons?.(vendor.id);
       } else {
         msg = 'Παραγγελία απέτυχε: ' + (errMsg || 'server error') + '. Δοκίμασε ξανά.';
       }
