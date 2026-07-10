@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710123000-restore-advance-milk" />
+<meta name="astranov-build" content="20260710125000-restore-advance-milk" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -124,7 +124,8 @@
   #globe { position:absolute; top:0; left:0; right:0; bottom:0; touch-action:none; z-index:2; }
   /* Legacy rect panels hidden — globe-deck CLI is the UI */
   #coders-hub-panel, #coders-hub-trigger, .deck, [id*="modal"], .rect-ui { display:none !important; }
-  .celestial-circle { display:none !important; pointer-events:none !important; }
+  /* celestial-circle enabled for RESTORED + ADVANCED full UI */
+  .celestial-circle { display: block; }
   #globe canvas { display:block; cursor:grab; opacity:var(--globe-opacity,1); transition:opacity 0.55s cubic-bezier(0.4,0,0.2,1); }
   #globe canvas.dragging { cursor:grabbing; }
   #globe.city-map-active canvas { opacity:0 !important; pointer-events:none; }
