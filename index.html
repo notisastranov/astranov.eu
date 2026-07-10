@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710290000-spacenet-cycle-geo" />
+<meta name="astranov-build" content="20260710300000-earth-solar-galaxy-zoom" />
 <meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
 <meta name="astranov-mission" content="SpaceNet: solar-global-national-city-street unify internet under realistic space imagery" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
@@ -1292,8 +1292,12 @@ const GlobeNavigate = {
   _syncChip() {
     const chip = document.getElementById('map-nav-chip');
     if (!chip) return;
-    let txt = 'GLOBAL · dynamic trackball · velocity zoom';
-    if (this.isCity()) txt = 'CITY z' + this.LEAFLET_ZOOM + ' · tap + for intent';
+    const cosmic = CosmicZoom?.level || 'earth';
+    let txt = 'GLOBAL · full earth · scroll out → solar · galaxy';
+    if (cosmic === 'galaxy') txt = 'GALAXY · scroll in → solar system → earth';
+    else if (cosmic === 'system') txt = 'SOLAR SYSTEM · scroll in → earth · out → galaxy';
+    else if (cosmic === 'orbit') txt = 'ORBIT · satellites · scroll out → solar system';
+    else if (this.isCity()) txt = 'CITY z' + this.LEAFLET_ZOOM + ' · tap + for intent';
     else if (this.isNational()) txt = 'NATIONAL · tap a city to descend slowly';
     chip.textContent = txt;
     chip.classList.add('visible');
@@ -10853,11 +10857,15 @@ const CosmicZoom = {
     this._lastCamZ = camZ;
     this._lastLevel = level;
 
-    globePivot.visible = camZ < 12;
+    globePivot.visible = level === 'earth' || level === 'orbit';
     if (this.solarGroup) this.solarGroup.visible = level === 'system';
     if (this.galaxyPts) this.galaxyPts.visible = level === 'galaxy';
-    if (this.satGroup) this.satGroup.visible = camZ < 10;
-    if (this.issMarker) this.issMarker.visible = camZ < 10;
+    if (this.satGroup) this.satGroup.visible = level === 'earth' || level === 'orbit';
+    if (this.issMarker) this.issMarker.visible = level === 'earth' || level === 'orbit';
+    document.body.classList.toggle('cosmic-solar', level === 'system');
+    document.body.classList.toggle('cosmic-galaxy', level === 'galaxy');
+    document.body.classList.toggle('cosmic-orbit', level === 'orbit');
+    GlobeNavigate?._syncChip?.();
     this._lerpIss();
 
     if (this.solarGroup?.visible) {
@@ -11132,6 +11140,7 @@ window.SpaceNetBrain = SpaceNetBrain;
 // === ZOOM TIERS — solar → global → national → regional → city → neighborhood ===
 const ZoomTiers = {
   TIERS: [
+    { id: 'galaxy', z: 16, label: 'GALAXY', cosmic: 'galaxy' },
     { id: 'solar', z: 7.2, label: 'SOLAR SYSTEM', cosmic: 'system' },
     { id: 'global', z: 2.55, label: 'GLOBAL', cosmic: 'earth' },
     { id: 'national', z: 1.82, label: 'NATIONAL', cosmic: 'earth', national: true },
@@ -11148,7 +11157,8 @@ const ZoomTiers = {
 
   init() {
     const i = this.TIERS.findIndex(t => t.id === this.START_ID);
-    this._index = i >= 0 ? i : 1;
+    this._index = i >= 0 ? i : 2;
+    camera.position.z = this.tierZ(this.START_ID);
     this.snap(false);
     this.updateDots();
   },
@@ -11182,7 +11192,7 @@ const ZoomTiers = {
   updateDots() {
     const el = document.getElementById('zoom-tier-dots');
     if (!el) return;
-    const show = this.TIERS.filter(t => t.id !== 'solar');
+    const show = this.TIERS.filter(t => t.id !== 'solar' && t.id !== 'galaxy');
     el.innerHTML = show.map((t) => {
       const i = this.TIERS.findIndex(x => x.id === t.id);
       const on = i === this._index ? ' on' : '';
@@ -11269,7 +11279,8 @@ const ZoomTiers = {
     cityLevel = !!tier.city;
     const zl = document.getElementById('zoom-label');
     if (zl && !window.DrivingView?.active && !CityMap?.active) {
-      if (tier.id === 'solar') zl.textContent = 'SOLAR SYSTEM';
+      if (tier.id === 'galaxy') zl.textContent = 'GALAXY';
+      else if (tier.id === 'solar') zl.textContent = 'SOLAR SYSTEM';
       else if (tier.id === 'global') zl.textContent = 'GLOBAL';
       else if (tier.national) zl.textContent = tier.label + ' · ' + this.countryHint();
       else if (tier.city) zl.textContent = tier.label;
@@ -15939,11 +15950,14 @@ function animate() {
 }
 
 window._bootEarthLock = true;
-camera.position.z = 2.55;
+GlobeNavigate.mode = 'global';
+GlobeNavigate._cityUnlocked = false;
+camera.position.z = GlobeNavigate.GLOBAL_Z;
 camera.lookAt(0, 0, 0);
 if (typeof globePivot !== 'undefined' && globePivot) {
   globePivot.rotation.x = 0.12;
   globePivot.rotation.y = 0.82;
+  globePivot.visible = true;
   syncGlobePivotRotation?.();
 }
 
@@ -15972,7 +15986,10 @@ if (typeof globePivot !== 'undefined' && globePivot) {
 }
 CosmicZoom.level = 'earth';
 if (CosmicZoom.solarGroup) CosmicZoom.solarGroup.visible = false;
-CosmicZoom.update(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
+if (CosmicZoom.galaxyPts) CosmicZoom.galaxyPts.visible = false;
+ZoomTiers?.goTo?.('global', false);
+CosmicZoom.update(GlobeNavigate.GLOBAL_Z, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
+GlobeNavigate?._syncChip?.();
 AstranovTheme.init();
 AiGlyphs.init();
 AstranovLogo.init();
@@ -16002,12 +16019,13 @@ if (window._lastPos) GlobeEntity.syncMe(_lastPos.lat, _lastPos.lng, me?.name || 
 
 setTimeout(() => {
   window._bootEarthLock = false;
-  if (camera.position.z > 4.8) {
-    camera.position.z = 2.55;
+  if (camera.position.z > 4.8 || CosmicZoom.level !== 'earth') {
+    camera.position.z = GlobeNavigate.GLOBAL_Z;
+    GlobeNavigate.mode = 'global';
     ZoomTiers?.goTo?.('global', false);
   }
-  CosmicZoom.update(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
-  ACIControl?.reply?.('Earth ready · tap 🎧 talk hands-free to Astranov');
+  CosmicZoom.update(GlobeNavigate.GLOBAL_Z, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
+  ACIControl?.reply?.('Earth ready · scroll out for solar system · galaxy');
   primeGrokVoice?.();
   setTimeout(() => AciCoders?.enterSession?.({ ping: false, focus: false }), 2500);
 }, 1200);
