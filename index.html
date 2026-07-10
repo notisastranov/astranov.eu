@@ -10,7 +10,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710241000-physics-trackball-real" />
+<meta name="astranov-build" content="20260710250000-delivery-avc-physics-lock" />
+<meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
 <meta name="astranov-mission" content="SpaceNet: solar-global-national-city-street unify internet under realistic space imagery" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
 <!-- RESTORED + MILKED + ADVANCED build 20260710230000 force deploy celestial full app -->
@@ -296,16 +297,18 @@
   #cli-ribbon-status.hold { color:var(--ax-yellow-bright); text-shadow:0 0 8px var(--ax-yellow-glow); }
   #cli-ribbon-status.ready { color:var(--ax-green-bright); text-shadow:0 0 8px var(--ax-green-glow); }
   @keyframes cli-think-glow { 0%,100%{ opacity:0.85; } 50%{ opacity:1; text-shadow:0 0 12px var(--ax-blue-glow); } }
-  #super-cli-bar button:not(#aci-login):not(#super-add-fab):not(#aci-handsfree):not(.app-shortcut-btn) { display:none !important; }
+  #super-cli-bar button:not(#aci-login):not(#super-add-fab):not(#aci-handsfree):not(#aci-avc):not(.app-shortcut-btn) { display:none !important; }
+  #super-cli-bar #aci-avc { display:inline-flex !important; flex-shrink:0; order:2; }
   #app-shortcut-row { display:flex; gap:4px; align-items:center; flex:0 1 auto; max-width:100%; min-width:0; overflow-x:auto; overflow-y:hidden; padding:0 2px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
   #app-shortcut-row::-webkit-scrollbar { display:none; }
   #super-cli-bar .app-shortcut-btn { display:inline-flex !important; align-items:center; justify-content:center; width:32px; height:32px; font-size:15px; border-radius:10px; background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); cursor:pointer; flex-shrink:0; touch-action:manipulation; transition:background 0.15s,border-color 0.15s,transform 0.1s; }
   #super-cli-bar .app-shortcut-btn:hover { border-color:var(--ax-blue-bright); box-shadow:0 0 8px var(--ax-blue-glow); }
   #super-cli-bar .app-shortcut-btn.active { background:var(--ax-blue-bg); border-color:var(--ax-blue-bright); color:var(--ax-blue-bright); box-shadow:0 0 10px var(--ax-blue-glow); }
   #super-cli-bar .app-shortcut-btn:active { transform:scale(0.92); }
-  #super-cli-bar #aci-avc.app-shortcut-btn { width:auto; min-width:92px; height:32px; padding:0 8px; border-radius:12px; gap:4px; font-size:12px; background:var(--ax-green-bg); border-color:var(--ax-green-border); color:var(--ax-green-bright); box-shadow:0 0 8px rgba(0,221,119,0.18); }
+  #super-cli-bar #aci-avc.app-shortcut-btn { width:auto; min-width:108px; height:32px; padding:0 10px; border-radius:12px; gap:5px; font-size:12px; background:var(--ax-green-bg); border-color:var(--ax-green-border); color:var(--ax-green-bright); box-shadow:0 0 8px rgba(0,221,119,0.18); }
   #super-cli-bar #aci-avc .avc-emoji { font-size:14px; line-height:1; flex-shrink:0; }
-  #super-cli-bar #aci-avc .avc-fiat { display:flex; gap:5px; align-items:center; font-family:ui-monospace,monospace; font-size:10px; font-weight:700; letter-spacing:0.01em; white-space:nowrap; }
+  #super-cli-bar #aci-avc .avc-core { font-family:ui-monospace,monospace; font-size:11px; font-weight:800; letter-spacing:0.02em; white-space:nowrap; color:var(--ax-green-bright); }
+  #super-cli-bar #aci-avc .avc-fiat { display:flex; gap:5px; align-items:center; font-family:ui-monospace,monospace; font-size:9px; font-weight:700; letter-spacing:0.01em; white-space:nowrap; opacity:0.88; }
   #super-cli-bar #aci-avc .avc-eur { color:var(--ax-green-bright); }
   #super-cli-bar #aci-avc .avc-usd { color:#8ec8ff; }
   #super-cli-bar #aci-avc.avc-guest .avc-fiat { opacity:0.5; }
@@ -570,6 +573,8 @@
   #map-eta-labels { position:fixed; inset:0; z-index:155; pointer-events:none; overflow:hidden; }
   .map-eta-label { position:absolute; transform:translate(-50%,-100%); padding:4px 8px; border-radius:8px; background:rgba(0,32,16,0.88); border:1px solid var(--ax-green-border); color:var(--ax-green-bright); font:9px/1.2 system-ui; font-weight:700; white-space:nowrap; box-shadow:0 0 10px var(--ax-green-glow); pointer-events:auto; cursor:pointer; touch-action:manipulation; }
   .map-eta-label.pending { background:rgba(40,32,0,0.88); border-color:var(--ax-yellow-border); color:var(--ax-yellow-bright); }
+  .delivery-task-polygon { pointer-events:auto; cursor:pointer; }
+  .delivery-route-line { pointer-events:auto; cursor:pointer; }
   #city-pick-chips { display:none; position:fixed; bottom:calc(148px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); z-index:167; gap:8px; max-width:94vw; flex-wrap:wrap; justify-content:center; pointer-events:auto; }
   #city-pick-chips.visible { display:flex; }
   #city-pick-chips button { padding:8px 12px; border-radius:999px; border:1px solid var(--ax-blue-border); background:var(--ax-panel-strong); color:var(--ax-blue-bright); font:10px system-ui; font-weight:600; cursor:pointer; touch-action:manipulation; }
@@ -915,7 +920,7 @@
       </div>
       <div id="super-cli-bar">
         <button id="aci-login" title="Sign in with Google" type="button">G</button>
-        <button id="aci-avc" type="button" title="AVC balance · tap for wallet" aria-live="polite"><span class="avc-emoji">◎</span><span class="avc-fiat"><span class="avc-eur">€…</span><span class="avc-usd">$…</span></span></button>
+        <button id="aci-avc" class="app-shortcut-btn" type="button" title="AVC balance · tap for wallet" aria-live="polite"><span class="avc-emoji">◎</span><span class="avc-core">— AVC</span><span class="avc-fiat"><span class="avc-eur">€…</span><span class="avc-usd">$…</span></span></button>
         <div id="super-cli-middle" class="super-cli-middle">
           <div id="app-shortcut-row" role="toolbar" aria-label="Open applications"></div>
           <span id="cli-ribbon-status" aria-live="polite"></span>
@@ -2746,6 +2751,40 @@ const AstranovRoutingEngine = {
     return null;
   },
 
+  haversineM(lat1, lng1, lat2, lng2) {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  },
+
+  fallbackLeg(from, to) {
+    if (!from || !to || from.lat == null || to.lat == null) return null;
+    const dist = this.haversineM(from.lat, from.lng, to.lat, to.lng);
+    const duration = dist / 9.2;
+    const steps = Math.max(8, Math.min(28, Math.round(dist / 420)));
+    const coords = [];
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      coords.push([from.lng + (to.lng - from.lng) * t, from.lat + (to.lat - from.lat) * t]);
+    }
+    const route = {
+      geometry: { coordinates: coords, type: 'LineString' },
+      duration,
+      distance: dist,
+      legs: [{ steps: [{ maneuver: { type: 'depart' }, distance: dist, duration }] }],
+    };
+    return {
+      route,
+      alternatives: [],
+      oneWayWarn: null,
+      engine: 'astranov-routing-fallback',
+      duration,
+      distance: dist,
+    };
+  },
+
   async route(from, to, via, opts) {
     opts = opts || {};
     const pts = [from, via, to].filter(p => p && p.lat != null && p.lng != null);
@@ -2755,7 +2794,7 @@ const AstranovRoutingEngine = {
     try {
       const r = await fetch(this.OSRM + coordStr + '?' + q);
       const j = await r.json();
-      if (j.code !== 'Ok' || !j.routes?.length) return null;
+      if (j.code !== 'Ok' || !j.routes?.length) return this.fallbackLeg(from, to);
       const ranked = j.routes
         .map(rt => ({ route: rt, score: this.scoreRoute(rt) }))
         .sort((a, b) => a.score - b.score);
@@ -2770,7 +2809,7 @@ const AstranovRoutingEngine = {
       };
     } catch (e) {
       console.warn('[AstranovRoutingEngine]', e);
-      return null;
+      return this.fallbackLeg(from, to);
     }
   },
 
@@ -2858,28 +2897,46 @@ const MarketplaceDeliveryEngine = {
     return [driverPt, vendorPt, clientPt].filter(p => p.lat != null && p.lng != null);
   },
 
-  _orderStopsGreedy(stops) {
-    if (stops.length <= 3) return stops;
+  _orderDeliveryStops(stops) {
     const driver = stops.find(s => s.role === 'driver') || stops[0];
-    const rest = stops.filter(s => s !== driver);
+    const vendor = stops.find(s => s.role === 'vendor');
+    const clients = stops.filter(s => s.role === 'client');
+    const extras = stops.filter(s => s !== driver && s !== vendor && s.role !== 'client');
     const ordered = [driver];
-    let cur = driver;
-    while (rest.length) {
-      let best = 0;
-      let bestD = Infinity;
-      rest.forEach((s, i) => {
-        const d = this.haversineM(cur.lat, cur.lng, s.lat, s.lng);
-        if (d < bestD) { bestD = d; best = i; }
-      });
-      cur = rest.splice(best, 1)[0];
-      ordered.push(cur);
+    if (vendor) ordered.push(vendor);
+    if (clients.length <= 1) {
+      ordered.push(...clients);
+    } else {
+      let cur = ordered[ordered.length - 1] || driver;
+      const pool = clients.slice();
+      while (pool.length) {
+        let best = 0;
+        let bestD = Infinity;
+        pool.forEach((s, i) => {
+          const d = this.haversineM(cur.lat, cur.lng, s.lat, s.lng);
+          if (d < bestD) { bestD = d; best = i; }
+        });
+        cur = pool.splice(best, 1)[0];
+        ordered.push(cur);
+      }
     }
-    return ordered;
+    extras.forEach(s => {
+      let bestAt = ordered.length;
+      let bestD = Infinity;
+      for (let i = 1; i < ordered.length; i++) {
+        const d = this.haversineM(ordered[i - 1].lat, ordered[i - 1].lng, s.lat, s.lng)
+          + this.haversineM(s.lat, s.lng, ordered[i].lat, ordered[i].lng)
+          - this.haversineM(ordered[i - 1].lat, ordered[i - 1].lng, ordered[i].lat, ordered[i].lng);
+        if (d < bestD) { bestD = d; bestAt = i; }
+      }
+      ordered.splice(bestAt, 0, s);
+    });
+    return ordered.filter((s, i, a) => s?.lat != null && a.indexOf(s) === i);
   },
 
   async buildRoute(stops, opts) {
     opts = opts || {};
-    const ordered = this._orderStopsGreedy(stops);
+    const ordered = this._orderDeliveryStops(stops);
     const allCoords = [];
     const legs = [];
     let totalDur = 0;
@@ -2954,7 +3011,9 @@ const MarketplaceDeliveryEngine = {
       return new THREE.Vector3(p.x, p.y, p.z);
     });
     pts.push(pts[0].clone());
-    this._addGlobeRoute(mission.id + ':tri', pts, 0x3d9eff, 0.35, { dashed: true, mission, pending: true });
+    this._addGlobeRoute(mission.id + ':tri', pts, 0x3d9eff, 0.42, { dashed: true, mission, pending: true, ring: true });
+    this._addGlobeStopMarkers(mission, 0x3d9eff, true);
+    CityMap?.setDeliveryPolygon?.(mission.id, tri, { color: '#3d9eff', pending: true, onClick: () => this.showHud(mission) });
   },
 
   renderMission(mission) {
@@ -2974,8 +3033,16 @@ const MarketplaceDeliveryEngine = {
         return new THREE.Vector3(p.x, p.y, p.z);
       });
       ring.push(ring[0].clone());
-      this._addGlobeRoute(mission.id + ':poly', ring, color, mission.polygon ? 0.55 : 0.38, { mission, ring: true });
+      const ringOp = mission.polygon ? 0.62 : 0.44;
+      this._addGlobeRoute(mission.id + ':poly', ring, color, ringOp, { mission, ring: true });
+      CityMap?.setDeliveryPolygon?.(mission.id, mission.stops, {
+        color: '#' + color.toString(16).padStart(6, '0'),
+        active: mission.active,
+        polygon: mission.polygon,
+        onClick: () => this.showHud(mission),
+      });
     }
+    this._addGlobeStopMarkers(mission, color, false);
     CityMap?.setDeliveryRoute?.(mission.id, coords, {
       color: '#' + color.toString(16).padStart(6, '0'),
       active: mission.active,
@@ -2988,6 +3055,25 @@ const MarketplaceDeliveryEngine = {
     });
     DrivingView.routeCoords = coords;
     DrivingView.drawRoute?.();
+  },
+
+  _addGlobeStopMarkers(mission, color, pending) {
+    if (!globePivot || !mission?.stops?.length) return;
+    const roleColors = { driver: 0x44ccff, vendor: 0xffaa33, client: 0x00dd88 };
+    mission.stops.forEach((s, i) => {
+      const p = latLngToPos(s.lat, s.lng, 1.031);
+      const geo = new THREE.SphereGeometry(pending ? 0.009 : 0.012, 8, 8);
+      const mat = new THREE.MeshBasicMaterial({
+        color: roleColors[s.role] || color,
+        transparent: true,
+        opacity: pending ? 0.55 : 0.92,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(p.x, p.y, p.z);
+      mesh.userData = { deliveryRoute: true, routeKey: mission.id + ':mk' + i, mission, marker: true, role: s.role };
+      globePivot.add(mesh);
+      this._globeMeshes.push(mesh);
+    });
   },
 
   _addGlobeRoute(key, points, color, opacity, meta) {
@@ -6294,7 +6380,7 @@ const SuperCli = {
   title: ACL_TITLE,
 
   // Edge bar: G left · + and 🎧 right · apps/locate scroll inside middle
-  TOOLBAR_VISIBLE: ['aci-login', 'super-add-fab', 'aci-handsfree'],
+  TOOLBAR_VISIBLE: ['aci-login', 'aci-avc', 'super-add-fab', 'aci-handsfree'],
   INPUT_BTNS: ['globe-deck-send'],
 
   ensureBarLayout() {
@@ -6321,6 +6407,16 @@ const SuperCli = {
     const fab = document.getElementById('super-add-fab');
     const hf = document.getElementById('aci-handsfree');
     if (login && login.parentElement !== bar) bar.prepend(login);
+    const avc = document.getElementById('aci-avc');
+    if (avc) {
+      avc.classList.add('app-shortcut-btn');
+      avc.hidden = false;
+      if (login && avc.parentElement !== bar) login.insertAdjacentElement('afterend', avc);
+      if (!avc._avcChipBound) {
+        avc._avcChipBound = true;
+        avc.onclick = (e) => { e.preventDefault(); e.stopPropagation(); SuperCli?.run?.('wallet'); };
+      }
+    }
     if (row && row.parentElement !== middle) middle.insertBefore(row, middle.firstChild);
     if (ribbon && ribbon.parentElement !== middle) middle.appendChild(ribbon);
     if (fab && fab.parentElement !== edgeRight) edgeRight.insertBefore(fab, hf || null);
@@ -6413,6 +6509,7 @@ const SuperCli = {
       'aci-batch': () => this.run('batch'),
       'aci-vhf': () => this.run('vhf'),
       'aci-call': () => this.run('phone'),
+      'aci-avc': () => this.run('wallet'),
     };
     Object.entries(actions).forEach(([id, fn]) => {
       const el = document.getElementById(id);
@@ -10950,12 +11047,37 @@ const ZoomTiers = {
 window.ZoomTiers = ZoomTiers;
 
 // Globe gestures — primary UI (Google Earth / Maps style). CLI is secondary.
+// === GLOBE PHYSICS LOCK — owner law: never retune trackball/zoom; survives model swaps & regressions ===
+const ASTRANOV_GLOBE_PHYSICS_LOCK = Object.freeze({
+  v: '20260710241000',
+  track: Object.freeze({
+    TRACK_VEL_GAIN: 0.00385,
+    TRACK_FLICK_BOOST: 2.6,
+    TRACK_INERTIA_DAMP: 0.9885,
+    TRACK_INERTIA_MIN: 0.00001,
+    TRACK_MAX_ANG_VEL: 0.00095,
+    TRACK_CATCH_DAMP: 0.44,
+    TRACK_VEL_SMOOTH: 0.48,
+    TRACK_RELEASE_BOOST: 1.04,
+  }),
+  zoom: Object.freeze({
+    ZOOM_MIN: 1.05,
+    ZOOM_MAX: 18,
+    ZOOM_SMOOTH_BASE: 0.088,
+    FRICTION_IDLE: 0.968,
+    FRICTION_ACTIVE: 0.993,
+    MIN_VEL: 4e-7,
+    MAX_VEL: 1.65,
+  }),
+});
+Object.defineProperty(window, 'ASTRANOV_GLOBE_PHYSICS_LOCK', { value: ASTRANOV_GLOBE_PHYSICS_LOCK, writable: false, configurable: false });
+
 const canvas = renderer.domElement;
-const TRACK_VEL_GAIN = 0.00385;
-const TRACK_FLICK_BOOST = 2.6;
-const TRACK_INERTIA_DAMP = 0.9885;
-const TRACK_INERTIA_MIN = 0.00001;
-const TRACK_MAX_ANG_VEL = 0.00095;
+const TRACK_VEL_GAIN = ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_VEL_GAIN;
+const TRACK_FLICK_BOOST = ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_FLICK_BOOST;
+const TRACK_INERTIA_DAMP = ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_INERTIA_DAMP;
+const TRACK_INERTIA_MIN = ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_INERTIA_MIN;
+const TRACK_MAX_ANG_VEL = ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_MAX_ANG_VEL;
 let trackAngVel = 0;
 let trackVelSmooth = 0;
 let trackAngAxis = null;
@@ -10995,7 +11117,7 @@ function applyTrackballDrag(dx, dy, dtMs) {
   const angle = angVelMs * dt;
   globePivot.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(axis, angle));
   syncGlobePivotRotation?.();
-  trackVelSmooth = trackVelSmooth * 0.48 + angVelMs * 0.52;
+  trackVelSmooth = trackVelSmooth * ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_VEL_SMOOTH + angVelMs * (1 - ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_VEL_SMOOTH);
   trackAngAxis = axis.clone();
   trackAngVel = Math.max(-TRACK_MAX_ANG_VEL, Math.min(TRACK_MAX_ANG_VEL, trackVelSmooth));
   trackInertiaAxis = trackAngAxis;
@@ -11004,9 +11126,9 @@ function applyTrackballDrag(dx, dy, dtMs) {
   trackVelY = dy / dt;
 }
 
-const ZOOM_MIN = 1.05;
-const ZOOM_MAX = 18;
-const ZOOM_SMOOTH_BASE = 0.088;
+const ZOOM_MIN = ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.ZOOM_MIN;
+const ZOOM_MAX = ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.ZOOM_MAX;
+const ZOOM_SMOOTH_BASE = ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.ZOOM_SMOOTH_BASE;
 
 // Physics zoom — wheel/pinch velocity drives speed; fast scroll coasts, slow scroll creeps
 const GlobeZoom = {
@@ -11016,10 +11138,10 @@ const GlobeZoom = {
   _scrolling: false,
   _lastWheelT: 0,
   _activeUntil: 0,
-  FRICTION_IDLE: 0.968,
-  FRICTION_ACTIVE: 0.993,
-  MIN_VEL: 4e-7,
-  MAX_VEL: 1.65,
+  FRICTION_IDLE: ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.FRICTION_IDLE,
+  FRICTION_ACTIVE: ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.FRICTION_ACTIVE,
+  MIN_VEL: ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.MIN_VEL,
+  MAX_VEL: ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.MAX_VEL,
 
   _normDy(dy, mode) {
     if (mode === 1) return dy * 0.048;
@@ -11113,8 +11235,8 @@ function trackballStart(clientX, clientY) {
   dragging = true;
   trackLastMoveT = performance.now();
   if (Math.abs(trackAngVel) > 1e-6) {
-    trackAngVel *= 0.44;
-    trackVelSmooth *= 0.44;
+    trackAngVel *= ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_CATCH_DAMP;
+    trackVelSmooth *= ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_CATCH_DAMP;
   }
   px = clientX;
   py = clientY;
@@ -11134,7 +11256,7 @@ function trackballEnd(clientX, clientY, opts) {
   drag = false;
   canvas.classList.remove('dragging');
   if (trackAngAxis && Math.abs(trackVelSmooth) > TRACK_INERTIA_MIN) {
-    trackAngVel = Math.max(-TRACK_MAX_ANG_VEL, Math.min(TRACK_MAX_ANG_VEL, trackVelSmooth * 1.04));
+    trackAngVel = Math.max(-TRACK_MAX_ANG_VEL, Math.min(TRACK_MAX_ANG_VEL, trackVelSmooth * ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_RELEASE_BOOST));
     trackInertiaAxis = trackAngAxis;
     trackInertiaAngle = trackAngVel * 16;
   }
@@ -12423,10 +12545,20 @@ const CityMap = {
 
   removeDeliveryRoute(id) {
     if (this._deliveryRoutes[id]) {
-      const layer = this._deliveryRoutes[id].layer;
-      if (layer && this.map) try { this.map.removeLayer(layer); } catch (_) {}
+      const rec = this._deliveryRoutes[id];
+      if (rec.layer && this.map) try { this.map.removeLayer(rec.layer); } catch (_) {}
+      if (rec.polyLayer && this.map) try { this.map.removeLayer(rec.polyLayer); } catch (_) {}
       delete this._deliveryRoutes[id];
     }
+  },
+
+  setDeliveryPolygon(id, stops, opts) {
+    opts = opts || {};
+    if (!id) return;
+    if (!this._deliveryRoutes[id]) this._deliveryRoutes[id] = { coords: [], opts: {} };
+    this._deliveryRoutes[id].polygon = stops || [];
+    this._deliveryRoutes[id].polyOpts = opts;
+    this._syncDeliveryRoutes();
   },
 
   _syncDeliveryRoutes() {
@@ -12438,7 +12570,28 @@ const CityMap = {
         try { this.map.removeLayer(rec.layer); } catch (_) {}
         rec.layer = null;
       }
-      if (!show || !rec.coords?.length) return;
+      if (rec.polyLayer) {
+        try { this.map.removeLayer(rec.polyLayer); } catch (_) {}
+        rec.polyLayer = null;
+      }
+      if (!show) return;
+      if (rec.polygon?.length >= 3) {
+        const pOpts = rec.polyOpts || rec.opts || {};
+        const pColor = pOpts.color || '#00dd88';
+        rec.polyLayer = L.polygon(rec.polygon.map(s => [s.lat, s.lng]), {
+          color: pColor,
+          fillColor: pColor,
+          fillOpacity: pOpts.pending ? 0.08 : (pOpts.polygon ? 0.16 : 0.11),
+          weight: pOpts.pending ? 2 : 3,
+          dashArray: pOpts.pending ? '7 9' : null,
+          className: 'delivery-task-polygon',
+        }).addTo(this.map);
+        rec.polyLayer.on('click', (e) => {
+          L.DomEvent.stopPropagation(e);
+          pOpts.onClick?.();
+        });
+      }
+      if (!rec.coords?.length) return;
       const latlngs = rec.coords.map(c => [c.lat, c.lng]);
       const color = rec.opts?.color || ((AstranovTheme?.effectiveMode?.() || 'dark') === 'bright' ? '#00aa66' : '#00dd88');
       rec.layer = L.polyline(latlngs, {
@@ -15434,6 +15587,14 @@ Auth.init();
 GlobeDeck.init();
 GlobeDeck.bootCollapsed?.();
 SuperCli.init();
+if (window.AvcBalance?.init) window.AvcBalance.init();
+else {
+  const avcBtn = document.getElementById('aci-avc');
+  if (avcBtn) {
+    avcBtn.classList.add('app-shortcut-btn');
+    avcBtn.hidden = false;
+  }
+}
 SessionHold.init();
 AciCli.init();
 ACIControl.init();
