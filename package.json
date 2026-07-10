@@ -8,8 +8,9 @@
     "assemble": "node scripts/assemble.mjs",
     "bootstrap": "node scripts/bootstrap-index.mjs",
     "warm-auth": "node scripts/warm-github-auth.mjs",
-    "deploy": "node scripts/warm-github-auth.mjs && node scripts/owner-push.mjs",
-    "push": "node scripts/warm-github-auth.mjs && node scripts/owner-push.mjs"
+    "guard": "node scripts/guard-base.mjs",
+    "deploy": "node scripts/guard-base.mjs && node scripts/warm-github-auth.mjs && node scripts/owner-push.mjs",
+    "push": "node scripts/guard-base.mjs && node scripts/warm-github-auth.mjs && node scripts/owner-push.mjs"
   },
   "repository": {
     "type": "git",
