@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Astranov • RESTORED + MILKED + ADVANCED 2026-07-10</title>
+<title>Astranov</title>
 <meta name="compliance-check" content="astranov-field-brain-multi-role-2026-06-24">
 <meta name="aci-session" content="Astranov Collective Intelligence">
 <meta name="theme-color" content="#0a1020" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710280000-restore-advance-milk" />
+<meta name="astranov-build" content="20260710280000-field-work-board" />
 <meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
 <meta name="astranov-mission" content="SpaceNet: solar-global-national-city-street unify internet under realistic space imagery" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
@@ -2379,6 +2379,7 @@ const FieldBrain = {
       this.vendorIds = (vendors || []).map(v => v.id);
       this.updateChip();
       if (roles.includes('driver')) MarketplacePresence?.start?.();
+      void FieldWork?.refresh?.({ quiet: true });
     } catch (_) {
       this.roles = ['client', 'driver'];
     }
@@ -2452,6 +2453,237 @@ const FieldBrain = {
   },
 };
 window.FieldBrain = FieldBrain;
+
+// === FIELD WORK — availability · specialty · offers · full pricing · open verticals ===
+const FieldWork = {
+  VERTICALS: ['work', 'delivery', 'dating', 'real_estate', 'services', 'custom'],
+  _posts: [],
+
+  async api(action, body) {
+    body = body || {};
+    const headers = await Auth.authHeaders?.();
+    if (!headers?.Authorization && action !== 'list_nearby' && action !== 'list') {
+      return { error: 'login required' };
+    }
+    const r = await fetch(SB_URL + '/functions/v1/field-work', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, ...body }),
+    });
+    return r.json().catch(() => ({}));
+  },
+
+  formatPrice(p) {
+    if (!p) return 'price on request';
+    const avc = p.price_avc != null ? Number(p.price_avc).toFixed(2) + ' AVC' : '';
+    const eur = p.price_eur != null ? ' (= €' + Number(p.price_eur).toFixed(2) + ')' : (p.price_avc != null ? ' (= €' + Number(p.price_avc).toFixed(2) + ')' : '');
+    const unit = p.price_unit && p.price_unit !== 'job' ? '/' + p.price_unit : '';
+    const detail = p.pricing_detail?.summary ? ' · ' + p.pricing_detail.summary : '';
+    return (avc || 'open offer') + eur + unit + detail;
+  },
+
+  _parsePriceArgs(tokens) {
+    const out = { specialty: '', priceAvc: null, priceUnit: 'job', vertical: 'work' };
+    if (!tokens.length) return out;
+    const vert = tokens[0]?.toLowerCase();
+    if (this.VERTICALS.includes(vert) || vert === 'realestate') {
+      out.vertical = vert === 'realestate' ? 'real_estate' : vert;
+      tokens = tokens.slice(1);
+    }
+    const unitWords = ['hour', 'day', 'job', 'km', 'visit', 'night', 'week'];
+    for (let i = tokens.length - 1; i >= 0; i--) {
+      if (unitWords.includes(tokens[i].toLowerCase())) {
+        out.priceUnit = tokens[i].toLowerCase();
+        tokens = tokens.slice(0, i);
+        break;
+      }
+    }
+    const last = tokens[tokens.length - 1];
+    if (last && /^[\d.]+$/.test(last)) {
+      out.priceAvc = Number(last);
+      tokens = tokens.slice(0, -1);
+    }
+    out.specialty = tokens.join(' ').trim();
+    return out;
+  },
+
+  async post(body) {
+    if (!Auth?.user) {
+      Auth?.openLoginModal?.('Sign in to post on the work board');
+      return { error: 'login' };
+    }
+    const pos = window._lastPos || {};
+    const j = await this.api('post', {
+      lat: pos.lat,
+      lng: pos.lng,
+      ...body,
+    });
+    if (j.ok) {
+      await this.refresh({ quiet: true });
+      FieldBrain?.pulse?.('work', (body.post_type || 'availability') + ' · ' + body.specialty, { role: 'client' });
+    }
+    return j;
+  },
+
+  async postAvailability(opts) {
+    return this.post({
+      post_type: 'availability',
+      vertical: opts.vertical || 'work',
+      specialty: opts.specialty,
+      description: opts.description || '',
+      price_avc: opts.priceAvc,
+      price_unit: opts.priceUnit || 'job',
+      pricing_detail: opts.pricingDetail || { summary: 'full price shown · 1 AVC = 1 EUR' },
+    });
+  },
+
+  async postRequest(opts) {
+    return this.post({
+      post_type: 'request',
+      vertical: opts.vertical || 'work',
+      specialty: opts.specialty,
+      description: opts.description || '',
+      price_avc: opts.priceAvc,
+      price_unit: opts.priceUnit || 'job',
+      pricing_detail: opts.pricingDetail || { summary: 'budget · full pricing on accept' },
+    });
+  },
+
+  async refresh(opts) {
+    opts = opts || {};
+    const pos = window._lastPos || CityMap?.mapViewCenter?.() || {};
+    const j = await this.api('list_nearby', { lat: pos.lat, lng: pos.lng, radius_km: 45, vertical: opts.vertical || null });
+    this._posts = j.posts || [];
+    this.showOnMap();
+    if (!opts.quiet && this._posts.length) {
+      AciCli?.print?.('work board · ' + this._posts.length + ' open near you', 'ok');
+    }
+    return this._posts;
+  },
+
+  showOnMap() {
+    GlobeEntity?.unregisterType?.('work');
+    (this._posts || []).forEach(p => {
+      if (p.lat == null || p.lng == null) return;
+      const icon = p.post_type === 'availability' ? '🔧' : p.post_type === 'offer' ? '💼' : '📋';
+      const vert = p.vertical && p.vertical !== 'work' ? ' · ' + p.vertical : '';
+      GlobeEntity.register({
+        id: 'work-' + p.id,
+        type: 'work',
+        lat: p.lat,
+        lng: p.lng,
+        title: icon + ' ' + (p.specialty || 'Work') + vert,
+        description: this.formatPrice(p) + ' · ' + (p.display_name || 'User') + (p.km != null ? ' · ' + p.km.toFixed(1) + ' km' : ''),
+        urgency: p.post_type === 'request' ? 2 : 1,
+        data: { post: p },
+        onTap: () => this.showHud(p),
+      });
+    });
+    CityMap?._syncMarkers?.();
+  },
+
+  showHud(post) {
+    if (!post) return;
+    const hud = document.getElementById('globe-entity-hud');
+    if (!hud) return;
+    hud.classList.add('open');
+    document.getElementById('ge-hud-type').textContent = '▸ ' + (post.post_type || 'work') + ' · ' + (post.vertical || 'work');
+    document.getElementById('ge-hud-title').textContent = post.specialty || 'Work';
+    document.getElementById('ge-hud-desc').textContent = [
+      post.display_name || 'User',
+      this.formatPrice(post),
+      post.description || '',
+      post.post_type === 'availability' ? 'Tap message to send a work offer' : 'Tap message to respond',
+    ].filter(Boolean).join('\n');
+    const actions = document.getElementById('ge-hud-actions');
+    if (actions) {
+      actions.style.display = 'grid';
+      actions.innerHTML = ''
+        + '<button type="button" data-work-act="message">💬 Message</button>'
+        + '<button type="button" data-work-act="route">🛣 Route</button>';
+      actions.querySelectorAll('[data-work-act]').forEach(btn => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          if (btn.dataset.workAct === 'route') {
+            DrivingView?.fetchRoadRoute?.(window._lastPos, { lat: post.lat, lng: post.lng });
+            ACIControl?.reply?.('Route to ' + post.specialty);
+          } else {
+            const uid = post.user_id;
+            if (uid) LazyModules.ensure().then(() => MapComms?.contactUser?.(uid, 'message'));
+            else ACIControl?.reply?.('Sign in to message · work offer with full price: ' + this.formatPrice(post));
+          }
+        };
+      });
+    }
+    MapPlaceMenu?.close?.();
+    GlobeDeck?.setPreview?.(this.formatPrice(post));
+  },
+
+  async runCli(parts) {
+    const sub = (parts[1] || 'list').toLowerCase();
+    const rest = parts.slice(2);
+    if (sub === 'list' || sub === 'nearby') {
+      const vert = rest[0] && this.VERTICALS.includes(rest[0]) ? rest[0] : null;
+      const posts = await this.refresh({ vertical: vert });
+      if (!posts.length) { AciCli?.print?.('no open work nearby — post: work available <specialty> <price> [hour]', 'dim'); return; }
+      posts.slice(0, 12).forEach(p => {
+        AciCli?.print?.((p.post_type || 'post') + ' · ' + p.specialty + ' · ' + this.formatPrice(p) + (p.km != null ? ' · ' + p.km.toFixed(1) + ' km' : ''), 'ok');
+      });
+      return;
+    }
+    if (sub === 'available' || sub === 'on' || sub === 'open') {
+      const parsed = this._parsePriceArgs(rest);
+      if (!parsed.specialty) { AciCli?.print?.('usage: work available <specialty> <price> [hour|day|job]', 'err'); return; }
+      const j = await this.postAvailability({
+        specialty: parsed.specialty,
+        priceAvc: parsed.priceAvc,
+        priceUnit: parsed.priceUnit,
+        vertical: parsed.vertical,
+      });
+      if (j.ok) ACIControl?.reply?.('You are available · ' + parsed.specialty + ' · ' + this.formatPrice(j.post));
+      else AciCli?.print?.('post failed · ' + (j.error || 'server'), 'err');
+      return;
+    }
+    if (sub === 'need' || sub === 'request' || sub === 'hire') {
+      const parsed = this._parsePriceArgs(rest);
+      if (!parsed.specialty) { AciCli?.print?.('usage: work need <specialty> <budget> [hour|job]', 'err'); return; }
+      const j = await this.postRequest({
+        specialty: parsed.specialty,
+        priceAvc: parsed.priceAvc,
+        priceUnit: parsed.priceUnit,
+        vertical: parsed.vertical,
+      });
+      if (j.ok) ACIControl?.reply?.('Request posted · ' + parsed.specialty + ' · budget ' + this.formatPrice(j.post));
+      else AciCli?.print?.('post failed · ' + (j.error || 'server'), 'err');
+      return;
+    }
+    if (sub === 'mine' || sub === 'my') {
+      const j = await this.api('my_posts');
+      (j.posts || []).forEach(p => AciCli?.print?.(p.status + ' · ' + p.specialty + ' · ' + this.formatPrice(p), 'ok'));
+      if (!j.posts?.length) AciCli?.print?.('no posts — work available <skill> <price>', 'dim');
+      return;
+    }
+    if (sub === 'off') {
+      const j = await this.api('my_posts');
+      const open = (j.posts || []).find(p => p.status === 'open' && p.post_type === 'availability');
+      if (!open) { AciCli?.print?.('no open availability post', 'dim'); return; }
+      await this.api('close', { post_id: open.id });
+      await this.refresh({ quiet: true });
+      AciCli?.print?.('availability closed', 'ok');
+      return;
+    }
+    AciCli?.print?.('work list | work available <skill> <price> | work need <job> <budget> | work mine', 'dim');
+  },
+
+  init() {
+    setInterval(() => {
+      if (Auth?.user && (CityMap?.active || GlobeNavigate?.isNational?.() || GlobeNavigate?.isCity?.())) {
+        void this.refresh({ quiet: true });
+      }
+    }, 120000);
+  },
+};
+window.FieldWork = FieldWork;
 
 // === MARKETPLACE PRESENCE — driver heartbeat so real drivers appear on map ===
 const MarketplacePresence = {
@@ -7191,6 +7423,12 @@ const AciCli = {
         GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
+      if (cmd === 'work' || cmd === 'jobs' || cmd === 'available') {
+        if (cmd === 'available') await FieldWork?.runCli?.(['work', 'available', ...parts.slice(1)]);
+        else await FieldWork?.runCli?.(parts);
+        GlobeDeck?.finishCliIfOneShot?.(cmd);
+        return;
+      }
       if (cmd === 'driver') {
         const sub = (parts[1] || 'online').toLowerCase();
         if (sub === 'online' || sub === 'go') {
@@ -8678,6 +8916,15 @@ const ACIControl = {
       say('Roles synced.');
       return { executed: true };
     }
+    if (/^(work available|available for work|i am available|διαθέσιμος|διαθεσιμ)/.test(low) || /^work need/.test(low)) {
+      const tokens = text.trim().split(/\s+/);
+      await FieldWork?.runCli?.(tokens[0] === 'work' ? tokens : ['work', 'available', ...tokens.slice(2)]);
+      return { executed: true, action: 'work' };
+    }
+    if (/^work list|^jobs near|^open work/.test(low)) {
+      await FieldWork?.runCli?.(['work', 'list']);
+      return { executed: true, action: 'work' };
+    }
     if (/^(login|sign in|google|facebook|apple|twitter)$/.test(low) || /^σύνδεση$/.test(low)) {
       Auth.signInGoogle?.() || Auth.openLoginModal?.('Sign in — one account for globe and sites');
       return { executed: true };
@@ -9493,6 +9740,7 @@ const GlobeEntity = {
     pyramid: { color: 0xffdd44, icon: '🔺', label: 'Pyramid' },
     cluster: { color: 0x3d9eff, icon: '☁', label: 'Cloud' },
     yacht: { color: 0x69f5d0, icon: '⛵', label: 'Yacht' },
+    work: { color: 0xffcc44, icon: '🔧', label: 'Work' },
   },
 
   CLUSTER_TYPES: new Set(['post', 'place', 'media', 'news']),
@@ -15730,6 +15978,7 @@ GlobeNavigate.init();
 VendorMapTile.init();
 ClassifiedTriangles.init();
 MarketplaceDeliveryEngine.init();
+FieldWork.init();
 DrivingView.init();
 AiRouter.init();
 MissionSupportReporter.init();
