@@ -212,11 +212,17 @@ Decentralized delivery — **no central support** · client · vendor · driver 
 
 ### Daily support digest (2026-07-10)
 
-Automatic once-per-day notification to support (`notisastranov@gmail.com`) so systems improve from real field data:
+Automatic once-per-day notification to **both** support teams so systems improve from real field data:
 
-- **MissionSupportReporter** (client) — buffers JS errors, API failures, and mission wins (orders, routes, deliveries, globe navigation); on each new UTC day POSTs to `support-digest`
-- **`/functions/v1/support-digest`** (edge) — aggregates last 24h: `field_events`, `orders`, `analytics_events`, `debug-pub` sessions, client reports → stores in `support_digests` + public `debug-pub/digests/latest.json`
-- **Email** when `RESEND_API_KEY` is set; else **webhook** via `SUPPORT_WEBHOOK_URL`; digest always persisted for owner read
+| Audience | Default contact | Digest |
+|----------|-----------------|--------|
+| **Astranov** | `notisastranov@gmail.com` | Full problems + mission progression |
+| **SpaceX AI / xAI** | `support@x.ai` | Sanitized Grok integration report (API, voice, coders, think/evolve) |
+
+- **MissionSupportReporter** (client) — buffers JS errors, API failures (tagged `vendor: xai` for Grok stack), and mission wins; on each new UTC day POSTs to `support-digest`
+- **`/functions/v1/support-digest`** (edge) — aggregates last 24h server + client data; sends **two** digests; stores `digests/latest.json` + `digests/xai-latest.json`
+- **Email:** `RESEND_API_KEY` → both recipients (`SUPPORT_EMAIL`, `SPACEXAI_SUPPORT_EMAIL`)
+- **Webhooks:** `SUPPORT_WEBHOOK_URL` (Astranov), `SPACEXAI_SUPPORT_WEBHOOK_URL` (xAI)
 - **Tables:** `support_digests`, `support_client_reports`
 
 ---
