@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Astranov • RESTORED + MILKED + ADVANCED 2026-07-10</title>
+<title>Astranov</title>
 <meta name="compliance-check" content="astranov-field-brain-multi-role-2026-06-24">
 <meta name="aci-session" content="Astranov Collective Intelligence">
 <meta name="theme-color" content="#0a1020" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710240000-restore-advance-milk" />
+<meta name="astranov-build" content="20260710220000-marketplace-live" />
 <meta name="astranov-mission" content="SpaceNet: solar-global-national-city-street unify internet under realistic space imagery" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
 <!-- RESTORED + MILKED + ADVANCED build 20260710230000 force deploy celestial full app -->
@@ -127,8 +127,7 @@
   #globe { position:absolute; top:0; left:0; right:0; bottom:0; touch-action:none; z-index:2; }
   /* Legacy rect panels hidden — globe-deck CLI is the UI */
   #coders-hub-panel, #coders-hub-trigger, .deck, [id*="modal"], .rect-ui { display:none !important; }
-  /* celestial-circle enabled for RESTORED + ADVANCED full UI */
-  .celestial-circle { display: block; }
+  .celestial-circle { display:none !important; }
   #globe canvas { display:block; cursor:grab; opacity:var(--globe-opacity,1); transition:opacity 0.55s cubic-bezier(0.4,0,0.2,1); }
   #globe canvas.dragging { cursor:grabbing; }
   #globe.city-map-active canvas { opacity:0 !important; pointer-events:none; }
@@ -846,6 +845,9 @@
       <button type="button" data-drh="phone">☎ Phone</button>
     </div>
     <button id="drh-accept" type="button">✓ Accept delivery assignment</button>
+    <button id="drh-pickup" type="button" style="display:none">📦 Picked up from vendor</button>
+    <button id="drh-enroute" type="button" style="display:none">🛵 En route to client</button>
+    <button id="drh-complete" type="button" style="display:none">✅ Mark delivered</button>
     <button id="drh-close" type="button">✖ Close</button>
   </div>
   <div id="city-life-chip"></div>
@@ -2359,14 +2361,89 @@ const AiGlyphs = {
 };
 window.AiGlyphs = AiGlyphs;
 
-// === LIGHT STUBS — removed heavy subsystems; keep optional chaining safe ===
+// === FIELD BRAIN — roles · driver online · delivery claim ===
 const FieldBrain = {
   vendorIds: [],
-  roles: [],
+  roles: ['client'],
   init() {},
   hookFeed() {},
-  pulse() {},
-  onAuth() {},
+
+  pulse(action, detail, opts) {
+    ACI?.feed?.(action || 'activity', detail || '', opts);
+  },
+
+  updateChip() {
+    const chip = document.getElementById('user-chip');
+    if (!chip || !Auth?.user || Auth?.isOwner) return;
+    const r = (this.roles || []).filter(x => x !== 'client');
+    if (r.length) chip.textContent = (chip.textContent?.split('·')[0]?.trim() || 'You') + ' · ' + r.join('+');
+  },
+
+  async onAuth() {
+    if (!Auth?.user || !Auth?.client) {
+      this.roles = ['client'];
+      this.vendorIds = [];
+      return;
+    }
+    try {
+      const { data } = await Auth.client.from('profiles')
+        .select('roles, is_vendor, field_lat, field_lng')
+        .eq('id', Auth.user.id)
+        .maybeSingle();
+      const roles = Array.isArray(data?.roles) ? [...data.roles] : ['client', 'driver'];
+      if (!roles.includes('client')) roles.unshift('client');
+      this.roles = roles;
+      const { data: vendors } = await Auth.client.from('vendors').select('id').eq('owner_id', Auth.user.id);
+      this.vendorIds = (vendors || []).map(v => v.id);
+      this.updateChip();
+      if (roles.includes('driver')) MarketplacePresence?.start?.();
+    } catch (_) {
+      this.roles = ['client', 'driver'];
+    }
+  },
+
+  async goOnlineDriver() {
+    if (!Auth?.user) {
+      ACIControl?.reply?.('Sign in first — tap G');
+      Auth?.openLoginModal?.('Sign in to drive deliveries');
+      return { error: 'login' };
+    }
+    const pos = window._lastPos || {};
+    const roles = Array.from(new Set([...(this.roles || ['client']), 'driver']));
+    try {
+      const headers = await Auth.authHeaders?.();
+      await fetch(SB_URL + '/rest/v1/profiles?id=eq.' + Auth.user.id, {
+        method: 'PATCH', headers,
+        body: JSON.stringify({
+          roles,
+          field_lat: pos.lat ?? null,
+          field_lng: pos.lng ?? null,
+          field_seen_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }),
+      });
+      this.roles = roles;
+      this.updateChip();
+      MarketplacePresence?.start?.();
+      ACIControl?.reply?.('Driver online · visible on map for deliveries');
+      AciCli?.print?.('driver online · field presence active', 'ok');
+      return { ok: true };
+    } catch (e) {
+      return { error: String(e.message || e) };
+    }
+  },
+
+  async listOpenJobs() {
+    if (!Auth?.user) return { error: 'login' };
+    const pos = window._lastPos || {};
+    const headers = await Auth.authHeaders?.();
+    const r = await fetch(SB_URL + '/functions/v1/order-intake', {
+      method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'list_open', lat: pos.lat, lng: pos.lng }),
+    });
+    return r.json().catch(() => ({}));
+  },
+
   async claimDelivery(orderId) {
     const id = String(orderId || '').trim();
     if (!id) return { error: 'order id required' };
@@ -2393,6 +2470,37 @@ const FieldBrain = {
   },
 };
 window.FieldBrain = FieldBrain;
+
+// === MARKETPLACE PRESENCE — driver heartbeat so real drivers appear on map ===
+const MarketplacePresence = {
+  _timer: null,
+  PULSE_MS: 90000,
+
+  start() {
+    if (!Auth?.user || !FieldBrain?.roles?.includes?.('driver')) return;
+    this.tick();
+    if (this._timer) clearInterval(this._timer);
+    this._timer = setInterval(() => this.tick(), this.PULSE_MS);
+  },
+
+  stop() {
+    if (this._timer) { clearInterval(this._timer); this._timer = null; }
+  },
+
+  async tick() {
+    if (!Auth?.user || !Auth?.client || document.hidden) return;
+    const pos = window._lastPos;
+    if (!pos?.lat) return;
+    try {
+      await Auth.client.from('profiles').update({
+        field_lat: pos.lat,
+        field_lng: pos.lng,
+        field_seen_at: new Date().toISOString(),
+      }).eq('id', Auth.user.id);
+    } catch (_) {}
+  },
+};
+window.MarketplacePresence = MarketplacePresence;
 
 const GhostTravel = {
   SCRAMBLE_KM: 0,
@@ -2556,7 +2664,10 @@ window.Commerce = {
   cart: {},
   haversineKm: _haversineKm,
   userLatLng() { return window._lastPos || { lat: 36.22, lng: 28.12 }; },
-  async loadVendors() { await LazyModules.ensure(); },
+  async loadVendors() {
+    await LazyModules.ensure();
+    return window.Commerce?.loadVendors?.();
+  },
   initUI() {},
   async showPicker() { await LazyModules.ensure(); return window.Commerce?.showPicker?.(); },
   async openOrderFlow(q) { await LazyModules.ensure(); return window.Commerce?.openOrderFlow?.(q); },
@@ -2564,7 +2675,11 @@ window.Commerce = {
   showMenu() { LazyModules.ensure().then(() => window.Commerce?.showMenu?.()); },
   openVendor(v) { if (v) VendorMapTile?.open?.(v); },
   renderCart() {},
-  async fetchNearbyDrivers() { return []; },
+  async fetchNearbyDrivers(lat, lng) {
+    await LazyModules.ensure();
+    const u = lat != null ? { lat, lng } : (window._lastPos || { lat: 36.44, lng: 28.22 });
+    return window.Commerce?.fetchNearbyDrivers?.(u.lat, u.lng) || [];
+  },
   parseWantedItems() { return []; },
   async cliVendorMenu() { await LazyModules.ensure(); return window.Commerce?.cliVendorMenu?.(); },
   async listMenuRequests() { await LazyModules.ensure(); return window.Commerce?.listMenuRequests?.(); },
@@ -2696,6 +2811,9 @@ const MarketplaceDeliveryEngine = {
   init() {
     document.getElementById('drh-close')?.addEventListener('click', () => this.closeHud());
     document.getElementById('drh-accept')?.addEventListener('click', () => void this.acceptFromHud());
+    document.getElementById('drh-pickup')?.addEventListener('click', () => void this.advanceStatus('picked_up'));
+    document.getElementById('drh-enroute')?.addEventListener('click', () => void this.advanceStatus('en_route'));
+    document.getElementById('drh-complete')?.addEventListener('click', () => void this.advanceStatus('delivered'));
     document.getElementById('delivery-route-hud')?.querySelectorAll('[data-drh]').forEach(btn => {
       btn.addEventListener('click', () => this._comms(btn.dataset.drh));
     });
@@ -2727,7 +2845,7 @@ const MarketplaceDeliveryEngine = {
       role: 'vendor',
       lat: vendor?.lat ?? order?.vendor_lat,
       lng: vendor?.lng ?? order?.vendor_lng,
-      label: vendor?.name || 'Vendor',
+      label: vendor?.name || order?.vendor_name || 'Vendor',
       id: vendor?.id || order?.vendor_id,
     };
     const clientPt = {
@@ -2924,9 +3042,17 @@ const MarketplaceDeliveryEngine = {
     ];
     document.getElementById('drh-body').textContent = lines.filter(Boolean).join('\n');
     const acceptBtn = document.getElementById('drh-accept');
-    const isDriver = Auth?.user?.id && (mission.order?.driver_id === Auth.user.id || FieldBrain?.roles?.includes?.('driver'));
+    const pickupBtn = document.getElementById('drh-pickup');
+    const enrouteBtn = document.getElementById('drh-enroute');
+    const completeBtn = document.getElementById('drh-complete');
+    const isAssignedDriver = Auth?.user?.id && mission.order?.driver_id === Auth.user.id;
+    const isDriverRole = FieldBrain?.roles?.includes?.('driver');
     const needsAccept = mission.order?.status === 'assigned' && !mission.order?.driver_accepted_at;
-    if (acceptBtn) acceptBtn.style.display = (isDriver && needsAccept) ? 'block' : 'none';
+    const orderSt = mission.order?.status || '';
+    if (acceptBtn) acceptBtn.style.display = ((isAssignedDriver || (isDriverRole && needsAccept)) && needsAccept) ? 'block' : 'none';
+    if (pickupBtn) pickupBtn.style.display = (isAssignedDriver && ['active', 'assigned'].includes(orderSt) && mission.order?.driver_accepted_at) ? 'block' : 'none';
+    if (enrouteBtn) enrouteBtn.style.display = (isAssignedDriver && (orderSt === 'picked_up' || orderSt === 'active')) ? 'block' : 'none';
+    if (completeBtn) completeBtn.style.display = (isAssignedDriver && (orderSt === 'en_route' || orderSt === 'picked_up')) ? 'block' : 'none';
     MapPlaceMenu?.close?.();
     GlobeDeck?.setPreview?.('Delivery route · tap comms for vendor/client/driver');
   },
@@ -2960,9 +3086,46 @@ const MarketplaceDeliveryEngine = {
     });
   },
 
+  async advanceStatus(status) {
+    const m = this.missions.find(x => x.id === this._selectedId);
+    const oid = m?.order?.id || m?.order?.short_id;
+    if (!oid || !Auth?.user) return;
+    try {
+      const headers = await Auth.authHeaders?.();
+      const r = await fetch(SB_URL + '/functions/v1/order-intake', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'status_update', order_id: oid, status }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (j.ok && j.order) {
+        m.order = j.order;
+        m.status = j.order.status;
+        if (status === 'delivered') {
+          m.active = false;
+          this._clearMissionViz(m.id);
+          this.closeHud();
+        } else if (m.active || j.order.driver_accepted_at) {
+          m.active = true;
+          this.renderMission(m);
+        }
+        OrderTracking?.refresh?.({ quiet: true });
+        ACIControl?.reply?.('Delivery · ' + (this.STATUS[j.order.status]?.label || j.order.status));
+      } else {
+        ACIControl?.reply?.('Status update failed · ' + (j.error || 'server'));
+      }
+    } catch (e) {
+      ACIControl?.reply?.('Status update error');
+    }
+  },
+
   async onOrderPlaced(order, vendor, driver) {
+    if (order?.delivery_lat != null) {
+      window._clientDelivery = { lat: order.delivery_lat, lng: order.delivery_lng, label: 'Delivery' };
+    }
+    const v = vendor || { id: order.vendor_id, name: order.vendor_name, lat: order.vendor_lat, lng: order.vendor_lng };
     const seeking = !order?.driver_id || order?.status === 'seeking_driver';
-    const mission = await this.activateTriangle({ order, vendor, driver, client: window._clientDelivery });
+    const mission = await this.activateTriangle({ order, vendor: v, driver, client: window._clientDelivery });
     if (seeking) {
       ACIControl?.reply?.('Order placed · awaiting signed driver before triangle activates');
     } else if (!order?.driver_accepted_at) {
@@ -3266,7 +3429,17 @@ window.AstranovSiteShell = { open() {}, close() {} };
 window.AstranovSitesProvision = { request() { return Promise.resolve(); } };
 window.SuperBookingProvision = window.AstranovSitesProvision;
 window.AstranovWishlist = { add() {} };
-window.DeliveryPricing = { quote() { return null; } };
+window.DeliveryPricing = {
+  async quote(opts) {
+    opts = opts || {};
+    const km = Math.max(0, Number(opts.km) || 0);
+    const subtotal = Math.max(0, Number(opts.subtotal_eur) || 0);
+    const delivery = 3 + Math.ceil(Math.max(0, km - 3) / 3) * 3;
+    const platform = Math.round((subtotal + delivery) * 0.03 * 100) / 100;
+    const total = Math.round((subtotal + delivery + platform) * 100) / 100;
+    return { km, subtotal_eur: subtotal, delivery_eur: delivery, platform_fee_eur: platform, total_eur: total, total_avc: total, driver_payout_eur: delivery * 0.85 };
+  },
+};
 window.GoogleWalletPay = { pay() { return Promise.resolve(); } };
 window.AciConnect = { open() { return _defer('AciConnect', 'open'); } };
 
@@ -6940,7 +7113,22 @@ const AciCli = {
       if (cmd === 'claim') {
         if (!rest) { this.print('usage: claim <order_id>', 'err'); return; }
         const r = await FieldBrain?.claimDelivery(rest);
-        this.print(r?.ok ? 'claimed ' + (r.short_id || rest) : (r?.error || 'failed'), r?.ok ? 'ok' : 'err');
+        this.print(r?.ok ? 'claimed ' + (r.order?.short_id || rest) : (r?.error || 'failed'), r?.ok ? 'ok' : 'err');
+        GlobeDeck?.finishCliIfOneShot(cmd);
+        return;
+      }
+      if (cmd === 'driver') {
+        const sub = (parts[1] || 'online').toLowerCase();
+        if (sub === 'online' || sub === 'go') {
+          const r = await FieldBrain?.goOnlineDriver?.();
+          this.print(r?.ok ? 'driver online' : (r?.error || 'failed'), r?.ok ? 'ok' : 'err');
+        } else if (sub === 'jobs' || sub === 'list') {
+          const r = await FieldBrain?.listOpenJobs?.();
+          if (!r?.orders?.length) { this.print('no open delivery jobs — check back soon', 'dim'); }
+          else r.orders.forEach(o => this.print((o.short_id || o.id?.slice(0, 8)) + ' · ' + (o.vendor_name || o.vendor_id) + ' · ' + o.status, 'ok'));
+        } else {
+          this.print('usage: driver online | driver jobs', 'err');
+        }
         GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
