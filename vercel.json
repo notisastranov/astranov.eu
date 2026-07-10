@@ -1,5 +1,5 @@
 {
   "outputDirectory": ".",
   "installCommand": "echo no-install",
-  "buildCommand": "echo monolithic-astranov-deploy-20260710125000-restore-advance-milk"
+  "buildCommand": "echo monolithic-astranov-deploy-20260710130000-restore-advance-milk"
 }
