@@ -164,4 +164,40 @@ Priority order for all future work:
 
 ---
 
+## SpaceNet Brain & Classified Triangles (2026-07-10)
+
+### SpaceNetBrain (`index.html`)
+
+Orchestrates collective intelligence and internet ingestion:
+
+- **classifyIntent** — local keyword scoring → top 3 triangle actions; async refine via `ai-router`  
+- **think** — `/functions/v1/aci` collective reasoning  
+- **crawlArea** — `/functions/v1/vendor-crawler` for OpenStreetMap POI ingestion at lat/lng  
+
+### Classified Triangles Menu System
+
+One-click **+** (`#spacenet-map-plus`) opens the **plus field** on the map:
+
+1. User types intent in `#ge-hud-intent`  
+2. **Top 3** triangle buttons (shop, vendor, driver base, post, photo, video, …)  
+3. **More options** expands the rest  
+
+Wired to `SuperAdd`, `MapPins`, `Commerce`, `DrivingView`, `ProfileSite`.
+
+### AstranovRoutingEngine
+
+Own routing layer on OSRM:
+
+- Scores alternatives — penalizes turns, traffic-light segments, unnamed slow roads  
+- **One-way protection** — warns when depart bearing conflicts with user heading  
+- Used by `DrivingView.fetchRoadRoute`
+
+### Smooth zoom law (2026-07-10)
+
+- Wheel/pinch = **continuous** `GlobeZoom` only — `ZoomTiers.syncFromCamZ` updates labels, never snaps camera mid-scroll  
+- Double-tap / tier step = eased `_globeFly` with duration scaled to distance  
+- City map: **satellite + bright + dark** (Carto/Esri free tiles) visible from national tier via `#map-style-switch`; auto bright/dark when descending from globe
+
+---
+
 *Solidified for the Astranov SpaceNet System — AOOS evolving into SpaceNet.*
