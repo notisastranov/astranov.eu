@@ -42,17 +42,5 @@ verify_jwt = false
 [functions.coders-bridge]
 verify_jwt = false
 
-[functions.auditor-api]
-verify_jwt = false
-
-[functions.avc-ledger]
-verify_jwt = false
-
-[functions.pilot-command]
-verify_jwt = false
-
-[functions.cli-hub]
-verify_jwt = false
-
-[functions.site-provision]
+[functions.support-digest]
 verify_jwt = false
