@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710320000-cli-plus-fixed" />
+<meta name="astranov-build" content="20260710330000-scenario-runner" />
 <meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
 <meta name="astranov-mission" content="SpaceNet: solar-global-national-city-street unify internet under realistic space imagery" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
@@ -191,7 +191,7 @@
   /* user-chip removed */
   /* drive-guide removed */
   #drive-guide.open { display:block; }
-  #aci-hud { position:fixed; left:0; right:0; bottom:0; z-index:50; pointer-events:none; }
+  #aci-hud { position:fixed; left:0; right:0; bottom:0; z-index:50; pointer-events:none; padding-bottom:env(safe-area-inset-bottom,0px); }
   #sat-radio { display:none; padding:10px 12px; background:var(--ax-panel-strong); pointer-events:auto; font:11px/1.45 system-ui; color:var(--an-text); }
   #sat-radio.open, #sat-radio.deck-active { display:block; }
   #sat-radio .sr-row { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; }
@@ -269,6 +269,7 @@
   #globe-deck[data-cli-state="active"] { --cli-g1:90,170,255; --cli-g2:40,120,220; --cli-bd:60,150,255; --cli-bg1:6,16,40; --cli-bg2:10,24,56; --cli-speed:3.6s; }
   #globe-deck.expanded { --cli-speed:calc(var(--cli-speed) * 0.92); }
   #globe-deck.collapsed { min-height:176px; max-height:176px; }
+  #globe-deck.collapsed #aci-cli-in { resize:none; max-height:44px; overflow-y:hidden; }
   #globe-deck.expanded.size-third { max-height:33vh; min-height:33vh; }
   #globe-deck.expanded.size-full { max-height:min(92dvh, calc(100dvh - 44px)); min-height:min(92dvh, calc(100dvh - 44px)); }
   #globe-deck.expanded.size-free { transition:none; }
@@ -289,7 +290,7 @@
   #cli-ribbon-status.hold { color:var(--ax-yellow-bright); text-shadow:0 0 8px var(--ax-yellow-glow); }
   #cli-ribbon-status.ready { color:var(--ax-green-bright); text-shadow:0 0 8px var(--ax-green-glow); }
   @keyframes cli-think-glow { 0%,100%{ opacity:0.85; } 50%{ opacity:1; text-shadow:0 0 12px var(--ax-blue-glow); } }
-  #super-cli-bar button:not(#aci-login):not(#super-add-fab):not(#aci-handsfree):not(#aci-avc):not(.app-shortcut-btn) { display:none !important; }
+  #super-cli-bar button:not(#aci-login):not(#super-add-fab):not(#aci-handsfree):not(#aci-avc):not(#aci-cli-toggle):not(.app-shortcut-btn) { display:none !important; }
   #super-cli-bar #aci-avc { display:inline-flex !important; flex-shrink:0; order:2; }
   #app-shortcut-row { display:flex; gap:4px; align-items:center; flex:0 1 auto; max-width:100%; min-width:0; overflow-x:auto; overflow-y:hidden; padding:0 2px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
   #app-shortcut-row::-webkit-scrollbar { display:none; }
@@ -621,7 +622,7 @@
   #astranov-site-shell { display:none; position:fixed; top:0; left:0; right:0; bottom:182px; z-index:110; flex-direction:column; pointer-events:auto; }
   #astranov-site-shell.open { display:flex; }
   body.site-shell-open #globe { opacity:0.42; filter:saturate(0.85) blur(0.3px); }
-  body.site-shell-open #super-cli-bar #super-add-fab { opacity:0.35; pointer-events:none; }
+  body.site-shell-open #super-cli-bar #super-add-fab, body.site-shell-open #globe-deck-plus { opacity:0.35; pointer-events:none; }
   .as-shell-bar { display:flex; align-items:center; gap:8px; padding:6px 10px; background:linear-gradient(180deg,rgba(2,8,18,0.94),rgba(2,8,18,0.72)); border-bottom:1px solid rgba(73,183,255,0.35); font:11px system-ui; color:#9ef; }
   #as-shell-domain { flex:1; font-weight:700; }
   .as-shell-bar button { padding:6px 10px; border-radius:8px; border:1px solid rgba(73,183,255,0.35); background:rgba(0,0,0,0.35); color:#def; cursor:pointer; font-size:11px; }
@@ -2516,7 +2517,7 @@ const FieldWork = {
       Auth?.openLoginModal?.('Sign in to post on the work board');
       return { error: 'login' };
     }
-    const pos = window._lastPos || {};
+    const pos = this._coords();
     const j = await this.api('post', {
       lat: pos.lat,
       lng: pos.lng,
@@ -2555,7 +2556,7 @@ const FieldWork = {
 
   async refresh(opts) {
     opts = opts || {};
-    const pos = window._lastPos || CityMap?.mapViewCenter?.() || {};
+    const pos = this._coords();
     const j = await this.api('list_nearby', { lat: pos.lat, lng: pos.lng, radius_km: 45, vertical: opts.vertical || null });
     this._posts = j.posts || [];
     this.showOnMap();
@@ -2679,9 +2680,89 @@ const FieldWork = {
     AciCli?.print?.('work list | work available <skill> <price> | work need <job> <budget> | work mine', 'dim');
   },
 
-  init() {},
+  init() {
+    setTimeout(() => void this.refresh({ quiet: true }), 6000);
+  },
+
+  _coords() {
+    const p = window._lastPos || CityMap?.mapViewCenter?.() || TrackballGuard?.facingLatLng?.() || {};
+    if (p.lat != null && p.lng != null) return { lat: p.lat, lng: p.lng };
+    return { lat: 36.44, lng: 28.22 };
+  },
 };
 window.FieldWork = FieldWork;
+
+// === SPACENET SCENARIO RUNNER — usage flows · auto-heal · cycle reports ===
+const SpaceNetScenarioRunner = {
+  _lastRun: 0,
+  _results: [],
+
+  _deckOk() {
+    const deck = document.getElementById('globe-deck');
+    const input = document.getElementById('aci-cli-in');
+    const plus = document.getElementById('globe-deck-plus');
+    if (!deck || !input || deck.offsetHeight < 120) {
+      GlobeDeck?.bootCollapsed?.();
+      return { ok: false, fix: 'cli_restore' };
+    }
+    return { ok: !!plus && deck.offsetHeight >= 160, plus: !!plus, h: deck.offsetHeight };
+  },
+
+  async runAll(trigger) {
+    const now = Date.now();
+    if (now - this._lastRun < 120000 && trigger !== 'boot') return this._results;
+    this._lastRun = now;
+    const rows = [];
+    const add = (id, ok, detail, fix) => { rows.push({ id, ok, detail, fix }); };
+
+    const deck = this._deckOk();
+    add('cli_visible', deck.ok, 'h=' + (deck.h || 0), deck.fix);
+
+    const z = camera?.position?.z ?? 0;
+    const earthOk = z >= 2.2 && z <= 4.5 && (CosmicZoom?.level === 'earth' || CosmicZoom?.level === 'orbit');
+    if (!earthOk && z < 6 && !CityMap?.active && !DrivingView?.active) {
+      camera.position.z = GlobeNavigate?.GLOBAL_Z || 2.55;
+      ZoomTiers?.goTo?.('global', false);
+      CosmicZoom?.update?.(GlobeNavigate?.GLOBAL_Z || 2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
+    }
+    add('earth_view', earthOk || z < 6, 'z=' + z.toFixed(2) + ' · ' + (CosmicZoom?.level || '?'));
+
+    const tb = TrackballGuard?.verify?.();
+    if (!tb) TrackballGuard?.repair?.();
+    add('trackball', !!TrackballGuard?._ok, 'bindings');
+
+    window.AvcBalance?.init?.();
+    const avc = document.getElementById('aci-avc');
+    add('avc_wallet', !!avc && !avc.hidden, avc ? 'chip' : 'missing');
+
+    if (this._earthOrCity()) void FieldWork?.refresh?.({ quiet: true });
+    add('work_board', true, (FieldWork?._posts?.length || 0) + ' posts');
+
+    add('neurons', (BrainNeurons?.count?.() || 0) >= 0, String(BrainNeurons?.count?.() || 0));
+
+    if (CityMap?.active && CityMap?._tileStats?.ok >= 8 && CityMap?._stackIdx > (CityMap?._preferredStackIdx?.() ?? 0)) {
+      CityMap?._recoverPreferredStack?.();
+      add('map_recovery', true, 'restored HD stack');
+    } else {
+      add('map_layers', true, CityMap?.active ? 'idx=' + (CityMap?._stackIdx ?? 0) : 'globe');
+    }
+
+    const pass = rows.filter(r => r.ok).length;
+    this._results = rows;
+    MissionSupportReporter?.recordProgress?.('mission', 'scenarios ' + pass + '/' + rows.length + ' · ' + (trigger || 'cycle'), { rows, trigger });
+    if (pass < rows.length && !document.hidden) {
+      GlobeDeck?.setPreview?.('SpaceNet · ' + pass + '/' + rows.length + ' checks OK', 'dim');
+    }
+    return rows;
+  },
+
+  _earthOrCity() {
+    const level = CosmicZoom?.level || 'earth';
+    return CityMap?.active || GlobeNavigate?.isNational?.() || GlobeNavigate?.isCity?.()
+      || level === 'earth' || level === 'orbit';
+  },
+};
+window.SpaceNetScenarioRunner = SpaceNetScenarioRunner;
 
 // === SPACENET CYCLE — unified realism tick · shorter code · one heartbeat ===
 const SpaceNetCycle = {
@@ -2698,8 +2779,10 @@ const SpaceNetCycle = {
   async tick() {
     this._n++;
     if (!TrackballGuard?.verify?.()) TrackballGuard?.repair?.();
-    if (Auth?.user && this._earthOrCity()) void FieldWork?.refresh?.({ quiet: true });
-    if (Auth?.user && window.AvcBalance?.refresh) void window.AvcBalance.refresh();
+    if (this._earthOrCity()) void FieldWork?.refresh?.({ quiet: true });
+    window.AvcBalance?.init?.();
+    if (window.AvcBalance?.refresh) void window.AvcBalance.refresh();
+    if (this._n === 1 || this._n % 2 === 0) void SpaceNetScenarioRunner?.runAll?.('cycle ' + this._n);
     MissionSupportReporter?.recordProgress?.('mission', 'SpaceNet cycle ' + this._n + ' · ' + (ZoomTiers?.current || CosmicZoom?.level || 'earth'), {
       work_posts: FieldWork?._posts?.length || 0,
       missions: MarketplaceDeliveryEngine?.missions?.length || 0,
@@ -2769,12 +2852,20 @@ const BrainNeurons = {
     return n;
   },
 
+  _trimPermanent() {
+    const ents = [...(GlobeEntity?.entities?.values?.() || [])].filter(e => e.type === 'neuron' && !e.data?.ephemeral);
+    if (ents.length <= this.MAX_GLOBE) return;
+    ents.sort((a, b) => (a.data?.strength || 1) - (b.data?.strength || 1));
+    ents.slice(0, ents.length - this.MAX_GLOBE).forEach(e => GlobeEntity?.unregister?.(e.id));
+  },
+
   _spawnGlobe(lat, lng, strength, principle, opts) {
     opts = opts || {};
     if (lat == null || lng == null) return;
-    const key = (principle || '').slice(0, 120);
-    if (!opts.ephemeral && key && this._spawned.has(key)) return;
-    if (key) this._spawned.add(key);
+    if (!opts.ephemeral) this._trimPermanent();
+    const key = (opts.ephemeral ? 'e:' : '') + (principle || '').slice(0, 120) + ':' + Date.now();
+    if (!opts.ephemeral && this._spawned.has((principle || '').slice(0, 120))) return;
+    if (!opts.ephemeral) this._spawned.add((principle || '').slice(0, 120));
     const id = 'neuron-' + (opts.ephemeral ? 'e-' : '') + this._hash(key + lat + lng);
     GlobeEntity?.unregister?.(id);
     GlobeEntity?.register?.({
@@ -2785,7 +2876,7 @@ const BrainNeurons = {
       title: '🧠 ' + (principle || 'Neuron').slice(0, 48),
       description: (principle || '') + (opts.ephemeral ? '\n· live field signal' : '\n· collective principle'),
       urgency: opts.ephemeral ? 1 : (strength > 1.3 ? 2 : 1),
-      data: { principle, strength, ephemeral: !!opts.ephemeral },
+      data: { principle, strength, ephemeral: !!opts.ephemeral, ts: Date.now() },
       onTap: () => this._showHud(principle, strength),
     });
     if (!opts.ephemeral) ACI?.spawnNeuron?.(lat, lng, strength, principle);
@@ -3459,13 +3550,15 @@ const MarketplaceDeliveryEngine = {
       active: mission.active,
       onClick: () => this.showHud(mission),
     });
-    DrivingView?.setRoutePlan?.({
-      from: mission.stops[0],
-      via: mission.stops[1],
-      to: mission.stops[mission.stops.length - 1],
-    });
-    DrivingView.routeCoords = coords;
-    DrivingView.drawRoute?.();
+    if (DrivingView?.active) {
+      DrivingView?.setRoutePlan?.({
+        from: mission.stops[0],
+        via: mission.stops[1],
+        to: mission.stops[mission.stops.length - 1],
+      });
+      DrivingView.routeCoords = coords;
+      DrivingView.drawRoute?.();
+    }
   },
 
   _addGlobeStopMarkers(mission, color, pending) {
@@ -3666,6 +3759,9 @@ const MarketplaceDeliveryEngine = {
   },
 
   syncEtaLabels() {
+    const now = Date.now();
+    if (this._lastEtaSync && now - this._lastEtaSync < 800) return;
+    this._lastEtaSync = now;
     const root = document.getElementById('map-eta-labels');
     if (!root) return;
     const show = GlobeNavigate?.isNational?.() || GlobeNavigate?.isCity?.() || CityMap?.active || CityMap?._nationalActive;
@@ -3707,7 +3803,7 @@ const MarketplaceDeliveryEngine = {
       if (!r.ok) return;
       const orders = await r.json();
       for (const order of orders || []) {
-        const vendor = (window.Commerce?.vendors || []).find(v => v.id === vendorId) || { id: vendorId, lat: order.delivery_lat, lng: order.delivery_lng };
+        const vendor = (window.Commerce?.vendors || []).find(v => v.id === vendorId) || { id: vendorId, lat: order.vendor_lat, lng: order.vendor_lng, name: order.vendor_name };
         await this.activateTriangle({ order, vendor, driver: { id: order.driver_id, display_name: order.driver_name }, client: { lat: order.delivery_lat, lng: order.delivery_lng } });
       }
       this.syncEtaLabels();
@@ -3978,7 +4074,7 @@ const LazyModules = {
       s.src = src;
       s.defer = true;
       s.dataset.astranovDeferred = '1';
-      s.onload = () => done();
+      s.onload = () => { done(); window.AvcBalance?.init?.(); };
       s.onerror = () => reject(new Error('deferred script failed'));
       document.head.appendChild(s);
     });
@@ -6285,14 +6381,19 @@ const GlobeDeck = {
   },
 
   completeTask(task) {
-    const keep = ['coders', 'radio', 'batch', 'commerce'];
+    const keep = ['radio', 'batch', 'commerce'];
+    const stageActive = !!document.getElementById('globe-deck-stage')?.querySelector?.('.deck-active');
     if (task === 'cli' && this.activeTask && keep.includes(this.activeTask)) return;
+    if (task === 'cli' && this.activeTask === 'coders' && stageActive) return;
     if (this.activeTask && this.activeTask !== task && task !== 'cli') return;
     if (this._collapseTimer) { clearTimeout(this._collapseTimer); this._collapseTimer = null; }
     const done = task === 'cli' ? this.activeTask : task;
     this.hideStage();
     this._size = 'collapsed';
     this.expanded = false;
+    this.thinking = false;
+    this.setThinking?.(false);
+    this.deck()?.classList.remove('deck-thinking', 'has-preview', 'deck-ping');
     this.applySize();
     this.activeTask = null;
     if (done) AppShortcuts?.untrack?.(done);
@@ -6787,7 +6888,7 @@ const SuperCli = {
   title: ACL_TITLE,
 
   // Edge bar: G left · + and 🎧 right · apps/locate scroll inside middle
-  TOOLBAR_VISIBLE: ['aci-login', 'aci-avc', 'super-add-fab', 'aci-handsfree'],
+  TOOLBAR_VISIBLE: ['aci-login', 'aci-avc', 'super-add-fab', 'aci-handsfree', 'aci-cli-toggle'],
   INPUT_BTNS: ['globe-deck-send'],
 
   ensureBarLayout() {
@@ -7059,7 +7160,6 @@ const AciCli = {
 
   primeCodersCli() {
     AciCoders?.autoStart?.();
-    if (GlobeDeck) GlobeDeck.activeTask = 'coders';
     CliRibbon?.setActive?.('Coders');
     const input = document.getElementById('aci-cli-in');
     if (input) {
@@ -7199,7 +7299,8 @@ const AciCli = {
       this._welcomed = true;
       this.print('Coders always on — dev on for full brain+UI · help', 'dim');
     }
-    GlobeDeck?.expand('Coders');
+    if (!window._bootEarthLock && Date.now() - (window._bootAt || 0) > 3000) GlobeDeck?.expand('Coders');
+    else CliRibbon?.setActive?.('Coders');
     document.getElementById('aci-cli-in')?.focus();
   },
 
@@ -8886,7 +8987,7 @@ const MissionSupportReporter = {
     setTimeout(() => this._maybeSubmit('boot'), 8000);
     if (this._timer) clearInterval(this._timer);
     this._timer = setInterval(() => this._maybeSubmit('hourly'), this.CHECK_MS);
-    this.recordProgress('mission', 'SpaceNet boot · build ' + this.buildStamp(), { subsystems: ['GlobeNavigate', 'MarketplaceDeliveryEngine', 'FieldWork', 'BrainNeurons', 'SpaceNetGeo', 'SpaceNetCycle', 'ClassifiedTriangles'] });
+    this.recordProgress('mission', 'SpaceNet boot · build ' + this.buildStamp(), { subsystems: ['GlobeNavigate', 'MarketplaceDeliveryEngine', 'FieldWork', 'BrainNeurons', 'SpaceNetScenarioRunner', 'SpaceNetGeo', 'SpaceNetCycle', 'ClassifiedTriangles'] });
   },
 };
 window.MissionSupportReporter = MissionSupportReporter;
@@ -9032,7 +9133,6 @@ const ACI = {
   async init() {
     console.log('%c[ACI] ready — neurons growing with every user', 'color:#00ddff');
     this.attachHeartbeat();
-    void BrainNeurons?.boot?.();
   },
 
   attachHeartbeat() {
@@ -11357,6 +11457,7 @@ const ZoomTiers = {
   TIERS: [
     { id: 'galaxy', z: 16, label: 'GALAXY', cosmic: 'galaxy' },
     { id: 'solar', z: 7.2, label: 'SOLAR SYSTEM', cosmic: 'system' },
+    { id: 'orbit', z: 5.2, label: 'ORBIT', cosmic: 'orbit' },
     { id: 'global', z: 2.55, label: 'GLOBAL', cosmic: 'earth' },
     { id: 'national', z: 1.82, label: 'NATIONAL', cosmic: 'earth', national: true },
     { id: 'regional', z: 1.65, label: 'REGIONAL', cosmic: 'earth', national: true },
@@ -11496,6 +11597,7 @@ const ZoomTiers = {
     if (zl && !window.DrivingView?.active && !CityMap?.active) {
       if (tier.id === 'galaxy') zl.textContent = 'GALAXY';
       else if (tier.id === 'solar') zl.textContent = 'SOLAR SYSTEM';
+      else if (tier.id === 'orbit') zl.textContent = 'ORBIT';
       else if (tier.id === 'global') zl.textContent = 'GLOBAL';
       else if (tier.national) zl.textContent = tier.label + ' · ' + this.countryHint();
       else if (tier.city) zl.textContent = tier.label;
@@ -11711,7 +11813,7 @@ function trackballStart(clientX, clientY) {
   canvas.classList.add('dragging');
   clearTimeout(pressTimer);
   pressTimer = setTimeout(() => {
-    if (!drag) return;
+    if (!drag || Math.hypot(px - pressStartX, py - pressStartY) > 14) return;
     ZoomTiers?.stepOut?.();
     MapDepict?.setHud('Zoom out', 'long-press');
   }, 750);
@@ -12463,6 +12565,19 @@ const CityMap = {
     return 0;
   },
 
+  _preferredStackIdx() {
+    return this._baseStackForStyle(this.getMapStyle?.() || 'satellite');
+  },
+
+  _recoverPreferredStack() {
+    const pref = this._preferredStackIdx();
+    if (this._stackIdx <= pref || !this._tileStats?.ok || this._tileStats.ok < 6) return false;
+    this._applyLayerStack(pref);
+    this._tileStats = { ok: 0, err: 0, lastOk: Date.now() };
+    AciCli?.print?.('map · restored HD tiles', 'ok');
+    return true;
+  },
+
   _applyLayerStack(idx) {
     if (!this.map) return false;
     const stacks = this._getLayerStacks();
@@ -12520,6 +12635,9 @@ const CityMap = {
       if (noTiles || errHeavy || stale || staleLong) {
         if (!this._maybeEscalateLayers('health')) this._stopHealthWatch();
         checks = 0;
+      }
+      if (this._tileStats.ok >= 10 && this._stackIdx > this._preferredStackIdx()) {
+        this._recoverPreferredStack();
       }
       if (checks > 10) this._stopHealthWatch();
     }, 2800);
@@ -16165,6 +16283,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 
+window._bootAt = Date.now();
 window._bootEarthLock = true;
 GlobeNavigate.mode = 'global';
 GlobeNavigate._cityUnlocked = false;
@@ -16236,6 +16355,7 @@ if (window._lastPos) GlobeEntity.syncMe(_lastPos.lat, _lastPos.lng, me?.name || 
 
 setTimeout(() => {
   window._bootEarthLock = false;
+  void SpaceNetScenarioRunner?.runAll?.('boot');
   if (camera.position.z > 4.8 || CosmicZoom.level !== 'earth') {
     camera.position.z = GlobeNavigate.GLOBAL_Z;
     GlobeNavigate.mode = 'global';
