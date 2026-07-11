@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <script>
-(function(){if(!('serviceWorker'in navigator))return;var k='astranov-migrated-v28';if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,'1');try{caches&&caches.keys&&caches.keys().then(function(ks){ks.forEach(function(n){caches.delete(n)})})}catch(e){}}navigator.serviceWorker.register('/sw.js?v=28').catch(function(){})})();
+(function(){if(!('serviceWorker'in navigator))return;var k='astranov-migrated-v29';if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,'1');try{caches&&caches.keys&&caches.keys().then(function(ks){ks.forEach(function(n){caches.delete(n)})})}catch(e){}}navigator.serviceWorker.register('/sw.js?v=29').catch(function(){})})();
 </script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710430000-fast-boot" />
+<meta name="astranov-build" content="20260710440000-global-boot" />
 <meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
 <meta name="astranov-mission" content="SpaceNet: collective intelligence connecting everything into one — no satellites needed to communicate" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
@@ -743,7 +743,7 @@
   <aside id="coders-hub-panel" aria-label="AI coder labs" aria-hidden="true">
     <div id="coders-hub-head"><div><p style="margin:0;font-size:9px;color:#7a9">AI coder teams racing</p><h2>Coders Hub</h2></div><button id="coders-refresh-labs" type="button">Refresh</button><button id="coders-hub-close" type="button" aria-label="Close" style="background:transparent;border:1px solid #555;color:#aaa;border-radius:8px;padding:4px 10px;cursor:pointer">✖</button></div>
     <div id="coders-hub-body">
-      <p id="coders-race-board">Checking teams…</p>
+      <p id="coders-race-board">SpaceNet ready</p>
       <p class="coders-lead">Every AI coder team has its own subdomain. Save your job here, then open any live lab to continue on the shared brain.</p>
       <div class="coders-continuation">
         <div class="coders-continuation-head"><span>Active job</span><span id="coders-job-meta">No saved job</span></div>
@@ -1038,6 +1038,6 @@
     <input id="aci-input" placeholder="" style="display:none" />
     <button id="aci-send" type="button" style="display:none" title="Send">➡️</button>
   </div>
-<script defer src="/astranov-app.js?v=20260710430000-fast-boot"></script>
+<script defer src="/astranov-app.js?v=20260710440000-global-boot"></script>
 </body>
 </html>
