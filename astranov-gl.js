@@ -137,6 +137,7 @@ window._animateStarted = false;
   function tick() {
     if (!renderer || !scene || !camera) return;
     window._snlForceDismiss?.();
+    if (globePivot && !window._animateStarted) globePivot.rotation.y += 0.00035;
     try { renderer.render(scene, camera); } catch (_) {}
     if (!window._animateStarted) requestAnimationFrame(tick);
   }
