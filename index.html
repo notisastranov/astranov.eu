@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710350000-boot-fix" />
+<meta name="astranov-build" content="20260710360000-spacenet-logo" />
 <meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
 <meta name="astranov-mission" content="SpaceNet: solar-global-national-city-street unify internet under realistic space imagery" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
@@ -172,11 +172,11 @@
   @keyframes ai-core-breathe { 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.04); } }
   @keyframes ai-ring-pulse { 0%{ transform:scale(0.82); opacity:0.85; } 100%{ transform:scale(1.55); opacity:0; } }
   @keyframes ai-stop-flash { 0%{ box-shadow:0 0 28px rgba(255,170,40,0.9); } 100%{ box-shadow:0 0 8px rgba(255,170,40,0.2); } }
-  #astranov-logo { position:fixed; top:max(10px,env(safe-area-inset-top)); left:50%; transform:translateX(-50%); z-index:210; margin:0; padding:6px 14px; border-radius:999px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); backdrop-filter:blur(10px); cursor:pointer; font-family:"Segoe UI Variable Display","Segoe UI Variable","Segoe UI","Segoe UI Rounded",system-ui,sans-serif; font-size:15px; font-weight:600; letter-spacing:0.34em; text-indent:0.34em; text-transform:uppercase; color:var(--ax-blue-bright); text-shadow:0 0 18px var(--ax-blue-glow); box-shadow:0 2px 14px rgba(0,0,0,0.45); transition:color 0.2s,border-color 0.2s,box-shadow 0.2s,background 0.2s,transform 0.15s; pointer-events:auto; touch-action:manipulation; user-select:none; -webkit-tap-highlight-color:transparent; display:flex; align-items:center; justify-content:center; min-width:min(200px,62vw); min-height:40px; overflow:hidden; opacity:1; visibility:visible; isolation:isolate; }
+  #astranov-logo { position:fixed; top:max(10px,env(safe-area-inset-top)); left:50%; transform:translateX(-50%); z-index:210; margin:0; padding:6px 16px; border-radius:999px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); backdrop-filter:blur(10px); cursor:pointer; font-family:"Segoe UI Variable Display","Segoe UI Variable","Segoe UI","Segoe UI Rounded",system-ui,sans-serif; font-size:13px; font-weight:600; letter-spacing:0.04em; text-indent:0; text-transform:none; color:var(--ax-blue-bright); text-shadow:0 0 18px var(--ax-blue-glow); box-shadow:0 2px 14px rgba(0,0,0,0.45); transition:color 0.2s,border-color 0.2s,box-shadow 0.2s,background 0.2s,transform 0.15s; pointer-events:auto; touch-action:manipulation; user-select:none; -webkit-tap-highlight-color:transparent; display:flex; align-items:center; justify-content:center; min-width:min(240px,78vw); min-height:40px; overflow:hidden; opacity:1; visibility:visible; isolation:isolate; }
   body.globe-flying #astranov-logo, body.city-map-active #astranov-logo { z-index:210; opacity:1 !important; visibility:visible !important; pointer-events:auto !important; }
   body.globe-flying #zoom-label { top:max(52px,calc(10px + env(safe-area-inset-top) + 42px)); }
   #astranov-logo-wave { position:absolute; inset:2px 4px; width:calc(100% - 8px); height:calc(100% - 4px); z-index:0; pointer-events:none; opacity:1; border-radius:999px; }
-  .astranov-logo-label { position:relative; z-index:2; pointer-events:none; letter-spacing:0.34em; text-indent:0.34em; mix-blend-mode:screen; }
+  .astranov-logo-label { position:relative; z-index:2; pointer-events:none; letter-spacing:0.04em; text-indent:0; white-space:nowrap; mix-blend-mode:screen; }
   #astranov-logo.voice-mic { border-color:rgba(255,55,55,0.72); box-shadow:0 0 18px rgba(255,55,55,0.5); color:#ffb0b0; background:rgba(8,14,28,0.38); }
   #astranov-logo.voice-ai { border-color:rgba(0,220,100,0.72); box-shadow:0 0 18px rgba(0,220,100,0.5); color:#b0ffd0; background:rgba(8,14,28,0.38); }
   #astranov-logo.voice-mic.voice-ai { background:rgba(8,14,28,0.32); }
@@ -560,8 +560,7 @@
   .vmt-qty button { width:28px; height:28px; border-radius:8px; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); cursor:pointer; font-weight:700; }
   #vmt-foot { padding:8px 10px 10px; border-top:1px solid var(--ax-blue-border); }
   #vmt-order { width:100%; padding:11px; border-radius:12px; border:1px solid var(--ax-green-border); background:var(--ax-green-bg); color:#fff; font-weight:700; cursor:pointer; font-size:12px; }
-  #map-nav-chip { display:none; position:fixed; top:max(52px,calc(10px + env(safe-area-inset-top) + 40px)); left:50%; transform:translateX(-50%); z-index:168; padding:6px 14px; border-radius:999px; background:var(--ax-panel-strong); border:1px solid var(--ax-blue-border); font:10px system-ui; color:var(--ax-blue-bright); pointer-events:none; box-shadow:0 4px 14px rgba(0,0,0,0.4); }
-  #map-nav-chip.visible { display:block; }
+  #map-nav-chip { display:none !important; visibility:hidden; pointer-events:none; }
   #map-eta-labels { position:fixed; inset:0; z-index:155; pointer-events:none; overflow:hidden; }
   .map-eta-label { position:absolute; transform:translate(-50%,-100%); padding:4px 8px; border-radius:8px; background:rgba(0,32,16,0.88); border:1px solid var(--ax-green-border); color:var(--ax-green-bright); font:9px/1.2 system-ui; font-weight:700; white-space:nowrap; box-shadow:0 0 10px var(--ax-green-glow); pointer-events:auto; cursor:pointer; touch-action:manipulation; }
   .map-eta-label.pending { background:rgba(40,32,0,0.88); border-color:var(--ax-yellow-border); color:var(--ax-yellow-bright); }
@@ -736,9 +735,9 @@
     <div class="snl-bar"><div class="snl-fill" id="snl-fill"></div></div>
     <div class="snl-label" id="snl-label">SpaceNet</div>
   </div>
-  <button id="astranov-logo" type="button" title="Hard reset — clear cache · reload · global view · red=your mic · green=Grok voice" aria-label="ASTRANOV hard reset reload">
+  <button id="astranov-logo" type="button" title="Astranov SpaceNet — hard reset · global earth · red=mic · green=AI voice" aria-label="Astranov SpaceNet hard reset reload">
     <canvas id="astranov-logo-wave" aria-hidden="true"></canvas>
-    <span class="astranov-logo-label">ASTRANOV</span>
+    <span class="astranov-logo-label">Astranov SpaceNet</span>
   </button>
   <div id="globe"></div>
   <button id="coders-hub-trigger" type="button" aria-hidden="true" tabindex="-1" hidden><span>⬡</span><span>Coders</span><span id="coders-hub-live-count">8</span></button>
@@ -819,7 +818,7 @@
   <div id="city-map"></div>
   <div id="map-style-switch" hidden aria-hidden="true" aria-label="Map style (CLI + phone system only)"></div>
   <button id="spacenet-map-plus" type="button" title="Plus field — tell AI what you want to do" aria-label="Open plus field">+</button>
-  <div id="map-nav-chip" aria-live="polite">GLOBAL</div>
+  <div id="map-nav-chip" aria-hidden="true" hidden>GLOBAL</div>
   <div id="city-pick-chips" aria-label="Nearby cities and shops"></div>
   <div id="map-eta-labels" aria-label="Delivery ETAs"></div>
   <div id="vendor-map-tile" aria-label="Vendor shop">
@@ -1325,7 +1324,8 @@ const GlobeNavigate = {
     else if (this.isCity()) txt = 'CITY z' + this.LEAFLET_ZOOM + ' · tap + for intent';
     else if (this.isNational()) txt = 'NATIONAL · tap a city to descend slowly';
     chip.textContent = txt;
-    chip.classList.add('visible');
+    chip.classList.remove('visible');
+    chip.hidden = true;
   },
 
   unlockCity() {
@@ -5235,7 +5235,7 @@ const AstranovLogo = {
     GlobeEntity?.clearSelection?.();
     GlobeDeck?.collapse?.();
     GlobeDeck?.hideStage?.();
-    GlobeDeck?.setPreview?.('ASTRANOV — global earth');
+    GlobeDeck?.setPreview?.('Astranov SpaceNet — global earth');
     window._globeFly = null;
     window._cityDropLock = false;
     if (typeof globePivot !== 'undefined' && globePivot) {
