@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Astranov</title>
 <meta name="compliance-check" content="astranov-field-brain-multi-role-2026-06-24">
-<meta name="aci-session" content="Astranov Collective Intelligence">
+<meta name="aci-session" content="SpaceNet Collective Intelligence">
 <meta name="theme-color" content="#0a1020" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710360000-spacenet-logo" />
+<meta name="astranov-build" content="20260710370000-spacenet-mission" />
 <meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
-<meta name="astranov-mission" content="SpaceNet: solar-global-national-city-street unify internet under realistic space imagery" />
+<meta name="astranov-mission" content="SpaceNet: collective intelligence connecting everything into one — no satellites needed to communicate" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
 <!-- RESTORED + MILKED + ADVANCED build 20260710230000 force deploy celestial full app -->
 <link rel="manifest" href="/manifest.webmanifest" />
@@ -733,9 +733,9 @@
 <body>
   <div id="spacenet-loader" aria-hidden="true" aria-busy="true">
     <div class="snl-bar"><div class="snl-fill" id="snl-fill"></div></div>
-    <div class="snl-label" id="snl-label">SpaceNet</div>
+    <div class="snl-label" id="snl-label">SpaceNet · one mind</div>
   </div>
-  <button id="astranov-logo" type="button" title="Astranov SpaceNet — hard reset · global earth · red=mic · green=AI voice" aria-label="Astranov SpaceNet hard reset reload">
+  <button id="astranov-logo" type="button" title="Astranov SpaceNet — collective intelligence mesh · no satellites · hard reset · red=mic · green=AI" aria-label="Astranov SpaceNet hard reset reload">
     <canvas id="astranov-logo-wave" aria-hidden="true"></canvas>
     <span class="astranov-logo-label">Astranov SpaceNet</span>
   </button>
@@ -908,7 +908,7 @@
   <div id="user-chip"></div>
   <div id="drive-guide"></div>
   <div id="aci-hud">
-    <div id="news-ticker">Astranov Collective Intelligence — loading news…</div>
+    <div id="news-ticker">SpaceNet — collective intelligence linking all · no satellites needed · loading…</div>
     <div id="globe-deck" class="collapsed">
       <div id="globe-deck-header">
         <span id="globe-deck-title">Astranov Command Line</span>
@@ -1045,7 +1045,7 @@ const container = document.getElementById('globe');
   const fill = document.getElementById('snl-fill');
   const label = document.getElementById('snl-label');
   if (fill) fill.style.width = '12%';
-  if (label) label.textContent = 'SpaceNet core';
+  if (label) label.textContent = 'SpaceNet · one mind';
 })();
 
 // Robust WebGL + error guard so user never sees silent black
@@ -1320,7 +1320,7 @@ const GlobeNavigate = {
     let txt = 'GLOBAL · full earth · scroll out → solar · galaxy';
     if (cosmic === 'galaxy') txt = 'GALAXY · scroll in → solar system → earth';
     else if (cosmic === 'system') txt = 'SOLAR SYSTEM · scroll in → earth · out → galaxy';
-    else if (cosmic === 'orbit') txt = 'ORBIT · satellites · scroll out → solar system';
+    else if (cosmic === 'orbit') txt = 'ORBIT · SpaceNet mesh · scroll out → solar system';
     else if (this.isCity()) txt = 'CITY z' + this.LEAFLET_ZOOM + ' · tap + for intent';
     else if (this.isNational()) txt = 'NATIONAL · tap a city to descend slowly';
     chip.textContent = txt;
@@ -2830,6 +2830,21 @@ const SpaceNetCycle = {
 };
 window.SpaceNetCycle = SpaceNetCycle;
 
+// === SPACENET MISSION — collective intelligence · one mesh · no satellites ===
+const SpaceNetMission = {
+  ONE: 'SpaceNet is the collective intelligence connecting everything into one — so we need no satellites anymore to communicate.',
+  SHORT: 'One mind · one mesh · no satellites',
+  LOADER: {
+    core: 'SpaceNet · one collective mind',
+    globe: 'Earth joins the mesh',
+    cli: 'Your line into SpaceNet',
+    earth: 'All linked · no satellites',
+    deferred: 'Fleet & relay ready',
+  },
+  bootReply: 'SpaceNet live · collective intelligence links everyone — no satellites needed · scroll out → solar · galaxy',
+};
+window.SpaceNetMission = SpaceNetMission;
+
 // === SPACENET LOADER — progressive boot · minimal first paint · defer heavy pack ===
 const SpaceNetLoader = {
   _stages: { core: 0, globe: 0, cli: 0, earth: 0, deferred: 0 },
@@ -2846,7 +2861,7 @@ const SpaceNetLoader = {
     this._el = document.getElementById('spacenet-loader');
     this._fill = document.getElementById('snl-fill');
     this._label = document.getElementById('snl-label');
-    this.stage('core', 'SpaceNet core');
+    this.stage('core', SpaceNetMission?.LOADER?.core || 'SpaceNet · one mind');
     setTimeout(() => this.dismiss('timeout'), 3200);
   },
 
@@ -4170,7 +4185,7 @@ const LazyModules = {
       s.onload = () => {
         done();
         window.AvcBalance?.init?.();
-        SpaceNetLoader?.stage?.('deferred', 'pack ready');
+        SpaceNetLoader?.stage?.('deferred', SpaceNetMission?.LOADER?.deferred || 'Fleet & relay ready');
       };
       s.onerror = () => reject(new Error('deferred script failed'));
       document.head.appendChild(s);
@@ -4747,7 +4762,7 @@ const SpaceNetResourceMonitor = {
     const now = Date.now();
     if (now - this._lastNudge < 300000) return;
     this._lastNudge = now;
-    const line = 'Spare ' + this.spareScore + '% · donate compute to SpaceNet — say donate on';
+    const line = 'Spare ' + this.spareScore + '% · relay to SpaceNet mesh — say donate on';
     window.CliRibbon?.setNotice?.(line, 'info');
     if (!sessionStorage.getItem('astranov_donate_nudge')) {
       sessionStorage.setItem('astranov_donate_nudge', '1');
@@ -4816,7 +4831,7 @@ const SpaceNetResourceMonitor = {
     const r = this.report();
     window.AciCli?.print?.(r.line, 'ok');
     if (r.spareScore >= 65 && !this.donating) {
-      window.AciCli?.print?.('Spare capacity — say donate on to monetize via SpaceNet relay', 'dim');
+      window.AciCli?.print?.('Spare capacity — say donate on to strengthen the SpaceNet mesh', 'dim');
     }
     window.AciCli?.print?.('resources status | boost | donate on|off · fleet list', 'dim');
     window.CliRibbon?.setNotice?.(r.line);
@@ -6392,7 +6407,7 @@ const GlobeDeck = {
     if (!this._pulseLoop) {
       this._pulseLoop = setInterval(() => this.syncCliPulse(), 900);
     }
-    SpaceNetLoader?.stage?.('cli', 'CLI ready');
+    SpaceNetLoader?.stage?.('cli', SpaceNetMission?.LOADER?.cli || 'Your line into SpaceNet');
   },
 
   _deckMinH() { return 176; },
@@ -9480,7 +9495,7 @@ const MissionSupportReporter = {
 window.MissionSupportReporter = MissionSupportReporter;
 
 const ACI = {
-  name: 'Astranov Collective Intelligence',
+  name: 'SpaceNet Collective Intelligence',
   url: SB_URL,
   key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI',
   neurons: [],
@@ -16790,7 +16805,7 @@ function animate() {
 
 window._bootAt = Date.now();
 SpaceNetLoader?.init?.();
-SpaceNetLoader?.stage?.('globe', 'Earth globe');
+SpaceNetLoader?.stage?.('globe', SpaceNetMission?.LOADER?.globe || 'Earth joins the mesh');
 window._bootEarthLock = true;
 GlobeNavigate.mode = 'global';
 GlobeNavigate._cityUnlocked = false;
@@ -16834,7 +16849,7 @@ if (CosmicZoom.galaxyPts) CosmicZoom.galaxyPts.visible = false;
 ZoomTiers?.goTo?.('global', false);
 CosmicZoom.update(GlobeNavigate.GLOBAL_Z, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
 GlobeNavigate?._syncChip?.();
-SpaceNetLoader?.stage?.('earth', 'Earth ready');
+SpaceNetLoader?.stage?.('earth', SpaceNetMission?.LOADER?.earth || 'All linked · no satellites');
 AstranovTheme.init();
 AiGlyphs.init();
 AstranovLogo.init();
@@ -16872,7 +16887,7 @@ setTimeout(() => {
     ZoomTiers?.goTo?.('global', false);
   }
   CosmicZoom.update(GlobeNavigate.GLOBAL_Z, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
-  ACIControl?.reply?.('Earth ready · scroll out for solar system · galaxy');
+  ACIControl?.reply?.(SpaceNetMission?.bootReply || 'SpaceNet live · collective intelligence links all · scroll out → solar · galaxy');
   primeGrokVoice?.();
   setTimeout(() => AciCoders?.enterSession?.({ ping: false, focus: false }), 2500);
 }, 1200);
