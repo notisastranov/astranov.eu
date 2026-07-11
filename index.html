@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710380000-boot-harden" />
+<meta name="astranov-build" content="20260710390000-loader-unstick" />
 <meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
 <meta name="astranov-mission" content="SpaceNet: collective intelligence connecting everything into one — no satellites needed to communicate" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
@@ -633,9 +633,9 @@
   @keyframes nb-scan { from { transform:translateX(0); } to { transform:translateX(18px); } }
   #node-batch.nb-super-live { box-shadow:inset 0 0 24px var(--ax-blue-glow); border:1px solid var(--ax-blue-border); border-radius:12px; }
   #node-batch.nb-super-live #nb-launch { background:linear-gradient(135deg,rgba(0,40,90,0.8),rgba(26,111,212,0.55)); border-color:var(--ax-blue-bright); animation:nb-glow 2.4s ease-in-out infinite; }
-  #spacenet-loader { position:fixed; inset:0; z-index:99998; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.92); pointer-events:none; transition:opacity 0.28s ease, visibility 0.28s; animation:snl-auto-hide 2.4s ease forwards; }
+  #spacenet-loader { position:fixed; inset:0; z-index:99998; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.92); pointer-events:none; transition:opacity 0.22s ease, visibility 0.22s; animation:snl-auto-hide 0.9s ease forwards; }
   #spacenet-loader.done { opacity:0 !important; visibility:hidden !important; display:none !important; }
-  @keyframes snl-auto-hide { 0%,70%{opacity:1;visibility:visible} 100%{opacity:0;visibility:hidden} }
+  @keyframes snl-auto-hide { 0%,55%{opacity:1;visibility:visible} 100%{opacity:0;visibility:hidden;display:none} }
   #spacenet-loader .snl-bar { width:min(220px,70vw); height:3px; background:rgba(26,111,212,0.18); border-radius:2px; overflow:hidden; }
   #spacenet-loader .snl-fill { height:100%; width:0%; background:linear-gradient(90deg,#1a6fd4,#3d9eff); transition:width 0.22s ease; }
   #spacenet-loader .snl-label { margin-top:10px; font:10px/1.4 system-ui; color:rgba(180,220,255,0.72); letter-spacing:0.1em; text-transform:uppercase; }
@@ -909,7 +909,7 @@
   <div id="user-chip"></div>
   <div id="drive-guide"></div>
   <div id="aci-hud">
-    <div id="news-ticker">SpaceNet — collective intelligence linking all · no satellites needed · loading…</div>
+    <div id="news-ticker">SpaceNet — collective intelligence linking all · no satellites needed · live</div>
     <div id="globe-deck" class="collapsed">
       <div id="globe-deck-header">
         <span id="globe-deck-title">Astranov Command Line</span>
@@ -1054,7 +1054,7 @@ const container = document.getElementById('globe');
     el.setAttribute('aria-busy', 'false');
     setTimeout(function() { try { el.remove(); } catch (_) {} }, 320);
   };
-  setTimeout(kill, 2400);
+  setTimeout(kill, 700);
   window._snlForceDismiss = kill;
 })();
 
@@ -1098,6 +1098,7 @@ try {
     const label = document.getElementById('snl-label');
     if (fill) fill.style.width = '40%';
     if (label) label.textContent = 'Earth globe';
+    window._snlForceDismiss?.();
   } catch (_) {}
 } catch (e) {
   window._webglFailed = true;
@@ -1172,6 +1173,17 @@ globePivot.rotation.y = 0.82;
 globePivot.rotation.x = 0.12;
 globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
 window.earth = earth;
+window._animateStarted = false;
+
+(function _earlyGlobePaint() {
+  function tick() {
+    if (!renderer || !scene || !camera) return;
+    window._snlForceDismiss?.();
+    try { renderer.render(scene, camera); } catch (_) {}
+    if (!window._animateStarted) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
 
 function syncGlobePivotRotation() {
   if (!globePivot) return;
@@ -2871,10 +2883,14 @@ const SpaceNetLoader = {
     if (this._inited) return;
     this._inited = true;
     this._el = document.getElementById('spacenet-loader');
+    if (!this._el || this._el.classList.contains('done')) {
+      this._dismissed = true;
+      return;
+    }
     this._fill = document.getElementById('snl-fill');
     this._label = document.getElementById('snl-label');
     this.stage('core', SpaceNetMission?.LOADER?.core || 'SpaceNet · one mind');
-    setTimeout(() => this.dismiss('timeout'), 3200);
+    setTimeout(() => this.dismiss('timeout'), 900);
   },
 
   stage(id, label) {
@@ -16822,7 +16838,8 @@ function animate() {
 function _astranovBoot() {
   try {
 window._bootAt = Date.now();
-SpaceNetLoader?.init?.();
+window._snlForceDismiss?.();
+SpaceNetLoader?.dismiss?.('boot-start');
 SpaceNetLoader?.stage?.('globe', SpaceNetMission?.LOADER?.globe || 'Earth joins the mesh');
 window._bootEarthLock = true;
 GlobeNavigate.mode = 'global';
@@ -16923,8 +16940,18 @@ const isLocal = host === '' || host === 'localhost' || host === '127.0.0.1' || l
 if (host && !isOfficial && !isLocal) {
   document.body.innerHTML = '<div style="color:#444;padding:40px;text-align:center;font-family:sans-serif">Available only on authorized Astranov domains</div>';
 } else {
-  try { _astranovBoot(); } catch (_) { window._snlForceDismiss?.(); }
-  if (renderer && scene && camera) animate();
+  window._snlForceDismiss?.();
+  window.SpaceNetLoader?.dismiss?.('preboot');
+  const runBoot = () => {
+    try { _astranovBoot(); } catch (_) { window._snlForceDismiss?.(); }
+  };
+  if (renderer && scene && camera) {
+    window._animateStarted = true;
+    animate();
+    setTimeout(runBoot, 0);
+  } else {
+    runBoot();
+  }
 }</script>
 </body>
 </html>
