@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710330000-scenario-runner" />
+<meta name="astranov-build" content="20260710340000-resource-loader-fleet" />
 <meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
 <meta name="astranov-mission" content="SpaceNet: solar-global-national-city-street unify internet under realistic space imagery" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
@@ -634,6 +634,12 @@
   @keyframes nb-scan { from { transform:translateX(0); } to { transform:translateX(18px); } }
   #node-batch.nb-super-live { box-shadow:inset 0 0 24px var(--ax-blue-glow); border:1px solid var(--ax-blue-border); border-radius:12px; }
   #node-batch.nb-super-live #nb-launch { background:linear-gradient(135deg,rgba(0,40,90,0.8),rgba(26,111,212,0.55)); border-color:var(--ax-blue-bright); animation:nb-glow 2.4s ease-in-out infinite; }
+  #spacenet-loader { position:fixed; inset:0; z-index:99998; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#000; pointer-events:none; transition:opacity 0.35s ease, visibility 0.35s; }
+  #spacenet-loader.done { opacity:0; visibility:hidden; }
+  #spacenet-loader .snl-bar { width:min(220px,70vw); height:3px; background:rgba(26,111,212,0.18); border-radius:2px; overflow:hidden; }
+  #spacenet-loader .snl-fill { height:100%; width:0%; background:linear-gradient(90deg,#1a6fd4,#3d9eff); transition:width 0.22s ease; }
+  #spacenet-loader .snl-label { margin-top:10px; font:10px/1.4 system-ui; color:rgba(180,220,255,0.72); letter-spacing:0.1em; text-transform:uppercase; }
+  #nb-fleet-row { margin:6px 0 4px; padding:6px 8px; border-radius:8px; background:rgba(0,30,60,0.35); border:1px solid rgba(26,111,212,0.2); font-size:10px; color:#9bc; }
   @keyframes nb-glow { 50% { box-shadow:0 0 18px var(--ax-blue-glow); } }
   /* Map team cloud — above globe, map stays visible */
   #map-comms-beam { position:fixed; inset:0; pointer-events:none; z-index:118; overflow:visible; }
@@ -726,6 +732,10 @@
 </style>
 </head>
 <body>
+  <div id="spacenet-loader" aria-hidden="true" aria-busy="true">
+    <div class="snl-bar"><div class="snl-fill" id="snl-fill"></div></div>
+    <div class="snl-label" id="snl-label">SpaceNet</div>
+  </div>
   <button id="astranov-logo" type="button" title="Hard reset — clear cache · reload · global view · red=your mic · green=Grok voice" aria-label="ASTRANOV hard reset reload">
     <canvas id="astranov-logo-wave" aria-hidden="true"></canvas>
     <span class="astranov-logo-label">ASTRANOV</span>
@@ -963,6 +973,7 @@
       <button id="nb-install-ios" type="button" style="display:none;width:100%;margin:6px 0;padding:10px;border-radius:12px;background:rgba(40,40,60,0.5);border:1px solid #88a;color:#cdf;cursor:pointer;font-weight:600">🍎 iOS install steps</button>
       <button id="nb-launch" type="button">🔗 Launch batch · work together</button>
       <div id="nb-mesh-viz" aria-hidden="true"></div>
+      <div id="nb-fleet-row">Fleet: <b id="nb-fleet-count" style="color:var(--ax-blue-bright)">0</b> device(s) · <span id="nb-fleet-status" style="color:var(--ax-green-bright)">say fleet list</span></div>
       <div style="margin:8px 0;font-size:10px;color:var(--an-muted)">Session: <b id="nb-batch-id" style="color:var(--ax-blue-bright)">ASTRANOV COLLECTIVE INTELLIGENCE</b> · Devices: <b id="nb-peers" style="color:var(--ax-blue-bright)">0</b> · <span id="nb-mesh-status" style="color:var(--ax-green-bright)">idle</span></div>
       <button id="nb-join-comms" type="button">📡 Open comms channel (PMR/WebRTC)</button>
       <div id="nb-status" style="color:#9cb;font-size:10px;margin-top:6px">Install node to work together without browser babysitting</div>
@@ -1031,6 +1042,12 @@
   </div>
 <script>
 const container = document.getElementById('globe');
+(function _snlEarlyPaint() {
+  const fill = document.getElementById('snl-fill');
+  const label = document.getElementById('snl-label');
+  if (fill) fill.style.width = '12%';
+  if (label) label.textContent = 'SpaceNet core';
+})();
 
 // Robust WebGL + error guard so user never sees silent black
 window.addEventListener('error', function(e) {
@@ -1065,6 +1082,12 @@ try {
   if (THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
   window.renderer = renderer;
   container.appendChild(renderer.domElement);
+  try {
+    const fill = document.getElementById('snl-fill');
+    const label = document.getElementById('snl-label');
+    if (fill) fill.style.width = '40%';
+    if (label) label.textContent = 'Earth globe';
+  } catch (_) {}
 } catch (e) {
   const fb = document.createElement('div');
   fb.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#0af;font:15px system-ui;background:#000;z-index:10;text-align:center;';
@@ -2740,6 +2763,10 @@ const SpaceNetScenarioRunner = {
 
     add('neurons', (BrainNeurons?.count?.() || 0) >= 0, String(BrainNeurons?.count?.() || 0));
 
+    const res = SpaceNetResourceMonitor?.report?.();
+    add('resources', !!res && Number(res.fps) > 0, 'spare ' + (res?.spareScore ?? 0) + '% · ' + (res?.label || '?'));
+    add('loader', !!SpaceNetLoader?._dismissed || SpaceNetLoader?._stages?.earth, SpaceNetLoader?._dismissed ? 'dismissed' : 'booting');
+
     if (CityMap?.active && CityMap?._tileStats?.ok >= 8 && CityMap?._stackIdx > (CityMap?._preferredStackIdx?.() ?? 0)) {
       CityMap?._recoverPreferredStack?.();
       add('map_recovery', true, 'restored HD stack');
@@ -2790,6 +2817,8 @@ const SpaceNetCycle = {
       neurons: BrainNeurons?.count?.() || 0,
     });
     BrainNeurons?.onCycle?.(this._n);
+    SpaceNetResourceMonitor?.periodicCheck?.();
+    SpaceNetFleet?.tick?.();
   },
 
   init() {
@@ -2799,6 +2828,70 @@ const SpaceNetCycle = {
   },
 };
 window.SpaceNetCycle = SpaceNetCycle;
+
+// === SPACENET LOADER — progressive boot · minimal first paint · defer heavy pack ===
+const SpaceNetLoader = {
+  _stages: { core: 0, globe: 0, cli: 0, earth: 0, deferred: 0 },
+  _weights: { core: 14, globe: 28, cli: 24, earth: 24, deferred: 10 },
+  _dismissed: false,
+  _inited: false,
+  _el: null,
+  _fill: null,
+  _label: null,
+
+  init() {
+    if (this._inited) return;
+    this._inited = true;
+    this._el = document.getElementById('spacenet-loader');
+    this._fill = document.getElementById('snl-fill');
+    this._label = document.getElementById('snl-label');
+    this.stage('core', 'SpaceNet core');
+    setTimeout(() => this.dismiss('timeout'), 9000);
+  },
+
+  stage(id, label) {
+    if (this._stages[id] != null) this._stages[id] = 1;
+    if (label && this._label) this._label.textContent = String(label).slice(0, 48);
+    this._render();
+    if (id === 'earth' || id === 'cli') this._tryDismiss();
+    if (id === 'deferred') setTimeout(() => this.dismiss('deferred'), 120);
+  },
+
+  _pct() {
+    let done = 0, total = 0;
+    for (const [k, w] of Object.entries(this._weights)) {
+      total += w;
+      if (this._stages[k]) done += w;
+    }
+    return Math.min(100, Math.round((done / total) * 100));
+  },
+
+  _render() {
+    const p = this._pct();
+    if (this._fill) this._fill.style.width = p + '%';
+  },
+
+  _tryDismiss() {
+    const globe = document.getElementById('globe');
+    const deck = document.getElementById('globe-deck');
+    const ready = this._stages.globe && this._stages.cli && this._stages.earth
+      && globe && deck && deck.offsetHeight >= 100;
+    if (ready) setTimeout(() => this.dismiss('ready'), 160);
+  },
+
+  dismiss(reason) {
+    if (this._dismissed) return;
+    this._dismissed = true;
+    if (this._fill) this._fill.style.width = '100%';
+    if (this._el) {
+      this._el.classList.add('done');
+      this._el.setAttribute('aria-busy', 'false');
+    }
+    setTimeout(() => { try { this._el?.remove(); } catch (_) {} }, 480);
+    window.MissionSupportReporter?.recordProgress?.('boot', 'loader ' + (reason || 'done'), { pct: this._pct() });
+  },
+};
+window.SpaceNetLoader = SpaceNetLoader;
 
 // === BRAIN NEURONS — autonomous collective memory · globe pins · never stops growing ===
 const BrainNeurons = {
@@ -4074,7 +4167,11 @@ const LazyModules = {
       s.src = src;
       s.defer = true;
       s.dataset.astranovDeferred = '1';
-      s.onload = () => { done(); window.AvcBalance?.init?.(); };
+      s.onload = () => {
+        done();
+        window.AvcBalance?.init?.();
+        SpaceNetLoader?.stage?.('deferred', 'pack ready');
+      };
       s.onerror = () => reject(new Error('deferred script failed'));
       document.head.appendChild(s);
     });
@@ -4261,10 +4358,10 @@ const SlumberManager = {
     if (p.slowNet) score -= 2;
     if (p.saveData) score -= 2;
     if (p.width < 380) score -= 1;
-    if (score >= 6) return 'gaming';
-    if (score >= 4) return 'full';
-    if (score >= 2) return 'balanced';
-    if (score >= 0) return 'conserve';
+    if (score >= 7) return 'gaming';
+    if (score >= 5) return 'full';
+    if (score >= 3) return 'balanced';
+    if (score >= 1) return 'conserve';
     return 'slumber';
   },
 
@@ -4278,6 +4375,7 @@ const SlumberManager = {
     this._applySubsystemDefaults(tier);
     this.applyQuality();
     if (reason && reason !== 'hardware probe') this.notify(`Slumber · ${this.TIER_LABEL[tier]} — ${reason}`);
+    window.SpaceNetResourceMonitor?.onTierChange?.(tier, reason);
   },
 
   _applySubsystemDefaults(tier) {
@@ -4400,6 +4498,7 @@ const SlumberManager = {
     if (['order', 'commerce', 'batch', 'vhf', 'radio', 'news', 'drive', 'coders', 'add'].includes(act)) {
       this.wake('voice', act);
     }
+    window.SpaceNetResourceMonitor?.noteDemand?.(act);
   },
 
   tickFrame() {
@@ -4412,7 +4511,11 @@ const SlumberManager = {
       }
     }
     this._lastFrame = now;
-    if (this._fpsSamples.length >= 24 && !this._userPinned) this._maybeDowngrade();
+    if (this._fpsSamples.length >= 24 && !this._userPinned) {
+      this._maybeDowngrade();
+      this._maybeUpgrade();
+    }
+    window.SpaceNetResourceMonitor?.onFrame?.();
   },
 
   _avgFps() {
@@ -4422,10 +4525,22 @@ const SlumberManager = {
 
   _maybeDowngrade() {
     const fps = this._avgFps();
-    const order = ['full', 'balanced', 'conserve', 'slumber'];
+    const order = ['gaming', 'full', 'balanced', 'conserve', 'slumber'];
     const idx = order.indexOf(this.tier);
-    if (fps < 22 && idx < order.length - 1) {
+    if (fps < 22 && idx >= 0 && idx < order.length - 1) {
       this.applyTier(order[idx + 1], `FPS ${fps.toFixed(0)} — easing load`);
+      this._fpsSamples = [];
+    }
+  },
+
+  _maybeUpgrade() {
+    if (this._userPinned) return;
+    if (!window.SpaceNetResourceMonitor?.allowsUpgrade?.()) return;
+    const fps = this._avgFps();
+    const order = ['slumber', 'conserve', 'balanced', 'full', 'gaming'];
+    const idx = order.indexOf(this.tier);
+    if (fps > 50 && idx >= 0 && idx < order.length - 1) {
+      this.applyTier(order[idx + 1], `FPS ${fps.toFixed(0)} — headroom`);
       this._fpsSamples = [];
     }
   },
@@ -4492,7 +4607,7 @@ const SlumberManager = {
     if (zl && this.tier !== 'full') {
       zl.title = 'Slumber ' + this.tier + ' — ' + line;
     }
-    ACIControl?.reply?.('Slumber · ' + line + ' · say "slumber status" or "wake shops"');
+    ACIControl?.reply?.('Slumber · ' + line + ' · resources status · fleet list · donate on');
   },
 
   notify(text, kind) {
@@ -4561,6 +4676,348 @@ const SlumberManager = {
 };
 window.SlumberManager = SlumberManager;
 SlumberManager.init();
+
+// === SPACENET RESOURCE MONITOR — FPS/RAM tier · spare capacity · donate compute ===
+const SpaceNetResourceMonitor = {
+  spareScore: 0,
+  donating: false,
+  _demandUntil: 0,
+  _boostUntil: 0,
+  _lastNudge: 0,
+  _frames: 0,
+  STORAGE_KEY: 'astranov_donate_compute',
+
+  init() {
+    try { this.donating = localStorage.getItem(this.STORAGE_KEY) === '1'; } catch (_) {}
+    this._recompute();
+    if (this.donating) this._enableRelay(true);
+  },
+
+  onFrame() {
+    this._frames++;
+    if (this._frames % 90 === 0) this._recompute();
+  },
+
+  onTierChange() {
+    this._recompute();
+    SpaceNetFleet?.touchThisDevice?.();
+  },
+
+  noteDemand(action) {
+    const heavy = ['batch', 'drive', 'coders', 'order', 'commerce', 'city', 'map', 'video'];
+    if (!heavy.includes(String(action || '').toLowerCase())) return;
+    this._demandUntil = Date.now() + 120000;
+    this._boostUntil = Date.now() + 45000;
+  },
+
+  allowsUpgrade() {
+    if (Date.now() < this._demandUntil) return true;
+    if (Date.now() < this._boostUntil) return true;
+    const p = SlumberManager?.profile || {};
+    if (p.lowEndGpu || p.slowNet) return false;
+    return this.spareScore >= 55;
+  },
+
+  _recompute() {
+    const sm = SlumberManager;
+    if (!sm) return;
+    const fps = sm._avgFps?.() || 30;
+    const tier = sm.tier || 'balanced';
+    const tierHead = { gaming: 0, full: 12, balanced: 28, conserve: 48, slumber: 62 }[tier] || 20;
+    const fpsHead = Math.max(0, Math.min(40, (fps - 28) * 1.2));
+    const idle = !GlobeDeck?.activeTask && !GlobeDeck?.thinking && !document.hidden;
+    const idleBonus = idle ? 18 : 0;
+    const sleeping = Object.values(sm.states || {}).filter(s => s === 'sleeping').length;
+    const sleepBonus = Math.min(22, sleeping * 3);
+    const donatePenalty = this.donating ? 28 : 0;
+    this.spareScore = Math.round(Math.max(0, Math.min(100, tierHead + fpsHead + idleBonus + sleepBonus - donatePenalty)));
+    CliRibbon?.render?.();
+  },
+
+  periodicCheck() {
+    this._recompute();
+    if (this.donating) {
+      SpaceNetFleet?.touchThisDevice?.({ relay: true });
+      return;
+    }
+    if (this.spareScore < 68 || !Auth?.user || document.hidden) return;
+    const now = Date.now();
+    if (now - this._lastNudge < 300000) return;
+    this._lastNudge = now;
+    const line = 'Spare ' + this.spareScore + '% · donate compute to SpaceNet — say donate on';
+    CliRibbon?.setNotice?.(line, 'info');
+    if (!sessionStorage.getItem('astranov_donate_nudge')) {
+      sessionStorage.setItem('astranov_donate_nudge', '1');
+      ACIControl?.reply?.(line);
+    }
+  },
+
+  _enableRelay(quiet) {
+    SlumberManager?.applyTier?.('conserve', quiet ? 'donate relay' : 'donate on');
+    SlumberManager?.wake?.('deferred', 'donate');
+    SpaceNetFleet?.registerThis?.('relay', { quiet: !!quiet });
+    FieldBrain?.pulse?.('fleet', 'donate relay · spare compute', { role: 'client', props: { spare: this.spareScore } });
+  },
+
+  _disableRelay() {
+    SpaceNetFleet?.registerThis?.('worker', { quiet: true });
+    if (!SlumberManager?._userPinned) SlumberManager?.applyTier?.(SlumberManager.pickInitialTier(), 'donate off');
+  },
+
+  report() {
+    const sm = SlumberManager?.statusReport?.() || {};
+    const p = sm.profile || {};
+    const mem = p.memoryGb ? p.memoryGb + 'GB' : 'RAM n/a';
+    return {
+      tier: sm.tier,
+      label: sm.label,
+      fps: sm.fps,
+      spareScore: this.spareScore,
+      donating: this.donating,
+      fleet: SpaceNetFleet?.devices?.length || 0,
+      line: 'FPS ~' + sm.fps + ' · ' + sm.label + ' · spare ' + this.spareScore + '% · ' + mem
+        + (this.donating ? ' · donating' : ''),
+    };
+  },
+
+  async cli(parts) {
+    const cmd = String(parts?.[0] || 'status').toLowerCase();
+    if (cmd === 'donate') {
+      const sub = String(parts?.[1] || 'status').toLowerCase();
+      if (sub === 'on' || sub === 'yes' || sub === 'enable') {
+        this.donating = true;
+        try { localStorage.setItem(this.STORAGE_KEY, '1'); } catch (_) {}
+        this._enableRelay(false);
+        AciCli?.print?.('Donate on · relaying spare compute to SpaceNet', 'ok');
+        CliRibbon?.setNotice?.('donating to SpaceNet', 'ready');
+        return;
+      }
+      if (sub === 'off' || sub === 'no' || sub === 'stop') {
+        this.donating = false;
+        try { localStorage.removeItem(this.STORAGE_KEY); } catch (_) {}
+        this._disableRelay();
+        AciCli?.print?.('Donate off · device back to your profile only', 'ok');
+        return;
+      }
+      AciCli?.print?.('donate ' + (this.donating ? 'on' : 'off') + ' · spare ' + this.spareScore + '%', 'dim');
+      return;
+    }
+    if (cmd === 'boost' || cmd === 'full' || cmd === 'gaming') {
+      this._boostUntil = Date.now() + 180000;
+      const target = cmd === 'gaming' && (SlumberManager?.profile?.cores || 0) >= 6 ? 'gaming' : cmd === 'full' ? 'full' : 'balanced';
+      SlumberManager._userPinned = false;
+      SlumberManager.applyTier(target, 'boost requested');
+      AciCli?.print?.('Boost · ' + SlumberManager.TIER_LABEL[SlumberManager.tier], 'ok');
+      return;
+    }
+    const r = this.report();
+    AciCli?.print?.(r.line, 'ok');
+    if (r.spareScore >= 65 && !this.donating) {
+      AciCli?.print?.('Spare capacity — say donate on to monetize via SpaceNet relay', 'dim');
+    }
+    AciCli?.print?.('resources status | boost | donate on|off · fleet list', 'dim');
+    CliRibbon?.setNotice?.(r.line);
+    return r;
+  },
+};
+window.SpaceNetResourceMonitor = SpaceNetResourceMonitor;
+SpaceNetResourceMonitor.init();
+
+// === SPACENET FLEET — old devices under your profile · relay batch work ===
+const SpaceNetFleet = {
+  devices: [],
+  _syncTimer: null,
+  STORAGE_PREFIX: 'astranov_fleet_v1:',
+
+  _uid() {
+    return Auth?.user?.id || 'guest';
+  },
+
+  _key() {
+    return this.STORAGE_PREFIX + this._uid();
+  },
+
+  _deviceId() {
+    try {
+      return window.AstranovSession?.deviceId?.() || localStorage.getItem('astranov_device_id') || ('dev-' + Date.now().toString(36));
+    } catch (_) {
+      return 'dev-' + Date.now().toString(36);
+    }
+  },
+
+  _nodeId() {
+    return window.AstranovNode?.getDeviceNodeId?.() || window.AstranovNode?.nodeId || ('node-' + this._deviceId().slice(0, 12));
+  },
+
+  _platform() {
+    const ua = navigator.userAgent || '';
+    if (/android/i.test(ua)) return 'android';
+    if (/iphone|ipad|ipod/i.test(ua)) return 'ios';
+    return 'desktop';
+  },
+
+  _load() {
+    try {
+      const raw = localStorage.getItem(this._key());
+      this.devices = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(this.devices)) this.devices = [];
+    } catch (_) {
+      this.devices = [];
+    }
+  },
+
+  _save() {
+    try { localStorage.setItem(this._key(), JSON.stringify(this.devices.slice(0, 24))); } catch (_) {}
+    this.renderPanel();
+  },
+
+  init() {
+    this._load();
+    if (Auth?.client) {
+      Auth.client.auth.onAuthStateChange((_e, session) => {
+        if (session?.user) {
+          this._load();
+          this.registerThis('primary', { quiet: true });
+        }
+      });
+    }
+    if (Auth?.user) this.registerThis('primary', { quiet: true });
+    clearInterval(this._syncTimer);
+    this._syncTimer = setInterval(() => this.tick(), 120000);
+  },
+
+  registerThis(role, opts) {
+    opts = opts || {};
+    if (!Auth?.user) return null;
+    this._load();
+    const id = this._deviceId();
+    const nodeId = this._nodeId();
+    const label = (opts.label || this._platform() + ' · ' + (navigator.platform || 'device')).slice(0, 48);
+    const row = {
+      deviceId: id,
+      nodeId,
+      label,
+      platform: this._platform(),
+      role: role || 'worker',
+      tier: SlumberManager?.tier || 'balanced',
+      relay: role === 'relay',
+      lastSeen: Date.now(),
+      isThis: true,
+    };
+    const idx = this.devices.findIndex(d => d.deviceId === id);
+    if (idx >= 0) this.devices[idx] = { ...this.devices[idx], ...row };
+    else this.devices.unshift(row);
+    this.devices = this.devices.slice(0, 24);
+    this._save();
+    if (!opts.quiet) {
+      AciCli?.print?.('Fleet · ' + label + ' · ' + row.role, 'ok');
+      FieldBrain?.pulse?.('fleet', 'register ' + row.role, { role: 'client', props: { node_id: nodeId, platform: row.platform } });
+    }
+    return row;
+  },
+
+  touchThisDevice(meta) {
+    if (!Auth?.user) return;
+    const id = this._deviceId();
+    const idx = this.devices.findIndex(d => d.deviceId === id);
+    if (idx < 0) { this.registerThis(meta?.relay ? 'relay' : 'worker', { quiet: true }); return; }
+    this.devices[idx].lastSeen = Date.now();
+    this.devices[idx].tier = SlumberManager?.tier || this.devices[idx].tier;
+    if (meta?.relay != null) this.devices[idx].relay = !!meta.relay;
+    this._save();
+  },
+
+  async syncFromBatch() {
+    const batchId = window.AstranovNode?.batchId;
+    if (!batchId || !window.AstranovNode?.api) return;
+    try {
+      const r = await window.AstranovNode.api({ action: 'peers', batch_id: batchId });
+      if (!r.ok || !r.nodes?.length) return;
+      r.nodes.forEach(n => {
+        const nodeId = n.node_id;
+        if (!nodeId) return;
+        const existing = this.devices.find(d => d.nodeId === nodeId);
+        const row = {
+          deviceId: existing?.deviceId || ('peer-' + nodeId),
+          nodeId,
+          label: (n.props?.label || n.platform || 'node') + (n.node_id === window.AstranovNode?.nodeId ? ' · this' : ''),
+          platform: n.platform || 'web',
+          role: n.props?.role || 'worker',
+          tier: n.props?.tier || 'balanced',
+          relay: !!n.props?.relay,
+          lastSeen: n.last_seen ? Date.parse(n.last_seen) : Date.now(),
+          isThis: n.node_id === window.AstranovNode?.nodeId,
+        };
+        const idx = this.devices.findIndex(d => d.nodeId === nodeId);
+        if (idx >= 0) this.devices[idx] = { ...this.devices[idx], ...row };
+        else this.devices.push(row);
+      });
+      this.devices = this.devices.slice(0, 24);
+      this._save();
+    } catch (_) {}
+  },
+
+  tick() {
+    if (!Auth?.user) return;
+    this.touchThisDevice();
+    void this.syncFromBatch();
+  },
+
+  renderPanel() {
+    const countEl = document.getElementById('nb-fleet-count');
+    const stEl = document.getElementById('nb-fleet-status');
+    const live = this.devices.filter(d => Date.now() - (d.lastSeen || 0) < 86400000);
+    if (countEl) countEl.textContent = String(live.length || this.devices.length);
+    if (stEl) {
+      const relays = live.filter(d => d.relay).length;
+      stEl.textContent = relays ? relays + ' relay · ' + live.length + ' fleet' : live.length + ' under profile';
+    }
+  },
+
+  listText() {
+    if (!this.devices.length) return 'No fleet yet — say fleet add on each old device';
+    return this.devices.slice(0, 8).map(d => {
+      const age = Math.round((Date.now() - (d.lastSeen || 0)) / 60000);
+      return (d.isThis ? '★ ' : '') + d.label + ' · ' + d.role + (d.relay ? ' relay' : '') + ' · ' + age + 'm';
+    }).join('\n');
+  },
+
+  async cli(parts) {
+    const cmd = String(parts?.[0] || 'list').toLowerCase();
+    if (!Auth?.user) {
+      AciCli?.print?.('Sign in (G) — then fleet add on each device', 'err');
+      Auth?.openLoginModal?.('Fleet needs sign-in');
+      return;
+    }
+    if (cmd === 'add' || cmd === 'register' || cmd === 'join') {
+      const role = String(parts?.[1] || 'worker').toLowerCase();
+      const mapped = role === 'relay' ? 'relay' : role === 'primary' ? 'primary' : 'worker';
+      if (mapped === 'worker' && (SlumberManager?.profile?.lowEndGpu || SlumberManager?.tier === 'slumber')) {
+        SlumberManager.applyTier('slumber', 'fleet worker');
+      }
+      this.registerThis(mapped);
+      ACIControl?.reply?.('Fleet device registered — install PWA on old phones · batch links them');
+      return;
+    }
+    if (cmd === 'sync') {
+      await this.syncFromBatch();
+      AciCli?.print?.('Fleet synced · ' + this.devices.length + ' device(s)', 'ok');
+      this.renderPanel();
+      return;
+    }
+    if (cmd === 'status') {
+      const r = SpaceNetResourceMonitor?.report?.() || {};
+      AciCli?.print?.('Fleet · ' + this.devices.length + ' · ' + (r.line || ''), 'ok');
+      this.renderPanel();
+      return;
+    }
+    AciCli?.print?.(this.listText(), 'ok');
+    AciCli?.print?.('fleet add worker|relay | fleet sync | resources status | donate on', 'dim');
+    this.renderPanel();
+  },
+};
+window.SpaceNetFleet = SpaceNetFleet;
+SpaceNetFleet.init();
 
 // === ASTRANOV LOGO — top-center reset + live mic/AI waveform ===
 const AstranovLogo = {
@@ -5930,6 +6387,7 @@ const GlobeDeck = {
     if (!this._pulseLoop) {
       this._pulseLoop = setInterval(() => this.syncCliPulse(), 900);
     }
+    SpaceNetLoader?.stage?.('cli', 'CLI ready');
   },
 
   _deckMinH() { return 176; },
@@ -6551,6 +7009,10 @@ const CliRibbon = {
     if (window.SlumberManager?.tier && window.SlumberManager.tier !== 'full') {
       parts.push('⚡' + (window.SlumberManager.TIER_LABEL[window.SlumberManager.tier] || window.SlumberManager.tier));
     }
+    if (window.SpaceNetResourceMonitor?.donating) parts.push('♻ donate');
+    else if ((window.SpaceNetResourceMonitor?.spareScore || 0) >= 68) {
+      parts.push('+' + window.SpaceNetResourceMonitor.spareScore + '% spare');
+    }
     if (this._notice) parts.push(this._notice);
 
     const line = parts.filter(Boolean).join(' · ').slice(0, 140);
@@ -7061,7 +7523,7 @@ const SuperCli = {
   async run(action, opts) {
     const act = String(action || '').toLowerCase();
     SlumberManager?.wakeForAction?.(act);
-    if (!['locate', 'city', 'map', 'cli', 'dark', 'bright', 'theme', 'slumber', 'wake', 'sleep'].includes(act)) {
+    if (!['locate', 'city', 'map', 'cli', 'dark', 'bright', 'theme', 'slumber', 'wake', 'sleep', 'resources', 'resource', 'fleet', 'donate', 'boost'].includes(act)) {
       await LazyModules.ensure();
     }
     GlobeDeck?.superAction(act, opts);
@@ -7753,6 +8215,26 @@ const AciCli = {
       if (cmd === 'work' || cmd === 'jobs' || cmd === 'available') {
         if (cmd === 'available') await FieldWork?.runCli?.(['work', 'available', ...parts.slice(1)]);
         else await FieldWork?.runCli?.(parts);
+        GlobeDeck?.finishCliIfOneShot?.(cmd);
+        return;
+      }
+      if (cmd === 'resources' || cmd === 'resource') {
+        await SpaceNetResourceMonitor?.cli?.(parts.slice(1).length ? parts.slice(1) : ['status']);
+        GlobeDeck?.finishCliIfOneShot?.(cmd);
+        return;
+      }
+      if (cmd === 'donate') {
+        await SpaceNetResourceMonitor?.cli?.(['donate', ...parts.slice(1)]);
+        GlobeDeck?.finishCliIfOneShot?.(cmd);
+        return;
+      }
+      if (cmd === 'fleet') {
+        await SpaceNetFleet?.cli?.(parts.slice(1));
+        GlobeDeck?.finishCliIfOneShot?.(cmd);
+        return;
+      }
+      if (cmd === 'boost') {
+        await SpaceNetResourceMonitor?.cli?.(['boost']);
         GlobeDeck?.finishCliIfOneShot?.(cmd);
         return;
       }
@@ -9217,6 +9699,23 @@ const ACIControl = {
       if (/^performance\b/i.test(parts[0])) parts = ['status'];
       await SlumberManager?.cli?.(parts);
       return { executed: true, action: 'slumber' };
+    }
+    if (/^resources?\b|^spacenet resources|^boost\b/.test(low)) {
+      let parts = text.trim().split(/\s+/);
+      if (/^boost\b/i.test(parts[0])) parts = ['boost', ...parts.slice(1)];
+      else if (/^resources?\b/i.test(parts[0])) parts = parts.length > 1 ? parts.slice(1) : ['status'];
+      await SpaceNetResourceMonitor?.cli?.(parts);
+      return { executed: true, action: 'resources' };
+    }
+    if (/^donate\b/.test(low)) {
+      const parts = text.trim().split(/\s+/);
+      await SpaceNetResourceMonitor?.cli?.(['donate', ...parts.slice(1)]);
+      return { executed: true, action: 'donate' };
+    }
+    if (/^fleet\b/.test(low)) {
+      const parts = text.trim().split(/\s+/);
+      await SpaceNetFleet?.cli?.(parts.slice(1));
+      return { executed: true, action: 'fleet' };
     }
     if (/^summon\s+coders?\s*/i.test(text) || /^coders\b/i.test(low)) {
       const bare = /^coders?\s*$/i.test(text.trim()) || /^summon\s+coders?\s*$/i.test(text.trim());
@@ -16284,6 +16783,8 @@ function animate() {
 }
 
 window._bootAt = Date.now();
+SpaceNetLoader?.init?.();
+SpaceNetLoader?.stage?.('globe', 'Earth globe');
 window._bootEarthLock = true;
 GlobeNavigate.mode = 'global';
 GlobeNavigate._cityUnlocked = false;
@@ -16325,6 +16826,7 @@ if (CosmicZoom.galaxyPts) CosmicZoom.galaxyPts.visible = false;
 ZoomTiers?.goTo?.('global', false);
 CosmicZoom.update(GlobeNavigate.GLOBAL_Z, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
 GlobeNavigate?._syncChip?.();
+SpaceNetLoader?.stage?.('earth', 'Earth ready');
 AstranovTheme.init();
 AiGlyphs.init();
 AstranovLogo.init();
