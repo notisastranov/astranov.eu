@@ -133,11 +133,48 @@ globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
 window.earth = earth;
 window._animateStarted = false;
 
+(function _instantReadyUi() {
+  var zl = document.getElementById('zoom-label');
+  if (zl) zl.textContent = 'GLOBAL';
+  var deck = document.getElementById('globe-deck');
+  var prev = document.getElementById('globe-deck-preview');
+  if (prev) {
+    prev.textContent = 'SpaceNet live · drag globe to explore';
+    if (deck) deck.classList.add('has-preview');
+  }
+  var ticker = document.getElementById('news-ticker');
+  if (ticker) ticker.textContent = 'SpaceNet live · full earth · drag to explore · CLI loads in background';
+})();
+
+(function _earlyTrackball() {
+  if (!container || !globePivot) return;
+  var active = false, lx = 0, ly = 0;
+  container.addEventListener('pointerdown', function(e) {
+    if (e.button !== 0) return;
+    active = true;
+    drag = true;
+    lx = e.clientX;
+    ly = e.clientY;
+    try { container.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  container.addEventListener('pointerup', function() { active = false; drag = false; });
+  container.addEventListener('pointercancel', function() { active = false; drag = false; });
+  container.addEventListener('pointermove', function(e) {
+    if (!active || window._animateStarted) return;
+    var dx = e.clientX - lx, dy = e.clientY - ly;
+    lx = e.clientX;
+    ly = e.clientY;
+    globePivot.rotation.y += dx * 0.005;
+    globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x + dy * 0.003));
+    globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
+  });
+})();
+
 (function _earlyGlobePaint() {
   function tick() {
     if (!renderer || !scene || !camera) return;
     window._snlForceDismiss?.();
-    if (globePivot && !window._animateStarted) globePivot.rotation.y += 0.00035;
+    if (globePivot && !window._animateStarted && !drag) globePivot.rotation.y += 0.00035;
     try { renderer.render(scene, camera); } catch (_) {}
     if (!window._animateStarted) requestAnimationFrame(tick);
   }
@@ -164,8 +201,15 @@ window.sun = sun;
 (function loadCore(){
   var b = document.querySelector('meta[name="astranov-build"]');
   var v = b && b.content ? '?v=' + encodeURIComponent(b.content) : '';
+  var prev = document.getElementById('globe-deck-preview');
   var s = document.createElement('script');
-  s.defer = true;
   s.src = '/astranov-core.js' + v;
+  s.onload = function() {
+    window._coreLoaded = true;
+    if (prev && !window._bootAt) prev.textContent = 'SpaceNet · wiring CLI…';
+  };
+  s.onerror = function() {
+    if (prev) prev.textContent = 'Core failed to load — hard refresh (Ctrl+Shift+R)';
+  };
   document.head.appendChild(s);
 })();
