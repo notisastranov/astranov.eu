@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710340000-resource-loader-fleet" />
+<meta name="astranov-build" content="20260710350000-boot-fix" />
 <meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
 <meta name="astranov-mission" content="SpaceNet: solar-global-national-city-street unify internet under realistic space imagery" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
@@ -1052,6 +1052,7 @@ const container = document.getElementById('globe');
 // Robust WebGL + error guard so user never sees silent black
 window.addEventListener('error', function(e) {
   try {
+    window.SpaceNetLoader?.dismiss?.('error');
     window.MissionSupportReporter?.recordProblem?.('js_error', e.message || 'unknown', {
       file: e.filename, line: e.lineno, col: e.colno,
     });
@@ -2846,7 +2847,7 @@ const SpaceNetLoader = {
     this._fill = document.getElementById('snl-fill');
     this._label = document.getElementById('snl-label');
     this.stage('core', 'SpaceNet core');
-    setTimeout(() => this.dismiss('timeout'), 9000);
+    setTimeout(() => this.dismiss('timeout'), 3200);
   },
 
   stage(id, label) {
@@ -2872,11 +2873,10 @@ const SpaceNetLoader = {
   },
 
   _tryDismiss() {
-    const globe = document.getElementById('globe');
     const deck = document.getElementById('globe-deck');
-    const ready = this._stages.globe && this._stages.cli && this._stages.earth
-      && globe && deck && deck.offsetHeight >= 100;
-    if (ready) setTimeout(() => this.dismiss('ready'), 160);
+    const canvas = document.querySelector('#globe canvas');
+    const ready = (this._stages.cli || this._stages.earth) && deck && deck.offsetHeight >= 80 && canvas;
+    if (ready) setTimeout(() => this.dismiss('ready'), 80);
   },
 
   dismiss(reason) {
@@ -4685,9 +4685,12 @@ const SpaceNetResourceMonitor = {
   _boostUntil: 0,
   _lastNudge: 0,
   _frames: 0,
+  _inited: false,
   STORAGE_KEY: 'astranov_donate_compute',
 
   init() {
+    if (this._inited) return;
+    this._inited = true;
     try { this.donating = localStorage.getItem(this.STORAGE_KEY) === '1'; } catch (_) {}
     this._recompute();
     if (this.donating) this._enableRelay(true);
@@ -4700,7 +4703,7 @@ const SpaceNetResourceMonitor = {
 
   onTierChange() {
     this._recompute();
-    SpaceNetFleet?.touchThisDevice?.();
+    window.SpaceNetFleet?.touchThisDevice?.();
   },
 
   noteDemand(action) {
@@ -4725,42 +4728,42 @@ const SpaceNetResourceMonitor = {
     const tier = sm.tier || 'balanced';
     const tierHead = { gaming: 0, full: 12, balanced: 28, conserve: 48, slumber: 62 }[tier] || 20;
     const fpsHead = Math.max(0, Math.min(40, (fps - 28) * 1.2));
-    const idle = !GlobeDeck?.activeTask && !GlobeDeck?.thinking && !document.hidden;
+    const idle = !window.GlobeDeck?.activeTask && !window.GlobeDeck?.thinking && !document.hidden;
     const idleBonus = idle ? 18 : 0;
     const sleeping = Object.values(sm.states || {}).filter(s => s === 'sleeping').length;
     const sleepBonus = Math.min(22, sleeping * 3);
     const donatePenalty = this.donating ? 28 : 0;
     this.spareScore = Math.round(Math.max(0, Math.min(100, tierHead + fpsHead + idleBonus + sleepBonus - donatePenalty)));
-    CliRibbon?.render?.();
+    window.CliRibbon?.render?.();
   },
 
   periodicCheck() {
     this._recompute();
     if (this.donating) {
-      SpaceNetFleet?.touchThisDevice?.({ relay: true });
+      window.SpaceNetFleet?.touchThisDevice?.({ relay: true });
       return;
     }
-    if (this.spareScore < 68 || !Auth?.user || document.hidden) return;
+    if (this.spareScore < 68 || !window.Auth?.user || document.hidden) return;
     const now = Date.now();
     if (now - this._lastNudge < 300000) return;
     this._lastNudge = now;
     const line = 'Spare ' + this.spareScore + '% · donate compute to SpaceNet — say donate on';
-    CliRibbon?.setNotice?.(line, 'info');
+    window.CliRibbon?.setNotice?.(line, 'info');
     if (!sessionStorage.getItem('astranov_donate_nudge')) {
       sessionStorage.setItem('astranov_donate_nudge', '1');
-      ACIControl?.reply?.(line);
+      window.ACIControl?.reply?.(line);
     }
   },
 
   _enableRelay(quiet) {
     SlumberManager?.applyTier?.('conserve', quiet ? 'donate relay' : 'donate on');
     SlumberManager?.wake?.('deferred', 'donate');
-    SpaceNetFleet?.registerThis?.('relay', { quiet: !!quiet });
+    window.SpaceNetFleet?.registerThis?.('relay', { quiet: !!quiet });
     FieldBrain?.pulse?.('fleet', 'donate relay · spare compute', { role: 'client', props: { spare: this.spareScore } });
   },
 
   _disableRelay() {
-    SpaceNetFleet?.registerThis?.('worker', { quiet: true });
+    window.SpaceNetFleet?.registerThis?.('worker', { quiet: true });
     if (!SlumberManager?._userPinned) SlumberManager?.applyTier?.(SlumberManager.pickInitialTier(), 'donate off');
   },
 
@@ -4774,7 +4777,7 @@ const SpaceNetResourceMonitor = {
       fps: sm.fps,
       spareScore: this.spareScore,
       donating: this.donating,
-      fleet: SpaceNetFleet?.devices?.length || 0,
+      fleet: window.SpaceNetFleet?.devices?.length || 0,
       line: 'FPS ~' + sm.fps + ' · ' + sm.label + ' · spare ' + this.spareScore + '% · ' + mem
         + (this.donating ? ' · donating' : ''),
     };
@@ -4788,18 +4791,18 @@ const SpaceNetResourceMonitor = {
         this.donating = true;
         try { localStorage.setItem(this.STORAGE_KEY, '1'); } catch (_) {}
         this._enableRelay(false);
-        AciCli?.print?.('Donate on · relaying spare compute to SpaceNet', 'ok');
-        CliRibbon?.setNotice?.('donating to SpaceNet', 'ready');
+        window.AciCli?.print?.('Donate on · relaying spare compute to SpaceNet', 'ok');
+        window.CliRibbon?.setNotice?.('donating to SpaceNet', 'ready');
         return;
       }
       if (sub === 'off' || sub === 'no' || sub === 'stop') {
         this.donating = false;
         try { localStorage.removeItem(this.STORAGE_KEY); } catch (_) {}
         this._disableRelay();
-        AciCli?.print?.('Donate off · device back to your profile only', 'ok');
+        window.AciCli?.print?.('Donate off · device back to your profile only', 'ok');
         return;
       }
-      AciCli?.print?.('donate ' + (this.donating ? 'on' : 'off') + ' · spare ' + this.spareScore + '%', 'dim');
+      window.AciCli?.print?.('donate ' + (this.donating ? 'on' : 'off') + ' · spare ' + this.spareScore + '%', 'dim');
       return;
     }
     if (cmd === 'boost' || cmd === 'full' || cmd === 'gaming') {
@@ -4807,30 +4810,30 @@ const SpaceNetResourceMonitor = {
       const target = cmd === 'gaming' && (SlumberManager?.profile?.cores || 0) >= 6 ? 'gaming' : cmd === 'full' ? 'full' : 'balanced';
       SlumberManager._userPinned = false;
       SlumberManager.applyTier(target, 'boost requested');
-      AciCli?.print?.('Boost · ' + SlumberManager.TIER_LABEL[SlumberManager.tier], 'ok');
+      window.AciCli?.print?.('Boost · ' + SlumberManager.TIER_LABEL[SlumberManager.tier], 'ok');
       return;
     }
     const r = this.report();
-    AciCli?.print?.(r.line, 'ok');
+    window.AciCli?.print?.(r.line, 'ok');
     if (r.spareScore >= 65 && !this.donating) {
-      AciCli?.print?.('Spare capacity — say donate on to monetize via SpaceNet relay', 'dim');
+      window.AciCli?.print?.('Spare capacity — say donate on to monetize via SpaceNet relay', 'dim');
     }
-    AciCli?.print?.('resources status | boost | donate on|off · fleet list', 'dim');
-    CliRibbon?.setNotice?.(r.line);
+    window.AciCli?.print?.('resources status | boost | donate on|off · fleet list', 'dim');
+    window.CliRibbon?.setNotice?.(r.line);
     return r;
   },
 };
 window.SpaceNetResourceMonitor = SpaceNetResourceMonitor;
-SpaceNetResourceMonitor.init();
 
 // === SPACENET FLEET — old devices under your profile · relay batch work ===
 const SpaceNetFleet = {
   devices: [],
   _syncTimer: null,
+  _inited: false,
   STORAGE_PREFIX: 'astranov_fleet_v1:',
 
   _uid() {
-    return Auth?.user?.id || 'guest';
+    return window.Auth?.user?.id || 'guest';
   },
 
   _key() {
@@ -4872,23 +4875,26 @@ const SpaceNetFleet = {
   },
 
   init() {
+    if (this._inited) return;
+    this._inited = true;
     this._load();
-    if (Auth?.client) {
-      Auth.client.auth.onAuthStateChange((_e, session) => {
+    if (window.Auth?.client) {
+      window.Auth.client.auth.onAuthStateChange((_e, session) => {
         if (session?.user) {
           this._load();
           this.registerThis('primary', { quiet: true });
         }
       });
     }
-    if (Auth?.user) this.registerThis('primary', { quiet: true });
+    if (window.Auth?.user) this.registerThis('primary', { quiet: true });
     clearInterval(this._syncTimer);
     this._syncTimer = setInterval(() => this.tick(), 120000);
+    this.renderPanel();
   },
 
   registerThis(role, opts) {
     opts = opts || {};
-    if (!Auth?.user) return null;
+    if (!window.Auth?.user) return null;
     this._load();
     const id = this._deviceId();
     const nodeId = this._nodeId();
@@ -4910,14 +4916,14 @@ const SpaceNetFleet = {
     this.devices = this.devices.slice(0, 24);
     this._save();
     if (!opts.quiet) {
-      AciCli?.print?.('Fleet · ' + label + ' · ' + row.role, 'ok');
+      window.AciCli?.print?.('Fleet · ' + label + ' · ' + row.role, 'ok');
       FieldBrain?.pulse?.('fleet', 'register ' + row.role, { role: 'client', props: { node_id: nodeId, platform: row.platform } });
     }
     return row;
   },
 
   touchThisDevice(meta) {
-    if (!Auth?.user) return;
+    if (!window.Auth?.user) return;
     const id = this._deviceId();
     const idx = this.devices.findIndex(d => d.deviceId === id);
     if (idx < 0) { this.registerThis(meta?.relay ? 'relay' : 'worker', { quiet: true }); return; }
@@ -4958,7 +4964,7 @@ const SpaceNetFleet = {
   },
 
   tick() {
-    if (!Auth?.user) return;
+    if (!window.Auth?.user) return;
     this.touchThisDevice();
     void this.syncFromBatch();
   },
@@ -4984,9 +4990,9 @@ const SpaceNetFleet = {
 
   async cli(parts) {
     const cmd = String(parts?.[0] || 'list').toLowerCase();
-    if (!Auth?.user) {
-      AciCli?.print?.('Sign in (G) — then fleet add on each device', 'err');
-      Auth?.openLoginModal?.('Fleet needs sign-in');
+    if (!window.Auth?.user) {
+      window.AciCli?.print?.('Sign in (G) — then fleet add on each device', 'err');
+      window.Auth?.openLoginModal?.('Fleet needs sign-in');
       return;
     }
     if (cmd === 'add' || cmd === 'register' || cmd === 'join') {
@@ -4996,28 +5002,27 @@ const SpaceNetFleet = {
         SlumberManager.applyTier('slumber', 'fleet worker');
       }
       this.registerThis(mapped);
-      ACIControl?.reply?.('Fleet device registered — install PWA on old phones · batch links them');
+      window.ACIControl?.reply?.('Fleet device registered — install PWA on old phones · batch links them');
       return;
     }
     if (cmd === 'sync') {
       await this.syncFromBatch();
-      AciCli?.print?.('Fleet synced · ' + this.devices.length + ' device(s)', 'ok');
+      window.AciCli?.print?.('Fleet synced · ' + this.devices.length + ' device(s)', 'ok');
       this.renderPanel();
       return;
     }
     if (cmd === 'status') {
-      const r = SpaceNetResourceMonitor?.report?.() || {};
-      AciCli?.print?.('Fleet · ' + this.devices.length + ' · ' + (r.line || ''), 'ok');
+      const r = window.SpaceNetResourceMonitor?.report?.() || {};
+      window.AciCli?.print?.('Fleet · ' + this.devices.length + ' · ' + (r.line || ''), 'ok');
       this.renderPanel();
       return;
     }
-    AciCli?.print?.(this.listText(), 'ok');
-    AciCli?.print?.('fleet add worker|relay | fleet sync | resources status | donate on', 'dim');
+    window.AciCli?.print?.(this.listText(), 'ok');
+    window.AciCli?.print?.('fleet add worker|relay | fleet sync | resources status | donate on', 'dim');
     this.renderPanel();
   },
 };
 window.SpaceNetFleet = SpaceNetFleet;
-SpaceNetFleet.init();
 
 // === ASTRANOV LOGO — top-center reset + live mic/AI waveform ===
 const AstranovLogo = {
@@ -16743,6 +16748,7 @@ function animate() {
   SlumberManager?.tickFrame?.();
   window._animFrame = (window._animFrame + 1) | 0;
   const frame = window._animFrame;
+  if (frame === 1) window.SpaceNetLoader?.dismiss?.('frame');
   const hidden = document.hidden;
   if (!drag && !window._globeFly) TrackballGuard?.applyInertia?.();
   GlobeZoom?.tick?.();
@@ -16800,6 +16806,8 @@ if (typeof globePivot !== 'undefined' && globePivot) {
 try { Circles.init(); } catch (_) {}
 
 Auth.init();
+window.SpaceNetFleet?.init?.();
+window.SpaceNetResourceMonitor?.init?.();
 GlobeDeck.init();
 GlobeDeck.bootCollapsed?.();
 SuperCli.init();
