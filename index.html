@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>
+(function(){try{if('serviceWorker'in navigator)navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(s){s.unregister()})});if(window.caches&&caches.keys)caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})})}catch(e){}})();
+</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Astranov</title>
@@ -10,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710400000-deferred-core" />
+<meta name="astranov-build" content="20260710410000-instant-boot" />
 <meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
 <meta name="astranov-mission" content="SpaceNet: collective intelligence connecting everything into one — no satellites needed to communicate" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
@@ -125,7 +128,7 @@
   .coders-card-path { margin:8px 0 10px; font-size:8px; color:#6b8299; font-family:ui-monospace,monospace; }
   .coders-open { width:100%; border:1px solid color-mix(in srgb, var(--lab-accent,#7eb8ff) 32%, transparent); color:color-mix(in srgb, var(--lab-accent,#7eb8ff) 85%, white); background:rgba(0,0,0,0.35); }
   :root { --globe-opacity:1; --map-opacity:0; }
-  #globe { position:absolute; top:0; left:0; right:0; bottom:0; touch-action:none; z-index:2; }
+  #globe { position:absolute; top:0; left:0; right:0; bottom:0; touch-action:none; z-index:2; background:radial-gradient(circle at 38% 42%,#1a4a7a 0%,#0a1830 45%,#000 100%); }
   /* Legacy rect panels hidden — globe-deck CLI is the UI */
   #coders-hub-panel, #coders-hub-trigger, .deck, [id*="modal"], .rect-ui { display:none !important; }
   .celestial-circle { display:none !important; }
@@ -732,10 +735,6 @@
 </style>
 </head>
 <body>
-  <div id="spacenet-loader" aria-hidden="true" hidden style="display:none">
-    <div class="snl-bar"><div class="snl-fill" id="snl-fill"></div></div>
-    <div class="snl-label" id="snl-label">SpaceNet · one mind</div>
-  </div>
   <button id="astranov-logo" type="button" title="Astranov SpaceNet — collective intelligence mesh · no satellites · hard reset · red=mic · green=AI" aria-label="Astranov SpaceNet hard reset reload">
     <canvas id="astranov-logo-wave" aria-hidden="true"></canvas>
     <span class="astranov-logo-label">Astranov SpaceNet</span>
@@ -1040,6 +1039,6 @@
     <input id="aci-input" placeholder="" style="display:none" />
     <button id="aci-send" type="button" style="display:none" title="Send">➡️</button>
   </div>
-<script defer src="/astranov-core.js?v=20260710400000-deferred-core"></script>
+<script defer src="/astranov-gl.js?v=20260710410000-instant-boot"></script>
 </body>
 </html>
