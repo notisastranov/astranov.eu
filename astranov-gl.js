@@ -12,7 +12,7 @@ const container = document.getElementById('globe');
     el.setAttribute('aria-busy', 'false');
     setTimeout(function() { try { el.remove(); } catch (_) {} }, 320);
   };
-  setTimeout(kill, 700);
+  kill();
   window._snlForceDismiss = kill;
 })();
 
@@ -127,7 +127,7 @@ scene.add(globePivot);
 
 const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 24), earthMat);
 globePivot.add(earth);
-globePivot.rotation.y = 0.82;
+globePivot.rotation.y = 0;
 globePivot.rotation.x = 0.12;
 globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
 window.earth = earth;
