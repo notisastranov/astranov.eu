@@ -1,4 +1,16 @@
-/* Astranov app — unified bundle · scripts/rebuild-app.mjs */
+/* Astranov app — unified bundle · global-boot rebuild */
+
+(function _snlEarlyPaint() {
+  const kill = function() {
+    const el = document.getElementById('spacenet-loader');
+    if (!el || el.classList.contains('done')) return;
+    el.classList.add('done');
+    el.setAttribute('aria-busy', 'false');
+    setTimeout(function() { try { el.remove(); } catch (_) {} }, 200);
+  };
+  window._snlForceDismiss = kill;
+  kill();
+})();
 
 const container = document.getElementById('globe');
 
@@ -113,7 +125,7 @@ scene.add(globePivot);
 
 const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 24), earthMat);
 globePivot.add(earth);
-globePivot.rotation.y = 0.82;
+globePivot.rotation.y = 0;
 globePivot.rotation.x = 0.12;
 globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
 window.earth = earth;
@@ -14579,25 +14591,15 @@ window.me = me;
 
 // Voice.init() — deferred to _astranovBoot
 
-// Silent init (no panels, all on the globe) - user can play freely first
+// Guest identity only — no auto-locate or camera fly on boot
 function initUser() {
   AstranovSession?._applyIdentity?.();
   if (!me) {
     me = { id: 'guest-pending', name: 'Guest', isGuest: true };
     window.me = me;
   }
-  setTimeout(() => showOtherUsers(), 1500);
-
-  // Default position on globe (Greece area) - no geo yet
-  placeMe(36.22, 28.12, { quiet: true, markerOnly: true });
   userLocated = false;
-
-  // optional camera/storage only if ever needed later
-  // navigator.mediaDevices?.getUserMedia({video: true}).catch(() => {});
-  // navigator.storage?.persist?.();
 }
-
-try { initUser(); } catch(e){ console.warn('User init skipped:', e.message); }
 
 // Let user explore the globe freely first
 console.log('%c[Astranov] Globe UI: drag rotate · wheel/pinch zoom · tap/double-tap fly. 💻 CLI for tasks. 🎧 hands-free optional.', 'color:#00ddff');
@@ -15322,8 +15324,8 @@ function placeMe(lat, lng, opts) {
   userLocated = true;
   GlobeEntity?.syncMe?.(lat, lng, me ? me.name : 'You');
   if (quiet) {
-    MapDepict.pulse(lat, lng, 0x3d9eff, 'You', 6000);
-    GlobeDeck?.setMapStatus('📍 ' + lat.toFixed(2) + ', ' + lng.toFixed(2));
+    if (!markerOnly) MapDepict.pulse(lat, lng, 0x3d9eff, 'You', 6000);
+    if (!markerOnly) GlobeDeck?.setMapStatus('📍 ' + lat.toFixed(2) + ', ' + lng.toFixed(2));
   } else {
     MapDepict.action('location', { lat, lng, detail: me ? me.name : 'You' });
   }
@@ -15728,6 +15730,30 @@ window.Circles = Circles;
 
 // Circles.init() called from boot — no duplicate auto-init
 
+function applyGlobalBootView() {
+  GlobeNavigate.mode = 'global';
+  GlobeNavigate._cityUnlocked = false;
+  if (camera) {
+    camera.position.set(0, 0.25, GlobeNavigate.GLOBAL_Z);
+    camera.lookAt(0, 0, 0);
+  }
+  if (globePivot) {
+    globePivot.rotation.y = 0;
+    globePivot.rotation.x = 0.12;
+    syncGlobePivotRotation?.();
+    globePivot.visible = true;
+  }
+  CosmicZoom.level = 'earth';
+  if (CosmicZoom?.solarGroup) CosmicZoom.solarGroup.visible = false;
+  if (CosmicZoom?.galaxyPts) CosmicZoom.galaxyPts.visible = false;
+  ZoomTiers?.goTo?.('global', false);
+  CosmicZoom?.update?.(GlobeNavigate.GLOBAL_Z, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
+  cityLevel = false;
+  const zl = document.getElementById('zoom-label');
+  if (zl) zl.textContent = 'GLOBAL';
+  GlobeNavigate?._syncChip?.();
+}
+window.applyGlobalBootView = applyGlobalBootView;
 
 function animate() {
   requestAnimationFrame(animate);
@@ -15742,10 +15768,6 @@ function animate() {
   }
   const hidden = document.hidden;
   if (!drag && !window._globeFly) TrackballGuard?.applyInertia?.();
-  if (window._booting) {
-    renderer.render(scene, camera);
-    return;
-  }
   GlobeZoom?.tick?.();
   tickGlobeFly?.();
   MarketplaceDeliveryEngine?.tick?.();
@@ -15783,108 +15805,68 @@ function animate() {
   renderer.render(scene, camera);
 }
 
-function _astranovBootDone() {
-  window._booting = false;
-  window._bootEarthLock = false;
-  void SpaceNetScenarioRunner?.runAll?.('boot');
-  if (camera.position.z > 4.8 || CosmicZoom.level !== 'earth') {
-    camera.position.z = GlobeNavigate.GLOBAL_Z;
-    GlobeNavigate.mode = 'global';
-    ZoomTiers?.goTo?.('global', false);
-  }
-  CosmicZoom.update(GlobeNavigate.GLOBAL_Z, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
-  ACIControl?.reply?.(SpaceNetMission?.bootReply || 'SpaceNet live · collective intelligence links all · scroll out → solar · galaxy');
-  primeGrokVoice?.();
-  setTimeout(() => AciCoders?.enterSession?.({ ping: false, focus: false }), 1200);
-}
-
 function _astranovBoot() {
   window._bootAt = Date.now();
-  window._booting = true;
   window._bootEarthLock = true;
-  GlobeNavigate.mode = 'global';
-  GlobeNavigate._cityUnlocked = false;
-  camera.position.z = GlobeNavigate.GLOBAL_Z;
-  camera.lookAt(0, 0, 0);
-  if (globePivot) {
-    globePivot.rotation.x = 0.12;
-    globePivot.rotation.y = 0.82;
-    globePivot.visible = true;
-    syncGlobePivotRotation?.();
-  }
+  window._snlForceDismiss?.();
+  SpaceNetLoader?.dismiss?.('boot');
+  GlobeDeck?.setThinking?.(false);
+  CliRibbon?.clearNotice?.();
+
   const run = (fn) => { try { fn(); } catch (e) { console.error('[boot]', e); } };
-  const chunks = [
-    () => {
-      run(() => SlumberManager.init());
-      run(() => TrackballGuard.init());
-      run(() => Auth.init());
-      run(() => GlobeDeck.init());
-      run(() => GlobeDeck.bootCollapsed?.());
-    },
-    () => {
-      run(() => SuperCli.init());
-      run(() => SessionHold.init());
-      run(() => AciCli.init());
-      run(() => ACIControl.init());
-      run(() => ACI.init());
-    },
-    () => {
-      run(() => CosmicZoom.init());
-      run(() => ZoomTiers.init());
-      run(() => GlobeNavigate.init());
-      run(() => EarthRealism.init());
-      CosmicZoom.level = 'earth';
-      if (CosmicZoom.solarGroup) CosmicZoom.solarGroup.visible = false;
-      if (CosmicZoom.galaxyPts) CosmicZoom.galaxyPts.visible = false;
-      ZoomTiers?.goTo?.('global', false);
-      CosmicZoom.update(GlobeNavigate.GLOBAL_Z, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
-      GlobeNavigate?._syncChip?.();
-    },
-    () => {
-      run(() => AstranovTheme.init());
-      run(() => AiGlyphs.init());
-      run(() => AstranovLogo.init());
-      run(() => CityMap.init());
-      run(() => GlobeEntity.init());
-      run(() => MapPins.init());
-      run(() => MapOverlayDismiss.init());
-      window.SpaceNetFleet?.init?.();
-      window.SpaceNetResourceMonitor?.init?.();
-    },
-    () => {
-      run(() => CityLife.init());
-      run(() => VendorMapTile.init());
-      run(() => ClassifiedTriangles.init());
-      run(() => MarketplaceDeliveryEngine.init());
-      run(() => FieldWork.init());
-      run(() => SpaceNetCycle.init());
-      run(() => DrivingView.init());
-      run(() => AiRouter.init());
-      run(() => MissionSupportReporter.init());
-      LazyModules.schedule();
-      setTimeout(() => Auth.refreshAuthority(), 400);
-      AciCli?.primeCodersCli?.();
-      AciCoders?.ensureBridge?.();
-      if (window._lastPos) GlobeEntity.syncMe(_lastPos.lat, _lastPos.lng, me?.name || 'You');
-    },
-    () => {
-      const idle = (cb) => {
-        if (typeof requestIdleCallback === 'function') requestIdleCallback(cb, { timeout: 2000 });
-        else setTimeout(cb, 120);
-      };
-      idle(() => { try { Voice.init(); initVoice(); } catch (_) {} });
-      idle(() => { try { Circles.init(); } catch (_) {} });
-      idle(() => { void BrainNeurons?.boot?.(); });
-      _astranovBootDone();
-    },
-  ];
-  let i = 0;
-  const next = () => {
-    if (i >= chunks.length) return;
-    chunks[i++]();
-    setTimeout(next, 0);
-  };
-  next();
+
+  run(() => initUser());
+  run(() => SlumberManager.init());
+  run(() => TrackballGuard.init());
+  run(() => Auth.init());
+  run(() => GlobeDeck.init());
+  run(() => GlobeDeck.bootCollapsed?.());
+  run(() => SuperCli.init());
+  run(() => SessionHold.init());
+  run(() => AciCli.init());
+  run(() => ACIControl.init());
+  run(() => ACI.init());
+  run(() => CosmicZoom.init());
+  run(() => ZoomTiers.init());
+  run(() => GlobeNavigate.init());
+  run(() => EarthRealism.init());
+  applyGlobalBootView();
+  run(() => AstranovTheme.init());
+  run(() => AiGlyphs.init());
+  run(() => AstranovLogo.init());
+  run(() => CityMap.init());
+  run(() => GlobeEntity.init());
+  run(() => MapPins.init());
+  run(() => MapOverlayDismiss.init());
+  run(() => window.SpaceNetFleet?.init?.());
+  run(() => window.SpaceNetResourceMonitor?.init?.());
+  run(() => CityLife.init());
+  run(() => VendorMapTile.init());
+  run(() => ClassifiedTriangles.init());
+  run(() => MarketplaceDeliveryEngine.init());
+  run(() => FieldWork.init());
+  run(() => SpaceNetCycle.init());
+  run(() => DrivingView.init());
+  run(() => AiRouter.init());
+  run(() => MissionSupportReporter.init());
+  LazyModules.schedule();
+  applyGlobalBootView();
+
+  GlobeDeck?.setPreview?.('SpaceNet live · drag globe to explore');
+  CliRibbon?.setActive?.('CLI');
+  const board = document.getElementById('coders-race-board');
+  if (board && /checking teams/i.test(board.textContent || '')) board.textContent = 'SpaceNet ready';
+
+  window._bootEarthLock = false;
+  void SpaceNetScenarioRunner?.runAll?.('boot');
+  ACIControl?.reply?.(SpaceNetMission?.bootReply || 'SpaceNet live · collective intelligence links all · scroll out → solar · galaxy');
+  primeGrokVoice?.();
+
+  setTimeout(() => Auth.refreshAuthority(), 400);
+  setTimeout(() => AciCoders?.enterSession?.({ ping: false, focus: false }), 1200);
+  setTimeout(() => { try { Voice.init(); initVoice(); } catch (_) {} }, 0);
+  setTimeout(() => { try { Circles.init(); } catch (_) {} }, 0);
+  setTimeout(() => { void BrainNeurons?.boot?.(); }, 0);
 }
 
 const host = location.hostname || '';
@@ -15895,11 +15877,10 @@ if (host && !isOfficial && !isLocal) {
 } else {
   if (renderer && scene && camera) {
     window._animateStarted = true;
-    window._booting = true;
     animate();
   }
   setTimeout(function() {
-    try { _astranovBoot(); } catch (e) { console.error('[Astranov boot]', e); window._booting = false; }
+    try { _astranovBoot(); } catch (e) { console.error('[Astranov boot]', e); }
   }, 0);
 }
 
