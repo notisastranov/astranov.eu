@@ -1,5 +1,5 @@
-/* Astranov service worker — installable PWA shell; network-first for app HTML */
-const CACHE = 'astranov-v25';
+/* Astranov service worker — never serve stale app HTML/core */
+const CACHE = 'astranov-v26';
 const SHELL = ['/manifest.webmanifest', '/icon.svg'];
 
 self.addEventListener('install', (e) => {
@@ -17,21 +17,17 @@ function isAppHtml(url) {
   return url.pathname === '/' || url.pathname === '/index.html';
 }
 
+function isCoreJs(url) {
+  return url.pathname === '/astranov-gl.js' || url.pathname === '/astranov-core.js';
+}
+
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
   if (url.origin !== self.location.origin) return;
 
-  if (isAppHtml(url)) {
-    e.respondWith(
-      fetch(e.request).then(res => {
-        if (res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE).then(c => c.put(e.request, copy));
-        }
-        return res;
-      }).catch(() => caches.match(e.request))
-    );
+  if (isAppHtml(url) || isCoreJs(url)) {
+    e.respondWith(fetch(e.request));
     return;
   }
 
