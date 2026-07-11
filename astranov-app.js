@@ -80,7 +80,7 @@ scene.add(sun);
 
 // Stars - bigger/brighter to guarantee visibility against black
 const starPos = [];
-for (let i=0; i<1200; i++) {
+for (let i=0; i<480; i++) {
   const r = 140 + Math.random()*900;
   const t = Math.random()*Math.PI*2;
   const p = Math.acos(2*Math.random()-1);
@@ -15742,6 +15742,10 @@ function animate() {
   }
   const hidden = document.hidden;
   if (!drag && !window._globeFly) TrackballGuard?.applyInertia?.();
+  if (window._booting) {
+    renderer.render(scene, camera);
+    return;
+  }
   GlobeZoom?.tick?.();
   tickGlobeFly?.();
   MarketplaceDeliveryEngine?.tick?.();
@@ -15779,86 +15783,8 @@ function animate() {
   renderer.render(scene, camera);
 }
 
-function _astranovBoot() {
-  try {
-window._bootAt = Date.now();
-SpaceNetLoader?.stage?.('globe', SpaceNetMission?.LOADER?.globe || 'Earth joins the mesh');
-window._bootEarthLock = true;
-GlobeNavigate.mode = 'global';
-GlobeNavigate._cityUnlocked = false;
-camera.position.z = GlobeNavigate.GLOBAL_Z;
-camera.lookAt(0, 0, 0);
-if (typeof globePivot !== 'undefined' && globePivot) {
-  globePivot.rotation.x = 0.12;
-  globePivot.rotation.y = 0.82;
-  globePivot.visible = true;
-  syncGlobePivotRotation?.();
-}
-
-try { Circles.init(); } catch (_) {}
-
-try { SlumberManager.init(); } catch (_) {}
-try { TrackballGuard.init(); } catch (_) {}
-try { Voice.init(); initVoice(); } catch (_) {}
-Auth.init();
-window.SpaceNetFleet?.init?.();
-window.SpaceNetResourceMonitor?.init?.();
-GlobeDeck.init();
-GlobeDeck.bootCollapsed?.();
-SuperCli.init();
-if (window.AvcBalance?.init) window.AvcBalance.init();
-else {
-  const avcBtn = document.getElementById('aci-avc');
-  if (avcBtn) {
-    avcBtn.classList.add('app-shortcut-btn');
-    avcBtn.hidden = false;
-  }
-}
-SessionHold.init();
-AciCli.init();
-ACIControl.init();
-ACI.init();
-CosmicZoom.init();
-ZoomTiers.init();
-if (typeof globePivot !== 'undefined' && globePivot) {
-  globePivot.rotation.x = 0.12;
-}
-CosmicZoom.level = 'earth';
-if (CosmicZoom.solarGroup) CosmicZoom.solarGroup.visible = false;
-if (CosmicZoom.galaxyPts) CosmicZoom.galaxyPts.visible = false;
-ZoomTiers?.goTo?.('global', false);
-CosmicZoom.update(GlobeNavigate.GLOBAL_Z, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
-GlobeNavigate?._syncChip?.();
-SpaceNetLoader?.stage?.('earth', SpaceNetMission?.LOADER?.earth || 'All linked · no satellites');
-AstranovTheme.init();
-AiGlyphs.init();
-AstranovLogo.init();
-CityMap.init();
-CityLife.init();
-EarthRealism.init();
-MapPins.init();
-MapOverlayDismiss.init();
-GlobeEntity.init();
-GlobeNavigate.init();
-VendorMapTile.init();
-ClassifiedTriangles.init();
-MarketplaceDeliveryEngine.init();
-FieldWork.init();
-SpaceNetCycle.init();
-void BrainNeurons?.boot?.();
-DrivingView.init();
-AiRouter.init();
-MissionSupportReporter.init();
-
-LazyModules.schedule();
-
-setTimeout(() => Auth.refreshAuthority(), 800);
-AciCli?.primeCodersCli?.();
-AciCoders?.ensureBridge?.();
-
-if (window._lastPos) GlobeEntity.syncMe(_lastPos.lat, _lastPos.lng, me?.name || 'You');
-
-setTimeout(() => {
+function _astranovBootDone() {
+  window._booting = false;
   window._bootEarthLock = false;
   void SpaceNetScenarioRunner?.runAll?.('boot');
   if (camera.position.z > 4.8 || CosmicZoom.level !== 'earth') {
@@ -15869,11 +15795,96 @@ setTimeout(() => {
   CosmicZoom.update(GlobeNavigate.GLOBAL_Z, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
   ACIControl?.reply?.(SpaceNetMission?.bootReply || 'SpaceNet live · collective intelligence links all · scroll out → solar · galaxy');
   primeGrokVoice?.();
-  setTimeout(() => AciCoders?.enterSession?.({ ping: false, focus: false }), 2500);
-}, 1200);
-  } catch (bootErr) {
-    try { window.MissionSupportReporter?.recordProblem?.('boot_fail', String(bootErr?.message || bootErr).slice(0, 200)); } catch (_) {}
-  } finally { /* boot */ }
+  setTimeout(() => AciCoders?.enterSession?.({ ping: false, focus: false }), 1200);
+}
+
+function _astranovBoot() {
+  window._bootAt = Date.now();
+  window._booting = true;
+  window._bootEarthLock = true;
+  GlobeNavigate.mode = 'global';
+  GlobeNavigate._cityUnlocked = false;
+  camera.position.z = GlobeNavigate.GLOBAL_Z;
+  camera.lookAt(0, 0, 0);
+  if (globePivot) {
+    globePivot.rotation.x = 0.12;
+    globePivot.rotation.y = 0.82;
+    globePivot.visible = true;
+    syncGlobePivotRotation?.();
+  }
+  const run = (fn) => { try { fn(); } catch (e) { console.error('[boot]', e); } };
+  const chunks = [
+    () => {
+      run(() => SlumberManager.init());
+      run(() => TrackballGuard.init());
+      run(() => Auth.init());
+      run(() => GlobeDeck.init());
+      run(() => GlobeDeck.bootCollapsed?.());
+    },
+    () => {
+      run(() => SuperCli.init());
+      run(() => SessionHold.init());
+      run(() => AciCli.init());
+      run(() => ACIControl.init());
+      run(() => ACI.init());
+    },
+    () => {
+      run(() => CosmicZoom.init());
+      run(() => ZoomTiers.init());
+      run(() => GlobeNavigate.init());
+      run(() => EarthRealism.init());
+      CosmicZoom.level = 'earth';
+      if (CosmicZoom.solarGroup) CosmicZoom.solarGroup.visible = false;
+      if (CosmicZoom.galaxyPts) CosmicZoom.galaxyPts.visible = false;
+      ZoomTiers?.goTo?.('global', false);
+      CosmicZoom.update(GlobeNavigate.GLOBAL_Z, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
+      GlobeNavigate?._syncChip?.();
+    },
+    () => {
+      run(() => AstranovTheme.init());
+      run(() => AiGlyphs.init());
+      run(() => AstranovLogo.init());
+      run(() => CityMap.init());
+      run(() => GlobeEntity.init());
+      run(() => MapPins.init());
+      run(() => MapOverlayDismiss.init());
+      window.SpaceNetFleet?.init?.();
+      window.SpaceNetResourceMonitor?.init?.();
+    },
+    () => {
+      run(() => CityLife.init());
+      run(() => VendorMapTile.init());
+      run(() => ClassifiedTriangles.init());
+      run(() => MarketplaceDeliveryEngine.init());
+      run(() => FieldWork.init());
+      run(() => SpaceNetCycle.init());
+      run(() => DrivingView.init());
+      run(() => AiRouter.init());
+      run(() => MissionSupportReporter.init());
+      LazyModules.schedule();
+      setTimeout(() => Auth.refreshAuthority(), 400);
+      AciCli?.primeCodersCli?.();
+      AciCoders?.ensureBridge?.();
+      if (window._lastPos) GlobeEntity.syncMe(_lastPos.lat, _lastPos.lng, me?.name || 'You');
+    },
+    () => {
+      const idle = (cb) => {
+        if (typeof requestIdleCallback === 'function') requestIdleCallback(cb, { timeout: 2000 });
+        else setTimeout(cb, 120);
+      };
+      idle(() => { try { Voice.init(); initVoice(); } catch (_) {} });
+      idle(() => { try { Circles.init(); } catch (_) {} });
+      idle(() => { void BrainNeurons?.boot?.(); });
+      _astranovBootDone();
+    },
+  ];
+  let i = 0;
+  const next = () => {
+    if (i >= chunks.length) return;
+    chunks[i++]();
+    setTimeout(next, 0);
+  };
+  next();
 }
 
 const host = location.hostname || '';
@@ -15882,14 +15893,13 @@ const isLocal = host === '' || host === 'localhost' || host === '127.0.0.1' || l
 if (host && !isOfficial && !isLocal) {
   document.body.innerHTML = '<div style="color:#444;padding:40px;text-align:center;font-family:sans-serif">Available only on authorized Astranov domains</div>';
 } else {
-  (function _kickAstranov() {
-    if (renderer && scene && camera) {
-      window._animateStarted = true;
-      animate();
-    }
-    setTimeout(function() {
-      try { _astranovBoot(); } catch (e) { console.error('[Astranov boot]', e); }
-    }, 0);
-  })();
+  if (renderer && scene && camera) {
+    window._animateStarted = true;
+    window._booting = true;
+    animate();
+  }
+  setTimeout(function() {
+    try { _astranovBoot(); } catch (e) { console.error('[Astranov boot]', e); window._booting = false; }
+  }, 0);
 }
 
