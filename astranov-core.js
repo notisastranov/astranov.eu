@@ -1,148 +1,19 @@
-(function(){var e=document.getElementById("spacenet-loader");if(e)e.remove();})();
-const container = document.getElementById('globe');
-(function _snlEarlyPaint() {
-  const fill = document.getElementById('snl-fill');
-  const label = document.getElementById('snl-label');
-  const el = document.getElementById('spacenet-loader');
-  if (fill) fill.style.width = '12%';
-  if (label) label.textContent = 'SpaceNet · one mind';
-  const kill = function() {
-    if (!el || el.classList.contains('done')) return;
-    el.classList.add('done');
-    el.setAttribute('aria-busy', 'false');
-    setTimeout(function() { try { el.remove(); } catch (_) {} }, 320);
-  };
-  setTimeout(kill, 700);
-  window._snlForceDismiss = kill;
-})();
-
-// Robust WebGL + error guard so user never sees silent black
-window.addEventListener('error', function(e) {
-  try {
-    window._snlForceDismiss?.();
-    window.SpaceNetLoader?.dismiss?.('error');
-    window.MissionSupportReporter?.recordProblem?.('js_error', e.message || 'unknown', {
-      file: e.filename, line: e.lineno, col: e.colno,
-    });
-    const msg = document.createElement('div');
-    msg.style.cssText = 'position:fixed;bottom:8px;left:8px;padding:4px 8px;background:rgba(20,0,0,0.7);color:#f66;font:11px/1.3 monospace;z-index:99999;pointer-events:none;';
-    msg.textContent = 'Init/Render error: ' + (e.message || 'unknown') + ' — try Chrome/Firefox, enable HW accel, check console';
-    document.body.appendChild(msg);
-  } catch(_) {}
-});
-window.addEventListener('unhandledrejection', function(e) {
-  try {
-    const reason = e.reason?.message || String(e.reason || 'promise rejection');
-    window.MissionSupportReporter?.recordProblem?.('unhandled_rejection', reason.slice(0, 300));
-  } catch(_) {}
-});
-
-let renderer;
-try {
-  renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
-  renderer.setClearColor(0x000000, 1);
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  const _dprCap = window.SlumberManager?.quality?.pixelRatio ?? (window._globePerfLite ? 1.0 : 1.25);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, _dprCap));
-  if (THREE.ACESFilmicToneMapping) {
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.08;
-  }
-  if (THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
-  window.renderer = renderer;
-  container.appendChild(renderer.domElement);
-  try {
-    const fill = document.getElementById('snl-fill');
-    const label = document.getElementById('snl-label');
-    if (fill) fill.style.width = '40%';
-    if (label) label.textContent = 'Earth globe';
-    window._snlForceDismiss?.();
-  } catch (_) {}
-} catch (e) {
-  window._webglFailed = true;
-  window._snlForceDismiss?.();
-  const fb = document.createElement('div');
-  fb.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#0af;font:15px system-ui;background:#000;z-index:10;text-align:center;';
-  fb.innerHTML = 'WebGL unavailable — CLI still works.<br>Enable hardware acceleration or try Chrome.<br><small>Tap Astranov SpaceNet to retry</small>';
-  if (container) container.appendChild(fb);
-}
-
-// Hoisted top-level mutable state (must be declared BEFORE any top-level calls like initVoice/initUser)
-let drag = false, px = 0, py = 0;
-let dragging = false;
-let idleRoll = 0;
-let globePivot;
-let trackVelX = 0, trackVelY = 0;
-let cityLevel = false;
-let voiceEnabled = false;
-let voiceSessionActive = false;
-let isListening = false;
-let recognition;
-let userLocated = false;
-
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x000000);
-
-const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.set(0, 0.25, 2.55);
-camera.lookAt(0, 0, 0);
-
-scene.add(new THREE.AmbientLight(0x667788, 1.0));
-const sun = new THREE.DirectionalLight(0xffffff, 1.6);
-sun.position.set(5, 3, 4);
-scene.add(sun);
-
-// Stars - bigger/brighter to guarantee visibility against black
-const starPos = [];
-for (let i=0; i<1200; i++) {
-  const r = 140 + Math.random()*900;
-  const t = Math.random()*Math.PI*2;
-  const p = Math.acos(2*Math.random()-1);
-  starPos.push(r*Math.sin(p)*Math.cos(t), r*Math.sin(p)*Math.sin(t), r*Math.cos(p));
-}
-const sgeo = new THREE.BufferGeometry();
-sgeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos,3));
-scene.add(new THREE.Points(sgeo, new THREE.PointsMaterial({color:0xffffff, size:2.8, sizeAttenuation:false})));
-
-// Earth — NASA Blue Marble (upgraded before EarthRealism shader takes over)
-const EARTH_TEX = {
-  day: 'https://unpkg.com/three-globe@2.31.1/example/img/earth-blue-marble.jpg',
-  night: 'https://unpkg.com/three-globe@2.31.1/example/img/earth-night.jpg',
-  fallback: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg',
-};
-window.EARTH_TEX = EARTH_TEX;
-const earthMat = new THREE.MeshBasicMaterial({ color: 0x44aaff });
-new THREE.TextureLoader().load(
-  EARTH_TEX.day,
-  (tex) => { earthMat.map = tex; earthMat.needsUpdate = true; },
-  undefined,
-  () => {
-    new THREE.TextureLoader().load(EARTH_TEX.fallback, (fb) => {
-      earthMat.map = fb; earthMat.needsUpdate = true;
-    });
-  }
-);
-globePivot = new THREE.Group();
-scene.add(globePivot);
-
-const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 24), earthMat);
-globePivot.add(earth);
-globePivot.rotation.y = 0.82;
-globePivot.rotation.x = 0.12;
-globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
-window.earth = earth;
-window._animateStarted = false;
-
-(function _earlyGlobePaint() {
-  function tick() {
-    if (!renderer || !scene || !camera) return;
-    window._snlForceDismiss?.();
-    try { renderer.render(scene, camera); } catch (_) {}
-    if (!window._animateStarted) requestAnimationFrame(tick);
-  }
-  requestAnimationFrame(tick);
-})();
-
+let renderer = window.renderer;
+let drag = window.drag, px = 0, py = 0;
+let dragging = window.dragging;
+let idleRoll = window.idleRoll;
+let globePivot = window.globePivot;
+let trackVelX = window.trackVelX, trackVelY = window.trackVelY;
+let cityLevel = window.cityLevel;
+let voiceEnabled = window.voiceEnabled;
+let voiceSessionActive = window.voiceSessionActive;
+let isListening = window.isListening;
+let recognition = window.recognition;
+let userLocated = window.userLocated;
+const scene = window.scene;
+const camera = window.camera;
+const earth = window.earth;
+const sun = window.sun;
 function syncGlobePivotRotation() {
   if (!globePivot) return;
   globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
@@ -3676,7 +3547,7 @@ const SlumberManager = {
   },
 };
 window.SlumberManager = SlumberManager;
-SlumberManager.init();
+// SlumberManager.init() — deferred to _astranovBoot (avoid main-thread block during parse)
 
 // === SPACENET RESOURCE MONITOR — FPS/RAM tier · spare capacity · donate compute ===
 const SpaceNetResourceMonitor = {
@@ -11799,7 +11670,7 @@ const TrackballGuard = {
   },
 };
 window.TrackballGuard = TrackballGuard;
-TrackballGuard.init();
+// TrackballGuard.init() — deferred to _astranovBoot
 
 // === CITY MAP — satellite + streets when zoomed to city level ===
 const CityMap = {
@@ -14591,7 +14462,7 @@ let hidden = false;
 me = null;
 window.me = me;
 
-try { Voice.init(); initVoice(); } catch(e){ console.warn('Voice init skipped:', e.message); }
+// Voice.init() — deferred to _astranovBoot
 
 // Silent init (no panels, all on the globe) - user can play freely first
 function initUser() {
@@ -15813,6 +15684,9 @@ if (typeof globePivot !== 'undefined' && globePivot) {
 
 try { Circles.init(); } catch (_) {}
 
+try { SlumberManager.init(); } catch (_) {}
+try { TrackballGuard.init(); } catch (_) {}
+try { Voice.init(); initVoice(); } catch (_) {}
 Auth.init();
 window.SpaceNetFleet?.init?.();
 window.SpaceNetResourceMonitor?.init?.();
