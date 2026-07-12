@@ -1,20 +1,22 @@
-/* Astranov app — unified bundle · global-boot rebuild */
+/* astranov-app.js — core (astranov-gl.js paints first) */
+const container = window.container || document.getElementById('globe');
+let renderer = window.renderer;
+let drag = window.drag, px = 0, py = 0;
+let dragging = window.dragging;
+let idleRoll = window.idleRoll ?? 0;
+let globePivot = window.globePivot;
+let trackVelX = window.trackVelX ?? 0, trackVelY = window.trackVelY ?? 0;
+let cityLevel = window.cityLevel ?? false;
+let voiceEnabled = window.voiceEnabled ?? false;
+let voiceSessionActive = window.voiceSessionActive ?? false;
+let isListening = window.isListening ?? false;
+let recognition = window.recognition;
+let userLocated = window.userLocated ?? false;
+const scene = window.scene;
+const camera = window.camera;
+const earth = window.earth;
+const sun = window.sun;
 
-(function _snlEarlyPaint() {
-  const kill = function() {
-    const el = document.getElementById('spacenet-loader');
-    if (!el || el.classList.contains('done')) return;
-    el.classList.add('done');
-    el.setAttribute('aria-busy', 'false');
-    setTimeout(function() { try { el.remove(); } catch (_) {} }, 200);
-  };
-  window._snlForceDismiss = kill;
-  kill();
-})();
-
-const container = document.getElementById('globe');
-
-// Robust WebGL + error guard so user never sees silent black
 window.addEventListener('error', function(e) {
   try {
     window._snlForceDismiss?.();
@@ -22,10 +24,6 @@ window.addEventListener('error', function(e) {
     window.MissionSupportReporter?.recordProblem?.('js_error', e.message || 'unknown', {
       file: e.filename, line: e.lineno, col: e.colno,
     });
-    const msg = document.createElement('div');
-    msg.style.cssText = 'position:fixed;bottom:8px;left:8px;padding:4px 8px;background:rgba(20,0,0,0.7);color:#f66;font:11px/1.3 monospace;z-index:99999;pointer-events:none;';
-    msg.textContent = 'Init/Render error: ' + (e.message || 'unknown') + ' — try Chrome/Firefox, enable HW accel, check console';
-    document.body.appendChild(msg);
   } catch(_) {}
 });
 window.addEventListener('unhandledrejection', function(e) {
@@ -34,114 +32,6 @@ window.addEventListener('unhandledrejection', function(e) {
     window.MissionSupportReporter?.recordProblem?.('unhandled_rejection', reason.slice(0, 300));
   } catch(_) {}
 });
-
-let renderer;
-try {
-  renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
-  renderer.setClearColor(0x000000, 1);
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  const _dprCap = window.SlumberManager?.quality?.pixelRatio ?? (window._globePerfLite ? 1.0 : 1.25);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, _dprCap));
-  if (THREE.ACESFilmicToneMapping) {
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.08;
-  }
-  if (THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
-  window.renderer = renderer;
-  container.appendChild(renderer.domElement);
-  try {
-    const fill = document.getElementById('snl-fill');
-    const label = document.getElementById('snl-label');
-    if (fill) fill.style.width = '40%';
-    if (label) label.textContent = 'Earth globe';
-    window._snlForceDismiss?.();
-  } catch (_) {}
-} catch (e) {
-  window._webglFailed = true;
-  window._snlForceDismiss?.();
-  const fb = document.createElement('div');
-  fb.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#0af;font:15px system-ui;background:#000;z-index:10;text-align:center;';
-  fb.innerHTML = 'WebGL unavailable — CLI still works.<br>Enable hardware acceleration or try Chrome.<br><small>Tap Astranov to retry</small>';
-  if (container) container.appendChild(fb);
-}
-
-// Hoisted top-level mutable state (must be declared BEFORE any top-level calls like initVoice/initUser)
-let drag = false, px = 0, py = 0;
-let dragging = false;
-let idleRoll = 0;
-let globePivot;
-let trackVelX = 0, trackVelY = 0;
-let cityLevel = false;
-let voiceEnabled = false;
-let voiceSessionActive = false;
-let isListening = false;
-let recognition;
-let userLocated = false;
-
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x000000);
-
-const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.set(0, 0, 3.5);
-camera.lookAt(0, 0, 0);
-window.camera = camera;
-
-scene.add(new THREE.AmbientLight(0x667788, 1.0));
-const sun = new THREE.DirectionalLight(0xffffff, 1.6);
-sun.position.set(5, 3, 4);
-scene.add(sun);
-
-// Stars - bigger/brighter to guarantee visibility against black
-const starPos = [];
-for (let i=0; i<480; i++) {
-  const r = 140 + Math.random()*900;
-  const t = Math.random()*Math.PI*2;
-  const p = Math.acos(2*Math.random()-1);
-  starPos.push(r*Math.sin(p)*Math.cos(t), r*Math.sin(p)*Math.sin(t), r*Math.cos(p));
-}
-const sgeo = new THREE.BufferGeometry();
-sgeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos,3));
-scene.add(new THREE.Points(sgeo, new THREE.PointsMaterial({color:0xffffff, size:2.8, sizeAttenuation:false})));
-
-// Earth — NASA Blue Marble (upgraded before EarthRealism shader takes over)
-const EARTH_TEX = {
-  day: 'https://unpkg.com/three-globe@2.31.1/example/img/earth-blue-marble.jpg',
-  night: 'https://unpkg.com/three-globe@2.31.1/example/img/earth-night.jpg',
-  fallback: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg',
-};
-window.EARTH_TEX = EARTH_TEX;
-const earthMat = new THREE.MeshBasicMaterial({ color: 0x44aaff });
-new THREE.TextureLoader().load(
-  EARTH_TEX.day,
-  (tex) => { earthMat.map = tex; earthMat.needsUpdate = true; },
-  undefined,
-  () => {
-    new THREE.TextureLoader().load(EARTH_TEX.fallback, (fb) => {
-      earthMat.map = fb; earthMat.needsUpdate = true;
-    });
-  }
-);
-globePivot = new THREE.Group();
-scene.add(globePivot);
-
-const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 24), earthMat);
-globePivot.add(earth);
-globePivot.rotation.y = 0;
-globePivot.rotation.x = 0.12;
-globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
-window.globePivot = globePivot;
-window.earth = earth;
-window._animateStarted = false;
-
-(function _earlyGlobePaint() {
-  function tick() {
-    if (!renderer || !scene || !camera) return;
-    window._snlForceDismiss?.();
-    try { renderer.render(scene, camera); } catch (_) {}
-    if (!window._animateStarted) requestAnimationFrame(tick);
-  }
-  requestAnimationFrame(tick);
-})();
 
 function syncGlobePivotRotation() {
   if (!globePivot) return;
@@ -267,6 +157,1499 @@ const GlobeControl = {
   },
 };
 window.GlobeControl = GlobeControl;
+
+
+// === DEFERRED STUBS (split-lite) — full impl in astranov-deferred.js ===
+const BrainNeurons = { tick(){}, boot(){ return Promise.resolve(); }, record(){}, pin(){}, flush(){ return Promise.resolve(); } };
+window.BrainNeurons = BrainNeurons;
+const AciCoders = {
+  enterSession(){ return Promise.resolve(); },
+  observeActivity(){},
+  autoStart(){},
+  init(){},
+};
+window.AciCoders = AciCoders;
+const MissionSupportReporter = {
+  init(){},
+  recordProblem(){},
+  recordProgress(){},
+  reportBootRegression(){ return Promise.resolve(); },
+  buildStamp(){ return document.querySelector('meta[name="astranov-build"]')?.content || ''; },
+};
+window.MissionSupportReporter = MissionSupportReporter;
+window.GlobeEntity = window.GlobeEntity || {
+  entities: new Map(),
+  tick(){},
+  clickTargets(){ return []; },
+  pickFromHit(){ return null; },
+  activate(){},
+  syncVendors(){},
+  init(){},
+};
+window.CityMap = window.CityMap || {
+  active: false,
+  _nationalActive: false,
+  ENTER_Z: 1.4,
+  onCamera(){},
+  openAt(){ return Promise.resolve(); },
+  setDeliveryRoute(){},
+  setDeliveryPolygon(){},
+  removeDeliveryRoute(){},
+  syncMapPins(){},
+  setRoute(){},
+  _applyGlobeMapCrossfade(){},
+  init(){},
+};
+const AIGraphics = {
+  init(){},
+  update(){},
+  spawnEffect(){},
+  spawnAstranovFlyer(){},
+  flyAstranovTo(){},
+  setVoicePerfMode(){},
+};
+window.AIGraphics = AIGraphics;
+window.AstranovFlyer = { spawn(){}, flyTo(){} };
+
+// ── COSMIC ZOOM: Earth → satellites → solar system → galaxy ──
+const CosmicZoom = {
+  level: 'earth',
+  solarGroup: null,
+  galaxyPts: null,
+  satGroup: null,
+  issMarker: null,
+  _issTarget: null,
+  _issLastFetch: 0,
+  orbitLines: [],
+  leoRings: [],
+  meshRing: null,
+  planets: [],
+  _lastCamZ: -1,
+  _lastLevel: '',
+  _guideAt: 0,
+  _EPOCH_MS: Date.UTC(2000, 0, 1, 12, 0, 0),
+  _DAY_MS: 86400000,
+  _TAU: Math.PI * 2,
+
+  _deg(d) { return d * Math.PI / 180; },
+
+  heliocentricPosition(ud, nowMs) {
+    const days = (nowMs - this._EPOCH_MS) / this._DAY_MS;
+    const M = this._deg(ud.M0) + (this._TAU / ud.periodDays) * days;
+    const incl = this._deg(ud.incl);
+    const Omega = this._deg(ud.omega);
+    const r = ud.dist;
+    const cosM = Math.cos(M);
+    const sinM = Math.sin(M);
+    const cosO = Math.cos(Omega);
+    const sinO = Math.sin(Omega);
+    const cosI = Math.cos(incl);
+    const sinI = Math.sin(incl);
+    return {
+      x: r * (cosO * cosM - sinO * sinM * cosI),
+      y: r * (sinO * cosM + cosO * sinM * cosI),
+      z: r * sinM * sinI,
+    };
+  },
+
+  makeInclinedOrbit(ud, color, opacity, parent, opts) {
+    opts = opts || {};
+    const segs = opts.segments || 72;
+    const pts = [];
+    const incl = this._deg(ud.incl);
+    const Omega = this._deg(ud.omega);
+    const r = ud.dist;
+    const cosO = Math.cos(Omega);
+    const sinO = Math.sin(Omega);
+    const cosI = Math.cos(incl);
+    const sinI = Math.sin(incl);
+    for (let i = 0; i <= segs; i++) {
+      const M = (i / segs) * this._TAU;
+      const cosM = Math.cos(M);
+      const sinM = Math.sin(M);
+      pts.push(new THREE.Vector3(
+        r * (cosO * cosM - sinO * sinM * cosI),
+        r * (sinO * cosM + cosO * sinM * cosI),
+        r * sinM * sinI
+      ));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const mat = new THREE.LineDashedMaterial({
+      color,
+      transparent: true,
+      opacity,
+      dashSize: opts.dash || 0.04,
+      gapSize: opts.gap || 0.1,
+      depthWrite: false,
+    });
+    const line = new THREE.Line(geo, mat);
+    line.computeLineDistances();
+    line.visible = false;
+    line.userData = { type: 'orbit-line', body: ud.name || opts.body || '' };
+    if (parent) parent.add(line);
+    this.orbitLines.push(line);
+    return line;
+  },
+
+  makeDashedOrbit(radius, color, opacity, parent, opts) {
+    opts = opts || {};
+    const segs = opts.segments || 40;
+    const tilt = opts.tilt || 0;
+    const pts = [];
+    for (let i = 0; i <= segs; i++) {
+      const a = (i / segs) * Math.PI * 2;
+      const wobble = Math.sin(a * (opts.wobble || 1)) * tilt;
+      pts.push(new THREE.Vector3(Math.cos(a) * radius, wobble, Math.sin(a) * radius));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const mat = new THREE.LineDashedMaterial({
+      color,
+      transparent: true,
+      opacity,
+      dashSize: opts.dash || 0.05,
+      gapSize: opts.gap || 0.09,
+      depthWrite: false,
+    });
+    const line = new THREE.Line(geo, mat);
+    line.computeLineDistances();
+    line.visible = false;
+    line.userData = { type: 'orbit-line', body: opts.body || '' };
+    if (parent) parent.add(line);
+    this.orbitLines.push(line);
+    return line;
+  },
+
+  init() {
+    this.solarGroup = new THREE.Group();
+    this.solarGroup.visible = false;
+    scene.add(this.solarGroup);
+
+    const sun = new THREE.Mesh(
+      new THREE.SphereGeometry(0.35, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0xffcc33 })
+    );
+    sun.userData = { name: 'Sun', desc: 'G-type star · system barycenter' };
+    this.solarGroup.add(sun);
+
+    const planetDefs = [
+      { n: 'Mercury', desc: 'Rocky · 87.97-day sidereal orbit · 7.0° incl', c: 0xaaaaaa, r: 0.04, dist: 0.7, periodDays: 87.969, incl: 7.005, omega: 48.331, M0: 174.796 },
+      { n: 'Venus', desc: 'Cloud cover · 224.7-day sidereal orbit · 3.4° incl', c: 0xddbb88, r: 0.06, dist: 1.0, periodDays: 224.701, incl: 3.395, omega: 76.680, M0: 50.416 },
+      { n: 'Mars', desc: 'Red desert · 687-day sidereal orbit · 1.9° incl', c: 0xff6644, r: 0.05, dist: 1.5, periodDays: 686.980, incl: 1.850, omega: 49.558, M0: 19.373 },
+      { n: 'Jupiter', desc: 'Gas giant · 11.86-year sidereal orbit · 1.3° incl', c: 0xccaa77, r: 0.12, dist: 2.2, periodDays: 4332.589, incl: 1.305, omega: 100.464, M0: 20.020 },
+      { n: 'Saturn', desc: 'Rings (not shown) · 29.46-year sidereal orbit · 2.5° incl', c: 0xddcc99, r: 0.1, dist: 3.0, periodDays: 10759.22, incl: 2.485, omega: 113.666, M0: 317.020 },
+    ];
+    planetDefs.forEach(p => {
+      const m = new THREE.Mesh(
+        new THREE.SphereGeometry(p.r, 10, 10),
+        new THREE.MeshBasicMaterial({ color: p.c })
+      );
+      m.userData = {
+        dist: p.dist,
+        periodDays: p.periodDays,
+        incl: p.incl,
+        omega: p.omega,
+        M0: p.M0,
+        name: p.n,
+        desc: p.desc,
+      };
+      this.solarGroup.add(m);
+      this.planets.push(m);
+      this.makeInclinedOrbit(m.userData, p.c, 0.16, this.solarGroup, { body: p.n, dash: 0.04, gap: 0.1 });
+    });
+
+    const gPos = [];
+    for (let i = 0; i < 400; i++) {
+      const arm = (i % 4) * 0.4;
+      const t = Math.random() * Math.PI * 2;
+      const rad = 8 + Math.random() * 25 + arm * 3;
+      gPos.push(Math.cos(t) * rad, (Math.random() - 0.5) * 2, Math.sin(t) * rad);
+    }
+    const gGeo = new THREE.BufferGeometry();
+    gGeo.setAttribute('position', new THREE.Float32BufferAttribute(gPos, 3));
+    this.galaxyPts = new THREE.Points(
+      gGeo,
+      new THREE.PointsMaterial({ color: 0xaaccff, size: 0.035, sizeAttenuation: true, transparent: true, opacity: 0.35 })
+    );
+    this.galaxyPts.visible = false;
+    scene.add(this.galaxyPts);
+
+    this.satGroup = new THREE.Group();
+    globePivot.add(this.satGroup);
+    this.leoRings = [
+      this.makeDashedOrbit(1.052, 0x336699, 0.1, this.satGroup, { body: 'LEO shell 1', tilt: 0.03, dash: 0.03, gap: 0.12 }),
+      this.makeDashedOrbit(1.062, 0x4488bb, 0.14, this.satGroup, { body: 'LEO shell 2', tilt: 0.05, wobble: 2, dash: 0.035, gap: 0.11 }),
+      this.makeDashedOrbit(1.072, 0x55aacc, 0.1, this.satGroup, { body: 'ISS / LEO', tilt: 0.08, dash: 0.04, gap: 0.1 }),
+    ];
+    this.issOrbit = this.leoRings[2];
+    const iss = new THREE.Mesh(
+      new THREE.SphereGeometry(0.014, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0x00ffcc })
+    );
+    iss.userData = { type: 'iss', name: 'ISS', desc: 'International Space Station · ~400 km' };
+    this.satGroup.add(iss);
+    this.issMarker = iss;
+    this.level = 'earth';
+    this.setOrbitVisibility('earth');
+    if (this.solarGroup) this.solarGroup.visible = false;
+    if (this.galaxyPts) this.galaxyPts.visible = false;
+  },
+
+  registerOrbitalSats(sats) {
+    if (!sats?.length || this.meshRing) return;
+    this.meshRing = this.makeDashedOrbit(1.58, 0x8899ff, 0.12, scene, {
+      body: 'Astranov mesh',
+      tilt: 0.12,
+      wobble: 3,
+      dash: 0.05,
+      gap: 0.12,
+    });
+    sats.forEach((sat, i) => {
+      sat.userData = sat.userData || {};
+      sat.userData.name = 'Relay ' + (i + 1);
+      sat.userData.desc = 'Orbital mesh · global comms path';
+      if (sat.material) {
+        sat.material.transparent = true;
+        sat.material.opacity = 0.65;
+      }
+    });
+    this._orbitalSats = sats;
+  },
+
+  async trackISS() {
+    let lat = null;
+    let lng = null;
+    try {
+      const r = await fetch('https://api.open-notify.org/iss-now.json');
+      const j = await r.json();
+      if (j.iss_position) {
+        lat = parseFloat(j.iss_position.latitude);
+        lng = parseFloat(j.iss_position.longitude);
+      }
+    } catch (_) {}
+    if (lat == null) {
+      try {
+        const r = await fetch('https://api.wheretheiss.at/v1/satellites/25544');
+        const j = await r.json();
+        if (j.latitude != null) {
+          lat = +j.latitude;
+          lng = +j.longitude;
+        }
+      } catch (_) {}
+    }
+    if (lat == null || lng == null || !this.issMarker) return;
+    this._issTarget = { lat, lng, t: Date.now() };
+    this._issLastFetch = Date.now();
+    this.issMarker.userData.lat = lat;
+    this.issMarker.userData.lng = lng;
+    this.issMarker.userData.desc = 'ISS · live ' + lat.toFixed(2) + '° ' + lng.toFixed(2) + '° · ~400 km';
+    const p = latLngToPos(lat, lng, 1.065);
+    if (!this._issTarget.from) {
+      this.issMarker.position.set(p.x, p.y, p.z);
+      this._issTarget.from = { x: p.x, y: p.y, z: p.z };
+    }
+    this.updateGuide(this.level, camera?.position?.z || 7.2);
+  },
+
+  _lerpIss() {
+    if (!this.issMarker || this._issTarget?.lat == null) return;
+    const tgt = latLngToPos(this._issTarget.lat, this._issTarget.lng, 1.065);
+    const m = this.issMarker.position;
+    m.x += (tgt.x - m.x) * 0.18;
+    m.y += (tgt.y - m.y) * 0.18;
+    m.z += (tgt.z - m.z) * 0.18;
+  },
+
+  updateGuide(level, camZ) {
+    const el = document.getElementById('cosmic-guide');
+    if (el) el.innerHTML = '';
+  },
+
+  setOrbitVisibility(level) {
+    const showLeo = level === 'orbit';
+    const showSolar = level === 'system';
+    const showMesh = level === 'orbit' || level === 'system';
+    this.leoRings.forEach(r => { if (r) r.visible = showLeo; });
+    this.orbitLines.forEach(line => {
+      if (!line.parent) return;
+      if (line.parent === this.solarGroup) line.visible = showSolar;
+    });
+    if (this.meshRing) this.meshRing.visible = showMesh;
+  },
+
+  update(camZ, opts) {
+    opts = opts || {};
+    if (window._cityDropLock && !opts.cosmic) {
+      opts = Object.assign({}, opts, { cosmic: 'earth', tier: opts.tier || 'city', label: opts.label || 'CITY' });
+    }
+    let level = opts.cosmic === 'system' ? 'system' : opts.cosmic === 'galaxy' ? 'galaxy' : 'earth';
+    let label = opts.label || 'GLOBAL';
+    if (window._bootEarthLock && camZ < 6) {
+      level = 'earth';
+      label = opts.label || 'GLOBAL';
+    } else if (!opts.tier) {
+      if (camZ > 14) { level = 'galaxy'; label = 'GALAXY'; }
+      else if (camZ > 5.5) { level = 'system'; label = 'SOLAR SYSTEM'; }
+      else if (camZ > 4.8) { level = 'orbit'; label = 'ORBIT'; }
+      else {
+        level = 'earth';
+        const tier = window.ZoomTiers?.current?.();
+        label = tier?.label || (camZ > 2.2 ? 'GLOBAL' : camZ > 1.55 ? 'NATIONAL' : 'CITY');
+      }
+    }
+    const levelChanged = level !== this.level;
+    if (levelChanged) this.level = level;
+    const camChanged = Math.abs(camZ - this._lastCamZ) > 0.08;
+    const now = Date.now();
+    const zl = document.getElementById('zoom-label');
+    if (zl && !DrivingView?.active && (levelChanged || camChanged)) {
+      if (CityMap?.active) {
+        const tier = window.ZoomTiers?.current?.();
+        const tierLabel = tier?.id === 'neighborhood' ? 'NEIGHBORHOOD MAP' : 'CITY MAP';
+        zl.textContent = tierLabel;
+      } else if (CityMap?._nationalActive) {
+        const tier = window.ZoomTiers?.current?.();
+        zl.textContent = (tier?.label || 'NATIONAL') + ' · ' + (window.ZoomTiers?.countryHint?.() || 'region');
+      } else {
+        if (level === 'orbit') zl.textContent = 'ORBIT';
+        else if (level === 'system') zl.textContent = 'SOLAR SYSTEM';
+        else if (level === 'galaxy') zl.textContent = 'GALAXY';
+        else if (label === 'GLOBAL') zl.textContent = 'GLOBAL';
+        else zl.textContent = label;
+      }
+    }
+    if (levelChanged || camChanged) CityMap?.onCamera?.(camZ, level);
+    if (levelChanged || camChanged || now - this._guideAt > 4000) {
+      this._guideAt = now;
+      this.updateGuide(level, camZ);
+    }
+    if (levelChanged) this.setOrbitVisibility(level);
+    this._lastCamZ = camZ;
+    this._lastLevel = level;
+
+    globePivot.visible = level === 'earth' || level === 'orbit';
+    if (this.solarGroup) this.solarGroup.visible = level === 'system';
+    if (this.galaxyPts) this.galaxyPts.visible = level === 'galaxy';
+    if (this.satGroup) this.satGroup.visible = level === 'earth' || level === 'orbit';
+    if (this.issMarker) this.issMarker.visible = level === 'earth' || level === 'orbit';
+    document.body.classList.toggle('cosmic-solar', level === 'system');
+    document.body.classList.toggle('cosmic-galaxy', level === 'galaxy');
+    document.body.classList.toggle('cosmic-orbit', level === 'orbit');
+    GlobeNavigate?._syncChip?.();
+    this._lerpIss();
+
+    if (this.solarGroup?.visible) {
+      this.planets.forEach(c => {
+        const ud = c.userData;
+        if (!ud?.periodDays) return;
+        const pos = this.heliocentricPosition(ud, now);
+        c.position.set(pos.x, pos.y, pos.z);
+      });
+    }
+
+    if (level === 'orbit' || level === 'system') {
+      if (!this._issLastFetch || now - this._issLastFetch > 120000) this.trackISS();
+      if (this.issMarker) this.issMarker.visible = camZ < 10;
+    }
+
+    if (this._orbitalSats && (level === 'orbit' || level === 'system')) {
+      this._orbitalSats.forEach(s => { s.visible = level === 'orbit'; });
+    } else if (this._orbitalSats) {
+      this._orbitalSats.forEach(s => { s.visible = false; });
+    }
+  },
+};
+window.CosmicZoom = CosmicZoom;
+
+// === AI ROUTER — OpenAI Mini / Astranov Cycle / Groq / Gemini (shared with coder labs)
+const AiRouter = {
+  PROVIDERS: [
+    { id: 'grok', label: 'Grok', short: 'GK' },
+    { id: 'astranov', label: 'Cycle', short: 'AV' },
+    { id: 'openai-mini', label: 'OpenAI', short: 'AI' },
+    { id: 'groq', label: 'Groq', short: 'GQ' },
+    { id: 'gemini', label: 'Gemini', short: 'GM' },
+    { id: 'deepseek', label: 'DeepSeek', short: 'DS' },
+  ],
+  LAB_ENGINES: {
+    main: 'grok',
+    chatgpt: 'openai-mini',
+    grok: 'astranov',
+    gemini: 'gemini',
+    deepseek: 'deepseek',
+    claude: 'astranov',
+    composer: 'astranov',
+  },
+  _provider: 'grok',
+  _sessionId: null,
+
+  init() {
+    try {
+      const saved = localStorage.getItem('astranov:ai-provider');
+      if (saved && this.PROVIDERS.some(p => p.id === saved)) this._provider = saved;
+    } catch (_) {}
+    this._sessionId = this._loadSession();
+    this._bindUi();
+    this._syncUi();
+  },
+
+  _loadSession() {
+    try {
+      return localStorage.getItem('astranov:ai-session') || (window.crypto?.randomUUID?.() || 's-' + Date.now());
+    } catch (_) {
+      return 's-' + Date.now();
+    }
+  },
+
+  _saveSession() {
+    try { localStorage.setItem('astranov:ai-session', this._sessionId); } catch (_) {}
+  },
+
+  current() {
+    return this.PROVIDERS.find(p => p.id === this._provider) || this.PROVIDERS[0];
+  },
+
+  setProvider(id) {
+    if (!this.PROVIDERS.some(p => p.id === id)) return false;
+    this._provider = id;
+    try { localStorage.setItem('astranov:ai-provider', id); } catch (_) {}
+    this._syncUi();
+    CliRibbon?.render?.();
+    return true;
+  },
+
+  cycle() {
+    const i = this.PROVIDERS.findIndex(p => p.id === this._provider);
+    const next = this.PROVIDERS[(i + 1) % this.PROVIDERS.length];
+    this.setProvider(next.id);
+    AciCli?.print('AI provider → ' + next.label + ' (' + next.id + ')', 'ok');
+    LabOrbs?._syncGlyphs?.();
+    return next;
+  },
+
+  forLab(lab) {
+    const id = lab?.engine || lab?.id;
+    return this.LAB_ENGINES[id] || (this.PROVIDERS.some(p => p.id === id) ? id : 'astranov');
+  },
+
+  applyLab(lab) {
+    const prov = this.forLab(lab);
+    this.setProvider(prov);
+    return this.current();
+  },
+
+  _bindUi() {
+    document.getElementById('aci-provider')?.addEventListener('click', () => this.cycle());
+  },
+
+  _syncUi() {
+    const btn = document.getElementById('aci-provider');
+    const p = this.current();
+    if (btn) {
+      btn.title = 'AI provider: ' + p.label + ' — tap to cycle';
+      btn.textContent = p.short;
+      btn.dataset.provider = p.id;
+    }
+  },
+
+  async ask(prompt, opts) {
+    opts = opts || {};
+    const text = String(prompt || '').trim();
+    if (!text) return { error: 'empty prompt' };
+    const headers = { 'Content-Type': 'application/json', apikey: SB_KEY };
+    if (Auth?.ensureSession) {
+      const session = await Auth.ensureSession();
+      headers.Authorization = session?.access_token ? 'Bearer ' + session.access_token : 'Bearer ' + SB_KEY;
+    } else {
+      headers.Authorization = 'Bearer ' + SB_KEY;
+    }
+    const history = (opts.history || []).slice(-8).map(m => ({
+      role: m.role === 'assistant' ? 'assistant' : 'user',
+      content: String(m.content || m.text || m.reply || '').slice(0, 2000),
+    }));
+    const body = {
+      text,
+      prompt: text,
+      level: 'global',
+      preferred_provider: opts.provider || this._provider,
+      session_id: this._sessionId,
+      source: 'astranov.eu-main',
+      messages: history,
+    };
+    const timeout = opts.timeoutMs || 25000;
+    try {
+      const j = await fetchJson(SB_URL + '/functions/v1/ai-router', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      }, timeout);
+      if (j.error && !j.text && !j.response) return { error: j.error, raw: j };
+      return {
+        text: String(j.text || j.response || j.message || '').trim(),
+        provider: j.provider || j.via || body.preferred_provider,
+        model: j.model || '',
+        action: j.action || null,
+        raw: j,
+      };
+    } catch (e) {
+      return { error: String(e.message || e) };
+    }
+  },
+
+  shouldRoute(message, opts) {
+    if (opts?.forceAci) return false;
+    if (AciCoders?.isBuildTask?.(message)) return false;
+    if (AciCoders?.wantsComposer?.(message)) return false;
+    if (/^coders\s+poll|^summon\s+coders?/i.test(message)) return false;
+    return true;
+  },
+};
+
+window.AiRouter = AiRouter;
+
+// === SPACENET BRAIN — orchestrates ACI, ai-router, crawlers for unified internet ingestion ===
+const SpaceNetBrain = {
+  _crawlBusy: new Set(),
+  _lastClassify: null,
+
+  ACTION_IDS: ['list_vendor', 'list_shop', 'driver_base', 'post', 'upload_photo', 'upload_video', 'deliver_here', 'drive_here', 'route', 'explore', 'order'],
+
+  _headers() {
+    const h = { 'Content-Type': 'application/json', apikey: SB_KEY };
+    if (Auth?.session?.access_token) h.Authorization = 'Bearer ' + Auth.session.access_token;
+    else h.Authorization = 'Bearer ' + SB_KEY;
+    return h;
+  },
+
+  async think(prompt, opts) {
+    opts = opts || {};
+    try {
+      const j = await fetchJson(SB_URL + '/functions/v1/aci', {
+        method: 'POST',
+        headers: await (ACI?.headers?.() || Promise.resolve(this._headers())),
+        body: JSON.stringify({ action: 'think', text: prompt, level: opts.level || 'global', source: 'spacenet-brain' }),
+      }, opts.timeoutMs || 18000);
+      return j;
+    } catch (e) {
+      return { error: String(e.message || e) };
+    }
+  },
+
+  async classifyIntent(text, ctx) {
+    ctx = ctx || {};
+    const trimmed = String(text || '').trim();
+    if (!trimmed) return { primary: ClassifiedTriangles.defaultTop3(), more: ClassifiedTriangles.defaultMore(), source: 'default' };
+
+    const local = ClassifiedTriangles.scoreLocal(trimmed);
+    const primary = local.slice(0, 3);
+    const more = local.slice(3);
+
+    void this._refineWithAi(trimmed, ctx, local);
+
+    if (ctx.lat != null && ctx.lng != null) {
+      void this.crawlArea(ctx.lat, ctx.lng, ctx.radiusKm || 2);
+    }
+
+    this._lastClassify = { text: trimmed, primary, more, at: Date.now() };
+    return { primary, more, source: 'local' };
+  },
+
+  async _refineWithAi(text, ctx, localHints) {
+    const ids = this.ACTION_IDS.join(', ');
+    const prompt = 'SpaceNet place intent at ' + (ctx.lat?.toFixed?.(4) || '?') + ',' + (ctx.lng?.toFixed?.(4) || '?')
+      + ': "' + text + '". Reply with ONLY a JSON array of action ids (max 6) from: ' + ids
+      + '. First 3 = most common for this intent.';
+    const r = await AiRouter?.ask?.(prompt, { timeoutMs: 14000 });
+    const raw = String(r?.text || r?.raw?.text || '').trim();
+    const parsed = this._parseActionIds(raw);
+    if (!parsed.length) return;
+    const catalog = ClassifiedTriangles.CATALOG;
+    const ordered = parsed.map(id => catalog.find(c => c.id === id)).filter(Boolean);
+    const rest = catalog.filter(c => !ordered.find(o => o.id === c.id));
+    const full = ordered.concat(rest);
+    ClassifiedTriangles.render(full.slice(0, 3), full.slice(3), ctx.pin);
+    this._lastClassify = { text, primary: full.slice(0, 3), more: full.slice(3), source: 'ai' };
+  },
+
+  _parseActionIds(raw) {
+    try {
+      const m = raw.match(/\[[\s\S]*?\]/);
+      if (m) {
+        const arr = JSON.parse(m[0]);
+        if (Array.isArray(arr)) return arr.map(String).filter(id => this.ACTION_IDS.includes(id));
+      }
+    } catch (_) {}
+    const found = [];
+    for (const id of this.ACTION_IDS) {
+      if (new RegExp(id.replace(/_/g, '[\\s_-]+'), 'i').test(raw)) found.push(id);
+    }
+    return found;
+  },
+
+  async crawlArea(lat, lng, radiusKm) {
+    const key = lat.toFixed(3) + ',' + lng.toFixed(3);
+    if (this._crawlBusy.has(key)) return;
+    this._crawlBusy.add(key);
+    try {
+      await fetch(SB_URL + '/functions/v1/vendor-crawler', {
+        method: 'POST',
+        headers: this._headers(),
+        body: JSON.stringify({ lat, lng, radius_km: radiusKm || 2, source: 'spacenet-brain' }),
+      });
+      AciCli?.print?.('crawler · sector ' + key, 'dim');
+    } catch (_) {}
+    setTimeout(() => this._crawlBusy.delete(key), 120000);
+  },
+
+  async orchestrate(actionId, pin) {
+    return ClassifiedTriangles.runAction(actionId, pin);
+  },
+};
+window.SpaceNetBrain = SpaceNetBrain;
+
+// === ZOOM TIERS — solar → global → national → regional → city → neighborhood ===
+const ZoomTiers = {
+  TIERS: [
+    { id: 'galaxy', z: 16, label: 'GALAXY', cosmic: 'galaxy' },
+    { id: 'solar', z: 7.2, label: 'SOLAR SYSTEM', cosmic: 'system' },
+    { id: 'orbit', z: 5.2, label: 'ORBIT', cosmic: 'orbit' },
+    { id: 'global', z: 3.5, label: 'GLOBAL', cosmic: 'earth' },
+    { id: 'national', z: 1.82, label: 'NATIONAL', cosmic: 'earth', national: true },
+    { id: 'regional', z: 1.65, label: 'REGIONAL', cosmic: 'earth', national: true },
+    { id: 'city', z: 1.38, label: 'CITY', cosmic: 'earth', city: true },
+    { id: 'neighborhood', z: 1.08, label: 'NEIGHBORHOOD', cosmic: 'earth', city: true },
+  ],
+  START_ID: 'global',
+  _index: 0,
+  _wheelAccum: 0,
+  _pinchAccum: 0,
+  WHEEL_THRESH: 28,
+  PINCH_THRESH: 14,
+
+  init() {
+    const i = this.TIERS.findIndex(t => t.id === this.START_ID);
+    this._index = i >= 0 ? i : 2;
+    camera.position.z = this.tierZ(this.START_ID);
+    this.snap(false);
+    this.updateDots();
+  },
+
+  countryHint() {
+    const p = CityMap?.globeCenterLatLng?.() || TrackballGuard?.facingLatLng?.() || window._lastPos || { lat: 0, lng: 0 };
+    if (p.lat > 28 && p.lat < 34 && p.lng > 34 && p.lng < 40) return 'Jordan';
+    if (p.lat > 34 && p.lat < 42 && p.lng > 19 && p.lng < 30) return 'Greece';
+    if (p.lat > 24 && p.lat < 50 && p.lng > -10 && p.lng < 40) return 'Europe';
+    if (p.lat > -35 && p.lat < 35) return 'equatorial belt';
+    return 'region';
+  },
+
+  syncFromCamZ(camZ, animate) {
+    if (camZ == null || !Number.isFinite(camZ)) return false;
+    let best = this._index;
+    let bestDist = Infinity;
+    const enterZ = CityMap?.ENTER_Z ?? 1.4;
+    this.TIERS.forEach((t, i) => {
+      if (t.city && camZ > enterZ + 0.08) return;
+      const d = Math.abs(t.z - camZ);
+      if (d < bestDist) { bestDist = d; best = i; }
+    });
+    if (best === this._index) return false;
+    this._index = best;
+    /* continuous zoom law — never snap camera from scroll; labels/crossfade only */
+    this._apply(this.current());
+    return true;
+  },
+
+  updateDots() {
+    const el = document.getElementById('zoom-tier-dots');
+    if (!el) return;
+    const show = this.TIERS.filter(t => t.id !== 'solar' && t.id !== 'galaxy');
+    el.innerHTML = show.map((t) => {
+      const i = this.TIERS.findIndex(x => x.id === t.id);
+      const on = i === this._index ? ' on' : '';
+      return '<span class="ztd' + on + '" data-tier="' + t.id + '" title="' + t.label + '"></span>';
+    }).join('');
+  },
+
+  current() {
+    return this.TIERS[this._index] || this.TIERS[0];
+  },
+
+  indexOf(id) {
+    return this.TIERS.findIndex(t => t.id === id);
+  },
+
+  step(delta) {
+    const next = Math.max(0, Math.min(this.TIERS.length - 1, this._index + delta));
+    if (next === this._index) return false;
+    this._index = next;
+    this.snap(true);
+    return true;
+  },
+
+  stepIn() { return this.step(1); },
+  stepOut() { return this.step(-1); },
+
+  goTo(id, animate) {
+    const i = this.indexOf(id);
+    if (i < 0) return false;
+    this._index = i;
+    this.snap(animate !== false);
+    return true;
+  },
+
+  onWheel(deltaY) {
+    this._wheelAccum += deltaY;
+    if (Math.abs(this._wheelAccum) < this.WHEEL_THRESH) return;
+    const out = this._wheelAccum > 0;
+    this._wheelAccum = 0;
+    this.step(out ? -1 : 1);
+  },
+
+  onPinch(delta) {
+    this._pinchAccum += delta;
+    if (Math.abs(this._pinchAccum) < this.PINCH_THRESH) return;
+    const out = this._pinchAccum > 0;
+    this._pinchAccum = 0;
+    this.step(out ? -1 : 1);
+  },
+
+  resetAccum() {
+    this._wheelAccum = 0;
+    this._pinchAccum = 0;
+  },
+
+  snap(animate) {
+    const t = this.current();
+    window._globeFly = null;
+    if (GlobeControl?.userExploring) animate = false;
+    if (animate) {
+      const dz = Math.abs(camera.position.z - t.z);
+      window._globeFly = {
+        mode: 'zoom',
+        fromZ: camera.position.z,
+        toZ: t.z,
+        t0: performance.now(),
+        dur: Math.max(1400, Math.min(3200, 1200 + dz * 900)),
+        tierId: t.id,
+        onTier: true,
+      };
+    } else {
+      camera.position.z = t.z;
+      camera.lookAt(0, 0, 0);
+      this._apply(t);
+    }
+    MapDepict?.setHud?.(t.label, 'zoom-tier');
+  },
+
+  _apply(t) {
+    const tier = t || this.current();
+    const cosmic = tier.cosmic || 'earth';
+    CosmicZoom.update(camera.position.z, { tier: tier.id, label: tier.label, cosmic });
+    CityMap?.onCamera?.(camera.position.z, cosmic);
+    cityLevel = !!tier.city;
+    const zl = document.getElementById('zoom-label');
+    if (zl && !window.DrivingView?.active && !CityMap?.active) {
+      if (tier.id === 'galaxy') zl.textContent = 'GALAXY';
+      else if (tier.id === 'solar') zl.textContent = 'SOLAR SYSTEM';
+      else if (tier.id === 'orbit') zl.textContent = 'ORBIT';
+      else if (tier.id === 'global') zl.textContent = 'GLOBAL';
+      else if (tier.national) zl.textContent = tier.label + ' · ' + this.countryHint();
+      else if (tier.city) zl.textContent = tier.label;
+      else zl.textContent = tier.label;
+    }
+    this.updateDots();
+    MapDepict?.setHud?.(tier.label, 'zoom-tier');
+  },
+
+  tierZ(id) {
+    const t = this.TIERS.find(x => x.id === id);
+    return t ? t.z : GlobeNavigate.GLOBAL_Z;
+  },
+};
+window.ZoomTiers = ZoomTiers;
+
+// Globe gestures — primary UI (Google Earth / Maps style). CLI is secondary.
+// === GLOBE PHYSICS LOCK — owner law: never retune trackball/zoom; survives model swaps & regressions ===
+const ASTRANOV_GLOBE_PHYSICS_LOCK = Object.freeze({
+  v: '20260710241000',
+  track: Object.freeze({
+    TRACK_VEL_GAIN: 0.00385,
+    TRACK_FLICK_BOOST: 2.6,
+    TRACK_INERTIA_DAMP: 0.9885,
+    TRACK_INERTIA_MIN: 0.00001,
+    TRACK_MAX_ANG_VEL: 0.00095,
+    TRACK_CATCH_DAMP: 0.44,
+    TRACK_VEL_SMOOTH: 0.48,
+    TRACK_RELEASE_BOOST: 1.04,
+  }),
+  zoom: Object.freeze({
+    ZOOM_MIN: 1.05,
+    ZOOM_MAX: 18,
+    ZOOM_SMOOTH_BASE: 0.088,
+    FRICTION_IDLE: 0.968,
+    FRICTION_ACTIVE: 0.993,
+    MIN_VEL: 4e-7,
+    MAX_VEL: 1.65,
+  }),
+});
+Object.defineProperty(window, 'ASTRANOV_GLOBE_PHYSICS_LOCK', { value: ASTRANOV_GLOBE_PHYSICS_LOCK, writable: false, configurable: false });
+
+const canvas = renderer.domElement;
+const TRACK_VEL_GAIN = ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_VEL_GAIN;
+const TRACK_FLICK_BOOST = ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_FLICK_BOOST;
+const TRACK_INERTIA_DAMP = ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_INERTIA_DAMP;
+const TRACK_INERTIA_MIN = ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_INERTIA_MIN;
+const TRACK_MAX_ANG_VEL = ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_MAX_ANG_VEL;
+let trackAngVel = 0;
+let trackVelSmooth = 0;
+let trackAngAxis = null;
+let trackInertiaAxis = null;
+let trackInertiaAngle = 0;
+let trackLastMoveT = 0;
+let _lastAnimT = performance.now();
+
+function frameDtMs() {
+  const now = performance.now();
+  const dt = Math.min(52, Math.max(4, now - _lastAnimT));
+  _lastAnimT = now;
+  return dt;
+}
+window._trackFrameDt = frameDtMs;
+
+function resetTrackInertia() {
+  trackVelX = 0;
+  trackVelY = 0;
+  trackAngVel = 0;
+  trackVelSmooth = 0;
+  trackAngAxis = null;
+  trackInertiaAxis = null;
+  trackInertiaAngle = 0;
+}
+
+function applyTrackballDrag(dx, dy, dtMs) {
+  if (!globePivot || (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01)) return;
+  const dt = Math.max(4, Math.min(64, dtMs || 16));
+  const axis = new THREE.Vector3(dy, dx, 0);
+  const pix = axis.length();
+  if (pix < 0.04) return;
+  axis.normalize();
+  const pixPerMs = pix / dt;
+  const flick = 1 + Math.min(TRACK_FLICK_BOOST, Math.pow(pixPerMs / 1.65, 1.38));
+  const angVelMs = pixPerMs * TRACK_VEL_GAIN * flick;
+  const angle = angVelMs * dt;
+  globePivot.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(axis, angle));
+  syncGlobePivotRotation?.();
+  trackVelSmooth = trackVelSmooth * ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_VEL_SMOOTH + angVelMs * (1 - ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_VEL_SMOOTH);
+  trackAngAxis = axis.clone();
+  trackAngVel = Math.max(-TRACK_MAX_ANG_VEL, Math.min(TRACK_MAX_ANG_VEL, trackVelSmooth));
+  trackInertiaAxis = trackAngAxis;
+  trackInertiaAngle = trackVelSmooth * 16;
+  trackVelX = dx / dt;
+  trackVelY = dy / dt;
+}
+
+const ZOOM_MIN = ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.ZOOM_MIN;
+const ZOOM_MAX = ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.ZOOM_MAX;
+const ZOOM_SMOOTH_BASE = ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.ZOOM_SMOOTH_BASE;
+
+// Physics zoom — wheel/pinch velocity drives speed; fast scroll coasts, slow scroll creeps
+const GlobeZoom = {
+  _vel: 0,
+  _lastX: null,
+  _lastY: null,
+  _scrolling: false,
+  _lastWheelT: 0,
+  _activeUntil: 0,
+  FRICTION_IDLE: ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.FRICTION_IDLE,
+  FRICTION_ACTIVE: ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.FRICTION_ACTIVE,
+  MIN_VEL: ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.MIN_VEL,
+  MAX_VEL: ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.MAX_VEL,
+
+  _normDy(dy, mode) {
+    if (mode === 1) return dy * 0.048;
+    if (mode === 2) return dy * 0.24;
+    return dy * 0.00205;
+  },
+
+  impuls(clientX, clientY, dy, deltaMode, dtMs) {
+    const now = performance.now();
+    const fly = window._globeFly;
+    if (fly && (fly.mode === 'zoom' || fly.tierId)) window._globeFly = null;
+    resetTrackInertia();
+    const dt = Math.max(4, dtMs || (this._lastWheelT ? now - this._lastWheelT : 16));
+    this._lastWheelT = now;
+    let impulse = this._normDy(dy, deltaMode);
+    const perMs = Math.abs(impulse) / dt;
+    const speedScale = 0.42 + Math.min(3.1, Math.pow(perMs * 0.00105, 0.82));
+    impulse *= speedScale;
+    if (dt < 28) impulse *= 1.08 + Math.min(1.15, (28 - dt) / 22);
+    const sameDir = Math.sign(impulse) === Math.sign(this._vel) || Math.abs(this._vel) < 1e-7;
+    if (sameDir) {
+      this._vel = Math.max(-this.MAX_VEL, Math.min(this.MAX_VEL, this._vel + impulse));
+    } else {
+      this._vel = Math.max(-this.MAX_VEL, Math.min(this.MAX_VEL, this._vel * 0.14 + impulse * 0.96));
+    }
+    this._lastX = clientX;
+    this._lastY = clientY;
+    this._scrolling = true;
+    this._activeUntil = now + Math.max(180, 320 - dt * 4);
+    GlobeControl?.userTookGlobe?.('silent');
+  },
+
+  tick() {
+    const now = performance.now();
+    const active = now < this._activeUntil;
+    const dt = frameDtMs();
+    const frame = dt / 16;
+    if (Math.abs(this._vel) < this.MIN_VEL) {
+      this._vel = 0;
+      if (!active && this._scrolling) {
+        GlobeNavigate?.onZoomSettle?.();
+        this._scrolling = false;
+      }
+      return;
+    }
+    const step = this._vel;
+    const vel = Math.abs(this._vel);
+    if (this._lastX != null && this._lastY != null) {
+      zoomAt(this._lastX, this._lastY, step, { zoomOnly: true, velocity: vel });
+    } else {
+      zoomBy(step, { velocity: vel });
+    }
+    const friction = active ? this.FRICTION_ACTIVE : this.FRICTION_IDLE;
+    this._vel *= Math.pow(friction, frame);
+    if (!active && Math.abs(this._vel) < 0.0006) {
+      this._vel = 0;
+      if (this._scrolling) {
+        GlobeNavigate?.onZoomSettle?.();
+        this._scrolling = false;
+      }
+    }
+  },
+};
+window.GlobeZoom = GlobeZoom;
+
+let pinchDist = 0;
+let pinchLastT = 0;
+let pinching = false;
+let lastTapAt = 0;
+let lastTapX = 0;
+let lastTapY = 0;
+let pressTimer = null;
+let pressStartX = 0;
+let pressStartY = 0;
+
+function trackballMove(clientX, clientY) {
+  const now = performance.now();
+  const dt = trackLastMoveT ? now - trackLastMoveT : 16;
+  trackLastMoveT = now;
+  const dx = clientX - px;
+  const dy = clientY - py;
+  px = clientX;
+  py = clientY;
+  applyTrackballDrag(dx, dy, dt);
+}
+
+function trackballStart(clientX, clientY) {
+  window._globeFly = null;
+  GlobeControl?.userTookGlobe?.('drag');
+  drag = true;
+  dragging = true;
+  trackLastMoveT = performance.now();
+  if (Math.abs(trackAngVel) > 1e-6) {
+    trackAngVel *= ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_CATCH_DAMP;
+    trackVelSmooth *= ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_CATCH_DAMP;
+  }
+  px = clientX;
+  py = clientY;
+  pressStartX = clientX;
+  pressStartY = clientY;
+  canvas.classList.add('dragging');
+  clearTimeout(pressTimer);
+  pressTimer = setTimeout(() => {
+    if (!drag || Math.hypot(px - pressStartX, py - pressStartY) > 14) return;
+    ZoomTiers?.stepOut?.();
+    MapDepict?.setHud('Zoom out', 'long-press');
+  }, 750);
+}
+
+function trackballEnd(clientX, clientY, opts) {
+  clearTimeout(pressTimer);
+  drag = false;
+  canvas.classList.remove('dragging');
+  if (trackAngAxis && Math.abs(trackVelSmooth) > TRACK_INERTIA_MIN) {
+    trackAngVel = Math.max(-TRACK_MAX_ANG_VEL, Math.min(TRACK_MAX_ANG_VEL, trackVelSmooth * ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_RELEASE_BOOST));
+    trackInertiaAxis = trackAngAxis;
+    trackInertiaAngle = trackAngVel * 16;
+  }
+  setTimeout(() => { dragging = false; }, 100);
+  if (!opts?.skipTap && clientX != null && clientY != null) registerTap(clientX, clientY);
+}
+
+function registerTap(clientX, clientY) {
+  const now = Date.now();
+  if (now - lastTapAt < 340 && Math.hypot(clientX - lastTapX, clientY - lastTapY) < 36) {
+    if (GlobeNavigate?.isGlobal?.()) {
+      ZoomTiers?.goTo?.('national', true);
+      GlobeNavigate.mode = 'national';
+      GlobeNavigate._cityUnlocked = false;
+    } else if (GlobeNavigate?.isNational?.()) {
+      mouse.x = (clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const hits = raycaster.intersectObject(earth);
+      if (hits.length) {
+        const pin = MapPlaceMenu?.pointFromGlobeHit?.(hits[0].point);
+        if (pin) void GlobeNavigate?._enterCitySlow?.(pin.lat, pin.lng, {});
+      }
+    }
+    MapDepict?.setHud('Zoom step', 'double-tap');
+    lastTapAt = 0;
+    return;
+  }
+  lastTapAt = now;
+  lastTapX = clientX;
+  lastTapY = clientY;
+}
+
+function zoomBy(delta, opts) {
+  if (!delta || !Number.isFinite(delta)) return;
+  opts = opts || {};
+  const vel = opts.velocity != null ? opts.velocity : Math.abs(delta);
+  const gain = ZOOM_SMOOTH_BASE + Math.min(0.34, Math.pow(vel, 0.72) * 0.38);
+  const factor = Math.exp(delta * gain);
+  const prev = camera.position.z;
+  let next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, prev * factor));
+  if (GlobeNavigate?.clampZ) next = GlobeNavigate.clampZ(next);
+  if (Math.abs(next - prev) < 0.00002) return;
+  camera.position.z = next;
+  camera.lookAt(0, 0, 0);
+  CosmicZoom.update(next);
+  CityMap?.onCamera?.(next, CosmicZoom?.level);
+  ZoomTiers?.syncFromCamZ?.(next, false);
+  GlobeNavigate?._syncChip?.();
+}
+
+function zoomAt(clientX, clientY, delta, opts) {
+  opts = opts || {};
+  const zoomOnly = opts.zoomOnly;
+  const vel = opts.velocity != null ? opts.velocity : Math.abs(delta);
+  if (!zoomOnly) {
+    mouse.x = (clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObject(earth);
+    if (hits.length) {
+      const dir = hits[0].point.clone().normalize();
+      const pullScale = 0.55 + Math.min(1.4, vel * 2.8);
+      const pull = (delta > 0 ? 0.04 : -0.06) * pullScale;
+      globePivot.rotation.y += dir.x * pull;
+      globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x + dir.y * pull));
+      syncGlobePivotQuaternion?.();
+    }
+  }
+  zoomBy(delta, { velocity: vel });
+}
+window.zoomBy = zoomBy;
+window.zoomAt = zoomAt;
+
+function onWheelZoom(e) {
+  e.preventDefault();
+  GlobeZoom.impuls(e.clientX, e.clientY, e.deltaY, e.deltaMode);
+}
+
+function bindTrackballEvents(targetCanvas) {
+  const c = targetCanvas || canvas;
+  if (!c || c.__trackballBound) return c;
+  c.__trackballBound = true;
+  c.addEventListener('mousedown', e => { if (e.button === 0) trackballStart(e.clientX, e.clientY); });
+  c.addEventListener('mousemove', e => {
+    if (!drag) return;
+    if (Math.hypot(e.clientX - pressStartX, e.clientY - pressStartY) > 12) clearTimeout(pressTimer);
+    trackballMove(e.clientX, e.clientY);
+  });
+  c.addEventListener('wheel', onWheelZoom, { passive: false });
+  c.addEventListener('touchstart', e => {
+  if (e.touches.length === 2) {
+    if (drag) trackballEnd(null, null, { skipTap: true });
+    clearTimeout(pressTimer);
+    pinching = true;
+    drag = false;
+    dragging = false;
+    resetTrackInertia();
+    pinchLastT = performance.now();
+    pinchDist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    e.preventDefault();
+    return;
+  }
+  if (pinching) return;
+  if (e.touches.length === 1) {
+    e.preventDefault();
+    trackballStart(e.touches[0].clientX, e.touches[0].clientY);
+  }
+  }, { passive: false });
+  c.addEventListener('touchmove', e => {
+  if (e.touches.length === 2) {
+    e.preventDefault();
+    if (!pinchDist) {
+      pinchDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      pinching = true;
+      if (drag) trackballEnd(null, null, { skipTap: true });
+      return;
+    }
+    const d = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    const now = performance.now();
+    const pdt = pinchLastT ? now - pinchLastT : 16;
+    pinchLastT = now;
+    const pinchDelta = pinchDist - d;
+    GlobeZoom.impuls(midX, midY, pinchDelta * 0.34, 0, pdt);
+    pinchDist = d;
+    return;
+  }
+  if (pinching) return;
+  if (drag && e.touches.length === 1) {
+    e.preventDefault();
+    if (Math.hypot(e.touches[0].clientX - pressStartX, e.touches[0].clientY - pressStartY) > 14) {
+      clearTimeout(pressTimer);
+    }
+    trackballMove(e.touches[0].clientX, e.touches[0].clientY);
+  }
+  }, { passive: false });
+  c.addEventListener('touchend', e => {
+  if (e.touches.length < 2) {
+    pinchDist = 0;
+    pinchLastT = 0;
+    pinching = false;
+  }
+  if (e.touches.length === 0 && drag) {
+    const t = e.changedTouches[0];
+    trackballEnd(t ? t.clientX : null, t ? t.clientY : null);
+  }
+  });
+  c.addEventListener('dblclick', e => {
+    e.preventDefault();
+    ZoomTiers?.stepIn?.();
+  });
+  return c;
+}
+
+bindTrackballEvents(canvas);
+window.addEventListener('mouseup', e => { if (drag) trackballEnd(e.clientX, e.clientY); });
+container.addEventListener('wheel', onWheelZoom, { passive: false });
+window.bindTrackballEvents = bindTrackballEvents;
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+container.addEventListener('click', onGlobeClick);
+
+function globeClickTargets() {
+  if (window.GlobeEntity?.clickTargets) {
+    const t = GlobeEntity.clickTargets();
+    if (t.length) return t;
+  }
+  const targets = [];
+  if (window._meMarker) targets.push(window._meMarker);
+  if (window.Commerce?.markers) targets.push(...window.Commerce.markers);
+  globePivot.children.forEach(c => {
+    if (c.userData?.globeEntity || c.userData?.name || c.userData?.vendor || c.userData?.type === 'me' || c.userData?.type === 'pilot' || c.userData?.type === 'post') {
+      if (!targets.includes(c)) targets.push(c);
+    }
+  });
+  return targets;
+}
+
+function onGlobeClick(e) {
+  if (dragging) return;
+  if (MapOverlayDismiss.handleMapClick(e)) return;
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+
+  const routeHits = raycaster.intersectObjects(MarketplaceDeliveryEngine?._globeMeshes || [], true);
+  if (routeHits.length > 0 && MarketplaceDeliveryEngine?.pickFromGlobeHit?.(routeHits[0])) return;
+
+  const markerHits = raycaster.intersectObjects(globeClickTargets(), true);
+  if (markerHits.length > 0) {
+    const hit = markerHits[0].object;
+    const entity = GlobeEntity?.pickFromHit?.(hit);
+    if (entity) {
+      GlobeEntity.activate(entity);
+      return;
+    }
+    const root = hit.userData?.vendor ? hit : (hit.parent?.userData?.vendor ? hit.parent : hit);
+    const ud = root.userData || hit.userData || {};
+    if (ud.vendor) { VendorMapTile?.open?.(ud.vendor); return; }
+    if (ud.type === 'me' || root === window._meMarker) {
+      const entity = GlobeEntity?.entities?.get('me');
+      if (entity) { GlobeEntity.activate(entity); return; }
+      const up = window._lastPos || { lat: 36.22, lng: 28.12 };
+      MapDepict?.zoomToUser?.(GlobeControl?.Z?.national || 1.82);
+      return;
+    }
+  }
+
+  const intersects = raycaster.intersectObject(earth);
+  if (intersects.length > 0) {
+    const pin = MapPlaceMenu?.pointFromGlobeHit?.(intersects[0].point);
+    if (pin) void GlobeNavigate?.handlePlaceClick?.(pin.lat, pin.lng, {});
+  }
+}
+
+function eulerFromDir(dir) {
+  const toY = -Math.atan2(dir.x, dir.z);
+  const toX = Math.max(-0.85, Math.min(0.85, -Math.asin(Math.max(-1, Math.min(1, dir.y))) * 0.45));
+  return new THREE.Euler(toX, toY, 0, 'YXZ');
+}
+
+function flyToPoint(point, targetZ = 1.82, opts) {
+  opts = opts || {};
+  if (drag || dragging) {
+    GlobeControl?.userTookGlobe?.('silent');
+    window._globeFly = null;
+  }
+  syncGlobePivotRotation?.();
+  const dir = point.clone().normalize();
+  const toE = eulerFromDir(dir);
+  const qTo = new THREE.Quaternion().setFromEuler(toE);
+  const qFrom = globePivot.quaternion.clone();
+  const angle = qFrom.angleTo(qTo);
+  const z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, targetZ));
+  if (ZoomTiers) {
+    const near = ZoomTiers.TIERS.reduce((best, t) =>
+      Math.abs(t.z - z) < Math.abs(best.z - z) ? t : best, ZoomTiers.TIERS[0]);
+    ZoomTiers._index = ZoomTiers.indexOf(near.id);
+  }
+  const fromZ = camera.position.z;
+  const baseDur = opts.dur || GlobeControl?.flyDuration?.(fromZ, z) || 1400;
+  const dur = Math.max(700, Math.min(5200, baseDur + angle * 820));
+  window._globeFly = {
+    mode: 'quat',
+    fromQ: qFrom,
+    toQ: qTo,
+    fromZ,
+    toZ: z,
+    t0: performance.now(),
+    dur,
+    tierId: ZoomTiers?.current?.()?.id,
+    onDone: typeof opts.onDone === 'function' ? opts.onDone : null,
+    onTier: !!opts.onTier,
+  };
+}
+
+function focusOnGlobePoint(point, targetZ) {
+  flyToPoint(point, targetZ || GlobeControl?.Z?.national || 1.82);
+}
+
+function tickGlobeFly() {
+  const f = window._globeFly;
+  document.body.classList.toggle('globe-flying', !!(f && !drag && !dragging));
+  if (!f || drag || dragging) return;
+  const p = Math.min(1, (performance.now() - f.t0) / f.dur);
+  const ease = p < 0.5
+    ? 4 * p * p * p
+    : 1 - Math.pow(-2 * p + 2, 3) / 2;
+  const smooth = f.mode === 'zoom' ? (ease * ease * (3 - 2 * ease)) : ease;
+  if (f.mode === 'zoom') {
+    /* camera-only — globe bearing unchanged */
+  } else if (f.mode === 'quat' && f.fromQ && f.toQ) {
+    globePivot.quaternion.slerpQuaternions(f.fromQ, f.toQ, ease);
+    globePivot.rotation.setFromQuaternion(globePivot.quaternion, 'YXZ');
+  } else {
+    console.warn('[trackball] deprecated euler fly blocked — use quat or zoom');
+    window._globeFly = null;
+    document.body.classList.remove('globe-flying');
+    return;
+  }
+  resetTrackInertia();
+  camera.position.z = f.fromZ + (f.toZ - f.fromZ) * (f.mode === 'zoom' ? smooth : ease);
+  camera.lookAt(0, 0, 0);
+  CosmicZoom.update(camera.position.z);
+  const flyLevel = window._cityDropLock ? 'earth' : CosmicZoom?.level;
+  CityMap?._applyGlobeMapCrossfade?.(camera.position.z);
+  CityMap?.onCamera?.(camera.position.z, flyLevel);
+  if (p >= 1) {
+    const tid = f.tierId;
+    const done = f.onDone;
+    window._globeFly = null;
+    document.body.classList.remove('globe-flying');
+    if (f.onTier && tid && ZoomTiers) {
+      const i = ZoomTiers.indexOf(tid);
+      if (i >= 0) ZoomTiers._index = i;
+      ZoomTiers._apply(ZoomTiers.current());
+    } else if (tid && ZoomTiers) {
+      const i = ZoomTiers.indexOf(tid);
+      if (i >= 0) ZoomTiers._index = i;
+      ZoomTiers._apply(ZoomTiers.current());
+    } else {
+      ZoomTiers?.syncFromCamZ?.(camera.position.z, false);
+      cityLevel = camera.position.z <= (CityMap?.ENTER_Z ?? 1.34);
+      CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
+    }
+    try { done?.(); } catch (_) {}
+  }
+}
+
+function waitForGlobeFly(timeout = 9000) {
+  return new Promise(resolve => {
+    if (!window._globeFly) return resolve();
+    const t0 = performance.now();
+    const id = setInterval(() => {
+      tickGlobeFly();
+      if (!window._globeFly || performance.now() - t0 > timeout) {
+        clearInterval(id);
+        resolve();
+      }
+    }, 16);
+  });
+}
+window.tickGlobeFly = tickGlobeFly;
+window.waitForGlobeFly = waitForGlobeFly;
+window.trackballStart = trackballStart;
+window.trackballMove = trackballMove;
+window.trackballEnd = trackballEnd;
+window.flyToPoint = flyToPoint;
+window.__trackballContract = Object.freeze({
+  v: 2,
+  exports: ['trackballStart', 'trackballMove', 'trackballEnd', 'tickGlobeFly', 'flyToPoint', 'bindTrackballEvents'],
+  flyMode: 'quat',
+});
+
+function showGestureHint() {
+  if (sessionStorage.getItem('astranov-gesture-hint')) return;
+  const el = document.createElement('div');
+  el.id = 'gesture-hint';
+  el.textContent = 'Trackball drag to spin Earth · Scroll/pinch zoom · Double-tap zoom in';
+  el.style.cssText = 'position:fixed;bottom:72px;left:50%;transform:translateX(-50%);padding:8px 14px;background:rgba(0,4,12,0.88);border:1px solid rgba(26,111,212,0.45);border-radius:20px;font:12px system-ui;color:#3d9eff;text-shadow:0 0 8px rgba(26,111,212,0.45);z-index:44;pointer-events:none;opacity:1;transition:opacity 1.2s';
+  document.body.appendChild(el);
+  sessionStorage.setItem('astranov-gesture-hint', '1');
+  setTimeout(() => { el.style.opacity = '0'; }, 3200);
+  setTimeout(() => { el.remove(); }, 4500);
+}
+setTimeout(showGestureHint, 600);
+
+// === TRACKBALL GUARD — never lose globe drag/spin; regression shield ===
+const TrackballGuard = {
+  _ok: false,
+  _lastCheck: 0,
+  FRICTION: 0.88,
+  MIN_VEL: 0.00008,
+  CONTRACT: ['trackballStart', 'trackballMove', 'trackballEnd', 'tickGlobeFly', 'flyToPoint', 'bindTrackballEvents'],
+
+  verify() {
+    const ok = !!(
+      typeof globePivot !== 'undefined' && globePivot
+      && typeof renderer !== 'undefined' && renderer?.domElement
+      && typeof trackballStart === 'function'
+      && typeof trackballMove === 'function'
+      && typeof trackballEnd === 'function'
+      && typeof tickGlobeFly === 'function'
+      && typeof flyToPoint === 'function'
+      && typeof bindTrackballEvents === 'function'
+      && typeof trackVelX === 'number'
+      && typeof trackVelY === 'number'
+      && renderer.domElement.__trackballBound
+      && window.__trackballContract?.flyMode === 'quat'
+    );
+    this._ok = ok;
+    this._lastCheck = Date.now();
+    if (!ok) console.warn('[TrackballGuard] bindings missing — attempting repair');
+    return ok;
+  },
+
+  repair() {
+    const canvas = renderer?.domElement;
+    if (!canvas) return this.verify();
+    if (!canvas.__trackballBound && typeof bindTrackballEvents === 'function') {
+      try { bindTrackballEvents(canvas); } catch (e) {
+        console.error('[TrackballGuard] rebind failed', e);
+      }
+    }
+    syncGlobePivotRotation?.();
+    return this.verify();
+  },
+
+  applyInertia() {
+    if (drag || window._globeFly || !globePivot) return;
+    const dt = frameDtMs();
+    const frame = dt / 16;
+    if (trackAngAxis && Math.abs(trackAngVel) > TRACK_INERTIA_MIN / 16) {
+      const angle = trackAngVel * dt;
+      globePivot.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(trackAngAxis, angle));
+      syncGlobePivotRotation?.();
+      trackAngVel *= Math.pow(TRACK_INERTIA_DAMP, frame);
+      trackInertiaAngle = trackAngVel * 16;
+      if (Math.abs(trackAngVel) < TRACK_INERTIA_MIN / 16) {
+        trackAngVel = 0;
+        trackAngAxis = null;
+        trackInertiaAxis = null;
+        trackInertiaAngle = 0;
+      }
+    }
+    const damp = Math.pow(this.FRICTION, frame);
+    if (typeof trackVelX === 'number') trackVelX *= damp;
+    if (typeof trackVelY === 'number') trackVelY *= damp;
+    if (Math.abs(trackVelX) < this.MIN_VEL) trackVelX = 0;
+    if (Math.abs(trackVelY) < this.MIN_VEL) trackVelY = 0;
+  },
+
+  beforeFly(lat, lng, opts) {
+    if (opts?.force) return true;
+    if (drag || dragging) {
+      GlobeControl?.userTookGlobe?.('silent');
+      return true;
+    }
+    if (typeof lat !== 'number' || typeof lng !== 'number') return false;
+    const cur = this.facingLatLng();
+    const dist = this.greatCircleKm(cur.lat, cur.lng, lat, lng);
+    if (dist > 12000 && !opts?.allowLongHaul) {
+      CliRibbon?.setNotice?.('Fly blocked — too far · drag globe or say locate', 'hold');
+      return false;
+    }
+    return true;
+  },
+
+  facingLatLng() {
+    if (!globePivot) return { lat: 0, lng: 0 };
+    syncGlobePivotRotation?.();
+    const e = new THREE.Euler().setFromQuaternion(globePivot.quaternion, 'YXZ');
+    const lat = THREE.MathUtils.radToDeg(e.x) * -2.2;
+    const lng = THREE.MathUtils.radToDeg(-e.y) - 180;
+    return { lat: Math.max(-85, Math.min(85, lat)), lng: ((lng + 540) % 360) - 180 };
+  },
+
+  greatCircleKm(lat1, lng1, lat2, lng2) { return SpaceNetGeo.haversineKm(lat1, lng1, lat2, lng2); },
+
+  init() {
+    if (renderer?.domElement) bindTrackballEvents?.(renderer.domElement);
+    if (!this.verify()) this.repair();
+    setInterval(() => {
+      if (!this.verify()) this.repair();
+    }, 8000);
+    window.__trackballGuardOk = () => this._ok;
+    window.__trackballGuardVerify = () => this.verify();
+  },
+};
+window.TrackballGuard = TrackballGuard;
+TrackballGuard.init();
+
 
 // === GLOBE NAVIGATE — trackball · national stop · click city · no jumps ===
 const GlobeNavigate = {
@@ -1908,189 +3291,6 @@ const SpaceNetLoader = {
 };
 window.SpaceNetLoader = SpaceNetLoader;
 
-// === BRAIN NEURONS — autonomous collective memory · globe pins · never stops growing ===
-const BrainNeurons = {
-  _principles: [],
-  _spawned: new Set(),
-  _activity: [],
-  _evolving: false,
-  _flushTimer: null,
-  _booted: false,
-  EVOLVE_EVERY: 3,
-  MAX_GLOBE: 56,
-  MAX_EPHEMERAL: 28,
-
-  count() { return this._principles.length + (ACI?.neurons?.length || 0); },
-
-  _hash(s) {
-    let h = 0;
-    for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
-    return h;
-  },
-
-  _seedLatLng(idx, text) {
-    const h = this._hash(String(text || idx));
-    const lat = ((Math.abs(h) % 11000) / 100) - 55 + ((idx * 13) % 15) / 10;
-    const lng = (((h >> 10) % 36000) / 100) - 180;
-    return { lat: Math.max(-70, Math.min(70, lat)), lng };
-  },
-
-  _activityLatLng() {
-    const p = window._lastPos || CityMap?.mapViewCenter?.() || TrackballGuard?.facingLatLng?.() || {};
-    if (p.lat != null && p.lng != null) {
-      return { lat: p.lat + (Math.random() - 0.5) * 0.08, lng: p.lng + (Math.random() - 0.5) * 0.08 };
-    }
-    return this._seedLatLng(this._principles.length + Date.now() % 97, 'field');
-  },
-
-  _ingest(list, source) {
-    if (!Array.isArray(list)) return 0;
-    let n = 0;
-    list.forEach((row, i) => {
-      const content = typeof row === 'string' ? row : (row?.content || '');
-      if (!content || content.length < 6) return;
-      if (this._principles.some(p => p.content === content)) return;
-      const strength = typeof row === 'object' ? (row.strength || row.importance || 1.2) : 1.2;
-      this._principles.push({ content, strength, source: source || 'server' });
-      const ll = this._seedLatLng(this._principles.length + i, content);
-      this._spawnGlobe(ll.lat, ll.lng, strength, content);
-      n++;
-    });
-    this._syncChip();
-    return n;
-  },
-
-  _trimPermanent() {
-    const ents = [...(GlobeEntity?.entities?.values?.() || [])].filter(e => e.type === 'neuron' && !e.data?.ephemeral);
-    if (ents.length <= this.MAX_GLOBE) return;
-    ents.sort((a, b) => (a.data?.strength || 1) - (b.data?.strength || 1));
-    ents.slice(0, ents.length - this.MAX_GLOBE).forEach(e => GlobeEntity?.unregister?.(e.id));
-  },
-
-  _spawnGlobe(lat, lng, strength, principle, opts) {
-    opts = opts || {};
-    if (lat == null || lng == null) return;
-    if (!opts.ephemeral) this._trimPermanent();
-    const key = (opts.ephemeral ? 'e:' : '') + (principle || '').slice(0, 120) + ':' + Date.now();
-    if (!opts.ephemeral && this._spawned.has((principle || '').slice(0, 120))) return;
-    if (!opts.ephemeral) this._spawned.add((principle || '').slice(0, 120));
-    const id = 'neuron-' + (opts.ephemeral ? 'e-' : '') + this._hash(key + lat + lng);
-    GlobeEntity?.unregister?.(id);
-    GlobeEntity?.register?.({
-      id,
-      type: 'neuron',
-      lat,
-      lng,
-      title: '🧠 ' + (principle || 'Neuron').slice(0, 48),
-      description: (principle || '') + (opts.ephemeral ? '\n· live field signal' : '\n· collective principle'),
-      urgency: opts.ephemeral ? 1 : (strength > 1.3 ? 2 : 1),
-      data: { principle, strength, ephemeral: !!opts.ephemeral, ts: Date.now() },
-      onTap: () => this._showHud(principle, strength),
-    });
-    if (!opts.ephemeral) ACI?.spawnNeuron?.(lat, lng, strength, principle);
-    if (opts.ephemeral) this._trimEphemeral();
-    CityMap?._syncMarkers?.();
-  },
-
-  _trimEphemeral() {
-    const ents = [...(GlobeEntity?.entities?.values?.() || [])].filter(e => e.type === 'neuron' && e.data?.ephemeral);
-    if (ents.length <= this.MAX_EPHEMERAL) return;
-    ents.sort((a, b) => (a.data?.ts || 0) - (b.data?.ts || 0));
-    ents.slice(0, ents.length - this.MAX_EPHEMERAL).forEach(e => GlobeEntity?.unregister?.(e.id));
-  },
-
-  _showHud(principle, strength) {
-    const hud = document.getElementById('globe-entity-hud');
-    if (!hud) return;
-    hud.classList.add('open');
-    document.getElementById('ge-hud-type').textContent = '▸ neuron · strength ' + (strength || 1).toFixed(1);
-    document.getElementById('ge-hud-title').textContent = 'Collective memory';
-    document.getElementById('ge-hud-desc').textContent = principle || 'Astranov brain principle';
-    const actions = document.getElementById('ge-hud-actions');
-    if (actions) actions.style.display = 'none';
-    GlobeDeck?.setPreview?.('◎ ' + this.count() + ' neurons · Justice → Truth → Freedom');
-  },
-
-  _syncChip() {
-    const n = this.count();
-    const guide = document.getElementById('cosmic-guide');
-    if (guide && n > 0) guide.textContent = '◎ ' + n + ' neurons · every action grows the brain';
-    const deck = document.getElementById('globe-deck-title');
-    if (deck && !GlobeDeck?.thinking) deck.dataset.neurons = String(n);
-  },
-
-  recordActivity(action, detail, opts) {
-    opts = opts || {};
-    this._activity.push({ action, detail: String(detail || '').slice(0, 160), role: opts.role, ts: Date.now() });
-    ACI?.feed?.(action, detail);
-    const sig = /think|teach|order|delivery|work|drive|vendor|evolve|explore|location|commerce|route|claim|city|post/i.test(action);
-    if (sig) {
-      const ll = this._activityLatLng();
-      this._spawnGlobe(ll.lat, ll.lng, 0.95, (detail || action).slice(0, 90), { ephemeral: true });
-      if (this._activity.length >= 8) void this._flush();
-    }
-  },
-
-  async _flush() {
-    if (!this._activity.length) return;
-    const batch = this._activity.splice(0, 16);
-    const digest = batch.map(b => b.action + ':' + b.detail).join('; ').slice(0, 520);
-    try {
-      await ACI?.api?.({ mode: 'log', action: 'field_batch', detail: digest, role: batch[0]?.role || 'client' });
-    } catch (_) {}
-    if (batch.length >= 6) void this._maybeEvolve('field x' + batch.length);
-  },
-
-  async _maybeEvolve(reason) {
-    if (this._evolving) return;
-    this._evolving = true;
-    try {
-      const r = await ACI?.api?.({ mode: 'evolve', activity: reason || 'spacenet' });
-      const fresh = (r?.principles || []).filter(p => !this._principles.some(x => x.content === p));
-      if (fresh.length) this._ingest(fresh, 'evolved');
-      const births = Math.max(1, Math.min(4, Number(r?.brain?.inserted) || (fresh.length ? 2 : 1)));
-      for (let i = 0; i < births; i++) {
-        const ll = this._activityLatLng();
-        this._spawnGlobe(ll.lat, ll.lng, 1.15 + Math.random() * 0.25, 'collective · ' + (reason || 'grow').slice(0, 60), { ephemeral: true });
-      }
-      ACI?.pulse?.(1.9);
-      MissionSupportReporter?.recordProgress?.('brain', 'evolve · +' + births + ' · total ' + this.count(), { reason, total: this.count() });
-      if (!document.hidden) GlobeDeck?.setPreview?.('Brain +' + births + ' neurons · ' + this.count() + ' total', 'dim');
-    } catch (_) {}
-    finally { this._evolving = false; }
-  },
-
-  onCycle(n) {
-    void this._flush();
-    if (n % this.EVOLVE_EVERY === 0) void this._maybeEvolve('cycle ' + n);
-  },
-
-  tick() {
-    ACI?.tick?.();
-    const t = Date.now() / 550;
-    (ACI?.neurons || []).forEach((n, i) => {
-      const s = (n.userData?.strength || 1) * (0.82 + Math.sin(t + i * 0.65) * 0.18);
-      n.scale.setScalar(s);
-    });
-  },
-
-  async boot() {
-    if (this._booted) return;
-    this._booted = true;
-    try {
-      const ensured = await ACI?.api?.({ mode: 'ensure_neurons' });
-      if (ensured?.principles?.length) this._ingest(ensured.principles, 'seed');
-      const stats = await ACI?.api?.({ mode: 'stats' });
-      if (stats?.principles?.length) this._ingest(stats.principles, 'memory');
-    } catch (_) {}
-    this._syncChip();
-    if (!this._flushTimer) this._flushTimer = setInterval(() => this._flush(), 28000);
-    setTimeout(() => this._maybeEvolve('boot warm'), 90000);
-    setTimeout(() => this._maybeEvolve('session digest'), 300000);
-  },
-};
-window.BrainNeurons = BrainNeurons;
-
 // === MARKETPLACE PRESENCE — driver heartbeat so real drivers appear on map ===
 const MarketplacePresence = {
   _timer: null,
@@ -3147,7 +4347,7 @@ const LazyModules = {
   _loaded: false,
 
   schedule() {
-    const delay = window.SlumberManager?.deferredDelay?.() || 1400;
+    const delay = window.SlumberManager?.deferredDelay?.() ?? 120;
     const run = () => {
       if (window.SlumberManager?.allows?.('deferred')) this.load().catch(() => {});
     };
@@ -7313,882 +8513,6 @@ const AciCli = {
 };
 window.AciCli = AciCli;
 
-// === ASTRANOV CODERS — always online for all users ===
-// Justice → Truth → Freedom (exact order) is the immutable boundary.
-const AciCoders = {
-  ready: false,
-  alwaysOn: true,
-  teamActive: true,
-  history: [],
-  lastSummonId: null,
-  engine: 'grok',
-  armed: false,
-  fallbackPrefs: { force: 'xai', skip: [] },
-  _pollTimer: null,
-  _listenTimer: null,
-  _evolveTimer: null,
-  _started: false,
-  _listening: false,
-  _listenBusy: false,
-  _activityBuffer: [],
-  _activityCount: 0,
-  _listenTicks: 0,
-  _lastListenAt: 0,
-
-  CAUSE: 'Justice → Truth → Freedom',
-  LISTEN_MS: 900000,
-  _cliBusy: false,
-  EVOLVE_MS: 600000,
-
-  loadPrefs() {
-    try {
-      const p = JSON.parse(localStorage.getItem('aci-coders-prefs') || '{}');
-      if (p.skip) this.fallbackPrefs.skip = p.skip;
-      if (p.force) this.fallbackPrefs.force = p.force;
-      else this.fallbackPrefs.force = 'xai';
-      if (p.causeJudge) this.fallbackPrefs.causeJudge = p.causeJudge;
-    } catch (_) {
-      this.fallbackPrefs.force = 'xai';
-    }
-  },
-
-  savePrefs() {
-    try { localStorage.setItem('aci-coders-prefs', JSON.stringify(this.fallbackPrefs)); } catch (_) {}
-  },
-
-  isPowerUser() {
-    return !!(Auth?.isOwner || Auth?.isArchitect);
-  },
-
-  isExplicitRef(raw) {
-    const s = String(raw || '').trim();
-    return /^(coders|composer|cursor|summon\s+coders?)\b/i.test(s) || /^@coders\b/i.test(s);
-  },
-
-  parseCauseJudge(text) {
-    if (!this.isPowerUser()) return null;
-    const s = String(text || '');
-    if (!/priorit|judge|cause|justice|truth|freedom|δικαιοσύνη|αλήθεια|ελευθερία|κριτ|σειρά/i.test(s)) return null;
-    return { ruling: s.slice(0, 500) };
-  },
-
-  loadEngine() {
-    this.engine = this.fallbackPrefs.force === 'composer' ? 'composer' : 'grok';
-  },
-
-  setEngine(eng) {
-    this.engine = eng === 'composer' ? 'composer' : 'grok';
-    this.fallbackPrefs.force = eng === 'composer' ? 'composer' : 'xai';
-    this.savePrefs();
-    return true;
-  },
-  toggleEngine() {
-    return this.setEngine(this.engine === 'composer' ? 'grok' : 'composer');
-  },
-
-  updateHud() {
-    CliRibbon?.setActive?.('Coders');
-    CliRibbon?.render?.();
-  },
-
-  observeActivity(source, detail, props) {
-    const d = String(detail || source || '').slice(0, 120);
-    if (!d) return;
-    this._activityBuffer.push({ source: String(source || 'field'), detail: d, ts: Date.now(), props: props || {} });
-    if (this._activityBuffer.length > 48) this._activityBuffer = this._activityBuffer.slice(-48);
-    this._activityCount++;
-    MissionSupportReporter?.recordProgress?.(String(source || 'field'), d, props);
-    this.updateHud();
-  },
-
-  _buildDigest() {
-    const recent = this._activityBuffer.slice(-14);
-    if (!recent.length) return '';
-    return recent.map(e => e.source + ':' + e.detail).join(' · ').slice(0, 1200);
-  },
-
-  startListening() {
-    if (this._listenTimer) return;
-    this._listening = true;
-    this.updateHud();
-    this._listenTimer = setInterval(() => this.listenTick(), this.LISTEN_MS);
-    this._evolveTimer = setInterval(() => this.evolveTick(), this.EVOLVE_MS);
-  },
-
-  stopListening() {
-    if (this._listenTimer) { clearInterval(this._listenTimer); this._listenTimer = null; }
-    if (this._evolveTimer) { clearInterval(this._evolveTimer); this._evolveTimer = null; }
-    this._listening = false;
-  },
-
-  async listenTick() {
-    if (document.hidden) return;
-    if (window._handsFreeVoice || isListening || Voice?.speaking || this._cliBusy || this._listenBusy) return;
-    if (this._activityCount < 1 && this._listenTicks > 0) return;
-    this._listenBusy = true;
-    this._listenTicks++;
-    try {
-      const digest = this._buildDigest();
-      const eventCount = this._activityBuffer.length;
-      const evolve = eventCount >= 3 || this._listenTicks % 3 === 0;
-      const r = await AciCli.api({
-        mode: 'coders_listen',
-        activity: digest || 'heartbeat · coders online',
-        event_count: eventCount,
-        evolve,
-      });
-      this._lastListenAt = Date.now();
-      if (r.ok) this._applyListenResult(r);
-    } catch (_) {
-      /* retry next tick */
-    } finally {
-      this._listenBusy = false;
-    }
-  },
-
-  _applyListenResult(r) {
-    if (r.principles?.length) ACI?.syncNeuronsFromPrinciples?.(r.principles);
-    if (r.evolved) {
-      MapDepict?.action('evolve', { detail: 'coders listen · brain evolved' });
-      ACI?.pulse?.(1.35);
-      for (let i = 0; i < 2; i++) {
-        ACI?.spawnNeuron?.(
-          (Math.random() - 0.5) * 60,
-          (Math.random() - 0.5) * 120,
-          1.1 + Math.random() * 0.3,
-          r.improvement?.slice(0, 80) || 'collective neuron'
-        );
-      }
-    }
-    if (r.improvement && !document.hidden) {
-      GlobeDeck?.log?.('Coders · ' + r.improvement.slice(0, 160), 'dim');
-    }
-    this._activityBuffer = this._activityBuffer.slice(-6);
-    this._activityCount = Math.max(0, this._activityCount - 2);
-    this.updateHud();
-  },
-
-  async evolveTick() {
-    if (window._handsFreeVoice || isListening || Voice?.speaking) return;
-    if (this._activityCount < 2) return;
-    try {
-      await ACI?.evolve?.('coders-active-listen');
-      this._activityCount = Math.max(0, this._activityCount - 3);
-      this.updateHud();
-    } catch (_) {}
-  },
-
-  async ensureSession() {
-    if (!Auth?.user) return true;
-    const session = await Auth.ensureSession?.();
-    if (!session?.access_token) {
-      GlobeDeck?.showError('Session expired — tap G to sign in again');
-      return false;
-    }
-    return true;
-  },
-
-  async ensureBridge() {
-    this.loadPrefs();
-    this.loadEngine();
-    this.alwaysOn = true;
-    window._aciCodersAlwaysOn = true;
-    if (this.ready) { this.updateHud(); return; }
-    this.ready = true;
-    window._aciCodersReady = true;
-    this.updateHud();
-  },
-
-  _guaranteeReply(userMsg, r, extra) {
-    const payload = { ...(r || {}), ...(extra || {}) };
-    const raw = String(payload.text || payload.response || '').trim();
-    if (!raw || this.isFailedReply(raw)) {
-      payload.text = this.localReply(userMsg);
-      payload.response = payload.text;
-      payload.via = payload.via || 'local/guarantee';
-    } else {
-      payload.text = raw;
-      payload.response = raw;
-    }
-    if (payload.error && !payload.text) {
-      payload.text = this.localReply(userMsg) + ' (' + String(payload.error).slice(0, 100) + ')';
-      payload.response = payload.text;
-    }
-    return this._applyResponse(payload, userMsg);
-  },
-
-  async autoStart() {
-    this.alwaysOn = true;
-    this.teamActive = true;
-    this.armed = true;
-    await this.ensureBridge();
-    this.updateHud();
-    if (this._started) {
-      this.startListening();
-      return;
-    }
-    this._started = true;
-    window._aciCodersAlwaysOn = true;
-    this.startListening();
-  },
-
-  /** Open live Coders chat — expanded CLI, mic ready, replies visible */
-  async enterSession(opts = {}) {
-    opts = opts || {};
-    await this.autoStart();
-    if (GlobeDeck) GlobeDeck.activeTask = 'coders';
-    if (opts.expand) {
-      GlobeDeck?.onUserMessage?.('Coders');
-      GlobeDeck?.expand?.('Coders');
-    } else {
-      GlobeDeck?.setTitle?.('Coders');
-      GlobeDeck?.setPreview?.('Coders ready — type below');
-      CliRibbon?.setActive?.('Coders');
-    }
-    AppShortcuts?.track?.('coders', 'Coders');
-    if (window.AciCli) AciCli.open = true;
-
-    const input = document.getElementById('aci-cli-in');
-    if (input) {
-      input.placeholder = 'Talk to Astranov — type or tap 🎧 · Enter to send';
-      input.classList.remove('voice-live');
-      if (opts.focus !== false) {
-        setTimeout(() => input.focus(), 60);
-      }
-    }
-
-    if (opts.fromVoice || window._handsFreeVoice || voiceSessionActive) {
-      if (!window._handsFreeVoice && typeof startVoiceOptions === 'function') {
-        startVoiceOptions();
-      } else {
-        scheduleVoiceResume?.();
-      }
-    }
-
-    this.updateHud();
-
-    if (!this._sessionWelcomed || opts.ping) {
-      if (!this._sessionWelcomed) this._sessionWelcomed = true;
-      const line = opts.ping
-        ? 'Grok still here — keep talking (type or 🎧)'
-        : 'talk hands-free to Astranov — type or tap 🎧 and speak. I reply in ribbon + voice.';
-      AciCli?.print(line, 'ok');
-      ACIControl?.reply(line.slice(0, 200));
-      if (opts.fromVoice && window._handsFreeVoice && Voice?.maySpeak?.()) {
-        speak('Coders ready. Talk normally.', () => resumeListening?.(), false);
-      }
-    }
-
-    return { ok: true, session: true };
-  },
-
-  /** Strip optional legacy "coders" prefix — coders listen to all messages. */
-  normalizeMessage(message) {
-    return String(message || '').trim()
-      .replace(/^summon\s+coders?\s*/i, '')
-      .replace(/^coders\s+/i, '')
-      .trim();
-  },
-
-  async handleMessage(message, opts = {}) {
-    const raw = (window.fixVoiceHotwords || (x => x))(String(message || '').trim());
-    if (!raw) return this.enterSession({ fromVoice: !!opts.fromVoice });
-
-    const parts = raw.split(/\s+/);
-    const sub = (parts[0] || '').toLowerCase();
-
-    if (/^coders\b/i.test(raw)) {
-      if (sub === 'list') return this.listSummons();
-      if (sub === 'poll' || sub === 'status') {
-        const id = parts[1] ? parseInt(parts[1], 10) : this.lastSummonId;
-        return this.poll(id, false);
-      }
-      if (sub === 'exit' || sub === 'close' || sub === 'leave') {
-        AciCli?.print('Coders stay always on', 'ok');
-        ACIControl?.reply('Coders always active — building the collective brain');
-        return { ok: true, always_on: true };
-      }
-      if (sub === 'grok' || sub === 'composer') {
-        const task = parts.slice(1).join(' ');
-        if (task.length < 3) {
-          this.setEngine(sub);
-          return this.chat('use ' + sub + ' from now on');
-        }
-      }
-      if (parts.length === 1) {
-        return this.enterSession({
-          ping: !!this._sessionWelcomed,
-          fromVoice: !!opts.fromVoice || !!window._handsFreeVoice || !!voiceSessionActive,
-        });
-      }
-    }
-
-    if (this.isPowerUser() && this.isExplicitRef(raw)) {
-      const task = this.normalizeMessage(raw) || raw;
-      if (/^deploy\b/i.test(task)) {
-        return this.executeOrder(task, raw, { deploy: true });
-      }
-      return this.executeOrder(task, raw);
-    }
-
-    const text = (this.normalizeMessage(raw) || raw).trim();
-    if (/^coders?$/i.test(text)) {
-      return this.enterSession({
-        ping: !!this._sessionWelcomed,
-        fromVoice: !!opts.fromVoice || !!window._handsFreeVoice || !!voiceSessionActive,
-      });
-    }
-    return this.chat(text, opts);
-  },
-
-  async executeOrder(task, raw, opts) {
-    await this.autoStart();
-    if (!(await this.ensureSession())) return { error: 'session expired' };
-
-    const judge = this.parseCauseJudge(raw);
-    if (judge) {
-      this.fallbackPrefs.causeJudge = judge.ruling;
-      this.savePrefs();
-      AciCli?.print('Cause judge ruling — architect authority', 'ok');
-      try {
-        await ACI?.teach?.('Architect cause judge: ' + judge.ruling);
-      } catch (_) {}
-    }
-
-    const m = String(task || '').trim();
-    if (!m) return { error: 'empty order' };
-
-    AciCli?.print('OWNER ORDER — executing: ' + m.slice(0, 100), 'cmd');
-    GlobeDeck?.onUserMessage('ORDER — ' + m.slice(0, 40));
-    MapDepict?.action('think', { detail: 'ORDER: ' + m.slice(0, 40) });
-
-    try {
-      GlobeDeck?.setThinking(true, 'Executing owner order…');
-
-      const r = await AciCli.api({
-        mode: 'coders_chat',
-        message: m,
-        explicit_order: true,
-        owner_judge: !!judge,
-        cause_ruling: judge?.ruling || this.fallbackPrefs.causeJudge || '',
-        history: this.history.slice(-10),
-        fallback_prefs: this.fallbackPrefs,
-      });
-
-      const eng = this.wantsComposer(m) ? 'composer' : 'grok';
-      const build = await this.queueCoder(m, eng);
-      let merged = { ...r, order_executed: true };
-      if (build.text && !build.error) {
-        merged.text = (r.text || r.response || '') + '\n\n[ORDER #' + (build.summon_id || '?') + ']\n' + build.text;
-        merged.response = merged.text;
-        merged.summon_id = build.summon_id;
-        merged.composer_queued = build.composer_queued;
-      }
-
-      if (opts?.deploy || /^deploy\b/i.test(m)) {
-        await AciConnect?.deploy?.(m.replace(/^deploy\s*/i, ''));
-      }
-
-      GlobeDeck?.setThinking(false);
-      ACIControl?.reply('Order executing — #' + (merged.summon_id || 'queued'));
-      return this._applyResponse(merged, raw);
-    } catch (e) {
-      GlobeDeck?.setThinking(false);
-      const msg = String(e.message || e);
-      GlobeDeck?.showError('Order failed: ' + msg);
-      return { error: msg };
-    }
-  },
-
-  stopPoll() {
-    if (this._pollTimer) { clearInterval(this._pollTimer); this._pollTimer = null; }
-  },
-
-  startPoll(summonId) {
-    this.stopPoll();
-    if (!summonId) return;
-    let tries = 0;
-    this._pollTimer = setInterval(async () => {
-      tries++;
-      const r = await this.poll(summonId, true);
-      if (r?.status === 'answered') this.stopPoll();
-      if (tries > 36) {
-        this.stopPoll();
-        if (r?.status !== 'answered') this._pollTimeoutFallback(summonId);
-      }
-    }, 5000);
-  },
-
-  async _pollTimeoutFallback(summonId) {
-    if (!Auth?.user) return;
-    if (AciCli) AciCli.print('Composer poll timeout — asking Grok…', 'dim');
-    const last = this.history.filter(h => h.role === 'user').pop();
-    const task = last?.content || 'summon follow-up';
-    const q = await this.queueCoder(task, 'grok');
-    if (q.text && AciCli) AciCli.print('Grok fallback #' + (summonId || '?') + ': ' + q.text.slice(0, 500), 'out');
-  },
-
-  async poll(summonId, quiet) {
-    const id = summonId || this.lastSummonId;
-    if (!id) {
-      if (!quiet && AciCli) AciCli.print('usage: coders poll <summon_id>', 'err');
-      return { error: 'no id' };
-    }
-    const r = await AciCli.api({ mode: 'coders_poll', summon_id: id });
-    if (!quiet && AciCli) {
-      if (r.pending) AciCli.print('#' + id + ' pending — Composer…', 'dim');
-      else if (r.text) {
-        AciCli.print('Composer #' + id + ': ' + r.text.slice(0, 900), 'out');
-        this._recordReply(id, r.text);
-      }
-    }
-    if (r.text && !r.pending) {
-      GlobeDeck?.expand('Coders — Composer reply');
-      ACIControl?.reply('Composer #' + id + ': ' + r.text.slice(0, 160));
-    }
-    return r;
-  },
-
-  async listSummons() {
-    if (!Auth?.user) {
-      AciCli?.print('sign in with G to list your summons', 'dim');
-      return { error: 'login required' };
-    }
-    const r = await AciCli.api({ mode: 'coders_list' });
-    if (!r.summons?.length) {
-      if (AciCli) AciCli.print('no coders summons yet', 'dim');
-      return r;
-    }
-    if (AciCli) {
-      AciCli.print('── coders summons ──', 'dim');
-      r.summons.forEach(s => {
-        AciCli.print('#' + s.id + ' [' + s.status + '] ' + s.engine + ' — ' + s.question, s.status === 'open' ? 'dim' : 'ok');
-      });
-    }
-    return r;
-  },
-
-  _recordReply(id, text) {
-    this.history.push({ role: 'assistant', content: '[#' + id + '] ' + text });
-    if (this.history.length > 20) this.history = this.history.slice(-20);
-  },
-
-  _applyResponse(r, userMsg) {
-    if (r.fallback_prefs) {
-      this.fallbackPrefs = r.fallback_prefs;
-      this.savePrefs();
-      this.loadEngine();
-    }
-    const raw = String(r.text || r.response || '').trim();
-    const err = String(r.error || '').trim();
-    if (r.summon_id) this.lastSummonId = r.summon_id;
-
-    this.history.push({ role: 'user', content: userMsg });
-
-    const honest = raw ? this.formatHonestReply(r, userMsg) : '';
-    let reply = ArcangeloDialect?.repairBrands?.(honest || raw || err) ?? (honest || raw || err);
-    reply = String(reply || '').slice(0, 900);
-    if (!reply || this.isFailedReply(reply)) reply = this.localReply(userMsg);
-    if (err && !raw && reply === this.localReply(userMsg)) {
-      reply = this.localReply(userMsg) + ' (' + err.slice(0, 120) + ')';
-    }
-
-    this.history.push({ role: 'assistant', content: reply });
-    if (this.history.length > 20) this.history = this.history.slice(-20);
-
-    const prefix = r.explicit_order || r.order_executed ? 'ORDER: ' : '';
-    const kind = r.error && !raw ? 'err' : 'reply';
-    AciCli?.print(prefix + reply, kind);
-    ACIControl?.reply(prefix + reply.slice(0, 260));
-
-    const composerQueued = r.composer_queued || (r.pending && r.summon_id);
-    if (composerQueued && AciCli) AciCli.print('Composer also queued #' + composerQueued, 'dim');
-    if (composerQueued) this.startPoll(composerQueued);
-    else this.stopPoll();
-
-    const spoken = ArcangeloDialect?.repairOutbound?.(reply, 'reply') ?? reply;
-    if (!r.pending) {
-      const wantVoice = window._handsFreeVoice || voiceSessionActive;
-      if (wantVoice && Voice.shouldSpeak(spoken)) {
-        voiceEnabled = true;
-        speak(spoken.slice(0, 160), () => resumeListening?.(), false);
-      } else if (window._handsFreeVoice || voiceSessionActive) {
-        scheduleVoiceResume?.();
-      }
-    } else if (window._handsFreeVoice || voiceSessionActive) {
-      scheduleVoiceResume?.();
-    }
-    GlobeDeck?.setThinking?.(false);
-
-    this.observeActivity('chat', userMsg, { coders: true, guest: !!r.guest });
-    FieldBrain?.pulse?.('think', 'coders: ' + userMsg.slice(0, 48), {
-      role: Auth?.user ? 'client' : 'anon',
-      props: { coders: true, guest: !!r.guest, always_on: true },
-    });
-    return r;
-  },
-
-  isPing(m) {
-    const s = String(m || '').trim();
-    if (!s || s.length > 80) return false;
-    return /^(are you there|you there|hello|hi|hey|ping|online|listening|composer|grok|coders|γεια|είσαι|ακούς|π��ρών|εδώ|μου ακούς)/i.test(s)
-      || /^(composer|grok|coders)\s+(are you there|online|there)/i.test(s);
-  },
-
-  isFailedReply(text) {
-    return /gathering itself|warming up|try again in a few seconds|try again (in a moment|shortly)|no model responded/i.test(String(text || ''));
-  },
-
-  isLocalGlobeCmd(m) {
-    const s = String(m || '').trim();
-    return /^locate\s*(me|button)?$/i.test(s)
-      || /^zoom\s+to\s+me$/i.test(s)
-      || /^where\s+am\s+i\??$/i.test(s)
-      || /^find\s+me$/i.test(s)
-      || /^🎯|📍$/.test(s);
-  },
-
-  runLocalGlobeCmd(m) {
-    if (!this.isLocalGlobeCmd(m)) return null;
-    GlobeDeck?.setThinking(false);
-    locateMe?.();
-    const pos = window._lastPos;
-    const hint = pos
-      ? 'On globe · ' + pos.lat.toFixed(2) + ', ' + pos.lng.toFixed(2) + ' — zoom in or say city view'
-      : 'Locating you on the globe…';
-    AciCli?.print(hint, 'ok');
-    ACIControl?.reply(hint);
-    CliRibbon?.setNotice?.('located', 'ready');
-    return { ok: true, located: true, text: hint };
-  },
-
-  localReply(m) {
-    const greek = /[\u0370-\u03FF]/.test(String(m || ''));
-    if (this.isPing(m)) {
-      return greek
-        ? 'Ναι, είμαι εδώ — Grok online. Μίλα κανονικά ή πάτα 🎧.'
-        : 'Yes — Grok here. Talk straight to me — type or tap 🎧.';
-    }
-    return greek
-      ? 'Grok εδώ — δοκίμασε ξανά ή πάτα 🎧 να μιλήσεις.'
-      : 'Grok here — say it again or tap 🎧 to talk.';
-  },
-
-  isBuildTask(m) {
-    const s = String(m || '').toLowerCase();
-    if (/^(why|what|how|do we|list|status|credits|explain|try|skip|use)\b/.test(s)) return false;
-    return /fix|build|implement|add|create|remove|button|locate|globe|vendor|order|mobile|lag|hang|slow|broken|crash|φτιάξε|πρόσθεσε|διόρθωσε|κολλάει/.test(s) && s.length >= 6;
-  },
-
-  isCodersIntent(m) {
-    const s = String(m || '').trim();
-    if (this.isExplicitRef(s)) return true;
-    return this.isBuildTask(s) || /call\s+coders?|ask\s+coders?|tell\s+coders?/i.test(s);
-  },
-
-  tryLocalFix(m) {
-    const low = String(m || '').toLowerCase();
-    if ((/cli|input|voice|transcri|compose|lag|hang|slow/.test(low)) && /fix|clear|reset|φτιάξε|διόρθωσε/.test(low)) {
-      GlobeDeck?.setCompose?.('');
-      window.setVoicePerfMode?.(true);
-      const input = document.getElementById('aci-cli-in');
-      if (input) {
-        input.classList.remove('voice-live');
-        window.resizeCliInput?.(input);
-        input.focus();
-      }
-      AciCoders._cliBusy = false;
-      return 'CLI reset · perf mode on — edit the input or speak again';
-    }
-    if ((/vendor|shop|καταστήμα|driver|οδηγ/.test(low)) && /fix|find|show|list|scan|βρες/.test(low)) {
-      window.Commerce?.openOrderFlow?.('');
-      return 'Vendor scan opened on globe — pick shop or say order pitogyra';
-    }
-    if (/locate|zoom|map|πόσο|where am i/.test(low)) {
-      this.runLocalGlobeCmd('locate me');
-      return 'Located on globe';
-    }
-    if (/refresh|reload|συγχρον/.test(low) && /app|globe|page/.test(low)) {
-      YachtMatcher?.loadAndSyncGlobe?.();
-      window.Commerce?.loadVendors?.();
-      AuditorPortal?.syncGlobe?.();
-      return 'Globe data refreshed — yachts · vendors · drivers · auditors';
-    }
-    if (/^(use\s+)?(openai|gpt|groq|gemini|deepseek|deep\s*seek|cycle|astranov)\b/i.test(low)) {
-      const prov = /openai|gpt/.test(low) ? 'openai-mini'
-        : /groq/.test(low) ? 'groq'
-        : /gemini/.test(low) ? 'gemini'
-        : /deep/.test(low) ? 'deepseek'
-        : 'astranov';
-      AiRouter?.setProvider?.(prov);
-      LabOrbs?._syncGlyphs?.();
-      return 'AI provider → ' + (AiRouter.current()?.label || prov);
-    }
-    if (/^summon\s+composer|^use\s+composer|^queue\s+composer/i.test(low)) {
-      void CodersHub?.summonComposer?.();
-      return 'Summoning Composer on your saved job…';
-    }
-    if (/coders?\s*hub|coder\s*labs?|ai\s*teams?|open\s*coders?|labs?\s*race|ανταγωνισμ|ομάδες/.test(low)) {
-      CodersHub?.toggle?.(true);
-      return 'Coders Hub open — ' + (CodersHub?.LABS?.length || 0) + ' AI teams racing on subdomains';
-    }
-    if (/city\s*view|zoom\s*in|shops|καταστήμα/.test(low)) {
-      enterCityView?.();
-      return 'City view — vendors and drivers on map';
-    }
-    if (/theme|bright|dark|φωτειν|σκοτειν/.test(low)) {
-      const mode = /bright|light|φωτειν/.test(low) ? 'bright' : 'dark';
-      AstranovTheme?.set?.(mode);
-      return 'Theme → ' + mode;
-    }
-    if (/yacht|charter|booker|ενοικ/.test(low) && /open|list|show|άνοιξε|δείξε/.test(low)) {
-      YachtMatcher?.openBooking?.(null, { tab: 'booker' });
-      return 'Opened yachts.astranov.eu Booker';
-    }
-    if (/audit|auditor|accountant|λογιστ|λογιστή|λογιστές|ισολογισμ|ισοζύγι|καθολικ/.test(low) && /open|άνοιξε|show|δείξε|πήγαινε|go|start|^audit|^λογιστ/.test(low)) {
-      const tab = /ισολογισμ/.test(low) ? 'balance' : /ισοζύγι/.test(low) ? 'trial' : /καθολικ|ledger/.test(low) ? 'ledger' : /μισθοδοσ/.test(low) ? 'payroll' : /φόρ|tax/.test(low) ? 'tax' : 'company';
-      AuditorPortal?.open?.({ tab });
-      return 'Άνοιγμα auditors.astranov.eu · ' + tab;
-    }
-    if (/^(audit|auditors|λογιστ)/.test(low)) {
-      AuditorPortal?.open?.({ tab: 'company' });
-      return 'Άνοιγμα auditors.astranov.eu';
-    }
-    if (/avc|coin|ledger|justice|wallet|κρυπτο|νόμισμα/.test(low) && /balance|ledger|open|show|wallet|δείξε/.test(low)) {
-      if (/open|wallet|show|δείξε/.test(low)) CoinPortal?.open?.(/ledger|transparen/.test(low) ? 'transparency' : 'wallet');
-      else AvcJustice?.cli?.(['avc', /ledger|διαφάν|transparen/.test(low) ? 'ledger' : 'balance']);
-      return 'coin.astranov.eu — AVC wallet · 1 AVC = 1 EUR · work-mint only';
-    }
-    return null;
-  },
-
-  formatHonestReply(r, userMsg) {
-    const text = String(r.text || r.response || '').trim();
-    if (!text) return '';
-    const id = r.summon_id || r.composer_queued;
-    if (id && this.isBuildTask(userMsg)) {
-      const stripped = text.replace(/\b(done|fixed|implemented|completed|applied)\b/gi, '').trim();
-      return (stripped ? stripped.slice(0, 280) + '\n\n' : '')
-        + 'Build queued #' + id + ' — Composer applies code. Say: coders poll ' + id;
-    }
-    return text;
-  },
-
-  wantsComposer(m) {
-    return this.fallbackPrefs.force === 'composer'
-      || /^use\s+composer|queue\s+composer|summon\s+composer|back\s+to\s+composer/i.test(String(m || ''));
-  },
-
-  async queueCoder(task, engine) {
-    if (!Auth?.user) return { error: 'sign in with G for build queue' };
-    const eng = engine || (this.wantsComposer(task) ? 'composer' : 'grok');
-    const q = await AciCli.api({
-      mode: 'coders',
-      task: task,
-      coder_engine: eng,
-      history: this.history.slice(-6),
-      fallback_prefs: this.fallbackPrefs,
-    });
-    if (q.error && AciCli) AciCli.print('coders error: ' + q.error, 'err');
-    if (q.summon_id) {
-      this.lastSummonId = q.summon_id;
-      if (q.composer_queued) this.startPoll(q.composer_queued);
-    }
-    return q;
-  },
-
-  async chat(message, opts = {}) {
-    const m = String((window.fixVoiceHotwords || (x => x))(String(message || ''))).trim();
-    if (m.length < 1) return this.enterSession({ fromVoice: !!opts.fromVoice });
-
-    const localFix = this.tryLocalFix(m);
-    if (localFix) {
-      AciCli?.print(localFix, 'ok');
-      ACIControl?.reply(localFix.slice(0, 260));
-      if (Auth?.user && this.isBuildTask(m)) {
-        const q = await this.queueCoder(m, 'grok').catch(() => ({}));
-        if (q.summon_id) AciCli?.print('Also queued #' + q.summon_id + ' for Composer', 'dim');
-      }
-      if (opts.fromVoice || window._handsFreeVoice) scheduleVoiceResume?.();
-      return { ok: true, local: true, text: localFix };
-    }
-
-    const localGlobe = this.runLocalGlobeCmd(m);
-    if (localGlobe) {
-      GlobeDeck?.setThinking(false);
-      return localGlobe;
-    }
-    if (AstranovPresence?.wantsKryftoStart?.(m)) {
-      GlobeDeck?.setThinking(false);
-      AstranovPresence?.startKryfto?.();
-      return { ok: true, game: 'kryfto' };
-    }
-    if (TelemachosPilot?.wantsCmd?.(m)) {
-      GlobeDeck?.setThinking(false);
-      await TelemachosPilot.cli([], m);
-      return { ok: true, pilot: 'telemachos' };
-    }
-    if (/yacht|charter|crew|captain|match|ενοικ|supply|demand|field\s+\w+/.test(m.toLowerCase())) {
-      const ev = await YachtMatcher?.evolveFromText?.(m);
-      if (ev?.best) {
-        GlobeDeck?.setThinking(false);
-        const msg = YachtMatcher?.formatMatch?.(ev.best) || '';
-        ACIControl?.reply(msg);
-        return { ok: true, yacht: ev };
-      }
-      if (/field|parameter|develop/.test(m.toLowerCase())) {
-        this.observeActivity('field_evolve', m.slice(0, 100), {});
-      }
-    }
-    if (/hellenic|ξενία|arete|logos|μῆτις|καιρός/i.test(m)) {
-      HellenicSource?.groundCoders?.(m);
-    }
-
-    await this.enterSession({
-      focus: false,
-      fromVoice: !!opts.fromVoice || !!window._handsFreeVoice || !!voiceSessionActive,
-    });
-
-    if (Auth?.user && !(await this.ensureSession())) {
-      return this._guaranteeReply(m, { error: 'session expired', text: 'Session expired — tap G to sign in again.' });
-    }
-
-    const build = this.isBuildTask(m);
-    const fast = (!build && !this.wantsComposer(m)) || m.length < 600;
-    if (!fast) MapDepict?.action('think', { detail: 'coders: ' + m.slice(0, 40) });
-
-    this._cliBusy = true;
-    if (this._chatWatchdog) clearTimeout(this._chatWatchdog);
-    this._chatWatchdog = setTimeout(() => {
-      this._cliBusy = false;
-      GlobeDeck?.setThinking?.(false);
-    }, 55000);
-    try {
-      GlobeDeck?.setThinking(true, 'Grok…');
-      if (/^city\s*(view|level|map)?$/i.test(m.trim())) {
-        const city = await Promise.race([
-          enterCityView?.(),
-          new Promise((_, rej) => setTimeout(() => rej(new Error('city view timeout')), 22000)),
-        ]).catch(e => ({ error: String(e.message || e) }));
-        const shops = city?.vendors?.length ?? 0;
-        const msg = city?.error
-          ? 'City view failed — ' + city.error + '. Try locate first.'
-          : 'City map open — ' + shops + ' shops nearby. Tap a pin or type order.';
-        return this._guaranteeReply(m, { text: msg, via: 'local/city' });
-      }
-
-      if (Auth?.user && this.wantsComposer(m) && build) {
-        const q = await this.queueCoder(m, 'composer');
-        GlobeDeck?.setThinking(false);
-        if (q.text && !q.error) {
-          return this._applyResponse({ ...q, label: q.label || 'Astranov Coders', team: true }, m);
-        }
-      }
-
-      if (this.isPing(m)) {
-        void AciCli.api({
-          mode: 'coders_chat',
-          message: m,
-          fast: true,
-          history: this.history.slice(-4),
-          fallback_prefs: this.fallbackPrefs,
-        }, { timeoutMs: 12000 }).catch(() => {});
-        GlobeDeck?.setThinking(false);
-        const pingReply = this.localReply(m);
-        if (window._handsFreeVoice && Voice?.shouldSpeak?.(pingReply)) {
-          speak(pingReply.slice(0, 100), () => resumeListening?.(), false);
-        }
-        return this._applyResponse({ text: pingReply, via: 'local/ping' }, m);
-      }
-
-      const grokPrefs = { ...this.fallbackPrefs, force: this.fallbackPrefs.force || 'xai' };
-      let r = await AciCli.api({
-        mode: 'coders_chat',
-        message: m,
-        fast: true,
-        history: this.history.slice(-8),
-        fallback_prefs: grokPrefs,
-      }, { timeoutMs: GlobeDeck?._isMobileDeck?.() ? 32000 : 38000 });
-
-      let text = String(r.text || r.response || '').trim();
-      if (this.isFailedReply(text)) text = '';
-      if (r.error || !text) {
-        const fb = await AciCli.api({
-          mode: 'coders',
-          task: m,
-          coder_engine: 'fallback',
-          fallback: true,
-          fallback_prefs: { ...this.fallbackPrefs, force: 'groq' },
-          history: this.history.slice(-4),
-        }, { timeoutMs: 22000 });
-        const fbText = String(fb.text || fb.response || '').trim();
-        if (fbText && !this.isFailedReply(fbText)) {
-          GlobeDeck?.setThinking(false);
-          return this._applyResponse({ ...fb, text: fbText, team: true }, m);
-        }
-        if (Auth?.user && build) {
-          const q = await this.queueCoder(m, 'grok');
-          if (q.text && !q.error && !this.isFailedReply(q.text)) {
-            GlobeDeck?.setThinking(false);
-            return this._applyResponse({ ...q, text: q.text, team: true }, m);
-          }
-        }
-        if (r.error && !text) {
-          GlobeDeck?.setThinking(false);
-          return this._applyResponse({ text: this.localReply(m), via: 'local/fallback' }, m);
-        }
-        text = this.localReply(m);
-        r = { ...r, text, response: text, via: 'local' };
-      }
-
-      if (Auth?.user && build && !r.summon_id) {
-        const q = await this.queueCoder(m, this.wantsComposer(m) ? 'composer' : 'grok');
-        if (q.summon_id) {
-          r.summon_id = q.summon_id;
-          r.composer_queued = q.composer_queued;
-          if (!r.text && q.text) { r.text = q.text; r.response = q.text; }
-        }
-      }
-
-      return this._guaranteeReply(m, r);
-    } catch (e) {
-      const msg = String(e.message || e);
-      GlobeDeck?.showError('Coders failed: ' + msg);
-      if (Auth?.user && build) {
-        const q = await this.queueCoder(m, 'grok').catch(() => ({}));
-        if (q.text) return this._guaranteeReply(m, { ...q, team: true });
-      }
-      return this._guaranteeReply(m, { error: msg, via: 'local/error' });
-    } finally {
-      if (this._chatWatchdog) { clearTimeout(this._chatWatchdog); this._chatWatchdog = null; }
-      this._cliBusy = false;
-      GlobeDeck?.setThinking?.(false);
-    }
-  },
-
-  async handleCodersCommand(rest, opts = {}) {
-    const msg = String(rest || '').trim();
-    if (!msg || /^coders?$/i.test(msg)) {
-      return this.enterSession({
-        ping: !!this._sessionWelcomed,
-        fromVoice: !!opts.fromVoice || !!window._handsFreeVoice || !!voiceSessionActive,
-      });
-    }
-    return this.handleMessage(msg, opts);
-  },
-
-  async openTeam(intro) {
-    await this.autoStart();
-    const msg = intro && intro.trim().length > 0 ? intro.trim() : 'online';
-    return this.chat(msg);
-  },
-
-  async summon(task) {
-    return this.chat(task);
-  },
-};
-window.AciCoders = AciCoders;
-
 // === SESSION HOLD — pause mic/tasks in noisy places, resume later ===
 let sessionHeld = false;
 
@@ -8387,307 +8711,6 @@ const SUPABASE_DEFAULT_URL = 'https://' + SUPABASE_REF + '.supabase.co';
 const SB_URL = typeof resolveAstranovSupabaseUrl === 'function'
   ? resolveAstranovSupabaseUrl()
   : SUPABASE_DEFAULT_URL;
-
-// === MISSION SUPPORT REPORTER — daily problems + progression → support digest ===
-const MissionSupportReporter = {
-  LS_DAY: 'astranov:support-digest-day',
-  LS_PROBLEMS: 'astranov:support-problems',
-  LS_WINS: 'astranov:support-wins',
-  CHECK_MS: 60 * 60 * 1000,
-  _bootAt: Date.now(),
-  _timer: null,
-  _submitting: false,
-
-  utcDay() {
-    return new Date().toISOString().slice(0, 10);
-  },
-
-  buildStamp() {
-    return document.querySelector('meta[name="astranov-build"]')?.content || '';
-  },
-
-  _load(key) {
-    try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch (_) { return []; }
-  },
-
-  _save(key, arr) {
-    try { localStorage.setItem(key, JSON.stringify(arr.slice(-80))); } catch (_) {}
-  },
-
-  recordProblem(type, message, context) {
-    const row = { type: String(type || 'problem'), message: String(message || '').slice(0, 400), ts: Date.now(), context: context || {} };
-    const buf = this._load(this.LS_PROBLEMS);
-    buf.push(row);
-    this._save(this.LS_PROBLEMS, buf);
-    if (buf.length >= 3) this._maybeSubmit('problem_threshold');
-  },
-
-  recordProgress(subsystem, detail, props) {
-    const s = String(subsystem || 'field');
-    if (!/order|commerce|route|delivery|vendor|driver|globe|city|mission|claim|evolve|crawler|channel|chat|coders|think|voice|grok|xai|brain/i.test(s + ' ' + (detail || ''))) return;
-    const row = { subsystem: s, detail: String(detail || '').slice(0, 200), ts: Date.now(), props: props || {} };
-    const buf = this._load(this.LS_WINS);
-    buf.push(row);
-    this._save(this.LS_WINS, buf);
-  },
-
-  collectStats() {
-    const missions = MarketplaceDeliveryEngine?.missions || [];
-    const active = missions.filter(m => MarketplaceDeliveryEngine?.STATUS?.[m.status]?.active).length;
-    return {
-      build: this.buildStamp(),
-      globe_tier: ZoomTiers?.current || CosmicZoom?.level || 'earth',
-      active_missions: active,
-      total_missions: missions.length,
-      session_minutes: Math.round((Date.now() - this._bootAt) / 60000),
-      coders_events: AciCoders?._activityCount || 0,
-      user_logged_in: !!Auth?.user,
-      host: location.hostname || '',
-    };
-  },
-
-  async submitDaily(trigger) {
-    if (this._submitting) return;
-    const today = this.utcDay();
-    let lastDay = '';
-    try { lastDay = localStorage.getItem(this.LS_DAY) || ''; } catch (_) {}
-    if (lastDay === today && trigger !== 'force') return;
-
-    this._submitting = true;
-    const problems = this._load(this.LS_PROBLEMS);
-    const progression = this._load(this.LS_WINS);
-    const stats = this.collectStats();
-    const fnUrl = (typeof resolveAstranovFunctionsUrl === 'function' ? resolveAstranovFunctionsUrl() : SB_URL + '/functions/v1') + '/support-digest';
-    const key = ACI?.key || '';
-    const sessionId = window._sessionId || AiRouter?._sessionId || 'web';
-
-    try {
-      const r = await fetch(fnUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', apikey: key, Authorization: 'Bearer ' + key },
-        body: JSON.stringify({
-          action: 'client_report',
-          digest_date: today,
-          session_id: sessionId,
-          build: stats.build,
-          problems,
-          progression,
-          stats,
-          trigger: trigger || 'daily',
-          force_daily: true,
-        }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (j.ok) {
-        try { localStorage.setItem(this.LS_DAY, today); } catch (_) {}
-        this._save(this.LS_PROBLEMS, []);
-        this._save(this.LS_WINS, []);
-        if (j.notified) GlobeDeck?.log?.('Support digest sent · Astranov + xAI · ' + today, 'dim');
-        else if (!j.skipped) GlobeDeck?.log?.('Support digest stored · Astranov + xAI · ' + today, 'dim');
-      }
-    } catch (_) { /* retry next hour */ }
-    finally { this._submitting = false; }
-  },
-
-  _maybeSubmit(reason) {
-    const today = this.utcDay();
-    let lastDay = '';
-    try { lastDay = localStorage.getItem(this.LS_DAY) || ''; } catch (_) {}
-    if (lastDay !== today) void this.submitDaily(reason);
-  },
-
-  reportBootRegression(checks) {
-    const fails = (checks || []).filter(c => !c.ok);
-    if (!fails.length) return;
-    this.recordProblem('grok_build_regression', fails.map(f => f.id).join(', '), {
-      build: this.buildStamp(),
-      fails,
-      trackball: !!TrackballGuard?._ok,
-      cam_z: typeof camera !== 'undefined' ? camera?.position?.z : null,
-    });
-    void this.submitDaily('force');
-  },
-
-  init() {
-    setTimeout(() => this._maybeSubmit('boot'), 8000);
-    if (this._timer) clearInterval(this._timer);
-    this._timer = setInterval(() => this._maybeSubmit('hourly'), this.CHECK_MS);
-    this.recordProgress('mission', 'SpaceNet boot · build ' + this.buildStamp(), { subsystems: ['GlobeNavigate', 'MarketplaceDeliveryEngine', 'FieldWork', 'BrainNeurons', 'SpaceNetScenarioRunner', 'SpaceNetGeo', 'SpaceNetCycle', 'ClassifiedTriangles'] });
-  },
-};
-window.MissionSupportReporter = MissionSupportReporter;
-
-const ACI = {
-  name: 'Astranov Collective Intelligence',
-  url: SB_URL,
-  key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI',
-  neurons: [],
-  history: [],
-  thinkMode: '',
-  evolving: false,
-  heartbeat: null,
-  lastPulse: 0,
-
-  async headers() {
-    if (window.Auth?.authHeaders) return Auth.authHeaders();
-    return { 'Content-Type': 'application/json', apikey: this.key, Authorization: 'Bearer ' + this.key };
-  },
-
-  api(body) {
-    return this.headers().then(h => fetchJson(this.url + '/functions/v1/aci', {
-      method: 'POST', headers: h, body: JSON.stringify(body || {})
-    }, 55000));
-  },
-
-  _logQueue: [],
-  _logTimer: null,
-  feed(action, detail) {
-    this._logQueue.push({ action, detail: detail || '', ts: Date.now() });
-    if (!this._logTimer) {
-      this._logTimer = setTimeout(() => {
-        const batch = this._logQueue.splice(0, 8);
-        this._logTimer = null;
-        if (batch.length) this.api({ mode: 'log', action: 'batch', detail: batch.map(b => b.action + ':' + b.detail).join('; ').slice(0, 600) });
-      }, 30000);
-    }
-  },
-
-  spawnNeuron(lat, lng, strength, principle) {
-    const pos = latLngToPos(lat, lng, 1.035);
-    const n = new THREE.Mesh(
-      new THREE.SphereGeometry(0.018, 6, 6),
-      new THREE.MeshBasicMaterial({ color: 0x66ff99, transparent: true, opacity: 0.85 })
-    );
-    n.position.set(pos.x, pos.y, pos.z);
-    n.userData = { strength: strength || 1, id: 'neuron-' + Date.now() + Math.random(), principle: principle || '' };
-    earth.add(n);
-    this.neurons.push(n);
-    if (window.AIGraphics) AIGraphics.spawnEffect(n.position, 0x00ffaa, 10, 20);
-    return n;
-  },
-
-  syncNeuronsFromPrinciples(principles) {
-    if (!Array.isArray(principles) || !principles.length) return;
-    const seeds = [
-      { lat: 36.22, lng: 28.12 }, { lat: 40, lng: 20 }, { lat: -15, lng: 45 },
-      { lat: 55, lng: -30 }, { lat: 10, lng: -75 }, { lat: -35, lng: 140 }
-    ];
-    principles.slice(0, seeds.length).forEach((p, i) => {
-      const s = seeds[i];
-      const str = typeof p === 'string' ? 1.2 : (p.strength || p.importance || 1.2);
-      const text = typeof p === 'string' ? p : (p.content || '');
-      this.spawnNeuron(s.lat, s.lng, str, text);
-    });
-  },
-
-  async think(prompt, opts = {}) {
-    if (window._aciAbort) { try { window._aciAbort.abort(); } catch (_) {} }
-    window._aciAbort = new AbortController();
-    const fast = opts.fast !== false;
-    if (!opts._wrapped) {
-      GlobeDeck?.setMapStatus('ACI — thinking…');
-      GlobeDeck?.setThinking(true, '◎ 3D think…');
-    }
-    const h = await this.headers();
-    let r;
-    try {
-      r = await fetchJson(this.url + '/functions/v1/aci', {
-        method: 'POST', headers: h,
-        body: JSON.stringify({
-          mode: 'think', prompt, fast: true,
-          history: this.history.slice(-4),
-          aci_mode: this.thinkMode || undefined,
-        }),
-      }, Responsive3D?.FAST_MS || 8000);
-    } catch (e) {
-      r = { error: String(e.message || e) };
-    }
-    GlobeDeck?.setThinking(false);
-    if (r.aborted) return '';
-    if (r.error) {
-      const err = 'ACI error: ' + r.error + (r._httpStatus === 401 ? ' — tap G to sign in' : '');
-      GlobeDeck?.showError(err);
-      return err;
-    }
-    const raw = (r.text || r.response || '').trim() || 'Το Astranov συγκεντρώνεται — δοκίμασε ξανά.';
-    const text = ArcangeloDialect?.repairTranscript?.(raw) || raw;
-    this.history.push({ role: 'user', content: prompt });
-    this.history.push({ role: 'assistant', content: text });
-    if (this.history.length > 20) this.history = this.history.slice(-20);
-    this.feed('think', prompt.slice(0, 80));
-    BrainNeurons?.recordActivity?.('think', prompt.slice(0, 120));
-    this.pulse(1.4);
-    GlobeDeck?.say(text, 'reply');
-    return text;
-  },
-
-  async teach(content) {
-    const tLat = 36.2 + (Math.random() - 0.5) * 4;
-    const tLng = 28.1 + (Math.random() - 0.5) * 4;
-    MapDepict.action('teach', { lat: tLat, lng: tLng, detail: content.slice(0, 50) });
-    await this.api({ mode: 'teach', content });
-    this.feed('teach', content.slice(0, 120));
-    BrainNeurons?._ingest?.([{ content, strength: 1.5 }], 'taught');
-    this.spawnNeuron(tLat, tLng, 1.4, content);
-    return true;
-  },
-
-  async evolve(reason) {
-    if (this.evolving) return null;
-    this.evolving = true;
-    MapDepict.action('evolve', { detail: reason || 'collective' });
-    try {
-      const r = await this.api({ mode: 'evolve', activity: reason || 'user-triggered' });
-      const births = Math.max(1, Math.min(4, Number(r.brain && r.brain.new_neurons) || 1));
-      for (let i = 0; i < births; i++) {
-        this.spawnNeuron((Math.random() - 0.5) * 80, (Math.random() - 0.5) * 160, 1.1 + Math.random() * 0.4);
-      }
-      if (r.principles && r.principles.length) {
-        this.syncNeuronsFromPrinciples(r.principles);
-        BrainNeurons?._ingest?.(r.principles, 'evolve');
-      }
-      if (window.AIGraphics) AIGraphics.spawnEffect(new THREE.Vector3(0, 1.2, 0), 0x00ff88, 35, 45);
-      const avg = this.neurons.length ? this.neurons.reduce((s, n) => s + (n.userData.strength || 1), 0) / this.neurons.length : 1;
-      idleRoll = 0;
-      this.pulse(2.0);
-      console.log('%c[ACI FINAL] evolved', 'color:#00ff88', r);
-      return r;
-    } finally { this.evolving = false; }
-  },
-
-  async init() {
-    console.log('%c[ACI] ready — neurons growing with every user', 'color:#00ddff');
-    this.attachHeartbeat();
-  },
-
-  attachHeartbeat() {
-    const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(0.09, 0.008, 8, 48),
-      new THREE.MeshBasicMaterial({ color: 0xaa66ff, transparent: true, opacity: 0.75 })
-    );
-    ring.position.set(0.75, -0.55, -1.2);
-    camera.add(ring);
-    this.heartbeat = ring;
-  },
-
-  pulse(scale) {
-    this.lastPulse = Date.now();
-    if (this.heartbeat) this.heartbeat.scale.set(scale, scale, scale);
-  },
-
-  tick() {
-    if (!this.heartbeat) return;
-    const t = Date.now() / 500;
-    const base = 0.85 + Math.sin(t) * 0.12;
-    const boost = (Date.now() - this.lastPulse < 2000) ? 0.25 : 0;
-    this.heartbeat.scale.set(base + boost, base + boost, base + boost);
-    this.heartbeat.material.opacity = 0.55 + Math.sin(t * 1.3) * 0.2 + boost;
-  }
-};
-window.AstranovCollectiveIntelligence = ACI;
-
-const SB_KEY = ACI.key;
-const sbHeaders = () => ({ apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' });
 
 // ── ACI CONTROL (text + buttons — you command the collective) ──
 const ACIControl = {
@@ -9585,3288 +9608,6 @@ const MapPlaceMenu = {
 };
 window.MapPlaceMenu = MapPlaceMenu;
 
-// === GLOBE ENTITIES — every map thing has a name, proximity label, tap action ===
-const GlobeEntity = {
-  entities: new Map(),
-  _labelRoot: null,
-  _selected: null,
-  _hud: null,
-  _clustered: new Set(),
-  _clusterIds: new Set(),
-  OLYMPUS_BLUE: 0x0a2d6b,
-  OLYMPUS_GLOW: 0x1565c0,
-
-  TYPES: {
-    vendor: { color: 0x3d9eff, icon: '🏬', label: 'Shop' },
-    driver: { color: 0x1a6fd4, icon: '🚚', label: 'Driver' },
-    friend: { color: 0x3d9eff, icon: '👤', label: 'Friend' },
-    post: { color: 0x1a6fd4, icon: '▶', label: 'Post' },
-    me: { color: 0x3d9eff, icon: '📍', label: 'You' },
-    news: { color: 0x1a6fd4, icon: '📰', label: 'News' },
-    order: { color: 0x3d9eff, icon: '🛒', label: 'Order' },
-    media: { color: 0x1a6fd4, icon: '🎬', label: 'Media' },
-    pilot: { color: 0x3d9eff, icon: '🛸', label: 'Delivery' },
-    client_addr: { color: 0x44ff88, icon: '📦', label: 'Deliver here' },
-    driver_base: { color: 0xffaa44, icon: '🚚', label: 'Driver base' },
-    place: { color: 0x1a6fd4, icon: '◎', label: 'Place' },
-    unit: { color: 0xffaa33, icon: '⚔', label: 'Unit' },
-    drone: { color: 0x44ccff, icon: '🛸', label: 'Drone' },
-    spy: { color: 0xaa44ff, icon: '🕵', label: 'Spy' },
-    pyramid: { color: 0xffdd44, icon: '🔺', label: 'Pyramid' },
-    cluster: { color: 0x3d9eff, icon: '☁', label: 'Cloud' },
-    yacht: { color: 0x69f5d0, icon: '⛵', label: 'Yacht' },
-    work: { color: 0xffcc44, icon: '🔧', label: 'Work' },
-    neuron: { color: 0x66ff99, icon: '🧠', label: 'Neuron' },
-  },
-
-  CLUSTER_TYPES: new Set(['post', 'place', 'media', 'news']),
-  CLUSTER_MIN: 2,
-
-  init() {
-    this._labelRoot = document.getElementById('globe-entity-labels');
-    this._hud = document.getElementById('globe-entity-hud');
-    document.getElementById('ge-hud-close')?.addEventListener('click', () => MapPlaceMenu?.close?.() || this.clearSelection());
-  },
-
-  esc(s) {
-    return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  },
-
-  _worldPos(lat, lng, r) {
-    const p = latLngToPos(lat, lng, r || 1.028);
-    const v = new THREE.Vector3(p.x, p.y, p.z);
-    globePivot.localToWorld(v);
-    return v;
-  },
-
-  _project(world) {
-    const v = world.clone();
-    v.project(camera);
-    return {
-      x: (v.x * 0.5 + 0.5) * window.innerWidth,
-      y: (-v.y * 0.5 + 0.5) * window.innerHeight,
-      behind: v.z > 1,
-      depth: v.z,
-    };
-  },
-
-  _urgencyClass(u) {
-    return 'ge-urg-' + Math.min(3, Math.max(0, u | 0));
-  },
-
-  isGlobalView() {
-    const z = camera?.position?.z ?? GlobeNavigate.GLOBAL_Z;
-    return z >= ((GlobeControl?.Z?.global || GlobeNavigate.GLOBAL_Z) - 0.12);
-  },
-
-  cellKey(lat, lng) {
-    const z = camera?.position?.z ?? GlobeNavigate.GLOBAL_Z;
-    const deg = z >= 3.5 ? 3.5 : z >= GlobeNavigate.GLOBAL_Z ? 2.0 : z >= 1.82 ? 0.8 : 0.35;
-    return Math.round(lat / deg) + ':' + Math.round(lng / deg);
-  },
-
-  _isOlympian(opts, entity) {
-    const u = opts?.data?.user || entity?.data?.user;
-    return !!(opts?.olympian || u?.agent === 'grok-heavy' || (u?.team === 'blue' && u?.demo));
-  },
-
-  register(opts) {
-    const id = opts.id || ('ge-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6));
-    const type = opts.type || 'place';
-    const meta = this.TYPES[type] || this.TYPES.place;
-    const lat = opts.lat, lng = opts.lng;
-    if (lat == null || lng == null) return null;
-
-    this.unregister(id);
-
-    const olympian = this._isOlympian(opts);
-    const urgency = opts.urgency != null ? opts.urgency : (olympian ? 2 : type === 'driver' ? 2 : type === 'me' ? 2 : 1);
-    const color = opts.color || (olympian ? this.OLYMPUS_BLUE : meta.color);
-    const r = opts.radius || (type === 'me' ? 0.028 : type === 'vendor' ? 0.016 : 0.014);
-
-    const group = new THREE.Group();
-    const core = new THREE.Mesh(
-      new THREE.SphereGeometry(r, 10, 10),
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95 })
-    );
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(r * 1.1, r * 1.65, 24),
-      new THREE.MeshBasicMaterial({
-        color: olympian ? this.OLYMPUS_GLOW : color,
-        transparent: true,
-        opacity: urgency >= 2 ? 0.55 : 0.28,
-        side: THREE.DoubleSide,
-      })
-    );
-    ring.lookAt(0, 0, 0);
-    group.add(ring);
-    group.add(core);
-    if (olympian || opts.flag) {
-      const flag = new THREE.Mesh(
-        new THREE.PlaneGeometry(r * 1.8, r * 1.1, 1, 1),
-        new THREE.MeshBasicMaterial({
-          color: this.OLYMPUS_GLOW,
-          transparent: true,
-          opacity: 0.88,
-          side: THREE.DoubleSide,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        })
-      );
-      flag.position.set(r * 1.4, r * 0.8, 0);
-      flag.lookAt(0, 0, 0);
-      group.add(flag);
-      group.userData.olympianFlag = true;
-    }
-
-    const pos = latLngToPos(lat, lng, opts.altitude || 1.028);
-    group.position.set(pos.x, pos.y, pos.z);
-    group.lookAt(0, 0, 0);
-
-    const entity = {
-      id, type, lat, lng, title: opts.title || meta.label,
-      description: opts.description || '',
-      urgency, color, icon: opts.icon || meta.icon,
-      persist: opts.persist !== false,
-      expires: opts.expires || 0,
-      born: Date.now(),
-      data: opts.data || {},
-      onTap: opts.onTap || null,
-      mesh: group,
-      ring,
-      core,
-      _revealed: false,
-      _labelEl: null,
-    };
-
-    group.userData = { globeEntity: id, type, title: entity.title, lat, lng };
-    globePivot.add(group);
-
-    const label = document.createElement('div');
-    label.className = 'ge-label ' + this._urgencyClass(urgency) + ' ge-type-' + type + (olympian ? ' ge-olympian' : '');
-    label.dataset.id = id;
-    const photoUrl = opts.photoUrl || opts.logoUrl || entity.data?.photoUrl || entity.data?.logoUrl || '';
-    const pin = entity.data?.travelTo
-      ? ('<div class="ge-travel-arrow" style="transform:rotate(' + (entity.data.travelBearing || 0) + 'deg)">➤</div>')
-      : photoUrl
-      ? ('<div class="ge-pin ge-pin-photo" style="background-image:url(' + this.esc(photoUrl) + ')"></div>')
-      : olympian
-      ? ('<div class="ge-pin ge-olymp-flag">🏳️</div><div class="ge-pin">' + this.esc(entity.icon) + '</div>')
-      : ('<div class="ge-pin">' + this.esc(entity.icon) + '</div>');
-    label.innerHTML = pin
-      + '<div class="ge-text"><b>' + this.esc(entity.title) + '</b>'
-      + '<span>' + this.esc(entity.description) + '</span></div>';
-    if (entity.data?.alwaysShowLabel) label.classList.add('ge-travel-label');
-    label.style.display = 'none';
-    label.addEventListener('click', ev => {
-      ev.stopPropagation();
-      this.activate(entity);
-    });
-    this._labelRoot?.appendChild(label);
-    entity._labelEl = label;
-
-    this.entities.set(id, entity);
-    return entity;
-  },
-
-  unregister(id) {
-    const e = this.entities.get(id);
-    if (!e) return;
-    if (e.mesh?.parent) e.mesh.parent.remove(e.mesh);
-    if (e._labelEl?.parentNode) e._labelEl.parentNode.removeChild(e._labelEl);
-    if (this._selected === id) this.clearSelection();
-    this.entities.delete(id);
-  },
-
-  unregisterType(type) {
-    [...this.entities.values()].filter(e => e.type === type).forEach(e => this.unregister(e.id));
-  },
-
-  registerTemp(opts) {
-    return this.register({ ...opts, persist: false, expires: opts.expires || 12000 });
-  },
-
-  _proximity(entity) {
-    const world = this._worldPos(entity.lat, entity.lng, 1.03);
-    const camPos = camera.position.clone();
-    const toEnt = world.clone().sub(camPos).normalize();
-    const look = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
-    const dot = look.dot(toEnt);
-    const z = camera.position.z;
-    const zoomNear = Math.max(0, Math.min(1, (2.45 - z) / 1.35));
-    const u = entity.urgency;
-    const business = ['vendor', 'driver', 'friend', 'order', 'pilot', 'me'].includes(entity.type);
-    if (business) {
-      const behind = this._project(world).behind;
-      const show = !behind && (dot > 0.42 || z < 2.4);
-      const flash = u >= 3 && dot > 0.35;
-      const glow = u >= 2 || (entity.type === 'vendor' && z < 2.8);
-      return { show, flash, glow, dot, zoomNear, world };
-    }
-    const thresh = 0.94 - u * 0.12 - zoomNear * 0.22;
-    const show = dot > thresh && !this._project(world).behind;
-    const flash = u >= 3 && dot > 0.45;
-    const glow = u >= 2 && show;
-    return { show, flash, glow, dot, zoomNear, world };
-  },
-
-  _scavengeView(entity, reason) {
-    if (!entity._revealed && reason === 'proximity') {
-      entity._revealed = true;
-      FieldBrain?.pulse?.('explore', 'saw:' + entity.type + ':' + entity.title.slice(0, 60), {
-        role: 'client',
-        props: { entity_id: entity.id, type: entity.type, urgency: entity.urgency, lat: entity.lat, lng: entity.lng },
-      });
-      AciCoders?.observeActivity?.('entity_view', entity.type + ':' + entity.title.slice(0, 80));
-    }
-    if (reason === 'tap') {
-      FieldBrain?.pulse?.('explore', 'tap:' + entity.type + ':' + entity.title.slice(0, 60), {
-        role: 'client',
-        props: { entity_id: entity.id, type: entity.type, action: true },
-      });
-      AciCoders?.observeActivity?.('entity_tap', entity.type + ':' + entity.title.slice(0, 80));
-    }
-  },
-
-  select(entity) {
-    this._selected = entity.id;
-    MapPlaceMenu?.openAt?.(entity.lat, entity.lng, {
-      source: this.TYPES[entity.type]?.label || entity.type,
-      label: (entity.icon || '') + ' ' + entity.title,
-      hint: entity.description || 'Choose an action',
-      entity,
-    });
-  },
-
-  clearSelection() {
-    this._selected = null;
-    this._hud?.classList.remove('open');
-  },
-
-  flyTo(entity, targetZ) {
-    if (targetZ == null) targetZ = GlobeControl?.Z?.national || 1.82;
-    if (!entity || entity.lat == null) return;
-    window._globeFly = null;
-    const fp = latLngToPos(entity.lat, entity.lng, 1.04);
-    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(fp.x, fp.y, fp.z), targetZ);
-    GlobeControl?.noteAutoFly?.();
-    MapDepict?.pulse?.(entity.lat, entity.lng, 0x00ddff, entity.title || 'here', 7000);
-    GlobeDeck?.setPreview?.('◎ ' + (entity.title || 'location'));
-  },
-
-  _defaultActionLabel(entity) {
-    const map = {
-      vendor: 'Open shop menu',
-      driver: 'Request delivery',
-      friend: 'Fly here',
-      post: 'Watch / read',
-      me: 'Zoom to me',
-      news: 'Read news',
-      order: 'View order',
-      media: 'Play media',
-      pilot: 'Track delivery',
-      place: 'Go here',
-      yacht: 'Book charter',
-    };
-    return map[entity.type] || 'Interact';
-  },
-
-  _runSelectedAction() {
-    const e = this.entities.get(this._selected);
-    if (e) this.activate(e);
-  },
-
-  activate(entity) {
-    this._scavengeView(entity, 'tap');
-    if (entity.onTap) {
-      entity.onTap(entity);
-      return;
-    }
-    if (entity.onAction) {
-      entity.onAction(entity);
-      return;
-    }
-    if (entity.data?.url || entity.subtitle?.includes('.astranov.eu')) {
-      const url = entity.data?.url || ('https://' + entity.subtitle);
-      if (window.AstranovSiteShell?.open) {
-        AstranovSiteShell.open(url, { domain: entity.subtitle, title: entity.title });
-        return;
-      }
-    }
-    this.select(entity);
-  },
-
-  _defaultTap(entity) {
-    const fp = latLngToPos(entity.lat, entity.lng, 1.04);
-    const z = entity.type === 'vendor' ? (GlobeControl?.Z?.regional || 1.65) : (GlobeControl?.Z?.national || 1.82);
-    flyToPoint?.(new THREE.Vector3(fp.x, fp.y, fp.z), z);
-    GlobeControl?.noteAutoFly?.();
-
-    switch (entity.type) {
-      case 'vendor':
-        if (entity.data?.vendor) VendorMapTile?.open?.(entity.data.vendor);
-        else window.Commerce?.showPicker?.();
-        break;
-      case 'driver':
-        if (entity.data?.driver?.id) MarketplaceComms?.selectDriver?.(entity.data.driver.id, entity.data.driver);
-        else ACIControl?.reply('Driver ' + entity.title + ' — pick for delivery');
-        break;
-      case 'friend':
-        if (entity.data?.user) {
-          ProfileSite?.openUser?.(entity.data.user.id);
-          MapComms?.contactMenu?.(entity.data.user);
-        } else ACIControl?.reply(entity.title + ' on the map — tap contact options');
-        break;
-      case 'cluster':
-        this._openCluster(entity);
-        break;
-      case 'post':
-        if (entity.data?.url) {
-          const yt = GlobeVideo?.parseId?.(entity.data.url);
-          if (yt) MapComms?.showCloudVideo?.(yt, entity.title);
-          GlobeVideo?.play?.(entity.data.url, { title: entity.title }, entity.title);
-        } else {
-          ACIControl?.reply(entity.description || entity.title);
-        }
-        break;
-      case 'me':
-        this.flyTo(entity, GlobeControl?.Z?.global || GlobeNavigate.GLOBAL_Z);
-        ACIControl?.reply('On globe — zoom in or say city view for shops');
-        break;
-      case 'news':
-        NewsFeed?.flash?.();
-        break;
-      case 'yacht':
-        if (entity.data?.yacht) YachtMatcher?.openBooking?.(entity.data.yacht);
-        else YachtMatcher?.openBooking?.(null, { tab: 'booker' });
-        break;
-      default:
-        ACIControl?.reply(entity.title + (entity.description ? ' — ' + entity.description : ''));
-    }
-  },
-
-  pickFromHit(object) {
-    let o = object;
-    for (let i = 0; i < 6 && o; i++) {
-      if (o.userData?.globeEntity) return this.entities.get(o.userData.globeEntity);
-      if (o.userData?.vendor) {
-        const v = o.userData.vendor;
-        return [...this.entities.values()].find(e => e.type === 'vendor' && e.data?.vendor?.id === v.id)
-          || this.register({
-            id: 'vendor-' + v.id, type: 'vendor', lat: v.lat, lng: v.lng,
-            title: v.name, description: (v.category || 'shop') + ' · tap to order',
-            data: { vendor: v },
-            onTap: () => window.Commerce?.openVendor?.(v),
-          });
-      }
-      if (o.userData?.driver) {
-        const d = o.userData.driver;
-        return [...this.entities.values()].find(e => e.type === 'driver' && e.data?.driver?.id === d.id);
-      }
-      if (o.userData?.type === 'post') {
-        return [...this.entities.values()].find(e => e.type === 'post' && e.title === o.userData.label);
-      }
-      if (o.userData?.type === 'me') {
-        return [...this.entities.values()].find(e => e.type === 'me');
-      }
-      if (o.userData?.name && o.userData?.lat != null) {
-        return [...this.entities.values()].find(e => e.title === o.userData.name);
-      }
-      o = o.parent;
-    }
-    return null;
-  },
-
-  clickTargets() {
-    const list = [];
-    this.entities.forEach(e => { if (e.mesh) list.push(e.mesh); });
-    return list;
-  },
-
-  _applyGlobalClusters() {
-    const global = this.isGlobalView();
-    if (!global) {
-      if (this._clusterIds.size || this._clustered.size) {
-        this._clusterIds.forEach((id) => this.unregister(id));
-        this._clusterIds.clear();
-        this._clustered.forEach((id) => {
-          const e = this.entities.get(id);
-          if (e?.mesh) e.mesh.visible = true;
-          if (e?._labelEl) e._labelEl.style.visibility = '';
-        });
-        this._clustered.clear();
-      }
-      return;
-    }
-
-    const buckets = new Map();
-    this.entities.forEach((entity, id) => {
-      if (this._clusterIds.has(id) || entity.type === 'me' || entity.type === 'cluster') return;
-      if (!this.CLUSTER_TYPES.has(entity.type) && !(entity.type === 'friend' && entity.data?.user?.demo)) return;
-      const key = this.cellKey(entity.lat, entity.lng);
-      const b = buckets.get(key) || { key, members: [], lat: 0, lng: 0, videos: [] };
-      b.members.push(entity);
-      b.lat += entity.lat;
-      b.lng += entity.lng;
-      const url = entity.data?.url || entity.data?.post?.url;
-      const yt = GlobeVideo?.parseId?.(url);
-      if (yt) b.videos.push({ id: yt, title: entity.title });
-      buckets.set(key, b);
-    });
-
-    const nextClustered = new Set();
-    const nextClusterIds = new Set();
-
-    buckets.forEach((b) => {
-      if (b.members.length < this.CLUSTER_MIN) return;
-      const lat = b.lat / b.members.length;
-      const lng = b.lng / b.members.length;
-      const id = 'cluster-' + b.key;
-      nextClusterIds.add(id);
-      b.members.forEach((m) => {
-        nextClustered.add(m.id);
-        if (m.mesh) m.mesh.visible = false;
-        if (m._labelEl) m._labelEl.style.display = 'none';
-      });
-      const vid = b.videos[0];
-      const desc = b.members.length + ' signals'
-        + (b.videos.length ? ' · ' + b.videos.length + ' video' : '')
-        + ' · tap cloud';
-      const existing = this.entities.get(id);
-      if (existing) {
-        existing.lat = lat;
-        existing.lng = lng;
-        existing.title = '☁ ' + b.members.length;
-        existing.description = desc;
-        existing.data.members = b.members;
-        existing.data.youtubeId = vid?.id;
-        const cp = latLngToPos(lat, lng, 1.028);
-        if (existing.mesh) {
-          existing.mesh.position.set(cp.x, cp.y, cp.z);
-          existing.mesh.lookAt(0, 0, 0);
-        }
-        if (existing._labelEl) {
-          const tb = existing._labelEl.querySelector('.ge-text b');
-          const ts = existing._labelEl.querySelector('.ge-text span');
-          if (tb) tb.textContent = existing.title;
-          if (ts) ts.textContent = desc;
-        }
-      } else {
-        this.register({
-          id,
-          type: 'cluster',
-          lat,
-          lng,
-          title: '☁ ' + b.members.length,
-          description: desc,
-          urgency: b.videos.length ? 3 : 2,
-          icon: '☁',
-          persist: true,
-          data: { members: b.members, youtubeId: vid?.id, clusterKey: b.key },
-          onTap: (e) => this._openCluster(e),
-        });
-      }
-    });
-
-    this._clustered.forEach((id) => {
-      if (!nextClustered.has(id)) {
-        const e = this.entities.get(id);
-        if (e?.mesh) e.mesh.visible = true;
-        if (e?._labelEl) e._labelEl.style.visibility = '';
-      }
-    });
-    this._clusterIds.forEach((id) => {
-      if (!nextClusterIds.has(id)) this.unregister(id);
-    });
-    this._clustered = nextClustered;
-    this._clusterIds = nextClusterIds;
-  },
-
-  _openCluster(entity) {
-    const members = entity.data?.members || [];
-    const yt = entity.data?.youtubeId;
-    if (yt) MapComms?.showCloudVideo?.(yt, entity.title);
-    if (members.length === 1 && members[0].onTap) {
-      members[0].onTap(members[0]);
-      return;
-    }
-    this.select(entity);
-    const lines = members.slice(0, 8).map((m) => m.icon + ' ' + m.title).join(' · ');
-    ACIControl?.reply('Cloud · ' + members.length + ' — ' + lines);
-    if (GlobeControl?.Z?.national) {
-      const fp = latLngToPos(entity.lat, entity.lng, 1.04);
-      flyToPoint?.(new THREE.Vector3(fp.x, fp.y, fp.z), GlobeControl.Z.national);
-      GlobeControl?.noteAutoFly?.();
-    }
-  },
-
-  tick() {
-    const now = Date.now();
-    if (!this._tickLast) this._tickLast = 0;
-    if (document.hidden) return;
-    if (!SlumberManager?.allows?.('entities')) return;
-    const minGap = SlumberManager?.tickMs?.('entity') || (window._voicePerfMode || window._globePerfLite ? 520 : 200);
-    if (now - this._tickLast < minGap) return;
-    this._tickLast = now;
-    if (!this._clusterLast || now - this._clusterLast > 500) {
-      this._clusterLast = now;
-      this._applyGlobalClusters();
-    }
-    const toRemove = [];
-
-    this.entities.forEach((entity, id) => {
-      if (this._clustered.has(id)) return;
-      if (!entity.persist && entity.expires && now - entity.born > entity.expires) {
-        toRemove.push(id);
-        return;
-      }
-
-      const prox = this._proximity(entity);
-      const forceShow = !!entity.data?.alwaysShowLabel || (entity.type === 'me' && entity.data?.alwaysShow);
-      if (entity.mesh && ['vendor', 'driver', 'friend', 'order', 'pilot', 'me'].includes(entity.type)) {
-        entity.mesh.visible = true;
-        const z = camera?.position?.z ?? 2.5;
-        const scale = entity.type === 'vendor' ? (z > 2 ? 1.8 : 1.2) : (z > 2 ? 1.4 : 1);
-        entity.mesh.scale.set(scale, scale, scale);
-      }
-      const el = entity._labelEl;
-      if (el) {
-        if (prox.show || forceShow) {
-          const scr = this._project(prox.world);
-          el.style.display = 'flex';
-          el.style.left = scr.x + 'px';
-          el.style.top = (scr.y - 8) + 'px';
-          el.classList.toggle('ge-flash', prox.flash);
-          el.classList.toggle('ge-glow', prox.glow);
-          el.classList.toggle('ge-selected', this._selected === id);
-          if (!entity._revealed) this._scavengeView(entity, 'proximity');
-        } else {
-          el.style.display = 'none';
-          el.classList.remove('ge-flash', 'ge-glow', 'ge-selected');
-        }
-      }
-
-      if (entity.ring) {
-        const pulse = prox.glow ? 0.45 + Math.sin(now / 280) * 0.25 : 0.2;
-        entity.ring.material.opacity = prox.flash ? 0.65 + Math.sin(now / 180) * 0.35 : pulse;
-        entity.ring.visible = prox.show || entity.urgency >= 2;
-      }
-      if (entity.core && prox.flash) {
-        const s = 1 + Math.sin(now / 200) * 0.18;
-        entity.core.scale.set(s, s, s);
-      }
-    });
-
-    toRemove.forEach(id => this.unregister(id));
-  },
-
-  // ── Adapters for existing systems ──
-
-  syncYachts(yachts) {
-    this.unregisterType('yacht');
-    const ym = window.YachtMatcher;
-    (yachts || []).forEach((y, i) => {
-      const c = ym?.coordsFor?.(y, i) || [36.44, 28.22];
-      const lat = c[0];
-      const lng = c[1];
-      const minC = ym?._engine?.()?.effectiveMinimumCrew?.(y) ?? y.minimum_crew ?? 3;
-      this.register({
-        id: 'yacht-' + y.id,
-        type: 'yacht',
-        lat,
-        lng,
-        title: '⛵ ' + (y.name || 'Yacht'),
-        subtitle: 'yachts.astranov.eu',
-        description: (y.yacht_type || 'Yacht') + (y.length_m ? ' · ' + y.length_m + 'm' : '')
-          + ' · ' + (y.guest_capacity || '?') + ' guests · min crew ' + minC
-          + (y.price_week ? ' · ' + Number(y.price_week).toLocaleString() + ' EUR/wk' : '')
-          + ' · tap to book',
-        urgency: i === 0 ? 2 : 1,
-        radius: 0.018,
-        data: { yacht: y, url: ym?.bookingUrl?.(y, { tab: 'booker' }) },
-        _actionLabel: 'Book ' + (y.name || 'yacht'),
-        onTap: () => ym?.openBooking?.(y, { tab: 'booker' }),
-      });
-    });
-  },
-
-  syncVendors(vendors) {
-    this.unregisterType('vendor');
-    (vendors || []).forEach((v, i) => {
-      if (v.lat == null) return;
-      const km = window.Commerce?.haversineKm?.(window.Commerce.userLatLng().lat, window.Commerce.userLatLng().lng, v.lat, v.lng);
-      const menu = window.Commerce?.menuFor?.(v)?.length || 0;
-      const logoUrl = MapPins?.vendorLogo?.(v) || '';
-      const isConstruction = window.AstranovCityShop?.isConstructionVendor?.(v);
-      const city = isConstruction ? (window.AstranovCityShop?._tags?.(v)?.city || 'city center') : '';
-      this.register({
-        id: 'vendor-' + v.id,
-        type: 'vendor',
-        lat: v.lat,
-        lng: v.lng,
-        title: isConstruction ? 'Astranov Shop · Under Construction' : v.name,
-        description: isConstruction
-          ? '🚧 Under Construction · ' + city + ' center · Astranov marketplace opening soon · tap to preview'
-          : (menu ? menu + ' items · menu w/ photos' : 'menu on request') + (km != null ? ' · ' + km.toFixed(1) + ' km' : '') + ' · tap to order',
-        urgency: isConstruction ? 4 : (i === 0 ? 3 : 2),
-        radius: isConstruction ? 0.034 : 0.022,
-        logoUrl: logoUrl || (isConstruction ? '/icon.svg' : ''),
-        data: { vendor: v, logoUrl: logoUrl || (isConstruction ? '/icon.svg' : ''), alwaysShowLabel: isConstruction || i < 8 },
-        _actionLabel: isConstruction ? 'Astranov Shop · Under Construction' : 'Open ' + v.name,
-        onTap: () => window.Commerce?.openVendor?.(v),
-      });
-    });
-  },
-
-  syncMapPins() {
-    this.unregisterType('client_addr');
-    this.unregisterType('driver_base');
-    const cd = window._clientDelivery;
-    if (cd?.lat != null) {
-      const clientPhoto = MapPins?.clientPinPhoto?.(cd) || '';
-      this.register({
-        id: 'pin-client-delivery',
-        type: 'client_addr',
-        lat: cd.lat,
-        lng: cd.lng,
-        title: cd.label || 'Delivery address',
-        description: 'Client delivery · orders arrive here · tap to route',
-        urgency: 3,
-        persist: true,
-        photoUrl: clientPhoto,
-        data: { alwaysShowLabel: true, photoUrl: clientPhoto },
-        onTap: () => {
-          DrivingView?.setRoutePlan?.({ from: window._driverBase || window._lastPos, to: cd });
-          DrivingView?.setDestination?.(cd.lat, cd.lng);
-          DrivingView?.fetchRoadRoute?.();
-        },
-      });
-    }
-    const db = window._driverBase;
-    if (db?.lat != null) {
-      const basePhoto = MapPins?.driverBasePhoto?.(db) || '';
-      this.register({
-        id: 'pin-driver-base',
-        type: 'driver_base',
-        lat: db.lat,
-        lng: db.lng,
-        title: db.label || 'Driver base',
-        description: 'Driver start · routes begin here',
-        urgency: 2,
-        persist: true,
-        photoUrl: basePhoto,
-        data: { alwaysShowLabel: true, photoUrl: basePhoto },
-        onTap: () => {
-          placeMe(db.lat, db.lng, { fly: true, zoom: GlobeControl?.Z?.national || 1.82, quiet: true });
-        },
-      });
-    }
-  },
-
-  syncDrivers(drivers) {
-    this.unregisterType('driver');
-    (drivers || []).forEach((d, i) => {
-      if (d.field_lat == null) return;
-      const km = window.Commerce?.haversineKm?.(window.Commerce.userLatLng().lat, window.Commerce.userLatLng().lng, d.field_lat, d.field_lng);
-      const driverPhoto = MapPins?.driverPhotoUrl?.(d) || '';
-      this.register({
-        id: 'driver-' + d.id,
-        type: 'driver',
-        lat: d.field_lat,
-        lng: d.field_lng,
-        title: d.display_name || 'Driver',
-        description: 'Available · ' + (km != null ? km.toFixed(1) + ' km' : 'nearby') + ' · tap to assign',
-        urgency: 2,
-        photoUrl: driverPhoto,
-        data: { driver: d, photoUrl: driverPhoto },
-        _actionLabel: 'Assign ' + (d.display_name || 'driver'),
-        onTap: (e) => {
-          const driverId = e.data?.driver?.id;
-          if (driverId && MarketplaceComms?.selectDriver) {
-            MarketplaceComms.selectDriver(driverId, e.data?.driver);
-          } else {
-            ACIControl?.reply('Driver ' + e.title + ' — order first, then pick driver');
-          }
-        },
-      });
-    });
-  },
-
-  syncFriends(others, opts) {
-    opts = opts || {};
-    this.unregisterType('friend');
-    (others || []).forEach(u => {
-      const isRed = u.team === 'red' || (opts.teamMode && u.team === 'red');
-      const isOlympian = u.agent === 'grok-heavy' || (u.team === 'blue' && u.demo);
-      const fed = !!u.fed;
-      const agentTag = u.agent === 'cronian' ? 'Cronian titan' : isOlympian ? 'Grok Heavy agent' : '';
-      this.register({
-        id: 'friend-' + u.id,
-        type: 'friend',
-        lat: u.lat,
-        lng: u.lng,
-        title: (u.emoji || (isRed ? '🔴' : '👤')) + ' ' + u.name,
-        description: u.domain
-          ? (u.domain + (agentTag ? ' · ' + agentTag : ''))
-          : isRed
-          ? (fed ? 'RED · fed ✓ · blue team won slice' : 'RED rival · deliver pitogyro/beer/burger/tsigareta')
-          : 'Player on map · tap to fly here · collab or κρυφτό',
-        urgency: isRed && !fed ? 3 : isOlympian ? 2 : 1,
-        color: isRed ? (fed ? 0x884444 : 0xff2244) : isOlympian ? this.OLYMPUS_BLUE : undefined,
-        olympian: isOlympian,
-        flag: isOlympian,
-        data: { user: u },
-        onTap: (e) => {
-          if (isRed && !fed) {
-            TelemachosPilot?.deliverToRed?.(u.id, 'pitogyra');
-            return;
-          }
-          MapComms?.contactMenu?.(u);
-          const p = latLngToPos(e.lat, e.lng, 1.04);
-          flyToPoint?.(new THREE.Vector3(p.x, p.y, p.z), GlobeControl?.Z?.national || 1.82);
-        },
-        _actionLabel: isRed && !fed ? 'Deliver pitogyra' : 'Contact',
-      });
-    });
-  },
-
-  syncMe(lat, lng, name, opts) {
-    opts = opts || {};
-    this.unregisterType('me');
-    let desc = 'Your location · tap to zoom here';
-    if (opts.travelTo) {
-      desc = '→ ' + opts.travelTo + (opts.travelUser ? ' · ' + opts.travelUser : '')
-        + ' · ' + (opts.distKm || '?') + ' km · ' + (opts.speedKmh || 820) + ' km/h';
-    }
-    const mePhoto = opts.photoUrl || MapPins?.authAvatarUrl?.() || '';
-    this.register({
-      id: 'me',
-      type: 'me',
-      lat,
-      lng,
-      title: opts.travelTo ? ('→ ' + opts.travelTo) : (name || 'You'),
-      description: desc,
-      urgency: opts.travelTo ? 3 : 2,
-      persist: true,
-      photoUrl: mePhoto,
-      data: {
-        alwaysShowLabel: !!opts.alwaysShow,
-        travelBearing: opts.bearing,
-        travelTo: opts.travelTo,
-        photoUrl: mePhoto,
-      },
-      _actionLabel: 'Zoom to me',
-      onTap: (e) => {
-        const flyHere = (lat, lng) => {
-          if (lat == null) { this.flyTo(e, GlobeControl?.Z?.global || GlobeNavigate.GLOBAL_Z); return; }
-          placeMe(lat, lng, { fly: true, zoom: GlobeControl?.Z?.global || GlobeNavigate.GLOBAL_Z, quiet: false });
-        };
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-            pos => flyHere(pos.coords.latitude, pos.coords.longitude),
-            () => flyHere(e.lat, e.lng),
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 20000 }
-          );
-        } else {
-          flyHere(e.lat, e.lng);
-        }
-        ACIControl?.reply(opts.travelTo
-          ? 'En route → ' + opts.travelTo + ' · real location private'
-          : 'Flying to you — zoom in or say city view for shops');
-      },
-    });
-  },
-
-  syncPost(p) {
-    if (p.lat == null) return;
-    const id = 'post-' + (p.id || p.lat + '-' + p.lng);
-    this.register({
-      id,
-      type: 'post',
-      lat: p.lat,
-      lng: p.lng,
-      title: (p.text || p.author || 'Post').slice(0, 48),
-      description: (p.channel || 'global') + (p.mode === 'video' ? ' · video' : '') + ' · tap to open',
-      urgency: p.mode === 'video' ? 2 : 1,
-      data: { url: p.url, channel: p.channel, post: p },
-      _actionLabel: p.url ? 'Play video' : 'Read post',
-      onTap: (e) => {
-        if (e.data?.url) GlobeVideo?.play?.(e.data.url, { title: e.title }, e.title);
-        else ACIControl?.reply(e.description);
-      },
-    });
-  },
-};
-window.GlobeEntity = GlobeEntity;
-
-// ── COSMIC ZOOM: Earth → satellites → solar system → galaxy ──
-const CosmicZoom = {
-  level: 'earth',
-  solarGroup: null,
-  galaxyPts: null,
-  satGroup: null,
-  issMarker: null,
-  _issTarget: null,
-  _issLastFetch: 0,
-  orbitLines: [],
-  leoRings: [],
-  meshRing: null,
-  planets: [],
-  _lastCamZ: -1,
-  _lastLevel: '',
-  _guideAt: 0,
-  _EPOCH_MS: Date.UTC(2000, 0, 1, 12, 0, 0),
-  _DAY_MS: 86400000,
-  _TAU: Math.PI * 2,
-
-  _deg(d) { return d * Math.PI / 180; },
-
-  heliocentricPosition(ud, nowMs) {
-    const days = (nowMs - this._EPOCH_MS) / this._DAY_MS;
-    const M = this._deg(ud.M0) + (this._TAU / ud.periodDays) * days;
-    const incl = this._deg(ud.incl);
-    const Omega = this._deg(ud.omega);
-    const r = ud.dist;
-    const cosM = Math.cos(M);
-    const sinM = Math.sin(M);
-    const cosO = Math.cos(Omega);
-    const sinO = Math.sin(Omega);
-    const cosI = Math.cos(incl);
-    const sinI = Math.sin(incl);
-    return {
-      x: r * (cosO * cosM - sinO * sinM * cosI),
-      y: r * (sinO * cosM + cosO * sinM * cosI),
-      z: r * sinM * sinI,
-    };
-  },
-
-  makeInclinedOrbit(ud, color, opacity, parent, opts) {
-    opts = opts || {};
-    const segs = opts.segments || 72;
-    const pts = [];
-    const incl = this._deg(ud.incl);
-    const Omega = this._deg(ud.omega);
-    const r = ud.dist;
-    const cosO = Math.cos(Omega);
-    const sinO = Math.sin(Omega);
-    const cosI = Math.cos(incl);
-    const sinI = Math.sin(incl);
-    for (let i = 0; i <= segs; i++) {
-      const M = (i / segs) * this._TAU;
-      const cosM = Math.cos(M);
-      const sinM = Math.sin(M);
-      pts.push(new THREE.Vector3(
-        r * (cosO * cosM - sinO * sinM * cosI),
-        r * (sinO * cosM + cosO * sinM * cosI),
-        r * sinM * sinI
-      ));
-    }
-    const geo = new THREE.BufferGeometry().setFromPoints(pts);
-    const mat = new THREE.LineDashedMaterial({
-      color,
-      transparent: true,
-      opacity,
-      dashSize: opts.dash || 0.04,
-      gapSize: opts.gap || 0.1,
-      depthWrite: false,
-    });
-    const line = new THREE.Line(geo, mat);
-    line.computeLineDistances();
-    line.visible = false;
-    line.userData = { type: 'orbit-line', body: ud.name || opts.body || '' };
-    if (parent) parent.add(line);
-    this.orbitLines.push(line);
-    return line;
-  },
-
-  makeDashedOrbit(radius, color, opacity, parent, opts) {
-    opts = opts || {};
-    const segs = opts.segments || 40;
-    const tilt = opts.tilt || 0;
-    const pts = [];
-    for (let i = 0; i <= segs; i++) {
-      const a = (i / segs) * Math.PI * 2;
-      const wobble = Math.sin(a * (opts.wobble || 1)) * tilt;
-      pts.push(new THREE.Vector3(Math.cos(a) * radius, wobble, Math.sin(a) * radius));
-    }
-    const geo = new THREE.BufferGeometry().setFromPoints(pts);
-    const mat = new THREE.LineDashedMaterial({
-      color,
-      transparent: true,
-      opacity,
-      dashSize: opts.dash || 0.05,
-      gapSize: opts.gap || 0.09,
-      depthWrite: false,
-    });
-    const line = new THREE.Line(geo, mat);
-    line.computeLineDistances();
-    line.visible = false;
-    line.userData = { type: 'orbit-line', body: opts.body || '' };
-    if (parent) parent.add(line);
-    this.orbitLines.push(line);
-    return line;
-  },
-
-  init() {
-    this.solarGroup = new THREE.Group();
-    this.solarGroup.visible = false;
-    scene.add(this.solarGroup);
-
-    const sun = new THREE.Mesh(
-      new THREE.SphereGeometry(0.35, 16, 16),
-      new THREE.MeshBasicMaterial({ color: 0xffcc33 })
-    );
-    sun.userData = { name: 'Sun', desc: 'G-type star · system barycenter' };
-    this.solarGroup.add(sun);
-
-    const planetDefs = [
-      { n: 'Mercury', desc: 'Rocky · 87.97-day sidereal orbit · 7.0° incl', c: 0xaaaaaa, r: 0.04, dist: 0.7, periodDays: 87.969, incl: 7.005, omega: 48.331, M0: 174.796 },
-      { n: 'Venus', desc: 'Cloud cover · 224.7-day sidereal orbit · 3.4° incl', c: 0xddbb88, r: 0.06, dist: 1.0, periodDays: 224.701, incl: 3.395, omega: 76.680, M0: 50.416 },
-      { n: 'Mars', desc: 'Red desert · 687-day sidereal orbit · 1.9° incl', c: 0xff6644, r: 0.05, dist: 1.5, periodDays: 686.980, incl: 1.850, omega: 49.558, M0: 19.373 },
-      { n: 'Jupiter', desc: 'Gas giant · 11.86-year sidereal orbit · 1.3° incl', c: 0xccaa77, r: 0.12, dist: 2.2, periodDays: 4332.589, incl: 1.305, omega: 100.464, M0: 20.020 },
-      { n: 'Saturn', desc: 'Rings (not shown) · 29.46-year sidereal orbit · 2.5° incl', c: 0xddcc99, r: 0.1, dist: 3.0, periodDays: 10759.22, incl: 2.485, omega: 113.666, M0: 317.020 },
-    ];
-    planetDefs.forEach(p => {
-      const m = new THREE.Mesh(
-        new THREE.SphereGeometry(p.r, 10, 10),
-        new THREE.MeshBasicMaterial({ color: p.c })
-      );
-      m.userData = {
-        dist: p.dist,
-        periodDays: p.periodDays,
-        incl: p.incl,
-        omega: p.omega,
-        M0: p.M0,
-        name: p.n,
-        desc: p.desc,
-      };
-      this.solarGroup.add(m);
-      this.planets.push(m);
-      this.makeInclinedOrbit(m.userData, p.c, 0.16, this.solarGroup, { body: p.n, dash: 0.04, gap: 0.1 });
-    });
-
-    const gPos = [];
-    for (let i = 0; i < 400; i++) {
-      const arm = (i % 4) * 0.4;
-      const t = Math.random() * Math.PI * 2;
-      const rad = 8 + Math.random() * 25 + arm * 3;
-      gPos.push(Math.cos(t) * rad, (Math.random() - 0.5) * 2, Math.sin(t) * rad);
-    }
-    const gGeo = new THREE.BufferGeometry();
-    gGeo.setAttribute('position', new THREE.Float32BufferAttribute(gPos, 3));
-    this.galaxyPts = new THREE.Points(
-      gGeo,
-      new THREE.PointsMaterial({ color: 0xaaccff, size: 0.035, sizeAttenuation: true, transparent: true, opacity: 0.35 })
-    );
-    this.galaxyPts.visible = false;
-    scene.add(this.galaxyPts);
-
-    this.satGroup = new THREE.Group();
-    globePivot.add(this.satGroup);
-    this.leoRings = [
-      this.makeDashedOrbit(1.052, 0x336699, 0.1, this.satGroup, { body: 'LEO shell 1', tilt: 0.03, dash: 0.03, gap: 0.12 }),
-      this.makeDashedOrbit(1.062, 0x4488bb, 0.14, this.satGroup, { body: 'LEO shell 2', tilt: 0.05, wobble: 2, dash: 0.035, gap: 0.11 }),
-      this.makeDashedOrbit(1.072, 0x55aacc, 0.1, this.satGroup, { body: 'ISS / LEO', tilt: 0.08, dash: 0.04, gap: 0.1 }),
-    ];
-    this.issOrbit = this.leoRings[2];
-    const iss = new THREE.Mesh(
-      new THREE.SphereGeometry(0.014, 8, 8),
-      new THREE.MeshBasicMaterial({ color: 0x00ffcc })
-    );
-    iss.userData = { type: 'iss', name: 'ISS', desc: 'International Space Station · ~400 km' };
-    this.satGroup.add(iss);
-    this.issMarker = iss;
-    this.level = 'earth';
-    this.setOrbitVisibility('earth');
-    if (this.solarGroup) this.solarGroup.visible = false;
-    if (this.galaxyPts) this.galaxyPts.visible = false;
-  },
-
-  registerOrbitalSats(sats) {
-    if (!sats?.length || this.meshRing) return;
-    this.meshRing = this.makeDashedOrbit(1.58, 0x8899ff, 0.12, scene, {
-      body: 'Astranov mesh',
-      tilt: 0.12,
-      wobble: 3,
-      dash: 0.05,
-      gap: 0.12,
-    });
-    sats.forEach((sat, i) => {
-      sat.userData = sat.userData || {};
-      sat.userData.name = 'Relay ' + (i + 1);
-      sat.userData.desc = 'Orbital mesh · global comms path';
-      if (sat.material) {
-        sat.material.transparent = true;
-        sat.material.opacity = 0.65;
-      }
-    });
-    this._orbitalSats = sats;
-  },
-
-  async trackISS() {
-    let lat = null;
-    let lng = null;
-    try {
-      const r = await fetch('https://api.open-notify.org/iss-now.json');
-      const j = await r.json();
-      if (j.iss_position) {
-        lat = parseFloat(j.iss_position.latitude);
-        lng = parseFloat(j.iss_position.longitude);
-      }
-    } catch (_) {}
-    if (lat == null) {
-      try {
-        const r = await fetch('https://api.wheretheiss.at/v1/satellites/25544');
-        const j = await r.json();
-        if (j.latitude != null) {
-          lat = +j.latitude;
-          lng = +j.longitude;
-        }
-      } catch (_) {}
-    }
-    if (lat == null || lng == null || !this.issMarker) return;
-    this._issTarget = { lat, lng, t: Date.now() };
-    this._issLastFetch = Date.now();
-    this.issMarker.userData.lat = lat;
-    this.issMarker.userData.lng = lng;
-    this.issMarker.userData.desc = 'ISS · live ' + lat.toFixed(2) + '° ' + lng.toFixed(2) + '° · ~400 km';
-    const p = latLngToPos(lat, lng, 1.065);
-    if (!this._issTarget.from) {
-      this.issMarker.position.set(p.x, p.y, p.z);
-      this._issTarget.from = { x: p.x, y: p.y, z: p.z };
-    }
-    this.updateGuide(this.level, camera?.position?.z || 7.2);
-  },
-
-  _lerpIss() {
-    if (!this.issMarker || this._issTarget?.lat == null) return;
-    const tgt = latLngToPos(this._issTarget.lat, this._issTarget.lng, 1.065);
-    const m = this.issMarker.position;
-    m.x += (tgt.x - m.x) * 0.18;
-    m.y += (tgt.y - m.y) * 0.18;
-    m.z += (tgt.z - m.z) * 0.18;
-  },
-
-  updateGuide(level, camZ) {
-    const el = document.getElementById('cosmic-guide');
-    if (el) el.innerHTML = '';
-  },
-
-  setOrbitVisibility(level) {
-    const showLeo = level === 'orbit';
-    const showSolar = level === 'system';
-    const showMesh = level === 'orbit' || level === 'system';
-    this.leoRings.forEach(r => { if (r) r.visible = showLeo; });
-    this.orbitLines.forEach(line => {
-      if (!line.parent) return;
-      if (line.parent === this.solarGroup) line.visible = showSolar;
-    });
-    if (this.meshRing) this.meshRing.visible = showMesh;
-  },
-
-  update(camZ, opts) {
-    opts = opts || {};
-    if (window._cityDropLock && !opts.cosmic) {
-      opts = Object.assign({}, opts, { cosmic: 'earth', tier: opts.tier || 'city', label: opts.label || 'CITY' });
-    }
-    let level = opts.cosmic === 'system' ? 'system' : opts.cosmic === 'galaxy' ? 'galaxy' : 'earth';
-    let label = opts.label || 'GLOBAL';
-    if (window._bootEarthLock && camZ < 6) {
-      level = 'earth';
-      label = opts.label || 'GLOBAL';
-    } else if (!opts.tier) {
-      if (camZ > 14) { level = 'galaxy'; label = 'GALAXY'; }
-      else if (camZ > 5.5) { level = 'system'; label = 'SOLAR SYSTEM'; }
-      else if (camZ > 4.8) { level = 'orbit'; label = 'ORBIT'; }
-      else {
-        level = 'earth';
-        const tier = window.ZoomTiers?.current?.();
-        label = tier?.label || (camZ > 2.2 ? 'GLOBAL' : camZ > 1.55 ? 'NATIONAL' : 'CITY');
-      }
-    }
-    const levelChanged = level !== this.level;
-    if (levelChanged) this.level = level;
-    const camChanged = Math.abs(camZ - this._lastCamZ) > 0.08;
-    const now = Date.now();
-    const zl = document.getElementById('zoom-label');
-    if (zl && !DrivingView?.active && (levelChanged || camChanged)) {
-      if (CityMap?.active) {
-        const tier = window.ZoomTiers?.current?.();
-        const tierLabel = tier?.id === 'neighborhood' ? 'NEIGHBORHOOD MAP' : 'CITY MAP';
-        zl.textContent = tierLabel;
-      } else if (CityMap?._nationalActive) {
-        const tier = window.ZoomTiers?.current?.();
-        zl.textContent = (tier?.label || 'NATIONAL') + ' · ' + (window.ZoomTiers?.countryHint?.() || 'region');
-      } else {
-        if (level === 'orbit') zl.textContent = 'ORBIT';
-        else if (level === 'system') zl.textContent = 'SOLAR SYSTEM';
-        else if (level === 'galaxy') zl.textContent = 'GALAXY';
-        else if (label === 'GLOBAL') zl.textContent = 'GLOBAL';
-        else zl.textContent = label;
-      }
-    }
-    if (levelChanged || camChanged) CityMap?.onCamera?.(camZ, level);
-    if (levelChanged || camChanged || now - this._guideAt > 4000) {
-      this._guideAt = now;
-      this.updateGuide(level, camZ);
-    }
-    if (levelChanged) this.setOrbitVisibility(level);
-    this._lastCamZ = camZ;
-    this._lastLevel = level;
-
-    globePivot.visible = level === 'earth' || level === 'orbit';
-    if (this.solarGroup) this.solarGroup.visible = level === 'system';
-    if (this.galaxyPts) this.galaxyPts.visible = level === 'galaxy';
-    if (this.satGroup) this.satGroup.visible = level === 'earth' || level === 'orbit';
-    if (this.issMarker) this.issMarker.visible = level === 'earth' || level === 'orbit';
-    document.body.classList.toggle('cosmic-solar', level === 'system');
-    document.body.classList.toggle('cosmic-galaxy', level === 'galaxy');
-    document.body.classList.toggle('cosmic-orbit', level === 'orbit');
-    GlobeNavigate?._syncChip?.();
-    this._lerpIss();
-
-    if (this.solarGroup?.visible) {
-      this.planets.forEach(c => {
-        const ud = c.userData;
-        if (!ud?.periodDays) return;
-        const pos = this.heliocentricPosition(ud, now);
-        c.position.set(pos.x, pos.y, pos.z);
-      });
-    }
-
-    if (level === 'orbit' || level === 'system') {
-      if (!this._issLastFetch || now - this._issLastFetch > 120000) this.trackISS();
-      if (this.issMarker) this.issMarker.visible = camZ < 10;
-    }
-
-    if (this._orbitalSats && (level === 'orbit' || level === 'system')) {
-      this._orbitalSats.forEach(s => { s.visible = level === 'orbit'; });
-    } else if (this._orbitalSats) {
-      this._orbitalSats.forEach(s => { s.visible = false; });
-    }
-  },
-};
-window.CosmicZoom = CosmicZoom;
-
-// === AI ROUTER — OpenAI Mini / Astranov Cycle / Groq / Gemini (shared with coder labs)
-const AiRouter = {
-  PROVIDERS: [
-    { id: 'grok', label: 'Grok', short: 'GK' },
-    { id: 'astranov', label: 'Cycle', short: 'AV' },
-    { id: 'openai-mini', label: 'OpenAI', short: 'AI' },
-    { id: 'groq', label: 'Groq', short: 'GQ' },
-    { id: 'gemini', label: 'Gemini', short: 'GM' },
-    { id: 'deepseek', label: 'DeepSeek', short: 'DS' },
-  ],
-  LAB_ENGINES: {
-    main: 'grok',
-    chatgpt: 'openai-mini',
-    grok: 'astranov',
-    gemini: 'gemini',
-    deepseek: 'deepseek',
-    claude: 'astranov',
-    composer: 'astranov',
-  },
-  _provider: 'grok',
-  _sessionId: null,
-
-  init() {
-    try {
-      const saved = localStorage.getItem('astranov:ai-provider');
-      if (saved && this.PROVIDERS.some(p => p.id === saved)) this._provider = saved;
-    } catch (_) {}
-    this._sessionId = this._loadSession();
-    this._bindUi();
-    this._syncUi();
-  },
-
-  _loadSession() {
-    try {
-      return localStorage.getItem('astranov:ai-session') || (window.crypto?.randomUUID?.() || 's-' + Date.now());
-    } catch (_) {
-      return 's-' + Date.now();
-    }
-  },
-
-  _saveSession() {
-    try { localStorage.setItem('astranov:ai-session', this._sessionId); } catch (_) {}
-  },
-
-  current() {
-    return this.PROVIDERS.find(p => p.id === this._provider) || this.PROVIDERS[0];
-  },
-
-  setProvider(id) {
-    if (!this.PROVIDERS.some(p => p.id === id)) return false;
-    this._provider = id;
-    try { localStorage.setItem('astranov:ai-provider', id); } catch (_) {}
-    this._syncUi();
-    CliRibbon?.render?.();
-    return true;
-  },
-
-  cycle() {
-    const i = this.PROVIDERS.findIndex(p => p.id === this._provider);
-    const next = this.PROVIDERS[(i + 1) % this.PROVIDERS.length];
-    this.setProvider(next.id);
-    AciCli?.print('AI provider → ' + next.label + ' (' + next.id + ')', 'ok');
-    LabOrbs?._syncGlyphs?.();
-    return next;
-  },
-
-  forLab(lab) {
-    const id = lab?.engine || lab?.id;
-    return this.LAB_ENGINES[id] || (this.PROVIDERS.some(p => p.id === id) ? id : 'astranov');
-  },
-
-  applyLab(lab) {
-    const prov = this.forLab(lab);
-    this.setProvider(prov);
-    return this.current();
-  },
-
-  _bindUi() {
-    document.getElementById('aci-provider')?.addEventListener('click', () => this.cycle());
-  },
-
-  _syncUi() {
-    const btn = document.getElementById('aci-provider');
-    const p = this.current();
-    if (btn) {
-      btn.title = 'AI provider: ' + p.label + ' — tap to cycle';
-      btn.textContent = p.short;
-      btn.dataset.provider = p.id;
-    }
-  },
-
-  async ask(prompt, opts) {
-    opts = opts || {};
-    const text = String(prompt || '').trim();
-    if (!text) return { error: 'empty prompt' };
-    const headers = { 'Content-Type': 'application/json', apikey: SB_KEY };
-    if (Auth?.ensureSession) {
-      const session = await Auth.ensureSession();
-      headers.Authorization = session?.access_token ? 'Bearer ' + session.access_token : 'Bearer ' + SB_KEY;
-    } else {
-      headers.Authorization = 'Bearer ' + SB_KEY;
-    }
-    const history = (opts.history || []).slice(-8).map(m => ({
-      role: m.role === 'assistant' ? 'assistant' : 'user',
-      content: String(m.content || m.text || m.reply || '').slice(0, 2000),
-    }));
-    const body = {
-      text,
-      prompt: text,
-      level: 'global',
-      preferred_provider: opts.provider || this._provider,
-      session_id: this._sessionId,
-      source: 'astranov.eu-main',
-      messages: history,
-    };
-    const timeout = opts.timeoutMs || 25000;
-    try {
-      const j = await fetchJson(SB_URL + '/functions/v1/ai-router', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-      }, timeout);
-      if (j.error && !j.text && !j.response) return { error: j.error, raw: j };
-      return {
-        text: String(j.text || j.response || j.message || '').trim(),
-        provider: j.provider || j.via || body.preferred_provider,
-        model: j.model || '',
-        action: j.action || null,
-        raw: j,
-      };
-    } catch (e) {
-      return { error: String(e.message || e) };
-    }
-  },
-
-  shouldRoute(message, opts) {
-    if (opts?.forceAci) return false;
-    if (AciCoders?.isBuildTask?.(message)) return false;
-    if (AciCoders?.wantsComposer?.(message)) return false;
-    if (/^coders\s+poll|^summon\s+coders?/i.test(message)) return false;
-    return true;
-  },
-};
-
-window.AiRouter = AiRouter;
-
-// === SPACENET BRAIN — orchestrates ACI, ai-router, crawlers for unified internet ingestion ===
-const SpaceNetBrain = {
-  _crawlBusy: new Set(),
-  _lastClassify: null,
-
-  ACTION_IDS: ['list_vendor', 'list_shop', 'driver_base', 'post', 'upload_photo', 'upload_video', 'deliver_here', 'drive_here', 'route', 'explore', 'order'],
-
-  _headers() {
-    const h = { 'Content-Type': 'application/json', apikey: SB_KEY };
-    if (Auth?.session?.access_token) h.Authorization = 'Bearer ' + Auth.session.access_token;
-    else h.Authorization = 'Bearer ' + SB_KEY;
-    return h;
-  },
-
-  async think(prompt, opts) {
-    opts = opts || {};
-    try {
-      const j = await fetchJson(SB_URL + '/functions/v1/aci', {
-        method: 'POST',
-        headers: await (ACI?.headers?.() || Promise.resolve(this._headers())),
-        body: JSON.stringify({ action: 'think', text: prompt, level: opts.level || 'global', source: 'spacenet-brain' }),
-      }, opts.timeoutMs || 18000);
-      return j;
-    } catch (e) {
-      return { error: String(e.message || e) };
-    }
-  },
-
-  async classifyIntent(text, ctx) {
-    ctx = ctx || {};
-    const trimmed = String(text || '').trim();
-    if (!trimmed) return { primary: ClassifiedTriangles.defaultTop3(), more: ClassifiedTriangles.defaultMore(), source: 'default' };
-
-    const local = ClassifiedTriangles.scoreLocal(trimmed);
-    const primary = local.slice(0, 3);
-    const more = local.slice(3);
-
-    void this._refineWithAi(trimmed, ctx, local);
-
-    if (ctx.lat != null && ctx.lng != null) {
-      void this.crawlArea(ctx.lat, ctx.lng, ctx.radiusKm || 2);
-    }
-
-    this._lastClassify = { text: trimmed, primary, more, at: Date.now() };
-    return { primary, more, source: 'local' };
-  },
-
-  async _refineWithAi(text, ctx, localHints) {
-    const ids = this.ACTION_IDS.join(', ');
-    const prompt = 'SpaceNet place intent at ' + (ctx.lat?.toFixed?.(4) || '?') + ',' + (ctx.lng?.toFixed?.(4) || '?')
-      + ': "' + text + '". Reply with ONLY a JSON array of action ids (max 6) from: ' + ids
-      + '. First 3 = most common for this intent.';
-    const r = await AiRouter?.ask?.(prompt, { timeoutMs: 14000 });
-    const raw = String(r?.text || r?.raw?.text || '').trim();
-    const parsed = this._parseActionIds(raw);
-    if (!parsed.length) return;
-    const catalog = ClassifiedTriangles.CATALOG;
-    const ordered = parsed.map(id => catalog.find(c => c.id === id)).filter(Boolean);
-    const rest = catalog.filter(c => !ordered.find(o => o.id === c.id));
-    const full = ordered.concat(rest);
-    ClassifiedTriangles.render(full.slice(0, 3), full.slice(3), ctx.pin);
-    this._lastClassify = { text, primary: full.slice(0, 3), more: full.slice(3), source: 'ai' };
-  },
-
-  _parseActionIds(raw) {
-    try {
-      const m = raw.match(/\[[\s\S]*?\]/);
-      if (m) {
-        const arr = JSON.parse(m[0]);
-        if (Array.isArray(arr)) return arr.map(String).filter(id => this.ACTION_IDS.includes(id));
-      }
-    } catch (_) {}
-    const found = [];
-    for (const id of this.ACTION_IDS) {
-      if (new RegExp(id.replace(/_/g, '[\\s_-]+'), 'i').test(raw)) found.push(id);
-    }
-    return found;
-  },
-
-  async crawlArea(lat, lng, radiusKm) {
-    const key = lat.toFixed(3) + ',' + lng.toFixed(3);
-    if (this._crawlBusy.has(key)) return;
-    this._crawlBusy.add(key);
-    try {
-      await fetch(SB_URL + '/functions/v1/vendor-crawler', {
-        method: 'POST',
-        headers: this._headers(),
-        body: JSON.stringify({ lat, lng, radius_km: radiusKm || 2, source: 'spacenet-brain' }),
-      });
-      AciCli?.print?.('crawler · sector ' + key, 'dim');
-    } catch (_) {}
-    setTimeout(() => this._crawlBusy.delete(key), 120000);
-  },
-
-  async orchestrate(actionId, pin) {
-    return ClassifiedTriangles.runAction(actionId, pin);
-  },
-};
-window.SpaceNetBrain = SpaceNetBrain;
-
-// === ZOOM TIERS — solar → global → national → regional → city → neighborhood ===
-const ZoomTiers = {
-  TIERS: [
-    { id: 'galaxy', z: 16, label: 'GALAXY', cosmic: 'galaxy' },
-    { id: 'solar', z: 7.2, label: 'SOLAR SYSTEM', cosmic: 'system' },
-    { id: 'orbit', z: 5.2, label: 'ORBIT', cosmic: 'orbit' },
-    { id: 'global', z: 3.5, label: 'GLOBAL', cosmic: 'earth' },
-    { id: 'national', z: 1.82, label: 'NATIONAL', cosmic: 'earth', national: true },
-    { id: 'regional', z: 1.65, label: 'REGIONAL', cosmic: 'earth', national: true },
-    { id: 'city', z: 1.38, label: 'CITY', cosmic: 'earth', city: true },
-    { id: 'neighborhood', z: 1.08, label: 'NEIGHBORHOOD', cosmic: 'earth', city: true },
-  ],
-  START_ID: 'global',
-  _index: 0,
-  _wheelAccum: 0,
-  _pinchAccum: 0,
-  WHEEL_THRESH: 28,
-  PINCH_THRESH: 14,
-
-  init() {
-    const i = this.TIERS.findIndex(t => t.id === this.START_ID);
-    this._index = i >= 0 ? i : 2;
-    camera.position.z = this.tierZ(this.START_ID);
-    this.snap(false);
-    this.updateDots();
-  },
-
-  countryHint() {
-    const p = CityMap?.globeCenterLatLng?.() || TrackballGuard?.facingLatLng?.() || window._lastPos || { lat: 0, lng: 0 };
-    if (p.lat > 28 && p.lat < 34 && p.lng > 34 && p.lng < 40) return 'Jordan';
-    if (p.lat > 34 && p.lat < 42 && p.lng > 19 && p.lng < 30) return 'Greece';
-    if (p.lat > 24 && p.lat < 50 && p.lng > -10 && p.lng < 40) return 'Europe';
-    if (p.lat > -35 && p.lat < 35) return 'equatorial belt';
-    return 'region';
-  },
-
-  syncFromCamZ(camZ, animate) {
-    if (camZ == null || !Number.isFinite(camZ)) return false;
-    let best = this._index;
-    let bestDist = Infinity;
-    const enterZ = CityMap?.ENTER_Z ?? 1.4;
-    this.TIERS.forEach((t, i) => {
-      if (t.city && camZ > enterZ + 0.08) return;
-      const d = Math.abs(t.z - camZ);
-      if (d < bestDist) { bestDist = d; best = i; }
-    });
-    if (best === this._index) return false;
-    this._index = best;
-    /* continuous zoom law — never snap camera from scroll; labels/crossfade only */
-    this._apply(this.current());
-    return true;
-  },
-
-  updateDots() {
-    const el = document.getElementById('zoom-tier-dots');
-    if (!el) return;
-    const show = this.TIERS.filter(t => t.id !== 'solar' && t.id !== 'galaxy');
-    el.innerHTML = show.map((t) => {
-      const i = this.TIERS.findIndex(x => x.id === t.id);
-      const on = i === this._index ? ' on' : '';
-      return '<span class="ztd' + on + '" data-tier="' + t.id + '" title="' + t.label + '"></span>';
-    }).join('');
-  },
-
-  current() {
-    return this.TIERS[this._index] || this.TIERS[0];
-  },
-
-  indexOf(id) {
-    return this.TIERS.findIndex(t => t.id === id);
-  },
-
-  step(delta) {
-    const next = Math.max(0, Math.min(this.TIERS.length - 1, this._index + delta));
-    if (next === this._index) return false;
-    this._index = next;
-    this.snap(true);
-    return true;
-  },
-
-  stepIn() { return this.step(1); },
-  stepOut() { return this.step(-1); },
-
-  goTo(id, animate) {
-    const i = this.indexOf(id);
-    if (i < 0) return false;
-    this._index = i;
-    this.snap(animate !== false);
-    return true;
-  },
-
-  onWheel(deltaY) {
-    this._wheelAccum += deltaY;
-    if (Math.abs(this._wheelAccum) < this.WHEEL_THRESH) return;
-    const out = this._wheelAccum > 0;
-    this._wheelAccum = 0;
-    this.step(out ? -1 : 1);
-  },
-
-  onPinch(delta) {
-    this._pinchAccum += delta;
-    if (Math.abs(this._pinchAccum) < this.PINCH_THRESH) return;
-    const out = this._pinchAccum > 0;
-    this._pinchAccum = 0;
-    this.step(out ? -1 : 1);
-  },
-
-  resetAccum() {
-    this._wheelAccum = 0;
-    this._pinchAccum = 0;
-  },
-
-  snap(animate) {
-    const t = this.current();
-    window._globeFly = null;
-    if (GlobeControl?.userExploring) animate = false;
-    if (animate) {
-      const dz = Math.abs(camera.position.z - t.z);
-      window._globeFly = {
-        mode: 'zoom',
-        fromZ: camera.position.z,
-        toZ: t.z,
-        t0: performance.now(),
-        dur: Math.max(1400, Math.min(3200, 1200 + dz * 900)),
-        tierId: t.id,
-        onTier: true,
-      };
-    } else {
-      camera.position.z = t.z;
-      camera.lookAt(0, 0, 0);
-      this._apply(t);
-    }
-    MapDepict?.setHud?.(t.label, 'zoom-tier');
-  },
-
-  _apply(t) {
-    const tier = t || this.current();
-    const cosmic = tier.cosmic || 'earth';
-    CosmicZoom.update(camera.position.z, { tier: tier.id, label: tier.label, cosmic });
-    CityMap?.onCamera?.(camera.position.z, cosmic);
-    cityLevel = !!tier.city;
-    const zl = document.getElementById('zoom-label');
-    if (zl && !window.DrivingView?.active && !CityMap?.active) {
-      if (tier.id === 'galaxy') zl.textContent = 'GALAXY';
-      else if (tier.id === 'solar') zl.textContent = 'SOLAR SYSTEM';
-      else if (tier.id === 'orbit') zl.textContent = 'ORBIT';
-      else if (tier.id === 'global') zl.textContent = 'GLOBAL';
-      else if (tier.national) zl.textContent = tier.label + ' · ' + this.countryHint();
-      else if (tier.city) zl.textContent = tier.label;
-      else zl.textContent = tier.label;
-    }
-    this.updateDots();
-    MapDepict?.setHud?.(tier.label, 'zoom-tier');
-  },
-
-  tierZ(id) {
-    const t = this.TIERS.find(x => x.id === id);
-    return t ? t.z : GlobeNavigate.GLOBAL_Z;
-  },
-};
-window.ZoomTiers = ZoomTiers;
-
-// Globe gestures — primary UI (Google Earth / Maps style). CLI is secondary.
-// === GLOBE PHYSICS LOCK — owner law: never retune trackball/zoom; survives model swaps & regressions ===
-const ASTRANOV_GLOBE_PHYSICS_LOCK = Object.freeze({
-  v: '20260710241000',
-  track: Object.freeze({
-    TRACK_VEL_GAIN: 0.00385,
-    TRACK_FLICK_BOOST: 2.6,
-    TRACK_INERTIA_DAMP: 0.9885,
-    TRACK_INERTIA_MIN: 0.00001,
-    TRACK_MAX_ANG_VEL: 0.00095,
-    TRACK_CATCH_DAMP: 0.44,
-    TRACK_VEL_SMOOTH: 0.48,
-    TRACK_RELEASE_BOOST: 1.04,
-  }),
-  zoom: Object.freeze({
-    ZOOM_MIN: 1.05,
-    ZOOM_MAX: 18,
-    ZOOM_SMOOTH_BASE: 0.088,
-    FRICTION_IDLE: 0.968,
-    FRICTION_ACTIVE: 0.993,
-    MIN_VEL: 4e-7,
-    MAX_VEL: 1.65,
-  }),
-});
-Object.defineProperty(window, 'ASTRANOV_GLOBE_PHYSICS_LOCK', { value: ASTRANOV_GLOBE_PHYSICS_LOCK, writable: false, configurable: false });
-
-const canvas = renderer.domElement;
-const TRACK_VEL_GAIN = ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_VEL_GAIN;
-const TRACK_FLICK_BOOST = ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_FLICK_BOOST;
-const TRACK_INERTIA_DAMP = ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_INERTIA_DAMP;
-const TRACK_INERTIA_MIN = ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_INERTIA_MIN;
-const TRACK_MAX_ANG_VEL = ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_MAX_ANG_VEL;
-let trackAngVel = 0;
-let trackVelSmooth = 0;
-let trackAngAxis = null;
-let trackInertiaAxis = null;
-let trackInertiaAngle = 0;
-let trackLastMoveT = 0;
-let _lastAnimT = performance.now();
-
-function frameDtMs() {
-  const now = performance.now();
-  const dt = Math.min(52, Math.max(4, now - _lastAnimT));
-  _lastAnimT = now;
-  return dt;
-}
-window._trackFrameDt = frameDtMs;
-
-function resetTrackInertia() {
-  trackVelX = 0;
-  trackVelY = 0;
-  trackAngVel = 0;
-  trackVelSmooth = 0;
-  trackAngAxis = null;
-  trackInertiaAxis = null;
-  trackInertiaAngle = 0;
-}
-
-function applyTrackballDrag(dx, dy, dtMs) {
-  if (!globePivot || (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01)) return;
-  const dt = Math.max(4, Math.min(64, dtMs || 16));
-  const axis = new THREE.Vector3(dy, dx, 0);
-  const pix = axis.length();
-  if (pix < 0.04) return;
-  axis.normalize();
-  const pixPerMs = pix / dt;
-  const flick = 1 + Math.min(TRACK_FLICK_BOOST, Math.pow(pixPerMs / 1.65, 1.38));
-  const angVelMs = pixPerMs * TRACK_VEL_GAIN * flick;
-  const angle = angVelMs * dt;
-  globePivot.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(axis, angle));
-  syncGlobePivotRotation?.();
-  trackVelSmooth = trackVelSmooth * ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_VEL_SMOOTH + angVelMs * (1 - ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_VEL_SMOOTH);
-  trackAngAxis = axis.clone();
-  trackAngVel = Math.max(-TRACK_MAX_ANG_VEL, Math.min(TRACK_MAX_ANG_VEL, trackVelSmooth));
-  trackInertiaAxis = trackAngAxis;
-  trackInertiaAngle = trackVelSmooth * 16;
-  trackVelX = dx / dt;
-  trackVelY = dy / dt;
-}
-
-const ZOOM_MIN = ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.ZOOM_MIN;
-const ZOOM_MAX = ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.ZOOM_MAX;
-const ZOOM_SMOOTH_BASE = ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.ZOOM_SMOOTH_BASE;
-
-// Physics zoom — wheel/pinch velocity drives speed; fast scroll coasts, slow scroll creeps
-const GlobeZoom = {
-  _vel: 0,
-  _lastX: null,
-  _lastY: null,
-  _scrolling: false,
-  _lastWheelT: 0,
-  _activeUntil: 0,
-  FRICTION_IDLE: ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.FRICTION_IDLE,
-  FRICTION_ACTIVE: ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.FRICTION_ACTIVE,
-  MIN_VEL: ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.MIN_VEL,
-  MAX_VEL: ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.MAX_VEL,
-
-  _normDy(dy, mode) {
-    if (mode === 1) return dy * 0.048;
-    if (mode === 2) return dy * 0.24;
-    return dy * 0.00205;
-  },
-
-  impuls(clientX, clientY, dy, deltaMode, dtMs) {
-    const now = performance.now();
-    const fly = window._globeFly;
-    if (fly && (fly.mode === 'zoom' || fly.tierId)) window._globeFly = null;
-    resetTrackInertia();
-    const dt = Math.max(4, dtMs || (this._lastWheelT ? now - this._lastWheelT : 16));
-    this._lastWheelT = now;
-    let impulse = this._normDy(dy, deltaMode);
-    const perMs = Math.abs(impulse) / dt;
-    const speedScale = 0.42 + Math.min(3.1, Math.pow(perMs * 0.00105, 0.82));
-    impulse *= speedScale;
-    if (dt < 28) impulse *= 1.08 + Math.min(1.15, (28 - dt) / 22);
-    const sameDir = Math.sign(impulse) === Math.sign(this._vel) || Math.abs(this._vel) < 1e-7;
-    if (sameDir) {
-      this._vel = Math.max(-this.MAX_VEL, Math.min(this.MAX_VEL, this._vel + impulse));
-    } else {
-      this._vel = Math.max(-this.MAX_VEL, Math.min(this.MAX_VEL, this._vel * 0.14 + impulse * 0.96));
-    }
-    this._lastX = clientX;
-    this._lastY = clientY;
-    this._scrolling = true;
-    this._activeUntil = now + Math.max(180, 320 - dt * 4);
-    GlobeControl?.userTookGlobe?.('silent');
-  },
-
-  tick() {
-    const now = performance.now();
-    const active = now < this._activeUntil;
-    const dt = frameDtMs();
-    const frame = dt / 16;
-    if (Math.abs(this._vel) < this.MIN_VEL) {
-      this._vel = 0;
-      if (!active && this._scrolling) {
-        GlobeNavigate?.onZoomSettle?.();
-        this._scrolling = false;
-      }
-      return;
-    }
-    const step = this._vel;
-    const vel = Math.abs(this._vel);
-    if (this._lastX != null && this._lastY != null) {
-      zoomAt(this._lastX, this._lastY, step, { zoomOnly: true, velocity: vel });
-    } else {
-      zoomBy(step, { velocity: vel });
-    }
-    const friction = active ? this.FRICTION_ACTIVE : this.FRICTION_IDLE;
-    this._vel *= Math.pow(friction, frame);
-    if (!active && Math.abs(this._vel) < 0.0006) {
-      this._vel = 0;
-      if (this._scrolling) {
-        GlobeNavigate?.onZoomSettle?.();
-        this._scrolling = false;
-      }
-    }
-  },
-};
-window.GlobeZoom = GlobeZoom;
-
-let pinchDist = 0;
-let pinchLastT = 0;
-let pinching = false;
-let lastTapAt = 0;
-let lastTapX = 0;
-let lastTapY = 0;
-let pressTimer = null;
-let pressStartX = 0;
-let pressStartY = 0;
-
-function trackballMove(clientX, clientY) {
-  const now = performance.now();
-  const dt = trackLastMoveT ? now - trackLastMoveT : 16;
-  trackLastMoveT = now;
-  const dx = clientX - px;
-  const dy = clientY - py;
-  px = clientX;
-  py = clientY;
-  applyTrackballDrag(dx, dy, dt);
-}
-
-function trackballStart(clientX, clientY) {
-  window._globeFly = null;
-  GlobeControl?.userTookGlobe?.('drag');
-  drag = true;
-  dragging = true;
-  trackLastMoveT = performance.now();
-  if (Math.abs(trackAngVel) > 1e-6) {
-    trackAngVel *= ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_CATCH_DAMP;
-    trackVelSmooth *= ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_CATCH_DAMP;
-  }
-  px = clientX;
-  py = clientY;
-  pressStartX = clientX;
-  pressStartY = clientY;
-  canvas.classList.add('dragging');
-  clearTimeout(pressTimer);
-  pressTimer = setTimeout(() => {
-    if (!drag || Math.hypot(px - pressStartX, py - pressStartY) > 14) return;
-    ZoomTiers?.stepOut?.();
-    MapDepict?.setHud('Zoom out', 'long-press');
-  }, 750);
-}
-
-function trackballEnd(clientX, clientY, opts) {
-  clearTimeout(pressTimer);
-  drag = false;
-  canvas.classList.remove('dragging');
-  if (trackAngAxis && Math.abs(trackVelSmooth) > TRACK_INERTIA_MIN) {
-    trackAngVel = Math.max(-TRACK_MAX_ANG_VEL, Math.min(TRACK_MAX_ANG_VEL, trackVelSmooth * ASTRANOV_GLOBE_PHYSICS_LOCK.track.TRACK_RELEASE_BOOST));
-    trackInertiaAxis = trackAngAxis;
-    trackInertiaAngle = trackAngVel * 16;
-  }
-  setTimeout(() => { dragging = false; }, 100);
-  if (!opts?.skipTap && clientX != null && clientY != null) registerTap(clientX, clientY);
-}
-
-function registerTap(clientX, clientY) {
-  const now = Date.now();
-  if (now - lastTapAt < 340 && Math.hypot(clientX - lastTapX, clientY - lastTapY) < 36) {
-    if (GlobeNavigate?.isGlobal?.()) {
-      ZoomTiers?.goTo?.('national', true);
-      GlobeNavigate.mode = 'national';
-      GlobeNavigate._cityUnlocked = false;
-    } else if (GlobeNavigate?.isNational?.()) {
-      mouse.x = (clientX / window.innerWidth) * 2 - 1;
-      mouse.y = -(clientY / window.innerHeight) * 2 + 1;
-      raycaster.setFromCamera(mouse, camera);
-      const hits = raycaster.intersectObject(earth);
-      if (hits.length) {
-        const pin = MapPlaceMenu?.pointFromGlobeHit?.(hits[0].point);
-        if (pin) void GlobeNavigate?._enterCitySlow?.(pin.lat, pin.lng, {});
-      }
-    }
-    MapDepict?.setHud('Zoom step', 'double-tap');
-    lastTapAt = 0;
-    return;
-  }
-  lastTapAt = now;
-  lastTapX = clientX;
-  lastTapY = clientY;
-}
-
-function zoomBy(delta, opts) {
-  if (!delta || !Number.isFinite(delta)) return;
-  opts = opts || {};
-  const vel = opts.velocity != null ? opts.velocity : Math.abs(delta);
-  const gain = ZOOM_SMOOTH_BASE + Math.min(0.34, Math.pow(vel, 0.72) * 0.38);
-  const factor = Math.exp(delta * gain);
-  const prev = camera.position.z;
-  let next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, prev * factor));
-  if (GlobeNavigate?.clampZ) next = GlobeNavigate.clampZ(next);
-  if (Math.abs(next - prev) < 0.00002) return;
-  camera.position.z = next;
-  camera.lookAt(0, 0, 0);
-  CosmicZoom.update(next);
-  CityMap?.onCamera?.(next, CosmicZoom?.level);
-  ZoomTiers?.syncFromCamZ?.(next, false);
-  GlobeNavigate?._syncChip?.();
-}
-
-function zoomAt(clientX, clientY, delta, opts) {
-  opts = opts || {};
-  const zoomOnly = opts.zoomOnly;
-  const vel = opts.velocity != null ? opts.velocity : Math.abs(delta);
-  if (!zoomOnly) {
-    mouse.x = (clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(clientY / window.innerHeight) * 2 + 1;
-    raycaster.setFromCamera(mouse, camera);
-    const hits = raycaster.intersectObject(earth);
-    if (hits.length) {
-      const dir = hits[0].point.clone().normalize();
-      const pullScale = 0.55 + Math.min(1.4, vel * 2.8);
-      const pull = (delta > 0 ? 0.04 : -0.06) * pullScale;
-      globePivot.rotation.y += dir.x * pull;
-      globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x + dir.y * pull));
-      syncGlobePivotQuaternion?.();
-    }
-  }
-  zoomBy(delta, { velocity: vel });
-}
-window.zoomBy = zoomBy;
-window.zoomAt = zoomAt;
-
-function onWheelZoom(e) {
-  e.preventDefault();
-  GlobeZoom.impuls(e.clientX, e.clientY, e.deltaY, e.deltaMode);
-}
-
-function bindTrackballEvents(targetCanvas) {
-  const c = targetCanvas || canvas;
-  if (!c || c.__trackballBound) return c;
-  c.__trackballBound = true;
-  c.addEventListener('mousedown', e => { if (e.button === 0) trackballStart(e.clientX, e.clientY); });
-  c.addEventListener('mousemove', e => {
-    if (!drag) return;
-    if (Math.hypot(e.clientX - pressStartX, e.clientY - pressStartY) > 12) clearTimeout(pressTimer);
-    trackballMove(e.clientX, e.clientY);
-  });
-  c.addEventListener('wheel', onWheelZoom, { passive: false });
-  c.addEventListener('touchstart', e => {
-  if (e.touches.length === 2) {
-    if (drag) trackballEnd(null, null, { skipTap: true });
-    clearTimeout(pressTimer);
-    pinching = true;
-    drag = false;
-    dragging = false;
-    resetTrackInertia();
-    pinchLastT = performance.now();
-    pinchDist = Math.hypot(
-      e.touches[0].clientX - e.touches[1].clientX,
-      e.touches[0].clientY - e.touches[1].clientY
-    );
-    e.preventDefault();
-    return;
-  }
-  if (pinching) return;
-  if (e.touches.length === 1) {
-    e.preventDefault();
-    trackballStart(e.touches[0].clientX, e.touches[0].clientY);
-  }
-  }, { passive: false });
-  c.addEventListener('touchmove', e => {
-  if (e.touches.length === 2) {
-    e.preventDefault();
-    if (!pinchDist) {
-      pinchDist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      pinching = true;
-      if (drag) trackballEnd(null, null, { skipTap: true });
-      return;
-    }
-    const d = Math.hypot(
-      e.touches[0].clientX - e.touches[1].clientX,
-      e.touches[0].clientY - e.touches[1].clientY
-    );
-    const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-    const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-    const now = performance.now();
-    const pdt = pinchLastT ? now - pinchLastT : 16;
-    pinchLastT = now;
-    const pinchDelta = pinchDist - d;
-    GlobeZoom.impuls(midX, midY, pinchDelta * 0.34, 0, pdt);
-    pinchDist = d;
-    return;
-  }
-  if (pinching) return;
-  if (drag && e.touches.length === 1) {
-    e.preventDefault();
-    if (Math.hypot(e.touches[0].clientX - pressStartX, e.touches[0].clientY - pressStartY) > 14) {
-      clearTimeout(pressTimer);
-    }
-    trackballMove(e.touches[0].clientX, e.touches[0].clientY);
-  }
-  }, { passive: false });
-  c.addEventListener('touchend', e => {
-  if (e.touches.length < 2) {
-    pinchDist = 0;
-    pinchLastT = 0;
-    pinching = false;
-  }
-  if (e.touches.length === 0 && drag) {
-    const t = e.changedTouches[0];
-    trackballEnd(t ? t.clientX : null, t ? t.clientY : null);
-  }
-  });
-  c.addEventListener('dblclick', e => {
-    e.preventDefault();
-    ZoomTiers?.stepIn?.();
-  });
-  return c;
-}
-
-bindTrackballEvents(canvas);
-window.addEventListener('mouseup', e => { if (drag) trackballEnd(e.clientX, e.clientY); });
-container.addEventListener('wheel', onWheelZoom, { passive: false });
-window.bindTrackballEvents = bindTrackballEvents;
-
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
-
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
-
-container.addEventListener('click', onGlobeClick);
-
-function globeClickTargets() {
-  if (window.GlobeEntity?.clickTargets) {
-    const t = GlobeEntity.clickTargets();
-    if (t.length) return t;
-  }
-  const targets = [];
-  if (window._meMarker) targets.push(window._meMarker);
-  if (window.Commerce?.markers) targets.push(...window.Commerce.markers);
-  globePivot.children.forEach(c => {
-    if (c.userData?.globeEntity || c.userData?.name || c.userData?.vendor || c.userData?.type === 'me' || c.userData?.type === 'pilot' || c.userData?.type === 'post') {
-      if (!targets.includes(c)) targets.push(c);
-    }
-  });
-  return targets;
-}
-
-function onGlobeClick(e) {
-  if (dragging) return;
-  if (MapOverlayDismiss.handleMapClick(e)) return;
-  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-  raycaster.setFromCamera(mouse, camera);
-
-  const routeHits = raycaster.intersectObjects(MarketplaceDeliveryEngine?._globeMeshes || [], true);
-  if (routeHits.length > 0 && MarketplaceDeliveryEngine?.pickFromGlobeHit?.(routeHits[0])) return;
-
-  const markerHits = raycaster.intersectObjects(globeClickTargets(), true);
-  if (markerHits.length > 0) {
-    const hit = markerHits[0].object;
-    const entity = GlobeEntity?.pickFromHit?.(hit);
-    if (entity) {
-      GlobeEntity.activate(entity);
-      return;
-    }
-    const root = hit.userData?.vendor ? hit : (hit.parent?.userData?.vendor ? hit.parent : hit);
-    const ud = root.userData || hit.userData || {};
-    if (ud.vendor) { VendorMapTile?.open?.(ud.vendor); return; }
-    if (ud.type === 'me' || root === window._meMarker) {
-      const entity = GlobeEntity?.entities?.get('me');
-      if (entity) { GlobeEntity.activate(entity); return; }
-      const up = window._lastPos || { lat: 36.22, lng: 28.12 };
-      MapDepict?.zoomToUser?.(GlobeControl?.Z?.national || 1.82);
-      return;
-    }
-  }
-
-  const intersects = raycaster.intersectObject(earth);
-  if (intersects.length > 0) {
-    const pin = MapPlaceMenu?.pointFromGlobeHit?.(intersects[0].point);
-    if (pin) void GlobeNavigate?.handlePlaceClick?.(pin.lat, pin.lng, {});
-  }
-}
-
-function eulerFromDir(dir) {
-  const toY = -Math.atan2(dir.x, dir.z);
-  const toX = Math.max(-0.85, Math.min(0.85, -Math.asin(Math.max(-1, Math.min(1, dir.y))) * 0.45));
-  return new THREE.Euler(toX, toY, 0, 'YXZ');
-}
-
-function flyToPoint(point, targetZ = 1.82, opts) {
-  opts = opts || {};
-  if (drag || dragging) {
-    GlobeControl?.userTookGlobe?.('silent');
-    window._globeFly = null;
-  }
-  syncGlobePivotRotation?.();
-  const dir = point.clone().normalize();
-  const toE = eulerFromDir(dir);
-  const qTo = new THREE.Quaternion().setFromEuler(toE);
-  const qFrom = globePivot.quaternion.clone();
-  const angle = qFrom.angleTo(qTo);
-  const z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, targetZ));
-  if (ZoomTiers) {
-    const near = ZoomTiers.TIERS.reduce((best, t) =>
-      Math.abs(t.z - z) < Math.abs(best.z - z) ? t : best, ZoomTiers.TIERS[0]);
-    ZoomTiers._index = ZoomTiers.indexOf(near.id);
-  }
-  const fromZ = camera.position.z;
-  const baseDur = opts.dur || GlobeControl?.flyDuration?.(fromZ, z) || 1400;
-  const dur = Math.max(700, Math.min(5200, baseDur + angle * 820));
-  window._globeFly = {
-    mode: 'quat',
-    fromQ: qFrom,
-    toQ: qTo,
-    fromZ,
-    toZ: z,
-    t0: performance.now(),
-    dur,
-    tierId: ZoomTiers?.current?.()?.id,
-    onDone: typeof opts.onDone === 'function' ? opts.onDone : null,
-    onTier: !!opts.onTier,
-  };
-}
-
-function focusOnGlobePoint(point, targetZ) {
-  flyToPoint(point, targetZ || GlobeControl?.Z?.national || 1.82);
-}
-
-function tickGlobeFly() {
-  const f = window._globeFly;
-  document.body.classList.toggle('globe-flying', !!(f && !drag && !dragging));
-  if (!f || drag || dragging) return;
-  const p = Math.min(1, (performance.now() - f.t0) / f.dur);
-  const ease = p < 0.5
-    ? 4 * p * p * p
-    : 1 - Math.pow(-2 * p + 2, 3) / 2;
-  const smooth = f.mode === 'zoom' ? (ease * ease * (3 - 2 * ease)) : ease;
-  if (f.mode === 'zoom') {
-    /* camera-only — globe bearing unchanged */
-  } else if (f.mode === 'quat' && f.fromQ && f.toQ) {
-    globePivot.quaternion.slerpQuaternions(f.fromQ, f.toQ, ease);
-    globePivot.rotation.setFromQuaternion(globePivot.quaternion, 'YXZ');
-  } else {
-    console.warn('[trackball] deprecated euler fly blocked — use quat or zoom');
-    window._globeFly = null;
-    document.body.classList.remove('globe-flying');
-    return;
-  }
-  resetTrackInertia();
-  camera.position.z = f.fromZ + (f.toZ - f.fromZ) * (f.mode === 'zoom' ? smooth : ease);
-  camera.lookAt(0, 0, 0);
-  CosmicZoom.update(camera.position.z);
-  const flyLevel = window._cityDropLock ? 'earth' : CosmicZoom?.level;
-  CityMap?._applyGlobeMapCrossfade?.(camera.position.z);
-  CityMap?.onCamera?.(camera.position.z, flyLevel);
-  if (p >= 1) {
-    const tid = f.tierId;
-    const done = f.onDone;
-    window._globeFly = null;
-    document.body.classList.remove('globe-flying');
-    if (f.onTier && tid && ZoomTiers) {
-      const i = ZoomTiers.indexOf(tid);
-      if (i >= 0) ZoomTiers._index = i;
-      ZoomTiers._apply(ZoomTiers.current());
-    } else if (tid && ZoomTiers) {
-      const i = ZoomTiers.indexOf(tid);
-      if (i >= 0) ZoomTiers._index = i;
-      ZoomTiers._apply(ZoomTiers.current());
-    } else {
-      ZoomTiers?.syncFromCamZ?.(camera.position.z, false);
-      cityLevel = camera.position.z <= (CityMap?.ENTER_Z ?? 1.34);
-      CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
-    }
-    try { done?.(); } catch (_) {}
-  }
-}
-
-function waitForGlobeFly(timeout = 9000) {
-  return new Promise(resolve => {
-    if (!window._globeFly) return resolve();
-    const t0 = performance.now();
-    const id = setInterval(() => {
-      tickGlobeFly();
-      if (!window._globeFly || performance.now() - t0 > timeout) {
-        clearInterval(id);
-        resolve();
-      }
-    }, 16);
-  });
-}
-window.tickGlobeFly = tickGlobeFly;
-window.waitForGlobeFly = waitForGlobeFly;
-window.trackballStart = trackballStart;
-window.trackballMove = trackballMove;
-window.trackballEnd = trackballEnd;
-window.flyToPoint = flyToPoint;
-window.__trackballContract = Object.freeze({
-  v: 2,
-  exports: ['trackballStart', 'trackballMove', 'trackballEnd', 'tickGlobeFly', 'flyToPoint', 'bindTrackballEvents'],
-  flyMode: 'quat',
-});
-
-function showGestureHint() {
-  if (sessionStorage.getItem('astranov-gesture-hint')) return;
-  const el = document.createElement('div');
-  el.id = 'gesture-hint';
-  el.textContent = 'Trackball drag to spin Earth · Scroll/pinch zoom · Double-tap zoom in';
-  el.style.cssText = 'position:fixed;bottom:72px;left:50%;transform:translateX(-50%);padding:8px 14px;background:rgba(0,4,12,0.88);border:1px solid rgba(26,111,212,0.45);border-radius:20px;font:12px system-ui;color:#3d9eff;text-shadow:0 0 8px rgba(26,111,212,0.45);z-index:44;pointer-events:none;opacity:1;transition:opacity 1.2s';
-  document.body.appendChild(el);
-  sessionStorage.setItem('astranov-gesture-hint', '1');
-  setTimeout(() => { el.style.opacity = '0'; }, 3200);
-  setTimeout(() => { el.remove(); }, 4500);
-}
-setTimeout(showGestureHint, 600);
-
-// === TRACKBALL GUARD — never lose globe drag/spin; regression shield ===
-const TrackballGuard = {
-  _ok: false,
-  _lastCheck: 0,
-  FRICTION: 0.88,
-  MIN_VEL: 0.00008,
-  CONTRACT: ['trackballStart', 'trackballMove', 'trackballEnd', 'tickGlobeFly', 'flyToPoint', 'bindTrackballEvents'],
-
-  verify() {
-    const ok = !!(
-      typeof globePivot !== 'undefined' && globePivot
-      && typeof renderer !== 'undefined' && renderer?.domElement
-      && typeof trackballStart === 'function'
-      && typeof trackballMove === 'function'
-      && typeof trackballEnd === 'function'
-      && typeof tickGlobeFly === 'function'
-      && typeof flyToPoint === 'function'
-      && typeof bindTrackballEvents === 'function'
-      && typeof trackVelX === 'number'
-      && typeof trackVelY === 'number'
-      && renderer.domElement.__trackballBound
-      && window.__trackballContract?.flyMode === 'quat'
-    );
-    this._ok = ok;
-    this._lastCheck = Date.now();
-    if (!ok) console.warn('[TrackballGuard] bindings missing — attempting repair');
-    return ok;
-  },
-
-  repair() {
-    const canvas = renderer?.domElement;
-    if (!canvas) return this.verify();
-    if (!canvas.__trackballBound && typeof bindTrackballEvents === 'function') {
-      try { bindTrackballEvents(canvas); } catch (e) {
-        console.error('[TrackballGuard] rebind failed', e);
-      }
-    }
-    syncGlobePivotRotation?.();
-    return this.verify();
-  },
-
-  applyInertia() {
-    if (drag || window._globeFly || !globePivot) return;
-    const dt = frameDtMs();
-    const frame = dt / 16;
-    if (trackAngAxis && Math.abs(trackAngVel) > TRACK_INERTIA_MIN / 16) {
-      const angle = trackAngVel * dt;
-      globePivot.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(trackAngAxis, angle));
-      syncGlobePivotRotation?.();
-      trackAngVel *= Math.pow(TRACK_INERTIA_DAMP, frame);
-      trackInertiaAngle = trackAngVel * 16;
-      if (Math.abs(trackAngVel) < TRACK_INERTIA_MIN / 16) {
-        trackAngVel = 0;
-        trackAngAxis = null;
-        trackInertiaAxis = null;
-        trackInertiaAngle = 0;
-      }
-    }
-    const damp = Math.pow(this.FRICTION, frame);
-    if (typeof trackVelX === 'number') trackVelX *= damp;
-    if (typeof trackVelY === 'number') trackVelY *= damp;
-    if (Math.abs(trackVelX) < this.MIN_VEL) trackVelX = 0;
-    if (Math.abs(trackVelY) < this.MIN_VEL) trackVelY = 0;
-  },
-
-  beforeFly(lat, lng, opts) {
-    if (opts?.force) return true;
-    if (drag || dragging) {
-      GlobeControl?.userTookGlobe?.('silent');
-      return true;
-    }
-    if (typeof lat !== 'number' || typeof lng !== 'number') return false;
-    const cur = this.facingLatLng();
-    const dist = this.greatCircleKm(cur.lat, cur.lng, lat, lng);
-    if (dist > 12000 && !opts?.allowLongHaul) {
-      CliRibbon?.setNotice?.('Fly blocked — too far · drag globe or say locate', 'hold');
-      return false;
-    }
-    return true;
-  },
-
-  facingLatLng() {
-    if (!globePivot) return { lat: 0, lng: 0 };
-    syncGlobePivotRotation?.();
-    const e = new THREE.Euler().setFromQuaternion(globePivot.quaternion, 'YXZ');
-    const lat = THREE.MathUtils.radToDeg(e.x) * -2.2;
-    const lng = THREE.MathUtils.radToDeg(-e.y) - 180;
-    return { lat: Math.max(-85, Math.min(85, lat)), lng: ((lng + 540) % 360) - 180 };
-  },
-
-  greatCircleKm(lat1, lng1, lat2, lng2) { return SpaceNetGeo.haversineKm(lat1, lng1, lat2, lng2); },
-
-  init() {
-    if (renderer?.domElement) bindTrackballEvents?.(renderer.domElement);
-    if (!this.verify()) this.repair();
-    setInterval(() => {
-      if (!this.verify()) this.repair();
-    }, 8000);
-    window.__trackballGuardOk = () => this._ok;
-    window.__trackballGuardVerify = () => this.verify();
-  },
-};
-window.TrackballGuard = TrackballGuard;
-TrackballGuard.init();
-
-// === CITY MAP — satellite + streets when zoomed to city level ===
-const CityMap = {
-  NATIONAL_ENTER_Z: 1.92,
-  NATIONAL_EXIT_Z: 1.44,
-  ENTER_Z: 1.40,
-  EXIT_Z: 1.50,
-  active: false,
-  _nationalActive: false,
-  map: null,
-  _ready: false,
-  _center: { lat: 36.44, lng: 28.22 },
-  _layers: {},
-  _onMap: new Set(),
-  _markers: {},
-  _route: null,
-  _driverTimer: null,
-  _syncTimer: null,
-  _demoDrivers: [],
-  _demoPhase: 0,
-  _forceOpen: false,
-  _initAttempts: 0,
-  _blend: 0,
-  _mapStyle: 'satellite',
-  STYLE_KEY: 'astranov_map_style_v1',
-  _stackIdx: 0,
-  _tileStats: { ok: 0, err: 0, lastOk: 0 },
-  _healthTimer: null,
-  _lastEscalate: 0,
-  _leafletLoading: null,
-
-  _globeZ() {
-    return ZoomTiers?.tierZ?.('global') ?? GlobeControl?.Z?.global ?? GlobeNavigate.GLOBAL_Z;
-  },
-
-  _nationalZ() {
-    return ZoomTiers?.tierZ?.('national') ?? GlobeControl?.Z?.national ?? 1.82;
-  },
-
-  _setGlobeSurfaceVisible(show) {
-    if (window.earth) window.earth.visible = !!show;
-    const g = window.AIGraphics;
-    if (!g) return;
-    ['atmosphere', 'clouds', 'cityLights', 'neuralLayer', 'idleNodes'].forEach((k) => {
-      if (g[k]) g[k].visible = !!show;
-    });
-  },
-
-  _applyGlobeMapCrossfade(camZ) {
-    if (this.active) {
-      document.documentElement.style.setProperty('--globe-opacity', '0');
-      document.documentElement.style.setProperty('--map-opacity', '1');
-      this._setGlobeSurfaceVisible(false);
-      return;
-    }
-    const z0 = this._globeZ();
-    const z1 = this._nationalZ();
-    let t = 0;
-    if (camZ <= z1) t = 1;
-    else if (camZ < z0) t = 1 - (camZ - z1) / (z0 - z1);
-    t = Math.max(0, Math.min(1, Math.pow(t, 0.65)));
-    this._blend = t;
-    document.documentElement.style.setProperty('--globe-opacity', String(1 - t));
-    document.documentElement.style.setProperty('--map-opacity', String(t));
-    this._setGlobeSurfaceVisible(t < 0.92);
-    const mapEl = document.getElementById('city-map');
-    if (mapEl && t > 0.04 && !this.active) {
-      if (!mapEl.classList.contains('national-active')) mapEl.classList.add('national-active');
-      if (this.map) {
-        const c = this.mapViewCenter();
-        this._center = c;
-        const lz = this.nationalLeafletZoom(camZ);
-        if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
-        const cur = this.map.getCenter();
-        if (Math.abs(cur.lat - c.lat) > 0.03 || Math.abs(cur.lng - c.lng) > 0.03) {
-          this.map.panTo([c.lat, c.lng], { animate: false });
-        }
-        this._applyBaseLayers();
-        this.syncMapPins();
-        this._invalidate();
-      }
-    } else if (mapEl && !this._nationalActive && t <= 0.04) {
-      mapEl.classList.remove('national-active');
-      mapEl.style.removeProperty('opacity');
-    }
-    this._updateStyleSwitchVisible();
-  },
-
-  async _loadLeaflet() {
-    if (window.L) return true;
-    if (this._leafletLoading) return this._leafletLoading;
-    this._leafletLoading = (async () => {
-      const sources = [
-        { css: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', js: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js' },
-        { css: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css', js: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js' },
-        { css: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css', js: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js' },
-      ];
-      for (const src of sources) {
-        const ok = await this._injectLeaflet(src.css, src.js);
-        if (ok) return true;
-      }
-      return false;
-    })();
-    try {
-      return await this._leafletLoading;
-    } finally {
-      this._leafletLoading = null;
-    }
-  },
-
-  _injectLeaflet(cssUrl, jsUrl) {
-    return new Promise(resolve => {
-      if (window.L) return resolve(true);
-      if (!document.querySelector('link[href*="leaflet"]')) {
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = cssUrl;
-        link.crossOrigin = '';
-        document.head.appendChild(link);
-      }
-      const existing = document.querySelector('script[src*="leaflet"]');
-      if (existing) {
-        const done = () => resolve(!!window.L);
-        if (window.L) return done();
-        existing.addEventListener('load', done, { once: true });
-        existing.addEventListener('error', () => resolve(false), { once: true });
-        setTimeout(() => resolve(!!window.L), 4500);
-        return;
-      }
-      const script = document.createElement('script');
-      script.src = jsUrl;
-      script.crossOrigin = '';
-      script.onload = () => resolve(!!window.L);
-      script.onerror = () => resolve(false);
-      document.head.appendChild(script);
-    });
-  },
-
-  async ensureReady() {
-    if (this._ready && this.map) return true;
-    const deadline = Date.now() + 14000;
-    while (Date.now() < deadline) {
-      if (!window.L) await this._loadLeaflet();
-      if (!this._ready && this._initAttempts < 8) {
-        this._initAttempts++;
-        this.init();
-      }
-      if (this._ready && this.map) return true;
-      await new Promise(r => setTimeout(r, 350));
-    }
-    return !!(this._ready && this.map);
-  },
-
-  init() {
-    if (!window.L) {
-      console.warn('[CityMap] Leaflet not loaded');
-      return;
-    }
-    if (this._ready && this.map) return;
-    let el = document.getElementById('city-map');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'city-map';
-      document.body.appendChild(el);
-    }
-    this.map = L.map(el, {
-      zoomControl: false,
-      attributionControl: true,
-      preferCanvas: true,
-      scrollWheelZoom: false,
-      doubleClickZoom: false,
-      touchZoom: false,
-      boxZoom: false,
-    });
-    this._buildLayers();
-    AstranovTheme?.registerMap?.(this);
-    this.map.setView([this._center.lat, this._center.lng], 14);
-    this.map.on('zoomend moveend', () => {
-      if (!this.active) return;
-      const c = this.map.getCenter();
-      this._center = { lat: c.lat, lng: c.lng };
-    });
-    this.map.on('click', (e) => {
-      if (!this.active && !this._nationalActive) return;
-      const dom = e.originalEvent;
-      if (MapOverlayDismiss.handleMapClick(dom || { target: document.getElementById('city-map') })) return;
-      if (this._nationalActive && !this.active) {
-        void GlobeNavigate?.handlePlaceClick?.(e.latlng.lat, e.latlng.lng, {});
-      } else {
-        MapPlaceMenu?.openAt?.(e.latlng.lat, e.latlng.lng, { source: 'City map', hint: '3 smart picks only', limited: true });
-      }
-    });
-    window.addEventListener('resize', () => {
-      if (this.active) this._invalidate();
-    });
-    this._bindZoomBridge(el);
-    this._bindStyleSwitch();
-    this._loadMapStyle();
-    this._ready = true;
-    const driverMs = SlumberManager?.tickMs?.('cityDriver') || 4500;
-    this._driverTimer = setInterval(() => this._tickDrivers(), driverMs);
-    this._syncTimer = setInterval(() => { if (this.active) this._syncMarkers(); }, 2000);
-  },
-
-  _invalidate() {
-    if (!this.map) return;
-    try {
-      this.map.invalidateSize({ animate: false });
-    } catch (_) {}
-  },
-
-  _mapIsVisible() {
-    return !!(this.active || this._nationalActive || (this._blend || 0) > 0.06);
-  },
-
-  _onTileOk() {
-    this._tileStats.ok++;
-    this._tileStats.lastOk = Date.now();
-  },
-
-  _onTileErr(layerKey) {
-    this._tileStats.err++;
-    if (this._mapIsVisible()) this._maybeEscalateLayers('tileerror:' + (layerKey || '?'));
-  },
-
-  _wrapTileLayer(layer, key) {
-    if (!layer) return layer;
-    layer.on('tileload', () => this._onTileOk());
-    layer.on('tileerror', () => this._onTileErr(key));
-    return layer;
-  },
-
-  _getLayerStacks() {
-    const Lyr = this._layers;
-    if (!Lyr?.sat) return [];
-    return [
-      { id: 'sat_hd', label: 'Satellite HD', layers: [
-        { layer: Lyr.sat, opacity: 1 },
-        { layer: Lyr.streetLabels, opacity: 1 },
-        { layer: Lyr.placeLabels, opacity: 0.92 },
-      ]},
-      { id: 'sat_streets', label: 'Satellite + streets', layers: [
-        { layer: Lyr.sat, opacity: 1 },
-        { layer: Lyr.voyager, opacity: 0.44 },
-      ]},
-      { id: 'osm_labels', label: 'OSM + labels', layers: [
-        { layer: Lyr.satFallback, opacity: 1 },
-        { layer: Lyr.streetLabels, opacity: 0.86 },
-      ]},
-      { id: 'voyager', label: 'Street map', layers: [
-        { layer: Lyr.voyager, opacity: 1 },
-      ]},
-      { id: 'osm', label: 'OpenStreetMap', layers: [
-        { layer: Lyr.satFallback, opacity: 1 },
-      ]},
-      { id: 'osm_alt', label: 'OSM mirror', layers: [
-        { layer: Lyr.osmAlt, opacity: 1 },
-      ]},
-      { id: 'dark', label: 'Dark streets', layers: [
-        { layer: Lyr.darkStreets, opacity: 1 },
-      ]},
-    ];
-  },
-
-  _baseStackForStyle(style) {
-    if (style === 'bright') return 3;
-    if (style === 'dark') return 6;
-    return 0;
-  },
-
-  _preferredStackIdx() {
-    return this._baseStackForStyle(this.getMapStyle?.() || 'satellite');
-  },
-
-  _recoverPreferredStack() {
-    const pref = this._preferredStackIdx();
-    if (this._stackIdx <= pref || !this._tileStats?.ok || this._tileStats.ok < 6) return false;
-    this._applyLayerStack(pref);
-    this._tileStats = { ok: 0, err: 0, lastOk: Date.now() };
-    AciCli?.print?.('map · restored HD tiles', 'ok');
-    return true;
-  },
-
-  _applyLayerStack(idx) {
-    if (!this.map) return false;
-    const stacks = this._getLayerStacks();
-    if (!stacks.length) return false;
-    idx = Math.max(0, Math.min(stacks.length - 1, idx));
-    this._stackIdx = idx;
-    const stack = stacks[idx];
-    this._onMap.forEach(l => { try { this.map.removeLayer(l); } catch (_) {} });
-    this._onMap.clear();
-    stack.layers.forEach(entry => {
-      const layer = entry.layer;
-      if (!layer) return;
-      const op = entry.opacity != null ? entry.opacity : 1;
-      if (layer.setOpacity) layer.setOpacity(op);
-      layer.addTo(this.map);
-      this._onMap.add(layer);
-    });
-    const el = document.getElementById('city-map');
-    if (el) el.dataset.layerStack = stack.id;
-    this._syncStyleUi();
-    this._updateStyleSwitchVisible();
-    if (this._mapIsVisible()) this._invalidate();
-    return true;
-  },
-
-  _maybeEscalateLayers(reason) {
-    const stacks = this._getLayerStacks();
-    if (!stacks.length || this._stackIdx >= stacks.length - 1) return false;
-    const now = Date.now();
-    if (now - (this._lastEscalate || 0) < 1600) return false;
-    this._lastEscalate = now;
-    const next = this._stackIdx + 1;
-    console.warn('[CityMap] fallback layer →', stacks[next].id, reason || '');
-    this._applyLayerStack(next);
-    this._tileStats = { ok: 0, err: 0, lastOk: this._tileStats.lastOk || 0 };
-    AciCli?.print?.('map · fallback · ' + stacks[next].label, 'warn');
-    GlobeDeck?.setPreview?.('Map · ' + stacks[next].label);
-    return true;
-  },
-
-  _startHealthWatch() {
-    this._stopHealthWatch();
-    this._tileStats = { ok: 0, err: 0, lastOk: 0 };
-    let checks = 0;
-    this._healthTimer = setInterval(() => {
-      if (!this._mapIsVisible()) {
-        this._stopHealthWatch();
-        return;
-      }
-      checks++;
-      const stale = !this._tileStats.lastOk && checks >= 2;
-      const staleLong = this._tileStats.lastOk && Date.now() - this._tileStats.lastOk > 6000;
-      const noTiles = checks >= 2 && this._tileStats.ok === 0 && this._tileStats.err >= 2;
-      const errHeavy = this._tileStats.err >= 5 && this._tileStats.err > this._tileStats.ok * 1.5;
-      if (noTiles || errHeavy || stale || staleLong) {
-        if (!this._maybeEscalateLayers('health')) this._stopHealthWatch();
-        checks = 0;
-      }
-      if (this._tileStats.ok >= 10 && this._stackIdx > this._preferredStackIdx()) {
-        this._recoverPreferredStack();
-      }
-      if (checks > 10) this._stopHealthWatch();
-    }, 2800);
-  },
-
-  _stopHealthWatch() {
-    if (this._healthTimer) {
-      clearInterval(this._healthTimer);
-      this._healthTimer = null;
-    }
-  },
-
-  _loadMapStyle() {
-    try {
-      const s = localStorage.getItem(this.STYLE_KEY);
-      if (s === 'satellite' || s === 'bright' || s === 'dark') this._mapStyle = s;
-    } catch (_) {}
-    return this._mapStyle;
-  },
-
-  getMapStyle() {
-    return this._mapStyle || 'satellite';
-  },
-
-  setMapStyle(style) {
-    const s = style === 'bright' || style === 'dark' ? style : 'satellite';
-    this._mapStyle = s;
-    this._stackIdx = this._baseStackForStyle(s);
-    try { localStorage.setItem(this.STYLE_KEY, s); } catch (_) {}
-    this._applyBaseLayers();
-    this._syncStyleUi();
-    const labels = { satellite: 'Satellite', bright: 'Bright streets', dark: 'Dark streets' };
-    GlobeDeck?.setPreview?.('Map · ' + (labels[s] || s));
-    AciCli?.print?.('map style → ' + s, 'ok');
-    return s;
-  },
-
-  cycleMapStyle() {
-    const order = ['satellite', 'bright', 'dark'];
-    const i = order.indexOf(this.getMapStyle());
-    return this.setMapStyle(order[(i + 1) % order.length]);
-  },
-
-  _syncStyleUi() {},
-
-  _updateStyleSwitchVisible() {},
-
-  _bindStyleSwitch() {},
-
-  _buildLayers() {
-    const maxZ = Math.max(20, SlumberManager?.quality?.cityMaxZoom || 20);
-    const sat = this._wrapTileLayer(L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: maxZ, attribution: 'Esri · satellite' }
-    ), 'sat');
-    const satFallback = this._wrapTileLayer(L.tileLayer(
-      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      { maxZoom: 19, attribution: '© OSM fallback' }
-    ), 'osm');
-    const osmAlt = this._wrapTileLayer(L.tileLayer(
-      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-      { maxZoom: 19, attribution: '© OSM mirror' }
-    ), 'osm_alt');
-    const streetLabels = this._wrapTileLayer(L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png',
-      { maxZoom: 20, opacity: 1, attribution: '© CARTO © OSM' }
-    ), 'labels');
-    const placeLabels = this._wrapTileLayer(L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: 20, minZoom: 10, opacity: 0.92, attribution: 'Esri · places' }
-    ), 'places');
-    const voyager = this._wrapTileLayer(L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-      { maxZoom: 20, attribution: '© CARTO © OSM · streets & blocks' }
-    ), 'voyager');
-    const darkStreets = this._wrapTileLayer(L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-      { maxZoom: 20, attribution: '© CARTO © OSM · dark' }
-    ), 'dark');
-    this._layers = { sat, satFallback, osmAlt, streetLabels, placeLabels, voyager, brightStreets: voyager, darkStreets, streets: voyager };
-    this._loadMapStyle();
-    this._stackIdx = this._baseStackForStyle(this.getMapStyle());
-    this._applyBaseLayers();
-  },
-
-  _mapTheme() {
-    return AstranovTheme?.effectiveMode?.() || AstranovTheme?.systemMode?.() || AstranovTheme?.mode || 'dark';
-  },
-
-  _applyBaseLayers() {
-    if (!this.map || !this._layers?.sat) return;
-    const uiTheme = this._mapTheme();
-    const el = document.getElementById('city-map');
-    let savedStyle = this.getMapStyle();
-    if (!this.active && (this._nationalActive || (this._blend || 0) > 0.2) && savedStyle === 'satellite') {
-      savedStyle = uiTheme === 'bright' ? 'bright' : 'dark';
-    }
-    const style = (this.active || this._nationalActive || (this._blend || 0) > 0.12) ? savedStyle : 'satellite';
-    if (el) {
-      el.dataset.theme = uiTheme;
-      el.dataset.mapStyle = style;
-    }
-    const preferred = this._baseStackForStyle(style);
-    if (this._stackIdx < preferred || !this._getLayerStacks()[this._stackIdx]) {
-      this._stackIdx = preferred;
-    }
-    this._applyLayerStack(this._stackIdx);
-  },
-
-  onThemeChange() {
-    const el = document.getElementById('city-map');
-    if (el) el.dataset.theme = this._mapTheme();
-    if (!this.active && (this._nationalActive || (this._blend || 0) > 0.12)) {
-      const uiTheme = this._mapTheme();
-      if (this.getMapStyle() === 'satellite') this.setMapStyle(uiTheme === 'bright' ? 'bright' : 'dark');
-      else this._applyBaseLayers();
-    }
-  },
-
-  camZToZoom(camZ) {
-    if (camZ <= 1.06) return 18;
-    if (camZ <= 1.12) return 17;
-    if (camZ <= 1.22) return 16;
-    if (camZ <= 1.32) return 15;
-    const z = Math.max(1.02, Math.min(1.48, camZ));
-    const t = (1.48 - z) / (1.48 - 1.02);
-    return Math.round(11 + t * 4);
-  },
-
-  nationalLeafletZoom(camZ) {
-    if (camZ >= 1.78) return 6;
-    if (camZ >= 1.62) return 8;
-    return 10;
-  },
-
-  _bindZoomBridge(el) {
-    if (!el || el._cityZoomBridge) return;
-    el._cityZoomBridge = true;
-    let pinchDist = 0;
-    let pinchLastT = 0;
-
-    el.addEventListener('wheel', e => {
-      if (!this.active && !this._nationalActive) return;
-      e.preventDefault();
-      e.stopPropagation();
-      GlobeZoom.impuls(e.clientX, e.clientY, e.deltaY, e.deltaMode);
-    }, { passive: false });
-
-    el.addEventListener('touchstart', e => {
-      if ((!this.active && !this._nationalActive) || e.touches.length !== 2) return;
-      pinchLastT = performance.now();
-      pinchDist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-    }, { passive: true });
-
-    el.addEventListener('touchmove', e => {
-      if ((!this.active && !this._nationalActive) || e.touches.length !== 2 || !pinchDist) return;
-      e.preventDefault();
-      const d = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      const now = performance.now();
-      const pdt = pinchLastT ? now - pinchLastT : 16;
-      pinchLastT = now;
-      const delta = pinchDist - d;
-      pinchDist = d;
-      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      GlobeZoom.impuls(midX, midY, delta * 0.34, 0, pdt);
-    }, { passive: false });
-
-    el.addEventListener('touchend', () => { pinchDist = 0; pinchLastT = 0; });
-  },
-
-  globeCenterLatLng() {
-    globePivot.updateMatrixWorld(true);
-    const v = new THREE.Vector3(0, 0, 1);
-    const inv = new THREE.Matrix4().copy(globePivot.matrixWorld).invert();
-    v.applyMatrix4(inv);
-    const r = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) || 1;
-    const lat = 90 - Math.acos(Math.max(-1, Math.min(1, v.y / r))) * 180 / Math.PI;
-    let lng = Math.atan2(v.z, -v.x) * 180 / Math.PI - 180;
-    if (lng > 180) lng -= 360;
-    if (lng < -180) lng += 360;
-    return { lat, lng };
-  },
-
-  /** Map viewport — follows globe bearing, not stale GPS / delivery base */
-  mapViewCenter(opts) {
-    opts = opts || {};
-    if (opts.lat != null && opts.lng != null) return { lat: opts.lat, lng: opts.lng };
-    if (DrivingView?.active && window._lastPos?.lat != null) return window._lastPos;
-    if (GlobeControl?.followMode === 'locate' && window._lastPos?.lat != null && !GlobeControl?.userExploring) {
-      return window._lastPos;
-    }
-    return this.globeCenterLatLng();
-  },
-
-  flyTo(lat, lng, zoom) {
-    this._center = { lat, lng };
-    if (this.map) this.map.setView([lat, lng], zoom || 15, { animate: true });
-  },
-
-  /** Force-open city map at coordinates — bypasses camera threshold race conditions */
-  async openAt(lat, lng, opts) {
-    opts = opts || {};
-    let ready = await this.ensureReady();
-    if (!ready || !this.map) {
-      this._initAttempts = 0;
-      ready = await this.ensureReady();
-    }
-    if (!ready || !this.map) {
-      GlobeDeck?.setMapStatus('City map failed — retrying fallback tiles…');
-      AciCli?.print('city map init failed — trying OSM fallback', 'warn');
-      return false;
-    }
-    const c = lat != null && lng != null
-      ? { lat, lng }
-      : (window._lastPos || this._center);
-    if (!c?.lat) return false;
-
-    this._center = c;
-    window._lastPos = { lat: c.lat, lng: c.lng };
-    userLocated = true;
-
-    const camZ = opts.camZ ?? CityLife?.CITY_ZOOM ?? GlobeControl?.cityEntryZ?.() ?? 1.34;
-    if (typeof camera !== 'undefined' && camera) {
-      camera.position.z = camZ;
-      camera.lookAt(0, 0, 0);
-    }
-    CosmicZoom?.update?.(camZ, { tier: 'city', label: 'CITY', cosmic: 'earth' });
-    ZoomTiers?.goTo?.('city', false);
-    cityLevel = true;
-
-    this._forceOpen = true;
-    const lz = opts.zoom ?? this.camZToZoom(camZ);
-    if (!this.active) this._enter(camZ);
-    else {
-      this.map.setView([c.lat, c.lng], lz, { animate: false });
-      this._invalidate();
-      this._syncMarkers();
-      this._syncRoute();
-    }
-    if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
-    this.map.panTo([c.lat, c.lng], { animate: false });
-    setTimeout(() => { this._forceOpen = false; }, 4000);
-    setTimeout(() => this._invalidate(), 80);
-    setTimeout(() => this._invalidate(), 400);
-    this._startHealthWatch();
-    setTimeout(() => {
-      if (this._tileStats.ok === 0 && this._tileStats.err >= 1) this._maybeEscalateLayers('open');
-    }, 3200);
-    GlobeDeck?.setMapStatus('🏙 City map · ' + c.lat.toFixed(2) + ', ' + c.lng.toFixed(2));
-    return true;
-  },
-
-  async enter(lat, lng, opts) {
-    if (CityLife?.dropIn) return CityLife.dropIn(lat, lng, opts || {});
-    const c = lat != null && lng != null ? { lat, lng } : this.mapViewCenter();
-    if (!c?.lat) return { error: 'no location' };
-    const z = GlobeControl?.cityEntryZ?.() ?? this.ENTER_Z - 0.06;
-    const p = latLngToPos(c.lat, c.lng, 1.04);
-    if (typeof flyToPoint === 'function') {
-      flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z);
-      if (typeof waitForGlobeFly === 'function') await waitForGlobeFly();
-    }
-    this.onCamera(z, 'earth');
-    return { lat: c.lat, lng: c.lng };
-  },
-
-  onCamera(camZ, level) {
-    if (!this._ready) return;
-    this._applyGlobeMapCrossfade(camZ);
-    const earth = window._cityDropLock || this._forceOpen
-      || (level || CosmicZoom?.level || 'earth') === 'earth';
-    const driving = !!DrivingView?.active;
-    const force = this._forceOpen || window._cityDropLock;
-    const h = 0.07;
-
-    if (force || driving) {
-      if (!this.active) {
-        if (this._nationalActive) this._exitNational();
-        this._enter(camZ);
-      } else {
-        this._syncView(camZ);
-      }
-      return;
-    }
-
-    if (this.active) {
-      if (camZ > this.EXIT_Z + h) {
-        this._exit();
-        if (camZ <= this.NATIONAL_ENTER_Z && camZ > this.NATIONAL_EXIT_Z + h) this._enterNational(camZ);
-      } else {
-        this._syncView(camZ);
-      }
-      return;
-    }
-
-    if (this._nationalActive) {
-      if (camZ > this.NATIONAL_ENTER_Z + h) {
-        this._exitNational();
-      } else if (camZ <= this.NATIONAL_EXIT_Z - h) {
-        this._exitNational();
-        if (camZ <= this.ENTER_Z) this._enter(camZ);
-      } else {
-        this._syncNational(camZ);
-      }
-      return;
-    }
-
-    if (!earth) return;
-    if (camZ <= this.ENTER_Z - h * 0.5) {
-      this._enter(camZ);
-    } else if (camZ <= this.NATIONAL_ENTER_Z && camZ > this.NATIONAL_EXIT_Z + h) {
-      this._enterNational(camZ);
-    }
-  },
-
-  _enter(camZ) {
-    if (!this.map) return;
-    SlumberManager?.wake?.('city_hd', 'city map');
-    this.active = true;
-    cityLevel = true;
-    this._applyBaseLayers();
-    const el = document.getElementById('city-map');
-    const globe = document.getElementById('globe');
-    if (el) el.classList.add('active');
-    if (globe) globe.classList.add('city-map-active');
-    document.body.classList.add('city-map-active');
-    this._applyGlobeMapCrossfade(camZ);
-    const c = this.mapViewCenter();
-    this._center = c;
-    this.map.setView([c.lat, c.lng], this.camZToZoom(camZ), { animate: false });
-    this._invalidate();
-    setTimeout(() => this._invalidate(), 120);
-    setTimeout(() => this._invalidate(), 500);
-    this._syncMarkers();
-    this._syncRoute();
-    this._seedDemoDrivers(c);
-    CityLife?._updateChip?.(
-      (CityLife?.nearbyVendors?.(c.lat, c.lng) || []).length,
-      Object.keys(this._markers).filter(k => k.startsWith('drv_')).length
-    );
-    this._updateStyleSwitchVisible();
-    this._startHealthWatch();
-  },
-
-  _enterNational(camZ) {
-    if (!this.map) return;
-    this._nationalActive = true;
-    const el = document.getElementById('city-map');
-    const globe = document.getElementById('globe');
-    if (el) { el.classList.add('national-active'); el.classList.remove('active'); }
-    if (globe) { globe.classList.add('national-map-active'); globe.classList.remove('city-map-active'); }
-    document.body.classList.add('national-map-active');
-    document.body.classList.remove('city-map-active');
-    this._applyGlobeMapCrossfade(camZ);
-    this._applyBaseLayers();
-    this.syncMapPins();
-    const c = this.mapViewCenter();
-    this._center = c;
-    this.map.setView([c.lat, c.lng], this.nationalLeafletZoom(camZ), { animate: false });
-    this._invalidate();
-    GlobeDeck?.setPreview?.('National · ' + (ZoomTiers?.countryHint?.() || 'region') + ' · pinch in for city');
-    this._updateStyleSwitchVisible();
-    this._startHealthWatch();
-  },
-
-  _syncNational(camZ) {
-    const c = this.mapViewCenter();
-    this._center = c;
-    const lz = this.nationalLeafletZoom(camZ);
-    if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
-    const cur = this.map.getCenter();
-    if (Math.abs(cur.lat - c.lat) > 0.02 || Math.abs(cur.lng - c.lng) > 0.02) {
-      this.map.panTo([c.lat, c.lng], { animate: false });
-    }
-  },
-
-  _exitNational() {
-    this._nationalActive = false;
-    this._stopHealthWatch();
-    const el = document.getElementById('city-map');
-    const globe = document.getElementById('globe');
-    if (el) el.classList.remove('national-active');
-    if (globe) globe.classList.remove('national-map-active');
-    document.body.classList.remove('national-map-active');
-    const camZ = camera?.position?.z ?? this._globeZ();
-    this._applyGlobeMapCrossfade(camZ);
-    this._updateStyleSwitchVisible();
-  },
-
-  _exit() {
-    this.active = false;
-    cityLevel = false;
-    this._stopHealthWatch();
-    const el = document.getElementById('city-map');
-    const globe = document.getElementById('globe');
-    if (el) { el.classList.remove('active'); el.classList.remove('national-active'); }
-    if (globe) { globe.classList.remove('city-map-active'); globe.classList.remove('national-map-active'); }
-    document.body.classList.remove('city-map-active');
-    document.body.classList.remove('national-map-active');
-    const camZ = camera?.position?.z ?? this._globeZ();
-    this._applyGlobeMapCrossfade(camZ);
-    EarthRealism?._hudTimer && (EarthRealism._hudTimer = 0);
-    const chip = document.getElementById('city-life-chip');
-    if (chip) chip.classList.remove('open');
-    CliRibbon?.clearGlobeHint?.();
-    this._updateStyleSwitchVisible();
-  },
-
-  _syncView(camZ) {
-    const c = this.mapViewCenter();
-    this._center = c;
-    const lz = this.camZToZoom(camZ);
-    if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
-    const cur = this.map.getCenter();
-    if (Math.abs(cur.lat - c.lat) > 0.0004 || Math.abs(cur.lng - c.lng) > 0.0004) {
-      this.map.panTo([c.lat, c.lng], { animate: false });
-    }
-  },
-
-  _icon(emoji, color, photoUrl, opts) {
-    opts = opts || {};
-    const size = photoUrl ? 36 : 28;
-    const ring = opts.ring || '#fff';
-    const inner = photoUrl
-      ? '<span class="city-map-pin-photo" style="background-image:url(' + photoUrl + ');border:2px solid ' + ring + ';width:' + size + 'px;height:' + size + 'px"></span>'
-      : '<span class="city-map-pin-fallback" style="background:' + color + ';border:2px solid ' + ring + ';width:' + size + 'px;height:' + size + 'px">' + (opts.initial || '') + '</span>';
-    return L.divIcon({
-      className: 'city-map-pin',
-      html: inner,
-      iconSize: [size, size],
-      iconAnchor: [size / 2, size / 2],
-    });
-  },
-
-  syncMapPins() {
-    if (!this.map) return;
-    const cd = window._clientDelivery;
-    if (cd?.lat != null) {
-      this._setMarker('pin_client', cd.lat, cd.lng, {
-        color: 'rgba(68,255,136,0.9)', ring: '#66ffaa',
-        logoUrl: MapPins?.clientPinPhoto?.(cd),
-        initial: MapPins?.initials?.(cd.label || 'Deliver'),
-        title: cd.label || 'Delivery',
-      });
-    } else if (this._markers.pin_client) {
-      this.map.removeLayer(this._markers.pin_client);
-      delete this._markers.pin_client;
-    }
-    const db = window._driverBase;
-    if (db?.lat != null) {
-      this._setMarker('pin_driver', db.lat, db.lng, {
-        color: 'rgba(255,170,68,0.92)', ring: '#ffb060',
-        logoUrl: MapPins?.driverBasePhoto?.(db),
-        initial: MapPins?.initials?.(db.label || 'Driver'),
-        title: db.label || 'Driver base',
-      });
-    } else if (this._markers.pin_driver) {
-      this.map.removeLayer(this._markers.pin_driver);
-      delete this._markers.pin_driver;
-    }
-    (window.Commerce?.vendors || []).forEach((v, i) => {
-      if (v.lat == null) return;
-      const logo = MapPins?.vendorLogo?.(v);
-      const id = 'shop_' + (v.id || i);
-      const prev = this._markers[id];
-      if (prev) this.map.removeLayer(prev);
-      const m = L.marker([v.lat, v.lng], {
-        icon: this._icon('', 'rgba(26,111,212,0.88)', logo, { ring: '#7ec8ff', initial: MapPins?.initials?.(v.name || 'Shop') }),
-        title: v.name || 'Shop',
-      });
-      m.on('click', () => VendorMapTile?.open?.(v));
-      m.addTo(this.map);
-      this._markers[id] = m;
-    });
-  },
-
-  _setMarker(id, lat, lng, opts) {
-    opts = opts || {};
-    if (lat == null || lng == null) return;
-    const prev = this._markers[id];
-    const icon = this._icon(opts.emoji || '', opts.color || 'rgba(0,140,220,0.9)', opts.logoUrl, {
-      ring: opts.ring || '#fff',
-      initial: opts.initial || MapPins?.initials?.(opts.title || id),
-    });
-    if (prev) {
-      prev.setLatLng([lat, lng]);
-      prev.setIcon(icon);
-      return prev;
-    }
-    const m = L.marker([lat, lng], {
-      icon,
-      title: opts.title || id,
-    });
-    if (opts.onClick) m.on('click', opts.onClick);
-    m.addTo(this.map);
-    this._markers[id] = m;
-    return m;
-  },
-
-  _syncMarkers() {
-    if (!this.active || !this.map) return;
-    const me = window._lastPos;
-    if (me) {
-      this._setMarker('me', me.lat, me.lng, {
-        color: 'rgba(26,111,212,0.92)', ring: '#7ec8ff',
-        logoUrl: MapPins?.authAvatarUrl?.(),
-        initial: MapPins?.initials?.(me?.name || 'You'),
-        title: me?.name || 'You',
-        onClick: () => GlobeEntity?.entities?.get('me') && GlobeEntity.activate(GlobeEntity.entities.get('me')),
-      });
-    }
-    (window.others || []).forEach((u, i) => {
-      this._setMarker('friend_' + (u.id || i), u.lat, u.lng, {
-        color: 'rgba(61,158,255,0.88)', ring: '#7ec8ff',
-        logoUrl: u.photo_url || u.avatar_url || '',
-        initial: MapPins?.initials?.(u.name || 'User'),
-        title: u.name,
-      });
-    });
-    this.syncMapPins();
-  },
-
-  _driverLatLng(d, u, i) {
-    const lat = d.field_lat ?? d.lat ?? d.latitude;
-    const lng = d.field_lng ?? d.lng ?? d.longitude;
-    if (lat != null && lng != null) return { lat: +lat, lng: +lng };
-    return { lat: u.lat + (Math.sin(i * 1.7) * 0.006), lng: u.lng + (Math.cos(i * 1.3) * 0.006) };
-  },
-
-  _seedDemoDrivers(u) {
-    if (this._demoDrivers.length) return;
-    this._demoDrivers = [
-      { id: 'demo1', display_name: 'Nikos · delivery', field_lat: u.lat + 0.004, field_lng: u.lng - 0.003 },
-      { id: 'demo2', display_name: 'Elena · courier', field_lat: u.lat - 0.003, field_lng: u.lng + 0.005 },
-      { id: 'demo3', display_name: 'Alex · ride', field_lat: u.lat + 0.002, field_lng: u.lng + 0.004 },
-    ];
-  },
-
-  _animateDemoDrivers() {
-    this._demoPhase += 0.0012;
-    const u = window._lastPos || this._center;
-    this._demoDrivers.forEach((d, i) => {
-      d.field_lat = u.lat + Math.sin(this._demoPhase + i * 2.1) * 0.008;
-      d.field_lng = u.lng + Math.cos(this._demoPhase + i * 1.6) * 0.008;
-    });
-  },
-
-  async _tickDrivers() {
-    if (!this.active) return;
-    const u = window._lastPos || this._center;
-    let drivers = window.Commerce?.fetchNearbyDrivers
-      ? await window.Commerce.fetchNearbyDrivers(u.lat, u.lng)
-      : [];
-    if (!drivers.length) {
-      this._seedDemoDrivers(u);
-      this._animateDemoDrivers();
-      drivers = this._demoDrivers;
-    }
-    window.Commerce?.showDriversOnGlobe?.(drivers);
-    const seen = new Set();
-    drivers.forEach((d, i) => {
-      const p = this._driverLatLng(d, u, i);
-      const id = 'drv_' + (d.id || i);
-      seen.add(id);
-      this._setMarker(id, p.lat, p.lng, {
-        color: 'rgba(80,180,255,0.92)', ring: '#ffb060',
-        logoUrl: MapPins?.driverPhotoUrl?.(d),
-        initial: MapPins?.initials?.(d.display_name || 'Driver'),
-        title: d.display_name || 'Driver',
-      });
-    });
-    Object.keys(this._markers).forEach(k => {
-      if (k.startsWith('drv_') && !seen.has(k)) {
-        this.map.removeLayer(this._markers[k]);
-        delete this._markers[k];
-      }
-    });
-  },
-
-  setRoute(coords) {
-    this._routeCoords = coords || [];
-    this._syncRoute();
-  },
-
-  _deliveryRoutes: {},
-
-  setDeliveryRoute(id, coords, opts) {
-    opts = opts || {};
-    if (!id) return;
-    this._deliveryRoutes[id] = { coords: coords || [], opts };
-    this._syncDeliveryRoutes();
-  },
-
-  removeDeliveryRoute(id) {
-    if (this._deliveryRoutes[id]) {
-      const rec = this._deliveryRoutes[id];
-      if (rec.layer && this.map) try { this.map.removeLayer(rec.layer); } catch (_) {}
-      if (rec.polyLayer && this.map) try { this.map.removeLayer(rec.polyLayer); } catch (_) {}
-      delete this._deliveryRoutes[id];
-    }
-  },
-
-  setDeliveryPolygon(id, stops, opts) {
-    opts = opts || {};
-    if (!id) return;
-    if (!this._deliveryRoutes[id]) this._deliveryRoutes[id] = { coords: [], opts: {} };
-    this._deliveryRoutes[id].polygon = stops || [];
-    this._deliveryRoutes[id].polyOpts = opts;
-    this._syncDeliveryRoutes();
-  },
-
-  _syncDeliveryRoutes() {
-    if (!this.map) return;
-    const show = this.active || this._nationalActive || (this._blend || 0) > 0.08;
-    Object.keys(this._deliveryRoutes).forEach(id => {
-      const rec = this._deliveryRoutes[id];
-      if (rec.layer) {
-        try { this.map.removeLayer(rec.layer); } catch (_) {}
-        rec.layer = null;
-      }
-      if (rec.polyLayer) {
-        try { this.map.removeLayer(rec.polyLayer); } catch (_) {}
-        rec.polyLayer = null;
-      }
-      if (!show) return;
-      if (rec.polygon?.length >= 3) {
-        const pOpts = rec.polyOpts || rec.opts || {};
-        const pColor = pOpts.color || '#00dd88';
-        rec.polyLayer = L.polygon(rec.polygon.map(s => [s.lat, s.lng]), {
-          color: pColor,
-          fillColor: pColor,
-          fillOpacity: pOpts.pending ? 0.08 : (pOpts.polygon ? 0.16 : 0.11),
-          weight: pOpts.pending ? 2 : 3,
-          dashArray: pOpts.pending ? '7 9' : null,
-          className: 'delivery-task-polygon',
-        }).addTo(this.map);
-        rec.polyLayer.on('click', (e) => {
-          L.DomEvent.stopPropagation(e);
-          pOpts.onClick?.();
-        });
-      }
-      if (!rec.coords?.length) return;
-      const latlngs = rec.coords.map(c => [c.lat, c.lng]);
-      const color = rec.opts?.color || ((AstranovTheme?.effectiveMode?.() || 'dark') === 'bright' ? '#00aa66' : '#00dd88');
-      rec.layer = L.polyline(latlngs, {
-        color,
-        weight: 6,
-        opacity: 0.9,
-        className: 'delivery-route-line',
-      }).addTo(this.map);
-      rec.layer.on('click', (e) => {
-        L.DomEvent.stopPropagation(e);
-        rec.opts?.onClick?.();
-      });
-    });
-  },
-
-  _syncRoute() {
-    if (!this.map) return;
-    if (this._route) {
-      this.map.removeLayer(this._route);
-      this._route = null;
-    }
-    const coords = this._routeCoords || DrivingView?.routeCoords || [];
-    const show = this.active || this._nationalActive || (this._blend || 0) > 0.08;
-    if (!coords.length || !show) {
-      this._syncDeliveryRoutes();
-      return;
-    }
-    const latlngs = coords.map(c => [c.lat, c.lng]);
-    this._route = L.polyline(latlngs, {
-      color: (AstranovTheme?.effectiveMode?.() || AstranovTheme?.mode) === 'bright' ? '#0066cc' : '#44ccff',
-      weight: 5,
-      opacity: 0.88,
-    }).addTo(this.map);
-    this._syncDeliveryRoutes();
-  },
-};
-window.CityMap = CityMap;
-
 // === CITY LIFE — locate → fly → city satellite map · shops · drivers ===
 const CityLife = {
   get CITY_ZOOM() {
@@ -13537,1085 +10278,6 @@ const EarthRealism = {
   },
 };
 window.EarthRealism = EarthRealism;
-
-// === ASTRANOV AI GRAPHICS ENGINE — WebGL gaming procedural layer (shader + particles) ===
-const AIGraphics = {
-  atmosphere: null,
-  clouds: null,
-  cityLights: null,
-  idleNodes: null,
-  neuralLayer: null,
-  activeEffects: [],
-  batchGroup: null,
-  batchRing: null,
-  batchNodes: null,
-  superBatchActive: false,
-  shellDim: false,
-  voicePerf: false,
-  thinkPulse: false,
-  _frameSkip: 0,
-  _parent: null,
-  _hudCanvas: null,
-  _hudCtx: null,
-  _hudRaf: 0,
-  _seed: (Date.now() % 9973) / 9973,
-  _paths: [],
-  _flyer: null,
-  _flyerFrame: 0,
-  _flyerFlying: false,
-
-  init(parent, earthRadius = 1) {
-    if (this._inited) return;
-    this._inited = true;
-    this._parent = parent || globePivot;
-    const tier = SlumberManager?.tier || 'balanced';
-    const lite = tier === 'conserve' || tier === 'slumber';
-    this.addAtmosphere(this._parent, earthRadius);
-    if (!lite) this.addClouds(this._parent, earthRadius);
-    this.addCityLights(this._parent, earthRadius, lite ? 900 : 2200);
-    /* Space globe only — no idle waveform / neural overlay / gaming HUD scanlines */
-    if (SlumberManager?.quality?.gamingGraphics && !this._gamingLight) {
-      this._gamingLight = new THREE.PointLight(0x00e8ff, 1.4, 4.5);
-      this._gamingLight.position.set(0.3, 0.5, 1.2);
-      scene.add(this._gamingLight);
-    }
-    console.log('%c[Astranov AI Graphics] Gaming shader pipeline live', 'color:#00ddff;font-weight:700');
-    window._aiGraphicsReady = true;
-  },
-
-  _isGaming() {
-    return !!(SlumberManager?.quality?.gamingGraphics || SlumberManager?.tier === 'gaming' || SlumberManager?.tier === 'full');
-  },
-
-  _gamingVert() {
-    return [
-      'varying vec3 vN;',
-      'varying vec3 vV;',
-      'void main(){',
-      '  vN = normalize(normalMatrix * normal);',
-      '  vec4 mv = modelViewMatrix * vec4(position, 1.0);',
-      '  vV = -mv.xyz;',
-      '  gl_Position = projectionMatrix * mv;',
-      '}',
-    ].join('\n');
-  },
-
-  _gamingFrag() {
-    return [
-      'uniform vec3 uColor;',
-      'uniform vec3 uEmit;',
-      'uniform float uPulse;',
-      'uniform float uRim;',
-      'uniform float uAlpha;',
-      'varying vec3 vN;',
-      'varying vec3 vV;',
-      'void main(){',
-      '  vec3 n = normalize(vN);',
-      '  vec3 v = normalize(vV);',
-      '  float rim = pow(1.0 - max(dot(n, v), 0.0), 2.4) * uRim;',
-      '  float pulse = 0.82 + 0.18 * sin(uPulse);',
-      '  vec3 col = uColor * 0.45 + uEmit * pulse + vec3(0.15, 0.75, 1.0) * rim;',
-      '  gl_FragColor = vec4(col, uAlpha);',
-      '}',
-    ].join('\n');
-  },
-
-  _gamingMat(opts = {}) {
-    const mat = new THREE.ShaderMaterial({
-      uniforms: {
-        uColor: { value: new THREE.Color(opts.color || 0x1a2838) },
-        uEmit: { value: new THREE.Color(opts.emissive || 0x00c8ff) },
-        uPulse: { value: 0 },
-        uRim: { value: opts.rim ?? 1.35 },
-        uAlpha: { value: opts.opacity ?? 1 },
-      },
-      vertexShader: this._gamingVert(),
-      fragmentShader: this._gamingFrag(),
-      transparent: !!opts.transparent || (opts.opacity != null && opts.opacity < 1),
-      blending: opts.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
-      depthWrite: !opts.additive,
-    });
-    mat.userData._gaming = true;
-    return mat;
-  },
-
-  _pulseGamingMats(root, t) {
-    root.traverse((o) => {
-      const u = o.material?.uniforms;
-      if (u?.uPulse) u.uPulse.value = t;
-    });
-  },
-
-  _createJetVfx(group, side) {
-    const COUNT = 72;
-    const geo = new THREE.BufferGeometry();
-    const pos = new Float32Array(COUNT * 3);
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    const mat = new THREE.PointsMaterial({
-      size: this._isGaming() ? 0.022 : 0.014,
-      color: side < 0 ? 0x00e8ff : 0x44aaff,
-      transparent: true,
-      opacity: 0.92,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      sizeAttenuation: true,
-    });
-    const pts = new THREE.Points(geo, mat);
-    pts.frustumCulled = false;
-    group.add(pts);
-    return { points: pts, positions: pos, count: COUNT, head: 0, side };
-  },
-
-  _emitJet(vfx, origin, dir, power) {
-    if (!vfx?.positions || !origin) return;
-    const i = vfx.head % vfx.count;
-    vfx.head++;
-    const idx = i * 3;
-    vfx.positions[idx] = origin.x;
-    vfx.positions[idx + 1] = origin.y;
-    vfx.positions[idx + 2] = origin.z;
-    vfx.points.geometry.attributes.position.needsUpdate = true;
-    if (!vfx.vel) vfx.vel = [];
-    vfx.vel[i] = {
-      x: (dir?.x || 0) * power + (Math.random() - 0.5) * 0.002,
-      y: (dir?.y || -0.01) * power + (Math.random() - 0.5) * 0.002,
-      z: (dir?.z || 0) * power + (Math.random() - 0.5) * 0.002,
-      life: 28 + Math.floor(Math.random() * 18),
-    };
-  },
-
-  _tickJetVfx(vfx, flying) {
-    if (!vfx?.vel || !vfx.positions) return;
-    const decay = flying ? 0.96 : 0.92;
-    for (let i = 0; i < vfx.count; i++) {
-      const v = vfx.vel[i];
-      if (!v || v.life <= 0) continue;
-      const idx = i * 3;
-      vfx.positions[idx] += v.x;
-      vfx.positions[idx + 1] += v.y;
-      vfx.positions[idx + 2] += v.z;
-      v.x *= decay; v.y *= decay; v.z *= decay;
-      v.life--;
-    }
-    vfx.points.geometry.attributes.position.needsUpdate = true;
-  },
-
-  _latLngToPos(lat, lng, r = 1) {
-    const phi = (90 - lat) * Math.PI / 180;
-    const theta = (lng + 180) * Math.PI / 180;
-    return {
-      x: -(r * Math.sin(phi) * Math.cos(theta)),
-      y: r * Math.cos(phi),
-      z: r * Math.sin(phi) * Math.sin(theta),
-    };
-  },
-
-  _procCanvas(w, h, drawFn) {
-    const c = document.createElement('canvas');
-    c.width = w;
-    c.height = h;
-    const ctx = c.getContext('2d', { alpha: true });
-    drawFn(ctx, w, h);
-    const tex = new THREE.CanvasTexture(c);
-    tex.needsUpdate = true;
-    return { canvas: c, tex, ctx };
-  },
-
-  addAtmosphere(parent, r) {
-    const geo = new THREE.SphereGeometry(r * 1.018, SlumberManager?.tier === 'full' ? 48 : 32, SlumberManager?.tier === 'full' ? 48 : 32);
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0x2288cc,
-      transparent: true,
-      opacity: 0.06,
-      blending: THREE.AdditiveBlending,
-      side: THREE.BackSide,
-      depthWrite: false,
-    });
-    this.atmosphere = new THREE.Mesh(geo, mat);
-    parent.add(this.atmosphere);
-  },
-
-  addClouds(parent, r) {
-    const { tex } = this._procCanvas(1024, 512, (ctx, w, h) => {
-      ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = '#ffffff';
-      for (let pass = 0; pass < 3; pass++) {
-        for (let i = 0; i < 70; i++) {
-          const x = Math.random() * w;
-          const y = Math.random() * h;
-          const rw = 20 + Math.random() * 60;
-          ctx.globalAlpha = 0.04 + Math.random() * 0.08;
-          ctx.beginPath();
-          ctx.ellipse(x, y, rw, rw * 0.45, Math.random() * 0.5, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-      ctx.globalAlpha = 1;
-    });
-    const geo = new THREE.SphereGeometry(r * 1.008, 40, 40);
-    const mat = new THREE.MeshBasicMaterial({
-      map: tex,
-      transparent: true,
-      opacity: 0.11,
-      depthWrite: false,
-      blending: THREE.NormalBlending,
-    });
-    this.clouds = new THREE.Mesh(geo, mat);
-    parent.add(this.clouds);
-  },
-
-  addCityLights(parent, r, count = 2200) {
-    const pos = [];
-    const cols = [];
-    for (let i = 0; i < count; i++) {
-      const lat = Math.random() * 170 - 85;
-      const popFactor = Math.sin(lat * 0.025) * 0.6 + 0.4;
-      if (Math.random() < popFactor * 0.85) {
-        const lng = Math.random() * 360 - 180;
-        const p = this._latLngToPos(lat, lng, r * 1.003);
-        pos.push(p.x, p.y, p.z);
-        const warm = Math.random() > 0.4;
-        cols.push(warm ? 1 : 0.6, warm ? 0.85 : 0.95, warm ? 0.5 : 1);
-      }
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
-    const mat = new THREE.PointsMaterial({
-      size: 0.007,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.75,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    this.cityLights = new THREE.Points(geo, mat);
-    parent.add(this.cityLights);
-  },
-
-  addIdleAIEffects(parent, r, count = 80) {
-    const positions = [];
-    for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2;
-      const lat = Math.sin(angle) * 35;
-      const lng = (i * 4.5) % 360;
-      const p = this._latLngToPos(lat, lng, r * 1.04);
-      positions.push(p.x, p.y, p.z);
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    const mat = new THREE.PointsMaterial({
-      size: 0.004,
-      color: 0x00ddff,
-      transparent: true,
-      opacity: 0.35,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    this.idleNodes = new THREE.Points(geo, mat);
-    parent.add(this.idleNodes);
-  },
-
-  addNeuralField(parent, r) {
-    const pack = this._procCanvas(512, 256, (ctx, w, h) => {
-      this._paintNeural(ctx, w, h, 0);
-    });
-    this._neuralPack = pack;
-    const geo = new THREE.SphereGeometry(r * 1.012, 36, 36);
-    const mat = new THREE.MeshBasicMaterial({
-      map: pack.tex,
-      transparent: true,
-      opacity: 0.14,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    this.neuralLayer = new THREE.Mesh(geo, mat);
-    this.neuralLayer.visible = false;
-    parent.add(this.neuralLayer);
-  },
-
-  _paintNeural(ctx, w, h, t) {
-    ctx.clearRect(0, 0, w, h);
-    const g = ctx.createLinearGradient(0, 0, w, h);
-    g.addColorStop(0, 'rgba(0,30,60,0)');
-    g.addColorStop(0.5, 'rgba(0,180,255,0.12)');
-    g.addColorStop(1, 'rgba(0,255,140,0.08)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, w, h);
-    for (let i = 0; i < 48; i++) {
-      const x = (i / 48) * w;
-      const y = h * 0.5 + Math.sin(t * 0.04 + i * 0.55 + this._seed * 12) * h * 0.22;
-      ctx.strokeStyle = `rgba(0,${180 + (i % 3) * 20},255,${0.15 + (i % 5) * 0.04})`;
-      ctx.lineWidth = 1 + (i % 3);
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      for (let j = 1; j <= 6; j++) {
-        ctx.lineTo(x + j * (w / 48) * 0.15, y + Math.sin(t * 0.03 + i + j) * 8);
-      }
-      ctx.stroke();
-    }
-    for (let n = 0; n < 120; n++) {
-      const nx = (Math.sin(n * 0.91 + t * 0.02) * 0.5 + 0.5) * w;
-      const ny = (Math.cos(n * 0.73 + t * 0.015) * 0.5 + 0.5) * h;
-      ctx.fillStyle = n % 7 === 0 ? 'rgba(0,255,120,0.55)' : 'rgba(0,200,255,0.35)';
-      ctx.fillRect(nx, ny, 2, 2);
-    }
-  },
-
-  _mountGamingHud() {
-    const globe = document.getElementById('globe');
-    if (!globe || this._hudCanvas) return;
-    const c = document.createElement('canvas');
-    c.id = 'ai-gaming-hud';
-    c.setAttribute('aria-hidden', 'true');
-    c.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3;opacity:0;transition:opacity 0.35s ease;mix-blend-mode:screen';
-    globe.appendChild(c);
-    this._hudCanvas = c;
-    this._hudCtx = c.getContext('2d');
-    const resize = () => {
-      const r = globe.getBoundingClientRect();
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-      c.width = Math.max(1, Math.floor(r.width * dpr));
-      c.height = Math.max(1, Math.floor(r.height * dpr));
-    };
-    resize();
-    window.addEventListener('resize', resize);
-    this._hudLoop();
-  },
-
-  _hudLoop() {
-    const ctx = this._hudCtx;
-    const c = this._hudCanvas;
-    if (ctx && c) {
-      const on = this.thinkPulse || this.superBatchActive || Voice?.speaking;
-      c.style.opacity = on ? '0.42' : '0';
-      if (on) {
-        const t = performance.now() * 0.001;
-        const w = c.width;
-        const h = c.height;
-        ctx.clearRect(0, 0, w, h);
-        ctx.strokeStyle = 'rgba(0,200,255,0.08)';
-        for (let y = 0; y < h; y += 4) {
-          ctx.beginPath();
-          ctx.moveTo(0, y + Math.sin(t * 2 + y * 0.02) * 0.5);
-          ctx.lineTo(w, y);
-          ctx.stroke();
-        }
-        const cx = w * 0.5;
-        const cy = h * 0.42;
-        for (let i = 0; i < 5; i++) {
-          const r = (Math.sin(t * 1.8 + i) * 0.5 + 0.5) * Math.min(w, h) * 0.12 + 20;
-          ctx.strokeStyle = `rgba(0,${220 - i * 30},${140 + i * 20},${0.12 - i * 0.015})`;
-          ctx.beginPath();
-          ctx.arc(cx, cy, r, 0, Math.PI * 2);
-          ctx.stroke();
-        }
-      } else {
-        ctx.clearRect(0, 0, c.width, c.height);
-      }
-    }
-    this._hudRaf = requestAnimationFrame(() => this._hudLoop());
-  },
-
-  spawnEffect(originPos, color = 0x00ffcc, count = 25, life = 45) {
-    if (!originPos || !scene) return;
-    if (this.voicePerf) {
-      count = Math.min(count, 8);
-      life = Math.min(life, 24);
-    }
-    const maxFx = SlumberManager?.tier === 'slumber' ? 8 : 24;
-    while (this.activeEffects.length > maxFx) {
-      const eff = this.activeEffects.shift();
-      if (eff?.points) {
-        scene.remove(eff.points);
-        eff.points.geometry?.dispose?.();
-        eff.points.material?.dispose?.();
-      }
-    }
-    const positions = new Float32Array(count * 3);
-    const vel = [];
-    for (let i = 0; i < count; i++) {
-      const idx = i * 3;
-      positions[idx] = originPos.x + (Math.random() - 0.5) * 0.04;
-      positions[idx + 1] = originPos.y + (Math.random() - 0.5) * 0.04;
-      positions[idx + 2] = originPos.z + (Math.random() - 0.5) * 0.04;
-      vel.push(
-        (Math.random() - 0.5) * 0.0035,
-        (Math.random() - 0.5) * 0.0035,
-        (Math.random() - 0.5) * 0.0035,
-      );
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    const mat = new THREE.PointsMaterial({
-      size: 0.018,
-      color,
-      transparent: true,
-      opacity: 0.95,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    const pts = new THREE.Points(geo, mat);
-    scene.add(pts);
-    this.activeEffects.push({ points: pts, velocities: vel, life, maxLife: life });
-  },
-
-  _paintAstranovCharacter(ctx, w, h, frame, opts = {}) {
-    const t = frame * 0.12;
-    const flap = Math.sin(t) * 0.12;
-    const cx = w * 0.5;
-    const cy = h * 0.46 + Math.sin(t * 0.65) * 2;
-    const cyan = opts.glow || '#00e8ff';
-    const silver = '#b8c8d8';
-    const dark = '#0a1420';
-
-    ctx.clearRect(0, 0, w, h);
-
-    const bg = ctx.createRadialGradient(cx, cy, 8, cx, cy, w * 0.52);
-    bg.addColorStop(0, 'rgba(0,40,80,0.5)');
-    bg.addColorStop(0.6, 'rgba(0,10,24,0.25)');
-    bg.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, w, h);
-
-    for (let i = 0; i < 40; i++) {
-      const sx = (Math.sin(i * 2.17 + frame * 0.02) * 0.5 + 0.5) * w;
-      const sy = (Math.cos(i * 1.73) * 0.5 + 0.5) * h;
-      ctx.fillStyle = i % 5 === 0 ? 'rgba(180,220,255,0.9)' : 'rgba(100,160,255,0.45)';
-      ctx.fillRect(sx, sy, 1.2, 1.2);
-    }
-
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.globalCompositeOperation = 'lighter';
-
-    const drawMechWing = (side) => {
-      const s = side;
-      const tilt = flap * 8 * s;
-      const segs = [
-        [[6 * s, -4], [52 * s, -36 + tilt], [72 * s, -8 + tilt], [38 * s, 6]],
-        [[10 * s, 2], [58 * s, -18 + tilt], [78 * s, 8 + tilt], [42 * s, 14]],
-        [[14 * s, 10], [48 * s, 4 + tilt], [62 * s, 22 + tilt], [32 * s, 20]],
-      ];
-      segs.forEach((pts, i) => {
-        ctx.beginPath();
-        ctx.moveTo(pts[0][0], pts[0][1]);
-        pts.slice(1).forEach(p => ctx.lineTo(p[0], p[1]));
-        ctx.closePath();
-        const g = ctx.createLinearGradient(0, -30, 60 * s, 20);
-        g.addColorStop(0, silver);
-        g.addColorStop(0.45, '#4a5a6a');
-        g.addColorStop(1, dark);
-        ctx.fillStyle = g;
-        ctx.fill();
-        ctx.strokeStyle = i === 0 ? cyan : 'rgba(0,200,255,0.35)';
-        ctx.lineWidth = i === 0 ? 1.8 : 1;
-        ctx.stroke();
-      });
-    };
-
-    if (opts.jet) {
-      const jetLen = 38 + Math.sin(t * 2) * 8;
-      [-1, 1].forEach((side) => {
-        const jg = ctx.createLinearGradient(side * 20, 8, side * 20, 8 + jetLen);
-        jg.addColorStop(0, cyan);
-        jg.addColorStop(0.4, 'rgba(0,180,255,0.55)');
-        jg.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = jg;
-        ctx.beginPath();
-        ctx.moveTo(side * 14, 10);
-        ctx.lineTo(side * 28, 10);
-        ctx.lineTo(side * 18, 10 + jetLen);
-        ctx.closePath();
-        ctx.fill();
-      });
-    }
-
-    drawMechWing(-1);
-    drawMechWing(1);
-
-    ctx.globalCompositeOperation = 'source-over';
-    const torso = ctx.createLinearGradient(0, -20, 0, 32);
-    torso.addColorStop(0, silver);
-    torso.addColorStop(0.35, '#5a6a7a');
-    torso.addColorStop(0.7, dark);
-    torso.addColorStop(1, '#1a2838');
-    ctx.fillStyle = torso;
-    ctx.beginPath();
-    ctx.moveTo(-14, -12);
-    ctx.lineTo(14, -12);
-    ctx.lineTo(18, 8);
-    ctx.lineTo(12, 30);
-    ctx.lineTo(-12, 30);
-    ctx.lineTo(-18, 8);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = cyan;
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
-
-    const corePulse = 0.75 + Math.sin(t * 1.6) * 0.25;
-    const core = ctx.createRadialGradient(0, 4, 1, 0, 4, 10);
-    core.addColorStop(0, '#ffffff');
-    core.addColorStop(0.35, cyan);
-    core.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.globalAlpha = corePulse;
-    ctx.fillStyle = core;
-    ctx.beginPath();
-    ctx.arc(0, 4, 9, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-
-    [-1, 1].forEach((side) => {
-      ctx.fillStyle = '#6a7a8a';
-      ctx.fillRect(side * 10, -8, 8, 22);
-      ctx.fillStyle = cyan;
-      ctx.fillRect(side * 12, 2, 5, 8);
-      ctx.beginPath();
-      ctx.ellipse(side * 22, -2, 10, 6, side * 0.3, 0, Math.PI * 2);
-      ctx.fillStyle = '#7a8a9a';
-      ctx.fill();
-    });
-
-    const helm = ctx.createLinearGradient(-12, -34, 12, -18);
-    helm.addColorStop(0, '#e8f0ff');
-    helm.addColorStop(0.5, silver);
-    helm.addColorStop(1, '#4a5a68');
-    ctx.fillStyle = helm;
-    ctx.beginPath();
-    ctx.ellipse(0, -24, 13, 15, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = cyan;
-    ctx.shadowColor = cyan;
-    ctx.shadowBlur = 12;
-    ctx.fillRect(-11, -26, 22, 5);
-    ctx.shadowBlur = 0;
-
-    ctx.fillStyle = '#5a6a78';
-    ctx.fillRect(-7, 28, 5, 14);
-    ctx.fillRect(2, 30, 5, 12);
-
-    ctx.restore();
-  },
-
-  _buildProceduralHumanoid(lat, lng, opts = {}) {
-    const hi = this._isGaming();
-    const seg = hi ? 16 : 10;
-    const g = new THREE.Group();
-    const torso = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.014, 0.018, 0.048, seg),
-      this._gamingMat({ color: 0x141e2a, emissive: 0x006688, rim: 1.1 }),
-    );
-    g.add(torso);
-    const chest = new THREE.Mesh(
-      new THREE.BoxGeometry(0.032, 0.028, 0.022),
-      this._gamingMat({ color: 0x2a3a4a, emissive: 0x00aacc, rim: 1.6 }),
-    );
-    chest.position.y = 0.008;
-    g.add(chest);
-    const head = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(0.014, hi ? 1 : 0),
-      this._gamingMat({ color: 0x8899aa, emissive: 0x224466, rim: 1.4 }),
-    );
-    head.position.y = 0.036;
-    g.add(head);
-    const visor = new THREE.Mesh(
-      new THREE.BoxGeometry(0.026, 0.008, 0.012),
-      this._gamingMat({ color: 0x001822, emissive: 0x00e8ff, rim: 2.2, transparent: true, opacity: 0.95 }),
-    );
-    visor.position.set(0, 0.038, 0.014);
-    g.add(visor);
-    const arms = [];
-    [-1, 1].forEach((side) => {
-      const arm = new THREE.Group();
-      const upper = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.005, 0.005, 0.02, seg),
-        this._gamingMat({ color: 0x4a5a6a, emissive: 0x0088aa, rim: 1.2 }),
-      );
-      upper.rotation.z = side * 0.35;
-      arm.add(upper);
-      const gauntlet = new THREE.Mesh(
-        new THREE.BoxGeometry(0.01, 0.012, 0.01),
-        this._gamingMat({ color: 0x00c8ff, emissive: 0x00e8ff, rim: 1.8 }),
-      );
-      gauntlet.position.set(side * 0.014, -0.012, 0);
-      arm.add(gauntlet);
-      arm.position.set(side * 0.02, 0.014, 0);
-      g.add(arm);
-      arms.push(arm);
-    });
-    const legs = [];
-    [-1, 1].forEach((side) => {
-      const leg = new THREE.Group();
-      const thigh = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.005, 0.006, 0.018, seg),
-        this._gamingMat({ color: 0x3a4a58, emissive: 0x004466, rim: 1.0 }),
-      );
-      leg.add(thigh);
-      const boot = new THREE.Mesh(
-        new THREE.BoxGeometry(0.011, 0.014, 0.014),
-        this._gamingMat({ color: 0x2a3848, emissive: 0x0066aa, rim: 1.3 }),
-      );
-      boot.position.y = -0.018;
-      leg.add(boot);
-      leg.position.set(side * 0.011, -0.028, 0);
-      g.add(leg);
-      legs.push(leg);
-    });
-    const wings = [];
-    [-1, 1].forEach((side) => {
-      const wing = new THREE.Group();
-      for (let s = 0; s < 3; s++) {
-        const segMesh = new THREE.Mesh(
-          new THREE.BoxGeometry(0.022 - s * 0.004, 0.003, 0.012 - s * 0.002),
-          this._gamingMat({
-            color: 0x6a7a8a,
-            emissive: s === 0 ? 0x00c8ff : 0x006688,
-            rim: 1.5 + s * 0.3,
-            transparent: s > 0,
-            opacity: s === 0 ? 1 : 0.82,
-          }),
-        );
-        segMesh.position.set(side * (0.018 + s * 0.016), s * 0.006, -s * 0.003);
-        wing.add(segMesh);
-      }
-      wing.position.set(side * 0.016, 0.012, -0.01);
-      g.add(wing);
-      wings.push(wing);
-    });
-    const thrusters = [];
-    const jetVfx = [];
-    [-1, 1].forEach((side) => {
-      const pack = new THREE.Group();
-      const housing = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.006, 0.008, 0.016, seg),
-        this._gamingMat({ color: 0x2a3848, emissive: 0x00aacc, rim: 1.4 }),
-      );
-      pack.add(housing);
-      const plume = new THREE.Mesh(
-        new THREE.ConeGeometry(0.007, hi ? 0.038 : 0.024, seg),
-        this._gamingMat({ color: 0x00e8ff, emissive: 0x00ffff, rim: 2.0, additive: true, transparent: true, opacity: 0.75 }),
-      );
-      plume.rotation.x = Math.PI;
-      plume.position.y = -0.022;
-      pack.add(plume);
-      pack.position.set(side * 0.014, -0.03, -0.016);
-      g.add(pack);
-      thrusters.push(plume);
-      jetVfx.push(this._createJetVfx(g, side));
-    });
-    const core = new THREE.Mesh(
-      new THREE.SphereGeometry(0.011, seg, seg),
-      this._gamingMat({ color: 0xffffff, emissive: 0x00e8ff, rim: 2.4, additive: true, transparent: true, opacity: 0.7 }),
-    );
-    core.position.y = 0.006;
-    g.add(core);
-    const aura = new THREE.Mesh(
-      new THREE.SphereGeometry(0.052, seg, seg),
-      new THREE.MeshBasicMaterial({
-        color: 0x00c8ff,
-        transparent: true,
-        opacity: hi ? 0.12 : 0.08,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      }),
-    );
-    g.add(aura);
-    const alt = opts.alt || 1.09;
-    const p = this._latLngToPos(lat ?? 36.44, lng ?? 28.22, alt);
-    g.position.set(p.x, p.y, p.z);
-    const n = new THREE.Vector3(p.x, p.y, p.z).normalize();
-    g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
-    g.userData = {
-      type: 'astranov-flyer',
-      procedural3d: true,
-      gaming: hi,
-      name: opts.label || 'Astranov',
-      lat, lng, alt,
-      wings, arms, legs, thrusters, core, aura, jetVfx,
-      edition: opts.edition?.id || 'astranov',
-    };
-    return g;
-  },
-
-  _animateFlyerPose(mesh, flying) {
-    const ud = mesh?.userData;
-    if (!ud?.procedural3d) return;
-    const t = this._flyerFrame * 0.12;
-    this._pulseGamingMats(mesh, t);
-    const flap = Math.sin(t) * (flying ? 0.52 : 0.28);
-    ud.wings?.forEach((wing, i) => {
-      wing.rotation.z = (i === 0 ? 1 : -1) * flap;
-      wing.rotation.y = Math.sin(t * 0.8 + i) * 0.08;
-    });
-    ud.legs?.forEach((leg, i) => {
-      leg.rotation.x = Math.sin(t * 0.9 + i) * (flying ? 0.22 : 0.12);
-    });
-    ud.arms?.forEach((arm, i) => {
-      arm.rotation.z = (i === 0 ? 1 : -1) * (0.12 + Math.sin(t * 0.7) * 0.08);
-    });
-    if (ud.core?.material?.uniforms?.uAlpha) {
-      ud.core.material.uniforms.uAlpha.value = 0.55 + Math.sin(t * 1.6) * 0.3;
-    }
-    if (ud.aura?.material) {
-      ud.aura.material.opacity = (flying ? 0.16 : 0.1) + Math.sin(t * 1.2) * 0.04;
-      ud.aura.scale.setScalar(1 + Math.sin(t * 0.9) * 0.06);
-    }
-    ud.thrusters?.forEach((thr, i) => {
-      if (thr.material?.uniforms?.uAlpha) {
-        thr.material.uniforms.uAlpha.value = flying
-          ? 0.65 + Math.sin(t * 2 + i) * 0.3
-          : 0.3 + Math.sin(t + i) * 0.12;
-      }
-      thr.scale.y = flying ? 1.2 + Math.sin(t * 1.4 + i) * 0.45 : 0.65;
-    });
-    const power = flying ? 0.014 : 0.006;
-    const worldDown = new THREE.Vector3(0, -1, 0).applyQuaternion(mesh.quaternion);
-    ud.thrusters?.forEach((thr, i) => {
-      const wp = new THREE.Vector3();
-      thr.getWorldPosition(wp);
-      this._emitJet(ud.jetVfx?.[i], wp, worldDown, power);
-    });
-    ud.jetVfx?.forEach((vfx) => this._tickJetVfx(vfx, flying));
-    if (this._gamingLight && mesh.position) {
-      this._gamingLight.position.copy(mesh.position).multiplyScalar(1.02);
-    }
-  },
-
-  _orientFlyerOnGlobe(mesh, pos) {
-    if (!mesh || !pos) return;
-    const n = pos.clone().normalize();
-    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
-  },
-
-  _scaleFlyer(mesh, camZ) {
-    if (!mesh?.userData?.procedural3d) return;
-    const scale = Math.max(0.85, Math.min(2.4, 1.35 * (camZ / 2.2)));
-    mesh.scale.setScalar(scale);
-  },
-
-  spawnAstranovFlyer(lat, lng, opts = {}) {
-    if (this._flyer?.parent) this._flyer.parent.remove(this._flyer);
-    const robot = this._buildProceduralHumanoid(lat, lng, opts);
-    globePivot.add(robot);
-    this._flyer = robot;
-    window._astranovFlyer = robot;
-    window._pilot = robot;
-    this._animateFlyerPose(robot, false);
-    this.spawnEffect(robot.position, opts.color || 0x3d9eff, 22, 48);
-    return robot;
-  },
-
-  _greatCircleCurve(fromVec, toVec, alt = 1.09, segments = 36) {
-    const a = fromVec.clone().normalize();
-    const b = toVec.clone().normalize();
-    const qA = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), a);
-    const qB = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), b);
-    const pts = [];
-    for (let i = 0; i <= segments; i++) {
-      const t = i / segments;
-      const q = qA.clone().slerp(qB, t);
-      pts.push(new THREE.Vector3(0, 0, alt).applyQuaternion(q));
-    }
-    return new THREE.CatmullRomCurve3(pts);
-  },
-
-  flyAstranovTo(lat, lng, opts = {}) {
-    if (!this._flyer) {
-      const u = window._lastPos || { lat: 36.44, lng: 28.22 };
-      this.spawnAstranovFlyer(u.lat, u.lng, opts);
-    }
-    const alt = opts.alt || this._flyer.userData?.alt || 1.09;
-    const toP = this._latLngToPos(lat, lng, alt);
-    const to = new THREE.Vector3(toP.x, toP.y, toP.z);
-    const from = this._flyer.position.clone();
-    const dist = TrackballGuard?.greatCircleKm?.(
-      this._flyer.userData?.lat ?? 0,
-      this._flyer.userData?.lng ?? 0,
-      lat, lng
-    ) || 800;
-    const dur = opts.dur || Math.min(6200, Math.max(1400, dist * 2.8));
-    const curve = this._greatCircleCurve(from, to, alt);
-    this._flyerFlying = true;
-    this._flyer.userData.lat = lat;
-    this._flyer.userData.lng = lng;
-    return this.animateAlongPath(this._flyer, curve, {
-      dur,
-      color: opts.color || 0x3d9eff,
-      isFlyer: true,
-      onDone: () => {
-        this._flyerFlying = false;
-        opts.onDone?.();
-      },
-    });
-  },
-
-  buildProceduralPilot(lat, lng, opts = {}) {
-    return this.spawnAstranovFlyer(lat, lng, { ...opts, label: opts.edition?.name_gr || 'Astranov' });
-  },
-
-  buildProceduralDrone(lat, lng, domain = 'air', color = 0x44ccff) {
-    const spec = TelemachosPilot?.DOMAINS?.[domain] || { alt: 1.06, color };
-    const pos = this._latLngToPos(lat, lng, spec.alt || 1.06);
-    const g = new THREE.Group();
-    const hub = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.008, 0.012, 0.018, 6),
-      new THREE.MeshBasicMaterial({ color: color || spec.color || 0x44ccff }),
-    );
-    g.add(hub);
-    for (let i = 0; i < 4; i++) {
-      const arm = new THREE.Mesh(
-        new THREE.BoxGeometry(0.028, 0.003, 0.003),
-        new THREE.MeshBasicMaterial({ color: 0x88ccff }),
-      );
-      arm.rotation.z = (i / 4) * Math.PI * 2;
-      arm.position.x = Math.cos(arm.rotation.z) * 0.018;
-      arm.position.y = Math.sin(arm.rotation.z) * 0.018;
-      g.add(arm);
-    }
-    g.userData = { type: 'drone', domain };
-    g.position.set(pos.x, pos.y, pos.z);
-    const n = new THREE.Vector3(pos.x, pos.y, pos.z).normalize();
-    g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
-    globePivot.add(g);
-    this.spawnEffect(g.position, color, 12, 35);
-    return g;
-  },
-
-  animateAlongPath(mesh, curve, opts = {}) {
-    if (!mesh || !curve) return null;
-    const dur = opts.dur || 4200;
-    const trailColor = opts.color || 0x00ddff;
-    const t0 = performance.now();
-    const id = { mesh, curve, t0, dur, trailColor, done: false, isFlyer: !!opts.isFlyer, onDone: opts.onDone };
-    this._paths.push(id);
-    if (opts.isFlyer) this._flyerFlying = true;
-    return id;
-  },
-
-  _tickPaths() {
-    const now = performance.now();
-    for (let i = this._paths.length - 1; i >= 0; i--) {
-      const p = this._paths[i];
-      const prog = Math.min(1, (now - p.t0) / p.dur);
-      const pt = p.curve.getPoint(prog);
-      p.mesh.position.copy(pt);
-      const n = pt.clone().normalize();
-      p.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
-      const camZ = camera?.position?.z ?? GlobeNavigate.GLOBAL_Z;
-      if (p.isFlyer) {
-        this._flyerFrame++;
-        this._scaleFlyer(p.mesh, camZ);
-        this._animateFlyerPose(p.mesh, true);
-      }
-      if (Math.floor(prog * 40) % (p.isFlyer ? 2 : 3) === 0) {
-        this.spawnEffect(pt, p.trailColor, p.isFlyer ? 6 : 4, p.isFlyer ? 22 : 18);
-      }
-      if (prog >= 1) {
-        p.done = true;
-        this.spawnEffect(pt, p.trailColor, 16, 40);
-        this._paths.splice(i, 1);
-        if (p.isFlyer) this._flyerFlying = false;
-        p.onDone?.();
-      }
-    }
-  },
-
-  _tickAstranovFlyer() {
-    if (!this._flyer || this._flyerFlying) return;
-    this._flyerFrame++;
-    const t = Date.now() * 0.001;
-    const alt = (this._flyer.userData?.alt || 1.09) + Math.sin(t * 2.2) * 0.004;
-    const lat = this._flyer.userData?.lat ?? 36.44;
-    const lng = this._flyer.userData?.lng ?? 28.22;
-    const p = this._latLngToPos(lat, lng, alt);
-    this._flyer.position.set(p.x, p.y, p.z);
-    this._orientFlyerOnGlobe(this._flyer, this._flyer.position);
-    const camZ = camera?.position?.z ?? GlobeNavigate.GLOBAL_Z;
-    this._scaleFlyer(this._flyer, camZ);
-    this._animateFlyerPose(this._flyer, false);
-    if (this._flyerFrame % 18 === 0) {
-      this.spawnEffect(this._flyer.position, 0x3d9eff, 4, 16);
-    }
-  },
-
-  setSiteShellMode(on) {
-    this.shellDim = !!on;
-    if (this.atmosphere) this.atmosphere.material.opacity = on ? 0.12 : (this.voicePerf ? 0.04 : 0.06);
-    if (this.idleNodes) this.idleNodes.material.opacity = on ? 0.55 : 0.35;
-  },
-
-  setVoicePerfMode(on) {
-    this.voicePerf = !!on;
-    if (this.atmosphere) this.atmosphere.material.opacity = on ? 0.04 : (this.shellDim ? 0.12 : 0.06);
-    if (this.clouds) this.clouds.visible = !on;
-    if (this.idleNodes) this.idleNodes.visible = !on;
-    if (this.neuralLayer) this.neuralLayer.visible = on || this.thinkPulse;
-    if (on) {
-      while (this.activeEffects.length > 6) {
-        const eff = this.activeEffects.pop();
-        if (eff?.points) {
-          scene.remove(eff.points);
-          eff.points.geometry?.dispose?.();
-          eff.points.material?.dispose?.();
-        }
-      }
-    }
-  },
-
-  setThinkMode(on) {
-    this.thinkPulse = !!on;
-    if (this.neuralLayer) {
-      this.neuralLayer.visible = on || this.voicePerf;
-      this.neuralLayer.material.opacity = on ? 0.22 : 0.14;
-    }
-  },
-
-  setSuperBatchActive(on, meta = {}) {
-    this.superBatchActive = !!on;
-    this._batchMeta = meta || {};
-    if (!this._parent) return;
-    if (!this.batchGroup) {
-      this.batchGroup = new THREE.Group();
-      this._parent.add(this.batchGroup);
-      const ringGeo = new THREE.RingGeometry(0.04, 0.07, 48);
-      const ringMat = new THREE.MeshBasicMaterial({
-        color: 0xaa88ff,
-        transparent: true,
-        opacity: 0.55,
-        side: THREE.DoubleSide,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      });
-      this.batchRing = new THREE.Mesh(ringGeo, ringMat);
-      this.batchGroup.add(this.batchRing);
-      const nodeGeo = new THREE.BufferGeometry();
-      const pts = new Float32Array(8 * 3);
-      for (let i = 0; i < 8; i++) {
-        const a = (i / 8) * Math.PI * 2;
-        pts[i * 3] = Math.cos(a) * 0.09;
-        pts[i * 3 + 1] = Math.sin(a) * 0.09;
-        pts[i * 3 + 2] = 0;
-      }
-      nodeGeo.setAttribute('position', new THREE.BufferAttribute(pts, 3));
-      this.batchNodes = new THREE.Points(nodeGeo, new THREE.PointsMaterial({
-        size: 0.012,
-        color: 0x00ddff,
-        transparent: true,
-        opacity: 0.85,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      }));
-      this.batchGroup.add(this.batchNodes);
-    }
-    this.batchGroup.visible = on;
-    if (on) this._placeBatchRing(meta);
-    if (on && meta.lat != null) {
-      try {
-        const p = this._latLngToPos(meta.lat, meta.lng || 0, 1.06);
-        this.spawnEffect(new THREE.Vector3(p.x, p.y, p.z), 0xaa88ff, 24, 40);
-      } catch (_) {}
-    }
-  },
-
-  _placeBatchRing(meta = {}) {
-    if (!this.batchGroup) return;
-    const lat = meta.lat != null ? meta.lat : 36.44;
-    const lng = meta.lng != null ? meta.lng : 28.22;
-    const p = this._latLngToPos(lat, lng, 1.055);
-    this.batchGroup.position.set(p.x, p.y, p.z);
-    const normal = new THREE.Vector3(p.x, p.y, p.z).normalize();
-    this.batchGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
-  },
-
-  pulseBatchMesh(peerCount) {
-    if (!this.batchRing) return;
-    this.batchRing.material.opacity = 0.45 + Math.min(peerCount, 8) * 0.04;
-    if (this.batchNodes) this.batchNodes.material.color.setHex(peerCount > 2 ? 0x3d9eff : 0x1a6fd4);
-    try {
-      const m = this._batchMeta || {};
-      if (m.lat != null) {
-        const p = this._latLngToPos(m.lat, m.lng || 0, 1.06);
-        this.spawnEffect(new THREE.Vector3(p.x, p.y, p.z), 0xaa88ff, 18, 35);
-      }
-    } catch (_) {}
-  },
-
-  _tickPilotThrusters() {
-    const pilot = window._pilot;
-    if (!pilot?.userData?.thrusters) return;
-    const t = Date.now() * 0.008;
-    pilot.userData.thrusters.forEach((thr, i) => {
-      thr.material.opacity = 0.65 + Math.sin(t + i) * 0.35;
-      thr.scale.y = 0.8 + Math.sin(t * 1.4 + i) * 0.35;
-    });
-  },
-
-  update() {
-    if (!this._inited) return;
-    const thinking = !!GlobeDeck?.thinking;
-    if (thinking !== this.thinkPulse) this.setThinkMode(thinking);
-
-    if (this.voicePerf) {
-      this._frameSkip = (this._frameSkip + 1) % 2;
-      if (this._frameSkip) return;
-    }
-    const t = Date.now() * 0.001;
-    if (this.batchRing && this.superBatchActive) {
-      this.batchRing.rotation.z = t * 0.6;
-      this.batchRing.material.opacity = 0.35 + Math.sin(t * 2.2) * 0.15;
-    }
-    if (this.batchNodes && this.superBatchActive) this.batchNodes.rotation.y = t * 0.5;
-    if (this.clouds && !this.shellDim && !this.voicePerf) this.clouds.rotation.y += 0.00008;
-    if (this.cityLights) this.cityLights.material.opacity = 0.65 + Math.sin(t * 1.5) * 0.1;
-    if (this.neuralLayer?.visible && this._neuralPack) {
-      this._paintNeural(this._neuralPack.ctx, 512, 256, t * 60);
-      this._neuralPack.tex.needsUpdate = true;
-      this.neuralLayer.rotation.y += 0.00012;
-    }
-    this._tickAstranovFlyer();
-    this._tickPilotThrusters();
-    this._tickPaths();
-
-    for (let i = this.activeEffects.length - 1; i >= 0; i--) {
-      const eff = this.activeEffects[i];
-      const posAttr = eff.points.geometry.attributes.position;
-      const arr = posAttr.array;
-      eff.life--;
-      const alpha = eff.life / eff.maxLife;
-      for (let j = 0; j < arr.length; j += 3) {
-        const vidx = j / 3;
-        arr[j] += eff.velocities[vidx * 3] * alpha;
-        arr[j + 1] += eff.velocities[vidx * 3 + 1] * alpha;
-        arr[j + 2] += eff.velocities[vidx * 3 + 2] * alpha;
-      }
-      posAttr.needsUpdate = true;
-      eff.points.material.opacity = alpha * 0.9;
-      if (eff.life <= 0) {
-        scene.remove(eff.points);
-        eff.points.geometry.dispose();
-        eff.points.material.dispose();
-        this.activeEffects.splice(i, 1);
-      }
-    }
-  },
-};
-
-window.AIGraphics = AIGraphics;
-AIGraphics.init(globePivot);
-
-setTimeout(() => {
-  try {
-    AIGraphics.spawnEffect(new THREE.Vector3(0.6, 0.3, 1.1), 0x00ffaa, 28, 32);
-    const u = window._lastPos || { lat: 36.44, lng: 28.22 };
-    AIGraphics.spawnAstranovFlyer(u.lat, u.lng, { label: 'Astranov' });
-  } catch (_) {}
-}, 480);
-
-window.AstranovFlyer = {
-  spawn: (lat, lng, opts) => AIGraphics.spawnAstranovFlyer(lat, lng, opts),
-  flyTo: (lat, lng, opts) => AIGraphics.flyAstranovTo(lat, lng, opts),
-};
 
 // Flow
 let me = null;
@@ -15573,13 +11235,13 @@ function _astranovBoot() {
   run(() => CosmicZoom.init());
   run(() => ZoomTiers.init());
   run(() => GlobeNavigate.init());
-  run(() => EarthRealism.init());
+  /* EarthRealism deferred */ LazyModules.ensure().then(() => EarthRealism?.init?.());
   applyGlobalBootView();
   run(() => AstranovTheme.init());
   run(() => AiGlyphs.init());
   run(() => AstranovLogo.init());
-  run(() => CityMap.init());
-  run(() => GlobeEntity.init());
+  /* CityMap deferred */ LazyModules.ensure().then(() => CityMap?.init?.());
+  /* GlobeEntity deferred */ LazyModules.ensure().then(() => GlobeEntity?.init?.());
   run(() => MapPins.init());
   run(() => MapOverlayDismiss.init());
   run(() => window.SpaceNetFleet?.init?.());
@@ -15590,10 +11252,11 @@ function _astranovBoot() {
   run(() => MarketplaceDeliveryEngine.init());
   run(() => FieldWork.init());
   run(() => SpaceNetCycle.init());
-  run(() => DrivingView.init());
+  /* DrivingView deferred */ LazyModules.ensure().then(() => DrivingView?.init?.());
   run(() => AiRouter.init());
   run(() => MissionSupportReporter.init());
   LazyModules.schedule();
+  setTimeout(() => LazyModules.ensure().catch(() => {}), 400);
   applyGlobalBootView();
 
   GlobeDeck?.setTitle?.('Astranov Command Line');
@@ -15603,12 +11266,12 @@ function _astranovBoot() {
   if (board && /checking teams/i.test(board.textContent || '')) board.textContent = 'Astranov ready';
 
   window._bootEarthLock = false;
-  void SpaceNetScenarioRunner?.runAll?.('boot').then?.((rows) => MissionSupportReporter?.reportBootRegression?.(rows));
+  void LazyModules.ensure().then(() => SpaceNetScenarioRunner?.runAll?.('boot')).then?.((rows) => MissionSupportReporter?.reportBootRegression?.(rows));
   ACIControl?.reply?.(SpaceNetMission?.bootReply || 'Astranov live · collective intelligence links all · scroll out → solar · galaxy');
   primeGrokVoice?.();
 
   setTimeout(() => Auth.refreshAuthority(), 400);
-  setTimeout(() => AciCoders?.enterSession?.({ ping: false, focus: false }), 1200);
+  setTimeout(() => { LazyModules.ensure().then(() => AciCoders?.enterSession?.({ ping: false, focus: false })); }, 1200);
   setTimeout(() => { try { Voice.init(); initVoice(); } catch (_) {} }, 0);
   setTimeout(() => { try { Circles.init(); } catch (_) {} }, 0);
   setTimeout(() => { void BrainNeurons?.boot?.(); }, 0);
