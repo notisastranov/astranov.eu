@@ -15540,6 +15540,7 @@ function animate() {
 function _astranovBoot() {
   window._bootAt = Date.now();
   window._bootEarthLock = true;
+  window._instantShellUnlock?.();
   window._snlForceDismiss?.();
   SpaceNetLoader?.dismiss?.('boot');
   GlobeDeck?.setThinking?.(false);
