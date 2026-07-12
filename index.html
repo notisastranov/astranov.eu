@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710930000-marketplace-field-test" />
+<meta name="astranov-build" content="20260710940000-menu-profile-post" />
 <meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
 <meta name="astranov-mission" content="SpaceNet: collective intelligence connecting everything into one — no satellites needed to communicate" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
@@ -21,7 +21,7 @@
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
-<link rel="preload" href="/astranov-app.js?v=20260710930000-marketplace-field-test" as="script" />
+<link rel="preload" href="/astranov-app.js?v=20260710940000-menu-profile-post" as="script" />
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
@@ -572,6 +572,36 @@
   #vmt-request-menu { width:100%; padding:9px; border-radius:10px; border:1px solid var(--ax-yellow-border); background:var(--ax-yellow-bg); color:var(--ax-yellow-bright); font-weight:600; cursor:pointer; font-size:11px; display:none; }
   #vmt-order { width:100%; padding:11px; border-radius:12px; border:1px solid var(--ax-green-border); background:var(--ax-green-bg); color:#fff; font-weight:700; cursor:pointer; font-size:12px; }
   #vmt-order:disabled { opacity:0.45; cursor:not-allowed; }
+  #menu-profile-post-tile { display:none; position:fixed; left:50%; top:42%; transform:translate(-50%,-50%); z-index:190; width:min(340px,94vw); max-height:min(72vh,480px); border-radius:16px; overflow:hidden; background:var(--ax-panel-strong); border:1px solid var(--ax-green-border); box-shadow:0 8px 32px rgba(0,0,0,0.55),0 0 18px var(--ax-green-glow); pointer-events:auto; font:11px/1.4 system-ui; color:var(--an-text); flex-direction:column; touch-action:none; }
+  #menu-profile-post-tile.open { display:flex; }
+  #menu-profile-post-tile.mpp-dragged { transform:none; }
+  #menu-profile-post-tile.mpp-pin-pick { border-color:var(--ax-yellow-border); box-shadow:0 0 20px var(--ax-yellow-glow); }
+  #mpp-head { display:flex; align-items:center; gap:6px; padding:8px 10px; border-bottom:1px solid var(--ax-blue-border); background:rgba(0,24,56,0.65); cursor:grab; touch-action:none; user-select:none; }
+  #mpp-head:active { cursor:grabbing; }
+  #mpp-drag { width:28px; height:28px; border-radius:8px; border:1px solid var(--ax-blue-border); background:transparent; color:var(--an-muted); cursor:grab; flex-shrink:0; font-size:14px; }
+  #mpp-coords { flex:1; min-width:0; font-size:10px; font-weight:600; color:var(--ax-green-bright); font-variant-numeric:tabular-nums; }
+  #mpp-pin-pick { width:32px; height:32px; border-radius:50%; border:1px solid var(--ax-yellow-border); background:var(--ax-yellow-bg); cursor:pointer; flex-shrink:0; font-size:14px; touch-action:manipulation; }
+  #mpp-pin-pick.active { box-shadow:0 0 12px var(--ax-yellow-glow); border-color:#ffd633; }
+  #mpp-close { width:28px; height:28px; border-radius:50%; border:1px solid #666; background:transparent; color:#aaa; cursor:pointer; flex-shrink:0; }
+  #mpp-tabs { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; padding:6px 8px; border-bottom:1px solid var(--ax-blue-border); }
+  #mpp-tabs button { padding:8px 4px; border-radius:10px; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); font-size:10px; font-weight:700; cursor:pointer; touch-action:manipulation; }
+  #mpp-tabs button.active { border-color:var(--ax-green-border); background:var(--ax-green-bg); color:#fff; box-shadow:0 0 8px var(--ax-green-glow); }
+  #mpp-panels { flex:1; overflow:auto; padding:8px 10px; min-height:120px; }
+  .mpp-panel { display:none; flex-direction:column; gap:8px; }
+  .mpp-panel.active { display:flex; }
+  .mpp-panel p { margin:0; color:var(--an-muted); font-size:10px; line-height:1.4; }
+  .mpp-panel button.mpp-act { width:100%; padding:9px; border-radius:10px; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); font-weight:600; font-size:10px; cursor:pointer; touch-action:manipulation; }
+  .mpp-panel button.mpp-act.primary { border-color:var(--ax-green-border); background:var(--ax-green-bg); color:#fff; }
+  .mpp-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px; border-radius:10px; border:1px solid var(--ax-blue-border); background:rgba(0,16,40,0.5); }
+  .mpp-toggle { position:relative; width:44px; height:24px; border-radius:999px; border:1px solid var(--ax-blue-border); background:#1a2840; cursor:pointer; flex-shrink:0; }
+  .mpp-toggle.on { background:var(--ax-green-bg); border-color:var(--ax-green-border); }
+  .mpp-toggle::after { content:''; position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:#9ab; transition:transform 0.15s; }
+  .mpp-toggle.on::after { transform:translateX(20px); background:#fff; }
+  #mpp-vendors { display:flex; flex-direction:column; gap:4px; max-height:100px; overflow:auto; }
+  .mpp-vendor { text-align:left; padding:7px 8px; border-radius:8px; border:1px solid var(--ax-blue-border); background:rgba(0,20,48,0.45); color:var(--ax-blue-bright); font-size:10px; cursor:pointer; touch-action:manipulation; }
+  #mpp-post-caption { width:100%; min-height:52px; padding:8px; border-radius:10px; border:1px solid var(--ax-blue-border); background:rgba(0,20,48,0.65); color:var(--an-text); font:11px system-ui; resize:vertical; box-sizing:border-box; }
+  #mpp-foot { padding:8px 10px 10px; border-top:1px solid var(--ax-blue-border); display:flex; gap:6px; }
+  #mpp-apply { flex:1; padding:11px; border-radius:12px; border:1px solid var(--ax-green-border); background:var(--ax-green-bg); color:#fff; font-weight:700; font-size:11px; cursor:pointer; touch-action:manipulation; }
   #map-nav-chip { display:none !important; visibility:hidden; pointer-events:none; }
   #map-eta-labels { position:fixed; inset:0; z-index:155; pointer-events:none; overflow:hidden; }
   .map-eta-label { position:absolute; transform:translate(-50%,-100%); padding:4px 8px; border-radius:8px; background:rgba(0,32,16,0.88); border:1px solid var(--ax-green-border); color:var(--ax-green-bright); font:9px/1.2 system-ui; font-weight:700; white-space:nowrap; box-shadow:0 0 10px var(--ax-green-glow); pointer-events:auto; cursor:pointer; touch-action:manipulation; }
@@ -849,6 +879,59 @@
       <button id="vmt-order" type="button">Add items to order</button>
     </div>
   </div>
+  <div id="menu-profile-post-tile" aria-label="Profile · Order · Driver · Post">
+    <div id="mpp-head">
+      <button id="mpp-drag" type="button" title="Drag tile" aria-label="Drag tile">⠿</button>
+      <div id="mpp-coords">—</div>
+      <button id="mpp-pin-pick" type="button" title="Tap map to set pin" aria-label="Pick location on map">📍</button>
+      <button id="mpp-close" type="button" aria-label="Close">✖</button>
+    </div>
+    <div id="mpp-tabs" role="tablist">
+      <button type="button" data-mpp-tab="profile" class="active" title="Client profile &amp; delivery">👤 Profile</button>
+      <button type="button" data-mpp-tab="order" title="Vendor menu &amp; order">🛒 Order</button>
+      <button type="button" data-mpp-tab="driver" title="Driver base &amp; availability">🚚 Driver</button>
+      <button type="button" data-mpp-tab="post" title="Lust social post">🔥 Post</button>
+    </div>
+    <div id="mpp-panels">
+      <div id="mpp-panel-profile" class="mpp-panel active" role="tabpanel">
+        <p>Client delivery address — drag tile or tap 📍 then tap the map for an accurate pin.</p>
+        <button type="button" class="mpp-act primary" data-mpp-act="set_delivery">Set delivery address here</button>
+        <button type="button" class="mpp-act" data-mpp-act="open_profile">Open my profile</button>
+      </div>
+      <div id="mpp-panel-order" class="mpp-panel" role="tabpanel">
+        <p>Order from nearby vendors with real menus · photos · AVC prices.</p>
+        <div id="mpp-vendors"></div>
+        <button type="button" class="mpp-act primary" data-mpp-act="browse_shops">Browse all shops here</button>
+        <button type="button" class="mpp-act" data-mpp-act="list_shop">List my shop at pin</button>
+      </div>
+      <div id="mpp-panel-driver" class="mpp-panel" role="tabpanel">
+        <p>Driver base &amp; schedule — deliveries route from here when you are online.</p>
+        <div class="mpp-row">
+          <span>Available to deliver</span>
+          <button type="button" id="mpp-driver-online" class="mpp-toggle" aria-pressed="false" title="Driver online/offline"></button>
+        </div>
+        <div class="mpp-row">
+          <span>Schedule</span>
+          <select id="mpp-driver-schedule" style="flex:1;max-width:140px;padding:4px 6px;border-radius:8px;border:1px solid var(--ax-blue-border);background:rgba(0,20,48,0.8);color:var(--an-text);font-size:10px">
+            <option value="now">Available now</option>
+            <option value="tonight">Tonight 18–23</option>
+            <option value="tomorrow_am">Tomorrow AM</option>
+            <option value="off">Off duty</option>
+          </select>
+        </div>
+        <button type="button" class="mpp-act primary" data-mpp-act="set_driver_base">Set driver base here</button>
+      </div>
+      <div id="mpp-panel-post" class="mpp-panel" role="tabpanel">
+        <p>Lust social — post at this map pin for nearby users &amp; globe feed.</p>
+        <textarea id="mpp-post-caption" placeholder="What's happening here?" maxlength="280"></textarea>
+        <button type="button" class="mpp-act primary" data-mpp-act="post_lust">🔥 Post at pin</button>
+        <button type="button" class="mpp-act" data-mpp-act="post_media">📷 Photo / video post</button>
+      </div>
+    </div>
+    <div id="mpp-foot">
+      <button id="mpp-apply" type="button">Set delivery here</button>
+    </div>
+  </div>
   <div id="delivery-route-hud" aria-label="Delivery route details">
     <div id="drh-type">▸ Delivery route</div>
     <div id="drh-title">—</div>
@@ -935,7 +1018,7 @@
           <span id="cli-ribbon-status" aria-live="polite"></span>
         </div>
         <div id="super-cli-edge-right" class="super-cli-edge-right">
-          <button id="super-add-fab" type="button" title="Super Add — post · vendor · site">+</button>
+          <button id="super-add-fab" type="button" title="Profile · order · driver · post — drag pin on map">+</button>
           <button id="aci-handsfree" type="button" title="AI hands-free — listen &amp; speak" data-voice-state="off"></button>
         </div>
         <button id="aci-stop" title="Stop AI · voice · tasks" type="button"></button>
@@ -1065,6 +1148,6 @@
   window._instantShellUnlock=unlock;
 })();
 </script>
-<script defer src="/astranov-app.js?v=20260710930000-marketplace-field-test"></script>
+<script defer src="/astranov-app.js?v=20260710940000-menu-profile-post"></script>
 </body>
 </html>
