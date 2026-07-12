@@ -83,7 +83,7 @@ const GlobeControl = {
     this._lastAutoFly = Date.now();
   },
 
-  Z: { global: 2.55, national: 1.82, regional: 1.65, city: 1.38 },
+  Z: { global: 3.2, national: 1.82, regional: 1.65, city: 1.38 },
 
   /** Z depth that activates the flat city map (explicit city entry only) */
   cityEntryZ() {
@@ -140,7 +140,7 @@ const GlobeNavigate = {
   mode: 'global',
   anchor: null,
   _cityUnlocked: false,
-  GLOBAL_Z: 2.55,
+  GLOBAL_Z: 3.2,
   NATIONAL_Z: 1.82,
   CITY_CAM_Z: 1.30,
   LEAFLET_ZOOM: 11,
@@ -4117,12 +4117,12 @@ const AstranovLogo = {
       globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
     }
     if (typeof camera !== 'undefined' && camera) {
-      camera.position.z = ZoomTiers?.tierZ?.('global') || 2.55;
+      camera.position.z = ZoomTiers?.tierZ?.('global') || GlobeNavigate?.GLOBAL_Z || 3.2;
       camera.lookAt(0, 0, 0);
     }
     ZoomTiers?.goTo?.('global', true);
     CityMap?._exit?.();
-    CosmicZoom?.update?.(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
+    CosmicZoom?.update?.(GlobeNavigate?.GLOBAL_Z || 3.2, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
     cityLevel = false;
     const zl = document.getElementById('zoom-label');
     if (zl && !window.DrivingView?.active) zl.textContent = 'GLOBAL';
@@ -10835,7 +10835,7 @@ const ZoomTiers = {
     { id: 'galaxy', z: 16, label: 'GALAXY', cosmic: 'galaxy' },
     { id: 'solar', z: 7.2, label: 'SOLAR SYSTEM', cosmic: 'system' },
     { id: 'orbit', z: 5.2, label: 'ORBIT', cosmic: 'orbit' },
-    { id: 'global', z: 2.55, label: 'GLOBAL', cosmic: 'earth' },
+    { id: 'global', z: 3.2, label: 'GLOBAL', cosmic: 'earth' },
     { id: 'national', z: 1.82, label: 'NATIONAL', cosmic: 'earth', national: true },
     { id: 'regional', z: 1.65, label: 'REGIONAL', cosmic: 'earth', national: true },
     { id: 'city', z: 1.38, label: 'CITY', cosmic: 'earth', city: true },
@@ -15608,7 +15608,7 @@ function applyGlobalBootView() {
   GlobeNavigate.mode = 'global';
   GlobeNavigate._cityUnlocked = false;
   if (camera) {
-    camera.position.set(0, 0.25, GlobeNavigate.GLOBAL_Z);
+    camera.position.set(0, 0, GlobeNavigate.GLOBAL_Z);
     camera.lookAt(0, 0, 0);
   }
   if (globePivot) {
