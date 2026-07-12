@@ -1,20 +1,19 @@
-(function(){var e=document.getElementById("spacenet-loader");if(e)e.remove();})();
-const container = document.getElementById('globe');
+/* astranov-gl.js — first paint · split-lite */
+/* Astranov app — unified bundle · global-boot rebuild */
+
 (function _snlEarlyPaint() {
-  const fill = document.getElementById('snl-fill');
-  const label = document.getElementById('snl-label');
-  const el = document.getElementById('spacenet-loader');
-  if (fill) fill.style.width = '12%';
-  if (label) label.textContent = 'SpaceNet · one mind';
   const kill = function() {
+    const el = document.getElementById('spacenet-loader');
     if (!el || el.classList.contains('done')) return;
     el.classList.add('done');
     el.setAttribute('aria-busy', 'false');
-    setTimeout(function() { try { el.remove(); } catch (_) {} }, 320);
+    setTimeout(function() { try { el.remove(); } catch (_) {} }, 200);
   };
-  kill();
   window._snlForceDismiss = kill;
+  kill();
 })();
+
+const container = document.getElementById('globe');
 
 // Robust WebGL + error guard so user never sees silent black
 window.addEventListener('error', function(e) {
@@ -63,7 +62,7 @@ try {
   window._snlForceDismiss?.();
   const fb = document.createElement('div');
   fb.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#0af;font:15px system-ui;background:#000;z-index:10;text-align:center;';
-  fb.innerHTML = 'WebGL unavailable — CLI still works.<br>Enable hardware acceleration or try Chrome.<br><small>Tap Astranov SpaceNet to retry</small>';
+  fb.innerHTML = 'WebGL unavailable — CLI still works.<br>Enable hardware acceleration or try Chrome.<br><small>Tap Astranov to retry</small>';
   if (container) container.appendChild(fb);
 }
 
@@ -84,8 +83,9 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 
 const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.set(0, 0, 3.2);
+camera.position.set(0, 0, 3.5);
 camera.lookAt(0, 0, 0);
+window.camera = camera;
 
 scene.add(new THREE.AmbientLight(0x667788, 1.0));
 const sun = new THREE.DirectionalLight(0xffffff, 1.6);
@@ -94,7 +94,7 @@ scene.add(sun);
 
 // Stars - bigger/brighter to guarantee visibility against black
 const starPos = [];
-for (let i=0; i<1200; i++) {
+for (let i=0; i<480; i++) {
   const r = 140 + Math.random()*900;
   const t = Math.random()*Math.PI*2;
   const p = Math.acos(2*Math.random()-1);
@@ -130,57 +130,19 @@ globePivot.add(earth);
 globePivot.rotation.y = 0;
 globePivot.rotation.x = 0.12;
 globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
+window.globePivot = globePivot;
 window.earth = earth;
 window._animateStarted = false;
-
-(function _instantReadyUi() {
-  var zl = document.getElementById('zoom-label');
-  if (zl) zl.textContent = 'GLOBAL';
-  var deck = document.getElementById('globe-deck');
-  var prev = document.getElementById('globe-deck-preview');
-  if (prev) {
-    prev.textContent = 'SpaceNet live · drag globe to explore';
-    if (deck) deck.classList.add('has-preview');
-  }
-  var ticker = document.getElementById('news-ticker');
-  if (ticker) ticker.textContent = 'SpaceNet live · full earth · drag to explore · CLI loads in background';
-})();
-
-(function _earlyTrackball() {
-  if (!container || !globePivot) return;
-  var active = false, lx = 0, ly = 0;
-  container.addEventListener('pointerdown', function(e) {
-    if (e.button !== 0) return;
-    active = true;
-    drag = true;
-    lx = e.clientX;
-    ly = e.clientY;
-    try { container.setPointerCapture(e.pointerId); } catch (_) {}
-  });
-  container.addEventListener('pointerup', function() { active = false; drag = false; });
-  container.addEventListener('pointercancel', function() { active = false; drag = false; });
-  container.addEventListener('pointermove', function(e) {
-    if (!active || window._animateStarted) return;
-    var dx = e.clientX - lx, dy = e.clientY - ly;
-    lx = e.clientX;
-    ly = e.clientY;
-    globePivot.rotation.y += dx * 0.005;
-    globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x + dy * 0.003));
-    globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
-  });
-})();
 
 (function _earlyGlobePaint() {
   function tick() {
     if (!renderer || !scene || !camera) return;
     window._snlForceDismiss?.();
-    if (globePivot && !window._animateStarted && !drag) globePivot.rotation.y += 0.00035;
     try { renderer.render(scene, camera); } catch (_) {}
     if (!window._animateStarted) requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
 })();
-
 window.renderer = renderer;
 window.scene = scene;
 window.camera = camera;
@@ -191,25 +153,6 @@ window.dragging = dragging;
 window.idleRoll = idleRoll;
 window.trackVelX = trackVelX;
 window.trackVelY = trackVelY;
-window.cityLevel = cityLevel;
-window.voiceEnabled = voiceEnabled;
-window.voiceSessionActive = voiceSessionActive;
-window.isListening = isListening;
-window.recognition = recognition;
-window.userLocated = userLocated;
+window._snlForceDismiss = window._snlForceDismiss;
 window.sun = sun;
-(function loadCore(){
-  var b = document.querySelector('meta[name="astranov-build"]');
-  var v = b && b.content ? '?v=' + encodeURIComponent(b.content) : '';
-  var prev = document.getElementById('globe-deck-preview');
-  var s = document.createElement('script');
-  s.src = '/astranov-core.js' + v;
-  s.onload = function() {
-    window._coreLoaded = true;
-    if (prev && !window._bootAt) prev.textContent = 'SpaceNet · wiring CLI…';
-  };
-  s.onerror = function() {
-    if (prev) prev.textContent = 'Core failed to load — hard refresh (Ctrl+Shift+R)';
-  };
-  document.head.appendChild(s);
-})();
+window.container = container;
