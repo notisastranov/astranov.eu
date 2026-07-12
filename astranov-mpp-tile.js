@@ -1,6 +1,6 @@
 ﻿// === MENU-PROFILE-POST TILE â€” + button Â· draggable Â· map pin Â· profile Â· order Â· driver Â· lust post ===
 (function loadHudModules() {
-  var v = '20260710960000-field-hud';
+  var v = '20260710970000-spacenet-miner';
   if (!window.GalacticSky) {
     var g = document.createElement('script');
     g.src = '/astranov-galactic-sky.js?v=' + v;
