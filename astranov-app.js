@@ -1077,11 +1077,11 @@ const ASTRANOV_GLOBE_PHYSICS_LOCK = Object.freeze({
   zoom: Object.freeze({
     ZOOM_MIN: 1.05,
     ZOOM_MAX: 18,
-    ZOOM_SMOOTH_BASE: 0.088,
-    FRICTION_IDLE: 0.968,
-    FRICTION_ACTIVE: 0.993,
-    MIN_VEL: 4e-7,
-    MAX_VEL: 1.65,
+    ZOOM_SMOOTH_BASE: 0.062,
+    FRICTION_IDLE: 0.984,
+    FRICTION_ACTIVE: 0.996,
+    MIN_VEL: 2e-7,
+    MAX_VEL: 0.95,
   }),
 });
 Object.defineProperty(window, 'ASTRANOV_GLOBE_PHYSICS_LOCK', { value: ASTRANOV_GLOBE_PHYSICS_LOCK, writable: false, configurable: false });
@@ -1158,9 +1158,9 @@ const GlobeZoom = {
   MAX_VEL: ASTRANOV_GLOBE_PHYSICS_LOCK.zoom.MAX_VEL,
 
   _normDy(dy, mode) {
-    if (mode === 1) return dy * 0.048;
-    if (mode === 2) return dy * 0.24;
-    return dy * 0.00205;
+    if (mode === 1) return dy * 0.034;
+    if (mode === 2) return dy * 0.17;
+    return dy * 0.00115;
   },
 
   impuls(clientX, clientY, dy, deltaMode, dtMs) {
@@ -1184,7 +1184,7 @@ const GlobeZoom = {
     this._lastX = clientX;
     this._lastY = clientY;
     this._scrolling = true;
-    this._activeUntil = now + Math.max(180, 320 - dt * 4);
+    this._activeUntil = now + Math.max(320, 620 - dt * 3);
     GlobeControl?.userTookGlobe?.('silent');
   },
 
@@ -1308,8 +1308,10 @@ function zoomBy(delta, opts) {
   if (!delta || !Number.isFinite(delta)) return;
   opts = opts || {};
   const vel = opts.velocity != null ? opts.velocity : Math.abs(delta);
-  const gain = ZOOM_SMOOTH_BASE + Math.min(0.34, Math.pow(vel, 0.72) * 0.38);
-  const factor = Math.exp(delta * gain);
+  const stepCap = 0.014 + Math.min(0.022, vel * 0.018);
+  const capped = Math.sign(delta) * Math.min(Math.abs(delta), stepCap);
+  const gain = ZOOM_SMOOTH_BASE + Math.min(0.22, Math.pow(vel, 0.72) * 0.26);
+  const factor = Math.exp(capped * gain);
   const prev = camera.position.z;
   let next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, prev * factor));
   if (GlobeNavigate?.clampZ) next = GlobeNavigate.clampZ(next);
@@ -1809,7 +1811,7 @@ const GlobeNavigate = {
     if (!this._cityUnlocked && z < this.NATIONAL_Z && z > 1.5) {
       window._globeFly = {
         mode: 'zoom', fromZ: z, toZ: this.NATIONAL_Z,
-        t0: performance.now(), dur: 700, onTier: false,
+        t0: performance.now(), dur: 1600, onTier: false,
       };
       this.mode = 'national';
       ZoomTiers?.goTo?.('national', false);
@@ -1898,6 +1900,28 @@ const GlobeNavigate = {
       prefill: opts.intent || '',
     });
     return 'place';
+  },
+
+  async ensureCityAt(lat, lng) {
+    await LazyModules.ensure().catch(() => {});
+    if (window.CityMap?.ensureReady) await CityMap.ensureReady().catch(() => {});
+    lat = Number(lat);
+    lng = Number(lng);
+    if (!isFinite(lat) || !isFinite(lng)) {
+      const p = window._lastPos || { lat: 36.44, lng: 28.22 };
+      lat = p.lat;
+      lng = p.lng;
+    }
+    const inCity = this.isCity() || CityMap?.active;
+    if (!inCity) {
+      GlobeDeck?.setPreview?.('Entering city view — list vendor · client · driver here');
+      AciCli?.print?.('nav · city for listing · ' + lat.toFixed(2) + ',' + lng.toFixed(2), 'ok');
+      await this._enterCitySlow(lat, lng, { openShops: false });
+    } else if (CityMap?.active && CityMap?.flyTo) {
+      CityMap.flyTo(lat, lng, this.LEAFLET_ZOOM);
+    }
+    window._lastPos = { lat, lng };
+    return true;
   },
 
   async _enterCitySlow(lat, lng, opts) {
@@ -9789,6 +9813,7 @@ const MapPlaceMenu = {
     if (action === 'client_addr') {
       const go = async () => {
         await LazyModules.ensure().catch(() => {});
+        await GlobeNavigate?.ensureCityAt?.(lat, lng);
         await MapPins?.setClientDelivery?.(lat, lng, 'Customer delivery · ' + this.formatCoords(lat, lng));
         if (!Auth?.user) {
           ACIControl?.reply?.('Delivery saved on this device · sign in (G) to sync to your profile');
@@ -9805,6 +9830,7 @@ const MapPlaceMenu = {
           Auth?.openLoginModal?.('Sign in to set driver base');
           return;
         }
+        await GlobeNavigate?.ensureCityAt?.(lat, lng);
         await MapPins?.setDriverBase?.(lat, lng, 'Driver base · ' + this.formatCoords(lat, lng));
       };
       void go();
@@ -9823,6 +9849,7 @@ const MapPlaceMenu = {
           Auth?.openLoginModal?.('Sign in to list your vendor on the map');
           return;
         }
+        await GlobeNavigate?.ensureCityAt?.(lat, lng);
         await window.Commerce?.enlistVendorAt?.(lat, lng, { name: '' });
       };
       void go();
