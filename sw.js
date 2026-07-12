@@ -1,5 +1,5 @@
 /* Astranov service worker — never serve stale app HTML/core */
-const CACHE = 'astranov-v38';
+const CACHE = 'astranov-v39';
 const SHELL = ['/manifest.webmanifest', '/icon.svg'];
 
 self.addEventListener('install', (e) => {
