@@ -1,4 +1,11 @@
 ﻿// === MENU-PROFILE-POST TILE â€” + button Â· draggable Â· map pin Â· profile Â· order Â· driver Â· lust post ===
+(function loadGalacticSky() {
+  if (window.GalacticSky) return;
+  var s = document.createElement('script');
+  s.src = '/astranov-galactic-sky.js?v=20260710950000-galactic-sky';
+  s.defer = true;
+  document.head.appendChild(s);
+})();
 const MenuProfilePostTile = {
   _pin: null,
   _tab: 'profile',
