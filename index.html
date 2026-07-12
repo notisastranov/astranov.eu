@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710950000-galactic-sky" />
+<meta name="astranov-build" content="20260710960000-field-hud" />
 <meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
 <meta name="astranov-mission" content="SpaceNet: collective intelligence connecting everything into one — no satellites needed to communicate" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
@@ -21,7 +21,7 @@
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
-<link rel="preload" href="/astranov-app.js?v=20260710950000-galactic-sky" as="script" />
+<link rel="preload" href="/astranov-app.js?v=20260710960000-field-hud" as="script" />
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
@@ -237,7 +237,7 @@
   #aci-stop { background:var(--ax-red-bg); border-color:var(--ax-red-border); color:var(--ax-red-bright); box-shadow:0 0 8px var(--ax-red-glow); }
   #news-ticker { display:none; margin:8px 8px 0; padding:6px 12px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); border-radius:14px; font:11px system-ui; color:var(--ax-blue-bright); white-space:nowrap; overflow:hidden; pointer-events:auto; }
   #zoom-label { position:fixed; top:10px; left:10px; z-index:40; font:12px/1.35 system-ui; font-weight:600; color:var(--an-text); text-shadow:0 1px 8px rgba(0,0,0,0.85); pointer-events:none; max-width:min(280px,72vw); }
-  #zoom-tier-dots { position:fixed; top:10px; right:10px; z-index:40; display:flex; flex-direction:column; gap:4px; pointer-events:none; font-family:var(--fhud,system-ui); }
+  #zoom-tier-dots { display:none !important; }
   #zoom-tier-dots .ztd { width:5px; height:5px; border-radius:50%; background:rgba(0,200,255,0.22); box-shadow:0 0 4px rgba(0,200,255,0.15); transition:all 0.25s; }
   #zoom-tier-dots .ztd.on { background:#00c8ff; opacity:1; box-shadow:0 0 8px rgba(0,200,255,0.55); transform:scale(1.35); }
   /* #aci-theme removed for fewer buttons; theme is now auto + CLI only */
@@ -295,7 +295,7 @@
   #cli-ribbon-status.ready { color:var(--ax-green-bright); text-shadow:0 0 8px var(--ax-green-glow); }
   @keyframes cli-think-glow { 0%,100%{ opacity:0.85; } 50%{ opacity:1; text-shadow:0 0 12px var(--ax-blue-glow); } }
   #super-cli-bar button:not(#aci-login):not(#super-add-fab):not(#aci-handsfree):not(#aci-avc):not(.app-shortcut-btn) { display:none !important; }
-  #super-cli-bar #aci-avc { display:inline-flex !important; flex-shrink:0; order:1; }
+  #super-cli-bar #aci-avc { display:none !important; }
   #app-shortcut-row { display:flex; gap:4px; align-items:center; flex:0 1 auto; max-width:100%; min-width:0; overflow-x:auto; overflow-y:hidden; padding:0 2px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
   #app-shortcut-row::-webkit-scrollbar { display:none; }
   #super-cli-bar .app-shortcut-btn { display:inline-flex !important; align-items:center; justify-content:center; width:32px; height:32px; font-size:15px; border-radius:10px; background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); cursor:pointer; flex-shrink:0; touch-action:manipulation; transition:background 0.15s,border-color 0.15s,transform 0.1s; }
@@ -1149,8 +1149,9 @@
   window._instantShellUnlock=unlock;
 })();
 </script>
-<script defer src="/astranov-app.js?v=20260710950000-galactic-sky"></script>
-<script defer src="/astranov-galactic-sky.js?v=20260710950000-galactic-sky"></script>
-<script defer src="/astranov-mpp-tile.js?v=20260710950000-galactic-sky"></script>
+<script defer src="/astranov-app.js?v=20260710960000-field-hud"></script>
+<script defer src="/astranov-galactic-sky.js?v=20260710960000-field-hud"></script>
+<script defer src="/astranov-field-hud.js?v=20260710960000-field-hud"></script>
+<script defer src="/astranov-mpp-tile.js?v=20260710960000-field-hud"></script>
 </body>
 </html>
