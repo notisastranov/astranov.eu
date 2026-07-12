@@ -303,7 +303,7 @@ const AIGraphics = {
 window.AIGraphics = AIGraphics;
 window.AstranovFlyer = { spawn(){}, flyTo(){} };
 
-// ── COSMIC ZOOM: Earth → satellites → solar system → galaxy ──
+// ── COSMIC ZOOM: Earth → orbit → galactic sky (exoplanets) → galaxy ──
 const CosmicZoom = {
   level: 'earth',
   solarGroup: null,
@@ -558,8 +558,8 @@ const CosmicZoom = {
 
   setOrbitVisibility(level) {
     const showLeo = level === 'orbit';
-    const showSolar = level === 'system';
-    const showMesh = level === 'orbit' || level === 'system';
+    const showSolar = false;
+    const showMesh = level === 'orbit' || level === 'galactic';
     this.leoRings.forEach(r => { if (r) r.visible = showLeo; });
     this.orbitLines.forEach(line => {
       if (!line.parent) return;
@@ -573,14 +573,14 @@ const CosmicZoom = {
     if (window._cityDropLock && !opts.cosmic) {
       opts = Object.assign({}, opts, { cosmic: 'earth', tier: opts.tier || 'city', label: opts.label || 'CITY' });
     }
-    let level = opts.cosmic === 'system' ? 'system' : opts.cosmic === 'galaxy' ? 'galaxy' : 'earth';
+    let level = opts.cosmic === 'galactic' || opts.cosmic === 'system' ? 'galactic' : opts.cosmic === 'galaxy' ? 'galaxy' : 'earth';
     let label = opts.label || 'GLOBAL';
     if (window._bootEarthLock && camZ < 6) {
       level = 'earth';
       label = opts.label || 'GLOBAL';
     } else if (!opts.tier) {
       if (camZ > 14) { level = 'galaxy'; label = 'GALAXY'; }
-      else if (camZ > 5.5) { level = 'system'; label = 'SOLAR SYSTEM'; }
+      else if (camZ > 5.5) { level = 'galactic'; label = 'GALACTIC SKY'; }
       else if (camZ > 4.8) { level = 'orbit'; label = 'ORBIT'; }
       else {
         level = 'earth';
@@ -603,7 +603,7 @@ const CosmicZoom = {
         zl.textContent = (tier?.label || 'NATIONAL') + ' · ' + (window.ZoomTiers?.countryHint?.() || 'region');
       } else {
         if (level === 'orbit') zl.textContent = 'ORBIT';
-        else if (level === 'system') zl.textContent = 'SOLAR SYSTEM';
+        else if (level === 'galactic') zl.textContent = 'GALACTIC SKY';
         else if (level === 'galaxy') zl.textContent = 'GALAXY';
         else if (label === 'GLOBAL') zl.textContent = 'GLOBAL';
         else zl.textContent = label;
@@ -619,11 +619,11 @@ const CosmicZoom = {
     this._lastLevel = level;
 
     globePivot.visible = level === 'earth' || level === 'orbit';
-    if (this.solarGroup) this.solarGroup.visible = level === 'system';
+    if (this.solarGroup) this.solarGroup.visible = false;
     if (this.galaxyPts) this.galaxyPts.visible = level === 'galaxy';
     if (this.satGroup) this.satGroup.visible = level === 'earth' || level === 'orbit';
     if (this.issMarker) this.issMarker.visible = level === 'earth' || level === 'orbit';
-    document.body.classList.toggle('cosmic-solar', level === 'system');
+    document.body.classList.toggle('cosmic-galactic', level === 'galactic');
     document.body.classList.toggle('cosmic-galaxy', level === 'galaxy');
     document.body.classList.toggle('cosmic-orbit', level === 'orbit');
     GlobeNavigate?._syncChip?.();
@@ -638,12 +638,12 @@ const CosmicZoom = {
       });
     }
 
-    if (level === 'orbit' || level === 'system') {
+    if (level === 'orbit' || level === 'galactic') {
       if (!this._issLastFetch || now - this._issLastFetch > 120000) this.trackISS();
       if (this.issMarker) this.issMarker.visible = camZ < 10;
     }
 
-    if (this._orbitalSats && (level === 'orbit' || level === 'system')) {
+    if (this._orbitalSats && (level === 'orbit' || level === 'galactic')) {
       this._orbitalSats.forEach(s => { s.visible = level === 'orbit'; });
     } else if (this._orbitalSats) {
       this._orbitalSats.forEach(s => { s.visible = false; });
@@ -902,7 +902,7 @@ window.SpaceNetBrain = SpaceNetBrain;
 const ZoomTiers = {
   TIERS: [
     { id: 'galaxy', z: 16, label: 'GALAXY', cosmic: 'galaxy' },
-    { id: 'solar', z: 7.2, label: 'SOLAR SYSTEM', cosmic: 'system' },
+    { id: 'galactic', z: 7.2, label: 'GALACTIC SKY', cosmic: 'galactic' },
     { id: 'orbit', z: 5.2, label: 'ORBIT', cosmic: 'orbit' },
     { id: 'global', z: 3.5, label: 'GLOBAL', cosmic: 'earth' },
     { id: 'national', z: 1.82, label: 'NATIONAL', cosmic: 'earth', national: true },
@@ -954,7 +954,7 @@ const ZoomTiers = {
   updateDots() {
     const el = document.getElementById('zoom-tier-dots');
     if (!el) return;
-    const show = this.TIERS.filter(t => t.id !== 'solar' && t.id !== 'galaxy');
+    const show = this.TIERS.filter(t => t.id !== 'galactic' && t.id !== 'galaxy');
     el.innerHTML = show.map((t) => {
       const i = this.TIERS.findIndex(x => x.id === t.id);
       const on = i === this._index ? ' on' : '';
@@ -1042,7 +1042,7 @@ const ZoomTiers = {
     const zl = document.getElementById('zoom-label');
     if (zl && !window.DrivingView?.active && !CityMap?.active) {
       if (tier.id === 'galaxy') zl.textContent = 'GALAXY';
-      else if (tier.id === 'solar') zl.textContent = 'SOLAR SYSTEM';
+      else if (tier.id === 'galactic') zl.textContent = 'GALACTIC SKY';
       else if (tier.id === 'orbit') zl.textContent = 'ORBIT';
       else if (tier.id === 'global') zl.textContent = 'GLOBAL';
       else if (tier.national) zl.textContent = tier.label + ' · ' + this.countryHint();
@@ -1785,10 +1785,10 @@ const GlobeNavigate = {
     const chip = document.getElementById('map-nav-chip');
     if (!chip) return;
     const cosmic = CosmicZoom?.level || 'earth';
-    let txt = 'GLOBAL · full earth · scroll out → solar · galaxy';
-    if (cosmic === 'galaxy') txt = 'GALAXY · scroll in → solar system → earth';
-    else if (cosmic === 'system') txt = 'SOLAR SYSTEM · scroll in → earth · out → galaxy';
-    else if (cosmic === 'orbit') txt = 'ORBIT · collective mesh · scroll out → solar system';
+    let txt = 'GLOBAL · constellations · scroll out → galactic sky';
+    if (cosmic === 'galaxy') txt = 'GALAXY · scroll in → exoplanet hosts → earth';
+    else if (cosmic === 'galactic') txt = 'GALACTIC SKY · real exoplanet star positions';
+    else if (cosmic === 'orbit') txt = 'ORBIT · constellations · scroll out → galactic sky';
     else if (this.isCity()) txt = 'CITY z' + this.LEAFLET_ZOOM + ' · tap + for intent';
     else if (this.isNational()) txt = 'NATIONAL · tap a city to descend slowly';
     chip.textContent = txt;
@@ -11478,7 +11478,7 @@ function animate() {
   const camZ = camera?.position?.z ?? GlobeNavigate.GLOBAL_Z;
   const level = CosmicZoom?.level || 'earth';
   const earthView = (level === 'earth' || level === 'orbit') && camZ < 4.8;
-  const solarView = level === 'system' || level === 'galaxy' || camZ > 5.5;
+  const solarView = level === 'galactic' || level === 'galaxy' || camZ > 5.5;
 
   const voiceActive = window._handsFreeVoice || isListening;
   const codersBusy = window.AciCoders?._cliBusy || window.AciCoders?._listenBusy;
@@ -11497,7 +11497,8 @@ function animate() {
 
   if (earthView && frame % Math.max(_slumberDiv('earth'), 2) === 0) AIGraphics?.update?.();
   if (earthView && frame % _slumberDiv('earth') === 0) EarthRealism?.tick?.();
-  if (earthView && frame % _slumberDiv('celestial') === 0 && SlumberManager?.allows?.('celestial')) {
+  const skyView = (level === 'earth' || level === 'orbit' || level === 'galactic') && camZ >= 2.0 && camZ < 8.5;
+  if (skyView && frame % _slumberDiv('celestial') === 0 && SlumberManager?.allows?.('celestial')) {
     window.CelestialNav?.tick?.();
   }
   if (frame % Math.max(_slumberDiv('entity'), 4) === 0) BrainNeurons?.tick?.();
