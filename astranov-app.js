@@ -1923,60 +1923,159 @@ const GlobeNavigate = {
 };
 window.GlobeNavigate = GlobeNavigate;
 
-// === VENDOR MAP TILE — profile + cover + menu on map (not boring lists) ===
+// === VENDOR MAP TILE — profile + cover + menu photos · pops on select/enlist ===
+const MENU_ITEM_PHOTOS = {
+  pita: 'https://images.unsplash.com/photo-1529006557810-274db1b03838?w=128&h=128&fit=crop',
+  beer: 'https://images.unsplash.com/photo-1608270586620-248edd74a248?w=128&h=128&fit=crop',
+  cigarette: 'https://images.unsplash.com/photo-1607619056574-7b8d3eeecb12?w=128&h=128&fit=crop',
+  burger: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=128&h=128&fit=crop',
+  coffee: 'https://images.unsplash.com/photo-1511920170033-f8396924c10b?w=128&h=128&fit=crop',
+  water: 'https://images.unsplash.com/photo-1548839140-5a4acea22f28?w=128&h=128&fit=crop',
+  default: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=128&h=128&fit=crop',
+};
+
+function resolveMenuItemPhoto(item) {
+  const direct = item?.image || item?.photo || item?.imageUrl;
+  if (direct && String(direct).length > 8) return direct;
+  const n = String(item?.name || '').toLowerCase();
+  if (/πιτο|pita|gyro|γύρο|souvlaki/.test(n)) return MENU_ITEM_PHOTOS.pita;
+  if (/μπύρ|beer|lager|alpha|fix|heineken|φραπέ|coffee|καφ|espresso/.test(n)) return /φραπέ|coffee|καφ|espresso/.test(n) ? MENU_ITEM_PHOTOS.coffee : MENU_ITEM_PHOTOS.beer;
+  if (/τσιγαρ|cigar|marlboro|winston|μαλαμ/.test(n)) return MENU_ITEM_PHOTOS.cigarette;
+  if (/burger|μπεργκ|hamburger/.test(n)) return MENU_ITEM_PHOTOS.burger;
+  if (/νερό|νερο|water/.test(n)) return MENU_ITEM_PHOTOS.water;
+  return MENU_ITEM_PHOTOS.default;
+}
+window.resolveMenuItemPhoto = resolveMenuItemPhoto;
+
 const VendorMapTile = {
   _vendor: null,
   _cart: {},
+  _menuRequestSent: false,
 
   init() {
     document.getElementById('vmt-close')?.addEventListener('click', () => this.close());
     document.getElementById('vmt-order')?.addEventListener('click', () => void this.placeOrder());
+    document.getElementById('vmt-profile')?.addEventListener('click', () => void this.openProfile());
+    document.getElementById('vmt-request-menu')?.addEventListener('click', () => void this.requestMenu());
   },
 
   esc(s) {
     return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   },
 
-  open(vendor) {
+  _tags(v) {
+    let t = v?.tags;
+    if (typeof t === 'string') { try { t = JSON.parse(t); } catch { t = {}; } }
+    return (t && typeof t === 'object') ? t : {};
+  },
+
+  _coverUrl(v) {
+    const t = this._tags(v);
+    return v?.cover_url || v?.cover || v?.banner_url || t.cover_url || t.cover || v?.profile_page?.cover_url || '';
+  },
+
+  _about(v) {
+    const t = this._tags(v);
+    return t.about || v?.bio || v?.description || '';
+  },
+
+  _isOwner() {
+    return !!(Auth?.user?.id && this._vendor?.owner_id === Auth.user.id);
+  },
+
+  async _resolveVendor(vendor) {
+    if (!vendor) return null;
+    await LazyModules.ensure().catch(() => {});
+    if (window.Commerce?.loadVendors) {
+      try { await Commerce.loadVendors(); } catch (_) {}
+    }
+    let v = (window.Commerce?.vendors || []).find(x => x.id === vendor.id) || vendor;
+    if (window.Commerce?._normalizeVendor) v = Commerce._normalizeVendor(v);
+    return v;
+  },
+
+  open(vendor, opts) {
     if (!vendor) return;
-    this._vendor = vendor;
-    this._cart = {};
+    opts = opts || {};
+    void this._openResolved(vendor, opts);
+  },
+
+  async _openResolved(vendor, opts) {
+    const v = await this._resolveVendor(vendor);
+    if (!v) return;
+    this._vendor = v;
+    if (!opts.keepCart) this._cart = {};
+    this._menuRequestSent = false;
+
     const tile = document.getElementById('vendor-map-tile');
     if (!tile) return;
     tile.classList.add('open');
     MapPlaceMenu?.close?.();
+
     const cover = document.getElementById('vmt-cover');
     const avatar = document.getElementById('vmt-avatar');
-    const coverUrl = vendor.cover_url || vendor.cover || vendor.banner_url || vendor.profile_page?.cover_url || '';
-    const logoUrl = MapPins?.vendorLogo?.(vendor) || vendor.logo_url || vendor.avatar_url || '';
+    const coverUrl = this._coverUrl(v);
+    const logoUrl = MapPins?.vendorLogo?.(v) || v.logo_url || v.avatar_url || '/icon.svg';
     if (cover) {
-      cover.style.backgroundImage = coverUrl ? 'url(' + coverUrl + ')' : '';
+      cover.style.backgroundImage = coverUrl ? 'url(' + coverUrl + ')' : 'linear-gradient(135deg,rgba(0,40,90,0.9),rgba(0,12,28,0.95))';
     }
     if (avatar) {
-      avatar.src = logoUrl || '';
-      avatar.alt = vendor.name || 'Shop';
-      if (!logoUrl) avatar.style.display = 'none';
-      else avatar.style.display = 'block';
+      avatar.src = logoUrl;
+      avatar.alt = v.name || 'Shop';
+      avatar.style.display = 'block';
+      avatar.onerror = () => { avatar.src = '/icon.svg'; };
     }
-    document.getElementById('vmt-name').textContent = (vendor.emoji || '🏬') + ' ' + (vendor.name || 'Shop');
-    document.getElementById('vmt-sub').textContent = vendor.category || 'Vendor · tap items to order';
+
+    const isConstruction = window.AstranovCityShop?.isConstructionVendor?.(v);
+    const nameEl = document.getElementById('vmt-name');
+    const subEl = document.getElementById('vmt-sub');
+    const aboutEl = document.getElementById('vmt-about');
+    const badgesEl = document.getElementById('vmt-badges');
+    if (nameEl) nameEl.textContent = (v.emoji || '🏬') + ' ' + (v.name || 'Shop');
+    if (subEl) {
+      subEl.textContent = opts.enlist
+        ? 'Shop enlisted · add menu photos & prices for clients'
+        : isConstruction
+          ? '🚧 Under construction · marketplace opening soon'
+          : (v.category || 'Shop') + (v.delivery_enabled !== false ? ' · delivery on' : ' · pickup');
+    }
+    if (aboutEl) {
+      const about = this._about(v);
+      aboutEl.textContent = about || (isConstruction ? 'Astranov marketplace — local vendors & drivers coming soon.' : 'Tap + on items · order with photos & prices · AVC = EUR');
+      aboutEl.style.display = 'block';
+    }
+    if (badgesEl) {
+      const badges = [];
+      if (isConstruction) badges.push('<span class="vmt-badge construction">Under construction</span>');
+      else if (v.delivery_enabled !== false) badges.push('<span class="vmt-badge delivery">🚚 Delivery</span>');
+      if (v.category) badges.push('<span class="vmt-badge">' + this.esc(v.category) + '</span>');
+      badgesEl.innerHTML = badges.join('');
+    }
+
     this._renderMenu();
-    if (vendor.lat != null) {
-      GlobeNavigate.anchor = { lat: vendor.lat, lng: vendor.lng };
-      const fp = latLngToPos(vendor.lat, vendor.lng, 1.04);
+
+    if (v.lat != null && !opts.skipFly) {
+      GlobeNavigate.anchor = { lat: v.lat, lng: v.lng };
+      const fp = latLngToPos(v.lat, v.lng, 1.04);
       if (GlobeNavigate.isNational() || GlobeNavigate.isGlobal()) {
-        void GlobeNavigate._enterCitySlow(vendor.lat, vendor.lng, {});
+        void GlobeNavigate._enterCitySlow(v.lat, v.lng, { openShops: false });
       } else {
         flyToPoint?.(new THREE.Vector3(fp.x, fp.y, fp.z), GlobeNavigate.CITY_CAM_Z, { dur: 1800 });
       }
     }
-    LazyModules.ensure().then(() => {
-      if (window.Commerce) {
-        window.Commerce.selected = vendor;
-        window.Commerce.cart = this._cart;
-      }
-    });
-    MapDepict?.pulse?.(vendor.lat, vendor.lng, 0x3d9eff, vendor.name, 8000);
+
+    if (window.Commerce) {
+      Commerce.selected = v;
+      Commerce.cart = { ...this._cart };
+    }
+
+    GlobeDeck?.setPreview?.((v.emoji || '🏬') + ' ' + v.name + ' · menu · tap to order');
+    GlobeDeck?.showStage?.('vendor-menu', 'commerce');
+    MapDepict?.pulse?.(v.lat, v.lng, isConstruction ? 0xc9a000 : 0x3d9eff, v.name, 10000);
+
+    if (opts.preview) {
+      AciCli?.print?.('Shop live on map · ' + v.name + ' · clients see this tile when they tap you', 'ok');
+    }
   },
 
   close() {
@@ -1987,64 +2086,144 @@ const VendorMapTile = {
   _menu() {
     const v = this._vendor;
     if (!v) return [];
-    if (window.Commerce?.menuFor) return window.Commerce.menuFor(v);
-    return Array.isArray(v.items) ? v.items : [];
+    const raw = window.Commerce?.menuFor ? Commerce.menuFor(v) : (Array.isArray(v.items) ? v.items : []);
+    return raw.map(item => ({
+      ...item,
+      image: resolveMenuItemPhoto(item),
+      price: Number(item.price) || 0,
+    }));
   },
 
   _renderMenu() {
     const box = document.getElementById('vmt-menu');
-    const btn = document.getElementById('vmt-order');
+    const orderBtn = document.getElementById('vmt-order');
+    const reqBtn = document.getElementById('vmt-request-menu');
     if (!box) return;
+
     const menu = this._menu();
-    if (!menu.length) {
-      box.innerHTML = '<p style="padding:8px;color:var(--an-muted)">No menu yet — request menu from owner.</p>';
-      if (btn) btn.textContent = 'Request menu';
+    const isConstruction = window.AstranovCityShop?.isConstructionVendor?.(this._vendor);
+
+    const isOwner = this._isOwner();
+
+    if (isConstruction || !menu.length) {
+      box.innerHTML = isConstruction
+        ? '<p style="padding:10px;color:var(--ax-yellow-bright);text-align:center">🚧 Shop under construction<br><span style="font-size:10px;color:var(--an-muted)">Menu & ordering open when marketplace goes live here.</span></p>'
+        : isOwner
+          ? '<p style="padding:10px;color:var(--ax-blue-bright);text-align:center">Your shop is live on the map.<br><span style="font-size:10px;color:var(--an-muted)">Add menu items with photos &amp; AVC prices so clients can order.</span></p>'
+          : '<p style="padding:10px;color:var(--an-muted);text-align:center">No menu uploaded yet.<br>Request the owner to add photos & prices.</p>';
+      if (orderBtn) {
+        orderBtn.disabled = true;
+        orderBtn.textContent = isOwner ? 'Add menu to accept orders' : 'Menu not ready';
+      }
+      if (reqBtn) {
+        reqBtn.style.display = isConstruction ? 'none' : 'block';
+        if (isOwner) {
+          reqBtn.textContent = '+ Add menu photos & prices';
+          reqBtn.disabled = false;
+        } else {
+          reqBtn.textContent = this._menuRequestSent ? 'Menu request sent ✔' : 'Request menu from owner';
+          reqBtn.disabled = !!this._menuRequestSent;
+        }
+      }
       return;
     }
+
+    if (reqBtn) reqBtn.style.display = 'none';
+    if (orderBtn) orderBtn.disabled = false;
+
     box.innerHTML = '';
     menu.forEach(item => {
       const key = item.name;
+      const qty = this._cart[key] || 0;
       const row = document.createElement('div');
-      row.className = 'vmt-item';
-      const img = item.image || item.photo || '';
-      row.innerHTML = (img ? '<img src="' + this.esc(img) + '" alt="" />' : '') +
-        '<div class="vmt-item-body"><b>' + this.esc(item.name) + '</b><small>' + (item.price || 0) + ' AVC</small></div>';
+      row.className = 'vmt-item' + (qty > 0 ? ' selected' : '');
+      const img = document.createElement('img');
+      img.src = item.image || resolveMenuItemPhoto(item);
+      img.alt = item.name || '';
+      img.loading = 'lazy';
+      img.onerror = () => { img.src = MENU_ITEM_PHOTOS.default; };
+      const body = document.createElement('div');
+      body.className = 'vmt-item-body';
+      body.innerHTML = '<b>' + this.esc(item.name) + '</b>'
+        + (item.description ? '<span class="vmt-desc">' + this.esc(item.description) + '</span>' : '')
+        + '<small>' + item.price.toFixed(2) + ' AVC · ' + item.price.toFixed(2) + ' €</small>';
       const q = document.createElement('div');
       q.className = 'vmt-qty';
       const minus = document.createElement('button');
+      minus.type = 'button';
       minus.textContent = '−';
-      minus.onclick = (e) => { e.stopPropagation(); this._cart[key] = Math.max(0, (this._cart[key] || 0) - 1); this._renderMenu(); };
+      minus.onclick = (e) => { e.stopPropagation(); this._cart[key] = Math.max(0, (this._cart[key] || 0) - 1); this._syncCommerceCart(); this._renderMenu(); };
       const span = document.createElement('span');
-      span.textContent = String(this._cart[key] || 0);
-      span.style.minWidth = '16px';
-      span.style.textAlign = 'center';
+      span.textContent = String(qty);
       const plus = document.createElement('button');
+      plus.type = 'button';
       plus.textContent = '+';
-      plus.onclick = (e) => { e.stopPropagation(); this._cart[key] = (this._cart[key] || 0) + 1; this._renderMenu(); };
+      plus.onclick = (e) => { e.stopPropagation(); this._cart[key] = (this._cart[key] || 0) + 1; this._syncCommerceCart(); this._renderMenu(); };
       q.append(minus, span, plus);
-      row.appendChild(q);
-      row.onclick = () => { this._cart[key] = (this._cart[key] || 0) + 1; this._renderMenu(); };
+      row.append(img, body, q);
+      row.onclick = () => { this._cart[key] = (this._cart[key] || 0) + 1; this._syncCommerceCart(); this._renderMenu(); };
       box.appendChild(row);
     });
+
     const total = menu.reduce((s, i) => s + (this._cart[i.name] || 0) * (i.price || 0), 0);
-    if (btn) btn.textContent = total > 0 ? 'Order · ' + total.toFixed(1) + ' AVC' : 'Add items to order';
+    const count = menu.reduce((s, i) => s + (this._cart[i.name] || 0), 0);
+    if (orderBtn) {
+      orderBtn.textContent = count > 0
+        ? 'Order ' + count + ' item' + (count === 1 ? '' : 's') + ' · ' + total.toFixed(2) + ' AVC'
+        : 'Tap + to add items';
+      orderBtn.disabled = count === 0;
+    }
+  },
+
+  _syncCommerceCart() {
+    if (!window.Commerce || !this._vendor) return;
+    Commerce.selected = this._vendor;
+    Commerce.cart = { ...this._cart };
+  },
+
+  async openProfile() {
+    await LazyModules.ensure();
+    const v = this._vendor;
+    if (!v) return;
+    if (v.owner_id) ProfileSite?.openUser?.(v.owner_id, { vendor: v });
+    else ProfileSite?.openVendor?.(v);
+  },
+
+  async requestMenu() {
+    await LazyModules.ensure();
+    if (!this._vendor) return;
+    if (this._isOwner()) {
+      const v = this._vendor;
+      const lat = v.lat ?? window._lastPos?.lat;
+      const lng = v.lng ?? window._lastPos?.lng;
+      if (lat != null && lng != null) void ProfileSite?.openShopEditor?.(lat, lng);
+      return;
+    }
+    if (!window.Commerce) return;
+    Commerce.selected = this._vendor;
+    await Commerce.requestMenu?.();
+    this._menuRequestSent = true;
+    this._renderMenu();
   },
 
   async placeOrder() {
     await LazyModules.ensure();
     const v = this._vendor;
     if (!v || !window.Commerce) return;
-    window.Commerce.selected = v;
-    window.Commerce.cart = { ...this._cart };
+    if (!Auth?.user) {
+      Auth?.openLoginModal?.('Sign in to order from ' + (v.name || 'shop'));
+      return;
+    }
     const items = this._menu().filter(i => (this._cart[i.name] || 0) > 0)
       .map(i => ({ name: i.name, qty: this._cart[i.name], price: i.price }));
     if (!items.length) {
-      window.Commerce.requestMenu?.();
+      void this.requestMenu();
       return;
     }
-    window.Commerce.cart = Object.fromEntries(items.map(i => [i.name, i.qty]));
-    window.Commerce.renderCart?.();
-    void window.Commerce.confirmAndPay?.(false);
+    Commerce.selected = v;
+    Commerce.cart = Object.fromEntries(items.map(i => [i.name, i.qty]));
+    Commerce.renderCart?.();
+    void Commerce.confirmAndPay?.(false);
     this.close();
   },
 };
