@@ -3140,8 +3140,20 @@ const FieldBrain = {
       const j = await r.json().catch(() => ({}));
       if (j.ok && j.order) {
         await MarketplaceDeliveryEngine?.onDriverAccepted?.(j.order, j.vendor, j.driver);
-        ACIControl?.reply?.('Delivery accepted · triangle active · ' + (j.order.short_id || id));
-        AciCli?.print?.('driver accept · ' + (j.order.short_id || id), 'ok');
+        const p = j.payouts || {};
+        let payoutMsg = '';
+        if (p.cod_pending) payoutMsg = ' · COD — payouts on delivery';
+        else {
+          const bits = [];
+          if (p.vendorPay > 0) bits.push('vendor +' + Number(p.vendorPay).toFixed(2) + ' AVC');
+          if (p.driverPay > 0) bits.push('driver +' + Number(p.driverPay).toFixed(2) + ' AVC');
+          if (bits.length) payoutMsg = ' · instant ' + bits.join(' · ');
+          if (p.errors?.length) {
+            AciCli?.print?.('payout warning · ' + p.errors.join('; '), 'warn');
+          }
+        }
+        ACIControl?.reply?.('Delivery accepted · triangle active · ' + (j.order.short_id || id) + payoutMsg);
+        AciCli?.print?.('driver accept · ' + (j.order.short_id || id) + payoutMsg, 'ok');
       } else {
         ACIControl?.reply?.('Accept failed · ' + (j.error || j.message || 'server'));
       }
@@ -3814,6 +3826,12 @@ window.Commerce = {
   parseWantedItems() { return []; },
   async cliVendorMenu() { await LazyModules.ensure(); return window.Commerce?.cliVendorMenu?.(); },
   async listMenuRequests() { await LazyModules.ensure(); return window.Commerce?.listMenuRequests?.(); },
+  async confirmAndPay(w) { await LazyModules.ensure(); return window.Commerce?.confirmAndPay?.(w); },
+  async placeCart() { await LazyModules.ensure(); return window.Commerce?.placeCart?.(); },
+  async placeOrder(v, items, notes, payBal, opts) {
+    await LazyModules.ensure();
+    return window.Commerce?.placeOrder?.(v, items, notes, payBal, opts);
+  },
 };
 
 window.CelestialNav = {
