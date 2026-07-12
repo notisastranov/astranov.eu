@@ -84,6 +84,7 @@ scene.background = new THREE.Color(0x000000);
 const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.1, 1000);
 camera.position.set(0, 0, 3.5);
 camera.lookAt(0, 0, 0);
+window.camera = camera;
 
 scene.add(new THREE.AmbientLight(0x667788, 1.0));
 const sun = new THREE.DirectionalLight(0xffffff, 1.6);
@@ -128,6 +129,7 @@ globePivot.add(earth);
 globePivot.rotation.y = 0;
 globePivot.rotation.x = 0.12;
 globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
+window.globePivot = globePivot;
 window.earth = earth;
 window._animateStarted = false;
 
@@ -6409,12 +6411,14 @@ const SuperCli = {
     }
     if (row && row.parentElement !== middle) middle.insertBefore(row, middle.firstChild);
     if (ribbon && ribbon.parentElement !== middle) middle.appendChild(ribbon);
-    if (fab && fab.parentElement !== edgeRight) edgeRight.insertBefore(fab, hf || null);
-    if (hf && hf.parentElement !== edgeRight) edgeRight.appendChild(hf);
-    const cliToggle = document.getElementById('aci-cli-toggle');
-    if (cliToggle && cliToggle.parentElement === bar) {
-      if (edgeRight.nextSibling !== cliToggle) edgeRight.insertAdjacentElement('afterend', cliToggle);
+    if (fab && fab.parentElement !== edgeRight) edgeRight.insertBefore(fab, edgeRight.firstChild);
+    if (hf && hf.parentElement !== edgeRight) {
+      const cliToggle = document.getElementById('aci-cli-toggle');
+      if (cliToggle && cliToggle.parentElement === edgeRight) edgeRight.insertBefore(hf, cliToggle);
+      else edgeRight.appendChild(hf);
     }
+    const cliToggle = document.getElementById('aci-cli-toggle');
+    if (cliToggle && cliToggle.parentElement !== edgeRight) edgeRight.appendChild(cliToggle);
   },
 
   init() {
@@ -6657,7 +6661,10 @@ const AciCli = {
     const input = document.getElementById('aci-cli-in');
     const form = document.getElementById('aci-cli-form');
     const toggle = document.getElementById('aci-cli-toggle');
-    if (toggle) toggle.onclick = () => this.toggle();
+    if (toggle && !toggle._globeDeckBound) {
+      toggle._globeDeckBound = true;
+      toggle.onclick = (e) => { e.preventDefault(); e.stopPropagation(); GlobeDeck?.toggle?.(); };
+    }
     SuperCli?.bindInputBar?.();
     if (form && !form._cliBound) {
       form._cliBound = true;
