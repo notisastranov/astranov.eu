@@ -129,8 +129,13 @@ const GalacticSky = {
         if (opts.cosmic === 'system') opts = Object.assign({}, opts, { cosmic: 'galactic' });
         _update(camZ, opts);
 
+        if (CZ.level === 'system') CZ.level = 'galactic';
         if (CZ.solarGroup) CZ.solarGroup.visible = false;
         const level = CZ.level;
+        const zl = document.getElementById('zoom-label');
+        if (zl && level === 'galactic' && !window.DrivingView?.active && !window.CityMap?.active) {
+          zl.textContent = 'GALACTIC SKY';
+        }
         const showExo = level === 'galactic' || level === 'galaxy';
         if (CZ._exoGroup) CZ._exoGroup.visible = showExo;
         document.body.classList.toggle('cosmic-galactic', level === 'galactic');
@@ -197,23 +202,99 @@ const GalacticSky = {
     }
   },
 
+  EXTRA_STARS: {
+    Regulus: { ra: 10.13956, dec: 11.96721 }, Denebola: { ra: 11.81766, dec: 14.57206 },
+    Algieba: { ra: 10.33299, dec: 19.84149 }, Castor: { ra: 7.57664, dec: 31.88832 },
+    Pollux: { ra: 7.75526, dec: 28.02624, nav: true, label: 'Pollux' },
+    Aldebaran: { ra: 4.59868, dec: 16.50931, nav: true, label: 'Aldebaran' },
+    Elnath: { ra: 5.43825, dec: 28.60745 }, Vega: { ra: 18.61563, dec: 38.78369, nav: true, label: 'Vega' },
+    Altair: { ra: 19.84636, dec: 8.86832, nav: true, label: 'Altair' }, Deneb: { ra: 20.69053, dec: 45.28034 },
+    Markab: { ra: 23.07979, dec: 15.20531 }, Scheat: { ra: 23.06289, dec: 28.08284 },
+    Shaula: { ra: 17.56012, dec: -37.10388 }, Graffias: { ra: 16.00563, dec: -19.80545 },
+    Spica: { ra: 13.41988, dec: -11.16132, nav: true, label: 'Spica' },
+    Arcturus: { ra: 14.26103, dec: 19.18241, nav: true, label: 'Arcturus' },
+  },
+
+  EXTRA_SETS: [
+    { id: 'leo', name: 'Leo', short: 'Lion', nav: 'Sickle · spring sky', lines: [['Regulus','Algieba'],['Algieba','Denebola']] },
+    { id: 'gem', name: 'Gemini', short: 'Twins', nav: 'Castor & Pollux', lines: [['Castor','Pollux'],['Pollux','Betelgeuse']] },
+    { id: 'tau', name: 'Taurus', short: 'Bull', nav: 'Aldebaran · Hyades', lines: [['Aldebaran','Elnath'],['Aldebaran','Betelgeuse']] },
+    { id: 'sco', name: 'Scorpius', short: 'Scorpion', nav: 'Antares · summer S', lines: [['Antares','Graffias'],['Antares','Shaula']] },
+    { id: 'summer', name: 'Summer Triangle', short: '△', nav: 'Vega · Altair · Deneb', lines: [['Vega','Altair'],['Altair','Deneb'],['Deneb','Vega']] },
+    { id: 'peg', name: 'Pegasus', short: 'Square', nav: 'Autumn square', lines: [['Markab','Scheat'],['Scheat','Vega']] },
+    { id: 'vir', name: 'Virgo', nav: 'Spica · spring E', lines: [['Spica','Arcturus'],['Arcturus','Regulus']] },
+  ],
+
+  injectCss() {
+    if (document.getElementById('galactic-sky-css')) return;
+    const st = document.createElement('style');
+    st.id = 'galactic-sky-css';
+    st.textContent = '#cosmic-guide{position:fixed;top:32px;left:10px;z-index:39;max-width:min(320px,78vw);font:11px/1.45 system-ui;color:var(--an-text,#e8f4ff);text-shadow:0 1px 8px rgba(0,0,0,.85);pointer-events:none;display:none;padding:6px 8px;border-radius:8px;background:rgba(0,6,18,.55);border:1px solid rgba(26,111,212,.28)}#cosmic-guide.visible{display:block}';
+    document.head.appendChild(st);
+  },
+
+  patchCelestialNav() {
+    const apply = () => {
+      const CN = window.CelestialNav;
+      if (!CN?.STARS || CN._galacticPatched) return;
+      CN._galacticPatched = true;
+      Object.assign(CN.STARS, this.EXTRA_STARS);
+      this.EXTRA_SETS.forEach(set => {
+        if (!CN.SETS.find(s => s.id === set.id)) CN.SETS.push(set);
+      });
+      CN.isGlobalNavView = function(camZ) {
+        const z = camZ ?? window.camera?.position?.z ?? 2.55;
+        const level = window.CosmicZoom?.level || 'earth';
+        const sky = level === 'earth' || level === 'orbit' || level === 'galactic';
+        return sky && z >= 2.0 && z < 8.5 && !window.CityMap?.active;
+      };
+      CN.renderGuideHtml = function(camZ) {
+        const sky = this._lastSky || this.compute();
+        if (!sky.sets.length) return '<div class="cg-title">Celestial nav</div><div class="cg-item"><i>No major constellations above horizon</i></div>';
+        let html = '<div class="cg-title">Constellations · ' + sky.sets.length + ' visible</div>';
+        sky.sets.slice(0, 5).forEach(s => { html += '<div class="cg-item"><b>' + (s.short || s.name) + '</b> — ' + s.nav + '</div>'; });
+        sky.navStars.slice(0, 4).forEach(s => { html += '<div class="cg-item"><b>' + (s.label || s.name) + '</b> ' + s.bearing + ' · ' + s.alt.toFixed(0) + '°</div>'; });
+        return html;
+      };
+      if (CN._group) {
+        CN._group.parent?.remove(CN._group);
+        CN._group = null; CN._lines = []; CN._points = null; CN._pointMap = {};
+      }
+      CN.init?.();
+    };
+    window.LazyModules?.ensure?.().then(apply).catch(() => {});
+    setTimeout(apply, 3000);
+    setTimeout(apply, 8000);
+  },
+
+  startCelestialLoop() {
+    if (this._celLoop) return;
+    this._celLoop = setInterval(() => {
+      const camZ = window.camera?.position?.z ?? 2.55;
+      const level = window.CosmicZoom?.level || 'earth';
+      if ((level === 'earth' || level === 'orbit' || level === 'galactic') && camZ >= 2 && camZ < 8.5) {
+        if (!window.SlumberManager || window.SlumberManager.allows('celestial')) window.CelestialNav?.tick?.();
+      }
+    }, 900);
+  },
+
   ensureCelestial() {
+    this.patchCelestialNav();
     window.LazyModules?.ensure?.().then(() => {
-      window.CelestialNav?.init?.();
+      this.patchCelestialNav();
       if (window.SlumberManager?.wake) window.SlumberManager.wake('celestial');
     }).catch(() => {});
-    if (window.CelestialNav?.init && window.CelestialNav.STARS) {
-      window.CelestialNav.init();
-    }
   },
 
   boot() {
     if (this._inited) return;
     this._inited = true;
+    this.injectCss();
     this.patchCosmicZoom();
     this.patchZoomTiers();
     this.patchGlobeNavigate();
     this.ensureCelestial();
+    this.startCelestialLoop();
     const tryExo = () => {
       if (window.CosmicZoom?.solarGroup && !window.CosmicZoom._exoGroup) {
         window.CosmicZoom.init?.();
