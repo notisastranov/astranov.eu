@@ -19,6 +19,85 @@ function haversineM(lat1: number, lng1: number, lat2: number, lng2: number) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
+const PRICING = {
+  PLATFORM_RATE: 0.03,
+  BASE_DELIVERY_EUR: 3,
+  BLOCK_EUR: 3,
+  KM_BLOCK: 3,
+  KG_BLOCK: 3,
+  INCLUDED_KM: 3,
+  INCLUDED_KG: 3,
+  SURCHARGE_EUR: 3,
+}
+
+function blockFee(units: number, blockSize: number) {
+  const extra = Math.max(0, units - blockSize)
+  if (extra <= 0) return 0
+  return Math.ceil(extra / blockSize) * PRICING.BLOCK_EUR
+}
+
+function isNightOrMorning(date = new Date()) {
+  const h = date.getHours()
+  return h < 9 || h >= 21
+}
+
+function normalizeSurcharges(raw: unknown): Array<{ id: string; label: string; eur: number }> {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((s) => {
+      const row = s as { id?: string; label?: string; eur?: number }
+      const eur = Number(row.eur) || 0
+      if (eur <= 0) return null
+      if (Math.abs(eur - PRICING.SURCHARGE_EUR) > 0.01) return null
+      return {
+        id: String(row.id || 'surcharge'),
+        label: String(row.label || 'Surcharge'),
+        eur: PRICING.SURCHARGE_EUR,
+      }
+    })
+    .filter(Boolean) as Array<{ id: string; label: string; eur: number }>
+}
+
+function computeQuote(opts: {
+  km: number
+  kg: number
+  subtotal_eur: number
+  surcharges?: Array<{ id: string; label: string; eur: number }>
+  at?: Date
+}) {
+  const km = Math.max(0, Number(opts.km) || 0)
+  const kg = Math.max(0, Number(opts.kg) || 3)
+  const goodsEur = Math.max(0, Number(opts.subtotal_eur) || 0)
+  const when = opts.at || new Date()
+  const surcharges = [...(opts.surcharges || [])]
+  if (isNightOrMorning(when) && !surcharges.some(s => s.id === 'night_morning')) {
+    surcharges.push({ id: 'night_morning', label: 'Night / before 09:00', eur: PRICING.SURCHARGE_EUR })
+  }
+  const distanceFee = PRICING.BASE_DELIVERY_EUR + blockFee(km, PRICING.KM_BLOCK)
+  const weightFee = blockFee(kg, PRICING.KG_BLOCK)
+  const deliveryEur = distanceFee + weightFee + surcharges.reduce((s, x) => s + x.eur, 0)
+  const platformEur = Math.round((goodsEur + deliveryEur) * PRICING.PLATFORM_RATE * 100) / 100
+  const totalEur = Math.round((goodsEur + deliveryEur + platformEur) * 100) / 100
+  const driverPayoutEur = Math.round(deliveryEur * 0.85 * 100) / 100
+  return {
+    currency: 'AVC',
+    peg_eur: 1,
+    km,
+    kg,
+    subtotal_eur: goodsEur,
+    goods_eur: goodsEur,
+    delivery_eur: deliveryEur,
+    distance_fee_eur: distanceFee,
+    weight_fee_eur: weightFee,
+    surcharges,
+    platform_fee_eur: platformEur,
+    platform_rate: PRICING.PLATFORM_RATE,
+    total_eur: totalEur,
+    total_avc: totalEur,
+    driver_payout_eur: driverPayoutEur,
+  }
+}
+
 type DriverPick = { id: string; name: string; emoji: string; self?: boolean; field_lat?: number; field_lng?: number }
 
 async function authUserId(req: Request): Promise<string | null> {
@@ -81,9 +160,11 @@ async function pickDriver(
   return null
 }
 
-async function creditUser(sb: ReturnType<typeof createClient>, uid: string, delta: number) {
-  if (!uid || !delta) return
-  await sb.rpc('add_balance', { uid, delta }).catch(() => {})
+async function creditUser(sb: ReturnType<typeof createClient>, uid: string, delta: number): Promise<{ ok: boolean; error?: string }> {
+  if (!uid || !delta) return { ok: true }
+  const { error } = await sb.rpc('add_balance', { uid, delta })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
 }
 
 async function payoutOnAccept(
@@ -99,11 +180,61 @@ async function payoutOnAccept(
   const vendorPay = Math.round(goodsEur * 0.97 * 100) / 100
   const vendorOwner = vendor.owner_id
   const driverId = order.driver_id as string | undefined
+  const cod = !!(order.pay_on_delivery || calc.pay_on_delivery)
 
-  if (vendorOwner && vendorPay > 0) await creditUser(sb, vendorOwner, vendorPay)
-  if (driverId && driverPay > 0) await creditUser(sb, driverId, driverPay)
+  const errors: string[] = []
+  if (cod) {
+    return { vendorPay: 0, driverPay: 0, vendorOwner, driverId, cod_pending: true, errors }
+  }
 
-  return { vendorPay, driverPay, vendorOwner, driverId }
+  if (vendorOwner && vendorPay > 0) {
+    const r = await creditUser(sb, vendorOwner, vendorPay)
+    if (!r.ok) errors.push('vendor_credit: ' + (r.error || 'failed'))
+  } else if (vendorPay > 0 && !vendorOwner) {
+    errors.push('vendor_owner_missing')
+  }
+  if (driverId && driverPay > 0) {
+    const r = await creditUser(sb, driverId, driverPay)
+    if (!r.ok) errors.push('driver_credit: ' + (r.error || 'failed'))
+  }
+
+  return { vendorPay, driverPay, vendorOwner, driverId, errors: errors.length ? errors : undefined }
+}
+
+async function payoutOnDelivered(
+  sb: ReturnType<typeof createClient>,
+  order: Record<string, unknown>,
+  vendor: { id: string; name: string; owner_id?: string | null },
+) {
+  const calc = (order.calc || {}) as Record<string, number>
+  const cod = !!(order.pay_on_delivery || calc.pay_on_delivery)
+  if (!cod) return null
+  const total = Number(calc.total_avc) || 0
+  const deliveryEur = Number(calc.delivery_eur) || Number(calc.delivery_avc) || 0
+  const goodsEur = Number(calc.goods_eur) || Math.max(0, total - deliveryEur)
+  const driverPay = Number(calc.driver_payout_eur) || Math.round(deliveryEur * 0.85 * 100) / 100
+  const vendorPay = Math.round(goodsEur * 0.97 * 100) / 100
+  const vendorOwner = vendor.owner_id
+  const driverId = order.driver_id as string | undefined
+  const customerId = order.customer_id as string | undefined
+
+  const errors: string[] = []
+  if (customerId && total > 0) {
+    const r = await creditUser(sb, customerId, -total)
+    if (!r.ok) errors.push('customer_debit: ' + (r.error || 'failed'))
+  }
+  if (vendorOwner && vendorPay > 0) {
+    const r = await creditUser(sb, vendorOwner, vendorPay)
+    if (!r.ok) errors.push('vendor_credit: ' + (r.error || 'failed'))
+  } else if (vendorPay > 0 && !vendorOwner) {
+    errors.push('vendor_owner_missing')
+  }
+  if (driverId && driverPay > 0) {
+    const r = await creditUser(sb, driverId, driverPay)
+    if (!r.ok) errors.push('driver_credit: ' + (r.error || 'failed'))
+  }
+
+  return { vendorPay, driverPay, vendorOwner, driverId, cod_collected: true, total, errors: errors.length ? errors : undefined }
 }
 
 async function handleAssignDriver(sb: ReturnType<typeof createClient>, body: Record<string, unknown>, userId: string | null) {
@@ -245,7 +376,20 @@ async function handleStatusUpdate(sb: ReturnType<typeof createClient>, body: Rec
 
   const patch: Record<string, unknown> = { status, updated_at: new Date().toISOString() }
   if (status === 'picked_up') patch.picked_up_at = new Date().toISOString()
-  if (status === 'delivered') patch.delivered_at = new Date().toISOString()
+  let codPayouts = null
+  if (status === 'delivered') {
+    patch.delivered_at = new Date().toISOString()
+    const { data: vendor } = await sb.from('vendors').select('id, name, owner_id').eq('id', order.vendor_id).maybeSingle()
+    codPayouts = await payoutOnDelivered(sb, order, vendor || { id: order.vendor_id, name: 'Vendor' })
+    if (codPayouts) {
+      patch.calc = {
+        ...(order.calc || {}),
+        cod_collected_at: new Date().toISOString(),
+        vendor_credited: codPayouts.vendorPay,
+        driver_credited: codPayouts.driverPay,
+      }
+    }
+  }
 
   const { data: updated, error } = await sb.from('orders').update(patch).eq('id', order.id).select().single()
   if (error) throw error
@@ -261,7 +405,7 @@ async function handleStatusUpdate(sb: ReturnType<typeof createClient>, body: Rec
     brain_synced: true,
   }).catch(() => {})
 
-  return new Response(JSON.stringify({ ok: true, order: updated }), { headers: cors })
+  return new Response(JSON.stringify({ ok: true, order: updated, cod_payouts: codPayouts }), { headers: cors })
 }
 
 async function handleListOpen(sb: ReturnType<typeof createClient>, body: Record<string, unknown>, userId: string | null) {
@@ -309,19 +453,33 @@ async function handleComplete(sb: ReturnType<typeof createClient>, body: Record<
   return new Response(JSON.stringify({ ok: true, order: updated }), { headers: cors })
 }
 
-async function handleChannelImport(sb: ReturnType<typeof createClient>, body: Record<string, unknown>) {
+async function handleChannelImport(sb: ReturnType<typeof createClient>, body: Record<string, unknown>, userId: string | null) {
   const channel = String(body.channel || 'custom')
   const externalId = String(body.external_id || '')
   if (!externalId) {
     return new Response(JSON.stringify({ error: 'external_id required' }), { status: 400, headers: cors })
   }
+  const payload = {
+    vendor_id: body.vendor_id,
+    items: body.items,
+    calc: { ...(body.calc as object || {}), external_id: externalId, channel },
+    delivery_lat: body.delivery_lat,
+    delivery_lng: body.delivery_lng,
+    delivery_address: body.delivery_address,
+    notes: body.notes || ('Channel import · ' + channel + ' · ' + externalId),
+    pay_on_delivery: body.pay_on_delivery,
+    pay_with_balance: body.pay_with_balance,
+    preferred_driver_id: body.preferred_driver_id,
+    channel,
+  }
+  const created = await handleCreateOrder(sb, payload, userId)
+  const createdJson = await created.json()
   return new Response(JSON.stringify({
-    ok: true,
+    ...createdJson,
     channel,
     external_id: externalId,
-    message: 'Channel route registered — unify via MarketplaceDeliveryEngine',
     unified: true,
-  }), { headers: cors })
+  }), { status: created.status, headers: cors })
 }
 
 async function handleCreateOrder(sb: ReturnType<typeof createClient>, body: Record<string, unknown>, customerId: string | null) {
@@ -358,25 +516,49 @@ async function handleCreateOrder(sb: ReturnType<typeof createClient>, body: Reco
     String(i.name).trim().toLowerCase(),
     i,
   ]))
+  const normalizedItems: Array<{ name: string; qty: number; price: number }> = []
+  let subtotalEur = 0
   for (const item of items) {
     const key = String((item as { name?: string })?.name || '').trim().toLowerCase()
-    if (!menuByName.get(key)) {
+    const menuItem = menuByName.get(key) as { name?: string; price?: number } | undefined
+    if (!menuItem) {
       return new Response(JSON.stringify({
         error: 'invalid_menu_item',
         message: `Item not on vendor menu: ${(item as { name?: string })?.name || '?'}`,
       }), { status: 400, headers: cors })
     }
+    const qty = Math.max(1, Math.min(99, Number((item as { qty?: number })?.qty) || 1))
+    const price = Number(menuItem.price) || 0
+    subtotalEur += price * qty
+    normalizedItems.push({ name: String(menuItem.name || (item as { name?: string })?.name || ''), qty, price })
   }
 
   const dLat = typeof delivery_lat === 'number' ? delivery_lat : null
   const dLng = typeof delivery_lng === 'number' ? delivery_lng : null
   const driver = await pickDriver(sb, dLat, dLng, customerId, preferred_driver_id as string | null)
 
-  const totalAvc = typeof (calc as Record<string, number>)?.total_avc === 'number'
-    ? (calc as Record<string, number>).total_avc
-    : (items as Array<{ qty?: number; price?: number }>).reduce(
-      (s, i) => s + (i.qty || 1) * (i.price || 0), 0,
-    )
+  const calcIn = (calc || {}) as Record<string, unknown>
+  const km = dLat != null && dLng != null && vendor.lat != null && vendor.lng != null
+    ? haversineM(vendor.lat, vendor.lng, dLat, dLng) / 1000
+    : Number(calcIn.km) || 0
+  const kg = 3 + normalizedItems.length
+  const surcharges = normalizeSurcharges(calcIn.surcharges)
+  const serverQuote = computeQuote({ km, kg, subtotal_eur: subtotalEur, surcharges })
+  const clientTotal = typeof calcIn.total_avc === 'number'
+    ? Number(calcIn.total_avc)
+    : typeof calcIn.total_eur === 'number'
+      ? Number(calcIn.total_eur)
+      : null
+  if (clientTotal != null && Math.abs(clientTotal - serverQuote.total_avc) > 0.06) {
+    return new Response(JSON.stringify({
+      error: 'quote_mismatch',
+      message: 'Order total does not match server quote',
+      client_total: clientTotal,
+      server_total: serverQuote.total_avc,
+      quote: serverQuote,
+    }), { status: 400, headers: cors })
+  }
+  const totalAvc = serverQuote.total_avc
 
   let balanceAfter: number | null = null
   let paid = false
@@ -406,7 +588,9 @@ async function handleCreateOrder(sb: ReturnType<typeof createClient>, body: Reco
 
   const calcOut = {
     ...(calc as object ?? {}),
+    ...serverQuote,
     total_avc: totalAvc,
+    quote_validated_at: new Date().toISOString(),
     ...(paid ? { paid: true, paid_at: new Date().toISOString(), balance_after: balanceAfter } : {}),
     ...(cod ? { pay_on_delivery: true } : {}),
   }
@@ -417,7 +601,7 @@ async function handleCreateOrder(sb: ReturnType<typeof createClient>, body: Reco
     vendor_lng: vendor.lng,
     vendor_name: vendor.name,
     customer_id: customerId,
-    items,
+    items: normalizedItems,
     calc: calcOut,
     status: driver ? 'assigned' : 'seeking_driver',
     delivery_lat: dLat,
@@ -529,7 +713,7 @@ serve(async (req) => {
     if (action === 'status_update' || action === 'order_status') return await handleStatusUpdate(sb, body, userId)
     if (action === 'list_open' || action === 'driver_jobs') return await handleListOpen(sb, body, userId)
     if (action === 'complete' || action === 'driver_complete') return await handleComplete(sb, body, userId)
-    if (action === 'channel_import') return await handleChannelImport(sb, body)
+    if (action === 'channel_import') return await handleChannelImport(sb, body, userId)
     return await handleCreateOrder(sb, body, userId)
   } catch (e) {
     const err = e && typeof e === 'object' && 'message' in e ? String((e as { message?: string }).message) : String(e)
