@@ -311,6 +311,10 @@ const FieldHud = {
   _globeRate: 0,
   _lastGlobeY: null,
   _lastTick: 0,
+  _sweepAngle: 0,
+  _radarTargetsCache: [],
+  _radarTargetsAt: 0,
+  SWEEP_PERIOD_MS: 4200,
   _sessionEarned: 0,
   _mineRate: 0,
   _mineMode: 'off',
@@ -695,7 +699,15 @@ const FieldHud = {
     return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
   },
 
-  drawRadar() {
+  refreshRadarTargets() {
+    const now = Date.now();
+    if (now - this._radarTargetsAt < 350) return this._radarTargetsCache;
+    this._radarTargetsCache = this.radarTargets();
+    this._radarTargetsAt = now;
+    return this._radarTargetsCache;
+  },
+
+  drawRadar(sweep) {
     const canvas = document.getElementById('field-radar-canvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -718,23 +730,42 @@ const FieldHud = {
     ctx.moveTo(cx - r, cy);
     ctx.lineTo(cx + r, cy);
     ctx.stroke();
-    const sweep = (Date.now() % 4000) / 4000 * Math.PI * 2;
-    const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-    grd.addColorStop(0, 'rgba(0,200,255,0)');
-    grd.addColorStop(0.85, 'rgba(0,200,255,0)');
-    grd.addColorStop(1, 'rgba(0,200,255,0.35)');
+
     ctx.save();
     ctx.translate(cx, cy);
+    const trailSteps = 18;
+    const trailSpan = 0.55;
+    for (let i = trailSteps; i >= 0; i--) {
+      const t = i / trailSteps;
+      const angle = sweep - t * trailSpan;
+      const alpha = (1 - t) * 0.28;
+      const spread = 0.06 + t * 0.22;
+      ctx.save();
+      ctx.rotate(angle);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, r, -spread, spread);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(0,200,255,' + alpha.toFixed(3) + ')';
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.save();
     ctx.rotate(sweep);
-    ctx.fillStyle = grd;
+    ctx.strokeStyle = 'rgba(0,240,255,0.85)';
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = 'rgba(0,220,255,0.9)';
+    ctx.shadowBlur = 8;
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.arc(0, 0, r, -0.35, 0.35);
-    ctx.closePath();
-    ctx.fill();
+    ctx.lineTo(0, -r);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
     ctx.restore();
+    ctx.restore();
+
     const colors = { friend: '#00ff99', vendor: '#ffcc44', driver: '#66aaff', entity: '#aa88ff', delivery: '#ff8844', peer: '#44ddff' };
-    this.radarTargets().forEach(t => {
+    this.refreshRadarTargets().forEach(t => {
       const rad = (90 - t.brg) * Math.PI / 180;
       const dist = Math.min(1, t.d / 20);
       const px = cx + Math.cos(rad) * r * dist * 0.92;
@@ -767,12 +798,27 @@ const FieldHud = {
     this._lastTick = now;
     this.updateSpeed();
     void this.tickMiner(dt);
-    this.drawRadar();
+    this.refreshRadarTargets();
+  },
+
+  startRadarRaf() {
+    if (this._radarRaf) return;
+    let last = performance.now();
+    const step = (now) => {
+      const dt = Math.min(48, now - last);
+      last = now;
+      this._sweepAngle += (Math.PI * 2 / this.SWEEP_PERIOD_MS) * dt;
+      if (this._sweepAngle > Math.PI * 2) this._sweepAngle -= Math.PI * 2;
+      this.drawRadar(this._sweepAngle);
+      this._radarRaf = requestAnimationFrame(step);
+    };
+    this._radarRaf = requestAnimationFrame(step);
   },
 
   startLoop() {
     if (this._loop) return;
     this._loop = setInterval(() => this.tick(), 500);
+    this.startRadarRaf();
     requestAnimationFrame(function loop() {
       FieldHud.updateSpeed();
       requestAnimationFrame(loop);
