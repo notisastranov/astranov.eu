@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710700000-vendor-tile" />
+<meta name="astranov-build" content="20260710800000-ui-revert" />
 <meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
 <meta name="astranov-mission" content="SpaceNet: collective intelligence connecting everything into one — no satellites needed to communicate" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
@@ -21,7 +21,7 @@
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
-<link rel="preload" href="/astranov-app.js?v=20260710700000-vendor-tile" as="script" />
+<link rel="preload" href="/astranov-app.js?v=20260710800000-ui-revert" as="script" />
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
@@ -293,7 +293,7 @@
   #cli-ribbon-status.hold { color:var(--ax-yellow-bright); text-shadow:0 0 8px var(--ax-yellow-glow); }
   #cli-ribbon-status.ready { color:var(--ax-green-bright); text-shadow:0 0 8px var(--ax-green-glow); }
   @keyframes cli-think-glow { 0%,100%{ opacity:0.85; } 50%{ opacity:1; text-shadow:0 0 12px var(--ax-blue-glow); } }
-  #super-cli-bar button:not(#aci-login):not(#super-add-fab):not(#aci-handsfree):not(#aci-avc):not(#aci-cli-toggle):not(.app-shortcut-btn) { display:none !important; }
+  #super-cli-bar button:not(#aci-login):not(#super-add-fab):not(#aci-handsfree):not(#aci-avc):not(.app-shortcut-btn) { display:none !important; }
   #super-cli-bar #aci-avc { display:inline-flex !important; flex-shrink:0; order:1; }
   #app-shortcut-row { display:flex; gap:4px; align-items:center; flex:0 1 auto; max-width:100%; min-width:0; overflow-x:auto; overflow-y:hidden; padding:0 2px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
   #app-shortcut-row::-webkit-scrollbar { display:none; }
@@ -312,8 +312,7 @@
   @keyframes avc-balance-pulse { 0%,100% { box-shadow:0 0 8px rgba(0,221,119,0.18); } 40% { box-shadow:0 0 18px rgba(0,221,119,0.55); border-color:var(--ax-green-bright); } }
   #super-cli-bar button { background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); border-radius:50%; width:34px; height:34px; cursor:pointer; font-size:13px; flex-shrink:0; }
   #super-cli-bar #aci-stop { background:var(--ax-red-bg); border-color:var(--ax-red-border); color:var(--ax-red-bright); }
-  #super-cli-edge-right #aci-cli-toggle { display:inline-flex !important; flex-shrink:0; order:4; border-radius:50%; width:34px; height:34px; position:static; margin:0; }
-  #super-cli-bar > #aci-cli-toggle { display:none !important; }
+
   #super-cli-bar button[hidden] { display:none !important; }
   #super-cli-bar #aci-locate.deck-btn-active { background:var(--ax-green-bg); border-color:var(--ax-green-border); color:var(--ax-green-bright); box-shadow:0 0 8px var(--ax-green-glow); }
   #super-cli-bar #aci-hold.deck-btn-active { background:var(--ax-yellow-bg); border-color:var(--ax-yellow-border); color:var(--ax-yellow-bright); box-shadow:0 0 10px var(--ax-yellow-glow); }
@@ -393,7 +392,7 @@
   #super-cli-bar #aci-handsfree.deck-btn-active, #super-cli-bar #aci-handsfree.listening { background:rgba(0,30,70,0.55); border-color:var(--ax-blue-bright); }
   #super-cli-bar #aci-handsfree.speaking { background:rgba(0,40,28,0.55); }
   #globe-deck-input-row #globe-deck-send { border-radius:12px; width:44px; font-size:15px; font-weight:700; }
-  #super-cli-edge-right #aci-cli-toggle { background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); cursor:pointer; font-size:15px; align-items:center; justify-content:center; }
+
   #city-life-chip { display:none; position:fixed; top:52px; left:12px; bottom:auto; z-index:38; max-width:min(240px,calc(100vw - 24px)); padding:8px 12px; border-radius:12px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); font:10px/1.4 system-ui; color:var(--an-text); pointer-events:none; backdrop-filter:blur(8px); }
   #city-life-chip.open { display:block; }
   body.city-map-active #city-life-chip { display:none !important; }
@@ -533,8 +532,7 @@
   #classified-triangles-more button { padding:8px 10px; border-radius:10px; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); font-size:10px; font-weight:600; cursor:pointer; touch-action:manipulation; }
   #ct-more-toggle { width:100%; padding:8px; margin-bottom:6px; border-radius:10px; border:1px dashed var(--ax-blue-border); background:transparent; color:var(--an-muted); font-size:10px; cursor:pointer; }
   #spacenet-map-plus { display:none !important; }
-  #globe-deck-input-row #globe-deck-plus { border-radius:50%; width:40px; height:40px; font-size:22px; font-weight:700; background:var(--ax-green-bg); border:1px solid var(--ax-green-border); color:#fff; box-shadow:0 0 10px var(--ax-green-glow); }
-  #globe-deck-input-row #globe-deck-plus:active { transform:scale(0.94); }
+  #globe-deck-plus { display:none !important; }
   #delivery-route-hud { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:185; width:min(340px,94vw); padding:12px 14px; border-radius:14px; background:var(--ax-panel-strong); border:1px solid var(--ax-green-border); font:11px/1.45 system-ui; color:var(--an-text); pointer-events:auto; box-shadow:0 6px 24px rgba(0,0,0,0.55),0 0 16px var(--ax-green-glow); backdrop-filter:blur(12px); }
   #delivery-route-hud.open { display:block; }
   #drh-type { color:var(--ax-green-bright); font-size:10px; margin-bottom:4px; }
@@ -635,7 +633,7 @@
   #astranov-site-shell { display:none; position:fixed; top:0; left:0; right:0; bottom:182px; z-index:110; flex-direction:column; pointer-events:auto; }
   #astranov-site-shell.open { display:flex; }
   body.site-shell-open #globe { opacity:0.42; filter:saturate(0.85) blur(0.3px); }
-  body.site-shell-open #super-cli-bar #super-add-fab, body.site-shell-open #globe-deck-plus { opacity:0.35; pointer-events:none; }
+  body.site-shell-open #super-cli-bar #super-add-fab { opacity:0.35; pointer-events:none; }
   .as-shell-bar { display:flex; align-items:center; gap:8px; padding:6px 10px; background:linear-gradient(180deg,rgba(2,8,18,0.94),rgba(2,8,18,0.72)); border-bottom:1px solid rgba(73,183,255,0.35); font:11px system-ui; color:#9ef; }
   #as-shell-domain { flex:1; font-weight:700; }
   .as-shell-bar button { padding:6px 10px; border-radius:8px; border:1px solid rgba(73,183,255,0.35); background:rgba(0,0,0,0.35); color:#def; cursor:pointer; font-size:11px; }
@@ -939,7 +937,6 @@
         <div id="super-cli-edge-right" class="super-cli-edge-right">
           <button id="super-add-fab" type="button" title="Super Add — post · vendor · site">+</button>
           <button id="aci-handsfree" type="button" title="AI hands-free — listen &amp; speak" data-voice-state="off"></button>
-          <button id="aci-cli-toggle" title="Expand/collapse Astranov Command Line" type="button" aria-label="Expand CLI">💻</button>
         </div>
         <button id="aci-stop" title="Stop AI · voice · tasks" type="button"></button>
         <button id="aci-hold" title="Hold session — pause mic &amp; tasks for noisy places" type="button" aria-pressed="false">⏸</button>
@@ -1047,7 +1044,6 @@
         <form id="aci-cli-form" action="#" autocomplete="off">
           <textarea id="aci-cli-in" name="cli" rows="1" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" inputmode="text" placeholder="Talk to Astranov — type or tap 🎧 · Enter to send"></textarea>
         </form>
-        <button id="globe-deck-plus" class="deck-input-btn" type="button" title="Plus field — what do you want to do here?">+</button>
         <button id="globe-deck-send" class="deck-input-btn" type="submit" form="aci-cli-form" title="Send command">➡</button>
       </div>
     </div>
@@ -1069,6 +1065,6 @@
   window._instantShellUnlock=unlock;
 })();
 </script>
-<script defer src="/astranov-app.js?v=20260710700000-vendor-tile"></script>
+<script defer src="/astranov-app.js?v=20260710800000-ui-revert"></script>
 </body>
 </html>
