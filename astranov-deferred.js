@@ -2362,6 +2362,7 @@ const CityMap = {
       if (!this.active && !this._nationalActive) return;
       const dom = e.originalEvent;
       if (MapOverlayDismiss.handleMapClick(dom || { target: document.getElementById('city-map') })) return;
+      if (window.MenuProfilePostTile?.consumeMapPick?.(e.latlng.lat, e.latlng.lng)) return;
       if (this._nationalActive && !this.active) {
         void GlobeNavigate?.handlePlaceClick?.(e.latlng.lat, e.latlng.lng, {});
       } else {
@@ -7885,8 +7886,9 @@ const SuperAdd = {
     });
     document.getElementById('super-add-fab')?.addEventListener('click', e => {
       e.preventDefault(); e.stopPropagation();
-      this.open();
-    });
+      if (window.MenuProfilePostTile?.openPlusField) window.MenuProfilePostTile.openPlusField();
+      else this.open();
+    }, { capture: true });
     this._syncChannelUi();
     this.loadPostsOnGlobe();
   },
