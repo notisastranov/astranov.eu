@@ -9377,18 +9377,21 @@ const MapPins = {
     return (s[0] || '?').toUpperCase();
   },
 
-  setClientDelivery(lat, lng, label) {
+  async setClientDelivery(lat, lng, label) {
     const photo = this.clientPinPhoto() || this.entrancePhotoUrl();
     window._clientDelivery = {
       lat, lng,
-      label: label || 'Delivery address',
+      label: label || 'Customer delivery',
       photo_url: photo || '',
       ts: Date.now(),
     };
-    this.persist();
+    window._lastPos = { lat, lng };
+    await this.persist();
     this.syncGlobe();
-    MapDepict?.pulse?.(lat, lng, 0x44ff88, 'delivery address', 10000);
-    ACIControl?.reply?.('Client delivery address set · orders deliver here');
+    CityMap?.syncMapPins?.();
+    MapDepict?.pulse?.(lat, lng, 0x44ff88, 'customer delivery', 10000);
+    ACIControl?.reply?.('Customer delivery location set · orders deliver here');
+    AciCli?.print?.('delivery pin · ' + Number(lat).toFixed(4) + ',' + Number(lng).toFixed(4), 'ok');
   },
 
   async setDriverBase(lat, lng, label) {
@@ -9529,14 +9532,14 @@ const ClassifiedTriangles = {
     { id: 'post', label: 'Post something', icon: '📝', keywords: ['post', 'share', 'announce', 'publish', 'status'] },
     { id: 'upload_photo', label: 'Upload photo', icon: '📷', keywords: ['photo', 'picture', 'image', 'snap', 'pic'] },
     { id: 'upload_video', label: 'Upload video', icon: '🎬', keywords: ['video', 'record', 'film', 'clip', 'reel'] },
-    { id: 'deliver_here', label: 'Deliver here', icon: '📦', keywords: ['deliver', 'delivery address', 'ship here', 'drop off'] },
+    { id: 'deliver_here', label: 'Customer delivery', icon: '📍', keywords: ['deliver', 'delivery address', 'customer', 'client', 'my address', 'delivery location', 'ship here', 'drop off', 'receive', 'home'] },
     { id: 'drive_here', label: 'Drive here', icon: '🚗', keywords: ['drive', 'navigate', 'go here', 'take me'] },
     { id: 'route', label: 'Show route', icon: '🛣', keywords: ['route', 'directions', 'path', 'roads'] },
     { id: 'explore', label: 'Shops nearby', icon: '🔍', keywords: ['nearby', 'explore', 'find shops', 'around', 'local'] },
     { id: 'order', label: 'Order here', icon: '🛒', keywords: ['order', 'buy', 'purchase', 'food'] },
   ],
 
-  DEFAULT_TOP: ['list_shop', 'list_vendor', 'driver_base'],
+  DEFAULT_TOP: ['deliver_here', 'list_vendor', 'list_shop'],
 
   init() {
     document.getElementById('ge-hud-intent-go')?.addEventListener('click', e => {
@@ -9617,9 +9620,9 @@ const ClassifiedTriangles = {
     }
     if (GlobeNavigate?.isNational?.()) {
       return [
+        this.CATALOG.find(c => c.id === 'deliver_here'),
         this.CATALOG.find(c => c.id === 'list_vendor'),
         this.CATALOG.find(c => c.id === 'explore'),
-        this.CATALOG.find(c => c.id === 'list_shop'),
       ].filter(Boolean);
     }
     return this.defaultTop3();
@@ -9785,12 +9788,11 @@ const MapPlaceMenu = {
     }
     if (action === 'client_addr') {
       const go = async () => {
-        await LazyModules.ensure();
+        await LazyModules.ensure().catch(() => {});
+        await MapPins?.setClientDelivery?.(lat, lng, 'Customer delivery · ' + this.formatCoords(lat, lng));
         if (!Auth?.user) {
-          Auth?.openLoginModal?.('Sign in to set delivery address');
-          return;
+          ACIControl?.reply?.('Delivery saved on this device · sign in (G) to sync to your profile');
         }
-        MapPins?.setClientDelivery?.(lat, lng, 'Deliver to ' + this.formatCoords(lat, lng));
       };
       void go();
       this.close();
