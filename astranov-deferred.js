@@ -5865,9 +5865,9 @@ const AstranovCityShop = {
 window.AstranovCityShop = AstranovCityShop;
 
 const DEMO_VENDORS = [
-  { id: 'demo-pitogyra', name: 'Πιτογύρα Rhodes', emoji: '🥙', lat: 36.4412, lng: 28.2225, category: 'food', is_active: true, delivery_enabled: true, items: [{ name: 'Πιτογύρα χοιρινό', price: 3.5 }, { name: 'Μπύρα Alpha', price: 2.5 }, { name: 'Τσιγάρα Marlboro', price: 5.5 }, { name: 'Burger classic', price: 6 }] },
-  { id: 'demo-kafeneio', name: 'Kafeneio Astranov', emoji: '☕', lat: 36.4358, lng: 28.2188, category: 'cafe', is_active: true, delivery_enabled: true, items: [{ name: 'Φραπέ', price: 2.2 }, { name: 'Μπύρα Fix', price: 2.8 }, { name: 'Νερό 500ml', price: 0.5 }] },
-  { id: 'demo-minimarket', name: 'Mini Market Kos', emoji: '🏪', lat: 36.8932, lng: 27.288, category: 'grocery', is_active: true, delivery_enabled: true, items: [{ name: 'Μπύρα Heineken', price: 2.9 }, { name: 'Τσιγάρα Winston', price: 5.2 }, { name: 'Burger frozen', price: 4.5 }, { name: 'Νερό', price: 0.6 }] },
+  { id: 'demo-pitogyra', name: 'Πιτογύρα Rhodes', emoji: '🥙', lat: 36.4412, lng: 28.2225, category: 'food', is_active: true, delivery_enabled: true, tags: { cover_url: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=640&h=200&fit=crop', profile_url: 'https://images.unsplash.com/photo-1529006557810-274db1b03838?w=128&h=128&fit=crop', about: 'Rhodes pitogyra · delivery 24/7 via Astranov drivers' }, items: [{ name: 'Πιτογύρα χοιρινό', price: 3.5, description: 'Classic pork gyro' }, { name: 'Μπύρα Alpha', price: 2.5, description: 'Cold 330ml' }, { name: 'Τσιγάρα Marlboro', price: 5.5 }, { name: 'Burger classic', price: 6, description: 'Beef burger meal' }] },
+  { id: 'demo-kafeneio', name: 'Kafeneio Astranov', emoji: '☕', lat: 36.4358, lng: 28.2188, category: 'cafe', is_active: true, delivery_enabled: true, tags: { cover_url: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=640&h=200&fit=crop', profile_url: 'https://images.unsplash.com/photo-1511920170033-f8396924c10b?w=128&h=128&fit=crop', about: 'Greek café · frappe · beer · snacks' }, items: [{ name: 'Φραπέ', price: 2.2 }, { name: 'Μπύρα Fix', price: 2.8 }, { name: 'Νερό 500ml', price: 0.5 }] },
+  { id: 'demo-minimarket', name: 'Mini Market Kos', emoji: '🏪', lat: 36.8932, lng: 27.288, category: 'grocery', is_active: true, delivery_enabled: true, tags: { cover_url: 'https://images.unsplash.com/photo-1604719312566-8912e9227c6a?w=640&h=200&fit=crop', profile_url: '/icon.svg', about: 'Neighborhood mini market · Kos island' }, items: [{ name: 'Μπύρα Heineken', price: 2.9 }, { name: 'Τσιγάρα Winston', price: 5.2 }, { name: 'Burger frozen', price: 4.5 }, { name: 'Νερό', price: 0.6 }] },
 ];
 
 const Commerce = {
@@ -5911,7 +5911,11 @@ const Commerce = {
       try { raw = JSON.parse(raw); } catch { raw = []; }
     }
     const items = Array.isArray(raw) ? raw.filter(i => i && i.name) : [];
-    return items;
+    return items.map(i => ({
+      ...i,
+      image: i.image || i.photo || i.imageUrl || (typeof resolveMenuItemPhoto === 'function' ? resolveMenuItemPhoto(i) : ''),
+      price: Number(i.price) || 0,
+    }));
   },
 
   _normalizeVendor(v) {
@@ -5922,7 +5926,15 @@ const Commerce = {
       d.id === v.id
       || (v.name && d.name.toLowerCase().includes(String(v.name).toLowerCase().slice(0, 5)))
     );
-    return demo ? { ...v, items: demo.items, delivery_enabled: v.delivery_enabled !== false } : v;
+    if (!demo) return v;
+    const demoItems = (demo.items || []).map(di => ({
+      ...di,
+      image: di.image || (typeof resolveMenuItemPhoto === 'function' ? resolveMenuItemPhoto(di) : ''),
+    }));
+    let tags = v.tags;
+    if (typeof tags === 'string') { try { tags = JSON.parse(tags); } catch { tags = {}; } }
+    tags = { ...(demo.tags || {}), ...(tags || {}) };
+    return { ...v, items: demoItems, tags, delivery_enabled: v.delivery_enabled !== false };
   },
 
   hasMenu(vendor) {
@@ -6498,9 +6510,11 @@ const Commerce = {
 
   async openVendor(vendor) {
     if (!vendor) return;
+    await LazyModules.ensure().catch(() => {});
+    const norm = this._normalizeVendor(vendor);
     if (window.VendorMapTile?.open) {
-      window.VendorMapTile.open(vendor);
-      this.selected = vendor;
+      VendorMapTile.open(norm);
+      this.selected = norm;
       return;
     }
     this.selected = vendor;
@@ -6559,8 +6573,8 @@ const Commerce = {
       const qty = this.cart[key] || 0;
       const row = document.createElement('div');
       row.className = 'vm-item';
-      const img = item.image || item.photo || '';
-      const imgHtml = img ? '<img class="vm-item-img" src="' + img.replace(/"/g, '') + '" alt="" />' : '';
+      const img = item.image || item.photo || item.imageUrl || (typeof resolveMenuItemPhoto === 'function' ? resolveMenuItemPhoto(item) : '');
+      const imgHtml = img ? '<img class="vm-item-img" src="' + img.replace(/"/g, '') + '" alt="" onerror="this.src=\'/icon.svg\'" />' : '';
       row.innerHTML = imgHtml + '<span class="vm-item-body">' + item.name + ' <small style="color:#9ab">' + (item.price || 0) + ' AVC</small></span>';
       const q = document.createElement('div');
       q.className = 'vm-qty';
@@ -7952,7 +7966,11 @@ const SuperAdd = {
     await FieldBrain?.onAuth?.();
     await Commerce?.loadVendors?.();
     MapDepict?.pulse?.(pos.lat, pos.lng, 0xff8844, vname, 16000);
-    AciCli?.print('vendor added on map · ' + vname, 'ok');
+    AciCli?.print('vendor added on map · ' + vname + ' · clients see this tile when they tap you', 'ok');
+    ACIControl?.reply?.('Shop enlisted on map · add menu photos & prices in the tile');
+    const enlisted = { ...body, tags: {}, category: 'field_add' };
+    if (window.VendorMapTile?.open) VendorMapTile.open(enlisted, { preview: true, enlist: true });
+    else void ProfileSite?.openShopEditor?.(pos.lat, pos.lng);
     return body.id;
   },
 
@@ -13748,7 +13766,9 @@ const ProfileSite = {
       ACIControl?.reply('Shop saved — cover, menu & prices live at ' + this.formatCoords(d.lat, d.lng));
       AciCli?.print('shop profile saved · ' + d.name + ' · ' + items.length + ' items', 'ok');
       document.getElementById('ps-shop').style.display = 'inline-block';
-      this._vendor = { id: vendorId, name: d.name, lat: d.lat, lng: d.lng, items, tags };
+      this._vendor = { id: vendorId, name: d.name, lat: d.lat, lng: d.lng, items, tags, owner_id: Auth.user.id, emoji: '🏬', delivery_enabled: true, category: 'shop' };
+      FieldBrain.vendorIds = Array.from(new Set([...(FieldBrain?.vendorIds || []), vendorId]));
+      VendorMapTile?.open?.(this._vendor, { preview: true, skipFly: false });
     } catch (e) {
       if (statusEl) statusEl.textContent = 'Save failed';
       ACIControl?.reply('Shop save failed: ' + (e.message || e));
