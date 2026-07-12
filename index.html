@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <script>
-(function(){if(!('serviceWorker'in navigator))return;var k='astranov-migrated-v34';if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,'1');try{caches&&caches.keys&&caches.keys().then(function(ks){ks.forEach(function(n){caches.delete(n)})})}catch(e){}}navigator.serviceWorker.register('/sw.js?v=34').catch(function(){})})();
+(function(){if(!('serviceWorker'in navigator))return;var k='astranov-migrated-v35';if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,'1');try{caches&&caches.keys&&caches.keys().then(function(ks){ks.forEach(function(n){caches.delete(n)})})}catch(e){}}navigator.serviceWorker.register('/sw.js?v=35').catch(function(){})})();
 </script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710470000-trackball-cli" />
+<meta name="astranov-build" content="20260710480000-cli-toggle-fix" />
 <meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
 <meta name="astranov-mission" content="SpaceNet: collective intelligence connecting everything into one — no satellites needed to communicate" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
@@ -311,7 +311,8 @@
   @keyframes avc-balance-pulse { 0%,100% { box-shadow:0 0 8px rgba(0,221,119,0.18); } 40% { box-shadow:0 0 18px rgba(0,221,119,0.55); border-color:var(--ax-green-bright); } }
   #super-cli-bar button { background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); border-radius:50%; width:34px; height:34px; cursor:pointer; font-size:13px; flex-shrink:0; }
   #super-cli-bar #aci-stop { background:var(--ax-red-bg); border-color:var(--ax-red-border); color:var(--ax-red-bright); }
-  #super-cli-bar #aci-cli-toggle { display:inline-flex !important; flex-shrink:0; order:4; border-radius:50%; width:34px; }
+  #super-cli-edge-right #aci-cli-toggle { display:inline-flex !important; flex-shrink:0; order:4; border-radius:50%; width:34px; height:34px; position:static; margin:0; }
+  #super-cli-bar > #aci-cli-toggle { display:none !important; }
   #super-cli-bar button[hidden] { display:none !important; }
   #super-cli-bar #aci-locate.deck-btn-active { background:var(--ax-green-bg); border-color:var(--ax-green-border); color:var(--ax-green-bright); box-shadow:0 0 8px var(--ax-green-glow); }
   #super-cli-bar #aci-hold.deck-btn-active { background:var(--ax-yellow-bg); border-color:var(--ax-yellow-border); color:var(--ax-yellow-bright); box-shadow:0 0 10px var(--ax-yellow-glow); }
@@ -328,8 +329,7 @@
   #globe-deck-log .deck-thinking-line { animation:deck-pulse 1s ease infinite; color:var(--ax-blue-bright); }
   @keyframes deck-pulse { 50% { opacity:0.35; } }
   #globe-deck-send { background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); border-radius:10px; padding:6px 12px; cursor:pointer; font-size:12px; flex-shrink:0; }
-  #globe-deck-header { display:flex; align-items:center; gap:8px; padding:8px 10px; background:rgba(0,0,0,0.45); color:var(--ax-blue-bright); font:11px system-ui; touch-action:pan-y; cursor:pointer; flex-shrink:0; user-select:none; min-height:24px; }
-  #globe-deck.expanded #globe-deck-header { border-bottom:1px solid var(--ax-blue-border); }
+  #globe-deck.expanded #globe-deck-header { display:none !important; }
   #globe-deck-title { flex:0 1 auto; max-width:42%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
   #globe-deck-preview { flex:1; font-size:10px; color:var(--ax-blue-bright); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; opacity:0.9; }
   #globe-deck:not(.has-preview):not(.expanded) #globe-deck-preview { display:none; }
@@ -392,7 +392,7 @@
   #super-cli-bar #aci-handsfree.deck-btn-active, #super-cli-bar #aci-handsfree.listening { background:rgba(0,30,70,0.55); border-color:var(--ax-blue-bright); }
   #super-cli-bar #aci-handsfree.speaking { background:rgba(0,40,28,0.55); }
   #globe-deck-input-row #globe-deck-send { border-radius:12px; width:44px; font-size:15px; font-weight:700; }
-  #aci-cli-toggle { display:inline-flex; background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); border-radius:50%; width:38px; height:38px; cursor:pointer; font-size:15px; flex-shrink:0; align-items:center; justify-content:center; }
+  #super-cli-edge-right #aci-cli-toggle { background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); cursor:pointer; font-size:15px; align-items:center; justify-content:center; }
   #city-life-chip { display:none; position:fixed; top:52px; left:12px; bottom:auto; z-index:38; max-width:min(240px,calc(100vw - 24px)); padding:8px 12px; border-radius:12px; background:var(--ax-panel); border:1px solid var(--ax-blue-border); font:10px/1.4 system-ui; color:var(--an-text); pointer-events:none; backdrop-filter:blur(8px); }
   #city-life-chip.open { display:block; }
   body.city-map-active #city-life-chip { display:none !important; }
@@ -608,7 +608,7 @@
   .auth-google-warn { font-size:11px; color:#ffcc66; background:rgba(80,50,0,0.35); border:1px solid rgba(255,200,80,0.45); border-radius:10px; padding:10px 12px; margin:0 0 10px; line-height:1.45; }
   .auth-oauth-help { display:block; margin:6px 0 0; font-size:10px; color:#8ab; text-align:center; }
   .auth-email-primary { background:var(--ax-green-bg) !important; color:#fff !important; border:1px solid var(--ax-green-border) !important; box-shadow:0 0 12px var(--ax-green-glow); }
-  #lab-orb-layer { position:fixed; left:max(10px,env(safe-area-inset-left)); bottom:calc(72px + env(safe-area-inset-bottom)); z-index:48; pointer-events:none; }
+  #lab-orb-layer { display:none !important; }
   #lab-orb-tray { pointer-events:auto; display:flex; align-items:center; gap:6px; padding:8px 12px; border-radius:999px; border:1px solid rgba(109,242,189,0.28); background:rgba(0,0,0,0.55); backdrop-filter:blur(12px); color:#9ef; cursor:pointer; font:inherit; font-size:11px; font-weight:600; touch-action:manipulation; }
   #lab-orb-tray:hover { border-color:#6df2bd; box-shadow:0 0 16px rgba(109,242,189,0.25); }
   .lab-orb { pointer-events:none; position:fixed; width:44px; height:44px; border-radius:50%; border:1px solid color-mix(in srgb, var(--orb-color) 55%, transparent); background:rgba(0,0,0,0.62); color:var(--orb-color); cursor:pointer; display:grid; place-items:center; font-size:11px; font-weight:700; opacity:0; transform:scale(0.4); transition:opacity .22s ease, transform .22s ease; touch-action:manipulation; box-shadow:0 0 14px color-mix(in srgb, var(--orb-color) 35%, transparent); }
@@ -923,8 +923,8 @@
         <div id="super-cli-edge-right" class="super-cli-edge-right">
           <button id="super-add-fab" type="button" title="Super Add — post · vendor · site">+</button>
           <button id="aci-handsfree" type="button" title="AI hands-free — listen &amp; speak" data-voice-state="off"></button>
+          <button id="aci-cli-toggle" title="Expand/collapse Astranov Command Line" type="button" aria-label="Expand CLI">💻</button>
         </div>
-        <button id="aci-cli-toggle" title="Expand/collapse Astranov Command Line" type="button">💻</button>
         <button id="aci-stop" title="Stop AI · voice · tasks" type="button"></button>
         <button id="aci-hold" title="Hold session — pause mic &amp; tasks for noisy places" type="button" aria-pressed="false">⏸</button>
         <button id="aci-locate" title="Locate me — city view" type="button">🎯</button>
@@ -1038,6 +1038,6 @@
     <input id="aci-input" placeholder="" style="display:none" />
     <button id="aci-send" type="button" style="display:none" title="Send">➡️</button>
   </div>
-<script defer src="/astranov-app.js?v=20260710470000-trackball-cli"></script>
+<script defer src="/astranov-app.js?v=20260710480000-cli-toggle-fix"></script>
 </body>
 </html>
