@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710940000-menu-profile-post" />
+<meta name="astranov-build" content="20260710950000-galactic-sky" />
 <meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
 <meta name="astranov-mission" content="SpaceNet: collective intelligence connecting everything into one — no satellites needed to communicate" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
@@ -21,7 +21,7 @@
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
-<link rel="preload" href="/astranov-app.js?v=20260710940000-menu-profile-post" as="script" />
+<link rel="preload" href="/astranov-app.js?v=20260710950000-galactic-sky" as="script" />
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
@@ -243,7 +243,8 @@
   /* #aci-theme removed for fewer buttons; theme is now auto + CLI only */
   [data-theme="bright"] #aci-bar, [data-theme="bright"] #city-life-chip, [data-theme="bright"] #globe-entity-hud { filter:none; }
   [data-theme="bright"] #globe-deck-log { color:var(--an-text); }
-  #cosmic-guide { display:none; }
+  #cosmic-guide { position:fixed; top:32px; left:10px; z-index:39; max-width:min(320px,78vw); font:11px/1.45 system-ui; color:var(--an-text); text-shadow:0 1px 8px rgba(0,0,0,0.85); pointer-events:none; display:none; padding:6px 8px; border-radius:8px; background:rgba(0,6,18,0.55); border:1px solid rgba(26,111,212,0.28); }
+  #cosmic-guide.visible { display:block; }
   #cosmic-guide .cg-title { color:var(--ax-blue-bright); font-weight:600; font-size:11px; margin-bottom:5px; text-shadow:0 0 6px var(--ax-blue-glow); }
   #cosmic-guide .cg-item { margin:2px 0; opacity:0.9; }
   #cosmic-guide .cg-item b { color:var(--ax-blue-bright); font-weight:600; }
@@ -1148,7 +1149,8 @@
   window._instantShellUnlock=unlock;
 })();
 </script>
-<script defer src="/astranov-app.js?v=20260710940000-menu-profile-post"></script>
-<script defer src="/astranov-mpp-tile.js?v=20260710940000-menu-profile-post"></script>
+<script defer src="/astranov-app.js?v=20260710950000-galactic-sky"></script>
+<script defer src="/astranov-galactic-sky.js?v=20260710950000-galactic-sky"></script>
+<script defer src="/astranov-mpp-tile.js?v=20260710950000-galactic-sky"></script>
 </body>
 </html>
