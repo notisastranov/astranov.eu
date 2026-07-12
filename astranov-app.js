@@ -82,7 +82,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 
 const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.set(0, 0, 3.2);
+camera.position.set(0, 0, 3.5);
 camera.lookAt(0, 0, 0);
 
 scene.add(new THREE.AmbientLight(0x667788, 1.0));
@@ -143,8 +143,13 @@ window._animateStarted = false;
 
 function syncGlobePivotRotation() {
   if (!globePivot) return;
+  globePivot.rotation.setFromQuaternion(globePivot.quaternion, 'YXZ');
+}
+function syncGlobePivotQuaternion() {
+  if (!globePivot) return;
   globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
 }
+window.syncGlobePivotQuaternion = syncGlobePivotQuaternion;
 window.syncGlobePivotRotation = syncGlobePivotRotation;
 
 // lat/lng to 3D sphere position
@@ -209,7 +214,7 @@ const GlobeControl = {
     this._lastAutoFly = Date.now();
   },
 
-  Z: { global: 3.2, national: 1.82, regional: 1.65, city: 1.38 },
+  Z: { global: 3.5, national: 1.82, regional: 1.65, city: 1.38 },
 
   /** Z depth that activates the flat city map (explicit city entry only) */
   cityEntryZ() {
@@ -218,8 +223,8 @@ const GlobeControl = {
   },
 
   flyDuration(fromZ, toZ) {
-    const a = fromZ ?? camera?.position?.z ?? 2.55;
-    const b = toZ ?? 2.55;
+    const a = fromZ ?? camera?.position?.z ?? GlobeNavigate.GLOBAL_Z;
+    const b = toZ ?? GlobeNavigate.GLOBAL_Z;
     return Math.min(3200, Math.round(2000 + Math.abs(a - b) * 1100));
   },
 
@@ -266,7 +271,7 @@ const GlobeNavigate = {
   mode: 'global',
   anchor: null,
   _cityUnlocked: false,
-  GLOBAL_Z: 3.2,
+  GLOBAL_Z: 3.5,
   NATIONAL_Z: 1.82,
   CITY_CAM_Z: 1.30,
   LEAFLET_ZOOM: 11,
@@ -1725,9 +1730,9 @@ const SpaceNetScenarioRunner = {
     const z = camera?.position?.z ?? 0;
     const earthOk = z >= 2.2 && z <= 4.5 && (CosmicZoom?.level === 'earth' || CosmicZoom?.level === 'orbit');
     if (!earthOk && z < 6 && !CityMap?.active && !DrivingView?.active) {
-      camera.position.z = GlobeNavigate?.GLOBAL_Z || 2.55;
+      camera.position.z = GlobeNavigate?.GLOBAL_Z || GlobeNavigate.GLOBAL_Z;
       ZoomTiers?.goTo?.('global', false);
-      CosmicZoom?.update?.(GlobeNavigate?.GLOBAL_Z || 2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
+      CosmicZoom?.update?.(GlobeNavigate?.GLOBAL_Z || GlobeNavigate.GLOBAL_Z, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
     }
     add('earth_view', earthOk || z < 6, 'z=' + z.toFixed(2) + ' · ' + (CosmicZoom?.level || '?'));
 
@@ -1760,6 +1765,15 @@ const SpaceNetScenarioRunner = {
     MissionSupportReporter?.recordProgress?.('mission', 'scenarios ' + pass + '/' + rows.length + ' · ' + (trigger || 'cycle'), { rows, trigger });
     if (pass < rows.length && !document.hidden) {
       GlobeDeck?.setPreview?.('SpaceNet · ' + pass + '/' + rows.length + ' checks OK', 'dim');
+      const fails = rows.filter(r => !r.ok);
+      MissionSupportReporter?.recordProblem?.('grok_build_regression', fails.map(f => f.id + ':' + (f.detail || f.fix || '')).join(' · '), {
+        build: MissionSupportReporter?.buildStamp?.(),
+        trigger,
+        rows: fails,
+        trackball_ok: !!TrackballGuard?._ok,
+        cam_z: camera?.position?.z,
+      });
+      void MissionSupportReporter?.submitDaily?.('force');
     }
     return rows;
   },
@@ -3013,7 +3027,10 @@ const DrivingView = {
     if (!this._cameraFollow || GlobeControl?.userExploring) return;
     camera.position.z = this.mode === 'drive' ? 1.22 : 1.32;
     const h = pos.coords.heading;
-    if (h != null && !isNaN(h)) globePivot.rotation.y = (-h + 90) * Math.PI / 180;
+    if (h != null && !isNaN(h)) {
+      globePivot.rotation.y = (-h + 90) * Math.PI / 180;
+      syncGlobePivotQuaternion?.();
+    }
   },
   async fetchRoadRoute() {
     const plan = this._routePlan;
@@ -4243,12 +4260,12 @@ const AstranovLogo = {
       globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
     }
     if (typeof camera !== 'undefined' && camera) {
-      camera.position.z = ZoomTiers?.tierZ?.('global') || 2.55;
+      camera.position.z = ZoomTiers?.tierZ?.('global') || GlobeNavigate.GLOBAL_Z;
       camera.lookAt(0, 0, 0);
     }
     ZoomTiers?.goTo?.('global', true);
     CityMap?._exit?.();
-    CosmicZoom?.update?.(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
+    CosmicZoom?.update?.(GlobeNavigate.GLOBAL_Z, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
     cityLevel = false;
     const zl = document.getElementById('zoom-label');
     if (zl && !window.DrivingView?.active) zl.textContent = 'GLOBAL';
@@ -6359,8 +6376,7 @@ const SuperCli = {
 
   ensureBarLayout() {
     const bar = document.getElementById('super-cli-bar');
-    if (!bar || bar.dataset.layoutReady) return;
-    bar.dataset.layoutReady = '1';
+    if (!bar) return;
     const login = document.getElementById('aci-login');
     let middle = document.getElementById('super-cli-middle');
     let edgeRight = document.getElementById('super-cli-edge-right');
@@ -6395,6 +6411,10 @@ const SuperCli = {
     if (ribbon && ribbon.parentElement !== middle) middle.appendChild(ribbon);
     if (fab && fab.parentElement !== edgeRight) edgeRight.insertBefore(fab, hf || null);
     if (hf && hf.parentElement !== edgeRight) edgeRight.appendChild(hf);
+    const cliToggle = document.getElementById('aci-cli-toggle');
+    if (cliToggle && cliToggle.parentElement === bar) {
+      if (edgeRight.nextSibling !== cliToggle) edgeRight.insertAdjacentElement('afterend', cliToggle);
+    }
   },
 
   init() {
@@ -8469,6 +8489,18 @@ const MissionSupportReporter = {
     if (lastDay !== today) void this.submitDaily(reason);
   },
 
+  reportBootRegression(checks) {
+    const fails = (checks || []).filter(c => !c.ok);
+    if (!fails.length) return;
+    this.recordProblem('grok_build_regression', fails.map(f => f.id).join(', '), {
+      build: this.buildStamp(),
+      fails,
+      trackball: !!TrackballGuard?._ok,
+      cam_z: typeof camera !== 'undefined' ? camera?.position?.z : null,
+    });
+    void this.submitDaily('force');
+  },
+
   init() {
     setTimeout(() => this._maybeSubmit('boot'), 8000);
     if (this._timer) clearInterval(this._timer);
@@ -9616,13 +9648,13 @@ const GlobeEntity = {
   },
 
   isGlobalView() {
-    const z = camera?.position?.z ?? 2.55;
-    return z >= ((GlobeControl?.Z?.global || 2.55) - 0.12);
+    const z = camera?.position?.z ?? GlobeNavigate.GLOBAL_Z;
+    return z >= ((GlobeControl?.Z?.global || GlobeNavigate.GLOBAL_Z) - 0.12);
   },
 
   cellKey(lat, lng) {
-    const z = camera?.position?.z ?? 2.55;
-    const deg = z >= 3.5 ? 3.5 : z >= 2.55 ? 2.0 : z >= 1.82 ? 0.8 : 0.35;
+    const z = camera?.position?.z ?? GlobeNavigate.GLOBAL_Z;
+    const deg = z >= 3.5 ? 3.5 : z >= GlobeNavigate.GLOBAL_Z ? 2.0 : z >= 1.82 ? 0.8 : 0.35;
     return Math.round(lat / deg) + ':' + Math.round(lng / deg);
   },
 
@@ -9891,7 +9923,7 @@ const GlobeEntity = {
         }
         break;
       case 'me':
-        this.flyTo(entity, GlobeControl?.Z?.global || 2.55);
+        this.flyTo(entity, GlobeControl?.Z?.global || GlobeNavigate.GLOBAL_Z);
         ACIControl?.reply('On globe — zoom in or say city view for shops');
         break;
       case 'news':
@@ -10319,8 +10351,8 @@ const GlobeEntity = {
       _actionLabel: 'Zoom to me',
       onTap: (e) => {
         const flyHere = (lat, lng) => {
-          if (lat == null) { this.flyTo(e, GlobeControl?.Z?.global || 2.55); return; }
-          placeMe(lat, lng, { fly: true, zoom: GlobeControl?.Z?.global || 2.55, quiet: false });
+          if (lat == null) { this.flyTo(e, GlobeControl?.Z?.global || GlobeNavigate.GLOBAL_Z); return; }
+          placeMe(lat, lng, { fly: true, zoom: GlobeControl?.Z?.global || GlobeNavigate.GLOBAL_Z, quiet: false });
         };
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
@@ -10961,7 +10993,7 @@ const ZoomTiers = {
     { id: 'galaxy', z: 16, label: 'GALAXY', cosmic: 'galaxy' },
     { id: 'solar', z: 7.2, label: 'SOLAR SYSTEM', cosmic: 'system' },
     { id: 'orbit', z: 5.2, label: 'ORBIT', cosmic: 'orbit' },
-    { id: 'global', z: 3.2, label: 'GLOBAL', cosmic: 'earth' },
+    { id: 'global', z: 3.5, label: 'GLOBAL', cosmic: 'earth' },
     { id: 'national', z: 1.82, label: 'NATIONAL', cosmic: 'earth', national: true },
     { id: 'regional', z: 1.65, label: 'REGIONAL', cosmic: 'earth', national: true },
     { id: 'city', z: 1.38, label: 'CITY', cosmic: 'earth', city: true },
@@ -11112,7 +11144,7 @@ const ZoomTiers = {
 
   tierZ(id) {
     const t = this.TIERS.find(x => x.id === id);
-    return t ? t.z : 2.55;
+    return t ? t.z : GlobeNavigate.GLOBAL_Z;
   },
 };
 window.ZoomTiers = ZoomTiers;
@@ -11394,7 +11426,7 @@ function zoomAt(clientX, clientY, delta, opts) {
       const pull = (delta > 0 ? 0.04 : -0.06) * pullScale;
       globePivot.rotation.y += dir.x * pull;
       globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x + dir.y * pull));
-      syncGlobePivotRotation?.();
+      syncGlobePivotQuaternion?.();
     }
   }
   zoomBy(delta, { velocity: vel });
@@ -11797,7 +11829,7 @@ const TrackballGuard = {
   },
 };
 window.TrackballGuard = TrackballGuard;
-// TrackballGuard.init() — deferred to _astranovBoot
+TrackballGuard.init();
 
 // === CITY MAP — satellite + streets when zoomed to city level ===
 const CityMap = {
@@ -11830,7 +11862,7 @@ const CityMap = {
   _leafletLoading: null,
 
   _globeZ() {
-    return ZoomTiers?.tierZ?.('global') ?? GlobeControl?.Z?.global ?? 2.55;
+    return ZoomTiers?.tierZ?.('global') ?? GlobeControl?.Z?.global ?? GlobeNavigate.GLOBAL_Z;
   },
 
   _nationalZ() {
@@ -14363,7 +14395,7 @@ const AIGraphics = {
       p.mesh.position.copy(pt);
       const n = pt.clone().normalize();
       p.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
-      const camZ = camera?.position?.z ?? 2.55;
+      const camZ = camera?.position?.z ?? GlobeNavigate.GLOBAL_Z;
       if (p.isFlyer) {
         this._flyerFrame++;
         this._scaleFlyer(p.mesh, camZ);
@@ -14392,7 +14424,7 @@ const AIGraphics = {
     const p = this._latLngToPos(lat, lng, alt);
     this._flyer.position.set(p.x, p.y, p.z);
     this._orientFlyerOnGlobe(this._flyer, this._flyer.position);
-    const camZ = camera?.position?.z ?? 2.55;
+    const camZ = camera?.position?.z ?? GlobeNavigate.GLOBAL_Z;
     this._scaleFlyer(this._flyer, camZ);
     this._animateFlyerPose(this._flyer, false);
     if (this._flyerFrame % 18 === 0) {
@@ -15307,7 +15339,7 @@ function placeMe(lat, lng, opts) {
     const g = GhostTravel.publicPos();
     if (shouldFly && typeof flyToPoint === 'function') {
       const pos = latLngToPos(g.lat, g.lng, 1.03);
-      flyToPoint(new THREE.Vector3(pos.x, pos.y, pos.z), opts.zoom ?? (GlobeControl?.Z?.global || 2.55));
+      flyToPoint(new THREE.Vector3(pos.x, pos.y, pos.z), opts.zoom ?? (GlobeControl?.Z?.global || GlobeNavigate.GLOBAL_Z));
     }
     GhostTravel._applyVisual?.();
     if (!quiet) FieldBrain?.pulse('location', 'ghost route · real GPS private', { role: 'client', props: { visual_truth: true } });
@@ -15433,7 +15465,7 @@ function applyGlobalBootView() {
   if (globePivot) {
     globePivot.rotation.y = 0;
     globePivot.rotation.x = 0.12;
-    syncGlobePivotRotation?.();
+    syncGlobePivotQuaternion?.();
     globePivot.visible = true;
   }
   CosmicZoom.level = 'earth';
@@ -15469,7 +15501,7 @@ function animate() {
     return;
   }
 
-  const camZ = camera?.position?.z ?? 2.55;
+  const camZ = camera?.position?.z ?? GlobeNavigate.GLOBAL_Z;
   const level = CosmicZoom?.level || 'earth';
   const earthView = (level === 'earth' || level === 'orbit') && camZ < 4.8;
   const solarView = level === 'system' || level === 'galaxy' || camZ > 5.5;
@@ -15563,7 +15595,7 @@ function _astranovBoot() {
   if (board && /checking teams/i.test(board.textContent || '')) board.textContent = 'SpaceNet ready';
 
   window._bootEarthLock = false;
-  void SpaceNetScenarioRunner?.runAll?.('boot');
+  void SpaceNetScenarioRunner?.runAll?.('boot').then?.((rows) => MissionSupportReporter?.reportBootRegression?.(rows));
   ACIControl?.reply?.(SpaceNetMission?.bootReply || 'SpaceNet live · collective intelligence links all · scroll out → solar · galaxy');
   primeGrokVoice?.();
 
