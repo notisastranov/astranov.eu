@@ -1856,6 +1856,11 @@ const GlobeNavigate = {
   async handlePlaceClick(lat, lng, opts) {
     opts = opts || {};
     if (lat == null || lng == null) return;
+    await LazyModules.ensure().catch(() => {});
+    if (window.CityMap?.ensureReady) await CityMap.ensureReady().catch(() => {});
+    if (window.Commerce?.loadVendors && !Commerce.vendors?.length) {
+      try { await Commerce.loadVendors(); } catch (_) {}
+    }
     const z = this.camZ();
     const same = this._lastClick && Math.hypot(lat - this._lastClick.lat, lng - this._lastClick.lng) < 0.35
       && Date.now() - this._lastClick.t < 8000;
@@ -3768,6 +3773,10 @@ window.Commerce = {
   },
   initUI() {},
   async showPicker() { await LazyModules.ensure(); return window.Commerce?.showPicker?.(); },
+  async enlistVendorAt(lat, lng, opts) {
+    await LazyModules.ensure();
+    return window.Commerce?.enlistVendorAt?.(lat, lng, opts);
+  },
   async openOrderFlow(q) { await LazyModules.ensure(); return window.Commerce?.openOrderFlow?.(q); },
   async smartOrder(q) { await LazyModules.ensure(); return window.Commerce?.smartOrder?.(q); },
   showMenu() { LazyModules.ensure().then(() => window.Commerce?.showMenu?.()); },
@@ -9608,9 +9617,9 @@ const ClassifiedTriangles = {
     }
     if (GlobeNavigate?.isNational?.()) {
       return [
+        this.CATALOG.find(c => c.id === 'list_vendor'),
         this.CATALOG.find(c => c.id === 'explore'),
         this.CATALOG.find(c => c.id === 'list_shop'),
-        this.CATALOG.find(c => c.id === 'drive_here'),
       ].filter(Boolean);
     }
     return this.defaultTop3();
@@ -9806,18 +9815,16 @@ const MapPlaceMenu = {
       return;
     }
     if (action === 'shop') {
-      window._pendingShopLatLng = { lat, lng };
       const go = async () => {
         await LazyModules.ensure();
         if (!Auth?.user) {
-          Auth?.openLoginModal?.('Sign in to set up your shop profile');
+          Auth?.openLoginModal?.('Sign in to list your vendor on the map');
           return;
         }
-        await ProfileSite?.openShopEditor?.(lat, lng);
+        await window.Commerce?.enlistVendorAt?.(lat, lng, { name: '' });
       };
       void go();
-      MapDepict?.pulse?.(lat, lng, 0xff8844, 'new shop', 8000);
-      ACIControl?.reply?.('Shop editor — logo, menu photos & prices');
+      MapDepict?.pulse?.(lat, lng, 0xff8844, 'new vendor', 8000);
       AppShortcuts?.track?.('add', 'Shop');
       this.close();
       return;
@@ -11487,7 +11494,7 @@ function _astranovBoot() {
   run(() => AstranovTheme.init());
   run(() => AiGlyphs.init());
   run(() => AstranovLogo.init());
-  /* CityMap deferred */ LazyModules.ensure().then(() => CityMap?.init?.());
+  /* CityMap deferred */ LazyModules.ensure().then(() => CityMap?.ensureReady?.());
   /* GlobeEntity deferred */ LazyModules.ensure().then(() => GlobeEntity?.init?.());
   run(() => MapPins.init());
   run(() => MapOverlayDismiss.init());
