@@ -1503,6 +1503,10 @@ function onGlobeClick(e) {
   const intersects = raycaster.intersectObject(earth);
   if (intersects.length > 0) {
     const pin = MapPlaceMenu?.pointFromGlobeHit?.(intersects[0].point);
+    if (pin && window.MenuProfilePostTile?.isPinPick?.()) {
+      window.MenuProfilePostTile.setPin(pin.lat, pin.lng);
+      return;
+    }
     if (pin) void GlobeNavigate?.handlePlaceClick?.(pin.lat, pin.lng, {});
   }
 }
@@ -8013,7 +8017,7 @@ const SuperCli = {
   bindToolbar() {
     const openPlus = () => {
       GlobeDeck?.expand?.(ACL_TITLE);
-      MapPlaceMenu?.openPlusField?.() || SuperCli?.run?.('add');
+      window.MenuProfilePostTile?.openPlusField?.() || MapPlaceMenu?.openPlusField?.() || SuperCli?.run?.('add');
     };
     const actions = {
       'aci-login': () => Auth?.user ? Auth.openLoggedInProfile() : (Auth?.signInGoogle?.() || Auth?.openLoginModal?.()),
@@ -8132,7 +8136,7 @@ const SuperCli = {
       case 'add':
       case 'post':
       case 'superadd':
-        window.SuperAdd?.open?.();
+        window.MenuProfilePostTile?.openPlusField?.() || window.SuperAdd?.open?.();
         this.setContext('add');
         break;
       case 'cli':
