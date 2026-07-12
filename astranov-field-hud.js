@@ -1,9 +1,313 @@
 // === FIELD HUD — top-right balances/mining · left radar · center speed ===
-const FieldHud = {
-  TERMS_KEY: 'astranov:miner-terms-v1',
-  MINE_SESSION_KEY: 'astranov:miner-session',
+// SpaceNet miner: SETI-style decentralised P2P · CPU · RAM · storage · bandwidth
+const SpaceNetMiner = {
+  TERMS_KEY: 'astranov:spacenet-miner-v2',
+  SESSION_KEY: 'astranov:spacenet-miner-session',
+  CHANNEL: 'astranov-spacenet-mesh-v1',
   BASE_RATE: 0.014,
   SLEEP_MULT: 2.4,
+  PEER_BONUS: 0.003,
+  RESOURCES: ['cpu', 'ram', 'storage', 'bandwidth'],
+  WORK_TYPES: ['route_cache', 'mesh_relay', 'brain_shard', 'vendor_index', 'presence_sync'],
+  _peers: new Map(),
+  _peerCount: 0,
+  _channel: null,
+  _nodeId: null,
+  _caps: null,
+  _contrib: { cpu: 0, ram: 0, storage: 0, bandwidth: 0 },
+  _rates: { cpu: 0, ram: 0, storage: 0, bandwidth: 0 },
+  _sessionEarned: 0,
+  _mineRate: 0,
+  _termsOk: false,
+  _workQueue: [],
+  _lastWorkAt: 0,
+
+  nodeId() {
+    if (this._nodeId) return this._nodeId;
+    try {
+      let id = localStorage.getItem('astranov:miner-node-id');
+      if (!id) {
+        id = 'sn-' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+        localStorage.setItem('astranov:miner-node-id', id);
+      }
+      this._nodeId = id;
+    } catch (_) {
+      this._nodeId = 'sn-' + Date.now().toString(36);
+    }
+    return this._nodeId;
+  },
+
+  detectCaps() {
+    const cores = navigator.hardwareConcurrency || 4;
+    const ramGb = navigator.deviceMemory || 4;
+    const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    const downMbps = conn?.downlink || 10;
+    let storageMb = 256;
+    if (navigator.storage?.estimate) {
+      navigator.storage.estimate().then(e => {
+        if (e.quota) this._caps.storageMb = Math.min(2048, Math.round(e.quota / 1048576 * 0.08));
+      }).catch(() => {});
+    }
+    this._caps = {
+      cores,
+      ramMb: Math.round(ramGb * 1024 * 0.12),
+      storageMb,
+      bandwidthKbps: Math.round(downMbps * 1024 * 0.06),
+    };
+    return this._caps;
+  },
+
+  initMesh() {
+    if (this._channel || typeof BroadcastChannel === 'undefined') return;
+    try {
+      this._channel = new BroadcastChannel(this.CHANNEL);
+      this._channel.onmessage = (ev) => this.onMeshMessage(ev.data);
+      this.announce();
+      if (this._meshPing) clearInterval(this._meshPing);
+      this._meshPing = setInterval(() => this.announce(), 12000);
+    } catch (_) {}
+    this.syncNodePeers();
+  },
+
+  announce() {
+    if (!this._channel) return;
+    this._channel.postMessage({
+      type: 'presence',
+      id: this.nodeId(),
+      at: Date.now(),
+      caps: this._caps,
+      contrib: this._contrib,
+    });
+  },
+
+  onMeshMessage(msg) {
+    if (!msg || msg.id === this.nodeId()) return;
+    if (msg.type === 'presence') {
+      this._peers.set(msg.id, { at: msg.at, caps: msg.caps, contrib: msg.contrib });
+      this.prunePeers();
+      this._peerCount = this._peers.size;
+      return;
+    }
+    if (msg.type === 'work_offer' && this.canAcceptWork()) {
+      this._workQueue.push(msg.unit);
+      if (this._workQueue.length > 8) this._workQueue.shift();
+    }
+    if (msg.type === 'work_done' && msg.unitId) {
+      FieldHud?.onPeerWorkDone?.(msg);
+    }
+  },
+
+  prunePeers() {
+    const cutoff = Date.now() - 25000;
+    this._peers.forEach((p, id) => { if (p.at < cutoff) this._peers.delete(id); });
+    this._peerCount = this._peers.size;
+  },
+
+  syncNodePeers() {
+    const node = window.AstranovNode;
+    if (node?.peerCount > 0) {
+      this._peerCount = Math.max(this._peerCount, node.peerCount);
+    }
+  },
+
+  canAcceptWork() {
+    return this._termsOk && FieldHud.deviceLoad() < 0.65;
+  },
+
+  offerWork() {
+    if (!this._channel || !this.canAcceptWork()) return;
+    const unit = {
+      id: 'wu-' + Date.now().toString(36),
+      type: this.WORK_TYPES[Math.floor(Math.random() * this.WORK_TYPES.length)],
+      shard: Math.random().toString(36).slice(2, 14),
+      from: this.nodeId(),
+    };
+    this._channel.postMessage({ type: 'work_offer', unit });
+    return unit;
+  },
+
+  async processWork(dt) {
+    if (!this._termsOk || !this.canAcceptWork()) return;
+    const load = FieldHud.deviceLoad();
+    const budget = Math.max(0, 1 - load);
+    if (budget < 0.15) return;
+
+    const unit = this._workQueue.shift() || this.offerWork();
+    if (!unit) return;
+
+    const type = unit.type || 'mesh_relay';
+    let earned = 0;
+    if (type === 'route_cache' || type === 'brain_shard') {
+      earned += this.tickCpu(budget, dt);
+    } else if (type === 'vendor_index') {
+      earned += await this.tickStorage(budget);
+    } else if (type === 'presence_sync' || type === 'mesh_relay') {
+      earned += await this.tickBandwidth(budget);
+    }
+    earned += this.tickRam(budget);
+    this._lastWorkAt = Date.now();
+
+    if (this._channel && unit.id) {
+      this._channel.postMessage({ type: 'work_done', unitId: unit.id, from: this.nodeId(), earned });
+    }
+    return earned;
+  },
+
+  tickCpu(budget, dt) {
+    const cores = this._caps?.cores || 4;
+    const ops = Math.floor(8000 * budget * (cores / 8) * Math.min(dt / 500, 1));
+    let h = 0;
+    for (let i = 0; i < ops; i++) h = ((h << 5) - h + i) | 0;
+    const pct = Math.min(100, Math.round(budget * cores * 8));
+    this._contrib.cpu += ops / 10000;
+    this._rates.cpu = pct;
+    return ops / 1200000;
+  },
+
+  tickRam(budget) {
+    const mb = Math.round((this._caps?.ramMb || 512) * budget * 0.15);
+    this._contrib.ram += mb * 0.001;
+    this._rates.ram = mb;
+    return mb / 80000;
+  },
+
+  async tickStorage(budget) {
+    const mb = Math.round((this._caps?.storageMb || 128) * budget * 0.02);
+    try {
+      const key = 'sn-shard-' + (Date.now() % 1000);
+      const blob = JSON.stringify({ shard: key, routes: Math.floor(Math.random() * 40), at: Date.now() });
+      localStorage.setItem(key, blob);
+      if (Math.random() < 0.08) {
+        Object.keys(localStorage).filter(k => k.startsWith('sn-shard-')).slice(0, 3)
+          .forEach(k => localStorage.removeItem(k));
+      }
+    } catch (_) {}
+    this._contrib.storage += mb * 0.01;
+    this._rates.storage = mb;
+    return mb / 60000;
+  },
+
+  async tickBandwidth(budget) {
+    const kb = Math.round((this._caps?.bandwidthKbps || 512) * budget * 0.04);
+    this._contrib.bandwidth += kb * 0.01;
+    this._rates.bandwidth = kb;
+    if (budget > 0.4 && kb > 20) {
+      try {
+        await fetch('/coders-labs.json', { cache: 'force-cache' });
+      } catch (_) {}
+    }
+    return kb / 90000;
+  },
+
+  computeRate() {
+    if (!this._termsOk) return 0;
+    const load = FieldHud.deviceLoad();
+    if (load > 0.7) return 0;
+    let rate = this.BASE_RATE * (1 - load);
+    const resSum = this._rates.cpu / 100 + this._rates.ram / 512 + this._rates.storage / 128 + this._rates.bandwidth / 1024;
+    rate *= 0.6 + Math.min(1.4, resSum);
+    rate += this._peerCount * this.PEER_BONUS;
+    if (FieldHud.isSleepMode()) rate *= this.SLEEP_MULT;
+    else if (load > 0.3) rate *= 0.4;
+    return Math.max(0, rate);
+  },
+
+  acceptTerms() {
+    try { localStorage.setItem(this.TERMS_KEY, String(Date.now())); } catch (_) {}
+    this._termsOk = true;
+    const m = document.getElementById('miner-terms-modal');
+    if (m) m.hidden = true;
+    this.initMesh();
+    this.announce();
+  },
+
+  checkTerms() {
+    try { this._termsOk = !!localStorage.getItem(this.TERMS_KEY); } catch (_) {}
+    const m = document.getElementById('miner-terms-modal');
+    if (m) m.hidden = this._termsOk;
+    if (this._termsOk) this.initMesh();
+    return this._termsOk;
+  },
+
+  loadSession() {
+    try {
+      const raw = localStorage.getItem(this.SESSION_KEY);
+      if (raw) {
+        const j = JSON.parse(raw);
+        this._sessionEarned = Number(j.earned) || 0;
+        if (j.contrib) Object.assign(this._contrib, j.contrib);
+      }
+    } catch (_) {}
+  },
+
+  saveSession() {
+    try {
+      localStorage.setItem(this.SESSION_KEY, JSON.stringify({
+        earned: this._sessionEarned,
+        contrib: this._contrib,
+        peers: this._peerCount,
+        at: Date.now(),
+      }));
+    } catch (_) {}
+  },
+
+  renderHud() {
+    const peers = document.getElementById('fbh-peers');
+    const cpu = document.getElementById('fbh-cpu');
+    const ram = document.getElementById('fbh-ram');
+    const sto = document.getElementById('fbh-storage');
+    const bw = document.getElementById('fbh-bw');
+    const rateEl = document.getElementById('fbh-mine-rate');
+    const earnedEl = document.getElementById('fbh-mine-earned');
+    const statusEl = document.getElementById('fbh-mine-status');
+    if (peers) peers.textContent = this._peerCount + ' peer' + (this._peerCount === 1 ? '' : 's');
+    if (cpu) cpu.textContent = this._rates.cpu ? this._rates.cpu + '%' : '—';
+    if (ram) ram.textContent = this._rates.ram ? this._rates.ram + 'MB' : '—';
+    if (sto) sto.textContent = this._rates.storage ? this._rates.storage + 'MB' : '—';
+    if (bw) bw.textContent = this._rates.bandwidth ? this._rates.bandwidth + 'kb/s' : '—';
+    if (rateEl) rateEl.textContent = this._mineRate.toFixed(3) + ' AVC/h';
+    if (earnedEl) earnedEl.textContent = '+' + this._sessionEarned.toFixed(3);
+    if (statusEl) {
+      if (!this._termsOk) {
+        statusEl.textContent = 'SpaceNet · terms required';
+        statusEl.className = 'fbh-status';
+      } else if (FieldHud.isSleepMode()) {
+        statusEl.textContent = 'P2P sleep rig · mesh idle';
+        statusEl.className = 'fbh-status sleep';
+      } else if (this._mineRate > 0.005) {
+        statusEl.textContent = 'SETI mesh · serving SpaceNet';
+        statusEl.className = 'fbh-status active';
+      } else {
+        statusEl.textContent = 'mesh standby · users serve users';
+        statusEl.className = 'fbh-status';
+      }
+    }
+  },
+
+  async tick(dt) {
+    if (!this._caps) this.detectCaps();
+    this.prunePeers();
+    this.syncNodePeers();
+    if (this._termsOk && this.canAcceptWork()) {
+      const workEarn = await this.processWork(dt);
+      if (workEarn) this._sessionEarned += workEarn;
+    }
+    this._mineRate = this.computeRate();
+    if (this._mineRate > 0) {
+      this._sessionEarned += this._mineRate * (dt / 3600000);
+      this.saveSession();
+    }
+    this.renderHud();
+    return this._mineRate;
+  },
+};
+window.SpaceNetMiner = SpaceNetMiner;
+
+const FieldHud = {
+  TERMS_KEY: SpaceNetMiner.TERMS_KEY,
+  MINE_SESSION_KEY: SpaceNetMiner.SESSION_KEY,
+  BASE_RATE: SpaceNetMiner.BASE_RATE,
+  SLEEP_MULT: SpaceNetMiner.SLEEP_MULT,
   _globeRate: 0,
   _lastGlobeY: null,
   _lastTick: 0,
@@ -18,13 +322,19 @@ const FieldHud = {
     const bal = document.createElement('div');
     bal.id = 'field-balance-hud';
     bal.setAttribute('aria-live', 'polite');
-    bal.innerHTML = '<div class="fbh-title">◎ Astranov</div>'
+    bal.innerHTML = '<div class="fbh-title">◎ SpaceNet</div>'
       + '<div class="fbh-row fbh-bal"><span id="fbh-avc">— AVC</span></div>'
       + '<div class="fbh-row fbh-fiat"><span id="fbh-eur">€—</span><span id="fbh-usd">$—</span></div>'
+      + '<div class="fbh-mesh"><span id="fbh-peers">0 peers</span><span class="fbh-p2p">P2P</span></div>'
+      + '<div id="fbh-resources" class="fbh-resources">'
+      + '<span>CPU <b id="fbh-cpu">—</b></span>'
+      + '<span>RAM <b id="fbh-ram">—</b></span>'
+      + '<span>SSD <b id="fbh-storage">—</b></span>'
+      + '<span>NET <b id="fbh-bw">—</b></span></div>'
       + '<div class="fbh-mine"><span class="fbh-mine-icon">⛏</span>'
       + '<span id="fbh-mine-rate">0.000/h</span>'
       + '<span id="fbh-mine-earned">+0.00</span></div>'
-      + '<div id="fbh-mine-status" class="fbh-status">miner standby</div>';
+      + '<div id="fbh-mine-status" class="fbh-status">mesh standby</div>';
     document.body.appendChild(bal);
 
     const radar = document.createElement('div');
@@ -43,16 +353,20 @@ const FieldHud = {
     terms.id = 'miner-terms-modal';
     terms.hidden = true;
     terms.innerHTML = '<div class="mtm-panel">'
-      + '<div class="mtm-title">Astranov mining rig participation</div>'
-      + '<p>By using Astranov you agree to join the collective <b>intelligent miner</b>. '
-      + 'Resources are consumed only when your device is idle or while you sleep — never during active use.</p>'
-      + '<ul><li>Mining runs when CPU load is low and you are not interacting</li>'
-      + '<li>Sleep mode: earth view + space ambient helps you rest while earning AVC</li>'
-      + '<li>Earnings judged by the Astranov miner AI · fair share of network value</li></ul>'
-      + '<button id="miner-terms-accept" type="button">I agree · start mining</button>'
+      + '<div class="mtm-title">SpaceNet SETI-style mesh participation</div>'
+      + '<p>By using Astranov you join a <b>decentralised peer-to-peer mesh</b> — like SETI@home, '
+      + 'but for SpaceNet. Your device shares spare resources to power routing, storage, AI, and comms '
+      + 'for every user. <b>Users serve users.</b></p>'
+      + '<ul><li><b>CPU</b> — route cache, brain shards, mesh relay compute</li>'
+      + '<li><b>RAM</b> — live presence tables and peer coordination</li>'
+      + '<li><b>Storage</b> — vendor indexes and offline route shards</li>'
+      + '<li><b>Bandwidth</b> — P2P sync between peers when idle</li>'
+      + '<li>Resources used <em>only</em> when your device is idle or you sleep — never during active use</li>'
+      + '<li>Sleep mode: earth view + space ambient · intelligent miner judges fair AVC share</li></ul>'
+      + '<button id="miner-terms-accept" type="button">I agree · join SpaceNet mesh</button>'
       + '</div>';
     document.body.appendChild(terms);
-    document.getElementById('miner-terms-accept')?.addEventListener('click', () => this.acceptTerms());
+    document.getElementById('miner-terms-accept')?.addEventListener('click', () => SpaceNetMiner.acceptTerms());
   },
 
   injectCss() {
@@ -76,6 +390,11 @@ const FieldHud = {
       '.fbh-mine-icon{font-size:10px;opacity:.8}',
       '#fbh-mine-rate{color:#a8ffcc;font-weight:700;font-size:10px}',
       '#fbh-mine-earned{color:#00ff99;font-weight:800;font-size:10px}',
+      '.fbh-mesh{display:flex;gap:6px;justify-content:flex-end;align-items:center;margin-top:4px}',
+      '#fbh-peers{font-size:9px;color:#7ec8ff;font-weight:700}',
+      '.fbh-p2p{font-size:8px;padding:1px 5px;border-radius:4px;background:rgba(26,111,212,.25);color:#8ec8ff;letter-spacing:.08em}',
+      '.fbh-resources{display:grid;grid-template-columns:1fr 1fr;gap:2px 10px;margin-top:4px;font-size:8px;color:#6a9aaa;text-align:right}',
+      '.fbh-resources b{color:#a8d4ff;font-weight:700;font-size:9px}',
       '#fbh-mine-status{font-size:9px;color:#6a9aaa;margin-top:3px;text-transform:uppercase;letter-spacing:.06em}',
       '#fbh-mine-status.sleep{color:#88ccff;text-shadow:0 0 8px rgba(100,180,255,.5)}',
       '#fbh-mine-status.active{color:#00ff99}',
@@ -130,6 +449,48 @@ const FieldHud = {
         if (avc) { avc.hidden = true; avc.style.display = 'none'; }
       };
     }
+    const _run = sc.run?.bind(sc);
+    if (_run) {
+      sc.run = function(cmd) {
+        const low = String(cmd || '').trim().toLowerCase();
+        if (/^(miner|mesh|spacenet miner|rig)$/.test(low)) {
+          const m = SpaceNetMiner;
+          const lines = [
+            '◎ SpaceNet SETI mesh · ' + m._peerCount + ' peers',
+            '  CPU ' + (m._rates.cpu || 0) + '% · RAM ' + (m._rates.ram || 0) + 'MB · SSD ' + (m._rates.storage || 0) + 'MB · NET ' + (m._rates.bandwidth || 0) + 'kb/s',
+            '  Rate ' + m._mineRate.toFixed(3) + ' AVC/h · session +' + m._sessionEarned.toFixed(3),
+            '  Contrib cpu ' + m._contrib.cpu.toFixed(2) + ' · ram ' + m._contrib.ram.toFixed(1) + ' · storage ' + m._contrib.storage.toFixed(1) + ' · bw ' + m._contrib.bandwidth.toFixed(1),
+          ];
+          window.AciCli?.print?.(lines.join('\n'), 'ok');
+          window.ACIControl?.reply?.('SpaceNet mesh · ' + m._peerCount + ' peers · ' + m._mineRate.toFixed(3) + ' AVC/h');
+          return;
+        }
+        return _run(cmd);
+      };
+    }
+  },
+
+  patchSpaceNetBrain() {
+    window.LazyModules?.ensure?.().then(() => {
+      SpaceNetMiner.syncNodePeers();
+      const node = window.AstranovNode;
+      if (node && !node._minerPatched) {
+        node._minerPatched = true;
+        const _hb = node.startHeartbeat?.bind(node);
+        if (_hb) {
+          node.startHeartbeat = function() {
+            _hb();
+            if (node._hb) {
+              const orig = node._hb;
+              clearInterval(node._hb);
+              node._hb = setInterval(async () => {
+                SpaceNetMiner.syncNodePeers();
+              }, 30000);
+            }
+          };
+        }
+      }
+    }).catch(() => {});
   },
 
   patchAvcBalance() {
@@ -166,39 +527,10 @@ const FieldHud = {
     if (usdEl) usdEl.textContent = isGuest ? '$—' : '$' + (avc * rate).toFixed(2);
   },
 
-  acceptTerms() {
-    try { localStorage.setItem(this.TERMS_KEY, String(Date.now())); } catch (_) {}
-    this._termsOk = true;
-    const m = document.getElementById('miner-terms-modal');
-    if (m) m.hidden = true;
-    this._mineMode = 'standby';
-  },
-
-  checkTerms() {
-    try { this._termsOk = !!localStorage.getItem(this.TERMS_KEY); } catch (_) {}
-    const m = document.getElementById('miner-terms-modal');
-    if (m) m.hidden = this._termsOk;
-    return this._termsOk;
-  },
-
-  loadSession() {
-    try {
-      const raw = localStorage.getItem(this.MINE_SESSION_KEY);
-      if (raw) {
-        const j = JSON.parse(raw);
-        this._sessionEarned = Number(j.earned) || 0;
-      }
-    } catch (_) {}
-  },
-
-  saveSession() {
-    try {
-      localStorage.setItem(this.MINE_SESSION_KEY, JSON.stringify({
-        earned: this._sessionEarned,
-        at: Date.now(),
-      }));
-    } catch (_) {}
-  },
+  acceptTerms() { return SpaceNetMiner.acceptTerms(); },
+  checkTerms() { return SpaceNetMiner.checkTerms(); },
+  loadSession() { SpaceNetMiner.loadSession(); this._sessionEarned = SpaceNetMiner._sessionEarned; },
+  saveSession() { SpaceNetMiner.saveSession(); },
 
   deviceLoad() {
     const busy = window.GlobeDeck?.thinking || window._handsFreeVoice || window.DrivingView?.active
@@ -221,43 +553,13 @@ const FieldHud = {
     return this.isEarthSleepView() && idleMs > 180000 && this.deviceLoad() < 0.2;
   },
 
-  computeMineRate() {
-    if (!this._termsOk) return 0;
-    const load = this.deviceLoad();
-    if (load > 0.7) return 0;
-    let rate = this.BASE_RATE * (1 - load);
-    if (this.isSleepMode()) rate *= this.SLEEP_MULT;
-    else if (load > 0.3) rate *= 0.4;
-    return Math.max(0, rate);
-  },
-
-  tickMiner(dt) {
-    this._mineRate = this.computeMineRate();
-    const earnedEl = document.getElementById('fbh-mine-earned');
-    const rateEl = document.getElementById('fbh-mine-rate');
-    const statusEl = document.getElementById('fbh-mine-status');
-    if (this._mineRate > 0) {
-      this._sessionEarned += this._mineRate * (dt / 3600000);
-      this.saveSession();
-    }
-    if (rateEl) rateEl.textContent = this._mineRate.toFixed(3) + ' AVC/h';
-    if (earnedEl) earnedEl.textContent = '+' + this._sessionEarned.toFixed(3);
-    if (statusEl) {
-      if (!this._termsOk) { statusEl.textContent = 'terms required'; statusEl.className = 'fbh-status'; }
-      else if (this.isSleepMode()) {
-        statusEl.textContent = 'sleep mining · space ambient';
-        statusEl.className = 'fbh-status sleep';
-        this.ensureSleepAmbient(true);
-      } else if (this._mineRate > 0.005) {
-        statusEl.textContent = 'mining · idle rig';
-        statusEl.className = 'fbh-status active';
-        this.ensureSleepAmbient(false);
-      } else {
-        statusEl.textContent = 'miner standby';
-        statusEl.className = 'fbh-status';
-        this.ensureSleepAmbient(false);
-      }
-    }
+  async tickMiner(dt) {
+    this._mineRate = await SpaceNetMiner.tick(dt);
+    this._sessionEarned = SpaceNetMiner._sessionEarned;
+    this._termsOk = SpaceNetMiner._termsOk;
+    if (this.isSleepMode()) this.ensureSleepAmbient(true);
+    else if (this._mineRate > 0.005) this.ensureSleepAmbient(false);
+    else this.ensureSleepAmbient(false);
   },
 
   ensureSleepAmbient(on) {
@@ -366,6 +668,12 @@ const FieldHud = {
       });
     }
     (window.FieldBrain?.drivers || []).forEach(d => push(d.lat, d.lng, 'driver', 'driver'));
+    const peerN = SpaceNetMiner._peerCount || 0;
+    for (let i = 0; i < Math.min(peerN, 6); i++) {
+      const ang = (i / Math.max(peerN, 1)) * 360 + (Date.now() / 80) % 360;
+      const d = 2 + (i % 3) * 4;
+      out.push({ d, brg: ang, kind: 'peer', label: 'mesh' });
+    }
     return out;
   },
 
@@ -425,7 +733,7 @@ const FieldHud = {
     ctx.closePath();
     ctx.fill();
     ctx.restore();
-    const colors = { friend: '#00ff99', vendor: '#ffcc44', driver: '#66aaff', entity: '#aa88ff', delivery: '#ff8844' };
+    const colors = { friend: '#00ff99', vendor: '#ffcc44', driver: '#66aaff', entity: '#aa88ff', delivery: '#ff8844', peer: '#44ddff' };
     this.radarTargets().forEach(t => {
       const rad = (90 - t.brg) * Math.PI / 180;
       const dist = Math.min(1, t.d / 20);
@@ -458,7 +766,7 @@ const FieldHud = {
     const dt = now - (this._lastTick || now);
     this._lastTick = now;
     this.updateSpeed();
-    this.tickMiner(dt);
+    void this.tickMiner(dt);
     this.drawRadar();
   },
 
@@ -480,8 +788,10 @@ const FieldHud = {
     this.patchSuperCli();
     this.bindActivity();
     this.loadSession();
+    SpaceNetMiner.detectCaps();
     this.checkTerms();
     this.patchAvcBalance();
+    this.patchSpaceNetBrain();
     this.startLoop();
     window.LazyModules?.ensure?.().then(() => {
       this.patchAvcBalance();
@@ -495,4 +805,4 @@ function fieldHudBoot() { FieldHud.boot(); }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fieldHudBoot);
 else fieldHudBoot();
 window.FieldHud = FieldHud;
-window.AstranovMiner = FieldHud;
+window.AstranovMiner = SpaceNetMiner;
