@@ -5974,6 +5974,10 @@ const Commerce = {
     window._lastPos = { lat, lng };
     window._pendingShopLatLng = { lat, lng };
 
+    if (window.GlobeNavigate?.ensureCityAt) {
+      await GlobeNavigate.ensureCityAt(lat, lng);
+    }
+
     const name = String(opts.name || '').trim() || Auth.user.user_metadata?.full_name || 'My shop';
     const headers = await Auth.authHeaders();
     let vendor = null;
