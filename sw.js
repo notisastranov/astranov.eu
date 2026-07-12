@@ -1,5 +1,5 @@
 /* Astranov service worker — never serve stale app HTML/core */
-const CACHE = 'astranov-v37';
+const CACHE = 'astranov-v38';
 const SHELL = ['/manifest.webmanifest', '/icon.svg'];
 
 self.addEventListener('install', (e) => {
@@ -18,7 +18,7 @@ function isAppHtml(url) {
 }
 
 function isCoreJs(url) {
-  return url.pathname === '/astranov-app.js' || url.pathname === '/astranov-gl.js' || url.pathname === '/astranov-core.js';
+  return url.pathname === '/astranov-app.js' || url.pathname === '/astranov-gl.js' || url.pathname === '/astranov-core.js' || url.pathname === '/astranov-deferred.js';
 }
 
 self.addEventListener('fetch', (e) => {
