@@ -5961,6 +5961,71 @@ const Commerce = {
     return this.vendors;
   },
 
+  async enlistVendorAt(lat, lng, opts) {
+    opts = opts || {};
+    if (!Auth?.user) {
+      Auth?.openLoginModal?.('Sign in to list your vendor on the map');
+      return null;
+    }
+    lat = Number(lat);
+    lng = Number(lng);
+    if (!isFinite(lat) || !isFinite(lng)) return null;
+
+    window._lastPos = { lat, lng };
+    window._pendingShopLatLng = { lat, lng };
+
+    const name = String(opts.name || '').trim() || Auth.user.user_metadata?.full_name || 'My shop';
+    const headers = await Auth.authHeaders();
+    let vendor = null;
+
+    try {
+      const r = await fetch(SB_URL + '/rest/v1/vendors?select=id,name,emoji,lat,lng,category,items,tags,owner_id,is_active,delivery_enabled&owner_id=eq.' + Auth.user.id + '&limit=20', { headers });
+      const owned = r.ok ? await r.json() : [];
+      vendor = owned.find(v => v.lat != null && this.haversineKm(lat, lng, v.lat, v.lng) < 0.5) || null;
+    } catch (_) {}
+
+    if (!vendor) {
+      const id = 'v-' + Auth.user.id.slice(0, 8) + '-' + Date.now().toString(36);
+      const body = {
+        id,
+        owner_id: Auth.user.id,
+        name,
+        emoji: '🏬',
+        lat,
+        lng,
+        country: 'GR',
+        city: 'field',
+        items: [],
+        tags: {},
+        is_active: true,
+        delivery_enabled: true,
+        category: opts.category || 'field_shop',
+      };
+      const ins = await fetch(SB_URL + '/rest/v1/vendors', { method: 'POST', headers, body: JSON.stringify(body) });
+      if (!ins.ok) {
+        const j = await ins.json().catch(() => ({}));
+        ACIControl?.reply?.('Vendor create failed: ' + (j.message || j.error || 'sign in & retry'));
+        AciCli?.print?.('vendor enlist failed · ' + (j.message || j.error || ''), 'err');
+        return null;
+      }
+      vendor = body;
+    }
+
+    await this.loadVendors();
+    await FieldBrain?.onAuth?.();
+    MapDepict?.pulse?.(lat, lng, 0xff8844, vendor.name, 16000);
+    GlobeEntity?.syncVendors?.(this.vendors || []);
+    MapPins?.syncGlobe?.();
+    CityMap?.syncMapPins?.();
+    FieldBrain.vendorIds = Array.from(new Set([...(FieldBrain?.vendorIds || []), vendor.id]));
+
+    const norm = this._normalizeVendor(vendor);
+    VendorMapTile?.open?.(norm, { preview: true, enlist: true, skipFly: false });
+    ACIControl?.reply?.('Vendor listed — fill menu photos & prices in the tile');
+    AciCli?.print?.('vendor enlisted · ' + norm.name + ' · + Add menu in tile', 'ok');
+    return norm;
+  },
+
   async myVendors() {
     if (!Auth?.user) return [];
     try {
@@ -7951,27 +8016,8 @@ const SuperAdd = {
     if (!Auth?.user) return;
     const pos = window._lastPos || { lat: 36.44, lng: 28.22 };
     const vname = String(name || '').trim() || (Auth.user.user_metadata?.full_name || 'My shop');
-    const id = 'v-' + Auth.user.id.slice(0, 8) + '-' + Date.now().toString(36);
-    const headers = await Auth.authHeaders();
-    const body = {
-      id, owner_id: Auth.user.id, name: vname, emoji: '🏬',
-      lat: pos.lat, lng: pos.lng, country: 'GR', city: 'field',
-      items: [], is_active: true, delivery_enabled: true, category: 'field_add',
-    };
-    const r = await fetch(SB_URL + '/rest/v1/vendors', { method: 'POST', headers, body: JSON.stringify(body) });
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      throw new Error(j.message || j.error || 'vendor create failed');
-    }
-    await FieldBrain?.onAuth?.();
-    await Commerce?.loadVendors?.();
-    MapDepict?.pulse?.(pos.lat, pos.lng, 0xff8844, vname, 16000);
-    AciCli?.print('vendor added on map · ' + vname + ' · clients see this tile when they tap you', 'ok');
-    ACIControl?.reply?.('Shop enlisted on map · add menu photos & prices in the tile');
-    const enlisted = { ...body, tags: {}, category: 'field_add' };
-    if (window.VendorMapTile?.open) VendorMapTile.open(enlisted, { preview: true, enlist: true });
-    else void ProfileSite?.openShopEditor?.(pos.lat, pos.lng);
-    return body.id;
+    const v = await Commerce?.enlistVendorAt?.(pos.lat, pos.lng, { name: vname, category: 'field_add' });
+    return v?.id || null;
   },
 
   async pinMapDiscovery(caption, channel) {
