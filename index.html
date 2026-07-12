@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
 <script>
-(function(){if(!('serviceWorker'in navigator))return;var k='astranov-migrated-v33';if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,'1');try{caches&&caches.keys&&caches.keys().then(function(ks){ks.forEach(function(n){caches.delete(n)})})}catch(e){}}navigator.serviceWorker.register('/sw.js?v=33').catch(function(){})})();
+(function(){if(!('serviceWorker'in navigator))return;var k='astranov-migrated-v34';if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,'1');try{caches&&caches.keys&&caches.keys().then(function(ks){ks.forEach(function(n){caches.delete(n)})})}catch(e){}}navigator.serviceWorker.register('/sw.js?v=34').catch(function(){})})();
 </script>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Astranov</title>
 <meta name="compliance-check" content="astranov-field-brain-multi-role-2026-06-24">
 <meta name="aci-session" content="SpaceNet Collective Intelligence">
@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710460000-spacenet-restore" />
+<meta name="astranov-build" content="20260710470000-trackball-cli" />
 <meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
 <meta name="astranov-mission" content="SpaceNet: collective intelligence connecting everything into one — no satellites needed to communicate" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
@@ -283,7 +283,7 @@
   #globe-deck.expanded.has-stage.size-full { max-height:min(94dvh, calc(100dvh - 40px)); min-height:min(94dvh, calc(100dvh - 40px)); }
   #globe-deck-header { display:flex; align-items:center; gap:8px; padding:8px 10px; background:rgba(0,0,0,0.45); color:var(--ax-blue-bright); font:11px system-ui; touch-action:pan-y; cursor:pointer; flex-shrink:0; user-select:none; min-height:24px; }
   #super-cli-bar { display:flex; gap:5px; padding:5px 8px; flex-wrap:nowrap; align-items:center; justify-content:flex-start; border-bottom:1px solid rgba(26,111,212,0.38); flex-shrink:0; background:linear-gradient(180deg,rgba(8,24,58,0.72),rgba(4,14,36,0.55)); min-height:42px; box-shadow:0 4px 18px rgba(13,71,161,0.22),inset 0 1px 0 rgba(61,158,255,0.1); }
-  #aci-login { flex-shrink:0; order:1; }
+  #aci-login { flex-shrink:0; order:0; }
   .super-cli-middle { display:flex; align-items:center; flex:1; min-width:0; gap:4px; overflow:hidden; order:2; }
   .super-cli-edge-right { display:flex; align-items:center; gap:5px; flex-shrink:0; margin-left:auto; order:3; }
   #cli-ribbon-status { flex:1; min-width:0; font:10px/1.25 system-ui; color:#7ec8ff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:0 4px; opacity:0.95; text-shadow:0 0 8px rgba(26,111,212,0.65),0 0 16px rgba(13,71,161,0.35); }
@@ -293,7 +293,7 @@
   #cli-ribbon-status.ready { color:var(--ax-green-bright); text-shadow:0 0 8px var(--ax-green-glow); }
   @keyframes cli-think-glow { 0%,100%{ opacity:0.85; } 50%{ opacity:1; text-shadow:0 0 12px var(--ax-blue-glow); } }
   #super-cli-bar button:not(#aci-login):not(#super-add-fab):not(#aci-handsfree):not(#aci-avc):not(#aci-cli-toggle):not(.app-shortcut-btn) { display:none !important; }
-  #super-cli-bar #aci-avc { display:inline-flex !important; flex-shrink:0; order:2; }
+  #super-cli-bar #aci-avc { display:inline-flex !important; flex-shrink:0; order:1; }
   #app-shortcut-row { display:flex; gap:4px; align-items:center; flex:0 1 auto; max-width:100%; min-width:0; overflow-x:auto; overflow-y:hidden; padding:0 2px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
   #app-shortcut-row::-webkit-scrollbar { display:none; }
   #super-cli-bar .app-shortcut-btn { display:inline-flex !important; align-items:center; justify-content:center; width:32px; height:32px; font-size:15px; border-radius:10px; background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); cursor:pointer; flex-shrink:0; touch-action:manipulation; transition:background 0.15s,border-color 0.15s,transform 0.1s; }
@@ -311,7 +311,7 @@
   @keyframes avc-balance-pulse { 0%,100% { box-shadow:0 0 8px rgba(0,221,119,0.18); } 40% { box-shadow:0 0 18px rgba(0,221,119,0.55); border-color:var(--ax-green-bright); } }
   #super-cli-bar button { background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); border-radius:50%; width:34px; height:34px; cursor:pointer; font-size:13px; flex-shrink:0; }
   #super-cli-bar #aci-stop { background:var(--ax-red-bg); border-color:var(--ax-red-border); color:var(--ax-red-bright); }
-  #super-cli-bar #aci-cli-toggle { border-radius:50%; width:34px; }
+  #super-cli-bar #aci-cli-toggle { display:inline-flex !important; flex-shrink:0; order:4; border-radius:50%; width:34px; }
   #super-cli-bar button[hidden] { display:none !important; }
   #super-cli-bar #aci-locate.deck-btn-active { background:var(--ax-green-bg); border-color:var(--ax-green-border); color:var(--ax-green-bright); box-shadow:0 0 8px var(--ax-green-glow); }
   #super-cli-bar #aci-hold.deck-btn-active { background:var(--ax-yellow-bg); border-color:var(--ax-yellow-border); color:var(--ax-yellow-bright); box-shadow:0 0 10px var(--ax-yellow-glow); }
@@ -1038,6 +1038,6 @@
     <input id="aci-input" placeholder="" style="display:none" />
     <button id="aci-send" type="button" style="display:none" title="Send">➡️</button>
   </div>
-<script defer src="/astranov-app.js?v=20260710460000-spacenet-restore"></script>
+<script defer src="/astranov-app.js?v=20260710470000-trackball-cli"></script>
 </body>
 </html>
