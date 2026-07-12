@@ -3365,12 +3365,12 @@ const SpaceNetScenarioRunner = {
   _deckOk() {
     const deck = document.getElementById('globe-deck');
     const input = document.getElementById('aci-cli-in');
-    const plus = document.getElementById('globe-deck-plus');
+    const plus = document.getElementById('super-add-fab');
     if (!deck || !input || deck.offsetHeight < 120) {
       GlobeDeck?.bootCollapsed?.();
       return { ok: false, fix: 'cli_restore' };
     }
-    return { ok: !!plus && deck.offsetHeight >= 160, plus: !!plus, h: deck.offsetHeight };
+    return { ok: !!plus && deck.offsetHeight >= 120, plus: !!plus, h: deck.offsetHeight };
   },
 
   async runAll(trigger) {
@@ -7844,7 +7844,7 @@ const SuperCli = {
   title: ACL_TITLE,
 
   // Edge bar: G left · + and 🎧 right · apps/locate scroll inside middle
-  TOOLBAR_VISIBLE: ['aci-login', 'aci-avc', 'super-add-fab', 'aci-handsfree', 'aci-cli-toggle'],
+  TOOLBAR_VISIBLE: ['aci-login', 'aci-avc', 'super-add-fab', 'aci-handsfree'],
   INPUT_BTNS: ['globe-deck-send'],
 
   ensureBarLayout() {
@@ -7883,13 +7883,7 @@ const SuperCli = {
     if (row && row.parentElement !== middle) middle.insertBefore(row, middle.firstChild);
     if (ribbon && ribbon.parentElement !== middle) middle.appendChild(ribbon);
     if (fab && fab.parentElement !== edgeRight) edgeRight.insertBefore(fab, edgeRight.firstChild);
-    if (hf && hf.parentElement !== edgeRight) {
-      const cliToggle = document.getElementById('aci-cli-toggle');
-      if (cliToggle && cliToggle.parentElement === edgeRight) edgeRight.insertBefore(hf, cliToggle);
-      else edgeRight.appendChild(hf);
-    }
-    const cliToggle = document.getElementById('aci-cli-toggle');
-    if (cliToggle && cliToggle.parentElement !== edgeRight) edgeRight.appendChild(cliToggle);
+    if (hf && hf.parentElement !== edgeRight) edgeRight.appendChild(hf);
   },
 
   init() {
@@ -7936,16 +7930,7 @@ const SuperCli = {
 
   bindInputBar() {
     const hf = document.getElementById('aci-handsfree');
-    const plus = document.getElementById('globe-deck-plus');
     const send = document.getElementById('globe-deck-send');
-    const openPlus = () => {
-      GlobeDeck?.expand?.(ACL_TITLE);
-      MapPlaceMenu?.openPlusField?.() || SuperCli?.run?.('add');
-    };
-    if (plus && !plus._superBound) {
-      plus._superBound = true;
-      plus.onclick = e => { e.preventDefault(); e.stopPropagation(); openPlus(); };
-    }
     if (hf && !hf._superBound) {
       hf._superBound = true;
       hf.onclick = e => {
@@ -7982,8 +7967,6 @@ const SuperCli = {
     const actions = {
       'aci-login': () => Auth?.user ? Auth.openLoggedInProfile() : (Auth?.signInGoogle?.() || Auth?.openLoginModal?.()),
       'super-add-fab': openPlus,
-      'globe-deck-plus': openPlus,
-      'aci-cli-toggle': () => GlobeDeck?.toggle(),
       'aci-stop': () => userIntervene?.(),
       'aci-hold': () => SessionHold?.toggle?.(),
       'aci-theme': () => AstranovTheme?.toggle?.(),
@@ -8131,11 +8114,6 @@ const AciCli = {
   init() {
     const input = document.getElementById('aci-cli-in');
     const form = document.getElementById('aci-cli-form');
-    const toggle = document.getElementById('aci-cli-toggle');
-    if (toggle && !toggle._globeDeckBound) {
-      toggle._globeDeckBound = true;
-      toggle.onclick = (e) => { e.preventDefault(); e.stopPropagation(); GlobeDeck?.toggle?.(); };
-    }
     SuperCli?.bindInputBar?.();
     if (form && !form._cliBound) {
       form._cliBound = true;
@@ -8173,9 +8151,7 @@ const AciCli = {
   },
 
   onAuthChange() {
-    const toggle = document.getElementById('aci-cli-toggle');
     const logged = !!(Auth && Auth.user);
-    if (toggle) toggle.style.display = 'inline-flex';
     if (!logged) {
       this._welcomed = false;
       this._sessionOpened = false;
