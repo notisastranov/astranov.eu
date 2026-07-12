@@ -4821,6 +4821,10 @@ Object.assign(SuperCli, {
         return { handled: true };
       }
       if (cmd === 'driver' && parts[1]) {
+        const sub = (parts[1] || '').toLowerCase();
+        if (sub === 'online' || sub === 'go' || sub === 'jobs' || sub === 'list' || sub === 'accept') {
+          return { handled: false };
+        }
         const q = parts.slice(1).join(' ').toLowerCase();
         const pool = MarketplaceComms?.state?.drivers || [];
         const hit = pool.find(d => (d.display_name || '').toLowerCase().includes(q));
@@ -6314,6 +6318,29 @@ const Commerce = {
     });
   },
 
+  _updateCompareBalance(balance, quote) {
+    const balBox = document.getElementById('vm-balance');
+    const confirmBtn = document.getElementById('vm-confirm-pay');
+    const need = quote?.total_avc ?? this._suggestion?.total ?? 0;
+    const b = balance != null ? balance : (this._balance ?? 0);
+    const ok = need <= 0 || b >= need;
+    if (balBox) {
+      balBox.innerHTML = '<div>Υπόλοιπο: <strong>' + b.toFixed(1) + ' AVC</strong>'
+        + (need ? ' · Σύνολο: <strong>' + need.toFixed(2) + ' AVC</strong>'
+          + (quote ? ' <span style="color:#9ab">(+' + (quote.delivery_eur || 0).toFixed(2) + '€ delivery · 3%)</span>' : '')
+          : '')
+        + (ok ? '' : ' · <span style="color:#ff3344">ανεπαρκές — <code>wallet recharge 50</code></span>')
+        + (!ok && need ? ' · <span style="color:#ffd633">ή πληρωμή στην παράδοση (COD)</span>' : '')
+        + '</div>';
+    }
+    if (confirmBtn && this._suggestion) {
+      confirmBtn.style.display = 'block';
+      confirmBtn.textContent = ok
+        ? 'Επιβεβαίωση & Πληρωμή · ' + need.toFixed(2) + ' AVC'
+        : 'Επιβεβαίωση · COD · ' + need.toFixed(2) + ' AVC';
+    }
+  },
+
   renderCompare(matches, drivers, wants, balance) {
     const compare = document.getElementById('vm-compare');
     const wanted = document.getElementById('vm-wanted');
@@ -6336,15 +6363,18 @@ const Commerce = {
         row.className = 'vm-match' + (i === 0 ? ' best' : '');
         const miss = m.wanted - m.matched;
         const detail = m.picks.map(p => p.item.name + ' ' + p.price + ' AVC').join(' · ');
-        row.innerHTML = '<div class="vm-match-head"><span>' + vendorIcon(m.vendor) + ' ' + m.vendor.name + '</span><strong>' + m.total.toFixed(1) + ' AVC</strong></div>'
-          + '<div class="vm-match-sub">' + m.km.toFixed(1) + ' km · ' + m.matched + '/' + m.wanted + ' είδη' + (miss ? ' · <span style="color:#ffd633">-' + miss + '</span>' : '') + '</div>'
+        row.innerHTML = '<div class="vm-match-head"><span>' + vendorIcon(m.vendor) + ' ' + m.vendor.name + '</span><strong>' + m.total.toFixed(1) + ' AVC goods</strong></div>'
+          + '<div class="vm-match-sub">' + m.km.toFixed(1) + ' km · ' + m.matched + '/' + m.wanted + ' είδη' + (miss ? ' · <span style="color:#ffd633">-' + miss + '</span>' : '') + ' · +delivery</div>'
           + '<div class="vm-match-items">' + detail + '</div>';
         row.onclick = () => {
           this._suggestion = m;
           matchBox.querySelectorAll('.vm-match').forEach(el => el.classList.remove('picked'));
           row.classList.add('picked');
-          if (confirmBtn) confirmBtn.textContent = 'Επιβεβαίωση & Πληρωμή · ' + m.vendor.name + ' · ' + m.total.toFixed(1) + ' AVC';
           this.flyToVendor(m.vendor);
+          this.buildQuote(m).then(q => {
+            this.renderPricing(q);
+            this._updateCompareBalance(balance, q);
+          }).catch(() => {});
         };
         if (i === 0) { row.classList.add('picked'); this._suggestion = m; }
         matchBox.appendChild(row);
@@ -6368,18 +6398,13 @@ const Commerce = {
         };
       });
     }
-    if (balBox) {
-      const b = balance != null ? balance : 0;
-      const need = this._suggestion?.total || matches[0]?.total || 0;
-      const ok = b >= need;
-      balBox.innerHTML = '<div>Υπόλοιπο: <strong>' + b.toFixed(1) + ' AVC</strong>'
-        + (need ? ' · Παραγγελία: <strong>' + need.toFixed(1) + ' AVC</strong>' : '')
-        + (ok ? '' : ' · <span style="color:#ff3344">ανεπαρκές — recharge στο CLI</span>') + '</div>';
-    }
-    if (confirmBtn && this._suggestion) {
-      confirmBtn.style.display = 'block';
-      confirmBtn.textContent = 'Επιβεβαίωση & Πληρωμή · AVC balance';
-      this.buildQuote(this._suggestion).then(q => this.renderPricing(q)).catch(() => {});
+    if (this._suggestion) {
+      this.buildQuote(this._suggestion).then(q => {
+        this.renderPricing(q);
+        this._updateCompareBalance(balance, q);
+      }).catch(() => this._updateCompareBalance(balance, null));
+    } else if (balBox) {
+      this._updateCompareBalance(balance, null);
     }
   },
 
@@ -6454,6 +6479,7 @@ const Commerce = {
   },
 
   async confirmAndPay(useWallet) {
+    await LazyModules.ensure().catch(() => {});
     const sug = this._suggestion;
     if (!sug) { ACIControl?.reply('Διάλεξε πρόταση από τη λίστα'); return; }
     if (!Auth?.user) {
@@ -6474,7 +6500,7 @@ const Commerce = {
     } else {
       const balance = await this.fetchBalance();
       if (balance < total) {
-        ACIControl?.reply('Pay on delivery · AVC balance ' + balance.toFixed(1) + ' · total ' + total.toFixed(2));
+        ACIControl?.reply('AVC balance ' + balance.toFixed(1) + ' · total ' + total.toFixed(2) + ' AVC — COD on delivery (recharge: wallet recharge 50)');
       }
     }
     const items = sug.picks.map(p => ({ name: p.item.name, qty: 1, price: p.item.price }));
@@ -6722,6 +6748,7 @@ const Commerce = {
   },
 
   async placeCart() {
+    await LazyModules.ensure().catch(() => {});
     const vendor = this.selected;
     if (!vendor) { ACIControl?.reply('Pick a vendor first'); return; }
     if (!this.hasMenu(vendor)) {
@@ -6735,7 +6762,23 @@ const Commerce = {
       Auth?.openLoginModal?.('Sign in to order');
       return;
     }
-    await this.placeOrder(vendor, items);
+    const u = this.userLatLng();
+    const subtotal = items.reduce((s, i) => s + (i.qty || 1) * (i.price || 0), 0);
+    const km = this.haversineKm(u.lat, u.lng, vendor.lat, vendor.lng);
+    const quote = await DeliveryPricing?.quote?.({ km, kg: 3 + items.length, subtotal_eur: subtotal, lat: u.lat, lng: u.lng });
+    const total = quote?.total_eur ?? subtotal;
+    const balance = await this.fetchBalance();
+    const payOnDelivery = balance < total;
+    const payWithBalance = !payOnDelivery;
+    if (payOnDelivery) {
+      ACIControl?.reply('AVC ' + balance.toFixed(1) + ' · total ' + total.toFixed(2) + ' — COD on delivery');
+    }
+    MapDepict?.action('pay', {
+      lat: u.lat, lng: u.lng,
+      vendorLat: vendor.lat, vendorLng: vendor.lng,
+      detail: vendor.name + ' · ' + total.toFixed(2) + ' EUR' + (payOnDelivery ? ' · COD' : ''),
+    });
+    await this.placeOrder(vendor, items, 'Cart · ' + vendor.name, payWithBalance, { quote, payOnDelivery });
   },
 
   async placeOrder(vendor, items, notes, payWithBalance, opts) {
@@ -6749,7 +6792,7 @@ const Commerce = {
       const subtotal = items.reduce((s, i) => s + (i.qty || 1) * (i.price || 0), 0);
       const km = this.haversineKm(u.lat, u.lng, vendor.lat, vendor.lng);
       const quote = opts.quote || await DeliveryPricing?.quote?.({ km, kg: 3 + items.length, subtotal_eur: subtotal, lat: dLat, lng: dLng });
-      const total = quote?.total_eur ?? subtotal;
+      const total = quote?.total_avc ?? quote?.total_eur ?? subtotal;
       let orderResult = null;
       let errMsg = '';
       try {
@@ -6782,6 +6825,7 @@ const Commerce = {
         else {
           if (j.error === 'vendor_menu_empty') errMsg = 'Το κατάστημα δεν έχει μενού — ζήτησε μενού πρώτα';
           else if (j.error === 'insufficient_balance') errMsg = 'Ανεπαρκές υπόλοιπο · έχεις ' + (j.balance || 0) + ' AVC, χρειάζεσαι ' + (j.needed || total);
+          else if (j.error === 'quote_mismatch') errMsg = 'Τιμή άλλαξε — ανανέωσε και δοκίμασε ξανά (server ' + (j.server_total || '?') + ' AVC)';
           else errMsg = j.error || j.message || ('HTTP ' + r.status);
         }
       } catch (e) { errMsg = String(e.message || e); }
@@ -14179,10 +14223,42 @@ if (window.CoinPortal) {
         this.open('wallet');
         return;
       }
+      if (sub === 'recharge' || sub === 'topup' || sub === 'top-up' || sub === 'add') {
+        const amount = Number(parts[2]);
+        if (!Auth?.user) {
+          AciCli?.print?.('Sign in first — tap G', 'warn');
+          Auth?.openLoginModal?.('Sign in to recharge AVC');
+          return;
+        }
+        if (!Number.isFinite(amount) || amount < 1) {
+          AciCli?.print?.('usage: wallet recharge <amount>  (min 1 AVC)', 'err');
+          return;
+        }
+        try {
+          const headers = await Auth.authHeaders();
+          const r = await fetch(SB_URL + '/functions/v1/astranov-api', {
+            method: 'POST',
+            headers: { ...headers, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: '/balance/recharge', amount }),
+          });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok || j.error) {
+            AciCli?.print?.('recharge failed · ' + (j.error || 'HTTP ' + r.status), 'err');
+            return;
+          }
+          const bal = await AvcBalance.refresh();
+          AciCli?.print?.('◎ +' + amount.toFixed(2) + ' AVC credited · balance ' + Number(bal || 0).toFixed(2), 'ok');
+          GlobeDeck?.setPreview?.('◎ +' + amount.toFixed(2) + ' AVC · field-test top-up');
+        } catch (e) {
+          AciCli?.print?.('recharge error · ' + String(e.message || e), 'err');
+        }
+        return;
+      }
       const bal = await AvcBalance.refresh();
       const fx = await AvcBalance.fetchFx();
       const eur = Number(bal || 0);
       AciCli?.print?.('◎ ' + eur.toFixed(2) + ' AVC · €' + eur.toFixed(2) + ' · $' + (eur * fx).toFixed(2), 'ok');
+      AciCli?.print?.('wallet recharge 50 — instant AVC top-up for orders', 'dim');
       GlobeDeck?.setPreview?.('◎ €' + eur.toFixed(2) + ' · $' + (eur * fx).toFixed(2));
     },
     syncGlobe() {},
