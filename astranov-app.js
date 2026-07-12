@@ -61,7 +61,7 @@ try {
   window._snlForceDismiss?.();
   const fb = document.createElement('div');
   fb.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#0af;font:15px system-ui;background:#000;z-index:10;text-align:center;';
-  fb.innerHTML = 'WebGL unavailable — CLI still works.<br>Enable hardware acceleration or try Chrome.<br><small>Tap Astranov SpaceNet to retry</small>';
+  fb.innerHTML = 'WebGL unavailable — CLI still works.<br>Enable hardware acceleration or try Chrome.<br><small>Tap Astranov to retry</small>';
   if (container) container.appendChild(fb);
 }
 
@@ -307,7 +307,7 @@ const GlobeNavigate = {
     let txt = 'GLOBAL · full earth · scroll out → solar · galaxy';
     if (cosmic === 'galaxy') txt = 'GALAXY · scroll in → solar system → earth';
     else if (cosmic === 'system') txt = 'SOLAR SYSTEM · scroll in → earth · out → galaxy';
-    else if (cosmic === 'orbit') txt = 'ORBIT · SpaceNet mesh · scroll out → solar system';
+    else if (cosmic === 'orbit') txt = 'ORBIT · collective mesh · scroll out → solar system';
     else if (this.isCity()) txt = 'CITY z' + this.LEAFLET_ZOOM + ' · tap + for intent';
     else if (this.isNational()) txt = 'NATIONAL · tap a city to descend slowly';
     chip.textContent = txt;
@@ -1766,7 +1766,7 @@ const SpaceNetScenarioRunner = {
     this._results = rows;
     MissionSupportReporter?.recordProgress?.('mission', 'scenarios ' + pass + '/' + rows.length + ' · ' + (trigger || 'cycle'), { rows, trigger });
     if (pass < rows.length && !document.hidden) {
-      GlobeDeck?.setPreview?.('SpaceNet · ' + pass + '/' + rows.length + ' checks OK', 'dim');
+      GlobeDeck?.setPreview?.('Astranov · ' + pass + '/' + rows.length + ' checks OK', 'dim');
       const fails = rows.filter(r => !r.ok);
       MissionSupportReporter?.recordProblem?.('grok_build_regression', fails.map(f => f.id + ':' + (f.detail || f.fix || '')).join(' · '), {
         build: MissionSupportReporter?.buildStamp?.(),
@@ -1831,13 +1831,13 @@ const SpaceNetMission = {
   ONE: 'SpaceNet is the collective intelligence connecting everything into one — so we need no satellites anymore to communicate.',
   SHORT: 'One mind · one mesh · no satellites',
   LOADER: {
-    core: 'SpaceNet · one collective mind',
+    core: 'Astranov · one collective mind',
     globe: 'Earth joins the mesh',
-    cli: 'Your line into SpaceNet',
+    cli: 'Your line into Astranov',
     earth: 'All linked · no satellites',
     deferred: 'Fleet & relay ready',
   },
-  bootReply: 'SpaceNet live · collective intelligence links everyone — no satellites needed · scroll out → solar · galaxy',
+  bootReply: 'Astranov live · collective intelligence links everyone — scroll out → solar · galaxy',
 };
 window.SpaceNetMission = SpaceNetMission;
 
@@ -1861,7 +1861,7 @@ const SpaceNetLoader = {
     }
     this._fill = document.getElementById('snl-fill');
     this._label = document.getElementById('snl-label');
-    this.stage('core', SpaceNetMission?.LOADER?.core || 'SpaceNet · one mind');
+    this.stage('core', SpaceNetMission?.LOADER?.core || 'Astranov · one mind');
     setTimeout(() => this.dismiss('timeout'), 900);
   },
 
@@ -3765,7 +3765,7 @@ const SpaceNetResourceMonitor = {
     const now = Date.now();
     if (now - this._lastNudge < 300000) return;
     this._lastNudge = now;
-    const line = 'Spare ' + this.spareScore + '% · relay to SpaceNet mesh — say donate on';
+    const line = 'Spare ' + this.spareScore + '% · relay to collective mesh — say donate on';
     window.CliRibbon?.setNotice?.(line, 'info');
     if (!sessionStorage.getItem('astranov_donate_nudge')) {
       sessionStorage.setItem('astranov_donate_nudge', '1');
@@ -3809,8 +3809,8 @@ const SpaceNetResourceMonitor = {
         this.donating = true;
         try { localStorage.setItem(this.STORAGE_KEY, '1'); } catch (_) {}
         this._enableRelay(false);
-        window.AciCli?.print?.('Donate on · relaying spare compute to SpaceNet', 'ok');
-        window.CliRibbon?.setNotice?.('donating to SpaceNet', 'ready');
+        window.AciCli?.print?.('Donate on · relaying spare compute to Astranov mesh', 'ok');
+        window.CliRibbon?.setNotice?.('donating compute', 'ready');
         return;
       }
       if (sub === 'off' || sub === 'no' || sub === 'stop') {
@@ -3834,7 +3834,7 @@ const SpaceNetResourceMonitor = {
     const r = this.report();
     window.AciCli?.print?.(r.line, 'ok');
     if (r.spareScore >= 65 && !this.donating) {
-      window.AciCli?.print?.('Spare capacity — say donate on to strengthen the SpaceNet mesh', 'dim');
+      window.AciCli?.print?.('Spare capacity — say donate on to strengthen the collective mesh', 'dim');
     }
     window.AciCli?.print?.('resources status | boost | donate on|off · fleet list', 'dim');
     window.CliRibbon?.setNotice?.(r.line);
@@ -4253,7 +4253,7 @@ const AstranovLogo = {
     GlobeEntity?.clearSelection?.();
     GlobeDeck?.collapse?.();
     GlobeDeck?.hideStage?.();
-    GlobeDeck?.setPreview?.('Astranov SpaceNet — global earth');
+    GlobeDeck?.setPreview?.('Astranov — global earth');
     window._globeFly = null;
     window._cityDropLock = false;
     if (typeof globePivot !== 'undefined' && globePivot) {
@@ -5410,7 +5410,7 @@ const GlobeDeck = {
     if (!this._pulseLoop) {
       this._pulseLoop = setInterval(() => this.syncCliPulse(), 900);
     }
-    SpaceNetLoader?.stage?.('cli', SpaceNetMission?.LOADER?.cli || 'Your line into SpaceNet');
+    SpaceNetLoader?.stage?.('cli', SpaceNetMission?.LOADER?.cli || 'Your line into Astranov');
   },
 
   _deckMinH() { return 176; },
@@ -8518,7 +8518,7 @@ const MissionSupportReporter = {
 window.MissionSupportReporter = MissionSupportReporter;
 
 const ACI = {
-  name: 'SpaceNet Collective Intelligence',
+  name: 'Astranov Collective Intelligence',
   url: SB_URL,
   key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI',
   neurons: [],
@@ -15596,14 +15596,14 @@ function _astranovBoot() {
   applyGlobalBootView();
 
   GlobeDeck?.setTitle?.('Astranov Command Line');
-  GlobeDeck?.setPreview?.('Astranov SpaceNet — global earth · drag · pinch · tap locate 🎯');
+  GlobeDeck?.setPreview?.('Astranov — global earth · drag · pinch · tap locate 🎯');
   CliRibbon?.setActive?.('CLI');
   const board = document.getElementById('coders-race-board');
-  if (board && /checking teams/i.test(board.textContent || '')) board.textContent = 'SpaceNet ready';
+  if (board && /checking teams/i.test(board.textContent || '')) board.textContent = 'Astranov ready';
 
   window._bootEarthLock = false;
   void SpaceNetScenarioRunner?.runAll?.('boot').then?.((rows) => MissionSupportReporter?.reportBootRegression?.(rows));
-  ACIControl?.reply?.(SpaceNetMission?.bootReply || 'SpaceNet live · collective intelligence links all · scroll out → solar · galaxy');
+  ACIControl?.reply?.(SpaceNetMission?.bootReply || 'Astranov live · collective intelligence links all · scroll out → solar · galaxy');
   primeGrokVoice?.();
 
   setTimeout(() => Auth.refreshAuthority(), 400);
