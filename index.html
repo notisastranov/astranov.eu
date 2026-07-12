@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260710800000-ui-revert" />
+<meta name="astranov-build" content="20260710900000-marketplace-flow" />
 <meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
 <meta name="astranov-mission" content="SpaceNet: collective intelligence connecting everything into one — no satellites needed to communicate" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
@@ -21,7 +21,7 @@
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
-<link rel="preload" href="/astranov-app.js?v=20260710800000-ui-revert" as="script" />
+<link rel="preload" href="/astranov-app.js?v=20260710900000-marketplace-flow" as="script" />
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
@@ -137,10 +137,10 @@
   #globe.city-map-active canvas { opacity:0 !important; pointer-events:none; }
   #globe.national-map-active canvas { opacity:0 !important; pointer-events:none; }
   #city-map { position:fixed; inset:0; z-index:10; opacity:0; pointer-events:none; transition:opacity 0.55s cubic-bezier(0.4,0,0.2,1); }
-  #city-map.national-active { z-index:12; opacity:var(--map-opacity,1); pointer-events:none; }
+  #city-map.national-active { z-index:12; opacity:var(--map-opacity,1); pointer-events:auto; }
   #city-map.active { z-index:150; opacity:1; pointer-events:auto; }
   body.city-map-active #city-map { z-index:150; }
-  body.national-map-active #city-map.national-active { z-index:12; opacity:var(--map-opacity,1); }
+  body.national-map-active #city-map.national-active { z-index:12; opacity:var(--map-opacity,1); pointer-events:auto; }
   #city-map .leaflet-container { background:var(--an-bg); font-family:system-ui,sans-serif; }
   #city-map[data-theme="bright"] .leaflet-container { background:#e8f0f8; }
   #city-map[data-theme="dark"] .leaflet-container { background:#0a1020; }
@@ -1065,6 +1065,6 @@
   window._instantShellUnlock=unlock;
 })();
 </script>
-<script defer src="/astranov-app.js?v=20260710800000-ui-revert"></script>
+<script defer src="/astranov-app.js?v=20260710900000-marketplace-flow"></script>
 </body>
 </html>
