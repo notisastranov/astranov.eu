@@ -315,6 +315,8 @@ const FieldHud = {
   _radarTargetsCache: [],
   _radarTargetsAt: 0,
   SWEEP_PERIOD_MS: 4200,
+  EARTH_ROTATION_KMH: 1671,
+  EARTH_RADIUS_KM: 6371,
   _sessionEarned: 0,
   _mineRate: 0,
   _mineMode: 'off',
@@ -344,14 +346,15 @@ const FieldHud = {
     const radar = document.createElement('div');
     radar.id = 'field-radar';
     radar.innerHTML = '<canvas id="field-radar-canvas" width="120" height="120"></canvas>'
+      + '<div id="field-radar-speed" aria-live="polite">'
+      + '<span id="fsh-mode" class="fsh-mode"></span>'
+      + '<span id="fsh-value">0</span>'
+      + '<span id="fsh-unit">km/h</span>'
+      + '<span id="fsh-limit" hidden></span>'
+      + '</div>'
       + '<span class="fr-label">RADAR</span>';
     document.body.appendChild(radar);
-
-    const spd = document.createElement('div');
-    spd.id = 'field-speed-hud';
-    spd.innerHTML = '<span id="fsh-value">0</span><span id="fsh-unit">km/h</span>'
-      + '<span id="fsh-limit" hidden></span>';
-    document.body.appendChild(spd);
+    document.getElementById('field-speed-hud')?.remove();
 
     const terms = document.createElement('div');
     terms.id = 'miner-terms-modal';
@@ -404,18 +407,23 @@ const FieldHud = {
       '#fbh-mine-status.active{color:#00ff99}',
       '#field-radar{position:fixed;top:10px;left:10px;z-index:42;width:120px;height:120px;pointer-events:none;',
       'border-radius:50%;background:rgba(0,12,28,.45);border:1px solid rgba(0,200,255,.28);',
-      'box-shadow:0 0 16px rgba(0,200,255,.12),inset 0 0 24px rgba(0,80,140,.15);overflow:hidden}',
-      '#field-radar-canvas{width:100%;height:100%;display:block}',
+      'box-shadow:0 0 16px rgba(0,200,255,.12),inset 0 0 24px rgba(0,80,140,.15);overflow:visible}',
+      '#field-radar-canvas{width:100%;height:100%;display:block;border-radius:50%}',
+      '#field-radar-speed{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:3;',
+      'pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;',
+      'min-width:52px;text-align:center}',
+      '.fsh-mode{position:absolute;top:6px;left:8px;font:700 7px/1 system-ui;letter-spacing:.1em;',
+      'color:rgba(0,200,255,.55);text-transform:uppercase}',
+      '#fsh-value{font:800 16px/1 ui-monospace,monospace;color:#4db8ff;',
+      'text-shadow:0 0 10px rgba(77,184,255,.8),0 0 18px rgba(0,120,255,.4)}',
+      '#fsh-unit{font:600 7px/1 system-ui;letter-spacing:.14em;color:rgba(77,184,255,.7);margin-top:1px}',
+      '#fsh-limit{font:700 8px/1 system-ui;color:rgba(100,200,255,.65);margin-top:2px}',
+      '#field-radar-speed.driving #fsh-value{color:#66ccff;text-shadow:0 0 12px rgba(100,200,255,.95)}',
+      '#field-radar-speed.earth #fsh-value{color:#5ec8ff}',
+      '#field-radar-speed.idle{opacity:0}',
       '.fr-label{position:absolute;bottom:4px;left:0;right:0;text-align:center;font:8px/1 system-ui;',
       'letter-spacing:.14em;color:rgba(0,200,255,.55)}',
-      '#field-speed-hud{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:41;',
-      'pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:2px}',
-      '#fsh-value{font:700 42px/1 ui-monospace,monospace;color:#4db8ff;',
-      'text-shadow:0 0 20px rgba(77,184,255,.75),0 0 40px rgba(0,120,255,.35)}',
-      '#fsh-unit{font:600 11px/1 system-ui;letter-spacing:.2em;color:rgba(77,184,255,.75)}',
-      '#fsh-limit{font:700 13px/1 system-ui;color:rgba(100,200,255,.65);margin-top:4px}',
-      '#field-speed-hud.driving #fsh-value{color:#66ccff;text-shadow:0 0 24px rgba(100,200,255,.9)}',
-      '#field-speed-hud.idle{opacity:0}',
+      '#field-speed-hud{display:none!important}',
       '#miner-terms-modal{position:fixed;inset:0;z-index:200;display:flex;align-items:center;',
       'justify-content:center;background:rgba(0,4,12,.82);pointer-events:auto}',
       '#miner-terms-modal[hidden]{display:none!important}',
@@ -595,24 +603,29 @@ const FieldHud = {
     } catch (_) {}
   },
 
-  globeSpeedKmh() {
-    const gp = window.globePivot;
-    if (!gp) return 0;
-    const y = gp.rotation.y;
-    const now = performance.now();
-    if (this._lastGlobeY == null) { this._lastGlobeY = y; this._lastGlobeTick = now; return 0; }
-    const dt = (now - this._lastGlobeTick) / 1000;
-    if (dt < 0.02) return this._globeRate;
-    let dy = y - this._lastGlobeY;
-    if (dy > Math.PI) dy -= Math.PI * 2;
-    if (dy < -Math.PI) dy += Math.PI * 2;
-    this._lastGlobeY = y;
-    this._lastGlobeTick = now;
-    const omega = Math.abs(dy) / dt;
-    const earthKm = 6371;
-    const v = omega * earthKm * 3.6;
-    this._globeRate = this._globeRate * 0.7 + v * 0.3;
-    return this._globeRate;
+  isGlobalEarthView() {
+    const z = window.camera?.position?.z ?? 2.5;
+    const level = window.CosmicZoom?.level || 'earth';
+    return level === 'earth' && z >= 2.0 && z <= 4.5 && !window.CityMap?.active && !window.DrivingView?.active;
+  },
+
+  earthRotationKmh() {
+    return this.EARTH_ROTATION_KMH;
+  },
+
+  tickEarthSpin() {
+    if (!this.isGlobalEarthView()) return;
+    const ER = window.EarthRealism;
+    const e = window.earth;
+    if (!e || !ER?._earthSpin) return;
+    const now = new Date();
+    e.rotation.y = ER._earthSpin(now);
+    if (ER.sunDir?.length && e.material?.uniforms?.sunDirection && ER._sunLocal) {
+      if (!ER._sunLocalAt || Date.now() - ER._sunLocalAt > 800) {
+        ER.sunDir.copy(ER._solarPosition?.(now) || ER.sunDir);
+      }
+      e.material.uniforms.sunDirection.value.copy(ER._sunLocal(ER.sunDir));
+    }
   },
 
   speedLimitKmh() {
@@ -627,26 +640,39 @@ const FieldHud = {
   },
 
   updateSpeed() {
-    const hud = document.getElementById('field-speed-hud');
+    const hud = document.getElementById('field-radar-speed');
     const val = document.getElementById('fsh-value');
     const lim = document.getElementById('fsh-limit');
+    const mode = document.getElementById('fsh-mode');
     if (!hud || !val) return;
     let kmh = 0;
     let driving = false;
+    let earthSpin = false;
     if (window.DrivingView?.active) {
       kmh = Math.round((window.DrivingView.speed || 0) * 3.6);
       driving = true;
-    } else if (!window.CityMap?.active && (window.CosmicZoom?.level === 'earth' || !window.CosmicZoom)) {
-      kmh = Math.round(this.globeSpeedKmh());
+      if (mode) { mode.textContent = 'DRIVE'; mode.style.position = 'absolute'; mode.style.top = '6px'; mode.style.left = '8px'; }
+    } else if (this.isGlobalEarthView()) {
+      kmh = this.earthRotationKmh();
+      earthSpin = true;
+      this.tickEarthSpin();
+      if (mode) { mode.textContent = 'EARTH'; mode.style.position = 'absolute'; mode.style.top = '6px'; mode.style.left = '8px'; }
+    } else if (window.CityMap?.active && window.DrivingView?.speed > 0) {
+      kmh = Math.round((window.DrivingView.speed || 0) * 3.6);
+      driving = true;
+      if (mode) mode.textContent = 'CITY';
+    } else {
+      if (mode) mode.textContent = '';
     }
     val.textContent = String(kmh);
     hud.classList.toggle('driving', driving);
-    hud.classList.toggle('idle', kmh < 2 && !driving);
+    hud.classList.toggle('earth', earthSpin);
+    hud.classList.toggle('idle', kmh < 1 && !earthSpin);
     const limit = this.speedLimitKmh();
     if (lim) {
       if (driving && limit > 0) {
         lim.hidden = false;
-        lim.textContent = 'limit ' + limit;
+        lim.textContent = 'lim ' + limit;
         lim.style.color = kmh > limit ? '#ff6688' : 'rgba(100,200,255,.65)';
       } else {
         lim.hidden = true;
@@ -778,9 +804,13 @@ const FieldHud = {
       ctx.fill();
       ctx.shadowBlur = 0;
     });
+    ctx.fillStyle = 'rgba(0,200,255,0.15)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+    ctx.fill();
     ctx.fillStyle = '#00c8ff';
     ctx.beginPath();
-    ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 2, 0, Math.PI * 2);
     ctx.fill();
   },
 
@@ -810,6 +840,7 @@ const FieldHud = {
       this._sweepAngle += (Math.PI * 2 / this.SWEEP_PERIOD_MS) * dt;
       if (this._sweepAngle > Math.PI * 2) this._sweepAngle -= Math.PI * 2;
       this.drawRadar(this._sweepAngle);
+      this.updateSpeed();
       this._radarRaf = requestAnimationFrame(step);
     };
     this._radarRaf = requestAnimationFrame(step);
@@ -819,10 +850,22 @@ const FieldHud = {
     if (this._loop) return;
     this._loop = setInterval(() => this.tick(), 500);
     this.startRadarRaf();
-    requestAnimationFrame(function loop() {
-      FieldHud.updateSpeed();
-      requestAnimationFrame(loop);
-    });
+    this.migrateSpeedHud();
+  },
+
+  migrateSpeedHud() {
+    document.getElementById('field-speed-hud')?.remove();
+    const radar = document.getElementById('field-radar');
+    if (!radar || document.getElementById('field-radar-speed')) return;
+    const spd = document.createElement('div');
+    spd.id = 'field-radar-speed';
+    spd.setAttribute('aria-live', 'polite');
+    spd.innerHTML = '<span id="fsh-mode" class="fsh-mode"></span>'
+      + '<span id="fsh-value">0</span><span id="fsh-unit">km/h</span>'
+      + '<span id="fsh-limit" hidden></span>';
+    const label = radar.querySelector('.fr-label');
+    if (label) radar.insertBefore(spd, label);
+    else radar.appendChild(spd);
   },
 
   boot() {
@@ -830,6 +873,7 @@ const FieldHud = {
     this._booted = true;
     this.injectCss();
     this.injectDom();
+    this.migrateSpeedHud();
     this.hideCliMoney();
     this.patchSuperCli();
     this.bindActivity();
