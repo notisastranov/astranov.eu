@@ -15,6 +15,14 @@
 })();
 
 const container = document.getElementById('globe');
+const _host = location.hostname || '';
+const _hostOfficial = _host === 'astranov.eu' || _host.endsWith('.astranov.eu');
+const _hostLocal = !_host || _host === 'localhost' || _host === '127.0.0.1' || location.protocol === 'file:';
+const _hostDev = /[?&]dev=1/.test(location.search || '');
+window.__astranovHostOk = _hostOfficial || _hostLocal || _hostDev;
+if (!window.__astranovHostOk) {
+  document.body.innerHTML = '<div style="color:#444;padding:40px;text-align:center;font-family:sans-serif">Available only on authorized Astranov domains</div>';
+}
 
 window.addEventListener('error', function(e) {
   try {
@@ -36,34 +44,10 @@ window.addEventListener('unhandledrejection', function(e) {
   } catch(_) {}
 });
 
-let renderer;
-try {
-  renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
-  renderer.setClearColor(0x000000, 1);
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  const _dprCap = window.SlumberManager?.quality?.pixelRatio ?? (window._globePerfLite ? 1.0 : 1.25);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, _dprCap));
-  if (THREE.ACESFilmicToneMapping) {
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.08;
-  }
-  if (THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
-  window.renderer = renderer;
-  container.appendChild(renderer.domElement);
-  window._snlForceDismiss?.();
-} catch (e) {
-  window._webglFailed = true;
-  window._snlForceDismiss?.();
-  const fb = document.createElement('div');
-  fb.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#0af;font:15px system-ui;background:#000;z-index:10;text-align:center;';
-  fb.innerHTML = 'WebGL unavailable — CLI still works.<br>Enable hardware acceleration or try Chrome.';
-  if (container) container.appendChild(fb);
-}
-
+let renderer, scene, camera, globePivot, earth, sun;
 let drag = false, px = 0, py = 0;
 let dragging = false;
 let idleRoll = 0;
-let globePivot;
 let trackVelX = 0, trackVelY = 0;
 let cityLevel = false;
 let voiceEnabled = false;
@@ -71,61 +55,95 @@ let voiceSessionActive = false;
 let isListening = false;
 let recognition;
 let userLocated = false;
-
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x000000);
-
-const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.set(0, 0, 3.5);
-camera.lookAt(0, 0, 0);
-window.camera = camera;
-
-scene.add(new THREE.AmbientLight(0x667788, 1.0));
-const sun = new THREE.DirectionalLight(0xffffff, 1.6);
-sun.position.set(5, 3, 4);
-scene.add(sun);
-
-const starPos = [];
-for (let i=0; i<480; i++) {
-  const r = 140 + Math.random()*900;
-  const t = Math.random()*Math.PI*2;
-  const p = Math.acos(2*Math.random()-1);
-  starPos.push(r*Math.sin(p)*Math.cos(t), r*Math.sin(p)*Math.sin(t), r*Math.cos(p));
-}
-const sgeo = new THREE.BufferGeometry();
-sgeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos,3));
-scene.add(new THREE.Points(sgeo, new THREE.PointsMaterial({color:0xffffff, size:2.8, sizeAttenuation:false})));
-
-const EARTH_TEX = {
-  day: 'https://unpkg.com/three-globe@2.31.1/example/img/earth-blue-marble.jpg',
-  night: 'https://unpkg.com/three-globe@2.31.1/example/img/earth-night.jpg',
-  fallback: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg',
-};
-window.EARTH_TEX = EARTH_TEX;
-const earthMat = new THREE.MeshBasicMaterial({ color: 0x44aaff });
-new THREE.TextureLoader().load(EARTH_TEX.day, (tex) => { earthMat.map = tex; earthMat.needsUpdate = true; }, undefined, () => {
-  new THREE.TextureLoader().load(EARTH_TEX.fallback, (fb) => { earthMat.map = fb; earthMat.needsUpdate = true; });
-});
-globePivot = new THREE.Group();
-scene.add(globePivot);
-const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 24), earthMat);
-globePivot.add(earth);
-globePivot.rotation.y = 0;
-globePivot.rotation.x = 0.12;
-globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
-window.globePivot = globePivot;
-window.earth = earth;
 window._animateStarted = false;
 
-(function _earlyGlobePaint() {
-  function tick() {
-    if (!renderer || !scene || !camera) return;
-    window._snlForceDismiss?.();
-    try { renderer.render(scene, camera); } catch (_) {}
-    if (!window._animateStarted) requestAnimationFrame(tick);
+function _globeShellMsg(html) {
+  if (!container || container.querySelector('#globe-shell-msg')) return;
+  const fb = document.createElement('div');
+  fb.id = 'globe-shell-msg';
+  fb.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#5ad4ff;font:14px/1.45 system-ui;background:#000;z-index:10;text-align:center;padding:16px;';
+  fb.innerHTML = html;
+  container.appendChild(fb);
+}
+
+if (window.__astranovHostOk) {
+  if (typeof THREE === 'undefined') {
+    window._threeMissing = true;
+    _globeShellMsg('3D engine failed to load — CLI still works.<br><small>Check connection or refresh</small>');
+  } else {
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setClearColor(0x000000, 1);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      const _dprCap = window.SlumberManager?.quality?.pixelRatio ?? (window._globePerfLite ? 1.0 : 1.25);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, _dprCap));
+      if (THREE.ACESFilmicToneMapping) {
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.08;
+      }
+      if (THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
+      window.renderer = renderer;
+      container?.appendChild(renderer.domElement);
+      window._snlForceDismiss?.();
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x000000);
+      camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(0, 0, 3.5);
+      camera.lookAt(0, 0, 0);
+      window.camera = camera;
+      scene.add(new THREE.AmbientLight(0x667788, 1.0));
+      sun = new THREE.DirectionalLight(0xffffff, 1.6);
+      sun.position.set(5, 3, 4);
+      scene.add(sun);
+
+      const starPos = [];
+      for (let i = 0; i < 200; i++) {
+        const r = 140 + Math.random() * 900;
+        const t = Math.random() * Math.PI * 2;
+        const p = Math.acos(2 * Math.random() - 1);
+        starPos.push(r * Math.sin(p) * Math.cos(t), r * Math.sin(p) * Math.sin(t), r * Math.cos(p));
+      }
+      const sgeo = new THREE.BufferGeometry();
+      sgeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+      scene.add(new THREE.Points(sgeo, new THREE.PointsMaterial({ color: 0xffffff, size: 2.8, sizeAttenuation: false })));
+
+      const EARTH_TEX = {
+        day: 'https://unpkg.com/three-globe@2.31.1/example/img/earth-blue-marble.jpg',
+        night: 'https://unpkg.com/three-globe@2.31.1/example/img/earth-night.jpg',
+        fallback: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg',
+      };
+      window.EARTH_TEX = EARTH_TEX;
+      const earthMat = new THREE.MeshBasicMaterial({ color: 0x44aaff });
+      new THREE.TextureLoader().load(EARTH_TEX.day, (tex) => { earthMat.map = tex; earthMat.needsUpdate = true; }, undefined, () => {
+        new THREE.TextureLoader().load(EARTH_TEX.fallback, (fb) => { earthMat.map = fb; earthMat.needsUpdate = true; });
+      });
+      globePivot = new THREE.Group();
+      scene.add(globePivot);
+      earth = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 24), earthMat);
+      globePivot.add(earth);
+      globePivot.rotation.y = 0;
+      globePivot.rotation.x = 0.12;
+      globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
+      window.globePivot = globePivot;
+      window.earth = earth;
+
+      (function _earlyGlobePaint() {
+        function tick() {
+          if (!renderer || !scene || !camera) return;
+          window._snlForceDismiss?.();
+          try { renderer.render(scene, camera); } catch (_) {}
+          if (!window._animateStarted) requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+      })();
+    } catch (e) {
+      window._webglFailed = true;
+      window._snlForceDismiss?.();
+      _globeShellMsg('WebGL unavailable — CLI still works.<br>Enable hardware acceleration or try Chrome.');
+    }
   }
-  requestAnimationFrame(tick);
-})();
+}
 
 function syncGlobePivotRotation() {
   if (!globePivot) return;
@@ -4718,7 +4736,10 @@ const LazyModules = {
         window.AvcBalance?.init?.();
         SpaceNetLoader?.stage?.('deferred', SpaceNetMission?.LOADER?.deferred || 'Fleet & relay ready');
       };
-      s.onerror = () => reject(new Error('deferred script failed'));
+      s.onerror = () => {
+        this._promise = null;
+        reject(new Error('deferred script failed'));
+      };
       document.head.appendChild(s);
     });
     return this._promise;
@@ -11467,14 +11488,18 @@ window.applyGlobalBootView = applyGlobalBootView;
 function animate() {
   requestAnimationFrame(animate);
   if (window._cycleTurbo) return;
-  if (!renderer || !scene || !camera) return;
-  SlumberManager?.tickFrame?.();
   window._animFrame = (window._animFrame + 1) | 0;
   const frame = window._animFrame;
   if (frame === 1) {
     window.SpaceNetLoader?.dismiss?.('frame');
     window._snlForceDismiss?.();
   }
+  const hasGlobe = !!(renderer && scene && camera);
+  if (!hasGlobe) {
+    if (frame % 60 === 0) SlumberManager?.tickFrame?.();
+    return;
+  }
+  SlumberManager?.tickFrame?.();
   const hidden = document.hidden;
   if (!drag && !window._globeFly) TrackballGuard?.applyInertia?.();
   GlobeZoom?.tick?.();
@@ -11513,7 +11538,7 @@ function animate() {
     window.CelestialNav?.tick?.();
   }
   if (frame % Math.max(_slumberDiv('entity'), 4) === 0) BrainNeurons?.tick?.();
-  renderer.render(scene, camera);
+  if (renderer && scene && camera) renderer.render(scene, camera);
 }
 
 function _astranovBoot() {
@@ -11561,8 +11586,8 @@ function _astranovBoot() {
   LazyModules.whenReady(() => GlobeEntity?.init?.());
   run(() => MapPins.init());
   run(() => MapOverlayDismiss.init());
-  run(() => window.SpaceNetFleet?.init?.());
-  run(() => window.SpaceNetResourceMonitor?.init?.());
+  setTimeout(() => { try { window.SpaceNetFleet?.init?.(); } catch (_) {} }, 1200);
+  setTimeout(() => { try { window.SpaceNetResourceMonitor?.init?.(); } catch (_) {} }, 1500);
   run(() => CityLife.init());
   run(() => VendorMapTile.init());
   run(() => ClassifiedTriangles.init());
@@ -11592,16 +11617,9 @@ function _astranovBoot() {
   setTimeout(() => { try { Circles.init(); } catch (_) {} }, 0);
 }
 
-const host = location.hostname || '';
-const isOfficial = host === 'astranov.eu' || host.endsWith('.astranov.eu');
-const isLocal = host === '' || host === 'localhost' || host === '127.0.0.1' || location.protocol === 'file:';
-if (host && !isOfficial && !isLocal) {
-  document.body.innerHTML = '<div style="color:#444;padding:40px;text-align:center;font-family:sans-serif">Available only on authorized Astranov domains</div>';
-} else {
-  if (renderer && scene && camera) {
-    window._animateStarted = true;
-    animate();
-  }
+if (window.__astranovHostOk) {
+  window._animateStarted = true;
+  animate();
   setTimeout(function() {
     try { _astranovBoot(); } catch (e) { console.error('[Astranov boot]', e); }
   }, 0);
