@@ -1,6 +1,6 @@
 // === SUPER ADD FIELD — social profile · cover · avatar · roles · instant post · video peers ===
 (function loadHudModules() {
-  var v = '20260711120000-social-profile';
+  var v = '20260711140000-cli-market-miner';
   if (!window.GalacticSky) {
     var g = document.createElement('script');
     g.src = '/astranov-galactic-sky.js?v=' + v;
@@ -104,6 +104,9 @@ const MenuProfilePostTile = {
     });
     this._bindTileDrag(tile);
     this._bindPlusFab();
+    this._patchCliBar();
+    this._patchLocate();
+    this._patchVideoCall();
     this._loadRoles();
     this.updateRoleSections();
   },
@@ -157,6 +160,126 @@ const MenuProfilePostTile = {
         };
       }
     }
+  },
+
+  _patchCliBar() {
+    const sc = window.SuperCli;
+    if (!sc || sc._mppCliPatched) return;
+    sc._mppCliPatched = true;
+    const self = this;
+    const _ensure = sc.ensureBarLayout?.bind(sc);
+    if (_ensure) {
+      sc.ensureBarLayout = function() {
+        _ensure();
+        const edge = document.getElementById('super-cli-edge-right');
+        const video = document.getElementById('aci-video-call');
+        const fab = document.getElementById('super-add-fab');
+        const hf = document.getElementById('aci-handsfree');
+        if (edge && video && fab) edge.insertBefore(video, fab);
+        if (edge && hf && hf.parentElement !== edge) edge.appendChild(hf);
+        self._patchLocate();
+      };
+    }
+    const _setCtx = sc.setContext?.bind(sc);
+    if (_setCtx) {
+      sc.setContext = function(ctx) {
+        _setCtx(ctx);
+        const video = document.getElementById('aci-video-call');
+        if (video) video.hidden = false;
+        self._patchLocate();
+      };
+    }
+    sc.ensureBarLayout?.();
+    this._patchLocate();
+  },
+
+  _patchLocate() {
+    const btn = document.getElementById('aci-locate');
+    if (!btn) return;
+    btn.classList.add('app-shortcut-btn');
+    btn.hidden = false;
+    const row = document.getElementById('app-shortcut-row');
+    if (row && btn.parentElement !== row) row.prepend(btn);
+    if (btn._mppLocateBound) return;
+    btn._mppLocateBound = true;
+    const runLocate = async () => {
+      GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+      GlobeDeck?.setMapStatus?.('Locating…');
+      GlobeControl?.engageFollow?.('locate');
+      ACIControl?.reply?.('Locating — city map…');
+      AciCli?.print?.('locate me · GPS', 'map');
+      try {
+        if (CityLife?.locateAndDropIn) await CityLife.locateAndDropIn();
+        else if (typeof locateMe === 'function') locateMe();
+        else throw new Error('no locate');
+      } catch (_) {
+        ACIControl?.reply?.('GPS denied — Rhodes demo · allow location for your city');
+        await enterCityView?.(36.44, 28.22, { openShops: false });
+      }
+    };
+    btn.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      void runLocate();
+    }, { capture: true });
+    btn.onclick = e => { e.preventDefault(); e.stopPropagation(); void runLocate(); };
+    const apps = window.AppShortcuts;
+    if (apps && !apps._mppLocatePatched) {
+      apps._mppLocatePatched = true;
+      const _pin = apps._pinInsideButtons?.bind(apps);
+      if (_pin) {
+        apps._pinInsideButtons = function() {
+          _pin();
+          MenuProfilePostTile._patchLocate();
+        };
+      }
+    }
+  },
+
+  _patchVideoCall() {
+    const btn = document.getElementById('aci-video-call');
+    if (!btn || btn._mppVideoBound) return;
+    btn._mppVideoBound = true;
+    btn.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      void this._openVideoCall();
+    });
+  },
+
+  async _openVideoCall() {
+    await LazyModules.ensure().catch(() => {});
+    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+    if (!this.isOpen()) {
+      const pos = window._lastPos || CityMap?.globeCenterLatLng?.() || TrackballGuard?.facingLatLng?.() || { lat: 36.44, lng: 28.22 };
+      this.openAt(pos.lat, pos.lng);
+    }
+    await this.refreshConnected();
+    const users = [...document.querySelectorAll('#mpp-connected-users .mpp-connected-user[data-mesh="0"]')];
+    if (users.length === 1) {
+      void MapComms?.contactUser?.(users[0].dataset.uid, 'video');
+      return;
+    }
+    document.getElementById('mpp-connected')?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+    AciCli?.print?.('Tap a connected user to video call', 'ok');
+  },
+
+  async refreshMarketplace() {
+    const el = document.getElementById('mpp-market-summary');
+    if (!el) return;
+    await LazyModules.ensure().catch(() => {});
+    try { await Commerce?.loadVendors?.(); } catch (_) {}
+    const vendor = Commerce?.selected;
+    const items = Commerce?.cartItems?.() || [];
+    const total = items.reduce((s, i) => s + (i.qty || 1) * (i.price || 0), 0);
+    const del = window._clientDelivery;
+    const parts = [];
+    if (del?.label || del?.lat != null) parts.push('Delivery · ' + (del.label || this.formatCoords(del.lat, del.lng)));
+    else parts.push('Delivery · set pin');
+    if (vendor) parts.push((vendor.emoji || '🏪') + ' ' + (vendor.name || 'Shop'));
+    if (items.length) parts.push(items.length + ' item' + (items.length > 1 ? 's' : '') + ' · ' + total.toFixed(1) + ' AVC');
+    else parts.push('Cart empty · browse shops');
+    el.textContent = parts.join(' · ');
   },
 
   _patchSuperAdd() {
@@ -269,9 +392,11 @@ const MenuProfilePostTile = {
     Object.entries(map).forEach(([role, id]) => {
       document.getElementById(id)?.classList.toggle('visible', !!this._roles[role]);
     });
+    document.getElementById('mpp-section-market')?.classList.toggle('visible', !!(this._roles.client || this._roles.vendor));
     const connected = document.getElementById('mpp-connected');
     if (connected) connected.classList.toggle('visible', !!this._roles.social);
     this.refreshDataList();
+    void this.refreshMarketplace();
     this.updateFoot();
   },
 
@@ -285,7 +410,11 @@ const MenuProfilePostTile = {
     }
     if (this._roles.vendor) { apply.textContent = 'Browse shops here'; return; }
     if (this._roles.driver) { apply.textContent = 'Set driver base here'; return; }
-    if (this._roles.client) { apply.textContent = 'Set delivery here'; return; }
+    if (this._roles.client) {
+      const items = Commerce?.cartItems?.() || [];
+      apply.textContent = items.length ? 'Place order · pay AVC' : 'Set delivery here';
+      return;
+    }
     apply.textContent = 'Apply at pin';
   },
 
@@ -653,6 +782,7 @@ const MenuProfilePostTile = {
     SuperCli?.setContext?.('add');
     void this._refreshVendors();
     void this.refreshConnected();
+    void this.refreshMarketplace();
     void GlobeNavigate?.ensureCityAt?.(lat, lng);
   },
 
@@ -679,7 +809,12 @@ const MenuProfilePostTile = {
     }
     if (this._roles.vendor) { await this.runAction('browse_shops'); return; }
     if (this._roles.driver) { await this.runAction('set_driver_base'); return; }
-    if (this._roles.client) { await this.runAction('set_delivery'); return; }
+    if (this._roles.client) {
+      const items = Commerce?.cartItems?.() || [];
+      if (items.length) { await this.runAction('place_cart'); return; }
+      await this.runAction('set_delivery');
+      return;
+    }
     await this.runAction('set_delivery');
   },
 
@@ -756,6 +891,55 @@ const MenuProfilePostTile = {
     if (act === 'browse_shops') {
       window._lastPos = { lat, lng };
       await Commerce?.showPicker?.();
+      void this.refreshMarketplace();
+      return;
+    }
+    if (act === 'place_cart') {
+      if (!Auth?.user) {
+        Auth?.openLoginModal?.('Sign in to place order');
+        return;
+      }
+      await MapPins?.setClientDelivery?.(lat, lng, 'Customer delivery · ' + this.formatCoords(lat, lng));
+      if (!Commerce?.selected) {
+        try { await Commerce?.loadVendors?.(); } catch (_) {}
+        const near = (Commerce?.vendors || [])
+          .filter(v => v.lat != null && v.lng != null)
+          .map(v => ({ v, km: Commerce?.haversineKm?.(lat, lng, v.lat, v.lng) ?? 99 }))
+          .sort((a, b) => a.km - b.km)[0];
+        if (near) Commerce.selected = near.v;
+        else {
+          AciCli?.print?.('No shops loaded — browse to pick vendor', 'dim');
+          await Commerce?.showPicker?.();
+          return;
+        }
+      }
+      const items = Commerce?.cartItems?.() || [];
+      if (!items.length) {
+        AciCli?.print?.('Cart empty — browse shops & add items', 'dim');
+        await Commerce?.showPicker?.();
+        return;
+      }
+      await Commerce?.placeCart?.();
+      void this.refreshMarketplace();
+      this.refreshDataList();
+      return;
+    }
+    if (act === 'track_delivery') {
+      const me = Auth?.user?.id;
+      const missions = MarketplaceDeliveryEngine?.missions || [];
+      const open = ['assigned', 'active', 'en_route', 'picked_up', 'seeking_driver'];
+      let mine = missions.filter(m => open.includes(m.order?.status || m.status));
+      if (me) {
+        const owned = mine.filter(m => m.order?.client_id === me || m.order?.user_id === me);
+        if (owned.length) mine = owned;
+      }
+      if (!mine.length) {
+        AciCli?.print?.('No active delivery — place an order first', 'dim');
+        ACIControl?.reply?.('No delivery in progress · browse shops & place order');
+        return;
+      }
+      MarketplaceDeliveryEngine?.showHud?.(mine[0]);
+      GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
       this.close();
       return;
     }
@@ -800,18 +984,31 @@ window.MenuProfilePostTile = MenuProfilePostTile;
 
 function mppPatchBoot() {
   MenuProfilePostTile._bindPlusFab();
+  MenuProfilePostTile._patchCliBar();
+  MenuProfilePostTile._patchLocate();
+  MenuProfilePostTile._patchVideoCall();
   MenuProfilePostTile._patchSuperAdd();
   let n = 0;
   const retry = setInterval(() => {
     n++;
     MenuProfilePostTile._bindPlusFab();
+    MenuProfilePostTile._patchCliBar();
+    MenuProfilePostTile._patchLocate();
+    MenuProfilePostTile._patchVideoCall();
     MenuProfilePostTile._patchSuperAdd();
     if (n > 60) clearInterval(retry);
   }, 500);
   window.addEventListener('load', () => {
     MenuProfilePostTile._bindPlusFab();
+    MenuProfilePostTile._patchCliBar();
+    MenuProfilePostTile._patchLocate();
+    MenuProfilePostTile._patchVideoCall();
     MenuProfilePostTile._patchSuperAdd();
-    void window.LazyModules?.ensure?.().then(() => MenuProfilePostTile._patchSuperAdd());
+    void window.LazyModules?.ensure?.().then(() => {
+      MenuProfilePostTile._patchSuperAdd();
+      MenuProfilePostTile._patchCliBar();
+      MenuProfilePostTile._patchLocate();
+    });
   });
   if (window.FieldBrain && !FieldBrain.goOfflineDriver) {
     FieldBrain.goOfflineDriver = async function() {
