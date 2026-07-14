@@ -2,22 +2,6 @@
 // AI HANDOFF: see astranov-continuity.js → features.superAddPlus, menuProfilePostTile,
 // locateMe, videoCall, deliveryMarketplace. Owns: + hijack, _patchLocate, _patchVideoCall,
 // _patchCliBar, refreshMarketplace, place_cart, track_delivery. Do NOT restore globe-super-add as + target.
-(function loadHudModules() {
-  var v = '20260711230000-load-hotfix';
-  if (!window.GalacticSky) {
-    var g = document.createElement('script');
-    g.src = '/astranov-galactic-sky.js?v=' + v;
-    g.defer = true;
-    document.head.appendChild(g);
-  }
-  if (!window.FieldHud) {
-    var f = document.createElement('script');
-    f.src = '/astranov-field-hud.js?v=' + v;
-    f.defer = true;
-    document.head.appendChild(f);
-  }
-})();
-
 const MenuProfilePostTile = {
   _pin: null,
   _pinPick: false,
