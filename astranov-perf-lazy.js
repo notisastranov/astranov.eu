@@ -6,14 +6,11 @@
   if (!LM || LM._perfLazy) return;
   LM._perfLazy = true;
 
-  const delayMs = () => window.SlumberManager?.deferredDelay?.() ?? 1800;
+  const delayMs = () => window.SlumberManager?.deferredDelay?.() ?? 1400;
   const bootAt = () => window._bootAt || Date.now();
 
   if (!window._lazyUserReady) {
-    const mark = () => {
-      window._lazyUserReady = true;
-      window.FieldHud?.ensureBrain?.();
-    };
+    const mark = () => { window._lazyUserReady = true; };
     ['pointerdown', 'keydown', 'touchstart', 'click'].forEach(ev => {
       window.addEventListener(ev, mark, { passive: true });
     });
@@ -32,7 +29,7 @@
     if (w <= 0) return Promise.resolve().then(fn);
     return new Promise(resolve => {
       const go = () => Promise.resolve().then(fn).then(resolve);
-      if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: w + 800 });
+      if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: w + 600 });
       else setTimeout(go, w);
     });
   }
@@ -77,30 +74,14 @@
     };
   }
 
-  function wrapEnsureBrain() {
-    const FH = window.FieldHud;
-    if (!FH || FH._brainPerfWrapped) return;
-    const orig = FH.ensureBrain?.bind(FH);
-    if (!orig) return;
-    FH._brainPerfWrapped = true;
-    FH.ensureBrain = function() {
-      const go = () => orig();
-      if (window._deferredBootDone || window._lazyUserReady) return go();
-      if (FH._brainDeferScheduled) return;
-      FH._brainDeferScheduled = true;
-      const w = Math.max(2800, waitMs() + 1400);
-      setTimeout(go, w);
-    };
-  }
-
   function capMobileDpr() {
     const r = window.renderer;
-    if (!r?.setPixelRatio) return;
-    const sm = window.SlumberManager;
+    if (!r?.setPixelRatio || r._perfDprCapped) return;
     const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
       || (navigator.maxTouchPoints > 1 && window.innerWidth < 960);
-    const tierCap = sm?.quality?.pixelRatio ?? (mobile ? 1 : 1.25);
-    const cap = mobile ? Math.min(tierCap, 1) : tierCap;
+    if (!mobile) return;
+    r._perfDprCapped = true;
+    const cap = Math.min(window.SlumberManager?.quality?.pixelRatio ?? 1, 1);
     r.setPixelRatio(Math.min(window.devicePixelRatio || 1, cap));
   }
 
@@ -108,8 +89,7 @@
   const hookIv = setInterval(() => {
     hookN++;
     wrapBrainBoot();
-    wrapEnsureBrain();
     if (window.SlumberManager?._inited) capMobileDpr();
-    if (hookN > 30) clearInterval(hookIv);
+    if (hookN > 25) clearInterval(hookIv);
   }, 200);
 })();
