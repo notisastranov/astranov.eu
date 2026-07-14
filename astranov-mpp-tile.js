@@ -1,6 +1,6 @@
 // === SUPER ADD FIELD — social profile · cover · avatar · roles · instant post · video peers ===
 (function loadHudModules() {
-  var v = '20260711160000-perf-lazy';
+  var v = '20260711180000-field-miner';
   if (!window.GalacticSky) {
     var g = document.createElement('script');
     g.src = '/astranov-galactic-sky.js?v=' + v;
