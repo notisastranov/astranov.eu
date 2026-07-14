@@ -944,8 +944,8 @@ const FieldHud = {
       this.bindFieldMiner();
       if (!document.getElementById('field-radar')) this.injectDom();
       const ok = document.getElementById('field-radar') && document.getElementById('field-balance-hud')?._minerBound;
-      if (ok || n >= 5) clearInterval(t);
-    }, 1200);
+      if (ok || n >= 3) clearInterval(t);
+    }, 1000);
     window.addEventListener('load', () => {
       this.patchSuperCli();
       this.hideCliMoney();
