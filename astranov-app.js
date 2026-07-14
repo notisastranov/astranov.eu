@@ -1,4 +1,6 @@
-/* astranov-app.js — lite boot bundle */
+/* astranov-app.js — lite boot bundle
+ * AI HANDOFF: astranov-continuity.js — boot uses LazyModules.whenReady (not ensure@400ms).
+ * Globe parse-time WebGL; deferred full impl in astranov-deferred.js; perf patch in perf-lazy.js */
 
 (function _snlEarlyPaint() {
   const kill = function() {
