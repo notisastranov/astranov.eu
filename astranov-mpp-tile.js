@@ -1,6 +1,6 @@
 // === SUPER ADD FIELD — social profile · cover · avatar · roles · instant post · video peers ===
 (function loadHudModules() {
-  var v = '20260711140000-cli-market-miner';
+  var v = '20260711160000-perf-lazy';
   if (!window.GalacticSky) {
     var g = document.createElement('script');
     g.src = '/astranov-galactic-sky.js?v=' + v;
@@ -982,33 +982,31 @@ const MenuProfilePostTile = {
 };
 window.MenuProfilePostTile = MenuProfilePostTile;
 
-function mppPatchBoot() {
+function mppPatchesOk() {
+  return !!document.getElementById('aci-video-call')
+    && !!document.getElementById('aci-locate')?.classList.contains('app-shortcut-btn')
+    && !!window.SuperCli?._mppCliPatched;
+}
+
+function mppRunPatches() {
   MenuProfilePostTile._bindPlusFab();
   MenuProfilePostTile._patchCliBar();
   MenuProfilePostTile._patchLocate();
   MenuProfilePostTile._patchVideoCall();
   MenuProfilePostTile._patchSuperAdd();
+}
+
+function mppPatchBoot() {
+  mppRunPatches();
   let n = 0;
   const retry = setInterval(() => {
     n++;
-    MenuProfilePostTile._bindPlusFab();
-    MenuProfilePostTile._patchCliBar();
-    MenuProfilePostTile._patchLocate();
-    MenuProfilePostTile._patchVideoCall();
-    MenuProfilePostTile._patchSuperAdd();
-    if (n > 60) clearInterval(retry);
-  }, 500);
+    mppRunPatches();
+    if (mppPatchesOk() || n >= 8) clearInterval(retry);
+  }, 800);
   window.addEventListener('load', () => {
-    MenuProfilePostTile._bindPlusFab();
-    MenuProfilePostTile._patchCliBar();
-    MenuProfilePostTile._patchLocate();
-    MenuProfilePostTile._patchVideoCall();
-    MenuProfilePostTile._patchSuperAdd();
-    void window.LazyModules?.ensure?.().then(() => {
-      MenuProfilePostTile._patchSuperAdd();
-      MenuProfilePostTile._patchCliBar();
-      MenuProfilePostTile._patchLocate();
-    });
+    mppRunPatches();
+    void window.LazyModules?.whenReady?.(() => mppRunPatches());
   });
   if (window.FieldBrain && !FieldBrain.goOfflineDriver) {
     FieldBrain.goOfflineDriver = async function() {
