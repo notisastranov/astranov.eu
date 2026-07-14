@@ -3,7 +3,7 @@
 // locateMe, videoCall, deliveryMarketplace. Owns: + hijack, _patchLocate, _patchVideoCall,
 // _patchCliBar, refreshMarketplace, place_cart, track_delivery. Do NOT restore globe-super-add as + target.
 (function loadHudModules() {
-  var v = '20260711220000-perf-rescue';
+  var v = '20260711230000-load-hotfix';
   if (!window.GalacticSky) {
     var g = document.createElement('script');
     g.src = '/astranov-galactic-sky.js?v=' + v;
