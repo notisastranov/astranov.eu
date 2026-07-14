@@ -648,12 +648,6 @@ const FieldHud = {
     }
   },
 
-  stopFieldRaf() {
-    if (!this._fieldRaf) return;
-    cancelAnimationFrame(this._fieldRaf);
-    this._fieldRaf = 0;
-  },
-
   speedLimitKmh() {
     if (window.DrivingView?.active) {
       const s = (window.DrivingView?.speed || 0) * 3.6;
@@ -849,28 +843,26 @@ const FieldHud = {
   },
 
   startFieldRaf() {
-    if (this._fieldRaf) return;
-    const drawInterval = 1000 / 12;
+    if (this._fieldTimer) return;
     let last = performance.now();
-    let lastDraw = 0;
-    let lastSpeed = 0;
-    const step = (now) => {
-      this._fieldRaf = requestAnimationFrame(step);
+    let tickN = 0;
+    this._fieldTimer = setInterval(() => {
       if (document.hidden || window.CityMap?.active) return;
-      const dt = Math.min(48, now - last);
+      const now = performance.now();
+      const dt = Math.min(64, now - last);
       last = now;
+      tickN++;
       this._sweepAngle = (this._sweepAngle || 0) + (Math.PI * 2 / this.SWEEP_PERIOD_MS) * dt;
       if (this._sweepAngle > Math.PI * 2) this._sweepAngle -= Math.PI * 2;
-      if (now - lastDraw >= drawInterval) {
-        lastDraw = now;
-        this.drawRadar(this._sweepAngle);
-      }
-      if (now - lastSpeed >= 300) {
-        lastSpeed = now;
-        this.updateSpeed();
-      }
-    };
-    this._fieldRaf = requestAnimationFrame(step);
+      if (tickN % 2 === 0) this.drawRadar(this._sweepAngle);
+      if (tickN % 3 === 0) this.updateSpeed();
+    }, 125);
+  },
+
+  stopFieldRaf() {
+    if (!this._fieldTimer) return;
+    clearInterval(this._fieldTimer);
+    this._fieldTimer = 0;
   },
 
   startLoop() {
@@ -926,7 +918,7 @@ const FieldHud = {
       this.checkTerms();
       this.patchAvcBalance();
       this.startLoop();
-      this.ensureBrain();
+      setTimeout(() => this.ensureBrain(), 2800);
       this.patchSuperCli();
       this.bindFieldMiner();
       this._retryPatches();
@@ -950,7 +942,7 @@ const FieldHud = {
       this.patchSuperCli();
       this.hideCliMoney();
       this.bindFieldMiner();
-      if (!this._fieldRaf) this.startFieldRaf();
+      if (!this._fieldTimer) this.startFieldRaf();
     });
   },
 
