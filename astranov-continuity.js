@@ -34,7 +34,7 @@
  * =============================================================================
  */
 const AstranovContinuity = {
-  version: '20260711210000-spec-cleanup',
+  version: '20260711220000-perf-rescue',
   updated: '2026-07-14',
 
   /**
@@ -170,10 +170,10 @@ const AstranovContinuity = {
       owner: 'astranov-field-hud.js',
       selectors: ['#field-radar', '#field-radar-canvas', '#field-radar-speed', '#fsh-mode'],
       behavior: [
-        'Radar sweep drawn on canvas; throttled ~18fps (not 60) for perf',
-        'Earth spin: FieldHud.EARTH_ROTATION_KMH = 1671; tickEarthSpin via earth RAF',
-        'ensureBrain uses scheduleBrain/whenReady — does not force immediate deferred',
-        'FieldHud.boot: injectDom, radar RAF, patchSuperCli hide duplicate AVC chip',
+        'Radar sweep on canvas ~12fps via unified startFieldRaf (no separate earth RAF)',
+        'Earth spin: EarthRealism.tick in animate(); speed HUD shows EARTH_ROTATION_KMH 1671',
+        'FieldHud.boot deferred ~1.8s via requestIdleCallback after DOM ready',
+        'drawRadar: no shadowBlur, 8 trail steps; field RAF pauses when hidden or city map',
       ],
     },
 
@@ -184,10 +184,12 @@ const AstranovContinuity = {
         'NO setTimeout(LazyModules.ensure, 400) on boot — removed',
         'Boot uses LazyModules.whenReady for EarthRealism, CityMap, GlobeEntity, scenarios',
         'perf-lazy patches ensure: delays until SlumberManager.deferredDelay OR _lazyUserReady',
-        'First user pointerdown/keydown/click sets _lazyUserReady → immediate ensure',
-        'BrainNeurons.boot deduped via _perfDeduped wrap',
-        'CodersHub: _pingLabs ONLY when user opens panel (not on init)',
-        'mpp-tile + field-hud retry intervals capped 8×800ms',
+        'First user tap sets _lazyUserReady → immediate ensure + ensureBrain',
+        'ensureBrain deferred 2.8s+ until user tap or timeout; BrainNeurons.boot deduped',
+        'Mobile DPR capped at 1.0 via perf-lazy after SlumberManager init',
+        'animate: skip frames when tab hidden; MarketplaceDeliveryEngine.tick every 3 frames only if active',
+        'mpp-tile patches on DOMContentLoaded only — no whenReady on load',
+        'field-hud retry capped 5×1200ms',
       ],
       doNotRemove: ['astranov-perf-lazy.js script tag before field-hud', 'whenReady', 'scheduleBrain'],
     },
