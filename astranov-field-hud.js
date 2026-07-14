@@ -338,6 +338,10 @@ const FieldHud = {
     const bal = document.createElement('div');
     bal.id = 'field-balance-hud';
     bal.setAttribute('aria-live', 'polite');
+    bal.setAttribute('role', 'button');
+    bal.setAttribute('tabindex', '0');
+    bal.setAttribute('title', 'SpaceNet field · tap for miner rig, balances & mesh');
+    bal.setAttribute('aria-label', 'SpaceNet field · open miner rig and earnings');
     bal.innerHTML = '<div class="fbh-title">◎ SpaceNet</div>'
       + '<div class="fbh-row fbh-bal"><span id="fbh-avc">— AVC</span></div>'
       + '<div class="fbh-row fbh-fiat"><span id="fbh-eur">€—</span><span id="fbh-usd">$—</span></div>'
@@ -398,10 +402,13 @@ const FieldHud = {
     st.textContent = [
       '#aci-avc{display:none!important}',
       '#zoom-tier-dots{display:none!important}',
-      '#field-balance-hud{position:fixed;top:10px;right:10px;z-index:42;pointer-events:none;',
-      'font:11px/1.35 ui-monospace,monospace;text-align:right;padding:8px 10px;border-radius:10px;',
+      '#field-balance-hud{position:fixed;top:10px;right:10px;z-index:42;pointer-events:auto;cursor:pointer;',
+      'touch-action:manipulation;font:11px/1.35 ui-monospace,monospace;text-align:right;padding:8px 10px;border-radius:10px;',
       'background:rgba(0,8,20,.62);border:1px solid rgba(0,221,119,.35);',
-      'box-shadow:0 0 14px rgba(0,221,119,.2),inset 0 0 20px rgba(0,221,119,.04)}',
+      'box-shadow:0 0 14px rgba(0,221,119,.2),inset 0 0 20px rgba(0,221,119,.04);',
+      'transition:box-shadow .2s,border-color .2s,transform .12s}',
+      '#field-balance-hud.mining-active{box-shadow:0 0 18px rgba(0,255,153,.45);border-color:#00ff99}',
+      '#field-balance-hud:active{transform:scale(0.98)}',
       '.fbh-title{font-size:9px;font-weight:700;letter-spacing:.12em;color:#7ec8ff;opacity:.85;margin-bottom:4px}',
       '#fbh-avc{display:block;font-size:15px;font-weight:800;color:#00ff99;text-shadow:0 0 10px rgba(0,255,153,.55)}',
       '.fbh-fiat{display:flex;gap:8px;justify-content:flex-end;margin-top:2px}',
@@ -933,7 +940,7 @@ const FieldHud = {
       this.startLoop();
       this.startEarthRaf();
       this.patchSuperCli();
-      this.bindMinerCli();
+      this.bindFieldMiner();
       this._retryPatches();
     } catch (e) { console.error('[FieldHud]', e); }
   },
@@ -946,16 +953,16 @@ const FieldHud = {
       this.patchSuperCli();
       this.patchAvcBalance();
       this.migrateSpeedHud();
-      this.bindMinerCli();
+      this.bindFieldMiner();
       if (!document.getElementById('field-radar')) this.injectDom();
-      const ok = document.getElementById('field-radar') && document.getElementById('aci-miner');
+      const ok = document.getElementById('field-radar') && document.getElementById('field-balance-hud')?._minerBound;
       if (ok || n >= 8) clearInterval(t);
     }, 800);
     window.addEventListener('load', () => {
       this.ensureBrain();
       this.patchSuperCli();
       this.hideCliMoney();
-      this.bindMinerCli();
+      this.bindFieldMiner();
       if (!this._radarRaf) this.startRadarRaf();
     });
   },
@@ -973,11 +980,11 @@ const FieldHud = {
   },
 
   syncMinerChip() {
-    const chip = document.getElementById('aci-miner-rate');
     const m = SpaceNetMiner;
-    if (chip) chip.textContent = m._mineRate.toFixed(3) + ' AVC/h';
-    const btn = document.getElementById('aci-miner');
-    if (btn) btn.classList.toggle('active', m._termsOk && m._mineRate > 0.003);
+    const hud = document.getElementById('field-balance-hud');
+    if (hud) hud.classList.toggle('mining-active', m._termsOk && m._mineRate > 0.003);
+    const rate = document.getElementById('fbh-mine-rate');
+    if (rate) rate.textContent = m._mineRate.toFixed(3) + ' AVC/h';
   },
 
   refreshMinerPanel() {
@@ -1017,37 +1024,50 @@ const FieldHud = {
     panel.hidden = true;
   },
 
-  bindMinerCli() {
-    const btn = document.getElementById('aci-miner');
-    if (!btn || btn._minerBound) return;
-    btn._minerBound = true;
-    btn.addEventListener('click', e => {
+  bindFieldMiner() {
+    if (!this._minerPanelBound) {
+      this._minerPanelBound = true;
+      const panel = document.getElementById('miner-rig-panel');
+      document.getElementById('mrp-close')?.addEventListener('click', () => this.closeMinerPanel());
+      panel?.addEventListener('click', e => { if (e.target === panel) this.closeMinerPanel(); });
+      document.querySelectorAll('.mrp-toggle[data-mrp]').forEach(tog => {
+        if (tog._mrpBound) return;
+        tog._mrpBound = true;
+        tog.addEventListener('click', e => {
+          e.stopPropagation();
+          const prefs = this._minerPrefs();
+          const k = tog.dataset.mrp;
+          prefs[k] = !prefs[k];
+          this._saveMinerPrefs(prefs);
+          tog.classList.toggle('on', prefs[k]);
+          tog.setAttribute('aria-pressed', prefs[k] ? 'true' : 'false');
+          AciCli?.print?.('miner · ' + k + ' ' + (prefs[k] ? 'on' : 'off'), 'ok');
+        });
+      });
+      document.getElementById('mrp-start')?.addEventListener('click', () => {
+        if (!SpaceNetMiner._termsOk) SpaceNetMiner.acceptTerms();
+        else this.closeMinerPanel();
+        this.refreshMinerPanel();
+        ACIControl?.reply?.('SpaceNet miner rig · earning AVC on your devices');
+      });
+    }
+    const hud = document.getElementById('field-balance-hud');
+    if (!hud || hud._minerBound) return;
+    hud._minerBound = true;
+    if (!hud.getAttribute('role')) {
+      hud.setAttribute('role', 'button');
+      hud.setAttribute('tabindex', '0');
+      hud.setAttribute('title', 'SpaceNet field · tap for miner rig, balances & mesh');
+      hud.setAttribute('aria-label', 'SpaceNet field · open miner rig and earnings');
+    }
+    const open = e => {
       e.preventDefault();
       e.stopPropagation();
       this.openMinerPanel();
-    });
-    const panel = document.getElementById('miner-rig-panel');
-    document.getElementById('mrp-close')?.addEventListener('click', () => this.closeMinerPanel());
-    panel?.addEventListener('click', e => { if (e.target === panel) this.closeMinerPanel(); });
-    document.querySelectorAll('.mrp-toggle[data-mrp]').forEach(tog => {
-      if (tog._mrpBound) return;
-      tog._mrpBound = true;
-      tog.addEventListener('click', e => {
-        e.stopPropagation();
-        const prefs = this._minerPrefs();
-        const k = tog.dataset.mrp;
-        prefs[k] = !prefs[k];
-        this._saveMinerPrefs(prefs);
-        tog.classList.toggle('on', prefs[k]);
-        tog.setAttribute('aria-pressed', prefs[k] ? 'true' : 'false');
-        AciCli?.print?.('miner · ' + k + ' ' + (prefs[k] ? 'on' : 'off'), 'ok');
-      });
-    });
-    document.getElementById('mrp-start')?.addEventListener('click', () => {
-      if (!SpaceNetMiner._termsOk) SpaceNetMiner.acceptTerms();
-      else this.closeMinerPanel();
-      this.refreshMinerPanel();
-      ACIControl?.reply?.('SpaceNet miner rig · earning AVC on your devices');
+    };
+    hud.addEventListener('click', open);
+    hud.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.openMinerPanel(); }
     });
   },
 };
