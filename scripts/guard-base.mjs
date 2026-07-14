@@ -41,6 +41,15 @@ if (!html.includes('menu-profile-post-tile')) warn('#menu-profile-post-tile miss
 if (!html.includes('aci-video-call')) warn('#aci-video-call missing — video call CLI');
 if (html.includes('miner-cli-strip') || html.includes('id="aci-miner"')) warn('CLI miner strip present — use #field-balance-hud tap only');
 if (!html.includes('field-balance-hud') && !html.includes('astranov-field-hud.js')) warn('field HUD / miner field entry may be broken');
+if (html.includes('miner-cli-strip') || html.includes('id="aci-miner"')) warn('deprecated CLI miner strip in index');
+for (const md of ['CLAUDE.md', 'ASTRANOV_GROK_SPECS.md']) {
+  try {
+    const t = fs.readFileSync(path.join(ROOT, md), 'utf8');
+    if (/triangle of truth|recycle into.*GROK_SPECS|index\.html only/i.test(t) && !t.includes('astranov-continuity')) {
+      warn(`${md} still cites old spec triangle — point to astranov-continuity.js`);
+    }
+  } catch (_) {}
+}
 
 try {
   const vercel = JSON.parse(fs.readFileSync(VERCEL, 'utf8'));
