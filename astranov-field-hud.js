@@ -111,7 +111,9 @@ const SpaceNetMiner = {
   },
 
   canAcceptWork() {
-    return this._termsOk && FieldHud.deviceLoad() < 0.65;
+    if (!this._termsOk || FieldHud.deviceLoad() >= 0.65) return false;
+    const prefs = FieldHud?._minerPrefs?.() || {};
+    return ['cpu', 'ram', 'storage', 'bandwidth'].some(k => prefs[k] !== false);
   },
 
   offerWork() {
@@ -201,13 +203,20 @@ const SpaceNetMiner = {
 
   computeRate() {
     if (!this._termsOk) return 0;
+    const prefs = FieldHud?._minerPrefs?.() || {};
+    const anyRes = ['cpu', 'ram', 'storage', 'bandwidth'].some(k => prefs[k] !== false);
+    if (!anyRes) return 0;
     const load = FieldHud.deviceLoad();
     if (load > 0.7) return 0;
     let rate = this.BASE_RATE * (1 - load);
-    const resSum = this._rates.cpu / 100 + this._rates.ram / 512 + this._rates.storage / 128 + this._rates.bandwidth / 1024;
+    let resSum = 0;
+    if (prefs.cpu !== false) resSum += this._rates.cpu / 100;
+    if (prefs.ram !== false) resSum += this._rates.ram / 512;
+    if (prefs.storage !== false) resSum += this._rates.storage / 128;
+    if (prefs.bandwidth !== false) resSum += this._rates.bandwidth / 1024;
     rate *= 0.6 + Math.min(1.4, resSum);
     rate += this._peerCount * this.PEER_BONUS;
-    if (FieldHud.isSleepMode()) rate *= this.SLEEP_MULT;
+    if (prefs.sleep !== false && FieldHud.isSleepMode()) rate *= this.SLEEP_MULT;
     else if (load > 0.3) rate *= 0.4;
     return Math.max(0, rate);
   },
@@ -298,6 +307,7 @@ const SpaceNetMiner = {
       this.saveSession();
     }
     this.renderHud();
+    FieldHud?.syncMinerChip?.();
     return this._mineRate;
   },
 };
@@ -907,6 +917,7 @@ const FieldHud = {
       this.startLoop();
       this.startEarthRaf();
       this.patchSuperCli();
+      this.bindMinerCli();
       this._retryPatches();
     } catch (e) { console.error('[FieldHud]', e); }
   },
@@ -919,6 +930,7 @@ const FieldHud = {
       this.patchSuperCli();
       this.patchAvcBalance();
       this.migrateSpeedHud();
+      this.bindMinerCli();
       if (!document.getElementById('field-radar')) this.injectDom();
       if (n > 40) clearInterval(t);
     }, 500);
@@ -926,7 +938,99 @@ const FieldHud = {
       this.ensureBrain();
       this.patchSuperCli();
       this.hideCliMoney();
+      this.bindMinerCli();
       if (!this._radarRaf) this.startRadarRaf();
+    });
+  },
+
+  _minerPrefs() {
+    try {
+      const raw = localStorage.getItem('astranov:miner-rig-prefs');
+      if (raw) return JSON.parse(raw);
+    } catch (_) {}
+    return { cpu: true, ram: true, storage: true, bandwidth: true, sleep: true };
+  },
+
+  _saveMinerPrefs(p) {
+    try { localStorage.setItem('astranov:miner-rig-prefs', JSON.stringify(p)); } catch (_) {}
+  },
+
+  syncMinerChip() {
+    const chip = document.getElementById('aci-miner-rate');
+    const m = SpaceNetMiner;
+    if (chip) chip.textContent = m._mineRate.toFixed(3) + ' AVC/h';
+    const btn = document.getElementById('aci-miner');
+    if (btn) btn.classList.toggle('active', m._termsOk && m._mineRate > 0.003);
+  },
+
+  refreshMinerPanel() {
+    const m = SpaceNetMiner;
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('mrp-rate', m._mineRate.toFixed(3) + ' AVC/h');
+    set('mrp-earned', '+' + m._sessionEarned.toFixed(3));
+    set('mrp-peers', String(m._peerCount || 0));
+    const bal = window.AvcBalance?._last;
+    set('mrp-avc', bal != null ? bal.toFixed(2) + ' AVC' : '— AVC');
+    const prefs = this._minerPrefs();
+    document.querySelectorAll('.mrp-toggle[data-mrp]').forEach(btn => {
+      const on = !!prefs[btn.dataset.mrp];
+      btn.classList.toggle('on', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    const start = document.getElementById('mrp-start');
+    if (start) {
+      start.textContent = m._termsOk ? 'Mining active · adjust & close' : 'I agree · start earning AVC';
+    }
+    this.syncMinerChip();
+  },
+
+  openMinerPanel() {
+    const panel = document.getElementById('miner-rig-panel');
+    if (!panel) return;
+    panel.hidden = false;
+    panel.classList.add('open');
+    this.refreshMinerPanel();
+    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+  },
+
+  closeMinerPanel() {
+    const panel = document.getElementById('miner-rig-panel');
+    if (!panel) return;
+    panel.classList.remove('open');
+    panel.hidden = true;
+  },
+
+  bindMinerCli() {
+    const btn = document.getElementById('aci-miner');
+    if (!btn || btn._minerBound) return;
+    btn._minerBound = true;
+    btn.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.openMinerPanel();
+    });
+    const panel = document.getElementById('miner-rig-panel');
+    document.getElementById('mrp-close')?.addEventListener('click', () => this.closeMinerPanel());
+    panel?.addEventListener('click', e => { if (e.target === panel) this.closeMinerPanel(); });
+    document.querySelectorAll('.mrp-toggle[data-mrp]').forEach(tog => {
+      if (tog._mrpBound) return;
+      tog._mrpBound = true;
+      tog.addEventListener('click', e => {
+        e.stopPropagation();
+        const prefs = this._minerPrefs();
+        const k = tog.dataset.mrp;
+        prefs[k] = !prefs[k];
+        this._saveMinerPrefs(prefs);
+        tog.classList.toggle('on', prefs[k]);
+        tog.setAttribute('aria-pressed', prefs[k] ? 'true' : 'false');
+        AciCli?.print?.('miner · ' + k + ' ' + (prefs[k] ? 'on' : 'off'), 'ok');
+      });
+    });
+    document.getElementById('mrp-start')?.addEventListener('click', () => {
+      if (!SpaceNetMiner._termsOk) SpaceNetMiner.acceptTerms();
+      else this.closeMinerPanel();
+      this.refreshMinerPanel();
+      ACIControl?.reply?.('SpaceNet miner rig · earning AVC on your devices');
     });
   },
 };
