@@ -4,3 +4,7 @@ supabase/.temp/
 src/.assembled-check.js
 scripts/.coders-bridge-secret
 scripts/.owner-token-cache
+scripts/.chrome-probe-*/
+.syntax-check.js
+index.restored.html
+.grok/
