@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260711160000-perf-lazy" />
+<meta name="astranov-build" content="20260711180000-field-miner" />
 <meta name="astranov-globe-physics" content="locked-v20260710241000-never-change" />
 <meta name="astranov-mission" content="SpaceNet: collective intelligence connecting everything into one — no satellites needed to communicate" />
 <meta name="astranov-base-lock" content="monolith-no-bootstrap-globe-deck-cli-no-circles-guard-base-mjs" />
@@ -21,7 +21,7 @@
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
-<link rel="preload" href="/astranov-app.js?v=20260711160000-perf-lazy" as="script" />
+<link rel="preload" href="/astranov-app.js?v=20260711180000-field-miner" as="script" />
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
@@ -294,10 +294,7 @@
   #cli-ribbon-status.hold { color:var(--ax-yellow-bright); text-shadow:0 0 8px var(--ax-yellow-glow); }
   #cli-ribbon-status.ready { color:var(--ax-green-bright); text-shadow:0 0 8px var(--ax-green-glow); }
   @keyframes cli-think-glow { 0%,100%{ opacity:0.85; } 50%{ opacity:1; text-shadow:0 0 12px var(--ax-blue-glow); } }
-  #miner-cli-strip { display:flex; align-items:center; gap:6px; padding:4px 8px 2px; border-bottom:1px solid rgba(0,221,119,0.22); background:linear-gradient(180deg,rgba(0,18,40,0.82),rgba(4,14,32,0.55)); flex-shrink:0; }
-  #miner-cli-strip #aci-miner { display:inline-flex !important; align-items:center; justify-content:center; gap:5px; min-width:auto; width:auto; height:30px; padding:0 12px; border-radius:999px; border:1px solid var(--ax-green-border); background:var(--ax-green-bg); color:var(--ax-green-bright); font-size:11px; font-weight:800; cursor:pointer; touch-action:manipulation; box-shadow:0 0 10px rgba(0,221,119,0.25); }
-  #miner-cli-strip #aci-miner.active { box-shadow:0 0 16px var(--ax-green-glow); border-color:#00ff99; color:#fff; }
-  #miner-cli-strip #aci-miner .miner-rate { font:700 9px/1 ui-monospace,monospace; opacity:0.9; }
+
   #super-cli-bar button:not(#aci-login):not(#super-add-fab):not(#aci-video-call):not(#aci-handsfree):not(#aci-avc):not(.app-shortcut-btn) { display:none !important; }
   #super-cli-bar #aci-video-call { display:inline-flex !important; width:34px; height:34px; font-size:15px; border-radius:50%; border:1px solid rgba(100,200,255,0.45); background:rgba(0,40,80,0.55); color:#8ec8ff; cursor:pointer; flex-shrink:0; align-items:center; justify-content:center; touch-action:manipulation; box-shadow:0 0 8px rgba(100,200,255,0.25); }
   #super-cli-bar #aci-video-call:active { transform:scale(0.94); }
@@ -1124,9 +1121,6 @@
         <span id="globe-deck-title">Astranov Command Line</span>
         <span id="globe-deck-preview"></span>
       </div>
-      <div id="miner-cli-strip">
-        <button id="aci-miner" type="button" title="SpaceNet miner — device rig &amp; earnings"><span>⛏ Miner</span><span class="miner-rate" id="aci-miner-rate">0 AVC/h</span></button>
-      </div>
       <div id="super-cli-bar">
         <button id="aci-login" title="Sign in with Google" type="button">G</button>
         <button id="aci-avc" class="app-shortcut-btn" type="button" title="AVC balance · tap for wallet" aria-live="polite"><span class="avc-emoji">◎</span><span class="avc-core">— AVC</span><span class="avc-fiat"><span class="avc-eur">€…</span><span class="avc-usd">$…</span></span></button>
@@ -1266,10 +1260,10 @@
   window._instantShellUnlock=unlock;
 })();
 </script>
-<script defer src="/astranov-app.js?v=20260711160000-perf-lazy"></script>
-<script defer src="/astranov-perf-lazy.js?v=20260711160000-perf-lazy"></script>
-<script defer src="/astranov-galactic-sky.js?v=20260711160000-perf-lazy"></script>
-<script defer src="/astranov-field-hud.js?v=20260711160000-perf-lazy"></script>
-<script defer src="/astranov-mpp-tile.js?v=20260711160000-perf-lazy"></script>
+<script defer src="/astranov-app.js?v=20260711180000-field-miner"></script>
+<script defer src="/astranov-perf-lazy.js?v=20260711180000-field-miner"></script>
+<script defer src="/astranov-galactic-sky.js?v=20260711180000-field-miner"></script>
+<script defer src="/astranov-field-hud.js?v=20260711180000-field-miner"></script>
+<script defer src="/astranov-mpp-tile.js?v=20260711180000-field-miner"></script>
 </body>
 </html>
