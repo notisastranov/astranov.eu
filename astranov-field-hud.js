@@ -1,6 +1,6 @@
 // === FIELD HUD — top-right balances/mining · left radar · center speed ===
 // AI HANDOFF: see astranov-continuity.js → features.minerRig, fieldHudRadar, aiBrain.
-// Miner: tap #field-balance-hud → #miner-rig-panel (NO #aci-miner CLI strip). Radar ~18fps.
+// Miner: tap #field-balance-hud → #miner-rig-panel (NO #aci-miner CLI strip). Radar ~12fps unified RAF.
 // bindFieldMiner · ensureBrain/scheduleBrain · SpaceNetMiner prefs astranov:miner-rig-prefs.
 // SpaceNet miner: SETI-style decentralised P2P · CPU · RAM · storage · bandwidth
 const SpaceNetMiner = {
@@ -648,16 +648,10 @@ const FieldHud = {
     }
   },
 
-  startEarthRaf() {
-    if (this._earthRaf) return;
-    const step = () => {
-      if (this.isGlobalEarthView() || ((window.CosmicZoom?.level || 'earth') === 'earth'
-        && (window.camera?.position?.z ?? 3) < 5 && !window.CityMap?.active)) {
-        this.tickEarthSpin();
-      }
-      this._earthRaf = requestAnimationFrame(step);
-    };
-    this._earthRaf = requestAnimationFrame(step);
+  stopFieldRaf() {
+    if (!this._fieldRaf) return;
+    cancelAnimationFrame(this._fieldRaf);
+    this._fieldRaf = 0;
   },
 
   speedLimitKmh() {
@@ -687,7 +681,6 @@ const FieldHud = {
     } else if (this.isGlobalEarthView()) {
       kmh = this.earthRotationKmh();
       earthSpin = true;
-      if (!this._earthRaf) this.tickEarthSpin();
       if (mode) { mode.textContent = 'EARTH'; mode.style.position = 'absolute'; mode.style.top = '6px'; mode.style.left = '8px'; }
     } else if (window.CityMap?.active && window.DrivingView?.speed > 0) {
       kmh = Math.round((window.DrivingView.speed || 0) * 3.6);
@@ -791,13 +784,13 @@ const FieldHud = {
 
     ctx.save();
     ctx.translate(cx, cy);
-    const trailSteps = 18;
-    const trailSpan = 0.55;
+    const trailSteps = 8;
+    const trailSpan = 0.45;
     for (let i = trailSteps; i >= 0; i--) {
       const t = i / trailSteps;
       const angle = sweep - t * trailSpan;
-      const alpha = (1 - t) * 0.28;
-      const spread = 0.06 + t * 0.22;
+      const alpha = (1 - t) * 0.22;
+      const spread = 0.05 + t * 0.18;
       ctx.save();
       ctx.rotate(angle);
       ctx.beginPath();
@@ -810,15 +803,12 @@ const FieldHud = {
     }
     ctx.save();
     ctx.rotate(sweep);
-    ctx.strokeStyle = 'rgba(0,240,255,0.85)';
+    ctx.strokeStyle = 'rgba(0,240,255,0.8)';
     ctx.lineWidth = 1.5;
-    ctx.shadowColor = 'rgba(0,220,255,0.9)';
-    ctx.shadowBlur = 8;
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.lineTo(0, -r);
     ctx.stroke();
-    ctx.shadowBlur = 0;
     ctx.restore();
     ctx.restore();
 
@@ -829,12 +819,9 @@ const FieldHud = {
       const px = cx + Math.cos(rad) * r * dist * 0.92;
       const py = cy - Math.sin(rad) * r * dist * 0.92;
       ctx.fillStyle = colors[t.kind] || '#88ccff';
-      ctx.shadowColor = ctx.fillStyle;
-      ctx.shadowBlur = 6;
       ctx.beginPath();
       ctx.arc(px, py, 3, 0, Math.PI * 2);
       ctx.fill();
-      ctx.shadowBlur = 0;
     });
     ctx.fillStyle = 'rgba(0,200,255,0.15)';
     ctx.beginPath();
@@ -858,39 +845,38 @@ const FieldHud = {
     const now = Date.now();
     const dt = now - (this._lastTick || now);
     this._lastTick = now;
-    this.updateSpeed();
     void this.tickMiner(dt);
-    this.refreshRadarTargets();
   },
 
-  startRadarRaf() {
-    if (this._radarRaf) return;
-    const drawInterval = 1000 / 18;
+  startFieldRaf() {
+    if (this._fieldRaf) return;
+    const drawInterval = 1000 / 12;
     let last = performance.now();
     let lastDraw = 0;
     let lastSpeed = 0;
     const step = (now) => {
+      this._fieldRaf = requestAnimationFrame(step);
+      if (document.hidden || window.CityMap?.active) return;
       const dt = Math.min(48, now - last);
       last = now;
-      this._sweepAngle += (Math.PI * 2 / this.SWEEP_PERIOD_MS) * dt;
+      this._sweepAngle = (this._sweepAngle || 0) + (Math.PI * 2 / this.SWEEP_PERIOD_MS) * dt;
       if (this._sweepAngle > Math.PI * 2) this._sweepAngle -= Math.PI * 2;
-      if (!document.hidden && now - lastDraw >= drawInterval) {
+      if (now - lastDraw >= drawInterval) {
         lastDraw = now;
         this.drawRadar(this._sweepAngle);
       }
-      if (now - lastSpeed >= 220) {
+      if (now - lastSpeed >= 300) {
         lastSpeed = now;
         this.updateSpeed();
       }
-      this._radarRaf = requestAnimationFrame(step);
     };
-    this._radarRaf = requestAnimationFrame(step);
+    this._fieldRaf = requestAnimationFrame(step);
   },
 
   startLoop() {
     if (this._loop) return;
-    this._loop = setInterval(() => this.tick(), 500);
-    this.startRadarRaf();
+    this._loop = setInterval(() => this.tick(), 1000);
+    this.startFieldRaf();
     this.migrateSpeedHud();
   },
 
@@ -939,9 +925,8 @@ const FieldHud = {
       SpaceNetMiner.detectCaps();
       this.checkTerms();
       this.patchAvcBalance();
-      this.ensureBrain();
       this.startLoop();
-      this.startEarthRaf();
+      this.ensureBrain();
       this.patchSuperCli();
       this.bindFieldMiner();
       this._retryPatches();
@@ -959,14 +944,13 @@ const FieldHud = {
       this.bindFieldMiner();
       if (!document.getElementById('field-radar')) this.injectDom();
       const ok = document.getElementById('field-radar') && document.getElementById('field-balance-hud')?._minerBound;
-      if (ok || n >= 8) clearInterval(t);
-    }, 800);
+      if (ok || n >= 5) clearInterval(t);
+    }, 1200);
     window.addEventListener('load', () => {
-      this.ensureBrain();
       this.patchSuperCli();
       this.hideCliMoney();
       this.bindFieldMiner();
-      if (!this._radarRaf) this.startRadarRaf();
+      if (!this._fieldRaf) this.startFieldRaf();
     });
   },
 
@@ -1075,9 +1059,20 @@ const FieldHud = {
   },
 };
 
-function fieldHudBoot() { try { FieldHud.boot(); } catch (e) { console.error('[FieldHud boot]', e); } }
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fieldHudBoot);
-else fieldHudBoot();
-window.addEventListener('load', () => fieldHudBoot());
+function scheduleFieldHudBoot() {
+  if (window._fieldHudBootScheduled) return;
+  window._fieldHudBootScheduled = true;
+  const run = () => { try { FieldHud.boot(); } catch (e) { console.error('[FieldHud boot]', e); } };
+  const bootAt = window._bootAt || Date.now();
+  const base = Math.max(1800, window.SlumberManager?.deferredDelay?.() ?? 2000);
+  const wait = Math.max(1200, base - (Date.now() - bootAt) + 500);
+  const go = () => {
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 1600 });
+    else setTimeout(run, 60);
+  };
+  setTimeout(go, wait);
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scheduleFieldHudBoot);
+else scheduleFieldHudBoot();
 window.FieldHud = FieldHud;
 window.AstranovMiner = SpaceNetMiner;
