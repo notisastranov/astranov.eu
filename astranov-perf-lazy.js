@@ -1,4 +1,6 @@
 // === PERF LAZY — defer 574KB pack until idle/user · dedupe brain boot ===
+// AI HANDOFF: see astranov-continuity.js → features.perfLazyBoot. Patches LazyModules.ensure/
+// whenReady; _lazyUserReady on first tap. Never re-add boot setTimeout(ensure, 400).
 (function perfLazyBoot() {
   const LM = window.LazyModules;
   if (!LM || LM._perfLazy) return;
