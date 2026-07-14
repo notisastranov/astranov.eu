@@ -1,6 +1,6 @@
 ﻿// === MENU-PROFILE-POST TILE â€” + button Â· draggable Â· map pin Â· profile Â· order Â· driver Â· lust post ===
 (function loadHudModules() {
-  var v = '20260710970000-spacenet-miner';
+  var v = '20260711000000-hotfix';
   if (!window.GalacticSky) {
     var g = document.createElement('script');
     g.src = '/astranov-galactic-sky.js?v=' + v;
@@ -56,11 +56,87 @@ const MenuProfilePostTile = {
       void this.saveDriverSchedule(e.target.value);
     });
     this._bindTileDrag(tile);
-    document.getElementById('super-add-fab')?.addEventListener('click', e => {
+    this._bindPlusFab();
+  },
+
+  _closeSuperAddDeck() {
+    window.SuperAdd?.hide?.();
+    document.getElementById('globe-super-add')?.classList.remove('open', 'deck-active');
+  },
+
+  _bindPlusFab() {
+    const fab = document.getElementById('super-add-fab');
+    if (!fab || fab._mppPlusBound) return;
+    fab._mppPlusBound = true;
+    fab.addEventListener('click', e => {
       e.preventDefault();
       e.stopPropagation();
+      e.stopImmediatePropagation();
+      this._closeSuperAddDeck();
       this.openPlusField();
     }, { capture: true });
+    const openPlus = () => {
+      this._closeSuperAddDeck();
+      this.openPlusField();
+    };
+    fab.onclick = e => {
+      e.preventDefault();
+      e.stopPropagation();
+      openPlus();
+    };
+    const sc = window.SuperCli;
+    if (sc && !sc._mppPlusPatched) {
+      sc._mppPlusPatched = true;
+      const _bind = sc.bindToolbar?.bind(sc);
+      if (_bind) {
+        sc.bindToolbar = function() {
+          _bind();
+          const el = document.getElementById('super-add-fab');
+          if (el) el.onclick = e => { e.preventDefault(); e.stopPropagation(); openPlus(); };
+        };
+      }
+      const _run = sc.run?.bind(sc);
+      if (_run) {
+        sc.run = async function(cmd, opts) {
+          const low = String(cmd || '').trim().toLowerCase();
+          if (low === 'add' || low === 'post' || low === 'superadd') {
+            openPlus();
+            sc.setContext?.('add');
+            return;
+          }
+          return _run(cmd, opts);
+        };
+      }
+    }
+  },
+
+  _patchSuperAdd() {
+    const SA = window.SuperAdd;
+    if (!SA || SA._mppPatched) return !!SA;
+    SA._mppPatched = true;
+    const self = this;
+    const _open = SA.open?.bind(SA);
+    SA.open = function(opts) {
+      if (opts?.camera || opts?.media) {
+        self._closeSuperAddDeck();
+        if (_open) return _open(opts);
+        return;
+      }
+      self.openPlusField();
+    };
+    const _show = SA.showPanel?.bind(SA);
+    SA.showPanel = function() {
+      self._closeSuperAddDeck();
+      self.openPlusField();
+    };
+    const _init = SA.init?.bind(SA);
+    if (_init) {
+      SA.init = function() {
+        _init();
+        self._bindPlusFab();
+      };
+    }
+    return true;
   },
 
   _bindTileDrag(tile) {
@@ -190,6 +266,8 @@ const MenuProfilePostTile = {
   },
 
   openPlusField() {
+    this.init();
+    this._closeSuperAddDeck();
     GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
     const pos = window._lastPos || CityMap?.globeCenterLatLng?.() || TrackballGuard?.facingLatLng?.() || { lat: 36.44, lng: 28.22 };
     this.openAt(pos.lat, pos.lng);
@@ -198,6 +276,7 @@ const MenuProfilePostTile = {
   openAt(lat, lng) {
     if (lat == null || lng == null) return;
     this.init();
+    this._closeSuperAddDeck();
     MapPlaceMenu?.close?.();
     VendorMapTile?.close?.();
     this._pin = { lat, lng };
@@ -355,6 +434,20 @@ window.MenuProfilePostTile = MenuProfilePostTile;
 
 
 function mppPatchBoot() {
+  MenuProfilePostTile._bindPlusFab();
+  MenuProfilePostTile._patchSuperAdd();
+  let n = 0;
+  const retry = setInterval(() => {
+    n++;
+    MenuProfilePostTile._bindPlusFab();
+    MenuProfilePostTile._patchSuperAdd();
+    if (n > 60) clearInterval(retry);
+  }, 500);
+  window.addEventListener('load', () => {
+    MenuProfilePostTile._bindPlusFab();
+    MenuProfilePostTile._patchSuperAdd();
+    void window.LazyModules?.ensure?.().then(() => MenuProfilePostTile._patchSuperAdd());
+  });
   if (window.FieldBrain && !FieldBrain.goOfflineDriver) {
     FieldBrain.goOfflineDriver = async function() {
       if (!Auth?.user) return { error: 'login' };
