@@ -1,230 +1,43 @@
-# Astranov SpaceNet System — Mission & Base Lock
+# Astranov SpaceNet — Mission (vision only)
 
-**Date solidified:** 2026-07-10  
-**Recycled from:** all owner sessions, Grok Build recovery, Claude/Codex/Cursor threads, user corrections  
-**Authority:** Notis Astranov · notisastranov@gmail.com  
-**Live:** https://astranov.eu · **Repo:** notisastranov/astranov.eu
+**Authority for features / UI / deploy:** `astranov-continuity.js` + `CLAUDE.md`  
+**Superseded:** long incident logs and chat-recycling into `ASTRANOV_GROK_SPECS.md` (2026-07-14)
 
 ---
 
-## The Mission (one sentence)
+## Mission (one sentence)
 
-**Unify all internet activity and code under as realistic as possible space imagery — solar system → planet → nation → city → street — and evolve the internet into SpaceNet.**
-
-SpaceNet is not a skin on the old web. It is a **single navigable cosmos** where every service, person, vendor, message, and program has a **real place** in space and scale. Zoom is navigation. The globe is the OS surface.
+Unify internet activity under realistic space imagery — solar → global → national → city → street — and evolve the internet into **SpaceNet**.
 
 ---
 
-## SpaceNet Navigation Stack (invariant)
+## Navigation stack (invariant)
 
-One camera, one continuous descent. No teleport menus.
+| Tier | What binds here |
+|------|-----------------|
+| SOLAR | System-wide signals |
+| GLOBAL | World feed, AVC, Three.js Earth |
+| NATIONAL | Region map, national vendors |
+| CITY | Shops, drivers, delivery |
+| STREET | User marker, routes, voice, WebRTC |
 
-| Tier | Name | What the user sees | What binds here |
-|------|------|-------------------|-----------------|
-| 1 | **SOLAR** | Starfield, sun, planets, orbital mechanics | System-wide signals, deep space comms |
-| 2 | **GLOBAL** | Whole Earth (Three.js globe, procedural atmosphere, day/night) | World feed, global posts, AVC economy |
-| 3 | **NATIONAL** | Country/region (Leaflet, borders, national radar) | National vendors, policy, country-scale orders |
-| 4 | **CITY** | Satellite + streets (Leaflet city map) | Shops, drivers, local delivery, city life |
-| 5 | **STREET / PERSONAL** | Block-level, user marker, pilot routes | You (Αξάς), orders, voice, WebRTC, driving view |
-
-**Gesture law:** single tap / zoom **down** a tier; double-tap or back gesture **up**.  
-**Implementation:** `CosmicZoom` + `ZoomTiers` + `CityMap` in `index.html`.
+Implementation: `CosmicZoom`, `ZoomTiers`, `CityMap` (see continuity for boot/perf rules).
 
 ---
 
-## What SpaceNet Unifies
+## Principles (still true)
 
-- **Social** — posts, friends, presence on the globe (`GlobeEntity`, `NewsFeed`)
-- **Commerce** — vendors, menus, drivers, AVC payments (`Commerce`)
-- **Comms** — voice el-GR, hands-free CLI, WebRTC orbital calls, PMR radio
-- **Intelligence** — ACI collective brain (`/functions/v1/aci`), memory neurons on globe
-- **Code** — Coders bridge, owner push, Supabase edge functions
-- **Identity** — one session across `*.astranov.eu` (`Auth`, `AstranovSession`)
-- **Reality layer** — procedural graphics only (`AIGraphics`), real routing (`RoutingEngine`), real geolocation on demand
-
-All of the above must remain **attachable to a lat/lng and a zoom tier**, never orphaned in a floating panel that hides the cosmos.
+- **Realism:** procedural globe first; real geocoding/routing/orders on demand
+- **Name:** Astranov (Latin letters in UI title)
+- **No API keys** in front-end; owner via server auth
+- **Globe + globe-deck** sacred; celestial circles disabled
+- **Pre-push:** `node scripts/guard-base.mjs`
 
 ---
 
-## Base Version Lock (2026-07-10) — DO NOT DESTROY
+## Everything else
 
-This is the recovered good monolith. Every agent and every user session must treat it as **read-only architecture** unless explicitly extending the mission.
+Feature requirements (+ tile, locate, video, marketplace, miner field, perf, brain):  
+→ **`astranov-continuity.js`** `features` + `verify` + `antiPatterns`
 
-### Canonical artifact
-
-- **File:** `index.html` only (~570KB monolithic deploy)
-- **Build stamp:** `astranov-build` meta tag (current: `no-circles-globe-deck-only` lineage)
-- **Title:** `Astranov` (English letters only — never MILKED/RESTORED/troll titles)
-- **Deploy:** Vercel serves repo as-is — **NO** `bootstrap-index.mjs` on build
-
-### CSS that MUST exist (app is broken without these)
-
-```css
-#aci-hud { position:fixed; left:0; right:0; bottom:0; z-index:50; pointer-events:none; }
-#globe-deck { display:flex; flex-direction:column; pointer-events:auto; ... }
-```
-
-If either rule is deleted, users get a black globe with no CLI — **total app death**.
-
-### UI law (owner-confirmed 2026-07-10)
-
-| Element | Status |
-|---------|--------|
-| `#globe` + Three.js Earth | **Sacred** — always visible, always interactive first |
-| `#globe-deck` CLI at bottom | **Primary UI** — type, voice, wallet, apps |
-| Celestial Circles (floating balls) | **DISABLED** — owner rejected; `Circles.spawn()` is no-op |
-| `simulateACI`, fake balance ticks | **FORBIDDEN** |
-| Bootstrap shell + `/src/*.js` tags as deploy | **FORBIDDEN** on Vercel |
-
-### Incidents recycled into this lock (never repeat)
-
-1. Grok Build appended extra `<script>` blocks + `simulateACI` → syntax/runtime break  
-2. Vercel `bootstrap-index.mjs` replaced monolith with 138-byte stub  
-3. `#aci-hud` and `#globe-deck` CSS deleted → CLI invisible  
-4. JS `display:none` on `#globe-deck` → CLI hidden while init still ran  
-5. Floating celestial circles spawned without owner consent → removed  
-6. `src/20-aci.js` syntax fracture (`this.pulse` outside method) → run `node --check` always  
-
-### Pre-push gate (mandatory)
-
-```bash
-node scripts/guard-base.mjs
-```
-
-Must pass before every push to `main` and deploy to astranov.eu.
-
----
-
-## Realism Law (SpaceNet imagery)
-
-- **Procedural first:** clouds, atmosphere, city lights, effects via `AIGraphics` canvas/WebGL — no stock 3D models for core globe
-- **Real data second:** Nominatim geocoding, OSRM routes, Supabase live vendors/orders, WebRTC real media
-- **No theater:** no "roleplay", no fake ETAs, no simulated ACI responses in user paths
-- **On-demand sensors:** geolocation, mic, camera only when the action needs them (never on boot)
-
----
-
-## Identity & Voice (unchanged)
-
-- App name: **Astranov** (Latin letters in title/UI)
-- User on globe: **Αξάς** (marker-triggered voice, el-GR)
-- Pilot: **ΤΗΛΕΜΑΧΟΣ** (procedural 3D on globe)
-- Motto (optional): ΑΠΟ ΑΗΡ ΕΙΣ ΑΛΣ ΕΚ ΛΑΣ
-
----
-
-## ACI / Collective Intelligence (backend)
-
-```
-index.html → /functions/v1/aci
-  think | evolve | log | teach | stats | seed
-  → aicycle + brain + council (self_judge)
-```
-
-Founding neuron themes: GLOBAL→NATIONAL→PERSONAL, anti-hallucination, autonomous evolve, nature collective.
-
----
-
-## Deployment (mandatory after every change)
-
-1. Edit `index.html` (+ `supabase/*` if backend changed)
-2. `node scripts/guard-base.mjs` — must pass
-3. `git commit` + push `main` on notisastranov/astranov.eu
-4. Live at https://astranov.eu (Vercel project `astranov`)
-
-**Never ask owner for push permission.** Owner granted perpetual authorization.
-
----
-
-## Chat Recycling Rule (all sessions, all users, all agents)
-
-When any session clarifies vision or fixes a disaster:
-
-1. **Stop** — do not pile more code on a broken base  
-2. **Recycle** — distill the session into bullets in this file + `ASTRANOV_GROK_SPECS.md`  
-3. **Propagate** — update `CLAUDE.md` agent instructions  
-4. **Implement** — only from the updated contract  
-5. **Guard** — run `guard-base.mjs` before deploy  
-
-No fluffy handover docs. No duplicate spec files. **This file + SPECS + CLAUDE.md** are the triangle of truth.
-
----
-
-## Forward development (SpaceNet evolution)
-
-Priority order for all future work:
-
-1. **Deeper realism** — better solar system, orbital sats, day/night terminator, national borders  
-2. **Tier coherence** — smooth zoom transitions, no white flash / trap between city and globe  
-3. **Bind services to place** — every vendor, post, call, neuron at lat/lng + tier  
-4. **Edge collective** — more work on device, less datacenter babysitting (§0b Evolution Methodology)  
-5. **SpaceNet naming** — internet concepts expressed as space-native (orbital, sector, beacon, fleet)  
-
-**Never** reintroduce floating circle balls, bootstrap deploy, or delete `#aci-hud` / `#globe-deck` CSS.
-
----
-
-## SpaceNet Brain & Classified Triangles (2026-07-10)
-
-### SpaceNetBrain (`index.html`)
-
-Orchestrates collective intelligence and internet ingestion:
-
-- **classifyIntent** — local keyword scoring → top 3 triangle actions; async refine via `ai-router`  
-- **think** — `/functions/v1/aci` collective reasoning  
-- **crawlArea** — `/functions/v1/vendor-crawler` for OpenStreetMap POI ingestion at lat/lng  
-
-### Classified Triangles Menu System
-
-One-click **+** (`#spacenet-map-plus`) opens the **plus field** on the map:
-
-1. User types intent in `#ge-hud-intent`  
-2. **Top 3** triangle buttons (shop, vendor, driver base, post, photo, video, …)  
-3. **More options** expands the rest  
-
-Wired to `SuperAdd`, `MapPins`, `Commerce`, `DrivingView`, `ProfileSite`.
-
-### AstranovRoutingEngine
-
-Own routing layer on OSRM:
-
-- Scores alternatives — penalizes turns, traffic-light segments, unnamed slow roads  
-- **One-way protection** — warns when depart bearing conflicts with user heading  
-- Used by `DrivingView.fetchRoadRoute`
-
-### Marketplace Delivery Engine (2026-07-10)
-
-Decentralized delivery — **no central support** · client · vendor · driver P2P:
-
-- **MarketplaceDeliveryEngine** — triangle (driver→vendor→client) expands to **polygon** for multi-stop routes  
-- Routes use **AstranovRoutingEngine** (avoid lights, turns, one-ways) — glowing lines on globe + clickable Leaflet polylines  
-- Tap route → `#delivery-route-hud` (order data · message · video · phone)  
-- Order **not active** until assigned driver **accepts** (`driver_accept` via CLI `claim` or HUD button)  
-- **Instant AVC** — vendor + driver credited on accept (`order-intake` payouts)  
-- **Channel manager** — `channel_import` for Wolt/eFood/Uber Eats unification metadata  
-- **24/7/365** — `MarketplaceComms` + `MapComms` task polygon chat
-
-### Smooth zoom law (2026-07-10)
-
-- Wheel/pinch = **continuous** `GlobeZoom` only — `ZoomTiers.syncFromCamZ` updates labels, never snaps camera mid-scroll  
-- Double-tap / tier step = eased `_globeFly` with duration scaled to distance  
-- City map: **satellite + bright + dark** (Carto/Esri free tiles) visible from national tier via `#map-style-switch`; auto bright/dark when descending from globe
-
-### Daily support digest (2026-07-10)
-
-Automatic once-per-day notification to **both** support teams so systems improve from real field data:
-
-| Audience | Default contact | Digest |
-|----------|-----------------|--------|
-| **Astranov** | `notisastranov@gmail.com` | Full problems + mission progression |
-| **SpaceX AI / xAI** | `support@x.ai` | Sanitized Grok integration report (API, voice, coders, think/evolve) |
-
-- **MissionSupportReporter** (client) — buffers JS errors, API failures (tagged `vendor: xai` for Grok stack), and mission wins; on each new UTC day POSTs to `support-digest`
-- **`/functions/v1/support-digest`** (edge) — aggregates last 24h server + client data; sends **two** digests; stores `digests/latest.json` + `digests/xai-latest.json`
-- **Email:** `RESEND_API_KEY` → both recipients (`SUPPORT_EMAIL`, `SPACEXAI_SUPPORT_EMAIL`)
-- **Webhooks:** `SUPPORT_WEBHOOK_URL` (Astranov), `SPACEXAI_SUPPORT_WEBHOOK_URL` (xAI)
-- **Tables:** `support_digests`, `support_client_reports`
-
----
-
-*Solidified for the Astranov SpaceNet System — AOOS evolving into SpaceNet.*
+Do not copy requirements from old GitHub handoff issues (#97, #99) or session transcripts.
