@@ -1,12 +1,17 @@
-// === PERF LAZY — defer 574KB pack until idle/user · dedupe brain boot ===
-// AI HANDOFF: see astranov-continuity.js → features.perfLazyBoot. Patches LazyModules.ensure/
-// whenReady; _lazyUserReady on first tap. Never re-add boot setTimeout(ensure, 400).
+// === PERF LAZY + TURBO — defer 574KB pack · adaptive boot · no duplicate RAF load ===
+// AI HANDOFF: astranov-continuity.js → features.perfLazyBoot
 (function perfLazyBoot() {
   const LM = window.LazyModules;
   if (!LM || LM._perfLazy) return;
   LM._perfLazy = true;
 
-  const delayMs = () => window.SlumberManager?.deferredDelay?.() ?? 1400;
+  const mobile = () => /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+    || (navigator.maxTouchPoints > 1 && window.innerWidth < 960);
+
+  const delayMs = () => {
+    const base = window.SlumberManager?.deferredDelay?.() ?? 1400;
+    return mobile() ? Math.max(base, 4200) : base;
+  };
   const bootAt = () => window._bootAt || Date.now();
 
   if (!window._lazyUserReady) {
@@ -29,13 +34,14 @@
     if (w <= 0) return Promise.resolve().then(fn);
     return new Promise(resolve => {
       const go = () => Promise.resolve().then(fn).then(resolve);
-      if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: w + 600 });
+      if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: w + 800 });
       else setTimeout(go, w);
     });
   }
 
   const origLoad = LM.load.bind(LM);
   const origEnsure = LM.ensure.bind(LM);
+  const origSchedule = LM.schedule?.bind(LM);
 
   LM.ensure = function() {
     if (!shouldDefer()) return origEnsure();
@@ -63,6 +69,19 @@
     });
   };
 
+  if (origSchedule) {
+    LM.schedule = function() {
+      if (shouldDefer()) {
+        const w = Math.max(waitMs(), mobile() ? 5000 : 2200);
+        setTimeout(() => {
+          if (window._lazyUserReady || window._deferredBootDone) origSchedule();
+        }, w);
+        return;
+      }
+      origSchedule();
+    };
+  }
+
   function wrapBrainBoot() {
     const BN = window.BrainNeurons;
     if (!BN || BN._perfDeduped) return;
@@ -82,11 +101,9 @@
   function capMobileDpr() {
     const r = window.renderer;
     if (!r?.setPixelRatio || r._perfDprCapped) return;
-    const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
-      || (navigator.maxTouchPoints > 1 && window.innerWidth < 960);
-    if (!mobile) return;
+    if (!mobile()) return;
     r._perfDprCapped = true;
-    const cap = Math.min(window.SlumberManager?.quality?.pixelRatio ?? 1, 1);
+    const cap = Math.min(window.SlumberManager?.quality?.pixelRatio ?? 0.75, 0.85);
     r.setPixelRatio(Math.min(window.devicePixelRatio || 1, cap));
   }
 
