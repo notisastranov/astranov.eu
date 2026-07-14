@@ -34,8 +34,30 @@
  * =============================================================================
  */
 const AstranovContinuity = {
-  version: '20260711200000-ai-continuity',
+  version: '20260711210000-spec-cleanup',
   updated: '2026-07-14',
+
+  /**
+   * Markdown / issues / sessions that MUST NOT drive implementation.
+   */
+  supersededDocs: {
+    authoritative: ['astranov-continuity.js', 'CLAUDE.md', 'ASTRANOV_SPACENET_MISSION.md (vision only)'],
+    deprecatedStubs: ['ASTRANOV_GROK_SPECS.md'],
+    deleted: ['ASTRANOV_GROK_FULL_HANDOVER.md', 'index.restored.html'],
+    notAuthoritative: [
+      'Grok/Cursor/Claude session transcripts and compaction summaries',
+      'GitHub issues #97 #99 old P0 handoff checklists',
+      'scripts/patch-trackball-cli.mjs build pins (historical)',
+      'Chat-recycled “triangle of truth” (MISSION + GROK_SPECS + CLAUDE)',
+    ],
+    outdatedRules: [
+      'index.html only — no new files',
+      'astranov-grok.html as primary source',
+      'miner-cli-strip / #aci-miner above CLI',
+      '+ opens globe-super-add only',
+      'LazyModules.ensure() at 400ms on boot',
+    ],
+  },
 
   deploy: {
     guard: 'scripts/guard-base.mjs',
