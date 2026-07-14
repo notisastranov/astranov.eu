@@ -1,4 +1,7 @@
-/* split-lite moved from astranov-app.js */
+/* split-lite moved from astranov-app.js
+ * AI HANDOFF: astranov-continuity.js — Commerce, MapComms, CodersHub, DeferredBoot,
+ * BrainNeurons full impl. CodersHub: _pingLabs on panel open only (not init).
+ * Marketplace: Commerce.placeCart, MarketplaceDeliveryEngine in app.js stub + here. */
 // === BRAIN NEURONS — autonomous collective memory · globe pins · never stops growing ===
 const BrainNeurons = {
   _principles: [],
