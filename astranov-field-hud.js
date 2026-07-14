@@ -500,11 +500,18 @@ const FieldHud = {
   },
 
   ensureBrain() {
-    window.LazyModules?.ensure?.().then(() => {
+    const boot = () => {
       SpaceNetMiner.syncNodePeers();
       window.EarthRealism?.init?.();
       window.BrainNeurons?.boot?.();
-    }).catch(() => {});
+    };
+    if (window._deferredBootDone) { boot(); return; }
+    if (this._brainQueued) return;
+    this._brainQueued = true;
+    const LM = window.LazyModules;
+    if (LM?.scheduleBrain) LM.scheduleBrain(boot);
+    else if (LM?.whenReady) LM.whenReady(boot);
+    else LM?.schedule?.();
   },
 
   patchAvcBalance() {
@@ -670,7 +677,7 @@ const FieldHud = {
     } else if (this.isGlobalEarthView()) {
       kmh = this.earthRotationKmh();
       earthSpin = true;
-      this.tickEarthSpin();
+      if (!this._earthRaf) this.tickEarthSpin();
       if (mode) { mode.textContent = 'EARTH'; mode.style.position = 'absolute'; mode.style.top = '6px'; mode.style.left = '8px'; }
     } else if (window.CityMap?.active && window.DrivingView?.speed > 0) {
       kmh = Math.round((window.DrivingView.speed || 0) * 3.6);
@@ -848,14 +855,23 @@ const FieldHud = {
 
   startRadarRaf() {
     if (this._radarRaf) return;
+    const drawInterval = 1000 / 18;
     let last = performance.now();
+    let lastDraw = 0;
+    let lastSpeed = 0;
     const step = (now) => {
       const dt = Math.min(48, now - last);
       last = now;
       this._sweepAngle += (Math.PI * 2 / this.SWEEP_PERIOD_MS) * dt;
       if (this._sweepAngle > Math.PI * 2) this._sweepAngle -= Math.PI * 2;
-      this.drawRadar(this._sweepAngle);
-      this.updateSpeed();
+      if (!document.hidden && now - lastDraw >= drawInterval) {
+        lastDraw = now;
+        this.drawRadar(this._sweepAngle);
+      }
+      if (now - lastSpeed >= 220) {
+        lastSpeed = now;
+        this.updateSpeed();
+      }
       this._radarRaf = requestAnimationFrame(step);
     };
     this._radarRaf = requestAnimationFrame(step);
@@ -932,8 +948,9 @@ const FieldHud = {
       this.migrateSpeedHud();
       this.bindMinerCli();
       if (!document.getElementById('field-radar')) this.injectDom();
-      if (n > 40) clearInterval(t);
-    }, 500);
+      const ok = document.getElementById('field-radar') && document.getElementById('aci-miner');
+      if (ok || n >= 8) clearInterval(t);
+    }, 800);
     window.addEventListener('load', () => {
       this.ensureBrain();
       this.patchSuperCli();
