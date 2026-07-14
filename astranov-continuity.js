@@ -34,7 +34,7 @@
  * =============================================================================
  */
 const AstranovContinuity = {
-  version: '20260712000000-boot-rescue',
+  version: '20260712010000-perf-turbo',
   updated: '2026-07-14',
 
   /**
@@ -170,7 +170,7 @@ const AstranovContinuity = {
       owner: 'astranov-field-hud.js',
       selectors: ['#field-radar', '#field-radar-canvas', '#field-radar-speed', '#fsh-mode'],
       behavior: [
-        'Radar sweep on canvas ~12fps via unified startFieldRaf (no separate earth RAF)',
+        'Radar via setInterval 125ms (~8fps draw) — no requestAnimationFrame loop',
         'Earth spin: EarthRealism.tick in animate(); speed HUD shows EARTH_ROTATION_KMH 1671',
         'FieldHud.boot runs on DOMContentLoaded (immediate shell; unified RAF still throttled)',
         'drawRadar: no shadowBlur, 8 trail steps; field RAF pauses when hidden or city map',
@@ -187,8 +187,12 @@ const AstranovContinuity = {
         'First user tap sets _lazyUserReady → immediate ensure',
         'BrainNeurons.boot deduped via _perfDeduped wrap',
         'Mobile DPR capped at 1.0 on touch devices after SlumberManager init',
-        'animate: always renders when tab visible; lite render every 60 frames when hidden',
-        'MarketplaceDeliveryEngine.tick every 3 frames only when missions/meshes active',
+        'animate: adaptive targetFps (12–60) — skip idle frames; 60fps only when dragging/inertia',
+        'SlumberManager targetFps per tier; mobile defaults to conserve tier',
+        'Globe: 64 stars, earth 16 segments, no antialias on mobile, DPR ≤0.85 touch',
+        'Boot: single whenReady batch; heavy inits via requestIdleCallback; scenario only ?boottest=1',
+        'Deferred pack: mobile delay 4.2s+; LazyModules.schedule waits for tap or timeout',
+        'ensureBrain deferred 2.8s from FieldHud.boot',
         'sw.js v41: network-first for all /astranov-*.js',
         'index.html three.js cdnjs with onerror jsdelivr fallback',
         'app.js: host gate first; THREE/WebGL guarded — CLI boots even if globe fails',
