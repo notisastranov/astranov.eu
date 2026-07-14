@@ -34,7 +34,7 @@
  * =============================================================================
  */
 const AstranovContinuity = {
-  version: '20260711230000-load-hotfix',
+  version: '20260712000000-boot-rescue',
   updated: '2026-07-14',
 
   /**
@@ -189,9 +189,12 @@ const AstranovContinuity = {
         'Mobile DPR capped at 1.0 on touch devices after SlumberManager init',
         'animate: always renders when tab visible; lite render every 60 frames when hidden',
         'MarketplaceDeliveryEngine.tick every 3 frames only when missions/meshes active',
-        'sw.js v40: network-first for all /astranov-*.js (no stale module cache)',
-        'mpp-tile patches on DOMContentLoaded only — no whenReady on load',
-        'field-hud retry capped 5×1200ms',
+        'sw.js v41: network-first for all /astranov-*.js',
+        'index.html three.js cdnjs with onerror jsdelivr fallback',
+        'app.js: host gate first; THREE/WebGL guarded — CLI boots even if globe fails',
+        'LazyModules.load clears _promise on error for retry; perf-lazy logs deferred failures',
+        'mpp-tile: no loadHudModules duplicate injection (index script tags only)',
+        'field-hud retry capped 3×1000ms',
       ],
       doNotRemove: ['astranov-perf-lazy.js script tag before field-hud', 'whenReady', 'scheduleBrain'],
     },
