@@ -118,14 +118,10 @@ window.earth = earth;
 window._animateStarted = false;
 
 (function _earlyGlobePaint() {
-  let frame = 0;
   function tick() {
     if (!renderer || !scene || !camera) return;
-    frame++;
-    if (frame % 2 === 0) {
-      window._snlForceDismiss?.();
-      try { renderer.render(scene, camera); } catch (_) {}
-    }
+    window._snlForceDismiss?.();
+    try { renderer.render(scene, camera); } catch (_) {}
     if (!window._animateStarted) requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
@@ -11480,12 +11476,15 @@ function animate() {
     window._snlForceDismiss?.();
   }
   const hidden = document.hidden;
-  if (hidden && frame % 90 !== 0) return;
   if (!drag && !window._globeFly) TrackballGuard?.applyInertia?.();
   GlobeZoom?.tick?.();
   tickGlobeFly?.();
   const mde = MarketplaceDeliveryEngine;
-  if (frame % 3 === 0 && (mde?._globeMeshes?.length || mde?.missions?.length)) mde.tick?.();
+  if (!hidden && frame % 3 === 0 && (mde?._globeMeshes?.length || mde?.missions?.length)) mde.tick?.();
+  if (hidden) {
+    if (frame % 60 === 0) renderer.render(scene, camera);
+    return;
+  }
 
   const camZ = camera?.position?.z ?? GlobeNavigate.GLOBAL_Z;
   const level = CosmicZoom?.level || 'earth';
