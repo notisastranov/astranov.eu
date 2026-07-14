@@ -4722,6 +4722,14 @@ const LazyModules = {
     return this._promise;
   },
 
+  whenReady(fn) {
+    return this.ensure().then(() => fn?.());
+  },
+
+  scheduleBrain(fn) {
+    return this.whenReady(fn);
+  },
+
   ensure() {
     SlumberManager?.wake?.('deferred', 'needed');
     return this.load().then(() => {
@@ -7899,7 +7907,7 @@ const SuperCli = {
   title: ACL_TITLE,
 
   // Edge bar: G left · + and 🎧 right · apps/locate scroll inside middle
-  TOOLBAR_VISIBLE: ['aci-login', 'aci-avc', 'super-add-fab', 'aci-handsfree'],
+  TOOLBAR_VISIBLE: ['aci-login', 'super-add-fab', 'aci-handsfree'],
   INPUT_BTNS: ['globe-deck-send'],
 
   ensureBarLayout() {
@@ -11541,13 +11549,13 @@ function _astranovBoot() {
   run(() => CosmicZoom.init());
   run(() => ZoomTiers.init());
   run(() => GlobeNavigate.init());
-  /* EarthRealism deferred */ LazyModules.ensure().then(() => EarthRealism?.init?.());
+  LazyModules.whenReady(() => EarthRealism?.init?.());
   applyGlobalBootView();
   run(() => AstranovTheme.init());
   run(() => AiGlyphs.init());
   run(() => AstranovLogo.init());
-  /* CityMap deferred */ LazyModules.ensure().then(() => CityMap?.ensureReady?.());
-  /* GlobeEntity deferred */ LazyModules.ensure().then(() => GlobeEntity?.init?.());
+  LazyModules.whenReady(() => CityMap?.ensureReady?.());
+  LazyModules.whenReady(() => GlobeEntity?.init?.());
   run(() => MapPins.init());
   run(() => MapOverlayDismiss.init());
   run(() => window.SpaceNetFleet?.init?.());
@@ -11558,11 +11566,10 @@ function _astranovBoot() {
   run(() => MarketplaceDeliveryEngine.init());
   run(() => FieldWork.init());
   run(() => SpaceNetCycle.init());
-  /* DrivingView deferred */ LazyModules.ensure().then(() => DrivingView?.init?.());
+  LazyModules.whenReady(() => DrivingView?.init?.());
   run(() => AiRouter.init());
   run(() => MissionSupportReporter.init());
   LazyModules.schedule();
-  setTimeout(() => LazyModules.ensure().catch(() => {}), 400);
   applyGlobalBootView();
 
   GlobeDeck?.setTitle?.('Astranov Command Line');
@@ -11572,15 +11579,14 @@ function _astranovBoot() {
   if (board && /checking teams/i.test(board.textContent || '')) board.textContent = 'Astranov ready';
 
   window._bootEarthLock = false;
-  void LazyModules.ensure().then(() => SpaceNetScenarioRunner?.runAll?.('boot')).then?.((rows) => MissionSupportReporter?.reportBootRegression?.(rows));
+  void LazyModules.whenReady(() => SpaceNetScenarioRunner?.runAll?.('boot')).then?.((rows) => MissionSupportReporter?.reportBootRegression?.(rows));
   ACIControl?.reply?.(SpaceNetMission?.bootReply || 'Astranov live · collective intelligence links all · scroll out → solar · galaxy');
   primeGrokVoice?.();
 
   setTimeout(() => Auth.refreshAuthority(), 400);
-  setTimeout(() => { LazyModules.ensure().then(() => AciCoders?.enterSession?.({ ping: false, focus: false })); }, 1200);
+  setTimeout(() => { LazyModules.whenReady(() => AciCoders?.enterSession?.({ ping: false, focus: false })); }, 2200);
   setTimeout(() => { try { Voice.init(); initVoice(); } catch (_) {} }, 0);
   setTimeout(() => { try { Circles.init(); } catch (_) {} }, 0);
-  setTimeout(() => { void BrainNeurons?.boot?.(); }, 0);
 }
 
 const host = location.hostname || '';
