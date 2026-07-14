@@ -8425,6 +8425,22 @@ const CelestialNav = {
     Gacrux:    { ra: 12.51943, dec: -57.11321 },
     Imai:      { ra: 12.69460, dec: -59.04143 },
     Antares:   { ra: 16.49013, dec: -26.43194, nav: true, label: 'Antares' },
+    Regulus:   { ra: 10.13956, dec: 11.96721 },
+    Denebola:  { ra: 11.81766, dec: 14.57206 },
+    Algieba:   { ra: 10.33299, dec: 19.84149 },
+    Castor:    { ra: 7.57664, dec: 31.88832 },
+    Pollux:    { ra: 7.75526, dec: 28.02624, nav: true, label: 'Pollux' },
+    Aldebaran: { ra: 4.59868, dec: 16.50931, nav: true, label: 'Aldebaran' },
+    Elnath:    { ra: 5.43825, dec: 28.60745 },
+    Vega:      { ra: 18.61563, dec: 38.78369, nav: true, label: 'Vega' },
+    Altair:    { ra: 19.84636, dec: 8.86832, nav: true, label: 'Altair' },
+    Deneb:     { ra: 20.69053, dec: 45.28034 },
+    Markab:    { ra: 23.07979, dec: 15.20531 },
+    Scheat:    { ra: 23.06289, dec: 28.08284 },
+    Shaula:    { ra: 17.56012, dec: -37.10388 },
+    Graffias:  { ra: 16.00563, dec: -19.80545 },
+    Spica:     { ra: 13.41988, dec: -11.16132, nav: true, label: 'Spica' },
+    Arcturus:  { ra: 14.26103, dec: 19.18241, nav: true, label: 'Arcturus' },
   },
 
   SETS: [
@@ -8458,7 +8474,41 @@ const CelestialNav = {
       nav: 'Long axis → south celestial pole',
       lines: [['Acrux','Mimosa'],['Mimosa','Gacrux'],['Gacrux','Imai'],['Imai','Acrux']],
     },
-
+    {
+      id: 'leo', name: 'Leo', short: 'Lion',
+      nav: 'Sickle asterism · spring sky',
+      lines: [['Regulus','Algieba'],['Algieba','Denebola'],['Regulus','Denebola']],
+    },
+    {
+      id: 'gem', name: 'Gemini', short: 'Twins',
+      nav: 'Castor & Pollux · winter hexagon',
+      lines: [['Castor','Pollux'],['Pollux','Betelgeuse']],
+    },
+    {
+      id: 'tau', name: 'Taurus', short: 'Bull',
+      nav: 'Aldebaran · Hyades region',
+      lines: [['Aldebaran','Elnath'],['Aldebaran','Betelgeuse']],
+    },
+    {
+      id: 'sco', name: 'Scorpius', short: 'Scorpion',
+      nav: 'Antares heart · summer south',
+      lines: [['Antares','Graffias'],['Antares','Shaula'],['Graffias','Shaula']],
+    },
+    {
+      id: 'summer', name: 'Summer Triangle', short: '△',
+      nav: 'Vega · Altair · Deneb navigation asterism',
+      lines: [['Vega','Altair'],['Altair','Deneb'],['Deneb','Vega']],
+    },
+    {
+      id: 'peg', name: 'Pegasus', short: 'Great Square',
+      nav: 'Autumn square · Markab corner',
+      lines: [['Markab','Scheat'],['Scheat','Vega']],
+    },
+    {
+      id: 'vir', name: 'Virgo',
+      nav: 'Spica harvest star · spring E',
+      lines: [['Spica','Arcturus'],['Arcturus','Regulus']],
+    },
   ],
 
   init() {
@@ -8575,7 +8625,8 @@ const CelestialNav = {
   isGlobalNavView(camZ) {
     const z = camZ ?? camera?.position?.z ?? 2.55;
     const level = CosmicZoom?.level || 'earth';
-    return level === 'earth' && z >= 2.05 && z < 4.2 && !CityMap?.active;
+    const skyLevel = level === 'earth' || level === 'orbit' || level === 'galactic';
+    return skyLevel && z >= 2.0 && z < 8.5 && !CityMap?.active;
   },
 
   compute(date) {
@@ -8653,6 +8704,9 @@ const CelestialNav = {
     });
 
     this._lastSky = sky;
+    if (show && window.GalacticSky?.syncGuide) {
+      window.GalacticSky.syncGuide(CosmicZoom?.level || 'earth', camZ);
+    }
   },
 
   summary() {
@@ -8660,7 +8714,26 @@ const CelestialNav = {
   },
 
   renderGuideHtml(camZ) {
-    return '';
+    const sky = this._lastSky || this.compute();
+    if (!sky.sets.length) {
+      return '<div class="cg-title">Celestial nav</div>'
+        + '<div class="cg-item"><i>No major constellations above ' + this.MIN_ALT + '° at your position</i></div>';
+    }
+    let html = '<div class="cg-title">Constellations · ' + sky.sets.length + ' above horizon</div>';
+    sky.sets.slice(0, 5).forEach(s => {
+      html += '<div class="cg-item"><b>' + (s.short || s.name) + '</b> — ' + s.nav + '</div>';
+    });
+    sky.navStars.slice(0, 4).forEach(s => {
+      html += '<div class="cg-item"><b>' + (s.label || s.name) + '</b> ' + s.bearing + ' · alt ' + s.alt.toFixed(0) + '°</div>';
+    });
+    if (sky.obs.lat >= 5 && sky.stars.Polaris?.visible) {
+      html += '<div class="cg-item"><i>Polaris alt ' + sky.stars.Polaris.alt.toFixed(1) + '° ≈ latitude</i></div>';
+    }
+    const exoN = window.GalacticSky?.EXO_HOSTS?.length;
+    if (exoN && (camZ ?? 2.5) > 4.5) {
+      html += '<div class="cg-item"><i>Scroll out → ' + exoN + ' real exoplanet host stars</i></div>';
+    }
+    return html;
   },
 
   printReport() {
@@ -8708,7 +8781,6 @@ const CodersHub = {
     this.refreshJob();
     this._updateRaceBoard();
     this._maybeResumeFromQuery();
-    if (SlumberManager?.allows?.('coders_ping')) this._pingLabs();
   },
 
   _bind() {
