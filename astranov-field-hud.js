@@ -1059,20 +1059,10 @@ const FieldHud = {
   },
 };
 
-function scheduleFieldHudBoot() {
-  if (window._fieldHudBootScheduled) return;
-  window._fieldHudBootScheduled = true;
-  const run = () => { try { FieldHud.boot(); } catch (e) { console.error('[FieldHud boot]', e); } };
-  const bootAt = window._bootAt || Date.now();
-  const base = Math.max(1800, window.SlumberManager?.deferredDelay?.() ?? 2000);
-  const wait = Math.max(1200, base - (Date.now() - bootAt) + 500);
-  const go = () => {
-    if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 1600 });
-    else setTimeout(run, 60);
-  };
-  setTimeout(go, wait);
+function fieldHudBoot() {
+  try { FieldHud.boot(); } catch (e) { console.error('[FieldHud boot]', e); }
 }
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scheduleFieldHudBoot);
-else scheduleFieldHudBoot();
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fieldHudBoot);
+else fieldHudBoot();
 window.FieldHud = FieldHud;
 window.AstranovMiner = SpaceNetMiner;
