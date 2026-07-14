@@ -3,7 +3,7 @@
 // locateMe, videoCall, deliveryMarketplace. Owns: + hijack, _patchLocate, _patchVideoCall,
 // _patchCliBar, refreshMarketplace, place_cart, track_delivery. Do NOT restore globe-super-add as + target.
 (function loadHudModules() {
-  var v = '20260711210000-spec-cleanup';
+  var v = '20260711220000-perf-rescue';
   if (!window.GalacticSky) {
     var g = document.createElement('script');
     g.src = '/astranov-galactic-sky.js?v=' + v;
@@ -1007,10 +1007,7 @@ function mppPatchBoot() {
     mppRunPatches();
     if (mppPatchesOk() || n >= 8) clearInterval(retry);
   }, 800);
-  window.addEventListener('load', () => {
-    mppRunPatches();
-    void window.LazyModules?.whenReady?.(() => mppRunPatches());
-  });
+  window.addEventListener('load', () => mppRunPatches());
   if (window.FieldBrain && !FieldBrain.goOfflineDriver) {
     FieldBrain.goOfflineDriver = async function() {
       if (!Auth?.user) return { error: 'login' };
