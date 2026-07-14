@@ -324,7 +324,7 @@ const FieldHud = {
   _termsOk: false,
 
   injectDom() {
-    if (document.getElementById('field-balance-hud')) return;
+    if (!document.getElementById('field-balance-hud')) {
     const bal = document.createElement('div');
     bal.id = 'field-balance-hud';
     bal.setAttribute('aria-live', 'polite');
@@ -342,20 +342,24 @@ const FieldHud = {
       + '<span id="fbh-mine-earned">+0.00</span></div>'
       + '<div id="fbh-mine-status" class="fbh-status">mesh standby</div>';
     document.body.appendChild(bal);
+    }
 
+    if (!document.getElementById('field-radar')) {
     const radar = document.createElement('div');
     radar.id = 'field-radar';
     radar.innerHTML = '<canvas id="field-radar-canvas" width="120" height="120"></canvas>'
-      + '<div id="field-radar-speed" aria-live="polite">'
       + '<span id="fsh-mode" class="fsh-mode"></span>'
+      + '<div id="field-radar-speed" aria-live="polite">'
       + '<span id="fsh-value">0</span>'
       + '<span id="fsh-unit">km/h</span>'
       + '<span id="fsh-limit" hidden></span>'
       + '</div>'
       + '<span class="fr-label">RADAR</span>';
     document.body.appendChild(radar);
+    }
     document.getElementById('field-speed-hud')?.remove();
 
+    if (!document.getElementById('miner-terms-modal')) {
     const terms = document.createElement('div');
     terms.id = 'miner-terms-modal';
     terms.hidden = true;
@@ -374,6 +378,7 @@ const FieldHud = {
       + '</div>';
     document.body.appendChild(terms);
     document.getElementById('miner-terms-accept')?.addEventListener('click', () => SpaceNetMiner.acceptTerms());
+    }
   },
 
   injectCss() {
@@ -412,8 +417,8 @@ const FieldHud = {
       '#field-radar-speed{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:3;',
       'pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;',
       'min-width:52px;text-align:center}',
-      '.fsh-mode{position:absolute;top:6px;left:8px;font:700 7px/1 system-ui;letter-spacing:.1em;',
-      'color:rgba(0,200,255,.55);text-transform:uppercase}',
+      '#field-radar .fsh-mode{position:absolute;top:7px;left:9px;z-index:4;font:700 7px/1 system-ui;letter-spacing:.1em;',
+      'color:rgba(0,200,255,.65);text-transform:uppercase}',
       '#fsh-value{font:800 16px/1 ui-monospace,monospace;color:#4db8ff;',
       'text-shadow:0 0 10px rgba(77,184,255,.8),0 0 18px rgba(0,120,255,.4)}',
       '#fsh-unit{font:600 7px/1 system-ui;letter-spacing:.14em;color:rgba(77,184,255,.7);margin-top:1px}',
@@ -451,7 +456,8 @@ const FieldHud = {
 
   patchSuperCli() {
     const sc = window.SuperCli;
-    if (!sc || sc._fieldHudPatched) return;
+    if (!sc) return false;
+    if (sc._fieldHudPatched) return true;
     sc._fieldHudPatched = true;
     const _ensure = sc.ensureBarLayout?.bind(sc);
     if (_ensure) {
@@ -480,28 +486,14 @@ const FieldHud = {
         return _run(cmd);
       };
     }
+    return true;
   },
 
-  patchSpaceNetBrain() {
+  ensureBrain() {
     window.LazyModules?.ensure?.().then(() => {
       SpaceNetMiner.syncNodePeers();
-      const node = window.AstranovNode;
-      if (node && !node._minerPatched) {
-        node._minerPatched = true;
-        const _hb = node.startHeartbeat?.bind(node);
-        if (_hb) {
-          node.startHeartbeat = function() {
-            _hb();
-            if (node._hb) {
-              const orig = node._hb;
-              clearInterval(node._hb);
-              node._hb = setInterval(async () => {
-                SpaceNetMiner.syncNodePeers();
-              }, 30000);
-            }
-          };
-        }
-      }
+      window.EarthRealism?.init?.();
+      window.BrainNeurons?.boot?.();
     }).catch(() => {});
   },
 
@@ -614,18 +606,31 @@ const FieldHud = {
   },
 
   tickEarthSpin() {
-    if (!this.isGlobalEarthView()) return;
     const ER = window.EarthRealism;
     const e = window.earth;
-    if (!e || !ER?._earthSpin) return;
+    if (!e) return;
+    if (!ER?._inited) { try { ER?.init?.(); } catch (_) {} }
     const now = new Date();
-    e.rotation.y = ER._earthSpin(now);
-    if (ER.sunDir?.length && e.material?.uniforms?.sunDirection && ER._sunLocal) {
-      if (!ER._sunLocalAt || Date.now() - ER._sunLocalAt > 800) {
-        ER.sunDir.copy(ER._solarPosition?.(now) || ER.sunDir);
+    if (ER?._earthSpin) e.rotation.y = ER._earthSpin(now);
+    else e.rotation.y = ((now.getUTCHours() + now.getUTCMinutes() / 60) / 24) * Math.PI * 2;
+    if (ER?._solarPosition && ER.sunDir) {
+      ER.sunDir.copy(ER._solarPosition(now));
+      if (e.material?.uniforms?.sunDirection && ER._sunLocal) {
+        e.material.uniforms.sunDirection.value.copy(ER._sunLocal(ER.sunDir));
       }
-      e.material.uniforms.sunDirection.value.copy(ER._sunLocal(ER.sunDir));
     }
+  },
+
+  startEarthRaf() {
+    if (this._earthRaf) return;
+    const step = () => {
+      if (this.isGlobalEarthView() || ((window.CosmicZoom?.level || 'earth') === 'earth'
+        && (window.camera?.position?.z ?? 3) < 5 && !window.CityMap?.active)) {
+        this.tickEarthSpin();
+      }
+      this._earthRaf = requestAnimationFrame(step);
+    };
+    this._earthRaf = requestAnimationFrame(step);
   },
 
   speedLimitKmh() {
@@ -856,43 +861,79 @@ const FieldHud = {
   migrateSpeedHud() {
     document.getElementById('field-speed-hud')?.remove();
     const radar = document.getElementById('field-radar');
-    if (!radar || document.getElementById('field-radar-speed')) return;
-    const spd = document.createElement('div');
-    spd.id = 'field-radar-speed';
-    spd.setAttribute('aria-live', 'polite');
-    spd.innerHTML = '<span id="fsh-mode" class="fsh-mode"></span>'
-      + '<span id="fsh-value">0</span><span id="fsh-unit">km/h</span>'
-      + '<span id="fsh-limit" hidden></span>';
-    const label = radar.querySelector('.fr-label');
-    if (label) radar.insertBefore(spd, label);
-    else radar.appendChild(spd);
+    if (!radar) return;
+    let mode = document.getElementById('fsh-mode');
+    const spd = document.getElementById('field-radar-speed');
+    if (mode && spd?.contains(mode)) {
+      spd.removeChild(mode);
+      const canvas = radar.querySelector('#field-radar-canvas');
+      if (canvas?.nextSibling) radar.insertBefore(mode, canvas.nextSibling);
+      else radar.insertBefore(mode, radar.firstChild?.nextSibling || null);
+    }
+    if (!mode && !radar.querySelector('#fsh-mode')) {
+      mode = document.createElement('span');
+      mode.id = 'fsh-mode';
+      mode.className = 'fsh-mode';
+      const canvas = radar.querySelector('#field-radar-canvas');
+      if (canvas?.nextSibling) radar.insertBefore(mode, canvas.nextSibling);
+      else radar.appendChild(mode);
+    }
+    if (!spd) {
+      const box = document.createElement('div');
+      box.id = 'field-radar-speed';
+      box.setAttribute('aria-live', 'polite');
+      box.innerHTML = '<span id="fsh-value">0</span><span id="fsh-unit">km/h</span>'
+        + '<span id="fsh-limit" hidden></span>';
+      const label = radar.querySelector('.fr-label');
+      if (label) radar.insertBefore(box, label);
+      else radar.appendChild(box);
+    }
   },
 
   boot() {
     if (this._booted) return;
     this._booted = true;
-    this.injectCss();
-    this.injectDom();
-    this.migrateSpeedHud();
-    this.hideCliMoney();
-    this.patchSuperCli();
-    this.bindActivity();
-    this.loadSession();
-    SpaceNetMiner.detectCaps();
-    this.checkTerms();
-    this.patchAvcBalance();
-    this.patchSpaceNetBrain();
-    this.startLoop();
-    window.LazyModules?.ensure?.().then(() => {
+    try {
+      this.injectCss();
+      this.injectDom();
+      this.migrateSpeedHud();
+      this.hideCliMoney();
+      this.bindActivity();
+      this.loadSession();
+      SpaceNetMiner.detectCaps();
+      this.checkTerms();
       this.patchAvcBalance();
-      window.AvcBalance?.refresh?.();
-    }).catch(() => {});
-    setTimeout(() => window.AvcBalance?.refresh?.(), 2000);
+      this.ensureBrain();
+      this.startLoop();
+      this.startEarthRaf();
+      this.patchSuperCli();
+      this._retryPatches();
+    } catch (e) { console.error('[FieldHud]', e); }
+  },
+
+  _retryPatches() {
+    let n = 0;
+    const t = setInterval(() => {
+      n++;
+      this.hideCliMoney();
+      this.patchSuperCli();
+      this.patchAvcBalance();
+      this.migrateSpeedHud();
+      if (!document.getElementById('field-radar')) this.injectDom();
+      if (n > 40) clearInterval(t);
+    }, 500);
+    window.addEventListener('load', () => {
+      this.ensureBrain();
+      this.patchSuperCli();
+      this.hideCliMoney();
+      if (!this._radarRaf) this.startRadarRaf();
+    });
   },
 };
 
-function fieldHudBoot() { FieldHud.boot(); }
+function fieldHudBoot() { try { FieldHud.boot(); } catch (e) { console.error('[FieldHud boot]', e); } }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fieldHudBoot);
 else fieldHudBoot();
+window.addEventListener('load', () => fieldHudBoot());
 window.FieldHud = FieldHud;
 window.AstranovMiner = SpaceNetMiner;
