@@ -47,7 +47,12 @@
     return deferRun(() => origLoad().then(() => {
       if (!window._deferredBootDone && window.DeferredBoot?.run) window.DeferredBoot.run();
       return fn?.();
-    }).catch(() => {}));
+    }).catch((err) => {
+      console.error('[perf-lazy] deferred load failed', err);
+      window.MissionSupportReporter?.recordProblem?.('deferred_load', String(err?.message || err));
+      window.GlobeDeck?.setPreview?.('Fleet pack loading — tap or retry refresh');
+      return fn?.();
+    }));
   };
 
   LM.scheduleBrain = function(fn) {
