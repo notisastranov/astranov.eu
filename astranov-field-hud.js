@@ -1,4 +1,7 @@
 // === FIELD HUD — top-right balances/mining · left radar · center speed ===
+// AI HANDOFF: see astranov-continuity.js → features.minerRig, fieldHudRadar, aiBrain.
+// Miner: tap #field-balance-hud → #miner-rig-panel (NO #aci-miner CLI strip). Radar ~18fps.
+// bindFieldMiner · ensureBrain/scheduleBrain · SpaceNetMiner prefs astranov:miner-rig-prefs.
 // SpaceNet miner: SETI-style decentralised P2P · CPU · RAM · storage · bandwidth
 const SpaceNetMiner = {
   TERMS_KEY: 'astranov:spacenet-miner-v2',
