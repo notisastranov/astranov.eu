@@ -34,7 +34,7 @@
  * =============================================================================
  */
 const AstranovContinuity = {
-  version: '20260711220000-perf-rescue',
+  version: '20260711230000-load-hotfix',
   updated: '2026-07-14',
 
   /**
@@ -172,7 +172,7 @@ const AstranovContinuity = {
       behavior: [
         'Radar sweep on canvas ~12fps via unified startFieldRaf (no separate earth RAF)',
         'Earth spin: EarthRealism.tick in animate(); speed HUD shows EARTH_ROTATION_KMH 1671',
-        'FieldHud.boot deferred ~1.8s via requestIdleCallback after DOM ready',
+        'FieldHud.boot runs on DOMContentLoaded (immediate shell; unified RAF still throttled)',
         'drawRadar: no shadowBlur, 8 trail steps; field RAF pauses when hidden or city map',
       ],
     },
@@ -184,10 +184,12 @@ const AstranovContinuity = {
         'NO setTimeout(LazyModules.ensure, 400) on boot — removed',
         'Boot uses LazyModules.whenReady for EarthRealism, CityMap, GlobeEntity, scenarios',
         'perf-lazy patches ensure: delays until SlumberManager.deferredDelay OR _lazyUserReady',
-        'First user tap sets _lazyUserReady → immediate ensure + ensureBrain',
-        'ensureBrain deferred 2.8s+ until user tap or timeout; BrainNeurons.boot deduped',
-        'Mobile DPR capped at 1.0 via perf-lazy after SlumberManager init',
-        'animate: skip frames when tab hidden; MarketplaceDeliveryEngine.tick every 3 frames only if active',
+        'First user tap sets _lazyUserReady → immediate ensure',
+        'BrainNeurons.boot deduped via _perfDeduped wrap',
+        'Mobile DPR capped at 1.0 on touch devices after SlumberManager init',
+        'animate: always renders when tab visible; lite render every 60 frames when hidden',
+        'MarketplaceDeliveryEngine.tick every 3 frames only when missions/meshes active',
+        'sw.js v40: network-first for all /astranov-*.js (no stale module cache)',
         'mpp-tile patches on DOMContentLoaded only — no whenReady on load',
         'field-hud retry capped 5×1200ms',
       ],
