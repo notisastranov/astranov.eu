@@ -81,7 +81,9 @@ await check('assemble + syntax', () => {
     'SuperSpace', 'superspace-hud', 'CityLife', 'city-life-chip',
     'SuperAdd', 'super-add-fab', 'globe-super-add',
     'GlobeEntity', 'globe-entity-labels', 'globe-entity-hud',
+    'MapPlaceMenu', 'ClassifiedTriangles', 'classified-triangles-primary',
     'ZoomTiers', 'zoom-tier-dots', 'national-active', 'bindInputBar',
+    'ArchitectBridge', 'aci-bridge',
   ];
   const deferredMarkers = [
     'initBrain', 'preflightVerify', 'cmdDev', 'cmdUi', 'cmdBrain', 'cmdSpace',

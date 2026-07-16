@@ -461,6 +461,53 @@ const SCENARIOS = [
       return r;
     },
   },
+  {
+    name: 'place menu — city map tap opens triangles',
+    run: async (page) => {
+      await page.evaluate(async () => {
+        await CityLife.dropIn(36.44, 28.22, { label: 'scenario' });
+      });
+      const r = await page.evaluate(() => {
+        if (!CityMap?.active) return { ok: false, reason: 'city inactive' };
+        const c = window._lastPos || { lat: 36.44, lng: 28.22 };
+        window.MapPlaceMenu?.openAt?.(c.lat, c.lng, { source: 'City map', limited: true });
+        const hud = document.getElementById('globe-entity-hud');
+        const tri = document.getElementById('classified-triangles-primary');
+        return {
+          ok: hud?.classList.contains('open') && (tri?.querySelectorAll('.ct-tri')?.length || 0) >= 3,
+          triangles: tri?.querySelectorAll('.ct-tri')?.length || 0,
+          hasMapPlaceMenu: typeof window.MapPlaceMenu?.openAt === 'function',
+        };
+      });
+      if (!r.hasMapPlaceMenu) throw new Error('MapPlaceMenu missing');
+      if (!r.ok) throw new Error('place menu failed: ' + JSON.stringify(r));
+      return r;
+    },
+  },
+  {
+    name: 'zoom — solar system reachable',
+    run: async (page) => {
+      const r = await page.evaluate(() => {
+        MapPlaceMenu?.close?.();
+        CityMap?._exit?.();
+        window._cityDropLock = false;
+        ZoomTiers?.goTo?.('solar', false);
+        CosmicZoom?.update?.(camera?.position?.z ?? 7.2, { tier: 'solar', label: 'SOLAR SYSTEM', cosmic: 'system' });
+        return {
+          tier: ZoomTiers?.current?.()?.id,
+          camZ: camera?.position?.z,
+          level: CosmicZoom?.level,
+          solarVis: !!CosmicZoom?.solarGroup?.visible,
+          planets: CosmicZoom?.planets?.length || 0,
+        };
+      });
+      if (r.tier !== 'solar') throw new Error('tier: ' + JSON.stringify(r));
+      if (r.level !== 'system') throw new Error('level: ' + JSON.stringify(r));
+      if (!r.solarVis) throw new Error('solar not visible');
+      if (r.planets < 4) throw new Error('planets: ' + JSON.stringify(r));
+      return r;
+    },
+  },
 ];
 
 async function main() {

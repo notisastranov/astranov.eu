@@ -95,29 +95,85 @@ const SCENARIOS = [
     },
   },
   {
-    name: 'live click — + Super Add opens (no silent fail)',
+    name: 'live click — + opens place menu (no silent fail)',
     run: async (page) => {
-      await page.waitForFunction(() => typeof SuperCli?.run === 'function', { timeout: 60000 });
+      await page.waitForFunction(() => typeof MapPlaceMenu?.openPlusField === 'function', { timeout: 60000 });
       await page.click('#super-add-fab');
-      await page.waitForTimeout(2500);
+      await page.waitForTimeout(1500);
       const r = await page.evaluate(() => {
-        const panel = document.getElementById('globe-super-add');
+        const hud = document.getElementById('globe-entity-hud');
+        const tri = document.getElementById('classified-triangles-primary');
         return {
-          open: panel?.classList.contains('open') || panel?.classList.contains('deck-active'),
-          deferred: !!window._deferredBootDone,
+          hudOpen: hud?.classList.contains('open'),
+          triangles: tri?.querySelectorAll('.ct-tri')?.length || 0,
           preview: document.getElementById('globe-deck-preview')?.textContent || '',
           ribbon: document.getElementById('cli-ribbon-status')?.textContent || '',
         };
       });
-      // After deferred load, panel should open; stub path at least expands deck
-      const ok = r.open || /super add|camera|post/i.test(r.preview + r.ribbon);
-      if (!ok) throw new Error('+ did not open Super Add: ' + JSON.stringify(r));
+      const ok = r.hudOpen && r.triangles >= 3;
+      if (!ok) throw new Error('+ did not open place menu: ' + JSON.stringify(r));
+      await page.evaluate(() => MapPlaceMenu?.close?.());
+      return r;
+    },
+  },
+  {
+    name: 'live click — city map opens place menu',
+    run: async (page) => {
+      const r = await page.evaluate(async () => {
+        if (!CityMap?.active) await CityLife?.dropIn?.(36.44, 28.22, { label: 'prod verify' });
+        if (!CityMap?.active) return { ok: false, reason: 'city map not active' };
+        const c = window._lastPos || { lat: 36.44, lng: 28.22 };
+        MapPlaceMenu?.openAt?.(c.lat, c.lng, { source: 'City map', limited: true });
+        const hud = document.getElementById('globe-entity-hud');
+        const tri = document.getElementById('classified-triangles-primary');
+        return {
+          ok: hud?.classList.contains('open') && (tri?.querySelectorAll('.ct-tri')?.length || 0) >= 3,
+          triangles: tri?.querySelectorAll('.ct-tri')?.length || 0,
+        };
+      });
+      if (!r.ok) throw new Error('city map place menu failed: ' + JSON.stringify(r));
+      await page.evaluate(() => MapPlaceMenu?.close?.());
+      return r;
+    },
+  },
+  {
+    name: 'live zoom — solar system reachable',
+    run: async (page) => {
+      const r = await page.evaluate(async () => {
+        MapPlaceMenu?.close?.();
+        CityMap?._exit?.();
+        window._cityDropLock = false;
+        ZoomTiers?.goTo?.('global', false);
+        if (camera) { camera.position.z = 2.55; camera.lookAt(0, 0, 0); }
+        CosmicZoom?.update?.(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
+        ZoomTiers?.goTo?.('solar', false);
+        await new Promise(r => setTimeout(r, 400));
+        return {
+          tier: ZoomTiers?.current?.()?.id,
+          camZ: camera?.position?.z,
+          level: CosmicZoom?.level,
+          solarVis: !!CosmicZoom?.solarGroup?.visible,
+          planets: CosmicZoom?.planets?.length || 0,
+        };
+      });
+      if (r.tier !== 'solar') throw new Error('tier not solar: ' + JSON.stringify(r));
+      if (r.level !== 'system') throw new Error('cosmic level not system: ' + JSON.stringify(r));
+      if (!r.solarVis) throw new Error('solar group not visible: ' + JSON.stringify(r));
+      if (r.planets < 4) throw new Error('planets missing: ' + JSON.stringify(r));
       return r;
     },
   },
   {
     name: 'live click — 🎧 opens AI without zoom',
     run: async (page) => {
+      await page.evaluate(() => {
+        MapPlaceMenu?.close?.();
+        CityMap?._exit?.();
+        window._cityDropLock = false;
+        ZoomTiers?.goTo?.('global', false);
+        if (camera) { camera.position.z = 2.55; camera.lookAt(0, 0, 0); }
+        CosmicZoom?.update?.(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
+      });
       const before = await page.evaluate(() => camera?.position?.z);
       await page.click('#aci-handsfree');
       await page.waitForTimeout(2000);
@@ -132,8 +188,7 @@ const SCENARIOS = [
         placeholder: document.getElementById('aci-cli-in')?.placeholder || '',
         handsFree: !!window._handsFreeVoice,
       }), before);
-      // Must not fly away to city zoom from 🎧 alone
-      if (r.camZ != null && r.camZ < 1.5) throw new Error('🎧 zoomed to city: ' + JSON.stringify(r));
+      if (r.camDelta > 0.35) throw new Error('🎧 changed zoom: ' + JSON.stringify(r));
       const blob = (r.ribbon + r.preview + r.placeholder).toLowerCase();
       if (!/grok|listen|type|coders|ai|speak|ready/.test(blob) && !r.handsFree) {
         throw new Error('🎧 did not open AI UI: ' + JSON.stringify(r));

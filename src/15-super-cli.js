@@ -114,7 +114,13 @@ const SuperCli = {
       'aci-batch': () => this.run('batch'),
       'aci-vhf': () => this.run('vhf'),
       'aci-call': () => this.run('phone'),
-      'super-add-fab': () => MapPlaceMenu?.openPlusField?.() || this.run('add'),
+      'super-add-fab': () => {
+        if (typeof MapPlaceMenu?.openPlusField === 'function') {
+          MapPlaceMenu.openPlusField();
+          return;
+        }
+        this.run('add');
+      },
     };
     Object.entries(actions).forEach(([id, fn]) => {
       const el = document.getElementById(id);
