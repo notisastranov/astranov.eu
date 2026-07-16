@@ -10,13 +10,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260716110653" />
+<meta name="astranov-build" content="20260716113007" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/astranov-continuity.js?v=20260716110653"></script>
+<script defer src="/astranov-continuity.js?v=20260716113007"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <style>
@@ -929,37 +929,84 @@ const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHei
 camera.position.set(0, 0.25, 2.55);
 camera.lookAt(0, 0, 0);
 
-scene.add(new THREE.AmbientLight(0x667788, 1.0));
-const sun = new THREE.DirectionalLight(0xffffff, 1.6);
-sun.position.set(5, 3, 4);
+// Astranov lighting — deep space rim + sun key (not flat Atari fill)
+scene.add(new THREE.AmbientLight(0x1a2838, 0.55));
+const sun = new THREE.DirectionalLight(0xfff4e0, 1.85);
+sun.position.set(5.2, 2.4, 3.6);
 scene.add(sun);
+const rimLight = new THREE.DirectionalLight(0x4488ff, 0.55);
+rimLight.position.set(-4, -1, -3);
+scene.add(rimLight);
+const fillLight = new THREE.PointLight(0x66aaff, 0.35, 12);
+fillLight.position.set(-2, 1.5, 3);
+scene.add(fillLight);
 
-// Stars - bigger/brighter to guarantee visibility against black
-const starPos = [];
-for (let i=0; i<1200; i++) {
-  const r = 140 + Math.random()*900;
-  const t = Math.random()*Math.PI*2;
-  const p = Math.acos(2*Math.random()-1);
-  starPos.push(r*Math.sin(p)*Math.cos(t), r*Math.sin(p)*Math.sin(t), r*Math.cos(p));
-}
-const sgeo = new THREE.BufferGeometry();
-sgeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos,3));
-scene.add(new THREE.Points(sgeo, new THREE.PointsMaterial({color:0xffffff, size:2.8, sizeAttenuation:false})));
+// Multi-layer starfield — fine dust + bright beacons (cinematic, not sparse dots)
+(function buildAstranovStarfield() {
+  function layer(count, rMin, rMax, size, color, opacity) {
+    const pos = [];
+    for (let i = 0; i < count; i++) {
+      const r = rMin + Math.random() * (rMax - rMin);
+      const t = Math.random() * Math.PI * 2;
+      const p = Math.acos(2 * Math.random() - 1);
+      pos.push(r * Math.sin(p) * Math.cos(t), r * Math.sin(p) * Math.sin(t), r * Math.cos(p));
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    const mat = new THREE.PointsMaterial({
+      color, size, sizeAttenuation: true, transparent: true, opacity,
+      depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    scene.add(new THREE.Points(geo, mat));
+  }
+  layer(2800, 80, 420, 0.35, 0xaaccff, 0.55);
+  layer(900, 100, 700, 0.9, 0xffffff, 0.85);
+  layer(120, 120, 900, 2.2, 0xcce8ff, 0.95);
+})();
 
-// Earth - use BasicMaterial for guaranteed visibility (Phong can look black depending on lighting)
-const earthMat = new THREE.MeshBasicMaterial({ color: 0x44aaff });
+// Earth — higher tessellation + temporary ocean/land material until day/night shader binds
+const earthMat = new THREE.MeshPhongMaterial({
+  color: 0x1a4a7a,
+  emissive: 0x041018,
+  specular: 0x335566,
+  shininess: 18,
+  flatShading: false,
+});
 const earthTexUrl = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg';
 new THREE.TextureLoader().load(
   earthTexUrl,
-  (tex) => { earthMat.map = tex; earthMat.needsUpdate = true; },
+  (tex) => {
+    tex.anisotropy = Math.min(8, renderer.capabilities?.getMaxAnisotropy?.() || 4);
+    earthMat.map = tex;
+    earthMat.color.set(0xffffff);
+    earthMat.needsUpdate = true;
+  },
   undefined,
   () => { console.log('Earth texture fallback active'); }
 );
 globePivot = new THREE.Group();
 scene.add(globePivot);
 
-const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 24), earthMat);
+const earthSeg = (window.innerWidth < 700 || /Mobi|Android/i.test(navigator.userAgent || '')) ? 48 : 72;
+const earth = new THREE.Mesh(new THREE.SphereGeometry(1, earthSeg, earthSeg), earthMat);
 globePivot.add(earth);
+
+// Soft atmosphere shell (fresnel-ish blue rim) — upgraded further by AIGraphics
+(function bootAtmosphere() {
+  const atmo = new THREE.Mesh(
+    new THREE.SphereGeometry(1.035, earthSeg, earthSeg),
+    new THREE.MeshBasicMaterial({
+      color: 0x3a9fff,
+      transparent: true,
+      opacity: 0.09,
+      side: THREE.BackSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    })
+  );
+  atmo.userData = { type: 'boot-atmosphere' };
+  globePivot.add(atmo);
+})();
 globePivot.rotation.y = 0.82;
 globePivot.rotation.x = 0.12;
 globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
@@ -2124,13 +2171,36 @@ window.vendorIcon = vendorIcon;
 window.driverIcon = driverIcon;
 
 // === LIGHT STUBS — removed heavy subsystems; keep optional chaining safe ===
+// FieldBrain is a live pulse bus again (not a no-op) so globe AI feels present.
 const FieldBrain = {
   vendorIds: [],
   roles: [],
+  last: null,
+  _pulses: [],
   init() {},
   hookFeed() {},
-  pulse() {},
+  pulse(kind, detail, props) {
+    const entry = {
+      kind: String(kind || 'pulse'),
+      detail: String(detail || '').slice(0, 120),
+      props: props || {},
+      ts: Date.now(),
+    };
+    this.last = entry;
+    this._pulses.push(entry);
+    if (this._pulses.length > 40) this._pulses = this._pulses.slice(-40);
+    try {
+      AIGraphics?.setThinkPulse?.(kind === 'think' || kind === 'act');
+      const pos = window._lastPos;
+      if (pos && MapDepict?.pulse) {
+        const colors = { think: 0x44ccff, act: 0x00e8ff, evolve: 0xaa66ff, commerce: 0xffaa44 };
+        MapDepict.pulse(pos.lat, pos.lng, colors[kind] || 0x66ffcc, entry.detail.slice(0, 28), 5000);
+      }
+      CliRibbon?.setNotice?.(entry.kind + ' · ' + entry.detail.slice(0, 60), 'ready');
+    } catch (_) { /* */ }
+  },
   onAuth() {},
+  updateChip() {},
 };
 window.FieldBrain = FieldBrain;
 
@@ -2185,11 +2255,23 @@ const BrainConversation = {
   async converse(text, opts = {}) {
     const m = String(text || '').trim();
     if (!m) return '';
+    if (window.AstranovCoreBrain?.handle) {
+      const r = await AstranovCoreBrain.handle(m, { fromVoice: !!opts.fromVoice });
+      return String(r?.text || r?.response || '').trim();
+    }
     if (window.AciCoders?.chat) {
       const r = await AciCoders.chat(m, { fromVoice: !!opts.fromVoice });
       return String(r?.text || r?.response || '').trim();
     }
     return '';
+  },
+  async cli(parts) {
+    const rest = (parts || []).slice(1).join(' ').trim();
+    if (!rest || rest === 'status') {
+      AciCli?.print('Core Brain ' + (AstranovCoreBrain?.version || '?') + ' · local-first globe agent', 'ok');
+      return;
+    }
+    await this.converse(rest);
   },
 };
 window.BrainConversation = BrainConversation;
@@ -5576,7 +5658,18 @@ const AciCli = {
       GlobeDeck?.finishCliIfOneShot(cmd);
       return;
     }
-    ACIControl?.reply('unknown — try help');
+
+    // Freeform → Core Brain (globe agent). Never leave users at "unknown".
+    GlobeDeck.activeTask = 'coders';
+    if (window.AstranovCoreBrain?.handle) {
+      await AstranovCoreBrain.handle(line);
+      return;
+    }
+    if (window.AciCoders?.handleMessage) {
+      await AciCoders.handleMessage(line);
+      return;
+    }
+    ACIControl?.reply('Brain loading — tap 🎧 again in a moment');
   },
 
   suggest(prefix) {
@@ -6330,6 +6423,12 @@ const AciCoders = {
     const m = String((window.fixVoiceHotwords || (x => x))(String(message || ''))).trim();
     if (m.length < 1) return this.enterSession({ fromVoice: !!opts.fromVoice });
 
+    // Rebuild path: Core Brain owns freeform + globe tools (local-first, <14s AI)
+    if (window.AstranovCoreBrain?.handle && !opts.forceLegacy && !this.wantsComposer(m)
+      && !ArchitectBridge?.wantsBridgeCmd?.(m) && !this.isExplicitRef(m)) {
+      return AstranovCoreBrain.handle(m, opts);
+    }
+
     const localFix = this.tryLocalFix(m);
     if (localFix) {
       AciCli?.print(localFix, 'ok');
@@ -6567,6 +6666,328 @@ const AciCoders = {
   },
 };
 window.AciCoders = AciCoders;
+
+// === ASTRANOV CORE BRAIN — local-first globe agent + fast AI ===
+// Rebuild 2026-07-16: freeform chat was dying as "unknown — try help".
+// Design: act on the globe immediately → answer in-app → enrich with AI when ready.
+// Never wait 80s for edge before the user sees a result.
+const AstranovCoreBrain = {
+  version: '20260716-core',
+  history: [],
+  busy: false,
+  AI_TIMEOUT_MS: 14000,
+  CITIES: {
+    athens: [37.9838, 23.7275], athina: [37.9838, 23.7275],
+    rhodes: [36.4341, 28.2176], rodos: [36.4341, 28.2176],
+    thessaloniki: [40.6401, 22.9444], salonika: [40.6401, 22.9444],
+    london: [51.5074, -0.1278], paris: [48.8566, 2.3522],
+    berlin: [52.52, 13.405], rome: [41.9028, 12.4964],
+    newyork: [40.7128, -74.006], tokyo: [35.6762, 139.6503],
+    istanbul: [41.0082, 28.9784], cairo: [30.0444, 31.2357],
+    dubai: [25.2048, 55.2708], sydney: [-33.8688, 151.2093],
+  },
+
+  init() {
+    if (this._inited) return;
+    this._inited = true;
+    window.AstranovCoreBrain = this;
+    console.log('%c[AstranovCoreBrain] local-first globe agent live', 'color:#00e8ff;font-weight:700');
+  },
+
+  userPos() {
+    return window._lastPos || { lat: 36.4341, lng: 28.2176 };
+  },
+
+  /** Classify intent → globe tools. Always runnable offline. */
+  plan(message) {
+    const m = String(message || '').trim();
+    const low = m.toLowerCase();
+    const greek = /[\u0370-\u03FF]/.test(m);
+    const actions = [];
+    let intent = 'chat';
+
+    // Locate / me
+    if (/locate|where am i|find me|gps|βρες με|πού είμαι|που ειμαι|🎯|📍/i.test(low)
+      || /^(me|here)$/i.test(low)) {
+      intent = 'locate';
+      actions.push({ type: 'locate' });
+    }
+
+    // City map
+    if (/city\s*(view|map|level)?|street\s*view|πόλη|πολη|καταστήματα|shops near/i.test(low)
+      && !/locate|where am i/i.test(low)) {
+      intent = 'city';
+      actions.push({ type: 'city' });
+    }
+
+    // Fly to named city
+    for (const [name, ll] of Object.entries(this.CITIES)) {
+      if (new RegExp('\\b' + name + '\\b', 'i').test(low)
+        || (name === 'athens' && /αθήνα|αθηνα|αθ[ήη]να/.test(low))
+        || (name === 'rhodes' && /ρόδο|ροδο|ρόδος/.test(low))) {
+        intent = 'fly';
+        actions.push({ type: 'fly', lat: ll[0], lng: ll[1], label: name });
+        break;
+      }
+    }
+
+    // Zoom tiers
+    if (/\b(global|earth|world|κόσμος|κοσμος)\b/i.test(low) && /zoom|show|go|view|δείξε|δειξε/i.test(low)) {
+      intent = 'zoom';
+      actions.push({ type: 'zoom', tier: 'global' });
+    } else if (/\bnational|country|χώρα|χωρα\b/i.test(low) && /zoom|view|go/i.test(low)) {
+      intent = 'zoom';
+      actions.push({ type: 'zoom', tier: 'national' });
+    } else if (/\bsolar|galaxy|space|διάστημα|διαστημα\b/i.test(low) && /zoom|view|go|show/i.test(low)) {
+      intent = 'zoom';
+      actions.push({ type: 'zoom', tier: 'solar' });
+    }
+
+    // Order / shops
+    if (/order|buy|shop|vendor|παραγγελ|φαγητ|πίτα|πιτα|gyro|delivery|deliver/i.test(low)) {
+      intent = 'commerce';
+      actions.push({ type: 'commerce', query: m });
+    }
+
+    // News
+    if (/news|ειδήσ|ειδησ|headline/i.test(low)) {
+      intent = 'news';
+      actions.push({ type: 'news' });
+    }
+
+    // Think / evolve brain visuals
+    if (/think|evolve|brain|μυαλό|μυαλο|εξέλιξ|εξελιξ/i.test(low) && m.length < 80) {
+      intent = intent === 'chat' ? 'brain' : intent;
+      actions.push({ type: 'brain_pulse', mode: /evolve|εξέλιξ/i.test(low) ? 'evolve' : 'think' });
+    }
+
+    // Hello / ping — no globe required
+    if (/^(hi|hello|hey|ping|γεια|γεια σου|είσαι εκεί|eisai ekei)\b/i.test(low) || this._isPing(m)) {
+      intent = 'ping';
+    }
+
+    return { message: m, low, greek, intent, actions };
+  },
+
+  _isPing(m) {
+    const s = String(m || '').trim();
+    if (!s || s.length > 60) return false;
+    return /^(are you there|you there|hello|hi|hey|ping|online|listening|grok|astranov|γεια|είσαι|ακούς|παρών|εδώ)/i.test(s);
+  },
+
+  async execute(plan) {
+    const results = [];
+    for (const a of plan.actions) {
+      try {
+        if (a.type === 'locate') {
+          AIGraphics?.setThinkPulse?.(true);
+          MapDepict?.action?.('location', { detail: 'locate' });
+          if (typeof SuperCli?.run === 'function') await SuperCli.run('locate');
+          else if (CityLife?.locateAndDropIn) await CityLife.locateAndDropIn();
+          else if (window._lastPos) {
+            GlobeControl?.flyToLatLng?.(window._lastPos.lat, window._lastPos.lng, 'you', GlobeControl?.Z?.national, {});
+          }
+          results.push('located');
+        } else if (a.type === 'city') {
+          const p = this.userPos();
+          MapDepict?.pulse?.(p.lat, p.lng, 0x00e8ff, 'city', 8000);
+          await enterCityView?.(p.lat, p.lng);
+          results.push('city map');
+        } else if (a.type === 'fly') {
+          AIGraphics?.flyAstranovTo?.(a.lat, a.lng, { color: 0x3d9eff });
+          GlobeControl?.flyToLatLng?.(a.lat, a.lng, a.label, GlobeControl?.Z?.national, {});
+          MapDepict?.pulse?.(a.lat, a.lng, 0x00ddff, a.label, 10000);
+          MapDepict?.action?.('explore', { lat: a.lat, lng: a.lng, detail: a.label });
+          results.push('flew to ' + a.label);
+        } else if (a.type === 'zoom') {
+          ZoomTiers?.goTo?.(a.tier, true);
+          results.push('zoom ' + a.tier);
+        } else if (a.type === 'commerce') {
+          MapDepict?.action?.('order', { detail: a.query?.slice(0, 40) });
+          await LazyModules?.ensure?.();
+          if (window.Commerce?.openOrderFlow) await Commerce.openOrderFlow(a.query || '');
+          else if (Commerce?.showPicker) await Commerce.showPicker();
+          results.push('shops');
+        } else if (a.type === 'news') {
+          MapDepict?.action?.('news', {});
+          Comms?.loadNews?.();
+          results.push('news');
+        } else if (a.type === 'brain_pulse') {
+          const p = this.userPos();
+          MapDepict?.action?.(a.mode === 'evolve' ? 'evolve' : 'think', { lat: p.lat, lng: p.lng, detail: plan.message.slice(0, 40) });
+          AIGraphics?.setThinkPulse?.(true);
+          AIGraphics?.showNeural?.(true);
+          if (a.mode === 'evolve') ACI?.evolve?.(plan.message).catch(() => {});
+          else ACI?.pulse?.(1.6);
+          results.push(a.mode);
+        }
+      } catch (e) {
+        results.push(a.type + ' failed');
+      }
+    }
+    return results;
+  },
+
+  localReply(plan, actionResults) {
+    const greek = plan.greek;
+    const acted = (actionResults || []).filter(Boolean);
+    if (plan.intent === 'ping') {
+      return greek
+        ? 'Ναι — Astranov εδώ. Μίλα κανονικά: locate, Athens, order, ή ό,τι θες στο globe.'
+        : 'Yes — Astranov online. Speak or type: locate, fly Athens, order, zoom global.';
+    }
+    if (acted.length) {
+      const what = acted.join(' · ');
+      return greek
+        ? 'Έγινε στο globe: ' + what + '. Πες επόμενο βήμα.'
+        : 'Done on the globe: ' + what + '. What next?';
+    }
+    if (plan.intent === 'chat') {
+      return greek
+        ? 'Άκουσα: «' + plan.message.slice(0, 80) + '». Σκέφτομαι… (μπορείς locate / fly / order χωρίς AI).'
+        : 'Got it: «' + plan.message.slice(0, 80) + '». Thinking… (you can also say locate / fly / order).';
+    }
+    return greek ? 'Εντάξει — πες locate, fly, order, ή ρώτα με.' : 'OK — say locate, fly, order, or ask me anything.';
+  },
+
+  /** Fast AI via aicycle (lighter than aci coders_chat). Race timeout. */
+  async askAi(message, plan) {
+    const headers = await (Auth?.authHeaders?.() || Promise.resolve({
+      'Content-Type': 'application/json',
+      apikey: SB_KEY,
+      Authorization: 'Bearer ' + SB_KEY,
+    }));
+    const systemBits = [
+      'You are Astranov — SpaceNet globe OS AI. Spartan, real, same language as user.',
+      'User can act on a 3D Earth (locate, fly cities, order, zoom).',
+      'If they asked something you cannot do in text, say the CLI phrase they should type.',
+      'Max 2 short sentences. No markdown lists.',
+    ];
+    if (plan.actions.length) {
+      systemBits.push('Already executed on globe: ' + plan.actions.map(a => a.type).join(', ') + '. Confirm briefly.');
+    }
+    const body = {
+      mode: 'chat',
+      message: String(message).slice(0, 900),
+      system: systemBits.join(' '),
+      history: this.history.slice(-6),
+      fast: true,
+      fallback_prefs: { force: 'groq', skip: [] },
+    };
+    const url = (typeof SB_URL !== 'undefined' ? SB_URL : ACI?.url) + '/functions/v1/aicycle';
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = setTimeout(() => { try { ctrl?.abort(); } catch (_) {} }, this.AI_TIMEOUT_MS);
+    try {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json', apikey: headers.apikey || SB_KEY },
+        body: JSON.stringify(body),
+        signal: ctrl?.signal,
+      });
+      const j = await r.json().catch(() => ({}));
+      const text = String(j.text || j.response || '').trim();
+      if (!text || /gathering itself|warming up|try again|no model/i.test(text)) return null;
+      return { text: text.slice(0, 500), via: j.via || j.provider || 'aicycle' };
+    } catch (_) {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  },
+
+  deliver(text, opts = {}) {
+    const shown = String(text || '').slice(0, 500);
+    if (!shown) return;
+    AciCli?.print?.(shown, opts.kind || 'reply');
+    ACIControl?.reply?.(shown.slice(0, 280));
+    GlobeDeck?.setPreview?.(shown.slice(0, 140));
+    CliRibbon?.setNotice?.(shown.slice(0, 100), opts.kind === 'err' ? 'err' : 'ready');
+    CliRibbon?.setActive?.('Astranov');
+    if (opts.speak && (window._handsFreeVoice || voiceSessionActive) && Voice?.shouldSpeak?.(shown)) {
+      speak(shown.slice(0, 160), () => resumeListening?.(), false);
+    } else if (window._handsFreeVoice || voiceSessionActive) {
+      scheduleVoiceResume?.();
+    }
+  },
+
+  /**
+   * Main entry — freeform user message from CLI or voice.
+   * Returns same shape as AciCoders.chat for compatibility.
+   */
+  async handle(message, opts = {}) {
+    this.init();
+    const raw = String((window.fixVoiceHotwords || (x => x))(String(message || ''))).trim();
+    if (!raw) {
+      await AciCoders?.enterSession?.({ fromVoice: !!opts.fromVoice, focus: true });
+      return { ok: true, session: true };
+    }
+
+    // Architect bridge / coders explicit — keep existing routes
+    if (ArchitectBridge?.wantsBridgeCmd?.(raw)) {
+      return ArchitectBridge.handleCommand(raw);
+    }
+    if (AciCoders?.isExplicitRef?.(raw) && AciCoders?.isArchitect?.()) {
+      return AciCoders.handleMessage(raw, opts);
+    }
+
+    if (this.busy) {
+      this.deliver(this.localReply({ greek: /[\u0370-\u03FF]/.test(raw), message: raw, intent: 'chat', actions: [] }, []), { kind: 'dim' });
+    }
+    this.busy = true;
+    GlobeDeck?.expand?.('Astranov');
+    GlobeDeck?.setThinking?.(true, 'Astranov…');
+    CliRibbon?.setActive?.('Astranov');
+    AIGraphics?.setThinkPulse?.(true);
+
+    try {
+      const plan = this.plan(raw);
+      const actionResults = await this.execute(plan);
+      const instant = this.localReply(plan, actionResults);
+      this.history.push({ role: 'user', content: raw });
+      this.history.push({ role: 'assistant', content: instant });
+      if (this.history.length > 24) this.history = this.history.slice(-24);
+
+      // Always show something now (local-first)
+      this.deliver(instant, {
+        kind: 'reply',
+        speak: !!(opts.fromVoice || window._handsFreeVoice),
+      });
+      GlobeDeck?.setThinking?.(false);
+
+      // Pure action intents don't need slow AI
+      if (plan.intent !== 'chat' && plan.actions.length && plan.intent !== 'brain') {
+        FieldBrain?.pulse?.('act', plan.intent, { props: { results: actionResults } });
+        return { ok: true, text: instant, via: 'local/globe', actions: actionResults, local: true };
+      }
+
+      // Enrich chat with AI — do not block more than AI_TIMEOUT_MS
+      const ai = await this.askAi(raw, plan);
+      if (ai?.text && ai.text !== instant) {
+        // Replace last assistant history with richer reply
+        this.history[this.history.length - 1] = { role: 'assistant', content: ai.text };
+        this.deliver(ai.text, {
+          kind: 'reply',
+          speak: !!(opts.fromVoice || window._handsFreeVoice),
+        });
+        FieldBrain?.pulse?.('think', raw.slice(0, 48), {});
+        MapDepict?.action?.('think', { detail: raw.slice(0, 40) });
+        return { ok: true, text: ai.text, via: ai.via, actions: actionResults };
+      }
+
+      return { ok: true, text: instant, via: 'local/first', actions: actionResults, local: true };
+    } catch (e) {
+      const err = 'Brain error: ' + (e.message || e);
+      this.deliver(err, { kind: 'err' });
+      return { ok: false, error: err, text: err };
+    } finally {
+      this.busy = false;
+      GlobeDeck?.setThinking?.(false);
+      setTimeout(() => AIGraphics?.setThinkPulse?.(false), 900);
+    }
+  },
+};
+
+window.AstranovCoreBrain = AstranovCoreBrain;
 
 // === SESSION HOLD — pause mic/tasks in noisy places, resume later ===
 let sessionHeld = false;
@@ -10403,12 +10824,23 @@ const EarthRealism = {
         'varying vec2 vUv;',
         'varying vec3 vNormalW;',
         'void main() {',
-        '  float d = dot(normalize(vNormalW), normalize(sunDirection));',
+        '  vec3 n = normalize(vNormalW);',
+        '  vec3 s = normalize(sunDirection);',
+        '  float d = dot(n, s);',
         '  vec4 dayColor = texture2D(dayTexture, vUv);',
         '  vec4 nightColor = texture2D(nightTexture, vUv);',
-        '  float blend = smoothstep(-0.12, 0.28, d);',
-        '  vec4 col = mix(nightColor * 1.35, dayColor, blend);',
-        '  gl_FragColor = vec4(col.rgb * brightness, 1.0);',
+        '  // Soft terminator + city-night glow (Astranov cinematic, not hard band)',
+        '  float blend = smoothstep(-0.18, 0.32, d);',
+        '  vec3 nightLit = nightColor.rgb * vec3(0.55, 0.72, 1.15) * 1.55;',
+        '  vec3 dayLit = dayColor.rgb * (0.88 + 0.22 * max(d, 0.0));',
+        '  // Specular kiss on oceans (cheap blue boost on day side)',
+        '  float ocean = smoothstep(0.22, 0.55, dayColor.b - dayColor.r * 0.35);',
+        '  dayLit += ocean * pow(max(d, 0.0), 12.0) * vec3(0.35, 0.55, 0.75);',
+        '  vec3 col = mix(nightLit, dayLit, blend);',
+        '  // Atmospheric limb brightening',
+        '  float limb = pow(1.0 - abs(d), 2.8) * 0.18;',
+        '  col += vec3(0.25, 0.55, 1.0) * limb * (1.0 - blend * 0.4);',
+        '  gl_FragColor = vec4(col * brightness, 1.0);',
         '}',
       ].join('\n'),
     });
@@ -10624,17 +11056,21 @@ const AIGraphics = {
   },
 
   _isGaming() {
-    return !!(SlumberManager?.quality?.gamingGraphics || SlumberManager?.tier === 'gaming' || SlumberManager?.tier === 'full');
+    // Prefer high-end helper art unless device is in deep conserve
+    if (SlumberManager?.tier === 'slumber' || SlumberManager?.tier === 'conserve') return false;
+    return true;
   },
 
   _gamingVert() {
     return [
       'varying vec3 vN;',
       'varying vec3 vV;',
+      'varying vec3 vW;',
       'void main(){',
       '  vN = normalize(normalMatrix * normal);',
       '  vec4 mv = modelViewMatrix * vec4(position, 1.0);',
       '  vV = -mv.xyz;',
+      '  vW = (modelMatrix * vec4(position, 1.0)).xyz;',
       '  gl_Position = projectionMatrix * mv;',
       '}',
     ].join('\n');
@@ -10647,14 +11083,24 @@ const AIGraphics = {
       'uniform float uPulse;',
       'uniform float uRim;',
       'uniform float uAlpha;',
+      'uniform float uMetal;',
       'varying vec3 vN;',
       'varying vec3 vV;',
+      'varying vec3 vW;',
       'void main(){',
       '  vec3 n = normalize(vN);',
       '  vec3 v = normalize(vV);',
-      '  float rim = pow(1.0 - max(dot(n, v), 0.0), 2.4) * uRim;',
-      '  float pulse = 0.82 + 0.18 * sin(uPulse);',
-      '  vec3 col = uColor * 0.45 + uEmit * pulse + vec3(0.15, 0.75, 1.0) * rim;',
+      '  float ndv = max(dot(n, v), 0.0);',
+      '  float rim = pow(1.0 - ndv, 2.8) * uRim;',
+      '  float pulse = 0.78 + 0.22 * sin(uPulse * 1.7 + vW.y * 40.0);',
+      '  float fres = pow(1.0 - ndv, 3.4);',
+      '  vec3 base = uColor * (0.35 + uMetal * 0.4);',
+      '  vec3 emit = uEmit * pulse * (0.55 + fres * 0.9);',
+      '  vec3 rimCol = mix(vec3(0.2, 0.85, 1.0), uEmit, 0.45) * rim;',
+      '  vec3 col = base + emit + rimCol;',
+      '  // Hot core flecks',
+      '  float fleck = pow(max(sin(vW.x * 90.0 + uPulse) * sin(vW.z * 70.0), 0.0), 8.0) * 0.35;',
+      '  col += uEmit * fleck;',
       '  gl_FragColor = vec4(col, uAlpha);',
       '}',
     ].join('\n');
@@ -10666,14 +11112,16 @@ const AIGraphics = {
         uColor: { value: new THREE.Color(opts.color || 0x1a2838) },
         uEmit: { value: new THREE.Color(opts.emissive || 0x00c8ff) },
         uPulse: { value: 0 },
-        uRim: { value: opts.rim ?? 1.35 },
+        uRim: { value: opts.rim ?? 1.55 },
         uAlpha: { value: opts.opacity ?? 1 },
+        uMetal: { value: opts.metal ?? 0.55 },
       },
       vertexShader: this._gamingVert(),
       fragmentShader: this._gamingFrag(),
       transparent: !!opts.transparent || (opts.opacity != null && opts.opacity < 1),
       blending: opts.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
-      depthWrite: !opts.additive,
+      depthWrite: opts.additive ? false : (opts.depthWrite !== false),
+      side: opts.doubleSide ? THREE.DoubleSide : THREE.FrontSide,
     });
     mat.userData._gaming = true;
     return mat;
@@ -10687,15 +11135,15 @@ const AIGraphics = {
   },
 
   _createJetVfx(group, side) {
-    const COUNT = 72;
+    const COUNT = this._isGaming() ? 110 : 56;
     const geo = new THREE.BufferGeometry();
     const pos = new Float32Array(COUNT * 3);
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     const mat = new THREE.PointsMaterial({
-      size: this._isGaming() ? 0.022 : 0.014,
-      color: side < 0 ? 0x00e8ff : 0x44aaff,
+      size: this._isGaming() ? 0.028 : 0.016,
+      color: side < 0 ? 0x00f0ff : 0x66ccff,
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.95,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       sizeAttenuation: true,
@@ -10761,18 +11209,76 @@ const AIGraphics = {
     return { canvas: c, tex, ctx };
   },
 
+  setThinkPulse(on) {
+    this.thinkPulse = !!on;
+    if (this.neuralLayer) this.neuralLayer.visible = !!on || this.superBatchActive;
+    if (this._hudCanvas) this._hudCanvas.style.opacity = on ? '0.5' : (this.superBatchActive ? '0.35' : '0');
+  },
+
+  showNeural(on) {
+    if (this.neuralLayer) this.neuralLayer.visible = !!on;
+  },
+
   addAtmosphere(parent, r) {
-    const geo = new THREE.SphereGeometry(r * 1.018, SlumberManager?.tier === 'full' ? 48 : 32, SlumberManager?.tier === 'full' ? 48 : 32);
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0x2288cc,
+    // Remove boot-atmosphere duplicate if present
+    try {
+      const kids = parent && parent.children ? parent.children.slice() : [];
+      kids.forEach((c) => {
+        if (c.userData?.type === 'boot-atmosphere') parent.remove(c);
+      });
+    } catch (_) { /* */ }
+    const segs = SlumberManager?.tier === 'full' || SlumberManager?.tier === 'gaming' ? 64 : 48;
+    // Outer glow shell
+    const geo = new THREE.SphereGeometry(r * 1.045, segs, segs);
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uColor: { value: new THREE.Color(0x3aa8ff) },
+        uPower: { value: 3.2 },
+        uIntensity: { value: 0.55 },
+      },
+      vertexShader: [
+        'varying vec3 vNormal;',
+        'varying vec3 vView;',
+        'void main(){',
+        '  vNormal = normalize(normalMatrix * normal);',
+        '  vec4 mv = modelViewMatrix * vec4(position,1.0);',
+        '  vView = normalize(-mv.xyz);',
+        '  gl_Position = projectionMatrix * mv;',
+        '}',
+      ].join('\n'),
+      fragmentShader: [
+        'uniform vec3 uColor;',
+        'uniform float uPower;',
+        'uniform float uIntensity;',
+        'varying vec3 vNormal;',
+        'varying vec3 vView;',
+        'void main(){',
+        '  float fres = pow(1.0 - max(dot(vNormal, vView), 0.0), uPower);',
+        '  float a = fres * uIntensity;',
+        '  gl_FragColor = vec4(uColor, a);',
+        '}',
+      ].join('\n'),
       transparent: true,
-      opacity: 0.06,
       blending: THREE.AdditiveBlending,
       side: THREE.BackSide,
       depthWrite: false,
     });
     this.atmosphere = new THREE.Mesh(geo, mat);
     parent.add(this.atmosphere);
+    // Thin bright rim
+    const rim = new THREE.Mesh(
+      new THREE.SphereGeometry(r * 1.012, segs, segs),
+      new THREE.MeshBasicMaterial({
+        color: 0x66ccff,
+        transparent: true,
+        opacity: 0.07,
+        blending: THREE.AdditiveBlending,
+        side: THREE.FrontSide,
+        depthWrite: false,
+      })
+    );
+    this._atmoRim = rim;
+    parent.add(rim);
   },
 
   addClouds(parent, r) {
@@ -11000,279 +11506,386 @@ const AIGraphics = {
     this.activeEffects.push({ points: pts, velocities: vel, life, maxLife: life });
   },
 
+  /** 2D HUD silhouette — gaming-grade mecha angel (used by overlay only) */
   _paintAstranovCharacter(ctx, w, h, frame, opts = {}) {
-    const t = frame * 0.12;
-    const flap = Math.sin(t) * 0.12;
+    const t = frame * 0.14;
     const cx = w * 0.5;
-    const cy = h * 0.46 + Math.sin(t * 0.65) * 2;
-    const cyan = opts.glow || '#00e8ff';
-    const silver = '#b8c8d8';
-    const dark = '#0a1420';
-
+    const cy = h * 0.44 + Math.sin(t * 0.7) * 3;
+    const cyan = opts.glow || '#00f0ff';
     ctx.clearRect(0, 0, w, h);
-
-    const bg = ctx.createRadialGradient(cx, cy, 8, cx, cy, w * 0.52);
-    bg.addColorStop(0, 'rgba(0,40,80,0.5)');
-    bg.addColorStop(0.6, 'rgba(0,10,24,0.25)');
+    const bg = ctx.createRadialGradient(cx, cy, 4, cx, cy, w * 0.48);
+    bg.addColorStop(0, 'rgba(0,80,140,0.55)');
+    bg.addColorStop(0.45, 'rgba(0,30,70,0.22)');
     bg.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, w, h);
-
-    for (let i = 0; i < 40; i++) {
-      const sx = (Math.sin(i * 2.17 + frame * 0.02) * 0.5 + 0.5) * w;
-      const sy = (Math.cos(i * 1.73) * 0.5 + 0.5) * h;
-      ctx.fillStyle = i % 5 === 0 ? 'rgba(180,220,255,0.9)' : 'rgba(100,160,255,0.45)';
-      ctx.fillRect(sx, sy, 1.2, 1.2);
-    }
-
     ctx.save();
     ctx.translate(cx, cy);
     ctx.globalCompositeOperation = 'lighter';
-
-    const drawMechWing = (side) => {
-      const s = side;
-      const tilt = flap * 8 * s;
-      const segs = [
-        [[6 * s, -4], [52 * s, -36 + tilt], [72 * s, -8 + tilt], [38 * s, 6]],
-        [[10 * s, 2], [58 * s, -18 + tilt], [78 * s, 8 + tilt], [42 * s, 14]],
-        [[14 * s, 10], [48 * s, 4 + tilt], [62 * s, 22 + tilt], [32 * s, 20]],
-      ];
-      segs.forEach((pts, i) => {
+    // Energy wings
+    [-1, 1].forEach((side) => {
+      for (let i = 0; i < 5; i++) {
+        const flap = Math.sin(t + i * 0.4) * 14 * side;
         ctx.beginPath();
-        ctx.moveTo(pts[0][0], pts[0][1]);
-        pts.slice(1).forEach(p => ctx.lineTo(p[0], p[1]));
+        ctx.moveTo(8 * side, -6);
+        ctx.quadraticCurveTo(40 * side + flap, -40 - i * 6, 88 * side + flap * 0.4, -8 + i * 8);
+        ctx.quadraticCurveTo(50 * side, 10 + i * 4, 12 * side, 8);
         ctx.closePath();
-        const g = ctx.createLinearGradient(0, -30, 60 * s, 20);
-        g.addColorStop(0, silver);
-        g.addColorStop(0.45, '#4a5a6a');
-        g.addColorStop(1, dark);
-        ctx.fillStyle = g;
+        ctx.fillStyle = `rgba(0,${200 - i * 20},255,${0.22 - i * 0.03})`;
         ctx.fill();
-        ctx.strokeStyle = i === 0 ? cyan : 'rgba(0,200,255,0.35)';
-        ctx.lineWidth = i === 0 ? 1.8 : 1;
-        ctx.stroke();
-      });
-    };
-
-    if (opts.jet) {
-      const jetLen = 38 + Math.sin(t * 2) * 8;
-      [-1, 1].forEach((side) => {
-        const jg = ctx.createLinearGradient(side * 20, 8, side * 20, 8 + jetLen);
-        jg.addColorStop(0, cyan);
-        jg.addColorStop(0.4, 'rgba(0,180,255,0.55)');
-        jg.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = jg;
-        ctx.beginPath();
-        ctx.moveTo(side * 14, 10);
-        ctx.lineTo(side * 28, 10);
-        ctx.lineTo(side * 18, 10 + jetLen);
-        ctx.closePath();
-        ctx.fill();
-      });
-    }
-
-    drawMechWing(-1);
-    drawMechWing(1);
-
+      }
+    });
+    // Body silhouette
     ctx.globalCompositeOperation = 'source-over';
-    const torso = ctx.createLinearGradient(0, -20, 0, 32);
-    torso.addColorStop(0, silver);
-    torso.addColorStop(0.35, '#5a6a7a');
-    torso.addColorStop(0.7, dark);
-    torso.addColorStop(1, '#1a2838');
-    ctx.fillStyle = torso;
+    const body = ctx.createLinearGradient(0, -36, 0, 40);
+    body.addColorStop(0, '#e8f4ff');
+    body.addColorStop(0.35, '#7a90a8');
+    body.addColorStop(1, '#0a1520');
+    ctx.fillStyle = body;
     ctx.beginPath();
-    ctx.moveTo(-14, -12);
-    ctx.lineTo(14, -12);
-    ctx.lineTo(18, 8);
-    ctx.lineTo(12, 30);
-    ctx.lineTo(-12, 30);
-    ctx.lineTo(-18, 8);
+    ctx.moveTo(-16, -10);
+    ctx.lineTo(16, -10);
+    ctx.lineTo(20, 12);
+    ctx.lineTo(12, 36);
+    ctx.lineTo(-12, 36);
+    ctx.lineTo(-20, 12);
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = cyan;
-    ctx.lineWidth = 1.2;
+    ctx.lineWidth = 1.6;
     ctx.stroke();
-
-    const corePulse = 0.75 + Math.sin(t * 1.6) * 0.25;
-    const core = ctx.createRadialGradient(0, 4, 1, 0, 4, 10);
-    core.addColorStop(0, '#ffffff');
-    core.addColorStop(0.35, cyan);
+    // Core
+    const core = ctx.createRadialGradient(0, 4, 1, 0, 4, 14);
+    core.addColorStop(0, '#fff');
+    core.addColorStop(0.4, cyan);
     core.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.globalAlpha = corePulse;
     ctx.fillStyle = core;
     ctx.beginPath();
-    ctx.arc(0, 4, 9, 0, Math.PI * 2);
+    ctx.arc(0, 4, 12, 0, Math.PI * 2);
     ctx.fill();
-    ctx.globalAlpha = 1;
-
-    [-1, 1].forEach((side) => {
-      ctx.fillStyle = '#6a7a8a';
-      ctx.fillRect(side * 10, -8, 8, 22);
-      ctx.fillStyle = cyan;
-      ctx.fillRect(side * 12, 2, 5, 8);
-      ctx.beginPath();
-      ctx.ellipse(side * 22, -2, 10, 6, side * 0.3, 0, Math.PI * 2);
-      ctx.fillStyle = '#7a8a9a';
-      ctx.fill();
-    });
-
-    const helm = ctx.createLinearGradient(-12, -34, 12, -18);
-    helm.addColorStop(0, '#e8f0ff');
-    helm.addColorStop(0.5, silver);
-    helm.addColorStop(1, '#4a5a68');
-    ctx.fillStyle = helm;
+    // Helmet
+    ctx.fillStyle = '#c8d8e8';
     ctx.beginPath();
-    ctx.ellipse(0, -24, 13, 15, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, -26, 14, 16, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = cyan;
     ctx.shadowColor = cyan;
-    ctx.shadowBlur = 12;
-    ctx.fillRect(-11, -26, 22, 5);
+    ctx.shadowBlur = 16;
+    ctx.fillStyle = cyan;
+    ctx.fillRect(-12, -28, 24, 6);
     ctx.shadowBlur = 0;
-
-    ctx.fillStyle = '#5a6a78';
-    ctx.fillRect(-7, 28, 5, 14);
-    ctx.fillRect(2, 30, 5, 12);
-
+    // Halo
+    ctx.strokeStyle = 'rgba(0,240,255,0.55)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(0, -48, 22, 7, 0, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.restore();
   },
 
+  /**
+   * Astranov Helper v2 — high-level gaming mecha-angel on the globe.
+   * Procedural THREE.js (no external models): energy wings, articulated armor,
+   * halo, core bloom, thruster jets, orbital micro-drones.
+   */
   _buildProceduralHumanoid(lat, lng, opts = {}) {
     const hi = this._isGaming();
-    const seg = hi ? 16 : 10;
+    const seg = hi ? 20 : 12;
     const g = new THREE.Group();
-    const torso = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.014, 0.018, 0.048, seg),
-      this._gamingMat({ color: 0x141e2a, emissive: 0x006688, rim: 1.1 }),
+    const mat = (o) => this._gamingMat(o);
+
+    // ── Root skeleton groups ──
+    const hips = new THREE.Group();
+    const spine = new THREE.Group();
+    const chestG = new THREE.Group();
+    const headG = new THREE.Group();
+    spine.add(chestG);
+    chestG.add(headG);
+    hips.add(spine);
+    g.add(hips);
+
+    // Pelvis / hip armor
+    const pelvis = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.016, 0.02, 0.018, seg),
+      mat({ color: 0x121c28, emissive: 0x004466, rim: 1.3, metal: 0.7 }),
     );
-    g.add(torso);
+    hips.add(pelvis);
+
+    // Torso stack
+    const abdomen = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.015, 0.017, 0.022, seg),
+      mat({ color: 0x1a2838, emissive: 0x006688, rim: 1.2, metal: 0.65 }),
+    );
+    abdomen.position.y = 0.018;
+    spine.add(abdomen);
+
     const chest = new THREE.Mesh(
-      new THREE.BoxGeometry(0.032, 0.028, 0.022),
-      this._gamingMat({ color: 0x2a3a4a, emissive: 0x00aacc, rim: 1.6 }),
+      new THREE.BoxGeometry(0.042, 0.036, 0.028),
+      mat({ color: 0x243848, emissive: 0x00aadd, rim: 1.85, metal: 0.75 }),
     );
-    chest.position.y = 0.008;
-    g.add(chest);
-    const head = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(0.014, hi ? 1 : 0),
-      this._gamingMat({ color: 0x8899aa, emissive: 0x224466, rim: 1.4 }),
+    chest.position.y = 0.04;
+    chestG.add(chest);
+
+    // Chest plate ridge
+    const plate = new THREE.Mesh(
+      new THREE.BoxGeometry(0.028, 0.03, 0.008),
+      mat({ color: 0x8899aa, emissive: 0x00e8ff, rim: 2.0, metal: 0.9 }),
     );
-    head.position.y = 0.036;
-    g.add(head);
+    plate.position.set(0, 0.04, 0.016);
+    chestG.add(plate);
+
+    // Pauldrons
+    const pauldrons = [];
+    [-1, 1].forEach((side) => {
+      const p = new THREE.Mesh(
+        new THREE.SphereGeometry(0.014, seg, seg * 0.5, 0, Math.PI * 2, 0, Math.PI * 0.55),
+        mat({ color: 0x3a4a5a, emissive: 0x0088cc, rim: 1.7, metal: 0.8 }),
+      );
+      p.position.set(side * 0.028, 0.052, 0);
+      p.rotation.z = side * -0.4;
+      chestG.add(p);
+      pauldrons.push(p);
+    });
+
+    // Energy core (multi-layer bloom)
+    const coreInner = new THREE.Mesh(
+      new THREE.SphereGeometry(0.009, seg, seg),
+      mat({ color: 0xffffff, emissive: 0xffffff, rim: 0.5, additive: true, transparent: true, opacity: 0.95 }),
+    );
+    coreInner.position.set(0, 0.038, 0.012);
+    chestG.add(coreInner);
+    const core = new THREE.Mesh(
+      new THREE.SphereGeometry(0.014, seg, seg),
+      mat({ color: 0x00e8ff, emissive: 0x00ffff, rim: 2.6, additive: true, transparent: true, opacity: 0.55 }),
+    );
+    core.position.set(0, 0.038, 0.012);
+    chestG.add(core);
+    const coreOuter = new THREE.Mesh(
+      new THREE.SphereGeometry(0.022, seg, seg),
+      mat({ color: 0x0088ff, emissive: 0x00aaff, rim: 1.2, additive: true, transparent: true, opacity: 0.18 }),
+    );
+    coreOuter.position.set(0, 0.038, 0.012);
+    chestG.add(coreOuter);
+
+    // Head + helm + visor
+    const skull = new THREE.Mesh(
+      new THREE.SphereGeometry(0.016, seg, seg),
+      mat({ color: 0xb8c8d8, emissive: 0x224466, rim: 1.5, metal: 0.85 }),
+    );
+    skull.position.y = 0.072;
+    headG.add(skull);
+    const helmCrest = new THREE.Mesh(
+      new THREE.BoxGeometry(0.006, 0.02, 0.028),
+      mat({ color: 0x00c8ff, emissive: 0x00e8ff, rim: 2.2, metal: 0.5 }),
+    );
+    helmCrest.position.set(0, 0.086, -0.002);
+    headG.add(helmCrest);
     const visor = new THREE.Mesh(
-      new THREE.BoxGeometry(0.026, 0.008, 0.012),
-      this._gamingMat({ color: 0x001822, emissive: 0x00e8ff, rim: 2.2, transparent: true, opacity: 0.95 }),
+      new THREE.BoxGeometry(0.03, 0.01, 0.014),
+      mat({ color: 0x001018, emissive: 0x00f0ff, rim: 2.8, transparent: true, opacity: 0.92 }),
     );
-    visor.position.set(0, 0.038, 0.014);
-    g.add(visor);
+    visor.position.set(0, 0.072, 0.014);
+    headG.add(visor);
+
+    // Halo ring above head
+    const halo = new THREE.Mesh(
+      new THREE.TorusGeometry(0.028, 0.0022, 8, hi ? 48 : 24),
+      mat({ color: 0x00e8ff, emissive: 0x00ffff, rim: 2.5, additive: true, transparent: true, opacity: 0.75 }),
+    );
+    halo.position.y = 0.102;
+    halo.rotation.x = Math.PI / 2.4;
+    headG.add(halo);
+
+    // Arms (upper + lower + gauntlet)
     const arms = [];
     [-1, 1].forEach((side) => {
       const arm = new THREE.Group();
       const upper = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.005, 0.005, 0.02, seg),
-        this._gamingMat({ color: 0x4a5a6a, emissive: 0x0088aa, rim: 1.2 }),
+        new THREE.CylinderGeometry(0.006, 0.0055, 0.028, seg),
+        mat({ color: 0x4a5a6a, emissive: 0x0088aa, rim: 1.35, metal: 0.7 }),
       );
-      upper.rotation.z = side * 0.35;
+      upper.position.y = -0.012;
       arm.add(upper);
-      const gauntlet = new THREE.Mesh(
-        new THREE.BoxGeometry(0.01, 0.012, 0.01),
-        this._gamingMat({ color: 0x00c8ff, emissive: 0x00e8ff, rim: 1.8 }),
+      const lower = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.005, 0.0045, 0.024, seg),
+        mat({ color: 0x3a4a58, emissive: 0x006688, rim: 1.25, metal: 0.65 }),
       );
-      gauntlet.position.set(side * 0.014, -0.012, 0);
+      lower.position.y = -0.034;
+      arm.add(lower);
+      const gauntlet = new THREE.Mesh(
+        new THREE.BoxGeometry(0.012, 0.014, 0.012),
+        mat({ color: 0x00c8ff, emissive: 0x00e8ff, rim: 2.0, metal: 0.5 }),
+      );
+      gauntlet.position.y = -0.05;
       arm.add(gauntlet);
-      arm.position.set(side * 0.02, 0.014, 0);
-      g.add(arm);
+      // Energy blade idle
+      const blade = new THREE.Mesh(
+        new THREE.BoxGeometry(0.003, 0.028, 0.006),
+        mat({ color: 0x00ffff, emissive: 0x00ffff, rim: 2.4, additive: true, transparent: true, opacity: 0.55 }),
+      );
+      blade.position.set(side * 0.006, -0.062, 0);
+      arm.add(blade);
+      arm.position.set(side * 0.03, 0.05, 0);
+      arm.rotation.z = side * 0.25;
+      chestG.add(arm);
       arms.push(arm);
     });
+
+    // Legs
     const legs = [];
     [-1, 1].forEach((side) => {
       const leg = new THREE.Group();
       const thigh = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.005, 0.006, 0.018, seg),
-        this._gamingMat({ color: 0x3a4a58, emissive: 0x004466, rim: 1.0 }),
+        new THREE.CylinderGeometry(0.0065, 0.006, 0.026, seg),
+        mat({ color: 0x3a4a58, emissive: 0x004466, rim: 1.15, metal: 0.7 }),
       );
+      thigh.position.y = -0.014;
       leg.add(thigh);
-      const boot = new THREE.Mesh(
-        new THREE.BoxGeometry(0.011, 0.014, 0.014),
-        this._gamingMat({ color: 0x2a3848, emissive: 0x0066aa, rim: 1.3 }),
+      const shin = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.0055, 0.005, 0.024, seg),
+        mat({ color: 0x2a3848, emissive: 0x003355, rim: 1.1, metal: 0.65 }),
       );
-      boot.position.y = -0.018;
+      shin.position.y = -0.038;
+      leg.add(shin);
+      const boot = new THREE.Mesh(
+        new THREE.BoxGeometry(0.014, 0.012, 0.02),
+        mat({ color: 0x1a2838, emissive: 0x0066aa, rim: 1.4, metal: 0.8 }),
+      );
+      boot.position.set(0, -0.054, 0.004);
       leg.add(boot);
-      leg.position.set(side * 0.011, -0.028, 0);
-      g.add(leg);
+      leg.position.set(side * 0.012, -0.008, 0);
+      hips.add(leg);
       legs.push(leg);
     });
+
+    // Energy wings — multi-vane, not boxes
     const wings = [];
+    const wingVanes = [];
     [-1, 1].forEach((side) => {
       const wing = new THREE.Group();
-      for (let s = 0; s < 3; s++) {
-        const segMesh = new THREE.Mesh(
-          new THREE.BoxGeometry(0.022 - s * 0.004, 0.003, 0.012 - s * 0.002),
-          this._gamingMat({
-            color: 0x6a7a8a,
-            emissive: s === 0 ? 0x00c8ff : 0x006688,
-            rim: 1.5 + s * 0.3,
-            transparent: s > 0,
-            opacity: s === 0 ? 1 : 0.82,
+      for (let s = 0; s < (hi ? 5 : 3); s++) {
+        const len = 0.055 - s * 0.007;
+        const vane = new THREE.Mesh(
+          new THREE.BoxGeometry(len, 0.0025 + s * 0.0004, 0.018 - s * 0.002),
+          mat({
+            color: 0x6a8aaa,
+            emissive: s === 0 ? 0x00e8ff : 0x0088cc,
+            rim: 1.8 + s * 0.25,
+            transparent: true,
+            opacity: 0.92 - s * 0.1,
+            metal: 0.4,
+            additive: s > 2,
           }),
         );
-        segMesh.position.set(side * (0.018 + s * 0.016), s * 0.006, -s * 0.003);
-        wing.add(segMesh);
+        vane.position.set(side * (0.02 + s * 0.018), 0.01 + s * 0.008, -0.012 - s * 0.004);
+        vane.rotation.z = side * (0.15 + s * 0.08);
+        vane.rotation.y = side * -0.12;
+        wing.add(vane);
+        wingVanes.push(vane);
+        // Soft energy membrane
+        if (s < 3) {
+          const membrane = new THREE.Mesh(
+            new THREE.PlaneGeometry(len * 0.9, 0.02),
+            mat({
+              color: 0x00aaff,
+              emissive: 0x00e8ff,
+              rim: 1.2,
+              additive: true,
+              transparent: true,
+              opacity: 0.22,
+              doubleSide: true,
+            }),
+          );
+          membrane.position.copy(vane.position);
+          membrane.position.z -= 0.002;
+          membrane.rotation.z = vane.rotation.z;
+          wing.add(membrane);
+        }
       }
-      wing.position.set(side * 0.016, 0.012, -0.01);
-      g.add(wing);
+      wing.position.set(side * 0.014, 0.045, -0.012);
+      chestG.add(wing);
       wings.push(wing);
     });
+
+    // Back thruster pods
     const thrusters = [];
     const jetVfx = [];
     [-1, 1].forEach((side) => {
       const pack = new THREE.Group();
       const housing = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.006, 0.008, 0.016, seg),
-        this._gamingMat({ color: 0x2a3848, emissive: 0x00aacc, rim: 1.4 }),
+        new THREE.CylinderGeometry(0.007, 0.01, 0.02, seg),
+        mat({ color: 0x1a2838, emissive: 0x00aacc, rim: 1.5, metal: 0.75 }),
       );
       pack.add(housing);
+      const nozzle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.005, 0.007, 0.01, seg),
+        mat({ color: 0x2a3848, emissive: 0x0088aa, rim: 1.3 }),
+      );
+      nozzle.position.y = -0.014;
+      pack.add(nozzle);
       const plume = new THREE.Mesh(
-        new THREE.ConeGeometry(0.007, hi ? 0.038 : 0.024, seg),
-        this._gamingMat({ color: 0x00e8ff, emissive: 0x00ffff, rim: 2.0, additive: true, transparent: true, opacity: 0.75 }),
+        new THREE.ConeGeometry(0.009, hi ? 0.05 : 0.032, seg),
+        mat({ color: 0x00e8ff, emissive: 0x00ffff, rim: 2.2, additive: true, transparent: true, opacity: 0.8 }),
       );
       plume.rotation.x = Math.PI;
-      plume.position.y = -0.022;
+      plume.position.y = -0.032;
       pack.add(plume);
-      pack.position.set(side * 0.014, -0.03, -0.016);
-      g.add(pack);
+      pack.position.set(side * 0.016, 0.02, -0.022);
+      chestG.add(pack);
       thrusters.push(plume);
       jetVfx.push(this._createJetVfx(g, side));
     });
-    const core = new THREE.Mesh(
-      new THREE.SphereGeometry(0.011, seg, seg),
-      this._gamingMat({ color: 0xffffff, emissive: 0x00e8ff, rim: 2.4, additive: true, transparent: true, opacity: 0.7 }),
-    );
-    core.position.y = 0.006;
-    g.add(core);
+
+    // Orbital micro-drones (gaming flair)
+    const orbiters = [];
+    if (hi) {
+      for (let i = 0; i < 3; i++) {
+        const orb = new THREE.Mesh(
+          new THREE.OctahedronGeometry(0.005, 0),
+          mat({ color: 0x00e8ff, emissive: 0x00ffff, rim: 2.0, additive: true, transparent: true, opacity: 0.85 }),
+        );
+        g.add(orb);
+        orbiters.push({ mesh: orb, phase: (i / 3) * Math.PI * 2, radius: 0.055 + i * 0.008 });
+      }
+    }
+
+    // Soft aura
     const aura = new THREE.Mesh(
-      new THREE.SphereGeometry(0.052, seg, seg),
+      new THREE.SphereGeometry(0.07, seg, seg),
       new THREE.MeshBasicMaterial({
         color: 0x00c8ff,
         transparent: true,
-        opacity: hi ? 0.12 : 0.08,
+        opacity: hi ? 0.1 : 0.07,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       }),
     );
     g.add(aura);
-    const alt = opts.alt || 1.09;
+
+    // Ground contact ring (reads as “helper present”)
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.04, 0.0018, 8, 40),
+      mat({ color: 0x00aaff, emissive: 0x00e8ff, rim: 1.5, additive: true, transparent: true, opacity: 0.45 }),
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = -0.06;
+    g.add(ring);
+
+    const alt = opts.alt || 1.095;
     const p = this._latLngToPos(lat ?? 36.44, lng ?? 28.22, alt);
     g.position.set(p.x, p.y, p.z);
     const n = new THREE.Vector3(p.x, p.y, p.z).normalize();
     g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
+
     g.userData = {
       type: 'astranov-flyer',
+      gen: 2,
       procedural3d: true,
       gaming: hi,
       name: opts.label || 'Astranov',
       lat, lng, alt,
-      wings, arms, legs, thrusters, core, aura, jetVfx,
+      wings, wingVanes, arms, legs, thrusters, core, coreInner, coreOuter,
+      aura, halo, visor, ring, orbiters, pauldrons, jetVfx,
+      hips, spine, chestG, headG,
       edition: opts.edition?.id || 'astranov',
     };
     return g;
@@ -11281,35 +11894,96 @@ const AIGraphics = {
   _animateFlyerPose(mesh, flying) {
     const ud = mesh?.userData;
     if (!ud?.procedural3d) return;
-    const t = this._flyerFrame * 0.12;
+    const t = this._flyerFrame * 0.11;
     this._pulseGamingMats(mesh, t);
-    const flap = Math.sin(t) * (flying ? 0.52 : 0.28);
+
+    // Body hover / lean
+    if (ud.spine) {
+      ud.spine.rotation.x = Math.sin(t * 0.7) * (flying ? 0.18 : 0.06) + (flying ? 0.12 : 0);
+      ud.spine.position.y = Math.sin(t * 1.4) * 0.002;
+    }
+    if (ud.headG) {
+      ud.headG.rotation.y = Math.sin(t * 0.55) * 0.15;
+      ud.headG.rotation.x = Math.sin(t * 0.4) * 0.05;
+    }
+    if (ud.halo) {
+      ud.halo.rotation.z = t * 0.9;
+      if (ud.halo.material?.uniforms?.uAlpha) {
+        ud.halo.material.uniforms.uAlpha.value = 0.55 + Math.sin(t * 2) * 0.25;
+      }
+    }
+    if (ud.visor?.material?.uniforms?.uEmit) {
+      const pulse = 0.7 + Math.sin(t * 2.2) * 0.3;
+      ud.visor.material.uniforms.uEmit.value.setRGB(0, pulse, 1);
+    }
+
+    // Wing flap + vane shimmer
+    const flap = Math.sin(t * (flying ? 1.6 : 1.0)) * (flying ? 0.62 : 0.32);
     ud.wings?.forEach((wing, i) => {
-      wing.rotation.z = (i === 0 ? 1 : -1) * flap;
-      wing.rotation.y = Math.sin(t * 0.8 + i) * 0.08;
+      const s = i === 0 ? 1 : -1;
+      wing.rotation.z = s * flap;
+      wing.rotation.y = Math.sin(t * 0.9 + i) * 0.1;
+      wing.rotation.x = flying ? -0.15 : Math.sin(t * 0.5) * 0.05;
     });
+    ud.wingVanes?.forEach((v, i) => {
+      if (v.material?.uniforms?.uAlpha) {
+        v.material.uniforms.uAlpha.value = 0.55 + Math.sin(t * 1.8 + i) * 0.25;
+      }
+    });
+
     ud.legs?.forEach((leg, i) => {
-      leg.rotation.x = Math.sin(t * 0.9 + i) * (flying ? 0.22 : 0.12);
+      leg.rotation.x = Math.sin(t * 0.95 + i) * (flying ? 0.28 : 0.1) + (flying ? 0.2 : 0);
     });
     ud.arms?.forEach((arm, i) => {
-      arm.rotation.z = (i === 0 ? 1 : -1) * (0.12 + Math.sin(t * 0.7) * 0.08);
+      const s = i === 0 ? 1 : -1;
+      arm.rotation.z = s * (0.18 + Math.sin(t * 0.75) * 0.1);
+      arm.rotation.x = flying ? -0.35 + Math.sin(t + i) * 0.08 : Math.sin(t * 0.6 + i) * 0.08;
     });
-    if (ud.core?.material?.uniforms?.uAlpha) {
-      ud.core.material.uniforms.uAlpha.value = 0.55 + Math.sin(t * 1.6) * 0.3;
-    }
+
+    // Core bloom
+    const coreA = 0.45 + Math.sin(t * 1.8) * 0.35;
+    [ud.core, ud.coreInner, ud.coreOuter].forEach((c, i) => {
+      if (!c) return;
+      if (c.material?.uniforms?.uAlpha) {
+        c.material.uniforms.uAlpha.value = coreA * (i === 0 ? 1 : i === 1 ? 1.1 : 0.45);
+      }
+      c.scale.setScalar(1 + Math.sin(t * 1.5 + i) * 0.08);
+    });
+
     if (ud.aura?.material) {
-      ud.aura.material.opacity = (flying ? 0.16 : 0.1) + Math.sin(t * 1.2) * 0.04;
-      ud.aura.scale.setScalar(1 + Math.sin(t * 0.9) * 0.06);
+      ud.aura.material.opacity = (flying ? 0.16 : 0.09) + Math.sin(t * 1.1) * 0.04;
+      ud.aura.scale.setScalar(1 + Math.sin(t * 0.85) * 0.08);
     }
+    if (ud.ring) {
+      ud.ring.rotation.z = t * 1.2;
+      if (ud.ring.material?.uniforms?.uAlpha) {
+        ud.ring.material.uniforms.uAlpha.value = flying ? 0.55 : 0.35;
+      }
+    }
+
+    // Orbiting drones
+    ud.orbiters?.forEach((o) => {
+      const a = t * 1.3 + o.phase;
+      o.mesh.position.set(
+        Math.cos(a) * o.radius,
+        0.04 + Math.sin(a * 1.7) * 0.02,
+        Math.sin(a) * o.radius * 0.7 - 0.01,
+      );
+      o.mesh.rotation.y = a;
+      o.mesh.rotation.x = a * 0.6;
+    });
+
+    // Thrusters + particle jets
     ud.thrusters?.forEach((thr, i) => {
       if (thr.material?.uniforms?.uAlpha) {
         thr.material.uniforms.uAlpha.value = flying
-          ? 0.65 + Math.sin(t * 2 + i) * 0.3
-          : 0.3 + Math.sin(t + i) * 0.12;
+          ? 0.7 + Math.sin(t * 2.4 + i) * 0.28
+          : 0.28 + Math.sin(t + i) * 0.12;
       }
-      thr.scale.y = flying ? 1.2 + Math.sin(t * 1.4 + i) * 0.45 : 0.65;
+      thr.scale.y = flying ? 1.35 + Math.sin(t * 1.6 + i) * 0.5 : 0.55 + Math.sin(t + i) * 0.1;
+      thr.scale.x = thr.scale.z = flying ? 1.1 : 0.75;
     });
-    const power = flying ? 0.014 : 0.006;
+    const power = flying ? 0.018 : 0.007;
     const worldDown = new THREE.Vector3(0, -1, 0).applyQuaternion(mesh.quaternion);
     ud.thrusters?.forEach((thr, i) => {
       const wp = new THREE.Vector3();
@@ -11317,8 +11991,11 @@ const AIGraphics = {
       this._emitJet(ud.jetVfx?.[i], wp, worldDown, power);
     });
     ud.jetVfx?.forEach((vfx) => this._tickJetVfx(vfx, flying));
+
+    // Follow light on helper
     if (this._gamingLight && mesh.position) {
-      this._gamingLight.position.copy(mesh.position).multiplyScalar(1.02);
+      this._gamingLight.position.copy(mesh.position).multiplyScalar(1.03);
+      this._gamingLight.intensity = flying ? 2.2 : 1.5;
     }
   },
 
@@ -11330,20 +12007,31 @@ const AIGraphics = {
 
   _scaleFlyer(mesh, camZ) {
     if (!mesh?.userData?.procedural3d) return;
-    // Readable at GLOBAL (z≈2.55) — was satellite-dot scale before
-    const scale = Math.max(2.2, Math.min(6.5, 3.4 * (camZ / 2.2)));
+    // Larger, readable hero scale at global zoom — gaming presence
+    const base = mesh.userData.gaming ? 4.2 : 3.4;
+    const scale = Math.max(2.8, Math.min(8.5, base * (camZ / 2.15)));
     mesh.scale.setScalar(scale);
   },
 
   spawnAstranovFlyer(lat, lng, opts = {}) {
-    if (this._flyer?.parent) this._flyer.parent.remove(this._flyer);
+    if (this._flyer?.parent) {
+      try { this._flyer.parent.remove(this._flyer); } catch (_) { /* */ }
+    }
+    // Dispose old thruster particle systems lightly
+    this._flyer = null;
     const robot = this._buildProceduralHumanoid(lat, lng, opts);
     globePivot.add(robot);
     this._flyer = robot;
     window._astranovFlyer = robot;
     window._pilot = robot;
+    // Dedicated point light for cinematic helper
+    if (!this._gamingLight) {
+      this._gamingLight = new THREE.PointLight(0x00e8ff, 1.6, 5.5);
+      scene.add(this._gamingLight);
+    }
     this._animateFlyerPose(robot, false);
-    this.spawnEffect(robot.position, opts.color || 0x3d9eff, 22, 48);
+    this.spawnEffect(robot.position, opts.color || 0x00e8ff, 36, 55);
+    console.log('%c[Astranov Helper v2] gaming mecha-angel spawned', 'color:#00e8ff;font-weight:700');
     return robot;
   },
 
@@ -11647,11 +12335,13 @@ AIGraphics.init(globePivot);
 
 setTimeout(() => {
   try {
-    AIGraphics.spawnEffect(new THREE.Vector3(0.6, 0.3, 1.1), 0x00ffaa, 28, 32);
+    AIGraphics.spawnEffect(new THREE.Vector3(0.6, 0.3, 1.1), 0x00ffaa, 36, 40);
     const u = window._lastPos || { lat: 36.44, lng: 28.22 };
-    AIGraphics.spawnAstranovFlyer(u.lat, u.lng, { label: 'Astranov' });
-  } catch (_) {}
-}, 480);
+    AIGraphics.spawnAstranovFlyer(u.lat, u.lng, { label: 'Astranov', alt: 1.095 });
+  } catch (e) {
+    console.warn('[Astranov Helper] spawn failed', e);
+  }
+}, 420);
 
 window.AstranovFlyer = {
   spawn: (lat, lng, opts) => AIGraphics.spawnAstranovFlyer(lat, lng, opts),
@@ -12623,6 +13313,7 @@ AiRouter.init();
 LazyModules.schedule();
 
 ArchitectBridge?.init?.();
+AstranovCoreBrain?.init?.();
 setTimeout(() => Auth.refreshAuthority(), 800);
 AciCli?.primeCodersCli?.();
 AciCoders?.ensureBridge?.();
@@ -12655,6 +13346,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260716110653" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260716113007" data-astranov-deferred></script>
 </body>
 </html>

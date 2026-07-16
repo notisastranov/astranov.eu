@@ -347,10 +347,16 @@ const SuperAdd = {
   },
 
   async loadPostsOnGlobe() {
+    if (window._postsApiUnavailable) return;
+    if (!Auth?.user) return;
     try {
       const r = await fetch(SB_URL + '/rest/v1/posts?select=id,channel,author,url,mode,lat,lng,text&order=created_at.desc&limit=24', {
         headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY },
       });
+      if (r.status === 404) {
+        window._postsApiUnavailable = true;
+        return;
+      }
       const rows = r.ok ? await r.json() : [];
       rows.forEach(p => {
         if (p.lat == null) return;

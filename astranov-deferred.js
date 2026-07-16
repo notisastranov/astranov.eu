@@ -663,6 +663,20 @@ Object.assign(SuperCli, {
         await this.devBrain(raw);
         return { handled: true };
       }
+
+      // Freeform natural language → Core Brain (local globe tools + fast AI)
+      // Critical: without this, SuperCli returns handled:false and AciCli said "unknown"
+      if (!this.isStructuredCmd(cmd)) {
+        GlobeDeck.activeTask = 'coders';
+        if (window.AstranovCoreBrain?.handle) {
+          await AstranovCoreBrain.handle(raw, opts);
+          return { handled: true, brain: true };
+        }
+        if (window.AciCoders?.handleMessage) {
+          await AciCoders.handleMessage(raw, opts);
+          return { handled: true, coders: true };
+        }
+      }
     } catch (e) {
       GlobeDeck?.setThinking(false);
       const msg = 'exec error: ' + (e.message || e);
@@ -671,6 +685,18 @@ Object.assign(SuperCli, {
       return { handled: true, error: msg };
     }
 
+    // Last-chance freeform (any leftover tokens)
+    if (raw.length >= 1) {
+      GlobeDeck.activeTask = 'coders';
+      if (window.AstranovCoreBrain?.handle) {
+        await AstranovCoreBrain.handle(raw, opts);
+        return { handled: true, brain: true };
+      }
+      if (window.AciCoders?.handleMessage) {
+        await AciCoders.handleMessage(raw, opts);
+        return { handled: true };
+      }
+    }
     return { handled: false };
   },
 });
@@ -3519,10 +3545,16 @@ const SuperAdd = {
   },
 
   async loadPostsOnGlobe() {
+    if (window._postsApiUnavailable) return;
+    if (!Auth?.user) return;
     try {
       const r = await fetch(SB_URL + '/rest/v1/posts?select=id,channel,author,url,mode,lat,lng,text&order=created_at.desc&limit=24', {
         headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY },
       });
+      if (r.status === 404) {
+        window._postsApiUnavailable = true;
+        return;
+      }
       const rows = r.ok ? await r.json() : [];
       rows.forEach(p => {
         if (p.lat == null) return;

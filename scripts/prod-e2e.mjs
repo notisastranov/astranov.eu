@@ -51,9 +51,11 @@ const SCENARIOS = [
   {
     name: 'live AI — ai-router responds in CLI',
     run: async (page) => {
-      const r = await page.evaluate(async () => {
+      let r = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        r = await page.evaluate(async (retry) => {
         AciCoders.history = [];
-        const res = await AiRouter.ask('ping prod verify', { timeoutMs: 22000 });
+        const res = await AiRouter.ask('ping prod verify', { timeoutMs: retry ? 32000 : 22000 });
         const text = String(res.text || '').trim();
         if (!text || /gathering itself|warming up|no model responded/i.test(text)) {
           return { ok: false, error: res.error || text || 'empty' };
@@ -72,7 +74,10 @@ const SCENARIOS = [
           logLines,
           hist: AciCoders.history.filter(h => h.role === 'assistant').length,
         };
-      });
+      }, attempt);
+        if (r.ok) break;
+        await page.waitForTimeout(1500);
+      }
       if (!r.ok) throw new Error('ai-router failed: ' + (r.error || 'unknown'));
       const blob = (r.ribbon || '') + (r.preview || '') + (r.logLines || []).join(' ');
       const visible = /hello|verify|ready|online|grok here|talk straight|yes\b|coders/i.test(blob);
