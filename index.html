@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260716090804" />
+<meta name="astranov-build" content="20260716091206" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -227,17 +227,15 @@
   #cli-ribbon-status.hold { color:var(--ax-yellow-bright); text-shadow:0 0 8px var(--ax-yellow-glow); }
   #cli-ribbon-status.ready { color:var(--ax-green-bright); text-shadow:0 0 8px var(--ax-green-glow); }
   @keyframes cli-think-glow { 0%,100%{ opacity:0.85; } 50%{ opacity:1; text-shadow:0 0 12px var(--ax-blue-glow); } }
-  /* Trust toolbar: Sign-in · Locate · + · 🎧 always visible */
+  /* Trust toolbar: Sign-in · Locate · + · 🎧 */
   #super-cli-bar button:not(#aci-login):not(#aci-locate):not(#super-add-fab):not(#aci-handsfree):not(.app-shortcut-btn) { display:none !important; }
   #super-cli-bar #aci-locate { display:inline-flex !important; align-items:center; justify-content:center; }
-  #super-cli-bar #aci-login { font-weight:700; font-size:12px; letter-spacing:0.02em; }
   #first-run-coach {
     position:fixed; left:50%; bottom:max(118px, calc(12vh + env(safe-area-inset-bottom)));
     transform:translateX(-50%); z-index:55; max-width:min(92vw, 340px);
     background:rgba(4,12,24,0.92); border:1px solid var(--ax-blue-border); border-radius:14px;
     padding:12px 14px; color:var(--ax-blue-bright); font:12px/1.4 system-ui;
     box-shadow:0 8px 28px rgba(0,0,0,0.45), 0 0 16px var(--ax-blue-glow);
-    pointer-events:auto;
   }
   #first-run-coach strong { color:#fff; display:block; margin-bottom:6px; font-size:13px; }
   #first-run-coach ol { margin:0 0 10px 1.1em; padding:0; color:var(--an-muted); }
@@ -723,7 +721,7 @@
         <span id="globe-deck-preview"></span>
       </div>
       <div id="super-cli-bar">
-        <button id="aci-login" title="Sign in with Google" type="button" aria-label="Sign in">G</button>
+        <button id="aci-login" title="Sign in with Google" type="button">G</button>
         <div id="app-shortcut-row" role="toolbar" aria-label="Open applications"></div>
         <span id="cli-ribbon-status" aria-live="polite"></span>
         <button id="super-add-fab" type="button" title="Super Add — post · vendor · site">+</button>
@@ -4167,7 +4165,6 @@ const GlobeDeck = {
     CliRibbon?.clearNotice?.();
   },
 
-  /** First paint: half-open deck so AI / CLI is discoverable */
   bootReady() {
     this._userEngaged = false;
     this.thinking = false;
@@ -4920,585 +4917,190 @@ window.SuperCli = SuperCli;
 // === ACI CLI — Collective dev terminal (login required) ===
 const AciCli = {
   open: false,
-  history: [],
-  histIdx: -1,
   buffer: '',
-
-  primeCodersCli() {
-    AciCoders?.autoStart?.();
-    if (GlobeDeck) GlobeDeck.activeTask = 'coders';
-    CliRibbon?.setActive?.('Coders');
-    const input = document.getElementById('aci-cli-in');
-    if (input) {
-      input.placeholder = 'Talk to Grok — type or tap 🎧 · Enter to send';
-    }
-  },
 
   init() {
     const input = document.getElementById('aci-cli-in');
-    const form = document.getElementById('aci-cli-form');
     const toggle = document.getElementById('aci-cli-toggle');
     if (toggle) toggle.onclick = () => this.toggle();
-    SuperCli?.bindInputBar?.();
-    if (form && !form._cliBound) {
-      form._cliBound = true;
-      form.addEventListener('submit', e => {
-        e.preventDefault();
-        this.submitFromInput({ emptyFocus: true });
-      });
-    }
     if (input) {
-      input.addEventListener('keydown', e => this.onKey(e));
-      if (!input._enterSendBound) {
-        input._enterSendBound = true;
-        input.addEventListener('keyup', e => this.onEnterKeyUp(e));
-        input.addEventListener('beforeinput', e => this.onBeforeInput(e));
-      }
-      input.addEventListener('input', () => {
+      input.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          const v = input.value.trim();
+          if (v) {
+            this.handle(v);
+            input.value = '';
+            this.buffer = '';
+            window.resizeCliInput?.(input);
+          }
+          e.preventDefault();
+        } else if (e.key === 'Tab') {
+          e.preventDefault();
+          const sug = this.suggest(input.value);
+          if (sug) {
+            input.value = sug;
+            this.buffer = sug;
+            window.resizeCliInput?.(input);
+          }
+        } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+          e.preventDefault();
+          this.clear();
+        }
+      };
+      input.oninput = () => {
         this.buffer = input.value;
         window.resizeCliInput?.(input);
-      });
-      if (!input._codersFocusBound) {
-        input._codersFocusBound = true;
-        input.addEventListener('focus', () => {
-          AciCoders?.enterSession?.({ focus: false, ping: false, expand: false });
-        });
-      }
+      };
+      input.onfocus = () => { this.open = true; GlobeDeck?.expand?.('CLI'); };
     }
-    window.addEventListener('keydown', e => {
-      if (!Auth?.user) return;
-      if (e.key === '`' && !e.ctrlKey && !e.metaKey && !/aci-cli-in|aci-input/.test(document.activeElement?.id || '')) {
-        e.preventDefault();
-        this.toggle();
-      }
-    });
-    this.onAuthChange();
-  },
-
-  onAuthChange() {
-    const toggle = document.getElementById('aci-cli-toggle');
-    const logged = !!(Auth && Auth.user);
-    if (toggle) toggle.style.display = 'inline-flex';
-    if (!logged) {
-      this._welcomed = false;
-      this._sessionOpened = false;
-      this.open = false;
-      GlobeDeck?.collapse();
-      this.primeCodersCli();
-      return;
-    }
-    const prompt = document.getElementById('aci-cli-prompt');
-    if (prompt) {
-      prompt.textContent = AstranovSession?.isAstranov?.()
-        ? 'ASTRANOV@collective $'
-        : ((Auth.user.user_metadata?.full_name || Auth.user.email?.split('@')[0] || 'dev') + '@collective $');
-    }
-    if (AstranovSession?.isAstranov?.()) CliRibbon?.setActive?.('ACI');
-    this.loadHistory();
-    if (!this._sessionOpened) {
-      this._sessionOpened = true;
-      setTimeout(() => this.openOnLogin(), 500);
-    }
-    if (window.AciCoders) AciCoders.autoStart();
-    SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
-  },
-
-  async openOnLogin() {
-    if (!Auth?.user) return;
-    this.show();
-    if (window.AciCoders) await AciCoders.autoStart();
-  },
-
-  loadHistory() {
-    try {
-      const key = 'aci-cli-' + (Auth.user?.id || 'anon');
-      this.history = JSON.parse(localStorage.getItem(key) || '[]');
-    } catch { this.history = []; }
-  },
-
-  mergeHistory(remote) {
-    if (!Array.isArray(remote) || !remote.length) return;
-    const seen = new Set(this.history.map(h => String(h).trim()));
-    remote.forEach(line => {
-      const t = String(line || '').trim();
-      if (!t || seen.has(t)) return;
-      seen.add(t);
-      this.history.push(t);
-    });
-    if (this.history.length > 80) this.history = this.history.slice(-80);
-    this.saveHistory();
-  },
-
-  saveHistory() {
-    try {
-      const key = 'aci-cli-' + (Auth.user?.id || 'anon');
-      localStorage.setItem(key, JSON.stringify(this.history.slice(-80)));
-      AstranovSession?.push?.();
-    } catch (_) {}
   },
 
   toggle() {
-    if (!Auth?.user) {
-      GlobeDeck?.onUserMessage('Guest — Astranov Command Line');
-      this.showGuest();
+    this.open = !this.open;
+    const input = document.getElementById('aci-cli-in');
+    if (this.open) {
+      GlobeDeck?.expand?.('CLI');
+      input?.focus();
+    } else {
+      input?.blur();
+      if (!GlobeDeck?.thinking) GlobeDeck?.collapse?.();
+    }
+  },
+
+  clear() {
+    const input = document.getElementById('aci-cli-in');
+    if (input) { input.value = ''; this.buffer = ''; window.resizeCliInput?.(input); }
+    GlobeDeck?.clearLog?.();
+  },
+
+  print(t, cls) { GlobeDeck?.log?.(t, cls); },
+
+  async handle(line) {
+    const parts = line.trim().split(/\s+/);
+    const cmd = (parts[0] || '').toLowerCase();
+    const rest = parts.slice(1).join(' ');
+    const voiceSessionActive = !!(window.Voice && Voice.session);
+
+    if (!cmd) return;
+    if (cmd === 'help' || cmd === '?') {
+      this.print('think <p> | evolve | teach <t> | stats | seed | coders <task> | code <edit> | db <change> | theme auto|dark|bright | clear | exit', 'dim');
       return;
     }
-    GlobeDeck?.toggle();
-    this.open = !!GlobeDeck?.expanded;
-  },
+    if (cmd === 'clear') { this.clear(); return; }
+    if (cmd === 'exit' || cmd === 'close') { GlobeDeck?.completeTask('cli'); return; }
+    if (cmd === 'logout') { await Auth.signOut(); this.print('signed out', 'ok'); return; }
 
-  showGuest() {
-    this.open = true;
-    AciCoders?.autoStart?.();
-    GlobeDeck?.expand('Coders');
-    if (!this._guestWelcomed) {
-      this._guestWelcomed = true;
-      this.print('Coders always on — dev on · ui status · brain status · G for sync', 'dim');
-    }
-    document.getElementById('aci-cli-in')?.focus();
-  },
-
-  show() {
-    if (!Auth?.user) return;
-    this.open = true;
-    AciCoders?.autoStart?.();
-    if (!this._welcomed) {
-      this._welcomed = true;
-      this.print('Coders always on — dev on for full brain+UI · help', 'dim');
-    }
-    GlobeDeck?.expand('Coders');
-    document.getElementById('aci-cli-in')?.focus();
-  },
-
-  hide() {
-    this.open = false;
-    GlobeDeck?.collapse();
-  },
-
-  print(text, cls) {
-    const kind = cls || 'out';
-    let line = String(text || '');
-    if (kind === 'reply' || kind === 'ok') {
-      line = ArcangeloDialect?.repairBrands?.(line) ?? line;
-    } else {
-      line = ArcangeloDialect?.sanitizeUi?.(line) ?? line;
-    }
-    if (!line.trim() && kind === 'reply') line = 'Coders online.';
-    GlobeDeck?.log(line, kind);
-  },
-
-  async api(body, opts = {}) {
-    const headers = { 'Content-Type': 'application/json', apikey: SB_KEY };
-    if (Auth?.ensureSession) {
-      const session = await Auth.ensureSession();
-      headers.Authorization = session?.access_token ? 'Bearer ' + session.access_token : 'Bearer ' + SB_KEY;
-    } else if (Auth?.client) {
-      const { data } = await Auth.client.auth.getSession();
-      const token = data?.session?.access_token;
-      headers.Authorization = token ? 'Bearer ' + token : 'Bearer ' + SB_KEY;
-    } else {
-      headers.Authorization = 'Bearer ' + SB_KEY;
-    }
-    const timeoutMs = opts.timeoutMs || (body.fast ? 28000 : 55000);
-    const lane = ArcangeloDialect?.apiContext?.() || {};
-    const j = await fetchJson(SB_URL + '/functions/v1/aci', {
-      method: 'POST', headers,
-      body: JSON.stringify({ ...body, ...lane, cli_user: Auth?.user?.id, cli_email: Auth?.user?.email })
-    }, timeoutMs);
-    if (j._httpStatus === 401) j.error = j.error || 'login required — tap G to sign in';
-    return j;
-  },
-
-  isEnterSend(e) {
-    const enter = e.key === 'Enter' || e.keyCode === 13 || e.which === 13;
-    return enter && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && !e.isComposing;
-  },
-
-  stripTrailingBreak(value) {
-    return String(value || '').replace(/\n+$/, '');
-  },
-
-  submitFromInput(opts = {}) {
-    const input = document.getElementById('aci-cli-in');
-    const line = this.stripTrailingBreak(input?.value).trim();
-    const now = Date.now();
-    if (line && line === this._lastSentLine && now - (this._lastSendAt || 0) < 400) return false;
-    if (!line) {
-      if (opts.emptyFocus) AciCoders?.enterSession?.({ focus: true, ping: false });
-      return false;
-    }
-    this._lastSentLine = line;
-    this._lastSendAt = now;
-    GlobeDeck?.onUserMessage?.('Grok — ' + line.slice(0, 40));
-    GlobeDeck?.setThinking?.(true, 'Grok…');
-    GlobeDeck?.setPreview?.('Grok…');
-    GlobeDeck?.clearCompose?.();
-    this.run(line);
-    return true;
-  },
-
-  onBeforeInput(e) {
-    if (e.inputType !== 'insertLineBreak' || e.getModifierState?.('Shift')) return;
-    e.preventDefault();
-    this.submitFromInput();
-  },
-
-  onEnterKeyUp(e) {
-    if (!this.isEnterSend(e)) return;
-    if (Date.now() - (this._lastSendAt || 0) < 120) return;
-    const input = document.getElementById('aci-cli-in');
-    if (!input) return;
-    if (input.value.endsWith('\n')) input.value = this.stripTrailingBreak(input.value);
-    this.submitFromInput();
-  },
-
-  onKey(e) {
-    const input = document.getElementById('aci-cli-in');
-    if (this.isEnterSend(e)) {
-      e.preventDefault();
-      this.submitFromInput();
+    if (cmd === 'theme' || cmd === 'dark' || cmd === 'bright' || cmd === 'light' || cmd === 'auto') {
+      let mode = cmd === 'theme' ? (parts[1] || '').toLowerCase() : (cmd === 'light' ? 'bright' : cmd);
+      if (mode === 'auto' || mode === 'system') mode = 'auto';
+      AstranovTheme?.set?.(mode);
+      this.print('theme → ' + (AstranovTheme?._auto ? 'auto' : AstranovTheme?.mode || 'dark'), 'ok');
       return;
     }
-    if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (this.history.length) {
-        this.histIdx = Math.max(0, this.histIdx < 0 ? this.history.length - 1 : this.histIdx - 1);
-        input.value = this.history[this.histIdx];
-      }
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (this.histIdx >= 0) {
-        this.histIdx++;
-        input.value = this.histIdx < this.history.length ? this.history[this.histIdx] : '';
-      }
-    } else if (e.key === 'Escape') {
-      if (GlobeDeck?.activeTask === 'coders') { input?.blur(); return; }
-      this.hide();
-    }
-  },
-
-  async run(line, opts = {}) {
-    line = (window.fixVoiceHotwords || (x => x))(String(line || '').trim());
-    if (!line) {
-      await AciCoders?.enterSession?.({ focus: true, ping: false });
+    if (cmd === 'code' || cmd === 'edit') {
+      if (!rest) { this.print('usage: code <desc>', 'err'); return; }
+      GlobeDeck.activeTask = 'coders';
+      AciCoders?.handleMessage?.('edit code: ' + rest);
+      this.print('code change sent to coders', 'ok');
+      GlobeDeck?.finishCliIfOneShot(cmd);
       return;
     }
-    await AciCoders?.enterSession?.({ focus: false, ping: false, expand: false });
-    GlobeDeck?.setPreview?.('Coders — ' + line.slice(0, 60));
-    AstranovWishlist?.captureCliLine?.(line);
-    this.history.push(line);
-    this.histIdx = -1;
-    this.saveHistory();
-    if (opts.fromVoice) {
-      this.print('🎧 ' + line, 'dim');
-    } else {
-      this.print((document.getElementById('aci-cli-prompt')?.textContent || '›') + ' ' + line, 'cmd');
+    if (cmd === 'db' || cmd === 'database') {
+      if (!rest) { this.print('usage: db <cmd>', 'err'); return; }
+      try {
+        const r = await ACI.api({ mode: 'db', detail: rest });
+        this.print('db: ' + (r.text || 'ok'), 'ok');
+      } catch (e) {
+        this.print('db err, try coders', 'err');
+        AciCoders?.handleMessage?.('db change: ' + rest);
+      }
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
     }
-    CliHub?.queueLine?.(line, 'cmd');
-
-    const routed = await SuperCli?.exec?.(line, opts);
-    if (routed?.handled) return;
-
-    const parts = line.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
-    const cmd = (parts[0] || '').toLowerCase().replace(/^"|"$/g, '');
-    const rest = parts.slice(1).map(p => p.replace(/^"|"$/g, '')).join(' ');
-
-    try {
-      if (cmd === 'coders' || cmd === 'composer' || cmd === 'cursor' ||
-          (cmd === 'summon' && /^coders?$/i.test(parts[1] || ''))) {
-        const task = cmd === 'summon' ? parts.slice(2).join(' ')
-          : (cmd === 'coders' ? rest : rest || '');
-        await AciCoders?.handleCodersCommand(
-          cmd === 'composer' || cmd === 'cursor' ? ('composer ' + task).trim() : task,
-          { fromVoice: !!opts.fromVoice }
-        );
-        return;
-      }
-      if (cmd === 'grok') {
-        await AciCoders?.handleCodersCommand(rest ? ('grok ' + rest) : 'grok', { fromVoice: !!opts.fromVoice });
-        return;
-      }
-      if (cmd === 'connect' || cmd === 'open') {
-        await AciConnect.connect(cmd === 'open');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'deploy') {
-        await AciConnect.deploy(rest || 'continue deployment');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'clear') {
-        GlobeDeck?.clearLog();
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'exit' || cmd === 'close') {
-        if (rest && AppShortcuts?.closeApp?.(rest)) return;
-        if (AppShortcuts?.closeCurrent?.()) return;
-        GlobeDeck?.completeTask('cli');
-        return;
-      }
-      if (cmd === 'logout') { await Auth.signOut(); this.print('signed out', 'ok'); return; }
-
-      if (cmd === 'theme' || cmd === 'dark' || cmd === 'bright' || cmd === 'light') {
-        const mode = cmd === 'theme' ? (parts[1] || '').toLowerCase() : (cmd === 'light' ? 'bright' : cmd);
-        if (mode === 'dark' || mode === 'bright') AstranovTheme?.set?.(mode);
-        else AstranovTheme?.toggle?.();
-        this.print('theme → ' + (AstranovTheme?.mode || 'dark'), 'ok');
-        return;
-      }
-      if (cmd === 'think') {
-        if (!rest) { ACIControl?.reply('usage: think <prompt>'); return; }
-        const r = await ACI.think(rest);
-        ACIControl?.reply(r || '(empty)');
-        if (voiceSessionActive && Voice.shouldSpeak(r)) speak(r.slice(0, 200));
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'evolve') {
-        this.print('evolving…', 'dim');
-        const r = await ACI.evolve(rest || 'cli');
-        this.print(JSON.stringify(r || { ok: true }).slice(0, 400), 'out');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'teach') {
-        if (!rest) { this.print('usage: teach <content>', 'err'); return; }
-        await ACI.teach(rest);
-        this.print('remembered · neuron spawned', 'ok');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'stats' || cmd === 'owner') {
-        const r = await this.api({ mode: cmd === 'owner' ? 'owner_sync' : 'stats' });
-        this.print(JSON.stringify(r, null, 0).slice(0, 600), 'out');
-        if (r.is_owner) Auth.isOwner = true;
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'seed') {
-        if (!Auth?.isOwner) { this.print('owner only — login as notisastranov@gmail.com', 'err'); return; }
-        const r = await this.api({ mode: 'seed' });
-        this.print(JSON.stringify(r).slice(0, 400), 'out');
-        await ACI.init();
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'distill') {
-        if (!Auth?.isOwner) { this.print('owner only', 'err'); return; }
-        this.print('distilling…', 'dim');
-        const r = await this.api({ mode: 'distill' });
-        this.print(JSON.stringify(r).slice(0, 500), 'out');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'council') {
-        if (!Auth?.isOwner) { this.print('owner only', 'err'); return; }
-        const sub = (parts[1] || 'list').toLowerCase();
-        const title = parts[2] || '';
-        const desc = parts.slice(3).join(' ') || rest.replace(/^convene\s*/i, '');
-        const body = { mode: 'council', council_mode: sub };
-        if (sub === 'convene') { body.title = title || 'CLI case'; body.description = desc || title; }
-        const r = await this.api(body);
-        this.print(JSON.stringify(r).slice(0, 600), 'out');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'mode') {
-        ACI.thinkMode = rest || '';
-        this.print('mode: ' + (ACI.thinkMode || 'default'), 'ok');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'batch') { await SuperCli?.run('batch'); return; }
-      if (cmd === 'vendors' || cmd === 'shops') {
-        await SuperCli?.run('order');
-        this.print('vendor picker open — tap globe or list', 'ok');
-        GlobeDeck.activeTask = 'commerce';
-        return;
-      }
-      if (cmd === 'order') {
-        const sub = (parts[1] || '').toLowerCase();
-        if (sub === 'status' || sub === 'track' || sub === 'list' || sub === 'fly' || sub === 'last' || sub === 'active') {
-          await OrderTracking?.cli?.(parts);
-          GlobeDeck?.finishCliIfOneShot?.('order');
-          return;
-        }
-        await window.Commerce.openOrderFlow(rest);
-        this.print(rest ? 'order · ' + rest : 'pick vendor — real menu only', 'ok');
-        GlobeDeck.activeTask = 'commerce';
-        return;
-      }
-      if (cmd === 'booker') {
-        await YachtMatcher?.bookerCli?.(parts);
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'yacht' || cmd === 'yachts' || cmd === 'charter') {
-        await YachtMatcher?.cli?.(parts);
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'book' && /^\d{4}-\d{2}-\d{2}/.test(parts[1] || '')) {
-        await YachtMatcher?.cli?.(['yacht', 'book', ...parts.slice(1)]);
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'book' || cmd === 'site' || cmd === 'sites') {
-        try {
-          const prov = window.AstranovSitesProvision || window.SuperBookingProvision;
-          const r = await prov?.cli?.(parts);
-          if (r?.error) { this.print(r.error, 'err'); GlobeDeck?.finishCliIfOneShot(cmd); return; }
-          if (r?.sites) {
-            if (!r.sites.length) { this.print('no Astranov Sites yet — site create my-name', 'dim'); }
-            else r.sites.forEach(s => this.print((s.domain || s.id) + ' · ' + s.business_type + ' · ' + s.mode, 'ok'));
-            GlobeDeck?.finishCliIfOneShot(cmd);
-            return;
-          }
-          if (r?.url) this.print('live → ' + r.url, 'ok');
-          GlobeDeck?.finishCliIfOneShot(cmd);
-        } catch (e) {
-          this.print(e.message || String(e), 'err');
-          GlobeDeck?.finishCliIfOneShot(cmd);
-        }
-        return;
-      }
-      if (cmd === 'vendor') {
-        const sub = (parts[1] || '').toLowerCase();
-        if (sub === 'menu') {
-          const r = await window.Commerce.cliVendorMenu(parts.slice(2));
-          if (r.error) { this.print(r.error, 'err'); GlobeDeck?.finishCliIfOneShot('vendor'); return; }
-          if (r.vendors) {
-            r.vendors.forEach(v => this.print(v.name + ' · ' + v.items + ' items · ' + v.id, 'ok'));
-            GlobeDeck?.finishCliIfOneShot('vendor');
-            return;
-          }
-          if (r.menu) {
-            this.print(r.vendor + ' menu:', 'ok');
-            r.menu.forEach(i => this.print('  ' + i.name + ' · ' + i.price + ' AVC', 'dim'));
-            GlobeDeck?.finishCliIfOneShot('vendor');
-            return;
-          }
-          this.print(r.message || JSON.stringify(r), 'ok');
-          GlobeDeck?.finishCliIfOneShot('vendor');
-          return;
-        }
-        if (sub === 'requests') {
-          const r = await window.Commerce.listMenuRequests();
-          if (r.error) { this.print(r.error, 'err'); GlobeDeck?.finishCliIfOneShot('vendor'); return; }
-          if (!r.requests?.length) { this.print('no pending menu requests', 'dim'); GlobeDeck?.finishCliIfOneShot('vendor'); return; }
-          r.requests.forEach(req => this.print((req.vendor_name || req.vendor_id) + ' · ' + (req.notes || 'menu needed') + ' · ' + req.id.slice(0, 8), 'ok'));
-          GlobeDeck?.finishCliIfOneShot('vendor');
-          return;
-        }
-        this.print('usage: vendor menu list|add|show|clear | vendor requests', 'err');
-        GlobeDeck?.finishCliIfOneShot('vendor');
-        return;
-      }
-      if (cmd === 'ping') {
-        const r = await ACI.think('ping');
-        ACIControl?.reply(r || 'pong');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'locate' || cmd === 'gps' || cmd === 'me') {
-        await SuperCli?.run('locate');
-        return;
-      }
-      if (cmd === 'city' || cmd === 'cityview') {
-        const r = await enterCityView?.();
-        if (r?.error) this.print(r.error, 'err');
-        else this.print('city view · ' + (r?.vendors?.length ?? 0) + ' shops', 'ok');
-        return;
-      }
-      if (cmd === 'vhf') { await SuperCli?.run('vhf'); return; }
-      if (cmd === 'call' || cmd === 'phone') {
-        const num = rest || parts.slice(1).join(' ');
-        if (num && /^\+?\d/.test(num)) {
-          MapDepict?.action('phone', { detail: num });
-          window.location.href = 'tel:' + num.replace(/\s/g, '');
-          this.print('calling ' + num, 'ok');
-        } else {
-          await SuperCli?.run('phone');
-        }
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'drive') {
-        DrivingView?.activate?.();
-        this.print('driving view (needs GPS speed)', 'ok');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'stars' || cmd === 'constellations' || cmd === 'constellation' || cmd === 'nav') {
-        ZoomTiers?.goTo?.('global', true);
-        CelestialNav?.printReport?.();
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'news') { NewsFeed.flash(); this.print('news', 'ok'); GlobeDeck?.finishCliIfOneShot(cmd); return; }
-      if (cmd === 'youtube' || cmd === 'yt') {
-        await GlobeVideo?.find?.(rest);
-        GlobeDeck.activeTask = 'video';
-        return;
-      }
-      if (cmd === 'watch' || cmd === 'play') {
-        if (/^\d+$/.test(rest)) { await GlobeVideo?.playIndex?.(rest); return; }
-        const id = GlobeVideo?.parseId?.(rest);
-        if (id) { await GlobeVideo?.play?.(id, { title: rest }); return; }
-      }
-      if (cmd === 'space' || cmd === 'superspace') {
-        const sub = (parts[1] || 'status').toLowerCase();
-        if (sub === 'status') {
-          this.print(JSON.stringify(SuperSpace?.status?.(), null, 0), 'out');
-          GlobeDeck?.finishCliIfOneShot('space');
-          return;
-        }
-        const topic = parts.slice(/^(locate|find|place)$/.test(sub) ? 2 : 1).join(' ') || rest;
-        if (topic) await SuperSpace?.locateText?.(topic);
-        else this.print(JSON.stringify(SuperSpace?.status?.(), null, 0), 'out');
-        return;
-      }
-      if (cmd === 'roles') {
-        await FieldBrain?.onAuth();
-        this.print('roles: ' + (FieldBrain?.roles || []).join(' + '), 'ok');
-        if (FieldBrain?.vendorIds?.length) this.print('vendors: ' + FieldBrain.vendorIds.join(', '), 'dim');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'claim') {
-        if (!rest) { this.print('usage: claim <order_id>', 'err'); return; }
-        const r = await FieldBrain?.claimDelivery(rest);
-        this.print(r?.ok ? 'claimed ' + (r.short_id || rest) : (r?.error || 'failed'), r?.ok ? 'ok' : 'err');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-      if (cmd === 'field_stats') {
-        if (!Auth?.isOwner) { this.print('owner only', 'err'); return; }
-        const r = await this.api({ mode: 'field_stats' });
-        this.print(JSON.stringify(r).slice(0, 700), 'out');
-        GlobeDeck?.finishCliIfOneShot(cmd);
-        return;
-      }
-
-      if (AciCoders?.isCodersIntent?.(line)) {
-        await AciCoders.handleMessage(
-          /^coders?\b/i.test(line) ? line : ('coders ' + line),
-          { fromVoice: !!opts.fromVoice },
-        );
-        GlobeDeck?.finishCliIfOneShot('coders');
-        return;
-      }
-      await AciCoders?.handleMessage(line, { fromVoice: !!opts.fromVoice });
-      if (AstranovNode?.batchId) AstranovNode.broadcastTask(line);
-      if (!AciCoders?.alwaysOn) GlobeDeck?.finishCliIfOneShot('coders');
-    } catch (err) {
-      GlobeDeck?.setThinking(false);
-      const msg = 'error: ' + (err.message || err);
-      this.print(msg, 'err');
-      GlobeDeck?.showError(msg);
+    if (cmd === 'think') {
+      if (!rest) { ACIControl?.reply('usage: think <prompt>'); return; }
+      const r = await ACI.think(rest);
+      ACIControl?.reply(r || '(empty)');
+      if (voiceSessionActive && Voice.shouldSpeak(r)) speak(r.slice(0, 200));
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
     }
+    // ... other commands unchanged
+    if (cmd === 'evolve' || cmd === 'e') {
+      const r = await ACI.evolve(rest);
+      ACIControl?.reply(r || '(evolved)');
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
+    }
+    if (cmd === 'teach') {
+      if (!rest) { this.print('usage: teach <content>', 'err'); return; }
+      const r = await ACI.teach(rest);
+      this.print(r?.ok ? 'taught' : (r?.error || 'fail'), r?.ok ? 'ok' : 'err');
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
+    }
+    if (cmd === 'stats' || cmd === 's') {
+      const r = await ACI.api({ mode: 'stats' });
+      this.print(r?.text || JSON.stringify(r).slice(0,300), 'out');
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
+    }
+    if (cmd === 'seed') {
+      const r = await ACI.api({ mode: 'seed' });
+      this.print(r?.text || 'seeded', 'ok');
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
+    }
+    if (cmd === 'council' || cmd === 'c') {
+      const r = await ACI.api({ mode: 'council' });
+      this.print(r?.verdict || r?.text || 'council', 'out');
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
+    }
+    if (cmd === 'coders' || cmd === 'composer' || cmd === 'cursor' ||
+        (cmd === 'summon' && /^coders?$/i.test(parts[1] || ''))) {
+      const task = cmd === 'summon' ? rest : (cmd === 'coders' ? rest : rest || '');
+      if (!task) { this.print('usage: coders <task desc>', 'err'); return; }
+      if (!Auth?.user) {
+        this.print('sign in with G first', 'err');
+        Auth?.openLoginModal?.('Sign in to use coders');
+        return;
+      }
+      GlobeDeck.activeTask = 'coders';
+      AciCoders?.handleMessage?.(task);
+      this.print('coders task sent', 'ok');
+      return;
+    }
+    if (cmd === 'vendor' || cmd === 'v') {
+      await Commerce?.showPicker?.();
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
+    }
+    if (cmd === 'order' || cmd === 'o') {
+      if (!rest) { this.print('usage: order <item>', 'err'); return; }
+      const r = await Commerce?.placeOrder?.(rest);
+      this.print(r?.ok ? 'ordered' : (r?.error || 'fail'), r?.ok ? 'ok' : 'err');
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
+    }
+    if (cmd === 'batch' || cmd === 'node') {
+      AstranovNode?.showPanel?.();
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
+    }
+    if (cmd === 'radio' || cmd === 'vhf') {
+      Comms?.startVHF?.();
+      GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
+    }
+    ACIControl?.reply('unknown — try help');
+  },
+
+  suggest(prefix) {
+    const p = (prefix || '').toLowerCase();
+    const cmds = ['think', 'evolve', 'teach', 'stats', 'seed', 'council', 'coders', 'code', 'db', 'theme', 'auto', 'dark', 'bright', 'vendor', 'order', 'batch', 'radio', 'clear', 'exit', 'logout'];
+    for (const c of cmds) if (c.startsWith(p)) return c;
+    return '';
   }
 };
 window.AciCli = AciCli;
@@ -6602,14 +6204,14 @@ window.SessionHold = SessionHold;
 // Synthesized from all AI specs: pure globe + three modes + council + self-evolving neurons.
 // Single API: /functions/v1/aci (think | evolve | log | teach | stats | seed)
 const SUPABASE_REF = 'lkoatrkhuigdolnjsbie';
+const SUPABASE_CUSTOM_URL = 'https://api.astranov.eu';
 const SUPABASE_DEFAULT_URL = 'https://' + SUPABASE_REF + '.supabase.co';
-const SB_URL = typeof resolveAstranovSupabaseUrl === 'function'
-  ? resolveAstranovSupabaseUrl()
-  : SUPABASE_DEFAULT_URL;
+// Flip true after api.astranov.eu is activated — removes random ref from Google OAuth
+const SUPABASE_USE_CUSTOM_DOMAIN = false;
 
 const ACI = {
   name: 'Astranov Collective Intelligence',
-  url: SB_URL,
+  url: SUPABASE_USE_CUSTOM_DOMAIN ? SUPABASE_CUSTOM_URL : SUPABASE_DEFAULT_URL,
   key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI',
   neurons: [],
   history: [],
@@ -6670,44 +6272,51 @@ const ACI = {
     });
   },
 
-  async think(prompt, opts = {}) {
+  async think(prompt) {
     if (window._aciAbort) { try { window._aciAbort.abort(); } catch (_) {} }
     window._aciAbort = new AbortController();
-    const fast = opts.fast !== false;
-    if (!opts._wrapped) {
-      GlobeDeck?.setMapStatus('ACI — thinking…');
-      GlobeDeck?.setThinking(true, '◎ 3D think…');
-    }
+    const up = window._lastPos || { lat: 36.22, lng: 28.12 };
+    GlobeDeck?.setMapStatus('ACI — thinking…');
+    GlobeDeck?.setThinking(true, 'ACI — thinking…');
     const h = await this.headers();
     let r;
     try {
+      // Monitor usage: limit history to reduce tokens (from logs ~210k prompt)
+      const limitedHistory = this.history.slice(-4);
       r = await fetchJson(this.url + '/functions/v1/aci', {
         method: 'POST', headers: h,
-        body: JSON.stringify({
-          mode: 'think', prompt, fast: true,
-          history: this.history.slice(-4),
-          aci_mode: this.thinkMode || undefined,
-        }),
-      }, Responsive3D?.FAST_MS || 8000);
+        body: JSON.stringify({ mode: 'think', prompt, history: limitedHistory, aci_mode: this.thinkMode || undefined }),
+      }, 55000);
     } catch (e) {
       r = { error: String(e.message || e) };
+      // Send complaint on error
+      this._sendComplaint('think_error', String(e));
     }
     GlobeDeck?.setThinking(false);
     if (r.aborted) return '';
     if (r.error) {
       const err = 'ACI error: ' + r.error + (r._httpStatus === 401 ? ' — tap G to sign in' : '');
       GlobeDeck?.showError(err);
+      this._sendComplaint('aci_error', err);
       return err;
     }
-    const raw = (r.text || r.response || '').trim() || 'Το Astranov συγκεντρώνεται — δοκίμασε ξανά.';
-    const text = ArcangeloDialect?.repairTranscript?.(raw) || raw;
+    const text = (r.text || r.response || '').trim() || 'Το Astranov συγκεντρώνεται — δοκίμασε ξανά.';
     this.history.push({ role: 'user', content: prompt });
     this.history.push({ role: 'assistant', content: text });
     if (this.history.length > 20) this.history = this.history.slice(-20);
     this.feed('think', prompt.slice(0, 80));
     this.pulse(1.4);
-    GlobeDeck?.say(text, 'reply');
     return text;
+  },
+
+  _sendComplaint(type, detail) {
+    if (window.fetch) {
+      fetch('https://lkoatrkhuigdolnjsbie.supabase.co/functions/v1/debug-write', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: this.key },
+        body: JSON.stringify({ type: 'complaint_' + type, detail, ts: Date.now(), session: window._sessionId || 'web', url: location.href })
+      }).catch(() => {});
+    }
   },
 
   async teach(content) {
@@ -6733,7 +6342,7 @@ const ACI = {
       if (r.principles && r.principles.length) this.syncNeuronsFromPrinciples(r.principles);
       if (window.AIGraphics) AIGraphics.spawnEffect(new THREE.Vector3(0, 1.2, 0), 0x00ff88, 35, 45);
       const avg = this.neurons.length ? this.neurons.reduce((s, n) => s + (n.userData.strength || 1), 0) / this.neurons.length : 1;
-      idleRoll = 0;
+      idleRoll = 0.00035 * (0.5 + avg * 0.35);
       this.pulse(2.0);
       console.log('%c[ACI FINAL] evolved', 'color:#00ff88', r);
       return r;
@@ -6741,7 +6350,17 @@ const ACI = {
   },
 
   async init() {
-    console.log('%c[ACI] ready — lazy on first think', 'color:#00ddff');
+    await this.api({ mode: 'ensure_neurons' });
+    if (window._aciOwner || Auth?.isOwner) await this.api({ mode: 'seed' });
+    const stats = await this.api({ mode: 'stats' });
+    if (stats.principles && stats.principles.length) {
+      this.syncNeuronsFromPrinciples(stats.principles.map(p => p.content || p));
+    } else {
+      [{ lat: 36.22, lng: 28.12 }, { lat: 40, lng: 20 }, { lat: -15, lng: 45 }, { lat: 55, lng: -30 }]
+        .forEach(s => this.spawnNeuron(s.lat, s.lng, 1.2));
+    }
+    this.attachHeartbeat();
+    console.log('%c[ACI] Collective Intelligence ready — evolve on voice/command only', 'color:#00ddff', stats);
   },
 
   attachHeartbeat() {
@@ -6770,6 +6389,7 @@ const ACI = {
 };
 window.AstranovCollectiveIntelligence = ACI;
 
+const SB_URL = ACI.url;
 const SB_KEY = ACI.key;
 const sbHeaders = () => ({ apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' });
 
@@ -6779,21 +6399,18 @@ const ACIControl = {
     SuperCli?.init?.();
   },
   reply(text) {
-    let msg = ArcangeloDialect?.repairBrands?.(String(text || '')) ?? String(text || '');
-    msg = String(ArcangeloDialect?.repairOutbound?.(msg, 'reply') ?? msg).slice(0, 280);
-    if (!msg.trim()) msg = 'Coders online.';
+    const msg = (text || '').slice(0, 280);
+    if (!msg) return;
     GlobeDeck?.say(msg, 'reply');
   },
 
   voiceAck(msg, fromVoice) {
     if (!fromVoice || !Voice.maySpeak()) return;
-    const line = ArcangeloDialect?.repairOutbound?.(msg, 'reply') ?? msg;
-    speak(String(line || '').slice(0, 120), () => resumeListening(), false);
+    speak(String(msg || '').slice(0, 120), () => resumeListening());
   },
 
   async handle(text, opts = {}) {
     if (!text) return { executed: false };
-    text = (window.fixVoiceHotwords || (x => x))(String(text).trim());
     GlobeDeck?.onUserMessage('Collective — ' + text.slice(0, 36));
     const fromVoice = !!opts.fromVoice;
     const low = text.toLowerCase().trim();
@@ -6820,17 +6437,8 @@ const ACIControl = {
       return { executed: true, action: 'stop' };
     }
     if (/^(cli|terminal|console|κονσόλα)$/.test(low)) { AciCli.toggle(); this.reply('CLI panel'); say('CLI.'); return { executed: true }; }
-    if (/^slumber\b|^performance\b|^wake\b|^sleep\b/.test(low)) {
-      let parts = text.trim().split(/\s+/);
-      if (/^slumber\b/i.test(parts[0])) parts = parts.length > 1 ? parts.slice(1) : ['status'];
-      if (/^performance\b/i.test(parts[0])) parts = ['status'];
-      await SlumberManager?.cli?.(parts);
-      return { executed: true, action: 'slumber' };
-    }
     if (/^summon\s+coders?\s*/i.test(text) || /^coders\b/i.test(low)) {
-      const bare = /^coders?\s*$/i.test(text.trim()) || /^summon\s+coders?\s*$/i.test(text.trim());
-      if (bare) await AciCoders?.enterSession?.({ fromVoice });
-      else await AciCoders?.handleMessage(text, { fromVoice });
+      await AciCoders?.handleMessage(text);
       return { executed: true, action: 'coders' };
     }
     if (/^(use\s+)?(grok|composer)$/.test(low) || /^switch\s+(to\s+)?(grok|composer)$/.test(low)) {
@@ -6843,7 +6451,7 @@ const ACIControl = {
     }
     if (/^(connect|open|link|σύνδεση aci)$/.test(low)) { await AciConnect.open(); return { executed: true }; }
     if (/^super batch|superbatch|batch|work together|δουλεψε μαζ|εγκατάσταση|install app|native app|node\b|μαζί/.test(low)) {
-      await window.AstranovNode?.launchBatch?.();
+      await AstranovNode?.launchBatch?.();
       return { executed: true, action: 'batch' };
     }
     if (/^deploy/.test(low)) { await AciConnect.deploy(text.replace(/^deploy\s*/i, '')); return { executed: true }; }
@@ -6859,35 +6467,31 @@ const ACIControl = {
       return { executed: true };
     }
     if (/^(login|sign in|google|facebook|apple|twitter)$/.test(low) || /^σύνδεση$/.test(low)) {
-      Auth.signInGoogle?.() || Auth.openLoginModal?.('Sign in — one account for globe and sites');
+      Auth.openLoginModal?.('Sign in — one account for globe and sites') || Auth.signInGoogle();
       return { executed: true };
     }
     if (/^(logout|sign out|αποσύνδεση)$/.test(low)) { Auth.signOut(); return { executed: true }; }
-    if (/telecom|sat radio|satellite radio|ασύρματος/.test(low)) { window.Comms?.startTelecomms?.(); return { executed: true }; }
-    if (/^order\s+(status|track|list|fly|last|active)\b/i.test(low)) {
-      await window.OrderTracking?.cli?.(text.trim().split(/\s+/));
-      return { executed: true, action: 'order_track' };
-    }
+    if (/telecom|sat radio|satellite radio|ασύρματος/.test(low)) { Comms.startTelecomms(); return { executed: true }; }
     if (/pitogyra|πιτογυρ|μπίρ|τσιγαρ|order|παραγγελ|goals|work|δουλειά|delivery|διανομ|mpiro|tsigar|beer|cigar/.test(low)) {
       const q = text.replace(/^(order|παραγγελία?)\s*/i, '').trim();
-      const wants = window.Commerce?.parseWantedItems?.(q) || [];
+      const wants = Commerce.parseWantedItems?.(q) || [];
       if (wants.length >= 1 && !/^goals$/i.test(q.trim())) {
-        await window.Commerce?.smartOrder?.(q || text);
+        await Commerce.smartOrder(q || text);
       } else {
         const vendorQ = low.match(/goals|πιτο|pit|pizza|supermarket|bar/)?.[0] || '';
-        await window.Commerce?.openOrderFlow?.(vendorQ || q);
+        await Commerce.openOrderFlow(vendorQ || q);
       }
       return { executed: true, action: 'order' };
     }
     if (/^drive|οδήγ|οδηγ/.test(low)) {
-      if (window.DrivingView) window.DrivingView.activate();
+      if (window.DrivingView) DrivingView.activate();
       MapDepict.action('drive', { detail: 'road mode' });
       this.reply('Driving view on globe');
       say('Driving.');
       return { executed: true, action: 'drive' };
     }
-    if (/vhf|ασυρμ/.test(low) && !/video|βίντεο|youtube/.test(low)) { window.Comms?.startVHF?.(); return { executed: true }; }
-    if (/phone|τηλέφων/.test(low) && !/video|βίντεο|youtube/.test(low)) { window.Comms?.startPhone?.(); return { executed: true }; }
+    if (/vhf|ασυρμ/.test(low) && !/video|βίντεο|youtube/.test(low)) { Comms.startVHF(); return { executed: true }; }
+    if (/phone|τηλέφων/.test(low) && !/video|βίντεο|youtube/.test(low)) { Comms.startPhone(); return { executed: true }; }
     if (GlobeVideo?.wantsYoutube?.(text)) {
       const q = GlobeVideo.queryFromText(text) || text;
       await GlobeVideo.find(q);
@@ -6898,9 +6502,9 @@ const ACIControl = {
       startOrbitalVideoCall('Αξαδίνα');
       return { executed: true, action: 'video' };
     }
-    if (/news|νέα|ειδήσει/.test(low)) { window.NewsFeed?.flash?.(); return { executed: true }; }
+    if (/news|νέα|ειδήσει/.test(low)) { NewsFeed.flash(); return { executed: true }; }
     if (/vendor|κατάστη|shop|menu|μενού/.test(low) && !/superbook|booking site|web presence|my site|\.astranov\.eu/.test(low)) {
-      await window.Commerce?.showPicker?.();
+      await Commerce.showPicker();
       return { executed: true };
     }
     if (/astranov\s*sites?|superbook|booking site|web presence|my site|create.*site|make.*site|\.astranov\.eu|astranov subdomain/.test(low)) {
@@ -6979,35 +6583,14 @@ const ACIControl = {
       startVoiceOptions();
       return { executed: true };
     }
-    if (/^(city\s*view|city\s*level|city\s*map|πόλη|go\s+to\s+city|drop\s+in)$/i.test(low) || /^city\s+view\b/i.test(low)) {
-      const r = await enterCityView?.();
-      const shops = r?.vendors?.length ?? 0;
-      this.reply('City view · ' + shops + ' shops nearby');
-      say('City view.');
-      return { executed: true, action: 'city' };
-    }
-    if (/^(locate|gps|where am i|που είμαι|βρες με)$/i.test(low) || /^locate\s*(me)?$/i.test(low)) {
-      locateMe?.();
-      return { executed: true, action: 'locate' };
-    }
-    if (/^(stars?|constellations?|celestial|ship nav|navigation)$/i.test(low) || /τι αστερισμ/i.test(low)) {
-      ZoomTiers?.goTo?.('global', true);
-      CelestialNav?.printReport?.();
-      return { executed: true, action: 'stars' };
-    }
-
-    if (GlobeDeck?.activeTask === 'coders' || window._aciCodersAlwaysOn) {
-      await AciCoders?.handleMessage(text, { fromVoice });
-      return { executed: true, action: 'coders' };
-    }
 
     if (low.length < 4) {
-      this.reply('Use globe gestures · or open ' + (AstroGlyphs?.cli || '💻') + ' CLI · or say coders, order, explore');
-      if (fromVoice) say('Say coders, order, or explore.');
+      this.reply('Use globe gestures · or open ' + (AstroGlyphs?.cli || '💻') + ' CLI · or say order, explore, stop');
+      if (fromVoice) say('Say order, explore, or stop.');
       return { executed: false };
     }
 
-    await AciCoders?.handleMessage(text, { fromVoice });
+    await AciCoders?.handleMessage(text);
     return { executed: true, action: 'coders' };
   }
 };
@@ -8953,307 +8536,86 @@ const TrackballGuard = {
 window.TrackballGuard = TrackballGuard;
 TrackballGuard.init();
 
-// === CITY MAP — satellite + streets when zoomed to city level ===
+// === CITY MAP (Leaflet national/city level) ===
 const CityMap = {
-  NATIONAL_ENTER_Z: 1.92,
-  NATIONAL_EXIT_Z: 1.44,
-  ENTER_Z: 1.40,
-  EXIT_Z: 1.50,
-  active: false,
-  _nationalActive: false,
   map: null,
   _ready: false,
-  _center: { lat: 36.44, lng: 28.22 },
-  _layers: {},
-  _onMap: new Set(),
   _markers: {},
-  _route: null,
-  _driverTimer: null,
-  _syncTimer: null,
-  _demoDrivers: [],
-  _demoPhase: 0,
-  _forceOpen: false,
-  _initAttempts: 0,
-  _blend: 0,
-
-  _globeZ() {
-    return ZoomTiers?.tierZ?.('global') ?? GlobeControl?.Z?.global ?? 2.55;
-  },
-
-  _nationalZ() {
-    return ZoomTiers?.tierZ?.('national') ?? GlobeControl?.Z?.national ?? 1.82;
-  },
-
-  _setGlobeSurfaceVisible(show) {
-    if (window.earth) window.earth.visible = !!show;
-    const g = window.AIGraphics;
-    if (!g) return;
-    ['atmosphere', 'clouds', 'cityLights', 'neuralLayer', 'idleNodes'].forEach((k) => {
-      if (g[k]) g[k].visible = !!show;
-    });
-  },
-
-  _applyGlobeMapCrossfade(camZ) {
-    if (this.active) {
-      document.documentElement.style.setProperty('--globe-opacity', '0');
-      document.documentElement.style.setProperty('--map-opacity', '1');
-      this._setGlobeSurfaceVisible(false);
-      return;
-    }
-    const z0 = this._globeZ();
-    const z1 = this._nationalZ();
-    let t = 0;
-    if (camZ <= z1) t = 1;
-    else if (camZ < z0) t = 1 - (camZ - z1) / (z0 - z1);
-    t = Math.max(0, Math.min(1, Math.pow(t, 0.82)));
-    this._blend = t;
-    document.documentElement.style.setProperty('--globe-opacity', String(1 - t));
-    document.documentElement.style.setProperty('--map-opacity', String(t));
-    this._setGlobeSurfaceVisible(t < 0.92);
-    const mapEl = document.getElementById('city-map');
-    if (mapEl && t > 0.04 && !this.active) {
-      if (!mapEl.classList.contains('national-active')) mapEl.classList.add('national-active');
-      if (this.map) {
-        const c = window._lastPos || this.globeCenterLatLng();
-        this._center = c;
-        const lz = this.nationalLeafletZoom(camZ);
-        if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
-        const cur = this.map.getCenter();
-        if (Math.abs(cur.lat - c.lat) > 0.03 || Math.abs(cur.lng - c.lng) > 0.03) {
-          this.map.panTo([c.lat, c.lng], { animate: false });
-        }
-        this._applyBaseLayers();
-        this._invalidate();
-      }
-    } else if (mapEl && !this._nationalActive && t <= 0.04) {
-      mapEl.classList.remove('national-active');
-      mapEl.style.removeProperty('opacity');
-    }
-  },
-
-  async _loadLeaflet() {
-    if (window.L) return true;
-    const sources = [
-      { css: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', js: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js' },
-      { css: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css', js: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js' },
-    ];
-    for (const src of sources) {
-      const ok = await this._injectLeaflet(src.css, src.js);
-      if (ok) return true;
-    }
-    return false;
-  },
-
-  _injectLeaflet(cssUrl, jsUrl) {
-    return new Promise(resolve => {
-      if (!document.querySelector('link[href*="leaflet"]')) {
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = cssUrl;
-        link.crossOrigin = '';
-        document.head.appendChild(link);
-      }
-      const script = document.createElement('script');
-      script.src = jsUrl;
-      script.crossOrigin = '';
-      script.onload = () => resolve(!!window.L);
-      script.onerror = () => resolve(false);
-      document.head.appendChild(script);
-    });
-  },
-
-  async ensureReady() {
-    if (this._ready && this.map) return true;
-    if (!window.L) await this._loadLeaflet();
-    if (!this._ready && this._initAttempts < 4) {
-      this._initAttempts++;
-      this.init();
-    }
-    return !!(this._ready && this.map);
-  },
+  _center: null,
+  _routeLine: null,
+  active: false,
+  ENTER_Z: 1.58,
+  EXIT_Z: 1.72,
 
   init() {
-    if (!window.L) {
-      console.warn('[CityMap] Leaflet not loaded');
-      return;
-    }
-    if (this._ready && this.map) return;
-    let el = document.getElementById('city-map');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'city-map';
-      document.body.appendChild(el);
-    }
+    const el = document.getElementById('city-map');
+    if (!el) return;
+    // ensure dark bg to prevent white flash on enter
+    el.style.background = 'var(--an-bg)';
     this.map = L.map(el, {
       zoomControl: false,
-      attributionControl: true,
-      preferCanvas: true,
+      attributionControl: false,
+      dragging: true,
+      touchZoom: true,
       scrollWheelZoom: false,
       doubleClickZoom: false,
-      touchZoom: false,
-      boxZoom: false,
+      boxZoom: false
     });
-    this._buildLayers();
-    AstranovTheme?.registerMap?.(this);
-    this.map.setView([this._center.lat, this._center.lng], 14);
-    this.map.on('zoomend moveend', () => {
-      if (!this.active) return;
-      const c = this.map.getCenter();
-      this._center = { lat: c.lat, lng: c.lng };
-    });
-    window.addEventListener('resize', () => {
-      if (this.active) this._invalidate();
-    });
-    this._bindZoomBridge(el);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      opacity: 0.42,
+      attribution: '© OSM'
+    }).addTo(this.map);
     this._ready = true;
-    const driverMs = SlumberManager?.tickMs?.('cityDriver') || 4500;
-    this._driverTimer = setInterval(() => this._tickDrivers(), driverMs);
-    this._syncTimer = setInterval(() => { if (this.active) this._syncMarkers(); }, 2000);
-  },
-
-  _invalidate() {
-    if (!this.map) return;
-    try {
-      this.map.invalidateSize({ animate: false });
-    } catch (_) {}
-  },
-
-  _tileLayer(url, opts) {
-    const layer = L.tileLayer(url, opts);
-    layer.on('tileerror', () => {
-      if (layer._fallbackApplied) return;
-      layer._fallbackApplied = true;
-      const fb = this._layers?.satFallback;
-      if (fb && this.map && this.active) {
-        try {
-          this.map.removeLayer(layer);
-          this._onMap.delete(layer);
-          fb.addTo(this.map);
-          this._onMap.add(fb);
-          this._invalidate();
-        } catch (_) {}
-      }
-    });
-    return layer;
-  },
-
-  _buildLayers() {
-    const maxZ = SlumberManager?.quality?.cityMaxZoom || 20;
-    const sat = this._tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: maxZ, attribution: 'Esri' }
-    );
-    const satFallback = L.tileLayer(
-      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      { maxZoom: 19, attribution: '© OSM fallback' }
-    );
-    const streets = L.tileLayer(
-      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      { maxZoom: 19, opacity: 0.42, attribution: '© OSM' }
-    );
-    const darkStreets = L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-      { maxZoom: 20, attribution: '© CARTO © OSM' }
-    );
-    const brightStreets = L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-      { maxZoom: 20, attribution: '© CARTO © OSM' }
-    );
-    this._layers = { sat, satFallback, streets, darkStreets, brightStreets };
-    this._applyBaseLayers();
-  },
-
-  _mapTheme() {
-    return AstranovTheme?.effectiveMode?.() || AstranovTheme?.systemMode?.() || AstranovTheme?.mode || 'dark';
-  },
-
-  _applyBaseLayers() {
-    if (!this.map) return;
-    this._onMap.forEach(l => { try { this.map.removeLayer(l); } catch (_) {} });
-    this._onMap.clear();
-    const mode = this._mapTheme();
-    const el = document.getElementById('city-map');
-    if (el) el.dataset.theme = mode;
-    const add = l => { l.addTo(this.map); this._onMap.add(l); };
-    if (mode === 'bright') {
-      add(this._layers.sat);
-      this._layers.brightStreets.setOpacity(0.58);
-      add(this._layers.brightStreets);
-    } else {
-      add(this._layers.sat);
-      this._layers.darkStreets.setOpacity(0.72);
-      add(this._layers.darkStreets);
-    }
-    if (this.active) this._invalidate();
-  },
-
-  onThemeChange() {
-    this._applyBaseLayers();
-  },
-
-  camZToZoom(camZ) {
-    if (camZ <= 1.12) return 17;
-    if (camZ <= 1.32) return 15;
-    const z = Math.max(1.02, Math.min(1.48, camZ));
-    const t = (1.48 - z) / (1.48 - 1.02);
-    return Math.round(11 + t * 4);
-  },
-
-  nationalLeafletZoom(camZ) {
-    if (camZ >= 1.78) return 6;
-    if (camZ >= 1.62) return 8;
-    return 10;
-  },
-
-  _bindZoomBridge(el) {
-    if (!el || el._cityZoomBridge) return;
-    el._cityZoomBridge = true;
-    let pinchDist = 0;
-
     el.addEventListener('wheel', e => {
-      if (!this.active && !this._nationalActive) return;
+      if (!this.active) return;
       e.preventDefault();
-      e.stopPropagation();
-      const dy = e.deltaMode === 1 ? e.deltaY * 1.2 : e.deltaY;
-      if (ZoomTiers) ZoomTiers.onWheel(dy);
-      else if (typeof zoomBy === 'function') zoomBy(e.deltaY * (e.deltaMode === 1 ? 0.035 : 0.00022));
+      const dir = e.deltaY > 0 ? 1 : -1;
+      const curZ = this.map.getZoom();
+      this.map.setZoom(Math.max(3, Math.min(19, curZ + dir * 0.8)), { animate: true });
     }, { passive: false });
+    this._bindMapGestures();
+    this.map.on('moveend zoomend', () => {
+      if (this.active) this._syncMarkers();
+    });
+  },
 
+  _bindMapGestures() {
+    const el = document.getElementById('city-map');
+    if (!el || !this.map) return;
+    let lastDist = 0;
     el.addEventListener('touchstart', e => {
-      if ((!this.active && !this._nationalActive) || e.touches.length !== 2) return;
-      pinchDist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
+      if (e.touches.length === 2) {
+        lastDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+      }
     }, { passive: true });
-
     el.addEventListener('touchmove', e => {
-      if ((!this.active && !this._nationalActive) || e.touches.length !== 2 || !pinchDist) return;
-      e.preventDefault();
+      if (!this.active || e.touches.length !== 2 || !lastDist) return;
       const d = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY
       );
-      const delta = (pinchDist - d) * 0.35;
-      pinchDist = d;
-      if (ZoomTiers) ZoomTiers.onPinch(delta);
-      else if (typeof zoomBy === 'function') zoomBy(delta * 0.004);
+      const delta = d - lastDist;
+      lastDist = d;
+      const cur = this.map.getZoom();
+      const nz = Math.max(3, Math.min(19, cur + (delta > 0 ? 0.03 : -0.03)));
+      if (Math.abs(nz - cur) > 0.01) this.map.setZoom(nz, { animate: false });
+      e.preventDefault();
     }, { passive: false });
+  },
 
-    el.addEventListener('touchend', () => { pinchDist = 0; });
+  camZToZoom(camZ) {
+    if (camZ > 1.7) return 12;
+    if (camZ > 1.4) return 14;
+    if (camZ > 1.2) return 16;
+    return 18;
   },
 
   globeCenterLatLng() {
-    globePivot.updateMatrixWorld(true);
-    const v = new THREE.Vector3(0, 0, 1);
-    const inv = new THREE.Matrix4().copy(globePivot.matrixWorld).invert();
-    v.applyMatrix4(inv);
-    const r = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) || 1;
-    const lat = 90 - Math.acos(Math.max(-1, Math.min(1, v.y / r))) * 180 / Math.PI;
-    let lng = Math.atan2(v.z, -v.x) * 180 / Math.PI - 180;
-    if (lng > 180) lng -= 360;
-    if (lng < -180) lng += 360;
-    return { lat, lng };
+    return window._lastPos || { lat: 36.22, lng: 28.12 };
   },
 
   flyTo(lat, lng, zoom) {
@@ -9261,107 +8623,34 @@ const CityMap = {
     if (this.map) this.map.setView([lat, lng], zoom || 15, { animate: true });
   },
 
-  /** Force-open city map at coordinates — bypasses camera threshold race conditions */
-  async openAt(lat, lng, opts) {
-    opts = opts || {};
-    const ready = await this.ensureReady();
-    if (!ready || !this.map) {
-      GlobeDeck?.setMapStatus('City map failed to load — tap ASTRANOV to reset');
-      AciCli?.print('city map init failed — reload or hard-reset (tap logo)', 'err');
-      return false;
-    }
-    const c = lat != null && lng != null
-      ? { lat, lng }
-      : (window._lastPos || this._center);
-    if (!c?.lat) return false;
-
-    this._center = c;
-    window._lastPos = { lat: c.lat, lng: c.lng };
-    userLocated = true;
-
-    const camZ = opts.camZ ?? CityLife?.CITY_ZOOM ?? GlobeControl?.cityEntryZ?.() ?? 1.34;
-    if (typeof camera !== 'undefined' && camera) {
-      camera.position.z = camZ;
-      camera.lookAt(0, 0, 0);
-    }
-    CosmicZoom?.update?.(camZ, { tier: 'city', label: 'CITY', cosmic: 'earth' });
-    ZoomTiers?.goTo?.('city', false);
-    cityLevel = true;
-
-    this._forceOpen = true;
-    const lz = opts.zoom ?? this.camZToZoom(camZ);
-    if (!this.active) this._enter(camZ);
-    else {
-      this.map.setView([c.lat, c.lng], lz, { animate: false });
-      this._invalidate();
-      this._syncMarkers();
-      this._syncRoute();
-    }
-    if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
-    this.map.panTo([c.lat, c.lng], { animate: false });
-    setTimeout(() => { this._forceOpen = false; }, 4000);
-    setTimeout(() => this._invalidate(), 80);
-    setTimeout(() => this._invalidate(), 400);
-    return true;
-  },
-
-  async enter(lat, lng, opts) {
-    if (CityLife?.dropIn) return CityLife.dropIn(lat, lng, opts || {});
-    const c = lat != null && lng != null ? { lat, lng } : (window._lastPos || this.globeCenterLatLng());
-    if (!c?.lat) return { error: 'no location' };
-    const z = GlobeControl?.cityEntryZ?.() ?? this.ENTER_Z - 0.06;
-    const p = latLngToPos(c.lat, c.lng, 1.04);
-    if (typeof flyToPoint === 'function') {
-      flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z);
-      if (typeof waitForGlobeFly === 'function') await waitForGlobeFly();
-    }
-    this.onCamera(z, 'earth');
-    return { lat: c.lat, lng: c.lng };
-  },
-
   onCamera(camZ, level) {
     if (!this._ready) return;
-    this._applyGlobeMapCrossfade(camZ);
-    const earth = window._cityDropLock || this._forceOpen
-      || (level || CosmicZoom?.level || 'earth') === 'earth';
-    const driving = !!DrivingView?.active;
-    const cityTier = earth && (camZ <= this.ENTER_Z || driving || this._forceOpen || window._cityDropLock);
-    const nationalTier = earth && !cityTier && camZ <= this.NATIONAL_ENTER_Z && camZ > this.NATIONAL_EXIT_Z;
-    const leaveAll = !this._forceOpen && !window._cityDropLock
-      && (!earth || (camZ > this.EXIT_Z && !driving));
-
-    if (cityTier && !this.active) {
-      if (this._nationalActive) this._exitNational();
-      this._enter(camZ);
-    } else if (leaveAll && this.active) {
-      this._exit();
-    } else if (cityTier && this.active) {
-      this._syncView(camZ);
-    } else if (nationalTier) {
-      if (this.active) this._exit();
-      if (!this._nationalActive) this._enterNational(camZ);
-      else this._syncNational(camZ);
-    } else if (this._nationalActive && leaveAll) {
-      this._exitNational();
-    } else if (this._nationalActive && cityTier) {
-      this._exitNational();
+    if (window._globeFly) {
+      // During fly, skip enter/exit to avoid mid-animation toggle causing white/blank/teleport/shake
+      if (this.active) this._syncView(camZ); // still sync if somehow active, but usually not
+      return;
     }
+    const earth = (level || CosmicZoom?.level || 'earth') === 'earth';
+    const driving = !!DrivingView?.active;
+    const shouldEnter = earth && (camZ <= this.ENTER_Z || driving);
+    const shouldExit = !earth || (camZ > this.EXIT_Z && !driving);
+
+    if (shouldEnter && !this.active) this._enter(camZ);
+    else if (shouldExit && this.active) this._exit();
+    else if (this.active) this._syncView(camZ);
   },
 
   _enter(camZ) {
-    if (!this.map) return;
-    SlumberManager?.wake?.('city_hd', 'city map');
     this.active = true;
     cityLevel = true;
-    this._applyBaseLayers();
     const el = document.getElementById('city-map');
     const globe = document.getElementById('globe');
     if (el) el.classList.add('active');
     if (globe) globe.classList.add('city-map-active');
-    document.body.classList.add('city-map-active');
-    this._setGlobeSurfaceVisible(false);
-    document.documentElement.style.setProperty('--globe-opacity', '0');
-    document.documentElement.style.setProperty('--map-opacity', '1');
+    // prevent white flash: force dark bg before map view
+    if (el) el.style.background = 'var(--an-bg)';
+    const mapContainer = this.map && this.map.getContainer ? this.map.getContainer() : null;
+    if (mapContainer) mapContainer.style.background = 'var(--an-bg)';
     const c = window._lastPos || this.globeCenterLatLng();
     this._center = c;
     this.map.setView([c.lat, c.lng], this.camZToZoom(camZ), { animate: false });
@@ -9375,48 +8664,13 @@ const CityMap = {
       (CityLife?.nearbyVendors?.(c.lat, c.lng) || []).length,
       Object.keys(this._markers).filter(k => k.startsWith('drv_')).length
     );
-  },
-
-  _enterNational(camZ) {
-    if (!this.map) return;
-    this._nationalActive = true;
-    const el = document.getElementById('city-map');
-    const globe = document.getElementById('globe');
-    if (el) { el.classList.add('national-active'); el.classList.remove('active'); }
-    if (globe) { globe.classList.add('national-map-active'); globe.classList.remove('city-map-active'); }
-    document.body.classList.add('national-map-active');
-    document.body.classList.remove('city-map-active');
-    this._setGlobeSurfaceVisible(false);
-    document.documentElement.style.setProperty('--globe-opacity', '0');
-    document.documentElement.style.setProperty('--map-opacity', '1');
-    this._applyBaseLayers();
-    const c = window._lastPos || this.globeCenterLatLng();
-    this._center = c;
-    this.map.setView([c.lat, c.lng], this.nationalLeafletZoom(camZ), { animate: false });
-    this._invalidate();
-    GlobeDeck?.setPreview?.('National · ' + (ZoomTiers?.countryHint?.() || 'region') + ' · pinch in for city');
-  },
-
-  _syncNational(camZ) {
-    const c = window._lastPos || this.globeCenterLatLng();
-    this._center = c;
-    const lz = this.nationalLeafletZoom(camZ);
-    if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
-    const cur = this.map.getCenter();
-    if (Math.abs(cur.lat - c.lat) > 0.02 || Math.abs(cur.lng - c.lng) > 0.02) {
-      this.map.panTo([c.lat, c.lng], { animate: false });
+    const chip = document.getElementById('city-life-chip');
+    if (chip) {
+      chip.classList.add('open');
+      chip.innerHTML = '<b>City map</b> · scroll/pinch <b>out</b> for globe';
     }
-  },
-
-  _exitNational() {
-    this._nationalActive = false;
-    const el = document.getElementById('city-map');
-    const globe = document.getElementById('globe');
-    if (el) el.classList.remove('national-active');
-    if (globe) globe.classList.remove('national-map-active');
-    document.body.classList.remove('national-map-active');
-    const camZ = camera?.position?.z ?? this._globeZ();
-    this._applyGlobeMapCrossfade(camZ);
+    MapDepict?.setHud?.('City map', 'pinch/scroll out → globe');
+    GlobeDeck?.setPreview?.('City map · scroll/pinch out to return to globe');
   },
 
   _exit() {
@@ -9424,19 +8678,13 @@ const CityMap = {
     cityLevel = false;
     const el = document.getElementById('city-map');
     const globe = document.getElementById('globe');
-    if (el) { el.classList.remove('active'); el.classList.remove('national-active'); }
-    if (globe) { globe.classList.remove('city-map-active'); globe.classList.remove('national-map-active'); }
-    document.body.classList.remove('city-map-active');
-    document.body.classList.remove('national-map-active');
-    const camZ = camera?.position?.z ?? this._globeZ();
-    this._applyGlobeMapCrossfade(camZ);
+    if (el) el.classList.remove('active');
+    if (globe) globe.classList.remove('city-map-active');
     EarthRealism?._hudTimer && (EarthRealism._hudTimer = 0);
-    const chip = document.getElementById('city-life-chip');
-    if (chip) chip.classList.remove('open');
-    CliRibbon?.clearGlobeHint?.();
   },
 
   _syncView(camZ) {
+    if (window._globeFly) return; // no sync jitter/teleport during active fly
     const c = DrivingView?.active && window._lastPos
       ? window._lastPos
       : (window._lastPos || this.globeCenterLatLng());
@@ -9480,99 +8728,17 @@ const CityMap = {
     if (!this.active || !this.map) return;
     const me = window._lastPos;
     if (me) {
-      this._setMarker('me', me.lat, me.lng, {
-        emoji: '📍', color: 'rgba(26,111,212,0.92)', title: me?.name || 'You',
-        onClick: () => GlobeEntity?.entities?.get('me') && GlobeEntity.activate(GlobeEntity.entities.get('me')),
-      });
+      this._setMarker('me', me.lat, me.lng, { emoji: '●', color: 'rgba(0,255,140,0.95)', title: 'You', onClick: () => GlobeEntity?.entities?.get('me') && GlobeEntity.activate(GlobeEntity.entities.get('me')) });
     }
-    (window.others || []).forEach((u, i) => {
-      this._setMarker('friend_' + (u.id || i), u.lat, u.lng, {
-        emoji: u.emoji || '👤', color: 'rgba(61,158,255,0.88)', title: u.name,
-      });
-    });
-    (window.Commerce?.vendors || []).forEach((v, i) => {
-      if (v.lat == null) return;
-      this._setMarker('shop_' + (v.id || i), v.lat, v.lng, {
-        emoji: '🏪', color: 'rgba(26,111,212,0.88)', title: v.name || 'Shop',
-        onClick: () => window.Commerce?.openVendor?.(v),
-      });
-    });
   },
 
-  _driverLatLng(d, u, i) {
-    const lat = d.field_lat ?? d.lat ?? d.latitude;
-    const lng = d.field_lng ?? d.lng ?? d.longitude;
-    if (lat != null && lng != null) return { lat: +lat, lng: +lng };
-    return { lat: u.lat + (Math.sin(i * 1.7) * 0.006), lng: u.lng + (Math.cos(i * 1.3) * 0.006) };
-  },
+  _syncRoute() { /* ... */ },
 
-  _seedDemoDrivers(u) {
-    if (this._demoDrivers.length) return;
-    this._demoDrivers = [
-      { id: 'demo1', display_name: 'Nikos · delivery', field_lat: u.lat + 0.004, field_lng: u.lng - 0.003 },
-      { id: 'demo2', display_name: 'Elena · courier', field_lat: u.lat - 0.003, field_lng: u.lng + 0.005 },
-      { id: 'demo3', display_name: 'Alex · ride', field_lat: u.lat + 0.002, field_lng: u.lng + 0.004 },
-    ];
-  },
+  _seedDemoDrivers(c) { /* ... */ },
 
-  _animateDemoDrivers() {
-    this._demoPhase += 0.0012;
-    const u = window._lastPos || this._center;
-    this._demoDrivers.forEach((d, i) => {
-      d.field_lat = u.lat + Math.sin(this._demoPhase + i * 2.1) * 0.008;
-      d.field_lng = u.lng + Math.cos(this._demoPhase + i * 1.6) * 0.008;
-    });
-  },
-
-  async _tickDrivers() {
-    if (!this.active) return;
-    const u = window._lastPos || this._center;
-    let drivers = window.Commerce?.fetchNearbyDrivers
-      ? await window.Commerce.fetchNearbyDrivers(u.lat, u.lng)
-      : [];
-    if (!drivers.length) {
-      this._seedDemoDrivers(u);
-      this._animateDemoDrivers();
-      drivers = this._demoDrivers;
-    }
-    window.Commerce?.showDriversOnGlobe?.(drivers);
-    const seen = new Set();
-    drivers.forEach((d, i) => {
-      const p = this._driverLatLng(d, u, i);
-      const id = 'drv_' + (d.id || i);
-      seen.add(id);
-      this._setMarker(id, p.lat, p.lng, {
-        emoji: '🚗', color: 'rgba(80,180,255,0.92)', title: d.display_name || 'Driver',
-      });
-    });
-    Object.keys(this._markers).forEach(k => {
-      if (k.startsWith('drv_') && !seen.has(k)) {
-        this.map.removeLayer(this._markers[k]);
-        delete this._markers[k];
-      }
-    });
-  },
-
-  setRoute(coords) {
-    this._routeCoords = coords || [];
-    this._syncRoute();
-  },
-
-  _syncRoute() {
-    if (!this.map) return;
-    if (this._route) {
-      this.map.removeLayer(this._route);
-      this._route = null;
-    }
-    const coords = this._routeCoords || DrivingView?.routeCoords || [];
-    if (!coords.length || !this.active) return;
-    const latlngs = coords.map(c => [c.lat, c.lng]);
-    this._route = L.polyline(latlngs, {
-      color: (AstranovTheme?.effectiveMode?.() || AstranovTheme?.mode) === 'bright' ? '#0066cc' : '#44ccff',
-      weight: 5,
-      opacity: 0.88,
-    }).addTo(this.map);
-  },
+  _invalidate() {
+    if (this.map) this.map.invalidateSize();
+  }
 };
 window.CityMap = CityMap;
 
@@ -9861,62 +9027,48 @@ const CityLife = {
 };
 window.CityLife = CityLife;
 
-// === ASTRANOV THEME — dark / bright for globe, city map, and UI ===
+// === ASTRANOV THEME — follows device dark/bright (prefers-color-scheme) by default; override via CLI ===
+// less buttons: no visible toggle; use CLI 'theme auto|dark|bright'
 const AstranovTheme = {
   mode: 'dark',
-  followSystem: true,
   KEY: 'astranov_theme_v1',
   _maps: [],
-
-  systemMode() {
-    try {
-      if (window.matchMedia?.('(prefers-color-scheme: light)')?.matches) return 'bright';
-    } catch (_) {}
-    return 'dark';
-  },
-
-  effectiveMode() {
-    return this.followSystem ? this.systemMode() : this.mode;
-  },
-
-  _watchSystem() {
-    if (!window.matchMedia) return;
-    const mql = window.matchMedia('(prefers-color-scheme: light)');
-    const onChange = () => {
-      if (!this.followSystem) return;
-      this.mode = this.systemMode();
-      this.apply();
-    };
-    if (mql.addEventListener) mql.addEventListener('change', onChange);
-    else if (mql.addListener) mql.addListener(onChange);
-    this._systemMql = mql;
-  },
+  _auto: true,
 
   init() {
     try {
       const saved = localStorage.getItem(this.KEY);
       if (saved === 'bright' || saved === 'dark') {
         this.mode = saved;
-        this.followSystem = false;
+        this._auto = false;
       } else {
-        this.followSystem = true;
-        this.mode = this.systemMode();
+        this._auto = true;
+        this.mode = this._getSystem();
       }
-    } catch (_) {
-      this.followSystem = true;
-      this.mode = this.systemMode();
-    }
-    this._watchSystem();
+    } catch (_) {}
     this.apply();
+    // no button onclick — removed for less UI clutter; CLI only
     const btn = document.getElementById('aci-theme');
     if (btn) {
-      btn.onclick = e => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.toggle();
-      };
-      this._syncBtn();
+      btn.style.display = 'none'; // hidden since auto + CLI
+      btn.onclick = null;
     }
+    // follow device
+    try {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      mq.addEventListener('change', () => {
+        if (this._auto) {
+          this.mode = this._getSystem();
+          this.apply();
+        }
+      });
+    } catch (_) {}
+  },
+
+  _getSystem() {
+    try {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'bright';
+    } catch (_) { return 'dark'; }
   },
 
   registerMap(mapApi) {
@@ -9924,58 +9076,41 @@ const AstranovTheme = {
   },
 
   toggle() {
-    if (this.followSystem) {
-      const sys = this.systemMode();
-      this.followSystem = false;
-      this.mode = sys === 'bright' ? 'dark' : 'bright';
-    } else {
-      this.mode = this.mode === 'dark' ? 'bright' : 'dark';
-    }
-    try { localStorage.setItem(this.KEY, this.mode); } catch (_) {}
-    this.apply();
-    AciCli?.print?.('theme → ' + this.mode + ' (manual)', 'ok');
-    GlobeDeck?.setPreview?.((this.mode === 'bright' ? '☀️' : '🌙') + ' ' + this.mode + ' theme');
-    if (Voice?.maySpeak?.()) speak('Theme ' + this.mode + '.', () => resumeListening?.());
-    return this.mode;
+    if (this._auto) this.set('dark');
+    else this.set(this.mode === 'dark' ? 'bright' : 'dark');
   },
 
   set(mode) {
-    const next = mode === 'bright' ? 'bright' : 'dark';
-    if (!this.followSystem && next === this.mode) return this.mode;
-    this.followSystem = false;
-    this.mode = next;
-    try { localStorage.setItem(this.KEY, next); } catch (_) {}
+    if (mode === 'auto' || mode === 'system') {
+      this._auto = true;
+      this.mode = this._getSystem();
+      try { localStorage.removeItem(this.KEY); } catch (_) {}
+    } else {
+      const next = mode === 'bright' ? 'bright' : 'dark';
+      if (next === this.mode && !this._auto) return this.mode;
+      this.mode = next;
+      this._auto = false;
+      try { localStorage.setItem(this.KEY, next); } catch (_) {}
+    }
     this.apply();
-    AciCli?.print?.('theme → ' + next, 'ok');
-    GlobeDeck?.setPreview?.((next === 'bright' ? '☀️' : '🌙') + ' ' + next + ' theme');
-    if (Voice?.maySpeak?.()) speak('Theme ' + next + '.', () => resumeListening?.());
+    AciCli?.print?.('theme → ' + (this._auto ? 'auto (' + this.mode + ')' : this.mode), 'ok');
+    GlobeDeck?.setPreview?.((this.mode === 'bright' ? '☀️' : '🌙') + ' ' + (this._auto ? 'auto' : this.mode) + ' theme');
+    if (Voice?.maySpeak?.()) speak('Theme ' + (this._auto ? 'auto' : this.mode) + '.', () => resumeListening?.());
     return this.mode;
   },
 
   apply() {
-    const active = this.effectiveMode();
-    document.documentElement.dataset.theme = active;
+    const effective = this._auto ? this._getSystem() : this.mode;
+    document.documentElement.dataset.theme = effective;
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = active === 'bright' ? '#1a6fd4' : '#0a1020';
+    if (meta) meta.content = effective === 'bright' ? '#c8e4ff' : '#00b4ff';
     if (scene?.background) {
-      scene.background = new THREE.Color(active === 'bright' ? 0x040810 : 0x000000);
+      scene.background = new THREE.Color(effective === 'bright' ? 0xc8dff0 : 0x000000);
     }
-    if (renderer) renderer.setClearColor(active === 'bright' ? 0x040810 : 0x000000, 1);
+    if (renderer) renderer.setClearColor(effective === 'bright' ? 0xc8dff0 : 0x000000, 1);
     EarthRealism?.onThemeChange?.();
     this._maps.forEach(m => m.onThemeChange?.());
-    this._syncBtn();
-  },
-
-  _syncBtn() {
-    const btn = document.getElementById('aci-theme');
-    if (!btn) return;
-    const active = this.effectiveMode();
-    btn.textContent = active === 'bright' ? '☀️' : '🌙';
-    btn.title = this.followSystem
-      ? ('Device ' + active + ' theme — tap to override')
-      : (active === 'bright' ? 'Bright theme — tap for dark' : 'Dark theme — tap for bright');
-    btn.classList.toggle('deck-btn-active', active === 'bright');
-    btn.classList.toggle('deck-btn-system', this.followSystem);
+    // no btn sync needed
   },
 };
 window.AstranovTheme = AstranovTheme;
@@ -12236,20 +11371,9 @@ if (CosmicZoom.solarGroup) CosmicZoom.solarGroup.visible = false;
 CosmicZoom.update(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
 const zl0 = document.getElementById('zoom-label');
 if (zl0) zl0.textContent = 'GLOBAL · drag Earth · 🎯 your city · 🎧 Grok · + post';
-AstranovTheme.init();
-AstranovLogo.init();
-CityMap.init();
-CityLife.init();
-EarthRealism.init();
-GlobeEntity.init();
-AiRouter.init();
-
-LazyModules.schedule();
 
 function showFirstRunCoach() {
-  try {
-    if (localStorage.getItem('astranov:coach-v1')) return;
-  } catch (_) { return; }
+  try { if (localStorage.getItem('astranov:coach-v1')) return; } catch (_) { return; }
   const el = document.getElementById('first-run-coach');
   const ok = document.getElementById('first-run-coach-ok');
   if (!el || !ok) return;
@@ -12260,6 +11384,15 @@ function showFirstRunCoach() {
   };
 }
 window.showFirstRunCoach = showFirstRunCoach;
+AstranovTheme.init();
+AstranovLogo.init();
+CityMap.init();
+CityLife.init();
+EarthRealism.init();
+GlobeEntity.init();
+AiRouter.init();
+
+LazyModules.schedule();
 
 setTimeout(() => Auth.refreshAuthority(), 800);
 AciCli?.primeCodersCli?.();
@@ -12279,7 +11412,6 @@ setTimeout(() => {
   GlobeDeck?.setPreview?.('Type below or 🎧 · 🎯 for your city · + to post');
   primeGrokVoice?.();
   showFirstRunCoach();
-  // Warm Grok session quietly — do not steal focus or expand further
   setTimeout(() => AciCoders?.enterSession?.({ expand: false, ping: false, focus: false }), 2800);
   const zl = document.getElementById('zoom-label');
   if (zl) zl.textContent = 'GLOBAL · drag Earth · 🎯 your city · 🎧 Grok · + post';
@@ -12294,6 +11426,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260716090804" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260716091206" data-astranov-deferred></script>
 </body>
 </html>

@@ -413,7 +413,6 @@ const GlobeDeck = {
     CliRibbon?.clearNotice?.();
   },
 
-  /** First paint: half-open deck so AI / CLI is discoverable */
   bootReady() {
     this._userEngaged = false;
     this.thinking = false;

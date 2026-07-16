@@ -76,20 +76,9 @@ if (CosmicZoom.solarGroup) CosmicZoom.solarGroup.visible = false;
 CosmicZoom.update(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
 const zl0 = document.getElementById('zoom-label');
 if (zl0) zl0.textContent = 'GLOBAL · drag Earth · 🎯 your city · 🎧 Grok · + post';
-AstranovTheme.init();
-AstranovLogo.init();
-CityMap.init();
-CityLife.init();
-EarthRealism.init();
-GlobeEntity.init();
-AiRouter.init();
-
-LazyModules.schedule();
 
 function showFirstRunCoach() {
-  try {
-    if (localStorage.getItem('astranov:coach-v1')) return;
-  } catch (_) { return; }
+  try { if (localStorage.getItem('astranov:coach-v1')) return; } catch (_) { return; }
   const el = document.getElementById('first-run-coach');
   const ok = document.getElementById('first-run-coach-ok');
   if (!el || !ok) return;
@@ -100,6 +89,15 @@ function showFirstRunCoach() {
   };
 }
 window.showFirstRunCoach = showFirstRunCoach;
+AstranovTheme.init();
+AstranovLogo.init();
+CityMap.init();
+CityLife.init();
+EarthRealism.init();
+GlobeEntity.init();
+AiRouter.init();
+
+LazyModules.schedule();
 
 setTimeout(() => Auth.refreshAuthority(), 800);
 AciCli?.primeCodersCli?.();
@@ -119,7 +117,6 @@ setTimeout(() => {
   GlobeDeck?.setPreview?.('Type below or 🎧 · 🎯 for your city · + to post');
   primeGrokVoice?.();
   showFirstRunCoach();
-  // Warm Grok session quietly — do not steal focus or expand further
   setTimeout(() => AciCoders?.enterSession?.({ expand: false, ping: false, focus: false }), 2800);
   const zl = document.getElementById('zoom-label');
   if (zl) zl.textContent = 'GLOBAL · drag Earth · 🎯 your city · 🎧 Grok · + post';

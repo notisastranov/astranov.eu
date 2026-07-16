@@ -227,17 +227,15 @@
   #cli-ribbon-status.hold { color:var(--ax-yellow-bright); text-shadow:0 0 8px var(--ax-yellow-glow); }
   #cli-ribbon-status.ready { color:var(--ax-green-bright); text-shadow:0 0 8px var(--ax-green-glow); }
   @keyframes cli-think-glow { 0%,100%{ opacity:0.85; } 50%{ opacity:1; text-shadow:0 0 12px var(--ax-blue-glow); } }
-  /* Trust toolbar: Sign-in · Locate · + · 🎧 always visible */
+  /* Trust toolbar: Sign-in · Locate · + · 🎧 */
   #super-cli-bar button:not(#aci-login):not(#aci-locate):not(#super-add-fab):not(#aci-handsfree):not(.app-shortcut-btn) { display:none !important; }
   #super-cli-bar #aci-locate { display:inline-flex !important; align-items:center; justify-content:center; }
-  #super-cli-bar #aci-login { font-weight:700; font-size:12px; letter-spacing:0.02em; }
   #first-run-coach {
     position:fixed; left:50%; bottom:max(118px, calc(12vh + env(safe-area-inset-bottom)));
     transform:translateX(-50%); z-index:55; max-width:min(92vw, 340px);
     background:rgba(4,12,24,0.92); border:1px solid var(--ax-blue-border); border-radius:14px;
     padding:12px 14px; color:var(--ax-blue-bright); font:12px/1.4 system-ui;
     box-shadow:0 8px 28px rgba(0,0,0,0.45), 0 0 16px var(--ax-blue-glow);
-    pointer-events:auto;
   }
   #first-run-coach strong { color:#fff; display:block; margin-bottom:6px; font-size:13px; }
   #first-run-coach ol { margin:0 0 10px 1.1em; padding:0; color:var(--an-muted); }
@@ -723,7 +721,7 @@
         <span id="globe-deck-preview"></span>
       </div>
       <div id="super-cli-bar">
-        <button id="aci-login" title="Sign in with Google" type="button" aria-label="Sign in">G</button>
+        <button id="aci-login" title="Sign in with Google" type="button">G</button>
         <div id="app-shortcut-row" role="toolbar" aria-label="Open applications"></div>
         <span id="cli-ribbon-status" aria-live="polite"></span>
         <button id="super-add-fab" type="button" title="Super Add — post · vendor · site">+</button>

@@ -171,7 +171,7 @@ serve(async (req) => {
   try {
     const body = await req.json()
 
-    let prompt: string = (body.prompt || '').trim()
+    let prompt: string = (body.prompt || body.text || body.message || body.task || '').trim()
     let history: Msg[] = Array.isArray(body.history) ? body.history : []
     let agentSystem = ''
     if (!prompt && Array.isArray(body.messages)) {

@@ -8,3 +8,6 @@ scripts/.chrome-probe-*/
 .syntax-check.js
 index.restored.html
 .grok/
+
+.collective-exports/
+
