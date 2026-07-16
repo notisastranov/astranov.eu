@@ -149,7 +149,7 @@ const AciCli = {
 
     if (!cmd) return;
     if (cmd === 'help' || cmd === '?') {
-      this.print('think <p> | evolve | teach <t> | stats | seed | coders <task> | bridge | dev <task> | fix <issue> | code <edit> | db <change> | theme | clear | exit', 'dim');
+      this.print('Architect: fix|code|dev|bridge · Chat: 🎧 Grok · also think|coders|db|theme|clear|exit', 'dim');
       return;
     }
     if (cmd === 'clear') { this.clear(); return; }
@@ -166,6 +166,14 @@ const AciCli = {
     if (cmd === 'code' || cmd === 'edit') {
       if (!rest) { this.print('usage: code <desc>', 'err'); return; }
       GlobeDeck.activeTask = 'coders';
+      // Architect: code/edit go straight to Grok Build bridge (in-app coding path)
+      if (Auth?.isArchitect || AciCoders?.isArchitect?.()) {
+        const br = await ArchitectBridge?.handleCommand?.(cmd + ' ' + rest);
+        if (br && !br.error) {
+          GlobeDeck?.finishCliIfOneShot(cmd);
+          return;
+        }
+      }
       AciCoders?.handleMessage?.('edit code: ' + rest);
       this.print('code change sent to coders', 'ok');
       GlobeDeck?.finishCliIfOneShot(cmd);
@@ -223,11 +231,10 @@ const AciCli = {
       GlobeDeck?.finishCliIfOneShot(cmd);
       return;
     }
-    if (cmd === 'bridge' || cmd === 'dev' || cmd === 'fix') {
-      const task = cmd === 'bridge' ? line : rest;
+    if (cmd === 'bridge' || cmd === 'dev' || cmd === 'fix' || cmd === 'code' || cmd === 'edit') {
       if (cmd !== 'bridge' && !rest) { this.print('usage: ' + cmd + ' <task>', 'err'); return; }
       GlobeDeck.activeTask = 'coders';
-      void ArchitectBridge?.handleCommand?.(line);
+      await ArchitectBridge?.handleCommand?.(line);
       return;
     }
     if (cmd === 'coders' || cmd === 'composer' || cmd === 'cursor' ||
