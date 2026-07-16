@@ -267,6 +267,17 @@ const AstranovContinuity = {
       ],
       doNotRemove: ['bootAtmosphere upgrade path', 'EarthRealism day/night'],
     },
+
+    astranovHelper: {
+      summary: 'AI helper character v2 — gaming mecha-angel (procedural THREE, not Atari boxes)',
+      owner: 'src/60-graphics.js (spawnAstranovFlyer / _buildProceduralHumanoid gen:2)',
+      behavior: [
+        'Energy multi-vane wings, halo, core bloom, thruster jets, orbiters',
+        'Hero scale at global zoom; flyAstranovTo uses same mesh',
+        'Advanced rim/metal/pulse shaders on helper materials',
+      ],
+      doNotRemove: ['spawnAstranovFlyer', 'flyAstranovTo', 'AstranovFlyer'],
+    },
   },
 
   /**
