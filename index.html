@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260716091600" />
+<meta name="astranov-build" content="20260716101015" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -706,6 +706,7 @@
       <li>Drag to spin Earth · pinch to zoom</li>
       <li>🎯 Locate — real GPS city map</li>
       <li>🎧 Talk to Grok · type below · + to post</li>
+      <li>Architect: sign in with G → say <em>fix …</em> or <em>dev …</em> — Grok Build fixes on desktop</li>
     </ol>
     <button type="button" id="first-run-coach-ok">Got it</button>
   </div>
@@ -3635,8 +3636,11 @@ const Auth = {
     }
     this.updateOwnerUI();
     if (this.isArchitect) {
-      ACIControl?.reply?.('Architect online · free tier first · paid XAI only after limit + notify');
-      CliRibbon?.setNotice?.('Architect · free first', 'ready');
+      ACIControl?.reply?.('Architect online · Bridge armed · say fix <issue> from the street');
+      CliRibbon?.setNotice?.('Bridge armed · fix/dev', 'ready');
+      ArchitectBridge?.arm?.({ quiet: true });
+    } else {
+      ArchitectBridge?.disarm?.();
     }
     if (window.FieldBrain) FieldBrain.onAuth();
     if (window.AciCli) AciCli.onAuthChange();
@@ -3665,6 +3669,7 @@ const Auth = {
     this.isArchitect = false;
     this._siteOwners.clear();
     window._aciOwner = false;
+    ArchitectBridge?.disarm?.();
     this.applyUser();
     this.updateOwnerUI();
     this.broadcastToShell();
@@ -4917,54 +4922,136 @@ window.SuperCli = SuperCli;
 // === ACI CLI — Collective dev terminal (login required) ===
 const AciCli = {
   open: false,
+  history: [],
+  histIdx: -1,
   buffer: '',
+
+  primeCodersCli() {
+    AciCoders?.autoStart?.();
+    CliRibbon?.setActive?.('Grok');
+    const input = document.getElementById('aci-cli-in');
+    if (input) input.placeholder = 'Talk to Grok — type or tap 🎧 · Enter to send';
+  },
 
   init() {
     const input = document.getElementById('aci-cli-in');
     const toggle = document.getElementById('aci-cli-toggle');
+    const form = document.getElementById('aci-cli-form');
+    SuperCli?.bindInputBar?.();
     if (toggle) toggle.onclick = () => this.toggle();
+    if (form && !form._cliBound) {
+      form._cliBound = true;
+      form.addEventListener('submit', e => { e.preventDefault(); this.submitFromInput({ emptyFocus: true }); });
+    }
     if (input) {
-      input.onkeydown = (e) => {
-        if (e.key === 'Enter') {
-          const v = input.value.trim();
-          if (v) {
-            this.handle(v);
-            input.value = '';
-            this.buffer = '';
-            window.resizeCliInput?.(input);
-          }
-          e.preventDefault();
-        } else if (e.key === 'Tab') {
-          e.preventDefault();
-          const sug = this.suggest(input.value);
-          if (sug) {
-            input.value = sug;
-            this.buffer = sug;
-            window.resizeCliInput?.(input);
-          }
-        } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-          e.preventDefault();
-          this.clear();
-        }
-      };
-      input.oninput = () => {
-        this.buffer = input.value;
-        window.resizeCliInput?.(input);
-      };
-      input.onfocus = () => { this.open = true; GlobeDeck?.expand?.('CLI'); };
+      input.onkeydown = (e) => this.onKey?.(e) || this._legacyKey(e);
+      input.oninput = () => { this.buffer = input.value; window.resizeCliInput?.(input); };
+      input.onfocus = () => { this.open = true; AciCoders?.enterSession?.({ focus: false, ping: false, expand: false }); };
+    }
+    this.onAuthChange();
+  },
+
+  onAuthChange() {
+    const logged = !!(Auth && Auth.user);
+    if (!logged) {
+      this._welcomed = false;
+      this._sessionOpened = false;
+      this.open = false;
+      GlobeDeck?.collapse?.();
+      this.primeCodersCli();
+      ArchitectBridge?.disarm?.();
+      return;
+    }
+    const prompt = document.getElementById('aci-cli-prompt');
+    if (prompt) {
+      prompt.textContent = Auth?.isArchitect
+        ? 'ASTRANOV@collective $'
+        : ((Auth.user.user_metadata?.full_name || Auth.user.email?.split('@')[0] || 'dev') + '@collective $');
+    }
+    if (Auth?.isArchitect) ArchitectBridge?.arm?.({ quiet: true });
+    if (window.AciCoders) AciCoders.autoStart();
+    SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
+  },
+
+  show() {
+    if (!Auth?.user) return;
+    this.open = true;
+    AciCoders?.autoStart?.();
+    GlobeDeck?.expand?.('Grok');
+    document.getElementById('aci-cli-in')?.focus();
+  },
+
+  async api(body, opts = {}) {
+    const headers = { 'Content-Type': 'application/json', apikey: SB_KEY };
+    if (Auth?.ensureSession) {
+      const session = await Auth.ensureSession();
+      headers.Authorization = session?.access_token ? 'Bearer ' + session.access_token : 'Bearer ' + SB_KEY;
+    } else if (Auth?.client) {
+      const { data } = await Auth.client.auth.getSession();
+      headers.Authorization = data?.session?.access_token ? 'Bearer ' + data.session.access_token : 'Bearer ' + SB_KEY;
+    } else {
+      headers.Authorization = 'Bearer ' + SB_KEY;
+    }
+    const timeoutMs = opts.timeoutMs || (body.fast ? 28000 : 55000);
+    const lane = ArcangeloDialect?.apiContext?.() || {};
+    const j = await fetchJson(SB_URL + '/functions/v1/aci', {
+      method: 'POST', headers,
+      body: JSON.stringify({ ...body, ...lane, cli_user: Auth?.user?.id, cli_email: Auth?.user?.email }),
+    }, timeoutMs);
+    if (j._httpStatus === 401) j.error = j.error || 'login required — tap G to sign in';
+    return j;
+  },
+
+  submitFromInput(opts = {}) {
+    const input = document.getElementById('aci-cli-in');
+    const line = String(input?.value || '').replace(/\n+$/, '').trim();
+    if (!line) {
+      if (opts.emptyFocus) AciCoders?.enterSession?.({ focus: true, ping: false });
+      return false;
+    }
+    GlobeDeck?.onUserMessage?.('Grok — ' + line.slice(0, 40));
+    GlobeDeck?.setThinking?.(true, 'Grok…');
+    input.value = '';
+    this.buffer = '';
+    window.resizeCliInput?.(input);
+    void this.run(line);
+    return true;
+  },
+
+  async run(line, opts = {}) {
+    line = (window.fixVoiceHotwords || (x => x))(String(line || '').trim());
+    if (!line) { await AciCoders?.enterSession?.({ focus: true, ping: false }); return; }
+    await AciCoders?.enterSession?.({ focus: false, ping: false, expand: false });
+    this.history.push(line);
+    this.histIdx = -1;
+    this.print((document.getElementById('aci-cli-prompt')?.textContent || '›') + ' ' + line, 'cmd');
+    const routed = await SuperCli?.exec?.(line, opts);
+    if (routed?.handled) return;
+    await this.handle(line);
+  },
+
+  onKey(e) {
+    const enter = e.key === 'Enter' && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && !e.isComposing;
+    if (enter) { e.preventDefault(); this.submitFromInput(); return true; }
+    if (e.key === 'Escape') { this.toggle(); return true; }
+    return false;
+  },
+
+  _legacyKey(e) {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const sug = this.suggest(e.target.value);
+      if (sug) { e.target.value = sug; this.buffer = sug; window.resizeCliInput?.(e.target); }
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      this.clear();
     }
   },
 
   toggle() {
-    this.open = !this.open;
-    const input = document.getElementById('aci-cli-in');
-    if (this.open) {
-      GlobeDeck?.expand?.('CLI');
-      input?.focus();
-    } else {
-      input?.blur();
-      if (!GlobeDeck?.thinking) GlobeDeck?.collapse?.();
-    }
+    if (!Auth?.user) { GlobeDeck?.expand?.('Guest'); this.open = true; return; }
+    GlobeDeck?.toggle?.();
+    this.open = !!GlobeDeck?.expanded;
   },
 
   clear() {
@@ -4983,7 +5070,7 @@ const AciCli = {
 
     if (!cmd) return;
     if (cmd === 'help' || cmd === '?') {
-      this.print('think <p> | evolve | teach <t> | stats | seed | coders <task> | code <edit> | db <change> | theme auto|dark|bright | clear | exit', 'dim');
+      this.print('think <p> | evolve | teach <t> | stats | seed | coders <task> | bridge | dev <task> | fix <issue> | code <edit> | db <change> | theme | clear | exit', 'dim');
       return;
     }
     if (cmd === 'clear') { this.clear(); return; }
@@ -5057,6 +5144,13 @@ const AciCli = {
       GlobeDeck?.finishCliIfOneShot(cmd);
       return;
     }
+    if (cmd === 'bridge' || cmd === 'dev' || cmd === 'fix') {
+      const task = cmd === 'bridge' ? line : rest;
+      if (cmd !== 'bridge' && !rest) { this.print('usage: ' + cmd + ' <task>', 'err'); return; }
+      GlobeDeck.activeTask = 'coders';
+      void ArchitectBridge?.handleCommand?.(line);
+      return;
+    }
     if (cmd === 'coders' || cmd === 'composer' || cmd === 'cursor' ||
         (cmd === 'summon' && /^coders?$/i.test(parts[1] || ''))) {
       const task = cmd === 'summon' ? rest : (cmd === 'coders' ? rest : rest || '');
@@ -5098,7 +5192,7 @@ const AciCli = {
 
   suggest(prefix) {
     const p = (prefix || '').toLowerCase();
-    const cmds = ['think', 'evolve', 'teach', 'stats', 'seed', 'council', 'coders', 'code', 'db', 'theme', 'auto', 'dark', 'bright', 'vendor', 'order', 'batch', 'radio', 'clear', 'exit', 'logout'];
+    const cmds = ['think', 'evolve', 'teach', 'stats', 'seed', 'council', 'coders', 'bridge', 'dev', 'fix', 'code', 'db', 'theme', 'auto', 'dark', 'bright', 'vendor', 'order', 'batch', 'radio', 'clear', 'exit', 'logout'];
     for (const c of cmds) if (c.startsWith(p)) return c;
     return '';
   }
@@ -5408,6 +5502,11 @@ const AciCoders = {
 
     const parts = raw.split(/\s+/);
     const sub = (parts[0] || '').toLowerCase();
+
+    if (ArchitectBridge?.wantsBridgeCmd?.(raw)) {
+      const br = await ArchitectBridge.handleCommand(raw);
+      if (br) return br;
+    }
 
     if (/^coders\b/i.test(raw)) {
       if (sub === 'list') return this.listSummons();
@@ -11448,6 +11547,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260716091600" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260716101015" data-astranov-deferred></script>
 </body>
 </html>
