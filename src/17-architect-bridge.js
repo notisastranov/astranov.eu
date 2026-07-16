@@ -1,10 +1,13 @@
 // === ARCHITECT BRIDGE — phone street-fix → desktop Grok Build agent ===
 // Owner only: notisastranov@gmail.com after Google sign-in on astranov.eu
+// In-app coding path: fix | dev | code | edit | bridge → cic_queue reason architect_bridge
+// Desktop: npm run bridge-watch  ·  answer: node scripts/architect-bridge-answer.mjs <id> "…"
 const ArchitectBridge = {
   armed: false,
   lastTaskId: null,
   _pollTimer: null,
   _watchIds: new Set(),
+  _delivered: new Set(),
   BRIDGE_URL: null,
 
   bridgeUrl() {
@@ -31,6 +34,7 @@ const ArchitectBridge = {
       page: location.pathname + location.search,
       active_task: GlobeDeck?.activeTask || 'idle',
       ua: navigator.userAgent?.slice(0, 120) || '',
+      engine: 'grok_build',
     };
   },
 
@@ -71,17 +75,20 @@ const ArchitectBridge = {
       return;
     }
     this.arm({ quiet: true });
-    GlobeDeck?.expand?.('Bridge — fix from street');
-    CliRibbon?.setNotice?.('Bridge · describe bug', 'ready');
+    GlobeDeck?.expand?.('Bridge — code from the street');
+    GlobeDeck.activeTask = 'coders';
+    CliRibbon?.setActive?.('Bridge');
+    CliRibbon?.setNotice?.('Bridge · fix · code · dev', 'ready');
     const input = document.getElementById('aci-cli-in');
     if (input) {
       input.value = 'fix ';
+      input.placeholder = 'fix … · code … · dev … — Grok Build on desktop';
       input.focus();
       try { input.setSelectionRange(4, 4); } catch (_) { /* */ }
       window.resizeCliInput?.(input);
     }
-    ACIControl?.reply('🛠 Bridge — type what to fix, or speak after 🎧');
-    AciCli?.print('Bridge ready — finish with: fix <what broke>', 'ok');
+    ACIControl?.reply('🛠 Bridge armed — type fix/code/dev or speak after 🎧');
+    AciCli?.print('Bridge ready — Grok Build picks up on desktop. Commands: fix | code | dev | bridge status', 'ok');
   },
 
   arm(opts = {}) {
@@ -90,10 +97,10 @@ const ArchitectBridge = {
     window._architectBridgeArmed = true;
     this.startWatch();
     if (!opts.quiet) {
-      AciCli?.print('Bridge armed — dev/fix tasks reach Grok Build on desktop', 'ok');
-      ACIControl?.reply('Bridge armed · say fix <issue> or dev <task>');
+      AciCli?.print('Bridge armed — fix/code/dev reach Grok Build (in-app → desktop)', 'ok');
+      ACIControl?.reply('Bridge armed · say fix <issue> or code <change>');
     }
-    CliRibbon?.setNotice?.('Bridge armed · fix/dev', 'ready');
+    CliRibbon?.setNotice?.('Bridge armed · in-app coding', 'ready');
     return { ok: true, armed: true };
   },
 
@@ -116,8 +123,14 @@ const ArchitectBridge = {
       if (!this.isActive() || document.hidden) return;
       ticks++;
       if (this.lastTaskId) await this.poll(this.lastTaskId, true);
-      if (ticks % 6 === 0) await this.refreshOpen();
-    }, 5000);
+      // Also poll any watched open ids for multi-task street sessions
+      if (ticks % 2 === 0 && this._watchIds.size) {
+        for (const id of [...this._watchIds]) {
+          if (id !== this.lastTaskId) await this.poll(id, true);
+        }
+      }
+      if (ticks % 4 === 0) await this.refreshOpen();
+    }, 4000);
   },
 
   async refreshOpen() {
@@ -126,8 +139,19 @@ const ArchitectBridge = {
     const open = rows.filter(s => s.status === 'open' || s.status === 'in_progress');
     if (open.length && !this.lastTaskId) this.lastTaskId = open[0].id;
     open.forEach(s => this._watchIds.add(s.id));
+    // Deliver any newly answered while watching
+    for (const s of rows) {
+      if (s.status === 'answered' && s.answer && !this._delivered.has(s.id)) {
+        this._deliverAnswer(s.id, s.answer, s.question);
+      }
+    }
+    return r;
   },
 
+  /**
+   * Queue a street task for desktop Grok Build.
+   * Primary in-app coding path for the architect.
+   */
   async push(task, opts = {}) {
     if (!Auth?.user) {
       ACIControl?.reply('Sign in with G as architect first');
@@ -144,10 +168,14 @@ const ArchitectBridge = {
     const text = String(task || '').trim();
     if (text.length < 3) return { error: 'task too short' };
 
-    const kind = opts.kind || (/^dev\b/i.test(text) ? 'dev' : 'fix');
+    const kind = opts.kind
+      || (/^code\b|^edit\b/i.test(text) ? 'code'
+        : /^dev\b/i.test(text) ? 'dev'
+        : /^bridge\b/i.test(text) ? 'bridge'
+        : 'fix');
     const field = { ...this.fieldContext(), ...(opts.field || {}) };
 
-    GlobeDeck?.setThinking?.(true, 'Bridge push…');
+    GlobeDeck?.setThinking?.(true, 'Bridge → Grok Build…');
     const r = await this.api({
       mode: 'architect_push',
       task: text,
@@ -159,6 +187,7 @@ const ArchitectBridge = {
 
     if (r.error) {
       AciCli?.print('Bridge error: ' + r.error, 'err');
+      ACIControl?.reply('Bridge error: ' + r.error);
       return r;
     }
 
@@ -166,13 +195,29 @@ const ArchitectBridge = {
     this.lastTaskId = r.summon_id;
     if (r.summon_id) this._watchIds.add(r.summon_id);
 
-    const msg = 'Bridge #' + r.summon_id + ' queued — Grok Build will fix on desktop';
+    const msg = 'Bridge #' + r.summon_id + ' queued — Grok Build coding on desktop · stays in this chat when done';
     AciCli?.print(msg, 'ok');
     ACIControl?.reply(msg);
-    GlobeDeck?.setPreview?.(msg.slice(0, 140));
-    CliRibbon?.setNotice?.('Bridge #' + r.summon_id + ' queued', 'ready');
+    GlobeDeck?.expand?.('Bridge #' + r.summon_id);
+    GlobeDeck?.setPreview?.(text.slice(0, 120));
+    CliRibbon?.setNotice?.('Bridge #' + r.summon_id + ' → Grok Build', 'ready');
     this.startWatch();
-    return r;
+    return { ...r, text: msg, bridge: true, summon_id: r.summon_id };
+  },
+
+  /**
+   * Queue a natural-language build task from chat (architect only).
+   * Returns null if not applicable so chat can continue.
+   */
+  async queueBuildFromChat(message, opts = {}) {
+    if (!this.isActive()) return null;
+    const m = String(message || '').trim();
+    if (m.length < 6) return null;
+    if (this.wantsBridgeCmd(m)) return this.handleCommand(m);
+    if (!AciCoders?.isBuildTask?.(m) && !opts.force) return null;
+    // Skip pure questions that are not implementation asks
+    if (/^(why|what is|how does|explain|do we have)\b/i.test(m) && !opts.force) return null;
+    return this.push(m, { kind: opts.kind || 'fix' });
   },
 
   async poll(summonId, quiet) {
@@ -193,15 +238,26 @@ const ArchitectBridge = {
   },
 
   _deliverAnswer(id, text, question) {
-    const shown = 'Bridge #' + id + ': ' + text.slice(0, 260);
+    if (this._delivered.has(id)) return;
+    this._delivered.add(id);
+    // Keep set bounded
+    if (this._delivered.size > 80) {
+      const first = this._delivered.values().next().value;
+      this._delivered.delete(first);
+    }
+    const shown = 'Bridge #' + id + ' done: ' + String(text).slice(0, 280);
     AciCli?.print(shown, 'reply');
     ACIControl?.reply(shown);
-    GlobeDeck?.expand?.('Bridge fix');
-    GlobeDeck?.setPreview?.(text.slice(0, 140));
+    GlobeDeck?.expand?.('Bridge fix #' + id);
+    GlobeDeck?.setPreview?.(String(text).slice(0, 140));
     CliRibbon?.setNotice?.('Bridge #' + id + ' fixed', 'ready');
     if (AciCoders?._recordReply) AciCoders._recordReply(id, text);
+    if (AciCoders?.history) {
+      AciCoders.history.push({ role: 'assistant', text: shown, via: 'architect_bridge', summon_id: id });
+      if (AciCoders.history.length > 40) AciCoders.history = AciCoders.history.slice(-40);
+    }
     if (Voice?.maySpeak?.() && Voice?.shouldSpeak?.(text)) {
-      speak('Bridge fix ready. ' + text.slice(0, 100), () => {}, false);
+      speak('Bridge fix ready. ' + String(text).slice(0, 100), () => {}, false);
     }
     this._watchIds.delete(id);
     if (this.lastTaskId === id) this.lastTaskId = null;
@@ -216,7 +272,7 @@ const ArchitectBridge = {
       : 'Bridge idle — say bridge to arm';
     AciCli?.print(msg, 'ok');
     ACIControl?.reply(msg);
-    return { ok: true, armed: this.armed, open: open.length, last: this.lastTaskId };
+    return { ok: true, armed: this.armed, open: open.length, last: this.lastTaskId, text: msg };
   },
 
   async list() {
@@ -224,10 +280,10 @@ const ArchitectBridge = {
     const r = await this.api({ mode: 'architect_poll', limit: 12 });
     const rows = r.summons || [];
     if (!rows.length) {
-      AciCli?.print('no bridge tasks yet — say fix <issue>', 'dim');
+      AciCli?.print('no bridge tasks yet — say fix <issue> or code <change>', 'dim');
       return r;
     }
-    AciCli?.print('── architect bridge ──', 'dim');
+    AciCli?.print('── architect bridge · Grok Build ──', 'dim');
     rows.forEach(s => {
       AciCli?.print('#' + s.id + ' [' + s.status + '] ' + String(s.question || '').slice(0, 100),
         s.status === 'answered' ? 'ok' : 'dim');
@@ -236,7 +292,7 @@ const ArchitectBridge = {
   },
 
   wantsBridgeCmd(raw) {
-    return /^(bridge|dev|fix)\b/i.test(String(raw || '').trim());
+    return /^(bridge|dev|fix|code|edit)\b/i.test(String(raw || '').trim());
   },
 
   async handleCommand(raw) {
@@ -251,7 +307,7 @@ const ArchitectBridge = {
       if (sub === 'off' || sub === 'disarm') { this.disarm(); AciCli?.print('Bridge disarmed', 'dim'); return { ok: true }; }
       if (sub === 'status' || sub === 'stat') return this.status();
       if (sub === 'list') return this.list();
-      if (sub === 'poll' || sub === 'status') {
+      if (sub === 'poll') {
         const id = parts[2] ? parseInt(parts[2], 10) : this.lastTaskId;
         return this.poll(id, false);
       }
@@ -259,13 +315,13 @@ const ArchitectBridge = {
       return this.status();
     }
 
-    if (cmd === 'dev' || cmd === 'fix') {
-      const task = rest || line;
+    if (cmd === 'dev' || cmd === 'fix' || cmd === 'code' || cmd === 'edit') {
       if (!rest) {
         AciCli?.print('usage: ' + cmd + ' <what to change>', 'err');
         return { error: 'usage' };
       }
-      return this.push(cmd + ' ' + rest, { kind: cmd });
+      const kind = (cmd === 'code' || cmd === 'edit') ? 'code' : cmd;
+      return this.push(cmd + ' ' + rest, { kind });
     }
 
     return null;
