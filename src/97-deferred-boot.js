@@ -16,6 +16,7 @@ const DeferredBoot = {
     go('presence', () => window.AstranovPresence?.init?.());
     go('cli', () => window.ProfileSite?.init?.());
     go('coders_ping', () => window.CodersHub?.init?.());
+    go('cli', () => window.ArchitectBridge?.init?.());
     go('lab_orbs', () => window.LabOrbs?.init?.());
     go('cli', () => window.SuperCli?.initBrain?.());
     go('cli', () => window.SuperAdd?.init?.());

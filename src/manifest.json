@@ -40,6 +40,7 @@
     { "file": "23-cli-hub.js", "marker": "// === CLI HUB" },
     { "file": "24-context-truth.js", "marker": "// === CONTEXT TRUTH" },
     { "file": "16-aci-connect.js", "marker": "// === ACI CONNECT" },
+    { "file": "17-architect-bridge.js", "marker": "// === ARCHITECT BRIDGE" },
     { "file": "29-delivery-pricing.js", "marker": "// === DELIVERY PRICING + WEATHER + GOOGLE WALLET ===" },
     { "file": "30-commerce.js", "marker": "// ── COMMERCE:" },
     { "file": "32-astranov-node.js", "marker": "// === ASTRANOV NODE" },

@@ -663,8 +663,11 @@ const Auth = {
     }
     this.updateOwnerUI();
     if (this.isArchitect) {
-      ACIControl?.reply?.('Architect online · free tier first · paid XAI only after limit + notify');
-      CliRibbon?.setNotice?.('Architect · free first', 'ready');
+      ACIControl?.reply?.('Architect online · Bridge armed · say fix <issue> from the street');
+      CliRibbon?.setNotice?.('Bridge armed · fix/dev', 'ready');
+      ArchitectBridge?.arm?.({ quiet: true });
+    } else {
+      ArchitectBridge?.disarm?.();
     }
     if (window.FieldBrain) FieldBrain.onAuth();
     if (window.AciCli) AciCli.onAuthChange();
@@ -693,6 +696,7 @@ const Auth = {
     this.isArchitect = false;
     this._siteOwners.clear();
     window._aciOwner = false;
+    ArchitectBridge?.disarm?.();
     this.applyUser();
     this.updateOwnerUI();
     this.broadcastToShell();

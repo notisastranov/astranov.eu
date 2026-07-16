@@ -302,6 +302,11 @@ const AciCoders = {
     const parts = raw.split(/\s+/);
     const sub = (parts[0] || '').toLowerCase();
 
+    if (ArchitectBridge?.wantsBridgeCmd?.(raw)) {
+      const br = await ArchitectBridge.handleCommand(raw);
+      if (br) return br;
+    }
+
     if (/^coders\b/i.test(raw)) {
       if (sub === 'list') return this.listSummons();
       if (sub === 'poll' || sub === 'status') {

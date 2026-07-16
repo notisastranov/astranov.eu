@@ -3,6 +3,7 @@ node_modules/
 supabase/.temp/
 src/.assembled-check.js
 scripts/.coders-bridge-secret
+scripts/.architect-bridge-seen.json
 scripts/.owner-token-cache
 scripts/.chrome-probe-*/
 .syntax-check.js
