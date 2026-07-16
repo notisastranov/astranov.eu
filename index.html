@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260716091206" />
+<meta name="astranov-build" content="20260716091600" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -3603,11 +3603,11 @@ const Auth = {
     this.isOwner = this.isArchitect;
     if (this.isArchitect) {
       window._aciOwner = true;
-      AciCoders.fallbackPrefs = { force: 'xai', skip: ['openrouter'] };
+      // Free/SuperGrok first — paid XAI_API_KEY only after free limit (server + notify)
+      AciCoders.fallbackPrefs = { force: 'groq', skip: ['xai'] };
       AciCoders.savePrefs?.();
       AiRouter?.setProvider?.('grok');
     } else {
-      // Guests never force paid XAI
       if (AciCoders?.fallbackPrefs) {
         AciCoders.fallbackPrefs.force = 'groq';
         AciCoders.fallbackPrefs.skip = ['xai'];
@@ -3635,8 +3635,8 @@ const Auth = {
     }
     this.updateOwnerUI();
     if (this.isArchitect) {
-      ACIControl?.reply?.('Architect online · paid Grok (XAI) · build bridge armed');
-      CliRibbon?.setNotice?.('Architect · paid Grok', 'ready');
+      ACIControl?.reply?.('Architect online · free tier first · paid XAI only after limit + notify');
+      CliRibbon?.setNotice?.('Architect · free first', 'ready');
     }
     if (window.FieldBrain) FieldBrain.onAuth();
     if (window.AciCli) AciCli.onAuthChange();
@@ -5158,14 +5158,14 @@ const AciCoders = {
     return !!(Auth?.isArchitect || email === (Auth?.OWNER_EMAIL || 'notisastranov@gmail.com').toLowerCase());
   },
 
-  /** Fallback prefs: architect forces paid xAI; everyone else free providers only */
-  paidXaiPrefs() {
-    if (this.isArchitect()) {
-      const p = { force: 'xai', skip: ['openrouter'] };
-      if (this.fallbackPrefs?.causeJudge) p.causeJudge = this.fallbackPrefs.causeJudge;
-      return p;
-    }
-    return { force: 'groq', skip: ['xai', 'grok'] };
+  /**
+   * Free tier first (OpenRouter/Groq/Gemini). Never force paid XAI from client.
+   * Server uses XAI_API_KEY only after free fails — architect only + notify.
+   */
+  freeTierPrefs() {
+    const p = { force: 'groq', skip: ['xai'] };
+    if (this.fallbackPrefs?.causeJudge && this.isArchitect()) p.causeJudge = this.fallbackPrefs.causeJudge;
+    return p;
   },
 
   isExplicitRef(raw) {
@@ -5614,6 +5614,22 @@ const AciCoders = {
     this.history.push({ role: 'assistant', content: reply });
     if (this.history.length > 20) this.history = this.history.slice(-20);
 
+    // Notify architect when server switches to paid XAI_API_KEY after free limit
+    if (r.paid_fallback || r.notify || /xai-paid-fallback|xai-owner/.test(String(r.via || ''))) {
+      const note = String(r.paid_notice || r.notify || '⚠ Free/SuperGrok limit — using paid XAI_API_KEY');
+      AciCli?.print(note, 'err');
+      ACIControl?.reply(note);
+      CliRibbon?.setNotice?.(note.slice(0, 120), 'err');
+      try {
+        if (!sessionStorage.getItem('astranov:paid-xai-notified')) {
+          sessionStorage.setItem('astranov:paid-xai-notified', '1');
+          if (this.isArchitect() && Voice?.maySpeak?.()) {
+            speak('Paid API key activated after free limit.', () => {}, false);
+          }
+        }
+      } catch (_) { /* */ }
+    }
+
     const prefix = r.explicit_order || r.order_executed ? 'ORDER: ' : '';
     const kind = r.error && !raw ? 'err' : 'reply';
     const shown = prefix + reply;
@@ -5622,7 +5638,9 @@ const AciCoders = {
     // Always surface where users look (trust contract)
     GlobeDeck?.expand?.('Grok');
     GlobeDeck?.setPreview?.(shown.slice(0, 140));
-    CliRibbon?.setNotice?.(shown.slice(0, 120), kind === 'err' ? 'err' : 'ready');
+    if (!(r.paid_fallback || r.notify)) {
+      CliRibbon?.setNotice?.(shown.slice(0, 120), kind === 'err' ? 'err' : 'ready');
+    }
     CliRibbon?.setActive?.('Grok');
 
     const composerQueued = r.composer_queued || (r.pending && r.summon_id);
@@ -5808,9 +5826,10 @@ const AciCoders = {
       task: task,
       coder_engine: eng,
       history: this.history.slice(-6),
-      fallback_prefs: this.paidXaiPrefs(),
+      fallback_prefs: this.freeTierPrefs(),
     });
     if (q.error && AciCli) AciCli.print('coders error: ' + q.error, 'err');
+    if (q.paid_fallback || q.notify) this._applyResponse(q, task);
     if (q.summon_id) {
       this.lastSummonId = q.summon_id;
       if (q.composer_queued) this.startPoll(q.composer_queued);
@@ -5922,8 +5941,8 @@ const AciCoders = {
         return this._applyResponse({ text: pingReply, via: 'local/ping' }, m);
       }
 
-      // Architect → paid XAI; guests → free Groq/Gemini/OpenRouter only
-      const grokPrefs = this.paidXaiPrefs();
+      // Free tier first — server may paid-fallback for architect only after limit
+      const grokPrefs = this.freeTierPrefs();
       let r = await AciCli.api({
         mode: 'coders_chat',
         message: m,
@@ -5935,21 +5954,18 @@ const AciCoders = {
       let text = String(r.text || r.response || '').trim();
       if (this.isFailedReply(text)) text = '';
       if (r.error || !text) {
-        const fbPrefs = this.isArchitect()
-          ? { force: 'xai', skip: ['openrouter'] }
-          : { force: 'groq', skip: ['xai', 'grok'] };
         const fb = await AciCli.api({
           mode: 'coders',
           task: m,
           coder_engine: 'fallback',
           fallback: true,
-          fallback_prefs: fbPrefs,
+          fallback_prefs: { force: 'groq', skip: ['xai'] },
           history: this.history.slice(-4),
         }, { timeoutMs: 22000 });
         const fbText = String(fb.text || fb.response || '').trim();
         if (fbText && !this.isFailedReply(fbText)) {
           GlobeDeck?.setThinking(false);
-          return this._applyResponse({ ...fb, text: fbText, team: true, via: fb.via || (this.isArchitect() ? 'grok/xai-owner' : 'coder/groq') }, m);
+          return this._applyResponse({ ...fb, text: fbText, team: true, via: fb.via || 'coder/groq' }, m);
         }
         if (Auth?.user && build) {
           const q = await this.queueCoder(m, 'grok');
@@ -7830,12 +7846,9 @@ const AiRouter = {
       role: m.role === 'assistant' ? 'assistant' : 'user',
       content: String(m.content || m.text || m.reply || '').slice(0, 2000),
     }));
-    // Paid XAI only when architect signed in; guests get free providers (server enforces)
-    const architect = !!(Auth?.isArchitect
-      || (Auth?.user?.email || '').toLowerCase() === (Auth?.OWNER_EMAIL || 'notisastranov@gmail.com').toLowerCase());
-    let preferred = opts.provider || this._provider || (architect ? 'grok' : 'groq');
-    if (!architect && (preferred === 'grok' || preferred === 'xai')) preferred = 'groq';
-    if (architect && (preferred === 'astranov' || preferred === 'cycle')) preferred = 'grok';
+    // Free providers first; server may paid-fallback XAI for architect only after limit
+    let preferred = opts.provider || this._provider || 'groq';
+    if (preferred === 'xai') preferred = 'grok'; // still free-first on server
     const body = {
       text,
       prompt: text,
@@ -7853,10 +7866,19 @@ const AiRouter = {
         body: JSON.stringify(body),
       }, timeout);
       if (j.error && !j.text && !j.response) return { error: j.error, raw: j };
+      // Surface paid-fallback notify to architect UI
+      if (j.paid_fallback || j.notify) {
+        const note = String(j.paid_notice || j.notify || '⚠ Free limit — paid XAI_API_KEY');
+        AciCli?.print?.(note, 'err');
+        ACIControl?.reply?.(note);
+        CliRibbon?.setNotice?.(note.slice(0, 120), 'err');
+      }
       return {
         text: String(j.text || j.response || j.message || '').trim(),
         provider: j.provider || j.via || body.preferred_provider,
         via: j.via || '',
+        paid_fallback: !!j.paid_fallback,
+        paid_notice: j.paid_notice || j.notify || '',
         model: j.model || '',
         action: j.action || null,
         raw: j,
@@ -11426,6 +11448,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260716091206" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260716091600" data-astranov-deferred></script>
 </body>
 </html>

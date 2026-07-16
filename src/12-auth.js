@@ -631,11 +631,11 @@ const Auth = {
     this.isOwner = this.isArchitect;
     if (this.isArchitect) {
       window._aciOwner = true;
-      AciCoders.fallbackPrefs = { force: 'xai', skip: ['openrouter'] };
+      // Free/SuperGrok first — paid XAI_API_KEY only after free limit (server + notify)
+      AciCoders.fallbackPrefs = { force: 'groq', skip: ['xai'] };
       AciCoders.savePrefs?.();
       AiRouter?.setProvider?.('grok');
     } else {
-      // Guests never force paid XAI
       if (AciCoders?.fallbackPrefs) {
         AciCoders.fallbackPrefs.force = 'groq';
         AciCoders.fallbackPrefs.skip = ['xai'];
@@ -663,8 +663,8 @@ const Auth = {
     }
     this.updateOwnerUI();
     if (this.isArchitect) {
-      ACIControl?.reply?.('Architect online · paid Grok (XAI) · build bridge armed');
-      CliRibbon?.setNotice?.('Architect · paid Grok', 'ready');
+      ACIControl?.reply?.('Architect online · free tier first · paid XAI only after limit + notify');
+      CliRibbon?.setNotice?.('Architect · free first', 'ready');
     }
     if (window.FieldBrain) FieldBrain.onAuth();
     if (window.AciCli) AciCli.onAuthChange();

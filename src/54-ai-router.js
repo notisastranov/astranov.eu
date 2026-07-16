@@ -108,12 +108,9 @@ const AiRouter = {
       role: m.role === 'assistant' ? 'assistant' : 'user',
       content: String(m.content || m.text || m.reply || '').slice(0, 2000),
     }));
-    // Paid XAI only when architect signed in; guests get free providers (server enforces)
-    const architect = !!(Auth?.isArchitect
-      || (Auth?.user?.email || '').toLowerCase() === (Auth?.OWNER_EMAIL || 'notisastranov@gmail.com').toLowerCase());
-    let preferred = opts.provider || this._provider || (architect ? 'grok' : 'groq');
-    if (!architect && (preferred === 'grok' || preferred === 'xai')) preferred = 'groq';
-    if (architect && (preferred === 'astranov' || preferred === 'cycle')) preferred = 'grok';
+    // Free providers first; server may paid-fallback XAI for architect only after limit
+    let preferred = opts.provider || this._provider || 'groq';
+    if (preferred === 'xai') preferred = 'grok'; // still free-first on server
     const body = {
       text,
       prompt: text,
@@ -131,10 +128,19 @@ const AiRouter = {
         body: JSON.stringify(body),
       }, timeout);
       if (j.error && !j.text && !j.response) return { error: j.error, raw: j };
+      // Surface paid-fallback notify to architect UI
+      if (j.paid_fallback || j.notify) {
+        const note = String(j.paid_notice || j.notify || '⚠ Free limit — paid XAI_API_KEY');
+        AciCli?.print?.(note, 'err');
+        ACIControl?.reply?.(note);
+        CliRibbon?.setNotice?.(note.slice(0, 120), 'err');
+      }
       return {
         text: String(j.text || j.response || j.message || '').trim(),
         provider: j.provider || j.via || body.preferred_provider,
         via: j.via || '',
+        paid_fallback: !!j.paid_fallback,
+        paid_notice: j.paid_notice || j.notify || '',
         model: j.model || '',
         action: j.action || null,
         raw: j,

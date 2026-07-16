@@ -265,26 +265,24 @@ serve(async (req) => {
     const ANTHROPIC  = Deno.env.get('ANTHROPIC_PAID_API_KEY') || Deno.env.get('ANTHROPIC_API_KEY')
     const OPENROUTER = Deno.env.get('OPENROUTER_API_KEY') || Deno.env.get('OPENROUTER') || Deno.env.get('OPENROUTER.AI')
     const GROQ       = Deno.env.get('GROQ_API_KEY')
-    // Paid XAI only when architect JWT proven — never expose key path to guests
-    const XAI        = mayUsePaidXai ? Deno.env.get('XAI_API_KEY') : undefined
+    // Paid XAI: architect only, and only AFTER free tier fails
+    const XAI_SECRET = mayUsePaidXai ? Deno.env.get('XAI_API_KEY') : undefined
     const coderEngine = String(body.coder_engine || '').toLowerCase()
 
     let raw: string | null = null
     let via = ''
     let provider = 'astranov'
+    let paidFallback = false
+    let paidNotice = ''
 
     const prefs = (body.fallback_prefs || {}) as { force?: string; skip?: string[] }
     const skip = new Set((prefs.skip || []).map((s: string) => String(s).toLowerCase()))
-    // Non-architect cannot force xai (would no-op or skip to free chain)
+    // Never force paid xai from client — free first; paid only after free fail
     let force = String(prefs.force || '').toLowerCase()
-    if ((force === 'xai' || force === 'grok') && !mayUsePaidXai) force = ''
+    if (force === 'xai' || force === 'grok') force = ''
 
-    async function tryChain(_forTeam = false) {
+    async function tryFreeChain() {
       const chain: Array<{ id: string; run: () => Promise<string | null>; via: string }> = []
-      // Architect-only paid Grok
-      if (mayUsePaidXai && XAI && !skip.has('xai') && !skip.has('grok')) {
-        chain.push({ id: 'xai', via: 'grok/xai-owner', run: () => callXAI(XAI!, system, messages) })
-      }
       if (OPENROUTER && !skip.has('openrouter')) {
         chain.push({
           id: 'openrouter_grok', via: 'grok/openrouter',
@@ -305,7 +303,7 @@ serve(async (req) => {
         chain.push({ id: 'gemini', via: 'coder/gemini', run: () => callGemini(GEMINI!, system, messages) })
       }
       if (force) {
-        const hit = chain.find(c => c.id === force || (force === 'grok' && c.id === 'xai'))
+        const hit = chain.find(c => c.id === force)
         if (hit) {
           const t = await hit.run()
           if (t) return { text: t, via: hit.via }
@@ -315,12 +313,19 @@ serve(async (req) => {
         const t = await c.run()
         if (t) return { text: t, via: c.via }
       }
-      return { text: null, via: '' }
+      return { text: null as string | null, via: '' }
+    }
+
+    async function tryPaidXaiFallback() {
+      if (!mayUsePaidXai || !XAI_SECRET) return { text: null as string | null, via: '' }
+      const t = await callXAI(XAI_SECRET, system, messages)
+      if (!t) return { text: null, via: '' }
+      return { text: t, via: 'xai-paid-fallback' }
     }
 
     if (mode === 'coders_team') {
       provider = 'astranov-coders-team'
-      const hit = await tryChain(true)
+      const hit = await tryFreeChain()
       raw = hit.text
       via = hit.via || 'team/none'
     } else if (mode === 'coders') {
@@ -330,24 +335,30 @@ serve(async (req) => {
         raw = 'Composer summons use the Cursor queue — not this LLM path. Type: coders poll <id>'
         via = 'cursor/queue-only'
       } else {
-        const hit = await tryChain()
+        const hit = await tryFreeChain()
         raw = hit.text
         via = hit.via
       }
     } else if (fast) {
-      const hit = await tryChain()
+      const hit = await tryFreeChain()
       raw = hit.text
       via = hit.via || 'fast/none'
     } else {
-      const slowSkip = new Set((prefs.skip || []).map((s: string) => String(s).toLowerCase()))
       if (isOwner && ANTHROPIC) raw = await withTimeout(callAnthropic(ANTHROPIC, system, messages))
-      if (!raw && mayUsePaidXai && XAI && !slowSkip.has('xai')) {
-        raw = await withTimeout(callXAI(XAI, system, messages))
-        if (raw) via = 'grok/xai-owner'
-      }
       if (!raw && GROQ)         raw = await withTimeout(callGroq(GROQ, system, messages))
       if (!raw && OPENROUTER)   raw = await withTimeout(callOpenRouter(OPENROUTER, system, messages))
       if (!raw && GEMINI)       raw = await withTimeout(callGemini(GEMINI, system, messages))
+    }
+
+    // Paid XAI only after free tier exhausted (architect only) + notify
+    if (!raw) {
+      const paid = await tryPaidXaiFallback()
+      if (paid.text) {
+        raw = paid.text
+        via = paid.via
+        paidFallback = true
+        paidNotice = '⚠ Free/SuperGrok tier limit reached — using your paid XAI_API_KEY now (architect only)'
+      }
     }
 
     if (!raw) {
@@ -359,8 +370,11 @@ serve(async (req) => {
         ? (guest
           ? 'Yes — Coders is here. Sign in with G for full sync, or keep typing your question.'
           : 'Yes — I\'m here. Coders online on astranov.eu. What should we work on?')
-        : 'Coders is online — AI models are warming up. Try again in a few seconds.'
-      return json({ response: text, text, provider: 'astranov', via: 'local/fallback', offline: true })
+        : 'Coders is online — free tier unavailable. Architect: paid XAI also failed — check XAI_API_KEY.'
+      return json({
+        response: text, text, provider: 'astranov', via: 'local/fallback', offline: true,
+        paid_fallback: false,
+      })
     }
 
     // Learning — ONLY explicit, deliberate teaching. Never auto-store chatter.
@@ -408,6 +422,9 @@ serve(async (req) => {
       mode: mode || 'adaptive',
       coder_engine: mode === 'coders' ? (coderEngine || null) : undefined,
       recalled: { creator: creatorMind.length, user: userMemory.length },
+      paid_fallback: paidFallback,
+      paid_notice: paidNotice || undefined,
+      notify: paidFallback ? paidNotice : undefined,
     })
   } catch (e) {
     console.error('aicycle error:', e)

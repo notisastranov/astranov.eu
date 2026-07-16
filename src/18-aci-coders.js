@@ -51,14 +51,14 @@ const AciCoders = {
     return !!(Auth?.isArchitect || email === (Auth?.OWNER_EMAIL || 'notisastranov@gmail.com').toLowerCase());
   },
 
-  /** Fallback prefs: architect forces paid xAI; everyone else free providers only */
-  paidXaiPrefs() {
-    if (this.isArchitect()) {
-      const p = { force: 'xai', skip: ['openrouter'] };
-      if (this.fallbackPrefs?.causeJudge) p.causeJudge = this.fallbackPrefs.causeJudge;
-      return p;
-    }
-    return { force: 'groq', skip: ['xai', 'grok'] };
+  /**
+   * Free tier first (OpenRouter/Groq/Gemini). Never force paid XAI from client.
+   * Server uses XAI_API_KEY only after free fails — architect only + notify.
+   */
+  freeTierPrefs() {
+    const p = { force: 'groq', skip: ['xai'] };
+    if (this.fallbackPrefs?.causeJudge && this.isArchitect()) p.causeJudge = this.fallbackPrefs.causeJudge;
+    return p;
   },
 
   isExplicitRef(raw) {
@@ -507,6 +507,22 @@ const AciCoders = {
     this.history.push({ role: 'assistant', content: reply });
     if (this.history.length > 20) this.history = this.history.slice(-20);
 
+    // Notify architect when server switches to paid XAI_API_KEY after free limit
+    if (r.paid_fallback || r.notify || /xai-paid-fallback|xai-owner/.test(String(r.via || ''))) {
+      const note = String(r.paid_notice || r.notify || '⚠ Free/SuperGrok limit — using paid XAI_API_KEY');
+      AciCli?.print(note, 'err');
+      ACIControl?.reply(note);
+      CliRibbon?.setNotice?.(note.slice(0, 120), 'err');
+      try {
+        if (!sessionStorage.getItem('astranov:paid-xai-notified')) {
+          sessionStorage.setItem('astranov:paid-xai-notified', '1');
+          if (this.isArchitect() && Voice?.maySpeak?.()) {
+            speak('Paid API key activated after free limit.', () => {}, false);
+          }
+        }
+      } catch (_) { /* */ }
+    }
+
     const prefix = r.explicit_order || r.order_executed ? 'ORDER: ' : '';
     const kind = r.error && !raw ? 'err' : 'reply';
     const shown = prefix + reply;
@@ -515,7 +531,9 @@ const AciCoders = {
     // Always surface where users look (trust contract)
     GlobeDeck?.expand?.('Grok');
     GlobeDeck?.setPreview?.(shown.slice(0, 140));
-    CliRibbon?.setNotice?.(shown.slice(0, 120), kind === 'err' ? 'err' : 'ready');
+    if (!(r.paid_fallback || r.notify)) {
+      CliRibbon?.setNotice?.(shown.slice(0, 120), kind === 'err' ? 'err' : 'ready');
+    }
     CliRibbon?.setActive?.('Grok');
 
     const composerQueued = r.composer_queued || (r.pending && r.summon_id);
@@ -701,9 +719,10 @@ const AciCoders = {
       task: task,
       coder_engine: eng,
       history: this.history.slice(-6),
-      fallback_prefs: this.paidXaiPrefs(),
+      fallback_prefs: this.freeTierPrefs(),
     });
     if (q.error && AciCli) AciCli.print('coders error: ' + q.error, 'err');
+    if (q.paid_fallback || q.notify) this._applyResponse(q, task);
     if (q.summon_id) {
       this.lastSummonId = q.summon_id;
       if (q.composer_queued) this.startPoll(q.composer_queued);
@@ -815,8 +834,8 @@ const AciCoders = {
         return this._applyResponse({ text: pingReply, via: 'local/ping' }, m);
       }
 
-      // Architect → paid XAI; guests → free Groq/Gemini/OpenRouter only
-      const grokPrefs = this.paidXaiPrefs();
+      // Free tier first — server may paid-fallback for architect only after limit
+      const grokPrefs = this.freeTierPrefs();
       let r = await AciCli.api({
         mode: 'coders_chat',
         message: m,
@@ -828,21 +847,18 @@ const AciCoders = {
       let text = String(r.text || r.response || '').trim();
       if (this.isFailedReply(text)) text = '';
       if (r.error || !text) {
-        const fbPrefs = this.isArchitect()
-          ? { force: 'xai', skip: ['openrouter'] }
-          : { force: 'groq', skip: ['xai', 'grok'] };
         const fb = await AciCli.api({
           mode: 'coders',
           task: m,
           coder_engine: 'fallback',
           fallback: true,
-          fallback_prefs: fbPrefs,
+          fallback_prefs: { force: 'groq', skip: ['xai'] },
           history: this.history.slice(-4),
         }, { timeoutMs: 22000 });
         const fbText = String(fb.text || fb.response || '').trim();
         if (fbText && !this.isFailedReply(fbText)) {
           GlobeDeck?.setThinking(false);
-          return this._applyResponse({ ...fb, text: fbText, team: true, via: fb.via || (this.isArchitect() ? 'grok/xai-owner' : 'coder/groq') }, m);
+          return this._applyResponse({ ...fb, text: fbText, team: true, via: fb.via || 'coder/groq' }, m);
         }
         if (Auth?.user && build) {
           const q = await this.queueCoder(m, 'grok');

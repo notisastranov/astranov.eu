@@ -271,12 +271,14 @@ serve(async (req) => {
     const OPENAI = Deno.env.get('OPENAI_API_KEY')
     const GROQ = Deno.env.get('GROQ_API_KEY')
     const GEMINI = Deno.env.get('GEMINI_API_KEY')
-    // Paid XAI — ONLY for architect (notisastranov@gmail.com). Guests never touch this key.
-    const XAI = mayUsePaidXai ? Deno.env.get('XAI_API_KEY') : undefined
+    // Paid XAI_API_KEY: architect only, and ONLY after free/subscription tier fails
+    const XAI_SECRET = mayUsePaidXai ? Deno.env.get('XAI_API_KEY') : undefined
 
     let raw: string | null = null
     let provider = ''
     let via = ''  // inner provider when orchestrated (astranov mode)
+    let paidFallback = false
+    let paidNotice = ''
     const pp = preferred_provider ? String(preferred_provider).toLowerCase() : ''
 
     // 'astranov' or empty = orchestration mode (the C.I. itself decides)
@@ -284,13 +286,9 @@ serve(async (req) => {
     const orchestrate = !pp || pp === 'astranov'
     const wantGrok = pp === 'grok' || pp === 'xai' || pp === 'astranov-grok'
 
+    // 1) FREE / included tier first — never burn paid XAI on first try
     if (!orchestrate) {
-      // Architect-only paid Grok
-      if (wantGrok && XAI && mayUsePaidXai) {
-        raw = await callXAI(XAI, messages)
-        if (raw) { provider = 'grok'; via = 'xai-owner' }
-      } else if (wantGrok && !mayUsePaidXai) {
-        // Public users: free chain only (never paid XAI)
+      if (wantGrok) {
         const pub = await callProviderChain(undefined, GROQ, GEMINI, OPENAI, messages)
         if (pub) { raw = pub.raw; provider = pub.provider; via = pub.provider }
       } else if (pp === 'claude' && isOwner && ANTHROPIC) {
@@ -304,13 +302,8 @@ serve(async (req) => {
       }
     }
 
-    // Orchestration: architect → paid XAI; everyone else → free providers only
     if (!raw && orchestrate) {
-      if (mayUsePaidXai && XAI) {
-        raw = await callXAI(XAI, messages)
-        if (raw) { via = 'grok/xai-owner'; provider = 'astranov' }
-      }
-      if (!raw && isOwner && ANTHROPIC) {
+      if (isOwner && ANTHROPIC) {
         raw = await callAnthropic(ANTHROPIC, messages); if (raw) { via = 'claude'; provider = 'astranov' }
       }
       if (!raw) {
@@ -319,25 +312,24 @@ serve(async (req) => {
       }
     }
 
-    // Hard fallback — never pass XAI key for non-architect
     if (!raw) {
-      const result = await callProviderChain(
-        mayUsePaidXai ? XAI : undefined,
-        GROQ, GEMINI, OPENAI, messages,
-        { xaiOnly: wantGrok && mayUsePaidXai && !!XAI },
-      )
-      if (result) {
-        raw = result.raw
-        provider = result.provider.startsWith('grok') ? 'grok' : result.provider
-        via = result.provider
-      }
-      if (!raw) {
-        const fb = await callProviderChain(undefined, GROQ, GEMINI, OPENAI, messages)
-        if (fb) { raw = fb.raw; provider = fb.provider; via = fb.provider }
+      const fb = await callProviderChain(undefined, GROQ, GEMINI, OPENAI, messages)
+      if (fb) { raw = fb.raw; provider = fb.provider; via = fb.provider }
+    }
+
+    // 2) Paid XAI_API_KEY only after free tier exhausted — architect only + notify
+    if (!raw && mayUsePaidXai && XAI_SECRET) {
+      const paid = await callXAI(XAI_SECRET, messages)
+      if (paid) {
+        raw = paid
+        provider = 'grok'
+        via = 'xai-paid-fallback'
+        paidFallback = true
+        paidNotice = '⚠ Free/SuperGrok tier limit reached — switched to your paid XAI_API_KEY (architect only)'
       }
     }
 
-    if (!raw) return json({ error: 'AI unavailable', text: '' }, 503)
+    if (!raw) return json({ error: 'AI unavailable', text: '', paid_fallback: false }, 503)
 
     const { text: responseText, action } = parseResponse(raw)
 
@@ -360,7 +352,16 @@ serve(async (req) => {
       } catch (e) { console.error('Memory persist failed:', e) }
     }
 
-    return json({ text: responseText, action: safeAction, owner: isOwner, provider, via })
+    return json({
+      text: responseText,
+      action: safeAction,
+      owner: isOwner,
+      provider,
+      via,
+      paid_fallback: paidFallback,
+      paid_notice: paidNotice || undefined,
+      notify: paidFallback ? paidNotice : undefined,
+    })
   } catch (e) {
     console.error(e)
     return json({ error: String(e), text: '' }, 500)
