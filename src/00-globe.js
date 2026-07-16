@@ -52,37 +52,84 @@ const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHei
 camera.position.set(0, 0.25, 2.55);
 camera.lookAt(0, 0, 0);
 
-scene.add(new THREE.AmbientLight(0x667788, 1.0));
-const sun = new THREE.DirectionalLight(0xffffff, 1.6);
-sun.position.set(5, 3, 4);
+// Astranov lighting — deep space rim + sun key (not flat Atari fill)
+scene.add(new THREE.AmbientLight(0x1a2838, 0.55));
+const sun = new THREE.DirectionalLight(0xfff4e0, 1.85);
+sun.position.set(5.2, 2.4, 3.6);
 scene.add(sun);
+const rimLight = new THREE.DirectionalLight(0x4488ff, 0.55);
+rimLight.position.set(-4, -1, -3);
+scene.add(rimLight);
+const fillLight = new THREE.PointLight(0x66aaff, 0.35, 12);
+fillLight.position.set(-2, 1.5, 3);
+scene.add(fillLight);
 
-// Stars - bigger/brighter to guarantee visibility against black
-const starPos = [];
-for (let i=0; i<1200; i++) {
-  const r = 140 + Math.random()*900;
-  const t = Math.random()*Math.PI*2;
-  const p = Math.acos(2*Math.random()-1);
-  starPos.push(r*Math.sin(p)*Math.cos(t), r*Math.sin(p)*Math.sin(t), r*Math.cos(p));
-}
-const sgeo = new THREE.BufferGeometry();
-sgeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos,3));
-scene.add(new THREE.Points(sgeo, new THREE.PointsMaterial({color:0xffffff, size:2.8, sizeAttenuation:false})));
+// Multi-layer starfield — fine dust + bright beacons (cinematic, not sparse dots)
+(function buildAstranovStarfield() {
+  function layer(count, rMin, rMax, size, color, opacity) {
+    const pos = [];
+    for (let i = 0; i < count; i++) {
+      const r = rMin + Math.random() * (rMax - rMin);
+      const t = Math.random() * Math.PI * 2;
+      const p = Math.acos(2 * Math.random() - 1);
+      pos.push(r * Math.sin(p) * Math.cos(t), r * Math.sin(p) * Math.sin(t), r * Math.cos(p));
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    const mat = new THREE.PointsMaterial({
+      color, size, sizeAttenuation: true, transparent: true, opacity,
+      depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    scene.add(new THREE.Points(geo, mat));
+  }
+  layer(2800, 80, 420, 0.35, 0xaaccff, 0.55);
+  layer(900, 100, 700, 0.9, 0xffffff, 0.85);
+  layer(120, 120, 900, 2.2, 0xcce8ff, 0.95);
+})();
 
-// Earth - use BasicMaterial for guaranteed visibility (Phong can look black depending on lighting)
-const earthMat = new THREE.MeshBasicMaterial({ color: 0x44aaff });
+// Earth — higher tessellation + temporary ocean/land material until day/night shader binds
+const earthMat = new THREE.MeshPhongMaterial({
+  color: 0x1a4a7a,
+  emissive: 0x041018,
+  specular: 0x335566,
+  shininess: 18,
+  flatShading: false,
+});
 const earthTexUrl = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg';
 new THREE.TextureLoader().load(
   earthTexUrl,
-  (tex) => { earthMat.map = tex; earthMat.needsUpdate = true; },
+  (tex) => {
+    tex.anisotropy = Math.min(8, renderer.capabilities?.getMaxAnisotropy?.() || 4);
+    earthMat.map = tex;
+    earthMat.color.set(0xffffff);
+    earthMat.needsUpdate = true;
+  },
   undefined,
   () => { console.log('Earth texture fallback active'); }
 );
 globePivot = new THREE.Group();
 scene.add(globePivot);
 
-const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 24), earthMat);
+const earthSeg = (window.innerWidth < 700 || /Mobi|Android/i.test(navigator.userAgent || '')) ? 48 : 72;
+const earth = new THREE.Mesh(new THREE.SphereGeometry(1, earthSeg, earthSeg), earthMat);
 globePivot.add(earth);
+
+// Soft atmosphere shell (fresnel-ish blue rim) — upgraded further by AIGraphics
+(function bootAtmosphere() {
+  const atmo = new THREE.Mesh(
+    new THREE.SphereGeometry(1.035, earthSeg, earthSeg),
+    new THREE.MeshBasicMaterial({
+      color: 0x3a9fff,
+      transparent: true,
+      opacity: 0.09,
+      side: THREE.BackSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    })
+  );
+  atmo.userData = { type: 'boot-atmosphere' };
+  globePivot.add(atmo);
+})();
 globePivot.rotation.y = 0.82;
 globePivot.rotation.x = 0.12;
 globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
