@@ -4,7 +4,11 @@ const CityMap = {
   _ready: false,
   _markers: {},
   _center: null,
-  _routeLine: null,
+  _route: null,
+  _routeCoords: [],
+  _demoDrivers: [],
+  _demoPhase: 0,
+  _forceOpen: false,
   active: false,
   ENTER_Z: 1.58,
   EXIT_Z: 1.72,
@@ -85,18 +89,56 @@ const CityMap = {
     if (this.map) this.map.setView([lat, lng], zoom || 15, { animate: true });
   },
 
+  async openAt(lat, lng, opts) {
+    opts = opts || {};
+    if (!this._ready || !this.map) this.init();
+    if (!this.map) return false;
+    const c = lat != null && lng != null ? { lat, lng } : (window._lastPos || this._center);
+    if (!c?.lat) return false;
+    this._center = c;
+    window._lastPos = { lat: c.lat, lng: c.lng };
+    userLocated = true;
+    const camZ = opts.camZ ?? CityLife?.CITY_ZOOM ?? 1.34;
+    if (typeof camera !== 'undefined' && camera) {
+      camera.position.z = camZ;
+      camera.lookAt(0, 0, 0);
+    }
+    CosmicZoom?.update?.(camZ, { tier: 'city', label: 'CITY', cosmic: 'earth' });
+    ZoomTiers?.goTo?.('city', false);
+    cityLevel = true;
+    this._forceOpen = true;
+    const lz = opts.zoom ?? this.camZToZoom(camZ);
+    if (!this.active) this._enter(camZ);
+    else {
+      this.map.setView([c.lat, c.lng], lz, { animate: false });
+      this._invalidate();
+      this._syncMarkers();
+      this._syncRoute();
+    }
+    this.map.setZoom(lz, { animate: false });
+    this.map.panTo([c.lat, c.lng], { animate: false });
+    setTimeout(() => { this._forceOpen = false; }, 4000);
+    setTimeout(() => this._invalidate(), 80);
+    return true;
+  },
+
   onCamera(camZ, level) {
     if (!this._ready) return;
     if (window._globeFly) {
-      // During fly, skip enter/exit to avoid mid-animation toggle causing white/blank/teleport/shake
-      if (this.active) this._syncView(camZ); // still sync if somehow active, but usually not
+      if (this.active) this._syncView(camZ);
       return;
     }
-    const earth = (level || CosmicZoom?.level || 'earth') === 'earth';
+    const earth = window._cityDropLock || this._forceOpen
+      || (level || CosmicZoom?.level || 'earth') === 'earth';
     const driving = !!DrivingView?.active;
+    const force = this._forceOpen || window._cityDropLock;
+    if (force || driving) {
+      if (!this.active) this._enter(camZ);
+      else this._syncView(camZ);
+      return;
+    }
     const shouldEnter = earth && (camZ <= this.ENTER_Z || driving);
     const shouldExit = !earth || (camZ > this.EXIT_Z && !driving);
-
     if (shouldEnter && !this.active) this._enter(camZ);
     else if (shouldExit && this.active) this._exit();
     else if (this.active) this._syncView(camZ);
@@ -194,9 +236,85 @@ const CityMap = {
     }
   },
 
-  _syncRoute() { /* ... */ },
+  _driverLatLng(d, u, i) {
+    const lat = d.field_lat ?? d.lat ?? d.latitude;
+    const lng = d.field_lng ?? d.lng ?? d.longitude;
+    if (lat != null && lng != null) return { lat: +lat, lng: +lng };
+    return { lat: u.lat + (Math.sin(i * 1.7) * 0.006), lng: u.lng + (Math.cos(i * 1.3) * 0.006) };
+  },
 
-  _seedDemoDrivers(c) { /* ... */ },
+  _seedDemoDrivers(c) {
+    const u = c || window._lastPos || this._center || { lat: 36.44, lng: 28.22 };
+    if (this._demoDrivers.length) return;
+    this._demoDrivers = [
+      { id: 'demo1', display_name: 'Nikos · delivery', field_lat: u.lat + 0.004, field_lng: u.lng - 0.003 },
+      { id: 'demo2', display_name: 'Elena · courier', field_lat: u.lat - 0.003, field_lng: u.lng + 0.005 },
+      { id: 'demo3', display_name: 'Alex · ride', field_lat: u.lat + 0.002, field_lng: u.lng + 0.004 },
+    ];
+  },
+
+  _animateDemoDrivers() {
+    this._demoPhase += 0.0012;
+    const u = window._lastPos || this._center;
+    if (!u) return;
+    this._demoDrivers.forEach((d, i) => {
+      d.field_lat = u.lat + Math.sin(this._demoPhase + i * 2.1) * 0.008;
+      d.field_lng = u.lng + Math.cos(this._demoPhase + i * 1.6) * 0.008;
+    });
+  },
+
+  async _tickDrivers() {
+    if (!this.active) return;
+    const u = window._lastPos || this._center;
+    if (!u) return;
+    let drivers = window.Commerce?.fetchNearbyDrivers
+      ? await window.Commerce.fetchNearbyDrivers(u.lat, u.lng)
+      : [];
+    if (!drivers.length) {
+      this._seedDemoDrivers(u);
+      this._animateDemoDrivers();
+      drivers = this._demoDrivers;
+    }
+    window.Commerce?.showDriversOnGlobe?.(drivers);
+    const seen = new Set();
+    drivers.forEach((d, i) => {
+      const p = this._driverLatLng(d, u, i);
+      const id = 'drv_' + (d.id || i);
+      seen.add(id);
+      this._setMarker(id, p.lat, p.lng, {
+        emoji: '🚗',
+        color: 'rgba(80,180,255,0.92)',
+        title: d.display_name || 'Driver',
+      });
+    });
+    Object.keys(this._markers).forEach(k => {
+      if (k.startsWith('drv_') && !seen.has(k)) {
+        this.map.removeLayer(this._markers[k]);
+        delete this._markers[k];
+      }
+    });
+  },
+
+  setRoute(coords) {
+    this._routeCoords = coords || [];
+    this._syncRoute();
+  },
+
+  _syncRoute() {
+    if (!this.map) return;
+    if (this._route) {
+      this.map.removeLayer(this._route);
+      this._route = null;
+    }
+    const coords = this._routeCoords || DrivingView?.routeCoords || [];
+    if (!coords.length || !this.active) return;
+    const latlngs = coords.map(c => [c.lat, c.lng]);
+    this._route = L.polyline(latlngs, {
+      color: (AstranovTheme?.effectiveMode?.() || AstranovTheme?.mode) === 'bright' ? '#0066cc' : '#44ccff',
+      weight: 5,
+      opacity: 0.88,
+    }).addTo(this.map);
+  },
 
   _invalidate() {
     if (this.map) this.map.invalidateSize();
