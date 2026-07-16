@@ -183,18 +183,76 @@ const AIGraphics = {
     return { canvas: c, tex, ctx };
   },
 
+  setThinkPulse(on) {
+    this.thinkPulse = !!on;
+    if (this.neuralLayer) this.neuralLayer.visible = !!on || this.superBatchActive;
+    if (this._hudCanvas) this._hudCanvas.style.opacity = on ? '0.5' : (this.superBatchActive ? '0.35' : '0');
+  },
+
+  showNeural(on) {
+    if (this.neuralLayer) this.neuralLayer.visible = !!on;
+  },
+
   addAtmosphere(parent, r) {
-    const geo = new THREE.SphereGeometry(r * 1.018, SlumberManager?.tier === 'full' ? 48 : 32, SlumberManager?.tier === 'full' ? 48 : 32);
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0x2288cc,
+    // Remove boot-atmosphere duplicate if present
+    try {
+      const kids = parent && parent.children ? parent.children.slice() : [];
+      kids.forEach((c) => {
+        if (c.userData?.type === 'boot-atmosphere') parent.remove(c);
+      });
+    } catch (_) { /* */ }
+    const segs = SlumberManager?.tier === 'full' || SlumberManager?.tier === 'gaming' ? 64 : 48;
+    // Outer glow shell
+    const geo = new THREE.SphereGeometry(r * 1.045, segs, segs);
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uColor: { value: new THREE.Color(0x3aa8ff) },
+        uPower: { value: 3.2 },
+        uIntensity: { value: 0.55 },
+      },
+      vertexShader: [
+        'varying vec3 vNormal;',
+        'varying vec3 vView;',
+        'void main(){',
+        '  vNormal = normalize(normalMatrix * normal);',
+        '  vec4 mv = modelViewMatrix * vec4(position,1.0);',
+        '  vView = normalize(-mv.xyz);',
+        '  gl_Position = projectionMatrix * mv;',
+        '}',
+      ].join('\n'),
+      fragmentShader: [
+        'uniform vec3 uColor;',
+        'uniform float uPower;',
+        'uniform float uIntensity;',
+        'varying vec3 vNormal;',
+        'varying vec3 vView;',
+        'void main(){',
+        '  float fres = pow(1.0 - max(dot(vNormal, vView), 0.0), uPower);',
+        '  float a = fres * uIntensity;',
+        '  gl_FragColor = vec4(uColor, a);',
+        '}',
+      ].join('\n'),
       transparent: true,
-      opacity: 0.06,
       blending: THREE.AdditiveBlending,
       side: THREE.BackSide,
       depthWrite: false,
     });
     this.atmosphere = new THREE.Mesh(geo, mat);
     parent.add(this.atmosphere);
+    // Thin bright rim
+    const rim = new THREE.Mesh(
+      new THREE.SphereGeometry(r * 1.012, segs, segs),
+      new THREE.MeshBasicMaterial({
+        color: 0x66ccff,
+        transparent: true,
+        opacity: 0.07,
+        blending: THREE.AdditiveBlending,
+        side: THREE.FrontSide,
+        depthWrite: false,
+      })
+    );
+    this._atmoRim = rim;
+    parent.add(rim);
   },
 
   addClouds(parent, r) {
