@@ -101,6 +101,7 @@ AiRouter.init();
 LazyModules.schedule();
 
 ArchitectBridge?.init?.();
+AstranovCoreBrain?.init?.();
 setTimeout(() => Auth.refreshAuthority(), 800);
 AciCli?.primeCodersCli?.();
 AciCoders?.ensureBridge?.();
