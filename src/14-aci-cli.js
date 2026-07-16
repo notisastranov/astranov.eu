@@ -273,7 +273,18 @@ const AciCli = {
       GlobeDeck?.finishCliIfOneShot(cmd);
       return;
     }
-    ACIControl?.reply('unknown — try help');
+
+    // Freeform → Core Brain (globe agent). Never leave users at "unknown".
+    GlobeDeck.activeTask = 'coders';
+    if (window.AstranovCoreBrain?.handle) {
+      await AstranovCoreBrain.handle(line);
+      return;
+    }
+    if (window.AciCoders?.handleMessage) {
+      await AciCoders.handleMessage(line);
+      return;
+    }
+    ACIControl?.reply('Brain loading — tap 🎧 again in a moment');
   },
 
   suggest(prefix) {

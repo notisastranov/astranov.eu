@@ -740,6 +740,12 @@ const AciCoders = {
     const m = String((window.fixVoiceHotwords || (x => x))(String(message || ''))).trim();
     if (m.length < 1) return this.enterSession({ fromVoice: !!opts.fromVoice });
 
+    // Rebuild path: Core Brain owns freeform + globe tools (local-first, <14s AI)
+    if (window.AstranovCoreBrain?.handle && !opts.forceLegacy && !this.wantsComposer(m)
+      && !ArchitectBridge?.wantsBridgeCmd?.(m) && !this.isExplicitRef(m)) {
+      return AstranovCoreBrain.handle(m, opts);
+    }
+
     const localFix = this.tryLocalFix(m);
     if (localFix) {
       AciCli?.print(localFix, 'ok');

@@ -34,7 +34,7 @@
  * =============================================================================
  */
 const AstranovContinuity = {
-  version: '20260716110000-architect-bridge',
+  version: '20260716120000-core-brain-art',
   updated: '2026-07-16',
 
   /**
@@ -243,6 +243,40 @@ const AstranovContinuity = {
         'Composer (Cursor) remains optional via "use composer" / Coders Hub summon — not the default street path',
       ],
       doNotRemove: ['ArchitectBridge', 'architect_push', 'architect_pending', 'architect_answer', 'aci-bridge'],
+    },
+
+    coreBrain: {
+      summary: 'Local-first freeform AI + globe tools — never leave freeform as "unknown"',
+      owner: 'src/22-astranov-core-brain.js',
+      behavior: [
+        'AciCli freeform → AstranovCoreBrain.handle (not "unknown — try help")',
+        'SuperCli.exec freeform → Core Brain',
+        'Act on globe immediately (locate/fly/city/order/zoom) then optional aicycle ≤14s',
+        'Do not block UI waiting for 80s edge latency',
+      ],
+      doNotRemove: ['AstranovCoreBrain', 'queue freeform to Core Brain'],
+    },
+
+    astranovArt: {
+      summary: 'Cinematic globe — multi-layer stars, fresnel atmosphere, day/night limb, higher tessellation',
+      owner: 'src/00-globe.js + src/63-earth-daynight.js + src/60-graphics.js',
+      behavior: [
+        'Earth MeshPhong/shader not flat MeshBasic 24-seg Atari sphere',
+        'Additive multi-layer starfield',
+        'Fresnel atmosphere shell via AIGraphics.addAtmosphere',
+      ],
+      doNotRemove: ['bootAtmosphere upgrade path', 'EarthRealism day/night'],
+    },
+
+    astranovHelper: {
+      summary: 'AI helper character v2 — gaming mecha-angel (procedural THREE, not Atari boxes)',
+      owner: 'src/60-graphics.js (spawnAstranovFlyer / _buildProceduralHumanoid gen:2)',
+      behavior: [
+        'Energy multi-vane wings, halo, core bloom, thruster jets, orbiters',
+        'Hero scale at global zoom; flyAstranovTo uses same mesh',
+        'Advanced rim/metal/pulse shaders on helper materials',
+      ],
+      doNotRemove: ['spawnAstranovFlyer', 'flyAstranovTo', 'AstranovFlyer'],
     },
   },
 
