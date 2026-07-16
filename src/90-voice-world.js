@@ -20,9 +20,9 @@ function initUser() {
   }
   setTimeout(() => showOtherUsers(), 1500);
 
-  // Default position on globe (Greece area) - no geo yet
-  placeMe(36.22, 28.12, { quiet: true, markerOnly: true });
+  // No fake GPS marker — real position only after 🎯 Locate or GPS grant
   userLocated = false;
+  window._lastPos = null;
 
   // optional camera/storage only if ever needed later
   // navigator.mediaDevices?.getUserMedia({video: true}).catch(() => {});
@@ -625,6 +625,17 @@ function resumeListening() {
 }
 window.resumeListening = resumeListening;
 
+async function ensureMicPermission() {
+  if (!navigator.mediaDevices?.getUserMedia) return true;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    stream.getTracks().forEach(t => t.stop());
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function startVoiceOptions() {
   if (sessionHeld || SessionHold?.isHeld?.()) {
     SessionHold?.resume?.();
@@ -634,6 +645,13 @@ function startVoiceOptions() {
     userIntervene();
     return;
   }
+  if (!recognition) {
+    AciCli?.print('Voice not supported — type below or use Chrome/Safari on HTTPS', 'err');
+    ACIControl?.reply('Voice unavailable — type your message below');
+    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+    document.getElementById('aci-cli-in')?.focus();
+    return;
+  }
   Voice.flush();
   _voiceLangLocked = false;
   _recognitionPaused = false;
@@ -641,7 +659,6 @@ function startVoiceOptions() {
   voiceEnabled = true;
   window._handsFreeVoice = true;
   setVoicePerfMode(true);
-  // Expand AI UI first — never fly/locate from mic start
   GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
   AciCoders?.enterSession?.({ expand: true, focus: false, ping: false });
   openVoiceCli();
@@ -650,13 +667,13 @@ function startVoiceOptions() {
   _listenFailStreak = 0;
   _listenRestartAt = 0;
   if (_voiceResumeTimer) { clearTimeout(_voiceResumeTimer); _voiceResumeTimer = null; }
-  const lang = 'el-GR';
+  const lang = defaultListenLang();
   Voice.preferredListenLang = lang;
   if (recognition) {
     recognition.lang = lang;
     _voiceLangLocked = true;
   }
-  AciCli?.print('🎧 listening — speak, pause ~1s, I reply in ribbon + voice', 'dim');
+  AciCli?.print('🎧 listening — speak, pause ~1s, I reply in ribbon', 'dim');
   ACIControl?.reply('Grok listening — speak now');
   CliRibbon?.setNotice?.('Grok listening…', 'thinking');
   GlobeDeck?.setPreview?.('🎧 Listening — pause ~1s to send');
@@ -664,7 +681,18 @@ function startVoiceOptions() {
   if (input) input.placeholder = '🎧 Grok listening — pause to send';
   AstranovSession?.push?.();
   syncHandsFreeBtn();
-  speak('Grok listening.', () => scheduleVoiceResume(), false);
+  // Mic first — never block recognition behind TTS (mobile was stuck on "listening" with no mic)
+  void ensureMicPermission().then(ok => {
+    if (!ok) {
+      AciCli?.print('Allow microphone for astranov.eu — then tap 🎧 again', 'err');
+      CliRibbon?.setNotice?.('Mic blocked — allow in browser', 'err');
+    }
+    scheduleVoiceResume();
+  });
+  const touchMobile = window.matchMedia?.('(max-width: 900px), (pointer: coarse)')?.matches;
+  if (!touchMobile && Voice?.maySpeak?.() && Voice?.shouldSpeak?.('listening')) {
+    speak('Listening.', () => {}, false);
+  }
 }
 
 function primeGrokVoice() {

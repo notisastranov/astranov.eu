@@ -250,16 +250,28 @@ function onGlobeClick(e) {
     if (ud.type === 'me' || root === window._meMarker) {
       const entity = GlobeEntity?.entities?.get('me');
       if (entity) { GlobeEntity.activate(entity); return; }
-      const up = window._lastPos || { lat: 36.22, lng: 28.12 };
-      MapDepict?.zoomToUser?.(GlobeControl?.Z?.national || 1.82);
+      if (userLocated && window._lastPos) {
+        const p = latLngToPos(window._lastPos.lat, window._lastPos.lng, 1.04);
+        ZoomTiers?.goTo?.('national', true);
+        flyToPoint(new THREE.Vector3(p.x, p.y, p.z), ZoomTiers?.tierZ?.('national') || 1.82);
+      }
       return;
     }
   }
 
   const intersects = raycaster.intersectObject(earth);
   if (intersects.length > 0) {
-    flyToPoint(intersects[0].point, ZoomTiers?.tierZ?.('global') || 2.55);
-    MapDepict.action('explore', { detail: 'tap' });
+    const nationalZ = ZoomTiers?.tierZ?.('national') || 1.82;
+    ZoomTiers?.goTo?.('national', true);
+    if (userLocated && window._lastPos) {
+      const p = latLngToPos(window._lastPos.lat, window._lastPos.lng, 1.04);
+      flyToPoint(new THREE.Vector3(p.x, p.y, p.z), nationalZ);
+      MapDepict.action('explore', { detail: 'national · your region' });
+    } else {
+      flyToPoint(intersects[0].point, nationalZ);
+      MapDepict.action('explore', { detail: 'national · tap 🎯 for your city' });
+      GlobeDeck?.setPreview?.('National view — tap 🎯 Locate for your real GPS city');
+    }
   }
 }
 

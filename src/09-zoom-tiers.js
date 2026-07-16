@@ -23,7 +23,8 @@ const ZoomTiers = {
   },
 
   countryHint() {
-    const p = window._lastPos || { lat: 36.44, lng: 28.22 };
+    const p = window._lastPos;
+    if (!p?.lat) return 'tap 🎯 Locate';
     if (p.lat > 34 && p.lat < 42 && p.lng > 19 && p.lng < 30) return 'Greece';
     if (p.lat > 24 && p.lat < 50 && p.lng > -10 && p.lng < 40) return 'Europe';
     if (p.lat > -35 && p.lat < 35) return 'equatorial belt';

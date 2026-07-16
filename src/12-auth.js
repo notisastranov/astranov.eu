@@ -684,6 +684,10 @@ const Auth = {
     if (this.isOwner) CliRibbon?.setActive?.('owner');
     const prompt = document.getElementById('aci-cli-prompt');
     if (prompt && this.isOwner) prompt.textContent = 'ASTRANOV@collective $';
+    const bridgeBtn = document.getElementById('aci-bridge');
+    if (bridgeBtn) bridgeBtn.hidden = !this.isArchitect;
+    SuperCli?.setContext?.(SuperCli?.inferContext?.() || 'idle');
+    ArchitectBridge?._bindUi?.();
   },
 
   async signOut() {

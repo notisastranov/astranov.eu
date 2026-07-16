@@ -7,7 +7,7 @@ const SuperCli = {
   title: ACL_TITLE,
 
   // Trust bar: Sign-in · Locate · + · AI (provider/order available but may be CSS-hidden)
-  TOOLBAR_VISIBLE: ['aci-login', 'aci-locate', 'super-add-fab', 'aci-handsfree', 'aci-provider', 'aci-order'],
+  TOOLBAR_VISIBLE: ['aci-login', 'aci-locate', 'aci-handsfree', 'aci-bridge', 'super-add-fab', 'aci-provider', 'aci-order'],
   INPUT_BTNS: ['globe-deck-send'],
 
   init() {
@@ -42,6 +42,10 @@ const SuperCli = {
     const allowed = new Set(this.TOOLBAR_VISIBLE);
     bar.querySelectorAll('button').forEach(btn => {
       if (btn.classList.contains('app-shortcut-btn')) return;
+      if (btn.id === 'aci-bridge') {
+        btn.hidden = !(Auth?.isArchitect && allowed.has('aci-bridge'));
+        return;
+      }
       btn.hidden = !allowed.has(btn.id);
     });
     AppShortcuts?.render?.();
@@ -104,6 +108,7 @@ const SuperCli = {
       'aci-hold': () => SessionHold?.toggle?.(),
       'aci-theme': () => AstranovTheme?.toggle?.(),
       'aci-locate': () => this.run('locate'),
+      'aci-bridge': () => ArchitectBridge?.openQuickFix?.(),
       'aci-provider': () => AiRouter?.cycle?.(),
       'aci-order': () => this.run('order'),
       'aci-batch': () => this.run('batch'),

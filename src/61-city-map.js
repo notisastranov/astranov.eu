@@ -32,6 +32,8 @@ const CityMap = {
       opacity: 0.42,
       attribution: '© OSM'
     }).addTo(this.map);
+    this._center = this._center || { lat: 0, lng: 0 };
+    this.map.setView([this._center.lat, this._center.lng], 3, { animate: false });
     this._ready = true;
     el.addEventListener('wheel', e => {
       if (!this.active) return;
@@ -81,7 +83,9 @@ const CityMap = {
   },
 
   globeCenterLatLng() {
-    return window._lastPos || { lat: 36.22, lng: 28.12 };
+    if (window._lastPos?.lat != null) return window._lastPos;
+    if (this._center?.lat != null) return this._center;
+    return null;
   },
 
   flyTo(lat, lng, zoom) {
@@ -99,15 +103,8 @@ const CityMap = {
     window._lastPos = { lat: c.lat, lng: c.lng };
     userLocated = true;
     const camZ = opts.camZ ?? CityLife?.CITY_ZOOM ?? 1.34;
-    if (typeof camera !== 'undefined' && camera) {
-      camera.position.z = camZ;
-      camera.lookAt(0, 0, 0);
-    }
-    CosmicZoom?.update?.(camZ, { tier: 'city', label: 'CITY', cosmic: 'earth' });
-    ZoomTiers?.goTo?.('city', false);
-    cityLevel = true;
-    this._forceOpen = true;
     const lz = opts.zoom ?? this.camZToZoom(camZ);
+    this._forceOpen = true;
     if (!this.active) this._enter(camZ);
     else {
       this.map.setView([c.lat, c.lng], lz, { animate: false });
@@ -115,8 +112,14 @@ const CityMap = {
       this._syncMarkers();
       this._syncRoute();
     }
-    this.map.setZoom(lz, { animate: false });
-    this.map.panTo([c.lat, c.lng], { animate: false });
+    this.map.setView([c.lat, c.lng], lz, { animate: false });
+    if (typeof camera !== 'undefined' && camera) {
+      camera.position.z = camZ;
+      camera.lookAt(0, 0, 0);
+    }
+    ZoomTiers?.goTo?.('city', false);
+    cityLevel = true;
+    CosmicZoom?.update?.(camZ, { tier: 'city', label: 'CITY', cosmic: 'earth' });
     setTimeout(() => { this._forceOpen = false; }, 4000);
     setTimeout(() => this._invalidate(), 80);
     return true;
@@ -155,7 +158,8 @@ const CityMap = {
     if (el) el.style.background = 'var(--an-bg)';
     const mapContainer = this.map && this.map.getContainer ? this.map.getContainer() : null;
     if (mapContainer) mapContainer.style.background = 'var(--an-bg)';
-    const c = window._lastPos || this.globeCenterLatLng();
+    const c = window._lastPos || this.globeCenterLatLng() || this._center;
+    if (!c?.lat) return;
     this._center = c;
     this.map.setView([c.lat, c.lng], this.camZToZoom(camZ), { animate: false });
     this._invalidate();
@@ -188,16 +192,21 @@ const CityMap = {
   },
 
   _syncView(camZ) {
-    if (window._globeFly) return; // no sync jitter/teleport during active fly
+    if (window._globeFly || !this.map) return;
     const c = DrivingView?.active && window._lastPos
       ? window._lastPos
-      : (window._lastPos || this.globeCenterLatLng());
+      : (window._lastPos || this.globeCenterLatLng() || this._center);
+    if (!c?.lat) return;
     this._center = c;
     const lz = this.camZToZoom(camZ);
-    if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
-    const cur = this.map.getCenter();
-    if (Math.abs(cur.lat - c.lat) > 0.0004 || Math.abs(cur.lng - c.lng) > 0.0004) {
-      this.map.panTo([c.lat, c.lng], { animate: false });
+    try {
+      if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
+      const cur = this.map.getCenter();
+      if (Math.abs(cur.lat - c.lat) > 0.0004 || Math.abs(cur.lng - c.lng) > 0.0004) {
+        this.map.panTo([c.lat, c.lng], { animate: false });
+      }
+    } catch (_) {
+      this.map.setView([c.lat, c.lng], lz, { animate: false });
     }
   },
 

@@ -227,9 +227,11 @@
   #cli-ribbon-status.hold { color:var(--ax-yellow-bright); text-shadow:0 0 8px var(--ax-yellow-glow); }
   #cli-ribbon-status.ready { color:var(--ax-green-bright); text-shadow:0 0 8px var(--ax-green-glow); }
   @keyframes cli-think-glow { 0%,100%{ opacity:0.85; } 50%{ opacity:1; text-shadow:0 0 12px var(--ax-blue-glow); } }
-  /* Trust toolbar: Sign-in · Locate · + · 🎧 */
-  #super-cli-bar button:not(#aci-login):not(#aci-locate):not(#super-add-fab):not(#aci-handsfree):not(.app-shortcut-btn) { display:none !important; }
-  #super-cli-bar #aci-locate { display:inline-flex !important; align-items:center; justify-content:center; }
+  /* Trust toolbar: G · ribbon · 🎯 · 🎧 · + (far right) — shortcuts hidden on phone */
+  #super-cli-bar #app-shortcut-row { display:none !important; }
+  #toolbar-trust-actions { display:flex; gap:5px; margin-left:auto; flex-shrink:0; align-items:center; }
+  #super-cli-bar button:not(#aci-login):not(#aci-locate):not(#super-add-fab):not(#aci-handsfree):not(#aci-bridge):not(.app-shortcut-btn) { display:none !important; }
+  #super-cli-bar #aci-locate, #super-cli-bar #aci-handsfree, #super-cli-bar #super-add-fab, #super-cli-bar #aci-bridge { display:inline-flex !important; align-items:center; justify-content:center; }
   #first-run-coach {
     position:fixed; left:50%; bottom:max(118px, calc(12vh + env(safe-area-inset-bottom)));
     transform:translateX(-50%); z-index:55; max-width:min(92vw, 340px);
@@ -723,14 +725,18 @@
       </div>
       <div id="super-cli-bar">
         <button id="aci-login" title="Sign in with Google" type="button">G</button>
-        <div id="app-shortcut-row" role="toolbar" aria-label="Open applications"></div>
         <span id="cli-ribbon-status" aria-live="polite"></span>
-        <button id="super-add-fab" type="button" title="Super Add — post · vendor · site">+</button>
-        <button id="aci-handsfree" type="button" title="AI hands-free — listen &amp; speak">🎧</button>
+        <div id="toolbar-trust-actions">
+          <button id="aci-locate" title="Locate me — national then city" type="button">🎯</button>
+          <button id="aci-handsfree" type="button" title="AI hands-free — listen &amp; speak">🎧</button>
+          <button id="aci-bridge" type="button" title="Dev bridge — send fix to Grok Build" hidden>🛠</button>
+          <button id="super-add-fab" type="button" title="Super Add — post · vendor · site">+</button>
+        </div>
+        <div id="app-shortcut-row" role="toolbar" aria-label="Open applications"></div>
         <button id="aci-cli-toggle" title="Expand/collapse Astranov Command Line" type="button">💻</button>
         <button id="aci-stop" title="Stop" type="button">🛑</button>
         <button id="aci-hold" title="Hold session — pause mic &amp; tasks for noisy places" type="button" aria-pressed="false">⏸</button>
-        <button id="aci-locate" title="Locate me — city view" type="button">🎯</button>
+
         <button id="aci-provider" type="button" title="AI provider — tap to cycle" data-provider="astranov">AV</button>
         <button id="aci-theme" title="Dark / bright theme" type="button">🌙</button>
         <button id="aci-order" title="Order" type="button">🛒</button>

@@ -46,7 +46,42 @@ const ArchitectBridge = {
   init() {
     if (this._inited) return;
     this._inited = true;
+    this._bindUi();
     if (this.isActive()) this.arm({ quiet: true });
+  },
+
+  _bindUi() {
+    const btn = document.getElementById('aci-bridge');
+    if (!btn || btn._bridgeBound) return;
+    btn._bridgeBound = true;
+    btn.onclick = e => {
+      e.preventDefault();
+      e.stopPropagation();
+      void this.openQuickFix();
+    };
+  },
+
+  openQuickFix() {
+    if (!Auth?.user) {
+      Auth?.openLoginModal?.('Sign in as architect to use dev bridge');
+      return;
+    }
+    if (!this.isActive()) {
+      ACIControl?.reply('Dev bridge is architect-only — sign in as notisastranov@gmail.com');
+      return;
+    }
+    this.arm({ quiet: true });
+    GlobeDeck?.expand?.('Bridge — fix from street');
+    CliRibbon?.setNotice?.('Bridge · describe bug', 'ready');
+    const input = document.getElementById('aci-cli-in');
+    if (input) {
+      input.value = 'fix ';
+      input.focus();
+      try { input.setSelectionRange(4, 4); } catch (_) { /* */ }
+      window.resizeCliInput?.(input);
+    }
+    ACIControl?.reply('🛠 Bridge — type what to fix, or speak after 🎧');
+    AciCli?.print('Bridge ready — finish with: fix <what broke>', 'ok');
   },
 
   arm(opts = {}) {

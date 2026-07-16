@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260716102106" />
+<meta name="astranov-build" content="20260716102847" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -227,9 +227,11 @@
   #cli-ribbon-status.hold { color:var(--ax-yellow-bright); text-shadow:0 0 8px var(--ax-yellow-glow); }
   #cli-ribbon-status.ready { color:var(--ax-green-bright); text-shadow:0 0 8px var(--ax-green-glow); }
   @keyframes cli-think-glow { 0%,100%{ opacity:0.85; } 50%{ opacity:1; text-shadow:0 0 12px var(--ax-blue-glow); } }
-  /* Trust toolbar: Sign-in · Locate · + · 🎧 */
-  #super-cli-bar button:not(#aci-login):not(#aci-locate):not(#super-add-fab):not(#aci-handsfree):not(.app-shortcut-btn) { display:none !important; }
-  #super-cli-bar #aci-locate { display:inline-flex !important; align-items:center; justify-content:center; }
+  /* Trust toolbar: G · ribbon · 🎯 · 🎧 · + (far right) — shortcuts hidden on phone */
+  #super-cli-bar #app-shortcut-row { display:none !important; }
+  #toolbar-trust-actions { display:flex; gap:5px; margin-left:auto; flex-shrink:0; align-items:center; }
+  #super-cli-bar button:not(#aci-login):not(#aci-locate):not(#super-add-fab):not(#aci-handsfree):not(#aci-bridge):not(.app-shortcut-btn) { display:none !important; }
+  #super-cli-bar #aci-locate, #super-cli-bar #aci-handsfree, #super-cli-bar #super-add-fab, #super-cli-bar #aci-bridge { display:inline-flex !important; align-items:center; justify-content:center; }
   #first-run-coach {
     position:fixed; left:50%; bottom:max(118px, calc(12vh + env(safe-area-inset-bottom)));
     transform:translateX(-50%); z-index:55; max-width:min(92vw, 340px);
@@ -723,14 +725,18 @@
       </div>
       <div id="super-cli-bar">
         <button id="aci-login" title="Sign in with Google" type="button">G</button>
-        <div id="app-shortcut-row" role="toolbar" aria-label="Open applications"></div>
         <span id="cli-ribbon-status" aria-live="polite"></span>
-        <button id="super-add-fab" type="button" title="Super Add — post · vendor · site">+</button>
-        <button id="aci-handsfree" type="button" title="AI hands-free — listen &amp; speak">🎧</button>
+        <div id="toolbar-trust-actions">
+          <button id="aci-locate" title="Locate me — national then city" type="button">🎯</button>
+          <button id="aci-handsfree" type="button" title="AI hands-free — listen &amp; speak">🎧</button>
+          <button id="aci-bridge" type="button" title="Dev bridge — send fix to Grok Build" hidden>🛠</button>
+          <button id="super-add-fab" type="button" title="Super Add — post · vendor · site">+</button>
+        </div>
+        <div id="app-shortcut-row" role="toolbar" aria-label="Open applications"></div>
         <button id="aci-cli-toggle" title="Expand/collapse Astranov Command Line" type="button">💻</button>
         <button id="aci-stop" title="Stop" type="button">🛑</button>
         <button id="aci-hold" title="Hold session — pause mic &amp; tasks for noisy places" type="button" aria-pressed="false">⏸</button>
-        <button id="aci-locate" title="Locate me — city view" type="button">🎯</button>
+
         <button id="aci-provider" type="button" title="AI provider — tap to cycle" data-provider="astranov">AV</button>
         <button id="aci-theme" title="Dark / bright theme" type="button">🌙</button>
         <button id="aci-order" title="Order" type="button">🛒</button>
@@ -1752,7 +1758,42 @@ const ArchitectBridge = {
   init() {
     if (this._inited) return;
     this._inited = true;
+    this._bindUi();
     if (this.isActive()) this.arm({ quiet: true });
+  },
+
+  _bindUi() {
+    const btn = document.getElementById('aci-bridge');
+    if (!btn || btn._bridgeBound) return;
+    btn._bridgeBound = true;
+    btn.onclick = e => {
+      e.preventDefault();
+      e.stopPropagation();
+      void this.openQuickFix();
+    };
+  },
+
+  openQuickFix() {
+    if (!Auth?.user) {
+      Auth?.openLoginModal?.('Sign in as architect to use dev bridge');
+      return;
+    }
+    if (!this.isActive()) {
+      ACIControl?.reply('Dev bridge is architect-only — sign in as notisastranov@gmail.com');
+      return;
+    }
+    this.arm({ quiet: true });
+    GlobeDeck?.expand?.('Bridge — fix from street');
+    CliRibbon?.setNotice?.('Bridge · describe bug', 'ready');
+    const input = document.getElementById('aci-cli-in');
+    if (input) {
+      input.value = 'fix ';
+      input.focus();
+      try { input.setSelectionRange(4, 4); } catch (_) { /* */ }
+      window.resizeCliInput?.(input);
+    }
+    ACIControl?.reply('🛠 Bridge — type what to fix, or speak after 🎧');
+    AciCli?.print('Bridge ready — finish with: fix <what broke>', 'ok');
   },
 
   arm(opts = {}) {
@@ -3898,6 +3939,10 @@ const Auth = {
     if (this.isOwner) CliRibbon?.setActive?.('owner');
     const prompt = document.getElementById('aci-cli-prompt');
     if (prompt && this.isOwner) prompt.textContent = 'ASTRANOV@collective $';
+    const bridgeBtn = document.getElementById('aci-bridge');
+    if (bridgeBtn) bridgeBtn.hidden = !this.isArchitect;
+    SuperCli?.setContext?.(SuperCli?.inferContext?.() || 'idle');
+    ArchitectBridge?._bindUi?.();
   },
 
   async signOut() {
@@ -4948,7 +4993,7 @@ const SuperCli = {
   title: ACL_TITLE,
 
   // Trust bar: Sign-in · Locate · + · AI (provider/order available but may be CSS-hidden)
-  TOOLBAR_VISIBLE: ['aci-login', 'aci-locate', 'super-add-fab', 'aci-handsfree', 'aci-provider', 'aci-order'],
+  TOOLBAR_VISIBLE: ['aci-login', 'aci-locate', 'aci-handsfree', 'aci-bridge', 'super-add-fab', 'aci-provider', 'aci-order'],
   INPUT_BTNS: ['globe-deck-send'],
 
   init() {
@@ -4983,6 +5028,10 @@ const SuperCli = {
     const allowed = new Set(this.TOOLBAR_VISIBLE);
     bar.querySelectorAll('button').forEach(btn => {
       if (btn.classList.contains('app-shortcut-btn')) return;
+      if (btn.id === 'aci-bridge') {
+        btn.hidden = !(Auth?.isArchitect && allowed.has('aci-bridge'));
+        return;
+      }
       btn.hidden = !allowed.has(btn.id);
     });
     AppShortcuts?.render?.();
@@ -5045,6 +5094,7 @@ const SuperCli = {
       'aci-hold': () => SessionHold?.toggle?.(),
       'aci-theme': () => AstranovTheme?.toggle?.(),
       'aci-locate': () => this.run('locate'),
+      'aci-bridge': () => ArchitectBridge?.openQuickFix?.(),
       'aci-provider': () => AiRouter?.cycle?.(),
       'aci-order': () => this.run('order'),
       'aci-batch': () => this.run('batch'),
@@ -8264,7 +8314,8 @@ const ZoomTiers = {
   },
 
   countryHint() {
-    const p = window._lastPos || { lat: 36.44, lng: 28.22 };
+    const p = window._lastPos;
+    if (!p?.lat) return 'tap 🎯 Locate';
     if (p.lat > 34 && p.lat < 42 && p.lng > 19 && p.lng < 30) return 'Greece';
     if (p.lat > 24 && p.lat < 50 && p.lng > -10 && p.lng < 40) return 'Europe';
     if (p.lat > -35 && p.lat < 35) return 'equatorial belt';
@@ -8651,16 +8702,28 @@ function onGlobeClick(e) {
     if (ud.type === 'me' || root === window._meMarker) {
       const entity = GlobeEntity?.entities?.get('me');
       if (entity) { GlobeEntity.activate(entity); return; }
-      const up = window._lastPos || { lat: 36.22, lng: 28.12 };
-      MapDepict?.zoomToUser?.(GlobeControl?.Z?.national || 1.82);
+      if (userLocated && window._lastPos) {
+        const p = latLngToPos(window._lastPos.lat, window._lastPos.lng, 1.04);
+        ZoomTiers?.goTo?.('national', true);
+        flyToPoint(new THREE.Vector3(p.x, p.y, p.z), ZoomTiers?.tierZ?.('national') || 1.82);
+      }
       return;
     }
   }
 
   const intersects = raycaster.intersectObject(earth);
   if (intersects.length > 0) {
-    flyToPoint(intersects[0].point, ZoomTiers?.tierZ?.('global') || 2.55);
-    MapDepict.action('explore', { detail: 'tap' });
+    const nationalZ = ZoomTiers?.tierZ?.('national') || 1.82;
+    ZoomTiers?.goTo?.('national', true);
+    if (userLocated && window._lastPos) {
+      const p = latLngToPos(window._lastPos.lat, window._lastPos.lng, 1.04);
+      flyToPoint(new THREE.Vector3(p.x, p.y, p.z), nationalZ);
+      MapDepict.action('explore', { detail: 'national · your region' });
+    } else {
+      flyToPoint(intersects[0].point, nationalZ);
+      MapDepict.action('explore', { detail: 'national · tap 🎯 for your city' });
+      GlobeDeck?.setPreview?.('National view — tap 🎯 Locate for your real GPS city');
+    }
   }
 }
 
@@ -8932,6 +8995,8 @@ const CityMap = {
       opacity: 0.42,
       attribution: '© OSM'
     }).addTo(this.map);
+    this._center = this._center || { lat: 0, lng: 0 };
+    this.map.setView([this._center.lat, this._center.lng], 3, { animate: false });
     this._ready = true;
     el.addEventListener('wheel', e => {
       if (!this.active) return;
@@ -8981,7 +9046,9 @@ const CityMap = {
   },
 
   globeCenterLatLng() {
-    return window._lastPos || { lat: 36.22, lng: 28.12 };
+    if (window._lastPos?.lat != null) return window._lastPos;
+    if (this._center?.lat != null) return this._center;
+    return null;
   },
 
   flyTo(lat, lng, zoom) {
@@ -8999,15 +9066,8 @@ const CityMap = {
     window._lastPos = { lat: c.lat, lng: c.lng };
     userLocated = true;
     const camZ = opts.camZ ?? CityLife?.CITY_ZOOM ?? 1.34;
-    if (typeof camera !== 'undefined' && camera) {
-      camera.position.z = camZ;
-      camera.lookAt(0, 0, 0);
-    }
-    CosmicZoom?.update?.(camZ, { tier: 'city', label: 'CITY', cosmic: 'earth' });
-    ZoomTiers?.goTo?.('city', false);
-    cityLevel = true;
-    this._forceOpen = true;
     const lz = opts.zoom ?? this.camZToZoom(camZ);
+    this._forceOpen = true;
     if (!this.active) this._enter(camZ);
     else {
       this.map.setView([c.lat, c.lng], lz, { animate: false });
@@ -9015,8 +9075,14 @@ const CityMap = {
       this._syncMarkers();
       this._syncRoute();
     }
-    this.map.setZoom(lz, { animate: false });
-    this.map.panTo([c.lat, c.lng], { animate: false });
+    this.map.setView([c.lat, c.lng], lz, { animate: false });
+    if (typeof camera !== 'undefined' && camera) {
+      camera.position.z = camZ;
+      camera.lookAt(0, 0, 0);
+    }
+    ZoomTiers?.goTo?.('city', false);
+    cityLevel = true;
+    CosmicZoom?.update?.(camZ, { tier: 'city', label: 'CITY', cosmic: 'earth' });
     setTimeout(() => { this._forceOpen = false; }, 4000);
     setTimeout(() => this._invalidate(), 80);
     return true;
@@ -9055,7 +9121,8 @@ const CityMap = {
     if (el) el.style.background = 'var(--an-bg)';
     const mapContainer = this.map && this.map.getContainer ? this.map.getContainer() : null;
     if (mapContainer) mapContainer.style.background = 'var(--an-bg)';
-    const c = window._lastPos || this.globeCenterLatLng();
+    const c = window._lastPos || this.globeCenterLatLng() || this._center;
+    if (!c?.lat) return;
     this._center = c;
     this.map.setView([c.lat, c.lng], this.camZToZoom(camZ), { animate: false });
     this._invalidate();
@@ -9088,16 +9155,21 @@ const CityMap = {
   },
 
   _syncView(camZ) {
-    if (window._globeFly) return; // no sync jitter/teleport during active fly
+    if (window._globeFly || !this.map) return;
     const c = DrivingView?.active && window._lastPos
       ? window._lastPos
-      : (window._lastPos || this.globeCenterLatLng());
+      : (window._lastPos || this.globeCenterLatLng() || this._center);
+    if (!c?.lat) return;
     this._center = c;
     const lz = this.camZToZoom(camZ);
-    if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
-    const cur = this.map.getCenter();
-    if (Math.abs(cur.lat - c.lat) > 0.0004 || Math.abs(cur.lng - c.lng) > 0.0004) {
-      this.map.panTo([c.lat, c.lng], { animate: false });
+    try {
+      if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
+      const cur = this.map.getCenter();
+      if (Math.abs(cur.lat - c.lat) > 0.0004 || Math.abs(cur.lng - c.lng) > 0.0004) {
+        this.map.panTo([c.lat, c.lng], { animate: false });
+      }
+    } catch (_) {
+      this.map.setView([c.lat, c.lng], lz, { animate: false });
     }
   },
 
@@ -9291,12 +9363,22 @@ const CityLife = {
     this._lastDrop = { lat: pos.lat, lng: pos.lng, t: Date.now() };
 
     try {
+      const nationalZ = GlobeControl?.Z?.national || 1.82;
       GlobeDeck?.setMapStatus('National view…');
       ZoomTiers?.goTo?.('national', true);
-      CityMap?.onCamera?.(GlobeControl?.Z?.national || 1.82, 'earth');
+      CosmicZoom?.update?.(nationalZ, { tier: 'national', label: 'NATIONAL', cosmic: 'earth' });
+      const gp = latLngToPos(pos.lat, pos.lng, 1.04);
+      if (typeof flyToPoint === 'function') {
+        flyToPoint(new THREE.Vector3(gp.x, gp.y, gp.z), nationalZ, { dur: 1500 });
+        if (typeof waitForGlobeFly === 'function') await waitForGlobeFly();
+      } else if (typeof camera !== 'undefined' && camera) {
+        camera.position.z = nationalZ;
+      }
+      CityMap?.onCamera?.(nationalZ, 'earth');
+      CliRibbon?.setNotice?.('National · your region', 'ready');
       if (!opts.immediate) {
-        GlobeDeck?.setPreview?.('Atmosphere lock… descending toward the surface.');
-        await new Promise(r => setTimeout(r, 420));
+        GlobeDeck?.setPreview?.('National view · opening your city…');
+        await new Promise(r => setTimeout(r, 450));
       }
       ZoomTiers?.goTo?.('city', true);
       GlobeDeck?.setMapStatus('Opening city map…');
@@ -9306,8 +9388,7 @@ const CityLife = {
         if (!CityMap?.active) CityMap?._enter?.(this.CITY_ZOOM);
       }
       GlobeDeck?.setMapStatus('City map open · syncing globe…');
-      void this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
-      setTimeout(() => CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM }), 120);
+      await this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
 
       if (window.Commerce?.loadVendors) {
         await Promise.race([
@@ -10961,9 +11042,9 @@ function initUser() {
   }
   setTimeout(() => showOtherUsers(), 1500);
 
-  // Default position on globe (Greece area) - no geo yet
-  placeMe(36.22, 28.12, { quiet: true, markerOnly: true });
+  // No fake GPS marker — real position only after 🎯 Locate or GPS grant
   userLocated = false;
+  window._lastPos = null;
 
   // optional camera/storage only if ever needed later
   // navigator.mediaDevices?.getUserMedia({video: true}).catch(() => {});
@@ -11566,6 +11647,17 @@ function resumeListening() {
 }
 window.resumeListening = resumeListening;
 
+async function ensureMicPermission() {
+  if (!navigator.mediaDevices?.getUserMedia) return true;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    stream.getTracks().forEach(t => t.stop());
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function startVoiceOptions() {
   if (sessionHeld || SessionHold?.isHeld?.()) {
     SessionHold?.resume?.();
@@ -11575,6 +11667,13 @@ function startVoiceOptions() {
     userIntervene();
     return;
   }
+  if (!recognition) {
+    AciCli?.print('Voice not supported — type below or use Chrome/Safari on HTTPS', 'err');
+    ACIControl?.reply('Voice unavailable — type your message below');
+    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+    document.getElementById('aci-cli-in')?.focus();
+    return;
+  }
   Voice.flush();
   _voiceLangLocked = false;
   _recognitionPaused = false;
@@ -11582,7 +11681,6 @@ function startVoiceOptions() {
   voiceEnabled = true;
   window._handsFreeVoice = true;
   setVoicePerfMode(true);
-  // Expand AI UI first — never fly/locate from mic start
   GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
   AciCoders?.enterSession?.({ expand: true, focus: false, ping: false });
   openVoiceCli();
@@ -11591,13 +11689,13 @@ function startVoiceOptions() {
   _listenFailStreak = 0;
   _listenRestartAt = 0;
   if (_voiceResumeTimer) { clearTimeout(_voiceResumeTimer); _voiceResumeTimer = null; }
-  const lang = 'el-GR';
+  const lang = defaultListenLang();
   Voice.preferredListenLang = lang;
   if (recognition) {
     recognition.lang = lang;
     _voiceLangLocked = true;
   }
-  AciCli?.print('🎧 listening — speak, pause ~1s, I reply in ribbon + voice', 'dim');
+  AciCli?.print('🎧 listening — speak, pause ~1s, I reply in ribbon', 'dim');
   ACIControl?.reply('Grok listening — speak now');
   CliRibbon?.setNotice?.('Grok listening…', 'thinking');
   GlobeDeck?.setPreview?.('🎧 Listening — pause ~1s to send');
@@ -11605,7 +11703,18 @@ function startVoiceOptions() {
   if (input) input.placeholder = '🎧 Grok listening — pause to send';
   AstranovSession?.push?.();
   syncHandsFreeBtn();
-  speak('Grok listening.', () => scheduleVoiceResume(), false);
+  // Mic first — never block recognition behind TTS (mobile was stuck on "listening" with no mic)
+  void ensureMicPermission().then(ok => {
+    if (!ok) {
+      AciCli?.print('Allow microphone for astranov.eu — then tap 🎧 again', 'err');
+      CliRibbon?.setNotice?.('Mic blocked — allow in browser', 'err');
+    }
+    scheduleVoiceResume();
+  });
+  const touchMobile = window.matchMedia?.('(max-width: 900px), (pointer: coarse)')?.matches;
+  if (!touchMobile && Voice?.maySpeak?.() && Voice?.shouldSpeak?.('listening')) {
+    speak('Listening.', () => {}, false);
+  }
 }
 
 function primeGrokVoice() {
@@ -11907,6 +12016,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260716102106" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260716102847" data-astranov-deferred></script>
 </body>
 </html>

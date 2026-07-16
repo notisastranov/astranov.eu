@@ -67,12 +67,22 @@ const CityLife = {
     this._lastDrop = { lat: pos.lat, lng: pos.lng, t: Date.now() };
 
     try {
+      const nationalZ = GlobeControl?.Z?.national || 1.82;
       GlobeDeck?.setMapStatus('National view…');
       ZoomTiers?.goTo?.('national', true);
-      CityMap?.onCamera?.(GlobeControl?.Z?.national || 1.82, 'earth');
+      CosmicZoom?.update?.(nationalZ, { tier: 'national', label: 'NATIONAL', cosmic: 'earth' });
+      const gp = latLngToPos(pos.lat, pos.lng, 1.04);
+      if (typeof flyToPoint === 'function') {
+        flyToPoint(new THREE.Vector3(gp.x, gp.y, gp.z), nationalZ, { dur: 1500 });
+        if (typeof waitForGlobeFly === 'function') await waitForGlobeFly();
+      } else if (typeof camera !== 'undefined' && camera) {
+        camera.position.z = nationalZ;
+      }
+      CityMap?.onCamera?.(nationalZ, 'earth');
+      CliRibbon?.setNotice?.('National · your region', 'ready');
       if (!opts.immediate) {
-        GlobeDeck?.setPreview?.('Atmosphere lock… descending toward the surface.');
-        await new Promise(r => setTimeout(r, 420));
+        GlobeDeck?.setPreview?.('National view · opening your city…');
+        await new Promise(r => setTimeout(r, 450));
       }
       ZoomTiers?.goTo?.('city', true);
       GlobeDeck?.setMapStatus('Opening city map…');
@@ -82,8 +92,7 @@ const CityLife = {
         if (!CityMap?.active) CityMap?._enter?.(this.CITY_ZOOM);
       }
       GlobeDeck?.setMapStatus('City map open · syncing globe…');
-      void this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
-      setTimeout(() => CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM }), 120);
+      await this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
 
       if (window.Commerce?.loadVendors) {
         await Promise.race([
