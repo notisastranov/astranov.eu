@@ -21,7 +21,9 @@ const CityLife = {
   },
 
   userPos() {
-    return window._lastPos || { lat: 36.44, lng: 28.22 };
+    // Real position only — callers that need a map must locate first (no silent Rhodes)
+    if (window._lastPos?.lat != null && window._lastPos?.lng != null) return window._lastPos;
+    return null;
   },
 
   ensureEarthView() {
@@ -55,7 +57,9 @@ const CityLife = {
   async dropIn(lat, lng, opts) {
     opts = opts || {};
     const pos = lat != null && lng != null ? { lat, lng } : this.userPos();
-    if (!pos?.lat) return { error: 'no location — allow GPS or say locate' };
+    if (!pos?.lat || pos.lng == null) {
+      return { error: 'no_location', message: 'no location — allow GPS or tap 🎯 Locate' };
+    }
 
     window._cityDropLock = true;
     window._lastPos = { lat: pos.lat, lng: pos.lng };
@@ -187,11 +191,13 @@ const CityLife = {
       AciCli?.print('scenario · wake — news on globe', 'cmd');
       NewsFeed?.flash?.();
       const u = CityLife.userPos();
+      if (!u) return locateMe?.();
       await CityLife.dropIn(u.lat, u.lng, { label: 'Morning' });
     },
     news: async () => {
       NewsFeed?.flash?.();
       const u = CityLife.userPos();
+      if (!u) return AciCli?.print('locate first for local news', 'dim');
       CityLife._showLocalNews(u.lat, u.lng);
     },
     youtube: async (q) => {
@@ -202,6 +208,7 @@ const CityLife = {
     },
     city: async () => {
       const u = CityLife.userPos();
+      if (!u) return locateMe?.();
       await CityLife.dropIn(u.lat, u.lng, { openShops: true });
     },
     friends: async () => {
@@ -210,12 +217,14 @@ const CityLife = {
     },
     drivers: async () => {
       const u = CityLife.userPos();
+      if (!u) return AciCli?.print('locate first to see drivers', 'dim');
       const d = await window.Commerce?.fetchNearbyDrivers?.(u.lat, u.lng);
       window.Commerce?.showDriversOnGlobe?.(d);
       AciCli?.print(d.length ? d.map(x => (x.display_name || 'Driver')).join(' · ') : 'no active drivers — order to summon', 'ok');
     },
     shops: async () => {
       const u = CityLife.userPos();
+      if (!u) return locateMe?.();
       await CityLife.dropIn(u.lat, u.lng, { openShops: true });
     },
     groceries: async () => { await window.Commerce?.smartOrder?.('pitogyra mpironia tsigareta'); },

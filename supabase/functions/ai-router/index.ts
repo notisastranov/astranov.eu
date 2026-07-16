@@ -22,7 +22,8 @@
  *   is_private = false → public persona / public data — sent as context (default)
  *
  * Deploy: supabase functions deploy ai-router
- * Secrets: ANTHROPIC_API_KEY, OPENAI_API_KEY, GROQ_API_KEY, GEMINI_API_KEY
+ * Secrets: XAI_API_KEY (paid Grok — preferred), ANTHROPIC_API_KEY, OPENAI_API_KEY, GROQ_API_KEY, GEMINI_API_KEY
+ * preferred_provider grok|xai → always XAI_API_KEY first (never silent Groq substitute).
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -144,13 +145,45 @@ async function callOpenAIMini(key: string, messages: Msg[]): Promise<string | nu
   } catch (e) { console.error('OpenAI mini exception:', e); return null }
 }
 
-/** Try free-tier providers in order, return first success */
-async function callFreeChain(
+/** Paid xAI Grok via Supabase secret XAI_API_KEY */
+async function callXAI(key: string, messages: Msg[]): Promise<string | null> {
+  try {
+    const model = Deno.env.get('XAI_MODEL') || Deno.env.get('GROK_MODEL') || 'grok-3'
+    const r = await fetch('https://api.x.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        max_tokens: 900,
+        messages: [{ role: 'system', content: PERSONA }, ...messages],
+      }),
+    })
+    if (!r.ok) {
+      console.error('XAI error:', r.status, await r.text().catch(() => ''))
+      return null
+    }
+    const j = await r.json()
+    return j.choices?.[0]?.message?.content || null
+  } catch (e) {
+    console.error('XAI exception:', e)
+    return null
+  }
+}
+
+/** Prefer paid XAI, then secondary providers — never claim "grok" when via Groq */
+async function callProviderChain(
+  xaiKey: string | undefined,
   groqKey: string | undefined,
   geminiKey: string | undefined,
   openaiKey: string | undefined,
-  messages: Msg[]
+  messages: Msg[],
+  opts?: { xaiOnly?: boolean }
 ): Promise<{ raw: string; provider: string } | null> {
+  if (xaiKey) {
+    const r = await callXAI(xaiKey, messages)
+    if (r) return { raw: r, provider: 'grok/xai' }
+  }
+  if (opts?.xaiOnly) return null
   if (groqKey) {
     const r = await callGroq(groqKey, messages)
     if (r) return { raw: r, provider: 'groq' }
@@ -188,8 +221,11 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
 
     // Verify owner status SERVER-SIDE from auth token. Never trust client.
+    // Paid XAI_API_KEY is ARCHITECT-ONLY (notisastranov@gmail.com) — never for guests/other users.
+    const ARCHITECT_EMAIL = (Deno.env.get('ARCHITECT_EMAIL') || 'notisastranov@gmail.com').toLowerCase()
     let userId: string | null = null
     let isOwner = false
+    let userEmail: string | null = null
     const authHeader = req.headers.get('Authorization') || ''
     const token = authHeader.replace(/^Bearer\s+/i, '')
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || ''
@@ -197,10 +233,22 @@ serve(async (req) => {
       const { data: userData } = await supabase.auth.getUser(token)
       if (userData?.user) {
         userId = userData.user.id
-        const { data: prof } = await supabase.from('profiles').select('is_owner').eq('id', userId).single()
-        isOwner = prof?.is_owner === true
+        userEmail = (userData.user.email || '').toLowerCase()
+        if (userEmail === ARCHITECT_EMAIL) {
+          isOwner = true
+          await supabase.from('profiles').upsert({
+            id: userId,
+            is_owner: true,
+            display_name: userData.user.user_metadata?.full_name || 'Architect',
+          }, { onConflict: 'id' })
+        } else {
+          const { data: prof } = await supabase.from('profiles').select('is_owner').eq('id', userId).single()
+          isOwner = prof?.is_owner === true
+        }
       }
     }
+    // Only architect may burn paid XAI_API_KEY
+    const mayUsePaidXai = isOwner && userEmail === ARCHITECT_EMAIL
 
     // Load recent PUBLIC memory only (is_private = false → safe for AI context)
     let memory: Msg[] = []
@@ -223,46 +271,70 @@ serve(async (req) => {
     const OPENAI = Deno.env.get('OPENAI_API_KEY')
     const GROQ = Deno.env.get('GROQ_API_KEY')
     const GEMINI = Deno.env.get('GEMINI_API_KEY')
+    // Paid XAI — ONLY for architect (notisastranov@gmail.com). Guests never touch this key.
+    const XAI = mayUsePaidXai ? Deno.env.get('XAI_API_KEY') : undefined
 
     let raw: string | null = null
     let provider = ''
     let via = ''  // inner provider when orchestrated (astranov mode)
-    const pp = preferred_provider ? String(preferred_provider) : ''
+    const pp = preferred_provider ? String(preferred_provider).toLowerCase() : ''
 
     // 'astranov' or empty = orchestration mode (the C.I. itself decides)
     // Specific provider name = direct lock to that AI
     const orchestrate = !pp || pp === 'astranov'
+    const wantGrok = pp === 'grok' || pp === 'xai' || pp === 'astranov-grok'
 
     if (!orchestrate) {
-      if (pp === 'claude' && isOwner && ANTHROPIC) {
+      // Architect-only paid Grok
+      if (wantGrok && XAI && mayUsePaidXai) {
+        raw = await callXAI(XAI, messages)
+        if (raw) { provider = 'grok'; via = 'xai-owner' }
+      } else if (wantGrok && !mayUsePaidXai) {
+        // Public users: free chain only (never paid XAI)
+        const pub = await callProviderChain(undefined, GROQ, GEMINI, OPENAI, messages)
+        if (pub) { raw = pub.raw; provider = pub.provider; via = pub.provider }
+      } else if (pp === 'claude' && isOwner && ANTHROPIC) {
         raw = await callAnthropic(ANTHROPIC, messages); if (raw) provider = 'claude'
       } else if (pp === 'groq' && GROQ) {
         raw = await callGroq(GROQ, messages); if (raw) provider = 'groq'
       } else if (pp === 'gemini' && GEMINI) {
         raw = await callGemini(GEMINI, messages); if (raw) provider = 'gemini'
-      } else if (pp === 'openai-mini' && OPENAI) {
+      } else if ((pp === 'openai-mini' || pp === 'openai') && OPENAI) {
         raw = await callOpenAIMini(OPENAI, messages); if (raw) provider = 'openai-mini'
       }
     }
 
-    // Orchestration: owner gets Claude as the C.I.'s core voice, then free chain;
-    // users get the free cycle. Either way, the outer provider is reported as 'astranov'
-    // because the unified Collective Intelligence is what the user is talking to.
+    // Orchestration: architect → paid XAI; everyone else → free providers only
     if (!raw && orchestrate) {
-      if (isOwner && ANTHROPIC) {
-        raw = await callAnthropic(ANTHROPIC, messages); if (raw) via = 'claude'
+      if (mayUsePaidXai && XAI) {
+        raw = await callXAI(XAI, messages)
+        if (raw) { via = 'grok/xai-owner'; provider = 'astranov' }
+      }
+      if (!raw && isOwner && ANTHROPIC) {
+        raw = await callAnthropic(ANTHROPIC, messages); if (raw) { via = 'claude'; provider = 'astranov' }
       }
       if (!raw) {
-        const result = await callFreeChain(GROQ, GEMINI, OPENAI, messages)
-        if (result) { raw = result.raw; via = result.provider }
+        const result = await callProviderChain(undefined, GROQ, GEMINI, OPENAI, messages)
+        if (result) { raw = result.raw; via = result.provider; provider = 'astranov' }
       }
-      if (raw) provider = 'astranov'
     }
 
-    // Hard fallback if a specific lock failed: drop to the cycle so the user is never left silent.
+    // Hard fallback — never pass XAI key for non-architect
     if (!raw) {
-      const result = await callFreeChain(GROQ, GEMINI, OPENAI, messages)
-      if (result) { raw = result.raw; provider = result.provider }
+      const result = await callProviderChain(
+        mayUsePaidXai ? XAI : undefined,
+        GROQ, GEMINI, OPENAI, messages,
+        { xaiOnly: wantGrok && mayUsePaidXai && !!XAI },
+      )
+      if (result) {
+        raw = result.raw
+        provider = result.provider.startsWith('grok') ? 'grok' : result.provider
+        via = result.provider
+      }
+      if (!raw) {
+        const fb = await callProviderChain(undefined, GROQ, GEMINI, OPENAI, messages)
+        if (fb) { raw = fb.raw; provider = fb.provider; via = fb.provider }
+      }
     }
 
     if (!raw) return json({ error: 'AI unavailable', text: '' }, 503)

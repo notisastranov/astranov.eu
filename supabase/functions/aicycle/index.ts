@@ -122,12 +122,22 @@ async function callOpenRouter(key: string, system: string, messages: Msg[], mode
 }
 
 async function callXAI(key: string, system: string, messages: Msg[]): Promise<string | null> {
-  return callOpenAICompat(
+  // Paid XAI_API_KEY from Supabase secrets
+  const primary = Deno.env.get('XAI_MODEL') || Deno.env.get('GROK_MODEL') || 'grok-3'
+  const hit = await callOpenAICompat(
     'https://api.x.ai/v1/chat/completions',
     key,
-    Deno.env.get('XAI_MODEL') || Deno.env.get('GROK_MODEL') || 'grok-3-mini',
+    primary,
     system, messages,
   )
+  if (hit) return hit
+  // Model name may vary by plan — try common paid aliases
+  for (const m of ['grok-3-mini', 'grok-2-latest', 'grok-2-1212']) {
+    if (m === primary) continue
+    const t = await callOpenAICompat('https://api.x.ai/v1/chat/completions', key, m, system, messages)
+    if (t) return t
+  }
+  return null
 }
 
 async function callGroq(key: string, system: string, messages: Msg[]): Promise<string | null> {
@@ -181,8 +191,11 @@ serve(async (req) => {
     const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
 
+    // Paid XAI_API_KEY = architect only (notisastranov@gmail.com). Guests use free providers.
+    const ARCHITECT_EMAIL = (Deno.env.get('ARCHITECT_EMAIL') || 'notisastranov@gmail.com').toLowerCase()
     let profileId: string | null = null
     let isOwner = false
+    let userEmail: string | null = null
     const authHeader = req.headers.get('Authorization') || ''
     const token = authHeader.replace(/^Bearer\s+/i, '')
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || ''
@@ -190,10 +203,21 @@ serve(async (req) => {
       const { data: ud } = await supabase.auth.getUser(token)
       if (ud?.user) {
         profileId = ud.user.id
-        const { data: prof } = await supabase.from('profiles').select('is_owner').eq('id', profileId).single()
-        isOwner = prof?.is_owner === true
+        userEmail = (ud.user.email || '').toLowerCase()
+        if (userEmail === ARCHITECT_EMAIL) {
+          isOwner = true
+          await supabase.from('profiles').upsert({
+            id: profileId,
+            is_owner: true,
+            display_name: ud.user.user_metadata?.full_name || 'Architect',
+          }, { onConflict: 'id' })
+        } else {
+          const { data: prof } = await supabase.from('profiles').select('is_owner').eq('id', profileId).single()
+          isOwner = prof?.is_owner === true
+        }
       }
     }
+    const mayUsePaidXai = isOwner && userEmail === ARCHITECT_EMAIL
 
     const GEMINI = Deno.env.get('GEMINI_API_KEY')
 
@@ -241,7 +265,8 @@ serve(async (req) => {
     const ANTHROPIC  = Deno.env.get('ANTHROPIC_PAID_API_KEY') || Deno.env.get('ANTHROPIC_API_KEY')
     const OPENROUTER = Deno.env.get('OPENROUTER_API_KEY') || Deno.env.get('OPENROUTER') || Deno.env.get('OPENROUTER.AI')
     const GROQ       = Deno.env.get('GROQ_API_KEY')
-    const XAI        = Deno.env.get('XAI_API_KEY')
+    // Paid XAI only when architect JWT proven — never expose key path to guests
+    const XAI        = mayUsePaidXai ? Deno.env.get('XAI_API_KEY') : undefined
     const coderEngine = String(body.coder_engine || '').toLowerCase()
 
     let raw: string | null = null
@@ -250,12 +275,15 @@ serve(async (req) => {
 
     const prefs = (body.fallback_prefs || {}) as { force?: string; skip?: string[] }
     const skip = new Set((prefs.skip || []).map((s: string) => String(s).toLowerCase()))
-    const force = String(prefs.force || '').toLowerCase()
+    // Non-architect cannot force xai (would no-op or skip to free chain)
+    let force = String(prefs.force || '').toLowerCase()
+    if ((force === 'xai' || force === 'grok') && !mayUsePaidXai) force = ''
 
-    async function tryChain(forTeam = false) {
+    async function tryChain(_forTeam = false) {
       const chain: Array<{ id: string; run: () => Promise<string | null>; via: string }> = []
-      if (XAI && !skip.has('xai') && !skip.has('grok')) {
-        chain.push({ id: 'xai', via: 'grok/xai', run: () => callXAI(XAI!, system, messages) })
+      // Architect-only paid Grok
+      if (mayUsePaidXai && XAI && !skip.has('xai') && !skip.has('grok')) {
+        chain.push({ id: 'xai', via: 'grok/xai-owner', run: () => callXAI(XAI!, system, messages) })
       }
       if (OPENROUTER && !skip.has('openrouter')) {
         chain.push({
@@ -313,7 +341,10 @@ serve(async (req) => {
     } else {
       const slowSkip = new Set((prefs.skip || []).map((s: string) => String(s).toLowerCase()))
       if (isOwner && ANTHROPIC) raw = await withTimeout(callAnthropic(ANTHROPIC, system, messages))
-      if (!raw && XAI && !slowSkip.has('xai')) raw = await withTimeout(callXAI(XAI, system, messages))
+      if (!raw && mayUsePaidXai && XAI && !slowSkip.has('xai')) {
+        raw = await withTimeout(callXAI(XAI, system, messages))
+        if (raw) via = 'grok/xai-owner'
+      }
       if (!raw && GROQ)         raw = await withTimeout(callGroq(GROQ, system, messages))
       if (!raw && OPENROUTER)   raw = await withTimeout(callOpenRouter(OPENROUTER, system, messages))
       if (!raw && GEMINI)       raw = await withTimeout(callGemini(GEMINI, system, messages))

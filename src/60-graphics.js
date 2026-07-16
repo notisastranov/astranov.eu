@@ -752,7 +752,8 @@ const AIGraphics = {
 
   _scaleFlyer(mesh, camZ) {
     if (!mesh?.userData?.procedural3d) return;
-    const scale = Math.max(0.85, Math.min(2.4, 1.35 * (camZ / 2.2)));
+    // Readable at GLOBAL (z≈2.55) — was satellite-dot scale before
+    const scale = Math.max(2.2, Math.min(6.5, 3.4 * (camZ / 2.2)));
     mesh.scale.setScalar(scale);
   },
 

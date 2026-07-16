@@ -6,8 +6,8 @@ const SuperCli = {
   _context: 'idle',
   title: ACL_TITLE,
 
-  // Top bar: login + Super Add — everything else via CLI (locate, order, batch, vhf, theme, hold, stop…)
-  TOOLBAR_VISIBLE: ['aci-login', 'aci-locate', 'aci-provider', 'aci-order', 'super-add-fab', 'aci-handsfree'],
+  // Trust bar: Sign-in · Locate · + · AI (provider/order available but may be CSS-hidden)
+  TOOLBAR_VISIBLE: ['aci-login', 'aci-locate', 'super-add-fab', 'aci-handsfree', 'aci-provider', 'aci-order'],
   INPUT_BTNS: ['globe-deck-send'],
 
   init() {
@@ -57,15 +57,16 @@ const SuperCli = {
     if (hf && !hf._superBound) {
       hf._superBound = true;
       hf.onclick = e => {
-        e.preventDefault(); e.stopPropagation();
-        GlobeDeck?.expand?.(ACL_TITLE);
-        document.getElementById('aci-cli-in')?.focus();
+        e.preventDefault();
+        e.stopPropagation();
+        // Contract: 🎧 = open AI panel. Never locate / fly / zoom.
         if (SessionHold?.isHeld?.()) { SessionHold.resume(); return; }
         if (Voice?.speaking || isListening || voiceSessionActive || window._handsFreeVoice) {
           userIntervene?.();
+          AciCli?.print('🎧 voice stopped — type below or tap 🎧 again', 'dim');
           return;
         }
-        startVoiceOptions?.();
+        void this.openAiHandsfree();
       };
     }
     if (send && !send._superBound) {
@@ -75,6 +76,23 @@ const SuperCli = {
         e.stopPropagation();
         AciCli?.submitFromInput?.({ emptyFocus: true });
       };
+    }
+  },
+
+  /** 🎧 trust path: expand CLI + Grok session (text). Voice only if already welcomed. */
+  async openAiHandsfree() {
+    GlobeDeck?.expand?.(ACL_TITLE);
+    GlobeDeck?.onUserMessage?.('Grok');
+    CliRibbon?.setActive?.('Grok');
+    CliRibbon?.setNotice?.('Grok ready — type or speak', 'ready');
+    GlobeDeck?.setPreview?.('Talk to Grok — type below or speak after mic starts');
+    document.getElementById('aci-cli-in')?.focus();
+    try {
+      await AciCoders?.enterSession?.({ expand: true, focus: true, ping: false });
+    } catch (_) { /* */ }
+    // Start voice after UI is open — never call locateMe from this path
+    if (typeof startVoiceOptions === 'function' && !window._handsFreeVoice) {
+      try { startVoiceOptions(); } catch (_) { /* */ }
     }
   },
 
@@ -91,6 +109,7 @@ const SuperCli = {
       'aci-batch': () => this.run('batch'),
       'aci-vhf': () => this.run('vhf'),
       'aci-call': () => this.run('phone'),
+      'super-add-fab': () => this.run('add'),
     };
     Object.entries(actions).forEach(([id, fn]) => {
       const el = document.getElementById(id);

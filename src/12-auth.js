@@ -33,12 +33,15 @@ const Auth = {
         this.closeLoginModal();
         this.applyUser();
         this.refreshAuthority();
-        ACIControl?.reply('Signed in · tap 🎧 talk straight to Grok');
+        const owner = (session.user.email || '').toLowerCase() === this.OWNER_EMAIL.toLowerCase();
+        ACIControl?.reply(owner
+          ? 'Architect signed in · paid Grok armed · tap 🎧'
+          : 'Signed in · tap 🎧 talk to Astranov');
         setTimeout(() => {
           primeGrokVoice?.();
-          const owner = (session.user.email || '').toLowerCase() === this.OWNER_EMAIL.toLowerCase();
-          if (owner && typeof startVoiceOptions === 'function' && !window._handsFreeVoice) {
-            try { startVoiceOptions(); } catch (_) {}
+          // Architect: open AI session (paid path); do not auto-locate
+          if (owner) {
+            void AciCoders?.enterSession?.({ expand: true, focus: false, ping: true });
           }
         }, 800);
         try {
@@ -618,29 +621,51 @@ const Auth = {
     if (!this.user) {
       this.isOwner = false;
       this.isArchitect = false;
+      window._aciOwner = false;
       this.updateOwnerUI();
       return;
     }
     const email = (this.user.email || '').toLowerCase();
-    this.isArchitect = email === this.OWNER_EMAIL;
+    // Architect email is authoritative — paid XAI + build bridge only for this account
+    this.isArchitect = email === this.OWNER_EMAIL.toLowerCase();
+    this.isOwner = this.isArchitect;
+    if (this.isArchitect) {
+      window._aciOwner = true;
+      AciCoders.fallbackPrefs = { force: 'xai', skip: ['openrouter'] };
+      AciCoders.savePrefs?.();
+      AiRouter?.setProvider?.('grok');
+    } else {
+      // Guests never force paid XAI
+      if (AciCoders?.fallbackPrefs) {
+        AciCoders.fallbackPrefs.force = 'groq';
+        AciCoders.fallbackPrefs.skip = ['xai'];
+      }
+    }
     try {
       const r = await fetch(ACI.url + '/functions/v1/aci', {
         method: 'POST',
         headers: await this.authHeaders(),
         body: JSON.stringify({ mode: 'owner_sync' })
       }).then(res => res.json());
-      this.isOwner = !!(r.is_owner || r.is_architect);
+      if (r.is_owner || r.is_architect) {
+        this.isOwner = true;
+        this.isArchitect = this.isArchitect || r.is_architect === true || email === this.OWNER_EMAIL.toLowerCase();
+      }
       if (this.isOwner) {
         window._aciOwner = true;
         ACI?.feed('owner-sync', email);
       }
     } catch (_) {
-      if (this.client) {
+      if (this.client && !this.isArchitect) {
         const { data: prof } = await this.client.from('profiles').select('is_owner').eq('id', this.user.id).single();
-        this.isOwner = prof?.is_owner === true || this.isArchitect;
+        this.isOwner = prof?.is_owner === true;
       }
     }
     this.updateOwnerUI();
+    if (this.isArchitect) {
+      ACIControl?.reply?.('Architect online · paid Grok (XAI) · build bridge armed');
+      CliRibbon?.setNotice?.('Architect · paid Grok', 'ready');
+    }
     if (window.FieldBrain) FieldBrain.onAuth();
     if (window.AciCli) AciCli.onAuthChange();
     this.loadProfileVisual();

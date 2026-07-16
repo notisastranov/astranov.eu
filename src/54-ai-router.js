@@ -23,8 +23,12 @@ const AiRouter = {
   init() {
     try {
       const saved = localStorage.getItem('astranov:ai-provider');
+      // Default Grok (xAI) — only honor saved if still valid
       if (saved && this.PROVIDERS.some(p => p.id === saved)) this._provider = saved;
-    } catch (_) {}
+      else this._provider = 'grok';
+    } catch (_) {
+      this._provider = 'grok';
+    }
     this._sessionId = this._loadSession();
     this._bindUi();
     this._syncUi();
@@ -104,11 +108,17 @@ const AiRouter = {
       role: m.role === 'assistant' ? 'assistant' : 'user',
       content: String(m.content || m.text || m.reply || '').slice(0, 2000),
     }));
+    // Paid XAI only when architect signed in; guests get free providers (server enforces)
+    const architect = !!(Auth?.isArchitect
+      || (Auth?.user?.email || '').toLowerCase() === (Auth?.OWNER_EMAIL || 'notisastranov@gmail.com').toLowerCase());
+    let preferred = opts.provider || this._provider || (architect ? 'grok' : 'groq');
+    if (!architect && (preferred === 'grok' || preferred === 'xai')) preferred = 'groq';
+    if (architect && (preferred === 'astranov' || preferred === 'cycle')) preferred = 'grok';
     const body = {
       text,
       prompt: text,
       level: 'global',
-      preferred_provider: opts.provider || this._provider,
+      preferred_provider: preferred,
       session_id: this._sessionId,
       source: 'astranov.eu-main',
       messages: history,
@@ -124,6 +134,7 @@ const AiRouter = {
       return {
         text: String(j.text || j.response || j.message || '').trim(),
         provider: j.provider || j.via || body.preferred_provider,
+        via: j.via || '',
         model: j.model || '',
         action: j.action || null,
         raw: j,

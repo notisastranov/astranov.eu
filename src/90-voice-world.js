@@ -641,7 +641,9 @@ function startVoiceOptions() {
   voiceEnabled = true;
   window._handsFreeVoice = true;
   setVoicePerfMode(true);
-  AciCoders?.enterSession?.({ focus: false, ping: false });
+  // Expand AI UI first — never fly/locate from mic start
+  GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+  AciCoders?.enterSession?.({ expand: true, focus: false, ping: false });
   openVoiceCli();
   _voiceDraft = '';
   _lastVoiceCommit = '';
@@ -656,6 +658,8 @@ function startVoiceOptions() {
   }
   AciCli?.print('🎧 listening — speak, pause ~1s, I reply in ribbon + voice', 'dim');
   ACIControl?.reply('Grok listening — speak now');
+  CliRibbon?.setNotice?.('Grok listening…', 'thinking');
+  GlobeDeck?.setPreview?.('🎧 Listening — pause ~1s to send');
   const input = document.getElementById('aci-cli-in');
   if (input) input.placeholder = '🎧 Grok listening — pause to send';
   AstranovSession?.push?.();
@@ -756,20 +760,43 @@ function placeMe(lat, lng, opts) {
   AstranovPresence?.onMove?.(lat, lng);
 }
 
+function _gpsDeniedUi(reason) {
+  const msg = reason || 'Location denied — enable GPS in browser settings to open your city map';
+  GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+  GlobeDeck?.showError?.(msg);
+  GlobeDeck?.setMapStatus?.(msg);
+  AciCli?.print(msg, 'err');
+  ACIControl?.reply(msg);
+  CliRibbon?.setNotice?.(msg.slice(0, 100), 'err');
+  // Trust rule: never silent-fly to Rhodes demo coords
+}
+
 function locateMe() {
   GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
   GlobeDeck?.setMapStatus('Locating your city…');
   GlobeControl?.engageFollow?.('locate');
-  ACIControl?.reply('Locating — national view first · pinch in for city map…');
+  ACIControl?.reply('Locating — need GPS for your city (no demo map)');
+  CliRibbon?.setNotice?.('Locating…', 'thinking');
   if (!navigator.geolocation) {
-    enterCityView?.(null, null, { openShops: false });
+    _gpsDeniedUi('This browser has no geolocation — cannot open your city');
     return;
   }
   if (CityLife?.locateAndDropIn) {
-    CityLife.locateAndDropIn().catch(() => {
-      ACIControl?.reply('GPS denied — opening Rhodes demo map · allow location for your city');
-      enterCityView?.(36.44, 28.22);
-    });
+    CityLife.locateAndDropIn()
+      .then((r) => {
+        if (r?.error) {
+          _gpsDeniedUi(r.message || r.error);
+          return;
+        }
+        CliRibbon?.setNotice?.('Located · city map', 'ready');
+      })
+      .catch((err) => {
+        _gpsDeniedUi(
+          err?.code === 1 || /denied/i.test(String(err?.message || err))
+            ? 'Location denied — enable GPS for this site, then tap 🎯 again'
+            : 'Location failed — check GPS / permissions, then tap 🎯 again'
+        );
+      });
     return;
   }
   navigator.geolocation.getCurrentPosition(
@@ -777,15 +804,16 @@ function locateMe() {
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
       await enterCityView?.(lat, lng);
+      CliRibbon?.setNotice?.('Located · city map', 'ready');
     },
     () => {
-      ACIControl?.reply('Location denied — enable GPS in browser');
-      enterCityView?.();
+      _gpsDeniedUi('Location denied — enable GPS in browser settings');
     },
     { enableHighAccuracy: true, timeout: 14000, maximumAge: 30000 }
   );
 }
 window.locateMe = locateMe;
+window._gpsDeniedUi = _gpsDeniedUi;
 
 function showOtherUsers() {
   AstranovPresence?.refresh?.();

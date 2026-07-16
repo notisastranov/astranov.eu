@@ -45,6 +45,22 @@ const AciCoders = {
     return !!(Auth?.isOwner || Auth?.isArchitect);
   },
 
+  /** Paid XAI_API_KEY path — only architect notisastranov@gmail.com after Google login */
+  isArchitect() {
+    const email = (Auth?.user?.email || '').toLowerCase();
+    return !!(Auth?.isArchitect || email === (Auth?.OWNER_EMAIL || 'notisastranov@gmail.com').toLowerCase());
+  },
+
+  /** Fallback prefs: architect forces paid xAI; everyone else free providers only */
+  paidXaiPrefs() {
+    if (this.isArchitect()) {
+      const p = { force: 'xai', skip: ['openrouter'] };
+      if (this.fallbackPrefs?.causeJudge) p.causeJudge = this.fallbackPrefs.causeJudge;
+      return p;
+    }
+    return { force: 'groq', skip: ['xai', 'grok'] };
+  },
+
   isExplicitRef(raw) {
     const s = String(raw || '').trim();
     return /^(coders|composer|cursor|summon\s+coders?)\b/i.test(s) || /^@coders\b/i.test(s);
@@ -216,20 +232,22 @@ const AciCoders = {
     this.startListening();
   },
 
-  /** Open live Coders chat — expanded CLI, mic ready, replies visible */
+  /** Open live Coders chat — expanded CLI, replies always visible in ribbon */
   async enterSession(opts = {}) {
     opts = opts || {};
     await this.autoStart();
     if (GlobeDeck) GlobeDeck.activeTask = 'coders';
-    if (opts.expand) {
-      GlobeDeck?.onUserMessage?.('Coders');
-      GlobeDeck?.expand?.('Coders');
+    // Default expand so replies are not hidden under collapsed deck
+    const doExpand = opts.expand !== false;
+    if (doExpand) {
+      GlobeDeck?.onUserMessage?.('Grok');
+      GlobeDeck?.expand?.('Grok');
     } else {
-      GlobeDeck?.setTitle?.('Coders');
-      GlobeDeck?.setPreview?.('Coders ready — type below');
-      CliRibbon?.setActive?.('Coders');
+      GlobeDeck?.setTitle?.('Grok');
+      GlobeDeck?.setPreview?.('Grok ready — type below');
     }
-    AppShortcuts?.track?.('coders', 'Coders');
+    CliRibbon?.setActive?.('Grok');
+    AppShortcuts?.track?.('coders', 'Grok');
     if (window.AciCli) AciCli.open = true;
 
     const input = document.getElementById('aci-cli-in');
@@ -241,10 +259,11 @@ const AciCoders = {
       }
     }
 
+    // Only auto-start mic when explicitly from voice / hands-free already on
     if (opts.fromVoice || window._handsFreeVoice || voiceSessionActive) {
-      if (!window._handsFreeVoice && typeof startVoiceOptions === 'function') {
+      if (!window._handsFreeVoice && opts.fromVoice && typeof startVoiceOptions === 'function') {
         startVoiceOptions();
-      } else {
+      } else if (window._handsFreeVoice || voiceSessionActive) {
         scheduleVoiceResume?.();
       }
     }
@@ -255,11 +274,13 @@ const AciCoders = {
       if (!this._sessionWelcomed) this._sessionWelcomed = true;
       const line = opts.ping
         ? 'Grok still here — keep talking (type or 🎧)'
-        : 'Talk straight to Grok — type or tap 🎧 and speak. I reply in ribbon + voice.';
+        : 'Grok here — type below or tap 🎧 to speak. Replies show in the ribbon.';
       AciCli?.print(line, 'ok');
       ACIControl?.reply(line.slice(0, 200));
+      CliRibbon?.setNotice?.(line.slice(0, 120), 'ready');
+      GlobeDeck?.setPreview?.(line.slice(0, 120));
       if (opts.fromVoice && window._handsFreeVoice && Voice?.maySpeak?.()) {
-        speak('Coders ready. Talk normally.', () => resumeListening?.(), false);
+        speak('Grok ready. Talk normally.', () => resumeListening?.(), false);
       }
     }
 
@@ -327,6 +348,12 @@ const AciCoders = {
 
   async executeOrder(task, raw, opts) {
     await this.autoStart();
+    if (!this.isArchitect()) {
+      const msg = 'Owner orders + paid Grok are for notisastranov@gmail.com only — sign in with Google as architect';
+      AciCli?.print(msg, 'err');
+      ACIControl?.reply(msg);
+      return { error: 'architect_only', text: msg };
+    }
     if (!(await this.ensureSession())) return { error: 'session expired' };
 
     const judge = this.parseCauseJudge(raw);
@@ -482,8 +509,14 @@ const AciCoders = {
 
     const prefix = r.explicit_order || r.order_executed ? 'ORDER: ' : '';
     const kind = r.error && !raw ? 'err' : 'reply';
-    AciCli?.print(prefix + reply, kind);
-    ACIControl?.reply(prefix + reply.slice(0, 260));
+    const shown = prefix + reply;
+    AciCli?.print(shown, kind);
+    ACIControl?.reply(shown.slice(0, 260));
+    // Always surface where users look (trust contract)
+    GlobeDeck?.expand?.('Grok');
+    GlobeDeck?.setPreview?.(shown.slice(0, 140));
+    CliRibbon?.setNotice?.(shown.slice(0, 120), kind === 'err' ? 'err' : 'ready');
+    CliRibbon?.setActive?.('Grok');
 
     const composerQueued = r.composer_queued || (r.pending && r.summon_id);
     if (composerQueued && AciCli) AciCli.print('Composer also queued #' + composerQueued, 'dim');
@@ -524,12 +557,10 @@ const AciCoders = {
   },
 
   isLocalGlobeCmd(m) {
+    // Strict match only — avoid voice noise triggering locate/zoom
     const s = String(m || '').trim();
-    return /^locate\s*(me|button)?$/i.test(s)
-      || /^zoom\s+to\s+me$/i.test(s)
-      || /^where\s+am\s+i\??$/i.test(s)
-      || /^find\s+me$/i.test(s)
-      || /^🎯|📍$/.test(s);
+    if (s.length > 48) return false;
+    return /^(locate(\s+me)?|zoom\s+to\s+me|where\s+am\s+i\??|find\s+me|locate\s+button|🎯|📍)$/i.test(s);
   },
 
   runLocalGlobeCmd(m) {
@@ -660,13 +691,17 @@ const AciCoders = {
 
   async queueCoder(task, engine) {
     if (!Auth?.user) return { error: 'sign in with G for build queue' };
+    // Build / paid Grok queue — architect only
+    if (!this.isArchitect() && (engine === 'composer' || this.isBuildTask(task))) {
+      return { error: 'architect_only', text: 'Build queue is owner-only — sign in as notisastranov@gmail.com' };
+    }
     const eng = engine || (this.wantsComposer(task) ? 'composer' : 'grok');
     const q = await AciCli.api({
       mode: 'coders',
       task: task,
       coder_engine: eng,
       history: this.history.slice(-6),
-      fallback_prefs: this.fallbackPrefs,
+      fallback_prefs: this.paidXaiPrefs(),
     });
     if (q.error && AciCli) AciCli.print('coders error: ' + q.error, 'err');
     if (q.summon_id) {
@@ -780,7 +815,8 @@ const AciCoders = {
         return this._applyResponse({ text: pingReply, via: 'local/ping' }, m);
       }
 
-      const grokPrefs = { ...this.fallbackPrefs, force: this.fallbackPrefs.force || 'xai' };
+      // Architect → paid XAI; guests → free Groq/Gemini/OpenRouter only
+      const grokPrefs = this.paidXaiPrefs();
       let r = await AciCli.api({
         mode: 'coders_chat',
         message: m,
@@ -792,18 +828,21 @@ const AciCoders = {
       let text = String(r.text || r.response || '').trim();
       if (this.isFailedReply(text)) text = '';
       if (r.error || !text) {
+        const fbPrefs = this.isArchitect()
+          ? { force: 'xai', skip: ['openrouter'] }
+          : { force: 'groq', skip: ['xai', 'grok'] };
         const fb = await AciCli.api({
           mode: 'coders',
           task: m,
           coder_engine: 'fallback',
           fallback: true,
-          fallback_prefs: { ...this.fallbackPrefs, force: 'groq' },
+          fallback_prefs: fbPrefs,
           history: this.history.slice(-4),
         }, { timeoutMs: 22000 });
         const fbText = String(fb.text || fb.response || '').trim();
         if (fbText && !this.isFailedReply(fbText)) {
           GlobeDeck?.setThinking(false);
-          return this._applyResponse({ ...fb, text: fbText, team: true }, m);
+          return this._applyResponse({ ...fb, text: fbText, team: true, via: fb.via || (this.isArchitect() ? 'grok/xai-owner' : 'coder/groq') }, m);
         }
         if (Auth?.user && build) {
           const q = await this.queueCoder(m, 'grok');

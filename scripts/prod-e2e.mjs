@@ -94,6 +94,70 @@ const SCENARIOS = [
       return r;
     },
   },
+  {
+    name: 'live click — + Super Add opens (no silent fail)',
+    run: async (page) => {
+      await page.waitForFunction(() => typeof SuperCli?.run === 'function', { timeout: 60000 });
+      await page.click('#super-add-fab');
+      await page.waitForTimeout(2500);
+      const r = await page.evaluate(() => {
+        const panel = document.getElementById('globe-super-add');
+        return {
+          open: panel?.classList.contains('open') || panel?.classList.contains('deck-active'),
+          deferred: !!window._deferredBootDone,
+          preview: document.getElementById('globe-deck-preview')?.textContent || '',
+          ribbon: document.getElementById('cli-ribbon-status')?.textContent || '',
+        };
+      });
+      // After deferred load, panel should open; stub path at least expands deck
+      const ok = r.open || /super add|camera|post/i.test(r.preview + r.ribbon);
+      if (!ok) throw new Error('+ did not open Super Add: ' + JSON.stringify(r));
+      return r;
+    },
+  },
+  {
+    name: 'live click — 🎧 opens AI without zoom',
+    run: async (page) => {
+      const before = await page.evaluate(() => camera?.position?.z);
+      await page.click('#aci-handsfree');
+      await page.waitForTimeout(2000);
+      const r = await page.evaluate((z0) => ({
+        camZ: camera?.position?.z,
+        camDelta: Math.abs((camera?.position?.z || 0) - (z0 || 0)),
+        expanded: !document.getElementById('globe-deck')?.classList.contains('collapsed')
+          || document.getElementById('globe-deck')?.classList.contains('size-third')
+          || document.getElementById('globe-deck')?.classList.contains('size-free'),
+        ribbon: document.getElementById('cli-ribbon-status')?.textContent || '',
+        preview: document.getElementById('globe-deck-preview')?.textContent || '',
+        placeholder: document.getElementById('aci-cli-in')?.placeholder || '',
+        handsFree: !!window._handsFreeVoice,
+      }), before);
+      // Must not fly away to city zoom from 🎧 alone
+      if (r.camZ != null && r.camZ < 1.5) throw new Error('🎧 zoomed to city: ' + JSON.stringify(r));
+      const blob = (r.ribbon + r.preview + r.placeholder).toLowerCase();
+      if (!/grok|listen|type|coders|ai|speak|ready/.test(blob) && !r.handsFree) {
+        throw new Error('🎧 did not open AI UI: ' + JSON.stringify(r));
+      }
+      return r;
+    },
+  },
+  {
+    name: 'live click — 🎯 Locate visible in toolbar',
+    run: async (page) => {
+      const r = await page.evaluate(() => {
+        const el = document.getElementById('aci-locate');
+        if (!el) return { ok: false, reason: 'missing' };
+        const st = getComputedStyle(el);
+        return {
+          ok: st.display !== 'none' && st.visibility !== 'hidden' && !el.hidden,
+          display: st.display,
+          hidden: el.hidden,
+        };
+      });
+      if (!r.ok) throw new Error('🎯 Locate not visible: ' + JSON.stringify(r));
+      return r;
+    },
+  },
 ];
 
 async function main() {

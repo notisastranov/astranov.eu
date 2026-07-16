@@ -16,6 +16,8 @@ const SuperAdd = {
   ],
 
   init() {
+    if (this._bound) return;
+    this._bound = true;
     document.getElementById('sa-close')?.addEventListener('click', () => this.hide());
     document.getElementById('sa-flip')?.addEventListener('click', () => this.flipCamera());
     document.getElementById('sa-record')?.addEventListener('click', () => this.toggleRecord());
@@ -32,20 +34,28 @@ const SuperAdd = {
         if (el) el.style.display = on ? 'block' : 'none';
       });
     });
-    document.getElementById('super-add-fab')?.addEventListener('click', e => {
-      e.preventDefault(); e.stopPropagation();
-      this.open();
-    });
+    // FAB also bound in SuperCli — keep both for deferred-load safety
+    const fab = document.getElementById('super-add-fab');
+    if (fab && !fab._superAddBound) {
+      fab._superAddBound = true;
+      fab.addEventListener('click', e => {
+        e.preventDefault(); e.stopPropagation();
+        this.open();
+      });
+    }
     this._syncChannelUi();
     this.loadPostsOnGlobe();
   },
 
   open() {
+    if (!this._bound) this.init();
     GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
     this.showPanel();
     this.startCamera();
     SuperCli?.setContext?.('add');
     AciCli?.print('▸ super add · camera', 'cmd');
+    CliRibbon?.setNotice?.('Super Add · camera', 'ready');
+    GlobeDeck?.setPreview?.('Super Add — record or post on the globe');
   },
 
   hide() {

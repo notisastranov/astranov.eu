@@ -171,7 +171,11 @@ window.Comms = {
 };
 window.NewsFeed = { flash() { return _defer('NewsFeed', 'flash'); } };
 window.AstranovNode = { launchBatch() { return _defer('AstranovNode', 'launchBatch'); } };
-window.SuperAdd = { open() { return _defer('SuperAdd', 'open'); } };
+window.SuperAdd = {
+  open() { return _defer('SuperAdd', 'open'); },
+  init() { return _defer('SuperAdd', 'init'); },
+  hide() { return _defer('SuperAdd', 'hide'); },
+};
 window.CliHub = { startPrivateCloud() { return _defer('CliHub', 'startPrivateCloud'); } };
 window.OrderTracking = {
   active: false,
