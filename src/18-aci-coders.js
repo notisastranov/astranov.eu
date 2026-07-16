@@ -698,11 +698,12 @@ const AciCoders = {
   formatHonestReply(r, userMsg) {
     const text = String(r.text || r.response || '').trim();
     if (!text) return '';
-    const id = r.summon_id || r.composer_queued;
+    const id = r.summon_id || r.composer_queued || r.bridge_id;
     if (id && this.isBuildTask(userMsg)) {
       const stripped = text.replace(/\b(done|fixed|implemented|completed|applied)\b/gi, '').trim();
+      const agent = r.bridge ? 'Grok Build (Architect Bridge)' : 'desktop agent';
       return (stripped ? stripped.slice(0, 280) + '\n\n' : '')
-        + 'Build queued #' + id + ' — Composer applies code. Say: coders poll ' + id;
+        + 'Build queued #' + id + ' — ' + agent + '. Stay in app; reply lands here. bridge poll ' + id;
     }
     return text;
   },
@@ -744,8 +745,13 @@ const AciCoders = {
       AciCli?.print(localFix, 'ok');
       ACIControl?.reply(localFix.slice(0, 260));
       if (Auth?.user && this.isBuildTask(m)) {
-        const q = await this.queueCoder(m, 'grok').catch(() => ({}));
-        if (q.summon_id) AciCli?.print('Also queued #' + q.summon_id + ' for Composer', 'dim');
+        if (this.isArchitect() && !this.wantsComposer(m)) {
+          const br = await ArchitectBridge?.queueBuildFromChat?.(m, { kind: 'fix' }).catch(() => null);
+          if (br?.summon_id) AciCli?.print('Also Bridge #' + br.summon_id + ' → Grok Build', 'dim');
+        } else {
+          const q = await this.queueCoder(m, 'grok').catch(() => ({}));
+          if (q.summon_id) AciCli?.print('Also queued #' + q.summon_id + ' for desktop agent', 'dim');
+        }
       }
       if (opts.fromVoice || window._handsFreeVoice) scheduleVoiceResume?.();
       return { ok: true, local: true, text: localFix };
@@ -815,6 +821,37 @@ const AciCoders = {
         return this._guaranteeReply(m, { text: msg, via: 'local/city' });
       }
 
+      // Architect + build: primary path is Architect Bridge → Grok Build desktop (in-app coding)
+      if (this.isArchitect() && build && !this.wantsComposer(m)) {
+        const br = await ArchitectBridge?.queueBuildFromChat?.(m, { kind: 'fix' }).catch(() => null);
+        if (br?.summon_id) {
+          // Still give a short Grok chat ack so phone feels live
+          let ack = '';
+          try {
+            const gr = await AciCli.api({
+              mode: 'coders_chat',
+              message: 'Confirm you queued this street fix for Grok Build (one short sentence): ' + m.slice(0, 400),
+              fast: true,
+              history: this.history.slice(-4),
+              fallback_prefs: this.freeTierPrefs(),
+            }, { timeoutMs: 18000 });
+            ack = String(gr.text || gr.response || '').trim();
+          } catch (_) { /* */ }
+          const text = (ack && !this.isFailedReply(ack) ? ack + '\n\n' : '')
+            + 'Bridge #' + br.summon_id + ' → Grok Build. Stay in the app — answer returns here.';
+          GlobeDeck?.setThinking(false);
+          return this._applyResponse({
+            text,
+            response: text,
+            summon_id: br.summon_id,
+            bridge: true,
+            bridge_id: br.summon_id,
+            via: 'architect_bridge',
+            team: true,
+          }, m);
+        }
+      }
+
       if (Auth?.user && this.wantsComposer(m) && build) {
         const q = await this.queueCoder(m, 'composer');
         GlobeDeck?.setThinking(false);
@@ -881,11 +918,24 @@ const AciCoders = {
       }
 
       if (Auth?.user && build && !r.summon_id) {
-        const q = await this.queueCoder(m, this.wantsComposer(m) ? 'composer' : 'grok');
-        if (q.summon_id) {
-          r.summon_id = q.summon_id;
-          r.composer_queued = q.composer_queued;
-          if (!r.text && q.text) { r.text = q.text; r.response = q.text; }
+        // Prefer Architect Bridge for architect (Grok Build); Composer only when forced
+        if (this.isArchitect() && !this.wantsComposer(m)) {
+          const br = await ArchitectBridge?.queueBuildFromChat?.(m, { kind: 'fix' }).catch(() => null);
+          if (br?.summon_id) {
+            r.summon_id = br.summon_id;
+            r.bridge = true;
+            r.bridge_id = br.summon_id;
+            const note = 'Bridge #' + br.summon_id + ' → Grok Build (desktop). Reply returns in this chat.';
+            r.text = (r.text ? r.text + '\n\n' : '') + note;
+            r.response = r.text;
+          }
+        } else {
+          const q = await this.queueCoder(m, this.wantsComposer(m) ? 'composer' : 'grok');
+          if (q.summon_id) {
+            r.summon_id = q.summon_id;
+            r.composer_queued = q.composer_queued;
+            if (!r.text && q.text) { r.text = q.text; r.response = q.text; }
+          }
         }
       }
 
