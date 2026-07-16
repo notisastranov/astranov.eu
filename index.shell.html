@@ -197,6 +197,8 @@
   #zoom-tier-dots { position:fixed; top:10px; right:10px; z-index:40; display:flex; flex-direction:column; gap:4px; pointer-events:none; font-family:var(--fhud,system-ui); }
   #zoom-tier-dots .ztd { width:5px; height:5px; border-radius:50%; background:rgba(0,200,255,0.22); box-shadow:0 0 4px rgba(0,200,255,0.15); transition:all 0.25s; }
   #zoom-tier-dots .ztd.on { background:#00c8ff; opacity:1; box-shadow:0 0 8px rgba(0,200,255,0.55); transform:scale(1.35); }
+  #zoom-tier-dots .ztd.ztd-solar { background:rgba(255,200,80,0.35); }
+  #zoom-tier-dots .ztd.ztd-solar.on { background:#ffcc44; box-shadow:0 0 10px rgba(255,200,80,0.65); }
   #aci-theme { background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); border-radius:50%; width:38px; height:38px; cursor:pointer; font-size:16px; flex-shrink:0; }
   [data-theme="bright"] #aci-bar, [data-theme="bright"] #globe-deck, [data-theme="bright"] #city-life-chip, [data-theme="bright"] #globe-entity-hud { filter:none; }
   [data-theme="bright"] #globe-deck { background:var(--ax-panel-strong); border-color:var(--ax-blue-border); color:var(--an-text); }
@@ -439,6 +441,22 @@
   #ge-hud-row { display:flex; gap:8px; }
   #ge-hud-action { flex:1; padding:10px; border:none; border-radius:10px; background:var(--ax-green-bg); border:1px solid var(--ax-green-border); color:#fff; font-weight:700; cursor:pointer; font-size:11px; box-shadow:0 0 8px var(--ax-green-glow); }
   #ge-hud-close { padding:10px 12px; border-radius:10px; border:1px solid #666; background:transparent; color:#aaa; cursor:pointer; font-size:11px; }
+  #ge-hud-place-menu { display:none; flex-direction:column; gap:8px; margin-top:4px; }
+  #ge-hud-place-menu.open { display:flex; }
+  #classified-triangles-primary { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  #classified-triangles-primary.ct-loading { opacity:0.55; pointer-events:none; }
+  .ct-tri { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; min-height:62px; padding:6px 4px; border-radius:10px; border:1px solid var(--ax-blue-border); background:rgba(0,18,36,0.72); cursor:pointer; font-size:10px; transition:border-color 0.15s, box-shadow 0.15s; }
+  .ct-tri:hover, .ct-tri:focus { border-color:var(--ax-green-border); box-shadow:0 0 10px var(--ax-green-glow); outline:none; }
+  .ct-tri .ct-icon { font-size:20px; line-height:1; }
+  .ct-tri .ct-lbl { font-size:9px; text-align:center; color:var(--an-muted); line-height:1.2; }
+  #ct-more-toggle { width:100%; padding:6px; border:none; border-radius:8px; background:transparent; color:var(--ax-blue-bright); font-size:10px; cursor:pointer; }
+  #classified-triangles-more { display:none; flex-direction:column; gap:4px; }
+  #classified-triangles-more.open { display:flex; }
+  #classified-triangles-more button { padding:8px 10px; border-radius:8px; border:1px solid rgba(80,120,160,0.35); background:rgba(0,12,24,0.65); color:var(--an-text); font-size:10px; cursor:pointer; text-align:left; }
+  #ge-hud-intent-row { display:flex; gap:6px; }
+  #ge-hud-intent { flex:1; padding:8px 10px; border-radius:10px; border:1px solid var(--ax-blue-border); background:rgba(0,8,18,0.85); color:var(--an-text); font-size:11px; }
+  #ge-hud-intent-go { padding:8px 12px; border-radius:10px; border:1px solid var(--ax-green-border); background:var(--ax-green-bg); color:#fff; font-weight:700; cursor:pointer; font-size:11px; }
+  #ge-hud-place-close { align-self:flex-end; padding:6px 10px; border-radius:8px; border:1px solid #666; background:transparent; color:#aaa; cursor:pointer; font-size:10px; }
   /* Astranov Identity modal */
   #astranov-auth-modal { display:none; position:fixed; inset:0; z-index:200; align-items:center; justify-content:center; background:rgba(0,4,12,0.82); backdrop-filter:blur(8px); pointer-events:auto; }
   #astranov-auth-modal.open { display:flex; }
@@ -699,6 +717,16 @@
     <div id="ge-hud-row">
       <button id="ge-hud-action" type="button">Open</button>
       <button id="ge-hud-close" type="button">✖</button>
+    </div>
+    <div id="ge-hud-place-menu">
+      <div id="classified-triangles-primary"></div>
+      <button type="button" id="ct-more-toggle" style="display:none">More options ▾</button>
+      <div id="classified-triangles-more"></div>
+      <div id="ge-hud-intent-row">
+        <input id="ge-hud-intent" type="text" placeholder="Type what you want to do…" autocomplete="off" />
+        <button type="button" id="ge-hud-intent-go" title="Classify intent">▸</button>
+      </div>
+      <button type="button" id="ge-hud-place-close">✖ Close</button>
     </div>
   </div>
   <div id="zoom-label">GLOBAL · drag Earth · 🎯 your city · 🎧 Grok · + post</div>

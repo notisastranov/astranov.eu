@@ -114,7 +114,7 @@ const SuperCli = {
       'aci-batch': () => this.run('batch'),
       'aci-vhf': () => this.run('vhf'),
       'aci-call': () => this.run('phone'),
-      'super-add-fab': () => this.run('add'),
+      'super-add-fab': () => MapPlaceMenu?.openPlusField?.() || this.run('add'),
     };
     Object.entries(actions).forEach(([id, fn]) => {
       const el = document.getElementById(id);

@@ -40,12 +40,34 @@ const CityMap = {
       e.preventDefault();
       const dir = e.deltaY > 0 ? 1 : -1;
       const curZ = this.map.getZoom();
+      if (dir > 0 && curZ <= 3) {
+        this._bridgeZoomOut(0.14);
+        return;
+      }
       this.map.setZoom(Math.max(3, Math.min(19, curZ + dir * 0.8)), { animate: true });
     }, { passive: false });
     this._bindMapGestures();
+    this._bindMapClick();
     this.map.on('moveend zoomend', () => {
       if (this.active) this._syncMarkers();
     });
+  },
+
+  _bindMapClick() {
+    if (!this.map || this.map._placeClickBound) return;
+    this.map._placeClickBound = true;
+    this.map.on('click', (e) => {
+      if (!this.active) return;
+      MapPlaceMenu?.openAt?.(e.latlng.lat, e.latlng.lng, {
+        source: 'City map',
+        hint: 'Post · explore · order — pick a triangle',
+        limited: true,
+      });
+    });
+  },
+
+  _bridgeZoomOut(amount) {
+    if (typeof zoomBy === 'function') zoomBy(amount || 0.12);
   },
 
   _bindMapGestures() {
@@ -69,6 +91,11 @@ const CityMap = {
       const delta = d - lastDist;
       lastDist = d;
       const cur = this.map.getZoom();
+      if (delta < 0 && cur <= 3.05) {
+        this._bridgeZoomOut(0.1);
+        e.preventDefault();
+        return;
+      }
       const nz = Math.max(3, Math.min(19, cur + (delta > 0 ? 0.03 : -0.03)));
       if (Math.abs(nz - cur) > 0.01) this.map.setZoom(nz, { animate: false });
       e.preventDefault();

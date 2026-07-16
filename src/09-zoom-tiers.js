@@ -51,11 +51,10 @@ const ZoomTiers = {
   updateDots() {
     const el = document.getElementById('zoom-tier-dots');
     if (!el) return;
-    const show = this.TIERS.filter(t => t.id !== 'solar');
-    el.innerHTML = show.map((t) => {
-      const i = this.TIERS.findIndex(x => x.id === t.id);
+    el.innerHTML = this.TIERS.map((t, i) => {
       const on = i === this._index ? ' on' : '';
-      return '<span class="ztd' + on + '" data-tier="' + t.id + '" title="' + t.label + '"></span>';
+      const solar = t.id === 'solar' ? ' ztd-solar' : '';
+      return '<span class="ztd' + on + solar + '" data-tier="' + t.id + '" title="' + t.label + '"></span>';
     }).join('');
   },
 
@@ -137,7 +136,7 @@ const ZoomTiers = {
     const zl = document.getElementById('zoom-label');
     if (zl && !window.DrivingView?.active && !CityMap?.active) {
       if (tier.id === 'solar') zl.textContent = 'SOLAR SYSTEM · planets · ISS';
-      else if (tier.id === 'global') zl.textContent = 'GLOBAL · ☀ day/night · pinch in';
+      else if (tier.id === 'global') zl.textContent = 'GLOBAL · ☀ day/night · pinch out for solar system';
       else if (tier.national) zl.textContent = tier.label + ' · ' + this.countryHint() + ' · pinch for city';
       else if (tier.city) zl.textContent = tier.label + ' · pinch for streets';
       else zl.textContent = tier.label;

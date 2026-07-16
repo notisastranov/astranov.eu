@@ -95,6 +95,7 @@ CityMap.init();
 CityLife.init();
 EarthRealism.init();
 GlobeEntity.init();
+ClassifiedTriangles.init();
 AiRouter.init();
 
 LazyModules.schedule();

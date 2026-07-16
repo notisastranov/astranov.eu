@@ -310,7 +310,7 @@ const CosmicZoom = {
     }
     let level = opts.cosmic === 'system' ? 'system' : opts.cosmic === 'galaxy' ? 'galaxy' : 'earth';
     let label = opts.label || 'GLOBAL';
-    if (window._bootEarthLock && camZ < 6) {
+    if (window._bootEarthLock && camZ < 6 && opts.cosmic !== 'system' && opts.cosmic !== 'galaxy') {
       level = 'earth';
       label = opts.label || 'GLOBAL';
     } else if (!opts.tier) {

@@ -34,7 +34,7 @@ const GlobeEntity = {
   init() {
     this._labelRoot = document.getElementById('globe-entity-labels');
     this._hud = document.getElementById('globe-entity-hud');
-    document.getElementById('ge-hud-close')?.addEventListener('click', () => this.clearSelection());
+    document.getElementById('ge-hud-close')?.addEventListener('click', () => MapPlaceMenu?.close?.() || this.clearSelection());
     document.getElementById('ge-hud-action')?.addEventListener('click', () => this._runSelectedAction());
   },
 
@@ -231,6 +231,7 @@ const GlobeEntity = {
     this._selected = entity.id;
     const hud = this._hud;
     if (!hud) return;
+    MapPlaceMenu?._showPlaceMenu?.(false);
     hud.classList.add('open');
     document.getElementById('ge-hud-type').textContent = (entity.icon || '') + ' ' + (this.TYPES[entity.type]?.label || entity.type);
     document.getElementById('ge-hud-title').textContent = entity.title;

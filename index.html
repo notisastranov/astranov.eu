@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260716102847" />
+<meta name="astranov-build" content="20260716103727" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
@@ -197,6 +197,8 @@
   #zoom-tier-dots { position:fixed; top:10px; right:10px; z-index:40; display:flex; flex-direction:column; gap:4px; pointer-events:none; font-family:var(--fhud,system-ui); }
   #zoom-tier-dots .ztd { width:5px; height:5px; border-radius:50%; background:rgba(0,200,255,0.22); box-shadow:0 0 4px rgba(0,200,255,0.15); transition:all 0.25s; }
   #zoom-tier-dots .ztd.on { background:#00c8ff; opacity:1; box-shadow:0 0 8px rgba(0,200,255,0.55); transform:scale(1.35); }
+  #zoom-tier-dots .ztd.ztd-solar { background:rgba(255,200,80,0.35); }
+  #zoom-tier-dots .ztd.ztd-solar.on { background:#ffcc44; box-shadow:0 0 10px rgba(255,200,80,0.65); }
   #aci-theme { background:var(--ax-blue-bg); border:1px solid var(--ax-blue-border); color:var(--ax-blue-bright); border-radius:50%; width:38px; height:38px; cursor:pointer; font-size:16px; flex-shrink:0; }
   [data-theme="bright"] #aci-bar, [data-theme="bright"] #globe-deck, [data-theme="bright"] #city-life-chip, [data-theme="bright"] #globe-entity-hud { filter:none; }
   [data-theme="bright"] #globe-deck { background:var(--ax-panel-strong); border-color:var(--ax-blue-border); color:var(--an-text); }
@@ -439,6 +441,22 @@
   #ge-hud-row { display:flex; gap:8px; }
   #ge-hud-action { flex:1; padding:10px; border:none; border-radius:10px; background:var(--ax-green-bg); border:1px solid var(--ax-green-border); color:#fff; font-weight:700; cursor:pointer; font-size:11px; box-shadow:0 0 8px var(--ax-green-glow); }
   #ge-hud-close { padding:10px 12px; border-radius:10px; border:1px solid #666; background:transparent; color:#aaa; cursor:pointer; font-size:11px; }
+  #ge-hud-place-menu { display:none; flex-direction:column; gap:8px; margin-top:4px; }
+  #ge-hud-place-menu.open { display:flex; }
+  #classified-triangles-primary { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  #classified-triangles-primary.ct-loading { opacity:0.55; pointer-events:none; }
+  .ct-tri { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; min-height:62px; padding:6px 4px; border-radius:10px; border:1px solid var(--ax-blue-border); background:rgba(0,18,36,0.72); cursor:pointer; font-size:10px; transition:border-color 0.15s, box-shadow 0.15s; }
+  .ct-tri:hover, .ct-tri:focus { border-color:var(--ax-green-border); box-shadow:0 0 10px var(--ax-green-glow); outline:none; }
+  .ct-tri .ct-icon { font-size:20px; line-height:1; }
+  .ct-tri .ct-lbl { font-size:9px; text-align:center; color:var(--an-muted); line-height:1.2; }
+  #ct-more-toggle { width:100%; padding:6px; border:none; border-radius:8px; background:transparent; color:var(--ax-blue-bright); font-size:10px; cursor:pointer; }
+  #classified-triangles-more { display:none; flex-direction:column; gap:4px; }
+  #classified-triangles-more.open { display:flex; }
+  #classified-triangles-more button { padding:8px 10px; border-radius:8px; border:1px solid rgba(80,120,160,0.35); background:rgba(0,12,24,0.65); color:var(--an-text); font-size:10px; cursor:pointer; text-align:left; }
+  #ge-hud-intent-row { display:flex; gap:6px; }
+  #ge-hud-intent { flex:1; padding:8px 10px; border-radius:10px; border:1px solid var(--ax-blue-border); background:rgba(0,8,18,0.85); color:var(--an-text); font-size:11px; }
+  #ge-hud-intent-go { padding:8px 12px; border-radius:10px; border:1px solid var(--ax-green-border); background:var(--ax-green-bg); color:#fff; font-weight:700; cursor:pointer; font-size:11px; }
+  #ge-hud-place-close { align-self:flex-end; padding:6px 10px; border-radius:8px; border:1px solid #666; background:transparent; color:#aaa; cursor:pointer; font-size:10px; }
   /* Astranov Identity modal */
   #astranov-auth-modal { display:none; position:fixed; inset:0; z-index:200; align-items:center; justify-content:center; background:rgba(0,4,12,0.82); backdrop-filter:blur(8px); pointer-events:auto; }
   #astranov-auth-modal.open { display:flex; }
@@ -699,6 +717,16 @@
     <div id="ge-hud-row">
       <button id="ge-hud-action" type="button">Open</button>
       <button id="ge-hud-close" type="button">✖</button>
+    </div>
+    <div id="ge-hud-place-menu">
+      <div id="classified-triangles-primary"></div>
+      <button type="button" id="ct-more-toggle" style="display:none">More options ▾</button>
+      <div id="classified-triangles-more"></div>
+      <div id="ge-hud-intent-row">
+        <input id="ge-hud-intent" type="text" placeholder="Type what you want to do…" autocomplete="off" />
+        <button type="button" id="ge-hud-intent-go" title="Classify intent">▸</button>
+      </div>
+      <button type="button" id="ge-hud-place-close">✖ Close</button>
     </div>
   </div>
   <div id="zoom-label">GLOBAL · drag Earth · 🎯 your city · 🎧 Grok · + post</div>
@@ -5100,7 +5128,7 @@ const SuperCli = {
       'aci-batch': () => this.run('batch'),
       'aci-vhf': () => this.run('vhf'),
       'aci-call': () => this.run('phone'),
-      'super-add-fab': () => this.run('add'),
+      'super-add-fab': () => MapPlaceMenu?.openPlusField?.() || this.run('add'),
     };
     Object.entries(actions).forEach(([id, fn]) => {
       const el = document.getElementById(id);
@@ -7037,7 +7065,7 @@ const GlobeEntity = {
   init() {
     this._labelRoot = document.getElementById('globe-entity-labels');
     this._hud = document.getElementById('globe-entity-hud');
-    document.getElementById('ge-hud-close')?.addEventListener('click', () => this.clearSelection());
+    document.getElementById('ge-hud-close')?.addEventListener('click', () => MapPlaceMenu?.close?.() || this.clearSelection());
     document.getElementById('ge-hud-action')?.addEventListener('click', () => this._runSelectedAction());
   },
 
@@ -7234,6 +7262,7 @@ const GlobeEntity = {
     this._selected = entity.id;
     const hud = this._hud;
     if (!hud) return;
+    MapPlaceMenu?._showPlaceMenu?.(false);
     hud.classList.add('open');
     document.getElementById('ge-hud-type').textContent = (entity.icon || '') + ' ' + (this.TYPES[entity.type]?.label || entity.type);
     document.getElementById('ge-hud-title').textContent = entity.title;
@@ -7743,6 +7772,453 @@ const GlobeEntity = {
 };
 window.GlobeEntity = GlobeEntity;
 
+// === CLASSIFIED TRIANGLES — top 3 AI-classified actions, then more options ===
+const ClassifiedTriangles = {
+  CATALOG: [
+    { id: 'list_shop', label: 'List my shop', icon: '🏬', keywords: ['shop', 'store', 'menu', 'my shop', 'cafe', 'restaurant', 'bakery'] },
+    { id: 'list_vendor', label: 'List vendor', icon: '🏪', keywords: ['vendor', 'supplier', 'wholesale', 'list vendor', 'seller'] },
+    { id: 'driver_base', label: 'Driver base', icon: '🚚', keywords: ['driver', 'delivery', 'fleet', 'courier', 'base', 'dispatch'] },
+    { id: 'post', label: 'Post something', icon: '📝', keywords: ['post', 'share', 'announce', 'publish', 'status'] },
+    { id: 'upload_photo', label: 'Upload photo', icon: '📷', keywords: ['photo', 'picture', 'image', 'snap', 'pic'] },
+    { id: 'upload_video', label: 'Upload video', icon: '🎬', keywords: ['video', 'record', 'film', 'clip', 'reel'] },
+    { id: 'deliver_here', label: 'Deliver here', icon: '📦', keywords: ['deliver', 'delivery address', 'ship here', 'drop off'] },
+    { id: 'drive_here', label: 'Drive here', icon: '🚗', keywords: ['drive', 'navigate', 'go here', 'take me'] },
+    { id: 'route', label: 'Show route', icon: '🛣', keywords: ['route', 'directions', 'path', 'roads'] },
+    { id: 'explore', label: 'Shops nearby', icon: '🔍', keywords: ['nearby', 'explore', 'find shops', 'around', 'local'] },
+    { id: 'order', label: 'Order here', icon: '🛒', keywords: ['order', 'buy', 'purchase', 'food'] },
+  ],
+
+  DEFAULT_TOP: ['list_shop', 'list_vendor', 'driver_base'],
+
+  init() {
+    document.getElementById('ge-hud-intent-go')?.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      void this.onIntentSubmit();
+    });
+    document.getElementById('ge-hud-intent')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); void this.onIntentSubmit(); }
+    });
+    document.getElementById('ct-more-toggle')?.addEventListener('click', e => {
+      e.preventDefault();
+      const more = document.getElementById('classified-triangles-more');
+      const btn = document.getElementById('ct-more-toggle');
+      if (!more || !btn) return;
+      const open = more.classList.toggle('open');
+      btn.textContent = open ? 'Fewer options ▴' : 'More options ▾';
+    });
+    document.getElementById('ge-hud-place-close')?.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      MapPlaceMenu?.close?.();
+    });
+  },
+
+  defaultTop3() {
+    return this.DEFAULT_TOP.map(id => this.CATALOG.find(c => c.id === id)).filter(Boolean);
+  },
+
+  defaultMore() {
+    return this.CATALOG.filter(c => !this.DEFAULT_TOP.includes(c.id));
+  },
+
+  scoreLocal(text) {
+    const t = String(text || '').toLowerCase();
+    const scored = this.CATALOG.map(item => {
+      let s = 0;
+      for (const kw of item.keywords) {
+        if (t.includes(kw)) s += kw.length + 2;
+      }
+      return { ...item, score: s };
+    }).filter(x => x.score > 0).sort((a, b) => b.score - a.score);
+    if (!scored.length) return this.defaultTop3().concat(this.defaultMore());
+    const rest = this.CATALOG.filter(c => !scored.find(s => s.id === c.id));
+    return scored.concat(rest);
+  },
+
+  async onIntentSubmit() {
+    const input = document.getElementById('ge-hud-intent');
+    const text = input?.value?.trim() || '';
+    const pin = MapPlaceMenu?._pin;
+    const primary = document.getElementById('classified-triangles-primary');
+    if (primary) primary.classList.add('ct-loading');
+    const result = await SpaceNetBrain?.classifyIntent?.(text, {
+      lat: pin?.lat,
+      lng: pin?.lng,
+      pin,
+      radiusKm: 2,
+    });
+    if (primary) primary.classList.remove('ct-loading');
+    if (result) this.render(result.primary, result.more, pin);
+    const desc = document.getElementById('ge-hud-desc');
+    if (desc) {
+      desc.textContent = text
+        ? '▸ ' + text
+        : 'Pick a triangle — or type what you want to do';
+    }
+    AciCli?.print?.('triangles · ' + (text || 'default top 3'), 'ok');
+  },
+
+  _contextTop3(pin) {
+    const tier = ZoomTiers?.current?.();
+    if (tier?.city || CityMap?.active) {
+      return [
+        this.CATALOG.find(c => c.id === 'order'),
+        this.CATALOG.find(c => c.id === 'deliver_here'),
+        this.CATALOG.find(c => c.id === 'explore'),
+      ].filter(Boolean);
+    }
+    if (tier?.national) {
+      return [
+        this.CATALOG.find(c => c.id === 'explore'),
+        this.CATALOG.find(c => c.id === 'list_shop'),
+        this.CATALOG.find(c => c.id === 'drive_here'),
+      ].filter(Boolean);
+    }
+    return this.defaultTop3();
+  },
+
+  render(primary, more, pin, opts) {
+    opts = opts || {};
+    const tri = document.getElementById('classified-triangles-primary');
+    const moreEl = document.getElementById('classified-triangles-more');
+    const toggle = document.getElementById('ct-more-toggle');
+    if (!tri) return;
+    const limited = !!opts.limited || !!pin?.limited;
+    const top = (primary || (limited ? this._contextTop3(pin) : this.defaultTop3())).slice(0, 3);
+    tri.innerHTML = top.map(item =>
+      '<button type="button" class="ct-tri ct-top" data-ct-id="' + item.id + '" title="' + item.label + '">'
+      + '<span class="ct-icon">' + item.icon + '</span><span class="ct-lbl">' + item.label + '</span></button>'
+    ).join('');
+    tri.querySelectorAll('[data-ct-id]').forEach(btn => {
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.runAction(btn.dataset.ctId, pin);
+      };
+    });
+    const extras = limited ? [] : (more || this.defaultMore()).slice(0, 5);
+    if (moreEl) {
+      moreEl.innerHTML = extras.map(item =>
+        '<button type="button" data-ct-id="' + item.id + '">' + item.icon + ' ' + item.label + '</button>'
+      ).join('');
+      moreEl.querySelectorAll('[data-ct-id]').forEach(btn => {
+        btn.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.runAction(btn.dataset.ctId, pin);
+        };
+      });
+      moreEl.classList.remove('open');
+    }
+    if (toggle) {
+      toggle.style.display = (!limited && extras.length) ? 'block' : 'none';
+      toggle.textContent = 'More options ▾';
+    }
+  },
+
+  runAction(actionId, pin) {
+    const map = {
+      list_shop: 'shop',
+      list_vendor: 'shop',
+      driver_base: 'driver_base',
+      deliver_here: 'client_addr',
+      drive_here: 'drive',
+      route: 'route',
+      explore: 'explore',
+      order: 'order',
+      post: 'post',
+      upload_photo: 'upload_photo',
+      upload_video: 'upload_video',
+    };
+    const act = map[actionId] || actionId;
+    if (act === 'post' || act === 'upload_photo' || act === 'upload_video') {
+      MapPlaceMenu?._runMedia?.(act, pin);
+      return;
+    }
+    MapPlaceMenu?._run?.(act);
+  },
+};
+window.ClassifiedTriangles = ClassifiedTriangles;
+
+// === MAP PLACE MENU — tap globe/map · plus field · classified triangles ===
+const MapPlaceMenu = {
+  _pin: null,
+
+  formatCoords(lat, lng) {
+    return Number(lat).toFixed(4) + ', ' + Number(lng).toFixed(4);
+  },
+
+  pointFromGlobeHit(point) {
+    const dir = point.clone().normalize();
+    const lat = 90 - Math.acos(Math.max(-1, Math.min(1, dir.y))) * 180 / Math.PI;
+    let lng = Math.atan2(dir.z, -dir.x) * 180 / Math.PI - 180;
+    if (lng > 180) lng -= 360;
+    if (lng < -180) lng += 360;
+    return { lat, lng };
+  },
+
+  openPlusField() {
+    const pos = window._lastPos || CityMap?.globeCenterLatLng?.() || TrackballGuard?.facingLatLng?.() || { lat: 36.44, lng: 28.22 };
+    this.openAt(pos.lat, pos.lng, { source: 'Plus field', hint: 'Type what you want to do — AI shows top 3', focusIntent: true });
+  },
+
+  _showPlaceMenu(show) {
+    const place = document.getElementById('ge-hud-place-menu');
+    const entityRow = document.getElementById('ge-hud-row');
+    if (place) place.classList.toggle('open', !!show);
+    if (entityRow) entityRow.style.display = show ? 'none' : '';
+  },
+
+  openAt(lat, lng, opts) {
+    opts = opts || {};
+    if (lat == null || lng == null) return;
+    window._globeFly = null;
+    GlobeEntity?.clearSelection?.();
+    this._pin = { lat, lng, entity: opts.entity || null, limited: !!opts.limited };
+    const hud = document.getElementById('globe-entity-hud');
+    if (!hud) return;
+    hud.classList.add('open');
+    this._showPlaceMenu(true);
+    document.getElementById('ge-hud-type').textContent = '▸ ' + (opts.source || 'Map');
+    document.getElementById('ge-hud-title').textContent = opts.label || this.formatCoords(lat, lng);
+    document.getElementById('ge-hud-desc').textContent = opts.hint || 'Type what you want to do — top 3 triangle options';
+    const intent = document.getElementById('ge-hud-intent');
+    if (intent) {
+      intent.value = opts.prefill || '';
+      if (opts.focusIntent) setTimeout(() => intent.focus(), 80);
+    }
+    const limited = !!opts.limited;
+    const ranked = limited
+      ? ClassifiedTriangles._contextTop3(this._pin)
+      : ClassifiedTriangles.defaultTop3().concat(ClassifiedTriangles.defaultMore());
+    if (opts?.entity?.type === 'vendor') {
+      const order = ClassifiedTriangles.CATALOG.find(c => c.id === 'order');
+      if (order && !limited) ranked.unshift(order);
+    }
+    ClassifiedTriangles.render(ranked.slice(0, 3), limited ? [] : ranked.slice(3), this._pin, { limited });
+    void SpaceNetBrain?.crawlArea?.(lat, lng, 2);
+    MapDepict?.pulse?.(lat, lng, 0x00ddff, opts.label || 'here', 8000);
+    GlobeDeck?.setPreview?.('▸ Plus field · ' + (opts.label || this.formatCoords(lat, lng)));
+    AciCli?.print?.('▸ plus field · ' + (opts.label || this.formatCoords(lat, lng)), 'map');
+  },
+
+  close() {
+    this._pin = null;
+    document.getElementById('globe-entity-hud')?.classList.remove('open');
+    this._showPlaceMenu(false);
+    const intent = document.getElementById('ge-hud-intent');
+    if (intent) intent.value = '';
+    document.getElementById('classified-triangles-more')?.classList.remove('open');
+    GlobeEntity?.clearSelection?.();
+  },
+
+  _runMedia(action, pin) {
+    const p = pin || this._pin;
+    if (p) window._pendingShopLatLng = { lat: p.lat, lng: p.lng };
+    const go = async () => {
+      await LazyModules.ensure();
+      SuperAdd?.open?.();
+      if (action === 'upload_photo') {
+        ACIControl?.reply?.('Super Add · snap or upload photo for this place');
+      } else if (action === 'upload_video') {
+        ACIControl?.reply?.('Super Add · record video for this place');
+      } else {
+        ACIControl?.reply?.('Super Add · post at this location');
+      }
+    };
+    void go();
+    this.close();
+  },
+
+  _run(action) {
+    const p = this._pin;
+    if (!p) return;
+    const lat = p.lat;
+    const lng = p.lng;
+    if (action === 'drive' || action === 'route') {
+      const go = async () => {
+        await LazyModules.ensure();
+        DrivingView?.setDestination?.(lat, lng);
+        DrivingView?.activate?.();
+      };
+      void go();
+      this.close();
+      return;
+    }
+    if (action === 'client_addr') {
+      const go = async () => {
+        await LazyModules.ensure();
+        if (!Auth?.user) {
+          Auth?.openLoginModal?.('Sign in to set delivery address');
+          return;
+        }
+        if (window.MapPins?.setClientDelivery) {
+          MapPins.setClientDelivery(lat, lng, 'Deliver to ' + this.formatCoords(lat, lng));
+        } else {
+          window._clientDelivery = { lat, lng, label: 'Deliver to ' + this.formatCoords(lat, lng) };
+          try { localStorage.setItem('astranov_client_delivery', JSON.stringify(window._clientDelivery)); } catch (_) {}
+          ACIControl?.reply?.('Delivery address set · ' + this.formatCoords(lat, lng));
+        }
+      };
+      void go();
+      this.close();
+      return;
+    }
+    if (action === 'driver_base') {
+      const go = async () => {
+        await LazyModules.ensure();
+        if (!Auth?.user) {
+          Auth?.openLoginModal?.('Sign in to set driver base');
+          return;
+        }
+        if (window.MapPins?.setDriverBase) {
+          await MapPins.setDriverBase(lat, lng, 'Driver base · ' + this.formatCoords(lat, lng));
+        } else {
+          window._driverBase = { lat, lng, label: 'Driver base · ' + this.formatCoords(lat, lng) };
+          try { localStorage.setItem('astranov_driver_base', JSON.stringify(window._driverBase)); } catch (_) {}
+          ACIControl?.reply?.('Driver base set · ' + this.formatCoords(lat, lng));
+        }
+      };
+      void go();
+      this.close();
+      return;
+    }
+    if (action === 'shop') {
+      window._pendingShopLatLng = { lat, lng };
+      const go = async () => {
+        await LazyModules.ensure();
+        if (!Auth?.user) {
+          Auth?.openLoginModal?.('Sign in to set up your shop profile');
+          return;
+        }
+        await ProfileSite?.openShopEditor?.(lat, lng);
+      };
+      void go();
+      MapDepict?.pulse?.(lat, lng, 0xff8844, 'new shop', 8000);
+      ACIControl?.reply?.('Shop editor — logo, menu photos & prices');
+      AppShortcuts?.track?.('add', 'Shop');
+      this.close();
+      return;
+    }
+    if (action === 'order') {
+      const v = p.entity?.data?.vendor;
+      const go = async () => {
+        await LazyModules.ensure();
+        if (v) window.Commerce?.openVendor?.(v);
+        else window.Commerce?.showPicker?.();
+      };
+      void go();
+      this.close();
+      return;
+    }
+    if (action === 'explore') {
+      window._lastPos = { lat, lng };
+      const go = async () => {
+        await LazyModules.ensure();
+        await window.Commerce?.loadVendors?.();
+        window.Commerce?.showPicker?.();
+      };
+      void go();
+      MapDepict?.action?.('vendor', { lat, lng, detail: 'shops near here' });
+      this.close();
+      return;
+    }
+    if (action === 'zoom') {
+      const pt = latLngToPos(lat, lng, 1.04);
+      flyToPoint?.(new THREE.Vector3(pt.x, pt.y, pt.z), GlobeControl?.Z?.national || 1.82, { dur: 1100 });
+      GlobeControl?.noteAutoFly?.();
+      this.close();
+    }
+  },
+};
+window.MapPlaceMenu = MapPlaceMenu;
+
+// === SPACENET BRAIN — local + AI intent classification for place menu ===
+const SpaceNetBrain = {
+  _crawlBusy: new Set(),
+  _lastClassify: null,
+
+  ACTION_IDS: ['list_vendor', 'list_shop', 'driver_base', 'post', 'upload_photo', 'upload_video', 'deliver_here', 'drive_here', 'route', 'explore', 'order'],
+
+  async classifyIntent(text, ctx) {
+    ctx = ctx || {};
+    const trimmed = String(text || '').trim();
+    if (!trimmed) {
+      return {
+        primary: ClassifiedTriangles.defaultTop3(),
+        more: ClassifiedTriangles.defaultMore(),
+        source: 'default',
+      };
+    }
+
+    const local = ClassifiedTriangles.scoreLocal(trimmed);
+    const primary = local.slice(0, 3);
+    const more = local.slice(3);
+
+    void this._refineWithAi(trimmed, ctx, local);
+
+    if (ctx.lat != null && ctx.lng != null) {
+      void this.crawlArea(ctx.lat, ctx.lng, ctx.radiusKm || 2);
+    }
+
+    this._lastClassify = { text: trimmed, primary, more, at: Date.now() };
+    return { primary, more, source: 'local' };
+  },
+
+  async _refineWithAi(text, ctx, localHints) {
+    const ids = this.ACTION_IDS.join(', ');
+    const prompt = 'SpaceNet place intent at ' + (ctx.lat?.toFixed?.(4) || '?') + ',' + (ctx.lng?.toFixed?.(4) || '?')
+      + ': "' + text + '". Reply with ONLY a JSON array of action ids (max 6) from: ' + ids
+      + '. First 3 = most common for this intent.';
+    const r = await AiRouter?.ask?.(prompt, { timeoutMs: 14000 });
+    const raw = String(r?.text || r?.raw?.text || '').trim();
+    const parsed = this._parseActionIds(raw);
+    if (!parsed.length) return;
+    const catalog = ClassifiedTriangles.CATALOG;
+    const ordered = parsed.map(id => catalog.find(c => c.id === id)).filter(Boolean);
+    const rest = catalog.filter(c => !ordered.find(o => o.id === c.id));
+    const full = ordered.concat(rest);
+    ClassifiedTriangles.render(full.slice(0, 3), full.slice(3), ctx.pin);
+    this._lastClassify = { text, primary: full.slice(0, 3), more: full.slice(3), source: 'ai' };
+  },
+
+  _parseActionIds(raw) {
+    try {
+      const m = raw.match(/\[[\s\S]*?\]/);
+      if (m) {
+        const arr = JSON.parse(m[0]);
+        if (Array.isArray(arr)) return arr.map(String).filter(id => this.ACTION_IDS.includes(id));
+      }
+    } catch (_) {}
+    const found = [];
+    for (const id of this.ACTION_IDS) {
+      if (new RegExp(id.replace(/_/g, '[\\s_-]+'), 'i').test(raw)) found.push(id);
+    }
+    return found;
+  },
+
+  async crawlArea(lat, lng, radiusKm) {
+    const key = lat.toFixed(3) + ',' + lng.toFixed(3);
+    if (this._crawlBusy.has(key)) return;
+    this._crawlBusy.add(key);
+    try {
+      const h = { 'Content-Type': 'application/json' };
+      if (typeof SB_KEY !== 'undefined') h.apikey = SB_KEY;
+      if (Auth?.session?.access_token) h.Authorization = 'Bearer ' + Auth.session.access_token;
+      else if (typeof SB_KEY !== 'undefined') h.Authorization = 'Bearer ' + SB_KEY;
+      await fetch((typeof SB_URL !== 'undefined' ? SB_URL : '') + '/functions/v1/vendor-crawler', {
+        method: 'POST',
+        headers: h,
+        body: JSON.stringify({ lat, lng, radius_km: radiusKm || 2, source: 'spacenet-brain' }),
+      });
+      AciCli?.print?.('crawler · sector ' + key, 'dim');
+    } catch (_) {}
+    setTimeout(() => this._crawlBusy.delete(key), 120000);
+  },
+};
+window.SpaceNetBrain = SpaceNetBrain;
+
 // ── COSMIC ZOOM: Earth → satellites → solar system → galaxy ──
 const CosmicZoom = {
   level: 'earth',
@@ -8055,7 +8531,7 @@ const CosmicZoom = {
     }
     let level = opts.cosmic === 'system' ? 'system' : opts.cosmic === 'galaxy' ? 'galaxy' : 'earth';
     let label = opts.label || 'GLOBAL';
-    if (window._bootEarthLock && camZ < 6) {
+    if (window._bootEarthLock && camZ < 6 && opts.cosmic !== 'system' && opts.cosmic !== 'galaxy') {
       level = 'earth';
       label = opts.label || 'GLOBAL';
     } else if (!opts.tier) {
@@ -8342,11 +8818,10 @@ const ZoomTiers = {
   updateDots() {
     const el = document.getElementById('zoom-tier-dots');
     if (!el) return;
-    const show = this.TIERS.filter(t => t.id !== 'solar');
-    el.innerHTML = show.map((t) => {
-      const i = this.TIERS.findIndex(x => x.id === t.id);
+    el.innerHTML = this.TIERS.map((t, i) => {
       const on = i === this._index ? ' on' : '';
-      return '<span class="ztd' + on + '" data-tier="' + t.id + '" title="' + t.label + '"></span>';
+      const solar = t.id === 'solar' ? ' ztd-solar' : '';
+      return '<span class="ztd' + on + solar + '" data-tier="' + t.id + '" title="' + t.label + '"></span>';
     }).join('');
   },
 
@@ -8428,7 +8903,7 @@ const ZoomTiers = {
     const zl = document.getElementById('zoom-label');
     if (zl && !window.DrivingView?.active && !CityMap?.active) {
       if (tier.id === 'solar') zl.textContent = 'SOLAR SYSTEM · planets · ISS';
-      else if (tier.id === 'global') zl.textContent = 'GLOBAL · ☀ day/night · pinch in';
+      else if (tier.id === 'global') zl.textContent = 'GLOBAL · ☀ day/night · pinch out for solar system';
       else if (tier.national) zl.textContent = tier.label + ' · ' + this.countryHint() + ' · pinch for city';
       else if (tier.city) zl.textContent = tier.label + ' · pinch for streets';
       else zl.textContent = tier.label;
@@ -8713,6 +9188,21 @@ function onGlobeClick(e) {
 
   const intersects = raycaster.intersectObject(earth);
   if (intersects.length > 0) {
+    const pin = MapPlaceMenu?.pointFromGlobeHit?.(intersects[0].point);
+    if (!pin) return;
+    if (CityMap?.active || cityLevel || ZoomTiers?.current?.()?.city) {
+      MapPlaceMenu?.openAt?.(pin.lat, pin.lng, {
+        source: 'City map',
+        hint: 'Post · explore · order — pick a triangle',
+        limited: true,
+      });
+      return;
+    }
+    const tier = ZoomTiers?.current?.();
+    if (tier?.id === 'solar' || tier?.id === 'global') {
+      MapPlaceMenu?.openAt?.(pin.lat, pin.lng, { source: 'Globe', hint: 'Add · explore · drive — top 3 picks' });
+      return;
+    }
     const nationalZ = ZoomTiers?.tierZ?.('national') || 1.82;
     ZoomTiers?.goTo?.('national', true);
     if (userLocated && window._lastPos) {
@@ -8724,6 +9214,7 @@ function onGlobeClick(e) {
       MapDepict.action('explore', { detail: 'national · tap 🎯 for your city' });
       GlobeDeck?.setPreview?.('National view — tap 🎯 Locate for your real GPS city');
     }
+    MapPlaceMenu?.openAt?.(pin.lat, pin.lng, { source: 'Globe', hint: 'Explore · drive · list shop', limited: true });
   }
 }
 
@@ -9003,12 +9494,34 @@ const CityMap = {
       e.preventDefault();
       const dir = e.deltaY > 0 ? 1 : -1;
       const curZ = this.map.getZoom();
+      if (dir > 0 && curZ <= 3) {
+        this._bridgeZoomOut(0.14);
+        return;
+      }
       this.map.setZoom(Math.max(3, Math.min(19, curZ + dir * 0.8)), { animate: true });
     }, { passive: false });
     this._bindMapGestures();
+    this._bindMapClick();
     this.map.on('moveend zoomend', () => {
       if (this.active) this._syncMarkers();
     });
+  },
+
+  _bindMapClick() {
+    if (!this.map || this.map._placeClickBound) return;
+    this.map._placeClickBound = true;
+    this.map.on('click', (e) => {
+      if (!this.active) return;
+      MapPlaceMenu?.openAt?.(e.latlng.lat, e.latlng.lng, {
+        source: 'City map',
+        hint: 'Post · explore · order — pick a triangle',
+        limited: true,
+      });
+    });
+  },
+
+  _bridgeZoomOut(amount) {
+    if (typeof zoomBy === 'function') zoomBy(amount || 0.12);
   },
 
   _bindMapGestures() {
@@ -9032,6 +9545,11 @@ const CityMap = {
       const delta = d - lastDist;
       lastDist = d;
       const cur = this.map.getZoom();
+      if (delta < 0 && cur <= 3.05) {
+        this._bridgeZoomOut(0.1);
+        e.preventDefault();
+        return;
+      }
       const nz = Math.max(3, Math.min(19, cur + (delta > 0 ? 0.03 : -0.03)));
       if (Math.abs(nz - cur) > 0.01) this.map.setZoom(nz, { animate: false });
       e.preventDefault();
@@ -11979,6 +12497,7 @@ CityMap.init();
 CityLife.init();
 EarthRealism.init();
 GlobeEntity.init();
+ClassifiedTriangles.init();
 AiRouter.init();
 
 LazyModules.schedule();
@@ -12016,6 +12535,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260716102847" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260716103727" data-astranov-deferred></script>
 </body>
 </html>

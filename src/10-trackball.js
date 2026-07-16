@@ -261,6 +261,21 @@ function onGlobeClick(e) {
 
   const intersects = raycaster.intersectObject(earth);
   if (intersects.length > 0) {
+    const pin = MapPlaceMenu?.pointFromGlobeHit?.(intersects[0].point);
+    if (!pin) return;
+    if (CityMap?.active || cityLevel || ZoomTiers?.current?.()?.city) {
+      MapPlaceMenu?.openAt?.(pin.lat, pin.lng, {
+        source: 'City map',
+        hint: 'Post · explore · order — pick a triangle',
+        limited: true,
+      });
+      return;
+    }
+    const tier = ZoomTiers?.current?.();
+    if (tier?.id === 'solar' || tier?.id === 'global') {
+      MapPlaceMenu?.openAt?.(pin.lat, pin.lng, { source: 'Globe', hint: 'Add · explore · drive — top 3 picks' });
+      return;
+    }
     const nationalZ = ZoomTiers?.tierZ?.('national') || 1.82;
     ZoomTiers?.goTo?.('national', true);
     if (userLocated && window._lastPos) {
@@ -272,6 +287,7 @@ function onGlobeClick(e) {
       MapDepict.action('explore', { detail: 'national · tap 🎯 for your city' });
       GlobeDeck?.setPreview?.('National view — tap 🎯 Locate for your real GPS city');
     }
+    MapPlaceMenu?.openAt?.(pin.lat, pin.lng, { source: 'Globe', hint: 'Explore · drive · list shop', limited: true });
   }
 }
 
