@@ -1,11 +1,34 @@
 // === LIGHT STUBS — removed heavy subsystems; keep optional chaining safe ===
+// FieldBrain is a live pulse bus again (not a no-op) so globe AI feels present.
 const FieldBrain = {
   vendorIds: [],
   roles: [],
+  last: null,
+  _pulses: [],
   init() {},
   hookFeed() {},
-  pulse() {},
+  pulse(kind, detail, props) {
+    const entry = {
+      kind: String(kind || 'pulse'),
+      detail: String(detail || '').slice(0, 120),
+      props: props || {},
+      ts: Date.now(),
+    };
+    this.last = entry;
+    this._pulses.push(entry);
+    if (this._pulses.length > 40) this._pulses = this._pulses.slice(-40);
+    try {
+      AIGraphics?.setThinkPulse?.(kind === 'think' || kind === 'act');
+      const pos = window._lastPos;
+      if (pos && MapDepict?.pulse) {
+        const colors = { think: 0x44ccff, act: 0x00e8ff, evolve: 0xaa66ff, commerce: 0xffaa44 };
+        MapDepict.pulse(pos.lat, pos.lng, colors[kind] || 0x66ffcc, entry.detail.slice(0, 28), 5000);
+      }
+      CliRibbon?.setNotice?.(entry.kind + ' · ' + entry.detail.slice(0, 60), 'ready');
+    } catch (_) { /* */ }
+  },
   onAuth() {},
+  updateChip() {},
 };
 window.FieldBrain = FieldBrain;
 
@@ -60,11 +83,23 @@ const BrainConversation = {
   async converse(text, opts = {}) {
     const m = String(text || '').trim();
     if (!m) return '';
+    if (window.AstranovCoreBrain?.handle) {
+      const r = await AstranovCoreBrain.handle(m, { fromVoice: !!opts.fromVoice });
+      return String(r?.text || r?.response || '').trim();
+    }
     if (window.AciCoders?.chat) {
       const r = await AciCoders.chat(m, { fromVoice: !!opts.fromVoice });
       return String(r?.text || r?.response || '').trim();
     }
     return '';
+  },
+  async cli(parts) {
+    const rest = (parts || []).slice(1).join(' ').trim();
+    if (!rest || rest === 'status') {
+      AciCli?.print('Core Brain ' + (AstranovCoreBrain?.version || '?') + ' · local-first globe agent', 'ok');
+      return;
+    }
+    await this.converse(rest);
   },
 };
 window.BrainConversation = BrainConversation;
