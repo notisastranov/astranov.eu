@@ -10,13 +10,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260716112017" />
+<meta name="astranov-build" content="20260716112523" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/astranov-continuity.js?v=20260716112017"></script>
+<script defer src="/astranov-continuity.js?v=20260716112523"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <style>
@@ -11056,17 +11056,21 @@ const AIGraphics = {
   },
 
   _isGaming() {
-    return !!(SlumberManager?.quality?.gamingGraphics || SlumberManager?.tier === 'gaming' || SlumberManager?.tier === 'full');
+    // Prefer high-end helper art unless device is in deep conserve
+    if (SlumberManager?.tier === 'slumber' || SlumberManager?.tier === 'conserve') return false;
+    return true;
   },
 
   _gamingVert() {
     return [
       'varying vec3 vN;',
       'varying vec3 vV;',
+      'varying vec3 vW;',
       'void main(){',
       '  vN = normalize(normalMatrix * normal);',
       '  vec4 mv = modelViewMatrix * vec4(position, 1.0);',
       '  vV = -mv.xyz;',
+      '  vW = (modelMatrix * vec4(position, 1.0)).xyz;',
       '  gl_Position = projectionMatrix * mv;',
       '}',
     ].join('\n');
@@ -11079,14 +11083,24 @@ const AIGraphics = {
       'uniform float uPulse;',
       'uniform float uRim;',
       'uniform float uAlpha;',
+      'uniform float uMetal;',
       'varying vec3 vN;',
       'varying vec3 vV;',
+      'varying vec3 vW;',
       'void main(){',
       '  vec3 n = normalize(vN);',
       '  vec3 v = normalize(vV);',
-      '  float rim = pow(1.0 - max(dot(n, v), 0.0), 2.4) * uRim;',
-      '  float pulse = 0.82 + 0.18 * sin(uPulse);',
-      '  vec3 col = uColor * 0.45 + uEmit * pulse + vec3(0.15, 0.75, 1.0) * rim;',
+      '  float ndv = max(dot(n, v), 0.0);',
+      '  float rim = pow(1.0 - ndv, 2.8) * uRim;',
+      '  float pulse = 0.78 + 0.22 * sin(uPulse * 1.7 + vW.y * 40.0);',
+      '  float fres = pow(1.0 - ndv, 3.4);',
+      '  vec3 base = uColor * (0.35 + uMetal * 0.4);',
+      '  vec3 emit = uEmit * pulse * (0.55 + fres * 0.9);',
+      '  vec3 rimCol = mix(vec3(0.2, 0.85, 1.0), uEmit, 0.45) * rim;',
+      '  vec3 col = base + emit + rimCol;',
+      '  // Hot core flecks',
+      '  float fleck = pow(max(sin(vW.x * 90.0 + uPulse) * sin(vW.z * 70.0), 0.0), 8.0) * 0.35;',
+      '  col += uEmit * fleck;',
       '  gl_FragColor = vec4(col, uAlpha);',
       '}',
     ].join('\n');
@@ -11098,14 +11112,16 @@ const AIGraphics = {
         uColor: { value: new THREE.Color(opts.color || 0x1a2838) },
         uEmit: { value: new THREE.Color(opts.emissive || 0x00c8ff) },
         uPulse: { value: 0 },
-        uRim: { value: opts.rim ?? 1.35 },
+        uRim: { value: opts.rim ?? 1.55 },
         uAlpha: { value: opts.opacity ?? 1 },
+        uMetal: { value: opts.metal ?? 0.55 },
       },
       vertexShader: this._gamingVert(),
       fragmentShader: this._gamingFrag(),
       transparent: !!opts.transparent || (opts.opacity != null && opts.opacity < 1),
       blending: opts.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
-      depthWrite: !opts.additive,
+      depthWrite: opts.additive ? false : (opts.depthWrite !== false),
+      side: opts.doubleSide ? THREE.DoubleSide : THREE.FrontSide,
     });
     mat.userData._gaming = true;
     return mat;
@@ -11119,15 +11135,15 @@ const AIGraphics = {
   },
 
   _createJetVfx(group, side) {
-    const COUNT = 72;
+    const COUNT = this._isGaming() ? 110 : 56;
     const geo = new THREE.BufferGeometry();
     const pos = new Float32Array(COUNT * 3);
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     const mat = new THREE.PointsMaterial({
-      size: this._isGaming() ? 0.022 : 0.014,
-      color: side < 0 ? 0x00e8ff : 0x44aaff,
+      size: this._isGaming() ? 0.028 : 0.016,
+      color: side < 0 ? 0x00f0ff : 0x66ccff,
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.95,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       sizeAttenuation: true,
@@ -11490,279 +11506,386 @@ const AIGraphics = {
     this.activeEffects.push({ points: pts, velocities: vel, life, maxLife: life });
   },
 
+  /** 2D HUD silhouette — gaming-grade mecha angel (used by overlay only) */
   _paintAstranovCharacter(ctx, w, h, frame, opts = {}) {
-    const t = frame * 0.12;
-    const flap = Math.sin(t) * 0.12;
+    const t = frame * 0.14;
     const cx = w * 0.5;
-    const cy = h * 0.46 + Math.sin(t * 0.65) * 2;
-    const cyan = opts.glow || '#00e8ff';
-    const silver = '#b8c8d8';
-    const dark = '#0a1420';
-
+    const cy = h * 0.44 + Math.sin(t * 0.7) * 3;
+    const cyan = opts.glow || '#00f0ff';
     ctx.clearRect(0, 0, w, h);
-
-    const bg = ctx.createRadialGradient(cx, cy, 8, cx, cy, w * 0.52);
-    bg.addColorStop(0, 'rgba(0,40,80,0.5)');
-    bg.addColorStop(0.6, 'rgba(0,10,24,0.25)');
+    const bg = ctx.createRadialGradient(cx, cy, 4, cx, cy, w * 0.48);
+    bg.addColorStop(0, 'rgba(0,80,140,0.55)');
+    bg.addColorStop(0.45, 'rgba(0,30,70,0.22)');
     bg.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, w, h);
-
-    for (let i = 0; i < 40; i++) {
-      const sx = (Math.sin(i * 2.17 + frame * 0.02) * 0.5 + 0.5) * w;
-      const sy = (Math.cos(i * 1.73) * 0.5 + 0.5) * h;
-      ctx.fillStyle = i % 5 === 0 ? 'rgba(180,220,255,0.9)' : 'rgba(100,160,255,0.45)';
-      ctx.fillRect(sx, sy, 1.2, 1.2);
-    }
-
     ctx.save();
     ctx.translate(cx, cy);
     ctx.globalCompositeOperation = 'lighter';
-
-    const drawMechWing = (side) => {
-      const s = side;
-      const tilt = flap * 8 * s;
-      const segs = [
-        [[6 * s, -4], [52 * s, -36 + tilt], [72 * s, -8 + tilt], [38 * s, 6]],
-        [[10 * s, 2], [58 * s, -18 + tilt], [78 * s, 8 + tilt], [42 * s, 14]],
-        [[14 * s, 10], [48 * s, 4 + tilt], [62 * s, 22 + tilt], [32 * s, 20]],
-      ];
-      segs.forEach((pts, i) => {
+    // Energy wings
+    [-1, 1].forEach((side) => {
+      for (let i = 0; i < 5; i++) {
+        const flap = Math.sin(t + i * 0.4) * 14 * side;
         ctx.beginPath();
-        ctx.moveTo(pts[0][0], pts[0][1]);
-        pts.slice(1).forEach(p => ctx.lineTo(p[0], p[1]));
+        ctx.moveTo(8 * side, -6);
+        ctx.quadraticCurveTo(40 * side + flap, -40 - i * 6, 88 * side + flap * 0.4, -8 + i * 8);
+        ctx.quadraticCurveTo(50 * side, 10 + i * 4, 12 * side, 8);
         ctx.closePath();
-        const g = ctx.createLinearGradient(0, -30, 60 * s, 20);
-        g.addColorStop(0, silver);
-        g.addColorStop(0.45, '#4a5a6a');
-        g.addColorStop(1, dark);
-        ctx.fillStyle = g;
+        ctx.fillStyle = `rgba(0,${200 - i * 20},255,${0.22 - i * 0.03})`;
         ctx.fill();
-        ctx.strokeStyle = i === 0 ? cyan : 'rgba(0,200,255,0.35)';
-        ctx.lineWidth = i === 0 ? 1.8 : 1;
-        ctx.stroke();
-      });
-    };
-
-    if (opts.jet) {
-      const jetLen = 38 + Math.sin(t * 2) * 8;
-      [-1, 1].forEach((side) => {
-        const jg = ctx.createLinearGradient(side * 20, 8, side * 20, 8 + jetLen);
-        jg.addColorStop(0, cyan);
-        jg.addColorStop(0.4, 'rgba(0,180,255,0.55)');
-        jg.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = jg;
-        ctx.beginPath();
-        ctx.moveTo(side * 14, 10);
-        ctx.lineTo(side * 28, 10);
-        ctx.lineTo(side * 18, 10 + jetLen);
-        ctx.closePath();
-        ctx.fill();
-      });
-    }
-
-    drawMechWing(-1);
-    drawMechWing(1);
-
+      }
+    });
+    // Body silhouette
     ctx.globalCompositeOperation = 'source-over';
-    const torso = ctx.createLinearGradient(0, -20, 0, 32);
-    torso.addColorStop(0, silver);
-    torso.addColorStop(0.35, '#5a6a7a');
-    torso.addColorStop(0.7, dark);
-    torso.addColorStop(1, '#1a2838');
-    ctx.fillStyle = torso;
+    const body = ctx.createLinearGradient(0, -36, 0, 40);
+    body.addColorStop(0, '#e8f4ff');
+    body.addColorStop(0.35, '#7a90a8');
+    body.addColorStop(1, '#0a1520');
+    ctx.fillStyle = body;
     ctx.beginPath();
-    ctx.moveTo(-14, -12);
-    ctx.lineTo(14, -12);
-    ctx.lineTo(18, 8);
-    ctx.lineTo(12, 30);
-    ctx.lineTo(-12, 30);
-    ctx.lineTo(-18, 8);
+    ctx.moveTo(-16, -10);
+    ctx.lineTo(16, -10);
+    ctx.lineTo(20, 12);
+    ctx.lineTo(12, 36);
+    ctx.lineTo(-12, 36);
+    ctx.lineTo(-20, 12);
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = cyan;
-    ctx.lineWidth = 1.2;
+    ctx.lineWidth = 1.6;
     ctx.stroke();
-
-    const corePulse = 0.75 + Math.sin(t * 1.6) * 0.25;
-    const core = ctx.createRadialGradient(0, 4, 1, 0, 4, 10);
-    core.addColorStop(0, '#ffffff');
-    core.addColorStop(0.35, cyan);
+    // Core
+    const core = ctx.createRadialGradient(0, 4, 1, 0, 4, 14);
+    core.addColorStop(0, '#fff');
+    core.addColorStop(0.4, cyan);
     core.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.globalAlpha = corePulse;
     ctx.fillStyle = core;
     ctx.beginPath();
-    ctx.arc(0, 4, 9, 0, Math.PI * 2);
+    ctx.arc(0, 4, 12, 0, Math.PI * 2);
     ctx.fill();
-    ctx.globalAlpha = 1;
-
-    [-1, 1].forEach((side) => {
-      ctx.fillStyle = '#6a7a8a';
-      ctx.fillRect(side * 10, -8, 8, 22);
-      ctx.fillStyle = cyan;
-      ctx.fillRect(side * 12, 2, 5, 8);
-      ctx.beginPath();
-      ctx.ellipse(side * 22, -2, 10, 6, side * 0.3, 0, Math.PI * 2);
-      ctx.fillStyle = '#7a8a9a';
-      ctx.fill();
-    });
-
-    const helm = ctx.createLinearGradient(-12, -34, 12, -18);
-    helm.addColorStop(0, '#e8f0ff');
-    helm.addColorStop(0.5, silver);
-    helm.addColorStop(1, '#4a5a68');
-    ctx.fillStyle = helm;
+    // Helmet
+    ctx.fillStyle = '#c8d8e8';
     ctx.beginPath();
-    ctx.ellipse(0, -24, 13, 15, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, -26, 14, 16, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = cyan;
     ctx.shadowColor = cyan;
-    ctx.shadowBlur = 12;
-    ctx.fillRect(-11, -26, 22, 5);
+    ctx.shadowBlur = 16;
+    ctx.fillStyle = cyan;
+    ctx.fillRect(-12, -28, 24, 6);
     ctx.shadowBlur = 0;
-
-    ctx.fillStyle = '#5a6a78';
-    ctx.fillRect(-7, 28, 5, 14);
-    ctx.fillRect(2, 30, 5, 12);
-
+    // Halo
+    ctx.strokeStyle = 'rgba(0,240,255,0.55)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(0, -48, 22, 7, 0, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.restore();
   },
 
+  /**
+   * Astranov Helper v2 — high-level gaming mecha-angel on the globe.
+   * Procedural THREE.js (no external models): energy wings, articulated armor,
+   * halo, core bloom, thruster jets, orbital micro-drones.
+   */
   _buildProceduralHumanoid(lat, lng, opts = {}) {
     const hi = this._isGaming();
-    const seg = hi ? 16 : 10;
+    const seg = hi ? 20 : 12;
     const g = new THREE.Group();
-    const torso = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.014, 0.018, 0.048, seg),
-      this._gamingMat({ color: 0x141e2a, emissive: 0x006688, rim: 1.1 }),
+    const mat = (o) => this._gamingMat(o);
+
+    // ── Root skeleton groups ──
+    const hips = new THREE.Group();
+    const spine = new THREE.Group();
+    const chestG = new THREE.Group();
+    const headG = new THREE.Group();
+    spine.add(chestG);
+    chestG.add(headG);
+    hips.add(spine);
+    g.add(hips);
+
+    // Pelvis / hip armor
+    const pelvis = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.016, 0.02, 0.018, seg),
+      mat({ color: 0x121c28, emissive: 0x004466, rim: 1.3, metal: 0.7 }),
     );
-    g.add(torso);
+    hips.add(pelvis);
+
+    // Torso stack
+    const abdomen = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.015, 0.017, 0.022, seg),
+      mat({ color: 0x1a2838, emissive: 0x006688, rim: 1.2, metal: 0.65 }),
+    );
+    abdomen.position.y = 0.018;
+    spine.add(abdomen);
+
     const chest = new THREE.Mesh(
-      new THREE.BoxGeometry(0.032, 0.028, 0.022),
-      this._gamingMat({ color: 0x2a3a4a, emissive: 0x00aacc, rim: 1.6 }),
+      new THREE.BoxGeometry(0.042, 0.036, 0.028),
+      mat({ color: 0x243848, emissive: 0x00aadd, rim: 1.85, metal: 0.75 }),
     );
-    chest.position.y = 0.008;
-    g.add(chest);
-    const head = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(0.014, hi ? 1 : 0),
-      this._gamingMat({ color: 0x8899aa, emissive: 0x224466, rim: 1.4 }),
+    chest.position.y = 0.04;
+    chestG.add(chest);
+
+    // Chest plate ridge
+    const plate = new THREE.Mesh(
+      new THREE.BoxGeometry(0.028, 0.03, 0.008),
+      mat({ color: 0x8899aa, emissive: 0x00e8ff, rim: 2.0, metal: 0.9 }),
     );
-    head.position.y = 0.036;
-    g.add(head);
+    plate.position.set(0, 0.04, 0.016);
+    chestG.add(plate);
+
+    // Pauldrons
+    const pauldrons = [];
+    [-1, 1].forEach((side) => {
+      const p = new THREE.Mesh(
+        new THREE.SphereGeometry(0.014, seg, seg * 0.5, 0, Math.PI * 2, 0, Math.PI * 0.55),
+        mat({ color: 0x3a4a5a, emissive: 0x0088cc, rim: 1.7, metal: 0.8 }),
+      );
+      p.position.set(side * 0.028, 0.052, 0);
+      p.rotation.z = side * -0.4;
+      chestG.add(p);
+      pauldrons.push(p);
+    });
+
+    // Energy core (multi-layer bloom)
+    const coreInner = new THREE.Mesh(
+      new THREE.SphereGeometry(0.009, seg, seg),
+      mat({ color: 0xffffff, emissive: 0xffffff, rim: 0.5, additive: true, transparent: true, opacity: 0.95 }),
+    );
+    coreInner.position.set(0, 0.038, 0.012);
+    chestG.add(coreInner);
+    const core = new THREE.Mesh(
+      new THREE.SphereGeometry(0.014, seg, seg),
+      mat({ color: 0x00e8ff, emissive: 0x00ffff, rim: 2.6, additive: true, transparent: true, opacity: 0.55 }),
+    );
+    core.position.set(0, 0.038, 0.012);
+    chestG.add(core);
+    const coreOuter = new THREE.Mesh(
+      new THREE.SphereGeometry(0.022, seg, seg),
+      mat({ color: 0x0088ff, emissive: 0x00aaff, rim: 1.2, additive: true, transparent: true, opacity: 0.18 }),
+    );
+    coreOuter.position.set(0, 0.038, 0.012);
+    chestG.add(coreOuter);
+
+    // Head + helm + visor
+    const skull = new THREE.Mesh(
+      new THREE.SphereGeometry(0.016, seg, seg),
+      mat({ color: 0xb8c8d8, emissive: 0x224466, rim: 1.5, metal: 0.85 }),
+    );
+    skull.position.y = 0.072;
+    headG.add(skull);
+    const helmCrest = new THREE.Mesh(
+      new THREE.BoxGeometry(0.006, 0.02, 0.028),
+      mat({ color: 0x00c8ff, emissive: 0x00e8ff, rim: 2.2, metal: 0.5 }),
+    );
+    helmCrest.position.set(0, 0.086, -0.002);
+    headG.add(helmCrest);
     const visor = new THREE.Mesh(
-      new THREE.BoxGeometry(0.026, 0.008, 0.012),
-      this._gamingMat({ color: 0x001822, emissive: 0x00e8ff, rim: 2.2, transparent: true, opacity: 0.95 }),
+      new THREE.BoxGeometry(0.03, 0.01, 0.014),
+      mat({ color: 0x001018, emissive: 0x00f0ff, rim: 2.8, transparent: true, opacity: 0.92 }),
     );
-    visor.position.set(0, 0.038, 0.014);
-    g.add(visor);
+    visor.position.set(0, 0.072, 0.014);
+    headG.add(visor);
+
+    // Halo ring above head
+    const halo = new THREE.Mesh(
+      new THREE.TorusGeometry(0.028, 0.0022, 8, hi ? 48 : 24),
+      mat({ color: 0x00e8ff, emissive: 0x00ffff, rim: 2.5, additive: true, transparent: true, opacity: 0.75 }),
+    );
+    halo.position.y = 0.102;
+    halo.rotation.x = Math.PI / 2.4;
+    headG.add(halo);
+
+    // Arms (upper + lower + gauntlet)
     const arms = [];
     [-1, 1].forEach((side) => {
       const arm = new THREE.Group();
       const upper = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.005, 0.005, 0.02, seg),
-        this._gamingMat({ color: 0x4a5a6a, emissive: 0x0088aa, rim: 1.2 }),
+        new THREE.CylinderGeometry(0.006, 0.0055, 0.028, seg),
+        mat({ color: 0x4a5a6a, emissive: 0x0088aa, rim: 1.35, metal: 0.7 }),
       );
-      upper.rotation.z = side * 0.35;
+      upper.position.y = -0.012;
       arm.add(upper);
-      const gauntlet = new THREE.Mesh(
-        new THREE.BoxGeometry(0.01, 0.012, 0.01),
-        this._gamingMat({ color: 0x00c8ff, emissive: 0x00e8ff, rim: 1.8 }),
+      const lower = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.005, 0.0045, 0.024, seg),
+        mat({ color: 0x3a4a58, emissive: 0x006688, rim: 1.25, metal: 0.65 }),
       );
-      gauntlet.position.set(side * 0.014, -0.012, 0);
+      lower.position.y = -0.034;
+      arm.add(lower);
+      const gauntlet = new THREE.Mesh(
+        new THREE.BoxGeometry(0.012, 0.014, 0.012),
+        mat({ color: 0x00c8ff, emissive: 0x00e8ff, rim: 2.0, metal: 0.5 }),
+      );
+      gauntlet.position.y = -0.05;
       arm.add(gauntlet);
-      arm.position.set(side * 0.02, 0.014, 0);
-      g.add(arm);
+      // Energy blade idle
+      const blade = new THREE.Mesh(
+        new THREE.BoxGeometry(0.003, 0.028, 0.006),
+        mat({ color: 0x00ffff, emissive: 0x00ffff, rim: 2.4, additive: true, transparent: true, opacity: 0.55 }),
+      );
+      blade.position.set(side * 0.006, -0.062, 0);
+      arm.add(blade);
+      arm.position.set(side * 0.03, 0.05, 0);
+      arm.rotation.z = side * 0.25;
+      chestG.add(arm);
       arms.push(arm);
     });
+
+    // Legs
     const legs = [];
     [-1, 1].forEach((side) => {
       const leg = new THREE.Group();
       const thigh = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.005, 0.006, 0.018, seg),
-        this._gamingMat({ color: 0x3a4a58, emissive: 0x004466, rim: 1.0 }),
+        new THREE.CylinderGeometry(0.0065, 0.006, 0.026, seg),
+        mat({ color: 0x3a4a58, emissive: 0x004466, rim: 1.15, metal: 0.7 }),
       );
+      thigh.position.y = -0.014;
       leg.add(thigh);
-      const boot = new THREE.Mesh(
-        new THREE.BoxGeometry(0.011, 0.014, 0.014),
-        this._gamingMat({ color: 0x2a3848, emissive: 0x0066aa, rim: 1.3 }),
+      const shin = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.0055, 0.005, 0.024, seg),
+        mat({ color: 0x2a3848, emissive: 0x003355, rim: 1.1, metal: 0.65 }),
       );
-      boot.position.y = -0.018;
+      shin.position.y = -0.038;
+      leg.add(shin);
+      const boot = new THREE.Mesh(
+        new THREE.BoxGeometry(0.014, 0.012, 0.02),
+        mat({ color: 0x1a2838, emissive: 0x0066aa, rim: 1.4, metal: 0.8 }),
+      );
+      boot.position.set(0, -0.054, 0.004);
       leg.add(boot);
-      leg.position.set(side * 0.011, -0.028, 0);
-      g.add(leg);
+      leg.position.set(side * 0.012, -0.008, 0);
+      hips.add(leg);
       legs.push(leg);
     });
+
+    // Energy wings — multi-vane, not boxes
     const wings = [];
+    const wingVanes = [];
     [-1, 1].forEach((side) => {
       const wing = new THREE.Group();
-      for (let s = 0; s < 3; s++) {
-        const segMesh = new THREE.Mesh(
-          new THREE.BoxGeometry(0.022 - s * 0.004, 0.003, 0.012 - s * 0.002),
-          this._gamingMat({
-            color: 0x6a7a8a,
-            emissive: s === 0 ? 0x00c8ff : 0x006688,
-            rim: 1.5 + s * 0.3,
-            transparent: s > 0,
-            opacity: s === 0 ? 1 : 0.82,
+      for (let s = 0; s < (hi ? 5 : 3); s++) {
+        const len = 0.055 - s * 0.007;
+        const vane = new THREE.Mesh(
+          new THREE.BoxGeometry(len, 0.0025 + s * 0.0004, 0.018 - s * 0.002),
+          mat({
+            color: 0x6a8aaa,
+            emissive: s === 0 ? 0x00e8ff : 0x0088cc,
+            rim: 1.8 + s * 0.25,
+            transparent: true,
+            opacity: 0.92 - s * 0.1,
+            metal: 0.4,
+            additive: s > 2,
           }),
         );
-        segMesh.position.set(side * (0.018 + s * 0.016), s * 0.006, -s * 0.003);
-        wing.add(segMesh);
+        vane.position.set(side * (0.02 + s * 0.018), 0.01 + s * 0.008, -0.012 - s * 0.004);
+        vane.rotation.z = side * (0.15 + s * 0.08);
+        vane.rotation.y = side * -0.12;
+        wing.add(vane);
+        wingVanes.push(vane);
+        // Soft energy membrane
+        if (s < 3) {
+          const membrane = new THREE.Mesh(
+            new THREE.PlaneGeometry(len * 0.9, 0.02),
+            mat({
+              color: 0x00aaff,
+              emissive: 0x00e8ff,
+              rim: 1.2,
+              additive: true,
+              transparent: true,
+              opacity: 0.22,
+              doubleSide: true,
+            }),
+          );
+          membrane.position.copy(vane.position);
+          membrane.position.z -= 0.002;
+          membrane.rotation.z = vane.rotation.z;
+          wing.add(membrane);
+        }
       }
-      wing.position.set(side * 0.016, 0.012, -0.01);
-      g.add(wing);
+      wing.position.set(side * 0.014, 0.045, -0.012);
+      chestG.add(wing);
       wings.push(wing);
     });
+
+    // Back thruster pods
     const thrusters = [];
     const jetVfx = [];
     [-1, 1].forEach((side) => {
       const pack = new THREE.Group();
       const housing = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.006, 0.008, 0.016, seg),
-        this._gamingMat({ color: 0x2a3848, emissive: 0x00aacc, rim: 1.4 }),
+        new THREE.CylinderGeometry(0.007, 0.01, 0.02, seg),
+        mat({ color: 0x1a2838, emissive: 0x00aacc, rim: 1.5, metal: 0.75 }),
       );
       pack.add(housing);
+      const nozzle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.005, 0.007, 0.01, seg),
+        mat({ color: 0x2a3848, emissive: 0x0088aa, rim: 1.3 }),
+      );
+      nozzle.position.y = -0.014;
+      pack.add(nozzle);
       const plume = new THREE.Mesh(
-        new THREE.ConeGeometry(0.007, hi ? 0.038 : 0.024, seg),
-        this._gamingMat({ color: 0x00e8ff, emissive: 0x00ffff, rim: 2.0, additive: true, transparent: true, opacity: 0.75 }),
+        new THREE.ConeGeometry(0.009, hi ? 0.05 : 0.032, seg),
+        mat({ color: 0x00e8ff, emissive: 0x00ffff, rim: 2.2, additive: true, transparent: true, opacity: 0.8 }),
       );
       plume.rotation.x = Math.PI;
-      plume.position.y = -0.022;
+      plume.position.y = -0.032;
       pack.add(plume);
-      pack.position.set(side * 0.014, -0.03, -0.016);
-      g.add(pack);
+      pack.position.set(side * 0.016, 0.02, -0.022);
+      chestG.add(pack);
       thrusters.push(plume);
       jetVfx.push(this._createJetVfx(g, side));
     });
-    const core = new THREE.Mesh(
-      new THREE.SphereGeometry(0.011, seg, seg),
-      this._gamingMat({ color: 0xffffff, emissive: 0x00e8ff, rim: 2.4, additive: true, transparent: true, opacity: 0.7 }),
-    );
-    core.position.y = 0.006;
-    g.add(core);
+
+    // Orbital micro-drones (gaming flair)
+    const orbiters = [];
+    if (hi) {
+      for (let i = 0; i < 3; i++) {
+        const orb = new THREE.Mesh(
+          new THREE.OctahedronGeometry(0.005, 0),
+          mat({ color: 0x00e8ff, emissive: 0x00ffff, rim: 2.0, additive: true, transparent: true, opacity: 0.85 }),
+        );
+        g.add(orb);
+        orbiters.push({ mesh: orb, phase: (i / 3) * Math.PI * 2, radius: 0.055 + i * 0.008 });
+      }
+    }
+
+    // Soft aura
     const aura = new THREE.Mesh(
-      new THREE.SphereGeometry(0.052, seg, seg),
+      new THREE.SphereGeometry(0.07, seg, seg),
       new THREE.MeshBasicMaterial({
         color: 0x00c8ff,
         transparent: true,
-        opacity: hi ? 0.12 : 0.08,
+        opacity: hi ? 0.1 : 0.07,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       }),
     );
     g.add(aura);
-    const alt = opts.alt || 1.09;
+
+    // Ground contact ring (reads as “helper present”)
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.04, 0.0018, 8, 40),
+      mat({ color: 0x00aaff, emissive: 0x00e8ff, rim: 1.5, additive: true, transparent: true, opacity: 0.45 }),
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = -0.06;
+    g.add(ring);
+
+    const alt = opts.alt || 1.095;
     const p = this._latLngToPos(lat ?? 36.44, lng ?? 28.22, alt);
     g.position.set(p.x, p.y, p.z);
     const n = new THREE.Vector3(p.x, p.y, p.z).normalize();
     g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
+
     g.userData = {
       type: 'astranov-flyer',
+      gen: 2,
       procedural3d: true,
       gaming: hi,
       name: opts.label || 'Astranov',
       lat, lng, alt,
-      wings, arms, legs, thrusters, core, aura, jetVfx,
+      wings, wingVanes, arms, legs, thrusters, core, coreInner, coreOuter,
+      aura, halo, visor, ring, orbiters, pauldrons, jetVfx,
+      hips, spine, chestG, headG,
       edition: opts.edition?.id || 'astranov',
     };
     return g;
@@ -11771,35 +11894,96 @@ const AIGraphics = {
   _animateFlyerPose(mesh, flying) {
     const ud = mesh?.userData;
     if (!ud?.procedural3d) return;
-    const t = this._flyerFrame * 0.12;
+    const t = this._flyerFrame * 0.11;
     this._pulseGamingMats(mesh, t);
-    const flap = Math.sin(t) * (flying ? 0.52 : 0.28);
+
+    // Body hover / lean
+    if (ud.spine) {
+      ud.spine.rotation.x = Math.sin(t * 0.7) * (flying ? 0.18 : 0.06) + (flying ? 0.12 : 0);
+      ud.spine.position.y = Math.sin(t * 1.4) * 0.002;
+    }
+    if (ud.headG) {
+      ud.headG.rotation.y = Math.sin(t * 0.55) * 0.15;
+      ud.headG.rotation.x = Math.sin(t * 0.4) * 0.05;
+    }
+    if (ud.halo) {
+      ud.halo.rotation.z = t * 0.9;
+      if (ud.halo.material?.uniforms?.uAlpha) {
+        ud.halo.material.uniforms.uAlpha.value = 0.55 + Math.sin(t * 2) * 0.25;
+      }
+    }
+    if (ud.visor?.material?.uniforms?.uEmit) {
+      const pulse = 0.7 + Math.sin(t * 2.2) * 0.3;
+      ud.visor.material.uniforms.uEmit.value.setRGB(0, pulse, 1);
+    }
+
+    // Wing flap + vane shimmer
+    const flap = Math.sin(t * (flying ? 1.6 : 1.0)) * (flying ? 0.62 : 0.32);
     ud.wings?.forEach((wing, i) => {
-      wing.rotation.z = (i === 0 ? 1 : -1) * flap;
-      wing.rotation.y = Math.sin(t * 0.8 + i) * 0.08;
+      const s = i === 0 ? 1 : -1;
+      wing.rotation.z = s * flap;
+      wing.rotation.y = Math.sin(t * 0.9 + i) * 0.1;
+      wing.rotation.x = flying ? -0.15 : Math.sin(t * 0.5) * 0.05;
     });
+    ud.wingVanes?.forEach((v, i) => {
+      if (v.material?.uniforms?.uAlpha) {
+        v.material.uniforms.uAlpha.value = 0.55 + Math.sin(t * 1.8 + i) * 0.25;
+      }
+    });
+
     ud.legs?.forEach((leg, i) => {
-      leg.rotation.x = Math.sin(t * 0.9 + i) * (flying ? 0.22 : 0.12);
+      leg.rotation.x = Math.sin(t * 0.95 + i) * (flying ? 0.28 : 0.1) + (flying ? 0.2 : 0);
     });
     ud.arms?.forEach((arm, i) => {
-      arm.rotation.z = (i === 0 ? 1 : -1) * (0.12 + Math.sin(t * 0.7) * 0.08);
+      const s = i === 0 ? 1 : -1;
+      arm.rotation.z = s * (0.18 + Math.sin(t * 0.75) * 0.1);
+      arm.rotation.x = flying ? -0.35 + Math.sin(t + i) * 0.08 : Math.sin(t * 0.6 + i) * 0.08;
     });
-    if (ud.core?.material?.uniforms?.uAlpha) {
-      ud.core.material.uniforms.uAlpha.value = 0.55 + Math.sin(t * 1.6) * 0.3;
-    }
+
+    // Core bloom
+    const coreA = 0.45 + Math.sin(t * 1.8) * 0.35;
+    [ud.core, ud.coreInner, ud.coreOuter].forEach((c, i) => {
+      if (!c) return;
+      if (c.material?.uniforms?.uAlpha) {
+        c.material.uniforms.uAlpha.value = coreA * (i === 0 ? 1 : i === 1 ? 1.1 : 0.45);
+      }
+      c.scale.setScalar(1 + Math.sin(t * 1.5 + i) * 0.08);
+    });
+
     if (ud.aura?.material) {
-      ud.aura.material.opacity = (flying ? 0.16 : 0.1) + Math.sin(t * 1.2) * 0.04;
-      ud.aura.scale.setScalar(1 + Math.sin(t * 0.9) * 0.06);
+      ud.aura.material.opacity = (flying ? 0.16 : 0.09) + Math.sin(t * 1.1) * 0.04;
+      ud.aura.scale.setScalar(1 + Math.sin(t * 0.85) * 0.08);
     }
+    if (ud.ring) {
+      ud.ring.rotation.z = t * 1.2;
+      if (ud.ring.material?.uniforms?.uAlpha) {
+        ud.ring.material.uniforms.uAlpha.value = flying ? 0.55 : 0.35;
+      }
+    }
+
+    // Orbiting drones
+    ud.orbiters?.forEach((o) => {
+      const a = t * 1.3 + o.phase;
+      o.mesh.position.set(
+        Math.cos(a) * o.radius,
+        0.04 + Math.sin(a * 1.7) * 0.02,
+        Math.sin(a) * o.radius * 0.7 - 0.01,
+      );
+      o.mesh.rotation.y = a;
+      o.mesh.rotation.x = a * 0.6;
+    });
+
+    // Thrusters + particle jets
     ud.thrusters?.forEach((thr, i) => {
       if (thr.material?.uniforms?.uAlpha) {
         thr.material.uniforms.uAlpha.value = flying
-          ? 0.65 + Math.sin(t * 2 + i) * 0.3
-          : 0.3 + Math.sin(t + i) * 0.12;
+          ? 0.7 + Math.sin(t * 2.4 + i) * 0.28
+          : 0.28 + Math.sin(t + i) * 0.12;
       }
-      thr.scale.y = flying ? 1.2 + Math.sin(t * 1.4 + i) * 0.45 : 0.65;
+      thr.scale.y = flying ? 1.35 + Math.sin(t * 1.6 + i) * 0.5 : 0.55 + Math.sin(t + i) * 0.1;
+      thr.scale.x = thr.scale.z = flying ? 1.1 : 0.75;
     });
-    const power = flying ? 0.014 : 0.006;
+    const power = flying ? 0.018 : 0.007;
     const worldDown = new THREE.Vector3(0, -1, 0).applyQuaternion(mesh.quaternion);
     ud.thrusters?.forEach((thr, i) => {
       const wp = new THREE.Vector3();
@@ -11807,8 +11991,11 @@ const AIGraphics = {
       this._emitJet(ud.jetVfx?.[i], wp, worldDown, power);
     });
     ud.jetVfx?.forEach((vfx) => this._tickJetVfx(vfx, flying));
+
+    // Follow light on helper
     if (this._gamingLight && mesh.position) {
-      this._gamingLight.position.copy(mesh.position).multiplyScalar(1.02);
+      this._gamingLight.position.copy(mesh.position).multiplyScalar(1.03);
+      this._gamingLight.intensity = flying ? 2.2 : 1.5;
     }
   },
 
@@ -11820,20 +12007,31 @@ const AIGraphics = {
 
   _scaleFlyer(mesh, camZ) {
     if (!mesh?.userData?.procedural3d) return;
-    // Readable at GLOBAL (z≈2.55) — was satellite-dot scale before
-    const scale = Math.max(2.2, Math.min(6.5, 3.4 * (camZ / 2.2)));
+    // Larger, readable hero scale at global zoom — gaming presence
+    const base = mesh.userData.gaming ? 4.2 : 3.4;
+    const scale = Math.max(2.8, Math.min(8.5, base * (camZ / 2.15)));
     mesh.scale.setScalar(scale);
   },
 
   spawnAstranovFlyer(lat, lng, opts = {}) {
-    if (this._flyer?.parent) this._flyer.parent.remove(this._flyer);
+    if (this._flyer?.parent) {
+      try { this._flyer.parent.remove(this._flyer); } catch (_) { /* */ }
+    }
+    // Dispose old thruster particle systems lightly
+    this._flyer = null;
     const robot = this._buildProceduralHumanoid(lat, lng, opts);
     globePivot.add(robot);
     this._flyer = robot;
     window._astranovFlyer = robot;
     window._pilot = robot;
+    // Dedicated point light for cinematic helper
+    if (!this._gamingLight) {
+      this._gamingLight = new THREE.PointLight(0x00e8ff, 1.6, 5.5);
+      scene.add(this._gamingLight);
+    }
     this._animateFlyerPose(robot, false);
-    this.spawnEffect(robot.position, opts.color || 0x3d9eff, 22, 48);
+    this.spawnEffect(robot.position, opts.color || 0x00e8ff, 36, 55);
+    console.log('%c[Astranov Helper v2] gaming mecha-angel spawned', 'color:#00e8ff;font-weight:700');
     return robot;
   },
 
@@ -12137,11 +12335,13 @@ AIGraphics.init(globePivot);
 
 setTimeout(() => {
   try {
-    AIGraphics.spawnEffect(new THREE.Vector3(0.6, 0.3, 1.1), 0x00ffaa, 28, 32);
+    AIGraphics.spawnEffect(new THREE.Vector3(0.6, 0.3, 1.1), 0x00ffaa, 36, 40);
     const u = window._lastPos || { lat: 36.44, lng: 28.22 };
-    AIGraphics.spawnAstranovFlyer(u.lat, u.lng, { label: 'Astranov' });
-  } catch (_) {}
-}, 480);
+    AIGraphics.spawnAstranovFlyer(u.lat, u.lng, { label: 'Astranov', alt: 1.095 });
+  } catch (e) {
+    console.warn('[Astranov Helper] spawn failed', e);
+  }
+}, 420);
 
 window.AstranovFlyer = {
   spawn: (lat, lng, opts) => AIGraphics.spawnAstranovFlyer(lat, lng, opts),
@@ -13146,6 +13346,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260716112017" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260716112523" data-astranov-deferred></script>
 </body>
 </html>
