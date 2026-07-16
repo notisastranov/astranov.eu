@@ -34,8 +34,8 @@
  * =============================================================================
  */
 const AstranovContinuity = {
-  version: '20260712010000-perf-turbo',
-  updated: '2026-07-14',
+  version: '20260716110000-architect-bridge',
+  updated: '2026-07-16',
 
   /**
    * Markdown / issues / sessions that MUST NOT drive implementation.
@@ -226,6 +226,24 @@ const AstranovContinuity = {
       meta: 'astranov-globe-physics locked-v20260710241000-never-change',
       constants: ['GlobeNavigate.GLOBAL_Z 3.5', 'Earth rotation display 1671 km/h', 'syncGlobePivotQuaternion'],
     },
+
+    architectBridge: {
+      summary: 'Owner-only in-app coding bridge: phone → Grok Build desktop (not public agent)',
+      owner: 'src/17-architect-bridge.js + supabase/functions/coders-bridge + scripts/architect-bridge-watch.mjs',
+      architect: 'notisastranov@gmail.com',
+      selectors: ['#aci-bridge'],
+      commands: ['fix <issue>', 'code <change>', 'dev <task>', 'bridge', 'bridge status', 'bridge poll <id>', 'bridge list'],
+      behavior: [
+        'After Google sign-in as architect: 🛠 visible, bridge auto-armed',
+        'fix/code/dev/edit queue cic_queue reason=architect_bridge coder_engine=grok_build',
+        'Natural-language build tasks from architect chat also queue Architect Bridge',
+        'Desktop: npm run bridge-watch → .grok/architect-bridge/CURRENT.md',
+        'Answer: node scripts/architect-bridge-answer.mjs <id> "done: …" → phone poll delivers reply',
+        'Paid XAI_API_KEY only for architect (server free-tier first, then paid fallback)',
+        'Composer (Cursor) remains optional via "use composer" / Coders Hub summon — not the default street path',
+      ],
+      doNotRemove: ['ArchitectBridge', 'architect_push', 'architect_pending', 'architect_answer', 'aci-bridge'],
+    },
   },
 
   /**
@@ -240,6 +258,8 @@ const AstranovContinuity = {
     'MPP marketplace: browse, place_cart, track_delivery when signed in',
     'Globe renders; radar sweeps; earth speed shows ~1671 km/h on global view',
     'First load feels faster; tap shop still loads Commerce after interaction',
+    'Architect sign-in → 🛠 visible · bridge armed · fix/code queues summon',
+    'Desktop bridge-watch acks task · answer script delivers reply to phone CLI',
   ],
 
   /**
@@ -258,15 +278,20 @@ const AstranovContinuity = {
 
   /** Quick file → responsibility map */
   modules: {
-    'index.html': 'Shell HTML, MPP tile DOM, miner-rig-panel, CLI CSS exceptions, script tags',
-    'astranov-app.js': 'Globe, boot, LazyModules, SuperCli, SlumberManager, MarketplaceDeliveryEngine stub',
-    'astranov-deferred.js': 'Commerce, MapComms, CodersHub, CityMap, GlobeEntity, DeferredBoot',
-    'astranov-perf-lazy.js': 'Deferred timing patch, user-activation fast path, brain dedup',
-    'astranov-field-hud.js': 'field-balance-hud, radar, miner panel, AVC chip hide, brain schedule',
-    'astranov-mpp-tile.js': 'MenuProfilePostTile, +/locate/video/marketplace patches',
-    'astranov-galactic-sky.js': 'Galactic sky layer',
+    'index.html': 'Assembled shell + core modules (from index.shell.html + src/)',
+    'index.shell.html': 'Shell HTML/CSS/DOM — edit here then assemble',
+    'src/17-architect-bridge.js': 'Architect Bridge client (phone → Grok Build)',
+    'src/18-aci-coders.js': 'Grok chat + build queue; architect routes builds to Bridge',
+    'src/14-aci-cli.js': 'CLI commands including fix/code/dev/bridge',
+    'src/12-auth.js': 'Google auth · isArchitect · bridge arm on owner email',
+    'astranov-deferred.js': 'Commerce, MapComms, CodersHub, DeferredBoot (assembled deferred)',
+    'astranov-continuity.js': 'AI contract — read before editing',
+    'supabase/functions/coders-bridge': 'architect_* + composer pending/answer modes',
+    'scripts/architect-bridge-watch.mjs': 'Desktop inbox for street tasks',
+    'scripts/architect-bridge-answer.mjs': 'Post fix summary back to phone',
     'scripts/guard-base.mjs': 'Pre-deploy gate',
     'scripts/owner-push.mjs': 'Silent owner git push',
+    'scripts/assemble.mjs': 'src/* → index.html + astranov-deferred.js',
   },
 };
 
