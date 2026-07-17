@@ -10,7 +10,8 @@
 
   const delayMs = () => {
     const base = window.SlumberManager?.deferredDelay?.() ?? 1400;
-    return mobile() ? Math.max(base, 4200) : base;
+    // Longer defer on phone so first interactions stay smooth
+    return mobile() ? Math.max(base, 6500) : Math.max(base, 1800);
   };
   const bootAt = () => window._bootAt || Date.now();
 
