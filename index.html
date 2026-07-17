@@ -10,13 +10,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260717183049" />
+<meta name="astranov-build" content="20260717193112" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/astranov-continuity.js?v=20260717183049"></script>
+<script defer src="/astranov-continuity.js?v=20260717193112"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <style>
@@ -895,14 +895,26 @@ window.addEventListener('error', function(e) {
   } catch(_) {}
 });
 
+// Mobile / low-power first — never wait for SlumberManager probe
+window._isMobileUA = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '')
+  || ((navigator.maxTouchPoints || 0) > 1 && window.innerWidth < 960);
+window._globePerfLite = !!window._isMobileUA || window.innerWidth < 700;
+
 let renderer;
 try {
-  renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
+  const _mobile = !!window._globePerfLite;
+  renderer = new THREE.WebGLRenderer({
+    antialias: !_mobile,
+    alpha: true,
+    powerPreference: _mobile ? 'low-power' : 'high-performance',
+  });
   renderer.setClearColor(0x000000, 1);
   renderer.setSize(window.innerWidth, window.innerHeight);
-  const _dprCap = window.SlumberManager?.quality?.pixelRatio ?? (window._globePerfLite ? 1.0 : 1.25);
+  // Cap DPR hard on phone — biggest responsiveness win
+  const _dprCap = window.SlumberManager?.quality?.pixelRatio
+    ?? (_mobile ? 0.85 : 1.15);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, _dprCap));
-  if (THREE.ACESFilmicToneMapping) {
+  if (!_mobile && THREE.ACESFilmicToneMapping) {
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.08;
   }
@@ -949,8 +961,9 @@ const fillLight = new THREE.PointLight(0x66aaff, 0.35, 12);
 fillLight.position.set(-2, 1.5, 3);
 scene.add(fillLight);
 
-// Multi-layer starfield — fine dust + bright beacons (cinematic, not sparse dots)
+// Starfield — lite on phone (thousands of additive points = jank)
 (function buildAstranovStarfield() {
+  const lite = !!window._globePerfLite;
   function layer(count, rMin, rMax, size, color, opacity) {
     const pos = [];
     for (let i = 0; i < count; i++) {
@@ -967,9 +980,14 @@ scene.add(fillLight);
     });
     scene.add(new THREE.Points(geo, mat));
   }
-  layer(2800, 80, 420, 0.35, 0xaaccff, 0.55);
-  layer(900, 100, 700, 0.9, 0xffffff, 0.85);
-  layer(120, 120, 900, 2.2, 0xcce8ff, 0.95);
+  if (lite) {
+    layer(400, 80, 420, 0.5, 0xaaccff, 0.55);
+    layer(80, 100, 700, 1.2, 0xffffff, 0.85);
+  } else {
+    layer(1800, 80, 420, 0.35, 0xaaccff, 0.55);
+    layer(600, 100, 700, 0.9, 0xffffff, 0.85);
+    layer(80, 120, 900, 2.2, 0xcce8ff, 0.95);
+  }
 })();
 
 // Earth — higher tessellation + temporary ocean/land material until day/night shader binds
@@ -995,14 +1013,15 @@ new THREE.TextureLoader().load(
 globePivot = new THREE.Group();
 scene.add(globePivot);
 
-const earthSeg = (window.innerWidth < 700 || /Mobi|Android/i.test(navigator.userAgent || '')) ? 48 : 72;
+const earthSeg = window._globePerfLite ? 28 : 56;
 const earth = new THREE.Mesh(new THREE.SphereGeometry(1, earthSeg, earthSeg), earthMat);
 globePivot.add(earth);
 
 // Soft atmosphere shell (fresnel-ish blue rim) — upgraded further by AIGraphics
 (function bootAtmosphere() {
+  const atmoSeg = window._globePerfLite ? 20 : earthSeg;
   const atmo = new THREE.Mesh(
-    new THREE.SphereGeometry(1.035, earthSeg, earthSeg),
+    new THREE.SphereGeometry(1.035, atmoSeg, atmoSeg),
     new THREE.MeshBasicMaterial({
       color: 0x3a9fff,
       transparent: true,
@@ -2676,6 +2695,11 @@ const SlumberManager = {
 
   pickInitialTier() {
     const p = this.profile;
+    // Phone = conserve by default (responsiveness > cinema)
+    if (p.mobile || window._globePerfLite) {
+      if (p.lowEndGpu || p.slowNet || p.saveData || p.cores <= 4) return 'slumber';
+      return 'conserve';
+    }
     let score = 0;
     if (p.cores >= 8) score += 2;
     else if (p.cores >= 4) score += 1;
@@ -9690,31 +9714,37 @@ window.CityTasks = CityTasks;
 const StarlinkConstellation = {
   version: '20260717-starlink',
   enabled: true,
-  maxSats: 180,
+  maxSats: window._globePerfLite ? 36 : 72,
   shellKm: 550,
   earthKm: 6371,
   group: null,
   meshes: [],
   _lastFetch: 0,
+  _lastUpdate: 0,
   _elements: null,
   _fetching: false,
+  _built: false,
   _mode: 'analytic',
   CELESTRAK: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=json',
-  // Lightweight public mirror attempt (may 404 — analytic fallback always works)
   MIRROR: 'https://api.tinygs.com/v1/satellites?name=STARLINK',
 
   init() {
     if (this._inited) return;
     this._inited = true;
     window.StarlinkConstellation = this;
+    // Do NOT build meshes on boot — only when orbit is shown
+    console.log('%c[StarlinkConstellation] lazy · builds on orbit zoom', 'color:#66aaff;font-weight:700');
+  },
+
+  ensureBuilt() {
+    if (this._built) return;
+    this._built = true;
     try {
       this._ensureGroup();
-      this._buildAnalytic(80);
-      setTimeout(() => { try { this.refresh(true); } catch (_) {} }, 4000);
+      this._buildAnalytic(this.maxSats);
     } catch (e) {
-      console.warn('[StarlinkConstellation] init soft-fail', e);
+      console.warn('[StarlinkConstellation] build soft-fail', e);
     }
-    console.log('%c[StarlinkConstellation] LEO shell ready · orbit zoom', 'color:#66aaff;font-weight:700');
   },
 
   _ensureGroup() {
@@ -9873,13 +9903,23 @@ const StarlinkConstellation = {
   },
 
   update(camZ, level) {
-    if (!this.enabled || !this.group) return;
+    if (!this.enabled) return;
     const show = level === 'orbit' || (level === 'earth' && camZ > 3.6 && camZ < 5.2);
-    this.group.visible = !!show;
-    if (!show || !this._elements?.length) return;
-    const tSec = Date.now() / 1000;
+    if (!show) {
+      if (this.group) this.group.visible = false;
+      return;
+    }
+    this.ensureBuilt();
+    if (!this.group) return;
+    this.group.visible = true;
+    if (!this._elements?.length) return;
+    const now = Date.now();
+    // Throttle mesh moves — 5–8 Hz is enough for LEO dots
+    const minGap = window._globePerfLite ? 200 : 120;
+    if (now - this._lastUpdate < minGap) return;
+    this._lastUpdate = now;
+    const tSec = now / 1000;
     const n = this.meshes.length;
-    // Throttle: update all every frame is fine for ≤200 tiny meshes
     for (let i = 0; i < n; i++) {
       const m = this.meshes[i];
       const el = this._elements[i];
@@ -9888,7 +9928,6 @@ const StarlinkConstellation = {
       const p = latLngToPos(ll.lat, ll.lng, ll.alt);
       m.position.set(p.x, p.y, p.z);
     }
-    if (Date.now() - this._lastFetch > 45 * 60 * 1000) void this.refresh(false);
   },
 
   status() {
@@ -9913,7 +9952,7 @@ const StarlinkConstellation = {
       return 'Starlink overlay hidden';
     }
     this.enabled = true;
-    // Orbit sits between national and solar — not a ZoomTiers id
+    this.ensureBuilt();
     if (typeof camera !== 'undefined' && camera?.position) {
       window._globeFly = {
         mode: 'zoom',
@@ -9926,6 +9965,7 @@ const StarlinkConstellation = {
     CosmicZoom.level = 'orbit';
     CosmicZoom?.setOrbitVisibility?.('orbit');
     CosmicZoom?.update?.(5.05, { cosmic: 'orbit', label: 'ORBIT' });
+    // CelesTrak only on explicit refresh — never auto-fetch huge catalog on boot
     if (/refresh|reload|live|fetch/.test(low)) await this.refresh(true);
     const s = this.status();
     AciCli?.print?.('starlink · ' + s.mode + ' · ' + s.count + ' sats · ~' + s.shellKm + ' km', 'ok');
@@ -9949,18 +9989,38 @@ const GlobeInfoTiles = {
     hawthorne: { lat: 33.9207, lng: -118.3280, name: 'SpaceX HQ' },
   },
 
-  init() {
+  init(opts) {
     if (this._inited) return;
     this._inited = true;
+    opts = opts || {};
     window.GlobeInfoTiles = this;
     this._wireSuperSpace();
-    // Soft boot — never crash; load SpaceX tiles after paint
-    setTimeout(() => {
-      try { this.seedSpaceXTiles(); } catch (e) {
-        console.warn('[GlobeInfoTiles] seed failed', e);
-      }
-    }, 2200);
-    console.log('%c[GlobeInfoTiles] video/info tiles on globe', 'color:#3d9eff;font-weight:700');
+    // NEVER auto-fetch YouTube/Piped on boot — kills mobile main thread
+    // Pin one static F13 marker only (no network)
+    if (opts.seed !== false) {
+      setTimeout(() => {
+        try {
+          this.pinInfo({
+            id: 'spacex-f13-event',
+            lat: this.SPACEX_PINS.starbase.lat,
+            lng: this.SPACEX_PINS.starbase.lng,
+            title: 'Starship Flight 13',
+            description: 'Tap · or type spacex / starship',
+            icon: '🚀',
+            color: 0xff6622,
+            urgency: 2,
+            fly: false,
+            onTap: async () => {
+              await this.refreshSpaceXVideos({ fly: true });
+              StarshipFlight13?.focusPad?.();
+            },
+          });
+        } catch (e) {
+          console.warn('[GlobeInfoTiles] seed soft-fail', e);
+        }
+      }, window._globePerfLite ? 6000 : 3500);
+    }
+    console.log('%c[GlobeInfoTiles] video/info tiles · demand-load', 'color:#3d9eff;font-weight:700');
   },
 
   _wireSuperSpace() {
@@ -14136,17 +14196,25 @@ const AIGraphics = {
 };
 
 window.AIGraphics = AIGraphics;
-AIGraphics.init(globePivot);
+// Defer heavy mesh build so first frames stay free
+const _aiInit = () => {
+  try { AIGraphics.init(globePivot); } catch (e) { console.warn('[AIGraphics] init', e); }
+};
+if (window._globePerfLite) setTimeout(_aiInit, 900);
+else _aiInit();
 
+// Helper character is pretty but costly — late idle spawn; skip particle burst on phone
 setTimeout(() => {
   try {
-    AIGraphics.spawnEffect(new THREE.Vector3(0.6, 0.3, 1.1), 0x00ffaa, 36, 40);
+    if (!window._globePerfLite) {
+      AIGraphics.spawnEffect?.(new THREE.Vector3(0.6, 0.3, 1.1), 0x00ffaa, 24, 30);
+    }
     const u = window._lastPos || { lat: 36.44, lng: 28.22 };
-    AIGraphics.spawnAstranovFlyer(u.lat, u.lng, { label: 'Astranov', alt: 1.095 });
+    AIGraphics.spawnAstranovFlyer?.(u.lat, u.lng, { label: 'Astranov', alt: 1.095 });
   } catch (e) {
     console.warn('[Astranov Helper] spawn failed', e);
   }
-}, 420);
+}, window._globePerfLite ? 4500 : 1200);
 
 window.AstranovFlyer = {
   spawn: (lat, lng, opts) => AIGraphics.spawnAstranovFlyer(lat, lng, opts),
@@ -15016,13 +15084,19 @@ function showPilotTelemachos() {
 }
 
 window._cycleTurbo = false;
-window._globePerfLite = false;
+if (window._globePerfLite == null) window._globePerfLite = false;
 window._animFrame = 0;
-const _slumberDiv = (k) => SlumberManager?.frameDivisor?.(k) || 6;
+window._lastUserAct = Date.now();
+const _slumberDiv = (k) => SlumberManager?.frameDivisor?.(k) || (window._globePerfLite ? 10 : 6);
 
 function globePerfActive() {
   return !!(window._voicePerfMode || window._globePerfLite);
 }
+
+// Track interaction so we can drop FPS when idle
+['pointerdown', 'touchstart', 'wheel', 'keydown'].forEach(ev => {
+  window.addEventListener(ev, () => { window._lastUserAct = Date.now(); }, { passive: true });
+});
 
 function animate() {
   requestAnimationFrame(animate);
@@ -15031,10 +15105,15 @@ function animate() {
   window._animFrame = (window._animFrame + 1) | 0;
   const frame = window._animFrame;
   const hidden = document.hidden;
-  if (hidden && frame % 30 !== 0) {
-    renderer.render(scene, camera);
-    return;
+  const lite = !!window._globePerfLite;
+  const idleMs = Date.now() - (window._lastUserAct || 0);
+  const dragging = !!(drag || window._globeFly || trackVelX || trackVelY);
+  // Idle: skip most frames on phone so UI stays responsive
+  if (!dragging && !hidden) {
+    const skipN = lite ? (idleMs > 8000 ? 4 : idleMs > 2500 ? 2 : 1) : (idleMs > 10000 ? 2 : 0);
+    if (skipN && frame % (skipN + 1) !== 0) return;
   }
+  if (hidden && frame % 45 !== 0) return;
 
   const camZ = camera?.position?.z ?? 2.55;
   const level = CosmicZoom?.level || 'earth';
@@ -15052,15 +15131,18 @@ function animate() {
 
   if (!hidden && frame % _slumberDiv('entity') === 0) {
     MapDepict?.tick?.();
-    if (SlumberManager?.allows?.('entities')) GlobeEntity?.tick?.();
+    if (SlumberManager?.allows?.('entities') !== false) GlobeEntity?.tick?.();
   }
 
+  const cosmicDiv = Math.max(_slumberDiv('cosmic'), lite ? 16 : 8);
   if (solarView && frame % _slumberDiv('cosmic') === 0) CosmicZoom.update(camZ);
-  else if (frame % Math.max(_slumberDiv('cosmic'), 8) === 0) CosmicZoom.update(camZ);
+  else if (frame % cosmicDiv === 0) CosmicZoom.update(camZ);
 
-  if (earthView && frame % Math.max(_slumberDiv('earth'), 2) === 0) AIGraphics?.update?.();
+  // Helper/graphics tick is expensive — rare when idle
+  const gfxDiv = lite ? Math.max(_slumberDiv('earth'), 8) : Math.max(_slumberDiv('earth'), 2);
+  if (earthView && frame % gfxDiv === 0) AIGraphics?.update?.();
   if (earthView && frame % _slumberDiv('earth') === 0) EarthRealism?.tick?.();
-  if (earthView && frame % _slumberDiv('celestial') === 0 && SlumberManager?.allows?.('celestial')) {
+  if (!lite && earthView && frame % _slumberDiv('celestial') === 0 && SlumberManager?.allows?.('celestial')) {
     window.CelestialNav?.tick?.();
   }
   renderer.render(scene, camera);
@@ -15117,22 +15199,36 @@ AiRouter.init();
 
 LazyModules.schedule();
 
-// Soft-init product modules — never throw on boot
+// Soft-init — keep first paint light. Heavy modules only after idle.
 const _softInit = (name, fn) => {
   try { fn?.(); } catch (e) { console.warn('[boot] ' + name, e); }
 };
-_softInit('ArchitectBridge', () => ArchitectBridge?.init?.());
+const _idle = (fn, ms) => {
+  const run = () => { try { fn(); } catch (e) { console.warn('[boot idle]', e); } };
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(run, { timeout: ms });
+  } else setTimeout(run, ms);
+};
+// Critical UX only
 _softInit('CoreBrain', () => AstranovCoreBrain?.init?.());
-_softInit('StarshipF13', () => StarshipFlight13?.init?.());
-_softInit('CityTasks', () => CityTasks?.init?.());
-_softInit('Starlink', () => StarlinkConstellation?.init?.());
-_softInit('GlobeInfoTiles', () => GlobeInfoTiles?.init?.());
 _softInit('ProductSurface', () => ProductSurface?.init?.());
-setTimeout(() => { try { Auth.refreshAuthority(); } catch (_) {} }, 800);
-// Re-init product surface after external mpp/field scripts (if any) load
-setTimeout(() => { try { ProductSurface?.init?.(); MenuProfilePostTile?.init?.(); FieldHud?.boot?.(); } catch (_) {} }, 900);
+// Defer everything else — was jamming main thread on boot
+_idle(() => ArchitectBridge?.init?.(), 2500);
+_idle(() => CityTasks?.init?.(), 3000);
+_idle(() => GlobeInfoTiles?.init?.({ seed: false }), 4000);
+// Starship / Starlink ONLY on first use or much later idle
+_idle(() => { /* no mesh build */ }, 8000);
+setTimeout(() => { try { Auth.refreshAuthority(); } catch (_) {} }, 1200);
+setTimeout(() => {
+  try {
+    ProductSurface?.init?.();
+    MenuProfilePostTile?.init?.();
+    // FieldHud already auto-boots from its own script; don't force again immediately
+  } catch (_) {}
+}, 1400);
 try { AciCli?.primeCodersCli?.(); } catch (_) {}
-try { AciCoders?.ensureBridge?.(); } catch (_) {}
+// Coders session much later — was competing with touch
+setTimeout(() => { try { AciCoders?.ensureBridge?.(); } catch (_) {} }, 5000);
 
 if (window._lastPos) {
   try {
@@ -15153,7 +15249,7 @@ setTimeout(() => {
   GlobeDeck?.setPreview?.('Type below or 🎧 · 🎯 for your city · + to post');
   primeGrokVoice?.();
   showFirstRunCoach();
-  setTimeout(() => AciCoders?.enterSession?.({ expand: false, ping: false, focus: false }), 2800);
+  setTimeout(() => AciCoders?.enterSession?.({ expand: false, ping: false, focus: false }), window._globePerfLite ? 8000 : 4000);
   const zl = document.getElementById('zoom-label');
   if (zl) zl.textContent = 'GLOBAL · drag Earth · 🎯 your city · 🎧 Grok · + post';
 }, 1200);
@@ -15167,11 +15263,11 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260717183049" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260717193112" data-astranov-deferred></script>
 
-<script src="/astranov-perf-lazy.js?v=20260717183049"></script>
-<script src="/astranov-field-hud.js?v=20260717183049"></script>
-<script src="/astranov-mpp-tile.js?v=20260717183049"></script>
-<script src="/astranov-galactic-sky.js?v=20260717183049" defer></script>
+<script src="/astranov-perf-lazy.js?v=20260717193112"></script>
+<script src="/astranov-field-hud.js?v=20260717193112"></script>
+<script src="/astranov-mpp-tile.js?v=20260717193112"></script>
+<script src="/astranov-galactic-sky.js?v=20260717193112" defer></script>
 </body>
 </html>
