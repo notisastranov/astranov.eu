@@ -942,10 +942,69 @@ const MenuProfilePostTile = {
       this.refreshDataList();
       return;
     }
+    // City DNA — same delivery pipeline for jobs / dating / errands
+    if (act === 'post_job' || act === 'post_date' || act === 'post_errand'
+      || act === 'list_city_tasks' || act === 'claim_open_task') {
+      CityTasks?.init?.();
+      window._lastPos = { lat, lng };
+      const cap = (document.getElementById('mpp-post-caption')?.value || '').trim();
+      if (act === 'list_city_tasks') {
+        const msg = await CityTasks.handleCli?.('task list');
+        AciCli?.print?.(msg || 'tasks', 'ok');
+        return;
+      }
+      if (act === 'claim_open_task') {
+        const r = await CityTasks.claim?.(null);
+        AciCli?.print?.(r?.ok ? ('Claimed · ' + r.task.title) : (r?.error || 'none'), r?.ok ? 'ok' : 'dim');
+        if (r?.ok) this.close();
+        return;
+      }
+      let t = null;
+      if (act === 'post_job') {
+        t = CityTasks.postJob?.({
+          rawText: cap || 'barman 3h',
+          title: cap || undefined,
+          lat, lng,
+          note: 'mpp · ' + this.formatCoords(lat, lng),
+        });
+      } else if (act === 'post_date') {
+        t = CityTasks.postDate?.({
+          rawText: cap || 'coffee date 2h',
+          lat, lng,
+          place_hint: this.formatCoords(lat, lng),
+          note: 'mpp dating invite',
+        });
+      } else {
+        t = CityTasks.postErrand?.({
+          rawText: cap || 'errand',
+          lat, lng,
+          note: 'mpp errand',
+        });
+      }
+      if (t) {
+        const q = CityTasks.quote?.(t);
+        ACIControl?.reply?.(
+          (t.kind === 'dating' ? '💕 ' : t.kind === 'job' ? '💼 ' : '🏃 ')
+          + t.title + ' · ' + t.duration_label
+          + (q?.total_eur ? ' · ~€' + q.total_eur : '')
+        );
+        AciCli?.print?.(t.kind + ' open · ' + t.duration_label + ' · pin ' + this.formatCoords(lat, lng), 'ok');
+        if (document.getElementById('mpp-post-caption')) document.getElementById('mpp-post-caption').value = '';
+      }
+      return;
+    }
     if (act === 'post_lust') {
       if (!Auth?.user) { Auth?.openLoginModal?.('Sign in to post'); return; }
       const cap = (document.getElementById('mpp-post-caption')?.value || '').trim() || 'Lust · ' + this.formatCoords(lat, lng);
       window._lastPos = { lat, lng };
+      // If caption looks like a job/date, route to City DNA
+      if (CityTasks?.wants?.(cap) || /\b(barman|housekeeper|date|errand|hire)\b/i.test(cap)) {
+        await this.runAction(
+          /\bdate|dating|coffee\s*date\b/i.test(cap) ? 'post_date'
+            : /\berrand\b/i.test(cap) ? 'post_errand' : 'post_job'
+        );
+        return;
+      }
       MapDepict?.action?.('explore', { lat, lng, detail: cap.slice(0, 80) });
       FieldBrain?.pulse?.('media', cap.slice(0, 80), { role: 'client', props: { lust: true, lat, lng } });
       if (window.SuperAdd?._placeMarker) SuperAdd._placeMarker(lat, lng, cap, 'lust');
