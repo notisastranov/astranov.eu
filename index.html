@@ -10,13 +10,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260716113039" />
+<meta name="astranov-build" content="20260717160853" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/astranov-continuity.js?v=20260716113039"></script>
+<script defer src="/astranov-continuity.js?v=20260717160853"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <style>
@@ -2198,6 +2198,18 @@ const FieldBrain = {
       }
       CliRibbon?.setNotice?.(entry.kind + ' · ' + entry.detail.slice(0, 60), 'ready');
     } catch (_) { /* */ }
+  },
+  async claimDelivery(orderId) {
+    CityTasks?.init?.();
+    return CityTasks?.claim?.(orderId);
+  },
+  createCityTask(spec) {
+    CityTasks?.init?.();
+    return CityTasks?.create?.(spec);
+  },
+  listCityTasks(filter) {
+    CityTasks?.init?.();
+    return CityTasks?.list?.(filter) || [];
   },
   onAuth() {},
   updateChip() {},
@@ -5534,7 +5546,30 @@ const AciCli = {
 
     if (!cmd) return;
     if (cmd === 'help' || cmd === '?') {
-      this.print('Architect: fix|code|dev|bridge · Chat: 🎧 Grok · also think|coders|db|theme|clear|exit', 'dim');
+      this.print('starship · starlink · crawl · task · order · locate · think|coders|db|theme · Architect: fix|bridge', 'dim');
+      return;
+    }
+    if (cmd === 'starship' || cmd === 'f13') {
+      StarshipFlight13?.init?.();
+      const msg = await StarshipFlight13?.handleCli?.(rest || line);
+      this.print(msg || 'f13', 'ok');
+      return;
+    }
+    if (cmd === 'starlink') {
+      StarlinkConstellation?.init?.();
+      const msg = await StarlinkConstellation?.handleCli?.(rest || 'starlink');
+      this.print(msg || 'starlink', 'ok');
+      return;
+    }
+    if (cmd === 'crawl' || cmd === 'spacenet') {
+      const msg = await SpaceNetBrain?.handleCli?.(rest || 'crawl all');
+      this.print(msg || 'crawl', 'ok');
+      return;
+    }
+    if (cmd === 'task' || cmd === 'tasks') {
+      CityTasks?.init?.();
+      const msg = await CityTasks?.handleCli?.(line);
+      this.print(msg || 'task', 'ok');
       return;
     }
     if (cmd === 'clear') { this.clear(); return; }
@@ -6761,6 +6796,32 @@ const AstranovCoreBrain = {
       actions.push({ type: 'brain_pulse', mode: /evolve|εξέλιξ/i.test(low) ? 'evolve' : 'think' });
     }
 
+    // Starship Flight 13 sim
+    if (/starship|flight\s*13|f13|starbase\s*launch|ift[\s-]*13/i.test(low)) {
+      intent = 'starship';
+      actions.push({ type: 'starship', query: m });
+    }
+
+    // Starlink / SpaceX sats on globe
+    if (/starlink|spacex\s*sat|leo\s*constellation|satellite\s*(map|orbit|show)|constellation/i.test(low)
+      && !/starship|flight\s*13/i.test(low)) {
+      intent = 'starlink';
+      actions.push({ type: 'starlink', query: m });
+    }
+
+    // SpaceNet crawlers
+    if (/spacenet|crawl(er|ers)?|ingest|scan\s*(city|area|sector)/i.test(low)) {
+      intent = 'spacenet';
+      actions.push({ type: 'spacenet', query: m });
+    }
+
+    // City tasks / claim delivery
+    if (/\b(city\s*task|task\s*list|claim\s*(delivery|order|task)|assign\s*driver)\b/i.test(low)
+      || (/^task\b/i.test(low))) {
+      intent = 'city_task';
+      actions.push({ type: 'city_task', query: m });
+    }
+
     // Hello / ping — no globe required
     if (/^(hi|hello|hey|ping|γεια|γεια σου|είσαι εκεί|eisai ekei)\b/i.test(low) || this._isPing(m)) {
       intent = 'ping';
@@ -6820,6 +6881,23 @@ const AstranovCoreBrain = {
           if (a.mode === 'evolve') ACI?.evolve?.(plan.message).catch(() => {});
           else ACI?.pulse?.(1.6);
           results.push(a.mode);
+        } else if (a.type === 'starship') {
+          StarshipFlight13?.init?.();
+          const msg = await StarshipFlight13?.handleCli?.(a.query || 'starship');
+          results.push(msg || 'starship f13');
+        } else if (a.type === 'starlink') {
+          StarlinkConstellation?.init?.();
+          const msg = await StarlinkConstellation?.handleCli?.(a.query || 'starlink');
+          results.push(msg || 'starlink');
+        } else if (a.type === 'spacenet') {
+          const p = this.userPos();
+          const msg = await SpaceNetBrain?.handleCli?.(a.query || 'crawl');
+          void SpaceNetBrain?.crawlAll?.(p.lat, p.lng, 3, { force: /force|now/i.test(a.query || '') });
+          results.push(msg || 'spacenet crawl');
+        } else if (a.type === 'city_task') {
+          CityTasks?.init?.();
+          const msg = await CityTasks?.handleCli?.(a.query || 'task list');
+          results.push(msg || 'city task');
         }
       } catch (e) {
         results.push(a.type + ' failed');
@@ -8675,12 +8753,16 @@ const MapPlaceMenu = {
 };
 window.MapPlaceMenu = MapPlaceMenu;
 
-// === SPACENET BRAIN — local + AI intent classification for place menu ===
+// === SPACENET BRAIN — intent + multi-crawler mesh for city/globe ingestion ===
 const SpaceNetBrain = {
   _crawlBusy: new Set(),
   _lastClassify: null,
+  _sectorCache: new Map(),
+  _lastMulti: 0,
 
   ACTION_IDS: ['list_vendor', 'list_shop', 'driver_base', 'post', 'upload_photo', 'upload_video', 'deliver_here', 'drive_here', 'route', 'explore', 'order'],
+
+  CRAWLERS: ['vendors', 'places', 'weather', 'news', 'drivers', 'tasks'],
 
   async classifyIntent(text, ctx) {
     ctx = ctx || {};
@@ -8700,7 +8782,7 @@ const SpaceNetBrain = {
     void this._refineWithAi(trimmed, ctx, local);
 
     if (ctx.lat != null && ctx.lng != null) {
-      void this.crawlArea(ctx.lat, ctx.lng, ctx.radiusKm || 2);
+      void this.crawlAll(ctx.lat, ctx.lng, ctx.radiusKm || 2);
     }
 
     this._lastClassify = { text: trimmed, primary, more, at: Date.now() };
@@ -8739,26 +8821,1029 @@ const SpaceNetBrain = {
     return found;
   },
 
+  _headers() {
+    const h = { 'Content-Type': 'application/json' };
+    if (typeof SB_KEY !== 'undefined') h.apikey = SB_KEY;
+    if (Auth?.session?.access_token) h.Authorization = 'Bearer ' + Auth.session.access_token;
+    else if (typeof SB_KEY !== 'undefined') h.Authorization = 'Bearer ' + SB_KEY;
+    return h;
+  },
+
+  /** Back-compat single sector crawl (vendors edge). */
   async crawlArea(lat, lng, radiusKm) {
-    const key = lat.toFixed(3) + ',' + lng.toFixed(3);
-    if (this._crawlBusy.has(key)) return;
+    return this.crawlVendors(lat, lng, radiusKm);
+  },
+
+  async crawlVendors(lat, lng, radiusKm) {
+    const key = 'v:' + lat.toFixed(3) + ',' + lng.toFixed(3);
+    if (this._crawlBusy.has(key)) return { skipped: true };
     this._crawlBusy.add(key);
     try {
-      const h = { 'Content-Type': 'application/json' };
-      if (typeof SB_KEY !== 'undefined') h.apikey = SB_KEY;
-      if (Auth?.session?.access_token) h.Authorization = 'Bearer ' + Auth.session.access_token;
-      else if (typeof SB_KEY !== 'undefined') h.Authorization = 'Bearer ' + SB_KEY;
-      await fetch((typeof SB_URL !== 'undefined' ? SB_URL : '') + '/functions/v1/vendor-crawler', {
+      const radius = Math.round((radiusKm || 2) * 1000);
+      const body = {
+        lat, lng,
+        radius,
+        radius_km: radiusKm || 2,
+        source: 'spacenet-brain',
+      };
+      const r = await fetch((typeof SB_URL !== 'undefined' ? SB_URL : '') + '/functions/v1/vendor-crawler', {
         method: 'POST',
-        headers: h,
-        body: JSON.stringify({ lat, lng, radius_km: radiusKm || 2, source: 'spacenet-brain' }),
+        headers: this._headers(),
+        body: JSON.stringify(body),
       });
-      AciCli?.print?.('crawler · sector ' + key, 'dim');
+      const j = r.ok ? await r.json().catch(() => ({})) : {};
+      this._sectorCache.set(key, { at: Date.now(), count: j.count || 0 });
+      AciCli?.print?.('crawler · vendors · sector ' + key.slice(2) + (j.count != null ? ' · ' + j.count : ''), 'dim');
+      // Refresh commerce markers if present
+      if (j.count > 0) void window.Commerce?.loadVendors?.();
+      return j;
+    } catch (e) {
+      AciCli?.print?.('crawler · vendors failed · local demo shops', 'dim');
+      return { ok: false, error: String(e?.message || e) };
+    } finally {
+      setTimeout(() => this._crawlBusy.delete(key), 120000);
+    }
+  },
+
+  /** Open-Meteo weather (CORS-friendly) for delivery surcharges / city HUD. */
+  async crawlWeather(lat, lng) {
+    const key = 'w:' + lat.toFixed(2) + ',' + lng.toFixed(2);
+    if (this._crawlBusy.has(key)) return this._sectorCache.get(key)?.data;
+    this._crawlBusy.add(key);
+    try {
+      const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat
+        + '&longitude=' + lng + '&current=temperature_2m,weather_code,wind_speed_10m,precipitation';
+      const r = await fetch(url);
+      const j = await r.json();
+      const cur = j.current || {};
+      const data = {
+        temp_c: cur.temperature_2m,
+        wind: cur.wind_speed_10m,
+        precip: cur.precipitation,
+        code: cur.weather_code,
+        at: Date.now(),
+      };
+      this._sectorCache.set(key, { at: Date.now(), data });
+      window._spaceNetWeather = data;
+      AciCli?.print?.('crawler · weather · ' + (data.temp_c ?? '?') + '°C · wind ' + (data.wind ?? '?'), 'dim');
+      return data;
+    } catch (_) {
+      return null;
+    } finally {
+      setTimeout(() => this._crawlBusy.delete(key), 60000);
+    }
+  },
+
+  /** Lightweight news tick for region (uses existing Comms if present). */
+  async crawlNews(lat, lng) {
+    try {
+      Comms?.loadNews?.();
+      NewsFeed?.flash?.();
+      AciCli?.print?.('crawler · news · sector', 'dim');
+      return { ok: true };
+    } catch (_) {
+      return { ok: false };
+    }
+  },
+
+  /** Nearby drivers for delivery infrastructure. */
+  async crawlDrivers(lat, lng) {
+    try {
+      await LazyModules?.ensure?.();
+      const d = await window.Commerce?.fetchNearbyDrivers?.(lat, lng);
+      if (d?.length) window.Commerce?.showDriversOnGlobe?.(d);
+      AciCli?.print?.('crawler · drivers · ' + (d?.length || 0), 'dim');
+      return { count: d?.length || 0, drivers: d || [] };
+    } catch (_) {
+      return { count: 0 };
+    }
+  },
+
+  /** Places = vendors + city map refresh. */
+  async crawlPlaces(lat, lng, radiusKm) {
+    const v = await this.crawlVendors(lat, lng, radiusKm);
+    try {
+      CityMap?.refreshTiles?.(lat, lng);
+      CityLife?._pulseFriends?.();
     } catch (_) {}
-    setTimeout(() => this._crawlBusy.delete(key), 120000);
+    return v;
+  },
+
+  /** Sync open city tasks onto globe. */
+  async crawlTasks(lat, lng) {
+    try {
+      CityTasks?.init?.();
+      const open = CityTasks?.list?.({ open: true }) || [];
+      open.slice(0, 12).forEach(t => CityTasks?._showOnGlobe?.(t));
+      AciCli?.print?.('crawler · tasks · open ' + open.length, 'dim');
+      return { count: open.length };
+    } catch (_) {
+      return { count: 0 };
+    }
+  },
+
+  /** Run all SpaceNet crawlers for a lat/lng sector. */
+  async crawlAll(lat, lng, radiusKm, opts) {
+    opts = opts || {};
+    if (lat == null || lng == null) {
+      const u = window._lastPos || { lat: 36.4341, lng: 28.2176 };
+      lat = u.lat; lng = u.lng;
+    }
+    const key = 'all:' + lat.toFixed(3) + ',' + lng.toFixed(3);
+    if (!opts.force && this._crawlBusy.has(key)) return { busy: true };
+    if (!opts.force && Date.now() - this._lastMulti < 15000) return { throttled: true };
+    this._crawlBusy.add(key);
+    this._lastMulti = Date.now();
+    FieldBrain?.pulse?.('think', 'spacenet crawl · sector', { lat, lng });
+    const which = opts.only || this.CRAWLERS;
+    const results = {};
+    try {
+      const jobs = [];
+      if (which.includes('vendors') || which.includes('places')) {
+        jobs.push(this.crawlPlaces(lat, lng, radiusKm || 2).then(r => { results.places = r; }));
+      }
+      if (which.includes('weather')) jobs.push(this.crawlWeather(lat, lng).then(r => { results.weather = r; }));
+      if (which.includes('news')) jobs.push(this.crawlNews(lat, lng).then(r => { results.news = r; }));
+      if (which.includes('drivers')) jobs.push(this.crawlDrivers(lat, lng).then(r => { results.drivers = r; }));
+      if (which.includes('tasks')) jobs.push(this.crawlTasks(lat, lng).then(r => { results.tasks = r; }));
+      await Promise.allSettled(jobs);
+      AciCli?.print?.('spacenet · crawl done · ' + Object.keys(results).join(' · '), 'ok');
+      CliRibbon?.setNotice?.('SpaceNet crawl · ' + Object.keys(results).length + ' feeds', 'ready');
+      return { ok: true, results };
+    } finally {
+      setTimeout(() => this._crawlBusy.delete(key), 45000);
+    }
+  },
+
+  wants(text) {
+    return /spacenet|crawl(er|ers)?|ingest|scan\s*(city|area|sector)/i.test(String(text || ''));
+  },
+
+  async handleCli(line) {
+    const low = String(line || '').toLowerCase();
+    const u = window._lastPos || { lat: 36.4341, lng: 28.2176 };
+    if (/weather/.test(low)) {
+      const w = await this.crawlWeather(u.lat, u.lng);
+      return w ? ('Weather · ' + w.temp_c + '°C · wind ' + w.wind) : 'weather crawl failed';
+    }
+    if (/driver/.test(low)) {
+      const d = await this.crawlDrivers(u.lat, u.lng);
+      return 'Drivers · ' + (d.count || 0);
+    }
+    if (/vendor|shop|place/.test(low)) {
+      await this.crawlPlaces(u.lat, u.lng, 3);
+      return 'Vendors/places crawled';
+    }
+    const r = await this.crawlAll(u.lat, u.lng, 3, { force: true });
+    return r.ok ? 'SpaceNet crawlers finished' : 'crawl busy/throttled — retry';
   },
 };
 window.SpaceNetBrain = SpaceNetBrain;
+
+// === STARSHIP FLIGHT 13 — lean globe launch / replay simulation ===
+// Event sim for Starbase Pad 2 · not full physics. NET updates from SpaceX.
+const StarshipFlight13 = {
+  version: '20260717-f13',
+  // Pad 2 Starbase (approx)
+  PAD: { lat: 25.9971, lng: -97.1554, name: 'Starbase Pad 2' },
+  // Official window open pattern: 5:45 p.m. CT = 22:45 UTC
+  NET_UTC: Date.UTC(2026, 6, 20, 22, 45, 0),
+  WINDOW_MIN: 90,
+  playing: false,
+  _raf: null,
+  _t0: 0,
+  _elapsed: 0,
+  _speed: 1,
+  _group: null,
+  _ship: null,
+  _booster: null,
+  _trail: null,
+  _hud: null,
+  _phase: 'idle',
+  _lastHud: 0,
+
+  // Approximate public test profile (suborbital ship · Gulf booster · Indian Ocean entry)
+  PHASES: [
+    { t: 0, id: 'liftoff', label: 'Liftoff', event: '33 engines · Pad 2' },
+    { t: 60, id: 'maxq', label: 'Max-Q', event: 'Peak aerodynamic pressure' },
+    { t: 160, id: 'hotstage', label: 'Hot-staging', event: 'Ship ignition · stage sep' },
+    { t: 180, id: 'boostback', label: 'Boostback', event: 'Booster flip · Gulf' },
+    { t: 400, id: 'boostland', label: 'Booster splash', event: 'Gulf of Mexico water landing' },
+    { t: 520, id: 'coast', label: 'Ship coast', event: 'Suborbital arc · Starlink V3 bay' },
+    { t: 900, id: 'deploy', label: 'Payload window', event: 'Starlink V3 deploy opportunity' },
+    { t: 2700, id: 'entry', label: 'Entry', event: 'Ship reentry · Indian Ocean' },
+    { t: 3300, id: 'splash', label: 'Splashdown', event: 'Controlled splash · end of test' },
+  ],
+
+  // Great-circle samples: Starbase → Gulf → mid-Atlantic coast → Indian Ocean splash zone
+  PATH_SHIP: [
+    { t: 0, lat: 25.9971, lng: -97.1554, alt: 1.0 },
+    { t: 60, lat: 26.4, lng: -96.4, alt: 1.02 },
+    { t: 160, lat: 27.8, lng: -94.2, alt: 1.06 },
+    { t: 400, lat: 30.5, lng: -88.0, alt: 1.09 },
+    { t: 900, lat: 20.0, lng: -40.0, alt: 1.12 },
+    { t: 1800, lat: 0.0, lng: 20.0, alt: 1.10 },
+    { t: 2700, lat: -20.0, lng: 55.0, alt: 1.05 },
+    { t: 3300, lat: -30.0, lng: 75.0, alt: 1.0 },
+  ],
+  PATH_BOOSTER: [
+    { t: 0, lat: 25.9971, lng: -97.1554, alt: 1.0 },
+    { t: 160, lat: 27.8, lng: -94.2, alt: 1.06 },
+    { t: 250, lat: 27.2, lng: -94.8, alt: 1.04 },
+    { t: 400, lat: 26.5, lng: -95.5, alt: 1.0 },
+  ],
+
+  init() {
+    if (this._inited) return;
+    this._inited = true;
+    window.StarshipFlight13 = this;
+    this._ensureGroup();
+    this._ensureHud();
+    console.log('%c[StarshipFlight13] F13 sim ready · say starship / flight 13', 'color:#ff8844;font-weight:700');
+  },
+
+  _ensureGroup() {
+    if (this._group || typeof THREE === 'undefined' || typeof globePivot === 'undefined') return;
+    this._group = new THREE.Group();
+    this._group.name = 'starship-f13';
+    this._group.visible = false;
+    globePivot.add(this._group);
+
+    const bodyGeo = new THREE.CylinderGeometry(0.008, 0.012, 0.055, 8);
+    const bodyMat = new THREE.MeshBasicMaterial({ color: 0xdde8f0 });
+    this._ship = new THREE.Mesh(bodyGeo, bodyMat.clone());
+    this._ship.userData = { kind: 'ship', name: 'Ship · F13' };
+    this._group.add(this._ship);
+
+    this._booster = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.012, 0.016, 0.07, 8),
+      new THREE.MeshBasicMaterial({ color: 0xaabbcc })
+    );
+    this._booster.userData = { kind: 'booster', name: 'Booster · F13' };
+    this._group.add(this._booster);
+
+    const trailGeo = new THREE.BufferGeometry();
+    const trailPos = new Float32Array(90);
+    trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
+    this._trail = new THREE.Line(
+      trailGeo,
+      new THREE.LineBasicMaterial({ color: 0xff6622, transparent: true, opacity: 0.75 })
+    );
+    this._trail.frustumCulled = false;
+    this._group.add(this._trail);
+    this._trailPts = [];
+  },
+
+  _ensureHud() {
+    if (this._hud || typeof document === 'undefined') return;
+    let el = document.getElementById('starship-f13-hud');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'starship-f13-hud';
+      el.setAttribute('aria-live', 'polite');
+      el.style.cssText = [
+        'position:fixed', 'left:50%', 'bottom:calc(88px + env(safe-area-inset-bottom,0px))',
+        'transform:translateX(-50%)', 'z-index:95', 'max-width:min(92vw,420px)',
+        'padding:8px 12px', 'border-radius:12px', 'pointer-events:none',
+        'background:rgba(8,12,20,0.82)', 'border:1px solid rgba(255,120,60,0.45)',
+        'color:#ffe8d8', 'font:600 12px/1.35 system-ui,sans-serif',
+        'box-shadow:0 8px 28px rgba(0,0,0,0.45)', 'display:none', 'text-align:center',
+      ].join(';');
+      document.body.appendChild(el);
+    }
+    this._hud = el;
+  },
+
+  netMs() { return this.NET_UTC; },
+
+  countdownText(nowMs) {
+    const d = this.NET_UTC - (nowMs || Date.now());
+    if (d <= 0) return 'NET open · window ' + this.WINDOW_MIN + 'm · T+ live or replay';
+    const s = Math.floor(d / 1000);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return 'NET T−' + String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0')
+      + ' · 20 Jul 2026 22:45 UTC · Starbase';
+  },
+
+  phaseAt(t) {
+    let cur = this.PHASES[0];
+    for (const p of this.PHASES) {
+      if (t >= p.t) cur = p;
+      else break;
+    }
+    return cur;
+  },
+
+  _lerpPath(path, t) {
+    if (!path.length) return null;
+    if (t <= path[0].t) return { ...path[0] };
+    if (t >= path[path.length - 1].t) return { ...path[path.length - 1] };
+    for (let i = 0; i < path.length - 1; i++) {
+      const a = path[i];
+      const b = path[i + 1];
+      if (t >= a.t && t <= b.t) {
+        const u = (t - a.t) / Math.max(1e-6, b.t - a.t);
+        return {
+          lat: a.lat + (b.lat - a.lat) * u,
+          lng: a.lng + (b.lng - a.lng) * u,
+          alt: a.alt + (b.alt - a.alt) * u,
+        };
+      }
+    }
+    return { ...path[path.length - 1] };
+  },
+
+  _place(mesh, sample) {
+    if (!mesh || !sample || typeof latLngToPos !== 'function') return;
+    const p = latLngToPos(sample.lat, sample.lng, sample.alt);
+    mesh.position.set(p.x, p.y, p.z);
+    // Point roughly outward
+    mesh.lookAt(0, 0, 0);
+    mesh.rotateX(Math.PI / 2);
+  },
+
+  _pushTrail(sample) {
+    if (!sample || !this._trail) return;
+    const p = latLngToPos(sample.lat, sample.lng, sample.alt);
+    this._trailPts.push(p.x, p.y, p.z);
+    if (this._trailPts.length > 90) this._trailPts = this._trailPts.slice(-90);
+    const arr = this._trail.geometry.attributes.position.array;
+    for (let i = 0; i < 90; i++) arr[i] = this._trailPts[i] ?? this._trailPts[this._trailPts.length - 1] ?? 0;
+    this._trail.geometry.attributes.position.needsUpdate = true;
+    this._trail.geometry.setDrawRange(0, Math.floor(this._trailPts.length / 3));
+  },
+
+  _setHud(html, show) {
+    this._ensureHud();
+    if (!this._hud) return;
+    this._hud.style.display = show === false ? 'none' : 'block';
+    if (html != null) this._hud.innerHTML = html;
+  },
+
+  focusPad() {
+    this._ensureGroup();
+    GlobeControl?.flyToLatLng?.(this.PAD.lat, this.PAD.lng, 'Starbase · F13', GlobeControl?.Z?.national || 1.9, {});
+    MapDepict?.pulse?.(this.PAD.lat, this.PAD.lng, 0xff6622, 'Pad 2 · F13', 12000);
+    ZoomTiers?.goTo?.('national', true);
+  },
+
+  start(opts) {
+    opts = opts || {};
+    this.init();
+    this._ensureGroup();
+    this._speed = Math.max(0.25, Math.min(60, opts.speed || (opts.realtime ? 1 : 12)));
+    this.playing = true;
+    this._elapsed = opts.fromT || 0;
+    this._t0 = performance.now();
+    this._trailPts = [];
+    this._phase = 'liftoff';
+    if (this._group) this._group.visible = true;
+    if (this._booster) this._booster.visible = true;
+    if (this._ship) this._ship.visible = true;
+    this.focusPad();
+    const mode = opts.realtime ? 'live clock' : ('×' + this._speed + ' replay');
+    AciCli?.print?.('starship f13 · ' + mode + ' · NET ' + new Date(this.NET_UTC).toISOString(), 'ok');
+    CliRibbon?.setNotice?.('F13 · ' + mode, 'ready');
+    GlobeDeck?.say?.('Starship Flight 13 sim — ' + mode, 'ok');
+    this._setHud('<b>F13</b> · ' + mode + '<br>' + this.countdownText(), true);
+    this._tick();
+    return { ok: true, mode, net: this.NET_UTC };
+  },
+
+  stop() {
+    this.playing = false;
+    if (this._group) this._group.visible = false;
+    this._setHud(null, false);
+    AciCli?.print?.('starship f13 · stopped', 'dim');
+  },
+
+  _tick() {
+    if (!this.playing) return;
+    const now = performance.now();
+    const dt = (now - this._t0) / 1000;
+    this._t0 = now;
+    this._elapsed += dt * this._speed;
+    const t = this._elapsed;
+    const phase = this.phaseAt(t);
+    this._phase = phase.id;
+
+    const ship = this._lerpPath(this.PATH_SHIP, t);
+    const boost = this._lerpPath(this.PATH_BOOSTER, Math.min(t, 400));
+    this._place(this._ship, ship);
+    if (t < 160) {
+      this._place(this._booster, ship);
+      if (this._booster) this._booster.visible = true;
+    } else if (t < 420) {
+      this._place(this._booster, boost);
+      if (this._booster) this._booster.visible = true;
+    } else if (this._booster) {
+      this._booster.visible = false;
+    }
+    if (ship && t % 0.2 < 0.05) this._pushTrail(ship);
+
+    if (now - this._lastHud > 400) {
+      this._lastHud = now;
+      const mm = Math.floor(t / 60);
+      const ss = Math.floor(t % 60);
+      this._setHud(
+        '<b>Starship F13</b> · T+' + String(mm).padStart(2, '0') + ':' + String(ss).padStart(2, '0')
+        + ' · ×' + this._speed
+        + '<br><span style="color:#ffb088">' + phase.label + '</span> — ' + phase.event
+        + '<br><span style="opacity:.75">' + this.countdownText() + '</span>',
+        true
+      );
+      if (ship && t < 500) {
+        MapDepict?.pulse?.(ship.lat, ship.lng, 0xff8844, phase.label, 2500);
+      }
+    }
+
+    if (t >= 3300) {
+      this._setHud('<b>F13 complete</b> · splashdown · type <code>starship</code> to replay', true);
+      this.playing = false;
+      setTimeout(() => this._setHud(null, false), 8000);
+      AciCli?.print?.('starship f13 · splashdown · replay: starship', 'ok');
+      return;
+    }
+    requestAnimationFrame(() => this._tick());
+  },
+
+  status() {
+    return {
+      version: this.version,
+      playing: this.playing,
+      phase: this._phase,
+      t: Math.round(this._elapsed),
+      net: this.NET_UTC,
+      countdown: this.countdownText(),
+      pad: this.PAD,
+    };
+  },
+
+  wants(text) {
+    return /starship|flight\s*13|f13|starbase\s*launch|ift[\s-]*13/i.test(String(text || ''));
+  },
+
+  async handleCli(line) {
+    const low = String(line || '').toLowerCase().trim();
+    if (/stop|cancel|halt/.test(low)) { this.stop(); return 'F13 stopped'; }
+    if (/pad|focus|starbase/.test(low) && !/play|start|go|launch|replay/.test(low)) {
+      this.focusPad();
+      return 'Focused Starbase Pad 2 · ' + this.countdownText();
+    }
+    if (/status|net|when|countdown/.test(low)) {
+      const s = this.status();
+      return s.countdown + (s.playing ? ' · playing T+' + s.t + 's · ' + s.phase : '');
+    }
+    const realtime = /live|real\s*time|realtime/.test(low);
+    const fast = /fast|turbo|×\s*30|x30/.test(low);
+    this.start({ realtime, speed: realtime ? 1 : (fast ? 30 : 12) });
+    return 'F13 sim started · ' + this.countdownText();
+  },
+};
+window.StarshipFlight13 = StarshipFlight13;
+
+// === CITY TASKS + DELIVERY INFRASTRUCTURE ===
+// Unified task bus: create → assign → claim → en_route → delivered
+// Wires Commerce orders, OrderTracking, drivers, and FieldBrain claim path.
+const CityTasks = {
+  version: '20260717-city-tasks',
+  tasks: new Map(),
+  _localKey: 'astranov:city-tasks-v1',
+  STATUSES: ['open', 'assigned', 'claimed', 'picked_up', 'en_route', 'delivered', 'cancelled'],
+
+  init() {
+    if (this._inited) return;
+    this._inited = true;
+    window.CityTasks = this;
+    this._loadLocal();
+    this._wireFieldBrain();
+    console.log('%c[CityTasks] delivery task framework live', 'color:#44ffaa;font-weight:700');
+  },
+
+  _loadLocal() {
+    try {
+      const raw = localStorage.getItem(this._localKey);
+      if (!raw) return;
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) arr.forEach(t => { if (t?.id) this.tasks.set(t.id, t); });
+    } catch (_) {}
+  },
+
+  _saveLocal() {
+    try {
+      const arr = [...this.tasks.values()].slice(-80);
+      localStorage.setItem(this._localKey, JSON.stringify(arr));
+    } catch (_) {}
+  },
+
+  _id() {
+    return 'ct_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
+  },
+
+  _wireFieldBrain() {
+    if (!window.FieldBrain) return;
+    const FB = window.FieldBrain;
+    FB.claimDelivery = async (orderId) => this.claim(orderId);
+    FB.createCityTask = (spec) => this.create(spec);
+    FB.listCityTasks = () => this.list();
+    FB.completeDelivery = async (id) => this.advance(id, 'delivered');
+  },
+
+  create(spec) {
+    spec = spec || {};
+    const u = window._lastPos || { lat: 36.4341, lng: 28.2176 };
+    const task = {
+      id: spec.id || this._id(),
+      kind: spec.kind || 'delivery',
+      title: spec.title || 'City task',
+      status: 'open',
+      lat: spec.lat ?? u.lat,
+      lng: spec.lng ?? u.lng,
+      vendor_id: spec.vendor_id || null,
+      vendor_name: spec.vendor_name || null,
+      order_id: spec.order_id || null,
+      short_id: spec.short_id || null,
+      driver_id: null,
+      driver_name: null,
+      items: spec.items || [],
+      note: spec.note || '',
+      created_at: Date.now(),
+      updated_at: Date.now(),
+    };
+    this.tasks.set(task.id, task);
+    this._saveLocal();
+    this._showOnGlobe(task);
+    FieldBrain?.pulse?.('commerce', 'task open · ' + task.title, { task });
+    AciCli?.print?.('city-task · open · ' + task.id.slice(0, 12) + ' · ' + task.title, 'ok');
+    return task;
+  },
+
+  fromOrder(order, vendor, driver) {
+    if (!order) return null;
+    const existing = [...this.tasks.values()].find(t => t.order_id === order.id);
+    if (existing) {
+      existing.status = this._mapOrderStatus(order.status);
+      existing.driver_id = driver?.id || order.driver_id || existing.driver_id;
+      existing.driver_name = driver?.display_name || driver?.name || existing.driver_name;
+      existing.updated_at = Date.now();
+      this._saveLocal();
+      this._showOnGlobe(existing);
+      return existing;
+    }
+    return this.create({
+      kind: 'delivery',
+      title: (vendor?.emoji || '📦') + ' ' + (vendor?.name || 'Order') + ' · ' + (order.short_id || order.id?.slice(0, 8)),
+      lat: order.delivery_lat,
+      lng: order.delivery_lng,
+      vendor_id: vendor?.id || order.vendor_id,
+      vendor_name: vendor?.name,
+      order_id: order.id,
+      short_id: order.short_id,
+      items: order.items || [],
+      note: order.status || '',
+    });
+  },
+
+  _mapOrderStatus(st) {
+    const m = {
+      pending: 'open',
+      seeking_driver: 'open',
+      assigned: 'assigned',
+      picked_up: 'picked_up',
+      en_route: 'en_route',
+      delivered: 'delivered',
+      cancelled: 'cancelled',
+    };
+    return m[st] || 'open';
+  },
+
+  list(filter) {
+    let arr = [...this.tasks.values()].sort((a, b) => b.updated_at - a.updated_at);
+    if (filter?.status) arr = arr.filter(t => t.status === filter.status);
+    if (filter?.kind) arr = arr.filter(t => t.kind === filter.kind);
+    if (filter?.open) arr = arr.filter(t => !['delivered', 'cancelled'].includes(t.status));
+    return arr;
+  },
+
+  get(id) {
+    if (!id) return null;
+    const q = String(id);
+    if (this.tasks.has(q)) return this.tasks.get(q);
+    return [...this.tasks.values()].find(t =>
+      t.id === q || t.order_id === q || (t.short_id && t.short_id.toUpperCase() === q.toUpperCase())
+    ) || null;
+  },
+
+  async claim(idOrOrder) {
+    let task = this.get(idOrOrder);
+    if (!task && idOrOrder) {
+      // Try remote order track
+      const order = await OrderTracking?.fetchOrder?.(idOrOrder);
+      if (order) {
+        const vendor = await OrderTracking?.resolveVendor?.(order.vendor_id);
+        task = this.fromOrder(order, vendor, null);
+      }
+    }
+    if (!task) {
+      // Demo open task near user
+      const open = this.list({ open: true })[0];
+      if (open) task = open;
+      else {
+        const u = window._lastPos || { lat: 36.4341, lng: 28.2176 };
+        task = this.create({
+          title: 'Demo delivery · claim me',
+          lat: u.lat + 0.002,
+          lng: u.lng - 0.001,
+          note: 'local demo task',
+        });
+      }
+    }
+    const me = Auth?.user;
+    task.status = 'claimed';
+    task.driver_id = me?.id || 'local-driver';
+    task.driver_name = me?.user_metadata?.full_name || me?.email?.split('@')[0] || 'You';
+    task.updated_at = Date.now();
+    this.tasks.set(task.id, task);
+    this._saveLocal();
+    this._showOnGlobe(task);
+    FieldBrain?.pulse?.('act', 'claimed · ' + task.title, { task });
+    GlobeDeck?.say?.('Claimed: ' + task.title, 'ok');
+    AciCli?.print?.('city-task · claimed · ' + task.id.slice(0, 14), 'ok');
+    // Mirror OrderTracking if linked
+    if (task.order_id && OrderTracking) {
+      try {
+        OrderTracking.onOrderPlaced?.({
+          id: task.order_id,
+          short_id: task.short_id,
+          status: 'assigned',
+          delivery_lat: task.lat,
+          delivery_lng: task.lng,
+          vendor_id: task.vendor_id,
+        }, { id: task.vendor_id, name: task.vendor_name, lat: task.lat, lng: task.lng }, {
+          id: task.driver_id,
+          name: task.driver_name,
+          field_lat: window._lastPos?.lat,
+          field_lng: window._lastPos?.lng,
+        });
+      } catch (_) {}
+    }
+    return { ok: true, task };
+  },
+
+  advance(id, status) {
+    const task = this.get(id);
+    if (!task) return { ok: false, error: 'not found' };
+    if (!this.STATUSES.includes(status)) return { ok: false, error: 'bad status' };
+    task.status = status;
+    task.updated_at = Date.now();
+    this.tasks.set(task.id, task);
+    this._saveLocal();
+    this._showOnGlobe(task);
+    FieldBrain?.pulse?.('commerce', status + ' · ' + task.title, { task });
+    AciCli?.print?.('city-task · ' + status + ' · ' + task.id.slice(0, 12), 'ok');
+    return { ok: true, task };
+  },
+
+  cancel(id) {
+    return this.advance(id, 'cancelled');
+  },
+
+  _showOnGlobe(task) {
+    if (!task || task.lat == null || task.lng == null) return;
+    const icons = {
+      open: '📋', assigned: '🤝', claimed: '🚚', picked_up: '📦',
+      en_route: '🛵', delivered: '✅', cancelled: '❌',
+    };
+    GlobeEntity?.register?.({
+      id: 'city-task-' + task.id,
+      type: task.status === 'delivered' ? 'order' : 'pilot',
+      lat: task.lat,
+      lng: task.lng,
+      title: (icons[task.status] || '📋') + ' ' + (task.title || 'Task').slice(0, 40),
+      description: task.status + (task.driver_name ? ' · ' + task.driver_name : ''),
+      urgency: task.status === 'open' ? 3 : 2,
+      persist: true,
+      data: { task },
+      _actionLabel: task.status === 'open' ? 'Claim task' : 'Track task',
+      onTap: () => {
+        if (task.status === 'open') this.claim(task.id);
+        else {
+          GlobeControl?.flyToLatLng?.(task.lat, task.lng, task.title, GlobeControl?.Z?.city, {});
+          AciCli?.print?.('task ' + task.status + ' · ' + task.title, 'ok');
+        }
+      },
+    });
+    MapDepict?.pulse?.(task.lat, task.lng, 0x44ffaa, task.title.slice(0, 24), 6000);
+  },
+
+  /** Delivery infrastructure: quote + open commerce + task card */
+  async startDeliveryFlow(query) {
+    await LazyModules?.ensure?.();
+    const u = window._lastPos || { lat: 36.4341, lng: 28.2176 };
+    SpaceNetBrain?.crawlArea?.(u.lat, u.lng, 3);
+    if (window.Commerce?.openOrderFlow) await Commerce.openOrderFlow(query || '');
+    else if (Commerce?.smartOrder) await Commerce.smartOrder(query || 'delivery');
+    else if (Commerce?.showPicker) await Commerce.showPicker();
+    const task = this.create({
+      title: 'Delivery · ' + String(query || 'nearby').slice(0, 40),
+      lat: u.lat,
+      lng: u.lng,
+      note: 'pipeline · shops + drivers',
+    });
+    return task;
+  },
+
+  wants(text) {
+    return /\b(city\s*task|task\s*list|claim\s*(delivery|order|task)|deliver(y)?\s*(here|now)|assign\s*driver)\b/i.test(String(text || ''));
+  },
+
+  async handleCli(line) {
+    const raw = String(line || '').trim();
+    const low = raw.toLowerCase();
+    const parts = raw.split(/\s+/);
+    const cmd = (parts[1] || parts[0] || '').toLowerCase();
+
+    if (/list|tasks/.test(low) && !/claim|create|start/.test(low)) {
+      const open = this.list({ open: true });
+      if (!open.length) return 'No open city tasks · try: task create coffee';
+      open.slice(0, 8).forEach(t => AciCli?.print?.(t.status + ' · ' + t.id.slice(0, 10) + ' · ' + t.title, 'ok'));
+      return open.length + ' open task(s)';
+    }
+    if (/create|new|post/.test(low)) {
+      const title = raw.replace(/^.*?(create|new|post)\s*/i, '').trim() || 'City delivery task';
+      const t = this.create({ title });
+      return 'Created ' + t.id.slice(0, 12) + ' · ' + t.title;
+    }
+    if (/claim|take|assign/.test(low)) {
+      const id = parts.find(p => p.startsWith('ct_') || /^[0-9a-f-]{8,}$/i.test(p)) || parts.slice(-1)[0];
+      const r = await this.claim(id === 'claim' || id === 'task' ? null : id);
+      return r.ok ? ('Claimed ' + r.task.title) : (r.error || 'claim failed');
+    }
+    if (/en.?route|picked|deliver/.test(low) && /advance|mark|set/.test(low)) {
+      const id = parts.find(p => this.get(p)) || this.list({ open: true })[0]?.id;
+      const st = /deliver/.test(low) ? 'delivered' : /picked/.test(low) ? 'picked_up' : 'en_route';
+      const r = this.advance(id, st);
+      return r.ok ? r.task.status : (r.error || 'fail');
+    }
+    if (/order|shop|delivery|start/.test(low)) {
+      await this.startDeliveryFlow(raw.replace(/^(task|city)\s*/i, ''));
+      return 'Delivery pipeline open · shops + task card';
+    }
+    const open = this.list({ open: true });
+    return 'City tasks · open ' + open.length + ' · cmds: task list · task create … · task claim · task order';
+  },
+};
+window.CityTasks = CityTasks;
+
+// === STARLINK / SPACEX LEO CONSTELLATION — real-ish globe positions ===
+// Prefers CelesTrak GP JSON; falls back to published shell planes (53° / ~550 km).
+// Continuity: visualization of orbital mesh — not a brand clone UI.
+const StarlinkConstellation = {
+  version: '20260717-starlink',
+  enabled: true,
+  maxSats: 180,
+  shellKm: 550,
+  earthKm: 6371,
+  group: null,
+  meshes: [],
+  _lastFetch: 0,
+  _elements: null,
+  _fetching: false,
+  _mode: 'analytic',
+  CELESTRAK: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=json',
+  // Lightweight public mirror attempt (may 404 — analytic fallback always works)
+  MIRROR: 'https://api.tinygs.com/v1/satellites?name=STARLINK',
+
+  init() {
+    if (this._inited) return;
+    this._inited = true;
+    window.StarlinkConstellation = this;
+    this._ensureGroup();
+    this._buildAnalytic(120);
+    setTimeout(() => this.refresh(true), 2500);
+    console.log('%c[StarlinkConstellation] LEO shell ready · orbit zoom', 'color:#66aaff;font-weight:700');
+  },
+
+  _ensureGroup() {
+    if (this.group || typeof THREE === 'undefined' || typeof globePivot === 'undefined') return;
+    this.group = new THREE.Group();
+    this.group.name = 'starlink-constellation';
+    this.group.visible = false;
+    globePivot.add(this.group);
+  },
+
+  rNorm() {
+    return 1 + this.shellKm / this.earthKm;
+  },
+
+  _buildAnalytic(n) {
+    this._ensureGroup();
+    if (!this.group) return;
+    // Clear old
+    while (this.group.children.length) this.group.remove(this.group.children[0]);
+    this.meshes = [];
+    this._elements = [];
+    const planes = 12;
+    const perPlane = Math.ceil(n / planes);
+    const incl = 53 * Math.PI / 180;
+    const r = this.rNorm();
+    const geo = new THREE.SphereGeometry(0.0045, 4, 4);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x77bbff, transparent: true, opacity: 0.85 });
+    let i = 0;
+    for (let p = 0; p < planes && i < n; p++) {
+      const raan = (p / planes) * Math.PI * 2;
+      for (let k = 0; k < perPlane && i < n; k++) {
+        const M0 = (k / perPlane) * Math.PI * 2 + p * 0.15;
+        const el = {
+          name: 'STARLINK-' + (i + 1),
+          incl,
+          raan,
+          M0,
+          n: (2 * Math.PI) / (95 * 60), // ~95 min period rad/s
+          r,
+          source: 'analytic',
+        };
+        this._elements.push(el);
+        const m = new THREE.Mesh(geo, mat.clone());
+        m.userData = { el, name: el.name };
+        this.group.add(m);
+        this.meshes.push(m);
+        i++;
+      }
+    }
+    this._mode = 'analytic';
+  },
+
+  _latLngFromOrbital(el, tSec) {
+    // Circular LEO: rotate mean anomaly, convert ECI-ish to lat/lng (simplified)
+    const M = el.M0 + el.n * tSec;
+    const u = M; // arg of latitude for e≈0
+    const cosI = Math.cos(el.incl);
+    const sinI = Math.sin(el.incl);
+    const cosO = Math.cos(el.raan);
+    const sinO = Math.sin(el.raan);
+    const cosU = Math.cos(u);
+    const sinU = Math.sin(u);
+    // ECI unit vector
+    const x = cosO * cosU - sinO * sinU * cosI;
+    const y = sinO * cosU + cosO * sinU * cosI;
+    const z = sinU * sinI;
+    // Earth rotation (approx GMST from unix)
+    const dayFrac = (Date.now() / 86400000) % 1;
+    const gst = dayFrac * Math.PI * 2 + (tSec * 7.292115e-5);
+    const cosG = Math.cos(-gst);
+    const sinG = Math.sin(-gst);
+    const xe = cosG * x - sinG * y;
+    const ye = sinG * x + cosG * y;
+    const ze = z;
+    const lat = Math.atan2(ze, Math.sqrt(xe * xe + ye * ye)) * 180 / Math.PI;
+    let lng = Math.atan2(ye, xe) * 180 / Math.PI;
+    if (lng > 180) lng -= 360;
+    if (lng < -180) lng += 360;
+    return { lat, lng, alt: el.r };
+  },
+
+  async refresh(force) {
+    if (this._fetching) return;
+    const now = Date.now();
+    if (!force && now - this._lastFetch < 30 * 60 * 1000) return;
+    this._fetching = true;
+    try {
+      const els = await this._fetchCelestrak();
+      if (els?.length) {
+        this._applyElements(els);
+        this._mode = 'celestrak';
+        this._lastFetch = now;
+        AciCli?.print?.('starlink · live GP · ' + els.length + ' sats', 'dim');
+      }
+    } catch (_) {
+      // keep analytic
+    }
+    this._fetching = false;
+  },
+
+  async _fetchCelestrak() {
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 12000);
+    try {
+      const r = await fetch(this.CELESTRAK, {
+        signal: ctrl.signal,
+        mode: 'cors',
+        headers: { Accept: 'application/json' },
+      });
+      if (!r.ok) throw new Error('http ' + r.status);
+      const j = await r.json();
+      if (!Array.isArray(j)) throw new Error('bad json');
+      // Sample evenly across the huge catalog
+      const step = Math.max(1, Math.floor(j.length / this.maxSats));
+      const out = [];
+      for (let i = 0; i < j.length && out.length < this.maxSats; i += step) {
+        const row = j[i];
+        const mm = parseFloat(row.MEAN_MOTION || row.mean_motion);
+        const incl = parseFloat(row.INCLINATION || row.inclination);
+        const raan = parseFloat(row.RA_OF_ASC_NODE || row.raan);
+        const ma = parseFloat(row.MEAN_ANOMALY || row.mean_anomaly);
+        if (!mm || isNaN(incl)) continue;
+        const n = (mm * 2 * Math.PI) / 86400; // rad/s
+        // Approx semi-major from mean motion (n_rev/day): a = (μ/(n^2))^{1/3}
+        // Use shell radius default if weird
+        out.push({
+          name: row.OBJECT_NAME || row.object_name || ('STARLINK-' + out.length),
+          incl: incl * Math.PI / 180,
+          raan: raan * Math.PI / 180,
+          M0: ma * Math.PI / 180,
+          n,
+          r: this.rNorm(),
+          source: 'celestrak',
+        });
+      }
+      return out;
+    } finally {
+      clearTimeout(to);
+    }
+  },
+
+  _applyElements(els) {
+    this._ensureGroup();
+    if (!this.group) return;
+    while (this.group.children.length) this.group.remove(this.group.children[0]);
+    this.meshes = [];
+    this._elements = els;
+    const geo = new THREE.SphereGeometry(0.0042, 4, 4);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.88 });
+    els.forEach(el => {
+      const m = new THREE.Mesh(geo, mat.clone());
+      m.userData = { el, name: el.name };
+      this.group.add(m);
+      this.meshes.push(m);
+    });
+  },
+
+  update(camZ, level) {
+    if (!this.enabled || !this.group) return;
+    const show = level === 'orbit' || (level === 'earth' && camZ > 3.6 && camZ < 5.2);
+    this.group.visible = !!show;
+    if (!show || !this._elements?.length) return;
+    const tSec = Date.now() / 1000;
+    const n = this.meshes.length;
+    // Throttle: update all every frame is fine for ≤200 tiny meshes
+    for (let i = 0; i < n; i++) {
+      const m = this.meshes[i];
+      const el = this._elements[i];
+      if (!m || !el) continue;
+      const ll = this._latLngFromOrbital(el, tSec);
+      const p = latLngToPos(ll.lat, ll.lng, ll.alt);
+      m.position.set(p.x, p.y, p.z);
+    }
+    if (Date.now() - this._lastFetch > 45 * 60 * 1000) void this.refresh(false);
+  },
+
+  status() {
+    return {
+      version: this.version,
+      mode: this._mode,
+      count: this._elements?.length || 0,
+      lastFetch: this._lastFetch,
+      shellKm: this.shellKm,
+    };
+  },
+
+  wants(text) {
+    return /starlink|spacex\s*sat|leo\s*constellation|satellite\s*(map|orbit|show)|constellation/i.test(String(text || ''));
+  },
+
+  async handleCli(line) {
+    const low = String(line || '').toLowerCase();
+    if (/hide|off|stop/.test(low)) {
+      this.enabled = false;
+      if (this.group) this.group.visible = false;
+      return 'Starlink overlay hidden';
+    }
+    this.enabled = true;
+    // Orbit sits between national and solar — not a ZoomTiers id
+    if (typeof camera !== 'undefined' && camera?.position) {
+      window._globeFly = {
+        mode: 'zoom',
+        fromZ: camera.position.z,
+        toZ: 5.05,
+        t0: performance.now(),
+        dur: 1400,
+      };
+    }
+    CosmicZoom.level = 'orbit';
+    CosmicZoom?.setOrbitVisibility?.('orbit');
+    CosmicZoom?.update?.(5.05, { cosmic: 'orbit', label: 'ORBIT' });
+    if (/refresh|reload|live|fetch/.test(low)) await this.refresh(true);
+    const s = this.status();
+    AciCli?.print?.('starlink · ' + s.mode + ' · ' + s.count + ' sats · ~' + s.shellKm + ' km', 'ok');
+    CliRibbon?.setNotice?.('Starlink · ' + s.mode + ' · ' + s.count, 'ready');
+    GlobeDeck?.say?.('Starlink LEO · ' + s.count + ' (' + s.mode + ')', 'ok');
+    return 'Orbit view · Starlink ' + s.mode + ' · ' + s.count + ' sats';
+  },
+};
+window.StarlinkConstellation = StarlinkConstellation;
 
 // ── COSMIC ZOOM: Earth → satellites → solar system → galaxy ──
 const CosmicZoom = {
@@ -9026,11 +10111,13 @@ const CosmicZoom = {
     }
     let html = '';
     if (level === 'orbit') {
+      const sl = StarlinkConstellation?.status?.();
       html = '<div class="cg-title">Near-Earth orbit</div>'
         + '<div class="cg-item"><b>ISS</b> — crew station · live position · ~90 min orbit</div>'
-        + '<div class="cg-item"><b>Starlink</b> — LEO broadband constellation (sampled)</div>'
+        + '<div class="cg-item"><b>Starlink</b> — ' + (sl?.count || '~') + ' sats · ' + (sl?.mode || 'shell')
+        + ' · ~' + (sl?.shellKm || 550) + ' km · type starlink</div>'
         + '<div class="cg-item"><b>Dashed rings</b> — altitude shells · semi-transparent guides</div>'
-        + '<div class="cg-item"><b>Mesh relays</b> — Astranov orbital connectivity</div>';
+        + '<div class="cg-item"><b>F13</b> — type starship for Flight 13 launch sim</div>';
     } else if (level === 'system') {
       const iss = this.issMarker?.userData;
       html = '<div class="cg-title">Solar system (scaled view)</div>'
@@ -9139,6 +10226,9 @@ const CosmicZoom = {
     } else if (this._orbitalSats) {
       this._orbitalSats.forEach(s => { s.visible = false; });
     }
+
+    // Real-ish Starlink shell (CelesTrak or analytic planes)
+    try { StarlinkConstellation?.update?.(camZ, level); } catch (_) {}
   },
 };
 window.CosmicZoom = CosmicZoom;
@@ -10600,11 +11690,26 @@ const CityLife = {
       ACIControl?.reply(r || 'No reviews');
     },
     task: async (rest) => {
-      await AciCoders?.handleMessage?.(rest || 'find best grocery offer near me and assign driver');
+      CityTasks?.init?.();
+      if (rest) await CityTasks?.handleCli?.('task ' + rest);
+      else await CityTasks?.startDeliveryFlow?.('nearby delivery');
     },
     assign: async (rest) => {
+      CityTasks?.init?.();
       if (rest) await FieldBrain?.claimDelivery?.(rest);
       else AciCli?.print('usage: scenario assign <order_id>', 'err');
+    },
+    crawl: async () => {
+      const u = CityLife.userPos() || window._lastPos || { lat: 36.4341, lng: 28.2176 };
+      await SpaceNetBrain?.crawlAll?.(u.lat, u.lng, 3, { force: true });
+    },
+    starship: async (rest) => {
+      StarshipFlight13?.init?.();
+      await StarshipFlight13?.handleCli?.(rest || 'starship');
+    },
+    starlink: async () => {
+      StarlinkConstellation?.init?.();
+      await StarlinkConstellation?.handleCli?.('starlink');
     },
     explore: async () => {
       const u = CityLife.userPos();
@@ -13314,6 +14419,9 @@ LazyModules.schedule();
 
 ArchitectBridge?.init?.();
 AstranovCoreBrain?.init?.();
+StarshipFlight13?.init?.();
+CityTasks?.init?.();
+StarlinkConstellation?.init?.();
 setTimeout(() => Auth.refreshAuthority(), 800);
 AciCli?.primeCodersCli?.();
 AciCoders?.ensureBridge?.();
@@ -13346,6 +14454,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260716113039" data-astranov-deferred></script>
+<script defer src="/astranov-deferred.js?v=20260717160853" data-astranov-deferred></script>
 </body>
 </html>
