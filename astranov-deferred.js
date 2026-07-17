@@ -7630,6 +7630,10 @@ const AstranovWishlist = {
   SEED: [
     { text: 'Unify user + session across all computers (one ASTRANOV, one collective session)', status: 'done', tag: 'session' },
     { text: 'City map on zoom — satellite, streets, routing, friends, moving drivers', status: 'done', tag: 'globe' },
+    { text: 'Starship F13 launch sim on globe (Starbase timeline)', status: 'done', tag: 'globe' },
+    { text: 'Starlink LEO real-ish positions (CelesTrak + analytic shells)', status: 'done', tag: 'globe' },
+    { text: 'SpaceNet multi-crawlers (vendors/weather/drivers/news/tasks)', status: 'done', tag: 'spacenet' },
+    { text: 'City tasks + delivery claim/assign infrastructure', status: 'done', tag: 'commerce' },
     { text: 'Dark/bright theme toggle + CLI commands (dark, bright, theme)', status: 'done', tag: 'ui' },
     { text: 'Real Earth — day/night terminator, sun, moon', status: 'done', tag: 'globe' },
     { text: 'Super Add + inline in CLI bar, right edge, normal size', status: 'done', tag: 'ui' },
@@ -9098,6 +9102,7 @@ const OrderTracking = {
     this.active = order;
     this.showOnGlobe(order, vendor, driver);
     this.startPoll();
+    try { CityTasks?.init?.(); CityTasks?.fromOrder?.(order, vendor, driver); } catch (_) {}
     const m = this.meta(order.status);
     const msg = m.icon + ' Order ' + (order.short_id || order.id?.slice(0, 8)) + ' · ' + m.label
       + (driver?.name ? ' · ' + driver.name : '');
