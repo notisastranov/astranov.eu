@@ -10,13 +10,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260717193502" />
+<meta name="astranov-build" content="20260717193910" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/astranov-continuity.js?v=20260717193502"></script>
+<script defer src="/astranov-continuity.js?v=20260717193910"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <style>
@@ -5439,7 +5439,12 @@ const SuperCli = {
           break;
         }
         GlobeDeck?.expand?.(ACL_TITLE);
-        locateMe?.();
+        try {
+          if (CityLife?.locateAndDropIn) await CityLife.locateAndDropIn();
+          else locateMe?.();
+        } catch (_) {
+          try { await enterCityView?.(36.44, 28.22, { openShops: false }); } catch (__) {}
+        }
         GlobeDeck?.finishCliIfOneShot('locate');
         break;
       case 'city':
@@ -5451,6 +5456,7 @@ const SuperCli = {
         break;
       case 'order':
         this.flyForTask('order');
+        await LazyModules?.ensure?.().catch(() => {});
         await window.Commerce?.showPicker?.(opts?.filter);
         this.setContext('commerce');
         break;
@@ -15367,6 +15373,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script src="/astranov-perf-lazy.js?v=20260717193502" defer></script>
+<script src="/astranov-perf-lazy.js?v=20260717193910" defer></script>
 </body>
 </html>
