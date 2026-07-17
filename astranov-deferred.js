@@ -9502,4 +9502,5 @@ const DeferredBoot = {
   },
 };
 window.DeferredBoot = DeferredBoot;
-DeferredBoot.run();
+// Do NOT auto-run on script parse — LazyModules.schedule/ensure calls run().
+// Auto-run was freezing phones while the 360KB pack executed commerce+presence init.
