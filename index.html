@@ -10,13 +10,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260717194534" />
+<meta name="astranov-build" content="20260717195126" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/astranov-continuity.js?v=20260717194534"></script>
+<script defer src="/astranov-continuity.js?v=20260717195126"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <style>
@@ -2253,6 +2253,22 @@ const FieldBrain = {
   listCityTasks(filter) {
     CityTasks?.init?.();
     return CityTasks?.list?.(filter) || [];
+  },
+  postJob(spec) {
+    CityTasks?.init?.();
+    return CityTasks?.postJob?.(spec);
+  },
+  postDate(spec) {
+    CityTasks?.init?.();
+    return CityTasks?.postDate?.(spec);
+  },
+  postErrand(spec) {
+    CityTasks?.init?.();
+    return CityTasks?.postErrand?.(spec);
+  },
+  completeDelivery(id) {
+    CityTasks?.init?.();
+    return CityTasks?.complete?.(id);
   },
   onAuth() {},
   updateChip() {},
@@ -5662,7 +5678,9 @@ const AciCli = {
 
     if (!cmd) return;
     if (cmd === 'help' || cmd === '?') {
-      this.print('starship · starlink · crawl · task · order · locate · think|coders|db|theme · Architect: fix|bridge', 'dim');
+      this.print('locate · order · starship · starlink · spacex · crawl', 'dim');
+      this.print('task job barman 3h · task housekeeper 1w · task date coffee 2h · task errand · task claim', 'dim');
+      this.print('think · coders · theme · Architect: fix|bridge', 'dim');
       return;
     }
     if (cmd === 'starship' || cmd === 'f13') {
@@ -9625,14 +9643,16 @@ const CityTasks = {
     let duration = null;
     let title = raw;
 
-    // Duration tokens
-    const durM = low.match(/(\d+(?:\.\d+)?)\s*(hours?|hrs?|h|days?|d|weeks?|wks?|w|mins?|minutes?|m)\b/);
-    if (durM) duration = durM[1] + durM[2].replace(/ours?|rs?|ays?|eeks?|ks?|ins?|inutes?/, (x) => {
-      if (/^h/i.test(x)) return 'h';
-      if (/^d/i.test(x)) return 'd';
-      if (/^w/i.test(x)) return 'w';
-      return 'm';
-    }).charAt(0);
+    // Duration tokens → normalize to 3h / 1w / 45m
+    const durM = low.match(/(\d+(?:\.\d+)?)\s*(hours?|hrs?|h|days?|d|weeks?|wks?|w|mins?|minutes?|m)\b/i);
+    if (durM) {
+      const n = durM[1];
+      const u = durM[2].toLowerCase();
+      if (/^h|hour|hr/.test(u)) duration = n + 'h';
+      else if (/^d|day/.test(u)) duration = n + 'd';
+      else if (/^w|week|wk/.test(u)) duration = n + 'w';
+      else duration = n + 'm';
+    }
 
     // Kind detection
     if (/\b(date|dating|coffee\s*date|dinner\s*date|meet\s*(up)?|romantic|tinder|match)\b/i.test(low)) {
@@ -10997,7 +11017,10 @@ const ProductSurface = {
   },
 
   _ensureMppTile() {
-    if (document.getElementById('menu-profile-post-tile')) return;
+    if (document.getElementById('menu-profile-post-tile')) {
+      this._ensureCityDnaSection();
+      return;
+    }
     const tile = document.createElement('div');
     tile.id = 'menu-profile-post-tile';
     tile.innerHTML = [
@@ -11044,9 +11067,18 @@ const ProductSurface = {
       '<button type="button" class="mpp-act" data-mpp-act="open_profile">Open profile site</button>',
       '<button type="button" class="mpp-act" data-mpp-act="set_delivery">Delivery address on map</button>',
       '</div>',
+      '<div id="mpp-section-citydna" class="mpp-section visible">',
+      '<h4>City DNA · jobs · dates · errands</h4>',
+      '<div id="mpp-citydna-summary" style="font-size:10px;color:#9ab;margin:0 0 6px">Same as pizza: open → claim → done</div>',
+      '<button type="button" class="mpp-act" data-mpp-act="post_job">💼 Post job (barman 3h…)</button>',
+      '<button type="button" class="mpp-act" data-mpp-act="post_date">💕 Post date (coffee 2h…)</button>',
+      '<button type="button" class="mpp-act" data-mpp-act="post_errand">🏃 Post errand</button>',
+      '<button type="button" class="mpp-act" data-mpp-act="list_city_tasks">📋 Open tasks nearby</button>',
+      '<button type="button" class="mpp-act" data-mpp-act="claim_open_task">✋ Claim open task</button>',
+      '</div>',
       '<div id="mpp-section-social" class="mpp-section visible">',
       '<h4>Social post</h4>',
-      '<textarea id="mpp-post-caption" rows="2" placeholder="Caption · what you found…"></textarea>',
+      '<textarea id="mpp-post-caption" rows="2" placeholder="Caption · job · date · errand…"></textarea>',
       '<div class="mpp-media-row">',
       '<button type="button" id="mpp-pick-photo">Photo</button>',
       '<button type="button" id="mpp-pick-video">Video</button>',
@@ -11065,6 +11097,51 @@ const ProductSurface = {
       '<button type="button" id="mpp-apply">Primary action</button>',
     ].join('');
     document.body.appendChild(tile);
+  },
+
+  /** Inject City DNA actions into live MPP if shell already had an older tile */
+  _ensureCityDnaSection() {
+    if (document.getElementById('mpp-section-citydna')) return;
+    const social = document.getElementById('mpp-section-social');
+    const host = document.getElementById('menu-profile-post-tile');
+    if (!host) return;
+    const sec = document.createElement('div');
+    sec.id = 'mpp-section-citydna';
+    sec.className = 'mpp-section visible';
+    sec.innerHTML = '<h4>City DNA · jobs · dates · errands</h4>'
+      + '<div id="mpp-citydna-summary" style="font-size:10px;color:#9ab;margin:0 0 6px">Same as pizza: open → claim → done</div>'
+      + '<button type="button" class="mpp-act" data-mpp-act="post_job">💼 Post job (barman 3h…)</button>'
+      + '<button type="button" class="mpp-act" data-mpp-act="post_date">💕 Post date (coffee 2h…)</button>'
+      + '<button type="button" class="mpp-act" data-mpp-act="post_errand">🏃 Post errand</button>'
+      + '<button type="button" class="mpp-act" data-mpp-act="list_city_tasks">📋 Open tasks nearby</button>'
+      + '<button type="button" class="mpp-act" data-mpp-act="claim_open_task">✋ Claim open task</button>';
+    if (social) host.insertBefore(sec, social);
+    else host.appendChild(sec);
+    // Bind if MPP already inited
+    sec.querySelectorAll('.mpp-act[data-mpp-act]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const act = btn.getAttribute('data-mpp-act');
+        if (window.MenuProfilePostTile?.runAction) MenuProfilePostTile.runAction(act);
+        else this._cityDnaFallback(act);
+      });
+    });
+  },
+
+  _cityDnaFallback(act) {
+    CityTasks?.init?.();
+    const cap = (document.getElementById('mpp-post-caption')?.value || '').trim();
+    const pin = window.MenuProfilePostTile?.pin || window._lastPos || { lat: 36.43, lng: 28.22 };
+    if (act === 'post_job') {
+      CityTasks.postJob({ rawText: cap || 'barman 3h', title: cap || undefined, lat: pin.lat, lng: pin.lng });
+    } else if (act === 'post_date') {
+      CityTasks.postDate({ rawText: cap || 'coffee date 2h', lat: pin.lat, lng: pin.lng });
+    } else if (act === 'post_errand') {
+      CityTasks.postErrand({ rawText: cap || 'pharmacy', lat: pin.lat, lng: pin.lng });
+    } else if (act === 'list_city_tasks') {
+      CityTasks.handleCli('task list');
+    } else if (act === 'claim_open_task') {
+      CityTasks.claim(null);
+    }
   },
 
   _loadScript(src) {
@@ -15774,10 +15851,11 @@ const _idle = (fn, ms) => {
 // Critical UX only
 _softInit('CoreBrain', () => AstranovCoreBrain?.init?.());
 _softInit('ProductSurface', () => ProductSurface?.init?.());
+_softInit('CityTasks', () => CityTasks?.init?.()); // light — localStorage only
 // Defer everything else — was jamming main thread on boot
 _idle(() => ArchitectBridge?.init?.(), 2500);
-_idle(() => CityTasks?.init?.(), 3000);
 _idle(() => GlobeInfoTiles?.init?.({ seed: false }), 4000);
+_idle(() => ProductSurface?._ensureCityDnaSection?.(), 1600);
 // Starship / Starlink ONLY on first use or much later idle
 _idle(() => { /* no mesh build */ }, 8000);
 setTimeout(() => { try { Auth.refreshAuthority(); } catch (_) {} }, 1200);
@@ -15825,6 +15903,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script src="/astranov-perf-lazy.js?v=20260717194534" defer></script>
+<script src="/astranov-perf-lazy.js?v=20260717195126" defer></script>
 </body>
 </html>
