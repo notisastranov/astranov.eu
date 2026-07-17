@@ -396,6 +396,29 @@ const FieldHud = {
     document.body.appendChild(terms);
     document.getElementById('miner-terms-accept')?.addEventListener('click', () => SpaceNetMiner.acceptTerms());
     }
+
+    if (!document.getElementById('miner-rig-panel')) {
+      const panel = document.createElement('div');
+      panel.id = 'miner-rig-panel';
+      panel.hidden = true;
+      panel.innerHTML = '<div class="mrp-card">'
+        + '<div class="mrp-head"><b>⛏ SpaceNet miner rig</b><button type="button" id="mrp-close">✖</button></div>'
+        + '<div class="mrp-stats">'
+        + '<div>Rate <b id="mrp-rate">0.000 AVC/h</b></div>'
+        + '<div>Session <b id="mrp-earned">+0.00</b></div>'
+        + '<div>Peers <b id="mrp-peers">0</b></div>'
+        + '<div>Balance <b id="mrp-avc">— AVC</b></div></div>'
+        + '<div class="mrp-toggles">'
+        + '<button type="button" class="mrp-toggle on" data-mrp="cpu" aria-pressed="true">CPU</button>'
+        + '<button type="button" class="mrp-toggle on" data-mrp="ram" aria-pressed="true">RAM</button>'
+        + '<button type="button" class="mrp-toggle on" data-mrp="storage" aria-pressed="true">SSD</button>'
+        + '<button type="button" class="mrp-toggle on" data-mrp="bandwidth" aria-pressed="true">NET</button>'
+        + '<button type="button" class="mrp-toggle on" data-mrp="sleep" aria-pressed="true">Sleep</button>'
+        + '</div>'
+        + '<button type="button" id="mrp-start">I agree · start earning AVC</button>'
+        + '</div>';
+      document.body.appendChild(panel);
+    }
   },
 
   injectCss() {
@@ -461,6 +484,22 @@ const FieldHud = {
       'background:rgba(0,221,119,.2);color:#00ff99;font-weight:700;cursor:pointer;font-size:13px}',
       '#zoom-label{top:138px;left:10px;max-width:min(200px,50vw);font-size:10px}',
       '#cosmic-guide{top:160px}',
+      '#miner-rig-panel{position:fixed;inset:0;z-index:195;display:none;align-items:center;justify-content:center;',
+      'background:rgba(0,4,12,.78);pointer-events:auto}',
+      '#miner-rig-panel.open,#miner-rig-panel:not([hidden]){display:flex}',
+      '#miner-rig-panel[hidden]{display:none!important}',
+      '.mrp-card{width:min(360px,92vw);padding:16px;border-radius:14px;background:rgba(4,14,36,.96);',
+      'border:1px solid rgba(0,221,119,.4);box-shadow:0 0 28px rgba(0,221,119,.2);color:#e8f4ff;font:12px/1.4 system-ui}',
+      '.mrp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}',
+      '.mrp-head b{color:#00ff99}',
+      '#mrp-close{background:transparent;border:1px solid #456;color:#abc;border-radius:8px;padding:4px 8px;cursor:pointer}',
+      '.mrp-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;font-size:11px}',
+      '.mrp-stats b{color:#a8ffcc}',
+      '.mrp-toggles{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}',
+      '.mrp-toggle{padding:8px 10px;border-radius:8px;border:1px solid #456;background:rgba(0,20,40,.6);color:#9ab;cursor:pointer}',
+      '.mrp-toggle.on{border-color:#00dd77;color:#00ff99;background:rgba(0,221,119,.12)}',
+      '#mrp-start{width:100%;padding:11px;border-radius:10px;border:1px solid #00dd77;background:rgba(0,221,119,.2);',
+      'color:#00ff99;font-weight:700;cursor:pointer}',
     ].join('');
     document.head.appendChild(st);
   },
