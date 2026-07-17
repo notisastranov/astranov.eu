@@ -885,6 +885,8 @@ const FieldHud = {
     if (this._fieldTimer) return;
     let last = performance.now();
     let tickN = 0;
+    // 8fps on desktop · ~5fps on phone (radar is decorative)
+    const period = window._globePerfLite ? 200 : 125;
     this._fieldTimer = setInterval(() => {
       if (document.hidden || window.CityMap?.active) return;
       const now = performance.now();
@@ -895,7 +897,7 @@ const FieldHud = {
       if (this._sweepAngle > Math.PI * 2) this._sweepAngle -= Math.PI * 2;
       if (tickN % 2 === 0) this.drawRadar(this._sweepAngle);
       if (tickN % 3 === 0) this.updateSpeed();
-    }, 125);
+    }, period);
   },
 
   stopFieldRaf() {
