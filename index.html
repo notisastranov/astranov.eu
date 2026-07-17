@@ -10,13 +10,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260717193112" />
+<meta name="astranov-build" content="20260717193502" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/astranov-continuity.js?v=20260717193112"></script>
+<script defer src="/astranov-continuity.js?v=20260717193502"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <style>
@@ -954,12 +954,14 @@ scene.add(new THREE.AmbientLight(0x1a2838, 0.55));
 const sun = new THREE.DirectionalLight(0xfff4e0, 1.85);
 sun.position.set(5.2, 2.4, 3.6);
 scene.add(sun);
-const rimLight = new THREE.DirectionalLight(0x4488ff, 0.55);
+const rimLight = new THREE.DirectionalLight(0x4488ff, window._globePerfLite ? 0.35 : 0.55);
 rimLight.position.set(-4, -1, -3);
 scene.add(rimLight);
-const fillLight = new THREE.PointLight(0x66aaff, 0.35, 12);
-fillLight.position.set(-2, 1.5, 3);
-scene.add(fillLight);
+if (!window._globePerfLite) {
+  const fillLight = new THREE.PointLight(0x66aaff, 0.35, 12);
+  fillLight.position.set(-2, 1.5, 3);
+  scene.add(fillLight);
+}
 
 // Starfield — lite on phone (thousands of additive points = jank)
 (function buildAstranovStarfield() {
@@ -998,18 +1000,32 @@ const earthMat = new THREE.MeshPhongMaterial({
   shininess: 18,
   flatShading: false,
 });
-const earthTexUrl = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg';
-new THREE.TextureLoader().load(
-  earthTexUrl,
-  (tex) => {
-    tex.anisotropy = Math.min(8, renderer.capabilities?.getMaxAnisotropy?.() || 4);
-    earthMat.map = tex;
-    earthMat.color.set(0xffffff);
-    earthMat.needsUpdate = true;
-  },
-  undefined,
-  () => { console.log('Earth texture fallback active'); }
-);
+// 2048 tex is a multi-MB stall on mobile — use half-res on lite
+const earthTexUrl = window._globePerfLite
+  ? 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg'
+  : 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg';
+// Defer texture decode so first frames aren't blocked
+const _loadEarthTex = () => {
+  try {
+    new THREE.TextureLoader().load(
+      earthTexUrl,
+      (tex) => {
+        tex.anisotropy = Math.min(window._globePerfLite ? 2 : 8, renderer.capabilities?.getMaxAnisotropy?.() || 4);
+        if (window._globePerfLite) {
+          tex.minFilter = THREE.LinearFilter;
+          tex.generateMipmaps = false;
+        }
+        earthMat.map = tex;
+        earthMat.color.set(0xffffff);
+        earthMat.needsUpdate = true;
+      },
+      undefined,
+      () => { console.log('Earth texture fallback active'); }
+    );
+  } catch (_) {}
+};
+if (typeof requestIdleCallback === 'function') requestIdleCallback(_loadEarthTex, { timeout: 2200 });
+else setTimeout(_loadEarthTex, window._globePerfLite ? 600 : 200);
 globePivot = new THREE.Group();
 scene.add(globePivot);
 
@@ -2480,14 +2496,31 @@ const LazyModules = {
   _loaded: false,
 
   schedule() {
-    const delay = window.SlumberManager?.deferredDelay?.() || 1400;
+    // Phone: wait for first tap or long idle before pulling 360KB pack
+    const lite = !!window._globePerfLite;
+    const delay = lite
+      ? Math.max(window.SlumberManager?.deferredDelay?.() || 6000, 6500)
+      : Math.max(window.SlumberManager?.deferredDelay?.() || 1800, 1800);
     const run = () => {
-      if (window.SlumberManager?.allows?.('deferred')) this.load().catch(() => {});
+      if (window._lazyUserReady || !lite) this.ensure().catch(() => {});
+      else {
+        // Wait for first user gesture on mobile
+        const go = () => this.ensure().catch(() => {});
+        const once = () => {
+          window._lazyUserReady = true;
+          window.removeEventListener('pointerdown', once);
+          window.removeEventListener('touchstart', once);
+          go();
+        };
+        window.addEventListener('pointerdown', once, { once: true, passive: true });
+        window.addEventListener('touchstart', once, { once: true, passive: true });
+        setTimeout(go, delay + 4000); // fallback if no tap
+      }
     };
     if (typeof requestIdleCallback === 'function') {
-      requestIdleCallback(run, { timeout: Math.max(delay, 800) });
+      requestIdleCallback(run, { timeout: delay });
     } else {
-      setTimeout(run, Math.max(delay, 80));
+      setTimeout(run, delay);
     }
   },
 
@@ -2509,18 +2542,32 @@ const LazyModules = {
       };
       const tag = document.querySelector('script[data-astranov-deferred]');
       if (tag) {
-        if (window._deferredBootDone) return done();
-        tag.addEventListener('load', () => done(), { once: true });
-        tag.addEventListener('error', () => reject(new Error('deferred script failed')), { once: true });
+        // Script already in DOM (defer) — wait for load, then resolve
+        if (tag.dataset.loaded === '1' || window.DeferredBoot) return done();
+        tag.addEventListener('load', () => {
+          tag.dataset.loaded = '1';
+          done();
+        }, { once: true });
+        tag.addEventListener('error', () => {
+          this._promise = null;
+          reject(new Error('deferred script failed'));
+        }, { once: true });
+        // If already complete (cached)
+        if (tag.complete || tag.readyState === 'complete') done();
         return;
       }
       const s = document.createElement('script');
       s.src = src;
-      s.defer = true;
       s.dataset.astranovDeferred = '1';
-      s.onload = () => done();
-      s.onerror = () => reject(new Error('deferred script failed'));
+      s.onload = () => { s.dataset.loaded = '1'; done(); };
+      s.onerror = () => {
+        this._promise = null;
+        reject(new Error('deferred script failed'));
+      };
       document.head.appendChild(s);
+    }).catch((err) => {
+      this._promise = null;
+      throw err;
     });
     return this._promise;
   },
@@ -2532,6 +2579,11 @@ const LazyModules = {
         window.DeferredBoot.run();
       }
     });
+  },
+
+  whenReady(fn) {
+    if (window._deferredBootDone) return Promise.resolve().then(() => fn?.());
+    return this.ensure().then(() => fn?.());
   },
 };
 window.LazyModules = LazyModules;
@@ -5608,21 +5660,20 @@ const AciCli = {
       return;
     }
     if (cmd === 'starship' || cmd === 'f13') {
-      StarshipFlight13?.init?.();
-      GlobeInfoTiles?.init?.();
-      void GlobeInfoTiles?.refreshSpaceXVideos?.({ fly: false });
+      try { StarshipFlight13?.init?.(); } catch (_) {}
+      try { GlobeInfoTiles?.init?.({ seed: false }); } catch (_) {}
       const msg = await StarshipFlight13?.handleCli?.(rest || line);
       this.print(msg || 'f13', 'ok');
       return;
     }
     if (cmd === 'spacex' || (cmd === 'video' && /tile|spacex|globe/.test(rest))) {
-      GlobeInfoTiles?.init?.();
+      try { GlobeInfoTiles?.init?.({ seed: false }); } catch (_) {}
       const msg = await GlobeInfoTiles?.handleCli?.(rest || 'spacex');
       this.print(msg || 'spacex tiles', 'ok');
       return;
     }
     if (cmd === 'starlink') {
-      StarlinkConstellation?.init?.();
+      try { StarlinkConstellation?.init?.(); StarlinkConstellation?.ensureBuilt?.(); } catch (_) {}
       const msg = await StarlinkConstellation?.handleCli?.(rest || 'starlink');
       this.print(msg || 'starlink', 'ok');
       return;
@@ -9304,6 +9355,9 @@ const StarshipFlight13 = {
     opts = opts || {};
     this.init();
     this._ensureGroup();
+    this._ensureHud();
+    // Snap camera once — don't spam fly every phase
+    if (!opts.silent) this.focusPad();
     this._speed = Math.max(0.25, Math.min(60, opts.speed || (opts.realtime ? 1 : 12)));
     this.playing = true;
     this._elapsed = opts.fromT || 0;
@@ -9313,7 +9367,6 @@ const StarshipFlight13 = {
     if (this._group) this._group.visible = true;
     if (this._booster) this._booster.visible = true;
     if (this._ship) this._ship.visible = true;
-    this.focusPad();
     const mode = opts.realtime ? 'live clock' : ('×' + this._speed + ' replay');
     AciCli?.print?.('starship f13 · ' + mode + ' · NET ' + new Date(this.NET_UTC).toISOString(), 'ok');
     CliRibbon?.setNotice?.('F13 · ' + mode, 'ready');
@@ -10568,15 +10621,45 @@ const ProductSurface = {
     document.body.appendChild(tile);
   },
 
+  _loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector('script[src^="' + src.split('?')[0] + '"]')) {
+        resolve();
+        return;
+      }
+      const s = document.createElement('script');
+      s.src = src;
+      s.async = true;
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('load ' + src));
+      document.head.appendChild(s);
+    });
+  },
+
+  async loadProductScripts() {
+    if (this._scriptsLoading || this._scriptsReady) return this._scriptsLoading;
+    const build = document.querySelector('meta[name="astranov-build"]')?.content || '';
+    const q = build ? '?v=' + encodeURIComponent(build) : '';
+    this._scriptsLoading = Promise.all([
+      this._loadScript('/astranov-field-hud.js' + q),
+      this._loadScript('/astranov-mpp-tile.js' + q),
+    ]).then(() => {
+      this._scriptsReady = true;
+      this._bootProductModules();
+    }).catch((e) => {
+      console.warn('[ProductSurface] scripts', e);
+      this._scriptsLoading = null;
+    });
+    return this._scriptsLoading;
+  },
+
   _bootProductModules() {
-    // Field HUD injects its own DOM
     try {
       if (window.FieldHud?.boot) FieldHud.boot();
       else if (window.FieldHud?.injectDom) {
         FieldHud.injectCss?.();
         FieldHud.injectDom?.();
         FieldHud.bindFieldMiner?.();
-        FieldHud.ensureBrain?.();
         FieldHud.patchSuperCli?.();
       }
     } catch (e) { console.warn('[ProductSurface] FieldHud', e); }
@@ -10585,24 +10668,45 @@ const ProductSurface = {
       if (window.MenuProfilePostTile?.init) MenuProfilePostTile.init();
     } catch (e) { console.warn('[ProductSurface] MPP', e); }
 
-    try {
-      if (window.GlobeInfoTiles?.init) GlobeInfoTiles.init();
-    } catch (_) {}
-
-    // Wire + to MPP even if mpp patch missed
+    // Wire + to MPP (load scripts on first tap if needed)
     const fab = document.getElementById('super-add-fab');
     if (fab && !fab._psBound) {
       fab._psBound = true;
       fab.addEventListener('click', (e) => {
-        if (window.MenuProfilePostTile?.openPlusField) {
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          MenuProfilePostTile.openPlusField();
-        }
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        const open = () => {
+          if (window.MenuProfilePostTile?.openPlusField) MenuProfilePostTile.openPlusField();
+          else AciCli?.print?.('Super Add loading…', 'dim');
+        };
+        if (window.MenuProfilePostTile) open();
+        else this.loadProductScripts().then(open);
+      }, true);
+    }
+    const vid = document.getElementById('aci-video-call');
+    if (vid && !vid._psBound) {
+      vid._psBound = true;
+      vid.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const run = () => MenuProfilePostTile?._openVideoCall?.();
+        if (window.MenuProfilePostTile) run();
+        else this.loadProductScripts().then(run);
       }, true);
     }
   },
 };
+
+// Kick product scripts after first paint (not during core parse)
+setTimeout(() => {
+  try {
+    if (window.ProductSurface) {
+      ProductSurface.init?.();
+      const delay = window._globePerfLite ? 2200 : 900;
+      setTimeout(() => ProductSurface.loadProductScripts?.(), delay);
+    }
+  } catch (_) {}
+}, 400);
 window.ProductSurface = ProductSurface;
 
 // ── COSMIC ZOOM: Earth → satellites → solar system → galaxy ──
@@ -15263,11 +15367,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script defer src="/astranov-deferred.js?v=20260717193112" data-astranov-deferred></script>
-
-<script src="/astranov-perf-lazy.js?v=20260717193112"></script>
-<script src="/astranov-field-hud.js?v=20260717193112"></script>
-<script src="/astranov-mpp-tile.js?v=20260717193112"></script>
-<script src="/astranov-galactic-sky.js?v=20260717193112" defer></script>
+<script src="/astranov-perf-lazy.js?v=20260717193502" defer></script>
 </body>
 </html>
