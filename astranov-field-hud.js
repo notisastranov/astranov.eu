@@ -619,7 +619,7 @@ const FieldHud = {
     const CoinsEl = document.getElementById('fbh-avc');
     const eurEl = document.getElementById('fbh-eur');
     const usdEl = document.getElementById('fbh-usd');
-    if (!avcEl) return;
+    if (!CoinsEl) return;
     const isGuest = guest || !window.Auth?.user;
     const Coins = Number(balance || 0);
     const rate = fx || window.AvcBalance?._fx || 1.08;
