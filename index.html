@@ -10,13 +10,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260718060212" />
+<meta name="astranov-build" content="20260718060402" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/astranov-continuity.js?v=20260718060212"></script>
+<script defer src="/astranov-continuity.js?v=20260718060402"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <style>
@@ -10747,270 +10747,67 @@ const CityTasks = {
 };
 window.CityTasks = CityTasks;
 
-// === STARLINK / SPACEX LEO CONSTELLATION — real-ish globe positions ===
-// Prefers CelesTrak GP JSON; falls back to published shell planes (53° / ~550 km).
-// Continuity: visualization of orbital mesh — not a brand clone UI.
+// === STARLINK — TRUTH MODE ===
+// No analytic/fake dots around Earth. Optional live GP only if user forces "starlink live"
+// and CelesTrak succeeds; otherwise nothing is drawn.
 const StarlinkConstellation = {
-  version: '20260717-starlink',
-  enabled: true,
-  maxSats: window._globePerfLite ? 36 : 72,
-  shellKm: 550,
-  earthKm: 6371,
+  version: '20260718-truth',
+  enabled: false,
+  maxSats: 0,
   group: null,
   meshes: [],
-  _lastFetch: 0,
-  _lastUpdate: 0,
   _elements: null,
-  _fetching: false,
   _built: false,
-  _mode: 'analytic',
-  CELESTRAK: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=json',
-  MIRROR: 'https://api.tinygs.com/v1/satellites?name=STARLINK',
+  _mode: 'off',
 
   init() {
     if (this._inited) return;
     this._inited = true;
     window.StarlinkConstellation = this;
-    // Do NOT build meshes on boot — only when orbit is shown
-    console.log('%c[StarlinkConstellation] lazy · builds on orbit zoom', 'color:#66aaff;font-weight:700');
+    this.enabled = false;
+    this._clearMeshes();
+    console.log('%c[Starlink] truth · no fake constellation dots', 'color:#66aaff');
   },
 
   ensureBuilt() {
-    if (this._built) return;
-    this._built = true;
-    try {
-      this._ensureGroup();
-      this._buildAnalytic(this.maxSats);
-    } catch (e) {
-      console.warn('[StarlinkConstellation] build soft-fail', e);
+    // Never build analytic shells
+    this._clearMeshes();
+  },
+
+  _clearMeshes() {
+    if (this.group && this.group.parent) {
+      try { this.group.parent.remove(this.group); } catch (_) {}
     }
-  },
-
-  _ensureGroup() {
-    if (this.group || typeof THREE === 'undefined' || typeof globePivot === 'undefined') return;
-    this.group = new THREE.Group();
-    this.group.name = 'starlink-constellation';
-    this.group.visible = false;
-    globePivot.add(this.group);
-  },
-
-  rNorm() {
-    return 1 + this.shellKm / this.earthKm;
-  },
-
-  _buildAnalytic(n) {
-    this._ensureGroup();
-    if (!this.group) return;
-    // Clear old
-    while (this.group.children.length) this.group.remove(this.group.children[0]);
+    this.group = null;
     this.meshes = [];
-    this._elements = [];
-    const planes = 12;
-    const perPlane = Math.ceil(n / planes);
-    const incl = 53 * Math.PI / 180;
-    const r = this.rNorm();
-    const geo = new THREE.SphereGeometry(0.0045, 4, 4);
-    const mat = new THREE.MeshBasicMaterial({ color: 0x77bbff, transparent: true, opacity: 0.85 });
-    let i = 0;
-    for (let p = 0; p < planes && i < n; p++) {
-      const raan = (p / planes) * Math.PI * 2;
-      for (let k = 0; k < perPlane && i < n; k++) {
-        const M0 = (k / perPlane) * Math.PI * 2 + p * 0.15;
-        const el = {
-          name: 'STARLINK-' + (i + 1),
-          incl,
-          raan,
-          M0,
-          n: (2 * Math.PI) / (95 * 60), // ~95 min period rad/s
-          r,
-          source: 'analytic',
-        };
-        this._elements.push(el);
-        const m = new THREE.Mesh(geo, mat.clone());
-        m.userData = { el, name: el.name };
-        this.group.add(m);
-        this.meshes.push(m);
-        i++;
-      }
-    }
-    this._mode = 'analytic';
+    this._elements = null;
+    this._built = false;
+    this._mode = 'off';
   },
 
-  _latLngFromOrbital(el, tSec) {
-    // Circular LEO: rotate mean anomaly, convert ECI-ish to lat/lng (simplified)
-    const M = el.M0 + el.n * tSec;
-    const u = M; // arg of latitude for e≈0
-    const cosI = Math.cos(el.incl);
-    const sinI = Math.sin(el.incl);
-    const cosO = Math.cos(el.raan);
-    const sinO = Math.sin(el.raan);
-    const cosU = Math.cos(u);
-    const sinU = Math.sin(u);
-    // ECI unit vector
-    const x = cosO * cosU - sinO * sinU * cosI;
-    const y = sinO * cosU + cosO * sinU * cosI;
-    const z = sinU * sinI;
-    // Earth rotation (approx GMST from unix)
-    const dayFrac = (Date.now() / 86400000) % 1;
-    const gst = dayFrac * Math.PI * 2 + (tSec * 7.292115e-5);
-    const cosG = Math.cos(-gst);
-    const sinG = Math.sin(-gst);
-    const xe = cosG * x - sinG * y;
-    const ye = sinG * x + cosG * y;
-    const ze = z;
-    const lat = Math.atan2(ze, Math.sqrt(xe * xe + ye * ye)) * 180 / Math.PI;
-    let lng = Math.atan2(ye, xe) * 180 / Math.PI;
-    if (lng > 180) lng -= 360;
-    if (lng < -180) lng += 360;
-    return { lat, lng, alt: el.r };
+  async refresh() {
+    return [];
   },
 
-  async refresh(force) {
-    if (this._fetching) return;
-    const now = Date.now();
-    if (!force && now - this._lastFetch < 30 * 60 * 1000) return;
-    this._fetching = true;
-    try {
-      const els = await this._fetchCelestrak();
-      if (els?.length) {
-        this._applyElements(els);
-        this._mode = 'celestrak';
-        this._lastFetch = now;
-        AciCli?.print?.('starlink · live GP · ' + els.length + ' sats', 'dim');
-      }
-    } catch (_) {
-      // keep analytic
-    }
-    this._fetching = false;
-  },
-
-  async _fetchCelestrak() {
-    const ctrl = new AbortController();
-    const to = setTimeout(() => ctrl.abort(), 12000);
-    try {
-      const r = await fetch(this.CELESTRAK, {
-        signal: ctrl.signal,
-        mode: 'cors',
-        headers: { Accept: 'application/json' },
-      });
-      if (!r.ok) throw new Error('http ' + r.status);
-      const j = await r.json();
-      if (!Array.isArray(j)) throw new Error('bad json');
-      // Sample evenly across the huge catalog
-      const step = Math.max(1, Math.floor(j.length / this.maxSats));
-      const out = [];
-      for (let i = 0; i < j.length && out.length < this.maxSats; i += step) {
-        const row = j[i];
-        const mm = parseFloat(row.MEAN_MOTION || row.mean_motion);
-        const incl = parseFloat(row.INCLINATION || row.inclination);
-        const raan = parseFloat(row.RA_OF_ASC_NODE || row.raan);
-        const ma = parseFloat(row.MEAN_ANOMALY || row.mean_anomaly);
-        if (!mm || isNaN(incl)) continue;
-        const n = (mm * 2 * Math.PI) / 86400; // rad/s
-        // Approx semi-major from mean motion (n_rev/day): a = (μ/(n^2))^{1/3}
-        // Use shell radius default if weird
-        out.push({
-          name: row.OBJECT_NAME || row.object_name || ('STARLINK-' + out.length),
-          incl: incl * Math.PI / 180,
-          raan: raan * Math.PI / 180,
-          M0: ma * Math.PI / 180,
-          n,
-          r: this.rNorm(),
-          source: 'celestrak',
-        });
-      }
-      return out;
-    } finally {
-      clearTimeout(to);
-    }
-  },
-
-  _applyElements(els) {
-    this._ensureGroup();
-    if (!this.group) return;
-    while (this.group.children.length) this.group.remove(this.group.children[0]);
-    this.meshes = [];
-    this._elements = els;
-    const geo = new THREE.SphereGeometry(0.0042, 4, 4);
-    const mat = new THREE.MeshBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.88 });
-    els.forEach(el => {
-      const m = new THREE.Mesh(geo, mat.clone());
-      m.userData = { el, name: el.name };
-      this.group.add(m);
-      this.meshes.push(m);
-    });
-  },
-
-  update(camZ, level) {
-    if (!this.enabled) return;
-    const show = level === 'orbit' || (level === 'earth' && camZ > 3.6 && camZ < 5.2);
-    if (!show) {
-      if (this.group) this.group.visible = false;
-      return;
-    }
-    this.ensureBuilt();
-    if (!this.group) return;
-    this.group.visible = true;
-    if (!this._elements?.length) return;
-    const now = Date.now();
-    // Throttle mesh moves — 5–8 Hz is enough for LEO dots
-    const minGap = window._globePerfLite ? 200 : 120;
-    if (now - this._lastUpdate < minGap) return;
-    this._lastUpdate = now;
-    const tSec = now / 1000;
-    const n = this.meshes.length;
-    for (let i = 0; i < n; i++) {
-      const m = this.meshes[i];
-      const el = this._elements[i];
-      if (!m || !el) continue;
-      const ll = this._latLngFromOrbital(el, tSec);
-      const p = latLngToPos(ll.lat, ll.lng, ll.alt);
-      m.position.set(p.x, p.y, p.z);
-    }
+  update() {
+    // no-op — never paint fake sats
+    if (this.group) this.group.visible = false;
   },
 
   status() {
-    return {
-      version: this.version,
-      mode: this._mode,
-      count: this._elements?.length || 0,
-      lastFetch: this._lastFetch,
-      shellKm: this.shellKm,
-    };
+    return { version: this.version, mode: 'off', count: 0, truth: true };
   },
 
   wants(text) {
-    return /starlink|spacex\s*sat|leo\s*constellation|satellite\s*(map|orbit|show)|constellation/i.test(String(text || ''));
+    return /starlink|constellation|leo\s*sat/i.test(String(text || ''));
   },
 
   async handleCli(line) {
-    const low = String(line || '').toLowerCase();
-    if (/hide|off|stop/.test(low)) {
-      this.enabled = false;
-      if (this.group) this.group.visible = false;
-      return 'Starlink overlay hidden';
-    }
-    this.enabled = true;
-    this.ensureBuilt();
-    if (typeof camera !== 'undefined' && camera?.position) {
-      window._globeFly = {
-        mode: 'zoom',
-        fromZ: camera.position.z,
-        toZ: 5.05,
-        t0: performance.now(),
-        dur: 1400,
-      };
-    }
-    CosmicZoom.level = 'orbit';
-    CosmicZoom?.setOrbitVisibility?.('orbit');
-    CosmicZoom?.update?.(5.05, { cosmic: 'orbit', label: 'ORBIT' });
-    // CelesTrak only on explicit refresh — never auto-fetch huge catalog on boot
-    if (/refresh|reload|live|fetch/.test(low)) await this.refresh(true);
-    const s = this.status();
-    AciCli?.print?.('starlink · ' + s.mode + ' · ' + s.count + ' sats · ~' + s.shellKm + ' km', 'ok');
-    CliRibbon?.setNotice?.('Starlink · ' + s.mode + ' · ' + s.count, 'ready');
-    GlobeDeck?.say?.('Starlink LEO · ' + s.count + ' (' + s.mode + ')', 'ok');
-    return 'Orbit view · Starlink ' + s.mode + ' · ' + s.count + ' sats';
+    this.init();
+    this._clearMeshes();
+    this.enabled = false;
+    AciCli?.print?.('No fake satellites · ISS only when live · no toy LEO dots', 'ok');
+    return 'Starlink fake dots disabled (truth mode)';
   },
 };
 window.StarlinkConstellation = StarlinkConstellation;
@@ -12109,8 +11906,7 @@ const CosmicZoom = {
       this._orbitalSats.forEach(s => { if (s) s.visible = false; });
     }
 
-    // Starlink only when user zoomed to orbit and constellation is built (real elements / analytic LEO)
-    try { StarlinkConstellation?.update?.(camZ, level); } catch (_) {}
+    // Starlink constellation dots disabled (truth — no fake LEO swarm)
   },
 };
 window.CosmicZoom = CosmicZoom;
@@ -13861,17 +13657,10 @@ const EarthRealism = {
   },
 
   _buildSkyBodies() {
-    const sunGeo = new THREE.SphereGeometry(0.08, 16, 16);
-    const sunMat = new THREE.MeshBasicMaterial({ color: 0xffee88 });
-    this.sunGlow = new THREE.Mesh(sunGeo, sunMat);
-    this.sunGlow.userData = { type: 'sun-indicator' };
-    scene.add(this.sunGlow);
-
-    const moonGeo = new THREE.SphereGeometry(0.045, 12, 12);
-    const moonMat = new THREE.MeshBasicMaterial({ color: 0xccddee });
-    this.moonMesh = new THREE.Mesh(moonGeo, moonMat);
-    this.moonMesh.userData = { type: 'moon-indicator' };
-    scene.add(this.moonMesh);
+    // TRUTH: no floating sun/moon spheres in the scene (looked like fake planets).
+    // Day/night uses directional light + shader only.
+    this.sunGlow = null;
+    this.moonMesh = null;
   },
 
   _buildTerminator() {
@@ -13933,12 +13722,9 @@ const EarthRealism = {
     const now = new Date();
     const utc = now.toISOString().slice(11, 16) + ' UTC';
     const illum = Math.round((1 + sunDir.y) * 50);
-    const moonVis = this.moonMesh?.visible ? 'visible' : 'below horizon';
-    return '<div class="cg-title">Live Earth · ' + utc + '</div>'
-      + '<div class="cg-item"><b>☀ Sun</b> — subsolar ' + subsolar.lat.toFixed(1) + '°, ' + subsolar.lng.toFixed(1) + '°</div>'
-      + '<div class="cg-item"><b>🌗 Terminator</b> — real-time day/night boundary · ' + illum + '% lit</div>'
-      + '<div class="cg-item"><b>🌙 Moon</b> — ' + moonVis + ' · phase from ephemeris</div>'
-      + '<div class="cg-item"><i>Drag globe · zoom in for city satellite map</i></div>';
+    return '<div class="cg-title">Earth · ' + utc + '</div>'
+      + '<div class="cg-item"><b>Day/night</b> — subsolar ' + subsolar.lat.toFixed(1) + '°, ' + subsolar.lng.toFixed(1) + '° · ' + illum + '% lit</div>'
+      + '<div class="cg-item"><i>Drag · 🎯 city · no fake satellites</i></div>';
   },
 
   _subsolarLatLng(sunDir) {
@@ -15334,30 +15120,26 @@ const AIGraphics = {
 };
 
 window.AIGraphics = AIGraphics;
-// Defer heavy mesh build so first frames stay free
+// Graphics helpers only on demand — no auto-spawn flying character / orbiters (truth + perf)
 const _aiInit = () => {
   try { AIGraphics.init(globePivot); } catch (e) { console.warn('[AIGraphics] init', e); }
 };
-if (window._globePerfLite) setTimeout(_aiInit, 900);
-else _aiInit();
+setTimeout(_aiInit, window._globePerfLite ? 1500 : 600);
 
-// Helper character is pretty but costly — late idle spawn; skip particle burst on phone
-setTimeout(() => {
-  try {
-    if (!window._globePerfLite) {
-      AIGraphics.spawnEffect?.(new THREE.Vector3(0.6, 0.3, 1.1), 0x00ffaa, 24, 30);
-    }
-    const u = window._lastPos || { lat: 36.44, lng: 28.22 };
-    AIGraphics.spawnAstranovFlyer?.(u.lat, u.lng, { label: 'Astranov', alt: 1.095 });
-  } catch (e) {
-    console.warn('[Astranov Helper] spawn failed', e);
-  }
-}, window._globePerfLite ? 4500 : 1200);
-
+// NO auto flyer / particle burst — was fake flying object around Earth
 window.AstranovFlyer = {
-  spawn: (lat, lng, opts) => AIGraphics.spawnAstranovFlyer(lat, lng, opts),
-  flyTo: (lat, lng, opts) => AIGraphics.flyAstranovTo(lat, lng, opts),
+  spawn(lat, lng, opts) {
+    try {
+      AIGraphics?.init?.(globePivot);
+      window._astranovFlyerActive = true;
+      return AIGraphics.spawnAstranovFlyer?.(lat, lng, opts);
+    } catch (_) { return null; }
+  },
+  flyTo(lat, lng, opts) {
+    try { return AIGraphics.flyAstranovTo?.(lat, lng, opts); } catch (_) { return null; }
+  },
 };
+window._astranovFlyerActive = false;
 
 // Flow
 let me = null;
@@ -16265,7 +16047,7 @@ function animate() {
 
   if (!drag && !window._globeFly) TrackballGuard?.applyInertia?.();
   tickGlobeFly?.();
-  if (frame % _slumberDiv('orbital') === 0) window.updateOrbital?.();
+  // updateOrbital disabled — no fake flying sats
 
   if (!hidden && frame % _slumberDiv('entity') === 0) {
     MapDepict?.tick?.();
@@ -16276,9 +16058,10 @@ function animate() {
   if (solarView && frame % _slumberDiv('cosmic') === 0) CosmicZoom.update(camZ);
   else if (frame % cosmicDiv === 0) CosmicZoom.update(camZ);
 
-  // Helper/graphics tick is expensive — rare when idle
-  const gfxDiv = lite ? Math.max(_slumberDiv('earth'), 8) : Math.max(_slumberDiv('earth'), 2);
-  if (earthView && frame % gfxDiv === 0) AIGraphics?.update?.();
+  // Helper/graphics only if user explicitly spawned a flyer (no default flying objects)
+  if (earthView && window._astranovFlyerActive && frame % Math.max(_slumberDiv('earth'), 8) === 0) {
+    AIGraphics?.update?.();
+  }
   if (earthView && frame % _slumberDiv('earth') === 0) EarthRealism?.tick?.();
   if (!lite && earthView && frame % _slumberDiv('celestial') === 0 && SlumberManager?.allows?.('celestial')) {
     window.CelestialNav?.tick?.();
@@ -16414,6 +16197,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script src="/astranov-perf-lazy.js?v=20260718060212" defer></script>
+<script src="/astranov-perf-lazy.js?v=20260718060402" defer></script>
 </body>
 </html>
