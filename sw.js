@@ -1,5 +1,5 @@
 /* Astranov service worker — network-first app shell + /js phases (never stale monolith) */
-const CACHE = 'astranov-v18083015';
+const CACHE = 'astranov-v18135824';
 const SHELL = ['/manifest.webmanifest', '/icon.svg'];
 
 self.addEventListener('install', (e) => {
