@@ -1,5 +1,5 @@
 // === CITY MAP (Leaflet national/city level) ===
-const CityMap = {
+var CityMap = {
   map: null,
   _ready: false,
   _markers: {},
