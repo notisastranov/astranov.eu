@@ -1,3 +1,4 @@
+/* === 21-super-cli-brain.js === */
 // === SUPER CLI BRAIN — full command of collective intelligence + UI ===
 Object.assign(SuperCli, {
   devMode: false,
@@ -707,6 +708,7 @@ SuperCli.init = function () {
   SuperCli.initBrain();
 };
 
+/* === 23-cli-hub.js === */
 // === CLI HUB — cloud transcripts · search users/chats · private cloud DM ===
 const CliHub = {
   _pending: [],
@@ -1003,6 +1005,7 @@ const CliHub = {
 
 window.CliHub = CliHub;
 
+/* === 24-context-truth.js === */
 // === CONTEXT TRUTH — visual mirror of auth · channel · game · compromise ===
 const ContextTruth = {
   compromised: null,
@@ -1224,6 +1227,7 @@ const ContextTruth = {
 };
 window.ContextTruth = ContextTruth;
 
+/* === 16-aci-connect.js === */
 // === ACI CONNECT — link architect to collective AI for deployment ===
 const AciConnect = {
   connected: false,
@@ -1296,6 +1300,7 @@ const AciConnect = {
 };
 window.AciConnect = AciConnect;
 
+/* === 29-delivery-pricing.js === */
 // === DELIVERY PRICING + WEATHER + GOOGLE WALLET ===
 const DeliveryPricing = {
   PLATFORM_RATE: 0.03,
@@ -1464,6 +1469,7 @@ function resizeCliInput(el) {
 }
 window.resizeCliInput = resizeCliInput;
 
+/* === 30-commerce.js === */
 // ── COMMERCE: real vendors, real menus only, smart order on globe ──
 const ORDER_ITEM_ALIASES = [
   { id: 'pita', label: 'Πιτογύρα', keys: ['πιτογυρ', 'πιτογύρα', 'pitogyra', 'pita', 'πιτο', 'gyro', 'γύρο', 'gyros', 'pitogyro'], match: /πιτο|pita|gyro|γύρο|pitogyra|pitogyro/i },
@@ -2387,6 +2393,7 @@ const Commerce = {
 };
 window.Commerce = Commerce;
 
+/* === 32-astranov-node.js === */
 // === ASTRANOV NODE — PWA/native install + decentralized batch work together ===
 const AstranovNode = {
   batchId: null,
@@ -2882,6 +2889,7 @@ const AstranovNode = {
 
 window.AstranovNode = AstranovNode;
 
+/* === 40-comms-news.js === */
 // ── COMMS: phone + EU PMR (real audio, no simulation) ──
 const Comms = {
   vhfActive: false,
@@ -2942,6 +2950,7 @@ const NewsFeed = {
 window.Comms = Comms;
 window.NewsFeed = NewsFeed;
 
+/* === 42-satradio.js === */
 // === PMR RADIO — REAL AUDIO ONLY (no simulation) ===
 // Browser cannot transmit 446.13125 MHz RF. Real: mic PTT + WebRTC voice mesh.
 // Physical PMR446 Ch11: tune YOUR handheld — app shows exact frequency.
@@ -3196,6 +3205,7 @@ const PmrRadio = {
 window.PmrRadio = PmrRadio;
 window.SatRadio = PmrRadio;
 
+/* === 46-super-add.js === */
 // === SUPER ADD (+) — camera video post · channels · vendor · driver · map pin ===
 const SuperAdd = {
   _stream: null,
@@ -3569,6 +3579,7 @@ const SuperAdd = {
 };
 window.SuperAdd = SuperAdd;
 
+/* === 43-youtube-globe.js === */
 // === YOUTUBE ON GLOBE — search + watch in Astranov deck ===
 const GlobeVideo = {
   _results: [],
@@ -3767,6 +3778,7 @@ const GlobeVideo = {
 };
 window.GlobeVideo = GlobeVideo;
 
+/* === 51-celestial-nav.js === */
 // === CELESTIAL NAV — constellations visible at your position (global view) ===
 const CelestialNav = {
   SKY_R: 1.36,
@@ -4091,6 +4103,7 @@ const CelestialNav = {
 };
 window.CelestialNav = CelestialNav;
 
+/* === 53-coders-hub.js === */
 // === CODERS HUB — multi-team race board + cross-lab handoff
 const CodersHub = {
   CONTINUATION_KEY: 'astranov:job-continuation',
@@ -4430,6 +4443,7 @@ const CodersHub = {
 window.CodersHub = CodersHub;
 window.openCodersHub = () => CodersHub.toggle(true);
 
+/* === 55-lab-orbs.js === */
 // === LAB ORBS — ChatGPT-lab affordances on real WebGL globe (no static Earth overlay)
 const LabOrbs = {
   ORBS: [
@@ -4587,6 +4601,7 @@ const LabOrbs = {
 
 window.LabOrbs = LabOrbs;
 
+/* === 70-routing.js === */
 // STRONG ROUTING FALLBACK PROVIDER CYCLING ENGINE
 // For safe deliveries to users & drivers (pilot/drones)
 // Cycles providers + fallbacks on risk
@@ -4685,6 +4700,7 @@ function updateOrbitalSats() {
 }
 // do not call addOrbitalSats()
 
+/* === 72-driving.js === */
 // === DRIVING VIEW + OSRM ROAD ROUTING ===
 const DrivingView = {
   active: false,
@@ -4906,6 +4922,7 @@ const DrivingView = {
 };
 window.DrivingView = DrivingView;
 
+/* === 67-map-comms.js === */
 // === MAP COMMS — team polygon · cloud chat · video/voice/phone/message ===
 const MapComms = {
   kind: 'team',
@@ -5704,6 +5721,7 @@ const MapComms = {
 
 window.MapComms = MapComms;
 
+/* === 74-telemachos-pilot.js === */
 (function(){
 // === TELEMACHOS PILOT — gaming · commercial · extreme takeover ===
 // ΤΗΛΕΜΑΧΟΣ (gaming) · ΤΗΛΕΔΡΟΜΟΣ (commercial) · tilemaxos (extreme tech / hostile takeover)
@@ -7132,6 +7150,7 @@ window.TelemachosPilot = Pilot;
 window.showPilotTelemachos = function () { return Pilot.showPilot(); };
 })();
 
+/* === 80-webrtc.js === */
 // WebRTC Video Calling + Orbital global compatibility
 // Real browser tech to reduce wireless pollution via orbital mesh
 let orbitalCallActive = false;
@@ -7317,6 +7336,7 @@ function updateOrbital() {
 }
 window.updateOrbital = updateOrbital;
 
+/* === 64-astranov-session.js === */
 // === ASTRANOV SESSION — one user, one cloud session, no local copies ===
 const COLLECTIVE_SESSION_NAME = 'ASTRANOV COLLECTIVE INTELLIGENCE';
 const COLLECTIVE_BATCH_SHORT_ID = 'ACI';
@@ -7571,6 +7591,7 @@ const AstranovSession = {
 };
 window.AstranovSession = AstranovSession;
 
+/* === 65-astranov-wishlist.js === */
 // === ASTRANOV WISHLIST — recover requests across all devices ===
 const AstranovWishlist = {
   MAX: 48,
@@ -7765,6 +7786,7 @@ const AstranovWishlist = {
 };
 window.AstranovWishlist = AstranovWishlist;
 
+/* === 66-globe-presence.js === */
 // === GLOBE PRESENCE — logged-in users on map · collab · κρυφτό hide-and-seek ===
 const AstranovPresence = {
   CHANNEL: 'astranov-globe-live',
@@ -8188,6 +8210,7 @@ const AstranovPresence = {
 
 window.AstranovPresence = AstranovPresence;
 
+/* === 68-marketplace-comms.js === */
 // ═══════════════════════════════════════════════════════════════
 // ASTRANOV — Marketplace Comms (vendors · clients · drivers)
 // Same polygon + glowing lines + cloud chat as MapComms teams.
@@ -8449,6 +8472,7 @@ window.AstranovPresence = AstranovPresence;
   init();
 })();
 
+/* === 69-profile-site.js === */
 // === PROFILE SITE — every user & vendor fills their page; opens on tap ===
 const ProfileSite = {
   targetId: null,
@@ -8785,6 +8809,7 @@ const ProfileSite = {
 
 window.ProfileSite = ProfileSite;
 
+/* === 48-astranov-sites-provision.js === */
 // === ASTRANOV SITES PROVISION — instant {slug}.astranov.eu web presence ===
 const AstranovSitesProvision = {
   BASE_DOMAIN: 'astranov.eu',
@@ -8925,6 +8950,7 @@ const AstranovSitesProvision = {
 window.SuperBookingProvision = AstranovSitesProvision;
 window.AstranovSitesProvision = AstranovSitesProvision;
 
+/* === 49-astranov-site-shell.js === */
 // === ASTRANOV SITE SHELL — subdomains open over the globe (Earth browser) ===
 const AstranovSiteShell = {
   active: null,
@@ -8992,6 +9018,7 @@ const AstranovSiteShell = {
 };
 window.AstranovSiteShell = AstranovSiteShell;
 
+/* === 83-order-tracking.js === */
 // === ORDER TRACKING — live status on globe + CLI (delivery parity) ===
 const OrderTracking = {
   active: null,
@@ -9299,6 +9326,7 @@ const OrderTracking = {
 
 window.OrderTracking = OrderTracking;
 
+/* === 84-responsive-3d.js === */
 // === 3D RESPONSIVENESS — instant ack + parallel fast think (CLI · voice · globe) ===
 const Responsive3D = {
   FAST_MS: 8000,
@@ -9421,6 +9449,7 @@ const Responsive3D = {
 
 window.Responsive3D = Responsive3D;
 
+/* === 97-deferred-boot.js === */
 // === DEFERRED BOOT — init subsystems moved out of 99-boot.js ===
 const DeferredBoot = {
   _done: false,
