@@ -3,7 +3,7 @@
 // Owner only: notisastranov@gmail.com after Google sign-in on astranov.eu
 // In-app coding path: fix | dev | code | edit | bridge → cic_queue reason architect_bridge
 // Desktop: npm run bridge-watch  ·  answer: node scripts/architect-bridge-answer.mjs <id> "…"
-const ArchitectBridge = {
+var ArchitectBridge = {
   armed: false,
   lastTaskId: null,
   _pollTimer: null,
