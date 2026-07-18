@@ -190,7 +190,7 @@ const MenuProfilePostTile = {
     if (btn._mppLocateBound) return;
     btn._mppLocateBound = true;
     const runLocate = async () => {
-      GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+      GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
       GlobeDeck?.setMapStatus?.('Locating…');
       GlobeControl?.engageFollow?.('locate');
       ACIControl?.reply?.('Locating — city map…');
@@ -236,7 +236,7 @@ const MenuProfilePostTile = {
 
   async _openVideoCall() {
     await LazyModules.ensure().catch(() => {});
-    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
     if (!this.isOpen()) {
       const pos = window._lastPos || CityMap?.globeCenterLatLng?.() || TrackballGuard?.facingLatLng?.() || { lat: 36.44, lng: 28.22 };
       this.openAt(pos.lat, pos.lng);
@@ -739,7 +739,7 @@ const MenuProfilePostTile = {
   openPlusField() {
     this.init();
     this._closeSuperAddDeck();
-    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
     const pos = window._lastPos || CityMap?.globeCenterLatLng?.() || TrackballGuard?.facingLatLng?.() || { lat: 36.44, lng: 28.22 };
     this.openAt(pos.lat, pos.lng);
   },
@@ -926,7 +926,7 @@ const MenuProfilePostTile = {
         return;
       }
       MarketplaceDeliveryEngine?.showHud?.(mine[0]);
-      GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+      GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
       this.close();
       return;
     }
