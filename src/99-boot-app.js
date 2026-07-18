@@ -7,9 +7,17 @@ window.__astranovBootApp = function __astranovBootApp() {
   soft('Auth', () => Auth?.init?.());
   soft('GlobeDeck', () => {
     GlobeDeck?.init?.();
-    // Start collapsed so Earth is the stage — CLI is the ribbon, not the whole app
-    if (typeof GlobeDeck.bootCollapsed === 'function') GlobeDeck.bootCollapsed();
-    else GlobeDeck.bootReady?.();
+    // Earth is the product. CLI stays a bottom ribbon — never full-stage at boot.
+    try {
+      GlobeDeck.bootCollapsed?.();
+      GlobeDeck.expanded = false;
+      GlobeDeck._size = 'collapsed';
+      GlobeDeck.applySize?.();
+      document.getElementById('globe-deck')?.classList.remove('expanded', 'size-third', 'size-full');
+      document.getElementById('globe-deck')?.classList.add('collapsed');
+    } catch (_) {
+      GlobeDeck.bootCollapsed?.();
+    }
     GlobeDeck?.setTitle?.(PublicCopy?.deckTitle?.() || 'Astranov');
     GlobeDeck?.setPreview?.(PublicCopy?.readyNotice?.() || 'Earth · drag · 🎯 city · 🎧 chat');
   });

@@ -1,5 +1,19 @@
 /* === 00-globe.js === */
-const container = document.getElementById('globe');
+// Globe host — must exist before WebGL. Never leave user with CLI-only black stage.
+let container = document.getElementById('globe');
+if (!container) {
+  container = document.createElement('div');
+  container.id = 'globe';
+  document.body.insertBefore(container, document.body.firstChild);
+}
+// Ensure canvas layer is visible above void, under UI chrome
+try {
+  container.style.cssText = (container.getAttribute('style') || '')
+    + ';position:absolute;inset:0;z-index:2;touch-action:none;';
+  document.body.classList.remove('site-shell-open');
+  document.getElementById('city-map')?.classList.remove('active');
+  container.classList.remove('city-map-active', 'national-map-active');
+} catch (_) {}
 
 // Robust WebGL + error guard so user never sees silent black
 window.addEventListener('error', function(e) {
@@ -2771,6 +2785,16 @@ window.__astranovBootCritical = function __astranovBootCritical() {
     return;
   }
   // First paint: spinning, draggable Earth — UI boots next phase
+  try {
+    document.getElementById('globe')?.classList.remove('city-map-active', 'national-map-active');
+    if (renderer?.domElement) {
+      renderer.domElement.style.opacity = '1';
+      renderer.domElement.style.pointerEvents = 'auto';
+      renderer.domElement.style.display = 'block';
+    }
+    // One immediate frame so user never sees empty void while waiting for RAF
+    if (renderer && scene && camera) renderer.render(scene, camera);
+  } catch (_) {}
   animate();
   window._astranovCriticalReady = true;
   document.documentElement.dataset.astranovPhase = 'critical';
