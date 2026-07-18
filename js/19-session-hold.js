@@ -3,7 +3,7 @@
 sessionHeld = false;
 window.sessionHeld = false;
 
-const SessionHold = {
+var SessionHold = {
   STORAGE_KEY: 'astranov-session-hold-v1',
   _snapshot: null,
 
