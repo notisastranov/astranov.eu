@@ -10,13 +10,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260718060535" />
+<meta name="astranov-build" content="20260718060705" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/astranov-continuity.js?v=20260718060535"></script>
+<script defer src="/astranov-continuity.js?v=20260718060705"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <style>
@@ -865,7 +865,7 @@
     </div>
     <div id="vendor-menu">
       <div id="vm-header"><span id="vm-title">Καταστήματα</span><button id="vm-close" type="button">✖️</button></div>
-      <div id="vm-body"><div id="vm-list"></div><div id="vm-detail" style="display:none"><button id="vm-back" type="button">← όλα τα καταστήματα</button><div id="vm-empty" style="display:none"></div><div id="vm-items"></div><div id="vm-drivers-pick" class="vm-drivers-pick" style="display:none"></div><button id="vm-request" type="button" style="display:none">Ζήτησε μενού από κατάστημα</button><button id="vm-place" type="button">Παραγγελία</button></div><div id="vm-compare" style="display:none"><button id="vm-compare-back" type="button">← όλα τα καταστήματα</button><div id="vm-wanted"></div><div id="vm-matches"></div><div id="vm-drivers"></div><div id="vm-pricing" class="vm-pricing" style="display:none"></div><div id="vm-balance"></div><button id="vm-wallet-pay" type="button" style="display:none">Google Wallet · Pay vendor</button><button id="vm-confirm-pay" type="button" style="display:none">Επιβεβαίωση &amp; Πληρωμή · AVC balance</button></div></div>
+      <div id="vm-body"><div id="vm-list"></div><div id="vm-detail" style="display:none"><button id="vm-back" type="button">← όλα τα καταστήματα</button><div id="vm-empty" style="display:none"></div><div id="vm-items"></div><div id="vm-drivers-pick" class="vm-drivers-pick" style="display:none"></div><button id="vm-request" type="button" style="display:none">Ζήτησε μενού από κατάστημα</button><button id="vm-place" type="button">Παραγγελία</button></div><div id="vm-compare" style="display:none"><button id="vm-compare-back" type="button">← όλα τα καταστήματα</button><div id="vm-wanted"></div><div id="vm-matches"></div><div id="vm-drivers"></div><div id="vm-pricing" class="vm-pricing" style="display:none"></div><div id="vm-balance"></div><button id="vm-wallet-pay" type="button" style="display:none">Google Wallet · Pay vendor</button><button id="vm-confirm-pay" type="button" style="display:none">Επιβεβαίωση &amp; Πληρωμή · Coins balance</button></div></div>
     </div>
         </div>
       </div>
@@ -1626,7 +1626,7 @@ const MapDepict = {
       vendor: 'Καταστήματα',
       compare: 'Σύγκριση τιμών',
       driver: 'Οδηγοί διανομής',
-      pay: 'Πληρωμή AVC',
+      pay: 'Πληρωμή Coins',
       phone: 'Τηλέφωνο',
       vhf: 'VHF ασύρματος',
       news: 'Ειδήσεις',
@@ -2416,8 +2416,8 @@ window.YachtMatcher = YachtMatcher;
 const AuditorPortal = { syncGlobe() {} };
 window.AuditorPortal = AuditorPortal;
 
-const AvcJustice = { loadConstitution() {}, syncGlobe() {} };
-window.AvcJustice = AvcJustice;
+const CoinsJustice = { loadConstitution() {}, syncGlobe() {} };
+window.AvcJustice = CoinsJustice;
 
 const CoinPortal = { syncGlobe() {} };
 window.CoinPortal = CoinPortal;
@@ -3292,13 +3292,13 @@ const ResourceMonitor = {
 
   /** Mirror money field (top-right) into this panel */
   moneySnapshot() {
-    const avc = document.getElementById('fbh-avc')?.textContent || '— AVC';
+    const Coins = document.getElementById('fbh-Coins')?.textContent || '— Coins';
     const rate = document.getElementById('fbh-mine-rate')?.textContent
       || document.getElementById('mrp-rate')?.textContent
       || '0/h';
     const earned = document.getElementById('fbh-mine-earned')?.textContent || '+0';
     const peers = document.getElementById('fbh-peers')?.textContent || '0 peers';
-    return { avc, rate, earned, peers };
+    return { Coins, rate, earned, peers };
   },
 
   _inject() {
@@ -3325,7 +3325,7 @@ const ResourceMonitor = {
       '#resource-monitor .rm-money{display:flex;flex-direction:column;gap:2px;padding:6px 8px;margin:0 0 8px;',
       'border-radius:10px;background:rgba(0,40,30,0.45);border:1px solid rgba(0,221,153,0.3);cursor:pointer}',
       '#resource-monitor .rm-money:active{transform:scale(0.98)}',
-      '#resource-monitor .rm-money .rm-avc{font-size:12px;font-weight:700;color:#00ffaa}',
+      '#resource-monitor .rm-money .rm-Coins{font-size:12px;font-weight:700;color:#00ffaa}',
       '#resource-monitor .rm-money .rm-earn{font-size:9px;color:#8dbaa0}',
       '#resource-monitor .rm-inv{font-size:9px;color:#7a9aaa;margin:0 0 8px;line-height:1.4}',
       '#resource-monitor .rm-inv b{color:#a8d4ff}',
@@ -3362,7 +3362,7 @@ const ResourceMonitor = {
       '</div>',
       '<div class="rm-body" id="rm-body">',
       '<div class="rm-money" id="rm-money" title="Open money / miner field">',
-      '<span class="rm-avc" id="rm-avc">— AVC</span>',
+      '<span class="rm-Coins" id="rm-Coins">— Coins</span>',
       '<span class="rm-earn" id="rm-earn">⛏ — · session —</span>',
       '</div>',
       '<div class="rm-inv" id="rm-inv">…</div>',
@@ -3476,9 +3476,9 @@ const ResourceMonitor = {
         + (inv.heapMb ? ' · heap <b>' + inv.heapMb + '</b> MB' : '');
     }
 
-    const avc = document.getElementById('rm-avc');
+    const Coins = document.getElementById('rm-Coins');
     const earn = document.getElementById('rm-earn');
-    if (avc) avc.textContent = money.avc;
+    if (Coins) Coins.textContent = money.Coins;
     if (earn) earn.textContent = '⛏ ' + money.rate + ' · ' + money.earned + ' · ' + money.peers;
 
     const setPct = (id, v) => {
@@ -5634,7 +5634,7 @@ const AppShortcuts = {
     },
     coin: {
       icon: '◎',
-      title: 'AVC',
+      title: 'Coins',
       activate() {
         CoinPortal?.open?.('wallet');
         SuperCli?.setContext?.('coin');
@@ -7062,10 +7062,10 @@ const AciCoders = {
       AuditorPortal?.open?.({ tab: 'dashboard' });
       return 'Opened auditors.astranov.eu';
     }
-    if (/avc|coin|ledger|justice|wallet|κρυπτο|νόμισμα/.test(low) && /balance|ledger|open|show|wallet|δείξε/.test(low)) {
+    if (/Coins|coin|ledger|justice|wallet|κρυπτο|νόμισμα/.test(low) && /balance|ledger|open|show|wallet|δείξε/.test(low)) {
       if (/open|wallet|show|δείξε/.test(low)) CoinPortal?.open?.(/ledger|transparen/.test(low) ? 'transparency' : 'wallet');
-      else AvcJustice?.cli?.(['avc', /ledger|διαφάν|transparen/.test(low) ? 'ledger' : 'balance']);
-      return 'coin.astranov.eu — AVC wallet · 1 AVC = 1 EUR · work-mint only';
+      else CoinsJustice?.cli?.(['Coins', /ledger|διαφάν|transparen/.test(low) ? 'ledger' : 'balance']);
+      return 'coin.astranov.eu — Coins wallet · 1 Coin = 1 EUR · work-mint only';
     }
     return null;
   },
@@ -11382,7 +11382,7 @@ const ProductSurface = {
       '</div>',
       '<div id="mpp-section-market" class="mpp-section visible">',
       '<h4>Marketplace</h4>',
-      '<div id="mpp-market-summary">Cart · delivery pin · AVC</div>',
+      '<div id="mpp-market-summary">Cart · delivery pin · Coins</div>',
       '<button type="button" class="mpp-act" data-mpp-act="browse_shops">Browse shops</button>',
       '<button type="button" class="mpp-act" data-mpp-act="set_delivery">Set delivery pin</button>',
       '<button type="button" class="mpp-act" data-mpp-act="place_cart">Place order (cart)</button>',
@@ -16174,6 +16174,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script src="/astranov-perf-lazy.js?v=20260718060535" defer></script>
+<script src="/astranov-perf-lazy.js?v=20260718060705" defer></script>
 </body>
 </html>
