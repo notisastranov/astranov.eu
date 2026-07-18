@@ -75,8 +75,86 @@ var CityMap = {
     });
   },
 
+  /**
+   * Leave city map and return to the 3D globe (national/global).
+   * Old path only nudged camera while map stayed on top — felt broken.
+   */
   _bridgeZoomOut(amount) {
-    if (typeof zoomBy === 'function') zoomBy(amount || 0.12);
+    this.returnToGlobe({ pull: amount });
+  },
+
+  /** Hard handoff: hide Leaflet, show globe, zoom out so Earth is visible. */
+  returnToGlobe(opts) {
+    opts = opts || {};
+    window._cityDropLock = false;
+    window._locateCinematic = false;
+    this._forceOpen = false;
+    this._exit();
+    try {
+      document.body?.classList?.remove?.('city-map-active', 'national-map-active');
+      const globe = document.getElementById('globe');
+      if (globe) {
+        globe.classList.remove('city-map-active', 'national-map-active');
+        globe.style.opacity = '1';
+        globe.style.visibility = 'visible';
+        globe.style.display = '';
+        globe.style.zIndex = '2';
+      }
+      const canvas = globe?.querySelector?.('canvas') || document.querySelector('#globe canvas');
+      if (canvas) {
+        canvas.style.opacity = '1';
+        canvas.style.pointerEvents = 'auto';
+        canvas.style.display = 'block';
+      }
+      const chip = document.getElementById('city-life-chip');
+      if (chip) chip.classList.remove('open');
+    } catch (_) {}
+    try { cityLevel = false; } catch (_) {}
+    if (CosmicZoom) CosmicZoom.level = 'earth';
+
+    const globalZ = GlobeControl?.Z?.global || ZoomTiers?.tierZ?.('global') || 2.55;
+    const nationalZ = GlobeControl?.Z?.national || 1.82;
+    // Prefer global so user clearly sees the full globe, not stuck at street camZ
+    const toZ = opts.tier === 'national' ? nationalZ : globalZ;
+    const fromZ = (typeof camera !== 'undefined' && camera?.position?.z) || 1.4;
+    try {
+      if (typeof camera !== 'undefined' && camera) {
+        window._globeFly = null;
+        if (opts.instant) {
+          camera.position.z = toZ;
+          camera.lookAt(0, 0, 0);
+          ZoomTiers?.goTo?.(opts.tier === 'national' ? 'national' : 'global', false);
+        } else {
+          window._globeFly = {
+            mode: 'zoom',
+            fromZ: fromZ < toZ ? fromZ : Math.max(1.2, toZ - 0.8),
+            toZ,
+            t0: performance.now(),
+            dur: opts.dur || 1100,
+            tierId: opts.tier === 'national' ? 'national' : 'global',
+            onTier: true,
+          };
+          ZoomTiers?.goTo?.(opts.tier === 'national' ? 'national' : 'global', false);
+        }
+      }
+    } catch (_) {}
+    try {
+      CosmicZoom?.update?.(toZ, {
+        tier: opts.tier === 'national' ? 'national' : 'global',
+        label: opts.tier === 'national' ? 'NATIONAL' : 'Earth',
+        cosmic: 'earth',
+      });
+    } catch (_) {}
+    const zl = document.getElementById('zoom-label');
+    if (zl) {
+      zl.textContent = opts.tier === 'national'
+        ? (PublicCopy?.zoomLine?.('national') || 'Country · drag · choose a city')
+        : (PublicCopy?.zoomLine?.('global') || 'Earth · drag · scroll for country · tap city');
+    }
+    CliRibbon?.setNotice?.('Globe · drag · scroll · 🎯 locate', 'ready');
+    GlobeDeck?.setPreview?.('Globe · drag Earth · scroll to zoom · 🎯 locate');
+    GlobeDeck?.setMapStatus?.('Earth');
+    return true;
   },
 
   _bindMapGestures() {
@@ -194,7 +272,11 @@ var CityMap = {
     cityLevel = true;
     const el = document.getElementById('city-map');
     const globe = document.getElementById('globe');
-    if (el) el.classList.add('active');
+    if (el) {
+      el.classList.add('active');
+      el.style.pointerEvents = 'auto';
+      el.style.opacity = '1';
+    }
     if (globe) globe.classList.add('city-map-active');
     // prevent white flash: force dark bg before map view
     if (el) el.style.background = 'var(--an-bg)';
@@ -225,11 +307,25 @@ var CityMap = {
 
   _exit() {
     this.active = false;
-    cityLevel = false;
+    try { cityLevel = false; } catch (_) {}
     const el = document.getElementById('city-map');
     const globe = document.getElementById('globe');
-    if (el) el.classList.remove('active');
-    if (globe) globe.classList.remove('city-map-active');
+    if (el) {
+      el.classList.remove('active', 'national-active');
+      el.style.pointerEvents = 'none';
+      el.style.opacity = '0';
+    }
+    if (globe) {
+      globe.classList.remove('city-map-active', 'national-map-active');
+    }
+    try {
+      document.body?.classList?.remove?.('city-map-active', 'national-map-active');
+      const canvas = globe?.querySelector?.('canvas');
+      if (canvas) {
+        canvas.style.opacity = '1';
+        canvas.style.pointerEvents = 'auto';
+      }
+    } catch (_) {}
     EarthRealism?._hudTimer && (EarthRealism._hudTimer = 0);
   },
 
