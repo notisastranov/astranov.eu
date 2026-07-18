@@ -272,7 +272,7 @@ function openVoiceCli() {
 }
 
 function scheduleVoiceResume() {
-  if (sessionHeld || SessionHold?.isHeld?.()) return;
+  if ((typeof sessionHeld !== 'undefined' && sessionHeld) || SessionHold?.isHeld?.()) return;
   if (Voice?.speaking) return;
   const active = voiceSessionActive || window._handsFreeVoice;
   if (!active || !voiceEnabled || isListening || voiceListenBlocked()) return;
@@ -283,7 +283,7 @@ function scheduleVoiceResume() {
   );
   _voiceResumeTimer = setTimeout(() => {
     _voiceResumeTimer = null;
-    if (sessionHeld || SessionHold?.isHeld?.()) return;
+    if ((typeof sessionHeld !== 'undefined' && sessionHeld) || SessionHold?.isHeld?.()) return;
     const on = voiceSessionActive || window._handsFreeVoice;
     if (!on || !voiceEnabled || isListening || voiceListenBlocked()) return;
     startListeningForOptions();
@@ -355,7 +355,7 @@ async function submitVoiceToCli(transcript) {
     await SessionHold?.resume?.();
     return;
   }
-  if (sessionHeld || SessionHold?.isHeld?.()) {
+  if ((typeof sessionHeld !== 'undefined' && sessionHeld) || SessionHold?.isHeld?.()) {
     if (gen === _voiceGen) _voiceBusy = false;
     AciCli?.print('⏸ session held — say resume or tap ▶', 'dim');
     return;
@@ -513,7 +513,7 @@ function initVoice() {
 }
 
 function startListeningForOptions() {
-  if (sessionHeld || SessionHold?.isHeld?.()) return;
+  if ((typeof sessionHeld !== 'undefined' && sessionHeld) || SessionHold?.isHeld?.()) return;
   if (!recognition || isListening || voiceListenBlocked()) return;
   const wait = _listenRestartAt - Date.now();
   if (wait > 0) {
@@ -637,7 +637,7 @@ async function ensureMicPermission() {
 }
 
 function startVoiceOptions() {
-  if (sessionHeld || SessionHold?.isHeld?.()) {
+  if ((typeof sessionHeld !== 'undefined' && sessionHeld) || SessionHold?.isHeld?.()) {
     SessionHold?.resume?.();
     return;
   }
@@ -766,10 +766,10 @@ function placeMe(lat, lng, opts) {
   userLocated = true;
   GlobeEntity?.syncMe?.(lat, lng, me ? me.name : 'You');
   if (quiet) {
-    MapDepict.pulse(lat, lng, 0x3d9eff, 'You', 6000);
-    GlobeDeck?.setMapStatus('📍 ' + lat.toFixed(2) + ', ' + lng.toFixed(2));
+    try { MapDepict?.pulse?.(lat, lng, 0x3d9eff, 'You', 6000); } catch (_) {}
+    GlobeDeck?.setMapStatus?.('📍 ' + lat.toFixed(2) + ', ' + lng.toFixed(2));
   } else {
-    MapDepict.action('location', { lat, lng, detail: me ? me.name : 'You' });
+    try { MapDepict?.action?.('location', { lat, lng, detail: (typeof me !== 'undefined' && me?.name) || 'You' }); } catch (_) {}
   }
   if (shouldFly && typeof flyToPoint === 'function') {
     const cz = CityLife?.CITY_ZOOM || GlobeControl?.Z?.city || 1.38;
@@ -800,17 +800,21 @@ function _gpsDeniedUi(reason) {
 }
 
 function locateMe() {
+  // Prefer CityLife.safeLocate — self-contained, no undeclared deps
+  if (window.CityLife?.safeLocate) {
+    return void window.CityLife.safeLocate();
+  }
   GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
-  GlobeDeck?.setMapStatus('Locating your city…');
+  GlobeDeck?.setMapStatus?.('Locating your city…');
   GlobeControl?.engageFollow?.('locate');
-  ACIControl?.reply('Locating — need GPS for your city (no demo map)');
+  ACIControl?.reply?.('Locating — need GPS for your city (no demo map)');
   CliRibbon?.setNotice?.('Locating…', 'thinking');
   if (!navigator.geolocation) {
     _gpsDeniedUi('This browser has no geolocation — cannot open your city');
     return;
   }
-  if (CityLife?.locateAndDropIn) {
-    CityLife.locateAndDropIn()
+  if (window.CityLife?.locateAndDropIn) {
+    window.CityLife.locateAndDropIn()
       .then((r) => {
         if (r?.error) {
           _gpsDeniedUi(r.message || r.error);
@@ -831,7 +835,13 @@ function locateMe() {
     async pos => {
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
-      await enterCityView?.(lat, lng);
+      try {
+        if (typeof enterCityView === 'function') await enterCityView(lat, lng);
+        else if (window.CityLife?.dropIn) await window.CityLife.dropIn(lat, lng, { label: 'Your city' });
+      } catch (e) {
+        _gpsDeniedUi(e?.message || 'City open failed');
+        return;
+      }
       CliRibbon?.setNotice?.('Located · city map', 'ready');
     },
     () => {
@@ -841,6 +851,7 @@ function locateMe() {
   );
 }
 window.locateMe = locateMe;
+window.placeMe = placeMe;
 window._gpsDeniedUi = _gpsDeniedUi;
 
 function showOtherUsers() {
