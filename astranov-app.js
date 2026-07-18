@@ -6320,8 +6320,11 @@ window.__astranovBootApp = function __astranovBootApp() {
   soft('Auth', () => Auth?.init?.());
   soft('GlobeDeck', () => {
     GlobeDeck?.init?.();
-    GlobeDeck?.bootReady?.() || GlobeDeck?.bootCollapsed?.();
+    // Start collapsed so Earth is the stage — CLI is the ribbon, not the whole app
+    if (typeof GlobeDeck.bootCollapsed === 'function') GlobeDeck.bootCollapsed();
+    else GlobeDeck.bootReady?.();
     GlobeDeck?.setTitle?.(PublicCopy?.deckTitle?.() || 'Astranov');
+    GlobeDeck?.setPreview?.(PublicCopy?.readyNotice?.() || 'Earth · drag · 🎯 city · 🎧 chat');
   });
   soft('SuperCli', () => SuperCli?.init?.());
   soft('SessionHold', () => SessionHold?.init?.());
