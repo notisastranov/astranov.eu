@@ -115,6 +115,9 @@ const bootTags = [
   `<script>window.__ASTRANOV_MANIFEST__=${JSON.stringify(liveManifest)};window._bootAt=Date.now();</script>`,
   `<script src="/js/loader.js?v=${buildId}"></script>`,
   `<script src="/astranov-perf-lazy.js?v=${buildId}" defer></script>`,
+  // Speed Insights already in shell <head>; keep tail inject if shell is stripped
+  `<script>window.si=window.si||function(){(window.siq=window.siq||[]).push(arguments);};</script>`,
+  `<script defer src="/_vercel/speed-insights/script.js"></script>`,
 ].join('\n');
 
 const assembled = shell.replace(/\s*<\/body>\s*<\/html>\s*$/i, '\n')
