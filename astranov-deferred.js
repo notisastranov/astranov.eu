@@ -4673,33 +4673,17 @@ const RoutingEngine = {
   }
 };
 
-// Orbital Satellites for global connectivity visualization (illustrative, using real sphere math)
+// TRUTH: no fake orbiting balls around Earth (violated truth commitment).
+// Real sats: ISS live track + StarlinkConstellation when user asks. WebRTC uses stubs only.
 let orbitalSats = [];
 function addOrbitalSats() {
-  for (let i = 0; i < 6; i++) {
-    const sat = new THREE.Mesh(
-      new THREE.SphereGeometry(0.008, 4, 4),
-      new THREE.MeshBasicMaterial({ color: 0xaaaaff })
-    );
-    const angle = (i / 6) * Math.PI * 2;
-    sat.position.set(
-      Math.cos(angle) * 1.6,
-      Math.sin(i * 0.8) * 0.4,
-      Math.sin(angle) * 1.6
-    );
-    orbitalSats.push(sat);
-    scene.add(sat);
-  }
+  // intentionally empty — do not place decorative "planets/relays" next to Earth
+  orbitalSats = [];
 }
 function updateOrbitalSats() {
-  orbitalSats.forEach((sat, i) => {
-    const t = Date.now() * 0.0002 + i;
-    sat.position.x = Math.cos(t + i) * 1.6;
-    sat.position.z = Math.sin(t + i) * 1.6;
-    sat.position.y = Math.sin(t * 1.5 + i) * 0.3;
-  });
+  // no-op
 }
-addOrbitalSats();
+// do not call addOrbitalSats()
 
 // === DRIVING VIEW + OSRM ROAD ROUTING ===
 const DrivingView = {
