@@ -118,8 +118,16 @@ const AstranovCoreBrain = {
       actions.push({ type: 'resources', query: m });
     }
 
+    // SpaceNet channel manager (field hub — no third-party brands)
+    if (/\b(channels?|spacenet\s*cm|field\s*kitchen|publish\s*place|catalog\s*sync)\b/i.test(low)
+      || /^cm\b/i.test(low)) {
+      intent = 'spacenet_cm';
+      actions.push({ type: 'spacenet_cm', query: m });
+    }
+
     // SpaceNet crawlers
-    if (/spacenet|crawl(er|ers)?|ingest|scan\s*(city|area|sector)/i.test(low)) {
+    if (/spacenet|crawl(er|ers)?|ingest|scan\s*(city|area|sector)/i.test(low)
+      && intent !== 'spacenet_cm') {
       intent = 'spacenet';
       actions.push({ type: 'spacenet', query: m });
     }
@@ -211,6 +219,10 @@ const AstranovCoreBrain = {
           ResourceMonitor?.init?.();
           const msg = ResourceMonitor?.handleCli?.(a.query || 'resources');
           results.push(msg || 'resources');
+        } else if (a.type === 'spacenet_cm') {
+          SpaceNetCM?.init?.();
+          const msg = SpaceNetCM?.handleCli?.(a.query || 'channels status');
+          results.push(msg || 'spacenet cm');
         } else if (a.type === 'spacenet') {
           const p = this.userPos();
           const msg = await SpaceNetBrain?.handleCli?.(a.query || 'crawl');
