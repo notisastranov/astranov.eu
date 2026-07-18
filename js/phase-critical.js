@@ -1,18 +1,26 @@
 /* === 00-globe.js === */
 // Globe host — must exist before WebGL. Never leave user with CLI-only black stage.
 let container = document.getElementById('globe');
-if (!container) {
+if (!container && document.body) {
   container = document.createElement('div');
   container.id = 'globe';
   document.body.insertBefore(container, document.body.firstChild);
 }
+if (!container) {
+  // Script in <head> before body: defer mesh until DOM ready is not an option — body end boot only
+  console.error('[globe] #globe missing — ensure scripts run after <div id="globe">');
+}
 // Ensure canvas layer is visible above void, under UI chrome
 try {
-  container.style.cssText = (container.getAttribute('style') || '')
-    + ';position:absolute;inset:0;z-index:2;touch-action:none;';
-  document.body.classList.remove('site-shell-open');
-  document.getElementById('city-map')?.classList.remove('active');
-  container.classList.remove('city-map-active', 'national-map-active');
+  if (container) {
+    container.style.position = 'absolute';
+    container.style.inset = '0';
+    container.style.zIndex = '2';
+    container.style.touchAction = 'none';
+    container.style.background = '#000';
+    container.classList.remove('city-map-active', 'national-map-active');
+  }
+  document.body?.classList?.remove?.('site-shell-open');
 } catch (_) {}
 
 // Robust WebGL + error guard so user never sees silent black
