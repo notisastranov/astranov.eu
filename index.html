@@ -10,13 +10,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260717195126" />
+<meta name="astranov-build" content="20260718055132" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/astranov-continuity.js?v=20260717195126"></script>
+<script defer src="/astranov-continuity.js?v=20260718055132"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <style>
@@ -737,14 +737,14 @@
       <button type="button" id="ge-hud-place-close">✖ Close</button>
     </div>
   </div>
-  <div id="zoom-label">GLOBAL · drag Earth · 🎯 your city · 🎧 Grok · + post</div>
+  <div id="zoom-label">Earth · drag · 🎯 city · 🎧 chat · + post</div>
   <div id="first-run-coach" hidden>
     <strong>Welcome to Astranov</strong>
     <ol>
       <li>Drag to spin Earth · pinch to zoom</li>
-      <li>🎯 Locate — real GPS city map</li>
-      <li>🎧 Talk to Grok · type below · + to post</li>
-      <li>Architect: sign in with G → 🛠 or say <em>fix …</em> / <em>code …</em> — stay in-app; Grok Build codes on desktop and replies here</li>
+      <li>🎯 Locate — your city on the map</li>
+      <li>🎧 Chat · type below · + to post, shop, date, or hire</li>
+      <li>Order food · post a date · hire help — as easy as pizza</li>
     </ol>
     <button type="button" id="first-run-coach-ok">Got it</button>
   </div>
@@ -753,10 +753,10 @@
   <div id="user-chip"></div>
   <div id="drive-guide"></div>
   <div id="aci-hud">
-    <div id="news-ticker">Astranov Collective Intelligence — loading news…</div>
+    <div id="news-ticker">Astranov — news &amp; nearby…</div>
     <div id="globe-deck" class="collapsed">
       <div id="globe-deck-header">
-        <span id="globe-deck-title">Astranov Command Line</span>
+        <span id="globe-deck-title">Astranov</span>
         <span id="globe-deck-preview"></span>
       </div>
       <div id="super-cli-bar">
@@ -770,7 +770,7 @@
           <button id="super-add-fab" type="button" title="Super Add — profile · post · shop · drive">+</button>
         </div>
         <div id="app-shortcut-row" role="toolbar" aria-label="Open applications"></div>
-        <button id="aci-cli-toggle" title="Expand/collapse Astranov Command Line" type="button">💻</button>
+        <button id="aci-cli-toggle" title="Expand or collapse chat" type="button">💬</button>
         <button id="aci-stop" title="Stop" type="button">🛑</button>
         <button id="aci-hold" title="Hold session — pause mic &amp; tasks for noisy places" type="button" aria-pressed="false">⏸</button>
 
@@ -874,7 +874,7 @@
       <div id="globe-deck-input-row">
         <span id="aci-cli-prompt">›</span>
         <form id="aci-cli-form" action="#" autocomplete="off">
-          <textarea id="aci-cli-in" name="cli" rows="1" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" inputmode="text" placeholder="Talk to Grok — type or tap 🎧 · Enter to send"></textarea>
+          <textarea id="aci-cli-in" name="cli" rows="1" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" inputmode="text" placeholder="Ask Astranov — type or tap 🎧 · Enter to send"></textarea>
         </form>
         <button id="globe-deck-send" class="deck-input-btn" type="submit" form="aci-cli-form" title="Send command">➡</button>
       </div>
@@ -1710,7 +1710,7 @@ const MapDepict = {
   scanCity(opts = {}) {
     const u = opts.userLat != null ? { lat: opts.userLat, lng: opts.userLng } : this.userPos();
     const vendors = opts.vendors || window.Commerce?.vendors || [];
-    const label = opts.label || 'Scanning city…';
+    const label = opts.label || 'Looking around the city…';
     this.cancelAll();
     this.setHud('City scan', label);
     this.zoomToUser(opts.zoom || GlobeControl?.Z?.city || 1.32);
@@ -2214,6 +2214,64 @@ window.vendorIcon = vendorIcon;
 window.driverIcon = driverIcon;
 
 // === LIGHT STUBS — removed heavy subsystems; keep optional chaining safe ===
+// PublicCopy: plain language for the public. SETI / mission-control tone = architect only.
+const PublicCopy = {
+  isArchitect() {
+    return !!(window.Auth?.isArchitect || window.Auth?.isOwner);
+  },
+  deckTitle() {
+    return this.isArchitect() ? 'Architect CLI' : 'Astranov';
+  },
+  tierLabel(id) {
+    const map = {
+      solar: 'Space', global: 'Earth', national: 'Country', regional: 'Region',
+      city: 'City', neighborhood: 'Streets', orbit: 'Above Earth',
+      system: 'Solar system', galaxy: 'Stars',
+    };
+    return map[id] || id || 'Earth';
+  },
+  zoomLine(tierId, extra) {
+    const base = {
+      solar: 'Space · planets · zoom in for Earth',
+      global: 'Earth · drag · 🎯 your city · 🎧 chat · + post',
+      national: 'Country · pinch for city',
+      regional: 'Region · pinch for city',
+      city: 'City · streets & shops',
+      neighborhood: 'Streets · look around',
+      orbit: 'Above Earth · stations & satellites',
+      system: 'Solar system · zoom in for Earth',
+      galaxy: 'Stars · zoom in to return',
+    };
+    let line = base[tierId] || 'Earth · drag to explore';
+    if (extra) line += ' · ' + extra;
+    return line;
+  },
+  readyNotice() {
+    return this.isArchitect()
+      ? 'Architect online · Bridge ready'
+      : 'Ready · drag Earth · 🎯 city · 🎧 chat · + post';
+  },
+  coachHtml() {
+    if (this.isArchitect()) {
+      return '<strong>Architect</strong><ol>'
+        + '<li>Drag Earth · 🎯 locate · 🎧 Grok</li>'
+        + '<li>🛠 or say <em>fix …</em> / <em>code …</em></li>'
+        + '<li>task job / date / order — City DNA</li></ol>';
+    }
+    return '<strong>Welcome to Astranov</strong><ol>'
+      + '<li>Drag to spin Earth · pinch to zoom</li>'
+      + '<li>🎯 Locate — your city on the map</li>'
+      + '<li>🎧 Chat · type below · + to post, shop, date, or hire</li>'
+      + '<li>Order food · post a date · hire a barman — as easy as pizza</li></ol>';
+  },
+  inputPlaceholder() {
+    return this.isArchitect()
+      ? 'Architect — fix · code · task · starship…'
+      : 'Ask Astranov — type or tap 🎧 · Enter to send';
+  },
+};
+window.PublicCopy = PublicCopy;
+
 // FieldBrain is a live pulse bus again (not a no-op) so globe AI feels present.
 const FieldBrain = {
   vendorIds: [],
@@ -3287,10 +3345,12 @@ const AstranovLogo = {
     }
     ZoomTiers?.goTo?.('global', true);
     CityMap?._exit?.();
-    CosmicZoom?.update?.(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
+    CosmicZoom?.update?.(2.55, { tier: 'global', label: 'Earth', cosmic: 'earth' });
     cityLevel = false;
     const zl = document.getElementById('zoom-label');
-    if (zl && !window.DrivingView?.active) zl.textContent = 'GLOBAL · tap 🎯 Locate for city map';
+    if (zl && !window.DrivingView?.active) {
+      zl.textContent = PublicCopy?.zoomLine?.('global') || 'Earth · 🎯 for your city';
+    }
     const chip = document.getElementById('city-life-chip');
     if (chip) chip.classList.remove('open');
   },
@@ -3595,7 +3655,7 @@ const Auth = {
         this.refreshAuthority();
         const owner = (session.user.email || '').toLowerCase() === this.OWNER_EMAIL.toLowerCase();
         ACIControl?.reply(owner
-          ? 'Architect signed in · paid Grok armed · tap 🎧'
+          ? 'Architect signed in · Grok ready · 🎧'
           : 'Signed in · tap 🎧 talk to Astranov');
         setTimeout(() => {
           primeGrokVoice?.();
@@ -4223,7 +4283,8 @@ const Auth = {
     }
     this.updateOwnerUI();
     if (this.isArchitect) {
-      ACIControl?.reply?.('Architect online · Bridge armed · say fix <issue> from the street');
+      ACIControl?.reply?.('Architect online · Bridge ready · fix / code from the street');
+      // Public users never see this line; architect-only mission tone OK here
       CliRibbon?.setNotice?.('Bridge armed · fix/dev', 'ready');
       ArchitectBridge?.arm?.({ quiet: true });
     } else {
@@ -4767,17 +4828,22 @@ const GlobeDeck = {
     this._size = 'third';
     this.expanded = true;
     this.applySize();
-    this.setTitle(window.SuperCli?.title || 'Astranov Command Line');
-    this.setPreview('Type or 🎧 Grok · 🎯 your city · + post');
+    this.setTitle(window.PublicCopy?.deckTitle?.() || 'Astranov');
+    this.setPreview(window.PublicCopy?.isArchitect?.()
+      ? 'Architect · fix · task · starship'
+      : 'Type or 🎧 · 🎯 city · + post · date · hire · order');
     this.deck()?.classList.add('has-preview');
-    CliRibbon?.setNotice?.('Earth ready', 'ready');
+    CliRibbon?.setNotice?.(window.PublicCopy?.readyNotice?.() || 'Ready', 'ready');
     if (window.AciCli) AciCli.open = true;
   },
 
   superAction(action) {
     this._userEngaged = true;
     if (this._collapseTimer) { clearTimeout(this._collapseTimer); this._collapseTimer = null; }
-    this.expand((window.SuperCli?.title || 'Astranov Command Line') + ' — ' + (action || 'collective'));
+    const base = window.PublicCopy?.deckTitle?.() || 'Astranov';
+    // Public: no "collective / mission" jargon
+    const tag = action && action !== 'collective' ? (' — ' + action) : '';
+    this.expand(base + tag);
   },
 
   collapse() {
@@ -4928,7 +4994,10 @@ const CliRibbon = {
     let s = String(text || '').trim();
     if (!s) return '';
     s = s.replace(this.MOTTO_RE, '').replace(/\s+/g, ' ').trim();
-    s = s.replace(/^Astranov Command Line\b/i, 'CLI');
+    s = s.replace(/^Astranov Command Line\b/i, 'Astranov');
+    s = s.replace(/\bcollective intelligence\b/gi, 'Astranov');
+    s = s.replace(/\bNear-Earth orbit\b/gi, 'Above Earth');
+    s = s.replace(/\bconstellations?\b/gi, 'sky');
     s = s.replace(/^Collective Coders\s*—\s*talk here$/i, 'Coders');
     s = s.replace(/^Coders online\s*—.*$/i, 'Coders');
     s = s.replace(/warming up.*$/i, '').trim();
@@ -5038,7 +5107,7 @@ const AppShortcuts = {
       close() {
         GlobeDeck.activeTask = null;
         GlobeDeck?.hideStage?.();
-        GlobeDeck?.setTitle?.(SuperCli?.title || 'Astranov Command Line');
+        GlobeDeck?.setTitle?.(PublicCopy?.deckTitle?.() || SuperCli?.title || 'Astranov');
         SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
       },
     },
@@ -5129,7 +5198,7 @@ const AppShortcuts = {
       activate() {
         GlobeDeck?.hideStage?.();
         GlobeDeck.activeTask = 'phone';
-        GlobeDeck?.expand?.((SuperCli?.title || 'Astranov Command Line') + ' — phone');
+        GlobeDeck?.expand?.((PublicCopy?.deckTitle?.() || 'Astranov') + ' — phone');
         SuperCli?.setContext?.('phone');
         document.getElementById('aci-cli-in')?.focus();
       },
@@ -5290,12 +5359,15 @@ const AppShortcuts = {
 window.AppShortcuts = AppShortcuts;
 
 // === SUPER CLI — one window: toolbar + log + stage + input ===
-const ACL_TITLE = 'Astranov Command Line';
+// Public: "Astranov". Architect only: mission CLI tone.
+const ACL_TITLE = 'Astranov';
 
 const SuperCli = {
   _bound: false,
   _context: 'idle',
-  title: ACL_TITLE,
+  get title() {
+    return window.PublicCopy?.deckTitle?.() || 'Astranov';
+  },
 
   // Trust bar: Sign-in · Locate · + · AI (provider/order available but may be CSS-hidden)
   TOOLBAR_VISIBLE: ['aci-login', 'aci-locate', 'aci-handsfree', 'aci-bridge', 'super-add-fab', 'aci-provider', 'aci-order'],
@@ -5496,7 +5568,7 @@ const SuperCli = {
         AppShortcuts?.track?.('phone', 'Phone');
         this.setContext('phone');
         AciCli?.print('Type: call +30… (e.g. call +306912345678)', 'ok');
-        ACIControl?.reply('Type call +number in Astranov Command Line');
+        ACIControl?.reply('Type call +number in chat');
         document.getElementById('aci-cli-in')?.focus();
         break;
       case 'news':
@@ -7322,7 +7394,7 @@ const SessionHold = {
     if (input) input.placeholder = 'type or tap 🎤 · Enter or ➡';
 
     if (snap) {
-      if (snap.deckExpanded) GlobeDeck?.expand(snap.deckTitle || SuperCli?.title || 'Astranov Command Line');
+      if (snap.deckExpanded) GlobeDeck?.expand(snap.deckTitle || PublicCopy?.deckTitle?.() || 'Astranov');
       if (snap.activeTask) GlobeDeck.activeTask = snap.activeTask;
       if (snap.inputBuffer && input) {
         input.value = snap.inputBuffer;
@@ -7340,7 +7412,7 @@ const SessionHold = {
     this._snapshot = null;
     AciCli?.print('▶ Session resumed', 'ok');
     GlobeDeck?.setPreview('▶ Resumed');
-    if (!opts.quiet) ACIControl?.reply('Resumed — Astranov Command Line active');
+    if (!opts.quiet) ACIControl?.reply('Resumed — ready');
 
     if (snap?.voiceSessionActive || snap?.voiceEnabled) {
       setTimeout(() => startVoiceOptions?.(), 400);
@@ -7423,7 +7495,7 @@ const SUPABASE_DEFAULT_URL = 'https://' + SUPABASE_REF + '.supabase.co';
 const SUPABASE_USE_CUSTOM_DOMAIN = false;
 
 const ACI = {
-  name: 'Astranov Collective Intelligence',
+  name: 'Astranov',
   url: SUPABASE_USE_CUSTOM_DOMAIN ? SUPABASE_CUSTOM_URL : SUPABASE_DEFAULT_URL,
   key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI',
   neurons: [],
@@ -11483,46 +11555,47 @@ const CosmicZoom = {
   updateGuide(level, camZ) {
     const el = document.getElementById('cosmic-guide');
     if (!el) return;
+    // Public: plain language. Architect can still type starlink / starship in CLI.
+    const arch = window.PublicCopy?.isArchitect?.();
     if (level === 'earth' && camZ < 3.4) {
       if (CityMap?.active) {
-        el.innerHTML = '<div class="cg-title">City map</div>'
-          + '<div class="cg-item"><b>Satellite</b> — buildings & streets · pinch to zoom closer</div>'
-          + '<div class="cg-item"><b>Live</b> — friends · drivers · OSRM routing when driving</div>'
-          + '<div class="cg-item"><i>Zoom out to return to globe · theme 🌙/☀️</i></div>';
+        el.innerHTML = '<div class="cg-title">Your city</div>'
+          + '<div class="cg-item"><b>Map</b> — streets & places · pinch to zoom</div>'
+          + '<div class="cg-item"><b>Live</b> — friends · drivers · shops</div>'
+          + '<div class="cg-item"><i>Zoom out for the globe</i></div>';
         return;
       }
-      if (window.CelestialNav?.isGlobalNavView?.(camZ)) {
+      // Celestial nav guide is SETI-style — hide from public
+      if (arch && window.CelestialNav?.isGlobalNavView?.(camZ)) {
         el.innerHTML = window.CelestialNav.renderGuideHtml(camZ);
         return;
       }
+      el.innerHTML = '';
+      return;
     }
     let html = '';
     if (level === 'orbit') {
-      const sl = StarlinkConstellation?.status?.();
-      html = '<div class="cg-title">Near-Earth orbit</div>'
-        + '<div class="cg-item"><b>ISS</b> — crew station · live position · ~90 min orbit</div>'
-        + '<div class="cg-item"><b>Starlink</b> — ' + (sl?.count || '~') + ' sats · ' + (sl?.mode || 'shell')
-        + ' · ~' + (sl?.shellKm || 550) + ' km · type starlink</div>'
-        + '<div class="cg-item"><b>Dashed rings</b> — altitude shells · semi-transparent guides</div>'
-        + '<div class="cg-item"><b>F13</b> — type starship for Flight 13 launch sim</div>';
-    } else if (level === 'system') {
-      const iss = this.issMarker?.userData;
-      html = '<div class="cg-title">Solar system (scaled view)</div>'
-        + '<div class="cg-item"><b>Sun</b> — G-type star · system center</div>';
-      if (iss?.lat != null) {
-        html += '<div class="cg-item"><b>ISS</b> — live ' + iss.lat.toFixed(2) + '° · ' + iss.lng.toFixed(2) + '° · zoom in for orbit</div>';
+      if (arch) {
+        const sl = StarlinkConstellation?.status?.();
+        html = '<div class="cg-title">Orbit (architect)</div>'
+          + '<div class="cg-item"><b>ISS</b> · Starlink ' + (sl?.count || '—') + ' · type starlink / starship</div>';
       } else {
-        html += '<div class="cg-item"><b>ISS</b> — tracking live position…</div>';
+        html = '<div class="cg-title">Above Earth</div>'
+          + '<div class="cg-item"><b>Stations & satellites</b> — zoom in for the globe</div>'
+          + '<div class="cg-item"><i>Chat below for launches, maps, dates, jobs</i></div>';
       }
-      this.planets.forEach(p => {
-        const ud = p.userData;
-        html += '<div class="cg-item"><b>' + ud.name + '</b> — ' + (ud.desc || '') + '</div>';
-      });
-      html += '<div class="cg-item"><i>Orbits = real sidereal periods &amp; ecliptic inclinations (J2000 epoch)</i></div>';
+    } else if (level === 'system') {
+      html = '<div class="cg-title">Solar system</div>'
+        + '<div class="cg-item"><b>Sun & planets</b> — pinch in for Earth</div>';
+      if (arch) {
+        this.planets.forEach(p => {
+          const ud = p.userData;
+          html += '<div class="cg-item"><b>' + ud.name + '</b> — ' + (ud.desc || '') + '</div>';
+        });
+      }
     } else if (level === 'galaxy') {
-      html = '<div class="cg-title">Galaxy view</div>'
-        + '<div class="cg-item"><b>Star field</b> — discrete points · spiral arm hint</div>'
-        + '<div class="cg-item"><b>Earth</b> — hidden at this scale · zoom in to return</div>';
+      html = '<div class="cg-title">Stars</div>'
+        + '<div class="cg-item"><b>Far out</b> — zoom in to come home to Earth</div>';
     }
     el.innerHTML = html;
   },
@@ -11565,17 +11638,19 @@ const CosmicZoom = {
     const now = Date.now();
     const zl = document.getElementById('zoom-label');
     if (zl && !DrivingView?.active && (levelChanged || camChanged)) {
+      const pc = window.PublicCopy;
       if (CityMap?.active) {
         const tier = window.ZoomTiers?.current?.();
-        const tierLabel = tier?.id === 'neighborhood' ? 'NEIGHBORHOOD MAP' : 'CITY MAP';
-        zl.textContent = tierLabel + ' · satellite · streets · friends · drivers';
+        zl.textContent = (tier?.id === 'neighborhood' ? 'Streets' : 'City')
+          + ' · map · shops · friends';
       } else if (CityMap?._nationalActive) {
-        const tier = window.ZoomTiers?.current?.();
-        zl.textContent = (tier?.label || 'NATIONAL') + ' · ' + (window.ZoomTiers?.countryHint?.() || 'region') + ' · country map · pinch for city';
+        zl.textContent = 'Country · ' + (window.ZoomTiers?.countryHint?.() || '') + ' · pinch for city';
+      } else if (pc?.zoomLine) {
+        const tid = level === 'orbit' ? 'orbit' : level === 'system' ? 'system'
+          : level === 'galaxy' ? 'galaxy' : (window.ZoomTiers?.current?.()?.id || 'global');
+        zl.textContent = pc.zoomLine(tid);
       } else {
-        const hint = level === 'orbit' ? ' · ISS · Starlink' : level === 'system' ? ' · planets'
-          : label === 'GLOBAL' ? ' · ☀ day/night · ✦ constellations' : '';
-        zl.textContent = label + hint;
+        zl.textContent = (pc?.tierLabel?.(level) || label || 'Earth');
       }
     }
     if (levelChanged || camChanged) CityMap?.onCamera?.(camZ, level);
@@ -11786,12 +11861,12 @@ window.AiRouter = AiRouter;
 // === ZOOM TIERS — solar → global → national → regional → city → neighborhood ===
 const ZoomTiers = {
   TIERS: [
-    { id: 'solar', z: 7.2, label: 'SOLAR SYSTEM', cosmic: 'system' },
-    { id: 'global', z: 2.55, label: 'GLOBAL', cosmic: 'earth' },
-    { id: 'national', z: 1.82, label: 'NATIONAL', cosmic: 'earth', national: true },
-    { id: 'regional', z: 1.65, label: 'REGIONAL', cosmic: 'earth', national: true },
-    { id: 'city', z: 1.38, label: 'CITY', cosmic: 'earth', city: true },
-    { id: 'neighborhood', z: 1.08, label: 'NEIGHBORHOOD', cosmic: 'earth', city: true },
+    { id: 'solar', z: 7.2, label: 'Space', cosmic: 'system' },
+    { id: 'global', z: 2.55, label: 'Earth', cosmic: 'earth' },
+    { id: 'national', z: 1.82, label: 'Country', cosmic: 'earth', national: true },
+    { id: 'regional', z: 1.65, label: 'Region', cosmic: 'earth', national: true },
+    { id: 'city', z: 1.38, label: 'City', cosmic: 'earth', city: true },
+    { id: 'neighborhood', z: 1.08, label: 'Streets', cosmic: 'earth', city: true },
   ],
   START_ID: 'global',
   _index: 0,
@@ -11920,10 +11995,14 @@ const ZoomTiers = {
     cityLevel = !!tier.city;
     const zl = document.getElementById('zoom-label');
     if (zl && !window.DrivingView?.active && !CityMap?.active) {
-      if (tier.id === 'solar') zl.textContent = 'SOLAR SYSTEM · planets · ISS';
-      else if (tier.id === 'global') zl.textContent = 'GLOBAL · ☀ day/night · pinch out for solar system';
-      else if (tier.national) zl.textContent = tier.label + ' · ' + this.countryHint() + ' · pinch for city';
-      else if (tier.city) zl.textContent = tier.label + ' · pinch for streets';
+      const pc = window.PublicCopy;
+      if (pc?.zoomLine) {
+        const extra = tier.national ? this.countryHint() : '';
+        zl.textContent = pc.zoomLine(tier.id, extra && extra !== 'region' ? extra : null);
+      } else if (tier.id === 'solar') zl.textContent = 'Space · planets';
+      else if (tier.id === 'global') zl.textContent = 'Earth · drag · 🎯 city · 🎧 chat';
+      else if (tier.national) zl.textContent = 'Country · ' + this.countryHint() + ' · pinch for city';
+      else if (tier.city) zl.textContent = 'City · streets & shops';
       else zl.textContent = tier.label;
     }
     if (tier.national && window._lastPos && typeof flyToPoint === 'function') {
@@ -15811,19 +15890,24 @@ if (typeof globePivot !== 'undefined' && globePivot) {
 }
 CosmicZoom.level = 'earth';
 if (CosmicZoom.solarGroup) CosmicZoom.solarGroup.visible = false;
-CosmicZoom.update(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
+CosmicZoom.update(2.55, { tier: 'global', label: 'Earth', cosmic: 'earth' });
 const zl0 = document.getElementById('zoom-label');
-if (zl0) zl0.textContent = 'GLOBAL · drag Earth · 🎯 your city · 🎧 Grok · + post';
+if (zl0) zl0.textContent = PublicCopy?.zoomLine?.('global') || 'Earth · drag · 🎯 city · 🎧 chat · + post';
+GlobeDeck?.setTitle?.(PublicCopy?.deckTitle?.() || 'Astranov');
 
 function showFirstRunCoach() {
-  try { if (localStorage.getItem('astranov:coach-v1')) return; } catch (_) { return; }
+  try { if (localStorage.getItem('astranov:coach-v2')) return; } catch (_) { return; }
   const el = document.getElementById('first-run-coach');
   const ok = document.getElementById('first-run-coach-ok');
   if (!el || !ok) return;
+  // Public welcome vs architect — never dump SETI / mission jargon on the street
+  if (PublicCopy?.coachHtml) el.innerHTML = PublicCopy.coachHtml()
+    + '<button type="button" id="first-run-coach-ok">Got it</button>';
+  const okBtn = document.getElementById('first-run-coach-ok') || ok;
   el.hidden = false;
-  ok.onclick = () => {
+  okBtn.onclick = () => {
     el.hidden = true;
-    try { localStorage.setItem('astranov:coach-v1', '1'); } catch (_) {}
+    try { localStorage.setItem('astranov:coach-v2', '1'); } catch (_) {}
   };
 }
 window.showFirstRunCoach = showFirstRunCoach;
@@ -15883,15 +15967,21 @@ setTimeout(() => {
     camera.position.z = 2.55;
     ZoomTiers?.goTo?.('global', false);
   }
-  CosmicZoom.update(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
-  ACIControl?.reply?.('Earth ready · 🎧 Grok · 🎯 Locate · + post');
-  CliRibbon?.setNotice?.('Earth ready · 🎧 Grok · 🎯 Locate', 'ready');
-  GlobeDeck?.setPreview?.('Type below or 🎧 · 🎯 for your city · + to post');
+  CosmicZoom.update(2.55, { tier: 'global', label: 'Earth', cosmic: 'earth' });
+  const ready = PublicCopy?.readyNotice?.() || 'Ready · drag Earth · 🎯 city · 🎧 chat';
+  ACIControl?.reply?.(ready);
+  CliRibbon?.setNotice?.(ready, 'ready');
+  GlobeDeck?.setPreview?.(PublicCopy?.isArchitect?.()
+    ? 'Architect · fix · task · starship'
+    : 'Type or 🎧 · 🎯 city · + post · date · hire · order');
+  GlobeDeck?.setTitle?.(PublicCopy?.deckTitle?.() || 'Astranov');
+  const inp = document.getElementById('aci-cli-in');
+  if (inp && PublicCopy?.inputPlaceholder) inp.placeholder = PublicCopy.inputPlaceholder();
   primeGrokVoice?.();
   showFirstRunCoach();
   setTimeout(() => AciCoders?.enterSession?.({ expand: false, ping: false, focus: false }), window._globePerfLite ? 8000 : 4000);
   const zl = document.getElementById('zoom-label');
-  if (zl) zl.textContent = 'GLOBAL · drag Earth · 🎯 your city · 🎧 Grok · + post';
+  if (zl) zl.textContent = PublicCopy?.zoomLine?.('global') || 'Earth · drag · 🎯 city · 🎧 chat · + post';
 }, 1200);
 
 const host = location.hostname || '';
@@ -15903,6 +15993,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script src="/astranov-perf-lazy.js?v=20260717195126" defer></script>
+<script src="/astranov-perf-lazy.js?v=20260718055132" defer></script>
 </body>
 </html>
