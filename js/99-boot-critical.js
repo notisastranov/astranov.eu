@@ -28,6 +28,15 @@ function animate() {
 
   window._animFrame = (window._animFrame + 1) | 0;
   const frame = window._animFrame;
+
+  // City map is the stage — idle WebGL hard so locate can't starve the UI thread
+  if (typeof CityMap !== 'undefined' && CityMap?.active) {
+    if (frame % 45 === 0) {
+      try { renderer.render(scene, camera); } catch (_) {}
+    }
+    return;
+  }
+
   if (document.hidden) {
     if (frame % 60 === 0) {
       try { renderer.render(scene, camera); } catch (_) {}
