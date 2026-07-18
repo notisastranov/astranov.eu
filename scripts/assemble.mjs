@@ -76,6 +76,44 @@ const rootBundles = {
   deferred: writeRootBundle('astranov-deferred.js', tiers.deferred),
 };
 
+/**
+ * Classic multi-script pitfall: `Foo?.x` throws if Foo is undeclared in THIS file,
+ * even when window.Foo exists. Critical defines stubs; later phases rebind from window.
+ */
+const PHASE_LEXICAL_BRIDGE = `/* phase lexical bridge — window → local (optional chaining safe) */
+var sessionHeld = (typeof window !== 'undefined' && window.sessionHeld) || false;
+var SessionHold = (typeof window !== 'undefined' && window.SessionHold) || { isHeld:function(){return false}, hold:function(){}, resume:function(){}, toggle:function(){}, release:function(){}, init:function(){} };
+var ACIControl = (typeof window !== 'undefined' && window.ACIControl) || { init:function(){}, reply:function(){}, voiceAck:function(){}, handle:async function(){return {executed:false}} };
+var AppShortcuts = (typeof window !== 'undefined' && window.AppShortcuts) || { _order:[], APPS:{}, init:function(){}, render:function(){}, track:function(){}, untrack:function(){} };
+var CityMap = (typeof window !== 'undefined' && window.CityMap) || { active:false, init:function(){} };
+var SB_URL = (typeof window !== 'undefined' && window.SB_URL) || 'https://lkoatrkhuigdolnjsbie.supabase.co';
+var SB_KEY = (typeof window !== 'undefined' && window.SB_KEY) || '';
+var ACI = (typeof window !== 'undefined' && window.ACI) || { url: SB_URL, key: SB_KEY };
+`;
+
+/** Production loads /js/phase-*.js — must rebuild every assemble */
+function writePhase(name, files, { bridge = false } = {}) {
+  const parts = [];
+  if (bridge) parts.push(PHASE_LEXICAL_BRIDGE);
+  for (const file of files) {
+    const fp = path.join(SRC, file);
+    if (!fs.existsSync(fp)) throw new Error('Missing ' + file);
+    let t = fs.readFileSync(fp, 'utf8');
+    if (!t.endsWith('\n')) t += '\n';
+    parts.push('/* === ' + file + ' === */\n' + t);
+  }
+  const outName = 'phase-' + name + '.js';
+  const out = path.join(JS_OUT, outName);
+  fs.writeFileSync(out, parts.join('\n'), 'utf8');
+  return { name: outName, bytes: fs.statSync(out).size };
+}
+const phaseMeta = {
+  critical: writePhase('critical', tiers.critical, { bridge: false }),
+  app: writePhase('app', tiers.app, { bridge: true }),
+  features: writePhase('features', tiers.features, { bridge: true }),
+  deferred: writePhase('deferred', tiers.deferred, { bridge: true }),
+};
+
 // Trackball
 const trackballSrc = fs.readFileSync(path.join(SRC, '10-trackball.js'), 'utf8')
   + fs.readFileSync(path.join(SRC, '04-trackball-guard.js'), 'utf8');
@@ -111,11 +149,22 @@ const liveManifest = {
   },
 };
 
+// HARD BOOT — sequential scripts (no async loader races). Dead app fix 2026-07-18.
+// Order: THREE (already in head) → critical → boot Earth → Leaflet → app → boot map → features.
+// HARD BOOT must be single-line JS strings — multi-line string literals in index.html
+// caused SyntaxError "Invalid or unexpected token" and Earth never started (2026-07-18).
+const bootFailCss = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;padding:14px;background:rgba(12,0,0,.95);border:1px solid #f44;color:#fcc;font:13px/1.4 system-ui;border-radius:12px';
 const bootTags = [
-  `<script>window.__ASTRANOV_MANIFEST__=${JSON.stringify(liveManifest)};window._bootAt=Date.now();</script>`,
-  `<script src="/js/loader.js?v=${buildId}"></script>`,
+  `<script>window.__ASTRANOV_MANIFEST__=${JSON.stringify(liveManifest)};window._bootAt=Date.now();window._spartan=true;</script>`,
+  `<script src="/js/phase-critical.js?v=${buildId}"></script>`,
+  `<script>(function(){function fail(m){try{var d=document.createElement('div');d.id='astranov-boot-fail';d.style.cssText='${bootFailCss}';d.textContent=m;document.body.appendChild(d);console.error('[boot]',m);}catch(e){}}try{if(typeof THREE==='undefined')throw new Error('THREE.js missing — check network');if(typeof __astranovBootCritical!=='function')throw new Error('Earth module missing');__astranovBootCritical();}catch(e){fail('Earth failed: '+(e&&e.message||e)+' — hard refresh astranov.eu');}})();</script>`,
+  `<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>`,
+  `<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>`,
+  `<script src="/js/phase-app.js?v=${buildId}"></script>`,
+  `<script>(function(){try{if(typeof __astranovBootApp==='function')__astranovBootApp();else console.warn('[boot] map layer missing');}catch(e){console.error('[boot app]',e);}})();</script>`,
+  `<script src="/js/phase-features.js?v=${buildId}" defer></script>`,
+  `<script>window.addEventListener('load',function(){try{if(typeof __astranovBootFeatures==='function')__astranovBootFeatures();window.__ASTRANOV_DEFERRED_URLS__=['/astranov-deferred.js?v=${buildId}'];if(window.LazyModules)LazyModules.schedule&&LazyModules.schedule();}catch(e){console.error('[boot features]',e);}});</script>`,
   `<script src="/astranov-perf-lazy.js?v=${buildId}" defer></script>`,
-  // Speed Insights lives once in index.shell.html <head> (static/vanilla inject)
 ].join('\n');
 
 const assembled = shell.replace(/\s*<\/body>\s*<\/html>\s*$/i, '\n')
@@ -132,7 +181,11 @@ try {
   for (const f of ['astranov-critical.js', 'astranov-app.js', 'astranov-features.js', 'astranov-deferred.js']) {
     execSync(`node --check "${path.join(ROOT, f)}"`, { stdio: 'pipe' });
   }
-  console.log('Syntax check: OK');
+  // Phase bundles are what production loads — must parse (redeclaration traps live here)
+  for (const f of ['phase-critical.js', 'phase-app.js', 'phase-features.js', 'phase-deferred.js']) {
+    execSync(`node --check "${path.join(JS_OUT, f)}"`, { stdio: 'pipe' });
+  }
+  console.log('Syntax check: OK (modules + root + phases)');
 } catch (e) {
   console.error('Syntax check FAILED:', e.stderr?.toString() || e.message);
   process.exit(1);
@@ -144,6 +197,7 @@ console.log(
   `Assembled LIVE-SAFE build=${buildId}`
   + `\n  index.html ${indexKB}KB`
   + `\n  root critical ${kb(rootBundles.critical.bytes)} · app ${kb(rootBundles.app.bytes)} · features ${kb(rootBundles.features.bytes)} · deferred ${kb(rootBundles.deferred.bytes)}`
+  + `\n  phase critical ${kb(phaseMeta.critical.bytes)} · app ${kb(phaseMeta.app.bytes)} · features ${kb(phaseMeta.features.bytes)} · deferred ${kb(phaseMeta.deferred.bytes)}`
   + `\n  modules: ${written.length}`
 );
 
