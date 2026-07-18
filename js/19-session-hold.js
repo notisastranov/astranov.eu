@@ -183,3 +183,5 @@ const SessionHold = {
   },
 };
 window.SessionHold = SessionHold;
+// Keep lexical alias in sync for modules that captured the stub name
+try { if (typeof globalThis !== 'undefined') globalThis.SessionHold = SessionHold; } catch (_) {}
