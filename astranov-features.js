@@ -2522,7 +2522,7 @@ window.AstranovCoreBrain = AstranovCoreBrain;
 
 /* === 13-app-shortcuts.js === */
 // === APP SHORTCUTS — open CLI apps as top-bar icons (account · apps · +) ===
-const AppShortcuts = {
+var AppShortcuts = {
   _row: null,
   _order: [],
   _labels: {},
