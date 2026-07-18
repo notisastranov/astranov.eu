@@ -1,3 +1,13 @@
+/* phase lexical bridge — window → local (optional chaining safe) */
+var sessionHeld = (typeof window !== 'undefined' && window.sessionHeld) || false;
+var SessionHold = (typeof window !== 'undefined' && window.SessionHold) || { isHeld:function(){return false}, hold:function(){}, resume:function(){}, toggle:function(){}, release:function(){}, init:function(){} };
+var ACIControl = (typeof window !== 'undefined' && window.ACIControl) || { init:function(){}, reply:function(){}, voiceAck:function(){}, handle:async function(){return {executed:false}} };
+var AppShortcuts = (typeof window !== 'undefined' && window.AppShortcuts) || { _order:[], APPS:{}, init:function(){}, render:function(){}, track:function(){}, untrack:function(){} };
+var CityMap = (typeof window !== 'undefined' && window.CityMap) || { active:false, init:function(){} };
+var SB_URL = (typeof window !== 'undefined' && window.SB_URL) || 'https://lkoatrkhuigdolnjsbie.supabase.co';
+var SB_KEY = (typeof window !== 'undefined' && window.SB_KEY) || '';
+var ACI = (typeof window !== 'undefined' && window.ACI) || { url: SB_URL, key: SB_KEY };
+
 /* === 06-fetch-json.js === */
 // === FETCH JSON — timeout + visible errors for all ACI calls ===
 async function fetchJson(url, options, timeoutMs) {
@@ -3103,7 +3113,7 @@ window.MapPlaceMenu = MapPlaceMenu;
 
 /* === 61-city-map.js === */
 // === CITY MAP (Leaflet national/city level) ===
-const CityMap = {
+var CityMap = {
   map: null,
   _ready: false,
   _markers: {},
