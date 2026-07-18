@@ -1,4 +1,63 @@
 // === LIGHT STUBS — removed heavy subsystems; keep optional chaining safe ===
+// Classic scripts: bare `Foo?.x` throws ReferenceError if Foo is undeclared.
+// Provide lexical + window bindings for every symbol used before its real module loads.
+
+// sessionHeld + SessionHold stubs
+var sessionHeld = false;
+window.sessionHeld = false;
+window.SessionHold = window.SessionHold || {
+  isHeld() { return !!window.sessionHeld; },
+  hold() { window.sessionHeld = true; sessionHeld = true; },
+  resume() { window.sessionHeld = false; sessionHeld = false; },
+  toggle() { if (this.isHeld()) this.resume(); else this.hold(); },
+  release() { this.resume(); },
+  clearForeignHold() {},
+  init() {},
+};
+var SessionHold = window.SessionHold;
+
+// Supabase identity — required by Auth in app phase (real ACI in deferred overwrites window)
+var ACI = window.ACI || {
+  name: 'Astranov',
+  url: 'https://lkoatrkhuigdolnjsbie.supabase.co',
+  key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI',
+};
+window.ACI = ACI;
+var SB_URL = window.SB_URL || ACI.url;
+var SB_KEY = window.SB_KEY || ACI.key;
+window.SB_URL = SB_URL;
+window.SB_KEY = SB_KEY;
+
+// ACIControl stub — reply routes to deck/ribbon until deferred 20-aci.js loads
+window.ACIControl = window.ACIControl || {
+  init() {},
+  reply(text) {
+    const msg = String(text || '').slice(0, 280);
+    if (!msg) return;
+    try { GlobeDeck?.say?.(msg, 'reply'); } catch (_) {}
+    try { CliRibbon?.setNotice?.(msg.slice(0, 120), 'info'); } catch (_) {}
+    try { AciCli?.print?.(msg, 'ok'); } catch (_) {}
+  },
+  voiceAck() {},
+  async handle() { return { executed: false }; },
+};
+var ACIControl = window.ACIControl;
+
+// AppShortcuts stub — real module is in features phase; app boot touches it early
+window.AppShortcuts = window.AppShortcuts || {
+  _order: [],
+  _labels: {},
+  APPS: {},
+  init() {},
+  render() {},
+  track() {},
+  untrack() {},
+  rememberSite() {},
+  switch() {},
+  close() {},
+};
+var AppShortcuts = window.AppShortcuts;
+
 // PublicCopy: plain language for the public. SETI / mission-control tone = architect only.
 const PublicCopy = {
   isArchitect() {
@@ -17,15 +76,15 @@ const PublicCopy = {
   },
   zoomLine(tierId, extra) {
     const base = {
-      solar: 'Space · planets · zoom in for Earth',
-      global: 'Earth · drag · 🎯 your city · 🎧 chat · + post',
-      national: 'Country · choose a city',
+      solar: 'Space · zoom in for Earth',
+      global: 'Earth · drag · scroll for country · tap city',
+      national: 'Country · choose a city below or tap map',
       regional: 'Region · choose a city',
-      city: 'City · streets & shops',
+      city: 'City · streets · shops · tasks',
       neighborhood: 'Streets · look around',
-      orbit: 'Above Earth · stations & satellites',
-      system: 'Solar system · zoom in for Earth',
-      galaxy: 'Stars · zoom in to return',
+      orbit: 'Above Earth',
+      system: 'Solar system · zoom in',
+      galaxy: 'Stars · zoom in',
     };
     let line = base[tierId] || 'Earth · drag to explore';
     if (extra) line += ' · ' + extra;
