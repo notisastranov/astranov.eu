@@ -16,13 +16,20 @@ window.__astranovBootApp = function __astranovBootApp() {
   soft('ACIControl', () => ACIControl?.init?.());
   soft('ACI', () => ACI?.init?.());
   soft('Logo', () => AstranovLogo?.init?.());
+  // City map only needs Leaflet present; safe if L still racing
   soft('CityMap', () => CityMap?.init?.());
   soft('CityLife', () => CityLife?.init?.());
   soft('CityPick', () => CityPick?.init?.());
   soft('ClassifiedTriangles', () => ClassifiedTriangles?.init?.());
-  soft('ResourceMonitor', () => ResourceMonitor?.init?.());
+  // Money+resource fused chip — after a paint
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(() => soft('ResourceMonitor', () => ResourceMonitor?.init?.()), { timeout: 800 });
+  } else {
+    setTimeout(() => soft('ResourceMonitor', () => ResourceMonitor?.init?.()), 200);
+  }
   soft('CoreBrain', () => AstranovCoreBrain?.init?.());
 
+  // Deferred pack only after app is usable
   LazyModules?.schedule?.();
 
   document.documentElement.dataset.astranovPhase = 'app';
