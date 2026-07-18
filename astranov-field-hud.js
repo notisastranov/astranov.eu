@@ -1034,7 +1034,7 @@ const FieldHud = {
     panel.hidden = false;
     panel.classList.add('open');
     this.refreshMinerPanel();
-    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
   },
 
   closeMinerPanel() {
