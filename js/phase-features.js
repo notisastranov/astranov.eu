@@ -10,7 +10,8 @@ var ACI = (typeof window !== 'undefined' && window.ACI) || { url: SB_URL, key: S
 var AciCoders = (typeof window !== 'undefined' && window.AciCoders) || { engine:'grok', init:function(){}, observeActivity:function(){}, handleMessage:async function(){return null}, enterSession:async function(){return null} };
 var ArchitectBridge = (typeof window !== 'undefined' && window.ArchitectBridge) || { armed:false, isActive:function(){return false}, arm:function(){}, disarm:function(){}, openQuickFix:function(){}, wantsBridgeCmd:function(){return false}, handleCommand:async function(){return null}, queueBuildFromChat:async function(){return null}, _bindUi:function(){}, init:function(){} };
 var CityLife = (typeof window !== 'undefined' && window.CityLife) || { locateAndDropIn:async function(){return {error:'not ready'}}, safeLocate:async function(){return {error:'not ready'}}, dropIn:async function(){return {error:'not ready'}}, init:function(){} };
-var userLocated = !!(typeof window !== 'undefined' && window.userLocated);
+// Do not redeclare userLocated — critical owns it (var) for cross-script assigns.
+var CliRibbon = (typeof window !== 'undefined' && window.CliRibbon) || { setNotice:function(){}, render:function(){}, init:function(){} };
 
 /* === 47-globe-entities.js === */
 // === GLOBE ENTITIES — every map thing has a name, proximity label, tap action ===
