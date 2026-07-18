@@ -272,7 +272,7 @@ function openVoiceCli() {
 }
 
 function scheduleVoiceResume() {
-  if (sessionHeld || SessionHold?.isHeld?.()) return;
+  if ((typeof sessionHeld !== 'undefined' && sessionHeld) || SessionHold?.isHeld?.()) return;
   if (Voice?.speaking) return;
   const active = voiceSessionActive || window._handsFreeVoice;
   if (!active || !voiceEnabled || isListening || voiceListenBlocked()) return;
@@ -283,7 +283,7 @@ function scheduleVoiceResume() {
   );
   _voiceResumeTimer = setTimeout(() => {
     _voiceResumeTimer = null;
-    if (sessionHeld || SessionHold?.isHeld?.()) return;
+    if ((typeof sessionHeld !== 'undefined' && sessionHeld) || SessionHold?.isHeld?.()) return;
     const on = voiceSessionActive || window._handsFreeVoice;
     if (!on || !voiceEnabled || isListening || voiceListenBlocked()) return;
     startListeningForOptions();
@@ -355,7 +355,7 @@ async function submitVoiceToCli(transcript) {
     await SessionHold?.resume?.();
     return;
   }
-  if (sessionHeld || SessionHold?.isHeld?.()) {
+  if ((typeof sessionHeld !== 'undefined' && sessionHeld) || SessionHold?.isHeld?.()) {
     if (gen === _voiceGen) _voiceBusy = false;
     AciCli?.print('⏸ session held — say resume or tap ▶', 'dim');
     return;
@@ -513,7 +513,7 @@ function initVoice() {
 }
 
 function startListeningForOptions() {
-  if (sessionHeld || SessionHold?.isHeld?.()) return;
+  if ((typeof sessionHeld !== 'undefined' && sessionHeld) || SessionHold?.isHeld?.()) return;
   if (!recognition || isListening || voiceListenBlocked()) return;
   const wait = _listenRestartAt - Date.now();
   if (wait > 0) {
@@ -637,7 +637,7 @@ async function ensureMicPermission() {
 }
 
 function startVoiceOptions() {
-  if (sessionHeld || SessionHold?.isHeld?.()) {
+  if ((typeof sessionHeld !== 'undefined' && sessionHeld) || SessionHold?.isHeld?.()) {
     SessionHold?.resume?.();
     return;
   }
