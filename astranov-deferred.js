@@ -334,7 +334,7 @@ window.ArchitectBridge = ArchitectBridge;
 /* === 18-aci-coders.js === */
 // === ASTRANOV CODERS — always online for all users ===
 // Justice → Truth → Freedom (exact order) is the immutable boundary.
-const AciCoders = {
+var AciCoders = {
   ready: false,
   alwaysOn: true,
   teamActive: true,
