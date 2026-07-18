@@ -69,12 +69,15 @@ var CityLife = {
       return { error: 'busy' };
     }
     this._locating = true;
+    const overall = new Promise((_, reject) => {
+      setTimeout(() => reject(Object.assign(new Error('locate timeout'), { code: 3 })), 16000);
+    });
     try {
       GlobeDeck?.expand?.(window.PublicCopy?.deckTitle?.() || 'Astranov');
       GlobeDeck?.setMapStatus?.('Locating your city…');
       CliRibbon?.setNotice?.('Locating…', 'thinking');
       ACIControl?.reply?.('Locating — need GPS for your city');
-      const r = await this.locateAndDropIn();
+      const r = await Promise.race([this.locateAndDropIn(), overall]);
       if (r?.error) {
         const msg = r.message || r.error;
         CliRibbon?.setNotice?.(String(msg).slice(0, 100), 'err');
@@ -85,9 +88,12 @@ var CityLife = {
       return r;
     } catch (err) {
       const denied = err?.code === 1 || /denied/i.test(String(err?.message || err));
+      const timed = err?.code === 3 || /timeout/i.test(String(err?.message || err));
       const msg = denied
         ? 'Location denied — enable GPS for this site, then tap 🎯 again'
-        : 'Location failed — check GPS / permissions, then tap 🎯 again';
+        : timed
+          ? 'Location timed out — try again with GPS on'
+          : 'Location failed — check GPS / permissions, then tap 🎯 again';
       GlobeDeck?.setMapStatus?.(msg);
       CliRibbon?.setNotice?.(msg.slice(0, 100), 'err');
       ACIControl?.reply?.(msg);
@@ -111,18 +117,25 @@ var CityLife = {
   },
 
   async flyToCity(lat, lng, label) {
-    this.ensureEarthView();
+    try { this.ensureEarthView(); } catch (_) {}
     const z = this.CITY_ZOOM;
-    const p = latLngToPos(lat, lng, 1.04);
-    if (typeof flyToPoint === 'function') {
-      flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z, {
-        dur: GlobeControl?.flyDuration?.(camera?.position?.z, z),
-      });
-      if (typeof waitForGlobeFly === 'function') await waitForGlobeFly();
-    }
-    GlobeControl?.engageFollow?.('locate');
-    GlobeControl?.noteAutoFly?.();
-    MapDepict?.pulse?.(lat, lng, 0x3d9eff, label || 'Your city', 14000);
+    try {
+      if (typeof latLngToPos === 'function' && typeof flyToPoint === 'function' && typeof THREE !== 'undefined') {
+        const p = latLngToPos(lat, lng, 1.04);
+        flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z, {
+          dur: GlobeControl?.flyDuration?.(camera?.position?.z, z) || 1200,
+        });
+        if (typeof waitForGlobeFly === 'function') {
+          await Promise.race([
+            waitForGlobeFly(3000),
+            new Promise((r) => setTimeout(r, 3200)),
+          ]);
+        }
+      }
+    } catch (_) {}
+    try { GlobeControl?.engageFollow?.('locate'); } catch (_) {}
+    try { GlobeControl?.noteAutoFly?.(); } catch (_) {}
+    try { MapDepict?.pulse?.(lat, lng, 0x3d9eff, label || 'Your city', 14000); } catch (_) {}
   },
 
   nearbyVendors(lat, lng) {
