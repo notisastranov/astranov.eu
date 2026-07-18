@@ -3282,8 +3282,14 @@ var CityMap = {
 
   onCamera(camZ, level) {
     if (!this._ready) return;
+    // During locate cinematic fly: never open map mid-turn (teleport bug)
     if (window._globeFly) {
-      if (this.active) this._syncView(camZ);
+      if (this.active && !window._locateCinematic) this._syncView(camZ);
+      return;
+    }
+    if (window._locateCinematic) {
+      // Cinematic owns enter — only exit if zoomed way out
+      if (this.active && camZ > this.EXIT_Z) this._exit();
       return;
     }
     const earth = window._cityDropLock || this._forceOpen
@@ -3558,14 +3564,15 @@ var CityLife = {
       return { error: 'busy' };
     }
     this._locating = true;
+    // Allow full cinematic: GPS + national fly + city zoom + map (~12s typical)
     const overall = new Promise((_, reject) => {
-      setTimeout(() => reject(Object.assign(new Error('locate timeout'), { code: 3 })), 16000);
+      setTimeout(() => reject(Object.assign(new Error('locate timeout'), { code: 3 })), 28000);
     });
     try {
       GlobeDeck?.expand?.(window.PublicCopy?.deckTitle?.() || 'Astranov');
       GlobeDeck?.setMapStatus?.('Locating your city…');
       CliRibbon?.setNotice?.('Locating…', 'thinking');
-      ACIControl?.reply?.('Locating — need GPS for your city');
+      ACIControl?.reply?.('Locating — flying globe to your country, then city');
       const r = await Promise.race([this.locateAndDropIn(), overall]);
       if (r?.error) {
         const msg = r.message || r.error;
@@ -3599,29 +3606,51 @@ var CityLife = {
   },
 
   ensureEarthView() {
+    // Keep city map closed so the globe can turn
+    try {
+      if (CityMap?.active) CityMap._exit?.();
+    } catch (_) {}
+    try {
+      document.getElementById('globe')?.classList.remove('city-map-active', 'national-map-active');
+      document.body?.classList?.remove?.('city-map-active', 'national-map-active');
+    } catch (_) {}
     if (CosmicZoom) CosmicZoom.level = 'earth';
-    ZoomTiers?.goTo?.('national', false);
-    CosmicZoom?.update?.(GlobeControl?.Z?.national || 1.82, { tier: 'national', label: 'NATIONAL', cosmic: 'earth' });
-    cityLevel = false;
+    try { cityLevel = false; } catch (_) {}
+  },
+
+  async _awaitFly(maxMs) {
+    const cap = maxMs || 4500;
+    try {
+      if (typeof waitForGlobeFly === 'function') {
+        await Promise.race([
+          waitForGlobeFly(cap),
+          new Promise((r) => setTimeout(r, cap + 100)),
+        ]);
+      } else {
+        await this._yield(Math.min(cap, 1800));
+      }
+    } catch (_) {}
+  },
+
+  /** Globe turn + zoom to lat/lng at target camera Z (visible, not a teleport). */
+  async flyGlobeTo(lat, lng, targetZ, durMs) {
+    if (typeof latLngToPos !== 'function' || typeof flyToPoint !== 'function' || typeof THREE === 'undefined') {
+      try {
+        if (typeof camera !== 'undefined' && camera) camera.position.z = targetZ;
+      } catch (_) {}
+      return;
+    }
+    const p = latLngToPos(lat, lng, 1.04);
+    flyToPoint(new THREE.Vector3(p.x, p.y, p.z), targetZ, {
+      dur: durMs || GlobeControl?.flyDuration?.(camera?.position?.z, targetZ) || 1800,
+    });
+    await this._awaitFly((durMs || 1800) + 2200);
   },
 
   async flyToCity(lat, lng, label) {
     try { this.ensureEarthView(); } catch (_) {}
     const z = this.CITY_ZOOM;
-    try {
-      if (typeof latLngToPos === 'function' && typeof flyToPoint === 'function' && typeof THREE !== 'undefined') {
-        const p = latLngToPos(lat, lng, 1.04);
-        flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z, {
-          dur: GlobeControl?.flyDuration?.(camera?.position?.z, z) || 1200,
-        });
-        if (typeof waitForGlobeFly === 'function') {
-          await Promise.race([
-            waitForGlobeFly(3000),
-            new Promise((r) => setTimeout(r, 3200)),
-          ]);
-        }
-      }
-    } catch (_) {}
+    await this.flyGlobeTo(lat, lng, z, 1400);
     try { GlobeControl?.engageFollow?.('locate'); } catch (_) {}
     try { GlobeControl?.noteAutoFly?.(); } catch (_) {}
     try { MapDepict?.pulse?.(lat, lng, 0x3d9eff, label || 'Your city', 14000); } catch (_) {}
@@ -3644,56 +3673,104 @@ var CityLife = {
       return { error: 'no_location', message: 'no location — allow GPS or tap 🎯 Locate' };
     }
 
-    window._cityDropLock = true;
+    // CRITICAL: do NOT set _cityDropLock yet — that forces city map open mid-fly (teleport bug)
     this.markLocated(pos.lat, pos.lng);
     this._lastDrop = { lat: pos.lat, lng: pos.lng, t: Date.now() };
     try { CityPick?.hide?.(); } catch (_) {}
+    this.ensureEarthView();
+
+    const nationalZ = GlobeControl?.Z?.national || 1.82;
+    const cityZ = this.CITY_ZOOM;
+    const snap = !!opts.immediate; // e2e / emergency only
+    window._locateCinematic = !snap;
 
     try {
-      // 1) Snap national view — no multi-second awaits on first paint
-      const nationalZ = GlobeControl?.Z?.national || 1.82;
-      GlobeDeck?.setMapStatus?.('National view…');
-      try { ZoomTiers?.goTo?.('national', false); } catch (_) {}
-      try {
-        if (typeof camera !== 'undefined' && camera) camera.position.z = nationalZ;
-        CosmicZoom?.update?.(nationalZ, { tier: 'national', label: 'NATIONAL', cosmic: 'earth' });
-      } catch (_) {}
-      try {
-        if (typeof latLngToPos === 'function' && typeof flyToPoint === 'function' && typeof THREE !== 'undefined') {
-          const gp = latLngToPos(pos.lat, pos.lng, 1.04);
-          flyToPoint(new THREE.Vector3(gp.x, gp.y, gp.z), nationalZ, { dur: opts.immediate ? 600 : 1100 });
-        }
-      } catch (_) {}
-      CliRibbon?.setNotice?.('National · your region', 'ready');
-      await this._yield(opts.immediate ? 50 : 200);
+      if (snap) {
+        // Fast path for tests — still go national then city, just shorter
+        GlobeDeck?.setMapStatus?.('National view…');
+        try { ZoomTiers?.goTo?.('national', false); } catch (_) {}
+        await this.flyGlobeTo(pos.lat, pos.lng, nationalZ, 500);
+        await this._yield(80);
+        GlobeDeck?.setMapStatus?.('Opening city map…');
+        try { ZoomTiers?.goTo?.('city', false); } catch (_) {}
+        window._cityDropLock = true;
+        try {
+          CityMap?.init?.();
+          CityMap?.openAt?.(pos.lat, pos.lng, { camZ: cityZ });
+        } catch (_) {}
+      } else {
+        // ── Cinematic locate: Earth turns → national → city zoom → map ──
+        // 1) Approach country on the spinning globe
+        GlobeDeck?.setMapStatus?.('Flying to your country…');
+        CliRibbon?.setNotice?.('Globe · flying to you…', 'thinking');
+        const zl = document.getElementById('zoom-label');
+        if (zl) zl.textContent = PublicCopy?.zoomLine?.('national') || 'Country · flying in…';
+        try {
+          if (CosmicZoom) CosmicZoom.level = 'earth';
+          CosmicZoom?.update?.(camera?.position?.z || 2.55, { tier: 'global', label: 'Earth', cosmic: 'earth' });
+        } catch (_) {}
+        // Pull back a bit so national zoom-in is visible
+        try {
+          if (typeof camera !== 'undefined' && camera && camera.position.z < 2.35) {
+            const fromZ = camera.position.z;
+            camera.position.z = 2.55;
+            // small pull-back fly if already looking at earth
+            if (typeof flyToPoint === 'function' && typeof latLngToPos === 'function' && typeof THREE !== 'undefined') {
+              const gp0 = latLngToPos(pos.lat, pos.lng, 1.04);
+              // keep bearing; only zoom out slightly for drama
+              window._globeFly = {
+                mode: 'zoom',
+                fromZ,
+                toZ: 2.55,
+                t0: performance.now(),
+                dur: 450,
+              };
+              await this._awaitFly(700);
+            }
+          }
+        } catch (_) {}
+        await this.flyGlobeTo(pos.lat, pos.lng, nationalZ, 2600);
+        try {
+          ZoomTiers?.goTo?.('national', false);
+          CosmicZoom?.update?.(nationalZ, { tier: 'national', label: 'NATIONAL', cosmic: 'earth' });
+        } catch (_) {}
+        CliRibbon?.setNotice?.('National · your region', 'ready');
+        GlobeDeck?.setMapStatus?.('National view · your region');
+        if (zl) zl.textContent = PublicCopy?.zoomLine?.('national') || 'Country · choose a city';
+        await this._yield(500);
 
-      // 2) Open city map ASAP (Leaflet) — this is the product moment
-      try { ZoomTiers?.goTo?.('city', false); } catch (_) {}
-      GlobeDeck?.setMapStatus?.('Opening city map…');
-      try {
-        CityMap?.init?.();
-        if (CityMap?.openAt) {
-          CityMap.openAt(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
-        } else {
-          CityMap?.onCamera?.(this.CITY_ZOOM, 'earth');
-          if (!CityMap?.active) CityMap?._enter?.(this.CITY_ZOOM);
+        // 2) Zoom globe into city altitude (still 3D Earth, map still closed)
+        GlobeDeck?.setMapStatus?.('Zooming to your city…');
+        CliRibbon?.setNotice?.('Zooming to city…', 'thinking');
+        if (zl) zl.textContent = PublicCopy?.zoomLine?.('city') || 'City · streets & shops';
+        await this.flyGlobeTo(pos.lat, pos.lng, cityZ, 1800);
+        try {
+          ZoomTiers?.goTo?.('city', false);
+          CosmicZoom?.update?.(cityZ, { tier: 'city', label: 'CITY', cosmic: 'earth' });
+        } catch (_) {}
+        try { MapDepict?.pulse?.(pos.lat, pos.lng, 0x3d9eff, opts.label || 'Your city', 14000); } catch (_) {}
+        await this._yield(320);
+
+        // 3) Now open flat city map (lock only for the handoff)
+        GlobeDeck?.setMapStatus?.('Opening city map…');
+        window._cityDropLock = true;
+        window._locateCinematic = false;
+        try {
+          CityMap?.init?.();
+          if (CityMap?.openAt) {
+            CityMap.openAt(pos.lat, pos.lng, { camZ: cityZ });
+          } else {
+            CityMap?.onCamera?.(cityZ, 'earth');
+            if (!CityMap?.active) CityMap?._enter?.(cityZ);
+          }
+        } catch (e) {
+          console.warn('[CityLife] city map open', e);
         }
-      } catch (e) {
-        console.warn('[CityLife] city map open', e);
       }
-      await this._yield(80);
 
-      // 3) Optional soft city fly (never block UI)
-      try {
-        if (typeof latLngToPos === 'function' && typeof flyToPoint === 'function' && typeof THREE !== 'undefined') {
-          const p = latLngToPos(pos.lat, pos.lng, 1.04);
-          flyToPoint(new THREE.Vector3(p.x, p.y, p.z), this.CITY_ZOOM, { dur: 900 });
-        }
-        GlobeControl?.engageFollow?.('locate');
-        MapDepict?.pulse?.(pos.lat, pos.lng, 0x3d9eff, opts.label || 'Your city', 14000);
-      } catch (_) {}
+      try { GlobeControl?.engageFollow?.('locate'); } catch (_) {}
+      try { GlobeControl?.noteAutoFly?.(); } catch (_) {}
 
-      // 4) Background enrichment — fire and forget after UI is up
       const nearby = this.nearbyVendors(pos.lat, pos.lng);
       try {
         if (nearby.length && window.Commerce) {
@@ -3711,8 +3788,8 @@ var CityLife = {
       AciCli?.print?.('◎ City view · ' + msg, 'ok');
       ACIControl?.reply?.('City map open — ' + msg);
       FieldBrain?.pulse?.('city', msg, { role: 'client', props: { lat: pos.lat, lng: pos.lng, shops: nearby.length } });
+      CliRibbon?.setNotice?.('Located · city map', 'ready');
 
-      // Deferred shops/drivers (must not block return)
       setTimeout(() => {
         try {
           if (window.Commerce?.loadVendors) void window.Commerce.loadVendors();
@@ -3726,7 +3803,7 @@ var CityLife = {
           this._showLocalNews(pos.lat, pos.lng);
           GlobeEntity?.syncVendors?.(window.Commerce?.vendors);
         } catch (_) {}
-      }, 100);
+      }, 120);
 
       if (opts.openShops && nearby.length) {
         setTimeout(() => {
@@ -3734,7 +3811,7 @@ var CityLife = {
             GlobeDeck?.expand?.(window.SuperCli?.title || 'Astranov');
             void window.Commerce?.showPicker?.();
           } catch (_) {}
-        }, 200);
+        }, 250);
       }
 
       return {
@@ -3748,8 +3825,9 @@ var CityLife = {
       console.error('[CityLife] dropIn', e);
       AciCli?.print?.('city drop error: ' + (e.message || e), 'err');
       try {
+        window._cityDropLock = true;
         CityMap?.init?.();
-        CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
+        CityMap?.openAt?.(pos.lat, pos.lng, { camZ: cityZ });
       } catch (_) {}
       return {
         error: e.message || 'city drop failed',
@@ -3759,6 +3837,7 @@ var CityLife = {
       };
     } finally {
       window._cityDropLock = false;
+      window._locateCinematic = false;
     }
   },
 
@@ -3820,16 +3899,8 @@ var CityLife = {
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
     this.markMeOnGlobe(lat, lng);
-    // Return quickly — full drop-in continues without blocking the UI thread
-    const dropP = this.dropIn(lat, lng, { label: 'Your city', immediate: true });
-    // Don't let a stuck drop hang the caller forever
-    const r = await Promise.race([
-      dropP,
-      new Promise((resolve) => setTimeout(() => resolve({
-        lat, lng, mapActive: !!(window.CityMap?.active), pending: true,
-      }), 8000)),
-    ]);
-    return r;
+    // Cinematic path: globe turns → national → city zoom → map (not a teleport)
+    return this.dropIn(lat, lng, { label: 'Your city', immediate: false });
   },
 
   SCENARIOS: {
