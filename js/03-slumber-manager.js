@@ -471,4 +471,9 @@ const SlumberManager = {
   },
 };
 window.SlumberManager = SlumberManager;
-SlumberManager.init();
+// Defer heavy probe (extra WebGL context) until after first globe frames
+if (typeof requestIdleCallback === 'function') {
+  requestIdleCallback(() => { try { SlumberManager.init(); } catch (_) {} }, { timeout: 3500 });
+} else {
+  setTimeout(() => { try { SlumberManager.init(); } catch (_) {} }, 1200);
+}
