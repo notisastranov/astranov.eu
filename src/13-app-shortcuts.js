@@ -1,5 +1,5 @@
 // === APP SHORTCUTS — open CLI apps as top-bar icons (account · apps · +) ===
-const AppShortcuts = {
+var AppShortcuts = {
   _row: null,
   _order: [],
   _labels: {},
