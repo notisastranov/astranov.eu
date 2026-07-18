@@ -62,7 +62,7 @@ function animate() {
   } catch (_) {}
   try { tickGlobeFly?.(); } catch (_) {}
 
-  if (earthView && !CityMap?.active) {
+  if (earthView && !(typeof CityMap !== 'undefined' && CityMap?.active)) {
     try { EarthRealism?.applySpinNow?.(); } catch (_) {}
   }
 
