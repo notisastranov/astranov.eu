@@ -1,27 +1,49 @@
 /* === 00-globe.js === */
 // Globe host — must exist before WebGL. Never leave user with CLI-only black stage.
 let container = document.getElementById('globe');
-if (!container) {
+if (!container && document.body) {
   container = document.createElement('div');
   container.id = 'globe';
   document.body.insertBefore(container, document.body.firstChild);
 }
+if (!container) {
+  // Script in <head> before body: defer mesh until DOM ready is not an option — body end boot only
+  console.error('[globe] #globe missing — ensure scripts run after <div id="globe">');
+}
 // Ensure canvas layer is visible above void, under UI chrome
 try {
-  container.style.cssText = (container.getAttribute('style') || '')
-    + ';position:absolute;inset:0;z-index:2;touch-action:none;';
-  document.body.classList.remove('site-shell-open');
-  document.getElementById('city-map')?.classList.remove('active');
-  container.classList.remove('city-map-active', 'national-map-active');
+  if (container) {
+    container.style.position = 'absolute';
+    container.style.inset = '0';
+    container.style.zIndex = '2';
+    container.style.touchAction = 'none';
+    container.style.background = '#000';
+    container.classList.remove('city-map-active', 'national-map-active');
+  }
+  document.body?.classList?.remove?.('site-shell-open');
 } catch (_) {}
 
-// Robust WebGL + error guard so user never sees silent black
+// Error guard — do NOT spam fatal red bars for soft refs; only real render killers
 window.addEventListener('error', function(e) {
   try {
-    const msg = document.createElement('div');
-    msg.style.cssText = 'position:fixed;bottom:8px;left:8px;padding:4px 8px;background:rgba(20,0,0,0.7);color:#f66;font:11px/1.3 monospace;z-index:99999;pointer-events:none;';
-    msg.textContent = 'Init/Render error: ' + (e.message || 'unknown') + ' — try Chrome/Firefox, enable HW accel, check console';
-    document.body.appendChild(msg);
+    const m = String(e.message || e.error?.message || '');
+    // sessionHeld etc. are soft — already stubbed; never blank the globe over them
+    if (/sessionHeld|Script error|ResizeObserver/i.test(m)) {
+      console.warn('[soft]', m);
+      return;
+    }
+    if (window._astranovCriticalReady && /is not defined/i.test(m)) {
+      console.warn('[soft post-boot]', m);
+      return;
+    }
+    let msg = document.getElementById('astranov-hard-error');
+    if (!msg) {
+      msg = document.createElement('div');
+      msg.id = 'astranov-hard-error';
+      msg.style.cssText = 'position:fixed;bottom:8px;left:8px;right:8px;padding:6px 10px;background:rgba(20,0,0,0.85);color:#f88;font:11px/1.3 monospace;z-index:99999;pointer-events:none;border-radius:8px';
+      document.body.appendChild(msg);
+    }
+    msg.textContent = 'Error: ' + (m || 'unknown').slice(0, 180);
   } catch(_) {}
 });
 
@@ -74,10 +96,12 @@ let userLocated = false;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
+window.scene = scene;
 
 const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.1, 1000);
 camera.position.set(0, 0.25, 2.55);
 camera.lookAt(0, 0, 0);
+window.camera = camera;
 
 // Astranov lighting — deep space rim + sun key (not flat Atari fill)
 scene.add(new THREE.AmbientLight(0x1a2838, 0.55));
@@ -329,6 +353,65 @@ window.enterCityView = enterCityView;
 
 /* === 07-light-stubs.js === */
 // === LIGHT STUBS — removed heavy subsystems; keep optional chaining safe ===
+// Classic scripts: bare `Foo?.x` throws ReferenceError if Foo is undeclared.
+// Provide lexical + window bindings for every symbol used before its real module loads.
+
+// sessionHeld + SessionHold stubs
+var sessionHeld = false;
+window.sessionHeld = false;
+window.SessionHold = window.SessionHold || {
+  isHeld() { return !!window.sessionHeld; },
+  hold() { window.sessionHeld = true; sessionHeld = true; },
+  resume() { window.sessionHeld = false; sessionHeld = false; },
+  toggle() { if (this.isHeld()) this.resume(); else this.hold(); },
+  release() { this.resume(); },
+  clearForeignHold() {},
+  init() {},
+};
+var SessionHold = window.SessionHold;
+
+// Supabase identity — required by Auth in app phase (real ACI in deferred overwrites window)
+var ACI = window.ACI || {
+  name: 'Astranov',
+  url: 'https://lkoatrkhuigdolnjsbie.supabase.co',
+  key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI',
+};
+window.ACI = ACI;
+var SB_URL = window.SB_URL || ACI.url;
+var SB_KEY = window.SB_KEY || ACI.key;
+window.SB_URL = SB_URL;
+window.SB_KEY = SB_KEY;
+
+// ACIControl stub — reply routes to deck/ribbon until deferred 20-aci.js loads
+window.ACIControl = window.ACIControl || {
+  init() {},
+  reply(text) {
+    const msg = String(text || '').slice(0, 280);
+    if (!msg) return;
+    try { GlobeDeck?.say?.(msg, 'reply'); } catch (_) {}
+    try { CliRibbon?.setNotice?.(msg.slice(0, 120), 'info'); } catch (_) {}
+    try { AciCli?.print?.(msg, 'ok'); } catch (_) {}
+  },
+  voiceAck() {},
+  async handle() { return { executed: false }; },
+};
+var ACIControl = window.ACIControl;
+
+// AppShortcuts stub — real module is in features phase; app boot touches it early
+window.AppShortcuts = window.AppShortcuts || {
+  _order: [],
+  _labels: {},
+  APPS: {},
+  init() {},
+  render() {},
+  track() {},
+  untrack() {},
+  rememberSite() {},
+  switch() {},
+  close() {},
+};
+var AppShortcuts = window.AppShortcuts;
+
 // PublicCopy: plain language for the public. SETI / mission-control tone = architect only.
 const PublicCopy = {
   isArchitect() {
@@ -347,15 +430,15 @@ const PublicCopy = {
   },
   zoomLine(tierId, extra) {
     const base = {
-      solar: 'Space · planets · zoom in for Earth',
-      global: 'Earth · drag · 🎯 your city · 🎧 chat · + post',
-      national: 'Country · choose a city',
+      solar: 'Space · zoom in for Earth',
+      global: 'Earth · drag · scroll for country · tap city',
+      national: 'Country · choose a city below or tap map',
       regional: 'Region · choose a city',
-      city: 'City · streets & shops',
+      city: 'City · streets · shops · tasks',
       neighborhood: 'Streets · look around',
-      orbit: 'Above Earth · stations & satellites',
-      system: 'Solar system · zoom in for Earth',
-      galaxy: 'Stars · zoom in to return',
+      orbit: 'Above Earth',
+      system: 'Solar system · zoom in',
+      galaxy: 'Stars · zoom in',
     };
     let line = base[tierId] || 'Earth · drag to explore';
     if (extra) line += ' · ' + extra;
@@ -2660,143 +2743,197 @@ const EarthRealism = {
 window.EarthRealism = EarthRealism;
 
 /* === 99-boot-critical.js === */
-// === BOOT CRITICAL — globe interactive ASAP (no CLI / auth / heavy UI yet) ===
+// === SPARTAN BOOT · CRITICAL — Earth spins + drag + zoom. Nothing else. ===
 window._cycleTurbo = false;
-if (window._globePerfLite == null) window._globePerfLite = false;
+if (window._globePerfLite == null) window._globePerfLite = !!window._isMobileUA;
 window._animFrame = 0;
 window._lastUserAct = Date.now();
-const _slumberDiv = (k) => SlumberManager?.frameDivisor?.(k) || (window._globePerfLite ? 10 : 6);
+window._spartan = true;
+
+const _slumberDiv = (k) => {
+  try {
+    return SlumberManager?.frameDivisor?.(k) || (window._globePerfLite ? 10 : 6);
+  } catch (_) {
+    return window._globePerfLite ? 10 : 6;
+  }
+};
 
 function globePerfActive() {
   return !!(window._voicePerfMode || window._globePerfLite);
 }
 
-['pointerdown', 'touchstart', 'wheel', 'keydown'].forEach(ev => {
+['pointerdown', 'touchstart', 'wheel', 'keydown'].forEach((ev) => {
   window.addEventListener(ev, () => { window._lastUserAct = Date.now(); }, { passive: true });
 });
 
 function animate() {
   requestAnimationFrame(animate);
   if (window._cycleTurbo) return;
-  if (!renderer || !scene || !camera) return;
+  if (typeof renderer === 'undefined' || !renderer || !scene || !camera) return;
 
   window._animFrame = (window._animFrame + 1) | 0;
   const frame = window._animFrame;
-  const hidden = document.hidden;
-  // Tab hidden: almost sleep
-  if (hidden) {
-    if (frame % 60 !== 0) return;
-    try { renderer.render(scene, camera); } catch (_) {}
+  if (document.hidden) {
+    if (frame % 60 === 0) {
+      try { renderer.render(scene, camera); } catch (_) {}
+    }
     return;
   }
 
   const lite = !!window._globePerfLite;
   const idleMs = Date.now() - (window._lastUserAct || 0);
-  const dragging = !!(drag || window._globeFly || trackVelX || trackVelY);
-  // Aggressive idle frame skip — keeps UI butter while idling
+  const dragging = !!(typeof drag !== 'undefined' && (drag || window._globeFly || trackVelX || trackVelY));
+
   if (!dragging) {
     let skipN = 0;
     if (lite) {
-      if (idleMs > 12000) skipN = 5;
-      else if (idleMs > 4000) skipN = 3;
-      else if (idleMs > 1200) skipN = 2;
+      if (idleMs > 10000) skipN = 4;
+      else if (idleMs > 3000) skipN = 2;
       else skipN = 1;
-    } else if (idleMs > 15000) skipN = 3;
-    else if (idleMs > 5000) skipN = 1;
+    } else if (idleMs > 12000) skipN = 2;
     if (skipN && frame % (skipN + 1) !== 0) return;
   }
 
-  // FPS probe only when needed
-  if (frame % 8 === 0) SlumberManager?.tickFrame?.();
+  if (frame % 10 === 0) {
+    try { SlumberManager?.tickFrame?.(); } catch (_) {}
+  }
 
   const camZ = camera.position.z;
   const level = CosmicZoom?.level || 'earth';
   const earthView = (level === 'earth' || level === 'orbit') && camZ < 4.8;
-  const solarView = level === 'system' || level === 'galaxy' || camZ > 5.5;
 
-  // Voice perf mode — throttle checks
-  if (frame % 6 === 0) {
-    const voiceActive = window._handsFreeVoice || (typeof isListening !== 'undefined' && isListening);
-    const codersBusy = window.AciCoders?._cliBusy || window.AciCoders?._listenBusy;
-    if (voiceActive || codersBusy || GlobeDeck?.thinking) {
-      if (typeof setVoicePerfMode === 'function') setVoicePerfMode(true);
-    } else if (window._voicePerfMode && typeof setVoicePerfMode === 'function') {
-      setVoicePerfMode(false);
-    }
+  try {
+    if (!drag && !window._globeFly) TrackballGuard?.applyInertia?.();
+  } catch (_) {}
+  try { tickGlobeFly?.(); } catch (_) {}
+
+  if (earthView && !CityMap?.active) {
+    try { EarthRealism?.applySpinNow?.(); } catch (_) {}
   }
 
-  if (!drag && !window._globeFly) TrackballGuard?.applyInertia?.();
-  tickGlobeFly?.();
-
-  // Spin every rendered frame (already frame-skipped when idle)
-  if (earthView && !CityMap?.active) EarthRealism?.applySpinNow?.();
-
-  const entityDiv = Math.max(_slumberDiv('entity'), lite ? 12 : 6);
-  if (frame % entityDiv === 0) {
-    MapDepict?.tick?.();
-    if (SlumberManager?.allows?.('entities') !== false) GlobeEntity?.tick?.();
+  if (frame % Math.max(_slumberDiv('entity'), lite ? 12 : 6) === 0) {
+    try { MapDepict?.tick?.(); } catch (_) {}
+    try {
+      if (SlumberManager?.allows?.('entities') !== false) GlobeEntity?.tick?.();
+    } catch (_) {}
   }
 
-  const cosmicDiv = Math.max(_slumberDiv('cosmic'), lite ? 20 : 10);
-  if (solarView && frame % Math.max(_slumberDiv('cosmic'), 4) === 0) CosmicZoom?.update?.(camZ);
-  else if (frame % cosmicDiv === 0) CosmicZoom?.update?.(camZ);
+  if (frame % Math.max(_slumberDiv('cosmic'), lite ? 16 : 8) === 0) {
+    try { CosmicZoom?.update?.(camZ); } catch (_) {}
+  }
 
-  if (earthView && window._astranovFlyerActive && frame % Math.max(_slumberDiv('earth'), 10) === 0) {
-    AIGraphics?.update?.();
+  if (earthView && frame % Math.max(_slumberDiv('earth'), lite ? 8 : 4) === 0) {
+    try { EarthRealism?.tick?.(); } catch (_) {}
   }
-  if (earthView && frame % Math.max(_slumberDiv('earth'), lite ? 10 : 4) === 0) EarthRealism?.tick?.();
-  if (!lite && earthView && frame % _slumberDiv('celestial') === 0 && idleMs < 8000
-    && SlumberManager?.allows?.('celestial') !== false) {
-    window.CelestialNav?.tick?.();
-  }
-  renderer.render(scene, camera);
+
+  try { renderer.render(scene, camera); } catch (_) {}
 }
 
 window.__astranovBootCritical = function __astranovBootCritical() {
   window._bootEarthLock = true;
-  if (typeof camera !== 'undefined' && camera) {
-    camera.position.z = 2.55;
-    camera.lookAt(0, 0, 0);
+  // Always start the render loop first — never leave a black void if init soft-fails
+  let started = false;
+  const startLoop = () => {
+    if (started) return;
+    started = true;
+    try { animate(); } catch (e) { console.error('[boot] animate', e); }
+  };
+
+  // Force globe host visible
+  let g = document.getElementById('globe');
+  if (!g) {
+    g = document.createElement('div');
+    g.id = 'globe';
+    document.body.insertBefore(g, document.body.firstChild);
   }
-  if (typeof globePivot !== 'undefined' && globePivot) {
-    globePivot.rotation.x = 0.12;
-    globePivot.rotation.y = 0.82;
-    syncGlobePivotRotation?.();
-  }
+  g.classList.remove('city-map-active', 'national-map-active');
+  g.style.display = '';
+  g.style.opacity = '1';
+  g.style.visibility = 'visible';
+  g.style.zIndex = '2';
+  g.style.background = '#000';
+
+  try {
+    if (typeof camera !== 'undefined' && camera) {
+      camera.position.set(0, 0.25, ZoomTiers?.tierZ?.('global') || 2.55);
+      camera.lookAt(0, 0, 0);
+    }
+    if (typeof globePivot !== 'undefined' && globePivot) {
+      globePivot.rotation.x = 0.12;
+      globePivot.rotation.y = 0.82;
+      if (typeof earth !== 'undefined' && earth) earth.visible = true;
+      syncGlobePivotRotation?.();
+    }
+  } catch (_) {}
+
   try {
     CosmicZoom?.init?.();
     ZoomTiers?.init?.();
     AstranovTheme?.init?.();
     EarthRealism?.init?.();
-    CosmicZoom.level = 'earth';
-    if (CosmicZoom.solarGroup) CosmicZoom.solarGroup.visible = false;
-    CosmicZoom.update(2.55, { tier: 'global', label: 'Earth', cosmic: 'earth' });
-  } catch (e) {
-    console.warn('[boot-critical]', e);
-  }
-  const zl0 = document.getElementById('zoom-label');
-  if (zl0) zl0.textContent = PublicCopy?.zoomLine?.('global') || 'Earth · drag · 🎯 city · 🎧 chat · + post';
-
-  const host = location.hostname || '';
-  const isOfficial = host === 'astranov.eu' || host.endsWith('.astranov.eu');
-  const isLocal = host === '' || host === 'localhost' || host === '127.0.0.1' || location.protocol === 'file:';
-  if (host && !isOfficial && !isLocal) {
-    document.body.innerHTML = '<div style="color:#444;padding:40px;text-align:center;font-family:sans-serif">Available only on authorized Astranov domains</div>';
-    return;
-  }
-  // First paint: spinning, draggable Earth — UI boots next phase
-  try {
-    document.getElementById('globe')?.classList.remove('city-map-active', 'national-map-active');
-    if (renderer?.domElement) {
-      renderer.domElement.style.opacity = '1';
-      renderer.domElement.style.pointerEvents = 'auto';
-      renderer.domElement.style.display = 'block';
+    if (CosmicZoom) {
+      CosmicZoom.level = 'earth';
+      if (CosmicZoom.solarGroup) CosmicZoom.solarGroup.visible = false;
+      CosmicZoom.update(camera?.position?.z || 2.55, { tier: 'global', label: 'Earth', cosmic: 'earth' });
     }
-    // One immediate frame so user never sees empty void while waiting for RAF
-    if (renderer && scene && camera) renderer.render(scene, camera);
+  } catch (e) {
+    console.warn('[spartan critical]', e);
+  }
+
+  const zl = document.getElementById('zoom-label');
+  if (zl) {
+    zl.textContent = PublicCopy?.zoomLine?.('global')
+      || 'Earth · drag · scroll to country · tap for city';
+  }
+
+  // Host gate — never blank the page; only soft-block unknown hosts
+  try {
+    const host = location.hostname || '';
+    const ok = !host
+      || host === 'localhost' || host === '127.0.0.1'
+      || host === 'astranov.eu' || host.endsWith('.astranov.eu')
+      || host.endsWith('.vercel.app') || host.endsWith('.pages.dev')
+      || location.protocol === 'file:';
+    if (host && !ok) {
+      console.warn('[boot] unauthorized host', host);
+    }
   } catch (_) {}
-  animate();
+
+  // Canvas force-visible + immediate frame
+  try {
+    if (typeof renderer !== 'undefined' && renderer?.domElement) {
+      const c = renderer.domElement;
+      if (g && c.parentNode !== g) g.appendChild(c);
+      c.style.display = 'block';
+      c.style.opacity = '1';
+      c.style.pointerEvents = 'auto';
+      c.style.width = '100%';
+      c.style.height = '100%';
+      renderer.setSize(window.innerWidth, window.innerHeight, false);
+      if (scene && camera) {
+        // Ensure earth is lit enough to see without texture
+        try {
+          if (typeof earthMat !== 'undefined' && earthMat && !earthMat.map) {
+            earthMat.color?.set?.(0x2a6aaa);
+            earthMat.emissive?.set?.(0x0a2030);
+            earthMat.needsUpdate = true;
+          }
+        } catch (_) {}
+        renderer.render(scene, camera);
+      }
+    }
+  } catch (_) {}
+
+  startLoop();
   window._astranovCriticalReady = true;
   document.documentElement.dataset.astranovPhase = 'critical';
-  console.log('%c[Astranov] critical boot · globe live', 'color:#3d9eff;font-weight:700');
+  document.documentElement.dataset.spartan = '1';
+  // Clear any prior init/render error strip once Earth is up
+  try {
+    const strip = [...document.querySelectorAll('div')].find((d) =>
+      /Init\/Render error|sessionHeld/i.test(d.textContent || '')
+    );
+    if (strip && strip.id !== 'astranov-boot-fail') strip.remove();
+  } catch (_) {}
+  console.log('%c[Spartan] Earth live · drag · zoom', 'color:#3d9eff;font-weight:700');
 };
