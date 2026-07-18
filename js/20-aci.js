@@ -189,6 +189,9 @@ window.AstranovCollectiveIntelligence = ACI;
 
 const SB_URL = ACI.url;
 const SB_KEY = ACI.key;
+window.ACI = ACI;
+window.SB_URL = SB_URL;
+window.SB_KEY = SB_KEY;
 const sbHeaders = () => ({ apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' });
 
 // ── ACI CONTROL (text + buttons — you command the collective) ──
@@ -392,3 +395,4 @@ const ACIControl = {
     return { executed: true, action: 'coders' };
   }
 };
+window.ACIControl = ACIControl;
