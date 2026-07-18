@@ -1,11 +1,13 @@
 // === CITY LIFE — locate → fly → city satellite map · shops · drivers ===
-const CityLife = {
+// Must work in app phase WITHOUT deferred (placeMe/locateMe live in deferred).
+var CityLife = {
   get CITY_ZOOM() {
     return GlobeControl?.cityEntryZ?.() ?? 1.34;
   },
   NEARBY_KM: 12,
   _friendTimer: null,
   _lastDrop: null,
+  _locating: false,
 
   init() {
     this._startFriendMotion();
@@ -15,8 +17,83 @@ const CityLife = {
       locateBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        locateMe?.();
+        // Never call bare locateMe — undeclared in app phase → ReferenceError (dead app)
+        void CityLife.safeLocate();
       }, { capture: true });
+    }
+    // Expose early so features boot / ribbon can call without deferred
+    if (typeof window.locateMe !== 'function') {
+      window.locateMe = function locateMeEarly() { return CityLife.safeLocate(); };
+    }
+  },
+
+  markLocated(lat, lng) {
+    window._lastPos = { lat, lng };
+    try { userLocated = true; } catch (_) {}
+    window.userLocated = true;
+  },
+
+  /** Lightweight marker without deferred placeMe */
+  markMeOnGlobe(lat, lng) {
+    this.markLocated(lat, lng);
+    try {
+      if (typeof placeMe === 'function') {
+        placeMe(lat, lng, { quiet: true, markerOnly: true });
+        return;
+      }
+      if (typeof window.placeMe === 'function') {
+        window.placeMe(lat, lng, { quiet: true, markerOnly: true });
+        return;
+      }
+    } catch (_) { /* fall through */ }
+    try {
+      if (typeof latLngToPos !== 'function' || typeof THREE === 'undefined') return;
+      if (window._meMarker && window._meMarker.parent) window._meMarker.parent.remove(window._meMarker);
+      const pos = latLngToPos(lat, lng, 1.03);
+      const m = new THREE.Mesh(
+        new THREE.SphereGeometry(0.028, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0x3d9eff })
+      );
+      m.position.set(pos.x, pos.y, pos.z);
+      m.userData = { type: 'me', name: 'You' };
+      if (typeof globePivot !== 'undefined' && globePivot) globePivot.add(m);
+      window._meMarker = m;
+      MapDepict?.pulse?.(lat, lng, 0x3d9eff, 'You', 6000);
+      GlobeEntity?.syncMe?.(lat, lng, 'You');
+    } catch (_) {}
+  },
+
+  async safeLocate() {
+    if (this._locating) {
+      CliRibbon?.setNotice?.('Already locating…', 'info');
+      return { error: 'busy' };
+    }
+    this._locating = true;
+    try {
+      GlobeDeck?.expand?.(window.PublicCopy?.deckTitle?.() || 'Astranov');
+      GlobeDeck?.setMapStatus?.('Locating your city…');
+      CliRibbon?.setNotice?.('Locating…', 'thinking');
+      ACIControl?.reply?.('Locating — need GPS for your city');
+      const r = await this.locateAndDropIn();
+      if (r?.error) {
+        const msg = r.message || r.error;
+        CliRibbon?.setNotice?.(String(msg).slice(0, 100), 'err');
+        ACIControl?.reply?.(msg);
+        return r;
+      }
+      CliRibbon?.setNotice?.('Located · city map', 'ready');
+      return r;
+    } catch (err) {
+      const denied = err?.code === 1 || /denied/i.test(String(err?.message || err));
+      const msg = denied
+        ? 'Location denied — enable GPS for this site, then tap 🎯 again'
+        : 'Location failed — check GPS / permissions, then tap 🎯 again';
+      GlobeDeck?.setMapStatus?.(msg);
+      CliRibbon?.setNotice?.(msg.slice(0, 100), 'err');
+      ACIControl?.reply?.(msg);
+      return { error: msg };
+    } finally {
+      this._locating = false;
     }
   },
 
@@ -62,80 +139,125 @@ const CityLife = {
     }
 
     window._cityDropLock = true;
-    window._lastPos = { lat: pos.lat, lng: pos.lng };
-    userLocated = true;
+    this.markLocated(pos.lat, pos.lng);
     this._lastDrop = { lat: pos.lat, lng: pos.lng, t: Date.now() };
-    CityPick?.hide?.();
+    try { CityPick?.hide?.(); } catch (_) {}
 
     try {
+      // 1) National space first (fast — capped wait)
       const nationalZ = GlobeControl?.Z?.national || 1.82;
-      GlobeDeck?.setMapStatus('National view…');
-      ZoomTiers?.goTo?.('national', true);
-      CosmicZoom?.update?.(nationalZ, { tier: 'national', label: 'NATIONAL', cosmic: 'earth' });
-      const gp = latLngToPos(pos.lat, pos.lng, 1.04);
-      if (typeof flyToPoint === 'function') {
-        flyToPoint(new THREE.Vector3(gp.x, gp.y, gp.z), nationalZ, { dur: 1500 });
-        if (typeof waitForGlobeFly === 'function') await waitForGlobeFly();
-      } else if (typeof camera !== 'undefined' && camera) {
-        camera.position.z = nationalZ;
-      }
-      CityMap?.onCamera?.(nationalZ, 'earth');
+      GlobeDeck?.setMapStatus?.('National view…');
+      try { ZoomTiers?.goTo?.('national', true); } catch (_) {}
+      try {
+        CosmicZoom?.update?.(nationalZ, { tier: 'national', label: 'NATIONAL', cosmic: 'earth' });
+      } catch (_) {}
+      try {
+        if (typeof latLngToPos === 'function' && typeof flyToPoint === 'function' && typeof THREE !== 'undefined') {
+          const gp = latLngToPos(pos.lat, pos.lng, 1.04);
+          flyToPoint(new THREE.Vector3(gp.x, gp.y, gp.z), nationalZ, { dur: 1100 });
+          if (typeof waitForGlobeFly === 'function') {
+            await Promise.race([
+              waitForGlobeFly(3500),
+              new Promise((r) => setTimeout(r, 3600)),
+            ]);
+          }
+        } else if (typeof camera !== 'undefined' && camera) {
+          camera.position.z = nationalZ;
+        }
+      } catch (_) {}
+      try { CityMap?.onCamera?.(nationalZ, 'earth'); } catch (_) {}
       CliRibbon?.setNotice?.('National · your region', 'ready');
-      if (!opts.immediate) {
-        GlobeDeck?.setPreview?.('National view · opening your city…');
-        await new Promise(r => setTimeout(r, 450));
+
+      // 2) City map immediately — never block on shops/news for UI
+      try { ZoomTiers?.goTo?.('city', true); } catch (_) {}
+      GlobeDeck?.setMapStatus?.('Opening city map…');
+      let opened = false;
+      try {
+        opened = !!(await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM }));
+      } catch (e) {
+        console.warn('[CityLife] openAt', e);
       }
-      ZoomTiers?.goTo?.('city', true);
-      GlobeDeck?.setMapStatus('Opening city map…');
-      const opened = await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
       if (!opened) {
-        CityMap?.onCamera?.(this.CITY_ZOOM, 'earth');
-        if (!CityMap?.active) CityMap?._enter?.(this.CITY_ZOOM);
+        try {
+          CityMap?.init?.();
+          CityMap?.onCamera?.(this.CITY_ZOOM, 'earth');
+          if (!CityMap?.active) CityMap?._enter?.(this.CITY_ZOOM);
+        } catch (_) {}
       }
-      GlobeDeck?.setMapStatus('City map open · syncing globe…');
-      await this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
 
-      if (window.Commerce?.loadVendors) {
+      // 3) Soft city fly (do not hang if fly stuck)
+      try {
         await Promise.race([
-          window.Commerce.loadVendors(),
-          new Promise(resolve => setTimeout(() => resolve(null), 8000)),
+          this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city'),
+          new Promise((r) => setTimeout(r, 4000)),
         ]);
-      }
-    const nearby = this.nearbyVendors(pos.lat, pos.lng);
-    if (nearby.length) {
-      window.Commerce.vendors = nearby.concat((window.Commerce.vendors || []).filter(v => !nearby.includes(v))).slice(0, 40);
-    }
-    window.Commerce?.showOnGlobe?.();
-    GlobeEntity?.syncVendors?.(window.Commerce.vendors);
+      } catch (_) {}
 
-    const drivers = window.Commerce?.fetchNearbyDrivers
-      ? await Promise.race([
-        window.Commerce.fetchNearbyDrivers(pos.lat, pos.lng),
-        new Promise(resolve => setTimeout(() => resolve([]), 6000)),
-      ])
-      : [];
-    window.Commerce?.showDriversOnGlobe?.(drivers);
-    this._pulseFriends();
-    this._showLocalNews(pos.lat, pos.lng);
-    this._updateChip(nearby.length, drivers.length);
+      // 4) Background enrichment — never gate city UI on this
+      let nearby = [];
+      let drivers = [];
+      try {
+        if (window.Commerce?.loadVendors) {
+          await Promise.race([
+            window.Commerce.loadVendors(),
+            new Promise((resolve) => setTimeout(() => resolve(null), 2500)),
+          ]);
+        }
+        nearby = this.nearbyVendors(pos.lat, pos.lng);
+        if (nearby.length && window.Commerce) {
+          window.Commerce.vendors = nearby
+            .concat((window.Commerce.vendors || []).filter((v) => !nearby.includes(v)))
+            .slice(0, 40);
+        }
+        window.Commerce?.showOnGlobe?.();
+        GlobeEntity?.syncVendors?.(window.Commerce?.vendors);
+        drivers = window.Commerce?.fetchNearbyDrivers
+          ? await Promise.race([
+            window.Commerce.fetchNearbyDrivers(pos.lat, pos.lng),
+            new Promise((resolve) => setTimeout(() => resolve([]), 2500)),
+          ])
+          : [];
+        window.Commerce?.showDriversOnGlobe?.(drivers);
+      } catch (_) {}
 
-      CityMap?.onCamera?.(this.CITY_ZOOM, 'earth');
-      const msg = nearby.length + ' shops · ' + drivers.length + ' drivers · ' + (window.others?.length || 0) + ' friends nearby';
-      GlobeDeck?.setMapStatus('🏙 City map · ' + pos.lat.toFixed(2) + ', ' + pos.lng.toFixed(2));
-      GlobeDeck?.setPreview('🏙 ' + msg);
-      AciCli?.print('◎ City view · ' + msg, 'ok');
-      ACIControl?.reply('City map open — ' + msg + ' · tap a shop or type: order pitogyra');
+      try {
+        this._pulseFriends();
+        this._showLocalNews(pos.lat, pos.lng);
+        this._updateChip(nearby.length, drivers.length);
+        CityMap?.onCamera?.(this.CITY_ZOOM, 'earth');
+      } catch (_) {}
+
+      const msg = nearby.length + ' shops · ' + drivers.length + ' drivers · '
+        + (window.others?.length || 0) + ' friends nearby';
+      GlobeDeck?.setMapStatus?.('🏙 City map · ' + pos.lat.toFixed(2) + ', ' + pos.lng.toFixed(2));
+      GlobeDeck?.setPreview?.('🏙 ' + msg);
+      AciCli?.print?.('◎ City view · ' + msg, 'ok');
+      ACIControl?.reply?.('City map open — ' + msg + ' · tap a shop or type: order pitogyra');
       FieldBrain?.pulse?.('city', msg, { role: 'client', props: { lat: pos.lat, lng: pos.lng, shops: nearby.length } });
 
       if (opts.openShops && nearby.length) {
-        GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
-        await window.Commerce?.showPicker?.();
+        try {
+          GlobeDeck?.expand?.(window.SuperCli?.title || 'Astranov');
+          await window.Commerce?.showPicker?.();
+        } catch (_) {}
       }
-      return { vendors: nearby, drivers, lat: pos.lat, lng: pos.lng, mapActive: !!CityMap?.active };
+      return {
+        vendors: nearby,
+        drivers,
+        lat: pos.lat,
+        lng: pos.lng,
+        mapActive: !!(typeof CityMap !== 'undefined' && CityMap?.active),
+      };
     } catch (e) {
-      AciCli?.print('city drop error: ' + (e.message || e), 'err');
-      await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
-      return { error: e.message || 'city drop failed', lat: pos.lat, lng: pos.lng, mapActive: !!CityMap?.active };
+      console.error('[CityLife] dropIn', e);
+      AciCli?.print?.('city drop error: ' + (e.message || e), 'err');
+      try { await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM }); } catch (_) {}
+      return {
+        error: e.message || 'city drop failed',
+        lat: pos.lat,
+        lng: pos.lng,
+        mapActive: !!(typeof CityMap !== 'undefined' && CityMap?.active),
+      };
     } finally {
       window._cityDropLock = false;
     }
@@ -180,20 +302,19 @@ const CityLife = {
   },
 
   async locateAndDropIn() {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) { reject(new Error('no geolocation')); return; }
-      GlobeDeck?.setMapStatus('Locating…');
-      navigator.geolocation.getCurrentPosition(
-        async pos => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          placeMe(lat, lng, { quiet: true, markerOnly: true });
-          resolve(await this.dropIn(lat, lng, { label: 'Your city' }));
-        },
-        err => reject(err),
-        { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
-      );
+    if (!navigator.geolocation) throw new Error('no geolocation');
+    GlobeDeck?.setMapStatus?.('Locating…');
+    const pos = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: false,
+        timeout: 12000,
+        maximumAge: 60000,
+      });
     });
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+    this.markMeOnGlobe(lat, lng);
+    return this.dropIn(lat, lng, { label: 'Your city' });
   },
 
   SCENARIOS: {
