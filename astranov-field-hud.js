@@ -114,7 +114,8 @@ const SpaceNetMiner = {
   },
 
   canAcceptWork() {
-    if (!this._termsOk || FieldHud.deviceLoad() >= 0.65) return false;
+    const maxOcc = window._resourceMaxOccupy ?? window.ResourceMonitor?.maxOccupy?.() ?? 0.55;
+    if (!this._termsOk || FieldHud.deviceLoad() >= Math.min(0.85, maxOcc + 0.1)) return false;
     const prefs = FieldHud?._minerPrefs?.() || {};
     return ['cpu', 'ram', 'storage', 'bandwidth'].some(k => prefs[k] !== false);
   },
@@ -602,14 +603,32 @@ const FieldHud = {
   loadSession() { SpaceNetMiner.loadSession(); this._sessionEarned = SpaceNetMiner._sessionEarned; },
   saveSession() { SpaceNetMiner.saveSession(); },
 
+  /** Cap used by miner + ResourceMonitor max-occupied slider */
+  maxOccupy() {
+    return window._resourceMaxOccupy ?? window.ResourceMonitor?.maxOccupy?.() ?? 0.55;
+  },
+
   deviceLoad() {
     const busy = window.GlobeDeck?.thinking || window._handsFreeVoice || window.DrivingView?.active
       || window.AciCoders?._cliBusy || document.hidden;
     if (busy) return 1;
+    let load = 0.12;
     const idleMs = Date.now() - (window._lastUserAct || Date.now());
-    if (idleMs < 45000) return 0.85;
-    if (idleMs < 120000) return 0.35;
-    return 0.08;
+    if (idleMs < 12000) load = 0.72;
+    else if (idleMs < 45000) load = 0.48;
+    else if (idleMs < 120000) load = 0.28;
+    else load = 0.1;
+    try {
+      const fps = window.SlumberManager?._avgFps?.();
+      if (fps > 0 && fps < 50) load = Math.max(load, Math.min(0.95, (55 - fps) / 40));
+    } catch (_) {}
+    try {
+      if (performance.memory) {
+        const r = performance.memory.usedJSHeapSize / performance.memory.jsHeapSizeLimit;
+        load = Math.max(load, Math.min(0.95, r));
+      }
+    } catch (_) {}
+    return Math.min(1, load);
   },
 
   isEarthSleepView() {
