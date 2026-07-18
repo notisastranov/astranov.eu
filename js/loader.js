@@ -1,16 +1,21 @@
-// === ASTRANOV LOADER — multi-file phased boot (replaces monolith index.html) ===
-// Phases: critical (globe) → app (CLI/city) → features (heavy) → deferred (on demand)
+// === ASTRANOV LOADER — phase bundles, parallel download, globe first ===
+// Production loads 4 phase files (not 76). Source stays multi-file in src/.
 (function AstranovLoader(global) {
   'use strict';
 
   const build = document.querySelector('meta[name="astranov-build"]')?.content || '0';
   const base = '/js/';
-  const q = (file) => base + file + '?v=' + encodeURIComponent(build);
+  const q = (file) => base + file + (file.includes('?') ? '&' : '?') + 'v=' + encodeURIComponent(build);
 
-  // Injected at assemble time as window.__ASTRANOV_MANIFEST__
-  const man = global.__ASTRANOV_MANIFEST__ || { critical: [], app: [], features: [], deferred: [] };
+  const man = global.__ASTRANOV_MANIFEST__ || {
+    mode: 'phase',
+    critical: ['phase-critical.js'],
+    app: ['phase-app.js'],
+    features: ['phase-features.js'],
+    deferred: ['phase-deferred.js'],
+  };
 
-  function loadScript(src) {
+  function loadScriptOrdered(src) {
     return new Promise((resolve, reject) => {
       const existing = document.querySelector('script[data-astranov-src="' + src + '"]');
       if (existing) {
@@ -21,7 +26,7 @@
       }
       const s = document.createElement('script');
       s.src = src;
-      s.async = false; // preserve order within a phase
+      s.async = false; // parallel download, ordered execute when batch-inserted
       s.dataset.astranovSrc = src;
       s.onload = () => { s.dataset.loaded = '1'; resolve(); };
       s.onerror = () => reject(new Error('Failed to load ' + src));
@@ -29,70 +34,122 @@
     });
   }
 
-  async function loadPhase(files, label) {
+  /** Insert all scripts now → browser downloads in parallel, runs in order */
+  function loadPhase(files, label) {
     const t0 = performance.now();
-    for (const f of files) {
-      await loadScript(q(f));
-    }
-    const ms = Math.round(performance.now() - t0);
-    console.log('%c[loader] ' + label + ' · ' + files.length + ' files · ' + ms + 'ms', 'color:#7ec8ff');
+    const list = files || [];
+    if (!list.length) return Promise.resolve();
+    const promises = list.map(f => loadScriptOrdered(q(f)));
+    return Promise.all(promises).then(() => {
+      console.log(
+        '%c[loader] ' + label + ' · ' + list.length + ' file(s) · ' + Math.round(performance.now() - t0) + 'ms',
+        'color:#7ec8ff'
+      );
+    });
   }
 
-  function loadVendor(src, attr) {
-    return new Promise((resolve, reject) => {
-      if (attr === 'supabase' && typeof global.supabase !== 'undefined') return resolve();
-      if (attr === 'leaflet' && typeof global.L !== 'undefined') return resolve();
+  function preload(files) {
+    (files || []).forEach(f => {
+      const href = q(f);
+      if (document.querySelector('link[data-preload="' + href + '"]')) return;
+      const l = document.createElement('link');
+      l.rel = 'preload';
+      l.as = 'script';
+      l.href = href;
+      l.dataset.preload = href;
+      document.head.appendChild(l);
+    });
+  }
+
+  function loadVendor(src, ready) {
+    return new Promise((resolve) => {
+      if (ready()) return resolve();
       const s = document.createElement('script');
       s.src = src;
       s.async = true;
       s.onload = () => resolve();
-      s.onerror = () => reject(new Error('vendor ' + src));
+      s.onerror = () => { console.warn('[loader] vendor fail', src); resolve(); };
       document.head.appendChild(s);
+    });
+  }
+
+  function afterPaint() {
+    return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  }
+
+  function whenIdle(ms) {
+    return new Promise(resolve => {
+      const go = () => resolve();
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(go, { timeout: ms });
+      } else setTimeout(go, Math.min(ms, 400));
     });
   }
 
   async function run() {
     const tAll = performance.now();
     document.documentElement.dataset.astranovPhase = 'loading';
+    window._bootAt = Date.now();
+
+    // Warm next phases while critical downloads
+    preload(man.app);
+    preload(man.features);
 
     // 1) CRITICAL — Earth interactive
-    await loadPhase(man.critical || [], 'critical');
-    try { global.__astranovBootCritical?.(); } catch (e) { console.error('[boot critical]', e); }
-
-    // Yield so first frames paint before more JS
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-    // 2) Vendors needed by app (not in critical path)
     try {
-      await Promise.all([
-        loadVendor('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js', 'supabase'),
-        loadVendor('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'leaflet'),
-      ]);
+      await loadPhase(man.critical || [], 'critical');
+      global.__astranovBootCritical?.();
     } catch (e) {
-      console.warn('[loader] vendor', e);
+      console.error('[loader] critical', e);
+      document.documentElement.dataset.astranovPhase = 'critical-error';
+      return;
     }
 
-    // 3) APP — UI shell
-    await loadPhase(man.app || [], 'app');
-    try { global.__astranovBootApp?.(); } catch (e) { console.error('[boot app]', e); }
+    await afterPaint();
 
-    // 4) FEATURES — after short idle (phone: longer)
+    // 2) Vendors (parallel) — not on critical path
+    await Promise.all([
+      loadVendor(
+        'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
+        () => typeof global.supabase !== 'undefined'
+      ),
+      loadVendor(
+        'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+        () => typeof global.L !== 'undefined'
+      ),
+    ]);
+
+    // 3) APP
+    try {
+      await loadPhase(man.app || [], 'app');
+      global.__astranovBootApp?.();
+    } catch (e) {
+      console.error('[loader] app', e);
+    }
+
+    await afterPaint();
+
+    // 4) FEATURES — wait for idle so drag/zoom stay smooth
     const lite = !!global._globePerfLite;
-    const featDelay = lite ? 280 : 80;
-    await new Promise(r => setTimeout(r, featDelay));
-    await loadPhase(man.features || [], 'features');
-    try { global.__astranovBootFeatures?.(); } catch (e) { console.error('[boot features]', e); }
+    await whenIdle(lite ? 2200 : 900);
+    try {
+      await loadPhase(man.features || [], 'features');
+      global.__astranovBootFeatures?.();
+    } catch (e) {
+      console.error('[loader] features', e);
+    }
 
     global.__ASTRANOV_DEFERRED_FILES__ = man.deferred || [];
     global._astranovLoaderDone = true;
     document.documentElement.dataset.astranovPhase = 'ready';
     console.log(
-      '%c[loader] done · ' + Math.round(performance.now() - tAll) + 'ms · build ' + build,
+      '%c[loader] ready · ' + Math.round(performance.now() - tAll) + 'ms · build ' + build
+        + ' · mode ' + (man.mode || 'files'),
       'color:#00ff99;font-weight:700'
     );
   }
 
-  global.AstranovLoader = { run, loadScript, loadPhase, q, build };
+  global.AstranovLoader = { run, loadPhase, preload, q, build };
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => { run().catch(e => console.error('[loader]', e)); });
   } else {
