@@ -412,6 +412,10 @@ window.AppShortcuts = window.AppShortcuts || {
 };
 var AppShortcuts = window.AppShortcuts;
 
+// CityMap stub — animate() in critical touches it before app phase defines the real map
+window.CityMap = window.CityMap || { active: false, init() {}, show() {}, hide() {} };
+var CityMap = window.CityMap;
+
 // PublicCopy: plain language for the public. SETI / mission-control tone = architect only.
 const PublicCopy = {
   isArchitect() {
@@ -2807,7 +2811,7 @@ function animate() {
   } catch (_) {}
   try { tickGlobeFly?.(); } catch (_) {}
 
-  if (earthView && !CityMap?.active) {
+  if (earthView && !(typeof CityMap !== 'undefined' && CityMap?.active)) {
     try { EarthRealism?.applySpinNow?.(); } catch (_) {}
   }
 
