@@ -8,6 +8,7 @@ var SB_URL = (typeof window !== 'undefined' && window.SB_URL) || 'https://lkoatr
 var SB_KEY = (typeof window !== 'undefined' && window.SB_KEY) || '';
 var ACI = (typeof window !== 'undefined' && window.ACI) || { url: SB_URL, key: SB_KEY };
 var AciCoders = (typeof window !== 'undefined' && window.AciCoders) || { engine:'grok', init:function(){}, observeActivity:function(){}, handleMessage:async function(){return null}, enterSession:async function(){return null} };
+var ArchitectBridge = (typeof window !== 'undefined' && window.ArchitectBridge) || { armed:false, isActive:function(){return false}, arm:function(){}, disarm:function(){}, openQuickFix:function(){}, wantsBridgeCmd:function(){return false}, handleCommand:async function(){return null}, queueBuildFromChat:async function(){return null}, _bindUi:function(){}, init:function(){} };
 
 /* === 47-globe-entities.js === */
 // === GLOBE ENTITIES — every map thing has a name, proximity label, tap action ===
