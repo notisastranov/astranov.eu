@@ -149,8 +149,9 @@ const AciCli = {
 
     if (!cmd) return;
     if (cmd === 'help' || cmd === '?') {
-      this.print('locate · order · resources · starship · starlink · spacex · crawl', 'dim');
+      this.print('locate · order · resources · channels · starship · starlink · spacex · crawl', 'dim');
       this.print('task job barman 3h · task housekeeper 1w · task date coffee 2h · task errand · task claim', 'dim');
+      this.print('channels status · seed · publish · order · enable mesh', 'dim');
       this.print('think · coders · theme · Architect: fix|bridge', 'dim');
       return;
     }
@@ -158,6 +159,12 @@ const AciCli = {
       ResourceMonitor?.init?.();
       const msg = ResourceMonitor?.handleCli?.(line);
       this.print(msg || 'resources', 'ok');
+      return;
+    }
+    if (cmd === 'channels' || cmd === 'channel' || cmd === 'cm' || cmd === 'spacenetcm') {
+      SpaceNetCM?.init?.();
+      const msg = SpaceNetCM?.handleCli?.(line);
+      this.print(msg || 'channels', 'ok');
       return;
     }
     if (cmd === 'starship' || cmd === 'f13') {
