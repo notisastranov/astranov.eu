@@ -278,7 +278,7 @@ const SpaceNetMiner = {
     if (ram) ram.textContent = this._rates.ram ? this._rates.ram + 'MB' : '—';
     if (sto) sto.textContent = this._rates.storage ? this._rates.storage + 'MB' : '—';
     if (bw) bw.textContent = this._rates.bandwidth ? this._rates.bandwidth + 'kb/s' : '—';
-    if (rateEl) rateEl.textContent = this._mineRate.toFixed(3) + ' AVC/h';
+    if (rateEl) rateEl.textContent = this._mineRate.toFixed(3) + ' Coins/h';
     if (earnedEl) earnedEl.textContent = '+' + this._sessionEarned.toFixed(3);
     if (statusEl) {
       if (!this._termsOk) {
@@ -347,7 +347,7 @@ const FieldHud = {
     bal.setAttribute('title', 'SpaceNet field · tap for miner rig, balances & mesh');
     bal.setAttribute('aria-label', 'SpaceNet field · open miner rig and earnings');
     bal.innerHTML = '<div class="fbh-title">◎ SpaceNet</div>'
-      + '<div class="fbh-row fbh-bal"><span id="fbh-avc">— AVC</span></div>'
+      + '<div class="fbh-row fbh-bal"><span id="fbh-Coins">— Coins</span></div>'
       + '<div class="fbh-row fbh-fiat"><span id="fbh-eur">€—</span><span id="fbh-usd">$—</span></div>'
       + '<div class="fbh-mesh"><span id="fbh-peers">0 peers</span><span class="fbh-p2p">P2P</span></div>'
       + '<div id="fbh-resources" class="fbh-resources">'
@@ -391,7 +391,7 @@ const FieldHud = {
       + '<li><b>Storage</b> — vendor indexes and offline route shards</li>'
       + '<li><b>Bandwidth</b> — P2P sync between peers when idle</li>'
       + '<li>Resources used <em>only</em> when your device is idle or you sleep — never during active use</li>'
-      + '<li>Sleep mode: earth view + space ambient · intelligent miner judges fair AVC share</li></ul>'
+      + '<li>Sleep mode: earth view + space ambient · intelligent miner judges fair Coins share</li></ul>'
       + '<button id="miner-terms-accept" type="button">I agree · join SpaceNet mesh</button>'
       + '</div>';
     document.body.appendChild(terms);
@@ -405,10 +405,10 @@ const FieldHud = {
       panel.innerHTML = '<div class="mrp-card">'
         + '<div class="mrp-head"><b>⛏ SpaceNet miner rig</b><button type="button" id="mrp-close">✖</button></div>'
         + '<div class="mrp-stats">'
-        + '<div>Rate <b id="mrp-rate">0.000 AVC/h</b></div>'
+        + '<div>Rate <b id="mrp-rate">0.000 Coins/h</b></div>'
         + '<div>Session <b id="mrp-earned">+0.00</b></div>'
         + '<div>Peers <b id="mrp-peers">0</b></div>'
-        + '<div>Balance <b id="mrp-avc">— AVC</b></div></div>'
+        + '<div>Balance <b id="mrp-Coins">— Coins</b></div></div>'
         + '<div class="mrp-toggles">'
         + '<button type="button" class="mrp-toggle on" data-mrp="cpu" aria-pressed="true">CPU</button>'
         + '<button type="button" class="mrp-toggle on" data-mrp="ram" aria-pressed="true">RAM</button>'
@@ -416,7 +416,7 @@ const FieldHud = {
         + '<button type="button" class="mrp-toggle on" data-mrp="bandwidth" aria-pressed="true">NET</button>'
         + '<button type="button" class="mrp-toggle on" data-mrp="sleep" aria-pressed="true">Sleep</button>'
         + '</div>'
-        + '<button type="button" id="mrp-start">I agree · start earning AVC</button>'
+        + '<button type="button" id="mrp-start">I agree · start earning Coins</button>'
         + '</div>';
       document.body.appendChild(panel);
     }
@@ -427,7 +427,7 @@ const FieldHud = {
     const st = document.createElement('style');
     st.id = 'field-hud-css';
     st.textContent = [
-      '#aci-avc{display:none!important}',
+      '#aci-Coins{display:none!important}',
       '#zoom-tier-dots{display:none!important}',
       '#field-balance-hud{position:fixed;top:10px;right:10px;z-index:42;pointer-events:auto;cursor:pointer;',
       'touch-action:manipulation;font:11px/1.35 ui-monospace,monospace;text-align:right;padding:8px 10px;border-radius:10px;',
@@ -437,7 +437,7 @@ const FieldHud = {
       '#field-balance-hud.mining-active{box-shadow:0 0 18px rgba(0,255,153,.45);border-color:#00ff99}',
       '#field-balance-hud:active{transform:scale(0.98)}',
       '.fbh-title{font-size:9px;font-weight:700;letter-spacing:.12em;color:#7ec8ff;opacity:.85;margin-bottom:4px}',
-      '#fbh-avc{display:block;font-size:15px;font-weight:800;color:#00ff99;text-shadow:0 0 10px rgba(0,255,153,.55)}',
+      '#fbh-Coins{display:block;font-size:15px;font-weight:800;color:#00ff99;text-shadow:0 0 10px rgba(0,255,153,.55)}',
       '.fbh-fiat{display:flex;gap:8px;justify-content:flex-end;margin-top:2px}',
       '#fbh-eur{color:#00dd77;font-weight:700;font-size:11px}',
       '#fbh-usd{color:#8ec8ff;font-weight:700;font-size:11px}',
@@ -506,11 +506,11 @@ const FieldHud = {
   },
 
   hideCliMoney() {
-    const avc = document.getElementById('aci-avc');
-    if (avc) { avc.hidden = true; avc.style.display = 'none'; }
+    const Coins = document.getElementById('aci-Coins');
+    if (Coins) { Coins.hidden = true; Coins.style.display = 'none'; }
     const sc = window.SuperCli;
     if (sc?.TOOLBAR_VISIBLE) {
-      sc.TOOLBAR_VISIBLE = sc.TOOLBAR_VISIBLE.filter(id => id !== 'aci-avc');
+      sc.TOOLBAR_VISIBLE = sc.TOOLBAR_VISIBLE.filter(id => id !== 'aci-Coins');
     }
   },
 
@@ -523,8 +523,8 @@ const FieldHud = {
     if (_ensure) {
       sc.ensureBarLayout = function() {
         _ensure();
-        const avc = document.getElementById('aci-avc');
-        if (avc) { avc.hidden = true; avc.style.display = 'none'; }
+        const Coins = document.getElementById('aci-Coins');
+        if (Coins) { Coins.hidden = true; Coins.style.display = 'none'; }
       };
     }
     const _run = sc.run?.bind(sc);
@@ -536,11 +536,11 @@ const FieldHud = {
           const lines = [
             '◎ SpaceNet SETI mesh · ' + m._peerCount + ' peers',
             '  CPU ' + (m._rates.cpu || 0) + '% · RAM ' + (m._rates.ram || 0) + 'MB · SSD ' + (m._rates.storage || 0) + 'MB · NET ' + (m._rates.bandwidth || 0) + 'kb/s',
-            '  Rate ' + m._mineRate.toFixed(3) + ' AVC/h · session +' + m._sessionEarned.toFixed(3),
+            '  Rate ' + m._mineRate.toFixed(3) + ' Coins/h · session +' + m._sessionEarned.toFixed(3),
             '  Contrib cpu ' + m._contrib.cpu.toFixed(2) + ' · ram ' + m._contrib.ram.toFixed(1) + ' · storage ' + m._contrib.storage.toFixed(1) + ' · bw ' + m._contrib.bandwidth.toFixed(1),
           ];
           window.AciCli?.print?.(lines.join('\n'), 'ok');
-          window.ACIControl?.reply?.('SpaceNet mesh · ' + m._peerCount + ' peers · ' + m._mineRate.toFixed(3) + ' AVC/h');
+          window.ACIControl?.reply?.('SpaceNet mesh · ' + m._peerCount + ' peers · ' + m._mineRate.toFixed(3) + ' Coins/h');
           return;
         }
         return _run(cmd);
@@ -572,8 +572,8 @@ const FieldHud = {
     AB.render = (balance, guest, eurUsd) => {
       if (_render) _render(balance, guest, eurUsd);
       FieldHud.updateBalance(balance, guest, eurUsd || AB._fx);
-      const avc = document.getElementById('aci-avc');
-      if (avc) avc.style.display = 'none';
+      const Coins = document.getElementById('aci-Coins');
+      if (Coins) Coins.style.display = 'none';
     };
     const _refresh = AB.refresh?.bind(AB);
     if (_refresh) {
@@ -586,16 +586,16 @@ const FieldHud = {
   },
 
   updateBalance(balance, guest, fx) {
-    const avcEl = document.getElementById('fbh-avc');
+    const CoinsEl = document.getElementById('fbh-Coins');
     const eurEl = document.getElementById('fbh-eur');
     const usdEl = document.getElementById('fbh-usd');
     if (!avcEl) return;
     const isGuest = guest || !window.Auth?.user;
-    const avc = Number(balance || 0);
+    const Coins = Number(balance || 0);
     const rate = fx || window.AvcBalance?._fx || 1.08;
-    avcEl.textContent = isGuest ? '— AVC' : (avc >= 10000 ? (avc / 1000).toFixed(1) + 'k AVC' : avc.toFixed(2) + ' AVC');
-    if (eurEl) eurEl.textContent = isGuest ? '€—' : '€' + avc.toFixed(2);
-    if (usdEl) usdEl.textContent = isGuest ? '$—' : '$' + (avc * rate).toFixed(2);
+    CoinsEl.textContent = isGuest ? '— Coins' : (Coins >= 10000 ? (Coins / 1000).toFixed(1) + 'k Coins' : Coins.toFixed(2) + ' Coins');
+    if (eurEl) eurEl.textContent = isGuest ? '€—' : '€' + Coins.toFixed(2);
+    if (usdEl) usdEl.textContent = isGuest ? '$—' : '$' + (Coins * rate).toFixed(2);
   },
 
   acceptTerms() { return SpaceNetMiner.acceptTerms(); },
@@ -1023,17 +1023,17 @@ const FieldHud = {
     const hud = document.getElementById('field-balance-hud');
     if (hud) hud.classList.toggle('mining-active', m._termsOk && m._mineRate > 0.003);
     const rate = document.getElementById('fbh-mine-rate');
-    if (rate) rate.textContent = m._mineRate.toFixed(3) + ' AVC/h';
+    if (rate) rate.textContent = m._mineRate.toFixed(3) + ' Coins/h';
   },
 
   refreshMinerPanel() {
     const m = SpaceNetMiner;
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-    set('mrp-rate', m._mineRate.toFixed(3) + ' AVC/h');
+    set('mrp-rate', m._mineRate.toFixed(3) + ' Coins/h');
     set('mrp-earned', '+' + m._sessionEarned.toFixed(3));
     set('mrp-peers', String(m._peerCount || 0));
     const bal = window.AvcBalance?._last;
-    set('mrp-avc', bal != null ? bal.toFixed(2) + ' AVC' : '— AVC');
+    set('mrp-Coins', bal != null ? bal.toFixed(2) + ' Coins' : '— Coins');
     const prefs = this._minerPrefs();
     document.querySelectorAll('.mrp-toggle[data-mrp]').forEach(btn => {
       const on = !!prefs[btn.dataset.mrp];
@@ -1042,7 +1042,7 @@ const FieldHud = {
     });
     const start = document.getElementById('mrp-start');
     if (start) {
-      start.textContent = m._termsOk ? 'Mining active · adjust & close' : 'I agree · start earning AVC';
+      start.textContent = m._termsOk ? 'Mining active · adjust & close' : 'I agree · start earning Coins';
     }
     this.syncMinerChip();
   },
@@ -1087,7 +1087,7 @@ const FieldHud = {
         if (!SpaceNetMiner._termsOk) SpaceNetMiner.acceptTerms();
         else this.closeMinerPanel();
         this.refreshMinerPanel();
-        ACIControl?.reply?.('SpaceNet miner rig · earning AVC on your devices');
+        ACIControl?.reply?.('SpaceNet miner rig · earning Coins on your devices');
       });
     }
     const hud = document.getElementById('field-balance-hud');
