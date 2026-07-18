@@ -22,7 +22,8 @@ const ResourceMonitor = {
     this._inject();
     this._bind();
     this.refresh(true);
-    this._timer = setInterval(() => this.refresh(false), 1000);
+    // 2s tick when collapsed (default) — less main-thread noise
+    this._timer = setInterval(() => this.refresh(false), this._collapsed ? 2000 : 1000);
     // Field HUD loads late — re-attach into money chip when it appears
     this._watchFieldHud();
     console.log('%c[ResourceMonitor] fused money+resources · top-right · universal max', 'color:#6cf;font-weight:700');
