@@ -1324,7 +1324,7 @@ window.AciCoders = AciCoders;
 sessionHeld = false;
 window.sessionHeld = false;
 
-const SessionHold = {
+var SessionHold = {
   STORAGE_KEY: 'astranov-session-hold-v1',
   _snapshot: null,
 
@@ -1519,7 +1519,7 @@ const SUPABASE_DEFAULT_URL = 'https://' + SUPABASE_REF + '.supabase.co';
 // Flip true after api.astranov.eu is activated — removes random ref from Google OAuth
 const SUPABASE_USE_CUSTOM_DOMAIN = false;
 
-const ACI = {
+var ACI = {
   name: 'Astranov',
   url: SUPABASE_USE_CUSTOM_DOMAIN ? SUPABASE_CUSTOM_URL : SUPABASE_DEFAULT_URL,
   key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI',
@@ -1699,15 +1699,15 @@ const ACI = {
 };
 window.AstranovCollectiveIntelligence = ACI;
 
-const SB_URL = ACI.url;
-const SB_KEY = ACI.key;
+var SB_URL = ACI.url;
+var SB_KEY = ACI.key;
 window.ACI = ACI;
 window.SB_URL = SB_URL;
 window.SB_KEY = SB_KEY;
 const sbHeaders = () => ({ apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' });
 
 // ── ACI CONTROL (text + buttons — you command the collective) ──
-const ACIControl = {
+var ACIControl = {
   init() {
     SuperCli?.init?.();
   },
