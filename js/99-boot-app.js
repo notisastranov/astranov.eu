@@ -1,49 +1,71 @@
-// === BOOT APP — CLI, auth, city, money field (after globe is already spinning) ===
+// === SPARTAN BOOT · APP — map + slim CLI. No heavy subsystems. ===
 window.__astranovBootApp = function __astranovBootApp() {
   const soft = (name, fn) => {
-    try { fn?.(); } catch (e) { console.warn('[boot-app] ' + name, e); }
+    try { fn?.(); } catch (e) { console.warn('[spartan app] ' + name, e); }
   };
 
+  // Auth (optional — globe already works without it)
   soft('Auth', () => Auth?.init?.());
+
+  // CLI ribbon collapsed — Earth stays the stage
   soft('GlobeDeck', () => {
     GlobeDeck?.init?.();
-    // Earth is the product. CLI stays a bottom ribbon — never full-stage at boot.
     try {
       GlobeDeck.bootCollapsed?.();
       GlobeDeck.expanded = false;
       GlobeDeck._size = 'collapsed';
       GlobeDeck.applySize?.();
-      document.getElementById('globe-deck')?.classList.remove('expanded', 'size-third', 'size-full');
-      document.getElementById('globe-deck')?.classList.add('collapsed');
+      const deck = document.getElementById('globe-deck');
+      deck?.classList.remove('expanded', 'size-third', 'size-full');
+      deck?.classList.add('collapsed');
     } catch (_) {
-      GlobeDeck.bootCollapsed?.();
+      GlobeDeck?.bootCollapsed?.();
     }
     GlobeDeck?.setTitle?.(PublicCopy?.deckTitle?.() || 'Astranov');
-    GlobeDeck?.setPreview?.(PublicCopy?.readyNotice?.() || 'Earth · drag · 🎯 city · 🎧 chat');
+    GlobeDeck?.setPreview?.('Earth · drag · scroll country · tap city · 🎯 locate');
   });
+
   soft('SuperCli', () => SuperCli?.init?.());
-  soft('SessionHold', () => SessionHold?.init?.());
   soft('AciCli', () => AciCli?.init?.());
-  soft('ACIControl', () => ACIControl?.init?.());
-  soft('ACI', () => ACI?.init?.());
-  soft('Logo', () => AstranovLogo?.init?.());
-  // City map only needs Leaflet present; safe if L still racing
-  soft('CityMap', () => CityMap?.init?.());
+  soft('ClassifiedTriangles', () => ClassifiedTriangles?.init?.());
+
+  // MAP — core product after Earth
+  soft('CityMap', () => {
+    CityMap?.init?.();
+    // Retry Leaflet if still loading
+    if (!CityMap?._ready) setTimeout(() => CityMap?.init?.(), 500);
+  });
   soft('CityLife', () => CityLife?.init?.());
   soft('CityPick', () => CityPick?.init?.());
-  soft('ClassifiedTriangles', () => ClassifiedTriangles?.init?.());
-  // Money+resource fused chip — after a paint
-  if (typeof requestIdleCallback === 'function') {
-    requestIdleCallback(() => soft('ResourceMonitor', () => ResourceMonitor?.init?.()), { timeout: 800 });
-  } else {
-    setTimeout(() => soft('ResourceMonitor', () => ResourceMonitor?.init?.()), 200);
-  }
-  soft('CoreBrain', () => AstranovCoreBrain?.init?.());
 
-  // Deferred pack only after app is usable
-  LazyModules?.schedule?.();
+  soft('ResourceMonitor', () => {
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(() => ResourceMonitor?.init?.(), { timeout: 1200 });
+    } else {
+      setTimeout(() => ResourceMonitor?.init?.(), 400);
+    }
+  });
 
-  document.documentElement.dataset.astranovPhase = 'app';
+  // Deferred pack only after map path is up
+  try { LazyModules?.schedule?.(); } catch (_) {}
+
+  // Unlock earth after short settle
+  setTimeout(() => {
+    window._bootEarthLock = false;
+    try {
+      if (camera?.position?.z > 4.8) {
+        camera.position.z = 2.55;
+        ZoomTiers?.goTo?.('global', false);
+      }
+    } catch (_) {}
+    const ready = 'Ready · drag Earth · country · city · 🎯 locate';
+    try { CliRibbon?.setNotice?.(ready, 'ready'); } catch (_) {}
+    try { GlobeDeck?.setPreview?.(ready); } catch (_) {}
+    const zl = document.getElementById('zoom-label');
+    if (zl) zl.textContent = PublicCopy?.zoomLine?.('global') || ready;
+  }, 300);
+
   window._astranovAppReady = true;
-  console.log('%c[Astranov] app boot · CLI + city ready', 'color:#00dd77;font-weight:700');
+  document.documentElement.dataset.astranovPhase = 'app';
+  console.log('%c[Spartan] map + CLI ready', 'color:#00dd77;font-weight:700');
 };
