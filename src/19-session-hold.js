@@ -1,7 +1,9 @@
 // === SESSION HOLD — pause mic/tasks in noisy places, resume later ===
-let sessionHeld = false;
+// Prefer phase bridge / critical stub; never redeclare with let (co-bundle safe)
+sessionHeld = false;
+window.sessionHeld = false;
 
-const SessionHold = {
+var SessionHold = {
   STORAGE_KEY: 'astranov-session-hold-v1',
   _snapshot: null,
 
@@ -183,3 +185,5 @@ const SessionHold = {
   },
 };
 window.SessionHold = SessionHold;
+// Keep lexical alias in sync for modules that captured the stub name
+try { if (typeof globalThis !== 'undefined') globalThis.SessionHold = SessionHold; } catch (_) {}
