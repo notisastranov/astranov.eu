@@ -276,7 +276,7 @@ const MenuProfilePostTile = {
     if (del?.label || del?.lat != null) parts.push('Delivery · ' + (del.label || this.formatCoords(del.lat, del.lng)));
     else parts.push('Delivery · set pin');
     if (vendor) parts.push((vendor.emoji || '🏪') + ' ' + (vendor.name || 'Shop'));
-    if (items.length) parts.push(items.length + ' item' + (items.length > 1 ? 's' : '') + ' · ' + total.toFixed(1) + ' AVC');
+    if (items.length) parts.push(items.length + ' item' + (items.length > 1 ? 's' : '') + ' · ' + total.toFixed(1) + ' Coins');
     else parts.push('Cart empty · browse shops');
     el.textContent = parts.join(' · ');
   },
@@ -411,7 +411,7 @@ const MenuProfilePostTile = {
     if (this._roles.driver) { apply.textContent = 'Set driver base here'; return; }
     if (this._roles.client) {
       const items = Commerce?.cartItems?.() || [];
-      apply.textContent = items.length ? 'Place order · pay AVC' : 'Set delivery here';
+      apply.textContent = items.length ? 'Place order · pay Coins' : 'Set delivery here';
       return;
     }
     apply.textContent = 'Apply at pin';
