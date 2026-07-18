@@ -9,6 +9,8 @@ var SB_KEY = (typeof window !== 'undefined' && window.SB_KEY) || '';
 var ACI = (typeof window !== 'undefined' && window.ACI) || { url: SB_URL, key: SB_KEY };
 var AciCoders = (typeof window !== 'undefined' && window.AciCoders) || { engine:'grok', init:function(){}, observeActivity:function(){}, handleMessage:async function(){return null}, enterSession:async function(){return null} };
 var ArchitectBridge = (typeof window !== 'undefined' && window.ArchitectBridge) || { armed:false, isActive:function(){return false}, arm:function(){}, disarm:function(){}, openQuickFix:function(){}, wantsBridgeCmd:function(){return false}, handleCommand:async function(){return null}, queueBuildFromChat:async function(){return null}, _bindUi:function(){}, init:function(){} };
+var CityLife = (typeof window !== 'undefined' && window.CityLife) || { locateAndDropIn:async function(){return {error:'not ready'}}, safeLocate:async function(){return {error:'not ready'}}, dropIn:async function(){return {error:'not ready'}}, init:function(){} };
+var userLocated = !!(typeof window !== 'undefined' && window.userLocated);
 
 /* === 17-architect-bridge.js === */
 // === ARCHITECT BRIDGE — phone street-fix → desktop Grok Build agent ===
@@ -5887,10 +5889,10 @@ function placeMe(lat, lng, opts) {
   userLocated = true;
   GlobeEntity?.syncMe?.(lat, lng, me ? me.name : 'You');
   if (quiet) {
-    MapDepict.pulse(lat, lng, 0x3d9eff, 'You', 6000);
-    GlobeDeck?.setMapStatus('📍 ' + lat.toFixed(2) + ', ' + lng.toFixed(2));
+    try { MapDepict?.pulse?.(lat, lng, 0x3d9eff, 'You', 6000); } catch (_) {}
+    GlobeDeck?.setMapStatus?.('📍 ' + lat.toFixed(2) + ', ' + lng.toFixed(2));
   } else {
-    MapDepict.action('location', { lat, lng, detail: me ? me.name : 'You' });
+    try { MapDepict?.action?.('location', { lat, lng, detail: (typeof me !== 'undefined' && me?.name) || 'You' }); } catch (_) {}
   }
   if (shouldFly && typeof flyToPoint === 'function') {
     const cz = CityLife?.CITY_ZOOM || GlobeControl?.Z?.city || 1.38;
@@ -5921,17 +5923,21 @@ function _gpsDeniedUi(reason) {
 }
 
 function locateMe() {
+  // Prefer CityLife.safeLocate — self-contained, no undeclared deps
+  if (window.CityLife?.safeLocate) {
+    return void window.CityLife.safeLocate();
+  }
   GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
-  GlobeDeck?.setMapStatus('Locating your city…');
+  GlobeDeck?.setMapStatus?.('Locating your city…');
   GlobeControl?.engageFollow?.('locate');
-  ACIControl?.reply('Locating — need GPS for your city (no demo map)');
+  ACIControl?.reply?.('Locating — need GPS for your city (no demo map)');
   CliRibbon?.setNotice?.('Locating…', 'thinking');
   if (!navigator.geolocation) {
     _gpsDeniedUi('This browser has no geolocation — cannot open your city');
     return;
   }
-  if (CityLife?.locateAndDropIn) {
-    CityLife.locateAndDropIn()
+  if (window.CityLife?.locateAndDropIn) {
+    window.CityLife.locateAndDropIn()
       .then((r) => {
         if (r?.error) {
           _gpsDeniedUi(r.message || r.error);
@@ -5952,7 +5958,13 @@ function locateMe() {
     async pos => {
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
-      await enterCityView?.(lat, lng);
+      try {
+        if (typeof enterCityView === 'function') await enterCityView(lat, lng);
+        else if (window.CityLife?.dropIn) await window.CityLife.dropIn(lat, lng, { label: 'Your city' });
+      } catch (e) {
+        _gpsDeniedUi(e?.message || 'City open failed');
+        return;
+      }
       CliRibbon?.setNotice?.('Located · city map', 'ready');
     },
     () => {
@@ -5962,6 +5974,7 @@ function locateMe() {
   );
 }
 window.locateMe = locateMe;
+window.placeMe = placeMe;
 window._gpsDeniedUi = _gpsDeniedUi;
 
 function showOtherUsers() {
