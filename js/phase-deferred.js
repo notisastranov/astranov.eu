@@ -8,13 +8,14 @@ var SB_URL = (typeof window !== 'undefined' && window.SB_URL) || 'https://lkoatr
 var SB_KEY = (typeof window !== 'undefined' && window.SB_KEY) || '';
 var ACI = (typeof window !== 'undefined' && window.ACI) || { url: SB_URL, key: SB_KEY };
 var AciCoders = (typeof window !== 'undefined' && window.AciCoders) || { engine:'grok', init:function(){}, observeActivity:function(){}, handleMessage:async function(){return null}, enterSession:async function(){return null} };
+var ArchitectBridge = (typeof window !== 'undefined' && window.ArchitectBridge) || { armed:false, isActive:function(){return false}, arm:function(){}, disarm:function(){}, openQuickFix:function(){}, wantsBridgeCmd:function(){return false}, handleCommand:async function(){return null}, queueBuildFromChat:async function(){return null}, _bindUi:function(){}, init:function(){} };
 
 /* === 17-architect-bridge.js === */
 // === ARCHITECT BRIDGE — phone street-fix → desktop Grok Build agent ===
 // Owner only: notisastranov@gmail.com after Google sign-in on astranov.eu
 // In-app coding path: fix | dev | code | edit | bridge → cic_queue reason architect_bridge
 // Desktop: npm run bridge-watch  ·  answer: node scripts/architect-bridge-answer.mjs <id> "…"
-const ArchitectBridge = {
+var ArchitectBridge = {
   armed: false,
   lastTaskId: null,
   _pollTimer: null,
