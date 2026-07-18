@@ -183,10 +183,22 @@ const MenuProfilePostTile = {
   _patchLocate() {
     const btn = document.getElementById('aci-locate');
     if (!btn) return;
-    btn.classList.add('app-shortcut-btn');
+    // NEVER put locate in #app-shortcut-row — that row is display:none on mobile
+    // Trust bar order: G · ribbon · 🎯 · 🎧 · 🛠 · 📹 · +
+    btn.classList.remove('app-shortcut-btn');
     btn.hidden = false;
-    const row = document.getElementById('app-shortcut-row');
-    if (row && btn.parentElement !== row) row.prepend(btn);
+    btn.style.display = 'inline-flex';
+    btn.removeAttribute('hidden');
+    const edge = document.getElementById('super-cli-edge-right');
+    if (edge) {
+      const hf = document.getElementById('aci-handsfree');
+      if (btn.parentElement !== edge) {
+        if (hf && hf.parentElement === edge) edge.insertBefore(btn, hf);
+        else edge.prepend(btn);
+      } else if (hf && hf.parentElement === edge && btn.nextElementSibling !== hf) {
+        edge.insertBefore(btn, hf);
+      }
+    }
     if (btn._mppLocateBound) return;
     btn._mppLocateBound = true;
     const runLocate = async () => {
