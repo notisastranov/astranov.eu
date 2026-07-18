@@ -7272,65 +7272,21 @@ async function startOrbitalVideoCall(targetName = 'Αξαδίνα') {
       console.log('Offer copied to clipboard. Paste into remote (phone or another browser on orbital mesh).');
     });
 
-    // For demo in this file: if you paste an answer in console or modify, it works.
-    // In practice, exchange with phone via orbital internet for true global P2P.
-    // To complete demo here, we can wait for manual answer paste, but for now show self video and note.
-    // To make it work immediately in one file for testing, set a simple answer if needed, but this is the real API.
-
-    // 5. Orbital globe visualization using real positions
-    const myPos = window._meMarker ? window._meMarker.position : new THREE.Vector3();
-    const targetPos = latLngToPos(36.2, 28.1, 1.04);
-    showOrbitalSignal(myPos, targetPos);
-
-    console.log('%c[Orbital] Real WebRTC video call active. Request for orbital tech prepared.', 'color:#00ff00');
-
-    // Pollution reduction
-    reduceWirelessPollution();
-
+    // Video UI live; remote needs real offer/answer exchange (no fake sat paths).
   } catch (err) {
-    console.error('Orbital WebRTC error:', err);
-    if (Voice.maySpeak()) speak('Camera needed for video.');
+    console.error('WebRTC error:', err);
+    if (Voice?.maySpeak?.()) speak('Camera needed for video.');
     endRealOrbitalCall();
   }
 }
 
+/** TRUTH: no fake orbital sat beam lines on the globe */
 function showOrbitalSignal(from, to) {
-  // Real visualization using orbital sats + globe math (no simulation)
-  if (!orbitalSats || orbitalSats.length === 0) return;
-
-  const sat = orbitalSats[0];
-  // Draw real path lines on globe
-  const points1 = [from, sat.position.clone().multiplyScalar(0.9)];
-  const line1 = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints(points1),
-    new THREE.LineBasicMaterial({ color: 0x00ff88, linewidth: 2 })
-  );
-  scene.add(line1);
-
-  const points2 = [sat.position.clone().multiplyScalar(0.9), to];
-  const line2 = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints(points2),
-    new THREE.LineBasicMaterial({ color: 0x00ff88, linewidth: 2 })
-  );
-  scene.add(line2);
-
-  setTimeout(() => {
-    if (line1.parent) line1.parent.remove(line1);
-    if (line2.parent) line2.parent.remove(line2);
-  }, 8000);
+  return;
 }
 
-// simulateOrbitalSignal removed - use real showOrbitalSignal only
-
 function reduceWirelessPollution() {
-  console.log('%c[Planet Save] Wireless pollution reduced! Orbital + WebRTC is the future.', 'color:#00ff00');
-  if (earth && earth.material) {
-    const orig = earth.material.color.getHex();
-    earth.material.color.setHex(0x00ffaa);
-    setTimeout(() => {
-      if (earth.material) earth.material.color.setHex(orig);
-    }, 4000);
-  }
+  // no globe color fakery
 }
 
 
