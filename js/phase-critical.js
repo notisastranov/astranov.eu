@@ -351,9 +351,20 @@ window.enterCityView = enterCityView;
 
 /* === 07-light-stubs.js === */
 // === LIGHT STUBS — removed heavy subsystems; keep optional chaining safe ===
-// sessionHeld lives here so CLI/ribbon never crash when SessionHold is deferred (spartan boot).
+// sessionHeld + SessionHold stubs — REQUIRED. Bare `SessionHold?.x` throws if SessionHold is undeclared.
 var sessionHeld = false;
-if (typeof window !== 'undefined') window.sessionHeld = false;
+window.sessionHeld = false;
+window.SessionHold = window.SessionHold || {
+  isHeld() { return !!window.sessionHeld; },
+  hold() { window.sessionHeld = true; sessionHeld = true; },
+  resume() { window.sessionHeld = false; sessionHeld = false; },
+  toggle() { if (this.isHeld()) this.resume(); else this.hold(); },
+  release() { this.resume(); },
+  clearForeignHold() {},
+  init() {},
+};
+// Lexical binding so `SessionHold?.…` in classic scripts does not ReferenceError
+var SessionHold = window.SessionHold;
 
 // PublicCopy: plain language for the public. SETI / mission-control tone = architect only.
 const PublicCopy = {
