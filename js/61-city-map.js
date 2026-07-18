@@ -163,8 +163,14 @@ var CityMap = {
 
   onCamera(camZ, level) {
     if (!this._ready) return;
+    // During locate cinematic fly: never open map mid-turn (teleport bug)
     if (window._globeFly) {
-      if (this.active) this._syncView(camZ);
+      if (this.active && !window._locateCinematic) this._syncView(camZ);
+      return;
+    }
+    if (window._locateCinematic) {
+      // Cinematic owns enter — only exit if zoomed way out
+      if (this.active && camZ > this.EXIT_Z) this._exit();
       return;
     }
     const earth = window._cityDropLock || this._forceOpen
