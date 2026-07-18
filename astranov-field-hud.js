@@ -930,15 +930,18 @@ const FieldHud = {
     // 8fps on desktop · ~5fps on phone (radar is decorative)
     const period = window._globePerfLite ? 200 : 125;
     this._fieldTimer = setInterval(() => {
-      if (document.hidden || window.CityMap?.active) return;
+      if (document.hidden) return;
       const now = performance.now();
       const dt = Math.min(64, now - last);
       last = now;
       tickN++;
+      // Speed always from GPS — even in city map
+      if (tickN % 3 === 0) this.updateSpeed();
+      // Radar sweep only on globe (not over city map)
+      if (window.CityMap?.active) return;
       this._sweepAngle = (this._sweepAngle || 0) + (Math.PI * 2 / this.SWEEP_PERIOD_MS) * dt;
       if (this._sweepAngle > Math.PI * 2) this._sweepAngle -= Math.PI * 2;
       if (tickN % 2 === 0) this.drawRadar(this._sweepAngle);
-      if (tickN % 3 === 0) this.updateSpeed();
     }, period);
   },
 
