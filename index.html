@@ -10,13 +10,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260718061153" />
+<meta name="astranov-build" content="20260718061433" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/astranov-continuity.js?v=20260718061153"></script>
+<script defer src="/astranov-continuity.js?v=20260718061433"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <style>
@@ -463,6 +463,32 @@
   #ge-hud-intent { flex:1; padding:8px 10px; border-radius:10px; border:1px solid var(--ax-blue-border); background:rgba(0,8,18,0.85); color:var(--an-text); font-size:11px; }
   #ge-hud-intent-go { padding:8px 12px; border-radius:10px; border:1px solid var(--ax-green-border); background:var(--ax-green-bg); color:#fff; font-weight:700; cursor:pointer; font-size:11px; }
   #ge-hud-place-close { align-self:flex-end; padding:6px 10px; border-radius:8px; border:1px solid #666; background:transparent; color:#aaa; cursor:pointer; font-size:10px; }
+  /* National → choose a city */
+  #city-pick-chips {
+    display:none; position:fixed; left:50%; bottom:max(92px, calc(env(safe-area-inset-bottom) + 78px));
+    transform:translateX(-50%); z-index:125; width:min(96vw, 440px);
+    flex-wrap:wrap; gap:6px; justify-content:center; align-items:center;
+    padding:8px 10px; border-radius:14px;
+    background:rgba(2,10,22,0.88); border:1px solid var(--ax-blue-border);
+    box-shadow:0 6px 22px rgba(0,0,0,0.5), 0 0 14px var(--ax-blue-glow);
+    backdrop-filter:blur(12px); pointer-events:auto;
+  }
+  #city-pick-chips.visible { display:flex; }
+  #city-pick-chips .city-pick-head {
+    width:100%; text-align:center; font:600 10px/1.2 system-ui; color:var(--ax-blue-bright);
+    letter-spacing:0.04em; text-transform:uppercase; margin-bottom:2px;
+  }
+  #city-pick-chips button {
+    padding:8px 12px; border-radius:999px; border:1px solid var(--ax-blue-border);
+    background:rgba(0,22,44,0.85); color:var(--an-text); font:600 11px system-ui;
+    cursor:pointer; white-space:nowrap; max-width:46vw;
+  }
+  #city-pick-chips button:hover, #city-pick-chips button:focus {
+    border-color:var(--ax-green-border); box-shadow:0 0 10px var(--ax-green-glow); outline:none;
+  }
+  #city-pick-chips button[data-city-id="here"] {
+    border-color:var(--ax-green-border); background:var(--ax-green-bg); color:#fff;
+  }
   /* Astranov Identity modal */
   #astranov-auth-modal { display:none; position:fixed; inset:0; z-index:200; align-items:center; justify-content:center; background:rgba(0,4,12,0.82); backdrop-filter:blur(8px); pointer-events:auto; }
   #astranov-auth-modal.open { display:flex; }
@@ -735,6 +761,7 @@
       <button type="button" id="ge-hud-place-close">✖ Close</button>
     </div>
   </div>
+  <div id="city-pick-chips" aria-label="Choose a city"></div>
   <div id="zoom-label">Earth · drag · 🎯 city · 🎧 chat · + post</div>
   <div id="first-run-coach" hidden>
     <strong>Welcome to Astranov</strong>
@@ -2232,8 +2259,8 @@ const PublicCopy = {
     const base = {
       solar: 'Space · planets · zoom in for Earth',
       global: 'Earth · drag · 🎯 your city · 🎧 chat · + post',
-      national: 'Country · pinch for city',
-      regional: 'Region · pinch for city',
+      national: 'Country · choose a city',
+      regional: 'Region · choose a city',
       city: 'City · streets & shops',
       neighborhood: 'Streets · look around',
       orbit: 'Above Earth · stations & satellites',
@@ -9089,6 +9116,7 @@ window.GlobeEntity = GlobeEntity;
 // === CLASSIFIED TRIANGLES — top 3 AI-classified actions, then more options ===
 const ClassifiedTriangles = {
   CATALOG: [
+    { id: 'open_city', label: 'Open city', icon: '🏙', keywords: ['city', 'open city', 'streets', 'enter city', 'city map', 'πόλη'] },
     { id: 'list_shop', label: 'List my shop', icon: '🏬', keywords: ['shop', 'store', 'menu', 'my shop', 'cafe', 'restaurant', 'bakery'] },
     { id: 'list_vendor', label: 'List vendor', icon: '🏪', keywords: ['vendor', 'supplier', 'wholesale', 'list vendor', 'seller'] },
     { id: 'driver_base', label: 'Driver base', icon: '🚚', keywords: ['driver', 'delivery', 'fleet', 'courier', 'base', 'dispatch'] },
@@ -9184,8 +9212,8 @@ const ClassifiedTriangles = {
     }
     if (tier?.national) {
       return [
+        this.CATALOG.find(c => c.id === 'open_city') || { id: 'open_city', label: 'Open city', icon: '🏙', keywords: ['city', 'open city', 'streets'] },
         this.CATALOG.find(c => c.id === 'explore'),
-        this.CATALOG.find(c => c.id === 'list_shop'),
         this.CATALOG.find(c => c.id === 'drive_here'),
       ].filter(Boolean);
     }
@@ -9233,6 +9261,7 @@ const ClassifiedTriangles = {
 
   runAction(actionId, pin) {
     const map = {
+      open_city: 'open_city',
       list_shop: 'shop',
       list_vendor: 'shop',
       driver_base: 'driver_base',
@@ -9246,6 +9275,13 @@ const ClassifiedTriangles = {
       upload_video: 'upload_video',
     };
     const act = map[actionId] || actionId;
+    if (act === 'open_city') {
+      const p = pin || MapPlaceMenu?._pin;
+      if (p) void CityPick?.enter?.(p.lat, p.lng, CityPick?.nearestName?.(p.lat, p.lng) || 'City');
+      else void CityPick?.enter?.(window._lastPos?.lat, window._lastPos?.lng, 'City');
+      MapPlaceMenu?.close?.();
+      return;
+    }
     if (act === 'post' || act === 'upload_photo' || act === 'upload_video') {
       MapPlaceMenu?._runMedia?.(act, pin);
       return;
@@ -9443,6 +9479,11 @@ const MapPlaceMenu = {
       const pt = latLngToPos(lat, lng, 1.04);
       flyToPoint?.(new THREE.Vector3(pt.x, pt.y, pt.z), GlobeControl?.Z?.national || 1.82, { dur: 1100 });
       GlobeControl?.noteAutoFly?.();
+      this.close();
+      return;
+    }
+    if (action === 'open_city') {
+      void CityPick?.enter?.(lat, lng, CityPick?.nearestName?.(lat, lng) || 'City');
       this.close();
     }
   },
@@ -12194,10 +12235,12 @@ const ZoomTiers = {
         zl.textContent = pc.zoomLine(tier.id, extra && extra !== 'region' ? extra : null);
       } else if (tier.id === 'solar') zl.textContent = 'Space · planets';
       else if (tier.id === 'global') zl.textContent = 'Earth · drag · 🎯 city · 🎧 chat';
-      else if (tier.national) zl.textContent = 'Country · ' + this.countryHint() + ' · pinch for city';
+      else if (tier.national) zl.textContent = 'Country · ' + this.countryHint() + ' · choose a city';
       else if (tier.city) zl.textContent = 'City · streets & shops';
       else zl.textContent = tier.label;
     }
+    // City chips only belong in country airspace.
+    if (!tier.national) CityPick?.hide?.();
     // Do not auto-pull bearing to GPS here — that stole country clicks away from the
     // tapped nation. 🎯 Locate / city-life own “go to my region”.
     this.updateDots();
@@ -12478,6 +12521,7 @@ function onGlobeClick(e) {
     if (!pin) return;
     // City streets: place menu only — already in local map.
     if (CityMap?.active || cityLevel || ZoomTiers?.current?.()?.city) {
+      CityPick?.hide?.();
       MapPlaceMenu?.openAt?.(pin.lat, pin.lng, {
         source: 'City map',
         hint: 'Post · explore · order — pick a triangle',
@@ -12485,33 +12529,36 @@ function onGlobeClick(e) {
       });
       return;
     }
-    // Space / Earth / country: fly into national airspace at the tap (not menu-only).
-    // Always use the clicked lat/lng — never divert to last GPS when the user aimed elsewhere.
+    // National / region: second step — user chooses this spot as the city.
+    if (CityPick?.isNationalView?.() || ZoomTiers?.current?.()?.national) {
+      void CityPick?.enter?.(
+        pin.lat,
+        pin.lng,
+        CityPick?.nearestName?.(pin.lat, pin.lng) || 'City'
+      );
+      return;
+    }
+    // Space / Earth: fly into national airspace, then choose a city (chips).
     const nationalZ = ZoomTiers?.tierZ?.('national') || GlobeControl?.Z?.national || 1.82;
     const p = latLngToPos(pin.lat, pin.lng, 1.04);
     const target = new THREE.Vector3(p.x, p.y, p.z);
-    // Set tier index without a competing zoom-only fly; flyToPoint owns camera + bearing.
     if (ZoomTiers) {
       const ni = ZoomTiers.indexOf('national');
       if (ni >= 0) ZoomTiers._index = ni;
     }
+    MapPlaceMenu?.close?.();
     flyToPoint(target, nationalZ, {
       onTier: true,
       onDone: () => {
-        MapDepict?.action?.('explore', { detail: 'country airspace' });
+        CityPick?.show?.(pin.lat, pin.lng, { title: 'Choose a city' });
+        MapDepict?.action?.('explore', { detail: 'country · choose city' });
       },
     });
     GlobeControl?.noteAutoFly?.();
-    MapDepict?.action?.('explore', { detail: 'country · ' + (MapPlaceMenu?.formatCoords?.(pin.lat, pin.lng) || '') });
     MapDepict?.pulse?.(pin.lat, pin.lng, 0x00ddff, 'country', 6000);
-    GlobeDeck?.setPreview?.('Country airspace · pinch for city · 🎯 for your GPS city');
-    // keepFly: openAt must not cancel the national fly (it used to clear _globeFly).
-    MapPlaceMenu?.openAt?.(pin.lat, pin.lng, {
-      source: 'Country',
-      hint: 'Explore · drive · list shop — or pinch into city',
-      limited: true,
-      keepFly: true,
-    });
+    GlobeDeck?.setPreview?.('Country airspace · choose a city');
+    // Show chips early so the path is obvious while the camera is still flying.
+    CityPick?.show?.(pin.lat, pin.lng, { title: 'Choose a city' });
   }
 }
 
@@ -13429,6 +13476,257 @@ const CityLife = {
   },
 };
 window.CityLife = CityLife;
+
+// === CITY PICK — national airspace → choose a city → city map ===
+// Flow: Earth/space tap → country view → city chips / second tap → CityLife.dropIn
+const CityPick = {
+  MAX_CHIPS: 6,
+  NEAR_KM: 750,
+  FALLBACK_KM: 1800,
+
+  /** Major cities — offline picks, no fake places. Real lat/lng only. */
+  CITIES: [
+    { name: 'Athens', lat: 37.9838, lng: 23.7275 },
+    { name: 'Thessaloniki', lat: 40.6401, lng: 22.9444 },
+    { name: 'Rhodes', lat: 36.4341, lng: 28.2176 },
+    { name: 'Heraklion', lat: 35.3387, lng: 25.1442 },
+    { name: 'Patras', lat: 38.2466, lng: 21.7346 },
+    { name: 'Istanbul', lat: 41.0082, lng: 28.9784 },
+    { name: 'Sofia', lat: 42.6977, lng: 23.3219 },
+    { name: 'Belgrade', lat: 44.7866, lng: 20.4489 },
+    { name: 'Bucharest', lat: 44.4268, lng: 26.1025 },
+    { name: 'Tirana', lat: 41.3275, lng: 19.8187 },
+    { name: 'Rome', lat: 41.9028, lng: 12.4964 },
+    { name: 'Milan', lat: 45.4642, lng: 9.19 },
+    { name: 'Naples', lat: 40.8518, lng: 14.2681 },
+    { name: 'Paris', lat: 48.8566, lng: 2.3522 },
+    { name: 'Lyon', lat: 45.764, lng: 4.8357 },
+    { name: 'Berlin', lat: 52.52, lng: 13.405 },
+    { name: 'Munich', lat: 48.1351, lng: 11.582 },
+    { name: 'London', lat: 51.5074, lng: -0.1278 },
+    { name: 'Manchester', lat: 53.4808, lng: -2.2426 },
+    { name: 'Madrid', lat: 40.4168, lng: -3.7038 },
+    { name: 'Barcelona', lat: 41.3874, lng: 2.1686 },
+    { name: 'Lisbon', lat: 38.7223, lng: -9.1393 },
+    { name: 'Amsterdam', lat: 52.3676, lng: 4.9041 },
+    { name: 'Brussels', lat: 50.8503, lng: 4.3517 },
+    { name: 'Vienna', lat: 48.2082, lng: 16.3738 },
+    { name: 'Prague', lat: 50.0755, lng: 14.4378 },
+    { name: 'Warsaw', lat: 52.2297, lng: 21.0122 },
+    { name: 'Budapest', lat: 47.4979, lng: 19.0402 },
+    { name: 'Stockholm', lat: 59.3293, lng: 18.0686 },
+    { name: 'Oslo', lat: 59.9139, lng: 10.7522 },
+    { name: 'Copenhagen', lat: 55.6761, lng: 12.5683 },
+    { name: 'Dublin', lat: 53.3498, lng: -6.2603 },
+    { name: 'Zurich', lat: 47.3769, lng: 8.5417 },
+    { name: 'Moscow', lat: 55.7558, lng: 37.6173 },
+    { name: 'Kyiv', lat: 50.4501, lng: 30.5234 },
+    { name: 'Cairo', lat: 30.0444, lng: 31.2357 },
+    { name: 'Dubai', lat: 25.2048, lng: 55.2708 },
+    { name: 'Tel Aviv', lat: 32.0853, lng: 34.7818 },
+    { name: 'New York', lat: 40.7128, lng: -74.006 },
+    { name: 'Los Angeles', lat: 34.0522, lng: -118.2437 },
+    { name: 'Chicago', lat: 41.8781, lng: -87.6298 },
+    { name: 'Miami', lat: 25.7617, lng: -80.1918 },
+    { name: 'Toronto', lat: 43.6532, lng: -79.3832 },
+    { name: 'Mexico City', lat: 19.4326, lng: -99.1332 },
+    { name: 'São Paulo', lat: -23.5505, lng: -46.6333 },
+    { name: 'Buenos Aires', lat: -34.6037, lng: -58.3816 },
+    { name: 'Tokyo', lat: 35.6762, lng: 139.6503 },
+    { name: 'Osaka', lat: 34.6937, lng: 135.5023 },
+    { name: 'Seoul', lat: 37.5665, lng: 126.978 },
+    { name: 'Beijing', lat: 39.9042, lng: 116.4074 },
+    { name: 'Shanghai', lat: 31.2304, lng: 121.4737 },
+    { name: 'Hong Kong', lat: 22.3193, lng: 114.1694 },
+    { name: 'Singapore', lat: 1.3521, lng: 103.8198 },
+    { name: 'Bangkok', lat: 13.7563, lng: 100.5018 },
+    { name: 'Mumbai', lat: 19.076, lng: 72.8777 },
+    { name: 'Delhi', lat: 28.6139, lng: 77.209 },
+    { name: 'Sydney', lat: -33.8688, lng: 151.2093 },
+    { name: 'Melbourne', lat: -37.8136, lng: 144.9631 },
+    { name: 'Auckland', lat: -36.8509, lng: 174.7645 },
+    { name: 'Cape Town', lat: -33.9249, lng: 18.4241 },
+    { name: 'Lagos', lat: 6.5244, lng: 3.3792 },
+    { name: 'Nairobi', lat: -1.2921, lng: 36.8219 },
+  ],
+
+  _anchor: null,
+
+  init() {
+    if (this._inited) return;
+    this._inited = true;
+    // Ensure chip host exists even if shell markup is thin
+    if (!document.getElementById('city-pick-chips')) {
+      const el = document.createElement('div');
+      el.id = 'city-pick-chips';
+      el.setAttribute('aria-label', 'Choose a city');
+      document.body.appendChild(el);
+    }
+  },
+
+  km(lat1, lng1, lat2, lng2) {
+    if (TrackballGuard?.greatCircleKm) return TrackballGuard.greatCircleKm(lat1, lng1, lat2, lng2);
+    if (window.Commerce?.haversineKm) return Commerce.haversineKm(lat1, lng1, lat2, lng2);
+    const R = 6371;
+    const toR = d => d * Math.PI / 180;
+    const dLat = toR(lat2 - lat1);
+    const dLng = toR(lng2 - lng1);
+    const a = Math.sin(dLat / 2) ** 2
+      + Math.cos(toR(lat1)) * Math.cos(toR(lat2)) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+  },
+
+  nearestName(lat, lng) {
+    let best = null;
+    let bestD = Infinity;
+    for (const c of this.CITIES) {
+      const d = this.km(lat, lng, c.lat, c.lng);
+      if (d < bestD) { bestD = d; best = c; }
+    }
+    if (best && bestD < 80) return best.name;
+    return null;
+  },
+
+  near(lat, lng, maxKm, limit) {
+    maxKm = maxKm ?? this.NEAR_KM;
+    limit = limit ?? this.MAX_CHIPS;
+    const scored = this.CITIES.map(c => ({
+      ...c,
+      km: this.km(lat, lng, c.lat, c.lng),
+    })).sort((a, b) => a.km - b.km);
+    let list = scored.filter(c => c.km <= maxKm).slice(0, limit);
+    if (list.length < 3) {
+      list = scored.filter(c => c.km <= this.FALLBACK_KM).slice(0, Math.max(3, limit));
+    }
+    if (!list.length) list = scored.slice(0, Math.min(4, limit));
+    return list;
+  },
+
+  hide() {
+    const el = document.getElementById('city-pick-chips');
+    if (!el) return;
+    el.classList.remove('visible');
+    el.innerHTML = '';
+    this._anchor = null;
+  },
+
+  /**
+   * Show city choices after national entry.
+   * @param {number} lat
+   * @param {number} lng
+   * @param {{ title?: string }} [opts]
+   */
+  show(lat, lng, opts) {
+    opts = opts || {};
+    this.init();
+    const el = document.getElementById('city-pick-chips');
+    if (!el || lat == null || lng == null) return;
+    this._anchor = { lat, lng };
+    const cities = this.near(lat, lng);
+    const gps = window._lastPos?.lat != null ? window._lastPos : null;
+    const chips = [];
+
+    // Always offer the tapped spot as a city entry
+    const tapLabel = this.nearestName(lat, lng);
+    chips.push({
+      id: 'here',
+      label: tapLabel ? 'Open ' + tapLabel : 'Open here',
+      lat, lng,
+      kind: 'here',
+    });
+
+    if (gps && this.km(lat, lng, gps.lat, gps.lng) > 25) {
+      chips.push({
+        id: 'gps',
+        label: '🎯 My city',
+        lat: gps.lat,
+        lng: gps.lng,
+        kind: 'gps',
+      });
+    }
+
+    cities.forEach(c => {
+      // skip near-duplicate of tap
+      if (this.km(lat, lng, c.lat, c.lng) < 12) return;
+      chips.push({
+        id: 'c-' + c.name,
+        label: c.name,
+        lat: c.lat,
+        lng: c.lng,
+        kind: 'city',
+      });
+    });
+
+    const top = chips.slice(0, this.MAX_CHIPS + 1);
+    el.innerHTML = '<div class="city-pick-head">' + (opts.title || 'Choose a city') + '</div>'
+      + top.map(c =>
+        '<button type="button" data-city-id="' + c.id + '" data-lat="' + c.lat + '" data-lng="' + c.lng + '">'
+        + this._esc(c.label) + '</button>'
+      ).join('');
+    el.classList.add('visible');
+    el.querySelectorAll('button[data-city-id]').forEach(btn => {
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const clat = parseFloat(btn.dataset.lat);
+        const clng = parseFloat(btn.dataset.lng);
+        const name = (btn.textContent || 'City').replace(/^Open\s+/, '').replace(/^🎯\s*/, '');
+        void this.enter(clat, clng, name);
+      };
+    });
+
+    MapDepict?.pulse?.(lat, lng, 0x3d9eff, 'pick city', 5000);
+    const zl = document.getElementById('zoom-label');
+    if (zl && !window.DrivingView?.active) {
+      zl.textContent = 'Country · choose a city below · or tap the map';
+    }
+    GlobeDeck?.setPreview?.(opts.title || 'Country airspace · choose a city');
+    AciCli?.print?.('city pick · ' + cities.slice(0, 4).map(c => c.name).join(' · '), 'ok');
+  },
+
+  _esc(s) {
+    return String(s || '').replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  },
+
+  /** Enter city map at lat/lng (from chip or national second-tap). */
+  async enter(lat, lng, label) {
+    if (lat == null || lng == null) return { error: 'no_coords' };
+    this.hide();
+    MapPlaceMenu?.close?.();
+    const name = label || this.nearestName(lat, lng) || 'City';
+    GlobeDeck?.setPreview?.('Opening ' + name + '…');
+    AciCli?.print?.('city → ' + name, 'ok');
+    MapDepict?.pulse?.(lat, lng, 0x00ff99, name, 10000);
+
+    if (typeof CityLife?.dropIn === 'function') {
+      return CityLife.dropIn(lat, lng, { label: name, openShops: false });
+    }
+    // Fallback without CityLife
+    const z = GlobeControl?.cityEntryZ?.() || GlobeControl?.Z?.city || 1.34;
+    const p = latLngToPos(lat, lng, 1.04);
+    ZoomTiers?.goTo?.('city', false);
+    if (typeof flyToPoint === 'function') {
+      flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z, { onTier: true, dur: 2200 });
+      if (typeof waitForGlobeFly === 'function') await waitForGlobeFly();
+    }
+    await CityMap?.openAt?.(lat, lng, { camZ: z });
+    window._lastPos = { lat, lng };
+    return { lat, lng, label: name };
+  },
+
+  /** True when camera/tier is national (country) airspace — ready for city pick. */
+  isNationalView() {
+    const tier = ZoomTiers?.current?.();
+    if (tier?.city || CityMap?.active || cityLevel) return false;
+    if (tier?.national) return true;
+    const z = camera?.position?.z;
+    if (z == null) return false;
+    const enter = CityMap?.ENTER_Z ?? 1.58;
+    return z <= 2.08 && z > enter + 0.02;
+  },
+};
+window.CityPick = CityPick;
 
 // === ASTRANOV THEME — follows device dark/bright (prefers-color-scheme) by default; override via CLI ===
 // less buttons: no visible toggle; use CLI 'theme auto|dark|bright'
@@ -16118,6 +16416,7 @@ AstranovTheme.init();
 AstranovLogo.init();
 CityMap.init();
 CityLife.init();
+CityPick?.init?.();
 EarthRealism.init();
 GlobeEntity.init();
 ClassifiedTriangles.init();
@@ -16197,6 +16496,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script src="/astranov-perf-lazy.js?v=20260718061153" defer></script>
+<script src="/astranov-perf-lazy.js?v=20260718061433" defer></script>
 </body>
 </html>
