@@ -5,18 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Astranov</title>
 <meta name="compliance-check" content="astranov-field-brain-multi-role-2026-06-24">
-<meta name="aci-session" content="Astranov Collective Intelligence">
+<meta name="aci-session" content="Astranov">
 <meta name="theme-color" content="#0a1020" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260718055132" />
+<meta name="astranov-build" content="20260718055331" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/astranov-continuity.js?v=20260718055132"></script>
+<script defer src="/astranov-continuity.js?v=20260718055331"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <style>
@@ -817,7 +817,7 @@
       <button id="nb-install-ios" type="button" style="display:none;width:100%;margin:6px 0;padding:10px;border-radius:12px;background:rgba(40,40,60,0.5);border:1px solid #88a;color:#cdf;cursor:pointer;font-weight:600">🍎 iOS install steps</button>
       <button id="nb-launch" type="button">🔗 Launch batch · work together</button>
       <div id="nb-mesh-viz" aria-hidden="true"></div>
-      <div style="margin:8px 0;font-size:10px;color:var(--an-muted)">Session: <b id="nb-batch-id" style="color:var(--ax-blue-bright)">ASTRANOV COLLECTIVE INTELLIGENCE</b> · Devices: <b id="nb-peers" style="color:var(--ax-blue-bright)">0</b> · <span id="nb-mesh-status" style="color:var(--ax-green-bright)">idle</span></div>
+      <div style="margin:8px 0;font-size:10px;color:var(--an-muted)">Session: <b id="nb-batch-id" style="color:var(--ax-blue-bright)">Astranov</b> · Devices: <b id="nb-peers" style="color:var(--ax-blue-bright)">0</b> · <span id="nb-mesh-status" style="color:var(--ax-green-bright)">idle</span></div>
       <button id="nb-join-comms" type="button">📡 Open comms channel (PMR/WebRTC)</button>
       <div id="nb-status" style="color:#9cb;font-size:10px;margin-top:6px">Install node to work together without browser babysitting</div>
     </div>
@@ -4964,7 +4964,7 @@ const CliRibbon = {
     guest: 'Guest',
   },
 
-  MOTTO_RE: /justice\s*→\s*truth\s*→\s*freedom|collective intelligence|astranov command line\s*—|architect\s*·\s*collective|δικαιοσύνη|αλήθεια|ελευθερία/gi,
+  MOTTO_RE: /justice\s*→\s*truth\s*→\s*freedom|collective intelligence|Astranov\s*—|architect\s*·\s*collective|δικαιοσύνη|αλήθεια|ελευθερία/gi,
   GLOBE_HINT_RE: /city map|scroll\/pinch|pinch\/scroll|pinch out|return to globe|zoom.tier|zoom out|zoom in|double.tap|drag to spin/i,
 
   init() {
@@ -4994,7 +4994,7 @@ const CliRibbon = {
     let s = String(text || '').trim();
     if (!s) return '';
     s = s.replace(this.MOTTO_RE, '').replace(/\s+/g, ' ').trim();
-    s = s.replace(/^Astranov Command Line\b/i, 'Astranov');
+    s = s.replace(/^Astranov\b/i, 'Astranov');
     s = s.replace(/\bcollective intelligence\b/gi, 'Astranov');
     s = s.replace(/\bNear-Earth orbit\b/gi, 'Above Earth');
     s = s.replace(/\bconstellations?\b/gi, 'sky');
@@ -7645,7 +7645,7 @@ const ACI = {
         .forEach(s => this.spawnNeuron(s.lat, s.lng, 1.2));
     }
     this.attachHeartbeat();
-    console.log('%c[ACI] Collective Intelligence ready — evolve on voice/command only', 'color:#00ddff', stats);
+    console.log('%c[ACI] ready', 'color:#00ddff', stats);
   },
 
   attachHeartbeat() {
@@ -13038,7 +13038,7 @@ const CityLife = {
       FieldBrain?.pulse?.('city', msg, { role: 'client', props: { lat: pos.lat, lng: pos.lng, shops: nearby.length } });
 
       if (opts.openShops && nearby.length) {
-        GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+        GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
         await window.Commerce?.showPicker?.();
       }
       return { vendors: nearby, drivers, lat: pos.lat, lng: pos.lng, mapActive: !!CityMap?.active };
@@ -14975,7 +14975,7 @@ try { initUser(); } catch(e){ console.warn('User init skipped:', e.message); }
 // Let user explore the globe freely first
 console.log('%c[Astranov] Globe UI: drag rotate · wheel/pinch zoom · tap/double-tap fly. 💻 CLI for tasks. 🎧 hands-free optional.', 'color:#00ddff');
 
-// Voice → Astranov Command Line (live transcript in input, same path as typing)
+// Voice → Astranov (live transcript in input, same path as typing)
 let _voiceBusy = false;
 let _voiceGen = 0;
 let _voiceSilenceTimer = null;
@@ -15203,7 +15203,7 @@ function syncHandsFreeBtn() {
 window.syncHandsFreeBtn = syncHandsFreeBtn;
 
 function openVoiceCli() {
-  const title = window.SuperCli?.title || 'Astranov Command Line';
+  const title = window.SuperCli?.title || 'Astranov';
   GlobeDeck?.expand(title);
   if (window.AciCli) AciCli.open = true;
   SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
@@ -15589,7 +15589,7 @@ function startVoiceOptions() {
   if (!recognition) {
     AciCli?.print('Voice not supported — type below or use Chrome/Safari on HTTPS', 'err');
     ACIControl?.reply('Voice unavailable — type your message below');
-    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
     document.getElementById('aci-cli-in')?.focus();
     return;
   }
@@ -15600,7 +15600,7 @@ function startVoiceOptions() {
   voiceEnabled = true;
   window._handsFreeVoice = true;
   setVoicePerfMode(true);
-  GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+  GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
   AciCoders?.enterSession?.({ expand: true, focus: false, ping: false });
   openVoiceCli();
   _voiceDraft = '';
@@ -15731,7 +15731,7 @@ function placeMe(lat, lng, opts) {
 
 function _gpsDeniedUi(reason) {
   const msg = reason || 'Location denied — enable GPS in browser settings to open your city map';
-  GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+  GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
   GlobeDeck?.showError?.(msg);
   GlobeDeck?.setMapStatus?.(msg);
   AciCli?.print(msg, 'err');
@@ -15741,7 +15741,7 @@ function _gpsDeniedUi(reason) {
 }
 
 function locateMe() {
-  GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+  GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
   GlobeDeck?.setMapStatus('Locating your city…');
   GlobeControl?.engageFollow?.('locate');
   ACIControl?.reply('Locating — need GPS for your city (no demo map)');
@@ -15993,6 +15993,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script src="/astranov-perf-lazy.js?v=20260718055132" defer></script>
+<script src="/astranov-perf-lazy.js?v=20260718055331" defer></script>
 </body>
 </html>
