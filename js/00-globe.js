@@ -98,16 +98,17 @@ if (!window._globePerfLite) {
     scene.add(new THREE.Points(geo, mat));
   }
   if (lite) {
-    layer(400, 80, 420, 0.5, 0xaaccff, 0.55);
-    layer(80, 100, 700, 1.2, 0xffffff, 0.85);
+    // Tiny starfield — first paint over jank
+    layer(180, 80, 420, 0.55, 0xaaccff, 0.5);
+    layer(40, 100, 700, 1.1, 0xffffff, 0.8);
   } else {
-    layer(1800, 80, 420, 0.35, 0xaaccff, 0.55);
-    layer(600, 100, 700, 0.9, 0xffffff, 0.85);
-    layer(80, 120, 900, 2.2, 0xcce8ff, 0.95);
+    layer(1200, 80, 420, 0.35, 0xaaccff, 0.55);
+    layer(400, 100, 700, 0.9, 0xffffff, 0.85);
+    layer(60, 120, 900, 2.2, 0xcce8ff, 0.95);
   }
 })();
 
-// Earth — higher tessellation + temporary ocean/land material until day/night shader binds
+// Earth — low poly until idle; texture after first frames (truthful globe, not fake)
 const earthMat = new THREE.MeshPhongMaterial({
   color: 0x1a4a7a,
   emissive: 0x041018,
@@ -115,17 +116,13 @@ const earthMat = new THREE.MeshPhongMaterial({
   shininess: 18,
   flatShading: false,
 });
-// 2048 tex is a multi-MB stall on mobile — use half-res on lite
-const earthTexUrl = window._globePerfLite
-  ? 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg'
-  : 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg';
-// Defer texture decode so first frames aren't blocked
+const earthTexUrl = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg';
 const _loadEarthTex = () => {
   try {
     new THREE.TextureLoader().load(
       earthTexUrl,
       (tex) => {
-        tex.anisotropy = Math.min(window._globePerfLite ? 2 : 8, renderer.capabilities?.getMaxAnisotropy?.() || 4);
+        tex.anisotropy = Math.min(window._globePerfLite ? 1 : 8, renderer.capabilities?.getMaxAnisotropy?.() || 4);
         if (window._globePerfLite) {
           tex.minFilter = THREE.LinearFilter;
           tex.generateMipmaps = false;
@@ -139,18 +136,25 @@ const _loadEarthTex = () => {
     );
   } catch (_) {}
 };
-if (typeof requestIdleCallback === 'function') requestIdleCallback(_loadEarthTex, { timeout: 2200 });
-else setTimeout(_loadEarthTex, window._globePerfLite ? 600 : 200);
+// Mobile: solid globe first, texture much later. Desktop: soon after paint.
+if (window._globePerfLite) {
+  setTimeout(_loadEarthTex, 4500);
+} else if (typeof requestIdleCallback === 'function') {
+  requestIdleCallback(_loadEarthTex, { timeout: 1800 });
+} else {
+  setTimeout(_loadEarthTex, 200);
+}
 globePivot = new THREE.Group();
 scene.add(globePivot);
 
-const earthSeg = window._globePerfLite ? 28 : 56;
+const earthSeg = window._globePerfLite ? 20 : 48;
 const earth = new THREE.Mesh(new THREE.SphereGeometry(1, earthSeg, earthSeg), earthMat);
 globePivot.add(earth);
 
-// Soft atmosphere shell (fresnel-ish blue rim) — upgraded further by AIGraphics
+// Soft atmosphere shell — lighter on phone
 (function bootAtmosphere() {
-  const atmoSeg = window._globePerfLite ? 20 : earthSeg;
+  if (window._globePerfLite) return; // skip atmo mesh on lite — pure fill cost
+  const atmoSeg = earthSeg;
   const atmo = new THREE.Mesh(
     new THREE.SphereGeometry(1.035, atmoSeg, atmoSeg),
     new THREE.MeshBasicMaterial({
