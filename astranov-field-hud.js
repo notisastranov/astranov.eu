@@ -347,7 +347,7 @@ const FieldHud = {
     bal.setAttribute('title', 'SpaceNet field · tap for miner rig, balances & mesh');
     bal.setAttribute('aria-label', 'SpaceNet field · open miner rig and earnings');
     bal.innerHTML = '<div class="fbh-title">◎ SpaceNet</div>'
-      + '<div class="fbh-row fbh-bal"><span id="fbh-Coins">— Coins</span></div>'
+      + '<div class="fbh-row fbh-bal"><span id="fbh-avc">— Coins</span></div>'
       + '<div class="fbh-row fbh-fiat"><span id="fbh-eur">€—</span><span id="fbh-usd">$—</span></div>'
       + '<div class="fbh-mesh"><span id="fbh-peers">0 peers</span><span class="fbh-p2p">P2P</span></div>'
       + '<div id="fbh-resources" class="fbh-resources">'
@@ -408,7 +408,7 @@ const FieldHud = {
         + '<div>Rate <b id="mrp-rate">0.000 Coins/h</b></div>'
         + '<div>Session <b id="mrp-earned">+0.00</b></div>'
         + '<div>Peers <b id="mrp-peers">0</b></div>'
-        + '<div>Balance <b id="mrp-Coins">— Coins</b></div></div>'
+        + '<div>Balance <b id="mrp-avc">— Coins</b></div></div>'
         + '<div class="mrp-toggles">'
         + '<button type="button" class="mrp-toggle on" data-mrp="cpu" aria-pressed="true">CPU</button>'
         + '<button type="button" class="mrp-toggle on" data-mrp="ram" aria-pressed="true">RAM</button>'
@@ -427,7 +427,7 @@ const FieldHud = {
     const st = document.createElement('style');
     st.id = 'field-hud-css';
     st.textContent = [
-      '#aci-Coins{display:none!important}',
+      '#aci-avc{display:none!important}',
       '#zoom-tier-dots{display:none!important}',
       '#field-balance-hud{position:fixed;top:10px;right:10px;z-index:42;pointer-events:auto;cursor:pointer;',
       'touch-action:manipulation;font:11px/1.35 ui-monospace,monospace;text-align:right;padding:8px 10px;border-radius:10px;',
@@ -437,7 +437,7 @@ const FieldHud = {
       '#field-balance-hud.mining-active{box-shadow:0 0 18px rgba(0,255,153,.45);border-color:#00ff99}',
       '#field-balance-hud:active{transform:scale(0.98)}',
       '.fbh-title{font-size:9px;font-weight:700;letter-spacing:.12em;color:#7ec8ff;opacity:.85;margin-bottom:4px}',
-      '#fbh-Coins{display:block;font-size:15px;font-weight:800;color:#00ff99;text-shadow:0 0 10px rgba(0,255,153,.55)}',
+      '#fbh-avc{display:block;font-size:15px;font-weight:800;color:#00ff99;text-shadow:0 0 10px rgba(0,255,153,.55)}',
       '.fbh-fiat{display:flex;gap:8px;justify-content:flex-end;margin-top:2px}',
       '#fbh-eur{color:#00dd77;font-weight:700;font-size:11px}',
       '#fbh-usd{color:#8ec8ff;font-weight:700;font-size:11px}',
@@ -506,11 +506,11 @@ const FieldHud = {
   },
 
   hideCliMoney() {
-    const Coins = document.getElementById('aci-Coins');
+    const Coins = document.getElementById('aci-avc');
     if (Coins) { Coins.hidden = true; Coins.style.display = 'none'; }
     const sc = window.SuperCli;
     if (sc?.TOOLBAR_VISIBLE) {
-      sc.TOOLBAR_VISIBLE = sc.TOOLBAR_VISIBLE.filter(id => id !== 'aci-Coins');
+      sc.TOOLBAR_VISIBLE = sc.TOOLBAR_VISIBLE.filter(id => id !== 'aci-avc');
     }
   },
 
@@ -523,7 +523,7 @@ const FieldHud = {
     if (_ensure) {
       sc.ensureBarLayout = function() {
         _ensure();
-        const Coins = document.getElementById('aci-Coins');
+        const Coins = document.getElementById('aci-avc');
         if (Coins) { Coins.hidden = true; Coins.style.display = 'none'; }
       };
     }
@@ -572,7 +572,7 @@ const FieldHud = {
     AB.render = (balance, guest, eurUsd) => {
       if (_render) _render(balance, guest, eurUsd);
       FieldHud.updateBalance(balance, guest, eurUsd || AB._fx);
-      const Coins = document.getElementById('aci-Coins');
+      const Coins = document.getElementById('aci-avc');
       if (Coins) Coins.style.display = 'none';
     };
     const _refresh = AB.refresh?.bind(AB);
@@ -586,7 +586,7 @@ const FieldHud = {
   },
 
   updateBalance(balance, guest, fx) {
-    const CoinsEl = document.getElementById('fbh-Coins');
+    const CoinsEl = document.getElementById('fbh-avc');
     const eurEl = document.getElementById('fbh-eur');
     const usdEl = document.getElementById('fbh-usd');
     if (!avcEl) return;
@@ -1033,7 +1033,7 @@ const FieldHud = {
     set('mrp-earned', '+' + m._sessionEarned.toFixed(3));
     set('mrp-peers', String(m._peerCount || 0));
     const bal = window.AvcBalance?._last;
-    set('mrp-Coins', bal != null ? bal.toFixed(2) + ' Coins' : '— Coins');
+    set('mrp-avc', bal != null ? bal.toFixed(2) + ' Coins' : '— Coins');
     const prefs = this._minerPrefs();
     document.querySelectorAll('.mrp-toggle[data-mrp]').forEach(btn => {
       const on = !!prefs[btn.dataset.mrp];
