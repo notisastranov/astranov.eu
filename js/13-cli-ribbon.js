@@ -1,5 +1,5 @@
 // === CLI RIBBON — one top bar: account · apps · status · + · expand ===
-const CliRibbon = {
+var CliRibbon = {
   _active: 'CLI',
   _notice: '',
   _kind: 'idle',
