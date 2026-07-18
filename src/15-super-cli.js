@@ -1,10 +1,13 @@
 // === SUPER CLI — one window: toolbar + log + stage + input ===
-const ACL_TITLE = 'Astranov Command Line';
+// Public: "Astranov". Architect only: mission CLI tone.
+const ACL_TITLE = 'Astranov';
 
 const SuperCli = {
   _bound: false,
   _context: 'idle',
-  title: ACL_TITLE,
+  get title() {
+    return window.PublicCopy?.deckTitle?.() || 'Astranov';
+  },
 
   // Trust bar: Sign-in · Locate · + · AI (provider/order available but may be CSS-hidden)
   TOOLBAR_VISIBLE: ['aci-login', 'aci-locate', 'aci-handsfree', 'aci-bridge', 'super-add-fab', 'aci-provider', 'aci-order'],
@@ -41,13 +44,34 @@ const SuperCli = {
     bar.dataset.ctx = this._context;
     const allowed = new Set(this.TOOLBAR_VISIBLE);
     bar.querySelectorAll('button').forEach(btn => {
-      if (btn.classList.contains('app-shortcut-btn')) return;
+      if (btn.classList.contains('app-shortcut-btn') && btn.id !== 'aci-locate') return;
       if (btn.id === 'aci-bridge') {
         btn.hidden = !(Auth?.isArchitect && allowed.has('aci-bridge'));
         return;
       }
+      // Always keep locate + handsfree + + visible
+      if (btn.id === 'aci-locate' || btn.id === 'aci-handsfree' || btn.id === 'super-add-fab' || btn.id === 'aci-login') {
+        btn.hidden = false;
+        btn.style.display = 'inline-flex';
+        return;
+      }
+      if (btn.id === 'aci-video-call') {
+        btn.hidden = false;
+        return;
+      }
       btn.hidden = !allowed.has(btn.id);
     });
+    // Rescue locate if parked in hidden shortcut row
+    const loc = document.getElementById('aci-locate');
+    const edge = document.getElementById('super-cli-edge-right');
+    const badRow = document.getElementById('app-shortcut-row');
+    if (loc && edge && badRow?.contains(loc)) {
+      const hf = document.getElementById('aci-handsfree');
+      if (hf && edge.contains(hf)) edge.insertBefore(loc, hf);
+      else edge.prepend(loc);
+      loc.classList.remove('app-shortcut-btn');
+      loc.hidden = false;
+    }
     AppShortcuts?.render?.();
     this.INPUT_BTNS.forEach(id => {
       const b = document.getElementById(id);
@@ -164,7 +188,12 @@ const SuperCli = {
           break;
         }
         GlobeDeck?.expand?.(ACL_TITLE);
-        locateMe?.();
+        try {
+          if (CityLife?.locateAndDropIn) await CityLife.locateAndDropIn();
+          else locateMe?.();
+        } catch (_) {
+          try { await enterCityView?.(36.44, 28.22, { openShops: false }); } catch (__) {}
+        }
         GlobeDeck?.finishCliIfOneShot('locate');
         break;
       case 'city':
@@ -176,6 +205,7 @@ const SuperCli = {
         break;
       case 'order':
         this.flyForTask('order');
+        await LazyModules?.ensure?.().catch(() => {});
         await window.Commerce?.showPicker?.(opts?.filter);
         this.setContext('commerce');
         break;
@@ -199,7 +229,7 @@ const SuperCli = {
         AppShortcuts?.track?.('phone', 'Phone');
         this.setContext('phone');
         AciCli?.print('Type: call +30… (e.g. call +306912345678)', 'ok');
-        ACIControl?.reply('Type call +number in Astranov Command Line');
+        ACIControl?.reply('Type call +number in chat');
         document.getElementById('aci-cli-in')?.focus();
         break;
       case 'news':

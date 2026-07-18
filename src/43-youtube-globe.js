@@ -1,4 +1,4 @@
-// === YOUTUBE ON GLOBE — search + watch in Astranov Command Line deck ===
+// === YOUTUBE ON GLOBE — search + watch in Astranov deck ===
 const GlobeVideo = {
   _results: [],
   _currentId: null,
@@ -109,7 +109,11 @@ const GlobeVideo = {
     }
     this._currentId = id;
     const title = meta?.title || id;
-    await SuperSpace?.locateForMedia?.(searchQuery || title, meta);
+    try {
+      GlobeInfoTiles?.init?.();
+      await (GlobeInfoTiles?.pinVideoFromMeta?.(searchQuery || title, { ...meta, id })
+        || SuperSpace?.locateForMedia?.(searchQuery || title, { ...meta, id }));
+    } catch (_) {}
     window.MapComms?.showCloudVideo?.(id, title);
     this.showPanel(title.slice(0, 48));
     const frame = document.getElementById('yt-frame');

@@ -49,7 +49,7 @@ const SuperAdd = {
 
   open() {
     if (!this._bound) this.init();
-    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
     this.showPanel();
     this.startCamera();
     SuperCli?.setContext?.('add');

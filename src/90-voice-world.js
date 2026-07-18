@@ -34,7 +34,7 @@ try { initUser(); } catch(e){ console.warn('User init skipped:', e.message); }
 // Let user explore the globe freely first
 console.log('%c[Astranov] Globe UI: drag rotate · wheel/pinch zoom · tap/double-tap fly. 💻 CLI for tasks. 🎧 hands-free optional.', 'color:#00ddff');
 
-// Voice → Astranov Command Line (live transcript in input, same path as typing)
+// Voice → Astranov (live transcript in input, same path as typing)
 let _voiceBusy = false;
 let _voiceGen = 0;
 let _voiceSilenceTimer = null;
@@ -262,7 +262,7 @@ function syncHandsFreeBtn() {
 window.syncHandsFreeBtn = syncHandsFreeBtn;
 
 function openVoiceCli() {
-  const title = window.SuperCli?.title || 'Astranov Command Line';
+  const title = window.SuperCli?.title || 'Astranov';
   GlobeDeck?.expand(title);
   if (window.AciCli) AciCli.open = true;
   SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
@@ -648,7 +648,7 @@ function startVoiceOptions() {
   if (!recognition) {
     AciCli?.print('Voice not supported — type below or use Chrome/Safari on HTTPS', 'err');
     ACIControl?.reply('Voice unavailable — type your message below');
-    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
     document.getElementById('aci-cli-in')?.focus();
     return;
   }
@@ -659,7 +659,7 @@ function startVoiceOptions() {
   voiceEnabled = true;
   window._handsFreeVoice = true;
   setVoicePerfMode(true);
-  GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+  GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
   AciCoders?.enterSession?.({ expand: true, focus: false, ping: false });
   openVoiceCli();
   _voiceDraft = '';
@@ -790,7 +790,7 @@ function placeMe(lat, lng, opts) {
 
 function _gpsDeniedUi(reason) {
   const msg = reason || 'Location denied — enable GPS in browser settings to open your city map';
-  GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+  GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
   GlobeDeck?.showError?.(msg);
   GlobeDeck?.setMapStatus?.(msg);
   AciCli?.print(msg, 'err');
@@ -800,7 +800,7 @@ function _gpsDeniedUi(reason) {
 }
 
 function locateMe() {
-  GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+  GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
   GlobeDeck?.setMapStatus('Locating your city…');
   GlobeControl?.engageFollow?.('locate');
   ACIControl?.reply('Locating — need GPS for your city (no demo map)');

@@ -56,6 +56,8 @@ const DrivingView = {
     this.lastFix = { lat, lng };
     this.lastTime = now;
     window._lastPos = { lat, lng };
+    window._gpsSpeedMps = this.speed;
+    window._lastGpsFix = { lat, lng, speed: this.speed, t: now };
     if (typeof placeMe === 'function') placeMe(lat, lng, { quiet: true, markerOnly: true });
 
     const prev = this.mode;

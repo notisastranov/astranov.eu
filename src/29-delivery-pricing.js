@@ -65,7 +65,7 @@ const DeliveryPricing = {
     const driverPayoutEur = Math.round(deliveryEur * 0.85 * 100) / 100;
 
     return {
-      currency: 'AVC',
+      currency: 'Coins',
       peg_eur: 1,
       km, kg,
       subtotal_eur: goodsEur,
@@ -85,7 +85,7 @@ const DeliveryPricing = {
 
   formatQuote(q) {
     if (!q) return '';
-    let s = q.total_avc.toFixed(2) + ' AVC (= ' + q.total_eur.toFixed(2) + ' EUR)';
+    let s = q.total_avc.toFixed(2) + ' Coins (= ' + q.total_eur.toFixed(2) + ' EUR)';
     s += ' · delivery ' + q.delivery_eur.toFixed(2);
     if (q.surcharges?.length) s += ' · ' + q.surcharges.map(x => x.label).join(', ');
     s += ' · fee 3%';

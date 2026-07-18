@@ -149,7 +149,48 @@ const AciCli = {
 
     if (!cmd) return;
     if (cmd === 'help' || cmd === '?') {
-      this.print('Architect: fix|code|dev|bridge · Chat: 🎧 Grok · also think|coders|db|theme|clear|exit', 'dim');
+      this.print('locate · order · resources · starship · starlink · spacex · crawl', 'dim');
+      this.print('task job barman 3h · task housekeeper 1w · task date coffee 2h · task errand · task claim', 'dim');
+      this.print('think · coders · theme · Architect: fix|bridge', 'dim');
+      return;
+    }
+    if (cmd === 'resources' || cmd === 'resource' || cmd === 'donate' || cmd === 'monitor') {
+      ResourceMonitor?.init?.();
+      const msg = ResourceMonitor?.handleCli?.(line);
+      this.print(msg || 'resources', 'ok');
+      return;
+    }
+    if (cmd === 'starship' || cmd === 'f13') {
+      try { StarshipFlight13?.init?.(); } catch (_) {}
+      try { GlobeInfoTiles?.init?.({ seed: false }); } catch (_) {}
+      const msg = await StarshipFlight13?.handleCli?.(rest || line);
+      this.print(msg || 'f13', 'ok');
+      return;
+    }
+    if (cmd === 'spacex' || (cmd === 'video' && /tile|spacex|globe/.test(rest))) {
+      try { GlobeInfoTiles?.init?.({ seed: false }); } catch (_) {}
+      const msg = await GlobeInfoTiles?.handleCli?.(rest || 'spacex');
+      this.print(msg || 'spacex tiles', 'ok');
+      return;
+    }
+    if (cmd === 'starlink') {
+      try { StarlinkConstellation?.init?.(); StarlinkConstellation?.ensureBuilt?.(); } catch (_) {}
+      const msg = await StarlinkConstellation?.handleCli?.(rest || 'starlink');
+      this.print(msg || 'starlink', 'ok');
+      return;
+    }
+    if (cmd === 'crawl' || cmd === 'spacenet') {
+      const msg = await SpaceNetBrain?.handleCli?.(rest || 'crawl all');
+      this.print(msg || 'crawl', 'ok');
+      return;
+    }
+    if (cmd === 'task' || cmd === 'tasks' || cmd === 'job' || cmd === 'jobs'
+      || cmd === 'errand' || cmd === 'date' || cmd === 'dating' || cmd === 'hire') {
+      CityTasks?.init?.();
+      const msg = await CityTasks?.handleCli?.(
+        (cmd === 'task' || cmd === 'tasks') ? line : ('task ' + line)
+      );
+      this.print(msg || 'task', 'ok');
       return;
     }
     if (cmd === 'clear') { this.clear(); return; }

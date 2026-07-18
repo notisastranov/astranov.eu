@@ -151,6 +151,18 @@ const AstranovPresence = {
   _onGpsFix(pos) {
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
+    const now = Date.now();
+    let speed = pos.coords.speed;
+    const prev = window._lastGpsFix;
+    if ((speed == null || speed < 0) && prev?.lat != null && prev.t) {
+      const dt = (now - prev.t) / 1000;
+      if (dt > 0.5 && dt < 30 && typeof FieldHud?.haversineKm === 'function') {
+        const dKm = FieldHud.haversineKm(prev.lat, prev.lng, lat, lng);
+        speed = (dKm * 1000) / dt;
+      }
+    }
+    window._gpsSpeedMps = (speed != null && speed >= 0) ? speed : (window._gpsSpeedMps || 0);
+    window._lastGpsFix = { lat, lng, speed: window._gpsSpeedMps, t: now };
     if (GhostTravel?.active?.()) {
       GhostTravel.setTruePos(lat, lng);
       window._truePos = { lat, lng };
@@ -370,7 +382,7 @@ const AstranovPresence = {
     const p = this.pos();
     MapDepict?.action?.('play', { lat: p.lat, lng: p.lng, detail: 'κρυφτό · hide and seek LIVE' });
     MapDepict?.pulse?.(p.lat, p.lng, 0x1a6fd4, 'ΚΡΥΦΤΟ', 18000);
-    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
     GlobeDeck?.setTitle?.('ΚΡΥΦΤΟ');
     GlobeDeck?.setPreview?.('◎ ' + total + ' player(s) · say hide to vanish · players to seek');
     GlobeDeck.activeTask = 'game';

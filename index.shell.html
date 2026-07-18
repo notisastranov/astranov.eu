@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Astranov</title>
 <meta name="compliance-check" content="astranov-field-brain-multi-role-2026-06-24">
-<meta name="aci-session" content="Astranov Collective Intelligence">
+<meta name="aci-session" content="Astranov">
 <meta name="theme-color" content="#0a1020" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -14,11 +14,27 @@
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
+<!-- Only Three.js is critical. Supabase + Leaflet load after globe is live. -->
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+<link rel="dns-prefetch" href="https://unpkg.com" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" media="print" onload="this.media='all'" />
 <script defer src="/astranov-continuity.js?v=__ASTRANOV_BUILD__"></script>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+// Kill stale service workers that pin old monolith HTML
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations?.().then(regs => {
+    regs.forEach(r => {
+      // Re-register fresh SW after install of multi-file
+      if (r.active && !r.active.scriptURL.includes('sw.js')) return;
+    });
+  }).catch(() => {});
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js?v=__ASTRANOV_BUILD__').catch(() => {});
+  });
+}
+</script>
 <style>
   :root, [data-theme="dark"] {
     --an-bg: #000;
@@ -205,12 +221,9 @@
   [data-theme="bright"] #globe-deck { background:var(--ax-panel-strong); border-color:var(--ax-blue-border); color:var(--an-text); }
   [data-theme="bright"] #globe-deck-log { color:var(--an-text); }
   [data-theme="bright"] #aci-cli-in { background:rgba(0,12,28,0.65); color:var(--an-text); }
-  #cosmic-guide { position:fixed; top:30px; left:10px; right:100px; z-index:39; pointer-events:none; font:10px/1.45 system-ui; color:rgba(150,200,240,0.82); max-height:22vh; overflow:hidden; }
-  #cosmic-guide:empty { display:none; }
-  #cosmic-guide .cg-title { color:var(--ax-blue-bright); font-weight:600; font-size:11px; margin-bottom:5px; text-shadow:0 0 6px var(--ax-blue-glow); }
-  #cosmic-guide .cg-item { margin:2px 0; opacity:0.9; }
-  #cosmic-guide .cg-item b { color:var(--ax-blue-bright); font-weight:600; }
-  #cosmic-guide .cg-item i { color:var(--an-muted); font-size:9px; }
+  /* Planet/orbit essays removed — resources fused into top-right money field */
+  #cosmic-guide { display:none !important; }
+  #resource-monitor:not(.rm-standalone) { display:none !important; }
   #globe-deck { display:flex; flex-direction:column; margin:0 8px 6px; background:var(--ax-panel-strong); border:1px solid var(--ax-blue-border); border-radius:14px; pointer-events:auto; font:12px/1.4 ui-monospace,monospace; overflow:hidden; transition:max-height 0.22s ease; box-shadow:0 0 16px rgba(0,0,0,0.5), inset 0 0 20px rgba(26,111,212,0.04); backdrop-filter:blur(14px); }
   #globe-deck.collapsed { max-height:118px; }
   #globe-deck.expanded.size-third { max-height:33vh; min-height:33vh; }
@@ -233,8 +246,11 @@
   /* Trust toolbar: G · ribbon · 🎯 · 🎧 · + (far right) — shortcuts hidden on phone */
   #super-cli-bar #app-shortcut-row { display:none !important; }
   #toolbar-trust-actions { display:flex; gap:5px; margin-left:auto; flex-shrink:0; align-items:center; }
-  #super-cli-bar button:not(#aci-login):not(#aci-locate):not(#super-add-fab):not(#aci-handsfree):not(#aci-bridge):not(.app-shortcut-btn) { display:none !important; }
-  #super-cli-bar #aci-locate, #super-cli-bar #aci-handsfree, #super-cli-bar #super-add-fab, #super-cli-bar #aci-bridge { display:inline-flex !important; align-items:center; justify-content:center; }
+  #super-cli-bar button:not(#aci-login):not(#aci-locate):not(#super-add-fab):not(#aci-handsfree):not(#aci-bridge):not(#aci-video-call):not(.app-shortcut-btn) { display:none !important; }
+  #super-cli-edge-right { display:flex !important; gap:5px; margin-left:auto; flex-shrink:0; align-items:center; }
+  #super-cli-bar #aci-locate, #super-cli-bar #aci-handsfree, #super-cli-bar #super-add-fab, #super-cli-bar #aci-bridge, #super-cli-bar #aci-video-call { display:inline-flex !important; align-items:center; justify-content:center; visibility:visible !important; opacity:1 !important; }
+  #super-cli-bar #aci-locate { order:0; }
+  #super-cli-bar #aci-video-call { width:34px; height:34px; font-size:14px; border-radius:50%; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); cursor:pointer; flex-shrink:0; }
   #first-run-coach {
     position:fixed; left:50%; bottom:max(118px, calc(12vh + env(safe-area-inset-bottom)));
     transform:translateX(-50%); z-index:55; max-width:min(92vw, 340px);
@@ -426,6 +442,12 @@
   .ge-label.ge-urg-3 { border-color:var(--ax-red-border); box-shadow:0 0 10px var(--ax-red-glow); }
   .ge-label.ge-selected { border-color:var(--ax-yellow-border); background:rgba(0,0,0,0.88); box-shadow:0 0 10px var(--ax-yellow-glow); }
   .ge-label.ge-travel-label { display:flex !important; border-color:#ffdd44; box-shadow:0 0 14px rgba(255,221,68,0.45); z-index:12; }
+  .ge-label.ge-video-tile { max-width:min(280px,48vw); padding:0; overflow:hidden; border-color:rgba(255,102,34,0.65); background:rgba(6,10,18,0.92); box-shadow:0 0 18px rgba(255,100,40,0.45),0 6px 20px rgba(0,0,0,0.5); z-index:14; }
+  .ge-label.ge-video-tile .ge-vid-thumb { width:88px; height:56px; flex-shrink:0; overflow:hidden; background:#111; }
+  .ge-label.ge-video-tile .ge-vid-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+  .ge-label.ge-video-tile .ge-text { padding:6px 8px 6px 0; }
+  .ge-label.ge-video-tile .ge-text b { color:#ffb088; font-size:10px; }
+  .ge-label.ge-type-media { border-color:rgba(255,102,34,0.5); }
   .ge-label.ge-type-cluster { border-color:#6eb6ff; background:radial-gradient(ellipse at 50% 30%,rgba(61,158,255,0.35),rgba(4,14,32,0.88)); box-shadow:0 0 18px rgba(26,111,212,0.55),0 4px 16px rgba(0,0,0,0.45); max-width:min(200px,38vw); border-radius:16px 16px 18px 18px; }
   .ge-label.ge-type-cluster .ge-pin { font-size:18px; }
   .ge-label.ge-olympian { border-color:#0d47a1; background:linear-gradient(135deg,rgba(4,20,60,0.92),rgba(13,71,161,0.55)); box-shadow:0 0 16px rgba(21,101,192,0.65),0 0 28px rgba(13,71,161,0.35); }
@@ -458,6 +480,32 @@
   #ge-hud-intent { flex:1; padding:8px 10px; border-radius:10px; border:1px solid var(--ax-blue-border); background:rgba(0,8,18,0.85); color:var(--an-text); font-size:11px; }
   #ge-hud-intent-go { padding:8px 12px; border-radius:10px; border:1px solid var(--ax-green-border); background:var(--ax-green-bg); color:#fff; font-weight:700; cursor:pointer; font-size:11px; }
   #ge-hud-place-close { align-self:flex-end; padding:6px 10px; border-radius:8px; border:1px solid #666; background:transparent; color:#aaa; cursor:pointer; font-size:10px; }
+  /* National → choose a city */
+  #city-pick-chips {
+    display:none; position:fixed; left:50%; bottom:max(92px, calc(env(safe-area-inset-bottom) + 78px));
+    transform:translateX(-50%); z-index:125; width:min(96vw, 440px);
+    flex-wrap:wrap; gap:6px; justify-content:center; align-items:center;
+    padding:8px 10px; border-radius:14px;
+    background:rgba(2,10,22,0.88); border:1px solid var(--ax-blue-border);
+    box-shadow:0 6px 22px rgba(0,0,0,0.5), 0 0 14px var(--ax-blue-glow);
+    backdrop-filter:blur(12px); pointer-events:auto;
+  }
+  #city-pick-chips.visible { display:flex; }
+  #city-pick-chips .city-pick-head {
+    width:100%; text-align:center; font:600 10px/1.2 system-ui; color:var(--ax-blue-bright);
+    letter-spacing:0.04em; text-transform:uppercase; margin-bottom:2px;
+  }
+  #city-pick-chips button {
+    padding:8px 12px; border-radius:999px; border:1px solid var(--ax-blue-border);
+    background:rgba(0,22,44,0.85); color:var(--an-text); font:600 11px system-ui;
+    cursor:pointer; white-space:nowrap; max-width:46vw;
+  }
+  #city-pick-chips button:hover, #city-pick-chips button:focus {
+    border-color:var(--ax-green-border); box-shadow:0 0 10px var(--ax-green-glow); outline:none;
+  }
+  #city-pick-chips button[data-city-id="here"] {
+    border-color:var(--ax-green-border); background:var(--ax-green-bg); color:#fff;
+  }
   /* Astranov Identity modal */
   #astranov-auth-modal { display:none; position:fixed; inset:0; z-index:200; align-items:center; justify-content:center; background:rgba(0,4,12,0.82); backdrop-filter:blur(8px); pointer-events:auto; }
   #astranov-auth-modal.open { display:flex; }
@@ -730,14 +778,15 @@
       <button type="button" id="ge-hud-place-close">✖ Close</button>
     </div>
   </div>
-  <div id="zoom-label">GLOBAL · drag Earth · 🎯 your city · 🎧 Grok · + post</div>
+  <div id="city-pick-chips" aria-label="Choose a city"></div>
+  <div id="zoom-label">Earth · drag · 🎯 city · 🎧 chat · + post</div>
   <div id="first-run-coach" hidden>
     <strong>Welcome to Astranov</strong>
     <ol>
       <li>Drag to spin Earth · pinch to zoom</li>
-      <li>🎯 Locate — real GPS city map</li>
-      <li>🎧 Talk to Grok · type below · + to post</li>
-      <li>Architect: sign in with G → 🛠 or say <em>fix …</em> / <em>code …</em> — stay in-app; Grok Build codes on desktop and replies here</li>
+      <li>🎯 Locate — your city on the map</li>
+      <li>🎧 Chat · type below · + to post, shop, date, or hire</li>
+      <li>Order food · post a date · hire help — as easy as pizza</li>
     </ol>
     <button type="button" id="first-run-coach-ok">Got it</button>
   </div>
@@ -746,23 +795,24 @@
   <div id="user-chip"></div>
   <div id="drive-guide"></div>
   <div id="aci-hud">
-    <div id="news-ticker">Astranov Collective Intelligence — loading news…</div>
+    <div id="news-ticker">Astranov — news &amp; nearby…</div>
     <div id="globe-deck" class="collapsed">
       <div id="globe-deck-header">
-        <span id="globe-deck-title">Astranov Command Line</span>
+        <span id="globe-deck-title">Astranov</span>
         <span id="globe-deck-preview"></span>
       </div>
       <div id="super-cli-bar">
         <button id="aci-login" title="Sign in with Google" type="button">G</button>
         <span id="cli-ribbon-status" aria-live="polite"></span>
-        <div id="toolbar-trust-actions">
-          <button id="aci-locate" title="Locate me — national then city" type="button">🎯</button>
+        <div id="super-cli-edge-right" class="toolbar-trust-actions">
+          <button id="aci-locate" title="Locate me — your city" type="button" aria-label="Locate me">🎯</button>
           <button id="aci-handsfree" type="button" title="AI hands-free — listen &amp; speak">🎧</button>
           <button id="aci-bridge" type="button" title="Dev bridge — send fix to Grok Build" hidden>🛠</button>
-          <button id="super-add-fab" type="button" title="Super Add — post · vendor · site">+</button>
+          <button id="aci-video-call" type="button" title="Video call">📹</button>
+          <button id="super-add-fab" type="button" title="Super Add — profile · post · shop · drive">+</button>
         </div>
         <div id="app-shortcut-row" role="toolbar" aria-label="Open applications"></div>
-        <button id="aci-cli-toggle" title="Expand/collapse Astranov Command Line" type="button">💻</button>
+        <button id="aci-cli-toggle" title="Expand or collapse chat" type="button">💬</button>
         <button id="aci-stop" title="Stop" type="button">🛑</button>
         <button id="aci-hold" title="Hold session — pause mic &amp; tasks for noisy places" type="button" aria-pressed="false">⏸</button>
 
@@ -809,7 +859,7 @@
       <button id="nb-install-ios" type="button" style="display:none;width:100%;margin:6px 0;padding:10px;border-radius:12px;background:rgba(40,40,60,0.5);border:1px solid #88a;color:#cdf;cursor:pointer;font-weight:600">🍎 iOS install steps</button>
       <button id="nb-launch" type="button">🔗 Launch batch · work together</button>
       <div id="nb-mesh-viz" aria-hidden="true"></div>
-      <div style="margin:8px 0;font-size:10px;color:var(--an-muted)">Session: <b id="nb-batch-id" style="color:var(--ax-blue-bright)">ASTRANOV COLLECTIVE INTELLIGENCE</b> · Devices: <b id="nb-peers" style="color:var(--ax-blue-bright)">0</b> · <span id="nb-mesh-status" style="color:var(--ax-green-bright)">idle</span></div>
+      <div style="margin:8px 0;font-size:10px;color:var(--an-muted)">Session: <b id="nb-batch-id" style="color:var(--ax-blue-bright)">Astranov</b> · Devices: <b id="nb-peers" style="color:var(--ax-blue-bright)">0</b> · <span id="nb-mesh-status" style="color:var(--ax-green-bright)">idle</span></div>
       <button id="nb-join-comms" type="button">📡 Open comms channel (PMR/WebRTC)</button>
       <div id="nb-status" style="color:#9cb;font-size:10px;margin-top:6px">Install node to work together without browser babysitting</div>
     </div>
@@ -859,14 +909,14 @@
     </div>
     <div id="vendor-menu">
       <div id="vm-header"><span id="vm-title">Καταστήματα</span><button id="vm-close" type="button">✖️</button></div>
-      <div id="vm-body"><div id="vm-list"></div><div id="vm-detail" style="display:none"><button id="vm-back" type="button">← όλα τα καταστήματα</button><div id="vm-empty" style="display:none"></div><div id="vm-items"></div><div id="vm-drivers-pick" class="vm-drivers-pick" style="display:none"></div><button id="vm-request" type="button" style="display:none">Ζήτησε μενού από κατάστημα</button><button id="vm-place" type="button">Παραγγελία</button></div><div id="vm-compare" style="display:none"><button id="vm-compare-back" type="button">← όλα τα καταστήματα</button><div id="vm-wanted"></div><div id="vm-matches"></div><div id="vm-drivers"></div><div id="vm-pricing" class="vm-pricing" style="display:none"></div><div id="vm-balance"></div><button id="vm-wallet-pay" type="button" style="display:none">Google Wallet · Pay vendor</button><button id="vm-confirm-pay" type="button" style="display:none">Επιβεβαίωση &amp; Πληρωμή · AVC balance</button></div></div>
+      <div id="vm-body"><div id="vm-list"></div><div id="vm-detail" style="display:none"><button id="vm-back" type="button">← όλα τα καταστήματα</button><div id="vm-empty" style="display:none"></div><div id="vm-items"></div><div id="vm-drivers-pick" class="vm-drivers-pick" style="display:none"></div><button id="vm-request" type="button" style="display:none">Ζήτησε μενού από κατάστημα</button><button id="vm-place" type="button">Παραγγελία</button></div><div id="vm-compare" style="display:none"><button id="vm-compare-back" type="button">← όλα τα καταστήματα</button><div id="vm-wanted"></div><div id="vm-matches"></div><div id="vm-drivers"></div><div id="vm-pricing" class="vm-pricing" style="display:none"></div><div id="vm-balance"></div><button id="vm-wallet-pay" type="button" style="display:none">Google Wallet · Pay vendor</button><button id="vm-confirm-pay" type="button" style="display:none">Επιβεβαίωση &amp; Πληρωμή · Coins balance</button></div></div>
     </div>
         </div>
       </div>
       <div id="globe-deck-input-row">
         <span id="aci-cli-prompt">›</span>
         <form id="aci-cli-form" action="#" autocomplete="off">
-          <textarea id="aci-cli-in" name="cli" rows="1" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" inputmode="text" placeholder="Talk to Grok — type or tap 🎧 · Enter to send"></textarea>
+          <textarea id="aci-cli-in" name="cli" rows="1" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" inputmode="text" placeholder="Ask Astranov — type or tap 🎧 · Enter to send"></textarea>
         </form>
         <button id="globe-deck-send" class="deck-input-btn" type="submit" form="aci-cli-form" title="Send command">➡</button>
       </div>

@@ -118,7 +118,7 @@ const ContextTruth = {
     if (!Auth?.user) {
       return { mode: 'guest', ctx: 'guest', label: 'Guest · sign in', detail: 'Not authenticated' };
     }
-    return { mode: 'cli', ctx: 'idle', label: 'CLI · central', detail: 'Astranov command line' };
+    return { mode: 'cli', ctx: 'idle', label: 'CLI · central', detail: 'Astranov' };
   },
 
   syncAuth() {

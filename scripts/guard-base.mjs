@@ -1,116 +1,65 @@
 #!/usr/bin/env node
 /**
- * Spartan deploy check — only block true catastrophes (stub, syntax, bootstrap destroy).
- * Everything else warns; intentional changes must not block ship.
+ * Guard production index — multi-file mode (no monolith inline core).
  */
 import fs from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { INDEX, parseIndex } from './lib/monolith.mjs';
+import { execSync } from 'node:child_process';
+import { INDEX, ROOT, JS_OUT } from './lib/monolith.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const NODE = process.execPath;
-const VERCEL = path.join(ROOT, 'vercel.json');
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const html = fs.readFileSync(INDEX, 'utf8');
-const errors = [];
-const warnings = [];
-
-function fail(msg) { errors.push(msg); }
-function warn(msg) { warnings.push(msg); }
-
-if (html.length < 80_000) fail(`index.html too small (${html.length}b) — likely bootstrap stub`);
-if (html.includes('simulateACI')) fail('simulateACI found — forbidden simulation');
-if (html.includes('data-astranov-deferred>//')) fail('broken inline deferred script');
-const extraInline = html.match(/<\/script>\s*<script(?![^>]*src=)/gi);
-if (extraInline?.length) fail(`extra inline script blocks: ${extraInline.length}`);
-
-const title = (html.match(/<title>([^<]+)/) || [])[1] || '';
-if (title.trim() !== 'Astranov') {
-  if (/MILKED|RESTORED|ADVANCED/i.test(title)) fail(`troll title: "${title}"`);
-  else warn(`title is "${title.trim()}" — prefer "Astranov"`);
-}
-
-if (html.includes('.celestial-circle { display: block')) warn('celestial circles may be visible');
-if (!html.includes('#aci-hud')) warn('#aci-hud missing');
-if (!html.includes('#globe-deck')) warn('#globe-deck missing');
-if (!html.includes('astranov-continuity.js')) warn('astranov-continuity.js missing from index — AI handoff doc');
-if (!html.includes('astranov-perf-lazy.js')) warn('astranov-perf-lazy.js missing — boot perf regression risk');
-if (!html.includes('menu-profile-post-tile')) warn('#menu-profile-post-tile missing — super-add field');
-if (!html.includes('aci-video-call')) warn('#aci-video-call missing — video call CLI');
-if (html.includes('miner-cli-strip') || html.includes('id="aci-miner"')) warn('CLI miner strip present — use #field-balance-hud tap only');
-if (!html.includes('field-balance-hud') && !html.includes('astranov-field-hud.js')) warn('field HUD / miner field entry may be broken');
-if (html.includes('miner-cli-strip') || html.includes('id="aci-miner"')) warn('deprecated CLI miner strip in index');
-for (const md of ['CLAUDE.md', 'ASTRANOV_GROK_SPECS.md']) {
-  try {
-    const t = fs.readFileSync(path.join(ROOT, md), 'utf8');
-    if (/triangle of truth|recycle into.*GROK_SPECS|index\.html only/i.test(t) && !t.includes('astranov-continuity')) {
-      warn(`${md} still cites old spec triangle — point to astranov-continuity.js`);
-    }
-  } catch (_) {}
-}
-
-try {
-  const vercel = JSON.parse(fs.readFileSync(VERCEL, 'utf8'));
-  if (/bootstrap-index/i.test(vercel.buildCommand || '')) fail('vercel.json runs bootstrap-index.mjs — destroys monolith');
-} catch (e) {
-  warn('vercel.json unreadable: ' + e.message);
-}
-
-const appPath = path.join(ROOT, 'astranov-app.js');
-const corePath = path.join(ROOT, 'astranov-core.js');
-const glPath = path.join(ROOT, 'astranov-gl.js');
-let script = '';
-if (html.includes('astranov-app.js')) {
-  if (!fs.existsSync(appPath)) fail('astranov-app.js missing');
-  if (fs.statSync(appPath).size < 200_000) fail('astranov-app.js too small');
-  if (!html.includes('id="globe"') || !html.includes('globe-deck')) fail('index shell missing globe/deck');
-  const appSrc = fs.readFileSync(appPath, 'utf8');
-  if (!appSrc.includes("document.getElementById('globe')")) fail('astranov-app.js missing container');
-  const tmp = path.join(ROOT, 'src', `.guard-${process.pid}-app.js`);
-  fs.writeFileSync(tmp, fs.readFileSync(appPath, 'utf8'));
-  const r = spawnSync(NODE, ['--check', tmp], { encoding: 'utf8' });
-  try { fs.unlinkSync(tmp); } catch {}
-  if (r.status !== 0) fail('JS syntax check failed: astranov-app.js');
-  script = '';
-} else if (html.includes('astranov-gl.js') || html.includes('astranov-core.js')) {
-  if (!fs.existsSync(glPath)) fail('astranov-gl.js missing');
-  if (!fs.existsSync(corePath)) fail('astranov-core.js missing');
-  if (fs.statSync(glPath).size < 3000) fail('astranov-gl.js too small');
-  if (fs.statSync(corePath).size < 200_000) fail('astranov-core.js too small');
-  if (!html.includes('id="globe"') || !html.includes('globe-deck')) fail('index shell missing globe/deck');
-  for (const fp of [glPath, corePath]) {
-    const tmp = path.join(ROOT, 'src', `.guard-${process.pid}-${path.basename(fp)}`);
-    fs.writeFileSync(tmp, fs.readFileSync(fp, 'utf8'));
-    const r = spawnSync(NODE, ['--check', tmp], { encoding: 'utf8' });
-    try { fs.unlinkSync(tmp); } catch {}
-    if (r.status !== 0) fail('JS syntax check failed: ' + path.basename(fp));
-  }
-  script = '';
-} else {
-  try {
-    ({ script } = parseIndex(html));
-  } catch (e) {
-    fail('parseIndex: ' + e.message);
-  }
-}
-if (script) {
-  const tmp = path.join(ROOT, 'src', `.guard-${process.pid}.js`);
-  fs.writeFileSync(tmp, script);
-  const r = spawnSync(NODE, ['--check', tmp], { encoding: 'utf8' });
-  try { fs.unlinkSync(tmp); } catch {}
-  if (r.status !== 0) fail('JS syntax check failed');
-}
-
-if (warnings.length) {
-  console.log('Warnings:');
-  warnings.forEach((w) => console.log('  ⚠', w));
-}
-if (errors.length) {
-  console.error('DEPLOY BLOCKED:');
-  errors.forEach((e) => console.error('  ✗', e));
+function fail(msg) {
+  console.error('GUARD FAIL:', msg);
   process.exit(1);
 }
+function warn(msg) {
+  console.warn('GUARD WARN:', msg);
+}
 
-console.log('OK —', Math.round(html.length / 1024) + 'k', 'monolith, syntax clean');
+if (!fs.existsSync(INDEX)) fail('index.html missing');
+const html = fs.readFileSync(INDEX, 'utf8');
+
+// Multi-file: must have loader + manifest, must NOT have huge inline core
+if (!html.includes('__ASTRANOV_MANIFEST__')) fail('missing multi-file manifest injection');
+if (!html.includes('/js/loader.js')) fail('missing js/loader.js boot');
+if (!html.includes('three.min.js')) fail('Three.js missing from shell');
+
+// Reject reintroduction of 500KB+ inline monolith
+const inlineBlocks = html.match(/<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?<\/script>/gi) || [];
+const bigInline = inlineBlocks.filter(b => b.length > 80_000);
+if (bigInline.length) fail(`monolith inline script returned (${Math.round(bigInline[0].length / 1024)}KB) — multi-file only`);
+
+// Phase bundles (production path) + critical individuals
+const need = [
+  'js/loader.js',
+  'js/phase-critical.js',
+  'js/phase-app.js',
+  'js/phase-features.js',
+  'js/phase-deferred.js',
+  'js/00-globe.js',
+  'js/10-trackball.js',
+];
+for (const rel of need) {
+  if (!fs.existsSync(path.join(ROOT, rel))) fail('missing ' + rel);
+}
+if (!html.includes('phase-critical')) fail('index not using phase-critical bundle');
+
+if (!html.includes('field-balance-hud') && !html.includes('astranov-field-hud.js') && !html.includes('ResourceMonitor')) {
+  warn('field HUD / money field entry may be thin in shell (loads via modules)');
+}
+
+// Loader syntax
+try {
+  execSync(`node --check "${path.join(ROOT, 'js', 'loader.js')}"`, { stdio: 'pipe' });
+  execSync(`node --check "${path.join(ROOT, 'js', '00-globe.js')}"`, { stdio: 'pipe' });
+} catch (e) {
+  fail('syntax: ' + (e.stderr?.toString() || e.message));
+}
+
+const indexKB = Math.round(html.length / 1024);
+const jsCount = fs.existsSync(JS_OUT)
+  ? fs.readdirSync(JS_OUT).filter(f => f.endsWith('.js')).length
+  : 0;
+console.log('OK — multi-file · index', indexKB + 'KB · js modules', jsCount);

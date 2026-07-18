@@ -419,17 +419,22 @@ const GlobeDeck = {
     this._size = 'third';
     this.expanded = true;
     this.applySize();
-    this.setTitle(window.SuperCli?.title || 'Astranov Command Line');
-    this.setPreview('Type or 🎧 Grok · 🎯 your city · + post');
+    this.setTitle(window.PublicCopy?.deckTitle?.() || 'Astranov');
+    this.setPreview(window.PublicCopy?.isArchitect?.()
+      ? 'Architect · fix · task · starship'
+      : 'Type or 🎧 · 🎯 city · + post · date · hire · order');
     this.deck()?.classList.add('has-preview');
-    CliRibbon?.setNotice?.('Earth ready', 'ready');
+    CliRibbon?.setNotice?.(window.PublicCopy?.readyNotice?.() || 'Ready', 'ready');
     if (window.AciCli) AciCli.open = true;
   },
 
   superAction(action) {
     this._userEngaged = true;
     if (this._collapseTimer) { clearTimeout(this._collapseTimer); this._collapseTimer = null; }
-    this.expand((window.SuperCli?.title || 'Astranov Command Line') + ' — ' + (action || 'collective'));
+    const base = window.PublicCopy?.deckTitle?.() || 'Astranov';
+    // Public: no "collective / mission" jargon
+    const tag = action && action !== 'collective' ? (' — ' + action) : '';
+    this.expand(base + tag);
   },
 
   collapse() {

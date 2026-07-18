@@ -1,0 +1,13 @@
+name = "astranov-origin-proxy"
+main = "src/index.js"
+compatibility_date = "2026-07-01"
+account_id = "04faced90ecdb9aae7c15537751180da"
+
+# Serve fixed CF Pages build on production host while Vercel is stuck
+routes = [
+  { pattern = "astranov.eu/*", zone_name = "astranov.eu" },
+  { pattern = "www.astranov.eu/*", zone_name = "astranov.eu" }
+]
+
+[vars]
+ORIGIN = "https://astranov.pages.dev"

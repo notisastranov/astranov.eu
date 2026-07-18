@@ -170,7 +170,7 @@ const Commerce = {
       + '<div class="muted">' + quote.km.toFixed(1) + ' km · ' + quote.kg + ' kg'
       + (sur ? ' · ' + sur : '')
       + (quote.weather?.bad ? ' · ⚠ weather' : '') + '</div>'
-      + '<div>Total <strong>' + quote.total_avc.toFixed(2) + ' AVC</strong> (= ' + quote.total_eur.toFixed(2) + ' EUR) · <a href="https://coin.astranov.eu" target="_blank" rel="noopener" style="color:#e8c547">coin.astranov.eu</a> · work-mint ledger</div>';
+      + '<div>Total <strong>' + quote.total_avc.toFixed(2) + ' Coins</strong> (= ' + quote.total_eur.toFixed(2) + ' EUR) · <a href="https://coin.astranov.eu" target="_blank" rel="noopener" style="color:#e8c547">coin.astranov.eu</a> · work-mint ledger</div>';
     if (walletBtn) {
       walletBtn.style.display = GoogleWalletPay?.supported?.() ? 'block' : 'none';
       walletBtn.textContent = 'Google Wallet · ' + quote.total_eur.toFixed(2) + '€';
@@ -348,15 +348,15 @@ const Commerce = {
         const row = document.createElement('div');
         row.className = 'vm-match' + (i === 0 ? ' best' : '');
         const miss = m.wanted - m.matched;
-        const detail = m.picks.map(p => p.item.name + ' ' + p.price + ' AVC').join(' · ');
-        row.innerHTML = '<div class="vm-match-head"><span>' + vendorIcon(m.vendor) + ' ' + m.vendor.name + '</span><strong>' + m.total.toFixed(1) + ' AVC</strong></div>'
+        const detail = m.picks.map(p => p.item.name + ' ' + p.price + ' Coins').join(' · ');
+        row.innerHTML = '<div class="vm-match-head"><span>' + vendorIcon(m.vendor) + ' ' + m.vendor.name + '</span><strong>' + m.total.toFixed(1) + ' Coins</strong></div>'
           + '<div class="vm-match-sub">' + m.km.toFixed(1) + ' km · ' + m.matched + '/' + m.wanted + ' είδη' + (miss ? ' · <span style="color:#ffd633">-' + miss + '</span>' : '') + '</div>'
           + '<div class="vm-match-items">' + detail + '</div>';
         row.onclick = () => {
           this._suggestion = m;
           matchBox.querySelectorAll('.vm-match').forEach(el => el.classList.remove('picked'));
           row.classList.add('picked');
-          if (confirmBtn) confirmBtn.textContent = 'Επιβεβαίωση & Πληρωμή · ' + m.vendor.name + ' · ' + m.total.toFixed(1) + ' AVC';
+          if (confirmBtn) confirmBtn.textContent = 'Επιβεβαίωση & Πληρωμή · ' + m.vendor.name + ' · ' + m.total.toFixed(1) + ' Coins';
           this.flyToVendor(m.vendor);
         };
         if (i === 0) { row.classList.add('picked'); this._suggestion = m; }
@@ -385,13 +385,13 @@ const Commerce = {
       const b = balance != null ? balance : 0;
       const need = this._suggestion?.total || matches[0]?.total || 0;
       const ok = b >= need;
-      balBox.innerHTML = '<div>Υπόλοιπο: <strong>' + b.toFixed(1) + ' AVC</strong>'
-        + (need ? ' · Παραγγελία: <strong>' + need.toFixed(1) + ' AVC</strong>' : '')
+      balBox.innerHTML = '<div>Υπόλοιπο: <strong>' + b.toFixed(1) + ' Coins</strong>'
+        + (need ? ' · Παραγγελία: <strong>' + need.toFixed(1) + ' Coins</strong>' : '')
         + (ok ? '' : ' · <span style="color:#ff3344">ανεπαρκές — recharge στο CLI</span>') + '</div>';
     }
     if (confirmBtn && this._suggestion) {
       confirmBtn.style.display = 'block';
-      confirmBtn.textContent = 'Επιβεβαίωση & Πληρωμή · AVC balance';
+      confirmBtn.textContent = 'Επιβεβαίωση & Πληρωμή · Coins balance';
       this.buildQuote(this._suggestion).then(q => this.renderPricing(q)).catch(() => {});
     }
   },
@@ -447,7 +447,7 @@ const Commerce = {
       });
       const best = matches[0];
       const driverNames = drivers.slice(0, 2).map(d => d.display_name || 'Driver').join(', ');
-      const msg = 'Πρόταση: ' + best.vendor.name + ' · ' + best.total.toFixed(1) + ' AVC · ' + best.km.toFixed(1) + ' km'
+      const msg = 'Πρόταση: ' + best.vendor.name + ' · ' + best.total.toFixed(1) + ' Coins · ' + best.km.toFixed(1) + ' km'
         + (driverNames ? ' · οδηγοί: ' + driverNames : ' · αναζήτηση οδηγού');
       ACIControl?.reply(msg);
       if (Voice.maySpeak()) speak(msg.slice(0, 140), () => resumeListening());
@@ -481,7 +481,7 @@ const Commerce = {
       try {
         walletPayment = await GoogleWalletPay.pay(total, sug.vendor.name + ' · Astranov', { test: location.hostname === 'localhost' });
       } catch (e) {
-        ACIControl?.reply('Wallet payment cancelled or unavailable — try AVC balance');
+        ACIControl?.reply('Wallet payment cancelled or unavailable — try Coins balance');
         return;
       }
     } else {
@@ -606,7 +606,7 @@ const Commerce = {
       const qty = this.cart[key] || 0;
       const row = document.createElement('div');
       row.className = 'vm-item';
-      row.innerHTML = '<span>' + item.name + ' <small style="color:#9ab">' + (item.price || 0) + ' AVC</small></span>';
+      row.innerHTML = '<span>' + item.name + ' <small style="color:#9ab">' + (item.price || 0) + ' Coins</small></span>';
       const q = document.createElement('div');
       q.className = 'vm-qty';
       const minus = document.createElement('button');
@@ -624,7 +624,7 @@ const Commerce = {
       box.appendChild(row);
     });
     const total = menu.reduce((s, i) => s + (this.cart[i.name] || 0) * (i.price || 0), 0);
-    if (placeBtn) placeBtn.textContent = total > 0 ? 'Παραγγελία · ' + total.toFixed(1) + ' AVC' : 'Παραγγελία';
+    if (placeBtn) placeBtn.textContent = total > 0 ? 'Παραγγελία · ' + total.toFixed(1) + ' Coins' : 'Παραγγελία';
   },
 
   cartItems() {
@@ -740,7 +740,7 @@ const Commerce = {
         if (r.ok) orderResult = j;
         else {
           if (j.error === 'vendor_menu_empty') errMsg = 'Το κατάστημα δεν έχει μενού — ζήτησε μενού πρώτα';
-          else if (j.error === 'insufficient_balance') errMsg = 'Ανεπαρκές υπόλοιπο · έχεις ' + (j.balance || 0) + ' AVC, χρειάζεσαι ' + (j.needed || total);
+          else if (j.error === 'insufficient_balance') errMsg = 'Ανεπαρκές υπόλοιπο · έχεις ' + (j.balance || 0) + ' Coins, χρειάζεσαι ' + (j.needed || total);
           else errMsg = j.error || j.message || ('HTTP ' + r.status);
         }
       } catch (e) { errMsg = String(e.message || e); }
@@ -758,7 +758,7 @@ const Commerce = {
 
       let msg;
       if (orderResult?.order) {
-        const paid = orderResult.paid ? ' · Πληρώθηκε ' + (orderResult.paid_amount || total).toFixed(1) + ' AVC' : '';
+        const paid = orderResult.paid ? ' · Πληρώθηκε ' + (orderResult.paid_amount || total).toFixed(1) + ' Coins' : '';
         msg = orderResult.seeking_driver
           ? 'Παραγγελία ' + (ordId || '') + ' στο ' + vendor.name + paid + '. Αναζητούμε οδηγό — claim στο CLI.'
           : 'Παραγγελία ' + (ordId || '') + ' στο ' + vendor.name + paid + '. Οδηγός: ' + (driver || 'pending') + '.';
@@ -872,7 +872,7 @@ const Commerce = {
       const items = this.menuFor(v).concat([{ name, price }]);
       const r = await this.updateVendorMenu(v.id, items);
       if (r.error) return r;
-      return { ok: true, message: 'added ' + name + ' @ ' + price + ' AVC to ' + v.name, items: items.length };
+      return { ok: true, message: 'added ' + name + ' @ ' + price + ' Coins to ' + v.name, items: items.length };
     }
     if (sub === 'clear') {
       const ref = args[1];

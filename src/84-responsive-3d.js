@@ -26,7 +26,7 @@ const Responsive3D = {
     if (/order|παραγγελ|delivery|διανομ/.test(low)) return '🛒 Tracking on globe…';
     if (/locate|gps|where|που/.test(low)) return '📍 Flying to you…';
     if (/profile|login|account|ρόλ/.test(low)) return '👤 Profile orbit…';
-    if (/coin|wallet|avc|balance/.test(low)) return '◎ AVC pulse…';
+    if (/coin|wallet|Coins|balance/.test(low)) return '◎ Coins pulse…';
     return this.ACKS[this._pending % this.ACKS.length];
   },
 

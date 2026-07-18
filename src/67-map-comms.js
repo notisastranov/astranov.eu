@@ -56,7 +56,10 @@ const MapComms = {
       : (window._lastPos || { lat: 36.22, lng: 28.12 });
     return {
       id: Auth?.user?.id || 'guest',
-      name: AstranovPresence?.displayName?.() || me?.name || 'You',
+      name: AstranovPresence?.displayName?.()
+        || Auth?.user?.user_metadata?.full_name
+        || Auth?.user?.email?.split?.('@')?.[0]
+        || 'You',
       lat: p.lat,
       lng: p.lng,
       emoji: '◎',

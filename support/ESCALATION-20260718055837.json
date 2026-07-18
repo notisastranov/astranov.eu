@@ -1,0 +1,69 @@
+{
+  "title": "ASTRANOV ESCALATION — unusable lag + agent blocked on finish",
+  "ts": "2026-07-18T05:59:38.776Z",
+  "product": "astranov.eu",
+  "owner": "notisastranov@gmail.com",
+  "repo": "C:\\\\Users\\\\Astranov\\\\Documents\\\\GitHub\\\\Astranov",
+  "deployRepo": "notisastranov/astranov.eu",
+  "supabase": "lkoatrkhuigdolnjsbie",
+  "build": {
+    "buildId": "20260718055837",
+    "builtAt": "2026-07-18T05:58:37.648Z"
+  },
+  "sizes": {
+    "indexHtml": 646717,
+    "deferredJs": 368071,
+    "coreModules": 42,
+    "deferredModules": 29
+  },
+  "userVerdict": "unusable heavy sticky laggy; agent cannot finish app; empower agent to finish",
+  "criticalFailures": [
+    "Main-thread jank / sticky / laggy UI on mobile and desktop after feature bulk",
+    "Core monolith ~640KB + deferred ~360KB + product scripts still too heavy",
+    "WebGL still expensive despite lite mode (Earth texture, Helper, entity labels, RAF)",
+    "Feature surface partially works (locate restored, public copy, truth planets, city DNA) but not shippable product feel",
+    "Bridge idle poll waste historically burned sessions (cancelled)",
+    "Truth violations earlier: fake planets around Earth (fixed), SETI language on public UI (fixed)"
+  ],
+  "shippedButNotEnough": [
+    "perf lite WebGL DPR/stars/segments",
+    "idle frame skip",
+    "deferred load on-demand not static parse",
+    "fake planets removed; ISS live only",
+    "public language vs architect tone",
+    "locate button rescued from hidden app-shortcut-row",
+    "City DNA jobs/dating/errands/delivery",
+    "audit-ready.mjs ALL PASS unit layer"
+  ],
+  "rootCauseHypothesis": [
+    "Monolith architecture: 42 core modules inline parse+compile on every load",
+    "Three.js full scene always running RAF even with skip",
+    "Too many product features wired into boot path over weeks without a true slim shell",
+    "Agent has been patch-churning; needs empowered multi-hour rewrite of shell: static HTML + tiny boot + worker/offthread"
+  ],
+  "requestedEmpowerment": [
+    "Authorize full performance rewrite: slim boot shell <150KB first paint",
+    "Move Three.js init behind requestIdleCallback after first paint",
+    "Kill Helper character spawn by default on mobile",
+    "Disable Earth 2048 texture on mobile; solid Phong only",
+    "Entity labels: max N on screen, no alwaysShow for non-open tasks",
+    "Remove AIGraphics continuous update unless user enables helper",
+    "Single product surface path (no dual assemble + astranov-app.js drift)",
+    "Support digest force-notify xAI/Astranov support with this report"
+  ],
+  "nextArchitectPlan": [
+    "1. Freeze features",
+    "2. New boot: shell HTML + three lazy + earth only + chat bar",
+    "3. Everything else after first interaction",
+    "4. Measure with PerformanceObserver longtasks",
+    "5. Only then re-enable city DNA / video tiles / starship on demand"
+  ],
+  "recentBuilds": [
+    "20260718055837",
+    "20260718055331",
+    "20260718055650",
+    "20260717195126"
+  ],
+  "continuityFile": "astranov-continuity.js",
+  "supportEndpoint": "supabase/functions/support-digest"
+}

@@ -107,99 +107,65 @@ const CosmicZoom = {
   },
 
   init() {
+    // TRUTH: no toy planets co-located with Earth (dist ~0.7–3 next to Earth radius=1 was a lie).
+    // Solar system schematic removed. Earth is Earth. ISS only when live position known.
     this.solarGroup = new THREE.Group();
     this.solarGroup.visible = false;
+    this.solarGroup.name = 'solar-disabled-truth';
     scene.add(this.solarGroup);
+    this.planets = [];
 
-    const sun = new THREE.Mesh(
-      new THREE.SphereGeometry(0.35, 16, 16),
-      new THREE.MeshBasicMaterial({ color: 0xffcc33 })
-    );
-    sun.userData = { name: 'Sun', desc: 'G-type star · system barycenter' };
-    this.solarGroup.add(sun);
-
-    const planetDefs = [
-      { n: 'Mercury', desc: 'Rocky · 87.97-day sidereal orbit · 7.0° incl', c: 0xaaaaaa, r: 0.04, dist: 0.7, periodDays: 87.969, incl: 7.005, omega: 48.331, M0: 174.796 },
-      { n: 'Venus', desc: 'Cloud cover · 224.7-day sidereal orbit · 3.4° incl', c: 0xddbb88, r: 0.06, dist: 1.0, periodDays: 224.701, incl: 3.395, omega: 76.680, M0: 50.416 },
-      { n: 'Mars', desc: 'Red desert · 687-day sidereal orbit · 1.9° incl', c: 0xff6644, r: 0.05, dist: 1.5, periodDays: 686.980, incl: 1.850, omega: 49.558, M0: 19.373 },
-      { n: 'Jupiter', desc: 'Gas giant · 11.86-year sidereal orbit · 1.3° incl', c: 0xccaa77, r: 0.12, dist: 2.2, periodDays: 4332.589, incl: 1.305, omega: 100.464, M0: 20.020 },
-      { n: 'Saturn', desc: 'Rings (not shown) · 29.46-year sidereal orbit · 2.5° incl', c: 0xddcc99, r: 0.1, dist: 3.0, periodDays: 10759.22, incl: 2.485, omega: 113.666, M0: 317.020 },
-    ];
-    planetDefs.forEach(p => {
-      const m = new THREE.Mesh(
-        new THREE.SphereGeometry(p.r, 10, 10),
-        new THREE.MeshBasicMaterial({ color: p.c })
-      );
-      m.userData = {
-        dist: p.dist,
-        periodDays: p.periodDays,
-        incl: p.incl,
-        omega: p.omega,
-        M0: p.M0,
-        name: p.n,
-        desc: p.desc,
-      };
-      this.solarGroup.add(m);
-      this.planets.push(m);
-      this.makeInclinedOrbit(m.userData, p.c, 0.16, this.solarGroup, { body: p.n, dash: 0.04, gap: 0.1 });
-    });
-
+    // Distant star points only (not planets) — abstract backdrop when zoomed far
     const gPos = [];
-    for (let i = 0; i < 400; i++) {
-      const arm = (i % 4) * 0.4;
+    const gCount = window._globePerfLite ? 120 : 280;
+    for (let i = 0; i < gCount; i++) {
       const t = Math.random() * Math.PI * 2;
-      const rad = 8 + Math.random() * 25 + arm * 3;
-      gPos.push(Math.cos(t) * rad, (Math.random() - 0.5) * 2, Math.sin(t) * rad);
+      const rad = 12 + Math.random() * 30;
+      gPos.push(Math.cos(t) * rad, (Math.random() - 0.5) * 3, Math.sin(t) * rad);
     }
     const gGeo = new THREE.BufferGeometry();
     gGeo.setAttribute('position', new THREE.Float32BufferAttribute(gPos, 3));
     this.galaxyPts = new THREE.Points(
       gGeo,
-      new THREE.PointsMaterial({ color: 0xaaccff, size: 0.035, sizeAttenuation: true, transparent: true, opacity: 0.35 })
+      new THREE.PointsMaterial({ color: 0xaaccff, size: 0.035, sizeAttenuation: true, transparent: true, opacity: 0.3 })
     );
     this.galaxyPts.visible = false;
     scene.add(this.galaxyPts);
 
+    // Sat group: real ISS marker only — no decorative LEO rings (fake shells)
     this.satGroup = new THREE.Group();
+    this.satGroup.name = 'truth-orbit';
     globePivot.add(this.satGroup);
-    this.leoRings = [
-      this.makeDashedOrbit(1.052, 0x336699, 0.1, this.satGroup, { body: 'LEO shell 1', tilt: 0.03, dash: 0.03, gap: 0.12 }),
-      this.makeDashedOrbit(1.062, 0x4488bb, 0.14, this.satGroup, { body: 'LEO shell 2', tilt: 0.05, wobble: 2, dash: 0.035, gap: 0.11 }),
-      this.makeDashedOrbit(1.072, 0x55aacc, 0.1, this.satGroup, { body: 'ISS / Starlink', tilt: 0.08, dash: 0.04, gap: 0.1 }),
-    ];
-    this.issOrbit = this.leoRings[2];
+    this.leoRings = [];
+    this.issOrbit = null;
     const iss = new THREE.Mesh(
-      new THREE.SphereGeometry(0.014, 8, 8),
+      new THREE.SphereGeometry(0.012, 8, 8),
       new THREE.MeshBasicMaterial({ color: 0x00ffcc })
     );
-    iss.userData = { type: 'iss', name: 'ISS', desc: 'International Space Station · ~400 km' };
+    iss.userData = { type: 'iss', name: 'ISS', desc: 'International Space Station · live when tracked' };
+    iss.visible = false; // only after live fix
     this.satGroup.add(iss);
     this.issMarker = iss;
     this.level = 'earth';
     this.setOrbitVisibility('earth');
     if (this.solarGroup) this.solarGroup.visible = false;
     if (this.galaxyPts) this.galaxyPts.visible = false;
+    console.log('%c[CosmicZoom] truth mode — no fake planets around Earth', 'color:#00ddaa');
   },
 
+  /** Do not draw fake mesh relays / toy orbits. Real sats = StarlinkConstellation / ISS API. */
   registerOrbitalSats(sats) {
-    if (!sats?.length || this.meshRing) return;
-    this.meshRing = this.makeDashedOrbit(1.58, 0x8899ff, 0.12, scene, {
-      body: 'Astranov mesh',
-      tilt: 0.12,
-      wobble: 3,
-      dash: 0.05,
-      gap: 0.12,
-    });
-    sats.forEach((sat, i) => {
-      sat.userData = sat.userData || {};
-      sat.userData.name = 'Relay ' + (i + 1);
-      sat.userData.desc = 'Orbital mesh · global comms path';
-      if (sat.material) {
-        sat.material.transparent = true;
-        sat.material.opacity = 0.65;
-      }
-    });
-    this._orbitalSats = sats;
+    // Hide any legacy decorative sats so they never appear as planets
+    if (sats?.length) {
+      sats.forEach(sat => {
+        if (sat) sat.visible = false;
+      });
+    }
+    this._orbitalSats = [];
+    if (this.meshRing) {
+      this.meshRing.visible = false;
+      this.meshRing = null;
+    }
   },
 
   async trackISS() {
@@ -224,22 +190,25 @@ const CosmicZoom = {
       } catch (_) {}
     }
     if (lat == null || lng == null || !this.issMarker) return;
+    // ~420 km altitude → shell ~1 + 420/6371 ≈ 1.066 (honest scale on Earth sphere)
+    const ISS_ALT = 1.066;
     this._issTarget = { lat, lng, t: Date.now() };
     this._issLastFetch = Date.now();
     this.issMarker.userData.lat = lat;
     this.issMarker.userData.lng = lng;
-    this.issMarker.userData.desc = 'ISS · live ' + lat.toFixed(2) + '° ' + lng.toFixed(2) + '° · ~400 km';
-    const p = latLngToPos(lat, lng, 1.065);
-    if (!this._issTarget.from) {
+    this.issMarker.userData.desc = 'ISS live ' + lat.toFixed(2) + '° ' + lng.toFixed(2) + '°';
+    this.issMarker.visible = true;
+    const p = latLngToPos(lat, lng, ISS_ALT);
+    if (!this.issMarker.userData._placed) {
       this.issMarker.position.set(p.x, p.y, p.z);
-      this._issTarget.from = { x: p.x, y: p.y, z: p.z };
+      this.issMarker.userData._placed = true;
     }
-    this.updateGuide(this.level, camera?.position?.z || 7.2);
+    this.updateGuide(this.level, camera?.position?.z || 2.55);
   },
 
   _lerpIss() {
     if (!this.issMarker || this._issTarget?.lat == null) return;
-    const tgt = latLngToPos(this._issTarget.lat, this._issTarget.lng, 1.065);
+    const tgt = latLngToPos(this._issTarget.lat, this._issTarget.lng, 1.066);
     const m = this.issMarker.position;
     m.x += (tgt.x - m.x) * 0.18;
     m.y += (tgt.y - m.y) * 0.18;
@@ -247,60 +216,25 @@ const CosmicZoom = {
   },
 
   updateGuide(level, camZ) {
+    // Left rail = ResourceMonitor only. No planet/orbit essays.
     const el = document.getElementById('cosmic-guide');
-    if (!el) return;
-    if (level === 'earth' && camZ < 3.4) {
-      if (CityMap?.active) {
-        el.innerHTML = '<div class="cg-title">City map</div>'
-          + '<div class="cg-item"><b>Satellite</b> — buildings & streets · pinch to zoom closer</div>'
-          + '<div class="cg-item"><b>Live</b> — friends · drivers · OSRM routing when driving</div>'
-          + '<div class="cg-item"><i>Zoom out to return to globe · theme 🌙/☀️</i></div>';
-        return;
-      }
-      if (window.CelestialNav?.isGlobalNavView?.(camZ)) {
-        el.innerHTML = window.CelestialNav.renderGuideHtml(camZ);
-        return;
-      }
+    if (el) {
+      el.innerHTML = '';
+      el.style.display = 'none';
+      el.hidden = true;
     }
-    let html = '';
-    if (level === 'orbit') {
-      html = '<div class="cg-title">Near-Earth orbit</div>'
-        + '<div class="cg-item"><b>ISS</b> — crew station · live position · ~90 min orbit</div>'
-        + '<div class="cg-item"><b>Starlink</b> — LEO broadband constellation (sampled)</div>'
-        + '<div class="cg-item"><b>Dashed rings</b> — altitude shells · semi-transparent guides</div>'
-        + '<div class="cg-item"><b>Mesh relays</b> — Astranov orbital connectivity</div>';
-    } else if (level === 'system') {
-      const iss = this.issMarker?.userData;
-      html = '<div class="cg-title">Solar system (scaled view)</div>'
-        + '<div class="cg-item"><b>Sun</b> — G-type star · system center</div>';
-      if (iss?.lat != null) {
-        html += '<div class="cg-item"><b>ISS</b> — live ' + iss.lat.toFixed(2) + '° · ' + iss.lng.toFixed(2) + '° · zoom in for orbit</div>';
-      } else {
-        html += '<div class="cg-item"><b>ISS</b> — tracking live position…</div>';
-      }
-      this.planets.forEach(p => {
-        const ud = p.userData;
-        html += '<div class="cg-item"><b>' + ud.name + '</b> — ' + (ud.desc || '') + '</div>';
-      });
-      html += '<div class="cg-item"><i>Orbits = real sidereal periods &amp; ecliptic inclinations (J2000 epoch)</i></div>';
-    } else if (level === 'galaxy') {
-      html = '<div class="cg-title">Galaxy view</div>'
-        + '<div class="cg-item"><b>Star field</b> — discrete points · spiral arm hint</div>'
-        + '<div class="cg-item"><b>Earth</b> — hidden at this scale · zoom in to return</div>';
-    }
-    el.innerHTML = html;
   },
 
   setOrbitVisibility(level) {
-    const showLeo = level === 'orbit';
-    const showSolar = level === 'system';
-    const showMesh = level === 'orbit' || level === 'system';
-    this.leoRings.forEach(r => { if (r) r.visible = showLeo; });
-    this.orbitLines.forEach(line => {
-      if (!line.parent) return;
-      if (line.parent === this.solarGroup) line.visible = showSolar;
-    });
-    if (this.meshRing) this.meshRing.visible = showMesh;
+    // No decorative LEO rings / solar toy planets
+    this.leoRings.forEach(r => { if (r) r.visible = false; });
+    this.orbitLines.forEach(line => { if (line) line.visible = false; });
+    if (this.meshRing) this.meshRing.visible = false;
+    if (this.solarGroup) this.solarGroup.visible = false;
+    // ISS only when we have a live fix
+    if (this.issMarker) {
+      this.issMarker.visible = !!(this.issMarker.userData?.lat != null && (level === 'orbit' || level === 'earth'));
+    }
   },
 
   update(camZ, opts) {
@@ -329,17 +263,19 @@ const CosmicZoom = {
     const now = Date.now();
     const zl = document.getElementById('zoom-label');
     if (zl && !DrivingView?.active && (levelChanged || camChanged)) {
+      const pc = window.PublicCopy;
       if (CityMap?.active) {
         const tier = window.ZoomTiers?.current?.();
-        const tierLabel = tier?.id === 'neighborhood' ? 'NEIGHBORHOOD MAP' : 'CITY MAP';
-        zl.textContent = tierLabel + ' · satellite · streets · friends · drivers';
+        zl.textContent = (tier?.id === 'neighborhood' ? 'Streets' : 'City')
+          + ' · map · shops · friends';
       } else if (CityMap?._nationalActive) {
-        const tier = window.ZoomTiers?.current?.();
-        zl.textContent = (tier?.label || 'NATIONAL') + ' · ' + (window.ZoomTiers?.countryHint?.() || 'region') + ' · country map · pinch for city';
+        zl.textContent = 'Country · ' + (window.ZoomTiers?.countryHint?.() || '') + ' · pinch for city';
+      } else if (pc?.zoomLine) {
+        const tid = level === 'orbit' ? 'orbit' : level === 'system' ? 'system'
+          : level === 'galaxy' ? 'galaxy' : (window.ZoomTiers?.current?.()?.id || 'global');
+        zl.textContent = pc.zoomLine(tid);
       } else {
-        const hint = level === 'orbit' ? ' · ISS · Starlink' : level === 'system' ? ' · planets'
-          : label === 'GLOBAL' ? ' · ☀ day/night · ✦ constellations' : '';
-        zl.textContent = label + hint;
+        zl.textContent = (pc?.tierLabel?.(level) || label || 'Earth');
       }
     }
     if (levelChanged || camChanged) CityMap?.onCamera?.(camZ, level);
@@ -351,32 +287,29 @@ const CosmicZoom = {
     this._lastCamZ = camZ;
     this._lastLevel = level;
 
-    globePivot.visible = camZ < 12;
-    if (this.solarGroup) this.solarGroup.visible = level === 'system';
-    if (this.galaxyPts) this.galaxyPts.visible = level === 'galaxy';
-    if (this.satGroup) this.satGroup.visible = camZ < 10;
-    if (this.issMarker) this.issMarker.visible = camZ < 10;
+    // Earth always real at origin — never overlay toy solar system on it
+    globePivot.visible = true;
+    if (this.solarGroup) this.solarGroup.visible = false;
+    if (this.galaxyPts) this.galaxyPts.visible = level === 'galaxy' || level === 'system';
+    if (this.satGroup) this.satGroup.visible = true;
     this._lerpIss();
 
-    if (this.solarGroup?.visible) {
-      this.planets.forEach(c => {
-        const ud = c.userData;
-        if (!ud?.periodDays) return;
-        const pos = this.heliocentricPosition(ud, now);
-        c.position.set(pos.x, pos.y, pos.z);
-      });
-    }
-
-    if (level === 'orbit' || level === 'system') {
+    // Live ISS when looking at Earth / above Earth (not fake planets)
+    if (level === 'earth' || level === 'orbit') {
       if (!this._issLastFetch || now - this._issLastFetch > 120000) this.trackISS();
-      if (this.issMarker) this.issMarker.visible = camZ < 10;
+      if (this.issMarker) {
+        this.issMarker.visible = this.issMarker.userData?.lat != null && camZ < 8;
+      }
+    } else if (this.issMarker) {
+      this.issMarker.visible = false;
     }
 
-    if (this._orbitalSats && (level === 'orbit' || level === 'system')) {
-      this._orbitalSats.forEach(s => { s.visible = level === 'orbit'; });
-    } else if (this._orbitalSats) {
-      this._orbitalSats.forEach(s => { s.visible = false; });
+    // Never show legacy decorative sats
+    if (this._orbitalSats?.length) {
+      this._orbitalSats.forEach(s => { if (s) s.visible = false; });
     }
+
+    // Starlink constellation dots disabled (truth — no fake LEO swarm)
   },
 };
 window.CosmicZoom = CosmicZoom;

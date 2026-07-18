@@ -92,6 +92,48 @@ const AstranovCoreBrain = {
       actions.push({ type: 'brain_pulse', mode: /evolve|εξέλιξ/i.test(low) ? 'evolve' : 'think' });
     }
 
+    // SpaceX / video tiles on globe
+    if (/spacex\s*video|video\s*tile|globe\s*video|show\s*spacex|tiles?\s*on\s*globe/i.test(low)
+      || (/spacex/.test(low) && /video|watch|live|tile/.test(low))) {
+      intent = 'video_tiles';
+      actions.push({ type: 'video_tiles', query: m });
+    }
+
+    // Starship Flight 13 sim
+    if (/starship|flight\s*13|f13|starbase\s*launch|ift[\s-]*13/i.test(low)) {
+      intent = 'starship';
+      actions.push({ type: 'starship', query: m });
+    }
+
+    // Starlink / SpaceX sats on globe
+    if (/starlink|spacex\s*sat|leo\s*constellation|satellite\s*(map|orbit|show)|constellation/i.test(low)
+      && !/starship|flight\s*13/i.test(low)) {
+      intent = 'starlink';
+      actions.push({ type: 'starlink', query: m });
+    }
+
+    // Resource monitor / donate
+    if (/\b(resource|resources|donate|donation|monitor|cpu\s*share|max\s*load)\b/i.test(low)) {
+      intent = 'resources';
+      actions.push({ type: 'resources', query: m });
+    }
+
+    // SpaceNet crawlers
+    if (/spacenet|crawl(er|ers)?|ingest|scan\s*(city|area|sector)/i.test(low)) {
+      intent = 'spacenet';
+      actions.push({ type: 'spacenet', query: m });
+    }
+
+    // City tasks DNA: delivery · jobs · errands · dating
+    if (/\b(city\s*task|task\s*list|claim\s*(delivery|order|task|job|date)|assign\s*driver)\b/i.test(low)
+      || (/^task\b/i.test(low))
+      || /\b(barman|bartender|housekeeper|nanny|cleaner|errand|hire\s+a|need\s+a\s+\w+)\b/i.test(low)
+      || /\b(date|dating|coffee\s*date|dinner\s*date)\b/i.test(low)
+      || /\b(gig|job\s+for|work\s+for\s+\d)\b/i.test(low)) {
+      intent = 'city_task';
+      actions.push({ type: 'city_task', query: m });
+    }
+
     // Hello / ping — no globe required
     if (/^(hi|hello|hey|ping|γεια|γεια σου|είσαι εκεί|eisai ekei)\b/i.test(low) || this._isPing(m)) {
       intent = 'ping';
@@ -151,6 +193,33 @@ const AstranovCoreBrain = {
           if (a.mode === 'evolve') ACI?.evolve?.(plan.message).catch(() => {});
           else ACI?.pulse?.(1.6);
           results.push(a.mode);
+        } else if (a.type === 'video_tiles') {
+          GlobeInfoTiles?.init?.();
+          const msg = await GlobeInfoTiles?.handleCli?.(a.query || 'spacex');
+          results.push(msg || 'video tiles');
+        } else if (a.type === 'starship') {
+          StarshipFlight13?.init?.();
+          GlobeInfoTiles?.init?.();
+          void GlobeInfoTiles?.refreshSpaceXVideos?.({ fly: false });
+          const msg = await StarshipFlight13?.handleCli?.(a.query || 'starship');
+          results.push(msg || 'starship f13');
+        } else if (a.type === 'starlink') {
+          StarlinkConstellation?.init?.();
+          const msg = await StarlinkConstellation?.handleCli?.(a.query || 'starlink');
+          results.push(msg || 'starlink');
+        } else if (a.type === 'resources') {
+          ResourceMonitor?.init?.();
+          const msg = ResourceMonitor?.handleCli?.(a.query || 'resources');
+          results.push(msg || 'resources');
+        } else if (a.type === 'spacenet') {
+          const p = this.userPos();
+          const msg = await SpaceNetBrain?.handleCli?.(a.query || 'crawl');
+          void SpaceNetBrain?.crawlAll?.(p.lat, p.lng, 3, { force: /force|now/i.test(a.query || '') });
+          results.push(msg || 'spacenet crawl');
+        } else if (a.type === 'city_task') {
+          CityTasks?.init?.();
+          const msg = await CityTasks?.handleCli?.(a.query || 'task list');
+          results.push(msg || 'city task');
         }
       } catch (e) {
         results.push(a.type + ' failed');

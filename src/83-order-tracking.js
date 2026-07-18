@@ -69,6 +69,7 @@ const OrderTracking = {
     this.active = order;
     this.showOnGlobe(order, vendor, driver);
     this.startPoll();
+    try { CityTasks?.init?.(); CityTasks?.fromOrder?.(order, vendor, driver); } catch (_) {}
     const m = this.meta(order.status);
     const msg = m.icon + ' Order ' + (order.short_id || order.id?.slice(0, 8)) + ' · ' + m.label
       + (driver?.name ? ' · ' + driver.name : '');
@@ -183,7 +184,7 @@ const OrderTracking = {
     const total = order.calc?.total_avc ?? order.calc?.total_eur ?? items.reduce((s, i) => s + (i.qty || 1) * (i.price || 0), 0);
     const lines = [
       m.icon + ' ' + (order.short_id || order.id?.slice(0, 8)) + ' · ' + m.label,
-      (vendor?.name || order.vendor_id || 'vendor') + ' · ' + Number(total).toFixed(1) + ' AVC',
+      (vendor?.name || order.vendor_id || 'vendor') + ' · ' + Number(total).toFixed(1) + ' Coins',
     ];
     if (order.driver_name) lines.push('Driver: ' + order.driver_name);
     const step = m.step;

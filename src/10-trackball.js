@@ -263,7 +263,9 @@ function onGlobeClick(e) {
   if (intersects.length > 0) {
     const pin = MapPlaceMenu?.pointFromGlobeHit?.(intersects[0].point);
     if (!pin) return;
+    // City streets: place menu only — already in local map.
     if (CityMap?.active || cityLevel || ZoomTiers?.current?.()?.city) {
+      CityPick?.hide?.();
       MapPlaceMenu?.openAt?.(pin.lat, pin.lng, {
         source: 'City map',
         hint: 'Post · explore · order — pick a triangle',
@@ -271,23 +273,36 @@ function onGlobeClick(e) {
       });
       return;
     }
-    const tier = ZoomTiers?.current?.();
-    if (tier?.id === 'solar' || tier?.id === 'global') {
-      MapPlaceMenu?.openAt?.(pin.lat, pin.lng, { source: 'Globe', hint: 'Add · explore · drive — top 3 picks' });
+    // National / region: second step — user chooses this spot as the city.
+    if (CityPick?.isNationalView?.() || ZoomTiers?.current?.()?.national) {
+      void CityPick?.enter?.(
+        pin.lat,
+        pin.lng,
+        CityPick?.nearestName?.(pin.lat, pin.lng) || 'City'
+      );
       return;
     }
-    const nationalZ = ZoomTiers?.tierZ?.('national') || 1.82;
-    ZoomTiers?.goTo?.('national', true);
-    if (userLocated && window._lastPos) {
-      const p = latLngToPos(window._lastPos.lat, window._lastPos.lng, 1.04);
-      flyToPoint(new THREE.Vector3(p.x, p.y, p.z), nationalZ);
-      MapDepict.action('explore', { detail: 'national · your region' });
-    } else {
-      flyToPoint(intersects[0].point, nationalZ);
-      MapDepict.action('explore', { detail: 'national · tap 🎯 for your city' });
-      GlobeDeck?.setPreview?.('National view — tap 🎯 Locate for your real GPS city');
+    // Space / Earth: fly into national airspace, then choose a city (chips).
+    const nationalZ = ZoomTiers?.tierZ?.('national') || GlobeControl?.Z?.national || 1.82;
+    const p = latLngToPos(pin.lat, pin.lng, 1.04);
+    const target = new THREE.Vector3(p.x, p.y, p.z);
+    if (ZoomTiers) {
+      const ni = ZoomTiers.indexOf('national');
+      if (ni >= 0) ZoomTiers._index = ni;
     }
-    MapPlaceMenu?.openAt?.(pin.lat, pin.lng, { source: 'Globe', hint: 'Explore · drive · list shop', limited: true });
+    MapPlaceMenu?.close?.();
+    flyToPoint(target, nationalZ, {
+      onTier: true,
+      onDone: () => {
+        CityPick?.show?.(pin.lat, pin.lng, { title: 'Choose a city' });
+        MapDepict?.action?.('explore', { detail: 'country · choose city' });
+      },
+    });
+    GlobeControl?.noteAutoFly?.();
+    MapDepict?.pulse?.(pin.lat, pin.lng, 0x00ddff, 'country', 6000);
+    GlobeDeck?.setPreview?.('Country airspace · choose a city');
+    // Show chips early so the path is obvious while the camera is still flying.
+    CityPick?.show?.(pin.lat, pin.lng, { title: 'Choose a city' });
   }
 }
 

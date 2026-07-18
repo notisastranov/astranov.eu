@@ -8,7 +8,7 @@ const SUPABASE_DEFAULT_URL = 'https://' + SUPABASE_REF + '.supabase.co';
 const SUPABASE_USE_CUSTOM_DOMAIN = false;
 
 const ACI = {
-  name: 'Astranov Collective Intelligence',
+  name: 'Astranov',
   url: SUPABASE_USE_CUSTOM_DOMAIN ? SUPABASE_CUSTOM_URL : SUPABASE_DEFAULT_URL,
   key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI',
   neurons: [],
@@ -158,7 +158,7 @@ const ACI = {
         .forEach(s => this.spawnNeuron(s.lat, s.lng, 1.2));
     }
     this.attachHeartbeat();
-    console.log('%c[ACI] Collective Intelligence ready — evolve on voice/command only', 'color:#00ddff', stats);
+    console.log('%c[ACI] ready', 'color:#00ddff', stats);
   },
 
   attachHeartbeat() {

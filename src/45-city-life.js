@@ -65,6 +65,7 @@ const CityLife = {
     window._lastPos = { lat: pos.lat, lng: pos.lng };
     userLocated = true;
     this._lastDrop = { lat: pos.lat, lng: pos.lng, t: Date.now() };
+    CityPick?.hide?.();
 
     try {
       const nationalZ = GlobeControl?.Z?.national || 1.82;
@@ -127,7 +128,7 @@ const CityLife = {
       FieldBrain?.pulse?.('city', msg, { role: 'client', props: { lat: pos.lat, lng: pos.lng, shops: nearby.length } });
 
       if (opts.openShops && nearby.length) {
-        GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+        GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
         await window.Commerce?.showPicker?.();
       }
       return { vendors: nearby, drivers, lat: pos.lat, lng: pos.lng, mapActive: !!CityMap?.active };
@@ -245,11 +246,38 @@ const CityLife = {
       ACIControl?.reply(r || 'No reviews');
     },
     task: async (rest) => {
-      await AciCoders?.handleMessage?.(rest || 'find best grocery offer near me and assign driver');
+      CityTasks?.init?.();
+      if (rest) await CityTasks?.handleCli?.('task ' + rest);
+      else await CityTasks?.handleCli?.('task list');
+    },
+    job: async (rest) => {
+      CityTasks?.init?.();
+      await CityTasks?.handleCli?.('task job ' + (rest || 'barman 3h'));
+    },
+    date: async (rest) => {
+      CityTasks?.init?.();
+      await CityTasks?.handleCli?.('task date ' + (rest || 'coffee 2h'));
+    },
+    errand: async (rest) => {
+      CityTasks?.init?.();
+      await CityTasks?.handleCli?.('task errand ' + (rest || 'pharmacy'));
     },
     assign: async (rest) => {
+      CityTasks?.init?.();
       if (rest) await FieldBrain?.claimDelivery?.(rest);
       else AciCli?.print('usage: scenario assign <order_id>', 'err');
+    },
+    crawl: async () => {
+      const u = CityLife.userPos() || window._lastPos || { lat: 36.4341, lng: 28.2176 };
+      await SpaceNetBrain?.crawlAll?.(u.lat, u.lng, 3, { force: true });
+    },
+    starship: async (rest) => {
+      StarshipFlight13?.init?.();
+      await StarshipFlight13?.handleCli?.(rest || 'starship');
+    },
+    starlink: async () => {
+      StarlinkConstellation?.init?.();
+      await StarlinkConstellation?.handleCli?.('starlink');
     },
     explore: async () => {
       const u = CityLife.userPos();

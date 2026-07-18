@@ -326,10 +326,17 @@ const GlobeEntity = {
         this._openCluster(entity);
         break;
       case 'post':
-        if (entity.data?.url) {
-          const yt = GlobeVideo?.parseId?.(entity.data.url);
-          if (yt) MapComms?.showCloudVideo?.(yt, entity.title);
-          GlobeVideo?.play?.(entity.data.url, { title: entity.title }, entity.title);
+      case 'media':
+        if (entity.data?.youtubeId || entity.data?.url) {
+          const yt = entity.data.youtubeId || GlobeVideo?.parseId?.(entity.data.url);
+          if (yt) {
+            MapComms?.showCloudVideo?.(yt, entity.title);
+            LazyModules?.ensure?.().then(() =>
+              GlobeVideo?.play?.(yt, { title: entity.title }, entity.title)
+            );
+          } else if (entity.data?.url) {
+            window.open(entity.data.url, '_blank', 'noopener');
+          }
         } else {
           ACIControl?.reply(entity.description || entity.title);
         }
@@ -527,18 +534,23 @@ const GlobeEntity = {
       }
 
       const prox = this._proximity(entity);
-      const forceShow = entity.data?.alwaysShowLabel && entity.type === 'me';
+      // alwaysShowLabel: rotating globe tiles (video/info/me) stay visible when facing camera
+      const forceShow = !!(entity.data?.alwaysShowLabel || entity.data?.pinVideo || entity.data?.infoTile);
       const el = entity._labelEl;
       if (el) {
-        if (prox.show || forceShow) {
+        if (prox.show || (forceShow && !prox.behind && prox.dot > 0.05)) {
           const scr = this._project(prox.world);
-          el.style.display = 'flex';
-          el.style.left = scr.x + 'px';
-          el.style.top = (scr.y - 8) + 'px';
-          el.classList.toggle('ge-flash', prox.flash);
-          el.classList.toggle('ge-glow', prox.glow);
-          el.classList.toggle('ge-selected', this._selected === id);
-          if (!entity._revealed) this._scavengeView(entity, 'proximity');
+          if (!scr.behind) {
+            el.style.display = 'flex';
+            el.style.left = scr.x + 'px';
+            el.style.top = (scr.y - 8) + 'px';
+            el.classList.toggle('ge-flash', prox.flash || !!entity.data?.pinVideo);
+            el.classList.toggle('ge-glow', prox.glow || forceShow);
+            el.classList.toggle('ge-selected', this._selected === id);
+            if (!entity._revealed) this._scavengeView(entity, 'proximity');
+          } else {
+            el.style.display = 'none';
+          }
         } else {
           el.style.display = 'none';
           el.classList.remove('ge-flash', 'ge-glow', 'ge-selected');
@@ -546,9 +558,9 @@ const GlobeEntity = {
       }
 
       if (entity.ring) {
-        const pulse = prox.glow ? 0.45 + Math.sin(now / 280) * 0.25 : 0.2;
+        const pulse = prox.glow || forceShow ? 0.45 + Math.sin(now / 280) * 0.25 : 0.2;
         entity.ring.material.opacity = prox.flash ? 0.65 + Math.sin(now / 180) * 0.35 : pulse;
-        entity.ring.visible = prox.show || entity.urgency >= 2;
+        entity.ring.visible = prox.show || entity.urgency >= 2 || forceShow;
       }
       if (entity.core && prox.flash) {
         const s = 1 + Math.sin(now / 200) * 0.18;

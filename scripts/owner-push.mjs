@@ -137,14 +137,37 @@ async function putFile({ filePath, content, message, token }) {
   });
 }
 
-const files = (process.argv.slice(2).filter((a) => !a.startsWith('--'))).length
-  ? process.argv.slice(2).filter((a) => !a.startsWith('--'))
-  : ['index.html', 'astranov-deferred.js'];
-
 const msgArg = process.argv.find((a) => a.startsWith('--message='));
 const message = msgArg?.slice('--message='.length)
   || process.env.ASTRANOV_COMMIT_MSG
   || 'deploy: astranov.eu production update';
+
+function resolveFileList() {
+  const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+  if (args.length) return args;
+  // Multi-file deploy list from assemble.mjs
+  if (args.includes('--all') || process.argv.includes('--all') || process.env.ASTRANOV_PUSH_ALL === '1') {
+    try {
+      const list = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', '.deploy-files.json'), 'utf8'));
+      if (Array.isArray(list.files) && list.files.length) return list.files;
+    } catch (_) {}
+    // Fallback: index + deferred + every js/*
+    const files = ['index.html', 'astranov-deferred.js', 'build.json'];
+    const jsDir = path.join(ROOT, 'js');
+    if (fs.existsSync(jsDir)) {
+      for (const f of fs.readdirSync(jsDir)) {
+        if (f.endsWith('.js')) files.push('js/' + f);
+      }
+    }
+    return files;
+  }
+  // Default: multi-file list when present
+  try {
+    const list = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', '.deploy-files.json'), 'utf8'));
+    if (Array.isArray(list.files) && list.files.length) return list.files;
+  } catch (_) {}
+  return ['index.html', 'astranov-deferred.js'];
+}
 
 async function main() {
   const token = await getOwnerToken();
@@ -153,18 +176,44 @@ async function main() {
     process.exit(1);
   }
 
+  const files = resolveFileList();
   const results = [];
-  for (const rel of files) {
+  let ok = 0;
+  let fail = 0;
+  for (let i = 0; i < files.length; i++) {
+    const rel = files[i];
     const full = path.join(ROOT, rel);
     if (!fs.existsSync(full)) {
       results.push({ path: rel, error: 'missing' });
+      fail++;
       continue;
     }
-    const content = fs.readFileSync(full, 'utf8');
-    const res = await putFile({ filePath: rel.replace(/\\/g, '/'), content, message, token });
-    results.push({ path: rel, commit: res?.commit?.sha || null });
+    try {
+      const content = fs.readFileSync(full, 'utf8');
+      const res = await putFile({ filePath: rel.replace(/\\/g, '/'), content, message, token });
+      results.push({ path: rel, commit: res?.commit?.sha || null });
+      ok++;
+      if ((i + 1) % 10 === 0 || i === files.length - 1) {
+        process.stderr.write(`push ${i + 1}/${files.length} ok=${ok} fail=${fail}\n`);
+      }
+    } catch (e) {
+      results.push({ path: rel, error: e.message || String(e) });
+      fail++;
+      // brief backoff on rate limit
+      if (/403|429|rate/i.test(String(e.message || ''))) await sleep(1500);
+    }
   }
-  console.log(JSON.stringify({ ok: true, owner: OWNER, repo: REPO, branch: BRANCH, results }));
+  console.log(JSON.stringify({
+    ok: fail === 0,
+    owner: OWNER,
+    repo: REPO,
+    branch: BRANCH,
+    pushed: ok,
+    failed: fail,
+    total: files.length,
+    results: results.filter(r => r.error).concat(results.filter(r => !r.error).slice(0, 5)),
+  }));
+  if (fail) process.exit(1);
 }
 
 main().catch((e) => {

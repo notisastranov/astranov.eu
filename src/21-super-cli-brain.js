@@ -124,7 +124,7 @@ Object.assign(SuperCli, {
 
   printHelp() {
     const owner = Auth?.isOwner;
-    this.out('── Astranov Command Line — brain + UI + dev ──', 'dim');
+    this.out('── Astranov — brain + UI + dev ──', 'dim');
     this.out('dev on|off · dev task <msg> · dev peers · dev deploy · dev status', 'ok');
     this.out('ui show batch|radio|vendor|youtube · ui hide · ui fly athens · ui zoom galaxy', 'ok');
     this.out('youtube <search> · watch <url> · play 2 (pick result)', 'ok');
@@ -573,12 +573,12 @@ Object.assign(SuperCli, {
         await CoinPortal?.cli?.(parts.length > 1 && cmd === 'coin' ? parts : ['coin', ...parts.slice(1)]);
         return { handled: true };
       }
-      if (cmd === 'avc') {
-        await AvcJustice?.cli?.(parts);
+      if (cmd === 'Coins') {
+        await CoinsJustice?.cli?.(parts);
         return { handled: true };
       }
       if (cmd === 'ledger' || cmd === 'justice') {
-        await AvcJustice?.cli?.(['avc', cmd, ...parts.slice(1)]);
+        await CoinsJustice?.cli?.(['Coins', cmd, ...parts.slice(1)]);
         return { handled: true };
       }
       if (cmd === 'hellenic' || cmd === 'hellas') {

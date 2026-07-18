@@ -10,14 +10,26 @@ window.addEventListener('error', function(e) {
   } catch(_) {}
 });
 
+// Mobile / low-power first — never wait for SlumberManager probe
+window._isMobileUA = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '')
+  || ((navigator.maxTouchPoints || 0) > 1 && window.innerWidth < 960);
+window._globePerfLite = !!window._isMobileUA || window.innerWidth < 700;
+
 let renderer;
 try {
-  renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
+  const _mobile = !!window._globePerfLite;
+  renderer = new THREE.WebGLRenderer({
+    antialias: !_mobile,
+    alpha: true,
+    powerPreference: _mobile ? 'low-power' : 'high-performance',
+  });
   renderer.setClearColor(0x000000, 1);
   renderer.setSize(window.innerWidth, window.innerHeight);
-  const _dprCap = window.SlumberManager?.quality?.pixelRatio ?? (window._globePerfLite ? 1.0 : 1.25);
+  // Cap DPR hard on phone — biggest responsiveness win
+  const _dprCap = window.SlumberManager?.quality?.pixelRatio
+    ?? (_mobile ? 0.85 : 1.15);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, _dprCap));
-  if (THREE.ACESFilmicToneMapping) {
+  if (!_mobile && THREE.ACESFilmicToneMapping) {
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.08;
   }
@@ -57,15 +69,18 @@ scene.add(new THREE.AmbientLight(0x1a2838, 0.55));
 const sun = new THREE.DirectionalLight(0xfff4e0, 1.85);
 sun.position.set(5.2, 2.4, 3.6);
 scene.add(sun);
-const rimLight = new THREE.DirectionalLight(0x4488ff, 0.55);
+const rimLight = new THREE.DirectionalLight(0x4488ff, window._globePerfLite ? 0.35 : 0.55);
 rimLight.position.set(-4, -1, -3);
 scene.add(rimLight);
-const fillLight = new THREE.PointLight(0x66aaff, 0.35, 12);
-fillLight.position.set(-2, 1.5, 3);
-scene.add(fillLight);
+if (!window._globePerfLite) {
+  const fillLight = new THREE.PointLight(0x66aaff, 0.35, 12);
+  fillLight.position.set(-2, 1.5, 3);
+  scene.add(fillLight);
+}
 
-// Multi-layer starfield — fine dust + bright beacons (cinematic, not sparse dots)
+// Starfield — lite on phone (thousands of additive points = jank)
 (function buildAstranovStarfield() {
+  const lite = !!window._globePerfLite;
   function layer(count, rMin, rMax, size, color, opacity) {
     const pos = [];
     for (let i = 0; i < count; i++) {
@@ -82,12 +97,18 @@ scene.add(fillLight);
     });
     scene.add(new THREE.Points(geo, mat));
   }
-  layer(2800, 80, 420, 0.35, 0xaaccff, 0.55);
-  layer(900, 100, 700, 0.9, 0xffffff, 0.85);
-  layer(120, 120, 900, 2.2, 0xcce8ff, 0.95);
+  if (lite) {
+    // Tiny starfield — first paint over jank
+    layer(180, 80, 420, 0.55, 0xaaccff, 0.5);
+    layer(40, 100, 700, 1.1, 0xffffff, 0.8);
+  } else {
+    layer(1200, 80, 420, 0.35, 0xaaccff, 0.55);
+    layer(400, 100, 700, 0.9, 0xffffff, 0.85);
+    layer(60, 120, 900, 2.2, 0xcce8ff, 0.95);
+  }
 })();
 
-// Earth — higher tessellation + temporary ocean/land material until day/night shader binds
+// Earth — low poly until idle; texture after first frames (truthful globe, not fake)
 const earthMat = new THREE.MeshPhongMaterial({
   color: 0x1a4a7a,
   emissive: 0x041018,
@@ -96,28 +117,46 @@ const earthMat = new THREE.MeshPhongMaterial({
   flatShading: false,
 });
 const earthTexUrl = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg';
-new THREE.TextureLoader().load(
-  earthTexUrl,
-  (tex) => {
-    tex.anisotropy = Math.min(8, renderer.capabilities?.getMaxAnisotropy?.() || 4);
-    earthMat.map = tex;
-    earthMat.color.set(0xffffff);
-    earthMat.needsUpdate = true;
-  },
-  undefined,
-  () => { console.log('Earth texture fallback active'); }
-);
+const _loadEarthTex = () => {
+  try {
+    new THREE.TextureLoader().load(
+      earthTexUrl,
+      (tex) => {
+        tex.anisotropy = Math.min(window._globePerfLite ? 1 : 8, renderer.capabilities?.getMaxAnisotropy?.() || 4);
+        if (window._globePerfLite) {
+          tex.minFilter = THREE.LinearFilter;
+          tex.generateMipmaps = false;
+        }
+        earthMat.map = tex;
+        earthMat.color.set(0xffffff);
+        earthMat.needsUpdate = true;
+      },
+      undefined,
+      () => { console.log('Earth texture fallback active'); }
+    );
+  } catch (_) {}
+};
+// Mobile: solid globe first, texture much later. Desktop: soon after paint.
+if (window._globePerfLite) {
+  setTimeout(_loadEarthTex, 4500);
+} else if (typeof requestIdleCallback === 'function') {
+  requestIdleCallback(_loadEarthTex, { timeout: 1800 });
+} else {
+  setTimeout(_loadEarthTex, 200);
+}
 globePivot = new THREE.Group();
 scene.add(globePivot);
 
-const earthSeg = (window.innerWidth < 700 || /Mobi|Android/i.test(navigator.userAgent || '')) ? 48 : 72;
+const earthSeg = window._globePerfLite ? 20 : 48;
 const earth = new THREE.Mesh(new THREE.SphereGeometry(1, earthSeg, earthSeg), earthMat);
 globePivot.add(earth);
 
-// Soft atmosphere shell (fresnel-ish blue rim) — upgraded further by AIGraphics
+// Soft atmosphere shell — lighter on phone
 (function bootAtmosphere() {
+  if (window._globePerfLite) return; // skip atmo mesh on lite — pure fill cost
+  const atmoSeg = earthSeg;
   const atmo = new THREE.Mesh(
-    new THREE.SphereGeometry(1.035, earthSeg, earthSeg),
+    new THREE.SphereGeometry(1.035, atmoSeg, atmoSeg),
     new THREE.MeshBasicMaterial({
       color: 0x3a9fff,
       transparent: true,

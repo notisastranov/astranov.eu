@@ -30,7 +30,8 @@ const MapPlaceMenu = {
   openAt(lat, lng, opts) {
     opts = opts || {};
     if (lat == null || lng == null) return;
-    window._globeFly = null;
+    // Default: stop camera so menu feels settled. keepFly: national-entry path is mid-flight.
+    if (!opts.keepFly) window._globeFly = null;
     GlobeEntity?.clearSelection?.();
     this._pin = { lat, lng, entity: opts.entity || null, limited: !!opts.limited };
     const hud = document.getElementById('globe-entity-hud');
@@ -185,6 +186,11 @@ const MapPlaceMenu = {
       const pt = latLngToPos(lat, lng, 1.04);
       flyToPoint?.(new THREE.Vector3(pt.x, pt.y, pt.z), GlobeControl?.Z?.national || 1.82, { dur: 1100 });
       GlobeControl?.noteAutoFly?.();
+      this.close();
+      return;
+    }
+    if (action === 'open_city') {
+      void CityPick?.enter?.(lat, lng, CityPick?.nearestName?.(lat, lng) || 'City');
       this.close();
     }
   },

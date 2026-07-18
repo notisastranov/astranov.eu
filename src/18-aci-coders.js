@@ -687,10 +687,10 @@ const AciCoders = {
       AuditorPortal?.open?.({ tab: 'dashboard' });
       return 'Opened auditors.astranov.eu';
     }
-    if (/avc|coin|ledger|justice|wallet|κρυπτο|νόμισμα/.test(low) && /balance|ledger|open|show|wallet|δείξε/.test(low)) {
+    if (/Coins|coin|ledger|justice|wallet|κρυπτο|νόμισμα/.test(low) && /balance|ledger|open|show|wallet|δείξε/.test(low)) {
       if (/open|wallet|show|δείξε/.test(low)) CoinPortal?.open?.(/ledger|transparen/.test(low) ? 'transparency' : 'wallet');
-      else AvcJustice?.cli?.(['avc', /ledger|διαφάν|transparen/.test(low) ? 'ledger' : 'balance']);
-      return 'coin.astranov.eu — AVC wallet · 1 AVC = 1 EUR · work-mint only';
+      else CoinsJustice?.cli?.(['Coins', /ledger|διαφάν|transparen/.test(low) ? 'ledger' : 'balance']);
+      return 'coin.astranov.eu — Coins wallet · 1 Coin = 1 EUR · work-mint only';
     }
     return null;
   },

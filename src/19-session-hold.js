@@ -93,7 +93,7 @@ const SessionHold = {
     if (input) input.placeholder = 'type or tap 🎤 · Enter or ➡';
 
     if (snap) {
-      if (snap.deckExpanded) GlobeDeck?.expand(snap.deckTitle || SuperCli?.title || 'Astranov Command Line');
+      if (snap.deckExpanded) GlobeDeck?.expand(snap.deckTitle || PublicCopy?.deckTitle?.() || 'Astranov');
       if (snap.activeTask) GlobeDeck.activeTask = snap.activeTask;
       if (snap.inputBuffer && input) {
         input.value = snap.inputBuffer;
@@ -111,7 +111,7 @@ const SessionHold = {
     this._snapshot = null;
     AciCli?.print('▶ Session resumed', 'ok');
     GlobeDeck?.setPreview('▶ Resumed');
-    if (!opts.quiet) ACIControl?.reply('Resumed — Astranov Command Line active');
+    if (!opts.quiet) ACIControl?.reply('Resumed — ready');
 
     if (snap?.voiceSessionActive || snap?.voiceEnabled) {
       setTimeout(() => startVoiceOptions?.(), 400);

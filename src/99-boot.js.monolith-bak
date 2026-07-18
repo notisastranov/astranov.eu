@@ -1,0 +1,196 @@
+window._cycleTurbo = false;
+if (window._globePerfLite == null) window._globePerfLite = false;
+window._animFrame = 0;
+window._lastUserAct = Date.now();
+const _slumberDiv = (k) => SlumberManager?.frameDivisor?.(k) || (window._globePerfLite ? 10 : 6);
+
+function globePerfActive() {
+  return !!(window._voicePerfMode || window._globePerfLite);
+}
+
+// Track interaction so we can drop FPS when idle
+['pointerdown', 'touchstart', 'wheel', 'keydown'].forEach(ev => {
+  window.addEventListener(ev, () => { window._lastUserAct = Date.now(); }, { passive: true });
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+  if (window._cycleTurbo) return;
+  SlumberManager?.tickFrame?.();
+  window._animFrame = (window._animFrame + 1) | 0;
+  const frame = window._animFrame;
+  const hidden = document.hidden;
+  const lite = !!window._globePerfLite;
+  const idleMs = Date.now() - (window._lastUserAct || 0);
+  const dragging = !!(drag || window._globeFly || trackVelX || trackVelY);
+  // Idle: skip most frames on phone so UI stays responsive
+  if (!dragging && !hidden) {
+    const skipN = lite ? (idleMs > 8000 ? 4 : idleMs > 2500 ? 2 : 1) : (idleMs > 10000 ? 2 : 0);
+    if (skipN && frame % (skipN + 1) !== 0) return;
+  }
+  if (hidden && frame % 45 !== 0) return;
+
+  const camZ = camera?.position?.z ?? 2.55;
+  const level = CosmicZoom?.level || 'earth';
+  const earthView = (level === 'earth' || level === 'orbit') && camZ < 4.8;
+  const solarView = level === 'system' || level === 'galaxy' || camZ > 5.5;
+
+  const voiceActive = window._handsFreeVoice || isListening;
+  const codersBusy = window.AciCoders?._cliBusy || window.AciCoders?._listenBusy;
+  if (voiceActive || codersBusy || GlobeDeck?.thinking) setVoicePerfMode?.(true);
+  else if (window._voicePerfMode) setVoicePerfMode?.(false);
+
+  if (!drag && !window._globeFly) TrackballGuard?.applyInertia?.();
+  tickGlobeFly?.();
+
+  // Natural Earth spin every frame (real UTC day fraction) — not throttled
+  if (earthView && !CityMap?.active) EarthRealism?.applySpinNow?.();
+
+  if (!hidden && frame % _slumberDiv('entity') === 0) {
+    MapDepict?.tick?.();
+    if (SlumberManager?.allows?.('entities') !== false) GlobeEntity?.tick?.();
+  }
+
+  const cosmicDiv = Math.max(_slumberDiv('cosmic'), lite ? 16 : 8);
+  if (solarView && frame % _slumberDiv('cosmic') === 0) CosmicZoom.update(camZ);
+  else if (frame % cosmicDiv === 0) CosmicZoom.update(camZ);
+
+  if (earthView && window._astranovFlyerActive && frame % Math.max(_slumberDiv('earth'), 8) === 0) {
+    AIGraphics?.update?.();
+  }
+  // Lighting / terminator throttled; spin already applied above
+  if (earthView && frame % _slumberDiv('earth') === 0) EarthRealism?.tick?.();
+  if (!lite && earthView && frame % _slumberDiv('celestial') === 0 && SlumberManager?.allows?.('celestial')) {
+    window.CelestialNav?.tick?.();
+  }
+  renderer.render(scene, camera);
+}
+
+window._bootEarthLock = true;
+camera.position.z = 2.55;
+camera.lookAt(0, 0, 0);
+if (typeof globePivot !== 'undefined' && globePivot) {
+  globePivot.rotation.x = 0.12;
+  globePivot.rotation.y = 0.82;
+  syncGlobePivotRotation?.();
+}
+
+Auth.init();
+GlobeDeck.init();
+GlobeDeck.bootReady?.() || GlobeDeck.bootCollapsed?.();
+SuperCli.init();
+SessionHold.init();
+AciCli.init();
+ACIControl.init();
+ACI.init();
+CosmicZoom.init();
+ZoomTiers.init();
+if (typeof globePivot !== 'undefined' && globePivot) {
+  globePivot.rotation.x = 0.12;
+}
+CosmicZoom.level = 'earth';
+if (CosmicZoom.solarGroup) CosmicZoom.solarGroup.visible = false;
+CosmicZoom.update(2.55, { tier: 'global', label: 'Earth', cosmic: 'earth' });
+const zl0 = document.getElementById('zoom-label');
+if (zl0) zl0.textContent = PublicCopy?.zoomLine?.('global') || 'Earth · drag · 🎯 city · 🎧 chat · + post';
+GlobeDeck?.setTitle?.(PublicCopy?.deckTitle?.() || 'Astranov');
+
+function showFirstRunCoach() {
+  try { if (localStorage.getItem('astranov:coach-v2')) return; } catch (_) { return; }
+  const el = document.getElementById('first-run-coach');
+  const ok = document.getElementById('first-run-coach-ok');
+  if (!el || !ok) return;
+  // Public welcome vs architect — never dump SETI / mission jargon on the street
+  if (PublicCopy?.coachHtml) el.innerHTML = PublicCopy.coachHtml()
+    + '<button type="button" id="first-run-coach-ok">Got it</button>';
+  const okBtn = document.getElementById('first-run-coach-ok') || ok;
+  el.hidden = false;
+  okBtn.onclick = () => {
+    el.hidden = true;
+    try { localStorage.setItem('astranov:coach-v2', '1'); } catch (_) {}
+  };
+}
+window.showFirstRunCoach = showFirstRunCoach;
+AstranovTheme.init();
+AstranovLogo.init();
+CityMap.init();
+CityLife.init();
+CityPick?.init?.();
+EarthRealism.init();
+GlobeEntity.init();
+ClassifiedTriangles.init();
+AiRouter.init();
+
+LazyModules.schedule();
+
+// Soft-init — keep first paint light. Heavy modules only after idle.
+const _softInit = (name, fn) => {
+  try { fn?.(); } catch (e) { console.warn('[boot] ' + name, e); }
+};
+const _idle = (fn, ms) => {
+  const run = () => { try { fn(); } catch (e) { console.warn('[boot idle]', e); } };
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(run, { timeout: ms });
+  } else setTimeout(run, ms);
+};
+// Critical UX only
+_softInit('CoreBrain', () => AstranovCoreBrain?.init?.());
+_softInit('ProductSurface', () => ProductSurface?.init?.());
+_softInit('CityTasks', () => CityTasks?.init?.()); // light — localStorage only
+_softInit('ResourceMonitor', () => ResourceMonitor?.init?.());
+// Defer everything else — was jamming main thread on boot
+_idle(() => ArchitectBridge?.init?.(), 2500);
+_idle(() => GlobeInfoTiles?.init?.({ seed: false }), 4000);
+_idle(() => ProductSurface?._ensureCityDnaSection?.(), 1600);
+// Starship / Starlink ONLY on first use or much later idle
+_idle(() => { /* no mesh build */ }, 8000);
+setTimeout(() => { try { Auth.refreshAuthority(); } catch (_) {} }, 1200);
+setTimeout(() => {
+  try {
+    ProductSurface?.init?.();
+    MenuProfilePostTile?.init?.();
+    // FieldHud already auto-boots from its own script; don't force again immediately
+  } catch (_) {}
+}, 1400);
+try { AciCli?.primeCodersCli?.(); } catch (_) {}
+// Coders session much later — was competing with touch
+setTimeout(() => { try { AciCoders?.ensureBridge?.(); } catch (_) {} }, 5000);
+
+if (window._lastPos) {
+  try {
+    const nm = Auth?.user?.user_metadata?.full_name || Auth?.user?.email?.split?.('@')?.[0] || 'You';
+    GlobeEntity.syncMe(_lastPos.lat, _lastPos.lng, nm);
+  } catch (_) {}
+}
+
+setTimeout(() => {
+  window._bootEarthLock = false;
+  if (camera.position.z > 4.8) {
+    camera.position.z = 2.55;
+    ZoomTiers?.goTo?.('global', false);
+  }
+  CosmicZoom.update(2.55, { tier: 'global', label: 'Earth', cosmic: 'earth' });
+  const ready = PublicCopy?.readyNotice?.() || 'Ready · drag Earth · 🎯 city · 🎧 chat';
+  ACIControl?.reply?.(ready);
+  CliRibbon?.setNotice?.(ready, 'ready');
+  GlobeDeck?.setPreview?.(PublicCopy?.isArchitect?.()
+    ? 'Architect · fix · task · starship'
+    : 'Type or 🎧 · 🎯 city · + post · date · hire · order');
+  GlobeDeck?.setTitle?.(PublicCopy?.deckTitle?.() || 'Astranov');
+  const inp = document.getElementById('aci-cli-in');
+  if (inp && PublicCopy?.inputPlaceholder) inp.placeholder = PublicCopy.inputPlaceholder();
+  primeGrokVoice?.();
+  showFirstRunCoach();
+  setTimeout(() => AciCoders?.enterSession?.({ expand: false, ping: false, focus: false }), window._globePerfLite ? 8000 : 4000);
+  const zl = document.getElementById('zoom-label');
+  if (zl) zl.textContent = PublicCopy?.zoomLine?.('global') || 'Earth · drag · 🎯 city · 🎧 chat · + post';
+}, 1200);
+
+const host = location.hostname || '';
+const isOfficial = host === 'astranov.eu' || host.endsWith('.astranov.eu');
+const isLocal = host === '' || host === 'localhost' || host === '127.0.0.1' || location.protocol === 'file:';
+if (host && !isOfficial && !isLocal) {
+  document.body.innerHTML = '<div style="color:#444;padding:40px;text-align:center;font-family:sans-serif">Available only on authorized Astranov domains</div>';
+} else {
+  animate();
+}

@@ -24,7 +24,7 @@ const CliRibbon = {
     guest: 'Guest',
   },
 
-  MOTTO_RE: /justice\s*→\s*truth\s*→\s*freedom|collective intelligence|astranov command line\s*—|architect\s*·\s*collective|δικαιοσύνη|αλήθεια|ελευθερία/gi,
+  MOTTO_RE: /justice\s*→\s*truth\s*→\s*freedom|collective intelligence|Astranov\s*—|architect\s*·\s*collective|δικαιοσύνη|αλήθεια|ελευθερία/gi,
   GLOBE_HINT_RE: /city map|scroll\/pinch|pinch\/scroll|pinch out|return to globe|zoom.tier|zoom out|zoom in|double.tap|drag to spin/i,
 
   init() {
@@ -54,7 +54,10 @@ const CliRibbon = {
     let s = String(text || '').trim();
     if (!s) return '';
     s = s.replace(this.MOTTO_RE, '').replace(/\s+/g, ' ').trim();
-    s = s.replace(/^Astranov Command Line\b/i, 'CLI');
+    s = s.replace(/^Astranov\b/i, 'Astranov');
+    s = s.replace(/\bcollective intelligence\b/gi, 'Astranov');
+    s = s.replace(/\bNear-Earth orbit\b/gi, 'Above Earth');
+    s = s.replace(/\bconstellations?\b/gi, 'sky');
     s = s.replace(/^Collective Coders\s*—\s*talk here$/i, 'Coders');
     s = s.replace(/^Coders online\s*—.*$/i, 'Coders');
     s = s.replace(/warming up.*$/i, '').trim();

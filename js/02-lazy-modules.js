@@ -30,26 +30,26 @@ const LazyModules = {
   },
 
   async _loadMultiFile() {
-    const files = window.__ASTRANOV_DEFERRED_FILES__ || [];
-    if (!files.length) return this._loadLegacyBundle();
-    const build = document.querySelector('meta[name="astranov-build"]')?.content || '';
-    const q = build ? '?v=' + encodeURIComponent(build) : '';
-    // Phase mode: usually one phase-deferred.js — parallel-safe ordered inject
-    const promises = files.map(f => new Promise((resolve, reject) => {
-      const src = '/js/' + f + q;
-      if (document.querySelector('script[data-astranov-src="' + src + '"][data-loaded="1"]')) {
-        resolve();
-        return;
-      }
-      const s = document.createElement('script');
-      s.src = src;
-      s.async = false;
-      s.dataset.astranovSrc = src;
-      s.onload = () => { s.dataset.loaded = '1'; resolve(); };
-      s.onerror = () => reject(new Error('deferred fail ' + f));
-      document.head.appendChild(s);
-    }));
-    await Promise.all(promises);
+    // Prefer explicit full URLs from loader (root astranov-deferred.js works on CF)
+    const urls = window.__ASTRANOV_DEFERRED_URLS__;
+    if (urls?.length) {
+      await Promise.all(urls.map(src => new Promise((resolve, reject) => {
+        if (document.querySelector('script[data-astranov-src="' + src + '"][data-loaded="1"]')) {
+          resolve();
+          return;
+        }
+        const s = document.createElement('script');
+        s.src = src;
+        s.async = false;
+        s.dataset.astranovSrc = src;
+        s.onload = () => { s.dataset.loaded = '1'; resolve(); };
+        s.onerror = () => reject(new Error('deferred fail ' + src));
+        document.head.appendChild(s);
+      })));
+      return;
+    }
+    // Legacy single pack
+    return this._loadLegacyBundle();
   },
 
   _loadLegacyBundle() {

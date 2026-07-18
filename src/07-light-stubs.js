@@ -1,4 +1,62 @@
 // === LIGHT STUBS — removed heavy subsystems; keep optional chaining safe ===
+// PublicCopy: plain language for the public. SETI / mission-control tone = architect only.
+const PublicCopy = {
+  isArchitect() {
+    return !!(window.Auth?.isArchitect || window.Auth?.isOwner);
+  },
+  deckTitle() {
+    return this.isArchitect() ? 'Architect CLI' : 'Astranov';
+  },
+  tierLabel(id) {
+    const map = {
+      solar: 'Space', global: 'Earth', national: 'Country', regional: 'Region',
+      city: 'City', neighborhood: 'Streets', orbit: 'Above Earth',
+      system: 'Solar system', galaxy: 'Stars',
+    };
+    return map[id] || id || 'Earth';
+  },
+  zoomLine(tierId, extra) {
+    const base = {
+      solar: 'Space · planets · zoom in for Earth',
+      global: 'Earth · drag · 🎯 your city · 🎧 chat · + post',
+      national: 'Country · choose a city',
+      regional: 'Region · choose a city',
+      city: 'City · streets & shops',
+      neighborhood: 'Streets · look around',
+      orbit: 'Above Earth · stations & satellites',
+      system: 'Solar system · zoom in for Earth',
+      galaxy: 'Stars · zoom in to return',
+    };
+    let line = base[tierId] || 'Earth · drag to explore';
+    if (extra) line += ' · ' + extra;
+    return line;
+  },
+  readyNotice() {
+    return this.isArchitect()
+      ? 'Architect online · Bridge ready'
+      : 'Ready · drag Earth · 🎯 city · 🎧 chat · + post';
+  },
+  coachHtml() {
+    if (this.isArchitect()) {
+      return '<strong>Architect</strong><ol>'
+        + '<li>Drag Earth · 🎯 locate · 🎧 Grok</li>'
+        + '<li>🛠 or say <em>fix …</em> / <em>code …</em></li>'
+        + '<li>task job / date / order — City DNA</li></ol>';
+    }
+    return '<strong>Welcome to Astranov</strong><ol>'
+      + '<li>Drag to spin Earth · pinch to zoom</li>'
+      + '<li>🎯 Locate — your city on the map</li>'
+      + '<li>🎧 Chat · type below · + to post, shop, date, or hire</li>'
+      + '<li>Order food · post a date · hire a barman — as easy as pizza</li></ol>';
+  },
+  inputPlaceholder() {
+    return this.isArchitect()
+      ? 'Architect — fix · code · task · starship…'
+      : 'Ask Astranov — type or tap 🎧 · Enter to send';
+  },
+};
+window.PublicCopy = PublicCopy;
+
 // FieldBrain is a live pulse bus again (not a no-op) so globe AI feels present.
 const FieldBrain = {
   vendorIds: [],
@@ -26,6 +84,34 @@ const FieldBrain = {
       }
       CliRibbon?.setNotice?.(entry.kind + ' · ' + entry.detail.slice(0, 60), 'ready');
     } catch (_) { /* */ }
+  },
+  async claimDelivery(orderId) {
+    CityTasks?.init?.();
+    return CityTasks?.claim?.(orderId);
+  },
+  createCityTask(spec) {
+    CityTasks?.init?.();
+    return CityTasks?.create?.(spec);
+  },
+  listCityTasks(filter) {
+    CityTasks?.init?.();
+    return CityTasks?.list?.(filter) || [];
+  },
+  postJob(spec) {
+    CityTasks?.init?.();
+    return CityTasks?.postJob?.(spec);
+  },
+  postDate(spec) {
+    CityTasks?.init?.();
+    return CityTasks?.postDate?.(spec);
+  },
+  postErrand(spec) {
+    CityTasks?.init?.();
+    return CityTasks?.postErrand?.(spec);
+  },
+  completeDelivery(id) {
+    CityTasks?.init?.();
+    return CityTasks?.complete?.(id);
   },
   onAuth() {},
   updateChip() {},
@@ -117,8 +203,8 @@ window.YachtMatcher = YachtMatcher;
 const AuditorPortal = { syncGlobe() {} };
 window.AuditorPortal = AuditorPortal;
 
-const AvcJustice = { loadConstitution() {}, syncGlobe() {} };
-window.AvcJustice = AvcJustice;
+const CoinsJustice = { loadConstitution() {}, syncGlobe() {} };
+window.AvcJustice = CoinsJustice;
 
 const CoinPortal = { syncGlobe() {} };
 window.CoinPortal = CoinPortal;
@@ -130,10 +216,36 @@ const AstranovOneDatabase = { async cli() {} };
 window.AstranovOneDatabase = AstranovOneDatabase;
 
 const SuperSpace = {
-  init() {},
+  init() { try { GlobeInfoTiles?.init?.(); } catch (_) {} },
   tick() {},
   stop() {},
-  async locateForMedia() {},
+  status() {
+    try { return { tiles: GlobeInfoTiles?.count?.() || 0 }; } catch (_) { return {}; }
+  },
+  async locateForMedia(q, meta) {
+    try {
+      GlobeInfoTiles?.init?.();
+      return await GlobeInfoTiles?.pinVideoFromMeta?.(q, meta);
+    } catch (_) { return null; }
+  },
+  async locateText(t) {
+    try {
+      GlobeInfoTiles?.init?.();
+      return await GlobeInfoTiles?.pinInfoFromQuery?.(t);
+    } catch (_) { return null; }
+  },
+  zoomTo(level) {
+    try { GlobeInfoTiles?.init?.(); SuperSpace.zoomTo = undefined; } catch (_) {}
+    if (level === 'orbit' || level === 'space') {
+      if (typeof camera !== 'undefined' && camera?.position) {
+        window._globeFly = {
+          mode: 'zoom', fromZ: camera.position.z, toZ: 5.05,
+          t0: performance.now(), dur: 1200,
+        };
+      }
+      if (window.CosmicZoom) CosmicZoom.level = 'orbit';
+    }
+  },
 };
 window.SuperSpace = SuperSpace;
 

@@ -15,7 +15,7 @@ const AppShortcuts = {
       close() {
         GlobeDeck.activeTask = null;
         GlobeDeck?.hideStage?.();
-        GlobeDeck?.setTitle?.(SuperCli?.title || 'Astranov Command Line');
+        GlobeDeck?.setTitle?.(PublicCopy?.deckTitle?.() || SuperCli?.title || 'Astranov');
         SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
       },
     },
@@ -106,7 +106,7 @@ const AppShortcuts = {
       activate() {
         GlobeDeck?.hideStage?.();
         GlobeDeck.activeTask = 'phone';
-        GlobeDeck?.expand?.((SuperCli?.title || 'Astranov Command Line') + ' — phone');
+        GlobeDeck?.expand?.((PublicCopy?.deckTitle?.() || 'Astranov') + ' — phone');
         SuperCli?.setContext?.('phone');
         document.getElementById('aci-cli-in')?.focus();
       },
@@ -128,7 +128,7 @@ const AppShortcuts = {
     },
     coin: {
       icon: '◎',
-      title: 'AVC',
+      title: 'Coins',
       activate() {
         CoinPortal?.open?.('wallet');
         SuperCli?.setContext?.('coin');

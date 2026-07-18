@@ -157,6 +157,11 @@ const SlumberManager = {
 
   pickInitialTier() {
     const p = this.profile;
+    // Phone = conserve by default (responsiveness > cinema)
+    if (p.mobile || window._globePerfLite) {
+      if (p.lowEndGpu || p.slowNet || p.saveData || p.cores <= 4) return 'slumber';
+      return 'conserve';
+    }
     let score = 0;
     if (p.cores >= 8) score += 2;
     else if (p.cores >= 4) score += 1;
@@ -466,4 +471,9 @@ const SlumberManager = {
   },
 };
 window.SlumberManager = SlumberManager;
-SlumberManager.init();
+// Defer heavy probe (extra WebGL context) until after first globe frames
+if (typeof requestIdleCallback === 'function') {
+  requestIdleCallback(() => { try { SlumberManager.init(); } catch (_) {} }, { timeout: 3500 });
+} else {
+  setTimeout(() => { try { SlumberManager.init(); } catch (_) {} }, 1200);
+}

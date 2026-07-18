@@ -121,17 +121,10 @@ const EarthRealism = {
   },
 
   _buildSkyBodies() {
-    const sunGeo = new THREE.SphereGeometry(0.08, 16, 16);
-    const sunMat = new THREE.MeshBasicMaterial({ color: 0xffee88 });
-    this.sunGlow = new THREE.Mesh(sunGeo, sunMat);
-    this.sunGlow.userData = { type: 'sun-indicator' };
-    scene.add(this.sunGlow);
-
-    const moonGeo = new THREE.SphereGeometry(0.045, 12, 12);
-    const moonMat = new THREE.MeshBasicMaterial({ color: 0xccddee });
-    this.moonMesh = new THREE.Mesh(moonGeo, moonMat);
-    this.moonMesh.userData = { type: 'moon-indicator' };
-    scene.add(this.moonMesh);
+    // TRUTH: no floating sun/moon spheres in the scene (looked like fake planets).
+    // Day/night uses directional light + shader only.
+    this.sunGlow = null;
+    this.moonMesh = null;
   },
 
   _buildTerminator() {
@@ -193,12 +186,9 @@ const EarthRealism = {
     const now = new Date();
     const utc = now.toISOString().slice(11, 16) + ' UTC';
     const illum = Math.round((1 + sunDir.y) * 50);
-    const moonVis = this.moonMesh?.visible ? 'visible' : 'below horizon';
-    return '<div class="cg-title">Live Earth · ' + utc + '</div>'
-      + '<div class="cg-item"><b>☀ Sun</b> — subsolar ' + subsolar.lat.toFixed(1) + '°, ' + subsolar.lng.toFixed(1) + '°</div>'
-      + '<div class="cg-item"><b>🌗 Terminator</b> — real-time day/night boundary · ' + illum + '% lit</div>'
-      + '<div class="cg-item"><b>🌙 Moon</b> — ' + moonVis + ' · phase from ephemeris</div>'
-      + '<div class="cg-item"><i>Drag globe · zoom in for city satellite map</i></div>';
+    return '<div class="cg-title">Earth · ' + utc + '</div>'
+      + '<div class="cg-item"><b>Day/night</b> — subsolar ' + subsolar.lat.toFixed(1) + '°, ' + subsolar.lng.toFixed(1) + '° · ' + illum + '% lit</div>'
+      + '<div class="cg-item"><i>Drag · 🎯 city · no fake satellites</i></div>';
   },
 
   _subsolarLatLng(sunDir) {
@@ -208,10 +198,23 @@ const EarthRealism = {
     return { lat, lng };
   },
 
+  /**
+   * Continuous Earth rotation (radians) with ms precision — real-time solar day.
+   * Not a stepped/fake spin rate.
+   */
   _earthSpin(date) {
     const d = date || new Date();
-    const utc = d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600;
-    return (utc / 24) * Math.PI * 2;
+    const utcSec = d.getUTCHours() * 3600
+      + d.getUTCMinutes() * 60
+      + d.getUTCSeconds()
+      + d.getUTCMilliseconds() / 1000;
+    return (utcSec / 86400) * Math.PI * 2;
+  },
+
+  /** Call every animation frame for smooth natural rotation */
+  applySpinNow() {
+    if (!earth || CityMap?.active) return;
+    try { earth.rotation.y = this._earthSpin(); } catch (_) {}
   },
 
   _sunLocal(sunDir) {
@@ -263,8 +266,9 @@ const EarthRealism = {
     if (level === 'earth' && camZ < 3.4 && !CityMap?.active) {
       if (!this._hudTimer || now - this._hudTimer > 3500) {
         this._hudTimer = now;
+        // No planet/day-night essay on the left — unreadable noise (ResourceMonitor owns left rail)
         const el = document.getElementById('cosmic-guide');
-        if (el) el.innerHTML = this._formatHud(sunDir);
+        if (el) { el.innerHTML = ''; el.style.display = 'none'; }
       }
     }
   },

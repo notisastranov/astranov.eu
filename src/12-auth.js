@@ -35,7 +35,7 @@ const Auth = {
         this.refreshAuthority();
         const owner = (session.user.email || '').toLowerCase() === this.OWNER_EMAIL.toLowerCase();
         ACIControl?.reply(owner
-          ? 'Architect signed in · paid Grok armed · tap 🎧'
+          ? 'Architect signed in · Grok ready · 🎧'
           : 'Signed in · tap 🎧 talk to Astranov');
         setTimeout(() => {
           primeGrokVoice?.();
@@ -663,7 +663,8 @@ const Auth = {
     }
     this.updateOwnerUI();
     if (this.isArchitect) {
-      ACIControl?.reply?.('Architect online · Bridge armed · say fix <issue> from the street');
+      ACIControl?.reply?.('Architect online · Bridge ready · fix / code from the street');
+      // Public users never see this line; architect-only mission tone OK here
       CliRibbon?.setNotice?.('Bridge armed · fix/dev', 'ready');
       ArchitectBridge?.arm?.({ quiet: true });
     } else {

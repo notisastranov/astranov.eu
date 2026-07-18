@@ -1321,19 +1321,23 @@ const AIGraphics = {
 };
 
 window.AIGraphics = AIGraphics;
-AIGraphics.init(globePivot);
-
-setTimeout(() => {
-  try {
-    AIGraphics.spawnEffect(new THREE.Vector3(0.6, 0.3, 1.1), 0x00ffaa, 36, 40);
-    const u = window._lastPos || { lat: 36.44, lng: 28.22 };
-    AIGraphics.spawnAstranovFlyer(u.lat, u.lng, { label: 'Astranov', alt: 1.095 });
-  } catch (e) {
-    console.warn('[Astranov Helper] spawn failed', e);
-  }
-}, 420);
-
-window.AstranovFlyer = {
-  spawn: (lat, lng, opts) => AIGraphics.spawnAstranovFlyer(lat, lng, opts),
-  flyTo: (lat, lng, opts) => AIGraphics.flyAstranovTo(lat, lng, opts),
+// Graphics helpers only on demand — no auto-spawn flying character / orbiters (truth + perf)
+const _aiInit = () => {
+  try { AIGraphics.init(globePivot); } catch (e) { console.warn('[AIGraphics] init', e); }
 };
+setTimeout(_aiInit, window._globePerfLite ? 1500 : 600);
+
+// NO auto flyer / particle burst — was fake flying object around Earth
+window.AstranovFlyer = {
+  spawn(lat, lng, opts) {
+    try {
+      AIGraphics?.init?.(globePivot);
+      window._astranovFlyerActive = true;
+      return AIGraphics.spawnAstranovFlyer?.(lat, lng, opts);
+    } catch (_) { return null; }
+  },
+  flyTo(lat, lng, opts) {
+    try { return AIGraphics.flyAstranovTo?.(lat, lng, opts); } catch (_) { return null; }
+  },
+};
+window._astranovFlyerActive = false;

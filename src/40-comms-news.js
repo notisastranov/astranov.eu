@@ -32,7 +32,7 @@ const NewsFeed = {
       const titles = [...xml.matchAll(/<title>(?:<!\[CDATA\[)?([^\]<]+)/g)].map(m => m[1]).filter(t => t.length > 12 && !t.includes('BBC'));
       const max = SlumberManager?.quality?.newsMax ?? 8;
       this.items = max > 0 ? titles.slice(0, max) : [];
-    } catch { this.items = ['Astranov Collective Intelligence online', 'Globe trackball active', 'ACI ready for orders and comms']; }
+    } catch { this.items = ['Astranov online', 'Globe ready', 'Order · chat · post nearby']; }
     this.tick();
   },
   tick() {

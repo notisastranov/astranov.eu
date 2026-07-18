@@ -206,10 +206,12 @@ const AstranovLogo = {
     }
     ZoomTiers?.goTo?.('global', true);
     CityMap?._exit?.();
-    CosmicZoom?.update?.(2.55, { tier: 'global', label: 'GLOBAL', cosmic: 'earth' });
+    CosmicZoom?.update?.(2.55, { tier: 'global', label: 'Earth', cosmic: 'earth' });
     cityLevel = false;
     const zl = document.getElementById('zoom-label');
-    if (zl && !window.DrivingView?.active) zl.textContent = 'GLOBAL · tap 🎯 Locate for city map';
+    if (zl && !window.DrivingView?.active) {
+      zl.textContent = PublicCopy?.zoomLine?.('global') || 'Earth · 🎯 for your city';
+    }
     const chip = document.getElementById('city-life-chip');
     if (chip) chip.classList.remove('open');
   },

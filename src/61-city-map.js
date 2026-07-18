@@ -16,6 +16,15 @@ const CityMap = {
   init() {
     const el = document.getElementById('city-map');
     if (!el) return;
+    if (typeof L === 'undefined') {
+      // Leaflet loads after critical — retry once
+      if (!this._leafletRetry) {
+        this._leafletRetry = true;
+        setTimeout(() => this.init(), 400);
+      }
+      return;
+    }
+    if (this._ready) return;
     // ensure dark bg to prevent white flash on enter
     el.style.background = 'var(--an-bg)';
     this.map = L.map(el, {

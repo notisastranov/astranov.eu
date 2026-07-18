@@ -1,12 +1,12 @@
 // === ZOOM TIERS — solar → global → national → regional → city → neighborhood ===
 const ZoomTiers = {
   TIERS: [
-    { id: 'solar', z: 7.2, label: 'SOLAR SYSTEM', cosmic: 'system' },
-    { id: 'global', z: 2.55, label: 'GLOBAL', cosmic: 'earth' },
-    { id: 'national', z: 1.82, label: 'NATIONAL', cosmic: 'earth', national: true },
-    { id: 'regional', z: 1.65, label: 'REGIONAL', cosmic: 'earth', national: true },
-    { id: 'city', z: 1.38, label: 'CITY', cosmic: 'earth', city: true },
-    { id: 'neighborhood', z: 1.08, label: 'NEIGHBORHOOD', cosmic: 'earth', city: true },
+    { id: 'solar', z: 7.2, label: 'Space', cosmic: 'system' },
+    { id: 'global', z: 2.55, label: 'Earth', cosmic: 'earth' },
+    { id: 'national', z: 1.82, label: 'Country', cosmic: 'earth', national: true },
+    { id: 'regional', z: 1.65, label: 'Region', cosmic: 'earth', national: true },
+    { id: 'city', z: 1.38, label: 'City', cosmic: 'earth', city: true },
+    { id: 'neighborhood', z: 1.08, label: 'Streets', cosmic: 'earth', city: true },
   ],
   START_ID: 'global',
   _index: 0,
@@ -135,18 +135,20 @@ const ZoomTiers = {
     cityLevel = !!tier.city;
     const zl = document.getElementById('zoom-label');
     if (zl && !window.DrivingView?.active && !CityMap?.active) {
-      if (tier.id === 'solar') zl.textContent = 'SOLAR SYSTEM · planets · ISS';
-      else if (tier.id === 'global') zl.textContent = 'GLOBAL · ☀ day/night · pinch out for solar system';
-      else if (tier.national) zl.textContent = tier.label + ' · ' + this.countryHint() + ' · pinch for city';
-      else if (tier.city) zl.textContent = tier.label + ' · pinch for streets';
+      const pc = window.PublicCopy;
+      if (pc?.zoomLine) {
+        const extra = tier.national ? this.countryHint() : '';
+        zl.textContent = pc.zoomLine(tier.id, extra && extra !== 'region' ? extra : null);
+      } else if (tier.id === 'solar') zl.textContent = 'Space · planets';
+      else if (tier.id === 'global') zl.textContent = 'Earth · drag · 🎯 city · 🎧 chat';
+      else if (tier.national) zl.textContent = 'Country · ' + this.countryHint() + ' · choose a city';
+      else if (tier.city) zl.textContent = 'City · streets & shops';
       else zl.textContent = tier.label;
     }
-    if (tier.national && window._lastPos && typeof flyToPoint === 'function') {
-      const p = latLngToPos(window._lastPos.lat, window._lastPos.lng, 1.04);
-      const cur = TrackballGuard?.facingLatLng?.() || { lat: 0, lng: 0 };
-      const far = TrackballGuard?.greatCircleKm?.(cur.lat, cur.lng, window._lastPos.lat, window._lastPos.lng) > 800;
-      if (far) flyToPoint(new THREE.Vector3(p.x, p.y, p.z), tier.z, { dur: 1200, onTier: true });
-    }
+    // City chips only belong in country airspace.
+    if (!tier.national) CityPick?.hide?.();
+    // Do not auto-pull bearing to GPS here — that stole country clicks away from the
+    // tapped nation. 🎯 Locate / city-life own “go to my region”.
     this.updateDots();
     MapDepict?.setHud?.(tier.label, 'zoom-tier');
   },

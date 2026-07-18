@@ -373,7 +373,7 @@ const MapDepict = {
       vendor: 'Καταστήματα',
       compare: 'Σύγκριση τιμών',
       driver: 'Οδηγοί διανομής',
-      pay: 'Πληρωμή AVC',
+      pay: 'Πληρωμή Coins',
       phone: 'Τηλέφωνο',
       vhf: 'VHF ασύρματος',
       news: 'Ειδήσεις',
@@ -455,7 +455,7 @@ const MapDepict = {
   scanCity(opts = {}) {
     const u = opts.userLat != null ? { lat: opts.userLat, lng: opts.userLng } : this.userPos();
     const vendors = opts.vendors || window.Commerce?.vendors || [];
-    const label = opts.label || 'Scanning city…';
+    const label = opts.label || 'Looking around the city…';
     this.cancelAll();
     this.setHud('City scan', label);
     this.zoomToUser(opts.zoom || GlobeControl?.Z?.city || 1.32);

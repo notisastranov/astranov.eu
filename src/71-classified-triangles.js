@@ -1,6 +1,7 @@
 // === CLASSIFIED TRIANGLES — top 3 AI-classified actions, then more options ===
 const ClassifiedTriangles = {
   CATALOG: [
+    { id: 'open_city', label: 'Open city', icon: '🏙', keywords: ['city', 'open city', 'streets', 'enter city', 'city map', 'πόλη'] },
     { id: 'list_shop', label: 'List my shop', icon: '🏬', keywords: ['shop', 'store', 'menu', 'my shop', 'cafe', 'restaurant', 'bakery'] },
     { id: 'list_vendor', label: 'List vendor', icon: '🏪', keywords: ['vendor', 'supplier', 'wholesale', 'list vendor', 'seller'] },
     { id: 'driver_base', label: 'Driver base', icon: '🚚', keywords: ['driver', 'delivery', 'fleet', 'courier', 'base', 'dispatch'] },
@@ -96,8 +97,8 @@ const ClassifiedTriangles = {
     }
     if (tier?.national) {
       return [
+        this.CATALOG.find(c => c.id === 'open_city') || { id: 'open_city', label: 'Open city', icon: '🏙', keywords: ['city', 'open city', 'streets'] },
         this.CATALOG.find(c => c.id === 'explore'),
-        this.CATALOG.find(c => c.id === 'list_shop'),
         this.CATALOG.find(c => c.id === 'drive_here'),
       ].filter(Boolean);
     }
@@ -145,6 +146,7 @@ const ClassifiedTriangles = {
 
   runAction(actionId, pin) {
     const map = {
+      open_city: 'open_city',
       list_shop: 'shop',
       list_vendor: 'shop',
       driver_base: 'driver_base',
@@ -158,6 +160,13 @@ const ClassifiedTriangles = {
       upload_video: 'upload_video',
     };
     const act = map[actionId] || actionId;
+    if (act === 'open_city') {
+      const p = pin || MapPlaceMenu?._pin;
+      if (p) void CityPick?.enter?.(p.lat, p.lng, CityPick?.nearestName?.(p.lat, p.lng) || 'City');
+      else void CityPick?.enter?.(window._lastPos?.lat, window._lastPos?.lng, 'City');
+      MapPlaceMenu?.close?.();
+      return;
+    }
     if (act === 'post' || act === 'upload_photo' || act === 'upload_video') {
       MapPlaceMenu?._runMedia?.(act, pin);
       return;
