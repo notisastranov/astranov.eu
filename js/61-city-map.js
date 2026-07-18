@@ -1,0 +1,359 @@
+// === CITY MAP (Leaflet national/city level) ===
+const CityMap = {
+  map: null,
+  _ready: false,
+  _markers: {},
+  _center: null,
+  _route: null,
+  _routeCoords: [],
+  _demoDrivers: [],
+  _demoPhase: 0,
+  _forceOpen: false,
+  active: false,
+  ENTER_Z: 1.58,
+  EXIT_Z: 1.72,
+
+  init() {
+    const el = document.getElementById('city-map');
+    if (!el) return;
+    // ensure dark bg to prevent white flash on enter
+    el.style.background = 'var(--an-bg)';
+    this.map = L.map(el, {
+      zoomControl: false,
+      attributionControl: false,
+      dragging: true,
+      touchZoom: true,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      boxZoom: false
+    });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      opacity: 0.42,
+      attribution: '© OSM'
+    }).addTo(this.map);
+    this._center = this._center || { lat: 0, lng: 0 };
+    this.map.setView([this._center.lat, this._center.lng], 3, { animate: false });
+    this._ready = true;
+    el.addEventListener('wheel', e => {
+      if (!this.active) return;
+      e.preventDefault();
+      const dir = e.deltaY > 0 ? 1 : -1;
+      const curZ = this.map.getZoom();
+      if (dir > 0 && curZ <= 3) {
+        this._bridgeZoomOut(0.14);
+        return;
+      }
+      this.map.setZoom(Math.max(3, Math.min(19, curZ + dir * 0.8)), { animate: true });
+    }, { passive: false });
+    this._bindMapGestures();
+    this._bindMapClick();
+    this.map.on('moveend zoomend', () => {
+      if (this.active) this._syncMarkers();
+    });
+  },
+
+  _bindMapClick() {
+    if (!this.map || this.map._placeClickBound) return;
+    this.map._placeClickBound = true;
+    this.map.on('click', (e) => {
+      if (!this.active) return;
+      MapPlaceMenu?.openAt?.(e.latlng.lat, e.latlng.lng, {
+        source: 'City map',
+        hint: 'Post · explore · order — pick a triangle',
+        limited: true,
+      });
+    });
+  },
+
+  _bridgeZoomOut(amount) {
+    if (typeof zoomBy === 'function') zoomBy(amount || 0.12);
+  },
+
+  _bindMapGestures() {
+    const el = document.getElementById('city-map');
+    if (!el || !this.map) return;
+    let lastDist = 0;
+    el.addEventListener('touchstart', e => {
+      if (e.touches.length === 2) {
+        lastDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+      }
+    }, { passive: true });
+    el.addEventListener('touchmove', e => {
+      if (!this.active || e.touches.length !== 2 || !lastDist) return;
+      const d = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const delta = d - lastDist;
+      lastDist = d;
+      const cur = this.map.getZoom();
+      if (delta < 0 && cur <= 3.05) {
+        this._bridgeZoomOut(0.1);
+        e.preventDefault();
+        return;
+      }
+      const nz = Math.max(3, Math.min(19, cur + (delta > 0 ? 0.03 : -0.03)));
+      if (Math.abs(nz - cur) > 0.01) this.map.setZoom(nz, { animate: false });
+      e.preventDefault();
+    }, { passive: false });
+  },
+
+  camZToZoom(camZ) {
+    if (camZ > 1.7) return 12;
+    if (camZ > 1.4) return 14;
+    if (camZ > 1.2) return 16;
+    return 18;
+  },
+
+  globeCenterLatLng() {
+    if (window._lastPos?.lat != null) return window._lastPos;
+    if (this._center?.lat != null) return this._center;
+    return null;
+  },
+
+  flyTo(lat, lng, zoom) {
+    this._center = { lat, lng };
+    if (this.map) this.map.setView([lat, lng], zoom || 15, { animate: true });
+  },
+
+  async openAt(lat, lng, opts) {
+    opts = opts || {};
+    if (!this._ready || !this.map) this.init();
+    if (!this.map) return false;
+    const c = lat != null && lng != null ? { lat, lng } : (window._lastPos || this._center);
+    if (!c?.lat) return false;
+    this._center = c;
+    window._lastPos = { lat: c.lat, lng: c.lng };
+    userLocated = true;
+    const camZ = opts.camZ ?? CityLife?.CITY_ZOOM ?? 1.34;
+    const lz = opts.zoom ?? this.camZToZoom(camZ);
+    this._forceOpen = true;
+    if (!this.active) this._enter(camZ);
+    else {
+      this.map.setView([c.lat, c.lng], lz, { animate: false });
+      this._invalidate();
+      this._syncMarkers();
+      this._syncRoute();
+    }
+    this.map.setView([c.lat, c.lng], lz, { animate: false });
+    if (typeof camera !== 'undefined' && camera) {
+      camera.position.z = camZ;
+      camera.lookAt(0, 0, 0);
+    }
+    ZoomTiers?.goTo?.('city', false);
+    cityLevel = true;
+    CosmicZoom?.update?.(camZ, { tier: 'city', label: 'CITY', cosmic: 'earth' });
+    setTimeout(() => { this._forceOpen = false; }, 4000);
+    setTimeout(() => this._invalidate(), 80);
+    return true;
+  },
+
+  onCamera(camZ, level) {
+    if (!this._ready) return;
+    if (window._globeFly) {
+      if (this.active) this._syncView(camZ);
+      return;
+    }
+    const earth = window._cityDropLock || this._forceOpen
+      || (level || CosmicZoom?.level || 'earth') === 'earth';
+    const driving = !!DrivingView?.active;
+    const force = this._forceOpen || window._cityDropLock;
+    if (force || driving) {
+      if (!this.active) this._enter(camZ);
+      else this._syncView(camZ);
+      return;
+    }
+    const shouldEnter = earth && (camZ <= this.ENTER_Z || driving);
+    const shouldExit = !earth || (camZ > this.EXIT_Z && !driving);
+    if (shouldEnter && !this.active) this._enter(camZ);
+    else if (shouldExit && this.active) this._exit();
+    else if (this.active) this._syncView(camZ);
+  },
+
+  _enter(camZ) {
+    this.active = true;
+    cityLevel = true;
+    const el = document.getElementById('city-map');
+    const globe = document.getElementById('globe');
+    if (el) el.classList.add('active');
+    if (globe) globe.classList.add('city-map-active');
+    // prevent white flash: force dark bg before map view
+    if (el) el.style.background = 'var(--an-bg)';
+    const mapContainer = this.map && this.map.getContainer ? this.map.getContainer() : null;
+    if (mapContainer) mapContainer.style.background = 'var(--an-bg)';
+    const c = window._lastPos || this.globeCenterLatLng() || this._center;
+    if (!c?.lat) return;
+    this._center = c;
+    this.map.setView([c.lat, c.lng], this.camZToZoom(camZ), { animate: false });
+    this._invalidate();
+    setTimeout(() => this._invalidate(), 120);
+    setTimeout(() => this._invalidate(), 500);
+    this._syncMarkers();
+    this._syncRoute();
+    this._seedDemoDrivers(c);
+    CityLife?._updateChip?.(
+      (CityLife?.nearbyVendors?.(c.lat, c.lng) || []).length,
+      Object.keys(this._markers).filter(k => k.startsWith('drv_')).length
+    );
+    const chip = document.getElementById('city-life-chip');
+    if (chip) {
+      chip.classList.add('open');
+      chip.innerHTML = '<b>City map</b> · scroll/pinch <b>out</b> for globe';
+    }
+    MapDepict?.setHud?.('City map', 'pinch/scroll out → globe');
+    GlobeDeck?.setPreview?.('City map · scroll/pinch out to return to globe');
+  },
+
+  _exit() {
+    this.active = false;
+    cityLevel = false;
+    const el = document.getElementById('city-map');
+    const globe = document.getElementById('globe');
+    if (el) el.classList.remove('active');
+    if (globe) globe.classList.remove('city-map-active');
+    EarthRealism?._hudTimer && (EarthRealism._hudTimer = 0);
+  },
+
+  _syncView(camZ) {
+    if (window._globeFly || !this.map) return;
+    const c = DrivingView?.active && window._lastPos
+      ? window._lastPos
+      : (window._lastPos || this.globeCenterLatLng() || this._center);
+    if (!c?.lat) return;
+    this._center = c;
+    const lz = this.camZToZoom(camZ);
+    try {
+      if (this.map.getZoom() !== lz) this.map.setZoom(lz, { animate: false });
+      const cur = this.map.getCenter();
+      if (Math.abs(cur.lat - c.lat) > 0.0004 || Math.abs(cur.lng - c.lng) > 0.0004) {
+        this.map.panTo([c.lat, c.lng], { animate: false });
+      }
+    } catch (_) {
+      this.map.setView([c.lat, c.lng], lz, { animate: false });
+    }
+  },
+
+  _icon(emoji, color) {
+    return L.divIcon({
+      className: 'city-map-pin',
+      html: '<span style="background:' + color + ';border:2px solid #fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.45)">' + emoji + '</span>',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
+    });
+  },
+
+  _setMarker(id, lat, lng, opts) {
+    opts = opts || {};
+    if (lat == null || lng == null) return;
+    const prev = this._markers[id];
+    if (prev) {
+      prev.setLatLng([lat, lng]);
+      return prev;
+    }
+    const m = L.marker([lat, lng], {
+      icon: this._icon(opts.emoji || '◎', opts.color || 'rgba(0,140,220,0.9)'),
+      title: opts.title || id,
+    });
+    if (opts.onClick) m.on('click', opts.onClick);
+    m.addTo(this.map);
+    this._markers[id] = m;
+    return m;
+  },
+
+  _syncMarkers() {
+    if (!this.active || !this.map) return;
+    const me = window._lastPos;
+    if (me) {
+      this._setMarker('me', me.lat, me.lng, { emoji: '●', color: 'rgba(0,255,140,0.95)', title: 'You', onClick: () => GlobeEntity?.entities?.get('me') && GlobeEntity.activate(GlobeEntity.entities.get('me')) });
+    }
+  },
+
+  _driverLatLng(d, u, i) {
+    const lat = d.field_lat ?? d.lat ?? d.latitude;
+    const lng = d.field_lng ?? d.lng ?? d.longitude;
+    if (lat != null && lng != null) return { lat: +lat, lng: +lng };
+    return { lat: u.lat + (Math.sin(i * 1.7) * 0.006), lng: u.lng + (Math.cos(i * 1.3) * 0.006) };
+  },
+
+  _seedDemoDrivers(c) {
+    const u = c || window._lastPos || this._center || { lat: 36.44, lng: 28.22 };
+    if (this._demoDrivers.length) return;
+    this._demoDrivers = [
+      { id: 'demo1', display_name: 'Nikos · delivery', field_lat: u.lat + 0.004, field_lng: u.lng - 0.003 },
+      { id: 'demo2', display_name: 'Elena · courier', field_lat: u.lat - 0.003, field_lng: u.lng + 0.005 },
+      { id: 'demo3', display_name: 'Alex · ride', field_lat: u.lat + 0.002, field_lng: u.lng + 0.004 },
+    ];
+  },
+
+  _animateDemoDrivers() {
+    this._demoPhase += 0.0012;
+    const u = window._lastPos || this._center;
+    if (!u) return;
+    this._demoDrivers.forEach((d, i) => {
+      d.field_lat = u.lat + Math.sin(this._demoPhase + i * 2.1) * 0.008;
+      d.field_lng = u.lng + Math.cos(this._demoPhase + i * 1.6) * 0.008;
+    });
+  },
+
+  async _tickDrivers() {
+    if (!this.active) return;
+    const u = window._lastPos || this._center;
+    if (!u) return;
+    let drivers = window.Commerce?.fetchNearbyDrivers
+      ? await window.Commerce.fetchNearbyDrivers(u.lat, u.lng)
+      : [];
+    if (!drivers.length) {
+      this._seedDemoDrivers(u);
+      this._animateDemoDrivers();
+      drivers = this._demoDrivers;
+    }
+    window.Commerce?.showDriversOnGlobe?.(drivers);
+    const seen = new Set();
+    drivers.forEach((d, i) => {
+      const p = this._driverLatLng(d, u, i);
+      const id = 'drv_' + (d.id || i);
+      seen.add(id);
+      this._setMarker(id, p.lat, p.lng, {
+        emoji: '🚗',
+        color: 'rgba(80,180,255,0.92)',
+        title: d.display_name || 'Driver',
+      });
+    });
+    Object.keys(this._markers).forEach(k => {
+      if (k.startsWith('drv_') && !seen.has(k)) {
+        this.map.removeLayer(this._markers[k]);
+        delete this._markers[k];
+      }
+    });
+  },
+
+  setRoute(coords) {
+    this._routeCoords = coords || [];
+    this._syncRoute();
+  },
+
+  _syncRoute() {
+    if (!this.map) return;
+    if (this._route) {
+      this.map.removeLayer(this._route);
+      this._route = null;
+    }
+    const coords = this._routeCoords || DrivingView?.routeCoords || [];
+    if (!coords.length || !this.active) return;
+    const latlngs = coords.map(c => [c.lat, c.lng]);
+    this._route = L.polyline(latlngs, {
+      color: (AstranovTheme?.effectiveMode?.() || AstranovTheme?.mode) === 'bright' ? '#0066cc' : '#44ccff',
+      weight: 5,
+      opacity: 0.88,
+    }).addTo(this.map);
+  },
+
+  _invalidate() {
+    if (this.map) this.map.invalidateSize();
+  }
+};
+window.CityMap = CityMap;
