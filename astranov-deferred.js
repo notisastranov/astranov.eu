@@ -1320,7 +1320,9 @@ window.AciCoders = AciCoders;
 
 /* === 19-session-hold.js === */
 // === SESSION HOLD — pause mic/tasks in noisy places, resume later ===
-let sessionHeld = false;
+// Prefer phase bridge / critical stub; never redeclare with let (co-bundle safe)
+sessionHeld = false;
+window.sessionHeld = false;
 
 const SessionHold = {
   STORAGE_KEY: 'astranov-session-hold-v1',
