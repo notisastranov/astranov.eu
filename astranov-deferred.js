@@ -124,7 +124,7 @@ Object.assign(SuperCli, {
 
   printHelp() {
     const owner = Auth?.isOwner;
-    this.out('── Astranov Command Line — brain + UI + dev ──', 'dim');
+    this.out('── Astranov — brain + UI + dev ──', 'dim');
     this.out('dev on|off · dev task <msg> · dev peers · dev deploy · dev status', 'ok');
     this.out('ui show batch|radio|vendor|youtube · ui hide · ui fly athens · ui zoom galaxy', 'ok');
     this.out('youtube <search> · watch <url> · play 2 (pick result)', 'ok');
@@ -1123,7 +1123,7 @@ const ContextTruth = {
     if (!Auth?.user) {
       return { mode: 'guest', ctx: 'guest', label: 'Guest · sign in', detail: 'Not authenticated' };
     }
-    return { mode: 'cli', ctx: 'idle', label: 'CLI · central', detail: 'Astranov command line' };
+    return { mode: 'cli', ctx: 'idle', label: 'CLI · central', detail: 'Astranov' };
   },
 
   syncAuth() {
@@ -3247,7 +3247,7 @@ const SuperAdd = {
 
   open() {
     if (!this._bound) this.init();
-    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
     this.showPanel();
     this.startCamera();
     SuperCli?.setContext?.('add');
@@ -3569,7 +3569,7 @@ const SuperAdd = {
 };
 window.SuperAdd = SuperAdd;
 
-// === YOUTUBE ON GLOBE — search + watch in Astranov Command Line deck ===
+// === YOUTUBE ON GLOBE — search + watch in Astranov deck ===
 const GlobeVideo = {
   _results: [],
   _currentId: null,
@@ -8195,7 +8195,7 @@ const AstranovPresence = {
     const p = this.pos();
     MapDepict?.action?.('play', { lat: p.lat, lng: p.lng, detail: 'κρυφτό · hide and seek LIVE' });
     MapDepict?.pulse?.(p.lat, p.lng, 0x1a6fd4, 'ΚΡΥΦΤΟ', 18000);
-    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov Command Line');
+    GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
     GlobeDeck?.setTitle?.('ΚΡΥΦΤΟ');
     GlobeDeck?.setPreview?.('◎ ' + total + ' player(s) · say hide to vanish · players to seek');
     GlobeDeck.activeTask = 'game';
