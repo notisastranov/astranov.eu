@@ -329,7 +329,6 @@ const FieldHud = {
   _radarTargetsCache: [],
   _radarTargetsAt: 0,
   SWEEP_PERIOD_MS: 4200,
-  EARTH_ROTATION_KMH: 1671,
   EARTH_RADIUS_KM: 6371,
   _sessionEarned: 0,
   _mineRate: 0,
@@ -686,29 +685,33 @@ const FieldHud = {
     return level === 'earth' && z >= 2.0 && z <= 4.5 && !window.CityMap?.active && !window.DrivingView?.active;
   },
 
-  earthRotationKmh() {
-    return this.EARTH_ROTATION_KMH;
+  tickEarthSpin() {
+    // Real spin lives in EarthRealism.applySpinNow / animate loop — not fake radar
+    try { EarthRealism?.applySpinNow?.(); } catch (_) {}
   },
 
-  tickEarthSpin() {
-    const ER = window.EarthRealism;
-    const e = window.earth;
-    if (!e) return;
-    if (!ER?._inited) { try { ER?.init?.(); } catch (_) {} }
-    const now = new Date();
-    if (ER?._earthSpin) e.rotation.y = ER._earthSpin(now);
-    else e.rotation.y = ((now.getUTCHours() + now.getUTCMinutes() / 60) / 24) * Math.PI * 2;
-    if (ER?._solarPosition && ER.sunDir) {
-      ER.sunDir.copy(ER._solarPosition(now));
-      if (e.material?.uniforms?.sunDirection && ER._sunLocal) {
-        e.material.uniforms.sunDirection.value.copy(ER._sunLocal(ER.sunDir));
-      }
+  /** Real ground speed km/h from GPS only (never Earth-rotation fakery) */
+  gpsSpeedKmh() {
+    // Prefer live GPS from presence / driving / last fix
+    let mps = null;
+    if (window.DrivingView?.active && window.DrivingView.speed >= 0) {
+      mps = window.DrivingView.speed;
     }
+    if ((mps == null || mps < 0) && window._gpsSpeedMps != null && window._gpsSpeedMps >= 0) {
+      mps = window._gpsSpeedMps;
+    }
+    if ((mps == null || mps < 0) && window._lastGpsFix?.speed != null && window._lastGpsFix.speed >= 0) {
+      mps = window._lastGpsFix.speed;
+    }
+    if (mps == null || mps < 0 || !Number.isFinite(mps)) return 0;
+    // Ignore GPS noise under ~0.5 m/s (~1.8 km/h)
+    if (mps < 0.5) return 0;
+    return Math.round(mps * 3.6);
   },
 
   speedLimitKmh() {
-    if (window.DrivingView?.active) {
-      const s = (window.DrivingView?.speed || 0) * 3.6;
+    const s = this.gpsSpeedKmh();
+    if (window.DrivingView?.active || s > 25) {
       if (s > 70) return 130;
       if (s > 35) return 90;
       return 50;
@@ -723,38 +726,58 @@ const FieldHud = {
     const lim = document.getElementById('fsh-limit');
     const mode = document.getElementById('fsh-mode');
     if (!hud || !val) return;
-    let kmh = 0;
-    let driving = false;
-    let earthSpin = false;
-    if (window.DrivingView?.active) {
-      kmh = Math.round((window.DrivingView.speed || 0) * 3.6);
-      driving = true;
-      if (mode) { mode.textContent = 'DRIVE'; mode.style.position = 'absolute'; mode.style.top = '6px'; mode.style.left = '8px'; }
-    } else if (this.isGlobalEarthView()) {
-      kmh = this.earthRotationKmh();
-      earthSpin = true;
-      if (mode) { mode.textContent = 'EARTH'; mode.style.position = 'absolute'; mode.style.top = '6px'; mode.style.left = '8px'; }
-    } else if (window.CityMap?.active && window.DrivingView?.speed > 0) {
-      kmh = Math.round((window.DrivingView.speed || 0) * 3.6);
-      driving = true;
-      if (mode) mode.textContent = 'CITY';
-    } else {
-      if (mode) mode.textContent = '';
-    }
+    // TRUTH: only real GPS / derived ground speed — never 1671 km/h Earth spin fake
+    const kmh = this.gpsSpeedKmh();
+    const driving = !!(window.DrivingView?.active) || kmh >= 15;
     val.textContent = String(kmh);
-    hud.classList.toggle('driving', driving);
-    hud.classList.toggle('earth', earthSpin);
-    hud.classList.toggle('idle', kmh < 1 && !earthSpin);
+    if (mode) {
+      if (window.DrivingView?.active) mode.textContent = 'DRIVE';
+      else if (kmh > 0) mode.textContent = 'GPS';
+      else mode.textContent = '';
+      mode.style.position = 'absolute';
+      mode.style.top = '6px';
+      mode.style.left = '8px';
+    }
+    hud.classList.toggle('driving', driving && kmh > 0);
+    hud.classList.toggle('earth', false);
+    hud.classList.toggle('idle', kmh < 1);
     const limit = this.speedLimitKmh();
     if (lim) {
-      if (driving && limit > 0) {
+      if (kmh > 0 && limit > 0) {
         lim.hidden = false;
         lim.textContent = 'lim ' + limit;
-        lim.style.color = kmh > limit ? '#ff6688' : 'rgba(100,200,255,.65)';
+        lim.style.color = kmh > limit ? '#ff8866' : 'rgba(100,200,255,.65)';
       } else {
         lim.hidden = true;
       }
     }
+  },
+
+  /** Start low-rate GPS watch for speed when not already watching */
+  ensureGpsSpeedWatch() {
+    if (this._gpsSpeedWatch != null || !navigator.geolocation) return;
+    this._gpsSpeedWatch = navigator.geolocation.watchPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        let speed = pos.coords.speed; // m/s or null
+        const now = Date.now();
+        const prev = window._lastGpsFix;
+        if ((speed == null || speed < 0) && prev?.lat != null && prev.t) {
+          const dt = (now - prev.t) / 1000;
+          if (dt > 0.5 && dt < 30) {
+            const dKm = this.haversineKm(prev.lat, prev.lng, lat, lng);
+            speed = (dKm * 1000) / dt;
+          }
+        }
+        window._gpsSpeedMps = (speed != null && speed >= 0) ? speed : 0;
+        window._lastGpsFix = { lat, lng, speed: window._gpsSpeedMps, t: now };
+        window._lastPos = { lat, lng };
+        userLocated = true;
+      },
+      () => { /* keep last good speed */ },
+      { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 }
+    );
   },
 
   radarTargets() {
@@ -930,6 +953,7 @@ const FieldHud = {
     this._loop = setInterval(() => this.tick(), 1000);
     this.startFieldRaf();
     this.migrateSpeedHud();
+    this.ensureGpsSpeedWatch();
   },
 
   migrateSpeedHud() {
