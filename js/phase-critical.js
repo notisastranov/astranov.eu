@@ -92,7 +92,8 @@ let voiceEnabled = false;
 let voiceSessionActive = false;
 let isListening = false;
 let recognition;
-let userLocated = false;
+// Use var (not let) so later classic scripts can assign without global-lexical clashes
+var userLocated = false;
 window.userLocated = false;
 
 const scene = new THREE.Scene();
