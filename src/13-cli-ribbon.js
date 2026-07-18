@@ -1,5 +1,5 @@
 // === CLI RIBBON — one top bar: account · apps · status · + · expand ===
-const CliRibbon = {
+var CliRibbon = {
   _active: 'CLI',
   _notice: '',
   _kind: 'idle',
@@ -118,7 +118,7 @@ const CliRibbon = {
     }
 
     if (GlobeDeck?.thinking) parts.push('thinking…');
-    if (sessionHeld || SessionHold?.isHeld?.()) parts.push('held');
+    if ((typeof sessionHeld !== 'undefined' && sessionHeld) || SessionHold?.isHeld?.()) parts.push('held');
     if (window._handsFreeVoice) parts.push('hands-free');
     else if (isListening) parts.push('listening');
 
