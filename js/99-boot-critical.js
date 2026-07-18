@@ -16,51 +16,75 @@ function globePerfActive() {
 function animate() {
   requestAnimationFrame(animate);
   if (window._cycleTurbo) return;
-  SlumberManager?.tickFrame?.();
+  if (!renderer || !scene || !camera) return;
+
   window._animFrame = (window._animFrame + 1) | 0;
   const frame = window._animFrame;
   const hidden = document.hidden;
+  // Tab hidden: almost sleep
+  if (hidden) {
+    if (frame % 60 !== 0) return;
+    try { renderer.render(scene, camera); } catch (_) {}
+    return;
+  }
+
   const lite = !!window._globePerfLite;
   const idleMs = Date.now() - (window._lastUserAct || 0);
   const dragging = !!(drag || window._globeFly || trackVelX || trackVelY);
-  if (!dragging && !hidden) {
-    const skipN = lite ? (idleMs > 8000 ? 4 : idleMs > 2500 ? 2 : 1) : (idleMs > 10000 ? 2 : 0);
+  // Aggressive idle frame skip — keeps UI butter while idling
+  if (!dragging) {
+    let skipN = 0;
+    if (lite) {
+      if (idleMs > 12000) skipN = 5;
+      else if (idleMs > 4000) skipN = 3;
+      else if (idleMs > 1200) skipN = 2;
+      else skipN = 1;
+    } else if (idleMs > 15000) skipN = 3;
+    else if (idleMs > 5000) skipN = 1;
     if (skipN && frame % (skipN + 1) !== 0) return;
   }
-  if (hidden && frame % 45 !== 0) return;
 
-  const camZ = camera?.position?.z ?? 2.55;
+  // FPS probe only when needed
+  if (frame % 8 === 0) SlumberManager?.tickFrame?.();
+
+  const camZ = camera.position.z;
   const level = CosmicZoom?.level || 'earth';
   const earthView = (level === 'earth' || level === 'orbit') && camZ < 4.8;
   const solarView = level === 'system' || level === 'galaxy' || camZ > 5.5;
 
-  const voiceActive = window._handsFreeVoice || (typeof isListening !== 'undefined' && isListening);
-  const codersBusy = window.AciCoders?._cliBusy || window.AciCoders?._listenBusy;
-  if (voiceActive || codersBusy || GlobeDeck?.thinking) {
-    if (typeof setVoicePerfMode === 'function') setVoicePerfMode(true);
-  } else if (window._voicePerfMode && typeof setVoicePerfMode === 'function') {
-    setVoicePerfMode(false);
+  // Voice perf mode — throttle checks
+  if (frame % 6 === 0) {
+    const voiceActive = window._handsFreeVoice || (typeof isListening !== 'undefined' && isListening);
+    const codersBusy = window.AciCoders?._cliBusy || window.AciCoders?._listenBusy;
+    if (voiceActive || codersBusy || GlobeDeck?.thinking) {
+      if (typeof setVoicePerfMode === 'function') setVoicePerfMode(true);
+    } else if (window._voicePerfMode && typeof setVoicePerfMode === 'function') {
+      setVoicePerfMode(false);
+    }
   }
 
   if (!drag && !window._globeFly) TrackballGuard?.applyInertia?.();
   tickGlobeFly?.();
 
+  // Spin every rendered frame (already frame-skipped when idle)
   if (earthView && !CityMap?.active) EarthRealism?.applySpinNow?.();
 
-  if (!hidden && frame % _slumberDiv('entity') === 0) {
+  const entityDiv = Math.max(_slumberDiv('entity'), lite ? 12 : 6);
+  if (frame % entityDiv === 0) {
     MapDepict?.tick?.();
     if (SlumberManager?.allows?.('entities') !== false) GlobeEntity?.tick?.();
   }
 
-  const cosmicDiv = Math.max(_slumberDiv('cosmic'), lite ? 16 : 8);
-  if (solarView && frame % _slumberDiv('cosmic') === 0) CosmicZoom.update(camZ);
-  else if (frame % cosmicDiv === 0) CosmicZoom.update(camZ);
+  const cosmicDiv = Math.max(_slumberDiv('cosmic'), lite ? 20 : 10);
+  if (solarView && frame % Math.max(_slumberDiv('cosmic'), 4) === 0) CosmicZoom?.update?.(camZ);
+  else if (frame % cosmicDiv === 0) CosmicZoom?.update?.(camZ);
 
-  if (earthView && window._astranovFlyerActive && frame % Math.max(_slumberDiv('earth'), 8) === 0) {
+  if (earthView && window._astranovFlyerActive && frame % Math.max(_slumberDiv('earth'), 10) === 0) {
     AIGraphics?.update?.();
   }
-  if (earthView && frame % _slumberDiv('earth') === 0) EarthRealism?.tick?.();
-  if (!lite && earthView && frame % _slumberDiv('celestial') === 0 && SlumberManager?.allows?.('celestial')) {
+  if (earthView && frame % Math.max(_slumberDiv('earth'), lite ? 10 : 4) === 0) EarthRealism?.tick?.();
+  if (!lite && earthView && frame % _slumberDiv('celestial') === 0 && idleMs < 8000
+    && SlumberManager?.allows?.('celestial') !== false) {
     window.CelestialNav?.tick?.();
   }
   renderer.render(scene, camera);
