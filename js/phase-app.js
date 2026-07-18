@@ -3633,6 +3633,10 @@ var CityLife = {
     return list.filter(v => v.lat != null && window.Commerce.haversineKm(lat, lng, v.lat, v.lng) <= this.NEARBY_KM);
   },
 
+  _yield(ms) {
+    return new Promise((r) => setTimeout(r, ms || 0));
+  },
+
   async dropIn(lat, lng, opts) {
     opts = opts || {};
     const pos = lat != null && lng != null ? { lat, lng } : this.userPos();
@@ -3646,119 +3650,112 @@ var CityLife = {
     try { CityPick?.hide?.(); } catch (_) {}
 
     try {
-      // 1) National space first (fast — capped wait)
+      // 1) Snap national view — no multi-second awaits on first paint
       const nationalZ = GlobeControl?.Z?.national || 1.82;
       GlobeDeck?.setMapStatus?.('National view…');
-      try { ZoomTiers?.goTo?.('national', true); } catch (_) {}
+      try { ZoomTiers?.goTo?.('national', false); } catch (_) {}
       try {
+        if (typeof camera !== 'undefined' && camera) camera.position.z = nationalZ;
         CosmicZoom?.update?.(nationalZ, { tier: 'national', label: 'NATIONAL', cosmic: 'earth' });
       } catch (_) {}
       try {
         if (typeof latLngToPos === 'function' && typeof flyToPoint === 'function' && typeof THREE !== 'undefined') {
           const gp = latLngToPos(pos.lat, pos.lng, 1.04);
-          flyToPoint(new THREE.Vector3(gp.x, gp.y, gp.z), nationalZ, { dur: 1100 });
-          if (typeof waitForGlobeFly === 'function') {
-            await Promise.race([
-              waitForGlobeFly(3500),
-              new Promise((r) => setTimeout(r, 3600)),
-            ]);
-          }
-        } else if (typeof camera !== 'undefined' && camera) {
-          camera.position.z = nationalZ;
+          flyToPoint(new THREE.Vector3(gp.x, gp.y, gp.z), nationalZ, { dur: opts.immediate ? 600 : 1100 });
         }
       } catch (_) {}
-      try { CityMap?.onCamera?.(nationalZ, 'earth'); } catch (_) {}
       CliRibbon?.setNotice?.('National · your region', 'ready');
+      await this._yield(opts.immediate ? 50 : 200);
 
-      // 2) City map immediately — never block on shops/news for UI
-      try { ZoomTiers?.goTo?.('city', true); } catch (_) {}
+      // 2) Open city map ASAP (Leaflet) — this is the product moment
+      try { ZoomTiers?.goTo?.('city', false); } catch (_) {}
       GlobeDeck?.setMapStatus?.('Opening city map…');
-      let opened = false;
       try {
-        opened = !!(await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM }));
-      } catch (e) {
-        console.warn('[CityLife] openAt', e);
-      }
-      if (!opened) {
-        try {
-          CityMap?.init?.();
+        CityMap?.init?.();
+        if (CityMap?.openAt) {
+          CityMap.openAt(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
+        } else {
           CityMap?.onCamera?.(this.CITY_ZOOM, 'earth');
           if (!CityMap?.active) CityMap?._enter?.(this.CITY_ZOOM);
-        } catch (_) {}
+        }
+      } catch (e) {
+        console.warn('[CityLife] city map open', e);
       }
+      await this._yield(80);
 
-      // 3) Soft city fly (do not hang if fly stuck)
+      // 3) Optional soft city fly (never block UI)
       try {
-        await Promise.race([
-          this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city'),
-          new Promise((r) => setTimeout(r, 4000)),
-        ]);
+        if (typeof latLngToPos === 'function' && typeof flyToPoint === 'function' && typeof THREE !== 'undefined') {
+          const p = latLngToPos(pos.lat, pos.lng, 1.04);
+          flyToPoint(new THREE.Vector3(p.x, p.y, p.z), this.CITY_ZOOM, { dur: 900 });
+        }
+        GlobeControl?.engageFollow?.('locate');
+        MapDepict?.pulse?.(pos.lat, pos.lng, 0x3d9eff, opts.label || 'Your city', 14000);
       } catch (_) {}
 
-      // 4) Background enrichment — never gate city UI on this
-      let nearby = [];
-      let drivers = [];
+      // 4) Background enrichment — fire and forget after UI is up
+      const nearby = this.nearbyVendors(pos.lat, pos.lng);
       try {
-        if (window.Commerce?.loadVendors) {
-          await Promise.race([
-            window.Commerce.loadVendors(),
-            new Promise((resolve) => setTimeout(() => resolve(null), 2500)),
-          ]);
-        }
-        nearby = this.nearbyVendors(pos.lat, pos.lng);
         if (nearby.length && window.Commerce) {
           window.Commerce.vendors = nearby
             .concat((window.Commerce.vendors || []).filter((v) => !nearby.includes(v)))
             .slice(0, 40);
+          window.Commerce?.showOnGlobe?.();
         }
-        window.Commerce?.showOnGlobe?.();
-        GlobeEntity?.syncVendors?.(window.Commerce?.vendors);
-        drivers = window.Commerce?.fetchNearbyDrivers
-          ? await Promise.race([
-            window.Commerce.fetchNearbyDrivers(pos.lat, pos.lng),
-            new Promise((resolve) => setTimeout(() => resolve([]), 2500)),
-          ])
-          : [];
-        window.Commerce?.showDriversOnGlobe?.(drivers);
+        this._updateChip(nearby.length, 0);
       } catch (_) {}
 
-      try {
-        this._pulseFriends();
-        this._showLocalNews(pos.lat, pos.lng);
-        this._updateChip(nearby.length, drivers.length);
-        CityMap?.onCamera?.(this.CITY_ZOOM, 'earth');
-      } catch (_) {}
-
-      const msg = nearby.length + ' shops · ' + drivers.length + ' drivers · '
-        + (window.others?.length || 0) + ' friends nearby';
+      const msg = nearby.length + ' shops nearby · city map open';
       GlobeDeck?.setMapStatus?.('🏙 City map · ' + pos.lat.toFixed(2) + ', ' + pos.lng.toFixed(2));
       GlobeDeck?.setPreview?.('🏙 ' + msg);
       AciCli?.print?.('◎ City view · ' + msg, 'ok');
-      ACIControl?.reply?.('City map open — ' + msg + ' · tap a shop or type: order pitogyra');
+      ACIControl?.reply?.('City map open — ' + msg);
       FieldBrain?.pulse?.('city', msg, { role: 'client', props: { lat: pos.lat, lng: pos.lng, shops: nearby.length } });
 
-      if (opts.openShops && nearby.length) {
+      // Deferred shops/drivers (must not block return)
+      setTimeout(() => {
         try {
-          GlobeDeck?.expand?.(window.SuperCli?.title || 'Astranov');
-          await window.Commerce?.showPicker?.();
+          if (window.Commerce?.loadVendors) void window.Commerce.loadVendors();
+          if (window.Commerce?.fetchNearbyDrivers) {
+            void window.Commerce.fetchNearbyDrivers(pos.lat, pos.lng).then((drivers) => {
+              window.Commerce?.showDriversOnGlobe?.(drivers || []);
+              this._updateChip(nearby.length, (drivers || []).length);
+            }).catch(() => {});
+          }
+          this._pulseFriends();
+          this._showLocalNews(pos.lat, pos.lng);
+          GlobeEntity?.syncVendors?.(window.Commerce?.vendors);
         } catch (_) {}
+      }, 100);
+
+      if (opts.openShops && nearby.length) {
+        setTimeout(() => {
+          try {
+            GlobeDeck?.expand?.(window.SuperCli?.title || 'Astranov');
+            void window.Commerce?.showPicker?.();
+          } catch (_) {}
+        }, 200);
       }
+
       return {
         vendors: nearby,
-        drivers,
+        drivers: [],
         lat: pos.lat,
         lng: pos.lng,
-        mapActive: !!(typeof CityMap !== 'undefined' && CityMap?.active),
+        mapActive: !!(window.CityMap?.active),
       };
     } catch (e) {
       console.error('[CityLife] dropIn', e);
       AciCli?.print?.('city drop error: ' + (e.message || e), 'err');
-      try { await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM }); } catch (_) {}
+      try {
+        CityMap?.init?.();
+        CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
+      } catch (_) {}
       return {
         error: e.message || 'city drop failed',
         lat: pos.lat,
         lng: pos.lng,
-        mapActive: !!(typeof CityMap !== 'undefined' && CityMap?.active),
+        mapActive: !!(window.CityMap?.active),
       };
     } finally {
       window._cityDropLock = false;
@@ -3807,16 +3804,32 @@ var CityLife = {
     if (!navigator.geolocation) throw new Error('no geolocation');
     GlobeDeck?.setMapStatus?.('Locating…');
     const pos = await new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(resolve, reject, {
-        enableHighAccuracy: false,
-        timeout: 12000,
-        maximumAge: 60000,
-      });
+      let done = false;
+      const finish = (fn, arg) => {
+        if (done) return;
+        done = true;
+        fn(arg);
+      };
+      const timer = setTimeout(() => finish(reject, Object.assign(new Error('GPS timeout'), { code: 3 })), 11000);
+      navigator.geolocation.getCurrentPosition(
+        (p) => { clearTimeout(timer); finish(resolve, p); },
+        (err) => { clearTimeout(timer); finish(reject, err); },
+        { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+      );
     });
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
     this.markMeOnGlobe(lat, lng);
-    return this.dropIn(lat, lng, { label: 'Your city' });
+    // Return quickly — full drop-in continues without blocking the UI thread
+    const dropP = this.dropIn(lat, lng, { label: 'Your city', immediate: true });
+    // Don't let a stuck drop hang the caller forever
+    const r = await Promise.race([
+      dropP,
+      new Promise((resolve) => setTimeout(() => resolve({
+        lat, lng, mapActive: !!(window.CityMap?.active), pending: true,
+      }), 8000)),
+    ]);
+    return r;
   },
 
   SCENARIOS: {
