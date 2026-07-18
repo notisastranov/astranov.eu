@@ -18,7 +18,7 @@ window.__astranovBootFeatures = function __astranovBootFeatures() {
     try { AppShortcuts?.init?.(); } catch (_) {}
   });
 
-  // Locate wiring: 🎯 should open national/city path
+  // Locate wiring: 🎯 national → city (never bare undeclared locateMe — kills app)
   idle(() => {
     const btn = document.getElementById('aci-locate');
     if (btn && !btn._spartanLocate) {
@@ -26,11 +26,16 @@ window.__astranovBootFeatures = function __astranovBootFeatures() {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (CityLife?.locateAndDropIn) void CityLife.locateAndDropIn();
-        else if (typeof locateMe === 'function') locateMe();
+        try {
+          if (window.CityLife?.safeLocate) void window.CityLife.safeLocate();
+          else if (window.CityLife?.locateAndDropIn) void window.CityLife.locateAndDropIn().catch(() => {});
+          else if (typeof window.locateMe === 'function') window.locateMe();
+        } catch (err) {
+          console.warn('[locate]', err);
+        }
       }, { capture: true });
     }
-  }, 600);
+  }, 200);
 
   if (window._lastPos) {
     try {
