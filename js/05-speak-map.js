@@ -263,7 +263,7 @@ function speak(text, onEnd, force) {
 }
 function stopSpeaking() { Voice.flush(); }
 
-const MapDepict = {
+var MapDepict = {
   overlays: [],
   current: '',
 
