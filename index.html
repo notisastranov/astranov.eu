@@ -10,13 +10,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260718055650" />
+<meta name="astranov-build" content="20260718055837" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/astranov-continuity.js?v=20260718055650"></script>
+<script defer src="/astranov-continuity.js?v=20260718055837"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <style>
@@ -234,7 +234,9 @@
   #super-cli-bar #app-shortcut-row { display:none !important; }
   #toolbar-trust-actions { display:flex; gap:5px; margin-left:auto; flex-shrink:0; align-items:center; }
   #super-cli-bar button:not(#aci-login):not(#aci-locate):not(#super-add-fab):not(#aci-handsfree):not(#aci-bridge):not(#aci-video-call):not(.app-shortcut-btn) { display:none !important; }
-  #super-cli-bar #aci-locate, #super-cli-bar #aci-handsfree, #super-cli-bar #super-add-fab, #super-cli-bar #aci-bridge, #super-cli-bar #aci-video-call { display:inline-flex !important; align-items:center; justify-content:center; }
+  #super-cli-edge-right { display:flex !important; gap:5px; margin-left:auto; flex-shrink:0; align-items:center; }
+  #super-cli-bar #aci-locate, #super-cli-bar #aci-handsfree, #super-cli-bar #super-add-fab, #super-cli-bar #aci-bridge, #super-cli-bar #aci-video-call { display:inline-flex !important; align-items:center; justify-content:center; visibility:visible !important; opacity:1 !important; }
+  #super-cli-bar #aci-locate { order:0; }
   #super-cli-bar #aci-video-call { width:34px; height:34px; font-size:14px; border-radius:50%; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); cursor:pointer; flex-shrink:0; }
   #first-run-coach {
     position:fixed; left:50%; bottom:max(118px, calc(12vh + env(safe-area-inset-bottom)));
@@ -763,7 +765,7 @@
         <button id="aci-login" title="Sign in with Google" type="button">G</button>
         <span id="cli-ribbon-status" aria-live="polite"></span>
         <div id="super-cli-edge-right" class="toolbar-trust-actions">
-          <button id="aci-locate" title="Locate me — national then city" type="button" class="app-shortcut-btn">🎯</button>
+          <button id="aci-locate" title="Locate me — your city" type="button" aria-label="Locate me">🎯</button>
           <button id="aci-handsfree" type="button" title="AI hands-free — listen &amp; speak">🎧</button>
           <button id="aci-bridge" type="button" title="Dev bridge — send fix to Grok Build" hidden>🛠</button>
           <button id="aci-video-call" type="button" title="Video call">📹</button>
@@ -5404,13 +5406,34 @@ const SuperCli = {
     bar.dataset.ctx = this._context;
     const allowed = new Set(this.TOOLBAR_VISIBLE);
     bar.querySelectorAll('button').forEach(btn => {
-      if (btn.classList.contains('app-shortcut-btn')) return;
+      if (btn.classList.contains('app-shortcut-btn') && btn.id !== 'aci-locate') return;
       if (btn.id === 'aci-bridge') {
         btn.hidden = !(Auth?.isArchitect && allowed.has('aci-bridge'));
         return;
       }
+      // Always keep locate + handsfree + + visible
+      if (btn.id === 'aci-locate' || btn.id === 'aci-handsfree' || btn.id === 'super-add-fab' || btn.id === 'aci-login') {
+        btn.hidden = false;
+        btn.style.display = 'inline-flex';
+        return;
+      }
+      if (btn.id === 'aci-video-call') {
+        btn.hidden = false;
+        return;
+      }
       btn.hidden = !allowed.has(btn.id);
     });
+    // Rescue locate if parked in hidden shortcut row
+    const loc = document.getElementById('aci-locate');
+    const edge = document.getElementById('super-cli-edge-right');
+    const badRow = document.getElementById('app-shortcut-row');
+    if (loc && edge && badRow?.contains(loc)) {
+      const hf = document.getElementById('aci-handsfree');
+      if (hf && edge.contains(hf)) edge.insertBefore(loc, hf);
+      else edge.prepend(loc);
+      loc.classList.remove('app-shortcut-btn');
+      loc.hidden = false;
+    }
     AppShortcuts?.render?.();
     this.INPUT_BTNS.forEach(id => {
       const b = document.getElementById(id);
@@ -11009,6 +11032,9 @@ const ProductSurface = {
       'background:var(--ax-blue-bg);color:var(--ax-blue-bright);font-size:14px;cursor:pointer;flex-shrink:0}',
       '#super-cli-bar #aci-video-call:active{transform:scale(0.94)}',
       '#super-cli-bar button:not(#aci-login):not(#aci-locate):not(#super-add-fab):not(#aci-handsfree):not(#aci-bridge):not(#aci-video-call):not(.app-shortcut-btn){display:none!important}',
+      '#super-cli-bar #aci-locate{display:inline-flex!important;visibility:visible!important;opacity:1!important}',
+      '#super-cli-edge-right{display:flex!important;align-items:center;gap:5px;margin-left:auto;flex-shrink:0}',
+      '#super-cli-bar #app-shortcut-row{display:none!important}',
       '#menu-profile-post-tile{display:none;position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));',
       'transform:translateX(-50%);z-index:190;width:min(420px,96vw);max-height:min(72vh,640px);overflow:auto;',
       'padding:12px;border-radius:16px;background:rgba(4,12,28,0.94);border:1px solid rgba(61,158,255,0.45);',
@@ -11067,11 +11093,27 @@ const ProductSurface = {
     if (!edge.id || edge.id === 'toolbar-trust-actions') {
       edge.id = 'super-cli-edge-right';
     }
-    // Move core buttons into edge for MPP patch order
-    ['aci-locate', 'aci-handsfree', 'aci-bridge', 'super-add-fab'].forEach(id => {
+    // Trust order: 🎯 · 🎧 · 🛠 · 📹 · +  (never put 🎯 in hidden app-shortcut-row)
+    const order = ['aci-locate', 'aci-handsfree', 'aci-bridge', 'aci-video-call', 'super-add-fab'];
+    order.forEach(id => {
       const el = document.getElementById(id);
-      if (el && el.parentElement !== edge) edge.appendChild(el);
+      if (!el) return;
+      if (id === 'aci-locate') {
+        el.classList.remove('app-shortcut-btn');
+        el.hidden = false;
+        el.style.display = 'inline-flex';
+        el.removeAttribute('hidden');
+      }
+      if (el.parentElement !== edge) edge.appendChild(el);
     });
+    // If MPP wrongly parked locate in app-shortcut-row, pull it back
+    const loc = document.getElementById('aci-locate');
+    const badRow = document.getElementById('app-shortcut-row');
+    if (loc && badRow && badRow.contains(loc)) {
+      const hf = document.getElementById('aci-handsfree');
+      if (hf && edge.contains(hf)) edge.insertBefore(loc, hf);
+      else edge.prepend(loc);
+    }
   },
 
   _ensureVideoCall() {
@@ -15946,6 +15988,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script src="/astranov-perf-lazy.js?v=20260718055650" defer></script>
+<script src="/astranov-perf-lazy.js?v=20260718055837" defer></script>
 </body>
 </html>
