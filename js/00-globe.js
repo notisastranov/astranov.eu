@@ -1,26 +1,48 @@
 // Globe host — must exist before WebGL. Never leave user with CLI-only black stage.
 let container = document.getElementById('globe');
-if (!container) {
+if (!container && document.body) {
   container = document.createElement('div');
   container.id = 'globe';
   document.body.insertBefore(container, document.body.firstChild);
 }
+if (!container) {
+  // Script in <head> before body: defer mesh until DOM ready is not an option — body end boot only
+  console.error('[globe] #globe missing — ensure scripts run after <div id="globe">');
+}
 // Ensure canvas layer is visible above void, under UI chrome
 try {
-  container.style.cssText = (container.getAttribute('style') || '')
-    + ';position:absolute;inset:0;z-index:2;touch-action:none;';
-  document.body.classList.remove('site-shell-open');
-  document.getElementById('city-map')?.classList.remove('active');
-  container.classList.remove('city-map-active', 'national-map-active');
+  if (container) {
+    container.style.position = 'absolute';
+    container.style.inset = '0';
+    container.style.zIndex = '2';
+    container.style.touchAction = 'none';
+    container.style.background = '#000';
+    container.classList.remove('city-map-active', 'national-map-active');
+  }
+  document.body?.classList?.remove?.('site-shell-open');
 } catch (_) {}
 
-// Robust WebGL + error guard so user never sees silent black
+// Error guard — do NOT spam fatal red bars for soft refs; only real render killers
 window.addEventListener('error', function(e) {
   try {
-    const msg = document.createElement('div');
-    msg.style.cssText = 'position:fixed;bottom:8px;left:8px;padding:4px 8px;background:rgba(20,0,0,0.7);color:#f66;font:11px/1.3 monospace;z-index:99999;pointer-events:none;';
-    msg.textContent = 'Init/Render error: ' + (e.message || 'unknown') + ' — try Chrome/Firefox, enable HW accel, check console';
-    document.body.appendChild(msg);
+    const m = String(e.message || e.error?.message || '');
+    // sessionHeld etc. are soft — already stubbed; never blank the globe over them
+    if (/sessionHeld|Script error|ResizeObserver/i.test(m)) {
+      console.warn('[soft]', m);
+      return;
+    }
+    if (window._astranovCriticalReady && /is not defined/i.test(m)) {
+      console.warn('[soft post-boot]', m);
+      return;
+    }
+    let msg = document.getElementById('astranov-hard-error');
+    if (!msg) {
+      msg = document.createElement('div');
+      msg.id = 'astranov-hard-error';
+      msg.style.cssText = 'position:fixed;bottom:8px;left:8px;right:8px;padding:6px 10px;background:rgba(20,0,0,0.85);color:#f88;font:11px/1.3 monospace;z-index:99999;pointer-events:none;border-radius:8px';
+      document.body.appendChild(msg);
+    }
+    msg.textContent = 'Error: ' + (m || 'unknown').slice(0, 180);
   } catch(_) {}
 });
 
@@ -73,10 +95,12 @@ let userLocated = false;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
+window.scene = scene;
 
 const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.1, 1000);
 camera.position.set(0, 0.25, 2.55);
 camera.lookAt(0, 0, 0);
+window.camera = camera;
 
 // Astranov lighting — deep space rim + sun key (not flat Atari fill)
 scene.add(new THREE.AmbientLight(0x1a2838, 0.55));
