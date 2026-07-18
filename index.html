@@ -10,13 +10,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260718060705" />
+<meta name="astranov-build" content="20260718060734" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/astranov-continuity.js?v=20260718060705"></script>
+<script defer src="/astranov-continuity.js?v=20260718060734"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <style>
@@ -3292,7 +3292,7 @@ const ResourceMonitor = {
 
   /** Mirror money field (top-right) into this panel */
   moneySnapshot() {
-    const Coins = document.getElementById('fbh-Coins')?.textContent || '— Coins';
+    const Coins = document.getElementById('fbh-avc')?.textContent || '— Coins';
     const rate = document.getElementById('fbh-mine-rate')?.textContent
       || document.getElementById('mrp-rate')?.textContent
       || '0/h';
@@ -16174,6 +16174,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script src="/astranov-perf-lazy.js?v=20260718060705" defer></script>
+<script src="/astranov-perf-lazy.js?v=20260718060734" defer></script>
 </body>
 </html>
