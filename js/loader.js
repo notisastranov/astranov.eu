@@ -1,21 +1,35 @@
-// === ASTRANOV LOADER — live-safe root bundles + fallback to /js modules ===
-// NEVER assume a path works: try root astranov-*.js first, then /js/* individuals.
+// === ASTRANOV LOADER — MUST work when primary URL 404s (Vercel/CDN gaps) ===
 (function AstranovLoader(global) {
   'use strict';
 
   const build = document.querySelector('meta[name="astranov-build"]')?.content || '0';
   const man = global.__ASTRANOV_MANIFEST__ || {
-    mode: 'root-bundles',
-    critical: ['/astranov-critical.js'],
-    app: ['/astranov-app.js'],
-    features: ['/astranov-features.js'],
+    mode: 'js-phase-bundles',
+    critical: ['/js/phase-critical.js'],
+    app: ['/js/phase-app.js'],
+    features: ['/js/phase-features.js'],
     deferred: ['/astranov-deferred.js'],
+  };
+
+  // Hardcoded rescue if manifest points at dead root paths (live incident 2026-07-18)
+  const RESCUE = {
+    critical: ['/js/phase-critical.js'],
+    app: ['/js/phase-app.js'],
+    features: ['/js/phase-features.js'],
+    deferred: ['/astranov-deferred.js'],
+  };
+  const RESCUE_INDIVIDUAL = {
+    critical: [
+      '/js/00-globe.js', '/js/07-light-stubs.js', '/js/02-lazy-modules.js',
+      '/js/03-slumber-manager.js', '/js/50-cosmic.js', '/js/09-zoom-tiers.js',
+      '/js/10-trackball.js', '/js/04-trackball-guard.js', '/js/62-astranov-theme.js',
+      '/js/63-earth-daynight.js', '/js/99-boot-critical.js',
+    ],
   };
 
   function withV(url) {
     if (!url) return url;
-    const sep = url.includes('?') ? '&' : '?';
-    return url + sep + 'v=' + encodeURIComponent(build);
+    return url + (url.includes('?') ? '&' : '?') + 'v=' + encodeURIComponent(build);
   }
 
   function resolveUrl(file) {
@@ -30,7 +44,7 @@
       if (existing) {
         if (existing.dataset.loaded === '1') return resolve();
         existing.addEventListener('load', () => resolve(), { once: true });
-        existing.addEventListener('error', () => reject(new Error('load fail ' + src)), { once: true });
+        existing.addEventListener('error', () => reject(new Error('load fail')), { once: true });
         return;
       }
       const s = document.createElement('script');
@@ -38,38 +52,44 @@
       s.async = false;
       s.dataset.astranovSrc = src;
       s.onload = () => { s.dataset.loaded = '1'; resolve(); };
-      s.onerror = () => reject(new Error('Failed to load ' + src));
+      s.onerror = () => reject(new Error('Failed ' + src));
       document.head.appendChild(s);
     });
   }
 
-  async function loadPhase(files, label, fallbackFiles) {
-    const list = files || [];
-    if (!list.length && fallbackFiles?.length) {
-      return loadPhase(fallbackFiles, label + '-fallback');
-    }
+  async function tryUrls(urls, label) {
+    const list = (urls || []).filter(Boolean);
+    if (!list.length) throw new Error('empty ' + label);
     const t0 = performance.now();
+    // Prefer single-bundle first URL; if it fails, try rest as ordered multi
     try {
-      // Insert all at once → parallel download, ordered execute
-      await Promise.all(list.map(f => loadScript(resolveUrl(f))));
-      console.log(
-        '%c[loader] ' + label + ' · ' + list.length + ' · ' + Math.round(performance.now() - t0) + 'ms',
-        'color:#7ec8ff'
-      );
+      if (list.length === 1) {
+        await loadScript(resolveUrl(list[0]));
+      } else {
+        await Promise.all(list.map(f => loadScript(resolveUrl(f))));
+      }
+      console.log('%c[loader] ' + label + ' OK · ' + Math.round(performance.now() - t0) + 'ms', 'color:#7ec8ff');
       return true;
     } catch (e) {
-      console.warn('[loader] ' + label + ' failed', e);
-      if (fallbackFiles?.length) {
-        console.warn('[loader] trying fallback for ' + label);
-        // sequential individuals more reliable if bundle 404s
-        for (const f of fallbackFiles) {
-          await loadScript(resolveUrl(f.startsWith('/') ? f : f));
-        }
-        console.log('%c[loader] ' + label + ' fallback OK', 'color:#ffdd44');
-        return true;
-      }
-      throw e;
+      console.warn('[loader] ' + label + ' primary failed', e.message || e);
+      return false;
     }
+  }
+
+  async function loadPhaseSmart(primary, label, extraFallbacks) {
+    const fb = man.fallback || {};
+    const chains = [
+      primary,
+      RESCUE[label],
+      (fb[label] || []).map(f => (String(f).startsWith('/') ? f : '/js/' + f)),
+      extraFallbacks,
+    ];
+    for (const chain of chains) {
+      if (!chain || !chain.length) continue;
+      const ok = await tryUrls(chain, label);
+      if (ok) return;
+    }
+    throw new Error('All chains failed for ' + label);
   }
 
   function loadVendor(src, ready) {
@@ -79,21 +99,16 @@
       s.src = src;
       s.async = true;
       s.onload = () => resolve();
-      s.onerror = () => { console.warn('[loader] vendor fail', src); resolve(); };
+      s.onerror = () => resolve();
       document.head.appendChild(s);
     });
   }
 
-  function afterPaint() {
-    return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-  }
-
-  function whenIdle(ms) {
-    return new Promise(resolve => {
-      if (typeof requestIdleCallback === 'function') requestIdleCallback(() => resolve(), { timeout: ms });
-      else setTimeout(resolve, Math.min(ms, 500));
-    });
-  }
+  const afterPaint = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const whenIdle = (ms) => new Promise(resolve => {
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(() => resolve(), { timeout: ms });
+    else setTimeout(resolve, Math.min(ms, 500));
+  });
 
   function showDeadBanner(msg) {
     try {
@@ -101,8 +116,8 @@
       if (!el) {
         el = document.createElement('div');
         el.id = 'astranov-boot-fail';
-        el.style.cssText = 'position:fixed;inset:auto 12px 12px 12px;z-index:99999;padding:12px 14px;'
-          + 'background:rgba(40,0,0,.92);border:1px solid #f66;color:#fcc;font:12px/1.4 system-ui;border-radius:10px';
+        el.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;padding:12px;'
+          + 'background:rgba(40,0,0,.94);border:1px solid #f66;color:#fcc;font:12px system-ui;border-radius:10px';
         document.body.appendChild(el);
       }
       el.textContent = msg;
@@ -113,42 +128,27 @@
     const tAll = performance.now();
     document.documentElement.dataset.astranovPhase = 'loading';
     window._bootAt = Date.now();
-    const fb = man.fallback || {};
 
     try {
-      await loadPhase(man.critical, 'critical', fb.critical);
-      try {
-        global.__astranovBootCritical?.();
-      } catch (e) {
-        console.error('[boot critical]', e);
-        showDeadBanner('Globe boot error: ' + (e.message || e));
-      }
+      await loadPhaseSmart(man.critical, 'critical', RESCUE_INDIVIDUAL.critical);
+      try { global.__astranovBootCritical?.(); }
+      catch (e) { showDeadBanner('Boot error: ' + (e.message || e)); }
     } catch (e) {
-      console.error('[loader] critical dead', e);
-      showDeadBanner('CRITICAL load failed — hard refresh. ' + (e.message || e));
+      showDeadBanner('CRITICAL failed — hard refresh / clear site data. ' + (e.message || e));
       document.documentElement.dataset.astranovPhase = 'critical-error';
       return;
     }
 
-    if (!global._astranovCriticalReady && !global.__astranovBootCritical) {
-      showDeadBanner('Critical loaded but boot missing — bad bundle');
-    }
-
     await afterPaint();
-
     await Promise.all([
-      loadVendor(
-        'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
-        () => typeof global.supabase !== 'undefined'
-      ),
-      loadVendor(
-        'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
-        () => typeof global.L !== 'undefined'
-      ),
+      loadVendor('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
+        () => typeof global.supabase !== 'undefined'),
+      loadVendor('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+        () => typeof global.L !== 'undefined'),
     ]);
 
     try {
-      await loadPhase(man.app, 'app', fb.app);
+      await loadPhaseSmart(man.app, 'app');
       global.__astranovBootApp?.();
     } catch (e) {
       console.error('[loader] app', e);
@@ -156,34 +156,26 @@
     }
 
     await afterPaint();
-    const lite = !!global._globePerfLite;
-    await whenIdle(lite ? 1800 : 700);
+    await whenIdle(global._globePerfLite ? 1600 : 600);
 
     try {
-      await loadPhase(man.features, 'features', fb.features);
+      await loadPhaseSmart(man.features, 'features');
       global.__astranovBootFeatures?.();
     } catch (e) {
       console.error('[loader] features', e);
     }
 
-    // Deferred uses same root pattern as proven astranov-deferred.js
-    global.__ASTRANOV_DEFERRED_FILES__ = (man.deferred || []).map(f =>
-      f.startsWith('/') ? f.slice(1) : f
-    );
-    // Special: LazyModules loads /js/ or absolute — patch list for root deferred
-    global.__ASTRANOV_DEFERRED_URLS__ = (man.deferred || []).map(resolveUrl);
-
+    global.__ASTRANOV_DEFERRED_URLS__ = (man.deferred || RESCUE.deferred).map(resolveUrl);
+    global.__ASTRANOV_DEFERRED_FILES__ = [];
     global._astranovLoaderDone = true;
     document.documentElement.dataset.astranovPhase = 'ready';
-    const dead = document.getElementById('astranov-boot-fail');
-    if (dead && global._astranovCriticalReady) dead.remove();
-    console.log(
-      '%c[loader] ready · ' + Math.round(performance.now() - tAll) + 'ms · ' + build,
-      'color:#00ff99;font-weight:700'
-    );
+    if (global._astranovCriticalReady) {
+      document.getElementById('astranov-boot-fail')?.remove();
+    }
+    console.log('%c[loader] ready · ' + Math.round(performance.now() - tAll) + 'ms · ' + build, 'color:#00ff99;font-weight:700');
   }
 
-  global.AstranovLoader = { run, loadPhase, resolveUrl, build };
+  global.AstranovLoader = { run, build };
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => { run().catch(e => console.error('[loader]', e)); });
   } else {
