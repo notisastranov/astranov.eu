@@ -9,6 +9,8 @@ var SB_KEY = (typeof window !== 'undefined' && window.SB_KEY) || '';
 var ACI = (typeof window !== 'undefined' && window.ACI) || { url: SB_URL, key: SB_KEY };
 var AciCoders = (typeof window !== 'undefined' && window.AciCoders) || { engine:'grok', init:function(){}, observeActivity:function(){}, handleMessage:async function(){return null}, enterSession:async function(){return null} };
 var ArchitectBridge = (typeof window !== 'undefined' && window.ArchitectBridge) || { armed:false, isActive:function(){return false}, arm:function(){}, disarm:function(){}, openQuickFix:function(){}, wantsBridgeCmd:function(){return false}, handleCommand:async function(){return null}, queueBuildFromChat:async function(){return null}, _bindUi:function(){}, init:function(){} };
+var CityLife = (typeof window !== 'undefined' && window.CityLife) || { locateAndDropIn:async function(){return {error:'not ready'}}, safeLocate:async function(){return {error:'not ready'}}, dropIn:async function(){return {error:'not ready'}}, init:function(){} };
+var userLocated = !!(typeof window !== 'undefined' && window.userLocated);
 
 /* === 47-globe-entities.js === */
 // === GLOBE ENTITIES — every map thing has a name, proximity label, tap action ===
@@ -3069,7 +3071,7 @@ window.__astranovBootFeatures = function __astranovBootFeatures() {
     try { AppShortcuts?.init?.(); } catch (_) {}
   });
 
-  // Locate wiring: 🎯 should open national/city path
+  // Locate wiring: 🎯 national → city (never bare undeclared locateMe — kills app)
   idle(() => {
     const btn = document.getElementById('aci-locate');
     if (btn && !btn._spartanLocate) {
@@ -3077,11 +3079,16 @@ window.__astranovBootFeatures = function __astranovBootFeatures() {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (CityLife?.locateAndDropIn) void CityLife.locateAndDropIn();
-        else if (typeof locateMe === 'function') locateMe();
+        try {
+          if (window.CityLife?.safeLocate) void window.CityLife.safeLocate();
+          else if (window.CityLife?.locateAndDropIn) void window.CityLife.locateAndDropIn().catch(() => {});
+          else if (typeof window.locateMe === 'function') window.locateMe();
+        } catch (err) {
+          console.warn('[locate]', err);
+        }
       }, { capture: true });
     }
-  }, 600);
+  }, 200);
 
   if (window._lastPos) {
     try {
