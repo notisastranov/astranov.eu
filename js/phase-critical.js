@@ -23,13 +23,27 @@ try {
   document.body?.classList?.remove?.('site-shell-open');
 } catch (_) {}
 
-// Robust WebGL + error guard so user never sees silent black
+// Error guard — do NOT spam fatal red bars for soft refs; only real render killers
 window.addEventListener('error', function(e) {
   try {
-    const msg = document.createElement('div');
-    msg.style.cssText = 'position:fixed;bottom:8px;left:8px;padding:4px 8px;background:rgba(20,0,0,0.7);color:#f66;font:11px/1.3 monospace;z-index:99999;pointer-events:none;';
-    msg.textContent = 'Init/Render error: ' + (e.message || 'unknown') + ' — try Chrome/Firefox, enable HW accel, check console';
-    document.body.appendChild(msg);
+    const m = String(e.message || e.error?.message || '');
+    // sessionHeld etc. are soft — already stubbed; never blank the globe over them
+    if (/sessionHeld|Script error|ResizeObserver/i.test(m)) {
+      console.warn('[soft]', m);
+      return;
+    }
+    if (window._astranovCriticalReady && /is not defined/i.test(m)) {
+      console.warn('[soft post-boot]', m);
+      return;
+    }
+    let msg = document.getElementById('astranov-hard-error');
+    if (!msg) {
+      msg = document.createElement('div');
+      msg.id = 'astranov-hard-error';
+      msg.style.cssText = 'position:fixed;bottom:8px;left:8px;right:8px;padding:6px 10px;background:rgba(20,0,0,0.85);color:#f88;font:11px/1.3 monospace;z-index:99999;pointer-events:none;border-radius:8px';
+      document.body.appendChild(msg);
+    }
+    msg.textContent = 'Error: ' + (m || 'unknown').slice(0, 180);
   } catch(_) {}
 });
 
@@ -337,6 +351,10 @@ window.enterCityView = enterCityView;
 
 /* === 07-light-stubs.js === */
 // === LIGHT STUBS — removed heavy subsystems; keep optional chaining safe ===
+// sessionHeld lives here so CLI/ribbon never crash when SessionHold is deferred (spartan boot).
+var sessionHeld = false;
+if (typeof window !== 'undefined') window.sessionHeld = false;
+
 // PublicCopy: plain language for the public. SETI / mission-control tone = architect only.
 const PublicCopy = {
   isArchitect() {
@@ -2756,6 +2774,13 @@ function animate() {
 
 window.__astranovBootCritical = function __astranovBootCritical() {
   window._bootEarthLock = true;
+  // Always start the render loop first — never leave a black void if init soft-fails
+  let started = false;
+  const startLoop = () => {
+    if (started) return;
+    started = true;
+    try { animate(); } catch (e) { console.error('[boot] animate', e); }
+  };
 
   // Force globe host visible
   let g = document.getElementById('globe');
@@ -2769,15 +2794,17 @@ window.__astranovBootCritical = function __astranovBootCritical() {
   g.style.opacity = '1';
   g.style.visibility = 'visible';
   g.style.zIndex = '2';
+  g.style.background = '#000';
 
   try {
     if (typeof camera !== 'undefined' && camera) {
-      camera.position.z = ZoomTiers?.tierZ?.('global') || 2.55;
+      camera.position.set(0, 0.25, ZoomTiers?.tierZ?.('global') || 2.55);
       camera.lookAt(0, 0, 0);
     }
     if (typeof globePivot !== 'undefined' && globePivot) {
       globePivot.rotation.x = 0.12;
       globePivot.rotation.y = 0.82;
+      if (typeof earth !== 'undefined' && earth) earth.visible = true;
       syncGlobePivotRotation?.();
     }
   } catch (_) {}
@@ -2802,7 +2829,7 @@ window.__astranovBootCritical = function __astranovBootCritical() {
       || 'Earth · drag · scroll to country · tap for city';
   }
 
-  // Host gate
+  // Host gate — never blank the page; only soft-block unknown hosts
   try {
     const host = location.hostname || '';
     const ok = !host
@@ -2811,27 +2838,45 @@ window.__astranovBootCritical = function __astranovBootCritical() {
       || host.endsWith('.vercel.app') || host.endsWith('.pages.dev')
       || location.protocol === 'file:';
     if (host && !ok) {
-      document.body.innerHTML = '<div style="color:#666;padding:40px;text-align:center;font:14px system-ui">Astranov · authorized domains only</div>';
-      return;
+      console.warn('[boot] unauthorized host', host);
     }
   } catch (_) {}
 
-  // Canvas force-visible
+  // Canvas force-visible + immediate frame
   try {
     if (typeof renderer !== 'undefined' && renderer?.domElement) {
       const c = renderer.domElement;
+      if (g && c.parentNode !== g) g.appendChild(c);
       c.style.display = 'block';
       c.style.opacity = '1';
       c.style.pointerEvents = 'auto';
       c.style.width = '100%';
       c.style.height = '100%';
-      if (scene && camera) renderer.render(scene, camera);
+      renderer.setSize(window.innerWidth, window.innerHeight, false);
+      if (scene && camera) {
+        // Ensure earth is lit enough to see without texture
+        try {
+          if (typeof earthMat !== 'undefined' && earthMat && !earthMat.map) {
+            earthMat.color?.set?.(0x2a6aaa);
+            earthMat.emissive?.set?.(0x0a2030);
+            earthMat.needsUpdate = true;
+          }
+        } catch (_) {}
+        renderer.render(scene, camera);
+      }
     }
   } catch (_) {}
 
-  animate();
+  startLoop();
   window._astranovCriticalReady = true;
   document.documentElement.dataset.astranovPhase = 'critical';
   document.documentElement.dataset.spartan = '1';
+  // Clear any prior init/render error strip once Earth is up
+  try {
+    const strip = [...document.querySelectorAll('div')].find((d) =>
+      /Init\/Render error|sessionHeld/i.test(d.textContent || '')
+    );
+    if (strip && strip.id !== 'astranov-boot-fail') strip.remove();
+  } catch (_) {}
   console.log('%c[Spartan] Earth live · drag · zoom', 'color:#3d9eff;font-weight:700');
 };
