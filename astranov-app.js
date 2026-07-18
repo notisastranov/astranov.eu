@@ -3103,7 +3103,7 @@ window.MapPlaceMenu = MapPlaceMenu;
 
 /* === 61-city-map.js === */
 // === CITY MAP (Leaflet national/city level) ===
-const CityMap = {
+var CityMap = {
   map: null,
   _ready: false,
   _markers: {},
