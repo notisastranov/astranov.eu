@@ -89,6 +89,7 @@ var CityMap = (typeof window !== 'undefined' && window.CityMap) || { active:fals
 var SB_URL = (typeof window !== 'undefined' && window.SB_URL) || 'https://lkoatrkhuigdolnjsbie.supabase.co';
 var SB_KEY = (typeof window !== 'undefined' && window.SB_KEY) || '';
 var ACI = (typeof window !== 'undefined' && window.ACI) || { url: SB_URL, key: SB_KEY };
+var AciCoders = (typeof window !== 'undefined' && window.AciCoders) || { engine:'grok', init:function(){}, observeActivity:function(){}, handleMessage:async function(){return null}, enterSession:async function(){return null} };
 `;
 
 /** Production loads /js/phase-*.js — must rebuild every assemble */
