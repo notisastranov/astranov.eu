@@ -96,10 +96,12 @@ let userLocated = false;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
+window.scene = scene;
 
 const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.1, 1000);
 camera.position.set(0, 0.25, 2.55);
 camera.lookAt(0, 0, 0);
+window.camera = camera;
 
 // Astranov lighting — deep space rim + sun key (not flat Atari fill)
 scene.add(new THREE.AmbientLight(0x1a2838, 0.55));
@@ -351,7 +353,10 @@ window.enterCityView = enterCityView;
 
 /* === 07-light-stubs.js === */
 // === LIGHT STUBS — removed heavy subsystems; keep optional chaining safe ===
-// sessionHeld + SessionHold stubs — REQUIRED. Bare `SessionHold?.x` throws if SessionHold is undeclared.
+// Classic scripts: bare `Foo?.x` throws ReferenceError if Foo is undeclared.
+// Provide lexical + window bindings for every symbol used before its real module loads.
+
+// sessionHeld + SessionHold stubs
 var sessionHeld = false;
 window.sessionHeld = false;
 window.SessionHold = window.SessionHold || {
@@ -363,8 +368,53 @@ window.SessionHold = window.SessionHold || {
   clearForeignHold() {},
   init() {},
 };
-// Lexical binding so `SessionHold?.…` in classic scripts does not ReferenceError
 var SessionHold = window.SessionHold;
+
+// Supabase identity — required by Auth in app phase (real ACI in deferred overwrites window)
+var ACI = window.ACI || {
+  name: 'Astranov',
+  url: 'https://lkoatrkhuigdolnjsbie.supabase.co',
+  key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI',
+};
+window.ACI = ACI;
+var SB_URL = window.SB_URL || ACI.url;
+var SB_KEY = window.SB_KEY || ACI.key;
+window.SB_URL = SB_URL;
+window.SB_KEY = SB_KEY;
+
+// ACIControl stub — reply routes to deck/ribbon until deferred 20-aci.js loads
+window.ACIControl = window.ACIControl || {
+  init() {},
+  reply(text) {
+    const msg = String(text || '').slice(0, 280);
+    if (!msg) return;
+    try { GlobeDeck?.say?.(msg, 'reply'); } catch (_) {}
+    try { CliRibbon?.setNotice?.(msg.slice(0, 120), 'info'); } catch (_) {}
+    try { AciCli?.print?.(msg, 'ok'); } catch (_) {}
+  },
+  voiceAck() {},
+  async handle() { return { executed: false }; },
+};
+var ACIControl = window.ACIControl;
+
+// AppShortcuts stub — real module is in features phase; app boot touches it early
+window.AppShortcuts = window.AppShortcuts || {
+  _order: [],
+  _labels: {},
+  APPS: {},
+  init() {},
+  render() {},
+  track() {},
+  untrack() {},
+  rememberSite() {},
+  switch() {},
+  close() {},
+};
+var AppShortcuts = window.AppShortcuts;
+
+// CityMap stub — animate() in critical touches it before app phase defines the real map
+window.CityMap = window.CityMap || { active: false, init() {}, show() {}, hide() {} };
+var CityMap = window.CityMap;
 
 // PublicCopy: plain language for the public. SETI / mission-control tone = architect only.
 const PublicCopy = {
@@ -2761,7 +2811,7 @@ function animate() {
   } catch (_) {}
   try { tickGlobeFly?.(); } catch (_) {}
 
-  if (earthView && !CityMap?.active) {
+  if (earthView && !(typeof CityMap !== 'undefined' && CityMap?.active)) {
     try { EarthRealism?.applySpinNow?.(); } catch (_) {}
   }
 
