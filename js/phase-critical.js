@@ -428,6 +428,22 @@ window.AciCoders = window.AciCoders || {
 };
 var AciCoders = window.AciCoders;
 
+// Architect bridge — deferred real module; app auth/CLI touches it early
+window.ArchitectBridge = window.ArchitectBridge || {
+  armed: false,
+  lastTaskId: null,
+  isActive() { return !!(window.Auth?.isArchitect); },
+  arm() {},
+  disarm() {},
+  openQuickFix() {},
+  wantsBridgeCmd() { return false; },
+  handleCommand: async () => null,
+  queueBuildFromChat: async () => null,
+  _bindUi() {},
+  init() {},
+};
+var ArchitectBridge = window.ArchitectBridge;
+
 // PublicCopy: plain language for the public. SETI / mission-control tone = architect only.
 const PublicCopy = {
   isArchitect() {
