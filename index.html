@@ -10,13 +10,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260718055837" />
+<meta name="astranov-build" content="20260718060212" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/astranov-continuity.js?v=20260718055837"></script>
+<script defer src="/astranov-continuity.js?v=20260718060212"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <style>
@@ -3139,6 +3139,415 @@ const SlumberManager = {
 window.SlumberManager = SlumberManager;
 SlumberManager.init();
 
+// === RESOURCE MONITOR — left-side load / donate / max occupancy sliders ===
+// Shows what the user has, what the app uses, what they donate, and max share.
+// Adjusting sliders writes miner prefs + optional Slumber quality.
+const ResourceMonitor = {
+  version: '20260718-resmon',
+  PREFS_KEY: 'astranov:miner-rig-prefs',
+  MAX_KEY: 'astranov:resource-max-occupy',
+  _timer: null,
+  _el: null,
+  _collapsed: false,
+
+  init() {
+    if (this._inited) return;
+    this._inited = true;
+    window.ResourceMonitor = this;
+    this._inject();
+    this._bind();
+    this.refresh(true);
+    this._timer = setInterval(() => this.refresh(false), 900);
+    console.log('%c[ResourceMonitor] left load/donate sliders', 'color:#6cf;font-weight:700');
+  },
+
+  _prefs() {
+    try {
+      return JSON.parse(localStorage.getItem(this.PREFS_KEY) || '{}');
+    } catch (_) {
+      return {};
+    }
+  },
+
+  _savePrefs(p) {
+    try {
+      localStorage.setItem(this.PREFS_KEY, JSON.stringify(p));
+    } catch (_) {}
+    // Sync miner panel toggles if open
+    try {
+      ['cpu', 'ram', 'storage', 'bandwidth', 'sleep'].forEach(k => {
+        const b = document.querySelector('.mrp-toggle[data-mrp="' + k + '"]');
+        if (!b) return;
+        const on = p[k] !== false;
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    } catch (_) {}
+  },
+
+  maxOccupy() {
+    try {
+      const v = parseFloat(localStorage.getItem(this.MAX_KEY));
+      if (Number.isFinite(v)) return Math.min(1, Math.max(0.1, v));
+    } catch (_) {}
+    return 0.55;
+  },
+
+  setMaxOccupy(v) {
+    const n = Math.min(1, Math.max(0.1, Number(v) || 0.55));
+    try { localStorage.setItem(this.MAX_KEY, String(n)); } catch (_) {}
+    // Map max occupy → slumber-ish quality pin
+    try {
+      if (window.SlumberManager?.applyTier) {
+        if (n <= 0.25) SlumberManager.applyTier('slumber', 'resource monitor');
+        else if (n <= 0.45) { SlumberManager._userPinned = true; SlumberManager.applyTier('conserve', 'resource monitor'); }
+        else if (n <= 0.7) { /* leave / balanced */ }
+        else if (n > 0.85 && !window._globePerfLite) {
+          SlumberManager._userPinned = true;
+          SlumberManager.applyTier('full', 'resource monitor');
+        }
+      }
+      if (window.renderer?.setPixelRatio) {
+        const cap = 0.55 + n * 0.7; // 0.55–1.25
+        const dpr = Math.min(window.devicePixelRatio || 1, window.toFixed ? +cap.toFixed(2) : cap);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, cap));
+      }
+    } catch (_) {}
+    return n;
+  },
+
+  /** Hardware inventory (honest browser probes) */
+  inventory() {
+    const nav = navigator;
+    const mem = nav.deviceMemory || 0;
+    const cores = nav.hardwareConcurrency || 2;
+    const conn = nav.connection || nav.mozConnection || nav.webkitConnection;
+    const saveData = !!conn?.saveData;
+    const down = conn?.downlink || 0;
+    let heap = 0;
+    let heapLimit = 0;
+    try {
+      if (performance.memory) {
+        heap = performance.memory.usedJSHeapSize / 1048576;
+        heapLimit = performance.memory.jsHeapSizeLimit / 1048576;
+      }
+    } catch (_) {}
+    return {
+      cores,
+      ramGb: mem || (heapLimit ? Math.round(heapLimit / 256) / 4 : 0),
+      heapMb: Math.round(heap),
+      heapLimitMb: Math.round(heapLimit),
+      netMbps: down,
+      saveData,
+      mobile: !!window._globePerfLite || /Mobi|Android/i.test(nav.userAgent || ''),
+      online: nav.onLine !== false,
+    };
+  },
+
+  /** App load 0–1 from FPS + heap + optional FieldHud */
+  appLoad() {
+    let load = 0.2;
+    try {
+      if (typeof FieldHud?.deviceLoad === 'function') {
+        load = Math.max(load, FieldHud.deviceLoad());
+      }
+    } catch (_) {}
+    try {
+      const fps = SlumberManager?._avgFps?.();
+      if (fps > 0) {
+        // 60fps → low load, 20fps → high load
+        const fromFps = Math.min(1, Math.max(0, (55 - fps) / 40));
+        load = Math.max(load, fromFps);
+      }
+    } catch (_) {}
+    try {
+      if (performance.memory) {
+        const r = performance.memory.usedJSHeapSize / performance.memory.jsHeapSizeLimit;
+        load = Math.max(load, Math.min(1, r * 1.1));
+      }
+    } catch (_) {}
+    return Math.min(1, Math.max(0, load));
+  },
+
+  /** User donation share 0–1 (average of enabled resource channels × max) */
+  donateLoad() {
+    const p = this._prefs();
+    const keys = ['cpu', 'ram', 'storage', 'bandwidth'];
+    let on = 0;
+    keys.forEach(k => { if (p[k] !== false) on++; });
+    const share = on / keys.length;
+    const intensity = p.intensity != null ? Number(p.intensity) : 0.5;
+    return Math.min(1, share * Math.min(1, Math.max(0, intensity)) * this.maxOccupy());
+  },
+
+  _inject() {
+    if (document.getElementById('resource-monitor')) return;
+    const st = document.createElement('style');
+    st.id = 'resource-monitor-css';
+    st.textContent = [
+      '#resource-monitor{position:fixed;left:8px;top:50%;transform:translateY(-50%);z-index:88;',
+      'width:min(168px,42vw);padding:10px 10px 8px;border-radius:14px;',
+      'background:rgba(4,12,24,0.88);border:1px solid rgba(61,158,255,0.35);',
+      'box-shadow:0 8px 28px rgba(0,0,0,0.45),0 0 14px rgba(26,111,212,0.2);',
+      'font:10px/1.3 system-ui,sans-serif;color:#c8e4ff;backdrop-filter:blur(12px);',
+      'touch-action:manipulation;user-select:none}',
+      '#resource-monitor.rm-collapsed{width:auto;padding:8px 10px}',
+      '#resource-monitor.rm-collapsed .rm-body{display:none}',
+      '#resource-monitor .rm-head{display:flex;align-items:center;gap:6px;margin-bottom:8px;cursor:pointer}',
+      '#resource-monitor .rm-head b{flex:1;font-size:11px;color:#7ec8ff;letter-spacing:0.02em}',
+      '#resource-monitor .rm-tog{background:transparent;border:1px solid #456;color:#9ab;border-radius:8px;',
+      'padding:2px 6px;cursor:pointer;font-size:10px}',
+      '#resource-monitor .rm-inv{font-size:9px;color:#7a9aaa;margin:0 0 8px;line-height:1.35}',
+      '#resource-monitor .rm-inv b{color:#a8d4ff}',
+      '#resource-monitor .rm-row{margin:0 0 9px}',
+      '#resource-monitor .rm-row label{display:flex;justify-content:space-between;margin-bottom:3px;',
+      'font-size:9px;color:#8ab}',
+      '#resource-monitor .rm-row label span{color:#def}',
+      '#resource-monitor .rm-track{position:relative;height:12px;border-radius:999px;',
+      'background:rgba(0,30,50,0.75);border:1px solid rgba(61,158,255,0.25);overflow:hidden}',
+      '#resource-monitor .rm-fill{position:absolute;left:0;top:0;bottom:0;width:0%;',
+      'border-radius:999px;pointer-events:none;transition:width 0.25s ease,box-shadow 0.25s}',
+      '#resource-monitor .rm-fill.user{background:linear-gradient(90deg,#1a6fb2,#3d9eff);',
+      'box-shadow:0 0 10px rgba(61,158,255,0.55)}',
+      '#resource-monitor .rm-fill.app{background:linear-gradient(90deg,#a44,#ff6644);',
+      'box-shadow:0 0 10px rgba(255,100,60,0.5)}',
+      '#resource-monitor .rm-fill.donate{background:linear-gradient(90deg,#0a7a55,#00dd99);',
+      'box-shadow:0 0 10px rgba(0,221,153,0.55)}',
+      '#resource-monitor .rm-fill.max{background:linear-gradient(90deg,#6a4,#ccff66);',
+      'box-shadow:0 0 10px rgba(200,255,80,0.45)}',
+      '#resource-monitor input[type=range]{position:relative;z-index:2;width:100%;margin:0;height:12px;',
+      'appearance:none;-webkit-appearance:none;background:transparent;cursor:pointer}',
+      '#resource-monitor input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;',
+      'border-radius:50%;background:#e8f4ff;border:2px solid #3d9eff;box-shadow:0 0 6px #3d9eff;margin-top:-1px}',
+      '#resource-monitor input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;',
+      'background:#e8f4ff;border:2px solid #3d9eff}',
+      '#resource-monitor .rm-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}',
+      '#resource-monitor .rm-chip{padding:4px 7px;border-radius:999px;border:1px solid rgba(61,158,255,0.35);',
+      'background:rgba(0,20,40,0.5);color:#8ab;font-size:9px;cursor:pointer}',
+      '#resource-monitor .rm-chip.on{border-color:#00dd99;color:#00ffaa;background:rgba(0,221,153,0.12);',
+      'box-shadow:0 0 8px rgba(0,221,153,0.25)}',
+      '#resource-monitor .rm-foot{margin-top:6px;font-size:8px;color:#678;line-height:1.3}',
+      '@media (max-width:420px){#resource-monitor{left:4px;width:min(148px,46vw);padding:8px}',
+      '#resource-monitor .rm-head b{font-size:10px}}',
+    ].join('');
+    document.head.appendChild(st);
+
+    const el = document.createElement('div');
+    el.id = 'resource-monitor';
+    el.setAttribute('role', 'region');
+    el.setAttribute('aria-label', 'Resource monitor');
+    el.innerHTML = [
+      '<div class="rm-head" id="rm-head" title="Collapse / expand">',
+      '<b>Resources</b>',
+      '<button type="button" class="rm-tog" id="rm-collapse" aria-expanded="true">◀</button>',
+      '</div>',
+      '<div class="rm-body" id="rm-body">',
+      '<div class="rm-inv" id="rm-inv">…</div>',
+      '<div class="rm-row" data-rm="user">',
+      '<label>You have <span id="rm-user-pct">—</span></label>',
+      '<div class="rm-track"><div class="rm-fill user" id="rm-fill-user"></div>',
+      '<input type="range" id="rm-user" min="0" max="100" value="100" disabled title="Device capacity (read-only)" /></div>',
+      '</div>',
+      '<div class="rm-row" data-rm="app">',
+      '<label>App load <span id="rm-app-pct">—</span></label>',
+      '<div class="rm-track"><div class="rm-fill app" id="rm-fill-app"></div>',
+      '<input type="range" id="rm-app" min="0" max="100" value="20" disabled title="Current app use (read-only)" /></div>',
+      '</div>',
+      '<div class="rm-row" data-rm="donate">',
+      '<label>You donate <span id="rm-donate-pct">—</span></label>',
+      '<div class="rm-track"><div class="rm-fill donate" id="rm-fill-donate"></div>',
+      '<input type="range" id="rm-donate" min="0" max="100" value="50" title="How much spare capacity to share" /></div>',
+      '</div>',
+      '<div class="rm-row" data-rm="max">',
+      '<label>Max occupied <span id="rm-max-pct">—</span></label>',
+      '<div class="rm-track"><div class="rm-fill max" id="rm-fill-max"></div>',
+      '<input type="range" id="rm-max" min="10" max="100" value="55" title="Ceiling for app + donate load" /></div>',
+      '</div>',
+      '<div class="rm-chips" id="rm-chips">',
+      '<button type="button" class="rm-chip on" data-res="cpu">CPU</button>',
+      '<button type="button" class="rm-chip on" data-res="ram">RAM</button>',
+      '<button type="button" class="rm-chip on" data-res="storage">SSD</button>',
+      '<button type="button" class="rm-chip on" data-res="bandwidth">NET</button>',
+      '</div>',
+      '<div class="rm-foot" id="rm-foot">Share spare only · you stay in control</div>',
+      '</div>',
+    ].join('');
+    document.body.appendChild(el);
+    this._el = el;
+  },
+
+  _bind() {
+    const el = this._el || document.getElementById('resource-monitor');
+    if (!el || el._bound) return;
+    el._bound = true;
+
+    document.getElementById('rm-collapse')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleCollapse();
+    });
+    document.getElementById('rm-head')?.addEventListener('click', (e) => {
+      if (e.target.id === 'rm-collapse') return;
+      this.toggleCollapse();
+    });
+
+    const donate = document.getElementById('rm-donate');
+    const max = document.getElementById('rm-max');
+    donate?.addEventListener('input', () => {
+      const p = this._prefs();
+      p.intensity = (Number(donate.value) || 0) / 100;
+      // If intensity 0, turn all off; if rising from 0, turn all on
+      if (p.intensity <= 0.02) {
+        ['cpu', 'ram', 'storage', 'bandwidth'].forEach(k => { p[k] = false; });
+      } else if (['cpu', 'ram', 'storage', 'bandwidth'].every(k => p[k] === false)) {
+        ['cpu', 'ram', 'storage', 'bandwidth'].forEach(k => { p[k] = true; });
+      }
+      this._savePrefs(p);
+      this.refresh(true);
+      AciCli?.print?.('donate · ' + Math.round(p.intensity * 100) + '%', 'dim');
+    });
+    max?.addEventListener('input', () => {
+      const n = this.setMaxOccupy((Number(max.value) || 55) / 100);
+      this.refresh(true);
+      AciCli?.print?.('max load · ' + Math.round(n * 100) + '%', 'dim');
+      CliRibbon?.setNotice?.('Max load ' + Math.round(n * 100) + '%', 'ready');
+    });
+
+    el.querySelectorAll('.rm-chip[data-res]').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const k = chip.getAttribute('data-res');
+        const p = this._prefs();
+        p[k] = p[k] === false;
+        this._savePrefs(p);
+        this.refresh(true);
+      });
+    });
+  },
+
+  toggleCollapse() {
+    const el = document.getElementById('resource-monitor');
+    if (!el) return;
+    this._collapsed = !this._collapsed;
+    el.classList.toggle('rm-collapsed', this._collapsed);
+    const b = document.getElementById('rm-collapse');
+    if (b) {
+      b.textContent = this._collapsed ? '▶' : '◀';
+      b.setAttribute('aria-expanded', this._collapsed ? 'false' : 'true');
+    }
+  },
+
+  _setFill(id, pct) {
+    const fill = document.getElementById(id);
+    if (!fill) return;
+    const p = Math.min(100, Math.max(0, pct));
+    fill.style.width = p + '%';
+    // Illuminate harder when hot
+    fill.style.opacity = String(0.55 + Math.min(0.45, p / 120));
+  },
+
+  refresh(force) {
+    if (!document.getElementById('resource-monitor')) return;
+    const inv = this.inventory();
+    const app = this.appLoad();
+    const max = this.maxOccupy();
+    const prefs = this._prefs();
+    const intensity = prefs.intensity != null ? Number(prefs.intensity) : 0.5;
+    const donate = this.donateLoad();
+
+    // User "has" = free capacity remaining (1 - app) * 100 as available
+    const free = Math.max(0, 1 - app);
+    const userHas = free; // what user still has free
+
+    const invEl = document.getElementById('rm-inv');
+    if (invEl) {
+      const ram = inv.ramGb ? (inv.ramGb + ' GB') : (inv.heapLimitMb ? inv.heapLimitMb + ' MB heap' : '—');
+      const net = inv.netMbps ? (inv.netMbps + ' Mbps') : (inv.online ? 'online' : 'offline');
+      invEl.innerHTML = '<b>' + inv.cores + '</b> cores · <b>' + ram + '</b> · <b>' + net + '</b>'
+        + (inv.heapMb ? '<br>JS heap <b>' + inv.heapMb + '</b> MB' : '');
+    }
+
+    const setTxt = (id, v) => {
+      const n = document.getElementById(id);
+      if (n) n.textContent = Math.round(v * 100) + '%';
+    };
+    setTxt('rm-user-pct', userHas);
+    setTxt('rm-app-pct', app);
+    setTxt('rm-donate-pct', donate);
+    setTxt('rm-max-pct', max);
+
+    this._setFill('rm-fill-user', userHas * 100);
+    this._setFill('rm-fill-app', app * 100);
+    this._setFill('rm-fill-donate', donate * 100);
+    this._setFill('rm-fill-max', max * 100);
+
+    const appIn = document.getElementById('rm-app');
+    const userIn = document.getElementById('rm-user');
+    const donateIn = document.getElementById('rm-donate');
+    const maxIn = document.getElementById('rm-max');
+    if (appIn) appIn.value = String(Math.round(app * 100));
+    if (userIn) userIn.value = String(Math.round(userHas * 100));
+    if (donateIn && (force || document.activeElement !== donateIn)) {
+      donateIn.value = String(Math.round(intensity * 100));
+    }
+    if (maxIn && (force || document.activeElement !== maxIn)) {
+      maxIn.value = String(Math.round(max * 100));
+    }
+
+    document.querySelectorAll('.rm-chip[data-res]').forEach(chip => {
+      const k = chip.getAttribute('data-res');
+      chip.classList.toggle('on', prefs[k] !== false);
+    });
+
+    const foot = document.getElementById('rm-foot');
+    if (foot) {
+      const hot = app > max;
+      foot.textContent = hot
+        ? 'App over max — lower donate or max, or close heavy views'
+        : 'Share spare only · you stay in control';
+      foot.style.color = hot ? '#ff8866' : '#678';
+    }
+
+    // Soft-clamp donate work when over max
+    if (app > max && window.SpaceNetMiner) {
+      try {
+        // Miner already checks deviceLoad; max is stored for FieldHud if wired
+        window._resourceMaxOccupy = max;
+      } catch (_) {}
+    }
+    window._resourceMaxOccupy = max;
+  },
+
+  wants(text) {
+    return /\b(resource|resources|donate|donation|monitor|load\s*slider|cpu\s*share)\b/i.test(String(text || ''));
+  },
+
+  handleCli(line) {
+    const low = String(line || '').toLowerCase();
+    this.init();
+    if (/hide|close|off/.test(low)) {
+      const el = document.getElementById('resource-monitor');
+      if (el) el.style.display = 'none';
+      return 'Resource monitor hidden';
+    }
+    if (/show|open|on/.test(low)) {
+      const el = document.getElementById('resource-monitor');
+      if (el) el.style.display = '';
+      this._collapsed = false;
+      el?.classList.remove('rm-collapsed');
+      this.refresh(true);
+      return 'Resource monitor open';
+    }
+    const inv = this.inventory();
+    AciCli?.print?.(
+      'cores ' + inv.cores + ' · app ' + Math.round(this.appLoad() * 100) + '%'
+      + ' · donate ' + Math.round(this.donateLoad() * 100) + '%'
+      + ' · max ' + Math.round(this.maxOccupy() * 100) + '%',
+      'ok'
+    );
+    return 'Resource monitor · left sliders';
+  },
+};
+window.ResourceMonitor = ResourceMonitor;
+
 // === ASTRANOV LOGO — top-center reset + live mic/AI waveform ===
 const AstranovLogo = {
   _bound: false,
@@ -5773,9 +6182,15 @@ const AciCli = {
 
     if (!cmd) return;
     if (cmd === 'help' || cmd === '?') {
-      this.print('locate · order · starship · starlink · spacex · crawl', 'dim');
+      this.print('locate · order · resources · starship · starlink · spacex · crawl', 'dim');
       this.print('task job barman 3h · task housekeeper 1w · task date coffee 2h · task errand · task claim', 'dim');
       this.print('think · coders · theme · Architect: fix|bridge', 'dim');
+      return;
+    }
+    if (cmd === 'resources' || cmd === 'resource' || cmd === 'donate' || cmd === 'monitor') {
+      ResourceMonitor?.init?.();
+      const msg = ResourceMonitor?.handleCli?.(line);
+      this.print(msg || 'resources', 'ok');
       return;
     }
     if (cmd === 'starship' || cmd === 'f13') {
@@ -7055,6 +7470,12 @@ const AstranovCoreBrain = {
       actions.push({ type: 'starlink', query: m });
     }
 
+    // Resource monitor / donate
+    if (/\b(resource|resources|donate|donation|monitor|cpu\s*share|max\s*load)\b/i.test(low)) {
+      intent = 'resources';
+      actions.push({ type: 'resources', query: m });
+    }
+
     // SpaceNet crawlers
     if (/spacenet|crawl(er|ers)?|ingest|scan\s*(city|area|sector)/i.test(low)) {
       intent = 'spacenet';
@@ -7144,6 +7565,10 @@ const AstranovCoreBrain = {
           StarlinkConstellation?.init?.();
           const msg = await StarlinkConstellation?.handleCli?.(a.query || 'starlink');
           results.push(msg || 'starlink');
+        } else if (a.type === 'resources') {
+          ResourceMonitor?.init?.();
+          const msg = ResourceMonitor?.handleCli?.(a.query || 'resources');
+          results.push(msg || 'resources');
         } else if (a.type === 'spacenet') {
           const p = this.userPos();
           const msg = await SpaceNetBrain?.handleCli?.(a.query || 'crawl');
@@ -15931,6 +16356,7 @@ const _idle = (fn, ms) => {
 _softInit('CoreBrain', () => AstranovCoreBrain?.init?.());
 _softInit('ProductSurface', () => ProductSurface?.init?.());
 _softInit('CityTasks', () => CityTasks?.init?.()); // light — localStorage only
+_softInit('ResourceMonitor', () => ResourceMonitor?.init?.());
 // Defer everything else — was jamming main thread on boot
 _idle(() => ArchitectBridge?.init?.(), 2500);
 _idle(() => GlobeInfoTiles?.init?.({ seed: false }), 4000);
@@ -15988,6 +16414,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script src="/astranov-perf-lazy.js?v=20260718055837" defer></script>
+<script src="/astranov-perf-lazy.js?v=20260718060212" defer></script>
 </body>
 </html>
