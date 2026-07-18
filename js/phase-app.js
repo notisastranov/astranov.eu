@@ -6320,8 +6320,19 @@ window.__astranovBootApp = function __astranovBootApp() {
   soft('Auth', () => Auth?.init?.());
   soft('GlobeDeck', () => {
     GlobeDeck?.init?.();
-    GlobeDeck?.bootReady?.() || GlobeDeck?.bootCollapsed?.();
+    // Earth is the product. CLI stays a bottom ribbon — never full-stage at boot.
+    try {
+      GlobeDeck.bootCollapsed?.();
+      GlobeDeck.expanded = false;
+      GlobeDeck._size = 'collapsed';
+      GlobeDeck.applySize?.();
+      document.getElementById('globe-deck')?.classList.remove('expanded', 'size-third', 'size-full');
+      document.getElementById('globe-deck')?.classList.add('collapsed');
+    } catch (_) {
+      GlobeDeck.bootCollapsed?.();
+    }
     GlobeDeck?.setTitle?.(PublicCopy?.deckTitle?.() || 'Astranov');
+    GlobeDeck?.setPreview?.(PublicCopy?.readyNotice?.() || 'Earth · drag · 🎯 city · 🎧 chat');
   });
   soft('SuperCli', () => SuperCli?.init?.());
   soft('SessionHold', () => SessionHold?.init?.());
