@@ -3194,8 +3194,86 @@ var CityMap = {
     });
   },
 
+  /**
+   * Leave city map and return to the 3D globe (national/global).
+   * Old path only nudged camera while map stayed on top — felt broken.
+   */
   _bridgeZoomOut(amount) {
-    if (typeof zoomBy === 'function') zoomBy(amount || 0.12);
+    this.returnToGlobe({ pull: amount });
+  },
+
+  /** Hard handoff: hide Leaflet, show globe, zoom out so Earth is visible. */
+  returnToGlobe(opts) {
+    opts = opts || {};
+    window._cityDropLock = false;
+    window._locateCinematic = false;
+    this._forceOpen = false;
+    this._exit();
+    try {
+      document.body?.classList?.remove?.('city-map-active', 'national-map-active');
+      const globe = document.getElementById('globe');
+      if (globe) {
+        globe.classList.remove('city-map-active', 'national-map-active');
+        globe.style.opacity = '1';
+        globe.style.visibility = 'visible';
+        globe.style.display = '';
+        globe.style.zIndex = '2';
+      }
+      const canvas = globe?.querySelector?.('canvas') || document.querySelector('#globe canvas');
+      if (canvas) {
+        canvas.style.opacity = '1';
+        canvas.style.pointerEvents = 'auto';
+        canvas.style.display = 'block';
+      }
+      const chip = document.getElementById('city-life-chip');
+      if (chip) chip.classList.remove('open');
+    } catch (_) {}
+    try { cityLevel = false; } catch (_) {}
+    if (CosmicZoom) CosmicZoom.level = 'earth';
+
+    const globalZ = GlobeControl?.Z?.global || ZoomTiers?.tierZ?.('global') || 2.55;
+    const nationalZ = GlobeControl?.Z?.national || 1.82;
+    // Prefer global so user clearly sees the full globe, not stuck at street camZ
+    const toZ = opts.tier === 'national' ? nationalZ : globalZ;
+    const fromZ = (typeof camera !== 'undefined' && camera?.position?.z) || 1.4;
+    try {
+      if (typeof camera !== 'undefined' && camera) {
+        window._globeFly = null;
+        if (opts.instant) {
+          camera.position.z = toZ;
+          camera.lookAt(0, 0, 0);
+          ZoomTiers?.goTo?.(opts.tier === 'national' ? 'national' : 'global', false);
+        } else {
+          window._globeFly = {
+            mode: 'zoom',
+            fromZ: fromZ < toZ ? fromZ : Math.max(1.2, toZ - 0.8),
+            toZ,
+            t0: performance.now(),
+            dur: opts.dur || 1100,
+            tierId: opts.tier === 'national' ? 'national' : 'global',
+            onTier: true,
+          };
+          ZoomTiers?.goTo?.(opts.tier === 'national' ? 'national' : 'global', false);
+        }
+      }
+    } catch (_) {}
+    try {
+      CosmicZoom?.update?.(toZ, {
+        tier: opts.tier === 'national' ? 'national' : 'global',
+        label: opts.tier === 'national' ? 'NATIONAL' : 'Earth',
+        cosmic: 'earth',
+      });
+    } catch (_) {}
+    const zl = document.getElementById('zoom-label');
+    if (zl) {
+      zl.textContent = opts.tier === 'national'
+        ? (PublicCopy?.zoomLine?.('national') || 'Country · drag · choose a city')
+        : (PublicCopy?.zoomLine?.('global') || 'Earth · drag · scroll for country · tap city');
+    }
+    CliRibbon?.setNotice?.('Globe · drag · scroll · 🎯 locate', 'ready');
+    GlobeDeck?.setPreview?.('Globe · drag Earth · scroll to zoom · 🎯 locate');
+    GlobeDeck?.setMapStatus?.('Earth');
+    return true;
   },
 
   _bindMapGestures() {
@@ -3313,7 +3391,11 @@ var CityMap = {
     cityLevel = true;
     const el = document.getElementById('city-map');
     const globe = document.getElementById('globe');
-    if (el) el.classList.add('active');
+    if (el) {
+      el.classList.add('active');
+      el.style.pointerEvents = 'auto';
+      el.style.opacity = '1';
+    }
     if (globe) globe.classList.add('city-map-active');
     // prevent white flash: force dark bg before map view
     if (el) el.style.background = 'var(--an-bg)';
@@ -3344,11 +3426,25 @@ var CityMap = {
 
   _exit() {
     this.active = false;
-    cityLevel = false;
+    try { cityLevel = false; } catch (_) {}
     const el = document.getElementById('city-map');
     const globe = document.getElementById('globe');
-    if (el) el.classList.remove('active');
-    if (globe) globe.classList.remove('city-map-active');
+    if (el) {
+      el.classList.remove('active', 'national-active');
+      el.style.pointerEvents = 'none';
+      el.style.opacity = '0';
+    }
+    if (globe) {
+      globe.classList.remove('city-map-active', 'national-map-active');
+    }
+    try {
+      document.body?.classList?.remove?.('city-map-active', 'national-map-active');
+      const canvas = globe?.querySelector?.('canvas');
+      if (canvas) {
+        canvas.style.opacity = '1';
+        canvas.style.pointerEvents = 'auto';
+      }
+    } catch (_) {}
     EarthRealism?._hudTimer && (EarthRealism._hudTimer = 0);
   },
 
@@ -3605,17 +3701,98 @@ var CityLife = {
     return null;
   },
 
+  /**
+   * Force full globe on screen (exit city map, canvas visible).
+   * Without this, locate runs “under” the map and looks like a teleport.
+   */
   ensureEarthView() {
-    // Keep city map closed so the globe can turn
+    window._cityDropLock = false;
+    window._locateCinematic = false;
     try {
-      if (CityMap?.active) CityMap._exit?.();
+      if (CityMap?.returnToGlobe) {
+        CityMap.returnToGlobe({ instant: true, tier: 'global' });
+      } else if (CityMap?.active) {
+        CityMap._exit?.();
+      }
     } catch (_) {}
     try {
-      document.getElementById('globe')?.classList.remove('city-map-active', 'national-map-active');
+      const globe = document.getElementById('globe');
+      const mapEl = document.getElementById('city-map');
+      if (mapEl) {
+        mapEl.classList.remove('active', 'national-active');
+        mapEl.style.opacity = '0';
+        mapEl.style.pointerEvents = 'none';
+      }
+      if (globe) {
+        globe.classList.remove('city-map-active', 'national-map-active');
+        globe.style.opacity = '1';
+        globe.style.visibility = 'visible';
+        globe.style.zIndex = '2';
+      }
       document.body?.classList?.remove?.('city-map-active', 'national-map-active');
+      const canvas = document.querySelector('#globe canvas');
+      if (canvas) {
+        canvas.style.opacity = '1';
+        canvas.style.pointerEvents = 'auto';
+        canvas.style.display = 'block';
+      }
     } catch (_) {}
     if (CosmicZoom) CosmicZoom.level = 'earth';
     try { cityLevel = false; } catch (_) {}
+    try {
+      if (typeof camera !== 'undefined' && camera) {
+        const gZ = GlobeControl?.Z?.global || 2.55;
+        if (camera.position.z < gZ - 0.05) camera.position.z = gZ;
+        camera.lookAt(0, 0, 0);
+      }
+      ZoomTiers?.goTo?.('global', false);
+      CosmicZoom?.update?.(GlobeControl?.Z?.global || 2.55, {
+        tier: 'global', label: 'Earth', cosmic: 'earth',
+      });
+    } catch (_) {}
+  },
+
+  /** Visible zoom-out to full Earth before any locate fly (user must SEE the globe). */
+  async revealGlobeForLocate() {
+    this.ensureEarthView();
+    const globalZ = GlobeControl?.Z?.global || 2.55;
+    const fromZ = (typeof camera !== 'undefined' && camera?.position?.z) || globalZ;
+    GlobeDeck?.setMapStatus?.('Zooming out to Earth…');
+    CliRibbon?.setNotice?.('Globe · zooming out…', 'thinking');
+    const zl = document.getElementById('zoom-label');
+    if (zl) zl.textContent = PublicCopy?.zoomLine?.('global') || 'Earth · drag · locate';
+
+    // Always animate outward if we were close — even if already ~global, brief hold
+    try {
+      if (typeof camera !== 'undefined' && camera) {
+        const startZ = Math.min(fromZ, globalZ);
+        // If stuck in city cam under map, jump start then ease out further
+        if (startZ < 2.0) {
+          window._globeFly = {
+            mode: 'zoom',
+            fromZ: startZ,
+            toZ: globalZ,
+            t0: performance.now(),
+            dur: 1200,
+            tierId: 'global',
+            onTier: true,
+          };
+          await this._awaitFly(1600);
+        } else {
+          camera.position.z = globalZ;
+          camera.lookAt(0, 0, 0);
+          await this._yield(200);
+        }
+      }
+    } catch (_) {}
+    try {
+      ZoomTiers?.goTo?.('global', false);
+      CosmicZoom?.update?.(globalZ, { tier: 'global', label: 'Earth', cosmic: 'earth' });
+      if (typeof renderer !== 'undefined' && renderer && scene && camera) {
+        renderer.render(scene, camera);
+      }
+    } catch (_) {}
+    await this._yield(280);
   },
 
   async _awaitFly(maxMs) {
@@ -3677,16 +3854,18 @@ var CityLife = {
     this.markLocated(pos.lat, pos.lng);
     this._lastDrop = { lat: pos.lat, lng: pos.lng, t: Date.now() };
     try { CityPick?.hide?.(); } catch (_) {}
-    this.ensureEarthView();
 
     const nationalZ = GlobeControl?.Z?.national || 1.82;
     const cityZ = this.CITY_ZOOM;
+    const globalZ = GlobeControl?.Z?.global || 2.55;
     const snap = !!opts.immediate; // e2e / emergency only
     window._locateCinematic = !snap;
 
     try {
+      // 0) ALWAYS leave city map and show full globe first
+      await this.revealGlobeForLocate();
+
       if (snap) {
-        // Fast path for tests — still go national then city, just shorter
         GlobeDeck?.setMapStatus?.('National view…');
         try { ZoomTiers?.goTo?.('national', false); } catch (_) {}
         await this.flyGlobeTo(pos.lat, pos.lng, nationalZ, 500);
@@ -3694,42 +3873,30 @@ var CityLife = {
         GlobeDeck?.setMapStatus?.('Opening city map…');
         try { ZoomTiers?.goTo?.('city', false); } catch (_) {}
         window._cityDropLock = true;
+        window._locateCinematic = false;
         try {
           CityMap?.init?.();
           CityMap?.openAt?.(pos.lat, pos.lng, { camZ: cityZ });
         } catch (_) {}
       } else {
-        // ── Cinematic locate: Earth turns → national → city zoom → map ──
-        // 1) Approach country on the spinning globe
-        GlobeDeck?.setMapStatus?.('Flying to your country…');
-        CliRibbon?.setNotice?.('Globe · flying to you…', 'thinking');
+        // ── Cinematic: globe OUT → turn → national → city → map ──
         const zl = document.getElementById('zoom-label');
-        if (zl) zl.textContent = PublicCopy?.zoomLine?.('national') || 'Country · flying in…';
+
+        // 1) Turn Earth toward you at GLOBAL altitude (full planet visible)
+        GlobeDeck?.setMapStatus?.('Earth · flying to your country…');
+        CliRibbon?.setNotice?.('Globe · turning to you…', 'thinking');
+        if (zl) zl.textContent = PublicCopy?.zoomLine?.('global') || 'Earth · flying in…';
         try {
           if (CosmicZoom) CosmicZoom.level = 'earth';
-          CosmicZoom?.update?.(camera?.position?.z || 2.55, { tier: 'global', label: 'Earth', cosmic: 'earth' });
         } catch (_) {}
-        // Pull back a bit so national zoom-in is visible
-        try {
-          if (typeof camera !== 'undefined' && camera && camera.position.z < 2.35) {
-            const fromZ = camera.position.z;
-            camera.position.z = 2.55;
-            // small pull-back fly if already looking at earth
-            if (typeof flyToPoint === 'function' && typeof latLngToPos === 'function' && typeof THREE !== 'undefined') {
-              const gp0 = latLngToPos(pos.lat, pos.lng, 1.04);
-              // keep bearing; only zoom out slightly for drama
-              window._globeFly = {
-                mode: 'zoom',
-                fromZ,
-                toZ: 2.55,
-                t0: performance.now(),
-                dur: 450,
-              };
-              await this._awaitFly(700);
-            }
-          }
-        } catch (_) {}
-        await this.flyGlobeTo(pos.lat, pos.lng, nationalZ, 2600);
+        await this.flyGlobeTo(pos.lat, pos.lng, globalZ, 2200);
+        await this._yield(350);
+
+        // 2) Zoom in to NATIONAL (country)
+        GlobeDeck?.setMapStatus?.('Country · national airspace…');
+        CliRibbon?.setNotice?.('National · your region…', 'thinking');
+        if (zl) zl.textContent = PublicCopy?.zoomLine?.('national') || 'Country · flying in…';
+        await this.flyGlobeTo(pos.lat, pos.lng, nationalZ, 2000);
         try {
           ZoomTiers?.goTo?.('national', false);
           CosmicZoom?.update?.(nationalZ, { tier: 'national', label: 'NATIONAL', cosmic: 'earth' });
@@ -3737,9 +3904,9 @@ var CityLife = {
         CliRibbon?.setNotice?.('National · your region', 'ready');
         GlobeDeck?.setMapStatus?.('National view · your region');
         if (zl) zl.textContent = PublicCopy?.zoomLine?.('national') || 'Country · choose a city';
-        await this._yield(500);
+        await this._yield(550);
 
-        // 2) Zoom globe into city altitude (still 3D Earth, map still closed)
+        // 3) Zoom globe into city altitude (still 3D Earth — map still closed)
         GlobeDeck?.setMapStatus?.('Zooming to your city…');
         CliRibbon?.setNotice?.('Zooming to city…', 'thinking');
         if (zl) zl.textContent = PublicCopy?.zoomLine?.('city') || 'City · streets & shops';
@@ -3751,7 +3918,7 @@ var CityLife = {
         try { MapDepict?.pulse?.(pos.lat, pos.lng, 0x3d9eff, opts.label || 'Your city', 14000); } catch (_) {}
         await this._yield(320);
 
-        // 3) Now open flat city map (lock only for the handoff)
+        // 4) Open flat city map only after globe sequence
         GlobeDeck?.setMapStatus?.('Opening city map…');
         window._cityDropLock = true;
         window._locateCinematic = false;
