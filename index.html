@@ -10,13 +10,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260718060734" />
+<meta name="astranov-build" content="20260718060948" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/astranov-continuity.js?v=20260718060734"></script>
+<script defer src="/astranov-continuity.js?v=20260718060948"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <style>
@@ -13710,10 +13710,23 @@ const EarthRealism = {
     return { lat, lng };
   },
 
+  /**
+   * Continuous Earth rotation (radians) with ms precision — real-time solar day.
+   * Not a stepped/fake spin rate.
+   */
   _earthSpin(date) {
     const d = date || new Date();
-    const utc = d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600;
-    return (utc / 24) * Math.PI * 2;
+    const utcSec = d.getUTCHours() * 3600
+      + d.getUTCMinutes() * 60
+      + d.getUTCSeconds()
+      + d.getUTCMilliseconds() / 1000;
+    return (utcSec / 86400) * Math.PI * 2;
+  },
+
+  /** Call every animation frame for smooth natural rotation */
+  applySpinNow() {
+    if (!earth || CityMap?.active) return;
+    try { earth.rotation.y = this._earthSpin(); } catch (_) {}
   },
 
   _sunLocal(sunDir) {
@@ -16024,7 +16037,9 @@ function animate() {
 
   if (!drag && !window._globeFly) TrackballGuard?.applyInertia?.();
   tickGlobeFly?.();
-  // updateOrbital disabled — no fake flying sats
+
+  // Natural Earth spin every frame (real UTC day fraction) — not throttled
+  if (earthView && !CityMap?.active) EarthRealism?.applySpinNow?.();
 
   if (!hidden && frame % _slumberDiv('entity') === 0) {
     MapDepict?.tick?.();
@@ -16035,10 +16050,10 @@ function animate() {
   if (solarView && frame % _slumberDiv('cosmic') === 0) CosmicZoom.update(camZ);
   else if (frame % cosmicDiv === 0) CosmicZoom.update(camZ);
 
-  // Helper/graphics only if user explicitly spawned a flyer (no default flying objects)
   if (earthView && window._astranovFlyerActive && frame % Math.max(_slumberDiv('earth'), 8) === 0) {
     AIGraphics?.update?.();
   }
+  // Lighting / terminator throttled; spin already applied above
   if (earthView && frame % _slumberDiv('earth') === 0) EarthRealism?.tick?.();
   if (!lite && earthView && frame % _slumberDiv('celestial') === 0 && SlumberManager?.allows?.('celestial')) {
     window.CelestialNav?.tick?.();
@@ -16174,6 +16189,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script src="/astranov-perf-lazy.js?v=20260718060734" defer></script>
+<script src="/astranov-perf-lazy.js?v=20260718060948" defer></script>
 </body>
 </html>
