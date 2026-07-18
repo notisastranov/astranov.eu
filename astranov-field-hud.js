@@ -113,9 +113,30 @@ const SpaceNetMiner = {
     }
   },
 
+  /** Universal max total (own app + donate) — ResourceMonitor master slider */
+  maxTotalCap() {
+    return window._resourceMaxTotal
+      ?? window.ResourceMonitor?.maxTotal?.()
+      ?? window._resourceMaxOccupy
+      ?? window.ResourceMonitor?.maxOccupy?.()
+      ?? 0.8;
+  },
+
+  /** Spare under the cap for idle donate — never push device/fleet over max total */
+  idleBudget() {
+    if (typeof window.ResourceMonitor?.idleDonateBudget === 'function') {
+      return ResourceMonitor.idleDonateBudget();
+    }
+    const cap = this.maxTotalCap();
+    const load = FieldHud.deviceLoad();
+    return Math.max(0, Math.min(1, cap - load));
+  },
+
   canAcceptWork() {
-    const maxOcc = window._resourceMaxOccupy ?? window.ResourceMonitor?.maxOccupy?.() ?? 0.55;
-    if (!this._termsOk || FieldHud.deviceLoad() >= Math.min(0.85, maxOcc + 0.1)) return false;
+    if (!this._termsOk) return false;
+    const budget = this.idleBudget();
+    // Need real spare under universal max (includes user's own consumption)
+    if (budget < 0.05) return false;
     const prefs = FieldHud?._minerPrefs?.() || {};
     return ['cpu', 'ram', 'storage', 'bandwidth'].some(k => prefs[k] !== false);
   },
@@ -127,6 +148,7 @@ const SpaceNetMiner = {
       type: this.WORK_TYPES[Math.floor(Math.random() * this.WORK_TYPES.length)],
       shard: Math.random().toString(36).slice(2, 14),
       from: this.nodeId(),
+      maxTotal: this.maxTotalCap(),
     };
     this._channel.postMessage({ type: 'work_offer', unit });
     return unit;
@@ -134,9 +156,9 @@ const SpaceNetMiner = {
 
   async processWork(dt) {
     if (!this._termsOk || !this.canAcceptWork()) return;
-    const load = FieldHud.deviceLoad();
-    const budget = Math.max(0, 1 - load);
-    if (budget < 0.15) return;
+    // Budget is only spare under universal max (own use already counted)
+    const budget = this.idleBudget();
+    if (budget < 0.05) return;
 
     const unit = this._workQueue.shift() || this.offerWork();
     if (!unit) return;
@@ -211,8 +233,11 @@ const SpaceNetMiner = {
     const anyRes = ['cpu', 'ram', 'storage', 'bandwidth'].some(k => prefs[k] !== false);
     if (!anyRes) return 0;
     const load = FieldHud.deviceLoad();
-    if (load > 0.7) return 0;
-    let rate = this.BASE_RATE * (1 - load);
+    const budget = this.idleBudget();
+    const cap = this.maxTotalCap();
+    // No earn when own load already at/over universal max
+    if (budget < 0.05 || load >= cap) return 0;
+    let rate = this.BASE_RATE * budget;
     let resSum = 0;
     if (prefs.cpu !== false) resSum += this._rates.cpu / 100;
     if (prefs.ram !== false) resSum += this._rates.ram / 512;
@@ -221,7 +246,7 @@ const SpaceNetMiner = {
     rate *= 0.6 + Math.min(1.4, resSum);
     rate += this._peerCount * this.PEER_BONUS;
     if (prefs.sleep !== false && FieldHud.isSleepMode()) rate *= this.SLEEP_MULT;
-    else if (load > 0.3) rate *= 0.4;
+    else if (load > cap * 0.6) rate *= 0.4;
     return Math.max(0, rate);
   },
 
@@ -408,6 +433,12 @@ const FieldHud = {
         + '<div>Session <b id="mrp-earned">+0.00</b></div>'
         + '<div>Peers <b id="mrp-peers">0</b></div>'
         + '<div>Balance <b id="mrp-avc">— Coins</b></div></div>'
+        + '<div class="mrp-max" style="margin:0 0 12px">'
+        + '<label style="display:flex;justify-content:space-between;font-size:11px;color:#9ab;margin-bottom:4px">'
+        + 'Max total idle (own + donate) <b id="mrp-max-val" style="color:#ffdd66">80%</b></label>'
+        + '<input type="range" id="mrp-max-total" min="15" max="100" value="80" '
+        + 'style="width:100%" title="Universal max on this device and fleet — includes your own use" />'
+        + '<div style="font-size:10px;color:#678;margin-top:4px">Never loads device/fleet above this % when idling</div></div>'
         + '<div class="mrp-toggles">'
         + '<button type="button" class="mrp-toggle on" data-mrp="cpu" aria-pressed="true">CPU</button>'
         + '<button type="button" class="mrp-toggle on" data-mrp="ram" aria-pressed="true">RAM</button>'
@@ -602,9 +633,13 @@ const FieldHud = {
   loadSession() { SpaceNetMiner.loadSession(); this._sessionEarned = SpaceNetMiner._sessionEarned; },
   saveSession() { SpaceNetMiner.saveSession(); },
 
-  /** Cap used by miner + ResourceMonitor max-occupied slider */
+  /** Universal max total (own + idle donate) — fused top-right slider */
   maxOccupy() {
-    return window._resourceMaxOccupy ?? window.ResourceMonitor?.maxOccupy?.() ?? 0.55;
+    return window._resourceMaxTotal
+      ?? window.ResourceMonitor?.maxTotal?.()
+      ?? window._resourceMaxOccupy
+      ?? window.ResourceMonitor?.maxOccupy?.()
+      ?? 0.8;
   },
 
   deviceLoad() {
@@ -1061,6 +1096,10 @@ const FieldHud = {
     set('mrp-peers', String(m._peerCount || 0));
     const bal = window.AvcBalance?._last;
     set('mrp-avc', bal != null ? bal.toFixed(2) + ' Coins' : '— Coins');
+    const cap = this.maxOccupy();
+    set('mrp-max-val', Math.round(cap * 100) + '%');
+    const maxIn = document.getElementById('mrp-max-total');
+    if (maxIn && document.activeElement !== maxIn) maxIn.value = String(Math.round(cap * 100));
     const prefs = this._minerPrefs();
     document.querySelectorAll('.mrp-toggle[data-mrp]').forEach(btn => {
       const on = !!prefs[btn.dataset.mrp];
@@ -1116,6 +1155,23 @@ const FieldHud = {
         this.refreshMinerPanel();
         ACIControl?.reply?.('SpaceNet miner rig · earning Coins on your devices');
       });
+      const maxIn = document.getElementById('mrp-max-total');
+      if (maxIn && !maxIn._mrpBound) {
+        maxIn._mrpBound = true;
+        maxIn.addEventListener('input', () => {
+          const n = (Number(maxIn.value) || 80) / 100;
+          if (window.ResourceMonitor?.setMaxTotal) ResourceMonitor.setMaxTotal(n);
+          else {
+            window._resourceMaxTotal = n;
+            window._resourceMaxOccupy = n;
+            try { localStorage.setItem('astranov:resource-max-total', String(n)); } catch (_) {}
+          }
+          const lab = document.getElementById('mrp-max-val');
+          if (lab) lab.textContent = Math.round(n * 100) + '%';
+          window.ResourceMonitor?.refresh?.(true);
+          AciCli?.print?.('max total ' + Math.round(n * 100) + '% · own + idle · device & fleet', 'ok');
+        });
+      }
     }
     const hud = document.getElementById('field-balance-hud');
     if (!hud || hud._minerBound) return;
