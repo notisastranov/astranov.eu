@@ -10,13 +10,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Astranov" />
-<meta name="astranov-build" content="20260718060948" />
+<meta name="astranov-build" content="20260718061153" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="/astranov-continuity.js?v=20260718060948"></script>
+<script defer src="/astranov-continuity.js?v=20260718061153"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <style>
@@ -9287,7 +9287,8 @@ const MapPlaceMenu = {
   openAt(lat, lng, opts) {
     opts = opts || {};
     if (lat == null || lng == null) return;
-    window._globeFly = null;
+    // Default: stop camera so menu feels settled. keepFly: national-entry path is mid-flight.
+    if (!opts.keepFly) window._globeFly = null;
     GlobeEntity?.clearSelection?.();
     this._pin = { lat, lng, entity: opts.entity || null, limited: !!opts.limited };
     const hud = document.getElementById('globe-entity-hud');
@@ -12197,12 +12198,8 @@ const ZoomTiers = {
       else if (tier.city) zl.textContent = 'City · streets & shops';
       else zl.textContent = tier.label;
     }
-    if (tier.national && window._lastPos && typeof flyToPoint === 'function') {
-      const p = latLngToPos(window._lastPos.lat, window._lastPos.lng, 1.04);
-      const cur = TrackballGuard?.facingLatLng?.() || { lat: 0, lng: 0 };
-      const far = TrackballGuard?.greatCircleKm?.(cur.lat, cur.lng, window._lastPos.lat, window._lastPos.lng) > 800;
-      if (far) flyToPoint(new THREE.Vector3(p.x, p.y, p.z), tier.z, { dur: 1200, onTier: true });
-    }
+    // Do not auto-pull bearing to GPS here — that stole country clicks away from the
+    // tapped nation. 🎯 Locate / city-life own “go to my region”.
     this.updateDots();
     MapDepict?.setHud?.(tier.label, 'zoom-tier');
   },
@@ -12479,6 +12476,7 @@ function onGlobeClick(e) {
   if (intersects.length > 0) {
     const pin = MapPlaceMenu?.pointFromGlobeHit?.(intersects[0].point);
     if (!pin) return;
+    // City streets: place menu only — already in local map.
     if (CityMap?.active || cityLevel || ZoomTiers?.current?.()?.city) {
       MapPlaceMenu?.openAt?.(pin.lat, pin.lng, {
         source: 'City map',
@@ -12487,23 +12485,33 @@ function onGlobeClick(e) {
       });
       return;
     }
-    const tier = ZoomTiers?.current?.();
-    if (tier?.id === 'solar' || tier?.id === 'global') {
-      MapPlaceMenu?.openAt?.(pin.lat, pin.lng, { source: 'Globe', hint: 'Add · explore · drive — top 3 picks' });
-      return;
+    // Space / Earth / country: fly into national airspace at the tap (not menu-only).
+    // Always use the clicked lat/lng — never divert to last GPS when the user aimed elsewhere.
+    const nationalZ = ZoomTiers?.tierZ?.('national') || GlobeControl?.Z?.national || 1.82;
+    const p = latLngToPos(pin.lat, pin.lng, 1.04);
+    const target = new THREE.Vector3(p.x, p.y, p.z);
+    // Set tier index without a competing zoom-only fly; flyToPoint owns camera + bearing.
+    if (ZoomTiers) {
+      const ni = ZoomTiers.indexOf('national');
+      if (ni >= 0) ZoomTiers._index = ni;
     }
-    const nationalZ = ZoomTiers?.tierZ?.('national') || 1.82;
-    ZoomTiers?.goTo?.('national', true);
-    if (userLocated && window._lastPos) {
-      const p = latLngToPos(window._lastPos.lat, window._lastPos.lng, 1.04);
-      flyToPoint(new THREE.Vector3(p.x, p.y, p.z), nationalZ);
-      MapDepict.action('explore', { detail: 'national · your region' });
-    } else {
-      flyToPoint(intersects[0].point, nationalZ);
-      MapDepict.action('explore', { detail: 'national · tap 🎯 for your city' });
-      GlobeDeck?.setPreview?.('National view — tap 🎯 Locate for your real GPS city');
-    }
-    MapPlaceMenu?.openAt?.(pin.lat, pin.lng, { source: 'Globe', hint: 'Explore · drive · list shop', limited: true });
+    flyToPoint(target, nationalZ, {
+      onTier: true,
+      onDone: () => {
+        MapDepict?.action?.('explore', { detail: 'country airspace' });
+      },
+    });
+    GlobeControl?.noteAutoFly?.();
+    MapDepict?.action?.('explore', { detail: 'country · ' + (MapPlaceMenu?.formatCoords?.(pin.lat, pin.lng) || '') });
+    MapDepict?.pulse?.(pin.lat, pin.lng, 0x00ddff, 'country', 6000);
+    GlobeDeck?.setPreview?.('Country airspace · pinch for city · 🎯 for your GPS city');
+    // keepFly: openAt must not cancel the national fly (it used to clear _globeFly).
+    MapPlaceMenu?.openAt?.(pin.lat, pin.lng, {
+      source: 'Country',
+      hint: 'Explore · drive · list shop — or pinch into city',
+      limited: true,
+      keepFly: true,
+    });
   }
 }
 
@@ -16189,6 +16197,6 @@ if (host && !isOfficial && !isLocal) {
   animate();
 }
 </script>
-<script src="/astranov-perf-lazy.js?v=20260718060948" defer></script>
+<script src="/astranov-perf-lazy.js?v=20260718061153" defer></script>
 </body>
 </html>
