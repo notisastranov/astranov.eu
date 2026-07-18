@@ -62,6 +62,18 @@ var AppShortcuts = window.AppShortcuts;
 window.CityMap = window.CityMap || { active: false, init() {}, show() {}, hide() {} };
 var CityMap = window.CityMap;
 
+// Coders / CLI modules often touch these before deferred loads
+window.AciCoders = window.AciCoders || {
+  engine: 'grok',
+  init() {},
+  observeActivity() {},
+  handleMessage: async () => null,
+  enterSession: async () => null,
+  setEngine() {},
+  toggleEngine() {},
+};
+var AciCoders = window.AciCoders;
+
 // PublicCopy: plain language for the public. SETI / mission-control tone = architect only.
 const PublicCopy = {
   isArchitect() {
