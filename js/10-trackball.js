@@ -1,9 +1,10 @@
 // Globe gestures — primary UI (Google Earth / Maps style). CLI is secondary.
 const canvas = renderer.domElement;
-const TRACK_SENS = 0.0028;
+// Stronger drag — 0.0028 felt like the globe was glued down
+const TRACK_SENS = 0.0062;
 const ZOOM_MIN = 1.05;
 const ZOOM_MAX = 18;
-const ZOOM_SMOOTH = 0.09;
+const ZOOM_SMOOTH = 0.11;
 
 let pinchDist = 0;
 let pinching = false;
@@ -21,10 +22,11 @@ function trackballMove(clientX, clientY) {
   py = clientY;
   globePivot.rotation.y += dx * TRACK_SENS;
   globePivot.rotation.x += dy * TRACK_SENS;
-  globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x));
+  globePivot.rotation.x = Math.max(-1.35, Math.min(1.35, globePivot.rotation.x));
   globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
-  trackVelX = dx * TRACK_SENS * 0.42;
-  trackVelY = dy * TRACK_SENS * 0.42;
+  // Keep momentum so a flick keeps the planet turning
+  trackVelX = dx * TRACK_SENS * 0.88;
+  trackVelY = dy * TRACK_SENS * 0.88;
 }
 
 function trackballStart(clientX, clientY) {
