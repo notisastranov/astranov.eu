@@ -5,8 +5,14 @@
 **Core Identity:**
 - App: Astranov (English letters only). 3D globe as the ONLY permanent UI surface.
 - "Planetary Internet Operating System".
-- User: Αξάς.
+- User: Αξάς (architect `notisastranov@gmail.com`).
 - Deploy only to https://astranov.eu (Vercel `astranov`), central repo notisastranov/astranov.eu.
+
+**Autonomy (MANDATORY — memorize the human):**
+- Grok acts **alone**: perpetual ship access (GitHub, Vercel, Cloudflare, Supabase).
+- **Never** ask him to check, hard-refresh, or QA the live app. Self-reproduce → fix → deploy → e2e → report result only.
+- Complaint = bug ticket for the agent, not a checklist for the user.
+- Globe must feel real: zoom out to Earth, national, then city — no teleport under city map.
 
 **Fundamental Law - Globe Primacy + Celestial Circles UI (STRICT):**
 - Globe is the only surface.
