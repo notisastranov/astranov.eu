@@ -48,14 +48,9 @@ function animate() {
   const idleMs = Date.now() - (window._lastUserAct || 0);
   const dragging = !!(typeof drag !== 'undefined' && (drag || window._globeFly || trackVelX || trackVelY));
 
-  if (!dragging) {
-    let skipN = 0;
-    if (lite) {
-      if (idleMs > 10000) skipN = 4;
-      else if (idleMs > 3000) skipN = 2;
-      else skipN = 1;
-    } else if (idleMs > 12000) skipN = 2;
-    if (skipN && frame % (skipN + 1) !== 0) return;
+  // Never skip frames while spinning Earth — skip made spin look frozen
+  if (!dragging && idleMs > 20000) {
+    if (frame % 2 !== 0) return;
   }
 
   if (frame % 10 === 0) {
@@ -118,8 +113,9 @@ window.__astranovBootCritical = function __astranovBootCritical() {
   g.style.background = '#000';
 
   try {
+    const startZ = ZoomTiers?.tierZ?.('global') || window.START_CAM_Z || 3.65;
     if (typeof camera !== 'undefined' && camera) {
-      camera.position.set(0, 0.25, ZoomTiers?.tierZ?.('global') || 2.55);
+      camera.position.set(0, 0.18, startZ);
       camera.lookAt(0, 0, 0);
     }
     if (typeof globePivot !== 'undefined' && globePivot) {
@@ -138,7 +134,7 @@ window.__astranovBootCritical = function __astranovBootCritical() {
     if (CosmicZoom) {
       CosmicZoom.level = 'earth';
       if (CosmicZoom.solarGroup) CosmicZoom.solarGroup.visible = false;
-      CosmicZoom.update(camera?.position?.z || 2.55, { tier: 'global', label: 'Earth', cosmic: 'earth' });
+      CosmicZoom.update(camera?.position?.z || 3.65, { tier: 'global', label: 'Earth', cosmic: 'earth' });
     }
   } catch (e) {
     console.warn('[spartan critical]', e);
