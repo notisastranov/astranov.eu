@@ -11,7 +11,12 @@
     "guard": "node scripts/guard-base.mjs",
     "deploy": "node scripts/guard-base.mjs && node scripts/warm-github-auth.mjs && node scripts/owner-push.mjs",
     "push": "node scripts/guard-base.mjs && node scripts/warm-github-auth.mjs && node scripts/owner-push.mjs",
-    "bridge-watch": "node scripts/architect-bridge-watch.mjs"
+    "bridge-watch": "node scripts/architect-bridge-watch.mjs",
+    "e2e:prod": "node scripts/e2e-prod.mjs https://astranov.eu",
+    "e2e:locate": "node scripts/e2e-locate.mjs https://astranov.eu",
+    "e2e:locate:snap": "node scripts/e2e-locate.mjs https://astranov.eu --snap",
+    "e2e": "node scripts/e2e-prod.mjs https://astranov.eu && node scripts/e2e-locate.mjs https://astranov.eu",
+    "live-check": "node scripts/live-check.mjs https://astranov.eu"
   },
   "repository": {
     "type": "git",
