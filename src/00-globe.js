@@ -99,21 +99,25 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 window.scene = scene;
 
-const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.set(0, 0.25, 2.55);
+const camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 1000);
+// Start pulled back so full Earth + stars read as a real planet, not a blue ball in your face
+const START_CAM_Z = 3.65;
+camera.position.set(0, 0.18, START_CAM_Z);
 camera.lookAt(0, 0, 0);
 window.camera = camera;
+window.START_CAM_Z = START_CAM_Z;
 
-// Astranov lighting — deep space rim + sun key (not flat Atari fill)
-scene.add(new THREE.AmbientLight(0x1a2838, 0.55));
-const sun = new THREE.DirectionalLight(0xfff4e0, 1.85);
+// Lighting — sun key + cool rim so continents read when texture loads
+scene.add(new THREE.AmbientLight(0x1a2838, 0.42));
+const sun = new THREE.DirectionalLight(0xfff4e0, 1.95);
 sun.position.set(5.2, 2.4, 3.6);
 scene.add(sun);
-const rimLight = new THREE.DirectionalLight(0x4488ff, window._globePerfLite ? 0.35 : 0.55);
+window.sun = sun;
+const rimLight = new THREE.DirectionalLight(0x4488ff, window._globePerfLite ? 0.4 : 0.65);
 rimLight.position.set(-4, -1, -3);
 scene.add(rimLight);
 if (!window._globePerfLite) {
-  const fillLight = new THREE.PointLight(0x66aaff, 0.35, 12);
+  const fillLight = new THREE.PointLight(0x66aaff, 0.4, 14);
   fillLight.position.set(-2, 1.5, 3);
   scene.add(fillLight);
 }
@@ -148,48 +152,63 @@ if (!window._globePerfLite) {
   }
 })();
 
-// Earth — low poly until idle; texture after first frames (truthful globe, not fake)
+// Earth — real NASA/three.js texture ASAP (solid blue = last resort only)
 const earthMat = new THREE.MeshPhongMaterial({
   color: 0x1a4a7a,
-  emissive: 0x041018,
-  specular: 0x335566,
-  shininess: 18,
+  emissive: 0x020810,
+  specular: 0x224466,
+  shininess: 22,
   flatShading: false,
 });
-const earthTexUrl = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg';
-const _loadEarthTex = () => {
+window.earthMat = earthMat;
+// Primary + mirrors — texture must land or globe looks fake
+const EARTH_TEX_CANDIDATES = [
+  'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg',
+  'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg',
+  'https://raw.githubusercontent.com/mrdoob/three.js/r128/examples/textures/planets/earth_atmos_2048.jpg',
+];
+const _applyEarthTex = (tex) => {
   try {
-    new THREE.TextureLoader().load(
-      earthTexUrl,
-      (tex) => {
-        tex.anisotropy = Math.min(window._globePerfLite ? 1 : 8, renderer.capabilities?.getMaxAnisotropy?.() || 4);
-        if (window._globePerfLite) {
-          tex.minFilter = THREE.LinearFilter;
-          tex.generateMipmaps = false;
-        }
-        earthMat.map = tex;
-        earthMat.color.set(0xffffff);
-        earthMat.needsUpdate = true;
-      },
-      undefined,
-      () => { console.log('Earth texture fallback active'); }
-    );
+    tex.anisotropy = Math.min(window._globePerfLite ? 2 : 8, renderer.capabilities?.getMaxAnisotropy?.() || 4);
+    if (window._globePerfLite) {
+      tex.minFilter = THREE.LinearFilter;
+      tex.generateMipmaps = false;
+    }
+    earthMat.map = tex;
+    earthMat.color.set(0xffffff);
+    earthMat.emissive?.set?.(0x020810);
+    earthMat.needsUpdate = true;
+    window._earthTexReady = true;
   } catch (_) {}
 };
-// Mobile: solid globe first, texture much later. Desktop: soon after paint.
-if (window._globePerfLite) {
-  setTimeout(_loadEarthTex, 4500);
-} else if (typeof requestIdleCallback === 'function') {
-  requestIdleCallback(_loadEarthTex, { timeout: 1800 });
-} else {
-  setTimeout(_loadEarthTex, 200);
-}
+const _loadEarthTex = (idx) => {
+  const i = idx || 0;
+  if (i >= EARTH_TEX_CANDIDATES.length) {
+    console.warn('[globe] Earth texture failed — solid fallback');
+    return;
+  }
+  try {
+    new THREE.TextureLoader().load(
+      EARTH_TEX_CANDIDATES[i],
+      _applyEarthTex,
+      undefined,
+      () => _loadEarthTex(i + 1)
+    );
+  } catch (_) {
+    _loadEarthTex(i + 1);
+  }
+};
+// Load immediately — delayed load left people staring at a fake blue ball
+_loadEarthTex(0);
+if (window._globePerfLite) setTimeout(() => { if (!window._earthTexReady) _loadEarthTex(0); }, 1200);
+
 globePivot = new THREE.Group();
 scene.add(globePivot);
 
-const earthSeg = window._globePerfLite ? 20 : 48;
+const earthSeg = window._globePerfLite ? 32 : 64;
 const earth = new THREE.Mesh(new THREE.SphereGeometry(1, earthSeg, earthSeg), earthMat);
 globePivot.add(earth);
+window.earth = earth;
 
 // Soft atmosphere shell — lighter on phone
 (function bootAtmosphere() {
@@ -282,7 +301,7 @@ const GlobeControl = {
     this._lastAutoFly = Date.now();
   },
 
-  Z: { global: 2.55, national: 1.82, regional: 1.65, city: 1.38 },
+  Z: { global: 3.65, national: 2.05, regional: 1.72, city: 1.42 },
 
   /** Z depth that activates the flat city map (explicit city entry only) */
   cityEntryZ() {
