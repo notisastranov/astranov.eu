@@ -199,21 +199,20 @@ const EarthRealism = {
   },
 
   /**
-   * Continuous Earth rotation (radians) with ms precision — real-time solar day.
-   * Not a stepped/fake spin rate.
+   * Visible continuous spin — solar-day (1 rev/24h) is invisible at human scale.
+   * ~1 full turn every ~3 minutes reads as a living planet without dizzying.
+   * Solar position for lighting still uses real UTC via _solarPosition().
    */
-  _earthSpin(date) {
-    const d = date || new Date();
-    const utcSec = d.getUTCHours() * 3600
-      + d.getUTCMinutes() * 60
-      + d.getUTCSeconds()
-      + d.getUTCMilliseconds() / 1000;
-    return (utcSec / 86400) * Math.PI * 2;
+  _earthSpin() {
+    const t = Date.now() / 1000;
+    const visualPeriod = 180; // seconds per revolution
+    return (t / visualPeriod) * Math.PI * 2;
   },
 
   /** Call every animation frame for smooth natural rotation */
   applySpinNow() {
     if (!earth || CityMap?.active) return;
+    if (window._globeFly || drag) return; // don't fight user / fly
     try { earth.rotation.y = this._earthSpin(); } catch (_) {}
   },
 
