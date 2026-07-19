@@ -2,11 +2,12 @@
 const ZoomTiers = {
   TIERS: [
     { id: 'solar', z: 7.2, label: 'Space', cosmic: 'system' },
-    { id: 'global', z: 2.55, label: 'Earth', cosmic: 'earth' },
-    { id: 'national', z: 1.82, label: 'Country', cosmic: 'earth', national: true },
-    { id: 'regional', z: 1.65, label: 'Region', cosmic: 'earth', national: true },
-    { id: 'city', z: 1.38, label: 'City', cosmic: 'earth', city: true },
-    { id: 'neighborhood', z: 1.08, label: 'Streets', cosmic: 'earth', city: true },
+    // Start further out — 2.55 felt like a face-plant on the planet
+    { id: 'global', z: 3.65, label: 'Earth', cosmic: 'earth' },
+    { id: 'national', z: 2.05, label: 'Country', cosmic: 'earth', national: true },
+    { id: 'regional', z: 1.72, label: 'Region', cosmic: 'earth', national: true },
+    { id: 'city', z: 1.42, label: 'City', cosmic: 'earth', city: true },
+    { id: 'neighborhood', z: 1.12, label: 'Streets', cosmic: 'earth', city: true },
   ],
   START_ID: 'global',
   _index: 0,
