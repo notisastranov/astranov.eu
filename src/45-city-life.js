@@ -2,7 +2,7 @@
 // Must work in app phase WITHOUT deferred (placeMe/locateMe live in deferred).
 var CityLife = {
   get CITY_ZOOM() {
-    return GlobeControl?.cityEntryZ?.() ?? 1.34;
+    return ZoomTiers?.tierZ?.('city') ?? GlobeControl?.cityEntryZ?.() ?? 1.42;
   },
   NEARBY_KM: 12,
   _friendTimer: null,
@@ -63,41 +63,38 @@ var CityLife = {
     } catch (_) {}
   },
 
+  _status(line) {
+    // Only the zoom chip — ribbon/deck notices were invisible spam
+    try {
+      const zl = document.getElementById('zoom-label');
+      if (zl && line) zl.textContent = line;
+    } catch (_) {}
+  },
+
   async safeLocate() {
-    if (this._locating) {
-      CliRibbon?.setNotice?.('Already locating…', 'info');
-      return { error: 'busy' };
-    }
+    if (this._locating) return { error: 'busy' };
     this._locating = true;
-    // Allow full cinematic: GPS + national fly + city zoom + map (~12s typical)
     const overall = new Promise((_, reject) => {
-      setTimeout(() => reject(Object.assign(new Error('locate timeout'), { code: 3 })), 28000);
+      setTimeout(() => reject(Object.assign(new Error('locate timeout'), { code: 3 })), 32000);
     });
     try {
-      GlobeDeck?.expand?.(window.PublicCopy?.deckTitle?.() || 'Astranov');
-      GlobeDeck?.setMapStatus?.('Locating your city…');
-      CliRibbon?.setNotice?.('Locating…', 'thinking');
-      ACIControl?.reply?.('Locating — flying globe to your country, then city');
+      this._status('Locating…');
       const r = await Promise.race([this.locateAndDropIn(), overall]);
       if (r?.error) {
-        const msg = r.message || r.error;
-        CliRibbon?.setNotice?.(String(msg).slice(0, 100), 'err');
-        ACIControl?.reply?.(msg);
+        this._status(String(r.message || r.error).slice(0, 80));
         return r;
       }
-      CliRibbon?.setNotice?.('Located · city map', 'ready');
+      this._status(PublicCopy?.zoomLine?.('city') || 'City · streets & shops');
       return r;
     } catch (err) {
       const denied = err?.code === 1 || /denied/i.test(String(err?.message || err));
       const timed = err?.code === 3 || /timeout/i.test(String(err?.message || err));
       const msg = denied
-        ? 'Location denied — enable GPS for this site, then tap 🎯 again'
+        ? 'GPS denied — allow location, tap 🎯 again'
         : timed
-          ? 'Location timed out — try again with GPS on'
-          : 'Location failed — check GPS / permissions, then tap 🎯 again';
-      GlobeDeck?.setMapStatus?.(msg);
-      CliRibbon?.setNotice?.(msg.slice(0, 100), 'err');
-      ACIControl?.reply?.(msg);
+          ? 'GPS timed out — try again'
+          : 'Locate failed — try 🎯 again';
+      this._status(msg);
       return { error: msg };
     } finally {
       this._locating = false;
@@ -164,33 +161,28 @@ var CityLife = {
   /** Visible zoom-out to full Earth before any locate fly (user must SEE the globe). */
   async revealGlobeForLocate() {
     this.ensureEarthView();
-    const globalZ = GlobeControl?.Z?.global || 2.55;
+    const globalZ = ZoomTiers?.tierZ?.('global') || GlobeControl?.Z?.global || window.START_CAM_Z || 3.65;
     const fromZ = (typeof camera !== 'undefined' && camera?.position?.z) || globalZ;
-    GlobeDeck?.setMapStatus?.('Zooming out to Earth…');
-    CliRibbon?.setNotice?.('Globe · zooming out…', 'thinking');
-    const zl = document.getElementById('zoom-label');
-    if (zl) zl.textContent = PublicCopy?.zoomLine?.('global') || 'Earth · drag · locate';
+    this._status(PublicCopy?.zoomLine?.('global') || 'Earth · locate');
 
-    // Always animate outward if we were close — even if already ~global, brief hold
     try {
       if (typeof camera !== 'undefined' && camera) {
-        const startZ = Math.min(fromZ, globalZ);
-        // If stuck in city cam under map, jump start then ease out further
-        if (startZ < 2.0) {
+        const startZ = fromZ;
+        if (Math.abs(startZ - globalZ) > 0.08) {
           window._globeFly = {
             mode: 'zoom',
             fromZ: startZ,
             toZ: globalZ,
             t0: performance.now(),
-            dur: 1200,
+            dur: 1100,
             tierId: 'global',
             onTier: true,
           };
-          await this._awaitFly(1600);
+          await this._awaitFly(1500);
         } else {
           camera.position.z = globalZ;
           camera.lookAt(0, 0, 0);
-          await this._yield(200);
+          await this._yield(160);
         }
       }
     } catch (_) {}
@@ -201,7 +193,7 @@ var CityLife = {
         renderer.render(scene, camera);
       }
     } catch (_) {}
-    await this._yield(280);
+    await this._yield(200);
   },
 
   async _awaitFly(maxMs) {
@@ -264,9 +256,9 @@ var CityLife = {
     this._lastDrop = { lat: pos.lat, lng: pos.lng, t: Date.now() };
     try { CityPick?.hide?.(); } catch (_) {}
 
-    const nationalZ = GlobeControl?.Z?.national || 1.82;
-    const cityZ = this.CITY_ZOOM;
-    const globalZ = GlobeControl?.Z?.global || 2.55;
+    const nationalZ = ZoomTiers?.tierZ?.('national') || GlobeControl?.Z?.national || 2.05;
+    const cityZ = ZoomTiers?.tierZ?.('city') || this.CITY_ZOOM || 1.42;
+    const globalZ = ZoomTiers?.tierZ?.('global') || GlobeControl?.Z?.global || window.START_CAM_Z || 3.65;
     const snap = !!opts.immediate; // e2e / emergency only
     window._locateCinematic = !snap;
 
@@ -275,11 +267,9 @@ var CityLife = {
       await this.revealGlobeForLocate();
 
       if (snap) {
-        GlobeDeck?.setMapStatus?.('National view…');
         try { ZoomTiers?.goTo?.('national', false); } catch (_) {}
         await this.flyGlobeTo(pos.lat, pos.lng, nationalZ, 500);
         await this._yield(80);
-        GlobeDeck?.setMapStatus?.('Opening city map…');
         try { ZoomTiers?.goTo?.('city', false); } catch (_) {}
         window._cityDropLock = true;
         window._locateCinematic = false;
@@ -288,54 +278,40 @@ var CityLife = {
           CityMap?.openAt?.(pos.lat, pos.lng, { camZ: cityZ });
         } catch (_) {}
       } else {
-        // ── Cinematic: globe OUT → turn → national → city → map ──
-        const zl = document.getElementById('zoom-label');
+        // ── Cinematic: globe OUT → turn → national → city → map (no fake notice spam) ──
+        try { if (CosmicZoom) CosmicZoom.level = 'earth'; } catch (_) {}
 
-        // 1) Turn Earth toward you at GLOBAL altitude (full planet visible)
-        GlobeDeck?.setMapStatus?.('Earth · flying to your country…');
-        CliRibbon?.setNotice?.('Globe · turning to you…', 'thinking');
-        if (zl) zl.textContent = PublicCopy?.zoomLine?.('global') || 'Earth · flying in…';
-        try {
-          if (CosmicZoom) CosmicZoom.level = 'earth';
-        } catch (_) {}
+        // 1) Turn Earth at GLOBAL altitude
+        this._status(PublicCopy?.zoomLine?.('global') || 'Earth · flying…');
         await this.flyGlobeTo(pos.lat, pos.lng, globalZ, 2200);
-        await this._yield(350);
+        await this._yield(300);
 
-        // 2) Zoom in to NATIONAL (country)
-        GlobeDeck?.setMapStatus?.('Country · national airspace…');
-        CliRibbon?.setNotice?.('National · your region…', 'thinking');
-        if (zl) zl.textContent = PublicCopy?.zoomLine?.('national') || 'Country · flying in…';
+        // 2) National
+        this._status(PublicCopy?.zoomLine?.('national') || 'Country…');
         await this.flyGlobeTo(pos.lat, pos.lng, nationalZ, 2000);
         try {
           ZoomTiers?.goTo?.('national', false);
           CosmicZoom?.update?.(nationalZ, { tier: 'national', label: 'NATIONAL', cosmic: 'earth' });
         } catch (_) {}
-        CliRibbon?.setNotice?.('National · your region', 'ready');
-        GlobeDeck?.setMapStatus?.('National view · your region');
-        if (zl) zl.textContent = PublicCopy?.zoomLine?.('national') || 'Country · choose a city';
-        await this._yield(550);
+        await this._yield(450);
 
-        // 3) Zoom globe into city altitude (still 3D Earth — map still closed)
-        GlobeDeck?.setMapStatus?.('Zooming to your city…');
-        CliRibbon?.setNotice?.('Zooming to city…', 'thinking');
-        if (zl) zl.textContent = PublicCopy?.zoomLine?.('city') || 'City · streets & shops';
+        // 3) City altitude on globe (map still closed)
+        this._status(PublicCopy?.zoomLine?.('city') || 'City…');
         await this.flyGlobeTo(pos.lat, pos.lng, cityZ, 1800);
         try {
           ZoomTiers?.goTo?.('city', false);
           CosmicZoom?.update?.(cityZ, { tier: 'city', label: 'CITY', cosmic: 'earth' });
         } catch (_) {}
-        try { MapDepict?.pulse?.(pos.lat, pos.lng, 0x3d9eff, opts.label || 'Your city', 14000); } catch (_) {}
-        await this._yield(320);
+        try { MapDepict?.pulse?.(pos.lat, pos.lng, 0x3d9eff, opts.label || 'You', 10000); } catch (_) {}
+        await this._yield(280);
 
-        // 4) Open flat city map only after globe sequence
-        GlobeDeck?.setMapStatus?.('Opening city map…');
+        // 4) Open city map
         window._cityDropLock = true;
         window._locateCinematic = false;
         try {
           CityMap?.init?.();
-          if (CityMap?.openAt) {
-            CityMap.openAt(pos.lat, pos.lng, { camZ: cityZ });
-          } else {
+          if (CityMap?.openAt) CityMap.openAt(pos.lat, pos.lng, { camZ: cityZ });
+          else {
             CityMap?.onCamera?.(cityZ, 'earth');
             if (!CityMap?.active) CityMap?._enter?.(cityZ);
           }
@@ -358,13 +334,10 @@ var CityLife = {
         this._updateChip(nearby.length, 0);
       } catch (_) {}
 
-      const msg = nearby.length + ' shops nearby · city map open';
-      GlobeDeck?.setMapStatus?.('🏙 City map · ' + pos.lat.toFixed(2) + ', ' + pos.lng.toFixed(2));
-      GlobeDeck?.setPreview?.('🏙 ' + msg);
-      AciCli?.print?.('◎ City view · ' + msg, 'ok');
-      ACIControl?.reply?.('City map open — ' + msg);
-      FieldBrain?.pulse?.('city', msg, { role: 'client', props: { lat: pos.lat, lng: pos.lng, shops: nearby.length } });
-      CliRibbon?.setNotice?.('Located · city map', 'ready');
+      this._status(
+        (nearby.length ? nearby.length + ' shops · ' : '')
+        + pos.lat.toFixed(2) + ', ' + pos.lng.toFixed(2)
+      );
 
       setTimeout(() => {
         try {
@@ -376,7 +349,6 @@ var CityLife = {
             }).catch(() => {});
           }
           this._pulseFriends();
-          this._showLocalNews(pos.lat, pos.lng);
           GlobeEntity?.syncVendors?.(window.Commerce?.vendors);
         } catch (_) {}
       }, 120);
@@ -457,7 +429,13 @@ var CityLife = {
 
   async locateAndDropIn() {
     if (!navigator.geolocation) throw new Error('no geolocation');
-    GlobeDeck?.setMapStatus?.('Locating…');
+    this._status('Locating…');
+    // Prefer last good fix immediately if fresh (< 2 min)
+    const last = window._lastPos;
+    if (last?.lat != null && last._at && Date.now() - last._at < 120000) {
+      this.markMeOnGlobe(last.lat, last.lng);
+      return this.dropIn(last.lat, last.lng, { label: 'Your city', immediate: false });
+    }
     const pos = await new Promise((resolve, reject) => {
       let done = false;
       const finish = (fn, arg) => {
@@ -465,17 +443,29 @@ var CityLife = {
         done = true;
         fn(arg);
       };
-      const timer = setTimeout(() => finish(reject, Object.assign(new Error('GPS timeout'), { code: 3 })), 11000);
-      navigator.geolocation.getCurrentPosition(
-        (p) => { clearTimeout(timer); finish(resolve, p); },
-        (err) => { clearTimeout(timer); finish(reject, err); },
-        { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
-      );
+      const timer = setTimeout(() => finish(reject, Object.assign(new Error('GPS timeout'), { code: 3 })), 14000);
+      try {
+        navigator.geolocation.getCurrentPosition(
+          (p) => { clearTimeout(timer); finish(resolve, p); },
+          (err) => {
+            // Retry once with looser accuracy
+            navigator.geolocation.getCurrentPosition(
+              (p) => { clearTimeout(timer); finish(resolve, p); },
+              (err2) => { clearTimeout(timer); finish(reject, err2 || err); },
+              { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
+            );
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+        );
+      } catch (e) {
+        clearTimeout(timer);
+        finish(reject, e);
+      }
     });
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
+    window._lastPos = { lat, lng, _at: Date.now() };
     this.markMeOnGlobe(lat, lng);
-    // Cinematic path: globe turns → national → city zoom → map (not a teleport)
     return this.dropIn(lat, lng, { label: 'Your city', immediate: false });
   },
 
