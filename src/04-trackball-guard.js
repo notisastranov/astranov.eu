@@ -2,8 +2,8 @@
 const TrackballGuard = {
   _ok: false,
   _lastCheck: 0,
-  FRICTION: 0.91,
-  MIN_VEL: 0.00008,
+  FRICTION: 0.94,
+  MIN_VEL: 0.00004,
   CONTRACT: ['trackballStart', 'trackballMove', 'trackballEnd', 'tickGlobeFly', 'flyToPoint', 'bindTrackballEvents'],
 
   verify() {
@@ -63,8 +63,8 @@ const TrackballGuard = {
     if (typeof lat !== 'number' || typeof lng !== 'number') return false;
     const cur = this.facingLatLng();
     const dist = this.greatCircleKm(cur.lat, cur.lng, lat, lng);
-    if (dist > 12000 && !opts?.allowLongHaul) {
-      CliRibbon?.setNotice?.('Fly blocked — too far · drag globe or say locate', 'hold');
+    // Locate / long hauls are allowed — blocking felt broken and the notice was invisible
+    if (dist > 20000 && !opts?.allowLongHaul && !opts?.locate) {
       return false;
     }
     return true;
