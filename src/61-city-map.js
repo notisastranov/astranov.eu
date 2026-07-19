@@ -112,8 +112,8 @@ var CityMap = {
     try { cityLevel = false; } catch (_) {}
     if (CosmicZoom) CosmicZoom.level = 'earth';
 
-    const globalZ = GlobeControl?.Z?.global || ZoomTiers?.tierZ?.('global') || 2.55;
-    const nationalZ = GlobeControl?.Z?.national || 1.82;
+    const globalZ = ZoomTiers?.tierZ?.('global') || GlobeControl?.Z?.global || window.START_CAM_Z || 3.65;
+    const nationalZ = ZoomTiers?.tierZ?.('national') || GlobeControl?.Z?.national || 2.05;
     // Prefer global so user clearly sees the full globe, not stuck at street camZ
     const toZ = opts.tier === 'national' ? nationalZ : globalZ;
     const fromZ = (typeof camera !== 'undefined' && camera?.position?.z) || 1.4;
