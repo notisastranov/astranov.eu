@@ -160,8 +160,8 @@ try {
   const rtg = result.returnToGlobe || {};
   const loc = result.locate || {};
   const flies = loc.flies || [];
-  const hasGlobal = flies.some((f) => f.z >= 2.4);
-  const hasNational = flies.some((f) => Math.abs(f.z - 1.82) < 0.08);
+  const hasGlobal = flies.some((f) => f.z >= 3.2);
+  const hasNational = flies.some((f) => f.z >= 1.9 && f.z <= 2.3);
   const mapOk = !!(loc.mapActive || loc.out?.mapActive);
   const posOk = !!(loc.lastPos?.lat || loc.out?.lat);
   const returnOk =
