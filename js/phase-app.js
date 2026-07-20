@@ -3658,17 +3658,45 @@ var CityMap = {
 window.CityMap = CityMap;
 
 /* === 62-multi-tile.js === */
-// === MULTI-TILE — unified city profile at a map place ===
-// + button or long-press map → this tile.
-// Single-click map → radar search (see CityMap.radarAt / MapRadar).
+// === MULTI-TILE — unified profile for ALL zoom levels ===
+// city · national · global · stellar — same movie-style tile.
+// + button OR long-press (map/globe) → this tile.
+// Single-click map/globe → MapRadar (CLI search e.g. pharmacy).
 // Layout: cover · avatar · role toggles · scroll body · post / connect.
 var MultiTile = {
   _open: false,
   _pin: null,
+  _tier: 'global',
+  _targetUser: null, // other user's profile when opened from marker
   _roles: { user: true, public: false, vendor: false, driver: false },
   _draft: null,
   _bound: false,
   STORAGE: 'astranov:multi-tile-v1',
+
+  /** Resolve current product zoom band for the tile chrome */
+  currentTier() {
+    try {
+      if (CityMap?.active) return 'city';
+      const id = ZoomTiers?.current?.()?.id || CosmicZoom?.level || 'global';
+      if (id === 'solar' || id === 'system' || id === 'galaxy' || CosmicZoom?.level === 'system') return 'stellar';
+      if (id === 'city' || id === 'neighborhood') return 'city';
+      if (id === 'national' || id === 'regional') return 'national';
+      if (id === 'global' || id === 'earth' || CosmicZoom?.level === 'earth') return 'global';
+      return 'global';
+    } catch (_) {
+      return 'global';
+    }
+  },
+
+  tierLabel(t) {
+    const m = {
+      city: 'City',
+      national: 'National',
+      global: 'Global',
+      stellar: 'Stellar',
+    };
+    return m[t] || t || 'Global';
+  },
 
   init() {
     if (this._bound) return;
@@ -3774,26 +3802,79 @@ var MultiTile = {
       || CityMap?.globeCenterLatLng?.()
       || TrackballGuard?.facingLatLng?.()
       || { lat: 36.44, lng: 28.22 };
-    this.openAt(pos.lat, pos.lng, { source: 'plus' });
+    this.openAt(pos.lat, pos.lng, { source: 'plus', tier: this.currentTier() });
   },
 
+  /** Open self / place tile at any zoom level */
   openAt(lat, lng, opts) {
     opts = opts || {};
     this.init();
-    if (lat == null || lng == null) return;
+    // Stellar / space: still allow tile — pin may be symbolic (last pos or facing Earth)
+    let la = lat;
+    let ln = lng;
+    if (la == null || ln == null || !Number.isFinite(+la) || !Number.isFinite(+ln)) {
+      const fallback = window._lastPos
+        || TrackballGuard?.facingLatLng?.()
+        || { lat: 0, lng: 0 };
+      la = fallback.lat;
+      ln = fallback.lng;
+    }
     window._globeFly = null;
-    this._pin = { lat: +lat, lng: +lng, source: opts.source || 'map' };
-    window._pendingShopLatLng = { lat: +lat, lng: +lng };
+    this._targetUser = opts.user || opts.profile || null;
+    this._tier = opts.tier || this.currentTier();
+    this._pin = {
+      lat: +la,
+      lng: +ln,
+      source: opts.source || 'map',
+      tier: this._tier,
+      label: opts.label || null,
+    };
+    window._pendingShopLatLng = { lat: +la, lng: +ln };
     this._open = true;
+    // Viewing another user: mirror their roles if provided
+    if (this._targetUser?.roles) {
+      const r = this._targetUser.roles;
+      const arr = Array.isArray(r) ? r : [];
+      this._roles = {
+        user: true,
+        public: arr.includes('public') || !!this._targetUser.publicTitle,
+        vendor: arr.includes('vendor') || !!this._targetUser.is_vendor,
+        driver: arr.includes('driver'),
+      };
+    }
     this._syncRoleButtons();
     this._render();
     document.getElementById('multi-tile')?.classList.add('open');
     document.getElementById('mt-backdrop')?.classList.add('open');
+    document.getElementById('multi-tile')?.setAttribute('data-tier', this._tier);
     try {
-      MapDepict?.pulse?.(lat, lng, 0x3d9eff, 'tile', 6000);
+      MapDepict?.pulse?.(la, ln, 0x3d9eff, opts.label || 'tile', 6000);
     } catch (_) {}
     const zl = document.getElementById('zoom-label');
-    if (zl) zl.textContent = 'Place · ' + (+lat).toFixed(3) + ', ' + (+lng).toFixed(3);
+    if (zl) {
+      zl.textContent = this.tierLabel(this._tier) + ' · '
+        + (+la).toFixed(3) + ', ' + (+ln).toFixed(3);
+    }
+  },
+
+  /** Profile of another player / vendor marker (any level) */
+  openUser(userOrId, opts) {
+    opts = opts || {};
+    this.init();
+    const u = typeof userOrId === 'object' && userOrId
+      ? userOrId
+      : { id: userOrId, display_name: opts.label || 'User' };
+    const lat = opts.lat ?? u.lat ?? u.field_lat ?? window._lastPos?.lat ?? 0;
+    const lng = opts.lng ?? u.lng ?? u.field_lng ?? window._lastPos?.lng ?? 0;
+    if (u.roles && typeof u.roles === 'string') {
+      try { u.roles = JSON.parse(u.roles); } catch (_) { u.roles = []; }
+    }
+    this.openAt(lat, lng, {
+      source: opts.source || 'profile',
+      tier: opts.tier || this.currentTier(),
+      label: u.display_name || u.name || u.username || 'Profile',
+      user: u,
+    });
   },
 
   close() {
@@ -3827,19 +3908,34 @@ var MultiTile = {
 
   _render() {
     const d = this._draft || {};
-    const name = d.displayName
-      || Auth?.user?.user_metadata?.full_name
-      || Auth?.user?.email?.split?.('@')?.[0]
-      || 'You';
+    const other = this._targetUser;
+    const name = other
+      ? (other.display_name || other.name || other.username || 'User')
+      : (d.displayName
+        || Auth?.user?.user_metadata?.full_name
+        || Auth?.user?.email?.split?.('@')?.[0]
+        || 'You');
     const av = document.getElementById('mt-avatar');
-    if (av) av.textContent = d.avatar || '👤';
+    if (av) av.textContent = other?.avatar_emoji || d.avatar || '👤';
     const nm = document.getElementById('mt-name');
     if (nm) nm.textContent = name;
     const pl = document.getElementById('mt-place');
     if (pl && this._pin) {
-      pl.textContent = this._pin.lat.toFixed(4) + ', ' + this._pin.lng.toFixed(4)
-        + (this._pin.source === 'plus' ? ' · +' : ' · hold');
+      const src = this._pin.source === 'plus' ? ' · +'
+        : this._pin.source === 'long-press' ? ' · hold'
+        : this._pin.source === 'profile' ? ' · profile'
+        : '';
+      pl.textContent = this.tierLabel(this._tier) + ' · '
+        + this._pin.lat.toFixed(4) + ', ' + this._pin.lng.toFixed(4) + src;
     }
+    // Tier chip on cover
+    let chip = document.getElementById('mt-tier-chip');
+    if (!chip) {
+      chip = document.createElement('div');
+      chip.id = 'mt-tier-chip';
+      document.getElementById('mt-cover')?.appendChild(chip);
+    }
+    chip.textContent = this.tierLabel(this._tier);
     const cover = document.getElementById('mt-cover');
     if (cover) {
       if (d.cover) {
