@@ -139,6 +139,10 @@ const SuperCli = {
       'aci-vhf': () => this.run('vhf'),
       'aci-call': () => this.run('phone'),
       'super-add-fab': () => {
+        if (window.MultiTile?.openFromPlus) {
+          MultiTile.openFromPlus();
+          return;
+        }
         if (typeof MapPlaceMenu?.openPlusField === 'function') {
           MapPlaceMenu.openPlusField();
           return;
