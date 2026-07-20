@@ -35,6 +35,7 @@ window.__astranovBootApp = function __astranovBootApp() {
     // Retry Leaflet if still loading
     if (!CityMap?._ready) setTimeout(() => CityMap?.init?.(), 500);
   });
+  soft('MultiTile', () => MultiTile?.init?.());
   soft('CityLife', () => CityLife?.init?.());
   soft('CityPick', () => CityPick?.init?.());
 
