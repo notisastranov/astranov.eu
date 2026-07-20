@@ -36,6 +36,27 @@ const CityTasks = {
       actionClaim: 'Take service', actionDone: 'Service done',
       color: 0xaa88ff,
     },
+    help: {
+      label: 'Help', icon: '🤝', role: 'helper',
+      actionClaim: 'Help now', actionDone: 'Help done',
+      color: 0x66ffcc,
+    },
+    vendor: {
+      label: 'Vendor task', icon: '🏬', role: 'worker',
+      actionClaim: 'Take vendor task', actionDone: 'Vendor task done',
+      color: 0xffaa44,
+    },
+  },
+
+  /** Multi-party stages — both poster + worker must confirm each step */
+  STAGE_TEMPLATES: {
+    delivery: ['accepted', 'picked_up', 'arrived', 'delivered'],
+    job: ['accepted', 'arrived', 'in_progress', 'done'],
+    errand: ['accepted', 'arrived', 'done'],
+    dating: ['accepted', 'arrived', 'met', 'done'],
+    service: ['accepted', 'arrived', 'done'],
+    help: ['accepted', 'arrived', 'done'],
+    vendor: ['accepted', 'arrived', 'done'],
   },
 
   // Catalog of common gigs (extend freely)
@@ -237,11 +258,19 @@ const CityTasks = {
       duration_label: dur.label,
       start_at: startAt,
       end_at: endAt,
-      // Pay
+      // Pay — Astranov Coins is product currency
       rate: spec.rate ?? null,
       rate_unit: spec.rate_unit || 'flat',
       budget: spec.budget ?? null,
-      currency: spec.currency || 'EUR',
+      coins: Math.max(0, Math.round(Number(spec.coins ?? spec.budget ?? 0) || 0)),
+      currency: spec.currency || 'COINS',
+      // Broadcast radius (km) — who sees the accept offer
+      radius_km: Math.max(0.2, Math.min(100, Number(spec.radius_km ?? 3) || 3)),
+      // Criteria (dating age/looks, roles required, etc.)
+      criteria: spec.criteria && typeof spec.criteria === 'object' ? spec.criteria : {},
+      // Multi-party stage verification
+      stages: this._buildStages(kind, spec.stages),
+      stage_index: 0,
       // Commerce links
       vendor_id: spec.vendor_id || null,
       vendor_name: spec.vendor_name || null,
@@ -254,7 +283,12 @@ const CityTasks = {
         vibe: spec.vibe || 'open',
         place_hint: spec.place_hint || '',
         mutual: false,
+        age_min: spec.criteria?.age_min ?? spec.age_min ?? null,
+        age_max: spec.criteria?.age_max ?? spec.age_max ?? null,
+        looks: spec.criteria?.looks || spec.looks || '',
       } : null,
+      launched: false,
+      rejected_by: [],
       created_at: Date.now(),
       updated_at: Date.now(),
     };
@@ -264,10 +298,212 @@ const CityTasks = {
     this._showOnGlobe(task);
     FieldBrain?.pulse?.('commerce', task.kind + ' open · ' + task.title, { task });
     AciCli?.print?.(
-      'city-task · ' + task.kind + ' · ' + task.duration_label + ' · ' + task.title.slice(0, 40),
+      'city-task · ' + task.kind + ' · ' + (task.coins || 0) + '🪙 · ' + task.title.slice(0, 36),
       'ok'
     );
     return task;
+  },
+
+  _buildStages(kind, custom) {
+    if (Array.isArray(custom) && custom.length) {
+      return custom.map((s, i) => ({
+        id: s.id || ('s' + i),
+        label: s.label || s.id || ('Stage ' + (i + 1)),
+        poster_ok: !!s.poster_ok,
+        worker_ok: !!s.worker_ok,
+        at: s.at || null,
+      }));
+    }
+    const ids = this.STAGE_TEMPLATES[kind] || this.STAGE_TEMPLATES.help;
+    return ids.map((id) => ({
+      id,
+      label: id.replace(/_/g, ' '),
+      poster_ok: false,
+      worker_ok: false,
+      at: null,
+    }));
+  },
+
+  /**
+   * Launch task to users in radius who can serve it.
+   * Uses BroadcastChannel + localStorage so other tabs/sessions see Accept/Reject.
+   */
+  launch(idOrSpec) {
+    let task = typeof idOrSpec === 'string' || idOrSpec?.id
+      ? this.get(idOrSpec?.id || idOrSpec)
+      : null;
+    if (!task && idOrSpec && typeof idOrSpec === 'object') {
+      task = this.create(idOrSpec);
+    }
+    if (!task) return { ok: false, error: 'no task' };
+    task.launched = true;
+    task.status = 'open';
+    task.updated_at = Date.now();
+    this.tasks.set(task.id, task);
+    this._saveLocal();
+    this._broadcastOffer(task);
+    TaskBoard?.showOutgoing?.(task);
+    FieldBrain?.pulse?.('commerce', 'launched · ' + task.coins + '🪙 · r' + task.radius_km + 'km', { task });
+    AciCli?.print?.(
+      'task launched · ' + task.title.slice(0, 28) + ' · ' + task.coins + '🪙 · ' + task.radius_km + 'km',
+      'ok'
+    );
+    return { ok: true, task };
+  },
+
+  _broadcastOffer(task) {
+    const payload = {
+      type: 'astranov-task-offer',
+      task: {
+        id: task.id,
+        kind: task.kind,
+        role: task.role,
+        title: task.title,
+        note: task.note,
+        coins: task.coins,
+        currency: task.currency || 'COINS',
+        radius_km: task.radius_km,
+        lat: task.lat,
+        lng: task.lng,
+        criteria: task.criteria || {},
+        dating: task.dating,
+        poster_id: task.poster_id,
+        poster_name: task.poster_name,
+        duration_label: task.duration_label,
+        stages: task.stages,
+      },
+      t: Date.now(),
+    };
+    try {
+      localStorage.setItem('astranov:task-offer-pulse', JSON.stringify(payload));
+      // same-tab + multi-tab
+      window.dispatchEvent(new CustomEvent('astranov-task-offer', { detail: payload }));
+    } catch (_) {}
+    try {
+      if (!this._bc) this._bc = new BroadcastChannel('astranov-tasks');
+      this._bc.postMessage(payload);
+    } catch (_) {}
+  },
+
+  /** Haversine km */
+  distKm(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2
+      + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  },
+
+  /** Can this local user serve the task? */
+  canServe(task, userPos) {
+    if (!task || task.status !== 'open') return false;
+    const me = Auth?.user?.id || 'local';
+    if (task.poster_id && task.poster_id === me) return false;
+    if (task.rejected_by?.includes?.(me)) return false;
+    const pos = userPos || window._lastPos;
+    if (pos?.lat != null && task.lat != null) {
+      const d = this.distKm(pos.lat, pos.lng, task.lat, task.lng);
+      if (d > (task.radius_km || 3)) return false;
+    }
+    // Role fit (soft): driver tasks prefer driver role
+    const roles = FieldBrain?.roles || Auth?._profileVisual?.roles || [];
+    const arr = Array.isArray(roles) ? roles : [];
+    if (task.kind === 'delivery' && arr.length && !arr.includes('driver') && !arr.includes('client')) {
+      /* still allow — anyone can help */
+    }
+    // Dating criteria soft filter if local profile has age
+    if (task.kind === 'dating' && task.criteria) {
+      const myAge = Number(Auth?.user?.user_metadata?.age || window._profileAge);
+      if (myAge && task.criteria.age_min && myAge < task.criteria.age_min) return false;
+      if (myAge && task.criteria.age_max && myAge > task.criteria.age_max) return false;
+    }
+    return true;
+  },
+
+  reject(id) {
+    const task = this.get(id);
+    if (!task) return { ok: false, error: 'not found' };
+    const me = Auth?.user?.id || 'local';
+    if (!task.rejected_by) task.rejected_by = [];
+    if (!task.rejected_by.includes(me)) task.rejected_by.push(me);
+    task.updated_at = Date.now();
+    this.tasks.set(task.id, task);
+    this._saveLocal();
+    TaskBoard?.dismiss?.(id);
+    return { ok: true, task };
+  },
+
+  /**
+   * Both parties must verify current stage; then auto-advance.
+   * party: 'poster' | 'worker'
+   */
+  verifyStage(id, party) {
+    const task = this.get(id);
+    if (!task || !task.stages?.length) return { ok: false, error: 'no stages' };
+    const i = Math.min(task.stage_index || 0, task.stages.length - 1);
+    const st = task.stages[i];
+    if (party === 'poster') st.poster_ok = true;
+    else st.worker_ok = true;
+    st.at = Date.now();
+    task.updated_at = Date.now();
+
+    if (st.poster_ok && st.worker_ok) {
+      // Stage complete — advance status DNA
+      const nextIdx = i + 1;
+      if (nextIdx >= task.stages.length) {
+        const term = task.kind === 'delivery' ? 'delivered' : 'done';
+        task.stage_index = i;
+        this.tasks.set(task.id, task);
+        this._saveLocal();
+        return this.advance(id, term);
+      }
+      task.stage_index = nextIdx;
+      const sid = task.stages[nextIdx].id;
+      const statusMap = {
+        accepted: 'claimed',
+        picked_up: 'picked_up',
+        arrived: 'en_route',
+        met: 'in_progress',
+        in_progress: 'in_progress',
+        delivered: 'delivered',
+        done: 'done',
+      };
+      if (statusMap[sid] && this.STATUSES.includes(statusMap[sid])) {
+        task.status = statusMap[sid];
+      } else if (sid === 'accepted') {
+        task.status = 'claimed';
+      }
+      // Routing when worker verifies accepted → guide to task pin
+      if (st.id === 'accepted' && party === 'worker') {
+        this._routeWorkerToTask(task);
+      }
+    }
+    this.tasks.set(task.id, task);
+    this._saveLocal();
+    TaskBoard?.refreshActive?.(task);
+    FieldBrain?.pulse?.('act', 'verify · ' + st.label, { task });
+    return { ok: true, task, stage: st, both: !!(st.poster_ok && st.worker_ok) };
+  },
+
+  _routeWorkerToTask(task) {
+    if (task?.lat == null) return;
+    try {
+      LazyModules?.ensure?.().then(() => {
+        DrivingView?.setDestination?.(task.lat, task.lng);
+        DrivingView?.activate?.();
+        DrivingView?.fetchRoadRoute?.();
+      }).catch(() => {
+        DrivingView?.setDestination?.(task.lat, task.lng);
+        DrivingView?.activate?.();
+      });
+    } catch (_) {
+      try {
+        DrivingView?.setDestination?.(task.lat, task.lng);
+        DrivingView?.activate?.();
+      } catch (_) {}
+    }
+    MapDepict?.pulse?.(task.lat, task.lng, 0x44ffaa, 'task', 12000);
   },
 
   /** Post a timed job (barman 3h, housekeeper 1w, …) */
@@ -439,15 +675,24 @@ const CityTasks = {
     if (!task.start_at) task.start_at = Date.now();
     if (task.duration_ms && !task.end_at) task.end_at = task.start_at + task.duration_ms;
     if (task.kind === 'dating' && task.dating) task.dating.mutual = true;
+    // First stage = accepted — worker already ok; poster still must verify
+    if (task.stages?.[0]) {
+      task.stages[0].worker_ok = true;
+      task.stages[0].at = Date.now();
+      task.stage_index = 0;
+    }
     task.updated_at = Date.now();
     this.tasks.set(task.id, task);
     this._saveLocal();
     this._showOnGlobe(task);
+    this._routeWorkerToTask(task);
+    TaskBoard?.showActive?.(task);
+    TaskBoard?.dismiss?.(task.id);
     const km = this.meta(task.kind);
-    FieldBrain?.pulse?.('act', 'claimed · ' + task.title, { task });
+    FieldBrain?.pulse?.('act', 'claimed · ' + task.title + ' · ' + (task.coins || 0) + '🪙', { task });
     GlobeDeck?.say?.(km.actionClaim + ': ' + task.title, 'ok');
     AciCli?.print?.(
-      'city-task · claimed · ' + task.kind + ' · ' + task.duration_label + ' · ' + task.title.slice(0, 36),
+      'city-task · claimed · ' + (task.coins || 0) + '🪙 · ' + task.title.slice(0, 32),
       'ok'
     );
 
@@ -721,8 +966,198 @@ const CityTasks = {
 
     const open = this.list({ open: true });
     return 'City DNA · open ' + open.length
-      + ' · task job barman 3h · task housekeeper 1w · task date coffee 2h'
-      + ' · task errand · task claim · task catalog';
+      + ' · task job barman 3h · task date coffee 2h'
+      + ' · task launch · task claim · task catalog';
   },
 };
 window.CityTasks = CityTasks;
+
+// === TASK BOARD — Accept/Reject offers + multi-party stage UI ===
+var TaskBoard = {
+  _bound: false,
+  _offer: null,
+  _active: null,
+  _seen: new Set(),
+
+  init() {
+    if (this._bound) return;
+    this._bound = true;
+    this._ensureDom();
+    window.addEventListener('astranov-task-offer', (e) => this._onOffer(e.detail));
+    window.addEventListener('storage', (e) => {
+      if (e.key !== 'astranov:task-offer-pulse' || !e.newValue) return;
+      try { this._onOffer(JSON.parse(e.newValue)); } catch (_) {}
+    });
+    try {
+      const bc = new BroadcastChannel('astranov-tasks');
+      bc.onmessage = (ev) => this._onOffer(ev.data);
+      this._bc = bc;
+    } catch (_) {}
+    setInterval(() => {
+      try {
+        const raw = localStorage.getItem('astranov:task-offer-pulse');
+        if (!raw) return;
+        const p = JSON.parse(raw);
+        if (p?.t && Date.now() - p.t < 8000) this._onOffer(p);
+      } catch (_) {}
+    }, 2500);
+  },
+
+  _ensureDom() {
+    if (document.getElementById('task-offer-banner')) return;
+    const root = document.createElement('div');
+    root.id = 'task-board-root';
+    root.innerHTML = ''
+      + '<div id="task-offer-banner" role="alertdialog" aria-label="Task offer">'
+      + '  <div id="to-kind"></div>'
+      + '  <div id="to-title"></div>'
+      + '  <div id="to-meta"></div>'
+      + '  <div id="to-criteria"></div>'
+      + '  <div id="to-actions">'
+      + '    <button type="button" id="to-accept" class="to-accept">ACCEPT</button>'
+      + '    <button type="button" id="to-reject" class="to-reject">REJECT</button>'
+      + '  </div>'
+      + '</div>'
+      + '<div id="task-active-panel">'
+      + '  <div id="ta-head"><span id="ta-title">Active task</span><button type="button" id="ta-close">✖</button></div>'
+      + '  <div id="ta-body"></div>'
+      + '  <div id="ta-stages"></div>'
+      + '  <div id="ta-foot">'
+      + '    <button type="button" id="ta-verify">Verify stage</button>'
+      + '    <button type="button" id="ta-route">Route</button>'
+      + '  </div>'
+      + '</div>';
+    document.body.appendChild(root);
+    document.getElementById('to-accept')?.addEventListener('click', () => this._accept());
+    document.getElementById('to-reject')?.addEventListener('click', () => this._reject());
+    document.getElementById('ta-close')?.addEventListener('click', () => this.hideActive());
+    document.getElementById('ta-verify')?.addEventListener('click', () => this._verify());
+    document.getElementById('ta-route')?.addEventListener('click', () => {
+      if (this._active) CityTasks?._routeWorkerToTask?.(this._active);
+    });
+  },
+
+  _onOffer(payload) {
+    if (!payload || payload.type !== 'astranov-task-offer' || !payload.task) return;
+    const t = payload.task;
+    if (this._seen.has(t.id + ':' + (payload.t || 0))) return;
+    this._seen.add(t.id);
+    this._seen.add(t.id + ':' + (payload.t || 0));
+    if (!CityTasks.get(t.id)) {
+      CityTasks.create({ ...t, id: t.id, status: 'open', launched: true });
+    }
+    const full = CityTasks.get(t.id) || t;
+    if (!CityTasks.canServe(full)) return;
+    this.showOffer(full);
+  },
+
+  showOffer(task) {
+    this.init();
+    this._offer = task;
+    const el = document.getElementById('task-offer-banner');
+    if (!el) return;
+    const km = CityTasks.meta(task.kind);
+    document.getElementById('to-kind').textContent =
+      (km.icon || '📋') + ' ' + (km.label || task.kind) + ' · ' + (task.coins || 0) + ' 🪙';
+    document.getElementById('to-title').textContent = task.title || 'Task';
+    document.getElementById('to-meta').textContent =
+      (task.radius_km || 3) + ' km · '
+      + (task.duration_label || '') + ' · '
+      + (task.poster_name || 'Someone')
+      + (task.lat != null ? ' · ' + (+task.lat).toFixed(3) + ',' + (+task.lng).toFixed(3) : '');
+    const crit = task.criteria || {};
+    const bits = [];
+    if (crit.age_min || crit.age_max) bits.push('Age ' + (crit.age_min || '?') + '–' + (crit.age_max || '?'));
+    if (crit.looks) bits.push('Looks: ' + crit.looks);
+    if (crit.role) bits.push('Need: ' + crit.role);
+    if (task.dating?.vibe) bits.push('Vibe: ' + task.dating.vibe);
+    if (task.note) bits.push(String(task.note).slice(0, 80));
+    document.getElementById('to-criteria').textContent = bits.join(' · ') || 'Open to capable users in radius';
+    el.classList.add('open');
+    try { MapDepict?.pulse?.(task.lat, task.lng, 0xffcc44, 'task offer', 15000); } catch (_) {}
+  },
+
+  showOutgoing(task) {
+    const zl = document.getElementById('zoom-label');
+    if (zl) zl.textContent = 'Launched · ' + (task.coins || 0) + '🪙 · ' + (task.radius_km || 3) + 'km';
+  },
+
+  dismiss(id) {
+    if (this._offer?.id === id || !id) {
+      document.getElementById('task-offer-banner')?.classList.remove('open');
+      this._offer = null;
+    }
+  },
+
+  async _accept() {
+    if (!this._offer) return;
+    CityTasks?.init?.();
+    const r = await CityTasks.claim(this._offer.id);
+    if (r?.ok) {
+      this.dismiss(this._offer.id);
+      this.showActive(r.task);
+    }
+  },
+
+  _reject() {
+    if (!this._offer) return;
+    CityTasks.reject(this._offer.id);
+    this.dismiss(this._offer.id);
+  },
+
+  showActive(task) {
+    this.init();
+    this._active = task;
+    const el = document.getElementById('task-active-panel');
+    if (!el) return;
+    document.getElementById('ta-title').textContent =
+      (CityTasks.meta(task.kind).icon || '📋') + ' ' + (task.title || 'Task').slice(0, 36);
+    const body = document.getElementById('ta-body');
+    if (body) {
+      body.innerHTML = ''
+        + '<div>' + (task.coins || 0) + ' 🪙 · ' + (task.duration_label || '') + '</div>'
+        + '<div class="ta-dim">' + (task.worker_name || '…') + ' ↔ ' + (task.poster_name || '') + '</div>'
+        + '<div class="ta-dim">Both parties verify each stage</div>';
+    }
+    this.refreshActive(task);
+    el.classList.add('open');
+  },
+
+  hideActive() {
+    document.getElementById('task-active-panel')?.classList.remove('open');
+  },
+
+  refreshActive(task) {
+    if (!task) return;
+    this._active = task;
+    const box = document.getElementById('ta-stages');
+    if (!box || !task.stages) return;
+    const idx = task.stage_index || 0;
+    box.innerHTML = task.stages.map((s, i) => {
+      const both = s.poster_ok && s.worker_ok;
+      const cur = i === idx;
+      const cls = both ? 'done' : (cur ? 'current' : 'pending');
+      return '<div class="ta-stage ' + cls + '">'
+        + '<b>' + (i + 1) + '. ' + (s.label || s.id) + '</b>'
+        + '<span>P:' + (s.poster_ok ? '✓' : '·') + ' W:' + (s.worker_ok ? '✓' : '·') + '</span>'
+        + '</div>';
+    }).join('');
+  },
+
+  _verify() {
+    const task = this._active;
+    if (!task) return;
+    const me = Auth?.user?.id || 'local';
+    const party = (task.poster_id === me) ? 'poster' : 'worker';
+    const r = CityTasks.verifyStage(task.id, party);
+    if (r?.task) {
+      this.refreshActive(r.task);
+      if (['delivered', 'done'].includes(r.task.status)) {
+        const zl = document.getElementById('zoom-label');
+        if (zl) zl.textContent = 'Task complete · ' + (r.task.coins || 0) + '🪙';
+      }
+    }
+  },
+};
+window.TaskBoard = TaskBoard;
+try { TaskBoard.init(); } catch (_) {}
