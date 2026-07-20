@@ -99,6 +99,7 @@ var MultiTile = {
       + '    <div id="mt-sec-driver" class="mt-sec" hidden></div>'
       + '    <div id="mt-sec-task" class="mt-sec">'
       + '      <div class="mt-label">Launch task · Coins</div>'
+      + '      <div id="mt-coins-bal" class="mt-hint">— 🪙</div>'
       + '      <div class="mt-task-row">'
       + '        <select id="mt-kind">'
       + '          <option value="help">🤝 Help</option>'
@@ -109,13 +110,13 @@ var MultiTile = {
       + '          <option value="dating">💕 Dating</option>'
       + '          <option value="service">🛠️ Service</option>'
       + '        </select>'
-      + '        <input id="mt-coins" type="number" min="0" step="1" value="50" title="Coins offered" placeholder="🪙" />'
+      + '        <input id="mt-coins" type="number" min="0" step="1" value="50" title="Coins offered for this task" placeholder="🪙" />'
       + '      </div>'
       + '      <label class="mt-field">What do you need?'
       + '        <input id="mt-task-title" placeholder="e.g. pharmacy run · barman 3h · coffee date" />'
       + '      </label>'
       + '      <div class="mt-task-row">'
-      + '        <label class="mt-inline">Radius km'
+      + '        <label class="mt-inline">Map radius km'
       + '          <input id="mt-radius" type="number" min="0.5" max="50" step="0.5" value="3" />'
       + '        </label>'
       + '        <label class="mt-inline">Duration'
@@ -129,9 +130,16 @@ var MultiTile = {
       + '        </div>'
       + '        <label class="mt-field">Looks / vibe<input id="mt-looks" placeholder="casual · tall · …" /></label>'
       + '      </div>'
+      + '      <div id="mt-criteria-work" class="mt-criteria" hidden>'
+      + '        <label class="mt-field">Need role / skill<input id="mt-need-role" placeholder="barman · cleaner · driver · …" /></label>'
+      + '        <label class="mt-field">Skills / notes<input id="mt-skills" placeholder="experience, language, tools…" /></label>'
+      + '      </div>'
+      + '      <div id="mt-criteria-delivery" class="mt-criteria" hidden>'
+      + '        <label class="mt-field">Vehicle preferred<input id="mt-vehicle-need" placeholder="bike · car · van" /></label>'
+      + '      </div>'
       + '      <label class="mt-field">Notes<textarea id="mt-task-note" rows="2" placeholder="Details for people who can help…"></textarea></label>'
       + '      <button type="button" id="mt-launch" class="mt-launch">🚀 Launch task to nearby users</button>'
-      + '      <p class="mt-hint">Eligible users in radius get Accept / Reject. Both parties verify every stage. Pay in 🪙 Coins.</p>'
+      + '      <p class="mt-hint">Broadcasts in map radius with big Accept / Reject. Coins held on launch, paid when both verify every stage. Routing starts on accept.</p>'
       + '    </div>'
       + '  </div>'
       + '  <div id="mt-actions">'
@@ -147,9 +155,26 @@ var MultiTile = {
   },
 
   _syncTaskCriteria() {
-    const kind = document.getElementById('mt-kind')?.value;
-    const box = document.getElementById('mt-criteria-dating');
-    if (box) box.hidden = kind !== 'dating';
+    const kind = document.getElementById('mt-kind')?.value || 'help';
+    const dating = document.getElementById('mt-criteria-dating');
+    const work = document.getElementById('mt-criteria-work');
+    const del = document.getElementById('mt-criteria-delivery');
+    if (dating) dating.hidden = kind !== 'dating';
+    if (work) work.hidden = !(kind === 'job' || kind === 'service' || kind === 'vendor' || kind === 'help');
+    if (del) del.hidden = !(kind === 'delivery' || kind === 'errand');
+  },
+
+  _refreshCoinsBal() {
+    const el = document.getElementById('mt-coins-bal');
+    if (!el) return;
+    try {
+      CityTasks?.init?.();
+      const b = CityTasks?.coinsBalance?.();
+      if (b) el.textContent = b.available + ' 🪙 available · ' + b.held + ' held (wallet)';
+      else el.textContent = 'Coins wallet loads with tasks…';
+    } catch (_) {
+      el.textContent = '— 🪙';
+    }
   },
 
   async launchTask() {
@@ -170,10 +195,24 @@ var MultiTile = {
       if (amax) criteria.age_max = Number(amax);
       if (looks) criteria.looks = looks;
     }
+    if (kind === 'job' || kind === 'service' || kind === 'vendor' || kind === 'help') {
+      const need = document.getElementById('mt-need-role')?.value?.trim();
+      const skills = document.getElementById('mt-skills')?.value?.trim();
+      if (need) criteria.need_role = need;
+      if (skills) criteria.skills = skills;
+    }
+    if (kind === 'delivery' || kind === 'errand') {
+      const veh = document.getElementById('mt-vehicle-need')?.value?.trim();
+      if (veh) criteria.vehicle = veh;
+    }
     const pin = this._pin || window._lastPos || { lat: 36.44, lng: 28.22 };
 
     const run = async () => {
       try { await LazyModules?.ensure?.(); } catch (_) {}
+      if (!window.CityTasks) {
+        // features phase may still be loading — soft wait
+        await new Promise((r) => setTimeout(r, 800));
+      }
       if (!window.CityTasks) {
         const zl = document.getElementById('zoom-label');
         if (zl) zl.textContent = 'Tasks loading… try again';
@@ -194,12 +233,20 @@ var MultiTile = {
         age_min: criteria.age_min,
         age_max: criteria.age_max,
         looks: criteria.looks,
+        need_role: criteria.need_role,
+        skills: criteria.skills,
+        vehicle: criteria.vehicle,
       });
+      this._refreshCoinsBal();
       if (r?.ok) {
         const zl = document.getElementById('zoom-label');
-        if (zl) zl.textContent = 'Launched · ' + coins + '🪙 · ' + radius_km + 'km';
-        // Same-tab: also surface offer for testing if not poster-only filter
-        // Poster should not get accept banner (canServe blocks)
+        if (zl) zl.textContent = 'Launched · ' + coins + '🪙 · ' + radius_km + 'km radius';
+        // Poster keeps MultiTile open optionally — show stages panel
+        try { MultiTile.close?.(); } catch (_) {}
+      } else if (r?.error === 'insufficient_coins') {
+        const zl = document.getElementById('zoom-label');
+        if (zl) zl.textContent = 'Need ' + r.needed + '🪙 · have ' + r.available;
+        AciCli?.print?.('insufficient Coins · need ' + r.needed + ' · available ' + r.available, 'err');
       }
     };
     void run();
@@ -281,6 +328,8 @@ var MultiTile = {
     }
     this._syncRoleButtons();
     this._render();
+    this._syncTaskCriteria();
+    this._refreshCoinsBal();
     document.getElementById('multi-tile')?.classList.add('open');
     document.getElementById('mt-backdrop')?.classList.add('open');
     document.getElementById('multi-tile')?.setAttribute('data-tier', this._tier);
