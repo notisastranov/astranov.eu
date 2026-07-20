@@ -26,7 +26,7 @@
  * BUNDLE SPLIT
  *   astranov-app.js      (~440KB) Globe, SuperCli, LazyModules stub, boot — parse-time WebGL
  *   astranov-deferred.js (~575KB) Commerce, MapComms, CodersHub, CityMap, BrainNeurons full
- *   astranov-perf-lazy.js        Defers deferred load until SlumberManager delay OR user tap
+ *   astranov-perf-lazy.js        Defers deferred load until SpumberManager delay OR user tap
  *   astranov-field-hud.js        Top-right field, radar, speed, miner rig opener
  *   astranov-mpp-tile.js         MenuProfilePostTile (+ hijack, locate, video, marketplace)
  *   astranov-galactic-sky.js     Sky layer
@@ -34,8 +34,8 @@
  * =============================================================================
  */
 const AstranovContinuity = {
-  version: '20260716120000-core-brain-art',
-  updated: '2026-07-16',
+  version: '20260720090000-os-browser',
+  updated: '2026-07-20',
 
   /**
    * Markdown / issues / sessions that MUST NOT drive implementation.
@@ -278,6 +278,31 @@ const AstranovContinuity = {
       ],
       doNotRemove: ['spawnAstranovFlyer', 'flyAstranovTo', 'AstranovFlyer'],
     },
+
+    astranovOS: {
+      summary: 'Multi-device web OS shell — Earth desktop + dock + system panel',
+      owner: 'src/08-astranov-os.js',
+      selectors: ['#astranov-os-root', '#os-dock', '#os-surface'],
+      behavior: [
+        'Dock always available after features boot: Earth, Browser, Locate, Market, AI, Create, System',
+        'Touch devices default conserve/lite power via SlumberManager',
+        'Globe remains primary home surface (SpaceNet primacy)',
+        'PWA install tips in System; Escape returns home',
+      ],
+      doNotRemove: ['AstranovOS', 'os-dock', 'setMode'],
+    },
+
+    astranovBrowser: {
+      summary: 'In-OS web browser — tabs, URL bar, astranov:// routes, https iframe',
+      owner: 'src/08-astranov-browser.js',
+      selectors: ['#os-browser', '#os-browser-url', '#os-browser-frame'],
+      behavior: [
+        'Ctrl/Cmd+L focuses address; Ctrl/Cmd+T new tab',
+        'astranov://home|locate|market|plus|chat|system routes into OS actions',
+        'External http(s) only in sandboxed iframe',
+      ],
+      doNotRemove: ['AstranovBrowser', 'navigate', 'show', 'hide'],
+    },
   },
 
   /**
@@ -294,6 +319,8 @@ const AstranovContinuity = {
     'First load feels faster; tap shop still loads Commerce after interaction',
     'Architect sign-in → 🛠 visible · bridge armed · fix/code queues summon',
     'Desktop bridge-watch acks task · answer script delivers reply to phone CLI',
+    'OS dock visible after features boot · Browser opens tabs · System shows build',
+    'index.html includes loader.js + phase-critical (live-check green)',
   ],
 
   /**
@@ -320,6 +347,8 @@ const AstranovContinuity = {
     'src/12-auth.js': 'Google auth · isArchitect · bridge arm on owner email',
     'astranov-deferred.js': 'Commerce, MapComms, CodersHub, DeferredBoot (assembled deferred)',
     'astranov-continuity.js': 'AI contract — read before editing',
+    'src/08-astranov-os.js': 'Astranov OS dock + modes',
+    'src/08-astranov-browser.js': 'In-OS browser tabs + astranov://',
     'supabase/functions/coders-bridge': 'architect_* + composer pending/answer modes',
     'scripts/architect-bridge-watch.mjs': 'Desktop inbox for street tasks',
     'scripts/architect-bridge-answer.mjs': 'Post fix summary back to phone',
@@ -340,3 +369,39 @@ if (typeof console !== 'undefined' && console.info) {
     Object.keys(AstranovContinuity.features).join(', ')
   );
 }
+
+/* === ASTRANOV OS BOOT (auto-load on all devices) === */
+(function astranovOsBoot() {
+  if (window.__ASTRANOV_OS_BOOT__) return;
+  window.__ASTRANOV_OS_BOOT__ = 1;
+  var build = (document.querySelector('meta[name="astranov-build"]') || {}).content || '0';
+  function load(src) {
+    return new Promise(function (resolve) {
+      if (document.querySelector('script[data-astranov-os="' + src + '"]')) return resolve();
+      var s = document.createElement('script');
+      s.src = src + (src.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent(build);
+      s.async = true;
+      s.dataset.astranovOs = src;
+      s.onload = function () { resolve(); };
+      s.onerror = function () { resolve(); };
+      document.head.appendChild(s);
+    });
+  }
+  function init() {
+    try { if (window.AstranovOS) AstranovOS.init(); } catch (e) { console.warn('[os]', e); }
+    try { if (window.AstranovBrowser) AstranovBrowser.init(); } catch (e) { console.warn('[browser]', e); }
+  }
+  function run() {
+    Promise.all([
+      load('/js/08-astranov-os.js'),
+      load('/js/08-astranov-browser.js'),
+    ]).then(function () {
+      init();
+      setTimeout(init, 1200);
+      setTimeout(init, 3500);
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
+  else run();
+  window.addEventListener('load', function () { setTimeout(init, 400); });
+})();
