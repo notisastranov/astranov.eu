@@ -149,8 +149,9 @@ const AciCli = {
 
     if (!cmd) return;
     if (cmd === 'help' || cmd === '?') {
-      this.print('locate · order · resources · starship · starlink · spacex · crawl', 'dim');
+      this.print('locate · order · resources · channels · starship · starlink · spacex · crawl', 'dim');
       this.print('task job barman 3h · task housekeeper 1w · task date coffee 2h · task errand · task claim', 'dim');
+      this.print('channels status · seed · publish · order · enable mesh', 'dim');
       this.print('think · coders · theme · Architect: fix|bridge', 'dim');
       return;
     }
@@ -158,6 +159,12 @@ const AciCli = {
       ResourceMonitor?.init?.();
       const msg = ResourceMonitor?.handleCli?.(line);
       this.print(msg || 'resources', 'ok');
+      return;
+    }
+    if (cmd === 'channels' || cmd === 'channel' || cmd === 'cm' || cmd === 'spacenetcm') {
+      SpaceNetCM?.init?.();
+      const msg = SpaceNetCM?.handleCli?.(line);
+      this.print(msg || 'channels', 'ok');
       return;
     }
     if (cmd === 'starship' || cmd === 'f13') {
@@ -312,6 +319,27 @@ const AciCli = {
     if (cmd === 'radio' || cmd === 'vhf') {
       Comms?.startVHF?.();
       GlobeDeck?.finishCliIfOneShot(cmd);
+      return;
+    }
+
+    // Radar place search: after single-click map, CLI text is a local search
+    if (window.MapRadar?.last && line && !/^(think|code|fix|dev|bridge)\b/i.test(line)) {
+      const q = (cmd === 'radar' || cmd === 'search' || cmd === 'find') ? rest : line;
+      if (q && q.length >= 2) {
+        MapRadar.runQuery(q);
+        this.print('radar · ' + q, 'ok');
+        return;
+      }
+    }
+    if (cmd === 'radar' || cmd === 'search' || cmd === 'find') {
+      const pos = window.MapRadar?.last || window._lastPos;
+      if (!pos?.lat) {
+        this.print('tap the map once to set radar, then type e.g. pharmacy', 'err');
+        return;
+      }
+      MapRadar.at(pos.lat, pos.lng, { query: rest || '' });
+      if (rest) MapRadar.runQuery(rest);
+      this.print(rest ? ('radar · ' + rest) : 'radar · type what you need', 'ok');
       return;
     }
 
