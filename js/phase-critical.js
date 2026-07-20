@@ -1928,11 +1928,22 @@ function trackballStart(clientX, clientY) {
   pressStartY = clientY;
   canvas.classList.add('dragging');
   clearTimeout(pressTimer);
+  window._globeLongPressFired = false;
+  // Long-press globe (any tier: stellar → city) → MultiTile profile
   pressTimer = setTimeout(() => {
     if (!drag) return;
-    ZoomTiers?.stepOut?.();
-    MapDepict?.setHud('Zoom out', 'long-press');
-  }, 750);
+    // Only if finger barely moved
+    if (Math.hypot(px - pressStartX, py - pressStartY) > 14) return;
+    window._globeLongPressFired = true;
+    const pin = latLngFromScreen?.(clientX, clientY)
+      || TrackballGuard?.facingLatLng?.()
+      || window._lastPos
+      || { lat: 0, lng: 0 };
+    MultiTile?.openAt?.(pin.lat, pin.lng, {
+      source: 'long-press',
+      tier: MultiTile?.currentTier?.() || 'global',
+    });
+  }, 480);
 }
 
 function trackballEnd(clientX, clientY, opts) {
@@ -2102,6 +2113,23 @@ window.addEventListener('resize', () => {
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
+/** Raycast earth under screen point → lat/lng (works global / national / city globe view) */
+function latLngFromScreen(clientX, clientY) {
+  try {
+    if (typeof earth === 'undefined' || !earth || !camera) return null;
+    mouse.x = (clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObject(earth, true);
+    if (!hits.length) return null;
+    return MapPlaceMenu?.pointFromGlobeHit?.(hits[0].point)
+      || null;
+  } catch (_) {
+    return null;
+  }
+}
+window.latLngFromScreen = latLngFromScreen;
+
 container.addEventListener('click', onGlobeClick);
 
 function globeClickTargets() {
@@ -2122,6 +2150,11 @@ function globeClickTargets() {
 
 function onGlobeClick(e) {
   if (dragging) return;
+  // Long-press already opened MultiTile
+  if (window._globeLongPressFired) {
+    window._globeLongPressFired = false;
+    return;
+  }
   mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
@@ -2131,20 +2164,42 @@ function onGlobeClick(e) {
     const hit = markerHits[0].object;
     const entity = GlobeEntity?.pickFromHit?.(hit);
     if (entity) {
+      // Profile markers → MultiTile at all levels
+      if (entity.type === 'friend' || entity.type === 'me' || entity.type === 'vendor' || entity.type === 'driver') {
+        MultiTile?.openUser?.({
+          id: entity.id,
+          display_name: entity.title,
+          avatar_emoji: entity.icon,
+          lat: entity.lat,
+          lng: entity.lng,
+          roles: entity.type === 'vendor' ? ['vendor'] : entity.type === 'driver' ? ['driver'] : ['client'],
+          is_vendor: entity.type === 'vendor',
+        }, { lat: entity.lat, lng: entity.lng, source: 'marker', tier: MultiTile?.currentTier?.() });
+        return;
+      }
       GlobeEntity.activate(entity);
       return;
     }
     const root = hit.userData?.vendor ? hit : (hit.parent?.userData?.vendor ? hit.parent : hit);
     const ud = root.userData || hit.userData || {};
-    if (ud.vendor && window.Commerce?.openVendor) { window.Commerce.openVendor(ud.vendor); return; }
+    if (ud.vendor) {
+      MultiTile?.openUser?.({
+        display_name: ud.vendor.name,
+        avatar_emoji: ud.vendor.emoji || '🏬',
+        lat: ud.vendor.lat,
+        lng: ud.vendor.lng,
+        roles: ['vendor'],
+        is_vendor: true,
+        menu: ud.vendor.items,
+      }, { lat: ud.vendor.lat, lng: ud.vendor.lng, source: 'vendor', tier: MultiTile?.currentTier?.() });
+      return;
+    }
     if (ud.type === 'me' || root === window._meMarker) {
-      const entity = GlobeEntity?.entities?.get('me');
-      if (entity) { GlobeEntity.activate(entity); return; }
-      if (userLocated && window._lastPos) {
-        const p = latLngToPos(window._lastPos.lat, window._lastPos.lng, 1.04);
-        ZoomTiers?.goTo?.('national', true);
-        flyToPoint(new THREE.Vector3(p.x, p.y, p.z), ZoomTiers?.tierZ?.('national') || 1.82);
-      }
+      MultiTile?.openAt?.(
+        window._lastPos?.lat ?? 0,
+        window._lastPos?.lng ?? 0,
+        { source: 'me', tier: MultiTile?.currentTier?.() }
+      );
       return;
     }
   }
@@ -2153,46 +2208,11 @@ function onGlobeClick(e) {
   if (intersects.length > 0) {
     const pin = MapPlaceMenu?.pointFromGlobeHit?.(intersects[0].point);
     if (!pin) return;
-    // City streets: place menu only — already in local map.
-    if (CityMap?.active || cityLevel || ZoomTiers?.current?.()?.city) {
-      CityPick?.hide?.();
-      MapPlaceMenu?.openAt?.(pin.lat, pin.lng, {
-        source: 'City map',
-        hint: 'Post · explore · order — pick a triangle',
-        limited: true,
-      });
-      return;
-    }
-    // National / region: second step — user chooses this spot as the city.
-    if (CityPick?.isNationalView?.() || ZoomTiers?.current?.()?.national) {
-      void CityPick?.enter?.(
-        pin.lat,
-        pin.lng,
-        CityPick?.nearestName?.(pin.lat, pin.lng) || 'City'
-      );
-      return;
-    }
-    // Space / Earth: fly into national airspace, then choose a city (chips).
-    const nationalZ = ZoomTiers?.tierZ?.('national') || GlobeControl?.Z?.national || 1.82;
-    const p = latLngToPos(pin.lat, pin.lng, 1.04);
-    const target = new THREE.Vector3(p.x, p.y, p.z);
-    if (ZoomTiers) {
-      const ni = ZoomTiers.indexOf('national');
-      if (ni >= 0) ZoomTiers._index = ni;
-    }
-    MapPlaceMenu?.close?.();
-    flyToPoint(target, nationalZ, {
-      onTier: true,
-      onDone: () => {
-        CityPick?.show?.(pin.lat, pin.lng, { title: 'Choose a city' });
-        MapDepict?.action?.('explore', { detail: 'country · choose city' });
-      },
+    // Single-click ANY level (city / national / global / stellar Earth view)
+    // → radar search around place; CLI guides e.g. pharmacy
+    MapRadar?.at?.(pin.lat, pin.lng, {
+      source: 'globe-' + (MultiTile?.currentTier?.() || 'global'),
     });
-    GlobeControl?.noteAutoFly?.();
-    MapDepict?.pulse?.(pin.lat, pin.lng, 0x00ddff, 'country', 6000);
-    GlobeDeck?.setPreview?.('Country airspace · choose a city');
-    // Show chips early so the path is obvious while the camera is still flying.
-    CityPick?.show?.(pin.lat, pin.lng, { title: 'Choose a city' });
   }
 }
 
