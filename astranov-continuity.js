@@ -26,7 +26,7 @@
  * BUNDLE SPLIT
  *   astranov-app.js      (~440KB) Globe, SuperCli, LazyModules stub, boot — parse-time WebGL
  *   astranov-deferred.js (~575KB) Commerce, MapComms, CodersHub, CityMap, BrainNeurons full
- *   astranov-perf-lazy.js        Defers deferred load until SpumberManager delay OR user tap
+ *   astranov-perf-lazy.js        Defers deferred load until SlumberManager delay OR user tap
  *   astranov-field-hud.js        Top-right field, radar, speed, miner rig opener
  *   astranov-mpp-tile.js         MenuProfilePostTile (+ hijack, locate, video, marketplace)
  *   astranov-galactic-sky.js     Sky layer
