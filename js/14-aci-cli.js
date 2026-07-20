@@ -322,6 +322,27 @@ const AciCli = {
       return;
     }
 
+    // Radar place search: after single-click map, CLI text is a local search
+    if (window.MapRadar?.last && line && !/^(think|code|fix|dev|bridge)\b/i.test(line)) {
+      const q = (cmd === 'radar' || cmd === 'search' || cmd === 'find') ? rest : line;
+      if (q && q.length >= 2) {
+        MapRadar.runQuery(q);
+        this.print('radar · ' + q, 'ok');
+        return;
+      }
+    }
+    if (cmd === 'radar' || cmd === 'search' || cmd === 'find') {
+      const pos = window.MapRadar?.last || window._lastPos;
+      if (!pos?.lat) {
+        this.print('tap the map once to set radar, then type e.g. pharmacy', 'err');
+        return;
+      }
+      MapRadar.at(pos.lat, pos.lng, { query: rest || '' });
+      if (rest) MapRadar.runQuery(rest);
+      this.print(rest ? ('radar · ' + rest) : 'radar · type what you need', 'ok');
+      return;
+    }
+
     // Freeform → Core Brain (globe agent). Never leave users at "unknown".
     GlobeDeck.activeTask = 'coders';
     if (window.AstranovCoreBrain?.handle) {
