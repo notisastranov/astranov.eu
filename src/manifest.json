@@ -30,6 +30,8 @@
     { "file": "45-city-life.js" },
     { "file": "44-city-pick.js" },
     { "file": "28-resource-monitor.js" },
+    { "file": "08-astranov-os.js" },
+    { "file": "08-astranov-browser.js" },
     { "file": "99-boot-app.js" }
   ],
   "features": [

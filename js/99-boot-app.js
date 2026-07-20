@@ -47,8 +47,19 @@ window.__astranovBootApp = function __astranovBootApp() {
     }
   });
 
-  // Deferred pack only after map path is up
-  try { LazyModules?.schedule?.(); } catch (_) {}
+  // Astranov OS + Browser — chrome as soon as map/CLI layer is up
+  soft('AstranovOS', () => {
+    try { AstranovOS?.init?.(); } catch (e) { console.warn('[OS]', e); }
+    try { AstranovBrowser?.init?.(); } catch (e) { console.warn('[Browser]', e); }
+  });
+
+  // Deferred pack only after map path is up (longer on lite/mobile)
+  try {
+    const delay = window._globePerfLite ? 2800 : 900;
+    setTimeout(() => { try { LazyModules?.schedule?.(); } catch (_) {} }, delay);
+  } catch (_) {
+    try { LazyModules?.schedule?.(); } catch (_) {}
+  }
 
   // Unlock earth after short settle
   setTimeout(() => {
@@ -59,7 +70,7 @@ window.__astranovBootApp = function __astranovBootApp() {
         ZoomTiers?.goTo?.('global', false);
       }
     } catch (_) {}
-    const ready = 'Ready · drag Earth · country · city · 🎯 locate';
+    const ready = 'Astranov OS · Earth desktop · dock: Browser · 🎯 locate';
     try { CliRibbon?.setNotice?.(ready, 'ready'); } catch (_) {}
     try { GlobeDeck?.setPreview?.(ready); } catch (_) {}
     const zl = document.getElementById('zoom-label');
@@ -68,5 +79,5 @@ window.__astranovBootApp = function __astranovBootApp() {
 
   window._astranovAppReady = true;
   document.documentElement.dataset.astranovPhase = 'app';
-  console.log('%c[Spartan] map + CLI ready', 'color:#00dd77;font-weight:700');
+  console.log('%c[Spartan] OS · map · CLI ready', 'color:#00dd77;font-weight:700');
 };

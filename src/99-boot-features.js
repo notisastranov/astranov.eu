@@ -9,6 +9,12 @@ window.__astranovBootFeatures = function __astranovBootFeatures() {
     else setTimeout(run, Math.min(ms, 800));
   };
 
+  // OS may already be up from app boot — ensure once
+  soft('AstranovOS', () => {
+    try { AstranovOS?.init?.(); } catch (_) {}
+    try { AstranovBrowser?.init?.(); } catch (_) {}
+  });
+
   soft('GlobeEntity', () => GlobeEntity?.init?.());
   soft('CityTasks', () => {
     CityTasks?.init?.();
@@ -51,17 +57,21 @@ window.__astranovBootFeatures = function __astranovBootFeatures() {
 
   if (!window.showFirstRunCoach) {
     window.showFirstRunCoach = function showFirstRunCoach() {
-      try { if (localStorage.getItem('astranov:coach-v2')) return; } catch (_) { return; }
+      try { if (localStorage.getItem('astranov:coach-v3-os')) return; } catch (_) { return; }
       const el = document.getElementById('first-run-coach');
       if (!el) return;
-      if (PublicCopy?.coachHtml) {
-        el.innerHTML = PublicCopy.coachHtml()
-          + '<button type="button" id="first-run-coach-ok">Got it</button>';
-      }
+      el.innerHTML = '<b>Welcome to Astranov OS</b>'
+        + '<ol style="margin:8px 0 0;padding-left:18px;line-height:1.45">'
+        + '<li>🌍 Earth is your desktop — drag · scroll · 🎯 locate</li>'
+        + '<li>🧭 Browser in the dock — open the web inside Astranov</li>'
+        + '<li>🛒 Market · ＋ Create · ✦ AI — same OS on phone &amp; PC</li>'
+        + '<li>Install: browser menu → Add to Home Screen</li>'
+        + '</ol>'
+        + '<button type="button" id="first-run-coach-ok">Got it</button>';
       el.hidden = false;
       document.getElementById('first-run-coach-ok')?.addEventListener('click', () => {
         el.hidden = true;
-        try { localStorage.setItem('astranov:coach-v2', '1'); } catch (_) {}
+        try { localStorage.setItem('astranov:coach-v3-os', '1'); } catch (_) {}
       });
     };
   }
@@ -71,5 +81,5 @@ window.__astranovBootFeatures = function __astranovBootFeatures() {
 
   window._astranovFeaturesReady = true;
   document.documentElement.dataset.astranovPhase = 'features';
-  console.log('%c[Spartan] field hub · channels · tasks', 'color:#ffdd44;font-weight:700');
+  console.log('%c[Spartan] OS · browser · field hub · channels · tasks', 'color:#ffdd44;font-weight:700');
 };
