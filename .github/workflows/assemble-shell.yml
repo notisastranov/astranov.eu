@@ -23,9 +23,10 @@ jobs:
           python3 - <<'PY'
           import pathlib, base64, hashlib, json
           root = pathlib.Path('_build/shell')
-          parts = sorted(root.glob('s*.b64'), key=lambda p: int(p.stem[1:]))
+          # Prefer complete p*.b64 parts (9-part compact shell); ignore incomplete s* fragments
+          parts = sorted(root.glob('p*.b64'), key=lambda p: int(p.stem[1:]))
           if not parts:
-              parts = sorted(root.glob('p*.b64'), key=lambda p: int(p.stem[1:]))
+              parts = sorted(root.glob('s*.b64'), key=lambda p: int(p.stem[1:]))
           if not parts:
               raise SystemExit('no b64 parts found under _build/shell')
           b64 = ''.join(p.read_text(encoding='utf-8').strip() for p in parts)
@@ -35,10 +36,10 @@ jobs:
               pathlib.Path(path).write_bytes(raw)
           text = raw.decode('utf-8', errors='replace')
           sha1 = hashlib.sha1(raw).hexdigest()
-          print('parts', len(parts), 'bytes', len(raw), 'sha1', sha1)
+          print('parts', len(parts), [p.name for p in parts], 'bytes', len(raw), 'sha1', sha1)
           print('has super-cli-bar', 'super-cli-bar' in text)
           print('has __ASTRANOV_MANIFEST__', '__ASTRANOV_MANIFEST__' in text)
-          print('has document.write', 'document.write' in text)
+          print('has document.write(', 'document.write(' in text)
           meta = root / 'meta.json'
           if meta.exists():
               m = json.loads(meta.read_text(encoding='utf-8'))
@@ -47,10 +48,13 @@ jobs:
                   raise SystemExit('sha1 mismatch vs meta.json')
               if m.get('bytes') and int(m['bytes']) != len(raw):
                   raise SystemExit('bytes mismatch vs meta.json')
-          if len(raw) < 80000:
+          # Compact same-origin shell is ~51KB; require CLI DOM + progressive markers
+          if len(raw) < 40000:
               raise SystemExit('assembled shell too small')
           if 'super-cli-bar' not in text or '__ASTRANOV_MANIFEST__' not in text:
               raise SystemExit('assembled shell missing required markers')
+          if 'document.write(' in text:
+              raise SystemExit('assembled shell still uses document.write dual-load')
           PY
 
       - name: Commit assembled shell
