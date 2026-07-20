@@ -176,7 +176,13 @@
   }
 
   global.AstranovLoader = { run, build };
-  if (document.readyState === 'loading') {
+
+  // Hard-boot path in index.html already loads phases sequentially.
+  // loader.js still ships for live-check/guard + optional rescue (call AstranovLoader.run()).
+  if (global.__ASTRANOV_HARD_BOOT__) {
+    global._astranovLoaderDone = true;
+    console.log('%c[loader] hard-boot mode · standby rescue ready · ' + build, 'color:#7ec8ff');
+  } else if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => { run().catch(e => console.error('[loader]', e)); });
   } else {
     run().catch(e => console.error('[loader]', e));
