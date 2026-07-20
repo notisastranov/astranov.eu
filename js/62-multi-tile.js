@@ -11,6 +11,7 @@ var MultiTile = {
   _roles: { user: true, public: false, vendor: false, driver: false },
   _draft: null,
   _bound: false,
+  _waypoints: [],
   STORAGE: 'astranov:multi-tile-v1',
 
   /** Resolve current product zoom band for the tile chrome */
@@ -53,6 +54,13 @@ var MultiTile = {
     document.getElementById('mt-team')?.addEventListener('click', () => this.connect('team'));
     document.getElementById('mt-launch')?.addEventListener('click', () => this.launchTask());
     document.getElementById('mt-kind')?.addEventListener('change', () => this._syncTaskCriteria());
+    document.getElementById('mt-wp-add')?.addEventListener('click', () => this.addWaypointFromPin());
+    document.getElementById('mt-wp-preview')?.addEventListener('click', () => this.previewWaypointRoute());
+    document.getElementById('mt-wp-clear')?.addEventListener('click', () => {
+      this._waypoints = [];
+      this._renderWaypoints();
+      try { CityMap?.clearTaskGeometry?.(); } catch (_) {}
+    });
     document.querySelectorAll('.mt-role-tog').forEach((btn) => {
       btn.addEventListener('click', () => this.toggleRole(btn.dataset.role));
     });
@@ -137,9 +145,17 @@ var MultiTile = {
       + '      <div id="mt-criteria-delivery" class="mt-criteria" hidden>'
       + '        <label class="mt-field">Vehicle preferred<input id="mt-vehicle-need" placeholder="bike · car · van" /></label>'
       + '      </div>'
+      + '      <div class="mt-label">Multi-stop route · waypoints</div>'
+      + '      <div id="mt-wp-list" class="mt-wp-list"></div>'
+      + '      <div class="mt-task-row mt-wp-tools">'
+      + '        <button type="button" id="mt-wp-add" class="mt-wp-btn">＋ Add pin</button>'
+      + '        <button type="button" id="mt-wp-preview" class="mt-wp-btn">▣ Preview route</button>'
+      + '        <button type="button" id="mt-wp-clear" class="mt-wp-btn ghost">Clear</button>'
+      + '      </div>'
+      + '      <p class="mt-hint">Add stops at this pin (move map / long-press elsewhere → open tile → Add pin). Per-stop 🪙 + info. Preview draws polygon corridor on map.</p>'
       + '      <label class="mt-field">Notes<textarea id="mt-task-note" rows="2" placeholder="Details for people who can help…"></textarea></label>'
       + '      <button type="button" id="mt-launch" class="mt-launch">🚀 Launch task to nearby users</button>'
-      + '      <p class="mt-hint">Broadcasts in map radius with big Accept / Reject. Coins held on launch, paid when both verify every stage. Routing starts on accept.</p>'
+      + '      <p class="mt-hint">Broadcasts in map radius with big Accept / Reject. Coins held on launch, paid when both verify every stage. Multi-stop tasks guide the worker through each waypoint.</p>'
       + '    </div>'
       + '  </div>'
       + '  <div id="mt-actions">'
@@ -177,12 +193,108 @@ var MultiTile = {
     }
   },
 
+  addWaypointFromPin() {
+    const pin = this._pin || window._lastPos || { lat: 36.44, lng: 28.22 };
+    const n = this._waypoints.length + 1;
+    const defaultCoins = Math.max(0, Math.round(Number(document.getElementById('mt-coins')?.value) || 0));
+    const label = document.getElementById('mt-task-title')?.value?.trim()
+      || ('Stop ' + n);
+    this._waypoints.push({
+      id: 'wp_draft_' + Date.now().toString(36) + '_' + n,
+      lat: +pin.lat,
+      lng: +pin.lng,
+      label: n === 1 ? label : (label + ' · ' + n),
+      info: '',
+      coins: n === 1 ? defaultCoins : Math.round(defaultCoins / Math.max(1, n)),
+    });
+    this._renderWaypoints();
+    this.previewWaypointRoute();
+  },
+
+  _renderWaypoints() {
+    const box = document.getElementById('mt-wp-list');
+    if (!box) return;
+    if (!this._waypoints.length) {
+      box.innerHTML = '<div class="mt-hint">No stops yet — Add pin for multi-stop route.</div>';
+      return;
+    }
+    box.innerHTML = this._waypoints.map((w, i) => {
+      return '<div class="mt-wp-row" data-i="' + i + '">'
+        + '<div class="mt-wp-head"><b>' + (i + 1) + '</b>'
+        + '<button type="button" class="mt-wp-rm" data-rm="' + i + '" title="Remove">×</button></div>'
+        + '<input class="mt-wp-label" data-f="label" data-i="' + i + '" value="' + this._escAttr(w.label) + '" placeholder="Stop name" />'
+        + '<div class="mt-task-row">'
+        + '<input class="mt-wp-coins" data-f="coins" data-i="' + i + '" type="number" min="0" value="' + (w.coins || 0) + '" title="Coins for this stop" />'
+        + '<span class="mt-hint">' + (+w.lat).toFixed(4) + ', ' + (+w.lng).toFixed(4) + '</span>'
+        + '</div>'
+        + '<input class="mt-wp-info" data-f="info" data-i="' + i + '" value="' + this._escAttr(w.info || '') + '" placeholder="What to do here…" />'
+        + '</div>';
+    }).join('');
+    box.querySelectorAll('[data-rm]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const i = Number(btn.getAttribute('data-rm'));
+        this._waypoints.splice(i, 1);
+        this._renderWaypoints();
+        this.previewWaypointRoute();
+      });
+    });
+    box.querySelectorAll('[data-f]').forEach((inp) => {
+      inp.addEventListener('change', () => {
+        const i = Number(inp.getAttribute('data-i'));
+        const f = inp.getAttribute('data-f');
+        if (!this._waypoints[i]) return;
+        if (f === 'coins') this._waypoints[i].coins = Math.max(0, Math.round(Number(inp.value) || 0));
+        else this._waypoints[i][f] = String(inp.value || '').slice(0, f === 'info' ? 240 : 48);
+        // Keep total coins field in sync with sum
+        const sum = this._waypoints.reduce((s, w) => s + (w.coins || 0), 0);
+        const coinsEl = document.getElementById('mt-coins');
+        if (coinsEl && sum > 0) coinsEl.value = String(sum);
+      });
+    });
+  },
+
+  _escAttr(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  },
+
+  async previewWaypointRoute() {
+    if (!this._waypoints.length) {
+      // single pin preview
+      const pin = this._pin || window._lastPos;
+      if (!pin) return;
+      try {
+        CityMap?.setTaskGeometry?.({
+          waypoints: [{ lat: pin.lat, lng: pin.lng, label: 'Task', current: true }],
+          polygon: null,
+          route: [],
+        });
+      } catch (_) {}
+      return;
+    }
+    try {
+      await LazyModules?.ensure?.().catch(() => {});
+      CityTasks?.init?.();
+      await CityTasks.previewTaskRoute?.({
+        title: document.getElementById('mt-task-title')?.value || 'Preview',
+        waypoints: this._waypoints,
+      });
+    } catch (_) {
+      try {
+        CityMap?.setTaskGeometry?.({
+          waypoints: this._waypoints.map((w, i) => ({ ...w, current: i === 0 })),
+          polygon: CityTasks?.buildPolygon?.(this._waypoints),
+          route: [],
+        });
+      } catch (_) {}
+    }
+  },
+
   async launchTask() {
     const kind = document.getElementById('mt-kind')?.value || 'help';
     const title = document.getElementById('mt-task-title')?.value?.trim()
       || document.getElementById('mt-task-note')?.value?.trim()
       || (kind + ' task');
-    const coins = Math.max(0, Math.round(Number(document.getElementById('mt-coins')?.value) || 0));
+    let coins = Math.max(0, Math.round(Number(document.getElementById('mt-coins')?.value) || 0));
     const radius_km = Math.max(0.5, Number(document.getElementById('mt-radius')?.value) || 3);
     const duration = document.getElementById('mt-duration')?.value?.trim() || '1h';
     const note = document.getElementById('mt-task-note')?.value?.trim() || '';
@@ -207,10 +319,30 @@ var MultiTile = {
     }
     const pin = this._pin || window._lastPos || { lat: 36.44, lng: 28.22 };
 
+    // Flush waypoint field edits
+    document.querySelectorAll('#mt-wp-list [data-f]').forEach((inp) => {
+      const i = Number(inp.getAttribute('data-i'));
+      const f = inp.getAttribute('data-f');
+      if (!this._waypoints[i]) return;
+      if (f === 'coins') this._waypoints[i].coins = Math.max(0, Math.round(Number(inp.value) || 0));
+      else this._waypoints[i][f] = String(inp.value || '');
+    });
+    let waypoints = this._waypoints.slice();
+    if (!waypoints.length) {
+      waypoints = [{
+        lat: pin.lat,
+        lng: pin.lng,
+        label: title,
+        info: note,
+        coins,
+      }];
+    }
+    const wpSum = waypoints.reduce((s, w) => s + (w.coins || 0), 0);
+    if (wpSum > coins) coins = wpSum;
+
     const run = async () => {
       try { await LazyModules?.ensure?.(); } catch (_) {}
       if (!window.CityTasks) {
-        // features phase may still be loading — soft wait
         await new Promise((r) => setTimeout(r, 800));
       }
       if (!window.CityTasks) {
@@ -228,8 +360,9 @@ var MultiTile = {
         duration,
         note,
         criteria,
-        lat: pin.lat,
-        lng: pin.lng,
+        lat: waypoints[0]?.lat ?? pin.lat,
+        lng: waypoints[0]?.lng ?? pin.lng,
+        waypoints,
         age_min: criteria.age_min,
         age_max: criteria.age_max,
         looks: criteria.looks,
@@ -240,8 +373,16 @@ var MultiTile = {
       this._refreshCoinsBal();
       if (r?.ok) {
         const zl = document.getElementById('zoom-label');
-        if (zl) zl.textContent = 'Launched · ' + coins + '🪙 · ' + radius_km + 'km radius';
-        // Poster keeps MultiTile open optionally — show stages panel
+        const n = waypoints.length;
+        if (zl) {
+          zl.textContent = 'Launched · ' + coins + '🪙 · '
+            + (n > 1 ? n + ' stops · ' : '')
+            + radius_km + 'km radius';
+        }
+        // Paint polygon route for poster immediately
+        try { await CityTasks.guideTaskRoute?.(r.task, { previewOnly: true }); } catch (_) {}
+        this._waypoints = [];
+        this._renderWaypoints();
         try { MultiTile.close?.(); } catch (_) {}
       } else if (r?.error === 'insufficient_coins') {
         const zl = document.getElementById('zoom-label');
@@ -330,6 +471,7 @@ var MultiTile = {
     this._render();
     this._syncTaskCriteria();
     this._refreshCoinsBal();
+    this._renderWaypoints();
     document.getElementById('multi-tile')?.classList.add('open');
     document.getElementById('mt-backdrop')?.classList.add('open');
     document.getElementById('multi-tile')?.setAttribute('data-tier', this._tier);
