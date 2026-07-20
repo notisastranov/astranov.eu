@@ -1,0 +1,32 @@
+name: assemble-compact-index
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.grok/push-batch/ci/p*.txt'
+    branches: [main]
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble
+        run: |
+          set -e
+          cat .grok/push-batch/ci/p0.txt .grok/push-batch/ci/p1.txt .grok/push-batch/ci/p2.txt .grok/push-batch/ci/p3.txt .grok/push-batch/ci/p4.txt .grok/push-batch/ci/p5.txt > index.html
+          BYTES=$(wc -c < index.html)
+          echo bytes=$BYTES
+          test "$BYTES" -gt 40000
+          grep -q super-cli-bar index.html
+          grep -q __ASTRANOV_MANIFEST__ index.html
+          if grep -q 'document.write(' index.html; then exit 1; fi
+      - name: Commit
+        run: |
+          git config user.name astranov-bot
+          git config user.email bot@astranov.eu
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "fix(p0): compact same-origin shell with CLI DOM + progressive boot"
+          git push
