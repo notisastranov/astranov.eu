@@ -1,0 +1,57 @@
+name: Assemble lean full DOM shell
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '_build/shell/**'
+      - '.github/workflows/assemble-shell.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble index.html + js/shell-full.html from b64 parts
+        run: |
+          set -euo pipefail
+          mkdir -p js
+          python3 - <<'PY'
+          import pathlib, base64, hashlib
+          root = pathlib.Path('_build/shell')
+          parts = sorted(root.glob('p*.b64'), key=lambda p: int(p.stem[1:]))
+          if not parts:
+              raise SystemExit('no b64 parts found under _build/shell')
+          b64 = ''.join(p.read_text(encoding='utf-8').strip() for p in parts)
+          raw = base64.b64decode(b64)
+          for path in ('index.html', 'js/shell-full.html'):
+              pathlib.Path(path).parent.mkdir(parents=True, exist_ok=True)
+              pathlib.Path(path).write_bytes(raw)
+          text = raw.decode('utf-8', errors='replace')
+          print('parts', len(parts), 'bytes', len(raw))
+          print('sha1', hashlib.sha1(raw).hexdigest())
+          print('has super-cli-bar', 'super-cli-bar' in text)
+          print('has __ASTRANOV_MANIFEST__', '__ASTRANOV_MANIFEST__' in text)
+          print('has document.write', 'document.write' in text)
+          if len(raw) < 80000:
+              raise SystemExit('assembled shell too small')
+          if 'super-cli-bar' not in text or '__ASTRANOV_MANIFEST__' not in text:
+              raise SystemExit('assembled shell missing required markers')
+          PY
+
+      - name: Commit assembled shell
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html js/shell-full.html
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "fix(p0): lean same-origin full DOM shell + progressive boot (no dual-load)"
+          git push origin HEAD:main
