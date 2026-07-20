@@ -397,8 +397,13 @@ const CityTasks = {
       radius_km: Math.max(0.2, Math.min(100, Number(spec.radius_km ?? 3) || 3)),
       // Criteria (dating age/looks, roles required, etc.)
       criteria: spec.criteria && typeof spec.criteria === 'object' ? spec.criteria : {},
-      // Multi-party stage verification
-      stages: this._buildStages(kind, spec.stages),
+      // Ordered waypoints for multi-stop routes (polygon + guidance)
+      waypoints: this._normalizeWaypoints(spec.waypoints || spec.stops || []),
+      waypoint_index: 0,
+      route_coords: Array.isArray(spec.route_coords) ? spec.route_coords : [],
+      polygon: Array.isArray(spec.polygon) ? spec.polygon : null,
+      // Multi-party stage verification (waypoint-aware)
+      stages: null,
       stage_index: 0,
       // Commerce links
       vendor_id: spec.vendor_id || null,
@@ -433,6 +438,29 @@ const CityTasks = {
     if (spec.vehicle) task.criteria.vehicle = String(spec.vehicle);
     if (spec.min_rating != null) task.criteria.min_rating = Number(spec.min_rating);
 
+    // Default single pin as first waypoint when none given
+    if (!task.waypoints.length && task.lat != null && task.lng != null) {
+      task.waypoints = this._normalizeWaypoints([{
+        lat: task.lat,
+        lng: task.lng,
+        label: task.title || 'Task pin',
+        coins: task.coins,
+        info: task.note || '',
+      }]);
+    }
+    // Sum waypoint coins into task total when poster set per-stop pay
+    const wpCoins = task.waypoints.reduce((s, w) => s + (w.coins || 0), 0);
+    if (wpCoins > 0 && (!spec.coins || Number(spec.coins) === 0)) {
+      task.coins = wpCoins;
+    }
+    // Anchor task pin at first stop
+    if (task.waypoints[0]) {
+      task.lat = task.waypoints[0].lat;
+      task.lng = task.waypoints[0].lng;
+    }
+    task.stages = this._buildStages(kind, spec.stages, task.waypoints);
+    task.polygon = task.polygon || this.buildPolygon(task.waypoints);
+
     this.tasks.set(task.id, task);
     this._saveLocal();
     this._showOnGlobe(task);
@@ -444,7 +472,48 @@ const CityTasks = {
     return task;
   },
 
-  _buildStages(kind, custom) {
+  _normalizeWaypoints(list) {
+    if (!Array.isArray(list)) return [];
+    return list
+      .filter((w) => w && w.lat != null && w.lng != null && Number.isFinite(+w.lat) && Number.isFinite(+w.lng))
+      .map((w, i) => ({
+        id: w.id || ('wp' + i + '_' + Math.random().toString(36).slice(2, 5)),
+        lat: +w.lat,
+        lng: +w.lng,
+        label: String(w.label || w.title || ('Stop ' + (i + 1))).slice(0, 48),
+        info: String(w.info || w.note || w.description || '').slice(0, 240),
+        coins: Math.max(0, Math.round(Number(w.coins) || 0)),
+        action: String(w.action || 'arrive').slice(0, 32),
+      }));
+  },
+
+  /** Convex hull polygon ring for map corridor design */
+  buildPolygon(waypoints) {
+    const pts = this._normalizeWaypoints(waypoints);
+    if (pts.length < 3) return pts.map((p) => ({ lat: p.lat, lng: p.lng }));
+    try {
+      if (CityMap?._convexHullLatLng) return CityMap._convexHullLatLng(pts);
+    } catch (_) {}
+    // Inline fallback hull
+    const sorted = pts.slice().sort((a, b) => a.lng === b.lng ? a.lat - b.lat : a.lng - b.lng);
+    const cross = (o, a, b) => (a.lng - o.lng) * (b.lat - o.lat) - (a.lat - o.lat) * (b.lng - o.lng);
+    const lower = [];
+    for (const p of sorted) {
+      while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+      lower.push(p);
+    }
+    const upper = [];
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      const p = sorted[i];
+      while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+      upper.push(p);
+    }
+    upper.pop();
+    lower.pop();
+    return lower.concat(upper).map((p) => ({ lat: p.lat, lng: p.lng }));
+  },
+
+  _buildStages(kind, custom, waypoints) {
     if (Array.isArray(custom) && custom.length) {
       return custom.map((s, i) => ({
         id: s.id || ('s' + i),
@@ -452,7 +521,45 @@ const CityTasks = {
         poster_ok: !!s.poster_ok,
         worker_ok: !!s.worker_ok,
         at: s.at || null,
+        waypoint_index: s.waypoint_index != null ? s.waypoint_index : null,
+        coins: s.coins || 0,
+        info: s.info || '',
+        lat: s.lat,
+        lng: s.lng,
       }));
+    }
+    const wps = this._normalizeWaypoints(waypoints || []);
+    // Multi-stop DNA: accepted → each waypoint → done
+    if (wps.length >= 2) {
+      const stages = [{
+        id: 'accepted',
+        label: 'accepted',
+        poster_ok: false,
+        worker_ok: false,
+        at: null,
+      }];
+      wps.forEach((wp, i) => {
+        stages.push({
+          id: 'wp_' + i,
+          label: wp.label || ('Stop ' + (i + 1)),
+          poster_ok: false,
+          worker_ok: false,
+          at: null,
+          waypoint_index: i,
+          coins: wp.coins || 0,
+          info: wp.info || '',
+          lat: wp.lat,
+          lng: wp.lng,
+        });
+      });
+      stages.push({
+        id: 'done',
+        label: 'complete',
+        poster_ok: false,
+        worker_ok: false,
+        at: null,
+      });
+      return stages;
     }
     const ids = this.STAGE_TEMPLATES[kind] || this.STAGE_TEMPLATES.help;
     return ids.map((id) => ({
@@ -534,6 +641,9 @@ const CityTasks = {
         poster_name: task.poster_name,
         duration_label: task.duration_label,
         stages: task.stages,
+        waypoints: task.waypoints || [],
+        polygon: task.polygon || null,
+        route_coords: task.route_coords || [],
       },
       t: Date.now(),
     };
@@ -673,11 +783,21 @@ const CityTasks = {
         task.status = statusMap[completedId];
       } else if (completedId === 'accepted') {
         task.status = 'claimed';
+      } else if (/^wp_/.test(completedId || '') || st.waypoint_index != null) {
+        task.status = 'en_route';
       }
-      // After dual accept → route worker to pin
+      // After dual accept → route worker along waypoints / pin
       if (completedId === 'accepted') {
         this._routeWorkerToTask(task);
         this._broadcastClaimed(task);
+      }
+      // Waypoint dual-verify → advance route guidance to next stop
+      if (st.waypoint_index != null) {
+        task.waypoint_index = Math.min(
+          (st.waypoint_index + 1),
+          Math.max(0, (task.waypoints?.length || 1) - 1)
+        );
+        this.guideTaskRoute(task);
       }
     }
     this.tasks.set(task.id, task);
@@ -714,23 +834,111 @@ const CityTasks = {
   },
 
   _routeWorkerToTask(task) {
-    if (task?.lat == null) return;
+    return this.guideTaskRoute(task);
+  },
+
+  /**
+   * Build / refresh multi-stop road route + polygon on map and guide to current waypoint.
+   */
+  async guideTaskRoute(task, opts) {
+    opts = opts || {};
+    if (!task) return { ok: false };
+    const wps = this._normalizeWaypoints(task.waypoints || []);
+    const curIdx = Math.max(
+      0,
+      task.waypoint_index != null
+        ? task.waypoint_index
+        : this._waypointIndexFromStage(task)
+    );
+    task.waypoint_index = curIdx;
+    task.polygon = task.polygon || this.buildPolygon(wps.length ? wps : [{ lat: task.lat, lng: task.lng }]);
+
+    const paint = (coords) => {
+      task.route_coords = coords || [];
+      this.tasks.set(task.id, task);
+      this._saveLocal();
+      const marked = wps.map((w, i) => ({
+        ...w,
+        current: i === curIdx,
+        done: i < curIdx,
+      }));
+      try {
+        CityMap?.setTaskGeometry?.({
+          route: coords,
+          waypoints: marked.length ? marked : [{ lat: task.lat, lng: task.lng, label: task.title, current: true }],
+          polygon: task.polygon,
+        });
+      } catch (_) {}
+      TaskBoard?.refreshWaypoints?.(task);
+    };
+
     try {
-      LazyModules?.ensure?.().then(() => {
-        DrivingView?.setDestination?.(task.lat, task.lng);
-        DrivingView?.activate?.();
-        DrivingView?.fetchRoadRoute?.();
-      }).catch(() => {
-        DrivingView?.setDestination?.(task.lat, task.lng);
-        DrivingView?.activate?.();
-      });
-    } catch (_) {
+      await LazyModules?.ensure?.().catch(() => {});
+    } catch (_) {}
+
+    if (wps.length >= 1 && DrivingView?.setWaypoints) {
+      try {
+        DrivingView.setWaypoints(wps, { startIndex: curIdx, force: true });
+        if (!DrivingView.active && !opts.previewOnly) {
+          try { DrivingView.activate?.(); } catch (_) {}
+        }
+        await DrivingView.fetchMultiWaypointRoute?.();
+        paint(DrivingView.routeCoords || []);
+      } catch (e) {
+        console.warn('[CityTasks] multi route', e);
+      }
+    } else if (task.lat != null) {
       try {
         DrivingView?.setDestination?.(task.lat, task.lng);
-        DrivingView?.activate?.();
+        if (!opts.previewOnly) {
+          DrivingView?.activate?.();
+          await DrivingView?.fetchRoadRoute?.();
+        }
+        paint(DrivingView?.routeCoords || []);
       } catch (_) {}
     }
-    MapDepict?.pulse?.(task.lat, task.lng, 0x44ffaa, 'task', 12000);
+
+    const cur = wps[curIdx] || { lat: task.lat, lng: task.lng, label: task.title };
+    if (cur?.lat != null) {
+      MapDepict?.pulse?.(cur.lat, cur.lng, 0x44ffaa, cur.label || 'task', 12000);
+      const zl = document.getElementById('zoom-label');
+      if (zl && wps.length > 1) {
+        zl.textContent = 'Route · stop ' + (curIdx + 1) + '/' + wps.length + ' · ' + (cur.label || '');
+      }
+    }
+    return { ok: true, task, waypoint_index: curIdx, route_len: (task.route_coords || []).length };
+  },
+
+  _waypointIndexFromStage(task) {
+    const st = task?.stages?.[task.stage_index || 0];
+    if (st && st.waypoint_index != null) return st.waypoint_index;
+    // Advance wp index past completed waypoint stages
+    let idx = 0;
+    (task?.stages || []).forEach((s) => {
+      if (s.waypoint_index != null && s.poster_ok && s.worker_ok) {
+        idx = Math.max(idx, s.waypoint_index + 1);
+      }
+    });
+    return idx;
+  },
+
+  /** Preview route/polygon without claiming (poster design) */
+  async previewTaskRoute(specOrTask) {
+    let task = specOrTask?.id ? this.get(specOrTask.id) : null;
+    if (!task && specOrTask) {
+      const wps = this._normalizeWaypoints(specOrTask.waypoints || []);
+      task = {
+        id: 'preview',
+        title: specOrTask.title || 'Route preview',
+        lat: wps[0]?.lat ?? specOrTask.lat,
+        lng: wps[0]?.lng ?? specOrTask.lng,
+        waypoints: wps,
+        waypoint_index: 0,
+        polygon: this.buildPolygon(wps),
+        stages: [],
+      };
+    }
+    return this.guideTaskRoute(task, { previewOnly: true });
   },
 
   /** Post a timed job (barman 3h, housekeeper 1w, …) */
@@ -1287,7 +1495,10 @@ var TaskBoard = {
       + '<div id="task-active-panel">'
       + '  <div id="ta-head"><span id="ta-title">Active task</span><button type="button" id="ta-close">✖</button></div>'
       + '  <div id="ta-body"></div>'
-      + '  <div id="ta-stages"></div>'
+      + '  <div id="ta-scroll">'
+      + '    <div id="ta-waypoints" class="ta-waypoints"></div>'
+      + '    <div id="ta-stages"></div>'
+      + '  </div>'
       + '  <div id="ta-foot">'
       + '    <button type="button" id="ta-verify-poster" class="ta-vp" title="Poster confirms this stage">Poster ✓</button>'
       + '    <button type="button" id="ta-verify-worker" class="ta-vw" title="Worker confirms this stage">Worker ✓</button>'
@@ -1301,7 +1512,7 @@ var TaskBoard = {
     document.getElementById('ta-verify-poster')?.addEventListener('click', () => this._verify('poster'));
     document.getElementById('ta-verify-worker')?.addEventListener('click', () => this._verify('worker'));
     document.getElementById('ta-route')?.addEventListener('click', () => {
-      if (this._active) CityTasks?._routeWorkerToTask?.(this._active);
+      if (this._active) CityTasks?.guideTaskRoute?.(this._active);
     });
   },
 
@@ -1342,8 +1553,10 @@ var TaskBoard = {
     const el = document.getElementById('task-offer-banner');
     if (!el) return;
     const km = CityTasks.meta(task.kind);
+    const nWp = (task.waypoints || []).length;
     document.getElementById('to-kind').textContent =
-      (km.icon || '📋') + ' ' + (km.label || task.kind) + ' · ' + (task.coins || 0) + ' 🪙';
+      (km.icon || '📋') + ' ' + (km.label || task.kind) + ' · ' + (task.coins || 0) + ' 🪙'
+      + (nWp > 1 ? ' · ' + nWp + ' stops' : '');
     document.getElementById('to-title').textContent = task.title || 'Task';
     document.getElementById('to-meta').textContent =
       'Radius ' + (task.radius_km || 3) + ' km · '
@@ -1352,6 +1565,7 @@ var TaskBoard = {
       + (task.lat != null ? ' · ' + (+task.lat).toFixed(3) + ',' + (+task.lng).toFixed(3) : '');
     const crit = task.criteria || {};
     const bits = [];
+    if (nWp > 1) bits.push(nWp + ' waypoints on map');
     if (crit.age_min || crit.age_max) bits.push('Age ' + (crit.age_min || '?') + '–' + (crit.age_max || '?'));
     if (crit.looks) bits.push('Looks: ' + crit.looks);
     if (crit.need_role || crit.role) bits.push('Need: ' + (crit.need_role || crit.role));
@@ -1362,7 +1576,16 @@ var TaskBoard = {
     if (task.note) bits.push(String(task.note).slice(0, 80));
     document.getElementById('to-criteria').textContent = bits.join(' · ') || 'Open to capable users in map radius';
     el.classList.add('open');
-    try { MapDepict?.pulse?.(task.lat, task.lng, 0xffcc44, 'task offer', 15000); } catch (_) {}
+    try {
+      if (nWp >= 1) {
+        CityMap?.setTaskGeometry?.({
+          waypoints: task.waypoints,
+          polygon: task.polygon || CityTasks.buildPolygon?.(task.waypoints),
+          route: task.route_coords || [],
+        });
+      }
+      MapDepict?.pulse?.(task.lat, task.lng, 0xffcc44, 'task offer', 15000);
+    } catch (_) {}
   },
 
   showOutgoing(task) {
@@ -1408,27 +1631,69 @@ var TaskBoard = {
     this._active = task;
     const el = document.getElementById('task-active-panel');
     if (!el) return;
+    const nWp = (task.waypoints || []).length;
     document.getElementById('ta-title').textContent =
-      (CityTasks.meta(task.kind).icon || '📋') + ' ' + (task.title || 'Task').slice(0, 36);
+      (CityTasks.meta(task.kind).icon || '📋') + ' ' + (task.title || 'Task').slice(0, 28)
+      + (nWp > 1 ? ' · ' + nWp + ' stops' : '');
     const body = document.getElementById('ta-body');
     if (body) {
       const st = task.status || 'open';
       body.innerHTML = ''
         + '<div><strong>' + (task.coins || 0) + ' 🪙</strong> · ' + (task.duration_label || '') + ' · ' + st + '</div>'
         + '<div class="ta-dim">' + (task.worker_name || 'waiting worker…') + ' ↔ ' + (task.poster_name || '') + '</div>'
-        + '<div class="ta-dim">Every stage needs both Poster ✓ and Worker ✓</div>';
+        + '<div class="ta-dim">Every stage needs both Poster ✓ and Worker ✓'
+        + (nWp > 1 ? ' · route polygon on map' : '') + '</div>';
     }
     this.refreshActive(task);
     el.classList.add('open');
+    // Paint multi-stop route + polygon when panel opens
+    if ((task.waypoints || []).length >= 1 || task.lat != null) {
+      try { CityTasks.guideTaskRoute?.(task, { previewOnly: task.status === 'open' }); } catch (_) {}
+    }
   },
 
   hideActive() {
     document.getElementById('task-active-panel')?.classList.remove('open');
   },
 
+  refreshWaypoints(task) {
+    const box = document.getElementById('ta-waypoints');
+    if (!box) return;
+    const wps = task?.waypoints || [];
+    if (wps.length < 1) {
+      box.innerHTML = '';
+      box.hidden = true;
+      return;
+    }
+    box.hidden = false;
+    const cur = task.waypoint_index || 0;
+    box.innerHTML = '<div class="ta-wp-head">Route · ' + wps.length + ' stops · scroll for details</div>'
+      + wps.map((w, i) => {
+        const done = i < cur;
+        const current = i === cur;
+        const cls = done ? 'done' : (current ? 'current' : 'pending');
+        return '<div class="ta-wp ' + cls + '" data-wp="' + i + '" id="ta-wp-' + i + '">'
+          + '<div class="ta-wp-top"><b>' + (i + 1) + '. ' + this._esc(w.label || ('Stop ' + (i + 1))) + '</b>'
+          + '<span>' + (w.coins || 0) + '🪙</span></div>'
+          + (w.info ? '<div class="ta-wp-info">' + this._esc(w.info) + '</div>' : '')
+          + '<div class="ta-wp-ll">' + (+w.lat).toFixed(4) + ', ' + (+w.lng).toFixed(4) + '</div>'
+          + '</div>';
+      }).join('');
+    // Scroll current stop into view
+    try {
+      const el = document.getElementById('ta-wp-' + cur);
+      el?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+    } catch (_) {}
+  },
+
+  _esc(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  },
+
   refreshActive(task) {
     if (!task) return;
     this._active = task;
+    this.refreshWaypoints(task);
     const box = document.getElementById('ta-stages');
     if (!box || !task.stages) return;
     const idx = task.stage_index || 0;
@@ -1436,18 +1701,26 @@ var TaskBoard = {
       const both = s.poster_ok && s.worker_ok;
       const cur = i === idx && !both;
       const cls = both ? 'done' : (cur ? 'current' : 'pending');
-      return '<div class="ta-stage ' + cls + '">'
-        + '<b>' + (i + 1) + '. ' + (s.label || s.id) + '</b>'
-        + '<span>Poster:' + (s.poster_ok ? '✓' : '·') + ' Worker:' + (s.worker_ok ? '✓' : '·') + '</span>'
+      const coinBit = s.coins ? ' · ' + s.coins + '🪙' : '';
+      const infoBit = s.info ? '<div class="ta-stage-info">' + this._esc(s.info) + '</div>' : '';
+      return '<div class="ta-stage ' + cls + '" id="ta-stage-' + i + '">'
+        + '<div class="ta-stage-row"><b>' + (i + 1) + '. ' + this._esc(s.label || s.id) + coinBit + '</b>'
+        + '<span>P:' + (s.poster_ok ? '✓' : '·') + ' W:' + (s.worker_ok ? '✓' : '·') + '</span></div>'
+        + infoBit
         + '</div>';
     }).join('');
+    try {
+      document.getElementById('ta-stage-' + idx)?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+    } catch (_) {}
     // Update body status line
     const body = document.getElementById('ta-body');
     if (body && task.status) {
       const first = body.querySelector('div');
       if (first) {
+        const nWp = (task.waypoints || []).length;
         first.innerHTML = '<strong>' + (task.coins || 0) + ' 🪙</strong> · '
           + (task.duration_label || '') + ' · ' + task.status
+          + (nWp > 1 ? ' · stop ' + ((task.waypoint_index || 0) + 1) + '/' + nWp : '')
           + (task.coins_settled ? ' · paid' : '');
       }
     }
