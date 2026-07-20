@@ -3,9 +3,11 @@
 // Kinds: delivery · job · errand · dating · service
 // Durations: 3h barman · 1w housekeeper · 2h date · one-shot errands
 const CityTasks = {
-  version: '20260717-jobs-dna',
+  version: '20260720-task-launcher',
   tasks: new Map(),
   _localKey: 'astranov:city-tasks-v2',
+  _coinsKey: 'astranov:coins-wallet-v1',
+  _wallet: null,
 
   // Shared status DNA (delivery names kept for OrderTracking mirror)
   STATUSES: ['open', 'assigned', 'claimed', 'picked_up', 'en_route', 'in_progress', 'delivered', 'done', 'cancelled'],
@@ -91,8 +93,10 @@ const CityTasks = {
     this._inited = true;
     window.CityTasks = this;
     this._loadLocal();
+    this._loadWallet();
     this._wireFieldBrain();
-    console.log('%c[CityTasks] jobs · errands · dating · delivery DNA', 'color:#44ffaa;font-weight:700');
+    try { TaskBoard?.init?.(); } catch (_) {}
+    console.log('%c[CityTasks] launch · coins · radius · dual-verify', 'color:#44ffaa;font-weight:700');
   },
 
   _loadLocal() {
@@ -110,6 +114,131 @@ const CityTasks = {
       const arr = [...this.tasks.values()].slice(-100);
       localStorage.setItem(this._localKey, JSON.stringify(arr));
     } catch (_) {}
+  },
+
+  /** Local Coins wallet — product currency for task offers */
+  _loadWallet() {
+    try {
+      const raw = localStorage.getItem(this._coinsKey);
+      if (raw) {
+        const w = JSON.parse(raw);
+        this._wallet = {
+          balance: Math.max(0, Number(w.balance) || 0),
+          held: Math.max(0, Number(w.held) || 0),
+          ledger: Array.isArray(w.ledger) ? w.ledger.slice(-80) : [],
+        };
+      }
+    } catch (_) {}
+    if (!this._wallet) {
+      this._wallet = { balance: 500, held: 0, ledger: [] };
+      this._saveWallet();
+    }
+  },
+
+  _saveWallet() {
+    try {
+      localStorage.setItem(this._coinsKey, JSON.stringify(this._wallet));
+    } catch (_) {}
+  },
+
+  coinsBalance() {
+    if (!this._wallet) this._loadWallet();
+    return {
+      balance: this._wallet.balance,
+      held: this._wallet.held,
+      available: Math.max(0, this._wallet.balance - this._wallet.held),
+    };
+  },
+
+  _ledger(entry) {
+    if (!this._wallet) this._loadWallet();
+    this._wallet.ledger.push(Object.assign({ at: Date.now() }, entry));
+    if (this._wallet.ledger.length > 80) this._wallet.ledger = this._wallet.ledger.slice(-80);
+    this._saveWallet();
+  },
+
+  /** Hold Coins on launch so offer is funded */
+  holdCoins(amount, taskId) {
+    if (!this._wallet) this._loadWallet();
+    const n = Math.max(0, Math.round(Number(amount) || 0));
+    if (!n) return { ok: true, held: 0 };
+    const avail = this._wallet.balance - this._wallet.held;
+    if (avail < n) {
+      return { ok: false, error: 'insufficient_coins', available: avail, needed: n };
+    }
+    this._wallet.held += n;
+    this._ledger({ type: 'hold', amount: n, task_id: taskId, balance: this._wallet.balance, held: this._wallet.held });
+    this._saveWallet();
+    return { ok: true, held: n, available: this._wallet.balance - this._wallet.held };
+  },
+
+  /** Release hold without paying (cancel / expire) */
+  releaseHold(amount, taskId) {
+    if (!this._wallet) this._loadWallet();
+    const n = Math.max(0, Math.round(Number(amount) || 0));
+    this._wallet.held = Math.max(0, this._wallet.held - n);
+    this._ledger({ type: 'release', amount: n, task_id: taskId, balance: this._wallet.balance, held: this._wallet.held });
+    this._saveWallet();
+    return { ok: true };
+  },
+
+  /** Settle: debit poster hold → credit worker on final dual-verified done */
+  settleCoins(task) {
+    if (!task || task.coins_settled) return { ok: true, skipped: true };
+    const n = Math.max(0, Math.round(Number(task.coins) || 0));
+    if (!n) {
+      task.coins_settled = true;
+      return { ok: true, amount: 0 };
+    }
+    if (!this._wallet) this._loadWallet();
+    const me = Auth?.user?.id || 'local';
+    const isPoster = task.poster_id === me || task.poster_id === 'local';
+    const isWorker = task.worker_id === me || task.worker_id === 'local-worker';
+
+    if (isPoster) {
+      // Debit from balance and release hold
+      this._wallet.held = Math.max(0, this._wallet.held - n);
+      this._wallet.balance = Math.max(0, this._wallet.balance - n);
+      this._ledger({
+        type: 'pay_task',
+        amount: -n,
+        task_id: task.id,
+        to: task.worker_id,
+        balance: this._wallet.balance,
+        held: this._wallet.held,
+      });
+    } else if (isWorker) {
+      // Worker earns (mint/credit on this device wallet for demo multi-tab)
+      this._wallet.balance += n;
+      this._ledger({
+        type: 'earn_task',
+        amount: n,
+        task_id: task.id,
+        from: task.poster_id,
+        balance: this._wallet.balance,
+        held: this._wallet.held,
+      });
+    } else {
+      // Same-device demo: both roles local — debit once, net zero unless poster≠worker ids
+      this._wallet.held = Math.max(0, this._wallet.held - n);
+      this._wallet.balance = Math.max(0, this._wallet.balance - n);
+      this._ledger({
+        type: 'settle_local',
+        amount: -n,
+        task_id: task.id,
+        balance: this._wallet.balance,
+        held: this._wallet.held,
+      });
+    }
+    this._saveWallet();
+    task.coins_settled = true;
+    task.updated_at = Date.now();
+    this.tasks.set(task.id, task);
+    this._saveLocal();
+    try {
+      window.dispatchEvent(new CustomEvent('astranov-coins', { detail: this.coinsBalance() }));
+    } catch (_) {}
+    return { ok: true, amount: n, balance: this._wallet.balance };
   },
 
   _id() {
@@ -288,10 +417,21 @@ const CityTasks = {
         looks: spec.criteria?.looks || spec.looks || '',
       } : null,
       launched: false,
+      coins_held: false,
+      coins_settled: false,
       rejected_by: [],
       created_at: Date.now(),
       updated_at: Date.now(),
     };
+
+    // Merge flat criteria shortcuts
+    if (spec.age_min != null) task.criteria.age_min = Number(spec.age_min);
+    if (spec.age_max != null) task.criteria.age_max = Number(spec.age_max);
+    if (spec.looks) task.criteria.looks = String(spec.looks);
+    if (spec.need_role) task.criteria.need_role = String(spec.need_role);
+    if (spec.skills) task.criteria.skills = String(spec.skills);
+    if (spec.vehicle) task.criteria.vehicle = String(spec.vehicle);
+    if (spec.min_rating != null) task.criteria.min_rating = Number(spec.min_rating);
 
     this.tasks.set(task.id, task);
     this._saveLocal();
@@ -327,6 +467,7 @@ const CityTasks = {
   /**
    * Launch task to users in radius who can serve it.
    * Uses BroadcastChannel + localStorage so other tabs/sessions see Accept/Reject.
+   * Holds Coins from poster wallet so the offer is funded.
    */
   launch(idOrSpec) {
     let task = typeof idOrSpec === 'string' || idOrSpec?.id
@@ -336,6 +477,20 @@ const CityTasks = {
       task = this.create(idOrSpec);
     }
     if (!task) return { ok: false, error: 'no task' };
+
+    // Fund offer in Coins (product currency)
+    if (task.coins > 0 && !task.coins_held) {
+      const hold = this.holdCoins(task.coins, task.id);
+      if (!hold.ok) {
+        AciCli?.print?.(
+          'need ' + hold.needed + '🪙 · available ' + hold.available + '🪙',
+          'err'
+        );
+        return { ok: false, error: hold.error, available: hold.available, needed: hold.needed, task };
+      }
+      task.coins_held = true;
+    }
+
     task.launched = true;
     task.status = 'open';
     task.updated_at = Date.now();
@@ -343,12 +498,20 @@ const CityTasks = {
     this._saveLocal();
     this._broadcastOffer(task);
     TaskBoard?.showOutgoing?.(task);
+    // Poster keeps active panel so they can dual-verify stages later
+    TaskBoard?.showActive?.(task);
+    try {
+      MapDepict?.pulse?.(task.lat, task.lng, 0xffcc44, 'launch ' + task.radius_km + 'km', 12000);
+    } catch (_) {}
     FieldBrain?.pulse?.('commerce', 'launched · ' + task.coins + '🪙 · r' + task.radius_km + 'km', { task });
     AciCli?.print?.(
       'task launched · ' + task.title.slice(0, 28) + ' · ' + task.coins + '🪙 · ' + task.radius_km + 'km',
       'ok'
     );
-    return { ok: true, task };
+    try {
+      window.dispatchEvent(new CustomEvent('astranov-coins', { detail: this.coinsBalance() }));
+    } catch (_) {}
+    return { ok: true, task, coins: this.coinsBalance() };
   },
 
   _broadcastOffer(task) {
@@ -395,28 +558,48 @@ const CityTasks = {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   },
 
-  /** Can this local user serve the task? */
-  canServe(task, userPos) {
+  /** Can this local user serve the task? (radius + criteria + not poster) */
+  canServe(task, userPos, opts) {
+    opts = opts || {};
     if (!task || task.status !== 'open') return false;
     const me = Auth?.user?.id || 'local';
-    if (task.poster_id && task.poster_id === me) return false;
+    if (!opts.allowSelf && task.poster_id && task.poster_id === me) return false;
     if (task.rejected_by?.includes?.(me)) return false;
+    if (task.worker_id) return false;
     const pos = userPos || window._lastPos;
     if (pos?.lat != null && task.lat != null) {
       const d = this.distKm(pos.lat, pos.lng, task.lat, task.lng);
       if (d > (task.radius_km || 3)) return false;
     }
-    // Role fit (soft): driver tasks prefer driver role
-    const roles = FieldBrain?.roles || Auth?._profileVisual?.roles || [];
-    const arr = Array.isArray(roles) ? roles : [];
-    if (task.kind === 'delivery' && arr.length && !arr.includes('driver') && !arr.includes('client')) {
-      /* still allow — anyone can help */
+    const c = task.criteria || {};
+    // Dating: age band when profile age known
+    if (task.kind === 'dating' || c.age_min || c.age_max) {
+      const myAge = Number(Auth?.user?.user_metadata?.age || window._profileAge || 0);
+      if (myAge) {
+        if (c.age_min && myAge < c.age_min) return false;
+        if (c.age_max && myAge > c.age_max) return false;
+      }
     }
-    // Dating criteria soft filter if local profile has age
-    if (task.kind === 'dating' && task.criteria) {
-      const myAge = Number(Auth?.user?.user_metadata?.age || window._profileAge);
-      if (myAge && task.criteria.age_min && myAge < task.criteria.age_min) return false;
-      if (myAge && task.criteria.age_max && myAge > task.criteria.age_max) return false;
+    // Role / skills criteria (soft when profile empty; hard when profile declares roles)
+    const roles = FieldBrain?.roles || Auth?._profileVisual?.roles || MultiTile?._roles || {};
+    const roleList = Array.isArray(roles)
+      ? roles
+      : Object.keys(roles).filter((k) => roles[k]);
+    if (c.need_role && roleList.length) {
+      const need = String(c.need_role).toLowerCase();
+      const has = roleList.some((r) => String(r).toLowerCase().includes(need)
+        || need.includes(String(r).toLowerCase()));
+      if (!has && !opts.softRole) {
+        // Soft: still show offer but TaskBoard notes mismatch
+        task._roleMismatch = true;
+      }
+    }
+    // Vehicle for delivery
+    if (task.kind === 'delivery' && c.vehicle) {
+      const v = String(Auth?._profileVisual?.vehicle || MultiTile?._draft?.vehicle || '').toLowerCase();
+      if (v && !v.includes(String(c.vehicle).toLowerCase())) {
+        task._vehicleMismatch = true;
+      }
     }
     return true;
   },
@@ -437,29 +620,46 @@ const CityTasks = {
   /**
    * Both parties must verify current stage; then auto-advance.
    * party: 'poster' | 'worker'
+   * Every stage requires BOTH poster_ok AND worker_ok before progress.
    */
   verifyStage(id, party) {
     const task = this.get(id);
     if (!task || !task.stages?.length) return { ok: false, error: 'no stages' };
+    if (['delivered', 'done', 'cancelled'].includes(task.status)) {
+      return { ok: false, error: 'already terminal', task };
+    }
     const i = Math.min(task.stage_index || 0, task.stages.length - 1);
     const st = task.stages[i];
     if (party === 'poster') st.poster_ok = true;
-    else st.worker_ok = true;
+    else if (party === 'worker') st.worker_ok = true;
+    else return { ok: false, error: 'party must be poster|worker' };
     st.at = Date.now();
     task.updated_at = Date.now();
 
-    if (st.poster_ok && st.worker_ok) {
-      // Stage complete — advance status DNA
+    const both = !!(st.poster_ok && st.worker_ok);
+    if (both) {
+      // Stage complete only when both parties verified
       const nextIdx = i + 1;
       if (nextIdx >= task.stages.length) {
-        const term = task.kind === 'delivery' ? 'delivered' : 'done';
+        // Final stage dual-verified → complete + settle Coins
         task.stage_index = i;
         this.tasks.set(task.id, task);
         this._saveLocal();
-        return this.advance(id, term);
+        const term = task.kind === 'delivery' ? 'delivered' : 'done';
+        const r = this.advance(id, term);
+        if (r.ok && r.task) {
+          this.settleCoins(r.task);
+          TaskBoard?.refreshActive?.(r.task);
+          AciCli?.print?.(
+            'task complete · ' + (r.task.coins || 0) + '🪙 settled · ' + r.task.title.slice(0, 24),
+            'ok'
+          );
+        }
+        return Object.assign(r, { stage: st, both: true, settled: true });
       }
       task.stage_index = nextIdx;
-      const sid = task.stages[nextIdx].id;
+      // Status follows COMPLETED stage (not next) so first dual-verify stays claimed
+      const completedId = st.id;
       const statusMap = {
         accepted: 'claimed',
         picked_up: 'picked_up',
@@ -469,21 +669,48 @@ const CityTasks = {
         delivered: 'delivered',
         done: 'done',
       };
-      if (statusMap[sid] && this.STATUSES.includes(statusMap[sid])) {
-        task.status = statusMap[sid];
-      } else if (sid === 'accepted') {
+      if (statusMap[completedId] && this.STATUSES.includes(statusMap[completedId])) {
+        task.status = statusMap[completedId];
+      } else if (completedId === 'accepted') {
         task.status = 'claimed';
       }
-      // Routing when worker verifies accepted → guide to task pin
-      if (st.id === 'accepted' && party === 'worker') {
+      // After dual accept → route worker to pin
+      if (completedId === 'accepted') {
         this._routeWorkerToTask(task);
+        this._broadcastClaimed(task);
       }
     }
     this.tasks.set(task.id, task);
     this._saveLocal();
     TaskBoard?.refreshActive?.(task);
-    FieldBrain?.pulse?.('act', 'verify · ' + st.label, { task });
-    return { ok: true, task, stage: st, both: !!(st.poster_ok && st.worker_ok) };
+    FieldBrain?.pulse?.('act', 'verify · ' + st.label + (both ? ' · both ✓' : ' · waiting other'), { task });
+    return { ok: true, task, stage: st, both };
+  },
+
+  _broadcastClaimed(task) {
+    const payload = {
+      type: 'astranov-task-claimed',
+      task: {
+        id: task.id,
+        status: task.status,
+        worker_id: task.worker_id,
+        worker_name: task.worker_name,
+        coins: task.coins,
+        stages: task.stages,
+        stage_index: task.stage_index,
+        lat: task.lat,
+        lng: task.lng,
+      },
+      t: Date.now(),
+    };
+    try {
+      localStorage.setItem('astranov:task-claimed-pulse', JSON.stringify(payload));
+      window.dispatchEvent(new CustomEvent('astranov-task-claimed', { detail: payload }));
+    } catch (_) {}
+    try {
+      if (!this._bc) this._bc = new BroadcastChannel('astranov-tasks');
+      this._bc.postMessage(payload);
+    } catch (_) {}
   },
 
   _routeWorkerToTask(task) {
@@ -675,7 +902,7 @@ const CityTasks = {
     if (!task.start_at) task.start_at = Date.now();
     if (task.duration_ms && !task.end_at) task.end_at = task.start_at + task.duration_ms;
     if (task.kind === 'dating' && task.dating) task.dating.mutual = true;
-    // First stage = accepted — worker already ok; poster still must verify
+    // First stage = accepted — worker already ok; poster still must verify (dual-party)
     if (task.stages?.[0]) {
       task.stages[0].worker_ok = true;
       task.stages[0].at = Date.now();
@@ -686,6 +913,7 @@ const CityTasks = {
     this._saveLocal();
     this._showOnGlobe(task);
     this._routeWorkerToTask(task);
+    this._broadcastClaimed(task);
     TaskBoard?.showActive?.(task);
     TaskBoard?.dismiss?.(task.id);
     const km = this.meta(task.kind);
@@ -746,6 +974,13 @@ const CityTasks = {
     }
     if (status === 'delivered' || status === 'done') {
       task.end_at = task.end_at || Date.now();
+      if (!task.coins_settled && task.coins > 0) {
+        this.settleCoins(task);
+      }
+    }
+    if (status === 'cancelled' && task.coins_held && !task.coins_settled) {
+      this.releaseHold(task.coins, task.id);
+      task.coins_held = false;
     }
     task.updated_at = Date.now();
     this.tasks.set(task.id, task);
@@ -929,6 +1164,30 @@ const CityTasks = {
       return 'Quote €' + q.total_eur;
     }
 
+    // Coins balance
+    if (/\b(coins|wallet|balance)\b/.test(low) && !/launch|claim/.test(low)) {
+      const b = this.coinsBalance();
+      return 'Coins · available ' + b.available + ' · held ' + b.held + ' · balance ' + b.balance;
+    }
+
+    // Launch (create + broadcast)
+    if (/\blaunch\b/.test(low)) {
+      const body = raw.replace(/^.*?\blaunch\b\s*/i, '').trim() || 'help nearby';
+      const coinsM = body.match(/(\d+)\s*🪙|(\d+)\s*coins?/i);
+      const coins = coinsM ? Number(coinsM[1] || coinsM[2]) : 50;
+      const radM = body.match(/(\d+(?:\.\d+)?)\s*km/i);
+      const radius_km = radM ? Number(radM[1]) : 3;
+      const r = this.launch({
+        rawText: body,
+        title: body.replace(/\d+\s*(🪙|coins?|km)/gi, '').trim() || body,
+        coins,
+        radius_km,
+      });
+      return r.ok
+        ? ('Launched · ' + r.task.kind + ' · ' + r.task.coins + '🪙 · r' + r.task.radius_km + 'km')
+        : (r.error || 'launch failed');
+    }
+
     // Create generic
     if (/\b(create|new|post)\b/.test(low)) {
       const body = raw.replace(/^.*?(create|new|post)\s*/i, '').trim() || 'City task';
@@ -984,13 +1243,20 @@ var TaskBoard = {
     this._bound = true;
     this._ensureDom();
     window.addEventListener('astranov-task-offer', (e) => this._onOffer(e.detail));
+    window.addEventListener('astranov-task-claimed', (e) => this._onClaimed(e.detail));
     window.addEventListener('storage', (e) => {
-      if (e.key !== 'astranov:task-offer-pulse' || !e.newValue) return;
-      try { this._onOffer(JSON.parse(e.newValue)); } catch (_) {}
+      if (!e.newValue) return;
+      try {
+        if (e.key === 'astranov:task-offer-pulse') this._onOffer(JSON.parse(e.newValue));
+        if (e.key === 'astranov:task-claimed-pulse') this._onClaimed(JSON.parse(e.newValue));
+      } catch (_) {}
     });
     try {
       const bc = new BroadcastChannel('astranov-tasks');
-      bc.onmessage = (ev) => this._onOffer(ev.data);
+      bc.onmessage = (ev) => {
+        if (ev.data?.type === 'astranov-task-claimed') this._onClaimed(ev.data);
+        else this._onOffer(ev.data);
+      };
       this._bc = bc;
     } catch (_) {}
     setInterval(() => {
@@ -998,7 +1264,7 @@ var TaskBoard = {
         const raw = localStorage.getItem('astranov:task-offer-pulse');
         if (!raw) return;
         const p = JSON.parse(raw);
-        if (p?.t && Date.now() - p.t < 8000) this._onOffer(p);
+        if (p?.t && Date.now() - p.t < 12000) this._onOffer(p);
       } catch (_) {}
     }, 2500);
   },
@@ -1023,7 +1289,8 @@ var TaskBoard = {
       + '  <div id="ta-body"></div>'
       + '  <div id="ta-stages"></div>'
       + '  <div id="ta-foot">'
-      + '    <button type="button" id="ta-verify">Verify stage</button>'
+      + '    <button type="button" id="ta-verify-poster" class="ta-vp" title="Poster confirms this stage">Poster ✓</button>'
+      + '    <button type="button" id="ta-verify-worker" class="ta-vw" title="Worker confirms this stage">Worker ✓</button>'
       + '    <button type="button" id="ta-route">Route</button>'
       + '  </div>'
       + '</div>';
@@ -1031,7 +1298,8 @@ var TaskBoard = {
     document.getElementById('to-accept')?.addEventListener('click', () => this._accept());
     document.getElementById('to-reject')?.addEventListener('click', () => this._reject());
     document.getElementById('ta-close')?.addEventListener('click', () => this.hideActive());
-    document.getElementById('ta-verify')?.addEventListener('click', () => this._verify());
+    document.getElementById('ta-verify-poster')?.addEventListener('click', () => this._verify('poster'));
+    document.getElementById('ta-verify-worker')?.addEventListener('click', () => this._verify('worker'));
     document.getElementById('ta-route')?.addEventListener('click', () => {
       if (this._active) CityTasks?._routeWorkerToTask?.(this._active);
     });
@@ -1041,7 +1309,6 @@ var TaskBoard = {
     if (!payload || payload.type !== 'astranov-task-offer' || !payload.task) return;
     const t = payload.task;
     if (this._seen.has(t.id + ':' + (payload.t || 0))) return;
-    this._seen.add(t.id);
     this._seen.add(t.id + ':' + (payload.t || 0));
     if (!CityTasks.get(t.id)) {
       CityTasks.create({ ...t, id: t.id, status: 'open', launched: true });
@@ -1049,6 +1316,24 @@ var TaskBoard = {
     const full = CityTasks.get(t.id) || t;
     if (!CityTasks.canServe(full)) return;
     this.showOffer(full);
+  },
+
+  _onClaimed(payload) {
+    if (!payload || payload.type !== 'astranov-task-claimed' || !payload.task) return;
+    const t = payload.task;
+    const local = CityTasks.get(t.id);
+    if (local) {
+      local.status = t.status || local.status;
+      local.worker_id = t.worker_id || local.worker_id;
+      local.worker_name = t.worker_name || local.worker_name;
+      if (t.stages) local.stages = t.stages;
+      if (t.stage_index != null) local.stage_index = t.stage_index;
+      local.updated_at = Date.now();
+      CityTasks.tasks.set(local.id, local);
+      CityTasks._saveLocal();
+      this.dismiss(local.id);
+      this.showActive(local);
+    }
   },
 
   showOffer(task) {
@@ -1061,7 +1346,7 @@ var TaskBoard = {
       (km.icon || '📋') + ' ' + (km.label || task.kind) + ' · ' + (task.coins || 0) + ' 🪙';
     document.getElementById('to-title').textContent = task.title || 'Task';
     document.getElementById('to-meta').textContent =
-      (task.radius_km || 3) + ' km · '
+      'Radius ' + (task.radius_km || 3) + ' km · '
       + (task.duration_label || '') + ' · '
       + (task.poster_name || 'Someone')
       + (task.lat != null ? ' · ' + (+task.lat).toFixed(3) + ',' + (+task.lng).toFixed(3) : '');
@@ -1069,17 +1354,25 @@ var TaskBoard = {
     const bits = [];
     if (crit.age_min || crit.age_max) bits.push('Age ' + (crit.age_min || '?') + '–' + (crit.age_max || '?'));
     if (crit.looks) bits.push('Looks: ' + crit.looks);
-    if (crit.role) bits.push('Need: ' + crit.role);
+    if (crit.need_role || crit.role) bits.push('Need: ' + (crit.need_role || crit.role));
+    if (crit.skills) bits.push('Skills: ' + crit.skills);
+    if (crit.vehicle) bits.push('Vehicle: ' + crit.vehicle);
+    if (crit.min_rating) bits.push('Rating ≥ ' + crit.min_rating);
     if (task.dating?.vibe) bits.push('Vibe: ' + task.dating.vibe);
     if (task.note) bits.push(String(task.note).slice(0, 80));
-    document.getElementById('to-criteria').textContent = bits.join(' · ') || 'Open to capable users in radius';
+    document.getElementById('to-criteria').textContent = bits.join(' · ') || 'Open to capable users in map radius';
     el.classList.add('open');
     try { MapDepict?.pulse?.(task.lat, task.lng, 0xffcc44, 'task offer', 15000); } catch (_) {}
   },
 
   showOutgoing(task) {
     const zl = document.getElementById('zoom-label');
-    if (zl) zl.textContent = 'Launched · ' + (task.coins || 0) + '🪙 · ' + (task.radius_km || 3) + 'km';
+    if (zl) zl.textContent = 'Launched · ' + (task.coins || 0) + '🪙 · ' + (task.radius_km || 3) + 'km radius';
+    const bal = CityTasks.coinsBalance?.();
+    if (bal) {
+      const el = document.getElementById('mt-coins-bal');
+      if (el) el.textContent = bal.available + ' 🪙 available · ' + bal.held + ' held';
+    }
   },
 
   dismiss(id) {
@@ -1096,7 +1389,11 @@ var TaskBoard = {
     CityTasks?.init?.();
     const r = await CityTasks.claim(id);
     this.dismiss(id);
-    if (r?.ok) this.showActive(r.task || CityTasks.get(id) || snapshot);
+    if (r?.ok) {
+      const task = r.task || CityTasks.get(id) || snapshot;
+      this.showActive(task);
+      CityTasks._broadcastClaimed?.(task);
+    }
   },
 
   _reject() {
@@ -1115,10 +1412,11 @@ var TaskBoard = {
       (CityTasks.meta(task.kind).icon || '📋') + ' ' + (task.title || 'Task').slice(0, 36);
     const body = document.getElementById('ta-body');
     if (body) {
+      const st = task.status || 'open';
       body.innerHTML = ''
-        + '<div>' + (task.coins || 0) + ' 🪙 · ' + (task.duration_label || '') + '</div>'
-        + '<div class="ta-dim">' + (task.worker_name || '…') + ' ↔ ' + (task.poster_name || '') + '</div>'
-        + '<div class="ta-dim">Both parties verify each stage</div>';
+        + '<div><strong>' + (task.coins || 0) + ' 🪙</strong> · ' + (task.duration_label || '') + ' · ' + st + '</div>'
+        + '<div class="ta-dim">' + (task.worker_name || 'waiting worker…') + ' ↔ ' + (task.poster_name || '') + '</div>'
+        + '<div class="ta-dim">Every stage needs both Poster ✓ and Worker ✓</div>';
     }
     this.refreshActive(task);
     el.classList.add('open');
@@ -1136,26 +1434,48 @@ var TaskBoard = {
     const idx = task.stage_index || 0;
     box.innerHTML = task.stages.map((s, i) => {
       const both = s.poster_ok && s.worker_ok;
-      const cur = i === idx;
+      const cur = i === idx && !both;
       const cls = both ? 'done' : (cur ? 'current' : 'pending');
       return '<div class="ta-stage ' + cls + '">'
         + '<b>' + (i + 1) + '. ' + (s.label || s.id) + '</b>'
-        + '<span>P:' + (s.poster_ok ? '✓' : '·') + ' W:' + (s.worker_ok ? '✓' : '·') + '</span>'
+        + '<span>Poster:' + (s.poster_ok ? '✓' : '·') + ' Worker:' + (s.worker_ok ? '✓' : '·') + '</span>'
         + '</div>';
     }).join('');
+    // Update body status line
+    const body = document.getElementById('ta-body');
+    if (body && task.status) {
+      const first = body.querySelector('div');
+      if (first) {
+        first.innerHTML = '<strong>' + (task.coins || 0) + ' 🪙</strong> · '
+          + (task.duration_label || '') + ' · ' + task.status
+          + (task.coins_settled ? ' · paid' : '');
+      }
+    }
   },
 
-  _verify() {
+  /**
+   * Dual-party stage verify.
+   * party optional — auto-detect from Auth if omitted; pass poster|worker for explicit demo.
+   */
+  _verify(party) {
     const task = this._active;
     if (!task) return;
-    const me = Auth?.user?.id || 'local';
-    const party = (task.poster_id === me) ? 'poster' : 'worker';
-    const r = CityTasks.verifyStage(task.id, party);
+    let p = party;
+    if (!p) {
+      const me = Auth?.user?.id || 'local';
+      if (task.poster_id === me) p = 'poster';
+      else if (task.worker_id === me || task.worker_id === 'local-worker') p = 'worker';
+      else p = task.worker_id ? 'worker' : 'poster';
+    }
+    const r = CityTasks.verifyStage(task.id, p);
     if (r?.task) {
       this.refreshActive(r.task);
       if (['delivered', 'done'].includes(r.task.status)) {
         const zl = document.getElementById('zoom-label');
-        if (zl) zl.textContent = 'Task complete · ' + (r.task.coins || 0) + '🪙';
+        if (zl) zl.textContent = 'Task complete · ' + (r.task.coins || 0) + '🪙 settled';
+        const bal = CityTasks.coinsBalance?.();
+        const el = document.getElementById('mt-coins-bal');
+        if (el && bal) el.textContent = bal.available + ' 🪙 available · ' + bal.held + ' held';
       }
     }
   },
