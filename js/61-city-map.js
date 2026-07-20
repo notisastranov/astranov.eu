@@ -65,13 +65,52 @@ var CityMap = {
   _bindMapClick() {
     if (!this.map || this.map._placeClickBound) return;
     this.map._placeClickBound = true;
+    // Single click → radar search around place (CLI guides e.g. pharmacy)
+    // Long press → MultiTile (profile / vendor / driver / post)
+    let pressTimer = null;
+    let pressLatLng = null;
+    let longFired = false;
+    const clearPress = () => {
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    };
+    this.map.on('mousedown', (e) => {
+      if (!this.active) return;
+      longFired = false;
+      pressLatLng = e.latlng;
+      clearPress();
+      pressTimer = setTimeout(() => {
+        longFired = true;
+        if (pressLatLng) {
+          MultiTile?.openAt?.(pressLatLng.lat, pressLatLng.lng, { source: 'long-press' });
+        }
+      }, 480);
+    });
+    this.map.on('mouseup', () => clearPress());
+    this.map.on('mousemove', () => { /* drag cancels long-press */ });
+    this.map.on('dragstart', () => { clearPress(); longFired = false; });
+    this.map.on('touchstart', (e) => {
+      if (!this.active) return;
+      const t = e.originalEvent?.touches?.[0];
+      if (!t || (e.originalEvent.touches.length > 1)) return;
+      longFired = false;
+      pressLatLng = e.latlng;
+      clearPress();
+      pressTimer = setTimeout(() => {
+        longFired = true;
+        if (pressLatLng) {
+          MultiTile?.openAt?.(pressLatLng.lat, pressLatLng.lng, { source: 'long-press' });
+        }
+      }, 480);
+    }, { passive: true });
+    this.map.on('touchend', () => clearPress());
+    this.map.on('touchmove', () => clearPress());
     this.map.on('click', (e) => {
       if (!this.active) return;
-      MapPlaceMenu?.openAt?.(e.latlng.lat, e.latlng.lng, {
-        source: 'City map',
-        hint: 'Post · explore · order — pick a triangle',
-        limited: true,
-      });
+      if (longFired) {
+        longFired = false;
+        return; // long-press already opened multi-tile
+      }
+      MapRadar?.at?.(e.latlng.lat, e.latlng.lng, { source: 'city-map' });
     });
   },
 
