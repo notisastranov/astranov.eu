@@ -14,30 +14,24 @@
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
-<!-- Only Three.js is critical. Supabase + Leaflet load after globe is live. -->
+<!-- HARD PATH: Three.js must load before any globe code (blocking, intentional). -->
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
 <link rel="dns-prefetch" href="https://unpkg.com" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" media="print" onload="this.media='all'" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script defer src="/astranov-continuity.js?v=__ASTRANOV_BUILD__"></script>
-<!-- Vercel Speed Insights (static/vanilla — not Next.js) -->
 <script>
-  window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };
-</script>
-<script defer src="/_vercel/speed-insights/script.js"></script>
-<script>
-// Kill stale service workers that pin old monolith HTML
+// Nuke broken service workers that freeze dead shells
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations?.().then(regs => {
-    regs.forEach(r => {
-      // Re-register fresh SW after install of multi-file
-      if (r.active && !r.active.scriptURL.includes('sw.js')) return;
+  navigator.serviceWorker.getRegistrations?.().then(function(regs) {
+    regs.forEach(function(r) { r.unregister().catch(function(){}); });
+  }).catch(function(){});
+  try {
+    caches && caches.keys && caches.keys().then(function(keys) {
+      keys.forEach(function(k) { if (/astranov/i.test(k)) caches.delete(k); });
     });
-  }).catch(() => {});
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js?v=__ASTRANOV_BUILD__').catch(() => {});
-  });
+  } catch (e) {}
 }
 </script>
 <style>
@@ -645,6 +639,97 @@ if ('serviceWorker' in navigator) {
   #ps-foot { display:flex; flex-wrap:wrap; gap:6px; padding:8px 10px; border-top:1px solid rgba(26,111,212,0.2); }
   #ps-foot button { padding:7px 10px; border-radius:8px; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); cursor:pointer; font-size:9px; font-weight:600; }
   #ps-status { width:100%; font-size:8px; color:#ffd633; }
+
+  /* ── Multi-tile (city product: one place → all roles) ── */
+  #mt-backdrop { display:none; position:fixed; inset:0; z-index:180; background:rgba(0,4,12,0.45); pointer-events:auto; }
+  #mt-backdrop.open { display:block; }
+  #multi-tile {
+    display:none; position:fixed; z-index:181;
+    left:50%; bottom:max(12px, env(safe-area-inset-bottom));
+    transform:translateX(-50%);
+    width:min(380px, 94vw); max-height:min(72vh, 560px);
+    flex-direction:column; overflow:hidden;
+    border-radius:18px 18px 14px 14px;
+    background:var(--ax-panel-strong, rgba(8,14,28,0.96));
+    border:1px solid var(--ax-blue-border, rgba(61,158,255,0.35));
+    box-shadow:0 12px 40px rgba(0,0,0,0.55), 0 0 24px var(--ax-blue-glow, rgba(0,140,255,0.15));
+    pointer-events:auto; font:11px/1.4 system-ui,sans-serif; color:var(--an-text,#e8f4ff);
+  }
+  #multi-tile.open { display:flex; }
+  #mt-cover {
+    position:relative; height:88px; flex-shrink:0;
+    background:linear-gradient(135deg, #0a2040 0%, #123 40%, #0c1830 100%);
+    background-size:cover; background-position:center;
+  }
+  #mt-cover.has-img { background-color:#111; }
+  #mt-cover-btn {
+    position:absolute; left:10px; bottom:8px; padding:4px 8px; border-radius:8px;
+    border:1px solid rgba(255,255,255,0.25); background:rgba(0,0,0,0.45); color:#cde;
+    font-size:9px; cursor:pointer;
+  }
+  #mt-close {
+    position:absolute; right:8px; top:8px; width:32px; height:32px; border-radius:50%;
+    border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.5); color:#fff;
+    cursor:pointer; font-size:12px;
+  }
+  #mt-head { display:flex; gap:10px; align-items:flex-end; padding:0 12px; margin-top:-28px; flex-shrink:0; }
+  #mt-avatar {
+    width:56px; height:56px; border-radius:14px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(0,40,90,0.85); border:2px solid var(--ax-blue-bright, #3d9eff);
+    font-size:26px; box-shadow:0 4px 12px rgba(0,0,0,0.4);
+  }
+  #mt-head-text { flex:1; min-width:0; padding-bottom:4px; }
+  #mt-name { font-weight:700; font-size:14px; color:var(--ax-blue-bright,#7ec8ff); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #mt-place { font-size:9px; color:#8ab; margin-top:2px; }
+  .mt-roles {
+    display:flex; flex-wrap:wrap; gap:6px; padding:10px 12px 6px; flex-shrink:0;
+  }
+  .mt-role-tog {
+    padding:7px 10px; border-radius:999px; border:1px solid var(--ax-blue-border);
+    background:rgba(0,30,70,0.5); color:#bcd; font-size:10px; font-weight:600;
+    cursor:pointer; touch-action:manipulation;
+  }
+  .mt-role-tog.active {
+    background:var(--ax-blue-bg, rgba(0,100,200,0.35));
+    border-color:var(--ax-blue-bright,#3d9eff); color:#fff;
+    box-shadow:0 0 10px var(--ax-blue-glow, rgba(0,140,255,0.25));
+  }
+  #mt-scroll {
+    flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    padding:4px 12px 10px; overscroll-behavior:contain;
+  }
+  .mt-sec { margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid rgba(26,111,212,0.15); }
+  .mt-sec:last-child { border-bottom:none; }
+  .mt-label { font-size:9px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:var(--ax-blue-bright,#7ec8ff); margin:6px 0 8px; }
+  .mt-field { display:block; margin-bottom:8px; font-size:9px; color:#9ab; }
+  .mt-field input, .mt-field textarea {
+    display:block; width:100%; margin-top:3px; padding:8px 10px; border-radius:10px;
+    border:1px solid var(--ax-blue-border); background:rgba(0,0,0,0.4); color:#fff;
+    font:inherit; box-sizing:border-box;
+  }
+  .mt-hint { font-size:9px; color:#6a8; margin:4px 0; }
+  .mt-menu-row { display:flex; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.06); font-size:11px; }
+  .mt-price { color:var(--ax-green-bright,#6f6); font-weight:600; }
+  .mt-menu-add { display:flex; gap:6px; margin-top:8px; }
+  .mt-menu-add input { flex:1; min-width:0; padding:7px 8px; border-radius:8px; border:1px solid var(--ax-blue-border); background:rgba(0,0,0,0.4); color:#fff; font-size:10px; }
+  .mt-menu-add button { padding:7px 10px; border-radius:8px; border:1px solid var(--ax-blue-border); background:var(--ax-blue-bg); color:var(--ax-blue-bright); font-weight:700; cursor:pointer; font-size:10px; }
+  #mt-actions {
+    display:flex; flex-wrap:wrap; gap:6px; padding:8px 10px 10px;
+    border-top:1px solid rgba(26,111,212,0.22); flex-shrink:0;
+    background:rgba(0,8,20,0.85);
+  }
+  #mt-actions button {
+    padding:9px 11px; border-radius:10px; border:1px solid var(--ax-blue-border);
+    background:rgba(0,40,90,0.5); color:#cde; font-size:11px; font-weight:600;
+    cursor:pointer; touch-action:manipulation;
+  }
+  #mt-post.mt-primary {
+    flex:1 1 auto; min-width:40%;
+    background:linear-gradient(180deg, rgba(0,120,220,0.55), rgba(0,70,160,0.55));
+    border-color:var(--ax-blue-bright); color:#fff;
+  }
+  #mt-camera, #mt-call, #mt-msg, #mt-team { min-width:40px; }
 
 </style>
 </head>
