@@ -1,0 +1,27 @@
+name: materialize-shell
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'js/shell-parts/**'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble shell-full.html
+        run: |
+          cat js/shell-parts/part-*.txt > js/shell-full.html
+          wc -c js/shell-full.html
+          grep -q 'id="globe"' js/shell-full.html
+          grep -q '__ASTRANOV_MANIFEST__' js/shell-full.html
+          test $(wc -c < js/shell-full.html) -gt 50000
+      - name: Commit
+        run: |
+          git config user.name "astranov-bot"
+          git config user.email "bot@astranov.eu"
+          git add js/shell-full.html
+          git diff --cached --quiet || git commit -m "fix(p0): same-origin full shell /js/shell-full.html"
+          git push
