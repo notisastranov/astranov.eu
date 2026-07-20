@@ -4,84 +4,120 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Astranov</title>
-<meta name="astranov-build" content="20260720103000" />
+<meta name="astranov-build" content="20260720110000" />
 <meta name="theme-color" content="#0a1020" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
 <style>
-html,body{margin:0;height:100%;background:#000;color:#9cf;font:14px/1.4 system-ui,sans-serif}
-#boot{position:fixed;inset:0;display:grid;place-items:center;z-index:99998}
-#boot b{letter-spacing:.2em}
-#boot p{opacity:.7;font-size:12px;margin-top:8px}
+html,body{margin:0;height:100%;background:#000;color:#9cf;font:14px/1.4 system-ui,sans-serif;overflow:hidden}
+#boot{position:fixed;inset:0;display:grid;place-items:center;z-index:99998;background:#000}
+#boot b{letter-spacing:.25em}
+#boot p{opacity:.65;font-size:12px;margin-top:10px}
+#globe{position:absolute;inset:0;z-index:2}
 </style>
 <script>
-/* SAME-ORIGIN ONLY — no jsDelivr document.write */
-(function(){
+/* FAST PATH: same-origin progressive phases only — NO remote HTML, NO document.write */
+(function () {
   try {
     if (matchMedia('(pointer:coarse)').matches || navigator.maxTouchPoints > 0) {
       window._globePerfLite = true;
       window._spartan = true;
     }
   } catch (e) {}
-  var BUILD = '20260720103000';
-  var FULL = '/js/shell-full.html?v=' + BUILD;
+  var BUILD = '20260720110000';
+  window._bootAt = Date.now();
+  window._spartan = true;
+  window.__ASTRANOV_HARD_BOOT__ = 1;
+  window.__ASTRANOV_MANIFEST__ = {
+    mode: 'js-phase-bundles',
+    critical: ['/js/phase-critical.js'],
+    app: ['/js/phase-app.js'],
+    features: ['/js/phase-features.js'],
+    deferred: ['/astranov-deferred.js'],
+    fallback: {
+      critical: ['/js/phase-critical.js'],
+      app: ['/js/phase-app.js'],
+      features: ['/js/phase-features.js'],
+      deferred: ['/astranov-deferred.js']
+    }
+  };
+  function load(src, attrs) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src + (src.indexOf('?') >= 0 ? '&' : '?') + 'v=' + BUILD;
+      if (attrs) Object.keys(attrs).forEach(function (k) { s[k] = attrs[k]; });
+      s.onload = function () { resolve(); };
+      s.onerror = function () { reject(new Error(src)); };
+      document.head.appendChild(s);
+    });
+  }
+  function done() {
+    var b = document.getElementById('boot');
+    if (b) b.remove();
+  }
   function fail(msg) {
     var el = document.getElementById('boot');
     if (el) el.innerHTML = '<div><b>ASTRANOV</b><p>' + msg + '</p></div>';
   }
-  fetch(FULL, { cache: 'no-store', credentials: 'same-origin' })
-    .then(function (r) {
-      if (!r.ok) throw new Error('full ' + r.status);
-      return r.text();
-    })
-    .then(function (html) {
-      if (!html || html.length < 50000 || html.indexOf('__ASTRANOV_MANIFEST__') < 0) {
-        throw new Error('invalid full shell');
-      }
-      location.replace(FULL);
-    })
+  load('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js')
     .catch(function () {
-      fail('Loading Earth…');
-      var three = document.createElement('script');
-      three.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
-      three.onload = function () {
-        window.__ASTRANOV_MANIFEST__ = {
-          mode: 'js-phase-bundles',
-          critical: ['/js/phase-critical.js'],
-          app: ['/js/phase-app.js'],
-          features: ['/js/phase-features.js'],
-          deferred: ['/astranov-deferred.js']
-        };
-        window._bootAt = Date.now();
-        window._spartan = true;
-        window.__ASTRANOV_HARD_BOOT__ = 1;
-        function s(src) {
-          return new Promise(function (res) {
-            var el = document.createElement('script');
-            el.src = src + '?v=' + BUILD;
-            el.onload = function () { res(); };
-            el.onerror = function () { res(); };
-            document.head.appendChild(el);
-          });
-        }
-        s('/js/loader.js').then(function () {
-          if (window.AstranovLoader && AstranovLoader.run) return AstranovLoader.run();
+      return load('https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js');
+    })
+    .then(function () {
+      return load('/js/phase-critical.js');
+    })
+    .then(function () {
+      if (typeof __astranovBootCritical === 'function') __astranovBootCritical();
+      done();
+      return load('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js').catch(function () {});
+    })
+    .then(function () {
+      return load('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js').catch(function () {});
+    })
+    .then(function () {
+      return load('/js/phase-app.js');
+    })
+    .then(function () {
+      if (typeof __astranovBootApp === 'function') __astranovBootApp();
+      return load('/js/phase-features.js', { defer: true });
+    })
+    .then(function () {
+      if (typeof __astranovBootFeatures === 'function') __astranovBootFeatures();
+      return load('/js/astranov-os-boot.js').catch(function () {
+        return load('/js/08-astranov-os.js').then(function () {
+          return load('/js/08-astranov-browser.js');
         }).then(function () {
-          return s('/js/astranov-os-boot.js');
-        }).then(function () {
-          var b = document.getElementById('boot');
-          if (b) b.remove();
+          try { if (window.AstranovOS) AstranovOS.init(); } catch (e) {}
+          try { if (window.AstranovBrowser) AstranovBrowser.init(); } catch (e) {}
         });
-      };
-      three.onerror = function () { fail('Earth failed — hard refresh'); };
-      document.head.appendChild(three);
+      });
+    })
+    .then(function () {
+      var delay = window._globePerfLite ? 5000 : 2200;
+      setTimeout(function () {
+        if (window.LazyModules && LazyModules.schedule) LazyModules.schedule();
+        else {
+          var d = document.createElement('script');
+          d.src = '/astranov-deferred.js?v=' + BUILD;
+          d.async = true;
+          document.head.appendChild(d);
+        }
+      }, delay);
+    })
+    .catch(function (e) {
+      fail('Boot failed — hard refresh. ' + (e && e.message || e));
+      console.error('[astranov boot]', e);
     });
 })();
 </script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+<script defer src="/astranov-continuity.js?v=20260720110000"></script>
+<script defer src="/astranov-perf-lazy.js?v=20260720110000"></script>
 </head>
 <body>
-  <div id="boot"><div><b>ASTRANOV</b><p>Starting OS…</p></div></div>
-  <script src="/astranov-continuity.js?v=20260720103000"></script>
+  <div id="boot"><div><b>ASTRANOV</b><p>Earth…</p></div></div>
+  <div id="globe"></div>
 </body>
 </html>
