@@ -16,6 +16,11 @@ const MapPlaceMenu = {
   },
 
   openPlusField() {
+    // + field → multi-tile (unified profile / vendor / driver / post)
+    if (window.MultiTile?.openFromPlus) {
+      MultiTile.openFromPlus();
+      return;
+    }
     const pos = window._lastPos || CityMap?.globeCenterLatLng?.() || TrackballGuard?.facingLatLng?.() || { lat: 36.44, lng: 28.22 };
     this.openAt(pos.lat, pos.lng, { source: 'Plus field', hint: 'Type what you want to do — AI shows top 3', focusIntent: true });
   },
