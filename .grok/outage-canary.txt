@@ -1,0 +1,1 @@
+astranov-outage-canary 2026-07-20 mcp-write-ok
