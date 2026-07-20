@@ -10,7 +10,10 @@ window.__astranovBootFeatures = function __astranovBootFeatures() {
   };
 
   soft('GlobeEntity', () => GlobeEntity?.init?.());
-  soft('CityTasks', () => CityTasks?.init?.());
+  soft('CityTasks', () => {
+    CityTasks?.init?.();
+    TaskBoard?.init?.();
+  });
   soft('SpaceNetCM', () => SpaceNetCM?.init?.());
   soft('CoreBrain', () => AstranovCoreBrain?.init?.());
   soft('Logo', () => AstranovLogo?.init?.());
