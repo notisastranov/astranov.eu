@@ -51,6 +51,8 @@ var MultiTile = {
     document.getElementById('mt-call')?.addEventListener('click', () => this.connect('video'));
     document.getElementById('mt-msg')?.addEventListener('click', () => this.connect('message'));
     document.getElementById('mt-team')?.addEventListener('click', () => this.connect('team'));
+    document.getElementById('mt-launch')?.addEventListener('click', () => this.launchTask());
+    document.getElementById('mt-kind')?.addEventListener('change', () => this._syncTaskCriteria());
     document.querySelectorAll('.mt-role-tog').forEach((btn) => {
       btn.addEventListener('click', () => this.toggleRole(btn.dataset.role));
     });
@@ -95,6 +97,42 @@ var MultiTile = {
       + '    <div id="mt-sec-public" class="mt-sec" hidden></div>'
       + '    <div id="mt-sec-vendor" class="mt-sec" hidden></div>'
       + '    <div id="mt-sec-driver" class="mt-sec" hidden></div>'
+      + '    <div id="mt-sec-task" class="mt-sec">'
+      + '      <div class="mt-label">Launch task · Coins</div>'
+      + '      <div class="mt-task-row">'
+      + '        <select id="mt-kind">'
+      + '          <option value="help">🤝 Help</option>'
+      + '          <option value="job">💼 Work / gig</option>'
+      + '          <option value="vendor">🏬 Vendor task</option>'
+      + '          <option value="delivery">📦 Delivery</option>'
+      + '          <option value="errand">🏃 Errand</option>'
+      + '          <option value="dating">💕 Dating</option>'
+      + '          <option value="service">🛠️ Service</option>'
+      + '        </select>'
+      + '        <input id="mt-coins" type="number" min="0" step="1" value="50" title="Coins offered" placeholder="🪙" />'
+      + '      </div>'
+      + '      <label class="mt-field">What do you need?'
+      + '        <input id="mt-task-title" placeholder="e.g. pharmacy run · barman 3h · coffee date" />'
+      + '      </label>'
+      + '      <div class="mt-task-row">'
+      + '        <label class="mt-inline">Radius km'
+      + '          <input id="mt-radius" type="number" min="0.5" max="50" step="0.5" value="3" />'
+      + '        </label>'
+      + '        <label class="mt-inline">Duration'
+      + '          <input id="mt-duration" value="1h" placeholder="1h · 3h · 45m" />'
+      + '        </label>'
+      + '      </div>'
+      + '      <div id="mt-criteria-dating" class="mt-criteria" hidden>'
+      + '        <div class="mt-task-row">'
+      + '          <label class="mt-inline">Age min<input id="mt-age-min" type="number" min="18" placeholder="18" /></label>'
+      + '          <label class="mt-inline">Age max<input id="mt-age-max" type="number" min="18" placeholder="99" /></label>'
+      + '        </div>'
+      + '        <label class="mt-field">Looks / vibe<input id="mt-looks" placeholder="casual · tall · …" /></label>'
+      + '      </div>'
+      + '      <label class="mt-field">Notes<textarea id="mt-task-note" rows="2" placeholder="Details for people who can help…"></textarea></label>'
+      + '      <button type="button" id="mt-launch" class="mt-launch">🚀 Launch task to nearby users</button>'
+      + '      <p class="mt-hint">Eligible users in radius get Accept / Reject. Both parties verify every stage. Pay in 🪙 Coins.</p>'
+      + '    </div>'
       + '  </div>'
       + '  <div id="mt-actions">'
       + '    <button type="button" id="mt-post" class="mt-primary">＋ Post here</button>'
@@ -106,6 +144,65 @@ var MultiTile = {
       + '  </div>'
       + '</div>';
     document.body.appendChild(wrap);
+  },
+
+  _syncTaskCriteria() {
+    const kind = document.getElementById('mt-kind')?.value;
+    const box = document.getElementById('mt-criteria-dating');
+    if (box) box.hidden = kind !== 'dating';
+  },
+
+  async launchTask() {
+    const kind = document.getElementById('mt-kind')?.value || 'help';
+    const title = document.getElementById('mt-task-title')?.value?.trim()
+      || document.getElementById('mt-task-note')?.value?.trim()
+      || (kind + ' task');
+    const coins = Math.max(0, Math.round(Number(document.getElementById('mt-coins')?.value) || 0));
+    const radius_km = Math.max(0.5, Number(document.getElementById('mt-radius')?.value) || 3);
+    const duration = document.getElementById('mt-duration')?.value?.trim() || '1h';
+    const note = document.getElementById('mt-task-note')?.value?.trim() || '';
+    const criteria = {};
+    if (kind === 'dating') {
+      const amin = document.getElementById('mt-age-min')?.value;
+      const amax = document.getElementById('mt-age-max')?.value;
+      const looks = document.getElementById('mt-looks')?.value?.trim();
+      if (amin) criteria.age_min = Number(amin);
+      if (amax) criteria.age_max = Number(amax);
+      if (looks) criteria.looks = looks;
+    }
+    const pin = this._pin || window._lastPos || { lat: 36.44, lng: 28.22 };
+
+    const run = async () => {
+      try { await LazyModules?.ensure?.(); } catch (_) {}
+      if (!window.CityTasks) {
+        const zl = document.getElementById('zoom-label');
+        if (zl) zl.textContent = 'Tasks loading… try again';
+        return;
+      }
+      CityTasks.init?.();
+      TaskBoard?.init?.();
+      const r = CityTasks.launch({
+        kind,
+        title,
+        coins,
+        radius_km,
+        duration,
+        note,
+        criteria,
+        lat: pin.lat,
+        lng: pin.lng,
+        age_min: criteria.age_min,
+        age_max: criteria.age_max,
+        looks: criteria.looks,
+      });
+      if (r?.ok) {
+        const zl = document.getElementById('zoom-label');
+        if (zl) zl.textContent = 'Launched · ' + coins + '🪙 · ' + radius_km + 'km';
+        // Same-tab: also surface offer for testing if not poster-only filter
+        // Poster should not get accept banner (canServe blocks)
+      }
+    };
+    void run();
   },
 
   _loadDraft() {
