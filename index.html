@@ -1,1 +1,50 @@
-file://C:/Users/User/Documents/GitHub/astranov.eu/index.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Astranov</title>
+<meta name="astranov-build" content="20260720085209" />
+<meta name="theme-color" content="#0a1020" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" href="/icon.svg" type="image/svg+xml" />
+<script>
+// Full shell from last known-good monorepo commit (CDN). Local phase bundles + OS modules load from origin.
+(function () {
+  var GOOD = 'https://cdn.jsdelivr.net/gh/notisastranov/astranov.eu@d80e26a60efa9f341b5b692fb85076bae77ef573/index.html';
+  // Prefer same-origin full shell if present as /index.full.html
+  var tryUrls = ['/index.full.html', GOOD];
+  function go(u) { location.replace(u); }
+  // Keep users on astranov.eu origin for auth: inject shell into iframe-less fetch
+  fetch(GOOD, { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (html) {
+    if (!html || html.length < 50000 || html.indexOf('__ASTRANOV_MANIFEST__') < 0) {
+      document.body.innerHTML = '<p style="color:#9cf;font:14px system-ui;padding:24px">Astranov loading…</p>';
+      setTimeout(function(){ go(GOOD); }, 500);
+      return;
+    }
+    // Rewrite absolute CDN asset paths back to origin for live API/auth
+    html = html.replace(/https:\/\/cdn\.jsdelivr\.net\/gh\/notisastranov\/astranov\.eu@[^/]+\//g, '/');
+    // Ensure OS modules boot
+    if (html.indexOf('08-astranov-os.js') < 0) {
+      html = html.replace('</body>',
+        '<script src="/js/08-astranov-os.js?v=20260720085209"><\/script>\n' +
+        '<script src="/js/08-astranov-browser.js?v=20260720085209"><\/script>\n' +
+        '<script src="/astranov-os-boot.js?v=20260720085209"><\/script>\n</body>');
+    }
+    // Ensure continuity has OS boot path
+    document.open();
+    document.write(html);
+    document.close();
+  }).catch(function () {
+    go(GOOD);
+  });
+})();
+</script>
+<style>html,body{margin:0;height:100%;background:#000;color:#9cf;font:14px system-ui}</style>
+</head>
+<body>
+<p style="padding:24px">Loading Astranov OS…</p>
+<script src="/astranov-continuity.js?v=20260720085209"></script>
+<script src="/astranov-os-boot.js?v=20260720085209"></script>
+</body>
+</html>
