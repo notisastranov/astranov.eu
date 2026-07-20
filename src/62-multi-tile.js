@@ -1,0 +1,418 @@
+// === MULTI-TILE — unified city profile at a map place ===
+// + button or long-press map → this tile.
+// Single-click map → radar search (see CityMap.radarAt / MapRadar).
+// Layout: cover · avatar · role toggles · scroll body · post / connect.
+var MultiTile = {
+  _open: false,
+  _pin: null,
+  _roles: { user: true, public: false, vendor: false, driver: false },
+  _draft: null,
+  _bound: false,
+  STORAGE: 'astranov:multi-tile-v1',
+
+  init() {
+    if (this._bound) return;
+    this._bound = true;
+    this._ensureDom();
+    this._loadDraft();
+    document.getElementById('mt-close')?.addEventListener('click', () => this.close());
+    document.getElementById('mt-backdrop')?.addEventListener('click', () => this.close());
+    document.getElementById('mt-post')?.addEventListener('click', () => this.postHere());
+    document.getElementById('mt-camera')?.addEventListener('click', () => this.postHere({ camera: true }));
+    document.getElementById('mt-save')?.addEventListener('click', () => this.save());
+    document.getElementById('mt-call')?.addEventListener('click', () => this.connect('video'));
+    document.getElementById('mt-msg')?.addEventListener('click', () => this.connect('message'));
+    document.getElementById('mt-team')?.addEventListener('click', () => this.connect('team'));
+    document.querySelectorAll('.mt-role-tog').forEach((btn) => {
+      btn.addEventListener('click', () => this.toggleRole(btn.dataset.role));
+    });
+    // + FAB → multi-tile (not deferred Super Add alone)
+    const fab = document.getElementById('super-add-fab');
+    if (fab && !fab._multiTileBound) {
+      fab._multiTileBound = true;
+      fab.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.openFromPlus();
+      }, true);
+    }
+  },
+
+  _ensureDom() {
+    if (document.getElementById('multi-tile')) return;
+    const wrap = document.createElement('div');
+    wrap.id = 'multi-tile-root';
+    wrap.innerHTML = ''
+      + '<div id="mt-backdrop" aria-hidden="true"></div>'
+      + '<div id="multi-tile" role="dialog" aria-label="Place multi-tile">'
+      + '  <div id="mt-cover">'
+      + '    <button type="button" id="mt-cover-btn" title="Cover photo">📷 Cover</button>'
+      + '    <button type="button" id="mt-close" aria-label="Close">✖</button>'
+      + '  </div>'
+      + '  <div id="mt-head">'
+      + '    <div id="mt-avatar" title="Profile photo">👤</div>'
+      + '    <div id="mt-head-text">'
+      + '      <div id="mt-name">You</div>'
+      + '      <div id="mt-place">—</div>'
+      + '    </div>'
+      + '  </div>'
+      + '  <div id="mt-roles" class="mt-roles">'
+      + '    <button type="button" class="mt-role-tog active" data-role="user">👤 User</button>'
+      + '    <button type="button" class="mt-role-tog" data-role="public">✦ Public</button>'
+      + '    <button type="button" class="mt-role-tog" data-role="vendor">🏬 Vendor</button>'
+      + '    <button type="button" class="mt-role-tog" data-role="driver">🚚 Driver</button>'
+      + '  </div>'
+      + '  <div id="mt-scroll">'
+      + '    <div id="mt-sec-user" class="mt-sec"></div>'
+      + '    <div id="mt-sec-public" class="mt-sec" hidden></div>'
+      + '    <div id="mt-sec-vendor" class="mt-sec" hidden></div>'
+      + '    <div id="mt-sec-driver" class="mt-sec" hidden></div>'
+      + '  </div>'
+      + '  <div id="mt-actions">'
+      + '    <button type="button" id="mt-post" class="mt-primary">＋ Post here</button>'
+      + '    <button type="button" id="mt-camera" title="Camera">📷</button>'
+      + '    <button type="button" id="mt-call" title="Video call">📹</button>'
+      + '    <button type="button" id="mt-msg" title="Message">💬</button>'
+      + '    <button type="button" id="mt-team" title="Team">👥</button>'
+      + '    <button type="button" id="mt-save">Save</button>'
+      + '  </div>'
+      + '</div>';
+    document.body.appendChild(wrap);
+  },
+
+  _loadDraft() {
+    try {
+      const raw = localStorage.getItem(this.STORAGE);
+      if (raw) this._draft = JSON.parse(raw);
+    } catch (_) {}
+    if (!this._draft) {
+      this._draft = {
+        displayName: '',
+        bio: '',
+        cover: '',
+        avatar: '',
+        publicTitle: '',
+        vendorName: '',
+        menu: [],
+        vehicle: '',
+        vehicleNotes: '',
+        roles: { user: true, public: false, vendor: false, driver: false },
+      };
+    }
+    this._roles = Object.assign({ user: true, public: false, vendor: false, driver: false }, this._draft.roles || {});
+  },
+
+  _persist() {
+    try {
+      this._draft.roles = { ...this._roles };
+      localStorage.setItem(this.STORAGE, JSON.stringify(this._draft));
+    } catch (_) {}
+  },
+
+  openFromPlus() {
+    const pos = window._lastPos
+      || CityMap?.globeCenterLatLng?.()
+      || TrackballGuard?.facingLatLng?.()
+      || { lat: 36.44, lng: 28.22 };
+    this.openAt(pos.lat, pos.lng, { source: 'plus' });
+  },
+
+  openAt(lat, lng, opts) {
+    opts = opts || {};
+    this.init();
+    if (lat == null || lng == null) return;
+    window._globeFly = null;
+    this._pin = { lat: +lat, lng: +lng, source: opts.source || 'map' };
+    window._pendingShopLatLng = { lat: +lat, lng: +lng };
+    this._open = true;
+    this._syncRoleButtons();
+    this._render();
+    document.getElementById('multi-tile')?.classList.add('open');
+    document.getElementById('mt-backdrop')?.classList.add('open');
+    try {
+      MapDepict?.pulse?.(lat, lng, 0x3d9eff, 'tile', 6000);
+    } catch (_) {}
+    const zl = document.getElementById('zoom-label');
+    if (zl) zl.textContent = 'Place · ' + (+lat).toFixed(3) + ', ' + (+lng).toFixed(3);
+  },
+
+  close() {
+    this._open = false;
+    document.getElementById('multi-tile')?.classList.remove('open');
+    document.getElementById('mt-backdrop')?.classList.remove('open');
+  },
+
+  toggleRole(role) {
+    if (!role || !Object.prototype.hasOwnProperty.call(this._roles, role)) return;
+    if (role === 'user') {
+      this._roles.user = true; // always keep a base identity
+    } else {
+      this._roles[role] = !this._roles[role];
+    }
+    this._syncRoleButtons();
+    this._renderSections();
+    this._persist();
+  },
+
+  _syncRoleButtons() {
+    document.querySelectorAll('.mt-role-tog').forEach((btn) => {
+      const on = !!this._roles[btn.dataset.role];
+      btn.classList.toggle('active', on);
+    });
+    ['user', 'public', 'vendor', 'driver'].forEach((r) => {
+      const sec = document.getElementById('mt-sec-' + r);
+      if (sec) sec.hidden = !this._roles[r];
+    });
+  },
+
+  _render() {
+    const d = this._draft || {};
+    const name = d.displayName
+      || Auth?.user?.user_metadata?.full_name
+      || Auth?.user?.email?.split?.('@')?.[0]
+      || 'You';
+    const av = document.getElementById('mt-avatar');
+    if (av) av.textContent = d.avatar || '👤';
+    const nm = document.getElementById('mt-name');
+    if (nm) nm.textContent = name;
+    const pl = document.getElementById('mt-place');
+    if (pl && this._pin) {
+      pl.textContent = this._pin.lat.toFixed(4) + ', ' + this._pin.lng.toFixed(4)
+        + (this._pin.source === 'plus' ? ' · +' : ' · hold');
+    }
+    const cover = document.getElementById('mt-cover');
+    if (cover) {
+      if (d.cover) {
+        cover.style.backgroundImage = 'url(' + d.cover + ')';
+        cover.classList.add('has-img');
+      } else {
+        cover.style.backgroundImage = '';
+        cover.classList.remove('has-img');
+      }
+    }
+    this._renderSections();
+  },
+
+  _renderSections() {
+    const d = this._draft || {};
+    const esc = (s) => String(s || '').replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+
+    const u = document.getElementById('mt-sec-user');
+    if (u && this._roles.user) {
+      u.innerHTML = ''
+        + '<div class="mt-label">Social · who you are</div>'
+        + '<label class="mt-field">Display name<input id="mt-in-name" value="' + esc(d.displayName) + '" placeholder="Your name" /></label>'
+        + '<label class="mt-field">Bio<textarea id="mt-in-bio" rows="2" placeholder="Short intro…">' + esc(d.bio) + '</textarea></label>';
+    }
+
+    const p = document.getElementById('mt-sec-public');
+    if (p && this._roles.public) {
+      p.innerHTML = ''
+        + '<div class="mt-label">Public figure</div>'
+        + '<label class="mt-field">Stage name<input id="mt-in-public" value="' + esc(d.publicTitle) + '" placeholder="Public title" /></label>'
+        + '<p class="mt-hint">Shown when others radar this place.</p>';
+    }
+
+    const v = document.getElementById('mt-sec-vendor');
+    if (v && this._roles.vendor) {
+      const menu = Array.isArray(d.menu) ? d.menu : [];
+      const rows = menu.length
+        ? menu.map((m, i) => '<div class="mt-menu-row" data-i="' + i + '">'
+          + '<span>' + esc(m.name || 'Item') + '</span>'
+          + '<span class="mt-price">' + esc(m.price || '—') + '</span></div>').join('')
+        : '<p class="mt-hint">No menu yet — add items below.</p>';
+      v.innerHTML = ''
+        + '<div class="mt-label">Vendor · menu</div>'
+        + '<label class="mt-field">Shop name<input id="mt-in-vendor" value="' + esc(d.vendorName) + '" placeholder="Shop name" /></label>'
+        + '<div class="mt-menu-list">' + rows + '</div>'
+        + '<div class="mt-menu-add">'
+        + '<input id="mt-menu-name" placeholder="Item" />'
+        + '<input id="mt-menu-price" placeholder="€" />'
+        + '<button type="button" id="mt-menu-add-btn">Add</button>'
+        + '</div>';
+      document.getElementById('mt-menu-add-btn')?.addEventListener('click', () => this._addMenuItem());
+    }
+
+    const dr = document.getElementById('mt-sec-driver');
+    if (dr && this._roles.driver) {
+      dr.innerHTML = ''
+        + '<div class="mt-label">Delivery · vehicle</div>'
+        + '<label class="mt-field">Vehicle<input id="mt-in-vehicle" value="' + esc(d.vehicle) + '" placeholder="Scooter · van · bike" /></label>'
+        + '<label class="mt-field">Notes<textarea id="mt-in-vnotes" rows="2" placeholder="Base, hours, radius…">' + esc(d.vehicleNotes) + '</textarea></label>';
+    }
+  },
+
+  _addMenuItem() {
+    const n = document.getElementById('mt-menu-name');
+    const p = document.getElementById('mt-menu-price');
+    const name = (n?.value || '').trim();
+    if (!name) return;
+    if (!Array.isArray(this._draft.menu)) this._draft.menu = [];
+    this._draft.menu.push({ name, price: (p?.value || '').trim() });
+    if (n) n.value = '';
+    if (p) p.value = '';
+    this._persist();
+    this._renderSections();
+  },
+
+  _readFields() {
+    const g = (id) => document.getElementById(id)?.value?.trim?.() || '';
+    this._draft.displayName = g('mt-in-name') || this._draft.displayName;
+    this._draft.bio = g('mt-in-bio') || this._draft.bio;
+    this._draft.publicTitle = g('mt-in-public') || this._draft.publicTitle;
+    this._draft.vendorName = g('mt-in-vendor') || this._draft.vendorName;
+    this._draft.vehicle = g('mt-in-vehicle') || this._draft.vehicle;
+    this._draft.vehicleNotes = g('mt-in-vnotes') || this._draft.vehicleNotes;
+  },
+
+  async save() {
+    this._readFields();
+    this._persist();
+    // Soft server sync when signed in
+    try {
+      if (Auth?.user && SB_URL && SB_KEY) {
+        const headers = Auth.authHeaders
+          ? await Auth.authHeaders()
+          : { 'Content-Type': 'application/json', apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY };
+        const roles = [];
+        if (this._roles.user) roles.push('client');
+        if (this._roles.driver) roles.push('driver');
+        if (this._roles.vendor) roles.push('vendor');
+        if (this._roles.public) roles.push('public');
+        const body = {
+          display_name: this._draft.displayName || null,
+          bio: this._draft.bio || null,
+          roles,
+          is_vendor: !!this._roles.vendor,
+          profile_page: {
+            title: this._draft.displayName,
+            about: this._draft.bio,
+            publicTitle: this._draft.publicTitle,
+            vendorName: this._draft.vendorName,
+            menu: this._draft.menu,
+            vehicle: this._draft.vehicle,
+            vehicleNotes: this._draft.vehicleNotes,
+            pin: this._pin,
+          },
+          updated_at: new Date().toISOString(),
+        };
+        await fetch(SB_URL + '/rest/v1/profiles?id=eq.' + Auth.user.id, {
+          method: 'PATCH', headers, body: JSON.stringify(body),
+        });
+      }
+    } catch (_) {}
+    const zl = document.getElementById('zoom-label');
+    if (zl) zl.textContent = 'Tile saved';
+  },
+
+  postHere(opts) {
+    opts = opts || {};
+    const pin = this._pin;
+    if (pin) window._pendingShopLatLng = { lat: pin.lat, lng: pin.lng };
+    this.close();
+    const go = async () => {
+      try { await LazyModules?.ensure?.(); } catch (_) {}
+      if (typeof SuperAdd !== 'undefined' && SuperAdd?.open) SuperAdd.open();
+      else if (window.SuperAdd?.open) window.SuperAdd.open();
+    };
+    void go();
+  },
+
+  connect(kind) {
+    const pin = this._pin;
+    if (!Auth?.user) {
+      Auth?.openLoginModal?.('Sign in to connect');
+      return;
+    }
+    try {
+      if (kind === 'video' || kind === 'voice') {
+        LazyModules?.ensure?.().then(() => {
+          AstranovCall?.start?.(null, { mode: kind === 'voice' ? 'audio' : 'video', lat: pin?.lat, lng: pin?.lng });
+        }).catch(() => {});
+      } else if (kind === 'message') {
+        LazyModules?.ensure?.().then(() => {
+          MapComms?.openCloud?.({ title: 'Place chat' });
+        }).catch(() => {});
+      } else if (kind === 'team') {
+        LazyModules?.ensure?.().then(() => {
+          MapComms?.openCloud?.({ title: 'Local team' });
+          AciCli?.print?.('team · place ' + (pin ? pin.lat.toFixed(3) + ',' + pin.lng.toFixed(3) : ''), 'ok');
+        }).catch(() => {});
+      }
+    } catch (_) {}
+  },
+};
+window.MultiTile = MultiTile;
+
+// Radar: single-click map — search around place via CLI
+var MapRadar = {
+  last: null,
+
+  at(lat, lng, opts) {
+    opts = opts || {};
+    if (lat == null || lng == null) return;
+    this.last = { lat: +lat, lng: +lng, t: Date.now() };
+    window._radarPos = this.last;
+    window._lastPos = window._lastPos || { lat: +lat, lng: +lng };
+    try { MapDepict?.pulse?.(lat, lng, 0x44ffaa, 'radar', 5000); } catch (_) {}
+    try {
+      MapDepict?.action?.('explore', {
+        lat, lng,
+        detail: opts.query || 'search around',
+        worldLat: lat,
+        worldLng: lng,
+      });
+    } catch (_) {}
+    try { SpaceNetBrain?.crawlArea?.(lat, lng, opts.radiusKm || 2); } catch (_) {}
+    try { window.Commerce?.loadVendors?.(); } catch (_) {}
+
+    // Guide search through CLI (e.g. pharmacy)
+    const hint = opts.query
+      ? ('Radar · ' + opts.query + ' near ' + (+lat).toFixed(3) + ', ' + (+lng).toFixed(3))
+      : ('Radar · type search e.g. pharmacy · ' + (+lat).toFixed(3) + ', ' + (+lng).toFixed(3));
+    const zl = document.getElementById('zoom-label');
+    if (zl) zl.textContent = hint.slice(0, 72);
+
+    try {
+      GlobeDeck?.expand?.(PublicCopy?.deckTitle?.() || 'Astranov');
+      const input = document.getElementById('aci-cli-in') || document.getElementById('aci-input');
+      if (input) {
+        if (!opts.query) {
+          input.placeholder = 'Search here — e.g. pharmacy · coffee · driver';
+          input.focus();
+        } else {
+          input.value = opts.query;
+        }
+      }
+      AciCli?.print?.(hint, 'map');
+      SuperCli?.setContext?.('radar');
+    } catch (_) {}
+
+    // If user already typed a query, run soft local match
+    if (opts.query) this.runQuery(opts.query);
+  },
+
+  runQuery(q) {
+    const query = String(q || '').trim().toLowerCase();
+    if (!query || !this.last) return;
+    const lat = this.last.lat;
+    const lng = this.last.lng;
+    const vendors = window.Commerce?.vendors || [];
+    const hits = vendors.filter((v) => {
+      const blob = ((v.name || '') + ' ' + (v.category || '') + ' ' + (v.emoji || '')).toLowerCase();
+      return blob.includes(query) || query.split(/\s+/).some((w) => w.length > 2 && blob.includes(w));
+    }).slice(0, 8);
+    if (hits.length) {
+      AciCli?.print?.('radar · ' + hits.length + ' near you · ' + hits.map((h) => h.name).join(' · '), 'ok');
+      hits.forEach((h) => {
+        if (h.lat != null) MapDepict?.pulse?.(h.lat, h.lng, 0xffaa44, h.name, 10000);
+      });
+    } else {
+      AciCli?.print?.('radar · no local match for «' + query + '» · crawling field…', 'dim');
+      void SpaceNetBrain?.crawlArea?.(lat, lng, 3);
+    }
+  },
+};
+window.MapRadar = MapRadar;
