@@ -4,89 +4,84 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Astranov</title>
-<meta name="astranov-build" content="20260720085209" />
+<meta name="astranov-build" content="20260720103000" />
 <meta name="theme-color" content="#0a1020" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-title" content="Astranov" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-<link rel="apple-touch-icon" href="/icon.svg" />
-<!-- HARD PATH: shell modules wired for deploy verification -->
-<script src="/js/loader.js?v=20260720085209"></script>
+<style>
+html,body{margin:0;height:100%;background:#000;color:#9cf;font:14px/1.4 system-ui,sans-serif}
+#boot{position:fixed;inset:0;display:grid;place-items:center;z-index:99998}
+#boot b{letter-spacing:.2em}
+#boot p{opacity:.7;font-size:12px;margin-top:8px}
+</style>
 <script>
-// Nuke broken service workers that freeze dead shells
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations?.().then(function(regs) {
-    regs.forEach(function(r) { r.unregister().catch(function(){}); });
-  }).catch(function(){});
+/* SAME-ORIGIN ONLY — no jsDelivr document.write */
+(function(){
   try {
-    caches && caches.keys && caches.keys().then(function(keys) {
-      keys.forEach(function(k) { if (/astranov/i.test(k)) caches.delete(k); });
-    });
+    if (matchMedia('(pointer:coarse)').matches || navigator.maxTouchPoints > 0) {
+      window._globePerfLite = true;
+      window._spartan = true;
+    }
   } catch (e) {}
-}
-</script>
-<script>
-// Boot full shell from last known-good monorepo HTML, rewrite assets to origin,
-// then ensure loader + Astranov OS/Browser are present.
-(function () {
-  var BUILD = '20260720085209';
-  var GOOD = 'https://cdn.jsdelivr.net/gh/notisastranov/astranov.eu@d80e26a60efa9f341b5b692fb85076bae77ef573/index.html';
-  function inject(html) {
-    if (!html) return html;
-    // Prefer same-origin assets for auth / API / local modules
-    html = html.replace(/https:\/\/cdn\.jsdelivr\.net\/gh\/notisastranov\/astranov\.eu@[^/]+\//g, '/');
-    html = html.replace(/astranov-build" content="[^"]+"/, 'astranov-build" content="' + BUILD + '"');
-    if (html.indexOf('window.__ASTRANOV_HARD_BOOT__') < 0) {
-      html = html.replace('window._spartan=true;', 'window._spartan=true;window.__ASTRANOV_HARD_BOOT__=1;');
-    }
-    if (html.indexOf('src="/js/loader.js') < 0) {
-      html = html.replace(
-        '<script src="/js/phase-critical.js',
-        '<script src="/js/loader.js?v=' + BUILD + '"><\/script>\n<script src="/js/phase-critical.js'
-      );
-    }
-    if (html.indexOf('src="/js/08-astranov-os.js') < 0) {
-      html = html.replace(
-        '</body>',
-        '<script src="/js/08-astranov-os.js?v=' + BUILD + '"><\/script>\n' +
-        '<script src="/js/08-astranov-browser.js?v=' + BUILD + '"><\/script>\n' +
-        '<script>(function(){function bootOs(){try{if(window.AstranovOS)AstranovOS.init();if(window.AstranovBrowser)AstranovBrowser.init();}catch(e){console.warn("[os boot]",e);}}window.addEventListener("load",function(){setTimeout(bootOs,300);});setTimeout(bootOs,2500);})();<\/script>\n</body>'
-      );
-    }
-    return html;
+  var BUILD = '20260720103000';
+  var FULL = '/index.full.html?v=' + BUILD;
+  function fail(msg) {
+    var el = document.getElementById('boot');
+    if (el) el.innerHTML = '<div><b>ASTRANOV</b><p>' + msg + '</p></div>';
   }
-  function fail(m) {
-    try {
-      document.body.innerHTML = '<pre style="color:#fcc;background:#100;padding:16px;font:13px system-ui">' + m + '</pre>';
-    } catch (e) {}
-  }
-  fetch(GOOD, { cache: 'no-store' })
+  fetch(FULL, { cache: 'no-store', credentials: 'same-origin' })
     .then(function (r) {
-      if (!r.ok) throw new Error('shell fetch ' + r.status);
+      if (!r.ok) throw new Error('full ' + r.status);
       return r.text();
     })
     .then(function (html) {
-      if (!html || html.length < 40000 || html.indexOf('__ASTRANOV_MANIFEST__') < 0) {
-        throw new Error('shell payload incomplete');
+      if (!html || html.length < 50000 || html.indexOf('__ASTRANOV_MANIFEST__') < 0) {
+        throw new Error('invalid full shell');
       }
-      html = inject(html);
-      document.open();
-      document.write(html);
-      document.close();
+      location.replace(FULL);
     })
-    .catch(function (e) {
-      fail('Astranov boot: ' + (e && e.message || e) + ' — hard refresh astranov.eu');
+    .catch(function () {
+      fail('Loading Earth…');
+      var three = document.createElement('script');
+      three.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+      three.onload = function () {
+        window.__ASTRANOV_MANIFEST__ = {
+          mode: 'js-phase-bundles',
+          critical: ['/js/phase-critical.js'],
+          app: ['/js/phase-app.js'],
+          features: ['/js/phase-features.js'],
+          deferred: ['/astranov-deferred.js']
+        };
+        window._bootAt = Date.now();
+        window._spartan = true;
+        window.__ASTRANOV_HARD_BOOT__ = 1;
+        function s(src) {
+          return new Promise(function (res) {
+            var el = document.createElement('script');
+            el.src = src + '?v=' + BUILD;
+            el.onload = function () { res(); };
+            el.onerror = function () { res(); };
+            document.head.appendChild(el);
+          });
+        }
+        s('/js/loader.js').then(function () {
+          if (window.AstranovLoader && AstranovLoader.run) return AstranovLoader.run();
+        }).then(function () {
+          return s('/astranov-os-boot.js');
+        }).then(function () {
+          var b = document.getElementById('boot');
+          if (b) b.remove();
+        });
+      };
+      three.onerror = function () { fail('Earth failed — hard refresh'); };
+      document.head.appendChild(three);
     });
 })();
 </script>
-<style>html,body{margin:0;height:100%;background:#000;color:#9cf;font:14px/1.4 system-ui}</style>
 </head>
 <body>
-<p style="padding:24px">Loading Astranov…</p>
-<!-- Direct module tags for deploy verification / progressive enhancement -->
-<script src="/js/08-astranov-os.js?v=20260720085209"></script>
-<script src="/js/08-astranov-browser.js?v=20260720085209"></script>
-<script src="/astranov-os-boot.js?v=20260720085209"></script>
+  <div id="boot"><div><b>ASTRANOV</b><p>Starting OS…</p></div></div>
+  <script src="/astranov-continuity.js?v=20260720103000"></script>
 </body>
 </html>
