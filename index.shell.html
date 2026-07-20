@@ -661,6 +661,15 @@ if ('serviceWorker' in navigator) {
     background:linear-gradient(135deg, #0a2040 0%, #123 40%, #0c1830 100%);
     background-size:cover; background-position:center;
   }
+  #mt-tier-chip {
+    position:absolute; left:10px; top:10px; padding:3px 8px; border-radius:999px;
+    font-size:9px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase;
+    background:rgba(0,0,0,0.55); border:1px solid rgba(100,180,255,0.4); color:#9cf;
+  }
+  #multi-tile[data-tier="city"] #mt-tier-chip { color:#8f8; border-color:rgba(80,220,120,0.45); }
+  #multi-tile[data-tier="national"] #mt-tier-chip { color:#fc6; border-color:rgba(255,200,80,0.45); }
+  #multi-tile[data-tier="global"] #mt-tier-chip { color:#9cf; }
+  #multi-tile[data-tier="stellar"] #mt-tier-chip { color:#daf; border-color:rgba(200,160,255,0.5); }
   #mt-cover.has-img { background-color:#111; }
   #mt-cover-btn {
     position:absolute; left:10px; bottom:8px; padding:4px 8px; border-radius:8px;
