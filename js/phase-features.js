@@ -1863,18 +1863,19 @@ var TaskBoard = {
 
   async _accept() {
     if (!this._offer) return;
+    const id = this._offer.id;
+    const snapshot = this._offer;
     CityTasks?.init?.();
-    const r = await CityTasks.claim(this._offer.id);
-    if (r?.ok) {
-      this.dismiss(this._offer.id);
-      this.showActive(r.task);
-    }
+    const r = await CityTasks.claim(id);
+    this.dismiss(id);
+    if (r?.ok) this.showActive(r.task || CityTasks.get(id) || snapshot);
   },
 
   _reject() {
     if (!this._offer) return;
-    CityTasks.reject(this._offer.id);
-    this.dismiss(this._offer.id);
+    const id = this._offer.id;
+    CityTasks.reject(id);
+    this.dismiss(id);
   },
 
   showActive(task) {
