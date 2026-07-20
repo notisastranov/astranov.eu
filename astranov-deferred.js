@@ -14540,6 +14540,16 @@ const ProfileSite = {
   },
 
   _render(prof) {
+    // Prefer MultiTile as universal profile at all zoom levels
+    if (window.MultiTile?.openUser && prof) {
+      MultiTile.openUser(prof, {
+        lat: prof.field_lat ?? window._lastPos?.lat,
+        lng: prof.field_lng ?? window._lastPos?.lng,
+        source: 'profile',
+        tier: MultiTile.currentTier?.(),
+      });
+      return;
+    }
     const panel = document.getElementById('profile-site-panel');
     if (!panel) return;
     const page = this._page(prof);
