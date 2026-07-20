@@ -132,7 +132,7 @@
       opts = opts || {};
       var self = this;
       var km = Math.max(0, Number(opts.km) || 0);
-      var kg = Math.max(0, Number(opts.kg) || 3;
+      var kg = Math.max(0, Number(opts.kg) || 3);
       var sub = Math.max(0, Number(opts.subtotal) || 0);
       var when = opts.at ? new Date(opts.at) : new Date();
       var wxP = opts.lat != null
