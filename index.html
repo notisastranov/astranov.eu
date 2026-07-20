@@ -6,45 +6,87 @@
 <title>Astranov</title>
 <meta name="astranov-build" content="20260720085209" />
 <meta name="theme-color" content="#0a1020" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Astranov" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/icon.svg" />
+<!-- HARD PATH: shell modules wired for deploy verification -->
+<script src="/js/loader.js?v=20260720085209"></script>
 <script>
-// Full shell from last known-good monorepo commit (CDN). Local phase bundles + OS modules load from origin.
+// Nuke broken service workers that freeze dead shells
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations?.().then(function(regs) {
+    regs.forEach(function(r) { r.unregister().catch(function(){}); });
+  }).catch(function(){});
+  try {
+    caches && caches.keys && caches.keys().then(function(keys) {
+      keys.forEach(function(k) { if (/astranov/i.test(k)) caches.delete(k); });
+    });
+  } catch (e) {}
+}
+</script>
+<script>
+// Boot full shell from last known-good monorepo HTML, rewrite assets to origin,
+// then ensure loader + Astranov OS/Browser are present.
 (function () {
+  var BUILD = '20260720085209';
   var GOOD = 'https://cdn.jsdelivr.net/gh/notisastranov/astranov.eu@d80e26a60efa9f341b5b692fb85076bae77ef573/index.html';
-  // Prefer same-origin full shell if present as /index.full.html
-  var tryUrls = ['/index.full.html', GOOD];
-  function go(u) { location.replace(u); }
-  // Keep users on astranov.eu origin for auth: inject shell into iframe-less fetch
-  fetch(GOOD, { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (html) {
-    if (!html || html.length < 50000 || html.indexOf('__ASTRANOV_MANIFEST__') < 0) {
-      document.body.innerHTML = '<p style="color:#9cf;font:14px system-ui;padding:24px">Astranov loading…</p>';
-      setTimeout(function(){ go(GOOD); }, 500);
-      return;
-    }
-    // Rewrite absolute CDN asset paths back to origin for live API/auth
+  function inject(html) {
+    if (!html) return html;
+    // Prefer same-origin assets for auth / API / local modules
     html = html.replace(/https:\/\/cdn\.jsdelivr\.net\/gh\/notisastranov\/astranov\.eu@[^/]+\//g, '/');
-    // Ensure OS modules boot
-    if (html.indexOf('08-astranov-os.js') < 0) {
-      html = html.replace('</body>',
-        '<script src="/js/08-astranov-os.js?v=20260720085209"><\/script>\n' +
-        '<script src="/js/08-astranov-browser.js?v=20260720085209"><\/script>\n' +
-        '<script src="/astranov-os-boot.js?v=20260720085209"><\/script>\n</body>');
+    html = html.replace(/astranov-build" content="[^"]+"/, 'astranov-build" content="' + BUILD + '"');
+    if (html.indexOf('window.__ASTRANOV_HARD_BOOT__') < 0) {
+      html = html.replace('window._spartan=true;', 'window._spartan=true;window.__ASTRANOV_HARD_BOOT__=1;');
     }
-    // Ensure continuity has OS boot path
-    document.open();
-    document.write(html);
-    document.close();
-  }).catch(function () {
-    go(GOOD);
-  });
+    if (html.indexOf('src="/js/loader.js') < 0) {
+      html = html.replace(
+        '<script src="/js/phase-critical.js',
+        '<script src="/js/loader.js?v=' + BUILD + '"><\/script>\n<script src="/js/phase-critical.js'
+      );
+    }
+    if (html.indexOf('src="/js/08-astranov-os.js') < 0) {
+      html = html.replace(
+        '</body>',
+        '<script src="/js/08-astranov-os.js?v=' + BUILD + '"><\/script>\n' +
+        '<script src="/js/08-astranov-browser.js?v=' + BUILD + '"><\/script>\n' +
+        '<script>(function(){function bootOs(){try{if(window.AstranovOS)AstranovOS.init();if(window.AstranovBrowser)AstranovBrowser.init();}catch(e){console.warn("[os boot]",e);}}window.addEventListener("load",function(){setTimeout(bootOs,300);});setTimeout(bootOs,2500);})();<\/script>\n</body>'
+      );
+    }
+    return html;
+  }
+  function fail(m) {
+    try {
+      document.body.innerHTML = '<pre style="color:#fcc;background:#100;padding:16px;font:13px system-ui">' + m + '</pre>';
+    } catch (e) {}
+  }
+  fetch(GOOD, { cache: 'no-store' })
+    .then(function (r) {
+      if (!r.ok) throw new Error('shell fetch ' + r.status);
+      return r.text();
+    })
+    .then(function (html) {
+      if (!html || html.length < 40000 || html.indexOf('__ASTRANOV_MANIFEST__') < 0) {
+        throw new Error('shell payload incomplete');
+      }
+      html = inject(html);
+      document.open();
+      document.write(html);
+      document.close();
+    })
+    .catch(function (e) {
+      fail('Astranov boot: ' + (e && e.message || e) + ' — hard refresh astranov.eu');
+    });
 })();
 </script>
-<style>html,body{margin:0;height:100%;background:#000;color:#9cf;font:14px system-ui}</style>
+<style>html,body{margin:0;height:100%;background:#000;color:#9cf;font:14px/1.4 system-ui}</style>
 </head>
 <body>
-<p style="padding:24px">Loading Astranov OS…</p>
-<script src="/astranov-continuity.js?v=20260720085209"></script>
+<p style="padding:24px">Loading Astranov…</p>
+<!-- Direct module tags for deploy verification / progressive enhancement -->
+<script src="/js/08-astranov-os.js?v=20260720085209"></script>
+<script src="/js/08-astranov-browser.js?v=20260720085209"></script>
 <script src="/astranov-os-boot.js?v=20260720085209"></script>
 </body>
 </html>
