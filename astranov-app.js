@@ -286,7 +286,7 @@ function speak(text, onEnd, force) {
 }
 function stopSpeaking() { Voice.flush(); }
 
-const MapDepict = {
+var MapDepict = {
   overlays: [],
   current: '',
 
@@ -1961,7 +1961,7 @@ window.GlobeDeck = GlobeDeck;
 
 /* === 13-cli-ribbon.js === */
 // === CLI RIBBON — one top bar: account · apps · status · + · expand ===
-const CliRibbon = {
+var CliRibbon = {
   _active: 'CLI',
   _notice: '',
   _kind: 'idle',
@@ -2254,6 +2254,10 @@ const SuperCli = {
       'aci-vhf': () => this.run('vhf'),
       'aci-call': () => this.run('phone'),
       'super-add-fab': () => {
+        if (window.MultiTile?.openFromPlus) {
+          MultiTile.openFromPlus();
+          return;
+        }
         if (typeof MapPlaceMenu?.openPlusField === 'function') {
           MapPlaceMenu.openPlusField();
           return;
@@ -2700,6 +2704,27 @@ const AciCli = {
       return;
     }
 
+    // Radar place search: after single-click map, CLI text is a local search
+    if (window.MapRadar?.last && line && !/^(think|code|fix|dev|bridge)\b/i.test(line)) {
+      const q = (cmd === 'radar' || cmd === 'search' || cmd === 'find') ? rest : line;
+      if (q && q.length >= 2) {
+        MapRadar.runQuery(q);
+        this.print('radar · ' + q, 'ok');
+        return;
+      }
+    }
+    if (cmd === 'radar' || cmd === 'search' || cmd === 'find') {
+      const pos = window.MapRadar?.last || window._lastPos;
+      if (!pos?.lat) {
+        this.print('tap the map once to set radar, then type e.g. pharmacy', 'err');
+        return;
+      }
+      MapRadar.at(pos.lat, pos.lng, { query: rest || '' });
+      if (rest) MapRadar.runQuery(rest);
+      this.print(rest ? ('radar · ' + rest) : 'radar · type what you need', 'ok');
+      return;
+    }
+
     // Freeform → Core Brain (globe agent). Never leave users at "unknown".
     GlobeDeck.activeTask = 'coders';
     if (window.AstranovCoreBrain?.handle) {
@@ -2920,6 +2945,11 @@ const MapPlaceMenu = {
   },
 
   openPlusField() {
+    // + field → multi-tile (unified profile / vendor / driver / post)
+    if (window.MultiTile?.openFromPlus) {
+      MultiTile.openFromPlus();
+      return;
+    }
     const pos = window._lastPos || CityMap?.globeCenterLatLng?.() || TrackballGuard?.facingLatLng?.() || { lat: 36.44, lng: 28.22 };
     this.openAt(pos.lat, pos.lng, { source: 'Plus field', hint: 'Type what you want to do — AI shows top 3', focusIntent: true });
   },
@@ -3169,18 +3199,135 @@ var CityMap = {
   _bindMapClick() {
     if (!this.map || this.map._placeClickBound) return;
     this.map._placeClickBound = true;
+    // Single click → radar search around place (CLI guides e.g. pharmacy)
+    // Long press → MultiTile (profile / vendor / driver / post)
+    let pressTimer = null;
+    let pressLatLng = null;
+    let longFired = false;
+    const clearPress = () => {
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    };
+    this.map.on('mousedown', (e) => {
+      if (!this.active) return;
+      longFired = false;
+      pressLatLng = e.latlng;
+      clearPress();
+      pressTimer = setTimeout(() => {
+        longFired = true;
+        if (pressLatLng) {
+          MultiTile?.openAt?.(pressLatLng.lat, pressLatLng.lng, { source: 'long-press' });
+        }
+      }, 480);
+    });
+    this.map.on('mouseup', () => clearPress());
+    this.map.on('mousemove', () => { /* drag cancels long-press */ });
+    this.map.on('dragstart', () => { clearPress(); longFired = false; });
+    this.map.on('touchstart', (e) => {
+      if (!this.active) return;
+      const t = e.originalEvent?.touches?.[0];
+      if (!t || (e.originalEvent.touches.length > 1)) return;
+      longFired = false;
+      pressLatLng = e.latlng;
+      clearPress();
+      pressTimer = setTimeout(() => {
+        longFired = true;
+        if (pressLatLng) {
+          MultiTile?.openAt?.(pressLatLng.lat, pressLatLng.lng, { source: 'long-press' });
+        }
+      }, 480);
+    }, { passive: true });
+    this.map.on('touchend', () => clearPress());
+    this.map.on('touchmove', () => clearPress());
     this.map.on('click', (e) => {
       if (!this.active) return;
-      MapPlaceMenu?.openAt?.(e.latlng.lat, e.latlng.lng, {
-        source: 'City map',
-        hint: 'Post · explore · order — pick a triangle',
-        limited: true,
-      });
+      if (longFired) {
+        longFired = false;
+        return; // long-press already opened multi-tile
+      }
+      MapRadar?.at?.(e.latlng.lat, e.latlng.lng, { source: 'city-map' });
     });
   },
 
+  /**
+   * Leave city map and return to the 3D globe (national/global).
+   * Old path only nudged camera while map stayed on top — felt broken.
+   */
   _bridgeZoomOut(amount) {
-    if (typeof zoomBy === 'function') zoomBy(amount || 0.12);
+    this.returnToGlobe({ pull: amount });
+  },
+
+  /** Hard handoff: hide Leaflet, show globe, zoom out so Earth is visible. */
+  returnToGlobe(opts) {
+    opts = opts || {};
+    window._cityDropLock = false;
+    window._locateCinematic = false;
+    this._forceOpen = false;
+    this._exit();
+    try {
+      document.body?.classList?.remove?.('city-map-active', 'national-map-active');
+      const globe = document.getElementById('globe');
+      if (globe) {
+        globe.classList.remove('city-map-active', 'national-map-active');
+        globe.style.opacity = '1';
+        globe.style.visibility = 'visible';
+        globe.style.display = '';
+        globe.style.zIndex = '2';
+      }
+      const canvas = globe?.querySelector?.('canvas') || document.querySelector('#globe canvas');
+      if (canvas) {
+        canvas.style.opacity = '1';
+        canvas.style.pointerEvents = 'auto';
+        canvas.style.display = 'block';
+      }
+      const chip = document.getElementById('city-life-chip');
+      if (chip) chip.classList.remove('open');
+    } catch (_) {}
+    try { cityLevel = false; } catch (_) {}
+    if (CosmicZoom) CosmicZoom.level = 'earth';
+
+    const globalZ = ZoomTiers?.tierZ?.('global') || GlobeControl?.Z?.global || window.START_CAM_Z || 3.65;
+    const nationalZ = ZoomTiers?.tierZ?.('national') || GlobeControl?.Z?.national || 2.05;
+    // Prefer global so user clearly sees the full globe, not stuck at street camZ
+    const toZ = opts.tier === 'national' ? nationalZ : globalZ;
+    const fromZ = (typeof camera !== 'undefined' && camera?.position?.z) || 1.4;
+    try {
+      if (typeof camera !== 'undefined' && camera) {
+        window._globeFly = null;
+        if (opts.instant) {
+          camera.position.z = toZ;
+          camera.lookAt(0, 0, 0);
+          ZoomTiers?.goTo?.(opts.tier === 'national' ? 'national' : 'global', false);
+        } else {
+          window._globeFly = {
+            mode: 'zoom',
+            fromZ: fromZ < toZ ? fromZ : Math.max(1.2, toZ - 0.8),
+            toZ,
+            t0: performance.now(),
+            dur: opts.dur || 1100,
+            tierId: opts.tier === 'national' ? 'national' : 'global',
+            onTier: true,
+          };
+          ZoomTiers?.goTo?.(opts.tier === 'national' ? 'national' : 'global', false);
+        }
+      }
+    } catch (_) {}
+    try {
+      CosmicZoom?.update?.(toZ, {
+        tier: opts.tier === 'national' ? 'national' : 'global',
+        label: opts.tier === 'national' ? 'NATIONAL' : 'Earth',
+        cosmic: 'earth',
+      });
+    } catch (_) {}
+    const zl = document.getElementById('zoom-label');
+    if (zl) {
+      zl.textContent = opts.tier === 'national'
+        ? (PublicCopy?.zoomLine?.('national') || 'Country · drag · choose a city')
+        : (PublicCopy?.zoomLine?.('global') || 'Earth · drag · scroll for country · tap city');
+    }
+    CliRibbon?.setNotice?.('Globe · drag · scroll · 🎯 locate', 'ready');
+    GlobeDeck?.setPreview?.('Globe · drag Earth · scroll to zoom · 🎯 locate');
+    GlobeDeck?.setMapStatus?.('Earth');
+    return true;
   },
 
   _bindMapGestures() {
@@ -3267,8 +3414,14 @@ var CityMap = {
 
   onCamera(camZ, level) {
     if (!this._ready) return;
+    // During locate cinematic fly: never open map mid-turn (teleport bug)
     if (window._globeFly) {
-      if (this.active) this._syncView(camZ);
+      if (this.active && !window._locateCinematic) this._syncView(camZ);
+      return;
+    }
+    if (window._locateCinematic) {
+      // Cinematic owns enter — only exit if zoomed way out
+      if (this.active && camZ > this.EXIT_Z) this._exit();
       return;
     }
     const earth = window._cityDropLock || this._forceOpen
@@ -3292,7 +3445,11 @@ var CityMap = {
     cityLevel = true;
     const el = document.getElementById('city-map');
     const globe = document.getElementById('globe');
-    if (el) el.classList.add('active');
+    if (el) {
+      el.classList.add('active');
+      el.style.pointerEvents = 'auto';
+      el.style.opacity = '1';
+    }
     if (globe) globe.classList.add('city-map-active');
     // prevent white flash: force dark bg before map view
     if (el) el.style.background = 'var(--an-bg)';
@@ -3323,11 +3480,25 @@ var CityMap = {
 
   _exit() {
     this.active = false;
-    cityLevel = false;
+    try { cityLevel = false; } catch (_) {}
     const el = document.getElementById('city-map');
     const globe = document.getElementById('globe');
-    if (el) el.classList.remove('active');
-    if (globe) globe.classList.remove('city-map-active');
+    if (el) {
+      el.classList.remove('active', 'national-active');
+      el.style.pointerEvents = 'none';
+      el.style.opacity = '0';
+    }
+    if (globe) {
+      globe.classList.remove('city-map-active', 'national-map-active');
+    }
+    try {
+      document.body?.classList?.remove?.('city-map-active', 'national-map-active');
+      const canvas = globe?.querySelector?.('canvas');
+      if (canvas) {
+        canvas.style.opacity = '1';
+        canvas.style.pointerEvents = 'auto';
+      }
+    } catch (_) {}
     EarthRealism?._hudTimer && (EarthRealism._hudTimer = 0);
   },
 
@@ -3471,15 +3642,679 @@ var CityMap = {
 };
 window.CityMap = CityMap;
 
+/* === 62-multi-tile.js === */
+// === MULTI-TILE — unified profile for ALL zoom levels ===
+// city · national · global · stellar — same movie-style tile.
+// + button OR long-press (map/globe) → this tile.
+// Single-click map/globe → MapRadar (CLI search e.g. pharmacy).
+// Layout: cover · avatar · role toggles · scroll body · post / connect.
+var MultiTile = {
+  _open: false,
+  _pin: null,
+  _tier: 'global',
+  _targetUser: null, // other user's profile when opened from marker
+  _roles: { user: true, public: false, vendor: false, driver: false },
+  _draft: null,
+  _bound: false,
+  STORAGE: 'astranov:multi-tile-v1',
+
+  /** Resolve current product zoom band for the tile chrome */
+  currentTier() {
+    try {
+      if (CityMap?.active) return 'city';
+      const id = ZoomTiers?.current?.()?.id || CosmicZoom?.level || 'global';
+      if (id === 'solar' || id === 'system' || id === 'galaxy' || CosmicZoom?.level === 'system') return 'stellar';
+      if (id === 'city' || id === 'neighborhood') return 'city';
+      if (id === 'national' || id === 'regional') return 'national';
+      if (id === 'global' || id === 'earth' || CosmicZoom?.level === 'earth') return 'global';
+      return 'global';
+    } catch (_) {
+      return 'global';
+    }
+  },
+
+  tierLabel(t) {
+    const m = {
+      city: 'City',
+      national: 'National',
+      global: 'Global',
+      stellar: 'Stellar',
+    };
+    return m[t] || t || 'Global';
+  },
+
+  init() {
+    if (this._bound) return;
+    this._bound = true;
+    this._ensureDom();
+    this._loadDraft();
+    document.getElementById('mt-close')?.addEventListener('click', () => this.close());
+    document.getElementById('mt-backdrop')?.addEventListener('click', () => this.close());
+    document.getElementById('mt-post')?.addEventListener('click', () => this.postHere());
+    document.getElementById('mt-camera')?.addEventListener('click', () => this.postHere({ camera: true }));
+    document.getElementById('mt-save')?.addEventListener('click', () => this.save());
+    document.getElementById('mt-call')?.addEventListener('click', () => this.connect('video'));
+    document.getElementById('mt-msg')?.addEventListener('click', () => this.connect('message'));
+    document.getElementById('mt-team')?.addEventListener('click', () => this.connect('team'));
+    document.getElementById('mt-launch')?.addEventListener('click', () => this.launchTask());
+    document.getElementById('mt-kind')?.addEventListener('change', () => this._syncTaskCriteria());
+    document.querySelectorAll('.mt-role-tog').forEach((btn) => {
+      btn.addEventListener('click', () => this.toggleRole(btn.dataset.role));
+    });
+    // + FAB → multi-tile (not deferred Super Add alone)
+    const fab = document.getElementById('super-add-fab');
+    if (fab && !fab._multiTileBound) {
+      fab._multiTileBound = true;
+      fab.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.openFromPlus();
+      }, true);
+    }
+  },
+
+  _ensureDom() {
+    if (document.getElementById('multi-tile')) return;
+    const wrap = document.createElement('div');
+    wrap.id = 'multi-tile-root';
+    wrap.innerHTML = ''
+      + '<div id="mt-backdrop" aria-hidden="true"></div>'
+      + '<div id="multi-tile" role="dialog" aria-label="Place multi-tile">'
+      + '  <div id="mt-cover">'
+      + '    <button type="button" id="mt-cover-btn" title="Cover photo">📷 Cover</button>'
+      + '    <button type="button" id="mt-close" aria-label="Close">✖</button>'
+      + '  </div>'
+      + '  <div id="mt-head">'
+      + '    <div id="mt-avatar" title="Profile photo">👤</div>'
+      + '    <div id="mt-head-text">'
+      + '      <div id="mt-name">You</div>'
+      + '      <div id="mt-place">—</div>'
+      + '    </div>'
+      + '  </div>'
+      + '  <div id="mt-roles" class="mt-roles">'
+      + '    <button type="button" class="mt-role-tog active" data-role="user">👤 User</button>'
+      + '    <button type="button" class="mt-role-tog" data-role="public">✦ Public</button>'
+      + '    <button type="button" class="mt-role-tog" data-role="vendor">🏬 Vendor</button>'
+      + '    <button type="button" class="mt-role-tog" data-role="driver">🚚 Driver</button>'
+      + '  </div>'
+      + '  <div id="mt-scroll">'
+      + '    <div id="mt-sec-user" class="mt-sec"></div>'
+      + '    <div id="mt-sec-public" class="mt-sec" hidden></div>'
+      + '    <div id="mt-sec-vendor" class="mt-sec" hidden></div>'
+      + '    <div id="mt-sec-driver" class="mt-sec" hidden></div>'
+      + '    <div id="mt-sec-task" class="mt-sec">'
+      + '      <div class="mt-label">Launch task · Coins</div>'
+      + '      <div id="mt-coins-bal" class="mt-hint">— 🪙</div>'
+      + '      <div class="mt-task-row">'
+      + '        <select id="mt-kind">'
+      + '          <option value="help">🤝 Help</option>'
+      + '          <option value="job">💼 Work / gig</option>'
+      + '          <option value="vendor">🏬 Vendor task</option>'
+      + '          <option value="delivery">📦 Delivery</option>'
+      + '          <option value="errand">🏃 Errand</option>'
+      + '          <option value="dating">💕 Dating</option>'
+      + '          <option value="service">🛠️ Service</option>'
+      + '        </select>'
+      + '        <input id="mt-coins" type="number" min="0" step="1" value="50" title="Coins offered for this task" placeholder="🪙" />'
+      + '      </div>'
+      + '      <label class="mt-field">What do you need?'
+      + '        <input id="mt-task-title" placeholder="e.g. pharmacy run · barman 3h · coffee date" />'
+      + '      </label>'
+      + '      <div class="mt-task-row">'
+      + '        <label class="mt-inline">Map radius km'
+      + '          <input id="mt-radius" type="number" min="0.5" max="50" step="0.5" value="3" />'
+      + '        </label>'
+      + '        <label class="mt-inline">Duration'
+      + '          <input id="mt-duration" value="1h" placeholder="1h · 3h · 45m" />'
+      + '        </label>'
+      + '      </div>'
+      + '      <div id="mt-criteria-dating" class="mt-criteria" hidden>'
+      + '        <div class="mt-task-row">'
+      + '          <label class="mt-inline">Age min<input id="mt-age-min" type="number" min="18" placeholder="18" /></label>'
+      + '          <label class="mt-inline">Age max<input id="mt-age-max" type="number" min="18" placeholder="99" /></label>'
+      + '        </div>'
+      + '        <label class="mt-field">Looks / vibe<input id="mt-looks" placeholder="casual · tall · …" /></label>'
+      + '      </div>'
+      + '      <div id="mt-criteria-work" class="mt-criteria" hidden>'
+      + '        <label class="mt-field">Need role / skill<input id="mt-need-role" placeholder="barman · cleaner · driver · …" /></label>'
+      + '        <label class="mt-field">Skills / notes<input id="mt-skills" placeholder="experience, language, tools…" /></label>'
+      + '      </div>'
+      + '      <div id="mt-criteria-delivery" class="mt-criteria" hidden>'
+      + '        <label class="mt-field">Vehicle preferred<input id="mt-vehicle-need" placeholder="bike · car · van" /></label>'
+      + '      </div>'
+      + '      <label class="mt-field">Notes<textarea id="mt-task-note" rows="2" placeholder="Details for people who can help…"></textarea></label>'
+      + '      <button type="button" id="mt-launch" class="mt-launch">🚀 Launch task to nearby users</button>'
+      + '      <p class="mt-hint">Broadcasts in map radius with big Accept / Reject. Coins held on launch, paid when both verify every stage. Routing starts on accept.</p>'
+      + '    </div>'
+      + '  </div>'
+      + '  <div id="mt-actions">'
+      + '    <button type="button" id="mt-post" class="mt-primary">＋ Post here</button>'
+      + '    <button type="button" id="mt-camera" title="Camera">📷</button>'
+      + '    <button type="button" id="mt-call" title="Video call">📹</button>'
+      + '    <button type="button" id="mt-msg" title="Message">💬</button>'
+      + '    <button type="button" id="mt-team" title="Team">👥</button>'
+      + '    <button type="button" id="mt-save">Save</button>'
+      + '  </div>'
+      + '</div>';
+    document.body.appendChild(wrap);
+  },
+
+  _syncTaskCriteria() {
+    const kind = document.getElementById('mt-kind')?.value || 'help';
+    const dating = document.getElementById('mt-criteria-dating');
+    const work = document.getElementById('mt-criteria-work');
+    const del = document.getElementById('mt-criteria-delivery');
+    if (dating) dating.hidden = kind !== 'dating';
+    if (work) work.hidden = !(kind === 'job' || kind === 'service' || kind === 'vendor' || kind === 'help');
+    if (del) del.hidden = !(kind === 'delivery' || kind === 'errand');
+  },
+
+  _refreshCoinsBal() {
+    const el = document.getElementById('mt-coins-bal');
+    if (!el) return;
+    try {
+      CityTasks?.init?.();
+      const b = CityTasks?.coinsBalance?.();
+      if (b) el.textContent = b.available + ' 🪙 available · ' + b.held + ' held (wallet)';
+      else el.textContent = 'Coins wallet loads with tasks…';
+    } catch (_) {
+      el.textContent = '— 🪙';
+    }
+  },
+
+  async launchTask() {
+    const kind = document.getElementById('mt-kind')?.value || 'help';
+    const title = document.getElementById('mt-task-title')?.value?.trim()
+      || document.getElementById('mt-task-note')?.value?.trim()
+      || (kind + ' task');
+    const coins = Math.max(0, Math.round(Number(document.getElementById('mt-coins')?.value) || 0));
+    const radius_km = Math.max(0.5, Number(document.getElementById('mt-radius')?.value) || 3);
+    const duration = document.getElementById('mt-duration')?.value?.trim() || '1h';
+    const note = document.getElementById('mt-task-note')?.value?.trim() || '';
+    const criteria = {};
+    if (kind === 'dating') {
+      const amin = document.getElementById('mt-age-min')?.value;
+      const amax = document.getElementById('mt-age-max')?.value;
+      const looks = document.getElementById('mt-looks')?.value?.trim();
+      if (amin) criteria.age_min = Number(amin);
+      if (amax) criteria.age_max = Number(amax);
+      if (looks) criteria.looks = looks;
+    }
+    if (kind === 'job' || kind === 'service' || kind === 'vendor' || kind === 'help') {
+      const need = document.getElementById('mt-need-role')?.value?.trim();
+      const skills = document.getElementById('mt-skills')?.value?.trim();
+      if (need) criteria.need_role = need;
+      if (skills) criteria.skills = skills;
+    }
+    if (kind === 'delivery' || kind === 'errand') {
+      const veh = document.getElementById('mt-vehicle-need')?.value?.trim();
+      if (veh) criteria.vehicle = veh;
+    }
+    const pin = this._pin || window._lastPos || { lat: 36.44, lng: 28.22 };
+
+    const run = async () => {
+      try { await LazyModules?.ensure?.(); } catch (_) {}
+      if (!window.CityTasks) {
+        // features phase may still be loading — soft wait
+        await new Promise((r) => setTimeout(r, 800));
+      }
+      if (!window.CityTasks) {
+        const zl = document.getElementById('zoom-label');
+        if (zl) zl.textContent = 'Tasks loading… try again';
+        return;
+      }
+      CityTasks.init?.();
+      TaskBoard?.init?.();
+      const r = CityTasks.launch({
+        kind,
+        title,
+        coins,
+        radius_km,
+        duration,
+        note,
+        criteria,
+        lat: pin.lat,
+        lng: pin.lng,
+        age_min: criteria.age_min,
+        age_max: criteria.age_max,
+        looks: criteria.looks,
+        need_role: criteria.need_role,
+        skills: criteria.skills,
+        vehicle: criteria.vehicle,
+      });
+      this._refreshCoinsBal();
+      if (r?.ok) {
+        const zl = document.getElementById('zoom-label');
+        if (zl) zl.textContent = 'Launched · ' + coins + '🪙 · ' + radius_km + 'km radius';
+        // Poster keeps MultiTile open optionally — show stages panel
+        try { MultiTile.close?.(); } catch (_) {}
+      } else if (r?.error === 'insufficient_coins') {
+        const zl = document.getElementById('zoom-label');
+        if (zl) zl.textContent = 'Need ' + r.needed + '🪙 · have ' + r.available;
+        AciCli?.print?.('insufficient Coins · need ' + r.needed + ' · available ' + r.available, 'err');
+      }
+    };
+    void run();
+  },
+
+  _loadDraft() {
+    try {
+      const raw = localStorage.getItem(this.STORAGE);
+      if (raw) this._draft = JSON.parse(raw);
+    } catch (_) {}
+    if (!this._draft) {
+      this._draft = {
+        displayName: '',
+        bio: '',
+        cover: '',
+        avatar: '',
+        publicTitle: '',
+        vendorName: '',
+        menu: [],
+        vehicle: '',
+        vehicleNotes: '',
+        roles: { user: true, public: false, vendor: false, driver: false },
+      };
+    }
+    this._roles = Object.assign({ user: true, public: false, vendor: false, driver: false }, this._draft.roles || {});
+  },
+
+  _persist() {
+    try {
+      this._draft.roles = { ...this._roles };
+      localStorage.setItem(this.STORAGE, JSON.stringify(this._draft));
+    } catch (_) {}
+  },
+
+  openFromPlus() {
+    const pos = window._lastPos
+      || CityMap?.globeCenterLatLng?.()
+      || TrackballGuard?.facingLatLng?.()
+      || { lat: 36.44, lng: 28.22 };
+    this.openAt(pos.lat, pos.lng, { source: 'plus', tier: this.currentTier() });
+  },
+
+  /** Open self / place tile at any zoom level */
+  openAt(lat, lng, opts) {
+    opts = opts || {};
+    this.init();
+    // Stellar / space: still allow tile — pin may be symbolic (last pos or facing Earth)
+    let la = lat;
+    let ln = lng;
+    if (la == null || ln == null || !Number.isFinite(+la) || !Number.isFinite(+ln)) {
+      const fallback = window._lastPos
+        || TrackballGuard?.facingLatLng?.()
+        || { lat: 0, lng: 0 };
+      la = fallback.lat;
+      ln = fallback.lng;
+    }
+    window._globeFly = null;
+    this._targetUser = opts.user || opts.profile || null;
+    this._tier = opts.tier || this.currentTier();
+    this._pin = {
+      lat: +la,
+      lng: +ln,
+      source: opts.source || 'map',
+      tier: this._tier,
+      label: opts.label || null,
+    };
+    window._pendingShopLatLng = { lat: +la, lng: +ln };
+    this._open = true;
+    // Viewing another user: mirror their roles if provided
+    if (this._targetUser?.roles) {
+      const r = this._targetUser.roles;
+      const arr = Array.isArray(r) ? r : [];
+      this._roles = {
+        user: true,
+        public: arr.includes('public') || !!this._targetUser.publicTitle,
+        vendor: arr.includes('vendor') || !!this._targetUser.is_vendor,
+        driver: arr.includes('driver'),
+      };
+    }
+    this._syncRoleButtons();
+    this._render();
+    this._syncTaskCriteria();
+    this._refreshCoinsBal();
+    document.getElementById('multi-tile')?.classList.add('open');
+    document.getElementById('mt-backdrop')?.classList.add('open');
+    document.getElementById('multi-tile')?.setAttribute('data-tier', this._tier);
+    try {
+      MapDepict?.pulse?.(la, ln, 0x3d9eff, opts.label || 'tile', 6000);
+    } catch (_) {}
+    const zl = document.getElementById('zoom-label');
+    if (zl) {
+      zl.textContent = this.tierLabel(this._tier) + ' · '
+        + (+la).toFixed(3) + ', ' + (+ln).toFixed(3);
+    }
+  },
+
+  /** Profile of another player / vendor marker (any level) */
+  openUser(userOrId, opts) {
+    opts = opts || {};
+    this.init();
+    const u = typeof userOrId === 'object' && userOrId
+      ? userOrId
+      : { id: userOrId, display_name: opts.label || 'User' };
+    const lat = opts.lat ?? u.lat ?? u.field_lat ?? window._lastPos?.lat ?? 0;
+    const lng = opts.lng ?? u.lng ?? u.field_lng ?? window._lastPos?.lng ?? 0;
+    if (u.roles && typeof u.roles === 'string') {
+      try { u.roles = JSON.parse(u.roles); } catch (_) { u.roles = []; }
+    }
+    this.openAt(lat, lng, {
+      source: opts.source || 'profile',
+      tier: opts.tier || this.currentTier(),
+      label: u.display_name || u.name || u.username || 'Profile',
+      user: u,
+    });
+  },
+
+  close() {
+    this._open = false;
+    document.getElementById('multi-tile')?.classList.remove('open');
+    document.getElementById('mt-backdrop')?.classList.remove('open');
+  },
+
+  toggleRole(role) {
+    if (!role || !Object.prototype.hasOwnProperty.call(this._roles, role)) return;
+    if (role === 'user') {
+      this._roles.user = true; // always keep a base identity
+    } else {
+      this._roles[role] = !this._roles[role];
+    }
+    this._syncRoleButtons();
+    this._renderSections();
+    this._persist();
+  },
+
+  _syncRoleButtons() {
+    document.querySelectorAll('.mt-role-tog').forEach((btn) => {
+      const on = !!this._roles[btn.dataset.role];
+      btn.classList.toggle('active', on);
+    });
+    ['user', 'public', 'vendor', 'driver'].forEach((r) => {
+      const sec = document.getElementById('mt-sec-' + r);
+      if (sec) sec.hidden = !this._roles[r];
+    });
+  },
+
+  _render() {
+    const d = this._draft || {};
+    const other = this._targetUser;
+    const name = other
+      ? (other.display_name || other.name || other.username || 'User')
+      : (d.displayName
+        || Auth?.user?.user_metadata?.full_name
+        || Auth?.user?.email?.split?.('@')?.[0]
+        || 'You');
+    const av = document.getElementById('mt-avatar');
+    if (av) av.textContent = other?.avatar_emoji || d.avatar || '👤';
+    const nm = document.getElementById('mt-name');
+    if (nm) nm.textContent = name;
+    const pl = document.getElementById('mt-place');
+    if (pl && this._pin) {
+      const src = this._pin.source === 'plus' ? ' · +'
+        : this._pin.source === 'long-press' ? ' · hold'
+        : this._pin.source === 'profile' ? ' · profile'
+        : '';
+      pl.textContent = this.tierLabel(this._tier) + ' · '
+        + this._pin.lat.toFixed(4) + ', ' + this._pin.lng.toFixed(4) + src;
+    }
+    // Tier chip on cover
+    let chip = document.getElementById('mt-tier-chip');
+    if (!chip) {
+      chip = document.createElement('div');
+      chip.id = 'mt-tier-chip';
+      document.getElementById('mt-cover')?.appendChild(chip);
+    }
+    chip.textContent = this.tierLabel(this._tier);
+    const cover = document.getElementById('mt-cover');
+    if (cover) {
+      if (d.cover) {
+        cover.style.backgroundImage = 'url(' + d.cover + ')';
+        cover.classList.add('has-img');
+      } else {
+        cover.style.backgroundImage = '';
+        cover.classList.remove('has-img');
+      }
+    }
+    this._renderSections();
+  },
+
+  _renderSections() {
+    const d = this._draft || {};
+    const esc = (s) => String(s || '').replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+
+    const u = document.getElementById('mt-sec-user');
+    if (u && this._roles.user) {
+      u.innerHTML = ''
+        + '<div class="mt-label">Social · who you are</div>'
+        + '<label class="mt-field">Display name<input id="mt-in-name" value="' + esc(d.displayName) + '" placeholder="Your name" /></label>'
+        + '<label class="mt-field">Bio<textarea id="mt-in-bio" rows="2" placeholder="Short intro…">' + esc(d.bio) + '</textarea></label>';
+    }
+
+    const p = document.getElementById('mt-sec-public');
+    if (p && this._roles.public) {
+      p.innerHTML = ''
+        + '<div class="mt-label">Public figure</div>'
+        + '<label class="mt-field">Stage name<input id="mt-in-public" value="' + esc(d.publicTitle) + '" placeholder="Public title" /></label>'
+        + '<p class="mt-hint">Shown when others radar this place.</p>';
+    }
+
+    const v = document.getElementById('mt-sec-vendor');
+    if (v && this._roles.vendor) {
+      const menu = Array.isArray(d.menu) ? d.menu : [];
+      const rows = menu.length
+        ? menu.map((m, i) => '<div class="mt-menu-row" data-i="' + i + '">'
+          + '<span>' + esc(m.name || 'Item') + '</span>'
+          + '<span class="mt-price">' + esc(m.price || '—') + '</span></div>').join('')
+        : '<p class="mt-hint">No menu yet — add items below.</p>';
+      v.innerHTML = ''
+        + '<div class="mt-label">Vendor · menu</div>'
+        + '<label class="mt-field">Shop name<input id="mt-in-vendor" value="' + esc(d.vendorName) + '" placeholder="Shop name" /></label>'
+        + '<div class="mt-menu-list">' + rows + '</div>'
+        + '<div class="mt-menu-add">'
+        + '<input id="mt-menu-name" placeholder="Item" />'
+        + '<input id="mt-menu-price" placeholder="€" />'
+        + '<button type="button" id="mt-menu-add-btn">Add</button>'
+        + '</div>';
+      document.getElementById('mt-menu-add-btn')?.addEventListener('click', () => this._addMenuItem());
+    }
+
+    const dr = document.getElementById('mt-sec-driver');
+    if (dr && this._roles.driver) {
+      dr.innerHTML = ''
+        + '<div class="mt-label">Delivery · vehicle</div>'
+        + '<label class="mt-field">Vehicle<input id="mt-in-vehicle" value="' + esc(d.vehicle) + '" placeholder="Scooter · van · bike" /></label>'
+        + '<label class="mt-field">Notes<textarea id="mt-in-vnotes" rows="2" placeholder="Base, hours, radius…">' + esc(d.vehicleNotes) + '</textarea></label>';
+    }
+  },
+
+  _addMenuItem() {
+    const n = document.getElementById('mt-menu-name');
+    const p = document.getElementById('mt-menu-price');
+    const name = (n?.value || '').trim();
+    if (!name) return;
+    if (!Array.isArray(this._draft.menu)) this._draft.menu = [];
+    this._draft.menu.push({ name, price: (p?.value || '').trim() });
+    if (n) n.value = '';
+    if (p) p.value = '';
+    this._persist();
+    this._renderSections();
+  },
+
+  _readFields() {
+    const g = (id) => document.getElementById(id)?.value?.trim?.() || '';
+    this._draft.displayName = g('mt-in-name') || this._draft.displayName;
+    this._draft.bio = g('mt-in-bio') || this._draft.bio;
+    this._draft.publicTitle = g('mt-in-public') || this._draft.publicTitle;
+    this._draft.vendorName = g('mt-in-vendor') || this._draft.vendorName;
+    this._draft.vehicle = g('mt-in-vehicle') || this._draft.vehicle;
+    this._draft.vehicleNotes = g('mt-in-vnotes') || this._draft.vehicleNotes;
+  },
+
+  async save() {
+    this._readFields();
+    this._persist();
+    // Soft server sync when signed in
+    try {
+      if (Auth?.user && SB_URL && SB_KEY) {
+        const headers = Auth.authHeaders
+          ? await Auth.authHeaders()
+          : { 'Content-Type': 'application/json', apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY };
+        const roles = [];
+        if (this._roles.user) roles.push('client');
+        if (this._roles.driver) roles.push('driver');
+        if (this._roles.vendor) roles.push('vendor');
+        if (this._roles.public) roles.push('public');
+        const body = {
+          display_name: this._draft.displayName || null,
+          bio: this._draft.bio || null,
+          roles,
+          is_vendor: !!this._roles.vendor,
+          profile_page: {
+            title: this._draft.displayName,
+            about: this._draft.bio,
+            publicTitle: this._draft.publicTitle,
+            vendorName: this._draft.vendorName,
+            menu: this._draft.menu,
+            vehicle: this._draft.vehicle,
+            vehicleNotes: this._draft.vehicleNotes,
+            pin: this._pin,
+          },
+          updated_at: new Date().toISOString(),
+        };
+        await fetch(SB_URL + '/rest/v1/profiles?id=eq.' + Auth.user.id, {
+          method: 'PATCH', headers, body: JSON.stringify(body),
+        });
+      }
+    } catch (_) {}
+    const zl = document.getElementById('zoom-label');
+    if (zl) zl.textContent = 'Tile saved';
+  },
+
+  postHere(opts) {
+    opts = opts || {};
+    const pin = this._pin;
+    if (pin) window._pendingShopLatLng = { lat: pin.lat, lng: pin.lng };
+    this.close();
+    const go = async () => {
+      try { await LazyModules?.ensure?.(); } catch (_) {}
+      if (typeof SuperAdd !== 'undefined' && SuperAdd?.open) SuperAdd.open();
+      else if (window.SuperAdd?.open) window.SuperAdd.open();
+    };
+    void go();
+  },
+
+  connect(kind) {
+    const pin = this._pin;
+    if (!Auth?.user) {
+      Auth?.openLoginModal?.('Sign in to connect');
+      return;
+    }
+    try {
+      if (kind === 'video' || kind === 'voice') {
+        LazyModules?.ensure?.().then(() => {
+          AstranovCall?.start?.(null, { mode: kind === 'voice' ? 'audio' : 'video', lat: pin?.lat, lng: pin?.lng });
+        }).catch(() => {});
+      } else if (kind === 'message') {
+        LazyModules?.ensure?.().then(() => {
+          MapComms?.openCloud?.({ title: 'Place chat' });
+        }).catch(() => {});
+      } else if (kind === 'team') {
+        LazyModules?.ensure?.().then(() => {
+          MapComms?.openCloud?.({ title: 'Local team' });
+          AciCli?.print?.('team · place ' + (pin ? pin.lat.toFixed(3) + ',' + pin.lng.toFixed(3) : ''), 'ok');
+        }).catch(() => {});
+      }
+    } catch (_) {}
+  },
+};
+window.MultiTile = MultiTile;
+
+// Radar: single-click map — search around place via CLI
+var MapRadar = {
+  last: null,
+
+  at(lat, lng, opts) {
+    opts = opts || {};
+    if (lat == null || lng == null) return;
+    this.last = { lat: +lat, lng: +lng, t: Date.now() };
+    window._radarPos = this.last;
+    window._lastPos = window._lastPos || { lat: +lat, lng: +lng };
+    try { MapDepict?.pulse?.(lat, lng, 0x44ffaa, 'radar', 5000); } catch (_) {}
+    try {
+      MapDepict?.action?.('explore', {
+        lat, lng,
+        detail: opts.query || 'search around',
+        worldLat: lat,
+        worldLng: lng,
+      });
+    } catch (_) {}
+    try { SpaceNetBrain?.crawlArea?.(lat, lng, opts.radiusKm || 2); } catch (_) {}
+    try { window.Commerce?.loadVendors?.(); } catch (_) {}
+
+    // Guide search through CLI (e.g. pharmacy)
+    const hint = opts.query
+      ? ('Radar · ' + opts.query + ' near ' + (+lat).toFixed(3) + ', ' + (+lng).toFixed(3))
+      : ('Radar · type search e.g. pharmacy · ' + (+lat).toFixed(3) + ', ' + (+lng).toFixed(3));
+    const zl = document.getElementById('zoom-label');
+    if (zl) zl.textContent = hint.slice(0, 72);
+
+    try {
+      GlobeDeck?.expand?.(PublicCopy?.deckTitle?.() || 'Astranov');
+      const input = document.getElementById('aci-cli-in') || document.getElementById('aci-input');
+      if (input) {
+        if (!opts.query) {
+          input.placeholder = 'Search here — e.g. pharmacy · coffee · driver';
+          input.focus();
+        } else {
+          input.value = opts.query;
+        }
+      }
+      AciCli?.print?.(hint, 'map');
+      SuperCli?.setContext?.('radar');
+    } catch (_) {}
+
+    // If user already typed a query, run soft local match
+    if (opts.query) this.runQuery(opts.query);
+  },
+
+  runQuery(q) {
+    const query = String(q || '').trim().toLowerCase();
+    if (!query || !this.last) return;
+    const lat = this.last.lat;
+    const lng = this.last.lng;
+    const vendors = window.Commerce?.vendors || [];
+    const hits = vendors.filter((v) => {
+      const blob = ((v.name || '') + ' ' + (v.category || '') + ' ' + (v.emoji || '')).toLowerCase();
+      return blob.includes(query) || query.split(/\s+/).some((w) => w.length > 2 && blob.includes(w));
+    }).slice(0, 8);
+    if (hits.length) {
+      AciCli?.print?.('radar · ' + hits.length + ' near you · ' + hits.map((h) => h.name).join(' · '), 'ok');
+      hits.forEach((h) => {
+        if (h.lat != null) MapDepict?.pulse?.(h.lat, h.lng, 0xffaa44, h.name, 10000);
+      });
+    } else {
+      AciCli?.print?.('radar · no local match for «' + query + '» · crawling field…', 'dim');
+      void SpaceNetBrain?.crawlArea?.(lat, lng, 3);
+    }
+  },
+};
+window.MapRadar = MapRadar;
+
 /* === 45-city-life.js === */
 // === CITY LIFE — locate → fly → city satellite map · shops · drivers ===
-const CityLife = {
+// Must work in app phase WITHOUT deferred (placeMe/locateMe live in deferred).
+var CityLife = {
   get CITY_ZOOM() {
-    return GlobeControl?.cityEntryZ?.() ?? 1.34;
+    return ZoomTiers?.tierZ?.('city') ?? GlobeControl?.cityEntryZ?.() ?? 1.42;
   },
   NEARBY_KM: 12,
   _friendTimer: null,
   _lastDrop: null,
+  _locating: false,
 
   init() {
     this._startFriendMotion();
@@ -3489,8 +4324,87 @@ const CityLife = {
       locateBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        locateMe?.();
+        // Never call bare locateMe — undeclared in app phase → ReferenceError (dead app)
+        void CityLife.safeLocate();
       }, { capture: true });
+    }
+    // Expose early so features boot / ribbon can call without deferred
+    if (typeof window.locateMe !== 'function') {
+      window.locateMe = function locateMeEarly() { return CityLife.safeLocate(); };
+    }
+  },
+
+  markLocated(lat, lng) {
+    window._lastPos = { lat, lng };
+    try { userLocated = true; } catch (_) {}
+    window.userLocated = true;
+  },
+
+  /** Lightweight marker without deferred placeMe */
+  markMeOnGlobe(lat, lng) {
+    this.markLocated(lat, lng);
+    try {
+      if (typeof placeMe === 'function') {
+        placeMe(lat, lng, { quiet: true, markerOnly: true });
+        return;
+      }
+      if (typeof window.placeMe === 'function') {
+        window.placeMe(lat, lng, { quiet: true, markerOnly: true });
+        return;
+      }
+    } catch (_) { /* fall through */ }
+    try {
+      if (typeof latLngToPos !== 'function' || typeof THREE === 'undefined') return;
+      if (window._meMarker && window._meMarker.parent) window._meMarker.parent.remove(window._meMarker);
+      const pos = latLngToPos(lat, lng, 1.03);
+      const m = new THREE.Mesh(
+        new THREE.SphereGeometry(0.028, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0x3d9eff })
+      );
+      m.position.set(pos.x, pos.y, pos.z);
+      m.userData = { type: 'me', name: 'You' };
+      if (typeof globePivot !== 'undefined' && globePivot) globePivot.add(m);
+      window._meMarker = m;
+      MapDepict?.pulse?.(lat, lng, 0x3d9eff, 'You', 6000);
+      GlobeEntity?.syncMe?.(lat, lng, 'You');
+    } catch (_) {}
+  },
+
+  _status(line) {
+    // Only the zoom chip — ribbon/deck notices were invisible spam
+    try {
+      const zl = document.getElementById('zoom-label');
+      if (zl && line) zl.textContent = line;
+    } catch (_) {}
+  },
+
+  async safeLocate() {
+    if (this._locating) return { error: 'busy' };
+    this._locating = true;
+    const overall = new Promise((_, reject) => {
+      setTimeout(() => reject(Object.assign(new Error('locate timeout'), { code: 3 })), 32000);
+    });
+    try {
+      this._status('Locating…');
+      const r = await Promise.race([this.locateAndDropIn(), overall]);
+      if (r?.error) {
+        this._status(String(r.message || r.error).slice(0, 80));
+        return r;
+      }
+      this._status(PublicCopy?.zoomLine?.('city') || 'City · streets & shops');
+      return r;
+    } catch (err) {
+      const denied = err?.code === 1 || /denied/i.test(String(err?.message || err));
+      const timed = err?.code === 3 || /timeout/i.test(String(err?.message || err));
+      const msg = denied
+        ? 'GPS denied — allow location, tap 🎯 again'
+        : timed
+          ? 'GPS timed out — try again'
+          : 'Locate failed — try 🎯 again';
+      this._status(msg);
+      return { error: msg };
+    } finally {
+      this._locating = false;
     }
   },
 
@@ -3500,32 +4414,141 @@ const CityLife = {
     return null;
   },
 
+  /**
+   * Force full globe on screen (exit city map, canvas visible).
+   * Without this, locate runs “under” the map and looks like a teleport.
+   */
   ensureEarthView() {
+    window._cityDropLock = false;
+    window._locateCinematic = false;
+    try {
+      if (CityMap?.returnToGlobe) {
+        CityMap.returnToGlobe({ instant: true, tier: 'global' });
+      } else if (CityMap?.active) {
+        CityMap._exit?.();
+      }
+    } catch (_) {}
+    try {
+      const globe = document.getElementById('globe');
+      const mapEl = document.getElementById('city-map');
+      if (mapEl) {
+        mapEl.classList.remove('active', 'national-active');
+        mapEl.style.opacity = '0';
+        mapEl.style.pointerEvents = 'none';
+      }
+      if (globe) {
+        globe.classList.remove('city-map-active', 'national-map-active');
+        globe.style.opacity = '1';
+        globe.style.visibility = 'visible';
+        globe.style.zIndex = '2';
+      }
+      document.body?.classList?.remove?.('city-map-active', 'national-map-active');
+      const canvas = document.querySelector('#globe canvas');
+      if (canvas) {
+        canvas.style.opacity = '1';
+        canvas.style.pointerEvents = 'auto';
+        canvas.style.display = 'block';
+      }
+    } catch (_) {}
     if (CosmicZoom) CosmicZoom.level = 'earth';
-    ZoomTiers?.goTo?.('national', false);
-    CosmicZoom?.update?.(GlobeControl?.Z?.national || 1.82, { tier: 'national', label: 'NATIONAL', cosmic: 'earth' });
-    cityLevel = false;
+    try { cityLevel = false; } catch (_) {}
+    try {
+      if (typeof camera !== 'undefined' && camera) {
+        const gZ = GlobeControl?.Z?.global || 2.55;
+        if (camera.position.z < gZ - 0.05) camera.position.z = gZ;
+        camera.lookAt(0, 0, 0);
+      }
+      ZoomTiers?.goTo?.('global', false);
+      CosmicZoom?.update?.(GlobeControl?.Z?.global || 2.55, {
+        tier: 'global', label: 'Earth', cosmic: 'earth',
+      });
+    } catch (_) {}
+  },
+
+  /** Visible zoom-out to full Earth before any locate fly (user must SEE the globe). */
+  async revealGlobeForLocate() {
+    this.ensureEarthView();
+    const globalZ = ZoomTiers?.tierZ?.('global') || GlobeControl?.Z?.global || window.START_CAM_Z || 3.65;
+    const fromZ = (typeof camera !== 'undefined' && camera?.position?.z) || globalZ;
+    this._status(PublicCopy?.zoomLine?.('global') || 'Earth · locate');
+
+    try {
+      if (typeof camera !== 'undefined' && camera) {
+        const startZ = fromZ;
+        if (Math.abs(startZ - globalZ) > 0.08) {
+          window._globeFly = {
+            mode: 'zoom',
+            fromZ: startZ,
+            toZ: globalZ,
+            t0: performance.now(),
+            dur: 1100,
+            tierId: 'global',
+            onTier: true,
+          };
+          await this._awaitFly(1500);
+        } else {
+          camera.position.z = globalZ;
+          camera.lookAt(0, 0, 0);
+          await this._yield(160);
+        }
+      }
+    } catch (_) {}
+    try {
+      ZoomTiers?.goTo?.('global', false);
+      CosmicZoom?.update?.(globalZ, { tier: 'global', label: 'Earth', cosmic: 'earth' });
+      if (typeof renderer !== 'undefined' && renderer && scene && camera) {
+        renderer.render(scene, camera);
+      }
+    } catch (_) {}
+    await this._yield(200);
+  },
+
+  async _awaitFly(maxMs) {
+    const cap = maxMs || 4500;
+    try {
+      if (typeof waitForGlobeFly === 'function') {
+        await Promise.race([
+          waitForGlobeFly(cap),
+          new Promise((r) => setTimeout(r, cap + 100)),
+        ]);
+      } else {
+        await this._yield(Math.min(cap, 1800));
+      }
+    } catch (_) {}
+  },
+
+  /** Globe turn + zoom to lat/lng at target camera Z (visible, not a teleport). */
+  async flyGlobeTo(lat, lng, targetZ, durMs) {
+    if (typeof latLngToPos !== 'function' || typeof flyToPoint !== 'function' || typeof THREE === 'undefined') {
+      try {
+        if (typeof camera !== 'undefined' && camera) camera.position.z = targetZ;
+      } catch (_) {}
+      return;
+    }
+    const p = latLngToPos(lat, lng, 1.04);
+    flyToPoint(new THREE.Vector3(p.x, p.y, p.z), targetZ, {
+      dur: durMs || GlobeControl?.flyDuration?.(camera?.position?.z, targetZ) || 1800,
+    });
+    await this._awaitFly((durMs || 1800) + 2200);
   },
 
   async flyToCity(lat, lng, label) {
-    this.ensureEarthView();
+    try { this.ensureEarthView(); } catch (_) {}
     const z = this.CITY_ZOOM;
-    const p = latLngToPos(lat, lng, 1.04);
-    if (typeof flyToPoint === 'function') {
-      flyToPoint(new THREE.Vector3(p.x, p.y, p.z), z, {
-        dur: GlobeControl?.flyDuration?.(camera?.position?.z, z),
-      });
-      if (typeof waitForGlobeFly === 'function') await waitForGlobeFly();
-    }
-    GlobeControl?.engageFollow?.('locate');
-    GlobeControl?.noteAutoFly?.();
-    MapDepict?.pulse?.(lat, lng, 0x3d9eff, label || 'Your city', 14000);
+    await this.flyGlobeTo(lat, lng, z, 1400);
+    try { GlobeControl?.engageFollow?.('locate'); } catch (_) {}
+    try { GlobeControl?.noteAutoFly?.(); } catch (_) {}
+    try { MapDepict?.pulse?.(lat, lng, 0x3d9eff, label || 'Your city', 14000); } catch (_) {}
   },
 
   nearbyVendors(lat, lng) {
     const list = window.Commerce?.vendors || [];
     if (!list.length || !window.Commerce?.haversineKm) return list;
     return list.filter(v => v.lat != null && window.Commerce.haversineKm(lat, lng, v.lat, v.lng) <= this.NEARBY_KM);
+  },
+
+  _yield(ms) {
+    return new Promise((r) => setTimeout(r, ms || 0));
   },
 
   async dropIn(lat, lng, opts) {
@@ -3535,83 +4558,141 @@ const CityLife = {
       return { error: 'no_location', message: 'no location — allow GPS or tap 🎯 Locate' };
     }
 
-    window._cityDropLock = true;
-    window._lastPos = { lat: pos.lat, lng: pos.lng };
-    userLocated = true;
+    // CRITICAL: do NOT set _cityDropLock yet — that forces city map open mid-fly (teleport bug)
+    this.markLocated(pos.lat, pos.lng);
     this._lastDrop = { lat: pos.lat, lng: pos.lng, t: Date.now() };
-    CityPick?.hide?.();
+    try { CityPick?.hide?.(); } catch (_) {}
+
+    const nationalZ = ZoomTiers?.tierZ?.('national') || GlobeControl?.Z?.national || 2.05;
+    const cityZ = ZoomTiers?.tierZ?.('city') || this.CITY_ZOOM || 1.42;
+    const globalZ = ZoomTiers?.tierZ?.('global') || GlobeControl?.Z?.global || window.START_CAM_Z || 3.65;
+    const snap = !!opts.immediate; // e2e / emergency only
+    window._locateCinematic = !snap;
 
     try {
-      const nationalZ = GlobeControl?.Z?.national || 1.82;
-      GlobeDeck?.setMapStatus('National view…');
-      ZoomTiers?.goTo?.('national', true);
-      CosmicZoom?.update?.(nationalZ, { tier: 'national', label: 'NATIONAL', cosmic: 'earth' });
-      const gp = latLngToPos(pos.lat, pos.lng, 1.04);
-      if (typeof flyToPoint === 'function') {
-        flyToPoint(new THREE.Vector3(gp.x, gp.y, gp.z), nationalZ, { dur: 1500 });
-        if (typeof waitForGlobeFly === 'function') await waitForGlobeFly();
-      } else if (typeof camera !== 'undefined' && camera) {
-        camera.position.z = nationalZ;
-      }
-      CityMap?.onCamera?.(nationalZ, 'earth');
-      CliRibbon?.setNotice?.('National · your region', 'ready');
-      if (!opts.immediate) {
-        GlobeDeck?.setPreview?.('National view · opening your city…');
-        await new Promise(r => setTimeout(r, 450));
-      }
-      ZoomTiers?.goTo?.('city', true);
-      GlobeDeck?.setMapStatus('Opening city map…');
-      const opened = await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
-      if (!opened) {
-        CityMap?.onCamera?.(this.CITY_ZOOM, 'earth');
-        if (!CityMap?.active) CityMap?._enter?.(this.CITY_ZOOM);
-      }
-      GlobeDeck?.setMapStatus('City map open · syncing globe…');
-      await this.flyToCity(pos.lat, pos.lng, opts.label || 'Your city');
+      // 0) ALWAYS leave city map and show full globe first
+      await this.revealGlobeForLocate();
 
-      if (window.Commerce?.loadVendors) {
-        await Promise.race([
-          window.Commerce.loadVendors(),
-          new Promise(resolve => setTimeout(() => resolve(null), 8000)),
-        ]);
+      if (snap) {
+        try { ZoomTiers?.goTo?.('national', false); } catch (_) {}
+        await this.flyGlobeTo(pos.lat, pos.lng, nationalZ, 500);
+        await this._yield(80);
+        try { ZoomTiers?.goTo?.('city', false); } catch (_) {}
+        window._cityDropLock = true;
+        window._locateCinematic = false;
+        try {
+          CityMap?.init?.();
+          CityMap?.openAt?.(pos.lat, pos.lng, { camZ: cityZ });
+        } catch (_) {}
+      } else {
+        // ── Cinematic: globe OUT → turn → national → city → map (no fake notice spam) ──
+        try { if (CosmicZoom) CosmicZoom.level = 'earth'; } catch (_) {}
+
+        // 1) Turn Earth at GLOBAL altitude
+        this._status(PublicCopy?.zoomLine?.('global') || 'Earth · flying…');
+        await this.flyGlobeTo(pos.lat, pos.lng, globalZ, 2200);
+        await this._yield(300);
+
+        // 2) National
+        this._status(PublicCopy?.zoomLine?.('national') || 'Country…');
+        await this.flyGlobeTo(pos.lat, pos.lng, nationalZ, 2000);
+        try {
+          ZoomTiers?.goTo?.('national', false);
+          CosmicZoom?.update?.(nationalZ, { tier: 'national', label: 'NATIONAL', cosmic: 'earth' });
+        } catch (_) {}
+        await this._yield(450);
+
+        // 3) City altitude on globe (map still closed)
+        this._status(PublicCopy?.zoomLine?.('city') || 'City…');
+        await this.flyGlobeTo(pos.lat, pos.lng, cityZ, 1800);
+        try {
+          ZoomTiers?.goTo?.('city', false);
+          CosmicZoom?.update?.(cityZ, { tier: 'city', label: 'CITY', cosmic: 'earth' });
+        } catch (_) {}
+        try { MapDepict?.pulse?.(pos.lat, pos.lng, 0x3d9eff, opts.label || 'You', 10000); } catch (_) {}
+        await this._yield(280);
+
+        // 4) Open city map
+        window._cityDropLock = true;
+        window._locateCinematic = false;
+        try {
+          CityMap?.init?.();
+          if (CityMap?.openAt) CityMap.openAt(pos.lat, pos.lng, { camZ: cityZ });
+          else {
+            CityMap?.onCamera?.(cityZ, 'earth');
+            if (!CityMap?.active) CityMap?._enter?.(cityZ);
+          }
+        } catch (e) {
+          console.warn('[CityLife] city map open', e);
+        }
       }
-    const nearby = this.nearbyVendors(pos.lat, pos.lng);
-    if (nearby.length) {
-      window.Commerce.vendors = nearby.concat((window.Commerce.vendors || []).filter(v => !nearby.includes(v))).slice(0, 40);
-    }
-    window.Commerce?.showOnGlobe?.();
-    GlobeEntity?.syncVendors?.(window.Commerce.vendors);
 
-    const drivers = window.Commerce?.fetchNearbyDrivers
-      ? await Promise.race([
-        window.Commerce.fetchNearbyDrivers(pos.lat, pos.lng),
-        new Promise(resolve => setTimeout(() => resolve([]), 6000)),
-      ])
-      : [];
-    window.Commerce?.showDriversOnGlobe?.(drivers);
-    this._pulseFriends();
-    this._showLocalNews(pos.lat, pos.lng);
-    this._updateChip(nearby.length, drivers.length);
+      try { GlobeControl?.engageFollow?.('locate'); } catch (_) {}
+      try { GlobeControl?.noteAutoFly?.(); } catch (_) {}
 
-      CityMap?.onCamera?.(this.CITY_ZOOM, 'earth');
-      const msg = nearby.length + ' shops · ' + drivers.length + ' drivers · ' + (window.others?.length || 0) + ' friends nearby';
-      GlobeDeck?.setMapStatus('🏙 City map · ' + pos.lat.toFixed(2) + ', ' + pos.lng.toFixed(2));
-      GlobeDeck?.setPreview('🏙 ' + msg);
-      AciCli?.print('◎ City view · ' + msg, 'ok');
-      ACIControl?.reply('City map open — ' + msg + ' · tap a shop or type: order pitogyra');
-      FieldBrain?.pulse?.('city', msg, { role: 'client', props: { lat: pos.lat, lng: pos.lng, shops: nearby.length } });
+      const nearby = this.nearbyVendors(pos.lat, pos.lng);
+      try {
+        if (nearby.length && window.Commerce) {
+          window.Commerce.vendors = nearby
+            .concat((window.Commerce.vendors || []).filter((v) => !nearby.includes(v)))
+            .slice(0, 40);
+          window.Commerce?.showOnGlobe?.();
+        }
+        this._updateChip(nearby.length, 0);
+      } catch (_) {}
+
+      this._status(
+        (nearby.length ? nearby.length + ' shops · ' : '')
+        + pos.lat.toFixed(2) + ', ' + pos.lng.toFixed(2)
+      );
+
+      setTimeout(() => {
+        try {
+          if (window.Commerce?.loadVendors) void window.Commerce.loadVendors();
+          if (window.Commerce?.fetchNearbyDrivers) {
+            void window.Commerce.fetchNearbyDrivers(pos.lat, pos.lng).then((drivers) => {
+              window.Commerce?.showDriversOnGlobe?.(drivers || []);
+              this._updateChip(nearby.length, (drivers || []).length);
+            }).catch(() => {});
+          }
+          this._pulseFriends();
+          GlobeEntity?.syncVendors?.(window.Commerce?.vendors);
+        } catch (_) {}
+      }, 120);
 
       if (opts.openShops && nearby.length) {
-        GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
-        await window.Commerce?.showPicker?.();
+        setTimeout(() => {
+          try {
+            GlobeDeck?.expand?.(window.SuperCli?.title || 'Astranov');
+            void window.Commerce?.showPicker?.();
+          } catch (_) {}
+        }, 250);
       }
-      return { vendors: nearby, drivers, lat: pos.lat, lng: pos.lng, mapActive: !!CityMap?.active };
+
+      return {
+        vendors: nearby,
+        drivers: [],
+        lat: pos.lat,
+        lng: pos.lng,
+        mapActive: !!(window.CityMap?.active),
+      };
     } catch (e) {
-      AciCli?.print('city drop error: ' + (e.message || e), 'err');
-      await CityMap?.openAt?.(pos.lat, pos.lng, { camZ: this.CITY_ZOOM });
-      return { error: e.message || 'city drop failed', lat: pos.lat, lng: pos.lng, mapActive: !!CityMap?.active };
+      console.error('[CityLife] dropIn', e);
+      AciCli?.print?.('city drop error: ' + (e.message || e), 'err');
+      try {
+        window._cityDropLock = true;
+        CityMap?.init?.();
+        CityMap?.openAt?.(pos.lat, pos.lng, { camZ: cityZ });
+      } catch (_) {}
+      return {
+        error: e.message || 'city drop failed',
+        lat: pos.lat,
+        lng: pos.lng,
+        mapActive: !!(window.CityMap?.active),
+      };
     } finally {
       window._cityDropLock = false;
+      window._locateCinematic = false;
     }
   },
 
@@ -3654,20 +4735,45 @@ const CityLife = {
   },
 
   async locateAndDropIn() {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) { reject(new Error('no geolocation')); return; }
-      GlobeDeck?.setMapStatus('Locating…');
-      navigator.geolocation.getCurrentPosition(
-        async pos => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          placeMe(lat, lng, { quiet: true, markerOnly: true });
-          resolve(await this.dropIn(lat, lng, { label: 'Your city' }));
-        },
-        err => reject(err),
-        { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
-      );
+    if (!navigator.geolocation) throw new Error('no geolocation');
+    this._status('Locating…');
+    // Prefer last good fix immediately if fresh (< 2 min)
+    const last = window._lastPos;
+    if (last?.lat != null && last._at && Date.now() - last._at < 120000) {
+      this.markMeOnGlobe(last.lat, last.lng);
+      return this.dropIn(last.lat, last.lng, { label: 'Your city', immediate: false });
+    }
+    const pos = await new Promise((resolve, reject) => {
+      let done = false;
+      const finish = (fn, arg) => {
+        if (done) return;
+        done = true;
+        fn(arg);
+      };
+      const timer = setTimeout(() => finish(reject, Object.assign(new Error('GPS timeout'), { code: 3 })), 14000);
+      try {
+        navigator.geolocation.getCurrentPosition(
+          (p) => { clearTimeout(timer); finish(resolve, p); },
+          (err) => {
+            // Retry once with looser accuracy
+            navigator.geolocation.getCurrentPosition(
+              (p) => { clearTimeout(timer); finish(resolve, p); },
+              (err2) => { clearTimeout(timer); finish(reject, err2 || err); },
+              { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
+            );
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+        );
+      } catch (e) {
+        clearTimeout(timer);
+        finish(reject, e);
+      }
     });
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+    window._lastPos = { lat, lng, _at: Date.now() };
+    this.markMeOnGlobe(lat, lng);
+    return this.dropIn(lat, lng, { label: 'Your city', immediate: false });
   },
 
   SCENARIOS: {
@@ -4575,6 +5681,7 @@ window.__astranovBootApp = function __astranovBootApp() {
     // Retry Leaflet if still loading
     if (!CityMap?._ready) setTimeout(() => CityMap?.init?.(), 500);
   });
+  soft('MultiTile', () => MultiTile?.init?.());
   soft('CityLife', () => CityLife?.init?.());
   soft('CityPick', () => CityPick?.init?.());
 
