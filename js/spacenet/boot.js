@@ -64,8 +64,9 @@
 
   const t0 = performance.now();
 
-  // Critical path only — interactive globe + CLI
+  // Critical path: brain first (anti-amnesia) → globe + CLI → juice modules → AI
   loadScript('/js/spacenet/config.js')
+    .then(() => loadScript('/js/spacenet/brain.js'))
     .then(() =>
       loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js').catch(() =>
         loadScript('https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js')
@@ -86,8 +87,20 @@
       SNMap?.init?.();
       const ms = Math.round(performance.now() - t0);
       done('ready ' + ms + 'ms');
-      SNCli?.log?.('Astranov SpaceNet ready ' + ms + 'ms · type help', 'dim');
-      SNCli?.preview?.('Astranov SpaceNet · solar · global · national · city');
+      SNCli?.log?.('Astranov SpaceNet ready ' + ms + 'ms · brain online · type help', 'dim');
+      SNCli?.preview?.('Astranov SpaceNet · crawl · job · date · deliver');
+      // Sacred physics self-check (console + optional CLI)
+      try {
+        const v = window.SNBrain?.verify?.();
+        if (v && !v.ok) {
+          console.warn('[AstranovBrain] verify failed', v.failed);
+          SNCli?.log?.('Brain verify ⚠ ' + (v.failed || []).map((f) => f.id).join(', '), 'err');
+        } else if (v) {
+          console.info('[AstranovBrain] verify OK', v.build);
+        }
+      } catch (err) {
+        console.warn('[AstranovBrain] verify error', err);
+      }
       // Auth after first paint
       const authDelay = window._snLite ? 1000 : 500;
       setTimeout(() => {

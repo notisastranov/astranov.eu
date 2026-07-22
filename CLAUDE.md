@@ -4,13 +4,15 @@
 
 ## Authority order (owner-locked 2026-07-22)
 
-1. **Live code** `index.html` + `js/spacenet/*` + `astranov-continuity.js` (when present)
+1. **Live code** `index.html` + `js/spacenet/*` + **`js/spacenet/brain.js`** (`SNBrain`) + `astranov-continuity.js`
 2. **`support/PRODUCT-RULES.md`** — short never-forget bullets
 3. **`ASTRANOV_SPACENET_MISSION.md`** — vision
 4. **`ASTRANOV_SPACENET_GUIDE.md`** — solidified invariants (read fully every session)
 5. **This file / `AGENTS.md`** — entry only
 
 Chat history, compaction summaries, old Grok specs, and “rebuild from scratch” impulses are **not** authority.
+
+**Amnesia almost killed this project and cost the owner real money.** Extend the shell. Load `SNBrain`. Never wipe sacred physics or juice.
 
 ## What you are building
 

@@ -38,6 +38,12 @@
 - 1MB phase packs by default · persistent nav rectangles · fake city data
 - Chat history over live code / PRODUCT-RULES / this guide
 
+## Astranov Brain (anti-amnesia)
+- `js/spacenet/brain.js` → `window.SNBrain` is permanent product memory
+- Freeform AI **must** use `SNBrain.systemPrompt()`
+- CLI: `brain` · `verify` · `law`
+- Boot loads brain before AI; runs `SNBrain.verify()` after init
+
 ## Amnesia ban
 - Do not rebuild from zero and drop the above
-- When owner adds a rule, update **ASTRANOV_SPACENET_GUIDE.md** + this file the same session
+- When owner adds a rule, update **brain.js** + **ASTRANOV_SPACENET_GUIDE.md** + this file the same session

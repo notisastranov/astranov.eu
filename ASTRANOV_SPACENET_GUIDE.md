@@ -3,13 +3,15 @@
 **Purpose:** Permanent reference so every Grok / AI CLI build remembers the decisions, never regresses on UX physics or core features, and can finally reach the "juice" (crawlers → city maps → jobs / dates / deliveries).
 
 **Authoritative sources (in priority order):**
-1. Live code + `astranov-continuity.js` (features, doNotRemove, antiPatterns, verify) — and active shell `index.html` + `js/spacenet/*`
+1. Live code + **`js/spacenet/brain.js`** (`window.SNBrain` / `AstranovBrain`) + `astranov-continuity.js` — and active shell `index.html` + `js/spacenet/*`
 2. `support/PRODUCT-RULES.md`
 3. `ASTRANOV_SPACENET_MISSION.md`
 4. **This document** (`ASTRANOV_SPACENET_GUIDE.md`)
 5. `CLAUDE.md` / `AGENTS.md` for agent entry points
 
 Chat history, old Grok specs, and past single-file experiments are **not** authoritative.
+
+**Why the brain exists:** Amnesia loops almost killed the project and burned the owner's time and money. The law lives in **code** (`brain.js`), not only markdown. Freeform AI loads `SNBrain.systemPrompt()`. CLI: `brain` · `verify` · `law`.
 
 **Live:** https://astranov.eu  
 **Repo:** `notisastranov/astranov.eu`

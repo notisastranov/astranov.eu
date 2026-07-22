@@ -1,4 +1,4 @@
-/* SpaceNet AI lite — freeform after tools; non-blocking; hard timeout */
+/* SpaceNet AI — freeform after tools; system law from SNBrain (anti-amnesia) */
 (function (global) {
   'use strict';
 
@@ -12,14 +12,15 @@
           apikey: cfg.sbKey || global.SB_KEY,
           Authorization: 'Bearer ' + (cfg.sbKey || global.SB_KEY),
         };
+
+    const system =
+      (typeof global.SNBrain?.systemPrompt === 'function' && global.SNBrain.systemPrompt()) ||
+      'You are Astranov inside Astranov SpaceNet. Sacred: globe inertia + CLI one-finger drag. Juice: crawl city job date deliver. Short answers; suggest a CLI next step.';
+
     const body = {
       mode: 'chat',
       message: String(message || '').slice(0, 900),
-      system:
-        'You are Grok inside Astranov SpaceNet — the real-Earth OS (solar→global→national→city). ' +
-        'Short answers (2 sentences). Same language as user. No markdown lists. ' +
-        'CLI: solar/global/national/city/earth, locate, crawl X, maps X, search X, job, date, deliver, task list/claim. ' +
-        'Always suggest a concrete next CLI phrase when helpful.',
+      system: String(system).slice(0, 1800),
       fast: true,
       fallback_prefs: { force: 'groq', skip: [] },
     };

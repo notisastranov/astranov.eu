@@ -417,6 +417,19 @@
     if (el) el.textContent = text || '';
   }
 
+  /** Brain/continuity probe — inertia must never be stripped */
+  function getPhysics() {
+    return {
+      velX: G.velX,
+      velY: G.velY,
+      damp: G.damp,
+      inertia: true,
+      dragging: G.dragging,
+      tier: G.tier,
+      z: G.camera ? G.camera.position.z : null,
+    };
+  }
+
   global.SNGlobe = {
     init,
     pulse,
@@ -424,6 +437,7 @@
     flyNear,
     goToTier,
     setHud,
+    getPhysics,
     TIERS,
     get tier() {
       return G.tier;

@@ -34,14 +34,23 @@
  * =============================================================================
  */
 const AstranovContinuity = {
-  version: '20260722153000-spacex-spacenet',
+  version: '20260722270000-spacenet-brain',
   updated: '2026-07-22',
 
   /**
    * Markdown / issues / sessions that MUST NOT drive implementation.
+   * Amnesia almost killed the project — chat is never law.
    */
   supersededDocs: {
-    authoritative: ['astranov-continuity.js', 'CLAUDE.md', 'ASTRANOV_SPACENET_MISSION.md (vision only)'],
+    authoritative: [
+      'Live index.html + js/spacenet/*',
+      'js/spacenet/brain.js (SNBrain / AstranovBrain)',
+      'astranov-continuity.js',
+      'support/PRODUCT-RULES.md',
+      'ASTRANOV_SPACENET_GUIDE.md',
+      'ASTRANOV_SPACENET_MISSION.md (vision only)',
+      'CLAUDE.md / AGENTS.md (entry only)',
+    ],
     deprecatedStubs: ['ASTRANOV_GROK_SPECS.md'],
     deleted: ['ASTRANOV_GROK_FULL_HANDOVER.md', 'index.restored.html'],
     notAuthoritative: [
@@ -49,6 +58,7 @@ const AstranovContinuity = {
       'GitHub issues #97 #99 old P0 handoff checklists',
       'scripts/patch-trackball-cli.mjs build pins (historical)',
       'Chat-recycled “triangle of truth” (MISSION + GROK_SPECS + CLAUDE)',
+      'Any impulse to full-rewrite the live shell to chase FPS',
     ],
     outdatedRules: [
       'index.html only — no new files',
@@ -56,6 +66,7 @@ const AstranovContinuity = {
       'miner-cli-strip / #aci-miner above CLI',
       '+ opens globe-super-add only',
       'LazyModules.ensure() at 400ms on boot',
+      '1MB phase/deferred packs as default boot',
     ],
   },
 
@@ -74,6 +85,43 @@ const AstranovContinuity = {
    * Features the product owner demanded — all must keep working.
    */
   features: {
+    spacenetBrain: {
+      summary:
+        'Permanent Astranov AI brain — anti-amnesia law in js/spacenet/brain.js; system prompt for freeform AI; CLI brain/verify/law; boot loads brain first',
+      owner: 'js/spacenet/brain.js',
+      selectors: [],
+      required: [
+        'window.SNBrain / AstranovBrain with systemPrompt, verify, LAW',
+        'AI freeform uses SNBrain.systemPrompt()',
+        'CLI: brain · verify · law',
+        'Boot runs SNBrain.verify after init',
+      ],
+      doNotRemove: [
+        'js/spacenet/brain.js',
+        'SNBrain.systemPrompt',
+        'SNBrain.verify',
+        'boot load order brain before ai',
+      ],
+    },
+    spacenetSacredGlobe: {
+      summary: 'Globe natural drag + inertia (velX/velY damp) + solar→global→national→city + back to Earth',
+      owner: 'js/spacenet/globe.js',
+      required: ['getPhysics()', 'velX', 'velY', 'damp ~0.88–0.94', 'goToTier'],
+      doNotRemove: ['getPhysics', 'velX', 'velY', 'damp', 'inertia loop'],
+    },
+    spacenetSacredCli: {
+      summary: 'One-finger CLI drag + free dock + pos/size persistence + expand/retract + scrollable log',
+      owner: 'js/spacenet/ui.js',
+      selectors: ['#cli-drag', '#dock'],
+      required: ['bindCliDrag', 'sn:cli-pos-v1', 'sn:cli-size-v1'],
+      doNotRemove: ['bindCliDrag', '#cli-drag', 'sn:cli-pos-v1', 'sn:cli-size-v1'],
+    },
+    spacenetJuice: {
+      summary: 'Crawlers → city maps → jobs/dates/deliveries — default engineering priority, not rewrites',
+      owner: 'js/spacenet/search.js + map.js + tasks.js + cli.js',
+      required: ['SNSearch.crawl', 'SNTasks create/claim/complete', 'city map on demand'],
+      doNotRemove: ['SNSearch.crawl', 'job/date/deliver CLI routes', 'SNTasks DNA'],
+    },
     superAddPlus: {
       summary: '+ opens full MenuProfilePostTile (social profile field), NOT small globe-super-add deck',
       owner: 'astranov-mpp-tile.js',
@@ -327,34 +375,41 @@ const AstranovContinuity = {
    * Common mistakes that destroyed prior sessions
    */
   antiPatterns: [
+    'Stripping globe inertia / velX·velY / damp (amnesia catastrophe)',
+    'Removing one-finger CLI drag, free dock, or expand/retract',
+    'Full rewrite from zero that drops juice (crawlers/jobs/dates/delivery)',
+    'Treating chat transcripts as higher authority than SNBrain + guide',
+    'Re-enabling 1MB phase/deferred packs as default boot',
     'Reverting + to SuperAdd.showPanel / globe-super-add only',
     'Hiding #aci-locate without app-shortcut-btn pin',
     'Adding #miner-cli-strip or #aci-miner back above CLI',
     'LazyModules.ensure() at 400ms or on every FieldHud tick',
-    'Pushing index.html stub <80KB',
-    'Editing astranov-globe-physics or trackball without owner sign-off',
+    'Pushing index.html stub <80KB (legacy guard; lite shell is intentional exception when spacenet boot is active)',
+    'Editing globe physics without owner sign-off',
     'Removing stopImmediatePropagation on + fab (small deck wins race)',
     'CodersHub _pingLabs on init (6 HEAD requests slow boot)',
   ],
 
   /** Quick file → responsibility map */
   modules: {
-    'index.html': 'Assembled shell + core modules (from index.shell.html + src/)',
-    'index.shell.html': 'Shell HTML/CSS/DOM — edit here then assemble',
-    'src/17-architect-bridge.js': 'Architect Bridge client (phone → Grok Build)',
-    'src/18-aci-coders.js': 'Grok chat + build queue; architect routes builds to Bridge',
-    'src/14-aci-cli.js': 'CLI commands including fix/code/dev/bridge',
-    'src/12-auth.js': 'Google auth · isArchitect · bridge arm on owner email',
-    'astranov-deferred.js': 'Commerce, MapComms, CodersHub, DeferredBoot (assembled deferred)',
+    'index.html': 'Live SpaceNet lite shell + CLI dock',
+    'js/spacenet/brain.js': 'Astranov permanent AI brain (anti-amnesia law)',
+    'js/spacenet/globe.js': 'Real Earth + inertia + zoom tiers',
+    'js/spacenet/ui.js': 'One-finger CLI drag + expand',
+    'js/spacenet/cli.js': 'Street CLI + juice commands',
+    'js/spacenet/search.js': 'Network crawlers',
+    'js/spacenet/map.js': 'City map on demand',
+    'js/spacenet/tasks.js': 'Jobs/dates/delivery DNA',
+    'js/spacenet/ai.js': 'Freeform AI (prompt from brain)',
+    'js/spacenet/boot.js': 'Lite boot chain',
+    'ASTRANOV_SPACENET_GUIDE.md': 'Solidified written law',
+    'support/PRODUCT-RULES.md': 'Never-forget bullets',
     'astranov-continuity.js': 'AI contract — read before editing',
-    'src/08-astranov-os.js': 'Astranov OS dock + modes',
-    'src/08-astranov-browser.js': 'In-OS browser tabs + astranov://',
-    'supabase/functions/coders-bridge': 'architect_* + composer pending/answer modes',
-    'scripts/architect-bridge-watch.mjs': 'Desktop inbox for street tasks',
-    'scripts/architect-bridge-answer.mjs': 'Post fix summary back to phone',
     'scripts/guard-base.mjs': 'Pre-deploy gate',
     'scripts/owner-push.mjs': 'Silent owner git push',
-    'scripts/assemble.mjs': 'src/* → index.html + astranov-deferred.js',
+    'index.shell.html': 'Legacy shell (reference)',
+    'src/17-architect-bridge.js': 'Architect Bridge client (phone → Grok Build)',
+    'astranov-deferred.js': 'Legacy deferred packs (not default boot)',
   },
 };
 

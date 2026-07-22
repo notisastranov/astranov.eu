@@ -35,8 +35,29 @@
     log('ZOOM  solar · global · national · city · earth', 'ok');
     log('MAP   locate · city · fly athens · crawl restaurants', 'ok');
     log('WEB   search <query> · google <query> · maps <place>', 'ok');
+    log('BRAIN brain · verify · law  (anti-amnesia memory)', 'ok');
     log('SYS   login · logout · solo · clear · help', 'dim');
     preview('Astranov SpaceNet · zoom · crawl · job · date · deliver');
+  }
+
+  function dumpBrain(mode) {
+    const B = global.SNBrain;
+    if (!B) {
+      log('Brain offline — js/spacenet/brain.js missing', 'err');
+      return;
+    }
+    if (mode === 'verify') {
+      const v = B.verify();
+      log(v.ok ? '── Brain VERIFY OK ──' : '── Brain VERIFY FAIL ──', v.ok ? 'ok' : 'err');
+      (v.checks || []).forEach((c) => {
+        log((c.pass ? '✓ ' : '✗ ') + c.id + (c.detail ? ' · ' + c.detail : ''), c.pass ? 'ok' : 'err');
+      });
+      preview(v.ok ? 'Brain OK · ' + v.build : 'Brain FAIL');
+      return;
+    }
+    const lines = mode === 'law' ? B.lawLines() : B.summaryLines();
+    lines.forEach((ln) => log(ln, /✗|FAIL|WHY/.test(ln) ? 'dim' : 'ok'));
+    preview('Astranov Brain · type verify');
   }
 
   const CITIES = {
@@ -74,14 +95,35 @@
         if (box) box.innerHTML = '';
         return;
       }
+      if (low === 'brain' || low === 'memory' || low === 'mind') {
+        dumpBrain('summary');
+        return;
+      }
+      if (low === 'law' || low === 'rules' || low === 'invariants') {
+        dumpBrain('law');
+        return;
+      }
+      if (low === 'verify' || low === 'check' || low === 'brain verify' || low === 'verify brain') {
+        dumpBrain('verify');
+        return;
+      }
       if (low === 'solo' || low === 'status') {
         const n = Tasks?.list?.()?.length || 0;
         const build = document.querySelector('meta[name="astranov-build"]')?.content || '?';
         const who = global.SNAuth?.user?.email || 'guest';
         const tier = Globe?.tier || '?';
+        const phys = Globe?.getPhysics?.();
         log('Astranov SpaceNet · build ' + build + ' · zoom ' + tier, 'ok');
         log('user ' + who + ' · open tasks ' + n, 'ok');
-        log('AI ' + (global.SNAi ? 'ready' : 'loading') + ' · https://astranov.eu', 'dim');
+        log(
+          'AI ' +
+            (global.SNAi ? 'ready' : 'loading') +
+            ' · brain ' +
+            (global.SNBrain?.version || 'off') +
+            (phys ? ' · inertia damp ' + phys.damp : ''),
+          'dim'
+        );
+        log('https://astranov.eu · type brain · verify', 'dim');
         preview('Astranov SpaceNet · ' + tier + ' · ' + n + ' tasks');
         return;
       }
