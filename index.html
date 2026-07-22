@@ -4,53 +4,60 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>SpaceNet · Astranov</title>
-<meta name="astranov-build" content="20260722210000" />
-<meta name="description" content="SpaceNet — multi-device globe OS. Jobs, dating, delivery, search on Earth." />
+<meta name="astranov-build" content="20260722220000" />
+<meta name="description" content="SpaceNet — globe OS. Jobs, dating, delivery, search on Earth." />
 <meta name="theme-color" content="#000000" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <style>
   :root {
-    --bg: #000;
-    --fg: #f2f2f2;
-    --muted: rgba(180,180,180,.75);
-    --line: rgba(255,255,255,.16);
-    --panel: rgba(0,0,0,.82);
-    --ok: #6dffb0;
-    --err: #ff6b5a;
-    --cmd: #fff;
-    --dim: rgba(160,160,160,.85);
-    --accent: #fff;
+    --bg: #000; --fg: #f2f2f2; --muted: rgba(180,180,180,.75);
+    --line: rgba(255,255,255,.16); --panel: rgba(0,0,0,.84);
+    --ok: #6dffb0; --err: #ff6b5a; --cmd: #fff; --dim: rgba(160,160,160,.85);
     --safe-b: env(safe-area-inset-bottom, 0px);
     --safe-t: env(safe-area-inset-top, 0px);
   }
   * { box-sizing: border-box; }
   html, body {
-    margin: 0; padding: 0; height: 100%; width: 100%;
-    overflow: hidden; background: var(--bg); color: var(--fg);
+    margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden;
+    background: var(--bg); color: var(--fg);
     font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
     -webkit-tap-highlight-color: transparent;
   }
   #globe { position: fixed; inset: 0; z-index: 1; touch-action: none; }
   #globe canvas { display: block; width: 100% !important; height: 100% !important; cursor: grab; }
   #globe canvas:active { cursor: grabbing; }
+  #globe.city-hidden { opacity: 0; pointer-events: none; }
+
+  #city-map {
+    position: fixed; inset: 0; z-index: 5; opacity: 0; pointer-events: none;
+    transition: opacity .35s ease; background: #0a0a0a;
+  }
+  #city-map.active { opacity: 1; pointer-events: auto; }
+  #city-map .leaflet-container { width: 100%; height: 100%; background: #0a0a0a; font: 12px system-ui; }
+  #btn-city-close {
+    position: fixed; top: max(10px, var(--safe-t)); right: 12px; z-index: 25;
+    display: none; border: 1px solid var(--line); background: var(--panel); color: #fff;
+    border-radius: 999px; padding: 8px 14px; font-size: 12px; cursor: pointer;
+    backdrop-filter: blur(10px);
+  }
+  body.city-map-on #btn-city-close { display: inline-flex; }
 
   #boot {
     position: fixed; inset: 0; z-index: 50; display: grid; place-items: center;
     background: #000; transition: opacity .35s ease;
   }
   #boot.hide { opacity: 0; pointer-events: none; }
-  .boot-card {
-    text-align: center; letter-spacing: .28em; text-indent: .28em;
-  }
+  .boot-card { text-align: center; letter-spacing: .28em; text-indent: .28em; }
   .boot-card b { display: block; font-size: 13px; font-weight: 600; margin-bottom: 10px; }
   .boot-card p { margin: 0; font-size: 11px; color: var(--muted); letter-spacing: .06em; text-indent: 0; }
   .boot-card .dim { margin-top: 8px; opacity: .6; }
 
   #topbar {
     position: fixed; top: max(10px, var(--safe-t)); left: 0; right: 0; z-index: 20;
-    display: flex; justify-content: center; pointer-events: none;
+    display: flex; justify-content: center; align-items: center; gap: 8px; pointer-events: none;
   }
   #logo {
     pointer-events: auto; border: 1px solid var(--line); background: var(--panel);
@@ -59,28 +66,35 @@
     backdrop-filter: blur(10px); min-height: 38px;
   }
   #logo:active { transform: scale(.97); }
+  #perf-badge {
+    pointer-events: none; font: 9px ui-monospace, monospace; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 999px; padding: 4px 8px;
+    position: fixed; top: max(14px, var(--safe-t)); left: 12px; z-index: 20;
+  }
+  #user-chip {
+    position: fixed; top: max(14px, var(--safe-t)); right: 12px; z-index: 20;
+    font: 10px system-ui; color: var(--muted); max-width: 120px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
   #hud-line {
     position: fixed; top: max(52px, calc(var(--safe-t) + 44px)); left: 12px; right: 12px;
-    z-index: 18; font: 11px/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    z-index: 18; font: 11px/1.3 ui-monospace, Menlo, Consolas, monospace;
     color: var(--muted); pointer-events: none; text-align: center;
     text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
   }
 
   #dock {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
-    padding: 0 8px max(8px, var(--safe-b));
-    pointer-events: none;
+    padding: 0 8px max(8px, var(--safe-b)); pointer-events: none;
   }
   #panel {
-    pointer-events: auto;
-    max-width: 520px; margin: 0 auto;
-    background: var(--panel); border: 1px solid var(--line); border-radius: 16px 16px 14px 14px;
-    backdrop-filter: blur(14px);
-    box-shadow: 0 -8px 32px rgba(0,0,0,.55);
-    overflow: hidden;
-    display: flex; flex-direction: column;
-    max-height: min(42vh, 360px);
+    pointer-events: auto; max-width: 540px; margin: 0 auto;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+    backdrop-filter: blur(14px); box-shadow: 0 -8px 32px rgba(0,0,0,.55);
+    overflow: hidden; display: flex; flex-direction: column;
+    max-height: min(38vh, 320px); transition: max-height .22s ease;
   }
+  #panel.expanded { max-height: min(62vh, 520px); }
   #cli-preview {
     font: 10px/1.3 ui-monospace, Menlo, Consolas, monospace;
     color: var(--muted); padding: 8px 12px 0; min-height: 22px;
@@ -89,11 +103,10 @@
   #cli-log {
     flex: 1; overflow: auto; padding: 6px 12px 4px;
     font: 11px/1.4 ui-monospace, Menlo, Consolas, monospace;
-    min-height: 72px; max-height: 28vh;
-    -webkit-overflow-scrolling: touch;
+    min-height: 64px; -webkit-overflow-scrolling: touch;
   }
   .cli-line { margin: 2px 0; word-break: break-word; }
-  .cli-line.cmd { color: var(--cmd); opacity: .9; }
+  .cli-line.cmd { color: var(--cmd); opacity: .92; }
   .cli-line.ok { color: var(--ok); }
   .cli-line.err { color: var(--err); }
   .cli-line.dim { color: var(--dim); }
@@ -106,6 +119,7 @@
     background: rgba(18,18,18,.95); color: #fff; font-size: 14px; cursor: pointer;
     flex-shrink: 0; touch-action: manipulation;
   }
+  #cli-bar button.in { box-shadow: 0 0 0 2px rgba(109,255,176,.35); }
   #cli-bar button:active { transform: scale(.94); }
   #cli-form { flex: 1; display: flex; min-width: 0; }
   #cli-in {
@@ -117,49 +131,75 @@
   #cli-in::placeholder { color: var(--muted); font-size: 11px; }
   #cli-in:focus { border-color: rgba(255,255,255,.35); }
 
-  @media (min-width: 720px) {
-    #panel { max-height: min(38vh, 400px); }
-    #cli-log { max-height: 22vh; }
+  #coach {
+    position: fixed; left: 50%; bottom: max(118px, calc(14vh + var(--safe-b)));
+    transform: translateX(-50%); z-index: 40; width: min(92vw, 340px);
+    background: rgba(0,0,0,.92); border: 1px solid var(--line); border-radius: 14px;
+    padding: 12px 14px; font: 12px/1.4 system-ui; box-shadow: 0 8px 28px rgba(0,0,0,.5);
+  }
+  #coach b { display: block; margin-bottom: 6px; font-size: 13px; }
+  #coach ol { margin: 0 0 10px 1.1em; padding: 0; color: var(--muted); }
+  #coach li { margin: 3px 0; }
+  #coach button {
+    width: 100%; padding: 9px; border-radius: 10px; border: 1px solid var(--line);
+    background: rgba(255,255,255,.08); color: #fff; font-weight: 600; cursor: pointer;
   }
 </style>
 </head>
 <body class="skin-spacex">
 <div id="boot"><div class="boot-card"><b>SPACENET</b><p>Earth.</p></div></div>
+<span id="perf-badge">lite</span>
+<span id="user-chip" hidden></span>
 <div id="topbar">
   <button type="button" id="logo" title="Reload SpaceNet">SPACENET</button>
 </div>
 <div id="hud-line"></div>
 <div id="globe" aria-label="Earth globe"></div>
+<div id="city-map" aria-hidden="true"></div>
+<button type="button" id="btn-city-close" title="Back to Earth">Earth</button>
+
+<div id="coach" hidden>
+  <b>SpaceNet — internet on Earth</b>
+  <ol>
+    <li>Drag the globe · 🎯 locate you</li>
+    <li>Type: <b>job barman 3h</b> · <b>date coffee</b> · <b>deliver food</b></li>
+    <li><b>city</b> street map · <b>task list</b> · <b>task claim</b></li>
+    <li>G sign-in · install: Add to Home Screen</li>
+  </ol>
+  <button type="button" id="coach-ok">Start</button>
+</div>
+
 <div id="dock">
   <div id="panel">
     <div id="cli-preview">SpaceNet · loading…</div>
     <div id="cli-log" aria-live="polite"></div>
     <div id="cli-bar">
+      <button type="button" id="btn-login" title="Sign in">G</button>
       <button type="button" id="btn-locate" title="Locate">🎯</button>
+      <button type="button" id="btn-city" title="City map">🗺</button>
       <form id="cli-form" action="#" autocomplete="off">
         <input id="cli-in" name="q" enterkeyhint="send" autocomplete="off" autocapitalize="off"
-          spellcheck="false" placeholder="job barman 3h · date coffee · deliver · search · locate" />
+          spellcheck="false" placeholder="job · date · deliver · search · city · locate · help" />
       </form>
+      <button type="button" id="btn-expand" title="Expand">▴</button>
       <button type="button" id="btn-help" title="Help">?</button>
     </div>
   </div>
 </div>
+
 <script>
-document.getElementById('logo')?.addEventListener('click', function () {
-  location.reload();
-});
-// Kill old service workers that freeze dead shells
+document.getElementById('logo')?.addEventListener('click', function () { location.reload(); });
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations?.().then(function (regs) {
     regs.forEach(function (r) { r.unregister().catch(function () {}); });
   }).catch(function () {});
   try {
     caches && caches.keys && caches.keys().then(function (keys) {
-      keys.forEach(function (k) { if (/astranov/i.test(k)) caches.delete(k); });
+      keys.forEach(function (k) { if (/astranov|spacenet/i.test(k)) caches.delete(k); });
     });
   } catch (e) {}
 }
 </script>
-<script src="/js/spacenet/boot.js?v=20260722210000" defer></script>
+<script src="/js/spacenet/boot.js?v=20260722220000" defer></script>
 </body>
 </html>

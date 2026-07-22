@@ -242,25 +242,21 @@
 
   function locate() {
     return new Promise((resolve) => {
+      function finish(lat, lng, demo) {
+        global._snLastPos = { lat, lng };
+        try {
+          global.SNTasks?.setPos?.(lat, lng);
+        } catch (_) {}
+        pulse(lat, lng, 0x3d9eff, demo ? 'You (demo)' : 'You', 20000);
+        resolve({ lat, lng, demo: !!demo });
+      }
       if (!navigator.geolocation) {
-        // Rhodes demo
-        const lat = 36.4341, lng = 28.2176;
-        pulse(lat, lng, 0x3d9eff, 'You', 15000);
-        resolve({ lat, lng, demo: true });
+        finish(36.4341, 28.2176, true);
         return;
       }
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          pulse(lat, lng, 0x3d9eff, 'You', 20000);
-          resolve({ lat, lng });
-        },
-        () => {
-          const lat = 36.4341, lng = 28.2176;
-          pulse(lat, lng, 0x3d9eff, 'You (demo)', 15000);
-          resolve({ lat, lng, demo: true });
-        },
+        (pos) => finish(pos.coords.latitude, pos.coords.longitude, false),
+        () => finish(36.4341, 28.2176, true),
         { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
       );
     });

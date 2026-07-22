@@ -34,6 +34,20 @@ Production was **unusable**: ~1.2MB first-party JS (phase packs + deferred), mul
 
 Old monolith files remain in repo (`js/phase-*.js`, etc.) but are **not** referenced by `index.html`. To rollback, restore previous `index.html` from git history before this commit.
 
+## Ready surface (20260722220000)
+
+| Module | Role |
+|--------|------|
+| config.js | Supabase public URL/anon |
+| auth.js | Google sign-in (SDK after paint) |
+| map.js | Leaflet city map on demand |
+| ui.js | Coach + panel expand |
+| cli.js | Full street CLI |
+| tasks.js | claim / complete / search / seed |
+| globe.js | Lite Earth |
+
+**First-party ~50KB** · map CSS/JS and supabase only after user needs them.
+
 ## Build stamp
 
-`20260722210000` · mode `spacenet-lite-from-scratch`
+`20260722220000` · mode `spacenet-lite-ready`

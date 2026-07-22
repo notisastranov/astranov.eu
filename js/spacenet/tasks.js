@@ -141,6 +141,23 @@
     return { ok: true, task };
   }
 
+  function complete(taskId) {
+    let task = taskId ? T.tasks.get(taskId) : null;
+    if (!task) {
+      task = [...T.tasks.values()].find((t) => t.status === 'claimed' || t.status === 'in_progress');
+    }
+    if (!task) task = list()[0];
+    if (!task) return { ok: false, error: 'no task to complete' };
+    task.status = 'done';
+    task.doneAt = Date.now();
+    T.tasks.set(task.id, task);
+    save();
+    if (global.SNGlobe?.pulse) {
+      SNGlobe.pulse(task.lat, task.lng, 0xffffff, 'done', 6000);
+    }
+    return { ok: true, task };
+  }
+
   function search(q) {
     const low = String(q || '').toLowerCase();
     const words = low.split(/\s+/).filter((w) => w.length > 1);
@@ -188,6 +205,7 @@
     create,
     list,
     claim,
+    complete,
     search,
     parse,
     seedDemo,

@@ -1,4 +1,4 @@
-/* SpaceNet boot — hard budget: shell + three + 3 tiny modules. No phase packs. */
+/* SpaceNet boot — lite chain; map/auth SDK lazy */
 (function () {
   'use strict';
   const BUILD = (document.querySelector('meta[name="astranov-build"]') || {}).content || '1';
@@ -6,7 +6,6 @@
 
   function loadScript(src) {
     return new Promise((resolve, reject) => {
-      // Fetch first so HTML SPA fallbacks never execute as JS
       const url = src + (src.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent(BUILD);
       if (/^https?:\/\//i.test(src)) {
         const s = document.createElement('script');
@@ -39,18 +38,24 @@
   function done(msg) {
     if (bootEl) {
       bootEl.classList.add('hide');
-      setTimeout(() => bootEl.remove(), 400);
+      setTimeout(() => {
+        try {
+          bootEl.remove();
+        } catch (_) {}
+      }, 400);
     }
     if (msg) console.info('[SpaceNet]', msg);
   }
 
   function fail(msg) {
     if (bootEl) {
-      bootEl.innerHTML = '<div class="boot-card"><b>SPACENET</b><p>' + msg + '</p><p class="dim">Hard refresh · check network</p></div>';
+      bootEl.innerHTML =
+        '<div class="boot-card"><b>SPACENET</b><p>' +
+        msg +
+        '</p><p class="dim">Hard refresh · check network</p></div>';
     }
   }
 
-  // Lite flag early
   try {
     if (matchMedia('(pointer:coarse)').matches || navigator.maxTouchPoints > 0) {
       window._snLite = true;
@@ -59,25 +64,40 @@
 
   const t0 = performance.now();
 
-  loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js')
-    .catch(() => loadScript('https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js'))
+  // Critical path only — interactive globe + CLI
+  loadScript('/js/spacenet/config.js')
+    .then(() =>
+      loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js').catch(() =>
+        loadScript('https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js')
+      )
+    )
     .then(() => loadScript('/js/spacenet/globe.js'))
     .then(() => loadScript('/js/spacenet/tasks.js'))
     .then(() => loadScript('/js/spacenet/cli.js'))
+    .then(() => loadScript('/js/spacenet/ui.js'))
+    .then(() => loadScript('/js/spacenet/map.js'))
     .then(() => {
       if (!window.SNGlobe?.init?.()) throw new Error('globe init failed');
       SNTasks?.seedDemo?.();
       SNCli?.init?.();
+      SNUi?.init?.();
+      SNMap?.init?.();
       const ms = Math.round(performance.now() - t0);
       done('ready ' + ms + 'ms');
-      SNCli?.log?.('Ready in ' + ms + 'ms · type help', 'dim');
-      // Optional: locate after idle so first paint stays free
-      const delay = window._snLite ? 1800 : 900;
+      SNCli?.log?.('Ready ' + ms + 'ms · type help', 'dim');
+      // Auth SDK after first paint (non-blocking)
+      const authDelay = window._snLite ? 1200 : 600;
       setTimeout(() => {
-        if (!window._snUserTyped) {
-          /* keep silent — user starts with CLI or locate btn */
-        }
-      }, delay);
+        loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js')
+          .then(() => loadScript('/js/spacenet/auth.js'))
+          .then(() => {
+            SNAuth?.init?.();
+            SNCli?.log?.('Auth ready · G to sign in', 'dim');
+          })
+          .catch(() => {
+            /* guest mode fine */
+          });
+      }, authDelay);
     })
     .catch((e) => {
       console.error(e);
