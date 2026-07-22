@@ -1,21 +1,17 @@
 {
-  "name": "Astranov OS",
-  "short_name": "Astranov",
-  "description": "Astranov planetary internet OS — globe desktop, browser, commerce, and collective intelligence on every device.",
+  "name": "SpaceNet · Astranov",
+  "short_name": "SpaceNet",
+  "description": "SpaceNet — globe OS. Jobs, dating, delivery, and search on Earth.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#000408",
-  "theme_color": "#0a1020",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "categories": ["navigation", "social", "utilities", "productivity"],
   "icons": [
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
     { "src": "/icon.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "maskable" }
-  ],
-  "related_applications": [
-    { "platform": "play", "url": "https://astranov.eu/#install-android", "id": "eu.astranov.node" },
-    { "platform": "itunes", "url": "https://astranov.eu/#install-ios", "id": "eu.astranov.node" }
   ],
   "prefer_related_applications": false
 }

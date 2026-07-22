@@ -244,6 +244,16 @@
         return;
       }
 
+      // Freeform → Grok edge (optional); never block if offline
+      preview('Thinking…');
+      if (global.SNAi?.ask) {
+        const reply = await SNAi.ask(line);
+        if (reply) {
+          log(reply, 'ok');
+          preview(reply.slice(0, 80));
+          return;
+        }
+      }
       log('Heard. Try: job barman 3h · date coffee · deliver food · city · locate · help', 'dim');
       preview('Type help');
     } catch (e) {

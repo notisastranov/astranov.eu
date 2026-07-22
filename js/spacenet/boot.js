@@ -85,7 +85,7 @@
       const ms = Math.round(performance.now() - t0);
       done('ready ' + ms + 'ms');
       SNCli?.log?.('Ready ' + ms + 'ms · type help', 'dim');
-      // Auth SDK after first paint (non-blocking)
+      // Auth + AI after first paint (non-blocking)
       const authDelay = window._snLite ? 1200 : 600;
       setTimeout(() => {
         loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js')
@@ -97,6 +97,7 @@
           .catch(() => {
             /* guest mode fine */
           });
+        loadScript('/js/spacenet/ai.js').catch(() => {});
       }, authDelay);
     })
     .catch((e) => {
