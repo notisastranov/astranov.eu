@@ -9,7 +9,8 @@
 - Realism first — no fake data as primary city experience
 
 ## Juice (default engineering)
-- Crawlers · city map population · **jobs** · **dating** · **delivery** · claim/done · globe depiction
+- **Almighty crawlers** (find anything) · multi-role tiles · vendor menus · **jobs** · **dating** · **delivery**
+- **Astranov AI** = Grok-fork that **writes code** (`code …` / `coders …`)
 - Not: endless full rewrites of globe/CLI
 
 ## Globe (SACRED)

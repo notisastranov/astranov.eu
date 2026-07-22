@@ -34,11 +34,12 @@
     log('FIELD task list · task claim · task done', 'ok');
     log('ZOOM  solar · global · national · city · earth', 'ok');
     log('MAP   locate · city · fly athens · crawl restaurants', 'ok');
-    log('WEB   search <query> · google <query> · maps <place>', 'ok');
+    log('FIND  crawl|find|search <anything> · research <q>  (almighty multi-source)', 'ok');
+    log('CODE  code <ask> · coders <build>  (Astranov = Grok-fork writes modules)', 'ok');
     log('TILE  me · profile · roles · menu · cart · vendors · drivers · dates', 'ok');
     log('BRAIN brain · verify · law  (anti-amnesia memory)', 'ok');
     log('SYS   login · logout · solo · clear · help', 'dim');
-    preview('Astranov SpaceNet · city tiles · menu · date · deliver');
+    preview('crawl anything · code … · city tiles · job · date');
   }
 
   function dumpBrain(mode) {
@@ -358,49 +359,69 @@
         (Tasks?.CATALOG || []).forEach((c) => log(c.kind + ' · ' + c.title + ' · ' + c.dur, 'ok'));
         return;
       }
-      if (/^search\b|^find\b|^google\b|^maps\b|^crawl\b|^where\s+is\b|^look\s+up\b/.test(low)) {
-        const q = line
-          .replace(/^(search|find|google|maps|crawl|where\s+is|look\s+up)\s+/i, '')
-          .trim() || line;
-        // Local task DNA first
+      if (
+        /^search\b|^find\b|^google\b|^maps\b|^crawl\b|^where\s+is\b|^look\s+up\b|^what\s+is\b|^who\s+is\b|^almighty\b/.test(
+          low
+        )
+      ) {
+        const q =
+          line
+            .replace(
+              /^(search|find|google|maps|crawl|almighty|where\s+is|look\s+up|what\s+is|who\s+is)\s+/i,
+              ''
+            )
+            .trim() || line;
         const local = Tasks?.search?.(q) || { tasks: [], roles: [] };
-        local.tasks.slice(0, 5).forEach((t) => log('task · ' + t.title.slice(0, 50), 'ok'));
-        local.roles.slice(0, 4).forEach((c) => log('role · ' + c.kind + ' · ' + c.title, 'ok'));
-        // Real map + web crawl
+        local.tasks.slice(0, 4).forEach((t) => log('task · ' + t.title.slice(0, 50), 'ok'));
         if (global.SNSearch?.crawl) {
           const crawled = await SNSearch.crawl(q, {
             pos: Tasks?.pos || global._snLastPos,
-            openMap: /maps|crawl|near|restaurant|cafe|shop|hotel/i.test(low) || local.tasks.length === 0,
+            openMap: true,
+            all: true,
           });
-          if (crawled.places?.length) {
-            log('── Map places ──', 'dim');
-            crawled.places.slice(0, 5).forEach((p) => log('📍 ' + p.name.slice(0, 70), 'ok'));
-          }
-          if (crawled.nearby?.length) {
-            log('── Nearby on map ──', 'dim');
-            crawled.nearby.slice(0, 8).forEach((p) => log('• ' + p.name.slice(0, 50) + ' · ' + p.kind, 'ok'));
-          }
-          if (crawled.wiki?.text) {
-            log('── Knowledge ──', 'dim');
-            log(crawled.wiki.title + ': ' + crawled.wiki.text.slice(0, 220), 'ok');
-          }
-          if (crawled.web?.length) {
-            log('── Web ──', 'dim');
-            crawled.web.slice(0, 5).forEach((w) => log('· ' + (w.title || w.text).slice(0, 90), 'ok'));
-          }
-          if (!crawled.places?.length && !crawled.nearby?.length && !crawled.web?.length && !crawled.wiki) {
-            log('Crawl empty · try another place name or: fly athens', 'dim');
-          }
-        } else if (!local.tasks.length && !local.roles.length) {
+          SNSearch.report?.(crawled, log);
+          if (!crawled.score) log('Empty · try: crawl pizza · find Greece · code three.js', 'dim');
+        } else if (!local.tasks.length) {
           log('Search module loading… try again', 'dim');
         }
-        preview('Crawl · ' + q.slice(0, 40));
-        // Also ask AI for synthesis
+        preview('Almighty · ' + q.slice(0, 40));
         if (global.SNAi?.ask) {
-          void SNAi.ask('User searched: ' + q + '. Give one short helpful SpaceNet tip (CLI next step).').then((tip) => {
+          void SNAi.ask(
+            'User almighty-crawled: ' + q + '. One short SpaceNet tip with a CLI next step.',
+            { mode: 'chat' }
+          ).then((tip) => {
             if (tip) log(tip, 'dim');
           });
         }
+        return;
+      }
+      if (/^research\b/.test(low)) {
+        const q = line.replace(/^research\s+/i, '').trim() || 'Astranov SpaceNet';
+        preview('Research · ' + q);
+        if (global.SNAi?.research) {
+          const r = await SNAi.research(q);
+          if (r?.text) log(r.text, 'ok');
+        } else {
+          await run('crawl ' + q);
+        }
+        return;
+      }
+      if (/^code\b|^write\s+code\b|^implement\b|^patch\b/.test(low) || /^coders\b/.test(low)) {
+        const ask = line
+          .replace(/^(code|write\s+code|implement|patch|coders)\s+/i, '')
+          .trim() || line;
+        preview('Astranov coding…');
+        log('── Astranov (Grok-fork) · code ──', 'dim');
+        const reply = global.SNAi?.code
+          ? await (low.startsWith('coders') ? SNAi.coders(ask) : SNAi.code(ask))
+          : await SNAi?.ask?.(ask, { mode: 'code' });
+        if (reply) {
+          // Split long code across log lines
+          String(reply)
+            .split('\n')
+            .forEach((ln) => log(ln.slice(0, 200), /```/.test(ln) ? 'dim' : 'ok'));
+          preview(reply.slice(0, 80));
+        } else log('Code edge offline · try again · brain still holds law', 'err');
         return;
       }
       if (/^date\b|^dating\b|coffee\s*date|dinner\s*date/.test(low)) {

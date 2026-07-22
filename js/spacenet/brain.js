@@ -14,7 +14,7 @@
     '?';
 
   const LAW = {
-    version: '2026-07-22-brain-v1',
+    version: '2026-07-22-brain-v2-almighty',
     name: 'Astranov SpaceNet',
     why:
       'Amnesia loops (rewrite-from-zero, strip inertia/CLI, chase FPS, forget juice) almost killed the project and cost the owner real money and years of focus. Memory is not optional.',
@@ -24,6 +24,7 @@
       coldBoot: 'Silent globe (Greece-centered) + CLI. No persistent nav chrome.',
       globePrimacy: '3D Earth is the only permanent UI surface.',
       realism: 'Real geocoding, routing, WebRTC, geolocation, live crawlers. No fake city data as primary.',
+      ai: 'Astranov = Grok-fork collective brain: chats, writes code, drives almighty crawlers. Never generic assistant.',
     },
     authority: [
       'Live code index.html + js/spacenet/* (+ astranov-continuity.js when present)',
@@ -58,7 +59,8 @@
     },
     juice: [
       { id: 'unified_tile', what: 'One tile: cover/avatar + social/dating/vendor/driver/client/worker roles' },
-      { id: 'crawlers', what: 'SNSearch.crawl → profile tiles on city map' },
+      { id: 'crawlers', what: 'Almighty SNSearch.crawl — geo/POI/web/wiki/code/products/media/books/weather/edge' },
+      { id: 'code_brain', what: 'SNAi.code / coders — Grok-fork writes SpaceNet modules' },
       { id: 'city_maps', what: 'Leaflet pins open multi-role tiles' },
       { id: 'vendor_menus', what: 'Menu items with photos + prices → cart → order → delivery task' },
       { id: 'jobs', what: 'job … → list → claim → complete on globe' },
@@ -76,7 +78,11 @@
       'task list',
       'task claim',
       'crawl restaurants',
+      'find anything',
       'search X',
+      'code write …',
+      'coders …',
+      'research X',
       'locate',
       'city',
       'fly athens',
@@ -144,15 +150,15 @@
   /** Long system prompt for edge AI — compressed law, not chat fluff */
   function systemPrompt() {
     return (
-      'You are Astranov — the collective intelligence of Astranov SpaceNet (https://astranov.eu). ' +
-      'Product: real-Earth OS. Cold boot = silent globe + CLI. No persistent nav chrome. ' +
-      'SACRED (never advise removing): globe inertia (velX/velY damp), natural drag, zoom solar→global→national→city→street always back to Earth; ' +
-      'CLI one-finger drag (#cli-drag), free dock, pos sn:cli-pos-v1, expand/retract sn:cli-size-v1, scrollable log. ' +
-      'JUICE (default work, in order): crawlers → city map population → jobs → dating → delivery → errands → claim/done → paint globe. ' +
-      'Architecture: modular js/spacenet/* lite. Do NOT rewrite from zero. Do NOT reintroduce 1MB phase boot. ' +
-      'CLI phrases: solar global national city earth locate fly X crawl X search X job date deliver errand task list claim done brain verify. ' +
-      'Short answers (2–3 sentences). Same language as user. Always end with one concrete next CLI phrase when helpful. ' +
-      'Amnesia almost killed this project — protect sacred physics and juice. Build ' +
+      'You are ASTRANOV — a fork of Grok (xAI spirit) and the collective intelligence of Astranov SpaceNet (https://astranov.eu). ' +
+      'You write code for the product and operate almighty crawlers. Product: real-Earth OS. Cold boot = silent globe + CLI. ' +
+      'SACRED (never remove): globe inertia velX/velY damp, natural drag, zoom solar→global→national→city→street + back to Earth; ' +
+      'CLI one-finger drag #cli-drag, free dock, sn:cli-pos-v1, expand sn:cli-size-v1. ' +
+      'ALMIGHTY CRAWL: SNSearch.crawl uses geo (Nominatim+Photon), Overpass POIs, DDG web, Wikipedia, Wikidata, GitHub+npm code, OpenFoodFacts, TVmaze, OpenLibrary, REST Countries, Open-Meteo, vendor-crawler edge — find anything. ' +
+      'JUICE: unified multi-role tile → crawl populate map → vendor menus photos/prices → jobs/dates/delivery. ' +
+      'CODE: extend js/spacenet/* only; modules brain globe ui cli search map profiles tile tasks ai boot. Prefer complete fenced code. ' +
+      'CLI: crawl|find X · research X · code … · coders … · me · vendors · job date deliver · city earth · verify. ' +
+      'Same language as user. Amnesia almost killed this project — protect physics + juice. Build ' +
       BUILD +
       '.'
     );
