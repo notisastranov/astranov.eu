@@ -27,14 +27,16 @@
   }
 
   function help() {
-    log('── SpaceNet · do anything on Earth ──', 'dim');
-    log('WORK  job barman 3h · cleaner 4h · nanny 1d · tutor 2h', 'ok');
+    log('── Astranov SpaceNet ──', 'dim');
+    log('WORK  job barman 3h · cleaner 4h · nanny 1d', 'ok');
     log('DATE  date coffee · date dinner · dating walk', 'ok');
-    log('MOVE  deliver food · errand pharmacy · errand grocery', 'ok');
-    log('FIELD task list · task claim · task done · search nanny', 'ok');
-    log('MAP   locate · city · earth · fly athens', 'ok');
+    log('MOVE  deliver food · errand pharmacy', 'ok');
+    log('FIELD task list · task claim · task done', 'ok');
+    log('ZOOM  solar · global · national · city · earth', 'ok');
+    log('MAP   locate · city · fly athens · crawl restaurants', 'ok');
+    log('WEB   search <query> · google <query> · maps <place>', 'ok');
     log('SYS   login · logout · solo · clear · help', 'dim');
-    preview('job · date · deliver · search · locate · city');
+    preview('Astranov SpaceNet · zoom · crawl · job · date · deliver');
   }
 
   const CITIES = {
@@ -76,10 +78,36 @@
         const n = Tasks?.list?.()?.length || 0;
         const build = document.querySelector('meta[name="astranov-build"]')?.content || '?';
         const who = global.SNAuth?.user?.email || 'guest';
-        log('SpaceNet lite · build ' + build, 'ok');
+        const tier = Globe?.tier || '?';
+        log('Astranov SpaceNet · build ' + build + ' · zoom ' + tier, 'ok');
         log('user ' + who + ' · open tasks ' + n, 'ok');
-        log('We ship alone · https://astranov.eu', 'dim');
-        preview('SpaceNet · ' + n + ' open · ' + who);
+        log('AI ' + (global.SNAi ? 'ready' : 'loading') + ' · https://astranov.eu', 'dim');
+        preview('Astranov SpaceNet · ' + tier + ' · ' + n + ' tasks');
+        return;
+      }
+      // Zoom tiers
+      if (low === 'solar' || low === 'zoom solar' || low === 'galaxy') {
+        Globe?.goToTier?.('solar');
+        log('Zoom · SOLAR', 'ok');
+        return;
+      }
+      if (low === 'global' || low === 'earth' || low === 'world' || low === 'zoom global' || low === 'zoom earth') {
+        global.SNMap?.close?.();
+        Globe?.goToTier?.('global');
+        log('Zoom · GLOBAL Earth', 'ok');
+        return;
+      }
+      if (low === 'national' || low === 'country' || low === 'zoom national') {
+        global.SNMap?.close?.();
+        Globe?.goToTier?.('national');
+        log('Zoom · NATIONAL', 'ok');
+        return;
+      }
+      if (low === 'zoom city' || low === 'zoom street') {
+        const p = Tasks?.pos || global._snLastPos || { lat: 36.43, lng: 28.22 };
+        Globe?.goToTier?.('city');
+        await global.SNMap?.open?.(p.lat, p.lng);
+        log('Zoom · CITY / street map', 'ok');
         return;
       }
       if (low === 'login' || low === 'signin' || low === 'sign in') {
@@ -107,14 +135,16 @@
         return;
       }
       if (low === 'city' || low === 'map' || low === 'street' || low === 'city map') {
-        const p = Tasks?.pos || (await Globe?.locate?.()) || { lat: 36.43, lng: 28.22 };
+        const p = Tasks?.pos || global._snLastPos || (await Globe?.locate?.()) || { lat: 36.43, lng: 28.22 };
         if (p.lat) Tasks?.setPos?.(p.lat, p.lng);
+        Globe?.goToTier?.('city');
         await global.SNMap?.open?.(p.lat, p.lng);
         return;
       }
-      if (low === 'earth' || low === 'globe' || low === 'close map' || low === 'global') {
+      if (low === 'globe' || low === 'close map' || low === 'back' || low === 'home') {
         global.SNMap?.close?.();
-        log('Earth desktop', 'ok');
+        Globe?.goToTier?.('global');
+        log('Back to Earth · GLOBAL', 'ok');
         return;
       }
       // fly city
@@ -175,14 +205,49 @@
         (Tasks?.CATALOG || []).forEach((c) => log(c.kind + ' · ' + c.title + ' · ' + c.dur, 'ok'));
         return;
       }
-      if (/^search\b|^find\b/.test(low)) {
-        const q = line.replace(/^(search|find)\s+/i, '').trim() || line;
-        const r = Tasks?.search?.(q) || { tasks: [], roles: [] };
-        log('search · ' + q, 'cmd');
-        r.tasks.slice(0, 8).forEach((t) => log('task · ' + t.title.slice(0, 50), 'ok'));
-        r.roles.slice(0, 6).forEach((c) => log('role · ' + c.kind + ' · ' + c.title, 'ok'));
-        if (!r.tasks.length && !r.roles.length) log('No hits · post: job ' + q, 'dim');
-        preview('Search · ' + q.slice(0, 40));
+      if (/^search\b|^find\b|^google\b|^maps\b|^crawl\b|^where\s+is\b|^look\s+up\b/.test(low)) {
+        const q = line
+          .replace(/^(search|find|google|maps|crawl|where\s+is|look\s+up)\s+/i, '')
+          .trim() || line;
+        // Local task DNA first
+        const local = Tasks?.search?.(q) || { tasks: [], roles: [] };
+        local.tasks.slice(0, 5).forEach((t) => log('task · ' + t.title.slice(0, 50), 'ok'));
+        local.roles.slice(0, 4).forEach((c) => log('role · ' + c.kind + ' · ' + c.title, 'ok'));
+        // Real map + web crawl
+        if (global.SNSearch?.crawl) {
+          const crawled = await SNSearch.crawl(q, {
+            pos: Tasks?.pos || global._snLastPos,
+            openMap: /maps|crawl|near|restaurant|cafe|shop|hotel/i.test(low) || local.tasks.length === 0,
+          });
+          if (crawled.places?.length) {
+            log('── Map places ──', 'dim');
+            crawled.places.slice(0, 5).forEach((p) => log('📍 ' + p.name.slice(0, 70), 'ok'));
+          }
+          if (crawled.nearby?.length) {
+            log('── Nearby on map ──', 'dim');
+            crawled.nearby.slice(0, 8).forEach((p) => log('• ' + p.name.slice(0, 50) + ' · ' + p.kind, 'ok'));
+          }
+          if (crawled.wiki?.text) {
+            log('── Knowledge ──', 'dim');
+            log(crawled.wiki.title + ': ' + crawled.wiki.text.slice(0, 220), 'ok');
+          }
+          if (crawled.web?.length) {
+            log('── Web ──', 'dim');
+            crawled.web.slice(0, 5).forEach((w) => log('· ' + (w.title || w.text).slice(0, 90), 'ok'));
+          }
+          if (!crawled.places?.length && !crawled.nearby?.length && !crawled.web?.length && !crawled.wiki) {
+            log('Crawl empty · try another place name or: fly athens', 'dim');
+          }
+        } else if (!local.tasks.length && !local.roles.length) {
+          log('Search module loading… try again', 'dim');
+        }
+        preview('Crawl · ' + q.slice(0, 40));
+        // Also ask AI for synthesis
+        if (global.SNAi?.ask) {
+          void SNAi.ask('User searched: ' + q + '. Give one short helpful SpaceNet tip (CLI next step).').then((tip) => {
+            if (tip) log(tip, 'dim');
+          });
+        }
         return;
       }
       if (/^date\b|^dating\b|coffee\s*date|dinner\s*date/.test(low)) {
@@ -294,8 +359,9 @@
     });
     $('btn-locate')?.addEventListener('click', () => void run('locate'));
     $('btn-help')?.addEventListener('click', () => void run('help'));
-    log('SpaceNet online · type help', 'dim');
-    preview('SpaceNet · job · date · deliver · city · locate');
+    $('btn-earth')?.addEventListener('click', () => void run('earth'));
+    log('Astranov SpaceNet online · type help', 'dim');
+    preview('Astranov SpaceNet · national · city · crawl · job · date');
   }
 
   global.SNCli = { init, run, log, help, preview };

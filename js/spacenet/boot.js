@@ -76,6 +76,8 @@
     .then(() => loadScript('/js/spacenet/cli.js'))
     .then(() => loadScript('/js/spacenet/ui.js'))
     .then(() => loadScript('/js/spacenet/map.js'))
+    .then(() => loadScript('/js/spacenet/search.js'))
+    .then(() => loadScript('/js/spacenet/ai.js'))
     .then(() => {
       if (!window.SNGlobe?.init?.()) throw new Error('globe init failed');
       SNTasks?.seedDemo?.();
@@ -84,9 +86,10 @@
       SNMap?.init?.();
       const ms = Math.round(performance.now() - t0);
       done('ready ' + ms + 'ms');
-      SNCli?.log?.('Ready ' + ms + 'ms · type help', 'dim');
-      // Auth + AI after first paint (non-blocking)
-      const authDelay = window._snLite ? 1200 : 600;
+      SNCli?.log?.('Astranov SpaceNet ready ' + ms + 'ms · type help', 'dim');
+      SNCli?.preview?.('Astranov SpaceNet · solar · global · national · city');
+      // Auth after first paint
+      const authDelay = window._snLite ? 1000 : 500;
       setTimeout(() => {
         loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js')
           .then(() => loadScript('/js/spacenet/auth.js'))
@@ -94,10 +97,7 @@
             SNAuth?.init?.();
             SNCli?.log?.('Auth ready · G to sign in', 'dim');
           })
-          .catch(() => {
-            /* guest mode fine */
-          });
-        loadScript('/js/spacenet/ai.js').catch(() => {});
+          .catch(() => {});
       }, authDelay);
     })
     .catch((e) => {

@@ -133,11 +133,33 @@
     else return open();
   }
 
+  function plotCrawl(places) {
+    if (!M.map || !places?.length) return;
+    places.forEach((p) => {
+      if (p.lat == null || p.lng == null) return;
+      const m = L.circleMarker([p.lat, p.lng], {
+        radius: 7,
+        color: '#ffcc66',
+        fillColor: '#ffaa33',
+        fillOpacity: 0.9,
+        weight: 1,
+      })
+        .addTo(M.map)
+        .bindPopup('<b>' + escapeHtml(p.name || 'place') + '</b><br/>' + escapeHtml(p.kind || 'map'));
+      M.markers.push(m);
+    });
+  }
+
   function init() {
     document.getElementById('btn-city')?.addEventListener('click', () => {
       void toggle().catch((e) => global.SNCli?.log?.(String(e.message || e), 'err'));
     });
-    document.getElementById('btn-city-close')?.addEventListener('click', close);
+    document.getElementById('btn-city-close')?.addEventListener('click', () => {
+      close();
+      try {
+        global.SNGlobe?.goToTier?.('global');
+      } catch (_) {}
+    });
   }
 
   global.SNMap = {
@@ -146,6 +168,7 @@
     close,
     toggle,
     showTasks,
+    plotCrawl,
     ensure,
     get active() {
       return M.active;

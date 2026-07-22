@@ -1,7 +1,7 @@
 {
-  "name": "SpaceNet · Astranov",
+  "name": "Astranov SpaceNet",
   "short_name": "SpaceNet",
-  "description": "SpaceNet — globe OS. Jobs, dating, delivery, and search on Earth.",
+  "description": "Astranov SpaceNet — real Earth OS. Zoom solar to city. Jobs, dating, delivery, maps crawl, AI.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
