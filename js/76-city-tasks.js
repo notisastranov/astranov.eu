@@ -95,6 +95,53 @@ const CityTasks = {
     console.log('%c[CityTasks] jobs · errands · dating · delivery DNA', 'color:#44ffaa;font-weight:700');
   },
 
+  /**
+   * First-visit demo field so solo users see SpaceNet alive on the globe.
+   * Local only · not network spam · one-time per browser.
+   */
+  seedDemoField() {
+    try {
+      if (localStorage.getItem('astranov:demo-tasks-v1')) return;
+      if (this.tasks.size > 0) {
+        localStorage.setItem('astranov:demo-tasks-v1', '1');
+        return;
+      }
+    } catch (_) { return; }
+
+    const u = window._lastPos || { lat: 36.4341, lng: 28.2176 };
+    const jitter = () => (Math.random() - 0.5) * 0.04;
+    const demos = [
+      { kind: 'job', role: 'barman', title: '💼 Demo · Barman 3h', duration: '3h', note: 'demo field seed' },
+      { kind: 'dating', role: 'coffee', title: '💕 Demo · Coffee date', duration: '1h', note: 'demo field seed' },
+      { kind: 'delivery', role: 'driver', title: '📦 Demo · Food delivery', duration: '45m', note: 'demo field seed' },
+      { kind: 'errand', role: 'pharmacy', title: '🏃 Demo · Pharmacy run', duration: '45m', note: 'demo field seed' },
+      { kind: 'job', role: 'cleaner', title: '💼 Demo · Cleaner gig 4h', duration: '4h', note: 'demo field seed' },
+    ];
+    demos.forEach((d, i) => {
+      const t = this.create({
+        ...d,
+        lat: u.lat + jitter() + (i * 0.008),
+        lng: u.lng + jitter() - (i * 0.006),
+        poster_id: 'demo',
+        poster_name: 'SpaceNet demo',
+        coins: 10 + i * 5,
+        radius_km: 5,
+      });
+      if (t) {
+        t.launched = true;
+        this.tasks.set(t.id, t);
+        this._showOnGlobe?.(t);
+      }
+    });
+    this._saveLocal();
+    try { localStorage.setItem('astranov:demo-tasks-v1', '1'); } catch (_) {}
+    AciCli?.print?.('SpaceNet demo field · 5 open tasks on the globe · type task list', 'dim');
+    try {
+      MapDepict?.setHud?.('Demo tasks live', 'spacenet');
+      GlobeDeck?.setPreview?.('Demo jobs · dates · delivery on the globe — type task list');
+    } catch (_) {}
+  },
+
   _loadLocal() {
     try {
       const raw = localStorage.getItem(this._localKey)

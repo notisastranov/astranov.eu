@@ -110,7 +110,11 @@ const SpaceNetGrokCli = {
     const actions = [];
     let intent = 'chat';
 
-    if (!m || /^help$|^\?$|what can you do|commands|how (do|to)/i.test(low)) {
+        if (/\b(solo|alone|we build|status report)\b/i.test(low) && m.length < 48) {
+      return { message: m, intent: 'solo', actions: [{ type: 'solo' }] };
+    }
+
+if (!m || /^help$|^\?$|what can you do|commands|how (do|to)/i.test(low)) {
       return { message: m, intent: 'help', actions: [{ type: 'help' }] };
     }
 
@@ -249,7 +253,20 @@ const SpaceNetGrokCli = {
 
     for (const a of plan.actions || []) {
       try {
-        if (a.type === 'help') {
+        if (a.type === 'solo') {
+          const open = (CityTasks?.list?.({ open: true }) || []).length;
+          const build = document.querySelector('meta[name="astranov-build"]')?.content || '?';
+          const lines = [
+            'SpaceNet · we ship alone until partners answer',
+            'build ' + build + ' · open tasks ' + open,
+            'CLI: job · date · deliver · search · task list · locate',
+            'Live: https://astranov.eu',
+          ];
+          lines.forEach((l) => AciCli?.print?.(l, 'ok'));
+          this.depict('explore', { label: 'Solo build', detail: 'ship daily', preview: lines[0] });
+          results.push('solo');
+        }
+        else if (a.type === 'help') {
           this.printHelp();
           results.push('help');
         }

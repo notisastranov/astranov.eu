@@ -867,6 +867,53 @@ const CityTasks = {
     console.log('%c[CityTasks] jobs · errands · dating · delivery DNA', 'color:#44ffaa;font-weight:700');
   },
 
+  /**
+   * First-visit demo field so solo users see SpaceNet alive on the globe.
+   * Local only · not network spam · one-time per browser.
+   */
+  seedDemoField() {
+    try {
+      if (localStorage.getItem('astranov:demo-tasks-v1')) return;
+      if (this.tasks.size > 0) {
+        localStorage.setItem('astranov:demo-tasks-v1', '1');
+        return;
+      }
+    } catch (_) { return; }
+
+    const u = window._lastPos || { lat: 36.4341, lng: 28.2176 };
+    const jitter = () => (Math.random() - 0.5) * 0.04;
+    const demos = [
+      { kind: 'job', role: 'barman', title: '💼 Demo · Barman 3h', duration: '3h', note: 'demo field seed' },
+      { kind: 'dating', role: 'coffee', title: '💕 Demo · Coffee date', duration: '1h', note: 'demo field seed' },
+      { kind: 'delivery', role: 'driver', title: '📦 Demo · Food delivery', duration: '45m', note: 'demo field seed' },
+      { kind: 'errand', role: 'pharmacy', title: '🏃 Demo · Pharmacy run', duration: '45m', note: 'demo field seed' },
+      { kind: 'job', role: 'cleaner', title: '💼 Demo · Cleaner gig 4h', duration: '4h', note: 'demo field seed' },
+    ];
+    demos.forEach((d, i) => {
+      const t = this.create({
+        ...d,
+        lat: u.lat + jitter() + (i * 0.008),
+        lng: u.lng + jitter() - (i * 0.006),
+        poster_id: 'demo',
+        poster_name: 'SpaceNet demo',
+        coins: 10 + i * 5,
+        radius_km: 5,
+      });
+      if (t) {
+        t.launched = true;
+        this.tasks.set(t.id, t);
+        this._showOnGlobe?.(t);
+      }
+    });
+    this._saveLocal();
+    try { localStorage.setItem('astranov:demo-tasks-v1', '1'); } catch (_) {}
+    AciCli?.print?.('SpaceNet demo field · 5 open tasks on the globe · type task list', 'dim');
+    try {
+      MapDepict?.setHud?.('Demo tasks live', 'spacenet');
+      GlobeDeck?.setPreview?.('Demo jobs · dates · delivery on the globe — type task list');
+    } catch (_) {}
+  },
+
   _loadLocal() {
     try {
       const raw = localStorage.getItem(this._localKey)
@@ -3096,7 +3143,11 @@ const SpaceNetGrokCli = {
     const actions = [];
     let intent = 'chat';
 
-    if (!m || /^help$|^\?$|what can you do|commands|how (do|to)/i.test(low)) {
+        if (/\b(solo|alone|we build|status report)\b/i.test(low) && m.length < 48) {
+      return { message: m, intent: 'solo', actions: [{ type: 'solo' }] };
+    }
+
+if (!m || /^help$|^\?$|what can you do|commands|how (do|to)/i.test(low)) {
       return { message: m, intent: 'help', actions: [{ type: 'help' }] };
     }
 
@@ -3235,7 +3286,20 @@ const SpaceNetGrokCli = {
 
     for (const a of plan.actions || []) {
       try {
-        if (a.type === 'help') {
+        if (a.type === 'solo') {
+          const open = (CityTasks?.list?.({ open: true }) || []).length;
+          const build = document.querySelector('meta[name="astranov-build"]')?.content || '?';
+          const lines = [
+            'SpaceNet · we ship alone until partners answer',
+            'build ' + build + ' · open tasks ' + open,
+            'CLI: job · date · deliver · search · task list · locate',
+            'Live: https://astranov.eu',
+          ];
+          lines.forEach((l) => AciCli?.print?.(l, 'ok'));
+          this.depict('explore', { label: 'Solo build', detail: 'ship daily', preview: lines[0] });
+          results.push('solo');
+        }
+        else if (a.type === 'help') {
           this.printHelp();
           results.push('help');
         }
@@ -4127,12 +4191,24 @@ window.__astranovBootFeatures = function __astranovBootFeatures() {
   soft('CityTasks', () => {
     CityTasks?.init?.();
     TaskBoard?.init?.();
+    // Solo builder: seed nearby demo tasks so the field is never empty
+    try { CityTasks?.seedDemoField?.(); } catch (_) {}
+  });
+  soft('SpaceNetGrokCli', () => {
+    SpaceNetGrokCli?.init?.();
   });
   soft('SpaceNetCM', () => SpaceNetCM?.init?.());
   soft('CoreBrain', () => AstranovCoreBrain?.init?.());
   soft('Logo', () => AstranovLogo?.init?.());
   soft('Shortcuts', () => {
     try { AppShortcuts?.init?.(); } catch (_) {}
+  });
+  soft('ThemeSpacex', () => {
+    try {
+      if (!AstranovTheme) return;
+      if (!localStorage.getItem('astranov_skin_v1')) AstranovTheme.setSpacex?.(true);
+      else AstranovTheme.apply?.();
+    } catch (_) {}
   });
 
   // Locate wiring: 🎯 national → city (never bare undeclared locateMe — kills app)
@@ -4165,27 +4241,44 @@ window.__astranovBootFeatures = function __astranovBootFeatures() {
 
   if (!window.showFirstRunCoach) {
     window.showFirstRunCoach = function showFirstRunCoach() {
-      try { if (localStorage.getItem('astranov:coach-v3-os')) return; } catch (_) { return; }
+      try { if (localStorage.getItem('astranov:coach-v4-spacenet')) return; } catch (_) { return; }
       const el = document.getElementById('first-run-coach');
       if (!el) return;
-      el.innerHTML = '<b>Welcome to Astranov OS</b>'
+      el.innerHTML = '<b>SpaceNet — the internet on Earth</b>'
         + '<ol style="margin:8px 0 0;padding-left:18px;line-height:1.45">'
-        + '<li>🌍 Earth is your desktop — drag · scroll · 🎯 locate</li>'
-        + '<li>🧭 Browser in the dock — open the web inside Astranov</li>'
-        + '<li>🛒 Market · ＋ Create · ✦ AI — same OS on phone &amp; PC</li>'
-        + '<li>Install: browser menu → Add to Home Screen</li>'
+        + '<li>🌍 Drag the globe · 🎯 locate · scroll into city</li>'
+        + '<li>⌨️ Type below — <b>job barman 3h</b> · <b>date coffee</b> · <b>deliver food</b></li>'
+        + '<li>🔍 <b>search</b> · <b>task list</b> · <b>task claim</b> — all paint the globe</li>'
+        + '<li>Same OS on phone &amp; PC · install: Add to Home Screen</li>'
         + '</ol>'
-        + '<button type="button" id="first-run-coach-ok">Got it</button>';
+        + '<button type="button" id="first-run-coach-ok">Start on SpaceNet</button>';
       el.hidden = false;
       document.getElementById('first-run-coach-ok')?.addEventListener('click', () => {
         el.hidden = true;
-        try { localStorage.setItem('astranov:coach-v3-os', '1'); } catch (_) {}
+        try { localStorage.setItem('astranov:coach-v4-spacenet', '1'); } catch (_) {}
+        try {
+          document.getElementById('aci-cli-in')?.focus();
+          GlobeDeck?.expand?.('SpaceNet');
+          GlobeDeck?.setPreview?.('Type: job barman 3h · date coffee · deliver food · help');
+          CliRibbon?.setNotice?.('SpaceNet CLI ready', 'ready');
+        } catch (_) {}
       });
     };
   }
   setTimeout(() => {
     try { showFirstRunCoach?.(); } catch (_) {}
   }, 900);
+  // Ribbon + preview: we build alone — product must speak for itself
+  setTimeout(() => {
+    try {
+      CliRibbon?.setNotice?.('SpaceNet · type a job, date, delivery, or search', 'ready');
+      GlobeDeck?.setPreview?.('SpaceNet CLI · job · date · deliver · search · locate');
+      const input = document.getElementById('aci-cli-in');
+      if (input && !input.value) {
+        input.placeholder = 'SpaceNet · job barman 3h · date coffee · deliver · search · locate';
+      }
+    } catch (_) {}
+  }, 1400);
 
   window._astranovFeaturesReady = true;
   document.documentElement.dataset.astranovPhase = 'features';

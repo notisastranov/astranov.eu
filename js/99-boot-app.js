@@ -21,12 +21,15 @@ window.__astranovBootApp = function __astranovBootApp() {
     } catch (_) {
       GlobeDeck?.bootCollapsed?.();
     }
-    GlobeDeck?.setTitle?.(PublicCopy?.deckTitle?.() || 'Astranov');
-    GlobeDeck?.setPreview?.('Earth · drag · scroll country · tap city · 🎯 locate');
+    GlobeDeck?.setTitle?.(PublicCopy?.deckTitle?.() || 'SpaceNet');
+    GlobeDeck?.setPreview?.('SpaceNet · drag Earth · 🎯 locate · type job · date · deliver');
   });
 
   soft('SuperCli', () => SuperCli?.init?.());
-  soft('AciCli', () => AciCli?.init?.());
+  soft('AciCli', () => {
+    AciCli?.init?.();
+    try { SpaceNetGrokCli?.init?.(); } catch (_) {}
+  });
   soft('ClassifiedTriangles', () => ClassifiedTriangles?.init?.());
 
   // MAP — core product after Earth
@@ -70,7 +73,7 @@ window.__astranovBootApp = function __astranovBootApp() {
         ZoomTiers?.goTo?.('global', false);
       }
     } catch (_) {}
-    const ready = 'Astranov OS · Earth desktop · dock: Browser · 🎯 locate';
+    const ready = 'SpaceNet · Earth OS · CLI: job · date · deliver · search · locate';
     try { CliRibbon?.setNotice?.(ready, 'ready'); } catch (_) {}
     try { GlobeDeck?.setPreview?.(ready); } catch (_) {}
     const zl = document.getElementById('zoom-label');
