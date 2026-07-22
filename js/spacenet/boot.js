@@ -74,21 +74,25 @@
     )
     .then(() => loadScript('/js/spacenet/globe.js'))
     .then(() => loadScript('/js/spacenet/tasks.js'))
+    .then(() => loadScript('/js/spacenet/profiles.js'))
     .then(() => loadScript('/js/spacenet/cli.js'))
     .then(() => loadScript('/js/spacenet/ui.js'))
+    .then(() => loadScript('/js/spacenet/tile.js'))
     .then(() => loadScript('/js/spacenet/map.js'))
     .then(() => loadScript('/js/spacenet/search.js'))
     .then(() => loadScript('/js/spacenet/ai.js'))
     .then(() => {
       if (!window.SNGlobe?.init?.()) throw new Error('globe init failed');
       SNTasks?.seedDemo?.();
+      SNProfiles?.me?.();
       SNCli?.init?.();
       SNUi?.init?.();
+      SNTile?.init?.();
       SNMap?.init?.();
       const ms = Math.round(performance.now() - t0);
       done('ready ' + ms + 'ms');
-      SNCli?.log?.('Astranov SpaceNet ready ' + ms + 'ms · brain online · type help', 'dim');
-      SNCli?.preview?.('Astranov SpaceNet · crawl · job · date · deliver');
+      SNCli?.log?.('Astranov SpaceNet ready ' + ms + 'ms · tile juice · type help', 'dim');
+      SNCli?.preview?.('city · crawl · + profile · job · date · deliver');
       // Sacred physics self-check (console + optional CLI)
       try {
         const v = window.SNBrain?.verify?.();

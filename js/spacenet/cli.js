@@ -35,9 +35,10 @@
     log('ZOOM  solar · global · national · city · earth', 'ok');
     log('MAP   locate · city · fly athens · crawl restaurants', 'ok');
     log('WEB   search <query> · google <query> · maps <place>', 'ok');
+    log('TILE  me · profile · roles · menu · cart · vendors · drivers · dates', 'ok');
     log('BRAIN brain · verify · law  (anti-amnesia memory)', 'ok');
     log('SYS   login · logout · solo · clear · help', 'dim');
-    preview('Astranov SpaceNet · zoom · crawl · job · date · deliver');
+    preview('Astranov SpaceNet · city tiles · menu · date · deliver');
   }
 
   function dumpBrain(mode) {
@@ -105,6 +106,116 @@
       }
       if (low === 'verify' || low === 'check' || low === 'brain verify' || low === 'verify brain') {
         dumpBrain('verify');
+        return;
+      }
+      // Unified multi-role tile juice
+      if (low === 'me' || low === 'profile' || low === 'tile' || low === 'plus' || low === 'my tile') {
+        global.SNTile?.openMe?.();
+        log('Your tile · cover · avatar · tap roles: social dating vendor driver client work', 'ok');
+        return;
+      }
+      if (low === 'roles' || low === 'role') {
+        const me = global.SNProfiles?.me?.();
+        if (!me) {
+          log('Profiles loading…', 'dim');
+          return;
+        }
+        Object.keys(global.SNProfiles.ROLES).forEach((k) => {
+          log((me.roles[k] ? '● ' : '○ ') + k + ' · ' + global.SNProfiles.ROLES[k].label, me.roles[k] ? 'ok' : 'dim');
+        });
+        log('Toggle: role vendor · role dating · role driver', 'dim');
+        global.SNTile?.openMe?.('about');
+        return;
+      }
+      if (/^role\s+/.test(low)) {
+        const role = low.replace(/^role\s+/, '').trim().split(/\s+/)[0];
+        const me = global.SNProfiles?.me?.();
+        if (!me || !global.SNProfiles.ROLES[role]) {
+          log('Roles: social dating vendor driver client worker', 'dim');
+          return;
+        }
+        const p = global.SNProfiles.toggleRole(me.id, role);
+        log('Role ' + role + ' · ' + (p.roles[role] ? 'ON' : 'off'), 'ok');
+        global.SNTile?.open?.(p);
+        global.SNMap?.showProfiles?.();
+        return;
+      }
+      if (low === 'vendors' || low === 'shops' || low === 'menu') {
+        const list = global.SNProfiles?.list?.({ role: 'vendor' }) || [];
+        if (!list.length) {
+          global.SNProfiles?.seedCity?.();
+        }
+        const vendors = global.SNProfiles?.list?.({ role: 'vendor' }) || [];
+        vendors.slice(0, 12).forEach((v) => {
+          log('🏪 ' + (v.shopName || v.name) + ' · ' + (v.menu?.length || 0) + ' items', 'ok');
+        });
+        const first = vendors[0];
+        if (first) {
+          if (first.lat != null) await global.SNMap?.open?.(first.lat, first.lng);
+          global.SNMap?.showProfiles?.();
+          global.SNTile?.open?.(first, { tab: 'menu' });
+        }
+        preview((vendors.length || 0) + ' vendors on map');
+        return;
+      }
+      if (low === 'drivers' || low === 'driver') {
+        const list = global.SNProfiles?.list?.({ role: 'driver' }) || [];
+        if (!list.length) global.SNProfiles?.seedCity?.();
+        (global.SNProfiles?.list?.({ role: 'driver' }) || []).forEach((d) => {
+          log(
+            '🛵 ' + d.name + ' · ' + (d.driverOnline ? 'ONLINE' : 'off') + ' · ' + (d.vehicle || ''),
+            d.driverOnline ? 'ok' : 'dim'
+          );
+        });
+        const d0 = (global.SNProfiles?.list?.({ role: 'driver' }) || [])[0];
+        if (d0?.lat != null) {
+          await global.SNMap?.open?.(d0.lat, d0.lng);
+          global.SNMap?.showProfiles?.();
+          global.SNTile?.open?.(d0, { tab: 'drive' });
+        }
+        return;
+      }
+      if (low === 'dates' || low === 'dating people' || low === 'people') {
+        if (!(global.SNProfiles?.list?.({ role: 'dating' }) || []).length) global.SNProfiles?.seedCity?.();
+        (global.SNProfiles?.list?.({ role: 'dating' }) || []).forEach((d) => {
+          log('💕 ' + d.name + ' · ' + (d.lookingFor || 'open'), 'ok');
+        });
+        const d0 = (global.SNProfiles?.list?.({ role: 'dating' }) || [])[0];
+        if (d0) {
+          if (d0.lat != null) await global.SNMap?.open?.(d0.lat, d0.lng);
+          global.SNMap?.showProfiles?.();
+          global.SNTile?.open?.(d0, { tab: 'dating' });
+        }
+        return;
+      }
+      if (low === 'cart' || low === 'basket') {
+        const items = global.SNProfiles?.cart?.() || [];
+        if (!items.length) log('Cart empty · vendors · tap + on menu items', 'dim');
+        else {
+          items.forEach((i) => log('· ' + i.name + ' €' + i.price + ' · ' + i.vendorName, 'ok'));
+          log('Total €' + (global.SNProfiles.cartTotal() || 0).toFixed(2), 'ok');
+        }
+        global.SNTile?.openMe?.('cart');
+        return;
+      }
+      if (low === 'order' || low === 'checkout' || low === 'pay') {
+        const r = global.SNProfiles?.placeOrder?.();
+        if (!r?.ok) {
+          log(r?.error || 'cart empty · open vendors first', 'err');
+          return;
+        }
+        log('Order €' + r.total.toFixed(2) + ' · delivery opened for drivers', 'ok');
+        await global.SNMap?.open?.();
+        global.SNMap?.showTasks?.();
+        global.SNMap?.showProfiles?.();
+        return;
+      }
+      if (low === 'seed' || low === 'seed city' || low === 'tiles') {
+        const pos = Tasks?.pos || global._snLastPos || { lat: 36.43, lng: 28.22 };
+        global.SNProfiles?.seedCity?.(pos.lat, pos.lng);
+        await global.SNMap?.open?.(pos.lat, pos.lng);
+        global.SNMap?.showProfiles?.();
+        log('Seeded map tiles · vendors · dating · drivers · social', 'ok');
         return;
       }
       if (low === 'solo' || low === 'status') {

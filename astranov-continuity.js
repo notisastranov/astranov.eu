@@ -117,10 +117,31 @@ const AstranovContinuity = {
       doNotRemove: ['bindCliDrag', '#cli-drag', 'sn:cli-pos-v1', 'sn:cli-size-v1'],
     },
     spacenetJuice: {
-      summary: 'Crawlers → city maps → jobs/dates/deliveries — default engineering priority, not rewrites',
-      owner: 'js/spacenet/search.js + map.js + tasks.js + cli.js',
-      required: ['SNSearch.crawl', 'SNTasks create/claim/complete', 'city map on demand'],
-      doNotRemove: ['SNSearch.crawl', 'job/date/deliver CLI routes', 'SNTasks DNA'],
+      summary: 'Crawlers → city maps → multi-role tiles → jobs/dates/deliveries — default engineering priority',
+      owner: 'js/spacenet/search.js + map.js + tasks.js + profiles.js + tile.js + cli.js',
+      required: [
+        'SNSearch.crawl',
+        'SNTasks create/claim/complete',
+        'SNProfiles multi-role',
+        'SNTile cover/avatar/roles/menu',
+        'city map on demand',
+      ],
+      doNotRemove: [
+        'SNSearch.crawl',
+        'job/date/deliver CLI routes',
+        'SNTasks DNA',
+        'SNProfiles',
+        'SNTile',
+        'vendor menu photo+price',
+      ],
+    },
+    spacenetMultiRoleTile: {
+      summary:
+        'One tile for social/dating/vendor/driver/client/worker — cover, avatar, role chips, vendor menus with photos+prices, cart→order→delivery',
+      owner: 'js/spacenet/tile.js + profiles.js',
+      selectors: ['#sn-tile', '#sn-plus'],
+      required: ['cover', 'avatar', 'role chips', 'menu tab', 'dating tab', 'drive tab', 'cart'],
+      doNotRemove: ['#sn-tile', '#sn-plus', 'SNTile.open', 'SNProfiles.toggleRole'],
     },
     superAddPlus: {
       summary: '+ opens full MenuProfilePostTile (social profile field), NOT small globe-super-add deck',

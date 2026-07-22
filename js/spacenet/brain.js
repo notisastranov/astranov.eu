@@ -57,14 +57,16 @@
       },
     },
     juice: [
-      { id: 'crawlers', what: 'SNSearch.crawl + edge vendor-crawler → real places on map' },
-      { id: 'city_maps', what: 'Leaflet on demand; pins, lines, driver track' },
+      { id: 'unified_tile', what: 'One tile: cover/avatar + social/dating/vendor/driver/client/worker roles' },
+      { id: 'crawlers', what: 'SNSearch.crawl → profile tiles on city map' },
+      { id: 'city_maps', what: 'Leaflet pins open multi-role tiles' },
+      { id: 'vendor_menus', what: 'Menu items with photos + prices → cart → order → delivery task' },
       { id: 'jobs', what: 'job … → list → claim → complete on globe' },
-      { id: 'dating', what: 'date … same DNA pipeline' },
-      { id: 'delivery', what: 'deliver … same DNA; track on map' },
+      { id: 'dating', what: 'dating profiles + date invite DNA' },
+      { id: 'delivery', what: 'driver profiles online + claim deliveries' },
       { id: 'errands', what: 'errand … same DNA' },
-      { id: 'marketplace', what: 'browse → cart → AVC pay → track' },
-      { id: 'ai', what: 'Single collective intelligence Astranov; voice el-GR + text' },
+      { id: 'marketplace', what: 'browse → cart → order → track' },
+      { id: 'ai', what: 'Single collective intelligence Astranov' },
     ],
     commands: [
       'job barman 3h',
@@ -227,6 +229,8 @@
     add('cli_run', typeof C?.run === 'function' || typeof C?.init === 'function', 'SNCli');
     add('crawl', typeof S?.crawl === 'function', 'SNSearch.crawl');
     add('tasks', typeof T?.create === 'function' && typeof T?.claim === 'function', 'SNTasks DNA');
+    add('profiles', typeof global.SNProfiles?.me === 'function', 'SNProfiles');
+    add('tile', typeof global.SNTile?.open === 'function', 'SNTile multi-role');
     add('ai', typeof A?.ask === 'function', 'SNAi.ask');
 
     // DOM sacred
