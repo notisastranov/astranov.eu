@@ -1,44 +1,63 @@
-# Astranov — AI agent entry (2026-07-14)
+# Astranov SpaceNet — AI agent entry
 
-**Stop. Read the code contract before editing anything.**
+**STOP. Read the system guide before editing anything.**
 
-## Single source of truth (features + deploy + anti-patterns)
+## Single source of truth
 
-1. **`astranov-continuity.js`** — loaded on https://astranov.eu → `window.AstranovContinuity`
-2. **`index.html`** meta `astranov-build` + `astranov-continuity` (must match script `?v=`)
+1. **`ASTRANOV_SPACENET_GUIDE.md`** ← **AUTHORITATIVE** (features, globe, CLI, juice, anti-patterns, deploy)  
+2. **`support/PRODUCT-RULES.md`** ← short never-forget bullets  
+3. **Live code:** `index.html` + **`js/spacenet/*`** on https://astranov.eu  
 
-Chat history, Grok/Cursor session summaries, and old markdown specs are **not authoritative**.
+Chat history, compaction summaries, and “let’s rebuild from scratch” impulses are **not** authority.
 
-## Deploy (mandatory)
+## What you are building
+
+**Astranov SpaceNet** — multi-device Earth OS + CLI.  
+**Juice (default work):** network crawlers · city map population · jobs · dating · delivery · claim/progress/done · depict on globe.  
+
+**Not default work:** wiping the shell to chase FPS, re-introducing 1MB phase boot, forgetting inertia / CLI drag / zoom tiers.
+
+## Live architecture (2026-07+)
+
+| Path | Role |
+|------|------|
+| `index.html` | Shell + CLI dock |
+| `js/spacenet/boot.js` | Boot chain |
+| `js/spacenet/globe.js` | Real Earth, drag, **inertia**, zoom tiers |
+| `js/spacenet/cli.js` | Street CLI + crawl + zoom |
+| `js/spacenet/tasks.js` | City DNA |
+| `js/spacenet/map.js` | City map |
+| `js/spacenet/search.js` | Crawlers |
+| `js/spacenet/ui.js` | **One-finger CLI drag** + expand |
+| `js/spacenet/auth.js` / `ai.js` | Sign-in + Grok freeform |
+
+## Non-negotiables (summary)
+
+1. Product name: **Astranov SpaceNet**  
+2. Globe: natural turn + **inertia** + real texture + **solar → global → national → city** + always **back to Earth**  
+3. CLI: **one-finger drag** + one-finger **log scroll** + **expand/retract**; position saved  
+4. Every street action **paints** the globe/map  
+5. **Do not full-rewrite** the live shell to “fix lag” — measure and cut  
+6. Deploy yourself; bump `astranov-build` + `?v=` together  
+
+## Deploy
 
 ```bash
-node scripts/guard-base.mjs
-node scripts/owner-push.mjs index.html astranov-continuity.js <other-changed-files> <message>
+# Prefer: edit js/spacenet/* + index.html, then push to notisastranov/astranov.eu main
+# Live check: build stamp, inertia, CLI drag, national/city/earth, crawl, job/date/deliver
 ```
 
-- **Live:** https://astranov.eu
-- **Repo:** `notisastranov/astranov.eu` · path `C:\Users\N\Documents\GitHub\Astranov`
-- Owner granted autonomous push — run deploy yourself.
+- **Live:** https://astranov.eu  
+- **Repo:** `notisastranov/astranov.eu`  
+- Owner granted autonomous deploy.
 
-## Architecture (short)
+## Superseded for implementation
 
-| File | Role |
-|------|------|
-| `index.html` | Shell + MPP tile DOM + CLI CSS |
-| `astranov-app.js` | Globe boot, LazyModules, SuperCli |
-| `astranov-deferred.js` | Commerce, MapComms, BrainNeurons, DeferredBoot |
-| `astranov-perf-lazy.js` | Defer 574KB pack until idle / user tap |
-| `astranov-field-hud.js` | Top-right field (miner rig tap), radar, speed |
-| `astranov-mpp-tile.js` | + tile, locate, video, marketplace |
+- Old “phase-* + 600KB deferred on boot” as the only architecture  
+- `ASTRANOV_GROK_SPECS.md`  
+- Session chat as sole memory (update **ASTRANOV_SPACENET_GUIDE.md** instead)  
+- Continuity file alone if it conflicts with this guide and live `js/spacenet/*`
 
-## Mission (vision only)
+## Full law
 
-SpaceNet: unify services on a zoomable cosmos (solar → global → national → city → street).  
-Details: `ASTRANOV_SPACENET_MISSION.md` (vision). **Features:** `astranov-continuity.js`.
-
-## Superseded — do not implement from these
-
-- `ASTRANOV_GROK_SPECS.md` (stub)
-- `ASTRANOV_GROK_FULL_HANDOVER.md` (deleted)
-- GitHub issues #97 #99 old handoff checklists
-- Any rule saying “index.html only, no new files” — outdated; use module split + continuity
+→ **`ASTRANOV_SPACENET_GUIDE.md`**

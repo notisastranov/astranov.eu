@@ -1,29 +1,30 @@
-# Astranov SpaceNet — permanent product rules
+# Astranov SpaceNet — never-forget rules
 
-Owner directives that agents must **never forget**.
-
-## CLI
-
-1. **CLI must be draggable with one finger** (touch + mouse).  
-   - Handle: `#cli-drag` / grip on panel top  
-   - Implementation: `js/spacenet/ui.js` → `bindCliDrag()`  
-   - Position persisted: `localStorage['sn:cli-pos-v1']`  
-   - Do not remove free-position dock mode (`#dock.free`).
-
-2. CLI is the primary control surface for SpaceNet (jobs, dating, delivery, search, zoom, crawl).
+**Full law:** `ASTRANOV_SPACENET_GUIDE.md` (read first every session).
 
 ## Identity
+- Name: **Astranov SpaceNet**
 
-- Product name: **Astranov SpaceNet** (not bare “SpaceNet” only in titles).
+## Juice (default engineering)
+- Crawlers · city map population · **jobs** · **dating** · **delivery** · claim/done · globe depiction  
+- Not: endless full rewrites
 
-## Zoom
+## Globe
+- Natural one-finger turn + **inertia on release**  
+- Real Earth texture (not permanent dummy ball)  
+- Zoom: **solar → global → national → city**; always **back to Earth**
 
-- Tiers: solar → global → national → city; always able to return to Earth (`earth` / 🌍).
+## CLI
+- **One-finger drag** to move panel (`#cli-drag`, `sn:cli-pos-v1`)  
+- **One-finger scroll** on log  
+- **One-finger vertical gesture / control** to fully expand or retract  
+- Primary control surface for the product
 
 ## Perf
+- Keep modular `js/spacenet/*` boot  
+- No dual-load CDN shell; reject HTML-as-JS  
+- Fast without deleting juice
 
-- Prefer lite modular shell under `js/spacenet/`; do not re-enable 1MB phase/deferred boot by default.
-
----
-
-*Updated 2026-07-22 — one-finger CLI drag.*
+## Amnesia ban
+- Do not rebuild from zero and drop the above  
+- When owner adds a rule, update **ASTRANOV_SPACENET_GUIDE.md** the same session
