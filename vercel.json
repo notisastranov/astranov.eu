@@ -2,38 +2,20 @@
   "version": 2,
   "outputDirectory": ".",
   "installCommand": "echo no-install",
-  "buildCommand": "echo astranov-static-20260722114500-p0",
+  "buildCommand": "echo spacenet-lite-20260722210000",
   "framework": null,
   "headers": [
     {
-      "source": "/js/(.*)",
+      "source": "/js/spacenet/(.*)",
       "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=60, must-revalidate"
-        }
-      ]
-    },
-    {
-      "source": "/astranov-(.*).js",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=60, must-revalidate"
-        },
-        {
-          "key": "Content-Type",
-          "value": "application/javascript; charset=utf-8"
-        }
+        { "key": "Cache-Control", "value": "public, max-age=60, must-revalidate" },
+        { "key": "Content-Type", "value": "application/javascript; charset=utf-8" }
       ]
     },
     {
       "source": "/index.html",
       "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        }
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
       ]
     }
   ],
