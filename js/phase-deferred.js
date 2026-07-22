@@ -2931,8 +2931,8 @@ const ProductSurface = {
     const build = document.querySelector('meta[name="astranov-build"]')?.content || '';
     const q = build ? '?v=' + encodeURIComponent(build) : '';
     const tryPair = (a, b) => Promise.all([this._loadScript(a + q), this._loadScript(b + q)]);
-    this._scriptsLoading = tryPair('/astranov-field-hud.js', '/astranov-mpp-tile.js')
-      .catch(() => tryPair('/js/astranov-field-hud.js', '/js/astranov-mpp-tile.js'))
+    this._scriptsLoading = tryPair('/js/astranov-field-hud.js', '/js/astranov-mpp-tile.js')
+      .catch(() => tryPair('/astranov-field-hud.js', '/astranov-mpp-tile.js'))
       .then(() => {
 
       this._scriptsReady = true;
@@ -6075,7 +6075,8 @@ Object.assign(SuperCli, {
       'telemachos', 'tilemaxos', 'telemachus', 'tilemachos', 'teledromos', 'teledromus',
       'pilot', 'drone', 'drones', 'fleet',
       'youtube', 'yt', 'watch', 'play', 'space', 'scenario', 'add', 'post', 'superadd',
-      'theme', 'dark', 'bright', 'light',
+      'theme', 'dark', 'bright', 'light', 'spacex', 'falcon',
+      'browse', 'open', 'starlink', 'starship', 'crawl', 'spacenet', 'os', 'market',
       'yacht', 'yachts', 'charter', 'booker',
     ]);
     return known.has(c);
@@ -6137,25 +6138,20 @@ Object.assign(SuperCli, {
 
   printHelp() {
     const owner = Auth?.isOwner;
-    this.out('── Astranov — brain + UI + dev ──', 'dim');
-    this.out('dev on|off · dev task <msg> · dev peers · dev deploy · dev status', 'ok');
-    this.out('ui show batch|radio|vendor|youtube · ui hide · ui fly athens · ui zoom galaxy', 'ok');
-    this.out('youtube <search> · watch <url> · play 2 (pick result)', 'ok');
-    this.out('space locate <topic> · space status — brain places media on globe/cosmos', 'ok');
-    this.out('scenario wake|city|groceries|youtube|reviews|list — real user flows', 'ok');
-    this.out('players · kryfto · ΣΥΓΥΡΙΣΜΑ · pyramid · willa — 12 Olympians 🔵 · 12 Cronians 🔴', 'ok');
-    this.out('team create <name> · team join <id> · contact video|voice|message <name>', 'ok');
-    this.out('cli search <text> · cli users · cli view <name> · cloud dm <name> · chat <name> <msg>', 'ok');
-    this.out('drivers · driver <name> — pick delivery driver on map/cloud', 'ok');
-    this.out('tilemaxos — takeover ANY drone (FPV priority) · flyback to pilot · scan · evolve', 'ok');
-    this.out('profile me · match <site> dates [pax] · match field <site> <name> · site approve <slug>', 'ok');
-    this.out('theme dark|bright · or just: dark · bright — globe + city map + UI', 'ok');
-    this.out('add · post — Super Add camera · global/team/local channel', 'ok');
-    this.out('Tri-UI: SuperCli + SuperVoice + SuperSpace · mic+send at bottom bar', 'dim');
-    this.out('brain think|evolve|teach|coders|listen on|off|status · brain order <task>', owner ? 'ok' : 'dim');
-    this.out('locate · order · batch · vhf · coders · deploy · think · type anything', 'ok');
-    if (owner) this.out('Owner: brain order <task> = execute · coders <task> = explicit order', 'dim');
-    ACIControl?.reply('Full command: dev on · ui status · brain status · then build');
+    this.out('── SpaceNet · Grok CLI · SpaceX skin ──', 'dim');
+    this.out('Type anything. Natural language runs multi-tools on the globe OS.', 'ok');
+    this.out('locate · fly starbase|athens · zoom solar|global|city · city map', 'ok');
+    this.out('browse https://… · open astranov://market · order · market · +', 'ok');
+    this.out('starlink · starship · spacex · crawl · news · drive · call · os', 'ok');
+    this.out('theme spacex|dark|bright · status · help · coders / talk to Grok', 'ok');
+    this.out('youtube <q> · watch <url> · space locate <topic> · scenario list', 'ok');
+    this.out('cli search · cloud dm · team · drivers · profile · sync', 'ok');
+    this.out('dev on|off · ui show|fly|zoom · brain status — architect power tools', owner ? 'ok' : 'dim');
+    this.out('Tiers: SOLAR → GLOBAL → NATIONAL → CITY → STREET — replace the open web UX', 'dim');
+    if (window.SpaceNetGrokCli?.printHelp) {
+      /* detailed tool list also available via SpaceNetGrokCli */
+    }
+    ACIControl?.reply('SpaceNet ready — ask Grok anything or say locate / browse / order');
     GlobeDeck?.finishCliIfOneShot('help');
   },
 
@@ -6466,18 +6462,37 @@ Object.assign(SuperCli, {
         await this.cmdScenario(parts, rest);
         return { handled: true };
       }
-      if (cmd === 'theme' || cmd === 'dark' || cmd === 'bright' || cmd === 'light') {
-        const mode = cmd === 'theme'
-          ? (parts[1] || rest || '').toLowerCase()
-          : (cmd === 'light' ? 'bright' : cmd);
-        if (mode === 'dark' || mode === 'bright') {
+      if (cmd === 'theme' || cmd === 'dark' || cmd === 'bright' || cmd === 'light' || cmd === 'spacex' || cmd === 'falcon') {
+        const mode = (cmd === 'theme'
+          ? (parts[1] || rest || 'spacex').toLowerCase()
+          : (cmd === 'light' ? 'bright' : cmd));
+        if (mode === 'spacex' || mode === 'falcon' || mode === 'starship') {
+          AstranovTheme?.setSpacex?.(true) || AstranovTheme?.set?.('spacex');
+          this.out('theme → spacex (SpaceX industrial)', 'ok');
+        } else if (mode === 'dark' || mode === 'bright' || mode === 'auto') {
           AstranovTheme?.set?.(mode);
           this.out('theme → ' + mode, 'ok');
         } else {
-          AstranovTheme?.toggle?.();
-          this.out('theme → ' + (AstranovTheme?.mode || 'dark'), 'ok');
+          AstranovTheme?.setSpacex?.(true);
+          this.out('theme → spacex', 'ok');
         }
         return { handled: true };
+      }
+      if (cmd === 'browse') {
+        const url = rest || parts[1] || 'astranov://home';
+        if (window.SpaceNetGrokCli?._browse) await SpaceNetGrokCli._browse(url);
+        else if (window.AstranovBrowser?.navigate) {
+          AstranovBrowser.show?.();
+          AstranovBrowser.navigate(url);
+        } else if (/^https?:\/\//i.test(url)) window.open(url, '_blank', 'noopener');
+        this.out('browse → ' + url, 'ok');
+        return { handled: true };
+      }
+      if (cmd === 'starlink' || cmd === 'starship' || cmd === 'crawl' || cmd === 'spacenet' || cmd === 'os' || cmd === 'market') {
+        if (window.SpaceNetGrokCli?.handle) {
+          await SpaceNetGrokCli.handle(raw, opts);
+          return { handled: true, grok: true };
+        }
       }
       if (cmd === 'add' || cmd === 'post' || cmd === 'superadd') {
         SuperAdd?.open?.();
@@ -6677,10 +6692,14 @@ Object.assign(SuperCli, {
         return { handled: true };
       }
 
-      // Freeform natural language → Core Brain (local globe tools + fast AI)
+      // Freeform natural language → SpaceNet Grok CLI → Core Brain
       // Critical: without this, SuperCli returns handled:false and AciCli said "unknown"
       if (!this.isStructuredCmd(cmd)) {
         GlobeDeck.activeTask = 'coders';
+        if (window.SpaceNetGrokCli?.handle) {
+          await SpaceNetGrokCli.handle(raw, opts);
+          return { handled: true, grok: true };
+        }
         if (window.AstranovCoreBrain?.handle) {
           await AstranovCoreBrain.handle(raw, opts);
           return { handled: true, brain: true };
@@ -6698,9 +6717,13 @@ Object.assign(SuperCli, {
       return { handled: true, error: msg };
     }
 
-    // Last-chance freeform (any leftover tokens)
+    // Last-chance freeform (any leftover tokens) — never leave user with unknown
     if (raw.length >= 1) {
       GlobeDeck.activeTask = 'coders';
+      if (window.SpaceNetGrokCli?.handle) {
+        await SpaceNetGrokCli.handle(raw, opts);
+        return { handled: true, grok: true };
+      }
       if (window.AstranovCoreBrain?.handle) {
         await AstranovCoreBrain.handle(raw, opts);
         return { handled: true, brain: true };
@@ -6709,6 +6732,8 @@ Object.assign(SuperCli, {
         await AciCoders.handleMessage(raw, opts);
         return { handled: true };
       }
+      this.out('SpaceNet heard you — try: locate · fly · browse · order · help', 'dim');
+      return { handled: true };
     }
     return { handled: false };
   },
@@ -10752,32 +10777,7 @@ const DrivingView = {
 
   setDestination(lat, lng) {
     this.destination = { lat, lng };
-    this.waypoints = null;
     if (this.active) this.fetchRoadRoute();
-  },
-
-  /**
-   * Multi-stop road route via OSRM (ordered waypoints).
-   * waypoints: [{ lat, lng, label?, info?, coins? }, ...]
-   */
-  setWaypoints(waypoints, opts) {
-    opts = opts || {};
-    const list = (waypoints || [])
-      .filter((w) => w && w.lat != null && w.lng != null)
-      .map((w, i) => ({
-        lat: +w.lat,
-        lng: +w.lng,
-        label: w.label || ('Stop ' + (i + 1)),
-        info: w.info || w.note || '',
-        coins: Math.max(0, Math.round(Number(w.coins) || 0)),
-        id: w.id || ('wp' + i),
-      }));
-    this.waypoints = list;
-    if (list.length) {
-      this.destination = { lat: list[list.length - 1].lat, lng: list[list.length - 1].lng };
-      this.wpIdx = Math.max(0, Math.min(opts.startIndex || 0, list.length - 1));
-    }
-    if (this.active || opts.force) this.fetchMultiWaypointRoute();
   },
 
   onFix(pos) {
@@ -10885,9 +10885,6 @@ const DrivingView = {
   },
 
   async fetchRoadRoute() {
-    if (this.waypoints?.length > 1) {
-      return this.fetchMultiWaypointRoute();
-    }
     const from = window._lastPos || this.lastFix;
     const to = this.destination;
     if (!from || !to) return;
@@ -10912,106 +10909,33 @@ const DrivingView = {
       console.warn('[DrivingView] OSRM failed', e);
     }
     if ((this.routeCoords?.length || 0) < 2 && from && to) {
-      this.routeCoords = this._lerpPath(from, to, 12);
+      const fallback = [];
+      for (let i = 0; i <= 12; i++) {
+        const t = i / 12;
+        fallback.push({
+          lat: from.lat + (to.lat - from.lat) * t,
+          lng: from.lng + (to.lng - from.lng) * t,
+        });
+      }
+      this.routeCoords = fallback;
       this.drawRoute();
     }
   },
 
-  /** Multi-waypoint OSRM route + per-leg steps for task guidance */
-  async fetchMultiWaypointRoute() {
-    const from = window._lastPos || this.lastFix;
-    const wps = this.waypoints || [];
-    if (!wps.length) return this.fetchRoadRoute();
-    const nodes = [];
-    if (from) nodes.push({ lat: from.lat, lng: from.lng, label: 'You' });
-    wps.forEach((w) => nodes.push(w));
-    if (nodes.length < 2) return;
-
-    try {
-      const path = nodes.map((n) => n.lng + ',' + n.lat).join(';');
-      const url = 'https://router.project-osrm.org/route/v1/driving/'
-        + path + '?overview=full&geometries=geojson&steps=true';
-      const r = await fetch(url);
-      const j = await r.json();
-      if (j.code === 'Ok' && j.routes?.[0]) {
-        const route = j.routes[0];
-        this.routeCoords = route.geometry.coordinates.map((c) => ({ lng: c[0], lat: c[1] }));
-        this.legs = (route.legs || []).map((leg, i) => ({
-          index: i,
-          distance: leg.distance,
-          duration: leg.duration,
-          to: nodes[i + 1],
-          steps: (leg.steps || []).map((s) => ({
-            instruction: (s.maneuver?.type || 'continue') + ' ' + (s.name || ''),
-            dist: s.distance,
-            loc: { lat: s.maneuver.location[1], lng: s.maneuver.location[0] },
-          })),
-        }));
-        this.steps = this.legs.flatMap((leg) => leg.steps || []);
-        this.stepIdx = 0;
-        this.drawRoute({ waypoints: wps });
-        const cur = wps[this.wpIdx || 0];
-        if (cur) {
-          const line = '➤ Next: ' + (cur.label || 'stop')
-            + (cur.coins ? ' · ' + cur.coins + '🪙' : '');
-          GlobeDeck?.setPreview?.(line);
-          AciCli?.print?.(line, 'ok');
-        } else if (this.steps[0]) this.showStep(this.steps[0]);
-        return;
-      }
-    } catch (e) {
-      console.warn('[DrivingView] multi-OSRM failed', e);
-    }
-    // Fallback: straight segments between nodes
-    const fallback = [];
-    for (let i = 0; i < nodes.length - 1; i++) {
-      fallback.push(...this._lerpPath(nodes[i], nodes[i + 1], 8));
-    }
-    this.routeCoords = fallback;
-    this.drawRoute({ waypoints: wps });
-  },
-
-  _lerpPath(from, to, n) {
-    const out = [];
-    for (let i = 0; i <= n; i++) {
-      const t = i / n;
-      out.push({
-        lat: from.lat + (to.lat - from.lat) * t,
-        lng: from.lng + (to.lng - from.lng) * t,
-      });
-    }
-    return out;
-  },
-
-  drawRoute(opts) {
-    opts = opts || {};
+  drawRoute() {
     if (this.routeLine?.parent) this.routeLine.parent.remove(this.routeLine);
-    const pts = (this.routeCoords || []).map(c => {
+    const pts = this.routeCoords.map(c => {
       const p = latLngToPos(c.lat, c.lng, 1.026);
       return new THREE.Vector3(p.x, p.y, p.z);
     });
-    if (pts.length >= 2 && typeof THREE !== 'undefined' && typeof globePivot !== 'undefined') {
-      this.routeLine = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints(pts),
-        new THREE.LineBasicMaterial({ color: 0x44aaff, transparent: true, opacity: 0.85 })
-      );
-      globePivot.add(this.routeLine);
-    }
-    const wps = opts.waypoints || this.waypoints || [];
-    if (wps.length >= 1 && CityMap?.setTaskGeometry) {
-      CityMap.setTaskGeometry({
-        route: this.routeCoords,
-        waypoints: wps.map((w, i) => ({
-          ...w,
-          current: i === (this.wpIdx || 0),
-          done: i < (this.wpIdx || 0),
-        })),
-      });
-    } else {
-      CityMap?.setRoute?.(this.routeCoords);
-    }
-    const me = window._lastPos;
-    if (me) MapDepict?.pulse?.(me.lat, me.lng, 0x44aaff, wps.length > 1 ? 'multi-stop route' : 'road route', 6000);
+    if (pts.length < 2) return;
+    this.routeLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color: 0x44aaff, transparent: true, opacity: 0.85 })
+    );
+    globePivot.add(this.routeLine);
+    CityMap?.setRoute?.(this.routeCoords);
+    MapDepict?.pulse(window._lastPos.lat, window._lastPos.lng, 0x44aaff, 'road route', 6000);
   },
 
   showStep(step) {

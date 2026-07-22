@@ -1,27 +1,49 @@
 /* === 00-globe.js === */
 // Globe host — must exist before WebGL. Never leave user with CLI-only black stage.
 let container = document.getElementById('globe');
-if (!container) {
+if (!container && document.body) {
   container = document.createElement('div');
   container.id = 'globe';
   document.body.insertBefore(container, document.body.firstChild);
 }
+if (!container) {
+  // Script in <head> before body: defer mesh until DOM ready is not an option — body end boot only
+  console.error('[globe] #globe missing — ensure scripts run after <div id="globe">');
+}
 // Ensure canvas layer is visible above void, under UI chrome
 try {
-  container.style.cssText = (container.getAttribute('style') || '')
-    + ';position:absolute;inset:0;z-index:2;touch-action:none;';
-  document.body.classList.remove('site-shell-open');
-  document.getElementById('city-map')?.classList.remove('active');
-  container.classList.remove('city-map-active', 'national-map-active');
+  if (container) {
+    container.style.position = 'absolute';
+    container.style.inset = '0';
+    container.style.zIndex = '2';
+    container.style.touchAction = 'none';
+    container.style.background = '#000';
+    container.classList.remove('city-map-active', 'national-map-active');
+  }
+  document.body?.classList?.remove?.('site-shell-open');
 } catch (_) {}
 
-// Robust WebGL + error guard so user never sees silent black
+// Error guard — do NOT spam fatal red bars for soft refs; only real render killers
 window.addEventListener('error', function(e) {
   try {
-    const msg = document.createElement('div');
-    msg.style.cssText = 'position:fixed;bottom:8px;left:8px;padding:4px 8px;background:rgba(20,0,0,0.7);color:#f66;font:11px/1.3 monospace;z-index:99999;pointer-events:none;';
-    msg.textContent = 'Init/Render error: ' + (e.message || 'unknown') + ' — try Chrome/Firefox, enable HW accel, check console';
-    document.body.appendChild(msg);
+    const m = String(e.message || e.error?.message || '');
+    // sessionHeld etc. are soft — already stubbed; never blank the globe over them
+    if (/sessionHeld|Script error|ResizeObserver/i.test(m)) {
+      console.warn('[soft]', m);
+      return;
+    }
+    if (window._astranovCriticalReady && /is not defined/i.test(m)) {
+      console.warn('[soft post-boot]', m);
+      return;
+    }
+    let msg = document.getElementById('astranov-hard-error');
+    if (!msg) {
+      msg = document.createElement('div');
+      msg.id = 'astranov-hard-error';
+      msg.style.cssText = 'position:fixed;bottom:8px;left:8px;right:8px;padding:6px 10px;background:rgba(20,0,0,0.85);color:#f88;font:11px/1.3 monospace;z-index:99999;pointer-events:none;border-radius:8px';
+      document.body.appendChild(msg);
+    }
+    msg.textContent = 'Error: ' + (m || 'unknown').slice(0, 180);
   } catch(_) {}
 });
 
@@ -70,25 +92,33 @@ let voiceEnabled = false;
 let voiceSessionActive = false;
 let isListening = false;
 let recognition;
-let userLocated = false;
+// Use var (not let) so later classic scripts can assign without global-lexical clashes
+var userLocated = false;
+window.userLocated = false;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
+window.scene = scene;
 
-const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.set(0, 0.25, 2.55);
+const camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 1000);
+// Start pulled back so full Earth + stars read as a real planet, not a blue ball in your face
+const START_CAM_Z = 3.65;
+camera.position.set(0, 0.18, START_CAM_Z);
 camera.lookAt(0, 0, 0);
+window.camera = camera;
+window.START_CAM_Z = START_CAM_Z;
 
-// Astranov lighting — deep space rim + sun key (not flat Atari fill)
-scene.add(new THREE.AmbientLight(0x1a2838, 0.55));
-const sun = new THREE.DirectionalLight(0xfff4e0, 1.85);
+// Lighting — sun key + cool rim so continents read when texture loads
+scene.add(new THREE.AmbientLight(0x1a2838, 0.42));
+const sun = new THREE.DirectionalLight(0xfff4e0, 1.95);
 sun.position.set(5.2, 2.4, 3.6);
 scene.add(sun);
-const rimLight = new THREE.DirectionalLight(0x4488ff, window._globePerfLite ? 0.35 : 0.55);
+window.sun = sun;
+const rimLight = new THREE.DirectionalLight(0x4488ff, window._globePerfLite ? 0.4 : 0.65);
 rimLight.position.set(-4, -1, -3);
 scene.add(rimLight);
 if (!window._globePerfLite) {
-  const fillLight = new THREE.PointLight(0x66aaff, 0.35, 12);
+  const fillLight = new THREE.PointLight(0x66aaff, 0.4, 14);
   fillLight.position.set(-2, 1.5, 3);
   scene.add(fillLight);
 }
@@ -123,48 +153,63 @@ if (!window._globePerfLite) {
   }
 })();
 
-// Earth — low poly until idle; texture after first frames (truthful globe, not fake)
+// Earth — real NASA/three.js texture ASAP (solid blue = last resort only)
 const earthMat = new THREE.MeshPhongMaterial({
   color: 0x1a4a7a,
-  emissive: 0x041018,
-  specular: 0x335566,
-  shininess: 18,
+  emissive: 0x020810,
+  specular: 0x224466,
+  shininess: 22,
   flatShading: false,
 });
-const earthTexUrl = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg';
-const _loadEarthTex = () => {
+window.earthMat = earthMat;
+// Primary + mirrors — texture must land or globe looks fake
+const EARTH_TEX_CANDIDATES = [
+  'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg',
+  'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg',
+  'https://raw.githubusercontent.com/mrdoob/three.js/r128/examples/textures/planets/earth_atmos_2048.jpg',
+];
+const _applyEarthTex = (tex) => {
   try {
-    new THREE.TextureLoader().load(
-      earthTexUrl,
-      (tex) => {
-        tex.anisotropy = Math.min(window._globePerfLite ? 1 : 8, renderer.capabilities?.getMaxAnisotropy?.() || 4);
-        if (window._globePerfLite) {
-          tex.minFilter = THREE.LinearFilter;
-          tex.generateMipmaps = false;
-        }
-        earthMat.map = tex;
-        earthMat.color.set(0xffffff);
-        earthMat.needsUpdate = true;
-      },
-      undefined,
-      () => { console.log('Earth texture fallback active'); }
-    );
+    tex.anisotropy = Math.min(window._globePerfLite ? 2 : 8, renderer.capabilities?.getMaxAnisotropy?.() || 4);
+    if (window._globePerfLite) {
+      tex.minFilter = THREE.LinearFilter;
+      tex.generateMipmaps = false;
+    }
+    earthMat.map = tex;
+    earthMat.color.set(0xffffff);
+    earthMat.emissive?.set?.(0x020810);
+    earthMat.needsUpdate = true;
+    window._earthTexReady = true;
   } catch (_) {}
 };
-// Mobile: solid globe first, texture much later. Desktop: soon after paint.
-if (window._globePerfLite) {
-  setTimeout(_loadEarthTex, 4500);
-} else if (typeof requestIdleCallback === 'function') {
-  requestIdleCallback(_loadEarthTex, { timeout: 1800 });
-} else {
-  setTimeout(_loadEarthTex, 200);
-}
+const _loadEarthTex = (idx) => {
+  const i = idx || 0;
+  if (i >= EARTH_TEX_CANDIDATES.length) {
+    console.warn('[globe] Earth texture failed — solid fallback');
+    return;
+  }
+  try {
+    new THREE.TextureLoader().load(
+      EARTH_TEX_CANDIDATES[i],
+      _applyEarthTex,
+      undefined,
+      () => _loadEarthTex(i + 1)
+    );
+  } catch (_) {
+    _loadEarthTex(i + 1);
+  }
+};
+// Load immediately — delayed load left people staring at a fake blue ball
+_loadEarthTex(0);
+if (window._globePerfLite) setTimeout(() => { if (!window._earthTexReady) _loadEarthTex(0); }, 1200);
+
 globePivot = new THREE.Group();
 scene.add(globePivot);
 
-const earthSeg = window._globePerfLite ? 20 : 48;
+const earthSeg = window._globePerfLite ? 32 : 64;
 const earth = new THREE.Mesh(new THREE.SphereGeometry(1, earthSeg, earthSeg), earthMat);
 globePivot.add(earth);
+window.earth = earth;
 
 // Soft atmosphere shell — lighter on phone
 (function bootAtmosphere() {
@@ -257,7 +302,7 @@ const GlobeControl = {
     this._lastAutoFly = Date.now();
   },
 
-  Z: { global: 2.55, national: 1.82, regional: 1.65, city: 1.38 },
+  Z: { global: 3.65, national: 2.05, regional: 1.72, city: 1.42 },
 
   /** Z depth that activates the flat city map (explicit city entry only) */
   cityEntryZ() {
@@ -329,6 +374,97 @@ window.enterCityView = enterCityView;
 
 /* === 07-light-stubs.js === */
 // === LIGHT STUBS — removed heavy subsystems; keep optional chaining safe ===
+// Classic scripts: bare `Foo?.x` throws ReferenceError if Foo is undeclared.
+// Provide lexical + window bindings for every symbol used before its real module loads.
+
+// sessionHeld + SessionHold stubs
+var sessionHeld = false;
+window.sessionHeld = false;
+window.SessionHold = window.SessionHold || {
+  isHeld() { return !!window.sessionHeld; },
+  hold() { window.sessionHeld = true; sessionHeld = true; },
+  resume() { window.sessionHeld = false; sessionHeld = false; },
+  toggle() { if (this.isHeld()) this.resume(); else this.hold(); },
+  release() { this.resume(); },
+  clearForeignHold() {},
+  init() {},
+};
+var SessionHold = window.SessionHold;
+
+// Supabase identity — required by Auth in app phase (real ACI in deferred overwrites window)
+var ACI = window.ACI || {
+  name: 'Astranov',
+  url: 'https://lkoatrkhuigdolnjsbie.supabase.co',
+  key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI',
+};
+window.ACI = ACI;
+var SB_URL = window.SB_URL || ACI.url;
+var SB_KEY = window.SB_KEY || ACI.key;
+window.SB_URL = SB_URL;
+window.SB_KEY = SB_KEY;
+
+// ACIControl stub — reply routes to deck/ribbon until deferred 20-aci.js loads
+window.ACIControl = window.ACIControl || {
+  init() {},
+  reply(text) {
+    const msg = String(text || '').slice(0, 280);
+    if (!msg) return;
+    try { GlobeDeck?.say?.(msg, 'reply'); } catch (_) {}
+    try { CliRibbon?.setNotice?.(msg.slice(0, 120), 'info'); } catch (_) {}
+    try { AciCli?.print?.(msg, 'ok'); } catch (_) {}
+  },
+  voiceAck() {},
+  async handle() { return { executed: false }; },
+};
+var ACIControl = window.ACIControl;
+
+// AppShortcuts stub — real module is in features phase; app boot touches it early
+window.AppShortcuts = window.AppShortcuts || {
+  _order: [],
+  _labels: {},
+  APPS: {},
+  init() {},
+  render() {},
+  track() {},
+  untrack() {},
+  rememberSite() {},
+  switch() {},
+  close() {},
+};
+var AppShortcuts = window.AppShortcuts;
+
+// CityMap stub — animate() in critical touches it before app phase defines the real map
+window.CityMap = window.CityMap || { active: false, init() {}, show() {}, hide() {} };
+var CityMap = window.CityMap;
+
+// Coders / CLI modules often touch these before deferred loads
+window.AciCoders = window.AciCoders || {
+  engine: 'grok',
+  init() {},
+  observeActivity() {},
+  handleMessage: async () => null,
+  enterSession: async () => null,
+  setEngine() {},
+  toggleEngine() {},
+};
+var AciCoders = window.AciCoders;
+
+// Architect bridge — deferred real module; app auth/CLI touches it early
+window.ArchitectBridge = window.ArchitectBridge || {
+  armed: false,
+  lastTaskId: null,
+  isActive() { return !!(window.Auth?.isArchitect); },
+  arm() {},
+  disarm() {},
+  openQuickFix() {},
+  wantsBridgeCmd() { return false; },
+  handleCommand: async () => null,
+  queueBuildFromChat: async () => null,
+  _bindUi() {},
+  init() {},
+};
+var ArchitectBridge = window.ArchitectBridge;
+
 // PublicCopy: plain language for the public. SETI / mission-control tone = architect only.
 const PublicCopy = {
   isArchitect() {
@@ -347,15 +483,15 @@ const PublicCopy = {
   },
   zoomLine(tierId, extra) {
     const base = {
-      solar: 'Space · planets · zoom in for Earth',
-      global: 'Earth · drag · 🎯 your city · 🎧 chat · + post',
-      national: 'Country · choose a city',
+      solar: 'Space · zoom in for Earth',
+      global: 'Earth · drag · scroll for country · tap city',
+      national: 'Country · choose a city below or tap map',
       regional: 'Region · choose a city',
-      city: 'City · streets & shops',
+      city: 'City · streets · shops · tasks',
       neighborhood: 'Streets · look around',
-      orbit: 'Above Earth · stations & satellites',
-      system: 'Solar system · zoom in for Earth',
-      galaxy: 'Stars · zoom in to return',
+      orbit: 'Above Earth',
+      system: 'Solar system · zoom in',
+      galaxy: 'Stars · zoom in',
     };
     let line = base[tierId] || 'Earth · drag to explore';
     if (extra) line += ' · ' + extra;
@@ -1590,11 +1726,12 @@ window.CosmicZoom = CosmicZoom;
 const ZoomTiers = {
   TIERS: [
     { id: 'solar', z: 7.2, label: 'Space', cosmic: 'system' },
-    { id: 'global', z: 2.55, label: 'Earth', cosmic: 'earth' },
-    { id: 'national', z: 1.82, label: 'Country', cosmic: 'earth', national: true },
-    { id: 'regional', z: 1.65, label: 'Region', cosmic: 'earth', national: true },
-    { id: 'city', z: 1.38, label: 'City', cosmic: 'earth', city: true },
-    { id: 'neighborhood', z: 1.08, label: 'Streets', cosmic: 'earth', city: true },
+    // Start further out — 2.55 felt like a face-plant on the planet
+    { id: 'global', z: 3.65, label: 'Earth', cosmic: 'earth' },
+    { id: 'national', z: 2.05, label: 'Country', cosmic: 'earth', national: true },
+    { id: 'regional', z: 1.72, label: 'Region', cosmic: 'earth', national: true },
+    { id: 'city', z: 1.42, label: 'City', cosmic: 'earth', city: true },
+    { id: 'neighborhood', z: 1.12, label: 'Streets', cosmic: 'earth', city: true },
   ],
   START_ID: 'global',
   _index: 0,
@@ -1751,10 +1888,11 @@ window.ZoomTiers = ZoomTiers;
 /* === 10-trackball.js === */
 // Globe gestures — primary UI (Google Earth / Maps style). CLI is secondary.
 const canvas = renderer.domElement;
-const TRACK_SENS = 0.0028;
+// Stronger drag — 0.0028 felt like the globe was glued down
+const TRACK_SENS = 0.0062;
 const ZOOM_MIN = 1.05;
 const ZOOM_MAX = 18;
-const ZOOM_SMOOTH = 0.09;
+const ZOOM_SMOOTH = 0.11;
 
 let pinchDist = 0;
 let pinching = false;
@@ -1772,10 +1910,11 @@ function trackballMove(clientX, clientY) {
   py = clientY;
   globePivot.rotation.y += dx * TRACK_SENS;
   globePivot.rotation.x += dy * TRACK_SENS;
-  globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x));
+  globePivot.rotation.x = Math.max(-1.35, Math.min(1.35, globePivot.rotation.x));
   globePivot.quaternion.setFromEuler(globePivot.rotation, 'YXZ');
-  trackVelX = dx * TRACK_SENS * 0.42;
-  trackVelY = dy * TRACK_SENS * 0.42;
+  // Keep momentum so a flick keeps the planet turning
+  trackVelX = dx * TRACK_SENS * 0.88;
+  trackVelY = dy * TRACK_SENS * 0.88;
 }
 
 function trackballStart(clientX, clientY) {
@@ -1789,11 +1928,22 @@ function trackballStart(clientX, clientY) {
   pressStartY = clientY;
   canvas.classList.add('dragging');
   clearTimeout(pressTimer);
+  window._globeLongPressFired = false;
+  // Long-press globe (any tier: stellar → city) → MultiTile profile
   pressTimer = setTimeout(() => {
     if (!drag) return;
-    ZoomTiers?.stepOut?.();
-    MapDepict?.setHud('Zoom out', 'long-press');
-  }, 750);
+    // Only if finger barely moved
+    if (Math.hypot(px - pressStartX, py - pressStartY) > 14) return;
+    window._globeLongPressFired = true;
+    const pin = latLngFromScreen?.(clientX, clientY)
+      || TrackballGuard?.facingLatLng?.()
+      || window._lastPos
+      || { lat: 0, lng: 0 };
+    MultiTile?.openAt?.(pin.lat, pin.lng, {
+      source: 'long-press',
+      tier: MultiTile?.currentTier?.() || 'global',
+    });
+  }, 480);
 }
 
 function trackballEnd(clientX, clientY, opts) {
@@ -1963,6 +2113,23 @@ window.addEventListener('resize', () => {
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
+/** Raycast earth under screen point → lat/lng (works global / national / city globe view) */
+function latLngFromScreen(clientX, clientY) {
+  try {
+    if (typeof earth === 'undefined' || !earth || !camera) return null;
+    mouse.x = (clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObject(earth, true);
+    if (!hits.length) return null;
+    return MapPlaceMenu?.pointFromGlobeHit?.(hits[0].point)
+      || null;
+  } catch (_) {
+    return null;
+  }
+}
+window.latLngFromScreen = latLngFromScreen;
+
 container.addEventListener('click', onGlobeClick);
 
 function globeClickTargets() {
@@ -1983,6 +2150,11 @@ function globeClickTargets() {
 
 function onGlobeClick(e) {
   if (dragging) return;
+  // Long-press already opened MultiTile
+  if (window._globeLongPressFired) {
+    window._globeLongPressFired = false;
+    return;
+  }
   mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
@@ -1992,20 +2164,42 @@ function onGlobeClick(e) {
     const hit = markerHits[0].object;
     const entity = GlobeEntity?.pickFromHit?.(hit);
     if (entity) {
+      // Profile markers → MultiTile at all levels
+      if (entity.type === 'friend' || entity.type === 'me' || entity.type === 'vendor' || entity.type === 'driver') {
+        MultiTile?.openUser?.({
+          id: entity.id,
+          display_name: entity.title,
+          avatar_emoji: entity.icon,
+          lat: entity.lat,
+          lng: entity.lng,
+          roles: entity.type === 'vendor' ? ['vendor'] : entity.type === 'driver' ? ['driver'] : ['client'],
+          is_vendor: entity.type === 'vendor',
+        }, { lat: entity.lat, lng: entity.lng, source: 'marker', tier: MultiTile?.currentTier?.() });
+        return;
+      }
       GlobeEntity.activate(entity);
       return;
     }
     const root = hit.userData?.vendor ? hit : (hit.parent?.userData?.vendor ? hit.parent : hit);
     const ud = root.userData || hit.userData || {};
-    if (ud.vendor && window.Commerce?.openVendor) { window.Commerce.openVendor(ud.vendor); return; }
+    if (ud.vendor) {
+      MultiTile?.openUser?.({
+        display_name: ud.vendor.name,
+        avatar_emoji: ud.vendor.emoji || '🏬',
+        lat: ud.vendor.lat,
+        lng: ud.vendor.lng,
+        roles: ['vendor'],
+        is_vendor: true,
+        menu: ud.vendor.items,
+      }, { lat: ud.vendor.lat, lng: ud.vendor.lng, source: 'vendor', tier: MultiTile?.currentTier?.() });
+      return;
+    }
     if (ud.type === 'me' || root === window._meMarker) {
-      const entity = GlobeEntity?.entities?.get('me');
-      if (entity) { GlobeEntity.activate(entity); return; }
-      if (userLocated && window._lastPos) {
-        const p = latLngToPos(window._lastPos.lat, window._lastPos.lng, 1.04);
-        ZoomTiers?.goTo?.('national', true);
-        flyToPoint(new THREE.Vector3(p.x, p.y, p.z), ZoomTiers?.tierZ?.('national') || 1.82);
-      }
+      MultiTile?.openAt?.(
+        window._lastPos?.lat ?? 0,
+        window._lastPos?.lng ?? 0,
+        { source: 'me', tier: MultiTile?.currentTier?.() }
+      );
       return;
     }
   }
@@ -2014,46 +2208,11 @@ function onGlobeClick(e) {
   if (intersects.length > 0) {
     const pin = MapPlaceMenu?.pointFromGlobeHit?.(intersects[0].point);
     if (!pin) return;
-    // City streets: place menu only — already in local map.
-    if (CityMap?.active || cityLevel || ZoomTiers?.current?.()?.city) {
-      CityPick?.hide?.();
-      MapPlaceMenu?.openAt?.(pin.lat, pin.lng, {
-        source: 'City map',
-        hint: 'Post · explore · order — pick a triangle',
-        limited: true,
-      });
-      return;
-    }
-    // National / region: second step — user chooses this spot as the city.
-    if (CityPick?.isNationalView?.() || ZoomTiers?.current?.()?.national) {
-      void CityPick?.enter?.(
-        pin.lat,
-        pin.lng,
-        CityPick?.nearestName?.(pin.lat, pin.lng) || 'City'
-      );
-      return;
-    }
-    // Space / Earth: fly into national airspace, then choose a city (chips).
-    const nationalZ = ZoomTiers?.tierZ?.('national') || GlobeControl?.Z?.national || 1.82;
-    const p = latLngToPos(pin.lat, pin.lng, 1.04);
-    const target = new THREE.Vector3(p.x, p.y, p.z);
-    if (ZoomTiers) {
-      const ni = ZoomTiers.indexOf('national');
-      if (ni >= 0) ZoomTiers._index = ni;
-    }
-    MapPlaceMenu?.close?.();
-    flyToPoint(target, nationalZ, {
-      onTier: true,
-      onDone: () => {
-        CityPick?.show?.(pin.lat, pin.lng, { title: 'Choose a city' });
-        MapDepict?.action?.('explore', { detail: 'country · choose city' });
-      },
+    // Single-click ANY level (city / national / global / stellar Earth view)
+    // → radar search around place; CLI guides e.g. pharmacy
+    MapRadar?.at?.(pin.lat, pin.lng, {
+      source: 'globe-' + (MultiTile?.currentTier?.() || 'global'),
     });
-    GlobeControl?.noteAutoFly?.();
-    MapDepict?.pulse?.(pin.lat, pin.lng, 0x00ddff, 'country', 6000);
-    GlobeDeck?.setPreview?.('Country airspace · choose a city');
-    // Show chips early so the path is obvious while the camera is still flying.
-    CityPick?.show?.(pin.lat, pin.lng, { title: 'Choose a city' });
   }
 }
 
@@ -2193,8 +2352,8 @@ setTimeout(showGestureHint, 600);
 const TrackballGuard = {
   _ok: false,
   _lastCheck: 0,
-  FRICTION: 0.91,
-  MIN_VEL: 0.00008,
+  FRICTION: 0.94,
+  MIN_VEL: 0.00004,
   CONTRACT: ['trackballStart', 'trackballMove', 'trackballEnd', 'tickGlobeFly', 'flyToPoint', 'bindTrackballEvents'],
 
   verify() {
@@ -2254,8 +2413,8 @@ const TrackballGuard = {
     if (typeof lat !== 'number' || typeof lng !== 'number') return false;
     const cur = this.facingLatLng();
     const dist = this.greatCircleKm(cur.lat, cur.lng, lat, lng);
-    if (dist > 12000 && !opts?.allowLongHaul) {
-      CliRibbon?.setNotice?.('Fly blocked — too far · drag globe or say locate', 'hold');
+    // Locate / long hauls are allowed — blocking felt broken and the notice was invisible
+    if (dist > 20000 && !opts?.allowLongHaul && !opts?.locate) {
       return false;
     }
     return true;
@@ -2293,33 +2452,78 @@ window.TrackballGuard = TrackballGuard;
 TrackballGuard.init();
 
 /* === 62-astranov-theme.js === */
-// === ASTRANOV THEME — follows device dark/bright (prefers-color-scheme) by default; override via CLI ===
-// less buttons: no visible toggle; use CLI 'theme auto|dark|bright'
+// === ASTRANOV THEME — SpaceX industrial skin (default) + dark/bright ===
+// SpaceX: pure void black, white type, thin steel borders, mission-red alerts.
+// CLI: theme spacex|dark|bright|auto
 const AstranovTheme = {
   mode: 'dark',
+  skin: 'spacex',
   KEY: 'astranov_theme_v1',
+  SKIN_KEY: 'astranov_skin_v1',
   _maps: [],
-  _auto: true,
+  _auto: false,
+
+  // SpaceX palette tokens applied to :root
+  SPACEX: {
+    '--an-bg': '#000000',
+    '--an-text': '#f5f5f5',
+    '--an-panel': 'rgba(0,0,0,0.82)',
+    '--an-border': 'rgba(255,255,255,0.18)',
+    '--an-accent': '#ffffff',
+    '--an-muted': 'rgba(180,180,180,0.72)',
+    '--ax-void': '#000000',
+    '--ax-panel': 'rgba(8,8,8,0.78)',
+    '--ax-panel-strong': 'rgba(12,12,12,0.92)',
+    '--ax-blue': '#005288',
+    '--ax-blue-bright': '#ffffff',
+    '--ax-blue-glow': 'rgba(255,255,255,0.22)',
+    '--ax-blue-border': 'rgba(255,255,255,0.28)',
+    '--ax-blue-bg': 'rgba(20,20,20,0.85)',
+    '--ax-red': '#a7a7a7',
+    '--ax-red-bright': '#e8412e',
+    '--ax-red-glow': 'rgba(232,65,46,0.45)',
+    '--ax-red-border': 'rgba(232,65,46,0.55)',
+    '--ax-red-bg': 'rgba(40,8,6,0.75)',
+    '--ax-yellow': '#c4a35a',
+    '--ax-yellow-bright': '#f0d78c',
+    '--ax-yellow-glow': 'rgba(240,215,140,0.35)',
+    '--ax-yellow-border': 'rgba(196,163,90,0.5)',
+    '--ax-yellow-bg': 'rgba(40,32,12,0.7)',
+    '--ax-green': '#3d9b6a',
+    '--ax-green-bright': '#6dffb0',
+    '--ax-green-glow': 'rgba(109,255,176,0.35)',
+    '--ax-green-border': 'rgba(61,155,106,0.5)',
+    '--ax-green-bg': 'rgba(8,32,20,0.7)',
+  },
 
   init() {
     try {
       const saved = localStorage.getItem(this.KEY);
+      const skin = localStorage.getItem(this.SKIN_KEY);
+      if (skin === 'spacex' || skin === 'default') this.skin = skin;
+      else this.skin = 'spacex'; // default SpaceX industrial
       if (saved === 'bright' || saved === 'dark') {
         this.mode = saved;
         this._auto = false;
-      } else {
+      } else if (saved === 'auto') {
         this._auto = true;
         this.mode = this._getSystem();
+      } else {
+        // First visit: SpaceX dark
+        this._auto = false;
+        this.mode = 'dark';
+        this.skin = 'spacex';
       }
-    } catch (_) {}
+    } catch (_) {
+      this.mode = 'dark';
+      this.skin = 'spacex';
+    }
     this.apply();
-    // no button onclick — removed for less UI clutter; CLI only
     const btn = document.getElementById('aci-theme');
     if (btn) {
-      btn.style.display = 'none'; // hidden since auto + CLI
+      btn.style.display = 'none';
       btn.onclick = null;
     }
-    // follow device
     try {
       const mq = window.matchMedia('(prefers-color-scheme: dark)');
       mq.addEventListener('change', () => {
@@ -2342,41 +2546,89 @@ const AstranovTheme = {
   },
 
   toggle() {
-    if (this._auto) this.set('dark');
-    else this.set(this.mode === 'dark' ? 'bright' : 'dark');
+    if (this.skin === 'spacex' && this.mode === 'dark') this.set('bright');
+    else if (this.mode === 'bright') this.setSpacex(true);
+    else this.set('dark');
+  },
+
+  setSpacex(on) {
+    this.skin = on === false ? 'default' : 'spacex';
+    this.mode = 'dark';
+    this._auto = false;
+    try {
+      localStorage.setItem(this.SKIN_KEY, this.skin);
+      localStorage.setItem(this.KEY, 'dark');
+    } catch (_) {}
+    this.apply();
+    AciCli?.print?.('theme → spacex (Falcon industrial)', 'ok');
+    GlobeDeck?.setPreview?.('SpaceX skin · pure black mission UI');
+    return this.mode;
   },
 
   set(mode) {
+    if (mode === 'spacex' || mode === 'falcon' || mode === 'starship') {
+      return this.setSpacex(true);
+    }
     if (mode === 'auto' || mode === 'system') {
       this._auto = true;
+      this.skin = 'default';
       this.mode = this._getSystem();
-      try { localStorage.removeItem(this.KEY); } catch (_) {}
+      try {
+        localStorage.setItem(this.KEY, 'auto');
+        localStorage.setItem(this.SKIN_KEY, 'default');
+      } catch (_) {}
     } else {
-      const next = mode === 'bright' ? 'bright' : 'dark';
-      if (next === this.mode && !this._auto) return this.mode;
+      const next = mode === 'bright' || mode === 'light' ? 'bright' : 'dark';
       this.mode = next;
       this._auto = false;
-      try { localStorage.setItem(this.KEY, next); } catch (_) {}
+      if (next === 'bright') this.skin = 'default';
+      try {
+        localStorage.setItem(this.KEY, next);
+        localStorage.setItem(this.SKIN_KEY, this.skin);
+      } catch (_) {}
     }
     this.apply();
-    AciCli?.print?.('theme → ' + (this._auto ? 'auto (' + this.mode + ')' : this.mode), 'ok');
-    GlobeDeck?.setPreview?.((this.mode === 'bright' ? '☀️' : '🌙') + ' ' + (this._auto ? 'auto' : this.mode) + ' theme');
-    if (Voice?.maySpeak?.()) speak('Theme ' + (this._auto ? 'auto' : this.mode) + '.', () => resumeListening?.());
+    AciCli?.print?.('theme → ' + (this._auto ? 'auto (' + this.mode + ')' : (this.skin === 'spacex' ? 'spacex' : this.mode)), 'ok');
+    GlobeDeck?.setPreview?.((this.skin === 'spacex' ? '🚀 ' : (this.mode === 'bright' ? '☀️ ' : '🌙 ')) + (this.skin === 'spacex' ? 'spacex' : (this._auto ? 'auto' : this.mode)));
+    if (Voice?.maySpeak?.()) speak('Theme ' + (this.skin === 'spacex' ? 'spacex' : (this._auto ? 'auto' : this.mode)) + '.', () => resumeListening?.());
     return this.mode;
   },
 
   apply() {
     const effective = this._auto ? this._getSystem() : this.mode;
     document.documentElement.dataset.theme = effective;
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = effective === 'bright' ? '#c8e4ff' : '#00b4ff';
-    if (scene?.background) {
-      scene.background = new THREE.Color(effective === 'bright' ? 0xc8dff0 : 0x000000);
+    document.documentElement.dataset.skin = this.skin || 'spacex';
+    document.body?.classList?.toggle('skin-spacex', this.skin === 'spacex');
+
+    const root = document.documentElement;
+    if (this.skin === 'spacex' && effective === 'dark') {
+      Object.entries(this.SPACEX).forEach(([k, v]) => root.style.setProperty(k, v));
+    } else {
+      // Clear inline overrides so CSS [data-theme] rules win
+      Object.keys(this.SPACEX).forEach((k) => root.style.removeProperty(k));
     }
-    if (renderer) renderer.setClearColor(effective === 'bright' ? 0xc8dff0 : 0x000000, 1);
+
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) {
+      meta.content = this.skin === 'spacex' ? '#000000'
+        : (effective === 'bright' ? '#c8e4ff' : '#000000');
+    }
+    if (typeof scene !== 'undefined' && scene?.background && typeof THREE !== 'undefined') {
+      scene.background = new THREE.Color(effective === 'bright' && this.skin !== 'spacex' ? 0xc8dff0 : 0x000000);
+    }
+    if (typeof renderer !== 'undefined' && renderer?.setClearColor) {
+      renderer.setClearColor(effective === 'bright' && this.skin !== 'spacex' ? 0xc8dff0 : 0x000000, 1);
+    }
     EarthRealism?.onThemeChange?.();
     this._maps.forEach(m => m.onThemeChange?.());
-    // no btn sync needed
+
+    // CLI Grok feel under SpaceX skin
+    try {
+      const input = document.getElementById('aci-cli-in');
+      if (input && this.skin === 'spacex') {
+        input.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+      }
+    } catch (_) {}
   },
 };
 window.AstranovTheme = AstranovTheme;
@@ -2583,21 +2835,20 @@ const EarthRealism = {
   },
 
   /**
-   * Continuous Earth rotation (radians) with ms precision — real-time solar day.
-   * Not a stepped/fake spin rate.
+   * Visible continuous spin — solar-day (1 rev/24h) is invisible at human scale.
+   * ~1 full turn every ~3 minutes reads as a living planet without dizzying.
+   * Solar position for lighting still uses real UTC via _solarPosition().
    */
-  _earthSpin(date) {
-    const d = date || new Date();
-    const utcSec = d.getUTCHours() * 3600
-      + d.getUTCMinutes() * 60
-      + d.getUTCSeconds()
-      + d.getUTCMilliseconds() / 1000;
-    return (utcSec / 86400) * Math.PI * 2;
+  _earthSpin() {
+    const t = Date.now() / 1000;
+    const visualPeriod = 180; // seconds per revolution
+    return (t / visualPeriod) * Math.PI * 2;
   },
 
   /** Call every animation frame for smooth natural rotation */
   applySpinNow() {
     if (!earth || CityMap?.active) return;
+    if (window._globeFly || drag) return; // don't fight user / fly
     try { earth.rotation.y = this._earthSpin(); } catch (_) {}
   },
 
@@ -2660,143 +2911,202 @@ const EarthRealism = {
 window.EarthRealism = EarthRealism;
 
 /* === 99-boot-critical.js === */
-// === BOOT CRITICAL — globe interactive ASAP (no CLI / auth / heavy UI yet) ===
+// === SPARTAN BOOT · CRITICAL — Earth spins + drag + zoom. Nothing else. ===
 window._cycleTurbo = false;
-if (window._globePerfLite == null) window._globePerfLite = false;
+if (window._globePerfLite == null) window._globePerfLite = !!window._isMobileUA;
 window._animFrame = 0;
 window._lastUserAct = Date.now();
-const _slumberDiv = (k) => SlumberManager?.frameDivisor?.(k) || (window._globePerfLite ? 10 : 6);
+window._spartan = true;
+
+const _slumberDiv = (k) => {
+  try {
+    return SlumberManager?.frameDivisor?.(k) || (window._globePerfLite ? 10 : 6);
+  } catch (_) {
+    return window._globePerfLite ? 10 : 6;
+  }
+};
 
 function globePerfActive() {
   return !!(window._voicePerfMode || window._globePerfLite);
 }
 
-['pointerdown', 'touchstart', 'wheel', 'keydown'].forEach(ev => {
+['pointerdown', 'touchstart', 'wheel', 'keydown'].forEach((ev) => {
   window.addEventListener(ev, () => { window._lastUserAct = Date.now(); }, { passive: true });
 });
 
 function animate() {
   requestAnimationFrame(animate);
   if (window._cycleTurbo) return;
-  if (!renderer || !scene || !camera) return;
+  if (typeof renderer === 'undefined' || !renderer || !scene || !camera) return;
 
   window._animFrame = (window._animFrame + 1) | 0;
   const frame = window._animFrame;
-  const hidden = document.hidden;
-  // Tab hidden: almost sleep
-  if (hidden) {
-    if (frame % 60 !== 0) return;
-    try { renderer.render(scene, camera); } catch (_) {}
+
+  // City map is the stage — idle WebGL hard so locate can't starve the UI thread
+  if (typeof CityMap !== 'undefined' && CityMap?.active) {
+    if (frame % 45 === 0) {
+      try { renderer.render(scene, camera); } catch (_) {}
+    }
+    return;
+  }
+
+  if (document.hidden) {
+    if (frame % 60 === 0) {
+      try { renderer.render(scene, camera); } catch (_) {}
+    }
     return;
   }
 
   const lite = !!window._globePerfLite;
   const idleMs = Date.now() - (window._lastUserAct || 0);
-  const dragging = !!(drag || window._globeFly || trackVelX || trackVelY);
-  // Aggressive idle frame skip — keeps UI butter while idling
-  if (!dragging) {
-    let skipN = 0;
-    if (lite) {
-      if (idleMs > 12000) skipN = 5;
-      else if (idleMs > 4000) skipN = 3;
-      else if (idleMs > 1200) skipN = 2;
-      else skipN = 1;
-    } else if (idleMs > 15000) skipN = 3;
-    else if (idleMs > 5000) skipN = 1;
-    if (skipN && frame % (skipN + 1) !== 0) return;
+  const dragging = !!(typeof drag !== 'undefined' && (drag || window._globeFly || trackVelX || trackVelY));
+
+  // Never skip frames while spinning Earth — skip made spin look frozen
+  if (!dragging && idleMs > 20000) {
+    if (frame % 2 !== 0) return;
   }
 
-  // FPS probe only when needed
-  if (frame % 8 === 0) SlumberManager?.tickFrame?.();
+  if (frame % 10 === 0) {
+    try { SlumberManager?.tickFrame?.(); } catch (_) {}
+  }
 
   const camZ = camera.position.z;
   const level = CosmicZoom?.level || 'earth';
   const earthView = (level === 'earth' || level === 'orbit') && camZ < 4.8;
-  const solarView = level === 'system' || level === 'galaxy' || camZ > 5.5;
 
-  // Voice perf mode — throttle checks
-  if (frame % 6 === 0) {
-    const voiceActive = window._handsFreeVoice || (typeof isListening !== 'undefined' && isListening);
-    const codersBusy = window.AciCoders?._cliBusy || window.AciCoders?._listenBusy;
-    if (voiceActive || codersBusy || GlobeDeck?.thinking) {
-      if (typeof setVoicePerfMode === 'function') setVoicePerfMode(true);
-    } else if (window._voicePerfMode && typeof setVoicePerfMode === 'function') {
-      setVoicePerfMode(false);
-    }
+  try {
+    if (!drag && !window._globeFly) TrackballGuard?.applyInertia?.();
+  } catch (_) {}
+  try { tickGlobeFly?.(); } catch (_) {}
+
+  if (earthView && !(typeof CityMap !== 'undefined' && CityMap?.active)) {
+    try { EarthRealism?.applySpinNow?.(); } catch (_) {}
   }
 
-  if (!drag && !window._globeFly) TrackballGuard?.applyInertia?.();
-  tickGlobeFly?.();
-
-  // Spin every rendered frame (already frame-skipped when idle)
-  if (earthView && !CityMap?.active) EarthRealism?.applySpinNow?.();
-
-  const entityDiv = Math.max(_slumberDiv('entity'), lite ? 12 : 6);
-  if (frame % entityDiv === 0) {
-    MapDepict?.tick?.();
-    if (SlumberManager?.allows?.('entities') !== false) GlobeEntity?.tick?.();
+  if (frame % Math.max(_slumberDiv('entity'), lite ? 12 : 6) === 0) {
+    try { MapDepict?.tick?.(); } catch (_) {}
+    try {
+      if (SlumberManager?.allows?.('entities') !== false) GlobeEntity?.tick?.();
+    } catch (_) {}
   }
 
-  const cosmicDiv = Math.max(_slumberDiv('cosmic'), lite ? 20 : 10);
-  if (solarView && frame % Math.max(_slumberDiv('cosmic'), 4) === 0) CosmicZoom?.update?.(camZ);
-  else if (frame % cosmicDiv === 0) CosmicZoom?.update?.(camZ);
+  if (frame % Math.max(_slumberDiv('cosmic'), lite ? 16 : 8) === 0) {
+    try { CosmicZoom?.update?.(camZ); } catch (_) {}
+  }
 
-  if (earthView && window._astranovFlyerActive && frame % Math.max(_slumberDiv('earth'), 10) === 0) {
-    AIGraphics?.update?.();
+  if (earthView && frame % Math.max(_slumberDiv('earth'), lite ? 8 : 4) === 0) {
+    try { EarthRealism?.tick?.(); } catch (_) {}
   }
-  if (earthView && frame % Math.max(_slumberDiv('earth'), lite ? 10 : 4) === 0) EarthRealism?.tick?.();
-  if (!lite && earthView && frame % _slumberDiv('celestial') === 0 && idleMs < 8000
-    && SlumberManager?.allows?.('celestial') !== false) {
-    window.CelestialNav?.tick?.();
-  }
-  renderer.render(scene, camera);
+
+  try { renderer.render(scene, camera); } catch (_) {}
 }
 
 window.__astranovBootCritical = function __astranovBootCritical() {
   window._bootEarthLock = true;
-  if (typeof camera !== 'undefined' && camera) {
-    camera.position.z = 2.55;
-    camera.lookAt(0, 0, 0);
+  // Always start the render loop first — never leave a black void if init soft-fails
+  let started = false;
+  const startLoop = () => {
+    if (started) return;
+    started = true;
+    try { animate(); } catch (e) { console.error('[boot] animate', e); }
+  };
+
+  // Force globe host visible
+  let g = document.getElementById('globe');
+  if (!g) {
+    g = document.createElement('div');
+    g.id = 'globe';
+    document.body.insertBefore(g, document.body.firstChild);
   }
-  if (typeof globePivot !== 'undefined' && globePivot) {
-    globePivot.rotation.x = 0.12;
-    globePivot.rotation.y = 0.82;
-    syncGlobePivotRotation?.();
-  }
+  g.classList.remove('city-map-active', 'national-map-active');
+  g.style.display = '';
+  g.style.opacity = '1';
+  g.style.visibility = 'visible';
+  g.style.zIndex = '2';
+  g.style.background = '#000';
+
+  try {
+    const startZ = ZoomTiers?.tierZ?.('global') || window.START_CAM_Z || 3.65;
+    if (typeof camera !== 'undefined' && camera) {
+      camera.position.set(0, 0.18, startZ);
+      camera.lookAt(0, 0, 0);
+    }
+    if (typeof globePivot !== 'undefined' && globePivot) {
+      globePivot.rotation.x = 0.12;
+      globePivot.rotation.y = 0.82;
+      if (typeof earth !== 'undefined' && earth) earth.visible = true;
+      syncGlobePivotRotation?.();
+    }
+  } catch (_) {}
+
   try {
     CosmicZoom?.init?.();
     ZoomTiers?.init?.();
     AstranovTheme?.init?.();
     EarthRealism?.init?.();
-    CosmicZoom.level = 'earth';
-    if (CosmicZoom.solarGroup) CosmicZoom.solarGroup.visible = false;
-    CosmicZoom.update(2.55, { tier: 'global', label: 'Earth', cosmic: 'earth' });
-  } catch (e) {
-    console.warn('[boot-critical]', e);
-  }
-  const zl0 = document.getElementById('zoom-label');
-  if (zl0) zl0.textContent = PublicCopy?.zoomLine?.('global') || 'Earth · drag · 🎯 city · 🎧 chat · + post';
-
-  const host = location.hostname || '';
-  const isOfficial = host === 'astranov.eu' || host.endsWith('.astranov.eu');
-  const isLocal = host === '' || host === 'localhost' || host === '127.0.0.1' || location.protocol === 'file:';
-  if (host && !isOfficial && !isLocal) {
-    document.body.innerHTML = '<div style="color:#444;padding:40px;text-align:center;font-family:sans-serif">Available only on authorized Astranov domains</div>';
-    return;
-  }
-  // First paint: spinning, draggable Earth — UI boots next phase
-  try {
-    document.getElementById('globe')?.classList.remove('city-map-active', 'national-map-active');
-    if (renderer?.domElement) {
-      renderer.domElement.style.opacity = '1';
-      renderer.domElement.style.pointerEvents = 'auto';
-      renderer.domElement.style.display = 'block';
+    if (CosmicZoom) {
+      CosmicZoom.level = 'earth';
+      if (CosmicZoom.solarGroup) CosmicZoom.solarGroup.visible = false;
+      CosmicZoom.update(camera?.position?.z || 3.65, { tier: 'global', label: 'Earth', cosmic: 'earth' });
     }
-    // One immediate frame so user never sees empty void while waiting for RAF
-    if (renderer && scene && camera) renderer.render(scene, camera);
+  } catch (e) {
+    console.warn('[spartan critical]', e);
+  }
+
+  const zl = document.getElementById('zoom-label');
+  if (zl) {
+    zl.textContent = PublicCopy?.zoomLine?.('global')
+      || 'Earth · drag · scroll to country · tap for city';
+  }
+
+  // Host gate — never blank the page; only soft-block unknown hosts
+  try {
+    const host = location.hostname || '';
+    const ok = !host
+      || host === 'localhost' || host === '127.0.0.1'
+      || host === 'astranov.eu' || host.endsWith('.astranov.eu')
+      || host.endsWith('.vercel.app') || host.endsWith('.pages.dev')
+      || location.protocol === 'file:';
+    if (host && !ok) {
+      console.warn('[boot] unauthorized host', host);
+    }
   } catch (_) {}
-  animate();
+
+  // Canvas force-visible + immediate frame
+  try {
+    if (typeof renderer !== 'undefined' && renderer?.domElement) {
+      const c = renderer.domElement;
+      if (g && c.parentNode !== g) g.appendChild(c);
+      c.style.display = 'block';
+      c.style.opacity = '1';
+      c.style.pointerEvents = 'auto';
+      c.style.width = '100%';
+      c.style.height = '100%';
+      renderer.setSize(window.innerWidth, window.innerHeight, false);
+      if (scene && camera) {
+        // Ensure earth is lit enough to see without texture
+        try {
+          if (typeof earthMat !== 'undefined' && earthMat && !earthMat.map) {
+            earthMat.color?.set?.(0x2a6aaa);
+            earthMat.emissive?.set?.(0x0a2030);
+            earthMat.needsUpdate = true;
+          }
+        } catch (_) {}
+        renderer.render(scene, camera);
+      }
+    }
+  } catch (_) {}
+
+  startLoop();
   window._astranovCriticalReady = true;
   document.documentElement.dataset.astranovPhase = 'critical';
-  console.log('%c[Astranov] critical boot · globe live', 'color:#3d9eff;font-weight:700');
+  document.documentElement.dataset.spartan = '1';
+  // Clear any prior init/render error strip once Earth is up
+  try {
+    const strip = [...document.querySelectorAll('div')].find((d) =>
+      /Init\/Render error|sessionHeld/i.test(d.textContent || '')
+    );
+    if (strip && strip.id !== 'astranov-boot-fail') strip.remove();
+  } catch (_) {}
+  console.log('%c[Spartan] Earth live · drag · zoom', 'color:#3d9eff;font-weight:700');
 };

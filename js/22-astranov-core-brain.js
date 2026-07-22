@@ -118,18 +118,24 @@ const AstranovCoreBrain = {
       actions.push({ type: 'resources', query: m });
     }
 
-    // SpaceNet channel manager (field hub — no third-party brands)
-    if (/\b(channels?|spacenet\s*cm|field\s*kitchen|publish\s*place|catalog\s*sync)\b/i.test(low)
-      || /^cm\b/i.test(low)) {
-      intent = 'spacenet_cm';
-      actions.push({ type: 'spacenet_cm', query: m });
-    }
-
     // SpaceNet crawlers
-    if (/spacenet|crawl(er|ers)?|ingest|scan\s*(city|area|sector)/i.test(low)
-      && intent !== 'spacenet_cm') {
+    if (/spacenet|crawl(er|ers)?|ingest|scan\s*(city|area|sector)/i.test(low)) {
       intent = 'spacenet';
       actions.push({ type: 'spacenet', query: m });
+    }
+
+    // Browse / open web inside SpaceNet OS (internet replacement surface)
+    if (/https?:\/\//i.test(m) || /astranov:\/\//i.test(m)
+      || /\b(browse|open\s+url|visit\s+site|open\s+https?)\b/i.test(low)) {
+      intent = 'browse';
+      const u = (m.match(/https?:\/\/[^\s]+/i) || m.match(/astranov:\/\/[^\s]+/i) || [])[0];
+      actions.push({ type: 'browse', url: u || 'astranov://home' });
+    }
+
+    // SpaceX skin
+    if (/\btheme\s*spacex\b|\bspacex\s*theme\b|\bfalcon\s*ui\b/i.test(low)) {
+      intent = 'theme';
+      actions.push({ type: 'theme_spacex' });
     }
 
     // City tasks DNA: delivery · jobs · errands · dating
@@ -219,10 +225,6 @@ const AstranovCoreBrain = {
           ResourceMonitor?.init?.();
           const msg = ResourceMonitor?.handleCli?.(a.query || 'resources');
           results.push(msg || 'resources');
-        } else if (a.type === 'spacenet_cm') {
-          SpaceNetCM?.init?.();
-          const msg = SpaceNetCM?.handleCli?.(a.query || 'channels status');
-          results.push(msg || 'spacenet cm');
         } else if (a.type === 'spacenet') {
           const p = this.userPos();
           const msg = await SpaceNetBrain?.handleCli?.(a.query || 'crawl');
@@ -232,6 +234,16 @@ const AstranovCoreBrain = {
           CityTasks?.init?.();
           const msg = await CityTasks?.handleCli?.(a.query || 'task list');
           results.push(msg || 'city task');
+        } else if (a.type === 'browse') {
+          if (window.SpaceNetGrokCli?._browse) await SpaceNetGrokCli._browse(a.url || 'astranov://home');
+          else if (window.AstranovBrowser?.navigate) {
+            AstranovBrowser.show?.();
+            AstranovBrowser.navigate(a.url || 'astranov://home');
+          }
+          results.push('browse');
+        } else if (a.type === 'theme_spacex') {
+          AstranovTheme?.setSpacex?.(true) || AstranovTheme?.set?.('spacex');
+          results.push('spacex theme');
         }
       } catch (e) {
         results.push(a.type + ' failed');
@@ -270,9 +282,10 @@ const AstranovCoreBrain = {
       Authorization: 'Bearer ' + SB_KEY,
     }));
     const systemBits = [
-      'You are Astranov — SpaceNet globe OS AI. Spartan, real, same language as user.',
-      'User can act on a 3D Earth (locate, fly cities, order, zoom).',
-      'If they asked something you cannot do in text, say the CLI phrase they should type.',
+      'You are Grok inside Astranov SpaceNet — the globe OS that replaces scattered internet apps.',
+      'SpaceX industrial tone: clear, bold, concise. Same language as user.',
+      'User acts on a 3D Earth: locate, fly, zoom solar→street, browse in-OS, order, starlink, starship.',
+      'If they need a CLI phrase, give one: locate | fly starbase | browse https://… | theme spacex | order.',
       'Max 2 short sentences. No markdown lists.',
     ];
     if (plan.actions.length) {

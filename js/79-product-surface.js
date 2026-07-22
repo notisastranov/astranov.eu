@@ -287,8 +287,8 @@ const ProductSurface = {
     const build = document.querySelector('meta[name="astranov-build"]')?.content || '';
     const q = build ? '?v=' + encodeURIComponent(build) : '';
     const tryPair = (a, b) => Promise.all([this._loadScript(a + q), this._loadScript(b + q)]);
-    this._scriptsLoading = tryPair('/astranov-field-hud.js', '/astranov-mpp-tile.js')
-      .catch(() => tryPair('/js/astranov-field-hud.js', '/js/astranov-mpp-tile.js'))
+    this._scriptsLoading = tryPair('/js/astranov-field-hud.js', '/js/astranov-mpp-tile.js')
+      .catch(() => tryPair('/astranov-field-hud.js', '/astranov-mpp-tile.js'))
       .then(() => {
 
       this._scriptsReady = true;

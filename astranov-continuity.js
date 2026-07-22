@@ -34,8 +34,8 @@
  * =============================================================================
  */
 const AstranovContinuity = {
-  version: '20260720090000-os-browser',
-  updated: '2026-07-20',
+  version: '20260722153000-spacex-spacenet',
+  updated: '2026-07-22',
 
   /**
    * Markdown / issues / sessions that MUST NOT drive implementation.

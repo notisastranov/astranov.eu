@@ -62,7 +62,8 @@ Object.assign(SuperCli, {
       'telemachos', 'tilemaxos', 'telemachus', 'tilemachos', 'teledromos', 'teledromus',
       'pilot', 'drone', 'drones', 'fleet',
       'youtube', 'yt', 'watch', 'play', 'space', 'scenario', 'add', 'post', 'superadd',
-      'theme', 'dark', 'bright', 'light',
+      'theme', 'dark', 'bright', 'light', 'spacex', 'falcon',
+      'browse', 'open', 'starlink', 'starship', 'crawl', 'spacenet', 'os', 'market',
       'yacht', 'yachts', 'charter', 'booker',
     ]);
     return known.has(c);
@@ -124,25 +125,20 @@ Object.assign(SuperCli, {
 
   printHelp() {
     const owner = Auth?.isOwner;
-    this.out('── Astranov — brain + UI + dev ──', 'dim');
-    this.out('dev on|off · dev task <msg> · dev peers · dev deploy · dev status', 'ok');
-    this.out('ui show batch|radio|vendor|youtube · ui hide · ui fly athens · ui zoom galaxy', 'ok');
-    this.out('youtube <search> · watch <url> · play 2 (pick result)', 'ok');
-    this.out('space locate <topic> · space status — brain places media on globe/cosmos', 'ok');
-    this.out('scenario wake|city|groceries|youtube|reviews|list — real user flows', 'ok');
-    this.out('players · kryfto · ΣΥΓΥΡΙΣΜΑ · pyramid · willa — 12 Olympians 🔵 · 12 Cronians 🔴', 'ok');
-    this.out('team create <name> · team join <id> · contact video|voice|message <name>', 'ok');
-    this.out('cli search <text> · cli users · cli view <name> · cloud dm <name> · chat <name> <msg>', 'ok');
-    this.out('drivers · driver <name> — pick delivery driver on map/cloud', 'ok');
-    this.out('tilemaxos — takeover ANY drone (FPV priority) · flyback to pilot · scan · evolve', 'ok');
-    this.out('profile me · match <site> dates [pax] · match field <site> <name> · site approve <slug>', 'ok');
-    this.out('theme dark|bright · or just: dark · bright — globe + city map + UI', 'ok');
-    this.out('add · post — Super Add camera · global/team/local channel', 'ok');
-    this.out('Tri-UI: SuperCli + SuperVoice + SuperSpace · mic+send at bottom bar', 'dim');
-    this.out('brain think|evolve|teach|coders|listen on|off|status · brain order <task>', owner ? 'ok' : 'dim');
-    this.out('locate · order · batch · vhf · coders · deploy · think · type anything', 'ok');
-    if (owner) this.out('Owner: brain order <task> = execute · coders <task> = explicit order', 'dim');
-    ACIControl?.reply('Full command: dev on · ui status · brain status · then build');
+    this.out('── SpaceNet · Grok CLI · SpaceX skin ──', 'dim');
+    this.out('Type anything. Natural language runs multi-tools on the globe OS.', 'ok');
+    this.out('locate · fly starbase|athens · zoom solar|global|city · city map', 'ok');
+    this.out('browse https://… · open astranov://market · order · market · +', 'ok');
+    this.out('starlink · starship · spacex · crawl · news · drive · call · os', 'ok');
+    this.out('theme spacex|dark|bright · status · help · coders / talk to Grok', 'ok');
+    this.out('youtube <q> · watch <url> · space locate <topic> · scenario list', 'ok');
+    this.out('cli search · cloud dm · team · drivers · profile · sync', 'ok');
+    this.out('dev on|off · ui show|fly|zoom · brain status — architect power tools', owner ? 'ok' : 'dim');
+    this.out('Tiers: SOLAR → GLOBAL → NATIONAL → CITY → STREET — replace the open web UX', 'dim');
+    if (window.SpaceNetGrokCli?.printHelp) {
+      /* detailed tool list also available via SpaceNetGrokCli */
+    }
+    ACIControl?.reply('SpaceNet ready — ask Grok anything or say locate / browse / order');
     GlobeDeck?.finishCliIfOneShot('help');
   },
 
@@ -453,18 +449,37 @@ Object.assign(SuperCli, {
         await this.cmdScenario(parts, rest);
         return { handled: true };
       }
-      if (cmd === 'theme' || cmd === 'dark' || cmd === 'bright' || cmd === 'light') {
-        const mode = cmd === 'theme'
-          ? (parts[1] || rest || '').toLowerCase()
-          : (cmd === 'light' ? 'bright' : cmd);
-        if (mode === 'dark' || mode === 'bright') {
+      if (cmd === 'theme' || cmd === 'dark' || cmd === 'bright' || cmd === 'light' || cmd === 'spacex' || cmd === 'falcon') {
+        const mode = (cmd === 'theme'
+          ? (parts[1] || rest || 'spacex').toLowerCase()
+          : (cmd === 'light' ? 'bright' : cmd));
+        if (mode === 'spacex' || mode === 'falcon' || mode === 'starship') {
+          AstranovTheme?.setSpacex?.(true) || AstranovTheme?.set?.('spacex');
+          this.out('theme → spacex (SpaceX industrial)', 'ok');
+        } else if (mode === 'dark' || mode === 'bright' || mode === 'auto') {
           AstranovTheme?.set?.(mode);
           this.out('theme → ' + mode, 'ok');
         } else {
-          AstranovTheme?.toggle?.();
-          this.out('theme → ' + (AstranovTheme?.mode || 'dark'), 'ok');
+          AstranovTheme?.setSpacex?.(true);
+          this.out('theme → spacex', 'ok');
         }
         return { handled: true };
+      }
+      if (cmd === 'browse') {
+        const url = rest || parts[1] || 'astranov://home';
+        if (window.SpaceNetGrokCli?._browse) await SpaceNetGrokCli._browse(url);
+        else if (window.AstranovBrowser?.navigate) {
+          AstranovBrowser.show?.();
+          AstranovBrowser.navigate(url);
+        } else if (/^https?:\/\//i.test(url)) window.open(url, '_blank', 'noopener');
+        this.out('browse → ' + url, 'ok');
+        return { handled: true };
+      }
+      if (cmd === 'starlink' || cmd === 'starship' || cmd === 'crawl' || cmd === 'spacenet' || cmd === 'os' || cmd === 'market') {
+        if (window.SpaceNetGrokCli?.handle) {
+          await SpaceNetGrokCli.handle(raw, opts);
+          return { handled: true, grok: true };
+        }
       }
       if (cmd === 'add' || cmd === 'post' || cmd === 'superadd') {
         SuperAdd?.open?.();
@@ -664,10 +679,14 @@ Object.assign(SuperCli, {
         return { handled: true };
       }
 
-      // Freeform natural language → Core Brain (local globe tools + fast AI)
+      // Freeform natural language → SpaceNet Grok CLI → Core Brain
       // Critical: without this, SuperCli returns handled:false and AciCli said "unknown"
       if (!this.isStructuredCmd(cmd)) {
         GlobeDeck.activeTask = 'coders';
+        if (window.SpaceNetGrokCli?.handle) {
+          await SpaceNetGrokCli.handle(raw, opts);
+          return { handled: true, grok: true };
+        }
         if (window.AstranovCoreBrain?.handle) {
           await AstranovCoreBrain.handle(raw, opts);
           return { handled: true, brain: true };
@@ -685,9 +704,13 @@ Object.assign(SuperCli, {
       return { handled: true, error: msg };
     }
 
-    // Last-chance freeform (any leftover tokens)
+    // Last-chance freeform (any leftover tokens) — never leave user with unknown
     if (raw.length >= 1) {
       GlobeDeck.activeTask = 'coders';
+      if (window.SpaceNetGrokCli?.handle) {
+        await SpaceNetGrokCli.handle(raw, opts);
+        return { handled: true, grok: true };
+      }
       if (window.AstranovCoreBrain?.handle) {
         await AstranovCoreBrain.handle(raw, opts);
         return { handled: true, brain: true };
@@ -696,6 +719,8 @@ Object.assign(SuperCli, {
         await AciCoders.handleMessage(raw, opts);
         return { handled: true };
       }
+      this.out('SpaceNet heard you — try: locate · fly · browse · order · help', 'dim');
+      return { handled: true };
     }
     return { handled: false };
   },

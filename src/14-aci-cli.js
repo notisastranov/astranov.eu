@@ -9,7 +9,8 @@ const AciCli = {
     AciCoders?.autoStart?.();
     CliRibbon?.setActive?.('Grok');
     const input = document.getElementById('aci-cli-in');
-    if (input) input.placeholder = 'Talk to Grok — type or tap 🎧 · Enter to send';
+    if (input) input.placeholder = 'Grok · SpaceNet — ask anything · locate · fly · browse · order';
+    SpaceNetGrokCli?.init?.();
   },
 
   init() {
@@ -204,8 +205,13 @@ const AciCli = {
     if (cmd === 'exit' || cmd === 'close') { GlobeDeck?.completeTask('cli'); return; }
     if (cmd === 'logout') { await Auth.signOut(); this.print('signed out', 'ok'); return; }
 
-    if (cmd === 'theme' || cmd === 'dark' || cmd === 'bright' || cmd === 'light' || cmd === 'auto') {
-      let mode = cmd === 'theme' ? (parts[1] || '').toLowerCase() : (cmd === 'light' ? 'bright' : cmd);
+    if (cmd === 'theme' || cmd === 'dark' || cmd === 'bright' || cmd === 'light' || cmd === 'auto' || cmd === 'spacex' || cmd === 'falcon') {
+      let mode = cmd === 'theme' ? (parts[1] || 'spacex').toLowerCase() : (cmd === 'light' ? 'bright' : cmd);
+      if (mode === 'spacex' || mode === 'falcon' || mode === 'starship') {
+        AstranovTheme?.setSpacex?.(true) || AstranovTheme?.set?.('spacex');
+        this.print('theme → spacex (SpaceX industrial)', 'ok');
+        return;
+      }
       if (mode === 'auto' || mode === 'system') mode = 'auto';
       AstranovTheme?.set?.(mode);
       this.print('theme → ' + (AstranovTheme?._auto ? 'auto' : AstranovTheme?.mode || 'dark'), 'ok');

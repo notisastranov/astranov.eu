@@ -2,90 +2,251 @@
   "version": 5,
   "description": "SPARTAN — globe + map first. critical (earth) → app (map/cli) → features (field hub) → deferred (rest)",
   "critical": [
-    { "file": "00-globe.js" },
-    { "file": "07-light-stubs.js" },
-    { "file": "02-lazy-modules.js" },
-    { "file": "03-slumber-manager.js" },
-    { "file": "50-cosmic.js" },
-    { "file": "09-zoom-tiers.js" },
-    { "file": "10-trackball.js" },
-    { "file": "04-trackball-guard.js" },
-    { "file": "62-astranov-theme.js" },
-    { "file": "63-earth-daynight.js" },
-    { "file": "99-boot-critical.js" }
+    {
+      "file": "00-globe.js"
+    },
+    {
+      "file": "07-light-stubs.js"
+    },
+    {
+      "file": "02-lazy-modules.js"
+    },
+    {
+      "file": "03-slumber-manager.js"
+    },
+    {
+      "file": "50-cosmic.js"
+    },
+    {
+      "file": "09-zoom-tiers.js"
+    },
+    {
+      "file": "10-trackball.js"
+    },
+    {
+      "file": "04-trackball-guard.js"
+    },
+    {
+      "file": "62-astranov-theme.js"
+    },
+    {
+      "file": "63-earth-daynight.js"
+    },
+    {
+      "file": "99-boot-critical.js"
+    }
   ],
   "app": [
-    { "file": "06-fetch-json.js" },
-    { "file": "05-speak-map.js" },
-    { "file": "01-astranov-auth-url.js" },
-    { "file": "12-auth.js" },
-    { "file": "13-globe-deck.js" },
-    { "file": "13-cli-ribbon.js" },
-    { "file": "15-super-cli.js" },
-    { "file": "14-aci-cli.js" },
-    { "file": "71-classified-triangles.js" },
-    { "file": "72-map-place-menu.js" },
-    { "file": "61-city-map.js" },
-    { "file": "62-multi-tile.js" },
-    { "file": "45-city-life.js" },
-    { "file": "44-city-pick.js" },
-    { "file": "28-resource-monitor.js" },
-    { "file": "08-astranov-os.js" },
-    { "file": "08-astranov-browser.js" },
-    { "file": "99-boot-app.js" }
+    {
+      "file": "06-fetch-json.js"
+    },
+    {
+      "file": "05-speak-map.js"
+    },
+    {
+      "file": "01-astranov-auth-url.js"
+    },
+    {
+      "file": "12-auth.js"
+    },
+    {
+      "file": "13-globe-deck.js"
+    },
+    {
+      "file": "13-cli-ribbon.js"
+    },
+    {
+      "file": "15-super-cli.js"
+    },
+    {
+      "file": "14-aci-cli.js"
+    },
+    {
+      "file": "71-classified-triangles.js"
+    },
+    {
+      "file": "72-map-place-menu.js"
+    },
+    {
+      "file": "61-city-map.js"
+    },
+    {
+      "file": "62-multi-tile.js"
+    },
+    {
+      "file": "45-city-life.js"
+    },
+    {
+      "file": "44-city-pick.js"
+    },
+    {
+      "file": "28-resource-monitor.js"
+    },
+    {
+      "file": "08-astranov-os.js"
+    },
+    {
+      "file": "08-astranov-browser.js"
+    },
+    {
+      "file": "99-boot-app.js"
+    }
   ],
   "features": [
-    { "file": "47-globe-entities.js" },
-    { "file": "76-city-tasks.js" },
-    { "file": "81-spacenet-channel-manager.js" },
-    { "file": "22-astranov-core-brain.js" },
-    { "file": "13-app-shortcuts.js" },
-    { "file": "07-astranov-logo.js" },
-    { "file": "99-boot-features.js" }
+    {
+      "file": "47-globe-entities.js"
+    },
+    {
+      "file": "76-city-tasks.js"
+    },
+    {
+      "file": "81-spacenet-channel-manager.js"
+    },
+    {
+      "file": "22-astranov-core-brain.js"
+    },
+    {
+      "file": "25-spacenet-grok-cli.js"
+    },
+    {
+      "file": "13-app-shortcuts.js"
+    },
+    {
+      "file": "07-astranov-logo.js"
+    },
+    {
+      "file": "99-boot-features.js"
+    }
   ],
   "deferred": [
-    { "file": "17-architect-bridge.js" },
-    { "file": "18-aci-coders.js" },
-    { "file": "19-session-hold.js" },
-    { "file": "20-aci.js" },
-    { "file": "08-arcangelo-dialect.js" },
-    { "file": "11-glyphs.js" },
-    { "file": "54-ai-router.js" },
-    { "file": "73-spacenet-brain.js" },
-    { "file": "79-product-surface.js" },
-    { "file": "78-globe-info-tiles.js" },
-    { "file": "75-starship-flight13.js" },
-    { "file": "77-starlink-constellation.js" },
-    { "file": "60-graphics.js" },
-    { "file": "90-voice-world.js" },
-    { "file": "21-super-cli-brain.js" },
-    { "file": "23-cli-hub.js" },
-    { "file": "24-context-truth.js" },
-    { "file": "16-aci-connect.js" },
-    { "file": "29-delivery-pricing.js" },
-    { "file": "30-commerce.js" },
-    { "file": "32-astranov-node.js" },
-    { "file": "40-comms-news.js" },
-    { "file": "42-satradio.js" },
-    { "file": "46-super-add.js" },
-    { "file": "43-youtube-globe.js" },
-    { "file": "51-celestial-nav.js" },
-    { "file": "53-coders-hub.js" },
-    { "file": "55-lab-orbs.js" },
-    { "file": "70-routing.js" },
-    { "file": "72-driving.js" },
-    { "file": "67-map-comms.js" },
-    { "file": "74-telemachos-pilot.js" },
-    { "file": "80-webrtc.js" },
-    { "file": "64-astranov-session.js" },
-    { "file": "65-astranov-wishlist.js" },
-    { "file": "66-globe-presence.js" },
-    { "file": "68-marketplace-comms.js" },
-    { "file": "69-profile-site.js" },
-    { "file": "48-astranov-sites-provision.js" },
-    { "file": "49-astranov-site-shell.js" },
-    { "file": "83-order-tracking.js" },
-    { "file": "84-responsive-3d.js" },
-    { "file": "97-deferred-boot.js" }
+    {
+      "file": "17-architect-bridge.js"
+    },
+    {
+      "file": "18-aci-coders.js"
+    },
+    {
+      "file": "19-session-hold.js"
+    },
+    {
+      "file": "20-aci.js"
+    },
+    {
+      "file": "08-arcangelo-dialect.js"
+    },
+    {
+      "file": "11-glyphs.js"
+    },
+    {
+      "file": "54-ai-router.js"
+    },
+    {
+      "file": "73-spacenet-brain.js"
+    },
+    {
+      "file": "79-product-surface.js"
+    },
+    {
+      "file": "78-globe-info-tiles.js"
+    },
+    {
+      "file": "75-starship-flight13.js"
+    },
+    {
+      "file": "77-starlink-constellation.js"
+    },
+    {
+      "file": "60-graphics.js"
+    },
+    {
+      "file": "90-voice-world.js"
+    },
+    {
+      "file": "21-super-cli-brain.js"
+    },
+    {
+      "file": "23-cli-hub.js"
+    },
+    {
+      "file": "24-context-truth.js"
+    },
+    {
+      "file": "16-aci-connect.js"
+    },
+    {
+      "file": "29-delivery-pricing.js"
+    },
+    {
+      "file": "30-commerce.js"
+    },
+    {
+      "file": "32-astranov-node.js"
+    },
+    {
+      "file": "40-comms-news.js"
+    },
+    {
+      "file": "42-satradio.js"
+    },
+    {
+      "file": "46-super-add.js"
+    },
+    {
+      "file": "43-youtube-globe.js"
+    },
+    {
+      "file": "51-celestial-nav.js"
+    },
+    {
+      "file": "53-coders-hub.js"
+    },
+    {
+      "file": "55-lab-orbs.js"
+    },
+    {
+      "file": "70-routing.js"
+    },
+    {
+      "file": "72-driving.js"
+    },
+    {
+      "file": "67-map-comms.js"
+    },
+    {
+      "file": "74-telemachos-pilot.js"
+    },
+    {
+      "file": "80-webrtc.js"
+    },
+    {
+      "file": "64-astranov-session.js"
+    },
+    {
+      "file": "65-astranov-wishlist.js"
+    },
+    {
+      "file": "66-globe-presence.js"
+    },
+    {
+      "file": "68-marketplace-comms.js"
+    },
+    {
+      "file": "69-profile-site.js"
+    },
+    {
+      "file": "48-astranov-sites-provision.js"
+    },
+    {
+      "file": "49-astranov-site-shell.js"
+    },
+    {
+      "file": "83-order-tracking.js"
+    },
+    {
+      "file": "84-responsive-3d.js"
+    },
+    {
+      "file": "97-deferred-boot.js"
+    }
   ]
 }
