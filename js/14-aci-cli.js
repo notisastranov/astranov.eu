@@ -105,8 +105,23 @@ const AciCli = {
     this.history.push(line);
     this.histIdx = -1;
     this.print((document.getElementById('aci-cli-prompt')?.textContent || '›') + ' ' + line, 'cmd');
+    // Street-first SpaceNet: jobs · dates · delivery · search · anything on the globe
+    const low = line.toLowerCase();
+    const street = /^(job|gig|date|dating|deliver|delivery|errand|task|search|find|hire|need)\b/i.test(low)
+      || /\b(barman|nanny|housekeeper|coffee\s*date|pharmacy|claim)\b/i.test(low)
+      || (window.CityTasks?.wants?.(line) && !/^(dev|ui|brain|theme|youtube|watch)\b/i.test(low));
+    if (street && window.SpaceNetGrokCli?.handle) {
+      SpaceNetGrokCli.init?.();
+      const r = await SpaceNetGrokCli.handle(line, opts);
+      if (r?.ok !== false) return;
+    }
     const routed = await SuperCli?.exec?.(line, opts);
     if (routed?.handled) return;
+    // Freeform fallback → SpaceNet (never "unknown")
+    if (window.SpaceNetGrokCli?.handle) {
+      await SpaceNetGrokCli.handle(line, opts);
+      return;
+    }
     await this.handle(line);
   },
 
@@ -150,10 +165,13 @@ const AciCli = {
 
     if (!cmd) return;
     if (cmd === 'help' || cmd === '?') {
-      this.print('locate · order · resources · channels · starship · starlink · spacex · crawl', 'dim');
-      this.print('task job barman 3h · task housekeeper 1w · task date coffee 2h · task errand · task claim', 'dim');
-      this.print('channels status · seed · publish · order · enable mesh', 'dim');
-      this.print('think · coders · theme · Architect: fix|bridge', 'dim');
+      if (window.SpaceNetGrokCli?.printHelp) {
+        SpaceNetGrokCli.printHelp();
+        return;
+      }
+      this.print('SpaceNet: job barman 3h · date coffee 2h · deliver food · errand pharmacy', 'ok');
+      this.print('task list · task claim · search barman · locate · fly · order', 'ok');
+      this.print('Every action paints the globe — that is SpaceNet', 'dim');
       return;
     }
     if (cmd === 'resources' || cmd === 'resource' || cmd === 'donate' || cmd === 'monitor') {

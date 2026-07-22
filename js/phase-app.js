@@ -400,7 +400,17 @@ var MapDepict = {
       mode: 0x88aaff,
       stop: 0xff4466,
       drive: 0x44aaff,
-      batch: 0x6688ff
+      batch: 0x6688ff,
+      // SpaceNet city DNA
+      delivery: 0x44ffaa,
+      dating: 0xff6699,
+      job: 0x66aaff,
+      gig: 0x66aaff,
+      errand: 0xffcc44,
+      service: 0xaa88ff,
+      search: 0xffffff,
+      claim: 0x88ffcc,
+      task: 0x44ffaa,
     };
     const color = palette[type] || 0x00ddff;
     const labels = {
@@ -421,6 +431,15 @@ var MapDepict = {
       mode: 'Λειτουργία ACI',
       stop: 'Διακοπή',
       drive: 'Οδήγηση δρόμου',
+      delivery: 'Delivery',
+      dating: 'Dating',
+      job: 'Job / gig',
+      gig: 'Gig',
+      errand: 'Errand',
+      service: 'Service',
+      search: 'Search',
+      claim: 'Claim task',
+      task: 'City task',
       batch: 'Batch · δουλειά μαζί'
     };
 
@@ -2502,8 +2521,23 @@ const AciCli = {
     this.history.push(line);
     this.histIdx = -1;
     this.print((document.getElementById('aci-cli-prompt')?.textContent || '›') + ' ' + line, 'cmd');
+    // Street-first SpaceNet: jobs · dates · delivery · search · anything on the globe
+    const low = line.toLowerCase();
+    const street = /^(job|gig|date|dating|deliver|delivery|errand|task|search|find|hire|need)\b/i.test(low)
+      || /\b(barman|nanny|housekeeper|coffee\s*date|pharmacy|claim)\b/i.test(low)
+      || (window.CityTasks?.wants?.(line) && !/^(dev|ui|brain|theme|youtube|watch)\b/i.test(low));
+    if (street && window.SpaceNetGrokCli?.handle) {
+      SpaceNetGrokCli.init?.();
+      const r = await SpaceNetGrokCli.handle(line, opts);
+      if (r?.ok !== false) return;
+    }
     const routed = await SuperCli?.exec?.(line, opts);
     if (routed?.handled) return;
+    // Freeform fallback → SpaceNet (never "unknown")
+    if (window.SpaceNetGrokCli?.handle) {
+      await SpaceNetGrokCli.handle(line, opts);
+      return;
+    }
     await this.handle(line);
   },
 
@@ -2547,10 +2581,13 @@ const AciCli = {
 
     if (!cmd) return;
     if (cmd === 'help' || cmd === '?') {
-      this.print('locate · order · resources · channels · starship · starlink · spacex · crawl', 'dim');
-      this.print('task job barman 3h · task housekeeper 1w · task date coffee 2h · task errand · task claim', 'dim');
-      this.print('channels status · seed · publish · order · enable mesh', 'dim');
-      this.print('think · coders · theme · Architect: fix|bridge', 'dim');
+      if (window.SpaceNetGrokCli?.printHelp) {
+        SpaceNetGrokCli.printHelp();
+        return;
+      }
+      this.print('SpaceNet: job barman 3h · date coffee 2h · deliver food · errand pharmacy', 'ok');
+      this.print('task list · task claim · search barman · locate · fly · order', 'ok');
+      this.print('Every action paints the globe — that is SpaceNet', 'dim');
       return;
     }
     if (cmd === 'resources' || cmd === 'resource' || cmd === 'donate' || cmd === 'monitor') {

@@ -362,7 +362,17 @@ var MapDepict = {
       mode: 0x88aaff,
       stop: 0xff4466,
       drive: 0x44aaff,
-      batch: 0x6688ff
+      batch: 0x6688ff,
+      // SpaceNet city DNA
+      delivery: 0x44ffaa,
+      dating: 0xff6699,
+      job: 0x66aaff,
+      gig: 0x66aaff,
+      errand: 0xffcc44,
+      service: 0xaa88ff,
+      search: 0xffffff,
+      claim: 0x88ffcc,
+      task: 0x44ffaa,
     };
     const color = palette[type] || 0x00ddff;
     const labels = {
@@ -383,6 +393,15 @@ var MapDepict = {
       mode: 'Λειτουργία ACI',
       stop: 'Διακοπή',
       drive: 'Οδήγηση δρόμου',
+      delivery: 'Delivery',
+      dating: 'Dating',
+      job: 'Job / gig',
+      gig: 'Gig',
+      errand: 'Errand',
+      service: 'Service',
+      search: 'Search',
+      claim: 'Claim task',
+      task: 'City task',
       batch: 'Batch · δουλειά μαζί'
     };
 
