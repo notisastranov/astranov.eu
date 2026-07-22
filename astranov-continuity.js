@@ -370,10 +370,10 @@ if (typeof console !== 'undefined' && console.info) {
   );
 }
 
-/* === ASTRANOV OS BOOT (auto-load on all devices) === */
+/* === ASTRANOV OS BOOT (single path, idle/mobile-soft) === */
 (function astranovOsBoot() {
   if (window.__ASTRANOV_OS_BOOT__) return;
-  window.__ASTRANOV_OS_BOOT__ = 1;
+  // Progressive index boot owns OS; continuity only fills if still unset after features
   var build = (document.querySelector('meta[name="astranov-build"]') || {}).content || '0';
   function load(src) {
     return new Promise(function (resolve) {
@@ -387,21 +387,29 @@ if (typeof console !== 'undefined' && console.info) {
       document.head.appendChild(s);
     });
   }
-  function init() {
+  function initOnce() {
+    if (window.__ASTRANOV_OS_INIT__) return;
+    window.__ASTRANOV_OS_INIT__ = 1;
     try { if (window.AstranovOS) AstranovOS.init(); } catch (e) { console.warn('[os]', e); }
     try { if (window.AstranovBrowser) AstranovBrowser.init(); } catch (e) { console.warn('[browser]', e); }
   }
   function run() {
-    Promise.all([
-      load('/js/08-astranov-os.js'),
-      load('/js/08-astranov-browser.js'),
-    ]).then(function () {
-      init();
-      setTimeout(init, 1200);
-      setTimeout(init, 3500);
-    });
+    if (window.__ASTRANOV_OS_BOOT__) return;
+    window.__ASTRANOV_OS_BOOT__ = 1;
+    var mobile = !!(window._globePerfLite || window._spartan);
+    var delay = mobile ? 8000 : 2500;
+    var kick = function () {
+      Promise.all([
+        load('/js/08-astranov-os.js'),
+        load('/js/08-astranov-browser.js'),
+      ]).then(function () { initOnce(); });
+    };
+    if (typeof requestIdleCallback === 'function') {
+      setTimeout(function () { requestIdleCallback(kick, { timeout: delay + 2000 }); }, delay);
+    } else {
+      setTimeout(kick, delay);
+    }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
   else run();
-  window.addEventListener('load', function () { setTimeout(init, 400); });
 })();

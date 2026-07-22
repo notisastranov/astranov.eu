@@ -2898,17 +2898,31 @@ const ProductSurface = {
   },
 
   _loadScript(src) {
-    return new Promise((resolve, reject) => {
-      if (document.querySelector('script[src^="' + src.split('?')[0] + '"]')) {
+    return new Promise(async (resolve, reject) => {
+      const bare = src.split('?')[0];
+      if (document.querySelector('script[data-astranov-ps="' + bare + '"]') ||
+          document.querySelector('script[src^="' + bare + '"]')) {
         resolve();
         return;
       }
-      const s = document.createElement('script');
-      s.src = src;
-      s.async = true;
-      s.onload = () => resolve();
-      s.onerror = () => reject(new Error('load ' + src));
-      document.head.appendChild(s);
+      try {
+        const r = await fetch(src, { cache: 'no-cache', credentials: 'same-origin' });
+        if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + bare);
+        const ct = (r.headers.get('content-type') || '').toLowerCase();
+        const text = await r.text();
+        const head = text.trimStart().slice(0, 40);
+        // Reject Vercel Next /login SPA HTML masquerading as JS (sticky lag root cause)
+        if (ct.includes('text/html') || head.startsWith('<!') || /^</.test(head) || text.includes('data-dpl-id')) {
+          throw new Error('HTML fallback for ' + bare + ' (missing asset)');
+        }
+        const el = document.createElement('script');
+        el.dataset.astranovPs = bare;
+        el.text = text;
+        (document.head || document.documentElement).appendChild(el);
+        resolve();
+      } catch (e) {
+        reject(e instanceof Error ? e : new Error(String(e)));
+      }
     });
   },
 
@@ -2916,10 +2930,11 @@ const ProductSurface = {
     if (this._scriptsLoading || this._scriptsReady) return this._scriptsLoading;
     const build = document.querySelector('meta[name="astranov-build"]')?.content || '';
     const q = build ? '?v=' + encodeURIComponent(build) : '';
-    this._scriptsLoading = Promise.all([
-      this._loadScript('/astranov-field-hud.js' + q),
-      this._loadScript('/astranov-mpp-tile.js' + q),
-    ]).then(() => {
+    const tryPair = (a, b) => Promise.all([this._loadScript(a + q), this._loadScript(b + q)]);
+    this._scriptsLoading = tryPair('/astranov-field-hud.js', '/astranov-mpp-tile.js')
+      .catch(() => tryPair('/js/astranov-field-hud.js', '/js/astranov-mpp-tile.js'))
+      .then(() => {
+
       this._scriptsReady = true;
       this._bootProductModules();
     }).catch((e) => {

@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Astranov</title>
-<meta name="astranov-build" content="20260720120000" />
+<meta name="astranov-build" content="20260722114500" />
 <meta name="theme-color" content="#0a1020" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <link rel="manifest" href="/manifest.webmanifest" />
@@ -25,10 +25,38 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden}
 </style>
 <script>(function(){
   try{if(matchMedia('(pointer:coarse)').matches||navigator.maxTouchPoints>0){window._globePerfLite=true;window._spartan=true;}}catch(e){}
-  var BUILD='20260720120000';
+  var BUILD='20260722114500';
   window._bootAt=Date.now();window._spartan=true;window.__ASTRANOV_HARD_BOOT__=1;
   window.__ASTRANOV_MANIFEST__={mode:'js-phase-bundles',critical:['/js/phase-critical.js'],app:['/js/phase-app.js'],features:['/js/phase-features.js'],deferred:['/astranov-deferred.js'],fallback:{critical:['/js/phase-critical.js'],app:['/js/phase-app.js'],features:['/js/phase-features.js'],deferred:['/astranov-deferred.js']}};
-  function load(src){return new Promise(function(res,rej){var s=document.createElement('script');s.src=src+(src.indexOf('?')>=0?'&':'?')+'v='+BUILD;s.onload=function(){res()};s.onerror=function(){rej(new Error(src))};document.head.appendChild(s);});}
+  function load(src){
+    return new Promise(function(res,rej){
+      // Prefer fetch so HTML SPA fallbacks (Vercel /login) never execute as JS
+      fetch(src+(src.indexOf('?')>=0?'&':'?')+'v='+BUILD,{cache:'no-cache',credentials:'same-origin'})
+        .then(function(r){
+          if(!r.ok) throw new Error(src+' '+r.status);
+          var ct=(r.headers.get('content-type')||'').toLowerCase();
+          return r.text().then(function(t){
+            var head=t.trimStart().slice(0,32);
+            if(ct.indexOf('text/html')>=0||head.indexOf('<!')===0||head.indexOf('<html')===0||t.indexOf('data-dpl-id')>=0){
+              throw new Error('HTML fallback: '+src);
+            }
+            var s=document.createElement('script');
+            s.text=t;
+            document.head.appendChild(s);
+            res();
+          });
+        }).catch(function(e){
+          // CDN three.js may block fetch CORS — fall back to classic script tag for absolute URLs
+          if(/^https?:\/\//.test(src)){
+            var s=document.createElement('script');
+            s.src=src+(src.indexOf('?')>=0?'&':'?')+'v='+BUILD;
+            s.onload=function(){res()};
+            s.onerror=function(){rej(new Error(src))};
+            document.head.appendChild(s);
+          } else rej(e);
+        });
+    });
+  }
   function done(){var b=document.getElementById('boot');if(b)b.remove();}
   function fail(m){var el=document.getElementById('boot');if(el)el.innerHTML='<div><b>ASTRANOV</b><p>'+m+'</p></div>';}
   load('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js')
@@ -38,12 +66,31 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden}
   .then(function(){return load('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js').catch(function(){});})
   .then(function(){return load('/js/phase-app.js');})
   .then(function(){if(typeof __astranovBootApp==='function')__astranovBootApp();return load('/js/phase-features.js');})
-  .then(function(){if(typeof __astranovBootFeatures==='function')__astranovBootFeatures();return load('/js/astranov-os-boot.js').catch(function(){return load('/js/08-astranov-os.js').then(function(){return load('/js/08-astranov-browser.js');}).then(function(){try{if(window.AstranovOS)AstranovOS.init();}catch(e){}try{if(window.AstranovBrowser)AstranovBrowser.init();}catch(e){};});});})
-  .then(function(){var delay=window._globePerfLite?5000:2200;setTimeout(function(){if(window.LazyModules&&LazyModules.schedule)LazyModules.schedule();else{var d=document.createElement('script');d.src='/astranov-deferred.js?v='+BUILD;d.async=true;document.head.appendChild(d);}},delay);})
+  .then(function(){
+    if(typeof __astranovBootFeatures==='function')__astranovBootFeatures();
+    // Single OS path (sets __ASTRANOV_OS_BOOT__ so continuity does not double-init)
+    return load('/js/astranov-os-boot.js').catch(function(){
+      return load('/js/08-astranov-os.js').then(function(){return load('/js/08-astranov-browser.js');}).then(function(){
+        window.__ASTRANOV_OS_BOOT__=1;
+        if(!window.__ASTRANOV_OS_INIT__){window.__ASTRANOV_OS_INIT__=1;
+          try{if(window.AstranovOS)AstranovOS.init();}catch(e){}
+          try{if(window.AstranovBrowser)AstranovBrowser.init();}catch(e){}
+        }
+      });
+    });
+  })
+  .then(function(){
+    // Deferred pack only after longer mobile delay — never auto-parse HTML fallbacks
+    var delay=window._globePerfLite?9000:3500;
+    setTimeout(function(){
+      if(window.LazyModules&&LazyModules.schedule)LazyModules.schedule();
+      else load('/astranov-deferred.js').catch(function(e){console.warn('[boot] deferred',e);});
+    },delay);
+  })
   .catch(function(e){fail('Boot failed');console.error(e);});
 })();</script>
-<script defer src="/astranov-continuity.js?v=20260720120000"></script>
-<script defer src="/astranov-perf-lazy.js?v=20260720120000"></script>
+<script defer src="/astranov-continuity.js?v=20260722114500"></script>
+<script defer src="/astranov-perf-lazy.js?v=20260722114500"></script>
 </head>
 <body>
 <div id="boot"><div><b>ASTRANOV</b><p>Earth…</p></div></div>
