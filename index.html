@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="20260722250000" />
+<meta name="astranov-build" content="20260722260000" />
 <meta name="description" content="Astranov SpaceNet — real Earth OS. Zoom solar→city. Jobs, dating, delivery, maps crawl, AI." />
 <meta name="theme-color" content="#000000" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -107,7 +107,10 @@
     max-height: min(38vh, 320px); transition: max-height .22s ease;
     touch-action: none;
   }
-  #panel.expanded { max-height: min(62vh, 520px); }
+  #panel.mid { max-height: min(38vh, 320px); }
+  #panel.expanded { max-height: min(70vh, 560px); }
+  #panel.collapsed { max-height: 88px; }
+  #panel.collapsed #cli-log { display: none; }
   #panel.dragging { transition: none; opacity: 0.96; box-shadow: 0 12px 40px rgba(0,0,0,.65); }
   /* Drag handle — one finger */
   #cli-drag {
@@ -238,6 +241,6 @@ if ('serviceWorker' in navigator) {
   } catch (e) {}
 }
 </script>
-<script src="/js/spacenet/boot.js?v=20260722250000" defer></script>
+<script src="/js/spacenet/boot.js?v=20260722260000" defer></script>
 </body>
 </html>

@@ -2,18 +2,20 @@
 
 **STOP. Read the system guide before editing anything.**
 
-## Single source of truth
+## Authority order (owner-locked 2026-07-22)
 
-1. **`ASTRANOV_SPACENET_GUIDE.md`** ← **AUTHORITATIVE** (features, globe, CLI, juice, anti-patterns, deploy)  
-2. **`support/PRODUCT-RULES.md`** ← short never-forget bullets  
-3. **Live code:** `index.html` + **`js/spacenet/*`** on https://astranov.eu  
+1. **Live code** `index.html` + `js/spacenet/*` + `astranov-continuity.js` (when present)
+2. **`support/PRODUCT-RULES.md`** — short never-forget bullets
+3. **`ASTRANOV_SPACENET_MISSION.md`** — vision
+4. **`ASTRANOV_SPACENET_GUIDE.md`** — solidified invariants (read fully every session)
+5. **This file / `AGENTS.md`** — entry only
 
-Chat history, compaction summaries, and “let’s rebuild from scratch” impulses are **not** authority.
+Chat history, compaction summaries, old Grok specs, and “rebuild from scratch” impulses are **not** authority.
 
 ## What you are building
 
 **Astranov SpaceNet** — multi-device Earth OS + CLI.  
-**Juice (default work):** network crawlers · city map population · jobs · dating · delivery · claim/progress/done · depict on globe.  
+**Juice (default work):** network crawlers · city map population · jobs · dating · delivery · claim/progress/done · depict on globe.
 
 **Not default work:** wiping the shell to chase FPS, re-introducing 1MB phase boot, forgetting inertia / CLI drag / zoom tiers.
 
@@ -29,34 +31,30 @@ Chat history, compaction summaries, and “let’s rebuild from scratch” impul
 | `js/spacenet/map.js` | City map |
 | `js/spacenet/search.js` | Crawlers |
 | `js/spacenet/ui.js` | **One-finger CLI drag** + expand |
-| `js/spacenet/auth.js` / `ai.js` | Sign-in + Grok freeform |
+| `js/spacenet/auth.js` / `ai.js` | Sign-in + Astranov freeform |
 
 ## Non-negotiables (summary)
 
-1. Product name: **Astranov SpaceNet**  
-2. Globe: natural turn + **inertia** + real texture + **solar → global → national → city** + always **back to Earth**  
-3. CLI: **one-finger drag** + one-finger **log scroll** + **expand/retract**; position saved  
-4. Every street action **paints** the globe/map  
-5. **Do not full-rewrite** the live shell to “fix lag” — measure and cut  
-6. Deploy yourself; bump `astranov-build` + `?v=` together  
+1. Product name: **Astranov SpaceNet**
+2. Globe: natural turn + **inertia** + real texture + **solar → global → national → city** + always **back to Earth**
+3. CLI: **one-finger drag** + one-finger **log scroll** + **expand/retract**; position + size saved
+4. Every street action **paints** the globe/map
+5. **Do not full-rewrite** the live shell to “fix lag” — measure and cut
+6. Deploy yourself; bump `astranov-build` + `?v=` together
+
+## Session start
+
+1. Read PRODUCT-RULES + ASTRANOV_SPACENET_GUIDE.md
+2. Confirm inertia + one-finger CLI + zoom tiers in code
+3. Only then work juice (crawl → city map → job/date/delivery)
+4. After physics/CLI changes: verify + live probe
 
 ## Deploy
 
-```bash
-# Prefer: edit js/spacenet/* + index.html, then push to notisastranov/astranov.eu main
-# Live check: build stamp, inertia, CLI drag, national/city/earth, crawl, job/date/deliver
-```
-
-- **Live:** https://astranov.eu  
-- **Repo:** `notisastranov/astranov.eu`  
-- Owner granted autonomous deploy.
-
-## Superseded for implementation
-
-- Old “phase-* + 600KB deferred on boot” as the only architecture  
-- `ASTRANOV_GROK_SPECS.md`  
-- Session chat as sole memory (update **ASTRANOV_SPACENET_GUIDE.md** instead)  
-- Continuity file alone if it conflicts with this guide and live `js/spacenet/*`
+- **Live:** https://astranov.eu
+- **Repo:** `notisastranov/astranov.eu`
+- Prefer GitHub MCP `push_files` / Git Data API when local `git push` hangs
+- Owner granted autonomous deploy for this product
 
 ## Full law
 

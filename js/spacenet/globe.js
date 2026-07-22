@@ -23,6 +23,10 @@
     frame: 0,
     tier: 'global',
     zoomAnim: null,
+    // Inertia (owner rule — never ship without)
+    velX: 0,
+    velY: 0,
+    damp: 0.94,
   };
 
   function isTouch() {
@@ -185,11 +189,15 @@
     const canvas = G.renderer.domElement;
     let lx = 0,
       ly = 0,
-      down = false;
+      down = false,
+      lastT = 0;
     const onDown = (e) => {
       down = true;
       G.dragging = true;
+      G.velX = 0;
+      G.velY = 0;
       G.lastAct = Date.now();
+      lastT = performance.now();
       const t = e.touches ? e.touches[0] : e;
       lx = t.clientX;
       ly = t.clientY;
@@ -198,18 +206,27 @@
       if (!down) return;
       G.lastAct = Date.now();
       const t = e.touches ? e.touches[0] : e;
+      const now = performance.now();
+      const dt = Math.max(8, now - lastT);
+      lastT = now;
       const dx = t.clientX - lx;
       const dy = t.clientY - ly;
       lx = t.clientX;
       ly = t.clientY;
       G.pivot.rotation.y += dx * 0.005;
       G.pivot.rotation.x = Math.max(-1.35, Math.min(1.35, G.pivot.rotation.x + dy * 0.004));
+      // Velocity for inertia (px/frame scale)
+      G.velX = dx * (16 / dt) * 0.005;
+      G.velY = dy * (16 / dt) * 0.004;
       if (e.cancelable) e.preventDefault();
     };
     const onUp = () => {
       down = false;
       G.dragging = false;
       G.lastAct = Date.now();
+      // Clamp inertia so it doesn't spin forever
+      G.velX = Math.max(-0.08, Math.min(0.08, G.velX));
+      G.velY = Math.max(-0.05, Math.min(0.05, G.velY));
     };
     canvas.addEventListener('pointerdown', onDown);
     window.addEventListener('pointermove', onMove, { passive: false });
@@ -269,7 +286,16 @@
       const skip = idle ? 3 : 1;
       if (G.frame % skip !== 0) return;
     }
-    if (!G.dragging && idle && G.camera.position.z > 2.2) {
+    // Inertia after finger release (owner rule)
+    if (!G.dragging && (Math.abs(G.velX) > 0.00005 || Math.abs(G.velY) > 0.00005)) {
+      G.pivot.rotation.y += G.velX;
+      G.pivot.rotation.x = Math.max(-1.35, Math.min(1.35, G.pivot.rotation.x + G.velY));
+      G.velX *= G.damp;
+      G.velY *= G.damp;
+      if (Math.abs(G.velX) < 0.00005) G.velX = 0;
+      if (Math.abs(G.velY) < 0.00005) G.velY = 0;
+      G.lastAct = Date.now();
+    } else if (!G.dragging && idle && G.camera.position.z > 2.2) {
       G.pivot.rotation.y += 0.0009;
     }
     if (G.clouds) G.clouds.rotation.y += 0.00035;

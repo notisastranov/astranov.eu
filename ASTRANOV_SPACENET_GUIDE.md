@@ -1,61 +1,119 @@
-# Astranov SpaceNet — System Guide (AUTHORITATIVE)
+# Astranov SpaceNet — Solidified Basic Guidelines & Invariants
+**Last solidified: 2026-07-22**  
+**Purpose:** Permanent reference so every Grok / AI CLI build remembers the decisions, never regresses on UX physics or core features, and can finally reach the "juice" (crawlers → city maps → jobs / dates / deliveries).
 
-**Read this file first on every Grok Build / agent session.**  
+**Authoritative sources (in priority order):**
+1. Live code + `astranov-continuity.js` (features, doNotRemove, antiPatterns, verify) — and active shell `index.html` + `js/spacenet/*`
+2. `support/PRODUCT-RULES.md`
+3. `ASTRANOV_SPACENET_MISSION.md`
+4. **This document** (`ASTRANOV_SPACENET_GUIDE.md`)
+5. `CLAUDE.md` / `AGENTS.md` for agent entry points
+
+Chat history, old Grok specs, and past single-file experiments are **not** authoritative.
+
 **Live:** https://astranov.eu  
-**Repo:** `notisastranov/astranov.eu`  
-**Last solidified:** 2026-07-22  
-
-If anything in chat history, old escalations, or “rebuild from scratch” impulses conflicts with this guide, **this guide wins**.
+**Repo:** `notisastranov/astranov.eu`
 
 ---
 
-## 0. Why this document exists
+## 1. Core Identity & Mission
 
-Owner pain (repeated across many sessions):
-
-1. Agent **forgets** product rules every continuation.  
-2. Agent **rebuilds from scratch** chasing speed, **wiping** juice features.  
-3. Same bugs return: lag, dummy globe, no zoom tiers, no crawl, no inertia, non-draggable CLI.  
-4. Work never reaches the **real product**: network crawlers, populating city maps, jobs, dating, delivery.
-
-**Stop the amnesia loop.** Extend the live modular shell. Do not delete the product to “make it faster.”
-
----
-
-## 1. Product identity
-
-| | |
-|--|--|
-| **Name** | **Astranov SpaceNet** (full name in title, logo, PWA, help) |
-| **Mission** | Unify internet + city life under a zoomable cosmos: **solar → global → national → city → street** |
-| **Primary UI** | 3D Earth + **CLI** (not a pile of modals) |
-| **Juice (the actual product)** | Crawlers · city map population · find job · find date · delivery tasks · claim/progress/done — **all depicted on the globe** |
+- **Name:** Astranov SpaceNet (Astranov.EU Global Internet Operating System / Agentic Orbital Operating System).
+- **Mission (one sentence):** Unify internet activity under realistic space imagery — solar → global → national → city → street — and evolve the internet into SpaceNet.
+- **Globe Primacy:** The 3D Earth is the only permanent UI surface. Everything else materializes on demand and dematerializes when not needed. No persistent navigation chrome, no rectangles as primary UI.
+- **Realism first:** Procedural globe + real geocoding, routing, WebRTC, geolocation, and live crawlers. No fake/demo data as the primary experience.
+- **Default cold-boot state:** Silent globe centered near Greece + the CLI.
 
 Short name “SpaceNet” is OK in CLI status lines; **marketing and chrome say Astranov SpaceNet**.
 
 ---
 
-## 2. The juice — work here, not on endless reboots
+## 2. Globe Physics & Interaction (SACRED — NEVER REGRESS)
 
-Priority order for engineering time:
+These are locked. Changing them without explicit owner approval is forbidden.
 
-1. **Network crawlers** — geocode, nearby POIs, web/knowledge, paint results on globe + city map.  
-2. **City map population** — shops, jobs, dates, deliveries as real markers users can act on.  
-3. **Street DNA (same pipeline for all work)**  
-   - **Jobs / gigs** — post, list, claim, complete  
-   - **Dating** — invite, accept, meet flow  
-   - **Delivery** — post/order, claim, en route, delivered  
-   - **Errands / help** — same claim DNA  
-4. **Realistic depiction** — every action → pulse / arc / tier change / map pin.  
-5. **AI (Grok)** — freeform after tools; never “unknown”; always suggest a CLI next step.
+- **Natural turning:** One-finger / mouse drag rotates the globe with tuned sensitivity (≈0.005–0.0062) using quaternion / YXZ so it feels physical.
+- **Inertia / momentum effect (mandatory):**  
+  On flick / release, track velocity continues: `velX`/`velY` (or `trackVelX`/`trackVelY`) is damped each frame (typical friction ≈0.88–0.94). The planet keeps spinning and gradually slows. This is the Google-Earth / real-globe feel. Do **not** remove or zero it out in lite or full builds.
+- **Zoom hierarchy (locked tiers):**  
+  `SOLAR` → `GLOBAL` (Three.js Earth) → `NATIONAL` → `CITY` (Leaflet / street map) → `STREET`.  
+  Always able to return to Earth (`earth` command or 🌍). Smooth flyTo / animateZ with easing; never hard-teleport under city zoom.
+- **Additional natural behaviors:**  
+  - Pinch / wheel / double-tap zoom.  
+  - Idle gentle auto-rotation when far out and inactive.  
+  - Locate → pulse marker + flyNear.  
+  - Day/night terminator, atmosphere, stars, real Earth texture (not permanent dummy ball).
+- Physics constants (GLOBAL_Z, spin rate, damp) are locked in continuity / trackball / `js/spacenet/globe.js`.
 
-Secondary (only after juice works smoothly): OS dock browser chrome, miner field, video, heavy deferred packs.
+**Implementation reference:** full trackball logic (`velX`/`velY` + damping) must be present in the active globe module (`js/spacenet/globe.js` or equivalent).
+
+**Always able to zoom back to Earth.** Leaving city map must restore global/national globe, not a black void.
 
 ---
 
-## 3. Architecture (current live — do not throw away)
+## 3. CLI — Primary Control Surface (PRODUCT-RULES locked)
 
-**Active runtime (2026-07-22+):** modular shell under `js/spacenet/`.
+- **One-finger (touch + mouse) fully draggable** via the `#cli-drag` handle / grip.  
+  Implementation lives in `js/spacenet/ui.js` → `bindCliDrag()`.
+- Free-position dock mode (`#dock.free`) is mandatory.  
+- Position is persisted in `localStorage['sn:cli-pos-v1']`.
+- Size mode persisted in `localStorage['sn:cli-size-v1']` (`collapsed` | `mid` | `expanded`).
+- The CLI must be **scrollable** and able to **fully retract / expand** with one finger / simple gesture, focus, or expand button.
+- Multi-touch on globe vs one finger on CLI must not fight (CLI handle uses capture; log uses `pan-y`).
+- **Primary surface for the juice:**  
+  jobs · dating · delivery · errands · search · crawl · zoom · tasks · locate.
+- Minimal visible edge buttons; freeform input routes to CoreBrain / Astranov.
+- Example commands that must work:  
+  `job barman 3h` · `date coffee` · `deliver food` · `errand pharmacy` ·  
+  `task list` · `task claim` · `crawl restaurants` · `search X` ·  
+  `locate` · `city` · `fly athens` · `solar` / `global` / `national` / `city` / `earth` · `help` · `solo`
+
+---
+
+## 4. The Juice — Core Features That Must Progress
+
+These are why the system exists. Future builds must reach and improve them, not re-implement the globe/CLI from zero every time.
+
+Priority order for engineering time:
+
+1. **Network crawlers**  
+   `SNSearch.crawl` + `vendor-crawler` edge function populate city maps with real / live offers, shops, restaurants, services.  
+   Stack today: Nominatim, Overpass, DDG, Wikipedia; Google Places when key exists — **same `SNSearch.crawl` interface**.
+
+2. **City maps (on-demand only)**  
+   Leaflet (or equivalent) + OpenStreetMap when the user enters city tier or issues `city` / `map`.  
+   Vendors appear as glowing blue tiles / pins by category.  
+   Active transactions / deliveries show connection lines.  
+   Real-time delivery driver tracking is visible.  
+   Closing map = back to Earth globe.
+
+3. **Marketplace flow**  
+   Browse → cart → AVC pay → track. Roles: client / vendor / driver. Architect-only drivers in early stages if required.
+
+4. **Tasks / City Life**  
+   Jobs, dates, deliveries, errands via CLI or CityTasks module.  
+   Local-first + cloud sync. Seed → list → claim → complete flow.  
+   One pipeline for all kinds: **open → claimed → in progress → done**.  
+   Kinds: `job` | `dating` | `delivery` | `errand` | `help` | `service`.  
+   Demo seed OK for empty first visit; real crawl must replace demos over time.
+
+5. **AI**  
+   Single collective intelligence named **Astranov**.  
+   Holographic flying helper (mecha-angel / humanoid) is optional but previously designed.  
+   Voice (el-GR) + text backup. Freeform after tools; never “unknown”; always suggest a CLI next step.
+
+6. **Other**  
+   Field HUD / miner for balance.  
+   Real WebRTC for video / voice.  
+   Locate / GPS drops the user into local city life.
+
+**Every street action paints the globe/map** (pulse / arc / tier change / pin). No silent success.
+
+---
+
+## 5. Architecture & Development Rules (current 2026-07)
+
+Prefer **SpaceNet Lite** modular under `js/spacenet/` — target ~50 KB first-party for speed and reliability. Three.js via CDN after shell.
 
 | Path | Role |
 |------|------|
@@ -65,185 +123,81 @@ Secondary (only after juice works smoothly): OS dock browser chrome, miner field
 | `js/spacenet/cli.js` | Street CLI + zoom + crawl + tasks |
 | `js/spacenet/tasks.js` | City DNA local-first |
 | `js/spacenet/map.js` | Leaflet city map (lazy) |
-| `js/spacenet/search.js` | Maps/web crawl (Nominatim, Overpass, DDG, Wikipedia) |
+| `js/spacenet/search.js` | Maps/web crawl |
 | `js/spacenet/auth.js` | Google via Supabase (after first paint) |
 | `js/spacenet/ai.js` | Freeform Grok edge |
 | `js/spacenet/ui.js` | Coach + **one-finger CLI drag** + expand |
 | `js/spacenet/config.js` | Public Supabase URL/anon |
 
-**Legacy monolith** (`js/phase-*.js`, `astranov-deferred.js`, old `astranov-continuity.js` features): keep in repo for reference / selective port. **Do not re-point boot at 1MB phase packs** unless owner explicitly orders a full rollback.
-
-**First-party budget:** keep boot path small (tens of KB). Heavy CDN (Three.js, Leaflet, Supabase) is OK if loaded sensibly.
-
----
-
-## 4. Globe — physics & zoom (never “forget”)
-
-### 4.1 Feel
-
-- **Natural turn:** one-finger / mouse drag rotates Earth (not jumpy, not inverted).  
-- **Inertia:** on release, rotation **continues and decays** (trackball-style). No dead stop.  
-- **Real globe:** Earth albedo texture + clouds + atmosphere — not a solid blue low-poly ball as the end state.  
-- **Perf without dummy:** throttle idle FPS; full rate while dragging; pause heavy work under city map.
-
-### 4.2 Zoom tiers (invariant)
-
-| Tier | Meaning | User must always reach |
-|------|---------|------------------------|
-| SOLAR | Far system view | `solar` |
-| GLOBAL | Whole Earth | `global` / `earth` / 🌍 / Earth button |
-| NATIONAL | Country / region | `national` · locate often lands here |
-| CITY / STREET | Street map | `city` · scroll past city z · map button |
-
-**Always able to zoom back to Earth.** Leaving city map must restore global/national globe, not a black void.
-
-Double-click / scroll past city threshold may open street map; closing map returns to globe at GLOBAL (or last non-city tier).
-
-### 4.3 Depict every action
-
-Jobs, dates, deliveries, crawls, locate → **globe pulse** (and map markers when city open). No silent success.
+- **Single Source of Truth (runtime invariants):** `astranov-continuity.js` (`window.AstranovContinuity`) owns features, antiPatterns, doNotRemove, and verify checks when present. Active product path is **`js/spacenet/*`**. Consult both before coding.
+- **Legacy monolith** (`js/phase-*.js`, heavy deferred packs): keep in repo for reference / selective port. **Do not re-point boot at 1MB phase packs** unless owner explicitly orders a full rollback.
+- Deploy path only: `node scripts/guard-base.mjs` then owner-push (GitHub MCP / Git Data API OK).  
+  Live domain: https://astranov.eu  
+  Repo: notisastranov/astranov.eu  
+  No API keys in front-end.
+- Bump `meta astranov-build` and every `?v=` together.
+- Daily batched commits preferred. Continuity, PRODUCT-RULES, and this guide are living documents — update them when invariants change.
 
 ---
 
-## 5. CLI — interaction contract (never “forget”)
+## 6. Anti-Patterns (do not re-introduce)
 
-### 5.1 One-finger drag (position)
-
-- CLI panel **must be draggable with one finger** (and mouse).  
-- Drag handle: top grip `#cli-drag` (not the text input).  
-- Persist position: `localStorage['sn:cli-pos-v1']`.  
-- Code: `js/spacenet/ui.js` → `bindCliDrag()`.  
-- Multi-touch on globe vs one finger on CLI must not fight (CLI handle uses capture; log uses `pan-y`).
-
-### 5.2 One-finger expand / retract (height)
-
-- Vertical gesture on the CLI chrome (drag handle) **fully expands or fully retracts** the panel (collapsed ↔ expanded ↔ optional min chrome).  
-- Log area must remain **one-finger scrollable** (`touch-action: pan-y` on `#cli-log`).  
-- Expand control (▴) remains; gesture is the mobile-native path.
-
-### 5.3 CLI is the product surface
-
-Commands the product lives on (keep working; extend, don’t delete):
-
-```
-help | solo | login | logout
-solar | global | national | city | earth
-locate | fly <place> | crawl <q> | maps <q> | search <q> | google <q>
-job … | date … | deliver … | errand …
-task list | task claim | task done | task catalog
-```
+- Stripping the inertia / trackVel / velX·velY momentum.
+- Removing one-finger CLI drag, free dock, or position persistence.
+- Making the CLI non-scrollable or non-retractable.
+- Hard-coding a pure single-file only architecture (modularity is allowed and preferred for Lite).
+- Re-enabling heavy 1 MB phase/deferred packs by default.
+- Treating chat transcripts or old Grok specs as higher authority than live code + continuity + PRODUCT-RULES + this guide.
+- Adding persistent rectangles / nav bars as primary UI.
+- Fake data instead of crawler-fed real places when city maps are active.
+- Full rewrite that drops inertia, drag CLI, zoom tiers, crawl, or street DNA.
+- Claiming “done” without live probe of boot assets (content-type + size + build stamp).
+- Leaving production on dual-load CDN `document.write` bootstrap.
+- “Delete features to go faster” instead of measure + lazy-load + targeted cuts.
 
 ---
 
-## 6. Crawlers & city maps (the juice)
+## 7. How future Grok / CLI builds must start
 
-### 6.1 What “crawl” means
-
-When user says `crawl`, `maps`, `search`, `google`, `find`:
-
-1. Search **local tasks** (DNA).  
-2. **Geocode** place names (OSM Nominatim or better).  
-3. **Nearby POIs** for city population (Overpass or Google Places if key exists).  
-4. **Web/knowledge** (DDG / Wikipedia / edge AI).  
-5. **Paint** on globe + open city map with markers when relevant.
-
-Without a Google Maps billing key, use OSM stack; when key exists, plug into same `SNSearch.crawl` interface — **do not invent a second crawl API**.
-
-### 6.2 City map rules
-
-- Lazy-load Leaflet (or successor).  
-- Dark basemap OK (Carto/Esri).  
-- Populate from: open tasks, crawl results, user pin.  
-- Closing map = back to Earth globe.
-
-### 6.3 Street DNA rules
-
-One pipeline for all kinds: **open → claimed → in progress → done**.  
-Kinds: `job` | `dating` | `delivery` | `errand` | `help` | `service`.  
-Demo seed OK for empty first visit; real crawl must replace demos over time.
-
----
-
-## 7. Performance — how to be fast without amnesia
-
-| Do | Don’t |
-|----|--------|
-| Lazy-load map, auth SDK, heavy AI | “Delete features to go faster” |
-| Fetch-before-eval same-origin JS; reject HTML SPA `/login` | Assume every `.js` URL is JS on Vercel |
-| Unregister stale service workers on boot | Ship dual `document.write` / jsDelivr shell |
-| Throttle idle WebGL | Re-enable full deferred 600KB on every load |
-| Port one juice feature at a time into `js/spacenet/` | Reboot entire product every session |
-
-**Owner-confirmed lag is P0.** Fix with measurement and targeted cuts, not blank rewrites.
-
-Historical lag write-ups (context only): `ENGINEERING-ESCALATION-2026-07-05.md`, `ENGINEERING-ESCALATION-2026-07-20.md`.
-
----
-
-## 8. Anti-patterns (banned)
-
-1. **Full rewrite** that drops inertia, drag CLI, zoom tiers, crawl, or street DNA.  
-2. Claiming “done” without live probe of boot assets (content-type + size).  
-3. Leaving production on dual-load CDN `document.write` bootstrap.  
-4. Windows `gh auth login` loops when GitHub MCP / token push works.  
-5. Fake planets, fake “SETI” public copy, truth violations (see living truth if present).  
-6. Treating chat transcripts as the only memory — **update this guide** when owner adds rules.  
-7. Pointing agents only at obsolete `astranov-continuity.js` when live app is `js/spacenet/*`.
-
----
-
-## 9. Deploy (owner machine / agent)
-
-```text
-Live:  https://astranov.eu
-Repo:  notisastranov/astranov.eu
-Path:  js/spacenet/* + index.html
-```
-
-- Bump `meta astranov-build` and every `?v=` together.  
-- Prefer single commit with shell + all changed `js/spacenet/*`.  
-- After deploy: hard-refresh check — build stamp, globe drag+inertia, CLI one-finger drag, `national`/`city`/`earth`, `crawl …`, `job`/`date`/`deliver`.  
-- Owner granted push autonomy for this product.
-
----
-
-## 10. Session start checklist (every agent)
-
-Before writing code:
-
-- [ ] Read **this file** (`ASTRANOV_SPACENET_GUIDE.md`)  
-- [ ] Probe live `astranov-build` and whether `js/spacenet/` is active  
-- [ ] Confirm juice priority (crawl / city / job / date / delivery)  
-- [ ] Confirm **not** starting a blank rewrite unless owner says “throw away live shell”
+1. Read `support/PRODUCT-RULES.md` + this guidelines file + live `js/spacenet/*` (+ continuity if present).
+2. Probe live `astranov-build` and confirm modular shell is active.
+3. Confirm **inertia** + **one-finger CLI** (drag + expand/retract) + **zoom tiers** are present.
+4. Only then work on crawlers, CityMap population, job/date/delivery flows.
+5. After any change that touches physics or CLI, run continuity verify and guard-base when available; always live-probe.
 
 Before claiming done:
 
-- [ ] Globe: natural drag + **inertia**  
-- [ ] CLI: **one-finger drag** + scroll log + expand/retract  
-- [ ] Zoom: solar / global / national / city / back to earth  
-- [ ] Crawl or search paints map/globe  
-- [ ] Job / date / delivery still work  
+- [ ] Globe: natural drag + **inertia**
+- [ ] CLI: **one-finger drag** + scroll log + expand/retract
+- [ ] Zoom: solar / global / national / city / back to earth
+- [ ] Crawl or search paints map/globe
+- [ ] Job / date / delivery still work
 - [ ] Name still **Astranov SpaceNet**
 
 ---
 
-## 11. Related files
+## 8. Related files
 
 | File | Role |
 |------|------|
-| **`ASTRANOV_SPACENET_GUIDE.md`** | **This doc — system law** |
-| `support/PRODUCT-RULES.md` | Short never-forget bullets |
-| `ASTRANOV_SPACENET_MISSION.md` | Vision only |
-| `CLAUDE.md` | Agent entry → points here |
-| `support/SPACENET-LITE.md` | Historical lite rewrite notes (not a license to delete juice) |
+| **Live `js/spacenet/*` + continuity** | Runtime truth |
+| **`support/PRODUCT-RULES.md`** | Short never-forget bullets |
+| **`ASTRANOV_SPACENET_MISSION.md`** | Vision |
+| **`ASTRANOV_SPACENET_GUIDE.md`** | This doc — solidified invariants |
+| `CLAUDE.md` / `AGENTS.md` | Agent entry → points here |
+| `support/SPACENET-LITE.md` | Historical lite notes (not a license to delete juice) |
 | `support/OUTREACH-LOG-*.md` | Partner outreach (SpaceX/xAI) |
 
 ---
 
-## 12. One sentence for the next agent
+## 9. One sentence for the next agent
 
 **Extend Astranov SpaceNet’s live `js/spacenet` shell: keep natural globe (inertia + tiers), one-finger draggable/expandable CLI, and put all effort into crawlers, city map population, and job/date/delivery DNA — never rebuild from zero and erase memory again.**
 
 ---
 
-*Solidified 2026-07-22 from live SpaceNet lite + owner directives + lag escalations + multi-session amnesia pattern.*
+**This document exists so we finally stop re-learning the same lessons and can build the network that populates the maps and runs the real city life.**
+
+— Team (Grok + ΖΕΥΣ + ΠΩΣΕΙΔΩΝ + ΑΠΟΛΛΩΝ)  
+Solidified for Notis Astranov / Astranov SpaceNet  
+*2026-07-22*
