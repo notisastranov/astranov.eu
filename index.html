@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="description" content="Astranov Global Internet OS: Earth globe, city maps, shops, delivery, discovery." />
 <title>Astranov — Global Internet OS</title>
-<meta name="astranov-build" content="20260723300000" />
+<meta name="astranov-build" content="20260723310000" />
 <meta name="astranov-mode" content="product-spartanized" />
 <meta name="robots" content="index,follow" />
 <meta name="theme-color" content="#0a1020" />
@@ -290,7 +290,11 @@ body.city-map-active #city-map,
 #aci-cli-in::placeholder{color:var(--grok-text-dim)!important;opacity:.9!important;font-family:var(--grok-mono)!important}
 #aci-cli-in.voice-live{color:var(--grok-accent-think)!important}
 
-#super-add-fab[hidden],#super-add-fab[aria-hidden="true"]{display:none!important}
+
+/* SPECS: no permanent + — only after failed add (body.cli-offer-plus) */
+#super-add-fab:not(.offer-plus){display:none!important;visibility:hidden!important;width:0!important;height:0!important;pointer-events:none!important;overflow:hidden!important;margin:0!important;padding:0!important;border:0!important}
+body.cli-offer-plus #super-add-fab.offer-plus,#super-add-fab.offer-plus{display:inline-flex!important;visibility:visible!important;width:30px!important;height:30px!important;pointer-events:auto!important}
+#super-add-fab[hidden]:not(.offer-plus),#super-add-fab[aria-hidden="true"]:not(.offer-plus){display:none!important}
 #aci-hud{padding-bottom:0!important;margin-bottom:0!important}
 
 /* SPECS: no sticky red error bars — errors live in CLI scroll only */
@@ -300,7 +304,7 @@ body.city-map-active #city-map,
 </style>
 <script>(function(){
   try{if(matchMedia('(pointer:coarse)').matches||navigator.maxTouchPoints>0){window._globePerfLite=true;window._spartan=true;}}catch(e){}
-  var BUILD='20260723300000';
+  var BUILD='20260723310000';
   window._bootAt=Date.now();window._spartan=true;window.__ASTRANOV_HARD_BOOT__=1;
   /* SPECS: boot order (js-first SPECS modules): phases -> field-hud -> mpp-tile -> OS -> deferred (SPECS.md sec 3) */
   window.__ASTRANOV_MANIFEST__={mode:'js-phase-bundles',critical:['/js/phase-critical.js'],app:['/js/phase-app.js'],features:['/js/phase-features.js'],specs:['/astranov-field-hud.js','/astranov-mpp-tile.js','/js/astranov-os-boot.js'],deferred:['/astranov-deferred.js'],fallback:{critical:['/js/phase-critical.js'],app:['/js/phase-app.js'],features:['/js/phase-features.js'],deferred:['/astranov-deferred.js']}};
@@ -318,12 +322,12 @@ body.city-map-active #city-map,
   .then(function(){if(typeof __astranovBootApp==='function')__astranovBootApp();return load('/js/phase-features.js');})
   .then(function(){if(typeof __astranovBootFeatures==='function')__astranovBootFeatures();return loadFirst(['/js/astranov-field-hud.js','/astranov-field-hud.js']).catch(function(e){console.warn('[field-hud]',e);});})
   .then(function(){return loadFirst(['/js/astranov-mpp-tile.js','/astranov-mpp-tile.js']).catch(function(e){console.warn('[mpp-tile]',e);});})
-  .then(function(){return loadSoft("/js/62-multi-tile.js").then(function(){try{MultiTile&&MultiTile.init&&MultiTile.init()}catch(e){}return loadSoft("/js/17-architect-bridge.js")}).then(function(){return loadSoft("/js/85-delivery-dna.js").then(function(){return loadSoft("/js/90-grok-cli-parity.js").then(function(){return loadSoft("/js/91-cli-gestures.js");});});}).then(function(){try{if(window.ArchitectBridge&&ArchitectBridge.init)ArchitectBridge.init();}catch(e){}try{if(window.MenuProfilePostTile)MenuProfilePostTile.init();}catch(e){}try{if(window.FieldHud&&FieldHud.boot)FieldHud.boot();}catch(e){}return loadSoft('/js/astranov-os-boot.js').then(function(){return loadSoft('/js/08-astranov-os.js').then(function(){return loadSoft('/js/08-astranov-browser.js');});});})
+  .then(function(){return loadSoft("/js/62-multi-tile.js").then(function(){try{MultiTile&&MultiTile.init&&MultiTile.init()}catch(e){}return loadSoft("/js/17-architect-bridge.js")}).then(function(){return loadSoft("/js/85-delivery-dna.js").then(function(){return loadSoft("/js/90-grok-cli-parity.js").then(function(){return loadSoft("/js/91-cli-gestures.js").then(function(){return loadSoft("/js/92-add-plus-offer.js");});});});}).then(function(){try{if(window.ArchitectBridge&&ArchitectBridge.init)ArchitectBridge.init();}catch(e){}try{if(window.MenuProfilePostTile)MenuProfilePostTile.init();}catch(e){}try{if(window.FieldHud&&FieldHud.boot)FieldHud.boot();}catch(e){}return loadSoft('/js/astranov-os-boot.js').then(function(){return loadSoft('/js/08-astranov-os.js').then(function(){return loadSoft('/js/08-astranov-browser.js');});});})
   .then(function(){try{if(window.AstranovOS)AstranovOS.init();}catch(e){}try{if(window.AstranovBrowser)AstranovBrowser.init();}catch(e){}var delay=window._globePerfLite?5000:2200;setTimeout(function(){if(window.LazyModules&&LazyModules.schedule)LazyModules.schedule();else{var d=document.createElement('script');d.src='/astranov-deferred.js?v='+BUILD;d.async=true;document.head.appendChild(d);}},delay);})
   .catch(function(e){fail('Boot failed');console.error(e);});
 })();</script>
-<script defer src="/astranov-continuity.js?v=20260723300000"></script>
-<script defer src="/astranov-perf-lazy.js?v=20260723300000"></script>
+<script defer src="/astranov-continuity.js?v=20260723310000"></script>
+<script defer src="/astranov-perf-lazy.js?v=20260723310000"></script>
 </head>
 <body>
 <div id="boot"><div><b>ASTRANOV</b><p>Earth?/p></div></div>
