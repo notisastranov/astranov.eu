@@ -1,33 +1,41 @@
 
 // SPECS: never sticky red bars — all errors/activity go to CLI scroll log
 (function astranovCliErrorSink() {
+  /* SPECS: USE THE CLI — single activity stream */
   function cliLog(msg, kind) {
     kind = kind || 'err';
-    var text = String(msg || 'unknown').slice(0, 400);
+    var text = String(msg || 'unknown').slice(0, 500);
+    try { document.getElementById('astranov-hard-error')?.remove?.(); } catch (_) {}
     try {
-      if (window.AciCli && typeof AciCli.print === 'function') {
-        AciCli.print(text, kind);
-        return;
+      if (window.GlobeDeck) {
+        if (GlobeDeck.ensureCliVisible) GlobeDeck.ensureCliVisible(kind);
+        else {
+          var d = document.getElementById('globe-deck');
+          if (d) { d.classList.remove('collapsed'); d.classList.add('expanded', 'size-third'); }
+          var body = document.getElementById('globe-deck-body');
+          if (body) { body.style.display = 'flex'; body.style.minHeight = '100px'; body.style.maxHeight = '42vh'; }
+        }
+        if (GlobeDeck.expand) GlobeDeck.expand(kind === 'err' ? 'Activity' : 'CLI');
+        if (GlobeDeck.log) { GlobeDeck.log(text, kind); return; }
       }
     } catch (_) {}
     try {
-      if (window.GlobeDeck && typeof GlobeDeck.log === 'function') {
-        GlobeDeck.log(text, kind);
-        // expand so user sees the scroll, not a fixed red bar
-        try { GlobeDeck.expand && GlobeDeck.expand(kind === 'err' ? 'Log' : 'Activity'); } catch (_) {}
-        return;
-      }
+      if (window.AciCli && AciCli.print) { AciCli.print(text, kind); return; }
     } catch (_) {}
     try {
       var out = document.getElementById('globe-deck-log');
+      var deck = document.getElementById('globe-deck');
+      if (deck) { deck.classList.remove('collapsed'); deck.classList.add('expanded', 'size-third'); }
+      var body = document.getElementById('globe-deck-body');
+      if (body) { body.style.display = 'flex'; body.style.minHeight = '100px'; body.style.maxHeight = '42vh'; body.style.overflow = 'hidden'; }
       if (out) {
+        out.style.display = 'block'; out.style.overflowY = 'auto'; out.style.minHeight = '72px';
         var row = document.createElement('div');
         row.className = 'deck-line deck-' + (kind === 'err' ? 'err' : kind === 'ok' ? 'ok' : 'dim');
         row.textContent = text;
         out.appendChild(row);
+        while (out.children.length > 80) out.removeChild(out.firstChild);
         out.scrollTop = out.scrollHeight;
-        var deck = document.getElementById('globe-deck');
-        if (deck) { deck.classList.add('expanded'); deck.classList.remove('collapsed'); }
       }
     } catch (_) {}
     try { console[kind === 'err' ? 'error' : 'log']('[CLI]', text); } catch (_) {}
@@ -35,13 +43,14 @@
   window.AstranovCliLog = function (msg, kind) { cliLog(msg, kind || 'dim'); };
   window.ActivityLog = {
     push: function (msg, kind) { cliLog(msg, kind || 'dim'); },
-    error: function (msg) { cliLog(msg, 'err'); },
+    error: function (msg) { cliLog('⚠ ' + msg, 'err'); },
     ok: function (msg) { cliLog(msg, 'ok'); },
     task: function (msg) { cliLog('task · ' + msg, 'ok'); },
+    activity: function (msg) { cliLog(msg, 'dim'); },
   };
   function killStickyBars() {
     try {
-      var el = document.getElementById('astranov-hard-error-disabled');
+      var el = document.getElementById('astranov-hard-error');
       if (el) el.remove();
       document.querySelectorAll('[id*="hard-error"],.astranov-fatal-error,.boot-fatal').forEach(function (n) {
         try { n.remove(); } catch (_) {}
@@ -51,20 +60,12 @@
   window.addEventListener('error', function (e) {
     try {
       var m = String((e && (e.message || (e.error && e.error.message))) || 'script error');
-      if (/sessionHeld|Script error|ResizeObserver/i.test(m)) {
-        console.warn('[soft]', m);
-        return;
-      }
-      if (window._astranovCriticalReady && /is not defined/i.test(m)) {
-        console.warn('[soft post-boot]', m);
-        return;
-      }
+      if (/sessionHeld|Script error|ResizeObserver/i.test(m)) { console.warn('[soft]', m); return; }
+      if (window._astranovCriticalReady && /is not defined/i.test(m)) { console.warn('[soft post-boot]', m); return; }
       killStickyBars();
       var src = e && e.filename ? (' · ' + String(e.filename).split('/').pop()) : '';
       var line = e && e.lineno ? (':' + e.lineno) : '';
       cliLog('⚠ ' + m + src + line, 'err');
-      // prevent default browser overlay spam if any
-      e && e.preventDefault && e.preventDefault();
     } catch (_) {}
   }, true);
   window.addEventListener('unhandledrejection', function (e) {
@@ -74,13 +75,15 @@
       if (/sessionHeld|Script error|ResizeObserver/i.test(m)) return;
       killStickyBars();
       cliLog('⚠ ' + m.slice(0, 400), 'err');
-      e && e.preventDefault && e.preventDefault();
     } catch (_) {}
   });
-  // Strip any leftover sticky bar after boot
   setTimeout(killStickyBars, 0);
   setTimeout(killStickyBars, 500);
   setTimeout(killStickyBars, 2000);
+  // Boot line so CLI is known alive
+  setTimeout(function () {
+    try { cliLog('CLI ready · activity & errors log here', 'dim'); } catch (_) {}
+  }, 1200);
 })();
 
 /* === 00-globe.js === */
