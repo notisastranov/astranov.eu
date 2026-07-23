@@ -3712,8 +3712,8 @@ var AppShortcuts = {
     let row = document.getElementById('app-shortcut-row');
     if (!row) {
       row = document.createElement('div');
-      row.id = 'app-shortcut-row';
-      row.setAttribute('role', 'toolbar');
+      row.id = 'app-shortcut-row'; row.style.display = 'none'; row.hidden = true;
+      /* SPECS: no separate app-shortcut bar */ row.style.cssText='display:none!important'; row.setAttribute('role', 'toolbar');
       row.setAttribute('aria-label', 'Open applications');
       login.insertAdjacentElement('afterend', row);
     }
