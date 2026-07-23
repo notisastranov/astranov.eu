@@ -1,8 +1,8 @@
-﻿// === FIELD HUD 鈥?top-right balances/mining 路 left radar 路 center speed ===
-/* SPECS: minerRig 路 fieldHudRadar 路 aiBrain 鈥?SPECS.md 搂3.6鈥?.7, 搂3.9
-   Tap #field-balance-hud 鈫?miner panel. NEVER re-add #aci-miner / miner-cli-strip above CLI.
-   Radar interval draw; earth speed ~1671 km/h global. bindFieldMiner 路 ensureBrain. */
-// SpaceNet miner: SETI-style decentralised P2P 路 CPU 路 RAM 路 storage 路 bandwidth
+// === FIELD HUD ?top-right balances/mining  left radar  center speed ===
+/* SPECS: minerRig  fieldHudRadar  aiBrain ?SPECS.md 3.6?.7, 3.9
+   Tap #field-balance-hud ?miner panel. NEVER re-add #aci-miner / miner-cli-strip above CLI.
+   Radar interval draw; earth speed ~1671 km/h global. bindFieldMiner  ensureBrain. */
+// SpaceNet miner: SETI-style decentralised P2P  CPU  RAM  storage  bandwidth
 const SpaceNetMiner = {
   TERMS_KEY: 'astranov:spacenet-miner-v2',
   SESSION_KEY: 'astranov:spacenet-miner-session',
@@ -113,7 +113,7 @@ const SpaceNetMiner = {
     }
   },
 
-  /** Universal max total (own app + donate) 鈥?ResourceMonitor master slider */
+  /** Universal max total (own app + donate) ?ResourceMonitor master slider */
   maxTotalCap() {
     return window._resourceMaxTotal
       ?? window.ResourceMonitor?.maxTotal?.()
@@ -122,7 +122,7 @@ const SpaceNetMiner = {
       ?? 0.8;
   },
 
-  /** Spare under the cap for idle donate 鈥?never push device/fleet over max total */
+  /** Spare under the cap for idle donate ?never push device/fleet over max total */
   idleBudget() {
     if (typeof window.ResourceMonitor?.idleDonateBudget === 'function') {
       return ResourceMonitor.idleDonateBudget();
@@ -299,24 +299,24 @@ const SpaceNetMiner = {
     const earnedEl = document.getElementById('fbh-mine-earned');
     const statusEl = document.getElementById('fbh-mine-status');
     if (peers) peers.textContent = this._peerCount + ' peer' + (this._peerCount === 1 ? '' : 's');
-    if (cpu) cpu.textContent = this._rates.cpu ? this._rates.cpu + '%' : '鈥?;
-    if (ram) ram.textContent = this._rates.ram ? this._rates.ram + 'MB' : '鈥?;
-    if (sto) sto.textContent = this._rates.storage ? this._rates.storage + 'MB' : '鈥?;
-    if (bw) bw.textContent = this._rates.bandwidth ? this._rates.bandwidth + 'kb/s' : '鈥?;
+    if (cpu) cpu.textContent = this._rates.cpu ? this._rates.cpu + '%' : '?;
+    if (ram) ram.textContent = this._rates.ram ? this._rates.ram + 'MB' : '?;
+    if (sto) sto.textContent = this._rates.storage ? this._rates.storage + 'MB' : '?;
+    if (bw) bw.textContent = this._rates.bandwidth ? this._rates.bandwidth + 'kb/s' : '?;
     if (rateEl) rateEl.textContent = this._mineRate.toFixed(3) + ' Coins/h';
     if (earnedEl) earnedEl.textContent = '+' + this._sessionEarned.toFixed(3);
     if (statusEl) {
       if (!this._termsOk) {
-        statusEl.textContent = 'SpaceNet 路 terms required';
+        statusEl.textContent = 'SpaceNet  terms required';
         statusEl.className = 'fbh-status';
       } else if (FieldHud.isSleepMode()) {
-        statusEl.textContent = 'P2P sleep rig 路 mesh idle';
+        statusEl.textContent = 'P2P sleep rig  mesh idle';
         statusEl.className = 'fbh-status sleep';
       } else if (this._mineRate > 0.005) {
-        statusEl.textContent = 'SETI mesh 路 serving SpaceNet';
+        statusEl.textContent = 'SETI mesh  serving SpaceNet';
         statusEl.className = 'fbh-status active';
       } else {
-        statusEl.textContent = 'mesh standby 路 users serve users';
+        statusEl.textContent = 'mesh standby  users serve users';
         statusEl.className = 'fbh-status';
       }
     }
@@ -368,18 +368,18 @@ const FieldHud = {
     bal.setAttribute('aria-live', 'polite');
     bal.setAttribute('role', 'button');
     bal.setAttribute('tabindex', '0');
-    bal.setAttribute('title', 'SpaceNet field 路 tap for miner rig, balances & mesh');
-    bal.setAttribute('aria-label', 'SpaceNet field 路 open miner rig and earnings');
-    bal.innerHTML = '<div class="fbh-title">鈼?SpaceNet</div>'
-      + '<div class="fbh-row fbh-bal"><span id="fbh-avc">鈥?Coins</span></div>'
-      + '<div class="fbh-row fbh-fiat"><span id="fbh-eur">鈧€?/span><span id="fbh-usd">$鈥?/span></div>'
+    bal.setAttribute('title', 'SpaceNet field  tap for miner rig, balances & mesh');
+    bal.setAttribute('aria-label', 'SpaceNet field  open miner rig and earnings');
+    bal.innerHTML = '<div class="fbh-title">?SpaceNet</div>'
+      + '<div class="fbh-row fbh-bal"><span id="fbh-avc">?Coins</span></div>'
+      + '<div class="fbh-row fbh-fiat"><span id="fbh-eur">€?/span><span id="fbh-usd">$?/span></div>'
       + '<div class="fbh-mesh"><span id="fbh-peers">0 peers</span><span class="fbh-p2p">P2P</span></div>'
       + '<div id="fbh-resources" class="fbh-resources">'
-      + '<span>CPU <b id="fbh-cpu">鈥?/b></span>'
-      + '<span>RAM <b id="fbh-ram">鈥?/b></span>'
-      + '<span>SSD <b id="fbh-storage">鈥?/b></span>'
-      + '<span>NET <b id="fbh-bw">鈥?/b></span></div>'
-      + '<div class="fbh-mine"><span class="fbh-mine-icon">鉀?/span>'
+      + '<span>CPU <b id="fbh-cpu">?/b></span>'
+      + '<span>RAM <b id="fbh-ram">?/b></span>'
+      + '<span>SSD <b id="fbh-storage">?/b></span>'
+      + '<span>NET <b id="fbh-bw">?/b></span></div>'
+      + '<div class="fbh-mine"><span class="fbh-mine-icon">?/span>'
       + '<span id="fbh-mine-rate">0.000/h</span>'
       + '<span id="fbh-mine-earned">+0.00</span></div>'
       + '<div id="fbh-mine-status" class="fbh-status">mesh standby</div>';
@@ -407,16 +407,16 @@ const FieldHud = {
     terms.hidden = true;
     terms.innerHTML = '<div class="mtm-panel">'
       + '<div class="mtm-title">SpaceNet SETI-style mesh participation</div>'
-      + '<p>By using Astranov you join a <b>decentralised peer-to-peer mesh</b> 鈥?like SETI@home, '
+      + '<p>By using Astranov you join a <b>decentralised peer-to-peer mesh</b> ?like SETI@home, '
       + 'but for SpaceNet. Your device shares spare resources to power routing, storage, AI, and comms '
       + 'for every user. <b>Users serve users.</b></p>'
-      + '<ul><li><b>CPU</b> 鈥?route cache, brain shards, mesh relay compute</li>'
-      + '<li><b>RAM</b> 鈥?live presence tables and peer coordination</li>'
-      + '<li><b>Storage</b> 鈥?vendor indexes and offline route shards</li>'
-      + '<li><b>Bandwidth</b> 鈥?P2P sync between peers when idle</li>'
-      + '<li>Resources used <em>only</em> when your device is idle or you sleep 鈥?never during active use</li>'
-      + '<li>Sleep mode: earth view + space ambient 路 intelligent miner judges fair Coins share</li></ul>'
-      + '<button id="miner-terms-accept" type="button">I agree 路 join SpaceNet mesh</button>'
+      + '<ul><li><b>CPU</b> ?route cache, brain shards, mesh relay compute</li>'
+      + '<li><b>RAM</b> ?live presence tables and peer coordination</li>'
+      + '<li><b>Storage</b> ?vendor indexes and offline route shards</li>'
+      + '<li><b>Bandwidth</b> ?P2P sync between peers when idle</li>'
+      + '<li>Resources used <em>only</em> when your device is idle or you sleep ?never during active use</li>'
+      + '<li>Sleep mode: earth view + space ambient  intelligent miner judges fair Coins share</li></ul>'
+      + '<button id="miner-terms-accept" type="button">I agree  join SpaceNet mesh</button>'
       + '</div>';
     document.body.appendChild(terms);
     document.getElementById('miner-terms-accept')?.addEventListener('click', () => SpaceNetMiner.acceptTerms());
@@ -427,17 +427,17 @@ const FieldHud = {
       panel.id = 'miner-rig-panel';
       panel.hidden = true;
       panel.innerHTML = '<div class="mrp-card">'
-        + '<div class="mrp-head"><b>鉀?SpaceNet miner rig</b><button type="button" id="mrp-close">鉁?/button></div>'
+        + '<div class="mrp-head"><b>?SpaceNet miner rig</b><button type="button" id="mrp-close">?/button></div>'
         + '<div class="mrp-stats">'
         + '<div>Rate <b id="mrp-rate">0.000 Coins/h</b></div>'
         + '<div>Session <b id="mrp-earned">+0.00</b></div>'
         + '<div>Peers <b id="mrp-peers">0</b></div>'
-        + '<div>Balance <b id="mrp-avc">鈥?Coins</b></div></div>'
+        + '<div>Balance <b id="mrp-avc">?Coins</b></div></div>'
         + '<div class="mrp-max" style="margin:0 0 12px">'
         + '<label style="display:flex;justify-content:space-between;font-size:11px;color:#9ab;margin-bottom:4px">'
         + 'Max total idle (own + donate) <b id="mrp-max-val" style="color:#ffdd66">80%</b></label>'
         + '<input type="range" id="mrp-max-total" min="15" max="100" value="80" '
-        + 'style="width:100%" title="Universal max on this device and fleet 鈥?includes your own use" />'
+        + 'style="width:100%" title="Universal max on this device and fleet ?includes your own use" />'
         + '<div style="font-size:10px;color:#678;margin-top:4px">Never loads device/fleet above this % when idling</div></div>'
         + '<div class="mrp-toggles">'
         + '<button type="button" class="mrp-toggle on" data-mrp="cpu" aria-pressed="true">CPU</button>'
@@ -446,7 +446,7 @@ const FieldHud = {
         + '<button type="button" class="mrp-toggle on" data-mrp="bandwidth" aria-pressed="true">NET</button>'
         + '<button type="button" class="mrp-toggle on" data-mrp="sleep" aria-pressed="true">Sleep</button>'
         + '</div>'
-        + '<button type="button" id="mrp-start">I agree 路 start earning Coins</button>'
+        + '<button type="button" id="mrp-start">I agree  start earning Coins</button>'
         + '</div>';
       document.body.appendChild(panel);
     }
@@ -564,13 +564,13 @@ const FieldHud = {
         if (/^(miner|mesh|spacenet miner|rig)$/.test(low)) {
           const m = SpaceNetMiner;
           const lines = [
-            '鈼?SpaceNet SETI mesh 路 ' + m._peerCount + ' peers',
-            '  CPU ' + (m._rates.cpu || 0) + '% 路 RAM ' + (m._rates.ram || 0) + 'MB 路 SSD ' + (m._rates.storage || 0) + 'MB 路 NET ' + (m._rates.bandwidth || 0) + 'kb/s',
-            '  Rate ' + m._mineRate.toFixed(3) + ' Coins/h 路 session +' + m._sessionEarned.toFixed(3),
-            '  Contrib cpu ' + m._contrib.cpu.toFixed(2) + ' 路 ram ' + m._contrib.ram.toFixed(1) + ' 路 storage ' + m._contrib.storage.toFixed(1) + ' 路 bw ' + m._contrib.bandwidth.toFixed(1),
+            '?SpaceNet SETI mesh  ' + m._peerCount + ' peers',
+            '  CPU ' + (m._rates.cpu || 0) + '%  RAM ' + (m._rates.ram || 0) + 'MB  SSD ' + (m._rates.storage || 0) + 'MB  NET ' + (m._rates.bandwidth || 0) + 'kb/s',
+            '  Rate ' + m._mineRate.toFixed(3) + ' Coins/h  session +' + m._sessionEarned.toFixed(3),
+            '  Contrib cpu ' + m._contrib.cpu.toFixed(2) + '  ram ' + m._contrib.ram.toFixed(1) + '  storage ' + m._contrib.storage.toFixed(1) + '  bw ' + m._contrib.bandwidth.toFixed(1),
           ];
           window.AciCli?.print?.(lines.join('\n'), 'ok');
-          window.ACIControl?.reply?.('SpaceNet mesh 路 ' + m._peerCount + ' peers 路 ' + m._mineRate.toFixed(3) + ' Coins/h');
+          window.ACIControl?.reply?.('SpaceNet mesh  ' + m._peerCount + ' peers  ' + m._mineRate.toFixed(3) + ' Coins/h');
           return;
         }
         return _run(cmd);
@@ -623,9 +623,9 @@ const FieldHud = {
     const isGuest = guest || !window.Auth?.user;
     const Coins = Number(balance || 0);
     const rate = fx || window.AvcBalance?._fx || 1.08;
-    CoinsEl.textContent = isGuest ? '鈥?Coins' : (Coins >= 10000 ? (Coins / 1000).toFixed(1) + 'k Coins' : Coins.toFixed(2) + ' Coins');
-    if (eurEl) eurEl.textContent = isGuest ? '鈧€? : '鈧? + Coins.toFixed(2);
-    if (usdEl) usdEl.textContent = isGuest ? '$鈥? : '$' + (Coins * rate).toFixed(2);
+    CoinsEl.textContent = isGuest ? '?Coins' : (Coins >= 10000 ? (Coins / 1000).toFixed(1) + 'k Coins' : Coins.toFixed(2) + ' Coins');
+    if (eurEl) eurEl.textContent = isGuest ? '€? : '? + Coins.toFixed(2);
+    if (usdEl) usdEl.textContent = isGuest ? '$? : '$' + (Coins * rate).toFixed(2);
   },
 
   acceptTerms() { return SpaceNetMiner.acceptTerms(); },
@@ -633,7 +633,7 @@ const FieldHud = {
   loadSession() { SpaceNetMiner.loadSession(); this._sessionEarned = SpaceNetMiner._sessionEarned; },
   saveSession() { SpaceNetMiner.saveSession(); },
 
-  /** Universal max total (own + idle donate) 鈥?fused top-right slider */
+  /** Universal max total (own + idle donate) ?fused top-right slider */
   maxOccupy() {
     return window._resourceMaxTotal
       ?? window.ResourceMonitor?.maxTotal?.()
@@ -721,7 +721,7 @@ const FieldHud = {
   },
 
   tickEarthSpin() {
-    // Real spin lives in EarthRealism.applySpinNow / animate loop 鈥?not fake radar
+    // Real spin lives in EarthRealism.applySpinNow / animate loop ?not fake radar
     try { EarthRealism?.applySpinNow?.(); } catch (_) {}
   },
 
@@ -761,7 +761,7 @@ const FieldHud = {
     const lim = document.getElementById('fsh-limit');
     const mode = document.getElementById('fsh-mode');
     if (!hud || !val) return;
-    // TRUTH: only real GPS / derived ground speed 鈥?never 1671 km/h Earth spin fake
+    // TRUTH: only real GPS / derived ground speed ?never 1671 km/h Earth spin fake
     const kmh = this.gpsSpeedKmh();
     const driving = !!(window.DrivingView?.active) || kmh >= 15;
     val.textContent = String(kmh);
@@ -852,11 +852,11 @@ const FieldHud = {
   },
 
   bearing(lat1, lng1, lat2, lng2) {
-    const 蠁1 = lat1 * Math.PI / 180;
-    const 蠁2 = lat2 * Math.PI / 180;
-    const 螖位 = (lng2 - lng1) * Math.PI / 180;
-    const y = Math.sin(螖位) * Math.cos(蠁2);
-    const x = Math.cos(蠁1) * Math.sin(蠁2) - Math.sin(蠁1) * Math.cos(蠁2) * Math.cos(螖位);
+    const 1 = lat1 * Math.PI / 180;
+    const 2 = lat2 * Math.PI / 180;
+    const  = (lng2 - lng1) * Math.PI / 180;
+    const y = Math.sin() * Math.cos(2);
+    const x = Math.cos(1) * Math.sin(2) - Math.sin(1) * Math.cos(2) * Math.cos();
     return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
   },
 
@@ -962,7 +962,7 @@ const FieldHud = {
     if (this._fieldTimer) return;
     let last = performance.now();
     let tickN = 0;
-    // 8fps on desktop 路 ~5fps on phone (radar is decorative)
+    // 8fps on desktop  ~5fps on phone (radar is decorative)
     const period = window._globePerfLite ? 200 : 125;
     this._fieldTimer = setInterval(() => {
       if (document.hidden) return;
@@ -970,7 +970,7 @@ const FieldHud = {
       const dt = Math.min(64, now - last);
       last = now;
       tickN++;
-      // Speed always from GPS 鈥?even in city map
+      // Speed always from GPS ?even in city map
       if (tickN % 3 === 0) this.updateSpeed();
       // Radar sweep only on globe (not over city map)
       if (window.CityMap?.active) return;
@@ -1095,7 +1095,7 @@ const FieldHud = {
     set('mrp-earned', '+' + m._sessionEarned.toFixed(3));
     set('mrp-peers', String(m._peerCount || 0));
     const bal = window.AvcBalance?._last;
-    set('mrp-avc', bal != null ? bal.toFixed(2) + ' Coins' : '鈥?Coins');
+    set('mrp-avc', bal != null ? bal.toFixed(2) + ' Coins' : '?Coins');
     const cap = this.maxOccupy();
     set('mrp-max-val', Math.round(cap * 100) + '%');
     const maxIn = document.getElementById('mrp-max-total');
@@ -1108,7 +1108,7 @@ const FieldHud = {
     });
     const start = document.getElementById('mrp-start');
     if (start) {
-      start.textContent = m._termsOk ? 'Mining active 路 adjust & close' : 'I agree 路 start earning Coins';
+      start.textContent = m._termsOk ? 'Mining active  adjust & close' : 'I agree  start earning Coins';
     }
     this.syncMinerChip();
   },
@@ -1146,14 +1146,14 @@ const FieldHud = {
           this._saveMinerPrefs(prefs);
           tog.classList.toggle('on', prefs[k]);
           tog.setAttribute('aria-pressed', prefs[k] ? 'true' : 'false');
-          AciCli?.print?.('miner 路 ' + k + ' ' + (prefs[k] ? 'on' : 'off'), 'ok');
+          AciCli?.print?.('miner  ' + k + ' ' + (prefs[k] ? 'on' : 'off'), 'ok');
         });
       });
       document.getElementById('mrp-start')?.addEventListener('click', () => {
         if (!SpaceNetMiner._termsOk) SpaceNetMiner.acceptTerms();
         else this.closeMinerPanel();
         this.refreshMinerPanel();
-        ACIControl?.reply?.('SpaceNet miner rig 路 earning Coins on your devices');
+        ACIControl?.reply?.('SpaceNet miner rig  earning Coins on your devices');
       });
       const maxIn = document.getElementById('mrp-max-total');
       if (maxIn && !maxIn._mrpBound) {
@@ -1169,7 +1169,7 @@ const FieldHud = {
           const lab = document.getElementById('mrp-max-val');
           if (lab) lab.textContent = Math.round(n * 100) + '%';
           window.ResourceMonitor?.refresh?.(true);
-          AciCli?.print?.('max total ' + Math.round(n * 100) + '% 路 own + idle 路 device & fleet', 'ok');
+          AciCli?.print?.('max total ' + Math.round(n * 100) + '%  own + idle  device & fleet', 'ok');
         });
       }
     }
@@ -1179,8 +1179,8 @@ const FieldHud = {
     if (!hud.getAttribute('role')) {
       hud.setAttribute('role', 'button');
       hud.setAttribute('tabindex', '0');
-      hud.setAttribute('title', 'SpaceNet field 路 tap for miner rig, balances & mesh');
-      hud.setAttribute('aria-label', 'SpaceNet field 路 open miner rig and earnings');
+      hud.setAttribute('title', 'SpaceNet field  tap for miner rig, balances & mesh');
+      hud.setAttribute('aria-label', 'SpaceNet field  open miner rig and earnings');
     }
     const open = e => {
       e.preventDefault();
