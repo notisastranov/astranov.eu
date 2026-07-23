@@ -385,17 +385,7 @@ var MapDepict = {
       mode: 0x88aaff,
       stop: 0xff4466,
       drive: 0x44aaff,
-      batch: 0x6688ff,
-      // SpaceNet city DNA
-      delivery: 0x44ffaa,
-      dating: 0xff6699,
-      job: 0x66aaff,
-      gig: 0x66aaff,
-      errand: 0xffcc44,
-      service: 0xaa88ff,
-      search: 0xffffff,
-      claim: 0x88ffcc,
-      task: 0x44ffaa,
+      batch: 0x6688ff
     };
     const color = palette[type] || 0x00ddff;
     const labels = {
@@ -416,15 +406,6 @@ var MapDepict = {
       mode: 'Λειτουργία ACI',
       stop: 'Διακοπή',
       drive: 'Οδήγηση δρόμου',
-      delivery: 'Delivery',
-      dating: 'Dating',
-      job: 'Job / gig',
-      gig: 'Gig',
-      errand: 'Errand',
-      service: 'Service',
-      search: 'Search',
-      claim: 'Claim task',
-      task: 'City task',
       batch: 'Batch · δουλειά μαζί'
     };
 
@@ -2410,8 +2391,7 @@ const AciCli = {
     AciCoders?.autoStart?.();
     CliRibbon?.setActive?.('Grok');
     const input = document.getElementById('aci-cli-in');
-    if (input) input.placeholder = 'Grok · SpaceNet — ask anything · locate · fly · browse · order';
-    SpaceNetGrokCli?.init?.();
+    if (input) input.placeholder = 'Talk to Grok — type or tap 🎧 · Enter to send';
   },
 
   init() {
@@ -2506,23 +2486,8 @@ const AciCli = {
     this.history.push(line);
     this.histIdx = -1;
     this.print((document.getElementById('aci-cli-prompt')?.textContent || '›') + ' ' + line, 'cmd');
-    // Street-first SpaceNet: jobs · dates · delivery · search · anything on the globe
-    const low = line.toLowerCase();
-    const street = /^(job|gig|date|dating|deliver|delivery|errand|task|search|find|hire|need)\b/i.test(low)
-      || /\b(barman|nanny|housekeeper|coffee\s*date|pharmacy|claim)\b/i.test(low)
-      || (window.CityTasks?.wants?.(line) && !/^(dev|ui|brain|theme|youtube|watch)\b/i.test(low));
-    if (street && window.SpaceNetGrokCli?.handle) {
-      SpaceNetGrokCli.init?.();
-      const r = await SpaceNetGrokCli.handle(line, opts);
-      if (r?.ok !== false) return;
-    }
     const routed = await SuperCli?.exec?.(line, opts);
     if (routed?.handled) return;
-    // Freeform fallback → SpaceNet (never "unknown")
-    if (window.SpaceNetGrokCli?.handle) {
-      await SpaceNetGrokCli.handle(line, opts);
-      return;
-    }
     await this.handle(line);
   },
 
@@ -2566,13 +2531,10 @@ const AciCli = {
 
     if (!cmd) return;
     if (cmd === 'help' || cmd === '?') {
-      if (window.SpaceNetGrokCli?.printHelp) {
-        SpaceNetGrokCli.printHelp();
-        return;
-      }
-      this.print('SpaceNet: job barman 3h · date coffee 2h · deliver food · errand pharmacy', 'ok');
-      this.print('task list · task claim · search barman · locate · fly · order', 'ok');
-      this.print('Every action paints the globe — that is SpaceNet', 'dim');
+      this.print('locate · order · resources · channels · starship · starlink · spacex · crawl', 'dim');
+      this.print('task job barman 3h · task housekeeper 1w · task date coffee 2h · task errand · task claim', 'dim');
+      this.print('channels status · seed · publish · order · enable mesh', 'dim');
+      this.print('think · coders · theme · Architect: fix|bridge', 'dim');
       return;
     }
     if (cmd === 'resources' || cmd === 'resource' || cmd === 'donate' || cmd === 'monitor') {
@@ -2624,13 +2586,8 @@ const AciCli = {
     if (cmd === 'exit' || cmd === 'close') { GlobeDeck?.completeTask('cli'); return; }
     if (cmd === 'logout') { await Auth.signOut(); this.print('signed out', 'ok'); return; }
 
-    if (cmd === 'theme' || cmd === 'dark' || cmd === 'bright' || cmd === 'light' || cmd === 'auto' || cmd === 'spacex' || cmd === 'falcon') {
-      let mode = cmd === 'theme' ? (parts[1] || 'spacex').toLowerCase() : (cmd === 'light' ? 'bright' : cmd);
-      if (mode === 'spacex' || mode === 'falcon' || mode === 'starship') {
-        AstranovTheme?.setSpacex?.(true) || AstranovTheme?.set?.('spacex');
-        this.print('theme → spacex (SpaceX industrial)', 'ok');
-        return;
-      }
+    if (cmd === 'theme' || cmd === 'dark' || cmd === 'bright' || cmd === 'light' || cmd === 'auto') {
+      let mode = cmd === 'theme' ? (parts[1] || '').toLowerCase() : (cmd === 'light' ? 'bright' : cmd);
       if (mode === 'auto' || mode === 'system') mode = 'auto';
       AstranovTheme?.set?.(mode);
       this.print('theme → ' + (AstranovTheme?._auto ? 'auto' : AstranovTheme?.mode || 'dark'), 'ok');
@@ -3663,8 +3620,142 @@ var CityMap = {
     this._syncRoute();
   },
 
+  /**
+   * Task multi-waypoint geometry on the map:
+   * · polyline road route
+   * · polygon hull around waypoints (service corridor)
+   * · numbered waypoint markers
+   */
+  setTaskGeometry(spec) {
+    this.init();
+    if (!this.map) {
+      this._pendingTaskGeom = spec;
+      return;
+    }
+    this.clearTaskGeometry();
+    const route = spec?.route || spec?.coords || [];
+    const wps = Array.isArray(spec?.waypoints) ? spec.waypoints : [];
+    const poly = spec?.polygon || null;
+    const bright = (AstranovTheme?.effectiveMode?.() || AstranovTheme?.mode) === 'bright';
+    const lineColor = bright ? '#0066cc' : '#44ccff';
+    const polyColor = bright ? '#1a8' : '#2dd4a8';
+
+    if (route.length >= 2) {
+      this._routeCoords = route.map((c) => ({ lat: +c.lat, lng: +c.lng }));
+      this._taskRoute = L.polyline(
+        this._routeCoords.map((c) => [c.lat, c.lng]),
+        { color: lineColor, weight: 5, opacity: 0.9, lineJoin: 'round' }
+      ).addTo(this.map);
+      this._route = this._taskRoute;
+    }
+
+    const hull = poly && poly.length >= 3
+      ? poly
+      : (wps.length >= 3 ? this._convexHullLatLng(wps) : null);
+    if (hull && hull.length >= 3) {
+      this._taskPolygon = L.polygon(
+        hull.map((c) => [c.lat, c.lng]),
+        {
+          color: polyColor,
+          weight: 2,
+          opacity: 0.85,
+          fillColor: polyColor,
+          fillOpacity: 0.12,
+          dashArray: '6 4',
+        }
+      ).addTo(this.map);
+      this._taskPolygonRing = hull;
+    }
+
+    this._taskWpMarkers = [];
+    wps.forEach((wp, i) => {
+      if (wp?.lat == null || wp?.lng == null) return;
+      const n = i + 1;
+      const done = !!wp.done;
+      const cur = !!wp.current;
+      const icon = L.divIcon({
+        className: 'cm-wp-icon',
+        html: '<div class="cm-wp' + (cur ? ' cur' : '') + (done ? ' done' : '') + '">' + n + '</div>',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+      });
+      const m = L.marker([wp.lat, wp.lng], { icon, title: wp.label || ('Stop ' + n) }).addTo(this.map);
+      if (wp.label || wp.info) {
+        m.bindPopup(
+          '<b>' + n + '. ' + this._esc(wp.label || ('Stop ' + n)) + '</b>'
+          + (wp.coins ? '<br/>' + wp.coins + ' 🪙' : '')
+          + (wp.info ? '<br/><small>' + this._esc(String(wp.info).slice(0, 120)) + '</small>' : '')
+        );
+      }
+      this._taskWpMarkers.push(m);
+    });
+
+    // Fit bounds to route + waypoints
+    try {
+      const bounds = [];
+      (route || []).forEach((c) => bounds.push([c.lat, c.lng]));
+      wps.forEach((w) => { if (w.lat != null) bounds.push([w.lat, w.lng]); });
+      if (bounds.length >= 2 && this.active) {
+        this.map.fitBounds(bounds, { padding: [36, 36], maxZoom: 16 });
+      } else if (bounds.length === 1 && this.active) {
+        this.map.setView(bounds[0], Math.max(this.map.getZoom(), 14));
+      }
+    } catch (_) {}
+  },
+
+  clearTaskGeometry() {
+    if (!this.map) return;
+    if (this._taskRoute) {
+      try { this.map.removeLayer(this._taskRoute); } catch (_) {}
+      this._taskRoute = null;
+    }
+    if (this._route && this._route !== this._taskRoute) {
+      try { this.map.removeLayer(this._route); } catch (_) {}
+    }
+    this._route = null;
+    if (this._taskPolygon) {
+      try { this.map.removeLayer(this._taskPolygon); } catch (_) {}
+      this._taskPolygon = null;
+    }
+    (this._taskWpMarkers || []).forEach((m) => {
+      try { this.map.removeLayer(m); } catch (_) {}
+    });
+    this._taskWpMarkers = [];
+    this._taskPolygonRing = null;
+  },
+
+  _esc(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  },
+
+  /** Andrew's monotone chain convex hull for lat/lng points */
+  _convexHullLatLng(points) {
+    const pts = (points || [])
+      .filter((p) => p && p.lat != null && p.lng != null)
+      .map((p) => ({ lat: +p.lat, lng: +p.lng }))
+      .sort((a, b) => a.lng === b.lng ? a.lat - b.lat : a.lng - b.lng);
+    if (pts.length < 3) return pts;
+    const cross = (o, a, b) => (a.lng - o.lng) * (b.lat - o.lat) - (a.lat - o.lat) * (b.lng - o.lng);
+    const lower = [];
+    for (const p of pts) {
+      while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+      lower.push(p);
+    }
+    const upper = [];
+    for (let i = pts.length - 1; i >= 0; i--) {
+      const p = pts[i];
+      while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+      upper.push(p);
+    }
+    upper.pop();
+    lower.pop();
+    return lower.concat(upper);
+  },
+
   _syncRoute() {
     if (!this.map) return;
+    // Prefer full task geometry when present
+    if (this._taskRoute || this._taskPolygon) return;
     if (this._route) {
       this.map.removeLayer(this._route);
       this._route = null;
@@ -3699,6 +3790,7 @@ var MultiTile = {
   _roles: { user: true, public: false, vendor: false, driver: false },
   _draft: null,
   _bound: false,
+  _waypoints: [],
   STORAGE: 'astranov:multi-tile-v1',
 
   /** Resolve current product zoom band for the tile chrome */
@@ -3741,6 +3833,13 @@ var MultiTile = {
     document.getElementById('mt-team')?.addEventListener('click', () => this.connect('team'));
     document.getElementById('mt-launch')?.addEventListener('click', () => this.launchTask());
     document.getElementById('mt-kind')?.addEventListener('change', () => this._syncTaskCriteria());
+    document.getElementById('mt-wp-add')?.addEventListener('click', () => this.addWaypointFromPin());
+    document.getElementById('mt-wp-preview')?.addEventListener('click', () => this.previewWaypointRoute());
+    document.getElementById('mt-wp-clear')?.addEventListener('click', () => {
+      this._waypoints = [];
+      this._renderWaypoints();
+      try { CityMap?.clearTaskGeometry?.(); } catch (_) {}
+    });
     document.querySelectorAll('.mt-role-tog').forEach((btn) => {
       btn.addEventListener('click', () => this.toggleRole(btn.dataset.role));
     });
@@ -3787,6 +3886,7 @@ var MultiTile = {
       + '    <div id="mt-sec-driver" class="mt-sec" hidden></div>'
       + '    <div id="mt-sec-task" class="mt-sec">'
       + '      <div class="mt-label">Launch task · Coins</div>'
+      + '      <div id="mt-coins-bal" class="mt-hint">— 🪙</div>'
       + '      <div class="mt-task-row">'
       + '        <select id="mt-kind">'
       + '          <option value="help">🤝 Help</option>'
@@ -3797,13 +3897,13 @@ var MultiTile = {
       + '          <option value="dating">💕 Dating</option>'
       + '          <option value="service">🛠️ Service</option>'
       + '        </select>'
-      + '        <input id="mt-coins" type="number" min="0" step="1" value="50" title="Coins offered" placeholder="🪙" />'
+      + '        <input id="mt-coins" type="number" min="0" step="1" value="50" title="Coins offered for this task" placeholder="🪙" />'
       + '      </div>'
       + '      <label class="mt-field">What do you need?'
       + '        <input id="mt-task-title" placeholder="e.g. pharmacy run · barman 3h · coffee date" />'
       + '      </label>'
       + '      <div class="mt-task-row">'
-      + '        <label class="mt-inline">Radius km'
+      + '        <label class="mt-inline">Map radius km'
       + '          <input id="mt-radius" type="number" min="0.5" max="50" step="0.5" value="3" />'
       + '        </label>'
       + '        <label class="mt-inline">Duration'
@@ -3817,9 +3917,24 @@ var MultiTile = {
       + '        </div>'
       + '        <label class="mt-field">Looks / vibe<input id="mt-looks" placeholder="casual · tall · …" /></label>'
       + '      </div>'
+      + '      <div id="mt-criteria-work" class="mt-criteria" hidden>'
+      + '        <label class="mt-field">Need role / skill<input id="mt-need-role" placeholder="barman · cleaner · driver · …" /></label>'
+      + '        <label class="mt-field">Skills / notes<input id="mt-skills" placeholder="experience, language, tools…" /></label>'
+      + '      </div>'
+      + '      <div id="mt-criteria-delivery" class="mt-criteria" hidden>'
+      + '        <label class="mt-field">Vehicle preferred<input id="mt-vehicle-need" placeholder="bike · car · van" /></label>'
+      + '      </div>'
+      + '      <div class="mt-label">Multi-stop route · waypoints</div>'
+      + '      <div id="mt-wp-list" class="mt-wp-list"></div>'
+      + '      <div class="mt-task-row mt-wp-tools">'
+      + '        <button type="button" id="mt-wp-add" class="mt-wp-btn">＋ Add pin</button>'
+      + '        <button type="button" id="mt-wp-preview" class="mt-wp-btn">▣ Preview route</button>'
+      + '        <button type="button" id="mt-wp-clear" class="mt-wp-btn ghost">Clear</button>'
+      + '      </div>'
+      + '      <p class="mt-hint">Add stops at this pin (move map / long-press elsewhere → open tile → Add pin). Per-stop 🪙 + info. Preview draws polygon corridor on map.</p>'
       + '      <label class="mt-field">Notes<textarea id="mt-task-note" rows="2" placeholder="Details for people who can help…"></textarea></label>'
       + '      <button type="button" id="mt-launch" class="mt-launch">🚀 Launch task to nearby users</button>'
-      + '      <p class="mt-hint">Eligible users in radius get Accept / Reject. Both parties verify every stage. Pay in 🪙 Coins.</p>'
+      + '      <p class="mt-hint">Broadcasts in map radius with big Accept / Reject. Coins held on launch, paid when both verify every stage. Multi-stop tasks guide the worker through each waypoint.</p>'
       + '    </div>'
       + '  </div>'
       + '  <div id="mt-actions">'
@@ -3835,9 +3950,122 @@ var MultiTile = {
   },
 
   _syncTaskCriteria() {
-    const kind = document.getElementById('mt-kind')?.value;
-    const box = document.getElementById('mt-criteria-dating');
-    if (box) box.hidden = kind !== 'dating';
+    const kind = document.getElementById('mt-kind')?.value || 'help';
+    const dating = document.getElementById('mt-criteria-dating');
+    const work = document.getElementById('mt-criteria-work');
+    const del = document.getElementById('mt-criteria-delivery');
+    if (dating) dating.hidden = kind !== 'dating';
+    if (work) work.hidden = !(kind === 'job' || kind === 'service' || kind === 'vendor' || kind === 'help');
+    if (del) del.hidden = !(kind === 'delivery' || kind === 'errand');
+  },
+
+  _refreshCoinsBal() {
+    const el = document.getElementById('mt-coins-bal');
+    if (!el) return;
+    try {
+      CityTasks?.init?.();
+      const b = CityTasks?.coinsBalance?.();
+      if (b) el.textContent = b.available + ' 🪙 available · ' + b.held + ' held (wallet)';
+      else el.textContent = 'Coins wallet loads with tasks…';
+    } catch (_) {
+      el.textContent = '— 🪙';
+    }
+  },
+
+  addWaypointFromPin() {
+    const pin = this._pin || window._lastPos || { lat: 36.44, lng: 28.22 };
+    const n = this._waypoints.length + 1;
+    const defaultCoins = Math.max(0, Math.round(Number(document.getElementById('mt-coins')?.value) || 0));
+    const label = document.getElementById('mt-task-title')?.value?.trim()
+      || ('Stop ' + n);
+    this._waypoints.push({
+      id: 'wp_draft_' + Date.now().toString(36) + '_' + n,
+      lat: +pin.lat,
+      lng: +pin.lng,
+      label: n === 1 ? label : (label + ' · ' + n),
+      info: '',
+      coins: n === 1 ? defaultCoins : Math.round(defaultCoins / Math.max(1, n)),
+    });
+    this._renderWaypoints();
+    this.previewWaypointRoute();
+  },
+
+  _renderWaypoints() {
+    const box = document.getElementById('mt-wp-list');
+    if (!box) return;
+    if (!this._waypoints.length) {
+      box.innerHTML = '<div class="mt-hint">No stops yet — Add pin for multi-stop route.</div>';
+      return;
+    }
+    box.innerHTML = this._waypoints.map((w, i) => {
+      return '<div class="mt-wp-row" data-i="' + i + '">'
+        + '<div class="mt-wp-head"><b>' + (i + 1) + '</b>'
+        + '<button type="button" class="mt-wp-rm" data-rm="' + i + '" title="Remove">×</button></div>'
+        + '<input class="mt-wp-label" data-f="label" data-i="' + i + '" value="' + this._escAttr(w.label) + '" placeholder="Stop name" />'
+        + '<div class="mt-task-row">'
+        + '<input class="mt-wp-coins" data-f="coins" data-i="' + i + '" type="number" min="0" value="' + (w.coins || 0) + '" title="Coins for this stop" />'
+        + '<span class="mt-hint">' + (+w.lat).toFixed(4) + ', ' + (+w.lng).toFixed(4) + '</span>'
+        + '</div>'
+        + '<input class="mt-wp-info" data-f="info" data-i="' + i + '" value="' + this._escAttr(w.info || '') + '" placeholder="What to do here…" />'
+        + '</div>';
+    }).join('');
+    box.querySelectorAll('[data-rm]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const i = Number(btn.getAttribute('data-rm'));
+        this._waypoints.splice(i, 1);
+        this._renderWaypoints();
+        this.previewWaypointRoute();
+      });
+    });
+    box.querySelectorAll('[data-f]').forEach((inp) => {
+      inp.addEventListener('change', () => {
+        const i = Number(inp.getAttribute('data-i'));
+        const f = inp.getAttribute('data-f');
+        if (!this._waypoints[i]) return;
+        if (f === 'coins') this._waypoints[i].coins = Math.max(0, Math.round(Number(inp.value) || 0));
+        else this._waypoints[i][f] = String(inp.value || '').slice(0, f === 'info' ? 240 : 48);
+        // Keep total coins field in sync with sum
+        const sum = this._waypoints.reduce((s, w) => s + (w.coins || 0), 0);
+        const coinsEl = document.getElementById('mt-coins');
+        if (coinsEl && sum > 0) coinsEl.value = String(sum);
+      });
+    });
+  },
+
+  _escAttr(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  },
+
+  async previewWaypointRoute() {
+    if (!this._waypoints.length) {
+      // single pin preview
+      const pin = this._pin || window._lastPos;
+      if (!pin) return;
+      try {
+        CityMap?.setTaskGeometry?.({
+          waypoints: [{ lat: pin.lat, lng: pin.lng, label: 'Task', current: true }],
+          polygon: null,
+          route: [],
+        });
+      } catch (_) {}
+      return;
+    }
+    try {
+      await LazyModules?.ensure?.().catch(() => {});
+      CityTasks?.init?.();
+      await CityTasks.previewTaskRoute?.({
+        title: document.getElementById('mt-task-title')?.value || 'Preview',
+        waypoints: this._waypoints,
+      });
+    } catch (_) {
+      try {
+        CityMap?.setTaskGeometry?.({
+          waypoints: this._waypoints.map((w, i) => ({ ...w, current: i === 0 })),
+          polygon: CityTasks?.buildPolygon?.(this._waypoints),
+          route: [],
+        });
+      } catch (_) {}
+    }
   },
 
   async launchTask() {
@@ -3845,7 +4073,7 @@ var MultiTile = {
     const title = document.getElementById('mt-task-title')?.value?.trim()
       || document.getElementById('mt-task-note')?.value?.trim()
       || (kind + ' task');
-    const coins = Math.max(0, Math.round(Number(document.getElementById('mt-coins')?.value) || 0));
+    let coins = Math.max(0, Math.round(Number(document.getElementById('mt-coins')?.value) || 0));
     const radius_km = Math.max(0.5, Number(document.getElementById('mt-radius')?.value) || 3);
     const duration = document.getElementById('mt-duration')?.value?.trim() || '1h';
     const note = document.getElementById('mt-task-note')?.value?.trim() || '';
@@ -3858,10 +4086,44 @@ var MultiTile = {
       if (amax) criteria.age_max = Number(amax);
       if (looks) criteria.looks = looks;
     }
+    if (kind === 'job' || kind === 'service' || kind === 'vendor' || kind === 'help') {
+      const need = document.getElementById('mt-need-role')?.value?.trim();
+      const skills = document.getElementById('mt-skills')?.value?.trim();
+      if (need) criteria.need_role = need;
+      if (skills) criteria.skills = skills;
+    }
+    if (kind === 'delivery' || kind === 'errand') {
+      const veh = document.getElementById('mt-vehicle-need')?.value?.trim();
+      if (veh) criteria.vehicle = veh;
+    }
     const pin = this._pin || window._lastPos || { lat: 36.44, lng: 28.22 };
+
+    // Flush waypoint field edits
+    document.querySelectorAll('#mt-wp-list [data-f]').forEach((inp) => {
+      const i = Number(inp.getAttribute('data-i'));
+      const f = inp.getAttribute('data-f');
+      if (!this._waypoints[i]) return;
+      if (f === 'coins') this._waypoints[i].coins = Math.max(0, Math.round(Number(inp.value) || 0));
+      else this._waypoints[i][f] = String(inp.value || '');
+    });
+    let waypoints = this._waypoints.slice();
+    if (!waypoints.length) {
+      waypoints = [{
+        lat: pin.lat,
+        lng: pin.lng,
+        label: title,
+        info: note,
+        coins,
+      }];
+    }
+    const wpSum = waypoints.reduce((s, w) => s + (w.coins || 0), 0);
+    if (wpSum > coins) coins = wpSum;
 
     const run = async () => {
       try { await LazyModules?.ensure?.(); } catch (_) {}
+      if (!window.CityTasks) {
+        await new Promise((r) => setTimeout(r, 800));
+      }
       if (!window.CityTasks) {
         const zl = document.getElementById('zoom-label');
         if (zl) zl.textContent = 'Tasks loading… try again';
@@ -3877,17 +4139,34 @@ var MultiTile = {
         duration,
         note,
         criteria,
-        lat: pin.lat,
-        lng: pin.lng,
+        lat: waypoints[0]?.lat ?? pin.lat,
+        lng: waypoints[0]?.lng ?? pin.lng,
+        waypoints,
         age_min: criteria.age_min,
         age_max: criteria.age_max,
         looks: criteria.looks,
+        need_role: criteria.need_role,
+        skills: criteria.skills,
+        vehicle: criteria.vehicle,
       });
+      this._refreshCoinsBal();
       if (r?.ok) {
         const zl = document.getElementById('zoom-label');
-        if (zl) zl.textContent = 'Launched · ' + coins + '🪙 · ' + radius_km + 'km';
-        // Same-tab: also surface offer for testing if not poster-only filter
-        // Poster should not get accept banner (canServe blocks)
+        const n = waypoints.length;
+        if (zl) {
+          zl.textContent = 'Launched · ' + coins + '🪙 · '
+            + (n > 1 ? n + ' stops · ' : '')
+            + radius_km + 'km radius';
+        }
+        // Paint polygon route for poster immediately
+        try { await CityTasks.guideTaskRoute?.(r.task, { previewOnly: true }); } catch (_) {}
+        this._waypoints = [];
+        this._renderWaypoints();
+        try { MultiTile.close?.(); } catch (_) {}
+      } else if (r?.error === 'insufficient_coins') {
+        const zl = document.getElementById('zoom-label');
+        if (zl) zl.textContent = 'Need ' + r.needed + '🪙 · have ' + r.available;
+        AciCli?.print?.('insufficient Coins · need ' + r.needed + ' · available ' + r.available, 'err');
       }
     };
     void run();
@@ -3969,6 +4248,9 @@ var MultiTile = {
     }
     this._syncRoleButtons();
     this._render();
+    this._syncTaskCriteria();
+    this._refreshCoinsBal();
+    this._renderWaypoints();
     document.getElementById('multi-tile')?.classList.add('open');
     document.getElementById('mt-backdrop')?.classList.add('open');
     document.getElementById('multi-tile')?.setAttribute('data-tier', this._tier);
@@ -5639,36 +5921,48 @@ window.ResourceMonitor = ResourceMonitor;
 
 /* === 08-astranov-os.js === */
 // === ASTRANOV OS — multi-device web OS shell (globe is desktop wallpaper) ===
+// Authority: SpaceNet mission + continuity. Globe primacy preserved.
+// Surfaces: Home (Earth), Browser, Launcher, System. Dock works phone/tablet/desktop.
+/* SPECS: embedded Astranov OS = CLI-handle only (no floating dock) */
+// === ASTRANOV OS — multi-device web OS (globe is desktop) ===
+/* SPECS: Astranov OS — NO floating dock above CLI.
+ * Buttons needed live only in the CLI top handle (#super-cli-bar / #os-cli-handle).
+ * Theme: Astranov deep glowing blue + round corners (SPECS.md §3.10, §3.16, §3.18).
+ */
 const AstranovOS = {
-  version: '20260720-os1',
+  version: '20260723-cli-handle',
   mode: 'home',
   _inited: false,
   _apps: null,
+
   init() {
     if (this._inited) return this;
     this._inited = true;
     this._apps = this._defaultApps();
     this._injectCss();
     this._ensureChrome();
+    this._mountHandleIntoCli();
     this._bind();
     this._applyDeviceClass();
     this.setMode('home', { silent: true });
     try { window.AstranovBrowser?.init?.(); } catch (e) { console.warn('[OS] browser init', e); }
     document.documentElement.dataset.astranovOs = this.version;
-    console.log('%c[AstranovOS] ready · ' + this.version, 'color:#7ec8ff;font-weight:700');
+    console.log('%c[AstranovOS] ready · CLI-handle only · ' + this.version, 'color:#3d9eff;font-weight:700');
     return this;
   },
+
   _defaultApps() {
     return [
       { id: 'home', name: 'Earth', icon: '🌍', open: () => this.setMode('home') },
-      { id: 'browser', name: 'Browser', icon: '🧭', open: () => this.openBrowser() },
+      { id: 'browser', name: 'Web', icon: '🧭', open: () => this.openBrowser() },
       { id: 'locate', name: 'Locate', icon: '🎯', open: () => this.actionLocate() },
       { id: 'market', name: 'Market', icon: '🛒', open: () => this.actionMarket() },
       { id: 'chat', name: 'AI', icon: '✦', open: () => this.actionChat() },
       { id: 'plus', name: 'Create', icon: '＋', open: () => this.actionPlus() },
-      { id: 'system', name: 'System', icon: '⚙', open: () => this.setMode('system') },
+      { id: 'system', name: 'Sys', icon: '⚙', open: () => this.setMode('system') },
     ];
   },
+
   _applyDeviceClass() {
     const root = document.documentElement;
     const touch = matchMedia('(pointer:coarse)').matches || navigator.maxTouchPoints > 0;
@@ -5686,62 +5980,240 @@ const AstranovOS = {
       } catch (_) {}
     }
   },
+
   _injectCss() {
     if (document.getElementById('astranov-os-css')) return;
     const st = document.createElement('style');
     st.id = 'astranov-os-css';
-    st.textContent = '#astranov-os-root{position:fixed;inset:0;z-index:175;pointer-events:none;font:12px/1.35 system-ui,sans-serif;color:var(--an-text,#cfe6ff)}#astranov-os-root *{box-sizing:border-box}#os-status{pointer-events:none;position:fixed;top:max(6px,env(safe-area-inset-top));left:10px;right:10px;display:flex;justify-content:space-between;align-items:center;z-index:176;font-size:10px;color:rgba(180,210,240,.72);text-shadow:0 1px 4px #000}#os-status b{color:#9fd0ff;font-weight:600;letter-spacing:.04em}#os-dock{pointer-events:auto;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(72px + env(safe-area-inset-bottom,0px));z-index:180;display:flex;gap:4px;padding:6px 8px;border-radius:22px;background:rgba(4,10,22,.78);border:1px solid rgba(80,140,220,.35);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 10px 36px rgba(0,0,0,.5);max-width:min(560px,96vw);overflow-x:auto;touch-action:manipulation}html.os-narrow #os-dock{bottom:calc(78px + env(safe-area-inset-bottom,0px));gap:2px;padding:5px 6px}.os-dock-btn{appearance:none;border:0;background:transparent;color:#cfe6ff;min-width:48px;height:48px;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font:inherit;padding:4px 6px}.os-dock-btn span{font-size:18px;line-height:1}.os-dock-btn em{font-style:normal;font-size:8px;opacity:.75;letter-spacing:.02em}.os-dock-btn:active{transform:scale(.94)}.os-dock-btn[aria-current="true"]{background:rgba(61,158,255,.18);box-shadow:inset 0 0 0 1px rgba(90,170,255,.4)}#os-surface{pointer-events:none;position:fixed;inset:0;z-index:178;display:none}#os-surface.open{display:block;pointer-events:auto}#os-surface-panel{position:absolute;left:50%;top:max(56px,env(safe-area-inset-top));transform:translateX(-50%);width:min(720px,96vw);height:min(78vh,820px);border-radius:18px;background:rgba(3,8,18,.94);border:1px solid rgba(90,160,255,.35);box-shadow:0 20px 60px rgba(0,0,0,.55);display:flex;flex-direction:column;overflow:hidden;backdrop-filter:blur(18px)}#os-surface-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid rgba(80,130,190,.22)}#os-surface-head b{flex:1;font-size:13px;color:#8ec8ff}#os-surface-head button{border:1px solid rgba(100,150,200,.35);background:rgba(0,20,40,.45);color:#bcd;border-radius:10px;padding:6px 10px;cursor:pointer;font:inherit}#os-surface-body{flex:1;min-height:0;overflow:auto;padding:12px}.os-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}.os-card{border:1px solid rgba(90,150,220,.28);background:rgba(0,16,36,.5);border-radius:14px;padding:14px 10px;text-align:center;cursor:pointer;color:#def}.os-card:active{transform:scale(.97)}.os-card i{display:block;font-style:normal;font-size:22px;margin-bottom:6px}.os-card strong{display:block;font-size:11px}.os-card small{display:block;margin-top:4px;font-size:9px;color:#8ab}.os-kv{display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:11px;margin:0}.os-kv dt{color:#8ab}.os-kv dd{margin:0;color:#e8f4ff;text-align:right}.os-help{font-size:11px;color:#9bb;line-height:1.45;margin:0 0 12px}body.os-mode-browser #globe canvas{filter:brightness(.55) saturate(.85)}body.os-mode-browser #os-dock,body.os-mode-launcher #os-dock,body.os-mode-system #os-dock{bottom:calc(12px + env(safe-area-inset-bottom,0px))}body.os-mode-browser #super-cli-bar,body.os-mode-browser #globe-deck,body.os-mode-browser #aci-hud{opacity:.2;pointer-events:none}@media (min-width:900px){#os-dock{bottom:calc(18px + env(safe-area-inset-bottom,0px))}body:not(.os-mode-browser) #os-dock{bottom:calc(88px + env(safe-area-inset-bottom,0px))}}html.os-touch #os-dock{scrollbar-width:none}html.os-touch #os-dock::-webkit-scrollbar{display:none}';
+    st.textContent = `
+/* SPECS §3.18 Astranov theme tokens */
+:root, [data-theme="dark"]{
+  --an-bg:#00040c;
+  --an-text:#b8d4f0;
+  --an-panel:rgba(0,8,24,0.88);
+  --an-border:rgba(26,111,212,0.48);
+  --an-accent:#1a6fd4;
+  --an-muted:rgba(100,150,200,0.62);
+  --ax-void:#00040c;
+  --ax-panel:rgba(0,10,28,0.72);
+  --ax-panel-strong:rgba(0,8,22,0.88);
+  --ax-blue:#1a6fd4;
+  --ax-blue-bright:#3d9eff;
+  --ax-blue-glow:rgba(26,111,212,0.55);
+  --ax-blue-border:rgba(61,158,255,0.45);
+  --ax-blue-bg:rgba(0,28,64,0.58);
+  --an-radius:16px;
+  --an-radius-sm:12px;
+  --an-radius-pill:999px;
+}
+/* SPECS §3.10 / §3.16: NEVER a second floating button bar above CLI */
+#os-dock,
+#astranov-os-root > #os-dock,
+nav#os-dock{
+  display:none!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+  height:0!important;
+  overflow:hidden!important;
+  opacity:0!important;
+}
+#app-shortcut-row{
+  display:none!important;
+}
+#aci-bar,#news-ticker,#resource-monitor{
+  display:none!important;
+}
+/* CLI top handle = single chrome for buttons */
+#super-cli-bar{
+  display:flex!important;
+  flex-wrap:nowrap;
+  align-items:center;
+  gap:6px;
+  padding:6px 8px;
+  border-radius:var(--an-radius-sm) var(--an-radius-sm) 0 0;
+  background:linear-gradient(180deg,rgba(0,24,56,0.92),rgba(0,10,28,0.88));
+  border:1px solid var(--ax-blue-border);
+  border-bottom:1px solid rgba(26,111,212,0.35);
+  box-shadow:0 0 18px var(--ax-blue-glow), inset 0 1px 0 rgba(120,190,255,0.12);
+}
+#os-cli-handle{
+  display:flex;
+  align-items:center;
+  gap:3px;
+  flex:1 1 auto;
+  min-width:0;
+  overflow-x:auto;
+  overflow-y:hidden;
+  scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+}
+#os-cli-handle::-webkit-scrollbar{display:none}
+.os-handle-btn{
+  appearance:none;border:0;cursor:pointer;flex-shrink:0;
+  width:34px;height:34px;border-radius:var(--an-radius-pill);
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--ax-blue-bg);
+  border:1px solid var(--ax-blue-border);
+  color:var(--ax-blue-bright);
+  font-size:15px;line-height:1;
+  box-shadow:0 0 10px rgba(26,111,212,0.25);
+  transition:transform .12s, box-shadow .12s, background .12s;
+}
+.os-handle-btn:active{transform:scale(.94)}
+.os-handle-btn[aria-current="true"]{
+  background:rgba(26,111,212,0.35);
+  box-shadow:0 0 14px var(--ax-blue-glow), inset 0 0 0 1px rgba(120,190,255,.5);
+}
+#globe-deck{
+  border-radius:var(--an-radius)!important;
+  border-color:var(--ax-blue-border)!important;
+  background:var(--ax-panel-strong)!important;
+  box-shadow:0 0 22px rgba(0,0,0,.55), 0 0 28px rgba(26,111,212,.18)!important;
+}
+#astranov-os-root{position:fixed;inset:0;z-index:175;pointer-events:none;font:12px/1.35 system-ui,sans-serif;color:var(--an-text,#cfe6ff)}
+#astranov-os-root *{box-sizing:border-box}
+#os-status{pointer-events:none;position:fixed;top:max(6px,env(safe-area-inset-top));left:10px;right:10px;display:flex;justify-content:space-between;align-items:center;z-index:176;font-size:10px;color:rgba(180,210,240,.72);text-shadow:0 1px 4px #000}
+#os-status b{color:#3d9eff;font-weight:600;letter-spacing:.04em;text-shadow:0 0 10px var(--ax-blue-glow)}
+#os-surface{pointer-events:none;position:fixed;inset:0;z-index:178;display:none}
+#os-surface.open{display:block;pointer-events:auto}
+#os-surface-panel{position:absolute;left:50%;top:max(56px,env(safe-area-inset-top));transform:translateX(-50%);width:min(720px,96vw);height:min(78vh,820px);border-radius:var(--an-radius);background:rgba(0,8,22,.94);border:1px solid var(--ax-blue-border);box-shadow:0 20px 60px rgba(0,0,0,.55),0 0 40px rgba(26,111,212,.2);display:flex;flex-direction:column;overflow:hidden;backdrop-filter:blur(18px)}
+#os-surface-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid rgba(80,130,190,.22)}
+#os-surface-head b{flex:1;font-size:13px;color:#8ec8ff}
+#os-surface-head button{border:1px solid var(--ax-blue-border);background:var(--ax-blue-bg);color:#bcd;border-radius:var(--an-radius-sm);padding:6px 10px;cursor:pointer;font:inherit}
+#os-surface-body{flex:1;min-height:0;overflow:auto;padding:12px}
+.os-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+.os-card{border:1px solid var(--ax-blue-border);background:rgba(0,16,36,.5);border-radius:var(--an-radius-sm);padding:14px 10px;text-align:center;cursor:pointer;color:#def;box-shadow:0 0 12px rgba(26,111,212,.12)}
+.os-card:active{transform:scale(.97)}
+.os-card i{display:block;font-style:normal;font-size:22px;margin-bottom:6px}
+.os-card strong{display:block;font-size:11px}
+.os-card small{display:block;margin-top:4px;font-size:9px;color:#8ab}
+.os-kv{display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:11px;margin:0}
+.os-kv dt{color:#8ab}.os-kv dd{margin:0;color:#e8f4ff;text-align:right}
+.os-help{font-size:11px;color:#9bb;line-height:1.45;margin:0 0 12px}
+body.os-mode-browser #globe canvas{filter:brightness(.55) saturate(.85)}
+body.os-mode-browser #super-cli-bar,body.os-mode-browser #globe-deck,body.os-mode-browser #aci-hud{opacity:.2;pointer-events:none}
+`;
     document.head.appendChild(st);
   },
+
   _ensureChrome() {
     if (document.getElementById('astranov-os-root')) return;
     const root = document.createElement('div');
     root.id = 'astranov-os-root';
-    root.innerHTML = '<div id="os-status" aria-hidden="true"><b>ASTRANOV OS</b><span id="os-status-meta">booting…</span></div><nav id="os-dock" aria-label="Astranov OS dock"></nav><div id="os-surface" aria-hidden="true"><div id="os-surface-panel" role="dialog" aria-modal="true"><div id="os-surface-head"><b id="os-surface-title">Astranov</b><button type="button" id="os-surface-close" title="Close">✕</button></div><div id="os-surface-body"></div></div></div>';
+    // SPECS: no floating dock nav — only status + surface dialogs
+    root.innerHTML = `
+      <div id="os-status" aria-hidden="true"><b>ASTRANOV</b><span id="os-status-meta">booting…</span></div>
+      <div id="os-surface" aria-hidden="true">
+        <div id="os-surface-panel" role="dialog" aria-modal="true">
+          <div id="os-surface-head">
+            <b id="os-surface-title">Astranov</b>
+            <button type="button" id="os-surface-close" title="Close">✕</button>
+          </div>
+          <div id="os-surface-body"></div>
+        </div>
+      </div>`;
     document.body.appendChild(root);
-    this._renderDock();
     this._tickStatus();
   },
-  _renderDock() {
-    const dock = document.getElementById('os-dock');
-    if (!dock) return;
-    dock.innerHTML = this._apps.map((a) => '<button type="button" class="os-dock-btn" data-os-app="' + a.id + '" title="' + a.name + '"><span>' + a.icon + '</span><em>' + a.name + '</em></button>').join('');
-  },
-  _bind() {
-    document.getElementById('os-dock')?.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-os-app]');
-      if (!btn) return;
-      const id = btn.getAttribute('data-os-app');
-      const app = this._apps.find((a) => a.id === id);
-      try { app?.open?.(); } catch (err) { console.warn('[OS app]', id, err); }
+
+  /** SPECS: mount OS apps into CLI top handle only */
+  _mountHandleIntoCli() {
+    const bar = document.getElementById('super-cli-bar');
+    if (!bar) {
+      setTimeout(() => this._mountHandleIntoCli(), 400);
+      return;
+    }
+    // kill unauthorized rows
+    ['os-dock', 'app-shortcut-row'].forEach((id) => {
+      const n = document.getElementById(id);
+      if (n) {
+        n.style.display = 'none';
+        n.hidden = true;
+        n.setAttribute('aria-hidden', 'true');
+        if (id === 'os-dock') try { n.remove(); } catch (_) {}
+      }
     });
+    let handle = document.getElementById('os-cli-handle');
+    if (!handle) {
+      handle = document.createElement('div');
+      handle.id = 'os-cli-handle';
+      handle.setAttribute('role', 'toolbar');
+      handle.setAttribute('aria-label', 'Astranov CLI handle');
+      // Prefer insert after first controls / at start of bar
+      const right = document.getElementById('super-cli-edge-right');
+      if (right && right.parentNode === bar) bar.insertBefore(handle, right);
+      else bar.appendChild(handle);
+    }
+    handle.innerHTML = this._apps.map((a) => (
+      `<button type="button" class="os-handle-btn" data-os-app="${a.id}" title="${a.name}" aria-label="${a.name}">${a.icon}</button>`
+    )).join('');
+    if (!handle._osBound) {
+      handle._osBound = true;
+      handle.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-os-app]');
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const id = btn.getAttribute('data-os-app');
+        const app = this._apps.find((a) => a.id === id);
+        try { app?.open?.(); } catch (err) { console.warn('[OS app]', id, err); }
+      });
+    }
+    // re-mount if bar rebuilds
+    if (!this._handleObserver) {
+      this._handleObserver = true;
+      setInterval(() => {
+        if (!document.getElementById('os-cli-handle') || !document.getElementById('super-cli-bar')?.contains(document.getElementById('os-cli-handle'))) {
+          this._mountHandleIntoCli();
+        }
+        // keep dock dead
+        const dock = document.getElementById('os-dock');
+        if (dock) { dock.style.display = 'none'; dock.hidden = true; }
+      }, 2500);
+    }
+  },
+
+  _bind() {
     document.getElementById('os-surface-close')?.addEventListener('click', () => this.setMode('home'));
     document.getElementById('os-surface')?.addEventListener('click', (e) => {
       if (e.target.id === 'os-surface') this.setMode('home');
     });
     window.addEventListener('resize', () => this._applyDeviceClass(), { passive: true });
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.mode !== 'home') { e.preventDefault(); this.setMode('home'); }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l') { e.preventDefault(); this.openBrowser(); setTimeout(() => document.getElementById('os-browser-url')?.focus(), 50); }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 't') { e.preventDefault(); this.openBrowser({ newTab: true }); }
+      if (e.key === 'Escape' && this.mode !== 'home') {
+        e.preventDefault();
+        this.setMode('home');
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        this.openBrowser();
+        setTimeout(() => document.getElementById('os-browser-url')?.focus(), 50);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 't') {
+        e.preventDefault();
+        this.openBrowser({ newTab: true });
+      }
     });
     setInterval(() => this._tickStatus(), 4000);
   },
+
   _tickStatus() {
     const el = document.getElementById('os-status-meta');
     if (!el) return;
     const tier = window.SlumberManager?.tier || (window._globePerfLite ? 'lite' : 'full');
     const phase = document.documentElement.dataset.astranovPhase || '…';
     const net = navigator.onLine ? 'online' : 'offline';
-    el.textContent = this.mode + ' · ' + phase + ' · ' + tier + ' · ' + net;
+    el.textContent = `${this.mode} · ${phase} · ${tier} · ${net}`;
   },
+
   setMode(mode, opts = {}) {
     const next = mode || 'home';
     this.mode = next;
     document.body.classList.remove('os-mode-home', 'os-mode-browser', 'os-mode-launcher', 'os-mode-system');
     document.body.classList.add('os-mode-' + next);
-    document.querySelectorAll('#os-dock .os-dock-btn').forEach((b) => {
-      b.setAttribute('aria-current', b.getAttribute('data-os-app') === next || (next === 'home' && b.getAttribute('data-os-app') === 'home') ? 'true' : 'false');
+    document.querySelectorAll('#os-cli-handle .os-handle-btn').forEach((b) => {
+      const id = b.getAttribute('data-os-app');
+      b.setAttribute('aria-current', id === next || (next === 'home' && id === 'home') ? 'true' : 'false');
     });
     const surface = document.getElementById('os-surface');
     if (next === 'home') {
@@ -5751,6 +6223,10 @@ const AstranovOS = {
     } else if (next === 'browser') {
       surface?.classList.remove('open');
       try { window.AstranovBrowser?.show?.(opts); } catch (_) {}
+    } else if (next === 'launcher') {
+      this._openSurface('Apps', this._launcherHtml());
+      try { window.AstranovBrowser?.hide?.(); } catch (_) {}
+      this._bindLaunchCards();
     } else if (next === 'system') {
       this._openSurface('System', this._systemHtml());
       try { window.AstranovBrowser?.hide?.(); } catch (_) {}
@@ -5758,6 +6234,7 @@ const AstranovOS = {
     }
     if (!opts.silent) this._tickStatus();
   },
+
   _openSurface(title, html) {
     const surface = document.getElementById('os-surface');
     const body = document.getElementById('os-surface-body');
@@ -5767,27 +6244,104 @@ const AstranovOS = {
     surface?.classList.add('open');
     surface?.setAttribute('aria-hidden', 'false');
   },
+
+  _launcherHtml() {
+    const cards = [
+      ['🌍', 'Earth', 'Home desktop · SpaceNet globe', () => 'home'],
+      ['🧭', 'Browser', 'Web + Astranov pages', () => 'browser'],
+      ['🎯', 'Locate', 'Fly to your city', () => 'locate'],
+      ['🛒', 'Market', 'Shops & delivery', () => 'market'],
+      ['＋', 'Create', 'Post · roles · profile', () => 'plus'],
+      ['✦', 'AI Chat', 'Open CLI brain', () => 'chat'],
+      ['⚙', 'System', 'Status · performance', () => 'system'],
+    ];
+    return `<p class="os-help">Astranov OS — one account, every device. Earth is your desktop. Buttons stay on the CLI handle — no second bar.</p>
+      <div class="os-card-grid">${cards.map(([i, n, d, id]) =>
+        `<button type="button" class="os-card" data-os-launch="${typeof id === 'function' ? id() : id}"><i>${i}</i><strong>${n}</strong><small>${d}</small></button>`
+      ).join('')}</div>`;
+  },
+
   _systemHtml() {
     const build = document.querySelector('meta[name="astranov-build"]')?.content || '—';
-    return '<p class="os-help">Planetary Internet Operating System. Install as PWA for app-like use on every device.</p><dl class="os-kv"><dt>Build</dt><dd>' + build + '</dd><dt>OS</dt><dd>' + this.version + '</dd><dt>Phase</dt><dd>' + (document.documentElement.dataset.astranovPhase || '—') + '</dd><dt>Power</dt><dd>' + (window.SlumberManager?.tier || '—') + '</dd></dl><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px"><button type="button" class="os-card" id="os-sys-lite"><strong>Lite mode</strong><small>Faster on phones</small></button><button type="button" class="os-card" id="os-sys-full"><strong>Full mode</strong><small>More detail</small></button><button type="button" class="os-card" id="os-sys-reset"><strong>Hard reset</strong><small>Reload</small></button></div>';
+    const cont = window.AstranovContinuity?.version || '—';
+    const ua = navigator.userAgent.replace(/[<>]/g, '');
+    return `<p class="os-help">Planetary Internet OS. CLI handle holds all chrome. Astranov theme: round corners · deep glowing blue.</p>
+      <dl class="os-kv">
+        <dt>Build</dt><dd>${build}</dd>
+        <dt>OS</dt><dd>${this.version}</dd>
+        <dt>Continuity</dt><dd>${cont}</dd>
+        <dt>Phase</dt><dd>${document.documentElement.dataset.astranovPhase || '—'}</dd>
+        <dt>Power</dt><dd>${window.SlumberManager?.tier || '—'}</dd>
+        <dt>Online</dt><dd>${navigator.onLine ? 'yes' : 'no'}</dd>
+      </dl>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
+        <button type="button" class="os-card" id="os-sys-lite" style="min-width:120px"><strong>Lite mode</strong><small>Faster on phones</small></button>
+        <button type="button" class="os-card" id="os-sys-full" style="min-width:120px"><strong>Full mode</strong><small>More detail</small></button>
+        <button type="button" class="os-card" id="os-sys-reset" style="min-width:120px"><strong>Hard reset</strong><small>Clear cache · reload</small></button>
+        <button type="button" class="os-card" id="os-sys-install" style="min-width:120px"><strong>Install tips</strong><small>Add to Home Screen</small></button>
+      </div>
+      <p class="os-help" style="margin-top:14px;word-break:break-word;opacity:.7">${ua}</p>`;
   },
+
+  _bindLaunchCards() {
+    document.getElementById('os-surface-body')?.querySelectorAll('[data-os-launch]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-os-launch');
+        if (id === 'browser') this.openBrowser();
+        else if (id === 'home') this.setMode('home');
+        else if (id === 'system') this.setMode('system');
+        else if (id === 'locate') this.actionLocate();
+        else if (id === 'market') this.actionMarket();
+        else if (id === 'plus') this.actionPlus();
+        else if (id === 'chat') this.actionChat();
+      });
+    });
+  },
+
   _bindSystemActions() {
     document.getElementById('os-sys-lite')?.addEventListener('click', () => {
       window._globePerfLite = true;
-      try { SlumberManager._userPinned = true; if (SlumberManager.applyTier) SlumberManager.applyTier('conserve', 'you asked'); else SlumberManager.tier = 'conserve'; } catch (_) {}
-      this._tickStatus(); this.toast('Lite mode on');
+      try {
+        SlumberManager._userPinned = true;
+        if (SlumberManager.applyTier) SlumberManager.applyTier('conserve', 'you asked');
+        else SlumberManager.tier = 'conserve';
+      } catch (_) {}
+      this._tickStatus();
+      this.toast('Lite mode on');
     });
     document.getElementById('os-sys-full')?.addEventListener('click', () => {
       window._globePerfLite = false;
-      try { SLumberManager._userPinned = true; if (SlumberManager.applyTier) SlumberManager.applyTier('balanced', 'you asked'); else SlumberManager.tier = 'balanced'; } catch (_) {}
-      this._tickStatus(); this.toast('Full mode on');
+      try {
+        SlumberManager._userPinned = true;
+        if (SlumberManager.applyTier) SlumberManager.applyTier('balanced', 'you asked');
+        else SlumberManager.tier = 'balanced';
+      } catch (_) {}
+      this._tickStatus();
+      this.toast('Full mode on');
     });
-    document.getElementById('os-sys-reset')?.addEventListener('click', () => { try { window.AstranovLogo?.hardReset?.(); } catch (_) {} location.reload(); });
+    document.getElementById('os-sys-reset')?.addEventListener('click', () => {
+      try { window.AstranovLogo?.hardReset?.(); } catch (_) {}
+      location.reload();
+    });
+    document.getElementById('os-sys-install')?.addEventListener('click', () => {
+      this._openSurface('Install Astranov',
+        `<p class="os-help"><b>iPhone / iPad:</b> Safari → Share → Add to Home Screen.<br>
+        <b>Android:</b> Chrome menu → Install app / Add to Home screen.<br>
+        <b>Desktop:</b> browser install icon in the address bar.<br><br>
+        Same account · CLI handle chrome · Astranov blue.</p>
+        <button type="button" class="os-card" id="os-sys-back"><strong>Back to System</strong></button>`);
+      document.getElementById('os-sys-back')?.addEventListener('click', () => this.setMode('system'));
+    });
   },
+
   openBrowser(opts = {}) {
     this.setMode('browser', opts);
-    try { window.AstranovBrowser?.show?.(opts); } catch (e) { this.toast('Browser starting…'); console.warn(e); }
+    try { window.AstranovBrowser?.show?.(opts); } catch (e) {
+      this.toast('Browser starting…');
+      console.warn(e);
+    }
   },
+
   actionLocate() {
     this.setMode('home');
     try {
@@ -5796,14 +6350,18 @@ const AstranovOS = {
       else document.getElementById('aci-locate')?.click();
     } catch (e) { console.warn('[OS locate]', e); }
   },
+
   actionMarket() {
     this.setMode('home');
     try {
       if (window.Commerce?.showPicker) window.Commerce.showPicker();
-      else if (window.MenuProfilePostTile?.openPlusField) window.MenuProfilePostTile.openPlusField();
-      else document.getElementById('super-add-fab')?.click();
+      else if (window.MenuProfilePostTile?.openPlusField) {
+        window.MenuProfilePostTile.openPlusField();
+        setTimeout(() => document.querySelector('[data-mpp-role="client"],.mpp-role-chip')?.click(), 100);
+      } else document.getElementById('super-add-fab')?.click();
     } catch (e) { console.warn('[OS market]', e); }
   },
+
   actionPlus() {
     this.setMode('home');
     try {
@@ -5811,20 +6369,25 @@ const AstranovOS = {
       else document.getElementById('super-add-fab')?.click();
     } catch (e) { console.warn('[OS plus]', e); }
   },
+
   actionChat() {
     this.setMode('home');
     try {
-      document.getElementById('globe-deck')?.classList.add('expanded');
+      const deck = document.getElementById('globe-deck');
+      deck?.classList.add('expanded');
       document.getElementById('aci-cli-in')?.focus();
       window.GlobeDeck?.expand?.();
-    } catch (_) { document.getElementById('aci-cli-in')?.focus(); }
+    } catch (_) {
+      document.getElementById('aci-cli-in')?.focus();
+    }
   },
+
   toast(msg) {
     let el = document.getElementById('os-toast');
     if (!el) {
       el = document.createElement('div');
       el.id = 'os-toast';
-      el.style.cssText = 'position:fixed;left:50%;bottom:calc(140px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:300;padding:10px 14px;border-radius:12px;background:rgba(0,20,40,.92);border:1px solid rgba(90,160,255,.4);color:#def;font:12px system-ui;pointer-events:none;opacity:0;transition:opacity .2s';
+      el.style.cssText = 'position:fixed;left:50%;bottom:calc(100px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:300;padding:10px 14px;border-radius:16px;background:rgba(0,20,48,.94);border:1px solid rgba(61,158,255,.45);color:#def;font:12px system-ui;pointer-events:none;opacity:0;transition:opacity .2s;box-shadow:0 0 20px rgba(26,111,212,.35)';
       document.body.appendChild(el);
     }
     el.textContent = String(msg || '');
@@ -5833,40 +6396,99 @@ const AstranovOS = {
     this._toastT = setTimeout(() => { el.style.opacity = '0'; }, 2200);
   },
 };
+
 window.AstranovOS = AstranovOS;
 
 /* === 08-astranov-browser.js === */
 // === ASTRANOV BROWSER — in-OS web browser for all devices ===
+// Tabs + URL bar + history. Internal astranov:// routes + sandboxed https.
 const AstranovBrowser = {
   version: '20260720-br1',
   _inited: false,
   _tabs: [],
   _active: 0,
   _visible: false,
+
   init() {
     if (this._inited) return this;
     this._inited = true;
     this._inject();
     this._bind();
-    if (!this._tabs.length) this._tabs.push(this._newTab('https://astranov.eu/', 'Astranov'));
+    if (!this._tabs.length) {
+      this._tabs.push(this._newTab('https://astranov.eu/', 'Astranov'));
+    }
     return this;
   },
+
   _newTab(url, title) {
-    return { id: 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: url || 'https://astranov.eu/', title: title || 'New tab', history: [], histIdx: -1 };
+    return {
+      id: 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      url: url || 'https://astranov.eu/',
+      title: title || 'New tab',
+      history: [],
+      histIdx: -1,
+    };
   },
+
   _inject() {
     if (document.getElementById('os-browser')) return;
     const css = document.createElement('style');
     css.id = 'astranov-browser-css';
-    css.textContent = '#os-browser{display:none;position:fixed;inset:0;z-index:179;background:rgba(0,4,12,.88);flex-direction:column;font:12px/1.35 system-ui,sans-serif;color:#dff}#os-browser.open{display:flex}#os-browser-chrome{flex:0 0 auto;padding:calc(8px + env(safe-area-inset-top,0px)) 10px 8px;background:rgba(4,10,22,.96);border-bottom:1px solid rgba(80,140,210,.3);display:flex;flex-direction:column;gap:8px}#os-browser-tabs{display:flex;gap:4px;overflow-x:auto;align-items:center}.os-btab{appearance:none;border:1px solid rgba(90,140,200,.28);background:rgba(0,16,36,.55);color:#bcd;border-radius:10px 10px 0 0;padding:6px 10px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;font:inherit}.os-btab[aria-current="true"]{background:rgba(40,90,160,.35);color:#fff;border-color:rgba(120,180,255,.5)}.os-btab-close{margin-left:6px;opacity:.7;border:0;background:transparent;color:inherit;cursor:pointer}#os-browser-nav{display:flex;gap:6px;align-items:center}#os-browser-nav button{width:36px;height:36px;border-radius:10px;border:1px solid rgba(90,140,200,.35);background:rgba(0,20,40,.55);color:#9cf;cursor:pointer;font-size:14px;flex-shrink:0}#os-browser-url{flex:1;min-width:0;height:36px;border-radius:12px;border:1px solid rgba(90,150,220,.4);background:rgba(0,0,0,.4);color:#e8f4ff;padding:0 12px;font:12px ui-monospace,system-ui}#os-browser-stage{flex:1;min-height:0;position:relative;background:#050a12}#os-browser-frame{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}#os-browser-home{position:absolute;inset:0;overflow:auto;padding:18px;display:none}#os-browser-home.open{display:block}#os-browser-home h2{margin:0 0 8px;font-size:16px;color:#8ec8ff}.os-bgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:12px}.os-blink{border:1px solid rgba(90,150,220,.3);border-radius:14px;padding:14px;background:rgba(0,20,40,.45);color:#def;text-decoration:none;cursor:pointer;font:inherit;text-align:left}.os-blink strong{display:block;font-size:12px;margin-bottom:4px}.os-blink small{color:#8ab;font-size:10px}#os-browser-err{display:none;position:absolute;left:12px;right:12px;bottom:12px;padding:10px 12px;border-radius:12px;background:rgba(40,0,0,.9);border:1px solid #f66;color:#fcc;font-size:11px}#os-browser-err.open{display:block}';
+    css.textContent = `
+#os-browser{display:none;position:fixed;inset:0;z-index:179;background:rgba(0,4,12,.88);flex-direction:column;font:12px/1.35 system-ui,sans-serif;color:#dff}
+#os-browser.open{display:flex}
+#os-browser-chrome{flex:0 0 auto;padding:calc(8px + env(safe-area-inset-top,0px)) 10px 8px;background:rgba(4,10,22,.96);border-bottom:1px solid rgba(80,140,210,.3);display:flex;flex-direction:column;gap:8px}
+#os-browser-tabs{display:flex;gap:4px;overflow-x:auto;align-items:center}
+.os-btab{appearance:none;border:1px solid rgba(90,140,200,.28);background:rgba(0,16,36,.55);color:#bcd;border-radius:10px 10px 0 0;padding:6px 10px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;font:inherit}
+.os-btab[aria-current="true"]{background:rgba(40,90,160,.35);color:#fff;border-color:rgba(120,180,255,.5)}
+.os-btab-close{margin-left:6px;opacity:.7;border:0;background:transparent;color:inherit;cursor:pointer}
+#os-browser-nav{display:flex;gap:6px;align-items:center}
+#os-browser-nav button{width:36px;height:36px;border-radius:10px;border:1px solid rgba(90,140,200,.35);background:rgba(0,20,40,.55);color:#9cf;cursor:pointer;font-size:14px;flex-shrink:0}
+#os-browser-url{flex:1;min-width:0;height:36px;border-radius:12px;border:1px solid rgba(90,150,220,.4);background:rgba(0,0,0,.4);color:#e8f4ff;padding:0 12px;font:12px ui-monospace,system-ui}
+#os-browser-stage{flex:1;min-height:0;position:relative;background:#050a12}
+#os-browser-frame{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
+#os-browser-home{position:absolute;inset:0;overflow:auto;padding:18px;display:none}
+#os-browser-home.open{display:block}
+#os-browser-home h2{margin:0 0 8px;font-size:16px;color:#8ec8ff}
+.os-bgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:12px}
+.os-blink{border:1px solid rgba(90,150,220,.3);border-radius:14px;padding:14px;background:rgba(0,20,40,.45);color:#def;text-decoration:none;cursor:pointer;font:inherit;text-align:left}
+.os-blink strong{display:block;font-size:12px;margin-bottom:4px}
+.os-blink small{color:#8ab;font-size:10px}
+#os-browser-err{display:none;position:absolute;left:12px;right:12px;bottom:12px;padding:10px 12px;border-radius:12px;background:rgba(40,0,0,.9);border:1px solid #f66;color:#fcc;font-size:11px}
+#os-browser-err.open{display:block}
+`;
     document.head.appendChild(css);
+
     const el = document.createElement('div');
     el.id = 'os-browser';
     el.setAttribute('aria-label', 'Astranov Browser');
-    el.innerHTML = '<div id="os-browser-chrome"><div id="os-browser-tabs"></div><form id="os-browser-nav" action="#"><button type="button" id="os-b-back" title="Back">←</button><button type="button" id="os-b-fwd" title="Forward">→</button><button type="button" id="os-b-reload" title="Reload">↻</button><button type="button" id="os-b-home" title="Start">⌂</button><input id="os-browser-url" type="url" inputmode="url" enterkeyhint="go" placeholder="Search or enter address" autocomplete="off" spellcheck="false" /><button type="submit" id="os-b-go" title="Go">Go</button><button type="button" id="os-b-new" title="New tab">＋</button><button type="button" id="os-b-close" title="Close browser">✕</button></form></div><div id="os-browser-stage"><iframe id="os-browser-frame" title="Astranov Browser content" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals" referrerpolicy="no-referrer-when-downgrade"></iframe><div id="os-browser-home" class="open"><h2>Astranov Browser</h2><p style="margin:0;color:#9bb;font-size:12px;line-height:1.45">Your OS web browser — open any site, or jump into Astranov spaces.</p><div class="os-bgrid" id="os-browser-shortcuts"></div></div><div id="os-browser-err"></div></div>';
+    el.innerHTML = `
+      <div id="os-browser-chrome">
+        <div id="os-browser-tabs"></div>
+        <form id="os-browser-nav" action="#">
+          <button type="button" id="os-b-back" title="Back">←</button>
+          <button type="button" id="os-b-fwd" title="Forward">→</button>
+          <button type="button" id="os-b-reload" title="Reload">↻</button>
+          <button type="button" id="os-b-home" title="Start">⌂</button>
+          <input id="os-browser-url" type="url" inputmode="url" enterkeyhint="go" placeholder="Search or enter address" autocomplete="off" spellcheck="false" />
+          <button type="submit" id="os-b-go" title="Go">Go</button>
+          <button type="button" id="os-b-new" title="New tab">＋</button>
+          <button type="button" id="os-b-close" title="Close browser">✕</button>
+        </form>
+      </div>
+      <div id="os-browser-stage">
+        <iframe id="os-browser-frame" title="Astranov Browser content" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals" referrerpolicy="no-referrer-when-downgrade"></iframe>
+        <div id="os-browser-home" class="open">
+          <h2>Astranov Browser</h2>
+          <p style="margin:0;color:#9bb;font-size:12px;line-height:1.45">Your OS web browser — open any site, or jump into Astranov spaces. Same account on phone, tablet, and desktop.</p>
+          <div class="os-bgrid" id="os-browser-shortcuts"></div>
+        </div>
+        <div id="os-browser-err"></div>
+      </div>`;
     document.body.appendChild(el);
     this._renderShortcuts();
   },
+
   _renderShortcuts() {
     const host = document.getElementById('os-browser-shortcuts');
     if (!host) return;
@@ -5880,27 +6502,57 @@ const AstranovBrowser = {
       { t: 'Wikipedia', u: 'https://wikipedia.org/', d: 'Open web' },
       { t: 'OpenStreetMap', u: 'https://www.openstreetmap.org/', d: 'Maps' },
     ];
-    host.innerHTML = items.map((i) => '<button type="button" class="os-blink" data-url="' + i.u + '"><strong>' + i.t + '</strong><small>' + i.d + '</small></button>').join('');
+    host.innerHTML = items.map((i) =>
+      `<button type="button" class="os-blink" data-url="${i.u}"><strong>${i.t}</strong><small>${i.d}</small></button>`
+    ).join('');
   },
+
   _bind() {
-    document.getElementById('os-browser-nav')?.addEventListener('submit', (e) => { e.preventDefault(); this.navigate(document.getElementById('os-browser-url')?.value || ''); });
+    document.getElementById('os-browser-nav')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      this.navigate(document.getElementById('os-browser-url')?.value || '');
+    });
     document.getElementById('os-b-back')?.addEventListener('click', () => this.back());
     document.getElementById('os-b-fwd')?.addEventListener('click', () => this.forward());
     document.getElementById('os-b-reload')?.addEventListener('click', () => this.reload());
     document.getElementById('os-b-home')?.addEventListener('click', () => this.showStart());
     document.getElementById('os-b-new')?.addEventListener('click', () => this.newTab());
-    document.getElementById('os-b-close')?.addEventListener('click', () => { this.hide(); window.AstranovOS?.setMode?.('home'); });
+    document.getElementById('os-b-close')?.addEventListener('click', () => {
+      this.hide();
+      window.AstranovOS?.setMode?.('home');
+    });
     document.getElementById('os-browser-tabs')?.addEventListener('click', (e) => {
       const close = e.target.closest('.os-btab-close');
       const tab = e.target.closest('[data-tab]');
-      if (close && tab) { e.stopPropagation(); this.closeTab(tab.getAttribute('data-tab')); return; }
+      if (close && tab) {
+        e.stopPropagation();
+        this.closeTab(tab.getAttribute('data-tab'));
+        return;
+      }
       if (tab) this.activateTab(tab.getAttribute('data-tab'));
     });
     document.getElementById('os-browser-shortcuts')?.addEventListener('click', (e) => {
       const b = e.target.closest('[data-url]');
       if (b) this.navigate(b.getAttribute('data-url'));
     });
+    const frame = document.getElementById('os-browser-frame');
+    frame?.addEventListener('load', () => {
+      try {
+        const tab = this._tabs[this._active];
+        if (!tab) return;
+        // may throw cross-origin
+        const u = frame.contentWindow?.location?.href;
+        if (u && u !== 'about:blank') {
+          tab.url = u;
+          tab.title = frame.contentDocument?.title || tab.title || u;
+          this._syncChrome();
+        }
+      } catch (_) {
+        /* cross-origin — keep typed URL */
+      }
+    });
   },
+
   show(opts = {}) {
     this.init();
     this._visible = true;
@@ -5910,16 +6562,20 @@ const AstranovBrowser = {
     else this._syncChrome();
     setTimeout(() => document.getElementById('os-browser-url')?.focus(), 30);
   },
+
   hide() {
     this._visible = false;
     document.getElementById('os-browser')?.classList.remove('open');
   },
+
   newTab(url) {
     this._tabs.push(this._newTab(url || '', 'New tab'));
     this._active = this._tabs.length - 1;
-    if (url) this.navigate(url); else this.showStart();
+    if (url) this.navigate(url);
+    else this.showStart();
     this._syncChrome();
   },
+
   closeTab(id) {
     const idx = this._tabs.findIndex((t) => t.id === id);
     if (idx < 0) return;
@@ -5928,6 +6584,7 @@ const AstranovBrowser = {
     this._active = Math.min(this._active, this._tabs.length - 1);
     this.activateTab(this._tabs[this._active].id);
   },
+
   activateTab(id) {
     const idx = this._tabs.findIndex((t) => t.id === id);
     if (idx < 0) return;
@@ -5937,46 +6594,98 @@ const AstranovBrowser = {
     else this._loadUrl(tab.url, { push: false });
     this._syncChrome();
   },
+
   showStart() {
     const tab = this._tabs[this._active];
-    if (tab) { tab.url = 'astranov://start'; tab.title = 'Start'; }
-    document.getElementById('os-browser-home')?.classList.add('open');
+    if (tab) {
+      tab.url = 'astranov://start';
+      tab.title = 'Start';
+    }
+    const home = document.getElementById('os-browser-home');
     const frame = document.getElementById('os-browser-frame');
-    if (frame) { frame.style.display = 'none'; try { frame.src = 'about:blank'; } catch (_) {} }
+    home?.classList.add('open');
+    if (frame) {
+      frame.style.display = 'none';
+      try { frame.src = 'about:blank'; } catch (_) {}
+    }
     this._hideErr();
     this._syncChrome();
   },
+
   navigate(raw) {
     const url = this._normalize(raw);
     if (!url) return;
-    if (url.startsWith('astranov://')) { this._handleInternal(url); return; }
+    if (url.startsWith('astranov://')) {
+      this._handleInternal(url);
+      return;
+    }
     this._pushHistory(url);
     this._loadUrl(url, { push: false });
   },
+
   _normalize(raw) {
     let s = String(raw || '').trim();
     if (!s) return '';
     if (s.startsWith('astranov://')) return s;
+    // search-like (no scheme, looks like a query)
     const hasScheme = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(s);
-    if (!hasScheme && (s.includes(' ') || (!s.includes('.') && !s.includes('/')))) return 'https://duckduckgo.com/?q=' + encodeURIComponent(s);
-    if (!hasScheme) s = 'https://' + s;
+    if (!hasScheme && (s.includes(' ') || (!s.includes('.') && !s.includes('/')))) {
+      return 'https://duckduckgo.com/?q=' + encodeURIComponent(s);
+    }
+    if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(s)) s = 'https://' + s;
     try {
       const u = new URL(s);
-      if (u.protocol !== 'http:' && u.protocol !== 'https:') { this._err('Only http(s) and astranov:// are allowed'); return ''; }
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+        this._err('Only http(s) and astranov:// are allowed');
+        return '';
+      }
       return u.href;
-    } catch (_) { this._err('Invalid address'); return ''; }
+    } catch (_) {
+      this._err('Invalid address');
+      return '';
+    }
   },
+
   _handleInternal(url) {
     const path = url.replace(/^astranov:\/\//, '').replace(/\/$/, '');
-    if (path === 'start' || path === '') { this.showStart(); return; }
-    if (path === 'home' || path === 'earth' || path === 'globe') { this.hide(); window.AstranovOS?.setMode?.('home'); return; }
-    if (path === 'locate') { this.hide(); window.AstranovOS?.actionLocate?.(); return; }
-    if (path === 'market' || path === 'shop') { this.hide(); window.AstranovOS?.actionMarket?.(); return; }
-    if (path === 'plus' || path === 'create') { this.hide(); window.AstranovOS?.actionPlus?.(); return; }
-    if (path === 'chat' || path === 'ai') { this.hide(); window.AstranovOS?.actionChat?.(); return; }
-    if (path === 'system') { this.hide(); window.AstranovOS?.setMode?.('system'); return; }
+    if (path === 'start' || path === '') {
+      this.showStart();
+      return;
+    }
+    if (path === 'home' || path === 'earth' || path === 'globe') {
+      this.hide();
+      window.AstranovOS?.setMode?.('home');
+      return;
+    }
+    if (path === 'locate') {
+      this.hide();
+      window.AstranovOS?.actionLocate?.();
+      return;
+    }
+    if (path === 'market' || path === 'shop') {
+      this.hide();
+      window.AstranovOS?.actionMarket?.();
+      return;
+    }
+    if (path === 'plus' || path === 'create') {
+      this.hide();
+      window.AstranovOS?.actionPlus?.();
+      return;
+    }
+    if (path === 'chat' || path === 'ai') {
+      this.hide();
+      window.AstranovOS?.actionChat?.();
+      return;
+    }
+    if (path === 'system') {
+      this.hide();
+      window.AstranovOS?.setMode?.('system');
+      return;
+    }
+    // default: open live site path
     this._loadUrl('https://astranov.eu/', { push: true });
   },
+
   _pushHistory(url) {
     const tab = this._tabs[this._active];
     if (!tab) return;
@@ -5986,57 +6695,82 @@ const AstranovBrowser = {
     tab.url = url;
     try { tab.title = new URL(url).hostname; } catch (_) { tab.title = url; }
   },
+
   _loadUrl(url, { push } = {}) {
     if (push) this._pushHistory(url);
     const tab = this._tabs[this._active];
     if (tab) tab.url = url;
-    document.getElementById('os-browser-home')?.classList.remove('open');
+    const home = document.getElementById('os-browser-home');
     const frame = document.getElementById('os-browser-frame');
-    if (frame) { frame.style.display = 'block'; try { frame.src = url; } catch (e) { this._err('Could not open page'); } }
+    home?.classList.remove('open');
+    if (frame) {
+      frame.style.display = 'block';
+      try {
+        frame.src = url;
+      } catch (e) {
+        this._err('Could not open page');
+      }
+    }
     this._hideErr();
     this._syncChrome();
   },
+
   back() {
     const tab = this._tabs[this._active];
     if (!tab || tab.histIdx <= 0) return;
     tab.histIdx -= 1;
     this._loadUrl(tab.history[tab.histIdx], { push: false });
   },
+
   forward() {
     const tab = this._tabs[this._active];
     if (!tab || tab.histIdx >= tab.history.length - 1) return;
     tab.histIdx += 1;
     this._loadUrl(tab.history[tab.histIdx], { push: false });
   },
+
   reload() {
     const tab = this._tabs[this._active];
     if (!tab) return;
     if (tab.url?.startsWith('astranov://')) this._handleInternal(tab.url);
     else {
       const frame = document.getElementById('os-browser-frame');
-      try { frame?.contentWindow?.location?.reload(); } catch (_) { if (tab.url) frame.src = tab.url; }
+      try { frame?.contentWindow?.location?.reload(); } catch (_) {
+        if (tab.url) frame.src = tab.url;
+      }
     }
   },
+
   _syncChrome() {
     const tab = this._tabs[this._active];
     const urlEl = document.getElementById('os-browser-url');
-    if (urlEl && document.activeElement !== urlEl) urlEl.value = tab?.url === 'astranov://start' ? '' : (tab?.url || '');
+    if (urlEl && document.activeElement !== urlEl) {
+      urlEl.value = tab?.url === 'astranov://start' ? '' : (tab?.url || '');
+    }
     const tabs = document.getElementById('os-browser-tabs');
     if (tabs) {
-      tabs.innerHTML = this._tabs.map((t) => '<button type="button" class="os-btab" data-tab="' + t.id + '" aria-current="' + (t.id === tab?.id ? 'true' : 'false') + '">' + this._esc(t.title || 'Tab') + '<span class="os-btab-close" title="Close">×</span></button>').join('');
+      tabs.innerHTML = this._tabs.map((t) =>
+        `<button type="button" class="os-btab" data-tab="${t.id}" aria-current="${t.id === tab?.id ? 'true' : 'false'}">${this._esc(t.title || 'Tab')}<span class="os-btab-close" title="Close">×</span></button>`
+      ).join('');
     }
   },
+
   _esc(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   },
+
   _err(msg) {
     const el = document.getElementById('os-browser-err');
     if (!el) return;
     el.textContent = msg;
     el.classList.add('open');
   },
-  _hideErr() { document.getElementById('os-browser-err')?.classList.remove('open'); },
+
+  _hideErr() {
+    document.getElementById('os-browser-err')?.classList.remove('open');
+  },
 };
+
 window.AstranovBrowser = AstranovBrowser;
 
 /* === 99-boot-app.js === */
@@ -6063,15 +6797,12 @@ window.__astranovBootApp = function __astranovBootApp() {
     } catch (_) {
       GlobeDeck?.bootCollapsed?.();
     }
-    GlobeDeck?.setTitle?.(PublicCopy?.deckTitle?.() || 'SpaceNet');
-    GlobeDeck?.setPreview?.('SpaceNet · drag Earth · 🎯 locate · type job · date · deliver');
+    GlobeDeck?.setTitle?.(PublicCopy?.deckTitle?.() || 'Astranov');
+    GlobeDeck?.setPreview?.('Earth · drag · scroll country · tap city · 🎯 locate');
   });
 
   soft('SuperCli', () => SuperCli?.init?.());
-  soft('AciCli', () => {
-    AciCli?.init?.();
-    try { SpaceNetGrokCli?.init?.(); } catch (_) {}
-  });
+  soft('AciCli', () => AciCli?.init?.());
   soft('ClassifiedTriangles', () => ClassifiedTriangles?.init?.());
 
   // MAP — core product after Earth
@@ -6115,7 +6846,7 @@ window.__astranovBootApp = function __astranovBootApp() {
         ZoomTiers?.goTo?.('global', false);
       }
     } catch (_) {}
-    const ready = 'SpaceNet · Earth OS · CLI: job · date · deliver · search · locate';
+    const ready = 'Astranov OS · Earth desktop · dock: Browser · 🎯 locate';
     try { CliRibbon?.setNotice?.(ready, 'ready'); } catch (_) {}
     try { GlobeDeck?.setPreview?.(ready); } catch (_) {}
     const zl = document.getElementById('zoom-label');
