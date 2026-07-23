@@ -178,6 +178,7 @@ const AstranovContinuity = {
       commands: ['place list', 'places', 'place open <name|id>'],
       behavior: [
         'Long-press any point at solar/global/national/city opens MultiTile (CSS injected)',
+        'No permanent + button — only offer #super-add-fab after failed add (js/92-add-plus-offer.js)',
         'Nudge N/S/E/W + lat/lng apply for accurate pin',
         'Clear + Close buttons required',
         'Save stores unique name (reverse-geocode + role) in astranov:places-v1',
