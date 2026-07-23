@@ -19,24 +19,12 @@ window.__astranovBootFeatures = function __astranovBootFeatures() {
   soft('CityTasks', () => {
     CityTasks?.init?.();
     TaskBoard?.init?.();
-    // Solo builder: seed nearby demo tasks so the field is never empty
-    try { CityTasks?.seedDemoField?.(); } catch (_) {}
-  });
-  soft('SpaceNetGrokCli', () => {
-    SpaceNetGrokCli?.init?.();
   });
   soft('SpaceNetCM', () => SpaceNetCM?.init?.());
   soft('CoreBrain', () => AstranovCoreBrain?.init?.());
   soft('Logo', () => AstranovLogo?.init?.());
   soft('Shortcuts', () => {
     try { AppShortcuts?.init?.(); } catch (_) {}
-  });
-  soft('ThemeSpacex', () => {
-    try {
-      if (!AstranovTheme) return;
-      if (!localStorage.getItem('astranov_skin_v1')) AstranovTheme.setSpacex?.(true);
-      else AstranovTheme.apply?.();
-    } catch (_) {}
   });
 
   // Locate wiring: 🎯 national → city (never bare undeclared locateMe — kills app)
@@ -67,46 +55,17 @@ window.__astranovBootFeatures = function __astranovBootFeatures() {
     } catch (_) {}
   }
 
-  if (!window.showFirstRunCoach) {
-    window.showFirstRunCoach = function showFirstRunCoach() {
-      try { if (localStorage.getItem('astranov:coach-v4-spacenet')) return; } catch (_) { return; }
-      const el = document.getElementById('first-run-coach');
-      if (!el) return;
-      el.innerHTML = '<b>SpaceNet — the internet on Earth</b>'
-        + '<ol style="margin:8px 0 0;padding-left:18px;line-height:1.45">'
-        + '<li>🌍 Drag the globe · 🎯 locate · scroll into city</li>'
-        + '<li>⌨️ Type below — <b>job barman 3h</b> · <b>date coffee</b> · <b>deliver food</b></li>'
-        + '<li>🔍 <b>search</b> · <b>task list</b> · <b>task claim</b> — all paint the globe</li>'
-        + '<li>Same OS on phone &amp; PC · install: Add to Home Screen</li>'
-        + '</ol>'
-        + '<button type="button" id="first-run-coach-ok">Start on SpaceNet</button>';
-      el.hidden = false;
-      document.getElementById('first-run-coach-ok')?.addEventListener('click', () => {
-        el.hidden = true;
-        try { localStorage.setItem('astranov:coach-v4-spacenet', '1'); } catch (_) {}
-        try {
-          document.getElementById('aci-cli-in')?.focus();
-          GlobeDeck?.expand?.('SpaceNet');
-          GlobeDeck?.setPreview?.('Type: job barman 3h · date coffee · deliver food · help');
-          CliRibbon?.setNotice?.('SpaceNet CLI ready', 'ready');
-        } catch (_) {}
-      });
-    };
-  }
-  setTimeout(() => {
-    try { showFirstRunCoach?.(); } catch (_) {}
-  }, 900);
-  // Ribbon + preview: we build alone — product must speak for itself
-  setTimeout(() => {
+  // SPECS / owner: no SpaceNet start popup — coach permanently off
+  window.showFirstRunCoach = function showFirstRunCoach() {
     try {
-      CliRibbon?.setNotice?.('SpaceNet · type a job, date, delivery, or search', 'ready');
-      GlobeDeck?.setPreview?.('SpaceNet CLI · job · date · deliver · search · locate');
-      const input = document.getElementById('aci-cli-in');
-      if (input && !input.value) {
-        input.placeholder = 'SpaceNet · job barman 3h · date coffee · deliver · search · locate';
-      }
+      const el = document.getElementById('first-run-coach');
+      if (el) { el.hidden = true; el.style.display = 'none'; el.innerHTML = ''; }
+      localStorage.setItem('astranov:coach-v3-os', '1');
+      localStorage.setItem('astranov:coach-v4-spacenet', '1');
+      localStorage.setItem('astranov:coach-disabled', '1');
     } catch (_) {}
-  }, 1400);
+  };
+  /* first-run coach disabled */
 
   window._astranovFeaturesReady = true;
   document.documentElement.dataset.astranovPhase = 'features';
