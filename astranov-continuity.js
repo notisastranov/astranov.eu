@@ -40,8 +40,8 @@
  */
 /* SPECS: continuity source — human twin is SPECS.md at repo root */
 const AstranovContinuity = {
-  version: '20260720090000-os-browser',
-  updated: '2026-07-20',
+  version: '20260723140000-specs-bridge',
+  updated: '2026-07-23',
   specsHuman: 'SPECS.md',
 
   /**
@@ -409,16 +409,61 @@ if (typeof console !== 'undefined' && console.info) {
   setTimeout(hide, 2500);
 })();
 
-/* === ASTRANOV OS BOOT (single path — defer to astranov-os-boot.js if present) === */
+/* === ASTRANOV OS BOOT + ARCHITECT BRIDGE (SPECS-up) === */
 (function astranovOsBootFromContinuity() {
-  // Avoid double-load thrash: full shell and entry already schedule os-boot
-  if (window.__ASTRANOV_OS_BOOT__) return;
-  if (document.querySelector('script[src*="astranov-os-boot"]')) return;
-  if (document.querySelector('script[src*="08-astranov-os"]')) return;
-  var s = document.createElement('script');
-  s.src = '/js/astranov-os-boot.js?v=' + encodeURIComponent(
-    (document.querySelector('meta[name="astranov-build"]') || {}).content || '0'
-  );
-  s.async = true;
-  (document.head || document.documentElement).appendChild(s);
+  var build = ((document.querySelector('meta[name="astranov-build"]') || {}).content) || '0';
+  function loadJs(src, key) {
+    return new Promise(function (resolve) {
+      if (key && window[key]) return resolve();
+      if (document.querySelector('script[data-astranov-src="' + src + '"]')) return resolve();
+      var s = document.createElement('script');
+      s.src = src + (src.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent(build);
+      s.async = true;
+      s.dataset.astranovSrc = src;
+      s.onload = function () { resolve(); };
+      s.onerror = function () { resolve(); };
+      (document.head || document.documentElement).appendChild(s);
+    });
+  }
+  // Architect bridge: real client if only stub present
+  function ensureArchitect() {
+    try {
+      var ab = window.ArchitectBridge;
+      var stub = !ab || (typeof ab.handleCommand === 'function' && ab.handleCommand.length === 0 && !ab.api);
+      // Prefer loading full bridge when not armed API surface
+      if (!ab || typeof ab.bridgeUrl !== 'function') {
+        return loadJs('/js/17-architect-bridge.js').then(function () {
+          try { window.ArchitectBridge && window.ArchitectBridge.init && window.ArchitectBridge.init(); } catch (_) {}
+        });
+      }
+      try { ab.init && ab.init(); } catch (_) {}
+      return Promise.resolve();
+    } catch (_) { return Promise.resolve(); }
+  }
+  // OS boot — avoid double thrash
+  function ensureOs() {
+    if (window.__ASTRANOV_OS_BOOT__) return Promise.resolve();
+    if (document.querySelector('script[src*="astranov-os-boot"]')) return Promise.resolve();
+    if (document.querySelector('script[src*="08-astranov-os"]')) return Promise.resolve();
+    return loadJs('/js/astranov-os-boot.js');
+  }
+  // Soft-ensure SPECS modules from /js/ (CF github-sha serves js/* reliably)
+  function ensureSpecsModules() {
+    var chain = Promise.resolve();
+    if (!window.FieldHud) chain = chain.then(function () { return loadJs('/js/astranov-field-hud.js', 'FieldHud'); });
+    if (!window.MenuProfilePostTile) chain = chain.then(function () { return loadJs('/js/astranov-mpp-tile.js', 'MenuProfilePostTile'); });
+    return chain.then(function () {
+      try { if (window.MenuProfilePostTile && window.MenuProfilePostTile.init) window.MenuProfilePostTile.init(); } catch (_) {}
+      try { if (window.FieldHud && window.FieldHud.boot) window.FieldHud.boot(); } catch (_) {}
+    });
+  }
+  function run() {
+    ensureArchitect()
+      .then(ensureSpecsModules)
+      .then(ensureOs)
+      .catch(function (e) { try { console.warn('[AstranovContinuity] SPECS boot', e); } catch (_) {} });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
+  else run();
+  setTimeout(run, 1200);
 })();
