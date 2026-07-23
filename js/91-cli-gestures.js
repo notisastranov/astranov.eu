@@ -7,13 +7,16 @@
  */
 (function CliGestures() {
   'use strict';
-  var VER = '20260723350000';
+  var VER = '20260723351000';
   if (window.__CLI_GESTURES__?.version === VER) return;
   window.__CLI_GESTURES__ = { version: VER, ready: false };
 
   var KEEP_OPEN_TURNS = 1;
   var caseSeq = 0;
-  var COLLAPSE_LOCK_MS = 2500;
+  /* Start minimized; stay minimized until user expands (tap/swipe/send) */
+  window.__cliUserCollapsed = true;
+  window.__cliCollapseAt = Date.now();
+  window.__cliStartMinimized = true;
 
   function deck() { return document.getElementById('globe-deck'); }
   function logEl() { return document.getElementById('globe-deck-log'); }
@@ -167,9 +170,8 @@
   }
 
   function isCollapseLocked() {
-    if (!window.__cliUserCollapsed) return false;
-    var t = window.__cliCollapseAt || 0;
-    return (Date.now() - t) < COLLAPSE_LOCK_MS;
+    // While user-collapsed (including boot default), never auto-reopen
+    return !!window.__cliUserCollapsed;
   }
 
   window.__cliCollapse = collapse;
@@ -185,18 +187,23 @@
     var _ensure = G.ensureCliVisible && G.ensureCliVisible.bind(G);
     if (_ensure) {
       G.ensureCliVisible = function (kind) {
-        if (isCollapseLocked()) return;
-        if (window.__cliUserCollapsed && kind !== 'err' && kind !== 'cmd') return;
-        // cmd/err may re-open (user sent a message)
-        if (kind === 'cmd') window.__cliUserCollapsed = false;
+        // Only user command opens a minimized CLI
+        if (isCollapseLocked()) {
+          if (kind === 'cmd') {
+            window.__cliUserCollapsed = false;
+            return _ensure(kind);
+          }
+          return;
+        }
         return _ensure(kind);
       };
     }
 
     var _expand = G.expand && G.expand.bind(G);
     if (_expand) {
-      G.expand = function () {
-        if (isCollapseLocked() && arguments[0] !== 'force') return;
+      G.expand = function (title) {
+        // Block boot/noise expands while minimized; allow force or user toggle
+        if (isCollapseLocked() && title !== 'force' && title !== true) return;
         window.__cliUserCollapsed = false;
         return _expand.apply(this, arguments);
       };
@@ -206,12 +213,11 @@
     if (_log) {
       G.log = function (text, cls) {
         var kind = cls || 'out';
-        // Don't auto-expand on dim/think noise while locked
-        if (isCollapseLocked() && kind !== 'cmd' && kind !== 'err') {
+        // Quiet append while minimized — never expand for system noise
+        if (isCollapseLocked() && kind !== 'cmd') {
           try {
             var out = this.logEl && this.logEl();
             if (!out) return;
-            // still append quietly without expanding
             var row = document.createElement('div');
             row.className = 'deck-line deck-' + kind;
             row.textContent = String(text || '');
@@ -226,6 +232,13 @@
         return r;
       };
     }
+
+    // Boot: force collapsed size
+    try {
+      G._size = 'collapsed';
+      G.expanded = false;
+      G.applySize && G.applySize();
+    } catch (_) {}
   }
 
   /* ── Isolate from Earth ───────────────────────────────────────── */
@@ -514,15 +527,24 @@
     patchGlobeDeck();
     bindHandle();
     bindLogScroll();
+    // Always re-assert start/default minimized until user opens
+    if (window.__cliUserCollapsed !== false) {
+      window.__cliUserCollapsed = true;
+      collapse('boot-default');
+    }
     window.__CLI_GESTURES__.ready = true;
   }
 
   apply();
   setTimeout(apply, 200);
-  setTimeout(apply, 800);
-  setTimeout(apply, 2000);
-  setTimeout(apply, 5000);
+  setTimeout(apply, 600);
+  setTimeout(apply, 1500);
+  setTimeout(apply, 3500);
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden) setTimeout(apply, 100);
   });
+  // After late modules finish expanding for no reason, snap closed again once
+  setTimeout(function () {
+    if (window.__cliUserCollapsed !== false) collapse('boot-late');
+  }, 2500);
 })();
