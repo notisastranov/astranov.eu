@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="description" content="Astranov — SpaceNet Global Internet OS" />
 <title>Astranov</title>
-<meta name="astranov-build" content="20260723343000" />
+<meta name="astranov-build" content="20260723350000" />
 <meta name="astranov-mode" content="product-clean" />
 <meta name="theme-color" content="#000000" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -160,9 +160,16 @@ html, body {
   overflow: hidden;
   touch-action: manipulation;
 }
-#globe-deck.collapsed { max-height: none; height: auto; }
-#globe-deck.collapsed #globe-deck-body {
-  display: none !important; height: 0; overflow: hidden;
+#globe-deck.collapsed {
+  max-height: none !important; min-height: 0 !important; height: auto !important;
+}
+#globe-deck.collapsed #globe-deck-body,
+#globe-deck.collapsed #globe-deck-log,
+#globe-deck.collapsed #globe-deck-stage {
+  display: none !important;
+  height: 0 !important; min-height: 0 !important; max-height: 0 !important;
+  overflow: hidden !important; padding: 0 !important; margin: 0 !important;
+  visibility: hidden !important; pointer-events: none !important;
 }
 #globe-deck.expanded #globe-deck-body,
 #globe-deck.size-third #globe-deck-body {
@@ -343,7 +350,7 @@ body.cli-offer-plus #super-add-fab.offer-plus {
       window._spartan = true;
     }
   } catch (e) {}
-  var BUILD = '20260723343000';
+  var BUILD = '20260723350000';
   window._bootAt = Date.now();
   window._spartan = true;
   window.__ASTRANOV_HARD_BOOT__ = 1;
@@ -482,8 +489,8 @@ body.cli-offer-plus #super-add-fab.offer-plus {
     });
 })();
 </script>
-<script defer src="/astranov-continuity.js?v=20260723343000"></script>
-<script defer src="/astranov-perf-lazy.js?v=20260723343000"></script>
+<script defer src="/astranov-continuity.js?v=20260723350000"></script>
+<script defer src="/astranov-perf-lazy.js?v=20260723350000"></script>
 </head>
 <body>
 <div id="boot" aria-busy="true" aria-live="polite">
