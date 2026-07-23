@@ -106,7 +106,14 @@ CLI: fix | code | dev | edit | bridge …
 - BrainNeurons + FieldBrain stay alive; no production stubs.
 
 ### 3.10 CLI chrome — **one surface only** (Grok Build TUI fork)
-- **Fork rule:** Astranov product CLI **is a fork of Grok Build**. Look and density must match this agent’s TUI: session header, mono scrollback with **left accent bars**, `›` prompt prefix, compact tool handle — not a separate chat bubble / OS overlay style.
+- **Fork rule:** Astranov product CLI **is a fork of Grok Build**. It must **look and work** like this agent’s TUI: session header, mono scrollback with **left accent bars**, `›` prompt, agent turns (think → tools → reply), slash commands, history keys — not a separate chat bubble / OS overlay style.
+- **Behavior (must):**
+  - **Enter** sends · **Shift+Enter** newline · **↑/↓** command history · **Ctrl+K / Ctrl+L** clear scrollback
+  - **Slash commands:** `/help` `/clear` `/status` `/doctor` `/theme` `/compact` `/stop` `/hold` `/resume` `/history` `/fix` `/code` `/dev` `/bridge` `/model`
+  - **Natural language** always becomes an agent turn (CoreBrain): expand CLI → `›` user line → thinking → `◆` tool lines → assistant reply in scrollback
+  - Prompt stays **`›`** (never overwrite with long `$` shells)
+  - Guest can type freeform (local globe tools + AI); owner bridge for `/fix` `/code` `/dev`
+  - Parity module: `js/90-grok-cli-parity.js` (loaded after delivery-dna)
 - **USE THE CLI:** All user-visible system output (errors, tasks, activity, status) goes through `GlobeDeck.log` / `AciCli.print` / `ActivityLog` into `#globe-deck-log`. Expand the deck so the scroll is visible. Never sticky red bars; never DevTools-only for product events.
 - **Errors & activity:** no sticky red overlays (`#astranov-hard-error` banned). All errors/tasks/activity log into CLI scroll (`GlobeDeck.log` / `AciCli.print` / `ActivityLog`).
 - **Layout (top → bottom):**
