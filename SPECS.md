@@ -70,8 +70,12 @@ Look **and** work like this agent’s TUI:
 
 ### 3.3 Touch / Earth isolation
 - `#globe-deck { pointer-events: auto }` — scroll never spins Earth
-- Log: `touch-action: pan-y` · **overscroll past top OR past bottom** (scrolled all the way down + keep going) → minimize CLI
-- Handle: tap toggle · drag resize
+- **Minimize (must work):**
+  - Swipe handle **down** → collapse
+  - Tap header/title/status → toggle
+  - Overscroll past **top or bottom** of log → collapse
+  - Collapse locks ~2.5s against `ensureCliVisible` re-open spam
+  - CSS: `.collapsed` forces `#globe-deck-body` + log `display:none !important`
 - Module: `js/91-cli-gestures.js`
 
 ### 3.4 Add / MultiTile
