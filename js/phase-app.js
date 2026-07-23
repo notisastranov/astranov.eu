@@ -5944,7 +5944,7 @@ window.ResourceMonitor = ResourceMonitor;
  * Buttons needed live only in the CLI top handle (#super-cli-bar / #os-cli-handle).
  * Theme: Astranov deep glowing blue + round corners (SPECS.md §3.10, §3.16, §3.18).
  */
-const AstranovOS = {
+window.AstranovOS = {
   version: '20260723-cli-handle',
   mode: 'home',
   _inited: false,
@@ -6412,12 +6412,10 @@ body.os-mode-browser #super-cli-bar,body.os-mode-browser #globe-deck,body.os-mod
   },
 };
 
-window.AstranovOS = AstranovOS;
-
 /* === 08-astranov-browser.js === */
 // === ASTRANOV BROWSER — in-OS web browser for all devices ===
 // Tabs + URL bar + history. Internal astranov:// routes + sandboxed https.
-const AstranovBrowser = {
+window.AstranovBrowser = {
   version: '20260720-br1',
   _inited: false,
   _tabs: [],
@@ -6785,8 +6783,6 @@ const AstranovBrowser = {
     document.getElementById('os-browser-err')?.classList.remove('open');
   },
 };
-
-window.AstranovBrowser = AstranovBrowser;
 
 /* === 99-boot-app.js === */
 // === SPARTAN BOOT · APP — map + slim CLI. No heavy subsystems. ===
