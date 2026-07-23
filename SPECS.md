@@ -59,7 +59,11 @@ Look **and** work like this agent’s TUI:
 
 ### 3.1 One CLI surface
 - `#super-cli-bar` **inside** `#globe-deck` only
-- Top-right: **Send** then voice — **no permanent `+`**
+- Top-right tools use **Astranov SpaceNet icons** (custom SVG, big + label):
+  - **Find** — Earth + crosshair (locate)
+  - **Send** — uplink rocket (submit)
+  - **Talk** — mic + wave rings (voice)
+- **No permanent `+`**
 - Full-width `#aci-cli-in` always visible when deck collapsed (body/log may hide)
 - Prompt always `›`
 
