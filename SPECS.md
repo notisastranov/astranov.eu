@@ -78,6 +78,17 @@ CLI: fix | code | dev | edit | bridge …
 ### 3.5 Delivery / marketplace
 - Browse → cart → pay AVC → track. Deferred commerce pack.
 
+### 3.5b Delivery DNA (instant pay + street routing)
+- **Module:** `js/85-delivery-dna.js` · `window.DeliveryDNA`
+- **Instant internal payments:** AVC/Coins balance — no card wait when balance covers total (`pay instant`, cart balance pay, ledger/RPC fallback).
+- **City street routing** (OSRM + alternatives, scored):
+  - `avoid traffic lights` / `no lights`
+  - `avoid populated roads` / `avoid busy`
+  - `use hidden roads` / `backstreets` / `quiet`
+  - `fast roads` · `avoid motorway` · `avoid tolls` · `reset prefs`
+- **CLI:** `dna` · `route …` · `deliver route …` · `pay instant <amount>`
+- Patches `DrivingView.fetchRoadRoute` to honor DNA prefs; paints CityMap route.
+
 ### 3.6 Miner rig (field HUD only)
 - Tap top-right field. **No** `#aci-miner` / miner CLI strip.
 - Code: `js/astranov-field-hud.js`
