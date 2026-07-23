@@ -106,6 +106,7 @@ CLI: fix | code | dev | edit | bridge …
 - BrainNeurons + FieldBrain stay alive; no production stubs.
 
 ### 3.10 CLI chrome — **one surface only**
+- **Input field always visible:** `#aci-cli-in` textarea in `#globe-deck-input-row` must show even when deck is collapsed (never clip with tiny max-height). Collapsed mode hides log body only.
 - **One product CLI:** `#super-cli-bar` inside `#globe-deck`.
 - **The top handle of the CLI** is the **only** place for chrome buttons needed at any time (`#os-cli-handle` + existing CLI buttons).
 - **Forbidden second bars** (must stay hidden / removed):
