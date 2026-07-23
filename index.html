@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="description" content="Astranov — SpaceNet Global Internet OS" />
 <title>Astranov</title>
-<meta name="astranov-build" content="20260723351000" />
+<meta name="astranov-build" content="20260723352000" />
 <meta name="astranov-mode" content="product-clean" />
 <meta name="theme-color" content="#000000" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -386,7 +386,7 @@ body.cli-offer-plus #super-add-fab.offer-plus {
       window._spartan = true;
     }
   } catch (e) {}
-  var BUILD = '20260723351000';
+  var BUILD = '20260723352000';
   window._bootAt = Date.now();
   window._spartan = true;
   window.__ASTRANOV_HARD_BOOT__ = 1;
@@ -525,8 +525,8 @@ body.cli-offer-plus #super-add-fab.offer-plus {
     });
 })();
 </script>
-<script defer src="/astranov-continuity.js?v=20260723351000"></script>
-<script defer src="/astranov-perf-lazy.js?v=20260723351000"></script>
+<script defer src="/astranov-continuity.js?v=20260723352000"></script>
+<script defer src="/astranov-perf-lazy.js?v=20260723352000"></script>
 </head>
 <body>
 <div id="boot" aria-busy="true" aria-live="polite">
@@ -561,12 +561,49 @@ body.cli-offer-plus #super-add-fab.offer-plus {
       <span id="cli-ribbon-status" class="ready">ready</span>
       <div id="app-shortcut-row" hidden></div>
       <div id="super-cli-edge-right" class="toolbar-trust-actions">
-        <button id="aci-locate" type="button" title="Locate">⌖</button>
+        <!-- Astranov SpaceNet icons: Locate · Send · Voice -->
+        <button id="aci-locate" class="sn-btn" type="button" title="Locate me — SpaceNet pin" aria-label="Locate me">
+          <span class="sn-ico" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- Earth disc + crosshair = FIND ME -->
+              <circle cx="16" cy="16" r="11" stroke="#3d6eb0" stroke-width="1.6"/>
+              <ellipse cx="16" cy="16" rx="5" ry="11" stroke="#5a7ab0" stroke-width="1.1" opacity="0.85"/>
+              <path d="M5 16h22M16 5v22" stroke="#3d6eb0" stroke-width="1.1" opacity="0.55"/>
+              <circle cx="16" cy="16" r="3.2" fill="#1e4d8c" stroke="#8ab0d8" stroke-width="1.2"/>
+              <circle cx="16" cy="16" r="1.2" fill="#dce6f2"/>
+            </svg>
+          </span>
+          <span class="sn-lab">Find</span>
+        </button>
         <button id="aci-bridge" type="button" title="Bridge" hidden>⌘</button>
         <button id="aci-video-call" type="button" title="Video" hidden>▣</button>
         <button id="super-add-fab" type="button" title="Add" hidden aria-hidden="true">+</button>
-        <button id="globe-deck-send" class="deck-input-btn cli-send-top" type="submit" form="aci-cli-form" title="Send">Send</button>
-        <button id="aci-handsfree" type="button" title="Voice">◉</button>
+        <button id="globe-deck-send" class="deck-input-btn cli-send-top sn-btn" type="submit" form="aci-cli-form" title="Send to Grok" aria-label="Send">
+          <span class="sn-ico" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- Uplink rocket / beam = SEND -->
+              <path d="M16 5l6 10h-3.5v9h-5v-9H10L16 5z" fill="#3d6eb0" stroke="#8ab0d8" stroke-width="1.1" stroke-linejoin="round"/>
+              <path d="M13 24h6v2.5c0 1-1.2 1.8-3 1.8s-3-.8-3-1.8V24z" fill="#1e4d8c" stroke="#5a7ab0" stroke-width="0.9"/>
+              <path d="M12 12.5h8" stroke="#dce6f2" stroke-width="1" opacity="0.5"/>
+              <circle cx="16" cy="9.5" r="1.3" fill="#dce6f2"/>
+            </svg>
+          </span>
+          <span class="sn-lab">Send</span>
+        </button>
+        <button id="aci-handsfree" class="sn-btn" type="button" title="Voice headset — talk to Grok" aria-label="Voice">
+          <span class="sn-ico" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- Orbital mic + wave rings = VOICE -->
+              <rect x="13" y="7" width="6" height="11" rx="3" fill="#1e4d8c" stroke="#8ab0d8" stroke-width="1.2"/>
+              <path d="M10 16.5a6 6 0 0 0 12 0" stroke="#3d6eb0" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M16 22.5v3.5" stroke="#5a7ab0" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M12 26h8" stroke="#5a7ab0" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M7 13c-1.2 1.2-1.8 2.6-1.8 4s.6 2.8 1.8 4" stroke="#3d6eb0" stroke-width="1.3" stroke-linecap="round" opacity="0.9"/>
+              <path d="M25 13c1.2 1.2 1.8 2.6 1.8 4s-.6 2.8-1.8 4" stroke="#3d6eb0" stroke-width="1.3" stroke-linecap="round" opacity="0.9"/>
+            </svg>
+          </span>
+          <span class="sn-lab">Talk</span>
+        </button>
       </div>
     </div>
     <div id="globe-deck-body">
