@@ -1698,9 +1698,26 @@ const GlobeDeck = {
     if (window.AciCli) AciCli.buffer = '';
   },
 
+  ensureCliVisible(kind) {
+    try {
+      this._userEngaged = true;
+      if (this._collapseTimer) { clearTimeout(this._collapseTimer); this._collapseTimer = null; }
+      this._size = 'third';
+      this.expanded = true;
+      this.applySize?.();
+      const d = this.deck?.() || document.getElementById('globe-deck');
+      if (d) { d.classList.remove('collapsed'); d.classList.add('expanded', 'size-third'); }
+      const body = document.getElementById('globe-deck-body');
+      if (body) { body.style.display = 'flex'; body.style.minHeight = '100px'; body.style.maxHeight = '42vh'; body.style.overflow = 'hidden'; }
+      const out = document.getElementById('globe-deck-log');
+      if (out) { out.style.display = 'block'; out.style.overflowY = 'auto'; out.style.minHeight = '72px'; out.style.flex = '1'; }
+      if (window.AciCli) AciCli.open = true;
+    } catch (_) {}
+  },
   log(text, cls) {
     const kind = cls || 'out';
     const repaired = this._repairLine(text, kind);
+    if (kind !== 'map') this.ensureCliVisible(kind);
     if (kind === 'map') {
       this.setMapStatus(repaired);
       return;
@@ -1726,7 +1743,7 @@ const GlobeDeck = {
     if (this._lastSay === key && now - this._lastSayT < 5000) return;
     this._lastSay = key;
     this._lastSayT = now;
-    if (kind === 'cmd' || kind === 'err') this.expand();
+    if (kind === 'cmd' || kind === 'err' || kind === 'ok' || kind === 'reply' || kind === 'out') this.expand('CLI');
     else if (this._userEngaged && this.expanded && (kind === 'reply' || kind === 'out' || kind === 'ok')) { /* stay open */ }
     const row = document.createElement('div');
     row.className = 'deck-line deck-' + kind;
