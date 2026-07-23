@@ -9,9 +9,12 @@
 | Live | https://astranov.eu | Product under SpaceNet globe primacy |
 | Repo | https://github.com/notisastranov/astranov.eu | `main` |
 
+### Mandatory agent rule (owner)
+**Every product change MUST update this `SPECS.md` in the same change** (and `astranov-continuity.js` when features/selectors change). No silent behavior drift. Deploy SPECS with the code, not “later.”
+
 **Ignore / deleted:** ChatGPT/Claude/Grok session dumps, old `ASTRANOV_GROK_SPECS.md`, living-truth dumps, issues #97/#99 handoffs.
 
-Continuity version target: `20260723140000-specs-bridge`
+Continuity version target: `20260723190000-map-places`
 
 ---
 
@@ -115,6 +118,28 @@ CLI: fix | code | dev | edit | bridge …
 ### 3.11 Globe physics
 - Locked without owner request. Damped trackball (`TRACK_SENS` ~0.0026) allowed.
 
+### 3.11b Zoom tiers → national / city (must work)
+- **Path:** solar → global → **national** → regional → **city** → neighborhood/streets.
+- **Code:** `js/09-zoom-tiers.js` + embedded copy in `js/phase-critical.js`; `GlobeControl.Z` aligned.
+- Typical Z: national ~2.15, regional ~1.78, city ~1.45, neighborhood ~1.15.
+- **City handoff:** entering city/neighborhood **opens Leaflet city map** (`CityMap.openAt` / `onCamera`); leaving city returns to globe (`returnToGlobe`).
+- `CityMap.ENTER_Z` ~1.50, `EXIT_Z` ~1.90 so national does not stick under the street map.
+- Wheel/pinch use tier steps (lower WHEEL/PINCH thresholds) so users can reach country and city normally.
+
+### 3.11c Multi-tile (long-press place) + CLI recovery
+- **Module:** `js/62-multi-tile.js` · `window.MultiTile` (loaded after phases; overrides embedded copy).
+- **Open:** long-press globe (any tier) or city map (touch **and** desktop mousedown ~480ms); `+` also opens.
+- **Must be visible:** inject `#multi-tile-css` (was missing → looked broken).
+- **UI required:**
+  - **Close** + **Clear**
+  - Accurate location: **N/S/E/W nudge**, lat/lng fields, **Apply lat/lng**
+  - **Unique place name** from reverse-geocode real state (e.g. island/city/road) + role tag (`Astranov Office` / driver base / …); user-editable
+  - **Save** → registry `localStorage` `astranov:places-v1` with stable `id` + unique `name`
+- **CLI recovery:**
+  - `place list` / `places`
+  - `place open <name|id>` (e.g. `place open Rodos Island Astranov Office`)
+- Markers: place name + id shown on tile; recoverable after refresh via CLI.
+
 ### 3.12 Architect bridge (in-app Grok development)
 - Owner only: `notisastranov@gmail.com` after Google sign-in.
 - UI: `#aci-bridge` (🛠). Commands: `fix`, `code`, `dev`, `edit`, `bridge`, `bridge status`, `bridge poll`.
@@ -214,11 +239,19 @@ CLI shortcuts after bridge is armed:
 | OS / Browser | `js/08-astranov-os.js`, `js/08-astranov-browser.js` | `/* SPECS: CLI-handle only; no os-dock */` |
 | CLI chrome | `index.html` + OS | `#super-cli-bar` / `#os-cli-handle` only |
 | Theme | OS CSS + index `:root` | deep blue + round corners |
+| Zoom tiers | `js/09-zoom-tiers.js`, `phase-critical` | national/city handoff |
+| City map | `js/61-city-map.js` | ENTER/EXIT + long-press MultiTile |
+| Multi-tile places | `js/62-multi-tile.js` | long-press, name, nudge, CLI `place` |
+| Delivery DNA | `js/85-delivery-dna.js` | instant pay + street route prefs |
 | Architect bridge | `js/17-architect-bridge.js` | phone → Grok Build |
 | Coach off | continuity + phase-features | `killFirstRunCoach` / no-op coach |
 
 ---
 
-## 8. Sync rule
+## 8. Sync rule (non-negotiable)
 
-When continuity features change: **update this SPECS.md in the same change** and keep in-code `SPECS:` banners accurate.
+1. **Every product change** updates **this `SPECS.md`** in the **same** PR/push as the code.
+2. Feature/selector/CLI changes also update **`astranov-continuity.js`** (`window.AstranovContinuity`).
+3. Keep in-code `/* SPECS: … */` banners accurate on modules touched.
+4. Prefer English UI strings; never leave UTF-8 mojibake (looks like “Chinese” garbage).
+5. If a change was shipped without SPECS, **fix SPECS immediately** before more features.
