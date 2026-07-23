@@ -5,8 +5,8 @@
  */
 (function GrokCliParity() {
   'use strict';
-  if (window.__GROK_CLI_PARITY__?.version === '20260723290000') return;
-  window.__GROK_CLI_PARITY__ = { version: '20260723290000', ready: false };
+  if (window.__GROK_CLI_PARITY__?.version === '20260723351000') return;
+  window.__GROK_CLI_PARITY__ = { version: '20260723351000', ready: false };
 
   const MONO_SLASH = [
     '/help', '/clear', '/status', '/doctor', '/theme', '/compact',
@@ -40,22 +40,29 @@
     } catch (_) {}
   }
 
-  function expandSession(title) {
+  function expandSession(title, opts) {
     try {
-      GlobeDeck?.ensureCliVisible?.('cmd');
-      GlobeDeck?.expand?.(title || 'Grok');
+      // SPECS: start minimized; only open on real user action (opts.user / cmd)
+      if (window.__cliUserCollapsed && !opts?.user && !opts?.force) return;
+      window.__cliUserCollapsed = false;
+      if (window.__cliExpand) {
+        window.__cliExpand('parity');
+      } else {
+        GlobeDeck?.ensureCliVisible?.('cmd');
+        GlobeDeck?.expand?.('force');
+        const d = document.getElementById('globe-deck');
+        if (d) {
+          d.classList.remove('collapsed');
+          d.classList.add('expanded', 'size-third');
+        }
+        const body = document.getElementById('globe-deck-body');
+        if (body) {
+          body.style.display = 'flex';
+          body.style.minHeight = '120px';
+          body.style.maxHeight = '44vh';
+        }
+      }
       GlobeDeck?.onUserMessage?.(title || 'Grok');
-      const d = document.getElementById('globe-deck');
-      if (d) {
-        d.classList.remove('collapsed');
-        d.classList.add('expanded', 'size-third');
-      }
-      const body = document.getElementById('globe-deck-body');
-      if (body) {
-        body.style.display = 'flex';
-        body.style.minHeight = '120px';
-        body.style.maxHeight = '44vh';
-      }
     } catch (_) {}
   }
 
@@ -76,7 +83,7 @@
     const cmd = (parts[0] || '').toLowerCase();
     const rest = parts.slice(1).join(' ');
 
-    expandSession('Grok');
+    expandSession('Grok', { user: true });
     log('› ' + line, 'cmd');
 
     if (cmd === 'help' || cmd === 'h' || cmd === '?') {
@@ -338,12 +345,12 @@
     C.run = async function (line, opts) {
       line = String((window.fixVoiceHotwords || (x => x))(String(line || ''))).trim();
       if (!line) {
-        expandSession('Grok');
-        await AciCoders?.enterSession?.({ focus: true, ping: false });
+        // Empty send: just focus, stay minimized unless already open
+        await AciCoders?.enterSession?.({ focus: true, ping: false, expand: false });
         return;
       }
       setPromptGrok();
-      expandSession('Grok — ' + line.slice(0, 36));
+      expandSession('Grok — ' + line.slice(0, 36), { user: true });
 
       // Slash first (Grok Build)
       if (line.startsWith('/')) {
@@ -395,14 +402,14 @@
     // Avoid double-logging › when handle prints again with old prompt
     const _print = C.print?.bind(C);
     C.print = function (t, cls) {
-      expandSession();
+      // Never force-expand on print — minimized by default
       return _print ? _print(t, cls) : log(t, cls);
     };
 
     // Guest may use CLI (Grok works without gate for chat)
     const _show = C.show?.bind(C);
     C.show = function () {
-      expandSession('Grok');
+      expandSession('Grok', { user: true });
       this.open = true;
       setPromptGrok();
       document.getElementById('aci-cli-in')?.focus();
@@ -414,11 +421,10 @@
       const input = document.getElementById('aci-cli-in');
       const line = String(input?.value || '').replace(/\n+$/, '').trim();
       if (!line) {
-        expandSession('Grok');
         if (opts?.emptyFocus) document.getElementById('aci-cli-in')?.focus();
         return false;
       }
-      expandSession('Grok');
+      expandSession('Grok', { user: true });
       thinking(true, 'Grok…');
       if (input) {
         input.value = '';
@@ -448,33 +454,30 @@
     };
   }
 
-  /* ── GlobeDeck: always expand on log (activity surface) ──────── */
+  /* ── GlobeDeck: do NOT force-expand on every log (start minimized) ── */
   function patchGlobeDeck() {
     const G = window.GlobeDeck;
     if (!G?.log || G.__grokPatched) return;
     G.__grokPatched = true;
     const _log = G.log.bind(G);
     G.log = function (text, cls) {
-      const kind = cls || 'out';
-      if (kind !== 'map') {
-        try {
-          this.ensureCliVisible?.(kind);
-          if (!this.expanded) this.expand?.('Grok');
-        } catch (_) {}
-      }
+      // Leave expand policy to 91-cli-gestures (__cliUserCollapsed)
       return _log(text, cls);
     };
   }
 
   function bootBanner() {
+    // Quiet banner into log only — never expand on boot
     try {
       const out = document.getElementById('globe-deck-log');
       if (!out || out.dataset.grokBanner) return;
       out.dataset.grokBanner = '1';
-      // Only if empty — don't spam existing sessions
       if (out.children.length === 0) {
-        log('Grok Build fork · Astranov SpaceNet', 'ok');
-        log('Type naturally or /help · Enter sends · ↑↓ history · Ctrl+K clear', 'dim');
+        // Use dim so minimized lock doesn't treat as user cmd
+        const a = document.createElement('div');
+        a.className = 'deck-line deck-dim';
+        a.textContent = 'Grok ready · type below or tap handle to expand';
+        out.appendChild(a);
       }
     } catch (_) {}
   }
