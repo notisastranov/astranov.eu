@@ -9,8 +9,7 @@ const AciCli = {
     AciCoders?.autoStart?.();
     CliRibbon?.setActive?.('Grok');
     const input = document.getElementById('aci-cli-in');
-    if (input) input.placeholder = 'Grok · SpaceNet — ask anything · locate · fly · browse · order';
-    SpaceNetGrokCli?.init?.();
+    if (input) input.placeholder = 'Talk to Grok — type or tap 🎧 · Enter to send';
   },
 
   init() {
@@ -105,23 +104,8 @@ const AciCli = {
     this.history.push(line);
     this.histIdx = -1;
     this.print((document.getElementById('aci-cli-prompt')?.textContent || '›') + ' ' + line, 'cmd');
-    // Street-first SpaceNet: jobs · dates · delivery · search · anything on the globe
-    const low = line.toLowerCase();
-    const street = /^(job|gig|date|dating|deliver|delivery|errand|task|search|find|hire|need)\b/i.test(low)
-      || /\b(barman|nanny|housekeeper|coffee\s*date|pharmacy|claim)\b/i.test(low)
-      || (window.CityTasks?.wants?.(line) && !/^(dev|ui|brain|theme|youtube|watch)\b/i.test(low));
-    if (street && window.SpaceNetGrokCli?.handle) {
-      SpaceNetGrokCli.init?.();
-      const r = await SpaceNetGrokCli.handle(line, opts);
-      if (r?.ok !== false) return;
-    }
     const routed = await SuperCli?.exec?.(line, opts);
     if (routed?.handled) return;
-    // Freeform fallback → SpaceNet (never "unknown")
-    if (window.SpaceNetGrokCli?.handle) {
-      await SpaceNetGrokCli.handle(line, opts);
-      return;
-    }
     await this.handle(line);
   },
 
@@ -155,7 +139,11 @@ const AciCli = {
     GlobeDeck?.clearLog?.();
   },
 
-  print(t, cls) { GlobeDeck?.log?.(t, cls); },
+  print(t, cls) {
+    try { GlobeDeck?.ensureCliVisible?.(cls || 'out'); } catch (_) {}
+    try { GlobeDeck?.expand?.('CLI'); } catch (_) {}
+    GlobeDeck?.log?.(t, cls);
+  },
 
   async handle(line) {
     const parts = line.trim().split(/\s+/);
@@ -165,13 +153,10 @@ const AciCli = {
 
     if (!cmd) return;
     if (cmd === 'help' || cmd === '?') {
-      if (window.SpaceNetGrokCli?.printHelp) {
-        SpaceNetGrokCli.printHelp();
-        return;
-      }
-      this.print('SpaceNet: job barman 3h · date coffee 2h · deliver food · errand pharmacy', 'ok');
-      this.print('task list · task claim · search barman · locate · fly · order', 'ok');
-      this.print('Every action paints the globe — that is SpaceNet', 'dim');
+      this.print('locate · order · resources · channels · starship · starlink · spacex · crawl', 'dim');
+      this.print('task job barman 3h · task housekeeper 1w · task date coffee 2h · task errand · task claim', 'dim');
+      this.print('channels status · seed · publish · order · enable mesh', 'dim');
+      this.print('think · coders · theme · Architect: fix|bridge', 'dim');
       return;
     }
     if (cmd === 'resources' || cmd === 'resource' || cmd === 'donate' || cmd === 'monitor') {
@@ -223,13 +208,8 @@ const AciCli = {
     if (cmd === 'exit' || cmd === 'close') { GlobeDeck?.completeTask('cli'); return; }
     if (cmd === 'logout') { await Auth.signOut(); this.print('signed out', 'ok'); return; }
 
-    if (cmd === 'theme' || cmd === 'dark' || cmd === 'bright' || cmd === 'light' || cmd === 'auto' || cmd === 'spacex' || cmd === 'falcon') {
-      let mode = cmd === 'theme' ? (parts[1] || 'spacex').toLowerCase() : (cmd === 'light' ? 'bright' : cmd);
-      if (mode === 'spacex' || mode === 'falcon' || mode === 'starship') {
-        AstranovTheme?.setSpacex?.(true) || AstranovTheme?.set?.('spacex');
-        this.print('theme → spacex (SpaceX industrial)', 'ok');
-        return;
-      }
+    if (cmd === 'theme' || cmd === 'dark' || cmd === 'bright' || cmd === 'light' || cmd === 'auto') {
+      let mode = cmd === 'theme' ? (parts[1] || '').toLowerCase() : (cmd === 'light' ? 'bright' : cmd);
       if (mode === 'auto' || mode === 'system') mode = 'auto';
       AstranovTheme?.set?.(mode);
       this.print('theme → ' + (AstranovTheme?._auto ? 'auto' : AstranovTheme?.mode || 'dark'), 'ok');
