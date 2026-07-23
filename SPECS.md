@@ -114,6 +114,7 @@ CLI: fix | code | dev | edit | bridge …
   - Prompt stays **`›`** (never overwrite with long `$` shells)
   - Guest can type freeform (local globe tools + AI); owner bridge for `/fix` `/code` `/dev`
   - Parity module: `js/90-grok-cli-parity.js` (loaded after delivery-dna)
+  - Gestures: `js/91-cli-gestures.js` — **CLI captures all touch/wheel** (never spins Earth); **handle** tap = toggle / drag = resize; **pull-down or overscroll at top of log** minimizes CLI; **past turns compact into foldable cases** (tap ▶ to expand)
 - **USE THE CLI:** All user-visible system output (errors, tasks, activity, status) goes through `GlobeDeck.log` / `AciCli.print` / `ActivityLog` into `#globe-deck-log`. Expand the deck so the scroll is visible. Never sticky red bars; never DevTools-only for product events.
 - **Errors & activity:** no sticky red overlays (`#astranov-hard-error` banned). All errors/tasks/activity log into CLI scroll (`GlobeDeck.log` / `AciCli.print` / `ActivityLog`).
 - **Layout (top → bottom):**
