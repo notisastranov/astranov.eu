@@ -760,9 +760,11 @@ window.GlobeEntity = GlobeEntity;
 // Kinds: delivery · job · errand · dating · service
 // Durations: 3h barman · 1w housekeeper · 2h date · one-shot errands
 const CityTasks = {
-  version: '20260717-jobs-dna',
+  version: '20260720-task-launcher',
   tasks: new Map(),
   _localKey: 'astranov:city-tasks-v2',
+  _coinsKey: 'astranov:coins-wallet-v1',
+  _wallet: null,
 
   // Shared status DNA (delivery names kept for OrderTracking mirror)
   STATUSES: ['open', 'assigned', 'claimed', 'picked_up', 'en_route', 'in_progress', 'delivered', 'done', 'cancelled'],
@@ -848,55 +850,10 @@ const CityTasks = {
     this._inited = true;
     window.CityTasks = this;
     this._loadLocal();
+    this._loadWallet();
     this._wireFieldBrain();
-    console.log('%c[CityTasks] jobs · errands · dating · delivery DNA', 'color:#44ffaa;font-weight:700');
-  },
-
-  /**
-   * First-visit demo field so solo users see SpaceNet alive on the globe.
-   * Local only · not network spam · one-time per browser.
-   */
-  seedDemoField() {
-    try {
-      if (localStorage.getItem('astranov:demo-tasks-v1')) return;
-      if (this.tasks.size > 0) {
-        localStorage.setItem('astranov:demo-tasks-v1', '1');
-        return;
-      }
-    } catch (_) { return; }
-
-    const u = window._lastPos || { lat: 36.4341, lng: 28.2176 };
-    const jitter = () => (Math.random() - 0.5) * 0.04;
-    const demos = [
-      { kind: 'job', role: 'barman', title: '💼 Demo · Barman 3h', duration: '3h', note: 'demo field seed' },
-      { kind: 'dating', role: 'coffee', title: '💕 Demo · Coffee date', duration: '1h', note: 'demo field seed' },
-      { kind: 'delivery', role: 'driver', title: '📦 Demo · Food delivery', duration: '45m', note: 'demo field seed' },
-      { kind: 'errand', role: 'pharmacy', title: '🏃 Demo · Pharmacy run', duration: '45m', note: 'demo field seed' },
-      { kind: 'job', role: 'cleaner', title: '💼 Demo · Cleaner gig 4h', duration: '4h', note: 'demo field seed' },
-    ];
-    demos.forEach((d, i) => {
-      const t = this.create({
-        ...d,
-        lat: u.lat + jitter() + (i * 0.008),
-        lng: u.lng + jitter() - (i * 0.006),
-        poster_id: 'demo',
-        poster_name: 'SpaceNet demo',
-        coins: 10 + i * 5,
-        radius_km: 5,
-      });
-      if (t) {
-        t.launched = true;
-        this.tasks.set(t.id, t);
-        this._showOnGlobe?.(t);
-      }
-    });
-    this._saveLocal();
-    try { localStorage.setItem('astranov:demo-tasks-v1', '1'); } catch (_) {}
-    AciCli?.print?.('SpaceNet demo field · 5 open tasks on the globe · type task list', 'dim');
-    try {
-      MapDepict?.setHud?.('Demo tasks live', 'spacenet');
-      GlobeDeck?.setPreview?.('Demo jobs · dates · delivery on the globe — type task list');
-    } catch (_) {}
+    try { TaskBoard?.init?.(); } catch (_) {}
+    console.log('%c[CityTasks] launch · coins · radius · dual-verify', 'color:#44ffaa;font-weight:700');
   },
 
   _loadLocal() {
@@ -914,6 +871,131 @@ const CityTasks = {
       const arr = [...this.tasks.values()].slice(-100);
       localStorage.setItem(this._localKey, JSON.stringify(arr));
     } catch (_) {}
+  },
+
+  /** Local Coins wallet — product currency for task offers */
+  _loadWallet() {
+    try {
+      const raw = localStorage.getItem(this._coinsKey);
+      if (raw) {
+        const w = JSON.parse(raw);
+        this._wallet = {
+          balance: Math.max(0, Number(w.balance) || 0),
+          held: Math.max(0, Number(w.held) || 0),
+          ledger: Array.isArray(w.ledger) ? w.ledger.slice(-80) : [],
+        };
+      }
+    } catch (_) {}
+    if (!this._wallet) {
+      this._wallet = { balance: 500, held: 0, ledger: [] };
+      this._saveWallet();
+    }
+  },
+
+  _saveWallet() {
+    try {
+      localStorage.setItem(this._coinsKey, JSON.stringify(this._wallet));
+    } catch (_) {}
+  },
+
+  coinsBalance() {
+    if (!this._wallet) this._loadWallet();
+    return {
+      balance: this._wallet.balance,
+      held: this._wallet.held,
+      available: Math.max(0, this._wallet.balance - this._wallet.held),
+    };
+  },
+
+  _ledger(entry) {
+    if (!this._wallet) this._loadWallet();
+    this._wallet.ledger.push(Object.assign({ at: Date.now() }, entry));
+    if (this._wallet.ledger.length > 80) this._wallet.ledger = this._wallet.ledger.slice(-80);
+    this._saveWallet();
+  },
+
+  /** Hold Coins on launch so offer is funded */
+  holdCoins(amount, taskId) {
+    if (!this._wallet) this._loadWallet();
+    const n = Math.max(0, Math.round(Number(amount) || 0));
+    if (!n) return { ok: true, held: 0 };
+    const avail = this._wallet.balance - this._wallet.held;
+    if (avail < n) {
+      return { ok: false, error: 'insufficient_coins', available: avail, needed: n };
+    }
+    this._wallet.held += n;
+    this._ledger({ type: 'hold', amount: n, task_id: taskId, balance: this._wallet.balance, held: this._wallet.held });
+    this._saveWallet();
+    return { ok: true, held: n, available: this._wallet.balance - this._wallet.held };
+  },
+
+  /** Release hold without paying (cancel / expire) */
+  releaseHold(amount, taskId) {
+    if (!this._wallet) this._loadWallet();
+    const n = Math.max(0, Math.round(Number(amount) || 0));
+    this._wallet.held = Math.max(0, this._wallet.held - n);
+    this._ledger({ type: 'release', amount: n, task_id: taskId, balance: this._wallet.balance, held: this._wallet.held });
+    this._saveWallet();
+    return { ok: true };
+  },
+
+  /** Settle: debit poster hold → credit worker on final dual-verified done */
+  settleCoins(task) {
+    if (!task || task.coins_settled) return { ok: true, skipped: true };
+    const n = Math.max(0, Math.round(Number(task.coins) || 0));
+    if (!n) {
+      task.coins_settled = true;
+      return { ok: true, amount: 0 };
+    }
+    if (!this._wallet) this._loadWallet();
+    const me = Auth?.user?.id || 'local';
+    const isPoster = task.poster_id === me || task.poster_id === 'local';
+    const isWorker = task.worker_id === me || task.worker_id === 'local-worker';
+
+    if (isPoster) {
+      // Debit from balance and release hold
+      this._wallet.held = Math.max(0, this._wallet.held - n);
+      this._wallet.balance = Math.max(0, this._wallet.balance - n);
+      this._ledger({
+        type: 'pay_task',
+        amount: -n,
+        task_id: task.id,
+        to: task.worker_id,
+        balance: this._wallet.balance,
+        held: this._wallet.held,
+      });
+    } else if (isWorker) {
+      // Worker earns (mint/credit on this device wallet for demo multi-tab)
+      this._wallet.balance += n;
+      this._ledger({
+        type: 'earn_task',
+        amount: n,
+        task_id: task.id,
+        from: task.poster_id,
+        balance: this._wallet.balance,
+        held: this._wallet.held,
+      });
+    } else {
+      // Same-device demo: both roles local — debit once, net zero unless poster≠worker ids
+      this._wallet.held = Math.max(0, this._wallet.held - n);
+      this._wallet.balance = Math.max(0, this._wallet.balance - n);
+      this._ledger({
+        type: 'settle_local',
+        amount: -n,
+        task_id: task.id,
+        balance: this._wallet.balance,
+        held: this._wallet.held,
+      });
+    }
+    this._saveWallet();
+    task.coins_settled = true;
+    task.updated_at = Date.now();
+    this.tasks.set(task.id, task);
+    this._saveLocal();
+    try {
+      window.dispatchEvent(new CustomEvent('astranov-coins', { detail: this.coinsBalance() }));
+    } catch (_) {}
+    return { ok: true, amount: n, balance: this._wallet.balance };
   },
 
   _id() {
@@ -1072,8 +1154,13 @@ const CityTasks = {
       radius_km: Math.max(0.2, Math.min(100, Number(spec.radius_km ?? 3) || 3)),
       // Criteria (dating age/looks, roles required, etc.)
       criteria: spec.criteria && typeof spec.criteria === 'object' ? spec.criteria : {},
-      // Multi-party stage verification
-      stages: this._buildStages(kind, spec.stages),
+      // Ordered waypoints for multi-stop routes (polygon + guidance)
+      waypoints: this._normalizeWaypoints(spec.waypoints || spec.stops || []),
+      waypoint_index: 0,
+      route_coords: Array.isArray(spec.route_coords) ? spec.route_coords : [],
+      polygon: Array.isArray(spec.polygon) ? spec.polygon : null,
+      // Multi-party stage verification (waypoint-aware)
+      stages: null,
       stage_index: 0,
       // Commerce links
       vendor_id: spec.vendor_id || null,
@@ -1092,10 +1179,44 @@ const CityTasks = {
         looks: spec.criteria?.looks || spec.looks || '',
       } : null,
       launched: false,
+      coins_held: false,
+      coins_settled: false,
       rejected_by: [],
       created_at: Date.now(),
       updated_at: Date.now(),
     };
+
+    // Merge flat criteria shortcuts
+    if (spec.age_min != null) task.criteria.age_min = Number(spec.age_min);
+    if (spec.age_max != null) task.criteria.age_max = Number(spec.age_max);
+    if (spec.looks) task.criteria.looks = String(spec.looks);
+    if (spec.need_role) task.criteria.need_role = String(spec.need_role);
+    if (spec.skills) task.criteria.skills = String(spec.skills);
+    if (spec.vehicle) task.criteria.vehicle = String(spec.vehicle);
+    if (spec.min_rating != null) task.criteria.min_rating = Number(spec.min_rating);
+
+    // Default single pin as first waypoint when none given
+    if (!task.waypoints.length && task.lat != null && task.lng != null) {
+      task.waypoints = this._normalizeWaypoints([{
+        lat: task.lat,
+        lng: task.lng,
+        label: task.title || 'Task pin',
+        coins: task.coins,
+        info: task.note || '',
+      }]);
+    }
+    // Sum waypoint coins into task total when poster set per-stop pay
+    const wpCoins = task.waypoints.reduce((s, w) => s + (w.coins || 0), 0);
+    if (wpCoins > 0 && (!spec.coins || Number(spec.coins) === 0)) {
+      task.coins = wpCoins;
+    }
+    // Anchor task pin at first stop
+    if (task.waypoints[0]) {
+      task.lat = task.waypoints[0].lat;
+      task.lng = task.waypoints[0].lng;
+    }
+    task.stages = this._buildStages(kind, spec.stages, task.waypoints);
+    task.polygon = task.polygon || this.buildPolygon(task.waypoints);
 
     this.tasks.set(task.id, task);
     this._saveLocal();
@@ -1108,7 +1229,48 @@ const CityTasks = {
     return task;
   },
 
-  _buildStages(kind, custom) {
+  _normalizeWaypoints(list) {
+    if (!Array.isArray(list)) return [];
+    return list
+      .filter((w) => w && w.lat != null && w.lng != null && Number.isFinite(+w.lat) && Number.isFinite(+w.lng))
+      .map((w, i) => ({
+        id: w.id || ('wp' + i + '_' + Math.random().toString(36).slice(2, 5)),
+        lat: +w.lat,
+        lng: +w.lng,
+        label: String(w.label || w.title || ('Stop ' + (i + 1))).slice(0, 48),
+        info: String(w.info || w.note || w.description || '').slice(0, 240),
+        coins: Math.max(0, Math.round(Number(w.coins) || 0)),
+        action: String(w.action || 'arrive').slice(0, 32),
+      }));
+  },
+
+  /** Convex hull polygon ring for map corridor design */
+  buildPolygon(waypoints) {
+    const pts = this._normalizeWaypoints(waypoints);
+    if (pts.length < 3) return pts.map((p) => ({ lat: p.lat, lng: p.lng }));
+    try {
+      if (CityMap?._convexHullLatLng) return CityMap._convexHullLatLng(pts);
+    } catch (_) {}
+    // Inline fallback hull
+    const sorted = pts.slice().sort((a, b) => a.lng === b.lng ? a.lat - b.lat : a.lng - b.lng);
+    const cross = (o, a, b) => (a.lng - o.lng) * (b.lat - o.lat) - (a.lat - o.lat) * (b.lng - o.lng);
+    const lower = [];
+    for (const p of sorted) {
+      while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+      lower.push(p);
+    }
+    const upper = [];
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      const p = sorted[i];
+      while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+      upper.push(p);
+    }
+    upper.pop();
+    lower.pop();
+    return lower.concat(upper).map((p) => ({ lat: p.lat, lng: p.lng }));
+  },
+
+  _buildStages(kind, custom, waypoints) {
     if (Array.isArray(custom) && custom.length) {
       return custom.map((s, i) => ({
         id: s.id || ('s' + i),
@@ -1116,7 +1278,45 @@ const CityTasks = {
         poster_ok: !!s.poster_ok,
         worker_ok: !!s.worker_ok,
         at: s.at || null,
+        waypoint_index: s.waypoint_index != null ? s.waypoint_index : null,
+        coins: s.coins || 0,
+        info: s.info || '',
+        lat: s.lat,
+        lng: s.lng,
       }));
+    }
+    const wps = this._normalizeWaypoints(waypoints || []);
+    // Multi-stop DNA: accepted → each waypoint → done
+    if (wps.length >= 2) {
+      const stages = [{
+        id: 'accepted',
+        label: 'accepted',
+        poster_ok: false,
+        worker_ok: false,
+        at: null,
+      }];
+      wps.forEach((wp, i) => {
+        stages.push({
+          id: 'wp_' + i,
+          label: wp.label || ('Stop ' + (i + 1)),
+          poster_ok: false,
+          worker_ok: false,
+          at: null,
+          waypoint_index: i,
+          coins: wp.coins || 0,
+          info: wp.info || '',
+          lat: wp.lat,
+          lng: wp.lng,
+        });
+      });
+      stages.push({
+        id: 'done',
+        label: 'complete',
+        poster_ok: false,
+        worker_ok: false,
+        at: null,
+      });
+      return stages;
     }
     const ids = this.STAGE_TEMPLATES[kind] || this.STAGE_TEMPLATES.help;
     return ids.map((id) => ({
@@ -1131,6 +1331,7 @@ const CityTasks = {
   /**
    * Launch task to users in radius who can serve it.
    * Uses BroadcastChannel + localStorage so other tabs/sessions see Accept/Reject.
+   * Holds Coins from poster wallet so the offer is funded.
    */
   launch(idOrSpec) {
     let task = typeof idOrSpec === 'string' || idOrSpec?.id
@@ -1140,6 +1341,20 @@ const CityTasks = {
       task = this.create(idOrSpec);
     }
     if (!task) return { ok: false, error: 'no task' };
+
+    // Fund offer in Coins (product currency)
+    if (task.coins > 0 && !task.coins_held) {
+      const hold = this.holdCoins(task.coins, task.id);
+      if (!hold.ok) {
+        AciCli?.print?.(
+          'need ' + hold.needed + '🪙 · available ' + hold.available + '🪙',
+          'err'
+        );
+        return { ok: false, error: hold.error, available: hold.available, needed: hold.needed, task };
+      }
+      task.coins_held = true;
+    }
+
     task.launched = true;
     task.status = 'open';
     task.updated_at = Date.now();
@@ -1147,12 +1362,20 @@ const CityTasks = {
     this._saveLocal();
     this._broadcastOffer(task);
     TaskBoard?.showOutgoing?.(task);
+    // Poster keeps active panel so they can dual-verify stages later
+    TaskBoard?.showActive?.(task);
+    try {
+      MapDepict?.pulse?.(task.lat, task.lng, 0xffcc44, 'launch ' + task.radius_km + 'km', 12000);
+    } catch (_) {}
     FieldBrain?.pulse?.('commerce', 'launched · ' + task.coins + '🪙 · r' + task.radius_km + 'km', { task });
     AciCli?.print?.(
       'task launched · ' + task.title.slice(0, 28) + ' · ' + task.coins + '🪙 · ' + task.radius_km + 'km',
       'ok'
     );
-    return { ok: true, task };
+    try {
+      window.dispatchEvent(new CustomEvent('astranov-coins', { detail: this.coinsBalance() }));
+    } catch (_) {}
+    return { ok: true, task, coins: this.coinsBalance() };
   },
 
   _broadcastOffer(task) {
@@ -1175,6 +1398,9 @@ const CityTasks = {
         poster_name: task.poster_name,
         duration_label: task.duration_label,
         stages: task.stages,
+        waypoints: task.waypoints || [],
+        polygon: task.polygon || null,
+        route_coords: task.route_coords || [],
       },
       t: Date.now(),
     };
@@ -1199,28 +1425,48 @@ const CityTasks = {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   },
 
-  /** Can this local user serve the task? */
-  canServe(task, userPos) {
+  /** Can this local user serve the task? (radius + criteria + not poster) */
+  canServe(task, userPos, opts) {
+    opts = opts || {};
     if (!task || task.status !== 'open') return false;
     const me = Auth?.user?.id || 'local';
-    if (task.poster_id && task.poster_id === me) return false;
+    if (!opts.allowSelf && task.poster_id && task.poster_id === me) return false;
     if (task.rejected_by?.includes?.(me)) return false;
+    if (task.worker_id) return false;
     const pos = userPos || window._lastPos;
     if (pos?.lat != null && task.lat != null) {
       const d = this.distKm(pos.lat, pos.lng, task.lat, task.lng);
       if (d > (task.radius_km || 3)) return false;
     }
-    // Role fit (soft): driver tasks prefer driver role
-    const roles = FieldBrain?.roles || Auth?._profileVisual?.roles || [];
-    const arr = Array.isArray(roles) ? roles : [];
-    if (task.kind === 'delivery' && arr.length && !arr.includes('driver') && !arr.includes('client')) {
-      /* still allow — anyone can help */
+    const c = task.criteria || {};
+    // Dating: age band when profile age known
+    if (task.kind === 'dating' || c.age_min || c.age_max) {
+      const myAge = Number(Auth?.user?.user_metadata?.age || window._profileAge || 0);
+      if (myAge) {
+        if (c.age_min && myAge < c.age_min) return false;
+        if (c.age_max && myAge > c.age_max) return false;
+      }
     }
-    // Dating criteria soft filter if local profile has age
-    if (task.kind === 'dating' && task.criteria) {
-      const myAge = Number(Auth?.user?.user_metadata?.age || window._profileAge);
-      if (myAge && task.criteria.age_min && myAge < task.criteria.age_min) return false;
-      if (myAge && task.criteria.age_max && myAge > task.criteria.age_max) return false;
+    // Role / skills criteria (soft when profile empty; hard when profile declares roles)
+    const roles = FieldBrain?.roles || Auth?._profileVisual?.roles || MultiTile?._roles || {};
+    const roleList = Array.isArray(roles)
+      ? roles
+      : Object.keys(roles).filter((k) => roles[k]);
+    if (c.need_role && roleList.length) {
+      const need = String(c.need_role).toLowerCase();
+      const has = roleList.some((r) => String(r).toLowerCase().includes(need)
+        || need.includes(String(r).toLowerCase()));
+      if (!has && !opts.softRole) {
+        // Soft: still show offer but TaskBoard notes mismatch
+        task._roleMismatch = true;
+      }
+    }
+    // Vehicle for delivery
+    if (task.kind === 'delivery' && c.vehicle) {
+      const v = String(Auth?._profileVisual?.vehicle || MultiTile?._draft?.vehicle || '').toLowerCase();
+      if (v && !v.includes(String(c.vehicle).toLowerCase())) {
+        task._vehicleMismatch = true;
+      }
     }
     return true;
   },
@@ -1241,29 +1487,46 @@ const CityTasks = {
   /**
    * Both parties must verify current stage; then auto-advance.
    * party: 'poster' | 'worker'
+   * Every stage requires BOTH poster_ok AND worker_ok before progress.
    */
   verifyStage(id, party) {
     const task = this.get(id);
     if (!task || !task.stages?.length) return { ok: false, error: 'no stages' };
+    if (['delivered', 'done', 'cancelled'].includes(task.status)) {
+      return { ok: false, error: 'already terminal', task };
+    }
     const i = Math.min(task.stage_index || 0, task.stages.length - 1);
     const st = task.stages[i];
     if (party === 'poster') st.poster_ok = true;
-    else st.worker_ok = true;
+    else if (party === 'worker') st.worker_ok = true;
+    else return { ok: false, error: 'party must be poster|worker' };
     st.at = Date.now();
     task.updated_at = Date.now();
 
-    if (st.poster_ok && st.worker_ok) {
-      // Stage complete — advance status DNA
+    const both = !!(st.poster_ok && st.worker_ok);
+    if (both) {
+      // Stage complete only when both parties verified
       const nextIdx = i + 1;
       if (nextIdx >= task.stages.length) {
-        const term = task.kind === 'delivery' ? 'delivered' : 'done';
+        // Final stage dual-verified → complete + settle Coins
         task.stage_index = i;
         this.tasks.set(task.id, task);
         this._saveLocal();
-        return this.advance(id, term);
+        const term = task.kind === 'delivery' ? 'delivered' : 'done';
+        const r = this.advance(id, term);
+        if (r.ok && r.task) {
+          this.settleCoins(r.task);
+          TaskBoard?.refreshActive?.(r.task);
+          AciCli?.print?.(
+            'task complete · ' + (r.task.coins || 0) + '🪙 settled · ' + r.task.title.slice(0, 24),
+            'ok'
+          );
+        }
+        return Object.assign(r, { stage: st, both: true, settled: true });
       }
       task.stage_index = nextIdx;
-      const sid = task.stages[nextIdx].id;
+      // Status follows COMPLETED stage (not next) so first dual-verify stays claimed
+      const completedId = st.id;
       const statusMap = {
         accepted: 'claimed',
         picked_up: 'picked_up',
@@ -1273,41 +1536,166 @@ const CityTasks = {
         delivered: 'delivered',
         done: 'done',
       };
-      if (statusMap[sid] && this.STATUSES.includes(statusMap[sid])) {
-        task.status = statusMap[sid];
-      } else if (sid === 'accepted') {
+      if (statusMap[completedId] && this.STATUSES.includes(statusMap[completedId])) {
+        task.status = statusMap[completedId];
+      } else if (completedId === 'accepted') {
         task.status = 'claimed';
+      } else if (/^wp_/.test(completedId || '') || st.waypoint_index != null) {
+        task.status = 'en_route';
       }
-      // Routing when worker verifies accepted → guide to task pin
-      if (st.id === 'accepted' && party === 'worker') {
+      // After dual accept → route worker along waypoints / pin
+      if (completedId === 'accepted') {
         this._routeWorkerToTask(task);
+        this._broadcastClaimed(task);
+      }
+      // Waypoint dual-verify → advance route guidance to next stop
+      if (st.waypoint_index != null) {
+        task.waypoint_index = Math.min(
+          (st.waypoint_index + 1),
+          Math.max(0, (task.waypoints?.length || 1) - 1)
+        );
+        this.guideTaskRoute(task);
       }
     }
     this.tasks.set(task.id, task);
     this._saveLocal();
     TaskBoard?.refreshActive?.(task);
-    FieldBrain?.pulse?.('act', 'verify · ' + st.label, { task });
-    return { ok: true, task, stage: st, both: !!(st.poster_ok && st.worker_ok) };
+    FieldBrain?.pulse?.('act', 'verify · ' + st.label + (both ? ' · both ✓' : ' · waiting other'), { task });
+    return { ok: true, task, stage: st, both };
+  },
+
+  _broadcastClaimed(task) {
+    const payload = {
+      type: 'astranov-task-claimed',
+      task: {
+        id: task.id,
+        status: task.status,
+        worker_id: task.worker_id,
+        worker_name: task.worker_name,
+        coins: task.coins,
+        stages: task.stages,
+        stage_index: task.stage_index,
+        lat: task.lat,
+        lng: task.lng,
+      },
+      t: Date.now(),
+    };
+    try {
+      localStorage.setItem('astranov:task-claimed-pulse', JSON.stringify(payload));
+      window.dispatchEvent(new CustomEvent('astranov-task-claimed', { detail: payload }));
+    } catch (_) {}
+    try {
+      if (!this._bc) this._bc = new BroadcastChannel('astranov-tasks');
+      this._bc.postMessage(payload);
+    } catch (_) {}
   },
 
   _routeWorkerToTask(task) {
-    if (task?.lat == null) return;
+    return this.guideTaskRoute(task);
+  },
+
+  /**
+   * Build / refresh multi-stop road route + polygon on map and guide to current waypoint.
+   */
+  async guideTaskRoute(task, opts) {
+    opts = opts || {};
+    if (!task) return { ok: false };
+    const wps = this._normalizeWaypoints(task.waypoints || []);
+    const curIdx = Math.max(
+      0,
+      task.waypoint_index != null
+        ? task.waypoint_index
+        : this._waypointIndexFromStage(task)
+    );
+    task.waypoint_index = curIdx;
+    task.polygon = task.polygon || this.buildPolygon(wps.length ? wps : [{ lat: task.lat, lng: task.lng }]);
+
+    const paint = (coords) => {
+      task.route_coords = coords || [];
+      this.tasks.set(task.id, task);
+      this._saveLocal();
+      const marked = wps.map((w, i) => ({
+        ...w,
+        current: i === curIdx,
+        done: i < curIdx,
+      }));
+      try {
+        CityMap?.setTaskGeometry?.({
+          route: coords,
+          waypoints: marked.length ? marked : [{ lat: task.lat, lng: task.lng, label: task.title, current: true }],
+          polygon: task.polygon,
+        });
+      } catch (_) {}
+      TaskBoard?.refreshWaypoints?.(task);
+    };
+
     try {
-      LazyModules?.ensure?.().then(() => {
-        DrivingView?.setDestination?.(task.lat, task.lng);
-        DrivingView?.activate?.();
-        DrivingView?.fetchRoadRoute?.();
-      }).catch(() => {
-        DrivingView?.setDestination?.(task.lat, task.lng);
-        DrivingView?.activate?.();
-      });
-    } catch (_) {
+      await LazyModules?.ensure?.().catch(() => {});
+    } catch (_) {}
+
+    if (wps.length >= 1 && DrivingView?.setWaypoints) {
+      try {
+        DrivingView.setWaypoints(wps, { startIndex: curIdx, force: true });
+        if (!DrivingView.active && !opts.previewOnly) {
+          try { DrivingView.activate?.(); } catch (_) {}
+        }
+        await DrivingView.fetchMultiWaypointRoute?.();
+        paint(DrivingView.routeCoords || []);
+      } catch (e) {
+        console.warn('[CityTasks] multi route', e);
+      }
+    } else if (task.lat != null) {
       try {
         DrivingView?.setDestination?.(task.lat, task.lng);
-        DrivingView?.activate?.();
+        if (!opts.previewOnly) {
+          DrivingView?.activate?.();
+          await DrivingView?.fetchRoadRoute?.();
+        }
+        paint(DrivingView?.routeCoords || []);
       } catch (_) {}
     }
-    MapDepict?.pulse?.(task.lat, task.lng, 0x44ffaa, 'task', 12000);
+
+    const cur = wps[curIdx] || { lat: task.lat, lng: task.lng, label: task.title };
+    if (cur?.lat != null) {
+      MapDepict?.pulse?.(cur.lat, cur.lng, 0x44ffaa, cur.label || 'task', 12000);
+      const zl = document.getElementById('zoom-label');
+      if (zl && wps.length > 1) {
+        zl.textContent = 'Route · stop ' + (curIdx + 1) + '/' + wps.length + ' · ' + (cur.label || '');
+      }
+    }
+    return { ok: true, task, waypoint_index: curIdx, route_len: (task.route_coords || []).length };
+  },
+
+  _waypointIndexFromStage(task) {
+    const st = task?.stages?.[task.stage_index || 0];
+    if (st && st.waypoint_index != null) return st.waypoint_index;
+    // Advance wp index past completed waypoint stages
+    let idx = 0;
+    (task?.stages || []).forEach((s) => {
+      if (s.waypoint_index != null && s.poster_ok && s.worker_ok) {
+        idx = Math.max(idx, s.waypoint_index + 1);
+      }
+    });
+    return idx;
+  },
+
+  /** Preview route/polygon without claiming (poster design) */
+  async previewTaskRoute(specOrTask) {
+    let task = specOrTask?.id ? this.get(specOrTask.id) : null;
+    if (!task && specOrTask) {
+      const wps = this._normalizeWaypoints(specOrTask.waypoints || []);
+      task = {
+        id: 'preview',
+        title: specOrTask.title || 'Route preview',
+        lat: wps[0]?.lat ?? specOrTask.lat,
+        lng: wps[0]?.lng ?? specOrTask.lng,
+        waypoints: wps,
+        waypoint_index: 0,
+        polygon: this.buildPolygon(wps),
+        stages: [],
+      };
+    }
+    return this.guideTaskRoute(task, { previewOnly: true });
   },
 
   /** Post a timed job (barman 3h, housekeeper 1w, …) */
@@ -1479,7 +1867,7 @@ const CityTasks = {
     if (!task.start_at) task.start_at = Date.now();
     if (task.duration_ms && !task.end_at) task.end_at = task.start_at + task.duration_ms;
     if (task.kind === 'dating' && task.dating) task.dating.mutual = true;
-    // First stage = accepted — worker already ok; poster still must verify
+    // First stage = accepted — worker already ok; poster still must verify (dual-party)
     if (task.stages?.[0]) {
       task.stages[0].worker_ok = true;
       task.stages[0].at = Date.now();
@@ -1490,6 +1878,7 @@ const CityTasks = {
     this._saveLocal();
     this._showOnGlobe(task);
     this._routeWorkerToTask(task);
+    this._broadcastClaimed(task);
     TaskBoard?.showActive?.(task);
     TaskBoard?.dismiss?.(task.id);
     const km = this.meta(task.kind);
@@ -1550,6 +1939,13 @@ const CityTasks = {
     }
     if (status === 'delivered' || status === 'done') {
       task.end_at = task.end_at || Date.now();
+      if (!task.coins_settled && task.coins > 0) {
+        this.settleCoins(task);
+      }
+    }
+    if (status === 'cancelled' && task.coins_held && !task.coins_settled) {
+      this.releaseHold(task.coins, task.id);
+      task.coins_held = false;
     }
     task.updated_at = Date.now();
     this.tasks.set(task.id, task);
@@ -1733,6 +2129,30 @@ const CityTasks = {
       return 'Quote €' + q.total_eur;
     }
 
+    // Coins balance
+    if (/\b(coins|wallet|balance)\b/.test(low) && !/launch|claim/.test(low)) {
+      const b = this.coinsBalance();
+      return 'Coins · available ' + b.available + ' · held ' + b.held + ' · balance ' + b.balance;
+    }
+
+    // Launch (create + broadcast)
+    if (/\blaunch\b/.test(low)) {
+      const body = raw.replace(/^.*?\blaunch\b\s*/i, '').trim() || 'help nearby';
+      const coinsM = body.match(/(\d+)\s*🪙|(\d+)\s*coins?/i);
+      const coins = coinsM ? Number(coinsM[1] || coinsM[2]) : 50;
+      const radM = body.match(/(\d+(?:\.\d+)?)\s*km/i);
+      const radius_km = radM ? Number(radM[1]) : 3;
+      const r = this.launch({
+        rawText: body,
+        title: body.replace(/\d+\s*(🪙|coins?|km)/gi, '').trim() || body,
+        coins,
+        radius_km,
+      });
+      return r.ok
+        ? ('Launched · ' + r.task.kind + ' · ' + r.task.coins + '🪙 · r' + r.task.radius_km + 'km')
+        : (r.error || 'launch failed');
+    }
+
     // Create generic
     if (/\b(create|new|post)\b/.test(low)) {
       const body = raw.replace(/^.*?(create|new|post)\s*/i, '').trim() || 'City task';
@@ -1788,13 +2208,20 @@ var TaskBoard = {
     this._bound = true;
     this._ensureDom();
     window.addEventListener('astranov-task-offer', (e) => this._onOffer(e.detail));
+    window.addEventListener('astranov-task-claimed', (e) => this._onClaimed(e.detail));
     window.addEventListener('storage', (e) => {
-      if (e.key !== 'astranov:task-offer-pulse' || !e.newValue) return;
-      try { this._onOffer(JSON.parse(e.newValue)); } catch (_) {}
+      if (!e.newValue) return;
+      try {
+        if (e.key === 'astranov:task-offer-pulse') this._onOffer(JSON.parse(e.newValue));
+        if (e.key === 'astranov:task-claimed-pulse') this._onClaimed(JSON.parse(e.newValue));
+      } catch (_) {}
     });
     try {
       const bc = new BroadcastChannel('astranov-tasks');
-      bc.onmessage = (ev) => this._onOffer(ev.data);
+      bc.onmessage = (ev) => {
+        if (ev.data?.type === 'astranov-task-claimed') this._onClaimed(ev.data);
+        else this._onOffer(ev.data);
+      };
       this._bc = bc;
     } catch (_) {}
     setInterval(() => {
@@ -1802,7 +2229,7 @@ var TaskBoard = {
         const raw = localStorage.getItem('astranov:task-offer-pulse');
         if (!raw) return;
         const p = JSON.parse(raw);
-        if (p?.t && Date.now() - p.t < 8000) this._onOffer(p);
+        if (p?.t && Date.now() - p.t < 12000) this._onOffer(p);
       } catch (_) {}
     }, 2500);
   },
@@ -1825,9 +2252,13 @@ var TaskBoard = {
       + '<div id="task-active-panel">'
       + '  <div id="ta-head"><span id="ta-title">Active task</span><button type="button" id="ta-close">✖</button></div>'
       + '  <div id="ta-body"></div>'
-      + '  <div id="ta-stages"></div>'
+      + '  <div id="ta-scroll">'
+      + '    <div id="ta-waypoints" class="ta-waypoints"></div>'
+      + '    <div id="ta-stages"></div>'
+      + '  </div>'
       + '  <div id="ta-foot">'
-      + '    <button type="button" id="ta-verify">Verify stage</button>'
+      + '    <button type="button" id="ta-verify-poster" class="ta-vp" title="Poster confirms this stage">Poster ✓</button>'
+      + '    <button type="button" id="ta-verify-worker" class="ta-vw" title="Worker confirms this stage">Worker ✓</button>'
       + '    <button type="button" id="ta-route">Route</button>'
       + '  </div>'
       + '</div>';
@@ -1835,9 +2266,10 @@ var TaskBoard = {
     document.getElementById('to-accept')?.addEventListener('click', () => this._accept());
     document.getElementById('to-reject')?.addEventListener('click', () => this._reject());
     document.getElementById('ta-close')?.addEventListener('click', () => this.hideActive());
-    document.getElementById('ta-verify')?.addEventListener('click', () => this._verify());
+    document.getElementById('ta-verify-poster')?.addEventListener('click', () => this._verify('poster'));
+    document.getElementById('ta-verify-worker')?.addEventListener('click', () => this._verify('worker'));
     document.getElementById('ta-route')?.addEventListener('click', () => {
-      if (this._active) CityTasks?._routeWorkerToTask?.(this._active);
+      if (this._active) CityTasks?.guideTaskRoute?.(this._active);
     });
   },
 
@@ -1845,7 +2277,6 @@ var TaskBoard = {
     if (!payload || payload.type !== 'astranov-task-offer' || !payload.task) return;
     const t = payload.task;
     if (this._seen.has(t.id + ':' + (payload.t || 0))) return;
-    this._seen.add(t.id);
     this._seen.add(t.id + ':' + (payload.t || 0));
     if (!CityTasks.get(t.id)) {
       CityTasks.create({ ...t, id: t.id, status: 'open', launched: true });
@@ -1855,35 +2286,73 @@ var TaskBoard = {
     this.showOffer(full);
   },
 
+  _onClaimed(payload) {
+    if (!payload || payload.type !== 'astranov-task-claimed' || !payload.task) return;
+    const t = payload.task;
+    const local = CityTasks.get(t.id);
+    if (local) {
+      local.status = t.status || local.status;
+      local.worker_id = t.worker_id || local.worker_id;
+      local.worker_name = t.worker_name || local.worker_name;
+      if (t.stages) local.stages = t.stages;
+      if (t.stage_index != null) local.stage_index = t.stage_index;
+      local.updated_at = Date.now();
+      CityTasks.tasks.set(local.id, local);
+      CityTasks._saveLocal();
+      this.dismiss(local.id);
+      this.showActive(local);
+    }
+  },
+
   showOffer(task) {
     this.init();
     this._offer = task;
     const el = document.getElementById('task-offer-banner');
     if (!el) return;
     const km = CityTasks.meta(task.kind);
+    const nWp = (task.waypoints || []).length;
     document.getElementById('to-kind').textContent =
-      (km.icon || '📋') + ' ' + (km.label || task.kind) + ' · ' + (task.coins || 0) + ' 🪙';
+      (km.icon || '📋') + ' ' + (km.label || task.kind) + ' · ' + (task.coins || 0) + ' 🪙'
+      + (nWp > 1 ? ' · ' + nWp + ' stops' : '');
     document.getElementById('to-title').textContent = task.title || 'Task';
     document.getElementById('to-meta').textContent =
-      (task.radius_km || 3) + ' km · '
+      'Radius ' + (task.radius_km || 3) + ' km · '
       + (task.duration_label || '') + ' · '
       + (task.poster_name || 'Someone')
       + (task.lat != null ? ' · ' + (+task.lat).toFixed(3) + ',' + (+task.lng).toFixed(3) : '');
     const crit = task.criteria || {};
     const bits = [];
+    if (nWp > 1) bits.push(nWp + ' waypoints on map');
     if (crit.age_min || crit.age_max) bits.push('Age ' + (crit.age_min || '?') + '–' + (crit.age_max || '?'));
     if (crit.looks) bits.push('Looks: ' + crit.looks);
-    if (crit.role) bits.push('Need: ' + crit.role);
+    if (crit.need_role || crit.role) bits.push('Need: ' + (crit.need_role || crit.role));
+    if (crit.skills) bits.push('Skills: ' + crit.skills);
+    if (crit.vehicle) bits.push('Vehicle: ' + crit.vehicle);
+    if (crit.min_rating) bits.push('Rating ≥ ' + crit.min_rating);
     if (task.dating?.vibe) bits.push('Vibe: ' + task.dating.vibe);
     if (task.note) bits.push(String(task.note).slice(0, 80));
-    document.getElementById('to-criteria').textContent = bits.join(' · ') || 'Open to capable users in radius';
+    document.getElementById('to-criteria').textContent = bits.join(' · ') || 'Open to capable users in map radius';
     el.classList.add('open');
-    try { MapDepict?.pulse?.(task.lat, task.lng, 0xffcc44, 'task offer', 15000); } catch (_) {}
+    try {
+      if (nWp >= 1) {
+        CityMap?.setTaskGeometry?.({
+          waypoints: task.waypoints,
+          polygon: task.polygon || CityTasks.buildPolygon?.(task.waypoints),
+          route: task.route_coords || [],
+        });
+      }
+      MapDepict?.pulse?.(task.lat, task.lng, 0xffcc44, 'task offer', 15000);
+    } catch (_) {}
   },
 
   showOutgoing(task) {
     const zl = document.getElementById('zoom-label');
-    if (zl) zl.textContent = 'Launched · ' + (task.coins || 0) + '🪙 · ' + (task.radius_km || 3) + 'km';
+    if (zl) zl.textContent = 'Launched · ' + (task.coins || 0) + '🪙 · ' + (task.radius_km || 3) + 'km radius';
+    const bal = CityTasks.coinsBalance?.();
+    if (bal) {
+      const el = document.getElementById('mt-coins-bal');
+      if (el) el.textContent = bal.available + ' 🪙 available · ' + bal.held + ' held';
+    }
   },
 
   dismiss(id) {
@@ -1900,7 +2369,11 @@ var TaskBoard = {
     CityTasks?.init?.();
     const r = await CityTasks.claim(id);
     this.dismiss(id);
-    if (r?.ok) this.showActive(r.task || CityTasks.get(id) || snapshot);
+    if (r?.ok) {
+      const task = r.task || CityTasks.get(id) || snapshot;
+      this.showActive(task);
+      CityTasks._broadcastClaimed?.(task);
+    }
   },
 
   _reject() {
@@ -1915,51 +2388,124 @@ var TaskBoard = {
     this._active = task;
     const el = document.getElementById('task-active-panel');
     if (!el) return;
+    const nWp = (task.waypoints || []).length;
     document.getElementById('ta-title').textContent =
-      (CityTasks.meta(task.kind).icon || '📋') + ' ' + (task.title || 'Task').slice(0, 36);
+      (CityTasks.meta(task.kind).icon || '📋') + ' ' + (task.title || 'Task').slice(0, 28)
+      + (nWp > 1 ? ' · ' + nWp + ' stops' : '');
     const body = document.getElementById('ta-body');
     if (body) {
+      const st = task.status || 'open';
       body.innerHTML = ''
-        + '<div>' + (task.coins || 0) + ' 🪙 · ' + (task.duration_label || '') + '</div>'
-        + '<div class="ta-dim">' + (task.worker_name || '…') + ' ↔ ' + (task.poster_name || '') + '</div>'
-        + '<div class="ta-dim">Both parties verify each stage</div>';
+        + '<div><strong>' + (task.coins || 0) + ' 🪙</strong> · ' + (task.duration_label || '') + ' · ' + st + '</div>'
+        + '<div class="ta-dim">' + (task.worker_name || 'waiting worker…') + ' ↔ ' + (task.poster_name || '') + '</div>'
+        + '<div class="ta-dim">Every stage needs both Poster ✓ and Worker ✓'
+        + (nWp > 1 ? ' · route polygon on map' : '') + '</div>';
     }
     this.refreshActive(task);
     el.classList.add('open');
+    // Paint multi-stop route + polygon when panel opens
+    if ((task.waypoints || []).length >= 1 || task.lat != null) {
+      try { CityTasks.guideTaskRoute?.(task, { previewOnly: task.status === 'open' }); } catch (_) {}
+    }
   },
 
   hideActive() {
     document.getElementById('task-active-panel')?.classList.remove('open');
   },
 
+  refreshWaypoints(task) {
+    const box = document.getElementById('ta-waypoints');
+    if (!box) return;
+    const wps = task?.waypoints || [];
+    if (wps.length < 1) {
+      box.innerHTML = '';
+      box.hidden = true;
+      return;
+    }
+    box.hidden = false;
+    const cur = task.waypoint_index || 0;
+    box.innerHTML = '<div class="ta-wp-head">Route · ' + wps.length + ' stops · scroll for details</div>'
+      + wps.map((w, i) => {
+        const done = i < cur;
+        const current = i === cur;
+        const cls = done ? 'done' : (current ? 'current' : 'pending');
+        return '<div class="ta-wp ' + cls + '" data-wp="' + i + '" id="ta-wp-' + i + '">'
+          + '<div class="ta-wp-top"><b>' + (i + 1) + '. ' + this._esc(w.label || ('Stop ' + (i + 1))) + '</b>'
+          + '<span>' + (w.coins || 0) + '🪙</span></div>'
+          + (w.info ? '<div class="ta-wp-info">' + this._esc(w.info) + '</div>' : '')
+          + '<div class="ta-wp-ll">' + (+w.lat).toFixed(4) + ', ' + (+w.lng).toFixed(4) + '</div>'
+          + '</div>';
+      }).join('');
+    // Scroll current stop into view
+    try {
+      const el = document.getElementById('ta-wp-' + cur);
+      el?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+    } catch (_) {}
+  },
+
+  _esc(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  },
+
   refreshActive(task) {
     if (!task) return;
     this._active = task;
+    this.refreshWaypoints(task);
     const box = document.getElementById('ta-stages');
     if (!box || !task.stages) return;
     const idx = task.stage_index || 0;
     box.innerHTML = task.stages.map((s, i) => {
       const both = s.poster_ok && s.worker_ok;
-      const cur = i === idx;
+      const cur = i === idx && !both;
       const cls = both ? 'done' : (cur ? 'current' : 'pending');
-      return '<div class="ta-stage ' + cls + '">'
-        + '<b>' + (i + 1) + '. ' + (s.label || s.id) + '</b>'
-        + '<span>P:' + (s.poster_ok ? '✓' : '·') + ' W:' + (s.worker_ok ? '✓' : '·') + '</span>'
+      const coinBit = s.coins ? ' · ' + s.coins + '🪙' : '';
+      const infoBit = s.info ? '<div class="ta-stage-info">' + this._esc(s.info) + '</div>' : '';
+      return '<div class="ta-stage ' + cls + '" id="ta-stage-' + i + '">'
+        + '<div class="ta-stage-row"><b>' + (i + 1) + '. ' + this._esc(s.label || s.id) + coinBit + '</b>'
+        + '<span>P:' + (s.poster_ok ? '✓' : '·') + ' W:' + (s.worker_ok ? '✓' : '·') + '</span></div>'
+        + infoBit
         + '</div>';
     }).join('');
+    try {
+      document.getElementById('ta-stage-' + idx)?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+    } catch (_) {}
+    // Update body status line
+    const body = document.getElementById('ta-body');
+    if (body && task.status) {
+      const first = body.querySelector('div');
+      if (first) {
+        const nWp = (task.waypoints || []).length;
+        first.innerHTML = '<strong>' + (task.coins || 0) + ' 🪙</strong> · '
+          + (task.duration_label || '') + ' · ' + task.status
+          + (nWp > 1 ? ' · stop ' + ((task.waypoint_index || 0) + 1) + '/' + nWp : '')
+          + (task.coins_settled ? ' · paid' : '');
+      }
+    }
   },
 
-  _verify() {
+  /**
+   * Dual-party stage verify.
+   * party optional — auto-detect from Auth if omitted; pass poster|worker for explicit demo.
+   */
+  _verify(party) {
     const task = this._active;
     if (!task) return;
-    const me = Auth?.user?.id || 'local';
-    const party = (task.poster_id === me) ? 'poster' : 'worker';
-    const r = CityTasks.verifyStage(task.id, party);
+    let p = party;
+    if (!p) {
+      const me = Auth?.user?.id || 'local';
+      if (task.poster_id === me) p = 'poster';
+      else if (task.worker_id === me || task.worker_id === 'local-worker') p = 'worker';
+      else p = task.worker_id ? 'worker' : 'poster';
+    }
+    const r = CityTasks.verifyStage(task.id, p);
     if (r?.task) {
       this.refreshActive(r.task);
       if (['delivered', 'done'].includes(r.task.status)) {
         const zl = document.getElementById('zoom-label');
-        if (zl) zl.textContent = 'Task complete · ' + (r.task.coins || 0) + '🪙';
+        if (zl) zl.textContent = 'Task complete · ' + (r.task.coins || 0) + '🪙 settled';
+        const bal = CityTasks.coinsBalance?.();
+        const el = document.getElementById('mt-coins-bal');
+        if (el && bal) el.textContent = bal.available + ' 🪙 available · ' + bal.held + ' held';
       }
     }
   },
@@ -2726,20 +3272,6 @@ const AstranovCoreBrain = {
       actions.push({ type: 'spacenet', query: m });
     }
 
-    // Browse / open web inside SpaceNet OS (internet replacement surface)
-    if (/https?:\/\//i.test(m) || /astranov:\/\//i.test(m)
-      || /\b(browse|open\s+url|visit\s+site|open\s+https?)\b/i.test(low)) {
-      intent = 'browse';
-      const u = (m.match(/https?:\/\/[^\s]+/i) || m.match(/astranov:\/\/[^\s]+/i) || [])[0];
-      actions.push({ type: 'browse', url: u || 'astranov://home' });
-    }
-
-    // SpaceX skin
-    if (/\btheme\s*spacex\b|\bspacex\s*theme\b|\bfalcon\s*ui\b/i.test(low)) {
-      intent = 'theme';
-      actions.push({ type: 'theme_spacex' });
-    }
-
     // City tasks DNA: delivery · jobs · errands · dating
     if (/\b(city\s*task|task\s*list|claim\s*(delivery|order|task|job|date)|assign\s*driver)\b/i.test(low)
       || (/^task\b/i.test(low))
@@ -2836,16 +3368,6 @@ const AstranovCoreBrain = {
           CityTasks?.init?.();
           const msg = await CityTasks?.handleCli?.(a.query || 'task list');
           results.push(msg || 'city task');
-        } else if (a.type === 'browse') {
-          if (window.SpaceNetGrokCli?._browse) await SpaceNetGrokCli._browse(a.url || 'astranov://home');
-          else if (window.AstranovBrowser?.navigate) {
-            AstranovBrowser.show?.();
-            AstranovBrowser.navigate(a.url || 'astranov://home');
-          }
-          results.push('browse');
-        } else if (a.type === 'theme_spacex') {
-          AstranovTheme?.setSpacex?.(true) || AstranovTheme?.set?.('spacex');
-          results.push('spacex theme');
         }
       } catch (e) {
         results.push(a.type + ' failed');
@@ -2884,10 +3406,10 @@ const AstranovCoreBrain = {
       Authorization: 'Bearer ' + SB_KEY,
     }));
     const systemBits = [
-      'You are Grok inside Astranov SpaceNet — the globe OS for real city life.',
-      'Priorities: delivery, dating, jobs/gigs, errands, search — every action is shown on the 3D Earth.',
-      'CLI phrases: job barman 3h | date coffee 2h | deliver food | errand pharmacy | task list | task claim | search X | locate.',
-      'SpaceX industrial tone: clear, bold, concise. Same language as user. Max 2 short sentences. No markdown lists.',
+      'You are Astranov — SpaceNet globe OS AI. Spartan, real, same language as user.',
+      'User can act on a 3D Earth (locate, fly cities, order, zoom).',
+      'If they asked something you cannot do in text, say the CLI phrase they should type.',
+      'Max 2 short sentences. No markdown lists.',
     ];
     if (plan.actions.length) {
       systemBits.push('Already executed on globe: ' + plan.actions.map(a => a.type).join(', ') + '. Confirm briefly.');
@@ -3014,629 +3536,6 @@ const AstranovCoreBrain = {
 };
 
 window.AstranovCoreBrain = AstranovCoreBrain;
-
-/* === 25-spacenet-grok-cli.js === */
-// === SPACENET GROK CLI — street OS: city tasks · delivery · dating · jobs · search ===
-// Every user intent becomes real action on the globe (pulse · arc · tier · city map).
-// SpaceNet = the internet as solar→global→national→city→street on one Earth.
-const SpaceNetGrokCli = {
-  version: '20260722-city-dna-v2',
-  history: [],
-  busy: false,
-
-  // Priority product surface — what SpaceNet is for
-  STREET: {
-    delivery: { color: 0x44ffaa, label: 'Delivery', kind: 'delivery' },
-    dating: { color: 0xff6699, label: 'Dating', kind: 'dating' },
-    job: { color: 0x66aaff, label: 'Job / gig', kind: 'job' },
-    errand: { color: 0xffcc44, label: 'Errand', kind: 'errand' },
-    service: { color: 0xaa88ff, label: 'Service', kind: 'service' },
-    search: { color: 0xffffff, label: 'Search', kind: 'search' },
-  },
-
-  TOOLS: {
-    locate: 'GPS drop-in on globe → city map',
-    fly: 'Fly Earth to a place',
-    zoom: 'Zoom tier solar|global|national|city|street',
-    city: 'Open city / street map',
-    delivery: 'Post or start delivery / order food',
-    job: 'Post or find jobs & gigs (barman, nanny, …)',
-    date: 'Open dating invite (coffee / dinner / walk)',
-    errand: 'Pharmacy · grocery · document runs',
-    task: 'City task DNA: list · claim · complete',
-    search: 'Search people · tasks · places · web',
-    order: 'Shops marketplace',
-    browse: 'In-OS browser (SpaceNet tab)',
-    crawl: 'Crawl sector vendors / weather / news',
-    drive: 'Drive mode to pin',
-    call: 'Voice / video path',
-    help: 'This help',
-  },
-
-  CITIES: {
-    athens: [37.9838, 23.7275], rhodes: [36.4341, 28.2176], london: [51.5074, -0.1278],
-    paris: [48.8566, 2.3522], berlin: [52.52, 13.405], rome: [41.9028, 12.4964],
-    newyork: [40.7128, -74.006], tokyo: [35.6762, 139.6503], dubai: [25.2048, 55.2708],
-    starbase: [25.997, -97.156], hawthorne: [33.9207, -118.3278], cape: [28.5721, -80.648],
-  },
-
-  init() {
-    if (this._inited) return;
-    this._inited = true;
-    window.SpaceNetGrokCli = this;
-    try {
-      const input = document.getElementById('aci-cli-in');
-      if (input) {
-        input.placeholder = 'SpaceNet · job barman 3h · date coffee · deliver food · search · locate';
-        input.dataset.spacenetGrok = '1';
-      }
-    } catch (_) {}
-    // Soft seed: ensure CityTasks ready when features load
-    try { CityTasks?.init?.(); } catch (_) {}
-    console.info('%c[SpaceNetGrokCli] ' + this.version + ' · city DNA on the globe', 'color:#000;background:#fff;font-weight:700;padding:2px 8px');
-  },
-
-  printHelp() {
-    AciCli?.print?.('── SpaceNet CLI · do anything on the globe ──', 'dim');
-    AciCli?.print?.('CITY DNA (same pipeline for all work):', 'ok');
-    AciCli?.print?.('  job barman 3h · job nanny 1d · gig cleaner 4h', 'ok');
-    AciCli?.print?.('  date coffee 2h · date dinner · dating walk', 'ok');
-    AciCli?.print?.('  deliver food · delivery package · errand pharmacy', 'ok');
-    AciCli?.print?.('  task list · task claim · task done · task catalog', 'ok');
-    AciCli?.print?.('FIND & MOVE:', 'ok');
-    AciCli?.print?.('  locate · fly athens · zoom city · search barman near me', 'ok');
-    AciCli?.print?.('  order · market · browse https://… · crawl · drive', 'ok');
-    AciCli?.print?.('Every action paints the globe (pulse · arc · pin · route).', 'dim');
-    GlobeDeck?.setPreview?.('SpaceNet · type a job, date, delivery, or search');
-    CliRibbon?.setNotice?.('SpaceNet · street ready', 'ready');
-    this.depict('explore', { detail: 'CLI help · SpaceNet' });
-  },
-
-  /** Always show intent on globe */
-  depict(type, opts = {}) {
-    try {
-      MapDepict?.action?.(type, opts);
-      if (opts.lat != null && opts.lng != null) {
-        MapDepict?.pulse?.(opts.lat, opts.lng, opts.color || 0xffffff, opts.label || type, opts.duration || 10000);
-      } else if (opts.pulse !== false) {
-        const u = window._lastPos || { lat: 36.43, lng: 28.22 };
-        const palette = {
-          delivery: 0x44ffaa, dating: 0xff6699, job: 0x66aaff, errand: 0xffcc44,
-          search: 0xffffff, order: 0xffaa44, location: 0x3d9eff, explore: 0x00aaff,
-        };
-        MapDepict?.pulse?.(u.lat, u.lng, opts.color || palette[type] || 0xffffff, opts.label || type, 8000);
-      }
-      if (opts.from && opts.to) {
-        MapDepict?.arc?.(opts.from.lat, opts.from.lng, opts.to.lat, opts.to.lng, opts.color || 0x44ffaa, 14000);
-      }
-      if (opts.hud) MapDepict?.setHud?.(opts.hud, type);
-      if (opts.preview) GlobeDeck?.setPreview?.(opts.preview);
-    } catch (_) {}
-  },
-
-  pos() {
-    return window._lastPos || { lat: 36.4341, lng: 28.2176 };
-  },
-
-  /**
-   * Classify freeform → street-first actions.
-   * Priority: help → task DNA → search → navigate → commerce → chat
-   */
-  plan(message) {
-    const m = String(message || '').trim();
-    const low = m.toLowerCase();
-    const actions = [];
-    let intent = 'chat';
-
-        if (/\b(solo|alone|we build|status report)\b/i.test(low) && m.length < 48) {
-      return { message: m, intent: 'solo', actions: [{ type: 'solo' }] };
-    }
-
-if (!m || /^help$|^\?$|what can you do|commands|how (do|to)/i.test(low)) {
-      return { message: m, intent: 'help', actions: [{ type: 'help' }] };
-    }
-
-    // --- SEARCH anything ---
-    if (/^(search|find|look\s*for|where\s+is|who\s+is)\b/i.test(low)
-      || /\bsearch\s+(for\s+)?/i.test(low)
-      || /\bfind\s+(me\s+)?(a\s+|an\s+)?(job|gig|date|driver|barman|work)/i.test(low)) {
-      intent = 'search';
-      const q = m.replace(/^(search|find|look\s*for)\s+/i, '').trim() || m;
-      actions.push({ type: 'search', query: q });
-      // If search implies job/date/delivery, also open that DNA
-      if (/\b(job|gig|work|hire|barman|nanny|cleaner)\b/i.test(q)) {
-        actions.push({ type: 'task_list', filter: 'jobs' });
-      } else if (/\b(date|dating|coffee|dinner)\b/i.test(q)) {
-        actions.push({ type: 'task_list', filter: 'dating' });
-      } else if (/\b(deliver|driver|courier|food)\b/i.test(q)) {
-        actions.push({ type: 'task_list', filter: 'delivery' });
-      }
-      return { message: m, intent, actions, low };
-    }
-
-    // --- TASK LIST / CLAIM / DONE ---
-    if (/^task\b|\btask\s+list\b|\bmy\s+tasks\b|\bopen\s+tasks\b|\bcatalog\b|\broles\b/i.test(low)
-      || (/\blist\b/.test(low) && /\b(task|job|date|delivery|errand|gig)/.test(low))) {
-      intent = 'task';
-      if (/\bcatalog|roles\b/.test(low)) actions.push({ type: 'task_cli', line: m });
-      else if (/\bclaim|take|accept\b/.test(low)) actions.push({ type: 'task_cli', line: m });
-      else if (/\b(done|complete|finish)\b/.test(low)) actions.push({ type: 'task_cli', line: m });
-      else actions.push({ type: 'task_list', filter: this._listFilter(low) });
-      return { message: m, intent, actions, low };
-    }
-
-    // --- DATING ---
-    if (/\b(date|dating|coffee\s*date|dinner\s*date|romantic|meet\s*up|tinder)\b/i.test(low)
-      && !/\blist\b/.test(low)) {
-      intent = 'dating';
-      actions.push({ type: 'city_enter' });
-      actions.push({ type: 'date', text: m });
-      return { message: m, intent, actions, low };
-    }
-
-    // --- JOBS / GIGS ---
-    if (/\b(job|gig|hire|work\s+as|need\s+a|looking\s+for\s+work|barman|bartender|housekeeper|nanny|cleaner|waiter|cook|tutor|mover|security|pet\s*care|gardener)\b/i.test(low)
-      && !/\blist\b/.test(low)) {
-      intent = 'job';
-      actions.push({ type: 'city_enter' });
-      actions.push({ type: 'job', text: m });
-      return { message: m, intent, actions, low };
-    }
-
-    // --- DELIVERY / ORDER ---
-    if (/\b(deliver|delivery|courier|drop.?off|package|food\s*order|order\s+food|bring\s+me)\b/i.test(low)) {
-      intent = 'delivery';
-      actions.push({ type: 'city_enter' });
-      actions.push({ type: 'delivery', text: m });
-      return { message: m, intent, actions, low };
-    }
-
-    // --- ERRAND ---
-    if (/\b(errand|pharmacy|grocery\s*run|pick\s*up\s+for\s+me|run\s+to)\b/i.test(low)) {
-      intent = 'errand';
-      actions.push({ type: 'city_enter' });
-      actions.push({ type: 'errand', text: m });
-      return { message: m, intent, actions, low };
-    }
-
-    // CityTasks freeform catch-all if module recognizes it
-    if (window.CityTasks?.wants?.(m)) {
-      intent = 'task';
-      actions.push({ type: 'task_cli', line: m });
-      return { message: m, intent, actions, low };
-    }
-
-    // --- LOCATE / NAV ---
-    if (/locate|where am i|find me|gps|drop\s*in|🎯|📍/i.test(low) || /^(me|here)$/i.test(low)) {
-      intent = 'locate';
-      actions.push({ type: 'locate' });
-    }
-    for (const [name, ll] of Object.entries(this.CITIES)) {
-      if (new RegExp('\\b' + name + '\\b', 'i').test(low)
-        || (name === 'newyork' && /\bnew\s*york\b/i.test(low))) {
-        intent = 'fly';
-        actions.push({ type: 'fly', lat: ll[0], lng: ll[1], label: name });
-        break;
-      }
-    }
-    if (/\b(zoom|go\s*to\s+(solar|global|national|city|street)|show\s+(earth|world|city))\b/i.test(low)
-      || /^(solar|global|national|city|street)$/i.test(low)) {
-      let tier = 'global';
-      if (/\bsolar|galaxy|space\b/i.test(low)) tier = 'solar';
-      else if (/\bnational|country\b/i.test(low)) tier = 'national';
-      else if (/\bstreet|neighborhood|city\b/i.test(low)) tier = 'city';
-      actions.push({ type: 'zoom', tier });
-      intent = intent === 'chat' ? 'zoom' : intent;
-    }
-    if (/\bcity\s*(map|view)|street\s*map|open\s*map\b/i.test(low)) {
-      actions.push({ type: 'city_enter' });
-      intent = 'city';
-    }
-
-    // Order / shops (commerce without "delivery" word)
-    if (/\b(order|shop|shops|vendor|marketplace|buy)\b/i.test(low) && !actions.length) {
-      intent = 'order';
-      actions.push({ type: 'order', text: m });
-    }
-
-    // Browse
-    const urlMatch = m.match(/https?:\/\/[^\s]+/i) || m.match(/astranov:\/\/[^\s]+/i);
-    if (urlMatch || /\b(browse|open\s+url|visit)\b/i.test(low)) {
-      intent = 'browse';
-      actions.push({ type: 'browse', url: urlMatch ? urlMatch[0] : 'astranov://home' });
-    }
-
-    if (/\bcrawl|scan\s*(area|sector|city)\b/i.test(low)) actions.push({ type: 'crawl' });
-    if (/\bdrive\b/i.test(low) && m.length < 40) actions.push({ type: 'drive' });
-    if (/\b(call|video\s*call)\b/i.test(low)) actions.push({ type: 'call' });
-    if (/\btheme\b|\bspacex\b/i.test(low) && m.length < 40) {
-      actions.push({ type: 'theme', mode: /bright|light/.test(low) ? 'bright' : 'spacex' });
-    }
-
-    return { message: m, intent, actions, low };
-  },
-
-  _listFilter(low) {
-    if (/dating|date/.test(low)) return 'dating';
-    if (/job|gig|hire|work/.test(low)) return 'jobs';
-    if (/errand/.test(low)) return 'errand';
-    if (/deliver/.test(low)) return 'delivery';
-    return 'open';
-  },
-
-  async execute(plan) {
-    const results = [];
-    const p = this.pos();
-    CityTasks?.init?.();
-
-    for (const a of plan.actions || []) {
-      try {
-        if (a.type === 'solo') {
-          const open = (CityTasks?.list?.({ open: true }) || []).length;
-          const build = document.querySelector('meta[name="astranov-build"]')?.content || '?';
-          const lines = [
-            'SpaceNet · we ship alone until partners answer',
-            'build ' + build + ' · open tasks ' + open,
-            'CLI: job · date · deliver · search · task list · locate',
-            'Live: https://astranov.eu',
-          ];
-          lines.forEach((l) => AciCli?.print?.(l, 'ok'));
-          this.depict('explore', { label: 'Solo build', detail: 'ship daily', preview: lines[0] });
-          results.push('solo');
-        }
-        else if (a.type === 'help') {
-          this.printHelp();
-          results.push('help');
-        }
-        else if (a.type === 'locate') {
-          this.depict('location', { label: 'You', detail: 'locate', preview: 'Locating you on SpaceNet…' });
-          if (SuperCli?.run) await SuperCli.run('locate');
-          else if (CityLife?.locateAndDropIn) await CityLife.locateAndDropIn();
-          results.push('locate');
-        }
-        else if (a.type === 'fly') {
-          this.depict('explore', { lat: a.lat, lng: a.lng, label: a.label, detail: 'fly ' + a.label });
-          GlobeControl?.flyToLatLng?.(a.lat, a.lng, a.label, GlobeControl?.Z?.national, {});
-          results.push('fly ' + a.label);
-        }
-        else if (a.type === 'zoom') {
-          ZoomTiers?.goTo?.(a.tier, true);
-          this.depict('explore', { label: a.tier, detail: 'zoom ' + a.tier, pulse: false, hud: a.tier });
-          results.push('zoom ' + a.tier);
-        }
-        else if (a.type === 'city_enter') {
-          this.depict('explore', { label: 'City', detail: 'street tier', preview: 'Entering city map…' });
-          try {
-            await enterCityView?.(p.lat, p.lng, { openShops: false });
-          } catch (_) {
-            ZoomTiers?.goTo?.('city', true);
-          }
-          results.push('city');
-        }
-        else if (a.type === 'date') {
-          const t = CityTasks?.postDate?.(a.text || 'coffee date 2h');
-          this.depict('dating', {
-            lat: t?.lat ?? p.lat, lng: t?.lng ?? p.lng,
-            color: 0xff6699, label: t?.title || 'Date',
-            detail: 'dating invite', preview: '💕 ' + (t?.title || 'Date open on globe'),
-          });
-          // Launch offer so nearby users can accept
-          if (t?.id) CityTasks?.launch?.(t.id);
-          results.push('date · ' + (t?.title || 'open'));
-        }
-        else if (a.type === 'job') {
-          const t = CityTasks?.postJob?.(a.text || 'barman 3h');
-          this.depict('job', {
-            lat: t?.lat ?? p.lat, lng: t?.lng ?? p.lng,
-            color: 0x66aaff, label: t?.title || 'Job',
-            detail: 'job/gig open', preview: '💼 ' + (t?.title || 'Job open'),
-          });
-          if (t?.id) CityTasks?.launch?.(t.id);
-          results.push('job · ' + (t?.title || 'open'));
-        }
-        else if (a.type === 'errand') {
-          const t = CityTasks?.postErrand?.(a.text || 'pharmacy');
-          this.depict('errand', {
-            lat: t?.lat ?? p.lat, lng: t?.lng ?? p.lng,
-            color: 0xffcc44, label: t?.title || 'Errand',
-            detail: 'errand', preview: '🏃 ' + (t?.title || 'Errand'),
-          });
-          if (t?.id) CityTasks?.launch?.(t.id);
-          results.push('errand · ' + (t?.title || 'open'));
-        }
-        else if (a.type === 'delivery') {
-          this.depict('delivery', {
-            lat: p.lat, lng: p.lng, color: 0x44ffaa, label: 'Delivery',
-            detail: a.text?.slice(0, 40), preview: '📦 Delivery on SpaceNet…',
-          });
-          // Prefer full delivery pipeline when shopping language; else city task
-          if (/\b(shop|food|order|pizza|gyro|menu)\b/i.test(a.text || '')) {
-            try {
-              await LazyModules?.ensure?.();
-              if (CityTasks?.startDeliveryFlow) await CityTasks.startDeliveryFlow(a.text);
-              else if (Commerce?.showPicker) await Commerce.showPicker();
-              else if (SuperCli?.run) await SuperCli.run('order');
-            } catch (_) {
-              CityTasks?.create?.({ rawText: a.text || 'delivery', kind: 'delivery' });
-            }
-          } else {
-            const t = CityTasks?.create?.({ rawText: a.text || 'package delivery', kind: 'delivery' });
-            if (t?.id) CityTasks?.launch?.(t.id);
-          }
-          results.push('delivery');
-        }
-        else if (a.type === 'task_list') {
-          this.depict('explore', { label: 'Tasks', detail: a.filter || 'open', preview: 'Listing city tasks…' });
-          const filter = a.filter === 'dating' ? { open: true, dating: true }
-            : a.filter === 'jobs' ? { open: true, jobs: true }
-            : a.filter === 'errand' ? { open: true, kind: 'errand' }
-            : a.filter === 'delivery' ? { open: true, kind: 'delivery' }
-            : { open: true };
-          const open = CityTasks?.list?.(filter) || [];
-          if (!open.length) {
-            AciCli?.print?.('No open tasks · try: job barman 3h · date coffee 2h · deliver food', 'dim');
-          } else {
-            open.slice(0, 12).forEach((t) => {
-              AciCli?.print?.(
-                (t.kind || '?') + ' · ' + (t.duration_label || '') + ' · ' + String(t.title || '').slice(0, 48),
-                'ok'
-              );
-              if (t.lat != null) {
-                MapDepict?.pulse?.(t.lat, t.lng, (CityTasks?.meta?.(t.kind)?.color) || 0x44ffaa, t.title?.slice(0, 20), 9000);
-              }
-            });
-          }
-          results.push('list ' + open.length);
-        }
-        else if (a.type === 'task_cli') {
-          this.depict('explore', { label: 'Task', detail: a.line?.slice(0, 40), preview: a.line?.slice(0, 80) });
-          const msg = await CityTasks?.handleCli?.(a.line || 'task list');
-          if (msg) AciCli?.print?.(String(msg).slice(0, 200), 'ok');
-          results.push(String(msg || 'task').slice(0, 40));
-        }
-        else if (a.type === 'search') {
-          await this._search(a.query || plan.message);
-          results.push('search');
-        }
-        else if (a.type === 'order') {
-          this.depict('order', { label: 'Shops', detail: a.text?.slice(0, 40), preview: 'Opening marketplace…' });
-          await LazyModules?.ensure?.().catch(() => {});
-          if (Commerce?.showPicker) await Commerce.showPicker();
-          else if (SuperCli?.run) await SuperCli.run('order');
-          results.push('order');
-        }
-        else if (a.type === 'browse') {
-          await this._browse(a.url || 'astranov://home');
-          results.push('browse');
-        }
-        else if (a.type === 'crawl') {
-          this.depict('explore', { label: 'Crawl', detail: 'sector scan' });
-          await SpaceNetBrain?.crawlAll?.(p.lat, p.lng, 3, { force: true });
-          results.push('crawl');
-        }
-        else if (a.type === 'drive') {
-          this.depict('drive', { label: 'Drive', detail: 'road mode' });
-          DrivingView?.activate?.();
-          results.push('drive');
-        }
-        else if (a.type === 'call') {
-          this.depict('phone', { label: 'Call' });
-          if (SuperCli?.run) await SuperCli.run('phone');
-          results.push('call');
-        }
-        else if (a.type === 'theme') {
-          if (a.mode === 'spacex' || !a.mode) AstranovTheme?.setSpacex?.(true);
-          else AstranovTheme?.set?.(a.mode);
-          results.push('theme');
-        }
-      } catch (e) {
-        results.push((a.type || '?') + ' fail');
-        console.warn('[SpaceNetGrokCli]', a.type, e);
-      }
-    }
-    return results;
-  },
-
-  async _search(query) {
-    const q = String(query || '').trim();
-    const p = this.pos();
-    this.depict('search', {
-      lat: p.lat, lng: p.lng, color: 0xffffff, label: 'Search',
-      detail: q.slice(0, 48), preview: '🔍 ' + q.slice(0, 80),
-    });
-    AciCli?.print?.('search · ' + q, 'cmd');
-
-    // 1) City tasks match
-    CityTasks?.init?.();
-    const tasks = (CityTasks?.list?.({ open: true }) || []).filter((t) => {
-      const hay = (t.title + ' ' + t.kind + ' ' + t.role + ' ' + (t.note || '')).toLowerCase();
-      return q.split(/\s+/).some((w) => w.length > 1 && hay.includes(w.toLowerCase()));
-    });
-    if (tasks.length) {
-      AciCli?.print?.('── Tasks on field (' + tasks.length + ') ──', 'dim');
-      tasks.slice(0, 8).forEach((t) => {
-        AciCli?.print?.(t.kind + ' · ' + t.title.slice(0, 50), 'ok');
-        if (t.lat != null) MapDepict?.pulse?.(t.lat, t.lng, 0x66aaff, t.title.slice(0, 18), 10000);
-      });
-    }
-
-    // 2) Catalog roles
-    const catalog = (CityTasks?.CATALOG || []).filter((c) =>
-      new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(c.title + ' ' + c.role + ' ' + c.kind)
-    );
-    if (catalog.length) {
-      AciCli?.print?.('── Roles you can post ──', 'dim');
-      catalog.slice(0, 8).forEach((c) => {
-        AciCli?.print?.(c.kind + ' · ' + c.title + ' · default ' + c.defaultDur, 'ok');
-      });
-    }
-
-    // 3) People / cloud CLI search
-    try {
-      if (window.CliHub?.runSearch && q.length >= 2) {
-        await CliHub.runSearch(q);
-      }
-    } catch (_) {}
-
-    // 4) Local crawl of sector for shops if food/shop language
-    if (/\b(food|shop|cafe|bar|restaurant|vendor)\b/i.test(q)) {
-      try {
-        await SpaceNetBrain?.crawlVendors?.(p.lat, p.lng, 2);
-        if (Commerce?.showPicker) await Commerce.showPicker(q);
-      } catch (_) {}
-    }
-
-    // 5) Fly to named city if search is a place
-    for (const [name, ll] of Object.entries(this.CITIES)) {
-      if (new RegExp('\\b' + name + '\\b', 'i').test(q)) {
-        GlobeControl?.flyToLatLng?.(ll[0], ll[1], name, GlobeControl?.Z?.national, {});
-        MapDepict?.pulse?.(ll[0], ll[1], 0xffffff, name, 12000);
-        AciCli?.print?.('place · ' + name + ' on globe', 'ok');
-        break;
-      }
-    }
-
-    if (!tasks.length && !catalog.length) {
-      AciCli?.print?.('No local hits — try: job ' + q + ' · date ' + q + ' · deliver ' + q, 'dim');
-    }
-    GlobeDeck?.setPreview?.('Search · ' + q.slice(0, 60));
-  },
-
-  async _browse(url) {
-    url = String(url || 'astranov://home').trim();
-    this.depict('explore', { label: 'Browse', detail: url.slice(0, 40), preview: '🌐 ' + url });
-    try {
-      if (!window.AstranovBrowser) {
-        await this._loadScript('/js/08-astranov-os.js').catch(() => {});
-        await this._loadScript('/js/08-astranov-browser.js').catch(() => {});
-      }
-      AstranovOS?.init?.();
-      if (AstranovBrowser?.navigate) {
-        AstranovBrowser.show?.();
-        AstranovBrowser.navigate(url);
-        AciCli?.print?.('browser → ' + url, 'ok');
-        return;
-      }
-    } catch (_) {}
-    if (/^https?:\/\//i.test(url)) window.open(url, '_blank', 'noopener,noreferrer');
-    else AciCli?.print?.('browser loading — retry: browse ' + url, 'dim');
-  },
-
-  _loadScript(src) {
-    return new Promise((resolve, reject) => {
-      if (document.querySelector('script[data-sn="' + src + '"]')) return resolve();
-      const s = document.createElement('script');
-      const build = document.querySelector('meta[name="astranov-build"]')?.content || '1';
-      s.src = src + (src.includes('?') ? '&' : '?') + 'v=' + build;
-      s.async = true;
-      s.dataset.sn = src;
-      s.onload = () => resolve();
-      s.onerror = () => reject(new Error(src));
-      document.head.appendChild(s);
-    });
-  },
-
-  localReply(plan, results) {
-    const acted = (results || []).filter(Boolean);
-    if (plan.intent === 'help') return '';
-    if (acted.length) {
-      return 'SpaceNet · ' + acted.join(' · ') + ' — painted on the globe. What next?';
-    }
-    return '';
-  },
-
-  /**
-   * Main entry — always handled. Street DNA first, then Grok chat.
-   */
-  async handle(message, opts = {}) {
-    this.init();
-    const raw = String((window.fixVoiceHotwords || ((x) => x))(String(message || ''))).trim();
-    if (!raw) {
-      this.printHelp();
-      return { ok: true, help: true };
-    }
-
-    // Architect bridge keeps priority
-    if (ArchitectBridge?.wantsBridgeCmd?.(raw)) {
-      return ArchitectBridge.handleCommand(raw);
-    }
-
-    this.busy = true;
-    GlobeDeck?.expand?.('SpaceNet');
-    GlobeDeck?.setThinking?.(true, 'SpaceNet…');
-    CliRibbon?.setActive?.('SpaceNet');
-    CliRibbon?.setNotice?.('Acting on globe…', 'thinking');
-
-    try {
-      const plan = this.plan(raw);
-      let actionResults = [];
-
-      if (plan.actions.length) {
-        actionResults = await this.execute(plan);
-        const reply = this.localReply(plan, actionResults);
-        if (reply) {
-          AciCli?.print?.(reply, 'reply');
-          ACIControl?.reply?.(reply.slice(0, 220));
-          GlobeDeck?.setPreview?.(reply.slice(0, 140));
-          CliRibbon?.setNotice?.(reply.slice(0, 90), 'ready');
-        }
-        this.history.push({ role: 'user', content: raw });
-        this.history.push({ role: 'assistant', content: reply || actionResults.join(' · ') });
-        // Optional: enrich with AI comment (non-blocking)
-        if (plan.intent !== 'help' && window.AstranovCoreBrain?.askAi) {
-          void AstranovCoreBrain.askAi(raw, plan).then((ai) => {
-            if (ai?.text) {
-              AciCli?.print?.(ai.text.slice(0, 280), 'dim');
-            }
-          }).catch(() => {});
-        }
-        return { ok: true, plan, actionResults, street: true };
-      }
-
-      // Pure chat / unknown → Core Brain (still never "unknown")
-      // But first: if it looks like a vague want, post as open help task
-      if (/\b(need|want|looking for|anyone|help me|can someone)\b/i.test(raw) && raw.length < 160) {
-        CityTasks?.init?.();
-        const t = CityTasks?.create?.({ rawText: raw, kind: 'help', title: raw.slice(0, 60) });
-        if (t?.id) CityTasks?.launch?.(t.id);
-        this.depict('explore', {
-          lat: t?.lat, lng: t?.lng, label: 'Help', color: 0x66ffcc,
-          preview: '🤝 Posted as city help on globe',
-        });
-        AciCli?.print?.('Posted as open help task on SpaceNet · claim with: task claim', 'ok');
-        return { ok: true, helpTask: true };
-      }
-
-      if (window.AstranovCoreBrain?.handle) {
-        const r = await AstranovCoreBrain.handle(raw, opts);
-        return { ok: true, brain: true, ...r };
-      }
-      if (window.AciCoders?.handleMessage) {
-        await AciCoders.handleMessage(raw, opts);
-        return { ok: true, coders: true };
-      }
-
-      AciCli?.print?.('SpaceNet heard you. Try: job barman 3h · date coffee · deliver food · search … · locate', 'dim');
-      this.depict('explore', { label: 'SpaceNet', detail: raw.slice(0, 40) });
-      return { ok: true, fallback: true };
-    } catch (e) {
-      AciCli?.print?.('SpaceNet: ' + (e.message || e), 'err');
-      return { ok: false, error: String(e?.message || e) };
-    } finally {
-      this.busy = false;
-      GlobeDeck?.setThinking?.(false);
-    }
-  },
-};
-
-window.SpaceNetGrokCli = SpaceNetGrokCli;
-try {
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => setTimeout(() => SpaceNetGrokCli.init(), 500));
-  } else {
-    setTimeout(() => SpaceNetGrokCli.init(), 500);
-  }
-} catch (_) {}
 
 /* === 13-app-shortcuts.js === */
 // === APP SHORTCUTS — open CLI apps as top-bar icons (account · apps · +) ===
@@ -4176,24 +4075,12 @@ window.__astranovBootFeatures = function __astranovBootFeatures() {
   soft('CityTasks', () => {
     CityTasks?.init?.();
     TaskBoard?.init?.();
-    // Solo builder: seed nearby demo tasks so the field is never empty
-    try { CityTasks?.seedDemoField?.(); } catch (_) {}
-  });
-  soft('SpaceNetGrokCli', () => {
-    SpaceNetGrokCli?.init?.();
   });
   soft('SpaceNetCM', () => SpaceNetCM?.init?.());
   soft('CoreBrain', () => AstranovCoreBrain?.init?.());
   soft('Logo', () => AstranovLogo?.init?.());
   soft('Shortcuts', () => {
     try { AppShortcuts?.init?.(); } catch (_) {}
-  });
-  soft('ThemeSpacex', () => {
-    try {
-      if (!AstranovTheme) return;
-      if (!localStorage.getItem('astranov_skin_v1')) AstranovTheme.setSpacex?.(true);
-      else AstranovTheme.apply?.();
-    } catch (_) {}
   });
 
   // Locate wiring: 🎯 national → city (never bare undeclared locateMe — kills app)
@@ -4224,46 +4111,17 @@ window.__astranovBootFeatures = function __astranovBootFeatures() {
     } catch (_) {}
   }
 
-  if (!window.showFirstRunCoach) {
-    window.showFirstRunCoach = function showFirstRunCoach() {
-      try { if (localStorage.getItem('astranov:coach-v4-spacenet')) return; } catch (_) { return; }
-      const el = document.getElementById('first-run-coach');
-      if (!el) return;
-      el.innerHTML = '<b>SpaceNet — the internet on Earth</b>'
-        + '<ol style="margin:8px 0 0;padding-left:18px;line-height:1.45">'
-        + '<li>🌍 Drag the globe · 🎯 locate · scroll into city</li>'
-        + '<li>⌨️ Type below — <b>job barman 3h</b> · <b>date coffee</b> · <b>deliver food</b></li>'
-        + '<li>🔍 <b>search</b> · <b>task list</b> · <b>task claim</b> — all paint the globe</li>'
-        + '<li>Same OS on phone &amp; PC · install: Add to Home Screen</li>'
-        + '</ol>'
-        + '<button type="button" id="first-run-coach-ok">Start on SpaceNet</button>';
-      el.hidden = false;
-      document.getElementById('first-run-coach-ok')?.addEventListener('click', () => {
-        el.hidden = true;
-        try { localStorage.setItem('astranov:coach-v4-spacenet', '1'); } catch (_) {}
-        try {
-          document.getElementById('aci-cli-in')?.focus();
-          GlobeDeck?.expand?.('SpaceNet');
-          GlobeDeck?.setPreview?.('Type: job barman 3h · date coffee · deliver food · help');
-          CliRibbon?.setNotice?.('SpaceNet CLI ready', 'ready');
-        } catch (_) {}
-      });
-    };
-  }
-  setTimeout(() => {
-    try { showFirstRunCoach?.(); } catch (_) {}
-  }, 900);
-  // Ribbon + preview: we build alone — product must speak for itself
-  setTimeout(() => {
+    // SPECS / owner: no SpaceNet start popup — coach permanently off
+  window.showFirstRunCoach = function showFirstRunCoach() {
     try {
-      CliRibbon?.setNotice?.('SpaceNet · type a job, date, delivery, or search', 'ready');
-      GlobeDeck?.setPreview?.('SpaceNet CLI · job · date · deliver · search · locate');
-      const input = document.getElementById('aci-cli-in');
-      if (input && !input.value) {
-        input.placeholder = 'SpaceNet · job barman 3h · date coffee · deliver · search · locate';
-      }
+      const el = document.getElementById('first-run-coach');
+      if (el) { el.hidden = true; el.style.display = 'none'; el.innerHTML = ''; }
+      localStorage.setItem('astranov:coach-v3-os', '1');
+      localStorage.setItem('astranov:coach-v4-spacenet', '1');
+      localStorage.setItem('astranov:coach-disabled', '1');
     } catch (_) {}
-  }, 1400);
+  };
+
 
   window._astranovFeaturesReady = true;
   document.documentElement.dataset.astranovPhase = 'features';
