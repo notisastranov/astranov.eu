@@ -168,6 +168,7 @@ CLI: fix | code | dev | edit | bridge …
 - Code: `js/08-astranov-browser.js`.
 
 ### 3.18 Astranov theme (logo + accent)
+- **CLI module glass:** `#globe-deck` / CLI chrome is **semi-transparent** deep blue with **glowing blue borders/shadows** and backdrop blur (not solid black panels).
 - **Shape:** round corners everywhere product chrome touches (`--an-radius` ~16px, pills for icon buttons).
 - **Color:** deep glowing blue Astranov accent
   - base `#1a6fd4`, bright `#3d9eff`, glow `rgba(26,111,212,0.55)`, panels near-black blue (`#00040c` / `rgba(0,8,22,…)`)
