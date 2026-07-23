@@ -10,8 +10,8 @@ var CityMap = {
   _demoPhase: 0,
   _forceOpen: false,
   active: false,
-  ENTER_Z: 1.58,
-  EXIT_Z: 1.72,
+  ENTER_Z: 1.50,
+  EXIT_Z: 1.90,
 
   init() {
     const el = document.getElementById('city-map');
@@ -486,8 +486,142 @@ var CityMap = {
     this._syncRoute();
   },
 
+  /**
+   * Task multi-waypoint geometry on the map:
+   * · polyline road route
+   * · polygon hull around waypoints (service corridor)
+   * · numbered waypoint markers
+   */
+  setTaskGeometry(spec) {
+    this.init();
+    if (!this.map) {
+      this._pendingTaskGeom = spec;
+      return;
+    }
+    this.clearTaskGeometry();
+    const route = spec?.route || spec?.coords || [];
+    const wps = Array.isArray(spec?.waypoints) ? spec.waypoints : [];
+    const poly = spec?.polygon || null;
+    const bright = (AstranovTheme?.effectiveMode?.() || AstranovTheme?.mode) === 'bright';
+    const lineColor = bright ? '#0066cc' : '#44ccff';
+    const polyColor = bright ? '#1a8' : '#2dd4a8';
+
+    if (route.length >= 2) {
+      this._routeCoords = route.map((c) => ({ lat: +c.lat, lng: +c.lng }));
+      this._taskRoute = L.polyline(
+        this._routeCoords.map((c) => [c.lat, c.lng]),
+        { color: lineColor, weight: 5, opacity: 0.9, lineJoin: 'round' }
+      ).addTo(this.map);
+      this._route = this._taskRoute;
+    }
+
+    const hull = poly && poly.length >= 3
+      ? poly
+      : (wps.length >= 3 ? this._convexHullLatLng(wps) : null);
+    if (hull && hull.length >= 3) {
+      this._taskPolygon = L.polygon(
+        hull.map((c) => [c.lat, c.lng]),
+        {
+          color: polyColor,
+          weight: 2,
+          opacity: 0.85,
+          fillColor: polyColor,
+          fillOpacity: 0.12,
+          dashArray: '6 4',
+        }
+      ).addTo(this.map);
+      this._taskPolygonRing = hull;
+    }
+
+    this._taskWpMarkers = [];
+    wps.forEach((wp, i) => {
+      if (wp?.lat == null || wp?.lng == null) return;
+      const n = i + 1;
+      const done = !!wp.done;
+      const cur = !!wp.current;
+      const icon = L.divIcon({
+        className: 'cm-wp-icon',
+        html: '<div class="cm-wp' + (cur ? ' cur' : '') + (done ? ' done' : '') + '">' + n + '</div>',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+      });
+      const m = L.marker([wp.lat, wp.lng], { icon, title: wp.label || ('Stop ' + n) }).addTo(this.map);
+      if (wp.label || wp.info) {
+        m.bindPopup(
+          '<b>' + n + '. ' + this._esc(wp.label || ('Stop ' + n)) + '</b>'
+          + (wp.coins ? '<br/>' + wp.coins + ' 🪙' : '')
+          + (wp.info ? '<br/><small>' + this._esc(String(wp.info).slice(0, 120)) + '</small>' : '')
+        );
+      }
+      this._taskWpMarkers.push(m);
+    });
+
+    // Fit bounds to route + waypoints
+    try {
+      const bounds = [];
+      (route || []).forEach((c) => bounds.push([c.lat, c.lng]));
+      wps.forEach((w) => { if (w.lat != null) bounds.push([w.lat, w.lng]); });
+      if (bounds.length >= 2 && this.active) {
+        this.map.fitBounds(bounds, { padding: [36, 36], maxZoom: 16 });
+      } else if (bounds.length === 1 && this.active) {
+        this.map.setView(bounds[0], Math.max(this.map.getZoom(), 14));
+      }
+    } catch (_) {}
+  },
+
+  clearTaskGeometry() {
+    if (!this.map) return;
+    if (this._taskRoute) {
+      try { this.map.removeLayer(this._taskRoute); } catch (_) {}
+      this._taskRoute = null;
+    }
+    if (this._route && this._route !== this._taskRoute) {
+      try { this.map.removeLayer(this._route); } catch (_) {}
+    }
+    this._route = null;
+    if (this._taskPolygon) {
+      try { this.map.removeLayer(this._taskPolygon); } catch (_) {}
+      this._taskPolygon = null;
+    }
+    (this._taskWpMarkers || []).forEach((m) => {
+      try { this.map.removeLayer(m); } catch (_) {}
+    });
+    this._taskWpMarkers = [];
+    this._taskPolygonRing = null;
+  },
+
+  _esc(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  },
+
+  /** Andrew's monotone chain convex hull for lat/lng points */
+  _convexHullLatLng(points) {
+    const pts = (points || [])
+      .filter((p) => p && p.lat != null && p.lng != null)
+      .map((p) => ({ lat: +p.lat, lng: +p.lng }))
+      .sort((a, b) => a.lng === b.lng ? a.lat - b.lat : a.lng - b.lng);
+    if (pts.length < 3) return pts;
+    const cross = (o, a, b) => (a.lng - o.lng) * (b.lat - o.lat) - (a.lat - o.lat) * (b.lng - o.lng);
+    const lower = [];
+    for (const p of pts) {
+      while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+      lower.push(p);
+    }
+    const upper = [];
+    for (let i = pts.length - 1; i >= 0; i--) {
+      const p = pts[i];
+      while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+      upper.push(p);
+    }
+    upper.pop();
+    lower.pop();
+    return lower.concat(upper);
+  },
+
   _syncRoute() {
     if (!this.map) return;
+    // Prefer full task geometry when present
+    if (this._taskRoute || this._taskPolygon) return;
     if (this._route) {
       this.map.removeLayer(this._route);
       this._route = null;
