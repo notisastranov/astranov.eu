@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="description" content="Astranov Global Internet OS: Earth globe, city maps, shops, delivery, discovery." />
 <title>Astranov — Global Internet OS</title>
-<meta name="astranov-build" content="20260723210000" />
+<meta name="astranov-build" content="20260723220000" />
 <meta name="astranov-mode" content="product-spartanized" />
 <meta name="robots" content="index,follow" />
 <meta name="theme-color" content="#0a1020" />
@@ -45,15 +45,30 @@ body.city-map-active #city-map,
 #city-map.active{z-index:150!important;opacity:1!important;pointer-events:auto!important}
 #city-map .leaflet-container{width:100%;height:100%}
 
-/* SPECS: CLI input ALWAYS visible — collapsed deck must not clip textarea */
-#globe-deck.collapsed{max-height:none!important;min-height:168px}
-#globe-deck.collapsed #globe-deck-body{display:none!important;max-height:0!important;overflow:hidden!important}
-#globe-deck-input-row{display:flex!important;visibility:visible!important;opacity:1!important;align-items:center;gap:8px;padding:8px 10px;border-top:1px solid rgba(61,158,255,.4);flex-shrink:0;background:rgba(0,8,22,.92);pointer-events:auto!important;z-index:5}
-#aci-cli-form{flex:1 1 auto!important;min-width:0!important;display:flex!important;width:100%!important;margin:0!important}
-#aci-cli-in{display:block!important;visibility:visible!important;opacity:1!important;flex:1 1 auto!important;width:100%!important;min-height:42px!important;max-height:96px;resize:none;box-sizing:border-box;padding:10px 12px!important;border-radius:12px!important;border:1px solid rgba(61,158,255,.5)!important;background:rgba(0,12,32,.88)!important;color:#e8f4ff!important;font:14px/1.35 system-ui,sans-serif!important;outline:none;pointer-events:auto!important;-webkit-user-select:text!important;user-select:text!important}
-#aci-cli-in::placeholder{color:rgba(150,180,210,.75)!important;opacity:1!important}
-#aci-cli-prompt{display:inline-flex!important;color:#3d9eff;font-weight:700;padding:0 4px;flex-shrink:0}
-#globe-deck-send,.deck-input-btn{display:inline-flex!important;align-items:center;justify-content:center;min-width:42px;height:42px;border-radius:12px;border:1px solid rgba(61,158,255,.45);background:rgba(26,111,212,.35);color:#e8f4ff;cursor:pointer;flex-shrink:0;font-size:16px}
+
+/* SPECS: CLI layout — full-width input; Send+headset top-right; no side buttons; no dead space */
+#globe-deck{display:flex!important;flex-direction:column!important;margin:0 8px 4px!important;padding:0!important;overflow:hidden!important}
+#globe-deck.collapsed{max-height:none!important;min-height:0!important;height:auto!important}
+#globe-deck.collapsed #globe-deck-body{display:none!important;height:0!important;min-height:0!important;padding:0!important;margin:0!important;overflow:hidden!important}
+#globe-deck-header{flex-shrink:0;padding:4px 10px 2px!important;min-height:0}
+#super-cli-bar{display:flex!important;align-items:center;gap:4px;padding:4px 6px!important;flex-shrink:0;border-radius:12px 12px 0 0}
+#super-cli-edge-right{display:flex!important;align-items:center;gap:4px;margin-left:auto}
+#aci-cli-prompt{display:none!important}
+#globe-deck-input-row{display:flex!important;align-items:stretch;gap:0;padding:4px 6px 6px!important;margin:0!important;border-top:1px solid rgba(61,158,255,.35);background:rgba(0,8,22,.94);flex-shrink:0}
+#globe-deck-input-row>*{margin:0}
+#aci-cli-form{flex:1 1 auto!important;width:100%!important;min-width:0!important;display:block!important;margin:0!important;padding:0!important}
+#aci-cli-in{display:block!important;width:100%!important;min-height:40px!important;max-height:72px;margin:0!important;padding:10px 12px!important;border-radius:12px!important;border:1px solid rgba(61,158,255,.5)!important;background:rgba(0,12,32,.9)!important;color:#e8f4ff!important;font:14px/1.35 system-ui,sans-serif!important;box-sizing:border-box;resize:none}
+#globe-deck-send.cli-send-top,#super-cli-edge-right #globe-deck-send{
+  display:inline-flex!important;align-items:center;justify-content:center;
+  min-width:52px;height:34px;padding:0 10px;border-radius:999px;
+  border:1px solid rgba(61,158,255,.55);background:linear-gradient(180deg,rgba(26,111,212,.55),rgba(0,40,90,.9));
+  color:#e8f4ff;font:12px/1 system-ui;font-weight:700;cursor:pointer;flex-shrink:0
+}
+#aci-handsfree{display:inline-flex!important;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1px solid rgba(61,158,255,.45);background:rgba(0,24,56,.7);font-size:16px;cursor:pointer;flex-shrink:0}
+#super-add-fab[hidden],#super-add-fab[aria-hidden="true"]{display:none!important}
+/* kill dead space under CLI deck */
+#aci-hud{padding-bottom:0!important;margin-bottom:0!important}
+#globe-deck + *,#aci-hud{gap:0}
 </style>
 <script>(function(){
   try{if(matchMedia('(pointer:coarse)').matches||navigator.maxTouchPoints>0){window._globePerfLite=true;window._spartan=true;}}catch(e){}
@@ -79,8 +94,8 @@ body.city-map-active #city-map,
   .then(function(){try{if(window.AstranovOS)AstranovOS.init();}catch(e){}try{if(window.AstranovBrowser)AstranovBrowser.init();}catch(e){}var delay=window._globePerfLite?5000:2200;setTimeout(function(){if(window.LazyModules&&LazyModules.schedule)LazyModules.schedule();else{var d=document.createElement('script');d.src='/astranov-deferred.js?v='+BUILD;d.async=true;document.head.appendChild(d);}},delay);})
   .catch(function(e){fail('Boot failed');console.error(e);});
 })();</script>
-<script defer src="/astranov-continuity.js?v=20260723210000"></script>
-<script defer src="/astranov-perf-lazy.js?v=20260723210000"></script>
+<script defer src="/astranov-continuity.js?v=20260723220000"></script>
+<script defer src="/astranov-perf-lazy.js?v=20260723220000"></script>
 </head>
 <body>
 <div id="boot"><div><b>ASTRANOV</b><p>Earth?/p></div></div>
@@ -99,16 +114,17 @@ body.city-map-active #city-map,
       <span id="globe-deck-title">Astranov</span>
       <span id="globe-deck-preview"></span>
     </div>
-    <!-- SPECS: cliBar / locateMe / videoCall / superAddPlus — SPECS.md 3.1-3.4, 3.10. One product CLI (#super-cli-bar). Hide dual #aci-bar. Locate pin · video left of + · + opens MPP. -->
+    <!-- SPECS: CLI handle = tools; top-right Send + headset; full-width input only below -->
     <div id="super-cli-bar">
       <button id="aci-login" type="button" title="Sign in">G</button>
-      <div id="app-shortcut-row"></div>
+      <div id="app-shortcut-row" hidden></div>
       <div id="super-cli-edge-right" class="toolbar-trust-actions">
         <button id="aci-locate" type="button" title="Locate">🎯</button>
-        <button id="aci-handsfree" type="button" title="Voice">🎤</button>
         <button id="aci-bridge" type="button" title="Bridge" hidden>🛠️</button>
         <button id="aci-video-call" type="button" title="Video">📹</button>
-        <button id="super-add-fab" type="button" title="Add">+</button>
+        <button id="super-add-fab" type="button" title="Add" hidden aria-hidden="true">+</button>
+        <button id="globe-deck-send" class="deck-input-btn cli-send-top" type="submit" form="aci-cli-form" title="Send">Send</button>
+        <button id="aci-handsfree" type="button" title="Voice headset">🎧</button>
       </div>
     </div>
     <div id="globe-deck-body">
@@ -116,11 +132,13 @@ body.city-map-active #city-map,
       <div id="globe-deck-stage"></div>
     </div>
     <div id="globe-deck-input-row">
-      <span id="aci-cli-prompt">›</span>
       <form id="aci-cli-form" action="#" autocomplete="off">
         <textarea id="aci-cli-in" name="cli" rows="1" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" inputmode="text" placeholder="Ask Astranov"></textarea>
       </form>
-      <button id="globe-deck-send" class="deck-input-btn" type="submit" form="aci-cli-form" title="Send">Go</button>
+    </div>
+  </div>
+  <input id="aci-input" placeholder="" style="display:none" />
+  <button id="aci-send" type="button" style="display:none">Send</button>
 </div>
 <div id="vendor-menu" style="display:none">
   <div id="vm-header"><span id="vm-title">Shops</span><button id="vm-close" type="button"></button></div>
