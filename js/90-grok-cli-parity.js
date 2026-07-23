@@ -497,12 +497,7 @@
     } catch (_) {}
   }
 
-  // Apply now and again after late modules
+  // Apply once + one late pass (avoid re-patch thrash on Firefox)
   apply();
-  setTimeout(apply, 400);
-  setTimeout(apply, 1500);
-  setTimeout(apply, 4000);
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) setTimeout(apply, 200);
-  });
+  setTimeout(apply, 800);
 })();
