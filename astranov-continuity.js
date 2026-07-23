@@ -171,7 +171,7 @@ const AstranovContinuity = {
       selectors: ['#multi-tile', '#mt-close', '#mt-clear', '#mt-place-name', '#mt-lat', '#mt-lng'],
       commands: ['place list', 'places', 'place open <name|id>'],
       behavior: [
-        'Long-press globe or city map opens visible MultiTile (CSS injected)',
+        'Long-press any point at solar/global/national/city opens MultiTile (CSS injected)',
         'Nudge N/S/E/W + lat/lng apply for accurate pin',
         'Clear + Close buttons required',
         'Save stores unique name (reverse-geocode + role) in astranov:places-v1',
