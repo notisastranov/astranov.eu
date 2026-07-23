@@ -1,8 +1,8 @@
-/* DEPLOY_STAMP_20260722 P0 restore missing static assets on Vercel */
-// === SUPER ADD FIELD â€” social profile Â· cover Â· avatar Â· roles Â· instant post Â· video peers ===
-// AI HANDOFF: see astranov-continuity.js â†’ features.superAddPlus, menuProfilePostTile,
-// locateMe, videoCall, deliveryMarketplace. Owns: + hijack, _patchLocate, _patchVideoCall,
-// _patchCliBar, refreshMarketplace, place_cart, track_delivery. Do NOT restore globe-super-add as + target.
+﻿// === SUPER ADD FIELD 鈥?social profile 路 cover 路 avatar 路 roles 路 instant post 路 video peers ===
+/* SPECS: superAddPlus 路 menuProfilePostTile 路 locateMe 路 videoCall 路 deliveryMarketplace
+   Human: SPECS.md 搂3.1鈥?.5 路 Contract: astranov-continuity.js features.*
+   + 鈫?full MPP tile (not globe-super-add). Locate 鈫?city map. Video left of +. Market place_cart. */
+// Owns: + hijack, _patchLocate, _patchVideoCall, _patchCliBar, refreshMarketplace, place_cart, track_delivery.
 const MenuProfilePostTile = {
   _pin: null,
   _pinPick: false,
@@ -184,8 +184,8 @@ const MenuProfilePostTile = {
   _patchLocate() {
     const btn = document.getElementById('aci-locate');
     if (!btn) return;
-    // NEVER put locate in #app-shortcut-row â€” that row is display:none on mobile
-    // Trust bar order: G Â· ribbon Â· ðŸŽ¯ Â· ðŸŽ§ Â· ðŸ›  Â· ðŸ“¹ Â· +
+    // NEVER put locate in #app-shortcut-row 鈥?that row is display:none on mobile
+    // Trust bar order: G 路 ribbon 路 馃幆 路 馃帶 路 馃洜 路 馃摴 路 +
     btn.classList.remove('app-shortcut-btn');
     btn.hidden = false;
     btn.style.display = 'inline-flex';
@@ -204,16 +204,16 @@ const MenuProfilePostTile = {
     btn._mppLocateBound = true;
     const runLocate = async () => {
       GlobeDeck?.expand?.(SuperCli?.title || 'Astranov');
-      GlobeDeck?.setMapStatus?.('Locatingâ€¦');
+      GlobeDeck?.setMapStatus?.('Locating鈥?);
       GlobeControl?.engageFollow?.('locate');
-      ACIControl?.reply?.('Locating â€” city mapâ€¦');
-      AciCli?.print?.('locate me Â· GPS', 'map');
+      ACIControl?.reply?.('Locating 鈥?city map鈥?);
+      AciCli?.print?.('locate me 路 GPS', 'map');
       try {
         if (CityLife?.locateAndDropIn) await CityLife.locateAndDropIn();
         else if (typeof locateMe === 'function') locateMe();
         else throw new Error('no locate');
       } catch (_) {
-        ACIControl?.reply?.('GPS denied â€” Rhodes demo Â· allow location for your city');
+        ACIControl?.reply?.('GPS denied 鈥?Rhodes demo 路 allow location for your city');
         await enterCityView?.(36.44, 28.22, { openShops: false });
       }
     };
@@ -274,12 +274,12 @@ const MenuProfilePostTile = {
     const total = items.reduce((s, i) => s + (i.qty || 1) * (i.price || 0), 0);
     const del = window._clientDelivery;
     const parts = [];
-    if (del?.label || del?.lat != null) parts.push('Delivery Â· ' + (del.label || this.formatCoords(del.lat, del.lng)));
-    else parts.push('Delivery Â· set pin');
-    if (vendor) parts.push((vendor.emoji || 'ðŸª') + ' ' + (vendor.name || 'Shop'));
-    if (items.length) parts.push(items.length + ' item' + (items.length > 1 ? 's' : '') + ' Â· ' + total.toFixed(1) + ' Coins');
-    else parts.push('Cart empty Â· browse shops');
-    el.textContent = parts.join(' Â· ');
+    if (del?.label || del?.lat != null) parts.push('Delivery 路 ' + (del.label || this.formatCoords(del.lat, del.lng)));
+    else parts.push('Delivery 路 set pin');
+    if (vendor) parts.push((vendor.emoji || '馃彧') + ' ' + (vendor.name || 'Shop'));
+    if (items.length) parts.push(items.length + ' item' + (items.length > 1 ? 's' : '') + ' 路 ' + total.toFixed(1) + ' Coins');
+    else parts.push('Cart empty 路 browse shops');
+    el.textContent = parts.join(' 路 ');
   },
 
   _patchSuperAdd() {
@@ -412,7 +412,7 @@ const MenuProfilePostTile = {
     if (this._roles.driver) { apply.textContent = 'Set driver base here'; return; }
     if (this._roles.client) {
       const items = Commerce?.cartItems?.() || [];
-      apply.textContent = items.length ? 'Place order Â· pay Coins' : 'Set delivery here';
+      apply.textContent = items.length ? 'Place order 路 pay Coins' : 'Set delivery here';
       return;
     }
     apply.textContent = 'Apply at pin';
@@ -441,7 +441,7 @@ const MenuProfilePostTile = {
     if (handleEl) {
       handleEl.textContent = user
         ? (handle.startsWith('@') ? handle : '@' + handle)
-        : '@guest Â· sign in';
+        : '@guest 路 sign in';
     }
     const avatarUrl = page.avatar_url
       || user?.user_metadata?.avatar_url
@@ -461,12 +461,12 @@ const MenuProfilePostTile = {
         avatar.onerror = () => {
           avatar.hidden = true;
           fallback.style.display = 'grid';
-          fallback.textContent = vis.avatar_emoji || 'ðŸ‘¤';
+          fallback.textContent = vis.avatar_emoji || '馃懁';
         };
       } else {
         avatar.hidden = true;
         fallback.style.display = 'grid';
-        fallback.textContent = vis.avatar_emoji || 'ðŸ‘¤';
+        fallback.textContent = vis.avatar_emoji || '馃懁';
       }
     }
     this.refreshDataList();
@@ -482,7 +482,7 @@ const MenuProfilePostTile = {
       if (!value && value !== 0) return;
       rows.push('<div class="mpp-data-row"><dt>' + label + '</dt><dd>' + value + '</dd></div>');
     };
-    push('Pin', this._pin ? this.formatCoords(p.lat, p.lng) : 'â€”');
+    push('Pin', this._pin ? this.formatCoords(p.lat, p.lng) : '鈥?);
     if (this._roles.client) {
       const del = window._clientDelivery;
       push('Delivery', del?.label || (del?.lat != null ? this.formatCoords(del.lat, del.lng) : 'Not set'));
@@ -490,18 +490,18 @@ const MenuProfilePostTile = {
     if (this._roles.vendor) {
       const n = (Commerce?.vendors || []).filter(v => v.lat != null).length;
       push('Shops', n ? n + ' on map' : 'None loaded');
-      push('My shop', page.shop_name || (Commerce?.vendors || []).find(v => v.owner_id === Auth?.user?.id)?.name || 'â€”');
+      push('My shop', page.shop_name || (Commerce?.vendors || []).find(v => v.owner_id === Auth?.user?.id)?.name || '鈥?);
     }
     if (this._roles.driver) {
       push('Driver', this._driverOnline ? 'Online' : 'Offline');
-      push('Base', window._driverBase?.label || (window._driverBase?.lat != null ? this.formatCoords(window._driverBase.lat, window._driverBase.lng) : 'â€”'));
+      push('Base', window._driverBase?.label || (window._driverBase?.lat != null ? this.formatCoords(window._driverBase.lat, window._driverBase.lng) : '鈥?));
     }
     if (this._roles.user) {
-      push('Bio', (page.about || Auth?._profileVisual?.bio || 'â€”').toString().slice(0, 48));
-      push('Site', page.site_slug ? page.site_slug + '.astranov.eu' : 'â€”');
+      push('Bio', (page.about || Auth?._profileVisual?.bio || '鈥?).toString().slice(0, 48));
+      push('Site', page.site_slug ? page.site_slug + '.astranov.eu' : '鈥?);
     }
     if (this._roles.social) {
-      push('Social', 'Lust field Â· globe feed');
+      push('Social', 'Lust field 路 globe feed');
       push('Peers', String((window.others || []).length + (FieldBrain?.drivers || []).length) + ' nearby');
     }
     list.innerHTML = rows.length ? rows.join('') : '<div class="mpp-data-row"><dt>Field</dt><dd>Tap roles to configure</dd></div>';
@@ -516,17 +516,17 @@ const MenuProfilePostTile = {
     const users = new Map();
     (window.others || []).forEach(u => {
       if (!u?.id || u.id === me) return;
-      users.set(u.id, { id: u.id, name: u.name || u.display_name || 'User', emoji: u.emoji || 'ðŸ‘¤', avatar: u.avatar_url || u.avatar });
+      users.set(u.id, { id: u.id, name: u.name || u.display_name || 'User', emoji: u.emoji || '馃懁', avatar: u.avatar_url || u.avatar });
     });
     (FieldBrain?.drivers || []).forEach(d => {
       if (!d?.id || d.id === me || users.has(d.id)) return;
-      users.set(d.id, { id: d.id, name: d.display_name || d.name || 'Driver', emoji: d.avatar_emoji || d.emoji || 'ðŸšš', avatar: d.avatar_url });
+      users.set(d.id, { id: d.id, name: d.display_name || d.name || 'Driver', emoji: d.avatar_emoji || d.emoji || '馃殮', avatar: d.avatar_url });
     });
     const peerN = window.SpaceNetMiner?._peerCount || window.FieldHud?._peerCount || 0;
     if (peerN > 0 && users.size < 6) {
       for (let i = 0; i < Math.min(peerN, 3); i++) {
         const id = 'mesh-' + i;
-        if (!users.has(id)) users.set(id, { id, name: 'Mesh peer', emoji: 'ðŸ“¡', mesh: true });
+        if (!users.has(id)) users.set(id, { id, name: 'Mesh peer', emoji: '馃摗', mesh: true });
       }
     }
     const arr = [...users.values()].slice(0, 12);
@@ -536,17 +536,17 @@ const MenuProfilePostTile = {
     }
     box.innerHTML = arr.map(u => {
       const img = u.avatar
-        ? '<img src="' + u.avatar + '" alt="" onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),{className:\'mpp-cu-emoji\',textContent:\'' + (u.emoji || 'ðŸ‘¤') + '\'}))" />'
-        : '<span class="mpp-cu-emoji">' + (u.emoji || 'ðŸ‘¤') + '</span>';
+        ? '<img src="' + u.avatar + '" alt="" onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),{className:\'mpp-cu-emoji\',textContent:\'' + (u.emoji || '馃懁') + '\'}))" />'
+        : '<span class="mpp-cu-emoji">' + (u.emoji || '馃懁') + '</span>';
       return '<button type="button" class="mpp-connected-user" data-uid="' + u.id + '" data-mesh="' + (u.mesh ? '1' : '0') + '">'
         + img + '<span class="mpp-cu-name">' + (u.name || 'User') + '</span>'
-        + '<span class="mpp-cu-call">ðŸ“¹</span></button>';
+        + '<span class="mpp-cu-call">馃摴</span></button>';
     }).join('');
     box.querySelectorAll('.mpp-connected-user').forEach(btn => {
       btn.onclick = e => {
         e.stopPropagation();
         if (btn.dataset.mesh === '1') {
-          AciCli?.print?.('Mesh peer Â· P2P channel only', 'dim');
+          AciCli?.print?.('Mesh peer 路 P2P channel only', 'dim');
           return;
         }
         void LazyModules.ensure().then(() => MapComms?.contactUser?.(btn.dataset.uid, 'video'));
@@ -602,7 +602,7 @@ const MenuProfilePostTile = {
         });
       }
     } catch (e) {
-      AciCli?.print?.('Photo upload failed Â· ' + (e.message || e), 'err');
+      AciCli?.print?.('Photo upload failed 路 ' + (e.message || e), 'err');
       return;
     }
     const cover = document.getElementById('mpp-cover');
@@ -656,7 +656,7 @@ const MenuProfilePostTile = {
       return;
     }
     if (this._mediaFile && this._mediaKind === 'photo') {
-      const text = cap || 'Photo Â· ' + this.formatCoords(lat, lng);
+      const text = cap || 'Photo 路 ' + this.formatCoords(lat, lng);
       MapDepict?.action?.('explore', { lat, lng, detail: text.slice(0, 80) });
       FieldBrain?.pulse?.('media', text.slice(0, 80), { role: 'client', props: { lust: true, lat, lng, photo: true } });
       if (window.SuperAdd?._placeMarker) SuperAdd._placeMarker(lat, lng, text, 'lust');
@@ -667,7 +667,7 @@ const MenuProfilePostTile = {
       ACIControl?.reply?.('Photo posted at pin');
       this.clearMediaPreview();
       document.getElementById('mpp-post-caption').value = '';
-      AciCli?.print?.('photo post Â· ' + this.formatCoords(lat, lng), 'ok');
+      AciCli?.print?.('photo post 路 ' + this.formatCoords(lat, lng), 'ok');
       return;
     }
     await this.runAction('post_lust');
@@ -688,7 +688,7 @@ const MenuProfilePostTile = {
     btn?.classList.toggle('active', this._pinPick);
     tile?.classList.toggle('mpp-pin-pick', this._pinPick);
     const msg = this._pinPick ? 'Tap globe or city map to move pin' : 'Pin pick off';
-    GlobeDeck?.setPreview?.('ðŸ“ ' + msg);
+    GlobeDeck?.setPreview?.('馃搷 ' + msg);
     AciCli?.print?.(msg, this._pinPick ? 'ok' : 'dim');
   },
 
@@ -703,7 +703,7 @@ const MenuProfilePostTile = {
     this._pin = { lat, lng };
     window._pendingShopLatLng = { lat, lng };
     const coords = document.getElementById('mpp-coords');
-    if (coords) coords.textContent = 'ðŸ“ ' + this.formatCoords(lat, lng);
+    if (coords) coords.textContent = '馃搷 ' + this.formatCoords(lat, lng);
     MapDepict?.pulse?.(lat, lng, 0x00ddff, 'pin', 6000);
     void GlobeNavigate?.ensureCityAt?.(lat, lng);
     this._pinPick = false;
@@ -725,13 +725,13 @@ const MenuProfilePostTile = {
       .sort((a, b) => a.km - b.km)
       .slice(0, 4);
     if (!rows.length) {
-      box.innerHTML = '<p style="margin:0;font-size:10px;color:#9ab">No shops loaded â€” tap browse below</p>';
+      box.innerHTML = '<p style="margin:0;font-size:10px;color:#9ab">No shops loaded 鈥?tap browse below</p>';
       this.refreshDataList();
       return;
     }
     box.innerHTML = rows.map(({ v, km }) =>
       '<button type="button" class="mpp-vendor" data-vid="' + v.id + '">'
-      + (v.emoji || 'ðŸª') + ' ' + (v.name || 'Shop') + ' Â· ' + km.toFixed(1) + ' km</button>'
+      + (v.emoji || '馃彧') + ' ' + (v.name || 'Shop') + ' 路 ' + km.toFixed(1) + ' km</button>'
     ).join('');
     box.querySelectorAll('.mpp-vendor').forEach(btn => {
       btn.onclick = (e) => {
@@ -773,12 +773,12 @@ const MenuProfilePostTile = {
     tile.style.top = '';
     tile.style.transform = '';
     const coords = document.getElementById('mpp-coords');
-    if (coords) coords.textContent = 'ðŸ“ ' + this.formatCoords(lat, lng);
+    if (coords) coords.textContent = '馃搷 ' + this.formatCoords(lat, lng);
     void this.refreshProfile();
     this.updateRoleSections();
     MapDepict?.pulse?.(lat, lng, 0x44ffaa, 'super add field', 8000);
-    GlobeDeck?.setPreview?.('â–¸ Social profile Â· roles Â· post Â· video peers â€” drag or ðŸ“ pick on map');
-    AciCli?.print?.('â–¸ super add field Â· ' + this.formatCoords(lat, lng), 'map');
+    GlobeDeck?.setPreview?.('鈻?Social profile 路 roles 路 post 路 video peers 鈥?drag or 馃搷 pick on map');
+    AciCli?.print?.('鈻?super add field 路 ' + this.formatCoords(lat, lng), 'map');
     SuperCli?.setContext?.('add');
     void this._refreshVendors();
     void this.refreshConnected();
@@ -868,7 +868,7 @@ const MenuProfilePostTile = {
         method: 'PATCH', headers,
         body: JSON.stringify({ profile_page: page, updated_at: new Date().toISOString() }),
       });
-      AciCli?.print?.('driver schedule Â· ' + sched, 'ok');
+      AciCli?.print?.('driver schedule 路 ' + sched, 'ok');
     } catch (_) {}
     this.refreshDataList();
   },
@@ -879,7 +879,7 @@ const MenuProfilePostTile = {
     const lat = p.lat;
     const lng = p.lng;
     if (act === 'set_delivery') {
-      await MapPins?.setClientDelivery?.(lat, lng, 'Customer delivery Â· ' + this.formatCoords(lat, lng));
+      await MapPins?.setClientDelivery?.(lat, lng, 'Customer delivery 路 ' + this.formatCoords(lat, lng));
       this.refreshDataList();
       return;
     }
@@ -899,7 +899,7 @@ const MenuProfilePostTile = {
         Auth?.openLoginModal?.('Sign in to place order');
         return;
       }
-      await MapPins?.setClientDelivery?.(lat, lng, 'Customer delivery Â· ' + this.formatCoords(lat, lng));
+      await MapPins?.setClientDelivery?.(lat, lng, 'Customer delivery 路 ' + this.formatCoords(lat, lng));
       if (!Commerce?.selected) {
         try { await Commerce?.loadVendors?.(); } catch (_) {}
         const near = (Commerce?.vendors || [])
@@ -908,14 +908,14 @@ const MenuProfilePostTile = {
           .sort((a, b) => a.km - b.km)[0];
         if (near) Commerce.selected = near.v;
         else {
-          AciCli?.print?.('No shops loaded â€” browse to pick vendor', 'dim');
+          AciCli?.print?.('No shops loaded 鈥?browse to pick vendor', 'dim');
           await Commerce?.showPicker?.();
           return;
         }
       }
       const items = Commerce?.cartItems?.() || [];
       if (!items.length) {
-        AciCli?.print?.('Cart empty â€” browse shops & add items', 'dim');
+        AciCli?.print?.('Cart empty 鈥?browse shops & add items', 'dim');
         await Commerce?.showPicker?.();
         return;
       }
@@ -934,8 +934,8 @@ const MenuProfilePostTile = {
         if (owned.length) mine = owned;
       }
       if (!mine.length) {
-        AciCli?.print?.('No active delivery â€” place an order first', 'dim');
-        ACIControl?.reply?.('No delivery in progress Â· browse shops & place order');
+        AciCli?.print?.('No active delivery 鈥?place an order first', 'dim');
+        ACIControl?.reply?.('No delivery in progress 路 browse shops & place order');
         return;
       }
       MarketplaceDeliveryEngine?.showHud?.(mine[0]);
@@ -951,11 +951,11 @@ const MenuProfilePostTile = {
     }
     if (act === 'set_driver_base') {
       if (!Auth?.user) { Auth?.openLoginModal?.('Sign in as driver'); return; }
-      await MapPins?.setDriverBase?.(lat, lng, 'Driver base Â· ' + this.formatCoords(lat, lng));
+      await MapPins?.setDriverBase?.(lat, lng, 'Driver base 路 ' + this.formatCoords(lat, lng));
       this.refreshDataList();
       return;
     }
-    // City DNA â€” same delivery pipeline for jobs / dating / errands
+    // City DNA 鈥?same delivery pipeline for jobs / dating / errands
     if (act === 'post_job' || act === 'post_date' || act === 'post_errand'
       || act === 'list_city_tasks' || act === 'claim_open_task') {
       CityTasks?.init?.();
@@ -968,7 +968,7 @@ const MenuProfilePostTile = {
       }
       if (act === 'claim_open_task') {
         const r = await CityTasks.claim?.(null);
-        AciCli?.print?.(r?.ok ? ('Claimed Â· ' + r.task.title) : (r?.error || 'none'), r?.ok ? 'ok' : 'dim');
+        AciCli?.print?.(r?.ok ? ('Claimed 路 ' + r.task.title) : (r?.error || 'none'), r?.ok ? 'ok' : 'dim');
         if (r?.ok) this.close();
         return;
       }
@@ -978,7 +978,7 @@ const MenuProfilePostTile = {
           rawText: cap || 'barman 3h',
           title: cap || undefined,
           lat, lng,
-          note: 'mpp Â· ' + this.formatCoords(lat, lng),
+          note: 'mpp 路 ' + this.formatCoords(lat, lng),
         });
       } else if (act === 'post_date') {
         t = CityTasks.postDate?.({
@@ -997,18 +997,18 @@ const MenuProfilePostTile = {
       if (t) {
         const q = CityTasks.quote?.(t);
         ACIControl?.reply?.(
-          (t.kind === 'dating' ? 'ðŸ’• ' : t.kind === 'job' ? 'ðŸ’¼ ' : 'ðŸƒ ')
-          + t.title + ' Â· ' + t.duration_label
-          + (q?.total_eur ? ' Â· ~â‚¬' + q.total_eur : '')
+          (t.kind === 'dating' ? '馃挄 ' : t.kind === 'job' ? '馃捈 ' : '馃弮 ')
+          + t.title + ' 路 ' + t.duration_label
+          + (q?.total_eur ? ' 路 ~鈧? + q.total_eur : '')
         );
-        AciCli?.print?.(t.kind + ' open Â· ' + t.duration_label + ' Â· pin ' + this.formatCoords(lat, lng), 'ok');
+        AciCli?.print?.(t.kind + ' open 路 ' + t.duration_label + ' 路 pin ' + this.formatCoords(lat, lng), 'ok');
         if (document.getElementById('mpp-post-caption')) document.getElementById('mpp-post-caption').value = '';
       }
       return;
     }
     if (act === 'post_lust') {
       if (!Auth?.user) { Auth?.openLoginModal?.('Sign in to post'); return; }
-      const cap = (document.getElementById('mpp-post-caption')?.value || '').trim() || 'Lust Â· ' + this.formatCoords(lat, lng);
+      const cap = (document.getElementById('mpp-post-caption')?.value || '').trim() || 'Lust 路 ' + this.formatCoords(lat, lng);
       window._lastPos = { lat, lng };
       // If caption looks like a job/date, route to City DNA
       if (CityTasks?.wants?.(cap) || /\b(barman|housekeeper|date|errand|hire)\b/i.test(cap)) {
@@ -1022,8 +1022,8 @@ const MenuProfilePostTile = {
       FieldBrain?.pulse?.('media', cap.slice(0, 80), { role: 'client', props: { lust: true, lat, lng } });
       if (window.SuperAdd?._placeMarker) SuperAdd._placeMarker(lat, lng, cap, 'lust');
       else GlobeEntity?.syncPost?.({ id: 'lust-' + Date.now(), lat, lng, text: cap, channel: 'lust', mode: 'text', author: Auth.user.email?.split('@')[0] });
-      ACIControl?.reply?.('Posted at pin Â· ' + cap.slice(0, 60));
-      AciCli?.print?.('lust post Â· ' + this.formatCoords(lat, lng), 'ok');
+      ACIControl?.reply?.('Posted at pin 路 ' + cap.slice(0, 60));
+      AciCli?.print?.('lust post 路 ' + this.formatCoords(lat, lng), 'ok');
       document.getElementById('mpp-post-caption').value = '';
       this.clearMediaPreview();
       return;
