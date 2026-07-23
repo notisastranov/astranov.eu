@@ -23,28 +23,7 @@ try {
 } catch (_) {}
 
 // Error guard — do NOT spam fatal red bars for soft refs; only real render killers
-window.addEventListener('error', function(e) {
-  try {
-    const m = String(e.message || e.error?.message || '');
-    // sessionHeld etc. are soft — already stubbed; never blank the globe over them
-    if (/sessionHeld|Script error|ResizeObserver/i.test(m)) {
-      console.warn('[soft]', m);
-      return;
-    }
-    if (window._astranovCriticalReady && /is not defined/i.test(m)) {
-      console.warn('[soft post-boot]', m);
-      return;
-    }
-    let msg = document.getElementById('astranov-hard-error');
-    if (!msg) {
-      msg = document.createElement('div');
-      msg.id = 'astranov-hard-error';
-      msg.style.cssText = 'position:fixed;bottom:8px;left:8px;right:8px;padding:6px 10px;background:rgba(20,0,0,0.85);color:#f88;font:11px/1.3 monospace;z-index:99999;pointer-events:none;border-radius:8px';
-      document.body.appendChild(msg);
-    }
-    msg.textContent = 'Error: ' + (m || 'unknown').slice(0, 180);
-  } catch(_) {}
-});
+/* error → CLI via phase-critical sink */
 
 // Mobile / low-power first — never wait for SlumberManager probe
 window._isMobileUA = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '')
