@@ -1,5 +1,5 @@
 /* Astranov OS boot - tiny pure JS only (must never be HTML) */
-/* SPECS: Astranov OS + Browser loader — SPECS.md §3.16–3.17 */
+/* SPECS: load OS/Browser only if not already provided by phase-app */
 (function astranovOsBoot() {
   if (window.__ASTRANOV_OS_BOOT__) return;
   window.__ASTRANOV_OS_BOOT__ = 1;
@@ -17,14 +17,16 @@
     });
   }
   function init() {
-    try { if (window.AstranovOS) AstranovOS.init(); } catch (e) {}
-    try { if (window.AstranovBrowser) AstranovBrowser.init(); } catch (e) {}
+    try { if (window.AstranovOS && AstranovOS.init) AstranovOS.init(); } catch (e) { console.warn('[OS]', e); }
+    try { if (window.AstranovBrowser && AstranovBrowser.init) AstranovBrowser.init(); } catch (e) { console.warn('[Browser]', e); }
   }
   function run() {
-    Promise.all([
-      load('/js/08-astranov-os.js'),
-      load('/js/08-astranov-browser.js'),
-    ]).then(function () {
+    var needOs = !(window.AstranovOS && typeof window.AstranovOS.init === 'function');
+    var needBr = !(window.AstranovBrowser && typeof window.AstranovBrowser.init === 'function');
+    var jobs = [];
+    if (needOs) jobs.push(load('/js/08-astranov-os.js'));
+    if (needBr) jobs.push(load('/js/08-astranov-browser.js'));
+    Promise.all(jobs).then(function () {
       init();
       setTimeout(init, 800);
       setTimeout(init, 2500);
