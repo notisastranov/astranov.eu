@@ -2955,6 +2955,8 @@ function globePerfActive() {
 });
 
 function animate() {
+  // Single rAF chain — never stack loops (Firefox freeze if BootCritical runs twice)
+  if (window.__ASTRANOV_ANIM_STOP) return;
   requestAnimationFrame(animate);
   if (window._cycleTurbo) return;
   if (typeof renderer === 'undefined' || !renderer || !scene || !camera) return;
@@ -2977,12 +2979,17 @@ function animate() {
     return;
   }
 
-  const lite = !!window._globePerfLite;
+  const isFF = !!(window._isFirefox || (typeof navigator !== 'undefined' && /firefox/i.test(navigator.userAgent || '')));
+  const lite = !!window._globePerfLite || isFF;
   const idleMs = Date.now() - (window._lastUserAct || 0);
   const dragging = !!(typeof drag !== 'undefined' && (drag || window._globeFly || trackVelX || trackVelY));
 
-  // Never skip frames while spinning Earth — skip made spin look frozen
-  if (!dragging && idleMs > 20000) {
+  // Firefox: cap frame work hard — full-res WebGL every frame freezes FF
+  if (isFF && !dragging) {
+    if (frame % 3 !== 0) return;
+  } else if (!dragging && idleMs > 20000) {
+    if (frame % 2 !== 0) return;
+  } else if (lite && !dragging && idleMs > 4000) {
     if (frame % 2 !== 0) return;
   }
 
@@ -3023,11 +3030,23 @@ function animate() {
 
 window.__astranovBootCritical = function __astranovBootCritical() {
   window._bootEarthLock = true;
+  try {
+    window._isFirefox = /firefox/i.test(navigator.userAgent || '');
+    if (window._isFirefox) {
+      window._globePerfLite = true;
+      // Cap DPR on Firefox or high-DPR freezes the main thread
+      try {
+        if (renderer && renderer.setPixelRatio) {
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
   // Always start the render loop first — never leave a black void if init soft-fails
-  let started = false;
+  // Global guard: only ONE animate() rAF chain for the whole page
   const startLoop = () => {
-    if (started) return;
-    started = true;
+    if (window.__ASTRANOV_RAF_STARTED) return;
+    window.__ASTRANOV_RAF_STARTED = true;
     try { animate(); } catch (e) { console.error('[boot] animate', e); }
   };
 
