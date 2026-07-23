@@ -3862,6 +3862,7 @@ var MultiTile = {
   },
 
   init() {
+    try { this._injectCss(); } catch (_) {}
     if (this._bound) return;
     this._bound = true;
     this._ensureDom();
@@ -3895,6 +3896,29 @@ var MultiTile = {
         e.stopPropagation();
         this.openFromPlus();
       }, true);
+    }
+  },
+
+  _injectCss() {
+    if (document.getElementById('multi-tile-css')) return;
+    const st = document.createElement('style');
+    st.id = 'multi-tile-css';
+    st.textContent = '#mt-backdrop{position:fixed;inset:0;z-index:255;background:rgba(0,4,12,.55);opacity:0;pointer-events:none;transition:opacity .18s}#mt-backdrop.open{opacity:1!important;pointer-events:auto!important}#multi-tile{position:fixed;left:50%;bottom:max(12px,env(safe-area-inset-bottom));transform:translate(-50%,110%);width:min(420px,96vw);max-height:min(78vh,720px);z-index:260;display:flex;flex-direction:column;background:rgba(2,8,16,.97);border:1px solid rgba(48,88,140,.5);border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.65);color:#b8c4d4;font:12px/1.35 system-ui,sans-serif;overflow:hidden;transition:transform .22s ease;pointer-events:none;visibility:hidden}#multi-tile.open{transform:translate(-50%,0)!important;pointer-events:auto!important;visibility:visible!important;z-index:260!important}#mt-cover{position:relative;min-height:72px;background:linear-gradient(135deg,rgba(0,24,48,.95),rgba(0,8,18,.98));border-bottom:1px solid rgba(48,88,140,.3)}#mt-cover-btn,#mt-close,#mt-clear{position:absolute;top:8px;border:1px solid rgba(48,88,140,.45);background:rgba(0,12,28,.8);color:#b8c4d4;border-radius:999px;padding:6px 10px;cursor:pointer;font:11px system-ui}#mt-cover-btn{left:8px}#mt-clear{right:48px}#mt-close{right:8px}#mt-head{display:flex;gap:10px;align-items:center;padding:10px 12px}#mt-avatar{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;background:rgba(0,16,32,.8);border:1px solid rgba(48,88,140,.4)}#mt-name{font-weight:700;font-size:14px;color:#dce6f2}#mt-place{font-size:11px;color:#5a6a7e;margin-top:2px}.mt-roles{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 8px}.mt-role-tog{border:1px solid rgba(48,88,140,.4);background:rgba(0,12,24,.6);color:#8a9ab0;border-radius:999px;padding:6px 10px;cursor:pointer;font:11px system-ui}.mt-role-tog.active{background:rgba(30,77,140,.4);color:#dce6f2}#mt-scroll{flex:1;min-height:0;overflow:auto;padding:0 12px 10px}.mt-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#5a6a7e;margin:8px 0 6px}.mt-field{display:block;margin:6px 0;color:#8a9ab0;font-size:11px}.mt-field input,.mt-field textarea,select#mt-kind,input#mt-coins,input#mt-radius,input#mt-duration,#mt-place-name,#mt-lat,#mt-lng{width:100%;margin-top:4px;box-sizing:border-box;border-radius:10px;border:1px solid rgba(48,88,140,.35);background:rgba(0,8,16,.8);color:#dce6f2;padding:8px 10px;font:12px system-ui}#mt-actions{display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;border-top:1px solid rgba(48,88,140,.25);background:rgba(0,4,12,.9)}#mt-actions button{border:1px solid rgba(48,88,140,.4);background:rgba(0,16,32,.75);color:#b8c4d4;border-radius:10px;padding:8px 10px;cursor:pointer;font:11px system-ui}#mt-actions .mt-primary{background:rgba(30,77,140,.55);font-weight:600;color:#dce6f2}#mt-nudge{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}#mt-nudge button{min-width:40px;border-radius:10px;border:1px solid rgba(48,88,140,.4);background:rgba(0,16,32,.7);color:#8ab0d0;padding:8px;cursor:pointer}';
+    document.head.appendChild(st);
+  },
+
+  _showPanel() {
+    try { this._injectCss(); } catch (_) {}
+    try { this._ensureDom(); } catch (_) {}
+    const tile = document.getElementById('multi-tile');
+    const back = document.getElementById('mt-backdrop');
+    if (tile) {
+      tile.classList.add('open');
+      tile.style.cssText = 'position:fixed;left:50%;bottom:max(12px,env(safe-area-inset-bottom));transform:translate(-50%,0);width:min(420px,96vw);max-height:min(78vh,720px);z-index:260;display:flex;flex-direction:column;background:rgba(2,8,16,.97);border:1px solid rgba(48,88,140,.55);border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.65);color:#b8c4d4;overflow:hidden;pointer-events:auto;visibility:visible;opacity:1';
+    }
+    if (back) {
+      back.classList.add('open');
+      back.style.cssText = 'position:fixed;inset:0;z-index:255;background:rgba(0,4,12,.55);opacity:1;pointer-events:auto';
     }
   },
 
@@ -4255,6 +4279,7 @@ var MultiTile = {
   /** Open self / place tile at any zoom level */
   openAt(lat, lng, opts) {
     opts = opts || {};
+    try { this._injectCss(); } catch (_) {}
     this.init();
     // Stellar / space: still allow tile — pin may be symbolic (last pos or facing Earth)
     let la = lat;
@@ -4289,16 +4314,19 @@ var MultiTile = {
         driver: arr.includes('driver'),
       };
     }
-    this._syncRoleButtons();
-    this._render();
-    this._syncTaskCriteria();
-    this._refreshCoinsBal();
-    this._renderWaypoints();
-    document.getElementById('multi-tile')?.classList.add('open');
-    document.getElementById('mt-backdrop')?.classList.add('open');
+    try { this._syncRoleButtons(); } catch (_) {}
+    try { this._render(); } catch (e) { console.warn('[MultiTile render]', e); }
+    try { this._syncTaskCriteria(); } catch (_) {}
+    try { this._refreshCoinsBal(); } catch (_) {}
+    try { this._renderWaypoints(); } catch (_) {}
+    this._showPanel();
     document.getElementById('multi-tile')?.setAttribute('data-tier', this._tier);
     try {
-      MapDepict?.pulse?.(la, ln, 0x3d9eff, opts.label || 'tile', 6000);
+      MapDepict?.pulse?.(la, ln, 0x3d6eb0, opts.label || 'tile', 4000);
+    } catch (_) {}
+    try {
+      GlobeDeck?.ensureCliVisible?.('ok');
+      AciCli?.print?.('◆ multi-tile · ' + (+la).toFixed(3) + ', ' + (+ln).toFixed(3), 'ok');
     } catch (_) {}
     const zl = document.getElementById('zoom-label');
     if (zl) {
@@ -4329,8 +4357,19 @@ var MultiTile = {
 
   close() {
     this._open = false;
-    document.getElementById('multi-tile')?.classList.remove('open');
-    document.getElementById('mt-backdrop')?.classList.remove('open');
+    const tile = document.getElementById('multi-tile');
+    const back = document.getElementById('mt-backdrop');
+    tile?.classList.remove('open');
+    back?.classList.remove('open');
+    if (tile) {
+      tile.style.transform = 'translate(-50%,110%)';
+      tile.style.visibility = 'hidden';
+      tile.style.pointerEvents = 'none';
+    }
+    if (back) {
+      back.style.opacity = '0';
+      back.style.pointerEvents = 'none';
+    }
   },
 
   toggleRole(role) {
