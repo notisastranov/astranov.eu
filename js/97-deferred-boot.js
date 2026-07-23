@@ -21,6 +21,7 @@ const DeferredBoot = {
     go('cli', () => window.SuperCli?.initBrain?.());
     go('cli', () => window.SuperAdd?.init?.());
     go('globe', () => window.TelemachosPilot?.init?.());
+    go('commerce', () => window.DeliveryDNA?.init?.());
 
     if (sl?.allows('commerce')) {
       setTimeout(() => {
