@@ -1,3 +1,88 @@
+
+// SPECS: never sticky red bars — all errors/activity go to CLI scroll log
+(function astranovCliErrorSink() {
+  function cliLog(msg, kind) {
+    kind = kind || 'err';
+    var text = String(msg || 'unknown').slice(0, 400);
+    try {
+      if (window.AciCli && typeof AciCli.print === 'function') {
+        AciCli.print(text, kind);
+        return;
+      }
+    } catch (_) {}
+    try {
+      if (window.GlobeDeck && typeof GlobeDeck.log === 'function') {
+        GlobeDeck.log(text, kind);
+        // expand so user sees the scroll, not a fixed red bar
+        try { GlobeDeck.expand && GlobeDeck.expand(kind === 'err' ? 'Log' : 'Activity'); } catch (_) {}
+        return;
+      }
+    } catch (_) {}
+    try {
+      var out = document.getElementById('globe-deck-log');
+      if (out) {
+        var row = document.createElement('div');
+        row.className = 'deck-line deck-' + (kind === 'err' ? 'err' : kind === 'ok' ? 'ok' : 'dim');
+        row.textContent = text;
+        out.appendChild(row);
+        out.scrollTop = out.scrollHeight;
+        var deck = document.getElementById('globe-deck');
+        if (deck) { deck.classList.add('expanded'); deck.classList.remove('collapsed'); }
+      }
+    } catch (_) {}
+    try { console[kind === 'err' ? 'error' : 'log']('[CLI]', text); } catch (_) {}
+  }
+  window.AstranovCliLog = function (msg, kind) { cliLog(msg, kind || 'dim'); };
+  window.ActivityLog = {
+    push: function (msg, kind) { cliLog(msg, kind || 'dim'); },
+    error: function (msg) { cliLog(msg, 'err'); },
+    ok: function (msg) { cliLog(msg, 'ok'); },
+    task: function (msg) { cliLog('task · ' + msg, 'ok'); },
+  };
+  function killStickyBars() {
+    try {
+      var el = document.getElementById('astranov-hard-error-disabled');
+      if (el) el.remove();
+      document.querySelectorAll('[id*="hard-error"],.astranov-fatal-error,.boot-fatal').forEach(function (n) {
+        try { n.remove(); } catch (_) {}
+      });
+    } catch (_) {}
+  }
+  window.addEventListener('error', function (e) {
+    try {
+      var m = String((e && (e.message || (e.error && e.error.message))) || 'script error');
+      if (/sessionHeld|Script error|ResizeObserver/i.test(m)) {
+        console.warn('[soft]', m);
+        return;
+      }
+      if (window._astranovCriticalReady && /is not defined/i.test(m)) {
+        console.warn('[soft post-boot]', m);
+        return;
+      }
+      killStickyBars();
+      var src = e && e.filename ? (' · ' + String(e.filename).split('/').pop()) : '';
+      var line = e && e.lineno ? (':' + e.lineno) : '';
+      cliLog('⚠ ' + m + src + line, 'err');
+      // prevent default browser overlay spam if any
+      e && e.preventDefault && e.preventDefault();
+    } catch (_) {}
+  }, true);
+  window.addEventListener('unhandledrejection', function (e) {
+    try {
+      var r = e && e.reason;
+      var m = r && (r.message || r) ? String(r.message || r) : 'promise rejection';
+      if (/sessionHeld|Script error|ResizeObserver/i.test(m)) return;
+      killStickyBars();
+      cliLog('⚠ ' + m.slice(0, 400), 'err');
+      e && e.preventDefault && e.preventDefault();
+    } catch (_) {}
+  });
+  // Strip any leftover sticky bar after boot
+  setTimeout(killStickyBars, 0);
+  setTimeout(killStickyBars, 500);
+  setTimeout(killStickyBars, 2000);
+})();
+
 /* === 00-globe.js === */
 // Globe host — must exist before WebGL. Never leave user with CLI-only black stage.
 let container = document.getElementById('globe');
@@ -23,30 +108,7 @@ try {
   document.body?.classList?.remove?.('site-shell-open');
 } catch (_) {}
 
-// Error guard — do NOT spam fatal red bars for soft refs; only real render killers
-window.addEventListener('error', function(e) {
-  try {
-    const m = String(e.message || e.error?.message || '');
-    // sessionHeld etc. are soft — already stubbed; never blank the globe over them
-    if (/sessionHeld|Script error|ResizeObserver/i.test(m)) {
-      console.warn('[soft]', m);
-      return;
-    }
-    if (window._astranovCriticalReady && /is not defined/i.test(m)) {
-      console.warn('[soft post-boot]', m);
-      return;
-    }
-    let msg = document.getElementById('astranov-hard-error');
-    if (!msg) {
-      msg = document.createElement('div');
-      msg.id = 'astranov-hard-error';
-      msg.style.cssText = 'position:fixed;bottom:8px;left:8px;right:8px;padding:6px 10px;background:rgba(20,0,0,0.85);color:#f88;font:11px/1.3 monospace;z-index:99999;pointer-events:none;border-radius:8px';
-      document.body.appendChild(msg);
-    }
-    msg.textContent = 'Error: ' + (m || 'unknown').slice(0, 180);
-  } catch(_) {}
-});
-
+/* sticky error bar removed → CLI sink below */
 // Mobile / low-power first — never wait for SlumberManager probe
 window._isMobileUA = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '')
   || ((navigator.maxTouchPoints || 0) > 1 && window.innerWidth < 960);
