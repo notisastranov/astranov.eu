@@ -70,11 +70,12 @@ Look **and** work like this agent’s TUI:
 
 ### 3.3 Touch / Earth isolation
 - `#globe-deck { pointer-events: auto }` — scroll never spins Earth
+- **Start minimized by default** (`#globe-deck.collapsed`, `__cliUserCollapsed=true`)
 - **Minimize (must work):**
   - Swipe handle **down** → collapse
   - Tap header/title/status → toggle
   - Overscroll past **top or bottom** of log → collapse
-  - Collapse locks ~2.5s against `ensureCliVisible` re-open spam
+  - Stay collapsed until **user** expands (tap handle / send message) — no boot/log spam re-open
   - CSS: `.collapsed` forces `#globe-deck-body` + log `display:none !important`
 - Module: `js/91-cli-gestures.js`
 
