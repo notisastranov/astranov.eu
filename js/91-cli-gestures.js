@@ -7,7 +7,7 @@
  */
 (function CliGestures() {
   'use strict';
-  var VER = '20260723351000';
+  var VER = '20260723353000';
   if (window.__CLI_GESTURES__?.version === VER) return;
   window.__CLI_GESTURES__ = { version: VER, ready: false };
 
@@ -527,24 +527,19 @@
     patchGlobeDeck();
     bindHandle();
     bindLogScroll();
-    // Always re-assert start/default minimized until user opens
+    window.__CLI_GESTURES__.ready = true;
+  }
+
+  // Once at start — avoid re-apply thrash (was freezing Firefox with layout+WebGL)
+  apply();
+  setTimeout(function () {
+    apply();
     if (window.__cliUserCollapsed !== false) {
       window.__cliUserCollapsed = true;
       collapse('boot-default');
     }
-    window.__CLI_GESTURES__.ready = true;
-  }
-
-  apply();
-  setTimeout(apply, 200);
-  setTimeout(apply, 600);
-  setTimeout(apply, 1500);
-  setTimeout(apply, 3500);
-  document.addEventListener('visibilitychange', function () {
-    if (!document.hidden) setTimeout(apply, 100);
-  });
-  // After late modules finish expanding for no reason, snap closed again once
+  }, 400);
   setTimeout(function () {
     if (window.__cliUserCollapsed !== false) collapse('boot-late');
-  }, 2500);
+  }, 2000);
 })();
