@@ -22,6 +22,7 @@ window.__astranovBootFeatures = function __astranovBootFeatures() {
   });
   soft('SpaceNetCM', () => SpaceNetCM?.init?.());
   soft('CoreBrain', () => AstranovCoreBrain?.init?.());
+  soft('DeliveryDNA', () => DeliveryDNA?.init?.());
   soft('Logo', () => AstranovLogo?.init?.());
   soft('Shortcuts', () => {
     try { AppShortcuts?.init?.(); } catch (_) {}
