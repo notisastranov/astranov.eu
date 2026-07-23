@@ -351,28 +351,36 @@ const AstranovContinuity = {
     },
 
     cliHandleOnly: {
-      summary: 'ONE chrome surface: CLI top handle holds all buttons — no second bar above CLI',
+      summary: 'Grok Build TUI fork: ONE chrome surface — session header + handle + scrollback + › prompt',
       owner: 'js/08-astranov-os.js + index.html',
-      selectors: ['#super-cli-bar', '#os-cli-handle', '#globe-deck'],
+      selectors: ['#super-cli-bar', '#os-cli-handle', '#globe-deck', '#globe-deck-header', '#aci-cli-prompt', '#globe-deck-log'],
       forbidden: ['#os-dock floating bar', '#aci-bar dual chrome', '#app-shortcut-row as separate bar', '#news-ticker strip'],
       behavior: [
+        'Astranov CLI is a fork of Grok Build — look like this agent TUI (mono log, left accents, › prompt)',
+        'Layout: #globe-deck-header → #super-cli-bar → #globe-deck-log → › + #aci-cli-in',
+        'data-cli=grok-build-fork on #globe-deck',
         'OS apps mount into #os-cli-handle inside #super-cli-bar',
         '#os-dock must stay display:none / removed',
         'chromeGuard keeps aci-bar / news / resource-monitor / first-run-coach off',
       ],
-      doNotRemove: ['os-cli-handle', 'super-cli-bar', 'chromeGuard-product'],
+      doNotRemove: ['os-cli-handle', 'super-cli-bar', 'chromeGuard-product', 'aci-cli-prompt', 'globe-deck-header'],
     },
 
     astranovTheme: {
-      summary: 'Astranov look: round corners + deep glowing blue accents/logo',
-      owner: 'js/08-astranov-os.js CSS tokens + index :root',
-      tokens: ['--ax-blue #1a6fd4', '--ax-blue-bright #3d9eff', '--ax-blue-glow', '--an-radius 16px', '--an-radius-pill'],
+      summary: 'Grok TUI tokens + Astranov deep glowing blue glass',
+      owner: 'index.html product CLI styles + js/08-astranov-os.js',
+      tokens: [
+        '--ax-blue #1a6fd4', '--ax-blue-bright #3d9eff', '--ax-blue-glow',
+        '--grok-mono', '--grok-accent-user #7aa2f7', '--grok-accent-assistant #3d9eff',
+        '--grok-accent-err #f7768e', '--grok-accent-ok #9ece6a', '--grok-accent-think #2ac3de',
+      ],
       behavior: [
-        'Product chrome uses deep blue glow borders/shadows, not flat grey',
-        'Buttons and panels use round / pill radii',
+        'CLI scrollback uses left accent bars (Grok block stream)',
+        'Prompt shows › prefix; mono font on log + input',
+        'Handle buttons 8px rounded rects; deck glass deep blue glow',
         'Status wordmark ASTRANOV uses glowing blue',
       ],
-      doNotRemove: ['--ax-blue', '--an-radius', 'astranov-os-css'],
+      doNotRemove: ['--ax-blue', '--grok-mono', '--grok-accent-user', 'astranov-os-css'],
     },
 
     astranovOS: {
