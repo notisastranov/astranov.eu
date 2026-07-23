@@ -46,6 +46,7 @@ const AstranovContinuity = {
   /** Owner rule: every product change updates SPECS.md + this object in the same deploy. */
   specsPolicy: 'always-update-SPECS-with-code',
   cliActivityLog: {
+    rule: 'USE THE CLI — GlobeDeck.log / AciCli.print / ActivityLog only',
     summary: 'All errors and task activity log to CLI scroll — never sticky red bars',
     ban: ['#astranov-hard-error fixed overlay'],
     use: ['AciCli.print', 'GlobeDeck.log', 'ActivityLog'],
