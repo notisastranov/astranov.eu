@@ -40,7 +40,7 @@
  */
 /* SPECS: continuity source — human twin is SPECS.md at repo root */
 const AstranovContinuity = {
-  version: '20260723150000-cli-handle-theme',
+  version: '20260723170000-delivery-dna',
   updated: '2026-07-23',
   specsHuman: 'SPECS.md',
 
@@ -149,6 +149,28 @@ const AstranovContinuity = {
         'Else scroll #mpp-connected and prompt tap-to-call',
       ],
       doNotRemove: ['_patchVideoCall', '_patchCliBar', '_openVideoCall'],
+    },
+
+    deliveryDNA: {
+      summary: 'Instant internal AVC pay + city street routes with avoid-lights / hidden / fast prefs',
+      owner: 'js/85-delivery-dna.js',
+      selectors: [],
+      commands: [
+        'dna / dna status',
+        'route avoid traffic lights',
+        'route avoid populated roads',
+        'route use hidden roads',
+        'route fast roads',
+        'deliver route …',
+        'pay instant <amount>',
+      ],
+      behavior: [
+        'OSRM alternatives scored for prefs; exclude motorway/toll when set',
+        'DrivingView.fetchRoadRoute uses DeliveryDNA when available',
+        'Instant Coins pay via balance / ledger / rpc instant_avc_pay',
+        'Full flow: quote → instant pay → street route vendor→drop',
+      ],
+      doNotRemove: ['DeliveryDNA', 'fetchStreetRoute', 'payInstant', 'runDeliveryFlow'],
     },
 
     deliveryMarketplace: {
