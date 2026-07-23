@@ -129,7 +129,7 @@ CLI: fix | code | dev | edit | bridge …
 
 ### 3.11c Multi-tile (long-press place) + CLI recovery
 - **Module:** `js/62-multi-tile.js` · `window.MultiTile` (loaded after phases; overrides embedded copy).
-- **Open:** long-press globe (any tier) or city map (touch **and** desktop mousedown ~480ms); `+` also opens.
+- **Open:** long-press **any point** at **solar / global / national / regional / city** (globe canvas) and on city street map (touch + desktop). Hold ~420ms with <22px move. Loads `62-multi-tile.js` on demand if needed. `+` also opens.
 - **Must be visible:** inject `#multi-tile-css` (was missing → looked broken).
 - **UI required:**
   - **Close** + **Clear**
