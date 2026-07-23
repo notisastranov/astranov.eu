@@ -3,8 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Astranov</title>
-<meta name="astranov-build" content="20260720120000" />
+<meta name="description" content="Astranov Global Internet OS: Earth globe, city maps, shops, delivery, discovery." />
+<title>Astranov — Global Internet OS</title>
+<meta name="astranov-build" content="20260720180000" />
+<meta name="astranov-mode" content="product-spartanized" />
+<meta name="robots" content="index,follow" />
 <meta name="theme-color" content="#0a1020" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <link rel="manifest" href="/manifest.webmanifest" />
@@ -23,27 +26,46 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden}
 #aci-cli-in{flex:1;min-height:36px;border-radius:10px;border:1px solid rgba(61,158,255,.35);background:rgba(0,0,0,.4);color:#e8f4ff;padding:8px}
 #astranov-logo{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:210}
 </style>
+<style>
+/* PRODUCT SPARTANIZE — keep essentials; kill dual/lag chrome only */
+#aci-bar{display:none!important}
+#news-ticker{display:none!important}
+#resource-monitor{display:none!important}
+#cosmic-guide{display:none!important}
+#drive-guide{display:none!important}
+/* Owner: no SpaceNet first-run / start popup */
+#first-run-coach{display:none!important;visibility:hidden!important;pointer-events:none!important}
+/* One CLI surface: super-cli-bar inside globe-deck */
+body.city-map-active #city-map,
+#city-map.active{z-index:150!important;opacity:1!important;pointer-events:auto!important}
+#city-map .leaflet-container{width:100%;height:100%}
+</style>
 <script>(function(){
   try{if(matchMedia('(pointer:coarse)').matches||navigator.maxTouchPoints>0){window._globePerfLite=true;window._spartan=true;}}catch(e){}
-  var BUILD='20260720120000';
+  var BUILD='20260720180000';
   window._bootAt=Date.now();window._spartan=true;window.__ASTRANOV_HARD_BOOT__=1;
-  window.__ASTRANOV_MANIFEST__={mode:'js-phase-bundles',critical:['/js/phase-critical.js'],app:['/js/phase-app.js'],features:['/js/phase-features.js'],deferred:['/astranov-deferred.js'],fallback:{critical:['/js/phase-critical.js'],app:['/js/phase-app.js'],features:['/js/phase-features.js'],deferred:['/astranov-deferred.js']}};
-  function load(src){return new Promise(function(res,rej){var s=document.createElement('script');s.src=src+(src.indexOf('?')>=0?'&':'?')+'v='+BUILD;s.onload=function(){res()};s.onerror=function(){rej(new Error(src))};document.head.appendChild(s);});}
+  /* SPECS: boot order — phases → field-hud → mpp-tile → OS → deferred (SPECS.md §3) */
+  window.__ASTRANOV_MANIFEST__={mode:'js-phase-bundles',critical:['/js/phase-critical.js'],app:['/js/phase-app.js'],features:['/js/phase-features.js'],specs:['/astranov-field-hud.js','/astranov-mpp-tile.js','/js/astranov-os-boot.js'],deferred:['/astranov-deferred.js'],fallback:{critical:['/js/phase-critical.js'],app:['/js/phase-app.js'],features:['/js/phase-features.js'],deferred:['/astranov-deferred.js']}};
+  function load(src){return new Promise(function(res,rej){var s=document.createElement('script');s.src=src+(src.indexOf('?')>=0?'&':'?')+'v='+BUILD;s.onload=function(){res(src)};s.onerror=function(){rej(new Error(src))};document.head.appendChild(s);});}
+  function loadSoft(src){return load(src).catch(function(e){console.warn('[astranov soft]',src,e);});}
+  function loadFirst(list){return list.reduce(function(p,src){return p.catch(function(){return load(src);});},Promise.reject(new Error('empty')));}
   function done(){var b=document.getElementById('boot');if(b)b.remove();}
   function fail(m){var el=document.getElementById('boot');if(el)el.innerHTML='<div><b>ASTRANOV</b><p>'+m+'</p></div>';}
   load('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js')
   .catch(function(){return load('https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js');})
   .then(function(){return load('/js/phase-critical.js');})
-  .then(function(){if(typeof __astranovBootCritical==='function')__astranovBootCritical();done();return load('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js').catch(function(){});})
-  .then(function(){return load('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js').catch(function(){});})
+  .then(function(){if(typeof __astranovBootCritical==='function')__astranovBootCritical();done();return loadSoft('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js');})
+  .then(function(){return loadSoft('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js');})
   .then(function(){return load('/js/phase-app.js');})
   .then(function(){if(typeof __astranovBootApp==='function')__astranovBootApp();return load('/js/phase-features.js');})
-  .then(function(){if(typeof __astranovBootFeatures==='function')__astranovBootFeatures();return load('/js/astranov-os-boot.js').catch(function(){return load('/js/08-astranov-os.js').then(function(){return load('/js/08-astranov-browser.js');}).then(function(){try{if(window.AstranovOS)AstranovOS.init();}catch(e){}try{if(window.AstranovBrowser)AstranovBrowser.init();}catch(e){};});});})
-  .then(function(){var delay=window._globePerfLite?5000:2200;setTimeout(function(){if(window.LazyModules&&LazyModules.schedule)LazyModules.schedule();else{var d=document.createElement('script');d.src='/astranov-deferred.js?v='+BUILD;d.async=true;document.head.appendChild(d);}},delay);})
+  .then(function(){if(typeof __astranovBootFeatures==='function')__astranovBootFeatures();return loadFirst(['/astranov-field-hud.js','/js/astranov-field-hud.js']).catch(function(e){console.warn('[field-hud]',e);});})
+  .then(function(){return loadFirst(['/astranov-mpp-tile.js','/js/astranov-mpp-tile.js']).catch(function(e){console.warn('[mpp-tile]',e);});})
+  .then(function(){try{if(window.MenuProfilePostTile)MenuProfilePostTile.init();}catch(e){}try{if(window.FieldHud&&FieldHud.boot)FieldHud.boot();}catch(e){}return loadSoft('/js/astranov-os-boot.js').then(function(){return loadSoft('/js/08-astranov-os.js').then(function(){return loadSoft('/js/08-astranov-browser.js');});});})
+  .then(function(){try{if(window.AstranovOS)AstranovOS.init();}catch(e){}try{if(window.AstranovBrowser)AstranovBrowser.init();}catch(e){}var delay=window._globePerfLite?5000:2200;setTimeout(function(){if(window.LazyModules&&LazyModules.schedule)LazyModules.schedule();else{var d=document.createElement('script');d.src='/astranov-deferred.js?v='+BUILD;d.async=true;document.head.appendChild(d);}},delay);})
   .catch(function(e){fail('Boot failed');console.error(e);});
 })();</script>
-<script defer src="/astranov-continuity.js?v=20260720120000"></script>
-<script defer src="/astranov-perf-lazy.js?v=20260720120000"></script>
+<script defer src="/astranov-continuity.js?v=20260720180000"></script>
+<script defer src="/astranov-perf-lazy.js?v=20260720180000"></script>
 </head>
 <body>
 <div id="boot"><div><b>ASTRANOV</b><p>Earth…</p></div></div>
@@ -62,6 +84,8 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden}
       <span id="globe-deck-title">Astranov</span>
       <span id="globe-deck-preview"></span>
     </div>
+    <!-- SPECS: cliBar · locateMe · videoCall · superAddPlus — SPECS.md §3.1–3.4, §3.10
+         One product CLI (#super-cli-bar). Hide dual #aci-bar. Locate pin · video left of + · + → MPP. -->
     <div id="super-cli-bar">
       <button id="aci-login" type="button" title="Sign in">G</button>
       <div id="app-shortcut-row"></div>
@@ -96,5 +120,6 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden}
 <div id="field-balance-hud" tabindex="0" role="button" aria-label="Field"></div>
 <div id="menu-profile-post-tile"></div>
 
+<script>/* chromeGuard-product */(function(){function g(){['aci-bar','news-ticker','resource-monitor','first-run-coach'].forEach(function(id){var n=document.getElementById(id);if(n){n.style.display='none';n.hidden=true;n.setAttribute('aria-hidden','true');if(id==='first-run-coach')try{n.innerHTML='';}catch(e){}}});try{localStorage.setItem('astranov:coach-v3-os','1');localStorage.setItem('astranov:coach-disabled','1');}catch(e){}window.showFirstRunCoach=function(){};}g();setTimeout(g,500);setTimeout(g,2000);try{if(navigator.serviceWorker)navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(x){x.unregister();});});}catch(e){}})();</script>
 </body>
 </html>
