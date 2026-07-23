@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="description" content="Astranov Global Internet OS: Earth globe, city maps, shops, delivery, discovery." />
 <title>Astranov — Global Internet OS</title>
-<meta name="astranov-build" content="20260723310000" />
+<meta name="astranov-build" content="20260723320000" />
 <meta name="astranov-mode" content="product-spartanized" />
 <meta name="robots" content="index,follow" />
 <meta name="theme-color" content="#0a1020" />
@@ -304,33 +304,66 @@ body.cli-offer-plus #super-add-fab.offer-plus,#super-add-fab.offer-plus{display:
 </style>
 <script>(function(){
   try{if(matchMedia('(pointer:coarse)').matches||navigator.maxTouchPoints>0){window._globePerfLite=true;window._spartan=true;}}catch(e){}
-  var BUILD='20260723310000';
+  var BUILD='20260723320000';
   window._bootAt=Date.now();window._spartan=true;window.__ASTRANOV_HARD_BOOT__=1;
-  /* SPECS: boot order (js-first SPECS modules): phases -> field-hud -> mpp-tile -> OS -> deferred (SPECS.md sec 3) */
   window.__ASTRANOV_MANIFEST__={mode:'js-phase-bundles',critical:['/js/phase-critical.js'],app:['/js/phase-app.js'],features:['/js/phase-features.js'],specs:['/astranov-field-hud.js','/astranov-mpp-tile.js','/js/astranov-os-boot.js'],deferred:['/astranov-deferred.js'],fallback:{critical:['/js/phase-critical.js'],app:['/js/phase-app.js'],features:['/js/phase-features.js'],deferred:['/astranov-deferred.js']}};
   function load(src){return new Promise(function(res,rej){var s=document.createElement('script');s.src=src+(src.indexOf('?')>=0?'&':'?')+'v='+BUILD;s.onload=function(){res(src)};s.onerror=function(){rej(new Error(src))};document.head.appendChild(s);});}
-  function loadSoft(src){return load(src).catch(function(e){console.warn('[astranov soft]',src,e);});}
+  function loadSoft(src){return load(src).catch(function(e){console.warn('[astranov soft]',src,e); return null;});}
   function loadFirst(list){return list.reduce(function(p,src){return p.catch(function(){return load(src);});},Promise.reject(new Error('empty')));}
-  function done(){var b=document.getElementById('boot');if(b)b.remove();}
-  function fail(m){var el=document.getElementById('boot');if(el)el.innerHTML='<div><b>ASTRANOV</b><p>'+m+'</p></div>';}
+  function done(){try{var b=document.getElementById('boot');if(b)b.remove();}catch(e){}}
+  function fail(m){try{var el=document.getElementById('boot');if(el)el.innerHTML='<div><b>ASTRANOV</b><p>'+String(m||'Boot failed')+'</p><p style="opacity:.7;font-size:12px">Tap logo to reload</p></div>';}catch(e){}}
+  /* Always clear black boot screen — never leave Earth stuck */
+  setTimeout(function(){try{if(document.getElementById('boot'))done();}catch(e){}},8000);
   load('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js')
   .catch(function(){return load('https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js');})
   .then(function(){return load('/js/phase-critical.js');})
-  .then(function(){if(typeof __astranovBootCritical==='function')__astranovBootCritical();done();return loadSoft('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js');})
+  .then(function(){
+    try{if(typeof __astranovBootCritical==='function')__astranovBootCritical();}catch(e){console.error('[boot critical]',e);}
+    done();
+    return loadSoft('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js');
+  })
   .then(function(){return loadSoft('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js');})
   .then(function(){return load('/js/phase-app.js');})
-  .then(function(){if(typeof __astranovBootApp==='function')__astranovBootApp();return load('/js/phase-features.js');})
-  .then(function(){if(typeof __astranovBootFeatures==='function')__astranovBootFeatures();return loadFirst(['/js/astranov-field-hud.js','/astranov-field-hud.js']).catch(function(e){console.warn('[field-hud]',e);});})
+  .then(function(){
+    try{if(typeof __astranovBootApp==='function')__astranovBootApp();}catch(e){console.error('[boot app]',e);}
+    return load('/js/phase-features.js');
+  })
+  .then(function(){
+    try{if(typeof __astranovBootFeatures==='function')__astranovBootFeatures();}catch(e){console.error('[boot features]',e);}
+    return loadFirst(['/js/astranov-field-hud.js','/astranov-field-hud.js']).catch(function(e){console.warn('[field-hud]',e);});
+  })
   .then(function(){return loadFirst(['/js/astranov-mpp-tile.js','/astranov-mpp-tile.js']).catch(function(e){console.warn('[mpp-tile]',e);});})
-  .then(function(){return loadSoft("/js/62-multi-tile.js").then(function(){try{MultiTile&&MultiTile.init&&MultiTile.init()}catch(e){}return loadSoft("/js/17-architect-bridge.js")}).then(function(){return loadSoft("/js/85-delivery-dna.js").then(function(){return loadSoft("/js/90-grok-cli-parity.js").then(function(){return loadSoft("/js/91-cli-gestures.js").then(function(){return loadSoft("/js/92-add-plus-offer.js");});});});}).then(function(){try{if(window.ArchitectBridge&&ArchitectBridge.init)ArchitectBridge.init();}catch(e){}try{if(window.MenuProfilePostTile)MenuProfilePostTile.init();}catch(e){}try{if(window.FieldHud&&FieldHud.boot)FieldHud.boot();}catch(e){}return loadSoft('/js/astranov-os-boot.js').then(function(){return loadSoft('/js/08-astranov-os.js').then(function(){return loadSoft('/js/08-astranov-browser.js');});});})
-  .then(function(){try{if(window.AstranovOS)AstranovOS.init();}catch(e){}try{if(window.AstranovBrowser)AstranovBrowser.init();}catch(e){}var delay=window._globePerfLite?5000:2200;setTimeout(function(){if(window.LazyModules&&LazyModules.schedule)LazyModules.schedule();else{var d=document.createElement('script');d.src='/astranov-deferred.js?v='+BUILD;d.async=true;document.head.appendChild(d);}},delay);})
-  .catch(function(e){fail('Boot failed');console.error(e);});
+  .then(function(){return loadSoft('/js/62-multi-tile.js');})
+  .then(function(){try{if(window.MultiTile&&MultiTile.init)MultiTile.init();}catch(e){} return loadSoft('/js/17-architect-bridge.js');})
+  .then(function(){return loadSoft('/js/85-delivery-dna.js');})
+  .then(function(){return loadSoft('/js/90-grok-cli-parity.js');})
+  .then(function(){return loadSoft('/js/91-cli-gestures.js');})
+  .then(function(){return loadSoft('/js/92-add-plus-offer.js');})
+  .then(function(){
+    try{if(window.ArchitectBridge&&ArchitectBridge.init)ArchitectBridge.init();}catch(e){}
+    try{if(window.MenuProfilePostTile&&MenuProfilePostTile.init)MenuProfilePostTile.init();}catch(e){}
+    try{if(window.FieldHud&&FieldHud.boot)FieldHud.boot();}catch(e){}
+    return loadSoft('/js/astranov-os-boot.js');
+  })
+  .then(function(){return loadSoft('/js/08-astranov-os.js');})
+  .then(function(){return loadSoft('/js/08-astranov-browser.js');})
+  .then(function(){
+    try{if(window.AstranovOS)AstranovOS.init();}catch(e){}
+    try{if(window.AstranovBrowser)AstranovBrowser.init();}catch(e){}
+    done();
+    var delay=window._globePerfLite?5000:2200;
+    setTimeout(function(){
+      if(window.LazyModules&&LazyModules.schedule)LazyModules.schedule();
+      else{var d=document.createElement('script');d.src='/astranov-deferred.js?v='+BUILD;d.async=true;document.head.appendChild(d);}
+    },delay);
+  })
+  .catch(function(e){console.error(e);fail((e&&e.message)||'Boot failed');done();});
 })();</script>
-<script defer src="/astranov-continuity.js?v=20260723310000"></script>
-<script defer src="/astranov-perf-lazy.js?v=20260723310000"></script>
+<script defer src="/astranov-continuity.js?v=20260723320000"></script>
+<script defer src="/astranov-perf-lazy.js?v=20260723320000"></script>
 </head>
 <body>
-<div id="boot"><div><b>ASTRANOV</b><p>Earth?/p></div></div>
+<div id="boot"><div><b>ASTRANOV</b><p>Earth…</p></div></div>
 
 <button id="astranov-logo" type="button" title="Hard reset" aria-label="ASTRANOV hard reset reload">
   <canvas id="astranov-logo-wave" aria-hidden="true"></canvas>
