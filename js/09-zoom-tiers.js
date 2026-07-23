@@ -13,8 +13,8 @@ const ZoomTiers = {
   _index: 0,
   _wheelAccum: 0,
   _pinchAccum: 0,
-  WHEEL_THRESH: 28,
-  PINCH_THRESH: 14,
+  WHEEL_THRESH: 18,
+  PINCH_THRESH: 10,
 
   init() {
     const i = this.TIERS.findIndex(t => t.id === this.START_ID);
@@ -38,7 +38,7 @@ const ZoomTiers = {
     let bestDist = Infinity;
     const enterZ = CityMap?.ENTER_Z ?? 1.4;
     this.TIERS.forEach((t, i) => {
-      if (t.city && camZ > enterZ + 0.06) return;
+      if (t.city && camZ > enterZ + 0.12) return;
       const d = Math.abs(t.z - camZ);
       if (d < bestDist) { bestDist = d; best = i; }
     });
@@ -134,6 +134,17 @@ const ZoomTiers = {
     CosmicZoom.update(camera.position.z, { tier: tier.id, label: tier.label, cosmic });
     CityMap?.onCamera?.(camera.position.z, cosmic);
     cityLevel = !!tier.city;
+    /* SPECS: handoff city map */
+    try {
+      if (tier.city && window.CityMap && !CityMap.active) {
+        const pos = window._lastPos || CityMap.globeCenterLatLng?.() || TrackballGuard?.facingLatLng?.();
+        if (pos?.lat != null) CityMap.openAt?.(pos.lat, pos.lng, { camZ: tier.z });
+        else CityMap.onCamera?.(tier.z, 'earth');
+      }
+      if (!tier.city && CityMap?.active && (tier.national || tier.id === 'global' || tier.id === 'solar')) {
+        CityMap.returnToGlobe?.({ tier: tier.national ? 'national' : 'global' });
+      }
+    } catch (_) {}
     const zl = document.getElementById('zoom-label');
     if (zl && !window.DrivingView?.active && !CityMap?.active) {
       const pc = window.PublicCopy;
