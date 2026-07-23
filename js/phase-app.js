@@ -2158,7 +2158,7 @@ const SuperCli = {
   },
 
   // Trust bar: Sign-in · Locate · + · AI (provider/order available but may be CSS-hidden)
-  TOOLBAR_VISIBLE: ['aci-login', 'aci-locate', 'aci-handsfree', 'aci-bridge', 'super-add-fab', 'aci-provider', 'aci-order'],
+  TOOLBAR_VISIBLE: ['aci-login', 'aci-locate', 'aci-handsfree', 'aci-bridge', 'aci-provider', 'aci-order'],
   INPUT_BTNS: ['globe-deck-send'],
 
   init() {
@@ -2197,8 +2197,14 @@ const SuperCli = {
         btn.hidden = !(Auth?.isArchitect && allowed.has('aci-bridge'));
         return;
       }
-      // Always keep locate + handsfree + + visible
-      if (btn.id === 'aci-locate' || btn.id === 'aci-handsfree' || btn.id === 'super-add-fab' || btn.id === 'aci-login') {
+      // + only after failed add; long-press is primary
+      if (btn.id === 'super-add-fab') {
+        const offer = !!(window.__ADD_PLUS_OFFER__ && window.__ADD_PLUS_OFFER__.offered) || document.body.classList.contains('cli-offer-plus');
+        btn.hidden = !offer;
+        btn.style.display = offer ? 'inline-flex' : 'none';
+        return;
+      }
+      if (btn.id === 'aci-locate' || btn.id === 'aci-handsfree' || btn.id === 'aci-login') {
         btn.hidden = false;
         btn.style.display = 'inline-flex';
         return;
