@@ -106,6 +106,7 @@ CLI: fix | code | dev | edit | bridge …
 - BrainNeurons + FieldBrain stay alive; no production stubs.
 
 ### 3.10 CLI chrome — **one surface only**
+- **Errors & activity:** no sticky red overlays (`#astranov-hard-error` banned). All errors/tasks/activity log into CLI scroll (`GlobeDeck.log` / `AciCli.print` / `ActivityLog`).
 - **Top-right:** Send button then headset (voice) — not + in that slot.
 - **Input row:** full-width textarea only; no left/right buttons beside input; no dead space below.
 - **Input field always visible:** `#aci-cli-in` textarea in `#globe-deck-input-row` must show even when deck is collapsed (never clip with tiny max-height). Collapsed mode hides log body only.
