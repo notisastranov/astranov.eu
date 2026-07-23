@@ -5,8 +5,8 @@
  */
 (function CliGestures() {
   'use strict';
-  if (window.__CLI_GESTURES__?.version === '20260723300000') return;
-  window.__CLI_GESTURES__ = { version: '20260723300000', ready: false };
+  if (window.__CLI_GESTURES__?.version === '20260723341000') return;
+  window.__CLI_GESTURES__ = { version: '20260723341000', ready: false };
 
   const KEEP_OPEN_TURNS = 1; // latest turn stays expanded; older → cases
   let caseSeq = 0;
@@ -228,11 +228,26 @@
     });
   }
 
-  /* ── Log: native scroll · overscroll top → minimize ───────────── */
+  /* ── Log: native scroll · overscroll top OR bottom → minimize ─── */
+  function atLogTop(log) {
+    return (log.scrollTop || 0) <= 2;
+  }
+  function atLogBottom(log) {
+    const max = Math.max(0, (log.scrollHeight || 0) - (log.clientHeight || 0));
+    // No overflow counts as both ends (short log)
+    if (max <= 4) return true;
+    return (log.scrollTop || 0) >= max - 3;
+  }
+  function collapseCli() {
+    try { window.__cliCollapse?.(); } catch (_) {}
+  }
+
   function bindLogScroll() {
     const log = logEl();
-    if (!log || log._cliScrollBound) return;
-    log._cliScrollBound = true;
+    if (!log) return;
+    // Re-bind if older version left a half-listener
+    if (log._cliScrollBound === '20260723341000') return;
+    log._cliScrollBound = '20260723341000';
     log.style.touchAction = 'pan-y';
     log.style.overscrollBehavior = 'contain';
     log.style.webkitOverflowScrolling = 'touch';
@@ -241,13 +256,18 @@
 
     let sy = 0;
     let st0 = 0;
+    let atTop0 = false;
+    let atBot0 = false;
     let pulling = false;
     let dyAcc = 0;
+    const THRESH = 48;
 
     log.addEventListener('touchstart', (e) => {
       if (e.touches.length !== 1) return;
       sy = e.touches[0].clientY;
       st0 = log.scrollTop;
+      atTop0 = atLogTop(log);
+      atBot0 = atLogBottom(log);
       pulling = true;
       dyAcc = 0;
     }, { passive: true });
@@ -255,38 +275,88 @@
     log.addEventListener('touchmove', (e) => {
       if (!pulling || e.touches.length !== 1) return;
       const y = e.touches[0].clientY;
-      const dy = y - sy; // finger down = positive
+      const dy = y - sy; // finger down = + ; finger up = −
       dyAcc = dy;
-      // At top of scroll, pull down past threshold → minimize CLI
-      if (st0 <= 1 && log.scrollTop <= 1 && dy > 56) {
+
+      // Top: pull down further → minimize
+      if (atTop0 && atLogTop(log) && dy > THRESH) {
         if (e.cancelable) e.preventDefault();
         pulling = false;
-        window.__cliCollapse?.();
+        collapseCli();
         return;
       }
-      // At bottom, pull up hard while expanded full — optional soft collapse not needed
+      // Bottom (all the way down): keep scrolling down (finger up) → minimize
+      if (atBot0 && atLogBottom(log) && dy < -THRESH) {
+        if (e.cancelable) e.preventDefault();
+        pulling = false;
+        collapseCli();
+        return;
+      }
     }, { passive: false });
 
     log.addEventListener('touchend', () => {
-      if (pulling && st0 <= 1 && dyAcc > 64) window.__cliCollapse?.();
+      if (pulling) {
+        if (atTop0 && dyAcc > THRESH + 8) collapseCli();
+        else if (atBot0 && dyAcc < -(THRESH + 8)) collapseCli();
+      }
       pulling = false;
       dyAcc = 0;
     }, { passive: true });
 
-    // Wheel overscroll at top: scroll up when already at top → collapse
+    // Wheel: overscroll past top (up) OR past bottom (down) → minimize
     let wheelAcc = 0;
+    let wheelDir = 0;
     log.addEventListener('wheel', (e) => {
       e.stopPropagation();
-      if (log.scrollTop <= 0 && e.deltaY < 0) {
+      const goingDown = e.deltaY > 0;
+      const goingUp = e.deltaY < 0;
+
+      if (goingUp && atLogTop(log)) {
+        if (wheelDir !== -1) { wheelDir = -1; wheelAcc = 0; }
         wheelAcc += -e.deltaY;
-        if (wheelAcc > 80) {
-          wheelAcc = 0;
-          window.__cliCollapse?.();
-        }
-      } else {
-        wheelAcc = 0;
+        if (wheelAcc > 56) { wheelAcc = 0; collapseCli(); }
+        return;
       }
+      if (goingDown && atLogBottom(log)) {
+        if (wheelDir !== 1) { wheelDir = 1; wheelAcc = 0; }
+        wheelAcc += e.deltaY;
+        if (wheelAcc > 56) { wheelAcc = 0; collapseCli(); }
+        return;
+      }
+      wheelAcc = 0;
+      wheelDir = 0;
     }, { passive: true });
+
+    // Also: when body is expanded but log has no overflow, one-finger
+    // swipe down on the deck body minimizes (common on short sessions)
+    const body = document.getElementById('globe-deck-body');
+    if (body && body._cliBodyScrollBound !== '20260723341000') {
+      body._cliBodyScrollBound = '20260723341000';
+      let bsy = 0, bdy = 0, bpull = false;
+      body.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 1) return;
+        if (e.target.closest?.('#aci-cli-in, button, a, input, textarea')) return;
+        bsy = e.touches[0].clientY;
+        bdy = 0;
+        bpull = true;
+      }, { passive: true });
+      body.addEventListener('touchmove', (e) => {
+        if (!bpull || e.touches.length !== 1) return;
+        bdy = e.touches[0].clientY - bsy;
+        // short content: treat whole body as overscroll zone at bottom intent
+        if (atLogBottom(log) && bdy < -THRESH) {
+          if (e.cancelable) e.preventDefault();
+          bpull = false;
+          collapseCli();
+        }
+        if (atLogTop(log) && bdy > THRESH) {
+          if (e.cancelable) e.preventDefault();
+          bpull = false;
+          collapseCli();
+        }
+      }, { passive: false });
+      body.addEventListener('touchend', () => { bpull = false; bdy = 0; }, { passive: true });
+    }
   }
 
   /* ── Case compaction: past turns fold into cases ──────────────── */
