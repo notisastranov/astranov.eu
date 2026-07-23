@@ -91,8 +91,14 @@ CLI: fix | code | dev | edit | bridge …
 ### 3.9 AI brain
 - BrainNeurons + FieldBrain stay alive; no production stubs.
 
-### 3.10 CLI bar
-- One product CLI (`#super-cli-bar`). Hide dual `#aci-bar`.
+### 3.10 CLI chrome — **one surface only**
+- **One product CLI:** `#super-cli-bar` inside `#globe-deck`.
+- **The top handle of the CLI** is the **only** place for chrome buttons needed at any time (`#os-cli-handle` + existing CLI buttons).
+- **Forbidden second bars** (must stay hidden / removed):
+  - Floating `#os-dock` above the CLI (unauthorized)
+  - Dual `#aci-bar` behind CLI
+  - Separate `#app-shortcut-row` as its own bar
+  - `#news-ticker`, `#resource-monitor` strips
 - **No SpaceNet first-run coach** (`#first-run-coach` / `showFirstRunCoach` permanently off).
 
 ### 3.11 Globe physics
@@ -113,12 +119,21 @@ CLI: fix | code | dev | edit | bridge …
 - Real earth / atmosphere / day-night. Procedural mecha-angel helper.
 
 ### 3.16 Astranov OS
-- Dock after features: Earth, Browser, Locate, Market, AI, Create, System.
-- Code: `js/08-astranov-os.js`
+- OS apps (Earth, Browser, Locate, Market, AI, Create, System) mount as **handle buttons on `#super-cli-bar`** (`#os-cli-handle`).
+- **Never** a floating `#os-dock` bar above the CLI.
+- Panels (System / launcher / browser) open as surfaces — not a second toolbar.
+- Code: `js/08-astranov-os.js` · version `20260723-cli-handle`+
 
 ### 3.17 Astranov Browser
 - Tabs, URL bar, `astranov://` routes, sandboxed https.
-- Code: `js/08-astranov-browser.js`
+- Code: `js/08-astranov-browser.js`.
+
+### 3.18 Astranov theme (logo + accent)
+- **Shape:** round corners everywhere product chrome touches (`--an-radius` ~16px, pills for icon buttons).
+- **Color:** deep glowing blue Astranov accent
+  - base `#1a6fd4`, bright `#3d9eff`, glow `rgba(26,111,212,0.55)`, panels near-black blue (`#00040c` / `rgba(0,8,22,…)`)
+- Logo wordmark / status uses glowing blue, not flat gray or multi-rainbow chrome.
+- CSS tokens: `--ax-blue*`, `--an-radius*` in OS CSS + index `:root`.
 
 ---
 
@@ -170,6 +185,8 @@ CLI shortcuts after bridge is armed:
 - Ship dummy mini-app as homepage.
 - Change globe physics without owner sign-off.
 - Remove architect bridge or freeform core brain.
+- **Add any second button bar above/below the CLI** (especially floating `#os-dock`).
+- Square grey chrome that ignores Astranov deep-blue + round-corner theme.
 
 ---
 
@@ -183,7 +200,9 @@ CLI shortcuts after bridge is armed:
 | + / MPP / locate / video | `js/astranov-mpp-tile.js` | `/* SPECS: */` |
 | Field / miner / radar | `js/astranov-field-hud.js` | `/* SPECS: */` |
 | OS boot | `js/astranov-os-boot.js` | pure JS only |
-| OS / Browser | `js/08-astranov-os.js`, `js/08-astranov-browser.js` | `/* SPECS: Astranov OS/Browser */` |
+| OS / Browser | `js/08-astranov-os.js`, `js/08-astranov-browser.js` | `/* SPECS: CLI-handle only; no os-dock */` |
+| CLI chrome | `index.html` + OS | `#super-cli-bar` / `#os-cli-handle` only |
+| Theme | OS CSS + index `:root` | deep blue + round corners |
 | Architect bridge | `js/17-architect-bridge.js` | phone → Grok Build |
 | Coach off | continuity + phase-features | `killFirstRunCoach` / no-op coach |
 
