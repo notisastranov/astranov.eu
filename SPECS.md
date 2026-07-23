@@ -70,7 +70,7 @@ Look **and** work like this agent’s TUI:
 
 ### 3.3 Touch / Earth isolation
 - `#globe-deck { pointer-events: auto }` — scroll never spins Earth
-- Log: `touch-action: pan-y` · overscroll top / pull-down → minimize CLI
+- Log: `touch-action: pan-y` · **overscroll past top OR past bottom** (scrolled all the way down + keep going) → minimize CLI
 - Handle: tap toggle · drag resize
 - Module: `js/91-cli-gestures.js`
 
