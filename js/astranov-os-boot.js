@@ -1,5 +1,5 @@
-/* DEPLOY_STAMP_20260722 P0 restore missing static assets on Vercel */
-/* Astranov OS boot — tiny pure JS only (must never be HTML) */
+/* Astranov OS boot - tiny pure JS only (must never be HTML) */
+/* SPECS: Astranov OS + Browser loader — SPECS.md §3.16–3.17 */
 (function astranovOsBoot() {
   if (window.__ASTRANOV_OS_BOOT__) return;
   window.__ASTRANOV_OS_BOOT__ = 1;
@@ -16,9 +16,7 @@
       (document.head || document.documentElement).appendChild(s);
     });
   }
-  function initOnce() {
-    if (window.__ASTRANOV_OS_INIT__) return;
-    window.__ASTRANOV_OS_INIT__ = 1;
+  function init() {
     try { if (window.AstranovOS) AstranovOS.init(); } catch (e) {}
     try { if (window.AstranovBrowser) AstranovBrowser.init(); } catch (e) {}
   }
@@ -26,7 +24,11 @@
     Promise.all([
       load('/js/08-astranov-os.js'),
       load('/js/08-astranov-browser.js'),
-    ]).then(function () { initOnce(); });
+    ]).then(function () {
+      init();
+      setTimeout(init, 800);
+      setTimeout(init, 2500);
+    });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
   else run();
