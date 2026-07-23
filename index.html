@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="description" content="Astranov — SpaceNet Global Internet OS" />
 <title>Astranov</title>
-<meta name="astranov-build" content="20260723352000" />
+<meta name="astranov-build" content="20260723353000" />
 <meta name="astranov-mode" content="product-clean" />
 <meta name="theme-color" content="#000000" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -72,10 +72,12 @@ html, body {
   stroke-linecap: round; opacity: 0.85;
   stroke-dasharray: 28 48;
   transform-origin: 28px 28px;
+  transform-box: fill-box;
   animation: boot-spin 1.1s linear infinite;
 }
 #boot .boot-vector .core {
   fill: var(--accent); opacity: 0.9;
+  /* opacity only — never animate SVG attr `r` (breaks/freezes Firefox) */
   animation: boot-pulse 1.4s ease-in-out infinite;
 }
 #boot .boot-vector .ring {
@@ -83,8 +85,8 @@ html, body {
 }
 @keyframes boot-spin { to { transform: rotate(360deg); } }
 @keyframes boot-pulse {
-  0%, 100% { opacity: 0.55; r: 3.5; }
-  50% { opacity: 1; r: 4.5; }
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
 }
 #boot .boot-status {
   margin: 0; min-height: 1.2em;
@@ -108,11 +110,16 @@ html, body {
 #city-map.active { z-index: 150; opacity: 1; pointer-events: auto; }
 #city-map .leaflet-container { background: var(--ink); width: 100%; height: 100%; font-family: var(--ui); }
 /* ── Logo ── */
+html.is-firefox #globe-deck,
+html.is-firefox #astranov-logo {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
 #astranov-logo {
   position: fixed; top: max(10px, var(--safe-t)); left: 50%; transform: translateX(-50%);
   z-index: 210; margin: 0; padding: 6px 16px; min-height: 36px;
   border-radius: 999px; border: 1px solid var(--line);
-  background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(12px);
+  background: rgba(0, 0, 0, 0.72);
   color: var(--accent-hot); font: 600 13px/1 var(--ui);
   letter-spacing: 0.32em; text-indent: 0.32em; text-transform: uppercase;
   text-shadow: 0 0 14px var(--glow); box-shadow: 0 2px 16px rgba(0,0,0,0.5);
@@ -146,15 +153,14 @@ html, body {
   display: flex; flex-direction: column;
   margin: 0 8px calc(6px + var(--safe-b));
   max-height: min(52vh, 520px);
-  background: var(--panel);
+  background: var(--panel-solid);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.4),
     0 8px 32px rgba(0, 0, 0, 0.55),
     0 0 24px var(--glow);
-  backdrop-filter: blur(16px) saturate(1.1);
-  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  /* backdrop-filter freezes Firefox — solid panel only */
   color: var(--text);
   font-family: var(--mono);
   overflow: hidden;
@@ -385,8 +391,15 @@ body.cli-offer-plus #super-add-fab.offer-plus {
       window._globePerfLite = true;
       window._spartan = true;
     }
+    // Firefox WebGL + glass filters can hard-freeze — force lite early
+    if (/firefox/i.test(navigator.userAgent || '')) {
+      window._isFirefox = true;
+      window._globePerfLite = true;
+      window._spartan = true;
+      document.documentElement.classList.add('is-firefox');
+    }
   } catch (e) {}
-  var BUILD = '20260723352000';
+  var BUILD = '20260723353000';
   window._bootAt = Date.now();
   window._spartan = true;
   window.__ASTRANOV_HARD_BOOT__ = 1;
@@ -525,8 +538,8 @@ body.cli-offer-plus #super-add-fab.offer-plus {
     });
 })();
 </script>
-<script defer src="/astranov-continuity.js?v=20260723352000"></script>
-<script defer src="/astranov-perf-lazy.js?v=20260723352000"></script>
+<script defer src="/astranov-continuity.js?v=20260723353000"></script>
+<script defer src="/astranov-perf-lazy.js?v=20260723353000"></script>
 </head>
 <body>
 <div id="boot" aria-busy="true" aria-live="polite">
