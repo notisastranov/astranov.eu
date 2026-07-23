@@ -105,13 +105,17 @@ CLI: fix | code | dev | edit | bridge …
 ### 3.9 AI brain
 - BrainNeurons + FieldBrain stay alive; no production stubs.
 
-### 3.10 CLI chrome — **one surface only**
+### 3.10 CLI chrome — **one surface only** (Grok Build TUI fork)
+- **Fork rule:** Astranov product CLI **is a fork of Grok Build**. Look and density must match this agent’s TUI: session header, mono scrollback with **left accent bars**, `›` prompt prefix, compact tool handle — not a separate chat bubble / OS overlay style.
 - **USE THE CLI:** All user-visible system output (errors, tasks, activity, status) goes through `GlobeDeck.log` / `AciCli.print` / `ActivityLog` into `#globe-deck-log`. Expand the deck so the scroll is visible. Never sticky red bars; never DevTools-only for product events.
 - **Errors & activity:** no sticky red overlays (`#astranov-hard-error` banned). All errors/tasks/activity log into CLI scroll (`GlobeDeck.log` / `AciCli.print` / `ActivityLog`).
-- **Top-right:** Send button then headset (voice) — not + in that slot.
-- **Input row:** full-width textarea only; no left/right buttons beside input; no dead space below.
-- **Input field always visible:** `#aci-cli-in` textarea in `#globe-deck-input-row` must show even when deck is collapsed (never clip with tiny max-height). Collapsed mode hides log body only.
-- **One product CLI:** `#super-cli-bar` inside `#globe-deck`.
+- **Layout (top → bottom):**
+  1. **Session strip** `#globe-deck-header` — title `Astranov · Grok` + preview/status (always on)
+  2. **Tool handle** `#super-cli-bar` — login, ribbon status, tools; **top-right: Send then headset** (not +)
+  3. **Scrollback** `#globe-deck-log` — mono font; block lines with left accent (cmd/user, out/assistant, err, ok, dim/think)
+  4. **Prompt** `#globe-deck-input-row` — `#aci-cli-prompt` `›` + full-width `#aci-cli-in` (no side buttons)
+- **Input field always visible:** `#aci-cli-in` must show even when deck is collapsed (never clip with tiny max-height). Collapsed mode hides log body only.
+- **One product CLI:** `#super-cli-bar` inside `#globe-deck` (`data-cli="grok-build-fork"`).
 - **The top handle of the CLI** is the **only** place for chrome buttons needed at any time (`#os-cli-handle` + existing CLI buttons).
 - **Forbidden second bars** (must stay hidden / removed):
   - Floating `#os-dock` above the CLI (unauthorized)
@@ -169,13 +173,18 @@ CLI: fix | code | dev | edit | bridge …
 - Tabs, URL bar, `astranov://` routes, sandboxed https.
 - Code: `js/08-astranov-browser.js`.
 
-### 3.18 Astranov theme (logo + accent)
-- **CLI module glass:** `#globe-deck` / CLI chrome is **semi-transparent** deep blue with **glowing blue borders/shadows** and backdrop blur (not solid black panels).
-- **Shape:** round corners everywhere product chrome touches (`--an-radius` ~16px, pills for icon buttons).
+### 3.18 Astranov theme (logo + accent) + Grok TUI tokens
+- **CLI = Grok Build visual system** on Astranov deep-blue:
+  - TokyoNight-adjacent dark base (`--grok-bg` / panel glass) + Astranov blue glow borders
+  - Mono scrollback (`--grok-mono`); left accent colors: user `#7aa2f7`, assistant `#3d9eff`, think `#2ac3de`, err `#f7768e`, ok `#9ece6a`, tool `#bb9af7`
+  - Prompt border active = Grok-style focus ring (not fat pill bubbles)
+  - Handle buttons: **8px rounded rects** (Grok density), not only round pills
+- **CLI module glass:** `#globe-deck` semi-transparent deep blue + glowing blue borders + backdrop blur (not solid black slabs).
+- **Shape:** round corners on deck (`border-radius` ~12px); logo stays pill.
 - **Color:** deep glowing blue Astranov accent
   - base `#1a6fd4`, bright `#3d9eff`, glow `rgba(26,111,212,0.55)`, panels near-black blue (`#00040c` / `rgba(0,8,22,…)`)
 - Logo wordmark / status uses glowing blue, not flat gray or multi-rainbow chrome.
-- CSS tokens: `--ax-blue*`, `--an-radius*` in OS CSS + index `:root`.
+- CSS tokens: `--ax-blue*`, `--grok-*` in `index.html` product CLI styles.
 
 ---
 
