@@ -1,0 +1,27 @@
+name: damp-track-sens
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  damp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set TRACK_SENS 0.0026
+        run: |
+          set -euo pipefail
+          for f in js/phase-critical.js js/10-trackball.js; do
+            if [ -f "$f" ]; then
+              sed -i 's/const TRACK_SENS = 0\.0062;/const TRACK_SENS = 0.0026;/g' "$f"
+              grep -n 'TRACK_SENS' "$f" | head -5 || true
+            fi
+          done
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/phase-critical.js js/10-trackball.js || true
+          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
+          git commit -m "fix(p0): damp globe TRACK_SENS 0.0026 (no dummy app)"
+          git push origin HEAD:main
