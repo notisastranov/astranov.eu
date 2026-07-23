@@ -106,6 +106,7 @@ CLI: fix | code | dev | edit | bridge …
 - BrainNeurons + FieldBrain stay alive; no production stubs.
 
 ### 3.10 CLI chrome — **one surface only**
+- **USE THE CLI:** All user-visible system output (errors, tasks, activity, status) goes through `GlobeDeck.log` / `AciCli.print` / `ActivityLog` into `#globe-deck-log`. Expand the deck so the scroll is visible. Never sticky red bars; never DevTools-only for product events.
 - **Errors & activity:** no sticky red overlays (`#astranov-hard-error` banned). All errors/tasks/activity log into CLI scroll (`GlobeDeck.log` / `AciCli.print` / `ActivityLog`).
 - **Top-right:** Send button then headset (voice) — not + in that slot.
 - **Input row:** full-width textarea only; no left/right buttons beside input; no dead space below.
