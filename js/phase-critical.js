@@ -2004,7 +2004,7 @@ function openMultiTileAtPoint(clientX, clientY, source) {
           (document.querySelector('meta[name="astranov-build"]') || {}).content || Date.now()
         );
         s.onload = () => {
-          try { MultiTile.init?.(); MultiTile.openAt?.(lat, lng, { source: source || 'long-press', tier }); } catch (e) { console.warn('[MultiTile]', e); }
+          try { MultiTile.init?.(); MultiTile.openAt?.(lat, lng, { source: source || 'long-press', tier }); } catch (e) { console.warn('[MultiTile]', e); try { window.AstranovAddOffer?.noteAddFail?.(e.message || 'MultiTile open failed'); } catch (_) {} }
         };
         document.head.appendChild(s);
         return;
@@ -2014,7 +2014,7 @@ function openMultiTileAtPoint(clientX, clientY, source) {
         source: source || 'long-press',
         tier: tier || MultiTile.currentTier?.() || ZoomTiers?.current?.()?.id || 'global',
       });
-    } catch (e) { console.warn('[long-press MultiTile]', e); }
+    } catch (e) { console.warn('[long-press MultiTile]', e); try { window.AstranovAddOffer?.noteAddFail?.(e.message || 'long-press add failed'); } catch (_) {} }
   };
   let pin = null;
   try { pin = (typeof latLngFromScreen === 'function') ? latLngFromScreen(clientX, clientY) : null; } catch (_) {}
