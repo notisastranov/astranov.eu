@@ -40,9 +40,11 @@
  */
 /* SPECS: continuity source — human twin is SPECS.md at repo root */
 const AstranovContinuity = {
-  version: '20260723170000-delivery-dna',
+  version: '20260723190000-map-places',
   updated: '2026-07-23',
   specsHuman: 'SPECS.md',
+  /** Owner rule: every product change updates SPECS.md + this object in the same deploy. */
+  specsPolicy: 'always-update-SPECS-with-code',
 
   /**
    * Markdown / issues / sessions that MUST NOT drive implementation.
@@ -149,6 +151,33 @@ const AstranovContinuity = {
         'Else scroll #mpp-connected and prompt tap-to-call',
       ],
       doNotRemove: ['_patchVideoCall', '_patchCliBar', '_openVideoCall'],
+    },
+
+    zoomNationalCity: {
+      summary: 'Zoom must reach national and city/streets; city opens Leaflet map',
+      owner: 'js/09-zoom-tiers.js + js/phase-critical.js + js/61-city-map.js',
+      behavior: [
+        'Tiers: solar → global → national → regional → city → neighborhood',
+        'City/neighborhood handoff: CityMap.openAt / onCamera',
+        'Leave city: CityMap.returnToGlobe',
+        'ENTER_Z ~1.50 EXIT_Z ~1.90',
+      ],
+      doNotRemove: ['ZoomTiers', 'CityMap.openAt', 'returnToGlobe'],
+    },
+
+    multiTilePlaces: {
+      summary: 'Long-press MultiTile with unique real-world place names, pin adjust, CLI recovery',
+      owner: 'js/62-multi-tile.js',
+      selectors: ['#multi-tile', '#mt-close', '#mt-clear', '#mt-place-name', '#mt-lat', '#mt-lng'],
+      commands: ['place list', 'places', 'place open <name|id>'],
+      behavior: [
+        'Long-press globe or city map opens visible MultiTile (CSS injected)',
+        'Nudge N/S/E/W + lat/lng apply for accurate pin',
+        'Clear + Close buttons required',
+        'Save stores unique name (reverse-geocode + role) in astranov:places-v1',
+        'CLI place open recovers saved places',
+      ],
+      doNotRemove: ['MultiTile', '_injectCss', 'resolvePlaceName', 'openPlace', 'clearPlace'],
     },
 
     deliveryDNA: {
