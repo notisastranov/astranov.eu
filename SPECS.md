@@ -145,7 +145,8 @@ CLI: fix | code | dev | edit | bridge …
 
 ### 3.11c Multi-tile (long-press place) + CLI recovery
 - **Module:** `js/62-multi-tile.js` · `window.MultiTile` (loaded after phases; overrides embedded copy).
-- **Open:** long-press **any point** at **solar / global / national / regional / city** (globe canvas) and on city street map (touch + desktop). Hold ~420ms with <22px move. Loads `62-multi-tile.js` on demand if needed. `+` also opens.
+- **Open:** long-press **any point** at **solar / global / national / regional / city** (globe canvas) and on city street map (touch + desktop). Hold ~420ms with <22px move. Loads `62-multi-tile.js` on demand if needed.
+- **No permanent `+` button.** Primary add path is long-press only. If the system senses the user tried to add (long-press / MultiTile / CLI “add|create|post|place…”) and it **failed**, then offer `#super-add-fab` **+** on the CLI handle (`body.cli-offer-plus` / `js/92-add-plus-offer.js`). Hide + again after a successful open.
 - **Must be visible:** inject `#multi-tile-css` (was missing → looked broken).
 - **UI required:**
   - **Close** + **Clear**
