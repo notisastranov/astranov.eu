@@ -40,6 +40,8 @@ var MultiTile = {
   },
 
   init() {
+    // Always ensure CSS (idempotent) — missing styles left tile off-screen (only pulses)
+    try { this._injectCss(); } catch (_) {}
     if (this._bound) return;
     this._bound = true;
     this._ensureDom();
@@ -85,8 +87,9 @@ var MultiTile = {
     st.textContent = `
 #mt-backdrop{position:fixed;inset:0;z-index:240;background:rgba(0,4,16,.55);opacity:0;pointer-events:none;transition:opacity .18s}
 #mt-backdrop.open{opacity:1;pointer-events:auto}
-#multi-tile{position:fixed;left:50%;bottom:max(12px,env(safe-area-inset-bottom));transform:translate(-50%,110%);width:min(420px,96vw);max-height:min(78vh,720px);z-index:250;display:flex;flex-direction:column;background:rgba(0,10,28,.96);border:1px solid rgba(61,158,255,.45);border-radius:18px;box-shadow:0 16px 48px rgba(0,0,0,.55),0 0 28px rgba(26,111,212,.25);color:#d8ecff;font:12px/1.35 system-ui,sans-serif;overflow:hidden;transition:transform .22s ease;pointer-events:none}
-#multi-tile.open{transform:translate(-50%,0);pointer-events:auto}
+#multi-tile{position:fixed;left:50%;bottom:max(12px,env(safe-area-inset-bottom));transform:translate(-50%,110%);width:min(420px,96vw);max-height:min(78vh,720px);z-index:260;display:flex;flex-direction:column;background:rgba(2,8,16,.97);border:1px solid rgba(48,88,140,.5);border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.65),0 0 24px rgba(24,64,120,.35);color:#b8c4d4;font:12px/1.35 system-ui,sans-serif;overflow:hidden;transition:transform .22s ease;pointer-events:none;visibility:hidden}
+#multi-tile.open{transform:translate(-50%,0)!important;pointer-events:auto!important;visibility:visible!important;z-index:260!important}
+#mt-backdrop.open{z-index:255!important;opacity:1!important;pointer-events:auto!important}
 #mt-cover{position:relative;min-height:88px;background:linear-gradient(135deg,rgba(0,40,90,.9),rgba(0,12,36,.95));border-bottom:1px solid rgba(61,158,255,.25)}
 #mt-cover.has-img{background-size:cover;background-position:center}
 #mt-cover-btn,#mt-close,#mt-clear{position:absolute;top:8px;border:1px solid rgba(61,158,255,.4);background:rgba(0,20,48,.75);color:#cfe;border-radius:999px;padding:6px 10px;cursor:pointer;font:11px system-ui}
@@ -673,9 +676,40 @@ var MultiTile = {
     this.openAt(pos.lat, pos.lng, { source: 'plus', tier: this.currentTier() });
   },
 
+  /** Force panel on screen — never leave only globe dots */
+  _showPanel() {
+    try { this._injectCss(); } catch (_) {}
+    try { this._ensureDom(); } catch (_) {}
+    const tile = document.getElementById('multi-tile');
+    const back = document.getElementById('mt-backdrop');
+    if (tile) {
+      tile.classList.add('open');
+      tile.style.cssText = [
+        'position:fixed', 'left:50%', 'bottom:max(12px, env(safe-area-inset-bottom))',
+        'transform:translate(-50%,0)', 'width:min(420px,96vw)', 'max-height:min(78vh,720px)',
+        'z-index:260', 'display:flex', 'flex-direction:column',
+        'background:rgba(2,8,16,0.97)', 'border:1px solid rgba(48,88,140,0.55)',
+        'border-radius:14px', 'box-shadow:0 16px 48px rgba(0,0,0,0.65)',
+        'color:#b8c4d4', 'font:12px/1.35 system-ui,sans-serif',
+        'overflow:hidden', 'pointer-events:auto', 'visibility:visible', 'opacity:1',
+      ].join(';');
+    }
+    if (back) {
+      back.classList.add('open');
+      back.style.cssText = 'position:fixed;inset:0;z-index:255;background:rgba(0,4,12,0.55);opacity:1;pointer-events:auto';
+    }
+    // Keep root above globe/CLI
+    const root = document.getElementById('multi-tile-root');
+    if (root) {
+      root.style.position = 'relative';
+      root.style.zIndex = '260';
+    }
+  },
+
   /** Open self / place tile at any zoom level */
   openAt(lat, lng, opts) {
     opts = opts || {};
+    try { this._injectCss(); } catch (_) {}
     this.init();
     // Stellar / space: still allow tile — pin may be symbolic (last pos or facing Earth)
     let la = lat;
@@ -710,22 +744,27 @@ var MultiTile = {
         driver: arr.includes('driver'),
       };
     }
-    this._syncRoleButtons();
-    this._render();
-    this._syncTaskCriteria();
-    this._refreshCoinsBal();
-    this._renderWaypoints();
-    document.getElementById('multi-tile')?.classList.add('open');
-    document.getElementById('mt-backdrop')?.classList.add('open');
+    try { this._syncRoleButtons(); } catch (_) {}
+    try { this._render(); } catch (e) { console.warn('[MultiTile render]', e); }
+    try { this._syncTaskCriteria(); } catch (_) {}
+    try { this._refreshCoinsBal(); } catch (_) {}
+    try { this._renderWaypoints(); } catch (_) {}
+    this._showPanel();
     document.getElementById('multi-tile')?.setAttribute('data-tier', this._tier);
     try {
-      MapDepict?.pulse?.(la, ln, 0x3d9eff, opts.label || 'tile', 6000);
+      MapDepict?.pulse?.(la, ln, 0x3d6eb0, opts.label || 'tile', 4000);
+    } catch (_) {}
+    try {
+      GlobeDeck?.ensureCliVisible?.('ok');
+      AciCli?.print?.('◆ multi-tile · ' + (+la).toFixed(3) + ', ' + (+ln).toFixed(3), 'ok');
     } catch (_) {}
     const zl = document.getElementById('zoom-label');
     if (zl) {
       zl.textContent = this.tierLabel(this._tier) + ' · '
         + (+la).toFixed(3) + ', ' + (+ln).toFixed(3);
     }
+    // Place name async (non-blocking)
+    try { this._refreshPlaceLabel?.(); } catch (_) {}
   },
 
   /** Profile of another player / vendor marker (any level) */
@@ -750,8 +789,19 @@ var MultiTile = {
 
   close() {
     this._open = false;
-    document.getElementById('multi-tile')?.classList.remove('open');
-    document.getElementById('mt-backdrop')?.classList.remove('open');
+    const tile = document.getElementById('multi-tile');
+    const back = document.getElementById('mt-backdrop');
+    tile?.classList.remove('open');
+    back?.classList.remove('open');
+    if (tile) {
+      tile.style.transform = 'translate(-50%,110%)';
+      tile.style.visibility = 'hidden';
+      tile.style.pointerEvents = 'none';
+    }
+    if (back) {
+      back.style.opacity = '0';
+      back.style.pointerEvents = 'none';
+    }
   },
 
   toggleRole(role) {
