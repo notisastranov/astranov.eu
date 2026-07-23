@@ -3,10 +3,15 @@
  * ASTRANOV AI CONTINUITY MANIFEST — read before editing or deploying
  * =============================================================================
  *
+ * SPECS (when owner/agent says "specs"):
+ *   1. SPECS.md          — unified human text at repo root
+ *   2. THIS FILE         — machine contract (window.AstranovContinuity)
+ * Keep SPECS.md in sync when features change.
+ *
  * PURPOSE
  *   Machine- and human-readable contract for what the live app MUST keep doing.
- *   New AI tools: read this file first, then the module named in each feature's
- *   `owner` field. Do not rip out patches listed under `doNotRemove`.
+ *   New AI tools: read SPECS.md + this file first, then the module named in each
+ *   feature's `owner` field. Do not rip out patches listed under `doNotRemove`.
  *
  * LIVE
  *   Site: https://astranov.eu
@@ -26,39 +31,38 @@
  * BUNDLE SPLIT
  *   astranov-app.js      (~440KB) Globe, SuperCli, LazyModules stub, boot — parse-time WebGL
  *   astranov-deferred.js (~575KB) Commerce, MapComms, CodersHub, CityMap, BrainNeurons full
- *   astranov-perf-lazy.js        Defers deferred load until SlumberManager delay OR user tap
+ *   astranov-perf-lazy.js        Defers deferred load until idle OR user tap
  *   astranov-field-hud.js        Top-right field, radar, speed, miner rig opener
  *   astranov-mpp-tile.js         MenuProfilePostTile (+ hijack, locate, video, marketplace)
  *   astranov-galactic-sky.js     Sky layer
  *
  * =============================================================================
  */
+/* SPECS: continuity source — human twin is SPECS.md at repo root */
 const AstranovContinuity = {
-  version: '20260722270000-spacenet-brain',
-  updated: '2026-07-22',
+  version: '20260720090000-os-browser',
+  updated: '2026-07-20',
+  specsHuman: 'SPECS.md',
 
   /**
    * Markdown / issues / sessions that MUST NOT drive implementation.
-   * Amnesia almost killed the project — chat is never law.
    */
   supersededDocs: {
-    authoritative: [
-      'Live index.html + js/spacenet/*',
-      'js/spacenet/brain.js (SNBrain / AstranovBrain)',
-      'astranov-continuity.js',
-      'support/PRODUCT-RULES.md',
-      'ASTRANOV_SPACENET_GUIDE.md',
-      'ASTRANOV_SPACENET_MISSION.md (vision only)',
-      'CLAUDE.md / AGENTS.md (entry only)',
+    authoritative: ['SPECS.md', 'astranov-continuity.js', 'CLAUDE.md', 'ASTRANOV_SPACENET_MISSION.md (vision only)'],
+    /** Removed from repo 2026-07-20 so agents are not confused by Claude/ChatGPT/Grok recycled specs */
+    deleted: [
+      'ASTRANOV_GROK_SPECS.md',
+      'ASTRANOV_GROK_FULL_HANDOVER.md',
+      'ASTRANOV_LIVING_TRUTH.md',
+      'ENGINEERING-ESCALATION-2026-07-05.md',
+      'index.restored.html',
+      '.grok/HELM.md',
     ],
-    deprecatedStubs: ['ASTRANOV_GROK_SPECS.md'],
-    deleted: ['ASTRANOV_GROK_FULL_HANDOVER.md', 'index.restored.html'],
     notAuthoritative: [
-      'Grok/Cursor/Claude session transcripts and compaction summaries',
+      'ChatGPT / Claude / Cursor / Grok session transcripts and compaction summaries',
       'GitHub issues #97 #99 old P0 handoff checklists',
       'scripts/patch-trackball-cli.mjs build pins (historical)',
-      'Chat-recycled “triangle of truth” (MISSION + GROK_SPECS + CLAUDE)',
-      'Any impulse to full-rewrite the live shell to chase FPS',
+      'Any chat-recycled “triangle of truth” markdown dumps',
     ],
     outdatedRules: [
       'index.html only — no new files',
@@ -66,7 +70,6 @@ const AstranovContinuity = {
       'miner-cli-strip / #aci-miner above CLI',
       '+ opens globe-super-add only',
       'LazyModules.ensure() at 400ms on boot',
-      '1MB phase/deferred packs as default boot',
     ],
   },
 
@@ -85,64 +88,6 @@ const AstranovContinuity = {
    * Features the product owner demanded — all must keep working.
    */
   features: {
-    spacenetBrain: {
-      summary:
-        'Permanent Astranov AI brain — anti-amnesia law in js/spacenet/brain.js; system prompt for freeform AI; CLI brain/verify/law; boot loads brain first',
-      owner: 'js/spacenet/brain.js',
-      selectors: [],
-      required: [
-        'window.SNBrain / AstranovBrain with systemPrompt, verify, LAW',
-        'AI freeform uses SNBrain.systemPrompt()',
-        'CLI: brain · verify · law',
-        'Boot runs SNBrain.verify after init',
-      ],
-      doNotRemove: [
-        'js/spacenet/brain.js',
-        'SNBrain.systemPrompt',
-        'SNBrain.verify',
-        'boot load order brain before ai',
-      ],
-    },
-    spacenetSacredGlobe: {
-      summary: 'Globe natural drag + inertia (velX/velY damp) + solar→global→national→city + back to Earth',
-      owner: 'js/spacenet/globe.js',
-      required: ['getPhysics()', 'velX', 'velY', 'damp ~0.88–0.94', 'goToTier'],
-      doNotRemove: ['getPhysics', 'velX', 'velY', 'damp', 'inertia loop'],
-    },
-    spacenetSacredCli: {
-      summary: 'One-finger CLI drag + free dock + pos/size persistence + expand/retract + scrollable log',
-      owner: 'js/spacenet/ui.js',
-      selectors: ['#cli-drag', '#dock'],
-      required: ['bindCliDrag', 'sn:cli-pos-v1', 'sn:cli-size-v1'],
-      doNotRemove: ['bindCliDrag', '#cli-drag', 'sn:cli-pos-v1', 'sn:cli-size-v1'],
-    },
-    spacenetJuice: {
-      summary: 'Crawlers → city maps → multi-role tiles → jobs/dates/deliveries — default engineering priority',
-      owner: 'js/spacenet/search.js + map.js + tasks.js + profiles.js + tile.js + cli.js',
-      required: [
-        'SNSearch.crawl',
-        'SNTasks create/claim/complete',
-        'SNProfiles multi-role',
-        'SNTile cover/avatar/roles/menu',
-        'city map on demand',
-      ],
-      doNotRemove: [
-        'SNSearch.crawl',
-        'job/date/deliver CLI routes',
-        'SNTasks DNA',
-        'SNProfiles',
-        'SNTile',
-        'vendor menu photo+price',
-      ],
-    },
-    spacenetMultiRoleTile: {
-      summary:
-        'One tile for social/dating/vendor/driver/client/worker — cover, avatar, role chips, vendor menus with photos+prices, cart→order→delivery',
-      owner: 'js/spacenet/tile.js + profiles.js',
-      selectors: ['#sn-tile', '#sn-plus'],
-      required: ['cover', 'avatar', 'role chips', 'menu tab', 'dating tab', 'drive tab', 'cart'],
-      doNotRemove: ['#sn-tile', '#sn-plus', 'SNTile.open', 'SNProfiles.toggleRole'],
-    },
     superAddPlus: {
       summary: '+ opens full MenuProfilePostTile (social profile field), NOT small globe-super-add deck',
       owner: 'astranov-mpp-tile.js',
@@ -396,41 +341,34 @@ const AstranovContinuity = {
    * Common mistakes that destroyed prior sessions
    */
   antiPatterns: [
-    'Stripping globe inertia / velX·velY / damp (amnesia catastrophe)',
-    'Removing one-finger CLI drag, free dock, or expand/retract',
-    'Full rewrite from zero that drops juice (crawlers/jobs/dates/delivery)',
-    'Treating chat transcripts as higher authority than SNBrain + guide',
-    'Re-enabling 1MB phase/deferred packs as default boot',
     'Reverting + to SuperAdd.showPanel / globe-super-add only',
     'Hiding #aci-locate without app-shortcut-btn pin',
     'Adding #miner-cli-strip or #aci-miner back above CLI',
     'LazyModules.ensure() at 400ms or on every FieldHud tick',
-    'Pushing index.html stub <80KB (legacy guard; lite shell is intentional exception when spacenet boot is active)',
-    'Editing globe physics without owner sign-off',
+    'Pushing index.html stub <80KB',
+    'Editing astranov-globe-physics or trackball without owner sign-off',
     'Removing stopImmediatePropagation on + fab (small deck wins race)',
     'CodersHub _pingLabs on init (6 HEAD requests slow boot)',
   ],
 
   /** Quick file → responsibility map */
   modules: {
-    'index.html': 'Live SpaceNet lite shell + CLI dock',
-    'js/spacenet/brain.js': 'Astranov permanent AI brain (anti-amnesia law)',
-    'js/spacenet/globe.js': 'Real Earth + inertia + zoom tiers',
-    'js/spacenet/ui.js': 'One-finger CLI drag + expand',
-    'js/spacenet/cli.js': 'Street CLI + juice commands',
-    'js/spacenet/search.js': 'Network crawlers',
-    'js/spacenet/map.js': 'City map on demand',
-    'js/spacenet/tasks.js': 'Jobs/dates/delivery DNA',
-    'js/spacenet/ai.js': 'Freeform AI (prompt from brain)',
-    'js/spacenet/boot.js': 'Lite boot chain',
-    'ASTRANOV_SPACENET_GUIDE.md': 'Solidified written law',
-    'support/PRODUCT-RULES.md': 'Never-forget bullets',
+    'index.html': 'Assembled shell + core modules (from index.shell.html + src/)',
+    'index.shell.html': 'Shell HTML/CSS/DOM — edit here then assemble',
+    'src/17-architect-bridge.js': 'Architect Bridge client (phone → Grok Build)',
+    'src/18-aci-coders.js': 'Grok chat + build queue; architect routes builds to Bridge',
+    'src/14-aci-cli.js': 'CLI commands including fix/code/dev/bridge',
+    'src/12-auth.js': 'Google auth · isArchitect · bridge arm on owner email',
+    'astranov-deferred.js': 'Commerce, MapComms, CodersHub, DeferredBoot (assembled deferred)',
     'astranov-continuity.js': 'AI contract — read before editing',
+    'src/08-astranov-os.js': 'Astranov OS dock + modes',
+    'src/08-astranov-browser.js': 'In-OS browser tabs + astranov://',
+    'supabase/functions/coders-bridge': 'architect_* + composer pending/answer modes',
+    'scripts/architect-bridge-watch.mjs': 'Desktop inbox for street tasks',
+    'scripts/architect-bridge-answer.mjs': 'Post fix summary back to phone',
     'scripts/guard-base.mjs': 'Pre-deploy gate',
     'scripts/owner-push.mjs': 'Silent owner git push',
-    'index.shell.html': 'Legacy shell (reference)',
-    'src/17-architect-bridge.js': 'Architect Bridge client (phone → Grok Build)',
-    'astranov-deferred.js': 'Legacy deferred packs (not default boot)',
+    'scripts/assemble.mjs': 'src/* → index.html + astranov-deferred.js',
   },
 };
 
@@ -441,51 +379,46 @@ if (typeof console !== 'undefined' && console.info) {
   console.info(
     '[AstranovContinuity]',
     AstranovContinuity.version,
-    '— read window.AstranovContinuity before editing; features:',
+    '— SPECS: SPECS.md + this object; features:',
     Object.keys(AstranovContinuity.features).join(', ')
   );
 }
 
-/* === ASTRANOV OS BOOT (single path, idle/mobile-soft) === */
-(function astranovOsBoot() {
+/* SPECS: no SpaceNet start popup — kill first-run coach if any phase still shows it */
+(function killFirstRunCoach() {
+  function hide() {
+    try {
+      window.showFirstRunCoach = function () {};
+      var el = document.getElementById('first-run-coach');
+      if (el) {
+        el.hidden = true;
+        el.style.cssText = 'display:none!important;visibility:hidden!important;pointer-events:none!important';
+        el.innerHTML = '';
+      }
+      try {
+        localStorage.setItem('astranov:coach-v3-os', '1');
+        localStorage.setItem('astranov:coach-v4-spacenet', '1');
+        localStorage.setItem('astranov:coach-disabled', '1');
+      } catch (_) {}
+    } catch (_) {}
+  }
+  hide();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hide);
+  setTimeout(hide, 200);
+  setTimeout(hide, 1000);
+  setTimeout(hide, 2500);
+})();
+
+/* === ASTRANOV OS BOOT (single path — defer to astranov-os-boot.js if present) === */
+(function astranovOsBootFromContinuity() {
+  // Avoid double-load thrash: full shell and entry already schedule os-boot
   if (window.__ASTRANOV_OS_BOOT__) return;
-  // Progressive index boot owns OS; continuity only fills if still unset after features
-  var build = (document.querySelector('meta[name="astranov-build"]') || {}).content || '0';
-  function load(src) {
-    return new Promise(function (resolve) {
-      if (document.querySelector('script[data-astranov-os="' + src + '"]')) return resolve();
-      var s = document.createElement('script');
-      s.src = src + (src.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent(build);
-      s.async = true;
-      s.dataset.astranovOs = src;
-      s.onload = function () { resolve(); };
-      s.onerror = function () { resolve(); };
-      document.head.appendChild(s);
-    });
-  }
-  function initOnce() {
-    if (window.__ASTRANOV_OS_INIT__) return;
-    window.__ASTRANOV_OS_INIT__ = 1;
-    try { if (window.AstranovOS) AstranovOS.init(); } catch (e) { console.warn('[os]', e); }
-    try { if (window.AstranovBrowser) AstranovBrowser.init(); } catch (e) { console.warn('[browser]', e); }
-  }
-  function run() {
-    if (window.__ASTRANOV_OS_BOOT__) return;
-    window.__ASTRANOV_OS_BOOT__ = 1;
-    var mobile = !!(window._globePerfLite || window._spartan);
-    var delay = mobile ? 8000 : 2500;
-    var kick = function () {
-      Promise.all([
-        load('/js/08-astranov-os.js'),
-        load('/js/08-astranov-browser.js'),
-      ]).then(function () { initOnce(); });
-    };
-    if (typeof requestIdleCallback === 'function') {
-      setTimeout(function () { requestIdleCallback(kick, { timeout: delay + 2000 }); }, delay);
-    } else {
-      setTimeout(kick, delay);
-    }
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
-  else run();
+  if (document.querySelector('script[src*="astranov-os-boot"]')) return;
+  if (document.querySelector('script[src*="08-astranov-os"]')) return;
+  var s = document.createElement('script');
+  s.src = '/js/astranov-os-boot.js?v=' + encodeURIComponent(
+    (document.querySelector('meta[name="astranov-build"]') || {}).content || '0'
+  );
+  s.async = true;
+  (document.head || document.documentElement).appendChild(s);
 })();
