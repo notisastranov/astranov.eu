@@ -1,7 +1,7 @@
 // Globe gestures — primary UI (Google Earth / Maps style). CLI is secondary.
 const canvas = renderer.domElement;
 // Stronger drag — 0.0028 felt like the globe was glued down
-const TRACK_SENS = 0.0062;
+const TRACK_SENS = 0.0026;
 const ZOOM_MIN = 1.05;
 const ZOOM_MAX = 18;
 const ZOOM_SMOOTH = 0.11;
