@@ -213,7 +213,7 @@ html, body {
 #cli-ribbon-status.ready { color: var(--ok); }
 #cli-ribbon-status.alert { color: var(--err); }
 #super-cli-edge-right {
-  display: flex; align-items: center; gap: 4px; margin-left: auto; flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0;
 }
 #super-cli-bar button,
 #super-cli-edge-right button {
@@ -230,13 +230,49 @@ html, body {
   font: 700 12px var(--mono); color: var(--text-hot);
   background: rgba(30, 60, 100, 0.45); border-color: var(--line-hot);
 }
-#globe-deck-send.cli-send-top {
-  min-width: 52px; width: auto; height: 30px; padding: 0 12px;
-  border-radius: 8px; border: 1px solid var(--line-hot);
-  background: rgba(24, 52, 96, 0.65); color: var(--text-hot);
-  font: 600 11px var(--mono); letter-spacing: 0.04em; text-transform: uppercase;
+/* ── Astranov SpaceNet CLI icons (custom glyphs, big & clear) ── */
+#super-cli-edge-right .sn-btn {
+  width: 42px; height: 42px; padding: 0;
+  flex-direction: column; gap: 1px;
+  border-radius: 10px; border: 1px solid var(--line-hot);
+  background: linear-gradient(180deg, rgba(16, 36, 64, 0.9), rgba(4, 12, 24, 0.95));
+  box-shadow: 0 0 12px rgba(24, 64, 120, 0.25), inset 0 1px 0 rgba(120, 160, 220, 0.08);
+  color: var(--text-hot);
 }
-#aci-handsfree { font-size: 14px; }
+#super-cli-edge-right .sn-btn:hover {
+  border-color: var(--accent-hot);
+  box-shadow: 0 0 16px var(--glow);
+}
+#super-cli-edge-right .sn-btn:active { transform: scale(0.94); }
+#super-cli-edge-right .sn-btn .sn-ico {
+  width: 24px; height: 24px; display: block;
+  flex-shrink: 0;
+}
+#super-cli-edge-right .sn-btn .sn-ico svg {
+  width: 100%; height: 100%; display: block;
+}
+#super-cli-edge-right .sn-btn .sn-lab {
+  font: 700 8px/1 var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-top: 1px;
+}
+#super-cli-edge-right .sn-btn:hover .sn-lab { color: var(--text-hot); }
+#globe-deck-send.cli-send-top.sn-btn {
+  min-width: 42px; width: 42px; height: 42px; padding: 0;
+  text-transform: none; letter-spacing: 0;
+}
+#aci-handsfree.sn-btn.listening,
+#aci-handsfree.sn-btn.deck-btn-active {
+  border-color: var(--ok);
+  box-shadow: 0 0 14px rgba(61, 154, 106, 0.45);
+}
+#aci-handsfree.sn-btn.listening .sn-lab { color: var(--ok); }
+#aci-locate.sn-btn.deck-btn-active {
+  border-color: var(--ok);
+  box-shadow: 0 0 14px rgba(61, 154, 106, 0.4);
+}
 #aci-bridge[hidden], #aci-video-call[hidden], #super-add-fab[hidden],
 #super-add-fab:not(.offer-plus) {
   display: none !important; width: 0 !important; height: 0 !important;
