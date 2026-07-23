@@ -66,44 +66,61 @@ var CityMap = {
     if (!this.map || this.map._placeClickBound) return;
     this.map._placeClickBound = true;
     // Single click → radar search around place (CLI guides e.g. pharmacy)
-    // Long press → MultiTile (profile / vendor / driver / post)
+    
+    /* SPECS: long-press city map → MultiTile any time map active */
     let pressTimer = null;
     let pressLatLng = null;
+    let pressXY = null;
     let longFired = false;
     const clearPress = () => {
       if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
     };
+    const fireLong = (latlng, src) => {
+      longFired = true;
+      clearPress();
+      if (!latlng) return;
+      const open = () => {
+        try {
+          MultiTile.init?.();
+          MultiTile.openAt?.(latlng.lat, latlng.lng, { source: src || 'long-press-city', tier: 'city' });
+        } catch (e) { console.warn('[city long-press]', e); }
+      };
+      if (!window.MultiTile?.openAt) {
+        const sc = document.createElement('script');
+        sc.src = '/js/62-multi-tile.js?v=' + Date.now();
+        sc.onload = open;
+        document.head.appendChild(sc);
+      } else open();
+    };
     this.map.on('mousedown', (e) => {
-      if (!this.active) return;
+      if (!this.active || (e.originalEvent && e.originalEvent.button !== 0)) return;
       longFired = false;
       pressLatLng = e.latlng;
+      pressXY = e.containerPoint || null;
       clearPress();
-      pressTimer = setTimeout(() => {
-        longFired = true;
-        if (pressLatLng) {
-          MultiTile?.openAt?.(pressLatLng.lat, pressLatLng.lng, { source: 'long-press' });
-        }
-      }, 480);
+      pressTimer = setTimeout(() => fireLong(pressLatLng, 'long-press-city-mouse'), 420);
     });
     this.map.on('mouseup', () => clearPress());
-    this.map.on('mousemove', () => { /* drag cancels long-press */ });
+    this.map.on('mousemove', (e) => {
+      if (!pressTimer || !pressXY || !e.containerPoint) return;
+      if (e.containerPoint.distanceTo(pressXY) > 18) clearPress();
+    });
     this.map.on('dragstart', () => { clearPress(); longFired = false; });
     this.map.on('touchstart', (e) => {
       if (!this.active) return;
-      const t = e.originalEvent?.touches?.[0];
-      if (!t || (e.originalEvent.touches.length > 1)) return;
+      const tch = e.originalEvent?.touches?.[0];
+      if (!tch || (e.originalEvent.touches.length > 1)) return;
       longFired = false;
       pressLatLng = e.latlng;
+      pressXY = e.containerPoint || null;
       clearPress();
-      pressTimer = setTimeout(() => {
-        longFired = true;
-        if (pressLatLng) {
-          MultiTile?.openAt?.(pressLatLng.lat, pressLatLng.lng, { source: 'long-press' });
-        }
-      }, 480);
+      pressTimer = setTimeout(() => fireLong(pressLatLng, 'long-press-city-touch'), 420);
     }, { passive: true });
     this.map.on('touchend', () => clearPress());
-    this.map.on('touchmove', () => clearPress());
+    this.map.on('touchmove', (e) => {
+      if (!pressTimer || !pressXY || !e.containerPoint) return;
+      if (e.containerPoint.distanceTo(pressXY) > 18) clearPress();
+    });
     this.map.on('click', (e) => {
       if (!this.active) return;
       if (longFired) {
