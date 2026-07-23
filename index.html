@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="description" content="Astranov — SpaceNet Global Internet OS" />
 <title>Astranov</title>
-<meta name="astranov-build" content="20260723342000" />
+<meta name="astranov-build" content="20260723343000" />
 <meta name="astranov-mode" content="product-clean" />
 <meta name="theme-color" content="#000000" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -47,19 +47,52 @@ html, body {
   overflow: hidden; background: var(--void); color: var(--text);
   font-family: var(--ui); -webkit-tap-highlight-color: transparent;
 }
-/* ── Boot ── */
+/* ── Boot / splash ── */
 #boot {
   position: fixed; inset: 0; z-index: 99999;
   display: grid; place-items: center;
   background: var(--void); color: var(--text-dim);
-  font: 13px/1.4 var(--mono);
+  font: 13px/1.4 var(--ui);
 }
-#boot b {
-  display: block; letter-spacing: 0.35em; text-indent: 0.35em;
-  color: var(--accent-hot); font-size: 14px; margin-bottom: 10px;
-  text-shadow: 0 0 20px var(--glow);
+#boot .boot-inner {
+  display: flex; flex-direction: column; align-items: center; gap: 18px;
+  text-align: center; padding: 24px;
 }
-#boot p { margin: 0; opacity: 0.75; font-size: 12px; }
+#boot .boot-mark {
+  margin: 0; letter-spacing: 0.38em; text-indent: 0.38em;
+  color: var(--accent-hot); font: 600 15px/1 var(--ui);
+  text-transform: uppercase; text-shadow: 0 0 22px var(--glow);
+}
+#boot .boot-vector {
+  width: 56px; height: 56px; display: block;
+  filter: drop-shadow(0 0 12px var(--glow));
+}
+#boot .boot-vector .orbit {
+  fill: none; stroke: var(--accent-hot); stroke-width: 1.6;
+  stroke-linecap: round; opacity: 0.85;
+  stroke-dasharray: 28 48;
+  transform-origin: 28px 28px;
+  animation: boot-spin 1.1s linear infinite;
+}
+#boot .boot-vector .core {
+  fill: var(--accent); opacity: 0.9;
+  animation: boot-pulse 1.4s ease-in-out infinite;
+}
+#boot .boot-vector .ring {
+  fill: none; stroke: rgba(48, 88, 140, 0.45); stroke-width: 1;
+}
+@keyframes boot-spin { to { transform: rotate(360deg); } }
+@keyframes boot-pulse {
+  0%, 100% { opacity: 0.55; r: 3.5; }
+  50% { opacity: 1; r: 4.5; }
+}
+#boot .boot-status {
+  margin: 0; min-height: 1.2em;
+  font: 11px/1.4 var(--mono); color: var(--text-dim);
+  letter-spacing: 0.06em;
+}
+#boot.boot-fail .boot-vector { animation: none; opacity: 0.4; }
+#boot.boot-fail .boot-status { color: var(--err); }
 /* ── Globe / map ── */
 #globe {
   position: absolute; inset: 0; z-index: 2; touch-action: none; background: var(--void);
@@ -310,7 +343,7 @@ body.cli-offer-plus #super-add-fab.offer-plus {
       window._spartan = true;
     }
   } catch (e) {}
-  var BUILD = '20260723342000';
+  var BUILD = '20260723343000';
   window._bootAt = Date.now();
   window._spartan = true;
   window.__ASTRANOV_HARD_BOOT__ = 1;
@@ -343,6 +376,12 @@ body.cli-offer-plus #super-add-fab.offer-plus {
       return p.catch(function () { return load(src); });
     }, Promise.reject(new Error('empty')));
   }
+  function setBootStatus(t) {
+    try {
+      var s = document.getElementById('boot-status');
+      if (s) s.textContent = t || '';
+    } catch (e) {}
+  }
   function done() {
     try {
       var b = document.getElementById('boot');
@@ -352,32 +391,40 @@ body.cli-offer-plus #super-add-fab.offer-plus {
   function fail(m) {
     try {
       var el = document.getElementById('boot');
-      if (el) {
-        el.innerHTML = '<div><b>ASTRANOV</b><p>' + String(m || 'Boot failed') +
-          '</p><p style="opacity:.65;font-size:11px;margin-top:8px">Tap logo to reload</p></div>';
-      }
+      if (!el) return;
+      el.classList.add('boot-fail');
+      setBootStatus(String(m || 'Boot failed') + ' — tap logo to reload');
     } catch (e) {}
   }
 
   /* Never leave black overlay forever */
-  setTimeout(function () { if (document.getElementById('boot')) done(); }, 8000);
+  setTimeout(function () { if (document.getElementById('boot')) done(); }, 10000);
+  setBootStatus('Loading');
 
+  setBootStatus('Engine');
   load('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js')
     .catch(function () {
       return load('https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js');
     })
-    .then(function () { return load('/js/phase-critical.js'); })
+    .then(function () {
+      setBootStatus('Globe');
+      return load('/js/phase-critical.js');
+    })
     .then(function () {
       try {
         if (typeof __astranovBootCritical === 'function') __astranovBootCritical();
       } catch (e) { console.error('[boot critical]', e); }
+      setBootStatus('Ready');
       done();
       return loadSoft('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js');
     })
     .then(function () {
       return loadSoft('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js');
     })
-    .then(function () { return load('/js/phase-app.js'); })
+    .then(function () {
+      setBootStatus('App');
+      return load('/js/phase-app.js');
+    })
     .then(function () {
       try {
         if (typeof __astranovBootApp === 'function') __astranovBootApp();
@@ -429,16 +476,28 @@ body.cli-offer-plus #super-add-fab.offer-plus {
     })
     .catch(function (e) {
       console.error(e);
-      fail((e && e.message) || 'Boot failed');
-      done();
+      fail('Boot failed');
+      /* keep splash with fail state — user can tap logo; still clear after timeout */
+      setTimeout(done, 4000);
     });
 })();
 </script>
-<script defer src="/astranov-continuity.js?v=20260723342000"></script>
-<script defer src="/astranov-perf-lazy.js?v=20260723342000"></script>
+<script defer src="/astranov-continuity.js?v=20260723343000"></script>
+<script defer src="/astranov-perf-lazy.js?v=20260723343000"></script>
 </head>
 <body>
-<div id="boot"><div><b>ASTRANOV</b><p>Earth</p></div></div>
+<div id="boot" aria-busy="true" aria-live="polite">
+  <div class="boot-inner">
+    <p class="boot-mark">ASTRANOV</p>
+    <svg class="boot-vector" viewBox="0 0 56 56" width="56" height="56" aria-hidden="true">
+      <circle class="ring" cx="28" cy="28" r="22"/>
+      <circle class="orbit" cx="28" cy="28" r="22"/>
+      <circle class="core" cx="28" cy="28" r="4"/>
+      <circle class="ring" cx="28" cy="28" r="10" opacity="0.5"/>
+    </svg>
+    <p class="boot-status" id="boot-status">Loading</p>
+  </div>
+</div>
 
 <button id="astranov-logo" type="button" title="Hard reset" aria-label="ASTRANOV hard reset reload">
   <canvas id="astranov-logo-wave" aria-hidden="true"></canvas>
