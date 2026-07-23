@@ -356,14 +356,17 @@ const AstranovContinuity = {
       selectors: ['#super-cli-bar', '#os-cli-handle', '#globe-deck', '#globe-deck-header', '#aci-cli-prompt', '#globe-deck-log'],
       forbidden: ['#os-dock floating bar', '#aci-bar dual chrome', '#app-shortcut-row as separate bar', '#news-ticker strip'],
       behavior: [
-        'Astranov CLI is a fork of Grok Build — look like this agent TUI (mono log, left accents, › prompt)',
+        'Astranov CLI is a fork of Grok Build — look AND work like this agent',
         'Layout: #globe-deck-header → #super-cli-bar → #globe-deck-log → › + #aci-cli-in',
+        'Agent turn: › user → thinking → ◆ tools → reply; slash /help /clear /status /doctor /fix…',
+        'Keys: Enter send, Shift+Enter newline, ↑↓ history, Ctrl+K clear',
+        'Parity: js/90-grok-cli-parity.js after delivery-dna',
         'data-cli=grok-build-fork on #globe-deck',
         'OS apps mount into #os-cli-handle inside #super-cli-bar',
         '#os-dock must stay display:none / removed',
         'chromeGuard keeps aci-bar / news / resource-monitor / first-run-coach off',
       ],
-      doNotRemove: ['os-cli-handle', 'super-cli-bar', 'chromeGuard-product', 'aci-cli-prompt', 'globe-deck-header'],
+      doNotRemove: ['os-cli-handle', 'super-cli-bar', 'chromeGuard-product', 'aci-cli-prompt', 'globe-deck-header', '90-grok-cli-parity'],
     },
 
     astranovTheme: {
