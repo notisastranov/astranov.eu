@@ -374,10 +374,13 @@ const GlobeDeck = {
 
   showError(msg) {
     this._userEngaged = true;
-    this.expand('Error');
-    this.log(msg, 'err');
-    this.setPreview(msg);
-    this.ping();
+    // SPECS: errors join CLI activity scroll — no fixed red bar
+    try { document.getElementById('astranov-hard-error')?.remove?.(); } catch (_) {}
+    this.expand('Activity');
+    this.log('⚠ ' + String(msg || 'error'), 'err');
+    try { AciCli?.print?.('⚠ ' + String(msg || 'error'), 'err'); } catch (_) {}
+    try { ActivityLog?.error?.(msg); } catch (_) {}
+    this.setPreview(String(msg || 'error').slice(0, 80));
   },
 
   clearLog() {
