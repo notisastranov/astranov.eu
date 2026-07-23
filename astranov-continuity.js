@@ -40,7 +40,7 @@
  */
 /* SPECS: continuity source — human twin is SPECS.md at repo root */
 const AstranovContinuity = {
-  version: '20260723140000-specs-bridge',
+  version: '20260723150000-cli-handle-theme',
   updated: '2026-07-23',
   specsHuman: 'SPECS.md',
 
@@ -293,17 +293,43 @@ const AstranovContinuity = {
       doNotRemove: ['spawnAstranovFlyer', 'flyAstranovTo', 'AstranovFlyer'],
     },
 
-    astranovOS: {
-      summary: 'Multi-device web OS shell — Earth desktop + dock + system panel',
-      owner: 'src/08-astranov-os.js',
-      selectors: ['#astranov-os-root', '#os-dock', '#os-surface'],
+    cliHandleOnly: {
+      summary: 'ONE chrome surface: CLI top handle holds all buttons — no second bar above CLI',
+      owner: 'js/08-astranov-os.js + index.html',
+      selectors: ['#super-cli-bar', '#os-cli-handle', '#globe-deck'],
+      forbidden: ['#os-dock floating bar', '#aci-bar dual chrome', '#app-shortcut-row as separate bar', '#news-ticker strip'],
       behavior: [
-        'Dock always available after features boot: Earth, Browser, Locate, Market, AI, Create, System',
+        'OS apps mount into #os-cli-handle inside #super-cli-bar',
+        '#os-dock must stay display:none / removed',
+        'chromeGuard keeps aci-bar / news / resource-monitor / first-run-coach off',
+      ],
+      doNotRemove: ['os-cli-handle', 'super-cli-bar', 'chromeGuard-product'],
+    },
+
+    astranovTheme: {
+      summary: 'Astranov look: round corners + deep glowing blue accents/logo',
+      owner: 'js/08-astranov-os.js CSS tokens + index :root',
+      tokens: ['--ax-blue #1a6fd4', '--ax-blue-bright #3d9eff', '--ax-blue-glow', '--an-radius 16px', '--an-radius-pill'],
+      behavior: [
+        'Product chrome uses deep blue glow borders/shadows, not flat grey',
+        'Buttons and panels use round / pill radii',
+        'Status wordmark ASTRANOV uses glowing blue',
+      ],
+      doNotRemove: ['--ax-blue', '--an-radius', 'astranov-os-css'],
+    },
+
+    astranovOS: {
+      summary: 'Multi-device web OS — Earth desktop; controls on CLI handle (never floating dock)',
+      owner: 'js/08-astranov-os.js',
+      selectors: ['#astranov-os-root', '#os-cli-handle', '#os-surface'],
+      behavior: [
+        'Apps on CLI handle: Earth, Browser, Locate, Market, AI, Create, System',
+        'NO floating #os-dock above CLI (owner rejected second button bar)',
         'Touch devices default conserve/lite power via SlumberManager',
         'Globe remains primary home surface (SpaceNet primacy)',
         'PWA install tips in System; Escape returns home',
       ],
-      doNotRemove: ['AstranovOS', 'os-dock', 'setMode'],
+      doNotRemove: ['AstranovOS', 'os-cli-handle', 'setMode'],
     },
 
     astranovBrowser: {
