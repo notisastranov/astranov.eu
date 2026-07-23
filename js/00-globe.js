@@ -301,7 +301,7 @@ const GlobeControl = {
     this._lastAutoFly = Date.now();
   },
 
-  Z: { global: 3.65, national: 2.05, regional: 1.72, city: 1.42 },
+  Z: { global: 3.65, national: 2.15, regional: 1.78, city: 1.45 },
 
   /** Z depth that activates the flat city map (explicit city entry only) */
   cityEntryZ() {
