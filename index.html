@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="description" content="Astranov Global Internet OS: Earth globe, city maps, shops, delivery, discovery." />
 <title>Astranov — Global Internet OS</title>
-<meta name="astranov-build" content="20260723240000" />
+<meta name="astranov-build" content="20260723250000" />
 <meta name="astranov-mode" content="product-spartanized" />
 <meta name="robots" content="index,follow" />
 <meta name="theme-color" content="#0a1020" />
@@ -153,6 +153,22 @@ body.city-map-active #city-map,
   border:1px solid rgba(61,158,255,0.45)!important;
   box-shadow:0 0 10px rgba(26,111,212,0.3)!important;
 }
+
+/* SPECS: no sticky red error bars — errors live in CLI scroll */
+#astranov-hard-error,.astranov-fatal-error,.boot-fatal{display:none!important;visibility:hidden!important;height:0!important;opacity:0!important;pointer-events:none!important}
+#globe-deck.expanded #globe-deck-body{display:flex!important;flex-direction:column;min-height:120px;max-height:40vh}
+#globe-deck-log{flex:1;overflow-y:auto;min-height:60px;padding:6px 10px;font:12px/1.4 ui-monospace,monospace}
+#globe-deck-log .deck-err{color:#ff6b7a;text-shadow:0 0 8px rgba(255,60,80,.45)}
+#globe-deck-log .deck-ok{color:#6dffb0}
+#globe-deck-log .deck-dim{color:rgba(160,190,220,.7)}
+
+/* SPECS: no sticky red error bars — errors live in CLI scroll */
+#astranov-hard-error,.astranov-fatal-error,.boot-fatal,#astranov-hard-error-disabled{display:none!important;visibility:hidden!important;height:0!important;opacity:0!important;pointer-events:none!important}
+#globe-deck.expanded #globe-deck-body{display:flex!important;flex-direction:column;min-height:120px;max-height:42vh}
+#globe-deck-log{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:72px;padding:6px 10px;font:12px/1.4 ui-monospace,monospace}
+#globe-deck-log .deck-err{color:#ff6b7a;text-shadow:0 0 8px rgba(255,60,80,.45)}
+#globe-deck-log .deck-ok{color:#6dffb0}
+#globe-deck-log .deck-dim{color:rgba(160,190,220,.7)}
 </style>
 <script>(function(){
   try{if(matchMedia('(pointer:coarse)').matches||navigator.maxTouchPoints>0){window._globePerfLite=true;window._spartan=true;}}catch(e){}
@@ -178,8 +194,8 @@ body.city-map-active #city-map,
   .then(function(){try{if(window.AstranovOS)AstranovOS.init();}catch(e){}try{if(window.AstranovBrowser)AstranovBrowser.init();}catch(e){}var delay=window._globePerfLite?5000:2200;setTimeout(function(){if(window.LazyModules&&LazyModules.schedule)LazyModules.schedule();else{var d=document.createElement('script');d.src='/astranov-deferred.js?v='+BUILD;d.async=true;document.head.appendChild(d);}},delay);})
   .catch(function(e){fail('Boot failed');console.error(e);});
 })();</script>
-<script defer src="/astranov-continuity.js?v=20260723240000"></script>
-<script defer src="/astranov-perf-lazy.js?v=20260723240000"></script>
+<script defer src="/astranov-continuity.js?v=20260723250000"></script>
+<script defer src="/astranov-perf-lazy.js?v=20260723250000"></script>
 </head>
 <body>
 <div id="boot"><div><b>ASTRANOV</b><p>Earth?/p></div></div>
