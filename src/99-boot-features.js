@@ -22,6 +22,7 @@ window.__astranovBootFeatures = function __astranovBootFeatures() {
   });
   soft('SpaceNetCM', () => SpaceNetCM?.init?.());
   soft('CoreBrain', () => AstranovCoreBrain?.init?.());
+  soft('DeliveryDNA', () => DeliveryDNA?.init?.());
   soft('Logo', () => AstranovLogo?.init?.());
   soft('Shortcuts', () => {
     try { AppShortcuts?.init?.(); } catch (_) {}
@@ -61,11 +62,9 @@ window.__astranovBootFeatures = function __astranovBootFeatures() {
       const el = document.getElementById('first-run-coach');
       if (el) { el.hidden = true; el.style.display = 'none'; el.innerHTML = ''; }
       localStorage.setItem('astranov:coach-v3-os', '1');
-      localStorage.setItem('astranov:coach-v4-spacenet', '1');
       localStorage.setItem('astranov:coach-disabled', '1');
     } catch (_) {}
   };
-  /* first-run coach disabled */
 
   window._astranovFeaturesReady = true;
   document.documentElement.dataset.astranovPhase = 'features';
