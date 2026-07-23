@@ -3,7 +3,8 @@
  * Buttons needed live only in the CLI top handle (#super-cli-bar / #os-cli-handle).
  * Theme: Astranov deep glowing blue + round corners (SPECS.md §3.10, §3.16, §3.18).
  */
-const AstranovOS = {
+window.AstranovOS = window.AstranovOS || {};
+window.AstranovOS = {
   version: '20260723-cli-handle',
   mode: 'home',
   _inited: false,
@@ -471,4 +472,3 @@ body.os-mode-browser #super-cli-bar,body.os-mode-browser #globe-deck,body.os-mod
   },
 };
 
-window.AstranovOS = AstranovOS;
