@@ -40,11 +40,17 @@
  */
 /* SPECS: continuity source — human twin is SPECS.md at repo root */
 const AstranovContinuity = {
-  version: '20260723190000-map-places',
+  version: '20260723340000-clean-shell',
   updated: '2026-07-23',
   specsHuman: 'SPECS.md',
   /** Owner rule: every product change updates SPECS.md + this object in the same deploy. */
   specsPolicy: 'always-update-SPECS-with-code',
+  shell: {
+    summary: 'Clean deep-space shell — void black, navy glass, steel text; no pastel cyan; no corrupt CSS',
+    build: '20260723340000',
+    palette: ['--void #000', '--ink #02060c', '--text #b8c4d4', '--accent #1e4d8c', '--accent-hot #3d6eb0'],
+    forbidden: ['pastel cyan floods', 'orphan #8ab CSS', 'coders-continuation chrome', 'permanent +', 'os-dock', 'first-run-coach'],
+  },
   cliActivityLog: {
     rule: 'USE THE CLI — GlobeDeck.log / AciCli.print / ActivityLog only',
     summary: 'All errors and task activity log to CLI scroll — never sticky red bars',
@@ -373,20 +379,20 @@ const AstranovContinuity = {
     },
 
     astranovTheme: {
-      summary: 'Grok TUI tokens + Astranov deep glowing blue glass',
-      owner: 'index.html product CLI styles + js/08-astranov-os.js',
+      summary: 'Deep space void + navy glass (NOT light cyan) · Grok TUI density',
+      owner: 'index.html clean shell tokens',
       tokens: [
-        '--ax-blue #1a6fd4', '--ax-blue-bright #3d9eff', '--ax-blue-glow',
-        '--grok-mono', '--grok-accent-user #7aa2f7', '--grok-accent-assistant #3d9eff',
-        '--grok-accent-err #f7768e', '--grok-accent-ok #9ece6a', '--grok-accent-think #2ac3de',
+        '--void #000000', '--ink #02060c', '--text #b8c4d4', '--text-dim #5a6a7e',
+        '--accent #1e4d8c', '--accent-hot #3d6eb0', '--glow rgba(24,64,120,0.4)',
+        '--user #5a7ab0', '--ok #3d9a6a', '--err #c44a5a', '--mono',
       ],
       behavior: [
-        'CLI scrollback uses left accent bars (Grok block stream)',
-        'Prompt shows › prefix; mono font on log + input',
-        'Handle buttons 8px rounded rects; deck glass deep blue glow',
-        'Status wordmark ASTRANOV uses glowing blue',
+        'Void black page; steel text; deep navy accents only',
+        'No pastel #3d9eff floods / no #8ab orphan CSS / no coders lab cards',
+        'CLI: left accent bars, › prompt, 8px handle buttons, dark glass',
+        'Logo pill uses accent-hot + soft glow',
       ],
-      doNotRemove: ['--ax-blue', '--grok-mono', '--grok-accent-user', 'astranov-os-css'],
+      doNotRemove: ['--void', '--accent', '--mono', 'clean-shell'],
     },
 
     astranovOS: {
