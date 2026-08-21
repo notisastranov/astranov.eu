@@ -87,5 +87,29 @@
       silenceSpeech();
   }, 4000);
 
+  /* load P1 guest first-run */
+  (function () {
+    if (global.__snP1Load) return;
+    global.__snP1Load = 1;
+    var src = '/js/spacenet/chrome-p1-first-run.js';
+    try {
+      var b = (document.querySelector('meta[name="astranov-build"]') || {}).content || '';
+      if (b) src += '?v=' + encodeURIComponent(b);
+    } catch (_) {}
+    fetch(src, { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
+      .then(function (code) {
+        var s = document.createElement('script');
+        s.text = code;
+        document.head.appendChild(s);
+      })
+      .catch(function () {
+        var s = document.createElement('script');
+        s.async = true;
+        s.src = src;
+        document.head.appendChild(s);
+      });
+  })();
+
   global.SNChromeMute = { build: BUILD, silence: silenceSpeech };
 })(typeof window !== 'undefined' ? window : globalThis);
