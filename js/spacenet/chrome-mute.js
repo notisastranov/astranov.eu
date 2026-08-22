@@ -1,17 +1,14 @@
-/* Astranov mute · Build 20260811223000
- * Kill alert beeps, oscillator spam, auto speechSynthesis noise.
- * SpeechRecognition on Android often triggers keyboard/system beeps — we soft-gate restarts.
+/* Astranov mute · Build 20260822060000
+ * Kill beeps + load guest-pass-20260822 (live guest CLI/mind/CTA fixes).
  */
 (function (global) {
   'use strict';
-  var BUILD = '20260811223000-mute';
+  var BUILD = '20260822060000-mute-guest-pass';
   global.__SN_MUTE_ALERTS = true;
   global.__SN_MUTE_BEEPS = true;
 
   function silenceSpeech() {
-    try {
-      if (global.speechSynthesis) global.speechSynthesis.cancel();
-    } catch (_) {}
+    try { if (global.speechSynthesis) global.speechSynthesis.cancel(); } catch (_) {}
   }
 
   function patchAudio() {
@@ -26,10 +23,8 @@
             var start = osc.start.bind(osc);
             osc.start = function () {
               if (global.__SN_MUTE_BEEPS) {
-                try {
-                  osc.frequency.value = 0;
-                } catch (_) {}
-                return; // swallow beep
+                try { osc.frequency.value = 0; } catch (_) {}
+                return;
               }
               return start.apply(osc, arguments);
             };
@@ -49,14 +44,10 @@
     } catch (_) {}
   }
 
-  /** Soft-gate aggressive handsfree restarts that beep on Android */
   function softGateHandsfree() {
     try {
       if (!global.SNCli || SNCli.__snBeepGate) return;
       SNCli.__snBeepGate = true;
-      // Prefer text when silver is active unless user forced voice
-      var desc = Object.getOwnPropertyDescriptor(SNCli, 'toggleHandsfree');
-      // wrap if function exists
       if (typeof SNCli.toggleHandsfree === 'function') {
         var prev = SNCli.toggleHandsfree.bind(SNCli);
         SNCli.toggleHandsfree = function () {
@@ -67,11 +58,27 @@
     } catch (_) {}
   }
 
+  function loadGuestPass() {
+    try {
+      if (global.SNGuestPass0822) return;
+      if (document.querySelector('script[data-sn-guest-pass-0822]')) return;
+      var s = document.createElement('script');
+      s.src = '/js/spacenet/chrome-guest-pass-20260822.js?v=' + BUILD;
+      s.async = true;
+      s.setAttribute('data-sn-guest-pass-0822', '1');
+      s.onerror = function () {
+        try { console.warn('[chrome-mute] guest-pass miss'); } catch (_) {}
+      };
+      (document.head || document.documentElement).appendChild(s);
+    } catch (_) {}
+  }
+
   function boot() {
     patchAudio();
     silenceSpeech();
     patchFieldAlerts();
     softGateHandsfree();
+    loadGuestPass();
   }
 
   boot();
@@ -80,12 +87,10 @@
     patchAudio();
     patchFieldAlerts();
     softGateHandsfree();
-    if (
-      global.__SN_MUTE_ALERTS &&
-      !(global.SNCli && (SNCli.handsfreeOn || SNCli.hfTtsActive))
-    )
-      silenceSpeech();
+    if (global.__SN_MUTE_ALERTS && !(global.SNCli && (SNCli.handsfreeOn || SNCli.hfTtsActive))) silenceSpeech();
   }, 4000);
+  setTimeout(loadGuestPass, 1200);
+  setTimeout(loadGuestPass, 4000);
 
-  global.SNChromeMute = { build: BUILD, silence: silenceSpeech };
+  global.SNChromeMute = { build: BUILD, silence: silenceSpeech, loadGuestPass: loadGuestPass };
 })(typeof window !== 'undefined' ? window : globalThis);
