@@ -29,7 +29,7 @@
                 try {
                   osc.frequency.value = 0;
                 } catch (_) {}
-                return; // swallow beep
+                return;
               }
               return start.apply(osc, arguments);
             };
@@ -49,14 +49,10 @@
     } catch (_) {}
   }
 
-  /** Soft-gate aggressive handsfree restarts that beep on Android */
   function softGateHandsfree() {
     try {
       if (!global.SNCli || SNCli.__snBeepGate) return;
       SNCli.__snBeepGate = true;
-      // Prefer text when silver is active unless user forced voice
-      var desc = Object.getOwnPropertyDescriptor(SNCli, 'toggleHandsfree');
-      // wrap if function exists
       if (typeof SNCli.toggleHandsfree === 'function') {
         var prev = SNCli.toggleHandsfree.bind(SNCli);
         SNCli.toggleHandsfree = function () {
@@ -86,6 +82,30 @@
     )
       silenceSpeech();
   }, 4000);
+
+  /* load P0 research+call wire */
+  (function () {
+    if (global.__snRCLoad) return;
+    global.__snRCLoad = 1;
+    var src = '/js/spacenet/chrome-research-call.js';
+    try {
+      var b = (document.querySelector('meta[name="astranov-build"]') || {}).content || '';
+      if (b) src += '?v=' + encodeURIComponent(b);
+    } catch (_) {}
+    fetch(src, { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
+      .then(function (code) {
+        var s = document.createElement('script');
+        s.text = code;
+        document.head.appendChild(s);
+      })
+      .catch(function () {
+        var s = document.createElement('script');
+        s.async = true;
+        s.src = src;
+        document.head.appendChild(s);
+      });
+  })();
 
   global.SNChromeMute = { build: BUILD, silence: silenceSpeech };
 })(typeof window !== 'undefined' ? window : globalThis);
