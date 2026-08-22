@@ -1,10 +1,14 @@
-/* Astranov mute · Build 20260811223000
+/* Astranov mute · Build 20260822060000
  * Kill alert beeps, oscillator spam, auto speechSynthesis noise.
  * SpeechRecognition on Android often triggers keyboard/system beeps — we soft-gate restarts.
+ * LOADS: chrome-cli-answer (P0 what-is-astranov stay-globe) +
+ *        chrome-p1-first-run + chrome-research-call +
+ *        chrome-guest-order-gate + chrome-live-delivery
+ * Twin CLIs locked. Currency ⭐.
  */
 (function (global) {
   'use strict';
-  var BUILD = '20260811223000-mute';
+  var BUILD = '20260822060000-mute-loaders';
   global.__SN_MUTE_ALERTS = true;
   global.__SN_MUTE_BEEPS = true;
 
@@ -29,7 +33,7 @@
                 try {
                   osc.frequency.value = 0;
                 } catch (_) {}
-                return; // swallow beep
+                return;
               }
               return start.apply(osc, arguments);
             };
@@ -49,14 +53,10 @@
     } catch (_) {}
   }
 
-  /** Soft-gate aggressive handsfree restarts that beep on Android */
   function softGateHandsfree() {
     try {
       if (!global.SNCli || SNCli.__snBeepGate) return;
       SNCli.__snBeepGate = true;
-      // Prefer text when silver is active unless user forced voice
-      var desc = Object.getOwnPropertyDescriptor(SNCli, 'toggleHandsfree');
-      // wrap if function exists
       if (typeof SNCli.toggleHandsfree === 'function') {
         var prev = SNCli.toggleHandsfree.bind(SNCli);
         SNCli.toggleHandsfree = function () {
@@ -67,15 +67,38 @@
     } catch (_) {}
   }
 
+  function loadScript(src, mark) {
+    try {
+      if (document.querySelector('script[' + mark + ']')) return;
+      var s = document.createElement('script');
+      s.src = src + (src.indexOf('?') >= 0 ? '&' : '?') + 'v=' + BUILD;
+      s.async = false;
+      var attr = mark.replace(/^data-/, '').replace(/[\[\]]/g, '');
+      s.setAttribute('data-' + attr, '1');
+      document.head.appendChild(s);
+    } catch (_) {}
+  }
+
+  function loadChain() {
+    loadScript('/js/spacenet/chrome-cli-answer.js', 'data-sn-cli-answer');
+    loadScript('/js/spacenet/chrome-p1-first-run.js', 'data-sn-p1-first');
+    loadScript('/js/spacenet/chrome-research-call.js', 'data-sn-research-call');
+    loadScript('/js/spacenet/chrome-guest-order-gate.js', 'data-sn-guest-order');
+    loadScript('/js/spacenet/chrome-live-delivery.js', 'data-sn-live-delivery');
+  }
+
   function boot() {
     patchAudio();
     silenceSpeech();
     patchFieldAlerts();
     softGateHandsfree();
+    loadChain();
   }
 
   boot();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  setTimeout(loadChain, 800);
+  setTimeout(loadChain, 2500);
   setInterval(function () {
     patchAudio();
     patchFieldAlerts();
@@ -87,5 +110,5 @@
       silenceSpeech();
   }, 4000);
 
-  global.SNChromeMute = { build: BUILD, silence: silenceSpeech };
+  global.SNChromeMute = { build: BUILD, silence: silenceSpeech, loadChain: loadChain };
 })(typeof window !== 'undefined' ? window : globalThis);
