@@ -1,10 +1,12 @@
-/* Astranov mute · Build 20260811223000
+/* Astranov mute · Build 20260822060000-mute-loaders
  * Kill alert beeps, oscillator spam, auto speechSynthesis noise.
  * SpeechRecognition on Android often triggers keyboard/system beeps — we soft-gate restarts.
+ * Loads: chrome-p1-first-run · chrome-research-call · chrome-guest-order-gate · chrome-live-delivery
+ * Keep HUD/CALL/Grok-mind injectors intact.
  */
 (function (global) {
   'use strict';
-  var BUILD = '20260811223000-mute';
+  var BUILD = '20260822060000-mute-loaders';
   global.__SN_MUTE_ALERTS = true;
   global.__SN_MUTE_BEEPS = true;
 
@@ -29,7 +31,7 @@
                 try {
                   osc.frequency.value = 0;
                 } catch (_) {}
-                return; // swallow beep
+                return;
               }
               return start.apply(osc, arguments);
             };
@@ -49,14 +51,10 @@
     } catch (_) {}
   }
 
-  /** Soft-gate aggressive handsfree restarts that beep on Android */
   function softGateHandsfree() {
     try {
       if (!global.SNCli || SNCli.__snBeepGate) return;
       SNCli.__snBeepGate = true;
-      // Prefer text when silver is active unless user forced voice
-      var desc = Object.getOwnPropertyDescriptor(SNCli, 'toggleHandsfree');
-      // wrap if function exists
       if (typeof SNCli.toggleHandsfree === 'function') {
         var prev = SNCli.toggleHandsfree.bind(SNCli);
         SNCli.toggleHandsfree = function () {
@@ -65,6 +63,31 @@
         };
       }
     } catch (_) {}
+  }
+
+  function loadModule(path, flag) {
+    if (global[flag]) return;
+    global[flag] = 1;
+    var src = path;
+    try {
+      var b = (document.querySelector('meta[name="astranov-build"]') || {}).content || '';
+      if (b) src += (src.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent(b);
+    } catch (_) {}
+    fetch(src, { cache: 'no-store' })
+      .then(function (r) {
+        return r.ok ? r.text() : Promise.reject();
+      })
+      .then(function (code) {
+        var s = document.createElement('script');
+        s.text = code;
+        document.head.appendChild(s);
+      })
+      .catch(function () {
+        var s = document.createElement('script');
+        s.async = true;
+        s.src = src;
+        document.head.appendChild(s);
+      });
   }
 
   function boot() {
@@ -86,6 +109,15 @@
     )
       silenceSpeech();
   }, 4000);
+
+  /* P1 guest first-run */
+  loadModule('/js/spacenet/chrome-p1-first-run.js', '__snP1Load');
+  /* P0 research + call wire (space-links + webrtc-space loaded by research-call) */
+  loadModule('/js/spacenet/chrome-research-call.js', '__snRCLoad');
+  /* P0 guest order gate */
+  loadModule('/js/spacenet/chrome-guest-order-gate.js', '__snGOGLoad');
+  /* live delivery · real public.vendors + orders */
+  loadModule('/js/spacenet/chrome-live-delivery.js', '__snLDLoad');
 
   global.SNChromeMute = { build: BUILD, silence: silenceSpeech };
 })(typeof window !== 'undefined' ? window : globalThis);
