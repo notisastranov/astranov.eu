@@ -1,6 +1,6 @@
-/* SpaceNet SW 4215 — network-first shell. Never inject scripts. Never send clients to /boot. */
-var CACHE = "sn-shell-4215";
-var VER = "4215";
+/* SpaceNet SW 4216 — network-first shell. Never inject scripts. Never send clients to /boot. */
+var CACHE = "sn-shell-4216";
+var VER = "4216";
 
 self.addEventListener("install", function (e) {
   self.skipWaiting();

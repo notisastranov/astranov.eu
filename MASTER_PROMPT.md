@@ -3,11 +3,11 @@
 **What this file is:** the only instruction document. Paste this first. Then read live `index.html` and `js/spacenet/app.js`. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
 **Date:** 2026-09-08
-**Stamp:** 4215 — Spartan rewrite. Owner ordered the overlay stack nuked.
+**Stamp:** 4216 — Spartan rewrite. Owner ordered the overlay stack nuked.
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
-**Bar:** ASTRANOV SPACENET 4215
+**Bar:** ASTRANOV SPACENET 4216
 
 If rebuild law changes, **edit this file**. Chat is not the archive. Latest block in this file wins.
 
@@ -27,7 +27,7 @@ Recorded as fraud:
 
 Do not patch wreckage. Change the live shell. Prove it on a real browser against https://astranov.eu, not only a sandbox.
 
-## Tree law (4215)
+## Tree law (4216)
 
 Allowed on the live page:
 

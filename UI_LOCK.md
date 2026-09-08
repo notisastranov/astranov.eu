@@ -1,12 +1,12 @@
-# SpaceNet UI LOCK — 2026-09-08 · stamp 4215
+# SpaceNet UI LOCK — 2026-09-08 · stamp 4216
 
 Owner: Notis. This chrome is frozen until Notis unlocks it.
 
-Locked live shell: index.html build 4215 · snapshot this rewrite.
+Locked live shell: index.html build 4216 · snapshot this rewrite.
 
 ## Visible chrome (do not move, hide, restyle, or replace)
 - Canvas globe `#g` full viewport
-- Brand island: ASTRANOV SPACENET · 4215 (tap = cache wipe + reboot)
+- Brand island: ASTRANOV SPACENET · 4216 (tap = cache wipe + reboot)
 - JOBS pill top-left (`#sn-tasks-btn`)
 - AV€ pill (`#sn-money`) **after login only**
 - LOGIN `#sn-me` bottom-left · GPS `#gps` bottom-right
