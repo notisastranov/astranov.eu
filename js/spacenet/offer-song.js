@@ -1,2 +1,1 @@
-/* SpaceNet 4133 — choir off. One voice. */
-(function(){ window.__snOfferSong=true; })();
+/* SpaceNet 4214 — overlay dead. Do not load. */

@@ -9,7 +9,7 @@
     "authorized": 1000000,
     "nav_eur": 50,
     "last_eur": 50,
-    "designed_keur": 50000,
+    "designed_keur": 42140,
     "currency": "Astranov Coin (1 AVC = 1 EUR)"
   },
   "layers": [
@@ -21,7 +21,7 @@
   "bids": [
     {"px": 49.50, "qty": 800},
     {"px": 49.00, "qty": 2200},
-    {"px": 48.00, "qty": 5000},
+    {"px": 48.00, "qty": 4214},
     {"px": 46.00, "qty": 12000}
   ],
   "asks": [

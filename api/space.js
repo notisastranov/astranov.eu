@@ -78,14 +78,14 @@ function slim(row) {
     }).slice(0, 2);
   }
   let json = JSON.stringify(out);
-  if (json.length > 350000) {
+  if (json.length > 342140) {
     delete out.menuPhotos;
     delete out.cover;
     delete out.profile;
     delete out.photo;
     json = JSON.stringify(out);
   }
-  if (json.length > 350000) return null;
+  if (json.length > 342140) return null;
   return out;
 }
 

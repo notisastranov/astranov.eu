@@ -1,27 +1,30 @@
-# SpaceNet UI LOCK — 2026-09-07 16:23 EEST
+# SpaceNet UI LOCK — 2026-09-08 · stamp 4214
 
 Owner: Notis. This chrome is frozen until Notis unlocks it.
 
-Locked live shell: index.html build 4174 · snapshot index.lock.html
+Locked live shell: index.html build 4214 · snapshot this rewrite.
 
 ## Visible chrome (do not move, hide, restyle, or replace)
 - Canvas globe `#g` full viewport
-- Brand island: ASTRANOV SPACENET GROK · V1 (tap = cache wipe + reboot)
+- Brand island: ASTRANOV SPACENET · 4214 (tap = cache wipe + reboot)
 - JOBS pill top-left (`#sn-tasks-btn`)
-- AV€ pill top-right (`#sn-money`)
+- AV€ pill (`#sn-money`) **after login only**
 - LOGIN `#sn-me` bottom-left · GPS `#gps` bottom-right
-- Dock: `#plus` · `#in` Talk to Astranov SpaceNet Grok · `#go` mic
+- Dock: `#plus` · `#in` Talk to Astranov SpaceNet · `#go` mic
+- ⏻ `#sn-power` offerings
 - Grid globe with continent labels. No HUD. No twin CLI.
 
 ## Required IDs
-g, city, island, ver, heal, sn-money, sn-tasks-btn, sn-me, gps, plus, in, go, line, panel, dock, f
+g, city, island, ver, heal, sn-money, sn-tasks-btn, sn-me, gps, plus, in, go, line, panel, dock, f, sn-power
 
 ## Forbidden
+- Overlay scripts `js/spacenet/*-41*.js` loaded or SW-injected
 - PLACEHOLDER / stub index under 4 KB
-- fetch + document.write of `/sn-index/cN.txt` or `/index.partN.txt`
-- Twin CLI / Command the HUD / os-bootloader chrome
+- Twin CLI / HUD / os-bootloader
 - Auto-talk on boot
-- Moving LOGIN / GPS / JOBS / AV€ / + / mic
+- Dummy shops / dummy GPS / dummy pay
+- Mercator disc sold as a globe
+- Moving LOGIN / GPS / JOBS / AV€ / + / mic / ⏻
 
 ## Unlock
 Only Notis. Write UI_UNLOCK in a commit message and delete this file.

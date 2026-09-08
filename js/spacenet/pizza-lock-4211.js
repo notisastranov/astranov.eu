@@ -1,6 +1,1 @@
-/* SpaceNet 4213 — dummy Nairobi pizza seeds killed. Real Photon hunt only. */
-(function (g) {
-  "use strict";
-  g.__SN_PIZZA_4211 = true;
-  g.__SN_PIZZA_4213 = true;
-})(typeof window !== "undefined" ? window : this);
+/* SpaceNet 4214 — overlay dead. Do not load. */

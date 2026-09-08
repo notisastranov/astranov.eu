@@ -38,7 +38,7 @@ module.exports = async function handler(req, res) {
   }
   var body = readBody(req);
   var requested = Number(body.amount || body.eur || 10);
-  if (!Number.isFinite(requested) || requested < 1 || requested > 50000) {
+  if (!Number.isFinite(requested) || requested < 1 || requested > 42140) {
     res.status(400).json({ error: "invalid_amount" });
     return;
   }
