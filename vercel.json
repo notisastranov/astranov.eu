@@ -8,8 +8,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4206"},
-        {"key": "X-Astranov-Ship", "value": "4206-wire-earth-boot"},
+        {"key": "X-Astranov-Build", "value": "4209"},
+        {"key": "X-Astranov-Ship", "value": "4209-wire-earth-boot"},
         {"key": "Content-Security-Policy", "value": "frame-ancestors 'self' https://astranov.eu https://*.astranov.eu https://investors.astranov.eu https://exchange.astranov.eu"}
       ]
     },
@@ -18,8 +18,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4206"},
-        {"key": "X-Astranov-Ship", "value": "4206-wire-earth-boot"},
+        {"key": "X-Astranov-Build", "value": "4209"},
+        {"key": "X-Astranov-Ship", "value": "4209-wire-earth-boot"},
         {"key": "Content-Security-Policy", "value": "frame-ancestors 'self' https://astranov.eu https://*.astranov.eu https://investors.astranov.eu https://exchange.astranov.eu"}
       ]
     },
