@@ -3,11 +3,11 @@
 **What this file is:** the only instruction document. Paste this first. Then read live `index.html` and `js/spacenet/app.js`. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
 **Date:** 2026-09-08
-**Stamp:** 4216 — Spartan rewrite. Owner ordered the overlay stack nuked.
+**Stamp:** 4217 — Spartan rewrite. Owner ordered the overlay stack nuked.
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
-**Bar:** ASTRANOV SPACENET 4216
+**Bar:** ASTRANOV SPACENET 4217
 
 If rebuild law changes, **edit this file**. Chat is not the archive. Latest block in this file wins.
 
@@ -27,7 +27,7 @@ Recorded as fraud:
 
 Do not patch wreckage. Change the live shell. Prove it on a real browser against https://astranov.eu, not only a sandbox.
 
-## Tree law (4216)
+## Tree law (4217)
 
 Allowed on the live page:
 
@@ -54,7 +54,7 @@ Visible, do not move, hide, restyle, or replace:
 
 - Canvas globe `#g` full viewport — real sphere math, continent outlines, labels, trackball, inertia. Idle globe sits still. No GPU burn.
 - Brand island: `ASTRANOV SPACENET` + stamp `4214`. Tap = wipe caches + unregister SW + reload `/?v=4214`.
-- `JOBS` pill `#sn-tasks-btn` — posted jobs only. Empty is empty. Never rename to TASKS.
+- `JOBS` pill `#sn-tasks-btn` — **centered under the brand island (home field)**. Posted jobs only. Empty is empty. Never rename to TASKS.
 - `AV€` pill `#sn-money` — **after login only**. Guests do not see money. Owner (Notis / @astranov.eu) sees the pool, never wiped to zero, treasury 3,000,000 AV€.
 - `LOGIN` `#sn-me` bottom-left. Becomes YOU when signed in.
 - `GPS` `#gps` bottom-right. Precise, then coarse, then IP, then tap-to-set.

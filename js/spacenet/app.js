@@ -1,9 +1,9 @@
-/* SpaceNet 4216 — one OS. Globe, city, Grok, jobs, money. No overlays. */
+/* SpaceNet 4217 — one OS. Globe, city, Grok, jobs, money. No overlays. */
 (function () {
   "use strict";
-  if (window.__SN_4216) return;
-  window.__SN_4216 = true;
-  var VER = "4216";
+  if (window.__SN_4217) return;
+  window.__SN_4217 = true;
+  var VER = "4217";
   var OWNER_MAIL = /notisastranov@gmail\.com$|@astranov\.eu$/i;
   var TREASURY = 3000000;
 
@@ -533,7 +533,7 @@
           { enableHighAccuracy: false, timeout: 8000 }
         );
       },
-      { enableHighAccuracy: true, timeout: 9000, maximumAge: 14216 }
+      { enableHighAccuracy: true, timeout: 9000, maximumAge: 14217 }
     );
   }
   function reverse(pt) {
