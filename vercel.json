@@ -9,7 +9,7 @@
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
         {"key": "X-Astranov-Build", "value": "4219"},
-        {"key": "X-Astranov-Ship", "value": "4219-filled-earth"},
+        {"key": "X-Astranov-Ship", "value": "4219-filled-earth-live"},
         {"key": "Content-Security-Policy", "value": "frame-ancestors 'self' https://astranov.eu https://*.astranov.eu https://investors.astranov.eu https://exchange.astranov.eu"}
       ]
     },
@@ -19,7 +19,7 @@
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
         {"key": "X-Astranov-Build", "value": "4219"},
-        {"key": "X-Astranov-Ship", "value": "4219-filled-earth"},
+        {"key": "X-Astranov-Ship", "value": "4219-filled-earth-live"},
         {"key": "Content-Security-Policy", "value": "frame-ancestors 'self' https://astranov.eu https://*.astranov.eu https://investors.astranov.eu https://exchange.astranov.eu"}
       ]
     },
