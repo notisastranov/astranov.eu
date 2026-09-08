@@ -1,8 +1,15 @@
-/* SpaceNet auth 4217 — Google on LOGIN. No map-icon grid. No auto-talk. */
+/* SpaceNet auth 4218 — Google on LOGIN. No map-icon grid. No auto-talk. */
 (function () {
   if (window.SNAuth) return;
   var SB = "https://lkoatrkhuigdolnjsbie.supabase.co";
-  var ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI";
+  var ANON = "";
+  function loadCfg(cb) {
+    fetch("/api/public-config").then(function (r) { return r.json(); }).then(function (j) {
+      if (j && j.sb) SB = j.sb;
+      if (j && j.anon) ANON = j.anon;
+      if (cb) cb();
+    }).catch(function () { if (cb) cb(); });
+  }
   function read(k, d) { try { var v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } }
   function write(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   function talk(s) { if (window.SN && SN.say) SN.say(s); else { var el = document.getElementById("line"); if (el) el.textContent = s; } }
@@ -141,6 +148,7 @@
   }
   function boot() {
     css();
+    loadCfg(function () {
     paintMe();
     applyHash().then(function () { paintMe(); });
     var btn = document.getElementById("sn-me");
@@ -148,6 +156,7 @@
       btn.__sn4217 = true;
       btn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openMe(); });
     }
+    });
   }
   window.SNAuth = { google: google, out: out, savePhone: savePhone, user: user, boot: boot, paint: paintMe, open: openMe };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);

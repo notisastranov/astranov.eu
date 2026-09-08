@@ -3,8 +3,8 @@
  *
  * Deploy: supabase functions deploy astranov-api
  * Secrets needed:
- *   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
- *   supabase secrets set GITHUB_TOKEN=ghp_...         (for auto-push)
+ *   supabase secrets set ANTHROPIC_API_KEY=  (value in Supabase only)
+ *   never put GitHub tokens in this repo
  *   supabase secrets set GITHUB_REPO=notisastranov/Astranov
  *   supabase secrets set GITHUB_BRANCH=claude/build-astranov-app-DHkQw
  */

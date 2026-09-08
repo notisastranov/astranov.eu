@@ -1,7 +1,6 @@
 /** Astranov SpaceNet mind — Grok only. Key never leaves the host. */
 const SB = 'https://lkoatrkhuigdolnjsbie.supabase.co';
-const SB_ANON =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI';
+const SB_ANON = process.env.SUPABASE_ANON_KEY || process.env.SB_ANON || '';
 
 const MODEL = process.env.XAI_MODEL || 'grok-4';
 const FALLBACKS = ['grok-4', 'grok-4-1-fast-non-reasoning', 'grok-3'];

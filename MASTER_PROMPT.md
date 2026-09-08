@@ -3,11 +3,11 @@
 **What this file is:** the only instruction document. Paste this first. Then read live `index.html` and `js/spacenet/app.js`. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
 **Date:** 2026-09-08
-**Stamp:** 4217 — Spartan rewrite. Owner ordered the overlay stack nuked.
+**Stamp:** 4218 — Spartan rewrite. Owner ordered the overlay stack nuked.
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
-**Bar:** ASTRANOV SPACENET 4217
+**Bar:** ASTRANOV SPACENET 4218
 
 If rebuild law changes, **edit this file**. Chat is not the archive. Latest block in this file wins.
 
@@ -27,7 +27,20 @@ Recorded as fraud:
 
 Do not patch wreckage. Change the live shell. Prove it on a real browser against https://astranov.eu, not only a sandbox.
 
-## Tree law (4217)
+
+## Keys law (never break)
+
+All secrets live in **Supabase secrets only**.
+
+Never:
+- commit a key, token, JWT, anon key, service role, PayPal secret, Twilio, xAI, Vercel token
+- put a key in GitHub Actions secrets and read it from a workflow
+- sync GitHub → Supabase
+- write `sk-`, `eyJ`, `ghp_`, `xai-` into the tree
+
+Host env on Vercel is filled from Supabase. Browser gets the public anon via `/api/public-config` from host env, not from git.
+
+## Tree law (4218)
 
 Allowed on the live page:
 

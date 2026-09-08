@@ -3,8 +3,8 @@
   'use strict';
   var OWNER = 'notisastranov@gmail.com';
   var SB_URL = 'https://lkoatrkhuigdolnjsbie.supabase.co';
-  var SB_KEY =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI';
+  var SB_KEY = '';
+  fetch('/api/public-config').then(function(r){return r.json();}).then(function(j){ if(j&&j.anon) SB_KEY=j.anon; if(j&&j.sb) SB_URL=j.sb; });
   var deck = { packages: [], model: { ops: 40, owner: 30, village: 30 }, disclaimer: '', gathered_keur: 0 };
   var tab = 'phase1';
   var owner = false;

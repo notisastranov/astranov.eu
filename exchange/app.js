@@ -3,8 +3,8 @@
   'use strict';
   var OWNER = 'notisastranov@gmail.com';
   var SB_URL = 'https://lkoatrkhuigdolnjsbie.supabase.co';
-  var SB_KEY =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI';
+  var SB_KEY = '';
+  fetch('/api/public-config').then(function(r){return r.json();}).then(function(j){ if(j&&j.anon) SB_KEY=j.anon; if(j&&j.sb) SB_URL=j.sb; });
   var book = { v: 2, bids: [], asks: [], share: { last_eur: 50, nav_eur: 50, authorized: 1000000, designed_keur: 50000 }, layers: [], tape: [] };
   var sb = null;
   var session = null;

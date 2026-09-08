@@ -1,26 +1,12 @@
-name: Vercel push via Supabase secret
+name: Invoke supabase vercel-push
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'supabase/functions/vercel-push/**'
-      - '.github/workflows/vercel-push.yml'
 jobs:
   push:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: supabase/setup-cli@v1
-        with:
-          version: latest
-      - name: Deploy and invoke vercel-push
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      - name: Invoke (keys stay in Supabase)
         run: |
-          set -e
-          supabase link --project-ref lkoatrkhuigdolnjsbie
-          supabase functions deploy vercel-push --no-verify-jwt --project-ref lkoatrkhuigdolnjsbie
-          echo "invoking"
           curl -sS --max-time 150 -X POST "https://lkoatrkhuigdolnjsbie.supabase.co/functions/v1/vercel-push" \
             -H "Content-Type: application/json" \
             -d '{"ref":"main"}'

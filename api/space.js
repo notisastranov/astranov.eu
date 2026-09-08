@@ -1,7 +1,6 @@
 /** SpaceNet public listings. No fake shops. Device-local always wins if net is down. */
 const SB = 'https://lkoatrkhuigdolnjsbie.supabase.co';
-const SB_ANON =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI';
+const SB_ANON = process.env.SUPABASE_ANON_KEY || process.env.SB_ANON || '';
 
 function cors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
