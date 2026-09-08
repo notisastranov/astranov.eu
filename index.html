@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
 <title>Astranov SpaceNet Grok</title>
-<meta name="astranov-build" content="4210" />
+<meta name="astranov-build" content="4211" />
 <meta name="theme-color" content="#02040a" />
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -57,7 +57,7 @@ input#in{flex:1;min-width:0;height:40px;border:0;background:0;color:#e8fbff;font
 <button type="button" id="sn-me" class="out" aria-label="Login" onclick="if(window.SNAuth&&SNAuth.open)SNAuth.open();"><span class="lbl">LOGIN</span><span class="tgt"><span class="ph">IN</span></span></button>
 <button type="button" id="gps" aria-label="GPS"><span class="lbl">GPS</span><span class="tgt">🎯</span></button>
 <button type="button" id="sn-tasks-btn">JOBS</button>
-<div id="top"><div id="island" title="Tap brand to reboot"><span id="heal"></span><b class="a">ASTRANOV</b><b class="s">SPACENET</b><span id="ver">4210</span></div></div>
+<div id="top"><div id="island" title="Tap brand to reboot"><span id="heal"></span><b class="a">ASTRANOV</b><b class="s">SPACENET</b><span id="ver">4211</span></div></div>
 <button type="button" id="sn-money">AV€ 0</button>
 <button type="button" id="sn-power" class="idle" aria-label="Offerings" aria-pressed="false">⏻</button>
 <div id="sn-tasks"><div class="bg" data-act="hide"></div><div class="card"><div class="bar"><b class="ttl">JOBS</b><button type="button" class="x" data-act="hide">HIDE</button></div><div id="sn-tasks-list"></div></div></div>
@@ -65,11 +65,12 @@ input#in{flex:1;min-width:0;height:40px;border:0;background:0;color:#e8fbff;font
 <script src="/js/vendor/leaflet.js?v=4127"></script>
 <script src="/js/spacenet/leave-flat.js?v=4129"></script>
 <script src="/js/spacenet/app.js?v=4204"></script>
+<script src="/js/spacenet/earth-4204.js?v=4211"></script>
 <script src="/js/spacenet/auth.js?v=4105"></script>
 <script src="/js/spacenet/wallet.js?v=4160"></script>
 <script>
 (function(){
-  var VER="4210";
+  var VER="4211";
   var going=false;
   function go(v){ if(going) return; going=true; v=String(v||VER).replace(/[^\d]/g,"")||VER; location.replace("/?v="+v+"&t="+Date.now()); }
   function nuclear(e){
@@ -102,6 +103,11 @@ input#in{flex:1;min-width:0;height:40px;border:0;background:0;color:#e8fbff;font
 <script src="/js/spacenet/driver-gate.js?v=4160"></script>
 <script src="/js/spacenet/law-4207.js?v=4207"></script>
 <script src="/js/spacenet/verify-sn-4208.js?v=4208"></script>
+<script src="/js/spacenet/land-4162.js?v=4211"></script>
+<script src="/js/spacenet/list-4161.js?v=4211"></script>
+<script src="/js/spacenet/fill-4199.js?v=4211"></script>
+<script src="/js/spacenet/pin-4202.js?v=4211"></script>
+<script src="/js/spacenet/pizza-lock-4211.js?v=4211"></script>
 <script src="/js/spacenet/money-keep-4210.js?v=4210"></script>
 </body>
 </html>
