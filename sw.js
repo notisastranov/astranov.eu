@@ -1,7 +1,7 @@
-/* SpaceNet SW 4217 — network-first. Never send clients to /boot. DO inject earth-4204 + pizza-kill-4214. */
-var CACHE = "sn-shell-4217";
+/* SpaceNet SW 4218 — network-first. Never send clients to /boot. DO inject earth-4204 + pizza-kill-4214. */
+var CACHE = "sn-shell-4218";
 var TILES = "sn-tiles-1";
-var VER = "4217";
+var VER = "4218";
 function isTile(url) {
   return /tile\.openstreetmap\.org|openstreetmap\.fr\/hot|basemaps\.cartocdn\.com|tiles\.maps\.eox\.at|server\.arcgisonline\.com/.test(url);
 }
@@ -14,13 +14,17 @@ function withShell(html) {
       html = html.replace(afterNeedle, afterNeedle + "\n" + tag);
     }
   }
-  inject('spacenet/app.js?v=4217"></script>', "/js/spacenet/hang-kill-4213.js?v=4213");
-  inject('hang-kill-4213.js?v=4213"></script>', "/js/spacenet/earth-4204.js?v=4214");
-  inject('spacenet/app.js?v=4217"></script>', "/js/spacenet/earth-4204.js?v=4214");
-  inject('auth.js?v=4217"></script>', "/js/spacenet/pizza-lock-4211.js?v=4211");
+  inject('spacenet/app.js?v=4218"></script>', "/js/spacenet/hang-kill-4213.js?v=4213");
+  inject('hang-kill-4213.js?v=4213"></script>', "/js/spacenet/earth-4204.js?v=4218");
+  inject('spacenet/app.js?v=4218"></script>', "/js/spacenet/earth-4204.js?v=4218");
+  inject('auth.js?v=4218"></script>', "/js/spacenet/land-4162.js?v=4218");
+  inject('land-4162.js?v=4218"></script>', "/js/spacenet/list-4161.js?v=4218");
+  inject('list-4161.js?v=4218"></script>', "/js/spacenet/fill-4199.js?v=4218");
+  inject('fill-4199.js?v=4218"></script>', "/js/spacenet/pin-4202.js?v=4218");
+  inject('pin-4202.js?v=4218"></script>', "/js/spacenet/pizza-lock-4211.js?v=4211");
   inject('pizza-lock-4211.js?v=4211"></script>', "/js/spacenet/money-keep-4210.js?v=4210");
-  inject('money-keep-4210.js?v=4210"></script>', "/js/spacenet/pizza-kill-4214.js?v=4214");
-  inject('earth-4204.js?v=4214"></script>', "/js/spacenet/pizza-kill-4214.js?v=4214");
+  inject('money-keep-4210.js?v=4210"></script>', "/js/spacenet/pizza-kill-4214.js?v=4218");
+  inject('earth-4204.js?v=4218"></script>', "/js/spacenet/pizza-kill-4214.js?v=4218");
   return html;
 }
 self.addEventListener("install", function(e) {
