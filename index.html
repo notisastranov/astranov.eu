@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
 <title>Astranov SpaceNet Grok</title>
-<meta name="astranov-build" content="4205" />
+<meta name="astranov-build" content="4206" />
 <meta name="theme-color" content="#02040a" />
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -57,7 +57,7 @@ input#in{flex:1;min-width:0;height:40px;border:0;background:0;color:#e8fbff;font
 <button type="button" id="sn-me" class="out" aria-label="Login" onclick="if(window.SNAuth&&SNAuth.open)SNAuth.open();"><span class="lbl">LOGIN</span><span class="tgt"><span class="ph">IN</span></span></button>
 <button type="button" id="gps" aria-label="GPS"><span class="lbl">GPS</span><span class="tgt">🎯</span></button>
 <button type="button" id="sn-tasks-btn">JOBS</button>
-<div id="top"><div id="island" title="Tap brand to reboot"><span id="heal"></span><b class="a">ASTRANOV</b><b class="s">SPACENET</b><span id="ver">4205</span></div></div>
+<div id="top"><div id="island" title="Tap brand to reboot"><span id="heal"></span><b class="a">ASTRANOV</b><b class="s">SPACENET</b><span id="ver">4206</span></div></div>
 <button type="button" id="sn-money">AV€ 0</button>
 <button type="button" id="sn-power" class="idle" aria-label="Offerings" aria-pressed="false">⏻</button>
 <div id="sn-tasks"><div class="bg" data-act="hide"></div><div class="card"><div class="bar"><b class="ttl">JOBS</b><button type="button" class="x" data-act="hide">HIDE</button></div><div id="sn-tasks-list"></div></div></div>
@@ -69,7 +69,7 @@ input#in{flex:1;min-width:0;height:40px;border:0;background:0;color:#e8fbff;font
 <script src="/js/spacenet/wallet.js?v=4160"></script>
 <script>
 (function(){
-  var VER="4205";
+  var VER="4206";
   var going=false;
   function go(v){ if(going) return; going=true; v=String(v||VER).replace(/[^\d]/g,"")||VER; location.replace("/?v="+v+"&t="+Date.now()); }
   function nuclear(e){
@@ -92,5 +92,7 @@ input#in{flex:1;min-width:0;height:40px;border:0;background:0;color:#e8fbff;font
 <script src="/js/spacenet/power.js?v=4160"></script>
 <script src="/js/spacenet/power-glyph-4196.js?v=4196"></script>
 <script src="/js/spacenet/calm-4205.js?v=4205"></script>
+<script src="/js/spacenet/phone-verify.js?v=4138"></script>
+<script src="/js/spacenet/you-4206.js?v=4206"></script>
 </body>
 </html>
