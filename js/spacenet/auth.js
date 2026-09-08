@@ -1,4 +1,4 @@
-/* SpaceNet auth 4218 — Google on LOGIN. No map-icon grid. No auto-talk. */
+/* SpaceNet auth 4219 — Google on LOGIN. No map-icon grid. No auto-talk. */
 (function () {
   if (window.SNAuth) return;
   var SB = "https://lkoatrkhuigdolnjsbie.supabase.co";
@@ -98,7 +98,9 @@
   }
   function face(u) {
     if (u && u.photo) return '<img alt="" src="' + String(u.photo).replace(/"/g, "") + '">';
-    var ch = (u && (u.name || u.email) || "?").charAt(0).toUpperCase();
+    var src = (u && (u.name || u.email)) || "Y";
+    var m = String(src).match(/[A-Za-zΑ-Ωα-ωΆ-Ώά-ώ]/);
+    var ch = (m ? m[0] : "Y").toUpperCase();
     return '<span class="ph">' + ch + "</span>";
   }
   function paintMe() {
@@ -158,7 +160,7 @@
     }
     });
   }
-  window.SNAuth = { google: google, out: out, savePhone: savePhone, user: user, boot: boot, paint: paintMe, open: openMe };
+  window.SNAuth = { google: google, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 })();

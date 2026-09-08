@@ -41,6 +41,31 @@ async function markPaid(req, cap, eur) {
       }),
     });
   } catch (_) {}
+  var svc = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+  if (!svc) return;
+  try {
+    var me = await fetch(SB + "/auth/v1/user", {
+      headers: { apikey: SB_ANON || svc, Authorization: auth },
+    });
+    var user = await me.json().catch(function () { return {}; });
+    var uid = user && user.id;
+    if (!uid) return;
+    await fetch(SB + "/rest/v1/rpc/avc_ledger_append", {
+      method: "POST",
+      headers: {
+        apikey: svc,
+        Authorization: "Bearer " + svc,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        p_user_id: uid,
+        p_delta: eur,
+        p_work_type: "paypal_reload",
+        p_work_proof: { capture: cap && cap.id, eur: eur },
+        p_public_note: "PayPal EUR → AV€",
+      }),
+    });
+  } catch (_) {}
 }
 
 module.exports = async function handler(req, res) {

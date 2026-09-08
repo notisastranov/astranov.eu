@@ -87,6 +87,7 @@ module.exports = async function handler(req, res) {
       orderId: j.id,
       amount: amount,
       approve: approve && approve.href,
+      url: approve && approve.href,
     });
   } catch (e) {
     res.status(500).json({ error: String(e.message || e) });

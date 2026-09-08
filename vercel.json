@@ -9,7 +9,7 @@
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
         {"key": "X-Astranov-Build", "value": "4219"},
-        {"key": "X-Astranov-Ship", "value": "4219-filled-earth"},
+        {"key": "X-Astranov-Ship", "value": "4219-paypal"},
         {"key": "Content-Security-Policy", "value": "frame-ancestors 'self' https://astranov.eu https://*.astranov.eu https://investors.astranov.eu https://exchange.astranov.eu"}
       ]
     },
@@ -19,50 +19,10 @@
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
         {"key": "X-Astranov-Build", "value": "4219"},
-        {"key": "X-Astranov-Ship", "value": "4219-filled-earth"},
+        {"key": "X-Astranov-Ship", "value": "4219-paypal"},
         {"key": "Content-Security-Policy", "value": "frame-ancestors 'self' https://astranov.eu https://*.astranov.eu https://investors.astranov.eu https://exchange.astranov.eu"}
-      ]
-    },
-    {
-      "source": "/sw.js",
-      "headers": [
-        {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
-        {"key": "Service-Worker-Allowed", "value": "/"}
-      ]
-    },
-    {
-      "source": "/js/vendor/(.*)",
-      "headers": [
-        {"key": "Cache-Control", "value": "public, max-age=604800, immutable"},
-        {"key": "Access-Control-Allow-Origin", "value": "*"}
-      ]
-    },
-    {
-      "source": "/js/(.*)",
-      "headers": [
-        {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
-        {"key": "Access-Control-Allow-Origin", "value": "*"}
       ]
     }
   ],
-  "rewrites": [
-    {"source": "/", "has": [{"type": "host", "value": "investors.astranov.eu"}], "destination": "/investors/index.html"},
-    {"source": "/index.html", "has": [{"type": "host", "value": "investors.astranov.eu"}], "destination": "/investors/index.html"},
-    {"source": "/app.js", "has": [{"type": "host", "value": "investors.astranov.eu"}], "destination": "/investors/app.js"},
-    {"source": "/budget.json", "has": [{"type": "host", "value": "investors.astranov.eu"}], "destination": "/investors/budget.json"},
-    {"source": "/", "has": [{"type": "host", "value": "exchange.astranov.eu"}], "destination": "/exchange/index.html"},
-    {"source": "/index.html", "has": [{"type": "host", "value": "exchange.astranov.eu"}], "destination": "/exchange/index.html"},
-    {"source": "/app.js", "has": [{"type": "host", "value": "exchange.astranov.eu"}], "destination": "/exchange/app.js"},
-    {"source": "/book.json", "has": [{"type": "host", "value": "exchange.astranov.eu"}], "destination": "/exchange/book.json"},
-    {"source": "/presence", "destination": "/presence/index.html"},
-    {"source": "/presence/", "destination": "/presence/index.html"},
-    {"source": "/exchange", "destination": "/exchange/index.html"},
-    {"source": "/exchange/", "destination": "/exchange/index.html"},
-    {"source": "/investors", "destination": "/investors/index.html"},
-    {"source": "/investors/", "destination": "/investors/index.html"},
-    {"source": "/privacy", "destination": "/privacy.html"},
-    {"source": "/terms", "destination": "/terms.html"},
-    {"source": "/opt-in", "destination": "/opt-in.html"},
-    {"source": "/((?!api/|js/|icon|manifest|assets/|media/|investors|presence|exchange|sw\\.js|briefings/|privacy|terms|opt-in|robots|favicon|boot).*)", "destination": "/index.html"}
-  ]
+  "rewrites": [{ "source": "/boot", "destination": "/index.html" }]
 }

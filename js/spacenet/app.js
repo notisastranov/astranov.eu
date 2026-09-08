@@ -1,9 +1,9 @@
-/* SpaceNet 4218 — one OS. Globe, city, Grok, jobs, money. No overlays. */
+/* SpaceNet 4219 — one OS. Globe, city, Grok, jobs, money. No overlays. */
 (function () {
   "use strict";
-  if (window.__SN_4218) return;
-  window.__SN_4218 = true;
-  var VER = "4218";
+  if (window.__SN_4219) return;
+  window.__SN_4219 = true;
+  var VER = "4219";
   var OWNER_MAIL = /notisastranov@gmail\.com$|@astranov\.eu$/i;
   var TREASURY = 3000000;
 
@@ -122,8 +122,8 @@
   function project(lat, lng, c, w, h) {
     var λ = (lng * Math.PI) / 180 - c.yaw, φ = (lat * Math.PI) / 180;
     var x = Math.cos(φ) * Math.sin(λ), y = Math.sin(φ), z = Math.cos(φ) * Math.cos(λ);
-    var cy = y * Math.cos(-c.pitch) - z * Math.sin(-c.pitch);
-    var cz = y * Math.sin(-c.pitch) + z * Math.cos(-c.pitch);
+    var cy = y * Math.cos(c.pitch) - z * Math.sin(c.pitch);
+    var cz = y * Math.sin(c.pitch) + z * Math.cos(c.pitch);
     if (cz < 0.04) return null;
     var scale = (Math.min(w, h) * 0.46) / c.dist;
     return { x: w / 2 + x * scale, y: h / 2 - cy * scale, z: cz };
@@ -133,7 +133,7 @@
     var nx = (sx - w / 2) / scale, ny = (h / 2 - sy) / scale, r2 = nx * nx + ny * ny;
     if (r2 > 1) return null;
     var nz = Math.sqrt(Math.max(0, 1 - r2));
-    var cp = Math.cos(-c.pitch), sp = Math.sin(-c.pitch);
+    var cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
     var y = ny * cp + nz * sp, z = -ny * sp + nz * cp, x = nx;
     var lat = (Math.asin(Math.max(-1, Math.min(1, y))) * 180) / Math.PI;
     var lng = ((Math.atan2(x, z) + c.yaw) * 180) / Math.PI;
@@ -503,14 +503,60 @@
   }
 
   function paypalStart() {
-    var amt = Math.max(5, Number(($("sn-reload") && $("sn-reload").value) || 20));
-    fetch("/api/paypal/create-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: amt }) })
+    var amt = Math.max(10, Number(($("sn-reload") && $("sn-reload").value) || 20));
+    var headers = { "Content-Type": "application/json" };
+    var tok = "";
+    try { tok = (window.SNAuth && SNAuth.token && SNAuth.token()) || localStorage.getItem("sn:access") || ""; } catch (e) {}
+    if (tok) headers.Authorization = "Bearer " + tok;
+    say("Opening PayPal…");
+    fetch("/api/paypal/create-order", {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify({ amount: amt, origin: location.origin })
+    })
       .then(function (r) { return r.json(); })
       .then(function (j) {
-        if (j && j.url) { location.href = j.url; return; }
-        say(j && j.error ? String(j.error) : "PayPal is not keyed on this host.");
+        var href = (j && (j.approve || j.url)) || "";
+        if (href) { location.href = href; return; }
+        say((j && (j.message || j.error)) || "PayPal did not start.");
       })
       .catch(function () { say("PayPal did not answer."); });
+  }
+  function paypalReturn() {
+    var q = new URLSearchParams(location.search);
+    if (q.get("paypal") === "cancel") {
+      say("Reload cancelled.");
+      history.replaceState({}, "", "/");
+      return;
+    }
+    var orderId = q.get("token") || q.get("orderId") || "";
+    if (q.get("paypal") !== "success" && !orderId) return;
+    if (!orderId) return;
+    var headers = { "Content-Type": "application/json" };
+    var tok = "";
+    try { tok = (window.SNAuth && SNAuth.token && SNAuth.token()) || localStorage.getItem("sn:access") || ""; } catch (e) {}
+    if (tok) headers.Authorization = "Bearer " + tok;
+    say("Verifying PayPal…");
+    fetch("/api/paypal/capture-order", {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify({ orderId: orderId })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        history.replaceState({}, "", "/");
+        if (!j || !j.ok) {
+          say((j && (j.message || j.error)) || "PayPal did not capture.");
+          return;
+        }
+        var eur = Number(j.eur || j.credited || j.avc || 0);
+        if (eur > 0) avcSet(avcGet() + eur);
+        say("AV€ " + eur.toFixed(2) + " in. 1:1 with euro.");
+      })
+      .catch(function () {
+        history.replaceState({}, "", "/");
+        say("PayPal did not finish.");
+      });
   }
 
   function gps() {
@@ -533,7 +579,7 @@
           { enableHighAccuracy: false, timeout: 8000 }
         );
       },
-      { enableHighAccuracy: true, timeout: 9000, maximumAge: 14218 }
+      { enableHighAccuracy: true, timeout: 9000, maximumAge: 14219 }
     );
   }
   function reverse(pt) {
@@ -700,6 +746,7 @@
 
   paintMoney();
   loadJobs();
+  paypalReturn();
   say("Grid globe. Tap GPS to land. Talk in ordinary language.");
   requestAnimationFrame(drawGlobe);
   setInterval(paintMoney, 4000);
