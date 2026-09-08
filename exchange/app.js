@@ -1,11 +1,11 @@
-/* Astranov SpaceNet Stock Exchange · 20260823204214-ash50 */
+/* Astranov SpaceNet Stock Exchange · 20260823205000-ash50 */
 (function () {
   'use strict';
   var OWNER = 'notisastranov@gmail.com';
   var SB_URL = 'https://lkoatrkhuigdolnjsbie.supabase.co';
   var SB_KEY =
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI';
-  var book = { v: 2, bids: [], asks: [], share: { last_eur: 50, nav_eur: 50, authorized: 1000000, designed_keur: 42140 }, layers: [], tape: [] };
+  var book = { v: 2, bids: [], asks: [], share: { last_eur: 50, nav_eur: 50, authorized: 1000000, designed_keur: 50000 }, layers: [], tape: [] };
   var sb = null;
   var session = null;
   var owner = false;
@@ -21,7 +21,7 @@
     document.getElementById('pills').innerHTML =
       '<span class="pill">NAV ' + fmt(sh.nav_eur) + ' AVC</span>' +
       '<span class="pill">' + (sh.authorized || 0).toLocaleString('en-GB') + ' shares</span>' +
-      '<span class="pill">Designed value €' + ((sh.designed_keur || 42140) / 1000).toFixed(0) + 'M</span>' +
+      '<span class="pill">Designed value €' + ((sh.designed_keur || 50000) / 1000).toFixed(0) + 'M</span>' +
       '<span class="pill">1 AVC = 1 EUR</span>';
     var layers = book.layers || [];
     var el = document.getElementById('layers');
@@ -117,7 +117,7 @@
     });
   };
 
-  fetch('book.json?v=20260823204214-ash50')
+  fetch('book.json?v=20260823205000-ash50')
     .then(function (r) { return r.json(); })
     .then(function (j) {
       book = j;
