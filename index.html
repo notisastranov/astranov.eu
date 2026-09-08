@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
 <title>Astranov SpaceNet Grok</title>
-<meta name="astranov-build" content="4206" />
+<meta name="astranov-build" content="4207" />
 <meta name="theme-color" content="#02040a" />
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -35,7 +35,7 @@ button,[role=button]{cursor:pointer}
 #panel{width:min(520px,100%);padding:8px 6px 4px;background:linear-gradient(180deg,transparent,rgba(2,8,18,.92))}
 form#f{display:flex;align-items:center;gap:10px;min-height:48px;border-bottom:1px solid rgba(126,233,255,.4)}
 input#in{flex:1;min-width:0;height:40px;border:0;background:0;color:#e8fbff;font:500 16px system-ui;outline:none}
-.hub button{width:36px;height:36px;border:1px solid rgba(77,240,255,.6);border-radius:999px;background:rgba(4,12,24,.4);color:#4df0ff}
+.hub button{width:44px;height:44px;border:1px solid rgba(77,240,255,.6);border-radius:999px;background:rgba(4,12,24,.4);color:#4df0ff;font-size:22px}
 #line{margin:0 4px 8px;font:500 12px/1.5 ui-monospace,monospace;color:#7ee9ff;max-height:4.5rem;overflow:auto;white-space:pre-wrap}
 #sn-me,#gps{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 72px);z-index:45;width:var(--u);padding:0;border:0;background:transparent;color:#4df0ff}
 #sn-me{left:max(10px,env(safe-area-inset-left));z-index:90}
@@ -45,7 +45,7 @@ input#in{flex:1;min-width:0;height:40px;border:0;background:0;color:#e8fbff;font
 #sn-sheet,#sn-menu,#sn-tasks,#sn-cart,#sn-cash,#sn-video,#sn-layers,#sn-place,#sn-pick{display:none}
 #sn-sheet.on,#sn-menu.on,#sn-tasks.on,#sn-cart.on,#sn-cash.on,#sn-layers.on,#sn-place.on,#sn-pick.on{display:block}
 #sn-support,#sn-pill,#sn-cart-btn,#sn-layer,#sn-fix{display:none}
-#sn-power{display:inline-flex!important;position:fixed;top:calc(max(8px,env(safe-area-inset-top)) + 80px);right:max(8px,env(safe-area-inset-right));z-index:60;width:36px;height:36px;align-items:center;justify-content:center;border-radius:999px;border:1.5px solid rgba(77,240,255,.9);background:rgba(4,16,28,.94);color:#4df0ff;font-size:22px;line-height:1}
+#sn-power{display:inline-flex!important;position:fixed;top:calc(max(8px,env(safe-area-inset-top)) + 80px);right:max(8px,env(safe-area-inset-right));z-index:70;width:36px;height:36px;align-items:center;justify-content:center;border-radius:999px;border:1.5px solid rgba(77,240,255,.9);background:rgba(4,16,28,.94);color:#4df0ff;font-size:22px;line-height:1;visibility:visible!important;opacity:1!important}
 #sn-tasks-btn{display:inline-flex!important;position:fixed!important;top:calc(max(8px,env(safe-area-inset-top)) + 52px);left:3.6rem;z-index:50;align-items:center;justify-content:center;height:32px;min-width:70px;padding:0 12px;border-radius:999px;border:1px solid rgba(80,220,255,.35);background:rgba(4,16,28,.94);color:#4df0ff;font:800 11px/1 system-ui;letter-spacing:.14em}
 </style>
 </head>
@@ -57,7 +57,7 @@ input#in{flex:1;min-width:0;height:40px;border:0;background:0;color:#e8fbff;font
 <button type="button" id="sn-me" class="out" aria-label="Login" onclick="if(window.SNAuth&&SNAuth.open)SNAuth.open();"><span class="lbl">LOGIN</span><span class="tgt"><span class="ph">IN</span></span></button>
 <button type="button" id="gps" aria-label="GPS"><span class="lbl">GPS</span><span class="tgt">🎯</span></button>
 <button type="button" id="sn-tasks-btn">JOBS</button>
-<div id="top"><div id="island" title="Tap brand to reboot"><span id="heal"></span><b class="a">ASTRANOV</b><b class="s">SPACENET</b><span id="ver">4206</span></div></div>
+<div id="top"><div id="island" title="Tap brand to reboot"><span id="heal"></span><b class="a">ASTRANOV</b><b class="s">SPACENET</b><span id="ver">4207</span></div></div>
 <button type="button" id="sn-money">AV€ 0</button>
 <button type="button" id="sn-power" class="idle" aria-label="Offerings" aria-pressed="false">⏻</button>
 <div id="sn-tasks"><div class="bg" data-act="hide"></div><div class="card"><div class="bar"><b class="ttl">JOBS</b><button type="button" class="x" data-act="hide">HIDE</button></div><div id="sn-tasks-list"></div></div></div>
@@ -69,7 +69,7 @@ input#in{flex:1;min-width:0;height:40px;border:0;background:0;color:#e8fbff;font
 <script src="/js/spacenet/wallet.js?v=4160"></script>
 <script>
 (function(){
-  var VER="4206";
+  var VER="4207";
   var going=false;
   function go(v){ if(going) return; going=true; v=String(v||VER).replace(/[^\d]/g,"")||VER; location.replace("/?v="+v+"&t="+Date.now()); }
   function nuclear(e){
@@ -94,5 +94,12 @@ input#in{flex:1;min-width:0;height:40px;border:0;background:0;color:#e8fbff;font
 <script src="/js/spacenet/calm-4205.js?v=4205"></script>
 <script src="/js/spacenet/phone-verify.js?v=4138"></script>
 <script src="/js/spacenet/you-4206.js?v=4206"></script>
+<script src="/js/spacenet/plus-upload-4180.js?v=4180"></script>
+<script src="/js/spacenet/jobs-real-4181.js?v=4181"></script>
+<script src="/js/spacenet/money-own-4183.js?v=4183"></script>
+<script src="/js/spacenet/jobs-pin-4184.js?v=4184"></script>
+<script src="/js/spacenet/owner-drive.js?v=4160"></script>
+<script src="/js/spacenet/driver-gate.js?v=4160"></script>
+<script src="/js/spacenet/law-4207.js?v=4207"></script>
 </body>
 </html>
