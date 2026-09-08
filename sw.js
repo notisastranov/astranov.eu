@@ -1,7 +1,7 @@
-/* SpaceNet SW 4212 — network-first shell. Never cache a stub. */
-var CACHE = "sn-shell-4212";
+/* SpaceNet SW 4213 — network-first shell. Never send clients to /boot. Never inject earth-4204. */
+var CACHE = "sn-shell-4213";
 var TILES = "sn-tiles-1";
-var VER = "4212";
+var VER = "4213";
 function isTile(url) {
   return /tile\.openstreetmap\.org|openstreetmap\.fr\/hot|tiles\.maps\.eox\.at|server\.arcgisonline\.com/.test(url);
 }
@@ -36,6 +36,8 @@ function withShell(html) {
   inject('spacenet/app.js?v=4160"></script>', "/js/spacenet/jobs-stack.js?v=4164");
   inject('spacenet/app.js?v=4160"></script>', "/js/spacenet/plus-mic.js?v=4164");
   inject('spacenet/app.js?v=4160"></script>', "/js/spacenet/install.js?v=4164");
+  inject('spacenet/app.js?v=4204"></script>', "/js/spacenet/hang-kill-4213.js?v=4213");
+  inject('spacenet/app.js?v=4160"></script>', "/js/spacenet/hang-kill-4213.js?v=4213");
   inject('list-4161.js?v=4163"></script>', "/js/spacenet/calm-4164.js?v=4164");
   inject('calm-4164.js?v=4164"></script>', "/js/spacenet/jobs-4192.js?v=4192");
   inject('jobs-4192.js?v=4192"></script>', "/js/spacenet/radar-4166.js?v=4192");
@@ -67,16 +69,14 @@ function withShell(html) {
   inject('verify-4198.js?v=4198"></script>', "/js/spacenet/talk-4199.js?v=4199");
   inject('talk-4199.js?v=4199"></script>', "/js/spacenet/scout-4200.js?v=4200");
   inject('pin-4202.js?v=4202"></script>', "/js/spacenet/brand-throw-4203.js?v=4203");
-  inject('spacenet/app.js?v=4204"></script>', "/js/spacenet/earth-4204.js?v=4212");
-  inject('spacenet/app.js?v=4160"></script>', "/js/spacenet/earth-4204.js?v=4212");
   inject('money-keep-4210.js?v=4210"></script>', "/js/spacenet/land-4162.js?v=4212");
   inject('verify-sn-4208.js?v=4208"></script>', "/js/spacenet/land-4162.js?v=4212");
   inject('land-4162.js?v=4212"></script>', "/js/spacenet/list-4161.js?v=4212");
   inject('list-4161.js?v=4212"></script>', "/js/spacenet/fill-4199.js?v=4212");
   inject('fill-4199.js?v=4212"></script>', "/js/spacenet/pin-4202.js?v=4212");
   inject('pin-4202.js?v=4212"></script>', "/js/spacenet/pizza-lock-4211.js?v=4211");
-  inject('pizza-lock-4211.js?v=4211"></script>', "/js/spacenet/pizza-kill-4212.js?v=4212");
-  inject('money-keep-4210.js?v=4210"></script>', "/js/spacenet/pizza-kill-4212.js?v=4212");
+  inject('pizza-lock-4211.js?v=4211"></script>', "/js/spacenet/pizza-kill-4212.js?v=4213");
+  inject('money-keep-4210.js?v=4210"></script>', "/js/spacenet/pizza-kill-4212.js?v=4213");
   inject('spacenet/app.js?v=4204"></script>', "/js/spacenet/land-4162.js?v=4212");
   return html;
 }
@@ -92,9 +92,12 @@ self.addEventListener("activate", function(e) {
     return self.clients.matchAll({ type: "window" }).then(function(cs) {
       cs.forEach(function(c) {
         try { c.postMessage({ type: "SN_RELOAD", v: VER }); } catch (err) {}
-        if (c.navigate) {
-          try { c.navigate("/boot?v=" + VER + "&t=" + Date.now() + "&wipe=1"); } catch (err) {}
-        }
+        try {
+          var u = c.url || "";
+          if (c.navigate && /\/boot(\/|\?|$)/.test(u)) {
+            c.navigate("/?v=" + VER + "&t=" + Date.now());
+          }
+        } catch (err) {}
       });
     });
   }));
@@ -124,14 +127,22 @@ self.addEventListener("fetch", function(e) {
       var ct = res.headers.get("content-type") || "";
       if (ct.indexOf("text/html") === -1) return res;
       return res.text().then(function(t) {
+        var path = "";
+        try { path = new URL(e.request.url).pathname; } catch (err) {}
+        if (/^\/boot(\/|$)/.test(path)) {
+          var hop = "<!DOCTYPE html><meta charset=utf-8><script>location.replace('/?v=" + VER + "&t='+Date.now())<\/script>";
+          return new Response(hop, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
+        }
         if (isStub(t)) {
-          return fetch("/boot.html?lock=1", { cache: "no-store" }).then(function(r) {
+          return fetch("/?v=" + VER, { cache: "no-store" }).then(function(r) {
             if (!r || !r.ok) return new Response(t, { status: res.status, headers: res.headers });
             return r.text().then(function(full) {
               if (isStub(full)) return new Response(t, { status: res.status, headers: res.headers });
               var h = new Headers(r.headers); h.set("Cache-Control", "no-store");
               return new Response(withShell(full), { status: 200, headers: h });
             });
+          }).catch(function() {
+            return new Response(t, { status: res.status, headers: res.headers });
           });
         }
         t = withShell(t);
