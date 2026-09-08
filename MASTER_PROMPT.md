@@ -3,11 +3,11 @@
 **What this file is:** the only instruction document. Paste this first. Then read live `index.html` and `js/spacenet/app.js`. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
 **Date:** 2026-09-08
-**Stamp:** 4214 — Spartan rewrite. Owner ordered the overlay stack nuked.
+**Stamp:** 4215 — Spartan rewrite. Owner ordered the overlay stack nuked.
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
-**Bar:** ASTRANOV SPACENET 4214
+**Bar:** ASTRANOV SPACENET 4215
 
 If rebuild law changes, **edit this file**. Chat is not the archive. Latest block in this file wins.
 
@@ -27,7 +27,7 @@ Recorded as fraud:
 
 Do not patch wreckage. Change the live shell. Prove it on a real browser against https://astranov.eu, not only a sandbox.
 
-## Tree law (4214)
+## Tree law (4215)
 
 Allowed on the live page:
 
@@ -59,7 +59,7 @@ Visible, do not move, hide, restyle, or replace:
 - `LOGIN` `#sn-me` bottom-left. Becomes YOU when signed in.
 - `GPS` `#gps` bottom-right. Precise, then coarse, then IP, then tap-to-set.
 - Dock: `#plus` (bigger) · `#in` “Talk to Astranov SpaceNet” · `#go` mic (bigger).
-- `⏻` `#sn-power` — offerings (reload, withdraw, hourly, terms, apply role).
+- `⏻` `#sn-power` — **top-left, left of JOBS**. Real SVG power mark, 44px, always visible. Not a Unicode character (Android draws ⏻ blank). Offerings: reload, withdraw, hourly, terms, apply role.
 - `#line` status. No auto-talk on boot. No TTS unless they used the mic and asked to hear it.
 
 Required IDs: `g, city, island, ver, heal, sn-money, sn-tasks-btn, sn-me, gps, plus, in, go, line, panel, dock, f, sn-power`

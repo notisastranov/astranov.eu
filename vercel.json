@@ -8,8 +8,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4214"},
-        {"key": "X-Astranov-Ship", "value": "4214-spartan"},
+        {"key": "X-Astranov-Build", "value": "4215"},
+        {"key": "X-Astranov-Ship", "value": "4215-spartan"},
         {"key": "Content-Security-Policy", "value": "frame-ancestors 'self' https://astranov.eu https://*.astranov.eu https://investors.astranov.eu https://exchange.astranov.eu"}
       ]
     },
@@ -18,8 +18,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4214"},
-        {"key": "X-Astranov-Ship", "value": "4214-spartan"},
+        {"key": "X-Astranov-Build", "value": "4215"},
+        {"key": "X-Astranov-Ship", "value": "4215-spartan"},
         {"key": "Content-Security-Policy", "value": "frame-ancestors 'self' https://astranov.eu https://*.astranov.eu https://investors.astranov.eu https://exchange.astranov.eu"}
       ]
     },

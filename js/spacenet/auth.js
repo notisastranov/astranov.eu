@@ -1,4 +1,4 @@
-/* SpaceNet auth 4214 — Google on LOGIN. No map-icon grid. No auto-talk. */
+/* SpaceNet auth 4215 — Google on LOGIN. No map-icon grid. No auto-talk. */
 (function () {
   if (window.SNAuth) return;
   var SB = "https://lkoatrkhuigdolnjsbie.supabase.co";
@@ -144,8 +144,8 @@
     paintMe();
     applyHash().then(function () { paintMe(); });
     var btn = document.getElementById("sn-me");
-    if (btn && !btn.__sn4214) {
-      btn.__sn4214 = true;
+    if (btn && !btn.__sn4215) {
+      btn.__sn4215 = true;
       btn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openMe(); });
     }
   }

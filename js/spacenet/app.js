@@ -1,9 +1,9 @@
-/* SpaceNet 4214 — one OS. Globe, city, Grok, jobs, money. No overlays. */
+/* SpaceNet 4215 — one OS. Globe, city, Grok, jobs, money. No overlays. */
 (function () {
   "use strict";
-  if (window.__SN_4214) return;
-  window.__SN_4214 = true;
-  var VER = "4214";
+  if (window.__SN_4215) return;
+  window.__SN_4215 = true;
+  var VER = "4215";
   var OWNER_MAIL = /notisastranov@gmail\.com$|@astranov\.eu$/i;
   var TREASURY = 3000000;
 
@@ -533,7 +533,7 @@
           { enableHighAccuracy: false, timeout: 8000 }
         );
       },
-      { enableHighAccuracy: true, timeout: 9000, maximumAge: 14214 }
+      { enableHighAccuracy: true, timeout: 9000, maximumAge: 14215 }
     );
   }
   function reverse(pt) {
@@ -679,7 +679,7 @@
     if (b && b.getAttribute("data-act") === "hide") jobsPane.classList.remove("on");
   });
   jobsBtn.addEventListener("click", function () { jobsPane.classList.toggle("on"); paintJobs(); });
-  powerBtn.addEventListener("click", openPower);
+  if (powerBtn) powerBtn.addEventListener("click", openPower);
   gpsBtn.addEventListener("click", gps);
   plusBtn.addEventListener("click", function () { fileInp.click(); });
   fileInp.addEventListener("change", function () { if (fileInp.files && fileInp.files[0]) upload(fileInp.files[0]); fileInp.value = ""; });
