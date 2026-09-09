@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4227" />
+<meta name="astranov-build" content="4228" />
 <meta name="theme-color" content="#02040a" />
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -14,83 +14,14 @@
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
 <link rel="icon" type="image/svg+xml" href="/icon.svg" />
 <link rel="stylesheet" href="/js/vendor/leaflet.css?v=4127" />
-<style>
-html,body{margin:0;height:100%;background:#02040a;color:#d8f6ff;overflow:hidden;font-family:system-ui,sans-serif;--u:40px;--sn:#4df0ff}
-button,[role=button]{cursor:pointer}
-#g{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:1;touch-action:none}
-#city{position:fixed;inset:0;z-index:12;display:none;background:#02040a}
-#city.on{display:block}
-#top,#dock{position:fixed;left:0;right:0;display:flex;justify-content:center;pointer-events:none;z-index:40}
-#top{top:max(8px,env(safe-area-inset-top));padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right));box-sizing:border-box}
-#dock{bottom:0;padding:0 10px max(12px,env(safe-area-inset-bottom))}
-#island,#panel{pointer-events:auto}
-#island{display:flex;flex-direction:column;align-items:stretch;gap:4px;padding:7px 12px;background:rgba(4,14,28,.78);border:1px solid rgba(80,220,255,.35);border-radius:18px;box-shadow:0 0 22px rgba(40,200,255,.18);min-width:min(70vw,280px);max-width:calc(100vw - 128px);box-sizing:border-box}
-#island .r1,#island .r2{display:flex;align-items:center;gap:6px}
-#island .r1{justify-content:center}
-#island .r2{font:600 10px/1.15 ui-monospace,system-ui;color:#9ad;justify-content:space-between;letter-spacing:.02em}
-#island b{font:800 13px/1.15 system-ui;letter-spacing:.08em}
-#island .a{color:#4df0ff;text-shadow:0 0 6px #4df0ff}
-#island .s{color:#7ee9ff}
-#ver{font:800 12px/1.15 system-ui;color:#4df0ff}
-#heal{width:6px;height:6px;border-radius:99px;background:#4df0ff;box-shadow:0 0 10px #4df0ff;flex:0 0 6px}
-#sn-wx{font-size:14px;letter-spacing:.1em;line-height:1}
-#sn-spark{width:64px;height:20px;flex:0 0 64px;display:block}
-#sn-money{position:fixed;top:var(--hud-side,96px);right:max(8px,env(safe-area-inset-right));z-index:40;display:none;align-items:center;justify-content:center;height:28px;min-width:72px;padding:0 12px;border-radius:999px;border:1px solid rgba(126,233,255,.7);background:rgba(4,16,28,.94);color:#7ee9ff;font:800 13px/1 ui-monospace,system-ui;pointer-events:auto}
-#sn-money.on{display:flex}
-#panel{width:min(560px,100%);padding:8px 6px 4px;background:linear-gradient(180deg,transparent,rgba(2,8,18,.92))}
-form#f{display:flex;align-items:center;gap:10px;min-height:52px;border-bottom:1px solid rgba(126,233,255,.4)}
-input#in{flex:1;min-width:0;height:44px;border:0;background:0;color:#e8fbff;font:500 16px system-ui;outline:none}
-.hub button{width:48px;height:48px;border:1px solid rgba(77,240,255,.6);border-radius:999px;background:rgba(4,12,24,.4);color:#4df0ff;font-size:24px}
-#line{margin:0 4px 8px;font:500 12px/1.5 ui-monospace,monospace;color:#7ee9ff;max-height:4.5rem;overflow:auto;white-space:pre-wrap}
-#sn-me,#gps{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 78px);z-index:45;width:var(--u);padding:0;border:0;background:transparent;color:#4df0ff}
-#sn-me{left:max(10px,env(safe-area-inset-left));z-index:90}
-#gps{right:max(10px,env(safe-area-inset-right));z-index:120}
-#sn-me .lbl,#gps .lbl{display:block;font:800 8px/1 system-ui;letter-spacing:.16em;text-align:center;margin:0 0 4px}
-#sn-me .tgt,#gps .tgt{display:flex;align-items:center;justify-content:center;width:var(--u);height:var(--u);margin:0 auto;border-radius:999px;border:1.5px solid rgba(77,240,255,.95);background:radial-gradient(circle at 50% 50%,rgba(77,240,255,.22),rgba(2,10,18,.8) 70%);font-size:18px;line-height:1}
-#sn-sheet,#sn-tasks{display:none}
-#sn-sheet.on,#sn-tasks.on{display:block}
-#sn-sheet,#sn-tasks{position:fixed;inset:0;z-index:80}
-#sn-sheet .bg,#sn-tasks .bg{position:absolute;inset:0;background:rgba(0,0,0,.35)}
-#sn-sheet .card,#sn-tasks .card{position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom) + 86px);transform:translateX(-50%);width:min(420px,94vw);height:33vh;max-height:33vh;overflow:auto;padding:10px 12px 12px;background:rgba(4,14,28,.97);border:1px solid rgba(126,233,255,.4);border-radius:16px;touch-action:pan-y;box-sizing:border-box;overscroll-behavior:none;-webkit-overflow-scrolling:touch}
-#sn-sheet .bar,#sn-tasks .bar{display:flex;align-items:center;gap:8px;margin:0 0 8px;min-height:28px;cursor:grab;touch-action:none;position:sticky;top:-10px;padding-top:10px;margin-top:-10px;background:rgba(4,14,28,.97);z-index:2}
-#sn-sheet .ttl,#sn-tasks .ttl{flex:1;font:800 11px/1 system-ui;letter-spacing:.14em;color:#7ee9ff}
-#sn-sheet .x,#sn-tasks .x{height:32px;padding:0 10px;border:1px solid rgba(126,233,255,.35);background:rgba(4,16,28,.9);color:#e8fbff;border-radius:10px}
-#sn-sheet button.go,#sn-tasks button.go,#sn-sheet button.act{display:block;width:100%;height:40px;margin:6px 0 0;border:1px solid rgba(126,233,255,.55);background:rgba(4,16,28,.9);color:#7ee9ff;font:800 12px system-ui;border-radius:12px}
-#sn-sheet button.throw{background:#19e68c;color:#00140a;border:0}
-#sn-sheet p,#sn-sheet .menu{margin:0 0 8px;font:500 12px/1.35 system-ui;color:#c6f6ff}
-#sn-sheet .menu b{display:block;font:800 12px system-ui;color:#4df0ff}
-#sn-sheet a.tel{color:#4df0ff}
-#sn-sheet label{display:flex;align-items:center;gap:8px;margin:6px 0;font:600 12px system-ui;color:#c6f6ff}
-#sn-sheet input[type=number],#sn-sheet input[type=text]{width:100%;height:36px;margin:4px 0;padding:0 10px;border:1px solid rgba(126,233,255,.28);background:rgba(4,16,28,.9);color:#e8fbff;border-radius:10px}
-.job button{margin-top:6px;height:32px;padding:0 10px;border:1px solid rgba(126,233,255,.45);background:rgba(4,16,28,.9);color:#7ee9ff;border-radius:8px;font:800 11px system-ui}
-#city .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) saturate(.45) brightness(.9)}
-#sn-power{display:none;position:fixed;top:var(--hud-side,96px);left:max(8px,env(safe-area-inset-left));z-index:80;width:44px;height:44px;align-items:center;justify-content:center;padding:0;border-radius:999px;border:1.5px solid rgba(77,240,255,.95);background:rgba(4,16,28,.96);color:#4df0ff;box-shadow:0 0 14px rgba(77,240,255,.55)}
-#sn-power.show{display:inline-flex}
-#sn-power.live{box-shadow:0 0 18px #19e68c;border-color:#19e68c;color:#19e68c}
-#sn-power svg{width:22px;height:22px;display:block;stroke:currentColor}
-#sn-count{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;font:800 96px/1 system-ui;color:#4df0ff;pointer-events:none;text-shadow:0 0 28px #4df0ff}
-#sn-count.on{display:flex}
-.sn-pill{background:transparent!important;border:0}
-.sn-pill-btn{display:flex;align-items:center;gap:6px;height:28px;max-width:148px;padding:0 10px 0 3px;border-radius:999px;border:1px solid rgba(77,240,255,.75);background:rgba(4,16,28,.94);color:#e8fbff;font:800 10px/1 system-ui;letter-spacing:.04em;white-space:nowrap;overflow:hidden}
-.sn-pill-btn img,.sn-pill-btn .av{width:22px;height:22px;border-radius:99px;object-fit:cover;flex:0 0 22px;background:#0a2430;color:#4df0ff;display:flex;align-items:center;justify-content:center;font:800 11px system-ui}
-.sn-pill-btn b{overflow:hidden;text-overflow:ellipsis}
-.price{font:800 18px/1.1 system-ui;color:#19e68c;margin:0 0 8px}
-#top{flex-direction:column;align-items:center;gap:8px}
-#sn-tasks-btn,#sn-find-btn{display:inline-flex;position:relative;top:auto;left:auto;z-index:50;align-items:center;justify-content:center;height:32px;min-width:70px;padding:0 14px;border-radius:999px;border:1px solid rgba(80,220,255,.55);background:rgba(4,16,28,.94);color:#4df0ff;font:800 11px/1 system-ui;letter-spacing:.14em;pointer-events:auto}
-#top .hud-row{display:flex;gap:8px;pointer-events:auto}
-.chip{display:inline-flex;align-items:center;height:28px;margin:0 6px 6px 0;padding:0 10px;border-radius:999px;border:1px solid rgba(126,233,255,.4);background:rgba(4,16,28,.9);color:#c6f6ff;font:800 10px system-ui;letter-spacing:.08em}
-.job{margin:0 0 10px;padding:10px;border-radius:12px;border:1px solid rgba(126,233,255,.25)}
-.job b{display:block;font:800 13px system-ui}
-.job span{display:block;margin-top:4px;font:600 11px ui-monospace;color:#9ad}
-.leaflet-container{background:#02040a}
-</style>
+<link rel="stylesheet" href="/js/spacenet/sn-shell-4228.css?v=4228" />
 </head>
 <body>
 <canvas id="g"></canvas>
 <div id="city" class="dark"></div>
 <button type="button" id="sn-me" class="out" aria-label="Login"><span class="lbl">LOGIN</span><span class="tgt"><span class="ph">IN</span></span></button>
 <button type="button" id="gps" aria-label="GPS"><span class="lbl">GPS</span><span class="tgt">🎯</span></button>
-<div id="top"><div id="island" title="Local · UTC · weather · node · tap for system"><div class="r1"><span id="heal"></span><b class="a">ASTRANOV</b><b class="s">SPACENET</b><span id="ver">V4227</span></div><div class="r2"><span id="sn-local">—</span><span id="sn-utc">—</span><span id="sn-wx"></span><span id="sn-node">node 0</span><canvas id="sn-spark" width="64" height="20"></canvas></div></div><div class="hud-row"><button type="button" id="sn-tasks-btn">JOBS</button><button type="button" id="sn-find-btn">FIND</button><button type="button" id="sn-node-btn">NODE</button></div></div>
+<div id="top"><div id="island" title="Local · UTC · weather · node · tap for system"><div class="r1"><span id="heal"></span><b class="a">ASTRANOV</b><b class="s">SPACENET</b><span id="ver">V4228</span></div><div class="r2"><span id="sn-local">—</span><span id="sn-utc">—</span><span id="sn-wx"></span><span id="sn-node">node 0</span><canvas id="sn-spark" width="64" height="20"></canvas></div></div><div class="hud-row"><button type="button" id="sn-tasks-btn">JOBS</button><button type="button" id="sn-find-btn">FIND</button><button type="button" id="sn-node-btn">NODE</button></div></div>
 <button type="button" id="sn-money">AV€</button>
 <button type="button" id="sn-power" class="idle" aria-label="Go live" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M12 3v9"/><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M7.2 6.4a7 7 0 1 0 9.6 0"/></svg></button>
 <div id="sn-count" aria-hidden="true"></div>
@@ -99,18 +30,18 @@ input#in{flex:1;min-width:0;height:44px;border:0;background:0;color:#e8fbff;font
 <div id="dock"><div id="panel"><div id="line"></div><form id="f"><div class="hub"><button type="button" id="plus" aria-label="Upload">+</button></div><input id="in" autocomplete="off" enterkeyhint="send" placeholder="Name it. Grok finds it." /><div class="hub"><button type="button" id="go" aria-label="Voice">🎙</button></div></form></div></div>
 <input id="sn-file" type="file" accept="image/*,application/pdf,text/*" hidden />
 <script src="/js/vendor/leaflet.js?v=4127"></script>
-<script src="/js/spacenet/app.js?v=4227"></script>
-<script src="/js/spacenet/auth.js?v=4227"></script>
-<script src="/js/spacenet/earth-4204.js?v=4227"></script>
-<script src="/js/spacenet/earth-guest-4227.js?v=4227"></script>
+<script src="/js/spacenet/app.js?v=4228"></script>
+<script src="/js/spacenet/auth.js?v=4228"></script>
+<script src="/js/spacenet/earth-4204.js?v=4228"></script>
+<script src="/js/spacenet/earth-guest-4228.js?v=4228"></script>
 <script>
 (function(){
-  var VER="4227";
+  var VER="4228";
   var going=false;
   function go(){ if(going) return; going=true; location.replace("/?v="+VER+"&t="+Date.now()); }
   function nuclear(e){
     if(e){ if(e.target&&e.target.closest&&e.target.closest("#sn-money")) return; e.preventDefault(); }
-    var line=document.getElementById("line"); if(line) line.textContent="Wiping caches · loading 4227…";
+    var line=document.getElementById("line"); if(line) line.textContent="Wiping caches · loading 4228…";
     var tasks=[];
     try{ if(window.caches) tasks.push(caches.keys().then(function(ks){ return Promise.all(ks.map(function(k){ return caches.delete(k); })); })); }catch(err){}
     try{ if(navigator.serviceWorker) tasks.push(navigator.serviceWorker.getRegistrations().then(function(rs){ return Promise.all(rs.map(function(r){ return r.unregister(); })); })); }catch(err){}
