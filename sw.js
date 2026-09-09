@@ -1,7 +1,9 @@
-/* SpaceNet SW 4226 — network-first, then local replica of the OS. Never inject. Never /boot. */
-var CACHE = "sn-shell-4226";
-var VER = "4226";
-var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4226", "/js/spacenet/auth.js?v=4226", "/js/vendor/leaflet.js?v=4127", "/js/vendor/leaflet.css?v=4127", "/icon-192.png", "/manifest.webmanifest"];
+/* SpaceNet SW 4227 — network-first. DO inject earth. Never /boot. */
+var CACHE = "sn-shell-4227";
+var VER = "4227";
+var EARTH = "/js/spacenet/earth-4204.js?v=4227";
+var LAND = "/js/spacenet/assets/land-rings.json?v=4227";
+var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4227", "/js/spacenet/auth.js?v=4227", EARTH, LAND, "/js/vendor/leaflet.js?v=4127", "/js/vendor/leaflet.css?v=4127", "/icon-192.png", "/manifest.webmanifest"];
 self.addEventListener("install", function (e) {
   self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then(function (c) {
@@ -26,6 +28,24 @@ self.addEventListener("activate", function (e) {
 function isTile(url) {
   return /tile\.openstreetmap\.org|tile\.openstreetmap\.de|openstreetmap\.fr\/hot/.test(url);
 }
+function injectEarth(html) {
+  try {
+    if (/earth-4204\.js/.test(html)) return html;
+    if (/\/js\/spacenet\/auth\.js/.test(html)) {
+      return html.replace(
+        /(<script src="\/js\/spacenet\/auth\.js[^"]*"><\/script>)/,
+        "$1\n<script src=\"" + EARTH + "\"></script>"
+      );
+    }
+    if (/\/js\/spacenet\/app\.js/.test(html)) {
+      return html.replace(
+        /(<script src="\/js\/spacenet\/app\.js[^"]*"><\/script>)/,
+        "$1\n<script src=\"" + EARTH + "\"></script>"
+      );
+    }
+  } catch (e) {}
+  return html;
+}
 self.addEventListener("fetch", function (e) {
   var req = e.request;
   if (req.method !== "GET") return;
@@ -47,15 +67,41 @@ self.addEventListener("fetch", function (e) {
     }));
     return;
   }
+  var htmlDoc = path === "/" || path === "/index.html";
   e.respondWith(fetch(req, { cache: "no-store" }).then(function (res) {
-    if (res && res.ok && (path === "/" || path === "/index.html" || /\/js\/spacenet\//.test(path) || path === "/sw.js")) {
+    if (!res || !res.ok) return res;
+    if (htmlDoc) {
+      return res.text().then(function (txt) {
+        var out = injectEarth(txt);
+        var headers = new Headers(res.headers);
+        headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+        headers.set("X-Astranov-Build", VER);
+        var resp = new Response(out, { status: res.status, statusText: res.statusText, headers: headers });
+        caches.open(CACHE).then(function (c) { c.put(req, resp.clone()); }).catch(function () {});
+        return resp;
+      });
+    }
+    if (/\/js\/spacenet\//.test(path) || path === "/sw.js" || path.indexOf("/js/spacenet/assets/") === 0) {
       var copy = res.clone();
       caches.open(CACHE).then(function (c) { c.put(req, copy); }).catch(function () {});
     }
     return res;
   }).catch(function () {
     return caches.match(req).then(function (hit) {
-      return hit || caches.match("/") || new Response("offline node", { status: 503, headers: { "Content-Type": "text/plain" } });
+      if (hit) {
+        if (htmlDoc) {
+          return hit.text().then(function (txt) {
+            return new Response(injectEarth(txt), { status: 200, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
+          });
+        }
+        return hit;
+      }
+      return caches.match("/").then(function (root) {
+        if (!root) return new Response("offline node", { status: 503, headers: { "Content-Type": "text/plain" } });
+        return root.text().then(function (txt) {
+          return new Response(injectEarth(txt), { status: 200, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
+        });
+      });
     });
   }));
 });
