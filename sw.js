@@ -1,15 +1,52 @@
-var CACHE="sn-shell-4234",VER="4234",EARTH="/js/spacenet/earth-4204.js?v=4234",GUEST="/js/spacenet/earth-guest-4228.js?v=4234",MONEY="/js/spacenet/money-hide-4233.js?v=4234",OWNER="/js/spacenet/money-owner-4234.js?v=4234",TALK="/js/spacenet/talk-4232.js?v=4234",LANDJS="/js/spacenet/land-4232.js?v=4234",PIZZA="/js/spacenet/pizza-lock-4229.js?v=4234",PAY="/js/spacenet/pay-4234.js?v=4234",FILL="/js/spacenet/fill-4234.js?v=4234",FILL4233="/js/spacenet/fill-4233.js?v=4234",RINGS="/js/spacenet/assets/land-rings.json?v=4234",SHELL=["/","/index.html","/js/spacenet/sn-shell-4228.css?v=4234","/js/spacenet/app.js?v=4234","/js/spacenet/auth.js?v=4234",EARTH,GUEST,MONEY,OWNER,TALK,LANDJS,PIZZA,PAY,FILL,FILL4233,RINGS,"/js/vendor/leaflet.js?v=4127","/js/vendor/leaflet.css?v=4127","/icon-192.png","/manifest.webmanifest"];
-function isTile(t){return/tile\.openstreetmap\.org|tile\.openstreetmap\.de|openstreetmap\.fr\/hot/.test(t)}
-function injectEarth(t){try{var e=t;
-if(!/earth-4204\.js/.test(e)){if(/\/js\/spacenet\/auth\.js/.test(e))e=e.replace(/(<script src="\/js\/spacenet\/auth\.js[^"]*"><\/script>)/,'$1\n<script src="'+EARTH+'"><\/script>');else if(/\/js\/spacenet\/app\.js/.test(e))e=e.replace(/(<script src="\/js\/spacenet\/app\.js[^"]*"><\/script>)/,'$1\n<script src="'+EARTH+'"><\/script>');}
-if(!/earth-guest-4228\.js/.test(e)&&/earth-4204\.js/.test(e))e=e.replace(/(<script src="\/js\/spacenet\/earth-4204\.js[^"]*"><\/script>)/,'$1\n<script src="'+GUEST+'"><\/script>');
-if(!/money-hide-4233\.js/.test(e)&&/earth-guest-4228\.js/.test(e))e=e.replace(/(<script src="\/js\/spacenet\/earth-guest-4228\.js[^"]*"><\/script>)/,'$1\n<script src="'+MONEY+'"><\/script>');
-if(!/money-owner-4234\.js/.test(e)&&/money-hide-4233\.js/.test(e))e=e.replace(/(<script src="\/js\/spacenet\/money-hide-4233\.js[^"]*"><\/script>)/,'$1\n<script src="'+OWNER+'"><\/script>');
-if(!/talk-4232\.js/.test(e)){if(/money-owner-4234\.js/.test(e))e=e.replace(/(<script src="\/js\/spacenet\/money-owner-4234\.js[^"]*"><\/script>)/,'$1\n<script src="'+TALK+'"><\/script>');else if(/earth-guest-4228\.js/.test(e))e=e.replace(/(<script src="\/js\/spacenet\/earth-guest-4228\.js[^"]*"><\/script>)/,'$1\n<script src="'+TALK+'"><\/script>');else if(/earth-4204\.js/.test(e))e=e.replace(/(<script src="\/js\/spacenet\/earth-4204\.js[^"]*"><\/script>)/,'$1\n<script src="'+TALK+'"><\/script>');}
-if(!/land-4232\.js/.test(e)){if(/talk-4232\.js/.test(e))e=e.replace(/(<script src="\/js\/spacenet\/talk-4232\.js[^"]*"><\/script>)/,'$1\n<script src="'+LANDJS+'"><\/script>');else if(/earth-guest-4228\.js/.test(e))e=e.replace(/(<script src="\/js\/spacenet\/earth-guest-4228\.js[^"]*"><\/script>)/,'$1\n<script src="'+LANDJS+'"><\/script>');}
-if(!/pizza-lock-4229\.js/.test(e)){if(/land-4232\.js/.test(e))e=e.replace(/(<script src="\/js\/spacenet\/land-4232\.js[^"]*"><\/script>)/,'$1\n<script src="'+PIZZA+'"><\/script>');else if(/talk-4232\.js/.test(e))e=e.replace(/(<script src="\/js\/spacenet\/talk-4232\.js[^"]*"><\/script>)/,'$1\n<script src="'+PIZZA+'"><\/script>');}
-if(!/fill-4234\.js/.test(e)){if(/pizza-lock-4229\.js/.test(e))e=e.replace(/(<script src="\/js\/spacenet\/pizza-lock-4229\.js[^"]*"><\/script>)/,'$1\n<script src="'+FILL+'"><\/script>');else if(/land-4232\.js/.test(e))e=e.replace(/(<script src="\/js\/spacenet\/land-4232\.js[^"]*"><\/script>)/,'$1\n<script src="'+FILL+'"><\/script>');}
-return e}catch(t){}return t}
-self.addEventListener("install",function(t){self.skipWaiting(),t.waitUntil(caches.open(CACHE).then(function(t){return t.addAll(SHELL.map(function(t){return new Request(t,{cache:"reload"})})).catch(function(){})}).then(function(){return self.skipWaiting()}))});
-self.addEventListener("activate",function(t){t.waitUntil(caches.keys().then(function(t){return Promise.all(t.map(function(t){if(t!==CACHE&&0!==t.indexOf("sn-tiles"))return caches.delete(t)}))}).then(function(){return self.clients.claim()}).then(function(){return self.clients.matchAll({type:"window"})}).then(function(t){t.forEach(function(t){if(t.navigate&&/\/boot(\/|\?|$)/.test(t.url||""))try{t.navigate("/?v="+VER+"&t="+Date.now())}catch(t){}})}))});
-self.addEventListener("fetch",function(t){var e=t.request;if("GET"===e.method){var n=e.url,s="";try{s=new URL(n).pathname}catch(t){return}if(/^\/boot(\/|$)/.test(s))t.respondWith(Response.redirect("/?v="+VER+"&t="+Date.now(),302));else if(isTile(n))t.respondWith(caches.open("sn-tiles-1").then(function(t){return t.match(e).then(function(n){return n||fetch(e).then(function(n){return n&&n.ok&&t.put(e,n.clone()),n})})}));else{var c="/"===s||"/index.html"===s;t.respondWith(fetch(e,{cache:"no-store"}).then(function(t){if(!t||!t.ok)return t;if(c)return t.text().then(function(n){var s=injectEarth(n),c=new Headers(t.headers);c.set("Cache-Control","no-store, no-cache, must-revalidate"),c.set("X-Astranov-Build",VER);var r=new Response(s,{status:t.status,statusText:t.statusText,headers:c});return caches.open(CACHE).then(function(t){t.put(e,r.clone())}).catch(function(){}),r});if(/\/js\/spacenet\//.test(s)||"/sw.js"===s||0===s.indexOf("/js/spacenet/assets/")){var n=t.clone();caches.open(CACHE).then(function(t){t.put(e,n)}).catch(function(){})}return t}).catch(function(){return caches.match(e).then(function(t){return t?c?t.text().then(function(t){return new Response(injectEarth(t),{status:200,headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store"}})}):t:caches.match("/").then(function(t){return t?t.text().then(function(t){return new Response(injectEarth(t),{status:200,headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store"}})}):new Response("offline node",{status:503,headers:{"Content-Type":"text/plain"}})})})}))}}});
+/* SpaceNet SW 4235 — network-first. skipWaiting + clients.claim. */
+var CACHE = "sn-shell-4235";
+var TILES = "sn-tiles-1";
+var VER = "4235";
+function isTile(url) {
+  return /tile\.openstreetmap\.org|tile\.openstreetmap\.de|openstreetmap\.fr\/hot/.test(url);
+}
+self.addEventListener("install", function (e) {
+  self.skipWaiting();
+  e.waitUntil(caches.open(CACHE).then(function () { return self.skipWaiting(); }));
+});
+self.addEventListener("activate", function (e) {
+  e.waitUntil(
+    caches.keys().then(function (keys) {
+      return Promise.all(keys.map(function (k) {
+        if (k !== CACHE && k.indexOf("sn-tiles") !== 0) return caches.delete(k);
+      }));
+    }).then(function () { return self.clients.claim(); })
+  );
+});
+self.addEventListener("fetch", function (e) {
+  var req = e.request;
+  if (req.method !== "GET") return;
+  var path = "";
+  try { path = new URL(req.url).pathname; } catch (err) { return; }
+  if (/^\/boot(\/|$)/.test(path)) {
+    e.respondWith(Response.redirect("/?v=" + VER + "&t=" + Date.now(), 302));
+    return;
+  }
+  if (isTile(req.url)) {
+    e.respondWith(
+      caches.open(TILES).then(function (c) {
+        return c.match(req).then(function (hit) {
+          return hit || fetch(req).then(function (r) {
+            if (r && r.ok) c.put(req, r.clone());
+            return r;
+          });
+        });
+      })
+    );
+    return;
+  }
+  e.respondWith(
+    fetch(req, { cache: "no-store" }).then(function (r) {
+      return r;
+    }).catch(function () {
+      return caches.match(req).then(function (h) {
+        return h || new Response("offline node", { status: 503 });
+      });
+    })
+  );
+});
