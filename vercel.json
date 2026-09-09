@@ -8,9 +8,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4223"},
-        {"key": "X-Astranov-Ship", "value": "4223-midnight-rebuild"},
-        {"key": "Content-Security-Policy", "value": "frame-ancestors 'self' https://astranov.eu https://*.astranov.eu https://investors.astranov.eu https://exchange.astranov.eu"}
+        {"key": "X-Astranov-Build", "value": "4224"},
+        {"key": "X-Astranov-Ship", "value": "4224-deploy-outputs-fix"}
       ]
     },
     {
@@ -18,9 +17,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4223"},
-        {"key": "X-Astranov-Ship", "value": "4223-midnight-rebuild"},
-        {"key": "Content-Security-Policy", "value": "frame-ancestors 'self' https://astranov.eu https://*.astranov.eu https://investors.astranov.eu https://exchange.astranov.eu"}
+        {"key": "X-Astranov-Build", "value": "4224"},
+        {"key": "X-Astranov-Ship", "value": "4224-deploy-outputs-fix"}
       ]
     },
     {
@@ -54,6 +52,8 @@
     {"source": "/index.html", "has": [{"type": "host", "value": "exchange.astranov.eu"}], "destination": "/exchange/index.html"},
     {"source": "/app.js", "has": [{"type": "host", "value": "exchange.astranov.eu"}], "destination": "/exchange/app.js"},
     {"source": "/book.json", "has": [{"type": "host", "value": "exchange.astranov.eu"}], "destination": "/exchange/book.json"},
+    {"source": "/api/ai/pricing", "destination": "/api/ai"},
+    {"source": "/api/paypal/config", "destination": "/api/paypal"},
     {"source": "/presence", "destination": "/presence/index.html"},
     {"source": "/presence/", "destination": "/presence/index.html"},
     {"source": "/exchange", "destination": "/exchange/index.html"},
@@ -62,7 +62,6 @@
     {"source": "/investors/", "destination": "/investors/index.html"},
     {"source": "/privacy", "destination": "/privacy.html"},
     {"source": "/terms", "destination": "/terms.html"},
-    {"source": "/opt-in", "destination": "/opt-in.html"},
-    {"source": "/((?!api/|js/|icon|manifest|assets/|media/|investors|presence|exchange|sw\\.js|briefings/|privacy|terms|opt-in|robots|favicon|boot).*)", "destination": "/index.html"}
+    {"source": "/opt-in", "destination": "/opt-in.html"}
   ]
 }

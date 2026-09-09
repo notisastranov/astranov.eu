@@ -246,6 +246,10 @@ module.exports = async function handler(req, res) {
       model: MODEL,
       keyed: keyed,
       keyWhere: where,
+      usdInPerM: 3,
+      usdOutPerM: 15,
+      eurPerUsd: 0.92,
+      asof: '2026-08-19',
     });
     return;
   }
