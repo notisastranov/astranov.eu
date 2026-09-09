@@ -8,8 +8,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4234"},
-        {"key": "X-Astranov-Ship", "value": "4234-signedin-avc"}
+        {"key": "X-Astranov-Build", "value": "4235"},
+        {"key": "X-Astranov-Ship", "value": "4235-wallet-debit-fix"}
       ]
     },
     {
@@ -17,8 +17,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4234"},
-        {"key": "X-Astranov-Ship", "value": "4234-signedin-avc"}
+        {"key": "X-Astranov-Build", "value": "4235"},
+        {"key": "X-Astranov-Ship", "value": "4235-wallet-debit-fix"}
       ]
     },
     {
