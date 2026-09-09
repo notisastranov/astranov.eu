@@ -2,8 +2,9 @@
 var CACHE = "sn-shell-4227";
 var VER = "4227";
 var EARTH = "/js/spacenet/earth-4204.js?v=4227";
+var GUEST = "/js/spacenet/earth-guest-4227.js?v=4227";
 var LAND = "/js/spacenet/assets/land-rings.json?v=4227";
-var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4227", "/js/spacenet/auth.js?v=4227", EARTH, LAND, "/js/vendor/leaflet.js?v=4127", "/js/vendor/leaflet.css?v=4127", "/icon-192.png", "/manifest.webmanifest"];
+var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4227", "/js/spacenet/auth.js?v=4227", EARTH, GUEST, LAND, "/js/vendor/leaflet.js?v=4127", "/js/vendor/leaflet.css?v=4127", "/icon-192.png", "/manifest.webmanifest"];
 self.addEventListener("install", function (e) {
   self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then(function (c) {
@@ -30,19 +31,29 @@ function isTile(url) {
 }
 function injectEarth(html) {
   try {
-    if (/earth-4204\.js/.test(html)) return html;
-    if (/\/js\/spacenet\/auth\.js/.test(html)) {
-      return html.replace(
-        /(<script src="\/js\/spacenet\/auth\.js[^"]*"><\/script>)/,
-        "$1\n<script src=\"" + EARTH + "\"></script>"
-      );
+    var out = html;
+    if (!/earth-4204\.js/.test(out)) {
+      if (/\/js\/spacenet\/auth\.js/.test(out)) {
+        out = out.replace(
+          /(<script src="\/js\/spacenet\/auth\.js[^"]*"><\/script>)/,
+          "$1\n<script src=\"" + EARTH + "\"></script>"
+        );
+      } else if (/\/js\/spacenet\/app\.js/.test(out)) {
+        out = out.replace(
+          /(<script src="\/js\/spacenet\/app\.js[^"]*"><\/script>)/,
+          "$1\n<script src=\"" + EARTH + "\"></script>"
+        );
+      }
     }
-    if (/\/js\/spacenet\/app\.js/.test(html)) {
-      return html.replace(
-        /(<script src="\/js\/spacenet\/app\.js[^"]*"><\/script>)/,
-        "$1\n<script src=\"" + EARTH + "\"></script>"
-      );
+    if (!/earth-guest-4227\.js/.test(out)) {
+      if (/earth-4204\.js/.test(out)) {
+        out = out.replace(
+          /(<script src="\/js\/spacenet\/earth-4204\.js[^"]*"><\/script>)/,
+          "$1\n<script src=\"" + GUEST + "\"></script>"
+        );
+      }
     }
+    return out;
   } catch (e) {}
   return html;
 }
