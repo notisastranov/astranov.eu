@@ -64,6 +64,14 @@ function slim(row) {
     'holdMin',
     'flag',
     'strict',
+    'cid',
+    'pack',
+    'want',
+    'sdp',
+    'ice',
+    'served',
+    'fromPeer',
+    'mesh',
   ];
   keep.forEach(function (k) {
     if (row[k] != null && row[k] !== '') out[k] = row[k];

@@ -3,7 +3,7 @@
 **What this file is:** the only instruction document. Paste this first. Then the live shell. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
 **Date:** 2026-09-09
-**Stamp:** 4225 (midnight ship now — device node / mesh / replica. Vercel is front door only.)
+**Stamp:** 4226 (midnight ship now — phones serve replica. Vercel is front door only.)
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
@@ -129,12 +129,14 @@ Send = pending. **Vendor + driver + client must all confirm.** Until then there 
 
 Sheets default **33vh**, bottom-up. One finger: pull up = full (88vh), pull down = close. Scroll inside. When inner scroll hits the end, the sheet itself moves. Same physics on JOBS.
 
-### Node / mesh (4225)
+### Node / mesh (4226)
 
 Vercel (or later Hetzner) is the **front door only**. Users serve SpaceNet from their phones.
 
 - IndexedDB replica of listings. Boots if origin is dark.
-- BroadcastChannel mesh between tabs. Nearby nodes announce `kind:peer` on `/api/space` (existing function, no extra Hobby slot).
+- BroadcastChannel mesh between tabs.
+- Nearby nodes announce `kind:peer` on `/api/space` (existing function, no extra Hobby slot) **with a compact pack** of shops. A phone that is dark on origin hydrates from those packs. WANT / PACK / SERVED rows are the mailbox. AV€ credits when another phone takes your pack.
+- WebRTC DataChannel (STUN only, `stun.l.google.com`) when GO LIVE or PULL REPLICA. If ICE fails, mailbox still works. No TURN. No extra function.
 - Content id: SHA-256 CID of the replica. Helia (`js-libp2p`/IPFS) loads **only when the user goes live as a node**; if the CDN import fails, CID-IDB stays the store. Never mine on Vercel. Never sell Vercel CPU.
 - `NODE` control under the island. Login required to go live. Owed AV€ for serving replica; settles from the job 3% cut when a delivery completes on a live node. Cap 40 AV€ owed.
 - Island shows `node N` peer count. Map: at most 6 node dots at zoom ≥ 13.

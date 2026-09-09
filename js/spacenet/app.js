@@ -1,9 +1,9 @@
-/* SpaceNet 4225 — one OS. Vendor first, then drop, then drivers. No overlays. */
+/* SpaceNet 4226 — one OS. Vendor first, then drop, then drivers. No overlays. */
 (function () {
   "use strict";
-  if (window.__SN_4225) return;
-  window.__SN_4225 = true;
-  var VER = "4225";
+  if (window.__SN_4226) return;
+  window.__SN_4226 = true;
+  var VER = "4226";
   var OWNER_MAIL = /notisastranov@gmail\.com$|@astranov\.eu$/i;
   var TREASURY = 3000000;
 
@@ -89,8 +89,13 @@
   var nodeLive = false;
   var nodePeers = [];
   var nodeHelia = "off";
+  var nodeRtc = "off";
   var nodeCh = null;
+  var nodePc = null;
+  var nodeDc = null;
   var nodeId = "";
+  var nodePackAt = {};
+  var nodeCreditAt = {};
   try { nodeId = localStorage.getItem("sn:peer-id") || ""; } catch (e) {}
   if (!nodeId) {
     nodeId = "n" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-3);
@@ -100,6 +105,9 @@
   var nodeOwed = 0;
   try { nodeOwed = Number(localStorage.getItem("sn:node-owed") || 0) || 0; } catch (e) {}
 
+  function heliaNote() {
+    return typeof nodeHelia === "string" ? nodeHelia : "helia-up";
+  }
   function idbOpen() {
     return new Promise(function (ok, err) {
       try {
@@ -157,18 +165,40 @@
     say("Node share " + fmtAve(pay) + " · you served the replica.");
   }
   function mergeListings(rows) {
-    if (!rows || !rows.length) return;
+    if (!rows || !rows.length) return 0;
     var seen = {};
+    var added = 0;
     listings.forEach(function (r) { seen[r.id || (r.name + r.lat)] = 1; });
     rows.forEach(function (r) {
+      if (!r || !isFinite(Number(r.lat))) return;
       var k = r.id || (r.name + r.lat);
       if (seen[k]) return;
       seen[k] = 1;
       listings.push(r);
+      added += 1;
     });
-    idbSet("listings", listings.slice(0, 80));
-    cidOf(listings.slice(0, 20)).then(function (c) { try { localStorage.setItem("sn:cid", c); } catch (e) {} });
-    paintMarks();
+    if (added) {
+      idbSet("listings", listings.slice(0, 80));
+      cidOf(listings.slice(0, 20)).then(function (c) { try { localStorage.setItem("sn:cid", c); } catch (e) {} });
+      paintMarks();
+    }
+    return added;
+  }
+  function compactPack() {
+    return listings.slice(0, 36).map(function (r) {
+      if (!r || !isFinite(Number(r.lat))) return null;
+      var o = {
+        id: r.id || String(r.name || "") + r.lat,
+        kind: r.kind || "shop",
+        name: String(r.name || "").slice(0, 48),
+        lat: Number(r.lat),
+        lng: Number(r.lng)
+      };
+      if (r.phone) o.phone = String(r.phone).slice(0, 24);
+      if (r.open != null) o.open = r.open;
+      if (r.partner) o.partner = 1;
+      return o;
+    }).filter(Boolean);
   }
   function paintNode() {
     var el = $("sn-node");
@@ -180,44 +210,183 @@
       nodeBtn.style.color = nodeLive ? "#19e68c" : "";
     }
   }
-  function announceNode() {
-    if (!nodeLive) return;
+  function postPeer(extra) {
+    extra = extra || {};
     var pt = here || drop || { lat: 36.437, lng: 28.227 };
+    var cid = "";
+    try { cid = localStorage.getItem("sn:cid") || ""; } catch (e) {}
+    var row = {
+      id: extra.id || ("peer-" + nodeId),
+      kind: "peer",
+      lat: Number(pt.lat),
+      lng: Number(pt.lng),
+      name: extra.name || "NODE",
+      peer: nodeId,
+      presence: nodeLive ? 1 : 0,
+      cid: extra.cid || cid,
+      fromPeer: extra.fromPeer || nodeId,
+      mesh: "4226",
+      note: extra.note || ("helia:" + heliaNote())
+    };
+    if (extra.pack) row.pack = extra.pack;
+    if (extra.want) row.want = extra.want;
+    if (extra.sdp) row.sdp = extra.sdp;
+    if (extra.ice) row.ice = extra.ice;
+    if (extra.served) row.served = extra.served;
     fetch("/api/space", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        row: {
-          id: "peer-" + nodeId,
-          kind: "peer",
-          lat: pt.lat,
-          lng: pt.lng,
-          name: "NODE",
-          peer: nodeId,
-          presence: 1,
-          note: "helia:" + (typeof nodeHelia === "string" ? nodeHelia : "helia-up")
-        }
-      })
+      body: JSON.stringify({ row: row })
     }).catch(function () {});
-    if (nodeCh) nodeCh.postMessage({ t: "hello", id: nodeId, live: 1 });
+  }
+  function ingestPeerRow(r) {
+    if (!r) return;
+    var pid = r.peer || r.fromPeer || "";
+    if (pid && pid !== nodeId && String(r.id || "").indexOf("peer-") === 0) {
+      var hit = nodePeers.filter(function (p) { return p.id === pid; })[0];
+      if (hit) {
+        hit.t = Date.now();
+        if (isFinite(r.lat)) { hit.lat = r.lat; hit.lng = r.lng; }
+        hit.via = hit.via || "space";
+        if (r.cid) hit.cid = r.cid;
+      } else {
+        nodePeers.push({ id: pid, lat: r.lat, lng: r.lng, via: "space", t: Date.now(), cid: r.cid || "" });
+      }
+    }
+    if (r.pack && r.fromPeer && r.fromPeer !== nodeId && Array.isArray(r.pack) && r.pack.length) {
+      var nAdd = mergeListings(r.pack);
+      if (nAdd) postPeer({ id: "served-" + nodeId, served: r.fromPeer, name: "SERVED" });
+    }
+    if (nodeLive && r.served === nodeId && r.fromPeer && r.fromPeer !== nodeId) {
+      var now = Date.now();
+      if (!nodeCreditAt[r.fromPeer] || now - nodeCreditAt[r.fromPeer] > 20000) {
+        nodeCreditAt[r.fromPeer] = now;
+        creditRelay(0.02);
+      }
+    }
+    if (nodeLive && r.want && r.fromPeer && r.fromPeer !== nodeId && (r.want === nodeId || r.want === "any")) {
+      var t = Date.now();
+      if (!nodePackAt[r.fromPeer] || t - nodePackAt[r.fromPeer] > 15000) {
+        nodePackAt[r.fromPeer] = t;
+        postPeer({ id: "pack-" + nodeId, pack: compactPack(), name: "PACK" });
+        creditRelay(0.01);
+      }
+    }
+    if (r.sdp && r.fromPeer && r.fromPeer !== nodeId) rtcHandle(r);
   }
   function pullPeers(j) {
-    var rows = (j && j.peers) || [];
-    rows.forEach(function (r) {
-      var id = r.peer || r.id;
-      if (!id || id === nodeId || id === "peer-" + nodeId) return;
-      var hit = nodePeers.filter(function (p) { return p.id === id; })[0];
-      if (hit) { hit.t = Date.now(); hit.lat = r.lat; hit.lng = r.lng; hit.via = hit.via || "space"; }
-      else nodePeers.push({ id: id, lat: r.lat, lng: r.lng, via: "space", t: Date.now() });
-    });
+    ((j && j.peers) || []).forEach(ingestPeerRow);
     paintNode();
+  }
+  function announceNode() {
+    if (!nodeLive) return;
+    postPeer({ pack: compactPack(), name: "NODE" });
+    if (nodeCh) nodeCh.postMessage({ t: "hello", id: nodeId, live: 1, pack: compactPack() });
+  }
+  function meshTick() {
+    var q = "/api/space";
+    if (here && isFinite(here.lat)) q += "?lat=" + here.lat + "&lng=" + here.lng + "&peer=" + encodeURIComponent(nodeId);
+    fetch(q).then(function (r) { return r.json(); }).then(function (j) {
+      pullPeers(j);
+      if (j && j.ok && (!listings.length) && (j.shops || []).length) {
+        listings = [].concat(j.shops || [], j.drivers || [], j.posts || []);
+        idbSet("listings", listings.slice(0, 80));
+        paintMarks();
+      }
+    }).catch(function () {
+      if (nodeCh) nodeCh.postMessage({ t: "want-replica", id: nodeId });
+    });
+  }
+  function pullReplica() {
+    if (nodeCh) nodeCh.postMessage({ t: "want-replica", id: nodeId });
+    postPeer({ id: "want-" + nodeId, want: "any", name: "WANT" });
+    nodePeers.slice(0, 4).forEach(function (p) {
+      postPeer({ id: "want-" + nodeId + "-" + String(p.id).slice(0, 10), want: p.id, name: "WANT" });
+    });
+    rtcOffer();
+    meshTick();
+    say("Pulling replica from nearby phones. Origin is the front door only.");
+  }
+  function rtcHandle(r) {
+    if (!window.RTCPeerConnection || !r.sdp) return;
+    var sdp = r.sdp;
+    if (typeof sdp === "string") {
+      try { sdp = JSON.parse(sdp); } catch (e) { return; }
+    }
+    if (!sdp || !sdp.type) return;
+    if (sdp.type === "offer" && nodeLive) rtcAnswer(sdp);
+    if (sdp.type === "answer" && nodePc) {
+      nodePc.setRemoteDescription(new RTCSessionDescription(sdp)).catch(function () { nodeRtc = "stun-fail"; });
+    }
+  }
+  function rtcWire(pc, dc) {
+    if (dc) {
+      nodeDc = dc;
+      dc.onmessage = function (ev) {
+        try {
+          var m = JSON.parse(ev.data);
+          if (m && m.listings) mergeListings(m.listings);
+          if (m && m.t === "want" && nodeLive) {
+            dc.send(JSON.stringify({ t: "replica", listings: compactPack() }));
+            creditRelay(0.03);
+          }
+        } catch (e) {}
+      };
+      dc.onopen = function () {
+        nodeRtc = "up";
+        try {
+          if (nodeLive) dc.send(JSON.stringify({ t: "replica", listings: compactPack() }));
+          else dc.send(JSON.stringify({ t: "want", id: nodeId }));
+        } catch (e) {}
+        paintNode();
+      };
+    }
+    pc.ondatachannel = function (ev) { rtcWire(pc, ev.channel); };
+    pc.oniceconnectionstatechange = function () {
+      var s = pc.iceConnectionState;
+      if (s === "failed" || s === "disconnected") nodeRtc = "stun-fail";
+      if (s === "connected") nodeRtc = "up";
+      paintNode();
+    };
+  }
+  function rtcOffer() {
+    if (!window.RTCPeerConnection) { nodeRtc = "no-rtc"; return; }
+    if (nodeRtc === "up" || nodeRtc === "wait") return;
+    try {
+      nodeRtc = "wait";
+      nodePc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+      rtcWire(nodePc, nodePc.createDataChannel("sn-replica"));
+      nodePc.onicegatheringstatechange = function () {
+        if (nodePc.iceGatheringState !== "complete" || !nodePc.localDescription) return;
+        var d = nodePc.localDescription;
+        postPeer({ id: "sdp-" + nodeId, sdp: { type: d.type, sdp: d.sdp }, name: "SDP" });
+      };
+      nodePc.createOffer().then(function (off) { return nodePc.setLocalDescription(off); }).catch(function () { nodeRtc = "stun-fail"; });
+    } catch (e) { nodeRtc = "stun-fail"; }
+  }
+  function rtcAnswer(sdp) {
+    if (!window.RTCPeerConnection) return;
+    try {
+      if (!nodePc) {
+        nodePc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+        rtcWire(nodePc, null);
+        nodePc.onicegatheringstatechange = function () {
+          if (nodePc.iceGatheringState !== "complete" || !nodePc.localDescription) return;
+          var d = nodePc.localDescription;
+          postPeer({ id: "sdp-ans-" + nodeId, sdp: { type: d.type, sdp: d.sdp }, name: "SDP" });
+        };
+      }
+      nodePc.setRemoteDescription(new RTCSessionDescription(sdp)).then(function () {
+        return nodePc.createAnswer();
+      }).then(function (ans) { return nodePc.setLocalDescription(ans); }).catch(function () { nodeRtc = "stun-fail"; });
+    } catch (e) { nodeRtc = "stun-fail"; }
   }
   function tryHelia() {
     if (nodeHelia !== "off") return;
     nodeHelia = "wait";
     paintNode();
     var done = false;
-    var to = setTimeout(function () {
+    var timer = setTimeout(function () {
       if (done) return;
       done = true;
       nodeHelia = "cid-idb";
@@ -230,13 +399,13 @@
     }).then(function (h) {
       if (done) return;
       done = true;
-      clearTimeout(to);
-      nodeHelia = h || "cid-idb";
+      clearTimeout(timer);
+      nodeHelia = h ? "helia-up" : "cid-idb";
       paintNode();
     }).catch(function () {
       if (done) return;
       done = true;
-      clearTimeout(to);
+      clearTimeout(timer);
       nodeHelia = "cid-idb";
       paintNode();
     });
@@ -251,21 +420,23 @@
           var hit = nodePeers.filter(function (p) { return p.id === m.id; })[0];
           if (hit) hit.t = Date.now();
           else nodePeers.push({ id: m.id, via: "tab", t: Date.now() });
-          if (m.t === "hello") nodeCh.postMessage({ t: "ack", id: nodeId });
+          if (m.t === "hello") nodeCh.postMessage({ t: "ack", id: nodeId, pack: nodeLive ? compactPack() : undefined });
           paintNode();
         }
         if (m.t === "want-replica" && nodeLive) {
-          nodeCh.postMessage({ t: "replica", id: nodeId, listings: listings.slice(0, 40) });
+          nodeCh.postMessage({ t: "replica", id: nodeId, listings: compactPack() });
           creditRelay(0.01);
         }
         if (m.t === "replica" && m.listings) mergeListings(m.listings);
+        if (m.pack) mergeListings(m.pack);
       };
       nodeCh.postMessage({ t: "hello", id: nodeId });
     } catch (e) {}
     idbGet("listings").then(function (rows) {
       if (rows && rows.length) mergeListings(rows);
     });
-    if (nodeLive) { tryHelia(); announceNode(); }
+    if (nodeLive) { tryHelia(); announceNode(); rtcOffer(); }
+    meshTick();
     paintNode();
   }
   function toggleNode() {
@@ -275,8 +446,9 @@
     if (nodeLive) {
       tryHelia();
       announceNode();
-      if (nodeCh) nodeCh.postMessage({ t: "hello", id: nodeId, live: 1 });
-      say("This phone is a SpaceNet node. Nearby devices can take replica from you. AV€ for serving, not for burning Vercel.");
+      rtcOffer();
+      if (nodeCh) nodeCh.postMessage({ t: "hello", id: nodeId, live: 1, pack: compactPack() });
+      say("This phone is a SpaceNet node. Nearby devices take replica from you. AV€ for serving, never for burning Vercel.");
     } else {
       say("Node closed. You still hold a local replica.");
     }
@@ -287,12 +459,11 @@
     var n = nodePeers.filter(function (p) { return Date.now() - (p.t || 0) < 90000; });
     var cid = "";
     try { cid = localStorage.getItem("sn:cid") || ""; } catch (e) {}
-    var helia = (typeof nodeHelia === "string") ? nodeHelia : "helia-up";
     sheetCard.innerHTML =
       '<div class="bar"><b class="ttl">NODE</b><button type="button" class="x" data-act="close">✕</button></div>' +
       "<p class=\"price\">owed " + fmtAve(nodeOwed) + "</p>" +
-      "<p>Your device is the server. Vercel is only the front door. No Vercel mining. AV€ for serving replica / relay to nearby phones.</p>" +
-      "<p>id " + esc(nodeId) + " · " + esc(helia) + (cid ? (" · " + esc(cid.slice(0, 18))) : "") + "</p>" +
+      "<p>Your device is the server. Vercel is only the front door. Replica rides on peer rows, then WebRTC if STUN works, then Helia if this phone went live. No mining. AV€ when a nearby phone takes your pack.</p>" +
+      "<p>id " + esc(nodeId) + " · " + esc(heliaNote()) + " · rtc " + esc(nodeRtc) + (cid ? (" · " + esc(cid.slice(0, 18))) : "") + "</p>" +
       "<p>" + (n.length ? (n.length + " peer" + (n.length > 1 ? "s" : "") + " in range") : "No peers yet. Open NODE on another phone or tab.") + "</p>" +
       n.slice(0, 6).map(function (p) {
         return "<p>" + esc(p.via || "peer") + " · " + esc(String(p.id).slice(0, 14)) + "</p>";
@@ -1545,9 +1716,11 @@
     idbGet("listings").then(function (rows) {
       if (rows && rows.length && !listings.length) { listings = rows; paintMarks(); }
     });
-    fetch("/api/space").then(function (r) { return r.json(); }).then(function (j) {
+    var q = "/api/space";
+    if (here && isFinite(here.lat)) q += "?lat=" + here.lat + "&lng=" + here.lng + "&peer=" + encodeURIComponent(nodeId);
+    fetch(q).then(function (r) { return r.json(); }).then(function (j) {
       if (!j || !j.ok) {
-        if (nodeCh) nodeCh.postMessage({ t: "want-replica", id: nodeId });
+        pullReplica();
         return;
       }
       listings = [].concat(j.shops || [], j.drivers || [], j.posts || []);
@@ -1559,7 +1732,7 @@
       cidOf(listings.slice(0, 20)).then(function (c) { try { localStorage.setItem("sn:cid", c); } catch (e) {} });
       paintJobs(); paintMarks();
     }).catch(function () {
-      if (nodeCh) nodeCh.postMessage({ t: "want-replica", id: nodeId });
+      pullReplica();
     });
     paintJobs();
   }
@@ -1835,12 +2008,7 @@
     if (act === "filter") { runFilter(b.getAttribute("data-q") || ""); return; }
     if (act === "pin") { pinFromFind(b.getAttribute("data-id") || ""); return; }
     if (act === "node-toggle") { toggleNode(); return; }
-    if (act === "node-pull") {
-      if (nodeCh) nodeCh.postMessage({ t: "want-replica", id: nodeId });
-      loadJobs();
-      say("Pulling replica from origin and nearby nodes.");
-      return;
-    }
+    if (act === "node-pull") { pullReplica(); return; }
   });
   jobsPane.addEventListener("click", function (e) {
     var b = e.target.closest("[data-act]");
@@ -1911,7 +2079,7 @@
 
   window.SN = {
     talk: talk, say: say, user: user, avcGet: avcGet, paintMoney: paintMoney,
-    node: { id: function () { return nodeId; }, live: function () { return nodeLive; }, peers: function () { return nodePeers; }, owed: function () { return nodeOwed; }, helia: function () { return typeof nodeHelia === "string" ? nodeHelia : "helia-up"; } },
+    node: { id: function () { return nodeId; }, live: function () { return nodeLive; }, peers: function () { return nodePeers; }, owed: function () { return nodeOwed; }, helia: function () { return heliaNote(); }, rtc: function () { return nodeRtc; } },
     getMap: function () { return map; },
     openCity: openCity,
     openVendor: openVendor,
@@ -1938,7 +2106,7 @@
   paypalReturn();
   say("Grid globe. Tap GPS. This phone can be a node.");
   setInterval(function () { if (nodeLive) announceNode(); }, 20000);
-  setInterval(function () { if (nodeCh) nodeCh.postMessage({ t: "hello", id: nodeId }); paintNode(); }, 15000);
+  setInterval(function () { if (nodeCh) nodeCh.postMessage({ t: "hello", id: nodeId }); meshTick(); paintNode(); }, 12000);
   requestAnimationFrame(drawGlobe);
   setInterval(paintMoney, 4000);
   setInterval(paintIsland, 1000);

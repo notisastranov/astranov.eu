@@ -1,7 +1,7 @@
-/* SpaceNet SW 4225 — network-first, then local replica of the OS. Never inject. Never /boot. */
-var CACHE = "sn-shell-4225";
-var VER = "4225";
-var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4225", "/js/spacenet/auth.js?v=4225", "/js/vendor/leaflet.js?v=4127", "/js/vendor/leaflet.css?v=4127", "/icon-192.png", "/manifest.webmanifest"];
+/* SpaceNet SW 4226 — network-first, then local replica of the OS. Never inject. Never /boot. */
+var CACHE = "sn-shell-4226";
+var VER = "4226";
+var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4226", "/js/spacenet/auth.js?v=4226", "/js/vendor/leaflet.js?v=4127", "/js/vendor/leaflet.css?v=4127", "/icon-192.png", "/manifest.webmanifest"];
 self.addEventListener("install", function (e) {
   self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then(function (c) {
