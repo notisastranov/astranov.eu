@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4234" />
+<meta name="astranov-build" content="4235" />
 <meta name="theme-color" content="#02040a" />
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -14,14 +14,14 @@
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
 <link rel="icon" type="image/svg+xml" href="/icon.svg" />
 <link rel="stylesheet" href="/js/vendor/leaflet.css?v=4127" />
-<link rel="stylesheet" href="/js/spacenet/sn-shell-4228.css?v=4234" />
+<link rel="stylesheet" href="/js/spacenet/sn-shell-4228.css?v=4235" />
 </head>
 <body>
 <canvas id="g"></canvas>
 <div id="city" class="dark"></div>
 <button type="button" id="sn-me" class="out" aria-label="Login"><span class="lbl">LOGIN</span><span class="tgt"><span class="ph">IN</span></span></button>
 <button type="button" id="gps" aria-label="GPS"><span class="lbl">GPS</span><span class="tgt">🎯</span></button>
-<div id="top"><div id="island" title="Local · UTC · weather · node · tap for system"><div class="r1"><span id="heal"></span><b class="a">ASTRANOV</b><b class="s">SPACENET</b><span id="ver">V4234</span></div><div class="r2"><span id="sn-local">—</span><span id="sn-utc">—</span><span id="sn-wx"></span><span id="sn-node">node 0</span><canvas id="sn-spark" width="64" height="20"></canvas></div></div><div class="hud-row"><button type="button" id="sn-tasks-btn">JOBS</button><button type="button" id="sn-find-btn">FIND</button><button type="button" id="sn-node-btn">NODE</button></div></div>
+<div id="top"><div id="island" title="Local · UTC · weather · node · tap for system"><div class="r1"><span id="heal"></span><b class="a">ASTRANOV</b><b class="s">SPACENET</b><span id="ver">V4235</span></div><div class="r2"><span id="sn-local">—</span><span id="sn-utc">—</span><span id="sn-wx"></span><span id="sn-node">node 0</span><canvas id="sn-spark" width="64" height="20"></canvas></div></div><div class="hud-row"><button type="button" id="sn-tasks-btn">JOBS</button><button type="button" id="sn-find-btn">FIND</button><button type="button" id="sn-node-btn">NODE</button></div></div>
 <button type="button" id="sn-money">AV€</button>
 <button type="button" id="sn-power" class="idle" aria-label="Go live" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M12 3v9"/><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M7.2 6.4a7 7 0 1 0 9.6 0"/></svg></button>
 <div id="sn-count" aria-hidden="true"></div>
@@ -30,24 +30,24 @@
 <div id="dock"><div id="panel"><div id="line"></div><form id="f"><div class="hub"><button type="button" id="plus" aria-label="Upload">+</button></div><input id="in" autocomplete="off" enterkeyhint="send" placeholder="Name it. Grok finds it." /><div class="hub"><button type="button" id="go" aria-label="Voice">🎙</button></div></form></div></div>
 <input id="sn-file" type="file" accept="image/*,application/pdf,text/*" hidden />
 <script src="/js/vendor/leaflet.js?v=4127"></script>
-<script src="/js/spacenet/app.js?v=4234"></script>
-<script src="/js/spacenet/auth.js?v=4234"></script>
-<script src="/js/spacenet/earth-4204.js?v=4234"></script>
-<script src="/js/spacenet/earth-guest-4228.js?v=4234"></script>
-<script src="/js/spacenet/money-hide-4233.js?v=4234"></script>
-<script src="/js/spacenet/money-owner-4234.js?v=4234"></script>
-<script src="/js/spacenet/talk-4232.js?v=4234"></script>
-<script src="/js/spacenet/land-4232.js?v=4234"></script>
-<script src="/js/spacenet/pizza-lock-4229.js?v=4234"></script>
-<script src="/js/spacenet/fill-4234.js?v=4234"></script>
+<script src="/js/spacenet/app.js?v=4235"></script>
+<script src="/js/spacenet/auth.js?v=4235"></script>
+<script src="/js/spacenet/earth-4204.js?v=4235"></script>
+<script src="/js/spacenet/earth-guest-4228.js?v=4235"></script>
+<script src="/js/spacenet/money-4235.js?v=4235"></script>
+<script src="/js/spacenet/talk-4232.js?v=4235"></script>
+<script src="/js/spacenet/land-4232.js?v=4235"></script>
+<script src="/js/spacenet/pizza-lock-4229.js?v=4235"></script>
+<script src="/js/spacenet/pay-4235.js?v=4235"></script>
+<script src="/js/spacenet/fill-4233.js?v=4235"></script>
 <script>
 (function(){
-  var VER="4234";
+  var VER="4235";
   var going=false;
   function go(){ if(going) return; going=true; location.replace("/?v="+VER+"&t="+Date.now()); }
   function nuclear(e){
     if(e){ if(e.target&&e.target.closest&&e.target.closest("#sn-money")) return; e.preventDefault(); }
-    var line=document.getElementById("line"); if(line) line.textContent="Wiping caches · loading 4234…";
+    var line=document.getElementById("line"); if(line) line.textContent="Wiping caches · loading 4235…";
     var tasks=[];
     try{ if(window.caches) tasks.push(caches.keys().then(function(ks){ return Promise.all(ks.map(function(k){ return caches.delete(k); })); })); }catch(err){}
     try{ if(navigator.serviceWorker) tasks.push(navigator.serviceWorker.getRegistrations().then(function(rs){ return Promise.all(rs.map(function(r){ return r.unregister(); })); })); }catch(err){}
