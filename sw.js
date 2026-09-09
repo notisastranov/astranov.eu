@@ -1,10 +1,10 @@
-/* SpaceNet SW 4227 — network-first. DO inject earth. Never /boot. */
-var CACHE = "sn-shell-4227";
-var VER = "4227";
-var EARTH = "/js/spacenet/earth-4204.js?v=4227";
-var GUEST = "/js/spacenet/earth-guest-4227.js?v=4227";
-var LAND = "/js/spacenet/assets/land-rings.json?v=4227";
-var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4227", "/js/spacenet/auth.js?v=4227", EARTH, GUEST, LAND, "/js/vendor/leaflet.js?v=4127", "/js/vendor/leaflet.css?v=4127", "/icon-192.png", "/manifest.webmanifest"];
+/* SpaceNet SW 4228 — network-first. DO inject earth. Never /boot. */
+var CACHE = "sn-shell-4228";
+var VER = "4228";
+var EARTH = "/js/spacenet/earth-4204.js?v=4228";
+var GUEST = "/js/spacenet/earth-guest-4228.js?v=4228";
+var LAND = "/js/spacenet/assets/land-rings.json?v=4228";
+var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4228", "/js/spacenet/auth.js?v=4228", EARTH, GUEST, LAND, "/js/vendor/leaflet.js?v=4127", "/js/vendor/leaflet.css?v=4127", "/icon-192.png", "/manifest.webmanifest"];
 self.addEventListener("install", function (e) {
   self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then(function (c) {
@@ -45,7 +45,7 @@ function injectEarth(html) {
         );
       }
     }
-    if (!/earth-guest-4227\.js/.test(out)) {
+    if (!/earth-guest-4228\.js/.test(out)) {
       if (/earth-4204\.js/.test(out)) {
         out = out.replace(
           /(<script src="\/js\/spacenet\/earth-4204\.js[^"]*"><\/script>)/,
