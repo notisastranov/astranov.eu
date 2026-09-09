@@ -8,8 +8,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4231"},
-        {"key": "X-Astranov-Ship", "value": "4231-talk-restore"}
+        {"key": "X-Astranov-Build", "value": "4232"},
+        {"key": "X-Astranov-Ship", "value": "4232-talk-wins"}
       ]
     },
     {
@@ -17,8 +17,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4231"},
-        {"key": "X-Astranov-Ship", "value": "4231-talk-restore"}
+        {"key": "X-Astranov-Build", "value": "4232"},
+        {"key": "X-Astranov-Ship", "value": "4232-talk-wins"}
       ]
     },
     {
