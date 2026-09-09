@@ -1,11 +1,11 @@
-/* SpaceNet 4229 — soft kernel. Earth + auth + guest + pizza-lock own surface. No XHR. */
+/* SpaceNet 4230 — soft kernel. Earth + auth + guest + land + pizza-lock own surface. No XHR. */
 (function () {
   "use strict";
-  if (window.__SN_4229) return;
-  window.__SN_4229 = true;
-  var VER = "4229";
+  if (window.__SN_4230) return;
+  window.__SN_4230 = true;
+  var VER = "4230";
   // Chrome Android: script-src only, no sync fetch of parts.
-  // Globe from earth-4204 / earth-guest-4228. Pizza from pizza-lock-4229.
+  // Globe from earth-4204 / earth-guest-4228. Land from land-4230. Pizza from pizza-lock-4229.
   try {
     var line = document.getElementById("line");
     if (line && !line.textContent) line.textContent = "Earth online · " + VER;
