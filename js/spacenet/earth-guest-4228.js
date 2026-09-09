@@ -1,1 +1,1 @@
-PLACEHOLDER
+@/workspace/stamp4228/earth-guest-4228.js
