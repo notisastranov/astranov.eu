@@ -8,8 +8,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4232"},
-        {"key": "X-Astranov-Ship", "value": "4232-talk-wins"}
+        {"key": "X-Astranov-Build", "value": "4233"},
+        {"key": "X-Astranov-Ship", "value": "4233-shop-call-dishes"}
       ]
     },
     {
@@ -17,8 +17,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4232"},
-        {"key": "X-Astranov-Ship", "value": "4232-talk-wins"}
+        {"key": "X-Astranov-Build", "value": "4233"},
+        {"key": "X-Astranov-Ship", "value": "4233-shop-call-dishes"}
       ]
     },
     {
