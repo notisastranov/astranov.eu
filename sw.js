@@ -1,7 +1,7 @@
-/* SpaceNet SW 4235 — network-first. skipWaiting + clients.claim. */
-var CACHE = "sn-shell-4235";
+/* SpaceNet SW 4236 — network-first. skipWaiting + clients.claim. */
+var CACHE = "sn-shell-4236";
 var TILES = "sn-tiles-1";
-var VER = "4235";
+var VER = "4236";
 function isTile(url) {
   return /tile\.openstreetmap\.org|tile\.openstreetmap\.de|openstreetmap\.fr\/hot/.test(url);
 }
