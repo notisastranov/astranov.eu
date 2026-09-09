@@ -4,7 +4,7 @@ var VER = "4228";
 var EARTH = "/js/spacenet/earth-4204.js?v=4228";
 var GUEST = "/js/spacenet/earth-guest-4228.js?v=4228";
 var LAND = "/js/spacenet/assets/land-rings.json?v=4228";
-var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4228", "/js/spacenet/auth.js?v=4228", EARTH, GUEST, LAND, "/js/vendor/leaflet.js?v=4127", "/js/vendor/leaflet.css?v=4127", "/icon-192.png", "/manifest.webmanifest"];
+var SHELL = ["/", "/index.html", "/js/spacenet/sn-shell-4228.css?v=4228", "/js/spacenet/app.js?v=4228", "/js/spacenet/auth.js?v=4228", EARTH, GUEST, LAND, "/js/vendor/leaflet.js?v=4127", "/js/vendor/leaflet.css?v=4127", "/icon-192.png", "/manifest.webmanifest"];
 self.addEventListener("install", function (e) {
   self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then(function (c) {
