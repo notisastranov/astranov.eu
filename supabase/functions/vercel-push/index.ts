@@ -114,21 +114,58 @@ serve(async (req) => {
     }
   }
 
+  if (!projectId && !teamId) {
+    const slugLookups: Record<string, number> = {};
+    for (const slug of ["astranov", "astranov.eu", "astranov-eu"]) {
+      const teamBySlug = await api(
+        token,
+        "GET",
+        `https://api.vercel.com/v2/teams?slug=${encodeURIComponent(slug)}`,
+      );
+      slugLookups[slug] = teamBySlug.st;
+      const foundId = typeof teamBySlug.j.id === "string" ? teamBySlug.j.id : "";
+      if (teamBySlug.st === 200 && foundId) {
+        teamId = foundId;
+        break;
+      }
+    }
+    report.teamSlugLookups = slugLookups;
+  }
+
   if (!projectId) {
-    const scopes: Array<string | undefined> = [undefined, ...teams.map((team) => team.id)];
+    const nameLookups: Record<string, number> = {};
+    for (const name of ["astranov", "astranov.eu", "astranov-eu"]) {
+      const named = await api(
+        token,
+        "GET",
+        `https://api.vercel.com/v9/projects/${encodeURIComponent(name)}${query(teamId)}`,
+      );
+      nameLookups[name] = named.st;
+      if (named.st === 200 && typeof named.j.id === "string") {
+        projectId = named.j.id;
+        projectName = typeof named.j.name === "string" ? named.j.name : name;
+        projectSource = `get:${name}`;
+        break;
+      }
+    }
+    report.nameLookups = nameLookups;
+  }
+
+  if (!projectId) {
+    const scopes: Array<string | undefined> = [teamId || undefined, undefined, ...teams.map((team) => team.id)]
+      .filter((value, index, all) => all.indexOf(value) === index);
     for (const scopeTeamId of scopes) {
-      const separator = scopeTeamId ? "&" : "?";
       const projectsResult = await api(
         token,
         "GET",
-        `https://api.vercel.com/v9/projects?limit=100${scopeTeamId ? `${separator}teamId=${encodeURIComponent(scopeTeamId)}` : ""}`,
+        `https://api.vercel.com/v9/projects?limit=100${scopeTeamId ? `&teamId=${encodeURIComponent(scopeTeamId)}` : ""}`,
       );
       if (!scopeTeamId) report.personalProjectsSt = projectsResult.st;
       const match = projectsFrom(projectsResult.j).find((project) => projectNamePattern.test(project.name.trim()));
       if (match) {
         projectId = match.id;
         projectName = match.name;
-        teamId = scopeTeamId || "";
+        teamId = scopeTeamId || teamId || "";
         projectSource = `name:${match.name}`;
         break;
       }
