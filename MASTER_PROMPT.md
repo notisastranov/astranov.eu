@@ -1,15 +1,45 @@
 # ASTRANOV SPACENET — MASTER PROMPT
 
-**What this file is:** the only instruction document. Paste this first. Then read live `index.html` and `js/spacenet/app.js`. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
+**What this file is:** the only instruction document. Paste this first. Then the live shell. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
-**Date:** 2026-09-08
-**Stamp:** 4218 — Spartan rewrite. Owner ordered the overlay stack nuked.
+**Date:** 2026-09-09
+**Stamp:** 4223 (missed-midnight ship 2026-09-09, owner ordered ship after full checks)
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
-**Bar:** ASTRANOV SPACENET 4218
 
-If rebuild law changes, **edit this file**. Chat is not the archive. Latest block in this file wins.
+If rebuild law changes, **edit this file**. Chat is not the archive. Latest block wins.
+
+---
+
+## Method (2026-09-09 — overrides all older work notes)
+
+Forbidden:
+
+- Claiming a thing was made when it was not proven working.
+- Dummy claims. Dummy shops, dummy GPS, dummy pay, dummy “it works on my side.”
+- Coming to the owner with an unverified result.
+
+Required, in this order:
+
+1. **Do the work** on the shell as one entity. No overlay patches.
+2. **Verify heavily** before speaking: real browser against the preview; for live claims, real origin https://astranov.eu (headers + HTML + the actual JS the phone will run). Console clean. Chrome IDs present. Globe pitch, LOGIN letter, JOBS under island, ⏻ SVG, no guest AV€, PayPal `approve`/`url` in the served file — each proven or listed as **not proven**.
+3. **Bring the owner a verified result.** Say exactly what was proven and what was not. Never pad.
+4. **Owner verifies again.**
+5. Only then **stockpile** that entity for the **next 00:00 Europe/Athens** full rebuild. One push. Sequential stamp. No daytime GitHub/Vercel pile.
+
+If a check failed, say it failed. Do not ship it. Do not narrate success.
+
+Workflow without this loop is useless.
+
+---
+
+## Ship cadence
+
+- Work all day. Revise. Spartanize. One entity.
+- Grok preview is the day's entity the owner sees.
+- Default ship: **00:00 Europe/Athens**, automation `spacenet-midnight-ship`, and **only** what the owner already verified.
+- Keys in **Supabase secrets only**. Never GitHub.
 
 ---
 
@@ -17,130 +47,107 @@ If rebuild law changes, **edit this file**. Chat is not the archive. Latest bloc
 
 Four measures only: **Spartan minimalism, instant effectiveness, usefulness maximization, and truth.**
 
-Recorded as fraud:
+Fraud: dummy anything; Mercator-in-a-circle sold as a globe; keyword routers in front of Grok; overlay `*-41xx.js`; claiming done when the live phone does not do it; daytime deploy piles.
 
-- Dummy shops, dummy GPS, dummy pay, dummy drivers, dummy “it works on my side.”
-- Mercator or any flat map stuffed into a circle and sold as a globe.
-- Keyword routers in front of Grok.
-- Overlay patches stacked on overlay patches. Numbered `*-41xx.js` files that fight the shell. Service-worker inject of extra scripts.
-- Claiming done when the live phone does not do it.
+## Keys law
 
-Do not patch wreckage. Change the live shell. Prove it on a real browser against https://astranov.eu, not only a sandbox.
+All secrets live in **Supabase secrets only**. Never commit a key, JWT, anon, service role, PayPal secret, Twilio, xAI, Vercel token. Never GitHub Actions secrets. Never `sk-` / `eyJ` / `ghp_` / `xai-` in the tree.
 
+Browser gets public anon via `/api/public-config` from host env. PayPal create/capture on the host. Client follows `approve` or `url`, then captures on return.
 
-## Keys law (never break)
+## Tree law (4221)
 
-All secrets live in **Supabase secrets only**.
+Live page may load only:
 
-Never:
-- commit a key, token, JWT, anon key, service role, PayPal secret, Twilio, xAI, Vercel token
-- put a key in GitHub Actions secrets and read it from a workflow
-- sync GitHub → Supabase
-- write `sk-`, `eyJ`, `ghp_`, `xai-` into the tree
-
-Host env on Vercel is filled from Supabase. Browser gets the public anon via `/api/public-config` from host env, not from git.
-
-## Tree law (4218)
-
-Allowed on the live page:
-
-- `index.html` — chrome only
+- `index.html` — chrome
 - `js/spacenet/app.js` — the OS
 - `js/spacenet/auth.js` — Google / YOU
-- `js/vendor/leaflet.js` + `leaflet.css` — city streets
-- `sw.js` — network-first shell, **no script inject**, never send anyone to `/boot`
-- `api/*` — Grok, space listings, find, place, paypal, sms, auth config
+- `js/vendor/leaflet.js` + `leaflet.css`
+- `sw.js` — network-first, **no inject**, never `/boot`
+- `api/*` — Grok, space, find, place, paypal, sms, public-config
 
-Everything else under `js/spacenet/*-41*.js` is **dead**. Do not load it. Do not inject it. Do not revive it.
+`js/spacenet/*-41*.js` is dead.
+
+Grok preview (`src/spacenet/*`) is the same chrome and laws.
 
 ---
 
-## Owner’s last full instruction — 2026-09-08 (this turn)
+## Chrome (frozen)
 
-This block **overrides** every older note in this file if they fight.
-
-**Nuke and rewrite.** Four thousand overlay deployments made the PWA unusable. Spartanize. One globe. Locked chrome. Grok is the mind. Real hunt. Real jobs. Real money after login.
-
-### Chrome (frozen)
-
-Visible, do not move, hide, restyle, or replace:
-
-- Canvas globe `#g` full viewport — real sphere math, continent outlines, labels, trackball, inertia. Idle globe sits still. No GPU burn.
-- Brand island: `ASTRANOV SPACENET` + stamp `4214`. Tap = wipe caches + unregister SW + reload `/?v=4214`.
-- `JOBS` pill `#sn-tasks-btn` — **centered under the brand island (home field)**. Posted jobs only. Empty is empty. Never rename to TASKS.
-- `AV€` pill `#sn-money` — **after login only**. Guests do not see money. Owner (Notis / @astranov.eu) sees the pool, never wiped to zero, treasury 3,000,000 AV€.
-- `LOGIN` `#sn-me` bottom-left. Becomes YOU when signed in.
-- `GPS` `#gps` bottom-right. Precise, then coarse, then IP, then tap-to-set.
-- Dock: `#plus` (bigger) · `#in` “Talk to Astranov SpaceNet” · `#go` mic (bigger).
-- `⏻` `#sn-power` — **top-left, left of JOBS**. Real SVG power mark, 44px, always visible. Not a Unicode character (Android draws ⏻ blank). Offerings: reload, withdraw, hourly, terms, apply role.
-- `#line` status. No auto-talk on boot. No TTS unless they used the mic and asked to hear it.
+- Canvas globe `#g` full viewport — sphere math, continent fill + outlines, labels, trackball, inertia. Idle sits still. Pitch follows the finger.
+- Brand island: `ASTRANOV SPACENET` + stamp. Tap = reboot.
+- `JOBS` `#sn-tasks-btn` **centered under the island**. Posted jobs only. Never TASKS.
+- `AV€` `#sn-money` **after login only**. Owner pool, treasury 3,000,000, never zero-wiped.
+- `LOGIN` `#sn-me` bottom-left. Out: LOGIN / IN. In: YOU / photo or first **letter**. Never two-char email slices. Never digits.
+- `GPS` `#gps` bottom-right. Precise, then coarse, then tap-to-set.
+- Dock: `#plus` (upload to Grok) · `#in` “Talk to Astranov SpaceNet” · `#go` mic.
+- `⏻` `#sn-power` **top-left**, SVG power mark 44px. Offerings: reload, withdraw, hourly, terms, apply role.
+- `#line` status. No auto-talk. No TTS unless they used the mic and asked.
 
 Required IDs: `g, city, island, ver, heal, sn-money, sn-tasks-btn, sn-me, gps, plus, in, go, line, panel, dock, f, sn-power`
 
-Forbidden chrome: TASKS, CART, VENDORS pill, END CALL overlay, twin CLI, HUD, LAYER flood, map-icon grid in YOU, FOOD/BEER/CITY chips on the globe.
+Forbidden: TASKS, CART, VENDORS pill, END CALL, twin CLI, HUD, LAYER flood, MAIL/PICK UP chips, FOOD/BEER/CITY chips, HOLD dummy hunts, overlay scripts.
 
 ### Globe
 
-Trackball. Finger follows the grid. Flick = inertia on yaw and pitch, then coast. Grab = stop. Pinch / wheel zoom. Zoom in far enough → city Leaflet (OSM dark Carto, no API key). Zoom out to 4 → globe. Tap a point on the sphere or the city map. Hold 420ms = place pin.
-
-No Mercator-in-a-circle. No photo-disc Earth. No `earth-4204` resize storms.
+Trackball. Drag down = surface down. Flick inertia. Pinch / wheel. Zoom in → Leaflet OSM (CSS dark). Zoom out to 4 → globe. City: one tap zoom in, double tap zoom out, 1s long tap = the pin asked for. No Mercator-in-a-circle. No photo-disc. No `earth-4204`. No paid map keys.
 
 ### Talk
 
-Ordinary language to Grok via `POST /api/ai`. No keyword router. Greetings do not hunt. Named hunt is the **name** — never append GPS city to a brand, never bias Photon lat on a brand, never invent a shop. Photon + Grok `places[]`. Merge pins. Cap 8. Glow on the city map. Tap a pin = list or quote, not a dummy menu.
+Ordinary language to Grok. No keyword router. Greetings do not hunt. Named hunt is the name. Photon + Grok `places[]`. Cap 8. Never invent a shop.
 
-`+` = **upload to Grok only** (photo / file). Not a vendor form. Not a job composer.
+Grok may return `act:evolve` + `patch` of known rule keys. `SN.evolve` is the on-the-fly handle — the engine changes without a patch file. Never `eval` untrusted JS.
 
-Mic = tap to talk, glow while listening, tap again to shut. Does not loop. Does not listen while Grok is speaking.
+### Jobs / delivery engine (2026-09-09)
 
-### Jobs
+Vendor first. Never open a quote from two empty taps.
 
-Globe or city: first tap **FROM**, second tap **TO**. That quotes delivery.
+1. Hunt or tap a real pin. **Menu**, or **phone**. Same window: **TO MY GPS** or **PIN ON MAP**.
+2. Then offer to drivers. Job fires then. Client who is also a driver still sees it.
+3. Every stage is a verify: ACCEPT · VENDOR HANDED OFF · DRIVER GOT IT · DRIVER DELIVERED · I RECEIVED. No skip.
+4. Bundled vendor % inside radius → no extra fee.
 
-- Ride **1 AV€ / km**, floor 3 AV€ for the first 3 km, then +1 per extra km.
-- Extras +3 each: night (21:00–09:00), rain, VIP, floor/room, special, mass 13–13.3 kg. Over 13.3 kg = extra trips.
-- SpaceNet **3%** on every paid task and every top-up. Split **1+1+1** (agent / ambassador / owner). Missing rungs stay in the pool.
-- Failed job: SpaceNet takes **none**. 3% returns with the credit.
-- **THROW** posts the job. Guest is sent to LOGIN. Signed-in debit AV€ (lock, not spend in the dark).
-- Hourly non-delivery work: **33 AV€ / hour**. Offerings → OTHER JOB.
-- JOBS list = posted jobs only.
+**Fault (no support desk). AI judges. At-fault pays. Bye.**
 
-Delivery is **only** Astranov Delivery Agents who listed a starting base. No mail. No pickup. No fake carriers. No agent covering the area → cancel before checkout, do not lock AV€, offer CALL SHOP if a real official telephone exists (10+ digits). Never invent a phone. Never EMAIL/SITE chips.
+- Driver spoils the goods → driver pays replacement.
+- Vendor ships the wrong goods → vendor pays the right goods **and** the new delivery fee.
+- No ticket, no agent, no excuse.
 
-Door wait 3 minutes, then next order. Missed goods return to vendor. +3 AV€ delay. Return trip charged. No refund.
+**Work-legal**
 
-### Listings
+Everyone who works on SpaceNet attests they can legally work at that GPS. Foreign placement only if **people here** posted a **labor-gap demand** (missing human resource, not cheaper imports). Politicians do not override the people on the ground.
 
-SpaceNet pins are the truth. OSM may show an unlisted place so they can list it. Never scrape Google. Never pin a Google result. Never SAMPLE pizza. Never dummy Nairobi.
+Power `⏻` only if signed **vendor or driver**. Hold **3s** (countdown 3-2-1) to go live / closed. Notify “open to receive orders/jobs”. Guests and plain clients never see it.
 
-Owner of the pin edits. SpaceNet admins edit. `astranov admin` on a device marks it admin. Strangers order or call.
+No job starts until: logged in, client drop set (GPS or 1s pin), driver base set if they are a driver. Guest sees menu + LOGIN TO ORDER.
 
-Products are a spreadsheet: photo · description · AV€ · hours · initial · left. Pay decrements left. Zero left cannot go in the cart.
+City/neighborhood: shop **pills** (photo or initial + name), not pink dots. Tap = profile + menu in the ⅓ sheet.
+
+Fees: engine judges night / rain / heavy. Client only opts into **VIP +3** and **room/floor +3**, plus a **tip**. Price on top of the driver/client sheet.
+
+Send = pending. **Vendor + driver + client must all confirm.** Until then there is no job. Then fit the map to vendor, driver, drop.
+
+Sheets default **33vh**, bottom-up. One finger: pull up = full (88vh), pull down = close. Scroll inside. When inner scroll hits the end, the sheet itself moves. Same physics on JOBS.
+
+
+
+
+
+
 
 ### Money
 
-AV€ = euro 1:1. PayPal reloads AV€. Withdraw 3%. Payments through the SpaceNet pool. Owner treasury 3,000,000. Never zero-wipe the owner. Guest sees no balance.
+AV€ = euro 1:1. Real PayPal. Withdraw 3%. Pool. Guest sees no balance.
 
 ### Roles
 
-Vendor / driver / agent / ambassador apply **after Terms** and **Notis activates**. Phone stored. Twilio/SpaceNet number when keyed — until then the number is unverified, not fake-verified.
-
-### Voice
-
-No auto-talk. If they used the mic, Grok may answer in a calm deep female voice (UK English Female / Greek female, pitch 0.72, rate 0.86). Never on boot.
-
-### Device
-
-Phone first. Hunt local listings, then the net. Cache map tiles. Server is Grok, pay, `/api/space`. Finish, then prove on the live origin, then stop talking.
+Vendor / driver / agent / ambassador after Terms. Notis activates.
 
 ---
 
-## Kept law (not contradicted on 2026-09-08)
+## Kept
 
-- Named hunt: Pizzarium is Pizzarium in Ανάληψη, Rhodes (Athinas Tarsouli 1) — not Ixia, not Ilioupoli, not Rome unless they asked Rome.
-- Leaflet never throws them back to the globe on zoom. Hunt flies there, then city at street zoom. fitBounds across countries is forbidden.
-- Bond arc YOU → shop → driver after a real job. Cyan dashed = the road.
-- Justice: DISPUTE → Grok. Nobody is the default loser.
-- CALL only if a real official telephone is published.
-
-Older chrome notes that put TASKS/CART/VENDORS/money-before-login/GROK-V1-always-on-island are **dead**.
+- Pizzarium is Pizzarium in Ανάληψη, Rhodes (Athinas Tarsouli 1) unless they asked another city.
+- Leaflet does not throw them back to the globe on zoom.
+- DISPUTE → Grok.
+- CALL only with a real official telephone (10+ digits).

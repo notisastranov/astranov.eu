@@ -1,4 +1,4 @@
-/* SpaceNet auth 4220 — LOGIN is Google. Finish the code. No dummy session. */
+/* SpaceNet auth 4221 — LOGIN is Google. Finish the code. No dummy session. */
 (function () {
   if (window.SNAuth) return;
   var SB = "https://lkoatrkhuigdolnjsbie.supabase.co";
@@ -230,8 +230,8 @@
       paintMe();
       applyReturn().then(function () { paintMe(); });
       var btn = document.getElementById("sn-me");
-      if (btn && !btn.__sn4220) {
-        btn.__sn4220 = true;
+      if (btn && !btn.__sn4221) {
+        btn.__sn4221 = true;
         btn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openMe(); });
       }
     });
