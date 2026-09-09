@@ -122,7 +122,7 @@ module.exports = async function handler(req, res) {
       res.status(200).json({ ok: false, local: true, status: got.status, shops: [], drops: [], drivers: [], posts: [], jobs: [] });
       return;
     }
-    const buckets = { shops: [], drops: [], drivers: [], posts: [], jobs: [] };
+    const buckets = { shops: [], drops: [], drivers: [], posts: [], jobs: [], peers: [] };
     (got.json || []).forEach(function (row) {
       const body = row.body || {};
       body.id = body.id || row.id;
@@ -140,7 +140,7 @@ module.exports = async function handler(req, res) {
         const km = 6371 * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
         if (km > 80) return;
       }
-      const k = body.kind === 'shop' ? 'shops' : body.kind === 'driver' ? 'drivers' : body.kind === 'post' ? 'posts' : body.kind === 'job' ? 'jobs' : '';
+      const k = body.kind === 'shop' ? 'shops' : body.kind === 'driver' ? 'drivers' : body.kind === 'post' ? 'posts' : body.kind === 'job' ? 'jobs' : body.kind === 'peer' ? 'peers' : '';
       if (k === 'jobs' && body.drop) {
         const peer = String(q.peer || '');
         const allow = peer && ((body.driver && body.driver.peer === peer) || body.customerPeer === peer);
