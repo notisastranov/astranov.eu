@@ -12,5 +12,8 @@
   },
   "author": "Notis Astranov",
   "license": "UNLICENSED",
-  "homepage": "https://astranov.eu"
+  "homepage": "https://astranov.eu",
+  "dependencies": {
+    "@vercel/analytics": "^2.0.1"
+  }
 }
