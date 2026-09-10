@@ -3,7 +3,7 @@
 **What this file is:** the only instruction document. Paste this first. Then the live shell. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
 **Date:** 2026-09-09
-**Stamp:** 4226 (midnight ship now — phones serve replica. Vercel is front door only.)
+**Stamp:** 4239 (one entity. Overlays dead. Sphere globe. Vercel front door.)
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
@@ -66,7 +66,7 @@ Live page may load only:
 - `sw.js` — network-first, **no inject**, never `/boot`
 - `api/*` — Grok, space, find, place, paypal, sms, public-config
 
-`js/spacenet/*-41*.js` is dead.
+`js/spacenet/*-41*.js` and `*-42*.js` overlays are dead. Live page must not load earth-4204, earth-guest, money-*, pay-*, fill-*, talk-*, land-*, pizza-lock, auth-NNNN.
 
 Grok preview (`src/spacenet/*`) is the same chrome and laws.
 
@@ -129,7 +129,7 @@ Send = pending. **Vendor + driver + client must all confirm.** Until then there 
 
 Sheets default **33vh**, bottom-up. One finger: pull up = full (88vh), pull down = close. Scroll inside. When inner scroll hits the end, the sheet itself moves. Same physics on JOBS.
 
-### Node / mesh (4226)
+### Node / mesh (4239)
 
 Vercel (or later Hetzner) is the **front door only**. Users serve SpaceNet from their phones.
 
