@@ -1,9 +1,9 @@
-/* SpaceNet 4244 — one OS. Sphere globe. Tree lock. No overlays. */
+/* SpaceNet 4246 — one OS. Sphere globe. Tree lock. Origin diet. */
 (function () {
   "use strict";
-  if (window.__SN_4244) return;
-  window.__SN_4244 = true;
-  var VER = "4244";
+  if (window.__SN_4246) return;
+  window.__SN_4246 = true;
+  var VER = "4246";
   var OWNER_MAIL = /notisastranov@gmail\.com$|@astranov\.eu$/i;
   var TREASURY = 3000000;
 
@@ -210,11 +210,23 @@
       nodeBtn.style.color = nodeLive ? "#19e68c" : "";
     }
   }
+  function spaceAuthHeaders() {
+    var h = { "Content-Type": "application/json" };
+    var t = "";
+    try { t = (window.SNAuth && SNAuth.token && SNAuth.token()) || localStorage.getItem("sn:access") || ""; } catch (e) {}
+    if (t) h.Authorization = "Bearer " + t;
+    return h;
+  }
+  function spaceUrl() {
+    if (!(here && isFinite(here.lat) && isFinite(here.lng))) return "";
+    return "/api/space?lat=" + Number(here.lat).toFixed(2) + "&lng=" + Number(here.lng).toFixed(2);
+  }
   function postPeer(extra) {
     extra = extra || {};
     if (!signed()) return;
     if (!nodeLive && !extra.want && !extra.served) return;
-    var pt = here || drop || { lat: 36.437, lng: 28.227 };
+    var pt = here || drop;
+    if (!(pt && isFinite(pt.lat) && isFinite(pt.lng))) return;
     var cid = "";
     try { cid = localStorage.getItem("sn:cid") || ""; } catch (e) {}
     var row = {
@@ -227,7 +239,7 @@
       presence: nodeLive ? 1 : 0,
       cid: extra.cid || cid,
       fromPeer: extra.fromPeer || nodeId,
-      mesh: "4244",
+      mesh: "4246",
       note: extra.note || ("helia:" + heliaNote())
     };
     if (extra.pack) row.pack = extra.pack;
@@ -237,7 +249,7 @@
     if (extra.served) row.served = extra.served;
     fetch("/api/space", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: spaceAuthHeaders(),
       body: JSON.stringify({ row: row })
     }).catch(function () {});
   }
@@ -287,7 +299,8 @@
   }
   function meshTick() {
     if (!(here && isFinite(here.lat))) return;
-    var q = "/api/space?lat=" + here.lat + "&lng=" + here.lng + "&peer=" + encodeURIComponent(nodeId);
+    var q = spaceUrl();
+    if (!q) return;
     fetch(q).then(function (r) { return r.json(); }).then(function (j) {
       pullPeers(j);
       if (j && j.ok && (!listings.length) && (j.shops || []).length) {
@@ -1505,7 +1518,7 @@
     if (!role || !why) { say("Role and why. Locals must explain the gap."); return; }
     var row = { id: "gap-" + Date.now().toString(36), kind: "gap", name: role, raw: why, lat: (here && here.lat) || 0, lng: (here && here.lng) || 0, peer: meMail() };
     listings.unshift(row);
-    fetch("/api/space", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ row: row }) }).catch(function () {});
+    fetch("/api/space", { method: "POST", headers: spaceAuthHeaders(), body: JSON.stringify({ row: row }) }).catch(function () {});
     closeSheet();
     say("Gap posted: " + role + ". Abroad applicants can apply against this.");
   }
@@ -1555,7 +1568,7 @@
     };
     jobs.unshift(job);
     persistJobs();
-    fetch("/api/space", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ row: { id: job.id, kind: "job", lat: drop.lat, lng: drop.lng, name: vendor.name, status: "pending", avc: driverFee, ride: q.rawKm } }) }).catch(function () {});
+    fetch("/api/space", { method: "POST", headers: spaceAuthHeaders(), body: JSON.stringify({ row: { id: job.id, kind: "job", lat: drop.lat, lng: drop.lng, name: vendor.name, status: "pending", avc: driverFee, ride: q.rawKm } }) }).catch(function () {});
     closeSheet();
     jobsPane.classList.add("on");
     paintJobs();
@@ -1733,8 +1746,8 @@
     });
     var awake = signed() || nodeLive || (here && isFinite(here.lat));
     if (!awake) { paintJobs(); return; }
-    var q = "/api/space?lat=" + (here && isFinite(here.lat) ? here.lat : "") + "&lng=" + (here && isFinite(here.lng) ? here.lng : "") + "&peer=" + encodeURIComponent(nodeId);
-    if (!(here && isFinite(here.lat))) { paintJobs(); return; }
+    var q = spaceUrl();
+    if (!q) { paintJobs(); return; }
     fetch(q).then(function (r) { return r.json(); }).then(function (j) {
       if (!j || !j.ok) {
         if (nodeCh) nodeCh.postMessage({ t: "want-replica", id: nodeId });

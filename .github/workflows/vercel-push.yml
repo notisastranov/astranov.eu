@@ -31,8 +31,32 @@ jobs:
             echo "DARK GUEST fail: space GET without GPS must not hit Supabase" >&2
             exit 1
           fi
-          if ! grep -q 's-maxage=60' api/space.js; then
-            echo "CACHE fail: space GET must CDN-cache" >&2
+          if grep -E 'select=id,kind,lat,lng,body|,body,updated_at' api/space.js; then
+            echo "EGRESS fail: space GET must not select body (photos)" >&2
+            exit 1
+          fi
+          if ! grep -q 'body->>name' api/space.js; then
+            echo "EGRESS fail: space GET must project body->>name" >&2
+            exit 1
+          fi
+          if ! grep -q 'Vercel-CDN-Cache-Control' api/space.js; then
+            echo "CACHE fail: space GET must set Vercel-CDN-Cache-Control" >&2
+            exit 1
+          fi
+          if ! grep -q 's-maxage=120' api/space.js; then
+            echo "CACHE fail: space GPS GET must CDN-cache" >&2
+            exit 1
+          fi
+          if ! grep -q 'auth/v1/user' api/space.js; then
+            echo "WRITE LOCK fail: space POST must require signed user" >&2
+            exit 1
+          fi
+          if grep -q '&peer=' js/spacenet/app.js; then
+            echo "CDN fail: GET must not vary on peer id" >&2
+            exit 1
+          fi
+          if ! grep -q 'toFixed(2)' js/spacenet/app.js; then
+            echo "CDN fail: GPS GET must round to 0.01 deg" >&2
             exit 1
           fi
           if ! grep -q 'if (!signed()) return;' js/spacenet/app.js; then

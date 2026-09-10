@@ -3,7 +3,7 @@
 **What this file is:** the only instruction document. Paste this first. Then the live shell. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
 **Date:** 2026-09-10
-**Stamp:** 4244 (dark guest. Zero origin until GPS or LOGIN. Sphere. Tree lock.)
+**Stamp:** 4246 (origin diet. Never select body. GPS grid CDN. POST login-only.)
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
@@ -68,32 +68,34 @@ Live page may load only:
 
 `js/spacenet/*-41*.js` and `*-42*.js` overlays are dead. Live page must not load earth-4204, earth-guest, money-*, pay-*, fill-*, talk-*, land-*, pizza-lock, auth-NNNN.
 
-**Tree lock (4244) — this is the intervention that was missing.**
+**Tree lock (4246) — this is the intervention that was missing.**
 
 - `sw.js` serves `/* TREE LOCK */` for any `/js/spacenet/*` that is not `app.js` or `auth.js`. earth-4204 cannot run even if a later agent wires it into HTML.
 - `index.html` MutationObserver in `<head>` strips those script tags.
 - GitHub `vercel-push.yml` **fails** if `index.html` contains overlay scripts. No invoke, no ship.
 - Do not edit the SW allowlist without the owner. That is how sausage Earth lands.
 
-**Egress law (4244) — consume nothing without a real user**
+**Egress law (4246) — consume nothing without a real user. Owner will not pay Pro.**
 
-Supabase Free cap is **5.5 GB egress / month**. Org already at 11.55 GB (mail 9 Sep). After **12 Sep 2026** they 402 unless usage drops. Owner will not pay Pro. So:
+Supabase Free cap is **5.5 GB egress / month**. Org already over (mail 9 Sep). After **12 Sep 2026** they 402 unless usage drops. So:
 
 - Guest boot: **zero** `/api/space`, **zero** `/api/public-config`, **zero** weather. IndexedDB replica only. Globe is local canvas.
 - LOGIN tap or OAuth return is what loads public-config.
-- GPS (or a live signed node) is what GETs `/api/space?lat&lng`. No lat → origin returns empty `need:gps` from CDN, **no Supabase**.
-- GET `/api/space` with GPS: CDN `s-maxage=60` + 60s memory. Crawlers and empty boots do not hit the database.
+- GPS is what GETs `/api/space?lat&lng` rounded to 0.01°. No lat → origin returns empty `need:gps` from CDN, **no Supabase**.
+- GET never `select`s `body`. Project `body->>name` etc. A jpeg in one shop must not ride every listing download.
+- GET URL has no `peer=` (that busted the CDN per phone). Old `peer=` URLs 302 to the grid URL.
+- GPS GET: CDN `s-maxage=120` + 120s memory + `Vercel-CDN-Cache-Control`. Empty GET: `s-maxage=300`.
+- POST `/api/space` requires a signed Bearer. Guests cannot write. Photos/sdp/pack stripped. 8 KB cap.
 - `/api/public-config` CDN 300s.
 - Guest does not POST peer/WANT. `postPeer` requires sign-in.
 - Weather only after GPS, cached 30 min on the phone.
-- GET never returns `cover` / `photo` / `profile` / `menuPhotos`.
 - No overlay scripts. No photo discs.
 
-**Anon lock (4244)**
+**Anon lock (4246)**
 
 Vercel `SUPABASE_ANON_KEY` is empty. The working key is the publishable key on `/api/public-config` (and the edge `public-config` function). Every REST handler must resolve anon via `lib/sb-anon.js` (same env chain + edge fallback). Never `SUPABASE_ANON_KEY || SB_ANON` alone. CI fails the ship if `api/space.js` drops that require. Do not commit the key.
 
-**SMS (4244)** `api/sms.js` must parse. A stray `return }` used to 500 the function.
+**SMS (4246)** `api/sms.js` must parse. A stray `return }` used to 500 the function.
 
 
 Grok preview (`src/spacenet/*`) is the same chrome and laws.
@@ -157,7 +159,7 @@ Send = pending. **Vendor + driver + client must all confirm.** Until then there 
 
 Sheets default **33vh**, bottom-up. One finger: pull up = full (88vh), pull down = close. Scroll inside. When inner scroll hits the end, the sheet itself moves. Same physics on JOBS.
 
-### Node / mesh (4244)
+### Node / mesh (4246)
 
 Vercel (or later Hetzner) is the **front door only**. Users serve SpaceNet from their phones.
 
