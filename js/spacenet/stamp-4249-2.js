@@ -57,6 +57,9 @@
     if (code.indexOf("function goNamed") < 0) throw new Error("goNamed missing after patch");
     if (code.indexOf("else gps()") >= 0 && code.indexOf("else goNamed") < 0) throw new Error("city still gps");
     if (code.indexOf("/api/find?q=") < 0) throw new Error("city find missing");
+    if (code.indexOf("__SN_PIZZA_CLI_4249") < 0) {
+      code += "\n/* __SN_PIZZA_CLI_4249 */\n(function(){\n  if (window.__SN_PIZZA_CLI_4249) return;\n  window.__SN_PIZZA_CLI_4249 = 1;\n  function landedCity(){\n    try { if (window.SN && SN.hereName) return String(SN.hereName).split(\",\")[0].trim(); } catch(e){}\n    try { var pl=JSON.parse(localStorage.getItem(\"sn:place\")||\"null\"); if(pl&&pl.name) return String(pl.name).split(\",\")[0].trim(); } catch(e2){}\n    return \"\";\n  }\n  function boot(){\n    var f=document.getElementById(\"f\"); var inp=document.getElementById(\"in\");\n    if(!f||f.__snPizza4249) return; f.__snPizza4249=true;\n    f.addEventListener(\"submit\", function(e){\n      var raw=String((inp&&inp.value)||\"\").trim(); if(!raw) return;\n      var placey=/^(?:land(?:\\s+(?:in|at|on))?|go(?:\\s+to)?|fly(?:\\s+to)?)\\s+(.+)$/i.exec(raw);\n      var city=landedCity();\n      var huntQ=/^(pizza|supermarket|market|grocery)\\b/i.exec(raw);\n      if(city&&huntQ&&!placey){\n        e.preventDefault(); e.stopPropagation();\n        if(inp) inp.value=\"\";\n        if(window.SN&&typeof SN.huntNamed===\"function\") SN.huntNamed(huntQ[1].toLowerCase(), []);\n        else if(window.SN&&typeof SN.talk===\"function\") SN.talk(huntQ[1].toLowerCase());\n      }\n    }, true);\n  }\n  if(document.readyState===\"loading\") document.addEventListener(\"DOMContentLoaded\", boot); else boot();\n})();\n";
+    }
     return code;
   }
   window.__SN_APPLY_4249 = function (tip) {
