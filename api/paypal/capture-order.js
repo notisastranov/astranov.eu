@@ -1,7 +1,7 @@
 const { cors, keyed, token, base } = require("./_lib");
+const sbAnon = require("../../lib/sb-anon");
 
-const SB = "https://lkoatrkhuigdolnjsbie.supabase.co";
-const SB_ANON = process.env.SUPABASE_ANON_KEY || process.env.SB_ANON || '';
+const SB_FALLBACK = "https://lkoatrkhuigdolnjsbie.supabase.co";
 
 function readBody(req) {
   if (req.body && typeof req.body === "object" && !Buffer.isBuffer(req.body)) return req.body;
@@ -23,11 +23,14 @@ function firstCapture(j) {
 async function markPaid(req, cap, eur) {
   var auth = String((req.headers && (req.headers.authorization || req.headers.Authorization)) || "");
   if (!/^Bearer\s+\S{20,}/i.test(auth)) return;
+  var creds = await sbAnon.resolve();
+  var anon = (creds && creds.anon) || "";
+  var sb = (creds && creds.sb) || SB_FALLBACK;
   try {
-    await fetch(SB + "/auth/v1/user", {
+    await fetch(sb + "/auth/v1/user", {
       method: "PUT",
       headers: {
-        apikey: SB_ANON,
+        apikey: anon,
         Authorization: auth,
         "Content-Type": "application/json",
       },
@@ -44,13 +47,13 @@ async function markPaid(req, cap, eur) {
   var svc = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
   if (!svc) return;
   try {
-    var me = await fetch(SB + "/auth/v1/user", {
-      headers: { apikey: SB_ANON || svc, Authorization: auth },
+    var me = await fetch(sb + "/auth/v1/user", {
+      headers: { apikey: anon || svc, Authorization: auth },
     });
     var user = await me.json().catch(function () { return {}; });
     var uid = user && user.id;
     if (!uid) return;
-    await fetch(SB + "/rest/v1/rpc/avc_ledger_append", {
+    await fetch(sb + "/rest/v1/rpc/avc_ledger_append", {
       method: "POST",
       headers: {
         apikey: svc,

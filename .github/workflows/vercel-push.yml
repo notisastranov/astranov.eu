@@ -19,6 +19,15 @@ jobs:
             exit 1
           fi
           echo "TREE LOCK ok"
+          if ! grep -q 'sb-anon' api/space.js; then
+            echo "ANON LOCK fail: api/space.js must require lib/sb-anon" >&2
+            exit 1
+          fi
+          if ! grep -q 'public-config' lib/sb-anon.js; then
+            echo "ANON LOCK fail: lib/sb-anon.js must fall back to edge public-config" >&2
+            exit 1
+          fi
+          node -e "require('./api/sms.js'); require('./api/space.js'); require('./lib/sb-anon.js');"
       - name: Invoke (keys stay in Supabase)
         run: |
           curl -sS --max-time 150 -X POST "https://lkoatrkhuigdolnjsbie.supabase.co/functions/v1/vercel-push" \

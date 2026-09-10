@@ -1,9 +1,9 @@
-/* SpaceNet 4240 — one OS. Sphere globe. Tree lock. No overlays. */
+/* SpaceNet 4242 — one OS. Sphere globe. Tree lock. No overlays. */
 (function () {
   "use strict";
-  if (window.__SN_4240) return;
-  window.__SN_4240 = true;
-  var VER = "4240";
+  if (window.__SN_4242) return;
+  window.__SN_4242 = true;
+  var VER = "4242";
   var OWNER_MAIL = /notisastranov@gmail\.com$|@astranov\.eu$/i;
   var TREASURY = 3000000;
 
@@ -225,7 +225,7 @@
       presence: nodeLive ? 1 : 0,
       cid: extra.cid || cid,
       fromPeer: extra.fromPeer || nodeId,
-      mesh: "4240",
+      mesh: "4242",
       note: extra.note || ("helia:" + heliaNote())
     };
     if (extra.pack) row.pack = extra.pack;
