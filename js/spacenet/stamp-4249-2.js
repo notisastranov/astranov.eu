@@ -69,6 +69,12 @@
       s.textContent = code;
       document.head.appendChild(s);
       window.__SN_4249 = true;
+      try {
+        var verEl = document.getElementById("ver");
+        if (verEl) verEl.textContent = "V4249";
+        var meta = document.querySelector('meta[name="astranov-build"]');
+        if (meta) meta.setAttribute("content", "4249");
+      } catch (ePaint) {}
     } catch (err) {
       fail("4249 OS patch failed. Nuclear / hard refresh.");
       console.error(err);
