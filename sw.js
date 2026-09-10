@@ -1,10 +1,10 @@
-/* SpaceNet SW 4249 — tree lock. Network-first shell. Never inject. Never /boot. Never overlays. */
-var CACHE = "sn-shell-4249";
-var VER = "4249";
-var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4249", "/js/spacenet/auth.js?v=4249", "/js/vendor/leaflet.js?v=4127", "/js/vendor/leaflet.css?v=4127", "/icon-192.png", "/manifest.webmanifest"];
+/* SpaceNet SW 4250 - tree lock. Network-first shell. Never inject. Never /boot. Never overlays. */
+var CACHE = "sn-shell-4250";
+var VER = "4250";
+var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4250", "/js/spacenet/auth.js?v=4250", "/js/vendor/leaflet.js?v=4127", "/js/vendor/leaflet.css?v=4127", "/icon-192.png", "/manifest.webmanifest"];
 function allowedScript(path) {
   return path === "/js/spacenet/app.js" || path === "/js/spacenet/auth.js" || path === "/js/vendor/leaflet.js"
-    || /^\/js\/spacenet\/stamp-4249(-orch|-\d)?\.js$/.test(path);
+    || /^\/js\/spacenet\/stamp-4250(-orch|-\d)?\.js$/.test(path);
 }
 function isOverlay(path) {
   if (!/^\/js\/spacenet\//.test(path)) return false;
@@ -45,7 +45,7 @@ self.addEventListener("fetch", function (e) {
     return;
   }
   if (isOverlay(path) || /earth-4204|earth-guest|money-\d|pay-\d|fill-\d|talk-\d|land-\d|pizza-lock|auth-\d/.test(path)) {
-    e.respondWith(new Response("/* TREE LOCK 4249: overlay blocked */", {
+    e.respondWith(new Response("/* TREE LOCK 4250: overlay blocked */", {
       status: 200,
       headers: { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-store", "X-Astranov-Tree": "blocked" }
     }));
