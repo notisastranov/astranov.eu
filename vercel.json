@@ -8,8 +8,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4249"},
-        {"key": "X-Astranov-Ship", "value": "4249-city-find-named"}
+        {"key": "X-Astranov-Build", "value": "4250"},
+        {"key": "X-Astranov-Ship", "value": "4250-shop-now-pay"}
       ]
     },
     {
@@ -17,8 +17,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4249"},
-        {"key": "X-Astranov-Ship", "value": "4249-city-find-named"}
+        {"key": "X-Astranov-Build", "value": "4250"},
+        {"key": "X-Astranov-Ship", "value": "4250-shop-now-pay"}
       ]
     },
     {
