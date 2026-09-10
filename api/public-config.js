@@ -2,7 +2,7 @@
 const sbAnon = require("../lib/sb-anon");
 
 module.exports = async function handler(req, res) {
-  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Cache-Control", "public, max-age=300, s-maxage=300");
   res.setHeader("Access-Control-Allow-Origin", "*");
   if (req.method === "OPTIONS") {
     res.status(204).end();

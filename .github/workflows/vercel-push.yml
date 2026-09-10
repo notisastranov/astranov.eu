@@ -27,6 +27,18 @@ jobs:
             echo "ANON LOCK fail: lib/sb-anon.js must fall back to edge public-config" >&2
             exit 1
           fi
+          if ! grep -q 'need: "gps"' api/space.js; then
+            echo "DARK GUEST fail: space GET without GPS must not hit Supabase" >&2
+            exit 1
+          fi
+          if ! grep -q 's-maxage=60' api/space.js; then
+            echo "CACHE fail: space GET must CDN-cache" >&2
+            exit 1
+          fi
+          if ! grep -q 'if (!signed()) return;' js/spacenet/app.js; then
+            echo "DARK GUEST fail: postPeer must refuse guests" >&2
+            exit 1
+          fi
           node -e "require('./api/sms.js'); require('./api/space.js'); require('./lib/sb-anon.js');"
       - name: Invoke (keys stay in Supabase)
         run: |

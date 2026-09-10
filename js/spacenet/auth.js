@@ -226,14 +226,18 @@
   }
   function boot() {
     css();
+    paintMe();
+    var btn = document.getElementById("sn-me");
+    if (btn && !btn.__sn4221) {
+      btn.__sn4221 = true;
+      btn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openMe(); });
+    }
+    var search = new URLSearchParams(location.search);
+    var hash = location.hash || "";
+    var needNet = !!(search.get("code") || search.get("error") || /access_token=/.test(hash) || token());
+    if (!needNet) return;
     loadCfg(function () {
-      paintMe();
       applyReturn().then(function () { paintMe(); });
-      var btn = document.getElementById("sn-me");
-      if (btn && !btn.__sn4221) {
-        btn.__sn4221 = true;
-        btn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openMe(); });
-      }
     });
   }
   window.SNAuth = { google: google, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };

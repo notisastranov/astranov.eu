@@ -1,11 +1,15 @@
 /** SpaceNet public listings. No fake shops. Device-local always wins if net is down. */
 const sbAnon = require("../lib/sb-anon");
 
-function cors(res) {
+function cors(res, cache) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "content-type");
-  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Cache-Control", cache || "no-store");
 }
+
+var memGet = { key: "", at: 0, body: null };
+var CDN_GET = "public, s-maxage=60, stale-while-revalidate=300";
+var CDN_EMPTY = "public, s-maxage=120, stale-while-revalidate=600";
 
 function readBody(req) {
   if (req.body && typeof req.body === "object" && !Buffer.isBuffer(req.body)) return req.body;
@@ -145,6 +149,27 @@ module.exports = async function handler(req, res) {
     const q = req.query || {};
     const lat = Number(q.lat);
     const lng = Number(q.lng);
+    if (!isFinite(lat) || !isFinite(lng)) {
+      cors(res, CDN_EMPTY);
+      res.status(200).json({
+        ok: true,
+        local: false,
+        need: "gps",
+        shops: [],
+        drops: [],
+        drivers: [],
+        posts: [],
+        jobs: [],
+        peers: [],
+      });
+      return;
+    }
+    const memKey = lat.toFixed(2) + "," + lng.toFixed(2);
+    if (memGet.body && memGet.key === memKey && Date.now() - memGet.at < 60000) {
+      cors(res, CDN_GET);
+      res.status(200).json(memGet.body);
+      return;
+    }
     const creds = await sbAnon.resolve();
     if (!creds.anon || creds.anon.length <= 20) {
       res.status(200).json({
@@ -217,7 +242,10 @@ module.exports = async function handler(req, res) {
       }
       if (k) buckets[k].push(body);
     });
-    res.status(200).json(Object.assign({ ok: true, local: false }, buckets));
+    const out = Object.assign({ ok: true, local: false }, buckets);
+    memGet = { key: memKey, at: Date.now(), body: out };
+    cors(res, CDN_GET);
+    res.status(200).json(out);
     return;
   }
 

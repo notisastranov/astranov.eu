@@ -1,9 +1,9 @@
-/* SpaceNet 4242 — one OS. Sphere globe. Tree lock. No overlays. */
+/* SpaceNet 4244 — one OS. Sphere globe. Tree lock. No overlays. */
 (function () {
   "use strict";
-  if (window.__SN_4242) return;
-  window.__SN_4242 = true;
-  var VER = "4242";
+  if (window.__SN_4244) return;
+  window.__SN_4244 = true;
+  var VER = "4244";
   var OWNER_MAIL = /notisastranov@gmail\.com$|@astranov\.eu$/i;
   var TREASURY = 3000000;
 
@@ -212,6 +212,8 @@
   }
   function postPeer(extra) {
     extra = extra || {};
+    if (!signed()) return;
+    if (!nodeLive && !extra.want && !extra.served) return;
     var pt = here || drop || { lat: 36.437, lng: 28.227 };
     var cid = "";
     try { cid = localStorage.getItem("sn:cid") || ""; } catch (e) {}
@@ -225,7 +227,7 @@
       presence: nodeLive ? 1 : 0,
       cid: extra.cid || cid,
       fromPeer: extra.fromPeer || nodeId,
-      mesh: "4242",
+      mesh: "4244",
       note: extra.note || ("helia:" + heliaNote())
     };
     if (extra.pack) row.pack = extra.pack;
@@ -279,13 +281,13 @@
     paintNode();
   }
   function announceNode() {
-    if (!nodeLive) return;
+    if (!nodeLive || !signed()) return;
     postPeer({ pack: compactPack(), name: "NODE" });
     if (nodeCh) nodeCh.postMessage({ t: "hello", id: nodeId, live: 1, pack: compactPack() });
   }
   function meshTick() {
-    var q = "/api/space";
-    if (here && isFinite(here.lat)) q += "?lat=" + here.lat + "&lng=" + here.lng + "&peer=" + encodeURIComponent(nodeId);
+    if (!(here && isFinite(here.lat))) return;
+    var q = "/api/space?lat=" + here.lat + "&lng=" + here.lng + "&peer=" + encodeURIComponent(nodeId);
     fetch(q).then(function (r) { return r.json(); }).then(function (j) {
       pullPeers(j);
       if (j && j.ok && (!listings.length) && (j.shops || []).length) {
@@ -434,7 +436,11 @@
     idbGet("listings").then(function (rows) {
       if (rows && rows.length) mergeListings(rows);
     });
-    if (nodeLive) { tryHelia(); announceNode(); }
+    if (nodeLive && !signed()) {
+      nodeLive = false;
+      try { localStorage.setItem("sn:node", "0"); } catch (e) {}
+    }
+    if (nodeLive && signed()) { tryHelia(); announceNode(); }
     paintNode();
   }
   function toggleNode() {
@@ -1113,10 +1119,25 @@
     paintIsland();
   }
   function pullWx() {
-    var pt = here || drop || { lat: 36.437, lng: 28.227 };
-    fetch("https://api.open-meteo.com/v1/forecast?latitude=" + pt.lat + "&longitude=" + pt.lng + "&current=temperature_2m,precipitation,wind_speed_10m,is_day")
+    if (!here || !isFinite(here.lat) || !isFinite(here.lng)) {
+      wxNow.emoji = isNight() ? "🌙" : "☀️";
+      paintIsland();
+      return;
+    }
+    var key = "sn:wx:" + here.lat.toFixed(2) + "," + here.lng.toFixed(2);
+    try {
+      var hit = JSON.parse(localStorage.getItem(key) || "null");
+      if (hit && hit.j && Date.now() - Number(hit.t || 0) < 30 * 60 * 1000) {
+        judgeWx(hit.j);
+        return;
+      }
+    } catch (e) {}
+    fetch("https://api.open-meteo.com/v1/forecast?latitude=" + here.lat + "&longitude=" + here.lng + "&current=temperature_2m,precipitation,wind_speed_10m,is_day")
       .then(function (r) { return r.json(); })
-      .then(judgeWx)
+      .then(function (j) {
+        try { localStorage.setItem(key, JSON.stringify({ t: Date.now(), j: j })); } catch (e2) {}
+        judgeWx(j);
+      })
       .catch(function () { wxNow.emoji = isNight() ? "🌙" : "☀️"; paintIsland(); });
   }
   function sampleLoad() {
@@ -1708,9 +1729,12 @@
     try { jobs = JSON.parse(localStorage.getItem("sn:jobs") || "[]") || []; } catch (e) { jobs = []; }
     idbGet("listings").then(function (rows) {
       if (rows && rows.length && !listings.length) { listings = rows; paintMarks(); }
+      paintJobs();
     });
-    var q = "/api/space";
-    if (here && isFinite(here.lat)) q += "?lat=" + here.lat + "&lng=" + here.lng + "&peer=" + encodeURIComponent(nodeId);
+    var awake = signed() || nodeLive || (here && isFinite(here.lat));
+    if (!awake) { paintJobs(); return; }
+    var q = "/api/space?lat=" + (here && isFinite(here.lat) ? here.lat : "") + "&lng=" + (here && isFinite(here.lng) ? here.lng : "") + "&peer=" + encodeURIComponent(nodeId);
+    if (!(here && isFinite(here.lat))) { paintJobs(); return; }
     fetch(q).then(function (r) { return r.json(); }).then(function (j) {
       if (!j || !j.ok) {
         if (nodeCh) nodeCh.postMessage({ t: "want-replica", id: nodeId });
@@ -1826,6 +1850,8 @@
       say(name || (pt.lat.toFixed(3) + "," + pt.lng.toFixed(3)));
       reverse(pt);
       paintMarks();
+      pullWx();
+      loadJobs();
     }
     if (!navigator.geolocation) { say("No GPS. Tap the globe to set YOU."); return; }
     navigator.geolocation.getCurrentPosition(
@@ -2091,18 +2117,17 @@
   try { liveOpen = localStorage.getItem("sn:live") === "1"; } catch (e) {}
   paintPower();
   paintIsland();
-  pullWx();
   layoutHud();
   paintMoney();
   loadJobs();
   bootMesh();
   paypalReturn();
   say("Grid globe. Tap GPS. This phone can be a node.");
-  setInterval(function () { if (nodeLive) announceNode(); }, 90000);
+  setInterval(function () { if (nodeLive && signed()) announceNode(); }, 90000);
   setInterval(function () { if (nodeCh) nodeCh.postMessage({ t: "hello", id: nodeId }); paintNode(); }, 30000);
   requestAnimationFrame(drawGlobe);
   setInterval(paintMoney, 4000);
   setInterval(paintIsland, 1000);
   setInterval(sampleLoad, 700);
-  setInterval(pullWx, 10 * 60 * 1000);
+  setInterval(function () { if (here && isFinite(here.lat)) pullWx(); }, 10 * 60 * 1000);
 })();
