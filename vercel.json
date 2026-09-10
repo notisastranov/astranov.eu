@@ -8,8 +8,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4247"},
-        {"key": "X-Astranov-Ship", "value": "4247-gonamed-city"}
+        {"key": "X-Astranov-Build", "value": "4248"},
+        {"key": "X-Astranov-Ship", "value": "4248-gonamed-city"}
       ]
     },
     {
@@ -17,8 +17,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4247"},
-        {"key": "X-Astranov-Ship", "value": "4247-gonamed-city"}
+        {"key": "X-Astranov-Build", "value": "4248"},
+        {"key": "X-Astranov-Ship", "value": "4248-gonamed-city"}
       ]
     },
     {
