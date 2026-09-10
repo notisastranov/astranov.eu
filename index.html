@@ -41,14 +41,6 @@ input#in{flex:1;border:0;background:0;color:#e8fbff;font:500 16px system-ui;outl
 <div id="dock"><div id="panel"><div id="line"></div><form id="f"><div class="hub"><button type="button" id="plus">+</button></div><input id="in" autocomplete="off" enterkeyhint="send" placeholder="Name it. Grok finds it."/><div class="hub"><button type="button" id="go">GO</button></div></form></div></div>
 <input id="sn-file" type="file" accept="image/*,application/pdf,text/*" hidden/>
 <script src="/js/vendor/leaflet.js?v=4127"></script>
-<script src="/js/spacenet/gz8-0.js?v=4253"></script>
-<script src="/js/spacenet/gz8-1.js?v=4253"></script>
-<script src="/js/spacenet/gz8-2.js?v=4253"></script>
-<script src="/js/spacenet/gz8-3.js?v=4253"></script>
-<script src="/js/spacenet/gz8-4.js?v=4253"></script>
-<script src="/js/spacenet/gz8-5.js?v=4253"></script>
-<script src="/js/spacenet/gz8-6.js?v=4253"></script>
-<script src="/js/spacenet/gz8-7.js?v=4253"></script>
 <script src="/js/spacenet/app.js?v=4253"></script>
 <script src="/js/spacenet/auth.js?v=4253"></script>
 <script>(function(){var VER="4253",going=false;function go(){if(going)return;going=true;location.replace("/?v="+VER+"&t="+Date.now())}function nuclear(e){if(e){if(e.target&&e.target.closest&&e.target.closest("#sn-money"))return;e.preventDefault()}var line=document.getElementById("line");if(line)line.textContent="Wiping caches · loading 4253…";var tasks=[];try{if(window.caches)tasks.push(caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k)}))}))}catch(err){}try{if(navigator.serviceWorker)tasks.push(navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister()}))}))}catch(err){}Promise.all(tasks).then(go).catch(go);setTimeout(go,1600)}window.SNReboot=nuclear;try{if(navigator.serviceWorker)navigator.serviceWorker.register("/sw.js",{scope:"/"}).catch(function(){})}catch(e){}setTimeout(function(){if(window.__SN_4252||window.__SN_4253)return;nuclear()},2500)})();</script>
