@@ -1,1 +1,1 @@
-PLACEHOLDER_USE_FILE
+file:///workspace/js/spacenet/app-4253-inline.js
