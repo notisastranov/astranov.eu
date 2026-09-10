@@ -3,7 +3,8 @@ var CACHE = "sn-shell-4249";
 var VER = "4249";
 var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4249", "/js/spacenet/auth.js?v=4249", "/js/vendor/leaflet.js?v=4127", "/js/vendor/leaflet.css?v=4127", "/icon-192.png", "/manifest.webmanifest"];
 function allowedScript(path) {
-  return path === "/js/spacenet/app.js" || path === "/js/spacenet/auth.js" || path === "/js/vendor/leaflet.js";
+  return path === "/js/spacenet/app.js" || path === "/js/spacenet/auth.js" || path === "/js/vendor/leaflet.js"
+    || /^\/js\/spacenet\/stamp-4249(-orch|-\d)?\.js$/.test(path);
 }
 function isOverlay(path) {
   if (!/^\/js\/spacenet\//.test(path)) return false;
