@@ -1,7 +1,15 @@
-/* SpaceNet SW 4239 — network-first, then local replica of the OS. Never inject. Never /boot. */
-var CACHE = "sn-shell-4239";
-var VER = "4239";
-var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4239", "/js/spacenet/auth.js?v=4239", "/js/vendor/leaflet.js?v=4127", "/js/vendor/leaflet.css?v=4127", "/icon-192.png", "/manifest.webmanifest"];
+/* SpaceNet SW 4240 — tree lock. Network-first shell. Never inject. Never /boot. Never overlays. */
+var CACHE = "sn-shell-4240";
+var VER = "4240";
+var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4240", "/js/spacenet/auth.js?v=4240", "/js/vendor/leaflet.js?v=4127", "/js/vendor/leaflet.css?v=4127", "/icon-192.png", "/manifest.webmanifest"];
+function allowedScript(path) {
+  return path === "/js/spacenet/app.js" || path === "/js/spacenet/auth.js" || path === "/js/vendor/leaflet.js";
+}
+function isOverlay(path) {
+  if (!/^\/js\/spacenet\//.test(path)) return false;
+  if (allowedScript(path)) return false;
+  return true;
+}
 self.addEventListener("install", function (e) {
   self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then(function (c) {
@@ -35,6 +43,13 @@ self.addEventListener("fetch", function (e) {
     e.respondWith(Response.redirect("/?v=" + VER + "&t=" + Date.now(), 302));
     return;
   }
+  if (isOverlay(path) || /earth-4204|earth-guest|money-\d|pay-\d|fill-\d|talk-\d|land-\d|pizza-lock|auth-\d/.test(path)) {
+    e.respondWith(new Response("/* TREE LOCK 4240: overlay blocked */", {
+      status: 200,
+      headers: { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-store", "X-Astranov-Tree": "blocked" }
+    }));
+    return;
+  }
   if (isTile(url)) {
     e.respondWith(caches.open("sn-tiles-1").then(function (cache) {
       return cache.match(req).then(function (hit) {
@@ -48,7 +63,7 @@ self.addEventListener("fetch", function (e) {
     return;
   }
   e.respondWith(fetch(req, { cache: "no-store" }).then(function (res) {
-    if (res && res.ok && (path === "/" || path === "/index.html" || /\/js\/spacenet\//.test(path) || path === "/sw.js")) {
+    if (res && res.ok && (path === "/" || path === "/index.html" || allowedScript(path) || path === "/sw.js")) {
       var copy = res.clone();
       caches.open(CACHE).then(function (c) { c.put(req, copy); }).catch(function () {});
     }

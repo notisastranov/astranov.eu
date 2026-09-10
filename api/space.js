@@ -154,6 +154,12 @@ module.exports = async function handler(req, res) {
         const allow = peer && ((body.driver && body.driver.peer === peer) || body.customerPeer === peer);
         if (!allow) delete body.drop;
       }
+      delete body.cover;
+      delete body.profile;
+      delete body.photo;
+      delete body.menuPhotos;
+      delete body.sdp;
+      delete body.ice;
       if (k) buckets[k].push(body);
     });
     res.status(200).json(Object.assign({ ok: true, local: false }, buckets));

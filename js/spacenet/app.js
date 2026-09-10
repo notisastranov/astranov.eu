@@ -1,9 +1,9 @@
-/* SpaceNet 4239 — one OS. Sphere globe. No overlays. No earth-4204. */
+/* SpaceNet 4240 — one OS. Sphere globe. Tree lock. No overlays. */
 (function () {
   "use strict";
-  if (window.__SN_4239) return;
-  window.__SN_4239 = true;
-  var VER = "4239";
+  if (window.__SN_4240) return;
+  window.__SN_4240 = true;
+  var VER = "4240";
   var OWNER_MAIL = /notisastranov@gmail\.com$|@astranov\.eu$/i;
   var TREASURY = 3000000;
 
@@ -225,7 +225,7 @@
       presence: nodeLive ? 1 : 0,
       cid: extra.cid || cid,
       fromPeer: extra.fromPeer || nodeId,
-      mesh: "4239",
+      mesh: "4240",
       note: extra.note || ("helia:" + heliaNote())
     };
     if (extra.pack) row.pack = extra.pack;
@@ -435,7 +435,6 @@
       if (rows && rows.length) mergeListings(rows);
     });
     if (nodeLive) { tryHelia(); announceNode(); }
-    meshTick();
     paintNode();
   }
   function toggleNode() {
@@ -1714,7 +1713,7 @@
     if (here && isFinite(here.lat)) q += "?lat=" + here.lat + "&lng=" + here.lng + "&peer=" + encodeURIComponent(nodeId);
     fetch(q).then(function (r) { return r.json(); }).then(function (j) {
       if (!j || !j.ok) {
-        pullReplica();
+        if (nodeCh) nodeCh.postMessage({ t: "want-replica", id: nodeId });
         return;
       }
       listings = [].concat(j.shops || [], j.drivers || [], j.posts || []);
@@ -1726,7 +1725,7 @@
       cidOf(listings.slice(0, 20)).then(function (c) { try { localStorage.setItem("sn:cid", c); } catch (e) {} });
       paintJobs(); paintMarks();
     }).catch(function () {
-      pullReplica();
+      if (nodeCh) nodeCh.postMessage({ t: "want-replica", id: nodeId });
     });
     paintJobs();
   }
@@ -2101,7 +2100,6 @@
   say("Grid globe. Tap GPS. This phone can be a node.");
   setInterval(function () { if (nodeLive) announceNode(); }, 90000);
   setInterval(function () { if (nodeCh) nodeCh.postMessage({ t: "hello", id: nodeId }); paintNode(); }, 30000);
-  setInterval(function () { meshTick(); }, 45000);
   requestAnimationFrame(drawGlobe);
   setInterval(paintMoney, 4000);
   setInterval(paintIsland, 1000);

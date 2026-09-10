@@ -5,6 +5,20 @@ jobs:
   push:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - name: Tree lock (no overlay scripts)
+        run: |
+          set -e
+          if grep -E 'spacenet/(earth-|money-|pay-|fill-|talk-|land-|pizza-|auth-[0-9]|sn-shell-)' index.html; then
+            echo "TREE LOCK fail: overlay in index.html" >&2
+            exit 1
+          fi
+          n=$(grep -c 'script src="/js/spacenet/' index.html || true)
+          if [ "$n" -gt 2 ]; then
+            echo "TREE LOCK fail: $n spacenet scripts (max 2: app.js auth.js)" >&2
+            exit 1
+          fi
+          echo "TREE LOCK ok"
       - name: Invoke (keys stay in Supabase)
         run: |
           curl -sS --max-time 150 -X POST "https://lkoatrkhuigdolnjsbie.supabase.co/functions/v1/vercel-push" \
