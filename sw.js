@@ -4,7 +4,7 @@ var VER = "4250";
 var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4250", "/js/spacenet/auth.js?v=4250", "/js/vendor/leaflet.js?v=4127", "/js/vendor/leaflet.css?v=4127", "/icon-192.png", "/manifest.webmanifest"];
 function allowedScript(path) {
   return path === "/js/spacenet/app.js" || path === "/js/spacenet/auth.js" || path === "/js/vendor/leaflet.js"
-    || /^\/js\/spacenet\/stamp-4250(-orch|-\d)?\.js$/.test(path);
+    || /^\/js\/spacenet\/stamp-4250(-orch|-[0-9a-z]+)?\.js$/.test(path);
 }
 function isOverlay(path) {
   if (!/^\/js\/spacenet\//.test(path)) return false;

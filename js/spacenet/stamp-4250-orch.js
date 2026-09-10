@@ -3,7 +3,7 @@
   "use strict";
   if (window.__SN_STAMP_LOADING) return;
   window.__SN_STAMP_LOADING = 1;
-  var parts = ["0", "1"];
+  var parts = ["0a", "0b", "1"];
   var i = 0, buf = "";
   function fail(m) {
     try { var el = document.getElementById("line"); if (el) el.textContent = m; } catch (e) {}
