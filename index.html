@@ -3,7 +3,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4256"/>
+<meta name="astranov-build" content="4257"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
@@ -17,7 +17,7 @@ html,body{margin:0;height:100%;background:#02040a;color:#d8f6ff;overflow:hidden;
 #island,#panel{pointer-events:auto}#island{padding:7px 12px;background:rgba(4,14,28,.78);border:1px solid rgba(80,220,255,.35);border-radius:18px}
 #island .r1,#island .r2,.hud-row{display:flex;gap:6px;justify-content:center;align-items:center}
 #ver,.a{color:#4df0ff;font:800 12px system-ui}#line{color:#7ee9ff;font:500 12px ui-monospace;margin:0 4px 8px}
-#sn-me,#gps{position:fixed;bottom:calc(env(safe-area-inset-bottom)+78px);width:40px;border:0;background:0;color:#4df0ff;z-index:90}
+#sn-me,#gps{position:fixed;bottom:calc(env(safe-area-inset-bottom)+78px);width:40px;height:40px;border:0;background:0;color:#4df0ff;z-index:90;pointer-events:auto}
 #sn-me{left:10px}#gps{right:10px;z-index:120}
 #sn-sheet,#sn-tasks{display:none;position:fixed;inset:0;z-index:80}#sn-sheet.on,#sn-tasks.on{display:block}
 #sn-sheet .card,#sn-tasks .card{position:absolute;left:50%;bottom:86px;transform:translateX(-50%);width:min(420px,94vw);height:33vh;overflow:auto;padding:10px;background:rgba(4,14,28,.97);border:1px solid rgba(126,233,255,.4);border-radius:16px}
@@ -32,23 +32,25 @@ input#in{flex:1;border:0;background:0;color:#e8fbff;font:500 16px system-ui;outl
 </style>
 </head>
 <body>
-<div id="g"></div>
+<canvas id="g"></canvas>
 <div id="city"></div>
 <div id="top">
 <div id="sn-topchrome-drag" class="sn-trivial-law" aria-hidden="true"></div>
 <div id="island">
-<div class="r1"><b class="a">ASTRANOV</b><b class="s">SPACENET</b><span id="ver">V4256</span></div>
+<div class="r1"><b class="a">ASTRANOV</b><b class="s">SPACENET</b><span id="ver">V4257</span></div>
 <div class="r2"><span id="sn-local">-</span><span id="sn-utc">-</span><span id="sn-wx"></span><span id="sn-node">node 0</span><canvas id="sn-spark" width="64" height="20"></canvas></div></div>
 <div class="hud-row"><button type="button" id="sn-tasks-btn">JOBS</button><button type="button" id="sn-find-btn">FIND</button><button type="button" id="sn-node-btn">NODE</button></div></div>
 <button type="button" id="sn-money">AV</button>
 <button type="button" id="sn-power" class="idle" aria-label="Go live" hidden></button>
 <div id="sn-count" aria-hidden="true"></div>
+<button type="button" id="sn-me" aria-label="You">YOU</button>
+<button type="button" id="gps" aria-label="Locate">GPS</button>
 <div id="sn-tasks"><div class="bg" data-act="hide"></div><div class="card"><div class="bar"><b class="ttl">JOBS</b><button type="button" class="x" data-act="hide">HIDE</button></div><div id="sn-tasks-list"></div></div></div>
 <div id="sn-sheet"><div class="bg" data-act="close"></div><div class="card" id="sn-sheet-card"></div></div>
 <div id="dock"><div id="panel"><div id="cli-drag" class="sn-trivial-law" aria-hidden="true"></div><div id="line"></div><form id="f"><div class="hub"><button type="button" id="plus">+</button></div><input id="in" autocomplete="off" enterkeyhint="send" placeholder="Command the HUD · show, hide, or reshape"/><div class="hub"><button type="button" id="go">GO</button></div></form></div></div>
 <input id="sn-file" type="file" accept="image/*,application/pdf,text/*" hidden/>
 <script src="/js/vendor/leaflet.js?v=4127"></script>
-<script src="/js/spacenet/app.js?v=4256"></script>
-<script src="/os-bootloader.js?v=4256"></script>
-<script src="/js/spacenet/auth.js?v=4256"></script>
+<script src="/js/spacenet/app.js?v=4257"></script>
+<script src="/os-bootloader.js?v=4257"></script>
+<script src="/js/spacenet/auth.js?v=4257"></script>
 </body></html>
