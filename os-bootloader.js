@@ -72,12 +72,16 @@
   var chain = Promise.resolve();
   for (var i = 0; i < 8; i++) {
     (function (n) {
-      chain = chain.then(function () { return loadScript("/js/spacenet/gz8-" + n + ".js?v=" + VER); });
+      chain = chain.then(function () { return loadScript("/js/spacenet/gz8-" + n + ".js?v=4258"); });
     })(i);
   }
   chain.then(inflateAndRun).then(function () {
     afterEarth(registerSW);
   }).catch(function (e) {
     console.error(e);
+    registerSW();
+    var line = document.getElementById("line");
+    if (line) line.textContent = "Kernel delayed. GPS still works. Hold island to reload.";
   });
+  registerSW();
 })();

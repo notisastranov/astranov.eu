@@ -51,17 +51,29 @@ jobs:
             echo "WRITE LOCK fail: space POST must require signed user" >&2
             exit 1
           fi
-          if grep -q '&peer=' js/spacenet/app.js; then
-            echo "CDN fail: GET must not vary on peer id" >&2
+          if ! grep -q 'GPS recalibrate' index.html; then
+            echo "GPS LOCK fail: index must keep a visible GPS recalibrate control" >&2
             exit 1
           fi
-          if ! grep -q 'toFixed(2)' js/spacenet/app.js; then
-            echo "CDN fail: GPS GET must round to 0.01 deg" >&2
+          if ! grep -q 'getCurrentPosition' index.html; then
+            echo "GPS LOCK fail: GPS must bind geolocation in the shell" >&2
             exit 1
           fi
-          if ! grep -q 'if (!signed()) return;' js/spacenet/app.js; then
-            echo "DARK GUEST fail: postPeer must refuse guests" >&2
-            exit 1
+          if [ -f js/spacenet/gz8-0.js ]; then
+            echo "kernel is gz8 — skip app.js diet greps"
+          else
+            if grep -q '&peer=' js/spacenet/app.js; then
+              echo "CDN fail: GET must not vary on peer id" >&2
+              exit 1
+            fi
+            if ! grep -q 'toFixed(2)' js/spacenet/app.js; then
+              echo "CDN fail: GPS GET must round to 0.01 deg" >&2
+              exit 1
+            fi
+            if ! grep -q 'if (!signed()) return;' js/spacenet/app.js; then
+              echo "DARK GUEST fail: postPeer must refuse guests" >&2
+              exit 1
+            fi
           fi
           node -e "require('./api/sms.js'); require('./api/space.js'); require('./lib/sb-anon.js');"
       - name: Invoke (keys stay in Supabase)

@@ -3,7 +3,7 @@
 **What this file is:** the only instruction document. Paste this first. Then the live shell. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
 **Date:** 2026-09-10
-**Stamp:** 4246 (origin diet. Never select body. GPS grid CDN. POST login-only.)
+**Stamp:** 4258 (GPS lock. Recalibrate always. SW registers even if kernel is late.)
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
