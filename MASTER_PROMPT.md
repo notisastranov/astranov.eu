@@ -3,7 +3,7 @@
 **What this file is:** the only instruction document. Paste this first. Then the live shell. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
 **Date:** 2026-09-10
-**Stamp:** 4258 (GPS lock. Recalibrate always. SW registers even if kernel is late.)
+**Stamp:** 4266 (Canvas sized from innerWidth in JS. Duplicates gone. Island monitor ticks every second. + wired.)
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
@@ -107,7 +107,7 @@ Grok preview (`src/spacenet/*`) is the same chrome and laws.
 - Canvas globe `#g` full viewport — sphere math, continent fill + outlines, labels, trackball, inertia. Idle sits still. Pitch follows the finger.
 - Brand island: `ASTRANOV SPACENET` + stamp. Tap = reboot.
 - `JOBS` `#sn-tasks-btn` **centered under the island**. Posted jobs only. Never TASKS.
-- `AV€` `#sn-money` **after login only**. Owner pool, treasury 3,000,000, never zero-wiped.
+- `AV€` `#sn-money` **always visible**, frozen **top-right**. Guest sees `0`. Never hide the chip. Owner pool, treasury 3,000,000, never zero-wiped.
 - `LOGIN` `#sn-me` bottom-left. Out: LOGIN / IN. In: YOU / photo or first **letter**. Never two-char email slices. Never digits.
 - `GPS` `#gps` bottom-right. Precise, then coarse, then tap-to-set.
 - Dock: `#plus` (upload to Grok) · `#in` “Talk to Astranov SpaceNet” · `#go` mic.

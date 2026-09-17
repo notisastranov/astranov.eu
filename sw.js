@@ -1,10 +1,9 @@
-/* SpaceNet SW 4258 - tree lock. GPS lock. Network-first. Never inject. Never /boot. Never overlays. */
-var CACHE = "sn-shell-4258";
-var VER = "4258";
-var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4258", "/js/spacenet/auth.js?v=4258", "/js/vendor/leaflet.js?v=4127", "/js/vendor/leaflet.css?v=4127", "/icon-192.png", "/manifest.webmanifest"];
+/* SpaceNet SW 4266 — JS sizes the canvas. Tree lock. */
+var CACHE = "sn-shell-4266";
+var VER = "4266";
+var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4266", "/js/spacenet/auth.js?v=4266", "/js/vendor/leaflet.js?v=4127", "/js/vendor/leaflet.css?v=4127", "/icon-192.png", "/manifest.webmanifest"];
 function allowedScript(path) {
   if (path === "/js/spacenet/app.js" || path === "/js/spacenet/auth.js" || path === "/js/vendor/leaflet.js") return true;
-  if (/^\/js\/spacenet\/gz8-[0-7]\.js$/.test(path)) return true;
   return false;
 }
 function isOverlay(path) {
@@ -21,58 +20,32 @@ self.addEventListener("install", function (e) {
 self.addEventListener("activate", function (e) {
   e.waitUntil(
     caches.keys().then(function (keys) {
-      return Promise.all(keys.map(function (k) { if (k !== CACHE && k.indexOf("sn-tiles") !== 0) return caches.delete(k); }));
+      return Promise.all(keys.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); }));
     }).then(function () { return self.clients.claim(); }).then(function () {
-      return self.clients.matchAll({ type: "window" });
-    }).then(function (clients) {
-      clients.forEach(function (c) {
-        if (c.navigate) {
+      return self.clients.matchAll({ type: "window" }).then(function (clients) {
+        clients.forEach(function (c) {
           try { c.navigate("/?v=" + VER + "&t=" + Date.now()); } catch (err) {}
-        }
+        });
       });
     })
   );
 });
-function isTile(url) {
-  return /tile\.openstreetmap\.org|tile\.openstreetmap\.de|openstreetmap\.fr\/hot/.test(url);
-}
 self.addEventListener("fetch", function (e) {
-  var req = e.request;
-  if (req.method !== "GET") return;
-  var url = req.url, path = "";
-  try { path = new URL(url).pathname; } catch (err) { return; }
-  if (/^\/boot(\/|$)/.test(path)) {
-    e.respondWith(Response.redirect("/?v=" + VER + "&t=" + Date.now(), 302));
+  var url = new URL(e.request.url);
+  if (url.origin !== location.origin) return;
+  if (isOverlay(url.pathname)) {
+    e.respondWith(new Response("/* TREE LOCK 4266: overlay blocked */", { headers: { "Content-Type": "text/javascript" }, status: 200 }));
     return;
   }
-  if (isOverlay(path) || /earth-4204|earth-guest|money-\d|pay-\d|fill-\d|talk-\d|land-\d|pizza-lock|auth-\d/.test(path)) {
-    e.respondWith(new Response("/* TREE LOCK 4258: overlay blocked */", {
-      status: 200,
-      headers: { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-store", "X-Astranov-Tree": "blocked" }
-    }));
+  if (e.request.mode === "navigate" || url.pathname === "/" || url.pathname === "/index.html") {
+    e.respondWith(fetch(e.request, { cache: "no-store" }).catch(function () { return caches.match("/index.html"); }));
     return;
   }
-  if (isTile(url)) {
-    e.respondWith(caches.open("sn-tiles-1").then(function (cache) {
-      return cache.match(req).then(function (hit) {
-        if (hit) return hit;
-        return fetch(req).then(function (res) {
-          if (res && res.ok) cache.put(req, res.clone());
-          return res;
-        });
-      });
-    }));
-    return;
-  }
-  e.respondWith(fetch(req, { cache: "no-store" }).then(function (res) {
-    if (res && res.ok && (path === "/" || path === "/index.html" || allowedScript(path) || path === "/sw.js")) {
+  e.respondWith(fetch(e.request).then(function (res) {
+    if (res && res.ok && e.request.method === "GET") {
       var copy = res.clone();
-      caches.open(CACHE).then(function (c) { c.put(req, copy); }).catch(function () {});
+      caches.open(CACHE).then(function (c) { c.put(e.request, copy); }).catch(function () {});
     }
     return res;
-  }).catch(function () {
-    return caches.match(req).then(function (hit) {
-      return hit || caches.match("/") || new Response("offline node", { status: 503, headers: { "Content-Type": "text/plain" } });
-    });
-  }));
+  }).catch(function () { return caches.match(e.request); }));
 });

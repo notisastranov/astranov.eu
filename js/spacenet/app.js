@@ -1,2 +1,1097 @@
-/* SpaceNet 4254 — shards load via os-bootloader script src (Chrome Android). */
-window.__SN_APP = "4254";
+/* SpaceNet 4266 — full viewport by JS. No duplicate hunt. Monitor live. */
+(function () {
+  "use strict";
+  var VER = "4266";
+  var INTRO_MS = 13000;
+  var LAND = [
+    [[37, -6], [37, 11], [32, 25], [31, 34], [22, 37], [12, 51], [0, 42], [-5, 39], [-15, 40], [-25, 35], [-34, 25], [-34, 18], [-28, 16], [-22, 14], [-17, 11], [5, 9], [4, -8], [12, -16], [16, -16], [21, -17], [28, -13], [36, -6], [37, -6]],
+    [[36, -9], [43, -9], [51, -10], [58, -6], [71, 25], [70, 30], [60, 30], [54, 20], [45, 29], [41, 29], [40, 19], [38, 15], [36, 15], [36, -5], [36, -9]],
+    [[12, 44], [26, 56], [36, 44], [42, 44], [55, 60], [70, 70], [72, 140], [62, 160], [50, 140], [35, 140], [22, 120], [8, 105], [1, 104], [8, 77], [25, 68], [12, 44]],
+    [[-11, 142], [-12, 136], [-16, 123], [-22, 114], [-35, 115], [-35, 138], [-38, 148], [-28, 153], [-11, 142]],
+    [[72, -95], [70, -168], [60, -165], [48, -125], [32, -117], [23, -110], [15, -95], [25, -80], [45, -65], [60, -65], [72, -85], [72, -95]],
+    [[12, -72], [10, -62], [5, -52], [-5, -35], [-23, -42], [-34, -53], [-52, -68], [-18, -70], [-5, -80], [8, -78], [12, -72]],
+    [[83, -32], [72, -56], [60, -44], [70, -22], [83, -32]]
+  ];
+  var LABELS = [
+    { name: "AFRICA", lat: 7, lng: 20 },
+    { name: "EUROPE", lat: 50, lng: 15 },
+    { name: "ASIA", lat: 45, lng: 90 },
+    { name: "AUSTRALIA", lat: -25, lng: 134 },
+    { name: "N AMERICA", lat: 45, lng: -100 },
+    { name: "S AMERICA", lat: -15, lng: -60 }
+  ];
+  var SITES = [
+    { lat: 36.44, lng: 28.23, c: "#c8f4ff", n: "RHODES" },
+    { lat: 37.98, lng: 23.73, c: "#b8ead8", n: "ATHENS" },
+    { lat: 51.50, lng: -0.12, c: "#d0e8ff", n: "LONDON" },
+    { lat: 40.71, lng: -74.01, c: "#ffe0a8", n: "NEW YORK" },
+    { lat: 35.68, lng: 139.69, c: "#ffd0e8", n: "TOKYO" },
+    { lat: -1.29, lng: 36.82, c: "#ffc89a", n: "NAIROBI" },
+    { lat: 1.35, lng: 103.82, c: "#c8e8ff", n: "SINGAPORE" },
+    { lat: -33.87, lng: 151.21, c: "#c8f0d0", n: "SYDNEY" },
+    { lat: 55.75, lng: 37.62, c: "#ddd0ff", n: "MOSCOW" },
+    { lat: -23.55, lng: -46.63, c: "#ffd0b0", n: "SAO PAULO" }
+  ];
+  var NEWS = [
+    "SPACENET · EARTH LIVE",
+    "RADAR · PLANETARY SWEEP",
+    "MESH · WAITING FOR A NODE",
+    "ISS · NIGHT PASS",
+    "AEGEAN · CORRIDOR QUIET",
+    "SURFACE · VECTOR SCAN",
+    "AV€ · WORK-MINTED ONLY"
+  ];
+
+  var cam = { yaw: 0.49, pitch: 0.35, dist: 1.85 };
+  var vel = { yaw: 0, pitch: 0 };
+  var fly = null;
+  var here = null;
+  var intro = true;
+  var introT0 = 0;
+  var newsI = -1;
+  var stars = [];
+  var shops = [];
+  var map = null;
+  var youMark = null;
+  var canvas, ctx;
+  var lastT = 0;
+  var drag = null;
+  var pointers = new Map();
+  var pinch = null;
+  var holdT = 0;
+  var cityOn = false;
+  var listingTried = false;
+  var vendor = null;
+  var drop = null;
+  var jobs = [];
+  var shopMarks = [];
+  var routeLayer = null;
+  var quoteOpts = { vip: false, floor: false, tip: 0 };
+  var STAGES = ["ACCEPT", "VENDOR HANDED OFF", "DRIVER GOT IT", "DRIVER DELIVERED", "I RECEIVED"];
+  var view = { cx: 0, cy: 0, scale: 120, w: 1, h: 1 };
+
+  function $(id) { return document.getElementById(id); }
+  function say(s) { var el = $("line"); if (el) el.textContent = s; }
+  function avcGet() {
+    try {
+      var n = Number(localStorage.getItem("sn:avc"));
+      return isFinite(n) ? n : 0;
+    } catch (e) { return 0; }
+  }
+  function paintMoney() {
+    var btn = $("sn-money");
+    if (!btn) return;
+    btn.hidden = false;
+    btn.style.display = "flex";
+    btn.classList.add("on");
+    var n = Math.round(avcGet());
+    var tgt = btn.querySelector(".tgt");
+    if (tgt) tgt.textContent = String(n);
+    var lbl = btn.querySelector(".lbl");
+    if (lbl) lbl.textContent = "AV€";
+  }
+  function signed() {
+    try {
+      if (window.SNAuth && SNAuth.user) {
+        var u = SNAuth.user();
+        return !!(u && u.email);
+      }
+    } catch (e) {}
+    return false;
+  }
+  function visRect(el) {
+    if (!el) return null;
+    var cs = getComputedStyle(el);
+    if (cs.display === "none" || cs.visibility === "hidden" || Number(cs.opacity) === 0) return null;
+    var r = el.getBoundingClientRect();
+    if (r.width < 4 || r.height < 4) return null;
+    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+  }
+  function boxesHit(a, b, pad) {
+    pad = pad == null ? 8 : pad;
+    return a.left < b.right + pad && a.right > b.left - pad && a.top < b.bottom + pad && a.bottom > b.top - pad;
+  }
+  function fitView() {
+    var w = window.innerWidth, h = window.innerHeight;
+    if (canvas) {
+      canvas.style.position = "fixed";
+      canvas.style.left = "0";
+      canvas.style.top = "0";
+      canvas.style.right = "0";
+      canvas.style.bottom = "0";
+      canvas.style.width = w + "px";
+      canvas.style.height = h + "px";
+      canvas.style.display = "block";
+    }
+    var top = 16, bot = h - 16;
+    var isl = visRect($("island"));
+    var panel = visRect($("panel"));
+    if (isl) top = Math.max(top, isl.bottom + 12);
+    if (panel) bot = Math.min(bot, panel.top - 12);
+    if (bot - top < 120) { top = 16; bot = h - 16; }
+    var cx = w / 2;
+    var cy = (top + bot) / 2;
+    var scale = Math.max(140, Math.min((bot - top) * 0.48, w * 0.48));
+    view = { w: w, h: h, cx: cx, cy: cy, scale: scale, top: top, bot: bot };
+  }
+  function project(lat, lng, c) {
+    var λ = (lng * Math.PI) / 180 - c.yaw;
+    var φ = (lat * Math.PI) / 180;
+    var x = Math.cos(φ) * Math.sin(λ);
+    var y = Math.sin(φ);
+    var z = Math.cos(φ) * Math.cos(λ);
+    var cy = y * Math.cos(c.pitch) - z * Math.sin(c.pitch);
+    var cz = y * Math.sin(c.pitch) + z * Math.cos(c.pitch);
+    if (cz < 0.04) return null;
+    return { x: view.cx + x * view.scale, y: view.cy - cy * view.scale, z: cz, s: view.scale };
+  }
+  function globeHit(sx, sy, c) {
+    var scale = view.scale;
+    var nx = (sx - view.cx) / scale, ny = (view.cy - sy) / scale, r2 = nx * nx + ny * ny;
+    if (r2 > 1) return null;
+    var nz = Math.sqrt(Math.max(0, 1 - r2));
+    var cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
+    var y = ny * cp + nz * sp, z = -ny * sp + nz * cp, x = nx;
+    var lat = (Math.asin(Math.max(-1, Math.min(1, y))) * 180) / Math.PI;
+    var lng = ((Math.atan2(x, z) + c.yaw) * 180) / Math.PI;
+    while (lng > 180) lng -= 360;
+    while (lng < -180) lng += 360;
+    return { lat: lat, lng: lng };
+  }
+  function wrapYaw(from, to) {
+    var d = to - from;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    return from + d;
+  }
+  function lookAt(p, dist) {
+    cam.yaw = (p.lng * Math.PI) / 180;
+    cam.pitch = Math.max(-1.15, Math.min(1.15, (p.lat * Math.PI) / 180));
+    cam.dist = dist == null ? 1.16 : dist;
+    vel.yaw = 0; vel.pitch = 0; fly = null;
+  }
+  function flyTo(p, dist) {
+    var goalYaw = wrapYaw(cam.yaw, (p.lng * Math.PI) / 180);
+    fly = {
+      t0: performance.now(),
+      ms: 1100,
+      start: { yaw: cam.yaw, pitch: cam.pitch, dist: cam.dist },
+      goal: {
+        yaw: goalYaw,
+        pitch: Math.max(-1.15, Math.min(1.15, (p.lat * Math.PI) / 180)),
+        dist: dist == null ? 1.12 : dist
+      }
+    };
+    vel.yaw = 0; vel.pitch = 0;
+  }
+  function seedStars() {
+    stars = [];
+    for (var i = 0; i < 240; i++) stars.push({ x: Math.random(), y: Math.random(), a: 0.12 + Math.random() * 0.7, s: Math.random() < 0.12 ? 2 : 1.2 });
+  }
+  function drawPath(ctx, ring, c) {
+    var first = true;
+    for (var i = 0; i < ring.length; i++) {
+      var p = project(ring[i][0], ring[i][1], c);
+      if (!p) { first = true; continue; }
+      if (first) { ctx.moveTo(p.x, p.y); first = false; }
+      else ctx.lineTo(p.x, p.y);
+    }
+  }
+  function drawGlobe(now) {
+    if (!canvas || !ctx) return;
+    fitView();
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    var w = view.w, h = view.h;
+    if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) {
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    var i, p, lat, lng, first;
+    for (i = 0; i < stars.length; i++) {
+      ctx.fillStyle = "rgba(210,245,255," + stars[i].a + ")";
+      ctx.fillRect(stars[i].x * w, stars[i].y * h, stars[i].s || 1.2, stars[i].s || 1.2);
+    }
+    var cx = view.cx, cy = view.cy, r = view.scale;
+    var glow = ctx.createRadialGradient(cx, cy, r * 0.82, cx, cy, r * 1.12);
+    glow.addColorStop(0, "rgba(80,180,220,0)");
+    glow.addColorStop(0.7, "rgba(60,160,210,0.05)");
+    glow.addColorStop(1, "rgba(90,200,230,0.28)");
+    ctx.beginPath(); ctx.arc(cx, cy, r * 1.1, 0, Math.PI * 2);
+    ctx.fillStyle = glow; ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    var ocean = ctx.createRadialGradient(cx - r * 0.28, cy - r * 0.32, r * 0.1, cx, cy, r);
+    ocean.addColorStop(0, "#1a5c78");
+    ocean.addColorStop(0.45, "#0c3348");
+    ocean.addColorStop(1, "#07141c");
+    ctx.fillStyle = ocean; ctx.fill();
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
+    ctx.strokeStyle = "rgba(120,190,210,0.12)"; ctx.lineWidth = 0.6;
+    for (lat = -60; lat <= 60; lat += 30) {
+      ctx.beginPath(); first = true;
+      for (lng = -180; lng <= 180; lng += 6) {
+        p = project(lat, lng, cam);
+        if (!p) { first = true; continue; }
+        if (first) { ctx.moveTo(p.x, p.y); first = false; } else ctx.lineTo(p.x, p.y);
+      }
+      ctx.stroke();
+    }
+    for (lng = -180; lng < 180; lng += 30) {
+      ctx.beginPath(); first = true;
+      for (lat = -80; lat <= 80; lat += 4) {
+        p = project(lat, lng, cam);
+        if (!p) { first = true; continue; }
+        if (first) { ctx.moveTo(p.x, p.y); first = false; } else ctx.lineTo(p.x, p.y);
+      }
+      ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(62, 118, 84, 0.78)";
+    ctx.strokeStyle = "rgba(170, 210, 175, 0.45)";
+    ctx.lineWidth = 1;
+    for (i = 0; i < LAND.length; i++) {
+      ctx.beginPath(); drawPath(ctx, LAND[i], cam); ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+    var night = ctx.createLinearGradient(cx - r, cy, cx + r * 0.35, cy);
+    night.addColorStop(0, "rgba(2,6,12,0.55)");
+    night.addColorStop(0.55, "rgba(2,6,12,0.08)");
+    night.addColorStop(1, "rgba(2,6,12,0)");
+    ctx.fillStyle = night;
+    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    var sweepLng = ((now / 28) % 360) - 180;
+    ctx.beginPath(); first = true;
+    for (lat = -80; lat <= 80; lat += 3) {
+      p = project(lat, sweepLng, cam);
+      if (!p) { first = true; continue; }
+      if (first) { ctx.moveTo(p.x, p.y); first = false; } else ctx.lineTo(p.x, p.y);
+    }
+    ctx.strokeStyle = "rgba(120, 230, 255, 0.85)"; ctx.lineWidth = 1.6; ctx.stroke();
+    for (i = 1; i <= 5; i++) {
+      ctx.beginPath(); first = true;
+      for (lat = -80; lat <= 80; lat += 4) {
+        p = project(lat, sweepLng - i * 4, cam);
+        if (!p) { first = true; continue; }
+        if (first) { ctx.moveTo(p.x, p.y); first = false; } else ctx.lineTo(p.x, p.y);
+      }
+      ctx.strokeStyle = "rgba(120, 230, 255," + (0.18 - i * 0.028) + ")";
+      ctx.lineWidth = 6 - i; ctx.stroke();
+    }
+    for (i = 0; i < SITES.length; i++) {
+      p = project(SITES[i].lat, SITES[i].lng, cam);
+      if (!p) continue;
+      var pulse = 0.4 + 0.6 * Math.abs(Math.sin(now / 480 + i));
+      ctx.beginPath(); ctx.arc(p.x, p.y, 2.2 + pulse, 0, Math.PI * 2);
+      ctx.fillStyle = SITES[i].c; ctx.globalAlpha = 0.45 + 0.5 * pulse; ctx.fill(); ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 7 + pulse * 4, 0, Math.PI * 2);
+      ctx.strokeStyle = SITES[i].c; ctx.globalAlpha = 0.28; ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    if (here) {
+      p = project(here.lat, here.lng, cam);
+      if (p) {
+        ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI * 2); ctx.fillStyle = "#e8fbff"; ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x, p.y, 13, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(232,251,255,0.8)"; ctx.lineWidth = 1.2; ctx.stroke();
+      }
+    }
+    ctx.restore();
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(140, 210, 230, 0.35)"; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.fillStyle = "rgba(210, 230, 215, 0.7)";
+    ctx.font = "600 11px system-ui,sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    for (i = 0; i < LABELS.length; i++) {
+      p = project(LABELS[i].lat, LABELS[i].lng, cam);
+      if (!p || p.z < 0.28) continue;
+      ctx.fillText(LABELS[i].name, p.x, p.y);
+    }
+  }
+  function stepCam(now, dt) {
+    if (fly) {
+      var k = Math.min(1, (now - fly.t0) / fly.ms);
+      var e = 1 - Math.pow(1 - k, 3);
+      cam.yaw = fly.start.yaw + (fly.goal.yaw - fly.start.yaw) * e;
+      cam.pitch = fly.start.pitch + (fly.goal.pitch - fly.start.pitch) * e;
+      cam.dist = fly.start.dist + (fly.goal.dist - fly.start.dist) * e;
+      if (k >= 1) fly = null;
+      return;
+    }
+    if (intro) {
+      cam.yaw += 0.22 * dt;
+      if (cam.dist < 1.7 || cam.dist > 2.05) cam.dist = 1.85;
+      return;
+    }
+    if (!drag && (Math.abs(vel.yaw) > 0.00012 || Math.abs(vel.pitch) > 0.00012)) {
+      cam.yaw += vel.yaw;
+      cam.pitch = Math.max(-1.15, Math.min(1.15, cam.pitch + vel.pitch));
+      vel.yaw *= 0.88; vel.pitch *= 0.88;
+    } else if (!drag) { vel.yaw = 0; vel.pitch = 0; }
+  }
+  function tickNews(now) {
+    if (!intro) return;
+    var i = Math.floor(now / 1850) % NEWS.length;
+    if (i !== newsI) { newsI = i; say(NEWS[i] + " · then we zoom to you"); }
+  }
+  function loop(now) {
+    var dt = Math.min(0.05, lastT ? (now - lastT) / 1000 : 0.016);
+    lastT = now;
+    if (!introT0) introT0 = now;
+    if (intro && now - introT0 >= INTRO_MS) endIntro();
+    stepCam(now, dt);
+    tickNews(now);
+    if (!cityOn) drawGlobe(now);
+    paintMonitor(now);
+    maybeLayout();
+    requestAnimationFrame(loop);
+  }
+  function nowMs() { return Date.now(); }
+  function pos(e) {
+    var r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top, w: r.width, h: r.height };
+  }
+  function bindGlobe() {
+    canvas.addEventListener("pointerdown", function (e) {
+      if (e.button) return;
+      canvas.setPointerCapture(e.pointerId);
+      var p = pos(e);
+      pointers.set(e.pointerId, { x: p.x, y: p.y });
+      vel.yaw = 0; vel.pitch = 0;
+      if (pointers.size === 2) {
+        var pts = Array.from(pointers.values());
+        pinch = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        drag = null;
+        if (holdT) { clearTimeout(holdT); holdT = 0; }
+        return;
+      }
+      drag = { x: p.x, y: p.y, yaw: cam.yaw, pitch: cam.pitch, moved: false, lastX: p.x, lastY: p.y, lastT: nowMs() };
+      holdT = setTimeout(function () {
+        if (!drag || drag.moved) return;
+        var hit = globeHit(p.x, p.y, cam);
+    if (hit) pinHere(hit);
+        drag = null;
+      }, 1000);
+    });
+    canvas.addEventListener("pointermove", function (e) {
+      var p = pos(e);
+      if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: p.x, y: p.y });
+      if (pointers.size === 2 && pinch) {
+        var pts = Array.from(pointers.values());
+        var d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        var ratio = pinch / d;
+        pinch = d;
+        cam.dist = Math.max(1.05, Math.min(2.4, cam.dist * ratio));
+        if (cam.dist <= 1.08 && here) openCity(here);
+        return;
+      }
+      if (!drag) return;
+      var dx = p.x - drag.x, dy = p.y - drag.y;
+      if (Math.hypot(dx, dy) > 8) {
+        drag.moved = true; intro = false;
+        if (holdT) { clearTimeout(holdT); holdT = 0; }
+      }
+      if (!drag.moved) return;
+      var t = nowMs();
+      var dt = Math.max(8, t - drag.lastT);
+      vel.yaw = (-(p.x - drag.lastX) * 0.005) * (16 / dt);
+      vel.pitch = ((p.y - drag.lastY) * 0.004) * (16 / dt);
+      drag.lastX = p.x; drag.lastY = p.y; drag.lastT = t;
+      cam.yaw = drag.yaw - dx * 0.005;
+      cam.pitch = Math.max(-1.15, Math.min(1.15, drag.pitch + dy * 0.004));
+    });
+    function up(e) {
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) pinch = null;
+      if (holdT) { clearTimeout(holdT); holdT = 0; }
+      var d = drag; drag = null;
+      if (!d || d.moved) return;
+      vel.yaw = 0; vel.pitch = 0;
+    }
+    canvas.addEventListener("pointerup", up);
+    canvas.addEventListener("pointercancel", up);
+    canvas.addEventListener("wheel", function (e) {
+      e.preventDefault(); intro = false;
+      cam.dist = Math.max(1.05, Math.min(2.4, cam.dist + e.deltaY * 0.002));
+      if (cam.dist <= 1.08 && here) openCity(here);
+    }, { passive: false });
+  }
+  function pinHere(pt) {
+    here = { lat: pt.lat, lng: pt.lng };
+    window.__SN_HERE = here;
+    try { localStorage.setItem("sn:here", JSON.stringify(here)); } catch (e) {}
+    if (vendor) { setDrop(pt); return; }
+    say("Pinned " + pt.lat.toFixed(4) + "," + pt.lng.toFixed(4) + " · tap GPS to recalibrate");
+  }
+  function locate(then) {
+    if (!navigator.geolocation) {
+      say("GPS denied. Long tap the globe to pin YOU. Tap GPS again to retry.");
+      return;
+    }
+    say("Locating… tap GPS again to recalibrate.");
+    navigator.geolocation.getCurrentPosition(
+      function (pos) { then({ lat: pos.coords.latitude, lng: pos.coords.longitude }); },
+      function () {
+        navigator.geolocation.getCurrentPosition(
+          function (p) { then({ lat: p.coords.latitude, lng: p.coords.longitude }); },
+          function () { say("GPS denied. Long tap the globe to pin YOU. Tap GPS again to retry."); },
+          { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
+        );
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  }
+  function land(pt, open) {
+    intro = false;
+    here = { lat: pt.lat, lng: pt.lng };
+    window.__SN_HERE = here;
+    try { localStorage.setItem("sn:here", JSON.stringify(here)); } catch (e) {}
+    flyTo(here, 1.12);
+    say("GPS " + here.lat.toFixed(4) + "," + here.lng.toFixed(4) + " · tap to recalibrate");
+    pullListings();
+    if (open) openCity(here);
+    else if (map && cityOn) { try { map.setView([here.lat, here.lng], 16); } catch (e) {} }
+  }
+  function endIntro() {
+    if (!intro) return;
+    intro = false;
+    say("Zooming to you…");
+    locate(function (pt) { land(pt, false); });
+  }
+  function bindGps() {
+    var btn = $("gps");
+    if (!btn || btn.__snGpsLock) return;
+    btn.__snGpsLock = true;
+    btn.addEventListener("click", function (ev) {
+      ev.preventDefault(); ev.stopPropagation();
+      var already = !!here;
+      locate(function (pt) { land(pt, already); });
+    }, true);
+  }
+  function openCity(pt) {
+    var el = $("city");
+    if (!el || typeof L === "undefined") return;
+    cityOn = true;
+    el.classList.add("on");
+    if (!map) {
+      map = L.map(el, { zoomControl: false, attributionControl: false }).setView([pt.lat, pt.lng], 16);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
+      var lastTap = 0;
+      map.on("click", function () {
+        var t = Date.now();
+        if (t - lastTap < 320) closeCity();
+        lastTap = t;
+      });
+      var hold = 0, holdPt = null;
+      el.addEventListener("pointerdown", function (e) {
+        holdPt = e;
+        hold = setTimeout(function () {
+          if (!map) return;
+          var ll = map.mouseEventToLatLng(holdPt);
+          if (ll) pinHere({ lat: ll.lat, lng: ll.lng });
+        }, 1000);
+      });
+      function cancelHold() { if (hold) { clearTimeout(hold); hold = 0; } }
+      el.addEventListener("pointerup", cancelHold);
+      el.addEventListener("pointercancel", cancelHold);
+      el.addEventListener("pointermove", function (e) {
+        if (holdPt && Math.hypot(e.clientX - holdPt.clientX, e.clientY - holdPt.clientY) > 12) cancelHold();
+      });
+    } else map.setView([pt.lat, pt.lng], 16);
+    if (youMark) try { map.removeLayer(youMark); } catch (e) {}
+    youMark = L.circleMarker([pt.lat, pt.lng], { radius: 8, color: "#4df0ff", fillColor: "#4df0ff", fillOpacity: 0.9, weight: 2 }).addTo(map);
+    paintShopsOnMap();
+    setTimeout(function () { if (map) map.invalidateSize(); }, 80);
+  }
+  function closeCity() {
+    var el = $("city");
+    if (el) el.classList.remove("on");
+    cityOn = false;
+    cam.dist = 1.16;
+  }
+  function haversineKm(a, b) {
+    var R = 6371;
+    var p1 = (a.lat * Math.PI) / 180, p2 = (b.lat * Math.PI) / 180;
+    var d1 = ((b.lat - a.lat) * Math.PI) / 180, d2 = ((b.lng - a.lng) * Math.PI) / 180;
+    var x = Math.sin(d1 / 2) * Math.sin(d1 / 2) + Math.cos(p1) * Math.cos(p2) * Math.sin(d2 / 2) * Math.sin(d2 / 2);
+    return 2 * R * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  }
+  function isNight() { var h = new Date().getHours(); return h >= 21 || h < 9; }
+  function quoteDelivery(from, to, opts) {
+    opts = opts || {};
+    var d = haversineKm(from, to);
+    var fee = 3;
+    if (d > 3) fee += Math.ceil(d - 3);
+    if (opts.night || isNight()) fee += 3;
+    if (opts.rain) fee += 3;
+    if (opts.vip) fee += 3;
+    if (opts.floor) fee += 3;
+    var cut = Math.round(fee * 0.03 * 100) / 100;
+    return { km: d, fee: fee, cut: cut, total: Math.round((fee + cut) * 100) / 100 };
+  }
+  function loadJobs() {
+    try { jobs = JSON.parse(localStorage.getItem("sn:jobs") || "[]") || []; } catch (e) { jobs = []; }
+  }
+  function saveJobs() { try { localStorage.setItem("sn:jobs", JSON.stringify(jobs)); } catch (e) {} }
+  function authToken() {
+    try { return (window.SNAuth && SNAuth.token && SNAuth.token()) || localStorage.getItem("sn:access") || ""; } catch (e) { return ""; }
+  }
+  function uniqPlaces(list) {
+    var out = [], seen = {};
+    list.forEach(function (p) {
+      if (!p || !isFinite(p.lat) || !isFinite(p.lng) || !p.name) return;
+      if (here && haversineKm(here, p) > 40) return;
+      var k = p.name.toLowerCase() + ":" + p.lat.toFixed(4) + "," + p.lng.toFixed(4);
+      if (seen[k]) return;
+      seen[k] = 1;
+      out.push(p);
+    });
+    return out.slice(0, 8);
+  }
+  function asPlace(row) {
+    if (!row) return null;
+    var lat = Number(row.lat != null ? row.lat : (row.center && row.center.lat));
+    var lng = Number(row.lng != null ? row.lng : row.lon != null ? row.lon : (row.center && row.center.lon));
+    var tags = row.tags || {};
+    var name = row.name || tags.name || row.display_name || "";
+    if (name && name.indexOf(",") >= 0) name = name.split(",")[0];
+    if (!name || !isFinite(lat) || !isFinite(lng)) return null;
+    return {
+      id: String(row.id || row.osm_id || (name + lat + lng)),
+      name: String(name).slice(0, 80),
+      lat: lat,
+      lng: lng,
+      kind: row.kind || tags.amenity || tags.shop || "shop",
+      phone: row.phone || tags.phone || tags["contact:phone"] || "",
+      src: row.src || "osm"
+    };
+  }
+  function openSheet(title, html) {
+    var sh = $("sn-sheet"), card = $("sn-sheet-card");
+    if (!sh || !card) return;
+    card.innerHTML = '<div class="sheet-bar"><b class="sheet-ttl"></b><button type="button" class="sheet-x" data-act="close">HIDE</button></div><div id="sn-sheet-body"></div>';
+    card.querySelector(".sheet-ttl").textContent = title;
+    card.querySelector("#sn-sheet-body").innerHTML = html;
+    sh.classList.add("on");
+    materialize(true);
+  }
+  function closeSheet() { var sh = $("sn-sheet"); if (sh) sh.classList.remove("on"); materialize(needFilter()); }
+  function paintShopsOnMap() {
+    if (!map || typeof L === "undefined") return;
+    shopMarks.forEach(function (m) { try { map.removeLayer(m); } catch (e) {} });
+    shopMarks = [];
+    shops.forEach(function (s) {
+      if (!isFinite(s.lat) || !isFinite(s.lng)) return;
+      var mark = L.circleMarker([s.lat, s.lng], { radius: 8, color: "#7ee9ff", fillColor: "#0a2030", fillOpacity: 0.95, weight: 2 });
+      mark.bindTooltip(s.name || "shop", { direction: "top" });
+      mark.on("click", function (e) { if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent); openVendor(s); });
+      mark.addTo(map);
+      shopMarks.push(mark);
+    });
+  }
+  function showFound() {
+    if (!shops.length) { say("No real pin for that hunt. Try another name near GPS."); return; }
+    if (here) openCity(here);
+    else openCity(shops[0]);
+    paintShopsOnMap();
+    var html = shops.map(function (s, i) {
+      var ch = (s.name.match(/[A-Za-zΑ-Ωα-ω]/) || ["·"])[0].toUpperCase();
+      return '<button type="button" class="pill" data-act="vendor" data-i="' + i + '"><span class="ph">' + ch + "</span><div><b></b><span></span></div></button>";
+    }).join("");
+    openSheet("FIND · " + shops.length, html);
+    var body = $("sn-sheet-body");
+    if (body) {
+      var pills = body.querySelectorAll(".pill");
+      shops.forEach(function (s, i) {
+        if (!pills[i]) return;
+        pills[i].querySelector("b").textContent = s.name;
+        pills[i].querySelector("span").textContent = (s.kind || "shop") + (s.phone ? " · " + s.phone : "") + (here ? " · " + haversineKm(here, s).toFixed(1) + " km" : "");
+      });
+    }
+    say(shops.length + " real pin" + (shops.length === 1 ? "" : "s") + ". Tap one to order.");
+  }
+  function fetchJson(url, opts) {
+    return fetch(url, opts || {}).then(function (r) { return r.json().catch(function () { return null; }); }).catch(function () { return null; });
+  }
+  function huntNominatim(q) {
+    var url = "https://nominatim.openstreetmap.org/search?format=json&limit=8&addressdetails=0&q=" + encodeURIComponent(q);
+    if (here) {
+      var w = (here.lng - 0.08).toFixed(4), e = (here.lng + 0.08).toFixed(4);
+      var s = (here.lat - 0.08).toFixed(4), n = (here.lat + 0.08).toFixed(4);
+      url += "&viewbox=" + w + "," + n + "," + e + "," + s + "&bounded=1";
+    }
+    return fetchJson(url, { headers: { Accept: "application/json" } }).then(function (rows) {
+      return Array.isArray(rows) ? rows.map(function (r) { r.src = "nominatim"; return asPlace(r); }).filter(Boolean) : [];
+    });
+  }
+  function huntOverpass(q) {
+    if (!here) return Promise.resolve([]);
+    var safe = String(q || "").replace(/[^a-zA-Z0-9α-ωΑ-ΩάέήίόύώΆ-Ώ ]/g, " ").trim();
+    if (!safe) return Promise.resolve([]);
+    var data = '[out:json][timeout:12];(nwr["name"~"' + safe + '",i](around:4000,' + here.lat + "," + here.lng + '););out center 12;';
+    return fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: data }).then(function (r) { return r.json(); }).then(function (j) {
+      return ((j && j.elements) || []).map(function (el) { el.src = "overpass"; return asPlace(el); }).filter(Boolean);
+    }).catch(function () { return []; });
+  }
+  function huntNearby() {
+    if (!here) return Promise.resolve([]);
+    var data = '[out:json][timeout:12];(nwr["amenity"~"^(restaurant|cafe|fast_food|bar|pharmacy)$"](around:2500,' + here.lat + "," + here.lng + ');nwr["shop"](around:2500,' + here.lat + "," + here.lng + '););out center 24;';
+    return fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: data }).then(function (r) { return r.json(); }).then(function (j) {
+      return uniqPlaces(((j && j.elements) || []).map(function (el) { el.src = "overpass"; return asPlace(el); }).filter(Boolean));
+    }).catch(function () { return []; });
+  }
+  function huntApi(q) {
+    if (!here) return Promise.resolve([]);
+    var url = "/api/find?q=" + encodeURIComponent(q) + "&lat=" + here.lat.toFixed(4) + "&lng=" + here.lng.toFixed(4);
+    return fetchJson(url).then(function (j) {
+      return ((j && j.places) || []).map(function (p) { p.src = "find"; return asPlace(p); }).filter(Boolean);
+    });
+  }
+  function hunt(q) {
+    q = String(q || "").trim();
+    if (!q) return;
+    materialize(true);
+    say("Finding " + q + "…");
+    var go = function () {
+      Promise.all([huntApi(q), huntNominatim(q), huntOverpass(q)]).then(function (packs) {
+        shops = uniqPlaces(packs[0].concat(packs[1], packs[2]));
+        showFound();
+      });
+    };
+    if (!here) locate(function (pt) { land(pt, true); go(); });
+    else go();
+  }
+  function pullListings() {
+    if (!here) return;
+    var url = "/api/space?lat=" + Number(here.lat).toFixed(2) + "&lng=" + Number(here.lng).toFixed(2);
+    fetchJson(url, { cache: "no-store" }).then(function (j) {
+      var rows = (j && (j.shops || j.rows || [])) || [];
+      rows.forEach(function (r) {
+        var p = asPlace(r);
+        if (p) shops.push(p);
+      });
+      shops = uniqPlaces(shops);
+      if (shops.length) paintShopsOnMap();
+    });
+    if (!listingTried) {
+      listingTried = true;
+      huntNearby().then(function (rows) {
+        shops = uniqPlaces(shops.concat(rows));
+        if (shops.length) {
+          paintShopsOnMap();
+          say("GPS " + here.lat.toFixed(4) + "," + here.lng.toFixed(4) + " · " + shops.length + " places around you. Talk a hunt or tap a pin.");
+        } else if (here) say("GPS " + here.lat.toFixed(4) + "," + here.lng.toFixed(4) + " · talk a shop name to hunt");
+      });
+    }
+  }
+  function openVendor(s) {
+    vendor = s;
+    if (map) map.setView([s.lat, s.lng], 17);
+    var km = here ? haversineKm(here, s).toFixed(1) : "—";
+    var html =
+      "<p class=\"note\"></p>" +
+      (s.phone ? '<a class="sheet-go" href="tel:' + String(s.phone).replace(/[^\d+]/g, "") + '">CALL</a>' : "") +
+      '<button type="button" class="sheet-go primary" data-act="gpsdrop">TO MY GPS</button>' +
+      '<button type="button" class="sheet-go" data-act="pindrop">PIN ON MAP</button>';
+    openSheet(s.name, html);
+    var note = $("sn-sheet-body") && $("sn-sheet-body").querySelector(".note");
+    if (note) note.textContent = (s.kind || "shop") + " · " + km + " km · real OSM pin. No dummy.";
+    say(s.name + " · TO MY GPS or pin the drop.");
+  }
+  function setDrop(pt) {
+    drop = { lat: pt.lat, lng: pt.lng };
+    if (!vendor) { say("Hunt a shop first."); return; }
+    showQuote();
+  }
+  function showQuote() {
+    if (!vendor || !drop) return;
+    var q = quoteDelivery(vendor, drop, quoteOpts);
+    var html =
+      '<p class="note"></p>' +
+      '<button type="button" class="sheet-go" data-act="vip">' + (quoteOpts.vip ? "VIP +3 ON" : "VIP +3") + "</button>" +
+      '<button type="button" class="sheet-go" data-act="floor">' + (quoteOpts.floor ? "FLOOR +3 ON" : "ROOM / FLOOR +3") + "</button>" +
+      (signed()
+        ? '<button type="button" class="sheet-go primary" data-act="send">SEND · ' + q.total + " AV€</button>"
+        : '<button type="button" class="sheet-go primary" data-act="needlogin">LOGIN TO ORDER · ' + q.total + " AV€</button>");
+    openSheet("QUOTE", html);
+    var note = $("sn-sheet-body") && $("sn-sheet-body").querySelector(".note");
+    if (note) note.textContent = q.km.toFixed(2) + " km · " + q.fee + " AV€ delivery · 3% " + q.cut + " · night/rain judged. Tip later.";
+    drawRoute(vendor, drop);
+    say("Quote " + q.total + " AV€ · " + vendor.name);
+  }
+  function drawRoute(from, to) {
+    if (!map || typeof L === "undefined") return;
+    if (routeLayer) try { map.removeLayer(routeLayer); } catch (e) {}
+    var url = "https://router.project-osrm.org/route/v1/driving/" + from.lng + "," + from.lat + ";" + to.lng + "," + to.lat + "?overview=full&geometries=geojson";
+    fetchJson(url).then(function (j) {
+      var geo = j && j.routes && j.routes[0] && j.routes[0].geometry;
+      var latlngs;
+      if (geo && geo.coordinates) latlngs = geo.coordinates.map(function (c) { return [c[1], c[0]]; });
+      else latlngs = [[from.lat, from.lng], [to.lat, to.lng]];
+      routeLayer = L.polyline(latlngs, { color: "#4df0ff", weight: 4, opacity: 0.85 }).addTo(map);
+      try { map.fitBounds(routeLayer.getBounds(), { padding: [40, 40] }); } catch (e) {}
+    });
+  }
+  function sendJob() {
+    if (!vendor || !drop) return;
+    if (!signed()) return;
+    var q = quoteDelivery(vendor, drop, quoteOpts);
+    var job = {
+      id: "j" + Date.now().toString(36),
+      vendor: vendor,
+      drop: drop,
+      km: q.km,
+      fee: q.total,
+      stage: 0,
+      confirms: { vendor: false, driver: false, client: false },
+      paid: false,
+      t: Date.now()
+    };
+    jobs.unshift(job);
+    saveJobs();
+    closeSheet();
+    openJobs();
+    say("Pending · vendor + driver + client must confirm. Then it is a job.");
+    var t = authToken();
+    fetch("/api/space", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: t ? "Bearer " + t : "" },
+      body: JSON.stringify({ kind: "job", lat: drop.lat, lng: drop.lng, name: vendor.name, fee: q.total, vendor: vendor, drop: drop })
+    }).catch(function () {});
+  }
+  function payJob(id) {
+    var job = jobs.filter(function (j) { return j.id === id; })[0];
+    if (!job) return;
+    say("Opening PayPal for " + job.fee + " EUR…");
+    fetch("/api/paypal/create-order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount: job.fee, origin: location.origin, reference: job.id })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      var url = (j && (j.approve || j.url)) || (j.links && j.links.filter(function (l) { return l.rel === "approve"; })[0] && j.links.filter(function (l) { return l.rel === "approve"; })[0].href);
+      if (!url) { say((j && (j.error || j.message)) || "PayPal did not return approve."); return; }
+      try { localStorage.setItem("sn:pay-job", job.id); } catch (e) {}
+      location.href = url;
+    }).catch(function () { say("PayPal dark. Job still pending confirm."); });
+  }
+  function confirmJob(id, who) {
+    var job = jobs.filter(function (j) { return j.id === id; })[0];
+    if (!job) return;
+    if (!signed()) { say("LOGIN to confirm."); return; }
+    job.confirms[who] = true;
+    if (job.confirms.vendor && job.confirms.driver && job.confirms.client) {
+      job.stage = Math.min(STAGES.length - 1, Math.max(job.stage, 1));
+      say("Verified · " + job.vendor.name + " · " + job.fee + " AV€. Pay to mint.");
+    } else {
+      say((who.toUpperCase()) + " confirmed. Need vendor + driver + client.");
+    }
+    saveJobs();
+    openJobs();
+  }
+  function advanceStage(id) {
+    var job = jobs.filter(function (j) { return j.id === id; })[0];
+    if (!job) return;
+    if (!(job.confirms.vendor && job.confirms.driver && job.confirms.client)) {
+      say("Not a job until all three confirm.");
+      return;
+    }
+    job.stage = Math.min(STAGES.length - 1, job.stage + 1);
+    saveJobs();
+    openJobs();
+    say(STAGES[job.stage] + " · " + job.vendor.name);
+  }
+  function materialize(need) {
+    var row = $("sn-filters");
+    if (!row) return;
+    if (need) row.classList.add("mat");
+    else row.classList.remove("mat");
+    layoutChrome();
+  }
+  function needFilter() {
+    var inp = $("in");
+    if (inp && inp.value.trim()) return true;
+    var tasks = $("sn-tasks"), sheet = $("sn-sheet");
+    if (tasks && tasks.classList.contains("on")) return true;
+    if (sheet && sheet.classList.contains("on")) return true;
+    return false;
+  }
+  function openJobs() {
+    materialize(true);
+    var sh = $("sn-tasks"); if (!sh) return;
+    var list = $("sn-tasks-list");
+    if (list) {
+      if (!jobs.length) list.innerHTML = '<p class="note">No posted jobs. Hunt a real pin, TO MY GPS, then SEND.</p>';
+      else list.innerHTML = jobs.map(function (j) {
+        var ok = j.confirms.vendor && j.confirms.driver && j.confirms.client;
+        var stages = STAGES.map(function (s, i) { return "<b class=\"" + (i <= j.stage && ok ? "on" : "") + "\">" + s + "</b>"; }).join("");
+        return '<div class="pill" style="display:block">' +
+          "<b>" + String(j.vendor && j.vendor.name || "job").replace(/</g, "") + "</b>" +
+          "<span>" + (ok ? "VERIFIED" : "PENDING") + " · " + j.fee + " AV€ · " + (j.km || 0).toFixed(1) + " km</span>" +
+          '<div class="stage">' + stages + "</div>" +
+          '<button type="button" class="sheet-go" data-act="cv" data-id="' + j.id + '">VENDOR CONFIRM</button>' +
+          '<button type="button" class="sheet-go" data-act="cd" data-id="' + j.id + '">DRIVER CONFIRM</button>' +
+          '<button type="button" class="sheet-go" data-act="cc" data-id="' + j.id + '">CLIENT CONFIRM</button>' +
+          (ok ? '<button type="button" class="sheet-go" data-act="next" data-id="' + j.id + '">NEXT STAGE</button>' : "") +
+          (ok && !j.paid ? '<button type="button" class="sheet-go primary" data-act="pay" data-id="' + j.id + '">PAYPAL ' + j.fee + " €</button>" : "") +
+          "</div>";
+      }).join("");
+    }
+    sh.classList.add("on");
+  }
+  function closeJobs() { var sh = $("sn-tasks"); if (sh) sh.classList.remove("on"); materialize(needFilter()); }
+  function openFind() {
+    materialize(true);
+    var inp = $("in");
+    if (inp) { inp.focus(); say("Name a place or a shop. Ordinary language."); }
+  }
+  function openNode() {
+    materialize(true);
+    say(signed() ? "NODE · replica idle. Go live from Power after Terms." : "NODE · login required to go live.");
+  }
+  function openPower() {
+    var sh = $("sn-power-sheet"), body = $("sn-power-body");
+    if (!sh || !body) return;
+    body.innerHTML =
+      '<button type="button" class="sheet-go" data-act="reload">RELOAD</button>' +
+      '<button type="button" class="sheet-go" data-act="terms">TERMS</button>' +
+      '<button type="button" class="sheet-go" data-act="apply-vendor">APPLY VENDOR</button>' +
+      '<button type="button" class="sheet-go" data-act="apply-driver">APPLY DRIVER</button>' +
+      (signed() ? '<button type="button" class="sheet-go" data-act="withdraw">WITHDRAW</button>' : '<p class="note" style="margin:10px 0 0;color:#8ec8d8;font:500 12px system-ui">LOGIN to work. Power stays. Live is for vendor or driver.</p>');
+    sh.classList.add("on");
+  }
+  function closePower() { var sh = $("sn-power-sheet"); if (sh) sh.classList.remove("on"); }
+  function talk(raw) {
+    var q = String(raw || "").trim();
+    if (!q) return;
+    if (/^(hi|hello|hey|yo|γεια)\b/i.test(q)) { say("SpaceNet live. Earth first. GPS lands you. Talk a place to hunt."); return; }
+    if (/^jobs?\b/i.test(q)) { openJobs(); return; }
+    if (/^find\b/i.test(q)) { openFind(); var rest = q.replace(/^find\b/i, "").trim(); if (rest) hunt(rest); return; }
+    if (/^node\b/i.test(q)) { openNode(); return; }
+    var m = /^(?:land(?:\s+(?:in|at|on))?|go(?:\s+to)?|fly(?:\s+to)?)\s+(.+)$/i.exec(q);
+    hunt(m ? m[1] : q);
+  }
+  function clockLine(d, utc) {
+    var opt = { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false };
+    if (utc) opt.timeZone = "UTC";
+    try { return d.toLocaleString("en-GB", opt) + (utc ? " UTC" : ""); } catch (e) { return d.toISOString(); }
+  }
+  function paintIsland() {
+    var d = new Date();
+    var loc = $("sn-local"), utc = $("sn-utc");
+    if (loc) loc.textContent = clockLine(d, false);
+    if (utc) utc.textContent = clockLine(d, true);
+    var node = $("sn-node");
+    if (node) node.textContent = "node " + Math.max(0, shops.length);
+    layoutChrome();
+  }
+  var sparkBuf = [];
+  function paintMonitor(now) {
+    var el = $("sn-spark");
+    if (el) {
+      var sctx = el.getContext("2d");
+      if (sctx) {
+        var v = 6 + Math.abs(Math.sin(now / 220)) * 8 + Math.abs(Math.sin(now / 70)) * 4 + (shops.length ? 2 : 0);
+        sparkBuf.push(v);
+        if (sparkBuf.length > 64) sparkBuf.shift();
+        sctx.clearRect(0, 0, 64, 20);
+        sctx.beginPath();
+        for (var i = 0; i < sparkBuf.length; i++) {
+          var x = i, y = 18 - Math.min(16, sparkBuf[i]);
+          if (i) sctx.lineTo(x, y); else sctx.moveTo(x, y);
+        }
+        sctx.strokeStyle = "#4df0ff";
+        sctx.lineWidth = 1.3;
+        sctx.stroke();
+      }
+    }
+    var wx = $("sn-wx");
+    if (wx && !wx.__snWx) {
+      wx.__snWx = true;
+      wx.textContent = isNight() ? "NIGHT" : "DAY";
+    }
+    if (wx && here && !wx.__snMet) {
+      wx.__snMet = true;
+      fetch("https://api.open-meteo.com/v1/forecast?latitude=" + here.lat + "&longitude=" + here.lng + "&current=temperature_2m")
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j && j.current && isFinite(j.current.temperature_2m)) wx.textContent = Math.round(j.current.temperature_2m) + "°";
+        }).catch(function () {});
+    }
+  }
+  function layoutChrome() {
+    var W = window.innerWidth, H = window.innerHeight, pad = 10;
+    var blockers = ["island", "panel"].map(function (id) { return visRect($(id)); }).filter(Boolean);
+    function place(el, corner) {
+      if (!el) return;
+      var w = Math.max(40, el.offsetWidth || 48);
+      var hgt = Math.max(40, el.offsetHeight || 48);
+      var x = corner.indexOf("l") >= 0 ? pad : W - w - pad;
+      var y = corner.indexOf("t") >= 0 ? pad : H - hgt - pad;
+      var n = 0;
+      while (n++ < 16) {
+        var box = { left: x, top: y, right: x + w, bottom: y + hgt };
+        var hit = null;
+        for (var i = 0; i < blockers.length; i++) {
+          if (boxesHit(box, blockers[i], 8)) { hit = blockers[i]; break; }
+        }
+        if (!hit) break;
+        if (corner.indexOf("t") >= 0) y = Math.max(y + 6, hit.bottom + 8);
+        else y = Math.min(y - 6, hit.top - hgt - 8);
+        y = Math.max(pad, Math.min(H - hgt - pad, y));
+        x = Math.max(pad, Math.min(W - w - pad, x));
+      }
+      el.style.setProperty("top", Math.round(y) + "px", "important");
+      el.style.setProperty("left", Math.round(x) + "px", "important");
+      el.style.setProperty("right", "auto", "important");
+      el.style.setProperty("bottom", "auto", "important");
+    }
+    place($("sn-power"), "tl");
+    place($("sn-money"), "tr");
+    place($("sn-me"), "bl");
+    place($("gps"), "br");
+  }
+  var layoutKey = "";
+  function maybeLayout() {
+    var key = (intro ? "1" : "0") + ":" + window.innerWidth + "x" + window.innerHeight;
+    if (key === layoutKey) return;
+    layoutKey = key;
+    layoutChrome();
+  }
+  function bindChrome() {
+    bindGps();
+    var power = $("sn-power");
+    if (power && !power.__sn) {
+      power.__sn = true; power.hidden = false;
+      power.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openPower(); });
+    }
+    var money = $("sn-money");
+    if (money && !money.__sn) {
+      money.__sn = true; money.hidden = false;
+      money.addEventListener("click", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        var n = avcGet();
+        say(signed() ? ("AV€ " + Math.round(n) + " · euro 1:1 · work-minted") : ("AV€ " + Math.round(n) + " · wallet is on. LOGIN to own it."));
+      });
+    }
+    paintMoney();
+    var plus = $("plus"), file = $("sn-file");
+    if (plus && file && !plus.__sn) {
+      plus.__sn = true;
+      plus.addEventListener("click", function (e) { e.preventDefault(); file.click(); });
+      file.addEventListener("change", function () {
+        var f = file.files && file.files[0];
+        if (f) say("Got " + f.name + " · Grok reads after LOGIN.");
+      });
+    }
+    layoutChrome();
+    window.addEventListener("resize", layoutChrome);
+    if (window.visualViewport) visualViewport.addEventListener("resize", layoutChrome);
+    var island = $("island");
+    if (island && !island.__sn) {
+      island.__sn = true;
+      island.addEventListener("click", function () { location.reload(); });
+    }
+    var f = $("f"), inp = $("in"), go = $("go");
+    if (f && !f.__sn) {
+      f.__sn = true;
+      f.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var v = inp && inp.value;
+        if (inp) inp.value = "";
+        talk(v);
+        materialize(needFilter());
+      });
+    }
+    if (inp) inp.addEventListener("input", function () { materialize(needFilter()); });
+    if (go && !go.__sn) {
+      go.__sn = true;
+      go.addEventListener("click", function (e) {
+        e.preventDefault();
+        if (inp && String(inp.value || "").trim()) {
+          var v = inp.value; inp.value = ""; talk(v); return;
+        }
+        if (window.SpeechRecognition || window.webkitSpeechRecognition) {
+          var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+          var rec = new Rec(); rec.lang = "en-GB";
+          rec.onresult = function (ev) { var t = ev.results[0][0].transcript; if (inp) inp.value = t; talk(t); };
+          rec.start(); say("Listening…");
+        }
+      });
+    }
+    var jobsBtn = $("sn-tasks-btn"), findBtn = $("sn-find-btn"), nodeBtn = $("sn-node-btn");
+    if (jobsBtn) jobsBtn.addEventListener("click", openJobs);
+    if (findBtn) findBtn.addEventListener("click", openFind);
+    if (nodeBtn) nodeBtn.addEventListener("click", openNode);
+    document.addEventListener("click", function (e) {
+      var t = e.target && e.target.closest ? e.target.closest("[data-act]") : e.target;
+      var act = t && t.getAttribute && t.getAttribute("data-act");
+      if (!act) return;
+      var id = t.getAttribute("data-id");
+      var i = Number(t.getAttribute("data-i"));
+      if (act === "hide") closeJobs();
+      if (act === "close") { closePower(); closeSheet(); }
+      if (act === "reload") location.reload();
+      if (act === "terms") location.href = "/terms.html";
+      if (act === "apply-vendor" || act === "apply-driver") say("Apply after LOGIN. Notis activates.");
+      if (act === "withdraw") say("Withdraw after a real job. PayPal on origin.");
+      if (act === "vendor" && isFinite(i) && shops[i]) openVendor(shops[i]);
+      if (act === "gpsdrop") {
+        if (here) setDrop(here);
+        else locate(function (pt) { land(pt, true); setDrop(pt); });
+      }
+      if (act === "pindrop") { closeSheet(); say("Long tap the map to pin the drop."); }
+      if (act === "vip") { quoteOpts.vip = !quoteOpts.vip; showQuote(); }
+      if (act === "floor") { quoteOpts.floor = !quoteOpts.floor; showQuote(); }
+      if (act === "send") sendJob();
+      if (act === "needlogin") { if (window.SNAuth && SNAuth.google) SNAuth.google(); else say("LOGIN to order."); }
+      if (act === "cv") confirmJob(id, "vendor");
+      if (act === "cd") confirmJob(id, "driver");
+      if (act === "cc") confirmJob(id, "client");
+      if (act === "next") advanceStage(id);
+      if (act === "pay") payJob(id);
+    });
+    paintIsland();
+    setInterval(paintIsland, 1000);
+    say("Earth scan · 13s · then we zoom to you.");
+  }
+  function boot() {
+    canvas = $("g");
+    if (!canvas) return;
+    ctx = canvas.getContext("2d");
+    seedStars();
+    bindGlobe();
+    bindChrome();
+    loadJobs();
+    var pay = new URLSearchParams(location.search).get("paypal");
+    if (pay === "success") {
+      var jid = "";
+      try { jid = localStorage.getItem("sn:pay-job") || ""; } catch (e) {}
+      var tokenQs = new URLSearchParams(location.search).get("token");
+      fetch("/api/paypal/capture-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: tokenQs, orderID: tokenQs }) })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j && (j.ok || j.status === "COMPLETED" || j.capture)) {
+            jobs.forEach(function (job) { if (job.id === jid) job.paid = true; });
+            saveJobs();
+            say("PayPal captured. Transaction verified.");
+          } else say((j && (j.error || j.message)) || "PayPal capture did not finish.");
+        }).catch(function () { say("PayPal capture dark."); });
+      history.replaceState({}, "", location.pathname);
+    }
+    window.__SN_4266 = true;
+    window.SN = {
+      talk: talk, say: say, cam: cam,
+      getMap: function () { return map; },
+      openCity: openCity, goNamed: hunt, huntNamed: hunt,
+      user: function () { return window.SNAuth && SNAuth.user ? SNAuth.user() : null; },
+      visibleShops: function () { return shops; },
+      jobs: function () { return jobs; },
+      hunt: hunt,
+      quoteDelivery: quoteDelivery,
+      paintMoney: paintMoney, avcGet: avcGet,
+      paintPower: function () { var p = $("sn-power"); if (p) p.hidden = false; },
+      projectTest: function (lat, lng) { return project(lat, lng, cam); }
+    };
+    Object.defineProperty(window, "__SN_INTRO", { get: function () { return intro; } });
+    requestAnimationFrame(loop);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+})();
