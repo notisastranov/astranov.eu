@@ -1,7 +1,7 @@
 /* SpaceNet 4268 — globe never a world Mercator. Street list. UI_UNLOCK. */
 (function () {
   "use strict";
-  var VER = "4268";
+  var VER = "4269";
   var INTRO_MS = 13000;
   var LAND = [
     [[37, -6], [37, 11], [32, 25], [31, 34], [22, 37], [12, 51], [0, 42], [-5, 39], [-15, 40], [-25, 35], [-34, 25], [-34, 18], [-28, 16], [-22, 14], [-17, 11], [5, 9], [4, -8], [12, -16], [16, -16], [21, -17], [28, -13], [36, -6], [37, -6]],
@@ -592,7 +592,7 @@
   function hardReset() {
     say("Resetting…");
     try { localStorage.clear(); sessionStorage.clear(); } catch (e) {}
-    var go = function () { location.href = "/?v=4268&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4269&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -1298,6 +1298,9 @@
     if (!canvas) return;
     ctx = canvas.getContext("2d");
     seedStars();
+    cam.yaw = (20 * Math.PI) / 180 - earthSpin();
+    cam.pitch = 0.22;
+    cam.dist = 1.85;
     bindGlobe();
     bindChrome();
     loadJobs();
@@ -1317,7 +1320,7 @@
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4268 = true;
+    window.__SN_4269 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

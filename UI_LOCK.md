@@ -1,6 +1,6 @@
-# SpaceNet UI LOCK — 2026-09-20 · stamp 4268
+# SpaceNet UI LOCK — 2026-09-20 · stamp 4269
 
-Owner: Notis. UI_UNLOCK 4268. This chrome is frozen until Notis unlocks it again.
+Owner: Notis. UI_UNLOCK 4269. This chrome is frozen until Notis unlocks it again.
 
 ## Visible chrome
 - Canvas globe `#g` full viewport. Earth sidereal spin. Never a flat world Mercator.
