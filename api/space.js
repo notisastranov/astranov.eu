@@ -31,7 +31,7 @@ var TEXT_KEYS = [
   "customerPeer",
 ];
 var JSON_KEYS = ["avc", "ride", "held", "presence", "routes", "vehicles", "shop", "holdMin", "strict"];
-var WRITE_KINDS = { shop: 1, driver: 1, job: 1, peer: 1, gap: 1, post: 1 };
+var WRITE_KINDS = { shop: 1, driver: 1, job: 1, peer: 1, gap: 1, post: 1, drop: 1 };
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -238,7 +238,7 @@ module.exports = async function handler(req, res) {
     }
     const qs = new URLSearchParams({
       select: SELECT,
-      kind: "in.(shop,driver,job,post,peer,gap)",
+      kind: "in.(shop,driver,job,post,peer,gap,drop)",
       order: "updated_at.desc",
       limit: "60",
     });
@@ -277,13 +277,15 @@ module.exports = async function handler(req, res) {
           ? "shops"
           : body.kind === "driver"
             ? "drivers"
-            : body.kind === "post" || body.kind === "gap"
-              ? "posts"
-              : body.kind === "job"
-                ? "jobs"
-                : body.kind === "peer"
-                  ? "peers"
-                  : "";
+            : body.kind === "drop"
+              ? "drops"
+              : body.kind === "post" || body.kind === "gap"
+                ? "posts"
+                : body.kind === "job"
+                  ? "jobs"
+                  : body.kind === "peer"
+                    ? "peers"
+                    : "";
       if (k) buckets[k].push(body);
     });
     const out = Object.assign({ ok: true, local: false }, buckets);

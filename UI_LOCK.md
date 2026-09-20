@@ -1,30 +1,18 @@
-# SpaceNet UI LOCK — 2026-09-08 · stamp 4218
+# SpaceNet UI LOCK — 2026-09-20 · stamp 4268
 
-Owner: Notis. This chrome is frozen until Notis unlocks it.
+Owner: Notis. UI_UNLOCK 4268. This chrome is frozen until Notis unlocks it again.
 
-Locked live shell: index.html build 4218 · snapshot this rewrite.
-
-## Visible chrome (do not move, hide, restyle, or replace)
-- Canvas globe `#g` full viewport
-- Brand island: ASTRANOV SPACENET · 4218 (tap = cache wipe + reboot)
-- JOBS pill `#sn-tasks-btn` centered under the brand island (home field)
-- AV€ pill (`#sn-money`) **after login only**
+## Visible chrome
+- Canvas globe `#g` full viewport. Earth sidereal spin. Never a flat world Mercator.
+- Street tiles (`#city`) only at last zoom, minZoom 15. Zoom-out returns to globe.
+- Full-width island: ASTRANOV (company) · SPACENET (hard reset) · national clock · UTC clock · spark (fleet)
+- Below island: Power left · elongated AV€ center · Support right. No overlap.
 - LOGIN `#sn-me` bottom-left · GPS `#gps` bottom-right
-- Dock: `#plus` · `#in` Talk to Astranov SpaceNet · `#go` mic
-- ⏻ `#sn-power` top-left, left of JOBS, SVG power mark (not Unicode)
-- Grid globe with continent labels. No HUD. No twin CLI.
-
-## Required IDs
-g, city, island, ver, heal, sn-money, sn-tasks-btn, sn-me, gps, plus, in, go, line, panel, dock, f, sn-power
+- Dock: `#plus` · `#in` Talk to Astranov SpaceNet · `#go`
+- Long-press / right-click at street: list place / drop / driver base
 
 ## Forbidden
-- Overlay scripts `js/spacenet/*-41*.js` loaded or SW-injected
-- PLACEHOLDER / stub index under 4 KB
-- Twin CLI / HUD / os-bootloader
-- Auto-talk on boot
+- Overlay scripts `js/spacenet/*` other than app.js / auth.js
+- World-scale Leaflet
+- Lecture copy on the island (NATIONAL / ISLAND / "Globe only")
 - Dummy shops / dummy GPS / dummy pay
-- Mercator disc sold as a globe
-- Moving LOGIN / GPS / JOBS / AV€ / + / mic / ⏻
-
-## Unlock
-Only Notis. Write UI_UNLOCK in a commit message and delete this file.
