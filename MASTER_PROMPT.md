@@ -189,3 +189,28 @@ Vendor / driver / agent / ambassador after Terms. Notis activates.
 - Leaflet does not throw them back to the globe on zoom.
 - DISPUTE → Grok.
 - CALL only with a real official telephone (10+ digits).
+
+---
+
+## Login and SMS lock (2026-09-24 — overrides older SMS notes and the “will not pay Pro” sentence)
+
+Proven on the live project this night. Do not re-guess it.
+
+- Phone sign-in is **off** (`phone: false`) even though the SMS provider field says Twilio.
+- The SMS function has a secret and from-number `+18333030833`, and still returns `phone_verify: bad_sid` with an empty account SID. A paid Twilio balance does not send.
+- `auth.js` only stores the phone and says it is unverified. That is not login and not a code.
+- Google leaves the user on the database project host `lkoatrkhuigdolnjsbie.supabase.co`. That name is what people see. It is not an Astranov screen. The X button is drawn while the Twitter provider is off.
+- A professional database plan does not rename that host and does not turn the phone provider on.
+
+Locks. Latest block wins.
+
+- Sign-in chrome is Astranov SpaceNet. Never open the database project host. Never show the project id as the product. A provider page is allowed only after a custom auth domain on an `astranov.eu` host is proven in a real browser.
+- Never say a code was sent, and never say Twilio is live, unless that same request returned a message id. START/STOP delivery SMS is not a login code.
+- Do not ship a phone field whose only effect is saving the number.
+- Pro is paid. That retires “Owner will not pay Pro.” It does **not** retire the egress caps. Guest boot stays at zero Supabase.
+
+Evolve. The helper develops the running rules, not a new login.
+
+- Grok may return `act:evolve` plus a patch of known rule keys only. `SN.evolve` applies it in the running engine. Never `eval` untrusted JS.
+- Keys may be rates, hunt cap (max 8), voice, and courier timing. Login chrome, SMS claims, secrets, and source text are not keys.
+- Asked to optimize: keep these locks, tune only those keys, say what changed. Never invent a shop. Never claim the app rewrote itself.
