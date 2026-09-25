@@ -1,7 +1,7 @@
-/* SpaceNet 4273 — money under island. Live support desk. */
+/* SpaceNet 4274 — money under island. Support line not eaten by ticker. */
 (function () {
   "use strict";
-  var VER = "4273";
+  var VER = "4274";
   var INTRO_MS = 13000;
   var LAND = [
     [[37, -6], [37, 11], [32, 25], [31, 34], [22, 37], [12, 51], [0, 42], [-5, 39], [-15, 40], [-25, 35], [-34, 25], [-34, 18], [-28, 16], [-22, 14], [-17, 11], [5, 9], [4, -8], [12, -16], [16, -16], [21, -17], [28, -13], [36, -6], [37, -6]],
@@ -89,7 +89,8 @@
   }
 
   function $(id) { return document.getElementById(id); }
-  function say(s) { var el = $("line"); if (el) el.textContent = s; }
+  var sayHold = 0;
+  function say(s) { var el = $("line"); if (el) el.textContent = s; sayHold = Date.now(); }
   function ownerMail() {
     try {
       var u = window.SNAuth && SNAuth.user && SNAuth.user();
@@ -366,7 +367,7 @@
     } else if (!drag) { vel.yaw = 0; vel.pitch = 0; }
   }
   function tickNews(now) {
-    if (!intro) return;
+    if (!intro || supportOn || (Date.now() - sayHold < 12000)) return;
     var i = Math.floor(now / 1850) % NEWS.length;
     if (i !== newsI) { newsI = i; say(NEWS[i] + " · then we zoom to you"); }
   }
@@ -723,6 +724,7 @@
     var inp = $("in");
     if (inp) inp.placeholder = supportOn ? "Support · type or tap MIC" : "Talk to Astranov SpaceNet";
     if (supportOn) {
+      intro = false;
       upsertTab({ id: "support", kind: "support", title: "SUPPORT", html: "", min: false });
       say("SUPPORT desk. Type or tap MIC. This line does not open the workshop.");
       if (inp) inp.focus();
@@ -1659,7 +1661,7 @@
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4273 = true;
+    window.__SN_4274 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
