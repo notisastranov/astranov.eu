@@ -3,7 +3,7 @@
 **What this file is:** the only instruction document. Paste this first. Then the live shell. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
 **Date:** 2026-09-25
-**Stamp:** 4281 (Sun-centered system. Earth, Moon, planets move at real ratios.)
+**Stamp:** 4282 (Camera sky names the star and constellation in the center.)
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
@@ -32,6 +32,8 @@ No two chrome pieces share pixels. `layoutChrome` measures and pushes. Never par
 Globe coasts are Natural Earth 50m on the same sphere. Land is dark blue, only just lighter than the ocean. Not neon.
 
 Zoom stops, one step at a time, and never skips. Solar system, then Global, then National, then City. Zoom out reverses that. City is the street map. National is the enlarged globe. Zooming out of City lands on National, not straight on Global. Zooming out of Global lands on the solar system. The place is the point under the wheel or the pinch, including open ocean. Never GPS. Never Rhodes. A late GPS fix must not steal the zoom. The GPS button is the only thing that goes to the user. At solar level the Sun sits in the center and turns. Mercury through Neptune orbit it counterclockwise at their real period ratios, compressed only so they fit. Earth turns once per 30 real seconds. The Moon orbits Earth every 27.3 of those days and stays tidally locked. National zoom keeps the place you aimed at; it does not slide away with the spin.
+
+Sky. `#sn-sky-btn` sits above GPS and must not cover GPS, the dock, or LOGIN. It opens the rear camera. The phone’s compass and tilt name the bright star and constellation in the center of the frame, and draw the stick figures. GPS is required so the sky matches where you stand. It does not move the globe. Close stops the camera.
 
 ### Power
 
