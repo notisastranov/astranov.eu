@@ -8,8 +8,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4269"},
-        {"key": "X-Astranov-Ship", "value": "4269-earth"}
+        {"key": "X-Astranov-Build", "value": "4270"},
+        {"key": "X-Astranov-Ship", "value": "4270-power"}
       ]
     },
     {
@@ -17,8 +17,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4269"},
-        {"key": "X-Astranov-Ship", "value": "4269-earth"}
+        {"key": "X-Astranov-Build", "value": "4270"},
+        {"key": "X-Astranov-Ship", "value": "4270-power"}
       ]
     },
     {
