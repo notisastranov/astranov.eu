@@ -1,4 +1,4 @@
-/* SpaceNet auth 4221 — LOGIN is Google. Finish the code. No dummy session. */
+/* SpaceNet auth 4270 — LOGIN Google. Roles on YOU. No overlay. */
 (function () {
   if (window.SNAuth) return;
   var SB = "https://lkoatrkhuigdolnjsbie.supabase.co";
@@ -197,10 +197,16 @@
       '<div class="who">' + face(u) + "<div><b>" + String(name).replace(/[<>]/g, "") + "</b><span>" + (inNow ? "IN · " + String(mail).replace(/[<>]/g, "") : "OUT") + "</span></div></div>" +
       (inNow
         ? '<button type="button" class="go" data-act="out">SIGN OUT</button>'
-        : '<button type="button" class="go" data-act="google">GOOGLE</button><button type="button" class="go" data-act="twitter">X</button>') +
-      '<input id="sn-me-phone" inputmode="tel" placeholder="Phone (unverified)" value="' + String(tel).replace(/"/g, "") + '">' +
-      '<button type="button" class="go" data-act="phone">SAVE PHONE</button>' +
-      '<p class="note">' + (inNow ? "Wallet is yours after login. Roles apply after Terms. Notis activates." : "LOGIN is Google. AV€ appears after login.") + "</p>";
+        : '<button type="button" class="go" data-act="google">GOOGLE</button>') +
+      (inNow
+        ? '<p class="note">Activate a role. Notis confirms.</p>' +
+          '<button type="button" class="go" data-act="terms">TERMS</button>' +
+          '<button type="button" class="go" data-act="role" data-role="vendor">APPLY VENDOR</button>' +
+          '<button type="button" class="go" data-act="role" data-role="driver">APPLY DRIVER</button>' +
+          '<button type="button" class="go" data-act="role" data-role="agent">APPLY AGENT</button>' +
+          '<button type="button" class="go" data-act="role" data-role="ambassador">APPLY AMBASSADOR</button>'
+        : "") +
+      '<p class="note">' + (inNow ? "Wallet is this account only. Pool is owner only." : "LOGIN is Google. AV€ appears after login.") + "</p>";
   }
   function openMe() {
     css();
@@ -218,7 +224,13 @@
         if (act === "google") { google(); return; }
         if (act === "twitter") { x(); return; }
         if (act === "out") { out(); fillBody(); return; }
-        if (act === "phone") { var inp = document.getElementById("sn-me-phone"); savePhone(inp && inp.value); fillBody(); }
+        if (act === "terms") { talk("Terms: work legal at that GPS. Notis activates roles."); return; }
+        if (act === "role") {
+          var role = b.getAttribute("data-role") || "";
+          try { localStorage.setItem("sn:role-apply", role); } catch (e) {}
+          talk("Applied " + role + ". Waiting on Notis.");
+          return;
+        }
       });
     }
     fillBody();
@@ -241,41 +253,6 @@
     });
   }
   window.SNAuth = { google: google, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
-  else boot();
-})();
-
-/* 4248 goNamed form-capture — named land without geolocation */
-(function () {
-  if (window.__SN_GONAMED_4248) return;
-  window.__SN_GONAMED_4248 = 1;
-  var NBO = { lat: -1.286389, lng: 36.817223, name: "Nairobi" };
-  function lookPlace(q) {
-    q = String(q || "").trim();
-    if (!q) return;
-    if (window.SN && typeof SN.goNamed === "function") { SN.goNamed(q); return; }
-    if (/\bnairobi\b/i.test(q) && window.SN && SN.openCity) {
-      try { localStorage.setItem("sn:place", JSON.stringify(NBO)); } catch (e) {}
-      if (SN.say) SN.say("On the ground in Nairobi.");
-      SN.openCity(NBO);
-    }
-  }
-  function boot() {
-    var f = document.getElementById("f");
-    var inp = document.getElementById("in");
-    if (!f || f.__snGoNamed) return;
-    f.__snGoNamed = true;
-    f.addEventListener("submit", function (e) {
-      var raw = String((inp && inp.value) || "").trim();
-      if (!raw) return;
-      var placey = /^(?:land(?:\s+(?:in|at|on))?|go(?:\s+to)?|fly(?:\s+to)?)\s+(.+)$/i.exec(raw);
-      var q = placey ? placey[1].replace(/[.!?]+$/g, "").trim() : raw;
-      if (!(/\bnairobi\b/i.test(q) || placey)) return;
-      e.preventDefault(); e.stopPropagation();
-      if (inp) inp.value = "";
-      lookPlace(q);
-    }, true);
-  }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 })();

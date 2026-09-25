@@ -2,8 +2,8 @@
 
 **What this file is:** the only instruction document. Paste this first. Then the live shell. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
-**Date:** 2026-09-10
-**Stamp:** 4266 (Canvas sized from innerWidth in JS. Duplicates gone. Island monitor ticks every second. + wired.)
+**Date:** 2026-09-25
+**Stamp:** 4270 (Full rebuild. Power is power. No overlay patches.)
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
@@ -11,6 +11,55 @@
 If rebuild law changes, **edit this file**. Chat is not the archive. Latest block wins.
 
 ---
+
+---
+
+## Latest (2026-09-25 — overrides older chrome notes)
+
+Full rebuild after patch piles. One entity: `index.html` + `js/spacenet/app.js` + `js/spacenet/auth.js`. No overlay scripts. No power menu. No stretched wallet. No “SUPPORT” word on the chip.
+
+### Power `#sn-power`
+
+The power button is a power button. It does **not** open another menu. Ever.
+
+- Hold **3 seconds** (countdown 3-2-1) → **offers on**. The application may pop job / nearby-work offers.
+- Hold **3 seconds** again → **offers off**. Pop-ups stop.
+- A tap that is shorter than 3 seconds does nothing except say “Hold 3 seconds.”
+- Reload, terms, withdraw, apply-role do **not** live on power.
+
+### YOU `#sn-me`
+
+Roles activate from the user-account icon. Out: LOGIN / Google. In: YOU sheet — Terms + apply vendor / driver / agent / ambassador. Notis activates. Phone field is not login.
+
+### Dock
+
+`#plus` uploads to Grok. `#in` is a black plate so type is readable on the live map. `#go` on the right:
+
+- Text in the field → send that text to Grok (`/api/ai`).
+- Empty field → one-shot voice. The real assistant. It talks, it hunts, it can `act:evolve` known rule keys. Treat it like support. No keyword router in front of it.
+- Voice is one-shot. No continuous restart. No beep loop. Speak the answer only if they used the mic.
+
+### Support `#sn-support`
+
+Icon only (🛟). No word “SUPPORT”.
+
+### Money `#sn-money`
+
+Chip width fits the amount. Do not stretch it across the stand.
+
+- Guest: no personal balance (label `AV€` only).
+- Signed user: **that user’s** AV€ only.
+- Pool / treasury / platform cut: **owner `notisastranov@gmail.com` only**. Never paint the pool as someone else’s wallet.
+- Users put money on the app with PayPal (`ADD 10` / `ADD 50` → `/api/paypal/create-order` · capture credits that account 1:1).
+
+### Vendor menu
+
+Right-click or tap / long-press lists a vendor. Easy menu: photo + each product’s name, price, note. Users check out on that same menu and assign the order to a delivery driver (`drv-notis` is the live approved driver).
+
+### Ship
+
+Owner asked for verify-then-ship on this rebuild. Still: no dummy shops, no HUD, no twin CLI, no overlay scripts. Guest boot stays zero Supabase.
+
 
 ## Method (2026-09-09 — overrides all older work notes)
 
@@ -107,11 +156,11 @@ Grok preview (`src/spacenet/*`) is the same chrome and laws.
 - Canvas globe `#g` full viewport — sphere math, continent fill + outlines, labels, trackball, inertia. Idle sits still. Pitch follows the finger.
 - Brand island: `ASTRANOV SPACENET` + stamp. Tap = reboot.
 - `JOBS` `#sn-tasks-btn` **centered under the island**. Posted jobs only. Never TASKS.
-- `AV€` `#sn-money` **always visible**, frozen **top-right**. Guest sees `0`. Never hide the chip. Owner pool, treasury 3,000,000, never zero-wiped.
+- `AV€` `#sn-money` always visible, width fits the amount. Guest sees the label only. Signed user sees own AV€. Pool only for owner.
 - `LOGIN` `#sn-me` bottom-left. Out: LOGIN / IN. In: YOU / photo or first **letter**. Never two-char email slices. Never digits.
 - `GPS` `#gps` bottom-right. Precise, then coarse, then tap-to-set.
-- Dock: `#plus` (upload to Grok) · `#in` “Talk to Astranov SpaceNet” · `#go` mic.
-- `⏻` `#sn-power` **top-left**, SVG power mark 44px. Offerings: reload, withdraw, hourly, terms, apply role.
+- Dock: `#plus` upload · `#in` black plate · `#go` MIC if empty, GO if text.
+- `⏻` `#sn-power` SVG. Hold 3s offers on. Hold 3s offers off. No menu.
 - `#line` status. No auto-talk. No TTS unless they used the mic and asked.
 
 Required IDs: `g, city, island, ver, heal, sn-money, sn-tasks-btn, sn-me, gps, plus, in, go, line, panel, dock, f, sn-power`
@@ -147,7 +196,7 @@ Vendor first. Never open a quote from two empty taps.
 
 Everyone who works on SpaceNet attests they can legally work at that GPS. Foreign placement only if **people here** posted a **labor-gap demand** (missing human resource, not cheaper imports). Politicians do not override the people on the ground.
 
-Power `⏻` only if signed **vendor or driver**. Hold **3s** (countdown 3-2-1) to go live / closed. Notify “open to receive orders/jobs”. Guests and plain clients never see it.
+Power `⏻` hold 3s toggles offer pop-ups for the signed session. It never opens a settings menu. Roles live on YOU.
 
 No job starts until: logged in, client drop set (GPS or 1s pin), driver base set if they are a driver. Guest sees menu + LOGIN TO ORDER.
 
@@ -175,11 +224,11 @@ Origin later: Hetzner EU + Cloudflare. Mesh does not wait.
 
 ### Money
 
-AV€ = euro 1:1. Real PayPal. Withdraw 3%. Pool. Guest sees no balance.
+AV€ = euro 1:1. Real PayPal deposit and job pay. Withdraw 3%. Guest sees no balance. Pool only on the owner account.
 
 ### Roles
 
-Vendor / driver / agent / ambassador after Terms. Notis activates.
+Vendor / driver / agent / ambassador from the YOU icon after Terms. Notis activates.
 
 ---
 

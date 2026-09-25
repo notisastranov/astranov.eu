@@ -1,7 +1,7 @@
-/* SpaceNet 4268 — globe never a world Mercator. Street list. UI_UNLOCK. */
+/* SpaceNet 4270 — one entity. Power is power. No overlay patches. */
 (function () {
   "use strict";
-  var VER = "4269";
+  var VER = "4270";
   var INTRO_MS = 13000;
   var LAND = [
     [[37, -6], [37, 11], [32, 25], [31, 34], [22, 37], [12, 51], [0, 42], [-5, 39], [-15, 40], [-25, 35], [-34, 25], [-34, 18], [-28, 16], [-22, 14], [-17, 11], [5, 9], [4, -8], [12, -16], [16, -16], [21, -17], [28, -13], [36, -6], [37, -6]],
@@ -90,9 +90,27 @@
 
   function $(id) { return document.getElementById(id); }
   function say(s) { var el = $("line"); if (el) el.textContent = s; }
+  function ownerMail() {
+    try {
+      var u = window.SNAuth && SNAuth.user && SNAuth.user();
+      return !!(u && String(u.email || "").toLowerCase() === "notisastranov@gmail.com");
+    } catch (e) { return false; }
+  }
   function avcGet() {
     try {
       var n = Number(localStorage.getItem("sn:avc"));
+      return isFinite(n) && n >= 0 ? n : 0;
+    } catch (e) { return 0; }
+  }
+  function avcSet(n) {
+    n = Math.max(0, Math.round(Number(n) || 0));
+    try { localStorage.setItem("sn:avc", String(n)); } catch (e) {}
+    paintMoney();
+    return n;
+  }
+  function poolGet() {
+    try {
+      var n = Number(localStorage.getItem("sn:pool"));
       return isFinite(n) ? n : 0;
     } catch (e) { return 0; }
   }
@@ -100,13 +118,17 @@
     var btn = $("sn-money");
     if (!btn) return;
     btn.hidden = false;
-    btn.style.display = "flex";
+    btn.style.display = "inline-flex";
     btn.classList.add("on");
-    var n = Math.round(avcGet());
     var tgt = btn.querySelector(".tgt");
-    if (tgt) tgt.textContent = n.toLocaleString("en-GB") + " AV€";
     var lbl = btn.querySelector(".lbl");
     if (lbl) lbl.textContent = "AV€";
+    if (!signed()) {
+      if (tgt) tgt.textContent = "AV€";
+      return;
+    }
+    var n = Math.round(avcGet());
+    if (tgt) tgt.textContent = n.toLocaleString("en-GB") + " AV€";
   }
   function signed() {
     try {
@@ -554,7 +576,7 @@
     if (vendor) { setDrop(pt); return; }
     if (listAlt === "street") {
       openSheet("LIST",
-        '<button type="button" class="sheet-go primary" data-act="list-kinds">List a place</button>' +
+        '<button type="button" class="sheet-go primary" data-act="list-kinds">List a vendor</button>' +
         '<button type="button" class="sheet-go" data-act="list-drop">List my delivery location</button>' +
         '<button type="button" class="sheet-go" data-act="list-base">List my delivery driver’s base</button>');
       say(pt.lat.toFixed(4) + "," + pt.lng.toFixed(4));
@@ -836,12 +858,28 @@
     vendor = s;
     if (map) map.setView([s.lat, s.lng], 17);
     var km = here ? haversineKm(here, s).toFixed(1) : "—";
+    var items = (s.menu || []).map(function (m, i) {
+      return '<button type="button" class="pill" data-act="add-item" data-i="' + i + '"><span class="ph">+</span><div><b></b><span></span></div></button>';
+    }).join("");
     var html =
       "<p class=\"note\"></p>" +
+      items +
       (s.phone ? '<a class="sheet-go" href="tel:' + String(s.phone).replace(/[^\d+]/g, "") + '">CALL</a>' : "") +
       '<button type="button" class="sheet-go primary" data-act="gpsdrop">TO MY GPS</button>' +
-      '<button type="button" class="sheet-go" data-act="pindrop">PIN ON MAP</button>';
+      '<button type="button" class="sheet-go" data-act="pindrop">PIN ON MAP</button>' +
+      (signed() ? '<button type="button" class="sheet-go" data-act="assign-drv">ASSIGN DRIVER</button>' : '<button type="button" class="sheet-go primary" data-act="needlogin">LOGIN TO ORDER</button>');
     openSheet(s.name, html);
+    var card = $("sn-sheet-card");
+    if (card) {
+      var pills = card.querySelectorAll("[data-act=add-item]");
+      (s.menu || []).forEach(function (m, i) {
+        if (!pills[i]) return;
+        var b = pills[i].querySelector("b");
+        var sp = pills[i].querySelector("span");
+        if (b) b.textContent = m.name || "item";
+        if (sp) sp.textContent = (m.price ? m.price + " AV€" : "") + (m.note ? " · " + m.note : "");
+      });
+    }
     var note = $("sn-sheet-body") && $("sn-sheet-body").querySelector(".note");
     if (note) note.textContent = (s.kind || "shop") + " · " + km + " km · real OSM pin. No dummy.";
     say(s.name + " · TO MY GPS or pin the drop.");
@@ -996,27 +1034,76 @@
     materialize(true);
     say(signed() ? "NODE · replica idle. Go live from Power after Terms." : "NODE · login required to go live.");
   }
-  function openPower() {
-    var sh = $("sn-power-sheet"), body = $("sn-power-body");
-    if (!sh || !body) return;
-    body.innerHTML =
-      '<button type="button" class="sheet-go" data-act="reload">RELOAD</button>' +
-      '<button type="button" class="sheet-go" data-act="terms">TERMS</button>' +
-      '<button type="button" class="sheet-go" data-act="apply-vendor">APPLY VENDOR</button>' +
-      '<button type="button" class="sheet-go" data-act="apply-driver">APPLY DRIVER</button>' +
-      (signed() ? '<button type="button" class="sheet-go" data-act="withdraw">WITHDRAW</button>' : '<p class="note" style="margin:10px 0 0;color:#8ec8d8;font:500 12px system-ui">LOGIN to work. Power stays. Live is for vendor or driver.</p>');
-    sh.classList.add("on");
-  }
+  function openPower() { /* power is hold-to-toggle offers. no menu. */ }
   function closePower() { var sh = $("sn-power-sheet"); if (sh) sh.classList.remove("on"); }
-  function talk(raw) {
+  var lastVoice = false;
+  var hist = [];
+  function speakIfVoice(s) {
+    if (!lastVoice) return;
+    lastVoice = false;
+    try {
+      if (!window.speechSynthesis) return;
+      speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(String(s || "").slice(0, 280));
+      u.lang = "en-GB";
+      speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+  function applyAct(j, q) {
+    var act = String((j && j.act) || "talk").toLowerCase();
+    if (j && j.evolve && typeof j.evolve === "object" && window.SN && SN.evolve) SN.evolve(j.evolve);
+    if (act === "locate" && $("gps")) { $("gps").click(); return; }
+    if (act === "jobs") { openJobs(); return; }
+    if (act === "reload" || act === "pay") { addFunds(10); return; }
+    if (act === "hunt" || act === "city" || act === "shop" || act === "now" || act === "pick") {
+      if (j.places && j.places.length) {
+        shops = uniqPlaces(j.places.map(function (p) {
+          return { name: p.name, lat: Number(p.lat), lng: Number(p.lng), phone: p.phone || "", raw: p.raw || "", src: "grok" };
+        }).filter(function (p) { return isFinite(p.lat) && isFinite(p.lng); }));
+        if (shops.length) { openCity(shops[0]); paintShopsOnMap(); showHunt(); return; }
+      }
+      hunt(j.q || q);
+      return;
+    }
+    if (act === "menu" && vendor) {
+      vendor.menu = (j.items || []).map(function (it) { return { name: it.name, price: it.price, note: it.sample ? "sample" : "" }; });
+      openVendor(vendor);
+    }
+  }
+  function talk(raw, fromVoice) {
     var q = String(raw || "").trim();
     if (!q) return;
-    if (/^(hi|hello|hey|yo|γεια)\b/i.test(q)) { say("SpaceNet live. Earth first. GPS lands you. Talk a place to hunt."); return; }
-    if (/^jobs?\b/i.test(q)) { openJobs(); return; }
-    if (/^find\b/i.test(q)) { openFind(); var rest = q.replace(/^find\b/i, "").trim(); if (rest) hunt(rest); return; }
-    if (/^node\b/i.test(q)) { openNode(); return; }
-    var m = /^(?:land(?:\s+(?:in|at|on))?|go(?:\s+to)?|fly(?:\s+to)?)\s+(.+)$/i.exec(q);
-    hunt(m ? m[1] : q);
+    lastVoice = !!fromVoice;
+    say("Grok…");
+    hist.push({ role: "user", content: q });
+    if (hist.length > 16) hist = hist.slice(-16);
+    var vendors = shops.slice(0, 8).map(function (s) { return s.name; });
+    fetch("/api/ai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: q,
+        history: hist,
+        here: {
+          lat: here && here.lat,
+          lng: here && here.lng,
+          place: here && here.name,
+          level: cityOn ? "street" : "globe",
+          avc: signed() ? avcGet() : 0,
+          shop: vendor && vendor.name,
+          vendors: vendors
+        }
+      })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      var text = (j && (j.say || j.text)) || "Grok is quiet.";
+      hist.push({ role: "assistant", content: text });
+      say(text);
+      speakIfVoice(text);
+      applyAct(j, q);
+    }).catch(function () {
+      say("Grok dark. Named hunt on this phone.");
+      hunt(q);
+    });
   }
   function clockLine(d, utc) {
     var opt = { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false };
@@ -1137,19 +1224,65 @@
     var power = $("sn-power");
     if (power && !power.__sn) {
       power.__sn = true; power.hidden = false;
-      power.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openPower(); });
+      var holdP = 0, holdFrom = 0;
+      function offersOn() {
+        try { return localStorage.getItem("sn:offers") === "1"; } catch (e) { return false; }
+      }
+      function setOffers(on) {
+        try { localStorage.setItem("sn:offers", on ? "1" : "0"); } catch (e) {}
+        power.classList.toggle("on", !!on);
+        power.classList.toggle("idle", !on);
+        if (on) {
+          say("Offers live. Jobs and nearby work can pop.");
+          materialize(true);
+          if (jobs.length) openJobs();
+        } else {
+          say("Offers off. No pop-ups.");
+          closeJobs();
+          closeSheet();
+          materialize(false);
+        }
+      }
+      power.classList.toggle("on", offersOn());
+      power.classList.toggle("idle", !offersOn());
+      power.addEventListener("pointerdown", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        if (holdP) clearInterval(holdP);
+        holdFrom = Date.now();
+        var n = 3;
+        say("Power " + n);
+        holdP = setInterval(function () {
+          n -= 1;
+          if (n > 0) { say("Power " + n); return; }
+          clearInterval(holdP); holdP = 0;
+          setOffers(!offersOn());
+        }, 1000);
+      });
+      function cancelHold() {
+        if (!holdP) return;
+        clearInterval(holdP); holdP = 0;
+        if (Date.now() - holdFrom < 2800) say("Hold 3 seconds.");
+      }
+      power.addEventListener("pointerup", cancelHold);
+      power.addEventListener("pointercancel", cancelHold);
+      power.addEventListener("pointerleave", cancelHold);
+      power.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); });
     }
     var money = $("sn-money");
     if (money && !money.__sn) {
       money.__sn = true; money.hidden = false;
       money.addEventListener("click", function (e) {
         e.preventDefault(); e.stopPropagation();
-        var n = avcGet();
-        openSheet("AV€",
-          '<p class="note">' + Math.round(n).toLocaleString("en-GB") + " AV€ · this wallet only.</p>" +
-          (signed()
-            ? '<button type="button" class="sheet-go" data-act="withdraw">WITHDRAW</button>'
-            : '<button type="button" class="sheet-go primary" data-act="needlogin">LOGIN</button>'));
+        if (!signed()) {
+          openSheet("AV€", '<p class="note">Your coins after LOGIN. Pool is owner only.</p><button type="button" class="sheet-go primary" data-act="needlogin">LOGIN</button>');
+          return;
+        }
+        var html = '<p class="note">' + Math.round(avcGet()).toLocaleString("en-GB") + " AV€ on this account.</p>";
+        if (ownerMail()) html += '<p class="note">Pool ' + Math.round(poolGet()).toLocaleString("en-GB") + " AV€ · owner only.</p>";
+        html += '<button type="button" class="sheet-go primary" data-act="add-10">ADD 10 € PAYPAL</button>' +
+          '<button type="button" class="sheet-go" data-act="add-50">ADD 50 € PAYPAL</button>' +
+          '<button type="button" class="sheet-go" data-act="withdraw">WITHDRAW</button>';
+        openSheet("AV€", html);
       });
     }
     paintMoney();
@@ -1190,24 +1323,45 @@
         e.preventDefault();
         var v = inp && inp.value;
         if (inp) inp.value = "";
-        talk(v);
+        if (typeof paintGo === "function") paintGo();
+        talk(v, false);
         materialize(needFilter());
       });
     }
     if (inp) inp.addEventListener("input", function () { materialize(needFilter()); });
+    function paintGo() {
+      if (!go) return;
+      var has = inp && String(inp.value || "").trim();
+      go.textContent = has ? "GO" : "MIC";
+      go.setAttribute("aria-label", has ? "Send" : "Talk");
+    }
+    paintGo();
+    if (inp && !inp.__snGoPaint) {
+      inp.__snGoPaint = true;
+      inp.addEventListener("input", paintGo);
+    }
     if (go && !go.__sn) {
       go.__sn = true;
       go.addEventListener("click", function (e) {
         e.preventDefault();
         if (inp && String(inp.value || "").trim()) {
-          var v = inp.value; inp.value = ""; talk(v); return;
+          var v = inp.value; inp.value = ""; paintGo(); talk(v, false); return;
         }
         if (window.SpeechRecognition || window.webkitSpeechRecognition) {
           var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-          var rec = new Rec(); rec.lang = "en-GB";
-          rec.onresult = function (ev) { var t = ev.results[0][0].transcript; if (inp) inp.value = t; talk(t); };
-          rec.start(); say("Listening…");
-        }
+          var rec = new Rec();
+          rec.lang = "en-GB";
+          rec.interimResults = false;
+          rec.continuous = false;
+          rec.onresult = function (ev) {
+            var t = ev.results[0][0].transcript;
+            if (inp) inp.value = t;
+            paintGo();
+            talk(t, true);
+          };
+          rec.onerror = function () { say("Mic closed."); };
+          try { rec.start(); say("Listening…"); } catch (err) { say("Mic busy. Tap again."); }
+        } else say("Type, then GO. This browser has no speech engine.");
       });
     }
     var jobsBtn = $("sn-tasks-btn"), findBtn = $("sn-find-btn"), nodeBtn = $("sn-node-btn");
@@ -1236,6 +1390,24 @@
       if (act === "floor") { quoteOpts.floor = !quoteOpts.floor; showQuote(); }
       if (act === "send") sendJob();
       if (act === "needlogin") { if (window.SNAuth && SNAuth.google) SNAuth.google(); else say("LOGIN to order."); }
+      if (act === "add-10") addFunds(10);
+      if (act === "add-50") addFunds(50);
+      if (act === "assign-drv") {
+        if (!signed()) { say("LOGIN to assign a driver."); return; }
+        if (!vendor) { say("Open a shop first."); return; }
+        openSheet("DRIVER",
+          '<p class="note">Notis is the live approved driver. Others after papers + contract.</p>' +
+          '<button type="button" class="sheet-go primary" data-act="drv-notis">ASSIGN NOTIS</button>');
+      }
+      if (act === "drv-notis") {
+        say("Assigned to drv-notis · " + ((vendor && vendor.name) || "shop") + ". Set drop, then send.");
+      }
+      if (act === "add-item") {
+        var ix = Number(t.getAttribute("data-i"));
+        var item = vendor && vendor.menu && vendor.menu[ix];
+        if (!item) { say("No product."); return; }
+        say((item.name || "item") + " in the order. Set drop, then send.");
+      }
       if (act === "list-kinds") {
         openSheet("PLACE",
           '<button type="button" class="sheet-go" data-act="kind" data-k="shop">Shop</button>' +
@@ -1246,20 +1418,37 @@
       if (act === "kind") {
         var k = t.getAttribute("data-k") || "shop";
         openSheet(k.toUpperCase(),
-          '<input id="sn-place-name" placeholder="Name" />' +
+          '<input id="sn-place-name" placeholder="Shop name" />' +
+          '<input id="sn-place-phone" placeholder="Phone (optional)" />' +
+          '<textarea id="sn-place-menu" placeholder="One product per line: Name | price | note"></textarea>' +
+          '<button type="button" class="sheet-go" data-act="pick-photo">PHOTO</button>' +
           '<button type="button" class="sheet-go primary" data-act="save-place" data-k="' + k + '">LIST</button>');
+      }
+      if (act === "pick-photo") {
+        var file = $("sn-file");
+        if (file) file.click();
       }
       if (act === "save-place") {
         var kn = t.getAttribute("data-k") || "shop";
         var nmEl = $("sn-place-name");
+        var phEl = $("sn-place-phone");
+        var muEl = $("sn-place-menu");
         var nm = nmEl ? String(nmEl.value || "").trim() : "";
+        var phone = phEl ? String(phEl.value || "").trim() : "";
+        var rawMenu = muEl ? String(muEl.value || "") : "";
+        var menu = rawMenu.split(/\n+/).map(function (line) {
+          var p = line.split("|").map(function (x) { return x.trim(); });
+          if (!p[0]) return null;
+          return { name: p[0], price: p[1] || "", note: p[2] || "" };
+        }).filter(Boolean);
         if (!nm) { say("Name the place."); return; }
         if (!listPt) { say("Hold the street first."); return; }
-        persistListing({ id: "p" + Date.now().toString(36), kind: "shop", place: kn, name: nm, lat: listPt.lat, lng: listPt.lng });
-        shops.unshift({ name: nm, lat: listPt.lat, lng: listPt.lng, kind: kn, src: "listed" });
+        persistListing({ id: "p" + Date.now().toString(36), kind: "shop", place: kn, name: nm, phone: phone, menu: menu, lat: listPt.lat, lng: listPt.lng });
+        shops.unshift({ name: nm, lat: listPt.lat, lng: listPt.lng, kind: kn, phone: phone, menu: menu, src: "listed" });
         shops = uniqPlaces(shops);
         paintShopsOnMap();
         closeSheet();
+        say(nm + " listed · " + menu.length + " product" + (menu.length === 1 ? "" : "s") + ".");
       }
       if (act === "list-drop") {
         if (!listPt) { say("Hold the street first."); return; }
@@ -1293,6 +1482,34 @@
     setInterval(paintIsland, 1000);
     say("Earth scan · 13s · then we zoom to you.");
   }
+  function addFunds(eur) {
+    if (!signed()) {
+      say("LOGIN to put money on the account.");
+      if (window.SNAuth && SNAuth.google) SNAuth.google();
+      return;
+    }
+    eur = Number(eur) || 10;
+    say("Opening PayPal for " + eur + " €…");
+    fetch("/api/paypal/create-order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount: eur, origin: location.origin, reference: "deposit" })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      var url = (j && (j.approve || j.url));
+      if (!url) { say((j && (j.error || j.message)) || "PayPal did not return approve."); return; }
+      try { localStorage.setItem("sn:pay-deposit", String(eur)); } catch (e) {}
+      location.href = url;
+    }).catch(function () { say("PayPal dark."); });
+  }
+  function evolve(patch) {
+    if (!patch || typeof patch !== "object") return;
+    var keys = ["huntCap", "voice", "tip", "vip", "floor"];
+    keys.forEach(function (k) {
+      if (patch[k] == null) return;
+      try { localStorage.setItem("sn:rule:" + k, String(patch[k])); } catch (e) {}
+    });
+    say("Rules updated.");
+  }
   function boot() {
     canvas = $("g");
     if (!canvas) return;
@@ -1315,17 +1532,23 @@
           if (j && (j.ok || j.status === "COMPLETED" || j.capture)) {
             jobs.forEach(function (job) { if (job.id === jid) job.paid = true; });
             saveJobs();
-            say("PayPal captured. Transaction verified.");
+            var dep = 0;
+            try { dep = Number(localStorage.getItem("sn:pay-deposit") || 0); localStorage.removeItem("sn:pay-deposit"); } catch (e) {}
+            if (dep > 0 && signed()) {
+              avcSet(avcGet() + dep);
+              say("PayPal " + dep + " € on your account · " + avcGet() + " AV€.");
+            } else say("PayPal captured. Transaction verified.");
           } else say((j && (j.error || j.message)) || "PayPal capture did not finish.");
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4269 = true;
+    window.__SN_4270 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
       openCity: openCity, closeCity: closeCity, listAt: listAt, goNamed: hunt, huntNamed: hunt,
       user: function () { return window.SNAuth && SNAuth.user ? SNAuth.user() : null; },
+      paintMoney: paintMoney, evolve: evolve, addFunds: addFunds,
       visibleShops: function () { return shops; },
       jobs: function () { return jobs; },
       hunt: hunt,
