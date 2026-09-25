@@ -29,6 +29,10 @@ No two chrome pieces share pixels. `layoutChrome` measures and pushes. Never par
 - `#sn-support` top-right, under the island. Headphone mark 🎧. No word on the chip.
 - `#sn-me` bottom-left. `#gps` bottom-right. Dock stays the bottom field.
 
+Globe coasts are Natural Earth 50m on the same sphere. Land is dark blue, only just lighter than the ocean. Not neon.
+
+Zoom stops, one step at a time, and never skips. Solar system, then Global, then National, then City. Zoom out reverses that. City is the street map. National is the enlarged globe. Zooming out of City lands on National, not straight on Global. Zooming out of Global lands on the solar system.
+
 ### Power
 
 A power button. It does **not** open a menu.
