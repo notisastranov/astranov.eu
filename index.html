@@ -3,7 +3,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4271"/>
+<meta name="astranov-build" content="4272"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
@@ -55,16 +55,35 @@ button, [role="button"]{cursor:pointer}
 #sn-spark{display:block;width:120px;height:28px;flex:none;cursor:pointer}
 #ver,.a,.s{color:var(--accent);font:800 13px system-ui;letter-spacing:.12em}
 .a,.s{background:none;border:0;padding:0;cursor:pointer}
+
+#sn-under{justify-content:flex-start}
+#sn-desk-row{display:flex;align-items:center;justify-content:center;gap:8px;margin:0 0 6px}
+#sn-tabs{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:0 0 6px;min-height:0;pointer-events:auto}
+#sn-tabs:empty{display:none}
+#sn-tabs .tab{position:relative;height:28px;padding:0 22px 0 10px;border-radius:999px;border:1px solid rgba(126,233,255,.4);background:rgba(4,16,28,.94);color:#7ee9ff;font:800 10px/28px system-ui;letter-spacing:.08em}
+#sn-tabs .tab.offer{border-color:rgba(80,255,140,.5);color:#7dff9a}
+#sn-tabs .tab.support{border-color:rgba(255,90,90,.6);color:#ff8a8a}
+#sn-tabs .tab.on{background:rgba(77,240,255,.18)}
+#sn-tabs .tab.support.on{background:rgba(255,60,60,.2)}
+#sn-tabs .tab.offer.on{background:rgba(80,255,140,.18)}
+#sn-tabs .tab .fill{position:absolute;top:4px;right:4px;width:16px;height:16px;border:0;border-radius:99px;background:rgba(77,240,255,.35);color:#041018;font:800 9px/16px system-ui;padding:0}
+#sn-tabs .tab.support .fill{background:rgba(255,90,90,.55)}
+#sn-tabs .tab.offer .fill{background:rgba(80,255,140,.55)}
+#sn-sheet,#sn-tasks{z-index:70;pointer-events:none}
+#sn-sheet.on,#sn-tasks.on{pointer-events:auto}
+#sn-sheet .card,#sn-tasks .card{bottom:calc(var(--safe-b) + var(--dock) + 8px);box-shadow:0 -12px 40px rgba(0,0,0,.45)}
+#sn-sheet.min .card,#sn-tasks.min .card{height:0;padding:0;overflow:hidden;border:0}
+body.sn-support #sn-desk{display:block;text-align:center}
 #sn-under{display:flex;width:100%;box-sizing:border-box;align-items:flex-start;justify-content:space-between;pointer-events:none;padding:8px 10px 0;gap:8px;background:transparent}
 #sn-under > *{pointer-events:auto}
-#sn-support{width:40px;height:40px;padding:0;border-radius:999px;border:1.5px solid rgba(77,240,255,.95);background:rgba(4,16,28,.96);color:var(--accent);font:20px/1 system-ui}
+#sn-support{width:36px;height:36px;padding:0;border-radius:999px;border:1.5px solid rgba(255,90,90,.85);background:rgba(22,4,6,.96);color:#ff8a8a;font:18px/1 system-ui;box-shadow:0 0 10px rgba(255,50,50,.35)}
 #line{color:var(--muted);font:500 12px ui-monospace,monospace;margin:0 4px 8px;min-height:16px}
 #sn-news{display:none!important}
 #sn-power{display:inline-flex!important;visibility:visible!important;position:static!important;z-index:240!important;width:48px;height:48px;align-items:center;justify-content:center;padding:0;border-radius:999px;border:1.5px solid rgba(77,240,255,.95);background:rgba(4,16,28,.96);color:var(--accent);box-shadow:0 0 14px rgba(77,240,255,.4);pointer-events:auto;flex:none}
 #sn-power.on{box-shadow:0 0 18px rgba(80,255,140,.7);border-color:#7dff9a;color:#7dff9a}
 #sn-power[hidden]{display:inline-flex!important;visibility:visible!important}
 #sn-power svg{width:22px;height:22px;display:block}
-#sn-money{display:inline-flex!important;visibility:visible!important;position:static!important;z-index:240!important;width:auto;min-width:0;flex:0 0 auto;align-items:center;justify-content:center;border:0!important;background:transparent!important;color:var(--accent)!important;padding:0!important;pointer-events:auto!important}
+#sn-money{display:inline-flex!important;visibility:visible!important;position:fixed!important;top:calc(var(--safe-t) + 52px)!important;right:var(--safe-r)!important;left:auto!important;bottom:auto!important;z-index:240!important;width:auto;min-width:0;flex:none;align-items:center;justify-content:center;border:0!important;background:transparent!important;color:var(--accent)!important;padding:0!important;pointer-events:auto!important}
 #sn-money[hidden]{display:inline-flex!important;visibility:visible!important}
 #sn-money .lbl{display:none}
 #sn-money .tgt{display:inline-flex;align-items:center;justify-content:center;width:auto;min-width:0;height:40px;margin:0;padding:0 12px;border-radius:999px;border:1.5px solid rgba(77,240,255,.95);background:radial-gradient(circle at 50% 40%,rgba(77,240,255,.22),rgba(2,10,18,.94) 72%);box-shadow:0 0 10px rgba(77,240,255,.35);font:800 13px/1 ui-monospace,system-ui;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -124,16 +143,15 @@ body.sn-support #sn-desk{display:block}
 <div id="top">
   <div id="sn-topchrome-drag" class="sn-trivial-law" aria-hidden="true"></div>
   <div id="island">
-    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">SPACENET</button><span id="ver">V4271</span></div>
+    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">SPACENET</button><span id="ver">V4272</span></div>
     <div class="r2"><span id="sn-local">-</span><span id="sn-utc">-</span><span id="sn-wx"></span><span id="sn-node"></span><canvas id="sn-spark" width="120" height="28"></canvas></div>
   </div>
   <div id="sn-under">
     <button type="button" id="sn-power" class="idle show" aria-label="Power">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M12 3v9"/><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M7.2 6.4a7 7 0 1 0 9.6 0"/></svg>
     </button>
-    <button type="button" id="sn-money" class="on" aria-label="Wallet"><span class="lbl">AV€</span><span class="tgt">AV€</span></button>
-    <button type="button" id="sn-support" aria-label="Support">🛟</button>
   </div>
+  <button type="button" id="sn-money" class="on" aria-label="Wallet"><span class="lbl">AV€</span><span class="tgt">AV€</span></button>
   <div class="hud-row" id="sn-filters">
     <button type="button" id="sn-tasks-btn">JOBS</button>
     <button type="button" id="sn-find-btn">FIND</button>
@@ -148,9 +166,9 @@ body.sn-support #sn-desk{display:block}
 </button>
 <div id="sn-tasks"><div class="bg" data-act="hide"></div><div class="card"><div class="sheet-bar"><b class="sheet-ttl">JOBS</b><button type="button" class="sheet-x" data-act="hide">HIDE</button></div><div id="sn-tasks-list"></div></div></div>
 <div id="sn-sheet"><div class="bg" data-act="close"></div><div class="card" id="sn-sheet-card"></div></div>
-<div id="dock"><div id="panel"><div id="cli-drag" class="sn-trivial-law" aria-hidden="true"></div><div id="sn-desk">SUPPORT</div><div id="line"></div><form id="f"><div class="hub"><button type="button" id="plus">+</button></div><input id="in" autocomplete="off" enterkeyhint="send" placeholder="Talk to Astranov SpaceNet"/><div class="hub"><button type="button" id="go" aria-label="Talk or send">MIC</button></div></form></div></div>
+<div id="dock"><div id="panel"><div id="cli-drag" class="sn-trivial-law" aria-hidden="true"></div><div id="sn-tabs"></div><div id="sn-desk-row"><button type="button" id="sn-support" aria-label="Support">🎧</button><div id="sn-desk">SUPPORT</div></div><div id="line"></div><form id="f"><div class="hub"><button type="button" id="plus">+</button></div><input id="in" autocomplete="off" enterkeyhint="send" placeholder="Talk to Astranov SpaceNet"/><div class="hub"><button type="button" id="go" aria-label="Talk or send">MIC</button></div></form></div></div>
 <input id="sn-file" type="file" accept="image/*,application/pdf,text/*" hidden/>
 <script src="/js/vendor/leaflet.js?v=4127"></script>
-<script src="/js/spacenet/app.js?v=4271"></script>
-<script src="/js/spacenet/auth.js?v=4271"></script>
+<script src="/js/spacenet/app.js?v=4272"></script>
+<script src="/js/spacenet/auth.js?v=4272"></script>
 </body></html>

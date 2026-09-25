@@ -3,7 +3,7 @@
 **What this file is:** the only instruction document. Paste this first. Then the live shell. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
 **Date:** 2026-09-25
-**Stamp:** 4271 (Support desk on the dock. Power is power.)
+**Stamp:** 4272 (🎧 over the field. Money top-right. Bottom tabs.)
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
@@ -67,6 +67,15 @@ Right-click or tap / long-press lists a vendor. Easy menu: photo + each product�
 - Background may queue the ticket for the builder. The browser never receives a project URL, agent id, repo, or GrokBuild chrome.
 - Tap 🛟 again to leave support mode and restore the normal cyan field.
 - LOGIN required. Guests get LOGIN, not the desk.
+
+
+### Dock tabs (2026-09-25 night)
+
+- `#sn-money` lives **top-right**, width fits the amount. Not on the power stand.
+- `#sn-support` is 🎧, centered **on top of the input field** it triggers.
+- Offers throw from the bottom as overlays. Support and each offer are tabs on `#sn-tabs` above the field.
+- Fill button on the tab = maximize / minimize. Several tabs can stay open. Minimized is a small lit chip, not gone.
+- Feedback on the support line still goes to the desk / builder in the background. No workshop chrome on the phone.
 
 ### Ship
 

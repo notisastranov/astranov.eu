@@ -1,7 +1,7 @@
-/* SpaceNet 4271 — support desk on the dock. Power is power. */
+/* SpaceNet 4272 — dock tabs. Support over the field. Money top-right. */
 (function () {
   "use strict";
-  var VER = "4271";
+  var VER = "4272";
   var INTRO_MS = 13000;
   var LAND = [
     [[37, -6], [37, 11], [32, 25], [31, 34], [22, 37], [12, 51], [0, 42], [-5, 39], [-15, 40], [-25, 35], [-34, 25], [-34, 18], [-28, 16], [-22, 14], [-17, 11], [5, 9], [4, -8], [12, -16], [16, -16], [21, -17], [28, -13], [36, -6], [37, -6]],
@@ -644,6 +644,76 @@
   }
   var supportOn = false;
   var supportTicket = "";
+  var dockTabs = [];
+  var dockFocus = "";
+  function paintDockTabs() {
+    var rail = $("sn-tabs");
+    if (!rail) return;
+    rail.innerHTML = "";
+    dockTabs.forEach(function (t) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "tab " + t.kind + (dockFocus === t.id && !t.min ? " on" : "");
+      b.setAttribute("data-tab", t.id);
+      b.appendChild(document.createTextNode(t.title));
+      var fill = document.createElement("button");
+      fill.type = "button";
+      fill.className = "fill";
+      fill.setAttribute("data-fill", t.id);
+      fill.textContent = t.min ? "+" : "–";
+      b.appendChild(fill);
+      rail.appendChild(b);
+    });
+    var sh = $("sn-sheet");
+    if (sh) {
+      var focused = dockTabs.filter(function (t) { return t.id === dockFocus; })[0];
+      sh.classList.toggle("on", !!(focused && !focused.min));
+      sh.classList.toggle("min", !!(focused && focused.min));
+    }
+  }
+  function upsertTab(tab) {
+    var i = -1;
+    dockTabs.forEach(function (t, n) { if (t.id === tab.id) i = n; });
+    if (i >= 0) dockTabs[i] = Object.assign(dockTabs[i], tab);
+    else dockTabs.push(tab);
+    dockFocus = tab.id;
+    tab.min = false;
+    paintDockTabs();
+  }
+  function minTab(id) {
+    dockTabs.forEach(function (t) {
+      if (t.id === id) t.min = !t.min;
+    });
+    var cur = dockTabs.filter(function (t) { return t.id === id; })[0];
+    if (cur && !cur.min) dockFocus = id;
+    paintDockTabs();
+    if (id === "support" && cur && cur.min) document.body.classList.remove("sn-support");
+    if (id === "support" && cur && !cur.min) document.body.classList.add("sn-support");
+  }
+  function focusTab(id) {
+    var t = dockTabs.filter(function (x) { return x.id === id; })[0];
+    if (!t) return;
+    t.min = false;
+    dockFocus = id;
+    paintDockTabs();
+    if (t.kind === "support") {
+      document.body.classList.add("sn-support");
+      supportOn = true;
+      var inp = $("in");
+      if (inp) { inp.placeholder = "Support · type or tap MIC"; inp.focus(); }
+    } else {
+      if (t.html) openSheet(t.title, t.html);
+    }
+  }
+  function throwOffer(job) {
+    var id = "offer-" + (job && job.id ? job.id : Date.now().toString(36));
+    var title = (job && (job.shop || job.name || "OFFER")) || "OFFER";
+    var html = '<p class="note">' + String((job && (job.note || job.item)) || "Work is up.").replace(/[<>]/g, "") + "</p>" +
+      '<button type="button" class="sheet-go primary" data-act="hide">KEEP</button>';
+    upsertTab({ id: id, kind: "offer", title: String(title).slice(0, 16).toUpperCase(), html: html, min: false });
+    openSheet(title, html);
+  }
+
   function setSupport(on) {
     supportOn = !!on;
     document.body.classList.toggle("sn-support", supportOn);
@@ -652,12 +722,13 @@
     var inp = $("in");
     if (inp) inp.placeholder = supportOn ? "Support · type or tap MIC" : "Talk to Astranov SpaceNet";
     if (supportOn) {
-      closeSheet();
+      upsertTab({ id: "support", kind: "support", title: "SUPPORT", html: "", min: false });
       say("SUPPORT desk. Type or tap MIC. This line does not open the workshop.");
       if (inp) inp.focus();
     } else {
-      say("Desk closed.");
-      if (inp) inp.placeholder = "Talk to Astranov SpaceNet";
+      dockTabs.forEach(function (t) { if (t.id === "support") t.min = true; });
+      paintDockTabs();
+      say("Desk minimized.");
     }
   }
   function openSupport() {
@@ -1257,9 +1328,18 @@
         if (on) {
           say("Offers live. Jobs and nearby work can pop.");
           materialize(true);
-          if (jobs.length) openJobs();
+          if (jobs.length) {
+            jobs.slice(0, 6).forEach(function (j) { throwOffer(j); });
+            openJobs();
+            var tasks = $("sn-tasks");
+            if (tasks) tasks.classList.remove("min");
+          } else {
+            throwOffer({ id: "live", name: "OFFERS", note: "Offers are live. Hunt a pin or wait for work." });
+          }
         } else {
           say("Offers off. No pop-ups.");
+          dockTabs = dockTabs.filter(function (t) { return t.kind !== "offer"; });
+          paintDockTabs();
           closeJobs();
           closeSheet();
           materialize(false);
@@ -1337,6 +1417,16 @@
     if (support && !support.__sn) {
       support.__sn = true;
       support.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openSupport(); });
+    }
+    var tabsRail = $("sn-tabs");
+    if (tabsRail && !tabsRail.__sn) {
+      tabsRail.__sn = true;
+      tabsRail.addEventListener("click", function (e) {
+        var fill = e.target.closest("[data-fill]");
+        if (fill) { e.preventDefault(); e.stopPropagation(); minTab(fill.getAttribute("data-fill")); return; }
+        var tab = e.target.closest("[data-tab]");
+        if (tab) { e.preventDefault(); focusTab(tab.getAttribute("data-tab")); }
+      });
     }
     var f = $("f"), inp = $("in"), go = $("go");
     if (f && !f.__sn) {
@@ -1564,7 +1654,7 @@
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4271 = true;
+    window.__SN_4272 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
