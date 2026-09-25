@@ -95,16 +95,13 @@ module.exports = async function handler(req, res) {
     return;
   }
   var u = await userOf(req);
-  if (!u) {
-    res.status(401).json({ ok: false, need: "login", error: "Sign in first." });
-    return;
-  }
   if (req.method === "GET") {
     res.status(200).json({
       ok: true,
       desk: true,
-      email: u.email,
-      owner: String(u.email).toLowerCase() === architect(),
+      email: u && u.email ? u.email : "",
+      guest: !u,
+      owner: !!(u && String(u.email).toLowerCase() === architect()),
     });
     return;
   }
@@ -112,7 +109,7 @@ module.exports = async function handler(req, res) {
     res.status(405).json({ ok: false, error: "method" });
     return;
   }
-  var id = String(u.id || u.email);
+  var id = u ? String(u.id || u.email) : ("ip:" + String((req.headers && (req.headers["x-forwarded-for"] || req.socket && req.socket.remoteAddress)) || "anon").split(",")[0].trim());
   var now = Date.now();
   var prev = lastOpen.get(id) || 0;
   if (now - prev < 4000) {
@@ -121,7 +118,7 @@ module.exports = async function handler(req, res) {
   }
   var body = readBody(req);
   var matter = String(body.matter || body.q || body.text || "").trim().slice(0, 2000);
-  var name = String(body.name || (u.user_metadata && u.user_metadata.full_name) || u.email || "").trim().slice(0, 80);
+  var name = String(body.name || (u && u.user_metadata && u.user_metadata.full_name) || (u && u.email) || "guest").trim().slice(0, 80);
   if (!matter) {
     res.status(400).json({ ok: false, error: "Say what you need." });
     return;
@@ -132,9 +129,9 @@ module.exports = async function handler(req, res) {
   }
   lastOpen.set(id, now);
   var ticket = body.ticket || ("t" + now.toString(36) + Math.random().toString(36).slice(2, 6));
-  var row = tickets.get(ticket) || { ticket: ticket, email: u.email, name: name, lines: [] };
+  var row = tickets.get(ticket) || { ticket: ticket, email: (u && u.email) || "", name: name, lines: [] };
   row.lines.push({ at: new Date().toISOString(), from: "user", text: matter });
-  var say = await deskReply(matter, u.email);
+  var say = await deskReply(matter, (u && u.email) || name);
   if (!say) say = "Got it. Ticket " + ticket + ". Stay on this line — the desk has the note.";
   row.lines.push({ at: new Date().toISOString(), from: "desk", text: say });
   tickets.set(ticket, row);

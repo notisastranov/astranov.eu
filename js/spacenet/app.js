@@ -1,7 +1,7 @@
-/* SpaceNet 4272 — dock tabs. Support over the field. Money top-right. */
+/* SpaceNet 4273 — money under island. Live support desk. */
 (function () {
   "use strict";
-  var VER = "4272";
+  var VER = "4273";
   var INTRO_MS = 13000;
   var LAND = [
     [[37, -6], [37, 11], [32, 25], [31, 34], [22, 37], [12, 51], [0, 42], [-5, 39], [-15, 40], [-25, 35], [-34, 25], [-34, 18], [-28, 16], [-22, 14], [-17, 11], [5, 9], [4, -8], [12, -16], [16, -16], [21, -17], [28, -13], [36, -6], [37, -6]],
@@ -667,7 +667,8 @@
     var sh = $("sn-sheet");
     if (sh) {
       var focused = dockTabs.filter(function (t) { return t.id === dockFocus; })[0];
-      sh.classList.toggle("on", !!(focused && !focused.min));
+      var show = !!(focused && !focused.min && focused.kind !== "support" && focused.html);
+      sh.classList.toggle("on", show);
       sh.classList.toggle("min", !!(focused && focused.min));
     }
   }
@@ -733,15 +734,6 @@
   }
   function openSupport() {
     if (supportOn) { setSupport(false); return; }
-    if (!signed()) {
-      say("LOGIN to open support.");
-      if (window.SNAuth && SNAuth.google) SNAuth.google();
-      else {
-        var me = $("sn-me");
-        if (me) me.click();
-      }
-      return;
-    }
     setSupport(true);
   }
   function sendSupport(matter, fromVoice) {
@@ -758,9 +750,8 @@
     fetch("/api/support/open", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: t ? "Bearer " + t : "" },
-      body: JSON.stringify({ matter: matter, name: who, ticket: supportTicket })
+      body: JSON.stringify({ matter: matter, name: who || "guest", ticket: supportTicket })
     }).then(function (r) { return r.json(); }).then(function (j) {
-      if (j && j.need === "login") { say("LOGIN to open support."); setSupport(false); return; }
       if (j && j.ok) {
         if (j.ticket) supportTicket = j.ticket;
         var text = j.say || ("Ticket " + (j.ticket || "") + " is with the desk.");
@@ -768,8 +759,14 @@
         speakIfVoice(text);
         return;
       }
-      say((j && j.error) || "Support did not take it.");
-    }).catch(function () { say("Support dark."); });
+      var fallback = "Got it on this phone. Ticket parked. The desk will take it.";
+      say((j && j.error) || fallback);
+      speakIfVoice(fallback);
+    }).catch(function () {
+      var fallback = "Line dark. Your note is on this phone until the desk is back.";
+      say(fallback);
+      speakIfVoice(fallback);
+    });
   }
   function haversineKm(a, b) {
     var R = 6371;
@@ -1304,6 +1301,14 @@
     }
     place($("sn-me"), "bl");
     place($("gps"), "br");
+    var money = $("sn-money");
+    var isle = visRect($("island"));
+    if (money && isle) {
+      money.style.setProperty("top", Math.round(isle.bottom + 8) + "px", "important");
+      money.style.setProperty("right", "10px", "important");
+      money.style.setProperty("left", "auto", "important");
+      money.style.setProperty("bottom", "auto", "important");
+    }
   }
   var layoutKey = "";
   function maybeLayout() {
@@ -1654,7 +1659,7 @@
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4272 = true;
+    window.__SN_4273 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

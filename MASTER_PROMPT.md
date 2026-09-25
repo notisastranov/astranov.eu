@@ -3,7 +3,7 @@
 **What this file is:** the only instruction document. Paste this first. Then the live shell. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
 **Date:** 2026-09-25
-**Stamp:** 4272 (🎧 over the field. Money top-right. Bottom tabs.)
+**Stamp:** 4273 (Money under island. Support desk live, guests included.)
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
@@ -77,6 +77,8 @@ Right-click or tap / long-press lists a vendor. Easy menu: photo + each product�
 - Fill button on the tab = maximize / minimize. Several tabs can stay open. Minimized is a small lit chip, not gone.
 - Feedback on the support line still goes to the desk / builder in the background. No workshop chrome on the phone.
 
+
+Support field is the real dock `#in` in support mode. No empty overlay. Desk API answers without login. Money sits under the island, top-right — never on `#sn-spark`.
 ### Ship
 
 Owner asked for verify-then-ship on this rebuild. Still: no dummy shops, no HUD, no twin CLI, no overlay scripts. Guest boot stays zero Supabase.
