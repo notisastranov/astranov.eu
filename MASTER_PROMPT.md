@@ -3,7 +3,7 @@
 **What this file is:** the only instruction document. Paste this first. Then the live shell. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
 **Date:** 2026-09-25
-**Stamp:** 4270 (Full rebuild. Power is power. No overlay patches.)
+**Stamp:** 4271 (Support desk on the dock. Power is power.)
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
@@ -55,6 +55,18 @@ Chip width fits the amount. Do not stretch it across the stand.
 ### Vendor menu
 
 Right-click or tap / long-press lists a vendor. Easy menu: photo + each product’s name, price, note. Users check out on that same menu and assign the order to a delivery driver (`drv-notis` is the live approved driver).
+
+
+### Support desk (2026-09-25 evening — overrides the SUPPORT word note)
+
+`#sn-support` is the 🛟 chip. Tap opens **support mode on the same dock input**, not a second workshop.
+
+- Label `SUPPORT` over `#in`. The field and GO/MIC glow red.
+- Type or tap MIC. One control does both: empty = voice, text = send.
+- The line talks to the support desk API (`/api/support/open`). A constrained Grok answers on that line.
+- Background may queue the ticket for the builder. The browser never receives a project URL, agent id, repo, or GrokBuild chrome.
+- Tap 🛟 again to leave support mode and restore the normal cyan field.
+- LOGIN required. Guests get LOGIN, not the desk.
 
 ### Ship
 

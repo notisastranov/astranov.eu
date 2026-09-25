@@ -1,7 +1,7 @@
-/* SpaceNet 4270 — one entity. Power is power. No overlay patches. */
+/* SpaceNet 4271 — support desk on the dock. Power is power. */
 (function () {
   "use strict";
-  var VER = "4270";
+  var VER = "4271";
   var INTRO_MS = 13000;
   var LAND = [
     [[37, -6], [37, 11], [32, 25], [31, 34], [22, 37], [12, 51], [0, 42], [-5, 39], [-15, 40], [-25, 35], [-34, 25], [-34, 18], [-28, 16], [-22, 14], [-17, 11], [5, 9], [4, -8], [12, -16], [16, -16], [21, -17], [28, -13], [36, -6], [37, -6]],
@@ -642,9 +642,28 @@
       if (dctx) dctx.drawImage(src, 0, 0, dst.width, dst.height);
     }
   }
+  var supportOn = false;
+  var supportTicket = "";
+  function setSupport(on) {
+    supportOn = !!on;
+    document.body.classList.toggle("sn-support", supportOn);
+    var btn = $("sn-support");
+    if (btn) btn.classList.toggle("on", supportOn);
+    var inp = $("in");
+    if (inp) inp.placeholder = supportOn ? "Support · type or tap MIC" : "Talk to Astranov SpaceNet";
+    if (supportOn) {
+      closeSheet();
+      say("SUPPORT desk. Type or tap MIC. This line does not open the workshop.");
+      if (inp) inp.focus();
+    } else {
+      say("Desk closed.");
+      if (inp) inp.placeholder = "Talk to Astranov SpaceNet";
+    }
+  }
   function openSupport() {
+    if (supportOn) { setSupport(false); return; }
     if (!signed()) {
-      say("LOGIN to send support.");
+      say("LOGIN to open support.");
       if (window.SNAuth && SNAuth.google) SNAuth.google();
       else {
         var me = $("sn-me");
@@ -652,31 +671,33 @@
       }
       return;
     }
-    openSheet("SUPPORT",
-      '<p class="note">State the matter.</p>' +
-      '<textarea id="sn-support-matter" rows="4"></textarea>' +
-      '<button type="button" class="sheet-go primary" data-act="support-send">SEND</button>');
+    setSupport(true);
   }
-  function sendSupport() {
-    var ta = $("sn-support-matter");
-    var matter = ta ? String(ta.value || "").trim() : "";
-    if (!matter) { say("State the matter."); return; }
+  function sendSupport(matter, fromVoice) {
+    matter = String(matter || "").trim();
+    if (!matter) { say("Say what you need."); return; }
     var t = authToken();
     var who = "";
     try {
       var u = window.SNAuth && SNAuth.user && SNAuth.user();
       who = (u && (u.name || u.email)) || "";
     } catch (e) {}
+    lastVoice = !!fromVoice;
+    say("Desk…");
     fetch("/api/support/open", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: t ? "Bearer " + t : "" },
-      body: JSON.stringify({ matter: matter, name: who })
+      body: JSON.stringify({ matter: matter, name: who, ticket: supportTicket })
     }).then(function (r) { return r.json(); }).then(function (j) {
+      if (j && j.need === "login") { say("LOGIN to open support."); setSupport(false); return; }
       if (j && j.ok) {
-        closeSheet();
-        say("Support " + (j.ticket || "sent") + ".");
-      } else if (j && j.need === "login") say("LOGIN to send support.");
-      else say((j && j.error) || "Support did not open.");
+        if (j.ticket) supportTicket = j.ticket;
+        var text = j.say || ("Ticket " + (j.ticket || "") + " is with the desk.");
+        say(text);
+        speakIfVoice(text);
+        return;
+      }
+      say((j && j.error) || "Support did not take it.");
     }).catch(function () { say("Support dark."); });
   }
   function haversineKm(a, b) {
@@ -1073,6 +1094,7 @@
   function talk(raw, fromVoice) {
     var q = String(raw || "").trim();
     if (!q) return;
+    if (supportOn) { sendSupport(q, fromVoice); return; }
     lastVoice = !!fromVoice;
     say("Grok…");
     hist.push({ role: "user", content: q });
@@ -1471,7 +1493,7 @@
         persistListing({ id: "g" + Date.now().toString(36), kind: "post", name: title, lat: listPt.lat, lng: listPt.lng, place: listAlt });
         closeSheet();
       }
-      if (act === "support-send") sendSupport();
+      if (act === "support-send") { var ta = $("sn-support-matter"); sendSupport(ta && ta.value, false); }
       if (act === "cv") confirmJob(id, "vendor");
       if (act === "cd") confirmJob(id, "driver");
       if (act === "cc") confirmJob(id, "client");
@@ -1542,7 +1564,7 @@
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4270 = true;
+    window.__SN_4271 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

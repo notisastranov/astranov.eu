@@ -1,8 +1,17 @@
-/** SpaceNet support gate. Sign-in required. Matter required. Owner always in. */
+/** SpaceNet support desk. Users never see the builder environment. */
 const SB = "https://lkoatrkhuigdolnjsbie.supabase.co";
-const SB_ANON = process.env.SUPABASE_ANON_KEY || process.env.SB_ANON || '';
-const PROJECT = "https://grok.com/project/ca0652ee-24d4-44d1-8a4b-65d41583532b";
+const SB_ANON = process.env.SUPABASE_ANON_KEY || process.env.SB_ANON || "";
 const lastOpen = new Map();
+const tickets = new Map();
+
+const SUPPORT_SYS =
+  "You are the Astranov SpaceNet support desk on astranov.eu. " +
+  "Speak like a calm person on the line. One to three sentences. " +
+  "You take the ticket. You can explain how the globe, orders, wallet, login, power hold, and GO/MIC work. " +
+  "You cannot edit the live app, open a repo, run tools, or hand the user a builder, agent, or project URL. " +
+  "Never mention GrokBuild, Cursor, GitHub, Vercel, Supabase project ids, or internal agents. " +
+  "If they report a break, acknowledge, give ticket tone, say the architect will take it. " +
+  "English default; Greek if they write Greek. No JSON. No markdown.";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -42,6 +51,42 @@ function readBody(req) {
   }
   return {};
 }
+function pullText(j) {
+  if (!j) return "";
+  if (j.output_text) return String(j.output_text);
+  var t = "";
+  (j.output || []).forEach(function (o) {
+    if (!o) return;
+    var c = o.content || (o.message && o.message.content);
+    if (typeof c === "string") t += c;
+    else (c || []).forEach(function (p) { t += (p && (p.text || p.output_text || "")) || ""; });
+  });
+  if (!t && j.choices && j.choices[0] && j.choices[0].message) t = j.choices[0].message.content || "";
+  return String(t || "").trim();
+}
+async function deskReply(matter, email) {
+  var key = process.env.XAI_API_KEY || process.env.GROK_API_KEY || "";
+  if (!key) return "";
+  try {
+    var r = await fetch("https://api.x.ai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + key },
+      body: JSON.stringify({
+        model: process.env.XAI_MODEL || "grok-4",
+        temperature: 0.3,
+        max_tokens: 220,
+        messages: [
+          { role: "system", content: SUPPORT_SYS },
+          { role: "user", content: "From " + email + ":\n" + matter },
+        ],
+      }),
+    });
+    var j = await r.json().catch(function () { return {}; });
+    return pullText(j).replace(/https?:\/\/\S+/g, "").slice(0, 500);
+  } catch (_) {
+    return "";
+  }
+}
 
 module.exports = async function handler(req, res) {
   cors(res);
@@ -55,7 +100,12 @@ module.exports = async function handler(req, res) {
     return;
   }
   if (req.method === "GET") {
-    res.status(200).json({ ok: true, allowed: true, email: u.email, owner: String(u.email).toLowerCase() === architect() });
+    res.status(200).json({
+      ok: true,
+      desk: true,
+      email: u.email,
+      owner: String(u.email).toLowerCase() === architect(),
+    });
     return;
   }
   if (req.method !== "POST") {
@@ -65,15 +115,15 @@ module.exports = async function handler(req, res) {
   var id = String(u.id || u.email);
   var now = Date.now();
   var prev = lastOpen.get(id) || 0;
-  if (now - prev < 120000) {
-    res.status(429).json({ ok: false, error: "Wait a minute before opening support again." });
+  if (now - prev < 4000) {
+    res.status(429).json({ ok: false, error: "Wait a moment." });
     return;
   }
   var body = readBody(req);
-  var matter = String(body.matter || body.q || "").trim().slice(0, 2000);
-  var name = String(body.name || u.user_metadata && u.user_metadata.full_name || u.email || "").trim().slice(0, 80);
+  var matter = String(body.matter || body.q || body.text || "").trim().slice(0, 2000);
+  var name = String(body.name || (u.user_metadata && u.user_metadata.full_name) || u.email || "").trim().slice(0, 80);
   if (!matter) {
-    res.status(400).json({ ok: false, error: "State the matter." });
+    res.status(400).json({ ok: false, error: "Say what you need." });
     return;
   }
   if (dirty(matter) || dirty(name)) {
@@ -81,19 +131,17 @@ module.exports = async function handler(req, res) {
     return;
   }
   lastOpen.set(id, now);
-  var ticket = "t" + now.toString(36) + Math.random().toString(36).slice(2, 6);
-  var bits = [
-    "SpaceNet SUPPORT " + ticket,
-    "name " + name,
-    "email " + String(u.email || ""),
-    "uid " + String(u.id || "").slice(0, 12),
-    "matter " + matter,
-    new Date().toISOString(),
-  ];
+  var ticket = body.ticket || ("t" + now.toString(36) + Math.random().toString(36).slice(2, 6));
+  var row = tickets.get(ticket) || { ticket: ticket, email: u.email, name: name, lines: [] };
+  row.lines.push({ at: new Date().toISOString(), from: "user", text: matter });
+  var say = await deskReply(matter, u.email);
+  if (!say) say = "Got it. Ticket " + ticket + ". Stay on this line — the desk has the note.";
+  row.lines.push({ at: new Date().toISOString(), from: "desk", text: say });
+  tickets.set(ticket, row);
   res.status(200).json({
     ok: true,
     ticket: ticket,
-    name: name,
-    url: PROJECT + "?q=" + encodeURIComponent(bits.join(" | ")),
+    say: say,
+    desk: true,
   });
 };

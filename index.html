@@ -3,7 +3,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4270"/>
+<meta name="astranov-build" content="4271"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
@@ -105,6 +105,15 @@ input#in{flex:1;min-height:44px;border:1px solid rgba(77,240,255,.35);border-rad
 .note{margin:8px 0 0;font:500 12px/1.35 system-ui;color:#8ec8d8}
 #sn-sheet input,#sn-sheet textarea{display:block;width:100%;box-sizing:border-box;margin:8px 0 0;padding:10px;border:1px solid rgba(126,233,255,.35);background:rgba(4,16,28,.9);color:#e8fbff;border-radius:10px;font:500 15px system-ui}
 #sn-sheet textarea{min-height:88px;resize:vertical}
+
+#sn-support.on{border-color:#ff5a5a;box-shadow:0 0 16px rgba(255,60,60,.7);color:#ff8a8a}
+body.sn-support #panel{box-shadow:0 0 22px rgba(255,40,40,.35)}
+body.sn-support form#f{border-color:rgba(255,70,70,.75);box-shadow:0 0 18px rgba(255,50,50,.45);background:rgba(28,4,6,.96)}
+body.sn-support input#in{border-color:rgba(255,90,90,.7);caret-color:#ff6b6b;background:#140406;color:#ffe8e8}
+body.sn-support #line{color:#ff8a8a}
+body.sn-support #go,body.sn-support #plus{border-color:#ff6b6b;color:#ff8a8a}
+#sn-desk{display:none;margin:0 4px 6px;font:800 10px system-ui;letter-spacing:.18em;color:#ff8a8a}
+body.sn-support #sn-desk{display:block}
 #sn-node{display:none}
 </style>
 </head>
@@ -115,7 +124,7 @@ input#in{flex:1;min-height:44px;border:1px solid rgba(77,240,255,.35);border-rad
 <div id="top">
   <div id="sn-topchrome-drag" class="sn-trivial-law" aria-hidden="true"></div>
   <div id="island">
-    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">SPACENET</button><span id="ver">V4270</span></div>
+    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">SPACENET</button><span id="ver">V4271</span></div>
     <div class="r2"><span id="sn-local">-</span><span id="sn-utc">-</span><span id="sn-wx"></span><span id="sn-node"></span><canvas id="sn-spark" width="120" height="28"></canvas></div>
   </div>
   <div id="sn-under">
@@ -139,9 +148,9 @@ input#in{flex:1;min-height:44px;border:1px solid rgba(77,240,255,.35);border-rad
 </button>
 <div id="sn-tasks"><div class="bg" data-act="hide"></div><div class="card"><div class="sheet-bar"><b class="sheet-ttl">JOBS</b><button type="button" class="sheet-x" data-act="hide">HIDE</button></div><div id="sn-tasks-list"></div></div></div>
 <div id="sn-sheet"><div class="bg" data-act="close"></div><div class="card" id="sn-sheet-card"></div></div>
-<div id="dock"><div id="panel"><div id="cli-drag" class="sn-trivial-law" aria-hidden="true"></div><div id="line"></div><form id="f"><div class="hub"><button type="button" id="plus">+</button></div><input id="in" autocomplete="off" enterkeyhint="send" placeholder="Talk to Astranov SpaceNet"/><div class="hub"><button type="button" id="go" aria-label="Talk or send">MIC</button></div></form></div></div>
+<div id="dock"><div id="panel"><div id="cli-drag" class="sn-trivial-law" aria-hidden="true"></div><div id="sn-desk">SUPPORT</div><div id="line"></div><form id="f"><div class="hub"><button type="button" id="plus">+</button></div><input id="in" autocomplete="off" enterkeyhint="send" placeholder="Talk to Astranov SpaceNet"/><div class="hub"><button type="button" id="go" aria-label="Talk or send">MIC</button></div></form></div></div>
 <input id="sn-file" type="file" accept="image/*,application/pdf,text/*" hidden/>
 <script src="/js/vendor/leaflet.js?v=4127"></script>
-<script src="/js/spacenet/app.js?v=4270"></script>
-<script src="/js/spacenet/auth.js?v=4270"></script>
+<script src="/js/spacenet/app.js?v=4271"></script>
+<script src="/js/spacenet/auth.js?v=4271"></script>
 </body></html>
