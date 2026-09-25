@@ -3,7 +3,7 @@
 **What this file is:** the only instruction document. Paste this first. Then the live shell. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
 **Date:** 2026-09-25
-**Stamp:** 4279 (Dark land. Zoom stops at solar, global, national, city.)
+**Stamp:** 4280 (Zoom aims at the point under the fingers. Never GPS.)
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
@@ -31,7 +31,7 @@ No two chrome pieces share pixels. `layoutChrome` measures and pushes. Never par
 
 Globe coasts are Natural Earth 50m on the same sphere. Land is dark blue, only just lighter than the ocean. Not neon.
 
-Zoom stops, one step at a time, and never skips. Solar system, then Global, then National, then City. Zoom out reverses that. City is the street map. National is the enlarged globe. Zooming out of City lands on National, not straight on Global. Zooming out of Global lands on the solar system.
+Zoom stops, one step at a time, and never skips. Solar system, then Global, then National, then City. Zoom out reverses that. City is the street map. National is the enlarged globe. Zooming out of City lands on National, not straight on Global. Zooming out of Global lands on the solar system. The place is the point under the wheel or the pinch, including open ocean. Never GPS. Never Rhodes. A late GPS fix must not steal the zoom. The GPS button is the only thing that goes to the user.
 
 ### Power
 
