@@ -14,83 +14,76 @@ If rebuild law changes, **edit this file**. Chat is not the archive. Latest bloc
 
 ---
 
-## Latest (2026-09-25 — overrides older chrome notes)
+## Current law (2026-09-25 19:11 — this block wins)
 
-Full rebuild after patch piles. One entity: `index.html` + `js/spacenet/app.js` + `js/spacenet/auth.js`. No overlay scripts. No power menu. No stretched wallet. No “SUPPORT” word on the chip.
+One entity only: `index.html` + `js/spacenet/app.js` + `js/spacenet/auth.js`. No overlay scripts. No second chrome. Do not stack another same-day block on top of this one. Edit this block.
 
-### Power `#sn-power`
+Void. These same-day notes are **not** law anymore: life-ring chip, support mode on `#in`, red dock, money top-right, money under the monitor, support sitting on the input, empty support sheet.
 
-The power button is a power button. It does **not** open another menu. Ever.
+### Place
 
-- Hold **3 seconds** (countdown 3-2-1) → **offers on**. The application may pop job / nearby-work offers.
-- Hold **3 seconds** again → **offers off**. Pop-ups stop.
-- A tap that is shorter than 3 seconds does nothing except say “Hold 3 seconds.”
-- Reload, terms, withdraw, apply-role do **not** live on power.
+No two chrome pieces share pixels. `layoutChrome` measures and pushes. Never park a control on `#sn-spark` or inside the island.
 
-### YOU `#sn-me`
+- `#sn-power` top-left, under the island. SVG power mark.
+- `#sn-money` top-middle, under the island. Width fits the amount. Do not stretch it.
+- `#sn-support` top-right, under the island. Headphone mark 🎧. No word on the chip.
+- `#sn-me` bottom-left. `#gps` bottom-right. Dock stays the bottom field.
 
-Roles activate from the user-account icon. Out: LOGIN / Google. In: YOU sheet — Terms + apply vendor / driver / agent / ambassador. Notis activates. Phone field is not login.
+### Power
 
-### Dock
+A power button. It does **not** open a menu.
 
-`#plus` uploads to Grok. `#in` is a black plate so type is readable on the live map. `#go` on the right:
+- Hold 3 seconds (countdown 3-2-1) → offers on.
+- Hold 3 seconds again → offers off. Pop-ups stop.
+- A shorter press only says “Hold 3 seconds.”
+- Reload, terms, withdraw, and roles are not on power.
 
-- Text in the field → send that text to Grok (`/api/ai`).
-- Empty field → one-shot voice. The real assistant. It talks, it hunts, it can `act:evolve` known rule keys. Treat it like support. No keyword router in front of it.
-- Voice is one-shot. No continuous restart. No beep loop. Speak the answer only if they used the mic.
+### Offers
 
-### Support `#sn-support`
+They throw from the bottom. Cap **28vh** so the map keeps the rest of the screen.
 
-Icon only (🛟). No word “SUPPORT”.
+- The sheet **pushes** `#dock`, `#gps`, and `#sn-me` up. It does not cover them.
+- `fitOfferRoute` zooms so the **whole** vendor–drop route is visible in the map that remains — not under the sheet, not under the island.
+- Several offer chips may sit minimized. A fill on the chip maximizes or minimizes.
 
-### Money `#sn-money`
+### Support
 
-Chip width fits the amount. Do not stretch it across the stand.
+🎧 opens **its own menu** under that button. Textarea + MIC + SEND. It does not take over `#in`.
 
-- Guest: no personal balance (label `AV€` only).
-- Signed user: **that user’s** AV€ only.
-- Pool / treasury / platform cut: **owner `notisastranov@gmail.com` only**. Never paint the pool as someone else’s wallet.
-- Users put money on the app with PayPal (`ADD 10` / `ADD 50` → `/api/paypal/create-order` · capture credits that account 1:1).
+- The desk is `/api/support/open`. Guests may write. A signed user is attached when a token exists.
+- The reply stays on `#line`. The Earth-scan ticker must not eat it.
+- The phone never receives a project URL, agent id, repo, or builder chrome. The ticket may sit in the background for the builder.
 
-### Vendor menu
+### Dock and Grok
 
-Right-click or tap / long-press lists a vendor. Easy menu: photo + each product’s name, price, note. Users check out on that same menu and assign the order to a delivery driver (`drv-notis` is the live approved driver).
+`#plus` uploads. `#in` is a black plate so type is readable on the map. `#go` on the right:
 
+- Text → send to Grok (`/api/ai`).
+- Empty → one-shot voice. Real assistant. It can `act:evolve` known rule keys only. Never `eval`.
+- No keyword router. No continuous mic restart. Speak only if they used the mic.
 
-### Support desk (2026-09-25 evening — overrides the SUPPORT word note)
+### Money
 
-`#sn-support` is the 🛟 chip. Tap opens **support mode on the same dock input**, not a second workshop.
+AV€ = euro 1:1.
 
-- Label `SUPPORT` over `#in`. The field and GO/MIC glow red.
-- Type or tap MIC. One control does both: empty = voice, text = send.
-- The line talks to the support desk API (`/api/support/open`). A constrained Grok answers on that line.
-- Background may queue the ticket for the builder. The browser never receives a project URL, agent id, repo, or GrokBuild chrome.
-- Tap 🛟 again to leave support mode and restore the normal cyan field.
-- LOGIN required. Guests get LOGIN, not the desk.
+- Guest: label `AV€` only. No number. No pool.
+- Signed user: that user’s balance only.
+- Pool and platform cut: `notisastranov@gmail.com` only.
+- ADD 10 / ADD 50 opens PayPal (`/api/paypal/create-order`). Capture credits that account 1:1.
 
+### YOU and vendors
 
-### Dock tabs (2026-09-25 night)
+Roles (vendor, driver, agent, ambassador) live on the account icon after Terms. Notis activates. Phone field is not login.
 
-- `#sn-money` lives **top-right**, width fits the amount. Not on the power stand.
-- `#sn-support` is 🎧, centered **on top of the input field** it triggers.
-- Offers throw from the bottom as overlays. Support and each offer are tabs on `#sn-tabs` above the field.
-- Fill button on the tab = maximize / minimize. Several tabs can stay open. Minimized is a small lit chip, not gone.
-- Feedback on the support line still goes to the desk / builder in the background. No workshop chrome on the phone.
+Vendor list: right-click, tap, or long-press. Easy menu: photo plus each product’s name, price, note. The same menu is the user checkout. Assign the order to a delivery driver. `drv-notis` is the live approved driver.
 
+### How to change this app
 
-Support field is the real dock `#in` in support mode. No empty overlay. Desk API answers without login. Money sits under the island, top-right — never on `#sn-spark`.
-
-### Chrome place law (2026-09-25 19:08)
-
-No two chrome pieces share pixels. `layoutChrome` pushes. Bottom offer/job sheets cap at 28vh, set `--sheet-h`, and **push** `#dock` `#gps` `#sn-me` up. Map keeps the rest. `fitOfferRoute` pads the Leaflet view so the whole offer route sits in the visible map — not under the sheet, not under the island.
-
-- `#sn-money` top **middle**, under the island, never on `#sn-spark`.
-- `#sn-support` 🎧 top **right**, opens **its own menu** (textarea + MIC + SEND). Does not steal the main field.
-- Offers throw from the bottom overlay only.
+Do the work inside the three live files. Verify on https://astranov.eu in a real browser. Say what was proven and what was not. Do not ship a patch file. Do not add a fifth “latest” section.
 
 ### Ship
 
-Owner asked for verify-then-ship on this rebuild. Still: no dummy shops, no HUD, no twin CLI, no overlay scripts. Guest boot stays zero Supabase.
+No dummy shops. No HUD. No twin CLI. No overlay scripts. Guest boot stays zero Supabase.
 
 
 ## Method (2026-09-09 — overrides all older work notes)
@@ -188,14 +181,14 @@ Grok preview (`src/spacenet/*`) is the same chrome and laws.
 - Canvas globe `#g` full viewport — sphere math, continent fill + outlines, labels, trackball, inertia. Idle sits still. Pitch follows the finger.
 - Brand island: `ASTRANOV SPACENET` + stamp. Tap = reboot.
 - `JOBS` `#sn-tasks-btn` **centered under the island**. Posted jobs only. Never TASKS.
-- `AV€` `#sn-money` always visible, width fits the amount. Guest sees the label only. Signed user sees own AV€. Pool only for owner.
+- `AV€` `#sn-money` top-middle under the island. See Current law. Width fits the amount. Guest label only. Pool owner only.
 - `LOGIN` `#sn-me` bottom-left. Out: LOGIN / IN. In: YOU / photo or first **letter**. Never two-char email slices. Never digits.
 - `GPS` `#gps` bottom-right. Precise, then coarse, then tap-to-set.
 - Dock: `#plus` upload · `#in` black plate · `#go` MIC if empty, GO if text.
 - `⏻` `#sn-power` SVG. Hold 3s offers on. Hold 3s offers off. No menu.
 - `#line` status. No auto-talk. No TTS unless they used the mic and asked.
 
-Required IDs: `g, city, island, ver, heal, sn-money, sn-tasks-btn, sn-me, gps, plus, in, go, line, panel, dock, f, sn-power`
+Required IDs: `g, city, island, ver, sn-money, sn-tasks-btn, sn-me, gps, plus, in, go, line, panel, dock, f, sn-power, sn-support, sn-support-sheet`
 
 Forbidden: TASKS, CART, VENDORS pill, END CALL, twin CLI, HUD, LAYER flood, MAIL/PICK UP chips, FOOD/BEER/CITY chips, HOLD dummy hunts, overlay scripts.
 
@@ -238,7 +231,7 @@ Fees: engine judges night / rain / heavy. Client only opts into **VIP +3** and *
 
 Send = pending. **Vendor + driver + client must all confirm.** Until then there is no job. Then fit the map to vendor, driver, drop.
 
-Sheets default **33vh**, bottom-up. One finger: pull up = full (88vh), pull down = close. Scroll inside. When inner scroll hits the end, the sheet itself moves. Same physics on JOBS.
+Offer sheets cap **28vh** and push the dock (Current law). Older 33vh note is void. One finger: pull up = full (88vh), pull down = close. Scroll inside. When inner scroll hits the end, the sheet itself moves. Same physics on JOBS.
 
 ### Node / mesh (4246)
 
