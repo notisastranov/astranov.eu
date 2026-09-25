@@ -3,7 +3,7 @@
 **What this file is:** the only instruction document. Paste this first. Then the live shell. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
 **Date:** 2026-09-25
-**Stamp:** 4273 (Money under island. Support desk live, guests included.)
+**Stamp:** 4275 (Money top-middle. Support own menu top-right. No overlap. Offer route fit.)
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
@@ -79,6 +79,15 @@ Right-click or tap / long-press lists a vendor. Easy menu: photo + each product�
 
 
 Support field is the real dock `#in` in support mode. No empty overlay. Desk API answers without login. Money sits under the island, top-right — never on `#sn-spark`.
+
+### Chrome place law (2026-09-25 19:08)
+
+No two chrome pieces share pixels. `layoutChrome` pushes. Bottom offer/job sheets cap at 28vh, set `--sheet-h`, and **push** `#dock` `#gps` `#sn-me` up. Map keeps the rest. `fitOfferRoute` pads the Leaflet view so the whole offer route sits in the visible map — not under the sheet, not under the island.
+
+- `#sn-money` top **middle**, under the island, never on `#sn-spark`.
+- `#sn-support` 🎧 top **right**, opens **its own menu** (textarea + MIC + SEND). Does not steal the main field.
+- Offers throw from the bottom overlay only.
+
 ### Ship
 
 Owner asked for verify-then-ship on this rebuild. Still: no dummy shops, no HUD, no twin CLI, no overlay scripts. Guest boot stays zero Supabase.

@@ -1,7 +1,7 @@
-/* SpaceNet 4274 — money under island. Support line not eaten by ticker. */
+/* SpaceNet 4275 — money center, support own menu, no overlap, route fit. */
 (function () {
   "use strict";
-  var VER = "4274";
+  var VER = "4275";
   var INTRO_MS = 13000;
   var LAND = [
     [[37, -6], [37, 11], [32, 25], [31, 34], [22, 37], [12, 51], [0, 42], [-5, 39], [-15, 40], [-25, 35], [-34, 25], [-34, 18], [-28, 16], [-22, 14], [-17, 11], [5, 9], [4, -8], [12, -16], [16, -16], [21, -17], [28, -13], [36, -6], [37, -6]],
@@ -718,25 +718,48 @@
 
   function setSupport(on) {
     supportOn = !!on;
-    document.body.classList.toggle("sn-support", supportOn);
     var btn = $("sn-support");
     if (btn) btn.classList.toggle("on", supportOn);
-    var inp = $("in");
-    if (inp) inp.placeholder = supportOn ? "Support · type or tap MIC" : "Talk to Astranov SpaceNet";
-    if (supportOn) {
-      intro = false;
-      upsertTab({ id: "support", kind: "support", title: "SUPPORT", html: "", min: false });
-      say("SUPPORT desk. Type or tap MIC. This line does not open the workshop.");
-      if (inp) inp.focus();
-    } else {
-      dockTabs.forEach(function (t) { if (t.id === "support") t.min = true; });
-      paintDockTabs();
-      say("Desk minimized.");
+    var desk = $("sn-support-sheet");
+    if (!desk) return;
+    if (!supportOn) {
+      desk.classList.remove("on");
+      desk.innerHTML = "";
+      layoutChrome();
+      say("Desk closed.");
+      return;
     }
+    intro = false;
+    desk.innerHTML =
+      '<div class="sheet-bar"><b class="sheet-ttl">SUPPORT</b><button type="button" class="sheet-x" data-act="support-close">HIDE</button></div>' +
+      '<p class="note">Talk or type. This menu is the desk — not the workshop.</p>' +
+      '<textarea id="sn-support-matter" placeholder="What broke / what you need"></textarea>' +
+      '<button type="button" class="sheet-go" data-act="support-mic">MIC</button>' +
+      '<button type="button" class="sheet-go primary" data-act="support-send">SEND</button>';
+    desk.classList.add("on");
+    layoutChrome();
+    var ta = $("sn-support-matter");
+    if (ta) ta.focus();
+    say("Support menu open.");
   }
   function openSupport() {
     if (supportOn) { setSupport(false); return; }
     setSupport(true);
+  }
+  function listenSupport() {
+    if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) { say("Type in the support menu."); return; }
+    var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    var rec = new Rec();
+    rec.lang = "en-GB";
+    rec.interimResults = false;
+    rec.continuous = false;
+    rec.onresult = function (ev) {
+      var t = ev.results[0][0].transcript;
+      var ta = $("sn-support-matter");
+      if (ta) ta.value = t;
+      sendSupport(t, true);
+    };
+    try { rec.start(); say("Support listening…"); } catch (e) { say("Mic busy."); }
   }
   function sendSupport(matter, fromVoice) {
     matter = String(matter || "").trim();
@@ -827,6 +850,44 @@
       src: row.src || "osm"
     };
   }
+  function liftChrome() {
+    var h = 0;
+    ["sn-sheet", "sn-tasks"].forEach(function (id) {
+      var el = $(id);
+      if (!el || !el.classList.contains("on") || el.classList.contains("min")) return;
+      var card = el.querySelector(".card");
+      var r = visRect(card);
+      if (r) h = Math.max(h, r.height);
+    });
+    document.documentElement.style.setProperty("--sheet-h", h + "px");
+    layoutChrome();
+    if (map && typeof map.invalidateSize === "function") {
+      try { map.invalidateSize(); } catch (e) {}
+    }
+    if (routeLayer && map) fitOfferRoute();
+  }
+  function fitOfferRoute() {
+    if (!map || !routeLayer) return;
+    var top = 80, bot = 80, side = 24;
+    var isle = visRect($("island"));
+    var dock = visRect($("panel"));
+    var sheet = visRect($("sn-sheet-card"));
+    var tasks = $("sn-tasks") && $("sn-tasks").classList.contains("on") ? visRect($("sn-tasks").querySelector(".card")) : null;
+    if (isle) top = Math.max(top, Math.round(isle.bottom + 12));
+    var bottomBlock = 12;
+    if (dock) bottomBlock = Math.max(bottomBlock, window.innerHeight - dock.top + 12);
+    if (sheet) bottomBlock = Math.max(bottomBlock, window.innerHeight - sheet.top + 12);
+    if (tasks) bottomBlock = Math.max(bottomBlock, window.innerHeight - tasks.top + 12);
+    bot = Math.max(80, bottomBlock);
+    try {
+      map.fitBounds(routeLayer.getBounds(), {
+        paddingTopLeft: [side, top],
+        paddingBottomRight: [side, bot],
+        maxZoom: 16,
+        animate: false
+      });
+    } catch (e) {}
+  }
   function openSheet(title, html) {
     var sh = $("sn-sheet"), card = $("sn-sheet-card");
     if (!sh || !card) return;
@@ -835,8 +896,9 @@
     card.querySelector("#sn-sheet-body").innerHTML = html;
     sh.classList.add("on");
     materialize(true);
+    liftChrome();
   }
-  function closeSheet() { var sh = $("sn-sheet"); if (sh) sh.classList.remove("on"); materialize(needFilter()); }
+  function closeSheet() { var sh = $("sn-sheet"); if (sh) sh.classList.remove("on"); materialize(needFilter()); liftChrome(); }
   function paintShopsOnMap() {
     if (!map || typeof L === "undefined") return;
     shopMarks.forEach(function (m) { try { map.removeLayer(m); } catch (e) {} });
@@ -1006,7 +1068,7 @@
       if (geo && geo.coordinates) latlngs = geo.coordinates.map(function (c) { return [c[1], c[0]]; });
       else latlngs = [[from.lat, from.lng], [to.lat, to.lng]];
       routeLayer = L.polyline(latlngs, { color: "#4df0ff", weight: 4, opacity: 0.85 }).addTo(map);
-      try { map.fitBounds(routeLayer.getBounds(), { padding: [40, 40] }); } catch (e) {}
+      fitOfferRoute();
     });
   }
   function sendJob() {
@@ -1164,7 +1226,6 @@
   function talk(raw, fromVoice) {
     var q = String(raw || "").trim();
     if (!q) return;
-    if (supportOn) { sendSupport(q, fromVoice); return; }
     lastVoice = !!fromVoice;
     say("Grok…");
     hist.push({ role: "user", content: q });
@@ -1301,15 +1362,56 @@
       el.style.setProperty("right", "auto", "important");
       el.style.setProperty("bottom", "auto", "important");
     }
+    var extra = ["sn-sheet-card", "sn-support-sheet", "sn-power", "sn-money", "sn-support"];
+    extra.forEach(function (id) {
+      var el = $(id);
+      if (!el) return;
+      if (id === "sn-sheet-card" && !($("sn-sheet") && $("sn-sheet").classList.contains("on"))) return;
+      if (id === "sn-support-sheet" && !el.classList.contains("on")) return;
+      var r = visRect(el);
+      if (r) blockers.push(r);
+    });
     place($("sn-me"), "bl");
     place($("gps"), "br");
-    var money = $("sn-money");
     var isle = visRect($("island"));
-    if (money && isle) {
-      money.style.setProperty("top", Math.round(isle.bottom + 8) + "px", "important");
-      money.style.setProperty("right", "10px", "important");
-      money.style.setProperty("left", "auto", "important");
+    var money = $("sn-money");
+    var sup = $("sn-support");
+    var y0 = isle ? isle.bottom + 8 : 10;
+    if (money) {
+      var mw = Math.max(40, money.offsetWidth || 48);
+      var mh = Math.max(32, money.offsetHeight || 40);
+      var mx = Math.round((W - mw) / 2);
+      money.style.setProperty("top", Math.round(y0) + "px", "important");
+      money.style.setProperty("left", mx + "px", "important");
+      money.style.setProperty("right", "auto", "important");
       money.style.setProperty("bottom", "auto", "important");
+      money.style.setProperty("transform", "none", "important");
+    }
+    if (sup) {
+      var sw = Math.max(36, sup.offsetWidth || 40);
+      var sh = Math.max(36, sup.offsetHeight || 40);
+      var sx = W - sw - pad;
+      var sy = y0;
+      if (money) {
+        var mr = money.getBoundingClientRect();
+        var hit = mr.left < sx + sw + 8 && mr.right > sx - 8 && mr.top < sy + sh + 8 && mr.bottom > sy - 8;
+        if (hit) sx = Math.max(pad, Math.round(mr.left) - sw - 8);
+        if (sx < pad) { sx = W - sw - pad; sy = Math.round(mr.bottom) + 8; }
+      }
+      sup.style.setProperty("top", Math.round(sy) + "px", "important");
+      sup.style.setProperty("left", Math.round(sx) + "px", "important");
+      sup.style.setProperty("right", "auto", "important");
+      sup.style.setProperty("bottom", "auto", "important");
+    }
+    var desk = $("sn-support-sheet");
+    if (desk && desk.classList.contains("on") && sup) {
+      var br = sup.getBoundingClientRect();
+      var dw = Math.min(360, W - 16);
+      var dx = Math.min(W - dw - pad, Math.max(pad, br.right - dw));
+      var dy = br.bottom + 8;
+      desk.style.left = dx + "px";
+      desk.style.top = dy + "px";
+      desk.style.right = "auto";
     }
   }
   var layoutKey = "";
@@ -1591,6 +1693,8 @@
         closeSheet();
       }
       if (act === "support-send") { var ta = $("sn-support-matter"); sendSupport(ta && ta.value, false); }
+      if (act === "support-mic") listenSupport();
+      if (act === "support-close") setSupport(false);
       if (act === "cv") confirmJob(id, "vendor");
       if (act === "cd") confirmJob(id, "driver");
       if (act === "cc") confirmJob(id, "client");
@@ -1661,7 +1765,7 @@
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4274 = true;
+    window.__SN_4275 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
