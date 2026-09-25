@@ -3,7 +3,7 @@
 **What this file is:** the only instruction document. Paste this first. Then the live shell. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
 **Date:** 2026-09-25
-**Stamp:** 4275 (Money top-middle. Support own menu top-right. No overlap. Offer route fit.)
+**Stamp:** 4276 (Deposit is the amount they type. No 10/50 presets.)
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
@@ -69,7 +69,7 @@ AV€ = euro 1:1.
 - Guest: label `AV€` only. No number. No pool.
 - Signed user: that user’s balance only.
 - Pool and platform cut: `notisastranov@gmail.com` only.
-- ADD 10 / ADD 50 opens PayPal (`/api/paypal/create-order`). Capture credits that account 1:1.
+- The wallet asks how many euro. No preset 10 or 50. That number opens PayPal (`/api/paypal/create-order`). Capture credits that account 1:1.
 
 ### YOU and vendors
 

@@ -1,7 +1,7 @@
-/* SpaceNet 4275 — money center, support own menu, no overlap, route fit. */
+/* SpaceNet 4276 — deposit is the amount the user types. */
 (function () {
   "use strict";
-  var VER = "4275";
+  var VER = "4276";
   var INTRO_MS = 13000;
   var LAND = [
     [[37, -6], [37, 11], [32, 25], [31, 34], [22, 37], [12, 51], [0, 42], [-5, 39], [-15, 40], [-25, 35], [-34, 25], [-34, 18], [-28, 16], [-22, 14], [-17, 11], [5, 9], [4, -8], [12, -16], [16, -16], [21, -17], [28, -13], [36, -6], [37, -6]],
@@ -1207,7 +1207,7 @@
     if (j && j.evolve && typeof j.evolve === "object" && window.SN && SN.evolve) SN.evolve(j.evolve);
     if (act === "locate" && $("gps")) { $("gps").click(); return; }
     if (act === "jobs") { openJobs(); return; }
-    if (act === "reload" || act === "pay") { addFunds(10); return; }
+    if (act === "reload") { openDeposit(); return; }
     if (act === "hunt" || act === "city" || act === "shop" || act === "now" || act === "pick") {
       if (j.places && j.places.length) {
         shops = uniqPlaces(j.places.map(function (p) {
@@ -1490,8 +1490,8 @@
         }
         var html = '<p class="note">' + Math.round(avcGet()).toLocaleString("en-GB") + " AV€ on this account.</p>";
         if (ownerMail()) html += '<p class="note">Pool ' + Math.round(poolGet()).toLocaleString("en-GB") + " AV€ · owner only.</p>";
-        html += '<button type="button" class="sheet-go primary" data-act="add-10">ADD 10 € PAYPAL</button>' +
-          '<button type="button" class="sheet-go" data-act="add-50">ADD 50 € PAYPAL</button>' +
+        html += '<input id="sn-add-eur" inputmode="decimal" placeholder="How many euro" />' +
+          '<button type="button" class="sheet-go primary" data-act="add-eur">ADD WITH PAYPAL</button>' +
           '<button type="button" class="sheet-go" data-act="withdraw">WITHDRAW</button>';
         openSheet("AV€", html);
       });
@@ -1611,8 +1611,12 @@
       if (act === "floor") { quoteOpts.floor = !quoteOpts.floor; showQuote(); }
       if (act === "send") sendJob();
       if (act === "needlogin") { if (window.SNAuth && SNAuth.google) SNAuth.google(); else say("LOGIN to order."); }
-      if (act === "add-10") addFunds(10);
-      if (act === "add-50") addFunds(50);
+      if (act === "add-eur") {
+        var eurEl = $("sn-add-eur");
+        var n = Number(String(eurEl && eurEl.value || "").replace(",", ".").trim());
+        if (!isFinite(n) || n < 1) { say("Type how many euro."); return; }
+        addFunds(Math.round(n * 100) / 100);
+      }
       if (act === "assign-drv") {
         if (!signed()) { say("LOGIN to assign a driver."); return; }
         if (!vendor) { say("Open a shop first."); return; }
@@ -1705,13 +1709,18 @@
     setInterval(paintIsland, 1000);
     say("Earth scan · 13s · then we zoom to you.");
   }
+  function openDeposit() {
+    var money = $("sn-money");
+    if (money) money.click();
+  }
   function addFunds(eur) {
     if (!signed()) {
       say("LOGIN to put money on the account.");
       if (window.SNAuth && SNAuth.google) SNAuth.google();
       return;
     }
-    eur = Number(eur) || 10;
+    eur = Math.round(Number(eur) * 100) / 100;
+    if (!isFinite(eur) || eur < 1) { say("Type how many euro."); openDeposit(); return; }
     say("Opening PayPal for " + eur + " €…");
     fetch("/api/paypal/create-order", {
       method: "POST",
@@ -1765,7 +1774,7 @@
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4275 = true;
+    window.__SN_4276 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
