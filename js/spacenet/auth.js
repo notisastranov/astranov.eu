@@ -228,7 +228,18 @@
         if (act === "role") {
           var role = b.getAttribute("data-role") || "";
           try { localStorage.setItem("sn:role-apply", role); } catch (e) {}
-          talk("Applied " + role + ". Waiting on Notis.");
+          var u = user();
+          if (window.SN && SN.askAdmin) {
+            SN.askAdmin({
+              id: "role-" + role + "-" + ((u && u.email) || "guest"),
+              kind: "role",
+              role: role,
+              title: role.toUpperCase(),
+              who: (u && u.email) || "",
+              note: ((u && (u.name || u.email)) || "Someone") + " applied as " + role + "."
+            });
+          }
+          talk("Applied " + role + ". Waiting on the administrator.");
           return;
         }
       });

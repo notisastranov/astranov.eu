@@ -3,7 +3,7 @@
 **What this file is:** the only instruction document. Paste this first. Then the live shell. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
 **Date:** 2026-09-25
-**Stamp:** 4285 (Real sky for any latitude. Planets on the real clock.)
+**Stamp:** 4292. Top line is V and the loaded number, then LATEST. Example: ASTRANOV SPACENET V4292 LATEST 4293 UPDATE NOW. No word NOW in front of the loaded number. If loaded is older, clear cache and hard-reload. UPDATE NOW forces it again. Never wipe the wallet to update.
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
@@ -19,6 +19,10 @@ If rebuild law changes, **edit this file**. Chat is not the archive. Latest bloc
 One entity only: `index.html` + `js/spacenet/app.js` + `js/spacenet/auth.js`. No overlay scripts. No second chrome. Do not stack another same-day block on top of this one. Edit this block.
 
 Void. These same-day notes are **not** law anymore: life-ring chip, support mode on `#in`, red dock, money top-right, money under the monitor, support sitting on the input, empty support sheet.
+
+### Version
+
+The top states the loaded stamp as `V` plus the number, then `LATEST` and the newest number. Example: `ASTRANOV SPACENET V4292 LATEST 4293 UPDATE NOW`. Do not write NOW in front of the loaded number. On start, if the loaded number is older, clear caches and service workers and hard-reload. Do not clear the wallet, listings, jobs, or the approval queue. If the reload fails, both numbers stay. `UPDATE NOW` forces that update again.
 
 ### Place
 
