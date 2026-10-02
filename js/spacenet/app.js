@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4292";
+  var VER = "4293";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -93,6 +93,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var listAlt = "street";
   var placePhoto = "";
   var fileForPlace = false;
+  var fileForPost = false;
+  var postDraft = { text: "", name: "", url: "" };
   function daysSinceJ2000() { return Date.now() / 86400000 + 2440587.5 - 2451545.0; }
   function earthSpin() { return (Date.now() / 1000) * SIDEREAL_OMEGA; }
   function solarLngDeg() {
@@ -925,33 +927,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
     listPt = { lat: pt.lat, lng: pt.lng };
     listAlt = altitudeFromDist(cam.dist);
-    if (needTerms()) return;
+    var html = '<p class="note">This spot. Pick one.</p>' +
+      '<button type="button" class="sheet-go primary" data-act="form-vendor">List a vendor</button>' +
+      '<button type="button" class="sheet-go" data-act="form-drop">List my delivery address</button>' +
+      '<button type="button" class="sheet-go" data-act="form-driver">List a driver base</button>' +
+      '<button type="button" class="sheet-go" data-act="form-post">Post here</button>';
     if (isAdmin()) {
-      openSheet("ADMIN",
-        '<p class="note">Long tap. Administrator only. Everyone else keeps their own role.</p>' +
-        '<button type="button" class="sheet-go primary" data-act="list-kinds">List a vendor and menu</button>' +
-        '<button type="button" class="sheet-go" data-act="list-drop">List the client home</button>' +
-        '<button type="button" class="sheet-go" data-act="admin-gps">Move me here</button>' +
-        '<button type="button" class="sheet-go" data-act="move-board">Move a vendor, client, or driver here</button>' +
-        '<button type="button" class="sheet-go" data-act="test-maria">Maria → home · my motorbike</button>', true);
-      say("List, or move anyone onto this long tap.");
-      return;
+      html += '<button type="button" class="sheet-go" data-act="run-offer">Send the offer · closest free driver</button>' +
+        '<button type="button" class="sheet-go" data-act="admin-gps">Move me here</button>';
     }
-    var role = myRole();
-    if (!role) { pickRole(); return; }
-    if (role === "vendor") {
-      openSheet("VENDOR",
-        '<p class="note">Submit the shop. It stays off the map until an administrator approves it. Your own GPS has to be at this door.</p>' +
-        '<button type="button" class="sheet-go primary" data-act="list-kinds">Submit my shop</button>', true);
-      return;
-    }
-    if (role === "client") {
-      openSheet("CLIENT",
-        '<p class="note">This can be your delivery location only if your own GPS is here.</p>' +
-        '<button type="button" class="sheet-go primary" data-act="list-drop">This is my delivery location</button>', true);
-      return;
-    }
-    say("Drivers are on the live GPS only. A long tap does not move you.");
+    openSheet("HERE", html, true);
   }
   function persistListing(row) {
     if (!row) return;
@@ -1461,15 +1446,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     };
   }
   function liftChrome() {
-    var h = 0;
-    ["sn-sheet", "sn-tasks"].forEach(function (id) {
-      var el = $(id);
-      if (!el || !el.classList.contains("on") || el.classList.contains("min")) return;
-      var card = el.querySelector(".card");
-      var r = visRect(card);
-      if (r) h = Math.max(h, r.height);
-    });
-    document.documentElement.style.setProperty("--sheet-h", h + "px");
+    document.documentElement.style.setProperty("--sheet-h", "0px");
+    var top = $("top"), dock = $("dock");
+    if (top) {
+      top.style.setProperty("top", "0px", "important");
+      top.style.setProperty("transform", "none", "important");
+    }
+    if (dock) {
+      dock.style.setProperty("bottom", "0px", "important");
+      dock.style.setProperty("top", "auto", "important");
+      dock.style.setProperty("transform", "none", "important");
+    }
     layoutChrome();
     if (map && typeof map.invalidateSize === "function") {
       try { map.invalidateSize(); } catch (e) {}
@@ -1576,7 +1563,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function moveDriver(pt) {
     if (!isAdmin() || !pt) return;
-    driverPin = { lat: pt.lat, lng: pt.lng, name: "motorbike" };
+    driverPin = { lat: pt.lat, lng: pt.lng, name: pt.name || "motorbike" };
     try { localStorage.setItem("sn:driver", JSON.stringify(driverPin)); } catch (e) {}
     paintShopsOnMap();
     say("Driver moved.");
@@ -1989,7 +1976,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function testMaria() {
     if (!isAdmin()) { say("That run is the administrator only."); return; }
-    if (needTerms()) return;
     absorbMine();
     var maria = findMaria();
     if (!homeDrop) {
@@ -2586,6 +2572,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var f = file.files && file.files[0];
         file.value = "";
         if (!f) return;
+        if (fileForPost) {
+          fileForPost = false;
+          postDraft.name = f.name || "photo";
+          try { if (postDraft.url) URL.revokeObjectURL(postDraft.url); } catch (e) {}
+          try { postDraft.url = URL.createObjectURL(f); } catch (e) { postDraft.url = ""; }
+          var got = $("sn-post-got");
+          if (got) got.textContent = postDraft.name + " is in.";
+          say(postDraft.name + " is in. Then say where it goes.");
+          return;
+        }
         if (fileForPlace || $("sn-place-name")) {
           fileForPlace = false;
           if (/\.csv$/i.test(f.name) || /csv|text\/plain|spreadsheet|excel/i.test(f.type)) readMenuFile(f);
@@ -2724,6 +2720,144 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (!item) { say("No product."); return; }
         say((item.name || "item") + " in the order. Set drop, then send.");
       }
+      if (act === "form-vendor") {
+        openSheet("VENDOR",
+          '<input id="sn-place-name" placeholder="Vendor name" />' +
+          '<input id="sn-place-phone" placeholder="Phone" />' +
+          '<textarea id="sn-place-menu" placeholder="Menu — one line each: Name | price"></textarea>' +
+          '<button type="button" class="sheet-go" data-act="pick-photo">PHOTO</button>' +
+          '<button type="button" class="sheet-go primary" data-act="save-place" data-k="shop">LIST VENDOR</button>', true);
+      }
+      if (act === "form-drop") {
+        openSheet("DELIVERY",
+          '<input id="sn-drop-name" placeholder="Your name" />' +
+          '<input id="sn-drop-phone" placeholder="Phone" />' +
+          '<input id="sn-drop-street" placeholder="Street" />' +
+          '<input id="sn-drop-number" placeholder="Number" />' +
+          '<input id="sn-drop-floor" placeholder="Floor" />' +
+          '<button type="button" class="sheet-go primary" data-act="save-drop">LIST DELIVERY ADDRESS</button>', true);
+      }
+      if (act === "form-driver") {
+        openSheet("DRIVER",
+          '<input id="sn-drv-name" placeholder="Driver name" />' +
+          '<input id="sn-drv-phone" placeholder="Phone" />' +
+          '<button type="button" class="sheet-go primary" data-act="save-driver">LIST DRIVER BASE</button>', true);
+      }
+      if (act === "form-post") {
+        openSheet("POST",
+          '<button type="button" class="sheet-go primary" data-act="post-cam">CAMERA · PHOTO OR VIDEO</button>' +
+          '<textarea id="sn-post-text" placeholder="Write it, or a selfie note"></textarea>' +
+          '<p class="note" id="sn-post-got">Nothing in yet.</p>' +
+          '<button type="button" class="sheet-go" data-act="post-next">NEXT · WHERE</button>', true);
+      }
+      if (act === "post-cam") {
+        fileForPost = true;
+        var cam = $("sn-file");
+        if (cam) { cam.accept = "image/*,video/*"; cam.setAttribute("capture", "user"); cam.click(); }
+      }
+      if (act === "post-next") {
+        var tx = $("sn-post-text");
+        postDraft.text = tx ? String(tx.value || "").trim() : postDraft.text;
+        if (!postDraft.text && !postDraft.name) { say("A photo, a video, or words first."); return; }
+        openSheet("WHERE",
+          '<p class="note">' + esc(postDraft.name || postDraft.text).slice(0, 80) + "</p>" +
+          '<button type="button" class="sheet-go primary" data-act="post-go" data-k="global">GLOBAL</button>' +
+          '<input id="sn-post-team" placeholder="Or a team name" />' +
+          '<button type="button" class="sheet-go" data-act="post-go" data-k="team">POST TO THAT TEAM</button>', true);
+      }
+      if (act === "post-go") {
+        var where = t.getAttribute("data-k") || "global";
+        var teamEl = $("sn-post-team");
+        var team = teamEl ? String(teamEl.value || "").trim() : "";
+        if (where === "team" && !team) { say("Name the team."); return; }
+        var post = {
+          id: "o" + Date.now().toString(36),
+          kind: "post",
+          name: (postDraft.text || postDraft.name || "post").slice(0, 80),
+          text: postDraft.text || "",
+          media: postDraft.name || "",
+          where: where === "team" ? team : "global",
+          lat: listPt ? listPt.lat : (here && here.lat),
+          lng: listPt ? listPt.lng : (here && here.lng)
+        };
+        persistListing(post);
+        postDraft = { text: "", name: "", url: "" };
+        closeSheet();
+        say("Posted · " + post.where + ".");
+      }
+      if (act === "save-driver") {
+        if (!listPt) { say("Hold the map first."); return; }
+        var drvN = $("sn-drv-name"), drvP = $("sn-drv-phone");
+        var drvName = drvN ? String(drvN.value || "").trim() : "";
+        if (!drvName) { say("The driver's name."); return; }
+        var drv = { id: "r" + Date.now().toString(36), kind: "driver", name: drvName, phone: drvP ? String(drvP.value || "").trim() : "", lat: listPt.lat, lng: listPt.lng, free: true };
+        persistListing(drv);
+        people = people.filter(function (p) { return !p || p.id !== drv.id; });
+        people.unshift({ id: drv.id, name: drv.name, role: "driver", lat: drv.lat, lng: drv.lng, free: true });
+        savePeople();
+        moveDriver({ lat: drv.lat, lng: drv.lng, name: drv.name });
+        closeSheet();
+        say(drvName + " is a free driver here.");
+      }
+      if (act === "run-offer") {
+        if (!isAdmin()) { say("Only the administrator sends an offer on behalf of both."); return; }
+        absorbMine();
+        if (!homeDrop) { try { homeDrop = JSON.parse(localStorage.getItem("sn:home") || "null"); } catch (e) {} }
+        var shopFrom = listPt || here;
+        var bestShop = null, bestShopKm = 1e9;
+        shops.forEach(function (s) {
+          if (!s || !isFinite(+s.lat) || s.status === "denied") return;
+          if (s.src && s.src !== "listed") return;
+          var km = shopFrom ? haversineKm(shopFrom, s) : 0;
+          if (km < bestShopKm) { bestShop = s; bestShopKm = km; }
+        });
+        if (!bestShop) { say("List a vendor first."); return; }
+        if (!homeDrop || !isFinite(+homeDrop.lat)) { say("List the delivery address first."); return; }
+        var drivers = [];
+        people.forEach(function (p) { if (p && p.role === "driver" && p.free !== false && isFinite(+p.lat)) drivers.push(p); });
+        try {
+          JSON.parse(localStorage.getItem("sn:mine") || "[]").forEach(function (r) {
+            if (r && r.kind === "driver" && r.free !== false && isFinite(+r.lat)) drivers.push(r);
+          });
+        } catch (e) {}
+        if (driverPin && isFinite(+driverPin.lat)) drivers.push({ id: "pin", name: driverPin.name || "motorbike", lat: driverPin.lat, lng: driverPin.lng, free: true });
+        var bestDrv = null, bestDrvKm = 1e9;
+        drivers.forEach(function (d) {
+          var busy = jobs.some(function (j) { return j && !j.delivered && j.driverId && j.driverId === d.id; });
+          if (busy) return;
+          var km = haversineKm(bestShop, d);
+          if (km < bestDrvKm) { bestDrv = d; bestDrvKm = km; }
+        });
+        if (!bestDrv) { say("List a driver base first. The closest free one takes it."); return; }
+        vendor = bestShop;
+        drop = { lat: +homeDrop.lat, lng: +homeDrop.lng, name: homeDrop.name || "" };
+        var quote = quoteDelivery(vendor, drop, quoteOpts);
+        var job = {
+          id: "j" + Date.now().toString(36),
+          vendor: vendor,
+          drop: drop,
+          km: quote.km,
+          fee: quote.total,
+          ready: true,
+          pickup: false,
+          got: false,
+          delivered: false,
+          received: false,
+          driver: bestDrv.name || "driver",
+          driverId: bestDrv.id || "",
+          vendorAccepted: true,
+          driverAccepted: true,
+          paid: false,
+          t: Date.now()
+        };
+        jobs.unshift(job);
+        saveJobs();
+        if (!cityOn) openCity(vendor);
+        drawRoute(vendor, drop);
+        throwOffer({ id: job.id, name: vendor.name, note: vendor.name + " accepted · " + (bestDrv.name || "driver") + " accepted · closest free · " + quote.km.toFixed(1) + " km" });
+        openJobs();
+        say(vendor.name + " accepted. " + (bestDrv.name || "Driver") + " accepted. " + quote.km.toFixed(1) + " km.");
+      }
       if (act === "list-kinds") {
         openSheet("PLACE",
           '<button type="button" class="sheet-go" data-act="kind" data-k="shop">Shop</button>' +
@@ -2747,7 +2881,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (file) { file.accept = "image/*,.csv,text/csv"; file.click(); }
       }
       if (act === "save-place") {
-        if (needTerms()) return;
         var kn = t.getAttribute("data-k") || "shop";
         var nmEl = $("sn-place-name");
         var phEl = $("sn-place-phone");
@@ -2799,19 +2932,25 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           });
         } else say(nm + " is on the map · " + menu.length + " on the menu.");
       }
-      if (act === "list-drop") {
-        if (needTerms()) return;
+      if (act === "list-drop" || act === "save-drop") {
         if (!listPt) { say("Hold the street first."); return; }
         if (!isAdmin()) {
-          if (myRole() !== "client") { say("Only a client lists a delivery location."); return; }
+          if (myRole() && myRole() !== "client") { say("Only a client lists a delivery location."); return; }
           if (!standAt(listPt)) { say("Your own GPS has to be here before this is your delivery location."); return; }
         }
-        homeDrop = { lat: listPt.lat, lng: listPt.lng };
+        var dn = $("sn-drop-name"), dp = $("sn-drop-phone"), ds = $("sn-drop-street"), dnum = $("sn-drop-number"), df = $("sn-drop-floor");
+        var dname = dn ? String(dn.value || "").trim() : "";
+        var dphone = dp ? String(dp.value || "").trim() : "";
+        var dstreet = ds ? String(ds.value || "").trim() : "";
+        var dnumber = dnum ? String(dnum.value || "").trim() : "";
+        var dfloor = df ? String(df.value || "").trim() : "";
+        if (act === "save-drop" && !dname) { say("Your name."); return; }
+        homeDrop = { lat: listPt.lat, lng: listPt.lng, name: dname || "home", phone: dphone, street: dstreet, number: dnumber, floor: dfloor };
         try { localStorage.setItem("sn:home", JSON.stringify(homeDrop)); } catch (e) {}
-        persistListing({ id: "d" + Date.now().toString(36), kind: "drop", name: "home", lat: listPt.lat, lng: listPt.lng });
+        persistListing({ id: "d" + Date.now().toString(36), kind: "drop", name: homeDrop.name, phone: dphone, street: dstreet, number: dnumber, floor: dfloor, lat: listPt.lat, lng: listPt.lng });
         drop = homeDrop;
         closeSheet();
-        say("Client home is listed.");
+        say((dname || "Delivery address") + " is listed.");
       }
       if (act === "admin-gps") {
         if (!isAdmin()) { say("Only the administrator can move a test pin."); return; }

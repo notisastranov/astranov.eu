@@ -46,10 +46,10 @@ button, [role="button"]{cursor:pointer}
 #city{display:none;z-index:12;background:var(--bg)}
 #city.on{display:block}
 #top,#dock{position:fixed;left:0;right:0;display:flex;justify-content:center;pointer-events:none;z-index:40}
-#top{top:0;left:0;right:0;flex-direction:column;align-items:stretch;gap:0}
+#top{top:0 !important;left:0;right:0;flex-direction:column;align-items:stretch;gap:0}
 #dock{bottom:0;padding:0 10px var(--safe-b)}
 #island,#panel{pointer-events:auto}
-#island{padding:calc(var(--safe-t) + 6px) 12px 8px;background:var(--panel);border:0;border-bottom:1px solid var(--line);border-radius:0;width:100%;box-sizing:border-box}
+#island{padding:8px 12px 6px;background:var(--panel);border:0;border-bottom:1px solid var(--line);border-radius:0;width:100%;box-sizing:border-box}
 #island .r1,#island .r2{display:flex;gap:8px;justify-content:center;align-items:center}
 #island .r2{flex-wrap:wrap;font:600 10px/1 ui-monospace,monospace;color:var(--muted)}
 #sn-spark{display:block;width:120px;height:28px;flex:none;cursor:pointer}
@@ -84,7 +84,7 @@ body.sn-support #sn-desk{display:block;text-align:center}
 #sn-support-sheet{display:none;position:fixed;z-index:86;width:min(360px,92vw);max-height:42vh;overflow:auto;padding:12px;background:rgba(18,4,8,.97);border:1px solid rgba(255,90,90,.45);border-radius:16px;box-shadow:0 12px 32px rgba(0,0,0,.45)}
 #sn-support-sheet.on{display:block}
 #sn-support-sheet textarea{display:block;width:100%;box-sizing:border-box;min-height:72px;margin:8px 0 0;padding:10px;border:1px solid rgba(255,90,90,.4);background:#140406;color:#ffe8e8;border-radius:10px}
-#dock{bottom:calc(var(--safe-b) + var(--sheet-h, 0px))}
+#dock{bottom:0 !important;top:auto !important}
 #sn-me,#gps{bottom:calc(var(--safe-b) + var(--dock) + var(--sheet-h, 0px)) !important}
 #sn-sheet .card,#sn-tasks .card{height:min(28vh,220px);max-height:28vh;bottom:0}
 #line{color:var(--muted);font:500 12px ui-monospace,monospace;margin:0 4px 8px;min-height:16px}
@@ -103,7 +103,7 @@ body.sn-support #sn-desk{display:block;text-align:center}
 #gps .tgt,#sn-me .tgt{display:flex;align-items:center;justify-content:center;margin:0 auto;border-radius:999px;border:1.5px solid rgba(77,240,255,.95);background:radial-gradient(circle at 50% 40%,rgba(77,240,255,.22),rgba(2,10,18,.94) 72%)}
 #gps .tgt{width:48px;height:48px;box-shadow:0 0 16px rgba(77,240,255,.4)}
 #sn-me .tgt{width:40px;height:40px;overflow:hidden}
-#sn-sky-btn{position:fixed!important;z-index:240!important;width:auto;border:0;background:transparent;color:var(--accent);padding:0;pointer-events:auto}
+#sn-sky-btn{display:none!important;position:fixed!important;z-index:240!important;width:auto;border:0;background:transparent;color:var(--accent);padding:0;pointer-events:auto}
 #sn-sky-btn .lbl{display:block;font:800 8px/1 system-ui;letter-spacing:.16em;text-align:center;margin:0 0 4px}
 #sn-sky-btn .tgt{display:flex;align-items:center;justify-content:center;width:48px;height:48px;margin:0 auto;border-radius:999px;border:1.5px solid rgba(77,240,255,.95);background:radial-gradient(circle at 50% 40%,rgba(77,240,255,.22),rgba(2,10,18,.94) 72%);box-shadow:0 0 16px rgba(77,240,255,.4);font:800 18px/1 system-ui}
 #sn-sky{position:fixed;inset:0;z-index:30;background:#000}
@@ -163,7 +163,7 @@ body.sn-support #sn-desk{display:block}
 <div id="top">
   <div id="sn-topchrome-drag" class="sn-trivial-law" aria-hidden="true"></div>
   <div id="island">
-    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">SPACENET</button><span id="ver">V4292</span><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
+    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">SPACENET</button><span id="ver">V4293</span><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
     <div class="r2"><span id="sn-local">-</span><span id="sn-utc">-</span><span id="sn-wx"></span><span id="sn-node"></span><canvas id="sn-spark" width="120" height="28"></canvas></div>
   </div>
   <div id="sn-under">
@@ -200,6 +200,6 @@ body.sn-support #sn-desk{display:block}
 <div id="dock"><div id="panel"><div id="cli-drag" class="sn-trivial-law" aria-hidden="true"></div><div id="sn-tabs"></div><div id="line"></div><form id="f"><div class="hub"><button type="button" id="plus">+</button></div><input id="in" autocomplete="off" enterkeyhint="send" placeholder="Talk to Astranov SpaceNet"/><div class="hub"><button type="button" id="go" aria-label="Talk or send">MIC</button></div></form></div></div>
 <input id="sn-file" type="file" accept="image/*,application/pdf,text/*" hidden/>
 <script src="/js/vendor/leaflet.js?v=4127"></script>
-<script src="/js/spacenet/app.js?v=4292"></script>
-<script src="/js/spacenet/auth.js?v=4292"></script>
+<script src="/js/spacenet/app.js?v=4293"></script>
+<script src="/js/spacenet/auth.js?v=4293"></script>
 </body></html>
