@@ -79,9 +79,7 @@
     afterEarth(registerSW);
   }).catch(function (e) {
     console.error(e);
-    registerSW();
     var line = document.getElementById("line");
     if (line) line.textContent = "Kernel delayed. GPS still works. Hold island to reload.";
   });
-  registerSW();
 })();
