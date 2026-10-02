@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4293";
+  var VER = "4294";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1302,7 +1302,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!log) return;
     log.innerHTML = supportLog.map(function (m) {
       return '<p class="note"><b>' + m.who + "</b> " + String(m.text).replace(/[<>]/g, "") + "</p>";
-    }).join("") || '<p class="note">Tell me what broke. I can list a shop, open the monitor, hunt a place, or start your motorbike test.</p>';
+    }).join("") || '<p class="note">Tell me what broke. Hold the map to list a vendor, a delivery address, or a driver.</p>';
     log.scrollTop = log.scrollHeight;
   }
   function pushSupport(who, text) {
@@ -1399,6 +1399,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function loadJobs() {
     try { jobs = JSON.parse(localStorage.getItem("sn:jobs") || "[]") || []; } catch (e) { jobs = []; }
+    var kept = jobs.filter(function (j) {
+      if (!j || j.self) return false;
+      var name = j.vendor && j.vendor.name || "";
+      if (/^maria$/i.test(name) && j.driver === "motorbike" && !j.driverId) return false;
+      return true;
+    });
+    if (kept.length !== jobs.length) { jobs = kept; saveJobs(); }
   }
   function saveJobs() { try { localStorage.setItem("sn:jobs", JSON.stringify(jobs)); } catch (e) {} }
   function authToken() {
@@ -1960,55 +1967,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     openJobs();
     say("Received" + (isAdmin() ? " on behalf of the client." : "."));
   }
-  function findMaria() {
-    var found = null;
-    shops.forEach(function (s) {
-      if (s && /maria/i.test(s.name || "") && s.status !== "pending") found = s;
-    });
-    if (found) return found;
-    try {
-      var mine = JSON.parse(localStorage.getItem("sn:mine") || "[]") || [];
-      mine.forEach(function (r) {
-        if (r && /maria/i.test(r.name || "") && r.status !== "pending") found = r;
-      });
-    } catch (e) {}
-    return found;
-  }
-  function testMaria() {
-    if (!isAdmin()) { say("That run is the administrator only."); return; }
-    absorbMine();
-    var maria = findMaria();
-    if (!homeDrop) {
-      try { homeDrop = JSON.parse(localStorage.getItem("sn:home") || "null"); } catch (e) {}
-    }
-    if (!maria) { say("Long-tap Maria's door. List the vendor and the menu."); return; }
-    if (!homeDrop || !isFinite(+homeDrop.lat)) { say("Long-tap the client home and list that delivery location."); return; }
-    vendor = maria;
-    drop = { lat: +homeDrop.lat, lng: +homeDrop.lng };
-    var q = quoteDelivery(vendor, drop, quoteOpts);
-    var job = {
-      id: "j" + Date.now().toString(36),
-      vendor: vendor,
-      drop: drop,
-      km: q.km,
-      fee: q.total,
-      ready: false,
-      pickup: false,
-      got: false,
-      delivered: false,
-      received: false,
-      driver: "motorbike",
-      paid: false,
-      t: Date.now()
-    };
-    jobs.unshift(job);
-    saveJobs();
-    if (!cityOn) openCity(vendor);
-    drawRoute(vendor, drop);
-    throwOffer({ id: job.id, name: "MARIA", note: "Maria → client home · your motorbike · " + q.km.toFixed(1) + " km" });
-    openJobs();
-    say("Offer is up. Mark ready, long-tap Maria to verify pickup, then the client home to deliver.");
-  }
   function materialize(need) {
     var row = $("sn-filters");
     if (!row) return;
@@ -2029,9 +1987,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var sh = $("sn-tasks"); if (!sh) return;
     var list = $("sn-tasks-list");
     if (list) {
-      var head = isAdmin() ? '<button type="button" class="sheet-go primary" data-act="test-maria">MARIA → HOME · MY BIKE</button>' : "";
-      if (!jobs.length) list.innerHTML = head + '<p class="note">No order yet. A client submits one. The administrator can start the Maria test.</p>';
-      else list.innerHTML = head + jobs.map(function (j) {
+      if (!jobs.length) list.innerHTML = '<p class="note">No order yet. Hold the map. List a vendor, a delivery address, and a driver. Then send the offer.</p>';
+      else list.innerHTML = jobs.map(function (j) {
         var admin = isAdmin();
         var role = myRole();
         var flags = [
@@ -2100,77 +2057,38 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
   }
   function startListing() {
-    var go = function (pt) {
-      if (!pt || !isFinite(pt.lat)) pt = { lat: 36.4341, lng: 28.2172 };
-      listPt = { lat: pt.lat, lng: pt.lng };
-      if (!cityOn) openCity(pt);
-      openSheet("SHOP",
-        '<input id="sn-place-name" placeholder="Shop name" />' +
-        '<textarea id="sn-place-menu" placeholder="Menu — one product per line: Name | price"></textarea>' +
-        '<input id="sn-place-phone" placeholder="Phone (optional)" />' +
-        '<button type="button" class="sheet-go" data-act="pick-photo">PHOTO OF THE SHOP</button>' +
-        '<button type="button" class="sheet-go primary" data-act="save-place" data-k="shop">LIST ON THE MAP</button>', true);
-      say("Name, menu (Name | price), photo, then LIST ON THE MAP.");
-    };
-    if (here) go(here);
-    else {
-      go(listPt || { lat: 36.4341, lng: 28.2172 });
-      locate(function (pt) {
-        if (!pt || !isFinite(pt.lat)) return;
-        listPt = { lat: pt.lat, lng: pt.lng };
-        say("Pin is on your GPS. Name, menu, photo, then LIST ON THE MAP.");
-      }, true);
-    }
+    var pt = listPt || here;
+    if (!pt || !isFinite(pt.lat)) { say("Hold the map where the vendor stands."); return; }
+    listPt = { lat: pt.lat, lng: pt.lng };
+    if (!cityOn) openCity(pt);
+    openSheet("VENDOR",
+      '<input id="sn-place-name" placeholder="Vendor name" />' +
+      '<input id="sn-place-phone" placeholder="Phone" />' +
+      '<textarea id="sn-place-menu" placeholder="Menu — one line each: Name | price"></textarea>' +
+      '<button type="button" class="sheet-go" data-act="pick-photo">PHOTO</button>' +
+      '<button type="button" class="sheet-go primary" data-act="save-place" data-k="shop">LIST VENDOR</button>', true);
   }
   function selfRide() {
-    if (!vendor) {
-      var listed = shops.filter(function (s) { return s && s.src === "listed"; })[0];
-      if (listed) vendor = listed;
-    }
-    if (!vendor) {
-      startListing();
-      return "List the shop and the menu first. Then say my bike.";
-    }
-    var from = { lat: vendor.lat, lng: vendor.lng };
-    var to = here && haversineKm(here, from) > 0.05 ? { lat: here.lat, lng: here.lng } : { lat: from.lat + 0.004, lng: from.lng + 0.004 };
-    drop = to;
-    if (!cityOn) openCity(from);
-    drawRoute(vendor, drop);
-    var q = quoteDelivery(vendor, drop, quoteOpts);
-    jobs.unshift({
-      id: "j" + Date.now().toString(36),
-      vendor: vendor,
-      drop: drop,
-      km: q.km,
-      fee: q.total,
-      stage: 0,
-      confirms: { vendor: false, driver: false, client: false },
-      paid: false,
-      self: true,
-      t: Date.now()
-    });
-    saveJobs();
-    openJobs();
-    return "Motorbike test · " + vendor.name + " · " + q.km.toFixed(2) + " km. You confirm vendor, driver, and client.";
+    return "Hold the map. List the vendor, the delivery address, and a driver. Then send the offer.";
   }
   function programmer(text) {
     var s = String(text || "").toLowerCase();
     if (/monitor|swarm|device|spec/.test(s)) { openFleet(); return "Monitor is open. This phone and every device that has checked in."; }
     if (/list|vendor|venue|menu|shop/.test(s) && !/find|hunt|pizza/.test(s)) { startListing(); return "Shop form is open. Name, menu lines as Name | price, photo, then LIST ON THE MAP."; }
-    if (/bike|motorbike|driver|deliver/.test(s)) return selfRide();
+    if (/bike|motorbike|driver|deliver/.test(s)) return "Hold the map. List the vendor, the delivery address, and a driver. Then send the offer.";
     if (/sky|star|constell|camera/.test(s)) { openSky(); return "Camera is on. The SKY button is gone. Tap a constellation around the Earth."; }
     var huntQ = s.replace(/^(find|hunt|show|search)\s+/, "").trim();
     if (/^(find|hunt|show|search)\b/.test(s) || /pizza|cafe|coffee|pharmacy/.test(s)) {
       hunt(huntQ || text);
       return "Hunting " + (huntQ || text) + " on the map.";
     }
-    return "Heard. I can list a shop, open the monitor, hunt a place, or start the motorbike test. Say which.";
+    return "Heard. Hold the map to list a vendor, a delivery address, a driver, or a post.";
   }
   function runLine(q) {
     var s = String(q || "").toLowerCase().trim();
     if (/monitor|swarm|device spec/.test(s)) { openFleet(); say("Monitor open."); return true; }
     if (/^(list|vendor|venue)\b/.test(s) || /list (a )?(shop|vendor|venue|menu)/.test(s)) { startListing(); return true; }
-    if (/my bike|motorbike|test delivery/.test(s)) { say(selfRide()); return true; }
+    if (/my bike|motorbike|test delivery/.test(s)) { say("Hold the map. List the vendor, the delivery address, and a driver. Then send the offer."); return true; }
     if (/^(find|hunt|show)\s+\S/.test(s)) { hunt(q.replace(/^(find|hunt|show)\s+/i, "")); return true; }
     return false;
   }
@@ -2713,7 +2631,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (act === "drv-notis") {
         say("Assigned to drv-notis · " + ((vendor && vendor.name) || "shop") + ". Set drop, then send.");
       }
-      if (act === "self-ride") say(selfRide());
+      if (act === "self-ride") say("Hold the map. List the vendor, the delivery address, and a driver. Then send the offer.");
       if (act === "add-item") {
         var ix = Number(t.getAttribute("data-i"));
         var item = vendor && vendor.menu && vendor.menu[ix];
@@ -3059,7 +2977,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         closeSheet();
         say("Listing approved. It is on the map.");
       }
-      if (act === "test-maria") testMaria();
       if (act === "queue-yes") decideQueue(t.getAttribute("data-id"), "yes");
       if (act === "queue-no") decideQueue(t.getAttribute("data-id"), "no");
       if (act === "mark-ready") markReady(id);
@@ -3716,7 +3633,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       jobs: function () { return jobs; },
       hunt: hunt,
       askAdmin: askAdmin,
-      testMaria: testMaria,
       quoteDelivery: quoteDelivery,
       paintMoney: paintMoney, avcGet: avcGet,
       paintPower: function () { var p = $("sn-power"); if (p) p.hidden = false; },
