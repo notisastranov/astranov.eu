@@ -1,0 +1,31 @@
+name: grokbuild 4314b apply (branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4307-talk-city-pins"]
+    paths: [".grokbuild/**"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4307-talk-city-pins
+          fetch-depth: 0
+      - name: Merge main 4313, resolve, fix, restamp, verify sha256, drop the kit, commit
+        run: |
+          set -e
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch -q origin main
+          git merge -q --no-edit f11b66e48272691ba5c3d30cb1da1ee0567d0dc3 || true
+          python3 .grokbuild/resolve.py
+          python3 .grokbuild/fix8.py
+          bash .grokbuild/stamp2.sh 4314
+          sha256sum -c .grokbuild/4314b.sha256
+          for f in js/spacenet/app.js api/find.js api/ai.js api/space.js sw.js api/version.js; do node --check "$f"; done
+          git rm -q -r .grokbuild .github/workflows/grokbuild-4314b.yml
+          git add -A
+          git commit -q -m "4314: merge main 4313; Talk pins named cities without GPS + place and view listings; no injected Test Vendor; stamp lockstep (preview, do not merge)"
+          git push origin HEAD:grokbuild/4307-talk-city-pins
