@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4297";
+  var VER = "4298";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -932,6 +932,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         e.stopPropagation();
         var ll = map.mouseEventToLatLng(start.ev);
         if (!ll) return;
+        window.__snHold = Date.now();
         setTimeout(function () { listAt({ lat: ll.lat, lng: ll.lng }); }, 30);
       }, true);
       el.addEventListener("pointercancel", function () { holdPt = null; });
@@ -1619,16 +1620,23 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function openSheet(title, html, tall) {
     var sh = $("sn-sheet"), card = $("sn-sheet-card");
     if (!sh || !card) return;
-    card.innerHTML = '<div class="sheet-bar"><b class="sheet-ttl"></b><button type="button" class="sheet-x" data-act="close">HIDE</button></div><div id="sn-sheet-body"></div>';
+    card.innerHTML = '<div class="sheet-bar"><button type="button" class="sheet-apply" data-act="sheet-apply">✓ APPLY</button><b class="sheet-ttl"></b><button type="button" class="sheet-x" data-act="sheet-x" aria-label="Close">✕</button></div><div id="sn-sheet-body"></div>';
     card.querySelector(".sheet-ttl").textContent = title;
     card.querySelector("#sn-sheet-body").innerHTML = html;
     if (tall) sh.classList.add("tall"); else sh.classList.remove("tall");
     sh.classList.add("on");
-    sheetArm = Date.now() + 800;
+    sheetArm = Date.now() + 400;
     materialize(false);
     liftChrome();
   }
   function closeSheet() { var sh = $("sn-sheet"); if (sh) { sh.classList.remove("on"); sh.classList.remove("tall"); } materialize(needFilter()); liftChrome(); }
+  function applySheet() {
+    var body = $("sn-sheet-body");
+    if (!body) return;
+    var go = body.querySelector("[data-act='save-place'],[data-act='save-drop'],[data-act='save-driver'],[data-act='save-stock'],[data-act='post-go'],[data-act='post-next'],[data-act='send'],[data-act='run-offer']");
+    if (!go) { say("Pick a listing, fill it, then Apply. The window stays until the red X."); return; }
+    go.click();
+  }
   function absorbMine() {
     var mine = [];
     try { mine = JSON.parse(localStorage.getItem("sn:mine") || "[]") || []; } catch (e) { mine = []; }
@@ -2741,10 +2749,33 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (findBtn) findBtn.addEventListener("click", openFind);
     if (nodeBtn) nodeBtn.addEventListener("click", openNode);
     document.addEventListener("click", function (e) {
+      if (!(window.__snHold && Date.now() - window.__snHold < 450)) return;
+      var hit = e.target && e.target.closest && e.target.closest(".sheet-apply,[data-act]");
+      var act = hit && hit.getAttribute && hit.getAttribute("data-act");
+      if (act && act !== "sheet-x" && act !== "close" && act !== "hide") return;
+      e.preventDefault();
+      e.stopPropagation();
+    }, true);
+    document.addEventListener("click", function (e) {
+      if (window.__snHold && Date.now() - window.__snHold < 450) {
+        var keep = e.target && e.target.closest && e.target.closest(".sheet-apply,.sheet-x,[data-act]");
+        if (!keep || (keep.getAttribute && (keep.getAttribute("data-act") === "sheet-x" || keep.getAttribute("data-act") === "close"))) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+      }
       var t = e.target && e.target.closest ? e.target.closest("[data-act]") : e.target;
       var act = t && t.getAttribute && t.getAttribute("data-act");
       if (!act) return;
-      if ((act === "close" || act === "hide") && t.classList && t.classList.contains("bg") && Date.now() < sheetArm) return;
+      if (act === "sheet-x") {
+        if (Date.now() < sheetArm) return;
+        closeSheet();
+        return;
+      }
+      if (act === "sheet-apply") { applySheet(); return; }
+      if ((act === "close" || act === "hide") && t.closest && t.closest("#sn-sheet")) return;
+      if (act === "close" && t.classList && t.classList.contains("bg")) return;
       var id = t.getAttribute("data-id");
       var i = Number(t.getAttribute("data-i"));
       if (act === "hide") closeJobs();

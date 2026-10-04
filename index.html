@@ -168,6 +168,14 @@ html,body{margin:0!important;padding:0!important}
 .sn-row input{margin:0;padding:6px;font-size:13px}
 .sn-check{display:flex;gap:8px;align-items:center;margin:8px 0 0;color:#d7f6ff}
 
+
+#sn-sheet.on{pointer-events:none!important}
+#sn-sheet.on .card{pointer-events:auto!important}
+#sn-sheet .bg{pointer-events:none!important}
+.sheet-bar{position:sticky;top:0;z-index:3;background:rgba(4,14,28,.98)}
+.sheet-apply{height:48px!important;min-width:112px;padding:0 12px;border:0;border-radius:12px;background:#1f8f4a;color:#fff;font:800 16px/48px system-ui;box-shadow:0 0 16px rgba(40,200,90,.45)}
+.sheet-x{width:48px!important;height:48px!important;padding:0!important;border:0!important;border-radius:12px!important;background:#d21f2a!important;color:#fff!important;font:800 28px/48px system-ui!important;box-shadow:0 0 16px rgba(210,31,42,.55)}
+
 </style>
 </head>
 <body>
@@ -177,7 +185,7 @@ html,body{margin:0!important;padding:0!important}
 <div id="top">
   <div id="sn-topchrome-drag" class="sn-trivial-law" aria-hidden="true"></div>
   <div id="island">
-    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">SPACENET</button><span id="ver">V4297</span><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
+    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">SPACENET</button><span id="ver">V4298</span><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
     <div class="r2"><span id="sn-local">-</span><span id="sn-utc">-</span><span id="sn-wx"></span><span id="sn-node"></span><canvas id="sn-spark" width="120" height="28"></canvas></div>
   </div>
   <div id="sn-under">
@@ -210,11 +218,11 @@ html,body{margin:0!important;padding:0!important}
   <div id="sn-sky-read"><button type="button" id="sn-sky-x" aria-label="Close">✕</button><span id="sn-sky-name">Point the phone at the sky</span></div>
 </div>
 <div id="sn-tasks"><div class="bg" data-act="hide"></div><div class="card"><div class="sheet-bar"><b class="sheet-ttl">JOBS</b><button type="button" class="sheet-x" data-act="hide">HIDE</button></div><div id="sn-tasks-list"></div></div></div>
-<div id="sn-sheet"><div class="bg" data-act="close"></div><div class="card" id="sn-sheet-card"></div></div>
+<div id="sn-sheet"><div class="bg"></div><div class="card" id="sn-sheet-card"></div></div>
 <div id="dock"><div id="panel"><div id="cli-drag" class="sn-trivial-law" aria-hidden="true"></div><div id="sn-tabs"></div><div id="line"></div><form id="f"><div class="hub"><button type="button" id="plus">+</button></div><input id="in" autocomplete="off" enterkeyhint="send" placeholder="Command the HUD · show, hide, or reshape"/><div class="hub"><button type="button" id="go" aria-label="Talk or send">MIC</button></div></form></div></div>
 <input id="sn-file" type="file" accept="image/*,application/pdf,text/*" hidden/>
 <script src="/js/vendor/leaflet.js?v=4127"></script>
-<script src="/js/spacenet/app.js?v=4297"></script>
+<script src="/js/spacenet/app.js?v=4298"></script>
 <script src="/js/spacenet/auth.js?v=4297"></script>
 <script src="/guardian.js?v=4295"></script>
 </body></html>
