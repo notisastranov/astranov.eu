@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4300";
+  var VER = "4301";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1104,7 +1104,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       '<p class="note">ITEM · PRICE · QTY · HOURS</p>' +
       '<div id="sn-rows"></div>' +
       '<button type="button" class="sheet-go" data-act="add-row">ADD A MENU ROW</button>' +
-      '<button type="button" class="sheet-go primary" data-act="save-place" data-k="shop">LIST VENDOR</button>';
+      '<button type="button" data-act="save-place" data-k="shop" hidden>LIST VENDOR</button>';
   }
   function takeStock(shop, lines) {
     if (!shop || !shop.menu || !lines || !lines.length) return;
@@ -1294,7 +1294,19 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet-body .sheet-go{display:block!important;width:100%!important;height:40px!important;margin:6px 0 0!important;box-sizing:border-box!important}",
       "#sn-sheet .sn-row{display:block!important;margin:8px 0 0!important}",
       "#sn-sheet .sn-trio{display:grid!important;grid-template-columns:1fr 1fr 1fr!important;gap:4px!important}",
-      "#sn-sheet .sn-row input{width:100%!important;box-sizing:border-box!important}"
+      "#sn-sheet .sn-row input{width:100%!important;box-sizing:border-box!important}",
+      "#sn-sheet .sn-photo{display:flex!important;align-items:center!important;justify-content:center!important;width:100%!important;height:96px!important;max-height:96px!important;overflow:hidden!important;position:relative!important;padding:0!important;margin:0 0 8px!important}",
+      "#sn-sheet .sn-photo img,#sn-sheet .sn-shop-hero{width:100%!important;height:96px!important;max-height:96px!important;object-fit:cover!important;display:block!important;position:static!important}",
+      "#sn-sheet .phbtn{width:44px!important;height:44px!important;overflow:hidden!important;padding:0!important}",
+      "#sn-sheet .phbtn img,#sn-sheet .sn-item img,#sn-sheet .sn-mini{width:44px!important;height:44px!important;max-width:44px!important;max-height:44px!important;object-fit:cover!important;display:block!important}",
+      "#sn-sheet .sn-item{display:grid!important;grid-template-columns:44px 1fr auto auto!important;gap:8px!important;align-items:center!important;width:100%!important;margin:6px 0 0!important;padding:6px!important;border:1px solid rgba(126,233,255,.28)!important;background:rgba(4,16,28,.9)!important;color:#e8fbff!important;text-align:left!important}",
+      "#sn-sheet .sn-item b{font:700 14px/1.2 system-ui!important}",
+      "#sn-sheet .sn-item b small{display:block;font:600 11px/1.2 system-ui;color:#8ec8d8;letter-spacing:0}",
+      "#sn-sheet .sn-item span{font:800 14px/1 ui-monospace,monospace!important;color:#4df0ff!important}",
+      ".sn-shop-pin{background:transparent!important;border:0!important}",
+      ".sn-pin{width:76px;height:62px;display:flex;flex-direction:column;align-items:center}",
+      ".sn-pin img{width:40px!important;height:40px!important;max-width:40px!important;max-height:40px!important;object-fit:cover!important;border-radius:8px;border:2px solid #4df0ff;display:block!important}",
+      ".sn-pin b{display:block;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;padding:0 3px;background:rgba(4,14,28,.92);color:#e8fbff;font:800 9px/12px system-ui}"
     ].join("");
     document.head.appendChild(s);
   }
@@ -1796,9 +1808,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (s.photo && L.divIcon) {
         var icon = L.divIcon({
           className: "sn-shop-pin",
-          html: '<img alt="" src="' + String(s.photo).replace(/"/g, "") + '">',
-          iconSize: [40, 40],
-          iconAnchor: [20, 20]
+          html: '<span class="sn-pin"><img alt="" src="' + String(s.photo).replace(/"/g, "") + '"><b>' + esc(s.name || "shop") + "</b></span>",
+          iconSize: [76, 62],
+          iconAnchor: [38, 31]
         });
         mark = L.marker([s.lat, s.lng], { icon: icon, zIndexOffset: 500, draggable: !!(isAdmin() && s.src === "listed") });
       } else if (isAdmin() && s.src === "listed") {
@@ -1976,10 +1988,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var photo = s.photo ? '<img class="sn-shop-hero" alt="" src="' + String(s.photo).replace(/"/g, "") + '">' : "";
     var items = (s.menu || []).map(function (m, i) {
       var qty = m.qty === 0 || m.qty ? m.qty : "—";
-      var img = m.photo ? '<img class="sn-mini" alt="" src="' + String(m.photo).replace(/"/g, "") + '">' : '<span class="sn-mini"></span>';
-      return '<button type="button" class="sn-row sn-buy" data-act="add-item" data-i="' + i + '">' + img +
-        '<b>' + esc(m.name || "item") + '</b><span>' + esc(m.price || "") + '</span><span>' + esc(qty) + '</span><span>' + esc(m.when || "") + '</span></button>';
+      var img = m.photo ? '<img alt="" src="' + String(m.photo).replace(/"/g, "") + '">' : '<span class="sn-mini"></span>';
+      return '<button type="button" class="sn-item" data-act="add-item" data-i="' + i + '">' + img +
+        "<b>" + esc(m.name || "item") + (m.when ? "<small>" + esc(m.when) + "</small>" : "") + "</b><span>" + esc(m.price || "") + "</span><em>" + esc(qty) + "</em></button>";
     }).join("");
+    if (!items) items = '<p class="note">No product on the menu yet.</p>';
     var stock = "";
     if ((isAdmin() || myRole() === "vendor") && (s.menu || []).length) {
       stock = '<div class="sn-cols"><span></span><span>ITEM</span><span>PRICE</span><span>QTY</span><span>HOURS</span></div>' +
@@ -1994,7 +2007,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var html =
       photo +
       "<p class=\"note\"></p>" +
-      '<div class="sn-cols"><span></span><span>ITEM</span><span>PRICE</span><span>QTY</span><span>HOURS</span></div>' +
       items +
       stock +
       (isAdmin()
@@ -2881,7 +2893,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           '<input id="sn-drop-bell" placeholder="Doorbell" />' +
           '<input id="sn-drop-floor" placeholder="Floor" />' +
           '<textarea id="sn-drop-note" placeholder="Preferences and comments"></textarea>' +
-          '<button type="button" class="sheet-go primary" data-act="save-drop">LIST DELIVERY ADDRESS</button>', true);
+          '<button type="button" data-act="save-drop" hidden>LIST DELIVERY ADDRESS</button>', true);
       }
       if (act === "form-driver") {
         shots.driver = "";
@@ -2899,7 +2911,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           '<input id="sn-drv-weight" placeholder="Weight" />' +
           '<label class="sn-check"><input id="sn-drv-rain" type="checkbox" /> Works in the rain</label>' +
           '<label class="sn-check"><input id="sn-drv-night" type="checkbox" /> Works at night</label>' +
-          '<button type="button" class="sheet-go primary" data-act="save-driver">LIST DRIVER BASE</button>', true);
+          '<button type="button" data-act="save-driver" hidden>LIST DRIVER BASE</button>', true);
       }
       if (act === "form-post") {
         openSheet("POST",
@@ -3121,10 +3133,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         shops.forEach(function (s) {
           if (s && s.src === "listed" && String(s.name) === nm && Math.abs(s.lat - listPt.lat) < 0.0003) id = s.id || id;
         });
-        var row = { id: id, kind: "shop", place: kn, name: nm, phone: phone, address: address, menu: menu, lat: listPt.lat, lng: listPt.lng, photo: shots.place || placePhoto || "", status: status };
+        var shotEl = $("sn-shot-place");
+        var photo = shots.place || placePhoto || (shotEl && shotEl.getAttribute("src") && shotEl.getAttribute("src").indexOf("data:") === 0 ? shotEl.getAttribute("src") : "");
+        var row = { id: id, kind: "shop", place: kn, name: nm, phone: phone, address: address, menu: menu, lat: listPt.lat, lng: listPt.lng, photo: photo, status: status };
         persistListing(row);
         shops = shops.filter(function (s) { return !s || s.id !== id; });
-        shops.unshift({ id: id, name: nm, lat: listPt.lat, lng: listPt.lng, kind: kn, phone: phone, address: address, menu: menu, photo: shots.place || placePhoto || "", src: "listed", status: status });
+        shops.unshift({ id: id, name: nm, lat: listPt.lat, lng: listPt.lng, kind: kn, phone: phone, address: address, menu: menu, photo: photo, src: "listed", status: status });
         shops = uniqPlaces(shops);
         if (status === "live") {
           if (!cityOn) openCity(listPt);
