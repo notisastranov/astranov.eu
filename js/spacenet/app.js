@@ -1075,11 +1075,22 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     img.onerror = function () { say("That photo did not open. Try another."); };
     img.src = src;
   }
+  function cagePhoto(img, px) {
+    if (!img || !img.style) return;
+    img.style.setProperty("width", px + "px", "important");
+    img.style.setProperty("height", px + "px", "important");
+    img.style.setProperty("max-width", px + "px", "important");
+    img.style.setProperty("max-height", px + "px", "important");
+    img.style.setProperty("object-fit", "cover", "important");
+    img.style.setProperty("position", "static", "important");
+    img.style.setProperty("display", "block", "important");
+  }
   function showShot(id, url) {
     var img = $(id);
     if (!img) return;
     img.hidden = false;
     img.src = url;
+    cagePhoto(img, 72);
     var cap = img.parentNode && img.parentNode.querySelector("span");
     if (cap) cap.hidden = true;
   }
@@ -1088,10 +1099,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     reader.onload = function () {
       var src = String(reader.result || "");
       var rowBtn = shotFor && shotFor.nodeType === 1 ? shotFor : null;
-      shrinkPhoto(src, rowBtn ? 96 : 280, function (url) {
+      shrinkPhoto(src, rowBtn ? 64 : 96, function (url) {
         if (rowBtn) {
           var img = rowBtn.querySelector("img");
-          if (img) { img.hidden = false; img.src = url; }
+          if (img) { img.hidden = false; img.src = url; cagePhoto(img, 44); }
           var cap = rowBtn.querySelector("span");
           if (cap) cap.hidden = true;
           say("Photo is on that row.");
@@ -1356,7 +1367,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet .sn-item span{font:800 14px/1 ui-monospace,monospace!important;color:#4df0ff!important}",
       ".sn-shop-pin{background:transparent!important;border:0!important}",
       ".sn-pin{width:76px;height:62px;display:flex;flex-direction:column;align-items:center}",
-      ".sn-pin img{width:40px!important;height:40px!important;max-width:40px!important;max-height:40px!important;object-fit:cover!important;border-radius:8px;border:2px solid #4df0ff;display:block!important}",
+      ".leaflet-container .leaflet-marker-pane img,.sn-pin img{width:40px!important;height:40px!important;max-width:40px!important;max-height:40px!important;object-fit:cover!important;display:block!important;position:static!important}",
+      ".leaflet-marker-icon.sn-shop-pin{width:76px!important;height:62px!important;overflow:hidden!important;background:transparent!important;border:0!important}",
       ".sn-pin b{display:block;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;padding:0 3px;background:rgba(4,14,28,.92);color:#e8fbff;font:800 9px/12px system-ui}",
       ".sn-pin em{display:flex;align-items:center;justify-content:center;width:40px;height:40px;font:28px/40px system-ui;border-radius:8px;border:2px solid #4df0ff;background:rgba(4,14,28,.92)}",
       "#sn-tester{position:fixed;top:28px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(77,240,255,.4);color:#7ee9ff;font:700 10px/14px ui-monospace,monospace;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
@@ -1984,7 +1996,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function faceHtml(role, photo, name) {
     var mark = photo
-      ? '<img alt="" src="' + String(photo).replace(/"/g, "") + '">'
+      ? '<img alt="" width="40" height="40" style="width:40px!important;height:40px!important;max-width:40px!important;max-height:40px!important;object-fit:cover!important;display:block!important" src="' + String(photo).replace(/"/g, "") + '">'
       : '<em>' + (role === "driver" ? "🏍️" : role === "client" ? "🧍" : "🏪") + "</em>";
     return '<span class="sn-pin">' + mark + "<b>" + esc(name || role) + "</b></span>";
   }
@@ -2423,7 +2435,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     vendor = s;
     if (map) map.setView([s.lat, s.lng], 17);
     var km = here ? haversineKm(here, s).toFixed(1) : "—";
-    var photo = s.photo ? '<img class="sn-shop-hero" alt="" src="' + String(s.photo).replace(/"/g, "") + '">' : "";
+    var photo = s.photo ? '<img class="sn-shop-hero" alt="" width="72" height="72" style="width:72px!important;height:72px!important;max-width:72px!important;max-height:72px!important;object-fit:cover!important" src="' + String(s.photo).replace(/"/g, "") + '">' : "";
     var items = (s.menu || []).map(function (m, i) {
       var qty = m.qty === 0 || m.qty ? m.qty : "—";
       var img = m.photo ? '<img alt="" src="' + String(m.photo).replace(/"/g, "") + '">' : '<span class="sn-mini"></span>';
