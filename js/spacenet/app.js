@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4305";
+  var VER = "4306";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1359,7 +1359,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ".sn-pin b{display:block;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;padding:0 3px;background:rgba(4,14,28,.92);color:#e8fbff;font:800 9px/12px system-ui}",
       ".sn-pin em{display:flex;align-items:center;justify-content:center;width:40px;height:40px;font:28px/40px system-ui;border-radius:8px;border:2px solid #4df0ff;background:rgba(4,14,28,.92)}",
       "#sn-tester{position:fixed;top:28px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(77,240,255,.4);color:#7ee9ff;font:700 10px/14px ui-monospace,monospace;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
-      "#sn-tester.stale{color:#8a6a6a;border-color:rgba(255,120,120,.35)}"
+      "#sn-tester.stale{color:#8a6a6a;border-color:rgba(255,120,120,.35)}",
+      "#sn-pulse{position:fixed;top:48px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(255,176,32,.7);color:#ffb020;font:700 10px/14px ui-monospace,monospace;pointer-events:none}"
     ].join("");
     document.head.appendChild(s);
   }
@@ -1503,33 +1504,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   var liveMarks = {};
   var liveLines = {};
-  function tickLive() {
-    if (!map || typeof L === "undefined") return;
-    var seen = {};
-    jobs.forEach(function (j) {
-      if (!j || j.received || !seesJob(j) || !j.vendor || !j.drop || !isFinite(+j.vendor.lat) || !isFinite(+j.drop.lat)) return;
-      seen[j.id] = 1;
-      var u = j.delivered ? 1 : j.got ? ((Date.now() - (j.t || Date.now())) % 90000) / 90000 : 0;
-      var lat = +j.vendor.lat + (+j.drop.lat - +j.vendor.lat) * u;
-      var lng = +j.vendor.lng + (+j.drop.lng - +j.vendor.lng) * u;
-      var label = (j.vendor.name || "vendor") + (j.got && !j.delivered ? " · on the bike" : j.delivered ? " · delivered" : " · waiting");
-      if (!liveLines[j.id]) liveLines[j.id] = L.polyline([[+j.vendor.lat, +j.vendor.lng], [+j.drop.lat, +j.drop.lng]], { color: "#ffb020", weight: 3, opacity: 0.75 }).addTo(map);
-      if (!liveMarks[j.id]) {
-        liveMarks[j.id] = L.circleMarker([lat, lng], { radius: 6, color: "#ffb020", fillColor: "#ffb020", fillOpacity: 1, weight: 2 }).addTo(map);
-        liveMarks[j.id].bindTooltip(label, { permanent: !!isAdmin(), direction: "top" });
-      } else {
-        liveMarks[j.id].setLatLng([lat, lng]);
-        try { liveMarks[j.id].setTooltipContent(label); } catch (e) {}
-      }
-    });
-    Object.keys(liveMarks).forEach(function (id) {
-      if (seen[id]) return;
-      try { map.removeLayer(liveMarks[id]); } catch (e) {}
-      try { if (liveLines[id]) map.removeLayer(liveLines[id]); } catch (e2) {}
-      delete liveMarks[id];
-      delete liveLines[id];
-    });
-  }
   function pullLive() {
     fetch("/api/live", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
       if (!j || !j.ok) return;
@@ -1548,8 +1522,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (!d || !d.id || !isFinite(+d.lat)) return;
         var have = null;
         people.forEach(function (p) { if (p && p.id === d.id) have = p; });
-        if (have) { have.lat = +d.lat; have.lng = +d.lng; have.owner = have.owner || d.customerPeer || ""; return; }
-        people.unshift({ id: d.id, name: d.name || "driver", role: "driver", lat: +d.lat, lng: +d.lng, free: true, owner: d.customerPeer || "" });
+        if (have) {
+          if (!have.base) have.base = { lat: +d.lat, lng: +d.lng };
+          have.owner = have.owner || d.customerPeer || "";
+          return;
+        }
+        people.unshift({ id: d.id, name: d.name || "driver", role: "driver", lat: +d.lat, lng: +d.lng, free: true, owner: d.customerPeer || "", base: { lat: +d.lat, lng: +d.lng } });
       });
       if (isAdmin()) (j.drops || []).forEach(function (d) {
         if (!d || !d.id || !isFinite(+d.lat)) return;
@@ -1589,6 +1567,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }
       });
       shops = uniqPlaces(shops);
+      paintPulse();
+      if (isAdmin() && !liveOpened && here && isFinite(+here.lat) && shops.length) {
+        liveOpened = true;
+        if (!cityOn) openCity(here);
+        return;
+      }
       if (cityOn) paintShopsOnMap();
     }).catch(function () {});
   }
@@ -2039,20 +2023,100 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (isAdmin()) paintAdminPins();
     else paintOwnDrivers();
   }
-  function paintOwnDrivers() {
-    people.forEach(function (p) {
-      if (!seesDriver(p) || !isFinite(+p.lat)) return;
-      var mark = L.marker([+p.lat, +p.lng], {
-        icon: faceIcon("driver", p.photo, p.name || "driver"),
-        zIndexOffset: 640
-      }).addTo(map);
-      mark.bindTooltip(p.name || "driver", { direction: "top" });
-      mark.on("click", function (e) {
-        if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent);
-        openSheet("DRIVER", '<p class="note">' + esc(p.name || "driver") + "</p>" +
-          '<button type="button" class="sheet-go" data-act="block" data-id="' + esc(p.owner || p.id) + '" data-k="driver">BLOCK THIS DRIVER</button>', true);
-      });
-      shopMarks.push(mark);
+  function paintOwnDrivers() {}
+  var motionMarks = {};
+  var liveOpened = false;
+  function paintPulse() {
+    var el = $("sn-pulse");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "sn-pulse";
+      document.body.appendChild(el);
+    }
+    var vendors = 0, near = 0, drivers = 0, orders = 0;
+    shops.forEach(function (s) {
+      if (!seesShop(s)) return;
+      vendors++;
+      if (here && haversineKm(here, s) < 25) near++;
+    });
+    people.forEach(function (p) { if (p && p.role === "driver" && seesDriver(p)) drivers++; });
+    if (driverPin && isFinite(+driverPin.lat) && !people.some(function (p) { return p && p.role === "driver" && haversineKm(p, driverPin) < 0.05; })) drivers++;
+    jobs.forEach(function (j) { if (j && !j.received && seesJob(j)) orders++; });
+    var place = here && near ? near + " vendor" + (near === 1 ? "" : "s") + " here" : vendors + " vendor" + (vendors === 1 ? "" : "s");
+    el.textContent = "LIVE · " + place + " · " + drivers + " driver" + (drivers === 1 ? "" : "s") + " · " + orders + " order" + (orders === 1 ? "" : "s");
+  }
+  function driverStep(p) {
+    if (!p || !isFinite(+p.lat) || !isFinite(+p.lng)) return null;
+    if (!p.base) p.base = { lat: +p.lat, lng: +p.lng };
+    var job = null;
+    jobs.forEach(function (j) {
+      if (!j || j.received || !seesJob(j) || !j.vendor || !j.drop) return;
+      if (j.driverId === p.id || (j.driver && p.name && j.driver === p.name)) job = j;
+    });
+    if (job) {
+      var u = job.delivered ? 1 : job.got ? ((Date.now() - (job.t || Date.now())) % 50000) / 50000 : 0;
+      return {
+        lat: +job.vendor.lat + (+job.drop.lat - +job.vendor.lat) * u,
+        lng: +job.vendor.lng + (+job.drop.lng - +job.vendor.lng) * u,
+        label: (p.name || "driver") + (job.got && !job.delivered ? " · on the bike" : job.delivered ? " · delivered" : " · waiting"),
+        job: job
+      };
+    }
+    var shop = null, best = 8;
+    shops.forEach(function (s) {
+      if (!s || !seesShop(s) || !isFinite(+s.lat)) return;
+      var km = haversineKm(p.base, s);
+      if (km < best) { best = km; shop = s; }
+    });
+    var swing = (Date.now() / 40000) % 2;
+    if (swing > 1) swing = 2 - swing;
+    if (!shop) return { lat: p.base.lat, lng: p.base.lng, label: (p.name || "driver") + " · free", job: null };
+    return {
+      lat: p.base.lat + (shop.lat - p.base.lat) * swing,
+      lng: p.base.lng + (shop.lng - p.base.lng) * swing,
+      label: (p.name || "driver") + " · free · " + (shop.name || "vendor"),
+      job: null
+    };
+  }
+  function tickLive() {
+    paintPulse();
+    if (!map || typeof L === "undefined") return;
+    var seen = {};
+    jobs.forEach(function (j) {
+      if (!j || j.received || !seesJob(j) || !j.vendor || !j.drop || !isFinite(+j.vendor.lat) || !isFinite(+j.drop.lat)) return;
+      seen["job:" + j.id] = 1;
+      if (!liveLines[j.id]) liveLines[j.id] = L.polyline([[+j.vendor.lat, +j.vendor.lng], [+j.drop.lat, +j.drop.lng]], { color: "#ffb020", weight: 4, opacity: 0.9 }).addTo(map);
+    });
+    var fleet = people.filter(function (p) { return p && p.role === "driver" && seesDriver(p); });
+    if (driverPin && isFinite(+driverPin.lat) && !fleet.some(function (p) { return haversineKm(p, driverPin) < 0.05; })) {
+      fleet.push({ id: "pin", name: driverPin.name || "driver", role: "driver", lat: driverPin.lat, lng: driverPin.lng, photo: driverPin.photo || "", owner: me() });
+    }
+    fleet.forEach(function (p) {
+      var step = driverStep(p);
+      if (!step) return;
+      var id = "drv:" + (p.id || p.name);
+      seen[id] = 1;
+      if (!motionMarks[id]) {
+        motionMarks[id] = L.marker([step.lat, step.lng], { icon: faceIcon("driver", p.photo, p.name || "driver"), zIndexOffset: 800 }).addTo(map);
+      } else motionMarks[id].setLatLng([step.lat, step.lng]);
+      try {
+        if (!motionMarks[id].getTooltip()) motionMarks[id].bindTooltip(step.label, { permanent: !!isAdmin(), direction: "right" });
+        else motionMarks[id].setTooltipContent(step.label);
+      } catch (e) {}
+    });
+    Object.keys(liveMarks).forEach(function (id) {
+      try { map.removeLayer(liveMarks[id]); } catch (e) {}
+      delete liveMarks[id];
+    });
+    Object.keys(liveLines).forEach(function (id) {
+      if (seen["job:" + id]) return;
+      try { map.removeLayer(liveLines[id]); } catch (e) {}
+      delete liveLines[id];
+    });
+    Object.keys(motionMarks).forEach(function (id) {
+      if (seen[id]) return;
+      try { map.removeLayer(motionMarks[id]); } catch (e) {}
+      delete motionMarks[id];
     });
   }
   function paintAdminPins() {
@@ -2082,9 +2146,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       });
     }
     if (!covered(homeDrop, "client")) put(homeDrop, "client", (homeDrop && homeDrop.name) || "Client", moveHome);
-    if (!covered(driverPin, "driver")) put(driverPin, "driver", (driverPin && driverPin.name) || "Driver", moveDriver);
     people.forEach(function (p) {
-      if (!p) return;
+      if (!p || p.role === "driver") return;
       put(p, p.role || "client", (p.role || "") + " " + (p.name || ""), function (ll) { movePerson(p.id, ll); });
     });
   }
