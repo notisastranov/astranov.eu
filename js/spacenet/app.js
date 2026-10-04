@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4302";
+  var VER = "4303";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1307,7 +1307,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ".sn-shop-pin{background:transparent!important;border:0!important}",
       ".sn-pin{width:76px;height:62px;display:flex;flex-direction:column;align-items:center}",
       ".sn-pin img{width:40px!important;height:40px!important;max-width:40px!important;max-height:40px!important;object-fit:cover!important;border-radius:8px;border:2px solid #4df0ff;display:block!important}",
-      ".sn-pin b{display:block;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;padding:0 3px;background:rgba(4,14,28,.92);color:#e8fbff;font:800 9px/12px system-ui}"
+      ".sn-pin b{display:block;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;padding:0 3px;background:rgba(4,14,28,.92);color:#e8fbff;font:800 9px/12px system-ui}",
+      "#sn-tester{position:fixed;top:28px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(77,240,255,.4);color:#7ee9ff;font:700 10px/14px ui-monospace,monospace;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+      "#sn-tester.stale{color:#8a6a6a;border-color:rgba(255,120,120,.35)}"
     ].join("");
     document.head.appendChild(s);
   }
@@ -1370,7 +1372,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function showQueue(force) {
     if (!isAdmin()) return;
-    var open = loadQueue().filter(function (it) { return it && it.status === "open"; });
+    var open = loadQueue().filter(function (it) { return it && it.status === "open" && it.kind !== "tester" && it.id !== "tester-live"; });
     if (!open.length) {
       dockTabs = dockTabs.filter(function (t) { return t.id !== "queue"; });
       paintDockTabs();
@@ -1426,9 +1428,33 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     showQueue(true);
     say((status === "yes" ? "Approved. " : "Denied. ") + left.length + " still waiting.");
   }
+  var testerMark = null;
+  function paintTester(items) {
+    var it = null;
+    (items || []).forEach(function (x) { if (x && (x.kind === "tester" || x.id === "tester-live")) it = x; });
+    var el = $("sn-tester");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "sn-tester";
+      document.body.appendChild(el);
+    }
+    if (!it) { el.textContent = "TESTER · no check yet"; el.classList.add("stale"); return; }
+    var mins = Math.max(0, Math.round((Date.now() - Number(it.t || 0)) / 60000));
+    el.classList.toggle("stale", mins > 20);
+    el.textContent = "TESTER · " + (mins < 1 ? "now" : mins + "m") + " · " + (it.note || it.title || "checking");
+    var bits = String(it.ref || "").split(",");
+    var lat = Number(bits[0]), lng = Number(bits[1]);
+    if (!map || typeof L === "undefined" || !isFinite(lat) || !isFinite(lng)) return;
+    var ll = [lat, lng];
+    if (!testerMark) {
+      testerMark = L.circleMarker(ll, { radius: 6, color: "#d6ff4a", fillColor: "#d6ff4a", fillOpacity: 0.95, weight: 2 }).addTo(map);
+      testerMark.bindTooltip("TESTER", { permanent: true, direction: "right", className: "sn-tester-tip" });
+    } else testerMark.setLatLng(ll);
+  }
   function pullQueue() {
     fetch("/api/queue", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
       var items = (j && j.items) || [];
+      paintTester(items);
       mergeQueue(items);
       items.forEach(function (it) { if (it && it.status && it.status !== "open") applyQueueDecision(it); });
       if (isAdmin()) showQueue(false);
