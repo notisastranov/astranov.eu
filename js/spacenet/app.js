@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4313";
+  var VER = "4314";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -2205,27 +2205,30 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       put(p, p.role || "client", (p.role || "") + " " + (p.name || ""), function (ll) { movePerson(p.id, ll); });
     });
   }
-  function showFound(named) {
-    if (!shops.length) { say("No real pin for that hunt. Try another name near GPS."); return; }
-    var seat = named || here || shops[0];
+  var foundView = [];
+  function showFound(named, list) {
+    var view = list && list.length ? list : shops;
+    if (!view.length) { say("No real pin for that hunt. Try another name near GPS."); return; }
+    foundView = view.slice();
+    var seat = named || here || view[0];
     if (seat) openCity(seat);
     paintShopsOnMap();
-    var html = shops.map(function (s, i) {
+    var html = view.map(function (s, i) {
       var ch = (s.name.match(/[A-Za-zΑ-Ωα-ω]/) || ["·"])[0].toUpperCase();
       return '<button type="button" class="pill" data-act="vendor" data-i="' + i + '"><span class="ph">' + ch + "</span><div><b></b><span></span></div></button>";
     }).join("");
-    openSheet("FIND · " + shops.length, html);
+    openSheet("FIND · " + view.length, html);
     var body = $("sn-sheet-body");
     if (body) {
       var pills = body.querySelectorAll(".pill");
-      shops.forEach(function (s, i) {
+      view.forEach(function (s, i) {
         if (!pills[i]) return;
         pills[i].querySelector("b").textContent = s.name;
         var from = named || here;
         pills[i].querySelector("span").textContent = (s.kind || "shop") + (realPhone(s.phone) ? " · " + realPhone(s.phone) : "") + (from ? " · " + haversineKm(from, s).toFixed(1) + " km" : "");
       });
     }
-    say(shops.length + " real pin" + (shops.length === 1 ? "" : "s") + (named && named.name ? " in " + named.name : "") + ". Tap one to order.");
+    say(view.length + " real pin" + (view.length === 1 ? "" : "s") + (named && named.name ? " in " + named.name : "") + ". Tap one to order.");
   }
   function fetchJson(url, opts, ms) {
     if (!ms) return fetch(url, opts || {}).then(function (r) { return r.json().catch(function () { return null; }); }).catch(function () { return null; });
@@ -2427,7 +2430,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var listed = shops.filter(function (s) { return s && s.src === "listed"; });
         var good = listed.filter(function (s) { return listedFits(s, item); });
         shops = good.concat(listed.filter(function (s) { return !listedFits(s, item); }), found);
-        showFound(geo);
+        showFound(geo, good.concat(found));
         fitPins(geo);
       }
       job.first.then(put);
@@ -2438,7 +2441,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var good = fits();
         if (good.length) {
           shops = good.concat(shops.filter(function (s) { return good.indexOf(s) < 0; }));
-          showFound(geo);
+          showFound(geo, good);
           say(good.length + " listed " + item + " pin" + (good.length === 1 ? "" : "s") + " in " + place + ". Tap one to order.");
           return;
         }
@@ -2803,6 +2806,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (act === "reload") { openDeposit(); return; }
     if (act === "hunt" || act === "city" || act === "shop" || act === "now" || act === "pick") {
       var ask = (act === "city" || act === "hunt" || act === "shop") ? (namedPlaceAsk(j.q, act) || namedPlaceAsk(q, act)) : null;
+      if (ask && act === "city" && !ask.item && placeTown(ask.place)) { ask.raw = j.q || q; huntPlace(ask); return; }
       if (ask && act === "city" && j.places && j.places.length && isFinite(+j.places[0].lat) && isFinite(+j.places[0].lng) && !ask.item && !placeTown(ask.place)) {
         var citySeq = ++placeSeq, cityGeo = { lat: +j.places[0].lat, lng: +j.places[0].lng, name: ask.place }, cityLine = j.say || j.text || ask.place + " on the map.";
         seatPlace(cityGeo);
@@ -2821,7 +2825,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (pins.length) {
           placeSeq++;
           shops = shops.filter(function (s) { return s && s.src === "listed"; }).concat(pins);
-          showFound(far ? { lat: pins[0].lat, lng: pins[0].lng, name: ask.place } : undefined);
+          var farSeat = far ? { lat: pins[0].lat, lng: pins[0].lng, name: ask.place } : undefined, farSeq = placeSeq;
+          showFound(farSeat);
+          if (far) pullPlaceListings(farSeat, farSeq).then(function (rows) {
+            if (farSeq !== placeSeq || !rows.length) return;
+            var good = shops.filter(function (s) { return s && s.src === "listed" && ask.item && listedFits(s, ask.item); });
+            showFound(farSeat, good.concat(shops.filter(function (s) { return pins.indexOf(s) >= 0 && good.indexOf(s) < 0; })));
+          });
           return;
         }
       }
@@ -3402,7 +3412,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (act === "terms") location.href = "/terms.html";
       if (act === "apply-vendor" || act === "apply-driver") say("Apply after LOGIN. Notis activates.");
       if (act === "withdraw") say("Withdraw after a real job. PayPal on origin.");
-      if (act === "vendor" && isFinite(i) && shops[i]) openVendor(shops[i]);
+      if (act === "vendor" && isFinite(i) && (foundView[i] || shops[i])) openVendor(foundView[i] || shops[i]);
       if (act === "gpsdrop") {
         var spot = isAdmin() ? here : hereLive;
         if (!spot) { say("Your own GPS has to verify where you are first."); return; }
