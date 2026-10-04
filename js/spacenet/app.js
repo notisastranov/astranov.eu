@@ -2381,7 +2381,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       chip = document.createElement("button");
       chip.type = "button";
       chip.id = "sn-jobs-chip";
-      chip.style.cssText = "position:fixed;top:68px;left:8px;z-index:91;height:26px;padding:0 12px;border-radius:999px;border:1px solid rgba(77,240,255,.7);background:rgba(4,14,28,.94);color:#4df0ff;font:800 11px/24px system-ui;letter-spacing:.08em;pointer-events:auto;cursor:pointer";
+      chip.style.cssText = "position:fixed;top:124px;left:10px;z-index:91;height:26px;padding:0 12px;border-radius:999px;border:1px solid rgba(77,240,255,.7);background:rgba(4,14,28,.94);color:#4df0ff;font:800 11px/24px system-ui;letter-spacing:.08em;pointer-events:auto;cursor:pointer";
       chip.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openJobs(); });
       document.body.appendChild(chip);
     }
