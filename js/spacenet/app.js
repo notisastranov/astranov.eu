@@ -915,7 +915,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     say("Pinned " + pt.lat.toFixed(4) + "," + pt.lng.toFixed(4) + " · tap GPS to recalibrate");
   }
   function locate(then, quiet) {
-    var gotGps = false;
+    var gotGps = false, coarseRan = false;
     function gps(pos) {
       if (!pos || !pos.coords || gotGps) return;
       gotGps = true;
@@ -923,7 +923,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       then({ lat: pos.coords.latitude, lng: pos.coords.longitude, how: "gps" });
     }
     function coarse() {
-      if (gotGps) return;
+      if (gotGps || coarseRan) return;
+      coarseRan = true;
       var saved = null;
       try { saved = JSON.parse(localStorage.getItem("sn:here") || "null"); } catch (e) {}
       if (saved && isFinite(+saved.lat) && isFinite(+saved.lng)) {
