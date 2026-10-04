@@ -68,9 +68,35 @@ function parseAct(text) {
 }
 
 
+async function geocodeCityAct(q) {
+  var t = String(q || '').trim().slice(0, 80);
+  if (!t) return null;
+  if (/^(athens|athina|αθήνα|αθηνα)$/i.test(t)) t = 'Αθήνα, Ελλάδα';
+  var ctl = new AbortController();
+  var timer = setTimeout(function () { ctl.abort(); }, 5000);
+  try {
+    var r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=' + encodeURIComponent(t), {
+      headers: { 'User-Agent': 'AstranovSpaceNet/1 (https://astranov.eu)', Accept: 'application/json' },
+      signal: ctl.signal,
+    });
+    var rows = await r.json();
+    var g = Array.isArray(rows) && rows[0];
+    if (!g || !isFinite(+g.lat) || !isFinite(+g.lon)) return null;
+    return { name: String(q).trim().slice(0, 80), lat: +g.lat, lng: +g.lon, raw: String(g.display_name || '').slice(0, 160) };
+  } catch (_) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function fillHunt(req, text, message, here) {
     var p = parseAct(text);
   if (p.places && p.places.length) return { text: text, places: p.places };
+  if (p.act === 'city') {
+    var cityPin = await geocodeCityAct(p.q || message);
+    if (cityPin) return { text: text, places: [cityPin] };
+  }
   var research = /moor|yacht|anchor|weather|wind|news|review|permit|legal|cleanest|privacy|sewage|pollut|scandal|harbour|harbor/i.test(message);
   var want = /pizza|pizzeria|beer|burger|coffee|gyro|souvlaki|restaurant/i.test(message + " " + (p.q || ""));
   if (research || !want) return { text: text, places: p.places || [] };
