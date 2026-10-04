@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4308";
+  var VER = "4309";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -2405,7 +2405,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         shops = uniqPlaces(shops.concat(rows));
         if (shops.length) {
           paintShopsOnMap();
-          say("GPS " + here.lat.toFixed(4) + "," + here.lng.toFixed(4) + " · " + shops.length + " places around you. Talk a hunt or tap a pin.");
+          if (!placeSeq) say("GPS " + here.lat.toFixed(4) + "," + here.lng.toFixed(4) + " · " + shops.length + " places around you. Talk a hunt or tap a pin.");
         } else if (here && !cityOn) say("GPS " + here.lat.toFixed(4) + "," + here.lng.toFixed(4) + " · tap GPS for the city");
       });
     }
