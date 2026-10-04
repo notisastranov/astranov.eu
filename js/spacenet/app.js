@@ -213,6 +213,32 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var item = cleanItem(t);
     return item && !/^(what'?s|what|anything|something|stuff|places?|things?|shops?)$/i.test(item) ? item : null;
   }
+  var nearbyJob = null, nearbyAt = null;
+  function bareNear(q) { return NEAR_YOU.test(String(q || "")) && !nearYouItem(q) && !datingAsk(q); }
+  function nearYouBare() {
+    huntSeq++;
+    if (lastCat) { hunt(lastCat, true); return; }
+    var seq = ++placeSeq;
+    closeFind();
+    materialize(true);
+    var go = function () {
+      if (seq !== placeSeq || !here) return;
+      aim = { lat: here.lat, lng: here.lng };
+      openCity(aim);
+      try { if (map) map.setView([here.lat, here.lng], 15); } catch (e) {}
+      say(hereLabel() + " · finding places around you…");
+      var job = (nearbyJob && nearbyAt && haversineKm(nearbyAt, here) < 1) ? nearbyJob : huntNearby();
+      job.then(function (rows) {
+        if (seq !== placeSeq) return;
+        var near = uniqPlaces((rows || []).concat(shops.filter(function (s) { return s && s.src === "listed"; }))).filter(nearOf(here, 5));
+        if (!near.length) { say(hereLabel() + " · no real place found around you yet. Name a shop or a service."); return; }
+        shops = uniqPlaces(near.concat(shops.filter(function (s) { return near.indexOf(s) < 0; })));
+        showFound(null, near);
+        say(hereLabel() + " · " + near.length + " real place" + (near.length === 1 ? "" : "s") + " around you. Tap one.");
+      });
+    };
+    if (!here) locate(function (pt) { land(pt, false, true); go(); }); else go();
+  }
   function honestDating() {
     huntSeq++;
     placeSeq++;
@@ -931,16 +957,28 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
     setTimeout(function () { if (!gotGps) coarse(); }, 14000);
   }
-  function land(pt, open, keepView) {
+  var hereHow = "";
+  var userSpoke = false;
+  var lastCat = "";
+  function hereLabel() {
+    if (!here) return "Location unknown";
+    if (hereHow === "gps") return "GPS " + here.lat.toFixed(4) + "," + here.lng.toFixed(4);
+    if (hereHow === "admin") return "Admin pin " + here.lat.toFixed(4) + "," + here.lng.toFixed(4);
+    if (hereHow === "saved") return "Saved location " + here.lat.toFixed(4) + "," + here.lng.toFixed(4);
+    return "Approx. location (IP) " + here.lat.toFixed(2) + "," + here.lng.toFixed(2);
+  }
+  function land(pt, open, keepView, hush) {
     if (!keepView) intro = false;
     if (pt.how === "gps") {
       hereLive = { lat: pt.lat, lng: pt.lng };
-      if (!adminPin) here = hereLive;
+      if (!adminPin) { here = hereLive; hereHow = "gps"; }
     } else if (pt.how === "admin") {
       adminPin = true;
       here = { lat: pt.lat, lng: pt.lng };
+      hereHow = "admin";
     } else if (!adminPin) {
       here = { lat: pt.lat, lng: pt.lng };
+      hereHow = pt.how === "saved" ? "saved" : "net";
     }
     if (!here) here = { lat: pt.lat, lng: pt.lng };
     window.__SN_HERE = here;
@@ -952,8 +990,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       try { map.setView([aim.lat, aim.lng], 17); } catch (e) {}
       setTimeout(function () { try { if (map) { map.invalidateSize(); map.setView([aim.lat, aim.lng], 17); } } catch (e) {} }, 80);
     }
-    var tag = pt.how === "net" ? "Network" : pt.how === "admin" ? "Admin pin" : pt.how === "saved" ? "Last fix" : "GPS";
-    say(tag + " " + here.lat.toFixed(4) + "," + here.lng.toFixed(4) + (pt.name ? " · " + pt.name : "") + " · city");
+    if (!hush) say(hereLabel() + (pt.name ? " · " + pt.name : "") + " · city");
     pullListings();
   }
   function endIntro() {
@@ -2369,7 +2406,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function showFound(named, list) {
     var view = list && list.length ? list : shops;
-    if (!view.length) { say("No real pin for that hunt. Try another name near GPS."); return; }
+    if (!view.length) { say("No real pin for that hunt. Try another name near you."); return; }
     foundView = view.slice();
     var seat = named || here || view[0];
     if (seat) openCity(seat);
@@ -2642,6 +2679,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     closeFind();
     materialize(true);
     var place = ask.place, item = ask.item;
+    if (item) lastCat = item;
     var fired = false;
     var hold = setTimeout(function () { if (seq === placeSeq) { fired = true; say("Finding " + (item ? item + " in " : "") + place + "…"); } }, 1500);
     return (ask.geo ? Promise.resolve(ask.geo) : geocodePlace(place)).then(function (geo) {
@@ -2696,25 +2734,37 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     q = String(q || "").trim();
     if (!q) return;
     if (datingAsk(q)) { honestDating(); return; }
+    if (bareNear(q)) { nearYouBare(); return; }
     var nearItem = nearYouItem(q);
     if (nearItem) { q = nearItem; nearYou = true; }
     var named = nearYou ? null : namedPlaceAsk(q, "");
     if (named) { named.raw = q; huntPlace(named); return; }
+    lastCat = cleanItem(q) || q;
     closeFind();
     materialize(true);
-    say("Finding " + q + "…");
+    say("Finding " + q + (nearYou ? " near YOU" : "") + "…");
     var hs = ++huntSeq, ps = placeSeq;
     var go = function () {
       Promise.all([huntApi(q), huntNominatim(q), huntOverpass(q)]).then(function (packs) {
         if (hs !== huntSeq || ps !== placeSeq) return;
         var listed = shops.filter(function (s) { return s && s.src === "listed" && nearOf(here, 80)(s); });
         var next = uniqPlaces(listed.concat(packs[0], packs[1], packs[2]));
+        if (nearYou && !next.length && here) {
+          shops = shops.filter(nearOf(here, 80));
+          aim = { lat: here.lat, lng: here.lng };
+          openCity(aim);
+          try { if (map) map.setView([here.lat, here.lng], 15); } catch (e) {}
+          paintShopsOnMap();
+          say("No real " + q + " pin near YOU (" + hereLabel() + ") yet. Try another name, or name a place.");
+          return;
+        }
         if (!next.length && shops.length) { paintShopsOnMap(); say("No real pin for " + q + ". Nothing new is shown; the " + shops.length + " already on the map stay."); return; }
         shops = next;
         showFound();
+        if (nearYou && here) say(q.charAt(0).toUpperCase() + q.slice(1) + " near YOU (" + hereLabel() + "): " + foundView.length + " real pin" + (foundView.length === 1 ? "" : "s") + ". Tap one to order.");
       });
     };
-    if (!here) locate(function (pt) { land(pt, false); go(); });
+    if (!here) locate(function (pt) { land(pt, false, true); go(); });
     else go();
   }
   function pullListings() {
@@ -2731,12 +2781,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     });
     if (!listingTried) {
       listingTried = true;
-      huntNearby().then(function (rows) {
+      nearbyAt = { lat: here.lat, lng: here.lng };
+      nearbyJob = huntNearby();
+      nearbyJob.then(function (rows) {
         shops = uniqPlaces(shops.concat(rows));
         if (shops.length) {
           paintShopsOnMap();
-          if (!placeSeq && !viewMoved) say("GPS " + here.lat.toFixed(4) + "," + here.lng.toFixed(4) + " · " + shops.length + " places around you. Talk a hunt or tap a pin.");
-        } else if (here && !cityOn && !viewMoved) say("GPS " + here.lat.toFixed(4) + "," + here.lng.toFixed(4) + " · tap GPS for the city");
+          if (!placeSeq && !viewMoved && !userSpoke) say(hereLabel() + " · " + shops.length + " places around you. Talk a hunt or tap a pin.");
+        } else if (here && !cityOn && !viewMoved && !userSpoke) say(hereLabel() + " · tap GPS for the city");
       });
     }
   }
@@ -3187,7 +3239,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (act === "hunt" || act === "city" || act === "shop" || act === "now" || act === "pick") {
       if (datingAsk(q)) { honestDating(); return; }
       if (nearYouItem(q)) { hunt(nearYouItem(q), true); return; }
+      if (bareNear(q)) { nearYouBare(); return; }
       var ask = (act === "city" || act === "hunt" || act === "shop") ? (namedPlaceAsk(j.q, act) || namedPlaceAsk(q, act)) : null;
+      if (ask && ask.item) lastCat = ask.item;
       if (ask && !ask.item && (placeTown(ask.place) || act !== "city")) { ask.raw = j.q || q; huntPlace(ask); return; }
       if (ask && act === "city" && j.places && j.places.length && isFinite(+j.places[0].lat) && isFinite(+j.places[0].lng) && !ask.item && !placeTown(ask.place)) {
         var citySeq = ++placeSeq, cityGeo = { lat: +j.places[0].lat, lng: +j.places[0].lng, name: ask.place }, cityLine = j.say || j.text || ask.place + " on the map.";
@@ -3340,8 +3394,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var q = String(raw || "").trim();
     if (!q) return;
     lastVoice = !!fromVoice;
+    userSpoke = true;
     if (supportOn) { sendSupport(q, fromVoice); return; }
     if (datingAsk(q)) { honestDating(); return; }
+    if (bareNear(q)) { nearYouBare(); return; }
     var nearItem = nearYouItem(q);
     if (nearItem) { hunt(nearItem, true); return; }
     if (runLine(q)) return;
@@ -3357,6 +3413,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     grokTalk(q);
   }
+  var GREETING = /^\s*(hello|hi|hey|hiya|yo|sup|howdy|good\s+(morning|afternoon|evening|night)|thanks|thank\s+you|thx|ok|okay|bye|γεια(\s+σου|\s+σας)?|γειά(\s+σου|\s+σας)?|καλημέρα|καλησπέρα|καληνύχτα|ευχαριστώ)\s*[!.?]*\s*$/i;
   function grokTalk(q) {
     var hits = searchRoster(q);
     say("Grok…");
@@ -3366,6 +3423,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         say(text);
         speakIfVoice(text);
         var act = String(j.act || "talk").toLowerCase();
+        if (GREETING.test(q)) return;
         if (act === "open") openBest(searchRoster(j.q || q).length ? searchRoster(j.q || q) : hits);
         else applyAct(j, q);
         return;
@@ -3535,7 +3593,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         mctx.fillStyle = "#ffd080";
         mctx.fillText("DEVICE + SWARM", 140, 18);
         mctx.fillStyle = here ? "#7dff9a" : "#ff8a8a";
-        mctx.fillText(here ? "GPS LOCK" : "GPS WAIT", 280, 18);
+        mctx.fillText(!here ? "GPS WAIT" : hereHow === "gps" ? "GPS LOCK" : hereHow === "net" ? "IP APPROX" : "PIN", 280, 18);
       }
     }
     var wx = $("sn-wx");
@@ -5049,7 +5107,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var savedHere = JSON.parse(localStorage.getItem("sn:here") || "null");
       if (savedHere && isFinite(+savedHere.lat) && isFinite(+savedHere.lng)) land({ lat: +savedHere.lat, lng: +savedHere.lng, how: "saved" }, false);
     } catch (e) {}
-    locate(function (pt) { land(pt, false, placeSeq > 0 || viewMoved); }, true);
+    locate(function (pt) { land(pt, false, placeSeq > 0 || viewMoved, userSpoke); }, true);
     setTimeout(pullQueue, 600);
     setInterval(pullQueue, 4000);
     loadBlocks();
