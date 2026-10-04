@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4298";
+  var VER = "4300";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1066,9 +1066,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     row.className = "sn-row";
     row.innerHTML = '<button type="button" class="phbtn" data-act="row-photo"><img alt="" hidden><span>+</span></button>' +
       '<input class="c-desc" placeholder="Description" />' +
+      '<div class="sn-trio">' +
       '<input class="c-price" placeholder="Price" inputmode="decimal" />' +
       '<input class="c-qty" placeholder="Qty" inputmode="numeric" />' +
-      '<input class="c-when" placeholder="Hours" />';
+      '<input class="c-when" placeholder="Hours" />' +
+      '</div>';
     box.appendChild(row);
   }
   function readMenuRows() {
@@ -1099,7 +1101,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       '<input id="sn-place-name" placeholder="Name" />' +
       '<input id="sn-place-phone" placeholder="Phone" />' +
       '<input id="sn-place-address" placeholder="Address" />' +
-      '<div class="sn-cols"><span></span><span>ITEM</span><span>PRICE</span><span>QTY</span><span>HOURS</span></div>' +
+      '<p class="note">ITEM · PRICE · QTY · HOURS</p>' +
       '<div id="sn-rows"></div>' +
       '<button type="button" class="sheet-go" data-act="add-row">ADD A MENU ROW</button>' +
       '<button type="button" class="sheet-go primary" data-act="save-place" data-k="shop">LIST VENDOR</button>';
@@ -1227,10 +1229,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     });
     var sh = $("sn-sheet");
     if (sh) {
-      var focused = dockTabs.filter(function (t) { return t.id === dockFocus; })[0];
-      var show = !!(focused && !focused.min && focused.kind !== "support" && focused.html);
-      sh.classList.toggle("on", show);
-      sh.classList.toggle("min", !!(focused && focused.min));
+      if (!sheetHold) {
+        var focused = dockTabs.filter(function (t) { return t.id === dockFocus; })[0];
+        var show = !!(focused && !focused.min && focused.kind !== "support" && focused.html);
+        sh.classList.toggle("on", show);
+        sh.classList.toggle("min", !!(focused && focused.min));
+      }
     }
   }
   function upsertTab(tab) {
@@ -1268,15 +1272,40 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
   }
   var sheetArm = 0;
+  var sheetHold = false;
+  function sheetLaw() {
+    if (document.getElementById("sn-law")) return;
+    var s = document.createElement("style");
+    s.id = "sn-law";
+    s.textContent = [
+      "#sn-sheet.on{pointer-events:none!important}",
+      "#sn-sheet.on .card{pointer-events:auto!important}",
+      "#sn-sheet .bg{pointer-events:none!important;display:none!important}",
+      "#sn-sheet .card{position:absolute!important;left:0!important;right:0!important;width:100%!important;transform:none!important;bottom:72px!important;height:auto!important;max-height:58vh!important;padding:0!important;margin:0!important;border-radius:0!important;border-left:0!important;border-right:0!important;overflow:auto!important}",
+      "#sn-sheet .sheet-bar{display:flex!important;align-items:stretch!important;gap:0!important;margin:0!important;padding:0!important;width:100%!important;position:sticky!important;top:0!important;z-index:5!important;height:52px!important}",
+      "#sn-sheet.offer .sheet-bar{height:84px!important}",
+      "#sn-sheet .sheet-apply,#sn-sheet .sheet-x{flex:none!important;display:block!important;height:100%!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;box-shadow:none!important}",
+      "#sn-sheet .sheet-apply{width:112px!important;background:#1f8f4a!important;color:#fff!important;font:800 15px/52px system-ui!important}",
+      "#sn-sheet .sheet-x{width:64px!important;background:#d21f2a!important;color:#fff!important;font:800 32px/1 system-ui!important}",
+      "#sn-sheet .sheet-mid{flex:1!important;min-width:0!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;background:#041018!important;color:#d7f6ff!important;font:800 13px/1.1 system-ui!important;letter-spacing:.14em!important;text-transform:uppercase!important;padding:0 8px!important}",
+      "#sn-sheet .sheet-mid .sn-price{margin:0!important;font:800 52px/.9 system-ui!important;letter-spacing:-.04em!important;color:#4df0ff!important;text-shadow:0 0 16px rgba(77,240,255,.9)!important}",
+      "#sn-sheet .sheet-mid .sn-price small{font:800 14px/1 system-ui!important;letter-spacing:.12em!important;margin-left:6px!important}",
+      "#sn-sheet-body{padding:8px 10px 12px!important}",
+      "#sn-sheet-body .sheet-go{display:block!important;width:100%!important;height:40px!important;margin:6px 0 0!important;box-sizing:border-box!important}",
+      "#sn-sheet .sn-row{display:block!important;margin:8px 0 0!important}",
+      "#sn-sheet .sn-trio{display:grid!important;grid-template-columns:1fr 1fr 1fr!important;gap:4px!important}",
+      "#sn-sheet .sn-row input{width:100%!important;box-sizing:border-box!important}"
+    ].join("");
+    document.head.appendChild(s);
+  }
   function throwOffer(job) {
     var id = "offer-" + (job && job.id ? job.id : Date.now().toString(36));
     var title = (job && (job.shop || job.name || "OFFER")) || "OFFER";
     var fee = job && (job.fee != null ? job.fee : job.total);
-    var price = fee != null && fee !== "" ? '<p class="sn-price">' + esc(fee) + '<small>AV€</small></p>' : "";
-    var html = price + '<p class="note">' + String((job && (job.note || job.item)) || "Work is up.").replace(/[<>]/g, "") + "</p>" +
-      '<button type="button" class="sheet-go primary" data-act="hide">KEEP</button>';
+    var mid = fee != null && fee !== "" ? '<b class="sn-price">' + esc(fee) + "<small>AV€</small></b>" : esc(title);
+    var html = '<p class="note">' + String((job && (job.note || job.item)) || "Work is up.").replace(/[<>]/g, "") + "</p>";
     upsertTab({ id: id, kind: "offer", title: String(title).slice(0, 16).toUpperCase(), html: html, min: false });
-    openSheet(title, html, true);
+    openSheet(title, html, true, mid);
   }
   var queueBuzz = {};
   function loadQueue() {
@@ -1617,24 +1646,39 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       });
     } catch (e) {}
   }
-  function openSheet(title, html, tall) {
+  function openSheet(title, html, tall, mid) {
     var sh = $("sn-sheet"), card = $("sn-sheet-card");
     if (!sh || !card) return;
-    card.innerHTML = '<div class="sheet-bar"><button type="button" class="sheet-apply" data-act="sheet-apply">✓ APPLY</button><b class="sheet-ttl"></b><button type="button" class="sheet-x" data-act="sheet-x" aria-label="Close">✕</button></div><div id="sn-sheet-body"></div>';
-    card.querySelector(".sheet-ttl").textContent = title;
+    sheetLaw();
+    sheetHold = true;
+    var center = mid || esc(title || "");
+    sh.classList.toggle("offer", !!(mid && String(mid).indexOf("sn-price") >= 0));
+    card.innerHTML = '<div class="sheet-bar"><button type="button" class="sheet-apply" data-act="sheet-apply">✓ APPLY</button><div class="sheet-mid"></div><button type="button" class="sheet-x" data-act="sheet-x" aria-label="Close">✕</button></div><div id="sn-sheet-body"></div>';
+    card.querySelector(".sheet-mid").innerHTML = center;
     card.querySelector("#sn-sheet-body").innerHTML = html;
+    sh.classList.remove("min");
     if (tall) sh.classList.add("tall"); else sh.classList.remove("tall");
     sh.classList.add("on");
     sheetArm = Date.now() + 400;
     materialize(false);
     liftChrome();
   }
-  function closeSheet() { var sh = $("sn-sheet"); if (sh) { sh.classList.remove("on"); sh.classList.remove("tall"); } materialize(needFilter()); liftChrome(); }
+  function closeSheet() {
+    var sh = $("sn-sheet");
+    sheetHold = false;
+    if (sh) { sh.classList.remove("on"); sh.classList.remove("tall"); sh.classList.remove("min"); sh.classList.remove("offer"); }
+    materialize(needFilter());
+    liftChrome();
+  }
   function applySheet() {
     var body = $("sn-sheet-body");
     if (!body) return;
     var go = body.querySelector("[data-act='save-place'],[data-act='save-drop'],[data-act='save-driver'],[data-act='save-stock'],[data-act='post-go'],[data-act='post-next'],[data-act='send'],[data-act='run-offer']");
-    if (!go) { say("Pick a listing, fill it, then Apply. The window stays until the red X."); return; }
+    if (!go) {
+      if ($("sn-sheet") && $("sn-sheet").classList.contains("offer")) { closeSheet(); say("It stays on the map."); return; }
+      say("Pick a listing, fill it, then Apply. The window stays until the red X.");
+      return;
+    }
     go.click();
   }
   function absorbMine() {
