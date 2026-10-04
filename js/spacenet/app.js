@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4308";
+  var VER = "4309";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -655,11 +655,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       vel.yaw = 0; vel.pitch = 0;
       return;
     }
-    if (!drag && (Math.abs(vel.yaw) > 0.00012 || Math.abs(vel.pitch) > 0.00012)) {
-      cam.yaw += vel.yaw;
-      cam.pitch = Math.max(-1.15, Math.min(1.15, cam.pitch + vel.pitch));
-      vel.yaw *= 0.88; vel.pitch *= 0.88;
-    } else if (!drag) { vel.yaw = 0; vel.pitch = 0; }
+    vel.yaw = 0; vel.pitch = 0;
   }
   function tickNews(now) {
     if (!intro || supportOn || (Date.now() - sayHold < 12000)) return;
@@ -727,7 +723,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         pinch = d;
         intro = false;
         var nd = cam.dist / Math.max(0.92, Math.min(1.08, grew));
-        zoomToDist(nd, mx, my);
+        zoomToDist(nd);
         return;
       }
       if (!drag) return;
@@ -755,6 +751,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var hitHold = globeHit(d.x, d.y, cam);
         if (hitHold) setTimeout(function () { listAt(hitHold); }, 30);
         return;
+      }
+      if (d && d.moved && view) {
+        var mid = globeHit(view.cx, view.cy, cam);
+        if (mid && isFinite(mid.lat) && isFinite(mid.lng)) aim = { lat: mid.lat, lng: mid.lng };
+        vel.yaw = 0;
+        vel.pitch = 0;
       }
       if (!d || d.moved) return;
       vel.yaw = 0; vel.pitch = 0;
@@ -785,11 +787,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       pitch: Math.max(-1.15, Math.min(1.15, (pt.lat * Math.PI) / 180))
     };
   }
-  function zoomToDist(dist, sx, sy) {
+  function zoomToDist(dist) {
     intro = false;
-    var pt = pointUnder(sx, sy);
-    if (pt) aim = pt;
     dist = Math.max(0.5, Math.min(6.4, dist));
+    if (!aim && here && isFinite(here.lat)) aim = { lat: here.lat, lng: here.lng };
     if (cityOn) return;
     if (dist <= 0.52 && aim && isFinite(aim.lat)) {
       openCity(aim);
@@ -802,7 +803,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       say("City");
       return;
     }
-    var f = face(aim || pt);
+    var f = aim && isFinite(aim.lat) ? face(aim) : { yaw: cam.yaw, pitch: cam.pitch };
     fly = {
       t0: performance.now(),
       ms: 280,
@@ -815,9 +816,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (cityOn && map) {
       var z = map.getZoom() || 16;
       if (dir > 0 && z <= 13.2) {
-        var back = aim;
         closeCity();
-        zoomToDist(1.05, sx, sy);
+        zoomToDist(1.25);
         say("Back to the globe");
         return;
       }
@@ -942,10 +942,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       map.on("zoomend", function () {
         try {
           if (map && map.getZoom() <= 12.5) {
-            var back = aim;
             closeCity();
-            zoomToDist(1.15, null, null);
-            aim = back;
+            zoomToDist(1.25);
           }
         } catch (e) {}
       });
@@ -1000,6 +998,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var el = $("city");
     if (el) el.classList.remove("on");
     cityOn = false;
+    intro = false;
     if (tierI > 2) tierI = 2;
     if (aim) {
       var f = face(aim);
