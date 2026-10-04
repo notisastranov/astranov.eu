@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4309";
+  var VER = "4310";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -655,11 +655,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       vel.yaw = 0; vel.pitch = 0;
       return;
     }
-    if (!drag && (Math.abs(vel.yaw) > 0.00012 || Math.abs(vel.pitch) > 0.00012)) {
-      cam.yaw += vel.yaw;
-      cam.pitch = Math.max(-1.15, Math.min(1.15, cam.pitch + vel.pitch));
-      vel.yaw *= 0.88; vel.pitch *= 0.88;
-    } else if (!drag) { vel.yaw = 0; vel.pitch = 0; }
+    vel.yaw = 0; vel.pitch = 0;
   }
   function tickNews(now) {
     if (!intro || supportOn || (Date.now() - sayHold < 12000)) return;
@@ -727,7 +723,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         pinch = d;
         intro = false;
         var nd = cam.dist / Math.max(0.92, Math.min(1.08, grew));
-        zoomToDist(nd, mx, my);
+        zoomToDist(nd);
         return;
       }
       if (!drag) return;
@@ -755,6 +751,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var hitHold = globeHit(d.x, d.y, cam);
         if (hitHold) setTimeout(function () { listAt(hitHold); }, 30);
         return;
+      }
+      if (d && d.moved && view) {
+        var mid = globeHit(view.cx, view.cy, cam);
+        if (mid && isFinite(mid.lat) && isFinite(mid.lng)) aim = { lat: mid.lat, lng: mid.lng };
+        vel.yaw = 0;
+        vel.pitch = 0;
       }
       if (!d || d.moved) return;
       vel.yaw = 0; vel.pitch = 0;
@@ -785,11 +787,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       pitch: Math.max(-1.15, Math.min(1.15, (pt.lat * Math.PI) / 180))
     };
   }
-  function zoomToDist(dist, sx, sy) {
+  function zoomToDist(dist) {
     intro = false;
-    var pt = pointUnder(sx, sy);
-    if (pt) aim = pt;
     dist = Math.max(0.5, Math.min(6.4, dist));
+    if (!aim && here && isFinite(here.lat)) aim = { lat: here.lat, lng: here.lng };
     if (cityOn) return;
     if (dist <= 0.52 && aim && isFinite(aim.lat)) {
       openCity(aim);
@@ -802,7 +803,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       say("City");
       return;
     }
-    var f = face(aim || pt);
+    var f = aim && isFinite(aim.lat) ? face(aim) : { yaw: cam.yaw, pitch: cam.pitch };
     fly = {
       t0: performance.now(),
       ms: 280,
@@ -815,9 +816,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (cityOn && map) {
       var z = map.getZoom() || 16;
       if (dir > 0 && z <= 13.2) {
-        var back = aim;
         closeCity();
-        zoomToDist(1.05, sx, sy);
+        zoomToDist(1.25);
         say("Back to the globe");
         return;
       }
@@ -943,10 +943,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       map.on("zoomend", function () {
         try {
           if (map && map.getZoom() <= 12.5) {
-            var back = aim;
             closeCity();
-            zoomToDist(1.15, null, null);
-            aim = back;
+            zoomToDist(1.25);
           }
         } catch (e) {}
       });
@@ -1001,6 +999,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var el = $("city");
     if (el) el.classList.remove("on");
     cityOn = false;
+    intro = false;
     if (tierI > 2) tierI = 2;
     if (aim) {
       var f = face(aim);
@@ -1349,7 +1348,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet .sheet-apply{color:#7dff9a!important}",
       "#sn-sheet .sheet-x{color:#ff8a8a!important}",
       "#sn-sheet .sheet-mid{flex:1!important;min-width:0!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;background:#041018!important;color:#d7f6ff!important;font:800 13px/1.1 system-ui!important;letter-spacing:.14em!important;text-transform:uppercase!important;padding:0 8px!important}",
-      "#sn-sheet .sheet-mid .sn-price{margin:0!important;font:800 28px/1 system-ui!important;letter-spacing:-.03em!important;color:#4df0ff!important;text-shadow:0 0 12px rgba(77,240,255,.85)!important}",
+      "#sn-sheet.offer .card{max-height:32vh!important}",
+      "#sn-sheet .sheet-mid .sn-price{margin:0!important;font:800 34px/1 system-ui!important;letter-spacing:-.03em!important;color:#4df0ff!important;text-shadow:0 0 12px rgba(77,240,255,.85)!important}",
+      "#sn-sheet .sn-who{display:grid;grid-template-columns:62px minmax(0,1fr);column-gap:8px;margin:8px 0 0;align-items:baseline}",
+      "#sn-sheet .sn-who b{color:#7ee9ff!important;font:800 10px/1.2 system-ui!important;letter-spacing:.14em!important}",
+      "#sn-sheet .sn-who span{color:#e8fbff!important;font:700 15px/1.2 system-ui!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+      "#sn-sheet .sn-who em{grid-column:2;color:#9fd4e4!important;font:500 12px/1.3 system-ui!important;font-style:normal!important}",
+      "#sn-sheet .sn-leg{margin:6px 0 2px 70px;color:#4df0ff!important;font:800 12px/1 system-ui!important}",
       "#sn-sheet .sheet-mid .sn-price small{font:800 14px/1 system-ui!important;letter-spacing:.12em!important;margin-left:6px!important}",
       "#sn-sheet-body{padding:8px 10px 10px!important}",
       "#sn-sheet input,#sn-sheet textarea{margin:4px 0 0!important;padding:8px 10px!important;font-size:16px!important}",
@@ -1378,14 +1383,23 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     ].join("");
     document.head.appendChild(s);
   }
+  function whoLine(role, name, where) {
+    return '<div class="sn-who"><b>' + role + "</b><span>" + esc(name || "—") + "</span><em>" + esc(where || "") + "</em></div>";
+  }
   function throwOffer(job) {
     var id = "offer-" + (job && job.id ? job.id : Date.now().toString(36));
-    var title = (job && (job.shop || job.name || "OFFER")) || "OFFER";
     var fee = job && (job.fee != null ? job.fee : job.total);
-    var mid = fee != null && fee !== "" ? '<b class="sn-price">' + esc(fee) + "<small>AV€</small></b>" : esc(title);
-    var html = '<p class="note">' + String((job && (job.note || job.item)) || "Work is up.").replace(/[<>]/g, "") + "</p>";
-    upsertTab({ id: id, kind: "offer", title: String(title).slice(0, 16).toUpperCase(), html: html, min: false });
-    openSheet(title, html, true, mid);
+    var mid = fee != null && fee !== "" ? '<b class="sn-price">' + esc(fee) + "<small>AV€</small></b>" : "OFFER";
+    var v = (job && job.vendor) || {};
+    var d = (job && job.drop) || {};
+    var vWhere = [v.address, v.phone].filter(Boolean).join(" · ");
+    var dWhere = [d.address, d.floor ? "floor " + d.floor : "", d.bell ? "bell " + d.bell : "", d.phone].filter(Boolean).join(" · ");
+    var km = job && isFinite(+job.km) ? Number(job.km).toFixed(1) + " km" : "the route";
+    var html = whoLine("VENDOR", v.name || (job && job.name) || "Vendor", vWhere) +
+      '<div class="sn-leg">' + esc(km) + "</div>" +
+      whoLine("CLIENT", d.name || "Client", dWhere);
+    upsertTab({ id: id, kind: "offer", title: String(fee != null ? fee + " AV€" : "OFFER"), html: html, min: false });
+    openSheet("OFFER", html, false, mid);
   }
   var queueBuzz = {};
   function loadQueue() {
@@ -1873,6 +1887,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     sheetArm = Date.now() + 400;
     materialize(false);
     liftChrome();
+    if (sh.classList.contains("offer")) setTimeout(fitOfferRoute, 40);
   }
   function closeSheet() {
     var sh = $("sn-sheet");
@@ -2536,8 +2551,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     takeStock(vendor, basket.filter(function (line) { return line && String(line.id) === String(vendor.id); }));
     if (!cityOn) openCity(vendor);
     drawRoute(vendor, drop);
-    throwOffer({ id: job.id, name: vendor.name, fee: q.total, note: vendor.name + " → client · " + q.km.toFixed(1) + " km" });
-    openJobs();
+    throwOffer({ id: job.id, name: vendor.name, fee: q.total, km: q.km, vendor: vendor, drop: (homeDrop && homeDrop.name) ? homeDrop : drop });
     say("Order is up. Vendor marks ready, then pickup at the door.");
     var t = authToken();
     fetch("/api/space", {
@@ -3555,8 +3569,22 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         takeStock(vendor, basket.filter(function (line) { return line && String(line.id) === String(vendor.id); }));
         if (!cityOn) openCity(vendor);
         drawRoute(vendor, drop);
-        throwOffer({ id: job.id, name: vendor.name, fee: quote.total, note: vendor.name + " accepted · " + (bestDrv.name || "driver") + " accepted · " + quote.km.toFixed(1) + " km" });
-        openJobs();
+        throwOffer({
+          id: job.id,
+          name: vendor.name,
+          fee: quote.total,
+          km: quote.km,
+          vendor: vendor,
+          drop: {
+            name: homeDrop.name || "Client",
+            phone: homeDrop.phone || "",
+            address: homeDrop.address || "",
+            floor: homeDrop.floor || "",
+            bell: homeDrop.bell || "",
+            lat: homeDrop.lat,
+            lng: homeDrop.lng
+          }
+        });
         say(vendor.name + " accepted. " + (bestDrv.name || "Driver") + " accepted. " + quote.km.toFixed(1) + " km.");
       }
       if (act === "list-kinds") {
