@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4306";
+  var VER = "4307";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -890,8 +890,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
     setTimeout(function () { if (!gotGps) coarse(); }, 14000);
   }
-  function land(pt, open) {
-    intro = false;
+  function land(pt, open, keepView) {
+    if (!keepView) intro = false;
     if (pt.how === "gps") {
       hereLive = { lat: pt.lat, lng: pt.lng };
       if (!adminPin) here = hereLive;
@@ -904,6 +904,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!here) here = { lat: pt.lat, lng: pt.lng };
     window.__SN_HERE = here;
     try { if (pt.how === "gps" || pt.how === "saved") localStorage.setItem("sn:here", JSON.stringify(hereLive || here)); } catch (e) {}
+    if (keepView) return;
     aim = { lat: here.lat, lng: here.lng };
     openCity(aim);
     if (map) {
@@ -1761,12 +1762,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function authToken() {
     try { return (window.SNAuth && SNAuth.token && SNAuth.token()) || localStorage.getItem("sn:access") || ""; } catch (e) { return ""; }
   }
-  function uniqPlaces(list) {
+  function uniqPlaces(list, seat) {
     var listed = [], out = [], seen = {};
+    var ref = seat === undefined ? here : seat;
     list.forEach(function (p) {
       if (!p || !isFinite(p.lat) || !isFinite(p.lng) || !p.name) return;
       var mine = p.src === "listed";
-      if (!mine && here && haversineKm(here, p) > 40) return;
+      if (!mine && !p.named && ref && haversineKm(ref, p) > 40) return;
       var k = p.name.toLowerCase() + ":" + p.lat.toFixed(4) + "," + p.lng.toFixed(4);
       if (seen[k]) {
         if (mine) {
@@ -2151,9 +2153,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       put(p, p.role || "client", (p.role || "") + " " + (p.name || ""), function (ll) { movePerson(p.id, ll); });
     });
   }
-  function showFound() {
+  function showFound(named) {
     if (!shops.length) { say("No real pin for that hunt. Try another name near GPS."); return; }
-    var seat = here || shops[0];
+    var seat = named || here || shops[0];
     if (seat) openCity(seat);
     paintShopsOnMap();
     var html = shops.map(function (s, i) {
@@ -2167,13 +2169,34 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       shops.forEach(function (s, i) {
         if (!pills[i]) return;
         pills[i].querySelector("b").textContent = s.name;
-        pills[i].querySelector("span").textContent = (s.kind || "shop") + (s.phone ? " · " + s.phone : "") + (here ? " · " + haversineKm(here, s).toFixed(1) + " km" : "");
+        var from = named || here;
+        pills[i].querySelector("span").textContent = (s.kind || "shop") + (s.phone ? " · " + s.phone : "") + (from ? " · " + haversineKm(from, s).toFixed(1) + " km" : "");
       });
     }
-    say(shops.length + " real pin" + (shops.length === 1 ? "" : "s") + ". Tap one to order.");
+    say(shops.length + " real pin" + (shops.length === 1 ? "" : "s") + (named && named.name ? " in " + named.name : "") + ". Tap one to order.");
   }
-  function fetchJson(url, opts) {
-    return fetch(url, opts || {}).then(function (r) { return r.json().catch(function () { return null; }); }).catch(function () { return null; });
+  function fetchJson(url, opts, ms) {
+    if (!ms) return fetch(url, opts || {}).then(function (r) { return r.json().catch(function () { return null; }); }).catch(function () { return null; });
+    opts = opts || {};
+    var ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    if (ctl) opts.signal = ctl.signal;
+    var t = 0;
+    var cap = new Promise(function (ok) { t = setTimeout(function () { try { if (ctl) ctl.abort(); } catch (e) {} ok(null); }, ms); });
+    var ask = fetch(url, opts).then(function (r) { return r.ok ? r.json().catch(function () { return null; }) : null; }).catch(function () { return null; });
+    return Promise.race([ask, cap]).then(function (j) { clearTimeout(t); return j; });
+  }
+  var OVERPASS_MIRRORS = ["https://overpass.kumi.systems/api/interpreter", "https://lz4.overpass-api.de/api/interpreter"];
+  function overpassAsk(data) {
+    // Primary first, unchanged query. Mirrors only when the primary fails or times out.
+    var urls = ["https://overpass-api.de/api/interpreter"].concat(OVERPASS_MIRRORS);
+    function next(i) {
+      if (i >= urls.length) return Promise.resolve(null);
+      return fetchJson(urls[i], { method: "POST", body: data }, i ? 8000 : 13000).then(function (j) {
+        if (j && Array.isArray(j.elements)) return j;
+        return new Promise(function (ok) { setTimeout(ok, 400 * (i + 1)); }).then(function () { return next(i + 1); });
+      });
+    }
+    return next(0);
   }
   function huntNominatim(q) {
     var url = "https://nominatim.openstreetmap.org/search?format=json&limit=8&addressdetails=0&q=" + encodeURIComponent(q);
@@ -2182,7 +2205,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var s = (here.lat - 0.08).toFixed(4), n = (here.lat + 0.08).toFixed(4);
       url += "&viewbox=" + w + "," + n + "," + e + "," + s + "&bounded=1";
     }
-    return fetchJson(url, { headers: { Accept: "application/json" } }).then(function (rows) {
+    return fetchJson(url, { headers: { Accept: "application/json" } }, 10000).then(function (rows) {
       return Array.isArray(rows) ? rows.map(function (r) { r.src = "nominatim"; return asPlace(r); }).filter(Boolean) : [];
     });
   }
@@ -2191,33 +2214,159 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var safe = String(q || "").replace(/[^a-zA-Z0-9α-ωΑ-ΩάέήίόύώΆ-Ώ ]/g, " ").trim();
     if (!safe) return Promise.resolve([]);
     var data = '[out:json][timeout:12];(nwr["name"~"' + safe + '",i](around:4000,' + here.lat + "," + here.lng + '););out center 12;';
-    return fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: data }).then(function (r) { return r.json(); }).then(function (j) {
+    return overpassAsk(data).then(function (j) {
       return ((j && j.elements) || []).map(function (el) { el.src = "overpass"; return asPlace(el); }).filter(Boolean);
     }).catch(function () { return []; });
   }
   function huntNearby() {
     if (!here) return Promise.resolve([]);
     var data = '[out:json][timeout:12];(nwr["amenity"~"^(restaurant|cafe|fast_food|bar|pharmacy)$"](around:2500,' + here.lat + "," + here.lng + ');nwr["shop"](around:2500,' + here.lat + "," + here.lng + '););out center 24;';
-    return fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: data }).then(function (r) { return r.json(); }).then(function (j) {
-      return uniqPlaces(((j && j.elements) || []).map(function (el) { el.src = "overpass"; return asPlace(el); }).filter(Boolean));
+    return overpassAsk(data).then(function (j) {
+      if (j) return uniqPlaces(((j && j.elements) || []).map(function (el) { el.src = "overpass"; return asPlace(el); }).filter(Boolean));
+      // Every Overpass mirror failed: ask /api/find (server mirrors) for the same near set.
+      return fetchJson("/api/find?lat=" + here.lat.toFixed(4) + "&lng=" + here.lng.toFixed(4), null, 20000).then(function (f) {
+        return uniqPlaces(((f && f.places) || []).map(function (p) { p.src = "find"; return asPlace(p); }).filter(Boolean));
+      });
     }).catch(function () { return []; });
   }
   function huntApi(q) {
     if (!here) return Promise.resolve([]);
     var url = "/api/find?q=" + encodeURIComponent(q) + "&lat=" + here.lat.toFixed(4) + "&lng=" + here.lng.toFixed(4);
-    return fetchJson(url).then(function (j) {
+    return fetchJson(url, null, 25000).then(function (j) {
       return ((j && j.places) || []).map(function (p) { p.src = "find"; return asPlace(p); }).filter(Boolean);
     });
   }
-  function hunt(q) {
+  var placeMark = null;
+  var placeSeq = 0;
+  var PLACE_WORD = /\b(greece|hellas|athens|athina|thessaloniki|rhodes|rodos|crete|heraklion|patras|london|paris|berlin|rome|madrid|lisbon|vienna|prague|budapest|warsaw|istanbul|cairo|nairobi|mombasa|kenya|lagos|tokyo|new york|chicago|dubai)\b|αθήν|αθην|ρόδο|ελλάδ/i;
+  function namedPlaceAsk(q, act) {
+    var s = String(q || "").replace(/[?!.]+$/, "").trim();
+    if (!s || /\b(near|around)\s+(me|you|here|gps)\b|\bnearby\b/i.test(s)) return null;
+    var m = s.match(/^(.*?)\s+(?:in|at|στην?|στο)\s+(.{2,60})$/i);
+    if (m && /^[A-ZΑ-Ω]/.test(m[2].trim())) return { item: cleanItem(m[1]), place: m[2].trim() };
+    var w = s.match(PLACE_WORD);
+    if (w) {
+      var before = s.slice(0, w.index).trim(), after = s.slice(w.index).trim();
+      if (before && /^(greece|hellas|ελλάδα)$/i.test(after)) {
+        var pre = before.split(/\s+/), last = pre[pre.length - 1];
+        if (/^[A-ZΑ-Ω]/.test(last)) { after = pre.pop() + " " + after; before = pre.join(" "); }
+      }
+      return { item: cleanItem(before), place: after };
+    }
+    if (act === "city") return { item: "", place: s };
+    return null;
+  }
+  function cleanItem(t) {
+    var s = String(t || "").trim(), was = "";
+    while (s !== was) {
+      was = s;
+      s = s.replace(/^(i|we|please|need|want|find|hunt|show|search|get|me|us|a|an|the|some|any|take|go)\s+/i, "").replace(/\s+(in|at|to|near|around|for)$/i, "").trim();
+    }
+    return /^(take|go|fly|show|find|me|to)$/i.test(s) ? "" : s;
+  }
+  function placeQuery(place) {
+    var t = String(place || "").trim();
+    if (/^(athens|athina|αθήνα|αθηνα)$/i.test(t)) return "Αθήνα, Ελλάδα";
+    return t;
+  }
+  function geocodePlace(place) {
+    var url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=0&q=" + encodeURIComponent(placeQuery(place));
+    return fetchJson(url, { headers: { Accept: "application/json" } }, 8000).then(function (rows) {
+      var r = Array.isArray(rows) && rows[0];
+      if (r && isFinite(+r.lat) && isFinite(+r.lon)) return { lat: +r.lat, lng: +r.lon, name: place };
+      return fetchJson("/api/find?q=" + encodeURIComponent(place) + "&city=" + encodeURIComponent(place), null, 15000).then(function (j) {
+        var p = j && j.places && j.places[0];
+        return p && isFinite(+p.lat) && isFinite(+p.lng) ? { lat: +p.lat, lng: +p.lng, name: place } : null;
+      });
+    });
+  }
+  function seatPlace(geo) {
+    intro = false;
+    aim = { lat: geo.lat, lng: geo.lng };
+    try { flyTo(geo, 1.12); } catch (e) {}
+    openCity(geo);
+    if (!map || typeof L === "undefined") return;
+    try { map.setView([geo.lat, geo.lng], 14); } catch (e) {}
+    if (placeMark) try { map.removeLayer(placeMark); } catch (e) {}
+    placeMark = L.circleMarker([geo.lat, geo.lng], { radius: 11, color: "#ffd84d", fillColor: "#2a2200", fillOpacity: 0.9, weight: 3 }).addTo(map);
+    placeMark.bindTooltip(String(geo.name || "place"), { direction: "top", permanent: true });
+  }
+  function fitPins(geo) {
+    if (!map || !shops.length) return;
+    try {
+      var b = L.latLngBounds([[geo.lat, geo.lng]]);
+      shops.forEach(function (s) { if (isFinite(s.lat) && isFinite(s.lng)) b.extend([s.lat, s.lng]); });
+      var z = Math.max(13, Math.min(16, map.getBoundsZoom(b, false, L.point(40, 40))));
+      map.setView(b.getCenter(), z);
+    } catch (e) {}
+  }
+  function placeShops(item, place, geo) {
+    var url = "/api/find?q=" + encodeURIComponent(item) + "&city=" + encodeURIComponent(place);
+    var api = fetchJson(url, null, 20000).then(function (j) {
+      return ((j && j.places) || []).map(function (p) { p.src = "find"; return asPlace(p); }).filter(Boolean);
+    });
+    var w = (geo.lng - 0.15).toFixed(4), e = (geo.lng + 0.15).toFixed(4), s = (geo.lat - 0.15).toFixed(4), n = (geo.lat + 0.15).toFixed(4);
+    var nom = fetchJson("https://nominatim.openstreetmap.org/search?format=json&limit=8&addressdetails=0&viewbox=" + w + "," + n + "," + e + "," + s + "&bounded=1&q=" + encodeURIComponent(item), { headers: { Accept: "application/json" } }, 8000).then(function (rows) {
+      return Array.isArray(rows) ? rows.map(function (r) { r.src = "nominatim"; return asPlace(r); }).filter(Boolean) : [];
+    });
+    var word = String(item || "").toLowerCase().replace(/[^a-z0-9α-ωάέήίόύώ ]/g, " ").trim().split(/\s+/).sort(function (a, b) { return b.length - a.length; })[0] || "";
+    var op = word.length < 3 ? Promise.resolve([]) : overpassAsk('[out:json][timeout:12];(' + ["shop", "amenity", "craft", "cuisine", "name", "office"].map(function (k) {
+      return 'nwr["name"]["' + k + '"~"' + word + '",i](around:6000,' + geo.lat + "," + geo.lng + ");";
+    }).join("") + ');out center 16;').then(function (j) {
+      return ((j && j.elements) || []).map(function (el) { el.src = "overpass"; return asPlace(el); }).filter(Boolean);
+    }).catch(function () { return []; });
+    function mark(list) { return uniqPlaces(list, geo).map(function (p) { p.named = true; return p; }); }
+    return {
+      first: Promise.all([api, nom]).then(function (packs) { return mark(packs[0].concat(packs[1])); }),
+      all: Promise.all([api, nom, op]).then(function (packs) { return mark(packs[0].concat(packs[1], packs[2])); })
+    };
+  }
+  function huntPlace(ask) {
+    var seq = ++placeSeq;
+    materialize(true);
+    var place = ask.place, item = ask.item;
+    var fired = false;
+    var hold = setTimeout(function () { if (seq === placeSeq) { fired = true; say("Finding " + (item ? item + " in " : "") + place + "…"); } }, 1500);
+    return geocodePlace(place).then(function (geo) {
+      clearTimeout(hold);
+      if (seq !== placeSeq) return;
+      if (!geo) { say("No map pin for " + place + " yet. Try the city and country, like Athens Greece."); return; }
+      if (item && here && haversineKm(here, geo) <= 40) { hunt(ask.raw || (item + " " + place), true); return; }
+      seatPlace(geo);
+      if (!item) { if (fired) say(place + " on the map. Name a shop or a service to pin it here."); return; }
+      say("Finding " + item + " in " + place + "…");
+      var job = placeShops(item, place, geo), shown = 0;
+      function put(found) {
+        if (seq !== placeSeq || found.length <= shown) return;
+        shown = found.length;
+        var listed = shops.filter(function (s) { return s && s.src === "listed"; });
+        shops = listed.concat(found);
+        showFound(geo);
+        fitPins(geo);
+      }
+      job.first.then(put);
+      return job.all.then(function (found) {
+        put(found);
+        if (seq === placeSeq && !shown) say("No real " + item + " pin in " + place + " on OpenStreetMap yet.");
+      });
+    }).catch(function () {
+      clearTimeout(hold);
+      if (seq === placeSeq) say("No map pin for " + place + " yet. Try again.");
+    });
+  }
+  function hunt(q, nearYou) {
     q = String(q || "").trim();
     if (!q) return;
+    var named = nearYou ? null : namedPlaceAsk(q, "");
+    if (named) { named.raw = q; huntPlace(named); return; }
     materialize(true);
     say("Finding " + q + "…");
     var go = function () {
       Promise.all([huntApi(q), huntNominatim(q), huntOverpass(q)]).then(function (packs) {
         var listed = shops.filter(function (s) { return s && s.src === "listed"; });
-        shops = uniqPlaces(listed.concat(packs[0], packs[1], packs[2]));
+        var next = uniqPlaces(listed.concat(packs[0], packs[1], packs[2]));
+        if (!next.length && shops.length) { paintShopsOnMap(); say("No new pin for " + q + ". Kept the " + shops.length + " already on the map."); return; }
+        shops = next;
         showFound();
       });
     };
@@ -2556,12 +2705,27 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (act === "jobs") { openJobs(); return; }
     if (act === "reload") { openDeposit(); return; }
     if (act === "hunt" || act === "city" || act === "shop" || act === "now" || act === "pick") {
-      if (j.places && j.places.length) {
-        shops = uniqPlaces(j.places.map(function (p) {
-          return { name: p.name, lat: Number(p.lat), lng: Number(p.lng), phone: p.phone || "", raw: p.raw || "", src: "grok" };
-        }).filter(function (p) { return isFinite(p.lat) && isFinite(p.lng); }));
-        if (shops.length) { openCity(shops[0]); paintShopsOnMap(); showHunt(); return; }
+      var ask = (act === "city" || act === "hunt" || act === "shop") ? (namedPlaceAsk(j.q, act) || namedPlaceAsk(q, act)) : null;
+      if (ask && act === "city" && j.places && j.places.length && isFinite(+j.places[0].lat) && isFinite(+j.places[0].lng) && !ask.item) {
+        placeSeq++;
+        seatPlace({ lat: +j.places[0].lat, lng: +j.places[0].lng, name: ask.place });
+        say(j.say || j.text || ask.place + " on the map.");
+        return;
       }
+      if (j.places && j.places.length) {
+        var raw = j.places.map(function (p) {
+          return { name: p.name, lat: Number(p.lat), lng: Number(p.lng), phone: p.phone || "", raw: p.raw || "", src: "grok" };
+        }).filter(function (p) { return isFinite(p.lat) && isFinite(p.lng); });
+        var far = ask && raw.length && !(here && haversineKm(here, raw[0]) <= 40);
+        var pins = far ? uniqPlaces(raw, raw[0]).map(function (p) { p.named = true; return p; }) : uniqPlaces(raw);
+        if (pins.length) {
+          placeSeq++;
+          shops = shops.filter(function (s) { return s && s.src === "listed"; }).concat(pins);
+          showFound(far ? { lat: pins[0].lat, lng: pins[0].lng, name: ask.place } : undefined);
+          return;
+        }
+      }
+      if (ask) { ask.raw = j.q || q; huntPlace(ask); return; }
       hunt(j.q || q);
       return;
     }
@@ -4255,7 +4419,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var savedHere = JSON.parse(localStorage.getItem("sn:here") || "null");
       if (savedHere && isFinite(+savedHere.lat) && isFinite(+savedHere.lng)) land({ lat: +savedHere.lat, lng: +savedHere.lng, how: "saved" }, false);
     } catch (e) {}
-    locate(function (pt) { land(pt, false); }, true);
+    locate(function (pt) { land(pt, false, placeSeq > 0); }, true);
     setTimeout(pullQueue, 600);
     setInterval(pullQueue, 4000);
     loadBlocks();
