@@ -630,6 +630,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     paintMonitor(now);
     maybeLayout();
     requestAnimationFrame(loop);
+    requestAnimationFrame(function () {
+      window.__SN_EARTH = true;
+      window.__SN_4254 = true;
+      try {
+        if (navigator.serviceWorker && !window.__SN_SW) {
+          window.__SN_SW = true;
+          navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {});
+        }
+      } catch (e) {}
+    });
   }
   function nowMs() { return Date.now(); }
   function pos(e) {
