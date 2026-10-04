@@ -312,7 +312,9 @@ module.exports = async function handler(req, res) {
     (here.avc || 0) +
     (here.shop ? '. Selected ' + here.shop : '') +
     (here.vendors && here.vendors.length ? '. Nearby: ' + here.vendors.join('; ') : '') +
-    '. Search the live web and X. Pin a pick plus alternatives.';
+    '. Search the live web and X. Pin a pick plus alternatives. ' +
+    'ROSTER is the live shops, drivers, clients and orders already on SpaceNet. If they ask for one of those, answer from ROSTER, act=open, q=the exact name. Do not invent a roster name.';
+  const roster = String(body.world || '').trim().slice(0, 3500);
   const messages = [{ role: 'system', content: SYS }];
   history.forEach(function (h) {
     if (!h || !h.content) return;
@@ -322,7 +324,7 @@ module.exports = async function handler(req, res) {
     });
   });
   var net = await netResearch(message, here);
-  messages.push({ role: 'user', content: whereLine + '\n' + net + '\nHuman: ' + message });
+  messages.push({ role: 'user', content: whereLine + (roster ? '\nROSTER\n' + roster : '') + '\n' + net + '\nHuman: ' + message });
   body.messages = messages;
 
   function send(text, extra) {

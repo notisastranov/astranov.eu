@@ -114,6 +114,11 @@ function slim(row) {
   return out;
 }
 
+function junkRow(b) {
+  var d = String((b && b.phone) || "").replace(/\D/g, "");
+  return /\btest\s*(vendor|driver|client)\b/i.test(String((b && b.name) || "")) || (d.length >= 6 && /^0+$/.test(d));
+}
+
 function fromRow(row) {
   if (!row || !WRITE_KINDS[row.kind]) return null;
   const body = {
@@ -261,7 +266,7 @@ module.exports = async function handler(req, res) {
     const buckets = { shops: [], drops: [], drivers: [], posts: [], jobs: [], peers: [] };
     (got.json || []).forEach(function (row) {
       const body = fromRow(row);
-      if (!body) return;
+      if (!body || junkRow(body)) return;
       const dLat = ((body.lat - lat) * Math.PI) / 180;
       const dLng = ((body.lng - lng) * Math.PI) / 180;
       const x =
