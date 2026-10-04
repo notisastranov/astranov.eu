@@ -1184,11 +1184,71 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     openSheet("HERE", html, true);
   }
+  var localOnlyAt = 0;
+  function localOnlyNote() {
+    if (Date.now() - localOnlyAt < 800) return;
+    localOnlyAt = Date.now();
+    setTimeout(function () {
+      var note = "Saved on this device only, sign in to publish.";
+      var el = $("line");
+      var cur = el ? String(el.textContent || "").trim() : "";
+      if (cur.indexOf(note) >= 0) return;
+      say(cur && cur.length < 90 ? cur + " · " + note : note);
+    }, 0);
+  }
+  function postSpace(row) {
+    var t = authToken();
+    if (!t) { localOnlyNote(); return; }
+    fetch("/api/space", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + t },
+      body: JSON.stringify({ row: row })
+    }).then(function (r) { if (r && r.status === 401) localOnlyNote(); }).catch(function () {});
+  }
+  function sameOwnerName(a, role, owner, key) {
+    return !!(a && (a.role || "") === role && (a.owner || "") === owner && String(a.name || "").trim().toLowerCase() === key);
+  }
+  function dedupePeople(list) {
+    var seen = {}, ids = {};
+    return (list || []).filter(function (p) {
+      if (!p) return false;
+      if (p.id) { if (ids[p.id]) return false; ids[p.id] = 1; }
+      if (!p.owner || !p.name || (p.role !== "driver" && p.role !== "client")) return true;
+      var k = p.role + "|" + p.owner + "|" + String(p.name).trim().toLowerCase();
+      if (seen[k]) return false;
+      seen[k] = 1;
+      return true;
+    });
+  }
+  function dedupeMine() {
+    try {
+      var mine = JSON.parse(localStorage.getItem("sn:mine") || "[]") || [];
+      var seen = {};
+      var kept = mine.filter(function (r) {
+        if (!r) return false;
+        if ((r.kind !== "driver" && r.kind !== "drop") || !r.owner || !r.name) return true;
+        var k = r.kind + "|" + r.owner + "|" + String(r.name).trim().toLowerCase();
+        if (seen[k]) return false;
+        seen[k] = 1;
+        return true;
+      });
+      if (kept.length !== mine.length) localStorage.setItem("sn:mine", JSON.stringify(kept));
+    } catch (e) {}
+  }
+  function dropMineDups(kind, owner, key, keepId) {
+    try {
+      var mine = JSON.parse(localStorage.getItem("sn:mine") || "[]") || [];
+      var kept = mine.filter(function (r) { return !(r && r.kind === kind && r.id !== keepId && (r.owner || "") === owner && String(r.name || "").trim().toLowerCase() === key); });
+      if (kept.length !== mine.length) localStorage.setItem("sn:mine", JSON.stringify(kept));
+    } catch (e) {}
+  }
   function persistListing(row) {
     if (!row) return;
     row.id = row.id || (String(row.kind || "x")[0] + Date.now().toString(36));
     function stash(list) {
-      localStorage.setItem("sn:mine", JSON.stringify(list.slice(0, 40)));
+      var own = list.filter(function (r) { return r && (r.kind === "shop" || r.place); });
+      var rest = list.filter(function (r) { return r && !(r.kind === "shop" || r.place); });
+      localStorage.setItem("sn:mine", JSON.stringify(own.concat(rest).slice(0, 40)));
     }
     try {
       var mine = JSON.parse(localStorage.getItem("sn:mine") || "[]") || [];
@@ -1211,16 +1271,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         stash(slim);
       } catch (e2) {}
     }
-    if (!signed()) return;
+    if (!signed()) { localOnlyNote(); return; }
     if (!row.customerPeer) row.customerPeer = me();
     var pub = {};
     Object.keys(row).forEach(function (k) { if (k !== "photo") pub[k] = row[k]; });
-    var t = authToken();
-    fetch("/api/space", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: t ? "Bearer " + t : "" },
-      body: JSON.stringify({ row: pub })
-    }).catch(function () {});
+    postSpace(pub);
   }
   function shrinkPhoto(src, max, done) {
     var img = new Image();
@@ -1562,9 +1617,37 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function whoLine(role, name, where) {
     return '<div class="sn-who"><b>' + role + "</b><span>" + esc(name || "—") + "</span><em>" + esc(where || "") + "</em></div>";
   }
+  function offerItems(v, picked) {
+    var menu = (v && v.menu) || [];
+    var lines = [];
+    (picked || []).forEach(function (l) {
+      if (!l) return;
+      var row = null;
+      menu.forEach(function (m) { if (!row && m && String(m.name || "") === String(l.name || "")) row = m; });
+      lines.push({ name: l.name || "item", n: Number(l.n) || 1, price: l.price != null && l.price !== "" ? l.price : (row ? row.price : "") });
+    });
+    var stocked = menu.filter(function (m) { return m && m.qty !== 0 && String(m.qty) !== "0"; });
+    if (!lines.length && stocked.length === 1) lines.push({ name: stocked[0].name || "item", n: 1, price: stocked[0].price });
+    if (!lines.length) return { lines: [], food: null, why: stocked.length > 1 ? "not picked" : "unpriced" };
+    var sum = 0, priced = true;
+    lines.forEach(function (l) { var c = moneyOf(l.price); if (!(c > 0)) priced = false; sum += c * l.n; });
+    return priced ? { lines: lines, food: Math.round(sum * 100) / 100 } : { lines: lines, food: null, why: "unpriced" };
+  }
+  function offerSplit(job) {
+    if (!job || job.fee == null || job.fee === "") return null;
+    var fee = Number(job.fee);
+    if (job.delivery == null && job.food == null && !job.lines) return null;
+    var food = job.food != null && job.food !== "" ? Number(job.food) : null;
+    var del = job.delivery != null ? Number(job.delivery) : (food != null ? Math.round((fee - food) * 100) / 100 : fee);
+    var r2 = function (n) { return String(Math.round(n * 100) / 100); };
+    if (food == null) return { total: del, text: "Items " + (job.why === "not picked" ? "not picked" : "unpriced") + " · Delivery " + r2(del) + " · Total " + r2(del) + " AV€ + items" };
+    return { total: Math.round((food + del) * 100) / 100, text: "Items " + r2(food) + " · Delivery " + r2(del) + " · Total " + r2(food + del) + " AV€" };
+  }
   function throwOffer(job) {
     var id = "offer-" + (job && job.id ? job.id : Date.now().toString(36));
     var fee = job && (job.fee != null ? job.fee : job.total);
+    var split = offerSplit(job);
+    if (split) fee = split.total;
     var mid = fee != null && fee !== "" ? '<b class="sn-price">' + esc(fee) + "<small>AV€</small></b>" : "OFFER";
     var v = (job && job.vendor) || {};
     var d = (job && job.drop) || {};
@@ -1573,7 +1656,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var km = job && isFinite(+job.km) ? Number(job.km).toFixed(1) + " km" : "the route";
     var html = whoLine("VENDOR", v.name || (job && job.name) || "Vendor", vWhere) +
       '<div class="sn-leg">' + esc(km) + "</div>" +
-      whoLine("CLIENT", d.name || "Client", dWhere);
+      whoLine("CLIENT", d.name || "Client", dWhere) +
+      (split ? '<div class="sn-leg sn-split">' + esc(split.text) + "</div>" : "");
     upsertTab({ id: id, kind: "offer", title: String(fee != null ? fee + " AV€" : "OFFER"), html: html, min: false });
     openSheet("OFFER", html, false, mid);
   }
@@ -1722,8 +1806,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (!s || !s.id || !isFinite(+s.lat)) return;
         var have = null;
         shops.forEach(function (x) { if (x && x.id === s.id) have = x; });
-        if (have) { have.owner = have.owner || s.customerPeer || ""; return; }
-        shops.unshift({ id: s.id, name: s.name || "vendor", lat: +s.lat, lng: +s.lng, phone: s.phone || "", src: "live", status: s.status || "live", owner: s.customerPeer || "" });
+        if (have) { have.owner = have.owner || s.customerPeer || ""; have.peer = have.peer || s.peer || ""; return; }
+        shops.unshift({ id: s.id, name: s.name || "vendor", lat: +s.lat, lng: +s.lng, phone: s.phone || "", src: "live", status: s.status || "live", owner: s.customerPeer || "", peer: s.peer || "" });
       });
       (j.drivers || []).forEach(function (d) {
         if (!d || !d.id || !isFinite(+d.lat)) return;
@@ -1936,13 +2020,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function saveJobs() { try { localStorage.setItem("sn:jobs", JSON.stringify(jobs)); } catch (e) {} }
   function publishRow(row) {
     if (!row || !row.id) return;
-    var t = authToken();
-    if (!t) return;
-    fetch("/api/space", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: "Bearer " + t },
-      body: JSON.stringify({ row: row })
-    }).catch(function () {});
+    postSpace(row);
   }
   function publishJob(job) {
     if (!job || !job.vendor || !isFinite(+job.vendor.lat) || !job.drop) return;
@@ -2292,6 +2370,23 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     jobs.forEach(function (j) { if (j && !j.received && seesJob(j)) orders++; });
     var place = here && near ? near + " vendor" + (near === 1 ? "" : "s") + " here" : vendors + " vendor" + (vendors === 1 ? "" : "s");
     el.textContent = "LIVE · " + place + " · " + drivers + " driver" + (drivers === 1 ? "" : "s") + " · " + orders + " order" + (orders === 1 ? "" : "s");
+    paintJobsChip();
+  }
+  function paintJobsChip() {
+    var open = 0;
+    jobs.forEach(function (j) { if (j && !j.received && seesJob(j)) open++; });
+    var chip = $("sn-jobs-chip");
+    if (!open) { if (chip) chip.hidden = true; return; }
+    if (!chip) {
+      chip = document.createElement("button");
+      chip.type = "button";
+      chip.id = "sn-jobs-chip";
+      chip.style.cssText = "position:fixed;top:68px;left:8px;z-index:91;height:26px;padding:0 12px;border-radius:999px;border:1px solid rgba(77,240,255,.7);background:rgba(4,14,28,.94);color:#4df0ff;font:800 11px/24px system-ui;letter-spacing:.08em;pointer-events:auto;cursor:pointer";
+      chip.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openJobs(); });
+      document.body.appendChild(chip);
+    }
+    chip.textContent = "JOBS · " + open;
+    chip.hidden = false;
   }
   function driverStep(p) {
     if (!p || !isFinite(+p.lat) || !isFinite(+p.lng)) return null;
@@ -3058,12 +3153,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     drawRoute(vendor, drop);
     throwOffer({ id: job.id, name: vendor.name, fee: q.total, km: q.km, vendor: vendor, drop: (homeDrop && homeDrop.name) ? homeDrop : drop });
     say("Order is up. Vendor marks ready, then pickup at the door.");
-    var t = authToken();
-    fetch("/api/space", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: t ? "Bearer " + t : "" },
-      body: JSON.stringify({ row: { id: job.id, kind: "job", lat: drop.lat, lng: drop.lng, name: vendor.name, avc: q.total } })
-    }).catch(function () {});
+    postSpace({ id: job.id, kind: "job", lat: drop.lat, lng: drop.lng, name: vendor.name, avc: q.total });
   }
   function payJob(id) {
     var job = jobs.filter(function (j) { return j.id === id; })[0];
@@ -3194,7 +3284,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           j.delivered ? "DELIVERED" : "",
           j.received ? "RECEIVED" : ""
         ].filter(Boolean).join(" · ");
-        var html = '<div class="pill" style="display:block"><b>' + String(j.vendor && j.vendor.name || "job").replace(/</g, "") + "</b><span>" + flags + " · " + j.fee + " AV€ · " + (j.km || 0).toFixed(1) + " km · " + (j.driver || "driver") + "</span>";
+        var html = '<div class="pill" style="display:block"><b>' + String(j.vendor && j.vendor.name || "job").replace(/</g, "") + "</b><span>" + flags + " · " + (offerSplit(j) ? offerSplit(j).text : j.fee + " AV€") + " · " + (j.km || 0).toFixed(1) + " km · " + (j.driver || "driver") + "</span>";
         function go(act, label) { return '<button type="button" class="sheet-go" data-act="' + act + '" data-id="' + j.id + '">' + label + "</button>"; }
         if (!j.ready && (admin || role === "vendor")) html += go("mark-ready", admin ? "MARK READY · VENDOR" : "MARK READY");
         if (j.ready && !j.pickup && (admin || role === "vendor")) html += go("verify-pickup", admin ? "VERIFY PICKUP · VENDOR" : "VERIFY PICKUP");
@@ -4120,8 +4210,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var drvName = drvN ? String(drvN.value || "").trim() : "";
         if (!drvName) { say("The driver's name."); return; }
         function val(id) { var el = $(id); return el ? String(el.value || "").trim() : ""; }
+        var drvOwner = me(), drvKey = drvName.toLowerCase();
+        var drvPrev = people.filter(function (p) { return sameOwnerName(p, "driver", drvOwner, drvKey) && p.id !== "pin"; })[0];
+        if (!drvPrev) try {
+          drvPrev = (JSON.parse(localStorage.getItem("sn:mine") || "[]") || []).filter(function (r) { return r && r.kind === "driver" && (r.owner || "") === drvOwner && String(r.name || "").trim().toLowerCase() === drvKey; })[0];
+        } catch (e) {}
         var drv = {
-          id: "r" + Date.now().toString(36),
+          id: (drvPrev && drvPrev.id) || "r" + Date.now().toString(36),
           kind: "driver",
           name: drvName,
           phone: val("sn-drv-phone"),
@@ -4142,7 +4237,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           owner: me()
         };
         persistListing(drv);
-        people = people.filter(function (p) { return !p || p.id !== drv.id; });
+        dropMineDups("driver", drvOwner, drvKey, drv.id);
+        people = people.filter(function (p) { return !p || (p.id !== drv.id && !sameOwnerName(p, "driver", drvOwner, drvKey)); });
         people.unshift({
           id: drv.id, name: drv.name, role: "driver", lat: drv.lat, lng: drv.lng, free: true, owner: me(), photo: drv.photo || "",
           phone: drv.phone, address: drv.address, schedule: drv.schedule, hours: drv.hours, areas: drv.areas, goods: drv.goods,
@@ -4154,6 +4250,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         closeSheet();
         say(drvName + " is a free driver here.");
       }
+      function ownShop(s) {
+        if (!signed() || !s) return false;
+        var m = String(me() || "").toLowerCase();
+        if (!m || m.indexOf("@") < 0) return false;
+        return [s.owner, s.customerPeer, s.peer].some(function (x) { return String(x || "").toLowerCase() === m; });
+      }
       if (act === "run-offer") {
         if (!isAdmin()) { say("Only the administrator sends an offer on behalf of both."); return; }
         absorbMine();
@@ -4162,7 +4264,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var bestShop = null, bestShopKm = 1e9;
         shops.forEach(function (s) {
           if (!s || !isFinite(+s.lat) || s.status === "denied") return;
-          if (s.src && s.src !== "listed") return;
+          if (s.src && s.src !== "listed" && !(s.src === "live" && ownShop(s))) return;
           var km = shopFrom ? haversineKm(shopFrom, s) : 0;
           if (km < bestShopKm) { bestShop = s; bestShopKm = km; }
         });
@@ -4189,12 +4291,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         vendor = bestShop;
         drop = { lat: +homeDrop.lat, lng: +homeDrop.lng, name: homeDrop.name || "" };
         var quote = quoteDelivery(vendor, drop, quoteOpts);
+        var items = offerItems(vendor, basket.filter(function (line) { return line && String(line.id) === String(vendor.id); }));
         var job = {
           id: "j" + Date.now().toString(36),
           vendor: vendor,
           drop: drop,
           km: quote.km,
           fee: quote.total,
+          delivery: quote.total,
+          lines: items.lines,
+          food: items.food,
+          why: items.why || "",
           ready: true,
           pickup: false,
           got: false,
@@ -4220,6 +4327,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           id: job.id,
           name: vendor.name,
           fee: quote.total,
+          delivery: quote.total,
+          lines: items.lines,
+          food: items.food,
+          why: items.why || "",
           km: quote.km,
           vendor: vendor,
           drop: {
@@ -4366,12 +4477,18 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var dfloor = field("sn-drop-floor");
         var note = field("sn-drop-note");
         if (act === "save-drop" && !dname) { say("Your name."); return; }
-        var did = "d" + Date.now().toString(36);
+        var dOwner = me(), dKey = String(dname || "home").trim().toLowerCase();
+        var dPrev = people.filter(function (p) { return sameOwnerName(p, "client", dOwner, dKey); })[0];
+        if (!dPrev) try {
+          dPrev = (JSON.parse(localStorage.getItem("sn:mine") || "[]") || []).filter(function (r) { return r && r.kind === "drop" && (r.owner || "") === dOwner && String(r.name || "").trim().toLowerCase() === dKey; })[0];
+        } catch (e) {}
+        var did = (dPrev && dPrev.id) || "d" + Date.now().toString(36);
         homeDrop = { lat: listPt.lat, lng: listPt.lng, name: dname || "home", phone: dphone, address: address, bell: bell, floor: dfloor, note: note, photo: shots.drop || "", owner: me() };
         try { localStorage.setItem("sn:home", JSON.stringify(homeDrop)); } catch (e) {}
         try { localStorage.setItem("sn:profile", JSON.stringify(homeDrop)); } catch (e) {}
         persistListing({ id: did, kind: "drop", name: homeDrop.name, phone: dphone, address: address, bell: bell, floor: dfloor, note: note, photo: shots.drop || "", lat: listPt.lat, lng: listPt.lng, customerPeer: me(), owner: me() });
-        people = people.filter(function (p) { return !p || p.id !== did; });
+        dropMineDups("drop", dOwner, dKey, did);
+        people = people.filter(function (p) { return !p || (p.id !== did && !sameOwnerName(p, "client", dOwner, dKey)); });
         people.unshift({ id: did, name: homeDrop.name, role: "client", lat: listPt.lat, lng: listPt.lng, photo: shots.drop || "", owner: me(), phone: homeDrop.phone || "", address: homeDrop.address || "", floor: homeDrop.floor || "", bell: homeDrop.bell || "" });
         savePeople();
         drop = homeDrop;
@@ -5104,6 +5221,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     try { homeDrop = JSON.parse(localStorage.getItem("sn:home") || "null"); } catch (e) {}
     try { driverPin = JSON.parse(localStorage.getItem("sn:driver") || "null"); } catch (e) {}
     try { people = JSON.parse(localStorage.getItem("sn:people") || "[]") || []; } catch (e2) { people = []; }
+    var peopleN = people.length;
+    people = dedupePeople(people);
+    if (people.length !== peopleN) savePeople();
+    dedupeMine();
+    paintJobsChip();
     try {
       var savedHere = JSON.parse(localStorage.getItem("sn:here") || "null");
       if (savedHere && isFinite(+savedHere.lat) && isFinite(+savedHere.lng)) land({ lat: +savedHere.lat, lng: +savedHere.lng, how: "saved" }, false);
