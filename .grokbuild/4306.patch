@@ -1,0 +1,375 @@
+diff --git a/VERSION b/VERSION
+index 75f4eab..29235ff 100644
+--- a/VERSION
++++ b/VERSION
+@@ -1 +1 @@
+-4305
++4306
+diff --git a/api/ai.js b/api/ai.js
+index cc9b613..4dc5dab 100644
+--- a/api/ai.js
++++ b/api/ai.js
+@@ -70,2 +70,24 @@ function parseAct(text) {
+ 
++async function geocodeCityAct(q) {
++  var t = String(q || '').trim().slice(0, 80);
++  if (!t) return null;
++  if (/^(athens|athina|αθήνα|αθηνα)$/i.test(t)) t = 'Αθήνα, Ελλάδα';
++  var ctl = new AbortController();
++  var timer = setTimeout(function () { ctl.abort(); }, 5000);
++  try {
++    var r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=' + encodeURIComponent(t), {
++      headers: { 'User-Agent': 'AstranovSpaceNet/1 (https://astranov.eu)', Accept: 'application/json' },
++      signal: ctl.signal,
++    });
++    var rows = await r.json();
++    var g = Array.isArray(rows) && rows[0];
++    if (!g || !isFinite(+g.lat) || !isFinite(+g.lon)) return null;
++    return { name: String(q).trim().slice(0, 80), lat: +g.lat, lng: +g.lon, raw: String(g.display_name || '').slice(0, 160) };
++  } catch (_) {
++    return null;
++  } finally {
++    clearTimeout(timer);
++  }
++}
++
+ async function fillHunt(req, text, message, here) {
+@@ -73,2 +95,6 @@ async function fillHunt(req, text, message, here) {
+   if (p.places && p.places.length) return { text: text, places: p.places };
++  if (p.act === 'city') {
++    var cityPin = await geocodeCityAct(p.q || message);
++    if (cityPin) return { text: text, places: [cityPin] };
++  }
+   var research = /moor|yacht|anchor|weather|wind|news|review|permit|legal|cleanest|privacy|sewage|pollut|scandal|harbour|harbor/i.test(message);
+diff --git a/api/version.js b/api/version.js
+index 3507e7d..47b7bc1 100644
+--- a/api/version.js
++++ b/api/version.js
+@@ -11,3 +11,3 @@ module.exports = async function handler(req, res) {
+   }
+-  res.status(200).json({ latest: "4305" });
++  res.status(200).json({ latest: "4306" });
+ };
+diff --git a/index.html b/index.html
+index 1e7b0eb..426b992 100644
+--- a/index.html
++++ b/index.html
+@@ -5,3 +5,3 @@
+ <title>Astranov SpaceNet</title>
+-<meta name="astranov-build" content="4295"/>
++<meta name="astranov-build" content="4306"/>
+ <meta name="theme-color" content="#02040a"/>
+@@ -187,3 +187,3 @@ html,body{margin:0!important;padding:0!important}
+   <div id="island">
+-    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">SPACENET</button><span id="ver">V4305</span><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
++    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">SPACENET</button><span id="ver">V4306</span><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
+     <div class="r2"><span id="sn-local">-</span><span id="sn-utc">-</span><span id="sn-wx"></span><span id="sn-node"></span><canvas id="sn-spark" width="120" height="28"></canvas></div>
+@@ -224,3 +224,3 @@ html,body{margin:0!important;padding:0!important}
+ <script src="/js/vendor/leaflet.js?v=4127"></script>
+-<script src="/js/spacenet/app.js?v=4305"></script>
++<script src="/js/spacenet/app.js?v=4306"></script>
+ <script src="/js/spacenet/auth.js?v=4297"></script>
+diff --git a/js/spacenet/app.js b/js/spacenet/app.js
+index 31bbef4..3955a82 100644
+--- a/js/spacenet/app.js
++++ b/js/spacenet/app.js
+@@ -10,3 +10,3 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
+   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
+-  var VER = "4305";
++  var VER = "4306";
+   var latestVer = "";
+@@ -892,4 +892,4 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
+   }
+-  function land(pt, open) {
+-    intro = false;
++  function land(pt, open, keepView) {
++    if (!keepView) intro = false;
+     if (pt.how === "gps") {
+@@ -906,2 +906,3 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
+     try { if (pt.how === "gps" || pt.how === "saved") localStorage.setItem("sn:here", JSON.stringify(hereLive || here)); } catch (e) {}
++    if (keepView) return;
+     aim = { lat: here.lat, lng: here.lng };
+@@ -1779,4 +1780,5 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
+   }
+-  function uniqPlaces(list) {
++  function uniqPlaces(list, seat) {
+     var listed = [], out = [], seen = {};
++    var ref = seat === undefined ? here : seat;
+     list.forEach(function (p) {
+@@ -1784,3 +1786,3 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
+       var mine = p.src === "listed";
+-      if (!mine && here && haversineKm(here, p) > 40) return;
++      if (!mine && !p.named && ref && haversineKm(ref, p) > 40) return;
+       var k = p.name.toLowerCase() + ":" + p.lat.toFixed(4) + "," + p.lng.toFixed(4);
+@@ -2090,5 +2092,5 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
+   }
+-  function showFound() {
++  function showFound(named) {
+     if (!shops.length) { say("No real pin for that hunt. Try another name near GPS."); return; }
+-    var seat = here || shops[0];
++    var seat = named || here || shops[0];
+     if (seat) openCity(seat);
+@@ -2106,9 +2108,30 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
+         pills[i].querySelector("b").textContent = s.name;
+-        pills[i].querySelector("span").textContent = (s.kind || "shop") + (s.phone ? " · " + s.phone : "") + (here ? " · " + haversineKm(here, s).toFixed(1) + " km" : "");
++        var from = named || here;
++        pills[i].querySelector("span").textContent = (s.kind || "shop") + (s.phone ? " · " + s.phone : "") + (from ? " · " + haversineKm(from, s).toFixed(1) + " km" : "");
+       });
+     }
+-    say(shops.length + " real pin" + (shops.length === 1 ? "" : "s") + ". Tap one to order.");
++    say(shops.length + " real pin" + (shops.length === 1 ? "" : "s") + (named && named.name ? " in " + named.name : "") + ". Tap one to order.");
+   }
+-  function fetchJson(url, opts) {
+-    return fetch(url, opts || {}).then(function (r) { return r.json().catch(function () { return null; }); }).catch(function () { return null; });
++  function fetchJson(url, opts, ms) {
++    if (!ms) return fetch(url, opts || {}).then(function (r) { return r.json().catch(function () { return null; }); }).catch(function () { return null; });
++    opts = opts || {};
++    var ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
++    if (ctl) opts.signal = ctl.signal;
++    var t = 0;
++    var cap = new Promise(function (ok) { t = setTimeout(function () { try { if (ctl) ctl.abort(); } catch (e) {} ok(null); }, ms); });
++    var ask = fetch(url, opts).then(function (r) { return r.ok ? r.json().catch(function () { return null; }) : null; }).catch(function () { return null; });
++    return Promise.race([ask, cap]).then(function (j) { clearTimeout(t); return j; });
++  }
++  var OVERPASS_MIRRORS = ["https://overpass.kumi.systems/api/interpreter", "https://lz4.overpass-api.de/api/interpreter"];
++  function overpassAsk(data) {
++    // Primary first, unchanged query. Mirrors only when the primary fails or times out.
++    var urls = ["https://overpass-api.de/api/interpreter"].concat(OVERPASS_MIRRORS);
++    function next(i) {
++      if (i >= urls.length) return Promise.resolve(null);
++      return fetchJson(urls[i], { method: "POST", body: data }, i ? 8000 : 13000).then(function (j) {
++        if (j && Array.isArray(j.elements)) return j;
++        return new Promise(function (ok) { setTimeout(ok, 400 * (i + 1)); }).then(function () { return next(i + 1); });
++      });
++    }
++    return next(0);
+   }
+@@ -2121,3 +2144,3 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
+     }
+-    return fetchJson(url, { headers: { Accept: "application/json" } }).then(function (rows) {
++    return fetchJson(url, { headers: { Accept: "application/json" } }, 10000).then(function (rows) {
+       return Array.isArray(rows) ? rows.map(function (r) { r.src = "nominatim"; return asPlace(r); }).filter(Boolean) : [];
+@@ -2130,3 +2153,3 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
+     var data = '[out:json][timeout:12];(nwr["name"~"' + safe + '",i](around:4000,' + here.lat + "," + here.lng + '););out center 12;';
+-    return fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: data }).then(function (r) { return r.json(); }).then(function (j) {
++    return overpassAsk(data).then(function (j) {
+       return ((j && j.elements) || []).map(function (el) { el.src = "overpass"; return asPlace(el); }).filter(Boolean);
+@@ -2137,4 +2160,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
+     var data = '[out:json][timeout:12];(nwr["amenity"~"^(restaurant|cafe|fast_food|bar|pharmacy)$"](around:2500,' + here.lat + "," + here.lng + ');nwr["shop"](around:2500,' + here.lat + "," + here.lng + '););out center 24;';
+-    return fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: data }).then(function (r) { return r.json(); }).then(function (j) {
+-      return uniqPlaces(((j && j.elements) || []).map(function (el) { el.src = "overpass"; return asPlace(el); }).filter(Boolean));
++    return overpassAsk(data).then(function (j) {
++      if (j) return uniqPlaces(((j && j.elements) || []).map(function (el) { el.src = "overpass"; return asPlace(el); }).filter(Boolean));
++      // Every Overpass mirror failed: ask /api/find (server mirrors) for the same near set.
++      return fetchJson("/api/find?lat=" + here.lat.toFixed(4) + "&lng=" + here.lng.toFixed(4), null, 20000).then(function (f) {
++        return uniqPlaces(((f && f.places) || []).map(function (p) { p.src = "find"; return asPlace(p); }).filter(Boolean));
++      });
+     }).catch(function () { return []; });
+@@ -2144,3 +2171,3 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
+     var url = "/api/find?q=" + encodeURIComponent(q) + "&lat=" + here.lat.toFixed(4) + "&lng=" + here.lng.toFixed(4);
+-    return fetchJson(url).then(function (j) {
++    return fetchJson(url, null, 25000).then(function (j) {
+       return ((j && j.places) || []).map(function (p) { p.src = "find"; return asPlace(p); }).filter(Boolean);
+@@ -2148,5 +2175,125 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
+   }
+-  function hunt(q) {
++  var placeMark = null;
++  var placeSeq = 0;
++  var PLACE_WORD = /\b(greece|hellas|athens|athina|thessaloniki|rhodes|rodos|crete|heraklion|patras|london|paris|berlin|rome|madrid|lisbon|vienna|prague|budapest|warsaw|istanbul|cairo|nairobi|mombasa|kenya|lagos|tokyo|new york|chicago|dubai)\b|αθήν|αθην|ρόδο|ελλάδ/i;
++  function namedPlaceAsk(q, act) {
++    var s = String(q || "").replace(/[?!.]+$/, "").trim();
++    if (!s || /\b(near|around)\s+(me|you|here|gps)\b|\bnearby\b/i.test(s)) return null;
++    var m = s.match(/^(.*?)\s+(?:in|at|στην?|στο)\s+(.{2,60})$/i);
++    if (m && /^[A-ZΑ-Ω]/.test(m[2].trim())) return { item: cleanItem(m[1]), place: m[2].trim() };
++    var w = s.match(PLACE_WORD);
++    if (w) {
++      var before = s.slice(0, w.index).trim(), after = s.slice(w.index).trim();
++      if (before && /^(greece|hellas|ελλάδα)$/i.test(after)) {
++        var pre = before.split(/\s+/), last = pre[pre.length - 1];
++        if (/^[A-ZΑ-Ω]/.test(last)) { after = pre.pop() + " " + after; before = pre.join(" "); }
++      }
++      return { item: cleanItem(before), place: after };
++    }
++    if (act === "city") return { item: "", place: s };
++    return null;
++  }
++  function cleanItem(t) {
++    var s = String(t || "").trim(), was = "";
++    while (s !== was) {
++      was = s;
++      s = s.replace(/^(i|we|please|need|want|find|hunt|show|search|get|me|us|a|an|the|some|any|take|go)\s+/i, "").replace(/\s+(in|at|to|near|around|for)$/i, "").trim();
++    }
++    return /^(take|go|fly|show|find|me|to)$/i.test(s) ? "" : s;
++  }
++  function placeQuery(place) {
++    var t = String(place || "").trim();
++    if (/^(athens|athina|αθήνα|αθηνα)$/i.test(t)) return "Αθήνα, Ελλάδα";
++    return t;
++  }
++  function geocodePlace(place) {
++    var url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=0&q=" + encodeURIComponent(placeQuery(place));
++    return fetchJson(url, { headers: { Accept: "application/json" } }, 8000).then(function (rows) {
++      var r = Array.isArray(rows) && rows[0];
++      if (r && isFinite(+r.lat) && isFinite(+r.lon)) return { lat: +r.lat, lng: +r.lon, name: place };
++      return fetchJson("/api/find?q=" + encodeURIComponent(place) + "&city=" + encodeURIComponent(place), null, 15000).then(function (j) {
++        var p = j && j.places && j.places[0];
++        return p && isFinite(+p.lat) && isFinite(+p.lng) ? { lat: +p.lat, lng: +p.lng, name: place } : null;
++      });
++    });
++  }
++  function seatPlace(geo) {
++    intro = false;
++    aim = { lat: geo.lat, lng: geo.lng };
++    try { flyTo(geo, 1.12); } catch (e) {}
++    openCity(geo);
++    if (!map || typeof L === "undefined") return;
++    try { map.setView([geo.lat, geo.lng], 14); } catch (e) {}
++    if (placeMark) try { map.removeLayer(placeMark); } catch (e) {}
++    placeMark = L.circleMarker([geo.lat, geo.lng], { radius: 11, color: "#ffd84d", fillColor: "#2a2200", fillOpacity: 0.9, weight: 3 }).addTo(map);
++    placeMark.bindTooltip(String(geo.name || "place"), { direction: "top", permanent: true });
++  }
++  function fitPins(geo) {
++    if (!map || !shops.length) return;
++    try {
++      var b = L.latLngBounds([[geo.lat, geo.lng]]);
++      shops.forEach(function (s) { if (isFinite(s.lat) && isFinite(s.lng)) b.extend([s.lat, s.lng]); });
++      var z = Math.max(13, Math.min(16, map.getBoundsZoom(b, false, L.point(40, 40))));
++      map.setView(b.getCenter(), z);
++    } catch (e) {}
++  }
++  function placeShops(item, place, geo) {
++    var url = "/api/find?q=" + encodeURIComponent(item) + "&city=" + encodeURIComponent(place);
++    var api = fetchJson(url, null, 20000).then(function (j) {
++      return ((j && j.places) || []).map(function (p) { p.src = "find"; return asPlace(p); }).filter(Boolean);
++    });
++    var w = (geo.lng - 0.15).toFixed(4), e = (geo.lng + 0.15).toFixed(4), s = (geo.lat - 0.15).toFixed(4), n = (geo.lat + 0.15).toFixed(4);
++    var nom = fetchJson("https://nominatim.openstreetmap.org/search?format=json&limit=8&addressdetails=0&viewbox=" + w + "," + n + "," + e + "," + s + "&bounded=1&q=" + encodeURIComponent(item), { headers: { Accept: "application/json" } }, 8000).then(function (rows) {
++      return Array.isArray(rows) ? rows.map(function (r) { r.src = "nominatim"; return asPlace(r); }).filter(Boolean) : [];
++    });
++    var word = String(item || "").toLowerCase().replace(/[^a-z0-9α-ωάέήίόύώ ]/g, " ").trim().split(/\s+/).sort(function (a, b) { return b.length - a.length; })[0] || "";
++    var op = word.length < 3 ? Promise.resolve([]) : overpassAsk('[out:json][timeout:12];(' + ["shop", "amenity", "craft", "cuisine", "name", "office"].map(function (k) {
++      return 'nwr["name"]["' + k + '"~"' + word + '",i](around:6000,' + geo.lat + "," + geo.lng + ");";
++    }).join("") + ');out center 16;').then(function (j) {
++      return ((j && j.elements) || []).map(function (el) { el.src = "overpass"; return asPlace(el); }).filter(Boolean);
++    }).catch(function () { return []; });
++    function mark(list) { return uniqPlaces(list, geo).map(function (p) { p.named = true; return p; }); }
++    return {
++      first: Promise.all([api, nom]).then(function (packs) { return mark(packs[0].concat(packs[1])); }),
++      all: Promise.all([api, nom, op]).then(function (packs) { return mark(packs[0].concat(packs[1], packs[2])); })
++    };
++  }
++  function huntPlace(ask) {
++    var seq = ++placeSeq;
++    materialize(true);
++    var place = ask.place, item = ask.item;
++    var fired = false;
++    var hold = setTimeout(function () { if (seq === placeSeq) { fired = true; say("Finding " + (item ? item + " in " : "") + place + "…"); } }, 1500);
++    return geocodePlace(place).then(function (geo) {
++      clearTimeout(hold);
++      if (seq !== placeSeq) return;
++      if (!geo) { say("No map pin for " + place + " yet. Try the city and country, like Athens Greece."); return; }
++      if (item && here && haversineKm(here, geo) <= 40) { hunt(ask.raw || (item + " " + place), true); return; }
++      seatPlace(geo);
++      if (!item) { if (fired) say(place + " on the map. Name a shop or a service to pin it here."); return; }
++      say("Finding " + item + " in " + place + "…");
++      var job = placeShops(item, place, geo), shown = 0;
++      function put(found) {
++        if (seq !== placeSeq || found.length <= shown) return;
++        shown = found.length;
++        var listed = shops.filter(function (s) { return s && s.src === "listed"; });
++        shops = listed.concat(found);
++        showFound(geo);
++        fitPins(geo);
++      }
++      job.first.then(put);
++      return job.all.then(function (found) {
++        put(found);
++        if (seq === placeSeq && !shown) say("No real " + item + " pin in " + place + " on OpenStreetMap yet.");
++      });
++    }).catch(function () {
++      clearTimeout(hold);
++      if (seq === placeSeq) say("No map pin for " + place + " yet. Try again.");
++    });
++  }
++  function hunt(q, nearYou) {
+     q = String(q || "").trim();
+     if (!q) return;
++    var named = nearYou ? null : namedPlaceAsk(q, "");
++    if (named) { named.raw = q; huntPlace(named); return; }
+     materialize(true);
+@@ -2156,3 +2303,5 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
+         var listed = shops.filter(function (s) { return s && s.src === "listed"; });
+-        shops = uniqPlaces(listed.concat(packs[0], packs[1], packs[2]));
++        var next = uniqPlaces(listed.concat(packs[0], packs[1], packs[2]));
++        if (!next.length && shops.length) { paintShopsOnMap(); say("No new pin for " + q + ". Kept the " + shops.length + " already on the map."); return; }
++        shops = next;
+         showFound();
+@@ -2495,8 +2644,23 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
+     if (act === "hunt" || act === "city" || act === "shop" || act === "now" || act === "pick") {
++      var ask = (act === "city" || act === "hunt" || act === "shop") ? (namedPlaceAsk(j.q, act) || namedPlaceAsk(q, act)) : null;
++      if (ask && act === "city" && j.places && j.places.length && isFinite(+j.places[0].lat) && isFinite(+j.places[0].lng) && !ask.item) {
++        placeSeq++;
++        seatPlace({ lat: +j.places[0].lat, lng: +j.places[0].lng, name: ask.place });
++        say(j.say || j.text || ask.place + " on the map.");
++        return;
++      }
+       if (j.places && j.places.length) {
+-        shops = uniqPlaces(j.places.map(function (p) {
++        var raw = j.places.map(function (p) {
+           return { name: p.name, lat: Number(p.lat), lng: Number(p.lng), phone: p.phone || "", raw: p.raw || "", src: "grok" };
+-        }).filter(function (p) { return isFinite(p.lat) && isFinite(p.lng); }));
+-        if (shops.length) { openCity(shops[0]); paintShopsOnMap(); showHunt(); return; }
++        }).filter(function (p) { return isFinite(p.lat) && isFinite(p.lng); });
++        var far = ask && raw.length && !(here && haversineKm(here, raw[0]) <= 40);
++        var pins = far ? uniqPlaces(raw, raw[0]).map(function (p) { p.named = true; return p; }) : uniqPlaces(raw);
++        if (pins.length) {
++          placeSeq++;
++          shops = shops.filter(function (s) { return s && s.src === "listed"; }).concat(pins);
++          showFound(far ? { lat: pins[0].lat, lng: pins[0].lng, name: ask.place } : undefined);
++          return;
++        }
+       }
++      if (ask) { ask.raw = j.q || q; huntPlace(ask); return; }
+       hunt(j.q || q);
+@@ -4194,3 +4358,3 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
+     } catch (e) {}
+-    locate(function (pt) { land(pt, false); }, true);
++    locate(function (pt) { land(pt, false, placeSeq > 0); }, true);
+     setTimeout(pullQueue, 600);
+diff --git a/sw.js b/sw.js
+index de4b9af..3aa5981 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,5 +1,5 @@
+-/* SpaceNet SW 4285 — one entity. Tree lock. */
+-var CACHE = "sn-shell-4285";
+-var VER = "4285";
+-var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4285", "/js/spacenet/auth.js?v=4285", "/js/vendor/leaflet.js?v=4127", "/js/vendor/leaflet.css?v=4127", "/icon-192.png", "/manifest.webmanifest"];
++/* SpaceNet SW 4306 — one entity. Tree lock. */
++var CACHE = "sn-shell-4306";
++var VER = "4306";
++var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4306", "/js/spacenet/auth.js?v=4297", "/js/vendor/leaflet.js?v=4127", "/js/vendor/leaflet.css?v=4127", "/icon-192.png", "/manifest.webmanifest"];
+ function allowedScript(path) {
+@@ -36,3 +36,3 @@ self.addEventListener("fetch", function (e) {
+   if (isOverlay(url.pathname)) {
+-    e.respondWith(new Response("/* TREE LOCK 4285: overlay blocked */", { headers: { "Content-Type": "application/javascript" }, status: 200 }));
++    e.respondWith(new Response("/* TREE LOCK 4306: overlay blocked */", { headers: { "Content-Type": "application/javascript" }, status: 200 }));
+     return;
+diff --git a/vercel.json b/vercel.json
+index 6667f5a..1918000 100644
+--- a/vercel.json
++++ b/vercel.json
+@@ -10,4 +10,4 @@
+         {"key": "Pragma", "value": "no-cache"},
+-        {"key": "X-Astranov-Build", "value": "4305"},
+-        {"key": "X-Astranov-Ship", "value": "4305-real"}
++        {"key": "X-Astranov-Build", "value": "4306"},
++        {"key": "X-Astranov-Ship", "value": "4306-grok"}
+       ]
+@@ -19,4 +19,4 @@
+         {"key": "Pragma", "value": "no-cache"},
+-        {"key": "X-Astranov-Build", "value": "4305"},
+-        {"key": "X-Astranov-Ship", "value": "4305-real"}
++        {"key": "X-Astranov-Build", "value": "4306"},
++        {"key": "X-Astranov-Ship", "value": "4306-grok"}
+       ]
