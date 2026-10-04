@@ -80,6 +80,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var skyAsked = false;
   var listingTried = false;
   var vendor = null;
+  var viewMoved = false;
   var drop = null;
   var jobs = [];
   var shopMarks = [];
@@ -759,7 +760,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
       if (d && d.moved && view) {
         var mid = globeHit(view.cx, view.cy, cam);
-        if (mid && isFinite(mid.lat) && isFinite(mid.lng)) aim = { lat: mid.lat, lng: mid.lng };
+        if (mid && isFinite(mid.lat) && isFinite(mid.lng)) { aim = { lat: mid.lat, lng: mid.lng }; viewMoved = true; }
         vel.yaw = 0;
         vel.pitch = 0;
       }
@@ -798,6 +799,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!aim && here && isFinite(here.lat)) aim = { lat: here.lat, lng: here.lng };
     if (cityOn) return;
     if (dist <= 0.52 && aim && isFinite(aim.lat)) {
+      viewMoved = true;
       openCity(aim);
       if (map) {
         try {
@@ -946,6 +948,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 12, maxZoom: 19, scrollWheelZoom: true }).setView([pt.lat, pt.lng], 16);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, minZoom: 12 }).addTo(map);
       map.on("moveend", queueViewPull);
+      map.on("dragstart", function () { viewMoved = true; });
       map.on("zoomend", function () {
         try {
           if (map && map.getZoom() <= 12.5) {
@@ -4858,7 +4861,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var savedHere = JSON.parse(localStorage.getItem("sn:here") || "null");
       if (savedHere && isFinite(+savedHere.lat) && isFinite(+savedHere.lng)) land({ lat: +savedHere.lat, lng: +savedHere.lng, how: "saved" }, false);
     } catch (e) {}
-    locate(function (pt) { land(pt, false, placeSeq > 0); }, true);
+    locate(function (pt) { land(pt, false, placeSeq > 0 || viewMoved); }, true);
     setTimeout(pullQueue, 600);
     setInterval(pullQueue, 4000);
     loadBlocks();
