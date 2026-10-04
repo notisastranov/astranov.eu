@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4307";
+  var VER = "4308";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -2200,10 +2200,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var OVERPASS_MIRRORS = ["https://overpass.kumi.systems/api/interpreter", "https://lz4.overpass-api.de/api/interpreter"];
   function overpassAsk(data) {
     // Primary first, unchanged query. Mirrors only when the primary fails or times out.
-    var urls = ["https://overpass-api.de/api/interpreter"].concat(OVERPASS_MIRRORS);
+    var urls = ["https://overpass-api.de/api/interpreter"].concat(OVERPASS_MIRRORS), t0 = Date.now();
     function next(i) {
-      if (i >= urls.length) return Promise.resolve(null);
-      return fetchJson(urls[i], { method: "POST", body: data }, i ? 8000 : 13000).then(function (j) {
+      var left = 15000 - (Date.now() - t0);
+      if (i >= urls.length || (i && left < 1500)) return Promise.resolve(null);
+      return fetchJson(urls[i], { method: "POST", body: data }, i ? Math.min(8000, left) : 13000).then(function (j) {
         if (j && Array.isArray(j.elements)) return j;
         return new Promise(function (ok) { setTimeout(ok, 400 * (i + 1)); }).then(function () { return next(i + 1); });
       });
