@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4311";
+  var VER = "4312";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1360,7 +1360,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet .sn-prof em{display:flex;align-items:center;justify-content:center;font:36px/72px system-ui;background:#041018}",
       "#sn-sheet .sn-prof b{display:block;color:#e8fbff!important;font:800 16px/1.2 system-ui!important}",
       "#sn-sheet .sn-tel{display:block;color:#4df0ff!important;font:700 14px/1.4 system-ui!important;text-decoration:none}",
-      "#sn-sheet .sn-miss{display:block;color:#9fd4e4!important;font:500 12px/1.3 system-ui!important}",
+      "#sn-sheet.tile .card{max-height:46vh!important;height:auto!important}",
+      "#sn-sheet.tile .sn-prof{grid-template-columns:88px minmax(0,1fr)!important}",
+      "#sn-sheet.tile .sn-prof .sn-shop-hero,#sn-sheet.tile .sn-prof em{width:88px!important;height:88px!important;max-width:88px!important;max-height:88px!important;max-height:88px!important}",
+      "#sn-sheet .sn-pick{display:grid;grid-template-columns:52px minmax(0,1fr) auto 28px 28px 28px;gap:6px;align-items:center;margin-top:8px}",
+      "#sn-sheet .sn-pick img,#sn-sheet .sn-pick .sn-mini{width:52px!important;height:52px!important;max-width:52px!important;max-height:52px!important;object-fit:cover;border-radius:10px;border:1px solid rgba(77,240,255,.45)}",
+      "#sn-sheet .sn-pick b{color:#e8fbff!important;font:700 14px/1.2 system-ui!important}",
+      "#sn-sheet .sn-pick span{color:#4df0ff!important;font:800 13px/1 system-ui!important}",
+      "#sn-sheet .sn-pick em{color:#e8fbff!important;font:800 16px/1 system-ui!important;text-align:center}",
+      "#sn-sheet .sn-pick button{width:28px;height:28px;border-radius:8px;border:1px solid rgba(77,240,255,.5);background:#041018;color:#4df0ff;font:800 16px/1 system-ui}",
+      "#sn-sheet #sn-prep{font:800 22px/1 system-ui!important;color:#4df0ff!important;letter-spacing:.04em}",
       "#sn-sheet .sheet-mid .sn-price small{font:800 14px/1 system-ui!important;letter-spacing:.12em!important;margin-left:6px!important}",
       "#sn-sheet-body{padding:8px 10px 10px!important}",
       "#sn-sheet input,#sn-sheet textarea{margin:4px 0 0!important;padding:8px 10px!important;font-size:16px!important}",
@@ -1886,6 +1895,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     sheetHold = true;
     var center = mid || esc(title || "");
     sh.classList.toggle("offer", !!(mid && String(mid).indexOf("sn-price") >= 0));
+    sh.classList.remove("tile");
+    sh.removeAttribute("data-kind");
+    sh.removeAttribute("data-job");
     card.innerHTML = '<div class="sheet-bar"><button type="button" class="sheet-apply" data-act="sheet-apply" aria-label="Apply">✓</button><div class="sheet-mid"></div><button type="button" class="sheet-x" data-act="sheet-x" aria-label="Close">✕</button></div><div id="sn-sheet-body"></div>';
     card.querySelector(".sheet-mid").innerHTML = center;
     card.querySelector("#sn-sheet-body").innerHTML = html;
@@ -1900,11 +1912,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function closeSheet() {
     var sh = $("sn-sheet");
     sheetHold = false;
-    if (sh) { sh.classList.remove("on"); sh.classList.remove("tall"); sh.classList.remove("min"); sh.classList.remove("offer"); }
+    if (sh) { sh.classList.remove("on"); sh.classList.remove("tall"); sh.classList.remove("min"); sh.classList.remove("offer"); sh.classList.remove("tile"); }
     materialize(needFilter());
     liftChrome();
   }
   function applySheet() {
+    var sh = $("sn-sheet");
+    if (sh && sh.classList.contains("tile")) { applyTile(); return; }
     var body = $("sn-sheet-body");
     if (!body) return;
     var go = body.querySelector("[data-act='save-place'],[data-act='save-drop'],[data-act='save-driver'],[data-act='save-stock'],[data-act='save-block'],[data-act='post-go'],[data-act='post-next'],[data-act='send'],[data-act='run-offer']");
@@ -2297,45 +2311,192 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     else html += '<p class="note">This order is finished.</p>';
     return html;
   }
-  function openActor(kind, pt) {
-    if (!isAdmin()) return;
-    var job = null;
-    jobs.forEach(function (j) { if (j && !j.received) job = j; });
-    var move = kind === "driver" ? "move-driver" : "move-home";
-    var html = '<p class="note">' + esc((pt && pt.name) || kind) + ". Drag the pin, or hold a new spot and relocate.</p>" +
-      '<button type="button" class="sheet-go" data-act="' + move + '">RELOCATE TO THE LAST HOLD</button>' +
-      '<button type="button" class="sheet-go primary" data-act="start-route">START THE DELIVERY ROUTE</button>' +
-      behalf(job);
-    openSheet(kind === "driver" ? "DRIVER" : "CLIENT", html, true);
+  function moneyOf(v) {
+    var n = parseFloat(String(v == null ? "" : v).replace(/[^0-9.]/g, ""));
+    return isFinite(n) ? n : 0;
+  }
+  function tilePhoto(src, mark) {
+    if (src) return '<img class="sn-shop-hero" alt="" src="' + String(src).replace(/"/g, "") + '">';
+    return "<em>" + mark + "</em>";
+  }
+  function tileContact(phone, where) {
+    var tel = phone
+      ? '<a class="sn-tel" href="tel:' + String(phone).replace(/[^\d+]/g, "") + '">' + esc(phone) + "</a>"
+      : '<span class="sn-miss">No phone listed</span>';
+    var addr = where ? '<span class="sn-miss">' + esc(where) + "</span>" : '<span class="sn-miss">No address listed</span>';
+    return tel + addr;
+  }
+  function openTile(o) {
+    o = o || {};
+    openSheet(o.title || "TILE", o.html || "", false, o.mid || esc(o.title || ""));
+    var sh = $("sn-sheet");
+    if (!sh) return;
+    sh.classList.add("tile");
+    sh.setAttribute("data-kind", o.kind || "");
+    sh.setAttribute("data-job", o.job || "");
+  }
+  function priceMid(n) {
+    return '<b class="sn-price">' + esc(n) + "<small>AV€</small></b>";
+  }
+  function jobById(id) {
+    var found = null;
+    jobs.forEach(function (j) { if (j && String(j.id) === String(id)) found = j; });
+    return found;
+  }
+  function freeDrivers(from) {
+    var drivers = [];
+    people.forEach(function (p) {
+      if (p && p.role === "driver" && p.free !== false && isFinite(+p.lat)) drivers.push(p);
+    });
+    if (driverPin && isFinite(+driverPin.lat) && !drivers.some(function (d) { return haversineKm(d, driverPin) < 0.05; })) {
+      drivers.push({ id: driverPin.id || "pin", name: driverPin.name || "motorbike", lat: driverPin.lat, lng: driverPin.lng, free: true, owner: me(), phone: driverPin.phone || "" });
+    }
+    var open = [];
+    drivers.forEach(function (d) {
+      var busy = jobs.some(function (j) { return j && j.verified && !j.delivered && j.driverId && String(j.driverId) === String(d.id); });
+      if (!busy) open.push(d);
+    });
+    if (from && isFinite(+from.lat)) open.sort(function (a, b) { return haversineKm(from, a) - haversineKm(from, b); });
+    return open;
   }
   function openVendor(s) {
     if (!s) return;
     vendor = s;
-    var photo = s.photo
-      ? '<img class="sn-shop-hero" alt="" width="72" height="72" style="width:72px!important;height:72px!important;max-width:72px!important;max-height:72px!important;object-fit:cover!important" src="' + String(s.photo).replace(/"/g, "") + '">'
-      : "<em>🏪</em>";
-    var phone = s.phone
-      ? '<a class="sn-tel" href="tel:' + String(s.phone).replace(/[^\d+]/g, "") + '">' + esc(s.phone) + "</a>"
-      : '<span class="sn-miss">No phone listed</span>';
-    var addr = s.address ? '<span class="sn-miss">' + esc(s.address) + "</span>" : '<span class="sn-miss">No address listed</span>';
-    var items = (s.menu || []).map(function (m, i) {
+    var where = [s.address, s.kind && s.kind !== "shop" ? s.kind : ""].filter(Boolean).join(" · ");
+    var menu = (s.menu || []).map(function (m, i) {
       if (!m) return "";
-      var qty = m.qty === 0 || m.qty ? m.qty : "—";
       var img = m.photo ? '<img alt="" src="' + String(m.photo).replace(/"/g, "") + '">' : '<span class="sn-mini"></span>';
-      return '<button type="button" class="sn-item" data-act="add-item" data-i="' + i + '">' + img +
-        "<b>" + esc(m.name || "item") + (m.when ? "<small>" + esc(m.when) + "</small>" : "") + "</b><span>" + esc(m.price || "") + "</span><em>" + esc(qty) + "</em></button>";
+      var left = m.qty === 0 || m.qty ? " · " + m.qty : "";
+      return '<div class="sn-pick" data-i="' + i + '">' + img +
+        "<b>" + esc(m.name || "item") + (m.when ? " · " + esc(m.when) : "") + left + "</b><span>" + esc(m.price || "") + "</span>" +
+        '<button type="button" data-act="pick-less" data-i="' + i + '">−</button><em class="n">0</em><button type="button" data-act="pick-more" data-i="' + i + '">+</button></div>';
     }).join("");
-    if (!items) items = '<p class="note">No product on the menu yet.</p>';
-    var html = '<div class="sn-prof">' + photo + "<div><b>" + esc(s.name || "Vendor") + "</b>" + phone + addr + "</div></div>" +
-      items +
-      '<button type="button" class="sheet-go primary" data-act="order-here">START THE ORDER</button>' +
-      (isAdmin()
-        ? '<button type="button" class="sheet-go" data-act="move-vendor" data-id="' + esc(s.id) + '">RELOCATE TO THE LAST HOLD</button>'
-        : '<button type="button" class="sheet-go" data-act="block" data-id="' + esc(s.owner || s.id) + '" data-k="vendor">BLOCK THIS VENDOR</button>');
-    openSheet(s.name || "VENDOR", html, true);
+    if (!menu) menu = '<p class="note">No product on the menu yet.</p>';
+    var html = '<div class="sn-prof">' + tilePhoto(s.photo, "🏪") + "<div><b>" + esc(s.name || "Vendor") + "</b>" + tileContact(s.phone, where) + "</div></div>" + menu;
+    openTile({ kind: "vendor", title: s.name || "VENDOR", html: html });
     try { if (map && isFinite(+s.lat)) map.panTo([+s.lat, +s.lng], { animate: false }); } catch (e) {}
-    say((s.name || "Vendor") + " · profile, contact, menu.");
   }
+  function openPerson(pt, role) {
+    if (!pt) return;
+    var mark = role === "driver" ? "🏍" : "📍";
+    var bits = [pt.address, pt.floor ? "floor " + pt.floor : "", pt.bell ? "bell " + pt.bell : "", pt.schedule, pt.hours, pt.areas, pt.goods, pt.volume ? "vol " + pt.volume : "", pt.weight ? "wt " + pt.weight : ""].filter(Boolean);
+    if (pt.rain) bits.push("rain");
+    if (pt.night) bits.push("night");
+    var html = '<div class="sn-prof">' + tilePhoto(pt.photo, mark) + "<div><b>" + esc(pt.name || role) + "</b>" + tileContact(pt.phone, bits.join(" · ")) + "</div></div>";
+    openTile({ kind: role === "driver" ? "driver" : "client", title: (pt.name || role).toUpperCase(), html: html });
+    try { if (map && isFinite(+pt.lat)) map.panTo([+pt.lat, +pt.lng], { animate: false }); } catch (e) {}
+  }
+  function openVendorOrder(job) {
+    var v = job.vendor || {};
+    var d = job.drop || {};
+    var lines = (job.lines || []).map(function (l) {
+      return '<div class="sn-pick"><span class="sn-mini"></span><b>' + esc(l.name) + "</b><span>" + esc(l.price || "") + "</span><em></em><em>" + esc(l.n) + "</em></div>";
+    }).join("");
+    var html = '<div class="sn-prof">' + tilePhoto(v.photo, "🏪") + "<div><b>" + esc(v.name || "Vendor") + "</b>" + tileContact(v.phone, v.address) + "</div></div>" +
+      lines + whoLine("CLIENT", d.name || "Client", [d.address, d.phone].filter(Boolean).join(" · ")) +
+      '<p class="note">Preparation minutes</p><input id="sn-prep" inputmode="numeric" placeholder="Minutes" />';
+    openTile({ kind: "vendor-order", title: "VENDOR", mid: priceMid(job.fee), html: html, job: job.id });
+  }
+  function openDriverOffer(job, drivers) {
+    var v = job.vendor || {};
+    var d = job.drop || {};
+    var names = (drivers || []).map(function (p) { return p.name || "driver"; }).join(" · ");
+    var html = whoLine("VENDOR", v.name, [v.address, v.phone].filter(Boolean).join(" · ")) +
+      '<div class="sn-leg">' + esc((job.prep || "—") + " min prep · " + (isFinite(+job.km) ? Number(job.km).toFixed(1) + " km" : "route")) + "</div>" +
+      whoLine("CLIENT", d.name || "Client", [d.address, d.floor ? "floor " + d.floor : "", d.phone].filter(Boolean).join(" · ")) +
+      '<p class="note">' + esc(names || "No free driver") + "</p>";
+    openTile({ kind: "driver-offer", title: "DRIVERS", mid: priceMid(job.fee), html: html, job: job.id });
+  }
+  function checkoutVendor() {
+    if (!vendor) { say("Tap the vendor again."); return; }
+    var body = $("sn-sheet-body");
+    var lines = [];
+    if (body) body.querySelectorAll(".sn-pick").forEach(function (row) {
+      var n = Number(row.querySelector(".n") && row.querySelector(".n").textContent || 0);
+      var i = Number(row.getAttribute("data-i"));
+      var item = vendor.menu && vendor.menu[i];
+      if (n > 0 && item) lines.push({ name: item.name || "item", n: n, price: item.price || "" });
+    });
+    if (!lines.length) { say("Choose from the menu, then Apply."); return; }
+    var dest = (homeDrop && isFinite(+homeDrop.lat)) ? homeDrop : (here && isFinite(+here.lat) ? here : null);
+    if (!dest) { say("List a delivery address, then Apply."); return; }
+    var food = 0;
+    lines.forEach(function (l) { food += moneyOf(l.price) * l.n; });
+    var q = quoteDelivery(vendor, dest, quoteOpts);
+    var job = {
+      id: "j" + Date.now().toString(36),
+      vendor: vendor,
+      drop: { lat: +dest.lat, lng: +dest.lng, name: dest.name || "Client", phone: dest.phone || "", address: dest.address || "", floor: dest.floor || "", bell: dest.bell || "" },
+      lines: lines,
+      food: Math.round(food * 100) / 100,
+      km: q.km,
+      fee: Math.round((q.total + food) * 100) / 100,
+      prep: 0,
+      stage: "vendor",
+      ready: false, pickup: false, got: false, delivered: false, received: false,
+      vendorAccepted: false, driverAccepted: false, verified: false,
+      driver: "", driverId: "",
+      client: (dest && dest.owner) || me(),
+      vendorOwner: vendor.owner || "",
+      t: Date.now()
+    };
+    jobs.unshift(job);
+    saveJobs();
+    publishJob(job);
+    say("Sent to " + (vendor.name || "the vendor") + ".");
+    openVendorOrder(job);
+  }
+  function vendorAccept() {
+    var sh = $("sn-sheet");
+    var job = jobById(sh && sh.getAttribute("data-job"));
+    if (!job) { say("That order is gone."); return; }
+    var prepEl = $("sn-prep");
+    var mins = Math.round(Number(prepEl && prepEl.value));
+    if (!isFinite(mins) || mins < 1) { say("The vendor sets the preparation minutes."); return; }
+    job.prep = mins;
+    job.vendorAccepted = true;
+    job.stage = "drivers";
+    saveJobs();
+    publishJob(job);
+    var drivers = freeDrivers(job.vendor);
+    if (!drivers.length) { say("No free driver to take it."); return; }
+    say((job.vendor && job.vendor.name || "Vendor") + " accepted. Ready in " + mins + " min. Sent to " + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ".");
+    openDriverOffer(job, drivers);
+  }
+  function driverAccept() {
+    var sh = $("sn-sheet");
+    var job = jobById(sh && sh.getAttribute("data-job"));
+    if (!job || !job.vendor || !job.drop) { say("That offer is gone."); return; }
+    var drivers = freeDrivers(job.vendor);
+    var drv = drivers[0];
+    if (!drv) { say("No free driver left."); return; }
+    job.driver = drv.name || "driver";
+    job.driverId = drv.id || "";
+    job.driverOwner = drv.owner || "";
+    job.driverAccepted = true;
+    job.verified = true;
+    job.ready = true;
+    job.stage = "run";
+    saveJobs();
+    publishJob(job);
+    takeStock(job.vendor, (job.lines || []).map(function (l) { return { id: job.vendor.id, name: l.name, n: l.n }; }));
+    if (!cityOn) openCity(job.vendor);
+    drop = job.drop;
+    vendor = job.vendor;
+    drawRoute(job.vendor, job.drop);
+    say(job.driver + " accepted. Order verified. Delivery is on. Prep " + (job.prep || "—") + " min.");
+    throwOffer({ id: job.id, fee: job.fee, km: job.km, vendor: job.vendor, drop: job.drop });
+  }
+  function applyTile() {
+    var sh = $("sn-sheet");
+    var kind = sh && sh.getAttribute("data-kind");
+    if (kind === "vendor") return checkoutVendor();
+    if (kind === "vendor-order") return vendorAccept();
+    if (kind === "driver-offer") return driverAccept();
+    closeSheet();
+    say("It stays on the map.");
+  }
+  function openActor(kind, pt) { openPerson(pt, kind === "driver" ? "driver" : "client"); }
   function setDrop(pt) {
     drop = { lat: pt.lat, lng: pt.lng };
     if (!vendor) { say("Hunt a shop first."); return; }
@@ -3199,6 +3360,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         say("Assigned to drv-notis · " + ((vendor && vendor.name) || "shop") + ". Set drop, then send.");
       }
       if (act === "self-ride") say("Hold the map. List the vendor, the delivery address, and a driver. Then send the offer.");
+      if (act === "pick-more" || act === "pick-less") {
+        var row = t.closest && t.closest(".sn-pick");
+        var em = row && row.querySelector(".n");
+        if (!em) return;
+        var next = Math.max(0, (Number(em.textContent) || 0) + (act === "pick-more" ? 1 : -1));
+        var item = vendor && vendor.menu && vendor.menu[Number(t.getAttribute("data-i"))];
+        if (item && item.qty !== "" && item.qty != null && isFinite(+item.qty) && next > Number(item.qty)) { say("Only " + item.qty + " left."); return; }
+        em.textContent = String(next);
+        return;
+      }
       if (act === "add-item") {
         var ix = Number(t.getAttribute("data-i"));
         var item = vendor && vendor.menu && vendor.menu[ix];
@@ -3341,7 +3512,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         };
         persistListing(drv);
         people = people.filter(function (p) { return !p || p.id !== drv.id; });
-        people.unshift({ id: drv.id, name: drv.name, role: "driver", lat: drv.lat, lng: drv.lng, free: true, owner: me(), photo: drv.photo || "" });
+        people.unshift({
+          id: drv.id, name: drv.name, role: "driver", lat: drv.lat, lng: drv.lng, free: true, owner: me(), photo: drv.photo || "",
+          phone: drv.phone, address: drv.address, schedule: drv.schedule, hours: drv.hours, areas: drv.areas, goods: drv.goods,
+          volume: drv.volume, weight: drv.weight, rain: drv.rain, night: drv.night
+        });
         savePeople();
         if (!cityOn) openCity(listPt);
         moveDriver({ lat: drv.lat, lng: drv.lng, name: drv.name, photo: drv.photo || "" });
@@ -3566,7 +3741,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         try { localStorage.setItem("sn:profile", JSON.stringify(homeDrop)); } catch (e) {}
         persistListing({ id: did, kind: "drop", name: homeDrop.name, phone: dphone, address: address, bell: bell, floor: dfloor, note: note, photo: shots.drop || "", lat: listPt.lat, lng: listPt.lng, customerPeer: me(), owner: me() });
         people = people.filter(function (p) { return !p || p.id !== did; });
-        people.unshift({ id: did, name: homeDrop.name, role: "client", lat: listPt.lat, lng: listPt.lng, photo: shots.drop || "", owner: me() });
+        people.unshift({ id: did, name: homeDrop.name, role: "client", lat: listPt.lat, lng: listPt.lng, photo: shots.drop || "", owner: me(), phone: homeDrop.phone || "", address: homeDrop.address || "", floor: homeDrop.floor || "", bell: homeDrop.bell || "" });
         savePeople();
         drop = homeDrop;
         if (!cityOn) openCity(listPt);
