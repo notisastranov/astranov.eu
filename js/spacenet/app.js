@@ -2267,6 +2267,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     });
   }
   var foundView = [];
+  function closeFind() {
+    var sh = $("sn-sheet"), mid = sh && sh.querySelector(".sheet-mid");
+    if (sh && sh.classList.contains("on") && mid && /^FIND\b/.test(String(mid.textContent || ""))) closeSheet();
+    foundView = [];
+  }
   function showFound(named, list) {
     var view = list && list.length ? list : shops;
     if (!view.length) { say("No real pin for that hunt. Try another name near GPS."); return; }
@@ -2467,6 +2472,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function huntPlace(ask) {
     var seq = ++placeSeq;
     huntSeq++;
+    closeFind();
     materialize(true);
     var place = ask.place, item = ask.item;
     var fired = false;
@@ -2521,6 +2527,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!q) return;
     var named = nearYou ? null : namedPlaceAsk(q, "");
     if (named) { named.raw = q; huntPlace(named); return; }
+    closeFind();
     materialize(true);
     say("Finding " + q + "…");
     var hs = ++huntSeq, ps = placeSeq;
@@ -3006,9 +3013,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (act === "reload") { openDeposit(); return; }
     if (act === "hunt" || act === "city" || act === "shop" || act === "now" || act === "pick") {
       var ask = (act === "city" || act === "hunt" || act === "shop") ? (namedPlaceAsk(j.q, act) || namedPlaceAsk(q, act)) : null;
-      if (ask && act === "city" && !ask.item && placeTown(ask.place)) { ask.raw = j.q || q; huntPlace(ask); return; }
+      if (ask && !ask.item && (placeTown(ask.place) || act !== "city")) { ask.raw = j.q || q; huntPlace(ask); return; }
       if (ask && act === "city" && j.places && j.places.length && isFinite(+j.places[0].lat) && isFinite(+j.places[0].lng) && !ask.item && !placeTown(ask.place)) {
         var citySeq = ++placeSeq, cityGeo = { lat: +j.places[0].lat, lng: +j.places[0].lng, name: ask.place }, cityLine = j.say || j.text || ask.place + " on the map.";
+        huntSeq++;
+        closeFind();
         seatPlace(cityGeo);
         say(cityLine);
         pullPlaceListings(cityGeo, citySeq).then(function (rows) {
