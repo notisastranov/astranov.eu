@@ -9,7 +9,7 @@
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
         {"key": "X-Astranov-Build", "value": "4308"},
-        {"key": "X-Astranov-Ship", "value": "4308-grok"}
+        {"key": "X-Astranov-Ship", "value": "4308-real"}
       ]
     },
     {
@@ -18,7 +18,7 @@
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
         {"key": "X-Astranov-Build", "value": "4308"},
-        {"key": "X-Astranov-Ship", "value": "4308-grok"}
+        {"key": "X-Astranov-Ship", "value": "4308-real"}
       ]
     },
     {

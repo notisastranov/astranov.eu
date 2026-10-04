@@ -1343,17 +1343,18 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet.on .card{pointer-events:auto!important}",
       "#sn-sheet .bg{pointer-events:none!important;display:none!important}",
       "#sn-sheet .card{position:absolute!important;left:14px!important;right:14px!important;width:auto!important;transform:none!important;bottom:78px!important;height:auto!important;max-height:42vh!important;padding:0!important;margin:0!important;border-radius:16px!important;border:1px solid rgba(126,233,255,.35)!important;overflow:auto!important;box-shadow:0 12px 28px rgba(0,0,0,.4)!important}",
-      "#sn-sheet .sheet-bar{display:flex!important;align-items:stretch!important;gap:0!important;margin:0!important;padding:0!important;width:100%!important;position:sticky!important;top:0!important;z-index:5!important;height:44px!important;border-radius:16px 16px 0 0!important;overflow:hidden!important}",
+      "#sn-sheet .sheet-bar{display:flex!important;align-items:stretch!important;gap:0!important;margin:0!important;padding:0!important;width:100%!important;position:sticky!important;top:0!important;z-index:5!important;height:48px!important;border-radius:16px 16px 0 0!important;overflow:hidden!important;background:#041018!important}",
       "#sn-sheet.offer .sheet-bar{height:48px!important}",
-      "#sn-sheet .sheet-apply,#sn-sheet .sheet-x{flex:none!important;display:block!important;height:100%!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;box-shadow:none!important}",
-      "#sn-sheet .sheet-apply{width:96px!important;background:#1f8f4a!important;color:#fff!important;font:800 13px/44px system-ui!important}",
-      "#sn-sheet .sheet-x{width:48px!important;background:#d21f2a!important;color:#fff!important;font:800 26px/1 system-ui!important}",
+      "#sn-sheet .sheet-apply,#sn-sheet .sheet-x{flex:none!important;display:flex!important;align-items:center!important;justify-content:center!important;width:48px!important;height:48px!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:#041018!important;font:800 26px/1 system-ui!important;box-shadow:none!important}",
+      "#sn-sheet .sheet-apply{color:#7dff9a!important}",
+      "#sn-sheet .sheet-x{color:#ff8a8a!important}",
       "#sn-sheet .sheet-mid{flex:1!important;min-width:0!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;background:#041018!important;color:#d7f6ff!important;font:800 13px/1.1 system-ui!important;letter-spacing:.14em!important;text-transform:uppercase!important;padding:0 8px!important}",
       "#sn-sheet .sheet-mid .sn-price{margin:0!important;font:800 28px/1 system-ui!important;letter-spacing:-.03em!important;color:#4df0ff!important;text-shadow:0 0 12px rgba(77,240,255,.85)!important}",
       "#sn-sheet .sheet-mid .sn-price small{font:800 14px/1 system-ui!important;letter-spacing:.12em!important;margin-left:6px!important}",
       "#sn-sheet-body{padding:8px 10px 10px!important}",
       "#sn-sheet input,#sn-sheet textarea{margin:4px 0 0!important;padding:8px 10px!important;font-size:16px!important}",
-      "#sn-sheet-body .sheet-go{display:block!important;width:100%!important;height:36px!important;margin:4px 0 0!important;box-sizing:border-box!important;font-size:13px!important}",
+      "#sn-sheet-body .sheet-go{display:block!important;width:100%!important;height:36px!important;margin:4px 0 0!important;box-sizing:border-box!important;font-size:13px!important;color:#e8fbff!important;background:#041018!important}",
+      "#sn-sheet-body .sheet-go.primary{color:#041018!important;background:#4df0ff!important}",
       "#sn-sheet .sn-row{display:block!important;margin:8px 0 0!important}",
       "#sn-sheet .sn-trio{display:grid!important;grid-template-columns:1fr 1fr 1fr!important;gap:4px!important}",
       "#sn-sheet .sn-row input{width:100%!important;box-sizing:border-box!important}",
@@ -1863,7 +1864,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     sheetHold = true;
     var center = mid || esc(title || "");
     sh.classList.toggle("offer", !!(mid && String(mid).indexOf("sn-price") >= 0));
-    card.innerHTML = '<div class="sheet-bar"><button type="button" class="sheet-apply" data-act="sheet-apply">✓ APPLY</button><div class="sheet-mid"></div><button type="button" class="sheet-x" data-act="sheet-x" aria-label="Close">✕</button></div><div id="sn-sheet-body"></div>';
+    card.innerHTML = '<div class="sheet-bar"><button type="button" class="sheet-apply" data-act="sheet-apply" aria-label="Apply">✓</button><div class="sheet-mid"></div><button type="button" class="sheet-x" data-act="sheet-x" aria-label="Close">✕</button></div><div id="sn-sheet-body"></div>';
     card.querySelector(".sheet-mid").innerHTML = center;
     card.querySelector("#sn-sheet-body").innerHTML = html;
     sh.classList.remove("min");
