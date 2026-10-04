@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4310";
+  var VER = "4311";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -962,6 +962,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       });
       el.addEventListener("pointerdown", function (e) {
         if (e.button) return;
+        if (e.target && e.target.closest && e.target.closest(".leaflet-marker-icon")) { holdPt = null; return; }
         holdPt = { x: e.clientX, y: e.clientY, t: Date.now(), ox: e.clientX, oy: e.clientY, ev: e };
       }, true);
       el.addEventListener("pointermove", function (e) {
@@ -1354,6 +1355,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet .sn-who span{color:#e8fbff!important;font:700 15px/1.2 system-ui!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
       "#sn-sheet .sn-who em{grid-column:2;color:#9fd4e4!important;font:500 12px/1.3 system-ui!important;font-style:normal!important}",
       "#sn-sheet .sn-leg{margin:6px 0 2px 70px;color:#4df0ff!important;font:800 12px/1 system-ui!important}",
+      "#sn-sheet .sn-prof{display:grid;grid-template-columns:72px minmax(0,1fr);gap:8px;align-items:center;margin:0 0 8px}",
+      "#sn-sheet .sn-prof .sn-shop-hero,#sn-sheet .sn-prof em{width:72px!important;height:72px!important;max-width:72px!important;max-height:72px!important;border-radius:12px;border:2px solid #4df0ff;object-fit:cover}",
+      "#sn-sheet .sn-prof em{display:flex;align-items:center;justify-content:center;font:36px/72px system-ui;background:#041018}",
+      "#sn-sheet .sn-prof b{display:block;color:#e8fbff!important;font:800 16px/1.2 system-ui!important}",
+      "#sn-sheet .sn-tel{display:block;color:#4df0ff!important;font:700 14px/1.4 system-ui!important;text-decoration:none}",
+      "#sn-sheet .sn-miss{display:block;color:#9fd4e4!important;font:500 12px/1.3 system-ui!important}",
       "#sn-sheet .sheet-mid .sn-price small{font:800 14px/1 system-ui!important;letter-spacing:.12em!important;margin-left:6px!important}",
       "#sn-sheet-body{padding:8px 10px 10px!important}",
       "#sn-sheet input,#sn-sheet textarea{margin:4px 0 0!important;padding:8px 10px!important;font-size:16px!important}",
@@ -1461,8 +1468,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var html = queueHtml(open);
     if (force || fresh.length) {
       upsertTab({ id: "queue", kind: "queue", title: "QUEUE " + open.length, html: html, min: false });
-      openSheet("QUEUE " + open.length, html, true);
-      say((fresh[0] ? fresh[0].note : open[0].note) + (open.length > 1 ? " · " + open.length + " waiting." : ""));
+      var busy = $("sn-sheet") && $("sn-sheet").classList.contains("on");
+      if (force || !busy) {
+        openSheet("QUEUE " + open.length, html, true);
+        say((fresh[0] ? fresh[0].note : open[0].note) + (open.length > 1 ? " · " + open.length + " waiting." : ""));
+      }
     } else {
       var tab = dockTabs.filter(function (t) { return t.id === "queue"; })[0];
       if (tab) tab.html = html;
@@ -1807,7 +1817,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (mine) listed.push(p);
       else out.push(p);
     });
-    return listed.concat(out.slice(0, 8));
+    return listed.concat(out.slice(0, 8)).concat(vendor && vendor.id && !listed.concat(out).some(function (p) { return p && p.id === vendor.id; }) ? [vendor] : []);
   }
   function asPlace(row) {
     if (!row) return null;
@@ -2033,7 +2043,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (s.status === "pending" && !isAdmin()) return;
       var mark;
       if ((s.photo || s.src === "listed" || s.src === "live") && L.divIcon) {
-        mark = L.marker([s.lat, s.lng], { icon: faceIcon("vendor", s.photo, s.name || "shop"), zIndexOffset: 500, draggable: !!(isAdmin() && s.src === "listed") });
+        mark = L.marker([s.lat, s.lng], { icon: faceIcon("vendor", s.photo, s.name || "shop"), zIndexOffset: 500, draggable: false, bubblingMouseEvents: false, keyboard: false });
       } else {
         mark = L.circleMarker([s.lat, s.lng], { radius: s.src === "listed" ? 10 : 8, color: s.src === "listed" ? "#4df0ff" : "#7ee9ff", fillColor: "#0a2030", fillOpacity: 0.95, weight: 2 });
       }
@@ -2125,7 +2135,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var id = "drv:" + (p.id || p.name);
       seen[id] = 1;
       if (!motionMarks[id]) {
-        motionMarks[id] = L.marker([step.lat, step.lng], { icon: faceIcon("driver", p.photo, p.name || "driver"), zIndexOffset: 800 }).addTo(map);
+        motionMarks[id] = L.marker([step.lat, step.lng], { icon: faceIcon("driver", p.photo, p.name || "driver"), zIndexOffset: 640, interactive: false, keyboard: false }).addTo(map);
       } else motionMarks[id].setLatLng([step.lat, step.lng]);
       try {
         if (!motionMarks[id].getTooltip()) motionMarks[id].bindTooltip(step.label, { permanent: !!isAdmin(), direction: "right" });
@@ -2299,44 +2309,32 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     openSheet(kind === "driver" ? "DRIVER" : "CLIENT", html, true);
   }
   function openVendor(s) {
+    if (!s) return;
     vendor = s;
-    if (map) map.setView([s.lat, s.lng], 17);
-    var km = here ? haversineKm(here, s).toFixed(1) : "—";
-    var photo = s.photo ? '<img class="sn-shop-hero" alt="" width="72" height="72" style="width:72px!important;height:72px!important;max-width:72px!important;max-height:72px!important;object-fit:cover!important" src="' + String(s.photo).replace(/"/g, "") + '">' : "";
+    var photo = s.photo
+      ? '<img class="sn-shop-hero" alt="" width="72" height="72" style="width:72px!important;height:72px!important;max-width:72px!important;max-height:72px!important;object-fit:cover!important" src="' + String(s.photo).replace(/"/g, "") + '">'
+      : "<em>🏪</em>";
+    var phone = s.phone
+      ? '<a class="sn-tel" href="tel:' + String(s.phone).replace(/[^\d+]/g, "") + '">' + esc(s.phone) + "</a>"
+      : '<span class="sn-miss">No phone listed</span>';
+    var addr = s.address ? '<span class="sn-miss">' + esc(s.address) + "</span>" : '<span class="sn-miss">No address listed</span>';
     var items = (s.menu || []).map(function (m, i) {
+      if (!m) return "";
       var qty = m.qty === 0 || m.qty ? m.qty : "—";
       var img = m.photo ? '<img alt="" src="' + String(m.photo).replace(/"/g, "") + '">' : '<span class="sn-mini"></span>';
       return '<button type="button" class="sn-item" data-act="add-item" data-i="' + i + '">' + img +
         "<b>" + esc(m.name || "item") + (m.when ? "<small>" + esc(m.when) + "</small>" : "") + "</b><span>" + esc(m.price || "") + "</span><em>" + esc(qty) + "</em></button>";
     }).join("");
     if (!items) items = '<p class="note">No product on the menu yet.</p>';
-    var stock = "";
-    if ((isAdmin() || myRole() === "vendor") && (s.menu || []).length) {
-      stock = '<div class="sn-cols"><span></span><span>ITEM</span><span>PRICE</span><span>QTY</span><span>HOURS</span></div>' +
-        (s.menu || []).map(function (m, i) {
-          var qty = m.qty === 0 || m.qty ? m.qty : "";
-          return '<div class="sn-row"><span class="sn-mini"></span><span>' + esc(m.name || "") + '</span><span>' + esc(m.price || "") + '</span>' +
-            '<input class="c-qty" data-i="' + i + '" inputmode="numeric" value="' + esc(qty) + '" />' +
-            '<span>' + esc(m.when || "") + '</span></div>';
-        }).join("") +
-        '<button type="button" class="sheet-go" data-act="save-stock" data-id="' + esc(s.id) + '">SAVE STOCK</button>';
-    }
-    var html =
-      photo +
-      "<p class=\"note\"></p>" +
+    var html = '<div class="sn-prof">' + photo + "<div><b>" + esc(s.name || "Vendor") + "</b>" + phone + addr + "</div></div>" +
       items +
-      stock +
+      '<button type="button" class="sheet-go primary" data-act="order-here">START THE ORDER</button>' +
       (isAdmin()
-        ? '<button type="button" class="sheet-go" data-act="move-vendor" data-id="' + esc(s.id) + '">RELOCATE TO THE LAST HOLD</button>' +
-          '<button type="button" class="sheet-go primary" data-act="start-route">START THE ROUTE</button>' +
-          behalf((function () { var job = null; jobs.forEach(function (j) { if (j && !j.received && j.vendor && String(j.vendor.id) === String(s.id)) job = j; }); return job; })())
-        : '<button type="button" class="sheet-go primary" data-act="gpsdrop">DELIVER TO MY GPS</button>' +
-          '<button type="button" class="sheet-go" data-act="block" data-id="' + esc(s.owner || s.id) + '" data-k="vendor">BLOCK THIS VENDOR</button>') +
-      (isAdmin() && s.status === "pending" ? '<button type="button" class="sheet-go primary" data-act="approve-shop" data-id="' + esc(s.id) + '">APPROVE LISTING</button>' : "");
-    openSheet(s.name, html, true);
-    var note = $("sn-sheet-body") && $("sn-sheet-body").querySelector(".note");
-    if (note) note.textContent = [s.phone, s.address].filter(Boolean).join(" · ") || ((s.kind || "shop") + " · " + km + " km");
-    say(s.name + " · photo, price, qty, hours. Qty counts down on an order.");
+        ? '<button type="button" class="sheet-go" data-act="move-vendor" data-id="' + esc(s.id) + '">RELOCATE TO THE LAST HOLD</button>'
+        : '<button type="button" class="sheet-go" data-act="block" data-id="' + esc(s.owner || s.id) + '" data-k="vendor">BLOCK THIS VENDOR</button>');
+    openSheet(s.name || "VENDOR", html, true);
+    try { if (map && isFinite(+s.lat)) map.panTo([+s.lat, +s.lng], { animate: false }); } catch (e) {}
+    say((s.name || "Vendor") + " · profile, contact, menu.");
   }
   function setDrop(pt) {
     drop = { lat: pt.lat, lng: pt.lng };
@@ -3166,6 +3164,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (act === "apply-vendor" || act === "apply-driver") say("Apply after LOGIN. Notis activates.");
       if (act === "withdraw") say("Withdraw after a real job. PayPal on origin.");
       if (act === "vendor" && isFinite(i) && shops[i]) openVendor(shops[i]);
+      if (act === "order-here") {
+        if (!vendor || !isFinite(+vendor.lat)) { say("Tap the vendor again."); return; }
+        var dest = (homeDrop && isFinite(+homeDrop.lat)) ? homeDrop : (here && isFinite(+here.lat) ? here : null);
+        if (!dest) { say("List a delivery address, or tap GPS, then start the order."); return; }
+        drop = { lat: +dest.lat, lng: +dest.lng, name: dest.name || "client", address: dest.address || "", phone: dest.phone || "" };
+        showQuote();
+        return;
+      }
       if (act === "gpsdrop") {
         var spot = isAdmin() ? here : hereLive;
         if (!spot) { say("Your own GPS has to verify where you are first."); return; }
