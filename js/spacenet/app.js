@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4312";
+  var VER = "4313";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1722,6 +1722,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       body: JSON.stringify({
         message: q,
         history: hist,
+        world: worldText(),
         here: {
           lat: here && here.lat,
           lng: here && here.lng,
@@ -2768,6 +2769,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     return "Hold the map. List the vendor, the delivery address, and a driver. Then send the offer.";
   }
   function programmer(text) {
+    var hits = searchRoster(text);
+    if (hits.length) return hits.map(function (h) { return h.say; }).join(" · ");
     var s = String(text || "").toLowerCase();
     if (/monitor|swarm|device|spec/.test(s)) { openFleet(); return "Monitor is open. This phone and every device that has checked in."; }
     if (/list|vendor|venue|menu|shop/.test(s) && !/find|hunt|pizza/.test(s)) { startListing(); return "Shop form is open. Name, menu lines as Name | price, photo, then LIST ON THE MAP."; }
@@ -2785,8 +2788,82 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (/monitor|swarm|device spec/.test(s)) { openFleet(); say("Monitor open."); return true; }
     if (/^(list|vendor|venue)\b/.test(s) || /list (a )?(shop|vendor|venue|menu)/.test(s)) { startListing(); return true; }
     if (/my bike|motorbike|test delivery/.test(s)) { say("Hold the map. List the vendor, the delivery address, and a driver. Then send the offer."); return true; }
-    if (/^(find|hunt|show)\s+\S/.test(s)) { hunt(q.replace(/^(find|hunt|show)\s+/i, "")); return true; }
+    if (/^(find|hunt|show)\s+\S/.test(s)) {
+      if (showRoster(searchRoster(q))) return true;
+      hunt(q.replace(/^(find|hunt|show)\s+/i, ""));
+      return true;
+    }
     return false;
+  }
+  function worldText() {
+    var lines = [];
+    shops.forEach(function (s) {
+      if (!s || !seesShop(s)) return;
+      var menu = (s.menu || []).map(function (m) { return m && m.name; }).filter(Boolean).slice(0, 8).join(", ");
+      lines.push("SHOP " + (s.name || "") + " | " + (s.phone || "") + " | " + (s.address || "") + (menu ? " | menu " + menu : ""));
+    });
+    people.forEach(function (p) {
+      if (!p || !p.name) return;
+      if (p.role === "driver" && !seesDriver(p)) return;
+      lines.push((p.role === "driver" ? "DRIVER " : "CLIENT ") + p.name + " | " + (p.phone || "") + " | " + (p.address || "") + (p.free === false ? " | busy" : ""));
+    });
+    if (homeDrop && homeDrop.name) lines.push("CLIENT " + homeDrop.name + " | " + (homeDrop.phone || "") + " | " + (homeDrop.address || ""));
+    jobs.slice(0, 8).forEach(function (j) {
+      if (!j || !seesJob(j)) return;
+      lines.push("ORDER " + ((j.vendor && j.vendor.name) || "shop") + " → " + ((j.drop && j.drop.name) || "client") + " | " + (j.driver || "no driver") + " | " + (j.fee || "") + " AV€");
+    });
+    return lines.slice(0, 40).join("\n").slice(0, 3500);
+  }
+  function rosterWords(q) {
+    return String(q || "").toLowerCase().split(/[^a-z0-9\u0370-\u03ff+]+/).filter(function (w) { return w.length > 1 && w !== "the" && w !== "show" && w !== "find" && w !== "me" && w !== "all"; });
+  }
+  function searchRoster(q) {
+    var ws = rosterWords(q);
+    var raw = String(q || "").toLowerCase();
+    var hits = [];
+    function add(kind, score, name, pt, say) {
+      if (score > 0) hits.push({ kind: kind, score: score, name: name, pt: pt, say: say });
+    }
+    function score(blob) {
+      var b = String(blob || "").toLowerCase();
+      var n = 0;
+      ws.forEach(function (w) { if (b.indexOf(w) >= 0) n += 1; });
+      return n;
+    }
+    shops.forEach(function (s) {
+      if (!s || !seesShop(s)) return;
+      var menu = (s.menu || []).map(function (m) { return m && (m.name + " " + (m.price || "")); }).join(" ");
+      add("vendor", score([s.name, s.phone, s.address, s.kind, menu].join(" ")), s.name, s, s.name + (s.address ? " · " + s.address : "") + (s.phone ? " · " + s.phone : ""));
+    });
+    people.forEach(function (p) {
+      if (!p || !p.name) return;
+      if (p.role === "driver" && !seesDriver(p)) return;
+      var kind = p.role === "driver" ? "driver" : "client";
+      add(kind, score([p.name, p.phone, p.address, p.role, p.areas, p.goods].join(" ")), p.name, p, (kind === "driver" ? "Driver " : "Client ") + p.name + (p.address ? " · " + p.address : "") + (p.phone ? " · " + p.phone : ""));
+    });
+    if (homeDrop && homeDrop.name) add("client", score([homeDrop.name, homeDrop.phone, homeDrop.address].join(" ")), homeDrop.name, homeDrop, "Client " + homeDrop.name + (homeDrop.address ? " · " + homeDrop.address : ""));
+    if (/driver|motorbike|bike|courier/.test(raw)) {
+      people.forEach(function (p) {
+        if (p && p.role === "driver" && seesDriver(p) && !hits.some(function (h) { return h.kind === "driver" && h.name === p.name; })) {
+          add("driver", 1, p.name, p, "Driver " + p.name + (p.free === false ? " · busy" : " · free"));
+        }
+      });
+    }
+    hits.sort(function (a, b) { return b.score - a.score; });
+    return hits.slice(0, 5);
+  }
+  function openBest(hits) {
+    if (!hits || !hits.length) return false;
+    var best = hits[0];
+    if (best.kind === "vendor") openVendor(best.pt);
+    else openPerson(best.pt, best.kind);
+    if (!cityOn && best.pt && isFinite(+best.pt.lat)) openCity(best.pt);
+    return true;
+  }
+  function showRoster(hits) {
+    if (!openBest(hits)) return false;
+    say(hits.map(function (h) { return h.say; }).join(" · "));
+    return true;
   }
   function talk(raw, fromVoice) {
     var q = String(raw || "").trim();
@@ -2794,13 +2871,21 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     lastVoice = !!fromVoice;
     if (supportOn) { sendSupport(q, fromVoice); return; }
     if (runLine(q)) return;
+    var hits = searchRoster(q);
     say("Grok…");
     askGrok(q, function (err, j) {
-      if (err || !j) { say("Grok did not answer. Tap the headphone and say it again."); return; }
-      var text = j.say || j.text;
-      say(text);
-      speakIfVoice(text);
-      applyAct(j, q);
+      if (!err && j && (j.say || j.text)) {
+        var text = j.say || j.text;
+        say(text);
+        speakIfVoice(text);
+        var act = String(j.act || "talk").toLowerCase();
+        if (act === "open") openBest(searchRoster(j.q || q).length ? searchRoster(j.q || q) : hits);
+        else applyAct(j, q);
+        return;
+      }
+      if (showRoster(hits)) return;
+      if (/find|hunt|show|where|pizza|shop|food|near|driver/.test(q.toLowerCase())) { hunt(q); return; }
+      say("Nothing in the shops, the drivers, or the clients around you.");
     });
   }
   function clockLine(d, utc) {
