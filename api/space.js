@@ -6,7 +6,7 @@ var CDN_EMPTY = "public, max-age=120, s-maxage=300, stale-while-revalidate=86400
 var memGet = { key: "", at: 0, body: null };
 var SELECT =
   "id,kind,lat,lng,updated_at," +
-  "name:body->>name,menu:body->>menu,phone:body->>phone,place:body->>place," +
+  "name:body->>name,menu:body->menu,phone:body->>phone,place:body->>place," +
   "hours:body->>hours,open:body->>open,status:body->>status,peer:body->>peer," +
   "street:body->>street,note:body->>note,raw:body->>raw," +
   "avc:body->avc,ride:body->ride,held:body->held,flag:body->>flag," +

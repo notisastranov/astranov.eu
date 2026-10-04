@@ -72,15 +72,17 @@ async function geocodeCityAct(q) {
   var t = String(q || '').trim().slice(0, 80);
   if (!t) return null;
   if (/^(athens|athina|αθήνα|αθηνα)$/i.test(t)) t = 'Αθήνα, Ελλάδα';
+  var town = /^(rhodes|rodos|ρόδος|ροδος)(\s*,?\s*(greece|hellas|ελλάδα|ελλαδα))?$/i.test(t);
+  if (town) t = 'Ρόδος';
   var ctl = new AbortController();
   var timer = setTimeout(function () { ctl.abort(); }, 5000);
   try {
-    var r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=' + encodeURIComponent(t), {
+    var r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=' + (town ? '5&countrycodes=gr&featuretype=city' : '1') + '&q=' + encodeURIComponent(t), {
       headers: { 'User-Agent': 'AstranovSpaceNet/1 (https://astranov.eu)', Accept: 'application/json' },
       signal: ctl.signal,
     });
     var rows = await r.json();
-    var g = Array.isArray(rows) && rows[0];
+    var g = Array.isArray(rows) && (rows.filter(function (x) { return x && /^(city|town|village)$/.test(String(x.addresstype || x.type || '')); })[0] || rows[0]);
     if (!g || !isFinite(+g.lat) || !isFinite(+g.lon)) return null;
     return { name: String(q).trim().slice(0, 80), lat: +g.lat, lng: +g.lon, raw: String(g.display_name || '').slice(0, 160) };
   } catch (_) {
