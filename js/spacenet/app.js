@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4304";
+  var VER = "4305";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1357,6 +1357,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ".sn-pin{width:76px;height:62px;display:flex;flex-direction:column;align-items:center}",
       ".sn-pin img{width:40px!important;height:40px!important;max-width:40px!important;max-height:40px!important;object-fit:cover!important;border-radius:8px;border:2px solid #4df0ff;display:block!important}",
       ".sn-pin b{display:block;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;padding:0 3px;background:rgba(4,14,28,.92);color:#e8fbff;font:800 9px/12px system-ui}",
+      ".sn-pin em{display:flex;align-items:center;justify-content:center;width:40px;height:40px;font:28px/40px system-ui;border-radius:8px;border:2px solid #4df0ff;background:rgba(4,14,28,.92)}",
       "#sn-tester{position:fixed;top:28px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(77,240,255,.4);color:#7ee9ff;font:700 10px/14px ui-monospace,monospace;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#sn-tester.stale{color:#8a6a6a;border-color:rgba(255,120,120,.35)}"
     ].join("");
@@ -1958,7 +1959,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function moveDriver(pt) {
     if (!isAdmin() || !pt) return;
-    driverPin = { lat: pt.lat, lng: pt.lng, name: pt.name || "motorbike" };
+    driverPin = { lat: pt.lat, lng: pt.lng, name: pt.name || (driverPin && driverPin.name) || "motorbike", photo: pt.photo || (driverPin && driverPin.photo) || "" };
     try { localStorage.setItem("sn:driver", JSON.stringify(driverPin)); } catch (e) {}
     paintShopsOnMap();
     say("Driver moved.");
@@ -1995,6 +1996,20 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     html += '<button type="button" class="sheet-go" data-act="add-person" data-k="driver">Put a driver here</button>';
     openSheet("MOVE", html, true);
   }
+  function faceHtml(role, photo, name) {
+    var mark = photo
+      ? '<img alt="" src="' + String(photo).replace(/"/g, "") + '">'
+      : '<em>' + (role === "driver" ? "🏍️" : role === "client" ? "🧍" : "🏪") + "</em>";
+    return '<span class="sn-pin">' + mark + "<b>" + esc(name || role) + "</b></span>";
+  }
+  function faceIcon(role, photo, name) {
+    return L.divIcon({
+      className: "sn-shop-pin",
+      html: faceHtml(role, photo, name),
+      iconSize: [76, 62],
+      iconAnchor: [38, 31]
+    });
+  }
   function paintShopsOnMap() {
     if (!map || typeof L === "undefined") return;
     absorbMine();
@@ -2005,20 +2020,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (!seesShop(s)) return;
       if (s.status === "pending" && !isAdmin()) return;
       var mark;
-      if (s.photo && L.divIcon) {
-        var icon = L.divIcon({
-          className: "sn-shop-pin",
-          html: '<span class="sn-pin"><img alt="" src="' + String(s.photo).replace(/"/g, "") + '"><b>' + esc(s.name || "shop") + "</b></span>",
-          iconSize: [76, 62],
-          iconAnchor: [38, 31]
-        });
-        mark = L.marker([s.lat, s.lng], { icon: icon, zIndexOffset: 500, draggable: !!(isAdmin() && s.src === "listed") });
-      } else if (isAdmin() && s.src === "listed") {
-        mark = L.marker([s.lat, s.lng], {
-          draggable: true,
-          zIndexOffset: 500,
-          icon: L.divIcon({ className: "sn-move-pin", html: "<i></i>", iconSize: [22, 22], iconAnchor: [11, 11] })
-        });
+      if ((s.photo || s.src === "listed" || s.src === "live") && L.divIcon) {
+        mark = L.marker([s.lat, s.lng], { icon: faceIcon("vendor", s.photo, s.name || "shop"), zIndexOffset: 500, draggable: !!(isAdmin() && s.src === "listed") });
       } else {
         mark = L.circleMarker([s.lat, s.lng], { radius: s.src === "listed" ? 10 : 8, color: s.src === "listed" ? "#4df0ff" : "#7ee9ff", fillColor: "#0a2030", fillOpacity: 0.95, weight: 2 });
       }
@@ -2039,7 +2042,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function paintOwnDrivers() {
     people.forEach(function (p) {
       if (!seesDriver(p) || !isFinite(+p.lat)) return;
-      var mark = L.circleMarker([+p.lat, +p.lng], { radius: 6, color: "#7dff9a", fillColor: "#0a2030", fillOpacity: 0.95, weight: 2 }).addTo(map);
+      var mark = L.marker([+p.lat, +p.lng], {
+        icon: faceIcon("driver", p.photo, p.name || "driver"),
+        zIndexOffset: 640
+      }).addTo(map);
       mark.bindTooltip(p.name || "driver", { direction: "top" });
       mark.on("click", function (e) {
         if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent);
@@ -2055,7 +2061,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var mark = L.marker([+pt.lat, +pt.lng], {
         draggable: true,
         zIndexOffset: 600,
-        icon: L.divIcon({ className: "sn-move-pin " + color, html: "<i></i>", iconSize: [22, 22], iconAnchor: [11, 11] })
+        icon: faceIcon(color === "driver" ? "driver" : "client", pt.photo, pt.name || label)
       });
       mark.bindTooltip(label, { direction: "top" });
       mark.on("click", function (e) {
@@ -2069,8 +2075,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       mark.addTo(map);
       shopMarks.push(mark);
     }
-    put(homeDrop, "client", "Client", moveHome);
-    put(driverPin, "driver", "Driver", moveDriver);
+    function covered(pt, role) {
+      if (!pt) return true;
+      return people.some(function (p) {
+        return p && p.role === role && isFinite(+p.lat) && haversineKm(p, pt) < 0.03;
+      });
+    }
+    if (!covered(homeDrop, "client")) put(homeDrop, "client", (homeDrop && homeDrop.name) || "Client", moveHome);
+    if (!covered(driverPin, "driver")) put(driverPin, "driver", (driverPin && driverPin.name) || "Driver", moveDriver);
     people.forEach(function (p) {
       if (!p) return;
       put(p, p.role || "client", (p.role || "") + " " + (p.name || ""), function (ll) { movePerson(p.id, ll); });
@@ -3233,9 +3245,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         };
         persistListing(drv);
         people = people.filter(function (p) { return !p || p.id !== drv.id; });
-        people.unshift({ id: drv.id, name: drv.name, role: "driver", lat: drv.lat, lng: drv.lng, free: true, owner: me() });
+        people.unshift({ id: drv.id, name: drv.name, role: "driver", lat: drv.lat, lng: drv.lng, free: true, owner: me(), photo: drv.photo || "" });
         savePeople();
-        moveDriver({ lat: drv.lat, lng: drv.lng, name: drv.name });
+        if (!cityOn) openCity(listPt);
+        moveDriver({ lat: drv.lat, lng: drv.lng, name: drv.name, photo: drv.photo || "" });
         closeSheet();
         say(drvName + " is a free driver here.");
       }
@@ -3437,13 +3450,20 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var dfloor = field("sn-drop-floor");
         var note = field("sn-drop-note");
         if (act === "save-drop" && !dname) { say("Your name."); return; }
+        var did = "d" + Date.now().toString(36);
         homeDrop = { lat: listPt.lat, lng: listPt.lng, name: dname || "home", phone: dphone, address: address, bell: bell, floor: dfloor, note: note, photo: shots.drop || "", owner: me() };
         try { localStorage.setItem("sn:home", JSON.stringify(homeDrop)); } catch (e) {}
         try { localStorage.setItem("sn:profile", JSON.stringify(homeDrop)); } catch (e) {}
-        persistListing({ id: "d" + Date.now().toString(36), kind: "drop", name: homeDrop.name, phone: dphone, address: address, bell: bell, floor: dfloor, note: note, photo: shots.drop || "", lat: listPt.lat, lng: listPt.lng, customerPeer: me(), owner: me() });
+        persistListing({ id: did, kind: "drop", name: homeDrop.name, phone: dphone, address: address, bell: bell, floor: dfloor, note: note, photo: shots.drop || "", lat: listPt.lat, lng: listPt.lng, customerPeer: me(), owner: me() });
+        people = people.filter(function (p) { return !p || p.id !== did; });
+        people.unshift({ id: did, name: homeDrop.name, role: "client", lat: listPt.lat, lng: listPt.lng, photo: shots.drop || "", owner: me() });
+        savePeople();
         drop = homeDrop;
+        if (!cityOn) openCity(listPt);
+        else paintShopsOnMap();
+        if (map) { try { map.setView([listPt.lat, listPt.lng], 17); } catch (e2) {} }
         closeSheet();
-        say((dname || "Delivery address") + " is listed.");
+        say((dname || "Delivery address") + " is on the map.");
       }
       if (act === "admin-gps") {
         if (!isAdmin()) { say("Only the administrator can move a test pin."); return; }
