@@ -292,6 +292,12 @@ module.exports = async function handler(req, res) {
     res.status(400).json({ ok: false, error: 'empty' });
     return;
   }
+  if (/\bdating\b|\bdate\s+(app|site|someone)\b|\btinder\b|\bbumble\b|\bhinge\s+app\b|\bhook\s*-?\s*ups?\b|\b(girl|boy)friend\b|\bmeet\s+(a\s+)?(women|men|girls|guys|someone|singles?)\b|\bsingles\s+(near|in|around)\b|γνωριμ/i.test(message)) {
+    // Dating is honest-empty: no listed dating profiles exist, so never a venue hunt and never a guessed person.
+    const honest = 'Dating is empty on SpaceNet: nobody has listed a dating profile yet. No people and no venues are guessed.';
+    res.status(200).json({ ok: true, text: honest, say: honest, act: 'talk', q: '', places: [], via: 'spacenet-honest' });
+    return;
+  }
   body.message = message;
   body.allow_paid = true;
   body.force_paid = true;

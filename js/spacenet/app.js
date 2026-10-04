@@ -200,6 +200,25 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var d = String(s.phone || "").replace(/\D/g, "");
     return /\btest\s*(vendor|driver|client)\b/i.test(String(s.name || "")) || (d.length >= 6 && /^0+$/.test(d));
   }
+  function nearOf(c, km) {
+    return function (s) { return !!(s && c && isFinite(+s.lat) && isFinite(+s.lng) && isFinite(+c.lat) && haversineKm({ lat: +c.lat, lng: +c.lng }, { lat: +s.lat, lng: +s.lng }) <= km); };
+  }
+  var DATING = /\bdating\b|\bdate\s+(app|site|someone)\b|\btinder\b|\bbumble\b|\bhinge\s+app\b|\bhook\s*-?\s*ups?\b|\b(girl|boy)friend\b|\bmeet\s+(a\s+)?(women|men|girls|guys|someone|singles?)\b|\bsingles\s+(near|in|around)\b|γνωριμ/i;
+  function datingAsk(q) { return DATING.test(String(q || "")); }
+  var NEAR_YOU = /\(?\s*\b(?:near|around|close\s+to)\s+(?:me|you|here|gps|my\s+location)\b\s*\)?|\bnearby\b|κοντά\s+μου/i;
+  function nearYouItem(q) {
+    var s = String(q || "");
+    if (!NEAR_YOU.test(s)) return null;
+    var t = s.replace(new RegExp(NEAR_YOU.source, "ig"), " ").replace(/[()?!.]+/g, " ").replace(/\s+/g, " ").trim();
+    var item = cleanItem(t);
+    return item && !/^(what'?s|what|anything|something|stuff|places?|things?|shops?)$/i.test(item) ? item : null;
+  }
+  function honestDating() {
+    huntSeq++;
+    placeSeq++;
+    closeFind();
+    say("Dating is empty on SpaceNet: nobody has listed a dating profile yet. No people and no venues are guessed.");
+  }
   function seesShop(s) {
     if (!s || s.status === "denied" || junkPlace(s)) return false;
     if (s.status === "pending" && !isAdmin()) return false;
@@ -208,7 +227,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     return true;
   }
   function seesDriver(p) {
-    if (!p) return false;
+    if (!p || junkPlace(p)) return false;
     if (isAdmin()) return true;
     var id = me();
     if (wall(id, p.owner || "") || wall(id, p.id)) return false;
@@ -760,7 +779,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
       if (d && d.moved && view) {
         var mid = globeHit(view.cx, view.cy, cam);
-        if (mid && isFinite(mid.lat) && isFinite(mid.lng)) { aim = { lat: mid.lat, lng: mid.lng }; viewMoved = true; }
+        if (mid && isFinite(mid.lat) && isFinite(mid.lng)) { aim = { lat: mid.lat, lng: mid.lng }; viewMoved = true; handView = true; queueViewPull(); }
         vel.yaw = 0;
         vel.pitch = 0;
       }
@@ -798,13 +817,19 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     dist = Math.max(0.5, Math.min(6.4, dist));
     if (!aim && here && isFinite(here.lat)) aim = { lat: here.lat, lng: here.lng };
     if (cityOn) return;
+    handView = true;
+    queueViewPull();
     if (dist <= 0.52 && aim && isFinite(aim.lat)) {
       viewMoved = true;
+      snapNext = true;
       openCity(aim);
       if (map) {
         try {
           map.setView([aim.lat, aim.lng], 14, { animate: false });
           map.flyTo([aim.lat, aim.lng], 16, { duration: 0.55 });
+          // the wheel notches still spinning after the switch must not dive the map to z19
+          map.scrollWheelZoom.disable();
+          setTimeout(function () { try { if (map) map.scrollWheelZoom.enable(); } catch (e) {} }, 900);
         } catch (e) {}
       }
       say("City");
@@ -942,13 +967,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     tierI = 3;
     var el = $("city");
     if (!el || typeof L === "undefined" || !pt) return;
+    var wasOn = cityOn;
     cityOn = true;
     el.classList.add("on");
     if (!map) {
       map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 12, maxZoom: 19, scrollWheelZoom: true }).setView([pt.lat, pt.lng], 16);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, minZoom: 12 }).addTo(map);
       map.on("moveend", queueViewPull);
-      map.on("dragstart", function () { viewMoved = true; });
+      map.on("dragstart", function () { viewMoved = true; handView = true; });
+      el.addEventListener("wheel", function () { viewMoved = true; handView = true; }, { passive: true });
       map.on("zoomend", function () {
         try {
           if (map && map.getZoom() <= 12.5) {
@@ -1004,27 +1031,59 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     paintShopsOnMap();
     setTimeout(function () { if (map) map.invalidateSize(); }, 80);
+    if (!wasOn) viewAt = null;
     queueViewPull();
   }
-  var viewListed = [], viewAt = null, viewTimer = 0, viewBusy = 0;
+  var viewListed = [], viewAt = null, viewTimer = 0, viewBusy = 0, viewT = 0, handView = false, snapNext = false;
   function queueViewPull() {
     clearTimeout(viewTimer);
     viewTimer = setTimeout(viewPull, 800);
   }
   function viewPull() {
-    if (!map || !cityOn) return;
-    var c;
-    try { c = map.getCenter(); } catch (e) { return; }
-    if (!c || !isFinite(c.lat) || !isFinite(c.lng)) return;
-    var pt = { lat: c.lat, lng: c.lng };
-    if (viewAt && haversineKm(viewAt, pt) < 5) return;
-    viewAt = pt;
+    // Every camera settle, globe or map: listed shops for what the user is looking at, from /api/space only (no Overpass).
+    var pt = null;
+    if (map && cityOn) {
+      try { var c = map.getCenter(); pt = { lat: c.lat, lng: c.lng }; } catch (e) { return; }
+    } else if (!cityOn) {
+      pt = (view && globeHit(view.cx, view.cy, cam)) || aim;
+    }
+    if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
+    var hand = handView, snap = snapNext && cityOn;
+    if (!hand && !snap && viewAt && haversineKm(viewAt, pt) < 2 && Date.now() - viewT < 60000) return;
+    handView = false;
+    if (snap) snapNext = false;
+    viewAt = { lat: pt.lat, lng: pt.lng };
+    viewT = Date.now();
     var mine = ++viewBusy;
     fetchJson("/api/space?lat=" + pt.lat.toFixed(2) + "&lng=" + pt.lng.toFixed(2), { cache: "no-store" }, 12000).then(function (j) {
       if (mine !== viewBusy) return;
       if (!j || !j.ok) { viewAt = null; return; }
       viewListed = ((j.shops || []).map(function (r) { return asPlace(r, "listed"); })).filter(function (p) { return p && !junkPlace(p); });
       paintShopsOnMap();
+      try { paintPulse(); } catch (e) {}
+      if (!map || !cityOn) return;
+      var b = null;
+      try { b = map.getBounds(); } catch (e) {}
+      var inView = b ? viewListed.filter(function (s) { return b.contains([s.lat, s.lng]); }) : [];
+      if (snap && !inView.length) {
+        var close = viewListed.filter(nearOf(pt, 40)).sort(function (a, b) { return haversineKm(pt, a) - haversineKm(pt, b); });
+        if (close.length) {
+          // the globe is coarse (1 px is ~15 km): move to the nearest listed cluster, never below z13 (z12.5 drops back to the globe)
+          var group = close.filter(nearOf(close[0], 6)), shown = group.length;
+          try {
+            var fb = L.latLngBounds(group.map(function (s) { return [s.lat, s.lng]; })).pad(0.2);
+            var z = Math.max(13.5, Math.min(15, map.getBoundsZoom(fb)));
+            map.setView(fb.getCenter(), z, { animate: false });
+            var nb = map.getBounds();
+            shown = viewListed.filter(function (s) { return nb.contains([s.lat, s.lng]); }).length;
+          } catch (e) {}
+          say(close.length + " listed shop" + (close.length === 1 ? "" : "s") + " near where you landed; the map moved to them (" + shown + " in view). Tap one.");
+          return;
+        }
+      }
+      if ((hand || snap) && !foundView.length) {
+        say(inView.length ? inView.length + " listed shop" + (inView.length === 1 ? "" : "s") + " in this view. Tap one, or name a shop or a service." : "No listed shop in this view. Pan, zoom out, or name a place.");
+      }
     });
   }
   function closeCity() {
@@ -2151,8 +2210,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       el.id = "sn-pulse";
       document.body.appendChild(el);
     }
-    var vendors = 0, near = 0, drivers = 0, orders = 0;
-    shops.forEach(function (s) {
+    var vendors = 0, near = 0, drivers = 0, orders = 0, counted = {};
+    shops.forEach(function (s) { if (s) counted[s.id || (s.name + s.lat)] = 1; });
+    shops.concat((viewListed || []).filter(function (s) { return s && !counted[s.id || (s.name + s.lat)]; })).forEach(function (s) {
       if (!seesShop(s)) return;
       vendors++;
       if (here && haversineKm(here, s) < 25) near++;
@@ -2272,7 +2332,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var foundView = [];
   function closeFind() {
     var sh = $("sn-sheet"), mid = sh && sh.querySelector(".sheet-mid");
-    if (sh && sh.classList.contains("on") && mid && /^FIND\b/.test(String(mid.textContent || ""))) closeSheet();
+    if (sh && sh.classList.contains("on") && ((mid && /^FIND\b/.test(String(mid.textContent || ""))) || (sh.classList.contains("tile") && /^(vendor|driver|client)$/.test(sh.getAttribute("data-kind") || "")))) closeSheet();
     foundView = [];
   }
   function showFound(named, list) {
@@ -2426,8 +2486,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var url = "/api/space?lat=" + Number(geo.lat).toFixed(2) + "&lng=" + Number(geo.lng).toFixed(2);
     placePull = fetchJson(url, { cache: "no-store" }, 12000).then(function (j) {
       if (seq !== placeSeq) return [];
-      var rows = ((j && j.shops) || []).map(function (r) { return asPlace(r, "listed"); }).filter(Boolean);
-      if (!rows.length) return [];
+      var rows = ((j && j.shops) || []).map(function (r) { return asPlace(r, "listed"); }).filter(function (p) { return p && nearOf(geo, 80)(p); });
+      shops = shops.filter(function (s) { return s && (s.src !== "listed" || nearOf(geo, 80)(s)); });
+      if (!rows.length) { paintShopsOnMap(); return []; }
       var ids = {};
       rows.forEach(function (p) { ids[p.id] = 1; });
       shops = uniqPlaces(rows.concat(shops.filter(function (s) { return s && !ids[s.id]; })), geo);
@@ -2495,11 +2556,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
       say("Finding " + item + " in " + place + "…");
       var job = placeShops(item, place, geo), shown = 0;
-      function fits() { return shops.filter(function (s) { return s && s.src === "listed" && listedFits(s, item); }); }
+      var nearGeo = nearOf(geo, 80);
+      function fits() { return shops.filter(function (s) { return s && s.src === "listed" && nearGeo(s) && listedFits(s, item); }); }
       function put(found) {
         if (seq !== placeSeq || found.length <= shown) return;
         shown = found.length;
-        var listed = shops.filter(function (s) { return s && s.src === "listed"; });
+        var listed = shops.filter(function (s) { return s && s.src === "listed" && nearGeo(s); });
         var good = listed.filter(function (s) { return listedFits(s, item); });
         shops = good.concat(listed.filter(function (s) { return !listedFits(s, item); }), found);
         showFound(geo, good.concat(found));
@@ -2528,6 +2590,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function hunt(q, nearYou) {
     q = String(q || "").trim();
     if (!q) return;
+    if (datingAsk(q)) { honestDating(); return; }
+    var nearItem = nearYouItem(q);
+    if (nearItem) { q = nearItem; nearYou = true; }
     var named = nearYou ? null : namedPlaceAsk(q, "");
     if (named) { named.raw = q; huntPlace(named); return; }
     closeFind();
@@ -2537,7 +2602,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var go = function () {
       Promise.all([huntApi(q), huntNominatim(q), huntOverpass(q)]).then(function (packs) {
         if (hs !== huntSeq || ps !== placeSeq) return;
-        var listed = shops.filter(function (s) { return s && s.src === "listed"; });
+        var listed = shops.filter(function (s) { return s && s.src === "listed" && nearOf(here, 80)(s); });
         var next = uniqPlaces(listed.concat(packs[0], packs[1], packs[2]));
         if (!next.length && shops.length) { paintShopsOnMap(); say("No real pin for " + q + ". Nothing new is shown; the " + shops.length + " already on the map stay."); return; }
         shops = next;
@@ -2565,8 +2630,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         shops = uniqPlaces(shops.concat(rows));
         if (shops.length) {
           paintShopsOnMap();
-          if (!placeSeq) say("GPS " + here.lat.toFixed(4) + "," + here.lng.toFixed(4) + " · " + shops.length + " places around you. Talk a hunt or tap a pin.");
-        } else if (here && !cityOn) say("GPS " + here.lat.toFixed(4) + "," + here.lng.toFixed(4) + " · tap GPS for the city");
+          if (!placeSeq && !viewMoved) say("GPS " + here.lat.toFixed(4) + "," + here.lng.toFixed(4) + " · " + shops.length + " places around you. Talk a hunt or tap a pin.");
+        } else if (here && !cityOn && !viewMoved) say("GPS " + here.lat.toFixed(4) + "," + here.lng.toFixed(4) + " · tap GPS for the city");
       });
     }
   }
@@ -2617,7 +2682,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function freeDrivers(from) {
     var drivers = [];
     people.forEach(function (p) {
-      if (p && p.role === "driver" && p.free !== false && isFinite(+p.lat)) drivers.push(p);
+      if (p && p.role === "driver" && p.free !== false && isFinite(+p.lat) && !junkPlace(p)) drivers.push(p);
     });
     if (driverPin && isFinite(+driverPin.lat) && !drivers.some(function (d) { return haversineKm(d, driverPin) < 0.05; })) {
       drivers.push({ id: driverPin.id || "pin", name: driverPin.name || "motorbike", lat: driverPin.lat, lng: driverPin.lng, free: true, owner: me(), phone: driverPin.phone || "" });
@@ -3015,6 +3080,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (act === "jobs") { openJobs(); return; }
     if (act === "reload") { openDeposit(); return; }
     if (act === "hunt" || act === "city" || act === "shop" || act === "now" || act === "pick") {
+      if (datingAsk(q)) { honestDating(); return; }
+      if (nearYouItem(q)) { hunt(nearYouItem(q), true); return; }
       var ask = (act === "city" || act === "hunt" || act === "shop") ? (namedPlaceAsk(j.q, act) || namedPlaceAsk(q, act)) : null;
       if (ask && !ask.item && (placeTown(ask.place) || act !== "city")) { ask.raw = j.q || q; huntPlace(ask); return; }
       if (ask && act === "city" && j.places && j.places.length && isFinite(+j.places[0].lat) && isFinite(+j.places[0].lng) && !ask.item && !placeTown(ask.place)) {
@@ -3036,7 +3103,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var pins = far ? uniqPlaces(raw, raw[0]).map(function (p) { p.named = true; return p; }) : uniqPlaces(raw);
         if (pins.length) {
           placeSeq++;
-          shops = shops.filter(function (s) { return s && s.src === "listed"; }).concat(pins);
+          shops = shops.filter(function (s) { return s && s.src === "listed" && nearOf(pins[0], 80)(s); }).concat(pins);
           var farSeat = far ? { lat: pins[0].lat, lng: pins[0].lng, name: ask.place } : undefined, farSeq = placeSeq;
           showFound(farSeat);
           if (far) pullPlaceListings(farSeat, farSeq).then(function (rows) {
@@ -3169,6 +3236,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!q) return;
     lastVoice = !!fromVoice;
     if (supportOn) { sendSupport(q, fromVoice); return; }
+    if (datingAsk(q)) { honestDating(); return; }
+    var nearItem = nearYouItem(q);
+    if (nearItem) { hunt(nearItem, true); return; }
     if (runLine(q)) return;
     var hits = searchRoster(q);
     say("Grok…");
