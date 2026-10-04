@@ -208,13 +208,14 @@ module.exports = async function handler(req, res) {
     const lng = Math.round(lngN * 100) / 100;
     const wantLat = lat.toFixed(2);
     const wantLng = lng.toFixed(2);
-    if (String(q.lat) !== wantLat || String(q.lng) !== wantLng || q.peer != null) {
+    const R = Math.max(5, Math.min(150, Math.round(Number(q.r) || 80)));
+    if (String(q.lat) !== wantLat || String(q.lng) !== wantLng || q.peer != null || (q.r != null && String(q.r) !== String(R))) {
       setCache(res, CDN_GET);
-      res.setHeader("Location", "/api/space?lat=" + wantLat + "&lng=" + wantLng);
+      res.setHeader("Location", "/api/space?lat=" + wantLat + "&lng=" + wantLng + (R !== 80 ? "&r=" + R : ""));
       res.status(302).end();
       return;
     }
-    const memKey = wantLat + "," + wantLng;
+    const memKey = wantLat + "," + wantLng + "," + R;
     if (memGet.body && memGet.key === memKey && Date.now() - memGet.at < 120000) {
       setCache(res, CDN_GET);
       if (req.method === "HEAD") {
@@ -276,7 +277,7 @@ module.exports = async function handler(req, res) {
           Math.sin(dLng / 2) *
           Math.sin(dLng / 2);
       const km = 6371 * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
-      if (km > 80) return;
+      if (km > R) return;
       const k =
         body.kind === "shop"
           ? "shops"
