@@ -9,5 +9,5 @@ module.exports = async function handler(req, res) {
     res.status(204).end();
     return;
   }
-  res.status(200).json({ latest: "4330" });
+  res.status(200).json({ latest: "4331" });
 };

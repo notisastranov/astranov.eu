@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4330";
+  var VER = "4331";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -328,33 +328,27 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (cz < 0.04) return null;
     return { x: view.cx + x * view.scale, y: view.cy - cy * view.scale, z: cz, s: view.scale };
   }
-  function globeHit(sx, sy, c) {
-    var scale = view.scale;
+  function globeHit(sx, sy, c, spinAt) {
+    var scale = view && view.scale;
     if (!scale || scale < 8) return null;
+    var spin = (spinAt != null && isFinite(spinAt)) ? spinAt : earthSpin();
     var nx = (sx - view.cx) / scale, ny = (view.cy - sy) / scale, r2 = nx * nx + ny * ny;
     if (r2 > 0.999) return null;
     var nz = Math.sqrt(Math.max(0, 1 - r2));
     var cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
     var y = ny * cp + nz * sp, z = -ny * sp + nz * cp, x = nx;
     var lat = (Math.asin(Math.max(-1, Math.min(1, y))) * 180) / Math.PI;
-    /* λ = atan2(x,z); lng = λ + yaw + spin — must match vecOf/project (x=cosφ·sinλ, z=cosφ·cosλ) */
+    /* λ = atan2(x,z); lng = λ + yaw + spin — matches project (x=cosφ·sinλ, z=cosφ·cosλ) */
     var lam = Math.atan2(x, z);
-    var lng = ((lam + c.yaw + earthSpin()) * 180) / Math.PI;
+    var lng = ((lam + c.yaw + spin) * 180) / Math.PI;
     while (lng > 180) lng -= 360;
     while (lng < -180) lng += 360;
-    var hit = { lat: lat, lng: lng };
-    /* self-check: if reproject drifts, try lon-flipped (guards sign bugs) */
-    try {
-      var p = project(hit.lat, hit.lng, c);
-      var err = p ? Math.hypot(p.x - sx, p.y - sy) : 1e9;
-      if (err > 6) {
-        var flip = { lat: hit.lat, lng: -hit.lng };
-        var p2 = project(flip.lat, flip.lng, c);
-        var err2 = p2 ? Math.hypot(p2.x - sx, p2.y - sy) : 1e9;
-        if (err2 + 1 < err) hit = flip;
-      }
-    } catch (e) {}
-    return hit;
+    if (!isFinite(lat) || !isFinite(lng)) return null;
+    return { lat: lat, lng: lng };
+  }
+  function screenToLatLng(sx, sy, c, spinAt) {
+    if (!view || sx == null || sy == null) return null;
+    return globeHit(sx, sy, c || cam, spinAt);
   }
   function wrapYaw(from, to) {
     var d = to - from;
@@ -362,8 +356,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     while (d < -Math.PI) d += Math.PI * 2;
     return from + d;
   }
-  function lookAt(p, dist) {
-    cam.yaw = (p.lng * Math.PI) / 180 - earthSpin();
+  function lookAt(p, dist, spinAt) {
+    if (!p || !isFinite(+p.lat) || !isFinite(+p.lng)) return;
+    var spin = (spinAt != null && isFinite(spinAt)) ? spinAt : earthSpin();
+    var want = (p.lng * Math.PI) / 180 - spin;
+    cam.yaw = wrapYaw(cam.yaw, want);
     cam.pitch = Math.max(-1.15, Math.min(1.15, (p.lat * Math.PI) / 180));
     cam.dist = dist == null ? 1.16 : dist;
     vel.yaw = 0; vel.pitch = 0; fly = null;
@@ -762,7 +759,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4330 = true;
+      window.__SN_4331 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -862,8 +859,20 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }
         window.__snGlobeTap = nowT;
       } else if (!hitTap) {
-        var con = pickConstellation(pUp.x, pUp.y);
-        if (con) openSky(con);
+        var gpsEl = $("gps");
+        var nearGps = false;
+        try {
+          if (gpsEl) {
+            var gr = gpsEl.getBoundingClientRect();
+            var cr = canvas.getBoundingClientRect();
+            var gx = pUp.x + cr.left, gy = pUp.y + cr.top;
+            nearGps = gx >= gr.left - 8 && gx <= gr.right + 8 && gy >= gr.top - 8 && gy <= gr.bottom + 8;
+          }
+        } catch (e2) {}
+        if (!nearGps) {
+          var con = pickConstellation(pUp.x, pUp.y);
+          if (con) openSky(con);
+        }
       }
     }
     canvas.addEventListener("pointerup", up);
@@ -893,15 +902,21 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     dist = Math.max(0.5, Math.min(maxD, dist));
     if (!aim && here && isFinite(here.lat)) aim = { lat: here.lat, lng: here.lng };
     if (cityOn) return;
-    if (dist <= 0.78 && aim && isFinite(aim.lat)) {
-      openCity(aim);
+    if (dist <= 0.78 && aim && isFinite(+aim.lat) && isFinite(+aim.lng)) {
+      /* refuse polar/Alaska garbage from a bad inverse */
+      if (Math.abs(+aim.lat) > 80) {
+        say("Wheel aim missed the globe. Drag to face the place, then wheel in.");
+        return;
+      }
+      var street = { lat: +aim.lat, lng: +aim.lng, name: aim.name || "" };
+      openCity(street);
       if (map) {
         try {
-          map.setView([aim.lat, aim.lng], 14, { animate: false });
-          map.flyTo([aim.lat, aim.lng], 16, { duration: 0.55 });
+          map.setView([street.lat, street.lng], 16, { animate: false });
+          map.invalidateSize();
         } catch (e) {}
       }
-      say("City");
+      say("Street · " + street.lat.toFixed(3) + "," + street.lng.toFixed(3));
       return;
     }
     var f = aim && isFinite(aim.lat) ? face(aim) : { yaw: cam.yaw, pitch: cam.pitch };
@@ -914,8 +929,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     tierI = dist > 3.2 ? 0 : dist > 1.4 ? 1 : 2;
   }
   var wheelAt = 0;
-  function aimAt(sx, sy) {
-    var hit = (sx != null && sy != null) ? globeHit(sx, sy, cam) : null;
+  function aimAt(sx, sy, spinAt) {
+    var spin = (spinAt != null && isFinite(spinAt)) ? spinAt : earthSpin();
+    var hit = (sx != null && sy != null) ? screenToLatLng(sx, sy, cam, spin) : null;
+    if (!hit && view) hit = screenToLatLng(view.cx, view.cy, cam, spin);
     if (hit && isFinite(hit.lat) && isFinite(hit.lng)) {
       aim = { lat: hit.lat, lng: hit.lng };
       seated = true;
@@ -926,7 +943,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function zoomSmooth(dir, sx, sy) {
     if (cityOn && map) {
       var z = map.getZoom() || 16;
-      if (dir > 0 && z <= 13.2) {
+      if (dir > 0 && z <= 12.6) {
         closeCity();
         zoomToDist(1.25);
         say("Back to the globe");
@@ -934,20 +951,20 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
       var nz = Math.max(13, Math.min(19, z + (dir < 0 ? 0.7 : -0.7)));
       try {
-        if (sx != null && map.mouseEventToLatLng && false) { /* reserved */ }
         if (sx != null && typeof L !== "undefined" && map.containerPointToLatLng) {
           var ll = map.containerPointToLatLng(L.point(sx, sy));
           map.setView(ll, nz, { animate: false });
         } else {
-          map.flyTo(map.getCenter(), nz, { duration: 0.28 });
+          map.setZoom(nz);
         }
       } catch (e) { try { map.setZoom(nz); } catch (e2) {} }
       return;
     }
-    if (dir < 0 && sx != null) {
-      var under = aimAt(sx, sy);
+    var spin = earthSpin();
+    if (dir < 0) {
+      var under = aimAt(sx, sy, spin);
       if (under) {
-        try { lookAt(under, cam.dist); } catch (e) {}
+        try { lookAt(under, cam.dist, spin); } catch (e) {}
       }
     }
     wheelAt = Date.now();
@@ -1051,12 +1068,23 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var btn = $("gps");
     if (!btn || btn.__snGpsLock) return;
     btn.__snGpsLock = true;
-    btn.addEventListener("click", function (ev) {
-      ev.preventDefault(); ev.stopPropagation();
+    btn.style.setProperty("z-index", "280", "important");
+    btn.style.setProperty("pointer-events", "auto", "important");
+    function goGps(ev) {
+      if (ev) { ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
       adminPin = false;
       try { closeSky(); } catch (e) {}
-      locate(function (pt) { land(pt, false); });
-    }, true);
+      say("Locating…");
+      locate(function (pt) {
+        if (!pt || !isFinite(+pt.lat)) {
+          say("Location failed. Allow GPS, or I will try the network.");
+          return;
+        }
+        land(pt, false);
+      }, false);
+    }
+    btn.addEventListener("click", goGps, true);
+    btn.addEventListener("pointerup", goGps, true);
   }
   function openCity(pt) {
     if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
@@ -1373,7 +1401,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function hardReset() {
     say("Resetting…");
     try { localStorage.clear(); sessionStorage.clear(); } catch (e) {}
-    var go = function () { location.href = "/?v=4330&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4331&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -1517,8 +1545,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet-body{overflow:auto!important;max-height:calc(42vh - 48px)!important;-webkit-overflow-scrolling:touch!important;touch-action:pan-y!important;padding:8px 10px 12px!important}",
       "#sn-sheet .sheet-bar{display:flex!important;align-items:stretch!important;gap:0!important;margin:0!important;padding:0!important;width:100%!important;position:sticky!important;top:0!important;z-index:5!important;height:48px!important;border-radius:16px 16px 0 0!important;overflow:hidden!important;background:rgba(4,16,28,.42)!important}",
       "#sn-sheet.offer .sheet-bar{height:48px!important}",
-      "#sn-sheet .sheet-apply,#sn-sheet .sheet-x{flex:none!important;display:flex!important;align-items:center!important;justify-content:center!important;width:48px!important;height:48px!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;font:800 26px/1 system-ui!important;box-shadow:none!important}",
-      "#sn-sheet .sheet-apply{color:#7dff9a!important}",
+      "#sn-sheet .sheet-apply,#sn-sheet .sheet-x{flex:none!important;display:flex!important;align-items:center!important;justify-content:center!important;min-width:56px!important;height:48px!important;margin:0!important;padding:0 8px!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;pointer-events:auto!important;z-index:6!important}",
+      "#sn-sheet .sheet-apply{color:#7dff9a!important;font:800 11px/1 system-ui!important;letter-spacing:.1em!important;width:auto!important;min-width:64px!important}",
+      "#sn-sheet .sheet-x{color:#ff8a8a!important;font:800 22px/1 system-ui!important;width:56px!important;min-width:56px!important}",
       ".sn-stars{display:flex;gap:6px;margin:6px 0}",
       ".sn-stars button{flex:1;height:36px;border:1px solid rgba(77,240,255,.45);background:#041018;color:#4df0ff;font:800 16px system-ui}",
       ".sn-stars button.on{background:#4df0ff;color:#041018}",
@@ -1580,7 +1609,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-globe{position:fixed!important;top:64px!important;right:max(6px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;z-index:60!important;width:40px!important;height:40px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;align-items:center!important;justify-content:center!important}",
       "#sn-globe svg{width:22px;height:22px;display:block}",
       "#sn-me{position:fixed!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;top:auto!important;bottom:calc(var(--dock) + 16px)!important;z-index:46!important}",
-      "#gps{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:calc(var(--dock) + 16px)!important;z-index:46!important}",
+      "#gps{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:calc(var(--dock) + 16px)!important;z-index:280!important;pointer-events:auto!important}",
       "#sn-above{position:static!important;height:0!important;padding:0!important;margin:0!important;display:block!important;background:transparent!important}",
       "#plus,#go{position:fixed!important;bottom:max(8px,env(safe-area-inset-bottom))!important;top:auto!important;z-index:60!important;width:44px!important;height:44px!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.7)!important;background:rgba(4,16,28,.92)!important}",
       "#plus{left:max(6px,env(safe-area-inset-left))!important;right:auto!important}",
@@ -1853,7 +1882,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     intro = false;
     desk.innerHTML =
-      '<div class="sheet-bar"><button type="button" class="sheet-apply" data-act="support-send" aria-label="Apply">✓</button><b class="sheet-ttl">BUILD</b><button type="button" class="sheet-x" data-act="support-close" aria-label="Close">✕</button></div>' +
+      '<div class="sheet-bar"><button type="button" class="sheet-apply" data-act="support-send" aria-label="Apply">APPLY</button><b class="sheet-ttl">BUILD</b><button type="button" class="sheet-x" data-act="support-close" aria-label="Close">X</button></div>' +
       '<div id="sn-support-log"></div>' +
       '<textarea id="sn-support-matter" placeholder="Tell the programmer what to fix"></textarea>' +
       '<button type="button" class="sheet-go primary" data-act="support-send">SEND</button>';
@@ -2042,25 +2071,29 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     try { return (window.SNAuth && SNAuth.token && SNAuth.token()) || localStorage.getItem("sn:access") || ""; } catch (e) { return ""; }
   }
   function uniqPlaces(list) {
-    var listed = [], out = [], seen = {};
-    list.forEach(function (p) {
-      if (!p || !isFinite(p.lat) || !isFinite(p.lng) || !p.name) return;
-      var mine = p.src === "listed";
-      if (!mine && here && haversineKm(here, p) > 40) return;
-      var k = p.name.toLowerCase() + ":" + p.lat.toFixed(4) + "," + p.lng.toFixed(4);
-      if (seen[k]) {
-        if (mine) {
-          for (var i = 0; i < listed.length; i++) {
-            if ((listed[i].name || "").toLowerCase() + ":" + listed[i].lat.toFixed(4) + "," + listed[i].lng.toFixed(4) === k) listed[i] = p;
-          }
-        }
+    var out = [], seen = {};
+    function keyOf(p) {
+      if (p.id) return "id:" + String(p.id);
+      return "g:" + String(p.name || "").toLowerCase() + ":" + Number(p.lat).toFixed(4) + "," + Number(p.lng).toFixed(4);
+    }
+    function rank(src) {
+      if (src === "listed" || src === "live") return 4;
+      if (src === "find") return 3;
+      if (src === "overpass" || src === "nominatim") return 2;
+      return 1;
+    }
+    (list || []).forEach(function (p) {
+      if (!p || !isFinite(+p.lat) || !isFinite(+p.lng) || !p.name) return;
+      var k = keyOf(p);
+      var i = seen[k];
+      if (i != null) {
+        if (rank(p.src) >= rank(out[i].src)) out[i] = p;
         return;
       }
-      seen[k] = 1;
-      if (mine) listed.push(p);
-      else out.push(p);
+      seen[k] = out.length;
+      out.push(p);
     });
-    return listed.concat(out.slice(0, 8)).concat(vendor && vendor.id && !listed.concat(out).some(function (p) { return p && p.id === vendor.id; }) ? [vendor] : []);
+    return out;
   }
   function asPlace(row) {
     if (!row) return null;
@@ -2132,7 +2165,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     sh.classList.remove("tile");
     sh.removeAttribute("data-kind");
     sh.removeAttribute("data-job");
-    card.innerHTML = '<div class="sheet-bar"><button type="button" class="sheet-apply" data-act="sheet-apply" aria-label="Apply">✓</button><div class="sheet-mid"></div><button type="button" class="sheet-x" data-act="sheet-x" aria-label="Close">✕</button></div><div id="sn-sheet-body"></div>';
+    card.innerHTML = '<div class="sheet-bar"><button type="button" class="sheet-apply" data-act="sheet-apply" aria-label="Apply">APPLY</button><div class="sheet-mid"></div><button type="button" class="sheet-x" data-act="sheet-x" aria-label="Close">X</button></div><div id="sn-sheet-body"></div>';
     card.querySelector(".sheet-mid").innerHTML = center;
     card.querySelector("#sn-sheet-body").innerHTML = '<div class="sn-zoom">' + html + "</div>";
     armPinch(card.querySelector("#sn-sheet-body"));
@@ -2983,31 +3016,41 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       return;
     }
     findWanted = false;
-    shops = (shops || []).filter(function (s) { return seesShop(s); });
-    if (!shops.length) {
+    var all = (shops || []).filter(function (s) { return seesShop(s); });
+    var needle = String(window.__snLastHunt || "").toLowerCase().trim();
+    var shown = all;
+    if (needle.length >= 3) {
+      var matched = all.filter(function (s) { return s && s.name && String(s.name).toLowerCase().indexOf(needle) >= 0; });
+      if (matched.length) shown = matched;
+    }
+    shops = uniqPlaces(all);
+    if (!shown.length) {
       var seatMsg = activeSeat();
       var where = (seatMsg && seatMsg.name) ? seatMsg.name : (seatMsg ? (seatMsg.lat.toFixed(2) + "," + seatMsg.lng.toFixed(2)) : "this seat");
       say("No real pin for that hunt around " + where + ". Try another name, or land a city first.");
+      paintShopsOnMap();
       return;
     }
-    var seat = here || shops[0];
+    var seat = here || shown[0];
     if (seat) openCity(seat);
     paintShopsOnMap();
-    var html = shops.map(function (s, i) {
+    var html = shown.map(function (s, i) {
       var ch = (s.name.match(/[A-Za-zΑ-Ωα-ω]/) || ["·"])[0].toUpperCase();
       return '<button type="button" class="pill" data-act="vendor" data-i="' + i + '"><span class="ph">' + ch + "</span><div><b></b><span></span></div></button>";
     }).join("");
-    openSheet("FIND · " + shops.length, html);
+    openSheet("FIND · " + shown.length, html);
     var body = $("sn-sheet-body");
     if (body) {
       var pills = body.querySelectorAll(".pill");
-      shops.forEach(function (s, i) {
+      shown.forEach(function (s, i) {
         if (!pills[i]) return;
         pills[i].querySelector("b").textContent = s.name;
         pills[i].querySelector("span").textContent = (s.kind || "shop") + (s.phone ? " · " + s.phone : "") + (here ? " · " + haversineKm(here, s).toFixed(1) + " km" : "");
+        pills[i].setAttribute("data-id", s.id || "");
       });
     }
-    say(shops.length + " real pin" + (shops.length === 1 ? "" : "s") + ". Tap one to order.");
+    window.__snFindShown = shown;
+    say(shown.length + " real pin" + (shown.length === 1 ? "" : "s") + ". Tap one to order.");
   }
   function fetchJson(url, opts) {
     return fetch(url, opts || {}).then(function (r) { return r.json().catch(function () { return null; }); }).catch(function () { return null; });
@@ -3081,14 +3124,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           }).filter(Boolean);
         }).catch(function () { return []; });
       }
+      window.__snLastHunt = named || q;
       Promise.all([
         huntRace(spaceP, 4000),
         huntRace(huntApi(q), 4000),
         huntRace(huntNominatim(q), 4000),
         huntRace(huntOverpass(q), 4000)
       ]).then(function (packs) {
-        var listed = shops.filter(function (s) { return s && (s.src === "listed" || s.src === "live"); });
-        shops = uniqPlaces(listed.concat(packs[0] || [], packs[1] || [], packs[2] || [], packs[3] || []));
+        packs[0] = (packs[0] || []).map(function (p) { if (p) p.src = "listed"; return p; });
+        shops = uniqPlaces(shops.concat(packs[0] || [], packs[1] || [], packs[2] || [], packs[3] || []));
         showFound();
       }).catch(function () {
         say("Hunt timed out. Try again, or name the city.");
@@ -3124,7 +3168,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var rows = (j && (j.shops || j.rows || [])) || [];
       rows.forEach(function (r) {
         var p = asPlace(r);
-        if (p) { p.src = p.src || "listed"; shops.push(p); }
+        if (p) { p.src = "listed"; shops.push(p); }
       });
       shops = uniqPlaces(shops);
       if (!isAdmin()) shops = shops.filter(function (s) { return seesShop(s); });
@@ -3136,6 +3180,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       else say(where + " · no public vendors here yet.");
     }).catch(function () {});
     huntRace(huntNearby(), 4000).then(function (rows) {
+      /* union Overpass into listings — never replace the /api/space set */
       shops = uniqPlaces(shops.concat(rows || []));
       if (!isAdmin()) shops = shops.filter(function (s) { return seesShop(s); });
       paintShopsOnMap();
@@ -3227,7 +3272,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var items = (j.lines || []).map(function (l) { return (l.n || 1) + " " + (l.name || "item"); }).join(", ");
       return '<div class="sn-ord"><b>' + esc(j.fee || 0) + " AV€</b><span>" + esc(items || "order") + "</span><em>" + esc(orderClock(j)) + "</em></div>";
     }).join("");
+    var dest = resolveDrop(s);
+    var feeHtml;
+    if (dest && isFinite(+dest.lat)) {
+      var qq = quoteDelivery(s, dest, {});
+      feeHtml = '<p class="note">Delivery · <b>' + esc(qq.fee) + ' AV€</b> · ' + qq.km.toFixed(1) + ' km to ' + esc(dest.name || "your seat") + '</p>';
+    } else {
+      feeHtml = '<p class="note">Delivery · set a drop address</p>';
+    }
     var html = '<div class="sn-prof">' + tilePhoto(s.photo, "🏪") + "<div><b>" + esc(s.name || "Vendor") + "</b>" + tileContact(s.phone, where) + "</div></div>" +
+      feeHtml +
       (orders ? '<p class="note">CHARGED</p>' + orders : "") +
       '<p class="note">MENU</p>' + menu;
     openTile({ kind: "vendor", title: s.name || "VENDOR", html: html });
@@ -4485,7 +4539,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (act === "terms") location.href = "/terms.html";
       if (act === "apply-vendor" || act === "apply-driver") say("Apply after LOGIN. Notis activates.");
       if (act === "withdraw") say("Withdraw after a real job. PayPal on origin.");
-      if (act === "vendor" && isFinite(i) && shops[i]) openVendor(shops[i]);
+      if (act === "vendor" && isFinite(i)) { var pack = window.__snFindShown || shops; if (pack[i]) openVendor(pack[i]); }
       if (act === "order-here") {
         if (!vendor || !isFinite(+vendor.lat)) { say("Tap the vendor again."); return; }
         var dest = resolveDrop(vendor);
@@ -5607,8 +5661,26 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     if (x && !x.__sn) {
       x.__sn = true;
-      x.addEventListener("click", function (e) { e.preventDefault(); closeSky(); });
+      x.style.setProperty("z-index", "320", "important");
+      x.style.setProperty("pointer-events", "auto", "important");
+      x.style.minWidth = "48px";
+      x.style.minHeight = "48px";
+      x.style.fontSize = "22px";
+      function killSky(e) { if (e) { e.preventDefault(); e.stopPropagation(); } closeSky(); }
+      x.addEventListener("click", killSky, true);
+      x.addEventListener("pointerup", killSky, true);
     }
+    var read = $("sn-sky-read");
+    if (read) {
+      read.style.setProperty("z-index", "310", "important");
+      read.style.setProperty("pointer-events", "auto", "important");
+      read.style.bottom = "calc(var(--dock, 72px) + 56px)";
+      read.style.top = "auto";
+      read.style.left = "50%";
+      read.style.transform = "translateX(-50%)";
+    }
+    var sky = $("sn-sky");
+    if (sky) sky.style.setProperty("z-index", "250", "important");
     var c = $("sn-sky-c");
     if (c && !c.__sn) {
       c.__sn = true;
@@ -5694,7 +5766,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4330 = true;
+    window.__SN_4331 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
