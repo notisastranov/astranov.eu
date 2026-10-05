@@ -1,0 +1,73 @@
+name: grokbuild 4330 seat+geocode+wheel+fghi (branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4330.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Merge main 4328; stitch kit; apply; stamp 4330; assert; drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch -q origin main
+          MAIN=$(git rev-parse origin/main)
+          echo "main tip $MAIN"
+          test "$MAIN" = "6342d39d54be04986b89b2d982048700224e3509" || { echo "main moved"; exit 1; }
+          git merge origin/main -m "merge main V4328 under 4330 preview" -X ours || {
+            git checkout --ours js/spacenet/app.js api/find.js || true
+            git checkout --theirs index.html vercel.json sw.js VERSION api/version.js || true
+            git add -A
+            git -c core.editor=true merge --continue || git commit --no-edit || true
+          }
+          grep -q 'function resolveDrop' js/spacenet/app.js
+          grep -q 'findOpenTwin' js/spacenet/app.js
+          : > .grokbuild/find.js.b64
+          for i in 01 02 03 04 05 06; do
+            test -f .grokbuild/find.$i.b64
+            tr -d '\n\r ' < .grokbuild/find.$i.b64 >> .grokbuild/find.js.b64
+          done
+          base64 -d < .grokbuild/find.js.b64 > .grokbuild/find.js
+          : > .grokbuild/fix32_client.py.b64
+          for i in 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16; do
+            test -f .grokbuild/fix32.$i.b64
+            tr -d '\n\r ' < .grokbuild/fix32.$i.b64 >> .grokbuild/fix32_client.py.b64
+          done
+          base64 -d < .grokbuild/fix32_client.py.b64 > .grokbuild/fix32_client.py
+          test "$(sha256sum .grokbuild/find.js | awk '{print $1}')" = "001a099581ee2746f9dfbdd1e4cb3f53090ea002bb40bf88d4b847bfb0aef223"
+          test "$(sha256sum .grokbuild/fix32_client.py | awk '{print $1}')" = "63662d8afabf950ae1bb66cc6a4308c612f3c5e4c067f87b9be2a63d477e753b"
+          cp .grokbuild/find.js api/find.js
+          python3 .grokbuild/fix32_client.py
+          bash .grokbuild/stamp4330.sh
+          printf '4330\n' > VERSION
+          ! grep -n 'app\.jsg' index.html
+          grep -q 'app.js?v=4330' index.html
+          grep -q 'var VER = "4330"' js/spacenet/app.js
+          grep -q 'photon.komoot.io' api/find.js
+          grep -q 'function activeSeat' js/spacenet/app.js
+          grep -q 'map.on("moveend"' js/spacenet/app.js
+          grep -q 'never throwOffer' js/spacenet/app.js
+          grep -q 'lookAt(under' js/spacenet/app.js
+          grep -q 'isComposing' js/spacenet/app.js
+          grep -q 'isTestFixture' js/spacenet/app.js
+          grep -q 'var findWanted' js/spacenet/app.js
+          grep -q 'function findOwnRoleTwin' js/spacenet/app.js
+          grep -q 'Sign in to save' js/spacenet/app.js
+          ! grep -q 'data-act="form-vendor">List a vendor' js/spacenet/app.js
+          grep -q '4330-real' vercel.json
+          node --check api/find.js
+          node --check js/spacenet/app.js
+          git rm -q -r .grokbuild .github/workflows/grokbuild-4330.yml || true
+          git rm -q -f .github/workflows/grokbuild-4329.yml .github/workflows/grokbuild-4329-geocode.yml 2>/dev/null || true
+          git add -A
+          git status --short | head -40
+          git commit -q -m "4330: activeSeat+/api/space; FIND never auto-open; hold menu; own-role upsert; closed no reopen; ranked geocode (preview, do not merge)"
+          git push origin HEAD:grokbuild/4328-street-level-gps
