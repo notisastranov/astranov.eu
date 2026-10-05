@@ -116,7 +116,8 @@ function slim(row) {
 
 function junkRow(b) {
   var d = String((b && b.phone) || "").replace(/\D/g, "");
-  return /\btest\s*(vendor|driver|client)\b/i.test(String((b && b.name) || "")) || (d.length >= 6 && /^0+$/.test(d));
+  var n = String((b && b.name) || "");
+  return /\btester\b/i.test(n) || /\btest\s*(vendor|driver|client|shop)\b/i.test(n) || /v4297/i.test(n) || (d.length >= 6 && /^0+$/.test(d));
 }
 
 function fromRow(row) {

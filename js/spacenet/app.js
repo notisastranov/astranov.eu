@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4314";
+  var VER = "4323";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -63,7 +63,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var here = null;
   var intro = true;
   var introT0 = 0;
-  var newsI = -1;
+  var BRIEF = [
+    { k: "CALENDAR", t: "Sun 11 Oct · Genethlia Rosos IDRISI ASTRANOV NOTIS" },
+    { k: "NEWS", t: "Dodecanese · rain and storms, wind to 7 Beaufort, mainly Rhodes · 4 Oct" }
+  ];
+  var briefI = -1;
+  var seated = false;
   var stars = [];
   var shops = [];
   var map = null;
@@ -197,8 +202,40 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function wall(a, b) { return blocked(a, b) || blocked(b, a); }
   function junkPlace(s) {
     if (!s) return true;
+    var n = String(s.name || "");
     var d = String(s.phone || "").replace(/\D/g, "");
-    return /\btest\s*(vendor|driver|client)\b/i.test(String(s.name || "")) || (d.length >= 6 && /^0+$/.test(d));
+    return /\btester\b/i.test(n) || /\btest\s*(vendor|driver|client|shop)\b/i.test(n) || /v4297/i.test(n) || (d.length >= 6 && /^0+$/.test(d));
+  }
+  function isTestJob(j) {
+    if (!j) return true;
+    var n = String((j.vendor && j.vendor.name) || "") + " " + String((j.drop && j.drop.name) || "") + " " + String(j.driver || "");
+    return /\btester\b/i.test(n) || /\btest\s*(vendor|driver|client|shop)\b/i.test(n) || /v4297/i.test(n);
+  }
+  function jobClosed(j) {
+    if (!j) return true;
+    if (j.received || j.cancelled || j.vendorGone) return true;
+    var st = String(j.status || j.stage || "").toLowerCase();
+    return st === "received" || st === "released" || st === "done" || st === "cancelled" || st === "delivered";
+  }
+  function vendorPresent(j) {
+    if (!j || !j.vendor) return false;
+    if (j.live && !jobClosed(j)) return true;
+    var v = j.vendor;
+    var list = shops.concat(viewListed || []);
+    if (v.id && list.some(function (s) { return s && String(s.id) === String(v.id) && !junkPlace(s); })) return true;
+    if (v.name && isFinite(+v.lat) && list.some(function (s) {
+      return s && !junkPlace(s) && String(s.name || "").toLowerCase() === String(v.name).toLowerCase() && haversineKm(s, v) < 0.5;
+    })) return true;
+    try {
+      var mine = JSON.parse(localStorage.getItem("sn:mine") || "[]") || [];
+      if (mine.some(function (r) {
+        return r && (r.kind === "shop" || r.place) && (
+          (v.id && String(r.id) === String(v.id)) ||
+          (v.name && String(r.name || "").toLowerCase() === String(v.name).toLowerCase() && isFinite(+r.lat) && haversineKm(r, v) < 0.5)
+        );
+      })) return true;
+    } catch (e) {}
+    return false;
   }
   function nearOf(c, km) {
     return function (s) { return !!(s && c && isFinite(+s.lat) && isFinite(+s.lng) && isFinite(+c.lat) && haversineKm({ lat: +c.lat, lng: +c.lng }, { lat: +s.lat, lng: +s.lng }) <= km); };
@@ -535,7 +572,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     night.addColorStop(1, "rgba(2,6,12,0)");
     ctx.fillStyle = night;
     ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
-    var sweepLng = solarLngDeg() + (earthSpin() * 180) / Math.PI;
+    var sweepLng = ((now / 90) % 360) - 180;
     ctx.beginPath(); first = true;
     for (lat = -80; lat <= 80; lat += 3) {
       p = project(lat, sweepLng, cam);
@@ -695,6 +732,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
       return;
     }
+    if (!fly && !seated && !drag && !cityOn) {
+      if (cam.dist < 1.7 || cam.dist > 2.2) cam.dist = 1.85;
+      cam.yaw += dt * 0.16;
+      return;
+    }
     if (intro) {
       if (cam.dist < 1.7 || cam.dist > 2.05) cam.dist = 1.85;
       return;
@@ -708,10 +750,51 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     vel.yaw = 0; vel.pitch = 0;
   }
+  function cardsNow() {
+    var rows = BRIEF.slice();
+    var liveN = 0, localN = 0;
+    jobs.forEach(function (j) {
+      if (!j || jobClosed(j) || !seesJob(j) || isTestJob(j)) return;
+      if (j.live) liveN++; else localN++;
+    });
+    var n = liveN + localN;
+    if (n) {
+      var t = liveN && localN ? liveN + " live · " + localN + " on this device" : liveN ? liveN + " live open order" + (liveN === 1 ? "" : "s") : localN + " open on this device";
+      rows.unshift({ k: "NOTICE", t: t });
+    }
+    return rows;
+  }
   function tickNews(now) {
-    if (!intro || supportOn || (Date.now() - sayHold < 12000)) return;
-    var i = Math.floor(now / 1850) % NEWS.length;
-    if (i !== newsI) { newsI = i; say(NEWS[i] + " · then we zoom to you"); }
+    if (cityOn || supportOn) return;
+    var rows = cardsNow();
+    if (!rows.length) return;
+    var i = Math.floor(now / 4200) % rows.length;
+    if (i === briefI) return;
+    briefI = i;
+    say(rows[i].k + " · " + rows[i].t);
+  }
+  function drawCard(now) {
+    if (!ctx || cityOn) return;
+    var rows = cardsNow();
+    if (!rows.length) return;
+    var row = rows[Math.floor(now / 4200) % rows.length];
+    var text = row.k + "  " + row.t;
+    ctx.save();
+    ctx.font = "600 13px system-ui,sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    var tw = ctx.measureText(text).width;
+    var w = Math.min(view.w - 24, tw + 22);
+    var x = (view.w - w) / 2;
+    var y = Math.max(8, view.h - 36);
+    ctx.fillStyle = "rgba(4,14,28,0.86)";
+    ctx.fillRect(x, y, w, 24);
+    ctx.strokeStyle = "rgba(77,240,255,0.75)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, 23);
+    ctx.fillStyle = "#e8fbff";
+    ctx.fillText(text, x + 10, y + 12, w - 18);
+    ctx.restore();
   }
   function loop(now) {
     var dt = Math.min(0.05, lastT ? (now - lastT) / 1000 : 0.016);
@@ -720,7 +803,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (intro && now - introT0 >= INTRO_MS) endIntro();
     stepCam(now, dt);
     tickNews(now);
-    if (!cityOn) drawGlobe(now);
+    if (!cityOn) { drawGlobe(now); drawCard(now); }
     if (skyOn) drawSky(now);
     paintMonitor(now);
     maybeLayout();
@@ -969,6 +1052,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     return "Approx. location (IP) " + here.lat.toFixed(2) + "," + here.lng.toFixed(2);
   }
   function land(pt, open, keepView, hush) {
+    seated = true;
     if (!keepView) intro = false;
     if (pt.how === "gps") {
       hereLive = { lat: pt.lat, lng: pt.lng };
@@ -1181,6 +1265,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (isAdmin()) {
       html += '<button type="button" class="sheet-go" data-act="run-offer">Send the offer · closest free driver</button>' +
         '<button type="button" class="sheet-go" data-act="admin-gps">Move me here</button>';
+    }
+    if ((isAdmin() || myRole() === "driver") && driverPin && isFinite(+driverPin.lat)) {
+      html += '<button type="button" class="sheet-go" data-act="move-driver">Move the driver here</button>';
     }
     openSheet("HERE", html, true);
   }
@@ -1555,15 +1642,18 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     s.id = "sn-law";
     s.textContent = [
       "#sn-sheet.on{pointer-events:none!important}",
-      "#sn-sheet.on .card{pointer-events:auto!important}",
       "#sn-sheet .bg{pointer-events:none!important;display:none!important}",
-      "#sn-sheet .card{position:absolute!important;left:14px!important;right:14px!important;width:auto!important;transform:none!important;bottom:78px!important;height:auto!important;max-height:42vh!important;padding:0!important;margin:0!important;border-radius:16px!important;border:1px solid rgba(126,233,255,.35)!important;overflow:auto!important;box-shadow:0 12px 28px rgba(0,0,0,.4)!important}",
-      "#sn-sheet .sheet-bar{display:flex!important;align-items:stretch!important;gap:0!important;margin:0!important;padding:0!important;width:100%!important;position:sticky!important;top:0!important;z-index:5!important;height:48px!important;border-radius:16px 16px 0 0!important;overflow:hidden!important;background:#041018!important}",
+      "#sn-sheet .card{position:absolute!important;left:14px!important;right:14px!important;width:auto!important;transform:none!important;bottom:78px!important;height:auto!important;max-height:42vh!important;padding:0!important;margin:0!important;border-radius:16px!important;border:1px solid rgba(77,240,255,.65)!important;overflow:hidden!important;background:rgba(4,16,32,.58)!important;backdrop-filter:blur(8px)!important;box-shadow:0 0 22px rgba(77,240,255,.28), inset 0 0 28px rgba(77,240,255,.06)!important}",
+      "#sn-sheet-body{overflow:auto!important;max-height:calc(42vh - 48px)!important;-webkit-overflow-scrolling:touch!important;touch-action:pan-y!important;padding:8px 10px 12px!important}",
+      "#sn-sheet .sheet-bar{display:flex!important;align-items:stretch!important;gap:0!important;margin:0!important;padding:0!important;width:100%!important;position:sticky!important;top:0!important;z-index:5!important;height:48px!important;border-radius:16px 16px 0 0!important;overflow:hidden!important;background:rgba(4,16,28,.42)!important}",
       "#sn-sheet.offer .sheet-bar{height:48px!important}",
-      "#sn-sheet .sheet-apply,#sn-sheet .sheet-x{flex:none!important;display:flex!important;align-items:center!important;justify-content:center!important;width:48px!important;height:48px!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:#041018!important;font:800 26px/1 system-ui!important;box-shadow:none!important}",
+      "#sn-sheet .sheet-apply,#sn-sheet .sheet-x{flex:none!important;display:flex!important;align-items:center!important;justify-content:center!important;width:48px!important;height:48px!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;font:800 26px/1 system-ui!important;box-shadow:none!important}",
       "#sn-sheet .sheet-apply{color:#7dff9a!important}",
-      "#sn-sheet .sheet-x{color:#ff8a8a!important}",
-      "#sn-sheet .sheet-mid{flex:1!important;min-width:0!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;background:#041018!important;color:#d7f6ff!important;font:800 13px/1.1 system-ui!important;letter-spacing:.14em!important;text-transform:uppercase!important;padding:0 8px!important}",
+      ".sn-stars{display:flex;gap:6px;margin:6px 0}",
+      ".sn-stars button{flex:1;height:36px;border:1px solid rgba(77,240,255,.45);background:#041018;color:#4df0ff;font:800 16px system-ui}",
+      ".sn-stars button.on{background:#4df0ff;color:#041018}",
+      "#sn-sheet .sheet-mid{flex:1!important;min-width:0!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;background:transparent!important;color:#d7f6ff!important;font:800 13px/1.1 system-ui!important;letter-spacing:.14em!important;text-transform:uppercase!important;padding:0 8px!important}",
+      "#sn-sheet.offer{z-index:95!important}",
       "#sn-sheet.offer .card{max-height:32vh!important}",
       "#sn-sheet .sheet-mid .sn-price{margin:0!important;font:800 34px/1 system-ui!important;letter-spacing:-.03em!important;color:#4df0ff!important;text-shadow:0 0 12px rgba(77,240,255,.85)!important}",
       "#sn-sheet .sn-who{display:grid;grid-template-columns:62px minmax(0,1fr);column-gap:8px;margin:8px 0 0;align-items:baseline}",
@@ -1610,7 +1700,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ".sn-pin em{display:flex;align-items:center;justify-content:center;width:40px;height:40px;font:28px/40px system-ui;border-radius:8px;border:2px solid #4df0ff;background:rgba(4,14,28,.92)}",
       "#sn-tester{position:fixed;top:28px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(77,240,255,.4);color:#7ee9ff;font:700 10px/14px ui-monospace,monospace;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#sn-tester.stale{color:#8a6a6a;border-color:rgba(255,120,120,.35)}",
-      "#sn-pulse{position:fixed;top:48px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(255,176,32,.7);color:#ffb020;font:700 10px/14px ui-monospace,monospace;pointer-events:none}"
+      "#sn-topchrome-drag{display:none!important;height:0!important;min-height:0!important;max-height:0!important;padding:0!important;margin:0!important;border:0!important}",
+      "#top{top:0!important;margin:0!important;padding:0!important}",
+      "#island{margin-top:0!important;padding-top:0!important}",
+      "#sn-count{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;pointer-events:none;background:transparent}",
+      "#sn-count.on{display:flex}",
+      "#sn-count b{font:800 46vw/0.78 system-ui;color:#e8fbff;letter-spacing:-.08em;text-shadow:0 0 8px #fff,0 0 18px #4df0ff,0 0 36px #4df0ff,0 0 72px #1a6cff,0 0 120px #1a6cff}",
+      "#sn-pulse{position:fixed;top:36px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(255,176,32,.7);color:#ffb020;font:700 10px/14px ui-monospace,monospace;pointer-events:none}",,
     ].join("");
     document.head.appendChild(s);
   }
@@ -1772,14 +1868,20 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   var testerMark = null;
   function paintTester(items) {
+    var el = $("sn-tester");
+    if (!isAdmin()) {
+      if (el) { el.hidden = true; el.textContent = ""; }
+      if (testerMark && map) { try { map.removeLayer(testerMark); } catch (e) {} testerMark = null; }
+      return;
+    }
     var it = null;
     (items || []).forEach(function (x) { if (x && (x.kind === "tester" || x.id === "tester-live")) it = x; });
-    var el = $("sn-tester");
     if (!el) {
       el = document.createElement("div");
       el.id = "sn-tester";
       document.body.appendChild(el);
     }
+    el.hidden = false;
     if (!it) { el.textContent = "TESTER · no check yet"; el.classList.add("stale"); return; }
     var mins = Math.max(0, Math.round((Date.now() - Number(it.t || 0)) / 60000));
     el.classList.toggle("stale", mins > 20);
@@ -1803,14 +1905,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (!blocked(p.peer, p.customerPeer)) blocks.push({ from: p.peer, to: p.customerPeer, why: p.note || "", fromRole: p.how || "", toRole: p.query || "" });
       });
       (j.shops || []).forEach(function (s) {
-        if (!s || !s.id || !isFinite(+s.lat)) return;
+        if (!s || !s.id || !isFinite(+s.lat) || junkPlace(s)) return;
         var have = null;
         shops.forEach(function (x) { if (x && x.id === s.id) have = x; });
         if (have) { have.owner = have.owner || s.customerPeer || ""; have.peer = have.peer || s.peer || ""; return; }
         shops.unshift({ id: s.id, name: s.name || "vendor", lat: +s.lat, lng: +s.lng, phone: s.phone || "", src: "live", status: s.status || "live", owner: s.customerPeer || "", peer: s.peer || "" });
       });
       (j.drivers || []).forEach(function (d) {
-        if (!d || !d.id || !isFinite(+d.lat)) return;
+        if (!d || !d.id || !isFinite(+d.lat) || junkPlace(d)) return;
         var have = null;
         people.forEach(function (p) { if (p && p.id === d.id) have = p; });
         if (have) {
@@ -1830,13 +1932,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var ride = row.ride;
         if (typeof ride === "string") { try { ride = JSON.parse(ride); } catch (e) { ride = {}; } }
         ride = ride || {};
-        var stage = row.status || ride.stage || "";
+        var stage = String(row.status || ride.stage || "").toLowerCase();
         if (!isAdmin() && row.customerPeer !== me() && row.peer !== me()) return;
+        if (junkPlace({ name: row.name, phone: row.phone }) || /v4297/i.test(String(row.name || ""))) return;
         var existing = null;
         jobs.forEach(function (job) { if (job && job.id === row.id) existing = job; });
+        var closed = stage === "received" || stage === "released" || stage === "done" || stage === "cancelled" || stage === "delivered";
         if (!existing) {
+          if (closed) return;
           jobs.push({
-            id: row.id, live: true,
+            id: row.id, live: true, status: stage,
             vendor: { name: String(row.name || "order").split(" → ")[0], lat: +ride.vlat || +row.lat, lng: +ride.vlng || +row.lng, owner: row.peer || "" },
             drop: { lat: +ride.dlat || +row.lat, lng: +ride.dlng || +row.lng, name: "client" },
             fee: row.avc || 0,
@@ -1851,19 +1956,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
             t: ride.t || Date.now()
           });
         } else if (existing.live) {
+          existing.status = stage;
           existing.got = stage === "on-bike" || stage === "delivered" || stage === "received";
           existing.delivered = stage === "delivered" || stage === "received";
-          existing.received = stage === "received";
+          existing.received = closed || stage === "received";
           if (liveLines[row.id]) { try { map.removeLayer(liveLines[row.id]); } catch (e) {} delete liveLines[row.id]; }
         }
       });
       shops = uniqPlaces(shops);
       paintPulse();
-      if (isAdmin() && !liveOpened && here && isFinite(+here.lat) && shops.length) {
-        liveOpened = true;
-        if (!cityOn) openCity(here);
-        return;
-      }
       if (cityOn) paintShopsOnMap();
     }).catch(function () {});
   }
@@ -2165,7 +2266,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     sh.removeAttribute("data-job");
     card.innerHTML = '<div class="sheet-bar"><button type="button" class="sheet-apply" data-act="sheet-apply" aria-label="Apply">✓</button><div class="sheet-mid"></div><button type="button" class="sheet-x" data-act="sheet-x" aria-label="Close">✕</button></div><div id="sn-sheet-body"></div>';
     card.querySelector(".sheet-mid").innerHTML = center;
-    card.querySelector("#sn-sheet-body").innerHTML = html;
+    card.querySelector("#sn-sheet-body").innerHTML = '<div class="sn-zoom">' + html + "</div>";
+    armPinch(card.querySelector("#sn-sheet-body"));
     sh.classList.remove("min");
     if (tall) sh.classList.add("tall"); else sh.classList.remove("tall");
     sh.classList.add("on");
@@ -2173,6 +2275,73 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     materialize(false);
     liftChrome();
     if (sh.classList.contains("offer")) setTimeout(fitOfferRoute, 40);
+  }
+  function armPinch(body) {
+    if (!body || body.__pinch) return;
+    body.__pinch = true;
+    var zoom = body.querySelector(".sn-zoom");
+    var scale = 1, start = 0, base = 1;
+    function set(s) {
+      scale = Math.max(1, Math.min(2.8, s));
+      if (zoom) zoom.style.zoom = String(scale);
+    }
+    body.addEventListener("touchstart", function (e) {
+      if (e.touches.length === 2) {
+        start = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        base = scale;
+      }
+    }, { passive: true });
+    body.addEventListener("touchmove", function (e) {
+      if (e.touches.length < 2 || !start) return;
+      e.preventDefault();
+      var d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      set(base * (d / start));
+    }, { passive: false });
+    body.addEventListener("touchend", function () { start = 0; });
+  }
+  function jobForRoad(key) {
+    var found = null;
+    jobs.forEach(function (j) {
+      if (!j || !j.vendor || !j.drop) return;
+      if (roadKey(j.vendor, j.drop) === key) found = j;
+      if (j.fault && roadKey(j.fault, j.fault.goal || j.drop) === key) found = j;
+    });
+    return found;
+  }
+  function nextStep(j) {
+    if (!j) return "";
+    if (j.wasted) return "Wasted.";
+    if (j.received) return "Done. Review is open.";
+    if (j.delivered) return "Confirm you received it.";
+    if (j.got) return "On the bike. Meet it at the door.";
+    if (j.pickup) return "Driver collects it.";
+    if (j.ready) return "Ready. Verify the pickup.";
+    if (j.vendorAccepted) return "Waiting for a driver.";
+    if (j.fault && !j.fault.found) return "Collect it from the driver in trouble.";
+    return "Vendor sets the prep and how long it stays good.";
+  }
+  function orderClock(j) {
+    var bits = [];
+    if (j.prep) bits.push("prep " + j.prep + " min");
+    if (j.lifeMin) {
+      if (j.outAt) bits.push(Math.max(0, Math.ceil((j.outAt + j.lifeMin * 60000 - Date.now()) / 60000)) + " min left");
+      else bits.push("good " + j.lifeMin + " min");
+    }
+    return bits.join(" · ");
+  }
+  function openRouteTile(key) {
+    var job = jobForRoad(key);
+    var line = roads[key];
+    var km = 0, i;
+    if (line) for (i = 1; i < line.length; i++) km += haversineKm(line[i - 1], line[i]);
+    var exp = job ? expectedMin(job.vendor, job.drop, km || job.km) : { min: Math.max(4, Math.ceil((km || 1) * 3)), n: 0 };
+    var alts = (roadAlts[key] || []).length;
+    var html = whoLine("FROM", (job && job.vendor && job.vendor.name) || "Start", "") +
+      whoLine("TO", (job && job.drop && (job.drop.name || job.drop.address)) || "End", "") +
+      '<div class="sn-leg">' + esc((km ? km.toFixed(1) : "—") + " km · " + exp.min + " min" + (exp.n ? " · " + exp.n + " drivers this hour" : " · no history this hour")) + "</div>" +
+      (job ? '<p class="note">' + esc(nextStep(job)) + (orderClock(job) ? " · " + orderClock(job) : "") + "</p>" : "") +
+      '<p class="note">' + (job && job.driver ? esc(job.driver) + " is on it. " : "") + alts + " road" + (alts === 1 ? "" : "s") + ". The bright line is this one. Tap a dim line to take another.</p>";
+    openTile({ kind: "route", title: "ROUTE", html: html, job: job && job.id });
   }
   function closeSheet() {
     var sh = $("sn-sheet");
@@ -2186,7 +2355,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (sh && sh.classList.contains("tile")) { applyTile(); return; }
     var body = $("sn-sheet-body");
     if (!body) return;
-    var go = body.querySelector("[data-act='save-place'],[data-act='save-drop'],[data-act='save-driver'],[data-act='save-stock'],[data-act='save-block'],[data-act='post-go'],[data-act='post-next'],[data-act='send'],[data-act='run-offer']");
+    var go = body.querySelector("[data-act='save-place'],[data-act='save-drop'],[data-act='save-driver'],[data-act='save-stock'],[data-act='save-block'],[data-act='post-go'],[data-act='post-next'],[data-act='send']");
     if (!go) {
       if ($("sn-sheet") && $("sn-sheet").classList.contains("offer")) { closeSheet(); say("It stays on the map."); return; }
       say("Pick a listing, fill it, then Apply. The window stays until the red X.");
@@ -2365,16 +2534,22 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       vendors++;
       if (here && haversineKm(here, s) < 25) near++;
     });
-    people.forEach(function (p) { if (p && p.role === "driver" && seesDriver(p)) drivers++; });
-    if (driverPin && isFinite(+driverPin.lat) && !people.some(function (p) { return p && p.role === "driver" && haversineKm(p, driverPin) < 0.05; })) drivers++;
-    jobs.forEach(function (j) { if (j && !j.received && seesJob(j)) orders++; });
+    people.forEach(function (p) { if (p && p.role === "driver" && seesDriver(p) && !junkPlace(p)) drivers++; });
+    if (driverPin && isFinite(+driverPin.lat) && !junkPlace(driverPin) && !people.some(function (p) { return p && p.role === "driver" && haversineKm(p, driverPin) < 0.05; })) drivers++;
+    var liveN = 0, localN = 0;
+    jobs.forEach(function (j) {
+      if (!j || jobClosed(j) || !seesJob(j) || isTestJob(j)) return;
+      if (j.live) liveN++; else localN++;
+      orders++;
+    });
     var place = here && near ? near + " vendor" + (near === 1 ? "" : "s") + " here" : vendors + " vendor" + (vendors === 1 ? "" : "s");
-    el.textContent = "LIVE · " + place + " · " + drivers + " driver" + (drivers === 1 ? "" : "s") + " · " + orders + " order" + (orders === 1 ? "" : "s");
+    var orderBit = !orders ? "0 open orders" : (liveN && localN ? liveN + " live · " + localN + " on this device" : liveN ? liveN + " live order" + (liveN === 1 ? "" : "s") : localN + " on this device");
+    el.textContent = "LIVE · " + place + " · " + drivers + " driver" + (drivers === 1 ? "" : "s") + " · " + orderBit;
     paintJobsChip();
   }
   function paintJobsChip() {
     var open = 0;
-    jobs.forEach(function (j) { if (j && !j.received && seesJob(j)) open++; });
+    jobs.forEach(function (j) { if (j && !jobClosed(j) && seesJob(j)) open++; });
     var chip = $("sn-jobs-chip");
     if (!open) { if (chip) chip.hidden = true; return; }
     if (!chip) {
@@ -2388,53 +2563,518 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     chip.textContent = "JOBS · " + open;
     chip.hidden = false;
   }
+  var roads = {};
+  var roadAlts = {};
+  var roadTold = {};
+  var roadPaint = {};
+  function roadKey(a, b) {
+    if (!a || !b || !isFinite(+a.lat) || !isFinite(+b.lat)) return "";
+    return (+a.lat).toFixed(4) + "," + (+a.lng).toFixed(4) + ">" + (+b.lat).toFixed(4) + "," + (+b.lng).toFixed(4);
+  }
+  function routeLines(j) {
+    var routes = (j && j.routes) || [];
+    return routes.map(function (r) {
+      var g = r && r.geometry;
+      return g && g.coordinates ? g.coordinates.map(function (c) { return { lat: c[1], lng: c[0] }; }) : null;
+    }).filter(function (l) { return l && l.length > 1; });
+  }
+  function askRoad(a, b) {
+    var key = roadKey(a, b);
+    if (!key || key in roads) return;
+    roads[key] = null;
+    var url = "https://router.project-osrm.org/route/v1/driving/" + a.lng + "," + a.lat + ";" + b.lng + "," + b.lat + "?alternatives=true&overview=full&geometries=geojson";
+    fetchJson(url).then(function (j) {
+      var lines = routeLines(j);
+      roads[key] = lines[0] || null;
+      roadAlts[key] = lines;
+      if (lines.length > 1 && !roadTold[key]) {
+        roadTold[key] = 1;
+        say(lines.length + " roads. The bright line is the route. Tap a dim one to take it.");
+      }
+    }).catch(function () { delete roads[key]; });
+  }
+  function paintRoads(id, lines, chosen) {
+    if (!map || typeof L === "undefined" || !lines || !lines.length) return;
+    (roadPaint[id] || []).forEach(function (l) { try { map.removeLayer(l); } catch (e) {} });
+    roadPaint[id] = [];
+    lines.forEach(function (line, i) {
+      var ll = line.map(function (p) { return [p.lat, p.lng]; });
+      var on = i === chosen;
+      var glow = L.polyline(ll, { color: "#4df0ff", weight: on ? 18 : 10, opacity: on ? 0.34 : 0.14, interactive: false }).addTo(map);
+      var core = L.polyline(ll, { color: on ? "#e8fbff" : "#7ee9ff", weight: on ? 5 : 3, opacity: on ? 1 : 0.72 }).addTo(map);
+      core.on("click", function (e) {
+        if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent);
+        if (on) openRouteTile(id);
+        else pickRoad(id, i);
+      });
+      roadPaint[id].push(glow, core);
+    });
+  }
+  function pickRoad(id, i) {
+    var lines = roadAlts[id];
+    if (!lines || !lines[i]) return;
+    roads[id] = lines[i];
+    paintRoads(id, lines, i);
+    say("Road " + (i + 1) + ".");
+  }
+  function distToSeg(p, a, b) {
+    var mid = ((+a.lat + +b.lat) / 2) * Math.PI / 180;
+    var mlat = 111320, mlng = 111320 * Math.cos(mid);
+    var bx = (+b.lng - +a.lng) * mlng, by = (+b.lat - +a.lat) * mlat;
+    var px = (+p.lng - +a.lng) * mlng, py = (+p.lat - +a.lat) * mlat;
+    var len2 = bx * bx + by * by;
+    var t = len2 ? Math.max(0, Math.min(1, (px * bx + py * by) / len2)) : 0;
+    var dx = px - bx * t, dy = py - by * t;
+    return Math.sqrt(dx * dx + dy * dy) / 1000;
+  }
+  function distToRoad(pt, line) {
+    if (!pt || !line || line.length < 2) return 0;
+    var best = 1e9, i;
+    for (i = 1; i < line.length; i++) best = Math.min(best, distToSeg(pt, line[i - 1], line[i]));
+    return best;
+  }
+  function lifeMs(job) {
+    var mins = Number(job && job.lifeMin);
+    if (!isFinite(mins) || mins <= 0) return 0;
+    return mins * 60000;
+  }
+  function statKey(a, b) {
+    var d = new Date();
+    return roadKey(a, b) + "@" + d.getDay() + "-" + d.getHours();
+  }
+  function roadBook() {
+    try { return JSON.parse(localStorage.getItem("sn:roads") || "{}") || {}; } catch (e) { return {}; }
+  }
+  function noteTrip(job) {
+    if (!job || job.noted || !job.vendor || !job.drop || !job.outAt) return;
+    var key = statKey(job.vendor, job.drop);
+    var book = roadBook();
+    var row = book[key] || { n: 0, ms: 0 };
+    row.n += 1;
+    row.ms += Math.max(0, Date.now() - job.outAt);
+    book[key] = row;
+    job.noted = true;
+    try { localStorage.setItem("sn:roads", JSON.stringify(book)); } catch (e) {}
+  }
+  function expectedMin(a, b, km) {
+    var row = roadBook()[statKey(a, b)];
+    if (row && row.n) return { min: Math.max(1, Math.round(row.ms / row.n / 60000)), n: row.n };
+    return { min: Math.max(4, Math.ceil((Number(km) || 1) * 3)), n: 0 };
+  }
+  function payDriver(person, n) {
+    if (!person || !n) return;
+    person.reward = Math.round(((person.reward || 0) + n) * 100) / 100;
+    if (myRole() === "driver" && signed()) avcSet(Math.round((avcGet() + n) * 100) / 100);
+  }
+  function clearPenalty(fault) {
+    if (!fault) return;
+    var book = {};
+    try { book = JSON.parse(localStorage.getItem("sn:closed") || "{}") || {}; } catch (e) {}
+    delete book[String(fault.id)];
+    try { localStorage.setItem("sn:closed", JSON.stringify(book)); } catch (e2) {}
+    people.forEach(function (person) {
+      if (!person) return;
+      if (String(person.id) !== String(fault.id) && person.name !== fault.name) return;
+      person.debt = Math.max(0, Math.round(((person.debt || 0) - (Number(fault.bill) || 0)) * 100) / 100);
+      person.free = true;
+      person.closed = "";
+      if (myRole() === "driver" && signed()) avcSet(Math.round((avcGet() + (Number(fault.bill) || 0)) * 100) / 100);
+    });
+  }
+  function cooperate(job, collector) {
+    var multi = /stationary/i.test(job.dropWhy || "");
+    var prize = Math.max(2, Math.round((Number(job.fee) || 4) * 0.15));
+    if (multi) {
+      payDriver(collector, prize);
+      say((collector && collector.name || "Driver") + " collected it. " + prize + " AV€. " + (job.fault && job.fault.name) + " sat on our order. Closed today.");
+      return;
+    }
+    clearPenalty(job.fault);
+    payDriver(collector, prize);
+    var other = null;
+    people.forEach(function (person) {
+      if (person && job.fault && (String(person.id) === String(job.fault.id) || person.name === job.fault.name)) other = person;
+    });
+    payDriver(other, prize);
+    job.charge = 0;
+    if (job.fault) job.fault.bill = 0;
+    say((collector && collector.name || "Driver") + " and " + (job.fault && job.fault.name) + " cooperated. No penalty. " + prize + " AV€ each.");
+  }
+  function settleWaste(job, who) {
+    if (!job || job.wasted || job.delivered || job.received) return;
+    var destroyed = Number(job.food || job.fee || 0);
+    var delay = Math.max(3, Math.ceil(Number(job.km) || 1));
+    var refund = Number(job.fee || destroyed);
+    var bill = Math.round((destroyed + delay + refund) * 100) / 100;
+    var id = (who && (who.id || who.name)) || job.driverId || (job.fault && job.fault.id) || "driver";
+    var name = (who && who.name) || job.driver || (job.fault && job.fault.name) || "Driver";
+    var book = {};
+    try { book = JSON.parse(localStorage.getItem("sn:closed") || "{}") || {}; } catch (e) {}
+    book[String(id)] = new Date().toDateString();
+    try { localStorage.setItem("sn:closed", JSON.stringify(book)); } catch (e2) {}
+    var already = job.dropped && job.fault && String(job.fault.id) === String(id) ? Number(job.charge) || 0 : 0;
+    var extra = Math.max(0, Math.round((bill - already) * 100) / 100);
+    if (who) {
+      who.free = false;
+      who.closed = book[String(id)];
+      if (extra) who.debt = Math.round(((who.debt || 0) + extra) * 100) / 100;
+    }
+    if (extra && myRole() === "driver" && signed()) avcSet(Math.round((avcGet() - extra) * 100) / 100);
+    job.wasted = true;
+    job.stage = "wasted";
+    job.charge = bill;
+    job.got = false;
+    job.verified = false;
+    job.driverAccepted = false;
+    job.driver = "";
+    job.driverId = "";
+    job.driverOwner = "";
+    if (job.fault) { job.fault.found = true; job.fault.meet = null; job.fault.bill = bill; }
+    saveJobs();
+    publishJob(job);
+    say(name + " wasted the order. Charged " + bill + " AV€. Closed for today.");
+  }
+  function checkWaste() {
+    var now = Date.now();
+    jobs.forEach(function (job) {
+      if (!job || job.wasted || job.delivered || job.received) return;
+      var live = job.got || (job.fault && !job.fault.found);
+      if (!live) return;
+      var start = job.outAt || (job.fault && job.fault.since) || 0;
+      var life = lifeMs(job);
+      if (!life || !start || now - start < life) return;
+      var id = job.fault && !job.fault.found ? job.fault.id : job.driverId;
+      var name = job.fault && !job.fault.found ? job.fault.name : job.driver;
+      var who = null;
+      people.forEach(function (p) {
+        if (p && (String(p.id) === String(id) || (name && p.name === name))) who = p;
+      });
+      if (!who) who = { id: id, name: name || "Driver" };
+      settleWaste(job, who);
+    });
+  }
+  function closedToday(id) {
+    try {
+      var book = JSON.parse(localStorage.getItem("sn:closed") || "{}") || {};
+      return book[String(id)] === new Date().toDateString();
+    } catch (e) { return false; }
+  }
+  function shutBook() {
+    try { return JSON.parse(localStorage.getItem("sn:shut") || "{}") || {}; } catch (e) { return {}; }
+  }
+  function shutRow(id) {
+    var row = shutBook()[String(id || "")];
+    return row && row.until > Date.now() ? row : null;
+  }
+  function silenced(id) {
+    return closedToday(id) || !!shutRow(id);
+  }
+  function reviewRows() {
+    try { return JSON.parse(localStorage.getItem("sn:reviews") || "[]") || []; } catch (e) { return []; }
+  }
+  function saveReviewRows(rows) {
+    try { localStorage.setItem("sn:reviews", JSON.stringify(rows.slice(0, 400))); } catch (e) {}
+  }
+  function improveNote(role, stars) {
+    if (stars >= 4) return role === "driver" ? "Keep the handovers this clean." : role === "vendor" ? "Keep the order this close to what was promised." : "That handoff was easy. Keep it that way.";
+    if (stars === 3) return "Close. Tighten the time and the handoff.";
+    if (role === "driver") return "Be where you said, when you said. The handoff is the job.";
+    if (role === "vendor") return "Ready means ready. The order has to match the menu.";
+    return "Say it once, clearly, then let the order finish.";
+  }
+  function needHostile(strikes) { return Math.max(1, 3 - (strikes || 0)); }
+  function shutFor(id, name, why) {
+    var book = shutBook();
+    var prev = book[String(id)] || { strikes: 0 };
+    var strikes = (prev.strikes || 0) + 1;
+    var until, label;
+    var end = new Date();
+    end.setHours(23, 59, 59, 999);
+    if (strikes <= 1) { until = end.getTime(); label = "the rest of the day"; }
+    else if (strikes === 2) { until = Date.now() + 3 * 86400000; label = "3 days"; }
+    else if (strikes === 3) { until = Date.now() + 90 * 86400000; label = "3 months"; }
+    else {
+      var days = Math.min(365, 90 * Math.pow(2, strikes - 3));
+      until = Date.now() + days * 86400000;
+      label = days + " days";
+    }
+    book[String(id)] = { strikes: strikes, until: until, why: why, name: name || "" };
+    try { localStorage.setItem("sn:shut", JSON.stringify(book)); } catch (e) {}
+    people.forEach(function (p) {
+      if (!p) return;
+      if (String(p.id) !== String(id) && p.name !== name) return;
+      p.free = false;
+      p.closed = label;
+    });
+    say((name || "Account") + " shut down for " + label + ". " + why + ". Next time it takes " + needHostile(strikes) + ".");
+  }
+  function watchHostility(fromId, fromName, fromRole) {
+    var rows = reviewRows().filter(function (r) {
+      return r && r.hostile && String(r.from) === String(fromId) && Date.now() - r.t < 86400000;
+    });
+    var prev = shutBook()[String(fromId)] || { strikes: 0 };
+    var need = needHostile(prev.strikes || 0);
+    if (rows.length < need) return;
+    shutFor(fromId, fromName, (fromRole || "account") + " filed " + rows.length + " hostile reviews");
+  }
+  function fileReview(job, fromRole, aboutRole, aboutId, aboutName, stars, text) {
+    var hostile = stars <= 2 || /hate|idiot|stupid|thief|scam|liar|worst|garbage|disgusting|useless|cheat|report/i.test(text || "");
+    var rows = reviewRows();
+    rows.unshift({
+      job: job && job.id, from: me(), fromRole: fromRole, aboutRole: aboutRole,
+      aboutId: aboutId, aboutName: aboutName, stars: stars, text: text || "", hostile: hostile, t: Date.now()
+    });
+    saveReviewRows(rows);
+    var note = improveNote(aboutRole, stars);
+    var notes = {};
+    try { notes = JSON.parse(localStorage.getItem("sn:notes") || "{}") || {}; } catch (e) {}
+    notes[String(aboutId || aboutName)] = { say: note, t: Date.now() };
+    try { localStorage.setItem("sn:notes", JSON.stringify(notes)); } catch (e2) {}
+    if (isAdmin()) say(fromRole + " on " + aboutRole + " " + (aboutName || "") + " · " + stars + (text ? " · " + text : "") + " · they hear: " + note);
+    else say("Sent. They only hear how to improve.");
+    watchHostility(me(), me(), fromRole);
+  }
+  function openReview(job) {
+    if (!job) return;
+    var role = myRole();
+    var parts = [];
+    function add(k, id, name) { if (name) parts.push({ k: k, id: id || name, name: name }); }
+    if (isAdmin() || role === "client" || role === "driver") add("vendor", job.vendorOwner || (job.vendor && job.vendor.id), job.vendor && job.vendor.name);
+    if (isAdmin() || role === "client" || role === "vendor") add("driver", job.driverId, job.driver);
+    if (isAdmin() || role === "vendor" || role === "driver") add("client", job.client, (job.drop && job.drop.name) || "client");
+    var seen = {};
+    parts = parts.filter(function (p) { if (seen[p.k]) return false; seen[p.k] = 1; return true; });
+    var html = '<p class="note">Private. They never see the words. They only hear how to improve.</p>' +
+      parts.map(function (p) {
+        return '<p class="note">' + p.k.toUpperCase() + " · " + esc(p.name) + "</p>" +
+          '<div class="sn-stars" data-k="' + p.k + '" data-id="' + esc(p.id) + '" data-name="' + esc(p.name) + '">' +
+          [1, 2, 3, 4, 5].map(function (n) { return '<button type="button" data-act="star" data-n="' + n + '">' + n + "</button>"; }).join("") +
+          '</div><textarea id="sn-rev-' + p.k + '" placeholder="What happened"></textarea>';
+      }).join("");
+    if (isAdmin()) {
+      html += reviewRows().slice(0, 5).map(function (r) {
+        return '<p class="note">' + esc(r.fromRole) + " → " + esc(r.aboutRole) + " " + r.stars + (r.hostile ? " · hostile" : "") + " · " + esc(r.text || "") + "</p>";
+      }).join("");
+    }
+    openTile({ kind: "review", title: "REVIEW", html: html, job: job.id });
+  }
+  function dropOrder(job, who, why) {
+    var destroyed = Number(job.food || job.fee || 0);
+    var delay = Math.max(3, Math.ceil(Number(job.km) || 1));
+    var refund = Number(job.fee || destroyed);
+    var bill = Math.round((destroyed + delay + refund) * 100) / 100;
+    var id = (who && (who.id || who.name)) || job.driverId || job.driver || "driver";
+    var book = {};
+    try { book = JSON.parse(localStorage.getItem("sn:closed") || "{}") || {}; } catch (e) {}
+    book[String(id)] = new Date().toDateString();
+    try { localStorage.setItem("sn:closed", JSON.stringify(book)); } catch (e2) {}
+    if (who) { who.free = false; who.closed = book[String(id)]; who.debt = Math.round(((who.debt || 0) + bill) * 100) / 100; }
+    if (myRole() === "driver" && signed()) avcSet(Math.round((avcGet() - bill) * 100) / 100);
+    var at = here && isFinite(+here.lat) ? { lat: +here.lat, lng: +here.lng } : (who && isFinite(+who.lat) ? { lat: +who.lat, lng: +who.lng } : null);
+    var toVendor = at ? haversineKm(at, job.vendor) : 0;
+    var toClient = at ? haversineKm(at, job.drop) : 1;
+    var toward = toVendor <= toClient ? "vendor" : "client";
+    var goal = toward === "vendor" ? job.vendor : job.drop;
+    job.fault = {
+      id: id,
+      name: (who && who.name) || job.driver || "driver",
+      lat: at ? at.lat : +job.vendor.lat,
+      lng: at ? at.lng : +job.vendor.lng,
+      fromLat: at ? at.lat : +job.vendor.lat,
+      fromLng: at ? at.lng : +job.vendor.lng,
+      to: toward,
+      goal: { lat: +goal.lat, lng: +goal.lng },
+      since: Date.now(),
+      found: false,
+      bill: bill,
+      destroyed: destroyed,
+      delay: delay,
+      refund: refund
+    };
+    job.dropped = true;
+    job.dropWhy = why;
+    job.charge = bill;
+    job.driver = "";
+    job.driverId = "";
+    job.driverOwner = "";
+    job.driverAccepted = false;
+    job.verified = false;
+    job.got = false;
+    job.stage = "recover";
+    job.watch = null;
+    if (!job.outAt) job.outAt = job.t || Date.now();
+    saveJobs();
+    publishJob(job);
+    var multi = /stationary/i.test(why);
+    askRoad(job.fault, job.fault.goal);
+    if (multi) say(job.fault.name + " sat on the order. Other apps. Charged " + bill + " AV€ and closed today. A driver is coming to collect it.");
+    else say(job.fault.name + " · move to the " + toward + ". Hand it over before the vendor's time and there is no penalty.");
+    var drivers = freeDrivers(job.fault);
+    if (drivers.length) openDriverOffer(job, drivers);
+    else say("No free driver to collect it yet.");
+  }
+  function watchRoute() {
+    if (!here || !isFinite(+here.lat)) return;
+    var now = Date.now();
+    jobs.forEach(function (job) {
+      if (!job || job.received || job.delivered || !job.got || !job.verified || !job.vendor || !job.drop) return;
+      if (job.fault && !job.fault.found) return;
+      var who = null;
+      people.forEach(function (p) {
+        if (p && (String(p.id) === String(job.driverId) || (job.driver && p.name === job.driver))) who = p;
+      });
+      if (!who && driverPin && job.driver && driverPin.name === job.driver) who = driverPin;
+      var mine = myRole() === "driver" || (who && who.owner === me()) || isAdmin();
+      if (!mine) return;
+      var line = roads[roadKey(job.vendor, job.drop)];
+      if (!line || !line.length) return;
+      var off = distToRoad(here, line);
+      if (!job.watch) job.watch = { lat: +here.lat, lng: +here.lng, moved: now, off: 0 };
+      if (haversineKm(job.watch, here) > 0.02) {
+        job.watch.lat = +here.lat;
+        job.watch.lng = +here.lng;
+        job.watch.moved = now;
+      }
+      if (off > 0.015) { if (!job.watch.off) job.watch.off = now; }
+      else job.watch.off = 0;
+      var why = "";
+      if (off > 0.03) why = "30 m off the route";
+      else if (job.watch.off && now - job.watch.off >= 180000) why = "off the route for 3 min";
+      else if (now - job.watch.moved >= 180000) why = "stationary for 3 min";
+      if (why) dropOrder(job, who, why);
+    });
+  }
+  function alongRoad(line, u) {
+    if (!line || line.length < 2) return null;
+    var lens = [], total = 0, i, d;
+    for (i = 1; i < line.length; i++) {
+      d = haversineKm(line[i - 1], line[i]);
+      lens.push(d);
+      total += d;
+    }
+    if (!total) return line[0];
+    var want = total * Math.max(0, Math.min(1, u)), acc = 0, t;
+    for (i = 1; i < line.length; i++) {
+      d = lens[i - 1];
+      if (acc + d >= want) {
+        t = d ? (want - acc) / d : 0;
+        return { lat: line[i - 1].lat + (line[i].lat - line[i - 1].lat) * t, lng: line[i - 1].lng + (line[i].lng - line[i - 1].lng) * t };
+      }
+      acc += d;
+    }
+    return line[line.length - 1];
+  }
   function driverStep(p) {
     if (!p || !isFinite(+p.lat) || !isFinite(+p.lng)) return null;
     if (!p.base) p.base = { lat: +p.lat, lng: +p.lng };
+    var faultJob = null;
+    jobs.forEach(function (j) {
+      if (!j || !j.fault || j.fault.found || j.received) return;
+      if (String(j.fault.id) === String(p.id) || (j.fault.name && p.name && j.fault.name === p.name)) faultJob = j;
+    });
+    if (faultJob) {
+      var back = roads[roadKey(faultJob.fault, faultJob.fault.goal)];
+      if (!back) askRoad(faultJob.fault, faultJob.fault.goal);
+      var u = Math.min(1, (Date.now() - faultJob.fault.since) / 90000);
+      var at = back && back.length ? alongRoad(back, u) : null;
+      if (!at) at = { lat: +faultJob.fault.lat, lng: +faultJob.fault.lng };
+      faultJob.fault.lat = at.lat;
+      faultJob.fault.lng = at.lng;
+      return { lat: at.lat, lng: at.lng, label: (p.name || "driver") + " · back to the " + faultJob.fault.to, job: faultJob };
+    }
     var job = null;
     jobs.forEach(function (j) {
       if (!j || j.received || !seesJob(j) || !j.vendor || !j.drop) return;
       if (j.driverId === p.id || (j.driver && p.name && j.driver === p.name)) job = j;
     });
+    if (job && job.fault && !job.fault.found) {
+      if (!job.recoverAt || haversineKm(job.recoverAt, job.fault) > 0.2) {
+        job.recoverAt = { lat: +job.fault.lat, lng: +job.fault.lng };
+        job.recoverT = Date.now();
+      }
+      var hunt = roads[roadKey(p.base, job.recoverAt)];
+      if (!hunt) askRoad(p.base, job.recoverAt);
+      var hu = Math.min(1, (Date.now() - (job.recoverT || Date.now())) / 70000);
+      var hit = hunt && hunt.length ? alongRoad(hunt, hu) : null;
+      if (!hit) hit = { lat: +p.base.lat, lng: +p.base.lng };
+      if (haversineKm(hit, job.fault) < 0.04 || hu >= 1 && haversineKm(hit, job.fault) < 0.15) {
+        var start = job.outAt || job.fault.since;
+        var life = lifeMs(job);
+        if (life && start && Date.now() - start >= life) {
+          var holder = null;
+          people.forEach(function (person) {
+            if (person && (String(person.id) === String(job.fault.id) || person.name === job.fault.name)) holder = person;
+          });
+          settleWaste(job, holder || { id: job.fault.id, name: job.fault.name });
+          return { lat: hit.lat, lng: hit.lng, label: (job.fault.name || "driver") + " · wasted", job: job };
+        }
+        job.fault.found = true;
+        job.fault.meet = { lat: +job.fault.lat, lng: +job.fault.lng };
+        job.got = true;
+        job.t = Date.now();
+        job.stage = "run";
+        cooperate(job, p);
+        saveJobs();
+        publishJob(job);
+        askRoad(job.fault.meet, job.drop);
+      }
+      return { lat: hit.lat, lng: hit.lng, label: (p.name || "driver") + " · collecting " + job.fault.name, job: job };
+    }
+    if (job && job.fault && job.fault.found && job.fault.meet) {
+      var rest = roads[roadKey(job.fault.meet, job.drop)];
+      if (!rest) askRoad(job.fault.meet, job.drop);
+      var ru = job.delivered ? 1 : Math.min(1, (Date.now() - (job.t || Date.now())) / 80000);
+      var rat = rest && rest.length ? alongRoad(rest, ru) : null;
+      if (!rat) rat = { lat: +job.fault.meet.lat, lng: +job.fault.meet.lng };
+      return { lat: rat.lat, lng: rat.lng, label: (p.name || "driver") + " · to the client", job: job };
+    }
     if (job) {
-      var u = job.delivered ? 1 : job.got ? ((Date.now() - (job.t || Date.now())) % 50000) / 50000 : 0;
+      var line = roads[roadKey(job.vendor, job.drop)];
+      if (!line) askRoad(job.vendor, job.drop);
+      var ju = job.delivered ? 1 : job.got ? ((Date.now() - (job.t || Date.now())) % 80000) / 80000 : 0;
+      var jat = line && line.length ? alongRoad(line, ju) : null;
+      if (!jat) jat = { lat: +job.vendor.lat, lng: +job.vendor.lng };
       return {
-        lat: +job.vendor.lat + (+job.drop.lat - +job.vendor.lat) * u,
-        lng: +job.vendor.lng + (+job.drop.lng - +job.vendor.lng) * u,
-        label: (p.name || "driver") + (job.got && !job.delivered ? " · on the bike" : job.delivered ? " · delivered" : " · waiting"),
+        lat: jat.lat,
+        lng: jat.lng,
+        label: (p.name || "driver") + (job.got && !job.delivered ? " · on the road" : job.delivered ? " · delivered" : " · at the vendor"),
         job: job
       };
     }
-    var shop = null, best = 8;
-    shops.forEach(function (s) {
-      if (!s || !seesShop(s) || !isFinite(+s.lat)) return;
-      var km = haversineKm(p.base, s);
-      if (km < best) { best = km; shop = s; }
-    });
-    var swing = (Date.now() / 40000) % 2;
-    if (swing > 1) swing = 2 - swing;
-    if (!shop) return { lat: p.base.lat, lng: p.base.lng, label: (p.name || "driver") + " · free", job: null };
-    return {
-      lat: p.base.lat + (shop.lat - p.base.lat) * swing,
-      lng: p.base.lng + (shop.lng - p.base.lng) * swing,
-      label: (p.name || "driver") + " · free · " + (shop.name || "vendor"),
-      job: null
-    };
+    return { lat: +p.base.lat, lng: +p.base.lng, label: (p.name || "driver") + " · free", job: null };
   }
   function tickLive() {
     paintPulse();
     if (!map || typeof L === "undefined") return;
     var seen = {};
     jobs.forEach(function (j) {
-      if (!j || j.received || !seesJob(j) || !j.vendor || !j.drop || !isFinite(+j.vendor.lat) || !isFinite(+j.drop.lat)) return;
+      if (!j || j.wasted || j.received || !seesJob(j) || !j.vendor || !j.drop || !isFinite(+j.vendor.lat) || !isFinite(+j.drop.lat)) return;
       seen["job:" + j.id] = 1;
-      if (!liveLines[j.id]) liveLines[j.id] = L.polyline([[+j.vendor.lat, +j.vendor.lng], [+j.drop.lat, +j.drop.lng]], { color: "#ffb020", weight: 4, opacity: 0.9 }).addTo(map);
+      var from = j.fault && !j.fault.found ? j.fault : (j.fault && j.fault.found && j.fault.meet ? j.fault.meet : j.vendor);
+      var to = j.fault && !j.fault.found ? (j.driverId ? j.fault : j.fault.goal) : j.drop;
+      if (j.fault && !j.fault.found && j.driverId) {
+        var hunter = null;
+        people.forEach(function (p) { if (p && String(p.id) === String(j.driverId)) hunter = p; });
+        from = hunter && hunter.base ? hunter.base : (hunter || j.fault);
+        to = j.recoverAt || j.fault;
+      }
+      var road = roads[roadKey(from, to)];
+      if (!road) { askRoad(from, to); return; }
+      var key = roadKey(from, to);
+      var lines = roadAlts[key] && roadAlts[key].length ? roadAlts[key] : [road];
+      var chosen = Math.max(0, lines.indexOf(road));
+      if (!liveLines[j.id] || liveLines[j.id] !== chosen) {
+        paintRoads(key, lines, chosen);
+        liveLines[j.id] = chosen;
+      }
     });
     var fleet = people.filter(function (p) { return p && p.role === "driver" && seesDriver(p); });
     if (driverPin && isFinite(+driverPin.lat) && !fleet.some(function (p) { return haversineKm(p, driverPin) < 0.05; })) {
       fleet.push({ id: "pin", name: driverPin.name || "driver", role: "driver", lat: driverPin.lat, lng: driverPin.lng, photo: driverPin.photo || "", owner: me() });
     }
     fleet.forEach(function (p) {
+      var backing = jobs.some(function (j) { return j && j.fault && !j.fault.found && (String(j.fault.id) === String(p.id) || j.fault.name === p.name); });
+      if (closedToday(p.id || p.name) && !backing) return;
       var step = driverStep(p);
       if (!step) return;
       var id = "drv:" + (p.id || p.name);
@@ -2453,7 +3093,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     });
     Object.keys(liveLines).forEach(function (id) {
       if (seen["job:" + id]) return;
-      try { map.removeLayer(liveLines[id]); } catch (e) {}
       delete liveLines[id];
     });
     Object.keys(motionMarks).forEach(function (id) {
@@ -2461,6 +3100,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       try { map.removeLayer(motionMarks[id]); } catch (e) {}
       delete motionMarks[id];
     });
+    watchRoute();
+    checkWaste();
   }
   function paintAdminPins() {
     function put(pt, color, label, onDrag) {
@@ -2942,6 +3583,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     var open = [];
     drivers.forEach(function (d) {
+      if (closedToday(d.id || d.name) || silenced(d.id || d.name) || silenced(d.owner)) return;
       var busy = jobs.some(function (j) { return j && j.verified && !j.delivered && j.driverId && String(j.driverId) === String(d.id); });
       if (!busy) open.push(d);
     });
@@ -2963,7 +3605,19 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         '<button type="button" data-act="pick-less" data-i="' + i + '">−</button><em class="n">0</em><button type="button" data-act="pick-more" data-i="' + i + '">+</button></div>';
     }).join("");
     if (!menu) menu = '<p class="note">No product on the menu yet.</p>';
-    var html = '<div class="sn-prof">' + tilePhoto(s.photo, "🏪") + "<div><b>" + esc(s.name || "Vendor") + "</b>" + tileContact(s.phone, where) + "</div></div>" + menu;
+    var charged = jobs.filter(function (j) {
+      if (!j || !j.vendor) return false;
+      var same = (s.id && j.vendor.id === s.id) || (s.name && j.vendor.name === s.name);
+      if (!same || !(j.fee || j.lines)) return false;
+      return isAdmin() || j.client === me() || j.vendorOwner === me();
+    });
+    var orders = charged.map(function (j) {
+      var items = (j.lines || []).map(function (l) { return (l.n || 1) + " " + (l.name || "item"); }).join(", ");
+      return '<div class="sn-ord"><b>' + esc(j.fee || 0) + " AV€</b><span>" + esc(items || "order") + "</span><em>" + esc(nextStep(j)) + "</em><em>" + esc(orderClock(j)) + "</em></div>";
+    }).join("");
+    var html = '<div class="sn-prof">' + tilePhoto(s.photo, "🏪") + "<div><b>" + esc(s.name || "Vendor") + "</b>" + tileContact(s.phone, where) + "</div></div>" +
+      (orders ? '<p class="note">CHARGED</p>' + orders : "") +
+      '<p class="note">MENU</p>' + menu;
     openTile({ kind: "vendor", title: s.name || "VENDOR", html: html });
     try { if (map && isFinite(+s.lat)) map.panTo([+s.lat, +s.lng], { animate: false }); } catch (e) {}
   }
@@ -2985,20 +3639,31 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }).join("");
     var html = '<div class="sn-prof">' + tilePhoto(v.photo, "🏪") + "<div><b>" + esc(v.name || "Vendor") + "</b>" + tileContact(v.phone, v.address) + "</div></div>" +
       lines + whoLine("CLIENT", d.name || "Client", [d.address, d.phone].filter(Boolean).join(" · ")) +
-      '<p class="note">Preparation minutes</p><input id="sn-prep" inputmode="numeric" placeholder="Minutes" />';
+      '<p class="note">Preparation minutes</p><input id="sn-prep" inputmode="numeric" placeholder="Minutes" />' +
+      '<p class="note">How long the order stays good, minutes</p><input id="sn-life" inputmode="numeric" placeholder="Lifetime" />';
     openTile({ kind: "vendor-order", title: "VENDOR", mid: priceMid(job.fee), html: html, job: job.id });
   }
   function openDriverOffer(job, drivers) {
     var v = job.vendor || {};
     var d = job.drop || {};
     var names = (drivers || []).map(function (p) { return p.name || "driver"; }).join(" · ");
-    var html = whoLine("VENDOR", v.name, [v.address, v.phone].filter(Boolean).join(" · ")) +
-      '<div class="sn-leg">' + esc((job.prep || "—") + " min prep · " + (isFinite(+job.km) ? Number(job.km).toFixed(1) + " km" : "route")) + "</div>" +
-      whoLine("CLIENT", d.name || "Client", [d.address, d.floor ? "floor " + d.floor : "", d.phone].filter(Boolean).join(" · ")) +
-      '<p class="note">' + esc(names || "No free driver") + "</p>";
-    openTile({ kind: "driver-offer", title: "DRIVERS", mid: priceMid(job.fee), html: html, job: job.id });
+    var exp = expectedMin(v, d, job.km);
+    var leg = exp.n ? exp.min + " min on this road, this hour · " + exp.n + " drivers" : exp.min + " min · no history this hour";
+    var html;
+    if (job.fault && !job.fault.found) {
+      html = whoLine("COLLECT", job.fault.name, "moving to the " + job.fault.to) +
+        whoLine("THEN", d.name || "Client", [d.address, d.phone].filter(Boolean).join(" · ")) +
+        '<p class="note">' + esc(names || "No free driver") + "</p>";
+    } else {
+      html = whoLine("VENDOR", v.name, [v.address, v.phone].filter(Boolean).join(" · ")) +
+        '<div class="sn-leg">' + esc((job.prep || "—") + " min prep · " + (job.lifeMin || "—") + " min life · " + leg) + "</div>" +
+        whoLine("CLIENT", d.name || "Client", [d.address, d.floor ? "floor " + d.floor : "", d.phone].filter(Boolean).join(" · ")) +
+        '<p class="note">' + esc(names || "No free driver") + "</p>";
+    }
+    openTile({ kind: "driver-offer", title: job.fault && !job.fault.found ? "COLLECT" : "DRIVERS", mid: priceMid(job.fee), html: html, job: job.id });
   }
   function checkoutVendor() {
+    if (silenced(me())) { say("You are shut down. No orders until it lifts."); return; }
     if (!vendor) { say("Tap the vendor again."); return; }
     var body = $("sn-sheet-body");
     var lines = [];
@@ -3041,24 +3706,30 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var sh = $("sn-sheet");
     var job = jobById(sh && sh.getAttribute("data-job"));
     if (!job) { say("That order is gone."); return; }
+    if (silenced(job.vendorOwner) || silenced(job.vendor && job.vendor.id)) { say("That vendor is shut down today."); return; }
     var prepEl = $("sn-prep");
+    var lifeEl = $("sn-life");
     var mins = Math.round(Number(prepEl && prepEl.value));
+    var life = Math.round(Number(lifeEl && lifeEl.value));
     if (!isFinite(mins) || mins < 1) { say("The vendor sets the preparation minutes."); return; }
+    if (!isFinite(life) || life < 1) { say("The vendor sets how long the order stays good."); return; }
     job.prep = mins;
+    job.lifeMin = life;
     job.vendorAccepted = true;
     job.stage = "drivers";
     saveJobs();
     publishJob(job);
     var drivers = freeDrivers(job.vendor);
     if (!drivers.length) { say("No free driver to take it."); return; }
-    say((job.vendor && job.vendor.name || "Vendor") + " accepted. Ready in " + mins + " min. Sent to " + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ".");
+    say((job.vendor && job.vendor.name || "Vendor") + " accepted. Ready in " + mins + " min. Good for " + life + " min. Sent to " + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ".");
     openDriverOffer(job, drivers);
   }
   function driverAccept() {
     var sh = $("sn-sheet");
     var job = jobById(sh && sh.getAttribute("data-job"));
     if (!job || !job.vendor || !job.drop) { say("That offer is gone."); return; }
-    var drivers = freeDrivers(job.vendor);
+    var recovery = job.fault && !job.fault.found;
+    var drivers = freeDrivers(recovery ? job.fault : job.vendor);
     var drv = drivers[0];
     if (!drv) { say("No free driver left."); return; }
     job.driver = drv.name || "driver";
@@ -3067,16 +3738,25 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     job.driverAccepted = true;
     job.verified = true;
     job.ready = true;
-    job.stage = "run";
+    job.stage = recovery ? "recover" : "run";
+    if (recovery) {
+      job.recoverT = Date.now();
+      job.recoverAt = { lat: +job.fault.lat, lng: +job.fault.lng };
+    }
     saveJobs();
     publishJob(job);
-    takeStock(job.vendor, (job.lines || []).map(function (l) { return { id: job.vendor.id, name: l.name, n: l.n }; }));
-    if (!cityOn) openCity(job.vendor);
+    if (!recovery) takeStock(job.vendor, (job.lines || []).map(function (l) { return { id: job.vendor.id, name: l.name, n: l.n }; }));
+    if (!cityOn) openCity(recovery ? job.fault : job.vendor);
     drop = job.drop;
     vendor = job.vendor;
-    drawRoute(job.vendor, job.drop);
-    say(job.driver + " accepted. Order verified. Delivery is on. Prep " + (job.prep || "—") + " min.");
-    throwOffer({ id: job.id, fee: job.fee, km: job.km, vendor: job.vendor, drop: job.drop });
+    if (recovery) {
+      drawRoute(drv, job.fault);
+      say(drv.name + " is going to collect the order from " + job.fault.name + ".");
+    } else {
+      drawRoute(job.vendor, job.drop);
+      say(job.driver + " accepted. Order verified. Delivery is on. Prep " + (job.prep || "—") + " min.");
+    }
+    throwOffer({ id: job.id, fee: job.fee, km: job.km, vendor: recovery ? job.fault : job.vendor, drop: recovery ? job.fault : job.drop });
   }
   function applyTile() {
     var sh = $("sn-sheet");
@@ -3084,6 +3764,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (kind === "vendor") return checkoutVendor();
     if (kind === "vendor-order") return vendorAccept();
     if (kind === "driver-offer") return driverAccept();
+    if (kind === "review") return applyReview();
     closeSheet();
     say("It stays on the map.");
   }
@@ -3112,14 +3793,18 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function drawRoute(from, to) {
     if (!map || typeof L === "undefined") return;
     if (routeLayer) try { map.removeLayer(routeLayer); } catch (e) {}
-    var url = "https://router.project-osrm.org/route/v1/driving/" + from.lng + "," + from.lat + ";" + to.lng + "," + to.lat + "?overview=full&geometries=geojson";
+    routeLayer = null;
+    var key = roadKey(from, to);
+    var url = "https://router.project-osrm.org/route/v1/driving/" + from.lng + "," + from.lat + ";" + to.lng + "," + to.lat + "?alternatives=true&overview=full&geometries=geojson";
     fetchJson(url).then(function (j) {
-      var geo = j && j.routes && j.routes[0] && j.routes[0].geometry;
-      var latlngs;
-      if (geo && geo.coordinates) latlngs = geo.coordinates.map(function (c) { return [c[1], c[0]]; });
-      else latlngs = [[from.lat, from.lng], [to.lat, to.lng]];
-      routeLayer = L.polyline(latlngs, { color: "#4df0ff", weight: 4, opacity: 0.85 }).addTo(map);
+      var lines = routeLines(j);
+      if (!lines.length) lines = [[{ lat: from.lat, lng: from.lng }, { lat: to.lat, lng: to.lng }]];
+      roads[key] = lines[0];
+      roadAlts[key] = lines;
+      paintRoads(key, lines, 0);
+      routeLayer = roadPaint[key] && roadPaint[key][0];
       fitOfferRoute();
+      if (lines.length > 1) say(lines.length + " roads. The bright line is the route. Tap a dim one to take it.");
     });
   }
   function sendJob() {
@@ -3172,9 +3857,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function jobBy(id) { return jobs.filter(function (j) { return j.id === id; })[0]; }
   function atShop(job) {
+    if (myRole() === "driver" && (nearPt(hereLive, job.vendor) || nearPt(here, job.vendor) || nearPt(driverPin, job.vendor))) return true;
     if (isAdmin()) {
       if (nearPt(here, job.vendor) || nearPt(driverPin, job.vendor)) return true;
-      say("Move yourself or the driver onto the vendor. Long-tap, then MOVE.");
+      say("Move yourself or the driver onto the vendor. Long-tap HERE for Move me / Move the driver, or MOVE.");
       return false;
     }
     if (standAt(job.vendor)) return true;
@@ -3182,6 +3868,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     return false;
   }
   function atDrop(job) {
+    if (myRole() === "driver" && (nearPt(hereLive, job.drop) || nearPt(here, job.drop) || nearPt(driverPin, job.drop))) return true;
     if (isAdmin()) {
       if (nearPt(here, job.drop) || nearPt(driverPin, job.drop) || nearPt(homeDrop, job.drop)) return true;
       say("Move yourself, the driver, or the client onto the delivery. Long-tap, then MOVE.");
@@ -3221,6 +3908,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!isAdmin() && !hereLive) { say("Drivers are located by the live GPS only."); return; }
     if (!atShop(job)) return;
     job.got = true;
+    if (!job.outAt) job.outAt = Date.now();
     if (isAdmin()) job.pickup = true;
     saveJobs();
     publishJob(job);
@@ -3236,6 +3924,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!isAdmin() && !hereLive) { say("Drivers are located by the live GPS only."); return; }
     if (!atDrop(job)) return;
     job.delivered = true;
+    noteTrip(job);
     saveJobs();
     publishJob(job);
     openJobs();
@@ -3252,6 +3941,24 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     publishJob(job);
     openJobs();
     say("Received" + (isAdmin() ? " on behalf of the client." : "."));
+    openReview(job);
+  }
+  function applyReview() {
+    var sh = $("sn-sheet");
+    var job = jobById(sh && sh.getAttribute("data-job"));
+    if (!job) { say("That order is gone."); return; }
+    var n = 0;
+    document.querySelectorAll("#sn-sheet .sn-stars").forEach(function (box) {
+      var on = box.querySelector("button.on");
+      if (!on) return;
+      var stars = Number(on.getAttribute("data-n"));
+      var k = box.getAttribute("data-k");
+      var field = $("sn-rev-" + k);
+      fileReview(job, myRole() || "admin", k, box.getAttribute("data-id"), box.getAttribute("data-name"), stars, field ? field.value : "");
+      n++;
+    });
+    if (!n) { say("Pick 1 to 5, then Apply."); return; }
+    closeSheet();
   }
   function materialize(need) {
     var row = $("sn-filters");
@@ -3277,20 +3984,30 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       else list.innerHTML = jobs.map(function (j) {
         var admin = isAdmin();
         var role = myRole();
+        var gone = !j.received && !vendorPresent(j);
+        if (gone) j.vendorGone = true;
         var flags = [
+          gone ? "VENDOR GONE" : "",
           j.ready ? "READY" : "ORDER",
           j.pickup ? "PICKUP VERIFIED" : "",
           j.got ? "ON THE BIKE" : "",
           j.delivered ? "DELIVERED" : "",
-          j.received ? "RECEIVED" : ""
+          j.received ? "RECEIVED" : "",
+          j.cancelled ? "CANCELLED" : "",
+          isTestJob(j) ? "TEST · this device" : (j.live ? "live" : "this device")
         ].filter(Boolean).join(" · ");
         var html = '<div class="pill" style="display:block"><b>' + String(j.vendor && j.vendor.name || "job").replace(/</g, "") + "</b><span>" + flags + " · " + (offerSplit(j) ? offerSplit(j).text : j.fee + " AV€") + " · " + (j.km || 0).toFixed(1) + " km · " + (j.driver || "driver") + "</span>";
         function go(act, label) { return '<button type="button" class="sheet-go" data-act="' + act + '" data-id="' + j.id + '">' + label + "</button>"; }
+        if (gone || j.cancelled) {
+          html += go("dismiss-job", "DISMISS · this device");
+          return html + "</div>";
+        }
         if (!j.ready && (admin || role === "vendor")) html += go("mark-ready", admin ? "MARK READY · VENDOR" : "MARK READY");
         if (j.ready && !j.pickup && (admin || role === "vendor")) html += go("verify-pickup", admin ? "VERIFY PICKUP · VENDOR" : "VERIFY PICKUP");
         if (j.ready && !j.got && (admin || role === "driver")) html += go("driver-got", admin ? "I PICKED UP · DRIVER" : "I PICKED UP");
         if (j.got && !j.delivered && (admin || role === "driver")) html += go("driver-delivered", admin ? "DELIVERED · DRIVER" : "DELIVERED");
         if (j.delivered && !j.received && (admin || role === "client")) html += go("client-got", admin ? "RECEIVED · CLIENT" : "I RECEIVED");
+        if (j.received) html += go("review", "REVIEW");
         return html + "</div>";
       }).join("");
     }
@@ -3863,17 +4580,27 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (holdP) clearInterval(holdP);
         holdFrom = Date.now();
         var n = 3;
-        say("Power " + n);
+        var box = $("sn-count");
+        function flash(num) {
+          if (!box) return;
+          box.classList.add("on");
+          box.innerHTML = "<b>" + num + "</b>";
+        }
+        function clearFlash() { if (box) { box.classList.remove("on"); box.innerHTML = ""; } }
+        flash(n);
         holdP = setInterval(function () {
           n -= 1;
-          if (n > 0) { say("Power " + n); return; }
+          if (n > 0) { flash(n); return; }
           clearInterval(holdP); holdP = 0;
+          clearFlash();
           setOffers(!offersOn());
         }, 1000);
+        power.__clearFlash = clearFlash;
       });
       function cancelHold() {
         if (!holdP) return;
         clearInterval(holdP); holdP = 0;
+        if (power.__clearFlash) power.__clearFlash();
         if (Date.now() - holdFrom < 2800) say("Hold 3 seconds.");
       }
       power.addEventListener("pointerup", cancelHold);
@@ -4031,6 +4758,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (!act) return;
       if (act === "sheet-x") {
         if (Date.now() < sheetArm) return;
+        var shx = $("sn-sheet");
+        if (shx && shx.classList.contains("offer")) {
+          var dropId = dockFocus;
+          dockTabs = dockTabs.filter(function (t) { return !(t && t.kind === "offer" && (!dropId || t.id === dropId)); });
+          dockFocus = dockTabs.length ? dockTabs[dockTabs.length - 1].id : "";
+          paintDockTabs();
+        }
         closeSheet();
         return;
       }
@@ -4515,8 +5249,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         moveHome(listPt);
       }
       if (act === "move-driver") {
+        if (!(isAdmin() || myRole() === "driver")) { say("Only the driver moves their own pin."); return; }
         if (!listPt) { say("Long-tap the new spot first."); return; }
         moveDriver(listPt);
+        say("Driver pin is on this long tap. GPS still has to match for a real pickup.");
       }
       if (act === "move-person") {
         if (!listPt) { say("Long-tap the new spot first."); return; }
@@ -4609,9 +5345,26 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (act === "queue-no") decideQueue(t.getAttribute("data-id"), "no");
       if (act === "mark-ready") markReady(id);
       if (act === "verify-pickup") verifyPickup(id);
+      if (act === "dismiss-job") {
+        var dj = jobBy(id);
+        if (!dj) return;
+        dj.received = true;
+        dj.cancelled = true;
+        dj.vendorGone = true;
+        saveJobs();
+        openJobs();
+        paintPulse();
+        say("Cleared on this device only. No vendor was invented.");
+      }
       if (act === "driver-got") driverGot(id);
       if (act === "driver-delivered") driverDelivered(id);
       if (act === "client-got") clientGot(id);
+      if (act === "review") openReview(jobBy(id));
+      if (act === "star") {
+        var box = t.parentNode;
+        if (box) Array.prototype.forEach.call(box.querySelectorAll("button"), function (b) { b.classList.toggle("on", b === t); });
+        return;
+      }
       if (act === "list-base") {
         if (!listPt) { say("Hold the street first."); return; }
         persistListing({ id: "b" + Date.now().toString(36), kind: "driver", name: "base", lat: listPt.lat, lng: listPt.lng });
@@ -5207,6 +5960,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
   }
   function boot() {
+    sheetLaw();
     canvas = $("g");
     if (!canvas) return;
     ctx = canvas.getContext("2d");
@@ -5231,6 +5985,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (savedHere && isFinite(+savedHere.lat) && isFinite(+savedHere.lng)) land({ lat: +savedHere.lat, lng: +savedHere.lng, how: "saved" }, false);
     } catch (e) {}
     locate(function (pt) { land(pt, false, placeSeq > 0 || viewMoved, userSpoke); }, true);
+    fetch("/agenda.json", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
+      if (j && j.cards && j.cards.length) BRIEF = j.cards;
+    }).catch(function () {});
     setTimeout(pullQueue, 600);
     setInterval(pullQueue, 4000);
     loadBlocks();
@@ -5238,6 +5995,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     setInterval(pullLive, 8000);
     setInterval(tickLive, 1000);
     checkVersion();
+    try {
+      var notes = JSON.parse(localStorage.getItem("sn:notes") || "{}") || {};
+      var mine = notes[me()];
+      if (mine && mine.say && !mine.heard) { mine.heard = true; localStorage.setItem("sn:notes", JSON.stringify(notes)); say(mine.say); }
+      var shut = shutRow(me());
+      if (shut) say("Shut down until " + new Date(shut.until).toLocaleString() + ".");
+    } catch (e) {}
     var pay = new URLSearchParams(location.search).get("paypal");
     if (pay === "success") {
       var jid = "";
