@@ -1,0 +1,47 @@
+name: grokbuild 4328 street land (branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4328.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Decode fix28; land/zoom/GPS/hello; stamp 4328; drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch -q origin main
+          MAIN=$(git rev-parse origin/main)
+          echo "main tip $MAIN"
+          test "$MAIN" = "bebfcb0961282720f416d2dd5e235c72eb5b30c0" || { echo "main moved past 4327; remine before restamping"; exit 1; }
+          cd .grokbuild
+          : > fix28_street_land.py
+          for f in $(ls fix28.part*.b64 | sort); do
+            base64 -d "$f" >> fix28_street_land.py
+          done
+          wc -c fix28_street_land.py
+          head -2 fix28_street_land.py
+          test "$(sha256sum fix28_street_land.py | awk '{print $1}')" = "ce969b4f074a74b8043d6cd2428267f6e01ecda322fe425eae0b95790d7e6a7c"
+          cd ..
+          python3 .grokbuild/fix28_street_land.py
+          bash .grokbuild/stamp4328.sh
+          grep -q 'var VER = "4328"' js/spacenet/app.js
+          grep -q 'goToPlaceAsk' js/spacenet/app.js
+          grep -q 'huntRace' js/spacenet/app.js
+          grep -q 'function aimAt' js/spacenet/app.js
+          grep -q 'GREETING' js/spacenet/app.js
+          grep -q 'dist <= 0.78' js/spacenet/app.js
+          node --check js/spacenet/app.js
+          git rm -q -r .grokbuild .github/workflows/grokbuild-4328.yml
+          git add -A
+          git status --short | head -40
+          git commit -q -m "4328: land without Overpass; cursor wheel/dbltap street; GPS closes sky; hello→Grok; APPLY left X right; sheet 42vh (preview, do not merge)"
+          git push origin HEAD:grokbuild/4328-street-level-gps
