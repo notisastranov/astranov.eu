@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4313";
+  var VER = "4314";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1394,7 +1394,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ".sn-pin em{display:flex;align-items:center;justify-content:center;width:40px;height:40px;font:28px/40px system-ui;border-radius:8px;border:2px solid #4df0ff;background:rgba(4,14,28,.92)}",
       "#sn-tester{position:fixed;top:28px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(77,240,255,.4);color:#7ee9ff;font:700 10px/14px ui-monospace,monospace;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#sn-tester.stale{color:#8a6a6a;border-color:rgba(255,120,120,.35)}",
-      "#sn-pulse{position:fixed;top:48px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(255,176,32,.7);color:#ffb020;font:700 10px/14px ui-monospace,monospace;pointer-events:none}"
+      "#sn-topchrome-drag{display:none!important;height:0!important;min-height:0!important;max-height:0!important;padding:0!important;margin:0!important;border:0!important}",
+      "#top{top:0!important;margin:0!important;padding:0!important}",
+      "#island{margin-top:0!important;padding-top:0!important}",
+      "#sn-pulse{position:fixed;top:36px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(255,176,32,.7);color:#ffb020;font:700 10px/14px ui-monospace,monospace;pointer-events:none}",
     ].join("");
     document.head.appendChild(s);
   }
@@ -2098,6 +2101,42 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var place = here && near ? near + " vendor" + (near === 1 ? "" : "s") + " here" : vendors + " vendor" + (vendors === 1 ? "" : "s");
     el.textContent = "LIVE · " + place + " · " + drivers + " driver" + (drivers === 1 ? "" : "s") + " · " + orders + " order" + (orders === 1 ? "" : "s");
   }
+  var roads = {};
+  function roadKey(a, b) {
+    if (!a || !b || !isFinite(+a.lat) || !isFinite(+b.lat)) return "";
+    return (+a.lat).toFixed(4) + "," + (+a.lng).toFixed(4) + ">" + (+b.lat).toFixed(4) + "," + (+b.lng).toFixed(4);
+  }
+  function askRoad(a, b) {
+    var key = roadKey(a, b);
+    if (!key || key in roads) return;
+    roads[key] = null;
+    var url = "https://router.project-osrm.org/route/v1/driving/" + a.lng + "," + a.lat + ";" + b.lng + "," + b.lat + "?overview=full&geometries=geojson";
+    fetchJson(url).then(function (j) {
+      var geo = j && j.routes && j.routes[0] && j.routes[0].geometry;
+      var line = geo && geo.coordinates ? geo.coordinates.map(function (c) { return { lat: c[1], lng: c[0] }; }) : null;
+      roads[key] = line && line.length > 1 ? line : null;
+    }).catch(function () { delete roads[key]; });
+  }
+  function alongRoad(line, u) {
+    if (!line || line.length < 2) return null;
+    var lens = [], total = 0, i, d;
+    for (i = 1; i < line.length; i++) {
+      d = haversineKm(line[i - 1], line[i]);
+      lens.push(d);
+      total += d;
+    }
+    if (!total) return line[0];
+    var want = total * Math.max(0, Math.min(1, u)), acc = 0, t;
+    for (i = 1; i < line.length; i++) {
+      d = lens[i - 1];
+      if (acc + d >= want) {
+        t = d ? (want - acc) / d : 0;
+        return { lat: line[i - 1].lat + (line[i].lat - line[i - 1].lat) * t, lng: line[i - 1].lng + (line[i].lng - line[i - 1].lng) * t };
+      }
+      acc += d;
+    }
+    return line[line.length - 1];
+  }
   function driverStep(p) {
     if (!p || !isFinite(+p.lat) || !isFinite(+p.lng)) return null;
     if (!p.base) p.base = { lat: +p.lat, lng: +p.lng };
@@ -2107,29 +2146,19 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (j.driverId === p.id || (j.driver && p.name && j.driver === p.name)) job = j;
     });
     if (job) {
-      var u = job.delivered ? 1 : job.got ? ((Date.now() - (job.t || Date.now())) % 50000) / 50000 : 0;
+      var line = roads[roadKey(job.vendor, job.drop)];
+      if (!line) askRoad(job.vendor, job.drop);
+      var u = job.delivered ? 1 : job.got ? ((Date.now() - (job.t || Date.now())) % 80000) / 80000 : 0;
+      var at = line && line.length ? alongRoad(line, u) : null;
+      if (!at) at = { lat: +job.vendor.lat, lng: +job.vendor.lng };
       return {
-        lat: +job.vendor.lat + (+job.drop.lat - +job.vendor.lat) * u,
-        lng: +job.vendor.lng + (+job.drop.lng - +job.vendor.lng) * u,
-        label: (p.name || "driver") + (job.got && !job.delivered ? " · on the bike" : job.delivered ? " · delivered" : " · waiting"),
+        lat: at.lat,
+        lng: at.lng,
+        label: (p.name || "driver") + (job.got && !job.delivered ? " · on the road" : job.delivered ? " · delivered" : " · at the vendor"),
         job: job
       };
     }
-    var shop = null, best = 8;
-    shops.forEach(function (s) {
-      if (!s || !seesShop(s) || !isFinite(+s.lat)) return;
-      var km = haversineKm(p.base, s);
-      if (km < best) { best = km; shop = s; }
-    });
-    var swing = (Date.now() / 40000) % 2;
-    if (swing > 1) swing = 2 - swing;
-    if (!shop) return { lat: p.base.lat, lng: p.base.lng, label: (p.name || "driver") + " · free", job: null };
-    return {
-      lat: p.base.lat + (shop.lat - p.base.lat) * swing,
-      lng: p.base.lng + (shop.lng - p.base.lng) * swing,
-      label: (p.name || "driver") + " · free · " + (shop.name || "vendor"),
-      job: null
-    };
+    return { lat: +p.base.lat, lng: +p.base.lng, label: (p.name || "driver") + " · free", job: null };
   }
   function tickLive() {
     paintPulse();
@@ -2138,7 +2167,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     jobs.forEach(function (j) {
       if (!j || j.received || !seesJob(j) || !j.vendor || !j.drop || !isFinite(+j.vendor.lat) || !isFinite(+j.drop.lat)) return;
       seen["job:" + j.id] = 1;
-      if (!liveLines[j.id]) liveLines[j.id] = L.polyline([[+j.vendor.lat, +j.vendor.lng], [+j.drop.lat, +j.drop.lng]], { color: "#ffb020", weight: 4, opacity: 0.9 }).addTo(map);
+      var road = roads[roadKey(j.vendor, j.drop)];
+      if (!road) { askRoad(j.vendor, j.drop); return; }
+      var latlngs = road.map(function (p) { return [p.lat, p.lng]; });
+      if (!liveLines[j.id]) liveLines[j.id] = L.polyline(latlngs, { color: "#ffb020", weight: 5, opacity: 0.95 }).addTo(map);
+      else liveLines[j.id].setLatLngs(latlngs);
     });
     var fleet = people.filter(function (p) { return p && p.role === "driver" && seesDriver(p); });
     if (driverPin && isFinite(+driverPin.lat) && !fleet.some(function (p) { return haversineKm(p, driverPin) < 0.05; })) {
@@ -2525,9 +2558,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var url = "https://router.project-osrm.org/route/v1/driving/" + from.lng + "," + from.lat + ";" + to.lng + "," + to.lat + "?overview=full&geometries=geojson";
     fetchJson(url).then(function (j) {
       var geo = j && j.routes && j.routes[0] && j.routes[0].geometry;
-      var latlngs;
-      if (geo && geo.coordinates) latlngs = geo.coordinates.map(function (c) { return [c[1], c[0]]; });
-      else latlngs = [[from.lat, from.lng], [to.lat, to.lng]];
+      var line = geo && geo.coordinates ? geo.coordinates.map(function (c) { return { lat: c[1], lng: c[0] }; }) : null;
+      if (line && line.length > 1) roads[roadKey(from, to)] = line;
+      var latlngs = line && line.length ? line.map(function (p) { return [p.lat, p.lng]; }) : [[from.lat, from.lng], [to.lat, to.lng]];
       routeLayer = L.polyline(latlngs, { color: "#4df0ff", weight: 4, opacity: 0.85 }).addTo(map);
       fitOfferRoute();
     });
@@ -4544,6 +4577,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
   }
   function boot() {
+    sheetLaw();
     canvas = $("g");
     if (!canvas) return;
     ctx = canvas.getContext("2d");
