@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4321";
+  var VER = "4322";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1385,15 +1385,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     s.textContent = [
       "#sn-sheet.on{pointer-events:none!important}",
       "#sn-sheet .bg{pointer-events:none!important;display:none!important}",
-      "#sn-sheet .card{position:absolute!important;left:14px!important;right:14px!important;width:auto!important;transform:none!important;bottom:78px!important;height:auto!important;max-height:42vh!important;padding:0!important;margin:0!important;border-radius:16px!important;border:1px solid rgba(126,233,255,.35)!important;overflow:auto!important;box-shadow:0 12px 28px rgba(0,0,0,.4)!important}",
-      "#sn-sheet .sheet-bar{display:flex!important;align-items:stretch!important;gap:0!important;margin:0!important;padding:0!important;width:100%!important;position:sticky!important;top:0!important;z-index:5!important;height:48px!important;border-radius:16px 16px 0 0!important;overflow:hidden!important;background:#041018!important}",
+      "#sn-sheet .card{position:absolute!important;left:14px!important;right:14px!important;width:auto!important;transform:none!important;bottom:78px!important;height:auto!important;max-height:42vh!important;padding:0!important;margin:0!important;border-radius:16px!important;border:1px solid rgba(77,240,255,.65)!important;overflow:hidden!important;background:rgba(4,16,32,.58)!important;backdrop-filter:blur(8px)!important;box-shadow:0 0 22px rgba(77,240,255,.28), inset 0 0 28px rgba(77,240,255,.06)!important}",
+      "#sn-sheet-body{overflow:auto!important;max-height:calc(42vh - 48px)!important;-webkit-overflow-scrolling:touch!important;touch-action:pan-y!important;padding:8px 10px 12px!important}",
+      "#sn-sheet .sheet-bar{display:flex!important;align-items:stretch!important;gap:0!important;margin:0!important;padding:0!important;width:100%!important;position:sticky!important;top:0!important;z-index:5!important;height:48px!important;border-radius:16px 16px 0 0!important;overflow:hidden!important;background:rgba(4,16,28,.42)!important}",
       "#sn-sheet.offer .sheet-bar{height:48px!important}",
-      "#sn-sheet .sheet-apply,#sn-sheet .sheet-x{flex:none!important;display:flex!important;align-items:center!important;justify-content:center!important;width:48px!important;height:48px!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:#041018!important;font:800 26px/1 system-ui!important;box-shadow:none!important}",
+      "#sn-sheet .sheet-apply,#sn-sheet .sheet-x{flex:none!important;display:flex!important;align-items:center!important;justify-content:center!important;width:48px!important;height:48px!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;font:800 26px/1 system-ui!important;box-shadow:none!important}",
       "#sn-sheet .sheet-apply{color:#7dff9a!important}",
       ".sn-stars{display:flex;gap:6px;margin:6px 0}",
       ".sn-stars button{flex:1;height:36px;border:1px solid rgba(77,240,255,.45);background:#041018;color:#4df0ff;font:800 16px system-ui}",
       ".sn-stars button.on{background:#4df0ff;color:#041018}",
-      "#sn-sheet .sheet-mid{flex:1!important;min-width:0!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;background:#041018!important;color:#d7f6ff!important;font:800 13px/1.1 system-ui!important;letter-spacing:.14em!important;text-transform:uppercase!important;padding:0 8px!important}",
+      "#sn-sheet .sheet-mid{flex:1!important;min-width:0!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;background:transparent!important;color:#d7f6ff!important;font:800 13px/1.1 system-ui!important;letter-spacing:.14em!important;text-transform:uppercase!important;padding:0 8px!important}",
       "#sn-sheet.offer .card{max-height:32vh!important}",
       "#sn-sheet .sheet-mid .sn-price{margin:0!important;font:800 34px/1 system-ui!important;letter-spacing:-.03em!important;color:#4df0ff!important;text-shadow:0 0 12px rgba(77,240,255,.85)!important}",
       "#sn-sheet .sn-who{display:grid;grid-template-columns:62px minmax(0,1fr);column-gap:8px;margin:8px 0 0;align-items:baseline}",
@@ -1948,7 +1949,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     sh.removeAttribute("data-job");
     card.innerHTML = '<div class="sheet-bar"><button type="button" class="sheet-apply" data-act="sheet-apply" aria-label="Apply">✓</button><div class="sheet-mid"></div><button type="button" class="sheet-x" data-act="sheet-x" aria-label="Close">✕</button></div><div id="sn-sheet-body"></div>';
     card.querySelector(".sheet-mid").innerHTML = center;
-    card.querySelector("#sn-sheet-body").innerHTML = html;
+    card.querySelector("#sn-sheet-body").innerHTML = '<div class="sn-zoom">' + html + "</div>";
+    armPinch(card.querySelector("#sn-sheet-body"));
     sh.classList.remove("min");
     if (tall) sh.classList.add("tall"); else sh.classList.remove("tall");
     sh.classList.add("on");
@@ -1956,6 +1958,73 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     materialize(false);
     liftChrome();
     if (sh.classList.contains("offer")) setTimeout(fitOfferRoute, 40);
+  }
+  function armPinch(body) {
+    if (!body || body.__pinch) return;
+    body.__pinch = true;
+    var zoom = body.querySelector(".sn-zoom");
+    var scale = 1, start = 0, base = 1;
+    function set(s) {
+      scale = Math.max(1, Math.min(2.8, s));
+      if (zoom) zoom.style.zoom = String(scale);
+    }
+    body.addEventListener("touchstart", function (e) {
+      if (e.touches.length === 2) {
+        start = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        base = scale;
+      }
+    }, { passive: true });
+    body.addEventListener("touchmove", function (e) {
+      if (e.touches.length < 2 || !start) return;
+      e.preventDefault();
+      var d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      set(base * (d / start));
+    }, { passive: false });
+    body.addEventListener("touchend", function () { start = 0; });
+  }
+  function jobForRoad(key) {
+    var found = null;
+    jobs.forEach(function (j) {
+      if (!j || !j.vendor || !j.drop) return;
+      if (roadKey(j.vendor, j.drop) === key) found = j;
+      if (j.fault && roadKey(j.fault, j.fault.goal || j.drop) === key) found = j;
+    });
+    return found;
+  }
+  function nextStep(j) {
+    if (!j) return "";
+    if (j.wasted) return "Wasted.";
+    if (j.received) return "Done. Review is open.";
+    if (j.delivered) return "Confirm you received it.";
+    if (j.got) return "On the bike. Meet it at the door.";
+    if (j.pickup) return "Driver collects it.";
+    if (j.ready) return "Ready. Verify the pickup.";
+    if (j.vendorAccepted) return "Waiting for a driver.";
+    if (j.fault && !j.fault.found) return "Collect it from the driver in trouble.";
+    return "Vendor sets the prep and how long it stays good.";
+  }
+  function orderClock(j) {
+    var bits = [];
+    if (j.prep) bits.push("prep " + j.prep + " min");
+    if (j.lifeMin) {
+      if (j.outAt) bits.push(Math.max(0, Math.ceil((j.outAt + j.lifeMin * 60000 - Date.now()) / 60000)) + " min left");
+      else bits.push("good " + j.lifeMin + " min");
+    }
+    return bits.join(" · ");
+  }
+  function openRouteTile(key) {
+    var job = jobForRoad(key);
+    var line = roads[key];
+    var km = 0, i;
+    if (line) for (i = 1; i < line.length; i++) km += haversineKm(line[i - 1], line[i]);
+    var exp = job ? expectedMin(job.vendor, job.drop, km || job.km) : { min: Math.max(4, Math.ceil((km || 1) * 3)), n: 0 };
+    var alts = (roadAlts[key] || []).length;
+    var html = whoLine("FROM", (job && job.vendor && job.vendor.name) || "Start", "") +
+      whoLine("TO", (job && job.drop && (job.drop.name || job.drop.address)) || "End", "") +
+      '<div class="sn-leg">' + esc((km ? km.toFixed(1) : "—") + " km · " + exp.min + " min" + (exp.n ? " · " + exp.n + " drivers this hour" : " · no history this hour")) + "</div>" +
+      (job ? '<p class="note">' + esc(nextStep(job)) + (orderClock(job) ? " · " + orderClock(job) : "") + "</p>" : "") +
+      '<p class="note">' + (job && job.driver ? esc(job.driver) + " is on it. " : "") + alts + " road" + (alts === 1 ? "" : "s") + ". The bright line is this one. Tap a dim line to take another.</p>";
+    openTile({ kind: "route", title: "ROUTE", html: html, job: job && job.id });
   }
   function closeSheet() {
     var sh = $("sn-sheet");
@@ -2184,9 +2253,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var on = i === chosen;
       var glow = L.polyline(ll, { color: "#4df0ff", weight: on ? 18 : 10, opacity: on ? 0.34 : 0.14, interactive: false }).addTo(map);
       var core = L.polyline(ll, { color: on ? "#e8fbff" : "#7ee9ff", weight: on ? 5 : 3, opacity: on ? 1 : 0.72 }).addTo(map);
-      if (!on) core.on("click", function (e) {
+      core.on("click", function (e) {
         if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent);
-        pickRoad(id, i);
+        if (on) openRouteTile(id);
+        else pickRoad(id, i);
       });
       roadPaint[id].push(glow, core);
     });
@@ -2886,7 +2956,19 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         '<button type="button" data-act="pick-less" data-i="' + i + '">−</button><em class="n">0</em><button type="button" data-act="pick-more" data-i="' + i + '">+</button></div>';
     }).join("");
     if (!menu) menu = '<p class="note">No product on the menu yet.</p>';
-    var html = '<div class="sn-prof">' + tilePhoto(s.photo, "🏪") + "<div><b>" + esc(s.name || "Vendor") + "</b>" + tileContact(s.phone, where) + "</div></div>" + menu;
+    var charged = jobs.filter(function (j) {
+      if (!j || !j.vendor) return false;
+      var same = (s.id && j.vendor.id === s.id) || (s.name && j.vendor.name === s.name);
+      if (!same || !(j.fee || j.lines)) return false;
+      return isAdmin() || j.client === me() || j.vendorOwner === me();
+    });
+    var orders = charged.map(function (j) {
+      var items = (j.lines || []).map(function (l) { return (l.n || 1) + " " + (l.name || "item"); }).join(", ");
+      return '<div class="sn-ord"><b>' + esc(j.fee || 0) + " AV€</b><span>" + esc(items || "order") + "</span><em>" + esc(nextStep(j)) + "</em><em>" + esc(orderClock(j)) + "</em></div>";
+    }).join("");
+    var html = '<div class="sn-prof">' + tilePhoto(s.photo, "🏪") + "<div><b>" + esc(s.name || "Vendor") + "</b>" + tileContact(s.phone, where) + "</div></div>" +
+      (orders ? '<p class="note">CHARGED</p>' + orders : "") +
+      '<p class="note">MENU</p>' + menu;
     openTile({ kind: "vendor", title: s.name || "VENDOR", html: html });
     try { if (map && isFinite(+s.lat)) map.panTo([+s.lat, +s.lng], { animate: false }); } catch (e) {}
   }
