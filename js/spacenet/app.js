@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4319";
+  var VER = "4320";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1396,7 +1396,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet.offer .sheet-bar{height:48px!important}",
       "#sn-sheet .sheet-apply,#sn-sheet .sheet-x{flex:none!important;display:flex!important;align-items:center!important;justify-content:center!important;width:48px!important;height:48px!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:#041018!important;font:800 26px/1 system-ui!important;box-shadow:none!important}",
       "#sn-sheet .sheet-apply{color:#7dff9a!important}",
-      "#sn-sheet .sheet-x{color:#ff8a8a!important}",
+      ".sn-stars{display:flex;gap:6px;margin:6px 0}",
+      ".sn-stars button{flex:1;height:36px;border:1px solid rgba(77,240,255,.45);background:#041018;color:#4df0ff;font:800 16px system-ui}",
+      ".sn-stars button.on{background:#4df0ff;color:#041018}",
       "#sn-sheet .sheet-mid{flex:1!important;min-width:0!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;background:#041018!important;color:#d7f6ff!important;font:800 13px/1.1 system-ui!important;letter-spacing:.14em!important;text-transform:uppercase!important;padding:0 8px!important}",
       "#sn-sheet.offer .card{max-height:32vh!important}",
       "#sn-sheet .sheet-mid .sn-price{margin:0!important;font:800 34px/1 system-ui!important;letter-spacing:-.03em!important;color:#4df0ff!important;text-shadow:0 0 12px rgba(77,240,255,.85)!important}",
@@ -2344,6 +2346,105 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       return book[String(id)] === new Date().toDateString();
     } catch (e) { return false; }
   }
+  function shutBook() {
+    try { return JSON.parse(localStorage.getItem("sn:shut") || "{}") || {}; } catch (e) { return {}; }
+  }
+  function shutRow(id) {
+    var row = shutBook()[String(id || "")];
+    return row && row.until > Date.now() ? row : null;
+  }
+  function silenced(id) {
+    return closedToday(id) || !!shutRow(id);
+  }
+  function reviewRows() {
+    try { return JSON.parse(localStorage.getItem("sn:reviews") || "[]") || []; } catch (e) { return []; }
+  }
+  function saveReviewRows(rows) {
+    try { localStorage.setItem("sn:reviews", JSON.stringify(rows.slice(0, 400))); } catch (e) {}
+  }
+  function improveNote(role, stars) {
+    if (stars >= 4) return role === "driver" ? "Keep the handovers this clean." : role === "vendor" ? "Keep the order this close to what was promised." : "That handoff was easy. Keep it that way.";
+    if (stars === 3) return "Close. Tighten the time and the handoff.";
+    if (role === "driver") return "Be where you said, when you said. The handoff is the job.";
+    if (role === "vendor") return "Ready means ready. The order has to match the menu.";
+    return "Say it once, clearly, then let the order finish.";
+  }
+  function needHostile(strikes) { return Math.max(1, 3 - (strikes || 0)); }
+  function shutFor(id, name, why) {
+    var book = shutBook();
+    var prev = book[String(id)] || { strikes: 0 };
+    var strikes = (prev.strikes || 0) + 1;
+    var until, label;
+    var end = new Date();
+    end.setHours(23, 59, 59, 999);
+    if (strikes <= 1) { until = end.getTime(); label = "the rest of the day"; }
+    else if (strikes === 2) { until = Date.now() + 3 * 86400000; label = "3 days"; }
+    else if (strikes === 3) { until = Date.now() + 90 * 86400000; label = "3 months"; }
+    else {
+      var days = Math.min(365, 90 * Math.pow(2, strikes - 3));
+      until = Date.now() + days * 86400000;
+      label = days + " days";
+    }
+    book[String(id)] = { strikes: strikes, until: until, why: why, name: name || "" };
+    try { localStorage.setItem("sn:shut", JSON.stringify(book)); } catch (e) {}
+    people.forEach(function (p) {
+      if (!p) return;
+      if (String(p.id) !== String(id) && p.name !== name) return;
+      p.free = false;
+      p.closed = label;
+    });
+    say((name || "Account") + " shut down for " + label + ". " + why + ". Next time it takes " + needHostile(strikes) + ".");
+  }
+  function watchHostility(fromId, fromName, fromRole) {
+    var rows = reviewRows().filter(function (r) {
+      return r && r.hostile && String(r.from) === String(fromId) && Date.now() - r.t < 86400000;
+    });
+    var prev = shutBook()[String(fromId)] || { strikes: 0 };
+    var need = needHostile(prev.strikes || 0);
+    if (rows.length < need) return;
+    shutFor(fromId, fromName, (fromRole || "account") + " filed " + rows.length + " hostile reviews");
+  }
+  function fileReview(job, fromRole, aboutRole, aboutId, aboutName, stars, text) {
+    var hostile = stars <= 2 || /hate|idiot|stupid|thief|scam|liar|worst|garbage|disgusting|useless|cheat|report/i.test(text || "");
+    var rows = reviewRows();
+    rows.unshift({
+      job: job && job.id, from: me(), fromRole: fromRole, aboutRole: aboutRole,
+      aboutId: aboutId, aboutName: aboutName, stars: stars, text: text || "", hostile: hostile, t: Date.now()
+    });
+    saveReviewRows(rows);
+    var note = improveNote(aboutRole, stars);
+    var notes = {};
+    try { notes = JSON.parse(localStorage.getItem("sn:notes") || "{}") || {}; } catch (e) {}
+    notes[String(aboutId || aboutName)] = { say: note, t: Date.now() };
+    try { localStorage.setItem("sn:notes", JSON.stringify(notes)); } catch (e2) {}
+    if (isAdmin()) say(fromRole + " on " + aboutRole + " " + (aboutName || "") + " · " + stars + (text ? " · " + text : "") + " · they hear: " + note);
+    else say("Sent. They only hear how to improve.");
+    watchHostility(me(), me(), fromRole);
+  }
+  function openReview(job) {
+    if (!job) return;
+    var role = myRole();
+    var parts = [];
+    function add(k, id, name) { if (name) parts.push({ k: k, id: id || name, name: name }); }
+    if (isAdmin() || role === "client" || role === "driver") add("vendor", job.vendorOwner || (job.vendor && job.vendor.id), job.vendor && job.vendor.name);
+    if (isAdmin() || role === "client" || role === "vendor") add("driver", job.driverId, job.driver);
+    if (isAdmin() || role === "vendor" || role === "driver") add("client", job.client, (job.drop && job.drop.name) || "client");
+    var seen = {};
+    parts = parts.filter(function (p) { if (seen[p.k]) return false; seen[p.k] = 1; return true; });
+    var html = '<p class="note">Private. They never see the words. They only hear how to improve.</p>' +
+      parts.map(function (p) {
+        return '<p class="note">' + p.k.toUpperCase() + " · " + esc(p.name) + "</p>" +
+          '<div class="sn-stars" data-k="' + p.k + '" data-id="' + esc(p.id) + '" data-name="' + esc(p.name) + '">' +
+          [1, 2, 3, 4, 5].map(function (n) { return '<button type="button" data-act="star" data-n="' + n + '">' + n + "</button>"; }).join("") +
+          '</div><textarea id="sn-rev-' + p.k + '" placeholder="What happened"></textarea>';
+      }).join("");
+    if (isAdmin()) {
+      html += reviewRows().slice(0, 5).map(function (r) {
+        return '<p class="note">' + esc(r.fromRole) + " → " + esc(r.aboutRole) + " " + r.stars + (r.hostile ? " · hostile" : "") + " · " + esc(r.text || "") + "</p>";
+      }).join("");
+    }
+    openTile({ kind: "review", title: "REVIEW", html: html, job: job.id });
+  }
   function dropOrder(job, who, why) {
     var destroyed = Number(job.food || job.fee || 0);
     var delay = Math.max(3, Math.ceil(Number(job.km) || 1));
@@ -2771,7 +2872,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     var open = [];
     drivers.forEach(function (d) {
-      if (closedToday(d.id || d.name)) return;
+      if (closedToday(d.id || d.name) || silenced(d.id || d.name) || silenced(d.owner)) return;
       var busy = jobs.some(function (j) { return j && j.verified && !j.delivered && j.driverId && String(j.driverId) === String(d.id); });
       if (!busy) open.push(d);
     });
@@ -2837,6 +2938,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     openTile({ kind: "driver-offer", title: job.fault && !job.fault.found ? "COLLECT" : "DRIVERS", mid: priceMid(job.fee), html: html, job: job.id });
   }
   function checkoutVendor() {
+    if (silenced(me())) { say("You are shut down. No orders until it lifts."); return; }
     if (!vendor) { say("Tap the vendor again."); return; }
     var body = $("sn-sheet-body");
     var lines = [];
@@ -2879,6 +2981,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var sh = $("sn-sheet");
     var job = jobById(sh && sh.getAttribute("data-job"));
     if (!job) { say("That order is gone."); return; }
+    if (silenced(job.vendorOwner) || silenced(job.vendor && job.vendor.id)) { say("That vendor is shut down today."); return; }
     var prepEl = $("sn-prep");
     var lifeEl = $("sn-life");
     var mins = Math.round(Number(prepEl && prepEl.value));
@@ -2936,6 +3039,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (kind === "vendor") return checkoutVendor();
     if (kind === "vendor-order") return vendorAccept();
     if (kind === "driver-offer") return driverAccept();
+    if (kind === "review") return applyReview();
     closeSheet();
     say("It stays on the map.");
   }
@@ -3115,6 +3219,24 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     publishJob(job);
     openJobs();
     say("Received" + (isAdmin() ? " on behalf of the client." : "."));
+    openReview(job);
+  }
+  function applyReview() {
+    var sh = $("sn-sheet");
+    var job = jobById(sh && sh.getAttribute("data-job"));
+    if (!job) { say("That order is gone."); return; }
+    var n = 0;
+    document.querySelectorAll("#sn-sheet .sn-stars").forEach(function (box) {
+      var on = box.querySelector("button.on");
+      if (!on) return;
+      var stars = Number(on.getAttribute("data-n"));
+      var k = box.getAttribute("data-k");
+      var field = $("sn-rev-" + k);
+      fileReview(job, myRole() || "admin", k, box.getAttribute("data-id"), box.getAttribute("data-name"), stars, field ? field.value : "");
+      n++;
+    });
+    if (!n) { say("Pick 1 to 5, then Apply."); return; }
+    closeSheet();
   }
   function materialize(need) {
     var row = $("sn-filters");
@@ -3154,6 +3276,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (j.ready && !j.got && (admin || role === "driver")) html += go("driver-got", admin ? "I PICKED UP · DRIVER" : "I PICKED UP");
         if (j.got && !j.delivered && (admin || role === "driver")) html += go("driver-delivered", admin ? "DELIVERED · DRIVER" : "DELIVERED");
         if (j.delivered && !j.received && (admin || role === "client")) html += go("client-got", admin ? "RECEIVED · CLIENT" : "I RECEIVED");
+        if (j.received) html += go("review", "REVIEW");
         return html + "</div>";
       }).join("");
     }
@@ -4407,6 +4530,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (act === "driver-got") driverGot(id);
       if (act === "driver-delivered") driverDelivered(id);
       if (act === "client-got") clientGot(id);
+      if (act === "review") openReview(jobBy(id));
+      if (act === "star") {
+        var box = t.parentNode;
+        if (box) Array.prototype.forEach.call(box.querySelectorAll("button"), function (b) { b.classList.toggle("on", b === t); });
+        return;
+      }
       if (act === "list-base") {
         if (!listPt) { say("Hold the street first."); return; }
         persistListing({ id: "b" + Date.now().toString(36), kind: "driver", name: "base", lat: listPt.lat, lng: listPt.lng });
@@ -5033,6 +5162,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     setInterval(pullLive, 8000);
     setInterval(tickLive, 1000);
     checkVersion();
+    try {
+      var notes = JSON.parse(localStorage.getItem("sn:notes") || "{}") || {};
+      var mine = notes[me()];
+      if (mine && mine.say && !mine.heard) { mine.heard = true; localStorage.setItem("sn:notes", JSON.stringify(notes)); say(mine.say); }
+      var shut = shutRow(me());
+      if (shut) say("Shut down until " + new Date(shut.until).toLocaleString() + ".");
+    } catch (e) {}
     var pay = new URLSearchParams(location.search).get("paypal");
     if (pay === "success") {
       var jid = "";
