@@ -1,0 +1,38 @@
+# -*- coding: utf-8 -*-
+"""4328: land without Overpass; street zoom; GPS closes sky; APPLY left / X right; sheet <=42vh."""
+from pathlib import Path
+import re, sys
+
+ROOT = Path(".")
+app_path = ROOT / "js/spacenet/app.js"
+s = app_path.read_text(encoding="utf-8")
+assert 'var VER = "4327"' in s or 'var VER = "4328"' in s, "unexpected VER"
+
+def must_replace(old, new, label, once=True):
+    global s
+    if old not in s:
+        if "function goToPlaceAsk" in s and label == "goinject":
+            print("skip", label, "(already)")
+            return
+        if new[:48] in s:
+            print("skip", label, "(already applied)")
+            return
+        raise SystemExit("missing block: " + label)
+    s = s.replace(old, new, 1 if once else 0)
+    print("ok", label)
+
+must_replace(
+"""    if (dist <= 0.52 && aim && isFinite(aim.lat)) {
+      openCity(aim);""",
+"""    if (dist <= 0.78 && aim && isFinite(aim.lat)) {
+      openCity(aim);""",
+"zoom-thresh")
+
+must_replace(
+"""    zoomToDist(cam.dist * (dir < 0 ? 0.88 : 1.14), sx, sy);""",
+"""    zoomToDist(cam.dist * (dir < 0 ? 0.72 : 1.22), sx, sy);""",
+"zoom-smooth")
+
+must_replace(
+"""    { id: "city", dist: 0.72, name: "City" }""",
+"""    { i
