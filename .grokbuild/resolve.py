@@ -10,7 +10,7 @@ def take(body_head, body_main, out, label):
     assert n == 1, (label, n)
     s = s2
 
-take('  var VER = "4314";\n', '  var VER = "4321";\n', '  var VER = "4321";\n', "ver")
+take('  var VER = "4314";\n', '  var VER = "4322";\n', '  var VER = "4322";\n', "ver")
 
 take('''  var hereHow = "";
   var userSpoke = false;
