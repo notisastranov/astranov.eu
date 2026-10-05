@@ -1,0 +1,89 @@
+name: grokbuild 4333 wheel-hit+gps-ip+hunt-cap (branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4333.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Merge main; decode kit; apply; stamp 4333; assert; drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch -q origin main
+          MAIN=$(git rev-parse origin/main)
+          echo "main tip $MAIN"
+          test "$MAIN" = "ef3f2856d71b1f257aa6bfaf4733e784459e96ba" || { echo "main moved"; exit 1; }
+          git merge origin/main -m "merge main under 4333 preview" -X ours || {
+            git checkout --ours js/spacenet/app.js api/find.js || true
+            git checkout --theirs index.html vercel.json sw.js VERSION api/version.js || true
+            git add -A
+            git -c core.editor=true merge --continue || git commit --no-edit || true
+          }
+          grep -q 'function activeSeat' js/spacenet/app.js
+          grep -q 'findOwnRoleTwin' js/spacenet/app.js
+          test -f .grokbuild/fix35.gz.all.p0.hex
+          test -f .grokbuild/stamp4333.all.a.hex
+          test -f .grokbuild/pw_wheel_real.all.p0.hex
+          python3 - <<'PYHEX'
+          from pathlib import Path
+          import hashlib, gzip, glob
+          def join(pattern):
+              parts = sorted(glob.glob(pattern))
+              return "".join(Path(p).read_text().strip() for p in parts)
+          def one(hx, dest, want):
+              raw = bytes.fromhex(hx)
+              got = hashlib.sha256(raw).hexdigest()
+              print(dest, got, "len", len(raw))
+              if got != want:
+                  raise SystemExit("sha mismatch " + dest)
+              Path(dest).write_bytes(raw)
+          one(join(".grokbuild/fix35.gz.all.p*.hex"), ".grokbuild/fix35_client.py.gz",
+              "ffecd8e9082b9c67bedd146c45b9a79bdf92f2fd01ad34ef687364fc13d3f69a")
+          Path(".grokbuild/fix35_client.py").write_bytes(
+              gzip.decompress(Path(".grokbuild/fix35_client.py.gz").read_bytes()))
+          pywant = "58cae620f3fd972d3f5db5ad19aecfd732c71fa2e27f2e9c29503fb688b47e1b"
+          gotpy = hashlib.sha256(Path(".grokbuild/fix35_client.py").read_bytes()).hexdigest()
+          print("fix35 py", gotpy)
+          if gotpy != pywant:
+              raise SystemExit("fix35 py sha mismatch")
+          one(join(".grokbuild/stamp4333.all.*.hex"), ".grokbuild/stamp4333.sh",
+              "3d87abe6370cbc647f8bd033459818fd572aa4b613fad8e94a3e0a20a6b7c9a7")
+          one(join(".grokbuild/pw_wheel_real.all.p*.hex"), ".grokbuild/pw_wheel_real.js",
+              "e2f1480b48b547fb9fbd0a8db144feb35d3c21a6ab927694223114a2c4527169")
+          PYHEX
+          chmod +x .grokbuild/stamp4333.sh
+          python3 .grokbuild/fix35_client.py
+          bash .grokbuild/stamp4333.sh
+          printf '4333\n' > VERSION
+          mkdir -p tests
+          cp .grokbuild/pw_wheel_real.js tests/pw_wheel_real.js
+          grep -q 'app.js?v=4333' index.html
+          grep -q 'var VER = "4333"' js/spacenet/app.js
+          grep -q 'sn:wheel' js/spacenet/app.js
+          grep -q 'clearSeatPins' js/spacenet/app.js
+          grep -q 'nearSeat' js/spacenet/app.js
+          grep -q 'Approximate location (IP)' js/spacenet/app.js
+          grep -q 'r2 > 0.96' js/spacenet/app.js
+          grep -q 'bounded=1' js/spacenet/app.js
+          grep -q '4333-real' vercel.json
+          grep -q 'globeHitTest' js/spacenet/app.js
+          node --check js/spacenet/app.js
+          node --check api/find.js
+          git rm -q -r .grokbuild .github/workflows/grokbuild-4333.yml || true
+          git rm -q -f .github/workflows/grokbuild-4332.yml 2>/dev/null || true
+          git rm -q -f .github/workflows/grokbuild-4331.yml 2>/dev/null || true
+          rm -rf .grokbuild
+          git add -u
+          git add VERSION index.html vercel.json sw.js js/spacenet/app.js js/spacenet/auth.js api/version.js tests/pw_wheel_real.js 2>/dev/null || true
+          git status --short | head -40
+          git commit -q -m "4333: real wheel hit validate; GPS deny/IP note; hunt clear+50km cap (preview, do not merge)"
+          git push origin HEAD:grokbuild/4328-street-level-gps
