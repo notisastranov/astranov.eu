@@ -125,9 +125,14 @@
     }
     if (code) {
       var ver = read("sn:pkce", "");
-      var body = ver
-        ? { grant_type: "pkce", auth_code: code, code_verifier: ver }
-        : { grant_type: "authorization_code", code: code, redirect_uri: location.origin + "/?auth=google" };
+      // This project's GoTrue accepts grant_type=pkce (with auth_code + code_verifier).
+      // grant_type=authorization_code returns 400 unsupported_grant_type (seen in auth logs).
+      if (!ver) {
+        talk("Sign-in code arrived without the local key. Start LOGIN again on this same site (preview stays on the preview URL).");
+        clean();
+        return Promise.resolve(false);
+      }
+      var body = { grant_type: "pkce", auth_code: code, code_verifier: ver };
       return fetch(SB + "/auth/v1/token?grant_type=" + encodeURIComponent(body.grant_type), {
         method: "POST",
         headers: { apikey: ANON, "Content-Type": "application/json" },
@@ -165,7 +170,7 @@
       "#sn-me-sheet .who{display:flex;align-items:center;gap:10px;margin:0 0 12px}" +
       "#sn-me-sheet .who img,#sn-me-sheet .who .ph{width:52px;height:52px;border-radius:99px;object-fit:cover;background:rgba(77,240,255,.12);display:flex;align-items:center;justify-content:center;color:#4df0ff;font-size:22px}" +
       "#sn-me-sheet input{display:block;width:100%;height:40px;margin:8px 0 0;padding:0 10px;border:1px solid rgba(126,233,255,.28);background:rgba(4,16,28,.9);color:#e8fbff;border-radius:10px}" +
-      "#sn-me-sheet .note{margin:8px 0 0;font:500 12px/1.35 system-ui;color:#8ec8d8}";
+      "#sn-me-sheet .note{margin:8px 0 0;font:500 12px/1.35 system-ui;color:#8ec8d8}" +"#sn-me-sheet .who > div{min-width:0;flex:1}" +"#sn-me-sheet .who b{display:block;font:800 15px/1.2 system-ui;color:#e8fbff}" +"#sn-me-sheet .who span{display:block;margin-top:4px;font:600 12px/1.3 system-ui;color:#7ee9ff}" +"#sn-me-sheet{z-index:88}" +"#sn-me-sheet .bg{position:absolute;left:0;right:0;top:0;bottom:calc(var(--dock,78px) + 120px)}" +"#sn-me-sheet .x{min-width:72px;font:700 12px/1 system-ui}" +"#gps,#sn-me,#dock,#sn-above{z-index:92!important}";
     document.head.appendChild(s);
   }
   function face(u) {
@@ -182,6 +187,7 @@
     var btn = document.getElementById("sn-me");
     if (!btn) return;
     btn.className = inNow ? "in" : "out";
+    btn.setAttribute("aria-label", inNow ? ("You · " + (u.name || u.email || "account")) : "Login");
     btn.innerHTML = '<span class="lbl">' + (inNow ? "YOU" : "LOGIN") + '</span><span class="tgt">' + (inNow ? face(u) : '<span class="ph">IN</span>') + "</span>";
     if (window.SN && SN.paintMoney) SN.paintMoney();
   }
@@ -215,7 +221,7 @@
     if (!sh) {
       sh = document.createElement("div");
       sh.id = "sn-me-sheet";
-      sh.innerHTML = '<div class="bg" data-act="close"></div><div class="card"><div class="bar"><b class="ttl">YOU</b><button type="button" class="x" data-act="close">✕</button></div><div id="sn-me-body"></div></div>';
+      sh.innerHTML = '<div class="bg" data-act="close"></div><div class="card"><div class="bar"><b class="ttl">YOU</b><button type="button" class="x" data-act="close" aria-label="Close">✕ Close</button></div><div id="sn-me-body"></div></div>';
       document.body.appendChild(sh);
       sh.addEventListener("click", function (e) {
         var b = e.target.closest("[data-act]");
@@ -246,6 +252,14 @@
     }
     fillBody();
     sh.classList.add("on");
+    if (!sh.__esc) {
+      sh.__esc = true;
+      document.addEventListener("keydown", function (ev) {
+        if (ev.key === "Escape" && sh.classList.contains("on")) {
+          sh.classList.remove("on");
+        }
+      });
+    }
   }
   function boot() {
     css();

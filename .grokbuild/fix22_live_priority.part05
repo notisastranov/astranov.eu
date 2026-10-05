@@ -1,0 +1,30 @@
+;"""
+new_talk = """    if (runLine(q)) return;
+    var goAsk = goToPlaceAsk(q);
+    if (goAsk) {
+      if (goAsk.geo) { huntPlace(goAsk); return; }
+      say("Finding " + goAsk.place + "…");
+      placeGeo(goAsk.place).then(function (geo) {
+        if (geo) huntPlace({ item: "", place: geo.name || goAsk.place, geo: geo, raw: q });
+        else say("No map pin for " + goAsk.place + " yet. Try the city and country, like Rhodes Greece.");
+      }, function () { say("No map pin for " + goAsk.place + " yet."); });
+      return;
+    }
+    var seatedCat = cleanItem(q);"""
+if "goToPlaceAsk(q)" not in s.split("function talk")[1][:800]:
+    must(old_talk in s, "talk goTo branch")
+    s = s.replace(old_talk, new_talk, 1)
+    print("ok talk goTo")
+else:
+    print("talk goTo already")
+
+# bare Rhodes (no "go to") already via barePlaceWord — ensure GR_CITY path in placeGeo (already)
+
+# ---- (4) upsert client: reconfirm markers present ----
+must("sameOwnerName" in s, "sameOwnerName")
+must('kind === "drop"' in s and "dropMineDups" in s, "client upsert helpers")
+must("dPrev" in s and "list-drop" in s, "form-drop upsert")
+print("ok upsert client markers present")
+
+open(A, "w", encoding="utf-8").write(s)
+print("fix22 done")

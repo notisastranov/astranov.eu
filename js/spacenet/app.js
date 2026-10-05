@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4324";
+  var VER = "4326";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -274,7 +274,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         say(hereLabel() + " · " + near.length + " real place" + (near.length === 1 ? "" : "s") + " around you. Tap one.");
       });
     };
-    if (!here) locate(function (pt) { land(pt, false, true); go(); }); else go();
+    if (!here) {
+      locate(function (pt) {
+        if (seq !== placeSeq) return;
+        if (!pt || !isFinite(+pt.lat)) {
+          say("Near YOU needs GPS or an approx IP location. Allow location, tap GPS, or name a city.");
+          return;
+        }
+        land(pt, false, true, true);
+        go();
+      }, true);
+    } else go();
   }
   function honestDating() {
     huntSeq++;
@@ -998,12 +1008,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     say("Pinned " + pt.lat.toFixed(4) + "," + pt.lng.toFixed(4) + " · tap GPS to recalibrate");
   }
   function locate(then, quiet) {
-    var gotGps = false, coarseRan = false;
+    var gotGps = false, coarseRan = false, locateSettled = false;
+    function finish(pt) {
+      if (locateSettled) return;
+      locateSettled = true;
+      try { if (typeof then === "function") then(pt || null); } catch (e) {}
+    }
     function gps(pos) {
       if (!pos || !pos.coords || gotGps) return;
       gotGps = true;
       try { if (watchId) navigator.geolocation.clearWatch(watchId); } catch (e) {}
-      then({ lat: pos.coords.latitude, lng: pos.coords.longitude, how: "gps" });
+      finish({ lat: pos.coords.latitude, lng: pos.coords.longitude, how: "gps" });
     }
     function coarse() {
       if (gotGps || coarseRan) return;
@@ -1011,7 +1026,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var saved = null;
       try { saved = JSON.parse(localStorage.getItem("sn:here") || "null"); } catch (e) {}
       if (saved && isFinite(+saved.lat) && isFinite(+saved.lng)) {
-        then({ lat: +saved.lat, lng: +saved.lng, how: "saved" });
+        finish({ lat: +saved.lat, lng: +saved.lng, how: "saved" });
         return;
       }
       fetch("https://get.geojs.io/v1/ip/geo.json").then(function (r) { return r.json(); }).then(function (j) {
@@ -1019,11 +1034,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var lat = Number(j && j.latitude), lng = Number(j && j.longitude);
         if (!isFinite(lat) || !isFinite(lng)) {
           if (!quiet) say("GPS did not answer. Allow location, then tap GPS.");
+          finish(null);
           return;
         }
-        then({ lat: lat, lng: lng, how: "net", name: (j && j.city) || "" });
+        finish({ lat: lat, lng: lng, how: "net", name: (j && j.city) || "" });
       }).catch(function () {
         if (!gotGps && !quiet) say("GPS did not answer. Allow location, then tap GPS.");
+        finish(null);
       });
     }
     if (!navigator.geolocation) { coarse(); return; }
@@ -1039,7 +1056,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         coarse();
       }, { enableHighAccuracy: false, timeout: 20000, maximumAge: 300000 });
     }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
-    setTimeout(function () { if (!gotGps) coarse(); }, 14000);
+    setTimeout(function () { if (!gotGps) coarse(); }, 8000);
+    setTimeout(function () { if (!locateSettled) { if (!quiet) say("Location timed out. Tap GPS, or name a city."); finish(null); } }, 16000);
   }
   var hereHow = "";
   var userSpoke = false;
@@ -1117,6 +1135,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       });
       var lastTap = 0;
       map.on("click", function () {
+        var sh = $("sn-sheet");
+        if (sh && sh.classList.contains("on") && sh.classList.contains("tile")) {
+          var kind = sh.getAttribute("data-kind") || "";
+          if (/^(vendor|driver|client|list)$/.test(kind)) { closeSheet(); return; }
+        }
         var t = Date.now();
         if (t - lastTap < 320) closeCity();
         lastTap = t;
@@ -1269,7 +1292,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if ((isAdmin() || myRole() === "driver") && driverPin && isFinite(+driverPin.lat)) {
       html += '<button type="button" class="sheet-go" data-act="move-driver">Move the driver here</button>';
     }
-    openSheet("HERE", html, true);
+    openTile({ kind: "list", title: "LIST", html: html });
   }
   var localOnlyAt = 0;
   function localOnlyNote() {
@@ -1701,24 +1724,31 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-tester{position:fixed;top:28px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(77,240,255,.4);color:#7ee9ff;font:700 10px/14px ui-monospace,monospace;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#sn-tester.stale{color:#8a6a6a;border-color:rgba(255,120,120,.35)}",
       "#sn-topchrome-drag{display:none!important;height:0!important;min-height:0!important;max-height:0!important;padding:0!important;margin:0!important;border:0!important}",
-      "#top{top:0!important;left:0!important;right:0!important;margin:0!important;padding:0!important;display:flex!important;flex-direction:column!important}",
+      "#top{top:0!important;left:0!important;right:0!important;margin:0!important;padding:0!important;display:flex!important;flex-direction:column!important}","#top{top:0!important}","#sn-sheet .card,#sn-sheet.tile .card,#sn-sheet.tall .card{bottom:calc(var(--dock,78px) + 120px)!important;max-height:min(42vh, calc(100dvh - var(--dock,78px) - 160px))!important}","#dock,#sn-above,#gps,#sn-me{z-index:92!important}","#sn-sheet{z-index:70!important}","#sn-sheet.on{pointer-events:none!important}","#sn-sheet.on .card{pointer-events:auto!important}","#sn-sheet .pill{display:grid!important;grid-template-columns:36px minmax(0,1fr)!important;align-items:center!important;gap:8px!important;width:100%!important;text-align:left!important}","#sn-sheet .pill > div{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;column-gap:8px!important;align-items:baseline!important;min-width:0!important;width:100%!important}","#sn-sheet .pill b{display:block!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;grid-column:1!important;color:#e8fbff!important;font:700 14px/1.2 system-ui!important}","#sn-sheet .pill > div > span{display:block!important;grid-column:2!important;justify-self:end!important;white-space:nowrap!important;color:#7ee9ff!important;font:700 11px/1.2 system-ui!important}","#sn-sheet .sn-miss{display:block!important;margin-top:2px!important}","#sn-sheet .sn-gap{display:inline!important;margin:0 2px!important}","#sn-sheet .sn-tel + .sn-miss,#sn-sheet .sn-miss + .sn-miss{margin-top:4px!important}",,
       "#island{position:relative!important;z-index:2!important}",
       "#island .r1,#island .r2{flex-wrap:nowrap!important;overflow:hidden!important;white-space:nowrap!important}",
-      "#sn-row{display:flex!important;width:100%!important;align-items:center!important;justify-content:space-between!important;gap:8px!important;padding:6px 10px 0!important;pointer-events:none!important}",
-      "#sn-power,#sn-money,#sn-support{position:static!important;top:auto!important;left:auto!important;right:auto!important;bottom:auto!important;transform:none!important}",
+      "#sn-sheet .card,#sn-sheet.tall .card,#sn-tasks .card{max-height:42vh!important}",
+      "#sn-power{position:fixed!important;top:8px!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:50!important}",
+      "#sn-support{position:fixed!important;top:8px!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;transform:none!important;z-index:50!important}",
+      "#top{top:0!important}",
+      "#sn-money{position:fixed!important;top:130px!important;left:50%!important;right:auto!important;bottom:auto!important;transform:translateX(-50%)!important;z-index:46!important}",
+      "#sn-me{position:fixed!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;top:auto!important;bottom:calc(var(--dock) + 72px)!important;z-index:46!important}",
+      "#gps{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:calc(var(--dock) + 72px)!important;z-index:46!important}",
+      "#sn-above{position:fixed!important;left:0!important;right:0!important;bottom:var(--dock)!important;height:56px!important;display:flex!important;justify-content:space-between!important;align-items:center!important;padding:0 8px!important;pointer-events:none!important;background:transparent!important;z-index:47!important}",
       "#dock{left:0!important;right:0!important;bottom:0!important;top:auto!important;padding:0!important;margin:0!important;background:rgba(4,14,28,.92)!important;border-top:1px solid rgba(80,220,255,.35)!important}",
       "#panel{width:100%!important;background:transparent!important}",
       "form#f{display:flex!important;width:100%!important;gap:0!important;align-items:center!important;min-height:48px!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}",
       "input#in{flex:1!important;min-width:0!important;width:auto!important;min-height:48px!important;border:0!important;border-radius:0!important;background:transparent!important}",
       ".hub button{width:48px!important;height:48px!important;border:0!important;border-radius:0!important;background:transparent!important}",
-      "#sn-me{position:fixed!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;top:auto!important;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 56px)!important}",
-      "#gps{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 56px)!important}",
+      "#sn-above{position:fixed!important;left:0!important;right:0!important;bottom:var(--dock)!important;top:auto!important;z-index:45!important;display:flex!important;justify-content:space-between!important;align-items:flex-end!important;gap:8px!important;padding:0 8px 8px!important;pointer-events:none!important;background:transparent!important}",
+      "#sn-above>*{position:static!important;top:auto!important;left:auto!important;right:auto!important;bottom:auto!important;transform:none!important;pointer-events:auto!important}",
+      "#sn-above #plus,#sn-above #go{width:48px!important;height:48px!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.7)!important;background:rgba(4,16,28,.92)!important}",
       "#sn-pulse,#sn-tester{top:108px!important}",
       "#island{margin-top:0!important;padding-top:0!important}",
       "#sn-count{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;pointer-events:none;background:transparent}",
       "#sn-count.on{display:flex}",
       "#sn-count b{font:800 46vw/0.78 system-ui;color:#e8fbff;letter-spacing:-.08em;text-shadow:0 0 8px #fff,0 0 18px #4df0ff,0 0 36px #4df0ff,0 0 72px #1a6cff,0 0 120px #1a6cff}",
-      "#sn-pulse{position:fixed;top:36px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(255,176,32,.7);color:#ffb020;font:700 10px/14px ui-monospace,monospace;pointer-events:none}",,
+      "#sn-pulse{position:fixed;top:180px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(255,176,32,.7);color:#ffb020;font:700 10px/14px ui-monospace,monospace;pointer-events:none}",,
     ].join("");
     document.head.appendChild(s);
   }
@@ -1753,6 +1783,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function throwOffer(job) {
     var id = "offer-" + (job && job.id ? job.id : Date.now().toString(36));
+    try { if (sessionStorage.getItem("sn:offer-x:" + id)) return; } catch (e) {}
     var fee = job && (job.fee != null ? job.fee : job.total);
     var split = offerSplit(job);
     if (split) fee = split.total;
@@ -2007,7 +2038,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     intro = false;
     desk.innerHTML =
-      '<div class="sheet-bar"><b class="sheet-ttl">BUILD</b><button type="button" class="sheet-x" data-act="support-close">HIDE</button></div>' +
+      '<div class="sheet-bar"><button type="button" class="sheet-x" data-act="support-close" aria-label="Close">✕</button><b class="sheet-ttl">BUILD</b><button type="button" class="sheet-apply" data-act="support-send" aria-label="Apply">✓</button></div>' +
       '<div id="sn-support-log"></div>' +
       '<textarea id="sn-support-matter" placeholder="Tell the programmer what to fix"></textarea>' +
       '<button type="button" class="sheet-go primary" data-act="support-send">SEND</button>';
@@ -2074,9 +2105,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function askGrok(q, cb) {
     var vendors = shops.slice(0, 8).map(function (s) { return s.name; });
+    var done = false;
+    function once(err, j) { if (done) return; done = true; cb(err, j); }
+    var ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var kill = setTimeout(function () { try { if (ctl) ctl.abort(); } catch (e) {} once("timeout"); }, 12000);
     fetch("/api/ai", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: ctl ? ctl.signal : undefined,
       body: JSON.stringify({
         message: q,
         history: hist,
@@ -2092,13 +2128,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }
       })
     }).then(function (r) { return r.json(); }).then(function (j) {
+      clearTimeout(kill);
       var text = j && (j.say || j.text);
-      if (!text) { cb((j && j.error) || "quiet"); return; }
+      if (!text) { once((j && j.error) || "quiet"); return; }
       hist.push({ role: "user", content: q });
       hist.push({ role: "assistant", content: text });
       if (hist.length > 16) hist = hist.slice(-16);
-      cb(null, j);
-    }).catch(function () { cb("dark"); });
+      once(null, j);
+    }).catch(function () { clearTimeout(kill); once("dark"); });
   }
   function haversineKm(a, b) {
     var R = 6371;
@@ -2276,7 +2313,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     sh.classList.remove("tile");
     sh.removeAttribute("data-kind");
     sh.removeAttribute("data-job");
-    card.innerHTML = '<div class="sheet-bar"><button type="button" class="sheet-apply" data-act="sheet-apply" aria-label="Apply">✓</button><div class="sheet-mid"></div><button type="button" class="sheet-x" data-act="sheet-x" aria-label="Close">✕</button></div><div id="sn-sheet-body"></div>';
+    card.innerHTML = '<div class="sheet-bar"><button type="button" class="sheet-x" data-act="sheet-x" aria-label="Close">✕</button><div class="sheet-mid"></div><button type="button" class="sheet-apply" data-act="sheet-apply" aria-label="Apply">✓</button></div><div id="sn-sheet-body"></div>';
     card.querySelector(".sheet-mid").innerHTML = center;
     card.querySelector("#sn-sheet-body").innerHTML = '<div class="sn-zoom">' + html + "</div>";
     armPinch(card.querySelector("#sn-sheet-body"));
@@ -3150,11 +3187,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var foundView = [];
   function closeFind() {
     var sh = $("sn-sheet"), mid = sh && sh.querySelector(".sheet-mid");
-    if (sh && sh.classList.contains("on") && ((mid && /^FIND\b/.test(String(mid.textContent || ""))) || (sh.classList.contains("tile") && /^(vendor|driver|client)$/.test(sh.getAttribute("data-kind") || "")))) closeSheet();
+    if (sh && sh.classList.contains("on") && ((mid && /^(FIND|LIST)\b/.test(String(mid.textContent || ""))) || (sh.classList.contains("tile") && /^(vendor|driver|client)$/.test(sh.getAttribute("data-kind") || "")))) closeSheet();
     foundView = [];
   }
   function showFound(named, list) {
-    var view = list && list.length ? list : shops;
+    var view = (list && list.length ? list : shops).filter(function (s) { return s && !junkPlace(s) && seesShop(s); });
     if (!view.length) { say("No real pin for that hunt. Try another name near you."); return; }
     foundView = view.slice();
     var seat = named || here || view[0];
@@ -3164,7 +3201,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var ch = (s.name.match(/[A-Za-zΑ-Ωα-ω]/) || ["·"])[0].toUpperCase();
       return '<button type="button" class="pill" data-act="vendor" data-i="' + i + '"><span class="ph">' + ch + "</span><div><b></b><span></span></div></button>";
     }).join("");
-    openSheet("FIND · " + view.length, html);
+    openTile({ kind: "list", title: "LIST · " + view.length, html: html });
     var body = $("sn-sheet-body");
     if (body) {
       var pills = body.querySelectorAll(".pill");
@@ -3172,7 +3209,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (!pills[i]) return;
         pills[i].querySelector("b").textContent = s.name;
         var from = named || here;
-        pills[i].querySelector("span").textContent = (s.kind || "shop") + (realPhone(s.phone) ? " · " + realPhone(s.phone) : "") + (from ? " · " + haversineKm(from, s).toFixed(1) + " km" : "");
+        var dist = from ? haversineKm(from, s).toFixed(1) + " km" : "";
+        pills[i].querySelector("span").textContent = dist;
+        pills[i].title = (s.kind || "shop") + (realPhone(s.phone) ? " · " + realPhone(s.phone) : "") + (dist ? " · " + dist : "");
       });
     }
     say(view.length + " real pin" + (view.length === 1 ? "" : "s") + (named && named.name ? " in " + named.name : "") + ". Tap one to order.");
@@ -3240,6 +3279,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     });
   }
   var placeMark = null;
+  var lastSeat = null;
   var placeSeq = 0;
   var huntSeq = 0;
   var PLACE_WORD = /\b(greece|hellas|athens|athina|thessaloniki|rhodes|rodos|crete|heraklion|patras|london|paris|berlin|rome|madrid|lisbon|vienna|prague|budapest|warsaw|istanbul|cairo|nairobi|mombasa|kenya|lagos|tokyo|new york|chicago|dubai)\b|αθήν|αθην|ρόδο|ελλάδ/i;
@@ -3260,6 +3300,33 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (act === "city") return { item: "", place: s };
     return null;
   }
+
+  function goToPlaceAsk(q) {
+    var s = String(q || "").trim();
+    var m = s.match(/^(?:go\s+to|take\s+me\s+to|fly\s+to|open)\s+(.+)$/i);
+    if (!m) return null;
+    var dest = m[1].trim();
+    var co = dest.match(/(-?\d{1,3}(?:\.\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:\.\d+)?)/);
+    var placeBit = dest.replace(/(-?\d{1,3}(?:\.\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:\.\d+)?)/, " ").replace(/\s+/g, " ").trim();
+    if (co) {
+      var lat = +co[1], lng = +co[2];
+      if (!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+      var nm = placeBit || (lat.toFixed(3) + "," + lng.toFixed(3));
+      var g = GR_CITY[normName(placeBit.split(/\s+/)[0] || "")];
+      if (g && (!placeBit || /rhodes|rodos|athens|athina/i.test(placeBit))) {
+        // prefer named city centre when the spoken name is a known city; keep typed coords if far from catalogue
+        if (haversineKm({ lat: lat, lng: lng }, { lat: g.lat, lng: g.lng }) < 80) {
+          return { item: "", place: g.label, geo: { lat: g.lat, lng: g.lng, name: g.label }, raw: s };
+        }
+      }
+      return { item: "", place: nm, geo: { lat: lat, lng: lng, name: nm }, raw: s };
+    }
+    if (!placeBit) return null;
+    var g2 = GR_CITY[normName(placeBit.split(/\s+/)[0])];
+    if (g2) return { item: "", place: g2.label, geo: { lat: g2.lat, lng: g2.lng, name: g2.label }, raw: s };
+    return { item: "", place: placeBit, geo: null, raw: s };
+  }
+
   function cleanItem(t) {
     var s = String(t || "").trim(), was = "";
     while (s !== was) {
@@ -3361,6 +3428,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function seatPlace(geo) {
     intro = false;
+    lastSeat = geo && isFinite(+geo.lat) && isFinite(+geo.lng)
+      ? { lat: +geo.lat, lng: +geo.lng, name: geo.name || geo.label || "place" }
+      : lastSeat;
     aim = { lat: geo.lat, lng: geo.lng };
     try { flyTo(geo, 1.12); } catch (e) {}
     openCity(geo);
@@ -3448,6 +3518,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
       say("Finding " + item + " in " + place + "…");
       var job = placeShops(item, place, geo), shown = 0;
+      var placeHard = setTimeout(function () {
+        if (seq !== placeSeq || shown) return;
+        say("No real " + item + " pin in " + place + " yet (timed out). Try another name, or tap FIND.");
+      }, 18000);
       var nearGeo = nearOf(geo, 80);
       function fits() { return shops.filter(function (s) { return s && s.src === "listed" && nearGeo(s) && listedFits(s, item); }); }
       function put(found) {
@@ -3461,6 +3535,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
       job.first.then(put);
       return Promise.all([job.all, pull]).then(function (packs) {
+        clearTimeout(placeHard);
         put(packs[0]);
         if (seq !== placeSeq) return;
         if (shown) { if (packs[1].length) { shown = 0; put(packs[0]); } return; }
@@ -3492,29 +3567,70 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     closeFind();
     materialize(true);
     say("Finding " + q + (nearYou ? " near YOU" : "") + "…");
-    var hs = ++huntSeq, ps = placeSeq;
+    var hs = ++huntSeq, ps = placeSeq, huntDone = false;
+    function huntFinish(msg) {
+      if (huntDone || hs !== huntSeq) return;
+      huntDone = true;
+      if (msg) say(msg);
+    }
+    var hard = setTimeout(function () {
+      huntFinish("Search timed out" + (nearYou ? " near YOU" : "") + ". " + (here ? hereLabel() + ". " : "No location yet. ") + "Tap GPS, name a city, or try again.");
+    }, 18000);
     var go = function () {
+      if (!here) {
+        clearTimeout(hard);
+        huntFinish(nearYou
+          ? "Near YOU needs a location. Allow GPS, tap GPS, or name a city like Athens Greece."
+          : "No location yet. Tap GPS, or name a city like Athens Greece.");
+        return;
+      }
+      if (nearYou) {
+        aim = { lat: here.lat, lng: here.lng };
+        openCity(aim);
+        try { if (map) map.setView([here.lat, here.lng], 15); } catch (e) {}
+      }
       Promise.all([huntApi(q), huntNominatim(q), huntOverpass(q)]).then(function (packs) {
-        if (hs !== huntSeq || ps !== placeSeq) return;
+        clearTimeout(hard);
+        if (hs !== huntSeq || ps !== placeSeq || huntDone) return;
+        huntDone = true;
         var listed = shops.filter(function (s) { return s && s.src === "listed" && nearOf(here, 80)(s); });
         var next = uniqPlaces(listed.concat(packs[0], packs[1], packs[2]));
-        if (nearYou && !next.length && here) {
-          shops = shops.filter(nearOf(here, 80));
-          aim = { lat: here.lat, lng: here.lng };
-          openCity(aim);
-          try { if (map) map.setView([here.lat, here.lng], 15); } catch (e) {}
+        if (!next.length) {
+          if (nearYou) {
+            shops = shops.filter(nearOf(here, 80));
+            aim = { lat: here.lat, lng: here.lng };
+            openCity(aim);
+            try { if (map) map.setView([here.lat, here.lng], 15); } catch (e) {}
+          }
           paintShopsOnMap();
-          say("No real " + q + " pin near YOU (" + hereLabel() + ") yet. Try another name, or name a place.");
+          say("No real " + q + " pin" + (nearYou ? " near YOU (" + hereLabel() + ")" : "") + " yet. Try another name, or name a place.");
           return;
         }
-        if (!next.length && shops.length) { paintShopsOnMap(); say("No real pin for " + q + ". Nothing new is shown; the " + shops.length + " already on the map stay."); return; }
         shops = next;
         showFound();
         if (nearYou && here) say(q.charAt(0).toUpperCase() + q.slice(1) + " near YOU (" + hereLabel() + "): " + foundView.length + " real pin" + (foundView.length === 1 ? "" : "s") + ". Tap one to order.");
+      }).catch(function () {
+        clearTimeout(hard);
+        huntFinish("Search failed for " + q + ". Try again, or name a city.");
       });
     };
-    if (!here) locate(function (pt) { land(pt, false, true); go(); });
-    else go();
+    if (!here) {
+      locate(function (pt) {
+        if (hs !== huntSeq) return;
+        if (!pt || !isFinite(+pt.lat) || !isFinite(+pt.lng)) {
+          clearTimeout(hard);
+          huntFinish(nearYou
+            ? "Near YOU needs GPS or an approx IP location. Allow location, tap GPS, or name a city."
+            : "No location yet. Tap GPS, or name a city like Athens Greece.");
+          return;
+        }
+        land(pt, false, true, true);
+        if (pt.how === "net" || pt.how === "saved") {
+          say((pt.how === "net" ? "Approx. IP location" : "Saved location") + " · hunting " + q + "…");
+        }
+        go();
+      }, true);
+    } else go();
   }
   function pullListings() {
     if (!here) return;
@@ -3566,7 +3682,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ? '<a class="sn-tel" href="tel:' + String(phone).replace(/[^\d+]/g, "") + '">' + esc(phone) + "</a>"
       : '<span class="sn-miss">No phone listed</span>';
     var addr = where ? '<span class="sn-miss">' + esc(where) + "</span>" : '<span class="sn-miss">No address listed</span>';
-    return tel + addr;
+    return tel + '<span class="sn-gap"> · </span>' + addr;
   }
   function openTile(o) {
     o = o || {};
@@ -4029,7 +4145,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function openFind() {
     materialize(true);
     var inp = $("in");
-    if (inp) { inp.focus(); say("Name a place or a shop. Ordinary language."); }
+    if (inp) inp.focus();
+    var visible = (shops || []).filter(function (s) { return s && !junkPlace(s) && seesShop(s); });
+    if (!visible.length) {
+      say("FIND is empty here: no real pins on the map yet. Name a place (Athens Greece) or a shop, or tap GPS for near YOU.");
+      return;
+    }
+    showFound(null, visible);
   }
   function openNode() {
     materialize(true);
@@ -4221,14 +4343,34 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var nearItem = nearYouItem(q);
     if (nearItem) { hunt(nearItem, true); return; }
     if (runLine(q)) return;
+    var goAsk = goToPlaceAsk(q);
+    if (goAsk) {
+      if (goAsk.geo) { huntPlace(goAsk); return; }
+      say("Finding " + goAsk.place + "…");
+      placeGeo(goAsk.place).then(function (geo) {
+        if (geo) huntPlace({ item: "", place: geo.name || goAsk.place, geo: geo, raw: q });
+        else say("No map pin for " + goAsk.place + " yet. Try the city and country, like Rhodes Greece.");
+      }, function () { say("No map pin for " + goAsk.place + " yet."); });
+      return;
+    }
+    var seatedCat = cleanItem(q);
+    if (seatedCat && lastSeat && isFinite(+lastSeat.lat) && NOT_PLACE[normName(seatedCat)] && !namedPlaceAsk(q, "")) {
+      huntPlace({ item: seatedCat, place: lastSeat.name || "here", geo: lastSeat, raw: q });
+      return;
+    }
     var bs = ++bareSeq, bare = barePlaceWord(q);
     if (bare) {
       say("Finding " + bare + "…");
+      var bareHard = setTimeout(function () {
+        if (bs !== bareSeq) return;
+        say("No map pin for " + bare + " yet. Try the city and country, like Athens Greece.");
+      }, 15000);
       placeGeo(bare).then(function (geo) {
+        clearTimeout(bareHard);
         if (bs !== bareSeq) return;
         if (geo) { huntPlace({ item: "", place: geo.name, geo: geo, raw: q }); return; }
         grokTalk(q);
-      }, function () { if (bs === bareSeq) grokTalk(q); });
+      }, function () { clearTimeout(bareHard); if (bs === bareSeq) grokTalk(q); });
       return;
     }
     grokTalk(q);
@@ -4431,7 +4573,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
   }
   function layoutChrome() {
-    ["sn-me", "gps", "sn-money", "sn-support", "sn-power"].forEach(function (id) {
+    var dock = $("dock");
+    if (dock) document.documentElement.style.setProperty("--dock", dock.offsetHeight + "px");
+    ["sn-me", "gps", "sn-money", "sn-support", "sn-power", "plus", "go"].forEach(function (id) {
       var el = $(id);
       if (!el) return;
       ["top", "left", "right", "bottom", "transform"].forEach(function (k) { el.style.removeProperty(k); });
@@ -4677,13 +4821,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (act === "sheet-x") {
         if (Date.now() < sheetArm) return;
         var shx = $("sn-sheet");
+        sheetHold = true;
         if (shx && shx.classList.contains("offer")) {
           var dropId = dockFocus;
+          try { if (dropId) sessionStorage.setItem("sn:offer-x:" + dropId, "1"); } catch (e) {}
           dockTabs = dockTabs.filter(function (t) { return !(t && t.kind === "offer" && (!dropId || t.id === dropId)); });
-          dockFocus = dockTabs.length ? dockTabs[dockTabs.length - 1].id : "";
+          dockFocus = "";
           paintDockTabs();
         }
         closeSheet();
+        sheetHold = true;
         return;
       }
       if (act === "sheet-apply") { applySheet(); return; }

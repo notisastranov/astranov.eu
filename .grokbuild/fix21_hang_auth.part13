@@ -1,0 +1,17 @@
+id not finish."); return false; });
+    }"""
+
+if "without the local key" not in a:
+    must(old_ex in a, "auth exchange block")
+    a = a.replace(old_ex, new_ex, 1)
+    print("ok auth pkce-only exchange")
+else:
+    print("auth exchange already")
+
+# Ensure google()/x() use location.origin (already true) — add comment via no-op check
+if "var dest = location.origin + \"/?auth=google\"" not in a:
+    raise SystemExit("FAIL: google redirect not location.origin")
+print("ok auth redirect_to = location.origin")
+
+open(B, "w", encoding="utf-8").write(a)
+print("fix21 done")

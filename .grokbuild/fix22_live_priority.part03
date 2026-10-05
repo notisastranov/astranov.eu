@@ -1,0 +1,42 @@
+pId)); });
+          dockFocus = "";
+          paintDockTabs();
+        }
+        closeSheet();
+        sheetHold = true;
+        return;
+      }"""
+if "sn:offer-x:" not in s:
+    must(old_x in s, "sheet-x offer block")
+    s = s.replace(old_x, new_x, 1)
+    print("ok offer X dismiss")
+else:
+    print("offer X already")
+
+# throwOffer: skip if user dismissed this offer id
+old_to = """  function throwOffer(job) {
+    var id = "offer-" + (job && job.id ? job.id : Date.now().toString(36));
+    var fee = job && (job.fee != null ? job.fee : job.total);"""
+new_to = """  function throwOffer(job) {
+    var id = "offer-" + (job && job.id ? job.id : Date.now().toString(36));
+    try { if (sessionStorage.getItem("sn:offer-x:" + id)) return; } catch (e) {}
+    var fee = job && (job.fee != null ? job.fee : job.total);"""
+if "sn:offer-x:" + " + id" not in s and 'sn:offer-x:" + id' not in s:
+    if old_to in s:
+        s = s.replace(old_to, new_to, 1)
+        print("ok throwOffer respect dismiss")
+    else:
+        print("WARN throwOffer")
+else:
+    print("throwOffer dismiss already")
+
+# ---- (5) go to Rhodes / coords land ----
+# Insert goToPlace helper + talk() branch before seatedCat
+if "function goToPlaceAsk" not in s:
+    helper = r'''
+  function goToPlaceAsk(q) {
+    var s = String(q || "").trim();
+    var m = s.match(/^(?:go\s+to|take\s+me\s+to|fly\s+to|open)\s+(.+)$/i);
+    if (!m) return null;
+    var dest = m[1].trim();
+    var co = dest.match(/(-?\d{1,3}(?:\.\d+)?)\s*[,;\s]\s*(-?\d

@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+"""Live V4325 standing-test priorities on merged tree."""
+import re
+
+A = "js/spacenet/app.js"
+s = open(A, encoding="utf-8").read()
+
+def must(c, m):
+    if not c: raise SystemExit("FAIL: " + m)
+
+# ---- (3) Ribbon flush at top:0 (no permanent 55px gap). Power/support stay at top:8. ----
+# Reverse any top:56 we forced; index + inject both to top:0.
+idx = open("index.html", encoding="utf-8").read()
+idx2 = idx.replace("#top{top:56px !important", "#top{top:0 !important")
+idx2 = idx2.replace("#top{top:56px!important", "#top{top:0!important")
+# keep at least one top:0 rule
+if "top:0" not in idx2 and "#top{" in idx2:
+    idx2 = re.sub(r"#top\{top:\s*\d+px", "#top{top:0px", idx2, count=1)
+open("index.html", "w", encoding="utf-8").write(idx2)
+print("ok index top:0")
+
+# In app inject CSS: force #top{top:0!important} and remove our +56 overrides that create the gap
+s = s.replace('"#top{top:56px!important}"', '"#top{top:0!important}"')
+s = s.replace('"#top{top:56px!important;', '"#top{top:0!important;')
+# If layout CSS block still has top:56 from main, add a later winning top:0
+if '"#top{top:0!important}"' not in s:
+    m = re.search(r'"#top\{top:[^"]+"', s)
+    if m:
+        s = s[: m.end()] + ',"#top{top:0!important}"' + s[m.end() :]
+        print("ok inject top:0")
+else:
+    print("top:0 inject present")
+
+# Ensure liftChrome keeps top at 0 (already does)
+must('top.style.setProperty("top", "0px", "important")' in s, "liftChrome top 0")
+
+# ---- (1) showFound: filter

@@ -1,0 +1,32 @@
+
+          talk((j && (j.error_description || j.msg || j.error)) || "Google code was not exchanged.");
+          return false;
+        })
+        .then(function (ok) { clean(); return ok; })
+        .catch(function () { clean(); talk("Google sign-in did not finish."); return false; });
+    }"""
+
+new_ex = """    if (code) {
+      var ver = read("sn:pkce", "");
+      // This project's GoTrue accepts grant_type=pkce (with auth_code + code_verifier).
+      // grant_type=authorization_code returns 400 unsupported_grant_type (seen in auth logs).
+      if (!ver) {
+        talk("Sign-in code arrived without the local key. Start LOGIN again on this same site (preview stays on the preview URL).");
+        clean();
+        return Promise.resolve(false);
+      }
+      var body = { grant_type: "pkce", auth_code: code, code_verifier: ver };
+      return fetch(SB + "/auth/v1/token?grant_type=" + encodeURIComponent(body.grant_type), {
+        method: "POST",
+        headers: { apikey: ANON, "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          write("sn:pkce", "");
+          if (j && j.access_token) return takeUser(j.access_token);
+          talk((j && (j.error_description || j.msg || j.error)) || "Google code was not exchanged.");
+          return false;
+        })
+        .then(function (ok) { clean(); return ok; })
+        .catch(function () { clean(); talk("Google sign-in d

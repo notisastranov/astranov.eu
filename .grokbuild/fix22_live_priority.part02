@@ -1,0 +1,36 @@
+ var kind = sh.getAttribute("data-kind") || "";
+          if (/^(vendor|driver|client|list)$/.test(kind)) { closeSheet(); return; }
+        }
+        var t = Date.now();
+        if (t - lastTap < 320) closeCity();
+        lastTap = t;
+      });"""
+if old_map_click in s:
+    s = s.replace(old_map_click, new_map_click, 1)
+    print("ok map click closes tile")
+elif "closeSheet(); return;" in s and "map.on(\"click\"" in s:
+    print("map click already")
+else:
+    print("WARN map click")
+
+# ---- (2) Offer X stays closed: clear dockFocus, sheetHold, dismiss id ----
+old_x = """      if (act === "sheet-x") {
+        if (Date.now() < sheetArm) return;
+        var shx = $("sn-sheet");
+        if (shx && shx.classList.contains("offer")) {
+          var dropId = dockFocus;
+          dockTabs = dockTabs.filter(function (t) { return !(t && t.kind === "offer" && (!dropId || t.id === dropId)); });
+          dockFocus = dockTabs.length ? dockTabs[dockTabs.length - 1].id : "";
+          paintDockTabs();
+        }
+        closeSheet();
+        return;
+      }"""
+new_x = """      if (act === "sheet-x") {
+        if (Date.now() < sheetArm) return;
+        var shx = $("sn-sheet");
+        sheetHold = true;
+        if (shx && shx.classList.contains("offer")) {
+          var dropId = dockFocus;
+          try { if (dropId) sessionStorage.setItem("sn:offer-x:" + dropId, "1"); } catch (e) {}
+          dockTabs = dockTabs.filter(function (t) { return !(t && t.kind === "offer" && (!dropId || t.id === dro
