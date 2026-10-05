@@ -23,6 +23,7 @@ jobs:
           echo "main tip $MAIN"
           test "$MAIN" = "a00fe522b1d4765f855bc96353d374a74aaf6d73" || { echo "main moved past 4325; remine before restamping"; exit 1; }
           git merge -q --no-edit "$MAIN" || true
+          bash .grokbuild/stitch_fixes.sh
           python3 .grokbuild/resolve.py
           python3 .grokbuild/fix20.py
           python3 .grokbuild/fix21_hang_auth.py
