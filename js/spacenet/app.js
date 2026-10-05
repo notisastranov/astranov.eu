@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4315";
+  var VER = "4316";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1442,7 +1442,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-topchrome-drag{display:none!important;height:0!important;min-height:0!important;max-height:0!important;padding:0!important;margin:0!important;border:0!important}",
       "#top{top:0!important;margin:0!important;padding:0!important}",
       "#island{margin-top:0!important;padding-top:0!important}",
-      "#sn-pulse{position:fixed;top:36px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(255,176,32,.7);color:#ffb020;font:700 10px/14px ui-monospace,monospace;pointer-events:none}",
+      "#sn-count{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;pointer-events:none;background:transparent}",
+      "#sn-count.on{display:flex}",
+      "#sn-count b{font:800 46vw/0.78 system-ui;color:#e8fbff;letter-spacing:-.08em;text-shadow:0 0 8px #fff,0 0 18px #4df0ff,0 0 36px #4df0ff,0 0 72px #1a6cff,0 0 120px #1a6cff}",
+      "#sn-pulse{position:fixed;top:36px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(255,176,32,.7);color:#ffb020;font:700 10px/14px ui-monospace,monospace;pointer-events:none}",,
     ].join("");
     document.head.appendChild(s);
   }
@@ -2142,20 +2145,139 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     el.textContent = "LIVE · " + place + " · " + drivers + " driver" + (drivers === 1 ? "" : "s") + " · " + orders + " order" + (orders === 1 ? "" : "s");
   }
   var roads = {};
+  var roadAlts = {};
+  var roadTold = {};
+  var roadPaint = {};
   function roadKey(a, b) {
     if (!a || !b || !isFinite(+a.lat) || !isFinite(+b.lat)) return "";
     return (+a.lat).toFixed(4) + "," + (+a.lng).toFixed(4) + ">" + (+b.lat).toFixed(4) + "," + (+b.lng).toFixed(4);
+  }
+  function routeLines(j) {
+    var routes = (j && j.routes) || [];
+    return routes.map(function (r) {
+      var g = r && r.geometry;
+      return g && g.coordinates ? g.coordinates.map(function (c) { return { lat: c[1], lng: c[0] }; }) : null;
+    }).filter(function (l) { return l && l.length > 1; });
   }
   function askRoad(a, b) {
     var key = roadKey(a, b);
     if (!key || key in roads) return;
     roads[key] = null;
-    var url = "https://router.project-osrm.org/route/v1/driving/" + a.lng + "," + a.lat + ";" + b.lng + "," + b.lat + "?overview=full&geometries=geojson";
+    var url = "https://router.project-osrm.org/route/v1/driving/" + a.lng + "," + a.lat + ";" + b.lng + "," + b.lat + "?alternatives=true&overview=full&geometries=geojson";
     fetchJson(url).then(function (j) {
-      var geo = j && j.routes && j.routes[0] && j.routes[0].geometry;
-      var line = geo && geo.coordinates ? geo.coordinates.map(function (c) { return { lat: c[1], lng: c[0] }; }) : null;
-      roads[key] = line && line.length > 1 ? line : null;
+      var lines = routeLines(j);
+      roads[key] = lines[0] || null;
+      roadAlts[key] = lines;
+      if (lines.length > 1 && !roadTold[key]) {
+        roadTold[key] = 1;
+        say(lines.length + " roads. The bright line is the route. Tap a dim one to take it.");
+      }
     }).catch(function () { delete roads[key]; });
+  }
+  function paintRoads(id, lines, chosen) {
+    if (!map || typeof L === "undefined" || !lines || !lines.length) return;
+    (roadPaint[id] || []).forEach(function (l) { try { map.removeLayer(l); } catch (e) {} });
+    roadPaint[id] = [];
+    lines.forEach(function (line, i) {
+      var ll = line.map(function (p) { return [p.lat, p.lng]; });
+      var on = i === chosen;
+      var glow = L.polyline(ll, { color: "#4df0ff", weight: on ? 18 : 10, opacity: on ? 0.34 : 0.14, interactive: false }).addTo(map);
+      var core = L.polyline(ll, { color: on ? "#e8fbff" : "#7ee9ff", weight: on ? 5 : 3, opacity: on ? 1 : 0.72 }).addTo(map);
+      if (!on) core.on("click", function (e) {
+        if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent);
+        pickRoad(id, i);
+      });
+      roadPaint[id].push(glow, core);
+    });
+  }
+  function pickRoad(id, i) {
+    var lines = roadAlts[id];
+    if (!lines || !lines[i]) return;
+    roads[id] = lines[i];
+    paintRoads(id, lines, i);
+    say("Road " + (i + 1) + ".");
+  }
+  function distToSeg(p, a, b) {
+    var mid = ((+a.lat + +b.lat) / 2) * Math.PI / 180;
+    var mlat = 111320, mlng = 111320 * Math.cos(mid);
+    var bx = (+b.lng - +a.lng) * mlng, by = (+b.lat - +a.lat) * mlat;
+    var px = (+p.lng - +a.lng) * mlng, py = (+p.lat - +a.lat) * mlat;
+    var len2 = bx * bx + by * by;
+    var t = len2 ? Math.max(0, Math.min(1, (px * bx + py * by) / len2)) : 0;
+    var dx = px - bx * t, dy = py - by * t;
+    return Math.sqrt(dx * dx + dy * dy) / 1000;
+  }
+  function distToRoad(pt, line) {
+    if (!pt || !line || line.length < 2) return 0;
+    var best = 1e9, i;
+    for (i = 1; i < line.length; i++) best = Math.min(best, distToSeg(pt, line[i - 1], line[i]));
+    return best;
+  }
+  function closedToday(id) {
+    try {
+      var book = JSON.parse(localStorage.getItem("sn:closed") || "{}") || {};
+      return book[String(id)] === new Date().toDateString();
+    } catch (e) { return false; }
+  }
+  function dropOrder(job, who, why) {
+    var destroyed = Number(job.food || job.fee || 0);
+    var delay = Math.max(3, Math.ceil(Number(job.km) || 1));
+    var refund = Number(job.fee || destroyed);
+    var bill = Math.round((destroyed + delay + refund) * 100) / 100;
+    var id = (who && (who.id || who.name)) || job.driverId || job.driver || "driver";
+    var book = {};
+    try { book = JSON.parse(localStorage.getItem("sn:closed") || "{}") || {}; } catch (e) {}
+    book[String(id)] = new Date().toDateString();
+    try { localStorage.setItem("sn:closed", JSON.stringify(book)); } catch (e2) {}
+    if (who) { who.free = false; who.closed = book[String(id)]; who.debt = Math.round(((who.debt || 0) + bill) * 100) / 100; }
+    if (myRole() === "driver" && signed()) avcSet(Math.round((avcGet() - bill) * 100) / 100);
+    job.dropped = true;
+    job.dropWhy = why;
+    job.charge = bill;
+    job.driver = "";
+    job.driverId = "";
+    job.driverOwner = "";
+    job.driverAccepted = false;
+    job.verified = false;
+    job.got = false;
+    job.stage = "drivers";
+    job.watch = null;
+    job.redispatch = (job.redispatch || 0) + 1;
+    saveJobs();
+    publishJob(job);
+    say((who && who.name || "Driver") + " closed for today. Destroyed " + destroyed + " · delay " + delay + " · refund " + refund + " · charged " + bill + " AV€. " + why + ". Back to the drivers.");
+    var drivers = freeDrivers(job.vendor);
+    if (drivers.length) openDriverOffer(job, drivers);
+  }
+  function watchRoute() {
+    if (!here || !isFinite(+here.lat)) return;
+    var now = Date.now();
+    jobs.forEach(function (job) {
+      if (!job || job.received || job.delivered || !job.got || !job.verified || !job.vendor || !job.drop) return;
+      var who = null;
+      people.forEach(function (p) {
+        if (p && (String(p.id) === String(job.driverId) || (job.driver && p.name === job.driver))) who = p;
+      });
+      if (!who && driverPin && job.driver && driverPin.name === job.driver) who = driverPin;
+      var mine = myRole() === "driver" || (who && who.owner === me()) || isAdmin();
+      if (!mine) return;
+      var line = roads[roadKey(job.vendor, job.drop)];
+      if (!line || !line.length) return;
+      var off = distToRoad(here, line);
+      if (!job.watch) job.watch = { lat: +here.lat, lng: +here.lng, moved: now, off: 0 };
+      if (haversineKm(job.watch, here) > 0.02) {
+        job.watch.lat = +here.lat;
+        job.watch.lng = +here.lng;
+        job.watch.moved = now;
+      }
+      if (off > 0.015) { if (!job.watch.off) job.watch.off = now; }
+      else job.watch.off = 0;
+      var why = "";
+      if (off > 0.03) why = "30 m off the route";
+      else if (job.watch.off && now - job.watch.off >= 180000) why = "off the route for 3 min";
+      else if (now - job.watch.moved >= 180000) why = "stationary for 3 min";
+      if (why) dropOrder(job, who, why);
+    });
   }
   function alongRoad(line, u) {
     if (!line || line.length < 2) return null;
@@ -2209,15 +2331,20 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       seen["job:" + j.id] = 1;
       var road = roads[roadKey(j.vendor, j.drop)];
       if (!road) { askRoad(j.vendor, j.drop); return; }
-      var latlngs = road.map(function (p) { return [p.lat, p.lng]; });
-      if (!liveLines[j.id]) liveLines[j.id] = L.polyline(latlngs, { color: "#ffb020", weight: 5, opacity: 0.95 }).addTo(map);
-      else liveLines[j.id].setLatLngs(latlngs);
+      var key = roadKey(j.vendor, j.drop);
+      var lines = roadAlts[key] && roadAlts[key].length ? roadAlts[key] : [road];
+      var chosen = Math.max(0, lines.indexOf(road));
+      if (!liveLines[j.id] || liveLines[j.id] !== chosen) {
+        paintRoads(key, lines, chosen);
+        liveLines[j.id] = chosen;
+      }
     });
     var fleet = people.filter(function (p) { return p && p.role === "driver" && seesDriver(p); });
     if (driverPin && isFinite(+driverPin.lat) && !fleet.some(function (p) { return haversineKm(p, driverPin) < 0.05; })) {
       fleet.push({ id: "pin", name: driverPin.name || "driver", role: "driver", lat: driverPin.lat, lng: driverPin.lng, photo: driverPin.photo || "", owner: me() });
     }
     fleet.forEach(function (p) {
+      if (closedToday(p.id || p.name)) return;
       var step = driverStep(p);
       if (!step) return;
       var id = "drv:" + (p.id || p.name);
@@ -2236,7 +2363,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     });
     Object.keys(liveLines).forEach(function (id) {
       if (seen["job:" + id]) return;
-      try { map.removeLayer(liveLines[id]); } catch (e) {}
       delete liveLines[id];
     });
     Object.keys(motionMarks).forEach(function (id) {
@@ -2244,6 +2370,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       try { map.removeLayer(motionMarks[id]); } catch (e) {}
       delete motionMarks[id];
     });
+    watchRoute();
   }
   function paintAdminPins() {
     function put(pt, color, label, onDrag) {
@@ -2427,6 +2554,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     var open = [];
     drivers.forEach(function (d) {
+      if (closedToday(d.id || d.name)) return;
       var busy = jobs.some(function (j) { return j && j.verified && !j.delivered && j.driverId && String(j.driverId) === String(d.id); });
       if (!busy) open.push(d);
     });
@@ -2595,14 +2723,18 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function drawRoute(from, to) {
     if (!map || typeof L === "undefined") return;
     if (routeLayer) try { map.removeLayer(routeLayer); } catch (e) {}
-    var url = "https://router.project-osrm.org/route/v1/driving/" + from.lng + "," + from.lat + ";" + to.lng + "," + to.lat + "?overview=full&geometries=geojson";
+    routeLayer = null;
+    var key = roadKey(from, to);
+    var url = "https://router.project-osrm.org/route/v1/driving/" + from.lng + "," + from.lat + ";" + to.lng + "," + to.lat + "?alternatives=true&overview=full&geometries=geojson";
     fetchJson(url).then(function (j) {
-      var geo = j && j.routes && j.routes[0] && j.routes[0].geometry;
-      var line = geo && geo.coordinates ? geo.coordinates.map(function (c) { return { lat: c[1], lng: c[0] }; }) : null;
-      if (line && line.length > 1) roads[roadKey(from, to)] = line;
-      var latlngs = line && line.length ? line.map(function (p) { return [p.lat, p.lng]; }) : [[from.lat, from.lng], [to.lat, to.lng]];
-      routeLayer = L.polyline(latlngs, { color: "#4df0ff", weight: 4, opacity: 0.85 }).addTo(map);
+      var lines = routeLines(j);
+      if (!lines.length) lines = [[{ lat: from.lat, lng: from.lng }, { lat: to.lat, lng: to.lng }]];
+      roads[key] = lines[0];
+      roadAlts[key] = lines;
+      paintRoads(key, lines, 0);
+      routeLayer = roadPaint[key] && roadPaint[key][0];
       fitOfferRoute();
+      if (lines.length > 1) say(lines.length + " roads. The bright line is the route. Tap a dim one to take it.");
     });
   }
   function sendJob() {
@@ -3300,17 +3432,27 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (holdP) clearInterval(holdP);
         holdFrom = Date.now();
         var n = 3;
-        say("Power " + n);
+        var box = $("sn-count");
+        function flash(num) {
+          if (!box) return;
+          box.classList.add("on");
+          box.innerHTML = "<b>" + num + "</b>";
+        }
+        function clearFlash() { if (box) { box.classList.remove("on"); box.innerHTML = ""; } }
+        flash(n);
         holdP = setInterval(function () {
           n -= 1;
-          if (n > 0) { say("Power " + n); return; }
+          if (n > 0) { flash(n); return; }
           clearInterval(holdP); holdP = 0;
+          clearFlash();
           setOffers(!offersOn());
         }, 1000);
+        power.__clearFlash = clearFlash;
       });
       function cancelHold() {
         if (!holdP) return;
         clearInterval(holdP); holdP = 0;
+        if (power.__clearFlash) power.__clearFlash();
         if (Date.now() - holdFrom < 2800) say("Hold 3 seconds.");
       }
       power.addEventListener("pointerup", cancelHold);
