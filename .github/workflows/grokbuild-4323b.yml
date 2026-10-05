@@ -1,0 +1,32 @@
+name: grokbuild 4323b apply (branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4307-talk-city-pins"]
+    paths: [".grokbuild/**"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4307-talk-city-pins
+          fetch-depth: 0
+      - name: Fix moveDriver for driver role, keep stamp 4323, drop kit, commit
+        run: |
+          set -e
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch -q origin main
+          MAIN=$(git rev-parse origin/main)
+          echo "main tip $MAIN"
+          test "$MAIN" = "d8b447f44ecdb95e19f548784241b0b8c91d62cf" || { echo "main moved; remine"; exit 1; }
+          test "$(cat VERSION)" = "4323"
+          python3 .grokbuild/fix19.py
+          python3 .grokbuild/verify.py
+          node --check js/spacenet/app.js
+          git rm -q -r .grokbuild .github/workflows/grokbuild-4323b.yml
+          git add -A
+          git commit -q -m "4323: moveDriver allows the signed-in driver to move their own pin (no auto-teleport; preview, do not merge)"
+          git push origin HEAD:grokbuild/4307-talk-city-pins
