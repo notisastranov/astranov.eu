@@ -1,0 +1,35 @@
+rn r.json(); }).then(function (j) {
+      clearTimeout(kill);
+      var text = j && (j.say || j.text);
+      if (!text) { once((j && j.error) || "quiet"); return; }
+      hist.push({ role: "user", content: q });
+      hist.push({ role: "assistant", content: text });
+      if (hist.length > 16) hist = hist.slice(-16);
+      once(null, j);
+    }).catch(function () { clearTimeout(kill); once("dark"); });
+  }"""
+if "once(\"timeout\")" not in s:
+    must(old_ag in s, "askGrok block")
+    s = s.replace(old_ag, new_ag, 1)
+    print("ok askGrok timeout")
+else:
+    print("askGrok timeout already")
+
+# ---- locate always settles ----
+old_loc_end = """    if (!navigator.geolocation) { coarse(); return; }
+    if (!quiet) say("Locating…");
+    var watchId = 0;
+    try {
+      watchId = navigator.geolocation.watchPosition(gps, function () {}, { enableHighAccuracy: false, maximumAge: 300000, timeout: 20000 });
+    } catch (e) {}
+    navigator.geolocation.getCurrentPosition(gps, function () {
+      navigator.geolocation.getCurrentPosition(gps, function (err) {
+        if (gotGps) return;
+        if (!quiet && err && err.code === 1) say("Location is blocked. Allow it for this site, then tap GPS.");
+        coarse();
+      }, { enableHighAccuracy: false, timeout: 20000, maximumAge: 300000 });
+    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+    setTimeout(function () { if (!gotGps) coarse(); }, 14000);
+  }"""
+
+# Replace locate function more carefully - inject settled wra
