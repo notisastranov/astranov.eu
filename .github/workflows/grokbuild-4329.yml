@@ -1,0 +1,55 @@
+name: grokbuild 4329 stamp+dedupe (branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4329.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Decode fix30; stamp 4329 lockstep; assert no mangled ?v=; drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch -q origin main
+          MAIN=$(git rev-parse origin/main)
+          echo "main tip $MAIN"
+          test "$MAIN" = "bebfcb0961282720f416d2dd5e235c72eb5b30c0" || { echo "main moved"; exit 1; }
+          grep -q 'function resolveDrop' js/spacenet/app.js
+          cd .grokbuild
+          : > fix30_guest_dedupe.py
+          for f in $(ls fix30.part*.b64 | sort); do base64 -d "$f" >> fix30_guest_dedupe.py; done
+          wc -c fix30_guest_dedupe.py
+          test "$(sha256sum fix30_guest_dedupe.py | awk '{print $1}')" = "9e2804cdbd43fc19e4ee250321290ee3061f83c9a9a46fbe8485821e7d13e164"
+          cd ..
+          python3 .grokbuild/fix30_guest_dedupe.py
+          bash .grokbuild/stamp4329.sh
+          # P0: never ship mangled app.jsg*
+          ! grep -n 'app\.jsg' index.html
+          grep -q 'app.js?v=4329' index.html
+          grep -q 'auth.js?v=4329' index.html
+          grep -q 'leaflet.js?v=4329' index.html
+          grep -q 'leaflet.css?v=4329' index.html
+          grep -q 'guardian.js?v=4329' index.html
+          grep -q 'content="4329"' index.html
+          grep -q '>V4329<' index.html
+          grep -q 'var VER = "4329"' js/spacenet/app.js
+          grep -q 'findOpenTwin' js/spacenet/app.js
+          grep -q 'sn-shell-4329' sw.js
+          grep -q 'latest: "4329"' api/version.js
+          grep -q '4329-real' vercel.json
+          node --check js/spacenet/app.js
+          git rm -q -r .grokbuild .github/workflows/grokbuild-4329.yml || true
+          # remove any leftover 4328 kit workflow if present
+          git rm -q -f .github/workflows/grokbuild-4328.yml 2>/dev/null || true
+          git add -A
+          git status --short | head -40
+          git commit -q -m "4329: lockstep stamp (fix mangled app.jsg); guest Apply reuses open same shop+items+drop (preview, do not merge)"
+          git push origin HEAD:grokbuild/4328-street-level-gps
