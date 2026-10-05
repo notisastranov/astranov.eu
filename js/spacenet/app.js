@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4314";
+  var VER = "4315";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -63,7 +63,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var here = null;
   var intro = true;
   var introT0 = 0;
-  var newsI = -1;
+  var BRIEF = [
+    { k: "CALENDAR", t: "Sun 11 Oct · Genethlia Rosos IDRISI ASTRANOV NOTIS" },
+    { k: "NEWS", t: "Dodecanese · rain and storms, wind to 7 Beaufort, mainly Rhodes · 4 Oct" }
+  ];
+  var briefI = -1;
+  var seated = false;
   var stars = [];
   var shops = [];
   var map = null;
@@ -484,7 +489,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     night.addColorStop(1, "rgba(2,6,12,0)");
     ctx.fillStyle = night;
     ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
-    var sweepLng = solarLngDeg() + (earthSpin() * 180) / Math.PI;
+    var sweepLng = ((now / 90) % 360) - 180;
     ctx.beginPath(); first = true;
     for (lat = -80; lat <= 80; lat += 3) {
       p = project(lat, sweepLng, cam);
@@ -644,6 +649,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
       return;
     }
+    if (!fly && !seated && !drag && !cityOn) {
+      if (cam.dist < 1.7 || cam.dist > 2.2) cam.dist = 1.85;
+      cam.yaw += dt * 0.16;
+      return;
+    }
     if (intro) {
       if (cam.dist < 1.7 || cam.dist > 2.05) cam.dist = 1.85;
       return;
@@ -657,10 +667,44 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     vel.yaw = 0; vel.pitch = 0;
   }
+  function cardsNow() {
+    var rows = BRIEF.slice();
+    var n = 0;
+    jobs.forEach(function (j) { if (j && !j.received && seesJob(j)) n++; });
+    if (n) rows.unshift({ k: "NOTICE", t: n + " open order" + (n === 1 ? "" : "s") });
+    return rows;
+  }
   function tickNews(now) {
-    if (!intro || supportOn || (Date.now() - sayHold < 12000)) return;
-    var i = Math.floor(now / 1850) % NEWS.length;
-    if (i !== newsI) { newsI = i; say(NEWS[i] + " · then we zoom to you"); }
+    if (cityOn || supportOn) return;
+    var rows = cardsNow();
+    if (!rows.length) return;
+    var i = Math.floor(now / 4200) % rows.length;
+    if (i === briefI) return;
+    briefI = i;
+    say(rows[i].k + " · " + rows[i].t);
+  }
+  function drawCard(now) {
+    if (!ctx || cityOn) return;
+    var rows = cardsNow();
+    if (!rows.length) return;
+    var row = rows[Math.floor(now / 4200) % rows.length];
+    var text = row.k + "  " + row.t;
+    ctx.save();
+    ctx.font = "600 13px system-ui,sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    var tw = ctx.measureText(text).width;
+    var w = Math.min(view.w - 24, tw + 22);
+    var x = (view.w - w) / 2;
+    var y = Math.max(8, view.h - 36);
+    ctx.fillStyle = "rgba(4,14,28,0.86)";
+    ctx.fillRect(x, y, w, 24);
+    ctx.strokeStyle = "rgba(77,240,255,0.75)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, 23);
+    ctx.fillStyle = "#e8fbff";
+    ctx.fillText(text, x + 10, y + 12, w - 18);
+    ctx.restore();
   }
   function loop(now) {
     var dt = Math.min(0.05, lastT ? (now - lastT) / 1000 : 0.016);
@@ -669,7 +713,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (intro && now - introT0 >= INTRO_MS) endIntro();
     stepCam(now, dt);
     tickNews(now);
-    if (!cityOn) drawGlobe(now);
+    if (!cityOn) { drawGlobe(now); drawCard(now); }
     if (skyOn) drawSky(now);
     paintMonitor(now);
     maybeLayout();
@@ -891,6 +935,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     setTimeout(function () { if (!gotGps) coarse(); }, 14000);
   }
   function land(pt, open) {
+    seated = true;
     intro = false;
     if (pt.how === "gps") {
       hereLive = { lat: pt.lat, lng: pt.lng };
@@ -1617,11 +1662,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       });
       shops = uniqPlaces(shops);
       paintPulse();
-      if (isAdmin() && !liveOpened && here && isFinite(+here.lat) && shops.length) {
-        liveOpened = true;
-        if (!cityOn) openCity(here);
-        return;
-      }
       if (cityOn) paintShopsOnMap();
     }).catch(function () {});
   }
@@ -4592,11 +4632,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     try { homeDrop = JSON.parse(localStorage.getItem("sn:home") || "null"); } catch (e) {}
     try { driverPin = JSON.parse(localStorage.getItem("sn:driver") || "null"); } catch (e) {}
     try { people = JSON.parse(localStorage.getItem("sn:people") || "[]") || []; } catch (e2) { people = []; }
-    try {
-      var savedHere = JSON.parse(localStorage.getItem("sn:here") || "null");
-      if (savedHere && isFinite(+savedHere.lat) && isFinite(+savedHere.lng)) land({ lat: +savedHere.lat, lng: +savedHere.lng, how: "saved" }, false);
-    } catch (e) {}
-    locate(function (pt) { land(pt, false); }, true);
+    locate(function (pt) {
+      if (seated || !pt) return;
+      here = { lat: pt.lat, lng: pt.lng };
+      window.__SN_HERE = here;
+      try { localStorage.setItem("sn:here", JSON.stringify(here)); } catch (e) {}
+    }, true);
+    fetch("/agenda.json", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
+      if (j && j.cards && j.cards.length) BRIEF = j.cards;
+    }).catch(function () {});
     setTimeout(pullQueue, 600);
     setInterval(pullQueue, 4000);
     loadBlocks();
