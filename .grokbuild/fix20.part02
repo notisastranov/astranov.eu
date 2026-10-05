@@ -1,0 +1,30 @@
+n s:
+    print("pill fill already patched")
+else:
+    print("WARN pill fill pattern")
+
+# (d) tileContact separators
+if "return tel + addr;" in s:
+    s = s.replace("return tel + addr;", 'return tel + \'<span class="sn-gap"> · </span>\' + addr;', 1)
+    print("ok tileContact")
+elif "sn-gap" in s:
+    print("tileContact already spaced")
+else:
+    print("WARN tileContact")
+
+# Inject layout CSS (a)(c)(f) after first #top{top:0!important}
+LAYOUT = (
+    '"#top{top:0!important}",'
+    '"#sn-sheet .card,#sn-sheet.tile .card,#sn-sheet.tall .card{bottom:calc(var(--dock,78px) + 120px)!important;'
+    'max-height:min(42vh, calc(100dvh - var(--dock,78px) - 160px))!important}",'
+    '"#dock,#sn-above,#gps,#sn-me{z-index:92!important}",'
+    '"#sn-sheet{z-index:70!important}",'
+    '"#sn-sheet.on{pointer-events:none!important}",'
+    '"#sn-sheet.on .card{pointer-events:auto!important}",'
+    '"#sn-sheet .pill{display:grid!important;grid-template-columns:36px minmax(0,1fr)!important;'
+    'align-items:center!important;gap:8px!important;width:100%!important;text-align:left!important}",'
+    '"#sn-sheet .pill > div{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;'
+    'column-gap:8px!important;align-items:baseline!important;min-width:0!important;width:100%!important}",'
+    '"#sn-sheet .pill b{display:block!important;min-width:0!important;overflow:hidden!important;'
+    'text-overflow:ellipsis!important;white-space:nowrap!important;grid-column:1!important;'
+    'colo
