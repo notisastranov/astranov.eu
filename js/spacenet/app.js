@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4327";
+  var VER = "4328";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -113,7 +113,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     { id: "solar", dist: 5.4, name: "Solar system" },
     { id: "global", dist: 1.85, name: "Global" },
     { id: "national", dist: 0.72, name: "National" },
-    { id: "city", dist: 0.72, name: "City" }
+    { id: "city", dist: 0.5, name: "City" }
   ];
   var tierI = 1;
   var tierLock = 0;
@@ -766,6 +766,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var grew = d / pinch;
         pinch = d;
         intro = false;
+        var midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
+        if (grew > 1) aimAt(midX, midY);
         var nd = cam.dist / Math.max(0.92, Math.min(1.08, grew));
         zoomToDist(nd);
         return;
@@ -805,7 +807,19 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (!d || d.moved) return;
       vel.yaw = 0; vel.pitch = 0;
       var pUp = pos(e);
-      if (!globeHit(pUp.x, pUp.y, cam)) {
+      var hitTap = globeHit(pUp.x, pUp.y, cam);
+      if (hitTap && isFinite(hitTap.lat)) {
+        var nowT = Date.now();
+        if (window.__snGlobeTap && nowT - window.__snGlobeTap < 340) {
+          window.__snGlobeTap = 0;
+          aim = { lat: hitTap.lat, lng: hitTap.lng };
+          try { closeSky(); } catch (e) {}
+          openCity(aim);
+          say("Street");
+          return;
+        }
+        window.__snGlobeTap = nowT;
+      } else if (!hitTap) {
         var con = pickConstellation(pUp.x, pUp.y);
         if (con) openSky(con);
       }
@@ -833,10 +847,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function zoomToDist(dist) {
     intro = false;
-    dist = Math.max(0.5, Math.min(6.4, dist));
+    var maxD = cam.dist > 2.5 ? 6.4 : 2.15;
+    dist = Math.max(0.5, Math.min(maxD, dist));
     if (!aim && here && isFinite(here.lat)) aim = { lat: here.lat, lng: here.lng };
     if (cityOn) return;
-    if (dist <= 0.52 && aim && isFinite(aim.lat)) {
+    if (dist <= 0.78 && aim && isFinite(aim.lat)) {
       openCity(aim);
       if (map) {
         try {
@@ -856,6 +871,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     };
     tierI = dist > 3.2 ? 0 : dist > 1.4 ? 1 : 2;
   }
+  var wheelAt = 0;
+  function aimAt(sx, sy) {
+    var hit = globeHit(sx, sy, cam);
+    if (hit && isFinite(hit.lat) && isFinite(hit.lng)) aim = { lat: hit.lat, lng: hit.lng };
+  }
   function zoomSmooth(dir, sx, sy) {
     if (cityOn && map) {
       var z = map.getZoom() || 16;
@@ -869,7 +889,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       try { map.flyTo(map.getCenter(), nz, { duration: 0.28 }); } catch (e) { try { map.setZoom(nz); } catch (e2) {} }
       return;
     }
-    zoomToDist(cam.dist * (dir < 0 ? 0.88 : 1.14), sx, sy);
+    if (dir < 0 && sx != null) aimAt(sx, sy);
+    wheelAt = Date.now();
+    zoomToDist(cam.dist * (dir < 0 ? 0.72 : 1.18), sx, sy);
   }
   function stepTier(dir, sx, sy) { zoomSmooth(dir, sx, sy); }
   function settleTier(i, pt) {
@@ -935,6 +957,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     setTimeout(function () { if (!gotGps) coarse(); }, 14000);
   }
   function land(pt, open) {
+    try { closeSky(); } catch (e) {}
     seated = true;
     intro = false;
     if (pt.how === "gps") {
@@ -970,6 +993,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     btn.addEventListener("click", function (ev) {
       ev.preventDefault(); ev.stopPropagation();
       adminPin = false;
+      try { closeSky(); } catch (e) {}
       locate(function (pt) { land(pt, false); });
     }, true);
   }
@@ -1416,7 +1440,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet .sn-prof em{display:flex;align-items:center;justify-content:center;font:36px/72px system-ui;background:#041018}",
       "#sn-sheet .sn-prof b{display:block;color:#e8fbff!important;font:800 16px/1.2 system-ui!important}",
       "#sn-sheet .sn-tel{display:block;color:#4df0ff!important;font:700 14px/1.4 system-ui!important;text-decoration:none}",
-      "#sn-sheet.tile .card{max-height:46vh!important;height:auto!important}",
+      "#sn-sheet.tile .card{max-height:42vh!important;height:auto!important}",
       "#sn-sheet.tile .sn-prof{grid-template-columns:88px minmax(0,1fr)!important}",
       "#sn-sheet.tile .sn-prof .sn-shop-hero,#sn-sheet.tile .sn-prof em{width:88px!important;height:88px!important;max-width:88px!important;max-height:88px!important;max-height:88px!important}",
       "#sn-sheet .sn-pick{display:grid;grid-template-columns:52px minmax(0,1fr) auto 28px 28px 28px;gap:6px;align-items:center;margin-top:8px}",
@@ -1976,7 +2000,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     sh.classList.remove("tile");
     sh.removeAttribute("data-kind");
     sh.removeAttribute("data-job");
-    card.innerHTML = '<div class="sheet-bar"><button type="button" class="sheet-x" data-act="sheet-x" aria-label="Close">✕</button><div class="sheet-mid"></div><button type="button" class="sheet-apply" data-act="sheet-apply" aria-label="Apply">✓</button></div><div id="sn-sheet-body"></div>';
+    card.innerHTML = '<div class="sheet-bar"><button type="button" class="sheet-apply" data-act="sheet-apply" aria-label="Apply">✓</button><div class="sheet-mid"></div><button type="button" class="sheet-x" data-act="sheet-x" aria-label="Close">✕</button></div><div id="sn-sheet-body"></div>';
     card.querySelector(".sheet-mid").innerHTML = center;
     card.querySelector("#sn-sheet-body").innerHTML = '<div class="sn-zoom">' + html + "</div>";
     armPinch(card.querySelector("#sn-sheet-body"));
@@ -2873,15 +2897,25 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       return ((j && j.places) || []).map(function (p) { p.src = "find"; return asPlace(p); }).filter(Boolean);
     });
   }
+  function huntRace(p, ms) {
+    return Promise.race([
+      p.catch(function () { return []; }),
+      new Promise(function (resolve) { setTimeout(function () { resolve([]); }, ms); })
+    ]);
+  }
   function hunt(q) {
     q = String(q || "").trim();
     if (!q) return;
     materialize(true);
     say("Finding " + q + "…");
     var go = function () {
-      Promise.all([huntApi(q), huntNominatim(q), huntOverpass(q)]).then(function (packs) {
+      Promise.all([
+        huntRace(huntApi(q), 9000),
+        huntRace(huntNominatim(q), 9000),
+        huntRace(huntOverpass(q), 3500)
+      ]).then(function (packs) {
         var listed = shops.filter(function (s) { return s && s.src === "listed"; });
-        shops = uniqPlaces(listed.concat(packs[0], packs[1], packs[2]));
+        shops = uniqPlaces(listed.concat(packs[0] || [], packs[1] || [], packs[2] || []));
         showFound();
       });
     };
@@ -3459,6 +3493,78 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     return "Heard. Hold the map to list a vendor, a delivery address, a driver, or a post.";
   }
+
+  var placeSeq = 0;
+  var lastSeat = null;
+  var GR_CITY = {
+    athens: { label: "Athens, Greece", lat: 37.9838, lng: 23.7275 },
+    athina: { label: "Athens, Greece", lat: 37.9838, lng: 23.7275 },
+    rhodes: { label: "Rhodes, Greece", lat: 36.4349, lng: 28.2176 },
+    rodos: { label: "Rhodes, Greece", lat: 36.4349, lng: 28.2176 },
+    "orland park": { label: "Orland Park, Illinois", lat: 41.6303, lng: -87.8539 },
+    orlandpark: { label: "Orland Park, Illinois", lat: 41.6303, lng: -87.8539 },
+    wheaton: { label: "Wheaton, Illinois", lat: 41.8661, lng: -88.1070 }
+  };
+  function normPlaceKey(t) {
+    var s = String(t || "").toLowerCase();
+    try { s = s.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); } catch (e) {}
+    return s.replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+  }
+  function goToPlaceAsk(q) {
+    var s = String(q || "").trim();
+    var m = s.match(/^(?:go\s+to|take\s+me\s+to|fly\s+to|open)\s+(.+)$/i);
+    var dest = m ? m[1].trim() : s;
+    var co = dest.match(/(-?\d{1,3}(?:\.\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:\.\d+)?)/);
+    var placeBit = dest.replace(/(-?\d{1,3}(?:\.\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:\.\d+)?)/, " ").replace(/\s+/g, " ").trim();
+    if (co) {
+      var lat = +co[1], lng = +co[2];
+      if (!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+      var nm = placeBit || (lat.toFixed(3) + "," + lng.toFixed(3));
+      var key = normPlaceKey((placeBit || "").split(/\s+/)[0] || "");
+      var g = GR_CITY[key] || GR_CITY[normPlaceKey(placeBit)];
+      if (g && haversineKm({ lat: lat, lng: lng }, g) < 80) return { place: g.label, geo: { lat: g.lat, lng: g.lng, name: g.label } };
+      return { place: nm, geo: { lat: lat, lng: lng, name: nm } };
+    }
+    if (!m && !GR_CITY[normPlaceKey(dest)] && !GR_CITY[normPlaceKey(dest.replace(/\s+/g, ""))]) return null;
+    var g2 = GR_CITY[normPlaceKey(dest)] || GR_CITY[normPlaceKey(dest.replace(/\s+/g, ""))] || GR_CITY[normPlaceKey(dest.split(/\s+/)[0])];
+    if (g2) return { place: g2.label, geo: { lat: g2.lat, lng: g2.lng, name: g2.label } };
+    if (m && placeBit) return { place: placeBit, geo: null };
+    return null;
+  }
+  function seatPlace(geo) {
+    if (!geo || !isFinite(+geo.lat) || !isFinite(+geo.lng)) return;
+    intro = false;
+    lastSeat = { lat: +geo.lat, lng: +geo.lng, name: geo.name || geo.label || "place" };
+    aim = { lat: lastSeat.lat, lng: lastSeat.lng };
+    try { closeSky(); } catch (e) {}
+    try { flyTo(aim, 1.05); } catch (e) {}
+    openCity(aim);
+    if (map) {
+      try { map.setView([aim.lat, aim.lng], 15); map.invalidateSize(); } catch (e) {}
+    }
+    pullListings();
+  }
+  function landPlaceAsk(ask) {
+    if (!ask) return false;
+    var seq = ++placeSeq;
+    if (ask.geo) {
+      seatPlace(ask.geo);
+      say((ask.place || "Place") + " on the map.");
+      return true;
+    }
+    say("Finding " + ask.place + "…");
+    var url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=0&q=" + encodeURIComponent(ask.place);
+    fetchJson(url, { headers: { Accept: "application/json" } }).then(function (rows) {
+      if (seq !== placeSeq) return;
+      var r = Array.isArray(rows) && rows[0];
+      if (r && isFinite(+r.lat) && isFinite(+r.lon)) {
+        seatPlace({ lat: +r.lat, lng: +r.lon, name: ask.place });
+        say(ask.place + " on the map.");
+      } else say("No map pin for " + ask.place + " yet. Try city and country, or lat,lng.");
+    });
+    return true;
+  }
+
   function runLine(q) {
     var s = String(q || "").toLowerCase().trim();
     if (/monitor|swarm|device spec/.test(s)) { openFleet(); say("Monitor open."); return true; }
@@ -3541,12 +3647,26 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     say(hits.map(function (h) { return h.say; }).join(" · "));
     return true;
   }
+  var GREETING = /^\s*(hello|hi|hey|hiya|yo|sup|howdy|good\s+(morning|afternoon|evening|night)|thanks|thank\s+you|thx|ok|okay|bye|γεια(\s+σου|\s+σας)?|γειά(\s+σου|\s+σας)?|καλημέρα|καλησπέρα|καληνύχτα|ευχαριστώ)\s*[!.?]*\s*$/i;
   function talk(raw, fromVoice) {
     var q = String(raw || "").trim();
     if (!q) return;
     lastVoice = !!fromVoice;
     if (supportOn) { sendSupport(q, fromVoice); return; }
     if (runLine(q)) return;
+    if (GREETING.test(q)) {
+      say("Grok…");
+      askGrok(q, function (err, j) {
+        var text = (!err && j && (j.say || j.text)) ? (j.say || j.text) : "Hello. Talk a place, a shop, or hold the map to list.";
+        say(text);
+        speakIfVoice(text);
+      });
+      return;
+    }
+    var goAsk = goToPlaceAsk(q);
+    if (goAsk && landPlaceAsk(goAsk)) return;
+    var bare = goToPlaceAsk("go to " + q);
+    if (bare && bare.geo && landPlaceAsk(bare)) return;
     var hits = searchRoster(q);
     say("Grok…");
     askGrok(q, function (err, j) {
@@ -3555,6 +3675,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         say(text);
         speakIfVoice(text);
         var act = String(j.act || "talk").toLowerCase();
+        if (GREETING.test(q)) return;
         if (act === "open") openBest(searchRoster(j.q || q).length ? searchRoster(j.q || q) : hits);
         else applyAct(j, q);
         return;
@@ -5216,7 +5337,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
-      openCity: openCity, closeCity: closeCity, listAt: listAt, goNamed: hunt, huntNamed: hunt,
+      openCity: openCity, goToPlaceAsk: goToPlaceAsk, seatPlace: seatPlace, closeCity: closeCity, listAt: listAt, goNamed: hunt, huntNamed: hunt,
       user: function () { return window.SNAuth && SNAuth.user ? SNAuth.user() : null; },
       paintMoney: paintMoney, evolve: evolve, addFunds: addFunds,
       visibleShops: function () { return shops; },
