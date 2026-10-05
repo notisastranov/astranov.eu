@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4325";
+  var VER = "4326";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1442,25 +1442,24 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-tester{position:fixed;top:28px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(77,240,255,.4);color:#7ee9ff;font:700 10px/14px ui-monospace,monospace;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#sn-tester.stale{color:#8a6a6a;border-color:rgba(255,120,120,.35)}",
       "#sn-topchrome-drag{display:none!important;height:0!important;min-height:0!important;max-height:0!important;padding:0!important;margin:0!important;border:0!important}",
-      "#top{top:56px!important;left:0!important;right:0!important;margin:0!important;padding:0!important;display:flex!important;flex-direction:column!important}",
-      "#island{position:relative!important;z-index:2!important}",
+      "#top{top:0!important;left:0!important;right:0!important;margin:0!important;padding:0!important;display:flex!important;flex-direction:column!important}",
+      "#island{position:relative!important;z-index:2!important;padding-left:52px!important;padding-right:52px!important}",
       "#island .r1,#island .r2{flex-wrap:nowrap!important;overflow:hidden!important;white-space:nowrap!important}",
       "#sn-sheet .card,#sn-sheet.tall .card,#sn-tasks .card{max-height:42vh!important}",
-      "#sn-power{position:fixed!important;top:8px!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:50!important}",
-      "#sn-support{position:fixed!important;top:8px!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;transform:none!important;z-index:50!important}",
-      "#top{top:56px!important}",
-      "#sn-money{position:fixed!important;top:130px!important;left:50%!important;right:auto!important;bottom:auto!important;transform:translateX(-50%)!important;z-index:46!important}",
-      "#sn-me{position:fixed!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;top:auto!important;bottom:calc(var(--dock) + 72px)!important;z-index:46!important}",
-      "#gps{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:calc(var(--dock) + 72px)!important;z-index:46!important}",
-      "#sn-above{position:fixed!important;left:0!important;right:0!important;bottom:var(--dock)!important;height:56px!important;display:flex!important;justify-content:space-between!important;align-items:center!important;padding:0 8px!important;pointer-events:none!important;background:transparent!important;z-index:47!important}",
+      "#sn-power{position:fixed!important;top:8px!important;left:max(6px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:60!important}",
+      "#sn-support{position:fixed!important;top:8px!important;right:max(6px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;transform:none!important;z-index:60!important}",
+      "#sn-money{position:fixed!important;top:120px!important;left:50%!important;right:auto!important;bottom:auto!important;transform:translateX(-50%)!important;z-index:46!important}",
+      "#sn-me{position:fixed!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;top:auto!important;bottom:calc(var(--dock) + 16px)!important;z-index:46!important}",
+      "#gps{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:calc(var(--dock) + 16px)!important;z-index:46!important}",
+      "#sn-above{position:static!important;height:0!important;padding:0!important;margin:0!important;display:block!important;background:transparent!important}",
+      "#plus,#go{position:fixed!important;bottom:max(8px,env(safe-area-inset-bottom))!important;top:auto!important;z-index:60!important;width:44px!important;height:44px!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.7)!important;background:rgba(4,16,28,.92)!important}",
+      "#plus{left:max(6px,env(safe-area-inset-left))!important;right:auto!important}",
+      "#go{right:max(6px,env(safe-area-inset-right))!important;left:auto!important}",
+      "input#in{padding-left:56px!important;padding-right:56px!important}",
       "#dock{left:0!important;right:0!important;bottom:0!important;top:auto!important;padding:0!important;margin:0!important;background:rgba(4,14,28,.92)!important;border-top:1px solid rgba(80,220,255,.35)!important}",
       "#panel{width:100%!important;background:transparent!important}",
       "form#f{display:flex!important;width:100%!important;gap:0!important;align-items:center!important;min-height:48px!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}",
-      "input#in{flex:1!important;min-width:0!important;width:auto!important;min-height:48px!important;border:0!important;border-radius:0!important;background:transparent!important}",
-      ".hub button{width:48px!important;height:48px!important;border:0!important;border-radius:0!important;background:transparent!important}",
-      "#sn-above{position:fixed!important;left:0!important;right:0!important;bottom:var(--dock)!important;top:auto!important;z-index:45!important;display:flex!important;justify-content:space-between!important;align-items:flex-end!important;gap:8px!important;padding:0 8px 8px!important;pointer-events:none!important;background:transparent!important}",
-      "#sn-above>*{position:static!important;top:auto!important;left:auto!important;right:auto!important;bottom:auto!important;transform:none!important;pointer-events:auto!important}",
-      "#sn-above #plus,#sn-above #go{width:48px!important;height:48px!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.7)!important;background:rgba(4,16,28,.92)!important}",
+      "input#in{flex:1!important;min-width:0!important;width:auto!important;min-height:48px!important;border:0!important;border-radius:0!important;background:transparent!important;padding-left:56px!important;padding-right:56px!important}",
       "#sn-pulse,#sn-tester{top:108px!important}",
       "#island{margin-top:0!important;padding-top:0!important}",
       "#sn-count{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;pointer-events:none;background:transparent}",
