@@ -1,4 +1,3 @@
-import sys
 assert open("VERSION").read().strip() == "4322"
 assert open("api/version.js").read().count('latest: "4322"') == 1
 idx = open("index.html").read()
