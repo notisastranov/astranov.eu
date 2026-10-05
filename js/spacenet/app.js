@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4323";
+  var VER = "4324";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1701,7 +1701,19 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-tester{position:fixed;top:28px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(77,240,255,.4);color:#7ee9ff;font:700 10px/14px ui-monospace,monospace;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#sn-tester.stale{color:#8a6a6a;border-color:rgba(255,120,120,.35)}",
       "#sn-topchrome-drag{display:none!important;height:0!important;min-height:0!important;max-height:0!important;padding:0!important;margin:0!important;border:0!important}",
-      "#top{top:0!important;margin:0!important;padding:0!important}",
+      "#top{top:0!important;left:0!important;right:0!important;margin:0!important;padding:0!important;display:flex!important;flex-direction:column!important}",
+      "#island{position:relative!important;z-index:2!important}",
+      "#island .r1,#island .r2{flex-wrap:nowrap!important;overflow:hidden!important;white-space:nowrap!important}",
+      "#sn-row{display:flex!important;width:100%!important;align-items:center!important;justify-content:space-between!important;gap:8px!important;padding:6px 10px 0!important;pointer-events:none!important}",
+      "#sn-power,#sn-money,#sn-support{position:static!important;top:auto!important;left:auto!important;right:auto!important;bottom:auto!important;transform:none!important}",
+      "#dock{left:0!important;right:0!important;bottom:0!important;top:auto!important;padding:0!important;margin:0!important;background:rgba(4,14,28,.92)!important;border-top:1px solid rgba(80,220,255,.35)!important}",
+      "#panel{width:100%!important;background:transparent!important}",
+      "form#f{display:flex!important;width:100%!important;gap:0!important;align-items:center!important;min-height:48px!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}",
+      "input#in{flex:1!important;min-width:0!important;width:auto!important;min-height:48px!important;border:0!important;border-radius:0!important;background:transparent!important}",
+      ".hub button{width:48px!important;height:48px!important;border:0!important;border-radius:0!important;background:transparent!important}",
+      "#sn-me{position:fixed!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;top:auto!important;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 56px)!important}",
+      "#gps{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 56px)!important}",
+      "#sn-pulse,#sn-tester{top:108px!important}",
       "#island{margin-top:0!important;padding-top:0!important}",
       "#sn-count{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;pointer-events:none;background:transparent}",
       "#sn-count.on{display:flex}",
@@ -2428,7 +2440,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     say("Client home moved.");
   }
   function moveDriver(pt) {
-    if (!isAdmin() || !pt) return;
+    if (!(isAdmin() || myRole() === "driver") || !pt) return;
     driverPin = { lat: pt.lat, lng: pt.lng, name: pt.name || (driverPin && driverPin.name) || "motorbike", photo: pt.photo || (driverPin && driverPin.photo) || "" };
     try { localStorage.setItem("sn:driver", JSON.stringify(driverPin)); } catch (e) {}
     paintShopsOnMap();
@@ -4419,105 +4431,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
   }
   function layoutChrome() {
-    var W = window.innerWidth, H = window.innerHeight, pad = 10;
-    var blockers = ["island", "panel"].map(function (id) { return visRect($(id)); }).filter(Boolean);
-    function place(el, corner) {
-      if (!el) return;
-      var w = Math.max(40, el.offsetWidth || 48);
-      var hgt = Math.max(40, el.offsetHeight || 48);
-      var x = corner.indexOf("l") >= 0 ? pad : W - w - pad;
-      var y = corner.indexOf("t") >= 0 ? pad : H - hgt - pad;
-      var n = 0;
-      while (n++ < 16) {
-        var box = { left: x, top: y, right: x + w, bottom: y + hgt };
-        var hit = null;
-        for (var i = 0; i < blockers.length; i++) {
-          if (boxesHit(box, blockers[i], 8)) { hit = blockers[i]; break; }
-        }
-        if (!hit) break;
-        if (corner.indexOf("t") >= 0) y = Math.max(y + 6, hit.bottom + 8);
-        else y = Math.min(y - 6, hit.top - hgt - 8);
-        y = Math.max(pad, Math.min(H - hgt - pad, y));
-        x = Math.max(pad, Math.min(W - w - pad, x));
-      }
-      el.style.setProperty("top", Math.round(y) + "px", "important");
-      el.style.setProperty("left", Math.round(x) + "px", "important");
-      el.style.setProperty("right", "auto", "important");
-      el.style.setProperty("bottom", "auto", "important");
-    }
-    var extra = ["sn-sheet-card", "sn-support-sheet", "sn-power", "sn-money", "sn-support"];
-    extra.forEach(function (id) {
+    ["sn-me", "gps", "sn-money", "sn-support", "sn-power"].forEach(function (id) {
       var el = $(id);
       if (!el) return;
-      if (id === "sn-sheet-card" && !($("sn-sheet") && $("sn-sheet").classList.contains("on"))) return;
-      if (id === "sn-support-sheet" && !el.classList.contains("on")) return;
-      var r = visRect(el);
-      if (r) blockers.push(r);
+      ["top", "left", "right", "bottom", "transform"].forEach(function (k) { el.style.removeProperty(k); });
     });
-    place($("sn-me"), "bl");
-    place($("gps"), "br");
-    var isle = visRect($("island"));
-    var money = $("sn-money");
-    var sup = $("sn-support");
-    var y0 = isle ? isle.bottom + 8 : 10;
-    if (money) {
-      var mw = Math.max(40, money.offsetWidth || 48);
-      var mh = Math.max(32, money.offsetHeight || 40);
-      var mx = Math.round((W - mw) / 2);
-      money.style.setProperty("top", Math.round(y0) + "px", "important");
-      money.style.setProperty("left", mx + "px", "important");
-      money.style.setProperty("right", "auto", "important");
-      money.style.setProperty("bottom", "auto", "important");
-      money.style.setProperty("transform", "none", "important");
-    }
-    if (sup) {
-      var sw = Math.max(36, sup.offsetWidth || 40);
-      var sh = Math.max(36, sup.offsetHeight || 40);
-      var sx = W - sw - pad;
-      var sy = y0;
-      if (money) {
-        var mr = money.getBoundingClientRect();
-        var hit = mr.left < sx + sw + 8 && mr.right > sx - 8 && mr.top < sy + sh + 8 && mr.bottom > sy - 8;
-        if (hit) sx = Math.max(pad, Math.round(mr.left) - sw - 8);
-        if (sx < pad) { sx = W - sw - pad; sy = Math.round(mr.bottom) + 8; }
-      }
-      sup.style.setProperty("top", Math.round(sy) + "px", "important");
-      sup.style.setProperty("left", Math.round(sx) + "px", "important");
-      sup.style.setProperty("right", "auto", "important");
-      sup.style.setProperty("bottom", "auto", "important");
-    }
-    var desk = $("sn-support-sheet");
-    if (desk && desk.classList.contains("on") && sup) {
-      var br = sup.getBoundingClientRect();
-      var dw = Math.min(360, W - 16);
-      var dx = Math.min(W - dw - pad, Math.max(pad, br.right - dw));
-      var dy = br.bottom + 8;
-      desk.style.left = dx + "px";
-      desk.style.top = dy + "px";
-      desk.style.right = "auto";
-    }
-    var skyBtn = $("sn-sky-btn");
-    if (skyBtn) {
-      var bw = Math.max(48, skyBtn.offsetWidth || 48);
-      var bh = Math.max(64, skyBtn.offsetHeight || 64);
-      var gpsR = visRect($("gps"));
-      var panelR = visRect($("panel"));
-      var x = W - bw - pad;
-      var y = gpsR ? gpsR.top - bh - 10 : H - bh - pad;
-      if (panelR && y + bh > panelR.top - 8) y = panelR.top - bh - 8;
-      var meR = visRect($("sn-me"));
-      if (meR && x < meR.right + 8) x = Math.min(x, W - bw - pad);
-      y = Math.max((isle ? isle.bottom + 8 : pad), Math.min(y, H - bh - pad));
-      skyBtn.style.setProperty("top", Math.round(y) + "px", "important");
-      skyBtn.style.setProperty("left", Math.round(x) + "px", "important");
-      skyBtn.style.setProperty("right", "auto", "important");
-      skyBtn.style.setProperty("bottom", "auto", "important");
-    }
-    var read = $("sn-sky-read");
-    if (read && skyOn && panelR) {
-      read.style.bottom = Math.round(H - panelR.top + 8) + "px";
-      read.style.top = "auto";
-    }
   }
   var layoutKey = "";
   function maybeLayout() {
