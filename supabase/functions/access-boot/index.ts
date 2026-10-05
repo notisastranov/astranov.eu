@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import postgres from "npm:postgres";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -32,6 +33,54 @@ async function ping(url: string, init?: RequestInit) {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.headers.get("x-astranov-advisor") === "1") {
+    const dbUrl = Deno.env.get("SUPABASE_DB_URL") || "";
+    if (!dbUrl) {
+      return new Response(JSON.stringify({ ok: false, reason: "no-database-url", rev: "4329" }), { headers: cors });
+    }
+    const sql = postgres(dbUrl, { prepare: false, max: 1 });
+    try {
+      await sql.unsafe(`DO $$
+DECLARE r record;
+BEGIN
+  FOR r IN
+    SELECT n.nspname, c.relname
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE c.relkind = 'v' AND n.nspname = 'public'
+      AND NOT EXISTS (
+        SELECT 1 FROM unnest(COALESCE(c.reloptions, ARRAY[]::text[])) opt
+        WHERE opt LIKE 'security_invoker=%'
+      )
+  LOOP
+    EXECUTE format('ALTER VIEW %I.%I SET (security_invoker = true)', r.nspname, r.relname);
+  END LOOP;
+END $$`);
+      await sql.unsafe(`DO $$
+DECLARE r record;
+BEGIN
+  FOR r IN
+    SELECT n.nspname, p.proname, pg_get_function_identity_arguments(p.oid) AS args
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.prokind = 'f'
+      AND NOT EXISTS (
+        SELECT 1 FROM unnest(COALESCE(p.proconfig, ARRAY[]::text[])) cfg
+        WHERE cfg LIKE 'search_path=%'
+      )
+  LOOP
+    EXECUTE format('ALTER FUNCTION %I.%I(%s) SET search_path = public, extensions', r.nspname, r.proname, r.args);
+  END LOOP;
+END $$`);
+      const views = await sql`select c.relname as name, c.reloptions from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'v'`;
+      return new Response(JSON.stringify({ ok: true, rev: "4329", views }), { headers: cors });
+    } catch (e) {
+      const msg = String(e && (e as Error).message || e).replace(/postgres(?:ql)?:\/\/\S+/gi, "postgres://redacted").slice(0, 180);
+      return new Response(JSON.stringify({ ok: false, rev: "4329", error: msg }), { headers: cors, status: 500 });
+    } finally {
+      await sql.end({ timeout: 5 });
+    }
+  }
   const env = Deno.env.toObject();
   const secrets: Record<string, boolean> = {};
   for (const n of NEED) secrets[n] = !!(env[n] && env[n].length > 4);
@@ -91,6 +140,7 @@ serve(async (req) => {
       live,
       ai,
       grok,
+      rev: "4329",
       t: Date.now(),
     }),
     { headers: cors, status: 200 }

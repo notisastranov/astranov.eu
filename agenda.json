@@ -1,6 +1,6 @@
 {
   "cards": [
-    { "k": "CALENDAR", "t": "Sun 11 Oct · Genethlia Rosos IDRISI ASTRANOV NOTIS" },
-    { "k": "NEWS", "t": "Dodecanese · rain and storms, wind to 7 Beaufort, mainly Rhodes · 4 Oct" }
+    { "k": "CALENDAR", "t": "Sun 11 Oct · Genethlia Rosos IDRISI ASTRANOV NOTIS", "lat": 36.45, "lng": 28.22 },
+    { "k": "NEWS", "t": "Dodecanese · rain and storms, wind to 7 Beaufort, mainly Rhodes · 4 Oct", "lat": 36.2, "lng": 27.8 }
   ]
 }
