@@ -4824,8 +4824,18 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         sheetHold = true;
         if (shx && shx.classList.contains("offer")) {
           var dropId = dockFocus;
+          dockTabs.forEach(function (t) {
+            if (t && t.kind === "offer" && t.id) {
+              try { sessionStorage.setItem("sn:offer-x:" + t.id, "1"); } catch (e) {}
+            }
+          });
           try { if (dropId) sessionStorage.setItem("sn:offer-x:" + dropId, "1"); } catch (e) {}
-          dockTabs = dockTabs.filter(function (t) { return !(t && t.kind === "offer" && (!dropId || t.id === dropId)); });
+          try {
+            (jobs || []).forEach(function (j) {
+              if (j && j.id) sessionStorage.setItem("sn:offer-x:offer-" + j.id, "1");
+            });
+          } catch (e) {}
+          dockTabs = dockTabs.filter(function (t) { return !(t && t.kind === "offer"); });
           dockFocus = "";
           paintDockTabs();
         }
