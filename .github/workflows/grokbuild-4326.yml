@@ -1,0 +1,31 @@
+name: grokbuild 4326 apply (branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4307-talk-city-pins"]
+    paths: [".grokbuild/**"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4307-talk-city-pins
+          fetch-depth: 0
+      - name: Merge main 4325, apply bundle kit, stamp 4326, drop kit
+        run: |
+          set -e
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch -q origin main
+          MAIN=$(git rev-parse origin/main)
+          echo "main tip $MAIN"
+          test "$MAIN" = "a00fe522b1d4765f855bc96353d374a74aaf6d73" || { echo "main moved past 4325; remine before restamping"; exit 1; }
+          git merge -q --no-edit "$MAIN" || true
+          bash .grokbuild/apply_bundle.sh
+          for f in js/spacenet/app.js js/spacenet/auth.js api/find.js api/ai.js api/space.js sw.js api/version.js; do node --check "$f"; done
+          git rm -q -r .grokbuild .github/workflows/grokbuild-4326.yml
+          git add -A
+          git commit -q -m "4326: merge main 4325 layout; sheet/YOU/LIST/top+56/pill/LOGIN fixes; Talk/FIND hard timeouts + honest-empty; bare category at lastSeat; auth PKCE-only + origin redirect; stamp lockstep (preview, do not merge)"
+          git push origin HEAD:grokbuild/4307-talk-city-pins
