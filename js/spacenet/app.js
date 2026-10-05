@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4324";
+  var VER = "4325";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1066,7 +1066,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       html += '<button type="button" class="sheet-go" data-act="run-offer">Send the offer · closest free driver</button>' +
         '<button type="button" class="sheet-go" data-act="admin-gps">Move me here</button>';
     }
-    openSheet("HERE", html, true);
+    openTile({ kind: "list", title: "LIST", html: html });
   }
   function persistListing(row) {
     if (!row) return;
@@ -1442,11 +1442,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-tester{position:fixed;top:28px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(77,240,255,.4);color:#7ee9ff;font:700 10px/14px ui-monospace,monospace;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#sn-tester.stale{color:#8a6a6a;border-color:rgba(255,120,120,.35)}",
       "#sn-topchrome-drag{display:none!important;height:0!important;min-height:0!important;max-height:0!important;padding:0!important;margin:0!important;border:0!important}",
-      "#top{top:0!important;left:0!important;right:0!important;margin:0!important;padding:0!important;display:flex!important;flex-direction:column!important}",
+      "#top{top:56px!important;left:0!important;right:0!important;margin:0!important;padding:0!important;display:flex!important;flex-direction:column!important}",
       "#island{position:relative!important;z-index:2!important}",
       "#island .r1,#island .r2{flex-wrap:nowrap!important;overflow:hidden!important;white-space:nowrap!important}",
-      "#sn-row{display:flex!important;width:100%!important;align-items:center!important;justify-content:space-between!important;gap:8px!important;padding:6px 10px 0!important;pointer-events:none!important}",
-      "#sn-power,#sn-money,#sn-support{position:static!important;top:auto!important;left:auto!important;right:auto!important;bottom:auto!important;transform:none!important}",
+      "#sn-sheet .card,#sn-sheet.tall .card,#sn-tasks .card{max-height:42vh!important}",
+      "#sn-power{position:fixed!important;top:8px!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:50!important}",
+      "#sn-support{position:fixed!important;top:8px!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;transform:none!important;z-index:50!important}",
+      "#top{top:56px!important}",
+      "#sn-money{position:fixed!important;top:130px!important;left:50%!important;right:auto!important;bottom:auto!important;transform:translateX(-50%)!important;z-index:46!important}",
+      "#sn-me{position:fixed!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;top:auto!important;bottom:calc(var(--dock) + 72px)!important;z-index:46!important}",
+      "#gps{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:calc(var(--dock) + 72px)!important;z-index:46!important}",
+      "#sn-above{position:fixed!important;left:0!important;right:0!important;bottom:var(--dock)!important;height:56px!important;display:flex!important;justify-content:space-between!important;align-items:center!important;padding:0 8px!important;pointer-events:none!important;background:transparent!important;z-index:47!important}",
       "#dock{left:0!important;right:0!important;bottom:0!important;top:auto!important;padding:0!important;margin:0!important;background:rgba(4,14,28,.92)!important;border-top:1px solid rgba(80,220,255,.35)!important}",
       "#panel{width:100%!important;background:transparent!important}",
       "form#f{display:flex!important;width:100%!important;gap:0!important;align-items:center!important;min-height:48px!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}",
@@ -1460,7 +1466,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-count{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;pointer-events:none;background:transparent}",
       "#sn-count.on{display:flex}",
       "#sn-count b{font:800 46vw/0.78 system-ui;color:#e8fbff;letter-spacing:-.08em;text-shadow:0 0 8px #fff,0 0 18px #4df0ff,0 0 36px #4df0ff,0 0 72px #1a6cff,0 0 120px #1a6cff}",
-      "#sn-pulse{position:fixed;top:36px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(255,176,32,.7);color:#ffb020;font:700 10px/14px ui-monospace,monospace;pointer-events:none}",,
+      "#sn-pulse{position:fixed;top:180px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(255,176,32,.7);color:#ffb020;font:700 10px/14px ui-monospace,monospace;pointer-events:none}",,
     ].join("");
     document.head.appendChild(s);
   }
@@ -1710,7 +1716,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     intro = false;
     desk.innerHTML =
-      '<div class="sheet-bar"><b class="sheet-ttl">BUILD</b><button type="button" class="sheet-x" data-act="support-close">HIDE</button></div>' +
+      '<div class="sheet-bar"><button type="button" class="sheet-x" data-act="support-close" aria-label="Close">✕</button><b class="sheet-ttl">BUILD</b><button type="button" class="sheet-apply" data-act="support-send" aria-label="Apply">✓</button></div>' +
       '<div id="sn-support-log"></div>' +
       '<textarea id="sn-support-matter" placeholder="Tell the programmer what to fix"></textarea>' +
       '<button type="button" class="sheet-go primary" data-act="support-send">SEND</button>';
@@ -1960,7 +1966,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     sh.classList.remove("tile");
     sh.removeAttribute("data-kind");
     sh.removeAttribute("data-job");
-    card.innerHTML = '<div class="sheet-bar"><button type="button" class="sheet-apply" data-act="sheet-apply" aria-label="Apply">✓</button><div class="sheet-mid"></div><button type="button" class="sheet-x" data-act="sheet-x" aria-label="Close">✕</button></div><div id="sn-sheet-body"></div>';
+    card.innerHTML = '<div class="sheet-bar"><button type="button" class="sheet-x" data-act="sheet-x" aria-label="Close">✕</button><div class="sheet-mid"></div><button type="button" class="sheet-apply" data-act="sheet-apply" aria-label="Apply">✓</button></div><div id="sn-sheet-body"></div>';
     card.querySelector(".sheet-mid").innerHTML = center;
     card.querySelector("#sn-sheet-body").innerHTML = '<div class="sn-zoom">' + html + "</div>";
     armPinch(card.querySelector("#sn-sheet-body"));
