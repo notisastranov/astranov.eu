@@ -1,4 +1,4 @@
-name: grokbuild 4322 apply (branch only, self-deleting)
+name: grokbuild 4323 apply (branch only, self-deleting)
 on:
   push:
     branches: ["grokbuild/4307-talk-city-pins"]
@@ -13,7 +13,7 @@ jobs:
         with:
           ref: grokbuild/4307-talk-city-pins
           fetch-depth: 0
-      - name: Merge main 4321, resolve, fix, restamp 4322, verify, drop kit, commit
+      - name: Merge main 4322, resolve, fix, restamp 4323, verify, drop kit, commit
         run: |
           set -e
           git config user.name "Grok Bot"
@@ -21,14 +21,14 @@ jobs:
           git fetch -q origin main
           MAIN=$(git rev-parse origin/main)
           echo "main tip $MAIN"
-          test "$MAIN" = "87a0c0d54b885aa01015b9feb83d626cc17e0aa5" || { echo "main moved past 4321; remine before restamping"; exit 1; }
+          test "$MAIN" = "d8b447f44ecdb95e19f548784241b0b8c91d62cf" || { echo "main moved past 4322; remine before restamping"; exit 1; }
           git merge -q --no-edit "$MAIN" || true
           python3 .grokbuild/resolve.py
           python3 .grokbuild/fix18.py
-          bash .grokbuild/stamp2.sh 4322
+          bash .grokbuild/stamp2.sh 4323
           python3 .grokbuild/verify.py
           for f in js/spacenet/app.js api/find.js api/ai.js api/space.js sw.js api/version.js; do node --check "$f"; done
           git rm -q -r .grokbuild .github/workflows/grokbuild-4322.yml
           git add -A
-          git commit -q -m "4322: merge main 4321; keep talk-city + tester/order honesty; offer X closes; HERE Apply never creates orders; driver YOU for pickup; orphan jobs dismissible; LIVE counts real open only; stamp lockstep (preview, do not merge)"
+          git commit -q -m "4323: merge main 4322; keep talk-city + tester/order honesty; offer X closes; HERE Apply never creates orders; driver YOU for pickup; orphan jobs dismissible; LIVE counts real open only; stamp lockstep (preview, do not merge)"
           git push origin HEAD:grokbuild/4307-talk-city-pins
