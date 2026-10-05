@@ -13,7 +13,7 @@ jobs:
         with:
           ref: grokbuild/4307-talk-city-pins
           fetch-depth: 0
-      - name: Merge main 4325, layout a-g, hang/auth carries, stamp 4326, verify, drop kit
+      - name: Merge main 4325, layout+hang+auth+live priorities, stamp 4326, drop kit
         run: |
           set -e
           git config user.name "Grok Bot"
@@ -26,10 +26,11 @@ jobs:
           python3 .grokbuild/resolve.py
           python3 .grokbuild/fix20.py
           python3 .grokbuild/fix21_hang_auth.py
+          python3 .grokbuild/fix22_live_priority.py
           bash .grokbuild/stamp2.sh 4326
           python3 .grokbuild/verify.py
           for f in js/spacenet/app.js js/spacenet/auth.js api/find.js api/ai.js api/space.js sw.js api/version.js; do node --check "$f"; done
           git rm -q -r .grokbuild .github/workflows/grokbuild-4326.yml
           git add -A
-          git commit -q -m "4326: merge main 4325 layout; sheet/YOU/LIST/top+56/pill/LOGIN fixes; Talk/FIND hard timeouts + honest-empty; bare category at lastSeat; auth PKCE-only + origin redirect; stamp lockstep (preview, do not merge)"
+          git commit -q -m "4326: merge main 4325; layout a-g; hang/auth; FIND junk gone; offer X stays closed; ribbon flush; go-to Rhodes; client upsert; stamp lockstep (preview, do not merge)"
           git push origin HEAD:grokbuild/4307-talk-city-pins

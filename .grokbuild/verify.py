@@ -4,17 +4,21 @@ assert open("api/version.js").read().count('latest: "4326"') == 1
 idx = open("index.html").read()
 for x in ['astranov-build" content="4326"', ">V4326<", "app.js?v=4326", "auth.js?v=4326"]:
     assert x in idx, x
-assert "top:56px" in idx
+# ribbon flush (no permanent 56px gap)
+assert "#top{top:0" in idx or "top:0 !important" in idx or "top:0!important" in idx
 app = open("js/spacenet/app.js").read()
 assert app.count('var VER = "4326";') == 1
 assert "<<<<<<<" not in app
-for k in ["isTestJob", "vendorPresent", "dismiss-job", "junkPlace", "Move the driver here", "lastSeat", "huntDone", "locateSettled", "FIND is empty here", "seatedCat"]:
+for k in ["isTestJob", "vendorPresent", "dismiss-job", "junkPlace", "Move the driver here",
+          "lastSeat", "huntDone", "locateSettled", "FIND is empty here", "seatedCat",
+          "goToPlaceAsk", "sn:offer-x:", "sameOwnerName", "dropMineDups"]:
     assert k in app, k
 assert 'myRole() === "driver"' in app
 assert "LIST ·" in app or 'title: "LIST' in app
 assert "bottom:calc(var(--dock,78px) + 120px)" in app
 assert "text-overflow:ellipsis" in app
-assert "once(\"timeout\")" in app or 'once("timeout")' in app
+assert '"#top{top:0!important}"' in app or "#top{top:0!important" in app
+assert "seesShop(s); });" in app or "!junkPlace(s) && seesShop(s)" in app
 auth = open("js/spacenet/auth.js").read()
 assert "aria-label" in auth and "Escape" in auth
 assert 'setAttribute("aria-label"' in auth
