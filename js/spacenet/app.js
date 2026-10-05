@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4320";
+  var VER = "4321";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1383,12 +1383,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var s = document.createElement("style");
     s.id = "sn-law";
     s.textContent = [
-      "#sn-tools{display:flex!important;width:100%!important;pointer-events:auto!important;background:rgba(4,14,28,.96)!important;border-bottom:1px solid rgba(80,220,255,.35)!important}",
-      "#sn-tools button{flex:1!important;height:36px!important;border:0!important;background:transparent!important;color:#4df0ff!important;font:800 13px system-ui!important;letter-spacing:.16em!important}",
-      "#dock{left:0!important;right:0!important;bottom:0!important;padding:0!important;margin:0!important}",
-      "#panel{width:100%!important}",
-      "form#f{display:flex!important;width:100%!important;border:0!important;border-top:1px solid rgba(80,220,255,.35)!important;border-radius:0!important;padding:0!important;min-height:48px!important;background:rgba(4,14,28,.96)!important;box-shadow:none!important}",
-      "input#in{flex:1!important;width:100%!important;min-height:48px!important;border:0!important;border-radius:0!important}",
       "#sn-sheet.on{pointer-events:none!important}",
       "#sn-sheet .bg{pointer-events:none!important;display:none!important}",
       "#sn-sheet .card{position:absolute!important;left:14px!important;right:14px!important;width:auto!important;transform:none!important;bottom:78px!important;height:auto!important;max-height:42vh!important;padding:0!important;margin:0!important;border-radius:16px!important;border:1px solid rgba(126,233,255,.35)!important;overflow:auto!important;box-shadow:0 12px 28px rgba(0,0,0,.4)!important}",
