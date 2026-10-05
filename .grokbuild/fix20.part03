@@ -1,0 +1,36 @@
+r:#e8fbff!important;font:700 14px/1.2 system-ui!important}",'
+    '"#sn-sheet .pill > div > span{display:block!important;grid-column:2!important;justify-self:end!important;'
+    'white-space:nowrap!important;color:#7ee9ff!important;font:700 11px/1.2 system-ui!important}",'
+    '"#sn-sheet .sn-miss{display:block!important;margin-top:2px!important}",'
+    '"#sn-sheet .sn-gap{display:inline!important;margin:0 2px!important}",'
+    '"#sn-sheet .sn-tel + .sn-miss,#sn-sheet .sn-miss + .sn-miss{margin-top:4px!important}",'
+)
+
+if "bottom:calc(var(--dock,78px) + 120px)" not in s:
+    # Prefer insert after a known CSS top:56 string
+    m = re.search(r'"#top\{top:0!important[^"]*"', s)
+    if m:
+        s = s[: m.end()] + "," + LAYOUT + s[m.end() :]
+        print("ok inject layout CSS")
+    else:
+        m = re.search(r'"#top\{top:[^"]+"', s)
+        if m:
+            s = s[: m.end()] + "," + LAYOUT + s[m.end() :]
+            print("ok inject layout CSS (alt)")
+        else:
+            raise SystemExit("no CSS insert point for layout")
+else:
+    print("layout CSS already present")
+
+open(A, "w", encoding="utf-8").write(s)
+print("ok app.js")
+
+# ---------- auth.js ----------
+B = "js/spacenet/auth.js"
+a = open(B, encoding="utf-8").read()
+
+# CSS block for who + backdrop that leaves GPS free + close size
+needle = '#sn-me-sheet .note{margin:8px 0 0;font:500 12px/1.35 system-ui;color:#8ec8d8}";'
+if needle in a and "#sn-me-sheet .who b{display:block" not in a:
+    a = a.replace(
+        needle,
