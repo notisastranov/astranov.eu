@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4317";
+  var VER = "4318";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -2213,6 +2213,63 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     for (i = 1; i < line.length; i++) best = Math.min(best, distToSeg(pt, line[i - 1], line[i]));
     return best;
   }
+  function lifeMs(job) {
+    var prep = Math.max(0, Number(job && job.prep) || 0);
+    var trip = Math.max(5, Math.ceil(Number(job && job.km) || 1) * 3);
+    return Math.max(15, prep + trip) * 60000;
+  }
+  function settleWaste(job, who) {
+    if (!job || job.wasted || job.delivered || job.received) return;
+    var destroyed = Number(job.food || job.fee || 0);
+    var delay = Math.max(3, Math.ceil(Number(job.km) || 1));
+    var refund = Number(job.fee || destroyed);
+    var bill = Math.round((destroyed + delay + refund) * 100) / 100;
+    var id = (who && (who.id || who.name)) || job.driverId || (job.fault && job.fault.id) || "driver";
+    var name = (who && who.name) || job.driver || (job.fault && job.fault.name) || "Driver";
+    var book = {};
+    try { book = JSON.parse(localStorage.getItem("sn:closed") || "{}") || {}; } catch (e) {}
+    book[String(id)] = new Date().toDateString();
+    try { localStorage.setItem("sn:closed", JSON.stringify(book)); } catch (e2) {}
+    var already = job.dropped && job.fault && String(job.fault.id) === String(id) ? Number(job.charge) || 0 : 0;
+    var extra = Math.max(0, Math.round((bill - already) * 100) / 100);
+    if (who) {
+      who.free = false;
+      who.closed = book[String(id)];
+      if (extra) who.debt = Math.round(((who.debt || 0) + extra) * 100) / 100;
+    }
+    if (extra && myRole() === "driver" && signed()) avcSet(Math.round((avcGet() - extra) * 100) / 100);
+    job.wasted = true;
+    job.stage = "wasted";
+    job.charge = bill;
+    job.got = false;
+    job.verified = false;
+    job.driverAccepted = false;
+    job.driver = "";
+    job.driverId = "";
+    job.driverOwner = "";
+    if (job.fault) { job.fault.found = true; job.fault.meet = null; job.fault.bill = bill; }
+    saveJobs();
+    publishJob(job);
+    say(name + " wasted the order. Charged " + bill + " AV€. Closed for today.");
+  }
+  function checkWaste() {
+    var now = Date.now();
+    jobs.forEach(function (job) {
+      if (!job || job.wasted || job.delivered || job.received) return;
+      var live = job.got || (job.fault && !job.fault.found);
+      if (!live) return;
+      var start = job.outAt || (job.fault && job.fault.since) || 0;
+      if (!start || now - start < lifeMs(job)) return;
+      var id = job.fault && !job.fault.found ? job.fault.id : job.driverId;
+      var name = job.fault && !job.fault.found ? job.fault.name : job.driver;
+      var who = null;
+      people.forEach(function (p) {
+        if (p && (String(p.id) === String(id) || (name && p.name === name))) who = p;
+      });
+      if (!who) who = { id: id, name: name || "Driver" };
+      settleWaste(job, who);
+    });
+  }
   function closedToday(id) {
     try {
       var book = JSON.parse(localStorage.getItem("sn:closed") || "{}") || {};
@@ -2263,7 +2320,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     job.got = false;
     job.stage = "recover";
     job.watch = null;
-    job.redispatch = (job.redispatch || 0) + 1;
+    if (!job.outAt) job.outAt = job.t || Date.now();
     saveJobs();
     publishJob(job);
     askRoad(job.fault, job.fault.goal);
@@ -2357,6 +2414,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var hit = hunt && hunt.length ? alongRoad(hunt, hu) : null;
       if (!hit) hit = { lat: +p.base.lat, lng: +p.base.lng };
       if (haversineKm(hit, job.fault) < 0.04 || hu >= 1 && haversineKm(hit, job.fault) < 0.15) {
+        var start = job.outAt || job.fault.since;
+        if (start && Date.now() - start >= lifeMs(job)) {
+          var holder = null;
+          people.forEach(function (person) {
+            if (person && (String(person.id) === String(job.fault.id) || person.name === job.fault.name)) holder = person;
+          });
+          settleWaste(job, holder || { id: job.fault.id, name: job.fault.name });
+          return { lat: hit.lat, lng: hit.lng, label: (job.fault.name || "driver") + " · wasted", job: job };
+        }
         job.fault.found = true;
         job.fault.meet = { lat: +job.fault.lat, lng: +job.fault.lng };
         job.got = true;
@@ -2406,7 +2472,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!map || typeof L === "undefined") return;
     var seen = {};
     jobs.forEach(function (j) {
-      if (!j || j.received || !seesJob(j) || !j.vendor || !j.drop || !isFinite(+j.vendor.lat) || !isFinite(+j.drop.lat)) return;
+      if (!j || j.wasted || j.received || !seesJob(j) || !j.vendor || !j.drop || !isFinite(+j.vendor.lat) || !isFinite(+j.drop.lat)) return;
       seen["job:" + j.id] = 1;
       var from = j.fault && !j.fault.found ? j.fault : (j.fault && j.fault.found && j.fault.meet ? j.fault.meet : j.vendor);
       var to = j.fault && !j.fault.found ? (j.driverId ? j.fault : j.fault.goal) : j.drop;
@@ -2459,6 +2525,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       delete motionMarks[id];
     });
     watchRoute();
+    checkWaste();
   }
   function paintAdminPins() {
     function put(pt, color, label, onDrag) {
@@ -2946,6 +3013,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!isAdmin() && !hereLive) { say("Drivers are located by the live GPS only."); return; }
     if (!atShop(job)) return;
     job.got = true;
+    if (!job.outAt) job.outAt = Date.now();
     if (isAdmin()) job.pickup = true;
     saveJobs();
     publishJob(job);
