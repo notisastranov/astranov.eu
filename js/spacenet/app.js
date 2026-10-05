@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4327";
+  var VER = "4328";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -64,8 +64,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var intro = true;
   var introT0 = 0;
   var BRIEF = [
-    { k: "CALENDAR", t: "Sun 11 Oct · Genethlia Rosos IDRISI ASTRANOV NOTIS" },
-    { k: "NEWS", t: "Dodecanese · rain and storms, wind to 7 Beaufort, mainly Rhodes · 4 Oct" }
+    { k: "CALENDAR", t: "Sun 11 Oct · Genethlia Rosos IDRISI ASTRANOV NOTIS", lat: 36.45, lng: 28.22 },
+    { k: "NEWS", t: "Dodecanese · rain and storms, wind to 7 Beaufort, mainly Rhodes · 4 Oct", lat: 36.2, lng: 27.8 }
   ];
   var briefI = -1;
   var seated = false;
@@ -674,37 +674,51 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (n) rows.unshift({ k: "NOTICE", t: n + " open order" + (n === 1 ? "" : "s") });
     return rows;
   }
-  function tickNews(now) {
-    if (cityOn || supportOn) return;
-    var rows = cardsNow();
-    if (!rows.length) return;
-    var i = Math.floor(now / 4200) % rows.length;
-    if (i === briefI) return;
-    briefI = i;
-    say(rows[i].k + " · " + rows[i].t);
-  }
-  function drawCard(now) {
-    if (!ctx || cityOn) return;
-    var rows = cardsNow();
-    if (!rows.length) return;
-    var row = rows[Math.floor(now / 4200) % rows.length];
-    var text = row.k + "  " + row.t;
-    ctx.save();
-    ctx.font = "600 13px system-ui,sans-serif";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    var tw = ctx.measureText(text).width;
-    var w = Math.min(view.w - 24, tw + 22);
-    var x = (view.w - w) / 2;
-    var y = Math.max(8, view.h - 36);
-    ctx.fillStyle = "rgba(4,14,28,0.86)";
-    ctx.fillRect(x, y, w, 24);
-    ctx.strokeStyle = "rgba(77,240,255,0.75)";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, 23);
-    ctx.fillStyle = "#e8fbff";
-    ctx.fillText(text, x + 10, y + 12, w - 18);
-    ctx.restore();
+  function tickNews() {}
+  function drawCard() {
+    if (!ctx || cityOn || !view || cam.dist > 3.4) return;
+    var rows = cardsNow().filter(function (row) { return row && (row.k === "CALENDAR" || row.k === "NEWS" || row.k === "WARN" || row.k === "WARNING"); });
+    rows.forEach(function (row, i) {
+      var lat = isFinite(+row.lat) ? +row.lat : 36.43;
+      var lng = isFinite(+row.lng) ? +row.lng : 28.22;
+      var p = project(lat, lng, cam);
+      if (!p) return;
+      var dx = p.x - view.cx, dy = p.y - view.cy;
+      var len = Math.hypot(dx, dy) || 1;
+      var lift = 58 + i * 16;
+      var ox = p.x + (dx / len) * lift;
+      var oy = p.y + (dy / len) * (lift * 0.72) - 10;
+      var text = String(row.t || "");
+      ctx.save();
+      ctx.font = "600 11px system-ui,sans-serif";
+      var w = Math.min(190, Math.max(96, ctx.measureText(text).width + 16));
+      var h = 34;
+      var x = Math.max(8, Math.min(view.w - w - 8, ox - w / 2));
+      var y = Math.max(view.top + 4, Math.min(view.bot - h - 4, oy - h / 2));
+      ctx.strokeStyle = "rgba(232,251,255,0.9)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(x + w / 2, y + h / 2);
+      ctx.stroke();
+      ctx.fillStyle = "#e8fbff";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(4,16,32,0.62)";
+      ctx.strokeStyle = "rgba(77,240,255,0.75)";
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+      ctx.fillStyle = "#7ee9ff";
+      ctx.font = "800 9px system-ui,sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText(row.k, x + 8, y + 4);
+      ctx.fillStyle = "#e8fbff";
+      ctx.font = "600 11px system-ui,sans-serif";
+      ctx.fillText(text, x + 8, y + 16, w - 16);
+      ctx.restore();
+    });
   }
   function loop(now) {
     var dt = Math.min(0.05, lastT ? (now - lastT) / 1000 : 0.016);
@@ -1476,7 +1490,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-count{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;pointer-events:none;background:transparent}",
       "#sn-count.on{display:flex}",
       "#sn-count b{font:800 46vw/0.78 system-ui;color:#e8fbff;letter-spacing:-.08em;text-shadow:0 0 8px #fff,0 0 18px #4df0ff,0 0 36px #4df0ff,0 0 72px #1a6cff,0 0 120px #1a6cff}",
-      "#sn-pulse{position:fixed;top:180px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(255,176,32,.7);color:#ffb020;font:700 10px/14px ui-monospace,monospace;pointer-events:none}",,
+      "#sn-pulse{position:fixed!important;top:auto!important;left:72px!important;right:72px!important;bottom:var(--above-in, calc(var(--dock) + 8px))!important;z-index:48!important;max-width:none!important;margin:0 auto!important;text-align:center!important;padding:4px 10px!important;border-radius:999px!important;background:rgba(40,28,4,.92)!important;border:1px solid rgba(255,176,32,.8)!important;color:#ffb020!important;font:700 11px/16px ui-monospace,monospace!important;pointer-events:none!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}",,
     ].join("");
     document.head.appendChild(s);
   }
@@ -3744,6 +3758,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function layoutChrome() {
     var dock = $("dock");
     if (dock) document.documentElement.style.setProperty("--dock", dock.offsetHeight + "px");
+    var input = $("in");
+    if (input) document.documentElement.style.setProperty("--above-in", Math.round(window.innerHeight - input.getBoundingClientRect().top + 8) + "px");
     ["sn-me", "gps", "sn-money", "sn-support", "sn-power", "plus", "go"].forEach(function (id) {
       var el = $(id);
       if (!el) return;
@@ -5175,7 +5191,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       try { localStorage.setItem("sn:here", JSON.stringify(here)); } catch (e) {}
     }, true);
     fetch("/agenda.json", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
-      if (j && j.cards && j.cards.length) BRIEF = j.cards;
+      if (j && j.cards && j.cards.length) {
+        BRIEF = j.cards.map(function (c, i) {
+          c = c || {};
+          if (!isFinite(+c.lat)) c.lat = 36.43;
+          if (!isFinite(+c.lng)) c.lng = 28.22 + i * 0.35;
+          return c;
+        });
+      }
     }).catch(function () {});
     setTimeout(pullQueue, 600);
     setInterval(pullQueue, 4000);
