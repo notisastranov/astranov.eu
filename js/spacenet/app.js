@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4323";
+  var VER = "4324";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1452,8 +1452,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "form#f{display:flex!important;width:100%!important;gap:0!important;align-items:center!important;min-height:48px!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}",
       "input#in{flex:1!important;min-width:0!important;width:auto!important;min-height:48px!important;border:0!important;border-radius:0!important;background:transparent!important}",
       ".hub button{width:48px!important;height:48px!important;border:0!important;border-radius:0!important;background:transparent!important}",
-      "#sn-me{position:fixed!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;top:auto!important;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 56px)!important}",
-      "#gps{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 56px)!important}",
+      "#sn-above{position:fixed!important;left:0!important;right:0!important;bottom:var(--dock)!important;top:auto!important;z-index:45!important;display:flex!important;justify-content:space-between!important;align-items:flex-end!important;gap:8px!important;padding:0 8px 8px!important;pointer-events:none!important;background:transparent!important}",
+      "#sn-above>*{position:static!important;top:auto!important;left:auto!important;right:auto!important;bottom:auto!important;transform:none!important;pointer-events:auto!important}",
+      "#sn-above #plus,#sn-above #go{width:48px!important;height:48px!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.7)!important;background:rgba(4,16,28,.92)!important}",
       "#sn-pulse,#sn-tester{top:108px!important}",
       "#island{margin-top:0!important;padding-top:0!important}",
       "#sn-count{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;pointer-events:none;background:transparent}",
@@ -3725,7 +3726,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
   }
   function layoutChrome() {
-    ["sn-me", "gps", "sn-money", "sn-support", "sn-power"].forEach(function (id) {
+    var dock = $("dock");
+    if (dock) document.documentElement.style.setProperty("--dock", dock.offsetHeight + "px");
+    ["sn-me", "gps", "sn-money", "sn-support", "sn-power", "plus", "go"].forEach(function (id) {
       var el = $(id);
       if (!el) return;
       ["top", "left", "right", "bottom", "transform"].forEach(function (k) { el.style.removeProperty(k); });
