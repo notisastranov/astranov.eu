@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4326";
+  var VER = "4327";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1053,6 +1053,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     cam.dist = TIERS[2].dist;
   }
+  function goGlobal() {
+    closeCity();
+    intro = true;
+    tierI = 1;
+    fly = null;
+    cam.pitch = 0.22;
+    cam.dist = TIERS[1].dist;
+    say("Global view.");
+  }
   function listAt(pt) {
     if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
     listPt = { lat: pt.lat, lng: pt.lng };
@@ -1448,7 +1457,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet .card,#sn-sheet.tall .card,#sn-tasks .card{max-height:42vh!important}",
       "#sn-power{position:fixed!important;top:8px!important;left:max(6px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:60!important}",
       "#sn-support{position:fixed!important;top:8px!important;right:max(6px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;transform:none!important;z-index:60!important}",
-      "#sn-money{position:fixed!important;top:120px!important;left:50%!important;right:auto!important;bottom:auto!important;transform:translateX(-50%)!important;z-index:46!important}",
+      "#sn-money{position:fixed!important;top:64px!important;left:max(6px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:46!important}",
+      "#sn-globe{position:fixed!important;top:64px!important;right:max(6px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;z-index:60!important;width:40px!important;height:40px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;align-items:center!important;justify-content:center!important}",
+      "#sn-globe svg{width:22px;height:22px;display:block}",
       "#sn-me{position:fixed!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;top:auto!important;bottom:calc(var(--dock) + 16px)!important;z-index:46!important}",
       "#gps{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:calc(var(--dock) + 16px)!important;z-index:46!important}",
       "#sn-above{position:static!important;height:0!important;padding:0!important;margin:0!important;display:block!important;background:transparent!important}",
@@ -3827,6 +3838,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       power.addEventListener("pointercancel", cancelHold);
       power.addEventListener("pointerleave", cancelHold);
       power.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); });
+    }
+    var globe = $("sn-globe");
+    if (globe && !globe.__sn) {
+      globe.__sn = true;
+      globe.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        goGlobal();
+      });
     }
     var money = $("sn-money");
     if (money && !money.__sn) {
