@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4337";
+  var VER = "4338";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -859,7 +859,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4337 = true;
+      window.__SN_4338 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -1440,11 +1440,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (DEBUG_WHEEL) xhairLL = { lat: plat, lng: plng };
     var el = $("city");
     if (!el || typeof L === "undefined") return;
+    /* 4338: a map that is already on screen is never hidden again (no globe blink): no fade, no wait for tiles, it just moves */
+    var wasShown = !!(map && cityOn && el.classList.contains("on") && el.style.opacity === "1" && el.style.visibility !== "hidden");
     cityOn = true;
     el.classList.add("on");
-    el.style.opacity = "0";
-    el.style.background = "transparent";
-    el.style.visibility = "visible";
+    if (!wasShown) {
+      el.style.opacity = "0";
+      el.style.background = "transparent";
+      el.style.visibility = "visible";
+    }
     function sizeReady() {
       var w = el.clientWidth || el.offsetWidth || 0;
       var h = el.clientHeight || el.offsetHeight || 0;
@@ -1454,7 +1458,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (!map || !cityOn) return;
       function show() {
         el.style.opacity = "1";
-        el.style.background = "";
+        el.style.background = MAP_PAPER;
         try { map.invalidateSize({ animate: false, pan: false }); } catch (e) {}
       }
       var shown = false;
@@ -1492,7 +1496,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           if (isFinite(tx) && isFinite(ty)) map.panBy([cpA.x - tx, cpA.y - ty], { animate: false });
         } catch (eA) {}
       }
-      revealWhenTiled();
+      if (wasShown) { el.style.opacity = "1"; el.style.background = MAP_PAPER; }
+      else revealWhenTiled();
       placeXhair();
       if (huntFitWanted) { try { fitHunt(); } catch (eFit) {} }
     }
@@ -1878,7 +1883,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function hardReset() {
     say("Resetting…");
     try { localStorage.clear(); sessionStorage.clear(); } catch (e) {}
-    var go = function () { location.href = "/?v=4337&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4338&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -2078,6 +2083,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ".sn-shop-pin.sn-lbl-off b{visibility:hidden}.sn-shop-pin.sn-lbl-off:hover b{visibility:visible}.leaflet-marker-icon.sn-shop-pin:hover{z-index:9999!important}",
       ".sn-pin b{display:block;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;padding:0 3px;background:rgba(4,14,28,.92);color:#e8fbff;font:800 9px/12px system-ui}",
       ".sn-pin em{display:flex;align-items:center;justify-content:center;width:40px;height:40px;font:28px/40px system-ui;border-radius:8px;border:2px solid #4df0ff;background:rgba(4,14,28,.92)}",
+      ".sn-shop-pin .sn-pin{position:relative;z-index:1}",
+      ".sn-pin .sn-no{position:absolute;left:9px;top:0;z-index:3;min-width:17px;height:17px;padding:0 3px;box-sizing:border-box;border-radius:9px;background:#4df0ff;color:#041018;font:900 11px/17px system-ui;font-style:normal;text-align:center;box-shadow:0 0 0 2px #041018}",
+      ".leaflet-marker-icon.sn-shop-pin.sn-moved{overflow:visible!important}",
+      ".sn-shop-pin .sn-lead{position:absolute;left:38px;top:31px;height:2px;margin-top:-1px;background:#4df0ff;transform-origin:0 50%;pointer-events:none;z-index:0;box-shadow:0 0 0 1px rgba(4,16,28,.55)}",
+      ".sn-shop-pin .sn-lead:before{content:\"\";position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:#4df0ff;border:1px solid #041018;box-sizing:border-box}",
+      "#sn-sheet .ph.sn-ph-no{font-weight:900!important}",
       "#sn-tester{position:fixed;top:28px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(77,240,255,.4);color:#7ee9ff;font:700 10px/14px ui-monospace,monospace;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#sn-tester.stale{color:#8a6a6a;border-color:rgba(255,120,120,.35)}",
       "#sn-topchrome-drag{display:none!important;height:0!important;min-height:0!important;max-height:0!important;padding:0!important;margin:0!important;border:0!important}",
@@ -2909,16 +2920,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     html += '<button type="button" class="sheet-go" data-act="add-person" data-k="driver">Put a driver here</button>';
     openSheet("MOVE", html, true);
   }
-  function faceHtml(role, photo, name) {
+  function faceHtml(role, photo, name, no) {
     var mark = photo
       ? '<img alt="" width="40" height="40" style="width:40px!important;height:40px!important;max-width:40px!important;max-height:40px!important;object-fit:cover!important;display:block!important" src="' + String(photo).replace(/"/g, "") + '">'
       : '<em>' + (role === "driver" ? "🏍️" : role === "client" ? "🧍" : "🏪") + "</em>";
-    return '<span class="sn-pin">' + mark + "<b>" + esc(name || role) + "</b></span>";
+    return '<span class="sn-pin">' + (no ? '<i class="sn-no">' + (+no) + "</i>" : "") + mark + "<b>" + esc(name || role) + "</b></span>";
   }
-  function faceIcon(role, photo, name) {
+  function faceIcon(role, photo, name, no) {
     return L.divIcon({
       className: "sn-shop-pin",
-      html: faceHtml(role, photo, name),
+      html: faceHtml(role, photo, name, no),
       iconSize: [76, 62],
       iconAnchor: [38, 31]
     });
@@ -2932,12 +2943,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     try { map.eachLayer(function (ly) { if (ly && ly.__snShop) map.removeLayer(ly); }); } catch (eSw) {}
     if (huntPending()) { window.__snFieldIds = []; return; } /* pins come from the final list only */
     var field = fieldShops();
-    var fan = fanOut(field);
+    /* 4338: every pin sits on its real spot; a crowded face moves aside with a leader line back to it (declutterPins) */
+    var numbered = !!(huntView && !huntView.single && field.length > 1);
+    var ordered = numbered ? findOrder(field) : null;
     field.forEach(function (s, fi) {
-      var ll = fan[fi] || [s.lat, s.lng];
+      var ll = [s.lat, s.lng];
+      var no = ordered ? ordered.indexOf(s) + 1 : 0;
       var mark;
       if (L.divIcon) { /* every FIND row is a labelled pin, not a faint dot */
-        mark = L.marker(ll, { icon: faceIcon("vendor", s.photo, s.name || "shop"), zIndexOffset: 500, draggable: false, bubblingMouseEvents: false, keyboard: false });
+        mark = L.marker(ll, { icon: faceIcon("vendor", s.photo, s.name || "shop", no), zIndexOffset: 500 + (no ? 100 - Math.min(99, no) : 0), draggable: false, bubblingMouseEvents: false, keyboard: false });
       } else {
         mark = L.circleMarker(ll, { radius: s.src === "listed" ? 10 : 8, color: s.src === "listed" ? "#4df0ff" : "#7ee9ff", fillColor: "#0a2030", fillOpacity: 0.95, weight: 2 });
       }
@@ -2945,6 +2959,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (s.status === "pending") tipExtra += " · PENDING";
       if (Array.isArray(s.menu) && s.menu.length) tipExtra += " · " + s.menu.length;
       mark.__snShop = true;
+      mark.__snNo = no;
       mark.__snId = s.id || s.name;
       try { var orgK = huntOrigin(); mark.__snKm = orgK && isFinite(+orgK.lat) ? haversineKm(orgK, s) : fi; } catch (eK) { mark.__snKm = fi; }
       mark.bindTooltip((s.name || "shop") + (s.aka ? " · " + s.aka : "") + tipExtra, { direction: "top", sticky: true });
@@ -2995,32 +3010,104 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     declT = requestAnimationFrame(function () { declT = 0; try { declutterPins(); } catch (e) {} });
   }
   function rectHit(a, b) { return a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1; }
+  /* 4338: nearest first; with a FIND open every pin keeps its number badge and, where there is room, its name: a face that
+     would cover another face or label (or sit under the ribbon / sheet) moves to the nearest free slot with a leader line
+     back to its real spot. Without a FIND (browsing a town) pins stay put and a crowded label hides (hover shows it). */
+  var DECL_SLOTS = (function () {
+    var c = [[0, 0]];
+    [[44, 8], [80, 12], [118, 16], [160, 20]].forEach(function (ring) {
+      for (var k = 0; k < ring[1]; k++) {
+        var a = -Math.PI / 2 + (2 * Math.PI * k) / ring[1];
+        c.push([Math.round(Math.cos(a) * ring[0] * 1.3), Math.round(Math.sin(a) * ring[0])]);
+      }
+    });
+    return c;
+  })();
   function declutterPins() {
     if (!map || !cityOn) return;
     var cityEl = $("city");
     if (!cityEl) return;
     var r0 = cityEl.getBoundingClientRect(), vb = mapVisBox();
-    var marks = shopMarks.slice().sort(function (a, b) { return (a.__snKm || 0) - (b.__snKm || 0); });
-    var faces = [];
-    marks.forEach(function (m) {
-      var el = m.getElement && m.getElement();
-      var f = el && el.querySelector("img,em");
-      if (f) faces.push({ el: el, r: f.getBoundingClientRect() });
-    });
-    var kept = [];
+    var T = r0.top + vb.t, B = r0.top + vb.b, LF = r0.left + 4, RT = r0.left + vb.W - 4;
+    var marks = shopMarks.slice().sort(function (a, b) { return ((a.__snNo || 0) - (b.__snNo || 0)) || ((a.__snKm || 0) - (b.__snKm || 0)); });
+    var items = [];
     marks.forEach(function (m) {
       var el = m.getElement && m.getElement();
       if (!el) return;
-      var b = el.querySelector("b");
-      if (!b) return;
+      var pin = el.querySelector(".sn-pin"), f = el.querySelector(".sn-pin img,.sn-pin em"), b = el.querySelector(".sn-pin b");
+      if (!pin || !f) return;
+      pin.style.transform = "";
       el.classList.remove("sn-lbl-off");
-      var r = b.getBoundingClientRect();
-      var off = (r.top - r0.top) < vb.t || (r.bottom - r0.top) > vb.b;
-      for (var i = 0; !off && i < kept.length; i++) if (rectHit(r, kept[i])) off = true;
-      for (var j = 0; !off && j < faces.length; j++) if (faces[j].el !== el && rectHit(r, faces[j].r)) off = true;
-      if (off) el.classList.add("sn-lbl-off");
-      else kept.push(r);
+      el.classList.remove("sn-moved");
+      var ld0 = el.querySelector(".sn-lead");
+      if (ld0) ld0.style.display = "none";
+      items.push({ el: el, pin: pin, f: f, b: b, no: m.__snNo || 0 });
     });
+    items.forEach(function (it) { it.fr = it.f.getBoundingClientRect(); it.br = it.b ? it.b.getBoundingClientRect() : null; });
+    function sh(r, dx, dy) { return { left: r.left + dx, right: r.right + dx, top: r.top + dy, bottom: r.bottom + dy }; }
+    function grow(r, p) { return { left: r.left - p, right: r.right + p, top: r.top - p, bottom: r.bottom + p }; }
+    function inside(r) { return r.top >= T && r.bottom <= B && r.left >= LF && r.right <= RT; }
+    var placed = [];
+    function free(r) { for (var i = 0; i < placed.length; i++) if (rectHit(r, placed[i])) return false; return true; }
+    var spread = items.length > 1 && items.length <= 40 && items.some(function (it) { return it.no; });
+    var slots = spread ? DECL_SLOTS : [[0, 0]];
+    /* each pin's real spot (icon anchor) and the cluster centre: crowded faces move outward, leaders do not cross */
+    var cx0 = 0, cy0 = 0;
+    items.forEach(function (it) { var rr = it.el.getBoundingClientRect(); it.ax = rr.left + 38; it.ay = rr.top + 31; cx0 += it.ax; cy0 += it.ay; });
+    if (items.length) { cx0 /= items.length; cy0 /= items.length; }
+    var segs = [];
+    function cross(a, b, c, d) {
+      function o(p, q, r) { return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]); }
+      return (o(a, b, c) > 0) !== (o(a, b, d) > 0) && (o(c, d, a) > 0) !== (o(c, d, b) > 0);
+    }
+    function segHitsRects(a, b) {
+      var n = 0;
+      for (var i = 0; i < placed.length; i++) {
+        var r = placed[i];
+        for (var t = 0.15; t <= 0.85; t += 0.1) {
+          var x = a[0] + (b[0] - a[0]) * t, y = a[1] + (b[1] - a[1]) * t;
+          if (x > r.left && x < r.right && y > r.top && y < r.bottom) { n++; break; }
+        }
+      }
+      return n;
+    }
+    items.forEach(function (it) {
+      var unit = it.br && it.br.width > 0 ? { left: Math.min(it.fr.left, it.br.left), right: Math.max(it.fr.right, it.br.right), top: it.fr.top, bottom: it.br.bottom } : null;
+      var ox = it.ax - cx0, oy = it.ay - cy0, ol = Math.hypot(ox, oy);
+      var pick = null, withLabel = false, best = 1e9, k;
+      for (k = 0; k < slots.length; k++) {
+        var dx = slots[k][0], dy = slots[k][1];
+        var lab = !!unit && inside(sh(unit, dx, dy)) && free(grow(sh(unit, dx, dy), 2));
+        if (!lab) { var fr = sh(it.fr, dx, dy); if (!(inside(fr) && free(grow(fr, 2)))) continue; }
+        var len = Math.hypot(dx, dy), sc = (lab ? 0 : 400) + len;
+        if (len) {
+          var a = [it.ax, it.ay], b = [it.ax + dx, it.ay + dy - 11];
+          for (var q = 0; q < segs.length; q++) if (cross(a, b, segs[q][0], segs[q][1])) sc += 250;
+          sc += 150 * segHitsRects(a, b);
+          if (ol > 6) sc += 40 * (1 - (dx * ox + dy * oy) / (len * ol));
+        }
+        if (sc < best) { best = sc; pick = slots[k]; withLabel = lab; }
+        if (!len && lab) break; /* its own spot with its label: nothing beats that */
+      }
+      if (!pick) pick = [0, 0]; /* no room anywhere: it stays on its spot, its label waits for a zoom */
+      if (pick[0] || pick[1]) segs.push([[it.ax, it.ay], [it.ax + pick[0], it.ay + pick[1] - 11]]);
+      var dx = pick[0], dy = pick[1];
+      placed.push(sh(it.fr, dx, dy));
+      if (withLabel) placed.push(sh(it.br, dx, dy));
+      else if (it.b) it.el.classList.add("sn-lbl-off");
+      if (dx || dy) {
+        it.pin.style.transform = "translate(" + dx + "px," + dy + "px)";
+        it.el.classList.add("sn-moved");
+        var ld = it.el.querySelector(".sn-lead");
+        if (!ld) { ld = document.createElement("i"); ld.className = "sn-lead"; it.el.insertBefore(ld, it.el.firstChild); }
+        var ex = dx, ey = dy - 11; /* the face centre sits 11 px above the icon anchor (the real spot) */
+        ld.style.width = Math.max(0, Math.round(Math.hypot(ex, ey))) + "px";
+        ld.style.transform = "rotate(" + Math.atan2(ey, ex).toFixed(4) + "rad)";
+        ld.style.display = "";
+      }
+    });
+    window.__snDecl = { n: items.length, moved: items.filter(function (it) { return it.el.classList.contains("sn-moved"); }).length,
+      labels: items.filter(function (it) { return it.b && !it.el.classList.contains("sn-lbl-off"); }).length };
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -3851,17 +3938,23 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     huntView.fitted = true;
     try { paintShopsOnMap(); } catch (e3) {}
   }
-  function renderFind(list) {
+  /* FIND order (nearest the hunt origin first): the row number and the pin badge both come from here */
+  function findOrder(list) {
     var seat0 = huntOrigin();
     var shown = (list || []).slice();
     if (seat0) shown.sort(function (a, b) { return haversineKm(seat0, a) - haversineKm(seat0, b); });
+    return shown;
+  }
+  function renderFind(list) {
+    var seat0 = huntOrigin();
+    var shown = findOrder(list);
     window.__snFindShown = shown;
     if (!shown.length) {
       openSheet("FIND · 0", '<p class="note">No real ' + esc(huntLabel()) + " within 50 km of " + esc(seatName(seat0)) + ".</p>");
     } else {
       var html = shown.map(function (s, i) {
         var ch = (String(s.name || "").match(/[A-Za-zΑ-Ωα-ω]/) || ["·"])[0].toUpperCase();
-        return '<button type="button" class="pill" data-act="vendor" data-i="' + i + '"><span class="ph">' + esc(ch) +
+        return '<button type="button" class="pill" data-act="vendor" data-i="' + i + '" title="' + esc(ch) + '"><span class="ph sn-ph-no">' + (i + 1) +
           '</span><div class="sn-fx" style="min-width:0;flex:1"><b></b><span class="sn-fm"></span></div></button>';
       }).join("");
       openSheet("FIND · " + shown.length, html);
@@ -4950,6 +5043,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var progMoveUntil = 0, mapUserAt = 0, closeBelow = 12.5, huntFitWanted = false;
   /* 4337: one sn:wheel line per notch; the wheel dive opens the city at the globe's own scale (z10) and steps 0.5 per notch */
   var wheelN = 0, cityAcc = 0, cityAccT = 0, xhairLL = null, WHEEL_OPEN_Z = 10, WHEEL_MAX_Z = 18, landAt = 0;
+  /* 4338: a tile still on its way shows map paper (OSM land tone), never the dark globe behind */
+  var MAP_PAPER = "#ece8df";
   var huntView = null;
   var findOnSheet = false;
   var overpassOff = false;
@@ -7087,7 +7182,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4337 = true;
+    window.__SN_4338 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

@@ -1,5 +1,5 @@
 /**
- * Headed real-input test (4337): real Chrome on the X display (DISPLAY, default :3), OS-level xdotool input,
+ * Headed real-input test (4338): real Chrome on the X display (DISPLAY, default :3), OS-level xdotool input,
  * screenshots grabbed from the X screen (actual pixels, not page.screenshot) via python3 + Pillow ImageGrab.
  *
  * WHEEL: drag twice (each must move the globe), one wheel notch + a third drag (drag after an anchor hold),
@@ -9,6 +9,12 @@
  * HUNTS=1: supermarket + pizza in Rhodes (tiles under the pins, every pin inside the visible map box, no label
  *   overlaps), the Gondola row, pizza in Athens (time-to-land ≤ 8 s), "Augoustinos in Rhodes" (one place card,
  *   one pin), Power (countdown visible while held, tag clear of the wallet pill, short tap message).
+ * 4338 NO-BLINK: during each Rhodes fit and across Rhodes→Athens (land + pin fit) two samplers run: an X-screen pixel sampler
+ *   (map band, every ≤25 ms; a dark frame = the globe) and an in-page requestAnimationFrame sampler (#city on, opacity 1);
+ *   both must record zero globe frames, the pixel sampler's p95 gap must be ≤ 50 ms. athens-at-land.png is grabbed the moment
+ *   every visible tile at Athens has loaded and must show streets.
+ * 4338 LABELS: every FIND pin shows a number badge equal to its FIND row number (row name = pin name), badges and faces are
+ *   unobstructed by other faces/labels, visible labels never overlap.
  * Env: PREVIEW_URL, STAMP, LOCAL_APP, WIN=1280x800, HOLD, GAP, SPIN, DEBUGQ=1, SHOTDIR, REAL_CHROME=1, HUNTS=1, LAND_MAX=8
  */
 const { chromium } = require("playwright");
@@ -17,7 +23,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4337";
+const STAMP = process.env.STAMP || "4338";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now() + (process.env.DEBUGQ ? "&debug=wheel" : "");
 const RHODES = { lat: 36.4349, lng: 28.2176 }, ATHENS = { lat: 37.9838, lng: 23.7275 };
 const [WW, WH] = (process.env.WIN || "1280x800").split("x").map(Number);
@@ -27,7 +33,8 @@ if (!process.env.DISPLAY) process.env.DISPLAY = ":3";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const xdo = (a) => execSync("xdotool " + a, { env: process.env });
 function near(a, b, t) { if (!a || !b) return false; let d = Math.abs(a.lng - b.lng); if (d > 180) d = 360 - d; return Math.abs(a.lat - b.lat) < t && d < t; }
-const GRAB = path.join(os.tmpdir(), "sn_grab4337.py");
+const GRAB = path.join(os.tmpdir(), "sn_grab4338.py");
+const SAMP = path.join(os.tmpdir(), "sn_samp4338.py");
 fs.writeFileSync(GRAB, `import sys, json
 from PIL import ImageGrab, ImageStat
 out, x, y, w, h, rx, ry, rw, rh = sys.argv[1], *map(int, sys.argv[2:10])
@@ -43,6 +50,21 @@ r_, g_, b_ = im.split()
 m = ImageChops.multiply(ImageChops.multiply(r_.point(lambda v: 255 if v > 200 else 0), g_.point(lambda v: 255 if v < 110 else 0)), b_.point(lambda v: 255 if v > 190 else 0))
 mag = m.histogram()[255]
 print(json.dumps({"std": round(st.stddev[0], 1), "mean": round(st.mean[0], 1), "colors": cols, "magenta": mag}))
+`);
+fs.writeFileSync(SAMP, `import sys, time, json, os
+from PIL import ImageGrab, ImageStat
+out, stop, x, y, w, h, every = sys.argv[1], sys.argv[2], *map(int, sys.argv[3:8])
+fdir = out[:-6] + "_frames"; os.makedirs(fdir, exist_ok=True)
+f = open(out, "w"); i = 0
+while not os.path.exists(stop):
+    t = time.time()
+    im = ImageGrab.grab(xdisplay="${process.env.DISPLAY}").crop((x, y, x + w, y + h)).convert("RGB")
+    st = ImageStat.Stat(im.resize((max(1, w // 8), max(1, h // 8))).convert("L"))
+    globe = st.mean[0] < 90
+    if globe or i % every == 0: im.resize((max(1, w // 2), max(1, h // 2))).save(os.path.join(fdir, "f%04d%s.png" % (i, "_GLOBE" if globe else "")), compress_level=1)
+    f.write(json.dumps({"t": round(t * 1000), "mean": round(st.mean[0], 1), "std": round(st.stddev[0], 1), "globe": globe}) + "\\n"); f.flush(); i += 1
+    d = 0.025 - (time.time() - t)
+    if d > 0: time.sleep(d)
 `);
 const results = { fails: [], notes: [] };
 function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (info ? " " + info : "")); if (!ok) results.fails.push(name); }
@@ -162,9 +184,30 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
     const pinInfo = () => page.evaluate(() => {
       const pins = [...document.querySelectorAll("#city .leaflet-marker-icon.sn-shop-pin")];
       const out = pins.map((p) => { const b = p.getBoundingClientRect(); const l = p.querySelector("b"); const lb = l && l.getBoundingClientRect(); const lv = l && getComputedStyle(l).visibility !== "hidden" && getComputedStyle(l).display !== "none" && +getComputedStyle(l).opacity > 0.2;
-        return { x: b.left, y: b.top, w: b.width, h: b.height, name: l ? l.textContent : "", lab: lv ? { x: lb.left, y: lb.top, w: lb.width, h: lb.height } : null }; });
+        const nb = p.querySelector(".sn-no"); const nr = nb && nb.getBoundingClientRect(); const nv = nb && getComputedStyle(nb).visibility !== "hidden" && nr.width > 8 && nr.height > 8;
+        const fc = p.querySelector(".sn-pin img,.sn-pin em"); const fr = fc && fc.getBoundingClientRect();
+        return { x: b.left, y: b.top, w: b.width, h: b.height, name: l ? l.textContent : "", lab: lv ? { x: lb.left, y: lb.top, w: lb.width, h: lb.height } : null,
+          no: nv ? nb.textContent : null, nob: nv ? { x: nr.left, y: nr.top, w: nr.width, h: nr.height } : null, face: fr ? { x: fr.left, y: fr.top, w: fr.width, h: fr.height } : null, moved: p.classList.contains("sn-moved") }; });
       return out;
     });
+    const hit = (a, b) => a && b && a.x < b.x + b.w - 1 && b.x < a.x + a.w - 1 && a.y < b.y + b.h - 1 && b.y < a.y + a.h - 1;
+    const rows = () => page.evaluate(() => [...document.querySelectorAll("#sn-sheet-body .pill")].map((p) => ({ no: ((p.querySelector(".ph") || {}).textContent || "").trim(), name: ((p.querySelector("b") || {}).textContent || "").trim() })));
+    function labelCheck(tag, pins, rw, vb) {
+      const bad = [], used = {};
+      pins.forEach((p, i) => {
+        const n = p.no == null ? NaN : +p.no; const row = rw[n - 1];
+        if (!(n >= 1) || !row || row.name !== p.name.trim() || String(row.no) !== String(n)) bad.push(`${p.name}#${p.no}≠row`);
+        if (used[n]) bad.push(`dup #${n}`); used[n] = 1;
+        if (p.nob && (p.nob.y < vb.t - 2 || p.nob.y + p.nob.h > vb.b + 2)) bad.push(`#${n} off the visible map`);
+        pins.forEach((q, j) => {
+          if (i === j) return;
+          if (hit(p.nob, q.face) || hit(p.nob, q.lab) || hit(p.face, q.face)) bad.push(`#${n} covered by ${q.name}`);
+          if (p.lab && (hit(p.lab, q.face) || hit(p.lab, q.nob))) bad.push(`label ${p.name} on ${q.name}`);
+        });
+      });
+      check(`${tag} every pin shows its FIND row number (or label), unobstructed`, pins.length > 0 && pins.length === rw.length && bad.length === 0,
+        `pins ${pins.length} rows ${rw.length}, badges ${pins.filter((p) => p.no).length}, labels ${pins.filter((p) => p.lab).length}, moved ${pins.filter((p) => p.moved).length}` + (bad.length ? " BAD " + bad.slice(0, 6).join("; ") : ""));
+    }
     function overlaps(pins) {
       let n = 0; const L = pins.filter((p) => p.lab);
       for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
@@ -179,13 +222,55 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
         prof: ((document.querySelector("#sn-sheet .sn-prof") || {}).textContent || "").slice(0, 80),
         live: (document.getElementById("sn-pulse") || {}).textContent, line: document.getElementById("line").textContent }; });
     async function say(t) { await page.click("#in"); await page.fill("#in", t); await page.press("#in", "Enter"); return Date.now(); }
+    // ---- 4338 no-blink samplers ----
+    const { spawn } = require("child_process");
+    async function watch(tag, landAt, fn) {
+      const vb0 = await visBox();
+      const band = { x: 70, y: Math.round(vb0.t + 6), w: geo.iw - 140, h: 110 };
+      const out = path.join(SHOTDIR, "blink-" + tag + ".jsonl"), stop = out + ".stop";
+      try { fs.unlinkSync(stop); } catch (e) {}
+      const pr = spawn("python3", [SAMP, out, stop, String(ox + band.x), String(oy + band.y), String(band.w), String(band.h), "6"], { env: process.env, stdio: "ignore" });
+      await page.evaluate((land) => {
+        window.__raf = []; window.__rafOn = true; window.__landT = null; window.__raf0 = performance.now();
+        const near = (a, b, t) => Math.abs(a - b) < t;
+        const tick = () => {
+          if (!window.__rafOn) return;
+          const c = document.getElementById("city"); const cs = getComputedStyle(c); const m = SN.getMap(); const cc = m && m.getCenter();
+          const ims = [...c.querySelectorAll("img.leaflet-tile")].filter((x) => { const b = x.getBoundingClientRect(); return b.right > 0 && b.bottom > 0 && b.left < innerWidth && b.top < innerHeight; });
+          const ld = ims.filter((x) => x.complete && x.naturalWidth > 8 && getComputedStyle(x).opacity > 0.9).length;
+          const on = c.classList.contains("on") && cs.display !== "none" && cs.visibility !== "hidden" && +cs.opacity >= 0.99;
+          window.__raf.push([Math.round(performance.now() - window.__raf0), on ? 1 : 0, +cs.opacity, ld, ims.length]);
+          if (land && !window.__landT && on && cc && near(cc.lat, land.lat, 0.3) && near(cc.lng, land.lng, 0.3) && ims.length && ld === ims.length) window.__landT = performance.now() - window.__raf0;
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }, landAt || null);
+      await sleep(120);
+      const r = await fn();
+      await sleep(300);
+      const raf = await page.evaluate(() => { window.__rafOn = false; return window.__raf; });
+      fs.writeFileSync(stop, "1"); await new Promise((res) => { pr.on("exit", res); setTimeout(res, 2000); });
+      const px = fs.readFileSync(out, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
+      const gaps = px.slice(1).map((p, i) => p.t - px[i].t).sort((a, b) => a - b);
+      const p95 = gaps.length ? gaps[Math.min(gaps.length - 1, Math.floor(gaps.length * 0.95))] : 999, gmax = gaps.length ? gaps[gaps.length - 1] : 999;
+      const pxGlobe = px.filter((p) => p.globe).length, domGlobe = raf.filter((f) => !f[1]).length, blank = raf.filter((f) => f[1] && !f[3]).length;
+      const rafGaps = raf.slice(1).map((f, i) => f[0] - raf[i][0]); const rafMax = rafGaps.length ? Math.max(...rafGaps) : 999;
+      const minMean = px.length ? Math.min(...px.map((p) => p.mean)) : 0;
+      console.log(`[blink ${tag}] pixel samples ${px.length} over ${px.length ? px[px.length - 1].t - px[0].t : 0} ms, gap p95 ${p95} max ${gmax} ms, min band mean ${minMean}, globe ${pxGlobe}; rAF frames ${raf.length} (max gap ${rafMax} ms), hidden ${domGlobe}, paper-only (tiles loading) ${blank}; log ${out}`);
+      check(`${tag} no globe frame (pixels, every ≤50 ms)`, px.length > 20 && pxGlobe === 0 && p95 <= 50, `${pxGlobe}/${px.length} dark frames, p95 gap ${p95} ms`);
+      check(`${tag} no hidden-map frame (every animation frame)`, raf.length > 20 && domGlobe === 0, `${domGlobe}/${raf.length}`);
+      return r;
+    }
     async function waitFor(fn, ms) { const t = Date.now(); while (Date.now() - t < ms) { const s = await state(); if (fn(s)) return { s, ms: Date.now() - t }; await sleep(200); } return { s: await state(), ms: null }; }
     async function fitCheck(tag, q, place) {
-      const tA = await say(q);
-      const land = await waitFor((s) => s.cityOn && near(s.center, place, 0.3), 15000);
-      const done = await waitFor((s) => s.find && s.find !== "…", 20000);
-      await sleep(1800);
-      const vb = await visBox(); const pins = await pinInfo(); const t = await tileInfo();
+      let land, done;
+      await watch(tag + "-fit", null, async () => {
+        const tA = await say(q);
+        land = await waitFor((s) => s.cityOn && near(s.center, place, 0.3), 15000);
+        done = await waitFor((s) => s.find && s.find !== "…", 20000);
+        await sleep(1800);
+      });
+      const vb = await visBox(); const pins = await pinInfo(); const t = await tileInfo(); const rw = await rows();
       const g = await grab(tag, { x: 70, y: vb.t + 4, w: geo.iw - 140, h: Math.max(20, vb.b - vb.t - 8) });
       const inside = pins.filter((p) => p.y >= vb.t - 2 && p.y + p.h <= vb.b + 2 && p.x >= -2 && p.x + p.w <= geo.iw + 2).length;
       const ov = overlaps(pins);
@@ -194,6 +279,7 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
       check(`${tag} pins inside visible map (ribbon..sheet)`, pins.length > 0 && inside === pins.length, `${inside}/${pins.length} box ${vb.t.toFixed(0)}..${vb.b.toFixed(0)}`);
       check(`${tag} no overlapping labels`, ov === 0, `overlaps ${ov}, labels shown ${pins.filter((p) => p.lab).length}/${pins.length}`);
       check(`${tag} FIND = pins`, done.s.find && +done.s.find === pins.length, `FIND ${done.s.find} pins ${pins.length}`);
+      labelCheck(tag, pins, rw, vb);
       return { land, done, pins };
     }
     await fitCheck("rhodes-supermarket", "supermarket in Rhodes", RHODES);
@@ -207,13 +293,21 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
       check("gondola sheet ~0.9 km", !!(fee && Math.abs(+fee[1] - 0.9) < 0.35), fee && fee[1]);
     } else check("gondola row present", false);
     // Athens: time to land
-    const tA = await say("pizza in Athens Greece");
-    const land = await waitFor((s) => s.cityOn && near(s.center, ATHENS, 0.3), 20000);
-    const g8 = await grab("athens-at-land");
-    const done = await waitFor((s) => s.find && s.find !== "…", 20000);
-    await sleep(1500);
+    let g8 = null, done = null, landMs = null;
+    await watch("rhodes-to-athens", ATHENS, async () => {
+      const t0 = await page.evaluate(() => performance.now() - window.__raf0);
+      await say("pizza in Athens Greece");
+      const tw = Date.now();
+      while (Date.now() - tw < 20000) { const lt = await page.evaluate(() => window.__landT); if (lt != null) { landMs = lt - t0; break; } await sleep(25); }
+      g8 = await grab("athens-at-land");
+      done = await waitFor((s) => s.find && s.find !== "…", 20000);
+      await sleep(1500);
+    });
     const gA = await grab("athens-final");
-    const landS = land.ms == null ? null : +(land.ms / 1000).toFixed(1);
+    const vbA = await visBox(); const pinsA = await pinInfo(); const rwA = await rows();
+    labelCheck("athens", pinsA, rwA, vbA);
+    check("athens-at-land shows streets", g8 && g8.std >= 10 && g8.mean > 90 && g8.colors >= 60, JSON.stringify(g8));
+    const landS = landMs == null ? null : +(landMs / 1000).toFixed(2);
     console.log("[athens] land", landS, "s; FIND", done.s.find, "after", done.ms, "ms;", JSON.stringify(done.s).slice(0, 260));
     check("athens time-to-land ≤ " + (process.env.LAND_MAX || 8) + " s", landS != null && landS <= Number(process.env.LAND_MAX || 8), landS + " s (screens " + g8.file + ", tiles std " + g8.std + ")");
     check("athens pins", done.s.find && +done.s.find > 0 && near(done.s.center, ATHENS, 0.3), "FIND " + done.s.find);
