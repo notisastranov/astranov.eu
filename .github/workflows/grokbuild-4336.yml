@@ -1,0 +1,93 @@
+name: grokbuild 4336 headed wheel anchor, pins in view + fitBounds, Athens stays on the city, power state, no mid-run reload (branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4336.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Merge main; decode kit39; apply fix39 + stamp 4336; assert; drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch -q origin main
+          MAIN=$(git rev-parse origin/main)
+          echo "main tip $MAIN"
+          test "$MAIN" = "b2b228dd8755f6f0a6b1b006313b4bca13292c84" || { echo "main moved"; exit 1; }
+          if ! git merge-base --is-ancestor "$MAIN" HEAD; then
+            git merge origin/main -m "merge main under 4336 preview" -X ours
+          fi
+          git merge-base --is-ancestor "$MAIN" HEAD
+          grep -q 'sn-architect' index.html
+          grep -q 'var VER = "4335"' js/spacenet/app.js
+          test -f .grokbuild/kit39.p00.hex
+          python3 - <<'PYHEX'
+          from pathlib import Path
+          import hashlib, gzip, glob, tarfile, io
+          raw = bytes.fromhex("".join(Path(p).read_text().strip() for p in sorted(glob.glob(".grokbuild/kit39.p*.hex"))))
+          g = hashlib.sha256(raw).hexdigest(); print("tgz", g, len(raw))
+          if g != "af7983c2ce6ed62cee2ab4deaf237a7e7fd99477c2dee8e12ed24d930f5491e1": raise SystemExit("tgz sha mismatch")
+          body = gzip.decompress(raw); s = hashlib.sha256(body).hexdigest(); print("tar", s, len(body))
+          if s != "4a0543b4eb35ad637730916520d4cd1095e2cc9dd496b03488d9f8c7063f45b7": raise SystemExit("tar sha mismatch")
+          Path(".grokbuild/k").mkdir(parents=True, exist_ok=True)
+          with tarfile.open(fileobj=io.BytesIO(body)) as t:
+              for m in t.getmembers():
+                  if m.name.startswith("/") or ".." in m.name: raise SystemExit("bad member " + m.name)
+              t.extractall(".grokbuild/k")
+          PYHEX
+          python3 .grokbuild/k/fix39_client.py js/spacenet/app.js
+          python3 .grokbuild/k/fix39_sw.py sw.js
+          bash .grokbuild/k/stamp4336.sh
+          printf '4336\n' > VERSION
+          cp .grokbuild/k/headed_wheel_xdotool.js tests/headed_wheel_xdotool.js
+          cp .grokbuild/k/pw_hunt_replace.js tests/pw_hunt_replace.js
+          grep -q 'app.js?v=4336' index.html
+          grep -q 'auth.js?v=4336' index.html
+          grep -q 'name="astranov-build" content="4336"' index.html
+          grep -q 'id="ver">V4336' index.html
+          grep -q 'var VER = "4336"' js/spacenet/app.js
+          grep -q '__SN_4336 = true' js/spacenet/app.js
+          grep -q 'var VER = "4336"' sw.js
+          grep -q 'sn-shell-4336' sw.js
+          grep -q 'TREE LOCK 4336' sw.js
+          grep -q 'latest: "4336"' api/version.js
+          grep -q '4336-real' vercel.json
+          grep -qx '4336' VERSION
+          grep -q 'function solveCursor' js/spacenet/app.js
+          grep -q 'globeHeld' js/spacenet/app.js
+          grep -q 'debug=wheel' js/spacenet/app.js
+          grep -q 'function fitHunt' js/spacenet/app.js
+          grep -q 'function mapVisBox' js/spacenet/app.js
+          grep -q 'function huntPending' js/spacenet/app.js
+          grep -q 'function huntOrigin' js/spacenet/app.js
+          grep -q 'function safeReload' js/spacenet/app.js
+          grep -q 'function streetKey' js/spacenet/app.js
+          grep -q 'Power · offers on' js/spacenet/app.js
+          grep -q 'progMoveUntil' js/spacenet/app.js
+          grep -q 'sn-pick.nothumb' js/spacenet/app.js
+          grep -q 'type: "sn-sw"' sw.js
+          if grep -q 'c.navigate(' sw.js; then echo 'sw still navigates clients'; exit 1; fi
+          grep -q 'HEADED_WHEEL' tests/headed_wheel_xdotool.js
+          grep -q 'Athens: map centre within 0.2' tests/pw_hunt_replace.js
+          if grep -q '4335' index.html sw.js VERSION api/version.js vercel.json js/spacenet/app.js; then echo 'stale 4335 stamp'; exit 1; fi
+          python3 -c "import json;json.load(open('vercel.json'))"
+          node --check js/spacenet/app.js
+          node --check sw.js
+          node --check tests/headed_wheel_xdotool.js
+          node --check tests/pw_hunt_replace.js
+          git rm -q -r --cached .grokbuild || true
+          git rm -q .github/workflows/grokbuild-4336.yml || true
+          rm -rf .grokbuild .github/workflows/grokbuild-4336.yml
+          git add -u
+          git add VERSION index.html vercel.json sw.js js/spacenet/app.js api/version.js tests/headed_wheel_xdotool.js tests/pw_hunt_replace.js
+          git status --short | head -40
+          git commit -q -m "4336: wheel anchor stays under the cursor (no idle spin after a drag, zoom-to-cursor, 4 px / 400 ms gesture, ?debug=wheel crosshair), every FIND row a labelled pin framed by fitBounds above the sheet, LIVE from the final list only, 'X in place' stays on the city, Power label shows its state, one distance origin, unique aliases, no empty thumbnails, no mid-run SW reload (preview, do not merge)"
+          git push origin HEAD:grokbuild/4328-street-level-gps
