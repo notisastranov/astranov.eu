@@ -2,19 +2,26 @@
  * Real-input globe wheel at 1280x800, deviceScaleFactor 1 and 2.
  * Uses page.mouse.move + page.mouse.wheel (not element.dispatchEvent).
  * Phases: (1) after 10s idle/auto-spin, face E Med, wheel-in;
- *         (2) Rhodes land → closeCity → wheel-in at Rhodes pixel.
+ *         (2) Rhodes land → closeCity → wheel-in at Rhodes pixel;
+ *         (3) fresh boot: drag (-200,+80) and (+300,-50), let it spin 5s, hover the pixel where
+ *             E Med (36.4, 28.2) projects with the render's own frame (SN.projectFrame), wheel 15 notches
+ *             → final street centre within 1° of E Med (no lookAt before the wheel);
+ *         (4) back to globe, drag until E Med sits at the fixed pixel 800,515, wheel 15 notches there
+ *             → centre within 1° of E Med.
  * Asserts street center near E Med / Rhodes, not Bering, tiles loaded.
+ * Optional LOCAL_APP=<patched app.js> routes that file in place of /js/spacenet/app.js.
  */
 const { chromium } = require("playwright");
 
 const PREVIEW =
   process.env.PREVIEW_URL ||
   "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/?v=" +
-    (process.env.STAMP || "4333") +
+    (process.env.STAMP || "4335") +
     "&t=" +
     Date.now();
 
 const EMED = { lat: 36.4349, lng: 28.2176, name: "Rhodes" };
+const EMED2 = { lat: 36.4, lng: 28.2 };
 const BERING = { lat: 66.7, lng: -165.4 };
 
 function sleep(ms) {
@@ -102,11 +109,115 @@ async function wheelInAt(page, cssX, cssY, notches) {
   await sleep(2800);
 }
 
-async function runDpr(browser, dpr) {
-  const page = await browser.newPage({
-    viewport: { width: 1280, height: 800 },
-    deviceScaleFactor: dpr
+async function newPage(browser, dpr) {
+  const ctxOpts = { viewport: { width: 1280, height: 800 }, deviceScaleFactor: dpr };
+  /* page.route cannot see service-worker fetches: block the SW when swapping app.js in */
+  if (process.env.LOCAL_APP) ctxOpts.serviceWorkers = "block";
+  const ctx = await browser.newContext(ctxOpts);
+  const page = await ctx.newPage();
+  page.on("close", () => ctx.close().catch(() => {}));
+  if (process.env.LOCAL_APP) {
+    const body = require("fs").readFileSync(process.env.LOCAL_APP);
+    await page.route(/\/js\/spacenet\/app\.js/, (route) => route.fulfill({ status: 200, contentType: "application/javascript", body }));
+  }
+  return page;
+}
+
+async function framePixel(page, pt) {
+  return page.evaluate((p) => {
+    const c = document.getElementById("g");
+    const r = c ? c.getBoundingClientRect() : { left: 0, top: 0 };
+    const scr = window.SN && SN.projectFrame ? SN.projectFrame(p.lat, p.lng) : null;
+    if (!scr || !isFinite(scr.x)) return null;
+    return { x: r.left + scr.x, y: r.top + scr.y, z: scr.z, s: scr.s };
+  }, pt);
+}
+
+async function realDrag(page, x0, y0, dx, dy) {
+  await page.mouse.move(x0, y0);
+  await page.mouse.down();
+  const steps = 12;
+  for (let i = 1; i <= steps; i++) {
+    await page.mouse.move(x0 + (dx * i) / steps, y0 + (dy * i) / steps);
+    await sleep(16);
+  }
+  await page.mouse.up();
+}
+
+async function runPhase34(browser, dpr) {
+  const page = await newPage(browser, dpr);
+  await page.goto(PREVIEW.replace(/t=\d+/, "t=" + Date.now()), { waitUntil: "domcontentloaded", timeout: 90000 });
+  await page.locator("canvas#g").waitFor({ state: "visible", timeout: 30000 });
+  await sleep(3500);
+  // (3) two real drags from the middle, then let it spin for 5s
+  await realDrag(page, 640, 400, -200, 80);
+  await sleep(300);
+  await realDrag(page, 640, 400, 300, -50);
+  await page.mouse.move(5, 790); // park the cursor in a corner (off the globe) so the spin runs
+  await sleep(5000);
+  let px = null;
+  const tWait = Date.now();
+  while (Date.now() - tWait < 90000) {
+    px = await framePixel(page, EMED2);
+    if (px && px.z > 0.35 && px.x > 120 && px.x < 1160 && px.y > 120 && px.y < 680) break;
+    px = null;
+    await sleep(200);
+  }
+  if (!px) throw new Error("E Med never came round to a wheelable pixel dpr=" + dpr);
+  console.log("dpr", dpr, "phase3 hover", JSON.stringify(px));
+  await page.mouse.move(px.x, px.y);
+  const hit3 = await page.evaluate((p) => SN.globeHitTest(p.x, p.y), px);
+  console.log("dpr", dpr, "phase3 pick under cursor", JSON.stringify(hit3));
+  for (let i = 0; i < 15; i++) {
+    await page.mouse.wheel(0, -120);
+    await sleep(180);
+  }
+  await sleep(2800);
+  const r3 = await readState(page);
+  const ok3 = !!(r3.cityOn && r3.center && near(r3.center, EMED2, 1));
+  console.log("dpr", dpr, "phase3", ok3 ? "PASS" : "FAIL", JSON.stringify({ center: r3.center, zoom: r3.zoom, say: r3.say }));
+
+  // (4) back to the globe; drag until E Med sits at the fixed pixel 800,515; wheel there
+  await page.evaluate(() => { try { SN.closeCity(); } catch (e) {} });
+  await sleep(1800);
+  const TX = 800, TY = 515;
+  let p4 = null;
+  for (let k = 0; k < 10; k++) {
+    p4 = await framePixel(page, EMED2);
+    if (!p4) break;
+    if (Math.abs(p4.x - TX) < 5 && Math.abs(p4.y - TY) < 5) break;
+    /* the globe turns 0.005 rad (x) / 0.004 rad (y) per dragged px: convert the pixel error, damped */
+    const s4 = p4.s || 300;
+    const ddx = Math.max(-500, Math.min(500, ((TX - p4.x) / (s4 * 0.005)) * 0.85));
+    const ddy = Math.max(-400, Math.min(400, ((TY - p4.y) / (s4 * 0.004)) * 0.85));
+    /* two large drags (out +120 px, back with the correction) so no move is ever a tap */
+    await realDrag(page, 520, 400, 120, 0);
+    await sleep(120);
+    await realDrag(page, 760, 400, ddx - 120, ddy);
+    await sleep(250);
+  }
+  p4 = await framePixel(page, EMED2);
+  console.log("dpr", dpr, "phase4 E Med pixel after drag", JSON.stringify(p4));
+  await page.mouse.move(TX, TY);
+  const hit4 = await page.evaluate(() => {
+    const c = document.getElementById("g").getBoundingClientRect();
+    return SN.globeHitTest(800 - c.left, 515 - c.top);
   });
+  console.log("dpr", dpr, "phase4 pick at 800,515", JSON.stringify(hit4), hit4 && near(hit4, EMED2, 0.6) ? "(E Med is under the pixel)" : "(DRAG SETUP MISSED)");
+  for (let i = 0; i < 15; i++) {
+    await page.mouse.wheel(0, -120);
+    await sleep(180);
+  }
+  await sleep(2800);
+  const r4 = await readState(page);
+  const ok4 = !!(p4 && Math.abs(p4.x - TX) < 12 && Math.abs(p4.y - TY) < 12 && r4.cityOn && r4.center && near(r4.center, EMED2, 1));
+  console.log("dpr", dpr, "phase4", ok4 ? "PASS" : "FAIL", JSON.stringify({ center: r4.center, zoom: r4.zoom, say: r4.say }));
+  await page.close();
+  return { ok3, ok4, r3, r4 };
+}
+
+async function runDpr(browser, dpr) {
+  const page = await newPage(browser, dpr);
   page.on("console", (msg) => {
     const t = msg.text();
     if (t.indexOf("sn:wheel") >= 0) console.log("[console]", t);
@@ -182,7 +293,8 @@ async function runDpr(browser, dpr) {
   console.log("dpr", dpr, "phase2", ok2 ? "PASS" : "FAIL");
 
   await page.close();
-  return { dpr, ok1, ok2, r1, r2, face1, face2 };
+  const p34 = await runPhase34(browser, dpr);
+  return { dpr, ok1, ok2, ok3: p34.ok3, ok4: p34.ok4, r1, r2, r3: p34.r3, r4: p34.r4, face1, face2 };
 }
 
 (async () => {
@@ -192,8 +304,8 @@ async function runDpr(browser, dpr) {
     results.push(await runDpr(browser, dpr));
   }
   await browser.close();
-  console.log("SUMMARY", JSON.stringify(results.map((r) => ({ dpr: r.dpr, ok1: r.ok1, ok2: r.ok2, c1: r.r1.center, c2: r.r2.center }))));
-  const all = results.every((r) => r.ok1 && r.ok2);
+  console.log("SUMMARY", JSON.stringify(results.map((r) => ({ dpr: r.dpr, ok1: r.ok1, ok2: r.ok2, ok3: r.ok3, ok4: r.ok4, c1: r.r1.center, c2: r.r2.center, c3: r.r3.center, c4: r.r4.center }))));
+  const all = results.every((r) => r.ok1 && r.ok2 && r.ok3 && r.ok4);
   if (!all) process.exit(2);
 })().catch((e) => {
   console.error("pw_fail", e);

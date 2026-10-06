@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4334";
+  var VER = "4335";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -300,7 +300,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var lbl = btn.querySelector(".lbl");
     if (lbl) lbl.textContent = "AV€";
     if (!signed()) {
-      if (tgt) tgt.textContent = "0 AV€";
+      if (tgt) tgt.textContent = "0 AV€ · guest";
       return;
     }
     var n = Math.round(avcGet());
@@ -493,6 +493,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function drawGlobe(now) {
     if (!canvas || !ctx) return;
     fitView();
+    frameCam = { yaw: cam.yaw, pitch: cam.pitch, dist: cam.dist, spin: earthSpin(), t: Date.now() };
     var dpr = Math.min(2.5, window.devicePixelRatio || 1);
     var w = view.w, h = view.h;
     if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) {
@@ -709,7 +710,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       cam.yaw = fly.start.yaw + (fly.goal.yaw - fly.start.yaw) * e;
       cam.pitch = fly.start.pitch + (fly.goal.pitch - fly.start.pitch) * e;
       cam.dist = fly.start.dist + (fly.goal.dist - fly.start.dist) * e;
-      if (k >= 1) fly = null;
+      if (k >= 1) { fly = null; if (wheelG) wheelG.settle = Date.now(); }
       if (!drag && tierI >= 2 && aim && !cityOn) {
         var held = face(aim);
         cam.yaw = held.yaw;
@@ -720,7 +721,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!fly && !seated && !drag && !cityOn) {
       if (cam.dist < 1.7 || cam.dist > 2.2) cam.dist = 1.85;
       /* slow idle spin, but keep the Med band reachable — never race to polar */
-      cam.yaw += dt * 0.08;
+      if (Date.now() - hoverAt > 1500) cam.yaw += dt * 0.08;
       if (cam.pitch > 0.55) cam.pitch -= dt * 0.05;
       if (cam.pitch < -0.15) cam.pitch += dt * 0.05;
       return;
@@ -806,7 +807,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4334 = true;
+      window.__SN_4335 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -824,7 +825,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     canvas.addEventListener("contextmenu", function (e) {
       e.preventDefault();
       var p = pos(e);
-      var hit = globeHit(p.x, p.y, cam);
+      var hit = pickHit(p.x, p.y);
       if (hit) listAt(hit);
     });
     canvas.addEventListener("pointerdown", function (e) {
@@ -858,6 +859,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         zoomToDist(nd);
         return;
       }
+      hoverAt = Date.now();
       if (!drag) return;
       var dx = p.x - drag.x, dy = p.y - drag.y;
       if (Math.hypot(dx, dy) > 8) {
@@ -877,10 +879,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       pointers.delete(e.pointerId);
       if (pointers.size < 2) pinch = null;
       var d = drag; drag = null;
+      hoverAt = Date.now();
       var heldFor = holdT && d && !d.moved ? nowMs() - holdT : 0;
       holdT = 0;
       if (heldFor >= 420 && d) {
-        var hitHold = globeHit(d.x, d.y, cam);
+        var hitHold = pickHit(d.x, d.y);
         if (hitHold) setTimeout(function () { listAt(hitHold); }, 30);
         return;
       }
@@ -893,7 +896,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (!d || d.moved) return;
       vel.yaw = 0; vel.pitch = 0;
       var pUp = pos(e);
-      var hitTap = globeHit(pUp.x, pUp.y, cam);
+      var hitTap = pickHit(pUp.x, pUp.y);
       if (hitTap && isFinite(hitTap.lat)) {
         var nowT = Date.now();
         if (window.__snGlobeTap && nowT - window.__snGlobeTap < 340) {
@@ -937,8 +940,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }, { passive: false });
   }
   function pointUnder(sx, sy) {
-    var hit = (sx != null) ? globeHit(sx, sy, cam) : null;
-    if (!hit && view) hit = globeHit(view.cx, view.cy, cam);
+    var hit = (sx != null) ? pickHit(sx, sy) : null;
+    if (!hit && view) hit = pickHit(view.cx, view.cy);
     if (!hit) return aim;
     return { lat: hit.lat, lng: hit.lng };
   }
@@ -984,10 +987,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     tierI = dist > 3.2 ? 0 : dist > 1.4 ? 1 : 2;
   }
   var wheelAt = 0;
+  function pickHit(sx, sy) {
+    /* same camera + spin the last frame drew, so the pick is what the user saw */
+    var fc = frameCam;
+    if (fc && Date.now() - fc.t < 400) return globeHit(sx, sy, fc, fc.spin);
+    return globeHit(sx, sy, cam, earthSpin());
+  }
   function aimAt(sx, sy, spinAt) {
     var spin = (spinAt != null && isFinite(spinAt)) ? spinAt : earthSpin();
-    var hit = (sx != null && sy != null) ? screenToLatLng(sx, sy, cam, spin) : null;
-    if (!hit && view) hit = screenToLatLng(view.cx, view.cy, cam, spin);
+    var hit = (sx != null && sy != null) ? pickHit(sx, sy) : null;
+    if (!hit && view) hit = pickHit(view.cx, view.cy);
     if (hit && isFinite(hit.lat) && isFinite(hit.lng)) {
       aim = { lat: hit.lat, lng: hit.lng };
       seated = true;
@@ -1006,9 +1015,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
       var nz = Math.max(13, Math.min(19, z + (dir < 0 ? 0.7 : -0.7)));
       try {
-        if (sx != null && typeof L !== "undefined" && map.containerPointToLatLng) {
-          var ll = map.containerPointToLatLng(L.point(sx, sy));
-          map.setView(ll, nz, { animate: false });
+        var tC = Date.now();
+        var gC = !!(wheelG && tC - Math.max(wheelG.t, wheelG.settle || 0) < 400 && Math.abs((sx || 0) - wheelG.x) <= 6 && Math.abs((sy || 0) - wheelG.y) <= 6);
+        if (gC) wheelG.t = tC;
+        if (gC && wheelG.anchor && !wheelG.city) {
+          /* same gesture that dove from the globe: keep its anchor centred */
+          map.setZoom(nz, { animate: false });
+        } else if (sx != null && typeof L !== "undefined" && map.setZoomAround) {
+          if (!gC) wheelG = { x: sx, y: sy, t: tC, anchor: null, city: true };
+          map.setZoomAround(L.point(sx, sy), nz, { animate: false });
         } else {
           map.setZoom(nz);
         }
@@ -1016,8 +1031,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       return;
     }
     var spin = earthSpin();
+    var tW = Date.now();
+    /* a gesture lives while its zoom step flies and 250 ms after it settles, unless the cursor moves > 6 px */
+    var keepG = !!(wheelG && wheelG.anchor && !wheelG.city && (fly || tW - Math.max(wheelG.t, wheelG.settle || 0) < 250) && Math.abs((sx || 0) - wheelG.x) <= 6 && Math.abs((sy || 0) - wheelG.y) <= 6);
     if (dir < 0) {
-      var under = aimAt(sx, sy, spin);
+      var under = keepG ? wheelG.anchor : aimAt(sx, sy, spin);
       if (!under && view) under = aimAt(view.cx, view.cy, spin);
       try {
         console.debug("sn:wheel", { px: sx, py: sy, lat: under && under.lat, lng: under && under.lng, dpr: window.devicePixelRatio || 1 });
@@ -1031,8 +1049,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         say("Wheel aim missed the globe. Drag to face the place, then wheel in.");
         return;
       }
-      try { lookAt(under, cam.dist, spin); } catch (e) {}
+      /* no snap: zoomToDist flies toward the fixed anchor picked at the first notch */
       aim = { lat: +under.lat, lng: +under.lng, name: under.name || "" };
+      wheelG = { x: sx || 0, y: sy || 0, t: tW, anchor: keepG ? wheelG.anchor : aim, city: false };
+    } else if (wheelG) {
+      wheelG.t = tW;
     }
     wheelAt = Date.now();
     seated = true;
@@ -1166,7 +1187,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     return t.indexOf("Earth scan") === 0 || t.indexOf("Zooming to you") === 0;
   }
   function bootTick(now) {
-    if (!intro || !introT0) return;
+    if (!intro || !introT0) {
+      if (introT0 && !intro && !seated && !cityOn) {
+        var el0 = $("line");
+        if (el0 && (el0.textContent || "").indexOf("Earth scan") === 0) el0.textContent = "Exploring · wheel in on a place, or name one.";
+      }
+      return;
+    }
     var el = $("line");
     if (!el || (el.textContent || "").indexOf("Earth scan") !== 0) return;
     var left = Math.max(0, Math.ceil((INTRO_MS - (now - introT0)) / 1000));
@@ -1269,6 +1296,18 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         maxZoom: 19, minZoom: 12,
         errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
       }).addTo(map);
+      map.on("zoomend", function () { try { if (cityOn) paintShopsOnMap(); } catch (eF) {} });
+      try {
+        if (typeof ResizeObserver !== "undefined") {
+          var roT = 0;
+          var ro = new ResizeObserver(function () {
+            clearTimeout(roT);
+            roT = setTimeout(function () { try { if (map && cityOn) map.invalidateSize({ pan: false }); } catch (eR) {} }, 60);
+          });
+          ro.observe(el);
+          ["sn-sheet", "sn-pulse", "dock", "top"].forEach(function (id) { var x = $(id); if (x) ro.observe(x); });
+        }
+      } catch (eRO) {}
       map.on("zoomend", function () {
         try {
           if (map && map.getZoom() <= 12.5) {
@@ -1581,7 +1620,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function hardReset() {
     say("Resetting…");
     try { localStorage.clear(); sessionStorage.clear(); } catch (e) {}
-    var go = function () { location.href = "/?v=4334&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4335&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -1985,6 +2024,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var have = null;
         shops.forEach(function (x) { if (x && x.id === s.id) have = x; });
         if (have) { have.owner = have.owner || s.customerPeer || ""; return; }
+        var seatL = activeSeat();
+        if (seatL && haversineKm(seatL, { lat: +s.lat, lng: +s.lng }) > 50) return;
         shops.unshift({ id: s.id, name: s.name || "vendor", lat: +s.lat, lng: +s.lng, phone: s.phone || "", src: "live", status: s.status || "live", owner: s.customerPeer || "" });
       });
       (j.drivers || []).forEach(function (d) {
@@ -2310,22 +2351,40 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var tags = row.tags || {};
     var name = row.name || tags.name || row.display_name || "";
     if (name && name.indexOf(",") >= 0) name = name.split(",")[0];
+    if (!row.name && !tags.name && row.display_name && row.type && (row.class === "amenity" || row.class === "shop")) {
+      var ty = String(row.type).replace(/_/g, " ");
+      name = ty.charAt(0).toUpperCase() + ty.slice(1) + " · " + String(row.display_name).split(",")[0].trim();
+    }
     if (!name || !isFinite(lat) || !isFinite(lng)) return null;
     var menu = row.menu;
+    var menuText = "";
     if (typeof menu === "string") {
-      try { menu = JSON.parse(menu); } catch (e) { menu = []; }
+      try { menu = JSON.parse(menu); } catch (e) { menuText = menu; menu = []; }
     }
     if (!Array.isArray(menu)) menu = [];
+    var osmT = row.osm_type || (/^(node|way|relation)$/.test(String(row.type || "")) ? row.type : "");
+    var osmI = row.osm_id || (osmT && row.id) || "";
     return {
       id: String(row.id || row.osm_id || (name + lat + lng)),
       name: String(name).slice(0, 80),
       lat: lat,
       lng: lng,
-      kind: row.kind || tags.amenity || tags.shop || "shop",
+      kind: row.kind || tags.amenity || tags.shop || ((row.class === "amenity" || row.class === "shop") && row.type ? row.type : "") || "shop",
       phone: row.phone || tags.phone || tags["contact:phone"] || "",
       menu: menu,
       photo: row.photo || "",
       address: row.address || tags["addr:full"] || "",
+      street: String(row.street || [tags["addr:street"], tags["addr:housenumber"]].filter(Boolean).join(" ") || "").slice(0, 120),
+      city: String(tags["addr:city"] || "").slice(0, 60),
+      postcode: String(tags["addr:postcode"] || "").slice(0, 16),
+      note: typeof row.note === "string" ? row.note.slice(0, 1200) : "",
+      raw: String(typeof row.raw === "string" ? row.raw : (row.display_name || "")).slice(0, 400),
+      hours: row.hours || tags.opening_hours || "",
+      cuisine: row.cuisine || tags.cuisine || "",
+      place: typeof row.place === "string" ? row.place.slice(0, 80) : "",
+      menuText: String(menuText || "").slice(0, 1200),
+      osm: osmT && osmI ? String(osmT) + String(osmI) : "",
+      owner: row.owner || row.customerPeer || "",
       src: row.src || "osm",
       status: row.status || ""
     };
@@ -2375,6 +2434,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!sh || !card) return;
     sheetLaw();
     sheetHold = true;
+    findOnSheet = false;
     var center = mid || esc(title || "");
     sh.classList.toggle("offer", !!(mid && String(mid).indexOf("sn-price") >= 0));
     sh.classList.remove("tile");
@@ -2463,6 +2523,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function closeSheet() {
     var sh = $("sn-sheet");
     sheetHold = false;
+    findOnSheet = false;
     if (sh) { sh.classList.remove("on"); sh.classList.remove("tall"); sh.classList.remove("min"); sh.classList.remove("offer"); sh.classList.remove("tile"); }
     materialize(needFilter());
     liftChrome();
@@ -2487,6 +2548,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (!r || r.kind === "drop" || r.kind === "driver" || r.kind === "post") return;
       if (!(r.kind === "shop" || r.place)) return;
       if (!isFinite(+r.lat) || !isFinite(+r.lng) || !r.name) return;
+      var seatM = activeSeat();
+      if (seatM && haversineKm(seatM, { lat: +r.lat, lng: +r.lng }) > 50) return;
       shops.unshift({
         id: r.id, name: r.name, lat: +r.lat, lng: +r.lng,
         kind: r.place || "shop", phone: r.phone || "",
@@ -2602,20 +2665,24 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     absorbMine();
     shopMarks.forEach(function (m) { try { map.removeLayer(m); } catch (e) {} });
     shopMarks = [];
-    shops.forEach(function (s) {
-      if (!isFinite(s.lat) || !isFinite(s.lng)) return;
-      if (!seesShop(s)) return;
-      if (s.status === "pending" && !isAdmin()) return;
+    /* sweep any shop layer an older paint left behind (Rhodes pin at Athens) */
+    try { map.eachLayer(function (ly) { if (ly && ly.__snShop) map.removeLayer(ly); }); } catch (eSw) {}
+    var field = fieldShops();
+    var fan = fanOut(field);
+    field.forEach(function (s, fi) {
+      var ll = fan[fi] || [s.lat, s.lng];
       var mark;
       if ((s.photo || s.src === "listed" || s.src === "live") && L.divIcon) {
-        mark = L.marker([s.lat, s.lng], { icon: faceIcon("vendor", s.photo, s.name || "shop"), zIndexOffset: 500, draggable: false, bubblingMouseEvents: false, keyboard: false });
+        mark = L.marker(ll, { icon: faceIcon("vendor", s.photo, s.name || "shop"), zIndexOffset: 500, draggable: false, bubblingMouseEvents: false, keyboard: false });
       } else {
-        mark = L.circleMarker([s.lat, s.lng], { radius: s.src === "listed" ? 10 : 8, color: s.src === "listed" ? "#4df0ff" : "#7ee9ff", fillColor: "#0a2030", fillOpacity: 0.95, weight: 2 });
+        mark = L.circleMarker(ll, { radius: s.src === "listed" ? 10 : 8, color: s.src === "listed" ? "#4df0ff" : "#7ee9ff", fillColor: "#0a2030", fillOpacity: 0.95, weight: 2 });
       }
       var tipExtra = "";
       if (s.status === "pending") tipExtra += " · PENDING";
       if (Array.isArray(s.menu) && s.menu.length) tipExtra += " · " + s.menu.length;
-      mark.bindTooltip((s.name || "shop") + tipExtra, { direction: "top", sticky: true });
+      mark.__snShop = true;
+      mark.__snId = s.id || s.name;
+      mark.bindTooltip((s.name || "shop") + (s.aka ? " · " + s.aka : "") + tipExtra, { direction: "top", sticky: true });
       if (isAdmin() && s.src === "listed") {
         mark.on("dragend", function () {
           var ll = mark.getLatLng();
@@ -2646,6 +2713,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       mark.addTo(map);
       shopMarks.push(mark);
     });
+    window.__snFieldIds = field.map(function (s) { return String(s.id || s.name); });
+    /* FIND always equals the pins: a late source that changes the field re-renders the open FIND */
+    if (huntView && findOnSheet && huntView.rendered !== findIds(field)) renderFind(field);
     if (isAdmin()) paintAdminPins();
     else paintOwnDrivers();
   }
@@ -2661,9 +2731,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     var vendors = 0, near = 0, drivers = 0, orders = 0;
     var seatLive = activeSeat() || here;
-    shops.forEach(function (s) {
-      if (!seesShop(s)) return;
-      if (seatLive && !nearSeat(s, 50)) return;
+    fieldShops().forEach(function (s) {
       vendors++;
       if (seatLive && haversineKm(seatLive, s) < 25) near++;
     });
@@ -2671,10 +2739,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (driverPin && isFinite(+driverPin.lat) && !people.some(function (p) { return p && p.role === "driver" && haversineKm(p, driverPin) < 0.05; })) drivers++;
     jobs.forEach(function (j) { if (j && !j.received && seesJob(j)) orders++; });
     if (!vendors && !drivers && !orders) {
-      el.textContent = "LIVE · no public vendors · no drivers · no orders";
+      el.textContent = (seatLive && huntView && huntView.needle) ? "LIVE · 0 vendors here · " + huntLabel() + " · 0 drivers · 0 orders" : "LIVE · no public vendors · no drivers · no orders";
       return;
     }
-    var place = here && near ? near + " vendor" + (near === 1 ? "" : "s") + " here" : vendors + " vendor" + (vendors === 1 ? "" : "s");
+    var place = seatLive ? vendors + " vendor" + (vendors === 1 ? "" : "s") + " here" : vendors + " vendor" + (vendors === 1 ? "" : "s");
+    if (seatLive && huntView && huntView.needle) place += " · " + huntLabel();
     el.textContent = "LIVE · " + place + " · " + drivers + " driver" + (drivers === 1 ? "" : "s") + " · " + orders + " order" + (orders === 1 ? "" : "s");
   }
   var roads = {};
@@ -3250,6 +3319,213 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     });
   }
   var findWanted = false;
+  /* ---- fix38 field: one filtered, de-duplicated set drives pins, FIND and LIVE ---- */
+  function foldTxt(t) { return String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
+  var HUNT_SYN = (function () {
+    var pizza = ["pizz", "πιτσ", "margherita", "calzone"];
+    var market = ["supermarket", "super market", "mini market", "minimarket", "market", "grocer", "convenience", "παντοπωλ", "σουπερ", "μαρκετ"];
+    var cafe = ["cafe", "coffee", "espresso", "καφε"];
+    var pharm = ["pharmac", "chemist", "φαρμακ"];
+    var bake = ["baker", "bread", "φουρν", "αρτοπ", "boulang"];
+    var food = ["restaurant", "taverna", "tavern", "grill", "cuisine", "food", "kitchen", "bistro", "pizz", "souvlak", "gyro", "meze", "εστιατ", "ταβερν", "ψησταρ", "σουβλ"];
+    var bar = ["bar", "pub", "beer", "cocktail", "wine"];
+    var hotel = ["hotel", "ξενοδ", "rooms", "suites", "hostel", "resort"];
+    var gyro = ["gyro", "souvlak", "γυρο", "σουβλ", "pita"];
+    var m = {};
+    function put(keys, alts) { keys.forEach(function (k) { m[k] = alts; }); }
+    put(["pizza", "pizzas", "pizzeria", "pizzerias", "πιτσα", "πιτσες", "πιτσαρια"], pizza);
+    put(["supermarket", "supermarkets", "super", "grocery", "groceries", "market", "markets", "minimarket", "σουπερμαρκετ", "σουπερ", "μαρκετ"], market);
+    put(["cafe", "cafes", "coffee", "καφε", "καφες"], cafe);
+    put(["pharmacy", "pharmacies", "chemist", "φαρμακειο"], pharm);
+    put(["bakery", "bakeries", "bread", "φουρνος", "αρτοποιειο"], bake);
+    put(["restaurant", "restaurants", "food", "eat", "dinner", "lunch", "εστιατοριο", "ταβερνα", "φαγητο"], food);
+    put(["bar", "bars", "pub", "pubs", "drinks"], bar);
+    put(["hotel", "hotels", "rooms", "ξενοδοχειο"], hotel);
+    put(["gyros", "gyro", "souvlaki", "γυρος", "σουβλακι"], gyro);
+    put(["sushi"], ["sushi", "japan", "σουσι"]);
+    put(["burger", "burgers"], ["burger", "μπεργκερ"]);
+    return m;
+  })();
+  var HUNT_STOP = /^(in|at|near|me|my|the|a|an|some|any|find|show|hunt|best|cheap|good|open|now|around|for|of|to|place|places|shop|shops|vendor|vendors|store|stores|please|nearby|local|order|get|buy|want|i|we|greece|ellada|ελλαδα|σε|στη|στην|στο)$/;
+  function huntWords(needle) {
+    var seat = activeSeat() || here;
+    var seatW = {};
+    foldTxt(seat && seat.name || "").split(/[^a-z0-9\u0370-\u03ff]+/).forEach(function (w) { if (w.length > 2) seatW[w] = 1; });
+    return foldTxt(needle).split(/[^a-z0-9\u0370-\u03ff]+/).filter(function (w) {
+      return w.length >= 2 && !HUNT_STOP.test(w) && !seatW[w];
+    });
+  }
+  function huntLabel() {
+    var w = huntView ? huntWords(huntView.needle) : [];
+    return w.length ? w.join(" ").slice(0, 24) : "places";
+  }
+  function huntBlob(s) {
+    var menu = Array.isArray(s.menu) ? s.menu.map(function (m) { return m ? (m.name || m.title || "") : ""; }).join(" ") : "";
+    return foldTxt([s.name, s.aka, s.kind, s.place, s.cuisine, menu, s.menuText].join(" "));
+  }
+  function huntMatch(s, needle) {
+    var words = huntWords(needle);
+    if (!words.length) return true;
+    var blob = huntBlob(s);
+    return words.every(function (w) {
+      var alts = HUNT_SYN[w] || [w.length > 4 ? w.replace(/(es|s)$/, "") : w];
+      return alts.some(function (a) { return blob.indexOf(a) >= 0; });
+    });
+  }
+  var GR_LAT = { "α": "a", "β": "v", "γ": "g", "δ": "d", "ε": "e", "ζ": "z", "η": "i", "θ": "th", "ι": "i", "κ": "k", "λ": "l", "μ": "m", "ν": "n", "ξ": "x", "ο": "o", "π": "p", "ρ": "r", "σ": "s", "ς": "s", "τ": "t", "υ": "y", "φ": "f", "χ": "ch", "ψ": "ps", "ω": "o" };
+  var TWIN_GENERIC = /^(greek|cuisine|grill|house|restaurant|restaurante|taverna|tavern|cafe|caffe|coffee|bar|bistro|pizzeria|pizza|kitchen|food|the|and|rodos|rhodes|rodou|old|town|estiatorio|psistaria)$/;
+  function twinCore(name) {
+    var t = foldTxt(name).replace(/[α-ως]/g, function (c) { return GR_LAT[c] || c; });
+    var words = t.split(/[^a-z0-9]+/).filter(function (w) { return w && !TWIN_GENERIC.test(w); });
+    return words.join("").replace(/ou/g, "u").replace(/v/g, "u").replace(/y/g, "i").replace(/ph/g, "f")
+      .replace(/ch/g, "h").replace(/k/g, "c").replace(/w/g, "u").replace(/(.)\1+/g, "$1");
+  }
+  function phoneKey(p) { var d = String(p || "").replace(/\D/g, ""); return d.length >= 8 ? d.slice(-10) : ""; }
+  function twinScore(s) {
+    return (s.src === "listed" || s.src === "live" ? 4 : 0) + (Array.isArray(s.menu) && s.menu.length ? 2 : 0) +
+      (s.phone ? 1 : 0) + (s.street ? 1 : 0) + (photoOf(s) ? 1 : 0);
+  }
+  function mergeTwins(list) {
+    var out = [];
+    (list || []).forEach(function (s) {
+      var core = twinCore(s.name), pk = phoneKey(s.phone);
+      var twin = null;
+      for (var i = 0; i < out.length && !twin; i++) {
+        var o = out[i];
+        var close = haversineKm(o, s) <= 0.06;
+        if ((s.osm && o.osm && s.osm === o.osm) ||
+            (close && pk && pk === phoneKey(o.phone)) ||
+            (close && core.length >= 4 && core === twinCore(o.name))) twin = i;
+      }
+      if (twin === null) { out.push(s); return; }
+      var a = out[twin], b = s;
+      var keep = twinScore(b) > twinScore(a) ? b : a, other = keep === a ? b : a;
+      var m = {};
+      for (var k in keep) m[k] = keep[k];
+      ["phone", "street", "address", "note", "raw", "hours", "cuisine", "photo", "osm", "menuText"].forEach(function (f) { if (!m[f] && other[f]) m[f] = other[f]; });
+      if ((!Array.isArray(m.menu) || !m.menu.length) && Array.isArray(other.menu) && other.menu.length) m.menu = other.menu;
+      if (foldTxt(other.name) !== foldTxt(m.name)) m.aka = [m.aka, other.name].filter(Boolean).join(" · ");
+      m.twins = (keep.twins || [keep.id]).concat(other.twins || [other.id]);
+      out[twin] = m;
+    });
+    return out;
+  }
+  function fieldShops() {
+    var seat = activeSeat() || here;
+    var hasSeat = !!(seat && isFinite(+seat.lat) && isFinite(+seat.lng));
+    var pool = uniqPlaces((shops || []).filter(function (s) {
+      if (!s || !isFinite(+s.lat) || !isFinite(+s.lng)) return false;
+      if (!seesShop(s)) return false;
+      if (s.status === "pending" && !isAdmin()) return false;
+      if (hasSeat && haversineKm(seat, s) > 50) return false;
+      if (huntView && huntView.needle && !huntMatch(s, huntView.needle)) return false;
+      return true;
+    }));
+    return mergeTwins(pool);
+  }
+  function findIds(list) { return (list || []).map(function (s) { return String(s.id || s.name); }).sort().join("|"); }
+  function seatName(seat) {
+    if (seat && seat.name && seat.name !== "map" && seat.name !== "place") return String(seat.name).split(" · ")[0].split(",")[0];
+    return seat && isFinite(+seat.lat) ? (+seat.lat).toFixed(3) + "," + (+seat.lng).toFixed(3) : "this seat";
+  }
+  function renderFind(list) {
+    var seat0 = activeSeat() || here;
+    var shown = (list || []).slice();
+    if (seat0) shown.sort(function (a, b) { return haversineKm(seat0, a) - haversineKm(seat0, b); });
+    window.__snFindShown = shown;
+    if (!shown.length) {
+      openSheet("FIND · 0", '<p class="note">No real ' + esc(huntLabel()) + " within 50 km of " + esc(seatName(seat0)) + ".</p>");
+    } else {
+      var html = shown.map(function (s, i) {
+        var ch = (String(s.name || "").match(/[A-Za-zΑ-Ωα-ω]/) || ["·"])[0].toUpperCase();
+        return '<button type="button" class="pill" data-act="vendor" data-i="' + i + '"><span class="ph">' + esc(ch) +
+          '</span><div class="sn-fx" style="min-width:0;flex:1"><b></b><span class="sn-fm"></span></div></button>';
+      }).join("");
+      openSheet("FIND · " + shown.length, html);
+      var body = $("sn-sheet-body");
+      var pills = body ? body.querySelectorAll(".pill") : [];
+      shown.forEach(function (s, i) {
+        var pl = pills[i];
+        if (!pl) return;
+        pl.querySelector("b").textContent = s.name;
+        var km = seat0 ? haversineKm(seat0, s).toFixed(1) + " km" : "";
+        var meta = pl.querySelector(".sn-fm");
+        if (meta) meta.textContent = [s.kind && s.kind !== "shop" ? s.kind : "shop", s.phone || "", km, s.aka ? "also " + s.aka : ""].filter(Boolean).join(" · ");
+        pl.setAttribute("data-id", s.id || "");
+      });
+    }
+    findOnSheet = true;
+    if (huntView) huntView.rendered = findIds(shown);
+  }
+  function fanOut(list) {
+    var out = list.map(function (s) { return [+s.lat, +s.lng]; });
+    if (!map || !map.latLngToContainerPoint || typeof L === "undefined") return out;
+    var pts = list.map(function (s) { try { return map.latLngToContainerPoint([+s.lat, +s.lng]); } catch (e) { return null; } });
+    var used = {};
+    for (var i = 0; i < list.length; i++) {
+      if (used[i] || !pts[i]) continue;
+      var grp = [i];
+      for (var k = i + 1; k < list.length; k++) {
+        if (!used[k] && pts[k] && Math.abs(pts[k].x - pts[i].x) < 60 && Math.abs(pts[k].y - pts[i].y) < 50) { grp.push(k); used[k] = true; }
+      }
+      if (grp.length < 2) continue;
+      var R = 40 + grp.length * 6;
+      grp.forEach(function (idx, j) {
+        var a = -Math.PI / 2 + (2 * Math.PI * j) / grp.length;
+        try {
+          var ll = map.containerPointToLatLng(L.point(pts[i].x + Math.cos(a) * R, pts[i].y + Math.sin(a) * R));
+          out[idx] = [ll.lat, ll.lng];
+        } catch (e) {}
+      });
+    }
+    return out;
+  }
+  var spaceMemo = {};
+  function spaceGet(seat, ms) {
+    /* /api/space 302s anything finer than 2 dp: ask at 2 dp once, share for 8 s */
+    var key = Number(seat.lat).toFixed(2) + "," + Number(seat.lng).toFixed(2);
+    var hit = spaceMemo[key];
+    if (hit && Date.now() - hit.t < 8000) return hit.p;
+    var p = fetchJsonT("/api/space?lat=" + Number(seat.lat).toFixed(2) + "&lng=" + Number(seat.lng).toFixed(2), { cache: "no-store" }, ms || 6000)
+      .then(function (j) { if (!j) delete spaceMemo[key]; return j; });
+    spaceMemo[key] = { t: Date.now(), p: p };
+    return p;
+  }
+  function overpassUp() { return !overpassOff && Date.now() > overpassCool; }
+  function overpassFail(e) {
+    if (e && e.name === "AbortError") { overpassCool = Date.now() + 120000; return; }
+    /* connection closed / network error: leave Overpass alone for this session */
+    overpassOff = true;
+    try { sessionStorage.setItem("sn:overpass-off", "1"); } catch (x) {}
+  }
+  var ADMIN_BIT = /municipal|regional|region|decentrali|δημοτικ|δημος|περιφερ|αποκεντρ|unit of|commune|ελλας|ελλαδα|greece|aegean|αιγαιου/i;
+  function addrOf(s) {
+    if (!s) return { text: "", approx: false };
+    if (s.address) return { text: String(s.address), approx: false };
+    var nt = String(s.note || "");
+    var m = nt.match(/Address:\s*(.{4,160}?(?:Greece|Ελλάδα|Ελλάς))/) || nt.match(/Address:\s*([^.]{4,140})/);
+    if (m) return { text: m[1].trim(), approx: false };
+    if (s.street) return { text: [s.street, [s.postcode, s.city].filter(Boolean).join(" ")].filter(Boolean).join(", "), approx: false };
+    var parts = String(s.raw || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+    if (parts.length && foldTxt(parts[0]) === foldTxt(s.name)) parts.shift();
+    parts = parts.filter(function (x) { return !ADMIN_BIT.test(x); });
+    if (parts.length >= 2) return { text: parts.slice(0, 2).join(", "), approx: true };
+    return { text: "", approx: true };
+  }
+  function photoOf(s) {
+    if (!s) return "";
+    if (s.photo) return String(s.photo);
+    var m = String(s.note || "").match(/Photo source:\s*(https:\/\/[^\s"'<>]+)/i);
+    return m ? m[1].replace(/[.,;)]+$/, "") : "";
+  }
+  var revMemo = {};
+  function reverseAddr(s) {
+    var key = (+s.lat).toFixed(5) + "," + (+s.lng).toFixed(5);
+    if (revMemo[key]) return revMemo[key];
+    revMemo[key] = fetchJsonT("/api/find?reverse=1&lat=" + (+s.lat).toFixed(6) + "&lng=" + (+s.lng).toFixed(6), { cache: "no-store" }, 7000)
+      .then(function (j) { return (j && j.ok && j.address) ? String(j.address) : ""; });
+    return revMemo[key];
+  }
   function showFound() {
     if (!findWanted) {
       try { paintShopsOnMap(); } catch (e) {}
@@ -3270,56 +3546,19 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         });
       }
     } catch (eN) {}
-    var shown = all;
-    if (needle.length >= 2) {
-      var matched = all.filter(function (s) {
-        if (!s) return false;
-        var blob = [s.name, s.kind, s.address, s.src].join(" ").toLowerCase();
-        if (needle.split(/\s+/).every(function (w) { return !w || blob.indexOf(w) >= 0; })) return true;
-        if (s.name && String(s.name).toLowerCase().indexOf(needle) >= 0) return true;
-        return false;
-      });
-      if (matched.length) shown = matched;
-      else if (/supermarket|grocery|pizza|cafe|coffee|pharmacy|hotel|restaurant|food|shop|market|bar/i.test(needle)) shown = all;
-    }
+    if (huntView) huntView.needle = window.__snHuntPlace ? "" : needle;
+    else huntView = { needle: window.__snHuntPlace ? "" : needle, raw: String(window.__snHuntRaw || ""), rendered: "" };
     var seat0 = activeSeat() || here;
-    all = all.filter(function (s) { return !seat0 || nearSeat(s, 50); });
-    shown = shown.filter(function (s) { return !seat0 || nearSeat(s, 50); });
-    shops = uniqPlaces(all);
-    if (!shown.length) {
-      var seatMsg = seat0;
-      var where = (seatMsg && seatMsg.name) ? String(seatMsg.name).split(" · ")[0] : (seatMsg ? (seatMsg.lat.toFixed(2) + "," + seatMsg.lng.toFixed(2)) : "this seat");
-      say("No real pin for that hunt around " + where + ".");
-      openSheet("FIND · 0", '<p class="note">Nothing real within 50 km of ' + where + ".</p>");
-      paintShopsOnMap();
-      try { paintPulse(); } catch (eP) {}
-      return;
-    }
-    var seat = seat0 || shown[0];
-    if (seat) openCity(seat);
+    shops = uniqPlaces((shops || []).filter(function (s) { return !seat0 || nearSeat(s, 50); }));
+    var shown = fieldShops();
+    var seatO = seat0 || shown[0];
+    if (seatO) openCity(seatO);
     paintShopsOnMap();
-    shown.sort(function (a, b) {
-      if (!seat0) return 0;
-      return haversineKm(seat0, a) - haversineKm(seat0, b);
-    });
-    var html = shown.map(function (s, i) {
-      var ch = (s.name.match(/[A-Za-zΑ-Ωα-ω]/) || ["·"])[0].toUpperCase();
-      return '<button type="button" class="pill" data-act="vendor" data-i="' + i + '"><span class="ph">' + ch + "</span><div><b></b><span></span></div></button>";
-    }).join("");
-    openSheet("FIND · " + shown.length, html);
-    var body = $("sn-sheet-body");
-    if (body) {
-      var pills = body.querySelectorAll(".pill");
-      shown.forEach(function (s, i) {
-        if (!pills[i]) return;
-        pills[i].querySelector("b").textContent = s.name;
-        var km = seat0 ? haversineKm(seat0, s).toFixed(1) + " km" : "";
-        pills[i].querySelector("span").textContent = (s.kind || "shop") + (s.phone ? " · " + s.phone : "") + (km ? " · " + km : "");
-        pills[i].setAttribute("data-id", s.id || "");
-      });
-    }
-    window.__snFindShown = shown;
-    say(shown.length + " real pin" + (shown.length === 1 ? "" : "s") + ". Tap one to order.");
+    renderFind(fieldShops());
+    try { paintPulse(); } catch (eP) {}
+    var n = (window.__snFindShown || []).length;
+    if (!n) say("No real " + huntLabel() + " within 50 km of " + seatName(seat0) + ".");
+    else say(n + " real " + huntLabel() + " pin" + (n === 1 ? "" : "s") + " at " + seatName(seat0) + ". Tap one to order.");
   }
   function fetchJson(url, opts) {
     return fetch(url, opts || {}).then(function (r) { return r.json().catch(function () { return null; }); }).catch(function () { return null; });
@@ -3338,7 +3577,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         : [];
     });
   }
+  huntNominatim = (function (raw) {
+    var ALT = { pizza: "pizzeria", pizzas: "pizzeria", "πιτσα": "pizzeria", "πιτσες": "pizzeria", coffee: "cafe", grocery: "supermarket", groceries: "supermarket", food: "restaurant" };
+    return function (q) {
+      var alt = ALT[foldTxt(q).trim()];
+      if (!alt) return raw(q);
+      return Promise.all([raw(q).catch(function () { return []; }), raw(alt).catch(function () { return []; })])
+        .then(function (p) { return [].concat(p[0] || [], p[1] || []); });
+    };
+  })(huntNominatim);
   function huntOverpass(q) {
+    if (!overpassUp()) return Promise.resolve([]);
     var seat = activeSeat() || here;
     if (!seat || !isFinite(+seat.lat)) return Promise.resolve([]);
     var safe = String(q || "").replace(/[^a-zA-Z0-9α-ωΑ-ΩάέήίόύώΆ-Ώ ]/g, " ").trim();
@@ -3346,20 +3595,33 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var data = '[out:json][timeout:4];(nwr["name"~"' + safe + '",i](around:4000,' + seat.lat + "," + seat.lng + '););out center 12;';
     var ctrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
     var t = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 4000) : null;
-    return fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: data, signal: ctrl && ctrl.signal }).then(function (r) { return r.json(); }).then(function (j) {
+    return fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: data, signal: ctrl && ctrl.signal }).then(function (r) { if (!r.ok) { overpassCool = Date.now() + 120000; return {}; } return r.json(); }).then(function (j) {
       return ((j && j.elements) || []).map(function (el) { el.src = "overpass"; return asPlace(el); }).filter(Boolean);
-    }).catch(function () { return []; }).finally(function () { if (t) clearTimeout(t); });
+    }).catch(function (e) { overpassFail(e); return []; }).finally(function () { if (t) clearTimeout(t); });
   }
   function huntNearby() {
+    if (!overpassUp()) return Promise.resolve([]);
     var seat = activeSeat() || here;
     if (!seat || !isFinite(+seat.lat)) return Promise.resolve([]);
     var data = '[out:json][timeout:4];(nwr["amenity"~"^(restaurant|cafe|fast_food|bar|pharmacy)$"](around:2500,' + seat.lat + "," + seat.lng + ');nwr["shop"](around:2500,' + seat.lat + "," + seat.lng + '););out center 24;';
     var ctrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
     var t = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 4000) : null;
-    return fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: data, signal: ctrl && ctrl.signal }).then(function (r) { return r.json(); }).then(function (j) {
+    return fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: data, signal: ctrl && ctrl.signal }).then(function (r) { if (!r.ok) { overpassCool = Date.now() + 120000; return {}; } return r.json(); }).then(function (j) {
       return uniqPlaces(((j && j.elements) || []).map(function (el) { el.src = "overpass"; return asPlace(el); }).filter(Boolean));
-    }).catch(function () { return []; }).finally(function () { if (t) clearTimeout(t); });
+    }).catch(function (e) { overpassFail(e); return []; }).finally(function () { if (t) clearTimeout(t); });
   }
+  var nearbyMemo = {};
+  huntNearby = (function (raw) {
+    return function () {
+      var st = activeSeat() || here;
+      if (!st || !isFinite(+st.lat)) return Promise.resolve([]);
+      var k = (+st.lat).toFixed(2) + "," + (+st.lng).toFixed(2);
+      if (nearbyMemo[k] && Date.now() - nearbyMemo[k].t < 90000) return nearbyMemo[k].p;
+      var p = raw();
+      nearbyMemo[k] = { t: Date.now(), p: p };
+      return p;
+    };
+  })(huntNearby);
   function huntApi(q) {
     var seat = activeSeat() || here;
     if (!seat || !isFinite(+seat.lat)) return Promise.resolve([]);
@@ -3439,13 +3701,18 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ? q.replace(/^(go\s+to|take\s+me\s+to|fly\s+to|open)\s+/i, "")
       : q.replace(/^(find|hunt|show)\s+/i, "").trim();
     var looksPlace = !!(named && !/pizza|pizzeria|shop|vendor|restaurant|cafe|food|near|pharmacy|hotel|market|supermarket|grocery/i.test(named));
+    window.__snHuntPlace = looksPlace;
+    huntView = { needle: looksPlace ? "" : String(named || q).toLowerCase(), raw: q, rendered: "", t: Date.now() };
+    window.__snFindShown = [];
+    try { openSheet("FIND · …", '<p class="note">Finding ' + esc(q) + " at " + esc(seatName(activeSeat() || here)) + "…</p>"); } catch (eF) {}
+    try { paintShopsOnMap(); paintPulse(); } catch (eF2) {}
     var go = function () {
       if (!live()) return;
       findWanted = true;
       var spaceP = Promise.resolve([]);
       var seat0 = activeSeat() || here;
       if (seat0 && isFinite(+seat0.lat)) {
-        spaceP = fetchJsonT("/api/space?lat=" + Number(seat0.lat).toFixed(3) + "&lng=" + Number(seat0.lng).toFixed(3), { cache: "no-store", signal: huntSig() }, 6000).then(function (j) {
+        spaceP = spaceGet(seat0, 6000).then(function (j) {
           return ((j && (j.shops || j.rows)) || []).map(function (r) {
             var p = asPlace(r);
             if (p) p.src = p.src || "listed";
@@ -3514,29 +3781,32 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!seat) return;
     here = { lat: seat.lat, lng: seat.lng, name: seat.name || (here && here.name) || "" };
     window.__SN_HERE = here;
-    var url = "/api/space?lat=" + Number(seat.lat).toFixed(3) + "&lng=" + Number(seat.lng).toFixed(3);
-    fetchJson(url, { cache: "no-store" }).then(function (j) {
+    function stillHere() {
+      var st = activeSeat();
+      return !!(st && isFinite(+st.lat) && haversineKm(st, seat) < 25);
+    }
+    spaceGet(seat, 6000).then(function (j) {
+      if (!stillHere()) return;
       var rows = (j && (j.shops || j.rows || [])) || [];
       rows.forEach(function (r) {
         var p = asPlace(r);
-        if (p) { p.src = "listed"; shops.push(p); }
+        if (p && nearSeat(p, 50)) { p.src = "listed"; shops.push(p); }
       });
-      shops = uniqPlaces(shops);
-      shops = shops.filter(function (s) { return seesShop(s); });
+      shops = uniqPlaces(shops).filter(function (s) { return seesShop(s); });
       paintShopsOnMap();
       try { paintPulse(); } catch (e) {}
-      var n = shops.filter(function (s) { return seesShop(s); }).length;
-      var where = (seat.name && String(seat.name).trim() && seat.name !== "map" && seat.name !== "place")
-        ? seat.name
-        : (seat.lat.toFixed(3) + "," + seat.lng.toFixed(3));
+      /* a hunt owns the line and FIND; never overwrite its status */
+      if (huntView || findWanted) return;
+      var n = fieldShops().length;
+      var where = seatName(seat);
       if (n) say(where + " · " + n + " real place" + (n === 1 ? "" : "s") + " on the field.");
       else say(where + " · no public vendors here yet.");
     }).catch(function () {});
     huntRace(huntNearby(), 4000).then(function (rows) {
+      if (!stillHere()) return;
       var local = (rows || []).filter(function (s) { return nearSeat(s, 50); });
       shops = uniqPlaces(shops.concat(local));
-      shops = shops.filter(function (s) { return nearSeat(s, 50); });
-      shops = shops.filter(function (s) { return seesShop(s); });
+      shops = shops.filter(function (s) { return nearSeat(s, 50) && seesShop(s); });
       paintShopsOnMap();
       try { paintPulse(); } catch (e) {}
     });
@@ -3559,8 +3829,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     return isFinite(n) ? n : 0;
   }
   function tilePhoto(src, mark) {
-    if (src) return '<img class="sn-shop-hero" alt="" src="' + String(src).replace(/"/g, "") + '">';
-    return "<em>" + mark + "</em>";
+    if (src) return '<img class="sn-shop-hero" alt="" referrerpolicy="no-referrer" loading="lazy" data-mark="' + esc(mark) + '" src="' + String(src).replace(/"/g, "") + '">';
+    return '<em title="No photo listed">' + mark + "</em>";
   }
   function tileContact(phone, where) {
     var tel = phone
@@ -3606,7 +3876,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function openVendor(s) {
     if (!s) return;
     vendor = s;
-    var where = [s.address, s.kind && s.kind !== "shop" ? s.kind : ""].filter(Boolean).join(" · ");
+    var ad0 = addrOf(s);
+    var kindBit = s.kind && s.kind !== "shop" ? s.kind : "";
+    var where = [ad0.text ? (ad0.approx ? "≈ " : "") + ad0.text : "Address · locating (approx.)…", kindBit].filter(Boolean).join(" · ");
     var menuRows = s.menu;
     if (typeof menuRows === "string") {
       try { menuRows = JSON.parse(menuRows); } catch (e) { menuRows = []; }
@@ -3639,11 +3911,26 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     } else {
       feeHtml = '<p class="note">Delivery · set a drop address</p>';
     }
-    var html = '<div class="sn-prof">' + tilePhoto(s.photo, "🏪") + "<div><b>" + esc(s.name || "Vendor") + "</b>" + tileContact(s.phone, where) + "</div></div>" +
+    var html = '<div class="sn-prof">' + tilePhoto(photoOf(s), "🏪") + "<div><b>" + esc(s.name || "Vendor") + "</b>" + tileContact(s.phone, where) + "</div></div>" +
       feeHtml +
       (orders ? '<p class="note">CHARGED</p>' + orders : "") +
       '<p class="note">MENU</p>' + menu;
     openTile({ kind: "vendor", title: s.name || "VENDOR", html: html });
+    try {
+      var hero = document.querySelector("#sn-sheet .sn-prof img.sn-shop-hero");
+      if (hero) hero.addEventListener("error", function () {
+        var em = document.createElement("em"); em.title = "Photo unavailable"; em.textContent = hero.getAttribute("data-mark") || "🏪";
+        if (hero.parentNode) hero.parentNode.replaceChild(em, hero);
+      });
+    } catch (eH) {}
+    if (!ad0.text && isFinite(+s.lat)) {
+      reverseAddr(s).then(function (txt) {
+        if (vendor !== s) return;
+        var spans = document.querySelectorAll("#sn-sheet .sn-prof .sn-miss");
+        var el = spans[spans.length - 1];
+        if (el) el.textContent = [txt ? "≈ " + txt + " (approx.)" : "No address listed", kindBit].filter(Boolean).join(" · ");
+      });
+    }
     try { if (map && isFinite(+s.lat)) map.panTo([+s.lat, +s.lng], { animate: false }); } catch (e) {}
   }
   function openPerson(pt, role) {
@@ -4156,12 +4443,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (act === "jobs") { openJobs(); return; }
     if (act === "reload") { openDeposit(); return; }
     if (act === "hunt" || act === "city" || act === "shop" || act === "now" || act === "pick") {
-      if (j.places && j.places.length) {
-        shops = uniqPlaces(j.places.map(function (p) {
-          return { name: p.name, lat: Number(p.lat), lng: Number(p.lng), phone: p.phone || "", raw: p.raw || "", src: "grok" };
-        }).filter(function (p) { return isFinite(p.lat) && isFinite(p.lng); }));
-        if (shops.length) { openCity(shops[0]); paintShopsOnMap(); return; }
-      }
+      /* AI-proposed places are never painted (they returned Athens, GA): run the real hunt */
       var userQ = String(q || "").replace(/^(find|hunt|show)\s+/i, "").trim();
       hunt(userQ || String(q || "").trim());
       return;
@@ -4203,6 +4485,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var seatKind = "";
   var bootZoom = false;
   var bootPt = null;
+  /* fix38 state */
+  var frameCam = null;
+  var wheelG = null;
+  var hoverAt = 0;
+  var huntView = null;
+  var findOnSheet = false;
+  var overpassOff = false;
+  var overpassCool = 0;
+  try { overpassOff = sessionStorage.getItem("sn:overpass-off") === "1"; } catch (eOv) {}
   var GR_CITY = {
     athens: { label: "Athens, Greece", lat: 37.9838, lng: 23.7275 },
     athina: { label: "Athens, Greece", lat: 37.9838, lng: 23.7275 },
@@ -4268,8 +4559,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     /* drop previous place's listed + hunt pins so FIND/LIVE cannot leak Rhodes into Athens */
     shops = [];
     findWanted = false;
+    huntView = null;
     window.__snFindShown = [];
     window.__snLastHunt = "";
+    try { if (findOnSheet) closeSheet(); } catch (eS) {}
     try { if (typeof paintShopsOnMap === "function") paintShopsOnMap(); } catch (e) {}
     try { if (typeof paintPulse === "function") paintPulse(); } catch (e2) {}
   }
@@ -4758,7 +5051,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       power.addEventListener("pointerup", cancelHold);
       power.addEventListener("pointercancel", cancelHold);
       power.addEventListener("pointerleave", cancelHold);
-      power.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); });
+      power.addEventListener("click", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        if (!holdP && e.detail === 0) say("Hold 3 seconds.");
+      });
     }
     var globe = $("sn-globe");
     if (globe && !globe.__sn) {
@@ -6235,11 +6531,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4334 = true;
+    window.__SN_4335 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
-      lookAt: lookAt, earthSpin: earthSpin, globeHitTest: function (sx, sy) { return globeHit(sx, sy, cam, earthSpin()); },
+      lookAt: lookAt, earthSpin: earthSpin, globeHitTest: function (sx, sy) { return pickHit(sx, sy); },
       getCam: function () { return { yaw: cam.yaw, pitch: cam.pitch, dist: cam.dist, seated: !!seated, cityOn: !!cityOn }; },
       openCity: openCity, goToPlaceAsk: goToPlaceAsk, seatPlace: seatPlace, closeCity: closeCity, listAt: listAt, goNamed: hunt, huntNamed: hunt,
       user: function () { return window.SNAuth && SNAuth.user ? SNAuth.user() : null; },
@@ -6251,7 +6547,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       quoteDelivery: quoteDelivery,
       paintMoney: paintMoney, avcGet: avcGet,
       paintPower: function () { var p = $("sn-power"); if (p) p.hidden = false; },
-      projectTest: function (lat, lng) { return project(lat, lng, cam); }
+      projectTest: function (lat, lng) { return project(lat, lng, cam); },
+      projectFrame: function (lat, lng) { var fc = frameCam || cam; return project(lat, lng, fc, fc.spin != null ? fc.spin : earthSpin()); },
+      fieldShops: function () { return fieldShops().map(function (x) { return { id: x.id, name: x.name, lat: x.lat, lng: x.lng, kind: x.kind, aka: x.aka || "", src: x.src }; }); },
+      findShown: function () { return (window.__snFindShown || []).map(function (x) { return { id: x.id, name: x.name }; }); },
+      huntState: function () { return huntView ? { needle: huntView.needle, rendered: huntView.rendered, findOnSheet: findOnSheet } : null; },
+      addrOf: function (x) { return addrOf(x); }, photoOf: function (x) { return photoOf(x); },
+      overpassState: function () { return { off: overpassOff, coolMs: Math.max(0, overpassCool - Date.now()) }; }
     };
     Object.defineProperty(window, "__SN_INTRO", { get: function () { return intro; } });
     requestAnimationFrame(loop);

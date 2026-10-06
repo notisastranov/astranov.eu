@@ -369,6 +369,18 @@ module.exports = async function (req, res) {
     s = Number(n.lng);
   var shopNear = /vendor|shop|near|amenity|places/i.test(r) && isFinite(o) && isFinite(s);
 
+  // reverse: an approximate street address for a vendor pin with no listed address
+  if (String(n.reverse || "") === "1" && isFinite(o) && isFinite(s)) {
+    var rv = await grab("https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&lat=" + o.toFixed(6) + "&lon=" + s.toFixed(6), 6000);
+    var rj = null;
+    try { rj = rv ? JSON.parse(rv) : null; } catch (e) { rj = null; }
+    var ad = (rj && rj.address) || {};
+    var road = [ad.road || ad.pedestrian || ad.footway || ad.square || ad.street || "", ad.house_number || ""].filter(Boolean).join(" ");
+    var line = [road, [ad.postcode, ad.city || ad.town || ad.village || ad.suburb || ""].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+    cors(res, !line);
+    return res.status(200).json({ ok: !!line, address: line, display: (rj && rj.display_name) || "", approx: true, meta: { mode: "reverse", build: BUILD } });
+  }
+
   if (!r && !(isFinite(o) && isFinite(s))) {
     cors(res, true);
     return res.status(400).json({ ok: false, error: "empty", places: [] });
