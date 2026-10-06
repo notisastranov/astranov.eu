@@ -44,6 +44,7 @@
     }
   ],
   "rewrites": [
+    {"source": "/favicon.ico", "destination": "/icon-192.png"},
     {"source": "/", "has": [{"type": "host", "value": "investors.astranov.eu"}], "destination": "/investors/index.html"},
     {"source": "/index.html", "has": [{"type": "host", "value": "investors.astranov.eu"}], "destination": "/investors/index.html"},
     {"source": "/app.js", "has": [{"type": "host", "value": "investors.astranov.eu"}], "destination": "/investors/app.js"},

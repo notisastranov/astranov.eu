@@ -796,6 +796,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     lastT = now;
     if (!introT0) introT0 = now;
     if (intro && now - introT0 >= INTRO_MS) endIntro();
+    bootTick(now);
     stepCam(now, dt);
     tickNews(now);
     if (!cityOn) { drawGlobe(now); drawCard(now); }
@@ -1159,9 +1160,34 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     else say("GPS · " + (pt.name ? pt.name + " · " : "") + lat.toFixed(4) + "," + lng.toFixed(4));
     pullListings();
   }
+  function bootIdle() {
+    var el = $("line");
+    var t = (el && el.textContent) || "";
+    return t.indexOf("Earth scan") === 0 || t.indexOf("Zooming to you") === 0;
+  }
+  function bootTick(now) {
+    if (!intro || !introT0) return;
+    var el = $("line");
+    if (!el || (el.textContent || "").indexOf("Earth scan") !== 0) return;
+    var left = Math.max(0, Math.ceil((INTRO_MS - (now - introT0)) / 1000));
+    var txt = "Earth scan · " + left + "s · then we zoom to you.";
+    if (el.textContent !== txt) el.textContent = txt;
+  }
+  function bootZoomTo(pt) {
+    if (!bootZoom || seated || cityOn || !pt || !isFinite(+pt.lat) || !isFinite(+pt.lng)) return;
+    if (!bootIdle()) { bootZoom = false; return; }
+    bootZoom = false;
+    if (pt.how === "gps") land({ lat: +pt.lat, lng: +pt.lng, how: "gps", name: "GPS" }, false);
+    else land({ lat: +pt.lat, lng: +pt.lng, how: "net", name: pt.name || "" }, false);
+  }
   function endIntro() {
     if (!intro) return;
     intro = false;
+    /* the boot line promised a zoom: keep it, unless the user already acted */
+    if (seated || cityOn || !bootIdle()) return;
+    bootZoom = true;
+    if (bootPt) { bootZoomTo(bootPt); return; }
+    say("Zooming to you as soon as location answers… or name a place.");
   }
   function bindGps() {
     var btn = $("gps");
@@ -4175,6 +4201,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var placeSeq = 0;
   var lastSeat = null;
   var seatKind = "";
+  var bootZoom = false;
+  var bootPt = null;
   var GR_CITY = {
     athens: { label: "Athens, Greece", lat: 37.9838, lng: 23.7275 },
     athina: { label: "Athens, Greece", lat: 37.9838, lng: 23.7275 },
@@ -6159,6 +6187,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (!seatKind) seatKind = "ip";
       }
       window.__SN_HERE = here;
+      bootPt = pt;
+      try { bootZoomTo(pt); } catch (eBZ) {}
     }, true);
     fetch("/agenda.json", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
       if (j && j.cards && j.cards.length) {
