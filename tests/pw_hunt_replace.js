@@ -6,6 +6,8 @@
  *   Pizzagio sheet: address + photo (or honest placeholder).
  *   'pizza in Athens Greece': no pin farther than 50 km from Athens (no Rhodes/Nairobi leak).
  *   'supermarket in Rhodes' again: FIND rebuilt from scratch (market-only).
+ *   'pizza in Athens Greece' lands on the city view (cityOn) centred within 0.2° of Athens, and stays there.
+ *   Every FIND row has a drawn pin inside the visible map (after the hunt's fitBounds), not under the sheet.
  *   Guest wallet reads '0 AV€ · guest'; Augoustinos twins show as one pin.
  * Env: PREVIEW_URL / STAMP; optional LOCAL_APP (patched app.js routed in), LOCAL_FIND (api/find.js
  * served for reverse=1), OVERPASS_FAIL=1 (abort overpass with connectionclosed → expect 1 request).
@@ -16,7 +18,7 @@ const path = require("path");
 const { chromium } = require("playwright");
 
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const URL0 = BASE + (BASE.indexOf("?") >= 0 ? "&" : "?") + "v=" + (process.env.STAMP || "4335") + "&t=" + Date.now();
+const URL0 = BASE + (BASE.indexOf("?") >= 0 ? "&" : "?") + "v=" + (process.env.STAMP || "4336") + "&t=" + Date.now();
 const PIZZA = /pizz|πιτσ|πίτσ|margherita|calzone/i;
 const MARKET = /market|super|grocer|convenience|παντοπωλ|σούπερ|σουπερ|μάρκετ|μαρκετ/i;
 const RHODES = { lat: 36.4349, lng: 28.2176 };
@@ -46,6 +48,21 @@ async function field(page) {
       pins.push({ id: String(ly.__snId), lat: ll.lat, lng: ll.lng, inDom: !!(el && document.contains(el)), tip: tip ? String(tip.getContent()) : "" });
     });
     const domPins = document.querySelectorAll("#city .sn-shop-pin").length;
+    const cityEl = document.getElementById("city");
+    const cr = cityEl ? cityEl.getBoundingClientRect() : null;
+    const sh = document.getElementById("sn-sheet-card");
+    const shr = sh && getComputedStyle(sh).display !== "none" && sh.offsetParent !== null ? sh.getBoundingClientRect() : null;
+    const sheetTop = shr && shr.height > 20 ? shr.top : (cr ? cr.bottom : 0);
+    pins.forEach((p) => {
+      try {
+        const pt = map.latLngToContainerPoint([p.lat, p.lng]);
+        const x = cr.left + pt.x, y = cr.top + pt.y;
+        p.vis = !!(cr && x >= cr.left && x <= cr.right && y >= cr.top && y <= Math.min(cr.bottom, sheetTop));
+      } catch (e) { p.vis = false; }
+    });
+    let center = null, zoom = null;
+    try { const c = map.getCenter(); center = { lat: c.lat, lng: c.lng }; zoom = map.getZoom(); } catch (e) {}
+    const cam = SN.getCam ? SN.getCam() : null;
     const title = ((document.getElementById("sn-sheet-card") || {}).textContent || "").match(/FIND\s*·\s*(\d+|…)/);
     const shown = (window.__snFindShown || []).map((s) => {
       const menu = Array.isArray(s.menu) ? s.menu.map((m) => (m && m.name) || "").join(" ") : "";
@@ -60,7 +77,7 @@ async function field(page) {
       box = { w: city.clientWidth, h: city.clientHeight };
       city.querySelectorAll("img.leaflet-tile").forEach((im) => { tiles++; if (im.complete && im.naturalWidth > 0) loaded++; });
     }
-    return { pins, domPins, find: title ? title[1] : null, shown, live, liveN: liveN == null ? null : +liveN, size, box, tiles, loaded,
+    return { pins, domPins, center, zoom, cam, cityOn: !!(cityEl && cityEl.classList.contains("on") && cam && cam.cityOn !== false), find: title ? title[1] : null, shown, live, liveN: liveN == null ? null : +liveN, size, box, tiles, loaded,
       line: (document.getElementById("line") || {}).textContent || "", hunt: SN.huntState ? SN.huntState() : null };
   });
 }
@@ -116,6 +133,8 @@ function sameSet(f) {
   }
   if (process.env.OVERPASS_FAIL) await page.route(/overpass-api\.de/, (route) => route.abort("connectionclosed"));
   page.on("pageerror", (e) => console.log("[pageerror]", String(e).slice(0, 200)));
+  if (process.env.SHOW_CONSOLE) page.on("console", (m) => { const t = m.text(); if (/^sn:/.test(t)) console.log("[console]", t.slice(0, 600)); });
+  page.on("framenavigated", (fr) => { if (fr === page.mainFrame()) console.log("[nav]", fr.url().slice(0, 140)); });
 
   console.log("goto", URL0);
   await page.goto(URL0, { waitUntil: "domcontentloaded", timeout: 90000 });
@@ -127,6 +146,8 @@ function sameSet(f) {
   const f1 = await settle(page, "supermarket in Rhodes", 30000);
   check(f1.pins.length > 0 && f1.shown.every((s) => MARKET.test(s.blob)), "supermarket FIND is market-only", f1.shown.length + " shown");
   check(sameSet(f1), "supermarket FIND == pins");
+  const hid1 = f1.pins.filter((p) => !p.vis);
+  check(!hid1.length, "every supermarket pin is visible in the map view", hid1.map((p) => p.tip).join(", "));
 
   await ask(page, "pizza in Rhodes");
   const f2 = await settle(page, "pizza in Rhodes", 35000);
@@ -136,6 +157,8 @@ function sameSet(f) {
   check(sameSet(f2), "FIND == pins (ids)", f2.pins.length + " pins vs " + f2.shown.length + " FIND");
   check(String(f2.pins.length) === String(f2.find), "FIND title count == pins", f2.find + " vs " + f2.pins.length);
   check(f2.liveN === f2.pins.length, "LIVE counts what is shown", f2.live);
+  const hid2 = f2.pins.filter((p) => !p.vis);
+  check(!hid2.length, "every pizza pin is visible in the map view (fitBounds, above the sheet)", hid2.map((p) => p.tip).join(", "));
   check(f2.pins.every((p) => p.inDom), "every pin layer is in the DOM");
   check(f2.shown.every((s) => !MARKET.test(s.name) || PIZZA.test(s.blob)), "no supermarket pin left");
   check(f2.shown.some((s) => /pizzagio/i.test(s.name)) && f2.shown.some((s) => /gondola/i.test(s.name)), "Pizzagio and Gondola Pizza in FIND");
@@ -169,6 +192,15 @@ function sameSet(f) {
   check(!f3.shown.some((s) => /ugoustinos|vgoustinos/i.test(s.name)), "Athens: no Augoustinos in FIND");
   check(sameSet(f3), "Athens FIND == pins");
   check(f3.shown.every((s) => PIZZA.test(s.blob)), "Athens FIND pizza-only");
+  check(f3.cityOn, "Athens: lands on the city view (cityOn)", JSON.stringify({ cam: f3.cam, zoom: f3.zoom }));
+  check(f3.center && Math.abs(f3.center.lat - ATHENS.lat) <= 0.2 && Math.abs(f3.center.lng - ATHENS.lng) <= 0.2,
+    "Athens: map centre within 0.2° of Athens", JSON.stringify(f3.center) + " z" + f3.zoom);
+  await sleep(6000);
+  const f3b = await field(page);
+  check(f3b.cityOn && f3b.center && Math.abs(f3b.center.lat - ATHENS.lat) <= 0.2 && Math.abs(f3b.center.lng - ATHENS.lng) <= 0.2,
+    "Athens: still on the city 6 s later (no late fly-away)", JSON.stringify({ c: f3b.center, cityOn: f3b.cityOn }));
+  const hid3 = f3.pins.filter((p) => !p.vis);
+  check(!hid3.length, "Athens: every pin visible in the map view", hid3.map((p) => p.tip).join(", "));
   const stray = await page.evaluate(() => Array.from(document.querySelectorAll("#city .sn-shop-pin")).map((e) => e.textContent).filter((t) => /ugoustinos|Nairobi/i.test(t)));
   check(!stray.length, "Athens: no stray Rhodes/Nairobi pin element in the DOM", stray.join(","));
 

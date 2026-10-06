@@ -1,7 +1,7 @@
-/* SpaceNet SW 4335 — one entity. Tree lock. */
-var CACHE = "sn-shell-4335";
-var VER = "4335";
-var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4335", "/js/spacenet/auth.js?v=4335", "/js/vendor/leaflet.js?v=4335", "/js/vendor/leaflet.css?v=4335", "/icon-192.png", "/manifest.webmanifest"];
+/* SpaceNet SW 4336 — one entity. Tree lock. */
+var CACHE = "sn-shell-4336";
+var VER = "4336";
+var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4336", "/js/spacenet/auth.js?v=4336", "/js/vendor/leaflet.js?v=4336", "/js/vendor/leaflet.css?v=4336", "/icon-192.png", "/manifest.webmanifest"];
 function allowedScript(path) {
   if (path === "/js/spacenet/app.js" || path === "/js/spacenet/auth.js" || path === "/js/vendor/leaflet.js") return true;
   return false;
@@ -23,8 +23,9 @@ self.addEventListener("activate", function (e) {
       return Promise.all(keys.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); }));
     }).then(function () { return self.clients.claim(); }).then(function () {
       return self.clients.matchAll({ type: "window" }).then(function (clients) {
+        /* never navigate a running page (mid-run &t= reload): tell it the version, the page decides */
         clients.forEach(function (c) {
-          try { c.navigate("/?v=" + VER + "&t=" + Date.now()); } catch (err) {}
+          try { c.postMessage({ type: "sn-sw", ver: VER }); } catch (err) {}
         });
       });
     })
@@ -34,7 +35,7 @@ self.addEventListener("fetch", function (e) {
   var url = new URL(e.request.url);
   if (url.origin !== location.origin) return;
   if (isOverlay(url.pathname)) {
-    e.respondWith(new Response("/* TREE LOCK 4335: overlay blocked */", { headers: { "Content-Type": "application/javascript" }, status: 200 }));
+    e.respondWith(new Response("/* TREE LOCK 4336: overlay blocked */", { headers: { "Content-Type": "application/javascript" }, status: 200 }));
     return;
   }
   if (e.request.mode === "navigate" || url.pathname === "/" || url.pathname === "/index.html") {

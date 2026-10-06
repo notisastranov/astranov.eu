@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4335";
+  var VER = "4336";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -350,7 +350,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var base = Math.max(120, Math.min((bot - top) * 0.46, w * 0.46));
     var zoom = 1.85 / Math.max(0.55, cam.dist || 1.85);
     var scale = base * zoom;
-    view = { w: w, h: h, cx: cx, cy: cy, scale: scale, top: top, bot: bot };
+    view = { w: w, h: h, cx: cx, cy: cy, scale: scale, top: top, bot: bot, base: base };
   }
   function project(lat, lng, c, spinAt) {
     var spin = (spinAt != null && isFinite(spinAt)) ? spinAt : earthSpin();
@@ -404,11 +404,41 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     cam.yaw = wrapYaw(cam.yaw, want);
     cam.pitch = Math.max(-1.15, Math.min(1.15, (p.lat * Math.PI) / 180));
     cam.dist = dist == null ? 1.16 : dist;
-    vel.yaw = 0; vel.pitch = 0; fly = null;
+    vel.yaw = 0; vel.pitch = 0; fly = null; cursorHold = null;
     seated = true;
     aim = { lat: +p.lat, lng: +p.lng, name: p.name || (aim && aim.name) || "" };
   }
+  /* zoom-to-cursor: the camera that puts pt under screen (sx,sy) at distance d (same math as project) */
+  function solveCursor(pt, sx, sy, d, spinAt) {
+    if (!pt || !view || !view.base || !isFinite(+pt.lat) || !isFinite(+pt.lng)) return null;
+    var spin = (spinAt != null && isFinite(spinAt)) ? spinAt : earthSpin();
+    var scale = view.base * (1.85 / Math.max(0.55, d || 1.85));
+    var u = (sx - view.cx) / scale, v = (view.cy - sy) / scale;
+    if (u * u + v * v > 0.92) return null;
+    var phi = (+pt.lat * Math.PI) / 180, cphi = Math.cos(phi);
+    if (Math.abs(u) >= cphi * 0.999) return null;
+    var lam = Math.asin(u / cphi);
+    var y = Math.sin(phi), z = cphi * Math.cos(lam);
+    var R = Math.hypot(y, z);
+    if (!(R > 1e-6) || Math.abs(v) > R) return null;
+    var pitch = Math.acos(Math.max(-1, Math.min(1, v / R))) - Math.atan2(z, y);
+    while (pitch > Math.PI) pitch -= Math.PI * 2;
+    while (pitch < -Math.PI) pitch += Math.PI * 2;
+    if (!isFinite(pitch)) return null;
+    pitch = Math.max(-1.15, Math.min(1.15, pitch));
+    var yaw = wrapYaw(cam.yaw, (+pt.lng * Math.PI) / 180 - spin - lam);
+    return { yaw: yaw, pitch: pitch };
+  }
+  function holdOk() { return !!(cursorHold && cursorHold.pt && cursorHold.pt === aim && !cityOn); }
+  function holdFace(d) {
+    if (holdOk()) {
+      var hs = solveCursor(cursorHold.pt, cursorHold.sx, cursorHold.sy, d);
+      if (hs) return hs;
+    }
+    return aim && isFinite(+aim.lat) ? face(aim) : { yaw: cam.yaw, pitch: cam.pitch };
+  }
   function flyTo(p, dist) {
+    cursorHold = null;
     var goalYaw = wrapYaw(cam.yaw, (p.lng * Math.PI) / 180 - earthSpin());
     fly = {
       t0: performance.now(),
@@ -604,6 +634,23 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ctx.fillText(LABELS[i].name, p.x, p.y);
     }
     drawConstellations(now);
+    if (DEBUG_WHEEL && wheelPick) {
+      var dp = project(wheelPick.lat, wheelPick.lng, cam);
+      ctx.save();
+      ctx.lineWidth = 1.5;
+      if (dp) {
+        ctx.strokeStyle = "#ff3df0";
+        ctx.beginPath(); ctx.moveTo(dp.x - 9, dp.y); ctx.lineTo(dp.x + 9, dp.y); ctx.moveTo(dp.x, dp.y - 9); ctx.lineTo(dp.x, dp.y + 9); ctx.stroke();
+        ctx.beginPath(); ctx.arc(dp.x, dp.y, 4, 0, Math.PI * 2); ctx.stroke();
+      }
+      if (wheelPick.sx != null) {
+        ctx.strokeStyle = "rgba(255,255,255,.7)";
+        ctx.beginPath(); ctx.arc(wheelPick.sx, wheelPick.sy, 7, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.fillStyle = "#ff3df0"; ctx.font = "600 10px ui-monospace,monospace"; ctx.textAlign = "left";
+      ctx.fillText("pick " + wheelPick.lat.toFixed(3) + "," + wheelPick.lng.toFixed(3) + (dp ? " Δ" + Math.round(Math.hypot(dp.x - (wheelPick.sx || dp.x), dp.y - (wheelPick.sy || dp.y))) + "px" : ""), (dp ? dp.x : 12) + 10, (dp ? dp.y : 40) - 8);
+      ctx.restore();
+    }
   }
   var PLANETS = [
     { n: "MERCURY", p: 87.969, L: 252.25, au: 0.387, inc: 7.0, col: "#c8bba8", sz: 2.4 },
@@ -711,14 +758,19 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       cam.pitch = fly.start.pitch + (fly.goal.pitch - fly.start.pitch) * e;
       cam.dist = fly.start.dist + (fly.goal.dist - fly.start.dist) * e;
       if (k >= 1) { fly = null; if (wheelG) wheelG.settle = Date.now(); }
-      if (!drag && tierI >= 2 && aim && !cityOn) {
+      if (!drag && holdOk()) {
+        /* every frame of the zoom keeps the wheel anchor under the cursor */
+        var hs = solveCursor(cursorHold.pt, cursorHold.sx, cursorHold.sy, cam.dist);
+        if (hs) { cam.yaw = hs.yaw; cam.pitch = hs.pitch; }
+      } else if (!drag && tierI >= 2 && aim && !cityOn) {
         var held = face(aim);
         cam.yaw = held.yaw;
         cam.pitch = held.pitch;
       }
       return;
     }
-    if (!fly && !seated && !drag && !cityOn) {
+    /* idle spin only until the user first drags / wheels / pinches: after that the globe stays where they left it */
+    if (!fly && !seated && !drag && !cityOn && !globeHeld) {
       if (cam.dist < 1.7 || cam.dist > 2.2) cam.dist = 1.85;
       /* slow idle spin, but keep the Med band reachable — never race to polar */
       if (Date.now() - hoverAt > 1500) cam.yaw += dt * 0.08;
@@ -731,7 +783,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       return;
     }
     if (!drag && tierI >= 2 && aim && !cityOn) {
-      var held2 = face(aim);
+      var held2 = holdFace(cam.dist);
       cam.yaw = held2.yaw;
       cam.pitch = held2.pitch;
       vel.yaw = 0; vel.pitch = 0;
@@ -807,11 +859,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4335 = true;
+      window.__SN_4336 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
           navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {});
+          navigator.serviceWorker.addEventListener("message", function (ev) {
+            var d = ev && ev.data;
+            if (d && d.type === "sn-sw" && Number(d.ver) > Number(VER)) safeReload(String(d.ver));
+          });
         }
       } catch (e) {}
     });
@@ -843,6 +899,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
       drag = { x: p.x, y: p.y, yaw: cam.yaw, pitch: cam.pitch, moved: false, lastX: p.x, lastY: p.y, lastT: nowMs() };
       holdT = nowMs();
+      cursorHold = null;
     });
     canvas.addEventListener("pointermove", function (e) {
       var p = pos(e);
@@ -854,6 +911,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         pinch = d;
         intro = false;
         var midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
+        globeHeld = true;
         if (grew > 1) aimAt(midX, midY);
         var nd = cam.dist / Math.max(0.92, Math.min(1.08, grew));
         zoomToDist(nd);
@@ -865,6 +923,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (Math.hypot(dx, dy) > 8) {
         drag.moved = true; intro = false; gpsSeq++;
         holdT = 0;
+        globeHeld = true;
+        fly = null;
       }
       if (!drag.moved) return;
       var t = nowMs();
@@ -936,6 +996,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var dy = e.deltaY;
       if (e.deltaMode === 1) dy *= 16;
       if (e.deltaMode === 2) dy *= 400;
+      if (!dy) return;
+      var tA = Date.now();
+      if (tA - wheelAccT > 400 || (wheelAcc && (wheelAcc > 0) !== (dy > 0))) wheelAcc = 0;
+      wheelAcc += dy; wheelAccT = tA;
+      if (Math.abs(wheelAcc) < 30) return; /* split notch (trackpad / smooth scroll): wait for a whole step */
+      wheelAcc = 0;
       zoomSmooth(dy > 0 ? 1 : -1, p.x, p.y);
     }, { passive: false });
   }
@@ -977,7 +1043,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       say("Street · " + street.lat.toFixed(3) + "," + street.lng.toFixed(3));
       return;
     }
-    var f = aim && isFinite(aim.lat) ? face(aim) : { yaw: cam.yaw, pitch: cam.pitch };
+    var f = holdFace(dist);
     fly = {
       t0: performance.now(),
       ms: 280,
@@ -1007,7 +1073,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function zoomSmooth(dir, sx, sy) {
     if (cityOn && map) {
       var z = map.getZoom() || 16;
-      if (dir > 0 && z <= 12.6) {
+      if (dir > 0 && z <= closeBelow + 0.1) {
         closeCity();
         zoomToDist(1.25);
         say("Back to the globe");
@@ -1016,7 +1082,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var nz = Math.max(13, Math.min(19, z + (dir < 0 ? 0.7 : -0.7)));
       try {
         var tC = Date.now();
-        var gC = !!(wheelG && tC - Math.max(wheelG.t, wheelG.settle || 0) < 400 && Math.abs((sx || 0) - wheelG.x) <= 6 && Math.abs((sy || 0) - wheelG.y) <= 6);
+        var gC = !!(wheelG && tC - wheelG.t < 400 && Math.abs((sx || 0) - wheelG.x) <= 4 && Math.abs((sy || 0) - wheelG.y) <= 4);
         if (gC) wheelG.t = tC;
         if (gC && wheelG.anchor && !wheelG.city) {
           /* same gesture that dove from the globe: keep its anchor centred */
@@ -1032,13 +1098,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     var spin = earthSpin();
     var tW = Date.now();
-    /* a gesture lives while its zoom step flies and 250 ms after it settles, unless the cursor moves > 6 px */
-    var keepG = !!(wheelG && wheelG.anchor && !wheelG.city && (fly || tW - Math.max(wheelG.t, wheelG.settle || 0) < 250) && Math.abs((sx || 0) - wheelG.x) <= 6 && Math.abs((sy || 0) - wheelG.y) <= 6);
+    globeHeld = true;
+    /* one gesture keeps its anchor until the cursor moves > 4 px or the wheel is idle 400 ms;
+       the zoom keeps that anchor under the cursor, so a later re-pick at the same pixel finds the same place */
+    var keepG = !!(wheelG && wheelG.anchor && !wheelG.city && tW - wheelG.t < 400 && Math.abs((sx || 0) - wheelG.x) <= 4 && Math.abs((sy || 0) - wheelG.y) <= 4);
     if (dir < 0) {
       var under = keepG ? wheelG.anchor : aimAt(sx, sy, spin);
       if (!under && view) under = aimAt(view.cx, view.cy, spin);
       try {
-        console.debug("sn:wheel", { px: sx, py: sy, lat: under && under.lat, lng: under && under.lng, dpr: window.devicePixelRatio || 1 });
+        console.debug("sn:wheel", { px: sx, py: sy, lat: under && under.lat, lng: under && under.lng, dpr: window.devicePixelRatio || 1, keep: keepG });
       } catch (eLog) {}
       if (!under || !isFinite(+under.lat) || !isFinite(+under.lng)) {
         say("Wheel aim missed the globe. Drag to face the place, then wheel in.");
@@ -1051,7 +1119,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
       /* no snap: zoomToDist flies toward the fixed anchor picked at the first notch */
       aim = { lat: +under.lat, lng: +under.lng, name: under.name || "" };
-      wheelG = { x: sx || 0, y: sy || 0, t: tW, anchor: keepG ? wheelG.anchor : aim, city: false };
+      wheelG = { x: keepG ? wheelG.x : (sx || 0), y: keepG ? wheelG.y : (sy || 0), t: tW, anchor: keepG ? wheelG.anchor : aim, city: false };
+      cursorHold = (sx != null && sy != null) ? { pt: aim, sx: wheelG.x, sy: wheelG.y } : null;
+      wheelPick = { lat: +under.lat, lng: +under.lng, sx: sx, sy: sy, keep: keepG, t: tW };
     } else if (wheelG) {
       wheelG.t = tW;
     }
@@ -1150,6 +1220,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (ipNote) label = label ? (label + " · Approximate location (IP)") : "Approximate location (IP)";
     else if (isGps) label = label || "GPS";
     else if (pt.how === "admin") label = label || "Admin pin";
+    if (ipNote && (huntView || findWanted || seatKind === "named" || seatKind === "landed" || seatKind === "gps")) {
+      /* a late IP answer never moves the camera off a place the user named / is hunting */
+      if (!here) { here = { lat: lat, lng: lng, name: label }; window.__SN_HERE = here; }
+      return;
+    }
     if (ipNote) {
       /* IP never seats a hunt or a listing pull: rough camera only */
       here = { lat: lat, lng: lng, name: label };
@@ -1244,6 +1319,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!isFinite(plat) || !isFinite(plng) || Math.abs(plat) > 90 || Math.abs(plng) > 180) return;
     aim = { lat: plat, lng: plng, name: pt.name || (aim && aim.name) || "" };
     tierI = 3;
+    cursorHold = null; fly = null; closeBelow = 12.5;
     var el = $("city");
     if (!el || typeof L === "undefined") return;
     cityOn = true;
@@ -1285,15 +1361,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         setTimeout(applyView, 40);
         return;
       }
+      progMoveUntil = Date.now() + 600;
       try { map.invalidateSize({ animate: false }); } catch (e) {}
       try { map.setView([plat, plng], 16, { animate: false }); } catch (e2) {}
       try { map.invalidateSize({ animate: false }); } catch (e3) {}
       revealWhenTiled();
+      if (huntFitWanted) { try { fitHunt(); } catch (eFit) {} }
     }
     if (!map) {
       map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 12, maxZoom: 19, scrollWheelZoom: true });
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19, minZoom: 12,
+        maxZoom: 19, minZoom: 9,
         errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
       }).addTo(map);
       map.on("zoomend", function () { try { if (cityOn) paintShopsOnMap(); } catch (eF) {} });
@@ -1308,9 +1386,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           ["sn-sheet", "sn-pulse", "dock", "top"].forEach(function (id) { var x = $(id); if (x) ro.observe(x); });
         }
       } catch (eRO) {}
+      ["wheel", "pointerdown", "touchstart"].forEach(function (k) {
+        el.addEventListener(k, function () { mapUserAt = Date.now(); }, { capture: true, passive: true });
+      });
       map.on("zoomend", function () {
         try {
-          if (map && map.getZoom() <= 12.5) {
+          /* only a user zoom-out leaves the city; fitBounds / setView / late results never do */
+          if (Date.now() < progMoveUntil || Date.now() - mapUserAt > 1500) return;
+          if (map && map.getZoom() <= closeBelow) {
             closeCity();
             zoomToDist(1.25);
           }
@@ -1319,6 +1402,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       map.on("moveend", function () {
         try {
           if (!map || !cityOn) return;
+          if (Date.now() < progMoveUntil) return; /* a fit or a sheet pan is not the user moving the seat */
           var c = map.getCenter();
           if (!c || !isFinite(+c.lat)) return;
           /* pan updates the active seat; do not clear a named landing name unless far */
@@ -1620,7 +1704,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function hardReset() {
     say("Resetting…");
     try { localStorage.clear(); sessionStorage.clear(); } catch (e) {}
-    var go = function () { location.href = "/?v=4335&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4336&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -1787,6 +1871,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet.tile .sn-prof{grid-template-columns:88px minmax(0,1fr)!important}",
       "#sn-sheet.tile .sn-prof .sn-shop-hero,#sn-sheet.tile .sn-prof em{width:88px!important;height:88px!important;max-width:88px!important;max-height:88px!important;max-height:88px!important}",
       "#sn-sheet .sn-pick{display:grid;grid-template-columns:52px minmax(0,1fr) auto 28px 28px 28px;gap:6px;align-items:center;margin-top:8px}",
+      "#sn-sheet .sn-pick.nothumb{grid-template-columns:minmax(0,1fr) auto 28px 28px 28px}",
+      "#sn-power-tag{position:fixed;top:58px;left:max(6px,env(safe-area-inset-left));z-index:60;font:700 10px/14px ui-monospace,monospace;color:#8fb3c0;pointer-events:none;white-space:nowrap;text-shadow:0 0 4px #000}",
+      "#sn-power-tag.on{color:#7dff9a}",
       "#sn-sheet .sn-pick img,#sn-sheet .sn-pick .sn-mini{width:52px!important;height:52px!important;max-width:52px!important;max-height:52px!important;object-fit:cover;border-radius:10px;border:1px solid rgba(77,240,255,.45)}",
       "#sn-sheet .sn-pick b{color:#e8fbff!important;font:700 14px/1.2 system-ui!important}",
       "#sn-sheet .sn-pick span{color:#4df0ff!important;font:800 13px/1 system-ui!important}",
@@ -2667,12 +2754,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     shopMarks = [];
     /* sweep any shop layer an older paint left behind (Rhodes pin at Athens) */
     try { map.eachLayer(function (ly) { if (ly && ly.__snShop) map.removeLayer(ly); }); } catch (eSw) {}
+    if (huntPending()) { window.__snFieldIds = []; return; } /* pins come from the final list only */
     var field = fieldShops();
     var fan = fanOut(field);
     field.forEach(function (s, fi) {
       var ll = fan[fi] || [s.lat, s.lng];
       var mark;
-      if ((s.photo || s.src === "listed" || s.src === "live") && L.divIcon) {
+      if (L.divIcon) { /* every FIND row is a labelled pin, not a faint dot */
         mark = L.marker(ll, { icon: faceIcon("vendor", s.photo, s.name || "shop"), zIndexOffset: 500, draggable: false, bubblingMouseEvents: false, keyboard: false });
       } else {
         mark = L.circleMarker(ll, { radius: s.src === "listed" ? 10 : 8, color: s.src === "listed" ? "#4df0ff" : "#7ee9ff", fillColor: "#0a2030", fillOpacity: 0.95, weight: 2 });
@@ -2716,6 +2804,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     window.__snFieldIds = field.map(function (s) { return String(s.id || s.name); });
     /* FIND always equals the pins: a late source that changes the field re-renders the open FIND */
     if (huntView && findOnSheet && huntView.rendered !== findIds(field)) renderFind(field);
+    if (huntView && !huntView.fitted && field.length && cityOn && !huntFitWanted) { huntFitWanted = true; setTimeout(function () { try { fitHunt(); } catch (eF) {} }, 0); }
     if (isAdmin()) paintAdminPins();
     else paintOwnDrivers();
   }
@@ -2728,6 +2817,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       el = document.createElement("div");
       el.id = "sn-pulse";
       document.body.appendChild(el);
+    }
+    if (huntPending()) {
+      el.textContent = "LIVE · finding " + huntLabel() + "…";
+      return;
     }
     var vendors = 0, near = 0, drivers = 0, orders = 0;
     var seatLive = activeSeat() || here;
@@ -3381,6 +3474,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       .replace(/ch/g, "h").replace(/k/g, "c").replace(/w/g, "u").replace(/(.)\1+/g, "$1");
   }
   function phoneKey(p) { var d = String(p || "").replace(/\D/g, ""); return d.length >= 8 ? d.slice(-10) : ""; }
+  function streetKey(s) {
+    var t = String((s && (s.street || "")) || "");
+    if (!t && s && s.address) t = String(s.address).split(",")[0];
+    return foldTxt(t).replace(/[0-9]+/g, " ").replace(/\s+/g, " ").trim();
+  }
   function twinScore(s) {
     return (s.src === "listed" || s.src === "live" ? 4 : 0) + (Array.isArray(s.menu) && s.menu.length ? 2 : 0) +
       (s.phone ? 1 : 0) + (s.street ? 1 : 0) + (photoOf(s) ? 1 : 0);
@@ -3394,7 +3492,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var o = out[i];
         var close = haversineKm(o, s) <= 0.06;
         if ((s.osm && o.osm && s.osm === o.osm) ||
-            (close && pk && pk === phoneKey(o.phone)) ||
+            (close && pk && pk === phoneKey(o.phone) && streetKey(s) && streetKey(s) === streetKey(o)) ||
             (close && core.length >= 4 && core === twinCore(o.name))) twin = i;
       }
       if (twin === null) { out.push(s); return; }
@@ -3404,7 +3502,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       for (var k in keep) m[k] = keep[k];
       ["phone", "street", "address", "note", "raw", "hours", "cuisine", "photo", "osm", "menuText"].forEach(function (f) { if (!m[f] && other[f]) m[f] = other[f]; });
       if ((!Array.isArray(m.menu) || !m.menu.length) && Array.isArray(other.menu) && other.menu.length) m.menu = other.menu;
-      if (foldTxt(other.name) !== foldTxt(m.name)) m.aka = [m.aka, other.name].filter(Boolean).join(" · ");
+      var akaSeen = {};
+      akaSeen[foldTxt(m.name)] = 1;
+      var akaAll = [].concat(String(keep.aka || "").split(" · "), String(other.aka || "").split(" · "), [other.name || ""]).map(function (x) { return String(x || "").trim(); })
+        .filter(function (x) { var kx = foldTxt(x); if (!x || !kx || akaSeen[kx]) return false; akaSeen[kx] = 1; return true; });
+      if (akaAll.length) m.aka = akaAll.join(" · "); else delete m.aka;
       m.twins = (keep.twins || [keep.id]).concat(other.twins || [other.id]);
       out[twin] = m;
     });
@@ -3428,8 +3530,53 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (seat && seat.name && seat.name !== "map" && seat.name !== "place") return String(seat.name).split(" · ")[0].split(",")[0];
     return seat && isFinite(+seat.lat) ? (+seat.lat).toFixed(3) + "," + (+seat.lng).toFixed(3) : "this seat";
   }
+  function huntPending() { return !!(huntView && huntView.pending && findWanted); }
+  /* the part of the map the user can see: below the top bar, above the sheet / LIVE bar (container px) */
+  function mapVisBox() {
+    var el = $("city");
+    var W = el ? el.clientWidth : window.innerWidth, H = el ? el.clientHeight : window.innerHeight;
+    var cr = el ? el.getBoundingClientRect() : { top: 0, bottom: H, left: 0 };
+    var t = 16, b = H - 16;
+    var isl = visRect($("island"));
+    if (isl) t = Math.max(t, isl.bottom - cr.top + 8);
+    var card = visRect($("sn-sheet-card"));
+    if (card && card.top < cr.bottom) b = Math.min(b, card.top - cr.top - 8);
+    var pulse = visRect($("sn-pulse"));
+    if (pulse && pulse.top < cr.bottom) b = Math.min(b, pulse.top - cr.top - 8);
+    if (b - t < 160) b = Math.min(H - 16, t + 160);
+    return { l: 0, t: t, r: W, b: b, W: W, H: H };
+  }
+  function huntOrigin() {
+    var o = huntView && huntView.origin;
+    if (o && isFinite(+o.lat) && isFinite(+o.lng)) return o;
+    return activeSeat() || here;
+  }
+  /* after a hunt the map frames every result (and the seat), above the sheet, never past z16 */
+  function fitHunt() {
+    huntFitWanted = false;
+    if (!map || !cityOn || typeof L === "undefined" || !huntView) return;
+    var el = $("city");
+    if (!el || el.clientWidth < 40 || el.clientHeight < 40) { huntFitWanted = true; setTimeout(function () { try { fitHunt(); } catch (e) {} }, 80); return; }
+    var field = fieldShops();
+    if (!field.length) return;
+    var org = huntOrigin();
+    var pts = field.map(function (s) { return [+s.lat, +s.lng]; });
+    if (org && isFinite(+org.lat)) pts.push([+org.lat, +org.lng]);
+    var vb = mapVisBox();
+    var top = vb.t, bot = vb.H - vb.b;
+    try { map.setMinZoom(9); } catch (e0) {}
+    progMoveUntil = Date.now() + 800;
+    try {
+      map.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [46, top + 40], paddingBottomRight: [46, bot + 30], maxZoom: 16, animate: false });
+    } catch (e1) {}
+    var z = map.getZoom();
+    if (z < 9) { progMoveUntil = Date.now() + 800; try { map.setZoom(9, { animate: false }); } catch (e2) {} z = 9; }
+    closeBelow = Math.min(12.5, z - 0.5);
+    huntView.fitted = true;
+    try { paintShopsOnMap(); } catch (e3) {}
+  }
   function renderFind(list) {
-    var seat0 = activeSeat() || here;
+    var seat0 = huntOrigin();
     var shown = (list || []).slice();
     if (seat0) shown.sort(function (a, b) { return haversineKm(seat0, a) - haversineKm(seat0, b); });
     window.__snFindShown = shown;
@@ -3470,10 +3617,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
       if (grp.length < 2) continue;
       var R = 40 + grp.length * 6;
+      var vb = mapVisBox();
       grp.forEach(function (idx, j) {
         var a = -Math.PI / 2 + (2 * Math.PI * j) / grp.length;
         try {
-          var ll = map.containerPointToLatLng(L.point(pts[i].x + Math.cos(a) * R, pts[i].y + Math.sin(a) * R));
+          /* a fanned pin never lands under the top bar or the sheet */
+          var fx = Math.max(vb.l + 40, Math.min(vb.r - 40, pts[i].x + Math.cos(a) * R));
+          var fy = Math.max(vb.t + 34, Math.min(vb.b - 30, pts[i].y + Math.sin(a) * R));
+          var ll = map.containerPointToLatLng(L.point(fx, fy));
           out[idx] = [ll.lat, ll.lng];
         } catch (e) {}
       });
@@ -3548,11 +3699,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     } catch (eN) {}
     if (huntView) huntView.needle = window.__snHuntPlace ? "" : needle;
     else huntView = { needle: window.__snHuntPlace ? "" : needle, raw: String(window.__snHuntRaw || ""), rendered: "" };
+    huntView.pending = false;
+    huntView.fitted = false;
     var seat0 = activeSeat() || here;
+    if (seat0 && isFinite(+seat0.lat)) huntView.origin = { lat: +seat0.lat, lng: +seat0.lng, name: seat0.name || "" };
     shops = uniqPlaces((shops || []).filter(function (s) { return !seat0 || nearSeat(s, 50); }));
     var shown = fieldShops();
     var seatO = seat0 || shown[0];
+    huntFitWanted = true;
     if (seatO) openCity(seatO);
+    else if (cityOn) setTimeout(function () { try { fitHunt(); } catch (eFt) {} }, 0);
     paintShopsOnMap();
     renderFind(fieldShops());
     try { paintPulse(); } catch (eP) {}
@@ -3702,7 +3858,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       : q.replace(/^(find|hunt|show)\s+/i, "").trim();
     var looksPlace = !!(named && !/pizza|pizzeria|shop|vendor|restaurant|cafe|food|near|pharmacy|hotel|market|supermarket|grocery/i.test(named));
     window.__snHuntPlace = looksPlace;
-    huntView = { needle: looksPlace ? "" : String(named || q).toLowerCase(), raw: q, rendered: "", t: Date.now() };
+    huntView = { needle: looksPlace ? "" : String(named || q).toLowerCase(), raw: q, rendered: "", t: Date.now(), pending: true };
     window.__snFindShown = [];
     try { openSheet("FIND · …", '<p class="note">Finding ' + esc(q) + " at " + esc(seatName(activeSeat() || here)) + "…</p>"); } catch (eF) {}
     try { paintShopsOnMap(); paintPulse(); } catch (eF2) {}
@@ -3886,9 +4042,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!Array.isArray(menuRows)) menuRows = [];
     var menu = menuRows.map(function (m, i) {
       if (!m) return "";
-      var img = m.photo ? '<img alt="" src="' + String(m.photo).replace(/"/g, "") + '">' : '<span class="sn-mini"></span>';
+      var img = m.photo ? '<img alt="" src="' + String(m.photo).replace(/"/g, "") + '">' : "";
       var left = m.qty === 0 || m.qty ? " · " + m.qty : "";
-      return '<div class="sn-pick" data-i="' + i + '">' + img +
+      return '<div class="sn-pick' + (img ? "" : " nothumb") + '" data-i="' + i + '">' + img +
         "<b>" + esc(m.name || "item") + (m.when ? " · " + esc(m.when) : "") + left + "</b><span>" + esc(m.price || "") + "</span>" +
         '<button type="button" data-act="pick-less" data-i="' + i + '">−</button><em class="n">0</em><button type="button" data-act="pick-more" data-i="' + i + '">+</button></div>';
     }).join("");
@@ -3903,7 +4059,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var items = (j.lines || []).map(function (l) { return (l.n || 1) + " " + (l.name || "item"); }).join(", ");
       return '<div class="sn-ord"><b>' + esc(j.fee || 0) + " AV€</b><span>" + esc(items || "order") + "</span><em>" + esc(orderClock(j)) + "</em></div>";
     }).join("");
-    var dest = resolveDrop(s);
+    var org = huntOrigin();
+    var dest = (org && isFinite(+org.lat) && isFinite(+s.lat) && haversineKm(org, s) <= 50)
+      ? { lat: +org.lat, lng: +org.lng, name: seatName(org) }
+      : resolveDrop(s);
     var feeHtml;
     if (dest && isFinite(+dest.lat)) {
       var qq = quoteDelivery(s, dest, {});
@@ -3931,6 +4090,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (el) el.textContent = [txt ? "≈ " + txt + " (approx.)" : "No address listed", kindBit].filter(Boolean).join(" · ");
       });
     }
+    progMoveUntil = Date.now() + 600;
     try { if (map && isFinite(+s.lat)) map.panTo([+s.lat, +s.lng], { animate: false }); } catch (e) {}
   }
   function openPerson(pt, role) {
@@ -3947,7 +4107,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var v = job.vendor || {};
     var d = job.drop || {};
     var lines = (job.lines || []).map(function (l) {
-      return '<div class="sn-pick"><span class="sn-mini"></span><b>' + esc(l.name) + "</b><span>" + esc(l.price || "") + "</span><em></em><em>" + esc(l.n) + "</em></div>";
+      return '<div class="sn-pick nothumb"><b>' + esc(l.name) + "</b><span>" + esc(l.price || "") + "</span><em></em><em>" + esc(l.n) + "</em></div>";
     }).join("");
     var html = '<div class="sn-prof">' + tilePhoto(v.photo, "🏪") + "<div><b>" + esc(v.name || "Vendor") + "</b>" + tileContact(v.phone, v.address) + "</div></div>" +
       lines + whoLine("CLIENT", d.name || "Client", [d.address, d.phone].filter(Boolean).join(" · ")) +
@@ -4489,6 +4649,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var frameCam = null;
   var wheelG = null;
   var hoverAt = 0;
+  var globeHeld = false, cursorHold = null, wheelPick = null, wheelAcc = 0, wheelAccT = 0;
+  var DEBUG_WHEEL = /[?&]debug=wheel\b/.test(String(location.search || ""));
+  var progMoveUntil = 0, mapUserAt = 0, closeBelow = 12.5, huntFitWanted = false;
   var huntView = null;
   var findOnSheet = false;
   var overpassOff = false;
@@ -4832,6 +4995,24 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     Promise.all(jobs).then(go).catch(go);
     setTimeout(go, 2500);
   }
+  var lastInputAt = 0, reloadT = 0;
+  ["pointerdown", "keydown", "wheel", "touchstart"].forEach(function (k) {
+    window.addEventListener(k, function () { lastInputAt = Date.now(); }, { capture: true, passive: true });
+  });
+  function safeReload(ver) {
+    if (!(Number(ver) > Number(VER))) return;
+    var done = "";
+    try { done = sessionStorage.getItem("sn:auto-reloaded") || ""; } catch (e) {}
+    if (done) { latestVer = String(ver); paintVersion(); return; } /* at most one automatic reload per session */
+    if (Date.now() - lastInputAt < 20000 || huntPending()) {
+      clearTimeout(reloadT);
+      reloadT = setTimeout(function () { safeReload(ver); }, 5000);
+      return;
+    }
+    try { sessionStorage.setItem("sn:auto-reloaded", String(ver)); } catch (e2) {}
+    latestVer = String(ver);
+    forceUpdate();
+  }
   function checkVersion() {
     paintVersion();
     fetch("/api/version?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
@@ -4849,7 +5030,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         say("V" + VER + " LATEST " + latestVer + ". Tap UPDATE NOW.");
         return;
       }
-      forceUpdate();
+      safeReload(latestVer);
     }).catch(function () {
       paintVersion();
     });
@@ -4961,7 +5142,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var dock = $("dock");
     if (dock) document.documentElement.style.setProperty("--dock", dock.offsetHeight + "px");
     var input = $("in");
-    if (input) document.documentElement.style.setProperty("--above-in", Math.round(window.innerHeight - input.getBoundingClientRect().top + 8) + "px");
+    if (input) {
+      var topIn = input.getBoundingClientRect().top;
+      var lnEl = $("line");
+      var lr = lnEl ? lnEl.getBoundingClientRect() : null;
+      if (lr && lr.height > 0 && lr.top < topIn && lr.top > window.innerHeight * 0.4) topIn = lr.top;
+      document.documentElement.style.setProperty("--above-in", Math.round(window.innerHeight - topIn + 6) + "px");
+    }
     ["sn-me", "gps", "sn-money", "sn-support", "sn-power", "plus", "go"].forEach(function (id) {
       var el = $(id);
       if (!el) return;
@@ -5018,10 +5205,23 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           materialize(false);
         }
       }
+      var powerTag = $("sn-power-tag");
+      if (!powerTag) { powerTag = document.createElement("span"); powerTag.id = "sn-power-tag"; document.body.appendChild(powerTag); }
+      function paintPowerTag(count) {
+        var on = offersOn();
+        var txt = count ? "Power · hold " + count : (on ? "Power · offers on" : "Power · off");
+        powerTag.textContent = txt;
+        powerTag.classList.toggle("on", on);
+        power.setAttribute("aria-label", on ? "Power · offers on" : "Power · off");
+        power.title = (on ? "Power · offers on" : "Power · off") + " · hold 3 s to switch";
+      }
+      power.__paintTag = paintPowerTag;
+      paintPowerTag();
       power.classList.toggle("on", offersOn());
       power.classList.toggle("idle", !offersOn());
       power.addEventListener("pointerdown", function (e) {
         e.preventDefault(); e.stopPropagation();
+        try { power.setPointerCapture(e.pointerId); } catch (eC) {}
         if (holdP) clearInterval(holdP);
         holdFrom = Date.now();
         var n = 3;
@@ -5033,27 +5233,34 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }
         function clearFlash() { if (box) { box.classList.remove("on"); box.innerHTML = ""; } }
         flash(n);
+        paintPowerTag(n);
         holdP = setInterval(function () {
-          n -= 1;
-          if (n > 0) { flash(n); return; }
+          var left = 3000 - (Date.now() - holdFrom);
+          if (left > 0) {
+            var nn = Math.ceil(left / 1000);
+            if (nn !== n) { n = nn; flash(n); paintPowerTag(n); }
+            return;
+          }
           clearInterval(holdP); holdP = 0;
           clearFlash();
           setOffers(!offersOn());
-        }, 1000);
+          paintPowerTag();
+        }, 50);
         power.__clearFlash = clearFlash;
       });
       function cancelHold() {
         if (!holdP) return;
         clearInterval(holdP); holdP = 0;
         if (power.__clearFlash) power.__clearFlash();
-        if (Date.now() - holdFrom < 2800) say("Hold 3 seconds.");
+        paintPowerTag();
+        if (Date.now() - holdFrom < 3000) say("Hold Power 3 s to switch.");
       }
       power.addEventListener("pointerup", cancelHold);
       power.addEventListener("pointercancel", cancelHold);
       power.addEventListener("pointerleave", cancelHold);
       power.addEventListener("click", function (e) {
         e.preventDefault(); e.stopPropagation();
-        if (!holdP && e.detail === 0) say("Hold 3 seconds.");
+        if (!holdP && e.detail === 0) say("Hold Power 3 s to switch.");
       });
     }
     var globe = $("sn-globe");
@@ -6531,12 +6738,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4335 = true;
+    window.__SN_4336 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
       lookAt: lookAt, earthSpin: earthSpin, globeHitTest: function (sx, sy) { return pickHit(sx, sy); },
       getCam: function () { return { yaw: cam.yaw, pitch: cam.pitch, dist: cam.dist, seated: !!seated, cityOn: !!cityOn }; },
+      wheelState: function () { return { anchor: wheelG && wheelG.anchor, hold: holdOk(), held: !!globeHeld, pick: wheelPick, debug: DEBUG_WHEEL }; },
+      fitHunt: function () { fitHunt(); },
       openCity: openCity, goToPlaceAsk: goToPlaceAsk, seatPlace: seatPlace, closeCity: closeCity, listAt: listAt, goNamed: hunt, huntNamed: hunt,
       user: function () { return window.SNAuth && SNAuth.user ? SNAuth.user() : null; },
       paintMoney: paintMoney, evolve: evolve, addFunds: addFunds,
