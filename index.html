@@ -144,6 +144,7 @@ input#in{flex:1;min-height:44px;border:1px solid rgba(77,240,255,.35);border-rad
 #sn-sheet input,#sn-sheet textarea{display:block;width:100%;box-sizing:border-box;margin:8px 0 0;padding:10px;border:1px solid rgba(126,233,255,.35);background:rgba(4,16,28,.9);color:#e8fbff;border-radius:10px;font:500 15px system-ui}
 #sn-sheet textarea{min-height:88px;resize:vertical}
 
+#sn-architect{position:fixed;top:112px;right:max(6px,env(safe-area-inset-right));z-index:60;width:40px;height:40px;padding:0;border-radius:999px;border:1.5px solid rgba(77,240,255,.95);background:rgba(4,16,28,.96);color:#4df0ff;font:800 16px/1 ui-monospace,system-ui;display:flex;align-items:center;justify-content:center;box-shadow:0 0 12px rgba(77,240,255,.35)}
 #sn-support.on{border-color:#ff5a5a;box-shadow:0 0 16px rgba(255,60,60,.7);color:#ff8a8a}
 body.sn-support #panel{box-shadow:0 0 22px rgba(255,40,40,.35)}
 body.sn-support form#f{border-color:rgba(255,70,70,.75);box-shadow:0 0 18px rgba(255,50,50,.45);background:rgba(28,4,6,.96)}
@@ -185,7 +186,7 @@ html,body{margin:0!important;padding:0!important}
 <div id="top">
   <div id="sn-topchrome-drag" class="sn-trivial-law" aria-hidden="true"></div>
   <div id="island">
-    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">SPACENET</button><span id="ver">V4328</span><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
+    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">SPACENET</button><span id="ver">V4329</span><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
     <div class="r2"><span id="sn-local">-</span><span id="sn-utc">-</span><span id="sn-wx"></span><span id="sn-node"></span><canvas id="sn-spark" width="120" height="28"></canvas></div>
   </div>
 
@@ -201,6 +202,7 @@ html,body{margin:0!important;padding:0!important}
 </button>
 <button type="button" id="sn-support" aria-label="Support">🎧</button>
 <button type="button" id="sn-globe" aria-label="Global view"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 12h16M12 4c2.4 2.6 3.6 5.2 3.6 8s-1.2 5.4-3.6 8c-2.4-2.6-3.6-5.2-3.6-8s1.2-5.4 3.6-8z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+<button type="button" id="sn-architect" aria-label="Architect">A</button>
 <button type="button" id="sn-money" class="on" aria-label="Wallet"><span class="lbl">AV€</span><span class="tgt">AV€</span></button>
 <div id="sn-above">
 <button type="button" id="plus" aria-label="Attach">+</button>
@@ -228,7 +230,7 @@ html,body{margin:0!important;padding:0!important}
 <div id="dock"><div id="panel"><div id="cli-drag" class="sn-trivial-law" aria-hidden="true"></div><div id="sn-tabs"></div><div id="line"></div><form id="f"><input id="in" autocomplete="off" enterkeyhint="send" placeholder="Talk to Astranov SpaceNet"/></form></div></div>
 <input id="sn-file" type="file" accept="image/*,application/pdf,text/*" hidden/>
 <script src="/js/vendor/leaflet.js?v=4127"></script>
-<script src="/js/spacenet/app.js?v=4328"></script>
+<script src="/js/spacenet/app.js?v=4329"></script>
 <script src="/js/spacenet/auth.js?v=4297"></script>
 <script src="/guardian.js?v=4295"></script>
 </body></html>

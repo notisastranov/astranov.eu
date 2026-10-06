@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4328";
+  var VER = "4329";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1474,6 +1474,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-money{position:fixed!important;top:64px!important;left:max(6px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:46!important}",
       "#sn-globe{position:fixed!important;top:64px!important;right:max(6px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;z-index:60!important;width:40px!important;height:40px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;align-items:center!important;justify-content:center!important}",
       "#sn-globe svg{width:22px;height:22px;display:block}",
+      "#sn-architect{position:fixed!important;top:112px!important;right:max(6px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;z-index:60!important;width:40px!important;height:40px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;align-items:center!important;justify-content:center!important;font:800 16px/1 ui-monospace,system-ui!important;box-shadow:0 0 12px rgba(77,240,255,.35)!important}",
       "#sn-me{position:fixed!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;top:auto!important;bottom:calc(var(--dock) + 16px)!important;z-index:46!important}",
       "#gps{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:calc(var(--dock) + 16px)!important;z-index:46!important}",
       "#sn-above{position:static!important;height:0!important;padding:0!important;margin:0!important;display:block!important;background:transparent!important}",
@@ -3862,6 +3863,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         e.preventDefault();
         e.stopPropagation();
         goGlobal();
+      });
+    }
+    var architect = $("sn-architect");
+    if (architect && !architect.__sn) {
+      architect.__sn = true;
+      architect.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        location.href = "https://architect.astranov.eu";
       });
     }
     var money = $("sn-money");
