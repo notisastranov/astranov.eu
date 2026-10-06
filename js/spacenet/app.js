@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4336";
+  var VER = "4337";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -859,7 +859,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4336 = true;
+      window.__SN_4337 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -886,7 +886,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     });
     canvas.addEventListener("pointerdown", function (e) {
       if (e.button) return;
-      canvas.setPointerCapture(e.pointerId);
+      if (e.isPrimary) { pointers.clear(); pinch = null; }
+      try { canvas.setPointerCapture(e.pointerId); } catch (eCap) {}
+      fly = null;
       var p = pos(e);
       pointers.set(e.pointerId, { x: p.x, y: p.y });
       vel.yaw = 0; vel.pitch = 0;
@@ -987,6 +989,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     canvas.addEventListener("pointerup", up);
     canvas.addEventListener("pointercancel", up);
+    canvas.addEventListener("lostpointercapture", function (e) {
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) pinch = null;
+    });
     canvas.addEventListener("wheel", function (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -1000,9 +1006,23 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var tA = Date.now();
       if (tA - wheelAccT > 400 || (wheelAcc && (wheelAcc > 0) !== (dy > 0))) wheelAcc = 0;
       wheelAcc += dy; wheelAccT = tA;
-      if (Math.abs(wheelAcc) < 30) return; /* split notch (trackpad / smooth scroll): wait for a whole step */
+      if (cityOn && map) {
+        /* the city is opening under this gesture: same 0.5 steps as the city's own wheel */
+        if (Math.abs(wheelAcc) < 30) return;
+        wheelAcc = 0;
+        var cr0 = canvas.getBoundingClientRect(), ce0 = $("city").getBoundingClientRect();
+        cityWheel(dy > 0 ? 1 : -1, e.clientX - ce0.left, e.clientY - ce0.top, e);
+        return;
+      }
+      var under0 = pickHit(p.x, p.y);
+      if (Math.abs(wheelAcc) < 30) { /* split notch (trackpad / smooth scroll): wait for a whole step */
+        wheelLog({ where: "globe", e: e, px: p.x, py: p.y, lat: under0 && under0.lat, lng: under0 && under0.lng, dist: cam.dist, act: "wait" });
+        return;
+      }
       wheelAcc = 0;
-      zoomSmooth(dy > 0 ? 1 : -1, p.x, p.y);
+      var an = zoomSmooth(dy > 0 ? 1 : -1, p.x, p.y) || {};
+      wheelLog({ where: cityOn ? "globe>city" : "globe", e: e, px: p.x, py: p.y, lat: an.lat != null ? an.lat : (under0 && under0.lat), lng: an.lng != null ? an.lng : (under0 && under0.lng),
+        dist: cam.dist, z: cityOn && map ? map.getZoom() : null, act: an.act || (dy > 0 ? "out" : "in"), snap: an.snap || "" });
     }, { passive: false });
   }
   function pointUnder(sx, sy) {
@@ -1018,7 +1038,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       pitch: Math.max(-1.15, Math.min(1.15, (pt.lat * Math.PI) / 180))
     };
   }
-  function zoomToDist(dist) {
+  function zoomToDist(dist, sx, sy) {
     intro = false;
     var maxD = cam.dist > 2.5 ? 6.4 : 2.15;
     dist = Math.max(0.5, Math.min(maxD, dist));
@@ -1039,7 +1059,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       lastSeat = { lat: street.lat, lng: street.lng, name: street.name || "map" };
       seatKind = "landed";
       try { if (!prevSeat || haversineKm(prevSeat, street) > 50) clearSeatPins(); } catch (eC) {}
-      openCity(street);
+      openCity(street, { zoom: WHEEL_OPEN_Z, sx: sx, sy: sy });
       say("Street · " + street.lat.toFixed(3) + "," + street.lng.toFixed(3));
       return;
     }
@@ -1051,6 +1071,91 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       goal: { yaw: f.yaw, pitch: f.pitch, dist: dist }
     };
     tierI = dist > 3.2 ? 0 : dist > 1.4 ? 1 : 2;
+  }
+  /* every wheel notch logs once (globe or city) with the real cursor, the canvas px and the anchor under it */
+  function wheelLog(o) {
+    wheelN++;
+    var e = o.e || {};
+    var vv = window.visualViewport;
+    var rec = { n: wheelN, where: o.where, clientX: e.clientX, clientY: e.clientY, screenX: e.screenX, screenY: e.screenY,
+      px: o.px != null ? Math.round(o.px) : null, py: o.py != null ? Math.round(o.py) : null,
+      dpr: window.devicePixelRatio || 1, vv: vv ? +(+vv.scale).toFixed(3) : 1, iw: window.innerWidth, ih: window.innerHeight,
+      lat: isFinite(+o.lat) && o.lat != null ? +(+o.lat).toFixed(5) : null, lng: isFinite(+o.lng) && o.lng != null ? +(+o.lng).toFixed(5) : null,
+      z: o.z != null && isFinite(+o.z) ? +(+o.z).toFixed(2) : null, dist: o.dist != null ? +(+o.dist).toFixed(3) : null, act: o.act || "", snap: o.snap || "" };
+    try { console.debug("sn:wheel", rec); } catch (eL) {}
+    window.__snWheelLast = rec;
+    return rec;
+  }
+  function placeXhair() {
+    var x = $("sn-xhair");
+    if (!DEBUG_WHEEL) { if (x) x.style.display = "none"; return; }
+    if (!x) {
+      x = document.createElement("div");
+      x.id = "sn-xhair";
+      x.setAttribute("aria-hidden", "true");
+      x.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;z-index:95;pointer-events:none;display:none";
+      x.innerHTML = '<i style="position:absolute;left:-13px;top:-1px;width:26px;height:2px;background:#ff3df0"></i>' +
+        '<i style="position:absolute;left:-1px;top:-13px;width:2px;height:26px;background:#ff3df0"></i>' +
+        '<i style="position:absolute;left:-6px;top:-6px;width:8px;height:8px;border:2px solid #ff3df0;border-radius:50%"></i>' +
+        '<b style="position:absolute;left:12px;top:-24px;font:600 10px/12px ui-monospace,monospace;color:#ff3df0;white-space:nowrap;text-shadow:0 0 3px #000"></b>';
+      document.body.appendChild(x);
+    }
+    if (!cityOn || !map || !xhairLL) { x.style.display = "none"; return; }
+    try {
+      var cp = map.latLngToContainerPoint(xhairLL);
+      var r = $("city").getBoundingClientRect();
+      x.style.display = "block";
+      x.style.left = Math.round(r.left + cp.x) + "px";
+      x.style.top = Math.round(r.top + cp.y) + "px";
+      x.querySelector("b").textContent = "pick " + (+xhairLL.lat).toFixed(4) + "," + (+xhairLL.lng).toFixed(4) + " z" + (+map.getZoom()).toFixed(1);
+    } catch (eX) {}
+  }
+  /* the user aims the wheel at a drawn dot (Rhodes calendar dot, a site, you): at globe scale one pixel is ~20 km,
+     so a first notch within a few px of a drawn dot takes the dot's exact place as the anchor */
+  function snapDrawn(sx, sy) {
+    if (!view || !view.base) return null;
+    var scale = view.base * (1.85 / Math.max(0.55, cam.dist || 1.85));
+    var kmPx = 6371 / Math.max(1, scale);
+    var lim = Math.max(3, Math.min(8, 25 / kmPx));
+    var cands = [];
+    try {
+      cardsNow().forEach(function (row) {
+        if (!row || !(row.k === "CALENDAR" || row.k === "NEWS" || row.k === "WARN" || row.k === "WARNING")) return;
+        cands.push({ lat: isFinite(+row.lat) ? +row.lat : 36.43, lng: isFinite(+row.lng) ? +row.lng : 28.22, name: row.k.toLowerCase() + " dot" });
+      });
+    } catch (eC) {}
+    try { SITES.forEach(function (st) { if (st && isFinite(+st.lat)) cands.push({ lat: +st.lat, lng: +st.lng, name: st.n || st.name || "site" }); }); } catch (eS) {}
+    if (here && isFinite(+here.lat)) cands.push({ lat: +here.lat, lng: +here.lng, name: "you" });
+    var best = null, bd = 1e9;
+    cands.forEach(function (c) {
+      var q = project(c.lat, c.lng, cam);
+      if (!q) return;
+      var d = Math.hypot(q.x - sx, q.y - sy);
+      if (d < bd) { bd = d; best = c; }
+    });
+    return best && bd <= lim ? best : null;
+  }
+  /* city wheel: our own 0.5-zoom steps around the cursor (Leaflet's default jumped 2 levels a notch, to z19 sea) */
+  function cityWheel(dir, cx, cy, e) {
+    if (!map || !cityOn) return null;
+    var z = map.getZoom();
+    var ll = null;
+    try { ll = map.containerPointToLatLng(L.point(cx, cy)); } catch (eP) {}
+    var minZ = map.getMinZoom ? map.getMinZoom() : 9;
+    var act = dir > 0 ? ((z <= closeBelow + 0.01 || z <= minZ + 0.01) ? "close" : "out") : (z >= WHEEL_MAX_Z - 0.01 ? "max" : "in");
+    var nz = Math.max(minZ, Math.min(WHEEL_MAX_Z, z + (dir < 0 ? 0.5 : -0.5)));
+    var rec = wheelLog({ where: "city", e: e, px: cx, py: cy, lat: ll && ll.lat, lng: ll && ll.lng, z: act === "close" ? z : nz, act: act });
+    if (act === "close") {
+      closeCity();
+      zoomToDist(1.25);
+      say("Back to the globe");
+      return rec;
+    }
+    if (ll) xhairLL = { lat: ll.lat, lng: ll.lng };
+    mapUserAt = Date.now();
+    if (nz !== z) { try { map.setZoomAround(L.point(cx, cy), nz, { animate: false }); } catch (eZ) { try { map.setZoom(nz, { animate: false }); } catch (eZ2) {} } }
+    placeXhair();
+    return rec;
   }
   var wheelAt = 0;
   function pickHit(sx, sy) {
@@ -1072,6 +1177,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function zoomSmooth(dir, sx, sy) {
     if (cityOn && map) {
+      if (sx != null && sy != null) return cityWheel(dir, sx, sy, null);
       var z = map.getZoom() || 16;
       if (dir > 0 && z <= closeBelow + 0.1) {
         closeCity();
@@ -1105,9 +1211,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (dir < 0) {
       var under = keepG ? wheelG.anchor : aimAt(sx, sy, spin);
       if (!under && view) under = aimAt(view.cx, view.cy, spin);
-      try {
-        console.debug("sn:wheel", { px: sx, py: sy, lat: under && under.lat, lng: under && under.lng, dpr: window.devicePixelRatio || 1, keep: keepG });
-      } catch (eLog) {}
+      var snapName = "";
+      if (!keepG && under && sx != null && sy != null) {
+        var snp = snapDrawn(sx, sy);
+        if (snp) { under = { lat: snp.lat, lng: snp.lng, name: "" }; aim = under; snapName = snp.name; }
+      }
       if (!under || !isFinite(+under.lat) || !isFinite(+under.lng)) {
         say("Wheel aim missed the globe. Drag to face the place, then wheel in.");
         return;
@@ -1122,12 +1230,19 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       wheelG = { x: keepG ? wheelG.x : (sx || 0), y: keepG ? wheelG.y : (sy || 0), t: tW, anchor: keepG ? wheelG.anchor : aim, city: false };
       cursorHold = (sx != null && sy != null) ? { pt: aim, sx: wheelG.x, sy: wheelG.y } : null;
       wheelPick = { lat: +under.lat, lng: +under.lng, sx: sx, sy: sy, keep: keepG, t: tW };
+      var ret = { lat: +under.lat, lng: +under.lng, snap: snapName, act: keepG ? "in-keep" : "in" };
+      wheelAt = Date.now();
+      seated = true;
+      zoomToDist(cam.dist * 0.72, sx, sy);
+      if (cityOn) ret.act = "open-city";
+      return ret;
     } else if (wheelG) {
       wheelG.t = tW;
     }
     wheelAt = Date.now();
     seated = true;
     zoomToDist(cam.dist * (dir < 0 ? 0.72 : 1.18), sx, sy);
+    return { act: "out" };
   }
   function stepTier(dir, sx, sy) { zoomSmooth(dir, sx, sy); }
   function settleTier(i, pt) {
@@ -1313,13 +1428,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     btn.addEventListener("click", goGps, true);
     btn.addEventListener("pointerup", goGps, true);
   }
-  function openCity(pt) {
+  function openCity(pt, opts) {
+    opts = opts || {};
     if (!pt || !isFinite(+pt.lat) || !isFinite(+pt.lng)) return;
     var plat = +pt.lat, plng = +pt.lng;
     if (!isFinite(plat) || !isFinite(plng) || Math.abs(plat) > 90 || Math.abs(plng) > 180) return;
     aim = { lat: plat, lng: plng, name: pt.name || (aim && aim.name) || "" };
     tierI = 3;
-    cursorHold = null; fly = null; closeBelow = 12.5;
+    cursorHold = null; fly = null; closeBelow = opts.zoom ? opts.zoom : 12.5;
+    var openZ = opts.zoom || 16;
+    if (DEBUG_WHEEL) xhairLL = { lat: plat, lng: plng };
     var el = $("city");
     if (!el || typeof L === "undefined") return;
     cityOn = true;
@@ -1337,7 +1455,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       function show() {
         el.style.opacity = "1";
         el.style.background = "";
-        try { map.invalidateSize({ animate: false }); } catch (e) {}
+        try { map.invalidateSize({ animate: false, pan: false }); } catch (e) {}
       }
       var shown = false;
       function once() {
@@ -1363,17 +1481,72 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
       progMoveUntil = Date.now() + 600;
       try { map.invalidateSize({ animate: false }); } catch (e) {}
-      try { map.setView([plat, plng], 16, { animate: false }); } catch (e2) {}
-      try { map.invalidateSize({ animate: false }); } catch (e3) {}
+      try { map.setView([plat, plng], openZ, { animate: false }); } catch (e2) {}
+      try { map.invalidateSize({ animate: false, pan: false }); } catch (e3) {}
+      if (opts.sx != null && opts.sy != null) {
+        /* the wheel anchor stays under the cursor across the globe→city handoff */
+        try {
+          var cpA = map.latLngToContainerPoint([plat, plng]);
+          var ceA = el.getBoundingClientRect(), cvA = canvas.getBoundingClientRect();
+          var tx = opts.sx + cvA.left - ceA.left, ty = opts.sy + cvA.top - ceA.top;
+          if (isFinite(tx) && isFinite(ty)) map.panBy([cpA.x - tx, cpA.y - ty], { animate: false });
+        } catch (eA) {}
+      }
       revealWhenTiled();
+      placeXhair();
       if (huntFitWanted) { try { fitHunt(); } catch (eFit) {} }
     }
     if (!map) {
-      map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 12, maxZoom: 19, scrollWheelZoom: true });
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 9, maxZoom: 19, zoomSnap: 0.5, zoomDelta: 0.5, scrollWheelZoom: false });
+      var osmT = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19, minZoom: 9,
         errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
       }).addTo(map);
+      /* a tile the OSM server refuses falls back once to the public CARTO raster of the same tile (no key) */
+      osmT.on("tileerror", function (ev) {
+        try {
+          var t = ev && ev.tile, c = ev && ev.coords;
+          if (!t || !c || t.__snAlt) return;
+          t.__snAlt = 1;
+          var n = Math.pow(2, c.z), x = ((c.x % n) + n) % n;
+          t.src = "https://" + "abcd".charAt((x + c.y) % 4) + ".basemaps.cartocdn.com/rastertiles/voyager/" + c.z + "/" + x + "/" + c.y + ".png";
+        } catch (eT) {}
+      });
+      /* no visible loaded tile 2.5 s after a move: redraw the layer (never leave a grey or black sheet) */
+      var tileDogT = 0;
+      map.on("moveend zoomend", function () {
+        clearTimeout(tileDogT);
+        tileDogT = setTimeout(function () {
+          try {
+            if (!cityOn) return;
+            var ims = el.querySelectorAll("img.leaflet-tile"), ok = 0;
+            for (var i = 0; i < ims.length; i++) if (ims[i].complete && ims[i].naturalWidth > 8) ok++;
+            if (!ok) osmT.redraw();
+          } catch (eD) {}
+        }, 2500);
+      });
+      el.addEventListener("wheel", function (e) {
+        if (!map || !cityOn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        var dy = e.deltaY;
+        if (e.deltaMode === 1) dy *= 16;
+        if (e.deltaMode === 2) dy *= 400;
+        if (!dy) return;
+        var tA = Date.now();
+        if (tA - cityAccT > 400 || (cityAcc && (cityAcc > 0) !== (dy > 0))) cityAcc = 0;
+        cityAcc += dy; cityAccT = tA;
+        var rr = el.getBoundingClientRect();
+        if (Math.abs(cityAcc) < 30) {
+          var llw = null; try { llw = map.mouseEventToLatLng(e); } catch (eW) {}
+          wheelLog({ where: "city", e: e, px: e.clientX - rr.left, py: e.clientY - rr.top, lat: llw && llw.lat, lng: llw && llw.lng, z: map.getZoom(), act: "wait" });
+          return;
+        }
+        cityAcc = 0;
+        cityWheel(dy > 0 ? 1 : -1, e.clientX - rr.left, e.clientY - rr.top, e);
+      }, { passive: false });
+      map.on("move zoom", function () { if (DEBUG_WHEEL) placeXhair(); });
+      map.on("zoomend moveend", function () { declutterSoon(); });
       map.on("zoomend", function () { try { if (cityOn) paintShopsOnMap(); } catch (eF) {} });
       try {
         if (typeof ResizeObserver !== "undefined") {
@@ -1393,7 +1566,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         try {
           /* only a user zoom-out leaves the city; fitBounds / setView / late results never do */
           if (Date.now() < progMoveUntil || Date.now() - mapUserAt > 1500) return;
-          if (map && map.getZoom() <= closeBelow) {
+          if (map && map.getZoom() < closeBelow - 0.01) {
             closeCity();
             zoomToDist(1.25);
           }
@@ -1456,7 +1629,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }, true);
       el.addEventListener("pointercancel", function () { holdPt = null; });
     } else {
-      try { map.setMinZoom(12); } catch (e) {}
+      try { map.setMinZoom(9); } catch (e) {}
     }
     if (youMark) try { map.removeLayer(youMark); } catch (e) {}
     youMark = null;
@@ -1478,6 +1651,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     cityOn = false;
     intro = false;
+    try { placeXhair(); } catch (eXh) {}
     if (tierI > 2) tierI = 2;
     if (aim && isFinite(+aim.lat) && isFinite(+aim.lng)) {
       var f = face(aim);
@@ -1704,7 +1878,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function hardReset() {
     say("Resetting…");
     try { localStorage.clear(); sessionStorage.clear(); } catch (e) {}
-    var go = function () { location.href = "/?v=4336&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4337&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -1874,6 +2048,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet .sn-pick.nothumb{grid-template-columns:minmax(0,1fr) auto 28px 28px 28px}",
       "#sn-power-tag{position:fixed;top:58px;left:max(6px,env(safe-area-inset-left));z-index:60;font:700 10px/14px ui-monospace,monospace;color:#8fb3c0;pointer-events:none;white-space:nowrap;text-shadow:0 0 4px #000}",
       "#sn-power-tag.on{color:#7dff9a}",
+      "#sn-power-tag.hold{color:#fff;background:rgba(4,14,28,.88);border:1px solid #4df0ff;border-radius:6px;padding:2px 7px;font-size:12px;line-height:16px;box-shadow:0 0 10px rgba(77,240,255,.6)}",
       "#sn-sheet .sn-pick img,#sn-sheet .sn-pick .sn-mini{width:52px!important;height:52px!important;max-width:52px!important;max-height:52px!important;object-fit:cover;border-radius:10px;border:1px solid rgba(77,240,255,.45)}",
       "#sn-sheet .sn-pick b{color:#e8fbff!important;font:700 14px/1.2 system-ui!important}",
       "#sn-sheet .sn-pick span{color:#4df0ff!important;font:800 13px/1 system-ui!important}",
@@ -1900,6 +2075,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ".sn-pin{width:76px;height:62px;display:flex;flex-direction:column;align-items:center}",
       ".leaflet-container .leaflet-marker-pane img,.sn-pin img{width:40px!important;height:40px!important;max-width:40px!important;max-height:40px!important;object-fit:cover!important;display:block!important;position:static!important}",
       ".leaflet-marker-icon.sn-shop-pin{width:76px!important;height:62px!important;overflow:hidden!important;background:transparent!important;border:0!important}",
+      ".sn-shop-pin.sn-lbl-off b{visibility:hidden}.sn-shop-pin.sn-lbl-off:hover b{visibility:visible}.leaflet-marker-icon.sn-shop-pin:hover{z-index:9999!important}",
       ".sn-pin b{display:block;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;padding:0 3px;background:rgba(4,14,28,.92);color:#e8fbff;font:800 9px/12px system-ui}",
       ".sn-pin em{display:flex;align-items:center;justify-content:center;width:40px;height:40px;font:28px/40px system-ui;border-radius:8px;border:2px solid #4df0ff;background:rgba(4,14,28,.92)}",
       "#sn-tester{position:fixed;top:28px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(77,240,255,.4);color:#7ee9ff;font:700 10px/14px ui-monospace,monospace;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
@@ -2770,6 +2946,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (Array.isArray(s.menu) && s.menu.length) tipExtra += " · " + s.menu.length;
       mark.__snShop = true;
       mark.__snId = s.id || s.name;
+      try { var orgK = huntOrigin(); mark.__snKm = orgK && isFinite(+orgK.lat) ? haversineKm(orgK, s) : fi; } catch (eK) { mark.__snKm = fi; }
       mark.bindTooltip((s.name || "shop") + (s.aka ? " · " + s.aka : "") + tipExtra, { direction: "top", sticky: true });
       if (isAdmin() && s.src === "listed") {
         mark.on("dragend", function () {
@@ -2802,6 +2979,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       shopMarks.push(mark);
     });
     window.__snFieldIds = field.map(function (s) { return String(s.id || s.name); });
+    declutterSoon();
     /* FIND always equals the pins: a late source that changes the field re-renders the open FIND */
     if (huntView && findOnSheet && huntView.rendered !== findIds(field)) renderFind(field);
     if (huntView && !huntView.fitted && field.length && cityOn && !huntFitWanted) { huntFitWanted = true; setTimeout(function () { try { fitHunt(); } catch (eF) {} }, 0); }
@@ -2809,6 +2987,41 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     else paintOwnDrivers();
   }
   function paintOwnDrivers() {}
+  /* labels never overlap: nearest first keeps its label; a label that would cover another label or pin, or sit
+     under the ribbon / sheet, hides until zoom (hover or tap the pin to see it) */
+  var declT = 0;
+  function declutterSoon() {
+    if (declT) return;
+    declT = requestAnimationFrame(function () { declT = 0; try { declutterPins(); } catch (e) {} });
+  }
+  function rectHit(a, b) { return a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1; }
+  function declutterPins() {
+    if (!map || !cityOn) return;
+    var cityEl = $("city");
+    if (!cityEl) return;
+    var r0 = cityEl.getBoundingClientRect(), vb = mapVisBox();
+    var marks = shopMarks.slice().sort(function (a, b) { return (a.__snKm || 0) - (b.__snKm || 0); });
+    var faces = [];
+    marks.forEach(function (m) {
+      var el = m.getElement && m.getElement();
+      var f = el && el.querySelector("img,em");
+      if (f) faces.push({ el: el, r: f.getBoundingClientRect() });
+    });
+    var kept = [];
+    marks.forEach(function (m) {
+      var el = m.getElement && m.getElement();
+      if (!el) return;
+      var b = el.querySelector("b");
+      if (!b) return;
+      el.classList.remove("sn-lbl-off");
+      var r = b.getBoundingClientRect();
+      var off = (r.top - r0.top) < vb.t || (r.bottom - r0.top) > vb.b;
+      for (var i = 0; !off && i < kept.length; i++) if (rectHit(r, kept[i])) off = true;
+      for (var j = 0; !off && j < faces.length; j++) if (faces[j].el !== el && rectHit(r, faces[j].r)) off = true;
+      if (off) el.classList.add("sn-lbl-off");
+      else kept.push(r);
+    });
+  }
   var motionMarks = {};
   var liveOpened = false;
   function paintPulse() {
@@ -3512,6 +3725,38 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     });
     return out;
   }
+  /* name search: 'Augoustinos in Rhodes' is that one place (Greek/Latin spellings fold together), not every listing */
+  function nameCore(t) {
+    var x = foldTxt(t).replace(/ου/g, "ou").replace(/αυ/g, "av").replace(/ευ/g, "ev").replace(/μπ/g, "b").replace(/ντ/g, "d").replace(/γκ/g, "g").replace(/γγ/g, "ng");
+    return twinCore(x);
+  }
+  function nameHit(s, qc) {
+    if (!s || !qc || qc.length < 3) return false;
+    var names = [s.name].concat(String(s.aka || "").split(" · "));
+    return names.some(function (n) {
+      var c = nameCore(n);
+      return !!c && (c === qc || c.indexOf(qc) >= 0 || (c.length >= 5 && qc.indexOf(c) >= 0));
+    });
+  }
+  function nameField(merged, packs, q) {
+    var qc = nameCore(q);
+    var hits = merged.filter(function (s) { return nameHit(s, qc); });
+    if (!hits.length) {
+      /* nothing carries the name: only what the search engines returned for it, never the whole listed city */
+      hits = uniqPlaces([].concat(packs[1] || [], packs[2] || [], packs[3] || [])).filter(function (p) { return p && nearSeat(p, 50); });
+      if (huntView) { huntView.qc = ""; huntView.loose = true; }
+      return hits;
+    }
+    var groups = mergeTwins(uniqPlaces(hits));
+    groups.sort(function (a, b) {
+      var ea = nameCore(a.name) === qc ? 4 : 0, eb = nameCore(b.name) === qc ? 4 : 0;
+      return (eb + twinScore(b)) - (ea + twinScore(a));
+    });
+    var best = groups[0];
+    var keep = hits.filter(function (h) { return haversineKm(h, best) <= 0.08; });
+    if (huntView) { huntView.single = { lat: +best.lat, lng: +best.lng }; huntView.qc = qc; }
+    return keep.length ? keep : [best];
+  }
   function fieldShops() {
     var seat = activeSeat() || here;
     var hasSeat = !!(seat && isFinite(+seat.lat) && isFinite(+seat.lng));
@@ -3521,6 +3766,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (s.status === "pending" && !isAdmin()) return false;
       if (hasSeat && haversineKm(seat, s) > 50) return false;
       if (huntView && huntView.needle && !huntMatch(s, huntView.needle)) return false;
+      if (huntView && huntView.nameQ && !huntView.pending) {
+        if (huntView.single) { if (!(haversineKm(s, huntView.single) <= 0.08 && (!huntView.qc || nameHit(s, huntView.qc) || s.src === "listed"))) return false; }
+        else if (!huntView.loose) return false;
+        else if (!huntView.looseIds || !huntView.looseIds[String(s.id || s.name)]) return false;
+      }
       return true;
     }));
     return mergeTwins(pool);
@@ -3555,6 +3805,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function fitHunt() {
     huntFitWanted = false;
     if (!map || !cityOn || typeof L === "undefined" || !huntView) return;
+    if (huntView.single) return; /* a name search centres its one place */
     var el = $("city");
     if (!el || el.clientWidth < 40 || el.clientHeight < 40) { huntFitWanted = true; setTimeout(function () { try { fitHunt(); } catch (e) {} }, 80); return; }
     var field = fieldShops();
@@ -3567,10 +3818,35 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     try { map.setMinZoom(9); } catch (e0) {}
     progMoveUntil = Date.now() + 800;
     try {
-      map.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [46, top + 40], paddingBottomRight: [46, bot + 30], maxZoom: 16, animate: false });
+      /* a pin is 62 px tall, anchored mid, with its label under it: pad the ribbon (top) and the sheet (bottom) for that */
+      map.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [56, top + 56], paddingBottomRight: [56, bot + 62], maxZoom: 16, animate: false });
     } catch (e1) {}
     var z = map.getZoom();
     if (z < 9) { progMoveUntil = Date.now() + 800; try { map.setZoom(9, { animate: false }); } catch (e2) {} z = 9; }
+    for (var tries = 0; tries < 4 && z > 9; tries++) {
+      var vb2 = mapVisBox(), bad = false;
+      pts.forEach(function (q) {
+        try {
+          var cq = map.latLngToContainerPoint(q);
+          if (cq.y < vb2.t + 40 || cq.y > vb2.b - 46 || cq.x < 38 || cq.x > vb2.W - 38) bad = true;
+        } catch (eq) {}
+      });
+      if (!bad) break;
+      progMoveUntil = Date.now() + 800;
+      try { map.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [56, top + 56], paddingBottomRight: [56, bot + 62], maxZoom: Math.max(9, z - 0.5), animate: false }); } catch (e4) {}
+      z = map.getZoom();
+    }
+    huntView.fitVB = { t: vb.t, b: vb.b };
+    huntView.fitAt = Date.now();
+    [450, 1300].forEach(function (ms) {
+      setTimeout(function () {
+        try {
+          if (!huntView || !huntView.fitted || !cityOn || mapUserAt > huntView.fitAt) return;
+          var v3 = mapVisBox();
+          if (Math.abs(v3.t - huntView.fitVB.t) > 10 || Math.abs(v3.b - huntView.fitVB.b) > 10) fitHunt();
+        } catch (eR) {}
+      }, ms);
+    });
     closeBelow = Math.min(12.5, z - 0.5);
     huntView.fitted = true;
     try { paintShopsOnMap(); } catch (e3) {}
@@ -3616,7 +3892,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (!used[k] && pts[k] && Math.abs(pts[k].x - pts[i].x) < 60 && Math.abs(pts[k].y - pts[i].y) < 50) { grp.push(k); used[k] = true; }
       }
       if (grp.length < 2) continue;
-      var R = 40 + grp.length * 6;
+      if (grp.length > 12) continue; /* 27 listings in one town stay where they are; labels declutter, zoom splits them */
+      var R = Math.max(36, Math.round((grp.length * 64) / (2 * Math.PI)));
       var vb = mapVisBox();
       grp.forEach(function (idx, j) {
         var a = -Math.PI / 2 + (2 * Math.PI * j) / grp.length;
@@ -3704,7 +3981,24 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var seat0 = activeSeat() || here;
     if (seat0 && isFinite(+seat0.lat)) huntView.origin = { lat: +seat0.lat, lng: +seat0.lng, name: seat0.name || "" };
     shops = uniqPlaces((shops || []).filter(function (s) { return !seat0 || nearSeat(s, 50); }));
+    if (huntView.nameQ && huntView.loose) {
+      huntView.looseIds = {};
+      shops.forEach(function (s0) { huntView.looseIds[String(s0.id || s0.name)] = 1; });
+    }
     var shown = fieldShops();
+    if (huntView.single && shown.length === 1) {
+      var one = shown[0];
+      huntFitWanted = false;
+      huntView.fitted = true;
+      openCity(one);
+      paintShopsOnMap();
+      findOnSheet = false;
+      try { openVendor(one); } catch (eV) {}
+      try { paintPulse(); } catch (eP0) {}
+      var ad1 = addrOf(one).text;
+      say(one.name + (ad1 ? " · " + ad1 : "") + (seat0 ? " · " + haversineKm(seat0, one).toFixed(1) + " km from " + seatName(seat0) : ""));
+      return;
+    }
     var seatO = seat0 || shown[0];
     huntFitWanted = true;
     if (seatO) openCity(seatO);
@@ -3713,7 +4007,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     renderFind(fieldShops());
     try { paintPulse(); } catch (eP) {}
     var n = (window.__snFindShown || []).length;
-    if (!n) say("No real " + huntLabel() + " within 50 km of " + seatName(seat0) + ".");
+    if (!n && huntView && huntView.nameQ) say("No place named " + huntView.nameQ + " within 50 km of " + seatName(seat0) + ".");
+    else if (!n) say("No real " + huntLabel() + " within 50 km of " + seatName(seat0) + ".");
     else say(n + " real " + huntLabel() + " pin" + (n === 1 ? "" : "s") + " at " + seatName(seat0) + ". Tap one to order.");
   }
   function fetchJson(url, opts) {
@@ -3858,7 +4153,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       : q.replace(/^(find|hunt|show)\s+/i, "").trim();
     var looksPlace = !!(named && !/pizza|pizzeria|shop|vendor|restaurant|cafe|food|near|pharmacy|hotel|market|supermarket|grocery/i.test(named));
     window.__snHuntPlace = looksPlace;
-    huntView = { needle: looksPlace ? "" : String(named || q).toLowerCase(), raw: q, rendered: "", t: Date.now(), pending: true };
+    huntView = { needle: looksPlace ? "" : String(named || q).toLowerCase(), raw: q, rendered: "", t: Date.now(), pending: true, nameQ: looksPlace ? String(named || q) : "" };
     window.__snFindShown = [];
     try { openSheet("FIND · …", '<p class="note">Finding ' + esc(q) + " at " + esc(seatName(activeSeat() || here)) + "…</p>"); } catch (eF) {}
     try { paintShopsOnMap(); paintPulse(); } catch (eF2) {}
@@ -3868,7 +4163,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var spaceP = Promise.resolve([]);
       var seat0 = activeSeat() || here;
       if (seat0 && isFinite(+seat0.lat)) {
-        spaceP = spaceGet(seat0, 6000).then(function (j) {
+        spaceP = spaceGet(seat0, 5000).then(function (j) {
           return ((j && (j.shops || j.rows)) || []).map(function (r) {
             var p = asPlace(r);
             if (p) p.src = p.src || "listed";
@@ -3879,15 +4174,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       window.__snLastHunt = named || q;
       /* replace, do not union with the previous city's pins */
       Promise.all([
-        huntRace(spaceP, 6000),
+        huntRace(spaceP, 5000),
         huntRace(huntApi(named || q), 5000),
         huntRace(huntNominatim(named || q), 4000),
-        huntRace(huntOverpass(named || q), 4000)
+        huntRace(huntOverpass(named || q), 2500)
       ]).then(function (packs) {
         if (!live()) return;
         packs[0] = (packs[0] || []).map(function (p) { if (p) p.src = "listed"; return p; });
         var merged = uniqPlaces([].concat(packs[0] || [], packs[1] || [], packs[2] || [], packs[3] || []))
           .filter(function (p) { return nearSeat(p, 50); });
+        if (huntView && huntView.nameQ) merged = nameField(merged, packs, huntView.nameQ);
         shops = merged;
         huntCtrl = null;
         showFound();
@@ -4652,6 +4948,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var globeHeld = false, cursorHold = null, wheelPick = null, wheelAcc = 0, wheelAccT = 0;
   var DEBUG_WHEEL = /[?&]debug=wheel\b/.test(String(location.search || ""));
   var progMoveUntil = 0, mapUserAt = 0, closeBelow = 12.5, huntFitWanted = false;
+  /* 4337: one sn:wheel line per notch; the wheel dive opens the city at the globe's own scale (z10) and steps 0.5 per notch */
+  var wheelN = 0, cityAcc = 0, cityAccT = 0, xhairLL = null, WHEEL_OPEN_Z = 10, WHEEL_MAX_Z = 18, landAt = 0;
   var huntView = null;
   var findOnSheet = false;
   var overpassOff = false;
@@ -4750,9 +5048,47 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     try { lookAt(aim, 1.05); } catch (e) { try { flyTo(aim, 1.05); } catch (e2) {} }
     openCity(aim);
     if (map) {
-      try { map.setView([aim.lat, aim.lng], 15); map.invalidateSize(); } catch (e) {}
+      try { progMoveUntil = Date.now() + 600; map.setView([aim.lat, aim.lng], 15, { animate: false }); map.invalidateSize({ pan: false }); } catch (e) {}
     }
     pullListings();
+    landAt = Date.now();
+    var want = { lat: lastSeat.lat, lng: lastSeat.lng };
+    [250, 900, 2000, 4000].forEach(function (ms) {
+      setTimeout(function () {
+        try {
+          if (!map || !cityOn || mapUserAt > landAt) return;
+          if (!lastSeat || haversineKm(lastSeat, want) > 0.5) return;
+          if (huntView && huntView.fitted) return;
+          var c = map.getCenter();
+          if (haversineKm({ lat: c.lat, lng: c.lng }, want) > 3) {
+            progMoveUntil = Date.now() + 600;
+            map.setView([want.lat, want.lng], Math.max(12, map.getZoom()), { animate: false });
+          }
+        } catch (eW) {}
+      }, ms);
+    });
+  }
+  /* geocode a named place: /api/find and Nominatim race, the first real pin wins (cap 6 s) */
+  function geocodeFast(where) {
+    var done = false;
+    return new Promise(function (resolve) {
+      function fin(r) { if (done) return; if (r && isFinite(+r.lat) && isFinite(+r.lng)) { done = true; resolve(r); } }
+      var a = fetchJsonT("/api/find?q=" + encodeURIComponent(where), { cache: "no-store" }, 6000).then(function (j) {
+        var r = ((j && j.places) || [])[0];
+        if (r) fin({ lat: +r.lat, lng: +r.lng, name: r.name || where, raw: r.raw || "" });
+        return j;
+      });
+      var b = fetchJsonT("https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(where), { headers: { Accept: "application/json" } }, 6000).then(function (rows) {
+        var r = Array.isArray(rows) && rows[0];
+        if (r) fin({ lat: +r.lat, lng: +r.lon, name: String(r.display_name || where).split(",")[0], raw: r.display_name || "" });
+        return rows;
+      });
+      Promise.all([a, b]).then(function (ps) {
+        if (done) return;
+        done = true;
+        resolve({ none: true, meta: ps[0] && ps[0].meta });
+      });
+    });
   }
   function landPlaceAsk(ask) {
     if (!ask) return false;
@@ -4891,15 +5227,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         afterLand();
       } else {
         var seqIn = ++placeSeq;
-        fetchJsonT("/api/find?q=" + encodeURIComponent(inP.where), { cache: "no-store" }, 8000).then(function (j) {
+        geocodeFast(inP.where).then(function (r) {
           if (seqIn !== placeSeq) return;
-          var r = ((j && j.places) || [])[0];
-          if (r && isFinite(+r.lat) && isFinite(+r.lng)) {
+          if (r && !r.none) {
             seatPlace({ lat: +r.lat, lng: +r.lng, name: r.name || inP.where, raw: r.raw || "" });
             say((r.name || inP.where) + " on the map.");
             afterLand();
           } else {
-            say((j && j.meta && j.meta.message) || ("No map pin for " + inP.where + "."));
+            say((r && r.meta && r.meta.message) || ("No map pin for " + inP.where + "."));
             hunt(inP.what);
           }
         });
@@ -5207,10 +5542,24 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
       var powerTag = $("sn-power-tag");
       if (!powerTag) { powerTag = document.createElement("span"); powerTag.id = "sn-power-tag"; document.body.appendChild(powerTag); }
+      function placePowerTag() {
+        try {
+          var pb = power.getBoundingClientRect();
+          var mo = $("sn-money"), mr = mo && mo.getBoundingClientRect();
+          var top = pb.bottom + 2;
+          if (mr && mr.width && mr.height && mr.top < pb.bottom + 48 && mr.left < pb.right + 60) top = Math.max(top, mr.bottom + 4);
+          powerTag.style.top = Math.round(top) + "px";
+          powerTag.style.left = Math.round(Math.max(6, pb.left)) + "px";
+        } catch (eP) {}
+      }
+      window.addEventListener("resize", placePowerTag);
+      setTimeout(placePowerTag, 600);
       function paintPowerTag(count) {
         var on = offersOn();
         var txt = count ? "Power · hold " + count : (on ? "Power · offers on" : "Power · off");
         powerTag.textContent = txt;
+        powerTag.classList.toggle("hold", !!count);
+        placePowerTag();
         powerTag.classList.toggle("on", on);
         power.setAttribute("aria-label", on ? "Power · offers on" : "Power · off");
         power.title = (on ? "Power · offers on" : "Power · off") + " · hold 3 s to switch";
@@ -6738,13 +7087,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4336 = true;
+    window.__SN_4337 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
       lookAt: lookAt, earthSpin: earthSpin, globeHitTest: function (sx, sy) { return pickHit(sx, sy); },
       getCam: function () { return { yaw: cam.yaw, pitch: cam.pitch, dist: cam.dist, seated: !!seated, cityOn: !!cityOn }; },
-      wheelState: function () { return { anchor: wheelG && wheelG.anchor, hold: holdOk(), held: !!globeHeld, pick: wheelPick, debug: DEBUG_WHEEL }; },
+      wheelState: function () { return { anchor: wheelG && wheelG.anchor, hold: holdOk(), held: !!globeHeld, pick: wheelPick, debug: DEBUG_WHEEL, notches: wheelN, last: window.__snWheelLast || null, xhair: xhairLL }; },
       fitHunt: function () { fitHunt(); },
       openCity: openCity, goToPlaceAsk: goToPlaceAsk, seatPlace: seatPlace, closeCity: closeCity, listAt: listAt, goNamed: hunt, huntNamed: hunt,
       user: function () { return window.SNAuth && SNAuth.user ? SNAuth.user() : null; },

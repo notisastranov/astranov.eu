@@ -18,7 +18,7 @@ const path = require("path");
 const { chromium } = require("playwright");
 
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const URL0 = BASE + (BASE.indexOf("?") >= 0 ? "&" : "?") + "v=" + (process.env.STAMP || "4336") + "&t=" + Date.now();
+const URL0 = BASE + (BASE.indexOf("?") >= 0 ? "&" : "?") + "v=" + (process.env.STAMP || "4337") + "&t=" + Date.now();
 const PIZZA = /pizz|πιτσ|πίτσ|margherita|calzone/i;
 const MARKET = /market|super|grocer|convenience|παντοπωλ|σούπερ|σουπερ|μάρκετ|μαρκετ/i;
 const RHODES = { lat: 36.4349, lng: 28.2176 };
