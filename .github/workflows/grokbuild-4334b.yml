@@ -1,0 +1,56 @@
+name: grokbuild 4334b boot countdown+zoom, favicon (branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4334b.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Merge main; decode fix37; apply; assert 4334; drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch -q origin main
+          MAIN=$(git rev-parse origin/main)
+          echo "main tip $MAIN"
+          test "$MAIN" = "b2b228dd8755f6f0a6b1b006313b4bca13292c84" || { echo "main moved"; exit 1; }
+          git merge-base --is-ancestor "$MAIN" HEAD || { echo "main not merged"; exit 1; }
+          test -f .grokbuild/fix37.p00.hex
+          python3 - <<'PYHEX'
+          from pathlib import Path
+          import hashlib, gzip, glob
+          raw = bytes.fromhex("".join(Path(p).read_text().strip() for p in sorted(glob.glob(".grokbuild/fix37.p*.hex"))))
+          g = hashlib.sha256(raw).hexdigest(); print("gz", g, len(raw))
+          if g != "0faefb55fdfb089fa1d4ac4bf7052c79f550768dc57975d2f53cc191d84ad8fb": raise SystemExit("gz sha mismatch")
+          body = gzip.decompress(raw); s = hashlib.sha256(body).hexdigest(); print("py", s, len(body))
+          if s != "b4025b1d4701bbf7baf8365c1546950a302c67f604e4c0ad8e0396c255e89be1": raise SystemExit("py sha mismatch")
+          Path(".grokbuild/fix37_boot.py").write_bytes(body)
+          PYHEX
+          python3 .grokbuild/fix37_boot.py
+          grep -q 'function bootTick' js/spacenet/app.js
+          grep -q 'function bootZoomTo' js/spacenet/app.js
+          grep -q 'bootTick(now);' js/spacenet/app.js
+          grep -q 'rel="icon" type="image/svg+xml"' index.html
+          grep -q '"/favicon.ico", "destination": "/icon-192.png"' vercel.json
+          grep -q 'name="astranov-build" content="4334"' index.html
+          grep -q 'app.js?v=4334' index.html
+          grep -q 'var VER = "4334"' js/spacenet/app.js
+          grep -q '4334-real' vercel.json
+          grep -qx '4334' VERSION
+          python3 -c "import json;json.load(open('vercel.json'))"
+          node --check js/spacenet/app.js
+          git rm -q -r .grokbuild .github/workflows/grokbuild-4334b.yml || true
+          rm -rf .grokbuild
+          git add -u
+          git add index.html vercel.json js/spacenet/app.js
+          git status --short | head -20
+          git commit -q -m "4334: boot line counts down and zooms to you at 13s (fixes main 4315 idle-clamp hold); inline favicon + /favicon.ico rewrite (preview, do not merge)"
+          git push origin HEAD:grokbuild/4328-street-level-gps
