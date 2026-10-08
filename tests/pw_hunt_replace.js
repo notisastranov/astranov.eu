@@ -26,7 +26,7 @@ const path = require("path");
 const { chromium } = require("playwright");
 
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const URL0 = BASE + (BASE.indexOf("?") >= 0 ? "&" : "?") + "v=" + (process.env.STAMP || "4341") + "&t=" + Date.now();
+const URL0 = BASE + (BASE.indexOf("?") >= 0 ? "&" : "?") + "v=" + (process.env.STAMP || "4342") + "&t=" + Date.now();
 const PIZZA = /pizz|πιτσ|πίτσ|margherita|calzone/i;
 const MARKET = /market|super|grocer|convenience|παντοπωλ|σούπερ|σουπερ|μάρκετ|μαρκετ/i;
 const RHODES = { lat: 36.4349, lng: 28.2176 };
@@ -79,7 +79,7 @@ async function field(page) {
       return { id: String(s.id || s.name), name: s.name, aka: s.aka || "", lat: +s.lat, lng: +s.lng, blob: [s.name, s.aka, s.kind, s.cuisine, menu, s.menuText].join(" ") };
     });
     const live = ((document.getElementById("sn-pulse") || {}).textContent || "");
-    const liveN = (live.match(/LIVE · (\d+) vendor/) || [])[1];
+    const liveN = (live.match(/LIVE · (\d+) (?:place|vendor)/) || [])[1];
     const city = document.getElementById("city");
     let size = null, box = null, tiles = 0, loaded = 0;
     try { const s = map.getSize(); size = { w: s.x, h: s.y }; } catch (e) {}
@@ -178,9 +178,9 @@ function sameSet(f) {
       api: vj.latest, ver: (document.getElementById("ver") || {}).textContent || "", tester: !!(t && getComputedStyle(t).display !== "none" && t.offsetParent !== null && t.textContent.trim()), here: window.__SN_HERE };
   });
   console.log("[boot]", JSON.stringify(boot));
-  check(new RegExp("^LIVE · " + boot.expect + " vendors? ·").test(boot.live) && boot.expect > 0, "boot LIVE counts the real public network (" + boot.expect + " listed, no fixtures)", boot.live);
+  check(new RegExp("^LIVE · " + boot.expect + " vendors? on SpaceNet ·").test(boot.live) && boot.expect > 0, "boot LIVE counts the real public network (" + boot.expect + " listed, no fixtures)", boot.live);
   check(boot.latest === "LATEST " + boot.api && /^\d{4,}$/.test(String(boot.api)), "LATEST shows /api/version (" + boot.api + ")", boot.latest);
-  if (!process.env.LOCAL_APP) check(String(boot.api) === String(process.env.STAMP || "4341") && boot.ver === "V" + (process.env.STAMP || "4341"), "running build == LATEST == STAMP", boot.ver + " / " + boot.api);
+  if (!process.env.LOCAL_APP) check(String(boot.api) === String(process.env.STAMP || "4342") && boot.ver === "V" + (process.env.STAMP || "4342"), "running build == LATEST == STAMP", boot.ver + " / " + boot.api);
   check(!boot.tester, "TESTER ticker hidden for a guest");
   await page.screenshot({ path: path.join(SHOTS, "boot.png") });
 
@@ -200,7 +200,7 @@ function sameSet(f) {
     await sleep(1200);
     await page.screenshot({ path: path.join(SHOTS, "boot-ip-city.png") });
     const seq = await page.evaluate(() => window.__liveSeq || []);
-    const counts = [...new Set(seq.map((x) => (x[1].match(/LIVE · (\d+) vendor/) || [])[1]).filter(Boolean))];
+    const counts = [...new Set(seq.map((x) => (x[1].match(/LIVE · (\d+) (?:place|vendor)/) || [])[1]).filter(Boolean))];
     console.log("   LIVE sequence:", JSON.stringify(seq.map((x) => x[0] + ":" + x[1])));
     check(counts.length === 1, "LIVE shows one final count on load (loading first, no jump)", JSON.stringify(counts));
   }
@@ -311,18 +311,18 @@ function sameSet(f) {
     const gx = g0.grip.x + g0.grip.w / 2, gy = g0.grip.y + g0.grip.h / 2;
     await page.mouse.move(gx, gy); await page.mouse.down();
     for (let i = 1; i <= 10; i++) { await page.mouse.move(gx, gy + 20 * i); await sleep(16); }
-    await page.mouse.up(); await sleep(300);
+    await page.mouse.up(); await sleep(800); /* 4342: let the .34 s spring settle */
     const g1 = await gr();
     await page.mouse.move(g1.grip.x + g1.grip.w / 2, g1.grip.y + g1.grip.h / 2); await page.mouse.down();
     for (let i = 1; i <= 10; i++) { await page.mouse.move(g1.grip.x + g1.grip.w / 2, g1.grip.y + g1.grip.h / 2 - 50 * i); await sleep(16); }
-    await page.mouse.up(); await sleep(300);
+    await page.mouse.up(); await sleep(800); /* 4342: let the .34 s spring settle */
     const g2 = await gr();
-    const cap = Math.round(g0.ih * 0.42);
-    console.log("   grip heights", g0.card.h, "→ down", g1.card.h, "→ up", g2.card.h, "cap", cap);
-    check(g0.card.h <= cap - 40, "sheet rests below the 42vh cap (room to grow)", g0.card.h + " vs cap " + cap);
-    check(g1.card.h < g0.card.h - 20 && g1.card.h >= 95, "drag down shrinks the sheet (>= 96 px)", g0.card.h + " → " + g1.card.h);
+    const cap = await page.evaluate(() => window.__snGrip.cap()), rest = await page.evaluate(() => window.__snGrip.rest());
+    console.log("   grip heights", g0.card.h, "→ down", g1.card.h, "→ up", g2.card.h, "rest", rest, "cap", cap);
+    check(g0.card.h <= cap - 40, "sheet rests below the 42 % cap (room to grow)", g0.card.h + " vs cap " + cap);
+    check(Math.abs(g1.card.h - Math.min(rest, g0.card.h)) <= 2, "drag down from rest springs back to rest (never parks below)", g0.card.h + " → " + g1.card.h + " (rest " + rest + ")");
     check(g2.card.h > g1.card.h + 20, "drag up grows the sheet", g1.card.h + " → " + g2.card.h);
-    check(g2.card.h <= cap + 1, "dragged sheet never taller than 42vh", g2.card.h + " ≤ " + cap);
+    check(g2.card.h <= cap + 1, "dragged sheet never taller than the 42 % cap", g2.card.h + " ≤ " + cap);
     check(!ov(g2.grip, g2.pulse) && g2.grip.y < g2.card.y && g2.grip.y + g2.grip.h >= g2.card.y && g2.grip.h >= 24 && g2.grip.w >= g2.card.w - 2, "grip follows the sheet, still clear of LIVE", JSON.stringify(g2));
     await page.screenshot({ path: path.join(SHOTS, "grip-dragged.png") });
   }

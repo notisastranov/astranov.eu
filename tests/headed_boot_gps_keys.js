@@ -1,23 +1,28 @@
 /**
- * Headed real-input test (4341): real Chrome on the X display (DISPLAY, default :3) at the full 1920x1200 screen,
- * OS-level xdotool input mapped through a 1280x800 "agent view" (every coordinate is picked at 1/1.5 scale and
- * rounded, like a computer-use agent on a scaled screenshot), screenshots grabbed from the X screen (real pixels).
- *  BOOT: no input. MIC is a cyan icon from boot; LIVE never shows two different counts (only 'loading…' then the final
- *    count); the IP answer completes a camera move to the IP city view (metro scale z10-12.5, labelled approximate, seat
- *    kind 'ip' = no hunt seat) within 5 s of navigation start.
- *  GPS: mid-session CDP geolocation override + permission grant → the app flies to the fix at street level (z>=15) and
- *    the IP label is gone; then a new override + an xdotool click on the GPS button flies to the new fix. No status line
- *    ever reads 'GPS · GPS'.
- *  KEYS: three consecutive queries typed with xdotool, each with ONE Return keypress: q1 with focus in the talk box,
- *    q2 after a click on the map (focus off the box, keys typed without clicking it), q3 typed and Return in one burst.
- *    Each must submit on that single Return. A guest reads 'Tap one to see the menu', never 'Tap one to order'.
- *  GRIP: the hit strip spans the full sheet width and >= 24 px; the sheet rests below the 42vh cap; xdotool drags: strip
- *    UP from rest grows it, a further UP at the cap shows rubber-band resistance and springs back to the cap, the exact
- *    edge DOWN shrinks it, the title bar UP grows it (no tap). The map centre is sampled before, during every move step
- *    and after each drag: 0 px shift (< 0.01 px), Leaflet dragging off during, on after; the map pans again afterwards.
- *  LOAD VIEW: a fresh window with no location answer (IP lookup blocked) stays on the globe; NEWS/CALENDAR callouts sit
- *    outside the globe's glow ring and never on each other, at a 1280x800 window and at 1920x1200.
- *  MIC: still the same icon after the drags. No console errors (third-party open-meteo 429 is a NOTE).
+ * Headed real-input test (4342): real Chrome on the X display (DISPLAY, default :3); run it at WIN=1920x1200 SCALE=1.5
+ * (OS-level xdotool input picked in a 1280x800 "agent view" and rounded back, like a computer-use agent on a scaled
+ * screenshot) and at WIN=1280x800 SCALE=1. Screenshots are grabbed from the X screen (real pixels).
+ *  BOOT: no input. MIC is a cyan icon; LIVE shows 'loading…' then one count, 'N vendors on SpaceNet'; the IP answer lands
+ *    on the IP city view (z10-12.5, labelled approximate, camera only) within 5 s of navigation start.
+ *  GPS: CDP geolocation grant → street level at the fix, IP label gone; GPS button (xdotool) flies to a new fix; never
+ *    'GPS · GPS'. LIVE in GPS mode names the same network count as IP mode ('… · N vendors on SpaceNet'), never 'no public
+ *    vendors' while the network has some.
+ *  KEYS: three queries, ONE Return each (box / after a map click / burst). Guest copy 'Tap one to see the menu'. The
+ *    bare 'pharmacy' at Athens keeps the real count (>= 10; 4341 showed 6 of Nominatim's 16 rows).
+ *  GRIP: strip spans the sheet; rest = 30 % and cap = 42 % of the page area (top ribbon bottom → dock); xdotool drags:
+ *    UP from rest grows; UP at the cap stretches >= 20 px with an amber card edge (screenshot while held) and springs
+ *    back to the cap; DOWN to between rest and cap stays there; DOWN past rest stretches amber and springs back to rest
+ *    (never parks below); the title bar UP grows (no tap). Map centre 0 px (< 0.01) during / after every drag.
+ *  LIST (guest): right-click and a long press on the map open LIST: an inset card (>= 8 px margins) no taller than the
+ *    42 % cap, green APPLY on the LEFT, red X on the RIGHT, a guest note that listing needs LOGIN. VENDOR: same bar, a
+ *    72 px square vendor photo and 72 px menu-row photos; APPLY as a guest says LOGIN, saves nothing, sends nothing
+ *    (every non-GET /api/space is recorded and aborted). DRIVER: same. The vendor (menu) card from a FIND row has the
+ *    same bar order.
+ *  GLOBE: Global view (xdotool) stays on the globe (no sky view, no jump) for 3 s; a NEWS callout tap opens the item
+ *    (card with the text, map on Rhodes at z10); wheel notches at Rhodes open the map on the island; a double click on
+ *    Rhodes lands on the island (z10); GPS recalibrate from the globe and from the map never opens the sky view.
+ *  LOAD VIEW: no location answer → the globe stays; callouts outside the glow ring, apart, clear of the HUD, at 1280x800
+ *    and 1920x1200; LIVE = the real network count.
  * Env: PREVIEW_URL, STAMP, LOCAL_APP, LOCAL_AUTH, SHOTDIR, REAL_CHROME=1, WIN=1920x1200, SCALE=1.5
  */
 const { chromium } = require("playwright");
@@ -26,18 +31,18 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4341";
+const STAMP = process.env.STAMP || "4342";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now();
 const ORIGIN = new URL(BASE).origin;
 const [WW, WH] = (process.env.WIN || "1920x1200").split("x").map(Number);
 const SCALE = Number(process.env.SCALE || 1.5);
-const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4341";
+const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4342";
 fs.mkdirSync(SHOTDIR, { recursive: true });
 if (!process.env.DISPLAY) process.env.DISPLAY = ":3";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const xdo = (a) => execSync("xdotool " + a, { env: process.env });
 const SYNTAGMA = { lat: 37.9755, lng: 23.7348 }, RHODES_OLD = { lat: 36.4446, lng: 28.2276 };
-const GRAB = path.join(os.tmpdir(), "sn_grab4341.py");
+const GRAB = path.join(os.tmpdir(), "sn_grab4342.py");
 fs.writeFileSync(GRAB, `import sys, json
 from PIL import ImageGrab, ImageStat
 out, x, y, w, h = sys.argv[1], *map(int, sys.argv[2:6])
@@ -58,7 +63,8 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   const page = await ctx.newPage();
   if (process.env.LOCAL_APP) { const body = fs.readFileSync(process.env.LOCAL_APP); await page.route(/\/js\/spacenet\/app\.js/, (r) => r.fulfill({ status: 200, contentType: "application/javascript", body })); }
   if (process.env.LOCAL_AUTH) { const ab = fs.readFileSync(process.env.LOCAL_AUTH); await page.route(/\/js\/spacenet\/auth\.js/, (r) => r.fulfill({ status: 200, contentType: "application/javascript", body: ab })); }
-  const errors = [];
+  const errors = [], posts = [];
+  await page.route(/\/api\/space/, (r) => { if (r.request().method() !== "GET") { posts.push(r.request().method() + " " + r.request().url()); return r.abort(); } return r.continue(); });
   page.on("pageerror", (e) => errors.push(String(e)));
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text() + " @ " + ((m.location() || {}).url || "")); });
   page.on("response", (r) => { if (r.status() === 429) console.log("[429]", r.url().slice(0, 160)); });
@@ -131,7 +137,8 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   const seq = await page.evaluate(() => window.__liveSeq);
   const counts = [...new Set(seq.map((x) => (x[1].match(/LIVE · (\d+) vendor/) || [])[1]).filter(Boolean))];
   console.log("[live seq]", JSON.stringify(seq.map((x) => x[0] + ":" + x[1])));
-  check("LIVE shows one final count (loading first, no jump)", counts.length === 1 && seq.every((x) => !x[1] || /^LIVE · (loading…|\d+ vendors? ·)/.test(x[1])), "counts " + JSON.stringify(counts));
+  check("LIVE shows one final count (loading first, no jump), 'N vendors on SpaceNet'", counts.length === 1 && seq.every((x) => !x[1] || /^LIVE · (loading…|\d+ vendors? on SpaceNet ·)/.test(x[1])), "counts " + JSON.stringify(counts));
+  const netN = counts[0];
 
   // ---- GPS granted mid-session (CDP override + permission grant) ----
   const cdp = await ctx.newCDPSession(page);
@@ -144,6 +151,7 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   check("GPS grant mid-session flies to the fix at street level", gp.ms != null && sG.z >= 15 && km(sG.c, SYNTAGMA) < 0.6, (gp.ms == null ? "never" : gp.ms + " ms") + ", z" + sG.z + ", " + (sG.c && km(sG.c, SYNTAGMA).toFixed(3)) + " km from the fix");
   check("IP label replaced after the GPS fix", !/Approximate/.test(sG.line) && sG.here && sG.here.name === "GPS", JSON.stringify({ line: sG.line, here: sG.here }));
   check("street tiles at the GPS fix (real pixels)", gG.std >= 10 && gG.colors >= 60, JSON.stringify(gG));
+  check("LIVE in GPS mode names the same network count as IP mode (no 'no public vendors')", new RegExp("^LIVE · \\d+ places? here · " + netN + " vendors? on SpaceNet · ").test(sG.live) && !/no public vendors/.test(sG.live), JSON.stringify({ ip: "LIVE · " + netN + " vendors on SpaceNet", gps: sG.live }));
   // locate button with a new fix
   await cdp.send("Emulation.setGeolocationOverride", { latitude: RHODES_OLD.lat, longitude: RHODES_OLD.lng, accuracy: 15 });
   const gb = await page.evaluate(() => { const b = document.getElementById("gps").getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
@@ -181,65 +189,84 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   }
   await query("pizza in Athens Greece", "pizza", "box");
   await query("supermarket", "supermarket", "map");
-  await query("pharmacy", "pharmacy", "burst");
+  const sPh = await query("pharmacy", "pharmacy", "burst");
+  const nomN = await page.evaluate(async () => { const st = SN.seatState(); const h = st.here; if (!h) return null;
+    const u = "https://nominatim.openstreetmap.org/search?format=json&limit=16&addressdetails=0&q=pharmacy&viewbox=" + (h.lng - 0.25).toFixed(4) + "," + (h.lat + 0.25).toFixed(4) + "," + (h.lng + 0.25).toFixed(4) + "," + (h.lat - 0.25).toFixed(4) + "&bounded=1";
+    try { const j = await (await fetch(u)).json(); return { all: j.length, named: j.filter((r) => r.name).length, places: j.filter((r) => r.name || /^(amenity|shop|healthcare)$/.test(r.class)).length }; } catch (e) { return null; } });
+  console.log("[pharmacy] FIND", sPh.find, "nominatim", JSON.stringify(nomN));
+  check("pharmacy keeps the real count (unnamed real pharmacies are kept, >= 10)", +sPh.find >= 10 && (!nomN || +sPh.find >= Math.min(nomN.places, 16) - 2), "FIND " + sPh.find + " · nominatim " + JSON.stringify(nomN));
 
-  // ---- GRIP at agent scale ----
+  // ---- GRIP at agent scale (4342: 30 % / 42 % of the page area, visible stretch, spring back, no park below rest) ----
   const gr = () => page.evaluate(() => {
     const b = (e) => { if (!e || getComputedStyle(e).display === "none") return null; const r = e.getBoundingClientRect(); return r.height ? { x: r.left, y: r.top, w: r.width, h: r.height } : null; };
-    const card = document.getElementById("sn-sheet-card"), bar = card && card.querySelector(".sheet-bar"), m = SN.getMap(), c = m && m.getCenter();
-    return { grip: b(document.getElementById("cli-drag")), card: b(card), bar: b(bar), c: c && { lat: c.lat, lng: c.lng }, z: m && m.getZoom(), mapDrag: window.__snGrip && window.__snGrip.mapDraggable(), pulse: b(document.getElementById("sn-pulse")),
-      cap: window.__snGrip && window.__snGrip.cap(), edge: window.__snGrip && window.__snGrip.edge && window.__snGrip.edge(), grab: (document.getElementById("cli-drag") || {}).className || "" };
+    const card = document.getElementById("sn-sheet-card"), bar = card && card.querySelector(".sheet-bar"), m = SN.getMap(), c = m && m.getCenter(), G = window.__snGrip;
+    const isl = document.getElementById("island").getBoundingClientRect();
+    return { grip: b(document.getElementById("cli-drag")), card: b(card), bar: b(bar), c: c && { lat: c.lat, lng: c.lng }, z: m && m.getZoom(), mapDrag: G && G.mapDraggable(), pulse: b(document.getElementById("sn-pulse")),
+      cap: G && G.cap(), rest: G && G.rest(), area: G && G.area(), ribbon: Math.round(isl.bottom), ih: innerHeight, edge: G && G.edge && G.edge(), amber: card ? getComputedStyle(card).borderTopColor : "",
+      grab: (document.getElementById("cli-drag") || {}).className || "" };
   });
-  const g0 = await gr(); const cap = g0.cap || Math.round(geo.ih * 0.42);
+  const g0 = await gr(); const cap = g0.cap, rest = g0.rest;
   console.log("[grip]", JSON.stringify(g0));
   check("grip hit strip spans the sheet width, >= 24 px tall, on the top edge", !!(g0.grip && g0.card) && g0.grip.h >= 24 && g0.grip.w >= g0.card.w - 2 && g0.grip.y < g0.card.y && g0.grip.y + g0.grip.h >= g0.card.y, JSON.stringify({ grip: g0.grip, card: g0.card }));
-  check("sheet rests below the 42vh cap (room to grow)", g0.card.h <= cap - 40, "rest " + g0.card.h.toFixed(1) + " px, cap " + cap + " px");
+  const pageArea = g0.card.y + g0.card.h - g0.ribbon;
+  check("sheet rests at 30 % of the page area (top ribbon → dock), cap is 42 %", Math.abs(g0.card.h / pageArea - 0.30) <= 0.012 && Math.abs(cap / pageArea - 0.42) <= 0.012,
+    "rest " + g0.card.h.toFixed(1) + " / " + pageArea.toFixed(0) + " = " + (g0.card.h / pageArea * 100).toFixed(1) + " %, cap " + cap + " = " + (cap / pageArea * 100).toFixed(1) + " % (ribbon bottom " + g0.ribbon + ", dock " + (g0.card.y + g0.card.h).toFixed(0) + ", innerHeight " + g0.ih + ")");
   const hits = await page.evaluate((g) => [0.1, 0.25, 0.5, 0.75, 0.9].map((fx) => { const e = document.elementFromPoint(g.x + g.w * fx, g.y + g.h / 2); return e ? (e.id || e.className || e.tagName) : null; }), g0.grip);
   check("strip is the top element across the sheet width (over the map)", hits.every((h) => h === "cli-drag"), JSON.stringify(hits));
-  // the map's own position: a fixed lat/lng (the centre at drag start) in screen px, plus the zoom
   const mapPt = (c) => page.evaluate((cc) => { const m = SN.getMap(); const p = m.latLngToContainerPoint([cc.lat, cc.lng]); const r = document.getElementById("city").getBoundingClientRect(); return { x: p.x + r.left, y: p.y + r.top, z: m.getZoom() }; }, c);
-  async function adrag(x, y, dy, tag) {
+  async function adrag(x, y, dy, tag, holdShot) {
     await grab(tag + "-before");
     const s0 = await gr(); const p0 = await mapPt(s0.c);
     const [a, b] = A(x, y); xdo(`mousemove ${a} ${b}`); await sleep(80); xdo("mousedown 1"); await sleep(60);
     const mid = await page.evaluate(() => window.__snGrip && window.__snGrip.mapDraggable());
-    let maxD = 0, maxH = 0, edges = new Set(), zMoved = false;
+    let maxD = 0, maxH = 0, minHh = 1e9, edges = new Set(), zMoved = false, amberSeen = false;
     for (let i = 1; i <= 12; i++) {
       const [c, d] = A(x, y + (dy * i) / 12); xdo(`mousemove ${c} ${d}`); await sleep(20);
       const p = await mapPt(s0.c); maxD = Math.max(maxD, Math.hypot(p.x - p0.x, p.y - p0.y)); if (p.z !== p0.z) zMoved = true;
-      const gi = await gr(); maxH = Math.max(maxH, gi.card.h); if (gi.edge) edges.add(gi.edge);
+      const gi = await gr(); maxH = Math.max(maxH, gi.card.h); minHh = Math.min(minHh, gi.card.h); if (gi.edge) edges.add(gi.edge); if (/255, 179, 71/.test(gi.amber)) amberSeen = true;
     }
-    if (tag === "grip-cap") await grab(tag + "-held");
-    xdo("mouseup 1"); await sleep(450);
+    let held = null;
+    if (holdShot) { await sleep(250); held = await grab(tag + "-held"); }
+    xdo("mouseup 1"); await sleep(110);
+    const spring = holdShot ? await grab(tag + "-spring") : null; const gSpring = await gr();
+    await sleep(340);
     const p1 = await mapPt(s0.c); const after = Math.hypot(p1.x - p0.x, p1.y - p0.y); if (p1.z !== p0.z) zMoved = true;
     await sleep(900); /* late refits / invalidateSize would land here */
     const p2 = await mapPt(s0.c); const late = Math.hypot(p2.x - p0.x, p2.y - p0.y); if (p2.z !== p0.z) zMoved = true;
     const g = await grab(tag + "-after");
     const s1 = await gr();
     const shift = { during: +maxD.toFixed(3), after: +after.toFixed(3), late: +late.toFixed(3), zoom: zMoved ? "changed" : "same" };
-    console.log(`[${tag}] h ${s0.card.h.toFixed(1)} → ${s1.card.h.toFixed(1)} (max during ${maxH.toFixed(1)}, cap ${cap}) map shift ${JSON.stringify(shift)} drag during ${mid} after ${s1.mapDrag} edges ${JSON.stringify([...edges])}`, g.file);
-    return { mid, g, s0, s1, maxH, edges, shift, still: maxD < 0.01 && after < 0.01 && late < 0.01 && !zMoved };
+    console.log(`[${tag}] h ${s0.card.h.toFixed(1)} → ${s1.card.h.toFixed(1)} (during ${minHh.toFixed(1)}..${maxH.toFixed(1)}, +110 ms ${gSpring.card.h.toFixed(1)}, rest ${rest}, cap ${cap}) amber ${amberSeen} map shift ${JSON.stringify(shift)} drag during ${mid} after ${s1.mapDrag} edges ${JSON.stringify([...edges])}`, g.file, held ? held.file : "");
+    return { mid, g, s0, s1, maxH, minH: minHh, edges, amberSeen, gSpring, shift, still: maxD < 0.01 && after < 0.01 && late < 0.01 && !zMoved };
   }
   // a) strip, left quarter, 10 px above the edge, drag UP from rest: grows
-  let r = await adrag(g0.card.x + g0.card.w * 0.25, g0.card.y - 10, -200, "grip-up");
-  check("strip drag UP from rest grows the sheet", r.s1.card.h > r.s0.card.h + 40 && r.s1.card.h <= cap + 1, r.s0.card.h.toFixed(1) + " → " + r.s1.card.h.toFixed(1) + " (cap " + cap + ")");
+  let r = await adrag(g0.card.x + g0.card.w * 0.25, g0.card.y - 10, -(cap - rest + 10), "grip-up");
+  check("strip drag UP from rest grows the sheet (to the cap at most)", r.s1.card.h > r.s0.card.h + 30 && r.s1.card.h <= cap + 1, r.s0.card.h.toFixed(1) + " → " + r.s1.card.h.toFixed(1) + " (cap " + cap + ")");
   check("UP drag: map centre 0 px (before / during / after), map drag off during, on after", r.still && r.mid === false && r.s1.mapDrag === true, JSON.stringify(Object.assign({ during: r.mid, after: r.s1.mapDrag }, r.shift)));
-  // b) at the cap, drag UP again: rubber-band resistance, springs back to the cap
+  // b) at the cap, drag UP again: a visible amber stretch, then it springs back to the cap
   let gc = await gr();
-  r = await adrag(gc.card.x + gc.card.w * 0.6, gc.card.y - 10, -160, "grip-cap");
-  check("UP drag at the cap shows resistance (amber pill, small overshoot) and springs back to the cap", r.edges.has("max") && r.maxH > cap + 1 && r.maxH <= cap + 19 && Math.abs(r.s1.card.h - cap) <= 1, JSON.stringify({ edges: [...r.edges], maxDuring: +r.maxH.toFixed(1), after: +r.s1.card.h.toFixed(1), cap }));
+  r = await adrag(gc.card.x + gc.card.w * 0.6, gc.card.y - 10, -180, "grip-cap", true);
+  check("UP at the cap stretches visibly (>= 20 px, amber edge, MAX pill) and springs back to the cap", r.edges.has("max") && r.amberSeen && r.maxH >= cap + 20 && r.maxH <= cap + 49 && Math.abs(r.s1.card.h - cap) <= 1,
+    JSON.stringify({ edges: [...r.edges], amber: r.amberSeen, maxDuring: +r.maxH.toFixed(1), at110ms: +r.gSpring.card.h.toFixed(1), after: +r.s1.card.h.toFixed(1), cap }));
   check("cap drag: map centre 0 px", r.still, JSON.stringify(r.shift));
-  // c) the exact sheet edge, right quarter, drag DOWN: shrinks
+  // c) the exact edge, DOWN to between rest and cap: it stays where it is let go
   gc = await gr();
-  r = await adrag(gc.card.x + gc.card.w * 0.75, gc.card.y + 1, 250, "grip-down");
-  check("drag DOWN on the exact sheet edge shrinks the sheet", r.s1.card.h < r.s0.card.h - 40 && r.s1.card.h >= 95, r.s0.card.h.toFixed(1) + " → " + r.s1.card.h.toFixed(1));
+  const half = Math.round((cap - rest) / 2);
+  r = await adrag(gc.card.x + gc.card.w * 0.75, gc.card.y + 1, half, "grip-down");
+  check("drag DOWN to between rest and the cap stays where it is let go", r.s1.card.h < r.s0.card.h - 15 && r.s1.card.h > rest + 5 && Math.abs(r.s1.card.h - (r.s0.card.h - half)) <= 6, r.s0.card.h.toFixed(1) + " → " + r.s1.card.h.toFixed(1) + " (rest " + rest + ", cap " + cap + ")");
   check("DOWN drag: map centre 0 px (before / during / after)", r.still && r.mid === false && r.s1.mapDrag === true, JSON.stringify(r.shift));
-  // d) the title bar (between APPLY and the title), drag UP: grows, no tap fired
+  // d) DOWN past rest: amber stretch, springs back to rest, never parks below it
+  gc = await gr();
+  r = await adrag(gc.card.x + gc.card.w * 0.4, gc.card.y - 10, (gc.card.h - rest) + 160, "grip-rest", true);
+  check("DOWN past rest stretches visibly (amber, REST pill) and springs back to rest (never parks below)", r.edges.has("min") && r.amberSeen && r.minH <= rest - 20 && Math.abs(r.s1.card.h - rest) <= 1,
+    JSON.stringify({ edges: [...r.edges], amber: r.amberSeen, minDuring: +r.minH.toFixed(1), after: +r.s1.card.h.toFixed(1), rest }));
+  check("past-rest drag: map centre 0 px", r.still, JSON.stringify(r.shift));
+  // e) the title bar (between APPLY and the title), drag UP: grows, no tap fired
   const findBefore = (await state()).find;
   gc = await gr();
-  r = await adrag(gc.card.x + gc.card.w * 0.3, gc.bar ? gc.bar.y + gc.bar.h / 2 : gc.card.y + 14, -140, "grip-bar");
+  r = await adrag(gc.card.x + gc.card.w * 0.3, gc.bar ? gc.bar.y + gc.bar.h / 2 : gc.card.y + 14, -(cap - rest - 10), "grip-bar");
   const sAfter = await state();
-  check("drag UP on the title bar grows the sheet", r.s1.card.h > r.s0.card.h + 40, r.s0.card.h.toFixed(1) + " → " + r.s1.card.h.toFixed(1));
+  check("drag UP on the title bar grows the sheet", r.s1.card.h > r.s0.card.h + 30, r.s0.card.h.toFixed(1) + " → " + r.s1.card.h.toFixed(1));
   check("title-bar drag keeps the sheet (no tap fired) and the map centre 0 px", sAfter.find === findBefore && r.still, JSON.stringify(Object.assign({ find: sAfter.find }, r.shift)));
   const g3 = await gr();
   check("grip clear of LIVE after resizing", !ovl(g3.grip, g3.pulse), JSON.stringify({ grip: g3.grip, pulse: g3.pulse }));
@@ -255,6 +282,120 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   const mic1 = await micInfo();
   const gMic = await grab("mic-after-drag", { x: geo.iw - 200, y: geo.ih - 140, w: 200, h: 140 });
   check("MIC unchanged after the drags (same icon, no stray label)", mic1.svg && mic1.color === mic0.color && mic1.txt === "", JSON.stringify(mic1) + " " + gMic.file);
+
+  // ---- LIST as a guest: hold menu, VENDOR, DRIVER (nothing saved, nothing sent) ----
+  const sheetInfo = () => page.evaluate(() => { const sh = document.getElementById("sn-sheet"), c = document.getElementById("sn-sheet-card"); const R = (e) => { if (!e) return null; const r = e.getBoundingClientRect(); return r.height ? { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) } : null; };
+    const ap = c && c.querySelector(".sheet-bar .sheet-apply"), x = c && c.querySelector(".sheet-bar .sheet-x");
+    return { on: !!(sh && sh.classList.contains("on")), kind: sh && sh.getAttribute("data-kind"), title: c && ((c.querySelector(".sheet-mid") || {}).textContent || ""), card: R(c), iw: innerWidth, cap: window.__snGrip.cap(),
+      apply: ap && Object.assign(R(ap), { t: ap.textContent.trim(), color: getComputedStyle(ap).color }), x: x && Object.assign(R(x), { t: x.textContent.trim(), color: getComputedStyle(x).color }),
+      photo: R(c && c.querySelector(".sn-photo")), rowPhoto: R(c && c.querySelector(".sn-row .phbtn")), guest: !!(c && c.querySelector(".sn-guest")), text: c ? c.textContent.replace(/\s+/g, " ").slice(0, 200) : "" }; });
+  const barLaw = (si) => !!(si.apply && si.x) && si.apply.t === "APPLY" && /125, 255, 154/.test(si.apply.color) && si.apply.x < si.card.x + si.card.w * 0.25 && /^(X|✕)$/.test(si.x.t) && /255, 138, 138/.test(si.x.color) && si.x.x > si.card.x + si.card.w * 0.75;
+  const inset = (si) => !!si.card && si.card.x >= 8 && si.iw - (si.card.x + si.card.w) >= 8 && si.card.h <= si.cap + 1;
+  const closeSheet = async () => { const xb = await page.evaluate(() => { const b = document.querySelector("#sn-sheet .sheet-bar .sheet-x"); if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; }); if (xb) { xdo(`mousemove ${A(xb.x, xb.y).join(" ")}`); await sleep(60); xdo("click 1"); await sleep(600); } };
+  /* a control below the fold of the 30 % card: scroll the card with the real wheel (xdotool) until it shows, as a user would */
+  const elBox = (sel) => page.evaluate((s) => { const e = document.querySelector(s); if (!e) return null; const r = e.getBoundingClientRect(); const cd = e.closest("#sn-sheet") && document.querySelector("#sn-sheet .card");
+    const cr = cd && cd.getBoundingClientRect(); const bar = document.querySelector("#sn-sheet .sheet-bar"); const br = bar && bar.getBoundingClientRect();
+    const top = cr ? Math.max(cr.top, br ? br.bottom : cr.top) : 0, bot = cr ? cr.bottom : innerHeight; const cy = r.y + r.height / 2;
+    return { x: r.x + r.width / 2, y: cy, vis: !cr || (cy > top + 4 && cy < bot - 4), mid: cr && { x: cr.x + cr.width / 2, y: (top + bot) / 2 }, down: cr ? cy >= bot - 4 : false }; }, sel);
+  const clickEl = async (sel) => { let b = await elBox(sel); if (!b) return false;
+    for (let k = 0; k < 16 && b && !b.vis && b.mid; k++) { xdo(`mousemove ${A(b.mid.x, b.mid.y).join(" ")}`); await sleep(40); xdo(b.down ? "click 5" : "click 4"); await sleep(160); b = await elBox(sel); }
+    if (!b) return false; xdo(`mousemove ${A(b.x, b.y).join(" ")}`); await sleep(70); xdo("click 1"); await sleep(250); return true; };
+  // a vendor (menu) card from a FIND row: same bar order
+  if (await clickEl("#sn-sheet [data-act='vendor']")) {
+    await sleep(900); const vi = await sheetInfo(); const gV = await grab("card-vendor-menu");
+    console.log("[vendor menu card]", JSON.stringify(vi).slice(0, 400), gV.file);
+    check("vendor (menu) card: green APPLY left, red X right, inset, <= 42 %", vi.kind === "vendor" && barLaw(vi) && inset(vi), JSON.stringify({ kind: vi.kind, apply: vi.apply, x: vi.x, card: vi.card, cap: vi.cap }));
+  } else check("vendor (menu) card: a FIND row to tap", false, "no FIND row");
+  await closeSheet();
+  const mine0 = await page.evaluate(() => localStorage.getItem("sn:mine"));
+  const people0 = await page.evaluate(() => localStorage.getItem("sn:people"));
+  const mp = await page.evaluate(() => { const c = document.getElementById("city").getBoundingClientRect(); const pts = [[0.35, 0.3], [0.6, 0.25], [0.45, 0.4], [0.7, 0.35]];
+    for (const [fx, fy] of pts) { const x = c.left + c.width * fx, y = c.top + c.height * fy; const e = document.elementFromPoint(x, y); if (e && e.closest("#city") && !e.closest(".leaflet-marker-icon")) return { x, y }; } return null; });
+  xdo(`mousemove ${A(mp.x, mp.y).join(" ")}`); await sleep(80); xdo("click 3"); await sleep(1200);
+  let si = await sheetInfo(); let gL = await grab("list-hold-menu");
+  console.log("[hold → LIST]", JSON.stringify(si).slice(0, 500), gL.file);
+  check("right-click (hold) opens LIST: an inset card no taller than the 42 % cap", si.on && si.kind === "list" && inset(si), JSON.stringify({ card: si.card, iw: si.iw, cap: si.cap }));
+  check("LIST bar: green APPLY on the LEFT, red X on the RIGHT", barLaw(si), JSON.stringify({ apply: si.apply, x: si.x }));
+  check("LIST says up front that listing needs LOGIN (guest)", si.guest && /listing needs LOGIN/.test(si.text), JSON.stringify(si.text.slice(0, 140)));
+  await closeSheet();
+  xdo(`mousemove ${A(mp.x + 30, mp.y + 10).join(" ")}`); await sleep(80); xdo("mousedown 1"); await sleep(750); xdo("mouseup 1"); await sleep(1200);
+  si = await sheetInfo();
+  check("long press (750 ms) opens LIST too", si.on && si.kind === "list", JSON.stringify({ kind: si.kind, title: si.title }));
+  await clickEl("#sn-sheet [data-act='form-vendor']"); await sleep(900);
+  si = await sheetInfo(); gL = await grab("list-vendor-card");
+  console.log("[VENDOR card]", JSON.stringify(si).slice(0, 500), gL.file);
+  check("VENDOR card: inset, <= 42 %, green APPLY left, red X right", si.title === "VENDOR" && inset(si) && barLaw(si), JSON.stringify({ card: si.card, apply: si.apply, x: si.x, cap: si.cap }));
+  check("VENDOR photo is a 72 px square; menu-row photos are 72 px squares", !!si.photo && Math.abs(si.photo.w - 72) <= 1 && Math.abs(si.photo.h - 72) <= 1 && !!si.rowPhoto && Math.abs(si.rowPhoto.w - 72) <= 1 && Math.abs(si.rowPhoto.h - 72) <= 1, JSON.stringify({ photo: si.photo, row: si.rowPhoto }));
+  check("VENDOR card tells a guest that listing needs LOGIN", si.guest && /LOGIN to list a vendor/.test(si.text), JSON.stringify(si.text.slice(0, 120)));
+  if (await clickEl("#sn-place-name")) { xdo('type --delay 30 "Headed Probe Kiosk"'); await sleep(200); }
+  await clickEl("#sn-sheet .sheet-bar .sheet-apply"); await sleep(1500);
+  let sv = await state(); gL = await grab("list-vendor-apply-guest");
+  const mine1 = await page.evaluate(() => localStorage.getItem("sn:mine"));
+  const kiosk = await page.evaluate(() => (SN.visibleShops() || []).filter((x) => /Headed Probe Kiosk/.test(x.name || "")).length);
+  console.log("[VENDOR apply as guest]", JSON.stringify(sv.line), "posts", JSON.stringify(posts), "mine same", mine1 === mine0, "kiosk pins", kiosk, gL.file);
+  check("VENDOR APPLY as a guest says LOGIN honestly; nothing saved, nothing sent, no pin", /LOGIN to list this vendor\. Nothing was saved or sent\./.test(sv.line) && posts.length === 0 && mine1 === mine0 && kiosk === 0, JSON.stringify({ line: sv.line, posts, mineSame: mine1 === mine0, kiosk }));
+  await closeSheet();
+  xdo(`mousemove ${A(mp.x, mp.y).join(" ")}`); await sleep(80); xdo("click 3"); await sleep(1200);
+  await clickEl("#sn-sheet [data-act='form-driver']"); await sleep(900);
+  si = await sheetInfo();
+  check("DRIVER card: inset, <= 42 %, green APPLY left, red X right", si.title === "DRIVER" && inset(si) && barLaw(si), JSON.stringify({ card: si.card, apply: si.apply, x: si.x }));
+  if (await clickEl("#sn-drv-name")) { xdo('type --delay 30 "Headed Probe Rider"'); await sleep(200); }
+  await clickEl("#sn-sheet .sheet-bar .sheet-apply"); await sleep(1500);
+  sv = await state();
+  const people1 = await page.evaluate(() => localStorage.getItem("sn:people"));
+  check("DRIVER APPLY as a guest says LOGIN; no local driver pin, nothing sent", /LOGIN to list a driver base\. Nothing was saved or sent\./.test(sv.line) && posts.length === 0 && people1 === people0, JSON.stringify({ line: sv.line, posts, peopleSame: people1 === people0 }));
+  await closeSheet();
+
+  // ---- GLOBE: Global view, NEWS tap, Rhodes wheel / double click, GPS recalibrate (never the sky view) ----
+  const cs = () => page.evaluate(() => { const c = SN.getCam(); const m = SN.getMap(); let mc = null; try { mc = m && m._loaded ? m.getCenter() : null; } catch (e) {} const sky = document.getElementById("sn-sky"); const sh = document.getElementById("sn-sheet");
+    return { dist: +c.dist.toFixed(3), cityOn: c.cityOn && document.getElementById("city").classList.contains("on"), z: m && m.getZoom(), c: mc && { lat: mc.lat, lng: mc.lng }, sky: !!(sky && !sky.hidden), line: document.getElementById("line").textContent, brief: window.__snBrief || null,
+      sheet: sh && sh.classList.contains("on") ? ((document.querySelector("#sn-sheet .sheet-mid") || {}).textContent || "") + " | " + ((document.getElementById("sn-sheet-body") || {}).textContent || "").slice(0, 120) : "" }; });
+  async function watchSky(ms) { const t = Date.now(); let sky = false, s = null; while (Date.now() - t < ms) { s = await cs(); if (s.sky) sky = true; await sleep(150); } return { sky, s }; }
+  const RH_CLICK = { lat: 36.25, lng: 28.0 };
+  const onRhodes = (c) => !!c && c.lat > 35.85 && c.lat < 36.47 && c.lng > 27.68 && c.lng < 28.26; /* Rhodes island box */
+  const gbtn = await page.evaluate(() => { const b = document.getElementById("sn-globe").getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
+  const globeBtn = async () => { xdo(`mousemove ${A(gbtn.x, gbtn.y).join(" ")}`); await sleep(70); xdo("click 1"); };
+  await globeBtn();
+  let w = await watchSky(3000); let gg = await grab("globe-global-view");
+  console.log("[global view]", JSON.stringify(w.s).slice(0, 220), gg.file);
+  check("Global view (xdotool) stays on the globe for 3 s: no sky view, no jump", !w.sky && !w.s.cityOn && Math.abs(w.s.dist - 1.85) < 0.05, JSON.stringify({ sky: w.sky, cityOn: w.s.cityOn, dist: w.s.dist }));
+  const faceRhodes = async () => { await page.evaluate(() => SN.lookAt({ lat: 36.25, lng: 28.0 }, 1.85)); await sleep(1200); }; /* setup: turn the globe to Rhodes (not a user action) */
+  await faceRhodes();
+  const cards2 = await page.evaluate(() => window.__snCards || []);
+  const nw = cards2.find((k) => k.k === "NEWS");
+  if (nw) {
+    xdo(`mousemove ${A(nw.x + nw.w / 2, nw.y + nw.h / 2).join(" ")}`); await sleep(70); xdo("click 1");
+    await sleep(2200); const sN = await cs(); gg = await grab("globe-news-tap");
+    console.log("[NEWS tap]", JSON.stringify(sN).slice(0, 400), gg.file);
+    check("tapping the NEWS callout opens the item: card with the text, map on Rhodes at z10, no sky view", !sN.sky && sN.cityOn && sN.z === 10 && sN.c && km(sN.c, nw) < 15 && onRhodes(sN.c) && /^NEWS \| .*mainly Rhodes/.test(sN.sheet), JSON.stringify({ z: sN.z, c: sN.c, sheet: sN.sheet.slice(0, 90), sky: sN.sky }));
+  } else check("tapping the NEWS callout opens the item", false, "no NEWS callout drawn facing Rhodes");
+  await closeSheet();
+  await globeBtn(); await sleep(1200); await faceRhodes();
+  let rp = await page.evaluate(() => SN.projectFrame(36.25, 28.0));
+  xdo(`mousemove ${A(rp.x, rp.y).join(" ")}`); await sleep(100);
+  let firstCity = null;
+  for (let i = 0; i < 8 && !firstCity; i++) { xdo("click 4"); await sleep(650); const sW = await cs(); if (sW.cityOn) firstCity = sW; }
+  await sleep(1200); gg = await grab("globe-wheel-rhodes");
+  console.log("[wheel at Rhodes] first map frame", JSON.stringify(firstCity).slice(0, 260), gg.file);
+  check("wheel notches at Rhodes open the map on the island (centre on Rhodes, z <= 11, says island view)", !!firstCity && firstCity.z <= 11 && onRhodes(firstCity.c) && /^Island \/ region view/.test(firstCity.line) && !firstCity.sky, JSON.stringify(firstCity && { z: firstCity.z, c: firstCity.c, line: firstCity.line }));
+  await globeBtn(); await sleep(1200); await faceRhodes();
+  rp = await page.evaluate(() => SN.projectFrame(36.25, 28.0));
+  xdo(`mousemove ${A(rp.x, rp.y).join(" ")}`); await sleep(100); xdo("click --repeat 2 --delay 90 1");
+  await sleep(2200); const sD = await cs(); gg = await grab("globe-dblclick-rhodes");
+  console.log("[double click Rhodes]", JSON.stringify(sD).slice(0, 260), gg.file);
+  check("double click on Rhodes lands on the island (z10, centred within 12 km of the click)", sD.cityOn && sD.z === 10 && sD.c && km(sD.c, RH_CLICK) < 12 && onRhodes(sD.c) && /^Island \/ region view/.test(sD.line) && !sD.sky, JSON.stringify({ z: sD.z, c: sD.c, line: sD.line }));
+  await cdp.send("Emulation.setGeolocationOverride", { latitude: RHODES_OLD.lat, longitude: RHODES_OLD.lng, accuracy: 15 });
+  await globeBtn(); await sleep(1500);
+  const gpsBtn = await page.evaluate(() => { const b = document.getElementById("gps").getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
+  xdo(`mousemove ${A(gpsBtn.x, gpsBtn.y).join(" ")}`); await sleep(70); xdo("click 1");
+  w = await watchSky(3000); gg = await grab("globe-gps-from-globe");
+  check("GPS recalibrate from the globe flies to the fix (street), never the sky view", !w.sky && w.s.cityOn && w.s.c && km(w.s.c, RHODES_OLD) < 0.6 && w.s.z >= 15, JSON.stringify({ sky: w.sky, z: w.s.z, c: w.s.c }));
+  xdo(`mousemove ${A(gpsBtn.x, gpsBtn.y).join(" ")}`); await sleep(70); xdo("click 1");
+  w = await watchSky(2500);
+  check("GPS recalibrate again from the map: no sky view", !w.sky && w.s.cityOn, JSON.stringify({ sky: w.sky, z: w.s.z }));
+  await globeBtn(); w = await watchSky(3000); gg = await grab("globe-global-after-gps");
+  check("Global view after GPS: globe, no sky view, no jump back", !w.sky && !w.s.cityOn, JSON.stringify({ sky: w.sky, cityOn: w.s.cityOn, dist: w.s.dist }));
+  check("no write to /api/space in the whole guest run", posts.length === 0, JSON.stringify(posts));
 
   const ext = errors.filter((e) => /status of 429/.test(e) && /open-meteo/.test(e));
   if (ext.length) console.log("NOTE third-party rate limit (header temperature, box IP):", ext.length, "x open-meteo 429");
@@ -293,11 +434,11 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
     console.log(`[load view ${w}x${h}] inner ${lv.iw}x${lv.ih} cityOn ${lv.cityOn} line ${JSON.stringify(lv.line)} cards ${JSON.stringify(lv.cards)} disc ${JSON.stringify(lv.disc)}`, shot);
     check(`load view ${w}x${h} stays on the globe without a location`, !lv.cityOn, JSON.stringify(lv.line));
     cardCheck(lv, `load ${w}x${h}, inner ${lv.iw}x${lv.ih}`);
-    check(`load view ${w}x${h}: LIVE = the real public network (${lv.expect}), not the listing cache`, lv.expect > 0 && new RegExp("^LIVE · " + lv.expect + " vendors? ·").test(lv.live), lv.live);
+    check(`load view ${w}x${h}: LIVE = the real public network (${lv.expect}), not the listing cache`, lv.expect > 0 && new RegExp("^LIVE · " + lv.expect + " vendors? on SpaceNet ·").test(lv.live), lv.live);
     await c2.close();
   }
   console.log("SCREENSHOTS", SHOTDIR);
-  console.log(fails.length ? "HEADED 4341 FAIL: " + fails.join("; ") : "HEADED 4341 ALL PASS");
+  console.log(fails.length ? "HEADED 4342 FAIL: " + fails.join("; ") : "HEADED 4342 ALL PASS");
   await browser.close();
   process.exit(fails.length ? 2 : 0);
 })().catch((e) => { console.error("fail", e); process.exit(1); });
