@@ -19,6 +19,8 @@
  *   'supermarket' hunts Athens (>= 9 pins, numbered, no stale place text, grab 'athens-supermarket'); the sheet grip is
  *   dragged with xdotool (grows/shrinks the sheet within 96 px..42vh, clear of LIVE; grabs 'grip-*').
  * 4340: the grip is a full-width 28 px strip on the sheet's top edge (see headed_boot_gps_keys.js for the agent-scale drags).
+ * 4341: the IP-only boot lands on the IP city view within ~2 s, so the globe drags start after an xdotool click on the
+ *   globe button (Global view); the sheet rests below the 42vh cap.
  * Env: PREVIEW_URL, LOCAL_AUTH, STAMP, LOCAL_APP, WIN=1280x800, HOLD, GAP, SPIN, DEBUGQ=1, SHOTDIR, REAL_CHROME=1, HUNTS=1, LAND_MAX=8
  */
 const { chromium } = require("playwright");
@@ -27,7 +29,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4340";
+const STAMP = process.env.STAMP || "4341";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now() + (process.env.DEBUGQ ? "&debug=wheel" : "");
 const RHODES = { lat: 36.4349, lng: 28.2176 }, ATHENS = { lat: 37.9838, lng: 23.7275 };
 const [WW, WH] = (process.env.WIN || "1280x800").split("x").map(Number);
@@ -147,6 +149,14 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
     xdo("mouseup 1"); await sleep(80);
   }
   const W2 = geo.iw / 2, H2 = geo.ih / 2;
+  // 4341: the boot is on the IP city view by now: back to the globe with a real click on the globe button
+  if ((await cam()).cityOn) {
+    const gbx = await page.evaluate(() => { const b = document.getElementById("sn-globe").getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
+    xdo(`mousemove ${S(gbx.x, gbx.y).join(" ")}`); await sleep(100); xdo("click 1"); await sleep(1500);
+    const cg = await cam();
+    console.log("[globe button]", JSON.stringify(cg));
+    check("globe button returns from the IP city view to the globe", !cg.cityOn, JSON.stringify(cg));
+  }
   function moved(a, b) { return Math.abs(a.yaw - b.yaw) > 0.15 || Math.abs(a.pitch - b.pitch) > 0.05; }
   // ---- drags: each must move the globe (2nd after a stopped spin, 3rd after a wheel anchor hold) ----
   let c0 = await cam(); await drag(W2, H2, -200, 80); let c1 = await cam();
@@ -371,6 +381,7 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
         await drag(g1.grip.x + g1.grip.w / 2, g1.grip.y + g1.grip.h / 2, 0, -420); await sleep(400);
         const g2 = await gr(); await grab("grip-up", { x: 0, y: 0, w: geo.iw, h: geo.ih });
         console.log("[grip] card h", g0.card.h, "→ down", g1.card.h, "→ up", g2.card.h, "cap", cap);
+        check("sheet rests below the 42vh cap (room to grow)", g0.card.h <= cap - 40, g0.card.h + " vs cap " + cap);
         check("xdotool drag down shrinks the sheet (>= 96 px)", g1.card.h < g0.card.h - 20 && g1.card.h >= 95, g0.card.h + " → " + g1.card.h);
         check("xdotool drag up grows the sheet, capped at 42vh", g2.card.h > g1.card.h + 20 && g2.card.h <= cap + 1, g1.card.h + " → " + g2.card.h + " (cap " + cap + ")");
         check("grip follows the sheet, clear of LIVE", !!g2.grip && g2.grip.y < g2.card.y && g2.grip.y + g2.grip.h >= g2.card.y && g2.grip.h >= 24 && g2.grip.w >= g2.card.w - 2 && !ovl(g2.grip, g2.pulse), JSON.stringify(g2));

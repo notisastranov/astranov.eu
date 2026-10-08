@@ -17,7 +17,7 @@
  *   bare 'supermarket' after Athens hunts Athens (>= 9 real pins, no stale 'Athens Greece' text); sheet grip drags
  *   (resizes <= 42vh, >= 96px, clear of LIVE, hidden with no sheet); session-shape check (stored sn:user shape only, no
  *   token, all writes blocked): YOU + aria-label + header name survive reload and SPACENET reset.
- * 4340: an IP-only boot (no input) lands on the IP city view (z10-12.5, labelled approximate, seat kind 'ip') within 22 s and
+ * 4341: an IP-only boot (no input) lands on the IP city view (z10-12.5, labelled approximate, seat kind 'ip') within 5 s and
  *   a bare hunt there still asks where; LIVE never shows two different counts on load; grip = full-width 28 px strip.
  * Exit 2 on any FAIL.
  */
@@ -26,7 +26,7 @@ const path = require("path");
 const { chromium } = require("playwright");
 
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const URL0 = BASE + (BASE.indexOf("?") >= 0 ? "&" : "?") + "v=" + (process.env.STAMP || "4340") + "&t=" + Date.now();
+const URL0 = BASE + (BASE.indexOf("?") >= 0 ? "&" : "?") + "v=" + (process.env.STAMP || "4341") + "&t=" + Date.now();
 const PIZZA = /pizz|πιτσ|πίτσ|margherita|calzone/i;
 const MARKET = /market|super|grocer|convenience|παντοπωλ|σούπερ|σουπερ|μάρκετ|μαρκετ/i;
 const RHODES = { lat: 36.4349, lng: 28.2176 };
@@ -158,6 +158,7 @@ function sameSet(f) {
   page.on("framenavigated", (fr) => { if (fr === page.mainFrame()) console.log("[nav]", fr.url().slice(0, 140)); });
 
   console.log("goto", URL0);
+  await page.addInitScript(() => { setInterval(() => { const c = document.getElementById("city"); if (window.__cityOnAt == null && c && c.classList.contains("on") && getComputedStyle(c).opacity === "1") window.__cityOnAt = Math.round(performance.now()); }, 25); });
   const tLoad = Date.now();
   await page.goto(URL0, { waitUntil: "domcontentloaded", timeout: 90000 });
   await sleep(4500);
@@ -179,7 +180,7 @@ function sameSet(f) {
   console.log("[boot]", JSON.stringify(boot));
   check(new RegExp("^LIVE · " + boot.expect + " vendors? ·").test(boot.live) && boot.expect > 0, "boot LIVE counts the real public network (" + boot.expect + " listed, no fixtures)", boot.live);
   check(boot.latest === "LATEST " + boot.api && /^\d{4,}$/.test(String(boot.api)), "LATEST shows /api/version (" + boot.api + ")", boot.latest);
-  if (!process.env.LOCAL_APP) check(String(boot.api) === String(process.env.STAMP || "4340") && boot.ver === "V" + (process.env.STAMP || "4340"), "running build == LATEST == STAMP", boot.ver + " / " + boot.api);
+  if (!process.env.LOCAL_APP) check(String(boot.api) === String(process.env.STAMP || "4341") && boot.ver === "V" + (process.env.STAMP || "4341"), "running build == LATEST == STAMP", boot.ver + " / " + boot.api);
   check(!boot.tester, "TESTER ticker hidden for a guest");
   await page.screenshot({ path: path.join(SHOTS, "boot.png") });
 
@@ -192,10 +193,10 @@ function sameSet(f) {
       if (ipv.on && ipv.kind === "ip") break;
       await sleep(250);
     }
-    const ipAt = (Date.now() - tLoad) / 1000;
+    const ipAt = ((await page.evaluate(() => window.__cityOnAt)) || (Date.now() - tLoad)) / 1000; /* 4341: from navigation start */
     console.log("[ip view]", ipAt.toFixed(1) + " s", JSON.stringify(ipv));
-    check(!!(ipv && ipv.on && ipv.kind === "ip" && ipAt <= 22 && ipv.here && km(ipv.c, ipv.here) < 3 && ipv.z >= 10 && ipv.z <= 12.5 && /Approximate location \(IP\)/.test(ipv.line)),
-      "IP-only boot auto-zooms to the IP city view (camera only, labelled approximate) within 22 s", ipAt.toFixed(1) + " s z" + (ipv && ipv.z));
+    check(!!(ipv && ipv.on && ipv.kind === "ip" && ipAt <= 5 && ipv.here && km(ipv.c, ipv.here) < 3 && ipv.z >= 10 && ipv.z <= 12.5 && /Approximate location \(IP\)/.test(ipv.line)),
+      "IP-only boot auto-zooms to the IP city view (camera only, labelled approximate) within 5 s", ipAt.toFixed(1) + " s z" + (ipv && ipv.z));
     await sleep(1200);
     await page.screenshot({ path: path.join(SHOTS, "boot-ip-city.png") });
     const seq = await page.evaluate(() => window.__liveSeq || []);
@@ -318,6 +319,7 @@ function sameSet(f) {
     const g2 = await gr();
     const cap = Math.round(g0.ih * 0.42);
     console.log("   grip heights", g0.card.h, "→ down", g1.card.h, "→ up", g2.card.h, "cap", cap);
+    check(g0.card.h <= cap - 40, "sheet rests below the 42vh cap (room to grow)", g0.card.h + " vs cap " + cap);
     check(g1.card.h < g0.card.h - 20 && g1.card.h >= 95, "drag down shrinks the sheet (>= 96 px)", g0.card.h + " → " + g1.card.h);
     check(g2.card.h > g1.card.h + 20, "drag up grows the sheet", g1.card.h + " → " + g2.card.h);
     check(g2.card.h <= cap + 1, "dragged sheet never taller than 42vh", g2.card.h + " ≤ " + cap);

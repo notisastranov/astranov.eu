@@ -1,17 +1,22 @@
 /**
- * Headed real-input test (4340): real Chrome on the X display (DISPLAY, default :3) at the full 1920x1200 screen,
+ * Headed real-input test (4341): real Chrome on the X display (DISPLAY, default :3) at the full 1920x1200 screen,
  * OS-level xdotool input mapped through a 1280x800 "agent view" (every coordinate is picked at 1/1.5 scale and
  * rounded, like a computer-use agent on a scaled screenshot), screenshots grabbed from the X screen (real pixels).
- *  BOOT: no input. NEWS/CALENDAR callouts sit outside the globe disc and never on each other; MIC is a cyan icon from boot;
- *    LIVE never shows two different counts (only 'loading…' then the final count); the IP answer completes a camera
- *    move to the IP city view (street map, z10-12.5, labelled approximate, seat kind 'ip' = no hunt seat) within 22 s.
+ *  BOOT: no input. MIC is a cyan icon from boot; LIVE never shows two different counts (only 'loading…' then the final
+ *    count); the IP answer completes a camera move to the IP city view (metro scale z10-12.5, labelled approximate, seat
+ *    kind 'ip' = no hunt seat) within 5 s of navigation start.
  *  GPS: mid-session CDP geolocation override + permission grant → the app flies to the fix at street level (z>=15) and
- *    the IP label is gone; then a new override + an xdotool click on the GPS button flies to the new fix.
+ *    the IP label is gone; then a new override + an xdotool click on the GPS button flies to the new fix. No status line
+ *    ever reads 'GPS · GPS'.
  *  KEYS: three consecutive queries typed with xdotool, each with ONE Return keypress: q1 with focus in the talk box,
  *    q2 after a click on the map (focus off the box, keys typed without clicking it), q3 typed and Return in one burst.
- *    Each must submit on that single Return.
- *  GRIP: the hit strip spans the full sheet width and >= 24 px; xdotool drags from the strip, from the exact sheet edge
- *    and from the title bar each resize the sheet and never move the map; the map pans again afterwards.
+ *    Each must submit on that single Return. A guest reads 'Tap one to see the menu', never 'Tap one to order'.
+ *  GRIP: the hit strip spans the full sheet width and >= 24 px; the sheet rests below the 42vh cap; xdotool drags: strip
+ *    UP from rest grows it, a further UP at the cap shows rubber-band resistance and springs back to the cap, the exact
+ *    edge DOWN shrinks it, the title bar UP grows it (no tap). The map centre is sampled before, during every move step
+ *    and after each drag: 0 px shift (< 0.01 px), Leaflet dragging off during, on after; the map pans again afterwards.
+ *  LOAD VIEW: a fresh window with no location answer (IP lookup blocked) stays on the globe; NEWS/CALENDAR callouts sit
+ *    outside the globe's glow ring and never on each other, at a 1280x800 window and at 1920x1200.
  *  MIC: still the same icon after the drags. No console errors (third-party open-meteo 429 is a NOTE).
  * Env: PREVIEW_URL, STAMP, LOCAL_APP, LOCAL_AUTH, SHOTDIR, REAL_CHROME=1, WIN=1920x1200, SCALE=1.5
  */
@@ -21,18 +26,18 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4340";
+const STAMP = process.env.STAMP || "4341";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now();
 const ORIGIN = new URL(BASE).origin;
 const [WW, WH] = (process.env.WIN || "1920x1200").split("x").map(Number);
 const SCALE = Number(process.env.SCALE || 1.5);
-const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4340";
+const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4341";
 fs.mkdirSync(SHOTDIR, { recursive: true });
 if (!process.env.DISPLAY) process.env.DISPLAY = ":3";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const xdo = (a) => execSync("xdotool " + a, { env: process.env });
 const SYNTAGMA = { lat: 37.9755, lng: 23.7348 }, RHODES_OLD = { lat: 36.4446, lng: 28.2276 };
-const GRAB = path.join(os.tmpdir(), "sn_grab4340.py");
+const GRAB = path.join(os.tmpdir(), "sn_grab4341.py");
 fs.writeFileSync(GRAB, `import sys, json
 from PIL import ImageGrab, ImageStat
 out, x, y, w, h = sys.argv[1], *map(int, sys.argv[2:6])
@@ -61,6 +66,13 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
     window.__liveSeq = []; let last = null;
     setInterval(() => { const e = document.getElementById("sn-pulse"); const t = e ? e.textContent : ""; if (t !== last) { last = t; window.__liveSeq.push([Math.round(performance.now()), t]); } }, 50);
     window.addEventListener("mousemove", (e) => { window.__mm = [e.clientX, e.clientY]; }, true);
+    window.__lineSeq = []; let lastL = null; window.__cardsSeen = null;
+    setInterval(() => {
+      const l = document.getElementById("line"); const t = l ? l.textContent : ""; if (t !== lastL) { lastL = t; window.__lineSeq.push([Math.round(performance.now()), t]); }
+      const c = document.getElementById("city");
+      if (window.__cityOnAt == null && c && c.classList.contains("on") && getComputedStyle(c).opacity === "1") window.__cityOnAt = Math.round(performance.now());
+      if (window.__snCards && window.__snCards.length && !window.__cardsSeen) window.__cardsSeen = { at: Math.round(performance.now()), cards: JSON.parse(JSON.stringify(window.__snCards)), disc: window.__snDisc, hud: window.__snHud || null };
+    }, 25);
   });
   const tLoad = Date.now();
   await page.goto(URL0, { waitUntil: "domcontentloaded", timeout: 90000 });
@@ -82,7 +94,7 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
     const r = JSON.parse(execSync(`python3 ${GRAB} ${f} ${Math.round(ox + b.x)} ${Math.round(oy + b.y)} ${Math.round(b.w)} ${Math.round(b.h)}`).toString());
     r.file = f; return r;
   }
-  const state = () => page.evaluate(() => { const m = SN.getMap(); const c = m && m.getCenter(); const city = document.getElementById("city"); const ss = SN.seatState ? SN.seatState() : {};
+  const state = () => page.evaluate(() => { const m = SN.getMap(); let c = null; try { c = m && m._loaded ? m.getCenter() : null; } catch (e) { c = null; } const city = document.getElementById("city"); const ss = SN.seatState ? SN.seatState() : {};
     return { on: city.classList.contains("on") && getComputedStyle(city).opacity === "1", c: c && { lat: c.lat, lng: c.lng }, z: m && m.getZoom(), kind: ss.kind, here: ss.here, perm: ss.perm,
       line: document.getElementById("line").textContent, live: (document.getElementById("sn-pulse") || {}).textContent, val: document.getElementById("in").value,
       raw: window.__snHuntRaw || "", find: (((document.getElementById("sn-sheet-card") || {}).textContent || "").match(/FIND\s*·\s*(\d+|…)/) || [])[1] || null,
@@ -91,25 +103,28 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   const micInfo = () => page.evaluate(() => { const g = document.getElementById("go"); const c = getComputedStyle(g); return { svg: !!g.querySelector("svg"), txt: g.textContent.trim(), color: c.color }; });
 
   // ---- BOOT (no input) ----
-  await sleep(1000);
-  const cards = await page.evaluate(() => ({ cards: window.__snCards || [], disc: window.__snDisc || null, cam: SN.getCam() }));
-  const gBoot = await grab("boot-globe");
-  const outside = (k, d) => { const nx = Math.max(k.x, Math.min(d.cx, k.x + k.w)), ny = Math.max(k.y, Math.min(d.cy, k.y + k.h)); return Math.hypot(nx - d.cx, ny - d.cy) > d.r; };
+  const outside = (k, d) => { const R = d.ring || d.r; const nx = Math.max(k.x, Math.min(d.cx, k.x + k.w)), ny = Math.max(k.y, Math.min(d.cy, k.y + k.h)); return Math.hypot(nx - d.cx, ny - d.cy) > R; };
   const ovl = (a, b) => a && b && a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-  const cOut = cards.cards.filter((k) => cards.disc && outside(k, cards.disc)).length;
-  let cOv = 0; for (let i = 0; i < cards.cards.length; i++) for (let j = i + 1; j < cards.cards.length; j++) if (ovl(cards.cards[i], cards.cards[j])) cOv++;
-  console.log("[boot cards]", JSON.stringify(cards), gBoot.file);
-  check("NEWS/CALENDAR callouts outside the globe disc", cards.cards.length > 0 && cOut === cards.cards.length, cOut + "/" + cards.cards.length + " outside (disc r " + (cards.disc && Math.round(cards.disc.r)) + ")");
-  check("callouts never on each other", cOv === 0, "overlaps " + cOv);
+  function cardCheck(cards, tag) {
+    const cOut = cards.cards.filter((k) => cards.disc && outside(k, cards.disc)).length;
+    let cOv = 0; for (let i = 0; i < cards.cards.length; i++) for (let j = i + 1; j < cards.cards.length; j++) if (ovl(cards.cards[i], cards.cards[j])) cOv++;
+    check("NEWS/CALENDAR callouts outside the globe ring (" + tag + ")", cards.cards.length > 0 && cOut === cards.cards.length, cOut + "/" + cards.cards.length + " outside (disc r " + (cards.disc && Math.round(cards.disc.r)) + ", ring " + (cards.disc && Math.round(cards.disc.ring || 0)) + ")");
+    check("callouts never on each other (" + tag + ")", cOv === 0, "overlaps " + cOv);
+    if (cards.hud) { const hits = []; cards.cards.forEach((k) => cards.hud.forEach((hb) => { if (ovl(k, hb)) hits.push(k.k + "×" + hb.id); }));
+      check("callouts clear of the HUD (wallet, power, buttons) (" + tag + ")", hits.length === 0, hits.length ? JSON.stringify(hits) : cards.hud.length + " HUD boxes clear"); }
+  }
   const mic0 = await micInfo();
   check("MIC is a cyan icon from boot", mic0.svg && mic0.color === "rgb(77, 240, 255)", JSON.stringify(mic0));
   const ipv = await waitFor((s) => s.on && s.kind === "ip", 26000);
-  const ipAt = (Date.now() - tLoad) / 1000;
+  const ipAt = ((await page.evaluate(() => window.__cityOnAt)) || (Date.now() - tLoad)) / 1000;
+  const seen = await page.evaluate(() => window.__cardsSeen);
+  console.log("[boot cards before the zoom]", JSON.stringify(seen));
+  if (seen) cardCheck(seen, "boot, before the zoom"); else console.log("NOTE no callouts were drawn before the IP zoom (checked in LOAD VIEW)");
   await sleep(1200);
   const sIp = await state();
   const gIp = await grab("boot-ip-city");
   console.log("[ip view]", ipAt.toFixed(1) + " s after load", JSON.stringify(sIp).slice(0, 360), gIp.file);
-  check("IP-only boot auto-zooms to the IP city view within 22 s", ipv.ms != null && ipAt <= 22 && sIp.on && sIp.here && km(sIp.c, sIp.here) < 3 && sIp.z >= 10 && sIp.z <= 12.5,
+  check("IP-only boot auto-zooms to the IP city view within 5 s", ipv.ms != null && ipAt <= 5 && sIp.on && sIp.here && km(sIp.c, sIp.here) < 3 && sIp.z >= 10 && sIp.z <= 12.5,
     ipAt.toFixed(1) + " s, z" + sIp.z + ", centre " + (sIp.c && sIp.c.lat.toFixed(3) + "," + sIp.c.lng.toFixed(3)));
   check("IP view is labelled approximate and is camera only (no hunt seat)", /Approximate location \(IP\)/.test(sIp.line) && sIp.kind === "ip", JSON.stringify({ line: sIp.line, kind: sIp.kind }));
   check("IP city view shows street tiles (real pixels)", gIp.std >= 10 && gIp.colors >= 60, JSON.stringify(gIp));
@@ -138,6 +153,9 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   const sB = await state(); const gB = await grab("gps-button");
   console.log("[gps button]", gpb.ms, "ms", JSON.stringify(sB).slice(0, 260), gB.file);
   check("GPS button (xdotool click) flies to the new fix", gpb.ms != null, (gpb.ms == null ? "never" : gpb.ms + " ms") + ", z" + sB.z);
+  const lines = await page.evaluate(() => window.__lineSeq.map((x) => x[1]));
+  const gpsLines = lines.filter((t) => /^GPS · /.test(t));
+  check("status never reads 'GPS · GPS'", gpsLines.length > 0 && !lines.some((t) => /GPS · GPS/.test(t)), JSON.stringify(gpsLines.slice(0, 4)));
 
   // ---- KEYS: three queries, one Return each ----
   const inb = await page.evaluate(() => { const b = document.getElementById("in").getBoundingClientRect(); return { x: b.left + 120, y: b.top + b.height / 2 }; });
@@ -158,6 +176,7 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
     console.log(`[${q}] (${how}) submitted after ${sub.ms} ms; FIND ${done.s.find} after ${done.ms} ms; line ${JSON.stringify(done.s.line.slice(0, 70))}`, g.file);
     check(`'${q}' submits on ONE Return (${how})`, sub.ms != null && before.raw !== expectRaw, "raw " + JSON.stringify(sub.s.raw) + " val " + JSON.stringify(sub.s.val));
     check(`'${q}' lands real pins`, done.s.find && +done.s.find > 0, "FIND " + done.s.find);
+    check(`'${q}' guest copy: 'Tap one to see the menu' (not 'to order')`, /Tap one to see the menu/.test(done.s.line) && !/Tap one to order/.test(done.s.line), JSON.stringify(done.s.line));
     return done.s;
   }
   await query("pizza in Athens Greece", "pizza", "box");
@@ -168,47 +187,70 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   const gr = () => page.evaluate(() => {
     const b = (e) => { if (!e || getComputedStyle(e).display === "none") return null; const r = e.getBoundingClientRect(); return r.height ? { x: r.left, y: r.top, w: r.width, h: r.height } : null; };
     const card = document.getElementById("sn-sheet-card"), bar = card && card.querySelector(".sheet-bar"), m = SN.getMap(), c = m && m.getCenter();
-    return { grip: b(document.getElementById("cli-drag")), card: b(card), bar: b(bar), c: c && { lat: c.lat, lng: c.lng }, mapDrag: window.__snGrip && window.__snGrip.mapDraggable(), pulse: b(document.getElementById("sn-pulse")) };
+    return { grip: b(document.getElementById("cli-drag")), card: b(card), bar: b(bar), c: c && { lat: c.lat, lng: c.lng }, z: m && m.getZoom(), mapDrag: window.__snGrip && window.__snGrip.mapDraggable(), pulse: b(document.getElementById("sn-pulse")),
+      cap: window.__snGrip && window.__snGrip.cap(), edge: window.__snGrip && window.__snGrip.edge && window.__snGrip.edge(), grab: (document.getElementById("cli-drag") || {}).className || "" };
   });
-  const g0 = await gr(); const cap = Math.round(geo.ih * 0.42);
+  const g0 = await gr(); const cap = g0.cap || Math.round(geo.ih * 0.42);
   console.log("[grip]", JSON.stringify(g0));
   check("grip hit strip spans the sheet width, >= 24 px tall, on the top edge", !!(g0.grip && g0.card) && g0.grip.h >= 24 && g0.grip.w >= g0.card.w - 2 && g0.grip.y < g0.card.y && g0.grip.y + g0.grip.h >= g0.card.y, JSON.stringify({ grip: g0.grip, card: g0.card }));
+  check("sheet rests below the 42vh cap (room to grow)", g0.card.h <= cap - 40, "rest " + g0.card.h.toFixed(1) + " px, cap " + cap + " px");
   const hits = await page.evaluate((g) => [0.1, 0.25, 0.5, 0.75, 0.9].map((fx) => { const e = document.elementFromPoint(g.x + g.w * fx, g.y + g.h / 2); return e ? (e.id || e.className || e.tagName) : null; }), g0.grip);
   check("strip is the top element across the sheet width (over the map)", hits.every((h) => h === "cli-drag"), JSON.stringify(hits));
+  // the map's own position: a fixed lat/lng (the centre at drag start) in screen px, plus the zoom
+  const mapPt = (c) => page.evaluate((cc) => { const m = SN.getMap(); const p = m.latLngToContainerPoint([cc.lat, cc.lng]); const r = document.getElementById("city").getBoundingClientRect(); return { x: p.x + r.left, y: p.y + r.top, z: m.getZoom() }; }, c);
   async function adrag(x, y, dy, tag) {
     await grab(tag + "-before");
+    const s0 = await gr(); const p0 = await mapPt(s0.c);
     const [a, b] = A(x, y); xdo(`mousemove ${a} ${b}`); await sleep(80); xdo("mousedown 1"); await sleep(60);
     const mid = await page.evaluate(() => window.__snGrip && window.__snGrip.mapDraggable());
-    for (let i = 1; i <= 12; i++) { const [c, d] = A(x, y + (dy * i) / 12); xdo(`mousemove ${c} ${d}`); await sleep(20); }
+    let maxD = 0, maxH = 0, edges = new Set(), zMoved = false;
+    for (let i = 1; i <= 12; i++) {
+      const [c, d] = A(x, y + (dy * i) / 12); xdo(`mousemove ${c} ${d}`); await sleep(20);
+      const p = await mapPt(s0.c); maxD = Math.max(maxD, Math.hypot(p.x - p0.x, p.y - p0.y)); if (p.z !== p0.z) zMoved = true;
+      const gi = await gr(); maxH = Math.max(maxH, gi.card.h); if (gi.edge) edges.add(gi.edge);
+    }
+    if (tag === "grip-cap") await grab(tag + "-held");
     xdo("mouseup 1"); await sleep(450);
+    const p1 = await mapPt(s0.c); const after = Math.hypot(p1.x - p0.x, p1.y - p0.y); if (p1.z !== p0.z) zMoved = true;
+    await sleep(900); /* late refits / invalidateSize would land here */
+    const p2 = await mapPt(s0.c); const late = Math.hypot(p2.x - p0.x, p2.y - p0.y); if (p2.z !== p0.z) zMoved = true;
     const g = await grab(tag + "-after");
-    return { mid, g };
+    const s1 = await gr();
+    const shift = { during: +maxD.toFixed(3), after: +after.toFixed(3), late: +late.toFixed(3), zoom: zMoved ? "changed" : "same" };
+    console.log(`[${tag}] h ${s0.card.h.toFixed(1)} → ${s1.card.h.toFixed(1)} (max during ${maxH.toFixed(1)}, cap ${cap}) map shift ${JSON.stringify(shift)} drag during ${mid} after ${s1.mapDrag} edges ${JSON.stringify([...edges])}`, g.file);
+    return { mid, g, s0, s1, maxH, edges, shift, still: maxD < 0.01 && after < 0.01 && late < 0.01 && !zMoved };
   }
-  // the map "did not move" = the old centre is still within 2 screen px of the map centre (a drag-pan moves it by the drag distance)
-  const pxShift = (c) => page.evaluate((cc) => { const m = SN.getMap(); const p = m.latLngToContainerPoint([cc.lat, cc.lng]); const z = m.getSize(); return Math.hypot(p.x - z.x / 2, p.y - z.y / 2); }, c);
-  // a) strip, left quarter, 10 px above the edge, drag down
-  let r = await adrag(g0.card.x + g0.card.w * 0.25, g0.card.y - 10, 170, "grip-strip");
-  const g1 = await gr(); const sh1 = await pxShift(g0.c);
-  console.log("[grip strip]", g0.card.h, "→", g1.card.h, "map drag during:", r.mid);
-  check("drag on the strip resizes the sheet (down)", g1.card.h < g0.card.h - 40 && g1.card.h >= 95, g0.card.h + " → " + g1.card.h);
-  check("strip drag never pans the map; map drag off during, back on after", sh1 <= 2 && r.mid === false && g1.mapDrag === true, JSON.stringify({ shiftPx: +sh1.toFixed(2), during: r.mid, after: g1.mapDrag }));
-  // b) the exact sheet edge, right quarter, drag up
-  r = await adrag(g1.card.x + g1.card.w * 0.75, g1.card.y + 1, -300, "grip-edge");
-  const g2 = await gr(); const sh2 = await pxShift(g1.c);
-  console.log("[grip edge]", g1.card.h, "→", g2.card.h, "cap", cap);
-  check("drag on the exact sheet edge resizes the sheet (up), capped at 42vh", g2.card.h > g1.card.h + 40 && g2.card.h <= cap + 1, g1.card.h + " → " + g2.card.h + " (cap " + cap + ")");
-  check("edge drag never pans the map", sh2 <= 2, "shift " + sh2.toFixed(2) + " px");
-  // c) the title bar (between APPLY and the title), drag down
+  // a) strip, left quarter, 10 px above the edge, drag UP from rest: grows
+  let r = await adrag(g0.card.x + g0.card.w * 0.25, g0.card.y - 10, -200, "grip-up");
+  check("strip drag UP from rest grows the sheet", r.s1.card.h > r.s0.card.h + 40 && r.s1.card.h <= cap + 1, r.s0.card.h.toFixed(1) + " → " + r.s1.card.h.toFixed(1) + " (cap " + cap + ")");
+  check("UP drag: map centre 0 px (before / during / after), map drag off during, on after", r.still && r.mid === false && r.s1.mapDrag === true, JSON.stringify(Object.assign({ during: r.mid, after: r.s1.mapDrag }, r.shift)));
+  // b) at the cap, drag UP again: rubber-band resistance, springs back to the cap
+  let gc = await gr();
+  r = await adrag(gc.card.x + gc.card.w * 0.6, gc.card.y - 10, -160, "grip-cap");
+  check("UP drag at the cap shows resistance (amber pill, small overshoot) and springs back to the cap", r.edges.has("max") && r.maxH > cap + 1 && r.maxH <= cap + 19 && Math.abs(r.s1.card.h - cap) <= 1, JSON.stringify({ edges: [...r.edges], maxDuring: +r.maxH.toFixed(1), after: +r.s1.card.h.toFixed(1), cap }));
+  check("cap drag: map centre 0 px", r.still, JSON.stringify(r.shift));
+  // c) the exact sheet edge, right quarter, drag DOWN: shrinks
+  gc = await gr();
+  r = await adrag(gc.card.x + gc.card.w * 0.75, gc.card.y + 1, 250, "grip-down");
+  check("drag DOWN on the exact sheet edge shrinks the sheet", r.s1.card.h < r.s0.card.h - 40 && r.s1.card.h >= 95, r.s0.card.h.toFixed(1) + " → " + r.s1.card.h.toFixed(1));
+  check("DOWN drag: map centre 0 px (before / during / after)", r.still && r.mid === false && r.s1.mapDrag === true, JSON.stringify(r.shift));
+  // d) the title bar (between APPLY and the title), drag UP: grows, no tap fired
   const findBefore = (await state()).find;
-  r = await adrag(g2.card.x + g2.card.w * 0.3, g2.bar ? g2.bar.y + g2.bar.h / 2 : g2.card.y + 14, 140, "grip-bar");
-  const g3 = await gr(); const sAfter = await state(); const sh3 = await pxShift(g2.c);
-  console.log("[grip bar]", g2.card.h, "→", g3.card.h);
-  check("drag on the title bar resizes the sheet", g3.card.h < g2.card.h - 40, g2.card.h + " → " + g3.card.h);
-  check("title-bar drag keeps the sheet (no tap fired) and the map still", sAfter.find === findBefore && sh3 <= 2, JSON.stringify({ find: sAfter.find, shiftPx: +sh3.toFixed(2) }));
+  gc = await gr();
+  r = await adrag(gc.card.x + gc.card.w * 0.3, gc.bar ? gc.bar.y + gc.bar.h / 2 : gc.card.y + 14, -140, "grip-bar");
+  const sAfter = await state();
+  check("drag UP on the title bar grows the sheet", r.s1.card.h > r.s0.card.h + 40, r.s0.card.h.toFixed(1) + " → " + r.s1.card.h.toFixed(1));
+  check("title-bar drag keeps the sheet (no tap fired) and the map centre 0 px", sAfter.find === findBefore && r.still, JSON.stringify(Object.assign({ find: sAfter.find }, r.shift)));
+  const g3 = await gr();
   check("grip clear of LIVE after resizing", !ovl(g3.grip, g3.pulse), JSON.stringify({ grip: g3.grip, pulse: g3.pulse }));
-  // d) the map itself still pans (drag well above the strip)
-  r = await adrag(g3.card.x + g3.card.w * 0.5, g3.card.y - 150, -90, "map-pan");
-  const g4 = await gr(); const sh4 = await pxShift(g3.c);
+  // e) the map itself still pans (drag well above the strip)
+  const pBefore = await mapPt(g3.c);
+  await grab("map-pan-before");
+  { const [a, b] = A(g3.card.x + g3.card.w * 0.5, g3.card.y - 150); xdo(`mousemove ${a} ${b}`); await sleep(80); xdo("mousedown 1"); await sleep(60);
+    for (let i = 1; i <= 12; i++) { const [c, d] = A(g3.card.x + g3.card.w * 0.5, g3.card.y - 150 - (90 * i) / 12); xdo(`mousemove ${c} ${d}`); await sleep(20); }
+    xdo("mouseup 1"); await sleep(450); }
+  await grab("map-pan-after");
+  const pAfter = await mapPt(g3.c); const sh4 = Math.hypot(pAfter.x - pBefore.x, pAfter.y - pBefore.y);
   check("map still pans with a drag outside the strip", sh4 >= 40, "moved " + sh4.toFixed(1) + " px");
   const mic1 = await micInfo();
   const gMic = await grab("mic-after-drag", { x: geo.iw - 200, y: geo.ih - 140, w: 200, h: 140 });
@@ -218,8 +260,44 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   if (ext.length) console.log("NOTE third-party rate limit (header temperature, box IP):", ext.length, "x open-meteo 429");
   const errs = errors.filter((e) => ext.indexOf(e) < 0);
   check("no console errors", errs.length === 0, JSON.stringify(errs.slice(0, 5)));
+  await ctx.close();
+
+  // ---- LOAD VIEW: no location answer (IP lookup blocked) → the globe stays; callouts at 1280x800 and 1920x1200 ----
+  for (const [w, h] of [[1280, 800], [1920, 1200]]) {
+    const c2 = await browser.newContext({ viewport: null, serviceWorkers: process.env.LOCAL_APP ? "block" : "allow" });
+    const p2 = await c2.newPage();
+    if (process.env.LOCAL_APP) { const body = fs.readFileSync(process.env.LOCAL_APP); await p2.route(/\/js\/spacenet\/app\.js/, (rr) => rr.fulfill({ status: 200, contentType: "application/javascript", body })); }
+    if (process.env.LOCAL_AUTH) { const ab = fs.readFileSync(process.env.LOCAL_AUTH); await p2.route(/\/js\/spacenet\/auth\.js/, (rr) => rr.fulfill({ status: 200, contentType: "application/javascript", body: ab })); }
+    await p2.route(/get\.geojs\.io/, (rr) => rr.abort());
+    await p2.addInitScript(() => { window.addEventListener("mousemove", (e) => { window.__mm = [e.clientX, e.clientY]; }, true); });
+    const cd2 = await c2.newCDPSession(p2);
+    const { windowId } = await cd2.send("Browser.getWindowForTarget");
+    await cd2.send("Browser.setWindowBounds", { windowId, bounds: { windowState: "normal" } });
+    await cd2.send("Browser.setWindowBounds", { windowId, bounds: { left: 0, top: 0, width: w, height: h } });
+    await p2.goto(URL0.replace(/t=\d+/, "t=" + Date.now()), { waitUntil: "domcontentloaded", timeout: 90000 });
+    await p2.bringToFront();
+    await sleep(5500);
+    xdo(`mousemove ${Math.round(w / 2)} 150`); await sleep(120); xdo(`mousemove ${Math.round(w / 2) + 1} 151`); await sleep(250);
+    const m2 = await p2.evaluate(() => window.__mm || null);
+    const lv = await p2.evaluate(async () => {
+      const lj = await (await fetch("/api/live", { cache: "no-store" })).json();
+      const fx = (s) => /\bTESTER\b|test\s*vendor|\bV?4297\b|tester\s*client/i.test([s.name, s.title, s.note, s.id, s.owner].join(" "));
+      const seen = {}; let n = 0;
+      (lj.shops || []).forEach((s) => { if (s && s.id && isFinite(+s.lat) && s.status === "live" && !fx(s) && !seen[s.id]) { seen[s.id] = 1; n++; } });
+      return { cards: window.__snCards || [], disc: window.__snDisc || null, hud: window.__snHud || null, cityOn: document.getElementById("city").classList.contains("on"), iw: innerWidth, ih: innerHeight,
+        line: document.getElementById("line").textContent, live: (document.getElementById("sn-pulse") || {}).textContent || "", expect: n }; });
+    let shot = "(no calibration)";
+    if (m2) { const o2x = Math.round(w / 2) + 1 - m2[0], o2y = 151 - m2[1];
+      const f = path.join(SHOTDIR, "load-globe-" + w + ".png");
+      execSync(`python3 ${GRAB} ${f} ${o2x} ${o2y} ${lv.iw} ${lv.ih}`); shot = f; }
+    console.log(`[load view ${w}x${h}] inner ${lv.iw}x${lv.ih} cityOn ${lv.cityOn} line ${JSON.stringify(lv.line)} cards ${JSON.stringify(lv.cards)} disc ${JSON.stringify(lv.disc)}`, shot);
+    check(`load view ${w}x${h} stays on the globe without a location`, !lv.cityOn, JSON.stringify(lv.line));
+    cardCheck(lv, `load ${w}x${h}, inner ${lv.iw}x${lv.ih}`);
+    check(`load view ${w}x${h}: LIVE = the real public network (${lv.expect}), not the listing cache`, lv.expect > 0 && new RegExp("^LIVE · " + lv.expect + " vendors? ·").test(lv.live), lv.live);
+    await c2.close();
+  }
   console.log("SCREENSHOTS", SHOTDIR);
-  console.log(fails.length ? "HEADED 4340 FAIL: " + fails.join("; ") : "HEADED 4340 ALL PASS");
+  console.log(fails.length ? "HEADED 4341 FAIL: " + fails.join("; ") : "HEADED 4341 ALL PASS");
   await browser.close();
   process.exit(fails.length ? 2 : 0);
 })().catch((e) => { console.error("fail", e); process.exit(1); });
