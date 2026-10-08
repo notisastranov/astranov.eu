@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4342";
+  var VER = "4343";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -895,11 +895,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var c = cards[i];
       if (sx >= c.x - 4 && sx <= c.x + c.w + 4 && sy >= c.y - 4 && sy <= c.y + c.h + 4) return { c: c, box: true };
     }
+    var best = null, bd = 9;
     for (var j = 0; j < cards.length; j++) {
       var d = cards[j];
-      if (isFinite(d.px) && Math.hypot(sx - d.px, sy - d.py) <= 8) return { c: d, box: false };
+      var dd = isFinite(d.px) ? Math.hypot(sx - d.px, sy - d.py) : 1e9;
+      if (dd <= 8 && dd < bd) { bd = dd; best = d; }
     }
-    return null;
+    return best ? { c: best, box: false } : null;
   }
   function openBrief(c) {
     if (!c || !isFinite(+c.lat) || !isFinite(+c.lng)) return;
@@ -924,7 +926,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4342 = true;
+      window.__SN_4343 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -1032,7 +1034,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var nowT = Date.now();
         if (window.__snGlobeTap && nowT - window.__snGlobeTap < 340) {
           window.__snGlobeTap = 0;
-          aim = { lat: hitTap.lat, lng: hitTap.lng };
+          /* 4343: a double tap on a drawn dot centres on the dot's own coordinates (at globe scale one px is 10-25 km,
+             so the surface pick under a dot is off by a few tenths of a degree); anywhere else on the exact pick */
+          var dotHit = brief && !brief.box && brief.c && isFinite(+brief.c.lat) && isFinite(+brief.c.lng);
+          aim = dotHit ? { lat: +brief.c.lat, lng: +brief.c.lng } : { lat: hitTap.lat, lng: hitTap.lng };
+          window.__snLastDbl = { sx: pUp.x, sy: pUp.y, lat: aim.lat, lng: aim.lng, dot: dotHit ? brief.c.k : "", pick: { lat: hitTap.lat, lng: hitTap.lng }, at: Date.now() };
           try { closeSky(); } catch (e) {}
           /* 4342: a double tap on Rhodes from the globe lands on the island (z10), not on one random street */
           var dz = cam.dist > 1.0 ? 10 : (cam.dist > 0.6 ? 13 : 16);
@@ -2049,7 +2055,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4342&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4343&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -5798,14 +5804,47 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       wx.__snWx = true;
       wx.textContent = isNight() ? "NIGHT" : "DAY";
     }
-    if (wx && here && !wx.__snMet) {
-      wx.__snMet = true;
-      fetch("https://api.open-meteo.com/v1/forecast?latitude=" + here.lat + "&longitude=" + here.lng + "&current=temperature_2m")
-        .then(function (r) { return r.json(); })
-        .then(function (j) {
-          if (j && j.current && isFinite(j.current.temperature_2m)) wx.textContent = Math.round(j.current.temperature_2m) + "°";
-        }).catch(function () {});
+    if (wx && here && isFinite(+here.lat) && isFinite(+here.lng)) wxFor(wx, here);
+  }
+  /* 4343: header temperature at most once per place per session. Place = lat/lng rounded to 0.5°; the answer (or the
+     attempt) is kept in memory and sessionStorage for 30 min, so IP / GPS updates and reloads never refetch it; a 429
+     backs off (5, 10, 20 … 60 min) for the whole session; any failure is silent (the label stays DAY / NIGHT) */
+  var WX_TTL = 30 * 60 * 1000, wxMem = {}, wxKeyNow = "", wxBusy = {};
+  function wxRound(v) { return Math.round(+v * 2) / 2; }
+  function wxKey(p) { return wxRound(p.lat).toFixed(1) + "," + wxRound(p.lng).toFixed(1); }
+  function wxStore() { try { return JSON.parse(sessionStorage.getItem("sn:wx") || "{}") || {}; } catch (e) { return {}; } }
+  function wxSave(s) { try { sessionStorage.setItem("sn:wx", JSON.stringify(s)); } catch (e) {} }
+  function wxPut(k, v) { var s = wxStore(); s.c = s.c || {}; s.c[k] = { t: Date.now(), v: v }; wxMem[k] = s.c[k]; wxSave(s); }
+  function wxFor(el, p) {
+    var k = wxKey(p);
+    if (k === wxKeyNow) return;
+    wxKeyNow = k;
+    var now = Date.now(), s = wxStore(), hit = wxMem[k] || (s.c && s.c[k]);
+    if (hit && now - hit.t < WX_TTL) {
+      wxMem[k] = hit;
+      el.textContent = (hit.v != null && isFinite(hit.v)) ? Math.round(hit.v) + "°" : (isNight() ? "NIGHT" : "DAY");
+      return;
     }
+    el.textContent = isNight() ? "NIGHT" : "DAY";
+    if ((s.back && now < s.back) || wxBusy[k]) return;
+    wxBusy[k] = 1;
+    wxPut(k, null);
+    var parts = k.split(",");
+    fetch("https://api.open-meteo.com/v1/forecast?latitude=" + parts[0] + "&longitude=" + parts[1] + "&current=temperature_2m")
+      .then(function (r) {
+        if (r.status === 429) {
+          var s2 = wxStore(); s2.n = (s2.n || 0) + 1; s2.back = Date.now() + Math.min(60, 5 * Math.pow(2, s2.n - 1)) * 60000; wxSave(s2);
+          return null;
+        }
+        return r.ok ? r.json() : null;
+      })
+      .then(function (j) {
+        if (!j || !j.current || !isFinite(j.current.temperature_2m)) return;
+        wxPut(k, +j.current.temperature_2m);
+        if (wxKeyNow === k) el.textContent = Math.round(j.current.temperature_2m) + "°";
+      })
+      .catch(function () {})
+      .then(function () { wxBusy[k] = 0; });
   }
   function layoutChrome() {
     var dock = $("dock");
@@ -7392,7 +7431,19 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       try { if (sh.classList.contains("on")) { var cr = card.getBoundingClientRect(); if (cr.height > 20) bot = cr.bottom; } } catch (eB) {}
       return Math.max(160, bot - top);
     }
-    function cap() { return Math.round(area() * 0.42); }
+    /* 4343: the cap is measured on the OUTER box: grip strip + card + the strip under the card (status line, input),
+       down to the bottom of the map (#city, the full-bleed map element); that box is at most 42 % of the map height */
+    function mapH() {
+      var h = window.innerHeight;
+      try { var ce = $("city"), rc = ce && ce.getBoundingClientRect(); if (rc && rc.height > 100) h = Math.min(window.innerHeight, rc.bottom) - Math.max(0, rc.top); } catch (eM) {}
+      return Math.max(200, h);
+    }
+    function below() {
+      var b = window.innerHeight - 78;
+      try { if (sh.classList.contains("on")) { var cr2 = card.getBoundingClientRect(); if (cr2.height > 20) b = cr2.bottom; } } catch (eB2) {}
+      return Math.max(0, window.innerHeight - b);
+    }
+    function cap() { return Math.max(96, Math.floor(mapH() * 0.42) - below() - ABOVE); }
     function minH() { return Math.min(rest(), baseH || rest()); }
     function geom() {
       var de = document.documentElement;
@@ -7414,7 +7465,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       g.style.setProperty("left", Math.round(r.left) + "px", "important");
       g.style.setProperty("width", Math.round(r.width) + "px", "important");
     }
-    function rest() { return Math.round(area() * 0.30); }
+    function rest() { return Math.min(Math.round(area() * 0.28), cap()); } /* 4343: 28 % of ribbon → dock, never above the cap */
     function setH(h, over) {
       h = over ? Math.max(40, Math.round(h)) : Math.max(minH(), Math.min(cap(), Math.round(h)));
       card.style.setProperty("box-sizing", "border-box", "important");
@@ -7524,7 +7575,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     try { new MutationObserver(sync).observe(card, { childList: true }); } catch (e) {}
     try { if (window.ResizeObserver) new ResizeObserver(place).observe(card); } catch (e) {}
     window.addEventListener("resize", function () { geom(); if (userH) userH = setH(userH); place(); });
-    window.__snGrip = { cap: cap, min: minH, rest: rest, area: area, strip: STRIP, edge: function () { return gripEdge; }, dragging: function () { return !!drag; }, height: function () { return card.getBoundingClientRect().height; },
+    window.__snGrip = { cap: cap, min: minH, rest: rest, area: area, mapH: mapH, below: below, above: ABOVE, strip: STRIP, edge: function () { return gripEdge; }, dragging: function () { return !!drag; }, height: function () { return card.getBoundingClientRect().height; },
       mapDraggable: function () { try { return !!(map && map.dragging && map.dragging.enabled()); } catch (e) { return null; } } };
     sync();
   }
@@ -7608,7 +7659,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4342 = true;
+    window.__SN_4343 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

@@ -1,5 +1,5 @@
 /**
- * Headed real-input test (4342): real Chrome on the X display (DISPLAY, default :3); run it at WIN=1920x1200 SCALE=1.5
+ * Headed real-input test (4343): real Chrome on the X display (DISPLAY, default :3); run it at WIN=1920x1200 SCALE=1.5
  * (OS-level xdotool input picked in a 1280x800 "agent view" and rounded back, like a computer-use agent on a scaled
  * screenshot) and at WIN=1280x800 SCALE=1. Screenshots are grabbed from the X screen (real pixels).
  *  BOOT: no input. MIC is a cyan icon; LIVE shows 'loading…' then one count, 'N vendors on SpaceNet'; the IP answer lands
@@ -9,7 +9,8 @@
  *    vendors' while the network has some.
  *  KEYS: three queries, ONE Return each (box / after a map click / burst). Guest copy 'Tap one to see the menu'. The
  *    bare 'pharmacy' at Athens keeps the real count (>= 10; 4341 showed 6 of Nominatim's 16 rows).
- *  GRIP: strip spans the sheet; rest = 30 % and cap = 42 % of the page area (top ribbon bottom → dock); xdotool drags:
+ *  GRIP: strip spans the sheet; rest = 28 % of the page area (top ribbon bottom → dock); at the cap the OUTER box (grip
+ *    strip top → bottom of the dock strip: status line + input) is <= 42 % of the map height (#city); xdotool drags:
  *    UP from rest grows; UP at the cap stretches >= 20 px with an amber card edge (screenshot while held) and springs
  *    back to the cap; DOWN to between rest and cap stays there; DOWN past rest stretches amber and springs back to rest
  *    (never parks below); the title bar UP grows (no tap). Map centre 0 px (< 0.01) during / after every drag.
@@ -20,9 +21,12 @@
  *    same bar order.
  *  GLOBE: Global view (xdotool) stays on the globe (no sky view, no jump) for 3 s; a NEWS callout tap opens the item
  *    (card with the text, map on Rhodes at z10); wheel notches at Rhodes open the map on the island; a double click on
- *    Rhodes lands on the island (z10); GPS recalibrate from the globe and from the map never opens the sky view.
+ *    the Rhodes dot centres the z10 view on the dot, and on Crete (no dot) on the clicked point, both within 0.15 deg;
+ *    GPS recalibrate from the globe and from the map never opens the sky view.
  *  LOAD VIEW: no location answer → the globe stays; callouts outside the glow ring, apart, clear of the HUD, at 1280x800
  *    and 1920x1200; LIVE = the real network count.
+ *  WEATHER (4343): open-meteo at most once per 0.5 deg place per session (rounded coordinates), nothing after a 429, a
+ *    reload in the same tab fetches nothing new, the label is a temperature or DAY / NIGHT; /VERSION is text/plain inline.
  * Env: PREVIEW_URL, STAMP, LOCAL_APP, LOCAL_AUTH, SHOTDIR, REAL_CHROME=1, WIN=1920x1200, SCALE=1.5
  */
 const { chromium } = require("playwright");
@@ -31,18 +35,18 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4342";
+const STAMP = process.env.STAMP || "4343";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now();
 const ORIGIN = new URL(BASE).origin;
 const [WW, WH] = (process.env.WIN || "1920x1200").split("x").map(Number);
 const SCALE = Number(process.env.SCALE || 1.5);
-const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4342";
+const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4343";
 fs.mkdirSync(SHOTDIR, { recursive: true });
 if (!process.env.DISPLAY) process.env.DISPLAY = ":3";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const xdo = (a) => execSync("xdotool " + a, { env: process.env });
 const SYNTAGMA = { lat: 37.9755, lng: 23.7348 }, RHODES_OLD = { lat: 36.4446, lng: 28.2276 };
-const GRAB = path.join(os.tmpdir(), "sn_grab4342.py");
+const GRAB = path.join(os.tmpdir(), "sn_grab4343.py");
 fs.writeFileSync(GRAB, `import sys, json
 from PIL import ImageGrab, ImageStat
 out, x, y, w, h = sys.argv[1], *map(int, sys.argv[2:6])
@@ -68,6 +72,9 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   page.on("pageerror", (e) => errors.push(String(e)));
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text() + " @ " + ((m.location() || {}).url || "")); });
   page.on("response", (r) => { if (r.status() === 429) console.log("[429]", r.url().slice(0, 160)); });
+  const meteo = [];
+  page.on("request", (q) => { if (/api\.open-meteo\.com/.test(q.url())) { const u = new URL(q.url()); meteo.push({ t: Date.now(), lat: u.searchParams.get("latitude"), lng: u.searchParams.get("longitude"), st: null }); } });
+  page.on("response", (r) => { if (/api\.open-meteo\.com/.test(r.url())) { const m = meteo.filter((x) => x.st == null).pop(); if (m) { m.st = r.status(); m.tr = Date.now(); } } });
   await page.addInitScript(() => {
     window.__liveSeq = []; let last = null;
     setInterval(() => { const e = document.getElementById("sn-pulse"); const t = e ? e.textContent : ""; if (t !== last) { last = t; window.__liveSeq.push([Math.round(performance.now()), t]); } }, 50);
@@ -196,21 +203,23 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   console.log("[pharmacy] FIND", sPh.find, "nominatim", JSON.stringify(nomN));
   check("pharmacy keeps the real count (unnamed real pharmacies are kept, >= 10)", +sPh.find >= 10 && (!nomN || +sPh.find >= Math.min(nomN.places, 16) - 2), "FIND " + sPh.find + " · nominatim " + JSON.stringify(nomN));
 
-  // ---- GRIP at agent scale (4342: 30 % / 42 % of the page area, visible stretch, spring back, no park below rest) ----
+  // ---- GRIP at agent scale (4343: rest 28 % of the page area; the outer box at the cap <= 42 % of the map; stretch, spring) ----
   const gr = () => page.evaluate(() => {
     const b = (e) => { if (!e || getComputedStyle(e).display === "none") return null; const r = e.getBoundingClientRect(); return r.height ? { x: r.left, y: r.top, w: r.width, h: r.height } : null; };
     const card = document.getElementById("sn-sheet-card"), bar = card && card.querySelector(".sheet-bar"), m = SN.getMap(), c = m && m.getCenter(), G = window.__snGrip;
     const isl = document.getElementById("island").getBoundingClientRect();
     return { grip: b(document.getElementById("cli-drag")), card: b(card), bar: b(bar), c: c && { lat: c.lat, lng: c.lng }, z: m && m.getZoom(), mapDrag: G && G.mapDraggable(), pulse: b(document.getElementById("sn-pulse")),
-      cap: G && G.cap(), rest: G && G.rest(), area: G && G.area(), ribbon: Math.round(isl.bottom), ih: innerHeight, edge: G && G.edge && G.edge(), amber: card ? getComputedStyle(card).borderTopColor : "",
+      cap: G && G.cap(), rest: G && G.rest(), area: G && G.area(), ribbon: Math.round(isl.bottom), ih: innerHeight,
+      mapH: (() => { const r = document.getElementById("city").getBoundingClientRect(); return r.height > 100 ? Math.min(innerHeight, r.bottom) - Math.max(0, r.top) : innerHeight; })(),
+      stripB: Math.min(innerHeight, Math.max(...["dock", "line", "sn-pulse", "sn-sheet-card"].map((id) => { const e = document.getElementById(id); const r = e && e.getBoundingClientRect(); return r && r.height ? r.bottom : 0; }))), edge: G && G.edge && G.edge(), amber: card ? getComputedStyle(card).borderTopColor : "",
       grab: (document.getElementById("cli-drag") || {}).className || "" };
   });
   const g0 = await gr(); const cap = g0.cap, rest = g0.rest;
   console.log("[grip]", JSON.stringify(g0));
   check("grip hit strip spans the sheet width, >= 24 px tall, on the top edge", !!(g0.grip && g0.card) && g0.grip.h >= 24 && g0.grip.w >= g0.card.w - 2 && g0.grip.y < g0.card.y && g0.grip.y + g0.grip.h >= g0.card.y, JSON.stringify({ grip: g0.grip, card: g0.card }));
   const pageArea = g0.card.y + g0.card.h - g0.ribbon;
-  check("sheet rests at 30 % of the page area (top ribbon → dock), cap is 42 %", Math.abs(g0.card.h / pageArea - 0.30) <= 0.012 && Math.abs(cap / pageArea - 0.42) <= 0.012,
-    "rest " + g0.card.h.toFixed(1) + " / " + pageArea.toFixed(0) + " = " + (g0.card.h / pageArea * 100).toFixed(1) + " %, cap " + cap + " = " + (cap / pageArea * 100).toFixed(1) + " % (ribbon bottom " + g0.ribbon + ", dock " + (g0.card.y + g0.card.h).toFixed(0) + ", innerHeight " + g0.ih + ")");
+  check("sheet rests at 28-30 % of the page area (top ribbon → dock)", g0.card.h / pageArea >= 0.275 && g0.card.h / pageArea <= 0.305 && cap > rest + 20,
+    "rest " + g0.card.h.toFixed(1) + " / " + pageArea.toFixed(0) + " = " + (g0.card.h / pageArea * 100).toFixed(1) + " % (ribbon bottom " + g0.ribbon + ", dock " + (g0.card.y + g0.card.h).toFixed(0) + ", innerHeight " + g0.ih + "), card cap " + cap);
   const hits = await page.evaluate((g) => [0.1, 0.25, 0.5, 0.75, 0.9].map((fx) => { const e = document.elementFromPoint(g.x + g.w * fx, g.y + g.h / 2); return e ? (e.id || e.className || e.tagName) : null; }), g0.grip);
   check("strip is the top element across the sheet width (over the map)", hits.every((h) => h === "cli-drag"), JSON.stringify(hits));
   const mapPt = (c) => page.evaluate((cc) => { const m = SN.getMap(); const p = m.latLngToContainerPoint([cc.lat, cc.lng]); const r = document.getElementById("city").getBoundingClientRect(); return { x: p.x + r.left, y: p.y + r.top, z: m.getZoom() }; }, c);
@@ -241,7 +250,7 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   }
   // a) strip, left quarter, 10 px above the edge, drag UP from rest: grows
   let r = await adrag(g0.card.x + g0.card.w * 0.25, g0.card.y - 10, -(cap - rest + 10), "grip-up");
-  check("strip drag UP from rest grows the sheet (to the cap at most)", r.s1.card.h > r.s0.card.h + 30 && r.s1.card.h <= cap + 1, r.s0.card.h.toFixed(1) + " → " + r.s1.card.h.toFixed(1) + " (cap " + cap + ")");
+  check("strip drag UP from rest grows the sheet (to the cap at most)", r.s1.card.h > r.s0.card.h + Math.min(30, (cap - rest) * 0.6) && r.s1.card.h <= cap + 1, r.s0.card.h.toFixed(1) + " → " + r.s1.card.h.toFixed(1) + " (cap " + cap + ")");
   check("UP drag: map centre 0 px (before / during / after), map drag off during, on after", r.still && r.mid === false && r.s1.mapDrag === true, JSON.stringify(Object.assign({ during: r.mid, after: r.s1.mapDrag }, r.shift)));
   // b) at the cap, drag UP again: a visible amber stretch, then it springs back to the cap
   let gc = await gr();
@@ -249,11 +258,14 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   check("UP at the cap stretches visibly (>= 20 px, amber edge, MAX pill) and springs back to the cap", r.edges.has("max") && r.amberSeen && r.maxH >= cap + 20 && r.maxH <= cap + 49 && Math.abs(r.s1.card.h - cap) <= 1,
     JSON.stringify({ edges: [...r.edges], amber: r.amberSeen, maxDuring: +r.maxH.toFixed(1), at110ms: +r.gSpring.card.h.toFixed(1), after: +r.s1.card.h.toFixed(1), cap }));
   check("cap drag: map centre 0 px", r.still, JSON.stringify(r.shift));
+  { const o = r.s1, top = Math.min(o.grip ? o.grip.y : 1e9, o.card.y), outer = o.stripB - top;
+    check("at the cap the OUTER box (grip strip + card + bottom strip / LIVE / dock) is <= 42 % of the map", outer / o.mapH <= 0.422 && outer / o.mapH >= 0.38,
+      "outer " + outer.toFixed(0) + " px (grip top " + top.toFixed(0) + " → strip bottom " + o.stripB.toFixed(0) + ") / map " + o.mapH.toFixed(0) + " = " + (outer / o.mapH * 100).toFixed(1) + " %; card " + o.card.h.toFixed(0) + " = " + (o.card.h / pageArea * 100).toFixed(1) + " % of ribbon→dock"); }
   // c) the exact edge, DOWN to between rest and cap: it stays where it is let go
   gc = await gr();
   const half = Math.round((cap - rest) / 2);
   r = await adrag(gc.card.x + gc.card.w * 0.75, gc.card.y + 1, half, "grip-down");
-  check("drag DOWN to between rest and the cap stays where it is let go", r.s1.card.h < r.s0.card.h - 15 && r.s1.card.h > rest + 5 && Math.abs(r.s1.card.h - (r.s0.card.h - half)) <= 6, r.s0.card.h.toFixed(1) + " → " + r.s1.card.h.toFixed(1) + " (rest " + rest + ", cap " + cap + ")");
+  check("drag DOWN to between rest and the cap stays where it is let go", r.s1.card.h < r.s0.card.h - Math.min(15, half * 0.6) && r.s1.card.h > rest + 3 && Math.abs(r.s1.card.h - (r.s0.card.h - half)) <= 6, r.s0.card.h.toFixed(1) + " → " + r.s1.card.h.toFixed(1) + " (rest " + rest + ", cap " + cap + ")");
   check("DOWN drag: map centre 0 px (before / during / after)", r.still && r.mid === false && r.s1.mapDrag === true, JSON.stringify(r.shift));
   // d) DOWN past rest: amber stretch, springs back to rest, never parks below it
   gc = await gr();
@@ -266,7 +278,7 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   gc = await gr();
   r = await adrag(gc.card.x + gc.card.w * 0.3, gc.bar ? gc.bar.y + gc.bar.h / 2 : gc.card.y + 14, -(cap - rest - 10), "grip-bar");
   const sAfter = await state();
-  check("drag UP on the title bar grows the sheet", r.s1.card.h > r.s0.card.h + 30, r.s0.card.h.toFixed(1) + " → " + r.s1.card.h.toFixed(1));
+  check("drag UP on the title bar grows the sheet", r.s1.card.h > r.s0.card.h + Math.min(30, (cap - rest - 10) * 0.6), r.s0.card.h.toFixed(1) + " → " + r.s1.card.h.toFixed(1));
   check("title-bar drag keeps the sheet (no tap fired) and the map centre 0 px", sAfter.find === findBefore && r.still, JSON.stringify(Object.assign({ find: sAfter.find }, r.shift)));
   const g3 = await gr();
   check("grip clear of LIVE after resizing", !ovl(g3.grip, g3.pulse), JSON.stringify({ grip: g3.grip, pulse: g3.pulse }));
@@ -351,7 +363,6 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
     return { dist: +c.dist.toFixed(3), cityOn: c.cityOn && document.getElementById("city").classList.contains("on"), z: m && m.getZoom(), c: mc && { lat: mc.lat, lng: mc.lng }, sky: !!(sky && !sky.hidden), line: document.getElementById("line").textContent, brief: window.__snBrief || null,
       sheet: sh && sh.classList.contains("on") ? ((document.querySelector("#sn-sheet .sheet-mid") || {}).textContent || "") + " | " + ((document.getElementById("sn-sheet-body") || {}).textContent || "").slice(0, 120) : "" }; });
   async function watchSky(ms) { const t = Date.now(); let sky = false, s = null; while (Date.now() - t < ms) { s = await cs(); if (s.sky) sky = true; await sleep(150); } return { sky, s }; }
-  const RH_CLICK = { lat: 36.25, lng: 28.0 };
   const onRhodes = (c) => !!c && c.lat > 35.85 && c.lat < 36.47 && c.lng > 27.68 && c.lng < 28.26; /* Rhodes island box */
   const gbtn = await page.evaluate(() => { const b = document.getElementById("sn-globe").getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
   const globeBtn = async () => { xdo(`mousemove ${A(gbtn.x, gbtn.y).join(" ")}`); await sleep(70); xdo("click 1"); };
@@ -378,12 +389,31 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   await sleep(1200); gg = await grab("globe-wheel-rhodes");
   console.log("[wheel at Rhodes] first map frame", JSON.stringify(firstCity).slice(0, 260), gg.file);
   check("wheel notches at Rhodes open the map on the island (centre on Rhodes, z <= 11, says island view)", !!firstCity && firstCity.z <= 11 && onRhodes(firstCity.c) && /^Island \/ region view/.test(firstCity.line) && !firstCity.sky, JSON.stringify(firstCity && { z: firstCity.z, c: firstCity.c, line: firstCity.line }));
-  await globeBtn(); await sleep(1200); await faceRhodes();
-  rp = await page.evaluate(() => SN.projectFrame(36.25, 28.0));
-  xdo(`mousemove ${A(rp.x, rp.y).join(" ")}`); await sleep(100); xdo("click --repeat 2 --delay 90 1");
-  await sleep(2200); const sD = await cs(); gg = await grab("globe-dblclick-rhodes");
-  console.log("[double click Rhodes]", JSON.stringify(sD).slice(0, 260), gg.file);
-  check("double click on Rhodes lands on the island (z10, centred within 12 km of the click)", sD.cityOn && sD.z === 10 && sD.c && km(sD.c, RH_CLICK) < 12 && onRhodes(sD.c) && /^Island \/ region view/.test(sD.line) && !sD.sky, JSON.stringify({ z: sD.z, c: sD.c, line: sD.line }));
+  // 4343: a double click centres the z10 view on the clicked place: on the dot's own coordinates when a dot is hit, else on
+  // the globe point under the pixel the OS click really landed on (after the agent-scale rounding); within 0.15 degrees
+  const dbl = async (tag, look, aimAt) => {
+    await globeBtn(); await sleep(1200);
+    await page.evaluate((l) => SN.lookAt(l, 1.85), look); await sleep(1200); /* setup: turn the globe (not a user action) */
+    const cardsD = await page.evaluate(() => (window.__snCards || []).map((k) => ({ k: k.k, px: k.px, py: k.py, lat: k.lat, lng: k.lng })));
+    let pt = null;
+    if (aimAt.dot) { const k = cardsD.find((c) => c.k === aimAt.dot); pt = k && { x: k.px, y: k.py }; } else pt = await page.evaluate((a) => SN.projectFrame(a.lat, a.lng), aimAt);
+    if (!pt) return { s: null, target: null, d: null, why: "no " + (aimAt.dot || "point") + " on screen" };
+    const [sx, sy] = A(pt.x, pt.y); const px = sx - ox, py = sy - oy; /* the page pixel the OS click lands on */
+    let near = null, nd = 9; cardsD.forEach((k) => { const dd = Math.hypot(k.px - px, k.py - py); if (dd <= 8 && dd < nd) { nd = dd; near = k; } });
+    const pick = await page.evaluate((p) => SN.globeHitTest(p[0], p[1]), [px, py]);
+    const target = near ? { lat: +near.lat, lng: +near.lng, by: near.k + " dot (" + nd.toFixed(1) + " px off)" } : (pick && { lat: +pick.lat, lng: +pick.lng, by: "globe point under the clicked pixel" });
+    xdo(`mousemove ${sx} ${sy}`); await sleep(100); xdo("click --repeat 2 --delay 90 1");
+    await sleep(2200); const s = await cs(); const g = await grab(tag);
+    const d = target && s.c ? { dLat: +Math.abs(s.c.lat - target.lat).toFixed(3), dLng: +Math.abs(s.c.lng - target.lng).toFixed(3) } : null;
+    console.log("[" + tag + "]", JSON.stringify({ z: s.z, c: s.c && { lat: +s.c.lat.toFixed(4), lng: +s.c.lng.toFixed(4) }, target, d, line: s.line, last: await page.evaluate(() => window.__snLastDbl || null) }), g.file);
+    return { s, target, d };
+  };
+  let D1 = await dbl("globe-dblclick-rhodes", { lat: 36.25, lng: 28.0 }, { dot: "CALENDAR" });
+  check("double click on the Rhodes dot: z10 island view centred on the dot (within 0.15 deg)", !!(D1.s && D1.d && D1.target) && /dot/.test(D1.target.by) && D1.s.cityOn && D1.s.z === 10 && D1.d.dLat <= 0.15 && D1.d.dLng <= 0.15 && onRhodes(D1.s.c) && /^Island \/ region view/.test(D1.s.line) && !D1.s.sky,
+    JSON.stringify({ z: D1.s && D1.s.z, target: D1.target, d: D1.d, why: D1.why }));
+  let D2 = await dbl("globe-dblclick-crete", { lat: 35.3, lng: 25.0 }, { lat: 35.25, lng: 24.9 });
+  check("double click off the dots (Crete): z10 view centred on the clicked point (within 0.15 deg)", !!(D2.s && D2.d && D2.target) && !/dot/.test(D2.target.by) && D2.s.cityOn && D2.s.z === 10 && D2.d.dLat <= 0.15 && D2.d.dLng <= 0.15 && /^Island \/ region view/.test(D2.s.line) && !D2.s.sky,
+    JSON.stringify({ z: D2.s && D2.s.z, target: D2.target, d: D2.d, why: D2.why }));
   await cdp.send("Emulation.setGeolocationOverride", { latitude: RHODES_OLD.lat, longitude: RHODES_OLD.lng, accuracy: 15 });
   await globeBtn(); await sleep(1500);
   const gpsBtn = await page.evaluate(() => { const b = document.getElementById("gps").getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
@@ -395,6 +425,25 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   check("GPS recalibrate again from the map: no sky view", !w.sky && w.s.cityOn, JSON.stringify({ sky: w.sky, z: w.s.z }));
   await globeBtn(); w = await watchSky(3000); gg = await grab("globe-global-after-gps");
   check("Global view after GPS: globe, no sky view, no jump back", !w.sky && !w.s.cityOn, JSON.stringify({ sky: w.sky, cityOn: w.s.cityOn, dist: w.s.dist }));
+  // ---- WEATHER: once per 0.5 deg place per session, nothing after a 429, nothing new after a reload in the same tab ----
+  {
+    const keys = meteo.map((m) => m.lat + "," + m.lng);
+    const rounded = meteo.every((m) => Math.abs(m.lat * 2 - Math.round(m.lat * 2)) < 1e-9 && Math.abs(m.lng * 2 - Math.round(m.lng * 2)) < 1e-9);
+    const first429 = meteo.find((m) => m.st === 429);
+    const after429 = first429 ? meteo.filter((m) => m.t > first429.tr).length : 0;
+    console.log("[weather]", JSON.stringify(meteo.map((m) => ({ k: m.lat + "," + m.lng, st: m.st }))));
+    check("weather: rounded 0.5 deg coordinates, each place fetched at most once", rounded && new Set(keys).size === keys.length, JSON.stringify(keys));
+    check("weather: no request after a 429 (backs off for the session)", after429 === 0, first429 ? "429 at " + first429.lat + "," + first429.lng + ", " + after429 + " later" : "no 429");
+    const n0 = meteo.length;
+    await page.reload({ waitUntil: "domcontentloaded" }); await sleep(9000);
+    const wxT = await page.evaluate(() => (document.getElementById("sn-wx") || {}).textContent || "");
+    check("weather: a reload in the same tab fetches nothing new (sessionStorage cache / back-off)", meteo.length === n0, (meteo.length - n0) + " new; label " + JSON.stringify(wxT));
+    check("weather: the label is a temperature or DAY / NIGHT (silent failure)", /^(-?\d+°|DAY|NIGHT)$/.test(wxT), JSON.stringify(wxT));
+    const vh = await new Promise((res) => { require("https").request(ORIGIN + "/VERSION", { method: "GET" }, (rs) => { let b = ""; rs.on("data", (d) => (b += d)); rs.on("end", () => res({ st: rs.statusCode, ct: rs.headers["content-type"] || "", cd: rs.headers["content-disposition"] || "", body: b.trim() })); }).on("error", (e) => res({ err: String(e) })).end(); });
+    const vOk = vh.st === 200 && /^text\/plain/.test(vh.ct) && /utf-8/i.test(vh.ct) && (!vh.cd || /^inline/.test(vh.cd)) && /^\d{4}$/.test(vh.body);
+    if (process.env.LOCAL_APP) console.log("NOTE /VERSION headers come from the deployment (LOCAL_APP run):", JSON.stringify(vh));
+    else check("/VERSION is served as text/plain; charset=utf-8, inline", vOk, JSON.stringify(vh));
+  }
   check("no write to /api/space in the whole guest run", posts.length === 0, JSON.stringify(posts));
 
   const ext = errors.filter((e) => /status of 429/.test(e) && /open-meteo/.test(e));
@@ -438,7 +487,7 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
     await c2.close();
   }
   console.log("SCREENSHOTS", SHOTDIR);
-  console.log(fails.length ? "HEADED 4342 FAIL: " + fails.join("; ") : "HEADED 4342 ALL PASS");
+  console.log(fails.length ? "HEADED 4343 FAIL: " + fails.join("; ") : "HEADED 4343 ALL PASS");
   await browser.close();
   process.exit(fails.length ? 2 : 0);
 })().catch((e) => { console.error("fail", e); process.exit(1); });

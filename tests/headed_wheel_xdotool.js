@@ -21,6 +21,8 @@
  * 4340: the grip is a full-width 28 px strip on the sheet's top edge (see headed_boot_gps_keys.js for the agent-scale drags).
  * 4341: the IP-only boot lands on the IP city view within ~2 s, so the globe drags start after an xdotool click on the
  *   globe button (Global view); the sheet rests below the 42vh cap.
+ * 4343: rest is 28 % of the page area and the cap keeps the outer box (grip + card + bottom strip) <= 42 % of the map,
+ *   so the room-to-grow check is cap - 20 px.
  * 4342: LIVE reads 'N vendors on SpaceNet' unseated; rest / cap are 30 % / 42 % of the page area (ribbon to dock); a drag
  *   down from rest springs back to rest.
  * Env: PREVIEW_URL, LOCAL_AUTH, STAMP, LOCAL_APP, WIN=1280x800, HOLD, GAP, SPIN, DEBUGQ=1, SHOTDIR, REAL_CHROME=1, HUNTS=1, LAND_MAX=8
@@ -31,7 +33,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4342";
+const STAMP = process.env.STAMP || "4343";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now() + (process.env.DEBUGQ ? "&debug=wheel" : "");
 const RHODES = { lat: 36.4349, lng: 28.2176 }, ATHENS = { lat: 37.9838, lng: 23.7275 };
 const [WW, WH] = (process.env.WIN || "1280x800").split("x").map(Number);
@@ -383,7 +385,7 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
         await drag(g1.grip.x + g1.grip.w / 2, g1.grip.y + g1.grip.h / 2, 0, -420); await sleep(400);
         const g2 = await gr(); await grab("grip-up", { x: 0, y: 0, w: geo.iw, h: geo.ih });
         console.log("[grip] card h", g0.card.h, "→ down", g1.card.h, "→ up", g2.card.h, "cap", cap);
-        check("sheet rests below the 42 % cap (room to grow)", g0.card.h <= cap - 40, g0.card.h + " vs cap " + cap);
+        check("sheet rests below the 42 % cap (room to grow)", g0.card.h <= cap - 20, g0.card.h + " vs cap " + cap);
         check("xdotool drag down from rest springs back to rest (never parks below)", Math.abs(g1.card.h - Math.min(rest, g0.card.h)) <= 2, g0.card.h + " → " + g1.card.h + " (rest " + rest + ")");
         check("xdotool drag up grows the sheet, capped at 42 %", g2.card.h > g1.card.h + 20 && g2.card.h <= cap + 1, g1.card.h + " → " + g2.card.h + " (cap " + cap + ")");
         check("grip follows the sheet, clear of LIVE", !!g2.grip && g2.grip.y < g2.card.y && g2.grip.y + g2.grip.h >= g2.card.y && g2.grip.h >= 24 && g2.grip.w >= g2.card.w - 2 && !ovl(g2.grip, g2.pulse), JSON.stringify(g2));

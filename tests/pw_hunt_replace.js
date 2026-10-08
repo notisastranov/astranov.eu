@@ -26,7 +26,7 @@ const path = require("path");
 const { chromium } = require("playwright");
 
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const URL0 = BASE + (BASE.indexOf("?") >= 0 ? "&" : "?") + "v=" + (process.env.STAMP || "4342") + "&t=" + Date.now();
+const URL0 = BASE + (BASE.indexOf("?") >= 0 ? "&" : "?") + "v=" + (process.env.STAMP || "4343") + "&t=" + Date.now();
 const PIZZA = /pizz|πιτσ|πίτσ|margherita|calzone/i;
 const MARKET = /market|super|grocer|convenience|παντοπωλ|σούπερ|σουπερ|μάρκετ|μαρκετ/i;
 const RHODES = { lat: 36.4349, lng: 28.2176 };
@@ -180,7 +180,7 @@ function sameSet(f) {
   console.log("[boot]", JSON.stringify(boot));
   check(new RegExp("^LIVE · " + boot.expect + " vendors? on SpaceNet ·").test(boot.live) && boot.expect > 0, "boot LIVE counts the real public network (" + boot.expect + " listed, no fixtures)", boot.live);
   check(boot.latest === "LATEST " + boot.api && /^\d{4,}$/.test(String(boot.api)), "LATEST shows /api/version (" + boot.api + ")", boot.latest);
-  if (!process.env.LOCAL_APP) check(String(boot.api) === String(process.env.STAMP || "4342") && boot.ver === "V" + (process.env.STAMP || "4342"), "running build == LATEST == STAMP", boot.ver + " / " + boot.api);
+  if (!process.env.LOCAL_APP) check(String(boot.api) === String(process.env.STAMP || "4343") && boot.ver === "V" + (process.env.STAMP || "4343"), "running build == LATEST == STAMP", boot.ver + " / " + boot.api);
   check(!boot.tester, "TESTER ticker hidden for a guest");
   await page.screenshot({ path: path.join(SHOTS, "boot.png") });
 
@@ -319,7 +319,7 @@ function sameSet(f) {
     const g2 = await gr();
     const cap = await page.evaluate(() => window.__snGrip.cap()), rest = await page.evaluate(() => window.__snGrip.rest());
     console.log("   grip heights", g0.card.h, "→ down", g1.card.h, "→ up", g2.card.h, "rest", rest, "cap", cap);
-    check(g0.card.h <= cap - 40, "sheet rests below the 42 % cap (room to grow)", g0.card.h + " vs cap " + cap);
+    check(g0.card.h <= cap - 20, "sheet rests below the 42 % cap (room to grow)", g0.card.h + " vs cap " + cap);
     check(Math.abs(g1.card.h - Math.min(rest, g0.card.h)) <= 2, "drag down from rest springs back to rest (never parks below)", g0.card.h + " → " + g1.card.h + " (rest " + rest + ")");
     check(g2.card.h > g1.card.h + 20, "drag up grows the sheet", g1.card.h + " → " + g2.card.h);
     check(g2.card.h <= cap + 1, "dragged sheet never taller than the 42 % cap", g2.card.h + " ≤ " + cap);
