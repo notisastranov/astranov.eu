@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4343";
+  var VER = "4344";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -36,8 +36,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     { name: "S AMERICA", lat: -15, lng: -60 }
   ];
   var SITES = [
-    { lat: 36.44, lng: 28.23, c: "#c8f4ff", n: "RHODES" },
-    { lat: 37.98, lng: 23.73, c: "#b8ead8", n: "ATHENS" },
+    { lat: 36.44, lng: 28.23, c: "#c8f4ff", n: "RHODES", side: "r" },
+    { lat: 37.98, lng: 23.73, c: "#b8ead8", n: "ATHENS", side: "l" },
+    { lat: 41.01, lng: 28.98, c: "#e8d8ff", n: "ISTANBUL", side: "r" },
+    { lat: 30.04, lng: 31.24, c: "#ffe8b8", n: "CAIRO", side: "r" },
     { lat: 51.50, lng: -0.12, c: "#d0e8ff", n: "LONDON" },
     { lat: 40.71, lng: -74.01, c: "#ffe0a8", n: "NEW YORK" },
     { lat: 35.68, lng: 139.69, c: "#ffd0e8", n: "TOKYO" },
@@ -606,9 +608,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ctx.strokeStyle = "rgba(120, 230, 255," + (0.18 - i * 0.028) + ")";
       ctx.lineWidth = 6 - i; ctx.stroke();
     }
+    var sitesDrawn = [];
     for (i = 0; i < SITES.length; i++) {
       p = project(SITES[i].lat, SITES[i].lng, cam);
       if (!p) continue;
+      sitesDrawn.push({ n: SITES[i].n, lat: SITES[i].lat, lng: SITES[i].lng, px: p.x, py: p.y, z: p.z, c: SITES[i].c, side: SITES[i].side || "r", lx: 0, ly: 0, lw: 0, lh: 0 });
       var pulse = 0.4 + 0.6 * Math.abs(Math.sin(now / 480 + i));
       ctx.beginPath(); ctx.arc(p.x, p.y, 2.2 + pulse, 0, Math.PI * 2);
       ctx.fillStyle = SITES[i].c; ctx.globalAlpha = 0.45 + 0.5 * pulse; ctx.fill(); ctx.globalAlpha = 1;
@@ -633,6 +637,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (!p || p.z < 0.28) continue;
       ctx.fillText(LABELS[i].name, p.x, p.y);
     }
+    drawSiteLabels(sitesDrawn);
     drawConstellations(now);
     if (DEBUG_WHEEL && wheelPick) {
       var dp = project(wheelPick.lat, wheelPick.lng, cam);
@@ -888,6 +893,57 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
      The box opens at once; the dot sits on the island itself (a few px at globe scale), so a dot tap waits one
      double-tap window: a second tap there is a double tap on the island, not the item */
   var briefPend = 0;
+  /* 4344: city dots carry a name label; dot and label are both double-tap targets (the dot's own coordinates) */
+  function drawSiteLabels(list) {
+    var placed = [], cards = window.__snCards || [], hp = here ? project(here.lat, here.lng, cam) : null;
+    ctx.save();
+    ctx.font = "600 10px system-ui,sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "top";
+    function hits(b) {
+      var k;
+      for (k = 0; k < placed.length; k++) { var o = placed[k]; if (b.x < o.x + o.w + 3 && b.x + b.w + 3 > o.x && b.y < o.y + o.h + 2 && b.y + b.h + 2 > o.y) return true; }
+      for (k = 0; k < list.length; k++) { var d = list[k]; var qx = Math.max(b.x, Math.min(d.px, b.x + b.w)), qy = Math.max(b.y, Math.min(d.py, b.y + b.h)); if (Math.hypot(qx - d.px, qy - d.py) < 7) return true; }
+      if (hp) { var hx = Math.max(b.x, Math.min(hp.x, b.x + b.w)), hy = Math.max(b.y, Math.min(hp.y, b.y + b.h)); if (Math.hypot(hx - hp.x, hy - hp.y) < 13) return true; }
+      for (k = 0; k < cards.length; k++) { var c = cards[k]; if (isFinite(c.x) && b.x < c.x + c.w && b.x + b.w > c.x && b.y < c.y + c.h && b.y + b.h > c.y) return true; }
+      return false;
+    }
+    for (var i = 0; i < list.length; i++) {
+      var s = list[i];
+      if (s.z < 0.3) continue;
+      var w = Math.ceil(ctx.measureText(s.n).width), h = 11;
+      var at = { r: { x: s.px + 14, y: s.py - 6 }, l: { x: s.px - 14 - w, y: s.py - 6 }, a: { x: s.px - w / 2, y: s.py - 25 }, b: { x: s.px - w / 2, y: s.py + 14 } };
+      var order = [s.side, "r", "l", "a", "b"], box = null;
+      for (var j = 0; j < order.length && !box; j++) { var q = at[order[j]]; if (!q) continue; var bb = { x: Math.round(q.x), y: Math.round(q.y), w: w, h: h }; if (!hits(bb)) box = bb; }
+      if (!box) continue; /* no clean place this frame: no label (never text over text) */
+      placed.push(box);
+      s.lx = box.x; s.ly = box.y; s.lw = box.w; s.lh = box.h;
+      ctx.globalAlpha = 0.82; ctx.fillStyle = s.c; ctx.fillText(s.n, box.x, box.y);
+    }
+    ctx.restore();
+    window.__snSites = list;
+  }
+  /* the drawn point a tap means: the nearest dot (callout dot or city dot) within 8 px, else a city label box */
+  function dotAt(sx, sy) {
+    if (cityOn) return null;
+    var best = null, bd = 9, k;
+    var cards = window.__snCards || [], sites = window.__snSites || [];
+    for (k = 0; k < cards.length; k++) {
+      var c = cards[k];
+      if (!isFinite(c.px) || !isFinite(+c.lat) || !isFinite(+c.lng)) continue;
+      var dc = Math.hypot(sx - c.px, sy - c.py);
+      if (dc <= 8 && dc < bd) { bd = dc; best = { lat: +c.lat, lng: +c.lng, name: c.k, by: "dot", d: dc }; }
+    }
+    for (k = 0; k < sites.length; k++) {
+      var s = sites[k];
+      var ds = Math.hypot(sx - s.px, sy - s.py);
+      if (ds <= 8 && ds < bd) { bd = ds; best = { lat: s.lat, lng: s.lng, name: s.n, by: "dot", d: ds }; }
+    }
+    if (best) return best;
+    for (k = 0; k < sites.length; k++) {
+      var t = sites[k];
+      if (t.lw && sx >= t.lx - 3 && sx <= t.lx + t.lw + 3 && sy >= t.ly - 3 && sy <= t.ly + t.lh + 3) return { lat: t.lat, lng: t.lng, name: t.n, by: "label", d: 0 };
+    }
+    return null;
+  }
   function briefAt(sx, sy) {
     var cards = window.__snCards || [];
     if (cityOn || !cards.length) return null;
@@ -926,7 +982,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4343 = true;
+      window.__SN_4344 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -1030,15 +1086,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (brief && brief.box) { window.__snGlobeTap = 0; openBrief(brief.c); return; }
       var hitTap = pickHit(pUp.x, pUp.y);
       if (brief && !(hitTap && isFinite(hitTap.lat))) { window.__snGlobeTap = 0; openBrief(brief.c); return; }
-      if (hitTap && isFinite(hitTap.lat)) {
+      var snap = dotAt(pUp.x, pUp.y);
+      if (!(hitTap && isFinite(hitTap.lat)) && snap) hitTap = null;
+      if ((hitTap && isFinite(hitTap.lat)) || snap) {
         var nowT = Date.now();
         if (window.__snGlobeTap && nowT - window.__snGlobeTap < 340) {
           window.__snGlobeTap = 0;
-          /* 4343: a double tap on a drawn dot centres on the dot's own coordinates (at globe scale one px is 10-25 km,
-             so the surface pick under a dot is off by a few tenths of a degree); anywhere else on the exact pick */
-          var dotHit = brief && !brief.box && brief.c && isFinite(+brief.c.lat) && isFinite(+brief.c.lng);
-          aim = dotHit ? { lat: +brief.c.lat, lng: +brief.c.lng } : { lat: hitTap.lat, lng: hitTap.lng };
-          window.__snLastDbl = { sx: pUp.x, sy: pUp.y, lat: aim.lat, lng: aim.lng, dot: dotHit ? brief.c.k : "", pick: { lat: hitTap.lat, lng: hitTap.lng }, at: Date.now() };
+          /* 4344: a double tap on a drawn dot (callout dot or city dot such as Athens) or on a city's label centres on
+             that place's own coordinates: at globe scale one px is 10-25 km (0.15-0.2 deg), so the surface pick under a
+             dot, one rounded px off, missed Athens by ~150 px at z10. Anywhere else: the exact surface pick */
+          aim = snap ? { lat: snap.lat, lng: snap.lng } : { lat: hitTap.lat, lng: hitTap.lng };
+          window.__snLastDbl = { sx: pUp.x, sy: pUp.y, lat: aim.lat, lng: aim.lng, dot: snap ? snap.name : "", by: snap ? snap.by : "pick", pick: hitTap ? { lat: hitTap.lat, lng: hitTap.lng } : null, at: Date.now() };
           try { closeSky(); } catch (e) {}
           /* 4342: a double tap on Rhodes from the globe lands on the island (z10), not on one random street */
           var dz = cam.dist > 1.0 ? 10 : (cam.dist > 0.6 ? 13 : 16);
@@ -1047,8 +1105,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           return;
         }
         window.__snGlobeTap = nowT;
-        if (brief) { var bc = brief.c; briefPend = setTimeout(function () { briefPend = 0; if (!cityOn) { window.__snGlobeTap = 0; openBrief(bc); } }, 360); }
-      } else if (!hitTap) {
+        if (brief && hitTap) { var bc = brief.c; briefPend = setTimeout(function () { briefPend = 0; if (!cityOn) { window.__snGlobeTap = 0; openBrief(bc); } }, 360); }
+      } else {
         var gpsEl = $("gps");
         var nearGps = false;
         try {
@@ -2055,7 +2113,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4343&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4344&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -7659,7 +7717,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4343 = true;
+    window.__SN_4344 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

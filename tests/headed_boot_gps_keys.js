@@ -1,5 +1,5 @@
 /**
- * Headed real-input test (4343): real Chrome on the X display (DISPLAY, default :3); run it at WIN=1920x1200 SCALE=1.5
+ * Headed real-input test (4344): real Chrome on the X display (DISPLAY, default :3); run it at WIN=1920x1200 SCALE=1.5
  * (OS-level xdotool input picked in a 1280x800 "agent view" and rounded back, like a computer-use agent on a scaled
  * screenshot) and at WIN=1280x800 SCALE=1. Screenshots are grabbed from the X screen (real pixels).
  *  BOOT: no input. MIC is a cyan icon; LIVE shows 'loading…' then one count, 'N vendors on SpaceNet'; the IP answer lands
@@ -21,7 +21,9 @@
  *    same bar order.
  *  GLOBE: Global view (xdotool) stays on the globe (no sky view, no jump) for 3 s; a NEWS callout tap opens the item
  *    (card with the text, map on Rhodes at z10); wheel notches at Rhodes open the map on the island; a double click on
- *    the Rhodes dot centres the z10 view on the dot, and on Crete (no dot) on the clicked point, both within 0.15 deg;
+ *    a city dot or its label (Athens dot, 3-4 px off the Athens dot, the ATHENS label, Istanbul dot + label, the Rhodes
+ *    dot) centres the z10 view on that place's coordinates, Crete (no dot) on the surface point under the real clicked
+ *    pixel: within 0.05 deg AND the target within 20 real px of the map centre on screen (4344); city labels never overlap;
  *    GPS recalibrate from the globe and from the map never opens the sky view.
  *  LOAD VIEW: no location answer → the globe stays; callouts outside the glow ring, apart, clear of the HUD, at 1280x800
  *    and 1920x1200; LIVE = the real network count.
@@ -35,18 +37,18 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4343";
+const STAMP = process.env.STAMP || "4344";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now();
 const ORIGIN = new URL(BASE).origin;
 const [WW, WH] = (process.env.WIN || "1920x1200").split("x").map(Number);
 const SCALE = Number(process.env.SCALE || 1.5);
-const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4343";
+const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4344";
 fs.mkdirSync(SHOTDIR, { recursive: true });
 if (!process.env.DISPLAY) process.env.DISPLAY = ":3";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const xdo = (a) => execSync("xdotool " + a, { env: process.env });
 const SYNTAGMA = { lat: 37.9755, lng: 23.7348 }, RHODES_OLD = { lat: 36.4446, lng: 28.2276 };
-const GRAB = path.join(os.tmpdir(), "sn_grab4343.py");
+const GRAB = path.join(os.tmpdir(), "sn_grab4344.py");
 fs.writeFileSync(GRAB, `import sys, json
 from PIL import ImageGrab, ImageStat
 out, x, y, w, h = sys.argv[1], *map(int, sys.argv[2:6])
@@ -389,31 +391,73 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   await sleep(1200); gg = await grab("globe-wheel-rhodes");
   console.log("[wheel at Rhodes] first map frame", JSON.stringify(firstCity).slice(0, 260), gg.file);
   check("wheel notches at Rhodes open the map on the island (centre on Rhodes, z <= 11, says island view)", !!firstCity && firstCity.z <= 11 && onRhodes(firstCity.c) && /^Island \/ region view/.test(firstCity.line) && !firstCity.sky, JSON.stringify(firstCity && { z: firstCity.z, c: firstCity.c, line: firstCity.line }));
-  // 4343: a double click centres the z10 view on the clicked place: on the dot's own coordinates when a dot is hit, else on
-  // the globe point under the pixel the OS click really landed on (after the agent-scale rounding); within 0.15 degrees
-  const dbl = async (tag, look, aimAt) => {
-    await globeBtn(); await sleep(1200);
-    await page.evaluate((l) => SN.lookAt(l, 1.85), look); await sleep(1200); /* setup: turn the globe (not a user action) */
-    const cardsD = await page.evaluate(() => (window.__snCards || []).map((k) => ({ k: k.k, px: k.px, py: k.py, lat: k.lat, lng: k.lng })));
-    let pt = null;
-    if (aimAt.dot) { const k = cardsD.find((c) => c.k === aimAt.dot); pt = k && { x: k.px, y: k.py }; } else pt = await page.evaluate((a) => SN.projectFrame(a.lat, a.lng), aimAt);
-    if (!pt) return { s: null, target: null, d: null, why: "no " + (aimAt.dot || "point") + " on screen" };
+  // 4344: a double click centres the z10 view on the clicked place: a city dot (Athens, Istanbul, the Rhodes callout dot)
+  // or a city's label -> that place's own coordinates (hard-coded here, not read from the app); anywhere else -> the globe
+  // point under the pixel the OS click really landed on (after the agent-scale rounding). Within 0.05 deg, and on screen the
+  // target lands within 20 real px of the map centre. Input: xdotool at agent scale (1280x800 picks, rounded, x SCALE).
+  const PLACES = { ATHENS: { lat: 37.98, lng: 23.73 }, ISTANBUL: { lat: 41.01, lng: 28.98 }, RHODES: { lat: 36.44, lng: 28.23 }, CALENDAR: { lat: 36.45, lng: 28.22 } };
+  const toGlobe = async () => { for (let i = 0; i < 4; i++) { await globeBtn(); await sleep(1200); const s0 = await cs(); if (!s0.cityOn) return true; } return false; };
+  const drawn = () => page.evaluate(() => ({ cards: (window.__snCards || []).map((k) => ({ n: k.k, px: k.px, py: k.py, lat: +k.lat, lng: +k.lng })),
+    sites: (window.__snSites || []).map((q) => ({ n: q.n, px: q.px, py: q.py, lat: q.lat, lng: q.lng, l: q.lw ? { x: q.lx, y: q.ly, w: q.lw, h: q.lh } : null })) }));
+  const EU = { lat: 22, lng: 14 }; /* the Europe / Africa face the guest double clicked Athens from (preview-4343/02) */
+  {
+    await toGlobe(); await page.evaluate((l) => SN.lookAt(l, 1.85), EU); await sleep(1400);
+    const dr = await drawn(); const gl = await grab("globe-city-labels");
+    const lab = dr.sites.filter((q) => q.l);
+    let clash = [];
+    for (let i = 0; i < lab.length; i++) for (let j = i + 1; j < lab.length; j++) { const u = lab[i].l, v = lab[j].l; if (u.x < v.x + v.w && u.x + u.w > v.x && u.y < v.y + v.h && u.y + u.h > v.y) clash.push(lab[i].n + "/" + lab[j].n); }
+    lab.forEach((q) => dr.sites.forEach((o) => { const qx = Math.max(q.l.x, Math.min(o.px, q.l.x + q.l.w)), qy = Math.max(q.l.y, Math.min(o.py, q.l.y + q.l.h)); if (Math.hypot(qx - o.px, qy - o.py) < 6) clash.push(q.n + " label on " + o.n + " dot"); }));
+    console.log("[city labels]", JSON.stringify(dr.sites.map((q) => ({ n: q.n, dot: [Math.round(q.px), Math.round(q.py)], l: q.l }))), gl.file);
+    check("city dots carry name labels (ATHENS, ISTANBUL drawn), labels never on each other or on a dot", !!dr.sites.find((q) => q.n === "ATHENS" && q.l) && !!dr.sites.find((q) => q.n === "ISTANBUL" && q.l) && !clash.length, JSON.stringify({ labels: lab.map((q) => q.n), clash }));
+  }
+  const dbl = async (tag, look, spec) => {
+    await toGlobe();
+    await page.evaluate((l) => SN.lookAt(l, 1.85), look); await sleep(1400); /* setup: turn the globe (not a user action) */
+    const dr = await drawn(); const dots = dr.cards.concat(dr.sites);
+    let pt = null, want = null;
+    if (spec.dot) { const k = dots.find((c) => c.n === spec.dot); if (k) { pt = { x: k.px + (spec.off ? spec.off[0] : 0), y: k.py + (spec.off ? spec.off[1] : 0) }; want = PLACES[spec.dot]; } }
+    else if (spec.label) { const k = dr.sites.find((c) => c.n === spec.label); if (k && k.l) { pt = { x: k.l.x + k.l.w / 2, y: k.l.y + k.l.h / 2 }; want = PLACES[spec.label]; } }
+    else pt = await page.evaluate((a) => SN.projectFrame(a.lat, a.lng), spec);
+    if (!pt) return { s: null, target: null, d: null, why: "no " + (spec.dot || spec.label || "point") + " drawn on screen" };
     const [sx, sy] = A(pt.x, pt.y); const px = sx - ox, py = sy - oy; /* the page pixel the OS click lands on */
-    let near = null, nd = 9; cardsD.forEach((k) => { const dd = Math.hypot(k.px - px, k.py - py); if (dd <= 8 && dd < nd) { nd = dd; near = k; } });
-    const pick = await page.evaluate((p) => SN.globeHitTest(p[0], p[1]), [px, py]);
-    const target = near ? { lat: +near.lat, lng: +near.lng, by: near.k + " dot (" + nd.toFixed(1) + " px off)" } : (pick && { lat: +pick.lat, lng: +pick.lng, by: "globe point under the clicked pixel" });
+    let near = null, nd = 9; dots.forEach((k) => { const dd = Math.hypot(k.px - px, k.py - py); if (dd <= 8 && dd < nd) { nd = dd; near = k; } });
+    const onLabel = dr.sites.find((k) => k.l && px >= k.l.x - 3 && px <= k.l.x + k.l.w + 3 && py >= k.l.y - 3 && py <= k.l.y + k.l.h + 3);
+    const pick = await page.evaluate((q) => SN.globeHitTest(q[0], q[1]), [px, py]);
+    let target;
+    if (want) {
+      /* the clicked point must really be on that place's dot (nearest drawn dot within 8 px) or label; the Rhodes callout
+         dot and the RHODES city dot are the same place, so whichever is nearer is the target */
+      const same = near && Math.abs(near.lat - want.lat) < 0.02 && Math.abs(near.lng - want.lng) < 0.02;
+      const on = spec.dot ? !!same : !!(onLabel && onLabel.n === spec.label && !near);
+      const t = spec.dot && same && PLACES[near.n] ? PLACES[near.n] : want;
+      target = { lat: t.lat, lng: t.lng, by: spec.dot ? (near ? near.n : spec.dot) + " dot (" + (near ? nd.toFixed(1) : "?") + " px off)" : spec.label + " label", on };
+    } else target = pick && !near && !onLabel ? { lat: +pick.lat, lng: +pick.lng, by: "globe point under the clicked pixel", on: true } : { lat: NaN, lng: NaN, by: "a dot or label is under the free point", on: false };
     xdo(`mousemove ${sx} ${sy}`); await sleep(100); xdo("click --repeat 2 --delay 90 1");
     await sleep(2200); const s = await cs(); const g = await grab(tag);
-    const d = target && s.c ? { dLat: +Math.abs(s.c.lat - target.lat).toFixed(3), dLng: +Math.abs(s.c.lng - target.lng).toFixed(3) } : null;
-    console.log("[" + tag + "]", JSON.stringify({ z: s.z, c: s.c && { lat: +s.c.lat.toFixed(4), lng: +s.c.lng.toFixed(4) }, target, d, line: s.line, last: await page.evaluate(() => window.__snLastDbl || null) }), g.file);
-    return { s, target, d };
+    const scr = await page.evaluate((t) => { const m = SN.getMap(); if (!m || !m._loaded || !isFinite(t.lat)) return null; const sz = m.getSize(); const q = m.latLngToContainerPoint([t.lat, t.lng]); const r = document.getElementById("city").getBoundingClientRect();
+      return { dx: +(q.x - sz.x / 2).toFixed(1), dy: +(q.y - sz.y / 2).toFixed(1), page: [Math.round(r.left + q.x), Math.round(r.top + q.y)], centre: [Math.round(r.left + sz.x / 2), Math.round(r.top + sz.y / 2)], dpr: devicePixelRatio }; }, target);
+    const d = target && s.c ? { dLat: +Math.abs(s.c.lat - target.lat).toFixed(4), dLng: +Math.abs(s.c.lng - target.lng).toFixed(4) } : null;
+    const realPx = scr ? +(Math.hypot(scr.dx, scr.dy) * scr.dpr).toFixed(1) : null;
+    const last = await page.evaluate(() => window.__snLastDbl || null);
+    console.log("[" + tag + "]", JSON.stringify({ click: { page: [px, py], agent: [Math.round((sx - ox) / SCALE), Math.round((sy - oy) / SCALE)] }, z: s.z, c: s.c && { lat: +s.c.lat.toFixed(4), lng: +s.c.lng.toFixed(4) }, target, d, screen: scr, realPx, line: s.line, last: last && { dot: last.dot, by: last.by, pick: last.pick } }), g.file);
+    return { s, target, d, scr, realPx };
   };
-  let D1 = await dbl("globe-dblclick-rhodes", { lat: 36.25, lng: 28.0 }, { dot: "CALENDAR" });
-  check("double click on the Rhodes dot: z10 island view centred on the dot (within 0.15 deg)", !!(D1.s && D1.d && D1.target) && /dot/.test(D1.target.by) && D1.s.cityOn && D1.s.z === 10 && D1.d.dLat <= 0.15 && D1.d.dLng <= 0.15 && onRhodes(D1.s.c) && /^Island \/ region view/.test(D1.s.line) && !D1.s.sky,
-    JSON.stringify({ z: D1.s && D1.s.z, target: D1.target, d: D1.d, why: D1.why }));
-  let D2 = await dbl("globe-dblclick-crete", { lat: 35.3, lng: 25.0 }, { lat: 35.25, lng: 24.9 });
-  check("double click off the dots (Crete): z10 view centred on the clicked point (within 0.15 deg)", !!(D2.s && D2.d && D2.target) && !/dot/.test(D2.target.by) && D2.s.cityOn && D2.s.z === 10 && D2.d.dLat <= 0.15 && D2.d.dLng <= 0.15 && /^Island \/ region view/.test(D2.s.line) && !D2.s.sky,
-    JSON.stringify({ z: D2.s && D2.s.z, target: D2.target, d: D2.d, why: D2.why }));
+  const dblOk = (D) => !!(D.s && D.d && D.target && D.target.on) && D.s.cityOn && D.s.z === 10 && D.d.dLat <= 0.05 && D.d.dLng <= 0.05 && D.realPx != null && D.realPx <= 20 && /^Island \/ region view/.test(D.s.line) && !D.s.sky;
+  const dblMsg = (D) => JSON.stringify({ z: D.s && D.s.z, target: D.target, d: D.d, screen: D.scr && { dx: D.scr.dx, dy: D.scr.dy }, realPx: D.realPx, why: D.why });
+  let D = await dbl("globe-dblclick-athens-dot", EU, { dot: "ATHENS" });
+  check("double click on the Athens dot: z10 view on Athens (37.98,23.73) within 0.05 deg, <= 20 px from the map centre", dblOk(D), dblMsg(D));
+  D = await dbl("globe-dblclick-athens-dot-off", EU, { dot: "ATHENS", off: [3, -2] });
+  check("double click 3-4 px off the Athens dot (inside its ring): still on Athens within 0.05 deg, <= 20 px", dblOk(D), dblMsg(D));
+  D = await dbl("globe-dblclick-athens-label", EU, { label: "ATHENS" });
+  check("double click on the ATHENS label: on Athens within 0.05 deg, <= 20 px", dblOk(D), dblMsg(D));
+  D = await dbl("globe-dblclick-istanbul-dot", EU, { dot: "ISTANBUL" });
+  check("double click on the Istanbul dot (near the Athens and Rhodes dots): on Istanbul (41.01,28.98) within 0.05 deg, <= 20 px", dblOk(D), dblMsg(D));
+  D = await dbl("globe-dblclick-istanbul-label", EU, { label: "ISTANBUL" });
+  check("double click on the ISTANBUL label: on Istanbul within 0.05 deg, <= 20 px", dblOk(D), dblMsg(D));
+  D = await dbl("globe-dblclick-rhodes", { lat: 36.25, lng: 28.0 }, { dot: "CALENDAR" });
+  check("double click on the Rhodes dot: z10 island view on Rhodes within 0.05 deg, <= 20 px", dblOk(D) && onRhodes(D.s.c), dblMsg(D));
+  D = await dbl("globe-dblclick-crete", { lat: 35.3, lng: 25.0 }, { lat: 35.25, lng: 24.9 });
+  check("double click off the dots (Crete): on the clicked surface point within 0.05 deg, <= 20 px", dblOk(D), dblMsg(D));
   await cdp.send("Emulation.setGeolocationOverride", { latitude: RHODES_OLD.lat, longitude: RHODES_OLD.lng, accuracy: 15 });
   await globeBtn(); await sleep(1500);
   const gpsBtn = await page.evaluate(() => { const b = document.getElementById("gps").getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
@@ -487,7 +531,7 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
     await c2.close();
   }
   console.log("SCREENSHOTS", SHOTDIR);
-  console.log(fails.length ? "HEADED 4343 FAIL: " + fails.join("; ") : "HEADED 4343 ALL PASS");
+  console.log(fails.length ? "HEADED 4344 FAIL: " + fails.join("; ") : "HEADED 4344 ALL PASS");
   await browser.close();
   process.exit(fails.length ? 2 : 0);
 })().catch((e) => { console.error("fail", e); process.exit(1); });
