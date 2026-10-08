@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4338";
+  var VER = "4339";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -859,7 +859,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4338 = true;
+      window.__SN_4339 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -1882,8 +1882,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function hardReset() {
     say("Resetting…");
-    try { localStorage.clear(); sessionStorage.clear(); } catch (e) {}
-    var go = function () { location.href = "/?v=4338&t=" + Date.now(); };
+    /* 4339: reset caches and app state, never the sign-in (sn:user / sn:access / sn:refresh / sn:exp) or the wallet */
+    try {
+      var keepK = ["sn:user", "sn:access", "sn:refresh", "sn:exp", "sn:phone", "sn:avc"], kept = {};
+      keepK.forEach(function (k) { var v = localStorage.getItem(k); if (v != null) kept[k] = v; });
+      localStorage.clear();
+      sessionStorage.clear();
+      Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
+    } catch (e) {}
+    var go = function () { location.href = "/?v=4339&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -2091,7 +2098,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet .ph.sn-ph-no{font-weight:900!important}",
       "#sn-tester{position:fixed;top:28px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(77,240,255,.4);color:#7ee9ff;font:700 10px/14px ui-monospace,monospace;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#sn-tester.stale{color:#8a6a6a;border-color:rgba(255,120,120,.35)}",
-      "#sn-topchrome-drag,#cli-drag{display:block!important;height:10px!important;min-height:10px!important;max-height:10px!important;font-size:0!important;line-height:0!important;color:transparent!important;overflow:hidden!important}",
+      "#sn-topchrome-drag{display:none!important;height:0!important;min-height:0!important;max-height:0!important;padding:0!important;margin:0!important;border:0!important}",
+      "#cli-drag{display:none!important}",
+      "#cli-drag.sn-grip.on{display:block!important;position:fixed!important;z-index:300!important;width:120px!important;height:18px!important;min-height:18px!important;max-height:18px!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important;cursor:ns-resize!important;touch-action:none!important;pointer-events:auto!important;overflow:visible!important}",
+      "#cli-drag.sn-grip.on::before{content:\"\"!important;display:block!important;position:absolute!important;left:50%!important;top:7px!important;width:44px!important;height:5px!important;margin-left:-22px!important;border-radius:3px!important;background:rgba(77,240,255,.85)!important;box-shadow:0 0 6px rgba(77,240,255,.6)!important}",
+      "#cli-drag.sn-grip.drag::before{background:#e8fbff!important}",
       "#top{top:0!important;left:0!important;right:0!important;margin:0!important;padding:0!important;display:flex!important;flex-direction:column!important}",
       "#island{position:relative!important;z-index:2!important;padding-left:52px!important;padding-right:52px!important}",
       "#island .r1,#island .r2{flex-wrap:nowrap!important;overflow:hidden!important;white-space:nowrap!important}",
@@ -2293,6 +2304,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (!p || p.flag !== "block" || !p.peer || !p.customerPeer) return;
         if (!blocked(p.peer, p.customerPeer)) blocks.push({ from: p.peer, to: p.customerPeer, why: p.note || "", fromRole: p.how || "", toRole: p.query || "" });
       });
+      var netSeen = {}, netN = 0;
+      (j.shops || []).forEach(function (s) {
+        if (!s || !s.id || !isFinite(+s.lat) || s.status !== "live" || netSeen[s.id]) return;
+        if (!seesShop({ id: s.id, name: s.name || "", status: "live", owner: s.customerPeer || "", note: s.note || "" })) return;
+        netSeen[s.id] = 1;
+        netN++;
+      });
+      liveNet = netN;
       (j.shops || []).forEach(function (s) {
         if (!s || !s.id || !isFinite(+s.lat)) return;
         var have = null;
@@ -3041,14 +3060,20 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       el.classList.remove("sn-moved");
       var ld0 = el.querySelector(".sn-lead");
       if (ld0) ld0.style.display = "none";
-      items.push({ el: el, pin: pin, f: f, b: b, no: m.__snNo || 0 });
+      items.push({ el: el, pin: pin, f: f, b: b, n: el.querySelector(".sn-no"), no: m.__snNo || 0 });
     });
-    items.forEach(function (it) { it.fr = it.f.getBoundingClientRect(); it.br = it.b ? it.b.getBoundingClientRect() : null; });
+    items.forEach(function (it) {
+      it.fr = it.f.getBoundingClientRect();
+      var nr = it.n && it.n.getBoundingClientRect();
+      if (nr && nr.width > 0) it.fr = { left: Math.min(it.fr.left, nr.left), right: Math.max(it.fr.right, nr.right), top: Math.min(it.fr.top, nr.top), bottom: Math.max(it.fr.bottom, nr.bottom) };
+      it.br = it.b ? it.b.getBoundingClientRect() : null;
+    });
     function sh(r, dx, dy) { return { left: r.left + dx, right: r.right + dx, top: r.top + dy, bottom: r.bottom + dy }; }
     function grow(r, p) { return { left: r.left - p, right: r.right + p, top: r.top - p, bottom: r.bottom + p }; }
     function inside(r) { return r.top >= T && r.bottom <= B && r.left >= LF && r.right <= RT; }
     var placed = [];
     function free(r) { for (var i = 0; i < placed.length; i++) if (rectHit(r, placed[i])) return false; return true; }
+    function hits(r) { var n = 0; for (var i = 0; i < placed.length; i++) if (rectHit(r, placed[i])) n++; return n; }
     var spread = items.length > 1 && items.length <= 40 && items.some(function (it) { return it.no; });
     var slots = spread ? DECL_SLOTS : [[0, 0]];
     /* each pin's real spot (icon anchor) and the cluster centre: crowded faces move outward, leaders do not cross */
@@ -3074,11 +3099,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     items.forEach(function (it) {
       var unit = it.br && it.br.width > 0 ? { left: Math.min(it.fr.left, it.br.left), right: Math.max(it.fr.right, it.br.right), top: it.fr.top, bottom: it.br.bottom } : null;
       var ox = it.ax - cx0, oy = it.ay - cy0, ol = Math.hypot(ox, oy);
-      var pick = null, withLabel = false, best = 1e9, k;
+      var pick = null, withLabel = false, best = 1e9, k, fb = null, fbN = 1e9;
       for (k = 0; k < slots.length; k++) {
         var dx = slots[k][0], dy = slots[k][1];
         var lab = !!unit && inside(sh(unit, dx, dy)) && free(grow(sh(unit, dx, dy), 2));
-        if (!lab) { var fr = sh(it.fr, dx, dy); if (!(inside(fr) && free(grow(fr, 2)))) continue; }
+        if (!lab) {
+          var fr = sh(it.fr, dx, dy);
+          if (!(inside(fr) && free(grow(fr, 2)))) {
+            if (inside(fr)) { var nh = hits(grow(fr, 2)) * 1000 + Math.hypot(dx, dy); if (nh < fbN) { fbN = nh; fb = slots[k]; } }
+            continue;
+          }
+        }
         var len = Math.hypot(dx, dy), sc = (lab ? 0 : 400) + len;
         if (len) {
           var a = [it.ax, it.ay], b = [it.ax + dx, it.ay + dy - 11];
@@ -3089,7 +3120,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (sc < best) { best = sc; pick = slots[k]; withLabel = lab; }
         if (!len && lab) break; /* its own spot with its label: nothing beats that */
       }
-      if (!pick) pick = [0, 0]; /* no room anywhere: it stays on its spot, its label waits for a zoom */
+      if (!pick) pick = fb || [0, 0]; /* 4339: no free slot: the least-crowded one; its label waits for a zoom */
       if (pick[0] || pick[1]) segs.push([[it.ax, it.ay], [it.ax + pick[0], it.ay + pick[1] - 11]]);
       var dx = pick[0], dy = pick[1];
       placed.push(sh(it.fr, dx, dy));
@@ -3111,6 +3142,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   var motionMarks = {};
   var liveOpened = false;
+  var liveNet = 0; /* 4339: real public listings on the whole network (explicit status live, no fixtures) */
   function paintPulse() {
     var el = $("sn-pulse");
     if (!el) {
@@ -3124,10 +3156,25 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     var vendors = 0, near = 0, drivers = 0, orders = 0;
     var seatLive = activeSeat() || here;
-    fieldShops().forEach(function (s) {
-      vendors++;
-      if (seatLive && haversineKm(seatLive, s) < 25) near++;
-    });
+    /* 4339: an IP guess is not a place. Unseated: count the real public listings on the network (no fixtures). */
+    var unseated = !huntView && (!seatLive || (seatLive.how === "here" && seatKind !== "gps"));
+    if (unseated) {
+      var seenL = {};
+      (shops || []).forEach(function (s) {
+        if (!s || s.status !== "live" || !seesShop(s)) return;
+        var kL = String(s.id || s.name);
+        if (seenL[kL]) return;
+        seenL[kL] = 1;
+        vendors++;
+      });
+      vendors = Math.max(vendors, liveNet);
+      seatLive = null;
+    } else {
+      fieldShops().forEach(function (s) {
+        vendors++;
+        if (seatLive && haversineKm(seatLive, s) < 25) near++;
+      });
+    }
     people.forEach(function (p) { if (p && p.role === "driver" && seesDriver(p)) drivers++; });
     if (driverPin && isFinite(+driverPin.lat) && !people.some(function (p) { return p && p.role === "driver" && haversineKm(p, driverPin) < 0.05; })) drivers++;
     jobs.forEach(function (j) { if (j && !j.received && seesJob(j)) orders++; });
@@ -4107,15 +4154,19 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function fetchJson(url, opts) {
     return fetch(url, opts || {}).then(function (r) { return r.json().catch(function () { return null; }); }).catch(function () { return null; });
   }
-  function huntNominatim(q) {
+  function huntNominatim(q, lim) {
     var seatN = activeSeat() || here;
-    var url = "https://nominatim.openstreetmap.org/search?format=json&limit=8&addressdetails=0&q=" + encodeURIComponent(q);
+    var url = "https://nominatim.openstreetmap.org/search?format=json&limit=" + (lim || 16) + "&addressdetails=0&q=" + encodeURIComponent(q);
     if (seatN && isFinite(+seatN.lat)) {
       var w = (seatN.lng - 0.25).toFixed(4), e = (seatN.lng + 0.25).toFixed(4);
       var s = (seatN.lat - 0.25).toFixed(4), n = (seatN.lat + 0.25).toFixed(4);
       url += "&viewbox=" + w + "," + n + "," + e + "," + s + "&bounded=1";
     }
     return fetchJson(url, { headers: { Accept: "application/json" }, signal: huntSig() }).then(function (rows) {
+      if (Array.isArray(rows)) {
+        var rowsN = rows.filter(function (r) { return r && r.name; });
+        if (rowsN.length >= 6) rows = rowsN;
+      }
       return Array.isArray(rows)
         ? rows.map(function (r) { r.src = "nominatim"; return asPlace(r); }).filter(function (p) { return p && nearSeat(p, 50); })
         : [];
@@ -4126,7 +4177,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     return function (q) {
       var alt = ALT[foldTxt(q).trim()];
       if (!alt) return raw(q);
-      return Promise.all([raw(q).catch(function () { return []; }), raw(alt).catch(function () { return []; })])
+      return Promise.all([raw(q, 10).catch(function () { return []; }), raw(alt, 10).catch(function () { return []; })])
         .then(function (p) { return [].concat(p[0] || [], p[1] || []); });
     };
   })(huntNominatim);
@@ -4312,6 +4363,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           return;
         }
         findWanted = false;
+        huntView = null;
+        window.__snFindShown = [];
+        try { closeSheet(); } catch (eCS) {}
+        try { paintShopsOnMap(); paintPulse(); } catch (eCP) {}
         say("Where? Name a place or allow location");
       });
       return;
@@ -5431,6 +5486,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   });
   function safeReload(ver) {
     if (!(Number(ver) > Number(VER))) return;
+    if (/[?&](code|error)=|access_token=/.test(location.search + location.hash)) return; /* 4339: sign-in return in flight */
     var done = "";
     try { done = sessionStorage.getItem("sn:auto-reloaded") || ""; } catch (e) {}
     if (done) { latestVer = String(ver); paintVersion(); return; } /* at most one automatic reload per session */
@@ -7106,8 +7162,84 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       c.addEventListener("pointercancel", endDrag);
     }
   }
+  /* 4339 grip: the dock handle (#cli-drag) rides the top edge of an open sheet and resizes it
+     (min 96px, max 42vh). Hidden when no sheet is open, so it never sits on the LIVE bar.
+     Double-click resets. The top-chrome handle stays off: there is nothing up there to resize. */
+  function armGrip() {
+    var g = $("cli-drag"), sh = $("sn-sheet"), card = $("sn-sheet-card");
+    if (!g || !sh || !card || g.__grip) return;
+    g.__grip = true;
+    if (g.parentNode !== document.body) document.body.appendChild(g);
+    g.classList.add("sn-grip");
+    g.setAttribute("aria-hidden", "true");
+    g.title = "Drag to resize";
+    var drag = null, userH = 0;
+    function cap() { return Math.round(window.innerHeight * 0.42); }
+    function minH() { return Math.min(cap(), 96); }
+    function place() {
+      var r = sh.classList.contains("on") ? card.getBoundingClientRect() : null;
+      if (!r || r.height < 20) { g.classList.remove("on"); return; }
+      g.classList.add("on");
+      g.style.setProperty("top", Math.round(r.top - 18) + "px", "important");
+      g.style.setProperty("left", Math.round(r.left + r.width / 2 - 60) + "px", "important");
+    }
+    function setH(h) {
+      h = Math.max(minH(), Math.min(cap(), Math.round(h)));
+      card.style.setProperty("box-sizing", "border-box", "important");
+      card.style.setProperty("height", h + "px", "important");
+      card.style.setProperty("max-height", h + "px", "important");
+      var body = $("sn-sheet-body");
+      if (body) body.style.setProperty("max-height", Math.max(0, h - 48) + "px", "important");
+      place();
+      return h;
+    }
+    function clearH() {
+      card.style.removeProperty("box-sizing");
+      card.style.removeProperty("height");
+      card.style.removeProperty("max-height");
+      var body = $("sn-sheet-body");
+      if (body) body.style.removeProperty("max-height");
+    }
+    function sync() {
+      if (!sh.classList.contains("on")) { userH = 0; clearH(); g.classList.remove("on"); return; }
+      if (userH) setH(userH);
+      place();
+    }
+    g.addEventListener("pointerdown", function (e) {
+      if (!g.classList.contains("on")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      drag = { y: e.clientY, h: card.getBoundingClientRect().height };
+      g.classList.add("drag");
+      try { g.setPointerCapture(e.pointerId); } catch (x) {}
+    });
+    g.addEventListener("pointermove", function (e) {
+      if (!drag) return;
+      e.preventDefault();
+      e.stopPropagation();
+      userH = setH(drag.h + (drag.y - e.clientY));
+    });
+    function end(e) {
+      if (!drag) return;
+      drag = null;
+      g.classList.remove("drag");
+      try { g.releasePointerCapture(e.pointerId); } catch (x) {}
+      try { if (map && typeof map.invalidateSize === "function") map.invalidateSize(); } catch (x2) {}
+    }
+    g.addEventListener("pointerup", end);
+    g.addEventListener("pointercancel", end);
+    g.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); });
+    g.addEventListener("dblclick", function (e) { e.preventDefault(); e.stopPropagation(); userH = 0; clearH(); place(); });
+    try { new MutationObserver(sync).observe(sh, { attributes: true, attributeFilter: ["class"] }); } catch (e) {}
+    try { new MutationObserver(sync).observe(card, { childList: true }); } catch (e) {}
+    try { if (window.ResizeObserver) new ResizeObserver(place).observe(card); } catch (e) {}
+    window.addEventListener("resize", function () { if (userH) userH = setH(userH); place(); });
+    window.__snGrip = { cap: cap, min: minH, height: function () { return card.getBoundingClientRect().height; } };
+    sync();
+  }
   function boot() {
     sheetLaw();
+    armGrip();
     canvas = $("g");
     if (!canvas) return;
     ctx = canvas.getContext("2d");
@@ -7182,7 +7314,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4338 = true;
+    window.__SN_4339 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

@@ -1,5 +1,5 @@
 /**
- * Headed real-input test (4338): real Chrome on the X display (DISPLAY, default :3), OS-level xdotool input,
+ * Headed real-input test (4339): real Chrome on the X display (DISPLAY, default :3), OS-level xdotool input,
  * screenshots grabbed from the X screen (actual pixels, not page.screenshot) via python3 + Pillow ImageGrab.
  *
  * WHEEL: drag twice (each must move the globe), one wheel notch + a third drag (drag after an anchor hold),
@@ -15,7 +15,10 @@
  *   every visible tile at Athens has loaded and must show streets.
  * 4338 LABELS: every FIND pin shows a number badge equal to its FIND row number (row name = pin name), badges and faces are
  *   unobstructed by other faces/labels, visible labels never overlap.
- * Env: PREVIEW_URL, STAMP, LOCAL_APP, WIN=1280x800, HOLD, GAP, SPIN, DEBUGQ=1, SHOTDIR, REAL_CHROME=1, HUNTS=1, LAND_MAX=8
+ * 4339: boot LIVE network count + LATEST == /api/version + TESTER hidden (screen grab 'boot'); after Athens a bare
+ *   'supermarket' hunts Athens (>= 9 pins, numbered, no stale place text, grab 'athens-supermarket'); the sheet grip is
+ *   dragged with xdotool (grows/shrinks the sheet within 96 px..42vh, clear of LIVE; grabs 'grip-*').
+ * Env: PREVIEW_URL, LOCAL_AUTH, STAMP, LOCAL_APP, WIN=1280x800, HOLD, GAP, SPIN, DEBUGQ=1, SHOTDIR, REAL_CHROME=1, HUNTS=1, LAND_MAX=8
  */
 const { chromium } = require("playwright");
 const { execSync } = require("child_process");
@@ -23,7 +26,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4338";
+const STAMP = process.env.STAMP || "4339";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now() + (process.env.DEBUGQ ? "&debug=wheel" : "");
 const RHODES = { lat: 36.4349, lng: 28.2176 }, ATHENS = { lat: 37.9838, lng: 23.7275 };
 const [WW, WH] = (process.env.WIN || "1280x800").split("x").map(Number);
@@ -33,8 +36,8 @@ if (!process.env.DISPLAY) process.env.DISPLAY = ":3";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const xdo = (a) => execSync("xdotool " + a, { env: process.env });
 function near(a, b, t) { if (!a || !b) return false; let d = Math.abs(a.lng - b.lng); if (d > 180) d = 360 - d; return Math.abs(a.lat - b.lat) < t && d < t; }
-const GRAB = path.join(os.tmpdir(), "sn_grab4338.py");
-const SAMP = path.join(os.tmpdir(), "sn_samp4338.py");
+const GRAB = path.join(os.tmpdir(), "sn_grab4339.py");
+const SAMP = path.join(os.tmpdir(), "sn_samp4339.py");
 fs.writeFileSync(GRAB, `import sys, json
 from PIL import ImageGrab, ImageStat
 out, x, y, w, h, rx, ry, rw, rh = sys.argv[1], *map(int, sys.argv[2:10])
@@ -78,9 +81,14 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
     const body = fs.readFileSync(process.env.LOCAL_APP);
     await page.route(/\/js\/spacenet\/app\.js/, (r) => r.fulfill({ status: 200, contentType: "application/javascript", body }));
   }
+  if (process.env.LOCAL_AUTH) {
+    const ab = fs.readFileSync(process.env.LOCAL_AUTH);
+    await page.route(/\/js\/spacenet\/auth\.js/, (r) => r.fulfill({ status: 200, contentType: "application/javascript", body: ab }));
+  }
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
-  page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+  page.on("console", (m) => { if (m.type() === "error") errors.push(m.text() + " @ " + ((m.location() || {}).url || "")); });
+  page.on("response", (r) => { if (r.status() === 429) console.log("[429]", r.url().slice(0, 200)); });
   await page.addInitScript(() => {
     window.__ev = [];
     const od = console.debug;
@@ -102,6 +110,26 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
     const f = path.join(SHOTDIR, name + ".png");
     const r = JSON.parse(execSync(`python3 ${GRAB} ${f} ${ox} ${oy} ${geo.iw} ${geo.ih} ${Math.round(b.x)} ${Math.round(b.y)} ${Math.round(b.w)} ${Math.round(b.h)}`).toString());
     r.file = f; return r;
+  }
+  // ---- 4339 boot: LIVE network count, LATEST, TESTER (real-pixel grab) ----
+  {
+    await sleep(2500);
+    const boot = await page.evaluate(async () => {
+      const lj = await (await fetch("/api/live", { cache: "no-store" })).json();
+      const vj = await (await fetch("/api/version?t=" + Date.now(), { cache: "no-store" })).json();
+      const fx = (s) => /\bTESTER\b|test\s*vendor|\bV?4297\b|tester\s*client/i.test([s.name, s.title, s.note, s.id, s.owner].join(" "));
+      const seen = {}; let n = 0;
+      (lj.shops || []).forEach((s) => { if (s && s.id && isFinite(+s.lat) && s.status === "live" && !fx(s) && !seen[s.id]) { seen[s.id] = 1; n++; } });
+      const t = document.getElementById("sn-tester");
+      return { live: (document.getElementById("sn-pulse") || {}).textContent || "", expect: n, latest: (document.getElementById("sn-latest") || {}).textContent || "", api: vj.latest,
+        ver: (document.getElementById("ver") || {}).textContent || "", tester: !!(t && getComputedStyle(t).display !== "none" && t.offsetParent !== null && t.textContent.trim()) };
+    });
+    const gb = await grab("boot", { x: 0, y: 0, w: geo.iw, h: geo.ih });
+    console.log("[boot]", JSON.stringify(boot), gb.file);
+    check("boot LIVE = real public network (" + boot.expect + ")", boot.expect > 0 && new RegExp("^LIVE · " + boot.expect + " vendors? ·").test(boot.live), boot.live);
+    check("LATEST == /api/version", boot.latest === "LATEST " + boot.api && /^\d{4,}$/.test(String(boot.api)), boot.latest + " / " + boot.api);
+    if (!process.env.LOCAL_APP) check("running V == LATEST == " + STAMP, boot.ver === "V" + STAMP && String(boot.api) === STAMP, boot.ver + " / " + boot.api);
+    check("TESTER ticker hidden (guest)", !boot.tester);
   }
   const tileInfo = () => page.evaluate(() => {
     const ims = [...document.querySelectorAll("#city img.leaflet-tile")];
@@ -311,6 +339,42 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
     console.log("[athens] land", landS, "s; FIND", done.s.find, "after", done.ms, "ms;", JSON.stringify(done.s).slice(0, 260));
     check("athens time-to-land ≤ " + (process.env.LAND_MAX || 8) + " s", landS != null && landS <= Number(process.env.LAND_MAX || 8), landS + " s (screens " + g8.file + ", tiles std " + g8.std + ")");
     check("athens pins", done.s.find && +done.s.find > 0 && near(done.s.center, ATHENS, 0.3), "FIND " + done.s.find);
+    // ---- 4339: bare follow-up hunts the landed place ----
+    {
+      const tq = await say("supermarket");
+      await sleep(250);
+      const line0 = await page.evaluate(() => document.getElementById("line").textContent);
+      const fu = await waitFor((s) => s.find && s.find !== "…", 25000);
+      await sleep(1800);
+      const vbS = await visBox(); const pinsS = await pinInfo(); const rwS = await rows(); const sS = await state();
+      const gS = await grab("athens-supermarket", { x: 0, y: 0, w: geo.iw, h: geo.ih });
+      console.log("[athens supermarket] find", sS.find, "after", fu.ms, "ms; line at submit", JSON.stringify(line0), JSON.stringify(sS).slice(0, 240), gS.file);
+      check("athens → bare supermarket: >= 9 pins on Athens", pinsS.length >= 9 && +sS.find === pinsS.length && near(sS.center, ATHENS, 0.35), `pins ${pinsS.length} FIND ${sS.find}`);
+      check("follow-up shows no stale 'Athens Greece' text", !/Greece/i.test(line0) && !/Greece/i.test(sS.line), JSON.stringify(line0));
+      check("athens-supermarket pins inside visible map", pinsS.every((p) => p.y >= vbS.t - 2 && p.y + p.h <= vbS.b + 2), `box ${vbS.t.toFixed(0)}..${vbS.b.toFixed(0)}`);
+      labelCheck("athens-supermarket", pinsS, rwS, vbS);
+      // ---- 4339: grip drag with real input ----
+      const gr = () => page.evaluate(() => {
+        const vis = (e) => e && getComputedStyle(e).display !== "none" && e.getBoundingClientRect().height > 0;
+        const b = (e) => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; };
+        const g = document.getElementById("cli-drag"), c = document.getElementById("sn-sheet-card"), p = document.getElementById("sn-pulse");
+        return { grip: vis(g) ? b(g) : null, card: vis(c) ? b(c) : null, pulse: vis(p) ? b(p) : null };
+      });
+      const ovl = (a, b) => a && b && a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+      const g0 = await gr(); const cap = Math.round(geo.ih * 0.42);
+      await grab("grip-before", { x: 0, y: 0, w: geo.iw, h: geo.ih });
+      check("grip on the sheet top edge, clear of LIVE", !!(g0.grip && g0.card) && Math.abs(g0.grip.y + g0.grip.h - g0.card.y) <= 2 && !ovl(g0.grip, g0.pulse), JSON.stringify(g0));
+      if (g0.grip) {
+        await drag(g0.grip.x + g0.grip.w / 2, g0.grip.y + g0.grip.h / 2, 0, 200); await sleep(400);
+        const g1 = await gr(); await grab("grip-down", { x: 0, y: 0, w: geo.iw, h: geo.ih });
+        await drag(g1.grip.x + g1.grip.w / 2, g1.grip.y + g1.grip.h / 2, 0, -420); await sleep(400);
+        const g2 = await gr(); await grab("grip-up", { x: 0, y: 0, w: geo.iw, h: geo.ih });
+        console.log("[grip] card h", g0.card.h, "→ down", g1.card.h, "→ up", g2.card.h, "cap", cap);
+        check("xdotool drag down shrinks the sheet (>= 96 px)", g1.card.h < g0.card.h - 20 && g1.card.h >= 95, g0.card.h + " → " + g1.card.h);
+        check("xdotool drag up grows the sheet, capped at 42vh", g2.card.h > g1.card.h + 20 && g2.card.h <= cap + 1, g1.card.h + " → " + g2.card.h + " (cap " + cap + ")");
+        check("grip follows the sheet, clear of LIVE", !!g2.grip && Math.abs(g2.grip.y + g2.grip.h - g2.card.y) <= 2 && !ovl(g2.grip, g2.pulse), JSON.stringify(g2));
+      }
+    }
     // name search
     await say("Augoustinos in Rhodes");
     const nm = await waitFor((s) => /a[uv]goust|αυγουστ/i.test(s.prof) || (s.find && s.find !== "…"), 20000);
@@ -351,7 +415,10 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
     console.log("navigations during hunts:", JSON.stringify(navs));
     check("no self-reload", navs.length === 0, JSON.stringify(navs));
   }
-  check("no console errors", errors.length === 0, JSON.stringify(errors.slice(0, 5)));
+  const ext = errors.filter((e) => /status of 429/.test(e) && /api\.open-meteo\.com/.test(e));
+  if (ext.length) console.log("NOTE third-party rate limit (header temperature, box IP):", ext.length, "x open-meteo 429");
+  const errs = errors.filter((e) => ext.indexOf(e) < 0);
+  check("no console errors", errs.length === 0, JSON.stringify(errs.slice(0, 5)));
   console.log("SCREENSHOTS", SHOTDIR);
   console.log(results.fails.length ? "HEADED FAIL: " + results.fails.join("; ") : "HEADED ALL PASS");
   await browser.close();

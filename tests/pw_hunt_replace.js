@@ -11,6 +11,12 @@
  *   Guest wallet reads '0 AV€ · guest'; Augoustinos twins show as one pin.
  * Env: PREVIEW_URL / STAMP; optional LOCAL_APP (patched app.js routed in), LOCAL_FIND (api/find.js
  * served for reverse=1), OVERPASS_FAIL=1 (abort overpass with connectionclosed → expect 1 request).
+ * 4339: boot LIVE = real public network count (explicit status live, no fixtures) while only an IP guess exists;
+ *   LATEST == /api/version; TESTER ticker hidden for guests (also with ?testview=1); bare 'supermarket' with only an
+ *   IP guess never hunts the IP spot (asks where, FIND sheet cleared); 'pizza in Athens Greece' time-to-land <= LAND_MAX;
+ *   bare 'supermarket' after Athens hunts Athens (>= 9 real pins, no stale 'Athens Greece' text); sheet grip drags
+ *   (resizes <= 42vh, >= 96px, clear of LIVE, hidden with no sheet); session-shape check (stored sn:user shape only, no
+ *   token, all writes blocked): YOU + aria-label + header name survive reload and SPACENET reset.
  * Exit 2 on any FAIL.
  */
 const fs = require("fs");
@@ -18,12 +24,14 @@ const path = require("path");
 const { chromium } = require("playwright");
 
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const URL0 = BASE + (BASE.indexOf("?") >= 0 ? "&" : "?") + "v=" + (process.env.STAMP || "4338") + "&t=" + Date.now();
+const URL0 = BASE + (BASE.indexOf("?") >= 0 ? "&" : "?") + "v=" + (process.env.STAMP || "4339") + "&t=" + Date.now();
 const PIZZA = /pizz|πιτσ|πίτσ|margherita|calzone/i;
 const MARKET = /market|super|grocer|convenience|παντοπωλ|σούπερ|σουπερ|μάρκετ|μαρκετ/i;
 const RHODES = { lat: 36.4349, lng: 28.2176 };
 const ATHENS = { lat: 37.9838, lng: 23.7275 };
 const fails = [];
+const SHOTS = process.env.SHOTDIR || "/tmp/sn-pw";
+fs.mkdirSync(SHOTS, { recursive: true });
 function check(ok, label, extra) {
   console.log((ok ? "PASS " : "FAIL ") + label + (extra ? "  " + extra : ""));
   if (!ok) fails.push(label);
@@ -116,10 +124,17 @@ function sameSet(f) {
     if (overpassFailAt && Date.now() - overpassFailAt > 100) overpassAfterFail++;
   });
   page.on("requestfailed", (r) => { if (/overpass-api\.de/.test(r.url()) && !overpassFailAt) overpassFailAt = Date.now(); });
-  if (process.env.LOCAL_APP) {
-    const body = fs.readFileSync(process.env.LOCAL_APP);
-    await page.route(/\/js\/spacenet\/app\.js/, (route) => route.fulfill({ status: 200, contentType: "application/javascript", body }));
+  async function routeLocal(pg) {
+    if (process.env.LOCAL_APP) {
+      const body = fs.readFileSync(process.env.LOCAL_APP);
+      await pg.route(/\/js\/spacenet\/app\.js/, (route) => route.fulfill({ status: 200, contentType: "application/javascript", body }));
+    }
+    if (process.env.LOCAL_AUTH) {
+      const body = fs.readFileSync(process.env.LOCAL_AUTH);
+      await pg.route(/\/js\/spacenet\/auth\.js/, (route) => route.fulfill({ status: 200, contentType: "application/javascript", body }));
+    }
   }
+  await routeLocal(page);
   if (process.env.LOCAL_FIND) {
     const handler = require(path.resolve(process.env.LOCAL_FIND));
     await page.route(/\/api\/find\?.*reverse=1/, async (route) => {
@@ -141,6 +156,33 @@ function sameSet(f) {
   await sleep(4500);
   const wallet = await page.evaluate(() => ((document.querySelector("#sn-money .tgt") || {}).textContent || "").trim());
   check(wallet === "0 AV€ · guest", "guest wallet reads '0 AV€ · guest'", JSON.stringify(wallet));
+
+  // ---- 4339 boot: LIVE network count, LATEST, TESTER ----
+  await sleep(2500);
+  const boot = await page.evaluate(async () => {
+    const lj = await (await fetch("/api/live", { cache: "no-store" })).json();
+    const vj = await (await fetch("/api/version?t=" + Date.now(), { cache: "no-store" })).json();
+    const fx = (s) => /\bTESTER\b|test\s*vendor|\bV?4297\b|tester\s*client/i.test([s.name, s.title, s.note, s.id, s.owner].join(" "));
+    const seen = {}; let n = 0;
+    (lj.shops || []).forEach((s) => { if (s && s.id && isFinite(+s.lat) && s.status === "live" && !fx(s) && !seen[s.id]) { seen[s.id] = 1; n++; } });
+    const t = document.getElementById("sn-tester");
+    return { live: (document.getElementById("sn-pulse") || {}).textContent || "", expect: n, latest: (document.getElementById("sn-latest") || {}).textContent || "",
+      api: vj.latest, ver: (document.getElementById("ver") || {}).textContent || "", tester: !!(t && getComputedStyle(t).display !== "none" && t.offsetParent !== null && t.textContent.trim()), here: window.__SN_HERE };
+  });
+  console.log("[boot]", JSON.stringify(boot));
+  check(new RegExp("^LIVE · " + boot.expect + " vendors? ·").test(boot.live) && boot.expect > 0, "boot LIVE counts the real public network (" + boot.expect + " listed, no fixtures)", boot.live);
+  check(boot.latest === "LATEST " + boot.api && /^\d{4,}$/.test(String(boot.api)), "LATEST shows /api/version (" + boot.api + ")", boot.latest);
+  if (!process.env.LOCAL_APP) check(String(boot.api) === String(process.env.STAMP || "4339") && boot.ver === "V" + (process.env.STAMP || "4339"), "running build == LATEST == STAMP", boot.ver + " / " + boot.api);
+  check(!boot.tester, "TESTER ticker hidden for a guest");
+  await page.screenshot({ path: path.join(SHOTS, "boot.png") });
+
+  // bare hunt with only an IP guess: never hunts the IP spot
+  if (boot.here && /IP/.test(boot.here.name || "")) {
+    await ask(page, "supermarket");
+    let ipS = null; const tI = Date.now();
+    while (Date.now() - tI < 15000) { await sleep(500); ipS = await field(page); ipS.sheetOn = await page.evaluate(() => document.getElementById("sn-sheet").classList.contains("on")); if (/Where\?|Name a place/.test(ipS.line) && !ipS.sheetOn) break; }
+    check(/Where\?|Name a place/.test(ipS.line) && ipS.pins.length === 0 && !ipS.sheetOn, "bare 'supermarket' on an IP guess asks where (no IP hunt, FIND cleared)", JSON.stringify({ line: ipS.line, pins: ipS.pins.length, sheetOn: ipS.sheetOn, live: ipS.live }));
+  }
 
   await ask(page, "supermarket in Rhodes");
   const f1 = await settle(page, "supermarket in Rhodes", 30000);
@@ -186,6 +228,13 @@ function sameSet(f) {
   await page.evaluate(() => { const x = document.querySelector("#sn-sheet [data-act='close'], #sn-sheet .x, #sn-sheet-x"); if (x) x.click(); });
 
   await ask(page, "pizza in Athens Greece");
+  const tA0 = Date.now(); let landMs = null;
+  while (Date.now() - tA0 < 20000) {
+    const fl = await field(page);
+    if (fl.cityOn && fl.center && Math.abs(fl.center.lat - ATHENS.lat) <= 0.3 && Math.abs(fl.center.lng - ATHENS.lng) <= 0.3) { landMs = Date.now() - tA0; break; }
+    await sleep(100);
+  }
+  check(landMs != null && landMs <= 1000 * Number(process.env.LAND_MAX || 8), "Athens time-to-land <= " + (process.env.LAND_MAX || 8) + " s", String(landMs) + " ms");
   const f3 = await settle(page, "pizza in Athens Greece", 35000);
   const far = f3.pins.filter((p) => km(p, ATHENS) > 50);
   check(!far.length, "Athens: no pin farther than 50 km (no Rhodes/Nairobi leak)", far.map((p) => p.tip).join(", "));
@@ -203,6 +252,51 @@ function sameSet(f) {
   check(!hid3.length, "Athens: every pin visible in the map view", hid3.map((p) => p.tip).join(", "));
   const stray = await page.evaluate(() => Array.from(document.querySelectorAll("#city .sn-shop-pin")).map((e) => e.textContent).filter((t) => /ugoustinos|Nairobi/i.test(t)));
   check(!stray.length, "Athens: no stray Rhodes/Nairobi pin element in the DOM", stray.join(","));
+  await page.screenshot({ path: path.join(SHOTS, "athens-pizza.png") });
+
+  // ---- 4339: bare follow-up hunts the landed place, never the stale text ----
+  await ask(page, "supermarket");
+  await sleep(250);
+  const lineNow = await page.evaluate(() => (document.getElementById("line") || {}).textContent || "");
+  const tS0 = Date.now();
+  const f5 = await settle(page, "supermarket (after Athens)", 35000);
+  const f5far = f5.pins.filter((p) => km(p, ATHENS) > 50);
+  console.log("   follow-up line at submit:", JSON.stringify(lineNow), "settled after", Date.now() - tS0, "ms");
+  check(!/Greece/i.test(lineNow) && !/Greece/i.test(f5.line), "follow-up does not carry the stale 'Athens Greece' text", JSON.stringify(lineNow));
+  check(f5.pins.length >= 9, "Athens → 'supermarket': >= 9 real pins", f5.pins.length + " pins");
+  check(!f5far.length, "follow-up pins all within 50 km of Athens", f5far.map((p) => p.tip).join(", "));
+  check(sameSet(f5) && f5.shown.every((s) => MARKET.test(s.blob)), "follow-up FIND == pins, market-only", f5.shown.filter((s) => !MARKET.test(s.blob)).map((s) => s.name).join(", "));
+  check(f5.center && km(f5.center, ATHENS) < 30, "follow-up stays on Athens", JSON.stringify(f5.center));
+  await page.screenshot({ path: path.join(SHOTS, "athens-supermarket.png") });
+
+  // ---- 4339: sheet grip drags ----
+  const gr = () => page.evaluate(() => {
+    const g = document.getElementById("cli-drag"), c = document.getElementById("sn-sheet-card"), p = document.getElementById("sn-pulse");
+    const vis = (e) => e && getComputedStyle(e).display !== "none" && e.getBoundingClientRect().height > 0;
+    const b = (e) => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; };
+    return { grip: vis(g) ? b(g) : null, card: vis(c) ? b(c) : null, pulse: vis(p) ? b(p) : null, ih: innerHeight };
+  });
+  const ov = (a, b) => a && b && a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  const g0 = await gr();
+  check(!!(g0.grip && g0.card) && Math.abs(g0.grip.y + g0.grip.h - g0.card.y) <= 2 && !ov(g0.grip, g0.pulse), "grip rides the sheet top, clear of LIVE", JSON.stringify(g0));
+  if (g0.grip) {
+    const gx = g0.grip.x + g0.grip.w / 2, gy = g0.grip.y + g0.grip.h / 2;
+    await page.mouse.move(gx, gy); await page.mouse.down();
+    for (let i = 1; i <= 10; i++) { await page.mouse.move(gx, gy + 20 * i); await sleep(16); }
+    await page.mouse.up(); await sleep(300);
+    const g1 = await gr();
+    await page.mouse.move(g1.grip.x + g1.grip.w / 2, g1.grip.y + g1.grip.h / 2); await page.mouse.down();
+    for (let i = 1; i <= 10; i++) { await page.mouse.move(g1.grip.x + g1.grip.w / 2, g1.grip.y + g1.grip.h / 2 - 50 * i); await sleep(16); }
+    await page.mouse.up(); await sleep(300);
+    const g2 = await gr();
+    const cap = Math.round(g0.ih * 0.42);
+    console.log("   grip heights", g0.card.h, "→ down", g1.card.h, "→ up", g2.card.h, "cap", cap);
+    check(g1.card.h < g0.card.h - 20 && g1.card.h >= 95, "drag down shrinks the sheet (>= 96 px)", g0.card.h + " → " + g1.card.h);
+    check(g2.card.h > g1.card.h + 20, "drag up grows the sheet", g1.card.h + " → " + g2.card.h);
+    check(g2.card.h <= cap + 1, "dragged sheet never taller than 42vh", g2.card.h + " ≤ " + cap);
+    check(!ov(g2.grip, g2.pulse) && Math.abs(g2.grip.y + g2.grip.h - g2.card.y) <= 2, "grip follows the sheet, still clear of LIVE", JSON.stringify(g2));
+    await page.screenshot({ path: path.join(SHOTS, "grip-dragged.png") });
+  }
 
   await ask(page, "supermarket in Rhodes");
   const f4 = await settle(page, "supermarket in Rhodes (again)", 35000);
@@ -214,6 +308,48 @@ function sameSet(f) {
   await sleep(6000);
   const tw = await page.evaluate(() => SN.fieldShops().filter((s) => /ugoustinos|vgoustinos/i.test(s.name + " " + s.aka)));
   check(tw.length === 1, "Augoustinos twins merged into one pin", JSON.stringify(tw));
+
+  // grip hidden with no sheet
+  await page.evaluate(() => { const x = document.querySelector("#sn-sheet .sheet-x"); if (x) x.click(); });
+  await sleep(900);
+  const gOff = await page.evaluate(() => { const g = document.getElementById("cli-drag"); const sh = document.getElementById("sn-sheet"); return { on: sh.classList.contains("on"), grip: !!(g && getComputedStyle(g).display !== "none" && g.getBoundingClientRect().height > 0) }; });
+  check(gOff.on || !gOff.grip, "grip hidden when no sheet is open", JSON.stringify(gOff));
+
+  // ---- 4339 session shape (stored sn:user shape only; no token; every write blocked; nothing leaves the box) ----
+  {
+    const ctx2 = await browser.newContext({ viewport: { width: 1280, height: 800 }, serviceWorkers: "block" });
+    const p2 = await ctx2.newPage();
+    await routeLocal(p2);
+    let writes = 0;
+    await p2.route(/supabase\.co/, (r) => { writes++; return r.abort(); });
+    await p2.route(/\/api\//, (r) => { if (r.request().method() !== "GET") { writes++; return r.abort(); } return r.continue(); });
+    await p2.goto(URL0, { waitUntil: "domcontentloaded", timeout: 90000 });
+    await sleep(2500);
+    await p2.evaluate(() => { localStorage.setItem("sn:user", JSON.stringify({ id: "shape-check", email: "shape-check@example.invalid", name: "Shape Check", photo: "", phone: "", verified: false })); });
+    await p2.reload({ waitUntil: "domcontentloaded" });
+    await sleep(5500);
+    const me1 = await p2.evaluate(() => { const b = document.getElementById("sn-me"); return { lbl: ((b && b.querySelector(".lbl")) || {}).textContent || "", aria: b && b.getAttribute("aria-label"), who: (document.getElementById("sn-who") || {}).textContent || "" }; });
+    check(me1.lbl === "YOU" && /^YOU · Shape Check$/.test(me1.aria || "") && me1.who === "Shape", "stored session shape restores on reload (YOU, aria-label, header name)", JSON.stringify(me1));
+    await p2.screenshot({ path: path.join(SHOTS, "session-shape.png") });
+    await Promise.all([p2.waitForNavigation({ timeout: 15000 }).catch(() => null), p2.click("#sn-brand-s")]);
+    await sleep(5500);
+    const me2 = await p2.evaluate(() => { const b = document.getElementById("sn-me"); return { lbl: ((b && b.querySelector(".lbl")) || {}).textContent || "", aria: b && b.getAttribute("aria-label"), kept: !!localStorage.getItem("sn:user") }; });
+    check(me2.kept && me2.lbl === "YOU", "SPACENET reset keeps the sign-in", JSON.stringify(me2));
+    await p2.evaluate(() => { localStorage.removeItem("sn:user"); });
+    console.log("   session-shape writes blocked:", writes);
+    await ctx2.close();
+  }
+  // ---- TESTER hidden for a guest even with ?testview=1 ----
+  {
+    const ctx3 = await browser.newContext({ viewport: { width: 1280, height: 800 }, serviceWorkers: "block" });
+    const p3 = await ctx3.newPage();
+    await routeLocal(p3);
+    await p3.goto(URL0 + "&testview=1", { waitUntil: "domcontentloaded", timeout: 90000 });
+    await sleep(7000);
+    const tv = await p3.evaluate(() => { const t = document.getElementById("sn-tester"); return { vis: !!(t && getComputedStyle(t).display !== "none" && t.offsetParent !== null && t.textContent.trim()), txt: t ? t.textContent : null, live: (document.getElementById("sn-pulse") || {}).textContent }; });
+    check(!tv.vis && !/Test Vendor|V4297/.test(tv.live || ""), "guest with ?testview=1: TESTER ticker and fixtures stay hidden", JSON.stringify(tv));
+    await ctx3.close();
+  }
 
   console.log("overpass requests:", overpassHits, "after first failure:", overpassAfterFail, "state:", JSON.stringify(await page.evaluate(() => SN.overpassState && SN.overpassState())));
   if (process.env.OVERPASS_FAIL) check(overpassFailAt > 0 && overpassAfterFail === 0, "overpass backs off after the first connection failure", overpassHits + " total, " + overpassAfterFail + " after the first failure");

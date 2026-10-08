@@ -50,6 +50,35 @@
   }
   function user() { try { return JSON.parse(read("sn:user", "null") || "null"); } catch (e) { return null; } }
   function token() { return read("sn:access", ""); }
+  /* 4339: keep the session across reloads past the 1 h access token: store refresh + expiry, refresh on boot */
+  function keep(j) {
+    if (!j) return;
+    if (j.refresh_token) write("sn:refresh", String(j.refresh_token));
+    var exp = Number(j.expires_at) || (Number(j.expires_in) ? Math.floor(Date.now() / 1000) + Number(j.expires_in) : 0);
+    if (exp) write("sn:exp", String(exp));
+  }
+  function refresh() {
+    var rt = read("sn:refresh", "");
+    if (!rt) return Promise.resolve(false);
+    return fetch(SB + "/auth/v1/token?grant_type=refresh_token", {
+      method: "POST",
+      headers: { apikey: ANON, "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: rt })
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (x) {
+        if (x.ok && x.j && x.j.access_token) {
+          write("sn:access", x.j.access_token);
+          keep(x.j);
+          if (x.j.user && x.j.user.email) saveUser(x.j.user);
+          return true;
+        }
+        return false;
+      }).catch(function () { return false; });
+  }
+  function stale() {
+    var exp = Number(read("sn:exp", "0"));
+    return !!read("sn:refresh", "") && (!exp || exp - 120 < Date.now() / 1000);
+  }
   function google() {
     loadCfg(function () {
       var dest = location.origin + "/?auth=google";
@@ -79,7 +108,7 @@
   }
   function out() {
     var t = token();
-    write("sn:user", ""); write("sn:access", ""); write("sn:pkce", "");
+    write("sn:user", ""); write("sn:access", ""); write("sn:pkce", ""); write("sn:refresh", ""); write("sn:exp", "");
     if (t) fetch(SB + "/auth/v1/logout", { method: "POST", headers: headers({ Authorization: "Bearer " + t }) }).catch(function () {});
     paintMe();
     if (window.SN && SN.paintMoney) SN.paintMoney();
@@ -121,6 +150,7 @@
       history.replaceState({}, "", location.pathname);
     }
     if (at) {
+      keep({ refresh_token: hq.get("refresh_token"), expires_at: hq.get("expires_at"), expires_in: hq.get("expires_in") });
       return takeUser(at).then(function (ok) { clean(); return ok; }).catch(function () { clean(); talk("Google sign-in did not finish."); return false; });
     }
     if (code) {
@@ -136,13 +166,14 @@
         .then(function (r) { return r.json(); })
         .then(function (j) {
           write("sn:pkce", "");
-          if (j && j.access_token) return takeUser(j.access_token);
+          if (j && j.access_token) { keep(j); return takeUser(j.access_token); }
           talk((j && (j.error_description || j.msg || j.error)) || "Google code was not exchanged.");
           return false;
         })
         .then(function (ok) { clean(); return ok; })
         .catch(function () { clean(); talk("Google sign-in did not finish."); return false; });
     }
+    if (user() && stale()) return refresh().then(function () { return !!user(); });
     return Promise.resolve(!!user());
   }
   function css() {
@@ -182,6 +213,10 @@
     var btn = document.getElementById("sn-me");
     if (!btn) return;
     btn.className = inNow ? "in" : "out";
+    /* 4339: the accessible name follows the state (it read "Login" while signed in) */
+    var who = inNow ? String(u.name || u.email || "").replace(/[<>"]/g, "") : "";
+    btn.setAttribute("aria-label", inNow ? "YOU · " + who : "Login");
+    btn.title = inNow ? who : "Login";
     btn.innerHTML = '<span class="lbl">' + (inNow ? "YOU" : "LOGIN") + '</span><span class="tgt">' + (inNow ? face(u) : '<span class="ph">IN</span>') + "</span>";
     if (window.SN && SN.paintMoney) SN.paintMoney();
   }
@@ -257,7 +292,8 @@
     }
     var search = new URLSearchParams(location.search);
     var hash = location.hash || "";
-    var needNet = !!(search.get("code") || search.get("error") || /access_token=/.test(hash) || token());
+    var needNet = !!(search.get("code") || search.get("error") || /access_token=/.test(hash) || token() || read("sn:refresh", ""));
+    if (!window.__snAuthTick) window.__snAuthTick = setInterval(function () { if (user() && stale()) loadCfg(function () { refresh(); }); }, 300000);
     if (!needNet) return;
     loadCfg(function () {
       applyReturn().then(function () { paintMe(); });
