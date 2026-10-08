@@ -1,0 +1,112 @@
+name: grokbuild 4344 double click on a city dot or its label centres on the place (Athens), labelled city dots, tests at both sizes (branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4344.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Check main; decode kit47; apply fix47 + stamp 4344; assert; drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch -q origin main
+          MAIN=$(git rev-parse origin/main)
+          echo "main tip $MAIN"
+          test "$MAIN" = "785011f6c15d4e9bc8c3656b2a10ed89fb35c3d3" || { echo "main moved past 785011f6: merge it first (rebuild the kit)"; exit 1; }
+          git merge-base --is-ancestor "$MAIN" HEAD
+          git merge-base --is-ancestor 3fea1b30c34c9893df9462df854e28049f4cef6a HEAD
+          git log --oneline -3
+          grep -q 'var VER = "4343"' js/spacenet/app.js
+          test -f .grokbuild/kit47.p00.b64
+          test -f .grokbuild/kit47.p03.b64
+          python3 - <<'PYKIT'
+          from pathlib import Path
+          import hashlib, gzip, glob, tarfile, io, base64
+          raw = base64.b64decode("".join(Path(p).read_text().strip() for p in sorted(glob.glob(".grokbuild/kit47.p*.b64"))), validate=True)
+          g = hashlib.sha256(raw).hexdigest(); print("tgz", g, len(raw))
+          if g != "292ae1eba247e084116e00289e82083ed5cb336b59d8207ba6c2f8d11a9598b4": raise SystemExit("tgz sha mismatch")
+          body = gzip.decompress(raw); s = hashlib.sha256(body).hexdigest(); print("tar", s, len(body))
+          if s != "f5c6fed332171f1eaec0963f4d99ceeb43f468ccfaaac14c754d6e60cf0222b9": raise SystemExit("tar sha mismatch")
+          Path(".grokbuild/k").mkdir(parents=True, exist_ok=True)
+          with tarfile.open(fileobj=io.BytesIO(body)) as t:
+              for m in t.getmembers():
+                  if m.name.startswith("/") or ".." in m.name: raise SystemExit("bad member " + m.name)
+              t.extractall(".grokbuild/k")
+          PYKIT
+          git apply --check .grokbuild/k/fix47.patch
+          git apply .grokbuild/k/fix47.patch
+          python3 .grokbuild/k/stamp4344.py
+          grep -q 'app.js?v=4344' index.html
+          grep -q 'auth.js?v=4344' index.html
+          grep -q 'leaflet.js?v=4344' index.html
+          grep -q 'name="astranov-build" content="4344"' index.html
+          grep -q 'id="ver">V4344' index.html
+          grep -q 'var VER = "4344"' js/spacenet/app.js
+          test "$(grep -c '__SN_4344 = true' js/spacenet/app.js)" = "2"
+          grep -q 'location.href = "/?v=4344&' js/spacenet/app.js
+          grep -q 'var VER = "4344"' sw.js
+          grep -q 'sn-shell-4344' sw.js
+          grep -q 'TREE LOCK 4344' sw.js
+          grep -q 'SpaceNet SW 4344' sw.js
+          grep -q '4344-real' vercel.json
+          grep -q '"X-Astranov-Build", "value": "4344"' vercel.json
+          grep -qx '4344' VERSION
+          grep -q 'path.join(process.cwd(), "VERSION")' api/version.js
+          node -e 'const h=require("./api/version.js");h({method:"GET"},{setHeader(){},status(c){return {json(j){if(c!==200||j.latest!=="4344"){console.error("version.js",c,j);process.exit(1)}console.log("api/version ->",j)},end(){}}}})'
+          grep -qF -- 'function drawSiteLabels(list)' js/spacenet/app.js
+          grep -qF -- 'drawSiteLabels(sitesDrawn)' js/spacenet/app.js
+          grep -qF -- 'function dotAt(sx, sy)' js/spacenet/app.js
+          grep -qF -- 'aim = snap ? { lat: snap.lat, lng: snap.lng }' js/spacenet/app.js
+          grep -qF -- 'n: "ISTANBUL"' js/spacenet/app.js
+          grep -qF -- 'window.__snLastDbl' js/spacenet/app.js
+          grep -qF -- 'function mapH()' js/spacenet/app.js
+          grep -qF -- 'Math.floor(mapH() * 0.42) - below() - ABOVE' js/spacenet/app.js
+          grep -qF -- 'Math.round(area() * 0.28)' js/spacenet/app.js
+          grep -qF -- 'function wxFor(el, p)' js/spacenet/app.js
+          grep -qF -- 'sessionStorage.getItem("sn:wx")' js/spacenet/app.js
+          grep -qF -- 's2.back = Date.now()' js/spacenet/app.js
+          grep -qF -- 'function briefAt' js/spacenet/app.js
+          grep -qF -- 'function area()' js/spacenet/app.js
+          grep -qF -- 'vendors on SpaceNet' js/spacenet/app.js
+          grep -qF -- 'amenity|shop|healthcare' js/spacenet/app.js
+          grep -qF -- 'listing needs LOGIN' js/spacenet/app.js
+          grep -qF -- 'function gpsArrived' js/spacenet/app.js
+          grep -qF -- '"source": "/VERSION"' vercel.json
+          grep -qF -- '{"key": "Content-Type", "value": "text/plain; charset=utf-8"}' vercel.json
+          grep -qF -- 'HEADED 4344 ALL PASS' tests/headed_boot_gps_keys.js
+          grep -qF -- 'globe-dblclick-crete' tests/headed_boot_gps_keys.js
+          grep -qF -- 'globe-dblclick-athens-label' tests/headed_boot_gps_keys.js
+          grep -qF -- 'globe-dblclick-istanbul-dot' tests/headed_boot_gps_keys.js
+          grep -qF -- 'D.realPx <= 20' tests/headed_boot_gps_keys.js
+          grep -qF -- 'weather: a reload in the same tab' tests/headed_boot_gps_keys.js
+          grep -qF -- 'STAMP || "4344"' tests/headed_wheel_xdotool.js
+          grep -qF -- 'process.env.STAMP || "4344"' tests/pw_hunt_replace.js
+          if grep -qE 'v=4343|"4343"|sn-shell-4343|4343-real|V4343|__SN_4343|TREE LOCK 4343|SW 4343' index.html sw.js api/version.js vercel.json js/spacenet/app.js js/spacenet/auth.js; then echo 'stale 4343 stamp'; exit 1; fi
+          if grep -qx '4343' VERSION; then echo 'stale VERSION'; exit 1; fi
+          python3 -c "import json;json.load(open('vercel.json'))"
+          node --check js/spacenet/app.js
+          node --check js/spacenet/auth.js
+          node --check sw.js
+          node --check api/version.js
+          node --check tests/headed_wheel_xdotool.js
+          node --check tests/pw_hunt_replace.js
+          node --check tests/headed_boot_gps_keys.js
+          git rm -q -r --cached .grokbuild || true
+          git rm -q .github/workflows/grokbuild-4344.yml || true
+          rm -rf .grokbuild .github/workflows/grokbuild-4344.yml
+          git add -u
+          git add VERSION index.html vercel.json sw.js js/spacenet/app.js tests/headed_wheel_xdotool.js tests/pw_hunt_replace.js tests/headed_boot_gps_keys.js
+          git status --short | head -40
+          git commit -q -m "4344: a double click on a city dot (Athens, Istanbul, Cairo, the Rhodes dots) or on its new name label centres the z10 view on that place's own coordinates (city dots were not snap targets: the surface pick one rounded px off the Athens dot was ~0.15-0.2 deg, ~150 px at z10); anywhere else the exact surface pick; city dots carry small non-overlapping name labels; ISTANBUL and CAIRO city dots; headed tests: Athens dot / 3 px off / label, Istanbul dot / label, Rhodes, Crete at both sizes, 0.05 deg and <= 20 px from the map centre (preview, do not merge)"
+          # let the deploys of the kit commits finish first, so the preview alias ends on this commit
+          sleep 75
+          git push origin HEAD:grokbuild/4328-street-level-gps
