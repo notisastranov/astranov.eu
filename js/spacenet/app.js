@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4345";
+  var VER = "4346";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -75,6 +75,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var shops = [];
   var map = null;
   var youMark = null;
+  var dblRing = null; /* 4346: the ring on the double-clicked point (map centre) */
   var canvas, ctx;
   var lastT = 0;
   var drag = null;
@@ -982,7 +983,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4345 = true;
+      window.__SN_4346 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -1100,8 +1101,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           try { closeSky(); } catch (e) {}
           /* 4342: a double tap on Rhodes from the globe lands on the island (z10), not on one random street */
           var dz = cam.dist > 1.0 ? 10 : (cam.dist > 0.6 ? 13 : 16);
-          openCity(aim, { zoom: dz });
-          say(dz <= 10 ? "Island / region view · scroll in for streets." : (dz <= 13 ? "Town view · scroll in for streets." : "Street"));
+          /* 4346: never below the globe's own scale (a double tap never zooms out), never below z10 */
+          var zEqG = globeZEq();
+          dz = Math.max(dz, Math.ceil(zEqG * 2) / 2);
+          window.__snLastDbl.zEq = +zEqG.toFixed(2); window.__snLastDbl.z = dz; window.__snLastDbl.where = "globe";
+          openCity(aim, { zoom: dz, ring: true });
+          say(dblLine(dz, aim.lat, aim.lng));
           return;
         }
         window.__snGlobeTap = nowT;
@@ -1173,6 +1178,48 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       yaw: wrapYaw(cam.yaw, (pt.lng * Math.PI) / 180 - earthSpin()),
       pitch: Math.max(-1.15, Math.min(1.15, (pt.lat * Math.PI) / 180))
     };
+  }
+  /* 4346: the globe's scale as a web-map zoom (px per degree of longitude on the equator = 256 * 2^z / 360) */
+  function globeZEq() {
+    if (!view || !view.base) return 0;
+    var sc = view.base * (1.85 / Math.max(0.3, cam.dist || 1.85));
+    return Math.log(Math.max(1, sc * 2 * Math.PI / 256)) / Math.LN2;
+  }
+  function dblLine(z, lat, lng) {
+    return (z <= 11 ? "Island / region view" : (z <= 13.5 ? "Town view" : "Street")) + " · " + (+lat).toFixed(3) + "," + (+lng).toFixed(3) + (z < 15 ? " · scroll in for streets." : "");
+  }
+  function ringAt(lat, lng) {
+    if (!map || typeof L === "undefined") return;
+    try { if (dblRing) map.removeLayer(dblRing); } catch (e) {}
+    dblRing = null; window.__snRing = null;
+    if (lat == null || !isFinite(+lat) || !isFinite(+lng)) return;
+    try {
+      dblRing = L.circleMarker([+lat, +lng], { radius: 12, color: "#4df0ff", weight: 2.5, opacity: 0.95, fill: false, interactive: false, bubblingMouseEvents: false }).addTo(map);
+      window.__snRing = { lat: +lat, lng: +lng };
+    } catch (e2) {}
+  }
+  /* 4346: a double click on the map centres on the clicked point and zooms IN one step (to z10 when below z10). It never
+     zooms out and never leaves the map (a double tap used to close the map back to the zoomed-out globe, while Leaflet's
+     own double-click zoom ran around the cursor); the readout names the new centre and a ring marks the clicked point */
+  function mapDbl(lat, lng) {
+    if (!map || !cityOn || !isFinite(+lat) || !isFinite(+lng)) return;
+    lat = +lat; lng = +lng;
+    var z0 = map.getZoom(), maxZ = Math.min(WHEEL_MAX_Z, map.getMaxZoom ? map.getMaxZoom() : 19);
+    var nz = z0 < 10 ? 10 : Math.min(maxZ, z0 + 1);
+    if (!(nz >= z0)) nz = z0;
+    closeBelow = Math.min(closeBelow, Math.max(map.getMinZoom ? map.getMinZoom() : 8, z0));
+    progMoveUntil = Date.now() + 700; mapUserAt = Date.now();
+    try { map.setView([lat, lng], nz, { animate: false }); } catch (e) {}
+    if (seatKind === "ip") { seatKind = "landed"; ipView = null; window.__snIpView = null; }
+    lastSeat = { lat: lat, lng: lng, name: "map" };
+    adminPin = true;
+    here = { lat: lat, lng: lng, name: "map" }; window.__SN_HERE = here;
+    aim = { lat: lat, lng: lng, name: "map" };
+    ringAt(lat, lng);
+    placeXhair();
+    window.__snLastDbl = { where: "map", lat: lat, lng: lng, z0: z0, z: nz, by: "map", at: Date.now() };
+    say(dblLine(nz, lat, lng));
+    try { pullListings(); } catch (eP) {}
   }
   function zoomToDist(dist, sx, sy) {
     intro = false;
@@ -1718,9 +1765,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (huntFitWanted) { try { fitHunt(); } catch (eFit) {} }
     }
     if (!map) {
-      map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 9, maxZoom: 19, zoomSnap: 0.5, zoomDelta: 0.5, scrollWheelZoom: false });
+      map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 8, maxZoom: 19, zoomSnap: 0.5, zoomDelta: 0.5, scrollWheelZoom: false, doubleClickZoom: false });
       var osmT = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19, minZoom: 9,
+        maxZoom: 19, minZoom: 8,
         errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
       }).addTo(map);
       /* a tile the OSM server refuses falls back once to the public CARTO raster of the same tile (no key) */
@@ -1817,11 +1864,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           pullListings();
         } catch (e) {}
       });
-      var lastTap = 0;
-      map.on("click", function () {
-        var t = Date.now();
-        if (t - lastTap < 320) closeCity();
-        lastTap = t;
+      map.on("dblclick", function (ev) {
+        try {
+          if (ev && ev.originalEvent) { try { ev.originalEvent.preventDefault(); } catch (eP) {} }
+          if (ev && ev.latlng) mapDbl(ev.latlng.lat, ev.latlng.lng);
+        } catch (eD) {}
       });
       var holdPt = null;
       el.addEventListener("contextmenu", function (e) {
@@ -1854,8 +1901,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }, true);
       el.addEventListener("pointercancel", function () { holdPt = null; });
     } else {
-      try { map.setMinZoom(9); } catch (e) {}
+      try { map.setMinZoom(8); } catch (e) {}
     }
+    if (opts.ring) ringAt(plat, plng); else ringAt(null);
     if (youMark) try { map.removeLayer(youMark); } catch (e) {}
     youMark = null;
     if (here && isFinite(+here.lat) && isFinite(+here.lng)) {
@@ -2113,7 +2161,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4345&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4346&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -7734,11 +7782,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4345 = true;
+    window.__SN_4346 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
-      lookAt: lookAt, earthSpin: earthSpin, globeHitTest: function (sx, sy) { return pickHit(sx, sy); },
+      lookAt: lookAt, earthSpin: earthSpin, globeHitTest: function (sx, sy) { return pickHit(sx, sy); }, globeZoomEq: function () { return globeZEq(); },
       getCam: function () { return { yaw: cam.yaw, pitch: cam.pitch, dist: cam.dist, seated: !!seated, cityOn: !!cityOn }; },
       wheelState: function () { return { anchor: wheelG && wheelG.anchor, hold: holdOk(), held: !!globeHeld, pick: wheelPick, debug: DEBUG_WHEEL, notches: wheelN, last: window.__snWheelLast || null, xhair: xhairLL }; },
       fitHunt: function () { fitHunt(); },

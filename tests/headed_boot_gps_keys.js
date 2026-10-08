@@ -1,5 +1,5 @@
 /**
- * Headed real-input test (4345): real Chrome on the X display (DISPLAY, default :3); run it at WIN=1920x1200 SCALE=1.5
+ * Headed real-input test (4346): real Chrome on the X display (DISPLAY, default :3); run it at WIN=1920x1200 SCALE=1.5
  * (OS-level xdotool input picked in a 1280x800 "agent view" and rounded back, like a computer-use agent on a scaled
  * screenshot) and at WIN=1280x800 SCALE=1. Screenshots are grabbed from the X screen (real pixels).
  *  BOOT: no input. MIC is a cyan icon; LIVE shows 'loading…' then one count, 'N vendors on SpaceNet'; the IP answer lands
@@ -29,6 +29,11 @@
  *    sit on the guest's pixels, real pixel 939,462 double clicked) centres on the surface point under that pixel
  *    (<= 0.05 deg, <= 20 px), and the precision bound there is logged (km per real px; the spot the guest meant and
  *    Heraklion are within 2.5 px of the clicked pixel);
+ *    4346: a double click never zooms out: open spots (Crete west-central, inland Anatolia) double clicked on the close
+ *    globe (dist 0.9) and on the map at z8, z10 and z13 (xdotool, agent-scale rounding), plus the guest's case (wheel into
+ *    west Crete to z10.5, double click the agent pixel 560,500): still on the map, zoom after >= zoom before (globe:
+ *    >= max(its zoom equivalent, z10); map: z < 10 -> z10, else +1), the clicked point and the ring marker <= 20 px from
+ *    the map centre, the readout's lat,lng == the map centre within 0.01 deg;
  *    GPS recalibrate from the globe and from the map never opens the sky view.
  *  LOAD VIEW: no location answer → the globe stays; callouts outside the glow ring, apart, clear of the HUD, at 1280x800
  *    and 1920x1200; LIVE = the real network count.
@@ -44,18 +49,18 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4345";
+const STAMP = process.env.STAMP || "4346";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now();
 const ORIGIN = new URL(BASE).origin;
 const [WW, WH] = (process.env.WIN || "1920x1200").split("x").map(Number);
 const SCALE = Number(process.env.SCALE || 1.5);
-const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4345";
+const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4346";
 fs.mkdirSync(SHOTDIR, { recursive: true });
 if (!process.env.DISPLAY) process.env.DISPLAY = ":3";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const xdo = (a) => execSync("xdotool " + a, { env: process.env });
 const SYNTAGMA = { lat: 37.9755, lng: 23.7348 }, RHODES_OLD = { lat: 36.4446, lng: 28.2276 };
-const GRAB = path.join(os.tmpdir(), "sn_grab4345.py");
+const GRAB = path.join(os.tmpdir(), "sn_grab4346.py");
 fs.writeFileSync(GRAB, `import sys, json
 from PIL import ImageGrab, ImageStat
 out, x, y, w, h = sys.argv[1], *map(int, sys.argv[2:6])
@@ -516,6 +521,74 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
     check("Crete precision bound: the spot the guest meant (~8 km N, 13 km W of Heraklion) and Heraklion lie within 2.5 real px of the clicked pixel (1 px = " + kmV + " km N-S, " + kmH + " km E-W here)",
       Math.hypot(spotOff[0], spotOff[1]) <= 2.5 && Math.hypot(herOff[0], herOff[1]) <= 2.5, JSON.stringify({ guestSpotPx: spotOff, heraklionPx: herOff, heraklionAtZ10: scr && scr.her }));
   } else console.log("NOTE the guest's Crete replay runs at 1920x1200 only (their real pixel 939,462)");
+  /* 4346: a double click never zooms out (preview-4345/12-15: a double click on west Crete at ~z10.5 closed the map to the
+     zoomed-out globe and the readout kept the old centre). Open spots, no dot: on the close globe and on the map at z8, z10,
+     z13; input = xdotool at agent scale; setup (turning the globe, opening the map at a zoom) is not a user action */
+  {
+    const SPOTS = [{ n: "Crete west-central", lat: 35.30, lng: 23.85 }, { n: "inland Anatolia (Turkey)", lat: 39.45, lng: 34.60 }];
+    const readLL = (t) => { const m = String(t || "").match(/(-?\d{1,2}\.\d{3}),(-?\d{1,3}\.\d{3})/); return m ? { lat: +m[1], lng: +m[2] } : null; };
+    const measure = (pk) => page.evaluate((pk) => {
+      const m = SN.getMap(), c = SN.getCam(), city = document.getElementById("city");
+      const on = !!(c.cityOn && city.classList.contains("on"));
+      if (!m || !m._loaded) return { on, line: document.getElementById("line").textContent };
+      const sz = m.getSize(), mc = m.getCenter(), q = m.latLngToContainerPoint([pk.lat, pk.lng]), rg = window.__snRing, rq = rg ? m.latLngToContainerPoint([rg.lat, rg.lng]) : null;
+      return { on, z: m.getZoom(), c: { lat: mc.lat, lng: mc.lng }, pkPx: [q.x - sz.x / 2, q.y - sz.y / 2], ringPx: rq ? [rq.x - sz.x / 2, rq.y - sz.y / 2] : null,
+        line: document.getElementById("line").textContent, dpr: devicePixelRatio, last: window.__snLastDbl || null }; }, pk);
+    const verdict = (tag, zb, want, M, extra) => {
+      const rl = readLL(M.line), pkd = M.pkPx ? Math.hypot(M.pkPx[0], M.pkPx[1]) * M.dpr : null, rgd = M.ringPx ? Math.hypot(M.ringPx[0], M.ringPx[1]) * M.dpr : null;
+      const ok = !!(M.on && M.z != null && M.z >= zb - 1e-6 && (want == null || Math.abs(M.z - want) < 0.01) && pkd != null && pkd <= 20 && rgd != null && rgd <= 20 && rl && M.c && Math.abs(rl.lat - M.c.lat) <= 0.01 && Math.abs(rl.lng - M.c.lng) <= 0.01);
+      check(tag + ": still on the map, zoom after >= before" + (want != null ? " (z" + want + ")" : "") + ", clicked point + ring <= 20 px from the centre, readout = centre within 0.01 deg", ok,
+        JSON.stringify(Object.assign({ zBefore: +(+zb).toFixed(2), zAfter: M.z, clickedPx: pkd != null ? +pkd.toFixed(1) : null, ringPx: rgd != null ? +rgd.toFixed(1) : null, readout: rl, centre: M.c && { lat: +M.c.lat.toFixed(4), lng: +M.c.lng.toFixed(4) }, line: M.line, on: M.on }, extra || {})));
+    };
+    const fileTag = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    // the close globe (dist 0.9: the last globe step before the wheel opens the map)
+    for (const sp of SPOTS) {
+      await toGlobe();
+      await page.evaluate((l) => SN.lookAt(l, 0.9), { lat: sp.lat + 2, lng: sp.lng - 3 }); await sleep(1400);
+      const pt = await page.evaluate((a) => SN.projectFrame(a.lat, a.lng), sp);
+      const [sx, sy] = A(pt.x, pt.y); const px = sx - ox, py = sy - oy;
+      const pre = await page.evaluate((q) => ({ zEq: SN.globeZoomEq(), pick: SN.globeHitTest(q[0], q[1]), dist: SN.getCam().dist, cityOn: SN.getCam().cityOn }), [px, py]);
+      const tag = "globe-close dblclick " + sp.n;
+      if (!pre.pick || pre.cityOn) { check(tag, false, "setup: " + JSON.stringify(pre)); continue; }
+      xdo(`mousemove ${sx} ${sy}`); await sleep(100); xdo("click --repeat 2 --delay 90 1");
+      await sleep(2200); const M = await measure(pre.pick); const g = await grab(fileTag("dbl46 " + tag));
+      console.log("[" + tag + "]", JSON.stringify({ click: [px, py], pre, M }).slice(0, 700), g.file);
+      verdict("double click an open spot on the close globe (dist " + pre.dist.toFixed(2) + ", ~z" + pre.zEq.toFixed(1) + "): " + sp.n, Math.max(10, pre.zEq), null, M, { by: M.last && M.last.by });
+    }
+    // the map at z8, z10, z13: the spot sits off the centre (-110, +70 css px), double click it
+    for (const sp of SPOTS) for (const Z of [8, 10, 13]) {
+      await page.evaluate((a) => SN.openCity({ lat: a.lat, lng: a.lng }, { zoom: a.z }), { lat: sp.lat, lng: sp.lng, z: Z }); await sleep(900);
+      await page.evaluate((a) => { const m = SN.getMap(); const sz = m.getSize(); const c2 = m.containerPointToLatLng([sz.x / 2 + 110, sz.y / 2 - 70]); SN.openCity({ lat: c2.lat, lng: c2.lng }, { zoom: a.z }); }, { z: Z });
+      await sleep(2000);
+      const pre = await page.evaluate((a) => { const m = SN.getMap(); const r = document.getElementById("city").getBoundingClientRect(); const q = m.latLngToContainerPoint([a.lat, a.lng]); return { z: m.getZoom(), page: [r.left + q.x, r.top + q.y], left: r.left, top: r.top }; }, sp);
+      const [sx, sy] = A(pre.page[0], pre.page[1]); const px = sx - ox, py = sy - oy;
+      const pk = await page.evaluate((q) => { const m = SN.getMap(); const ll = m.containerPointToLatLng([q[0], q[1]]); return { lat: ll.lat, lng: ll.lng }; }, [px - pre.left, py - pre.top]);
+      const tag = "map z" + Z + " dblclick " + sp.n;
+      xdo(`mousemove ${sx} ${sy}`); await sleep(100); xdo("click --repeat 2 --delay 90 1");
+      await sleep(2200); const M = await measure(pk); const g = await grab(fileTag("dbl46 " + tag));
+      console.log("[" + tag + "]", JSON.stringify({ click: [px, py], pk, pre, M }).slice(0, 700), g.file);
+      verdict("double click an open spot on the map at z" + pre.z + ": " + sp.n, pre.z, pre.z < 10 ? 10 : Math.min(18, pre.z + 1), M);
+    }
+    // the guest's case: wheel into west Crete from the globe (z10.5), double click the agent pixel 560,500
+    {
+      await toGlobe(); await page.evaluate(() => SN.lookAt({ lat: 35.4, lng: 24.3 }, 1.25)); await sleep(1200);
+      const cp = await page.evaluate(() => SN.projectFrame(35.506, 24.145));
+      xdo(`mousemove ${A(cp.x, cp.y).join(" ")}`); await sleep(150);
+      let zb = null;
+      for (let i = 0; i < 16; i++) { xdo("click 4"); await sleep(450); const q = await cs(); if (q.cityOn && q.z >= 10.5) { zb = q.z; break; } }
+      await sleep(1600);
+      const g0 = await grab("dbl46-guest-crete-before");
+      const sx = Math.round(560 * SCALE), sy = Math.round(500 * SCALE); const px = sx - ox, py = sy - oy;
+      const pre = await page.evaluate((q) => { const m = SN.getMap(); if (!m || !m._loaded) return null; const r = document.getElementById("city").getBoundingClientRect(); const ll = m.containerPointToLatLng([q[0] - r.left, q[1] - r.top]); return { z: m.getZoom(), pk: { lat: ll.lat, lng: ll.lng }, line: document.getElementById("line").textContent }; }, [px, py]);
+      if (!pre || zb == null) check("the guest's case (wheel into west Crete, double click agent 560,500)", false, "setup: the wheel did not open the map at z10.5 " + JSON.stringify(pre));
+      else {
+        xdo(`mousemove ${sx} ${sy}`); await sleep(100); xdo("click --repeat 2 --delay 90 1");
+        await sleep(2200); const M = await measure(pre.pk); const g = await grab("dbl46-guest-crete-after");
+        console.log("[guest crete dblclick]", JSON.stringify({ click: { real: [sx, sy], page: [px, py] }, pre, M }).slice(0, 700), g0.file, g.file);
+        verdict("the guest's case: wheel into west Crete (z" + pre.z + "), double click agent 560,500 (" + (pre.pk.lat).toFixed(3) + "," + (pre.pk.lng).toFixed(3) + ")", pre.z, Math.min(18, pre.z + 1), M);
+      }
+    }
+  }
   await cdp.send("Emulation.setGeolocationOverride", { latitude: RHODES_OLD.lat, longitude: RHODES_OLD.lng, accuracy: 15 });
   await globeBtn(); await sleep(1500);
   const gpsBtn = await page.evaluate(() => { const b = document.getElementById("gps").getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
@@ -592,7 +665,7 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
     await c2.close();
   }
   console.log("SCREENSHOTS", SHOTDIR);
-  console.log(fails.length ? "HEADED 4345 FAIL: " + fails.join("; ") : "HEADED 4345 ALL PASS");
+  console.log(fails.length ? "HEADED 4346 FAIL: " + fails.join("; ") : "HEADED 4346 ALL PASS");
   await browser.close();
   process.exit(fails.length ? 2 : 0);
 })().catch((e) => { console.error("fail", e); process.exit(1); });
