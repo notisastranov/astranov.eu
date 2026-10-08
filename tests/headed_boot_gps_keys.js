@@ -1,5 +1,5 @@
 /**
- * Headed real-input test (4347): real Chrome on the X display (DISPLAY, default :3); run it at WIN=1920x1200 SCALE=1.5
+ * Headed real-input test (4348): real Chrome on the X display (DISPLAY, default :3); run it at WIN=1920x1200 SCALE=1.5
  * (OS-level xdotool input picked in a 1280x800 "agent view" and rounded back, like a computer-use agent on a scaled
  * screenshot) and at WIN=1280x800 SCALE=1. Screenshots are grabbed from the X screen (real pixels).
  *  BOOT: no input. MIC is a cyan icon; LIVE shows 'loading…' then one count, 'N vendors on SpaceNet'; the IP answer lands
@@ -40,6 +40,12 @@
  *    put; the guest's own pixel (agent 1050,300) does the same; clicking another pin switches the card; a double click
  *    with the card open KEEPS the card and centres + zooms in (clicked point + ring <= 20 px, readout = centre); a drag
  *    keeps the card (the map pans); a hold opens LIST, and LIST (not a pin card) stays on a single click.
+ *  CARD48 (4348, preview-4347 t2/t4): the guest's pizza hunt at Rhodes, PIZZAGIO's card open, z14 on it. A double click
+ *    at agent 1000,250 fast (90 ms), Computer-like (120 ms), slow 400 ms and 500 ms, with no card, on the clear part of the
+ *    grip strip (400 ms) and on the map just above it: z14 -> z15 centred on the clicked point (<= 20 px, ring too), the
+ *    readout = the clicked point = the centre; fast pairs keep the card. Picks + a wheel scroll on PIZZAGIO, a 1.2 s hold
+ *    at agent 900,350 opens LIST, LIST's red X puts the same card back (same picks per row, same scroll); a pin switch and
+ *    back keeps the picks.
  *  LOAD VIEW: no location answer → the globe stays; callouts outside the glow ring, apart, clear of the HUD, at 1280x800
  *    and 1920x1200; LIVE = the real network count.
  *  WEATHER (4343): open-meteo at most once per 0.5 deg place per session (rounded coordinates), nothing after a 429, a
@@ -54,18 +60,18 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4347";
+const STAMP = process.env.STAMP || "4348";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now();
 const ORIGIN = new URL(BASE).origin;
 const [WW, WH] = (process.env.WIN || "1920x1200").split("x").map(Number);
 const SCALE = Number(process.env.SCALE || 1.5);
-const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4347";
+const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4348";
 fs.mkdirSync(SHOTDIR, { recursive: true });
 if (!process.env.DISPLAY) process.env.DISPLAY = ":3";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const xdo = (a) => execSync("xdotool " + a, { env: process.env });
 const SYNTAGMA = { lat: 37.9755, lng: 23.7348 }, RHODES_OLD = { lat: 36.4446, lng: 28.2276 };
-const GRAB = path.join(os.tmpdir(), "sn_grab4347.py");
+const GRAB = path.join(os.tmpdir(), "sn_grab4348.py");
 fs.writeFileSync(GRAB, `import sys, json
 from PIL import ImageGrab, ImageStat
 out, x, y, w, h = sys.argv[1], *map(int, sys.argv[2:6])
@@ -717,8 +723,135 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
       let sc6 = await scene(); await clickAt(sc6.empty[0]); await sleep(900);
       const s6 = await sh47();
       check("LIST (not a pin card) stays on a single click on empty map (red X closes it)", s6.on && s6.kind === "list", JSON.stringify({ s6, mapClick: await page.evaluate(() => SN.mapClick && SN.mapClick()) }));
-      await closeSheet();
+      await closeSheet(); /* 4348: LIST's X puts the vendor card back; its own X closes it */
+      if ((await sh47()).on) await closeSheet();
     }
+  }
+  /* 4348: the guest's two cases from preview-4347 (1280x800 Computer view of a 1920x1200 screen), replayed at agent scale:
+     the pizza hunt at Rhodes (typed in the box, one Return), PIZZAGIO's card open, the map at z14 centred on it (the hunt's
+     own 1920 view).
+     DOUBLE: agent pixel 1000,250 double clicked fast (90 ms), Computer-like (120 ms), slow 400 ms and 500 ms apart (one
+     xdotool chain, real gaps measured on the page), with no card, and near the card edge (the clear part of the grip strip,
+     400 ms; the map just above it): every case zooms in one step (z14 -> z15) and centres on the point that was under the
+     clicked pixel (<= 20 px; the ring too), the readout names that point (= the centre); fast pairs keep the card.
+     HOLD: picks on PIZZAGIO's menu (real + clicks after a wheel scroll in the card), a 1.2 s hold at agent 900,350 opens
+     LIST, LIST's red X puts the same card back with the same picks per row and the same scroll; a pin switch and back keeps
+     the picks too */
+  {
+    const k48 = (t) => "card48-" + t;
+    const sh48 = () => page.evaluate(() => { const s = document.getElementById("sn-sheet"), c = document.getElementById("sn-sheet-card"), b = document.getElementById("sn-sheet-body");
+      const picks = {}; if (c) c.querySelectorAll(".sn-pick").forEach((r) => { const n = +((r.querySelector(".n") || {}).textContent || 0); if (n) picks[r.getAttribute("data-i")] = n; });
+      return { on: !!(s && s.classList.contains("on")), kind: s && s.getAttribute("data-kind"), title: c ? ((c.querySelector(".sheet-mid") || {}).textContent || "").trim() : "", top: c && s.classList.contains("on") ? c.getBoundingClientRect().top : null,
+        scroll: b ? Math.round(b.scrollTop) : null, picks }; });
+    const PZ = { lat: 36.4315906, lng: 28.2304921 };
+    const pin48 = () => page.evaluate((pz) => { const m = SN.getMap(); let best = null; m.eachLayer((l) => { if (l.getLatLng && l._icon) { const ll = l.getLatLng(); const d = Math.hypot(ll.lat - pz.lat, ll.lng - pz.lng);
+      if (d < 0.0005 && (!best || d < best.d)) { const r = l._icon.getBoundingClientRect(); best = { d, x: r.left + r.width / 2, y: r.top + r.height * 0.36, n: l._icon.textContent.trim() }; } } }); return best; }, PZ);
+    await page.evaluate(() => { window.__clk48 = []; if (!window.__clk48on) { window.__clk48on = 1; document.addEventListener("click", (e) => { window.__clk48.push(performance.now()); }, true); } });
+    // the guest's hunt: 'pizza' typed in the box, one Return (GPS fix in the Rhodes old town)
+    if ((await sh48()).on) await closeSheet();
+    await page.evaluate((a) => SN.openCity(a, { zoom: 15 }), RHODES_OLD); await sleep(1500);
+    { const ib = await page.evaluate(() => { const r = document.getElementById("in").getBoundingClientRect(); return { x: r.left + 120, y: r.top + r.height / 2 }; });
+      xdo(`mousemove ${A(ib.x, ib.y).join(" ")}`); await sleep(80); xdo("click 1"); await sleep(250); xdo('type --delay 45 "pizza"'); await sleep(120); xdo("key Return"); }
+    const hunt = await waitFor((s) => s.find && s.find !== "…" && s.raw === "pizza", 25000); await sleep(1500);
+    console.log("[card48 hunt]", JSON.stringify({ find: hunt.s.find, z: hunt.s.z, line: hunt.s.line }));
+    check("the guest's pizza hunt at Rhodes lands real pins (FIND >= 5)", +hunt.s.find >= 5, JSON.stringify({ find: hunt.s.find, line: hunt.s.line }));
+    async function setup48(card) {
+      if ((await sh48()).on) await closeSheet();
+      if ((await sh48()).on) await closeSheet();
+      await page.evaluate((a) => SN.getMap().setView([a.lat, a.lng], 14, { animate: false }), PZ); await sleep(1300);
+      if (!card) return sh48();
+      let p = null; for (let i = 0; i < 10 && !p; i++) { p = await pin48(); if (!p) await sleep(300); }
+      if (!p) return null;
+      xdo(`mousemove ${A(p.x, p.y).join(" ")}`); await sleep(120); xdo("click 1");
+      for (let i = 0; i < 20; i++) { await sleep(100); const s = await sh48(); if (s.on && s.kind === "vendor") break; }
+      await sleep(400);
+      /* the card pans the map to the pin: back to the exact z14 view on PIZZAGIO */
+      await page.evaluate((a) => SN.getMap().setView([a.lat, a.lng], 14, { animate: false }), PZ); await sleep(700);
+      return sh48();
+    }
+    const RUN = { fast: "click --repeat 2 --delay 90 1", computer: "click --repeat 2 --delay 120 1", slow400: "click --repeat 2 --delay 400 1", slow500: "click --repeat 2 --delay 500 1" };
+    async function dbl48(name, real, how, keepCard) {
+      const pre = await page.evaluate((q) => { const m = SN.getMap(); const r = document.getElementById("city").getBoundingClientRect(); const ll = m.containerPointToLatLng([q[0] - r.left, q[1] - r.top]); const e = document.elementFromPoint(q[0], q[1]);
+        window.__clk48 = []; window.__snLastDbl = null; window.__snDblPair = null;
+        return { lat: ll.lat, lng: ll.lng, z: m.getZoom(), hit: e ? { city: !!e.closest("#city"), grip: !!e.closest("#cli-drag"), pin: !!e.closest(".leaflet-marker-icon,.leaflet-tooltip"), sheet: !!e.closest("#sn-sheet") } : null }; }, [real[0] - ox, real[1] - oy]);
+      const s0 = await sh48();
+      xdo(`mousemove ${real[0]} ${real[1]}`); await sleep(250); xdo(RUN[how]); await sleep(2000);
+      const g = await grab(k48(name));
+      const M = await page.evaluate((a) => { const m = SN.getMap(); const sz = m.getSize(), mc = m.getCenter(), q = m.latLngToContainerPoint([a.pk.lat, a.pk.lng]), r = document.getElementById("city").getBoundingClientRect(), rg = window.__snRing, rq = rg ? m.latLngToContainerPoint([rg.lat, rg.lng]) : null;
+        const ck = window.__clk48; return { z: m.getZoom(), c: { lat: mc.lat, lng: mc.lng }, pk: Math.hypot(q.x - sz.x / 2, q.y - sz.y / 2) * devicePixelRatio, ring: rq ? Math.hypot(rq.x - sz.x / 2, rq.y - sz.y / 2) * devicePixelRatio : null,
+          cursorPx: +Math.hypot(q.x + r.left - a.cur[0], q.y + r.top - a.cur[1]).toFixed(1), gap: ck.length >= 2 ? Math.round(ck[ck.length - 1] - ck[ck.length - 2]) : null, line: document.getElementById("line").textContent, last: window.__snLastDbl, pair: window.__snDblPair, mc: SN.mapClick && SN.mapClick() }; },
+        { pk: pre, cur: [real[0] - ox, real[1] - oy] });
+      const s1 = await sh48();
+      const rl = (String(M.line).match(/(-?\d{1,2}\.\d{3}),(-?\d{1,3}\.\d{3})/) || []);
+      const want = pre.z < 10 ? 10 : Math.min(18, pre.z + 1);
+      console.log("[card48 " + name + "]", JSON.stringify({ real, pre, card: [s0.on && s0.title, s1.on && s1.title], M: Object.assign({}, M, { pk: +M.pk.toFixed(1), ring: M.ring && +M.ring.toFixed(1) }) }).slice(0, 1400), g.file);
+      const ok = !!(pre.hit && (pre.hit.city || pre.hit.grip) && !pre.hit.pin && !pre.hit.sheet) && Math.abs(M.z - want) < 0.01 && M.pk <= 20 && M.ring != null && M.ring <= 20 && rl.length === 3 &&
+        Math.abs(+rl[1] - pre.lat) <= 0.0006 && Math.abs(+rl[2] - pre.lng) <= 0.0006 && Math.abs(+rl[1] - M.c.lat) <= 0.01 && Math.abs(+rl[2] - M.c.lng) <= 0.01 && (!keepCard || (s1.on && s1.kind === "vendor" && s1.title === s0.title));
+      check("double click " + name + ": z" + pre.z + " -> z" + want + ", centred on the clicked point (<= 20 px, ring too), readout = the clicked point = the centre" + (keepCard ? ", the card stays" : ""), ok,
+        JSON.stringify({ gapMs: M.gap, hit: pre.hit, z: [pre.z, M.z], clickedPx: +M.pk.toFixed(1), ringPx: M.ring != null ? +M.ring.toFixed(1) : null, cursorPx: M.cursorPx, readout: rl.slice(1), clicked: [+pre.lat.toFixed(4), +pre.lng.toFixed(4)], card: [s0.on && s0.title, s1.on ? s1.title : "closed"], src: M.last && M.last.src }));
+      return { pre, M, s0, s1 };
+    }
+    const G = [Math.round(1000 * SCALE), Math.round(250 * SCALE)];
+    let st = await setup48(true); console.log("[card48 setup]", JSON.stringify(st));
+    check("setup: PIZZAGIO's card open at z14 on the hunt map", !!(st && st.on && st.kind === "vendor" && /pizzagio/i.test(st.title)), JSON.stringify(st));
+    await grab(k48("before-z14-pizzagio"));
+    await dbl48("agent-1000-250-fast-card", G, "fast", true);
+    await setup48(true); await dbl48("agent-1000-250-computer-card", G, "computer", true);
+    await setup48(true); const D4 = await dbl48("agent-1000-250-slow-400ms-card", G, "slow400", false);
+    check("the slow 400 ms pair is really slow (>= 350 ms between the two clicks)", D4.M.gap != null && D4.M.gap >= 350, "gap " + D4.M.gap);
+    await setup48(true); const D5 = await dbl48("agent-1000-250-slow-500ms-card", G, "slow500", false);
+    check("the slow 500 ms pair is really slow (>= 450 ms between the two clicks)", D5.M.gap != null && D5.M.gap >= 450, "gap " + D5.M.gap);
+    await setup48(false); await dbl48("agent-1000-250-slow-400ms-no-card", G, "slow400", false);
+    st = await setup48(true);
+    const ed = await page.evaluate(() => { const g = document.getElementById("cli-drag").getBoundingClientRect(); return { x: g.left, y: g.top, w: g.width, h: g.height }; });
+    await dbl48("card-edge-grip-strip-slow-400ms", [Math.round(ox + ed.x + ed.w * 0.72), Math.round(oy + ed.y + 8)], "slow400", false);
+    st = await setup48(true);
+    await dbl48("card-edge-map-above-strip-fast", [Math.round(ox + ed.x + ed.w * 0.28), Math.round(oy + ed.y - 10)], "fast", true);
+    // HOLD with picks: LIST, then LIST's red X puts the same card back (picks per row + scroll)
+    st = await setup48(true);
+    const bodyR = await page.evaluate(() => { const b = document.getElementById("sn-sheet-body").getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
+    xdo(`mousemove ${A(bodyR.x, bodyR.y).join(" ")}`); await sleep(100); xdo("click 5"); await sleep(250); xdo("click 5"); await sleep(600);
+    const plus = await page.evaluate(() => { const b = document.getElementById("sn-sheet-body").getBoundingClientRect();
+      return [...document.querySelectorAll('#sn-sheet .sn-pick button[data-act="pick-more"]')].map((e) => { const r = e.getBoundingClientRect(); return { i: e.getAttribute("data-i"), x: r.left + r.width / 2, y: r.top + r.height / 2 }; }).filter((p) => { const t = document.elementFromPoint(p.x, p.y); return p.y > b.top + 6 && p.y < b.bottom - 6 && t && t.closest && t.closest('button[data-act="pick-more"]') && t.closest('button[data-act="pick-more"]').getAttribute("data-i") === p.i; }); });
+    const plan = plus.length ? [plus[0], plus[0], plus[Math.min(1, plus.length - 1)]] : [];
+    for (const p of plan) { xdo(`mousemove ${A(p.x, p.y).join(" ")}`); await sleep(100); xdo("click 1"); await sleep(400); }
+    const h0 = await sh48(); const gh0 = await grab(k48("hold-before-picks"));
+    const HP = [Math.round(900 * SCALE), Math.round(350 * SCALE)];
+    const hHit = await page.evaluate((q) => { const e = document.elementFromPoint(q[0], q[1]); return e ? { city: !!e.closest("#city"), pin: !!e.closest(".leaflet-marker-icon,.leaflet-tooltip"), sheet: !!e.closest("#sn-sheet") } : null; }, [HP[0] - ox, HP[1] - oy]);
+    xdo(`mousemove ${HP[0]} ${HP[1]}`); await sleep(100); xdo("mousedown 1"); await sleep(1200); xdo("mouseup 1"); await sleep(1000);
+    const h1 = await sh48(); const gh1 = await grab(k48("hold-list"));
+    await closeSheet(); await sleep(500);
+    const h2 = await sh48(); const gh2 = await grab(k48("list-x-card-back"));
+    const back = await page.evaluate(() => window.__snCardBack || null);
+    const npk = (o) => Object.values(o || {}).reduce((a, b) => a + b, 0);
+    console.log("[card48 hold]", JSON.stringify({ plan: plan.map((p) => p.i), before: h0, hit: hHit, list: h1, after: h2, back }), gh0.file, gh1.file, gh2.file);
+    check("setup: picks on PIZZAGIO (real + clicks) and the card scrolled", h0.on && h0.kind === "vendor" && npk(h0.picks) === 3 && h0.scroll > 0, JSON.stringify(h0));
+    check("a 1.2 s hold at agent 900,350 (empty map) with PIZZAGIO open opens LIST", !!(hHit && hHit.city && !hHit.pin && !hHit.sheet) && h1.on && h1.kind === "list", JSON.stringify({ hit: hHit, list: h1 }));
+    check("LIST's red X puts PIZZAGIO back exactly: same card, same picks per row, same scroll", h2.on && h2.kind === "vendor" && h2.title === h0.title && JSON.stringify(h2.picks) === JSON.stringify(h0.picks) && Math.abs(h2.scroll - h0.scroll) <= 2,
+      JSON.stringify({ before: { t: h0.title, picks: h0.picks, scroll: h0.scroll }, after: { t: h2.title, picks: h2.picks, scroll: h2.scroll } }));
+    // a pin switch and back keeps the picks: PIZZARIUM RHODES (another real hunt pin, centred so it sits clear of the card), then PIZZAGIO again
+    const OT = { lat: 36.425081, lng: 28.210592 };
+    const pinAt = (ll) => page.evaluate((pz) => { const m = SN.getMap(); let best = null; m.eachLayer((l) => { if (l.getLatLng && l._icon) { const q = l.getLatLng(); const d = Math.hypot(q.lat - pz.lat, q.lng - pz.lng);
+      if (d < 0.0005 && (!best || d < best.d)) { const r = l._icon.getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height * 0.36; const t = document.elementFromPoint(x, y); best = { d, x, y, n: l._icon.textContent.trim(), free: !!(t && t.closest(".leaflet-marker-icon") === l._icon) }; } } }); return best; }, ll);
+    await page.evaluate((a) => SN.getMap().setView([a.lat, a.lng], 14, { animate: false }), OT); await sleep(1200);
+    const other = await pinAt(OT);
+    if (!(other && other.free)) check("a pin switch and back keeps PIZZAGIO's picks", false, "PIZZARIUM pin not free: " + JSON.stringify(other));
+    else {
+      xdo(`mousemove ${A(other.x, other.y).join(" ")}`); await sleep(100); xdo("click 1"); await sleep(1200);
+      const h3 = await sh48();
+      await page.evaluate((a) => SN.getMap().setView([a.lat, a.lng], 14, { animate: false }), PZ); await sleep(1200);
+      const p2 = await pinAt(PZ); if (p2 && p2.free) { xdo(`mousemove ${A(p2.x, p2.y).join(" ")}`); await sleep(100); xdo("click 1"); await sleep(1200); }
+      const h4 = await sh48(); const gh4 = await grab(k48("pin-switch-back-picks"));
+      console.log("[card48 switch]", JSON.stringify({ other: other.n, mid: h3, back: h4, p2 }), gh4.file);
+      check("a pin switch and back keeps PIZZAGIO's picks", h3.on && h3.title !== h0.title && h4.on && h4.title === h0.title && JSON.stringify(h4.picks) === JSON.stringify(h0.picks), JSON.stringify({ mid: h3.title, back: h4.title, picks: h4.picks }));
+    }
+    // leave no picks behind
+    for (let r = 0; r < 4; r++) {
+      const minus = await page.evaluate(() => { const b = document.getElementById("sn-sheet-body"); if (!b) return null; const br = b.getBoundingClientRect();
+        for (const row of document.querySelectorAll("#sn-sheet .sn-pick")) { if (+(row.querySelector(".n").textContent) > 0) { row.scrollIntoView({ block: "center" }); const e = row.querySelector('button[data-act="pick-less"]').getBoundingClientRect(); return { x: e.left + e.width / 2, y: e.top + e.height / 2 }; } } return null; });
+      if (!minus) break; await sleep(200); xdo(`mousemove ${A(minus.x, minus.y).join(" ")}`); await sleep(80); xdo("click 1"); await sleep(300);
+    }
+    await closeSheet(); if ((await sh48()).on) await closeSheet();
   }
   await globeBtn(); w = await watchSky(3000); gg = await grab("globe-global-after-gps");
   check("Global view after GPS: globe, no sky view, no jump back", !w.sky && !w.s.cityOn, JSON.stringify({ sky: w.sky, cityOn: w.s.cityOn, dist: w.s.dist }));
@@ -787,7 +920,7 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
     await c2.close();
   }
   console.log("SCREENSHOTS", SHOTDIR);
-  console.log(fails.length ? "HEADED 4347 FAIL: " + fails.join("; ") : "HEADED 4347 ALL PASS");
+  console.log(fails.length ? "HEADED 4348 FAIL: " + fails.join("; ") : "HEADED 4348 ALL PASS");
   await browser.close();
   process.exit(fails.length ? 2 : 0);
 })().catch((e) => { console.error("fail", e); process.exit(1); });

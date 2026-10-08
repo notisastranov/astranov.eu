@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4347";
+  var VER = "4348";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -983,7 +983,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4347 = true;
+      window.__SN_4348 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -1217,9 +1217,114 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     aim = { lat: lat, lng: lng, name: "map" };
     ringAt(lat, lng);
     placeXhair();
-    window.__snLastDbl = { where: "map", lat: lat, lng: lng, z0: z0, z: nz, by: "map", at: Date.now() };
+    window.__snLastDbl = { where: "map", lat: lat, lng: lng, z0: z0, z: nz, by: "map", at: Date.now(), src: dblSrc.src || "dblclick", gap: dblSrc.gap == null ? null : dblSrc.gap };
+    dblSrc = {};
     say(dblLine(nz, lat, lng));
     try { pullListings(); } catch (eP) {}
+  }
+  /* 4348: a double click is two clicks on the map (or on the clear part of the grip strip over it) at most DBL_MS apart and
+     DBL_PX apart; the second click centres + zooms in (mapDbl) whether or not the browser fires its own dblclick (Chrome
+     drops it past ~500 ms, preview-4347: a slow double click then did nothing), and the browser's dblclick that follows a
+     handled pair is ignored. A slow pair may already have closed a pin card through the single-click timer; it still
+     centres + zooms in */
+  var DBL_MS = 650, DBL_PX = 16;
+  var dblDoneAt = 0, lastTap = null, dblSrc = {};
+  function dblTap(x, y, now, lat, lng, src) {
+    var p = lastTap;
+    if (p && now - p.t <= DBL_MS && Math.hypot(x - p.x, y - p.y) <= DBL_PX && isFinite(+lat) && isFinite(+lng)) {
+      lastTap = null;
+      dblDoneAt = now;
+      dblSrc = { src: src + "-pair", gap: now - p.t };
+      window.__snDblPair = { gap: now - p.t, px: +Math.hypot(x - p.x, y - p.y).toFixed(1), src: src, at: now };
+      mapDbl(lat, lng);
+      return true;
+    }
+    lastTap = { t: now, x: x, y: y, src: src };
+    return false;
+  }
+  /* 4348: picks on a vendor card are never lost: they are kept per vendor whenever the card leaves the sheet (another card,
+     LIST, a form, X) and put back when that vendor's card opens again; an order that is sent spends them */
+  var pickMemo = {};
+  try { pickMemo = JSON.parse(sessionStorage.getItem("sn:picks") || "{}") || {}; } catch (ePm) { pickMemo = {}; }
+  function vKey(v) { return v ? String(v.id || ((v.name || "") + "@" + (+v.lat).toFixed(5) + "," + (+v.lng).toFixed(5))) : ""; }
+  function pickKeep() { try { sessionStorage.setItem("sn:picks", JSON.stringify(pickMemo)); } catch (eK) {} }
+  function pickSave(root, key) {
+    if (!root || !key) return;
+    var rows = root.querySelectorAll(".sn-pick");
+    if (!rows.length) return;
+    var m = {}, any = false;
+    Array.prototype.forEach.call(rows, function (r) { var n = Number((r.querySelector(".n") || {}).textContent) || 0; if (n > 0) { m[r.getAttribute("data-i")] = n; any = true; } });
+    if (any) pickMemo[key] = m; else delete pickMemo[key];
+    pickKeep();
+  }
+  function pickLoad(root, key) {
+    var m = key && pickMemo[key];
+    if (!root || !m) return 0;
+    var n = 0;
+    Array.prototype.forEach.call(root.querySelectorAll(".sn-pick"), function (r) { var k = m[r.getAttribute("data-i")]; var em = r.querySelector(".n"); if (k && em) { em.textContent = String(k); n += k; } });
+    return n;
+  }
+  function pickSpent(key) {
+    if (key) { delete pickMemo[key]; pickKeep(); }
+    try { Array.prototype.forEach.call(document.querySelectorAll("#sn-sheet .sn-pick .n"), function (e) { e.textContent = "0"; }); } catch (eS) {}
+  }
+  function sheetLeave() {
+    var sh = $("sn-sheet"), card = $("sn-sheet-card");
+    if (sh && card && sh.getAttribute("data-kind") === "vendor") pickSave(card, sh.getAttribute("data-vkey") || "");
+  }
+  /* 4348: LIST (a hold / right click) over an open pin card takes the one sheet slot, but the card is kept whole (its own
+     DOM: picks, scroll, photo) and LIST's red X (or the X of a form opened from LIST) puts it back exactly; another pin card
+     or any other close drops it (its picks go to the pick memory first) */
+  var listBack = null;
+  function stashCard() {
+    var sh = $("sn-sheet"), card = $("sn-sheet-card"), body = $("sn-sheet-body");
+    if (!sh || !card || !sh.classList.contains("on")) { dropBack(); return; }
+    var kind = sh.getAttribute("data-kind") || "";
+    if (!sh.classList.contains("tile") || PIN_CARDS.indexOf(kind) < 0) { if (!(listBack && sheetSeq === listBack.seq)) dropBack(); return; }
+    dropBack();
+    var frag = document.createDocumentFragment();
+    var sc = body ? body.scrollTop : 0;
+    var ttl = ((card.querySelector(".sheet-mid") || {}).textContent || "").trim();
+    while (card.firstChild) frag.appendChild(card.firstChild);
+    listBack = { frag: frag, kind: kind, job: sh.getAttribute("data-job") || "", vkey: sh.getAttribute("data-vkey") || "", tall: sh.classList.contains("tall"), min: sh.classList.contains("min"),
+      offer: sh.classList.contains("offer"), scroll: sc, vendor: vendor, title: ttl, seq: sheetSeq, at: Date.now() };
+    window.__snListBack = { kind: kind, title: ttl, scroll: sc, picks: (function () { var n = 0; Array.prototype.forEach.call(frag.querySelectorAll(".sn-pick .n"), function (e) { n += Number(e.textContent) || 0; }); return n; })(), at: Date.now() };
+  }
+  function dropBack() {
+    var b = listBack;
+    listBack = null;
+    if (b && b.kind === "vendor") pickSave(b.frag, b.vkey);
+  }
+  function cardBack(why) {
+    var b = listBack, sh = $("sn-sheet"), card = $("sn-sheet-card");
+    listBack = null;
+    if (!b || !sh || !card) return false;
+    card.innerHTML = "";
+    card.appendChild(b.frag);
+    sh.classList.add("tile");
+    sh.setAttribute("data-kind", b.kind);
+    sh.setAttribute("data-job", b.job);
+    if (b.vkey) sh.setAttribute("data-vkey", b.vkey); else sh.removeAttribute("data-vkey");
+    sh.classList.toggle("tall", b.tall);
+    sh.classList.toggle("min", b.min);
+    sh.classList.toggle("offer", b.offer);
+    sh.classList.add("on");
+    sheetHold = true;
+    findOnSheet = false;
+    sheetSeq++;
+    sheetArm = Date.now() + 250;
+    if (b.vendor) vendor = b.vendor;
+    var body = $("sn-sheet-body");
+    if (body) {
+      body.scrollTop = b.scroll;
+      requestAnimationFrame(function () { if (body.isConnected) body.scrollTop = b.scroll; });
+      setTimeout(function () { if (body.isConnected && Math.abs(body.scrollTop - b.scroll) > 1) body.scrollTop = b.scroll; }, 120);
+    }
+    materialize(false);
+    liftChrome();
+    window.__snCardBack = { why: why || "", kind: b.kind, title: b.title, scroll: b.scroll, picks: cartPicks(), at: Date.now() };
+    say("Back to " + (b.title || "the card") + ".");
+    return true;
   }
   /* 4347: the single-click dismiss: which cards a click on empty map closes, and why a click does not count */
   var CLICK_DISMISS_MS = 280;
@@ -1895,6 +2000,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         try {
           if (clickT) { clearTimeout(clickT); clickT = 0; }
           if (ev && ev.originalEvent) { try { ev.originalEvent.preventDefault(); } catch (eP) {} }
+          if (Date.now() - dblDoneAt < 700) return; /* 4348: the click pair already centred + zoomed in */
+          lastTap = null;
           if (ev && ev.latlng) mapDbl(ev.latlng.lat, ev.latlng.lng);
         } catch (eD) {}
       });
@@ -1912,9 +2019,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       map.on("click", function (ev) {
         try {
           var oe = ev && ev.originalEvent, now = Date.now();
-          if (clickT) { clearTimeout(clickT); clickT = 0; window.__snMapClick = { at: now, closed: false, why: "double" }; return; }
           var sh0 = $("sn-sheet"), kind0 = sh0 && sh0.classList.contains("on") ? (sh0.getAttribute("data-kind") || (sh0.classList.contains("tile") ? "tile" : "sheet")) : "";
           var why = mapClickBlock(oe, clickDown, now);
+          var cx = oe && isFinite(oe.clientX) ? oe.clientX : NaN, cy = oe && isFinite(oe.clientY) ? oe.clientY : NaN;
+          if (why || !isFinite(cx)) lastTap = null;
+          else if (ev.latlng && dblTap(cx, cy, now, ev.latlng.lat, ev.latlng.lng, "map")) {
+            if (clickT) { clearTimeout(clickT); clickT = 0; }
+            window.__snMapClick = { at: now, closed: false, kind: kind0, why: "double", gap: window.__snDblPair && window.__snDblPair.gap };
+            return;
+          }
+          if (clickT) { clearTimeout(clickT); clickT = 0; }
           window.__snMapClick = { at: now, closed: false, kind: kind0, why: why || "armed" };
           if (why) return;
           var seq0 = sheetSeq, down0 = clickDown;
@@ -2026,6 +2140,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         '<button type="button" class="sheet-go" data-act="admin-gps">Move me here</button>';
     }
     if (!signed()) html += '<button type="button" class="sheet-go" data-act="needlogin">LOGIN</button>';
+    stashCard();
     openTile({ kind: "list", title: "LIST", html: html });
   }
   function persistListing(row) {
@@ -2228,7 +2343,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4347&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4348&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3077,14 +3192,18 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var sh = $("sn-sheet"), card = $("sn-sheet-card");
     if (!sh || !card) return;
     sheetLaw();
+    sheetLeave();
+    if (listBack && !(sh.classList.contains("on") && sheetSeq === listBack.seq)) dropBack();
     sheetHold = true;
     findOnSheet = false;
     sheetSeq++;
+    if (listBack) listBack.seq = sheetSeq;
     var center = mid || esc(title || "");
     sh.classList.toggle("offer", !!(mid && String(mid).indexOf("sn-price") >= 0));
     sh.classList.remove("tile");
     sh.removeAttribute("data-kind");
     sh.removeAttribute("data-job");
+    sh.removeAttribute("data-vkey");
     card.innerHTML = '<div class="sheet-bar"><button type="button" class="sheet-apply" data-act="sheet-apply" aria-label="Apply">APPLY</button><div class="sheet-mid"></div><button type="button" class="sheet-x" data-act="sheet-x" aria-label="Close">X</button></div><div id="sn-sheet-body"></div>';
     card.querySelector(".sheet-mid").innerHTML = center;
     card.querySelector("#sn-sheet-body").innerHTML = '<div class="sn-zoom">' + html + "</div>";
@@ -3167,6 +3286,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function closeSheet() {
     var sh = $("sn-sheet");
+    sheetLeave();
+    if (listBack) dropBack();
     sheetHold = false;
     findOnSheet = false;
     if (sh) { sh.classList.remove("on"); sh.classList.remove("tall"); sh.classList.remove("min"); sh.classList.remove("offer"); sh.classList.remove("tile"); }
@@ -4807,6 +4928,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     sh.classList.add("tile");
     sh.setAttribute("data-kind", o.kind || "");
     sh.setAttribute("data-job", o.job || "");
+    if (listBack && PIN_CARDS.indexOf(o.kind || "") >= 0) dropBack();
   }
   function priceMid(n) {
     return '<b class="sn-price">' + esc(n) + "<small>AV€</small></b>";
@@ -4879,6 +5001,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       (orders ? '<p class="note">CHARGED</p>' + orders : "") +
       '<p class="note">MENU</p>' + menu;
     openTile({ kind: "vendor", title: s.name || "VENDOR", html: html });
+    try { var shV = $("sn-sheet"); if (shV) { shV.setAttribute("data-vkey", vKey(s)); pickLoad($("sn-sheet-card"), vKey(s)); } } catch (eV) {}
     try {
       var hero = document.querySelector("#sn-sheet .sn-prof img.sn-shop-hero");
       if (hero) hero.addEventListener("error", function () {
@@ -5040,6 +5163,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       saveJobs();
       publishJob(twin);
       say("Updated order for " + (vendor.name || "the vendor") + ".");
+      pickSpent(vKey(vendor));
       openVendorOrder(twin);
       return;
     }
@@ -5064,6 +5188,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     saveJobs();
     publishJob(job);
     say("Sent to " + (vendor.name || "the vendor") + ".");
+    pickSpent(vKey(vendor));
     openVendorOrder(job);
   }
   function vendorAccept() {
@@ -6417,6 +6542,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           dockFocus = "";
           paintDockTabs();
         }
+        if (listBack && shx && shx.classList.contains("on") && sheetSeq === listBack.seq && cardBack("x")) { sheetHold = true; return; }
         closeSheet();
         sheetHold = true;
         return;
@@ -7730,7 +7856,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var wasEdge = gripEdge;
       sh.classList.add("sn-spring");
       userH = setH(userH || d.h);
-      window.__snGripLast = { edge: wasEdge, h: userH, rest: rest(), cap: cap(), at: Date.now() };
+      window.__snGripLast = { edge: wasEdge, h: userH, rest: rest(), cap: cap(), at: Date.now(), moved: !!d.moved };
       springT = setTimeout(function () { springT = null; sh.classList.remove("sn-spring"); if (!drag) setEdge(""); }, wasEdge ? 700 : 360);
       /* the map is held: if anything moved it during the drag, put the centre back exactly */
       try {
@@ -7762,7 +7888,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     ["mousedown", "touchstart", "click"].forEach(function (k) {
       g.addEventListener(k, function (e) { e.stopPropagation(); if (k !== "touchstart") e.preventDefault(); }, { passive: false });
     });
-    g.addEventListener("dblclick", function (e) { e.preventDefault(); e.stopPropagation(); userH = 0; clearH(); place(); });
+    /* 4348: the strip is clear over the map except the handle bar in its middle; two clicks on the clear part are a map
+       double click (centre + zoom in on that point), a double click on the handle still resets the height */
+    var HANDLE = 60, tapMoved = false;
+    function onHandle(e) { var r = g.getBoundingClientRect(); return Math.abs(e.clientX - (r.left + r.width / 2)) <= HANDLE; }
+    g.addEventListener("pointerup", function () { tapMoved = !!(window.__snGripLast && window.__snGripLast.moved); }, false);
+    g.addEventListener("click", function (e) {
+      if (onHandle(e) || tapMoved || !map || !cityOn) { lastTap = null; return; }
+      try { var ce = $("city"), rc = ce.getBoundingClientRect(); var ll = map.containerPointToLatLng([e.clientX - rc.left, e.clientY - rc.top]); dblTap(e.clientX, e.clientY, Date.now(), ll.lat, ll.lng, "grip"); } catch (eT) {}
+    });
+    g.addEventListener("dblclick", function (e) { e.preventDefault(); e.stopPropagation(); if (Date.now() - dblDoneAt < 700 || !onHandle(e)) return; userH = 0; clearH(); place(); });
     try { new MutationObserver(sync).observe(sh, { attributes: true, attributeFilter: ["class"] }); } catch (e) {}
     try { new MutationObserver(sync).observe(card, { childList: true }); } catch (e) {}
     try { if (window.ResizeObserver) new ResizeObserver(place).observe(card); } catch (e) {}
@@ -7851,7 +7986,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4347 = true;
+    window.__SN_4348 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
