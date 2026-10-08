@@ -18,6 +18,7 @@
  * 4339: boot LIVE network count + LATEST == /api/version + TESTER hidden (screen grab 'boot'); after Athens a bare
  *   'supermarket' hunts Athens (>= 9 pins, numbered, no stale place text, grab 'athens-supermarket'); the sheet grip is
  *   dragged with xdotool (grows/shrinks the sheet within 96 px..42vh, clear of LIVE; grabs 'grip-*').
+ * 4340: the grip is a full-width 28 px strip on the sheet's top edge (see headed_boot_gps_keys.js for the agent-scale drags).
  * Env: PREVIEW_URL, LOCAL_AUTH, STAMP, LOCAL_APP, WIN=1280x800, HOLD, GAP, SPIN, DEBUGQ=1, SHOTDIR, REAL_CHROME=1, HUNTS=1, LAND_MAX=8
  */
 const { chromium } = require("playwright");
@@ -26,7 +27,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4339";
+const STAMP = process.env.STAMP || "4340";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now() + (process.env.DEBUGQ ? "&debug=wheel" : "");
 const RHODES = { lat: 36.4349, lng: 28.2176 }, ATHENS = { lat: 37.9838, lng: 23.7275 };
 const [WW, WH] = (process.env.WIN || "1280x800").split("x").map(Number);
@@ -363,7 +364,7 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
       const ovl = (a, b) => a && b && a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
       const g0 = await gr(); const cap = Math.round(geo.ih * 0.42);
       await grab("grip-before", { x: 0, y: 0, w: geo.iw, h: geo.ih });
-      check("grip on the sheet top edge, clear of LIVE", !!(g0.grip && g0.card) && Math.abs(g0.grip.y + g0.grip.h - g0.card.y) <= 2 && !ovl(g0.grip, g0.pulse), JSON.stringify(g0));
+      check("grip on the sheet top edge, clear of LIVE", !!(g0.grip && g0.card) && g0.grip.y < g0.card.y && g0.grip.y + g0.grip.h >= g0.card.y && g0.grip.h >= 24 && g0.grip.w >= g0.card.w - 2 && !ovl(g0.grip, g0.pulse), JSON.stringify(g0));
       if (g0.grip) {
         await drag(g0.grip.x + g0.grip.w / 2, g0.grip.y + g0.grip.h / 2, 0, 200); await sleep(400);
         const g1 = await gr(); await grab("grip-down", { x: 0, y: 0, w: geo.iw, h: geo.ih });
@@ -372,7 +373,7 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
         console.log("[grip] card h", g0.card.h, "→ down", g1.card.h, "→ up", g2.card.h, "cap", cap);
         check("xdotool drag down shrinks the sheet (>= 96 px)", g1.card.h < g0.card.h - 20 && g1.card.h >= 95, g0.card.h + " → " + g1.card.h);
         check("xdotool drag up grows the sheet, capped at 42vh", g2.card.h > g1.card.h + 20 && g2.card.h <= cap + 1, g1.card.h + " → " + g2.card.h + " (cap " + cap + ")");
-        check("grip follows the sheet, clear of LIVE", !!g2.grip && Math.abs(g2.grip.y + g2.grip.h - g2.card.y) <= 2 && !ovl(g2.grip, g2.pulse), JSON.stringify(g2));
+        check("grip follows the sheet, clear of LIVE", !!g2.grip && g2.grip.y < g2.card.y && g2.grip.y + g2.grip.h >= g2.card.y && g2.grip.h >= 24 && g2.grip.w >= g2.card.w - 2 && !ovl(g2.grip, g2.pulse), JSON.stringify(g2));
       }
     }
     // name search

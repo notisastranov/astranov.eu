@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4339";
+  var VER = "4340";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -802,23 +802,41 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function drawCard() {
     if (!ctx || cityOn || !view || cam.dist > 3.4) return;
     var rows = cardsNow().filter(function (row) { return row && (row.k === "CALENDAR" || row.k === "NEWS" || row.k === "WARN" || row.k === "WARNING"); });
+    var placed = [];
+    window.__snCards = placed;
+    window.__snDisc = { cx: view.cx, cy: view.cy, r: view.scale };
     rows.forEach(function (row, i) {
       var lat = isFinite(+row.lat) ? +row.lat : 36.43;
       var lng = isFinite(+row.lng) ? +row.lng : 28.22;
       var p = project(lat, lng, cam);
       if (!p) return;
       var dx = p.x - view.cx, dy = p.y - view.cy;
-      var len = Math.hypot(dx, dy) || 1;
-      var lift = 58 + i * 16;
-      var ox = p.x + (dx / len) * lift;
-      var oy = p.y + (dy / len) * (lift * 0.72) - 10;
+      var len = Math.hypot(dx, dy);
+      if (len < 1) { dx = 0.7; dy = -0.7; len = 1; }
+      var ux = dx / len, uy = dy / len;
       var text = String(row.t || "");
       ctx.save();
       ctx.font = "600 11px system-ui,sans-serif";
       var w = Math.min(190, Math.max(96, ctx.measureText(text).width + 16));
       var h = 34;
-      var x = Math.max(8, Math.min(view.w - w - 8, ox - w / 2));
-      var y = Math.max(view.top + 4, Math.min(view.bot - h - 4, oy - h / 2));
+      /* 4340: the box's inner corner sits on a ring just outside the globe disc, along the point's direction, so every
+         part of the box is outside the disc; rows stack outward and never overlap each other */
+      var R = view.scale + 26;
+      var ax = view.cx + ux * R, ay = view.cy + uy * R;
+      var x = ux >= 0 ? ax : ax - w;
+      var y = uy >= 0 ? ay : ay - h;
+      var k, c0, cand = [], best = null;
+      function clampX(xx) { return Math.max(8, Math.min(view.w - w - 8, xx)); }
+      function clampY(yy) { return Math.max(view.top + 4, Math.min(view.bot - h - 4, yy)); }
+      function clash(xx, yy) { for (k = 0; k < placed.length; k++) { var q = placed[k]; if (xx < q.x + q.w + 4 && q.x < xx + w + 4 && yy < q.y + q.h + 4 && q.y < yy + h + 4) return true; } return false; }
+      function offDisc(xx, yy) { var nx = Math.max(xx, Math.min(view.cx, xx + w)), ny = Math.max(yy, Math.min(view.cy, yy + h)); return Math.hypot(nx - view.cx, ny - view.cy) > view.scale + 2; }
+      var sx = ux >= 0 ? 1 : -1, sy = uy >= 0 ? 1 : -1;
+      for (k = 0; k < 4; k++) { cand.push([x + sx * k * (w + 6), y]); cand.push([x - sx * k * (w + 6), y]); cand.push([x, y + sy * k * (h + 6)]); }
+      for (c0 = 0; c0 < cand.length && !best; c0++) { var cx0 = clampX(cand[c0][0]), cy0 = clampY(cand[c0][1]); if (!clash(cx0, cy0) && offDisc(cx0, cy0)) best = [cx0, cy0]; }
+      for (c0 = 0; c0 < cand.length && !best; c0++) { var cx1 = clampX(cand[c0][0]), cy1 = clampY(cand[c0][1]); if (!clash(cx1, cy1)) best = [cx1, cy1]; }
+      if (!best) best = [clampX(x), clampY(y)];
+      x = best[0]; y = best[1];
+      placed.push({ k: row.k, x: x, y: y, w: w, h: h });
       ctx.strokeStyle = "rgba(232,251,255,0.9)";
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -859,7 +877,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4339 = true;
+      window.__SN_4340 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -1271,16 +1289,26 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (done || !pt) return;
       done = true;
       gotGps = pt.how === "gps";
-      try { if (watchId) navigator.geolocation.clearWatch(watchId); } catch (e) {}
+      /* 4340: an IP answer keeps the watch alive, so a prompt answered late still flies to the fix */
+      if (gotGps) { try { if (watchId) navigator.geolocation.clearWatch(watchId); } catch (e) {} }
       then(pt);
     }
     function gps(pos) {
-      if (!pos || !pos.coords || done) return;
+      if (!pos || !pos.coords) return;
+      if (done) {
+        if (gotGps) return;
+        gotGps = true;
+        try { if (watchId) navigator.geolocation.clearWatch(watchId); } catch (eW) {}
+        gpsArrived({ lat: pos.coords.latitude, lng: pos.coords.longitude, how: "gps" }, "late");
+        return;
+      }
       finish({ lat: pos.coords.latitude, lng: pos.coords.longitude, how: "gps" });
     }
     function ipFallback(why) {
       if (done) return;
-      fetch("https://get.geojs.io/v1/ip/geo.json").then(function (r) { return r.json(); }).then(function (j) {
+      var ipCtl = (typeof AbortController !== "undefined") ? new AbortController() : null;
+      setTimeout(function () { try { if (ipCtl) ipCtl.abort(); } catch (eA) {} }, 5000);
+      fetch("https://get.geojs.io/v1/ip/geo.json", ipCtl ? { signal: ipCtl.signal } : {}).then(function (r) { return r.json(); }).then(function (j) {
         if (done) return;
         var lat = Number(j && j.latitude), lng = Number(j && j.longitude);
         if (isFinite(lat) && isFinite(lng)) {
@@ -1347,8 +1375,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       lastSeat = null;
       seatKind = "ip";
       clearSeatPins();
-      try { if (cityOn) closeCity(); } catch (eCC) {}
-      try { lookAt({ lat: lat, lng: lng, name: label }, 1.6); } catch (eL) {}
+      /* 4340: the boot promise is kept: the camera lands on the IP city view (street map, city zoom), labelled approximate.
+         Camera only: seatKind "ip" never seats a hunt or a listing pull (huntSeatOk / paintPulse / moveend know it). */
+      try { lookAt({ lat: lat, lng: lng, name: label }, 1.05); } catch (eL) {}
+      ipView = { lat: lat, lng: lng, name: label, at: Date.now() };
+      window.__snIpView = ipView;
+      try { openCity({ lat: lat, lng: lng, name: label }, { zoom: IP_CITY_Z }); } catch (eOC) {}
       say("Approximate location (IP)" + (pt.name ? " · " + pt.name : "") + ". Name a place or allow location to hunt.");
       return;
     }
@@ -1406,6 +1438,62 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (bootPt) { bootZoomTo(bootPt); return; }
     say("Zooming to you as soon as location answers… or name a place.");
   }
+  /* 4340: one door for a real GPS fix that arrives after boot (late prompt answer, permission change, poll).
+     It flies to the fix at street level and replaces the IP label, unless the user is busy on a place they named. */
+  function gpsArrived(pt, why) {
+    if (!pt || !isFinite(+pt.lat) || !isFinite(+pt.lng)) return;
+    var lat = +pt.lat, lng = +pt.lng;
+    var prev = hereLive;
+    hereLive = { lat: lat, lng: lng, name: "GPS" };
+    window.__snGpsAt = Date.now();
+    try { localStorage.setItem("sn:here", JSON.stringify(hereLive)); } catch (e) {}
+    if (seatKind === "gps" && prev && haversineKm(prev, hereLive) < 0.2) return;
+    if (intro && bootIdle()) {
+      /* the boot countdown is still running: it will land on the fix */
+      here = hereLive; window.__SN_HERE = here;
+      bootPt = { lat: lat, lng: lng, how: "gps" };
+      return;
+    }
+    var busy = (seatKind === "named" || seatKind === "landed" || seatKind === "admin") && (huntView || findWanted);
+    if (busy) {
+      here = here || hereLive;
+      say("GPS on · " + lat.toFixed(4) + "," + lng.toFixed(4) + " · tap GPS to fly there.");
+      return;
+    }
+    ipView = null; window.__snIpView = null;
+    land({ lat: lat, lng: lng, how: "gps", name: "GPS" }, false);
+  }
+  function fetchGps(why) {
+    if (!navigator.geolocation) return;
+    try {
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        if (pos && pos.coords) gpsArrived({ lat: pos.coords.latitude, lng: pos.coords.longitude, how: "gps" }, why);
+      }, function () {
+        if (seatKind !== "gps") say("Location allowed, but this device gave no GPS fix yet. Tap GPS to retry.");
+      }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+    } catch (e) {}
+  }
+  var gpsPerm = "";
+  function armGpsGrant() {
+    if (!navigator.permissions || !navigator.permissions.query) return;
+    function onState(st) {
+      var was = gpsPerm;
+      gpsPerm = st;
+      window.__snGpsPerm = st;
+      if (st === "granted" && was && was !== "granted" && seatKind !== "gps") fetchGps("grant");
+    }
+    try {
+      navigator.permissions.query({ name: "geolocation" }).then(function (ps) {
+        onState(ps.state);
+        try { ps.addEventListener("change", function () { onState(ps.state); }); } catch (eL) { ps.onchange = function () { onState(ps.state); }; }
+      }).catch(function () {});
+    } catch (e) { return; }
+    /* a grant from browser settings or automation does not always fire 'change': look again every 2.5 s (cheap, no prompt) */
+    setInterval(function () {
+      if (seatKind === "gps" && gpsPerm === "granted") return;
+      try { navigator.permissions.query({ name: "geolocation" }).then(function (ps) { onState(ps.state); }).catch(function () {}); } catch (e2) {}
+    }, 2500);
+  }
   function bindGps() {
     var btn = $("gps");
     if (!btn || btn.__snGpsLock) return;
@@ -1422,6 +1510,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           say("Location failed. Allow GPS, or I will try the network.");
           return;
         }
+        if (pt.how === "gps") { ipView = null; window.__snIpView = null; hereLive = { lat: +pt.lat, lng: +pt.lng, name: "GPS" }; }
         land(pt, false);
       }, false);
     }
@@ -1581,6 +1670,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         try {
           if (!map || !cityOn) return;
           if (Date.now() < progMoveUntil) return; /* a fit or a sheet pan is not the user moving the seat */
+          if (seatKind === "ip") {
+            if (Date.now() - mapUserAt > 1500) return; /* 4340: resize / tile settle on the IP view is not a seat */
+            seatKind = "landed"; ipView = null; window.__snIpView = null;
+          }
           var c = map.getCenter();
           if (!c || !isFinite(+c.lat)) return;
           /* pan updates the active seat; do not clear a named landing name unless far */
@@ -1890,7 +1983,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4339&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4340&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -2100,8 +2193,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-tester.stale{color:#8a6a6a;border-color:rgba(255,120,120,.35)}",
       "#sn-topchrome-drag{display:none!important;height:0!important;min-height:0!important;max-height:0!important;padding:0!important;margin:0!important;border:0!important}",
       "#cli-drag{display:none!important}",
-      "#cli-drag.sn-grip.on{display:block!important;position:fixed!important;z-index:300!important;width:120px!important;height:18px!important;min-height:18px!important;max-height:18px!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important;cursor:ns-resize!important;touch-action:none!important;pointer-events:auto!important;overflow:visible!important}",
-      "#cli-drag.sn-grip.on::before{content:\"\"!important;display:block!important;position:absolute!important;left:50%!important;top:7px!important;width:44px!important;height:5px!important;margin-left:-22px!important;border-radius:3px!important;background:rgba(77,240,255,.85)!important;box-shadow:0 0 6px rgba(77,240,255,.6)!important}",
+      "#cli-drag.sn-grip.on{display:block!important;position:fixed!important;z-index:300!important;height:28px!important;min-height:28px!important;max-height:28px!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important;cursor:ns-resize!important;touch-action:none!important;pointer-events:auto!important;overflow:visible!important;user-select:none!important;-webkit-user-select:none!important}",
+      "#cli-drag.sn-grip.on::before{content:\"\"!important;display:block!important;position:absolute!important;left:50%!important;top:15px!important;width:56px!important;height:6px!important;margin-left:-28px!important;border-radius:3px!important;background:rgba(77,240,255,.9)!important;box-shadow:0 0 6px rgba(77,240,255,.6),0 0 0 1px rgba(4,16,28,.6)!important}",
+      "#sn-sheet.on .sheet-bar{touch-action:none!important;cursor:ns-resize!important;user-select:none!important}",
+      "#sn-sheet.on .sheet-bar button{cursor:pointer!important}",
+      "#go,#plus{color:#4df0ff!important;font:800 12px/1 system-ui,sans-serif!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:0!important}",
+      "#go svg{display:block;pointer-events:none}",
       "#cli-drag.sn-grip.drag::before{background:#e8fbff!important}",
       "#top{top:0!important;left:0!important;right:0!important;margin:0!important;padding:0!important;display:flex!important;flex-direction:column!important}",
       "#island{position:relative!important;z-index:2!important;padding-left:52px!important;padding-right:52px!important}",
@@ -2312,6 +2409,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         netN++;
       });
       liveNet = netN;
+      liveLoaded = true;
       (j.shops || []).forEach(function (s) {
         if (!s || !s.id || !isFinite(+s.lat)) return;
         var have = null;
@@ -3154,10 +3252,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       el.textContent = "LIVE · finding " + huntLabel() + "…";
       return;
     }
+    if (!liveLoaded && !huntView) { el.textContent = "LIVE · loading…"; return; }
     var vendors = 0, near = 0, drivers = 0, orders = 0;
     var seatLive = activeSeat() || here;
     /* 4339: an IP guess is not a place. Unseated: count the real public listings on the network (no fixtures). */
-    var unseated = !huntView && (!seatLive || (seatLive.how === "here" && seatKind !== "gps"));
+    var unseated = !huntView && (!seatLive || seatKind === "ip" || (seatLive.how === "here" && seatKind !== "gps"));
     if (unseated) {
       var seenL = {};
       (shops || []).forEach(function (s) {
@@ -3975,7 +4074,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     [450, 1300].forEach(function (ms) {
       setTimeout(function () {
         try {
-          if (!huntView || !huntView.fitted || !cityOn || mapUserAt > huntView.fitAt) return;
+          if (!huntView || !huntView.fitted || !cityOn || mapUserAt > huntView.fitAt || (window.__snGripAt || 0) > huntView.fitAt) return;
           var v3 = mapVisBox();
           if (Math.abs(v3.t - huntView.fitVB.t) > 10 || Math.abs(v3.b - huntView.fitVB.b) > 10) fitHunt();
         } catch (eR) {}
@@ -4260,7 +4359,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function huntSeatOk() {
     var st = activeSeat();
     if (!st) return false;
-    if (st.how === "pan" || st.how === "gps") return true;
+    if (st.how === "pan") return seatKind !== "ip"; /* 4340: the IP city view is camera only */
+    if (st.how === "gps") return true;
     if (st.how === "land") return seatKind !== "ip";
     if (st.how === "here") return seatKind === "gps";
     return false;
@@ -5089,6 +5189,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var seatKind = "";
   var bootZoom = false;
   var bootPt = null;
+  var ipView = null, IP_CITY_Z = 11; /* 4340: the IP city view (camera only) */
+  var talkSeq = 0; /* 4340: newest talk wins the line */
+  var liveLoaded = false; /* 4340: LIVE waits for the first /api/live answer */
   /* fix38 state */
   var frameCam = null;
   var wheelG = null;
@@ -5352,6 +5455,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var q = String(raw || "").trim();
     if (!q) return;
     lastVoice = !!fromVoice;
+    var tq = ++talkSeq;
     if (supportOn) { sendSupport(q, fromVoice); return; }
     /* a new submit always wins: abort the running hunt and any pending land */
     abortHunt();
@@ -5392,7 +5496,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       askGrok(q, function (err, j) {
         if (err || !j) return;
         var text = j.say || j.text;
-        if (text) { sayIfIdle(text); speakIfVoice(text); }
+        if (text && tq === talkSeq) { sayIfIdle(text); speakIfVoice(text); }
       }, 8000);
       return;
     }
@@ -5406,7 +5510,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       askGrok(q, function (err, j) {
         if (err || !j) return;
         var text = j.say || j.text;
-        if (text) sayIfIdle(text);
+        if (text && tq === talkSeq) sayIfIdle(text);
       }, 8000);
       return;
     }
@@ -5904,6 +6008,24 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           submitTalk(e);
         }
         inp.addEventListener("keydown", onEnter);
+        /* 4340: focus on the map, a sheet row or the page must not eat keys: printable keys go to the talk box,
+           Enter anywhere outside another field submits what is in it */
+        document.addEventListener("keydown", function (e) {
+          if (!inp || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+          var t = e.target;
+          if (t === inp) return;
+          var tag = t && t.tagName ? t.tagName.toLowerCase() : "";
+          if (tag === "input" || tag === "textarea" || tag === "select" || (t && t.isContentEditable)) return;
+          if (tag === "button" || tag === "a" || (t && t.getAttribute && t.getAttribute("role") === "button")) return; /* a focused control keeps Enter/Space */
+          if (e.key === "Enter" || e.keyCode === 13) {
+            if (e.isComposing) return;
+            if (String(inp.value || "").trim()) { e.preventDefault(); submitTalk(e); }
+            return;
+          }
+          if (e.key && e.key.length === 1 && !e.isComposing) {
+            try { inp.focus({ preventScroll: true }); } catch (eF) { inp.focus(); }
+          }
+        }, true);
         inp.addEventListener("keyup", function (e) {
           if (e.key !== "Enter" && e.keyCode !== 13) return;
           if (e.isComposing) return;
@@ -5916,7 +6038,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     function paintGo() {
       if (!go) return;
       var has = inp && String(inp.value || "").trim();
-      go.textContent = has ? "GO" : "MIC";
+      if (has) go.textContent = "GO";
+      else go.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
       go.setAttribute("aria-label", has ? "Send" : "Talk");
     }
     paintGo();
@@ -7162,9 +7285,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       c.addEventListener("pointercancel", endDrag);
     }
   }
-  /* 4339 grip: the dock handle (#cli-drag) rides the top edge of an open sheet and resizes it
-     (min 96px, max 42vh). Hidden when no sheet is open, so it never sits on the LIVE bar.
-     Double-click resets. The top-chrome handle stays off: there is nothing up there to resize. */
+  /* 4340 grip: the dock handle (#cli-drag) is a full-width 28 px strip on the top edge of an open sheet (24 px above it,
+     4 px into it); the sheet's title bar drags too. Resizes 96px..42vh, map dragging is off while resizing, hidden when no
+     sheet is open (never on the LIVE bar). Double-click resets. The top-chrome handle stays off. */
   function armGrip() {
     var g = $("cli-drag"), sh = $("sn-sheet"), card = $("sn-sheet-card");
     if (!g || !sh || !card || g.__grip) return;
@@ -7173,15 +7296,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     g.classList.add("sn-grip");
     g.setAttribute("aria-hidden", "true");
     g.title = "Drag to resize";
-    var drag = null, userH = 0;
+    var drag = null, userH = 0, mapDragWas = null;
+    var STRIP = 28, ABOVE = 24; /* 4340: 28 px tall hit strip, 24 px above the card edge + 4 px into it, full card width */
     function cap() { return Math.round(window.innerHeight * 0.42); }
     function minH() { return Math.min(cap(), 96); }
     function place() {
       var r = sh.classList.contains("on") ? card.getBoundingClientRect() : null;
       if (!r || r.height < 20) { g.classList.remove("on"); return; }
       g.classList.add("on");
-      g.style.setProperty("top", Math.round(r.top - 18) + "px", "important");
-      g.style.setProperty("left", Math.round(r.left + r.width / 2 - 60) + "px", "important");
+      g.style.setProperty("top", Math.round(r.top - ABOVE) + "px", "important");
+      g.style.setProperty("left", Math.round(r.left) + "px", "important");
+      g.style.setProperty("width", Math.round(r.width) + "px", "important");
     }
     function setH(h) {
       h = Math.max(minH(), Math.min(cap(), Math.round(h)));
@@ -7205,41 +7330,72 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (userH) setH(userH);
       place();
     }
-    g.addEventListener("pointerdown", function (e) {
-      if (!g.classList.contains("on")) return;
+    function mapHold(off) {
+      try {
+        if (!map || !map.dragging) return;
+        if (off) { mapDragWas = map.dragging.enabled(); map.dragging.disable(); }
+        else if (mapDragWas) { map.dragging.enable(); mapDragWas = null; }
+      } catch (e) {}
+    }
+    function start(e, el) {
+      if (!sh.classList.contains("on")) return;
+      if (e.button) return;
       e.preventDefault();
       e.stopPropagation();
-      drag = { y: e.clientY, h: card.getBoundingClientRect().height };
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      drag = { y: e.clientY, h: card.getBoundingClientRect().height, id: e.pointerId, el: el, moved: false };
+      window.__snGripAt = Date.now();
       g.classList.add("drag");
-      try { g.setPointerCapture(e.pointerId); } catch (x) {}
-    });
-    g.addEventListener("pointermove", function (e) {
+      window.__snGripDrags = (window.__snGripDrags || 0) + 1;
+      mapHold(true);
+      try { el.setPointerCapture(e.pointerId); } catch (x) {}
+    }
+    function move(e) {
       if (!drag) return;
       e.preventDefault();
       e.stopPropagation();
+      if (Math.abs(e.clientY - drag.y) > 2) drag.moved = true;
       userH = setH(drag.h + (drag.y - e.clientY));
-    });
+    }
     function end(e) {
       if (!drag) return;
+      var d = drag;
       drag = null;
       g.classList.remove("drag");
-      try { g.releasePointerCapture(e.pointerId); } catch (x) {}
-      try { if (map && typeof map.invalidateSize === "function") map.invalidateSize(); } catch (x2) {}
+      try { d.el.releasePointerCapture(d.id); } catch (x) {}
+      mapHold(false);
+      try { if (map && typeof map.invalidateSize === "function") map.invalidateSize({ pan: false }); } catch (x2) {}
+      if (d.moved && d.el !== g) { /* a resize from the title bar is not a tap on it */
+        var swallow = function (ev) { ev.stopPropagation(); ev.preventDefault(); document.removeEventListener("click", swallow, true); };
+        document.addEventListener("click", swallow, true);
+        setTimeout(function () { document.removeEventListener("click", swallow, true); }, 300);
+      }
     }
-    g.addEventListener("pointerup", end);
-    g.addEventListener("pointercancel", end);
-    g.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); });
+    g.addEventListener("pointerdown", function (e) { if (g.classList.contains("on")) start(e, g); });
+    card.addEventListener("pointerdown", function (e) {
+      var bar = e.target && e.target.closest ? e.target.closest(".sheet-bar") : null;
+      if (!bar || (e.target.closest && e.target.closest("button,a,input,select,textarea,[data-act]"))) return;
+      start(e, bar);
+    }, true);
+    window.addEventListener("pointermove", move, true);
+    window.addEventListener("pointerup", end, true);
+    window.addEventListener("pointercancel", end, true);
+    ["mousedown", "touchstart", "click"].forEach(function (k) {
+      g.addEventListener(k, function (e) { e.stopPropagation(); if (k !== "touchstart") e.preventDefault(); }, { passive: false });
+    });
     g.addEventListener("dblclick", function (e) { e.preventDefault(); e.stopPropagation(); userH = 0; clearH(); place(); });
     try { new MutationObserver(sync).observe(sh, { attributes: true, attributeFilter: ["class"] }); } catch (e) {}
     try { new MutationObserver(sync).observe(card, { childList: true }); } catch (e) {}
     try { if (window.ResizeObserver) new ResizeObserver(place).observe(card); } catch (e) {}
     window.addEventListener("resize", function () { if (userH) userH = setH(userH); place(); });
-    window.__snGrip = { cap: cap, min: minH, height: function () { return card.getBoundingClientRect().height; } };
+    window.__snGrip = { cap: cap, min: minH, strip: STRIP, dragging: function () { return !!drag; }, height: function () { return card.getBoundingClientRect().height; },
+      mapDraggable: function () { try { return !!(map && map.dragging && map.dragging.enabled()); } catch (e) { return null; } } };
     sync();
   }
   function boot() {
     sheetLaw();
     armGrip();
+    armGpsGrant();
     canvas = $("g");
     if (!canvas) return;
     ctx = canvas.getContext("2d");
@@ -7283,6 +7439,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     setInterval(pullQueue, 4000);
     loadBlocks();
     setTimeout(pullLive, 1500);
+    setTimeout(function () { if (!liveLoaded) { liveLoaded = true; try { paintPulse(); } catch (eP) {} } }, 9000);
     setInterval(pullLive, 8000);
     setInterval(tickLive, 1000);
     checkVersion();
@@ -7314,7 +7471,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4339 = true;
+    window.__SN_4340 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
@@ -7338,7 +7495,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       findShown: function () { return (window.__snFindShown || []).map(function (x) { return { id: x.id, name: x.name }; }); },
       huntState: function () { return huntView ? { needle: huntView.needle, rendered: huntView.rendered, findOnSheet: findOnSheet } : null; },
       addrOf: function (x) { return addrOf(x); }, photoOf: function (x) { return photoOf(x); },
-      overpassState: function () { return { off: overpassOff, coolMs: Math.max(0, overpassCool - Date.now()) }; }
+      overpassState: function () { return { off: overpassOff, coolMs: Math.max(0, overpassCool - Date.now()) }; },
+      seatState: function () { return { kind: seatKind, here: here, hereLive: hereLive, ip: ipView, perm: gpsPerm, liveLoaded: liveLoaded }; }
     };
     Object.defineProperty(window, "__SN_INTRO", { get: function () { return intro; } });
     requestAnimationFrame(loop);

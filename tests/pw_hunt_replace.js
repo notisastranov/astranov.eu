@@ -17,6 +17,8 @@
  *   bare 'supermarket' after Athens hunts Athens (>= 9 real pins, no stale 'Athens Greece' text); sheet grip drags
  *   (resizes <= 42vh, >= 96px, clear of LIVE, hidden with no sheet); session-shape check (stored sn:user shape only, no
  *   token, all writes blocked): YOU + aria-label + header name survive reload and SPACENET reset.
+ * 4340: an IP-only boot (no input) lands on the IP city view (z10-12.5, labelled approximate, seat kind 'ip') within 22 s and
+ *   a bare hunt there still asks where; LIVE never shows two different counts on load; grip = full-width 28 px strip.
  * Exit 2 on any FAIL.
  */
 const fs = require("fs");
@@ -24,7 +26,7 @@ const path = require("path");
 const { chromium } = require("playwright");
 
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const URL0 = BASE + (BASE.indexOf("?") >= 0 ? "&" : "?") + "v=" + (process.env.STAMP || "4339") + "&t=" + Date.now();
+const URL0 = BASE + (BASE.indexOf("?") >= 0 ? "&" : "?") + "v=" + (process.env.STAMP || "4340") + "&t=" + Date.now();
 const PIZZA = /pizz|πιτσ|πίτσ|margherita|calzone/i;
 const MARKET = /market|super|grocer|convenience|παντοπωλ|σούπερ|σουπερ|μάρκετ|μαρκετ/i;
 const RHODES = { lat: 36.4349, lng: 28.2176 };
@@ -135,6 +137,10 @@ function sameSet(f) {
     }
   }
   await routeLocal(page);
+  await page.addInitScript(() => {
+    window.__liveSeq = []; let last = null;
+    setInterval(() => { const e = document.getElementById("sn-pulse"); const t = e ? e.textContent : ""; if (t !== last) { last = t; window.__liveSeq.push([Math.round(performance.now()), t]); } }, 50);
+  });
   if (process.env.LOCAL_FIND) {
     const handler = require(path.resolve(process.env.LOCAL_FIND));
     await page.route(/\/api\/find\?.*reverse=1/, async (route) => {
@@ -152,6 +158,7 @@ function sameSet(f) {
   page.on("framenavigated", (fr) => { if (fr === page.mainFrame()) console.log("[nav]", fr.url().slice(0, 140)); });
 
   console.log("goto", URL0);
+  const tLoad = Date.now();
   await page.goto(URL0, { waitUntil: "domcontentloaded", timeout: 90000 });
   await sleep(4500);
   const wallet = await page.evaluate(() => ((document.querySelector("#sn-money .tgt") || {}).textContent || "").trim());
@@ -172,10 +179,30 @@ function sameSet(f) {
   console.log("[boot]", JSON.stringify(boot));
   check(new RegExp("^LIVE · " + boot.expect + " vendors? ·").test(boot.live) && boot.expect > 0, "boot LIVE counts the real public network (" + boot.expect + " listed, no fixtures)", boot.live);
   check(boot.latest === "LATEST " + boot.api && /^\d{4,}$/.test(String(boot.api)), "LATEST shows /api/version (" + boot.api + ")", boot.latest);
-  if (!process.env.LOCAL_APP) check(String(boot.api) === String(process.env.STAMP || "4339") && boot.ver === "V" + (process.env.STAMP || "4339"), "running build == LATEST == STAMP", boot.ver + " / " + boot.api);
+  if (!process.env.LOCAL_APP) check(String(boot.api) === String(process.env.STAMP || "4340") && boot.ver === "V" + (process.env.STAMP || "4340"), "running build == LATEST == STAMP", boot.ver + " / " + boot.api);
   check(!boot.tester, "TESTER ticker hidden for a guest");
   await page.screenshot({ path: path.join(SHOTS, "boot.png") });
 
+  // ---- 4340: IP-only boot lands on the IP city view (camera only) ----
+  if (boot.here && /IP/.test(boot.here.name || "")) {
+    let ipv = null;
+    while (Date.now() - tLoad < 26000) {
+      ipv = await page.evaluate(() => { const m = SN.getMap(); const c = m && m.getCenter(); const city = document.getElementById("city"); const ss = SN.seatState ? SN.seatState() : {};
+        return { on: city.classList.contains("on") && getComputedStyle(city).opacity === "1", c: c && { lat: c.lat, lng: c.lng }, z: m && m.getZoom(), kind: ss.kind, here: ss.here, line: document.getElementById("line").textContent, live: (document.getElementById("sn-pulse") || {}).textContent }; });
+      if (ipv.on && ipv.kind === "ip") break;
+      await sleep(250);
+    }
+    const ipAt = (Date.now() - tLoad) / 1000;
+    console.log("[ip view]", ipAt.toFixed(1) + " s", JSON.stringify(ipv));
+    check(!!(ipv && ipv.on && ipv.kind === "ip" && ipAt <= 22 && ipv.here && km(ipv.c, ipv.here) < 3 && ipv.z >= 10 && ipv.z <= 12.5 && /Approximate location \(IP\)/.test(ipv.line)),
+      "IP-only boot auto-zooms to the IP city view (camera only, labelled approximate) within 22 s", ipAt.toFixed(1) + " s z" + (ipv && ipv.z));
+    await sleep(1200);
+    await page.screenshot({ path: path.join(SHOTS, "boot-ip-city.png") });
+    const seq = await page.evaluate(() => window.__liveSeq || []);
+    const counts = [...new Set(seq.map((x) => (x[1].match(/LIVE · (\d+) vendor/) || [])[1]).filter(Boolean))];
+    console.log("   LIVE sequence:", JSON.stringify(seq.map((x) => x[0] + ":" + x[1])));
+    check(counts.length === 1, "LIVE shows one final count on load (loading first, no jump)", JSON.stringify(counts));
+  }
   // bare hunt with only an IP guess: never hunts the IP spot
   if (boot.here && /IP/.test(boot.here.name || "")) {
     await ask(page, "supermarket");
@@ -278,7 +305,7 @@ function sameSet(f) {
   });
   const ov = (a, b) => a && b && a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
   const g0 = await gr();
-  check(!!(g0.grip && g0.card) && Math.abs(g0.grip.y + g0.grip.h - g0.card.y) <= 2 && !ov(g0.grip, g0.pulse), "grip rides the sheet top, clear of LIVE", JSON.stringify(g0));
+  check(!!(g0.grip && g0.card) && g0.grip.y < g0.card.y && g0.grip.y + g0.grip.h >= g0.card.y && g0.grip.h >= 24 && g0.grip.w >= g0.card.w - 2 && !ov(g0.grip, g0.pulse), "grip rides the sheet top, clear of LIVE", JSON.stringify(g0));
   if (g0.grip) {
     const gx = g0.grip.x + g0.grip.w / 2, gy = g0.grip.y + g0.grip.h / 2;
     await page.mouse.move(gx, gy); await page.mouse.down();
@@ -294,7 +321,7 @@ function sameSet(f) {
     check(g1.card.h < g0.card.h - 20 && g1.card.h >= 95, "drag down shrinks the sheet (>= 96 px)", g0.card.h + " → " + g1.card.h);
     check(g2.card.h > g1.card.h + 20, "drag up grows the sheet", g1.card.h + " → " + g2.card.h);
     check(g2.card.h <= cap + 1, "dragged sheet never taller than 42vh", g2.card.h + " ≤ " + cap);
-    check(!ov(g2.grip, g2.pulse) && Math.abs(g2.grip.y + g2.grip.h - g2.card.y) <= 2, "grip follows the sheet, still clear of LIVE", JSON.stringify(g2));
+    check(!ov(g2.grip, g2.pulse) && g2.grip.y < g2.card.y && g2.grip.y + g2.grip.h >= g2.card.y && g2.grip.h >= 24 && g2.grip.w >= g2.card.w - 2, "grip follows the sheet, still clear of LIVE", JSON.stringify(g2));
     await page.screenshot({ path: path.join(SHOTS, "grip-dragged.png") });
   }
 
