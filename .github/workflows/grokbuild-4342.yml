@@ -1,0 +1,105 @@
+name: grokbuild 4342 sheet 30/42 of the real map area, amber stretch + spring, LIVE truthful in IP and GPS, pharmacy count, NEWS tap, Rhodes island zoom, guest LIST honesty (branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4342.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Check main; decode kit45; apply fix45 + stamp 4342; assert; drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch -q origin main
+          MAIN=$(git rev-parse origin/main)
+          echo "main tip $MAIN"
+          test "$MAIN" = "785011f6c15d4e9bc8c3656b2a10ed89fb35c3d3" || { echo "main moved past 785011f6: merge it first (rebuild the kit)"; exit 1; }
+          git merge-base --is-ancestor "$MAIN" HEAD
+          git merge-base --is-ancestor 3e0d51c2bde4dc773064ecae54cf1896927b09cb HEAD
+          git log --oneline -3
+          grep -q 'var VER = "4341"' js/spacenet/app.js
+          test -f .grokbuild/kit45.p00.b64
+          test -f .grokbuild/kit45.p08.b64
+          python3 - <<'PYKIT'
+          from pathlib import Path
+          import hashlib, gzip, glob, tarfile, io, base64
+          raw = base64.b64decode("".join(Path(p).read_text().strip() for p in sorted(glob.glob(".grokbuild/kit45.p*.b64"))), validate=True)
+          g = hashlib.sha256(raw).hexdigest(); print("tgz", g, len(raw))
+          if g != "f083053d895ebd5f38c0b16da1aa7fe08aab5b785ae04baddd1d8d26ecac287d": raise SystemExit("tgz sha mismatch")
+          body = gzip.decompress(raw); s = hashlib.sha256(body).hexdigest(); print("tar", s, len(body))
+          if s != "3e0de5e5586bd311c34c2121c7c2d990ced7448382009c304c0ebb3c0364c991": raise SystemExit("tar sha mismatch")
+          Path(".grokbuild/k").mkdir(parents=True, exist_ok=True)
+          with tarfile.open(fileobj=io.BytesIO(body)) as t:
+              for m in t.getmembers():
+                  if m.name.startswith("/") or ".." in m.name: raise SystemExit("bad member " + m.name)
+              t.extractall(".grokbuild/k")
+          PYKIT
+          git apply --check .grokbuild/k/fix45.patch
+          git apply .grokbuild/k/fix45.patch
+          python3 .grokbuild/k/stamp4342.py
+          grep -q 'app.js?v=4342' index.html
+          grep -q 'auth.js?v=4342' index.html
+          grep -q 'leaflet.js?v=4342' index.html
+          grep -q 'name="astranov-build" content="4342"' index.html
+          grep -q 'id="ver">V4342' index.html
+          grep -q 'var VER = "4342"' js/spacenet/app.js
+          test "$(grep -c '__SN_4342 = true' js/spacenet/app.js)" = "2"
+          grep -q 'location.href = "/?v=4342&' js/spacenet/app.js
+          grep -q 'var VER = "4342"' sw.js
+          grep -q 'sn-shell-4342' sw.js
+          grep -q 'TREE LOCK 4342' sw.js
+          grep -q 'SpaceNet SW 4342' sw.js
+          grep -q '4342-real' vercel.json
+          grep -q '"X-Astranov-Build", "value": "4342"' vercel.json
+          grep -qx '4342' VERSION
+          grep -q 'path.join(process.cwd(), "VERSION")' api/version.js
+          node -e 'const h=require("./api/version.js");h({method:"GET"},{setHeader(){},status(c){return {json(j){if(c!==200||j.latest!=="4342"){console.error("version.js",c,j);process.exit(1)}console.log("api/version ->",j)},end(){}}}})'
+          grep -qF -- 'function area()' js/spacenet/app.js
+          grep -qF -- '--sn-rest' js/spacenet/app.js
+          grep -qF -- 'sn-edge' js/spacenet/app.js
+          grep -qF -- 'vendors on SpaceNet' js/spacenet/app.js
+          grep -qF -- 'amenity|shop|healthcare' js/spacenet/app.js
+          grep -qF -- 'function briefAt' js/spacenet/app.js
+          grep -qF -- 'briefPend = setTimeout' js/spacenet/app.js
+          grep -qF -- 'openCity(aim, { zoom: dz })' js/spacenet/app.js
+          grep -qF -- 'Island / region view · ' js/spacenet/app.js
+          grep -qF -- 'listing needs LOGIN' js/spacenet/app.js
+          grep -qF -- 'LOGIN to list a driver base' js/spacenet/app.js
+          grep -qF -- 'LOGIN to post. Nothing was posted.' js/spacenet/app.js
+          grep -qF -- '.phbtn{width:72px' js/spacenet/app.js
+          grep -qF -- 'c.z = c.k === "CALENDAR" ? 13 : 10' js/spacenet/app.js
+          grep -qF -- 'a guest hears LOGIN first' js/spacenet/app.js
+          grep -qF -- 'function hudRects()' js/spacenet/app.js
+          grep -qF -- 'function gpsArrived' js/spacenet/app.js
+          grep -qF -- 'HEADED 4342 ALL PASS' tests/headed_boot_gps_keys.js
+          grep -qF -- 'onRhodes' tests/headed_boot_gps_keys.js
+          grep -qF -- 'STAMP || "4342"' tests/headed_wheel_xdotool.js
+          grep -qF -- 'let the .34 s spring settle' tests/pw_hunt_replace.js
+          if grep -qE 'v=4341|"4341"|sn-shell-4341|4341-real|V4341|__SN_4341|TREE LOCK 4341|SW 4341' index.html sw.js api/version.js vercel.json js/spacenet/app.js js/spacenet/auth.js; then echo 'stale 4341 stamp'; exit 1; fi
+          if grep -qx '4341' VERSION; then echo 'stale VERSION'; exit 1; fi
+          python3 -c "import json;json.load(open('vercel.json'))"
+          node --check js/spacenet/app.js
+          node --check js/spacenet/auth.js
+          node --check sw.js
+          node --check api/version.js
+          node --check tests/headed_wheel_xdotool.js
+          node --check tests/pw_hunt_replace.js
+          node --check tests/headed_boot_gps_keys.js
+          git rm -q -r --cached .grokbuild || true
+          git rm -q .github/workflows/grokbuild-4342.yml || true
+          rm -rf .grokbuild .github/workflows/grokbuild-4342.yml
+          git add -u
+          git add VERSION index.html vercel.json sw.js js/spacenet/app.js tests/headed_wheel_xdotool.js tests/pw_hunt_replace.js tests/headed_boot_gps_keys.js
+          git status --short | head -40
+          git commit -q -m "4342: the sheet rests at 30 % and caps at 42 % of the real map area (ribbon to dock, from innerHeight; was 30vh/42vh = 35/49 % of the map at 1280x800); a visible amber MAX/REST stretch past either end with a spring back, drag-down below rest springs back to rest; LIVE names the same network count in IP and GPS mode ('N vendors on SpaceNet'); unnamed real pharmacies kept (Athens pharmacy 16 again); a NEWS/CALENDAR callout tap opens the item on the map; a double tap or wheel on Rhodes opens the island (z10, says so); guest LIST says LOGIN up front and APPLY says LOGIN with nothing saved or sent; 72 px menu-row photos; tests updated (preview, do not merge)"
+          # let the deploys of the kit commits finish first, so the preview alias ends on this commit
+          sleep 75
+          git push origin HEAD:grokbuild/4328-street-level-gps
