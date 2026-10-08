@@ -1,5 +1,5 @@
 /**
- * Headed real-input test (4344): real Chrome on the X display (DISPLAY, default :3); run it at WIN=1920x1200 SCALE=1.5
+ * Headed real-input test (4345): real Chrome on the X display (DISPLAY, default :3); run it at WIN=1920x1200 SCALE=1.5
  * (OS-level xdotool input picked in a 1280x800 "agent view" and rounded back, like a computer-use agent on a scaled
  * screenshot) and at WIN=1280x800 SCALE=1. Screenshots are grabbed from the X screen (real pixels).
  *  BOOT: no input. MIC is a cyan icon; LIVE shows 'loading…' then one count, 'N vendors on SpaceNet'; the IP answer lands
@@ -24,11 +24,18 @@
  *    a city dot or its label (Athens dot, 3-4 px off the Athens dot, the ATHENS label, Istanbul dot + label, the Rhodes
  *    dot) centres the z10 view on that place's coordinates, Crete (no dot) on the surface point under the real clicked
  *    pixel: within 0.05 deg AND the target within 20 real px of the map centre on screen (4344); city labels never overlap;
+ *    4345: the Athens point lands on the Leaflet container centre within 1.5 px with #city full-bleed (no vertical
+ *    centring offset); the guest's Crete click replayed at 1920x1200 (preview-4344/09: globe turned so the four city dots
+ *    sit on the guest's pixels, real pixel 939,462 double clicked) centres on the surface point under that pixel
+ *    (<= 0.05 deg, <= 20 px), and the precision bound there is logged (km per real px; the spot the guest meant and
+ *    Heraklion are within 2.5 px of the clicked pixel);
  *    GPS recalibrate from the globe and from the map never opens the sky view.
  *  LOAD VIEW: no location answer → the globe stays; callouts outside the glow ring, apart, clear of the HUD, at 1280x800
  *    and 1920x1200; LIVE = the real network count.
  *  WEATHER (4343): open-meteo at most once per 0.5 deg place per session (rounded coordinates), nothing after a 429, a
  *    reload in the same tab fetches nothing new, the label is a temperature or DAY / NIGHT; /VERSION is text/plain inline.
+ *    4345: every open-meteo request of the whole guest run (fresh load, IP view, GPS grant, GPS button, hunts, globe) is
+ *    counted on the CDP network: at most 1, 0.5 deg rounded.
  * Env: PREVIEW_URL, STAMP, LOCAL_APP, LOCAL_AUTH, SHOTDIR, REAL_CHROME=1, WIN=1920x1200, SCALE=1.5
  */
 const { chromium } = require("playwright");
@@ -37,18 +44,18 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4344";
+const STAMP = process.env.STAMP || "4345";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now();
 const ORIGIN = new URL(BASE).origin;
 const [WW, WH] = (process.env.WIN || "1920x1200").split("x").map(Number);
 const SCALE = Number(process.env.SCALE || 1.5);
-const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4344";
+const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4345";
 fs.mkdirSync(SHOTDIR, { recursive: true });
 if (!process.env.DISPLAY) process.env.DISPLAY = ":3";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const xdo = (a) => execSync("xdotool " + a, { env: process.env });
 const SYNTAGMA = { lat: 37.9755, lng: 23.7348 }, RHODES_OLD = { lat: 36.4446, lng: 28.2276 };
-const GRAB = path.join(os.tmpdir(), "sn_grab4344.py");
+const GRAB = path.join(os.tmpdir(), "sn_grab4345.py");
 fs.writeFileSync(GRAB, `import sys, json
 from PIL import ImageGrab, ImageStat
 out, x, y, w, h = sys.argv[1], *map(int, sys.argv[2:6])
@@ -67,6 +74,8 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
     args: ["--window-position=0,0", "--window-size=" + WW + "," + WH, "--no-first-run", "--no-default-browser-check", "--deny-permission-prompts", "--disable-features=Translate"] });
   const ctx = await browser.newContext({ viewport: null, serviceWorkers: process.env.LOCAL_APP ? "block" : "allow" });
   const page = await ctx.newPage();
+  const wxNet = []; /* 4345: every open-meteo request on the CDP network (not just what playwright's request event sees) */
+  { const nc = await ctx.newCDPSession(page); await nc.send("Network.enable"); nc.on("Network.requestWillBeSent", (e) => { if (/open-meteo\.com/.test(e.request.url)) wxNet.push({ t: Date.now(), url: e.request.url }); }); }
   if (process.env.LOCAL_APP) { const body = fs.readFileSync(process.env.LOCAL_APP); await page.route(/\/js\/spacenet\/app\.js/, (r) => r.fulfill({ status: 200, contentType: "application/javascript", body })); }
   if (process.env.LOCAL_AUTH) { const ab = fs.readFileSync(process.env.LOCAL_AUTH); await page.route(/\/js\/spacenet\/auth\.js/, (r) => r.fulfill({ status: 200, contentType: "application/javascript", body: ab })); }
   const errors = [], posts = [];
@@ -435,7 +444,8 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
     xdo(`mousemove ${sx} ${sy}`); await sleep(100); xdo("click --repeat 2 --delay 90 1");
     await sleep(2200); const s = await cs(); const g = await grab(tag);
     const scr = await page.evaluate((t) => { const m = SN.getMap(); if (!m || !m._loaded || !isFinite(t.lat)) return null; const sz = m.getSize(); const q = m.latLngToContainerPoint([t.lat, t.lng]); const r = document.getElementById("city").getBoundingClientRect();
-      return { dx: +(q.x - sz.x / 2).toFixed(1), dy: +(q.y - sz.y / 2).toFixed(1), page: [Math.round(r.left + q.x), Math.round(r.top + q.y)], centre: [Math.round(r.left + sz.x / 2), Math.round(r.top + sz.y / 2)], dpr: devicePixelRatio }; }, target);
+      return { dx: +(q.x - sz.x / 2).toFixed(1), dy: +(q.y - sz.y / 2).toFixed(1), page: [Math.round(r.left + q.x), Math.round(r.top + q.y)], centre: [Math.round(r.left + sz.x / 2), Math.round(r.top + sz.y / 2)], dpr: devicePixelRatio,
+        city: { top: r.top, h: r.height, w: r.width, ih: innerHeight, iw: innerWidth } }; }, target);
     const d = target && s.c ? { dLat: +Math.abs(s.c.lat - target.lat).toFixed(4), dLng: +Math.abs(s.c.lng - target.lng).toFixed(4) } : null;
     const realPx = scr ? +(Math.hypot(scr.dx, scr.dy) * scr.dpr).toFixed(1) : null;
     const last = await page.evaluate(() => window.__snLastDbl || null);
@@ -446,6 +456,12 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   const dblMsg = (D) => JSON.stringify({ z: D.s && D.s.z, target: D.target, d: D.d, screen: D.scr && { dx: D.scr.dx, dy: D.scr.dy }, realPx: D.realPx, why: D.why });
   let D = await dbl("globe-dblclick-athens-dot", EU, { dot: "ATHENS" });
   check("double click on the Athens dot: z10 view on Athens (37.98,23.73) within 0.05 deg, <= 20 px from the map centre", dblOk(D), dblMsg(D));
+  {
+    const sc = D.scr, cy = sc && sc.city;
+    const bleed = !!cy && Math.abs(cy.top) < 1 && Math.abs(cy.h - cy.ih) < 2 && Math.abs(cy.w - cy.iw) < 2;
+    check("Athens point on the map container centre within 1.5 px, #city full-bleed (no vertical centring offset; an OSM name label is drawn off its node)",
+      !!sc && bleed && Math.abs(sc.dx) <= 1.5 && Math.abs(sc.dy) <= 1.5, JSON.stringify(sc && { dx: sc.dx, dy: sc.dy, page: sc.page, centre: sc.centre, city: cy }));
+  }
   D = await dbl("globe-dblclick-athens-dot-off", EU, { dot: "ATHENS", off: [3, -2] });
   check("double click 3-4 px off the Athens dot (inside its ring): still on Athens within 0.05 deg, <= 20 px", dblOk(D), dblMsg(D));
   D = await dbl("globe-dblclick-athens-label", EU, { label: "ATHENS" });
@@ -458,6 +474,48 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   check("double click on the Rhodes dot: z10 island view on Rhodes within 0.05 deg, <= 20 px", dblOk(D) && onRhodes(D.s.c), dblMsg(D));
   D = await dbl("globe-dblclick-crete", { lat: 35.3, lng: 25.0 }, { lat: 35.25, lng: 24.9 });
   check("double click off the dots (Crete): on the clicked surface point within 0.05 deg, <= 20 px", dblOk(D), dblMsg(D));
+  if (geo.iw >= 1900) {
+    /* 4345: the guest's Crete click (preview-4344/09-E-global-before-crete, 1920x1200, page top at screen y 87): turn the
+       globe (setup, not a user action) so the four city dots sit on the guest's page pixels, then double click the guest's
+       real pixel 939,462 = page 939,375 with xdotool (a real-pixel click: no agent rounding) */
+    await toGlobe();
+    const GT = [["ATHENS", 37.98, 23.73, 932.53, 441.56 - 87], ["ISTANBUL", 41.01, 28.98, 964.0, 421.0 - 87], ["RHODES", 36.445, 28.225, 956.62, 452.69 - 87], ["CAIRO", 30.04, 31.24, 979.63, 499.21 - 87]];
+    const frame2 = () => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const resid = async (la, ln) => { await page.evaluate((l) => SN.lookAt(l, 1.85), { lat: la, lng: ln }); await frame2(); await frame2();
+      return page.evaluate((T) => T.map((t) => { const q = SN.projectFrame(t[1], t[2]); return [q.x - t[3], q.y - t[4]]; }), GT); };
+    let la = 12.7, ln = 27.7;
+    for (let it = 0; it < 4; it++) {
+      const r0 = await resid(la, ln), r1 = await resid(la + 0.05, ln), r2 = await resid(la, ln + 0.05);
+      let a11 = 0, a12 = 0, a22 = 0, b1 = 0, b2 = 0;
+      for (let k = 0; k < r0.length; k++) for (let j = 0; j < 2; j++) { const g1 = (r1[k][j] - r0[k][j]) / 0.05, g2 = (r2[k][j] - r0[k][j]) / 0.05; a11 += g1 * g1; a12 += g1 * g2; a22 += g2 * g2; b1 -= g1 * r0[k][j]; b2 -= g2 * r0[k][j]; }
+      const det = a11 * a22 - a12 * a12; if (!det) break; la += (b1 * a22 - b2 * a12) / det; ln += (a11 * b2 - a12 * b1) / det;
+    }
+    const rf = await resid(la, ln); const rms = Math.sqrt(rf.reduce((a, r) => a + r[0] * r[0] + r[1] * r[1], 0) / rf.length);
+    await sleep(500);
+    const PX = 939, PY = 375;
+    const pre = await page.evaluate((q) => { const h = SN.globeHitTest(q[0], q[1]), up = SN.globeHitTest(q[0], q[1] - 1), rt = SN.globeHitTest(q[0] + 1, q[1]);
+      const her = SN.projectFrame(35.3387, 25.1442), spot = SN.projectFrame(35.41, 25.0); return { h, up, rt, her: [her.x, her.y], spot: [spot.x, spot.y] }; }, [PX, PY]);
+    const gb = await grab("globe-crete-guest-view");
+    xdo(`mousemove ${ox + PX} ${oy + PY}`); await sleep(100); xdo("click --repeat 2 --delay 90 1");
+    await sleep(2200); const s = await cs(); const g = await grab("globe-dblclick-crete-guest");
+    const last = await page.evaluate(() => window.__snLastDbl || null);
+    const t = pre.h ? { lat: +pre.h.lat, lng: +pre.h.lng } : null;
+    const scr = t && await page.evaluate((t) => { const m = SN.getMap(); if (!m || !m._loaded) return null; const sz = m.getSize(); const q = m.latLngToContainerPoint([t.lat, t.lng]); const h = m.latLngToContainerPoint([35.3387, 25.1442]);
+      return { dx: +(q.x - sz.x / 2).toFixed(1), dy: +(q.y - sz.y / 2).toFixed(1), her: [+(h.x - sz.x / 2).toFixed(1), +(h.y - sz.y / 2).toFixed(1)], dpr: devicePixelRatio }; }, t);
+    const d = t && s.c ? { dLat: +Math.abs(s.c.lat - t.lat).toFixed(4), dLng: +Math.abs(s.c.lng - t.lng).toFixed(4) } : null;
+    const realPx = scr ? +(Math.hypot(scr.dx, scr.dy) * scr.dpr).toFixed(1) : null;
+    const kmV = pre.up && pre.h ? +(Math.abs(pre.up.lat - pre.h.lat) * 111.2).toFixed(1) : null;
+    const kmH = pre.rt && pre.h ? +(Math.abs(pre.rt.lng - pre.h.lng) * 111.2 * Math.cos(pre.h.lat * Math.PI / 180)).toFixed(1) : null;
+    const herOff = [+(pre.her[0] - PX).toFixed(2), +(pre.her[1] - PY).toFixed(2)], spotOff = [+(pre.spot[0] - PX).toFixed(2), +(pre.spot[1] - PY).toFixed(2)];
+    console.log("[globe-dblclick-crete-guest]", JSON.stringify({ fit: { lookAt: [+la.toFixed(4), +ln.toFixed(4)], rmsPx: +rms.toFixed(2), resid: rf.map((r) => r.map((v) => +v.toFixed(2))) }, click: { real: [ox + PX, oy + PY], page: [PX, PY], guestReal: [939, 462] },
+      pick: t, z: s.z, c: s.c && { lat: +s.c.lat.toFixed(4), lng: +s.c.lng.toFixed(4) }, d, screen: scr, realPx, last: last && { sx: last.sx, sy: last.sy, by: last.by, dot: last.dot },
+      bound: { kmPerPxNS: kmV, kmPerPxEW: kmH, heraklionPx: herOff, guestSpotPx: spotOff } }), gb.file, g.file);
+    check("the guest's Crete view is reproduced (4 city dots on the guest's pixels, rms <= 2 px)", rms <= 2, rms.toFixed(2) + " px");
+    check("the guest's Crete click replayed at 1920 (real 939,462): z10 centred on the surface point under that pixel within 0.05 deg, <= 20 px from the map centre, no dot snap",
+      !!(t && d && s.cityOn && s.z === 10 && d.dLat <= 0.05 && d.dLng <= 0.05 && realPx != null && realPx <= 20 && last && last.by === "pick" && !s.sky), JSON.stringify({ z: s.z, pick: t, d, realPx, by: last && last.by }));
+    check("Crete precision bound: the spot the guest meant (~8 km N, 13 km W of Heraklion) and Heraklion lie within 2.5 real px of the clicked pixel (1 px = " + kmV + " km N-S, " + kmH + " km E-W here)",
+      Math.hypot(spotOff[0], spotOff[1]) <= 2.5 && Math.hypot(herOff[0], herOff[1]) <= 2.5, JSON.stringify({ guestSpotPx: spotOff, heraklionPx: herOff, heraklionAtZ10: scr && scr.her }));
+  } else console.log("NOTE the guest's Crete replay runs at 1920x1200 only (their real pixel 939,462)");
   await cdp.send("Emulation.setGeolocationOverride", { latitude: RHODES_OLD.lat, longitude: RHODES_OLD.lng, accuracy: 15 });
   await globeBtn(); await sleep(1500);
   const gpsBtn = await page.evaluate(() => { const b = document.getElementById("gps").getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
@@ -478,6 +536,9 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
     console.log("[weather]", JSON.stringify(meteo.map((m) => ({ k: m.lat + "," + m.lng, st: m.st }))));
     check("weather: rounded 0.5 deg coordinates, each place fetched at most once", rounded && new Set(keys).size === keys.length, JSON.stringify(keys));
     check("weather: no request after a 429 (backs off for the session)", after429 === 0, first429 ? "429 at " + first429.lat + "," + first429.lng + ", " + after429 + " later" : "no 429");
+    const netRounded = wxNet.every((q) => { const u = new URL(q.url); return ["latitude", "longitude"].every((k) => { const v = Number(u.searchParams.get(k)); return isFinite(v) && Math.abs(v * 2 - Math.round(v * 2)) < 1e-9; }); });
+    console.log("[weather CDP]", JSON.stringify(wxNet.map((q) => q.url.replace(/^.*\?/, ""))));
+    check("weather: <= 1 open-meteo request on the CDP network across the whole guest run (fresh load, IP view, GPS grant, GPS button, hunts, globe), 0.5 deg rounded", wxNet.length <= 1 && netRounded, wxNet.length + " request(s)");
     const n0 = meteo.length;
     await page.reload({ waitUntil: "domcontentloaded" }); await sleep(9000);
     const wxT = await page.evaluate(() => (document.getElementById("sn-wx") || {}).textContent || "");
@@ -531,7 +592,7 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
     await c2.close();
   }
   console.log("SCREENSHOTS", SHOTDIR);
-  console.log(fails.length ? "HEADED 4344 FAIL: " + fails.join("; ") : "HEADED 4344 ALL PASS");
+  console.log(fails.length ? "HEADED 4345 FAIL: " + fails.join("; ") : "HEADED 4345 ALL PASS");
   await browser.close();
   process.exit(fails.length ? 2 : 0);
 })().catch((e) => { console.error("fail", e); process.exit(1); });

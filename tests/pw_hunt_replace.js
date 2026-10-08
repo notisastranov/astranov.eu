@@ -19,6 +19,8 @@
  *   token, all writes blocked): YOU + aria-label + header name survive reload and SPACENET reset.
  * 4341: an IP-only boot (no input) lands on the IP city view (z10-12.5, labelled approximate, seat kind 'ip') within 5 s and
  *   a bare hunt there still asks where; LIVE never shows two different counts on load; grip = full-width 28 px strip.
+ * 4345: the guest's weather case: a fresh load (IP guess), GPS 41.5812424,-87.8549755 granted, the GPS button, a 'pharmacy'
+ *   hunt: every open-meteo request is counted on the CDP network (Network.requestWillBeSent): at most 1, 0.5 deg rounded.
  * Exit 2 on any FAIL.
  */
 const fs = require("fs");
@@ -26,7 +28,7 @@ const path = require("path");
 const { chromium } = require("playwright");
 
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const URL0 = BASE + (BASE.indexOf("?") >= 0 ? "&" : "?") + "v=" + (process.env.STAMP || "4344") + "&t=" + Date.now();
+const URL0 = BASE + (BASE.indexOf("?") >= 0 ? "&" : "?") + "v=" + (process.env.STAMP || "4345") + "&t=" + Date.now();
 const PIZZA = /pizz|πιτσ|πίτσ|margherita|calzone/i;
 const MARKET = /market|super|grocer|convenience|παντοπωλ|σούπερ|σουπερ|μάρκετ|μαρκετ/i;
 const RHODES = { lat: 36.4349, lng: 28.2176 };
@@ -180,7 +182,7 @@ function sameSet(f) {
   console.log("[boot]", JSON.stringify(boot));
   check(new RegExp("^LIVE · " + boot.expect + " vendors? on SpaceNet ·").test(boot.live) && boot.expect > 0, "boot LIVE counts the real public network (" + boot.expect + " listed, no fixtures)", boot.live);
   check(boot.latest === "LATEST " + boot.api && /^\d{4,}$/.test(String(boot.api)), "LATEST shows /api/version (" + boot.api + ")", boot.latest);
-  if (!process.env.LOCAL_APP) check(String(boot.api) === String(process.env.STAMP || "4344") && boot.ver === "V" + (process.env.STAMP || "4344"), "running build == LATEST == STAMP", boot.ver + " / " + boot.api);
+  if (!process.env.LOCAL_APP) check(String(boot.api) === String(process.env.STAMP || "4345") && boot.ver === "V" + (process.env.STAMP || "4345"), "running build == LATEST == STAMP", boot.ver + " / " + boot.api);
   check(!boot.tester, "TESTER ticker hidden for a guest");
   await page.screenshot({ path: path.join(SHOTS, "boot.png") });
 
@@ -378,6 +380,32 @@ function sameSet(f) {
     const tv = await p3.evaluate(() => { const t = document.getElementById("sn-tester"); return { vis: !!(t && getComputedStyle(t).display !== "none" && t.offsetParent !== null && t.textContent.trim()), txt: t ? t.textContent : null, live: (document.getElementById("sn-pulse") || {}).textContent }; });
     check(!tv.vis && !/Test Vendor|V4297/.test(tv.live || ""), "guest with ?testview=1: TESTER ticker and fixtures stay hidden", JSON.stringify(tv));
     await ctx3.close();
+  }
+
+  // ---- 4345 WEATHER: the guest's fresh load (IP, GPS fix, GPS button, a hunt), every open-meteo request on the CDP network ----
+  {
+    const ctx4 = await browser.newContext({ viewport: { width: 1280, height: 800 }, serviceWorkers: "block", geolocation: { latitude: 41.5812424, longitude: -87.8549755 } });
+    const p4 = await ctx4.newPage();
+    await routeLocal(p4);
+    await p4.route(/\/api\/space/, (r) => (r.request().method() !== "GET" ? r.abort() : r.continue()));
+    const net = await ctx4.newCDPSession(p4);
+    await net.send("Network.enable");
+    const wxReq = [];
+    net.on("Network.requestWillBeSent", (e) => { if (/open-meteo\.com/.test(e.request.url)) wxReq.push({ url: e.request.url, type: e.type }); });
+    await p4.goto(URL0, { waitUntil: "domcontentloaded", timeout: 90000 });
+    await sleep(9000);
+    await ctx4.grantPermissions(["geolocation"], { origin: new URL(BASE).origin });
+    await p4.evaluate(() => { const b = document.getElementById("gps"); if (b) b.click(); });
+    await sleep(5000);
+    await p4.fill("#in", "pharmacy");
+    await p4.press("#in", "Enter");
+    await sleep(8000);
+    const wxSt = await p4.evaluate(() => ({ label: (document.getElementById("sn-wx") || {}).textContent || "", kind: SN.seatState ? SN.seatState().kind : "", here: SN.seatState ? SN.seatState().here : null }));
+    const rounded = wxReq.every((q) => { const u = new URL(q.url); return ["latitude", "longitude"].every((k) => { const v = Number(u.searchParams.get(k)); return isFinite(v) && Math.abs(v * 2 - Math.round(v * 2)) < 1e-9; }); });
+    console.log("   [weather guest load]", JSON.stringify({ requests: wxReq, seat: wxSt }));
+    check(wxReq.length <= 1 && rounded, "weather, the guest's fresh load (IP, GPS 41.5812424,-87.8549755, GPS button, 'pharmacy' hunt): <= 1 open-meteo request on the CDP network, 0.5 deg rounded", wxReq.length + " request(s) " + JSON.stringify(wxReq.map((q) => q.url.replace(/^.*\?/, ""))));
+    check(/^(-?\d+°|DAY|NIGHT)$/.test(wxSt.label), "weather label is a temperature or DAY / NIGHT (silent failure)", JSON.stringify(wxSt.label));
+    await ctx4.close();
   }
 
   console.log("overpass requests:", overpassHits, "after first failure:", overpassAfterFail, "state:", JSON.stringify(await page.evaluate(() => SN.overpassState && SN.overpassState())));

@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4344";
+  var VER = "4345";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -982,7 +982,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4344 = true;
+      window.__SN_4345 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -2113,7 +2113,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4344&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4345&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -5864,45 +5864,62 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     if (wx && here && isFinite(+here.lat) && isFinite(+here.lng)) wxFor(wx, here);
   }
-  /* 4343: header temperature at most once per place per session. Place = lat/lng rounded to 0.5°; the answer (or the
-     attempt) is kept in memory and sessionStorage for 30 min, so IP / GPS updates and reloads never refetch it; a 429
-     backs off (5, 10, 20 … 60 min) for the whole session; any failure is silent (the label stays DAY / NIGHT) */
-  var WX_TTL = 30 * 60 * 1000, wxMem = {}, wxKeyNow = "", wxBusy = {};
+  /* 4345: ONE weather path in the browser (wxFor; nothing else in the client calls open-meteo). Place = lat/lng rounded
+     to 0.5 deg (never the raw GPS / IP coordinates). At most ONE network request per browser per 30 min, whatever the
+     place: each answer is cached per place (memory + localStorage, 30 min) and shown again for free, a place first seen
+     after that request just shows DAY / NIGHT. The request waits until the location has settled (a GPS fix, or the same
+     0.5 deg place for 8 s), so IP -> GPS on a fresh load is one request, not two. A 429 (or any failure) backs off 5, 10,
+     20 ... 60 min in localStorage (every tab and reload). Silent: the label stays DAY / NIGHT. */
+  var WX_TTL = 30 * 60 * 1000, WX_SETTLE = 8000, wxMem = {}, wxKeyNow = "", wxSeen = { k: "", t: 0 }, wxGate = 0, wxBusy = false;
   function wxRound(v) { return Math.round(+v * 2) / 2; }
   function wxKey(p) { return wxRound(p.lat).toFixed(1) + "," + wxRound(p.lng).toFixed(1); }
-  function wxStore() { try { return JSON.parse(sessionStorage.getItem("sn:wx") || "{}") || {}; } catch (e) { return {}; } }
-  function wxSave(s) { try { sessionStorage.setItem("sn:wx", JSON.stringify(s)); } catch (e) {} }
+  function wxStore() {
+    var raw = null;
+    try { raw = localStorage.getItem("sn:wx"); } catch (e) {}
+    if (raw == null) { try { raw = sessionStorage.getItem("sn:wx"); } catch (e) {} }
+    try { var o = JSON.parse(raw || "{}"); return o && typeof o === "object" ? o : {}; } catch (e) { return {}; }
+  }
+  function wxSave(s) {
+    var now = Date.now();
+    if (s.c) Object.keys(s.c).forEach(function (k) { if (!s.c[k] || now - s.c[k].t > WX_TTL) delete s.c[k]; });
+    var j = JSON.stringify(s);
+    try { localStorage.setItem("sn:wx", j); } catch (e) { try { sessionStorage.setItem("sn:wx", j); } catch (e2) {} }
+  }
   function wxPut(k, v) { var s = wxStore(); s.c = s.c || {}; s.c[k] = { t: Date.now(), v: v }; wxMem[k] = s.c[k]; wxSave(s); }
+  function wxLabel(v) { return v != null && isFinite(v) ? Math.round(v) + "\u00b0" : isNight() ? "NIGHT" : "DAY"; }
   function wxFor(el, p) {
-    var k = wxKey(p);
-    if (k === wxKeyNow) return;
-    wxKeyNow = k;
-    var now = Date.now(), s = wxStore(), hit = wxMem[k] || (s.c && s.c[k]);
-    if (hit && now - hit.t < WX_TTL) {
-      wxMem[k] = hit;
-      el.textContent = (hit.v != null && isFinite(hit.v)) ? Math.round(hit.v) + "°" : (isNight() ? "NIGHT" : "DAY");
-      return;
-    }
-    el.textContent = isNight() ? "NIGHT" : "DAY";
-    if ((s.back && now < s.back) || wxBusy[k]) return;
-    wxBusy[k] = 1;
-    wxPut(k, null);
+    var now = Date.now(), k = wxKey(p);
+    if (k !== wxSeen.k) { wxSeen = { k: k, t: now }; wxGate = 0; }
+    if (k === wxKeyNow || wxBusy || now < wxGate) return;
+    wxGate = now + 1000; /* re-check at most once a second, never per frame */
+    var s = wxStore(), hit = wxMem[k] || (s.c && s.c[k]), fresh = !!(hit && now - hit.t < WX_TTL);
+    if (fresh && hit.v != null && isFinite(hit.v)) { wxMem[k] = hit; wxKeyNow = k; el.textContent = wxLabel(hit.v); return; }
+    var dn = wxLabel(null);
+    if (el.textContent !== dn) el.textContent = dn;
+    if (fresh) return; /* this place was already asked in the last 30 min (no answer): stay DAY / NIGHT */
+    if (s.back && now < s.back) return; /* 429 back-off, every tab */
+    if (s.last && now - s.last < WX_TTL) return; /* one request per browser per 30 min */
+    if (seatKind !== "gps" && now - wxSeen.t < WX_SETTLE) return; /* let IP -> GPS settle first */
+    wxBusy = true;
+    s.last = now; s.c = s.c || {}; s.c[k] = { t: now, v: null }; wxMem[k] = s.c[k]; wxSave(s);
     var parts = k.split(",");
     fetch("https://api.open-meteo.com/v1/forecast?latitude=" + parts[0] + "&longitude=" + parts[1] + "&current=temperature_2m")
       .then(function (r) {
-        if (r.status === 429) {
-          var s2 = wxStore(); s2.n = (s2.n || 0) + 1; s2.back = Date.now() + Math.min(60, 5 * Math.pow(2, s2.n - 1)) * 60000; wxSave(s2);
+        var s2 = wxStore();
+        if (!r.ok) {
+          s2.n = (s2.n || 0) + 1; s2.back = Date.now() + Math.min(60, 5 * Math.pow(2, s2.n - 1)) * 60000; wxSave(s2);
           return null;
         }
-        return r.ok ? r.json() : null;
+        if (s2.n) { s2.n = 0; wxSave(s2); }
+        return r.json();
       })
       .then(function (j) {
         if (!j || !j.current || !isFinite(j.current.temperature_2m)) return;
         wxPut(k, +j.current.temperature_2m);
-        if (wxKeyNow === k) el.textContent = Math.round(j.current.temperature_2m) + "°";
+        if (wxSeen.k === k) { wxKeyNow = k; el.textContent = wxLabel(+j.current.temperature_2m); }
       })
       .catch(function () {})
-      .then(function () { wxBusy[k] = 0; });
+      .then(function () { wxBusy = false; });
   }
   function layoutChrome() {
     var dock = $("dock");
@@ -7717,7 +7734,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4344 = true;
+    window.__SN_4345 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

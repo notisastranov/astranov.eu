@@ -198,21 +198,50 @@ async function netResearch(q, here) {
   return pack.slice(0, 2800);
 }
 
+/* 4345: the AI prompt's weather follows the browser rules: the place is rounded to 0.5 deg (never the raw GPS / IP
+   coordinates), one cached answer per place for 30 min per server instance, a 429 or any failure backs the whole instance
+   off 5, 10, 20 ... 60 min, a 2.5 s timeout, and a bad answer is '' ("unknown"), never "0 kn, 0 C". No location -> no
+   request (it used to fall back to a fixed Rhodes point). */
+var WX = { c: {}, back: 0, n: 0 };
+var WX_TTL = 30 * 60 * 1000;
 async function weatherOf(lat, lng) {
+  if (lat == null || lng == null || lat === '' || lng === '') return '';
   lat = Number(lat); lng = Number(lng);
-  if (!isFinite(lat) || !isFinite(lng)) { lat = 36.434; lng = 28.217; }
+  if (!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return '';
+  var rl = (Math.round(lat * 2) / 2).toFixed(1), rg = (Math.round(lng * 2) / 2).toFixed(1), k = rl + ',' + rg;
+  var now = Date.now(), hit = WX.c[k];
+  if (hit && now - hit.t < WX_TTL) return hit.v;
+  if (now < WX.back) return '';
+  WX.c[k] = { t: now, v: '' };
+  var keys = Object.keys(WX.c);
+  if (keys.length > 300) keys.forEach(function (q) { if (now - WX.c[q].t > WX_TTL) delete WX.c[q]; });
+  var tm = null;
   try {
+    var ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    if (ctl) tm = setTimeout(function () { ctl.abort(); }, 2500);
     var r = await fetch(
-      'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lng +
-      '&current=wind_speed_10m,wind_direction_10m,temperature_2m,weather_code&wind_speed_unit=kn'
+      'https://api.open-meteo.com/v1/forecast?latitude=' + rl + '&longitude=' + rg +
+      '&current=wind_speed_10m,wind_direction_10m,temperature_2m,weather_code&wind_speed_unit=kn',
+      ctl ? { signal: ctl.signal } : undefined
     );
+    if (!r.ok) {
+      WX.n++; WX.back = Date.now() + Math.min(60, 5 * Math.pow(2, WX.n - 1)) * 60000;
+      return '';
+    }
+    WX.n = 0;
     var j = await r.json();
-    var c = j.current || {};
-    var dir = Number(c.wind_direction_10m);
-    var compass = ['N','NE','E','SE','S','SW','W','NW'][Math.round((((dir % 360) + 360) % 360) / 45) % 8];
-    return 'Wind ' + Math.round(Number(c.wind_speed_10m) || 0) + ' kn from ' + compass + ', air ' + Math.round(Number(c.temperature_2m) || 0) + '°C.';
+    var c = (j && j.current) || {};
+    var sp = Number(c.wind_speed_10m), dir = Number(c.wind_direction_10m), t = Number(c.temperature_2m);
+    if (c.wind_speed_10m == null || c.temperature_2m == null || !isFinite(sp) || !isFinite(t)) return '';
+    var compass = isFinite(dir) ? ['N','NE','E','SE','S','SW','W','NW'][Math.round((((dir % 360) + 360) % 360) / 45) % 8] : '';
+    var v = 'Wind ' + Math.round(sp) + ' kn' + (compass ? ' from ' + compass : '') + ', air ' + Math.round(t) + '\u00b0C.';
+    WX.c[k] = { t: now, v: v };
+    return v;
   } catch (_) {
+    WX.n++; WX.back = Date.now() + Math.min(60, 5 * Math.pow(2, WX.n - 1)) * 60000;
     return '';
+  } finally {
+    if (tm) clearTimeout(tm);
   }
 }
 
