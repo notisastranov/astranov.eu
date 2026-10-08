@@ -1,5 +1,5 @@
 /**
- * Headed real-input test (4346): real Chrome on the X display (DISPLAY, default :3); run it at WIN=1920x1200 SCALE=1.5
+ * Headed real-input test (4347): real Chrome on the X display (DISPLAY, default :3); run it at WIN=1920x1200 SCALE=1.5
  * (OS-level xdotool input picked in a 1280x800 "agent view" and rounded back, like a computer-use agent on a scaled
  * screenshot) and at WIN=1280x800 SCALE=1. Screenshots are grabbed from the X screen (real pixels).
  *  BOOT: no input. MIC is a cyan icon; LIVE shows 'loading…' then one count, 'N vendors on SpaceNet'; the IP answer lands
@@ -35,6 +35,11 @@
  *    >= max(its zoom equivalent, z10); map: z < 10 -> z10, else +1), the clicked point and the ring marker <= 20 px from
  *    the map centre, the readout's lat,lng == the map centre within 0.01 deg;
  *    GPS recalibrate from the globe and from the map never opens the sky view.
+ *  SINGLE CLICK (4347, preview-4346/03c-03e) on the Rhodes old-town map with real listed pins: a single click on empty
+ *    map closes an open vendor card within 500 ms (>= 200 ms later, so a double click can cancel it) and the map stays
+ *    put; the guest's own pixel (agent 1050,300) does the same; clicking another pin switches the card; a double click
+ *    with the card open KEEPS the card and centres + zooms in (clicked point + ring <= 20 px, readout = centre); a drag
+ *    keeps the card (the map pans); a hold opens LIST, and LIST (not a pin card) stays on a single click.
  *  LOAD VIEW: no location answer → the globe stays; callouts outside the glow ring, apart, clear of the HUD, at 1280x800
  *    and 1920x1200; LIVE = the real network count.
  *  WEATHER (4343): open-meteo at most once per 0.5 deg place per session (rounded coordinates), nothing after a 429, a
@@ -49,18 +54,18 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4346";
+const STAMP = process.env.STAMP || "4347";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now();
 const ORIGIN = new URL(BASE).origin;
 const [WW, WH] = (process.env.WIN || "1920x1200").split("x").map(Number);
 const SCALE = Number(process.env.SCALE || 1.5);
-const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4346";
+const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4347";
 fs.mkdirSync(SHOTDIR, { recursive: true });
 if (!process.env.DISPLAY) process.env.DISPLAY = ":3";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const xdo = (a) => execSync("xdotool " + a, { env: process.env });
 const SYNTAGMA = { lat: 37.9755, lng: 23.7348 }, RHODES_OLD = { lat: 36.4446, lng: 28.2276 };
-const GRAB = path.join(os.tmpdir(), "sn_grab4346.py");
+const GRAB = path.join(os.tmpdir(), "sn_grab4347.py");
 fs.writeFileSync(GRAB, `import sys, json
 from PIL import ImageGrab, ImageStat
 out, x, y, w, h = sys.argv[1], *map(int, sys.argv[2:6])
@@ -598,6 +603,123 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   xdo(`mousemove ${A(gpsBtn.x, gpsBtn.y).join(" ")}`); await sleep(70); xdo("click 1");
   w = await watchSky(2500);
   check("GPS recalibrate again from the map: no sky view", !w.sky && w.s.cityOn, JSON.stringify({ sky: w.sky, z: w.s.z }));
+  /* 4347: the single-click dismiss (preview-4346/03c-03e: with the PIZZAGIO card open a click on empty map at agent
+     1050,300 left the card open). On the Rhodes old-town map (GPS fix, street level, real listed pins), xdotool at agent
+     scale: a single click on empty map closes an open vendor card within 500 ms (delayed >= 200 ms so a double click can
+     cancel it) and does not move the map; a double click with the card open KEEPS the card and centres + zooms in (z < 10
+     -> z10, else +1; clicked point + ring <= 20 px from the centre; readout = centre within 0.01 deg); a drag with the card
+     open keeps it (the map pans); clicking another pin switches the card; a hold opens LIST, and LIST (not a pin card)
+     stays on a later single click */
+  {
+    const k47 = (t) => "click47-" + t;
+    const sh47 = () => page.evaluate(() => { const sh = document.getElementById("sn-sheet"), c = document.getElementById("sn-sheet-card");
+      return { on: !!(sh && sh.classList.contains("on")), kind: sh && sh.getAttribute("data-kind"), title: c ? ((c.querySelector(".sheet-mid") || {}).textContent || "").trim() : "", top: c && sh.classList.contains("on") ? c.getBoundingClientRect().top : null }; });
+    const scene = () => page.evaluate(() => {
+      const sh = document.getElementById("sn-sheet"), card = document.getElementById("sn-sheet-card");
+      const floor = (sh && sh.classList.contains("on") && card ? card.getBoundingClientRect().top : innerHeight - 140) - 40, roof = 120;
+      const pins = [...document.querySelectorAll("#city .leaflet-marker-icon")].map((e) => { const r = e.getBoundingClientRect(); const b = e.querySelector("b"); const x = r.left + r.width / 2, y = r.top + r.height * 0.36;
+        const top = document.elementFromPoint(x, y); return { x, y, n: b ? b.textContent.trim() : "", free: !!(top && top.closest(".leaflet-marker-icon") === e), r: { x: r.left, y: r.top, w: r.width, h: r.height } }; });
+      const live = pins.filter((p) => p.n && p.free && p.x > 90 && p.x < innerWidth - 90 && p.y > roof && p.y < floor);
+      const empty = [];
+      for (let y = roof + 10; y < floor; y += 24) for (let x = 120; x < innerWidth - 120; x += 24) {
+        const e = document.elementFromPoint(x, y); if (!e || !e.closest("#city") || e.closest(".leaflet-marker-icon,.leaflet-tooltip,.leaflet-control,.leaflet-interactive")) continue;
+        const d = Math.min(...pins.map((p) => Math.max(0, Math.hypot(x - (p.r.x + p.r.w / 2), y - (p.r.y + p.r.h / 2)) - 40)), 1e9);
+        if (d >= 60) empty.push({ x, y, d: Math.round(d) });
+      }
+      empty.sort((a, b) => b.d - a.d);
+      return { pins: live, all: pins.length, empty: empty.slice(0, 40), floor, roof };
+    });
+    const mapNow = () => page.evaluate(() => { const m = SN.getMap(); const c = m.getCenter(); return { z: m.getZoom(), c: { lat: c.lat, lng: c.lng } }; });
+    const clickAt = async (p, n) => { const [sx, sy] = A(p.x, p.y); xdo(`mousemove ${sx} ${sy}`); await sleep(120); xdo(n === 2 ? "click --repeat 2 --delay 90 1" : "click 1"); return [sx - ox, sy - oy]; };
+    const pinNamed = async (n) => { for (let i = 0; i < 10; i++) { const q = await scene(); const f = q.pins.find((p) => p.n === n); if (f) return f; await sleep(300); } return null; };
+    const openPin = async (p0) => { const p = (await pinNamed(p0.n)) || p0; await clickAt(p); for (let i = 0; i < 20; i++) { await sleep(100); const s = await sh47(); if (s.on && s.kind === "vendor" && s.title) return s; } return sh47(); };
+    // the sheet-off clock: the OS click lands (document capture) -> the card loses .on
+    await page.evaluate(() => { if (window.__cl47) return; window.__cl47 = { clk: 0, off: 0 }; document.addEventListener("click", () => { window.__cl47.clk = performance.now(); }, true);
+      setInterval(() => { const sh = document.getElementById("sn-sheet"); const on = !!(sh && sh.classList.contains("on")); if (!on && window.__cl47.was && !window.__cl47.off) window.__cl47.off = performance.now(); window.__cl47.was = on; }, 5); });
+    /* setup (not a user action): the guest's Rhodes town view (preview-4346/03b, ~z15, many real pins) */
+    await page.evaluate(() => SN.openCity({ lat: 36.4405, lng: 28.2245 }, { zoom: 15 })); await sleep(2500);
+    let sc = null;
+    for (let i = 0; i < 40; i++) { sc = await scene(); if (sc.pins.length >= 2 && sc.empty.length) break; await sleep(500); }
+    const base = await mapNow();
+    console.log("[click47 scene]", JSON.stringify({ z: base.z, c: base.c, pins: sc.pins.map((p) => p.n), all: sc.all, empty: sc.empty.length, line: (await state()).line }));
+    if (!(sc.pins.length >= 2 && sc.empty.length)) check("single-click dismiss: Rhodes old town shows >= 2 free pins and empty map", false, JSON.stringify({ pins: sc.pins.length, empty: sc.empty.length, all: sc.all }));
+    else {
+      const pz = sc.pins.find((p) => /pizz/i.test(p.n)) || sc.pins[0];
+      // 1) single click on empty map closes the card within 500 ms, and the map stays put
+      let s1 = await openPin(pz); const g1 = await grab(k47("sheet-open"));
+      let sc1 = await scene(); const e1 = sc1.empty[0]; const m0 = await mapNow();
+      await page.evaluate(() => { window.__cl47.clk = 0; window.__cl47.off = 0; window.__cl47.was = true; });
+      const cp1 = await clickAt(e1); await sleep(1500);
+      const t1 = await page.evaluate(() => Object.assign({}, window.__cl47, { mc: SN.mapClick && SN.mapClick() }));
+      const s1b = await sh47(); const m1 = await mapNow(); const g1b = await grab(k47("single-click-closed"));
+      const dt1 = t1.off && t1.clk ? +(t1.off - t1.clk).toFixed(0) : null;
+      const moved1 = await page.evaluate((a) => { const m = SN.getMap(); const p = m.latLngToContainerPoint([a.lat, a.lng]); const sz = m.getSize(); return +Math.hypot(p.x - sz.x / 2, p.y - sz.y / 2).toFixed(1); }, m0.c);
+      console.log("[click47 single]", JSON.stringify({ card: s1, click: cp1, dtMs: dt1, after: s1b, mapClick: t1.mc, z: [m0.z, m1.z], movedPx: moved1 }), g1.file, g1b.file);
+      check("a single click on empty map closes the open vendor card within 500 ms (delayed >= 200 ms for a double click), the map stays put", s1.on && s1.kind === "vendor" && !s1b.on && dt1 != null && dt1 >= 200 && dt1 <= 500 && m1.z === m0.z && moved1 <= 1,
+        JSON.stringify({ card: s1.title, dtMs: dt1, closed: !s1b.on, why: t1.mc && t1.mc.why, z: [m0.z, m1.z], movedPx: moved1 }));
+      // 1b) the guest's own pixel: agent 1050,300 (preview-4346/03d, open sea east of the old town), card open -> closed <= 500 ms
+      { await page.evaluate(() => SN.openCity({ lat: 36.4405, lng: 28.2245 }, { zoom: 15 })); await sleep(1500);
+        const sb = await openPin(pz);
+        const gx = Math.round(1050 * SCALE), gy = Math.round(300 * SCALE), gpx = gx - ox, gpy = gy - oy;
+        const hit = await page.evaluate((q) => { const e = document.elementFromPoint(q[0], q[1]); return e ? { city: !!e.closest("#city"), pin: !!e.closest(".leaflet-marker-icon,.leaflet-tooltip"), sheet: !!e.closest("#sn-sheet") } : null; }, [gpx, gpy]);
+        await page.evaluate(() => { window.__cl47.clk = 0; window.__cl47.off = 0; window.__cl47.was = true; });
+        xdo(`mousemove ${gx} ${gy}`); await sleep(120); xdo("click 1"); await sleep(1500);
+        const tb = await page.evaluate(() => Object.assign({}, window.__cl47, { mc: SN.mapClick && SN.mapClick() }));
+        const sa = await sh47(); const gG = await grab(k47("guest-pixel-1050-300-closed"));
+        const dtb = tb.off && tb.clk ? +(tb.off - tb.clk).toFixed(0) : null;
+        console.log("[click47 guest pixel]", JSON.stringify({ real: [gx, gy], page: [gpx, gpy], hit, card: sb, after: sa, dtMs: dtb, mapClick: tb.mc }), gG.file);
+        check("the guest's click (agent 1050,300, empty map) with a vendor card open closes it within 500 ms", !!(hit && hit.city && !hit.pin && !hit.sheet) && sb.on && sb.kind === "vendor" && !sa.on && dtb != null && dtb <= 500, JSON.stringify({ hit, card: sb.title, closed: !sa.on, dtMs: dtb, why: tb.mc && tb.mc.why })); }
+      // 2) clicking another pin switches the card
+      if (!(await sh47()).on) await openPin(pz);
+      let sc4 = await scene(); const cur = (await sh47()).title;
+      const other = sc4.pins.find((p) => p.n && p.n.toUpperCase() !== String(cur).toUpperCase() && !/pizzagio/i.test(p.n)) || sc4.pins.find((p) => p.n && p.n.toUpperCase() !== String(cur).toUpperCase());
+      if (!other) check("clicking another pin switches the card", false, "no second free pin: " + JSON.stringify(sc4.pins.map((p) => p.n)));
+      else {
+        await clickAt(other); await sleep(1000);
+        const s4 = await sh47(); const g4 = await grab(k47("pin-switch"));
+        console.log("[click47 pin switch]", JSON.stringify({ from: cur, to: other.n, after: s4 }), g4.file);
+        check("clicking another pin switches the card (and it stays open: a pin click never dismisses)", s4.on && s4.kind === "vendor" && s4.title !== cur && s4.title.toUpperCase().indexOf(other.n.replace(/\s*…$|\.\.\.$/, "").toUpperCase().slice(0, 6)) >= 0, JSON.stringify({ from: cur, pin: other.n, now: s4.title, on: s4.on }));
+      }
+      // 3) double click with the card open: the card stays, the map centres on the point and zooms in one step
+      let s2 = await sh47(); if (!(s2.on && s2.kind === "vendor")) s2 = await openPin(pz); await sleep(300);
+      let sc2 = await scene(); const e2 = sc2.empty[Math.min(2, sc2.empty.length - 1)]; const m2 = await mapNow();
+      const [sx2, sy2] = A(e2.x, e2.y);
+      const pk2 = await page.evaluate((q) => { const m = SN.getMap(); const r = document.getElementById("city").getBoundingClientRect(); const ll = m.containerPointToLatLng([q[0] - r.left, q[1] - r.top]); return { lat: ll.lat, lng: ll.lng }; }, [sx2 - ox, sy2 - oy]);
+      await clickAt(e2, 2); await sleep(2200);
+      const s2b = await sh47(); const g2 = await grab(k47("double-click-card-kept"));
+      const M2 = await page.evaluate((pk) => { const m = SN.getMap(); const sz = m.getSize(), mc = m.getCenter(), q = m.latLngToContainerPoint([pk.lat, pk.lng]), rg = window.__snRing, rq = rg ? m.latLngToContainerPoint([rg.lat, rg.lng]) : null;
+        return { z: m.getZoom(), c: { lat: mc.lat, lng: mc.lng }, pk: Math.hypot(q.x - sz.x / 2, q.y - sz.y / 2) * devicePixelRatio, ring: rq ? Math.hypot(rq.x - sz.x / 2, rq.y - sz.y / 2) * devicePixelRatio : null, line: document.getElementById("line").textContent, mc: SN.mapClick && SN.mapClick() }; }, pk2);
+      const rl2 = (String(M2.line).match(/(-?\d{1,2}\.\d{3}),(-?\d{1,3}\.\d{3})/) || []);
+      const want2 = m2.z < 10 ? 10 : Math.min(18, m2.z + 1);
+      console.log("[click47 double]", JSON.stringify({ card: s2, after: s2b, z: [m2.z, M2.z], want: want2, pk: pk2, M2 }), g2.file);
+      check("a double click on empty map with a vendor card open KEEPS the card (same card) and centres + zooms in (z" + want2 + "), clicked point + ring <= 20 px from the centre, readout = centre within 0.01 deg",
+        s2.on && s2.kind === "vendor" && s2b.on && s2b.kind === "vendor" && s2b.title === s2.title && Math.abs(M2.z - want2) < 0.01 && M2.pk <= 20 && M2.ring != null && M2.ring <= 20 && rl2.length === 3 && Math.abs(+rl2[1] - M2.c.lat) <= 0.01 && Math.abs(+rl2[2] - M2.c.lng) <= 0.01,
+        JSON.stringify({ card: [s2.title, s2b.on, s2b.title], z: [m2.z, M2.z], clickedPx: +M2.pk.toFixed(1), ringPx: M2.ring != null ? +M2.ring.toFixed(1) : null, readout: rl2.slice(1), centre: { lat: +M2.c.lat.toFixed(4), lng: +M2.c.lng.toFixed(4) }, why: M2.mc && M2.mc.why }));
+      // 4) a drag with the card open keeps it (and the map pans)
+      if (!(await sh47()).on) await openPin(pz);
+      let sc3 = await scene(); const e3 = sc3.empty[0]; const m3 = await mapNow();
+      { const [a, b] = A(e3.x, e3.y); xdo(`mousemove ${a} ${b}`); await sleep(80); xdo("mousedown 1"); await sleep(60);
+        for (let i = 1; i <= 12; i++) { const [c, d] = A(e3.x - (110 * i) / 12, e3.y + (40 * i) / 12); xdo(`mousemove ${c} ${d}`); await sleep(25); }
+        xdo("mouseup 1"); }
+      await sleep(1200);
+      const s3 = await sh47(); const g3 = await grab(k47("drag-card-kept"));
+      const moved3 = await page.evaluate((a) => { const m = SN.getMap(); const p = m.latLngToContainerPoint([a.lat, a.lng]); const sz = m.getSize(); return +Math.hypot(p.x - sz.x / 2, p.y - sz.y / 2).toFixed(1); }, m3.c);
+      const mc3 = await page.evaluate(() => SN.mapClick && SN.mapClick());
+      console.log("[click47 drag]", JSON.stringify({ after: s3, movedPx: moved3, mapClick: mc3 }), g3.file);
+      check("a drag on the map with a vendor card open keeps the card (the map pans)", s3.on && s3.kind === "vendor" && moved3 >= 40, JSON.stringify({ card: s3.title, on: s3.on, movedPx: moved3, why: mc3 && mc3.why }));
+      // 5) a hold opens LIST (never a dismiss); LIST stays on a later single click
+      let sc5 = await scene(); const e5 = sc5.empty[0];
+      { const [a, b] = A(e5.x, e5.y); xdo(`mousemove ${a} ${b}`); await sleep(80); xdo("mousedown 1"); await sleep(750); xdo("mouseup 1"); }
+      await sleep(1200);
+      const s5 = await sh47(); const g5 = await grab(k47("hold-list"));
+      console.log("[click47 hold]", JSON.stringify({ after: s5, mapClick: await page.evaluate(() => SN.mapClick && SN.mapClick()) }), g5.file);
+      check("a hold (750 ms) on the map with a vendor card open opens LIST (not a dismiss)", s5.on && s5.kind === "list", JSON.stringify(s5));
+      let sc6 = await scene(); await clickAt(sc6.empty[0]); await sleep(900);
+      const s6 = await sh47();
+      check("LIST (not a pin card) stays on a single click on empty map (red X closes it)", s6.on && s6.kind === "list", JSON.stringify({ s6, mapClick: await page.evaluate(() => SN.mapClick && SN.mapClick()) }));
+      await closeSheet();
+    }
+  }
   await globeBtn(); w = await watchSky(3000); gg = await grab("globe-global-after-gps");
   check("Global view after GPS: globe, no sky view, no jump back", !w.sky && !w.s.cityOn, JSON.stringify({ sky: w.sky, cityOn: w.s.cityOn, dist: w.s.dist }));
   // ---- WEATHER: once per 0.5 deg place per session, nothing after a 429, nothing new after a reload in the same tab ----
@@ -665,7 +787,7 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
     await c2.close();
   }
   console.log("SCREENSHOTS", SHOTDIR);
-  console.log(fails.length ? "HEADED 4346 FAIL: " + fails.join("; ") : "HEADED 4346 ALL PASS");
+  console.log(fails.length ? "HEADED 4347 FAIL: " + fails.join("; ") : "HEADED 4347 ALL PASS");
   await browser.close();
   process.exit(fails.length ? 2 : 0);
 })().catch((e) => { console.error("fail", e); process.exit(1); });
