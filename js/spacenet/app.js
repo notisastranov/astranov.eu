@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4348";
+  var VER = "4349";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -983,7 +983,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4348 = true;
+      window.__SN_4349 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -1235,6 +1235,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       lastTap = null;
       dblDoneAt = now;
       dblSrc = { src: src + "-pair", gap: now - p.t };
+      if (dblBack && dblBack.t === p.t) {
+        var db = dblBack, shD = $("sn-sheet");
+        dblBack = null;
+        if (!(shD && shD.classList.contains("on")) && sheetSeq === db.seq) restoreCard(db.b, "double", true);
+        else dropStash(db.b);
+      }
       window.__snDblPair = { gap: now - p.t, px: +Math.hypot(x - p.x, y - p.y).toFixed(1), src: src, at: now };
       mapDbl(lat, lng);
       return true;
@@ -1276,28 +1282,43 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
      DOM: picks, scroll, photo) and LIST's red X (or the X of a form opened from LIST) puts it back exactly; another pin card
      or any other close drops it (its picks go to the pick memory first) */
   var listBack = null;
-  function stashCard() {
+  /* 4349: the same stash keeps a pin card that the single-click close took while a double click may still come: if the
+     second click of the pair lands inside DBL_MS / DBL_PX the card comes back exactly (same DOM: picks, scroll, photo) and
+     the map centres + zooms in; once the window has passed the stash is dropped (its picks go to the pick memory first) */
+  var dblBack = null;
+  function takeCard() {
     var sh = $("sn-sheet"), card = $("sn-sheet-card"), body = $("sn-sheet-body");
-    if (!sh || !card || !sh.classList.contains("on")) { dropBack(); return; }
+    if (!sh || !card || !sh.classList.contains("on")) return null;
     var kind = sh.getAttribute("data-kind") || "";
-    if (!sh.classList.contains("tile") || PIN_CARDS.indexOf(kind) < 0) { if (!(listBack && sheetSeq === listBack.seq)) dropBack(); return; }
-    dropBack();
+    if (!sh.classList.contains("tile") || PIN_CARDS.indexOf(kind) < 0) return null;
     var frag = document.createDocumentFragment();
     var sc = body ? body.scrollTop : 0;
     var ttl = ((card.querySelector(".sheet-mid") || {}).textContent || "").trim();
     while (card.firstChild) frag.appendChild(card.firstChild);
-    listBack = { frag: frag, kind: kind, job: sh.getAttribute("data-job") || "", vkey: sh.getAttribute("data-vkey") || "", tall: sh.classList.contains("tall"), min: sh.classList.contains("min"),
+    return { frag: frag, kind: kind, job: sh.getAttribute("data-job") || "", vkey: sh.getAttribute("data-vkey") || "", tall: sh.classList.contains("tall"), min: sh.classList.contains("min"),
       offer: sh.classList.contains("offer"), scroll: sc, vendor: vendor, title: ttl, seq: sheetSeq, at: Date.now() };
-    window.__snListBack = { kind: kind, title: ttl, scroll: sc, picks: (function () { var n = 0; Array.prototype.forEach.call(frag.querySelectorAll(".sn-pick .n"), function (e) { n += Number(e.textContent) || 0; }); return n; })(), at: Date.now() };
+  }
+  function dropStash(b) {
+    if (b && b.kind === "vendor") pickSave(b.frag, b.vkey);
+  }
+  function stashCard() {
+    var sh = $("sn-sheet"), card = $("sn-sheet-card");
+    if (!sh || !card || !sh.classList.contains("on")) { dropBack(); return; }
+    var kind = sh.getAttribute("data-kind") || "";
+    if (!sh.classList.contains("tile") || PIN_CARDS.indexOf(kind) < 0) { if (!(listBack && sheetSeq === listBack.seq)) dropBack(); return; }
+    dropBack();
+    listBack = takeCard();
+    if (!listBack) return;
+    var fr = listBack.frag;
+    window.__snListBack = { kind: listBack.kind, title: listBack.title, scroll: listBack.scroll, picks: (function () { var n = 0; Array.prototype.forEach.call(fr.querySelectorAll(".sn-pick .n"), function (e) { n += Number(e.textContent) || 0; }); return n; })(), at: Date.now() };
   }
   function dropBack() {
     var b = listBack;
     listBack = null;
-    if (b && b.kind === "vendor") pickSave(b.frag, b.vkey);
+    dropStash(b);
   }
-  function cardBack(why) {
-    var b = listBack, sh = $("sn-sheet"), card = $("sn-sheet-card");
-    listBack = null;
+  function restoreCard(b, why, quiet) {
+    var sh = $("sn-sheet"), card = $("sn-sheet-card");
     if (!b || !sh || !card) return false;
     card.innerHTML = "";
     card.appendChild(b.frag);
@@ -1322,9 +1343,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     materialize(false);
     liftChrome();
-    window.__snCardBack = { why: why || "", kind: b.kind, title: b.title, scroll: b.scroll, picks: cartPicks(), at: Date.now() };
-    say("Back to " + (b.title || "the card") + ".");
+    window.__snCardBack = { why: why || "", kind: b.kind, title: b.title, scroll: b.scroll, picks: cartPicks(), away: Date.now() - b.at, at: Date.now() };
+    if (!quiet) say("Back to " + (b.title || "the card") + ".");
     return true;
+  }
+  function cardBack(why) {
+    var b = listBack;
+    listBack = null;
+    return restoreCard(b, why, false);
   }
   /* 4347: the single-click dismiss: which cards a click on empty map closes, and why a click does not count */
   var CLICK_DISMISS_MS = 280;
@@ -2045,9 +2071,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
             else if (kind === "vendor" && cartPicks() > 0) w2 = "cart";
             rec.why = w2 || "closed"; rec.firedAt = Date.now();
             if (w2) { if (w2 === "cart") say("Picks on the card · the red X closes it."); return; }
+            if (dblBack) { var od = dblBack; dblBack = null; dropStash(od.b); }
+            var kb = takeCard();
             closeSheet();
             sheetHold = true;
-            rec.closed = true; rec.kind = kind;
+            rec.closed = true; rec.kind = kind; rec.stashed = !!kb;
+            if (kb) {
+              dblBack = { b: kb, t: now, seq: sheetSeq };
+              setTimeout(function () { if (dblBack && dblBack.b === kb) { dblBack = null; dropStash(kb); } }, Math.max(60, DBL_MS - (Date.now() - now) + 40));
+            }
           }, CLICK_DISMISS_MS);
         } catch (eK) {}
       });
@@ -2343,7 +2375,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4348&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4349&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -5010,11 +5042,20 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       });
     } catch (eH) {}
     if (!ad0.text && isFinite(+s.lat)) {
+      /* 4349: keep this card's own address span: a lookup that finishes while the card is stashed (LIST over it, or the
+         close of a slow double click) fills the stashed card, so the card comes back with the address */
+      var addrSpans = document.querySelectorAll("#sn-sheet .sn-prof .sn-miss");
+      var addrEl = addrSpans[addrSpans.length - 1] || null;
       reverseAddr(s).then(function (txt) {
-        if (vendor !== s) return;
-        var spans = document.querySelectorAll("#sn-sheet .sn-prof .sn-miss");
-        var el = spans[spans.length - 1];
-        if (el) el.textContent = [txt ? "≈ " + txt + " (approx.)" : "No address listed", kindBit].filter(Boolean).join(" · ");
+        var el = addrEl;
+        if (!el) {
+          if (vendor !== s) return;
+          var spans = document.querySelectorAll("#sn-sheet .sn-prof .sn-miss");
+          el = spans[spans.length - 1];
+        }
+        var line = [txt ? "≈ " + txt + " (approx.)" : "No address listed", kindBit].filter(Boolean).join(" · ");
+        if (el) el.textContent = line;
+        window.__snAddrFill = { name: s.name || "", text: line, inPage: !!(el && el.isConnected), at: Date.now() };
       });
     }
     progMoveUntil = Date.now() + 600;
@@ -6179,6 +6220,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (!el) return;
       ["top", "left", "right", "bottom", "transform"].forEach(function (k) { el.style.removeProperty(k); });
     });
+    try { if (window.__snGrip && window.__snGrip.fabs) window.__snGrip.fabs(); } catch (eF) {} /* 4349 */
   }
   var layoutKey = "";
   function maybeLayout() {
@@ -7775,13 +7817,45 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sh.classList.toggle("sn-edge", !!edge);
       if (edge) window.__snGripEdgeSeen = edge;
     }
+    /* 4349: the GPS button (right) and the ME button (left) sat over the bottom corners of an open card (preview-4348: GPS
+       covered the menu's + buttons, a tap there flew to GPS). While a sheet is open they sit 8 px above the grip strip (the
+       sheet's top edge); if that would reach the top-right buttons (support / globe / architect) or the wallet / Power
+       tags they hide until the sheet closes */
+    var FAB_GAP = 8;
+    function roofOf(ids) {
+      var y = 0;
+      ids.forEach(function (id) { var e = $(id); if (!e) return; var q = e.getBoundingClientRect(); if (q.height > 0 && q.bottom < window.innerHeight / 2) y = Math.max(y, q.bottom); });
+      return y + FAB_GAP;
+    }
+    function fabs() {
+      var r = sh.classList.contains("on") ? card.getBoundingClientRect() : null;
+      if (r && r.height < 20) r = null;
+      var seen = {};
+      [["gps", ["sn-support", "sn-globe", "sn-architect"]], ["sn-me", ["sn-money", "sn-power-tag", "sn-power"]]].forEach(function (fx) {
+        var el = $(fx[0]);
+        if (!el) return;
+        if (!r) {
+          if (el.classList.contains("sn-lift")) { el.classList.remove("sn-lift"); el.style.removeProperty("bottom"); el.style.removeProperty("visibility"); }
+          return;
+        }
+        var h = el.getBoundingClientRect().height || el.offsetHeight || 64;
+        var bot = Math.round(window.innerHeight - (r.top - ABOVE) + FAB_GAP);
+        el.classList.add("sn-lift");
+        el.style.setProperty("bottom", bot + "px", "important");
+        var top = window.innerHeight - bot - h, roof = roofOf(fx[1]);
+        if (top < roof) el.style.setProperty("visibility", "hidden", "important"); else el.style.removeProperty("visibility");
+        seen[fx[0]] = { bottom: bot, top: Math.round(top), roof: Math.round(roof), hidden: top < roof };
+      });
+      window.__snFabs = r ? { sheetTop: Math.round(r.top - ABOVE), at: Date.now(), fabs: seen } : { sheetTop: null, at: Date.now() };
+    }
     function place() {
       var r = sh.classList.contains("on") ? card.getBoundingClientRect() : null;
-      if (!r || r.height < 20) { g.classList.remove("on"); return; }
+      if (!r || r.height < 20) { g.classList.remove("on"); fabs(); return; }
       g.classList.add("on");
       g.style.setProperty("top", Math.round(r.top - ABOVE) + "px", "important");
       g.style.setProperty("left", Math.round(r.left) + "px", "important");
       g.style.setProperty("width", Math.round(r.width) + "px", "important");
+      fabs();
     }
     function rest() { return Math.min(Math.round(area() * 0.28), cap()); } /* 4343: 28 % of ribbon → dock, never above the cap */
     function setH(h, over) {
@@ -7902,7 +7976,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     try { new MutationObserver(sync).observe(card, { childList: true }); } catch (e) {}
     try { if (window.ResizeObserver) new ResizeObserver(place).observe(card); } catch (e) {}
     window.addEventListener("resize", function () { geom(); if (userH) userH = setH(userH); place(); });
-    window.__snGrip = { cap: cap, min: minH, rest: rest, area: area, mapH: mapH, below: below, above: ABOVE, strip: STRIP, edge: function () { return gripEdge; }, dragging: function () { return !!drag; }, height: function () { return card.getBoundingClientRect().height; },
+    window.__snGrip = { fabs: fabs, cap: cap, min: minH, rest: rest, area: area, mapH: mapH, below: below, above: ABOVE, strip: STRIP, edge: function () { return gripEdge; }, dragging: function () { return !!drag; }, height: function () { return card.getBoundingClientRect().height; },
       mapDraggable: function () { try { return !!(map && map.dragging && map.dragging.enabled()); } catch (e) { return null; } } };
     sync();
   }
@@ -7986,7 +8060,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4348 = true;
+    window.__SN_4349 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

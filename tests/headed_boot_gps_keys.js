@@ -1,5 +1,5 @@
 /**
- * Headed real-input test (4348): real Chrome on the X display (DISPLAY, default :3); run it at WIN=1920x1200 SCALE=1.5
+ * Headed real-input test (4349): real Chrome on the X display (DISPLAY, default :3); run it at WIN=1920x1200 SCALE=1.5
  * (OS-level xdotool input picked in a 1280x800 "agent view" and rounded back, like a computer-use agent on a scaled
  * screenshot) and at WIN=1280x800 SCALE=1. Screenshots are grabbed from the X screen (real pixels).
  *  BOOT: no input. MIC is a cyan icon; LIVE shows 'loading…' then one count, 'N vendors on SpaceNet'; the IP answer lands
@@ -46,6 +46,11 @@
  *    readout = the clicked point = the centre; fast pairs keep the card. Picks + a wheel scroll on PIZZAGIO, a 1.2 s hold
  *    at agent 900,350 opens LIST, LIST's red X puts the same card back (same picks per row, same scroll); a pin switch and
  *    back keeps the picks.
+ *    4349: the slow 400 / 500 ms pairs with the card open keep the card (closed by the single click at ~280 ms, brought back
+ *    by the second click: same DOM node, scroll, picks; with picks it never closes); every button of the open card (+ / -
+ *    over the whole scrolled menu, APPLY, X) is the top element at its centre; GPS and ME sit above the sheet's top edge (or
+ *    hide), clear of the card, the top-right buttons and the wallet / Power tags, and return when it closes; PIZZARIUM
+ *    RHODES (no listed address) with its reverse lookup held 3.5 s comes back from under LIST with the address filled.
  *  LOAD VIEW: no location answer → the globe stays; callouts outside the glow ring, apart, clear of the HUD, at 1280x800
  *    and 1920x1200; LIVE = the real network count.
  *  WEATHER (4343): open-meteo at most once per 0.5 deg place per session (rounded coordinates), nothing after a 429, a
@@ -60,18 +65,18 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4348";
+const STAMP = process.env.STAMP || "4349";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now();
 const ORIGIN = new URL(BASE).origin;
 const [WW, WH] = (process.env.WIN || "1920x1200").split("x").map(Number);
 const SCALE = Number(process.env.SCALE || 1.5);
-const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4348";
+const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4349";
 fs.mkdirSync(SHOTDIR, { recursive: true });
 if (!process.env.DISPLAY) process.env.DISPLAY = ":3";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const xdo = (a) => execSync("xdotool " + a, { env: process.env });
 const SYNTAGMA = { lat: 37.9755, lng: 23.7348 }, RHODES_OLD = { lat: 36.4446, lng: 28.2276 };
-const GRAB = path.join(os.tmpdir(), "sn_grab4348.py");
+const GRAB = path.join(os.tmpdir(), "sn_grab4349.py");
 fs.writeFileSync(GRAB, `import sys, json
 from PIL import ImageGrab, ImageStat
 out, x, y, w, h = sys.argv[1], *map(int, sys.argv[2:6])
@@ -736,7 +741,14 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
      clicked pixel (<= 20 px; the ring too), the readout names that point (= the centre); fast pairs keep the card.
      HOLD: picks on PIZZAGIO's menu (real + clicks after a wheel scroll in the card), a 1.2 s hold at agent 900,350 opens
      LIST, LIST's red X puts the same card back with the same picks per row and the same scroll; a pin switch and back keeps
-     the picks too */
+     the picks too.
+     4349: the slow pairs (400 / 500 ms) with the card open keep it: the single-click close takes it at ~280 ms and the second
+     click brings back the same card (same DOM node, scroll, picks) before the centre + zoom; with picks the card never
+     closes. Every button of the open card (+ / - over the whole scrolled menu, APPLY, X) is the top element at its centre;
+     the GPS and ME buttons sit above the sheet's top edge (or hide), clear of the card, the top-right buttons and the wallet /
+     Power tags, and go back when the card closes. PIZZARIUM RHODES (no listed address: 'locating') with its reverse lookup
+     held 3.5 s: a hold opens LIST over it, the lookup lands while the card is stashed, LIST's X brings the card back with the
+     address filled */
   {
     const k48 = (t) => "card48-" + t;
     const sh48 = () => page.evaluate(() => { const s = document.getElementById("sn-sheet"), c = document.getElementById("sn-sheet-card"), b = document.getElementById("sn-sheet-body");
@@ -755,7 +767,12 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
     const hunt = await waitFor((s) => s.find && s.find !== "…" && s.raw === "pizza", 25000); await sleep(1500);
     console.log("[card48 hunt]", JSON.stringify({ find: hunt.s.find, z: hunt.s.z, line: hunt.s.line }));
     check("the guest's pizza hunt at Rhodes lands real pins (FIND >= 5)", +hunt.s.find >= 5, JSON.stringify({ find: hunt.s.find, line: hunt.s.line }));
-    async function setup48(card) {
+    async function plusFree() {
+      return page.evaluate(() => { const b = document.getElementById("sn-sheet-body").getBoundingClientRect();
+        return [...document.querySelectorAll('#sn-sheet .sn-pick button[data-act="pick-more"]')].map((e) => { const r = e.getBoundingClientRect(); return { i: e.getAttribute("data-i"), x: r.left + r.width / 2, y: r.top + r.height / 2 }; })
+          .filter((p) => { const t = document.elementFromPoint(p.x, p.y); return p.y > b.top + 6 && p.y < b.bottom - 6 && t && t.closest && t.closest('button[data-act="pick-more"]') && t.closest('button[data-act="pick-more"]').getAttribute("data-i") === p.i; }); });
+    }
+    async function setup48(card, opt) {
       if ((await sh48()).on) await closeSheet();
       if ((await sh48()).on) await closeSheet();
       await page.evaluate((a) => SN.getMap().setView([a.lat, a.lng], 14, { animate: false }), PZ); await sleep(1300);
@@ -767,10 +784,14 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
       await sleep(400);
       /* the card pans the map to the pin: back to the exact z14 view on PIZZAGIO */
       await page.evaluate((a) => SN.getMap().setView([a.lat, a.lng], 14, { animate: false }), PZ); await sleep(700);
+      if (opt && opt.scroll) { const br = await page.evaluate(() => { const b = document.getElementById("sn-sheet-body").getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
+        xdo(`mousemove ${A(br.x, br.y).join(" ")}`); await sleep(100); xdo("click 5"); await sleep(250); xdo("click 5"); await sleep(600); }
+      if (opt && opt.picks) { const pl = await plusFree(); if (pl[0]) { xdo(`mousemove ${A(pl[0].x, pl[0].y).join(" ")}`); await sleep(100); xdo("click 1"); await sleep(400); } }
       return sh48();
     }
     const RUN = { fast: "click --repeat 2 --delay 90 1", computer: "click --repeat 2 --delay 120 1", slow400: "click --repeat 2 --delay 400 1", slow500: "click --repeat 2 --delay 500 1" };
-    async function dbl48(name, real, how, keepCard) {
+    async function dbl48(name, real, how, keepCard, expectBack) {
+      await page.evaluate(() => { window.__b48 = document.getElementById("sn-sheet-body"); window.__snCardBack = null; });
       const pre = await page.evaluate((q) => { const m = SN.getMap(); const r = document.getElementById("city").getBoundingClientRect(); const ll = m.containerPointToLatLng([q[0] - r.left, q[1] - r.top]); const e = document.elementFromPoint(q[0], q[1]);
         window.__clk48 = []; window.__snLastDbl = null; window.__snDblPair = null;
         return { lat: ll.lat, lng: ll.lng, z: m.getZoom(), hit: e ? { city: !!e.closest("#city"), grip: !!e.closest("#cli-drag"), pin: !!e.closest(".leaflet-marker-icon,.leaflet-tooltip"), sheet: !!e.closest("#sn-sheet") } : null }; }, [real[0] - ox, real[1] - oy]);
@@ -782,29 +803,71 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
           cursorPx: +Math.hypot(q.x + r.left - a.cur[0], q.y + r.top - a.cur[1]).toFixed(1), gap: ck.length >= 2 ? Math.round(ck[ck.length - 1] - ck[ck.length - 2]) : null, line: document.getElementById("line").textContent, last: window.__snLastDbl, pair: window.__snDblPair, mc: SN.mapClick && SN.mapClick() }; },
         { pk: pre, cur: [real[0] - ox, real[1] - oy] });
       const s1 = await sh48();
+      const same = await page.evaluate(() => !!(window.__b48 && window.__b48.isConnected && window.__b48 === document.getElementById("sn-sheet-body")));
+      const back = await page.evaluate(() => window.__snCardBack || null);
       const rl = (String(M.line).match(/(-?\d{1,2}\.\d{3}),(-?\d{1,3}\.\d{3})/) || []);
       const want = pre.z < 10 ? 10 : Math.min(18, pre.z + 1);
       console.log("[card48 " + name + "]", JSON.stringify({ real, pre, card: [s0.on && s0.title, s1.on && s1.title], M: Object.assign({}, M, { pk: +M.pk.toFixed(1), ring: M.ring && +M.ring.toFixed(1) }) }).slice(0, 1400), g.file);
       const ok = !!(pre.hit && (pre.hit.city || pre.hit.grip) && !pre.hit.pin && !pre.hit.sheet) && Math.abs(M.z - want) < 0.01 && M.pk <= 20 && M.ring != null && M.ring <= 20 && rl.length === 3 &&
-        Math.abs(+rl[1] - pre.lat) <= 0.0006 && Math.abs(+rl[2] - pre.lng) <= 0.0006 && Math.abs(+rl[1] - M.c.lat) <= 0.01 && Math.abs(+rl[2] - M.c.lng) <= 0.01 && (!keepCard || (s1.on && s1.kind === "vendor" && s1.title === s0.title));
-      check("double click " + name + ": z" + pre.z + " -> z" + want + ", centred on the clicked point (<= 20 px, ring too), readout = the clicked point = the centre" + (keepCard ? ", the card stays" : ""), ok,
-        JSON.stringify({ gapMs: M.gap, hit: pre.hit, z: [pre.z, M.z], clickedPx: +M.pk.toFixed(1), ringPx: M.ring != null ? +M.ring.toFixed(1) : null, cursorPx: M.cursorPx, readout: rl.slice(1), clicked: [+pre.lat.toFixed(4), +pre.lng.toFixed(4)], card: [s0.on && s0.title, s1.on ? s1.title : "closed"], src: M.last && M.last.src }));
+        Math.abs(+rl[1] - pre.lat) <= 0.0006 && Math.abs(+rl[2] - pre.lng) <= 0.0006 && Math.abs(+rl[1] - M.c.lat) <= 0.01 && Math.abs(+rl[2] - M.c.lng) <= 0.01 && (!keepCard || (s1.on && s1.kind === "vendor" && s1.title === s0.title && same && Math.abs((s1.scroll || 0) - (s0.scroll || 0)) <= 2 && JSON.stringify(s1.picks) === JSON.stringify(s0.picks))) && (!expectBack || (back && back.why === "double"));
+      check("double click " + name + ": z" + pre.z + " -> z" + want + ", centred on the clicked point (<= 20 px, ring too), readout = the clicked point = the centre" + (keepCard ? ", the card stays (same DOM node, scroll, picks)" : "") + (expectBack ? " after the single-click close took it (restored by the pair)" : ""), ok,
+        JSON.stringify({ gapMs: M.gap, hit: pre.hit, z: [pre.z, M.z], clickedPx: +M.pk.toFixed(1), ringPx: M.ring != null ? +M.ring.toFixed(1) : null, cursorPx: M.cursorPx, readout: rl.slice(1), clicked: [+pre.lat.toFixed(4), +pre.lng.toFixed(4)], card: [s0.on && s0.title, s1.on ? s1.title : "closed"], sameNode: same, scroll: [s0.scroll, s1.scroll], picks: [s0.picks, s1.picks], back: back && { why: back.why, away: back.away }, src: M.last && M.last.src }));
       return { pre, M, s0, s1 };
     }
+    const npk = (o) => Object.values(o || {}).reduce((a, b) => a + b, 0);
+    async function clearPicks() {
+      for (let r = 0; r < 6; r++) {
+        const minus = await page.evaluate(() => { const b = document.getElementById("sn-sheet-body"); if (!b) return null;
+          for (const row of document.querySelectorAll("#sn-sheet .sn-pick")) { if (+(row.querySelector(".n").textContent) > 0) { row.scrollIntoView({ block: "center" }); const e = row.querySelector('button[data-act="pick-less"]').getBoundingClientRect(); return { x: e.left + e.width / 2, y: e.top + e.height / 2 }; } } return null; });
+        if (!minus) break; await sleep(200); xdo(`mousemove ${A(minus.x, minus.y).join(" ")}`); await sleep(80); xdo("click 1"); await sleep(300);
+      }
+    }
     const G = [Math.round(1000 * SCALE), Math.round(250 * SCALE)];
+    // 4349 COVER: every button of the open card is the top element at its centre; GPS / ME above the sheet's top edge or hidden
+    if ((await sh48()).on) await closeSheet(); if ((await sh48()).on) await closeSheet();
+    const fabBase = await page.evaluate(() => { if (document.getElementById("sn-sheet").classList.contains("on")) return null; const r = (id) => { const e = document.getElementById(id); const q = e.getBoundingClientRect(); return { x: Math.round(q.left), y: Math.round(q.top), w: Math.round(q.width), h: Math.round(q.height) }; }; return { gps: r("gps"), me: r("sn-me") }; });
+    const cover = () => page.evaluate(() => {
+      const body = document.getElementById("sn-sheet-body"), card = document.getElementById("sn-sheet-card"), grip = document.getElementById("cli-drag");
+      const sc0 = body.scrollTop, bad = [], seen = new Set(); let plus = 0;
+      const test = (b) => { const r = b.getBoundingClientRect(); if (r.width < 4 || r.height < 4) return; const x = r.left + r.width / 2, y = r.top + r.height / 2; const t = document.elementFromPoint(x, y);
+        const key = (b.getAttribute("data-act") || b.className) + ":" + (b.getAttribute("data-i") || ""); if (seen.has(key)) return; seen.add(key); if (b.getAttribute("data-act") === "pick-more") plus++;
+        if (!(t && (t === b || b.contains(t)))) bad.push({ key, at: [Math.round(x), Math.round(y)], top: t ? (t.id || String(t.className).slice(0, 40) || t.tagName) : null }); };
+      card.querySelectorAll(".sheet-bar button").forEach(test);
+      const step = Math.max(40, Math.floor(body.clientHeight * 0.5));
+      for (let y = 0; y <= body.scrollHeight; y += step) { body.scrollTop = y; const b0 = body.getBoundingClientRect(), c0 = card.getBoundingClientRect(); const br = { top: Math.max(b0.top, c0.top), bottom: Math.min(b0.bottom, c0.bottom) };
+        body.querySelectorAll("button").forEach((b) => { const r = b.getBoundingClientRect(); if (r.top >= br.top && r.bottom <= br.bottom) test(b); }); if (y >= body.scrollHeight - body.clientHeight) break; }
+      body.scrollTop = sc0;
+      const box = (e) => { if (!e) return null; const q = e.getBoundingClientRect(); return q.width > 0 ? { l: q.left, t: q.top, r: q.right, b: q.bottom } : null; };
+      const hit = (a, b) => !!(a && b && a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b);
+      const cardB = box(card), gripB = box(grip), avoid = ["sn-support", "sn-globe", "sn-architect", "sn-money", "sn-power-tag", "sn-power"].map((id) => [id, box(document.getElementById(id))]);
+      const fab = (id) => { const e = document.getElementById(id); const cs = getComputedStyle(e); const b = box(e); const shown = cs.visibility !== "hidden" && cs.display !== "none" && !!b;
+        const t = shown ? document.elementFromPoint((b.l + b.r) / 2, (b.t + b.b) / 2) : null;
+        return { id, shown, box: b && { x: Math.round(b.l), y: Math.round(b.t), w: Math.round(b.r - b.l), h: Math.round(b.b - b.t) }, overCard: shown && (hit(b, cardB) || hit(b, gripB)), aboveEdge: !shown || (gripB && b.b <= gripB.t + 0.5),
+          clash: shown ? avoid.filter(([, a]) => hit(b, a)).map(([n]) => n) : [], top: !shown || !!(t && t.closest && t.closest("#" + id)) }; };
+      return { checked: seen.size, plus, bad, gps: fab("gps"), me: fab("sn-me"), gripTop: gripB && Math.round(gripB.t) };
+    });
+    const fabOk = (f) => f.shown ? (!f.overCard && f.aboveEdge && !f.clash.length && f.top) : true;
     let st = await setup48(true); console.log("[card48 setup]", JSON.stringify(st));
     check("setup: PIZZAGIO's card open at z14 on the hunt map", !!(st && st.on && st.kind === "vendor" && /pizzagio/i.test(st.title)), JSON.stringify(st));
     await grab(k48("before-z14-pizzagio"));
+    { const cv = await cover(); const gc = await grab(k48("cover-gps-above-card"));
+      console.log("[card48 cover]", JSON.stringify(cv).slice(0, 1500), gc.file);
+      check("no button of the open card is covered: elementFromPoint at every + / - (whole scrolled menu) and APPLY / X returns that button", cv.checked >= 4 && cv.plus >= 2 && cv.bad.length === 0, JSON.stringify({ checked: cv.checked, plus: cv.plus, bad: cv.bad.slice(0, 6) }));
+      check("with a card open the GPS and ME buttons sit above the sheet's top edge (or hide), off the card, clear of the top-right buttons and the wallet / Power tags, and stay tappable", fabOk(cv.gps) && fabOk(cv.me) && cv.gps.shown,
+        JSON.stringify({ gripTop: cv.gripTop, gps: cv.gps, me: cv.me })); }
     await dbl48("agent-1000-250-fast-card", G, "fast", true);
     await setup48(true); await dbl48("agent-1000-250-computer-card", G, "computer", true);
-    await setup48(true); const D4 = await dbl48("agent-1000-250-slow-400ms-card", G, "slow400", false);
+    await setup48(true, { scroll: true }); const D4 = await dbl48("agent-1000-250-slow-400ms-card", G, "slow400", true, true);
     check("the slow 400 ms pair is really slow (>= 350 ms between the two clicks)", D4.M.gap != null && D4.M.gap >= 350, "gap " + D4.M.gap);
-    await setup48(true); const D5 = await dbl48("agent-1000-250-slow-500ms-card", G, "slow500", false);
+    await setup48(true, { scroll: true }); const D5 = await dbl48("agent-1000-250-slow-500ms-card", G, "slow500", true, true);
     check("the slow 500 ms pair is really slow (>= 450 ms between the two clicks)", D5.M.gap != null && D5.M.gap >= 450, "gap " + D5.M.gap);
+    { const sp = await setup48(true, { scroll: true, picks: true }); const D6 = await dbl48("agent-1000-250-slow-500ms-card-picks", G, "slow500", true, false);
+      check("setup: the slow 500 ms pair with picks on the card (a card with picks never closes on a click)", npk(sp.picks) >= 1 && D6.M.gap >= 450, JSON.stringify({ picks: sp.picks, gap: D6.M.gap }));
+      await clearPicks(); }
     await setup48(false); await dbl48("agent-1000-250-slow-400ms-no-card", G, "slow400", false);
     st = await setup48(true);
     const ed = await page.evaluate(() => { const g = document.getElementById("cli-drag").getBoundingClientRect(); return { x: g.left, y: g.top, w: g.width, h: g.height }; });
-    await dbl48("card-edge-grip-strip-slow-400ms", [Math.round(ox + ed.x + ed.w * 0.72), Math.round(oy + ed.y + 8)], "slow400", false);
+    await dbl48("card-edge-grip-strip-slow-400ms", [Math.round(ox + ed.x + ed.w * 0.72), Math.round(oy + ed.y + 8)], "slow400", true);
     st = await setup48(true);
     await dbl48("card-edge-map-above-strip-fast", [Math.round(ox + ed.x + ed.w * 0.28), Math.round(oy + ed.y - 10)], "fast", true);
     // HOLD with picks: LIST, then LIST's red X puts the same card back (picks per row + scroll)
@@ -823,12 +886,50 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
     await closeSheet(); await sleep(500);
     const h2 = await sh48(); const gh2 = await grab(k48("list-x-card-back"));
     const back = await page.evaluate(() => window.__snCardBack || null);
-    const npk = (o) => Object.values(o || {}).reduce((a, b) => a + b, 0);
     console.log("[card48 hold]", JSON.stringify({ plan: plan.map((p) => p.i), before: h0, hit: hHit, list: h1, after: h2, back }), gh0.file, gh1.file, gh2.file);
     check("setup: picks on PIZZAGIO (real + clicks) and the card scrolled", h0.on && h0.kind === "vendor" && npk(h0.picks) === 3 && h0.scroll > 0, JSON.stringify(h0));
     check("a 1.2 s hold at agent 900,350 (empty map) with PIZZAGIO open opens LIST", !!(hHit && hHit.city && !hHit.pin && !hHit.sheet) && h1.on && h1.kind === "list", JSON.stringify({ hit: hHit, list: h1 }));
     check("LIST's red X puts PIZZAGIO back exactly: same card, same picks per row, same scroll", h2.on && h2.kind === "vendor" && h2.title === h0.title && JSON.stringify(h2.picks) === JSON.stringify(h0.picks) && Math.abs(h2.scroll - h0.scroll) <= 2,
       JSON.stringify({ before: { t: h0.title, picks: h0.picks, scroll: h0.scroll }, after: { t: h2.title, picks: h2.picks, scroll: h2.scroll } }));
+    // 4349 ADDRESS: PIZZARIUM RHODES (no listed address) with its reverse lookup held 3.5 s; LIST over the card; the lookup lands while stashed
+    {
+      const RX = /\/api\/find\?reverse=1/;
+      await page.route(RX, async (r) => { await sleep(3500); try { await r.continue(); } catch (e) {} });
+      if ((await sh48()).on) await closeSheet(); if ((await sh48()).on) await closeSheet();
+      const OA = { lat: 36.425081, lng: 28.210592 };
+      await page.evaluate((a) => SN.getMap().setView([a.lat, a.lng], 14, { animate: false }), OA); await sleep(1200);
+      const addrNow = () => page.evaluate(() => { const sp = document.querySelectorAll("#sn-sheet .sn-prof .sn-miss"); const e = sp[sp.length - 1]; return e ? e.textContent : null; });
+      const pa = await page.evaluate((pz) => { const m = SN.getMap(); let best = null; m.eachLayer((l) => { if (l.getLatLng && l._icon) { const q = l.getLatLng(); const d = Math.hypot(q.lat - pz.lat, q.lng - pz.lng);
+        if (d < 0.0005 && (!best || d < best.d)) { const r = l._icon.getBoundingClientRect(); best = { d, x: r.left + r.width / 2, y: r.top + r.height * 0.36 }; } } }); return best; }, OA);
+      let a0 = null, l1 = null, fill = null, a2 = null, h2 = null, ep = null;
+      if (pa) {
+        await page.evaluate(() => { window.__snAddrFill = null; });
+        xdo(`mousemove ${A(pa.x, pa.y).join(" ")}`); await sleep(100); xdo("click 1");
+        for (let i = 0; i < 20; i++) { await sleep(100); const s = await sh48(); if (s.on && s.kind === "vendor") break; }
+        a0 = await addrNow(); const ga0 = await grab(k48("address-locating"));
+        ep = await page.evaluate(() => { const card = document.getElementById("cli-drag").getBoundingClientRect(); const pins = [...document.querySelectorAll("#city .leaflet-marker-icon")].map((e) => e.getBoundingClientRect());
+          for (let y = 140; y < card.top - 40; y += 20) for (let x = Math.round(innerWidth * 0.55); x < innerWidth - 120; x += 20) { const e = document.elementFromPoint(x, y);
+            if (!e || !e.closest("#city") || e.closest(".leaflet-marker-icon,.leaflet-tooltip,.leaflet-control,.leaflet-interactive")) continue;
+            if (pins.every((r) => Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2)) > 70)) return { x, y }; } return null; });
+        if (ep) { const [hx, hy] = A(ep.x, ep.y); xdo(`mousemove ${hx} ${hy}`); await sleep(100); xdo("mousedown 1"); await sleep(1200); xdo("mouseup 1"); await sleep(600); }
+        l1 = await sh48(); const gl1 = await grab(k48("address-list-over-card"));
+        for (let i = 0; i < 60 && !(fill = await page.evaluate(() => window.__snAddrFill)); i++) await sleep(150);
+        await sleep(300);
+        await closeSheet(); await sleep(500);
+        a2 = await addrNow(); h2 = await sh48(); const ga2 = await grab(k48("address-filled-after-list-x"));
+        console.log("[card48 address]", JSON.stringify({ pin: pa, before: a0, hold: ep, list: l1 && l1.kind, fill, after: a2, card: h2 && h2.title }), ga0.file, gl1.file, ga2.file);
+      }
+      check("a stashed card whose address lookup landed while LIST was over it comes back with the address (PIZZARIUM RHODES: 'locating' -> the looked-up address)",
+        !!(a0 && /locating/i.test(a0) && l1 && l1.kind === "list" && fill && fill.inPage === false && /pizzarium/i.test(fill.name) && h2 && h2.on && /pizzarium/i.test(h2.title) && a2 === fill.text && !/locating/i.test(a2)),
+        JSON.stringify({ before: a0, list: l1 && l1.kind, fill, after: a2, card: h2 && h2.title }));
+      await page.unroute(RX);
+      if ((await sh48()).on) await closeSheet();
+      const fb = await page.evaluate(() => { const r = (id) => { const e = document.getElementById(id); const q = e.getBoundingClientRect(); return { x: Math.round(q.left), y: Math.round(q.top), w: Math.round(q.width), h: Math.round(q.height), vis: getComputedStyle(e).visibility }; }; return { on: document.getElementById("sn-sheet").classList.contains("on"), gps: r("gps"), me: r("sn-me") }; });
+      check("the GPS and ME buttons go back to their places when the card closes", !!fabBase && !fb.on && JSON.stringify([fb.gps.x, fb.gps.y, fb.me.x, fb.me.y]) === JSON.stringify([fabBase.gps.x, fabBase.gps.y, fabBase.me.x, fabBase.me.y]) && fb.gps.vis === "visible" && fb.me.vis === "visible",
+        JSON.stringify({ base: fabBase, now: fb }));
+      await page.evaluate((a) => SN.getMap().setView([a.lat, a.lng], 14, { animate: false }), PZ); await sleep(1000);
+      const pz2 = await pin48(); if (pz2) { xdo(`mousemove ${A(pz2.x, pz2.y).join(" ")}`); await sleep(100); xdo("click 1"); await sleep(1200); }
+    }
     // a pin switch and back keeps the picks: PIZZARIUM RHODES (another real hunt pin, centred so it sits clear of the card), then PIZZAGIO again
     const OT = { lat: 36.425081, lng: 28.210592 };
     const pinAt = (ll) => page.evaluate((pz) => { const m = SN.getMap(); let best = null; m.eachLayer((l) => { if (l.getLatLng && l._icon) { const q = l.getLatLng(); const d = Math.hypot(q.lat - pz.lat, q.lng - pz.lng);
@@ -920,7 +1021,7 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
     await c2.close();
   }
   console.log("SCREENSHOTS", SHOTDIR);
-  console.log(fails.length ? "HEADED 4348 FAIL: " + fails.join("; ") : "HEADED 4348 ALL PASS");
+  console.log(fails.length ? "HEADED 4349 FAIL: " + fails.join("; ") : "HEADED 4349 ALL PASS");
   await browser.close();
   process.exit(fails.length ? 2 : 0);
 })().catch((e) => { console.error("fail", e); process.exit(1); });
