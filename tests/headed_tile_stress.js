@@ -17,18 +17,18 @@ const { chromium } = require("playwright");
 const { execSync } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4351";
+const STAMP = process.env.STAMP || "4352";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now();
 const [WW, WH] = (process.env.WIN || "1920x1200").split("x").map(Number);
 const SCALE = Number(process.env.SCALE || 1.5);
 const CYCLES = Number(process.env.CYCLES || 22);
-const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-tile-stress-4351";
+const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-tile-stress-4352";
 fs.mkdirSync(SHOTDIR, { recursive: true });
 if (!process.env.DISPLAY) process.env.DISPLAY = ":3";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const xdo = (a) => execSync("xdotool " + a, { env: process.env });
 let seed = Number(process.env.SEED || 4350); const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
-const GRAB = path.join(os.tmpdir(), "sn_tilegrab4351.py");
+const GRAB = path.join(os.tmpdir(), "sn_tilegrab4352.py");
 fs.writeFileSync(GRAB, `import sys, json, warnings
 warnings.filterwarnings("ignore")
 from PIL import ImageGrab, ImageStat
@@ -199,7 +199,9 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
     // H1: OSM refuses every tile -> OSM Germany per tile, then the layer switches to it (real map, not a one-colour placeholder)
     await page.route(/tile\.openstreetmap\.org/, (r) => r.abort("blockedbyclient"));
     await page.evaluate(() => SN.getMap().setView([36.0889, 28.0861], 15, { animate: false })); /* Lindos: tiles never loaded this session */
-    const h1 = await waitDom((d) => d.vis > 0 && d.alt === d.vis && d.ok === d.vis && d.heal && d.heal.src === "alt", 9000); await sleep(400);
+    const h1 = await waitDom((d) => d.vis > 0 && d.alt === d.vis && d.ok === d.vis && d.heal && d.heal.src === "alt", 9000);
+    /* the layer switch re-requests every tile: wait for all of them and their fade-in before judging the pixels */
+    const h1f = await waitDom((d) => d.vis >= 8 && d.alt === d.vis && d.ok === d.vis && d.loading === 0, 12000); await sleep(600);
     const g1 = await gridGrab("heal-osm-blocked-alt");
     console.log("[heal osm-blocked]", JSON.stringify(h1), JSON.stringify(g1));
     check("OSM refusing every tile: each tile falls back to OSM Germany and the layer switches to it (map drawn: real pixels, no one-colour API-key / placeholder tile)", h1.ms != null && g1.std >= 10 && g1.paper < 0.5 && g1.top < 0.9, JSON.stringify({ ms: h1.ms, d: h1.d, px: g1 }).slice(0, 600));
@@ -212,7 +214,9 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
     console.log("[heal all-blocked]", JSON.stringify(h2), "heal after moveend ms", h2dt);
     check("every tile errored for over 1 s after moveend: the self-heal (invalidateSize + redraw) fires within 2.5 s", h2.ms != null && h2dt >= 900 && h2dt <= 2500 && /error|none/.test(h2.d.heal.why || ""), JSON.stringify({ dt: h2dt, heal: h2.d.heal }));
     await page.unroute(/tile\.openstreetmap\.de\//); await page.unroute(/tile\.openstreetmap\.org/);
-    const h2b = await waitDom((d) => d.vis >= 4 && d.ok === d.vis, 12000); await sleep(400);
+    const h2b = await waitDom((d) => d.vis >= 4 && d.ok === d.vis, 12000);
+    /* every visible tile back and its fade-in done before the pixels are judged (45 tiles at 1920) */
+    const h2f = await waitDom((d) => d.vis >= 8 && d.ok === d.vis && d.loading === 0, 12000); await sleep(600);
     const g2 = await gridGrab("heal-hosts-back");
     check("tile hosts answering again: the map fills by itself (no reload, no user move)", h2b.ms != null && g2.std >= 10 && g2.paper < 0.5 && g2.top < 0.9, JSON.stringify({ ms: h2b.ms, d: h2b.d, px: g2 }).slice(0, 500));
     // H3: emptied tile containers (no visible tile at all) -> heal
