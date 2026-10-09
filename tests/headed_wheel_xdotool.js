@@ -33,7 +33,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4349";
+const STAMP = process.env.STAMP || "4350";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now() + (process.env.DEBUGQ ? "&debug=wheel" : "");
 const RHODES = { lat: 36.4349, lng: 28.2176 }, ATHENS = { lat: 37.9838, lng: 23.7275 };
 const [WW, WH] = (process.env.WIN || "1280x800").split("x").map(Number);
@@ -88,6 +88,11 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
     const body = fs.readFileSync(process.env.LOCAL_APP);
     await page.route(/\/js\/spacenet\/app\.js/, (r) => r.fulfill({ status: 200, contentType: "application/javascript", body }));
   }
+  /* 4350: with LOCAL_APP the live preview's /api/find has no Overpass proxy yet: POST {op:"overpass"} answered by this tree's api/find.js */
+  if (process.env.LOCAL_APP) { const fh = require(path.join(__dirname, "..", "api", "find.js"));
+    await page.route(/\/api\/find(\?|$)/, async (r) => { const q = r.request(); let b = null; try { b = q.method() === "POST" ? JSON.parse(q.postData() || "{}") : null; } catch (e) { b = null; }
+      if (!b || b.op !== "overpass") return r.fallback(); let st = 200, js = null; const rs = { setHeader() {}, status(s) { st = s; return rs; }, json(j) { js = j; return rs; }, end() { return rs; } };
+      await fh({ method: "POST", body: b, headers: {} }, rs); return r.fulfill({ status: st, contentType: "application/json", body: JSON.stringify(js) }); }); }
   if (process.env.LOCAL_AUTH) {
     const ab = fs.readFileSync(process.env.LOCAL_AUTH);
     await page.route(/\/js\/spacenet\/auth\.js/, (r) => r.fulfill({ status: 200, contentType: "application/javascript", body: ab }));

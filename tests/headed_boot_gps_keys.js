@@ -1,5 +1,5 @@
 /**
- * Headed real-input test (4349): real Chrome on the X display (DISPLAY, default :3); run it at WIN=1920x1200 SCALE=1.5
+ * Headed real-input test (4350): real Chrome on the X display (DISPLAY, default :3); run it at WIN=1920x1200 SCALE=1.5
  * (OS-level xdotool input picked in a 1280x800 "agent view" and rounded back, like a computer-use agent on a scaled
  * screenshot) and at WIN=1280x800 SCALE=1. Screenshots are grabbed from the X screen (real pixels).
  *  BOOT: no input. MIC is a cyan icon; LIVE shows 'loading…' then one count, 'N vendors on SpaceNet'; the IP answer lands
@@ -46,6 +46,8 @@
  *    readout = the clicked point = the centre; fast pairs keep the card. Picks + a wheel scroll on PIZZAGIO, a 1.2 s hold
  *    at agent 900,350 opens LIST, LIST's red X puts the same card back (same picks per row, same scroll); a pin switch and
  *    back keeps the picks.
+ *    4350: Overpass only through /api/find (same origin; a refusal is {ok:false}, never a CORS error in the console); the address
+ *    case holds the reverse lookup's answer in the page until LIST is seen (the live service worker hides it from page.route).
  *    4349: the slow 400 / 500 ms pairs with the card open keep the card (closed by the single click at ~280 ms, brought back
  *    by the second click: same DOM node, scroll, picks; with picks it never closes); every button of the open card (+ / -
  *    over the whole scrolled menu, APPLY, X) is the top element at its centre; GPS and ME sit above the sheet's top edge (or
@@ -65,18 +67,18 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4349";
+const STAMP = process.env.STAMP || "4350";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now();
 const ORIGIN = new URL(BASE).origin;
 const [WW, WH] = (process.env.WIN || "1920x1200").split("x").map(Number);
 const SCALE = Number(process.env.SCALE || 1.5);
-const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4349";
+const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4350";
 fs.mkdirSync(SHOTDIR, { recursive: true });
 if (!process.env.DISPLAY) process.env.DISPLAY = ":3";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const xdo = (a) => execSync("xdotool " + a, { env: process.env });
 const SYNTAGMA = { lat: 37.9755, lng: 23.7348 }, RHODES_OLD = { lat: 36.4446, lng: 28.2276 };
-const GRAB = path.join(os.tmpdir(), "sn_grab4349.py");
+const GRAB = path.join(os.tmpdir(), "sn_grab4350.py");
 fs.writeFileSync(GRAB, `import sys, json
 from PIL import ImageGrab, ImageStat
 out, x, y, w, h = sys.argv[1], *map(int, sys.argv[2:6])
@@ -98,8 +100,14 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   const wxNet = []; /* 4345: every open-meteo request on the CDP network (not just what playwright's request event sees) */
   { const nc = await ctx.newCDPSession(page); await nc.send("Network.enable"); nc.on("Network.requestWillBeSent", (e) => { if (/open-meteo\.com/.test(e.request.url)) wxNet.push({ t: Date.now(), url: e.request.url }); }); }
   if (process.env.LOCAL_APP) { const body = fs.readFileSync(process.env.LOCAL_APP); await page.route(/\/js\/spacenet\/app\.js/, (r) => r.fulfill({ status: 200, contentType: "application/javascript", body })); }
+  /* 4350: with LOCAL_APP the live preview's /api/find has no Overpass proxy yet: POST {op:"overpass"} answered by this tree's api/find.js */
+  if (process.env.LOCAL_APP) { const fh = require(path.join(__dirname, "..", "api", "find.js"));
+    await page.route(/\/api\/find(\?|$)/, async (r) => { const q = r.request(); let b = null; try { b = q.method() === "POST" ? JSON.parse(q.postData() || "{}") : null; } catch (e) { b = null; }
+      if (!b || b.op !== "overpass") return r.fallback(); let st = 200, js = null; const rs = { setHeader() {}, status(s) { st = s; return rs; }, json(j) { js = j; return rs; }, end() { return rs; } };
+      await fh({ method: "POST", body: b, headers: {} }, rs); return r.fulfill({ status: st, contentType: "application/json", body: JSON.stringify(js) }); }); }
   if (process.env.LOCAL_AUTH) { const ab = fs.readFileSync(process.env.LOCAL_AUTH); await page.route(/\/js\/spacenet\/auth\.js/, (r) => r.fulfill({ status: 200, contentType: "application/javascript", body: ab })); }
-  const errors = [], posts = [];
+  const errors = [], posts = [], opDirect = [];
+  page.on("request", (q) => { if (/overpass-api\.de|overpass\.kumi|\/api\/interpreter/.test(q.url())) opDirect.push(q.url().slice(0, 90)); });
   await page.route(/\/api\/space/, (r) => { if (r.request().method() !== "GET") { posts.push(r.request().method() + " " + r.request().url()); return r.abort(); } return r.continue(); });
   page.on("pageerror", (e) => errors.push(String(e)));
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text() + " @ " + ((m.location() || {}).url || "")); });
@@ -894,7 +902,12 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
     // 4349 ADDRESS: PIZZARIUM RHODES (no listed address) with its reverse lookup held 3.5 s; LIST over the card; the lookup lands while stashed
     {
       const RX = /\/api\/find\?reverse=1/;
-      await page.route(RX, async (r) => { await sleep(3500); try { await r.continue(); } catch (e) {} });
+      // the lookup's answer is held in the page (the live service worker answers fetches itself, so page.route never sees them) until LIST is seen
+      // over the card (cap 6.3 s, under the app's 7 s lookup timeout), so it always lands while the card is stashed
+      await page.evaluate((src) => { const RXp = new RegExp(src); const of = window.fetch; const g = window.__snRevGate = { of, open: false, held: 0, at: 0, waited: 0 };
+        window.fetch = function (u, o) { const url = String((u && u.url) || u); if (!RXp.test(url)) return of.apply(this, arguments); g.held++; g.at = Date.now();
+          return of.call(this, u, o).then((r) => new Promise((res) => { (function w() { if (g.open || Date.now() - g.at > 6300) { g.waited = Date.now() - g.at; res(r); } else setTimeout(w, 40); })(); })); }; }, RX.source);
+      const gateOpen = () => page.evaluate(() => { window.__snRevGate.open = true; });
       if ((await sh48()).on) await closeSheet(); if ((await sh48()).on) await closeSheet();
       const OA = { lat: 36.425081, lng: 28.210592 };
       await page.evaluate((a) => SN.getMap().setView([a.lat, a.lng], 14, { animate: false }), OA); await sleep(1200);
@@ -912,17 +925,17 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
             if (!e || !e.closest("#city") || e.closest(".leaflet-marker-icon,.leaflet-tooltip,.leaflet-control,.leaflet-interactive")) continue;
             if (pins.every((r) => Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2)) > 70)) return { x, y }; } return null; });
         if (ep) { const [hx, hy] = A(ep.x, ep.y); xdo(`mousemove ${hx} ${hy}`); await sleep(100); xdo("mousedown 1"); await sleep(1200); xdo("mouseup 1"); await sleep(600); }
-        l1 = await sh48(); const gl1 = await grab(k48("address-list-over-card"));
+        l1 = await sh48(); const gl1 = await grab(k48("address-list-over-card")); await gateOpen();
         for (let i = 0; i < 60 && !(fill = await page.evaluate(() => window.__snAddrFill)); i++) await sleep(150);
         await sleep(300);
         await closeSheet(); await sleep(500);
         a2 = await addrNow(); h2 = await sh48(); const ga2 = await grab(k48("address-filled-after-list-x"));
-        console.log("[card48 address]", JSON.stringify({ pin: pa, before: a0, hold: ep, list: l1 && l1.kind, fill, after: a2, card: h2 && h2.title }), ga0.file, gl1.file, ga2.file);
+        console.log("[card48 address]", JSON.stringify({ pin: pa, before: a0, hold: ep, list: l1 && l1.kind, fill, after: a2, card: h2 && h2.title, held: await page.evaluate(() => { const g = window.__snRevGate; return { held: g.held, waited: g.waited }; }) }), ga0.file, gl1.file, ga2.file);
       }
       check("a stashed card whose address lookup landed while LIST was over it comes back with the address (PIZZARIUM RHODES: 'locating' -> the looked-up address)",
         !!(a0 && /locating/i.test(a0) && l1 && l1.kind === "list" && fill && fill.inPage === false && /pizzarium/i.test(fill.name) && h2 && h2.on && /pizzarium/i.test(h2.title) && a2 === fill.text && !/locating/i.test(a2)),
         JSON.stringify({ before: a0, list: l1 && l1.kind, fill, after: a2, card: h2 && h2.title }));
-      await page.unroute(RX);
+      await page.evaluate(() => { const g = window.__snRevGate; if (g) { g.open = true; window.fetch = g.of; } });
       if ((await sh48()).on) await closeSheet();
       const fb = await page.evaluate(() => { const r = (id) => { const e = document.getElementById(id); const q = e.getBoundingClientRect(); return { x: Math.round(q.left), y: Math.round(q.top), w: Math.round(q.width), h: Math.round(q.height), vis: getComputedStyle(e).visibility }; }; return { on: document.getElementById("sn-sheet").classList.contains("on"), gps: r("gps"), me: r("sn-me") }; });
       check("the GPS and ME buttons go back to their places when the card closes", !!fabBase && !fb.on && JSON.stringify([fb.gps.x, fb.gps.y, fb.me.x, fb.me.y]) === JSON.stringify([fabBase.gps.x, fabBase.gps.y, fabBase.me.x, fabBase.me.y]) && fb.gps.vis === "visible" && fb.me.vis === "visible",
@@ -1021,7 +1034,8 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
     await c2.close();
   }
   console.log("SCREENSHOTS", SHOTDIR);
-  console.log(fails.length ? "HEADED 4349 FAIL: " + fails.join("; ") : "HEADED 4349 ALL PASS");
+  check("4350: the page never calls an Overpass server itself (Overpass only through /api/find, so no CORS error can reach the console)", opDirect.length === 0, JSON.stringify(opDirect.slice(0, 3)));
+  console.log(fails.length ? "HEADED 4350 FAIL: " + fails.join("; ") : "HEADED 4350 ALL PASS");
   await browser.close();
   process.exit(fails.length ? 2 : 0);
 })().catch((e) => { console.error("fail", e); process.exit(1); });

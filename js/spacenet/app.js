@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4349";
+  var VER = "4350";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -983,7 +983,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4349 = true;
+      window.__SN_4350 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -1928,28 +1928,69 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         maxZoom: 19, minZoom: 8,
         errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
       }).addTo(map);
-      /* a tile the OSM server refuses falls back once to the public CARTO raster of the same tile (no key) */
+      /* a tile the OSM server refuses falls back once to the public CARTO raster of the same tile (no key). 4350: OSM refusing
+         8 tiles in a row (no OSM tile loaded in between: blocked, 429) switches the whole layer to CARTO for the session */
+      var CARTO_URL = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png";
+      var tileSt = { src: "osm", max: osmT.options.maxZoom || 19, heals: 0, lastAt: 0, why: "", z: null, osmRun: 0, cartoErr: 0, vis: 0, ok: 0, err: 0, loading: 0 };
+      window.__snTiles = tileSt;
+      osmT.on("tileload", function (ev) { try { if (tileSt.src === "osm" && ev && ev.tile && !ev.tile.__snAlt) tileSt.osmRun = 0; } catch (eL) {} });
       osmT.on("tileerror", function (ev) {
         try {
           var t = ev && ev.tile, c = ev && ev.coords;
-          if (!t || !c || t.__snAlt) return;
+          if (!t || !c) return;
+          if (tileSt.src === "carto" || t.__snAlt) { tileSt.cartoErr++; return; }
           t.__snAlt = 1;
           var n = Math.pow(2, c.z), x = ((c.x % n) + n) % n;
           t.src = "https://" + "abcd".charAt((x + c.y) % 4) + ".basemaps.cartocdn.com/rastertiles/voyager/" + c.z + "/" + x + "/" + c.y + ".png";
+          if (++tileSt.osmRun >= 8) {
+            tileSt.src = "carto";
+            osmT.options.subdomains = "abcd";
+            setTimeout(function () { try { osmT.setUrl(CARTO_URL); } catch (eU) {} }, 0);
+          }
         } catch (eT) {}
       });
-      /* no visible loaded tile 2.5 s after a move: redraw the layer (never leave a grey or black sheet) */
-      var tileDogT = 0;
+      /* 4350 self-heal: no visible tile, or every visible tile errored, for over 1 s after a move: clamp the zoom to the tile max,
+         invalidateSize + redraw; checked again after 2, 3, 5, 9 s (5 heals per move at most). A plain sea tile is a loaded tile
+         (OSM sea #aad3df, grey-blue through the map filter), never healed; the placeholder is the map paper behind missing tiles */
+      function tileCount() {
+        var R = el.getBoundingClientRect(), ims = el.querySelectorAll(".leaflet-tile-pane img.leaflet-tile"), v = 0, ok = 0, er = 0, ld = 0;
+        for (var i = 0; i < ims.length; i++) {
+          var q = ims[i].getBoundingClientRect();
+          if (!(q.width > 0 && q.right > R.left && q.bottom > R.top && q.left < R.right && q.top < R.bottom)) continue;
+          v++;
+          if (!ims[i].complete) ld++; else if (ims[i].naturalWidth > 8) ok++; else er++;
+        }
+        tileSt.vis = v; tileSt.ok = ok; tileSt.err = er; tileSt.loading = ld;
+        return { v: v, ok: ok, er: er, ld: ld };
+      }
+      var healT = 0, healBadAt = 0, healTries = 0, inHeal = false;
+      function heal(why) {
+        var z = map.getZoom();
+        tileSt.heals++; tileSt.lastAt = Date.now(); tileSt.why = why; tileSt.z = z;
+        inHeal = true;
+        try { if (z > tileSt.max) map.setZoom(tileSt.max, { animate: false }); } catch (e1) {}
+        try { map.invalidateSize({ animate: false, pan: false }); } catch (e2) {}
+        try { osmT.redraw(); } catch (e3) {}
+        inHeal = false;
+      }
+      function healTick() {
+        healT = 0;
+        if (!map || !cityOn || (window.__snGrip && window.__snGrip.dragging && window.__snGrip.dragging())) { healBadAt = 0; return; }
+        if (map._animatingZoom) { healT = setTimeout(healTick, 250); return; }
+        var k = tileCount(), now = Date.now();
+        var bad = map.getZoom() > tileSt.max ? "over-max" : (k.v === 0 ? "none" : (k.er === k.v ? "errored" : ""));
+        if (!bad) { healBadAt = 0; if (k.ld) healT = setTimeout(healTick, 250); return; }
+        if (!healBadAt) healBadAt = now;
+        if (now - healBadAt < 1000) { healT = setTimeout(healTick, 250); return; }
+        heal(bad);
+        healBadAt = 0;
+        if (++healTries >= 5) return;
+        healT = setTimeout(healTick, 1000 * Math.pow(2, healTries - 1));
+      }
       map.on("moveend zoomend", function () {
-        clearTimeout(tileDogT);
-        tileDogT = setTimeout(function () {
-          try {
-            if (!cityOn) return;
-            var ims = el.querySelectorAll("img.leaflet-tile"), ok = 0;
-            for (var i = 0; i < ims.length; i++) if (ims[i].complete && ims[i].naturalWidth > 8) ok++;
-            if (!ok) osmT.redraw();
-          } catch (eD) {}
-        }, 2500);
+        if (inHeal) return;
+        clearTimeout(healT); healBadAt = 0; healTries = 0;
+        healT = setTimeout(healTick, 250);
       });
       el.addEventListener("wheel", function (e) {
         if (!map || !cityOn) return;
@@ -2375,7 +2416,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4349&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4350&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -4693,6 +4734,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         .then(function (p) { return [].concat(p[0] || [], p[1] || []); });
     };
   })(huntNominatim);
+  /* 4350: Overpass goes through our own /api/find (same origin, POST {op:"overpass"}): a refused, rate-limited or CORS-less
+     Overpass answer comes back there as {ok:false} with status 200, so the browser never logs a CORS error; a failed answer cools
+     Overpass for 2 min (a dropped connection still turns it off for the session); the landing never waits on it */
+  function overpassVia(data, ctrl) {
+    return fetch("/api/find", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ op: "overpass", data: data }), signal: ctrl && ctrl.signal, cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { if (!j || !j.ok || !Array.isArray(j.elements)) { overpassCool = Date.now() + 120000; return {}; } return j; });
+  }
   function huntOverpass(q) {
     if (!overpassUp()) return Promise.resolve([]);
     var seat = activeSeat() || here;
@@ -4701,8 +4750,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!safe) return Promise.resolve([]);
     var data = '[out:json][timeout:4];(nwr["name"~"' + safe + '",i](around:4000,' + seat.lat + "," + seat.lng + '););out center 12;';
     var ctrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
-    var t = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 4000) : null;
-    return fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: data, signal: ctrl && ctrl.signal }).then(function (r) { if (!r.ok) { overpassCool = Date.now() + 120000; return {}; } return r.json(); }).then(function (j) {
+    var t = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 6500) : null;
+    return overpassVia(data, ctrl).then(function (j) {
       return ((j && j.elements) || []).map(function (el) { el.src = "overpass"; return asPlace(el); }).filter(Boolean);
     }).catch(function (e) { overpassFail(e); return []; }).finally(function () { if (t) clearTimeout(t); });
   }
@@ -4712,8 +4761,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!seat || !isFinite(+seat.lat)) return Promise.resolve([]);
     var data = '[out:json][timeout:4];(nwr["amenity"~"^(restaurant|cafe|fast_food|bar|pharmacy)$"](around:2500,' + seat.lat + "," + seat.lng + ');nwr["shop"](around:2500,' + seat.lat + "," + seat.lng + '););out center 24;';
     var ctrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
-    var t = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 4000) : null;
-    return fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: data, signal: ctrl && ctrl.signal }).then(function (r) { if (!r.ok) { overpassCool = Date.now() + 120000; return {}; } return r.json(); }).then(function (j) {
+    var t = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 6500) : null;
+    return overpassVia(data, ctrl).then(function (j) {
       return uniqPlaces(((j && j.elements) || []).map(function (el) { el.src = "overpass"; return asPlace(el); }).filter(Boolean));
     }).catch(function (e) { overpassFail(e); return []; }).finally(function () { if (t) clearTimeout(t); });
   }
@@ -8060,7 +8109,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4349 = true;
+    window.__SN_4350 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
@@ -8085,6 +8134,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       huntState: function () { return huntView ? { needle: huntView.needle, rendered: huntView.rendered, findOnSheet: findOnSheet } : null; },
       addrOf: function (x) { return addrOf(x); }, photoOf: function (x) { return photoOf(x); },
       overpassState: function () { return { off: overpassOff, coolMs: Math.max(0, overpassCool - Date.now()) }; },
+      tileState: function () { var t = window.__snTiles; return t ? { src: t.src, max: t.max, heals: t.heals, lastAt: t.lastAt, why: t.why, z: t.z, osmRun: t.osmRun, cartoErr: t.cartoErr, vis: t.vis, ok: t.ok, err: t.err, loading: t.loading } : null; }, /* 4350 */
       seatState: function () { return { kind: seatKind, here: here, hereLive: hereLive, ip: ipView, perm: gpsPerm, liveLoaded: liveLoaded }; }
     };
     Object.defineProperty(window, "__SN_INTRO", { get: function () { return intro; } });

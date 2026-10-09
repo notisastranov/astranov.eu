@@ -362,6 +362,22 @@ module.exports = async function (req, res) {
     return res.status(204).end();
   }
   var n = req.method === "GET" ? req.query || {} : readBody(req);
+  // 4350: Overpass for the browser through this function (same origin, so a refusal or a rate limit is never a CORS error in the
+  // page); only [out:json][timeout:N] queries up to 700 chars; overpass-api.de first, overpass.kumi.systems second; always 200
+  if (String(n.op || "") === "overpass") {
+    cors(res, true);
+    var od = String(n.data || "");
+    if (!/^\[out:json\]\[timeout:\d{1,2}\];/.test(od) || od.length > 700) return res.status(200).json({ ok: false, error: "bad query", elements: [], meta: { mode: "overpass", build: BUILD } });
+    var osrc = "overpass-api.de", oj = null, ot = await grab("https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(od), 3500);
+    try { oj = ot ? JSON.parse(ot) : null; } catch (eO) { oj = null; }
+    if (!oj || !Array.isArray(oj.elements)) {
+      osrc = "overpass.kumi.systems";
+      ot = await grab("https://overpass.kumi.systems/api/interpreter?data=" + encodeURIComponent(od), 2500);
+      try { oj = ot ? JSON.parse(ot) : null; } catch (eK) { oj = null; }
+    }
+    if (!oj || !Array.isArray(oj.elements)) return res.status(200).json({ ok: false, error: "overpass unavailable", elements: [], meta: { mode: "overpass", build: BUILD } });
+    return res.status(200).json({ ok: true, elements: oj.elements.slice(0, 40), meta: { mode: "overpass", src: osrc, build: BUILD } });
+  }
   var a = parseQuery(String(n.q || n.name || "").slice(0, 80), String(n.city || n.place || "").slice(0, 80));
   var r = a.q,
     i = a.city;

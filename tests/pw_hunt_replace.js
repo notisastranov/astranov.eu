@@ -28,7 +28,7 @@ const path = require("path");
 const { chromium } = require("playwright");
 
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const URL0 = BASE + (BASE.indexOf("?") >= 0 ? "&" : "?") + "v=" + (process.env.STAMP || "4349") + "&t=" + Date.now();
+const URL0 = BASE + (BASE.indexOf("?") >= 0 ? "&" : "?") + "v=" + (process.env.STAMP || "4350") + "&t=" + Date.now();
 const PIZZA = /pizz|πιτσ|πίτσ|margherita|calzone/i;
 const MARKET = /market|super|grocer|convenience|παντοπωλ|σούπερ|σουπερ|μάρκετ|μαρκετ/i;
 const RHODES = { lat: 36.4349, lng: 28.2176 };
@@ -121,13 +121,17 @@ function sameSet(f) {
   const browser = await chromium.launch({ headless: true });
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, serviceWorkers: "block" });
   const page = await ctx.newPage();
-  let overpassHits = 0, overpassAfterFail = 0, overpassFailAt = 0;
+  /* 4350: Overpass goes through POST /api/find {op:"overpass"}; a request straight to an Overpass server is counted apart (must be 0) */
+  let overpassHits = 0, overpassAfterFail = 0, overpassFailAt = 0, overpassDirect = 0; const consoleErr = [];
+  const isOp = (r) => /\/api\/find/.test(r.url()) && r.method() === "POST" && /"op":"overpass"/.test(r.postData() || "");
   page.on("request", (r) => {
-    if (!/overpass-api\.de/.test(r.url())) return;
+    if (/overpass-api\.de|overpass\.kumi|\/api\/interpreter/.test(r.url())) overpassDirect++;
+    if (!isOp(r)) return;
     overpassHits++;
     if (overpassFailAt && Date.now() - overpassFailAt > 100) overpassAfterFail++;
   });
-  page.on("requestfailed", (r) => { if (/overpass-api\.de/.test(r.url()) && !overpassFailAt) overpassFailAt = Date.now(); });
+  page.on("requestfailed", (r) => { if (isOp(r) && !overpassFailAt) overpassFailAt = Date.now(); });
+  page.on("console", (m) => { if (m.type() === "error" && /overpass|CORS|Access-Control/i.test(m.text())) consoleErr.push(m.text().slice(0, 160)); });
   async function routeLocal(pg) {
     if (process.env.LOCAL_APP) {
       const body = fs.readFileSync(process.env.LOCAL_APP);
@@ -139,6 +143,11 @@ function sameSet(f) {
     }
   }
   await routeLocal(page);
+  /* 4350: with LOCAL_APP the live preview's /api/find has no Overpass proxy yet: POST {op:"overpass"} answered by this tree's api/find.js */
+  if (process.env.LOCAL_APP) { const fh = require(path.join(__dirname, "..", "api", "find.js"));
+    await page.route(/\/api\/find(\?|$)/, async (r) => { const q = r.request(); let b = null; try { b = q.method() === "POST" ? JSON.parse(q.postData() || "{}") : null; } catch (e) { b = null; }
+      if (!b || b.op !== "overpass") return r.fallback(); let st = 200, js = null; const rs = { setHeader() {}, status(s) { st = s; return rs; }, json(j) { js = j; return rs; }, end() { return rs; } };
+      await fh({ method: "POST", body: b, headers: {} }, rs); return r.fulfill({ status: st, contentType: "application/json", body: JSON.stringify(js) }); }); }
   await page.addInitScript(() => {
     window.__liveSeq = []; let last = null;
     setInterval(() => { const e = document.getElementById("sn-pulse"); const t = e ? e.textContent : ""; if (t !== last) { last = t; window.__liveSeq.push([Math.round(performance.now()), t]); } }, 50);
@@ -154,7 +163,7 @@ function sameSet(f) {
       await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(json) });
     });
   }
-  if (process.env.OVERPASS_FAIL) await page.route(/overpass-api\.de/, (route) => route.abort("connectionclosed"));
+  if (process.env.OVERPASS_FAIL) await page.route(/\/api\/find/, (route) => (isOp(route.request()) ? route.abort("connectionclosed") : route.fallback()));
   page.on("pageerror", (e) => console.log("[pageerror]", String(e).slice(0, 200)));
   if (process.env.SHOW_CONSOLE) page.on("console", (m) => { const t = m.text(); if (/^sn:/.test(t)) console.log("[console]", t.slice(0, 600)); });
   page.on("framenavigated", (fr) => { if (fr === page.mainFrame()) console.log("[nav]", fr.url().slice(0, 140)); });
@@ -182,7 +191,7 @@ function sameSet(f) {
   console.log("[boot]", JSON.stringify(boot));
   check(new RegExp("^LIVE · " + boot.expect + " vendors? on SpaceNet ·").test(boot.live) && boot.expect > 0, "boot LIVE counts the real public network (" + boot.expect + " listed, no fixtures)", boot.live);
   check(boot.latest === "LATEST " + boot.api && /^\d{4,}$/.test(String(boot.api)), "LATEST shows /api/version (" + boot.api + ")", boot.latest);
-  if (!process.env.LOCAL_APP) check(String(boot.api) === String(process.env.STAMP || "4349") && boot.ver === "V" + (process.env.STAMP || "4349"), "running build == LATEST == STAMP", boot.ver + " / " + boot.api);
+  if (!process.env.LOCAL_APP) check(String(boot.api) === String(process.env.STAMP || "4350") && boot.ver === "V" + (process.env.STAMP || "4350"), "running build == LATEST == STAMP", boot.ver + " / " + boot.api);
   check(!boot.tester, "TESTER ticker hidden for a guest");
   await page.screenshot({ path: path.join(SHOTS, "boot.png") });
 
@@ -409,6 +418,8 @@ function sameSet(f) {
   }
 
   console.log("overpass requests:", overpassHits, "after first failure:", overpassAfterFail, "state:", JSON.stringify(await page.evaluate(() => SN.overpassState && SN.overpassState())));
+  check(overpassDirect === 0, "4350: no request goes straight to an Overpass server (Overpass only through /api/find, same origin)", overpassDirect + " direct, " + overpassHits + " through /api/find");
+  check(consoleErr.length === 0, "4350: no Overpass / CORS error in the console", JSON.stringify(consoleErr.slice(0, 2)));
   if (process.env.OVERPASS_FAIL) check(overpassFailAt > 0 && overpassAfterFail === 0, "overpass backs off after the first connection failure", overpassHits + " total, " + overpassAfterFail + " after the first failure");
 
   await browser.close();
