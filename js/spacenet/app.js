@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4350";
+  var VER = "4351";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -983,7 +983,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4350 = true;
+      window.__SN_4351 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -1928,24 +1928,25 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         maxZoom: 19, minZoom: 8,
         errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
       }).addTo(map);
-      /* a tile the OSM server refuses falls back once to the public CARTO raster of the same tile (no key). 4350: OSM refusing
-         8 tiles in a row (no OSM tile loaded in between: blocked, 429) switches the whole layer to CARTO for the session */
-      var CARTO_URL = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png";
-      var tileSt = { src: "osm", max: osmT.options.maxZoom || 19, heals: 0, lastAt: 0, why: "", z: null, osmRun: 0, cartoErr: 0, vis: 0, ok: 0, err: 0, loading: 0 };
+      /* a tile the OSM server refuses falls back once to the same tile from the OSM Germany community server (keyless, same
+         data and sea colour, z19). 4351: CARTO now answers every tile with a grey "API KEY REQUIRED" image (HTTP 200), so it is
+         gone as a fallback. OSM refusing 8 tiles in a row (no OSM tile loaded in between: blocked, 429) switches the whole layer
+         to that server for the session */
+      var ALT_URL = "https://tile.openstreetmap.de/{z}/{x}/{y}.png";
+      var tileSt = { src: "osm", max: osmT.options.maxZoom || 19, heals: 0, lastAt: 0, why: "", z: null, osmRun: 0, altErr: 0, vis: 0, ok: 0, err: 0, loading: 0 };
       window.__snTiles = tileSt;
       osmT.on("tileload", function (ev) { try { if (tileSt.src === "osm" && ev && ev.tile && !ev.tile.__snAlt) tileSt.osmRun = 0; } catch (eL) {} });
       osmT.on("tileerror", function (ev) {
         try {
           var t = ev && ev.tile, c = ev && ev.coords;
           if (!t || !c) return;
-          if (tileSt.src === "carto" || t.__snAlt) { tileSt.cartoErr++; return; }
+          if (tileSt.src === "alt" || t.__snAlt) { tileSt.altErr++; return; }
           t.__snAlt = 1;
           var n = Math.pow(2, c.z), x = ((c.x % n) + n) % n;
-          t.src = "https://" + "abcd".charAt((x + c.y) % 4) + ".basemaps.cartocdn.com/rastertiles/voyager/" + c.z + "/" + x + "/" + c.y + ".png";
+          t.src = "https://tile.openstreetmap.de/" + c.z + "/" + x + "/" + c.y + ".png";
           if (++tileSt.osmRun >= 8) {
-            tileSt.src = "carto";
-            osmT.options.subdomains = "abcd";
-            setTimeout(function () { try { osmT.setUrl(CARTO_URL); } catch (eU) {} }, 0);
+            tileSt.src = "alt";
+            setTimeout(function () { try { osmT.setUrl(ALT_URL); } catch (eU) {} }, 0);
           }
         } catch (eT) {}
       });
@@ -2416,7 +2417,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4350&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4351&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -8109,7 +8110,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4350 = true;
+    window.__SN_4351 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
@@ -8134,7 +8135,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       huntState: function () { return huntView ? { needle: huntView.needle, rendered: huntView.rendered, findOnSheet: findOnSheet } : null; },
       addrOf: function (x) { return addrOf(x); }, photoOf: function (x) { return photoOf(x); },
       overpassState: function () { return { off: overpassOff, coolMs: Math.max(0, overpassCool - Date.now()) }; },
-      tileState: function () { var t = window.__snTiles; return t ? { src: t.src, max: t.max, heals: t.heals, lastAt: t.lastAt, why: t.why, z: t.z, osmRun: t.osmRun, cartoErr: t.cartoErr, vis: t.vis, ok: t.ok, err: t.err, loading: t.loading } : null; }, /* 4350 */
+      tileState: function () { var t = window.__snTiles; return t ? { src: t.src, max: t.max, heals: t.heals, lastAt: t.lastAt, why: t.why, z: t.z, osmRun: t.osmRun, altErr: t.altErr, vis: t.vis, ok: t.ok, err: t.err, loading: t.loading } : null; }, /* 4350 */
       seatState: function () { return { kind: seatKind, here: here, hereLive: hereLive, ip: ipView, perm: gpsPerm, liveLoaded: liveLoaded }; }
     };
     Object.defineProperty(window, "__SN_INTRO", { get: function () { return intro; } });

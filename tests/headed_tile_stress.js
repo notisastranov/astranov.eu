@@ -8,7 +8,7 @@
  * pixels classified: placeholder paper (#ece8df through the map filter = 190,189,186, +-3: plain land tiles read 195-197), OSM sea (#aad3df through the filter =
  * 153,166,169), dark (the globe behind a hidden map), or mixed. FAIL: a settled frame that stays uniform placeholder (or dark)
  * for over 1.5 s. A uniform OSM sea frame (every visible tile loaded) is open water and is counted, not failed.
- * SELF-HEAL (when SN.tileState exists): OSM blocked -> CARTO per tile and on the layer; every tile host blocked -> the heal
+ * SELF-HEAL (when SN.tileState exists): OSM blocked -> OSM Germany (tile.openstreetmap.de) per tile and on the layer (4351: CARTO answers a grey API KEY REQUIRED image); every tile host blocked -> the heal
  * (invalidateSize + redraw) fires within 2.5 s of moveend and the tiles come back without a reload once the hosts answer; emptied
  * tile containers -> heal; zoom past the tile max (maxZoom raised to 21, z20) -> blank, the heal clamps to the tile max.
  * Env: PREVIEW_URL, STAMP, LOCAL_APP, SHOTDIR, WIN, SCALE, CYCLES, SEED. Exit 2 on any FAIL.
@@ -17,18 +17,18 @@ const { chromium } = require("playwright");
 const { execSync } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4350";
+const STAMP = process.env.STAMP || "4351";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now();
 const [WW, WH] = (process.env.WIN || "1920x1200").split("x").map(Number);
 const SCALE = Number(process.env.SCALE || 1.5);
 const CYCLES = Number(process.env.CYCLES || 22);
-const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-tile-stress-4350";
+const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-tile-stress-4351";
 fs.mkdirSync(SHOTDIR, { recursive: true });
 if (!process.env.DISPLAY) process.env.DISPLAY = ":3";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const xdo = (a) => execSync("xdotool " + a, { env: process.env });
 let seed = Number(process.env.SEED || 4350); const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
-const GRAB = path.join(os.tmpdir(), "sn_tilegrab4350.py");
+const GRAB = path.join(os.tmpdir(), "sn_tilegrab4351.py");
 fs.writeFileSync(GRAB, `import sys, json, warnings
 warnings.filterwarnings("ignore")
 from PIL import ImageGrab, ImageStat
@@ -42,7 +42,7 @@ paper = sum(1 for p in px if near(p, (190, 189, 186), 3)) / n
 sea = sum(1 for p in px if near(p, (153, 166, 169), 6)) / n
 dark = sum(1 for p in px if p[0] + p[1] + p[2] < 75) / n
 st = ImageStat.Stat(im.convert("L"))
-print(json.dumps({"paper": round(paper, 3), "sea": round(sea, 3), "dark": round(dark, 3), "std": round(st.stddev[0], 1), "colors": len(sm.getcolors(1 << 22) or [])}))
+print(json.dumps({"paper": round(paper, 3), "sea": round(sea, 3), "dark": round(dark, 3), "std": round(st.stddev[0], 1), "colors": len(sm.getcolors(1 << 22) or []), "top": round(max([c for c, _ in (sm.getcolors(1 << 22) or [(n, 0)])]) / n, 3)}))
 `);
 const fails = [];
 function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (info ? " " + info : "")); if (!ok) fails.push(name); }
@@ -59,10 +59,10 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
       if (!b || b.op !== "overpass") return r.fallback(); let st = 200, js = null; const rs = { setHeader() {}, status(s) { st = s; return rs; }, json(j) { js = j; return rs; }, end() { return rs; } };
       await fh({ method: "POST", body: b, headers: {} }, rs); return r.fulfill({ status: st, contentType: "application/json", body: JSON.stringify(js) }); }); }
   await page.route(/\/api\/space/, (r) => (r.request().method() !== "GET" ? r.abort() : r.continue()));
-  const errors = [], tileNet = { osm: 0, carto: 0, bad: 0, st: {} };
+  const errors = [], tileNet = { osm: 0, alt: 0, bad: 0, st: {} };
   page.on("pageerror", (e) => errors.push(String(e)));
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text().slice(0, 200)); });
-  page.on("response", (r) => { const u = r.url(); if (/tile\.openstreetmap\.org/.test(u)) tileNet.osm++; else if (/cartocdn\.com/.test(u)) tileNet.carto++; else return; tileNet.st[r.status()] = (tileNet.st[r.status()] || 0) + 1; if (r.status() >= 400) tileNet.bad++; });
+  page.on("response", (r) => { const u = r.url(); if (/tile\.openstreetmap\.org/.test(u)) tileNet.osm++; else if (/tile\.openstreetmap\.de\//.test(u)) tileNet.alt++; else return; tileNet.st[r.status()] = (tileNet.st[r.status()] || 0) + 1; if (r.status() >= 400) tileNet.bad++; });
   await page.addInitScript(() => { window.addEventListener("mousemove", (e) => { window.__mm = [e.clientX, e.clientY]; }, true); });
   await page.goto(URL0, { waitUntil: "domcontentloaded", timeout: 90000 });
   await page.bringToFront(); await sleep(1500);
@@ -117,7 +117,7 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
     let layers = 0; m.eachLayer((l) => { if (l.getTileUrl) layers++; });
     const cs = getComputedStyle(el); const pane = document.querySelector(".leaflet-tile-pane");
     return { z: +m.getZoom().toFixed(2), c: [+m.getCenter().lat.toFixed(4), +m.getCenter().lng.toFixed(4)], vis: vis.length, ok: vis.filter((i) => i.complete && i.naturalWidth > 8).length,
-      err: vis.filter((i) => i.complete && i.naturalWidth <= 8).length, loading: vis.filter((i) => !i.complete).length, carto: vis.filter((i) => /cartocdn/.test(i.src)).length, layers,
+      err: vis.filter((i) => i.complete && i.naturalWidth <= 8).length, loading: vis.filter((i) => !i.complete).length, alt: vis.filter((i) => /tile\.openstreetmap\.de\//.test(i.src)).length, layers,
       op: cs.opacity, visib: cs.visibility, pane: pane ? pane.style.transform || "" : "none", anim: !!m._animatingZoom, heal: window.SN.tileState ? SN.tileState() : null }; });
   async function settle() { const t0 = Date.now(); while (Date.now() - t0 < 5000) { const ok = await page.evaluate(() => { const m = SN.getMap(); return !m._animatingZoom && window.__mvE >= window.__mvS && Date.now() - window.__mvE >= 250; }); if (ok) break; await sleep(80); } return Date.now() - t0; }
   let nAct = 0, nSamp = 0, nSea = 0, nPaperT = 0, nPaperStuck = 0; const badActs = [], seaActs = [];
@@ -196,25 +196,25 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
     if ((await sh()).on) await closeX(); if ((await sh()).on) await closeX();
     const waitDom = async (fn, ms) => { const t = Date.now(); let d; while (Date.now() - t < ms) { d = await tileDom(); if (fn(d)) return { d, ms: Date.now() - t }; await sleep(120); } return { d: await tileDom(), ms: null }; };
     const gridGrab = async (name) => JSON.parse(execSync(`python3 ${GRAB} ${path.join(SHOTDIR, name + ".png")} 1 ${Math.round(ox + 70)} ${Math.round(oy + 70)} ${geo.iw - 140} ${geo.ih - 260}`).toString());
-    // H1: OSM refuses every tile -> CARTO per tile, then the layer switches to CARTO
+    // H1: OSM refuses every tile -> OSM Germany per tile, then the layer switches to it (real map, not a one-colour placeholder)
     await page.route(/tile\.openstreetmap\.org/, (r) => r.abort("blockedbyclient"));
     await page.evaluate(() => SN.getMap().setView([36.0889, 28.0861], 15, { animate: false })); /* Lindos: tiles never loaded this session */
-    const h1 = await waitDom((d) => d.vis > 0 && d.carto === d.vis && d.ok === d.vis && d.heal && d.heal.src === "carto", 9000); await sleep(400);
-    const g1 = await gridGrab("heal-osm-blocked-carto");
+    const h1 = await waitDom((d) => d.vis > 0 && d.alt === d.vis && d.ok === d.vis && d.heal && d.heal.src === "alt", 9000); await sleep(400);
+    const g1 = await gridGrab("heal-osm-blocked-alt");
     console.log("[heal osm-blocked]", JSON.stringify(h1), JSON.stringify(g1));
-    check("OSM refusing every tile: each tile falls back to CARTO and the layer switches to CARTO (map drawn: real pixels)", h1.ms != null && g1.std >= 10 && g1.paper < 0.5, JSON.stringify({ ms: h1.ms, d: h1.d, px: g1 }).slice(0, 600));
+    check("OSM refusing every tile: each tile falls back to OSM Germany and the layer switches to it (map drawn: real pixels, no one-colour API-key / placeholder tile)", h1.ms != null && g1.std >= 10 && g1.paper < 0.5 && g1.top < 0.9, JSON.stringify({ ms: h1.ms, d: h1.d, px: g1 }).slice(0, 600));
     // H2: every tile host refuses -> every tile errored -> heal within 2.5 s of moveend; hosts back -> tiles back without a reload
-    await page.route(/cartocdn\.com/, (r) => r.abort("blockedbyclient"));
+    await page.route(/tile\.openstreetmap\.de\//, (r) => r.abort("blockedbyclient"));
     const n0 = (await page.evaluate(() => SN.tileState().heals));
     await page.evaluate(() => { window.__h2At = 0; SN.getMap().once("moveend", () => { window.__h2At = Date.now(); }); SN.getMap().setView([36.2687, 27.9967], 15, { animate: false }); }); /* Kalavarda */
     const h2 = await waitDom((d) => d.heal && d.heal.heals > n0, 6000);
     const h2dt = await page.evaluate(() => (SN.tileState().lastAt || 0) - window.__h2At);
     console.log("[heal all-blocked]", JSON.stringify(h2), "heal after moveend ms", h2dt);
     check("every tile errored for over 1 s after moveend: the self-heal (invalidateSize + redraw) fires within 2.5 s", h2.ms != null && h2dt >= 900 && h2dt <= 2500 && /error|none/.test(h2.d.heal.why || ""), JSON.stringify({ dt: h2dt, heal: h2.d.heal }));
-    await page.unroute(/cartocdn\.com/); await page.unroute(/tile\.openstreetmap\.org/);
+    await page.unroute(/tile\.openstreetmap\.de\//); await page.unroute(/tile\.openstreetmap\.org/);
     const h2b = await waitDom((d) => d.vis >= 4 && d.ok === d.vis, 12000); await sleep(400);
     const g2 = await gridGrab("heal-hosts-back");
-    check("tile hosts answering again: the map fills by itself (no reload, no user move)", h2b.ms != null && g2.std >= 10 && g2.paper < 0.5, JSON.stringify({ ms: h2b.ms, d: h2b.d, px: g2 }).slice(0, 500));
+    check("tile hosts answering again: the map fills by itself (no reload, no user move)", h2b.ms != null && g2.std >= 10 && g2.paper < 0.5 && g2.top < 0.9, JSON.stringify({ ms: h2b.ms, d: h2b.d, px: g2 }).slice(0, 500));
     // H3: emptied tile containers (no visible tile at all) -> heal
     const n3 = await page.evaluate(() => SN.tileState().heals);
     await page.evaluate(() => { document.querySelectorAll("#city .leaflet-tile-container").forEach((c) => { c.innerHTML = ""; }); SN.getMap().panBy([1, 0], { animate: false }); });
@@ -228,9 +228,11 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
     await page.evaluate(() => { const m = SN.getMap(); m.setMaxZoom(21); m.setZoom(20, { animate: false }); });
     const blank = await tileDom();
     const h4 = await waitDom((d) => d.heal.heals > n4b && d.z <= d.heal.max && d.vis > 0 && d.ok === d.vis, 8000);
+    /* the heal is the clamp; then let the z19 tiles arrive (the fallback host is slower than OSM) before the pixel check */
+    const h4f = await waitDom((d) => d.z <= d.heal.max && d.vis >= 6 && d.ok === d.vis && d.loading === 0, 10000); await sleep(500);
     const g4 = await gridGrab("heal-zoom-clamped");
     console.log("[heal zoom]", JSON.stringify({ blank, h4 }), JSON.stringify(g4));
-    check("zoom past the tile max (z20 > 19) is blank and the self-heal clamps it to the tile max with tiles back", blank.vis === 0 && h4.ms != null && h4.d.z <= 19 && g4.std >= 10, JSON.stringify({ blankVis: blank.vis, z: h4.d.z, ms: h4.ms, px: g4 }));
+    check("zoom past the tile max (z20 > 19) is blank and the self-heal clamps it to the tile max with tiles back", blank.vis === 0 && h4.ms != null && h4.d.z <= 19 && (g4.std >= 10 || g4.colors >= 600) && g4.top < 0.9 && g4.paper < 0.5, JSON.stringify({ blankVis: blank.vis, z: h4.d.z, ms: h4.ms, fullMs: h4f.ms, vis: h4f.d && h4f.d.vis, px: g4 }));
     await page.evaluate(() => SN.getMap().setMaxZoom(19));
   }
   const errs = errors.filter((e) => !/blockedbyclient|ERR_BLOCKED_BY_CLIENT|Failed to load resource/.test(e));
