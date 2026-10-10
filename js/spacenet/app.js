@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4357";
+  var VER = "4358";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1007,8 +1007,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (cam.pitch < -0.15) cam.pitch += dt * 0.05;
       return;
     }
-    if (intro) {
-      if (cam.dist < 1.7 || cam.dist > 2.05) cam.dist = 1.85;
+    if (!drag && !cityOn && tierI >= 2 && aim && cam.dist < 1.2) {
+      var held = face(aim);
+      cam.yaw = held.yaw;
+      cam.pitch = held.pitch;
+      vel.yaw = 0;
+      vel.pitch = 0;
       return;
     }
     if (!drag && tierI >= 2 && aim && !cityOn) {
@@ -1349,7 +1353,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4357 = true;
+      window.__SN_4358 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -2695,7 +2699,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       requestAnimationFrame(applyView);
     });
   }
-  function closeCity() {
+  function hideCity() {
     var el = $("city");
     if (el) {
       el.classList.remove("on");
@@ -2717,14 +2721,27 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     try { if (typeof drawGlobe === "function") drawGlobe(performance.now()); } catch (e) {}
     paintOrders();
   }
-  function goGlobal() {
-    closeCity();
-    intro = true;
-    tierI = 1;
+  function showGlobe(dist, name) {
+    hideCity();
     fly = null;
-    cam.pitch = 0.22;
-    cam.dist = TIERS[1].dist;
-    say("Global view.");
+    intro = dist > 1.4 && dist < 2.5;
+    if (intro) introT0 = performance.now();
+    cam.dist = dist;
+    tierI = dist > 3.2 ? 0 : dist > 1.4 ? 1 : 2;
+    if (aim && dist < 3) {
+      var f = face(aim);
+      cam.yaw = f.yaw;
+      cam.pitch = dist < 1.3 ? Math.max(-1.05, Math.min(1.05, f.pitch)) : 0.22;
+    }
+    if (canvas) canvas.style.display = "block";
+    say(name);
+  }
+  function goNational() { showGlobe(0.72, "National"); }
+  function closeCity() {
+    showGlobe(0.72, "National");
+  }
+  function goGlobal() {
+    showGlobe(1.85, "Global");
   }
   function listAt(pt) {
     /* 4356: no LOGIN wall here; the LIST card tells a guest that listing needs LOGIN, and persistListing saves nothing */
@@ -2994,7 +3011,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4357&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4358&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -9836,7 +9853,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4357 = true;
+    window.__SN_4358 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
