@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4335";
+  var VER = "4336";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -3998,7 +3998,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       });
       isle.appendChild(el);
     }
-    var bits = ["SPACENET"];
+    var bits = [];
     if (Date.now() < bootUntil || (upState && upState !== "UPDATED" && upState !== "CHECKING")) {
       bits.push("V" + VER + " LATEST " + (latestVer || "…") + " " + (upState || ""));
     }
@@ -4007,7 +4007,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var text = bits.filter(Boolean).join("    ·    ");
     if (text === tickShown) return;
     tickShown = text;
-    el.innerHTML = "<b>" + esc(text + "    ·    " + text) + "</b>";
+    el.innerHTML = text ? ("<b>" + esc(text + "    ·    " + text) + "</b>") : "";
   }
   function forceUpdate() {
     var target = latestVer || VER;
