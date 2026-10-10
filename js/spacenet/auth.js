@@ -50,24 +50,33 @@
   }
   function user() { try { return JSON.parse(read("sn:user", "null") || "null"); } catch (e) { return null; } }
   function token() { return read("sn:access", ""); }
-  function google() {
+  function google(extra) {
     loadCfg(function () {
       var dest = location.origin + "/?auth=google";
       write("sn:auth-back", location.href.split("#")[0]);
       var ver = rnd(64);
       write("sn:pkce", ver);
       talk("Opening Google…");
+      var scopes = "email profile";
+      if (extra) scopes += " " + extra;
       challenge(ver).then(function (ch) {
         location.href = SB + "/auth/v1/authorize?provider=google"
           + "&redirect_to=" + encodeURIComponent(dest)
+          + "&scopes=" + encodeURIComponent(scopes)
           + "&code_challenge=" + encodeURIComponent(ch)
           + "&code_challenge_method=S256"
           + (ANON ? "&apikey=" + encodeURIComponent(ANON) : "");
       }).catch(function () {
-        location.href = SB + "/auth/v1/authorize?provider=google&redirect_to=" + encodeURIComponent(dest);
+        location.href = SB + "/auth/v1/authorize?provider=google&redirect_to=" + encodeURIComponent(dest)
+          + "&scopes=" + encodeURIComponent(scopes);
       });
     });
   }
+  function youtube() {
+    write("sn:yt-want", "1");
+    google("https://www.googleapis.com/auth/youtube.readonly");
+  }
+  function yt() { return read("sn:yt", ""); }
   function x() {
     loadCfg(function () {
       var dest = location.origin + "/?auth=x";
@@ -79,7 +88,7 @@
   }
   function out() {
     var t = token();
-    write("sn:user", ""); write("sn:access", ""); write("sn:pkce", "");
+    write("sn:user", ""); write("sn:access", ""); write("sn:pkce", ""); write("sn:yt", "");
     if (t) fetch(SB + "/auth/v1/logout", { method: "POST", headers: headers({ Authorization: "Bearer " + t }) }).catch(function () {});
     paintMe();
     if (window.SN && SN.paintMoney) SN.paintMoney();
@@ -116,6 +125,8 @@
       return Promise.resolve(false);
     }
     var at = hq.get("access_token");
+    var ytHash = hq.get("provider_token");
+    if (ytHash) write("sn:yt", ytHash);
     var code = search.get("code");
     function clean() {
       history.replaceState({}, "", location.pathname);
@@ -136,6 +147,7 @@
         .then(function (r) { return r.json(); })
         .then(function (j) {
           write("sn:pkce", "");
+          if (j && j.provider_token) write("sn:yt", j.provider_token);
           if (j && j.access_token) return takeUser(j.access_token);
           talk((j && (j.error_description || j.msg || j.error)) || "Google code was not exchanged.");
           return false;
@@ -193,8 +205,14 @@
     var name = inNow ? (u.name || u.email) : "Guest";
     var mail = inNow ? u.email : "Not signed in";
     var tel = (u && u.phone) || read("sn:phone", "") || "";
+    var mine = "";
+    try { if (inNow && window.SN && SN.avcGet) mine = Math.round(SN.avcGet()).toLocaleString("en-GB") + " AV€"; } catch (e) {}
     body.innerHTML =
       '<div class="who">' + face(u) + "<div><b>" + String(name).replace(/[<>]/g, "") + "</b><span>" + (inNow ? "IN · " + String(mail).replace(/[<>]/g, "") : "OUT") + "</span></div></div>" +
+      (inNow && mine ? '<p class="note">YOUR MONEY · ' + mine + "</p>" : "") +
+      (inNow
+        ? '<button type="button" class="go" data-act="youtube">' + (read("sn:yt", "") ? "YOUTUBE ON · REFRESH" : "AUTHORIZE YOUTUBE") + "</button>"
+        : "") +
       (inNow
         ? '<button type="button" class="go" data-act="out">SIGN OUT</button>'
         : '<button type="button" class="go" data-act="google">GOOGLE</button>') +
@@ -222,6 +240,7 @@
         var act = b && b.getAttribute("data-act");
         if (act === "close") { sh.classList.remove("on"); return; }
         if (act === "google") { google(); return; }
+        if (act === "youtube") { youtube(); return; }
         if (act === "twitter") { x(); return; }
         if (act === "out") { out(); fillBody(); return; }
         if (act === "terms") { talk("Terms: work legal at that GPS. Notis activates roles."); return; }
@@ -263,7 +282,7 @@
       applyReturn().then(function () { paintMe(); });
     });
   }
-  window.SNAuth = { google: google, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
+  window.SNAuth = { google: google, youtube: youtube, yt: yt, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 })();
