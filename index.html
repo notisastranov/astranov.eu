@@ -3,7 +3,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4357"/>
+<meta name="astranov-build" content="4356"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
@@ -159,7 +159,7 @@ body.sn-support #sn-desk{display:block}
 html,body{margin:0!important;padding:0!important}
 #top{top:0!important;margin:0!important;padding:0!important}
 #island{padding:0 12px 4px!important}
-#island .r2,#line{display:none!important}#island{height:32px!important;max-height:32px!important;overflow:hidden!important;padding:0 36px!important}#top{height:auto!important;min-height:42px!important;max-height:none!important;overflow:visible!important}
+#sn-topchrome-drag,#cli-drag{display:none!important;height:0!important;min-height:0!important;max-height:0!important}#island .r2,#line{display:none!important}#island{height:32px!important;max-height:32px!important;overflow:hidden!important;padding:0 36px!important}#top{height:32px!important;max-height:32px!important;overflow:hidden!important}
 #sn-tasks-btn,#sn-find-btn,#sn-node-btn,#sn-filters,.hud-row,.hud-row.mat{display:none!important;visibility:hidden!important}
 .sheet-go{height:30px!important;margin:4px 0 0!important;font:700 12px/30px system-ui!important}
 .sn-price{margin:4px 0 0;font:800 56px/0.9 system-ui;letter-spacing:-.04em;color:#4df0ff;text-shadow:0 0 18px rgba(77,240,255,.85)}
@@ -181,6 +181,7 @@ html,body{margin:0!important;padding:0!important}
 .leaflet-container .leaflet-marker-pane img{width:40px!important;height:40px!important;max-width:40px!important;max-height:40px!important;object-fit:cover!important}.leaflet-marker-icon.sn-shop-pin{overflow:hidden!important;width:76px!important;height:62px!important}</style>
 </head>
 <body>
+<script>document.documentElement.classList.add("sn-global");</script>
 <canvas id="g"></canvas>
 <script>
 setTimeout(function () {
@@ -211,7 +212,7 @@ setTimeout(function () {
 <div id="top">
   <div id="sn-topchrome-drag" class="sn-trivial-law" aria-hidden="true"></div>
   <div id="island">
-    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">Astranov.Eu SpaceNet V4357</button><span id="ver">V4357</span><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
+    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">Astranov.Eu SpaceNet V4356</button><span id="ver">V4356</span><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
     <div class="r2"><span id="sn-local">-</span><span id="sn-utc">-</span><span id="sn-wx"></span><span id="sn-node"></span><canvas id="sn-spark" width="120" height="28"></canvas></div>
   </div>
 
@@ -252,18 +253,25 @@ setTimeout(function () {
 </div>
 <div id="sn-tasks"><div class="bg" data-act="hide"></div><div class="card"><div class="sheet-bar"><button type="button" class="sheet-x" data-act="hide" aria-label="Close">✕</button><b class="sheet-ttl">JOBS</b><button type="button" class="sheet-apply" data-act="hide" aria-label="Apply">✓</button></div><div id="sn-tasks-list"></div></div></div>
 <div id="sn-sheet"><div class="bg"></div><div class="card" id="sn-sheet-card"></div></div>
-<div id="dock"><div id="panel"><div id="cli-drag" class="sn-trivial-law" aria-hidden="true"></div><div id="sn-tabs"></div><div id="line"></div><form id="f"><input id="in" autocomplete="off" enterkeyhint="send" placeholder="Command the HUD · show, hide, or reshape"/></form></div></div>
+<div id="dock"><div id="panel"><div id="cli-drag" class="sn-trivial-law" aria-hidden="true"></div><div id="sn-tabs"></div><div id="line"></div><form id="f"><input id="in" autocomplete="off" enterkeyhint="send" placeholder="Ask Grok"/></form></div></div>
 <input id="sn-file" type="file" accept="image/*,application/pdf,text/*" hidden/>
 <script src="/js/vendor/leaflet.js?v=4127"></script>
-<script src="/js/spacenet/app.js?v=4357"></script>
-<script src="/js/spacenet/auth.js?v=4357"></script>
+<style id="sn-lock">
+html:not(.sn-street) #city{display:none!important;visibility:hidden!important;pointer-events:none!important}
+html.sn-street #city{display:block!important;visibility:visible!important;z-index:12!important}
+#g{display:block!important;background:#02060c!important}
+#sn-sheet,#sn-tasks,#sn-support-sheet{pointer-events:none!important}
+#sn-sheet.on .card,#sn-tasks.on .card,#sn-support-sheet.on{pointer-events:auto!important}
+</style>
+<script src="/js/spacenet/app.js?v=4356"></script>
+<script src="/js/spacenet/auth.js?v=4356"></script>
 <script src="/guardian.js?v=4295"></script>
 <script>
 (function(){
   function law(){
     var s=document.getElementById("sn-handle-law");
     if(!s){s=document.createElement("style");s.id="sn-handle-law";document.head.appendChild(s);}
-    s.textContent="#sn-topchrome-drag,#cli-drag{display:block!important;height:10px!important;min-height:10px!important;max-height:10px!important;font-size:0!important;line-height:0!important;color:transparent!important;overflow:hidden!important;background:transparent!important;border:0!important;padding:0!important;margin:0!important}";
+    s.textContent="#sn-topchrome-drag,#cli-drag{display:block!important;height:10px!important;min-height:10px!important;max-height:10px!important;font-size:0!important;line-height:0!important;color:transparent!important;overflow:hidden!important;background:transparent!important}";
   }
   law();
   addEventListener("load", law);
