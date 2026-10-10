@@ -32,6 +32,9 @@ var TEXT_KEYS = [
 ];
 var JSON_KEYS = ["avc", "ride", "held", "presence", "routes", "vehicles", "shop", "holdMin", "strict"];
 var WRITE_KINDS = { shop: 1, driver: 1, job: 1, peer: 1, gap: 1, post: 1, drop: 1 };
+/* 4354: one shop, one delivery address and one driver listing per signed-in user: an APPLY updates that row in place */
+var ONE_PER_USER = { shop: 1, drop: 1, driver: 1 };
+var ADMIN_MAIL = { "notisastranov@gmail.com": 1, "info@astranov.eu": 1 };
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -317,11 +320,33 @@ module.exports = async function handler(req, res) {
     res.status(400).json({ ok: false, error: "row" });
     return;
   }
+  let id = String(row.id).slice(0, 64);
+  let reused = false;
+  if (ONE_PER_USER[row.kind]) {
+    const mail = String(who.email || who.id || "").toLowerCase();
+    const adminPut = !!ADMIN_MAIL[mail] && row.how === "admin-put"; /* the administrator's "Put a vendor here" test pins */
+    if (!adminPut && mail) {
+      row.customerPeer = mail;
+      const same = await sb("sn_listings?" + new URLSearchParams({ select: "id,customerPeer:body->>customerPeer", id: "eq." + id }).toString());
+      const other = same.ok && Array.isArray(same.json) && same.json[0] && same.json[0].customerPeer && String(same.json[0].customerPeer).toLowerCase() !== mail;
+      if (other && !ADMIN_MAIL[mail]) {
+        res.status(403).json({ ok: false, error: "not yours" });
+        return;
+      }
+      if (!other) {
+        const mine = await sb("sn_listings?" + new URLSearchParams({ select: "id", kind: "eq." + row.kind, "body->>customerPeer": "eq." + mail, order: "updated_at.desc", limit: "1" }).toString());
+        const prev = mine.ok && Array.isArray(mine.json) && mine.json[0] && mine.json[0].id;
+        if (prev && String(prev) !== id) { id = String(prev).slice(0, 64); reused = true; }
+      }
+    }
+    if (row.how === "admin-put") delete row.how;
+  }
+  row.id = id;
   const put = await sb("sn_listings?on_conflict=id", {
     method: "POST",
     headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
     body: JSON.stringify({
-      id: String(row.id).slice(0, 64),
+      id: id,
       kind: String(row.kind).slice(0, 16),
       lat: Number(row.lat),
       lng: Number(row.lng),
@@ -329,5 +354,5 @@ module.exports = async function handler(req, res) {
       updated_at: new Date().toISOString(),
     }),
   });
-  res.status(200).json({ ok: put.ok, local: !put.ok, status: put.status });
+  res.status(200).json({ ok: put.ok, local: !put.ok, status: put.status, id: id, updated: reused });
 };

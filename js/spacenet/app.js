@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4353";
+  var VER = "4354";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -188,6 +188,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       return mail === "notisastranov@gmail.com" || mail === "info@astranov.eu";
     } catch (e) { return false; }
   }
+  /* 4354: the signed-in owner of a listed shop (server rows carry the owner as customerPeer) */
+  function ownsShop(s) {
+    if (!s || !signed()) return false;
+    var who = String(me() || "");
+    return !!who && (String(s.owner || "") === who || String(s.customerPeer || "") === who);
+  }
   function me() {
     try {
       var u = window.SNAuth && SNAuth.user && SNAuth.user();
@@ -259,7 +265,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!s || s.status === "denied") return false;
     /* Test Vendor / TESTER rows: never in FIND, LIVE or the public field — admin test view only */
     if (isTestFixture(s)) return testView();
-    if (s.status === "pending" && !isAdmin()) return false;
+    if (s.status === "pending" && !isAdmin() && !ownsShop(s)) return false; /* 4354: the owner sees their own pending shop */
     if (isAdmin()) return true;
     if (wall(me(), s.owner || "") || wall(me(), s.id)) return false;
     return true;
@@ -1113,7 +1119,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4353 = true;
+      window.__SN_4354 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -1418,6 +1424,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
      DOM: picks, scroll, photo) and LIST's red X (or the X of a form opened from LIST) puts it back exactly; another pin card
      or any other close drops it (its picks go to the pick memory first) */
   var listBack = null;
+  var editShop = null; /* 4354: the shop EDIT MY SHOP opened (save-place updates it in place) */
   /* 4349: the same stash keeps a pin card that the single-click close took while a double click may still come: if the
      second click of the pair lands inside DBL_MS / DBL_PX the card comes back exactly (same DOM: picks, scroll, photo) and
      the map centres + zooms in; once the window has passed the stash is dropped (its picks go to the pick memory first) */
@@ -1482,6 +1489,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     window.__snCardBack = { why: why || "", kind: b.kind, title: b.title, scroll: b.scroll, picks: cartPicks(), away: Date.now() - b.at, at: Date.now() };
     if (!quiet) say("Back to " + (b.title || "the card") + ".");
     return true;
+  }
+  /* 4354: the vendor a LIST action is about: the vendor card under LIST (stashed), else the open vendor card */
+  function targetVendor() {
+    if (listBack && listBack.kind === "vendor" && listBack.vendor) return listBack.vendor;
+    var sh = $("sn-sheet");
+    if (sh && sh.classList.contains("on") && sh.getAttribute("data-kind") === "vendor" && vendor) return vendor;
+    return null;
   }
   function cardBack(why) {
     var b = listBack;
@@ -2484,6 +2498,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       '<button type="button" class="sheet-go" data-act="form-drop">CLIENT</button>' +
       '<button type="button" class="sheet-go" data-act="form-driver">DRIVER</button>' +
       '<button type="button" class="sheet-go" data-act="form-post">Post a photo, video, or text</button>';
+    var tgtL = (listBack && listBack.kind === "vendor") ? listBack.vendor : ((function () { var sh = $("sn-sheet"); return sh && sh.classList.contains("on") && sh.getAttribute("data-kind") === "vendor" ? vendor : null; })());
+    if (tgtL && tgtL.src === "listed" && (ownsShop(tgtL) || isAdmin())) {
+      html += '<button type="button" class="sheet-go primary" data-act="move-vendor" data-id="' + esc(tgtL.id) + '">Move ' + esc(tgtL.name || "my shop") + ' here</button>';
+    }
     if (isAdmin()) {
       html += '<button type="button" class="sheet-go primary" data-act="i-am-driver">I AM THE DRIVER HERE</button>' +
         '<button type="button" class="sheet-go" data-act="run-offer">Start the order · closest driver</button>' +
@@ -2533,6 +2551,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       headers: { "Content-Type": "application/json", Authorization: t ? "Bearer " + t : "" },
       body: JSON.stringify({ row: pub })
     }).then(function (res) {
+      if (res && res.ok && res.json) {
+        res.clone().json().then(function (j) {
+          /* 4354: the server keeps ONE shop / delivery address / driver per user and answers with the id it updated */
+          if (j && j.id && String(j.id) !== String(row.id)) adoptId(row.id, j.id);
+        }).catch(function () {});
+      }
       if (res && res.status === 401) {
         say("Sign in to save.");
         try {
@@ -2545,6 +2569,26 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         try { paintShopsOnMap(); } catch (e2) {}
       }
     }).catch(function () {});
+  }
+  function adoptId(oldId, newId) {
+    oldId = String(oldId); newId = String(newId);
+    try {
+      var mine = JSON.parse(localStorage.getItem("sn:mine") || "[]") || [];
+      var keep = null;
+      mine = mine.filter(function (r) {
+        if (!r) return false;
+        if (String(r.id) === oldId) { if (!keep) { r.id = newId; keep = r; return true; } return false; }
+        return String(r.id) !== newId || !keep;
+      });
+      localStorage.setItem("sn:mine", JSON.stringify(mine));
+    } catch (e) {}
+    shops.forEach(function (sx) { if (sx && String(sx.id) === oldId) sx.id = newId; });
+    shops = uniqPlaces(shops);
+    people.forEach(function (px) { if (px && String(px.id) === oldId) px.id = newId; });
+    savePeople();
+    if (vendor && String(vendor.id) === oldId) vendor.id = newId;
+    window.__snAdopt = { from: oldId, to: newId, at: Date.now() };
+    try { paintShopsOnMap(); } catch (e2) {}
   }
   function shrinkPhoto(src, max, done) {
     var img = new Image();
@@ -2604,9 +2648,25 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function photoSlot(key) {
     return '<button type="button" class="sn-photo" data-act="pick-shot" data-k="' + key + '"><img id="sn-shot-' + key + '" alt="" hidden><span>PHOTO</span></button>';
   }
-  function addMenuRow() {
+  function rowEmpty(row) {
+    if (!row) return true;
+    var any = false;
+    Array.prototype.forEach.call(row.querySelectorAll("input"), function (i) { if (String(i.value || "").trim()) any = true; });
+    var im = row.querySelector("img");
+    if (im && !im.hidden && im.getAttribute("src")) any = true;
+    return !any;
+  }
+  function addMenuRow(force) {
     var box = $("sn-rows");
     if (!box) return;
+    /* 4354: ADD A MENU ROW with an empty last row focuses that row instead of stacking another empty one */
+    var rows0 = box.querySelectorAll(".sn-row"), last0 = rows0[rows0.length - 1];
+    if (!force && last0 && rowEmpty(last0)) {
+      var d0 = last0.querySelector(".c-desc");
+      try { if (d0) d0.focus(); } catch (eF) {}
+      say("Fill this row first.");
+      return;
+    }
     var row = document.createElement("div");
     row.className = "sn-row";
     row.innerHTML = '<button type="button" class="phbtn" data-act="row-photo"><img alt="" hidden><span>+</span></button>' +
@@ -2625,7 +2685,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     box.querySelectorAll(".sn-row").forEach(function (row) {
       var desc = row.querySelector(".c-desc");
       var name = desc ? String(desc.value || "").trim() : "";
-      if (!name) return;
+      if (!name) { if (!rowEmpty(row)) window.__snRowNoName = (window.__snRowNoName || 0) + 1; return; }
       var price = row.querySelector(".c-price");
       var qty = row.querySelector(".c-qty");
       var when = row.querySelector(".c-when");
@@ -2693,7 +2753,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4353&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4354&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3706,10 +3766,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     try { localStorage.setItem("sn:people", JSON.stringify(people.slice(0, 40))); } catch (e) {}
   }
   function moveVendor(id, pt) {
-    if (!isAdmin() || !pt) return;
+    if (!pt) return;
     var shop = null;
+    shops.forEach(function (s) { if (!shop && s && String(s.id) === String(id)) shop = s; });
+    if (!shop && vendor && String(vendor.id) === String(id)) shop = vendor;
+    /* 4354: the administrator, or the shop's own owner, moves it */
+    if (!isAdmin() && !ownsShop(shop)) { say("Only the shop's owner moves it."); return; }
     shops.forEach(function (s) {
-      if (s && String(s.id) === String(id)) { s.lat = pt.lat; s.lng = pt.lng; shop = s; }
+      if (s && String(s.id) === String(id)) { s.lat = pt.lat; s.lng = pt.lng; }
     });
     try {
       var mine = JSON.parse(localStorage.getItem("sn:mine") || "[]") || [];
@@ -3723,6 +3787,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     });
     saveJobs();
     if (vendor && String(vendor.id) === String(id)) { vendor.lat = pt.lat; vendor.lng = pt.lng; }
+    if (shop && shop.src === "listed") {
+      /* 4354: the move lands on SpaceNet as an update of the same row */
+      persistListing({ id: shop.id, kind: "shop", place: shop.kind || shop.place || "shop", name: shop.name, phone: shop.phone || "", address: shop.address || "",
+        menu: shop.menu || [], lat: pt.lat, lng: pt.lng, photo: shop.photo || "", status: shop.status || "live", owner: shop.owner || me(), customerPeer: shop.customerPeer || shop.owner || me() });
+    }
+    window.__snMoved = { id: String(id), lat: pt.lat, lng: pt.lng, at: Date.now() };
     paintShopsOnMap();
     if (vendor && drop) drawRoute(vendor, drop);
     say((shop && shop.name || "Vendor") + " moved.");
@@ -3812,7 +3882,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var no = ordered ? ordered.indexOf(s) + 1 : 0;
       var mark;
       if (L.divIcon) { /* every FIND row is a labelled pin, not a faint dot */
-        mark = L.marker(ll, { icon: faceIcon("vendor", s.photo, s.name || "shop", no), zIndexOffset: 500 + (no ? 100 - Math.min(99, no) : 0), draggable: false, bubblingMouseEvents: false, keyboard: false });
+        mark = L.marker(ll, { icon: faceIcon("vendor", s.photo, s.name || "shop", no), zIndexOffset: 500 + (no ? 100 - Math.min(99, no) : 0), draggable: !!(s.src === "listed" && (ownsShop(s) || isAdmin())), bubblingMouseEvents: false, keyboard: false });
       } else {
         mark = L.circleMarker(ll, { radius: s.src === "listed" ? 10 : 8, color: s.src === "listed" ? "#4df0ff" : "#7ee9ff", fillColor: "#0a2030", fillOpacity: 0.95, weight: 2 });
       }
@@ -3824,7 +3894,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       mark.__snId = s.id || s.name;
       try { var orgK = huntOrigin(); mark.__snKm = orgK && isFinite(+orgK.lat) ? haversineKm(orgK, s) : fi; } catch (eK) { mark.__snKm = fi; }
       mark.bindTooltip((s.name || "shop") + (s.aka ? " · " + s.aka : "") + tipExtra, { direction: "top", sticky: true });
-      if (isAdmin() && s.src === "listed") {
+      if (s.src === "listed" && (ownsShop(s) || isAdmin())) {
         mark.on("dragend", function () {
           var ll = mark.getLatLng();
           moveVendor(s.id, { lat: ll.lat, lng: ll.lng });
@@ -4797,7 +4867,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var pool = uniqPlaces((shops || []).filter(function (s) {
       if (!s || !isFinite(+s.lat) || !isFinite(+s.lng)) return false;
       if (!seesShop(s)) return false;
-      if (s.status === "pending" && !isAdmin()) return false;
+      if (s.status === "pending" && !isAdmin() && !ownsShop(s)) return false;
       if (hasSeat && haversineKm(seat, s) > 50) return false;
       if (huntView && huntView.needle && !huntMatch(s, huntView.needle)) return false;
       if (huntView && huntView.nameQ && !huntView.pending) {
@@ -5140,6 +5210,31 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         .filter(function (p) { return p && nearSeat(p, 50); });
     });
   }
+  /* 4354: Overpass 504s (or every source failing) never leave a hunt empty if this hunt found real pins here before:
+     the last real answer per hunt and ~1 km seat is kept 24 h and used only when the live sources return nothing */
+  function huntCache(q, seat, rows) {
+    var key = "sn:hunt:" + foldTxt(String(q || "")).trim().slice(0, 40) + "@" + (seat && isFinite(+seat.lat) ? (+seat.lat).toFixed(2) + "," + (+seat.lng).toFixed(2) : "-");
+    try {
+      var needle = huntView && huntView.needle;
+      var real = (rows || []).filter(function (r) { return r && (!needle || huntMatch(r, needle)); });
+      /* only outside sources (OSM / Photon / Nominatim) decide "live worked": our own listed rows alone must not
+         overwrite or block the last real pins when Overpass and the rest fail */
+      var outside = real.filter(function (r) { return r.src !== "listed"; });
+      if (outside.length) {
+        var slimR = real.slice(0, 24).map(function (r) { return { id: r.id, name: r.name, lat: r.lat, lng: r.lng, kind: r.kind, phone: r.phone || "", address: r.address || "", street: r.street || "", src: r.src || "", osm: r.osm || "" }; });
+        localStorage.setItem(key, JSON.stringify({ t: Date.now(), rows: slimR }));
+        window.__snHuntCache = { key: key, used: false, n: real.length, src: real.slice(0, 6).map(function (r) { return (r.src || "?") + ":" + r.name; }) };
+        return rows;
+      }
+      var c = JSON.parse(localStorage.getItem(key) || "null");
+      if (c && c.rows && c.rows.length && Date.now() - c.t < 86400000) {
+        window.__snHuntCache = { key: key, used: true, n: c.rows.length };
+        return uniqPlaces((rows || []).concat(c.rows.map(function (r) { r.cached = true; return r; }).filter(function (p) { return nearSeat(p, 50); })));
+      }
+    } catch (e) {}
+    window.__snHuntCache = { key: key, used: false, n: 0 };
+    return rows || [];
+  }
   function huntRace(p, ms) {
     return Promise.race([
       p.catch(function () { return []; }),
@@ -5240,6 +5335,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var merged = uniqPlaces([].concat(packs[0] || [], packs[1] || [], packs[2] || [], packs[3] || []))
           .filter(function (p) { return nearSeat(p, 50); });
         if (huntView && huntView.nameQ) merged = nameField(merged, packs, huntView.nameQ);
+        merged = huntCache(named || q, seat0, merged);
         shops = merged;
         huntCtrl = null;
         showFound();
@@ -5431,7 +5527,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       feeHtml +
       '<button type="button" class="sheet-go primary" data-act="place-order">ORDER</button>' +
       (orders ? '<p class="note">CHARGED</p>' + orders : "") +
-      '<p class="note">MENU · tap + then ORDER</p>' + menu;
+      '<p class="note">MENU · tap + then ORDER</p>' + menu +
+      ((s.src === "listed" && (ownsShop(s) || isAdmin())) ? '<button type="button" class="sheet-go" data-act="edit-vendor">' + (ownsShop(s) ? "EDIT MY SHOP" : "EDIT THIS SHOP") + "</button>" : "");
     openTile({ kind: "vendor", title: s.name || "VENDOR", html: html });
     try { var shV = $("sn-sheet"); if (shV) { shV.setAttribute("data-vkey", vKey(s)); pickLoad($("sn-sheet-card"), vKey(s)); } } catch (eV) {}
     try {
@@ -7324,6 +7421,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }
       }
       var t = e.target && e.target.closest ? e.target.closest("[data-act]") : e.target;
+      /* 4354: a tap on a menu row's name, price or photo picks it, the same as its + */
+      if (!(t && t.getAttribute && t.getAttribute("data-act")) && e.target && e.target.closest) {
+        var pkRow = e.target.closest("#sn-sheet .sn-pick");
+        var pkMore = pkRow && !e.target.closest("button,input,a,textarea") && pkRow.querySelector('[data-act="pick-more"]');
+        if (pkMore) t = pkMore;
+      }
       var act = t && t.getAttribute && t.getAttribute("data-act");
       if (!act) return;
       if (act === "sheet-x") {
@@ -7423,11 +7526,38 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var left = item.qty === "" || item.qty == null ? "" : " · " + item.qty + " in stock";
         say((item.name || "item") + left + ". Set the drop, then send. Stock counts down on the order.");
       }
+      if (act === "edit-vendor") {
+        var es = vendor;
+        if (!es || !(ownsShop(es) || isAdmin())) { say("Only the shop's owner edits it."); return; }
+        editShop = es;
+        listPt = { lat: +es.lat, lng: +es.lng };
+        shots.place = "";
+        placePhoto = es.photo || "";
+        openSheet("EDIT VENDOR", vendorSheet(), true);
+        var fv = function (id, v) { var el = $(id); if (el) el.value = v || ""; };
+        fv("sn-place-name", es.name); fv("sn-place-phone", es.phone); fv("sn-place-address", es.address);
+        if (es.photo) showShot("sn-shot-place", es.photo);
+        var mrows = Array.isArray(es.menu) ? es.menu : [];
+        mrows.forEach(function (m) {
+          if (!m || !(m.name || m.price)) return;
+          addMenuRow(true);
+          var rs = document.querySelectorAll("#sn-rows .sn-row"), rr = rs[rs.length - 1];
+          if (!rr) return;
+          var put = function (sel, v) { var el = rr.querySelector(sel); if (el) el.value = v == null ? "" : String(v); };
+          put(".c-desc", m.name); put(".c-price", m.price); put(".c-qty", m.qty); put(".c-when", m.when);
+          if (m.photo) { var im = rr.querySelector("img"); if (im) { im.hidden = false; im.src = m.photo; var cp = rr.querySelector(".phbtn span"); if (cp) cp.hidden = true; } }
+        });
+        if (!mrows.length) addMenuRow(true);
+        window.__snEdit = { id: es.id, name: es.name, rows: mrows.length, at: Date.now() };
+        say("Editing " + (es.name || "your shop") + ". Change it, then APPLY.");
+        return;
+      }
       if (act === "form-vendor") {
+        editShop = null;
         shots.place = "";
         placePhoto = "";
         openSheet("VENDOR", vendorSheet(), true);
-        addMenuRow();
+        addMenuRow(true);
       }
       if (act === "form-drop") {
         shots.drop = "";
@@ -7584,9 +7714,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (!homeDrop) { try { homeDrop = JSON.parse(localStorage.getItem("sn:home") || "null"); } catch (e) {} }
         var shopFrom = listPt || here;
         var bestShop = null, bestShopKm = 1e9;
-        shops.forEach(function (s) {
+        /* 4354: the vendor whose card is open (or is under LIST) is the one ordered from; never the nearest stale row
+           (Test Vendor V4297 sat 1 km from the tester and won the 'closest listed shop' pick) */
+        var tgtV = targetVendor();
+        if (tgtV && isFinite(+tgtV.lat)) bestShop = tgtV;
+        if (!bestShop) shops.forEach(function (s) {
           if (!s || !isFinite(+s.lat) || s.status === "denied") return;
           if (s.src && s.src !== "listed") return;
+          if (!seesShop(s) || (isTestFixture(s) && !testView())) return;
           var km = shopFrom ? haversineKm(shopFrom, s) : 0;
           if (km < bestShopKm) { bestShop = s; bestShopKm = km; }
         });
@@ -7678,9 +7813,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         say("Blocked. They stay off your map, and off your orders.");
       }
       if (act === "kind") {
+        editShop = null;
         var k = t.getAttribute("data-k") || "shop";
         openSheet(k.toUpperCase(), vendorSheet(), true);
-        addMenuRow();
+        addMenuRow(true);
       }
       if (act === "pick-photo") {
         fileForPlace = true;
@@ -7700,17 +7836,22 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (!isAdmin() && !signed()) { say("LOGIN to list this vendor. Nothing was saved or sent."); return; }
         if (!nm) { say("Name the place."); return; }
         if (!listPt) { say("Hold the street on the map first."); return; }
+        /* 4354: editing your own shop (EDIT MY SHOP) updates that row in place, at its own spot */
+        var editing = !!(editShop && editShop.id && (ownsShop(editShop) || isAdmin()));
+        var samePt = editing && isFinite(+editShop.lat) && haversineKm(editShop, listPt) < 0.01;
         if (!isAdmin()) {
           if (!signed()) { say("LOGIN to list this vendor. Nothing was saved or sent."); return; }
-          if (myRole() !== "vendor") { say("Only a vendor submits a shop. An administrator approves it."); return; }
-          if (!standAt(listPt)) { say("Stand at the door. Your own GPS has to match this pin."); return; }
+          if (!editing && myRole() !== "vendor") { say("Only a vendor submits a shop. An administrator approves it."); return; }
+          if (!samePt && !standAt(listPt)) { say("Stand at the door. Your own GPS has to match this pin."); return; }
         }
-        var twin = findOwnRoleTwin("shop");
+        /* 4354: one shop per user: APPLY updates the caller's existing shop (same id) instead of adding another */
+        var twin = editing ? editShop : findOwnRoleTwin("shop");
         var id = (twin && twin.id) || ("p" + Date.now().toString(36));
-        var status = isAdmin() ? "live" : "pending";
-        shops.forEach(function (s) {
-          if (s && s.src === "listed" && String(s.name) === nm && Math.abs(s.lat - listPt.lat) < 0.0003) id = s.id || id;
+        var status = isAdmin() ? "live" : ((twin && twin.status === "live") ? "live" : "pending");
+        if (!twin) shops.forEach(function (s) {
+          if (s && s.src === "listed" && ownsShop(s) && String(s.name) === nm && Math.abs(s.lat - listPt.lat) < 0.0003) id = s.id || id;
         });
+        editShop = null;
         var shotEl = $("sn-shot-place");
         var photo = shots.place || placePhoto || (shotEl && shotEl.getAttribute("src") && shotEl.getAttribute("src").indexOf("data:") === 0 ? shotEl.getAttribute("src") : "");
         var row = { id: id, kind: "shop", place: kn, name: nm, phone: phone, address: address, menu: menu, lat: listPt.lat, lng: listPt.lng, photo: photo, status: status, customerPeer: me(), owner: me() };
@@ -7768,14 +7909,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         say((dname || "Delivery address") + (signed() ? " is on the map." : " is on your map, on this device only. LOGIN to put it on SpaceNet."));
       }
       if (act === "admin-gps") {
-        if (!isAdmin()) { say("Only the administrator can move a test pin."); return; }
         if (!listPt) { say("Long-tap the map first."); return; }
+        /* 4354: with a vendor card as the target, Move me here moves that vendor (its owner or the administrator), not the admin pin */
+        var tgtM = targetVendor();
+        if (tgtM && tgtM.src === "listed" && (ownsShop(tgtM) || isAdmin())) { moveVendor(tgtM.id, listPt); return; }
+        if (!isAdmin()) { say("Only the administrator can move a test pin."); return; }
         land({ lat: listPt.lat, lng: listPt.lng, how: "admin" });
         say("You are on this long tap. Tap GPS to return to the phone.");
       }
       if (act === "move-board") moveBoard();
       if (act === "move-vendor") {
-        if (!isAdmin()) return;
         if (!listPt) { say("Long-tap the new spot first."); return; }
         moveVendor(t.getAttribute("data-id"), listPt);
       }
@@ -7800,7 +7943,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (!pname) { say("Name them first."); return; }
         if (prole === "vendor") {
           var vid = "p" + Date.now().toString(36);
-          var vrow = { id: vid, kind: "shop", place: "shop", name: pname, menu: [], lat: listPt.lat, lng: listPt.lng, status: "live" };
+          var vrow = { id: vid, kind: "shop", place: "shop", name: pname, menu: [], lat: listPt.lat, lng: listPt.lng, status: "live", how: "admin-put" };
           persistListing(vrow);
           shops.unshift({ id: vid, name: pname, lat: listPt.lat, lng: listPt.lng, kind: "shop", menu: [], src: "listed", status: "live" });
           shops = uniqPlaces(shops);
@@ -7889,7 +8032,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
       if (act === "list-base") {
         if (!listPt) { say("Hold the street first."); return; }
-        persistListing({ id: "b" + Date.now().toString(36), kind: "driver", name: "base", lat: listPt.lat, lng: listPt.lng });
+        var twinB = findOwnRoleTwin("driver");
+        persistListing({ id: (twinB && twinB.id) || ("b" + Date.now().toString(36)), kind: "driver", name: (twinB && twinB.name) || "base", lat: listPt.lat, lng: listPt.lng, owner: me() });
         closeSheet();
         say("Driver base listed.");
       }
@@ -8793,7 +8937,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4353 = true;
+    window.__SN_4354 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

@@ -1,5 +1,5 @@
 /**
- * Headed real-input test (4353): real Chrome on the X display (DISPLAY, default :3); run it at WIN=1920x1200 SCALE=1.5
+ * Headed real-input test (4354): real Chrome on the X display (DISPLAY, default :3); run it at WIN=1920x1200 SCALE=1.5
  * (OS-level xdotool input picked in a 1280x800 "agent view" and rounded back, like a computer-use agent on a scaled
  * screenshot) and at WIN=1280x800 SCALE=1. Screenshots are grabbed from the X screen (real pixels).
  *  BOOT: no input. MIC is a cyan icon; LIVE shows 'loading…' then one count, 'N vendors on SpaceNet'; the IP answer lands
@@ -67,18 +67,18 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4353";
+const STAMP = process.env.STAMP || "4354";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now();
 const ORIGIN = new URL(BASE).origin;
 const [WW, WH] = (process.env.WIN || "1920x1200").split("x").map(Number);
 const SCALE = Number(process.env.SCALE || 1.5);
-const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4353";
+const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4354";
 fs.mkdirSync(SHOTDIR, { recursive: true });
 if (!process.env.DISPLAY) process.env.DISPLAY = ":3";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const xdo = (a) => execSync("xdotool " + a, { env: process.env });
 const SYNTAGMA = { lat: 37.9755, lng: 23.7348 }, RHODES_OLD = { lat: 36.4446, lng: 28.2276 };
-const GRAB = path.join(os.tmpdir(), "sn_grab4353.py");
+const GRAB = path.join(os.tmpdir(), "sn_grab4354.py");
 fs.writeFileSync(GRAB, `import sys, json
 from PIL import ImageGrab, ImageStat
 out, x, y, w, h = sys.argv[1], *map(int, sys.argv[2:6])
@@ -1035,7 +1035,7 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   }
   console.log("SCREENSHOTS", SHOTDIR);
   check("4350: the page never calls an Overpass server itself (Overpass only through /api/find, so no CORS error can reach the console)", opDirect.length === 0, JSON.stringify(opDirect.slice(0, 3)));
-  console.log(fails.length ? "HEADED 4353 FAIL: " + fails.join("; ") : "HEADED 4353 ALL PASS");
+  console.log(fails.length ? "HEADED 4354 FAIL: " + fails.join("; ") : "HEADED 4354 ALL PASS");
   await browser.close();
   process.exit(fails.length ? 2 : 0);
 })().catch((e) => { console.error("fail", e); process.exit(1); });
