@@ -1,5 +1,5 @@
-/* SpaceNet SW 4337. Network first. Old shells are deleted so a stuck phone reloads. */
-var VER = "4337";
+/* SpaceNet SW 4338. Network first. Old shells are deleted so a stuck phone reloads. */
+var VER = "4338";
 function allowedScript(path) {
   return path === "/js/spacenet/app.js" || path === "/js/spacenet/auth.js" || path === "/js/vendor/leaflet.js";
 }
