@@ -1,0 +1,63 @@
+name: grokbuild 4358 (merge main V4354 + loop isolation; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4358.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Decode kit60; merge V4354, loop isolation; assert every tree; drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch -q origin main
+          echo "main tip $(git rev-parse origin/main)"
+          git merge-base --is-ancestor 2d5b6fe93769a5280ece3aebff5b4c4f4c201182 origin/main || { echo "main does not contain 2d5b6fe9 (V4354)"; exit 1; }
+          git merge-base --is-ancestor bff73ae5e9befba6683c9fd1817c68a024be8e53 HEAD
+          test "$(git rev-parse HEAD~2)" = "bff73ae5e9befba6683c9fd1817c68a024be8e53" || { echo "unexpected commits between bff73ae5 and the kit"; git log --oneline -5; exit 1; }
+          test -f .grokbuild/kit60.p00.b64
+          test -f .grokbuild/kit60.p01.b64
+          python3 - <<'PYKIT'
+          from pathlib import Path
+          import hashlib, gzip, glob, tarfile, io, base64
+          raw = base64.b64decode("".join(Path(p).read_text().strip() for p in sorted(glob.glob(".grokbuild/kit60.p*.b64"))), validate=True)
+          g = hashlib.sha256(raw).hexdigest(); print("tgz", g, len(raw))
+          if g != "005ce3de802d9bb993e210c4e9f9171b0f07d6b7d7bbe98b31d2211059f03edf": raise SystemExit("tgz sha mismatch")
+          body = gzip.decompress(raw); s = hashlib.sha256(body).hexdigest(); print("tar", s, len(body))
+          if s != "a94fe8521c87276bcbfedbb876340d7cee5cb346ae044fa4e75d3f333f223efb": raise SystemExit("tar sha mismatch")
+          Path("/tmp/k60").mkdir(parents=True, exist_ok=True)
+          with tarfile.open(fileobj=io.BytesIO(body)) as t:
+              for m in t.getmembers():
+                  if m.name.startswith("/") or ".." in m.name: raise SystemExit("bad member " + m.name)
+              t.extractall("/tmp/k60")
+          PYKIT
+          git merge --no-ff --no-commit 2d5b6fe93769a5280ece3aebff5b4c4f4c201182 || true
+          python3 /tmp/k60/resolve4358.py
+          python3 /tmp/k60/stamp4358.py
+          rm -rf .grokbuild .github/workflows/grokbuild-4358.yml
+          git add -A
+          git apply --index /tmp/k60/post60.patch
+          test -z "$(git diff --name-only --diff-filter=U)"
+          if grep -qE '^(<<<<<<<|=======|>>>>>>>)' index.html js/spacenet/app.js sw.js vercel.json VERSION api/version.js; then echo 'markers left'; exit 1; fi
+          test "$(git write-tree)" = "151e39d4a5e084b2a421b0e59d9711baa83a7820" || { echo "M tree $(git write-tree)"; exit 1; }
+          git commit -q -m "Merge main (2d5b6fe9, V4354 zoom out national then global; globe button stays on the Earth): non-conflicting parts taken; every conflict keeps the branch wheel / landing / tile / grip path (live wheel PASS on 4357); main's discrete wheel tiers not taken (slice B); stamps 4358"
+          test "$(git rev-parse HEAD^2)" = "2d5b6fe93769a5280ece3aebff5b4c4f4c201182"
+          git apply --index /tmp/k60/fix60.patch
+          for f in js/spacenet/app.js js/spacenet/auth.js sw.js api/version.js api/space.js tests/pw_listing_inplace.js tests/headed_boot_gps_keys.js tests/headed_wheel_xdotool.js; do node --check $f; done
+          grep -q '^4358$' VERSION
+          grep -qF 'typeof tickNews === "function"' js/spacenet/app.js
+          grep -qF 'function tickNews() {}' js/spacenet/app.js
+          if grep -q 'sn-handle-law' index.html; then echo 'inline handle-law script came back'; exit 1; fi
+          test "$(git write-tree)" = "3ff8c736bce0022011acc6993309e447d0f57c99" || { echo "C2 tree $(git write-tree)"; exit 1; }
+          git commit -q -m "4358: the frame loop runs every step on its own (live V4354 is black because a1f5b7f0 / V4345 removed tickNews() while loop() still calls it: a ReferenceError every frame before drawGlobe); tickNews is guarded too; lockstep 4358"
+          git log --format='%h %p %s' -3 | cut -c1-110
+          sleep 75
+          git push origin HEAD:grokbuild/4328-street-level-gps
