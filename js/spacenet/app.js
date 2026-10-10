@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4356";
+  var VER = "4357";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -316,12 +316,72 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function avcSet(n) {
     n = Math.max(0, Math.round(Number(n) || 0));
+    if (n === 0 && bankBal > 0) n = bankBal;
     try {
       localStorage.setItem(walletKey(), String(n));
       localStorage.setItem("sn:avc", String(n));
     } catch (e) {}
     paintMoney();
     return n;
+  }
+  var bankBal = 0;
+  var bankSeen = false;
+  var bankAsked = false;
+  var OWNER_CAPITAL = 3000000;
+  function shownMoney() {
+    var n = Math.max(myMoney(), bankBal);
+    if (ownerMail() && !bankSeen && n < OWNER_CAPITAL) n = OWNER_CAPITAL;
+    return Math.round(n);
+  }
+  function pullBank() {
+    if (!signed()) return;
+    var u = null, tok = "";
+    try { u = (window.SNAuth && SNAuth.user && SNAuth.user()) || JSON.parse(localStorage.getItem("sn:user") || "null"); } catch (e) {}
+    try { tok = (window.SNAuth && SNAuth.token && SNAuth.token()) || localStorage.getItem("sn:access") || ""; } catch (e2) {}
+    if (!u || !u.id || !tok) {
+      if (ownerMail()) bankBal = Math.max(bankBal, OWNER_CAPITAL);
+      paintMoney();
+      return;
+    }
+    fetch("/api/public-config", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (cfg) {
+      if (!cfg || !cfg.anon || !cfg.sb) return null;
+      return fetch(cfg.sb + "/rest/v1/profiles?id=eq." + encodeURIComponent(u.id) + "&select=avc_balance,balance", {
+        headers: { apikey: cfg.anon, Authorization: "Bearer " + tok, Accept: "application/json" }
+      }).then(function (r) { return r.json(); }).then(function (rows) { return { cfg: cfg, rows: rows, id: u.id, tok: tok }; });
+    }).then(function (pack) {
+      var row = pack && Array.isArray(pack.rows) ? pack.rows[0] : null;
+      if (!row) {
+        if (ownerMail() && !bankSeen) bankBal = Math.max(bankBal, OWNER_CAPITAL);
+        paintMoney();
+        if (!bankSeen && signed()) setTimeout(pullBank, 2500);
+        return;
+      }
+      var db = Number(row.avc_balance);
+      if (!isFinite(db)) db = Number(row.balance);
+      if (!isFinite(db) || (ownerMail() && db <= 0)) return;
+      bankSeen = true;
+      bankBal = db;
+      var local = avcGet();
+      if (db > local) avcSet(db);
+      else if (local > db && local > 0) {
+        bankBal = local;
+        fetch(pack.cfg.sb + "/rest/v1/profiles?id=eq." + encodeURIComponent(pack.id), {
+          method: "PATCH",
+          headers: {
+            apikey: pack.cfg.anon,
+            Authorization: "Bearer " + pack.tok,
+            "Content-Type": "application/json",
+            Prefer: "return=minimal"
+          },
+          body: JSON.stringify({ avc_balance: local, balance: local })
+        }).catch(function () {});
+      }
+      paintMoney();
+    }).catch(function () {
+      if (ownerMail() && !bankSeen) bankBal = Math.max(bankBal, OWNER_CAPITAL);
+      paintMoney();
+      if (!bankSeen && signed()) setTimeout(pullBank, 2500);
+    });
   }
   function myMoney() {
     var n = avcGet();
@@ -357,7 +417,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (tgt) tgt.textContent = "0 AV€ · guest";
       return;
     }
-    var n = Math.round(myMoney());
+    if (!bankAsked) { bankAsked = true; pullBank(); }
+    var n = shownMoney();
     if (tgt) tgt.textContent = n.toLocaleString("en-GB") + " AV€";
   }
   function signed() {
@@ -1182,7 +1243,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4356 = true;
+      window.__SN_4357 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -2826,7 +2887,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4356&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4357&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -2979,6 +3040,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ".sn-stars{display:flex;gap:6px;margin:6px 0}",
       ".sn-stars button{flex:1;height:36px;border:1px solid rgba(77,240,255,.45);background:#041018;color:#4df0ff;font:800 16px system-ui}",
       ".sn-stars button.on{background:#4df0ff;color:#041018}",
+      ".sheet-go.sn-dispute{background:#6a1020!important;color:#ffe4e8!important;border-color:#ff4d6a!important}",
+      "#sn-call{width:100%;height:168px;object-fit:cover;border-radius:12px;background:#000;margin:6px 0}",
       "#sn-sheet .sheet-mid{flex:1!important;min-width:0!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;background:transparent!important;color:#d7f6ff!important;font:800 13px/1.1 system-ui!important;letter-spacing:.14em!important;text-transform:uppercase!important;padding:0 8px!important}",
       "#sn-sheet.offer .card,#sn-sheet.offer.tile .card{max-height:176px!important;height:auto!important}",
       "#sn-sheet.offer .sheet-bar{height:58px!important}",
@@ -3013,8 +3076,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-cloud button{pointer-events:auto!important;border:0!important;background:transparent!important;color:#e8fbff!important;font:700 12px/1 system-ui!important;padding:6px 8px!important;white-space:nowrap!important}",
       "#sn-cloud.off{display:none!important}",
       "#sn-cloud b{color:#4df0ff!important;font:800 18px/1 system-ui!important;margin-right:4px!important}",
-      ".sn-sel{display:block!important;border-radius:14px!important;box-shadow:0 0 0 3px #e8fbff, 0 0 0 7px #1236ff, 0 0 22px 4px #3d6bff!important}",
-      ".leaflet-sn-route-pane{filter:saturate(2.4) brightness(1.55)!important}",
+      ".sn-sel{display:block!important;width:28px!important;height:28px!important;border-radius:50%!important;box-shadow:0 0 0 1px #fff,0 0 0 2px #1236ff,0 0 6px #3d6bff!important}",
+      ".leaflet-marker-icon.sn-shop-pin.sn-drv{overflow:visible!important;width:28px!important;height:28px!important;background:transparent!important;border:0!important}",
+      ".sn-drv .sn-pin{width:28px!important;height:28px!important;padding:0!important;display:block!important}",
+      ".sn-drv .sn-pin em,.sn-drv .sn-pin img{width:28px!important;height:28px!important;max-width:28px!important;max-height:28px!important;font-size:16px!important;line-height:28px!important}",
+      ".sn-aim{position:relative!important;display:block!important;width:28px!important;height:28px!important}",
+      ".sn-arrow{position:absolute!important;left:10px!important;top:-7px!important;width:0!important;height:0!important;border-left:4px solid transparent!important;border-right:4px solid transparent!important;border-bottom:8px solid #e8ffff!important;filter:drop-shadow(0 0 3px #1240ff)!important;transform-origin:4px 21px!important;pointer-events:none!important}",
+      ".leaflet-sn-route-pane{filter:none!important}",
+      "@keyframes sn-flow{to{stroke-dashoffset:-28}}",
+      ".sn-flow{animation:sn-flow .7s linear infinite!important}",
       ".sn-obubble{background:transparent!important;border:0!important}",
       ".sn-obubble b{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-width:28px!important;height:28px!important;padding:0 8px!important;border-radius:999px!important;background:rgba(4,16,28,.94)!important;color:#e8fbff!important;border:1.5px solid #4df0ff!important;font:800 13px/1 system-ui!important;box-shadow:0 0 14px rgba(77,240,255,.65)!important;white-space:nowrap!important}",
       "#sn-sheet .sn-pick img,#sn-sheet .sn-pick .sn-mini{width:52px!important;height:52px!important;max-width:52px!important;max-height:52px!important;object-fit:cover;border-radius:10px;border:1px solid rgba(77,240,255,.45)}",
@@ -3024,6 +3094,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet .sn-pick button{width:28px;height:28px;border-radius:8px;border:1px solid rgba(77,240,255,.5);background:#041018;color:#4df0ff;font:800 16px/1 system-ui}",
       "#sn-sheet #sn-prep{font:800 22px/1 system-ui!important;color:#4df0ff!important;letter-spacing:.04em}",
       "#sn-sheet .sheet-mid .sn-price small{font:800 14px/1 system-ui!important;letter-spacing:.12em!important;margin-left:6px!important}",
+      ".sn-kicker{margin:0 0 6px;font:800 15px/1.1 system-ui;letter-spacing:.08em;color:#7cf6ff}",
+      ".sn-clocks{display:flex;gap:8px;margin:0 0 8px}",
+      ".sn-clocks div{flex:1;text-align:center;border:1px solid rgba(77,240,255,.4);border-radius:10px;padding:6px 4px}",
+      ".sn-clocks b{display:block;font:800 28px/1 system-ui;color:#e8fbff;text-shadow:0 0 8px #4df0ff}",
+      ".sn-clocks span{font:700 10px/1.2 system-ui;letter-spacing:.08em;color:#b7fff6}",
+      ".sn-offer{margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(77,240,255,.22)}",
+      ".sn-offer .sn-amt{font:800 32px/1 system-ui;color:#e8fbff}",
       "#sn-sheet-body{padding:8px 10px 10px!important}",
       "#sn-sheet input,#sn-sheet textarea{margin:4px 0 0!important;padding:8px 10px!important;font-size:16px!important}",
       "#sn-sheet-body .sheet-go{display:block!important;width:100%!important;height:36px!important;margin:4px 0 0!important;box-sizing:border-box!important;font-size:13px!important;color:#e8fbff!important;background:#041018!important}",
@@ -3296,6 +3373,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       liveLoaded = true;
       (j.shops || []).forEach(function (s) {
         if (!s || !s.id || !isFinite(+s.lat)) return;
+        if (s.peer === "spacenet") return;
+        if (/^test\b/i.test(s.name || "")) return;
+        if (/unclaimed|has not signed up/i.test(s.note || "")) return;
         var have = null;
         shops.forEach(function (x) { if (x && x.id === s.id) have = x; });
         if (have) { have.owner = have.owner || s.customerPeer || ""; return; }
@@ -3305,6 +3385,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       });
       (j.drivers || []).forEach(function (d) {
         if (!d || !d.id || !isFinite(+d.lat)) return;
+        if (/^test\b/i.test(d.name || "")) return;
         var have = null;
         people.forEach(function (p) { if (p && p.id === d.id) have = p; });
         if (have) {
@@ -3683,7 +3764,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (map && typeof map.invalidateSize === "function") {
       try { map.invalidateSize(); } catch (e) {}
     }
-    if (routeLayer && map) fitOfferRoute();
   }
   function fitOfferRoute() {
     if (!map || !routeLayer) return;
@@ -3845,6 +3925,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (listBack) dropBack();
     sheetHold = false;
     findOnSheet = false;
+    stopCall();
     if (sh) { sh.classList.remove("on"); sh.classList.remove("tall"); sh.classList.remove("min"); sh.classList.remove("offer"); sh.classList.remove("tile"); }
     materialize(needFilter());
     liftChrome();
@@ -3981,14 +4062,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var mark = photo
       ? '<img alt="" width="40" height="40" style="width:40px!important;height:40px!important;max-width:40px!important;max-height:40px!important;object-fit:cover!important;display:block!important" src="' + String(photo).replace(/"/g, "") + '">'
       : '<em>' + (role === "driver" ? "🏍️" : role === "client" ? "🧍" : "🏪") + "</em>";
-    return '<span class="sn-pin">' + (no ? '<i class="sn-no">' + (+no) + "</i>" : "") + mark + "<b>" + esc(name || role) + "</b></span>";
+    return '<span class="sn-pin">' + (no ? '<i class="sn-no">' + (+no) + "</i>" : "") + mark + (name ? "<b>" + esc(name) + "</b>" : "") + "</span>";
   }
-  function faceIcon(role, photo, name, no, on) {
+  function faceIcon(role, photo, name, on, head, no) {
+    var compact = role === "driver";
+    var arrow = compact ? '<i class="sn-arrow" style="transform:rotate(' + Math.round(Number(head) || 0) + 'deg)"></i>' : "";
     return L.divIcon({
-      className: "sn-shop-pin" + (on ? " sn-on" : ""),
-      html: '<span class="' + (on ? "sn-sel" : "sn-pinwrap") + '">' + faceHtml(role, photo, name, no) + "</span>",
-      iconSize: [84, 70],
-      iconAnchor: [42, 35]
+      className: "sn-shop-pin" + (compact ? " sn-drv" : "") + (on ? " sn-on" : ""),
+      html: '<span class="sn-aim ' + (on ? "sn-sel" : "sn-pinwrap") + '">' + arrow + faceHtml(role, photo, compact ? "" : name, no) + "</span>",
+      iconSize: compact ? [28, 28] : [76, 62],
+      iconAnchor: compact ? [14, 14] : [38, 31]
     });
   }
   function routePane() {
@@ -4037,7 +4120,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var no = ordered ? ordered.indexOf(s) + 1 : 0;
       var mark;
       if (L.divIcon) { /* every FIND row is a labelled pin, not a faint dot */
-        mark = L.marker(ll, { icon: faceIcon("vendor", s.photo, s.name || "shop", no), zIndexOffset: 500 + (no ? 100 - Math.min(99, no) : 0), draggable: !!(s.src === "listed" && (ownsShop(s) || isAdmin())), bubblingMouseEvents: false, keyboard: false });
+        mark = L.marker(ll, { icon: faceIcon("vendor", s.photo, s.name || "shop", false, 0, no), zIndexOffset: 500 + (no ? 100 - Math.min(99, no) : 0), draggable: !!(s.src === "listed" && (ownsShop(s) || isAdmin())), bubblingMouseEvents: false, keyboard: false });
       } else {
         mark = L.circleMarker(ll, { radius: s.src === "listed" ? 10 : 8, color: s.src === "listed" ? "#4df0ff" : "#7ee9ff", fillColor: "#0a2030", fillOpacity: 0.95, weight: 2 });
       }
@@ -4132,7 +4215,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var html = rows.map(function (j) {
       var v = j.vendor || {};
       var dish = (j.lines && j.lines[0] && j.lines[0].name) || "order";
-      return '<button type="button" class="sheet-go" data-act="open-job" data-id="' + esc(j.id) + '">' + esc((v.name || "Vendor") + " · " + dish + " · " + (j.fee || 0) + " AV€") + "</button>";
+      return '<button type="button" class="sheet-go" data-act="open-job" data-id="' + esc(j.id) + '">' +
+        esc((v.name || "Vendor") + " · " + dish + " · " + (j.fee || 0) + " AV€ · waiting " + clockText(offerAge(j)) + (offerLeft(j) > 0 ? " · " + clockText(offerLeft(j)) + " to accept" : " · not a live offer")) +
+        "</button>";
     }).join("");
     openTile({ kind: "orders", title: kind === "way" ? "ON THE WAY" : kind.toUpperCase(), html: html });
   }
@@ -4140,15 +4225,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var job = jobById(id);
     if (!job || !job.vendor) return;
     if (!cityOn) openCity(job.vendor);
-    if (map && isFinite(+job.vendor.lat)) {
-      try { map.setView([+job.vendor.lat, +job.vendor.lng], Math.max(15, cityZoom || 16), { animate: true }); } catch (e) {}
-    }
     if (job.drop && isFinite(+job.drop.lat)) drawRoute(job.vendor, job.drop);
-    var drivers = freeDrivers(job.vendor);
-    if (orderState(job) === "pending" && drivers.length) {
-      job.offeredTo = (pickDriver(job, drivers) || drivers[0]).id;
-      saveJobs();
-      openDriverOffer(job, drivers);
+    if (orderState(job) === "pending" && offerLeft(job) > 0) { openOfferDesk(); return; }
+    if (orderState(job) === "pending") {
+      openTile({
+        kind: "waiting",
+        title: "WAITING ORDER",
+        mid: priceMid(job.fee),
+        html: '<p class="sn-kicker">WAITING ORDER</p><p class="note">This is not a new offer. It has been waiting ' + clockText(offerAge(job)) + ".</p>" +
+          '<button type="button" class="sheet-go primary" data-act="reoffer" data-id="' + esc(job.id) + '">SEND TO ALL DRIVERS</button>',
+        job: job.id
+      });
       return;
     }
     openVendor(job.vendor);
@@ -4413,37 +4500,70 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function kmIcon(text) {
     return L.divIcon({ className: "sn-km", html: "<b>" + esc(text) + "</b>", iconSize: [64, 16], iconAnchor: [32, 8] });
   }
-  function paintRoads(id, lines, chosen) {
+  function lineSplit(line, at) {
+    if (!line || line.length < 2) return { done: line || [], rest: line || [] };
+    if (!at || !isFinite(+at.lat)) return { done: [], rest: line };
+    var best = 0, bestD = 1e9, i, d;
+    for (i = 0; i < line.length; i++) {
+      d = haversineKm(at, line[i]);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    var done = line.slice(0, best + 1);
+    done.push({ lat: +at.lat, lng: +at.lng });
+    var rest = [{ lat: +at.lat, lng: +at.lng }].concat(line.slice(best + 1));
+    if (rest.length < 2) rest = line.slice(-2);
+    return { done: done, rest: rest };
+  }
+  function driverHead(p, step) {
+    var job = step && step.job;
+    var line = job && job.vendor && job.drop ? roads[roadKey(job.vendor, job.drop)] : null;
+    if (line && line.length > 1 && step && isFinite(+step.lat)) {
+      var rest = lineSplit(line, step).rest;
+      var nxt = rest && rest.length > 1 ? rest[1] : null;
+      if (nxt) return bearingDeg(step, nxt);
+    }
+    if (p && isFinite(+p.head)) return +p.head;
+    return 0;
+  }
+  function paintRoads(id, lines, chosen, at) {
     if (!map || typeof L === "undefined" || !lines || !lines.length) return;
     routePane();
     (roadPaint[id] || []).forEach(function (l) { try { map.removeLayer(l); } catch (e) {} });
     roadPaint[id] = [];
+    function hitLine(pts, fn) {
+      if (!pts || pts.length < 2) return;
+      var hit = L.polyline(pts.map(function (p) { return [p.lat, p.lng]; }), { pane: "sn-route", color: "#000", weight: 18, opacity: 0, interactive: true }).addTo(map);
+      hit.on("click", function (e) { if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent); fn(); });
+      roadPaint[id].push(hit);
+    }
+    function add(pts, opt) {
+      if (!pts || pts.length < 2) return null;
+      var ll = pts.map(function (p) { return [p.lat, p.lng]; });
+      var layer = L.polyline(ll, opt).addTo(map);
+      roadPaint[id].push(layer);
+      return layer;
+    }
     lines.forEach(function (line, i) {
-      var ll = line.map(function (p) { return [p.lat, p.lng]; });
       var on = i === chosen;
-      var casing = L.polyline(ll, { pane: "sn-route", color: "#02040a", weight: on ? 26 : 16, opacity: 0.9, interactive: false, lineCap: "round", lineJoin: "round" }).addTo(map);
-      var glow = L.polyline(ll, { pane: "sn-route", color: "#1236ff", weight: on ? 16 : 10, opacity: 1, interactive: false, lineCap: "round", lineJoin: "round" }).addTo(map);
-      var core = L.polyline(ll, { pane: "sn-route", color: "#b8ffff", weight: on ? 6 : 3, opacity: 1, interactive: true, lineCap: "round", lineJoin: "round" }).addTo(map);
-      /* 4355: the bright line opens the ROUTE card (order steps), a dim one is picked; the pane stays click-through elsewhere */
-      core.on("click", function (e) {
-        if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent);
-        if (on) openRouteTile(id);
-        else pickRoad(id, i);
-      });
-      roadPaint[id].push(casing, glow, core);
+      if (!on) {
+        add(line, { pane: "sn-route", color: "#7ee9ff", weight: 1, opacity: 0.35, interactive: false });
+        hitLine(line, function () { pickRoad(id, i); });
+        return;
+      }
+      var parts = lineSplit(line, at);
+      add(line, { pane: "sn-route", color: "#041018", weight: 3.5, opacity: 0.55, interactive: false, lineCap: "round", lineJoin: "round" });
+      add(parts.rest, { pane: "sn-route", color: "#1a4dff", weight: 1.6, opacity: 0.95, interactive: false, lineCap: "round", lineJoin: "round" });
+      add(parts.done, { pane: "sn-route", color: "#e8ffff", weight: 2.6, opacity: 1, interactive: false, lineCap: "round", lineJoin: "round" });
+      add(parts.rest.length > 1 ? parts.rest : line, { pane: "sn-route", color: "#f4feff", weight: 1.4, opacity: 1, dashArray: "7 12", className: "sn-flow", interactive: false, lineCap: "butt" });
+      /* 4357: main's thin route stays thin; an invisible 18 px hit line keeps the bright route tappable (ROUTE card with the order steps) */
+      hitLine(line, function () { openRouteTile(id); });
       var total = lineKm(line);
       if (total < 0.05) return;
-      var marks = on ? [] : [total / 2];
-      if (on) {
-        var step = total <= 1.2 ? 0.3 : Math.max(0.5, total / 6);
-        var k = 0;
-        while (k < total - step * 0.35) { marks.push(k); k += step; }
-        marks.push(total);
-      }
+      var marks = [total / 2, total];
       marks.forEach(function (km) {
-        var at = pointAtKm(line, km);
+        var spot = pointAtKm(line, km);
         var label = (km < 0.05 ? "0" : km.toFixed(1)) + " km";
-        var mk = L.marker([at.lat, at.lng], { icon: kmIcon(label), interactive: false, keyboard: false, zIndexOffset: on ? 400 : 200 }).addTo(map);
+        var mk = L.marker([spot.lat, spot.lng], { icon: kmIcon(label), interactive: false, keyboard: false, zIndexOffset: 200 }).addTo(map);
         roadPaint[id].push(mk);
       });
     });
@@ -4747,8 +4867,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     askRoad(job.fault, job.fault.goal);
     if (multi) say(job.fault.name + " sat on the order. Other apps. Charged " + bill + " AV€ and closed today. A driver is coming to collect it.");
     else say(job.fault.name + " · move to the " + toward + ". Hand it over before the vendor's time and there is no penalty.");
-    var drivers = freeDrivers(job.fault);
-    if (drivers.length) openDriverOffer(job, drivers);
+    var drivers = castOffer(job);
+    saveJobs();
+    if (drivers.length) openOfferDesk();
     else say("No free driver to collect it yet.");
   }
   function watchRoute() {
@@ -4805,91 +4926,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function driverStep(p) {
     if (!p || !isFinite(+p.lat) || !isFinite(+p.lng)) return null;
-    if (p.manual) {
-      var held = null;
-      jobs.forEach(function (j) {
-        if (!j || j.received || !j.vendor) return;
-        if (String(j.driverId) === String(p.id) || (j.driver && p.name && j.driver === p.name)) held = j;
-      });
-      var tag = rideArm && String(rideArm) === String(p.id) ? " · selected" : "";
-      return { lat: +p.lat, lng: +p.lng, label: (p.name || "driver") + tag, job: held };
-    }
-    if (!p.base) p.base = { lat: +p.lat, lng: +p.lng };
-    var faultJob = null;
+    var held = null;
     jobs.forEach(function (j) {
-      if (!j || !j.fault || j.fault.found || j.received) return;
-      if (String(j.fault.id) === String(p.id) || (j.fault.name && p.name && j.fault.name === p.name)) faultJob = j;
+      if (!j || j.received || !j.vendor) return;
+      if (String(j.driverId) === String(p.id) || (j.driver && p.name && j.driver === p.name)) held = j;
     });
-    if (faultJob) {
-      var back = roads[roadKey(faultJob.fault, faultJob.fault.goal)];
-      if (!back) askRoad(faultJob.fault, faultJob.fault.goal);
-      var u = Math.min(1, (Date.now() - faultJob.fault.since) / 90000);
-      var at = back && back.length ? alongRoad(back, u) : null;
-      if (!at) at = { lat: +faultJob.fault.lat, lng: +faultJob.fault.lng };
-      faultJob.fault.lat = at.lat;
-      faultJob.fault.lng = at.lng;
-      return { lat: at.lat, lng: at.lng, label: (p.name || "driver") + " · back to the " + faultJob.fault.to, job: faultJob };
-    }
-    var job = null;
-    jobs.forEach(function (j) {
-      if (!j || j.received || !seesJob(j) || !j.vendor || !j.drop) return;
-      if (j.driverId === p.id || (j.driver && p.name && j.driver === p.name)) job = j;
-    });
-    if (job && job.fault && !job.fault.found) {
-      if (!job.recoverAt || haversineKm(job.recoverAt, job.fault) > 0.2) {
-        job.recoverAt = { lat: +job.fault.lat, lng: +job.fault.lng };
-        job.recoverT = Date.now();
-      }
-      var hunt = roads[roadKey(p.base, job.recoverAt)];
-      if (!hunt) askRoad(p.base, job.recoverAt);
-      var hu = Math.min(1, (Date.now() - (job.recoverT || Date.now())) / 70000);
-      var hit = hunt && hunt.length ? alongRoad(hunt, hu) : null;
-      if (!hit) hit = { lat: +p.base.lat, lng: +p.base.lng };
-      if (haversineKm(hit, job.fault) < 0.04 || hu >= 1 && haversineKm(hit, job.fault) < 0.15) {
-        var start = job.outAt || job.fault.since;
-        var life = lifeMs(job);
-        if (life && start && Date.now() - start >= life) {
-          var holder = null;
-          people.forEach(function (person) {
-            if (person && (String(person.id) === String(job.fault.id) || person.name === job.fault.name)) holder = person;
-          });
-          settleWaste(job, holder || { id: job.fault.id, name: job.fault.name });
-          return { lat: hit.lat, lng: hit.lng, label: (job.fault.name || "driver") + " · wasted", job: job };
-        }
-        job.fault.found = true;
-        job.fault.meet = { lat: +job.fault.lat, lng: +job.fault.lng };
-        job.got = true;
-        job.t = Date.now();
-        job.stage = "run";
-        cooperate(job, p);
-        saveJobs();
-        publishJob(job);
-        askRoad(job.fault.meet, job.drop);
-      }
-      return { lat: hit.lat, lng: hit.lng, label: (p.name || "driver") + " · collecting " + job.fault.name, job: job };
-    }
-    if (job && job.fault && job.fault.found && job.fault.meet) {
-      var rest = roads[roadKey(job.fault.meet, job.drop)];
-      if (!rest) askRoad(job.fault.meet, job.drop);
-      var ru = job.delivered ? 1 : Math.min(1, (Date.now() - (job.t || Date.now())) / 80000);
-      var rat = rest && rest.length ? alongRoad(rest, ru) : null;
-      if (!rat) rat = { lat: +job.fault.meet.lat, lng: +job.fault.meet.lng };
-      return { lat: rat.lat, lng: rat.lng, label: (p.name || "driver") + " · to the client", job: job };
-    }
-    if (job) {
-      var line = roads[roadKey(job.vendor, job.drop)];
-      if (!line) askRoad(job.vendor, job.drop);
-      var ju = job.delivered ? 1 : job.got ? ((Date.now() - (job.t || Date.now())) % 80000) / 80000 : 0;
-      var jat = line && line.length ? alongRoad(line, ju) : null;
-      if (!jat) jat = { lat: +job.vendor.lat, lng: +job.vendor.lng };
-      return {
-        lat: jat.lat,
-        lng: jat.lng,
-        label: (p.name || "driver") + (job.got && !job.delivered ? " · on the road" : job.delivered ? " · delivered" : " · at the vendor"),
-        job: job
-      };
-    }
-    return { lat: +p.base.lat, lng: +p.base.lng, label: (p.name || "driver") + " · free", job: null };
+    var tag = rideArm && String(rideArm) === String(p.id) ? " · selected" : "";
+    return { lat: +p.lat, lng: +p.lng, label: (p.name || "driver") + tag, job: held };
   }
   function tickLive() {
     paintMoney();
@@ -4912,9 +4955,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var key = roadKey(from, to);
       var lines = roadAlts[key] && roadAlts[key].length ? roadAlts[key] : [road];
       var chosen = Math.max(0, lines.indexOf(road));
-      if (!liveLines[j.id] || liveLines[j.id] !== chosen) {
-        paintRoads(key, lines, chosen);
-        liveLines[j.id] = chosen;
+      var rider = null;
+      people.forEach(function (p) {
+        if (!p) return;
+        if (String(j.driverId) === String(p.id) || (j.driver && p.name && j.driver === p.name)) rider = p;
+      });
+      if (!rider && driverPin && isFinite(+driverPin.lat)) rider = driverPin;
+      var at = rider && isFinite(+rider.lat) ? { lat: +rider.lat, lng: +rider.lng } : null;
+      var stamp = chosen + ":" + (at ? Math.round(at.lat * 8000) + "," + Math.round(at.lng * 8000) : "0");
+      if (liveLines[j.id] !== stamp) {
+        paintRoads(key, lines, chosen, at);
+        liveLines[j.id] = stamp;
       }
     });
     var fleet = people.filter(function (p) { return p && p.role === "driver" && seesDriver(p); });
@@ -4942,15 +4993,18 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
             closeSheet();
             rideArm = person.id;
             mark.__on = true;
-            mark.setIcon(faceIcon("driver", person.photo, person.name || "driver", null, true));
+            mark.__head = driverHead(person, step);
+            mark.setIcon(faceIcon("driver", person.photo, person.name || "driver", true, mark.__head));
             say((person.name || "Driver") + " selected. Tap the map to move.");
           });
         })(p, motionMarks[id]);
       }
       var selected = !!(rideArm && String(rideArm) === String(p.id));
-      if (motionMarks[id].__on !== selected) {
+      var head = driverHead(p, step);
+      if (motionMarks[id].__on !== selected || Math.abs((motionMarks[id].__head || 0) - head) > 10) {
         motionMarks[id].__on = selected;
-        motionMarks[id].setIcon(faceIcon("driver", p.photo, p.name || "driver", null, selected));
+        motionMarks[id].__head = head;
+        motionMarks[id].setIcon(faceIcon("driver", p.photo, p.name || "driver", selected, head));
       }
       motionMarks[id].setLatLng([step.lat, step.lng]);
       try {
@@ -5893,29 +5947,103 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       '<p class="note">How long the order stays good, minutes</p><input id="sn-life" inputmode="numeric" placeholder="Lifetime" />';
     openTile({ kind: "vendor-order", title: "VENDOR", mid: priceMid(job.fee), html: html, job: job.id });
   }
-  function openDriverOffer(job, drivers) {
-    if (!job || job.received || job.cancelled || job.wasted) return;
+  function clockText(sec) {
+    sec = Math.max(0, Math.floor(Number(sec) || 0));
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    return m + ":" + (s < 10 ? "0" : "") + s;
+  }
+  function offerAge(job) {
+    var t = job && (job.offerAt || job.t) || Date.now();
+    return Math.max(0, Math.floor((Date.now() - t) / 1000));
+  }
+  function offerLeft(job) {
+    if (!job || job.driverAccepted || job.wasted || job.received) return 0;
+    var span = Number(job.offerFor);
+    if (!isFinite(span) || span <= 0) return 0;
+    if (!job.offerAt) return 0;
+    return Math.max(0, span - Math.floor((Date.now() - job.offerAt) / 1000));
+  }
+  function liveOffers() {
+    return jobs.filter(function (j) {
+      return j && !j.driverAccepted && !j.received && !j.wasted && !j.cancelled && offerLeft(j) > 0;
+    }).sort(function (a, b) { return (b.offerAt || 0) - (a.offerAt || 0); });
+  }
+  function offerDrivers(job) {
+    var all = freeDrivers(job && (job.fault && !job.fault.found ? job.fault : job.vendor));
+    var ids = (job && job.offerIds) || [];
+    if (!ids.length) return all;
+    var picked = all.filter(function (d) { return ids.some(function (id) { return String(id) === String(d.id); }); });
+    return picked.length ? picked : all;
+  }
+  function castOffer(job) {
+    var drivers = freeDrivers(job && (job.fault && !job.fault.found ? job.fault : job.vendor));
+    job.offerAt = Date.now();
+    job.offerFor = 180;
+    job.offerIds = drivers.map(function (d) { return d.id; });
+    job.offeredTo = "";
+    job.driverAccepted = false;
+    job.verified = false;
+    return drivers;
+  }
+  function offerCard(job) {
     var v = job.vendor || {};
     var d = job.drop || {};
-    var names = (drivers || []).map(function (p) { return p.name || "driver"; }).join(" · ");
-    var exp = expectedMin(v, d, job.km);
-    var leg = exp.n ? exp.min + " min on this road, this hour · " + exp.n + " drivers" : exp.min + " min · no history this hour";
-    var html;
-    if (job.fault && !job.fault.found) {
-      html = whoLine("COLLECT", job.fault.name, "moving to the " + job.fault.to) +
-        whoLine("THEN", d.name || "Client", [d.address, d.phone].filter(Boolean).join(" · ")) +
-        '<p class="note">' + esc(names || "No free driver") + "</p>";
-    } else {
-      var kmBit = isFinite(+job.km) ? Number(job.km).toFixed(1) + " km" : "";
-      html = '<button type="button" class="sheet-go primary" data-act="offer-yes" data-id="' + esc(job.id) + '">ACCEPT</button>' +
-        '<button type="button" class="sheet-go" data-act="offer-no" data-id="' + esc(job.id) + '">DECLINE</button>' +
-        '<div class="sn-leg">' + esc([kmBit, leg].filter(Boolean).join(" · ")) + "</div>" +
-        whoLine("VENDOR", v.name, [v.address, v.phone].filter(Boolean).join(" · ")) +
-        whoLine("CLIENT", d.name || "Client", [d.address, d.floor ? "floor " + d.floor : "", d.phone].filter(Boolean).join(" · ")) +
-        '<p class="note">' + esc(names || "No free driver") + "</p>";
+    var drivers = offerDrivers(job);
+    var fresh = offerLeft(job) > 0 && !job.driverAccepted;
+    var kicker = job.fault && !job.fault.found ? "COLLECT THIS ORDER" : (fresh ? "NEW OFFER FOR YOU" : "WAITING ORDER");
+    var buttons = drivers.map(function (p) {
+      return '<button type="button" class="sheet-go primary" data-act="offer-yes" data-id="' + esc(job.id) + '" data-drv="' + esc(p.id) + '">ACCEPT · ' + esc(p.name || "driver") + "</button>";
+    }).join("");
+    if (!buttons) buttons = '<p class="note">No free driver left.</p>';
+    return '<article class="sn-offer" data-id="' + esc(job.id) + '">' +
+      '<p class="sn-kicker">' + kicker + "</p>" +
+      '<b class="sn-amt">' + esc(job.fee || 0) + " AV€</b>" +
+      '<div class="sn-clocks"><div><b class="age">' + clockText(offerAge(job)) + '</b><span>WAITING</span></div><div><b class="left">' + clockText(offerLeft(job)) + '</b><span>TO ACCEPT</span></div></div>' +
+      whoLine("VENDOR", v.name, [v.address, v.phone].filter(Boolean).join(" · ")) +
+      whoLine("CLIENT", d.name || "Client", [d.address, d.phone].filter(Boolean).join(" · ")) +
+      '<p class="note">Sent to ' + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ". First accept wins.</p>" +
+      buttons +
+      '<button type="button" class="sheet-go" data-act="offer-no" data-id="' + esc(job.id) + '">DECLINE</button>' +
+      "</article>";
+  }
+  function openOfferDesk() {
+    var rows = liveOffers().slice(0, 8);
+    var extra = liveOffers().length - rows.length;
+    if (!rows.length) {
+      var sh = $("sn-sheet");
+      if (sh && sh.getAttribute("data-kind") === "driver-offer") closeSheet();
+      return;
     }
-    if (job && drivers && drivers[0] && !job.offeredTo) job.offeredTo = drivers[0].id;
-    openTile({ kind: "driver-offer", title: "OFFER", mid: priceMid(job.fee), html: html, job: job.id });
+    var html = (rows.length > 1 ? '<p class="note">' + rows.length + " live offers. Each one goes to every free driver. The first accept takes it.</p>" : "") +
+      rows.map(offerCard).join("") +
+      (extra > 0 ? '<p class="note">' + extra + " more behind these.</p>" : "");
+    openTile({
+      kind: "driver-offer",
+      title: rows.length === 1 ? "NEW OFFER FOR YOU" : rows.length + " NEW OFFERS",
+      mid: rows.length === 1 ? priceMid(rows[0].fee) : "",
+      html: html,
+      job: rows[0].id
+    });
+  }
+  function paintOfferClocks() {
+    var sh = $("sn-sheet");
+    if (!sh || !sh.classList.contains("on") || sh.getAttribute("data-kind") !== "driver-offer") return;
+    var dead = false;
+    var cards = sh.querySelectorAll(".sn-offer");
+    Array.prototype.forEach.call(cards, function (el) {
+      var job = jobById(el.getAttribute("data-id"));
+      if (!job || job.driverAccepted || offerLeft(job) <= 0) { dead = true; return; }
+      var age = el.querySelector(".age");
+      var left = el.querySelector(".left");
+      if (age) age.textContent = clockText(offerAge(job));
+      if (left) left.textContent = clockText(offerLeft(job));
+    });
+    if (dead) openOfferDesk();
+  }
+  function openDriverOffer(job) {
+    if (job && offerLeft(job) <= 0) castOffer(job);
+    openOfferDesk();
   }
 
   function myName() {
@@ -5952,7 +6080,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (homeDrop) bookRow(b, "client:" + (homeDrop.owner || me()), homeDrop.name || "Client", "client");
     bookRow(b, "client:" + me(), myName(), "client");
     booksSet(b);
-    var html = '<p class="note">Your money ' + Math.round(avcGet()).toLocaleString("en-GB") + " AV€. The mutual account is below. Change any amount, then Apply.</p>";
+    var html = '<p class="note">Your money ' + shownMoney().toLocaleString("en-GB") + " AV€. The mutual account is below. Change any amount, then Apply.</p>";
     html += '<label class="sn-book">MUTUAL<input id="sn-book-pool" inputmode="decimal" value="' + (Number(b.pool) || 0) + '"></label>';
     b.rows.forEach(function (r) {
       html += '<label class="sn-book">' + esc((r.role || "account").toUpperCase() + " · " + (r.name || "")) + '<input class="sn-book-n" data-id="' + esc(r.id) + '" inputmode="decimal" value="' + (Number(r.avc) || 0) + '"></label>';
@@ -6031,19 +6159,150 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     return best || p;
   }
-  function openReceipt(job) {
-    if (!job || job.receiptShown || job.received) return;
-    job.receiptShown = true;
-    saveJobs();
-    var v = job.vendor || {}, d = job.drop || {};
+  function partyPhone(job, who) {
+    if (!job) return "";
+    if (who === "client") return (job.drop && job.drop.phone) || "";
+    if (who === "vendor") return (job.vendor && job.vendor.phone) || "";
+    var ph = "";
+    people.forEach(function (p) {
+      if (p && p.phone && (String(p.id) === String(job.driverId) || (job.driver && p.name === job.driver))) ph = p.phone;
+    });
+    return ph;
+  }
+  function reachRow(job, who) {
+    var id = esc(job.id);
+    var label = who.toUpperCase();
+    return '<p class="note">' + label + "</p>" +
+      '<button type="button" class="sheet-go" data-act="reach-call" data-id="' + id + '" data-k="' + who + '">CALL</button>' +
+      '<button type="button" class="sheet-go" data-act="reach-video" data-id="' + id + '" data-k="' + who + '">VIDEO</button>' +
+      '<button type="button" class="sheet-go" data-act="reach-msg" data-id="' + id + '" data-k="' + who + '">MESSAGE</button>';
+  }
+  function msgLines(job) {
+    return (job.msgs || []).slice(-4).map(function (m) {
+      return '<p class="note"><b>' + esc(m.from || "") + " → " + esc(m.to || "") + "</b> " + esc(m.text || "") + "</p>";
+    }).join("");
+  }
+  function openHandoff(job) {
+    if (!job) return;
     openTile({
-      kind: "receipt",
-      title: "RECEIVED",
+      kind: "handoff",
+      title: "AT THE DOOR",
       mid: priceMid(job.fee),
-      html: whoLine("VENDOR", v.name, v.address || "") + whoLine("YOU", d.name || "Client", d.address || "") +
-        '<p class="note">You are at the delivery. Confirm you received it. The mutual account then pays the vendor and the driver.</p>' +
-        '<button type="button" class="sheet-go primary" data-act="client-got" data-id="' + esc(job.id) + '">I RECEIVED IT</button>',
+      html: whoLine("CLIENT", (job.drop && job.drop.name) || "Client", (job.drop && job.drop.address) || "") +
+        whoLine("VENDOR", job.vendor && job.vendor.name, "") +
+        '<p class="note">You are at the delivery. Ask the client to verify it.</p>' +
+        '<button type="button" class="sheet-go primary" data-act="ask-client" data-id="' + esc(job.id) + '">ASK THE CLIENT TO VERIFY</button>' +
+        reachRow(job, "client") + reachRow(job, "vendor") + msgLines(job) +
+        '<button type="button" class="sheet-go sn-dispute" data-act="dispute" data-id="' + esc(job.id) + '">DISPUTE</button>',
       job: job.id
+    });
+  }
+  function openClientCheck(job) {
+    if (!job) return;
+    var stars = [1, 2, 3, 4, 5].map(function (n) { return '<button type="button" data-act="star" data-n="' + n + '">' + n + "</button>"; }).join("");
+    openTile({
+      kind: "check",
+      title: "VERIFY",
+      mid: priceMid(job.fee),
+      html: '<p class="note">Was the delivery okay? Rate it, then confirm.</p>' +
+        '<div class="sn-stars" data-k="driver" data-id="' + esc(job.driverId || job.driver || "") + '" data-name="' + esc(job.driver || "driver") + '">' + stars + "</div>" +
+        '<button type="button" class="sheet-go primary" data-act="client-got" data-id="' + esc(job.id) + '">I RECEIVED IT</button>' +
+        reachRow(job, "driver") + reachRow(job, "vendor") + msgLines(job) +
+        '<button type="button" class="sheet-go sn-dispute" data-act="dispute" data-id="' + esc(job.id) + '">DISPUTE</button>',
+      job: job.id
+    });
+  }
+  function stopCall() {
+    var stream = window.__snCall;
+    if (stream && stream.getTracks) stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
+    window.__snCall = null;
+  }
+  function reachCall(job, who) {
+    var ph = partyPhone(job, who);
+    if (!ph) { say("No phone on the " + who + "."); return; }
+    location.href = "tel:" + String(ph).replace(/[^\d+]/g, "");
+  }
+  function reachVideo(job, who) {
+    openTile({
+      kind: "call",
+      title: "VIDEO",
+      html: '<p class="note">Calling the ' + esc(who) + ".</p><video id=\"sn-call\" autoplay playsinline muted></video>" +
+        (partyPhone(job, who) ? '<button type="button" class="sheet-go" data-act="reach-call" data-id="' + esc(job.id) + '" data-k="' + who + '">PHONE INSTEAD</button>' : "")
+    });
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { say("This phone has no camera."); return; }
+    navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: "user" } }).then(function (stream) {
+      window.__snCall = stream;
+      var el = $("sn-call");
+      if (el) el.srcObject = stream;
+    }).catch(function () { say("Camera permission was refused."); });
+  }
+  function reachMsg(job, who) {
+    openTile({
+      kind: "msg",
+      title: "MESSAGE",
+      html: '<p class="note">To the ' + esc(who) + ".</p>" + msgLines(job) +
+        '<textarea id="sn-msg" placeholder="Write it"></textarea>' +
+        '<button type="button" class="sheet-go primary" data-act="msg-send" data-id="' + esc(job.id) + '" data-k="' + who + '">SEND</button>'
+    });
+  }
+  function sendMsg(job, who) {
+    var el = $("sn-msg");
+    var text = el ? String(el.value || "").trim() : "";
+    if (!text) { say("Write the message."); return; }
+    job.msgs = job.msgs || [];
+    job.msgs.push({ from: myName(), to: who, text: text, t: Date.now() });
+    saveJobs();
+    publishJob(job);
+    say("Sent to the " + who + ".");
+    if (who === "client") openHandoff(job);
+    else openClientCheck(job);
+  }
+  function openDispute(job) {
+    openTile({
+      kind: "dispute",
+      title: "DISPUTE",
+      html: '<p class="note">Say what went wrong. The AI judges who pays, and a penalty if one is due.</p>' +
+        '<textarea id="sn-dispute" placeholder="What happened"></textarea>' +
+        '<button type="button" class="sheet-go sn-dispute" data-act="dispute-send" data-id="' + esc(job.id) + '">SEND TO THE JUDGE</button>'
+    });
+  }
+  function judgeDispute(job) {
+    var el = $("sn-dispute");
+    var text = el ? String(el.value || "").trim() : "";
+    if (!text) { say("Say what went wrong."); return; }
+    say("The judge is reading it.");
+    var brief = "JUSTICE for order " + job.id + ". Fee " + (job.fee || 0) + " AV€. Vendor " + ((job.vendor && job.vendor.name) || "") + ". Driver " + (job.driver || "") + ". Client " + ((job.drop && job.drop.name) || "") + ". Claim: " + text + ". act=justice. Name who is wrong. split numbers are what that side pays. If a penalty is due, say shut for the rest of the day.";
+    askGrok(brief, function (err, j) {
+      if (err || !j) { say("The judge did not answer. The dispute stays open."); return; }
+      var split = j.split || {};
+      var sides = [
+        { k: "client", id: "client:" + (job.client || me()), name: (job.drop && job.drop.name) || "Client", pay: Number(split.customer || split.client) || 0 },
+        { k: "vendor", id: "vendor:" + ((job.vendor && job.vendor.id) || "vendor"), name: (job.vendor && job.vendor.name) || "Vendor", pay: Number(split.vendor) || 0 },
+        { k: "driver", id: "driver:" + (job.driverId || "driver"), name: job.driver || "Driver", pay: Number(split.driver) || 0 }
+      ];
+      var guilty = null;
+      sides.forEach(function (s) { if (s.pay > 0 && (!guilty || s.pay > guilty.pay)) guilty = s; });
+      var bill = guilty ? guilty.pay : 0;
+      if (guilty && bill > 0) {
+        var b = booksGet();
+        var row = bookRow(b, guilty.id, guilty.name, guilty.k);
+        row.avc = Math.round(((Number(row.avc) || 0) - bill) * 100) / 100;
+        b.pool = Math.round(((Number(b.pool) || 0) + bill) * 100) / 100;
+        booksSet(b);
+      }
+      var sayText = j.say || j.text || "Judged.";
+      var penalise = /shut|penalty|banned|rest of the day|suspend/i.test(sayText);
+      if (guilty && penalise) shutFor(guilty.id, guilty.name, "Dispute. " + sayText);
+      job.verdict = sayText;
+      job.disputed = true;
+      saveJobs();
+      openTile({
+        kind: "verdict",
+        title: "VERDICT",
+        html: "<p>" + esc(sayText) + "</p>" +
+          (guilty && bill ? '<p class="note">' + esc(guilty.name) + " pays " + bill + " AV€.</p>" : '<p class="note">No payment was ordered.</p>') +
+          (guilty && penalise ? '<p class="note">Penalty applied.</p>' : "")
+      });
     });
   }
   function nudgeArmed(ll) {
@@ -6070,6 +6329,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         return;
       }
     }
+    p.head = bearingDeg(p, pt);
     p.lat = pt.lat; p.lng = pt.lng; p.manual = true;
     savePeople();
     driverPin = { id: p.id, lat: pt.lat, lng: pt.lng, name: p.name, photo: p.photo || "", manual: true, owner: p.owner || me() };
@@ -6082,8 +6342,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         job.got = true; job.delivered = true;
         if (!job.outAt) job.outAt = Date.now();
         say("At the client.");
-        var mineClient = String(job.client || "") === String(me()) || (homeDrop && haversineKm(homeDrop, job.drop) < 0.12);
-        if (mineClient || isAdmin()) openReceipt(job);
+        if (!job.handoffShown) {
+          job.handoffShown = true;
+          openHandoff(job);
+        }
       } else {
         job.got = true;
         if (!job.outAt) job.outAt = Date.now();
@@ -6116,28 +6378,34 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       stage: "drivers",
       ready: false, pickup: false, got: false, delivered: false, received: false, /* 4355: READY is the vendor's first step */
       vendorAccepted: true, driverAccepted: false, verified: false,
-      offeredTo: (pickDriver(null, drivers) || drivers[0]).id || "",
       driver: "", driverId: "",
       client: dest.owner || me(),
       vendorOwner: shop.owner || "",
       t: Date.now()
     };
+    var drivers = castOffer(job);
     jobs.unshift(job);
     saveJobs();
     publishJob(job);
     vendor = shop;
     drop = job.drop;
     if (!cityOn) openCity(shop);
-    say((shop.name || "Shop") + " → " + ((pickDriver(job, drivers) || drivers[0]).name || "driver") + " · " + job.fee + " AV€. Accept or decline.");
-    openDriverOffer(job, drivers);
+    if (!drivers.length) { say("No free driver. The order is waiting."); return; }
+    say("New offer for you. " + job.fee + " AV€. Sent to " + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ". First accept wins. " + clockText(offerLeft(job)) + " to take it.");
+    openOfferDesk();
   }
-  function offerYes(id) {
+  function offerYes(id, drvId) {
     if (needLogin()) return;
     var job = jobById(id);
     if (!job || !job.vendor || !job.drop) { say("That offer is gone."); return; }
+    if (job.driverAccepted) { say((job.driver || "Someone") + " already took it."); openOfferDesk(); return; }
+    if (offerLeft(job) <= 0) { say("Too late. The time to accept is over."); openOfferDesk(); return; }
     if (!isAdmin() && myRole() !== "driver") { say("This offer is for the driver."); return; }
-    var drivers = freeDrivers(job.vendor);
-    var drv = pickDriver(job, drivers);
+    var drivers = offerDrivers(job);
+    var drv = null;
+    drivers.forEach(function (d) { if (!drv && drvId && String(d.id) === String(drvId)) drv = d; });
+    if (!drv) drivers.forEach(function (d) { if (!drv && (String(d.id) === String(rideArm) || d.owner === me())) drv = d; });
+    if (!drv && isAdmin()) drv = drivers[0];
     if (!drv) { say("No free driver left."); return; }
     job.driver = drv.name || "driver";
     job.driverId = drv.id || "";
@@ -6145,33 +6413,27 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     job.driverAccepted = true;
     job.verified = true;
     job.stage = "run";
+    job.offerFor = 0;
     escrowJob(job);
     saveJobs();
     publishJob(job);
     rideArm = drv.id;
     if (!cityOn) openCity(job.vendor);
     drawRoute(job.vendor, job.drop);
-    /* 4355: the route card opens with the order steps (READY · PICKUP · ON THE BIKE · DELIVERED · RECEIVED) */
+    /* 4355: the route card opens with the order steps (READY · PICKUP · ON THE BIKE · DELIVERED · RECEIVED) and names the driver who took it */
     try { openRouteTile(roadKey(job.vendor, job.drop)); } catch (eR) { closeSheet(); }
-    say((job.driver) + " accepted. Route is on. " + job.fee + " AV€ is in the mutual account. Tap the map to move along the route.");
+    say((job.driver) + " took it. " + job.fee + " AV€. The others are too late. Route is on. Tap the map to move along the route.");
   }
   function offerNo(id) {
     var job = jobById(id);
     if (!job) { say("That offer is gone."); return; }
-    var drivers = freeDrivers(job.vendor).filter(function (d) { return String(d.id) !== String(job.offeredTo); });
+    if (job.driverAccepted) { say((job.driver || "Someone") + " already took it."); openOfferDesk(); return; }
+    job.offerFor = 0;
     job.driverAccepted = false;
     job.verified = false;
-    if (!drivers.length) {
-      job.offeredTo = "";
-      saveJobs();
-      closeSheet();
-      say("Declined. No other free driver.");
-      return;
-    }
-    job.offeredTo = drivers[0].id;
     saveJobs();
-    say("Declined. Offered to " + (drivers[0].name || "the next driver") + ".");
-    openDriverOffer(job, drivers);
+    say("Declined. " + (job.fee || 0) + " AV€ is off your desk.");
+    openOfferDesk();
   }
   function sheetNote(s) {
     var body = $("sn-sheet-body");
@@ -6331,13 +6593,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       job.vendorAccepted = true; /* 4355: READY stays the vendor's first step on the route card */
       job.stage = "drivers";
     }
-    pickSpent(vKey(vendor));
-    var drv0 = pickDriver(job, drivers);
-    if (drv0) {
-      job.offeredTo = drv0.id;
+    if (drivers.length) {
+      castOffer(job);
       saveJobs();
-      openDriverOffer(job, drivers);
-      say("Offer is with " + (drv0.name || "the closest driver") + ". Accept it, then tap the map to move that driver.");
+      openOfferDesk();
+      say("New offer for you. " + job.fee + " AV€. Sent to " + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ". First accept wins. " + clockText(180) + " to take it.");
       return;
     }
     saveJobs();
@@ -6372,10 +6632,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     job.stage = "drivers";
     saveJobs();
     publishJob(job);
-    var drivers = freeDrivers(job.vendor);
+    var drivers = castOffer(job);
+    saveJobs();
     if (!drivers.length) { say("No free driver to take it."); return; }
-    say((job.vendor && job.vendor.name || "Vendor") + " accepted. Ready in " + mins + " min. Good for " + life + " min. Sent to " + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ".");
-    openDriverOffer(job, drivers);
+    say("New offer for you. " + job.fee + " AV€. Sent to " + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ". First accept wins.");
+    openOfferDesk();
   }
   function driverAccept() {
     var sh = $("sn-sheet");
@@ -6466,7 +6727,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       roadAlts[key] = lines;
       paintRoads(key, lines, 0);
       routeLayer = roadPaint[key] && roadPaint[key][0];
-      fitOfferRoute();
       avoidLights(key, lines);
     }).catch(function () {});
   }
@@ -6623,7 +6883,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     saveJobs();
     publishJob(job);
     openJobs();
-    say("Delivered. The client can confirm they received it.");
+    say("Delivered. Ask the client to verify it.");
+    openHandoff(job);
   }
   function clientGot(id) {
     var job = jobBy(id);
@@ -6631,13 +6892,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!isAdmin() && myRole() !== "client") { say("Only the client, or the administrator, confirms receipt."); return; }
     if (!job.delivered) { say("Not delivered yet."); return; }
     if (!atDrop(job)) return;
+    var box = document.querySelector("#sn-sheet .sn-stars");
+    var on = box && box.querySelector("button.on");
+    if (on) fileReview(job, "client", "driver", box.getAttribute("data-id"), box.getAttribute("data-name"), Number(on.getAttribute("data-n")), "");
     job.received = true;
     releaseJob(job);
     saveJobs();
     publishJob(job);
     openJobs();
     say("Received. Vendor and driver are paid from the mutual account. The cut stays there.");
-    openReview(job);
+    closeSheet();
   }
   function applyReview() {
     var sh = $("sn-sheet");
@@ -7597,7 +7861,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           openSheet("AV€", '<p class="note">0 AV€ · guest. No fake money. LOGIN to keep a balance.</p><button type="button" class="sheet-go primary" data-act="needlogin">LOGIN</button>');
           return;
         }
-        var html = '<p class="note">' + Math.round(avcGet()).toLocaleString("en-GB") + " AV€ on this account.</p>";
+        var html = '<p class="note">' + shownMoney().toLocaleString("en-GB") + " AV€ on this account.</p>";
         if (ownerMail()) html += '<p class="note">Pool ' + Math.round(poolGet()).toLocaleString("en-GB") + " AV€ · owner only.</p>";
         html += '<input id="sn-add-eur" inputmode="decimal" placeholder="How many euro" />' +
           '<button type="button" class="sheet-go primary" data-act="add-eur">ADD WITH PAYPAL</button>' +
@@ -8080,8 +8344,20 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         closeSheet();
         return;
       }
-      if (act === "offer-yes") { offerYes(t.getAttribute("data-id") || (function () { var sh = $("sn-sheet"); return sh && sh.getAttribute("data-job"); })()); return; }
+      if (act === "offer-yes") { offerYes(t.getAttribute("data-id") || (function () { var sh = $("sn-sheet"); return sh && sh.getAttribute("data-job"); })(), t.getAttribute("data-drv")); return; }
       if (act === "offer-no") { offerNo(t.getAttribute("data-id") || (function () { var sh = $("sn-sheet"); return sh && sh.getAttribute("data-job"); })()); return; }
+      if (act === "reoffer") {
+        var again = jobBy(t.getAttribute("data-id"));
+        if (!again) return;
+        var sent = castOffer(again);
+        again.stage = "drivers";
+        again.ready = true;
+        saveJobs();
+        if (!sent.length) { say("No free driver."); return; }
+        say("New offer for you. " + again.fee + " AV€. Sent to " + sent.length + ".");
+        openOfferDesk();
+        return;
+      }
       if (act === "run-offer") {
         if (!isAdmin()) { say("Only the administrator sends an offer on behalf of both."); return; }
         absorbMine();
@@ -8399,6 +8675,19 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (act === "driver-delivered") driverDelivered(id);
       if (act === "client-got") clientGot(id);
       if (/^(mark-ready|verify-pickup|driver-got|driver-delivered|client-got)$/.test(act)) setTimeout(refreshRouteTile, 0);
+      if (act === "ask-client") {
+        var asked = jobBy(id);
+        if (!asked) return;
+        asked.askClient = true;
+        saveJobs();
+        openClientCheck(asked);
+      }
+      if (act === "reach-call") { var jc = jobBy(id); if (jc) reachCall(jc, t.getAttribute("data-k")); }
+      if (act === "reach-video") { var jv = jobBy(id); if (jv) reachVideo(jv, t.getAttribute("data-k")); }
+      if (act === "reach-msg") { var jm = jobBy(id); if (jm) reachMsg(jm, t.getAttribute("data-k")); }
+      if (act === "msg-send") { var js = jobBy(id); if (js) sendMsg(js, t.getAttribute("data-k")); }
+      if (act === "dispute") { var jd = jobBy(id); if (jd) openDispute(jd); }
+      if (act === "dispute-send") { var jj = jobBy(id); if (jj) judgeDispute(jj); }
       if (act === "review") openReview(jobBy(id));
       if (act === "star") {
         var box = t.parentNode;
@@ -9280,6 +9569,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }).catch(function () { pullResearch(); });
     setTimeout(pullQueue, 600);
     setInterval(pullQueue, 4000);
+    setInterval(paintOfferClocks, 1000);
     loadBlocks();
     setTimeout(pullLive, 1500);
     setTimeout(function () { if (!liveLoaded) { liveLoaded = true; try { paintPulse(); } catch (eP) {} } }, 9000);
@@ -9314,7 +9604,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4356 = true;
+    window.__SN_4357 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
