@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4347";
+  var VER = "4348";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -2102,6 +2102,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       });
       (j.shops || []).forEach(function (s) {
         if (!s || !s.id || !isFinite(+s.lat)) return;
+        if (s.peer === "spacenet") return;
+        if (/^test\b/i.test(s.name || "")) return;
+        if (/unclaimed|has not signed up/i.test(s.note || "")) return;
         var have = null;
         shops.forEach(function (x) { if (x && x.id === s.id) have = x; });
         if (have) { have.owner = have.owner || s.customerPeer || ""; return; }
@@ -2109,6 +2112,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       });
       (j.drivers || []).forEach(function (d) {
         if (!d || !d.id || !isFinite(+d.lat)) return;
+        if (/^test\b/i.test(d.name || "")) return;
         var have = null;
         people.forEach(function (p) { if (p && p.id === d.id) have = p; });
         if (have) {
@@ -3302,91 +3306,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function driverStep(p) {
     if (!p || !isFinite(+p.lat) || !isFinite(+p.lng)) return null;
-    if (p.manual) {
-      var held = null;
-      jobs.forEach(function (j) {
-        if (!j || j.received || !j.vendor) return;
-        if (String(j.driverId) === String(p.id) || (j.driver && p.name && j.driver === p.name)) held = j;
-      });
-      var tag = rideArm && String(rideArm) === String(p.id) ? " · selected" : "";
-      return { lat: +p.lat, lng: +p.lng, label: (p.name || "driver") + tag, job: held };
-    }
-    if (!p.base) p.base = { lat: +p.lat, lng: +p.lng };
-    var faultJob = null;
+    var held = null;
     jobs.forEach(function (j) {
-      if (!j || !j.fault || j.fault.found || j.received) return;
-      if (String(j.fault.id) === String(p.id) || (j.fault.name && p.name && j.fault.name === p.name)) faultJob = j;
+      if (!j || j.received || !j.vendor) return;
+      if (String(j.driverId) === String(p.id) || (j.driver && p.name && j.driver === p.name)) held = j;
     });
-    if (faultJob) {
-      var back = roads[roadKey(faultJob.fault, faultJob.fault.goal)];
-      if (!back) askRoad(faultJob.fault, faultJob.fault.goal);
-      var u = Math.min(1, (Date.now() - faultJob.fault.since) / 90000);
-      var at = back && back.length ? alongRoad(back, u) : null;
-      if (!at) at = { lat: +faultJob.fault.lat, lng: +faultJob.fault.lng };
-      faultJob.fault.lat = at.lat;
-      faultJob.fault.lng = at.lng;
-      return { lat: at.lat, lng: at.lng, label: (p.name || "driver") + " · back to the " + faultJob.fault.to, job: faultJob };
-    }
-    var job = null;
-    jobs.forEach(function (j) {
-      if (!j || j.received || !seesJob(j) || !j.vendor || !j.drop) return;
-      if (j.driverId === p.id || (j.driver && p.name && j.driver === p.name)) job = j;
-    });
-    if (job && job.fault && !job.fault.found) {
-      if (!job.recoverAt || haversineKm(job.recoverAt, job.fault) > 0.2) {
-        job.recoverAt = { lat: +job.fault.lat, lng: +job.fault.lng };
-        job.recoverT = Date.now();
-      }
-      var hunt = roads[roadKey(p.base, job.recoverAt)];
-      if (!hunt) askRoad(p.base, job.recoverAt);
-      var hu = Math.min(1, (Date.now() - (job.recoverT || Date.now())) / 70000);
-      var hit = hunt && hunt.length ? alongRoad(hunt, hu) : null;
-      if (!hit) hit = { lat: +p.base.lat, lng: +p.base.lng };
-      if (haversineKm(hit, job.fault) < 0.04 || hu >= 1 && haversineKm(hit, job.fault) < 0.15) {
-        var start = job.outAt || job.fault.since;
-        var life = lifeMs(job);
-        if (life && start && Date.now() - start >= life) {
-          var holder = null;
-          people.forEach(function (person) {
-            if (person && (String(person.id) === String(job.fault.id) || person.name === job.fault.name)) holder = person;
-          });
-          settleWaste(job, holder || { id: job.fault.id, name: job.fault.name });
-          return { lat: hit.lat, lng: hit.lng, label: (job.fault.name || "driver") + " · wasted", job: job };
-        }
-        job.fault.found = true;
-        job.fault.meet = { lat: +job.fault.lat, lng: +job.fault.lng };
-        job.got = true;
-        job.t = Date.now();
-        job.stage = "run";
-        cooperate(job, p);
-        saveJobs();
-        publishJob(job);
-        askRoad(job.fault.meet, job.drop);
-      }
-      return { lat: hit.lat, lng: hit.lng, label: (p.name || "driver") + " · collecting " + job.fault.name, job: job };
-    }
-    if (job && job.fault && job.fault.found && job.fault.meet) {
-      var rest = roads[roadKey(job.fault.meet, job.drop)];
-      if (!rest) askRoad(job.fault.meet, job.drop);
-      var ru = job.delivered ? 1 : Math.min(1, (Date.now() - (job.t || Date.now())) / 80000);
-      var rat = rest && rest.length ? alongRoad(rest, ru) : null;
-      if (!rat) rat = { lat: +job.fault.meet.lat, lng: +job.fault.meet.lng };
-      return { lat: rat.lat, lng: rat.lng, label: (p.name || "driver") + " · to the client", job: job };
-    }
-    if (job) {
-      var line = roads[roadKey(job.vendor, job.drop)];
-      if (!line) askRoad(job.vendor, job.drop);
-      var ju = job.delivered ? 1 : job.got ? ((Date.now() - (job.t || Date.now())) % 80000) / 80000 : 0;
-      var jat = line && line.length ? alongRoad(line, ju) : null;
-      if (!jat) jat = { lat: +job.vendor.lat, lng: +job.vendor.lng };
-      return {
-        lat: jat.lat,
-        lng: jat.lng,
-        label: (p.name || "driver") + (job.got && !job.delivered ? " · on the road" : job.delivered ? " · delivered" : " · at the vendor"),
-        job: job
-      };
-    }
-    return { lat: +p.base.lat, lng: +p.base.lng, label: (p.name || "driver") + " · free", job: null };
+    var tag = rideArm && String(rideArm) === String(p.id) ? " · selected" : "";
+    return { lat: +p.lat, lng: +p.lng, label: (p.name || "driver") + tag, job: held };
   }
   function tickLive() {
     paintMoney();
@@ -3607,16 +3533,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       shops = uniqPlaces(shops);
       if (shops.length) paintShopsOnMap();
     });
-    if (!listingTried) {
-      listingTried = true;
-      huntNearby().then(function (rows) {
-        shops = uniqPlaces(shops.concat(rows));
-        if (shops.length) {
-          paintShopsOnMap();
-          say("GPS " + here.lat.toFixed(4) + "," + here.lng.toFixed(4) + " · " + shops.length + " places around you. Talk a hunt or tap a pin.");
-        } else if (here && !cityOn) say("GPS " + here.lat.toFixed(4) + "," + here.lng.toFixed(4) + " · tap GPS for the city");
-      });
-    }
+    listingTried = true;
   }
   function behalf(job) {
     if (!isAdmin() || !job) return "";
