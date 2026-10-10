@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4348";
+  var VER = "4349";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1827,6 +1827,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ".sn-stars{display:flex;gap:6px;margin:6px 0}",
       ".sn-stars button{flex:1;height:36px;border:1px solid rgba(77,240,255,.45);background:#041018;color:#4df0ff;font:800 16px system-ui}",
       ".sn-stars button.on{background:#4df0ff;color:#041018}",
+      ".sheet-go.sn-dispute{background:#6a1020!important;color:#ffe4e8!important;border-color:#ff4d6a!important}",
+      "#sn-call{width:100%;height:168px;object-fit:cover;border-radius:12px;background:#000;margin:6px 0}",
       "#sn-sheet .sheet-mid{flex:1!important;min-width:0!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;background:transparent!important;color:#d7f6ff!important;font:800 13px/1.1 system-ui!important;letter-spacing:.14em!important;text-transform:uppercase!important;padding:0 8px!important}",
       "#sn-sheet.offer .card,#sn-sheet.offer.tile .card{max-height:176px!important;height:auto!important}",
       "#sn-sheet.offer .sheet-bar{height:58px!important}",
@@ -2528,6 +2530,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function closeSheet() {
     var sh = $("sn-sheet");
     sheetHold = false;
+    stopCall();
     if (sh) { sh.classList.remove("on"); sh.classList.remove("tall"); sh.classList.remove("min"); sh.classList.remove("offer"); sh.classList.remove("tile"); }
     materialize(needFilter());
     liftChrome();
@@ -3786,19 +3789,150 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     return best || p;
   }
-  function openReceipt(job) {
-    if (!job || job.receiptShown || job.received) return;
-    job.receiptShown = true;
-    saveJobs();
-    var v = job.vendor || {}, d = job.drop || {};
+  function partyPhone(job, who) {
+    if (!job) return "";
+    if (who === "client") return (job.drop && job.drop.phone) || "";
+    if (who === "vendor") return (job.vendor && job.vendor.phone) || "";
+    var ph = "";
+    people.forEach(function (p) {
+      if (p && p.phone && (String(p.id) === String(job.driverId) || (job.driver && p.name === job.driver))) ph = p.phone;
+    });
+    return ph;
+  }
+  function reachRow(job, who) {
+    var id = esc(job.id);
+    var label = who.toUpperCase();
+    return '<p class="note">' + label + "</p>" +
+      '<button type="button" class="sheet-go" data-act="reach-call" data-id="' + id + '" data-k="' + who + '">CALL</button>' +
+      '<button type="button" class="sheet-go" data-act="reach-video" data-id="' + id + '" data-k="' + who + '">VIDEO</button>' +
+      '<button type="button" class="sheet-go" data-act="reach-msg" data-id="' + id + '" data-k="' + who + '">MESSAGE</button>';
+  }
+  function msgLines(job) {
+    return (job.msgs || []).slice(-4).map(function (m) {
+      return '<p class="note"><b>' + esc(m.from || "") + " → " + esc(m.to || "") + "</b> " + esc(m.text || "") + "</p>";
+    }).join("");
+  }
+  function openHandoff(job) {
+    if (!job) return;
     openTile({
-      kind: "receipt",
-      title: "RECEIVED",
+      kind: "handoff",
+      title: "AT THE DOOR",
       mid: priceMid(job.fee),
-      html: whoLine("VENDOR", v.name, v.address || "") + whoLine("YOU", d.name || "Client", d.address || "") +
-        '<p class="note">You are at the delivery. Confirm you received it. The mutual account then pays the vendor and the driver.</p>' +
-        '<button type="button" class="sheet-go primary" data-act="client-got" data-id="' + esc(job.id) + '">I RECEIVED IT</button>',
+      html: whoLine("CLIENT", (job.drop && job.drop.name) || "Client", (job.drop && job.drop.address) || "") +
+        whoLine("VENDOR", job.vendor && job.vendor.name, "") +
+        '<p class="note">You are at the delivery. Ask the client to verify it.</p>' +
+        '<button type="button" class="sheet-go primary" data-act="ask-client" data-id="' + esc(job.id) + '">ASK THE CLIENT TO VERIFY</button>' +
+        reachRow(job, "client") + reachRow(job, "vendor") + msgLines(job) +
+        '<button type="button" class="sheet-go sn-dispute" data-act="dispute" data-id="' + esc(job.id) + '">DISPUTE</button>',
       job: job.id
+    });
+  }
+  function openClientCheck(job) {
+    if (!job) return;
+    var stars = [1, 2, 3, 4, 5].map(function (n) { return '<button type="button" data-act="star" data-n="' + n + '">' + n + "</button>"; }).join("");
+    openTile({
+      kind: "check",
+      title: "VERIFY",
+      mid: priceMid(job.fee),
+      html: '<p class="note">Was the delivery okay? Rate it, then confirm.</p>' +
+        '<div class="sn-stars" data-k="driver" data-id="' + esc(job.driverId || job.driver || "") + '" data-name="' + esc(job.driver || "driver") + '">' + stars + "</div>" +
+        '<button type="button" class="sheet-go primary" data-act="client-got" data-id="' + esc(job.id) + '">I RECEIVED IT</button>' +
+        reachRow(job, "driver") + reachRow(job, "vendor") + msgLines(job) +
+        '<button type="button" class="sheet-go sn-dispute" data-act="dispute" data-id="' + esc(job.id) + '">DISPUTE</button>',
+      job: job.id
+    });
+  }
+  function stopCall() {
+    var stream = window.__snCall;
+    if (stream && stream.getTracks) stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
+    window.__snCall = null;
+  }
+  function reachCall(job, who) {
+    var ph = partyPhone(job, who);
+    if (!ph) { say("No phone on the " + who + "."); return; }
+    location.href = "tel:" + String(ph).replace(/[^\d+]/g, "");
+  }
+  function reachVideo(job, who) {
+    openTile({
+      kind: "call",
+      title: "VIDEO",
+      html: '<p class="note">Calling the ' + esc(who) + ".</p><video id=\"sn-call\" autoplay playsinline muted></video>" +
+        (partyPhone(job, who) ? '<button type="button" class="sheet-go" data-act="reach-call" data-id="' + esc(job.id) + '" data-k="' + who + '">PHONE INSTEAD</button>' : "")
+    });
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { say("This phone has no camera."); return; }
+    navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: "user" } }).then(function (stream) {
+      window.__snCall = stream;
+      var el = $("sn-call");
+      if (el) el.srcObject = stream;
+    }).catch(function () { say("Camera permission was refused."); });
+  }
+  function reachMsg(job, who) {
+    openTile({
+      kind: "msg",
+      title: "MESSAGE",
+      html: '<p class="note">To the ' + esc(who) + ".</p>" + msgLines(job) +
+        '<textarea id="sn-msg" placeholder="Write it"></textarea>' +
+        '<button type="button" class="sheet-go primary" data-act="msg-send" data-id="' + esc(job.id) + '" data-k="' + who + '">SEND</button>'
+    });
+  }
+  function sendMsg(job, who) {
+    var el = $("sn-msg");
+    var text = el ? String(el.value || "").trim() : "";
+    if (!text) { say("Write the message."); return; }
+    job.msgs = job.msgs || [];
+    job.msgs.push({ from: myName(), to: who, text: text, t: Date.now() });
+    saveJobs();
+    publishJob(job);
+    say("Sent to the " + who + ".");
+    if (who === "client") openHandoff(job);
+    else openClientCheck(job);
+  }
+  function openDispute(job) {
+    openTile({
+      kind: "dispute",
+      title: "DISPUTE",
+      html: '<p class="note">Say what went wrong. The AI judges who pays, and a penalty if one is due.</p>' +
+        '<textarea id="sn-dispute" placeholder="What happened"></textarea>' +
+        '<button type="button" class="sheet-go sn-dispute" data-act="dispute-send" data-id="' + esc(job.id) + '">SEND TO THE JUDGE</button>'
+    });
+  }
+  function judgeDispute(job) {
+    var el = $("sn-dispute");
+    var text = el ? String(el.value || "").trim() : "";
+    if (!text) { say("Say what went wrong."); return; }
+    say("The judge is reading it.");
+    var brief = "JUSTICE for order " + job.id + ". Fee " + (job.fee || 0) + " AV€. Vendor " + ((job.vendor && job.vendor.name) || "") + ". Driver " + (job.driver || "") + ". Client " + ((job.drop && job.drop.name) || "") + ". Claim: " + text + ". act=justice. Name who is wrong. split numbers are what that side pays. If a penalty is due, say shut for the rest of the day.";
+    askGrok(brief, function (err, j) {
+      if (err || !j) { say("The judge did not answer. The dispute stays open."); return; }
+      var split = j.split || {};
+      var sides = [
+        { k: "client", id: "client:" + (job.client || me()), name: (job.drop && job.drop.name) || "Client", pay: Number(split.customer || split.client) || 0 },
+        { k: "vendor", id: "vendor:" + ((job.vendor && job.vendor.id) || "vendor"), name: (job.vendor && job.vendor.name) || "Vendor", pay: Number(split.vendor) || 0 },
+        { k: "driver", id: "driver:" + (job.driverId || "driver"), name: job.driver || "Driver", pay: Number(split.driver) || 0 }
+      ];
+      var guilty = null;
+      sides.forEach(function (s) { if (s.pay > 0 && (!guilty || s.pay > guilty.pay)) guilty = s; });
+      var bill = guilty ? guilty.pay : 0;
+      if (guilty && bill > 0) {
+        var b = booksGet();
+        var row = bookRow(b, guilty.id, guilty.name, guilty.k);
+        row.avc = Math.round(((Number(row.avc) || 0) - bill) * 100) / 100;
+        b.pool = Math.round(((Number(b.pool) || 0) + bill) * 100) / 100;
+        booksSet(b);
+      }
+      var sayText = j.say || j.text || "Judged.";
+      var penalise = /shut|penalty|banned|rest of the day|suspend/i.test(sayText);
+      if (guilty && penalise) shutFor(guilty.id, guilty.name, "Dispute. " + sayText);
+      job.verdict = sayText;
+      job.disputed = true;
+      saveJobs();
+      openTile({
+        kind: "verdict",
+        title: "VERDICT",
+        html: "<p>" + esc(sayText) + "</p>" +
+          (guilty && bill ? '<p class="note">' + esc(guilty.name) + " pays " + bill + " AV€.</p>" : '<p class="note">No payment was ordered.</p>') +
+          (guilty && penalise ? '<p class="note">Penalty applied.</p>' : "")
+      });
     });
   }
   function nudgeArmed(ll) {
@@ -3838,8 +3972,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         job.got = true; job.delivered = true;
         if (!job.outAt) job.outAt = Date.now();
         say("At the client.");
-        var mineClient = String(job.client || "") === String(me()) || (homeDrop && haversineKm(homeDrop, job.drop) < 0.12);
-        if (mineClient || isAdmin()) openReceipt(job);
+        if (!job.handoffShown) {
+          job.handoffShown = true;
+          openHandoff(job);
+        }
       } else {
         job.got = true;
         if (!job.outAt) job.outAt = Date.now();
@@ -4291,7 +4427,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     saveJobs();
     publishJob(job);
     openJobs();
-    say("Delivered. The client can confirm they received it.");
+    say("Delivered. Ask the client to verify it.");
+    openHandoff(job);
   }
   function clientGot(id) {
     var job = jobBy(id);
@@ -4299,13 +4436,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!isAdmin() && myRole() !== "client") { say("Only the client, or the administrator, confirms receipt."); return; }
     if (!job.delivered) { say("Not delivered yet."); return; }
     if (!atDrop(job)) return;
+    var box = document.querySelector("#sn-sheet .sn-stars");
+    var on = box && box.querySelector("button.on");
+    if (on) fileReview(job, "client", "driver", box.getAttribute("data-id"), box.getAttribute("data-name"), Number(on.getAttribute("data-n")), "");
     job.received = true;
     releaseJob(job);
     saveJobs();
     publishJob(job);
     openJobs();
     say("Received. Vendor and driver are paid from the mutual account. The cut stays there.");
-    openReview(job);
+    closeSheet();
   }
   function applyReview() {
     var sh = $("sn-sheet");
@@ -5590,6 +5730,19 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (act === "driver-got") driverGot(id);
       if (act === "driver-delivered") driverDelivered(id);
       if (act === "client-got") clientGot(id);
+      if (act === "ask-client") {
+        var asked = jobBy(id);
+        if (!asked) return;
+        asked.askClient = true;
+        saveJobs();
+        openClientCheck(asked);
+      }
+      if (act === "reach-call") { var jc = jobBy(id); if (jc) reachCall(jc, t.getAttribute("data-k")); }
+      if (act === "reach-video") { var jv = jobBy(id); if (jv) reachVideo(jv, t.getAttribute("data-k")); }
+      if (act === "reach-msg") { var jm = jobBy(id); if (jm) reachMsg(jm, t.getAttribute("data-k")); }
+      if (act === "msg-send") { var js = jobBy(id); if (js) sendMsg(js, t.getAttribute("data-k")); }
+      if (act === "dispute") { var jd = jobBy(id); if (jd) openDispute(jd); }
+      if (act === "dispute-send") { var jj = jobBy(id); if (jj) judgeDispute(jj); }
       if (act === "review") openReview(jobBy(id));
       if (act === "star") {
         var box = t.parentNode;
