@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4337";
+  var VER = "4338";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1498,7 +1498,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#island{position:relative!important;z-index:2!important;display:flex!important;align-items:center!important;gap:8px!important;height:32px!important;max-height:32px!important;margin:0!important;padding:0 36px!important;overflow:hidden!important}",
       "#island .r1{flex:none!important;flex-wrap:nowrap!important;white-space:nowrap!important;overflow:hidden!important;height:32px!important;align-items:center!important}",
       "#island .r2,#sn-spark,#sn-brand-a,#ver,#sn-latest,#sn-update{display:none!important}",
-      "#sn-brand-s{font:800 12px/32px system-ui!important;letter-spacing:.22em!important;color:#e8fbff!important}",
+      "#sn-brand-s{font:700 13px/32px system-ui,sans-serif!important;letter-spacing:0!important;text-transform:none!important;color:#e8fbff!important;white-space:nowrap!important}",
       "#sn-tick{flex:1!important;min-width:0!important;overflow:hidden!important;height:32px!important;pointer-events:auto!important}",
       "#sn-tick b{display:inline-block!important;white-space:nowrap!important;animation:sn-slide 16s linear infinite!important;color:#d7f6ff!important;font:600 13px/32px system-ui,sans-serif!important;letter-spacing:0!important}",
       "@keyframes sn-slide{from{transform:translateX(0)}to{transform:translateX(-50%)}}",
@@ -3980,6 +3980,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var up = $("sn-update");
     var behind = !!(latestVer && Number(latestVer) > Number(VER));
     if (now) now.textContent = "V" + VER;
+    var brand = $("sn-brand-s");
+    if (brand) brand.textContent = "Astranov.Eu SpaceNet V" + VER;
     var word = upState || (behind ? "FAILED TO UPDATE" : "UPDATED");
     if (lat) {
       lat.textContent = latestVer ? ("LATEST " + latestVer + " " + word) : ("LATEST … " + word);
@@ -4022,8 +4024,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       isle.appendChild(el);
     }
     var bits = [];
-    if (Date.now() < bootUntil) bits.push("V" + VER);
-    else if (upState === "FAILED TO UPDATE" || upState === "PLEASE TRY TO UPDATE MANUALLY") bits.push("Tap to update");
+    if (upState === "FAILED TO UPDATE" || upState === "PLEASE TRY TO UPDATE MANUALLY") bits.push("Tap to update");
     tickNotes.forEach(function (n) { bits.push(n); });
     var text = bits.filter(Boolean).join("    ·    ");
     if (text === tickShown) return;
@@ -4378,7 +4379,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     if (sBtn && !sBtn.__sn) {
       sBtn.__sn = true;
-      sBtn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); hardReset(); });
+      sBtn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); });
     }
     if (spark && !spark.__sn) {
       spark.__sn = true;
