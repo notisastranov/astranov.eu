@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4352";
+  var VER = "4353";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -2313,16 +2313,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     intro = false;
     desk.innerHTML =
-      '<div class="sheet-bar"><button type="button" class="sheet-x" data-act="support-close" aria-label="Close">✕</button><b class="sheet-ttl">BUILD</b><button type="button" class="sheet-apply" data-act="support-send" aria-label="Apply">✓</button></div>' +
+      '<div class="sheet-bar"><button type="button" class="sheet-x" data-act="support-close" aria-label="Close">✕</button><b class="sheet-ttl">GROK BUILD</b><button type="button" class="sheet-apply" data-act="support-send" aria-label="Apply">✓</button></div>' +
       '<div id="sn-support-log"></div>' +
-      '<textarea id="sn-support-matter" placeholder="Tell the programmer what to fix"></textarea>' +
+      '<textarea id="sn-support-matter" placeholder="What broke, or what should the system do"></textarea>' +
       '<button type="button" class="sheet-go primary" data-act="support-send">SEND</button>';
     desk.classList.add("on");
     layoutChrome();
     paintSupportLog();
     var ta = $("sn-support-matter");
     if (ta) ta.focus();
-    say("Programmer is here. Type the problem.");
+    say("Grok Build is open.");
   }
   var supportLog = [];
   function paintSupportLog() {
@@ -2330,7 +2330,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!log) return;
     log.innerHTML = supportLog.map(function (m) {
       return '<p class="note"><b>' + m.who + "</b> " + String(m.text).replace(/[<>]/g, "") + "</p>";
-    }).join("") || '<p class="note">Tell me what broke. Hold the map to list a vendor, a delivery address, or a driver.</p>';
+    }).join("") || '<p class="note">Grok Build is here. System fixes are built. Owner decisions go to Notis. One person\'s taste is declined.</p>';
     log.scrollTop = log.scrollHeight;
   }
   function pushSupport(who, text) {
@@ -2357,35 +2357,63 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     };
     try { rec.start(); say("Support listening…"); } catch (e) { say("Mic busy."); }
   }
+  function buildGate(text) {
+    var s = String(text || "").toLowerCase();
+    if (/colou?r|theme|font|skin|pink|only for me|i (like|prefer)|my taste|don'?t like (this|that|the) (shop|colour|color|button)|hide .+ for me|bigger button/.test(s)) {
+      return { gate: "decline", say: "Declined. That is one person's taste. SpaceNet does not change for it." };
+    }
+    if (/policy|legal|new market|who may withdraw|approve|ban |terms|change the (rule|law|pool)/.test(s)) {
+      return { gate: "forward", say: "Forwarded to Notis. That is an owner decision, not a defect." };
+    }
+    return { gate: "build", say: "Building. That is the system, so Grok Build takes it." };
+  }
+  function applyBuild(gate, matter, sayText) {
+    var g = gate === "forward" || gate === "decline" ? gate : "build";
+    if (g === "decline") return sayText || "Declined. That is one person's taste.";
+    var who = "";
+    try { var u = window.SNAuth && SNAuth.user && SNAuth.user(); who = (u && (u.email || u.name)) || me(); } catch (e) { who = me(); }
+    askAdmin({
+      id: "build-" + Date.now().toString(36),
+      kind: "build",
+      role: g,
+      title: g === "forward" ? "FORWARD" : "BUILD",
+      who: who,
+      note: matter
+    });
+    if (g === "build") programmer(matter);
+    return sayText || (g === "forward" ? "Forwarded to Notis." : "Building. Notis can see it in the queue.");
+  }
   function sendSupport(matter, fromVoice) {
     matter = String(matter || "").trim();
     if (!matter) { say("Say what you need."); return; }
+    if (!supportOn) setSupport(true);
     var ta = $("sn-support-matter");
     if (ta) ta.value = "";
     pushSupport("YOU", matter);
-    say("Grok…");
+    say("Grok Build…");
     askGrok(matter, function (err, j) {
-      if (!err && j) {
-        var reply = j.say || j.text;
-        pushSupport("GROK", reply);
-        say(reply);
-        if (fromVoice) speakIfVoice(reply);
-        applyAct(j, matter);
-        return;
+      var gate = j && j.gate;
+      var reply = (!err && j && (j.say || j.text)) || "";
+      if (gate !== "build" && gate !== "forward" && gate !== "decline") {
+        var local = buildGate(matter);
+        gate = local.gate;
+        if (!reply) reply = local.say;
       }
-      var local = programmer(matter);
-      pushSupport("GROK", local);
-      say(local);
-    });
+      reply = applyBuild(gate, matter, reply);
+      pushSupport("GROK BUILD", reply);
+      say(reply);
+      if (fromVoice) speakIfVoice(reply);
+    }, true);
   }
-  function askGrok(q, cb) {
+  function askGrok(q, cb, build) {
     var vendors = shops.slice(0, 8).map(function (s) { return s.name; });
     fetch("/api/ai", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         message: q,
-        history: hist,
+        desk: build ? "build" : "",
+        history: build ? [] : hist,
         world: worldText(),
         here: {
           lat: here && here.lat,
@@ -2399,10 +2427,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       })
     }).then(function (r) { return r.json(); }).then(function (j) {
       var text = j && (j.say || j.text);
-      if (!text) { cb((j && j.error) || "quiet"); return; }
-      hist.push({ role: "user", content: q });
-      hist.push({ role: "assistant", content: text });
-      if (hist.length > 16) hist = hist.slice(-16);
+      if (!text && !(j && j.gate)) { cb((j && j.error) || "quiet"); return; }
+      if (!build) {
+        hist.push({ role: "user", content: q });
+        hist.push({ role: "assistant", content: text || "" });
+        if (hist.length > 16) hist = hist.slice(-16);
+      }
       cb(null, j);
     }).catch(function () { cb("dark"); });
   }
