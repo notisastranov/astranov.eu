@@ -1340,13 +1340,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       lastT = now;
       if (!introT0) introT0 = now;
       if (intro && (now - introT0 >= INTRO_MS || (bootPt && now - introT0 >= INTRO_MIN))) endIntro();
-      bootTick(now);
-      stepCam(now, dt);
-      tickNews(now);
-      if (!cityOn) { drawGlobe(now); drawCard(now); }
-      if (skyOn) drawSky(now);
-      paintMonitor(now);
-      maybeLayout();
+      /* 4358: every step on its own: live V4354 went black because a removed tickNews() threw before drawGlobe every frame */
+      [function () { bootTick(now); }, function () { stepCam(now, dt); }, function () { if (typeof tickNews === "function") tickNews(now); },
+        function () { if (!cityOn) drawGlobe(now); }, function () { if (!cityOn) drawCard(now); }, function () { if (skyOn) drawSky(now); },
+        function () { paintMonitor(now); }, function () { maybeLayout(); }].forEach(function (f) {
+        try { f(); } catch (errS) { window.__SN_LOOP_ERR = String(errS && (errS.message || errS)); }
+      });
     } catch (err) {
       window.__SN_LOOP_ERR = String(err && (err.message || err));
     }
