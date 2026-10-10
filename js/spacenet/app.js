@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4354";
+  var VER = "4355";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1480,6 +1480,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var el = $("city");
     if (!el || typeof L === "undefined" || !pt) return;
     cityOn = true;
+    el.style.removeProperty("display");
+    document.body.classList.remove("sn-global");
     el.classList.add("on");
     if (!map) {
       map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 12, maxZoom: 19, scrollWheelZoom: true }).setView([pt.lat, pt.lng], 16);
@@ -1547,7 +1549,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function hideCity() {
     var el = $("city");
-    if (el) el.classList.remove("on");
+    if (el) {
+      el.classList.remove("on");
+      el.style.setProperty("display", "none", "important");
+    }
+    document.body.classList.add("sn-global");
     cityOn = false;
     paintOrders();
   }
@@ -1571,7 +1577,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     showGlobe(0.72, "National");
   }
   function goGlobal() {
+    onlySurface("");
     showGlobe(1.85, "Global");
+    pushNotice("Global");
   }
   function listAt(pt) {
     if (needLogin()) return;
@@ -1907,7 +1915,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var s = document.createElement("style");
     s.id = "sn-law";
     s.textContent = [
-      "#sn-sheet.on{pointer-events:none!important}",
+      "#sn-tasks.on{pointer-events:none!important}",
+      "#sn-tasks.on .card{pointer-events:auto!important}",
+      "body.sn-global #city{display:none!important}",
+      "body.sn-global #g{display:block!important;visibility:visible!important}",
+      "#sn-globe,#sn-support{z-index:220!important}",
+      "#sn-support-sheet{position:fixed!important;left:10px!important;right:10px!important;top:auto!important;bottom:calc(var(--dock, 64px) + 8px)!important;width:auto!important;max-height:46vh!important;z-index:90!important;overflow:auto!important}",
+      "#sn-support-sheet:not(.on){display:none!important}",
+      "#sn-support-sheet.on{display:block!important}",
+      "#dock{z-index:84!important}",
       "#sn-sheet .bg{pointer-events:none!important;display:none!important}",
       "#sn-sheet .card{position:absolute!important;left:14px!important;right:14px!important;width:auto!important;transform:none!important;bottom:78px!important;height:auto!important;max-height:42vh!important;padding:0!important;margin:0!important;border-radius:16px!important;border:1px solid rgba(77,240,255,.65)!important;overflow:hidden!important;background:rgba(4,16,32,.58)!important;backdrop-filter:blur(8px)!important;box-shadow:0 0 22px rgba(77,240,255,.28), inset 0 0 28px rgba(77,240,255,.06)!important}",
       "#sn-sheet-body{overflow:auto!important;max-height:calc(42vh - 48px)!important;-webkit-overflow-scrolling:touch!important;touch-action:pan-y!important;padding:8px 10px 12px!important}",
@@ -2122,8 +2138,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var html = queueHtml(open);
     if (force || fresh.length) {
       upsertTab({ id: "queue", kind: "queue", title: "QUEUE " + open.length, html: html, min: false });
-      var busy = $("sn-sheet") && $("sn-sheet").classList.contains("on");
-      if (force || !busy) {
+      var busy = ($("sn-sheet") && $("sn-sheet").classList.contains("on")) || supportOn;
+      if ((force || !busy) && !supportOn) {
         openSheet("QUEUE " + open.length, html, true);
         say((fresh[0] ? fresh[0].note : open[0].note) + (open.length > 1 ? " · " + open.length + " waiting." : ""));
       }
@@ -2288,19 +2304,40 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     });
   }
 
-  function setSupport(on) {
-    supportOn = !!on;
+  function quietSupport() {
+    supportOn = false;
     var btn = $("sn-support");
-    if (btn) btn.classList.toggle("on", supportOn);
+    if (btn) btn.classList.remove("on");
     var desk = $("sn-support-sheet");
-    if (!desk) return;
-    if (!supportOn) {
-      desk.classList.remove("on");
-      desk.innerHTML = "";
-      layoutChrome();
+    if (desk) desk.classList.remove("on");
+    document.body.classList.remove("sn-support");
+  }
+  function onlySurface(which) {
+    if (which !== "support") quietSupport();
+    if (which !== "sheet") {
+      sheetHold = false;
+      var sh = $("sn-sheet");
+      if (sh) sh.classList.remove("on", "tall", "min", "offer", "tile");
+    }
+    if (which !== "tasks") {
+      var tasks = $("sn-tasks");
+      if (tasks) tasks.classList.remove("on");
+    }
+  }
+  function setSupport(on) {
+    var btn = $("sn-support");
+    var desk = $("sn-support-sheet");
+    if (desk && desk.parentNode !== document.body) document.body.appendChild(desk);
+    if (!on) {
+      quietSupport();
+      if (desk) desk.innerHTML = "";
       say("Desk closed.");
       return;
     }
+    onlySurface("support");
+    supportOn = true;
+    if (btn) btn.classList.add("on");
+    if (!desk) return;
     intro = false;
     desk.innerHTML =
       '<div class="sheet-bar"><button type="button" class="sheet-x" data-act="support-close" aria-label="Close">✕</button><b class="sheet-ttl">GROK BUILD</b><button type="button" class="sheet-apply" data-act="support-send" aria-label="Apply">✓</button></div>' +
@@ -2308,11 +2345,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       '<textarea id="sn-support-matter" placeholder="What broke, or what should the system do"></textarea>' +
       '<button type="button" class="sheet-go primary" data-act="support-send">SEND</button>';
     desk.classList.add("on");
-    layoutChrome();
+    document.body.classList.add("sn-support");
     paintSupportLog();
     var ta = $("sn-support-matter");
     if (ta) ta.focus();
-    say("Grok Build is open.");
+    pushNotice("Grok Build");
   }
   var supportLog = [];
   function paintSupportLog() {
@@ -2581,6 +2618,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function openSheet(title, html, tall, mid) {
     var sh = $("sn-sheet"), card = $("sn-sheet-card");
     if (!sh || !card) return;
+    onlySurface("sheet");
     sheetLaw();
     sheetHold = true;
     var center = mid || esc(title || "");
@@ -4700,6 +4738,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     return false;
   }
   function openJobs() {
+    onlySurface("tasks");
     materialize(true);
     var sh = $("sn-tasks"); if (!sh) return;
     var list = $("sn-tasks-list");
@@ -4889,20 +4928,25 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (supportOn) { sendSupport(q, fromVoice); return; }
     if (runLine(q)) return;
     var hits = searchRoster(q);
-    say("Grok…");
+    openTile({ kind: "mind", title: "GROK", html: '<p class="note">' + esc(q) + '</p><p id="sn-mind">Grok…</p>' });
+    pushNotice("Grok…");
     askGrok(q, function (err, j) {
-      if (!err && j && (j.say || j.text)) {
-        var text = j.say || j.text;
-        say(text);
-        speakIfVoice(text);
+      var text = (!err && j && (j.say || j.text)) || "";
+      if (!text) {
+        if (showRoster(hits)) text = hits.map(function (h) { return h.say; }).join(" · ");
+        else if (/find|hunt|show|where|pizza|shop|food|near|driver/.test(q.toLowerCase())) { hunt(q); text = "Looking on the map."; }
+        else text = "Nothing in the shops, the drivers, or the clients around you.";
+      }
+      var mind = $("sn-mind");
+      if (mind) mind.textContent = text;
+      else openTile({ kind: "mind", title: "GROK", html: '<p class="note">' + esc(q) + "</p><p>" + esc(text) + "</p>" });
+      pushNotice(text.slice(0, 140));
+      speakIfVoice(text);
+      if (!err && j) {
         var act = String(j.act || "talk").toLowerCase();
         if (act === "open") openBest(searchRoster(j.q || q).length ? searchRoster(j.q || q) : hits);
-        else applyAct(j, q);
-        return;
+        else if (act !== "talk") applyAct(j, q);
       }
-      if (showRoster(hits)) return;
-      if (/find|hunt|show|where|pizza|shop|food|near|driver/.test(q.toLowerCase())) { hunt(q); return; }
-      say("Nothing in the shops, the drivers, or the clients around you.");
     });
   }
   function clockLine(d, utc) {
@@ -5246,7 +5290,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         e.preventDefault();
         e.stopPropagation();
         goGlobal();
-      });
+      }, true);
     }
     var architect = $("sn-architect");
     if (architect && !architect.__sn) {
@@ -5322,7 +5366,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var support = $("sn-support");
     if (support && !support.__sn) {
       support.__sn = true;
-      support.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openSupport(); });
+      support.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openSupport(); }, true);
     }
     var tabsRail = $("sn-tabs");
     if (tabsRail && !tabsRail.__sn) {
