@@ -83,6 +83,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var pinch = null;
   var holdT = 0;
   var cityOn = false;
+  var userLeave = false;
   var cardHits = [];
   var skyOn = false;
   var skyHits = [];
@@ -2324,7 +2325,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           if (map && map.getZoom() < closeBelow - 0.01) {
             closeCity();
             zoomToDist(1.25);
+            return;
           }
+          userLeave = false;
+          if (z < 14) map.setZoom(14);
         } catch (e) {}
       });
       map.on("moveend", function () {
@@ -2934,7 +2938,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-power-tag.on{color:#7dff9a}",
       "#sn-power-tag.hold{color:#fff;background:rgba(4,14,28,.88);border:1px solid #4df0ff;border-radius:6px;padding:2px 7px;font-size:12px;line-height:16px;box-shadow:0 0 10px rgba(77,240,255,.6)}",
       "#sn-sheet .sn-dish{display:grid!important;grid-template-columns:minmax(0,1fr) 88px!important;gap:6px!important;margin:8px 0 0!important}",
-      "#sn-cloud{position:fixed!important;top:40px!important;left:50%!important;right:auto!important;transform:translateX(-50%)!important;z-index:48!important;display:flex!important;gap:12px!important;align-items:center!important;max-width:calc(100vw - 24px)!important;padding:7px 14px!important;border-radius:999px!important;background:rgba(4,16,32,.92)!important;border:1px solid rgba(77,240,255,.8)!important;color:#e8fbff!important;font:700 12px/1 system-ui!important;pointer-events:none!important;box-shadow:0 0 18px rgba(77,240,255,.35)!important;white-space:nowrap!important}",
+      "#sn-cloud{position:fixed!important;top:40px!important;left:50%!important;right:auto!important;transform:translateX(-50%)!important;z-index:48!important;display:flex!important;gap:8px!important;align-items:center!important;max-width:calc(100vw - 24px)!important;padding:4px!important;border-radius:999px!important;background:rgba(4,16,32,.92)!important;border:1px solid rgba(77,240,255,.8)!important;color:#e8fbff!important;font:700 12px/1 system-ui!important;pointer-events:auto!important;box-shadow:0 0 18px rgba(77,240,255,.35)!important}",
+      "#sn-cloud button{pointer-events:auto!important;border:0!important;background:transparent!important;color:#e8fbff!important;font:700 12px/1 system-ui!important;padding:6px 8px!important;white-space:nowrap!important}",
       "#sn-cloud.off{display:none!important}",
       "#sn-cloud b{color:#4df0ff!important;font:800 18px/1 system-ui!important;margin-right:4px!important}",
       ".sn-obubble{background:transparent!important;border:0!important}",
@@ -3620,13 +3625,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     bot = Math.max(80, bottomBlock);
     try {
       var bounds = routeLayer.getBounds();
-      if (driverPin && isFinite(+driverPin.lat)) bounds.extend([+driverPin.lat, +driverPin.lng]);
+      if (driverPin && isFinite(+driverPin.lat) && haversineKm(driverPin, { lat: bounds.getCenter().lat, lng: bounds.getCenter().lng }) < 20) bounds.extend([+driverPin.lat, +driverPin.lng]);
       map.fitBounds(bounds, {
         paddingTopLeft: [side, Math.max(36, top)],
         paddingBottomRight: [side, bot],
         maxZoom: 16,
         animate: false
       });
+      if (map.getZoom() < 14) map.setZoom(14);
     } catch (e) {}
   }
   function openSheet(title, html, tall, mid) {
@@ -4012,7 +4018,36 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       else if (st === "cancelled") cancelled++;
     });
     el.className = "";
-    el.innerHTML = "<span><b>" + pending + "</b> pending</span><span><b>" + way + "</b> on the way</span><span><b>" + cancelled + "</b> cancelled</span>";
+    el.innerHTML = '<button type="button" data-act="cloud" data-k="pending"><b>' + pending + "</b> pending</button>" +
+      '<button type="button" data-act="cloud" data-k="way"><b>' + way + "</b> on the way</button>" +
+      '<button type="button" data-act="cloud" data-k="cancelled"><b>' + cancelled + "</b> cancelled</button>";
+  }
+  function openOrderList(kind) {
+    var rows = jobs.filter(function (j) { return j && seesJob(j) && orderState(j) === kind; });
+    if (!rows.length) { say("No " + (kind === "way" ? "orders on the way" : kind + " orders") + "."); return; }
+    var html = rows.map(function (j) {
+      var v = j.vendor || {};
+      var dish = (j.lines && j.lines[0] && j.lines[0].name) || "order";
+      return '<button type="button" class="sheet-go" data-act="open-job" data-id="' + esc(j.id) + '">' + esc((v.name || "Vendor") + " · " + dish + " · " + (j.fee || 0) + " AV€") + "</button>";
+    }).join("");
+    openTile({ kind: "orders", title: kind === "way" ? "ON THE WAY" : kind.toUpperCase(), html: html });
+  }
+  function openJob(id) {
+    var job = jobById(id);
+    if (!job || !job.vendor) return;
+    if (!cityOn) openCity(job.vendor);
+    if (map && isFinite(+job.vendor.lat)) {
+      try { map.setView([+job.vendor.lat, +job.vendor.lng], Math.max(15, cityZoom || 16), { animate: true }); } catch (e) {}
+    }
+    if (job.drop && isFinite(+job.drop.lat)) drawRoute(job.vendor, job.drop);
+    var drivers = freeDrivers(job.vendor);
+    if (orderState(job) === "pending" && drivers.length) {
+      job.offeredTo = (pickDriver(job, drivers) || drivers[0]).id;
+      saveJobs();
+      openDriverOffer(job, drivers);
+      return;
+    }
+    openVendor(job.vendor);
   }
   function paintOrders() {
     paintCloud();
@@ -4038,7 +4073,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var marker = L.marker([+s.lat, +s.lng], { icon: icon, interactive: true, keyboard: false, zIndexOffset: 900 });
       marker.on("click", function (e) {
         if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent);
-        openVendor(s);
+        openJob(list[0].id);
       });
       marker.addTo(map);
       orderMarks.push(marker);
@@ -5895,7 +5930,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     });
     if (job) {
       var line = roads[roadKey(job.vendor, job.drop)];
-      if (line && line.length > 1 && distToRoad(pt, line) < 0.08) pt = snapToLine(pt, line);
+      var off = line && line.length > 1 ? distToRoad(pt, line) : 0;
+      if (line && line.length > 1 && off < 0.08) pt = snapToLine(pt, line);
+      var goal = job.got ? job.drop : job.vendor;
+      var away = goal && isFinite(+goal.lat) && haversineKm(pt, goal) > haversineKm(p, goal) + 0.02;
+      if (off > 0.03 || away) say("Wrong way. Stay on the blue line or this order is cancelled.");
+      if (off > 0.08) {
+        p.lat = pt.lat; p.lng = pt.lng;
+        dropOrder(job, p, "wrong way");
+        return;
+      }
     }
     p.lat = pt.lat; p.lng = pt.lng; p.manual = true;
     savePeople();
@@ -5914,7 +5958,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       } else {
         job.got = true;
         if (!job.outAt) job.outAt = Date.now();
-        say("On the route.");
+        if (!(off > 0.03 || away)) say("On the route.");
       }
       saveJobs();
       publishJob(job);
@@ -6091,13 +6135,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var dishEl = $("sn-dish");
     var priceEl = $("sn-dish-price");
     var typed = dishEl ? String(dishEl.value || "").trim() : "";
-    if (typed) lines.push({ name: typed, n: 1, price: (priceEl && String(priceEl.value || "").trim()) || "5" });
-    if (!lines.length) {
-      var first = (vendor.menu || []).filter(function (m) { return m && (m.name || m.price); })[0];
-      if (first) lines.push({ name: first.name || "item", n: 1, price: first.price || "5" });
-    }
-    if (!lines.length && isAdmin()) lines.push({ name: (vendor.name || "Shop") + " order", n: 1, price: "8" });
+    var typedPrice = moneyOf(priceEl && priceEl.value);
+    if (typed && !(typedPrice > 0)) { sheetNote("Put a price on " + typed + ", then the green check."); return; }
+    if (typed) lines.push({ name: typed, n: 1, price: String(typedPrice) });
+    var priced = true;
+    lines.forEach(function (l) { if (!(moneyOf(l.price) > 0)) priced = false; });
     if (!lines.length) { sheetNote("Type a dish and a price, then the green check."); return; }
+    if (!priced) { sheetNote("Every dish needs a price."); return; }
     var dest = resolveDrop(vendor);
     if (!dest && isAdmin() && isFinite(+vendor.lat)) dest = { lat: +vendor.lat + 0.004, lng: +vendor.lng, name: "Test client", address: "Test drop", owner: me() };
     if (!dest) { askDropNear(vendor); return; }
@@ -6147,23 +6191,26 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     saveJobs();
     publishJob(job);
     closeSheet();
+    if (!cityOn) openCity(vendor);
+    drawRoute(vendor, job.drop);
+    var drivers = freeDrivers(job.vendor);
     if (isAdmin()) {
-      job.prep = job.prep || 10;
-      job.lifeMin = job.lifeMin || 45;
+      job.prep = 10;
+      job.lifeMin = 45;
       job.vendorAccepted = true; /* 4355: READY stays the vendor's first step on the route card */
       job.stage = "drivers";
-      var drivers = freeDrivers(job.vendor);
-      var drv0 = pickDriver(job, drivers);
-      if (drv0) {
-        job.offeredTo = drv0.id;
-        job.stage = "drivers";
-      }
+    }
+    pickSpent(vKey(vendor));
+    var drv0 = pickDriver(job, drivers);
+    if (drv0) {
+      job.offeredTo = drv0.id;
       saveJobs();
-      say("Order placed above " + (vendor.name || "the vendor") + ". " + job.fee + " AV€." + (drv0 ? " Offered to " + (drv0.name || "the closest driver") + "." : " No driver yet."));
+      openDriverOffer(job, drivers);
+      say("Offer is with " + (drv0.name || "the closest driver") + ". Accept it, then tap the map to move that driver.");
       return;
     }
-    say("Order placed. " + job.fee + " AV€. Sent to " + (vendor.name || "the vendor") + ".");
-    pickSpent(vKey(vendor));
+    saveJobs();
+    say("Order is above " + (vendor.name || "the vendor") + ". No driver in the area yet.");
   }
   function rememberDish(shop, line) {
     if (!shop || !line || !line.name) return;
@@ -6275,21 +6322,51 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     say("Quote " + q.total + " AV€ · " + vendor.name);
   }
   function drawRoute(from, to) {
-    if (!map || typeof L === "undefined") return;
+    if (!map || typeof L === "undefined" || !from || !to) return;
+    if (!cityOn && isFinite(+from.lat)) openCity(from);
     if (routeLayer) try { map.removeLayer(routeLayer); } catch (e) {}
     routeLayer = null;
     var key = roadKey(from, to);
-    var url = "https://router.project-osrm.org/route/v1/driving/" + from.lng + "," + from.lat + ";" + to.lng + "," + to.lat + "?alternatives=true&overview=full&geometries=geojson";
+    var url = "https://router.project-osrm.org/route/v1/driving/" + from.lng + "," + from.lat + ";" + to.lng + "," + to.lat + "?alternatives=3&overview=full&geometries=geojson";
     fetchJson(url).then(function (j) {
       var lines = routeLines(j);
-      if (!lines.length) lines = [[{ lat: from.lat, lng: from.lng }, { lat: to.lat, lng: to.lng }]];
+      if (!lines.length) lines = [[{ lat: +from.lat, lng: +from.lng }, { lat: +to.lat, lng: +to.lng }]];
       roads[key] = lines[0];
       roadAlts[key] = lines;
       paintRoads(key, lines, 0);
       routeLayer = roadPaint[key] && roadPaint[key][0];
       fitOfferRoute();
-      if (lines.length > 1) say(lines.length + " roads. The bright line is the route. Tap a dim one to take it.");
+      avoidLights(key, lines);
+    }).catch(function () {});
+  }
+  function avoidLights(key, lines) {
+    if (!lines || !lines.length) return;
+    var south = 90, north = -90, west = 180, east = -180;
+    lines.forEach(function (line) {
+      line.forEach(function (p) {
+        if (p.lat < south) south = p.lat;
+        if (p.lat > north) north = p.lat;
+        if (p.lng < west) west = p.lng;
+        if (p.lng > east) east = p.lng;
+      });
     });
+    var pad = 0.008;
+    var q = '[out:json][timeout:12];node["highway"="traffic_signals"](' + (south - pad) + "," + (west - pad) + "," + (north + pad) + "," + (east + pad) + ");out;";
+    if (!overpassUp()) return; /* 4355: same-origin /api/find proxy (4350), no browser CORS noise, honours the cool-down */
+    overpassVia(q).then(function (j) {
+      var lights = ((j && j.elements) || []).map(function (n) { return { lat: n.lat, lng: n.lon }; }).filter(function (n) { return isFinite(n.lat); });
+      if (lights.length < 1 || lines.length < 2) return;
+      var best = 0, bestN = 1e9, i;
+      for (i = 0; i < lines.length; i++) {
+        var n = 0;
+        lights.forEach(function (L) { if (distToRoad(L, lines[i]) < 0.025) n++; });
+        if (n < bestN) { bestN = n; best = i; }
+      }
+      roads[key] = lines[best];
+      paintRoads(key, lines, best);
+      routeLayer = roadPaint[key] && roadPaint[key][0];
+      say("This road has " + bestN + " traffic light" + (bestN === 1 ? "" : "s") + ". The others were worse.");
+    }).catch(function () {});
   }
   function sendJob() {
     if (needTerms()) return;
@@ -7656,6 +7733,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
       if (act === "self-ride") say("Hold the map. List the vendor, the delivery address, and a driver. Then send the offer.");
       if (act === "place-order") { checkoutVendor(); return; }
+      if (act === "cloud") { openOrderList(t.getAttribute("data-k") || "pending"); return; }
+      if (act === "open-job") { openJob(t.getAttribute("data-id")); return; }
       if (act === "compass-north") { armNorth(); return; }
       if (act === "compass-drive") { armDrive(); return; }
       if (act === "vid-meh" || act === "vid-never" || act === "vid-love") {
