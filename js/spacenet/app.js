@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4357";
+  var VER = "4356";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -80,6 +80,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var pinch = null;
   var holdT = 0;
   var cityOn = false;
+  var globeHold = true;
   var userLeave = false;
   var cardHits = [];
   var skyOn = false;
@@ -1055,6 +1056,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       stepCam(now, dt);
       tickNews(now);
       if (!cityOn) { drawGlobe(now); drawCard(now); }
+      guardOverlap();
       if (skyOn) drawSky(now);
       paintMonitor(now);
       maybeLayout();
@@ -1189,7 +1191,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!aim && here && isFinite(here.lat)) aim = { lat: here.lat, lng: here.lng };
     if (cityOn) return;
     if (dist <= 0.52 && aim && isFinite(aim.lat)) {
-      openCity(aim);
+      globeHold = false;
+      openCity(aim, true);
       if (map) {
         try {
           map.setView([aim.lat, aim.lng], 14, { animate: false });
@@ -1304,7 +1307,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     window.__SN_HERE = here;
     try { if (pt.how === "gps" || pt.how === "saved") localStorage.setItem("sn:here", JSON.stringify(hereLive || here)); } catch (e) {}
     aim = { lat: here.lat, lng: here.lng };
-    openCity(aim);
+    globeHold = false;
+    openCity(aim, true);
     if (map) {
       var z = cityZoom || 16;
       try { map.setView([aim.lat, aim.lng], z); } catch (e) {}
@@ -1473,15 +1477,18 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     paintCompass();
     if (!window.__SN_GPS13) window.__SN_GPS13 = setInterval(function () { freshFix(null); }, 13000);
   }
-  function openCity(pt) {
+  function openCity(pt, force) {
+    if (!force && globeHold) return;
     if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
+    var el = $("city");
+    if (!el || typeof L === "undefined") return;
+    globeHold = false;
     aim = { lat: pt.lat, lng: pt.lng };
     tierI = 3;
-    var el = $("city");
-    if (!el || typeof L === "undefined" || !pt) return;
     cityOn = true;
     el.style.removeProperty("display");
-    document.body.classList.remove("sn-global");
+    document.documentElement.classList.add("sn-street");
+    document.documentElement.classList.remove("sn-global");
     el.classList.add("on");
     if (!map) {
       map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 12, maxZoom: 19, scrollWheelZoom: true }).setView([pt.lat, pt.lng], 16);
@@ -1549,13 +1556,25 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function hideCity() {
     var el = $("city");
+    globeHold = true;
+    cityOn = false;
     if (el) {
       el.classList.remove("on");
       el.style.setProperty("display", "none", "important");
     }
-    document.body.classList.add("sn-global");
-    cityOn = false;
+    document.documentElement.classList.remove("sn-street");
+    document.documentElement.classList.add("sn-global");
     paintOrders();
+  }
+  function guardOverlap() {
+    var ids = ["sn-tasks", "sn-sheet", "sn-support-sheet"];
+    var on = [];
+    ids.forEach(function (id) {
+      var el = $(id);
+      if (el && el.classList.contains("on")) on.push(el);
+    });
+    if (on.length < 2) return;
+    on.slice(0, -1).forEach(function (el) { el.classList.remove("on"); });
   }
   function showGlobe(dist, name) {
     hideCity();
@@ -1917,8 +1936,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     s.textContent = [
       "#sn-tasks.on{pointer-events:none!important}",
       "#sn-tasks.on .card{pointer-events:auto!important}",
-      "body.sn-global #city{display:none!important}",
-      "body.sn-global #g{display:block!important;visibility:visible!important}",
+      "html.sn-global #city,html:not(.sn-street) #city{display:none!important;visibility:hidden!important;pointer-events:none!important}",
+      "html.sn-street #city{display:block!important;visibility:visible!important;pointer-events:auto!important;z-index:12!important}",
+      "#g{position:fixed!important;inset:0!important;z-index:4!important;display:block!important;background:#02060c!important}",
       "#sn-globe,#sn-support{z-index:220!important}",
       "#sn-support-sheet{position:fixed!important;left:10px!important;right:10px!important;top:auto!important;bottom:calc(var(--dock, 64px) + 8px)!important;width:auto!important;max-height:46vh!important;z-index:90!important;overflow:auto!important}",
       "#sn-support-sheet:not(.on){display:none!important}",
@@ -2013,8 +2033,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ".sn-pin em{display:flex;align-items:center;justify-content:center;width:40px;height:40px;font:28px/40px system-ui;border-radius:8px;border:2px solid #4df0ff;background:rgba(4,14,28,.92)}",
       "#sn-tester{position:fixed;top:28px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(77,240,255,.4);color:#7ee9ff;font:700 10px/14px ui-monospace,monospace;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#sn-tester.stale{color:#8a6a6a;border-color:rgba(255,120,120,.35)}",
-      "#sn-topchrome-drag,#cli-drag{display:block!important;height:10px!important;min-height:10px!important;max-height:10px!important;font-size:0!important;line-height:0!important;color:transparent!important;overflow:hidden!important;background:transparent!important;border:0!important;padding:0!important;margin:0!important}",
-      "#top{top:0!important;left:0!important;right:0!important;margin:0!important;padding:0!important;height:auto!important;min-height:42px!important;max-height:none!important;overflow:visible!important;display:flex!important;flex-direction:column!important}",
+      "#sn-topchrome-drag,#cli-drag{display:none!important;height:0!important;min-height:0!important;max-height:0!important}",
+      "#top{top:0!important;left:0!important;right:0!important;margin:0!important;padding:0!important;height:32px!important;min-height:32px!important;max-height:32px!important;overflow:hidden!important;display:flex!important;flex-direction:column!important}",
       "#island{position:relative!important;z-index:2!important;display:flex!important;align-items:center!important;gap:8px!important;height:32px!important;max-height:32px!important;margin:0!important;padding:0 36px!important;overflow:hidden!important}",
       "#island .r1{flex:none!important;flex-wrap:nowrap!important;white-space:nowrap!important;overflow:hidden!important;height:32px!important;align-items:center!important}",
       "#island .r2,#sn-spark,#sn-brand-a,#ver,#sn-latest,#sn-update{display:none!important}",
@@ -6623,7 +6643,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
   }
   function boot() {
-    sheetLaw();
+    document.documentElement.classList.add("sn-global");
+    document.documentElement.classList.remove("sn-street");
+    globeHold = true;
+    cityOn = false;
     canvas = $("g");
     if (!canvas) return;
     ctx = canvas.getContext("2d");
@@ -6631,6 +6654,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     cam.yaw = (20 * Math.PI) / 180 - earthSpin();
     cam.pitch = 0.22;
     cam.dist = 1.85;
+    tierI = 1;
+    try { drawGlobe(performance.now()); } catch (e) { window.__SN_LOOP_ERR = String(e && (e.message || e)); }
+    try {
+    sheetLaw();
     bindGlobe();
     bindChrome();
     bindSky();
@@ -6691,6 +6718,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       history.replaceState({}, "", location.pathname);
     }
     window.__SN_4285 = true;
+    } catch (err) {
+      window.__SN_BOOT_ERR = String(err && (err.message || err));
+    }
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
