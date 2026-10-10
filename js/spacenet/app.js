@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4354";
+  var VER = "4355";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1119,7 +1119,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4354 = true;
+      window.__SN_4355 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -2753,7 +2753,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4354&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4355&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -2923,8 +2923,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet .sn-prof b{display:block;color:#e8fbff!important;font:800 16px/1.2 system-ui!important}",
       "#sn-sheet .sn-tel{display:block;color:#4df0ff!important;font:700 14px/1.4 system-ui!important;text-decoration:none}",
       "#sn-sheet.tile .card{max-height:var(--sn-rest,30vh)!important;height:auto!important}",
-      "#sn-sheet.tile .sn-prof{grid-template-columns:88px minmax(0,1fr)!important}",
-      "#sn-sheet.tile .sn-prof .sn-shop-hero,#sn-sheet.tile .sn-prof em{width:88px!important;height:88px!important;max-width:88px!important;max-height:88px!important;max-height:88px!important}",
+      /* 4355: the card is a real inset: centred, at most 720 px wide, never closer than max(16px, 4vw) to the edges */
+      "#sn-sheet .card{left:max(16px,4vw,calc((100vw - 720px) / 2))!important;right:max(16px,4vw,calc((100vw - 720px) / 2))!important}",
+      "#sn-sheet.tile .sn-prof{grid-template-columns:72px minmax(0,1fr)!important}",
+      "#sn-sheet.tile .sn-prof .sn-shop-hero,#sn-sheet.tile .sn-prof em{width:72px!important;height:72px!important;max-width:72px!important;max-height:72px!important}",
       "#sn-sheet .sn-pick{display:grid;grid-template-columns:52px minmax(0,1fr) auto 28px 28px 28px;gap:6px;align-items:center;margin-top:8px}",
       "#sn-sheet .sn-pick.nothumb{grid-template-columns:minmax(0,1fr) auto 28px 28px 28px}",
       "#sn-power-tag{position:fixed;top:58px;left:max(6px,env(safe-area-inset-left));z-index:60;font:700 10px/14px ui-monospace,monospace;color:#8fb3c0;pointer-events:none;white-space:nowrap;text-shadow:0 0 4px #000}",
@@ -3669,13 +3671,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     body.addEventListener("touchend", function () { start = 0; });
   }
   function jobForRoad(key) {
-    var found = null;
+    /* 4355: jobs are newest first; the route card belongs to the newest live job on this road, a driver-accepted one first */
+    var found = null, taken = null;
     jobs.forEach(function (j) {
-      if (!j || !j.vendor || !j.drop) return;
-      if (roadKey(j.vendor, j.drop) === key) found = j;
-      if (j.fault && roadKey(j.fault, j.fault.goal || j.drop) === key) found = j;
+      if (!j || !j.vendor || !j.drop || j.received || j.cancelled || j.wasted) return;
+      var hit = roadKey(j.vendor, j.drop) === key || (j.fault && roadKey(j.fault, j.fault.goal || j.drop) === key);
+      if (!hit) return;
+      if (!found) found = j;
+      if (!taken && j.driverAccepted) taken = j;
     });
-    return found;
+    return taken || found;
   }
   function nextStep(j) {
     if (!j) return "";
@@ -3684,7 +3689,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (j.delivered) return "Confirm you received it.";
     if (j.got) return "On the bike. Meet it at the door.";
     if (j.pickup) return "Driver collects it.";
-    if (j.ready) return "Ready. Verify the pickup.";
+    if (j.ready) return "Ready. The vendor verifies the pickup.";
     if (j.vendorAccepted) return "Waiting for a driver.";
     if (j.fault && !j.fault.found) return "Collect it from the driver in trouble.";
     return "Vendor sets the prep and how long it stays good.";
@@ -3698,6 +3703,33 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     return bits.join(" · ");
   }
+  /* 4355: the route card carries the real order steps: READY, PICKUP, ON THE BIKE, DELIVERED, RECEIVED. Done steps show
+     a tick, the next one is the bright button, a step this seat cannot take is dimmed with who takes it */
+  var routeKeyOpen = null;
+  var ROUTE_STEPS = [
+    { act: "mark-ready", label: "READY", done: "ready", who: "vendor" },
+    { act: "verify-pickup", label: "PICKUP", done: "pickup", who: "vendor" },
+    { act: "driver-got", label: "ON THE BIKE", done: "got", who: "driver" },
+    { act: "driver-delivered", label: "DELIVERED", done: "delivered", who: "driver" },
+    { act: "client-got", label: "RECEIVED", done: "received", who: "client" }
+  ];
+  function routeSteps(job) {
+    var role = myRole(), admin = isAdmin(), next = -1;
+    ROUTE_STEPS.forEach(function (st, i) { if (next < 0 && !job[st.done]) next = i; });
+    var html = '<div class="sn-steps" data-job="' + esc(job.id) + '" data-next="' + (next < 0 ? "done" : ROUTE_STEPS[next].act) + '" style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0">';
+    ROUTE_STEPS.forEach(function (st, i) {
+      var done = !!job[st.done], mine = admin || role === st.who, isNext = i === next;
+      var cls = "sheet-go sn-step" + (isNext && mine ? " primary" : "");
+      var dis = done || !isNext || !mine;
+      html += '<button type="button" class="' + cls + '" data-act="' + st.act + '" data-id="' + esc(job.id) + '" data-step="' + st.done + '"' + (dis ? " disabled" : "") +
+        ' title="' + esc(done ? "done" : st.who) + '" style="flex:1 1 auto;min-width:0' + (done ? ";opacity:.55" : "") + '">' + (done ? "✓ " : "") + st.label + (isNext && !mine ? " · " + st.who.toUpperCase() : "") + "</button>";
+    });
+    return html + '</div><p class="note sn-next">' + esc(nextStep(job)) + "</p>";
+  }
+  function refreshRouteTile() {
+    var sh = $("sn-sheet");
+    if (routeKeyOpen && sh && sh.classList.contains("on") && sh.getAttribute("data-kind") === "route") { try { openRouteTile(routeKeyOpen); } catch (e) {} }
+  }
   function openRouteTile(key) {
     var job = jobForRoad(key);
     if (job && (job.received || job.cancelled || job.wasted)) job = null;
@@ -3708,9 +3740,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var alts = (roadAlts[key] || []).length;
     var html = whoLine("FROM", (job && job.vendor && job.vendor.name) || "Start", "") +
       whoLine("TO", (job && job.drop && (job.drop.name || job.drop.address)) || "End", "") +
+      (job && job.driver ? whoLine("DRIVER", job.driver, "") : "") +
       '<div class="sn-leg">' + esc((km ? km.toFixed(1) : "—") + " km · " + exp.min + " min" + (exp.n ? " · " + exp.n + " drivers this hour" : " · no history this hour")) + "</div>" +
       (job ? '<p class="note">' + esc(orderClock(job) || "") + "</p>" : "") +
+      (job ? routeSteps(job) : "") +
       '<p class="note">' + (job && job.driver ? esc(job.driver) + " is on it. " : "") + alts + " road" + (alts === 1 ? "" : "s") + ". The bright line is this one. Tap a dim line to take another.</p>";
+    routeKeyOpen = key;
     openTile({ kind: "route", title: "ROUTE", html: html, job: job && job.id });
   }
   function closeSheet() {
@@ -4055,6 +4090,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var motionMarks = {};
   var liveOpened = false;
   var liveNet = 0; /* 4339: real public listings on the whole network (explicit status live, no fixtures) */
+  /* 4355: the hunt's real pin count, readable from the DOM for remines:
+     <html> and the LIVE pill (#sn-pulse) carry data-hunt-pins / data-hunt-query / data-hunt-state (running|done) /
+     data-hunt-cached (1 when the last real pins were reused because every live source failed) */
+  function markHunt(n, state) {
+    var c = window.__snHuntCache;
+    var a = { "data-hunt-pins": String(n == null ? "" : n), "data-hunt-query": huntView ? String(huntLabel()) : "", "data-hunt-state": state || "done", "data-hunt-cached": c && c.used ? "1" : "0" };
+    window.__snHuntPins = n;
+    [document.documentElement, $("sn-pulse")].forEach(function (el) { if (el) for (var k in a) el.setAttribute(k, a[k]); });
+  }
   function paintPulse() {
     var el = $("sn-pulse");
     if (!el) {
@@ -4064,6 +4108,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     if (huntPending()) {
       el.textContent = "LIVE · finding " + huntLabel() + "…";
+      markHunt(null, "running");
       return;
     }
     if (!liveLoaded && !huntView) { el.textContent = "LIVE · loading…"; return; }
@@ -4967,6 +5012,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var seat0 = huntOrigin();
     var shown = findOrder(list);
     window.__snFindShown = shown;
+    /* 4355: a finished hunt re-rendered later (listed shops landing from the field refresh) keeps its count honest:
+       the DOM count and the "N real … pins" line follow what FIND really shows */
+    if (huntView && huntDoneN != null && !huntPending() && shown.length !== huntDoneN) {
+      huntDoneN = shown.length;
+      markHunt(shown.length, "done");
+      if (!huntView.single) huntSay(shown.length, seat0);
+    }
     if (!shown.length) {
       openSheet("FIND · 0", '<p class="note">No real ' + esc(huntLabel()) + " within 50 km of " + esc(seatName(seat0)) + ".</p>");
     } else {
@@ -5106,6 +5158,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       findOnSheet = false;
       try { openVendor(one); } catch (eV) {}
       try { paintPulse(); } catch (eP0) {}
+      huntDoneN = 1;
+      markHunt(1, "done");
       var ad1 = addrOf(one).text;
       say(one.name + (ad1 ? " · " + ad1 : "") + (seat0 ? " · " + haversineKm(seat0, one).toFixed(1) + " km from " + seatName(seat0) : ""));
       return;
@@ -5118,6 +5172,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     renderFind(fieldShops());
     try { paintPulse(); } catch (eP) {}
     var n = (window.__snFindShown || []).length;
+    huntDoneN = n;
+    markHunt(n, "done");
+    huntSay(n, seat0);
+  }
+  var huntDoneN = null; /* the count the finished hunt announced; null while a hunt runs or none has */
+  function huntSay(n, seat0) {
     if (!n && huntView && huntView.nameQ) say("No place named " + huntView.nameQ + " within 50 km of " + seatName(seat0) + ".");
     else if (!n) say("No real " + huntLabel() + " within 50 km of " + seatName(seat0) + ".");
     else say(n + " real " + huntLabel() + " pin" + (n === 1 ? "" : "s") + " at " + seatName(seat0) + (signed() ? ". Tap one to order." : ". Tap one to see the menu."));
@@ -5306,6 +5366,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     window.__snHuntPlace = looksPlace;
     huntView = { needle: looksPlace ? "" : String(named || q).toLowerCase(), raw: q, rendered: "", t: Date.now(), pending: true, nameQ: looksPlace ? String(named || q) : "" };
     window.__snFindShown = [];
+    huntDoneN = null;
     try { openSheet("FIND · …", '<p class="note">Finding ' + esc(q) + " at " + esc(seatName(activeSeat() || here)) + "…</p>"); } catch (eF) {}
     try { paintShopsOnMap(); paintPulse(); } catch (eF2) {}
     var go = function () {
@@ -5465,10 +5526,19 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     jobs.forEach(function (j) { if (j && String(j.id) === String(id)) found = j; });
     return found;
   }
+  /* 4355: the driver who takes an offer is the signed-in driver (their own listing / pin), else the one it was
+     offered to, else the nearest real one; never a stale 'Test Driver V4297' fixture */
+  function pickDriver(job, drivers) {
+    var d0 = null;
+    drivers.forEach(function (d) { if (!d0 && !isAdmin() && (String(d.owner || "") === String(me()) || ownsShop(d))) d0 = d; });
+    drivers.forEach(function (d) { if (!d0 && job && job.offeredTo && String(d.id) === String(job.offeredTo) && !isTestFixture(d)) d0 = d; });
+    /* fixtures (admin test view only) are the last resort, never ahead of a real driver */
+    return d0 || drivers.filter(function (d) { return !isTestFixture(d); })[0] || drivers[0] || null;
+  }
   function freeDrivers(from) {
     var drivers = [];
     people.forEach(function (p) {
-      if (p && p.role === "driver" && p.free !== false && isFinite(+p.lat)) drivers.push(p);
+      if (p && p.role === "driver" && p.free !== false && isFinite(+p.lat) && (!isTestFixture(p) || testView())) drivers.push(p);
     });
     if (driverPin && isFinite(+driverPin.lat) && !drivers.some(function (d) { return haversineKm(d, driverPin) < 0.05; })) {
       drivers.push({ id: driverPin.id || "pin", name: driverPin.name || "motorbike", lat: driverPin.lat, lng: driverPin.lng, free: true, owner: me(), phone: driverPin.phone || "" });
@@ -5792,9 +5862,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       prep: 10,
       lifeMin: 45,
       stage: "drivers",
-      ready: true, pickup: false, got: false, delivered: false, received: false,
+      ready: false, pickup: false, got: false, delivered: false, received: false, /* 4355: READY is the vendor's first step */
       vendorAccepted: true, driverAccepted: false, verified: false,
-      offeredTo: drivers[0].id || "",
+      offeredTo: (pickDriver(null, drivers) || drivers[0]).id || "",
       driver: "", driverId: "",
       client: dest.owner || me(),
       vendorOwner: shop.owner || "",
@@ -5814,16 +5884,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!job || !job.vendor || !job.drop) { say("That offer is gone."); return; }
     if (!isAdmin() && myRole() !== "driver") { say("This offer is for the driver."); return; }
     var drivers = freeDrivers(job.vendor);
-    var drv = null;
-    drivers.forEach(function (d) { if (!drv && job.offeredTo && String(d.id) === String(job.offeredTo)) drv = d; });
-    if (!drv) drv = drivers[0];
+    var drv = pickDriver(job, drivers);
     if (!drv) { say("No free driver left."); return; }
     job.driver = drv.name || "driver";
     job.driverId = drv.id || "";
     job.driverOwner = drv.owner || "";
     job.driverAccepted = true;
     job.verified = true;
-    job.ready = true;
     job.stage = "run";
     escrowJob(job);
     saveJobs();
@@ -5831,7 +5898,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     rideArm = drv.id;
     if (!cityOn) openCity(job.vendor);
     drawRoute(job.vendor, job.drop);
-    closeSheet();
+    /* 4355: the route card opens with the order steps (READY · PICKUP · ON THE BIKE · DELIVERED · RECEIVED) */
+    try { openRouteTile(roadKey(job.vendor, job.drop)); } catch (eR) { closeSheet(); }
     say((job.driver) + " accepted. Route is on. " + job.fee + " AV€ is in the mutual account. Tap the map to move along the route.");
   }
   function offerNo(id) {
@@ -6049,14 +6117,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!job || !job.vendor || !job.drop) { say("That offer is gone."); return; }
     var recovery = job.fault && !job.fault.found;
     var drivers = freeDrivers(recovery ? job.fault : job.vendor);
-    var drv = drivers[0];
+    var drv = pickDriver(job, drivers);
     if (!drv) { say("No free driver left."); return; }
     job.driver = drv.name || "driver";
     job.driverId = drv.id || "";
     job.driverOwner = drv.owner || "";
     job.driverAccepted = true;
     job.verified = true;
-    job.ready = true;
     job.stage = recovery ? "recover" : "run";
     if (recovery) {
       job.recoverT = Date.now();
@@ -8024,6 +8091,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (act === "driver-got") driverGot(id);
       if (act === "driver-delivered") driverDelivered(id);
       if (act === "client-got") clientGot(id);
+      if (/^(mark-ready|verify-pickup|driver-got|driver-delivered|client-got)$/.test(act)) setTimeout(refreshRouteTile, 0);
       if (act === "review") openReview(jobBy(id));
       if (act === "star") {
         var box = t.parentNode;
@@ -8937,7 +9005,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4354 = true;
+    window.__SN_4355 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

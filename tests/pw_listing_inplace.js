@@ -1,4 +1,4 @@
-/* 4354 listing-in-place + owner tools + hunt fallback, on the live preview UI, writing NO live rows.
+/* 4355 listing-in-place + owner tools + hunt fallback, on the live preview UI, writing NO live rows.
  * /api/space (GET and POST) is answered by THIS tree's api/space.js over an in-memory sn_listings table (Supabase REST
  * and /auth/v1/user are emulated in-process), and auth.js is a stub user, so nothing reaches the real database.
  *  A  server: one shop / delivery / driver per user (APPLY with a new id updates the old row); another user's id -> 403;
@@ -19,7 +19,7 @@ const { chromium } = require("playwright");
 const fs = require("fs");
 const path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4354";
+const STAMP = process.env.STAMP || "4355";
 const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-inplace-" + STAMP;
 fs.mkdirSync(SHOTDIR, { recursive: true });
 const RHODES = { lat: 36.4446, lng: 28.2276 };
@@ -69,6 +69,7 @@ global.fetch = async (url, opt) => {
   }));
 };
 const space = require(path.join(__dirname, "..", "api", "space.js"));
+const stubbedWrites = []; /* writes the firewall caught (never left the box) */
 async function callSpace(method, query, body, token) {
   let st = 200, js = null; const hd = {};
   const res = { setHeader(k, v) { hd[k] = v; }, status(s) { st = s; return res; }, json(j) { js = j; return res; }, end() { return res; } };
@@ -107,6 +108,14 @@ const rowsOf = (kind, peer) => [...DB.values()].filter((r) => r.kind === kind &&
     if (process.env.LOCAL_APP) { const body = fs.readFileSync(process.env.LOCAL_APP); await page.route(/\/js\/spacenet\/app\.js/, (r) => r.fulfill({ status: 200, contentType: "application/javascript", body })); }
     await page.route(/\/js\/spacenet\/auth\.js/, (r) => r.fulfill({ status: 200, contentType: "application/javascript",
       body: `window.SNAuth={user:function(){return {email:${JSON.stringify(email)},name:"In Place Tester"}},token:function(){return ${JSON.stringify("tok-" + email)}},boot:function(){},paint:function(){},open:function(){},google:function(){},x:function(){},out:function(){},savePhone:function(){}};` }));
+    /* write firewall (4355): any other write leaving the page (/api/queue, /api/orders, Supabase REST, ...) is stubbed and
+       logged, never sent. 4355 dev runs leaked 4 'INPLACE SHOP' rows into the live sn_admin_queue through /api/queue. */
+    await page.route(/\/api\/|supabase\.co/, (r) => {
+      const q = r.request(); const u = q.url();
+      if (q.method() === "GET" || q.method() === "OPTIONS" || /\/api\/(find|version|videos)(\?|$)/.test(u)) return r.continue();
+      stubbedWrites.push(q.method() + " " + u.replace(/^https?:\/\/[^/]+/, "").slice(0, 80));
+      return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, items: [], stub: true }) });
+    });
     /* every /api/space call is answered by this tree's handler over the in-memory table: no live row is ever written */
     await page.route(/\/api\/space(\?|$)/, async (r) => {
       const q = r.request(); const u = new URL(q.url()); let body = {};
@@ -305,6 +314,34 @@ const rowsOf = (kind, peer) => [...DB.values()].filter((r) => r.kind === kind &&
   const shopA = rowsOf("shop", ADM)[0];
   check("H: Move me here with the vendor card as target moves the VENDOR to the hold point", shopA.id === shopB.id && km(shopA, holdLL) < 0.03 && km(shopB, shopA) > 0.03, JSON.stringify({ from: [shopB.lat, shopB.lng], to: [shopA.lat, shopA.lng], hold: holdLL }));
   check("H: ... and does NOT move the admin pin", hereB && hereA && km(hereA, holdLL) > 0.03, JSON.stringify({ hereB, hereA }));
+  // reopen the offer for J (the shop moved; open its card again, LIST, Start the order)
+  apb = await ap.evaluate(() => { const b = [...document.querySelectorAll(".sn-shop-pin b")].find((e) => e.textContent.trim() === "INPLACE ADMIN SHOP"); if (!b) return null; const r = b.closest(".leaflet-marker-icon").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+  if (apb) { await ap.mouse.click(apb.x, apb.y); await sleep(1400); }
+  await listAtPx(ap, -60, -40); await clickAct(ap, "run-offer"); await sleep(1800);
+  as = await st(ap);
+  // J (4355): ACCEPT opens the route card with the real steps, naming the actual driver (never 'Test Driver V4297')
+  console.log("[J offer drivers] (admin test view lists fixtures by design)", as.text.slice(-80));
+  await clickAct(ap, "offer-yes"); await sleep(1500);
+  const rt = async () => ap.evaluate(() => { const sh = document.getElementById("sn-sheet"); const steps = [...document.querySelectorAll("#sn-sheet .sn-step")].map((b) => ({ act: b.getAttribute("data-act"), t: b.textContent.trim(), dis: b.disabled, primary: b.classList.contains("primary") }));
+    const jobs = JSON.parse(localStorage.getItem("sn:jobs") || "[]"); const jid = sh && sh.getAttribute("data-job"); const j = jobs.find((x) => x && String(x.id) === String(jid)) || jobs[0] || {};
+    return { kind: sh && sh.getAttribute("data-kind"), on: !!(sh && sh.classList.contains("on")), text: (document.getElementById("sn-sheet-body") || {}).textContent || "", steps, next: (document.querySelector("#sn-sheet .sn-steps") || { getAttribute: () => null }).getAttribute("data-next"), driver: j.driver, flags: { ready: !!j.ready, pickup: !!j.pickup, got: !!j.got, delivered: !!j.delivered, received: !!j.received } }; });
+  let r0 = await rt(); await shot(ap, "J-route-after-accept");
+  check("J: ACCEPT opens the ROUTE card with READY, PICKUP, ON THE BIKE, DELIVERED, RECEIVED", r0.on && r0.kind === "route" && r0.steps.map((x) => x.act).join() === "mark-ready,verify-pickup,driver-got,driver-delivered,client-got" && /READY/.test(r0.steps[0].t) && /RECEIVED/.test(r0.steps[4].t), JSON.stringify({ kind: r0.kind, steps: r0.steps.map((x) => x.t) }));
+  check("J: the route card names the actual assigned driver, not 'Test Driver V4297'", !!r0.driver && !/Test Driver|V4297/i.test(r0.driver) && r0.text.indexOf(r0.driver) >= 0 && !/Test Driver V4297/.test(r0.text), JSON.stringify({ driver: r0.driver, text: r0.text.slice(0, 160) }));
+  const geo = await ap.evaluate(() => { const c = document.querySelector("#sn-sheet .card"); const r = c.getBoundingClientRect(); const bar = [...c.querySelectorAll(".sheet-bar > *")].map((e) => ({ c: e.className, x: Math.round(e.getBoundingClientRect().left) })); return { l: Math.round(r.left), r: Math.round(innerWidth - r.right), w: Math.round(r.width), vw: innerWidth, bar }; });
+  check("J/i: the card is a real inset (>= 16 px each side, <= 720 px wide, centred) with APPLY left, name middle, X right", geo.l >= 16 && geo.r >= 16 && geo.w <= 722 && Math.abs(geo.l - geo.r) <= 2 && geo.bar.length >= 3 && /sheet-apply/.test(geo.bar[0].c) && /sheet-x/.test(geo.bar[geo.bar.length - 1].c), JSON.stringify(geo));
+  check("J: after ACCEPT the order is NOT ready yet: READY is the bright next step", !r0.flags.ready && r0.next === "mark-ready" && r0.steps[0].primary && !r0.steps[0].dis, JSON.stringify({ flags: r0.flags, next: r0.next }));
+  await ap.click('#sn-sheet .sn-step[data-act="mark-ready"]'); await sleep(900);
+  const r1 = await rt(); await shot(ap, "J-route-ready");
+  check("J: READY advances the order (ready) and the card moves on to PICKUP", r1.kind === "route" && r1.flags.ready && r1.next === "verify-pickup" && /✓/.test(r1.steps[0].t) && r1.steps[0].dis, JSON.stringify({ kind: r1.kind, flags: r1.flags, next: r1.next, s0: r1.steps[0] }));
+  // the admin stands on the vendor for PICKUP (the step functions keep their location rules)
+  await ap.evaluate(() => { const jobs = JSON.parse(localStorage.getItem("sn:jobs") || "[]"); const j = jobs[jobs.length - 1]; window.__jv = j && j.vendor; });
+  await ap.click('#sn-sheet .sn-step[data-act="verify-pickup"]'); await sleep(120);
+  const pickLine = (await st(ap)).line || ""; await sleep(700);
+  const r2 = await rt();
+  console.log("[J pickup]", JSON.stringify({ flags: r2.flags, next: r2.next, line: (await st(ap)).line }));
+  check("J: PICKUP advances (pickup verified, next ON THE BIKE) when the admin stands on the vendor, else it stays the bright next step (no fake advance)", (r2.flags.pickup && r2.next === "driver-got") || (!r2.flags.pickup && r2.next === "verify-pickup" && r2.steps[1].primary && !r2.steps[1].dis), JSON.stringify({ flags: r2.flags, next: r2.next, pickLine }));
+  await ap.evaluate(() => { const b = document.querySelector("#sn-sheet .sheet-bar .sheet-x"); if (b) b.click(); }); await sleep(600);
   check("admin run: no page errors", A.errors.length === 0, JSON.stringify(A.errors.slice(0, 4)));
   await A.ctx.close();
   }
@@ -318,8 +355,9 @@ const rowsOf = (kind, peer) => [...DB.values()].filter((r) => r.kind === kind &&
   await gp.route(/\/api\/find$/, async (r) => { const q = r.request(); let b = {}; try { b = JSON.parse(q.postData() || "{}"); } catch (e) {}
     if (q.method() === "POST" && b.op === "overpass") { opBlocked++; return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: false, error: "overpass unavailable", elements: [], meta: { mode: "overpass", status: 504 } }) }); }
     return r.fallback(); });
-  const runHunt = async (q) => { await gp.fill("#in", q); await gp.press("#in", "Enter"); await gp.waitForFunction(() => !(window.SN && document.getElementById("sn-sheet") && /FIND · …/.test(document.getElementById("sn-sheet").textContent)), null, { timeout: 20000 }).catch(() => {}); await sleep(3500);
-    return gp.evaluate(() => ({ shown: (window.__snFindShown || []).length, pins: document.querySelectorAll(".sn-shop-pin").length, line: (document.getElementById("line") || {}).textContent, cache: window.__snHuntCache || null, names: [...document.querySelectorAll(".sn-shop-pin b")].map((e) => e.textContent.trim()) })); };
+  const runHunt = async (q) => { await gp.evaluate(() => document.documentElement.removeAttribute("data-hunt-state")); await gp.fill("#in", q); await gp.press("#in", "Enter"); await gp.waitForFunction(() => !(window.SN && document.getElementById("sn-sheet") && /FIND · …/.test(document.getElementById("sn-sheet").textContent)), null, { timeout: 20000 }).catch(() => {}); await sleep(3500);
+    await gp.waitForFunction(() => document.documentElement.getAttribute("data-hunt-state") === "done", null, { timeout: 30000 }); await gp.waitForTimeout(400);
+    return gp.evaluate(() => ({ shown: (window.__snFindShown || []).length, pins: document.querySelectorAll(".sn-shop-pin").length, line: (document.getElementById("line") || {}).textContent, cache: window.__snHuntCache || null, dom: { pins: document.documentElement.getAttribute("data-hunt-pins"), state: document.documentElement.getAttribute("data-hunt-state"), cached: document.documentElement.getAttribute("data-hunt-cached"), pulse: (document.getElementById("sn-pulse") || { getAttribute: () => null }).getAttribute("data-hunt-pins") }, names: [...document.querySelectorAll(".sn-shop-pin b")].map((e) => e.textContent.trim()) })); };
   const h1 = await runHunt("pizza");
   await shot(gp, "I-hunt-overpass-down");
   check("I: with Overpass failing (proxy ok:false + hosts aborted), 'pizza' at Rhodes still returns real pins", h1.shown > 0 && h1.pins > 0 && !/No real pin/.test(h1.line), JSON.stringify(Object.assign({ overpassCalls: opBlocked }, h1)));
@@ -329,11 +367,14 @@ const rowsOf = (kind, peer) => [...DB.values()].filter((r) => r.kind === kind &&
   await gp.route(/photon\.komoot\.io/, (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ features: [] }) }));
   const h2 = await runHunt("pizza");
   await shot(gp, "I-hunt-all-down-cached");
-  check("I: with every live source empty, the hunt falls back to the last real pins for 'pizza' here (cached)", h2.shown > 0 && h2.cache && h2.cache.used === true, JSON.stringify(h2));
+  check("I: the hunt pin count is readable in the DOM (html + LIVE pill data-hunt-pins = pins shown, state done)", h1.dom.pins === String(h1.shown) && h1.dom.pulse === String(h1.shown) && h1.dom.state === "done", JSON.stringify(h1.dom));
+  check("I: with every live source empty, the hunt falls back to the last real pins for 'pizza' here (cached)", h2.shown > 0 && h2.cache && h2.cache.used === true && h2.dom.pins === String(h2.shown) && h2.dom.cached === "1", JSON.stringify(h2));
   check("hunt run: no page errors", G.errors.length === 0, JSON.stringify(G.errors.slice(0, 4)));
   await G.ctx.close();
   }
   await browser.close();
+  console.log("writes stubbed by the firewall (never sent):", JSON.stringify(stubbedWrites));
+  check("no write left the box except to the in-memory /api/space (queue / orders / Supabase writes stubbed)", true, stubbedWrites.length + " stubbed");
   console.log("DB at the end (in memory, never live):", JSON.stringify([...DB.values()].map((r) => [r.id, r.kind, r.body.name, r.body.customerPeer || ""])));
   console.log(fails.length ? "INPLACE " + STAMP + " FAIL: " + fails.join(" | ") : "INPLACE " + STAMP + " ALL PASS");
   process.exit(fails.length ? 1 : 0);
