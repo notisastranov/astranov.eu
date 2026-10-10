@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4346";
+  var VER = "4347";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1415,7 +1415,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           if (needLogin()) return;
           nudgeArmed(ll);
         }
-        frameView(ll);
       });
       var holdPt = null;
       el.addEventListener("contextmenu", function (e) {
@@ -1855,8 +1854,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-cloud button{pointer-events:auto!important;border:0!important;background:transparent!important;color:#e8fbff!important;font:700 12px/1 system-ui!important;padding:6px 8px!important;white-space:nowrap!important}",
       "#sn-cloud.off{display:none!important}",
       "#sn-cloud b{color:#4df0ff!important;font:800 18px/1 system-ui!important;margin-right:4px!important}",
-      ".sn-sel{display:block!important;border-radius:14px!important;box-shadow:0 0 0 3px #e8fbff, 0 0 0 7px #1236ff, 0 0 22px 4px #3d6bff!important}",
-      ".leaflet-sn-route-pane{filter:saturate(2.4) brightness(1.55)!important}",
+      ".sn-sel{display:block!important;width:28px!important;height:28px!important;border-radius:50%!important;box-shadow:0 0 0 1px #fff,0 0 0 2px #1236ff,0 0 6px #3d6bff!important}",
+      ".leaflet-marker-icon.sn-shop-pin.sn-drv{overflow:visible!important;width:28px!important;height:28px!important;background:transparent!important;border:0!important}",
+      ".sn-drv .sn-pin{width:28px!important;height:28px!important;padding:0!important;display:block!important}",
+      ".sn-drv .sn-pin em,.sn-drv .sn-pin img{width:28px!important;height:28px!important;max-width:28px!important;max-height:28px!important;font-size:16px!important;line-height:28px!important}",
+      ".sn-aim{position:relative!important;display:block!important;width:28px!important;height:28px!important}",
+      ".sn-arrow{position:absolute!important;left:10px!important;top:-7px!important;width:0!important;height:0!important;border-left:4px solid transparent!important;border-right:4px solid transparent!important;border-bottom:8px solid #e8ffff!important;filter:drop-shadow(0 0 3px #1240ff)!important;transform-origin:4px 21px!important;pointer-events:none!important}",
+      ".leaflet-sn-route-pane{filter:none!important}",
+      "@keyframes sn-flow{to{stroke-dashoffset:-28}}",
+      ".sn-flow{animation:sn-flow .7s linear infinite!important}",
       ".sn-obubble{background:transparent!important;border:0!important}",
       ".sn-obubble b{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-width:28px!important;height:28px!important;padding:0 8px!important;border-radius:999px!important;background:rgba(4,16,28,.94)!important;color:#e8fbff!important;border:1.5px solid #4df0ff!important;font:800 13px/1 system-ui!important;box-shadow:0 0 14px rgba(77,240,255,.65)!important;white-space:nowrap!important}",
       "#sn-sheet .sn-pick img,#sn-sheet .sn-pick .sn-mini{width:52px!important;height:52px!important;max-width:52px!important;max-height:52px!important;object-fit:cover;border-radius:10px;border:1px solid rgba(77,240,255,.45)}",
@@ -2400,7 +2406,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (map && typeof map.invalidateSize === "function") {
       try { map.invalidateSize(); } catch (e) {}
     }
-    if (routeLayer && map) fitOfferRoute();
   }
   function fitOfferRoute() {
     if (!map || !routeLayer) return;
@@ -2643,14 +2648,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var mark = photo
       ? '<img alt="" width="40" height="40" style="width:40px!important;height:40px!important;max-width:40px!important;max-height:40px!important;object-fit:cover!important;display:block!important" src="' + String(photo).replace(/"/g, "") + '">'
       : '<em>' + (role === "driver" ? "🏍️" : role === "client" ? "🧍" : "🏪") + "</em>";
-    return '<span class="sn-pin">' + mark + "<b>" + esc(name || role) + "</b></span>";
+    return '<span class="sn-pin">' + mark + (name ? "<b>" + esc(name) + "</b>" : "") + "</span>";
   }
-  function faceIcon(role, photo, name, on) {
+  function faceIcon(role, photo, name, on, head) {
+    var compact = role === "driver";
+    var arrow = compact ? '<i class="sn-arrow" style="transform:rotate(' + Math.round(Number(head) || 0) + 'deg)"></i>' : "";
     return L.divIcon({
-      className: "sn-shop-pin" + (on ? " sn-on" : ""),
-      html: '<span class="' + (on ? "sn-sel" : "sn-pinwrap") + '">' + faceHtml(role, photo, name) + "</span>",
-      iconSize: [84, 70],
-      iconAnchor: [42, 35]
+      className: "sn-shop-pin" + (compact ? " sn-drv" : "") + (on ? " sn-on" : ""),
+      html: '<span class="sn-aim ' + (on ? "sn-sel" : "sn-pinwrap") + '">' + arrow + faceHtml(role, photo, compact ? "" : name) + "</span>",
+      iconSize: compact ? [28, 28] : [76, 62],
+      iconAnchor: compact ? [14, 14] : [38, 31]
     });
   }
   function routePane() {
@@ -2879,31 +2886,61 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function kmIcon(text) {
     return L.divIcon({ className: "sn-km", html: "<b>" + esc(text) + "</b>", iconSize: [64, 16], iconAnchor: [32, 8] });
   }
-  function paintRoads(id, lines, chosen) {
+  function lineSplit(line, at) {
+    if (!line || line.length < 2) return { done: line || [], rest: line || [] };
+    if (!at || !isFinite(+at.lat)) return { done: [], rest: line };
+    var best = 0, bestD = 1e9, i, d;
+    for (i = 0; i < line.length; i++) {
+      d = haversineKm(at, line[i]);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    var done = line.slice(0, best + 1);
+    done.push({ lat: +at.lat, lng: +at.lng });
+    var rest = [{ lat: +at.lat, lng: +at.lng }].concat(line.slice(best + 1));
+    if (rest.length < 2) rest = line.slice(-2);
+    return { done: done, rest: rest };
+  }
+  function driverHead(p, step) {
+    var job = step && step.job;
+    var line = job && job.vendor && job.drop ? roads[roadKey(job.vendor, job.drop)] : null;
+    if (line && line.length > 1 && step && isFinite(+step.lat)) {
+      var rest = lineSplit(line, step).rest;
+      var nxt = rest && rest.length > 1 ? rest[1] : null;
+      if (nxt) return bearingDeg(step, nxt);
+    }
+    if (p && isFinite(+p.head)) return +p.head;
+    return 0;
+  }
+  function paintRoads(id, lines, chosen, at) {
     if (!map || typeof L === "undefined" || !lines || !lines.length) return;
     routePane();
     (roadPaint[id] || []).forEach(function (l) { try { map.removeLayer(l); } catch (e) {} });
     roadPaint[id] = [];
+    function add(pts, opt) {
+      if (!pts || pts.length < 2) return null;
+      var ll = pts.map(function (p) { return [p.lat, p.lng]; });
+      var layer = L.polyline(ll, opt).addTo(map);
+      roadPaint[id].push(layer);
+      return layer;
+    }
     lines.forEach(function (line, i) {
-      var ll = line.map(function (p) { return [p.lat, p.lng]; });
       var on = i === chosen;
-      var casing = L.polyline(ll, { pane: "sn-route", color: "#02040a", weight: on ? 26 : 16, opacity: 0.9, interactive: false, lineCap: "round", lineJoin: "round" }).addTo(map);
-      var glow = L.polyline(ll, { pane: "sn-route", color: "#1236ff", weight: on ? 16 : 10, opacity: 1, interactive: false, lineCap: "round", lineJoin: "round" }).addTo(map);
-      var core = L.polyline(ll, { pane: "sn-route", color: "#b8ffff", weight: on ? 6 : 3, opacity: 1, interactive: false, lineCap: "round", lineJoin: "round" }).addTo(map);
-      roadPaint[id].push(casing, glow, core);
+      if (!on) {
+        add(line, { pane: "sn-route", color: "#7ee9ff", weight: 1, opacity: 0.35, interactive: false });
+        return;
+      }
+      var parts = lineSplit(line, at);
+      add(line, { pane: "sn-route", color: "#041018", weight: 3.5, opacity: 0.55, interactive: false, lineCap: "round", lineJoin: "round" });
+      add(parts.rest, { pane: "sn-route", color: "#1a4dff", weight: 1.6, opacity: 0.95, interactive: false, lineCap: "round", lineJoin: "round" });
+      add(parts.done, { pane: "sn-route", color: "#e8ffff", weight: 2.6, opacity: 1, interactive: false, lineCap: "round", lineJoin: "round" });
+      add(parts.rest.length > 1 ? parts.rest : line, { pane: "sn-route", color: "#f4feff", weight: 1.4, opacity: 1, dashArray: "7 12", className: "sn-flow", interactive: false, lineCap: "butt" });
       var total = lineKm(line);
       if (total < 0.05) return;
-      var marks = on ? [] : [total / 2];
-      if (on) {
-        var step = total <= 1.2 ? 0.3 : Math.max(0.5, total / 6);
-        var k = 0;
-        while (k < total - step * 0.35) { marks.push(k); k += step; }
-        marks.push(total);
-      }
+      var marks = [total / 2, total];
       marks.forEach(function (km) {
-        var at = pointAtKm(line, km);
+        var spot = pointAtKm(line, km);
         var label = (km < 0.05 ? "0" : km.toFixed(1)) + " km";
-        var mk = L.marker([at.lat, at.lng], { icon: kmIcon(label), interactive: false, keyboard: false, zIndexOffset: on ? 400 : 200 }).addTo(map);
+        var mk = L.marker([spot.lat, spot.lng], { icon: kmIcon(label), interactive: false, keyboard: false, zIndexOffset: 200 }).addTo(map);
         roadPaint[id].push(mk);
       });
     });
@@ -3372,9 +3409,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var key = roadKey(from, to);
       var lines = roadAlts[key] && roadAlts[key].length ? roadAlts[key] : [road];
       var chosen = Math.max(0, lines.indexOf(road));
-      if (!liveLines[j.id] || liveLines[j.id] !== chosen) {
-        paintRoads(key, lines, chosen);
-        liveLines[j.id] = chosen;
+      var rider = null;
+      people.forEach(function (p) {
+        if (!p) return;
+        if (String(j.driverId) === String(p.id) || (j.driver && p.name && j.driver === p.name)) rider = p;
+      });
+      if (!rider && driverPin && isFinite(+driverPin.lat)) rider = driverPin;
+      var at = rider && isFinite(+rider.lat) ? { lat: +rider.lat, lng: +rider.lng } : null;
+      var stamp = chosen + ":" + (at ? Math.round(at.lat * 8000) + "," + Math.round(at.lng * 8000) : "0");
+      if (liveLines[j.id] !== stamp) {
+        paintRoads(key, lines, chosen, at);
+        liveLines[j.id] = stamp;
       }
     });
     var fleet = people.filter(function (p) { return p && p.role === "driver" && seesDriver(p); });
@@ -3402,15 +3447,18 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
             closeSheet();
             rideArm = person.id;
             mark.__on = true;
-            mark.setIcon(faceIcon("driver", person.photo, person.name || "driver", true));
+            mark.__head = driverHead(person, step);
+            mark.setIcon(faceIcon("driver", person.photo, person.name || "driver", true, mark.__head));
             say((person.name || "Driver") + " selected. Tap the map to move.");
           });
         })(p, motionMarks[id]);
       }
       var selected = !!(rideArm && String(rideArm) === String(p.id));
-      if (motionMarks[id].__on !== selected) {
+      var head = driverHead(p, step);
+      if (motionMarks[id].__on !== selected || Math.abs((motionMarks[id].__head || 0) - head) > 10) {
         motionMarks[id].__on = selected;
-        motionMarks[id].setIcon(faceIcon("driver", p.photo, p.name || "driver", selected));
+        motionMarks[id].__head = head;
+        motionMarks[id].setIcon(faceIcon("driver", p.photo, p.name || "driver", selected, head));
       }
       motionMarks[id].setLatLng([step.lat, step.lng]);
       try {
@@ -3860,6 +3908,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         return;
       }
     }
+    p.head = bearingDeg(p, pt);
     p.lat = pt.lat; p.lng = pt.lng; p.manual = true;
     savePeople();
     driverPin = { id: p.id, lat: pt.lat, lng: pt.lng, name: p.name, photo: p.photo || "", manual: true, owner: p.owner || me() };
@@ -4166,7 +4215,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       roadAlts[key] = lines;
       paintRoads(key, lines, 0);
       routeLayer = roadPaint[key] && roadPaint[key][0];
-      fitOfferRoute();
       avoidLights(key, lines);
     }).catch(function () {});
   }
