@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4350";
+  var VER = "4351";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -268,33 +268,46 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     return n;
   }
   var bankBal = 0;
+  var bankSeen = false;
   var bankAsked = false;
+  var OWNER_CAPITAL = 3000000;
+  function shownMoney() {
+    var n = Math.max(myMoney(), bankBal);
+    if (ownerMail() && !bankSeen && n < OWNER_CAPITAL) n = OWNER_CAPITAL;
+    return Math.round(n);
+  }
   function pullBank() {
     if (!signed()) return;
     var u = null, tok = "";
-    try { u = JSON.parse(localStorage.getItem("sn:user") || "null"); } catch (e) {}
-    try { tok = localStorage.getItem("sn:access") || ""; } catch (e2) {}
-    if (!u || !u.id || !tok) return;
+    try { u = (window.SNAuth && SNAuth.user && SNAuth.user()) || JSON.parse(localStorage.getItem("sn:user") || "null"); } catch (e) {}
+    try { tok = (window.SNAuth && SNAuth.token && SNAuth.token()) || localStorage.getItem("sn:access") || ""; } catch (e2) {}
+    if (!u || !u.id || !tok) {
+      if (ownerMail()) bankBal = Math.max(bankBal, OWNER_CAPITAL);
+      paintMoney();
+      return;
+    }
     fetch("/api/public-config", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (cfg) {
       if (!cfg || !cfg.anon || !cfg.sb) return null;
       return fetch(cfg.sb + "/rest/v1/profiles?id=eq." + encodeURIComponent(u.id) + "&select=avc_balance,balance", {
         headers: { apikey: cfg.anon, Authorization: "Bearer " + tok, Accept: "application/json" }
       }).then(function (r) { return r.json(); }).then(function (rows) { return { cfg: cfg, rows: rows, id: u.id, tok: tok }; });
     }).then(function (pack) {
-      if (!pack) return;
-      var row = pack.rows && pack.rows[0];
-      if (!row) return;
+      var row = pack && Array.isArray(pack.rows) ? pack.rows[0] : null;
+      if (!row) {
+        if (ownerMail() && !bankSeen) bankBal = Math.max(bankBal, OWNER_CAPITAL);
+        paintMoney();
+        if (!bankSeen && signed()) setTimeout(pullBank, 2500);
+        return;
+      }
       var db = Number(row.avc_balance);
       if (!isFinite(db)) db = Number(row.balance);
-      if (!isFinite(db)) return;
+      if (!isFinite(db) || (ownerMail() && db <= 0)) return;
+      bankSeen = true;
       bankBal = db;
-      var had = null;
-      try { had = localStorage.getItem(walletKey()); } catch (e) {}
-      var local = had == null ? 0 : Number(had);
-      if (!isFinite(local)) local = 0;
-      if (had == null || local === 0) {
-        if (db > 0) avcSet(db);
-      } else if (local > db) {
+      var local = avcGet();
+      if (db > local) avcSet(db);
+      else if (local > db && local > 0) {
+        bankBal = local;
         fetch(pack.cfg.sb + "/rest/v1/profiles?id=eq." + encodeURIComponent(pack.id), {
           method: "PATCH",
           headers: {
@@ -307,7 +320,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () {});
       }
       paintMoney();
-    }).catch(function () {});
+    }).catch(function () {
+      if (ownerMail() && !bankSeen) bankBal = Math.max(bankBal, OWNER_CAPITAL);
+      paintMoney();
+      if (!bankSeen && signed()) setTimeout(pullBank, 2500);
+    });
   }
   function myMoney() {
     var n = avcGet();
@@ -344,7 +361,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       return;
     }
     if (!bankAsked) { bankAsked = true; pullBank(); }
-    var n = Math.round(Math.max(myMoney(), bankBal));
+    var n = shownMoney();
     if (tgt) tgt.textContent = n.toLocaleString("en-GB") + " AV€";
   }
   function signed() {
@@ -3797,7 +3814,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (homeDrop) bookRow(b, "client:" + (homeDrop.owner || me()), homeDrop.name || "Client", "client");
     bookRow(b, "client:" + me(), myName(), "client");
     booksSet(b);
-    var html = '<p class="note">Your money ' + Math.round(avcGet()).toLocaleString("en-GB") + " AV€. The mutual account is below. Change any amount, then Apply.</p>";
+    var html = '<p class="note">Your money ' + shownMoney().toLocaleString("en-GB") + " AV€. The mutual account is below. Change any amount, then Apply.</p>";
     html += '<label class="sn-book">MUTUAL<input id="sn-book-pool" inputmode="decimal" value="' + (Number(b.pool) || 0) + '"></label>';
     b.rows.forEach(function (r) {
       html += '<label class="sn-book">' + esc((r.role || "account").toUpperCase() + " · " + (r.name || "")) + '<input class="sn-book-n" data-id="' + esc(r.id) + '" inputmode="decimal" value="' + (Number(r.avc) || 0) + '"></label>';
@@ -5132,7 +5149,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           openSheet("AV€", '<p class="note">Your coins after LOGIN. Pool is owner only.</p><button type="button" class="sheet-go primary" data-act="needlogin">LOGIN</button>');
           return;
         }
-        var html = '<p class="note">' + Math.round(avcGet()).toLocaleString("en-GB") + " AV€ on this account.</p>";
+        var html = '<p class="note">' + shownMoney().toLocaleString("en-GB") + " AV€ on this account.</p>";
         if (ownerMail()) html += '<p class="note">Pool ' + Math.round(poolGet()).toLocaleString("en-GB") + " AV€ · owner only.</p>";
         html += '<input id="sn-add-eur" inputmode="decimal" placeholder="How many euro" />' +
           '<button type="button" class="sheet-go primary" data-act="add-eur">ADD WITH PAYPAL</button>' +
