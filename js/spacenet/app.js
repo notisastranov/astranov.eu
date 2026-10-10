@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4334";
+  var VER = "4335";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -128,7 +128,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 
   function $(id) { return document.getElementById(id); }
   var sayHold = 0;
-  function say(s) { var el = $("line"); if (el) el.textContent = s; sayHold = Date.now(); }
+  function say(s) { var el = $("line"); if (el) el.textContent = s; sayHold = Date.now(); pushNotice(s); }
   var hereLive = null;
   var adminPin = false;
   var homeDrop = null;
@@ -1437,8 +1437,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ".sn-stars button{flex:1;height:36px;border:1px solid rgba(77,240,255,.45);background:#041018;color:#4df0ff;font:800 16px system-ui}",
       ".sn-stars button.on{background:#4df0ff;color:#041018}",
       "#sn-sheet .sheet-mid{flex:1!important;min-width:0!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;background:transparent!important;color:#d7f6ff!important;font:800 13px/1.1 system-ui!important;letter-spacing:.14em!important;text-transform:uppercase!important;padding:0 8px!important}",
-      "#sn-sheet.offer .card{max-height:32vh!important}",
-      "#sn-sheet .sheet-mid .sn-price{margin:0!important;font:800 34px/1 system-ui!important;letter-spacing:-.03em!important;color:#4df0ff!important;text-shadow:0 0 12px rgba(77,240,255,.85)!important}",
+      "#sn-sheet.offer .card,#sn-sheet.offer.tile .card{max-height:176px!important;height:auto!important}",
+      "#sn-sheet.offer .sheet-bar{height:58px!important}",
+      "#sn-sheet.offer .sheet-apply,#sn-sheet.offer .sheet-x{height:58px!important;width:46px!important}",
+      "#sn-sheet.offer #sn-sheet-body{max-height:112px!important;padding:6px 8px 8px!important}",
+      "#sn-sheet .sheet-mid .sn-price{margin:0!important;font:800 44px/0.85 system-ui!important;letter-spacing:-.04em!important;color:#e8fbff!important;text-shadow:0 0 8px #fff,0 0 16px #4df0ff,0 0 28px #1a6cff!important}",
       "#sn-sheet .sn-who{display:grid;grid-template-columns:62px minmax(0,1fr);column-gap:8px;margin:8px 0 0;align-items:baseline}",
       "#sn-sheet .sn-who b{color:#7ee9ff!important;font:800 10px/1.2 system-ui!important;letter-spacing:.14em!important}",
       "#sn-sheet .sn-who span{color:#e8fbff!important;font:700 15px/1.2 system-ui!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
@@ -1483,14 +1486,21 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ".sn-pin em{display:flex;align-items:center;justify-content:center;width:40px;height:40px;font:28px/40px system-ui;border-radius:8px;border:2px solid #4df0ff;background:rgba(4,14,28,.92)}",
       "#sn-tester{position:fixed;top:28px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(77,240,255,.4);color:#7ee9ff;font:700 10px/14px ui-monospace,monospace;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#sn-tester.stale{color:#8a6a6a;border-color:rgba(255,120,120,.35)}",
-      "#sn-topchrome-drag,#cli-drag{display:block!important;height:10px!important;min-height:10px!important;max-height:10px!important;font-size:0!important;line-height:0!important;color:transparent!important;overflow:hidden!important}",
-      "#top{top:0!important;left:0!important;right:0!important;margin:0!important;padding:0!important;display:flex!important;flex-direction:column!important}",
-      "#island{position:relative!important;z-index:2!important;padding-left:64px!important;padding-right:64px!important}",
-      "#island .r1,#island .r2{flex-wrap:wrap!important;overflow:visible!important;white-space:normal!important;height:auto!important}","#ver,#sn-latest,#sn-update,#sn-brand-a,#sn-brand-s{letter-spacing:.02em!important;font-size:12px!important;line-height:1.15!important}",
+      "#sn-topchrome-drag,#cli-drag{display:none!important;height:0!important;min-height:0!important;max-height:0!important}",
+      "#top{top:0!important;left:0!important;right:0!important;margin:0!important;padding:0!important;height:32px!important;min-height:32px!important;max-height:32px!important;overflow:hidden!important;display:flex!important;flex-direction:column!important}",
+      "#island{position:relative!important;z-index:2!important;display:flex!important;align-items:center!important;gap:8px!important;height:32px!important;max-height:32px!important;margin:0!important;padding:0 36px!important;overflow:hidden!important}",
+      "#island .r1{flex:none!important;flex-wrap:nowrap!important;white-space:nowrap!important;overflow:hidden!important;height:32px!important;align-items:center!important}",
+      "#island .r2,#sn-spark,#sn-brand-a,#ver,#sn-latest,#sn-update{display:none!important}",
+      "#sn-brand-s{font:800 12px/32px system-ui!important;letter-spacing:.22em!important;color:#e8fbff!important}",
+      "#sn-tick{flex:1!important;min-width:0!important;overflow:hidden!important;height:32px!important;pointer-events:auto!important}",
+      "#sn-tick b{display:inline-block!important;white-space:nowrap!important;animation:sn-slide 18s linear infinite!important;color:#7ee9ff!important;font:700 12px/32px ui-monospace,monospace!important}",
+      "@keyframes sn-slide{from{transform:translateX(0)}to{transform:translateX(-50%)}}",
+      "#line{display:none!important}",
       "#sn-sheet .card,#sn-sheet.tall .card,#sn-tasks .card{max-height:42vh!important}",
-      "#sn-power{position:fixed!important;top:4px!important;left:max(4px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;width:40px!important;height:40px!important;transform:none!important;z-index:60!important}",
-      "#sn-support{position:fixed!important;top:4px!important;right:max(4px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;width:40px!important;height:40px!important;transform:none!important;z-index:60!important}",
-      "#sn-money{position:fixed!important;top:64px!important;left:max(6px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:46!important}",
+      "#sn-power{position:fixed!important;top:0!important;left:max(2px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;width:32px!important;height:32px!important;transform:none!important;z-index:60!important}",
+      "#sn-power svg{width:16px!important;height:16px!important}",
+      "#sn-support{position:fixed!important;top:0!important;right:max(2px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;width:32px!important;height:32px!important;font-size:14px!important;transform:none!important;z-index:60!important}",
+      "#sn-money{position:fixed!important;top:40px!important;left:max(6px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:46!important}",
       "#sn-globe{position:fixed!important;top:64px!important;right:max(6px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;z-index:60!important;width:40px!important;height:40px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;align-items:center!important;justify-content:center!important}",
       "#sn-globe svg{width:22px;height:22px;display:block}",
       "#sn-architect{position:fixed!important;top:112px!important;right:max(6px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;z-index:60!important;width:40px!important;height:40px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;align-items:center!important;justify-content:center!important;font:800 16px/1 ui-monospace,system-ui!important;box-shadow:0 0 12px rgba(77,240,255,.35)!important}",
@@ -1505,12 +1515,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#panel{width:100%!important;background:transparent!important}",
       "form#f{display:flex!important;width:100%!important;gap:0!important;align-items:center!important;min-height:48px!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}",
       "input#in{flex:1!important;min-width:0!important;width:auto!important;min-height:48px!important;border:0!important;border-radius:0!important;background:transparent!important;padding-left:56px!important;padding-right:56px!important}",
-      "#sn-pulse,#sn-tester{top:108px!important}",
+      "#sn-pulse,#sn-tester{display:none!important}",
       "#island{margin-top:0!important;padding-top:0!important}",
       "#sn-count{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;pointer-events:none;background:transparent}",
       "#sn-count.on{display:flex}",
       "#sn-count b{font:800 46vw/0.78 system-ui;color:#e8fbff;letter-spacing:-.08em;text-shadow:0 0 8px #fff,0 0 18px #4df0ff,0 0 36px #4df0ff,0 0 72px #1a6cff,0 0 120px #1a6cff}",
-      "#sn-pulse{position:fixed!important;top:auto!important;left:72px!important;right:72px!important;bottom:var(--above-in, calc(var(--dock) + 8px))!important;z-index:48!important;max-width:none!important;margin:0 auto!important;text-align:center!important;padding:4px 10px!important;border-radius:999px!important;background:rgba(40,28,4,.92)!important;border:1px solid rgba(255,176,32,.8)!important;color:#ffb020!important;font:700 11px/16px ui-monospace,monospace!important;pointer-events:none!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}",,
+      "#sn-pulse{display:none!important}",
+      ".sn-km{background:transparent!important;border:0!important}",
+      ".sn-km b{display:inline-block;padding:0 4px;border-radius:6px;background:rgba(4,16,28,.9);color:#e8fbff;border:1px solid rgba(77,240,255,.75);font:800 10px/14px ui-monospace,monospace;box-shadow:0 0 8px rgba(77,240,255,.55)}",
     ].join("");
     document.head.appendChild(s);
   }
@@ -1655,6 +1667,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var mins = Math.max(0, Math.round((Date.now() - Number(it.t || 0)) / 60000));
     el.classList.toggle("stale", mins > 20);
     el.textContent = "TESTER · " + (mins < 1 ? "now" : mins + "m") + " · " + (it.note || it.title || "checking");
+    if (el.textContent !== tickTester) { tickTester = el.textContent; pushNotice(tickTester); }
     var bits = String(it.ref || "").split(",");
     var lat = Number(bits[0]), lng = Number(bits[1]);
     if (!map || typeof L === "undefined" || !isFinite(lat) || !isFinite(lng)) return;
@@ -1992,8 +2005,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (tasks) bottomBlock = Math.max(bottomBlock, window.innerHeight - tasks.top + 12);
     bot = Math.max(80, bottomBlock);
     try {
-      map.fitBounds(routeLayer.getBounds(), {
-        paddingTopLeft: [side, top],
+      var bounds = routeLayer.getBounds();
+      if (driverPin && isFinite(+driverPin.lat)) bounds.extend([+driverPin.lat, +driverPin.lng]);
+      map.fitBounds(bounds, {
+        paddingTopLeft: [side, Math.max(36, top)],
         paddingBottomRight: [side, bot],
         maxZoom: 16,
         animate: false
@@ -2275,7 +2290,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (driverPin && isFinite(+driverPin.lat) && !people.some(function (p) { return p && p.role === "driver" && haversineKm(p, driverPin) < 0.05; })) drivers++;
     jobs.forEach(function (j) { if (j && !j.received && seesJob(j)) orders++; });
     var place = here && near ? near + " vendor" + (near === 1 ? "" : "s") + " here" : vendors + " vendor" + (vendors === 1 ? "" : "s");
-    el.textContent = "LIVE · " + place + " · " + drivers + " driver" + (drivers === 1 ? "" : "s") + " · " + orders + " order" + (orders === 1 ? "" : "s");
+    var liveLine = "LIVE · " + place + " · " + drivers + " driver" + (drivers === 1 ? "" : "s") + " · " + orders + " order" + (orders === 1 ? "" : "s");
+    el.textContent = liveLine;
+    if (liveLine !== tickLiveLine) { tickLiveLine = liveLine; paintTick(); }
   }
   var roads = {};
   var roadAlts = {};
@@ -2307,6 +2324,26 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
     }).catch(function () { delete roads[key]; });
   }
+  function lineKm(line) {
+    var total = 0, i;
+    for (i = 1; i < line.length; i++) total += haversineKm(line[i - 1], line[i]);
+    return total;
+  }
+  function pointAtKm(line, km) {
+    var acc = 0, i, d, u;
+    for (i = 1; i < line.length; i++) {
+      d = haversineKm(line[i - 1], line[i]);
+      if (acc + d >= km || i === line.length - 1) {
+        u = d ? Math.max(0, Math.min(1, (km - acc) / d)) : 0;
+        return { lat: line[i - 1].lat + (line[i].lat - line[i - 1].lat) * u, lng: line[i - 1].lng + (line[i].lng - line[i - 1].lng) * u };
+      }
+      acc += d;
+    }
+    return line[line.length - 1];
+  }
+  function kmIcon(text) {
+    return L.divIcon({ className: "sn-km", html: "<b>" + esc(text) + "</b>", iconSize: [64, 16], iconAnchor: [32, 8] });
+  }
   function paintRoads(id, lines, chosen) {
     if (!map || typeof L === "undefined" || !lines || !lines.length) return;
     (roadPaint[id] || []).forEach(function (l) { try { map.removeLayer(l); } catch (e) {} });
@@ -2322,6 +2359,21 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         else pickRoad(id, i);
       });
       roadPaint[id].push(glow, core);
+      var total = lineKm(line);
+      if (total < 0.05) return;
+      var marks = on ? [] : [total / 2];
+      if (on) {
+        var step = total <= 1.2 ? 0.3 : Math.max(0.5, total / 6);
+        var k = 0;
+        while (k < total - step * 0.35) { marks.push(k); k += step; }
+        marks.push(total);
+      }
+      marks.forEach(function (km) {
+        var at = pointAtKm(line, km);
+        var label = (km < 0.05 ? "0" : km.toFixed(1)) + " km";
+        var mk = L.marker([at.lat, at.lng], { icon: kmIcon(label), interactive: false, keyboard: false, zIndexOffset: on ? 400 : 200 }).addTo(map);
+        roadPaint[id].push(mk);
+      });
     });
   }
   function pickRoad(id, i) {
@@ -3087,11 +3139,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         whoLine("THEN", d.name || "Client", [d.address, d.phone].filter(Boolean).join(" · ")) +
         '<p class="note">' + esc(names || "No free driver") + "</p>";
     } else {
-      html = whoLine("VENDOR", v.name, [v.address, v.phone].filter(Boolean).join(" · ")) +
-        '<div class="sn-leg">' + esc((job.prep || "—") + " min prep · " + (job.lifeMin || "—") + " min life · " + leg) + "</div>" +
-        whoLine("CLIENT", d.name || "Client", [d.address, d.floor ? "floor " + d.floor : "", d.phone].filter(Boolean).join(" · ")) +
-        '<button type="button" class="sheet-go primary" data-act="offer-yes" data-id="' + esc(job.id) + '">ACCEPT</button>' +
+      var kmBit = isFinite(+job.km) ? Number(job.km).toFixed(1) + " km" : "";
+      html = '<button type="button" class="sheet-go primary" data-act="offer-yes" data-id="' + esc(job.id) + '">ACCEPT</button>' +
         '<button type="button" class="sheet-go" data-act="offer-no" data-id="' + esc(job.id) + '">DECLINE</button>' +
+        '<div class="sn-leg">' + esc([kmBit, leg].filter(Boolean).join(" · ")) + "</div>" +
+        whoLine("VENDOR", v.name, [v.address, v.phone].filter(Boolean).join(" · ")) +
+        whoLine("CLIENT", d.name || "Client", [d.address, d.floor ? "floor " + d.floor : "", d.phone].filter(Boolean).join(" · ")) +
         '<p class="note">' + esc(names || "No free driver") + "</p>";
     }
     if (job && drivers && drivers[0] && !job.offeredTo) job.offeredTo = drivers[0].id;
@@ -3916,13 +3969,45 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       up.hidden = !manual;
       up.textContent = "PLEASE TRY TO UPDATE MANUALLY";
     }
-    var row = document.querySelector("#island .r1");
-    if (row) {
-      row.style.setProperty("flex-wrap", "wrap", "important");
-      row.style.setProperty("white-space", "normal", "important");
-      row.style.setProperty("overflow", "visible", "important");
-      row.style.setProperty("height", "auto", "important");
+    paintTick();
+  }
+  var tickNotes = [];
+  var tickLiveLine = "";
+  var tickTester = "";
+  var bootUntil = Date.now() + 8000;
+  var tickShown = "";
+  function pushNotice(s) {
+    s = String(s || "").replace(/\s+/g, " ").trim();
+    if (!s) return;
+    tickNotes = tickNotes.filter(function (n) { return n !== s; });
+    tickNotes.unshift(s);
+    tickNotes = tickNotes.slice(0, 5);
+    paintTick();
+  }
+  function paintTick() {
+    var isle = $("island");
+    if (!isle) return;
+    var el = $("sn-tick");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "sn-tick";
+      el.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (upState === "FAILED TO UPDATE" || upState === "PLEASE TRY TO UPDATE MANUALLY") forceUpdate();
+      });
+      isle.appendChild(el);
     }
+    var bits = ["SPACENET"];
+    if (Date.now() < bootUntil || (upState && upState !== "UPDATED" && upState !== "CHECKING")) {
+      bits.push("V" + VER + " LATEST " + (latestVer || "…") + " " + (upState || ""));
+    }
+    tickNotes.forEach(function (n) { bits.push(n); });
+    if (tickLiveLine) bits.push(tickLiveLine);
+    var text = bits.filter(Boolean).join("    ·    ");
+    if (text === tickShown) return;
+    tickShown = text;
+    el.innerHTML = "<b>" + esc(text + "    ·    " + text) + "</b>";
   }
   function forceUpdate() {
     var target = latestVer || VER;
