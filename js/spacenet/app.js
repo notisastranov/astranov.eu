@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4345";
+  var VER = "4346";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -259,12 +259,55 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function avcSet(n) {
     n = Math.max(0, Math.round(Number(n) || 0));
+    if (n === 0 && bankBal > 0) n = bankBal;
     try {
       localStorage.setItem(walletKey(), String(n));
       localStorage.setItem("sn:avc", String(n));
     } catch (e) {}
     paintMoney();
     return n;
+  }
+  var bankBal = 0;
+  var bankAsked = false;
+  function pullBank() {
+    if (!signed()) return;
+    var u = null, tok = "";
+    try { u = JSON.parse(localStorage.getItem("sn:user") || "null"); } catch (e) {}
+    try { tok = localStorage.getItem("sn:access") || ""; } catch (e2) {}
+    if (!u || !u.id || !tok) return;
+    fetch("/api/public-config", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (cfg) {
+      if (!cfg || !cfg.anon || !cfg.sb) return null;
+      return fetch(cfg.sb + "/rest/v1/profiles?id=eq." + encodeURIComponent(u.id) + "&select=avc_balance,balance", {
+        headers: { apikey: cfg.anon, Authorization: "Bearer " + tok, Accept: "application/json" }
+      }).then(function (r) { return r.json(); }).then(function (rows) { return { cfg: cfg, rows: rows, id: u.id, tok: tok }; });
+    }).then(function (pack) {
+      if (!pack) return;
+      var row = pack.rows && pack.rows[0];
+      if (!row) return;
+      var db = Number(row.avc_balance);
+      if (!isFinite(db)) db = Number(row.balance);
+      if (!isFinite(db)) return;
+      bankBal = db;
+      var had = null;
+      try { had = localStorage.getItem(walletKey()); } catch (e) {}
+      var local = had == null ? 0 : Number(had);
+      if (!isFinite(local)) local = 0;
+      if (had == null || local === 0) {
+        if (db > 0) avcSet(db);
+      } else if (local > db) {
+        fetch(pack.cfg.sb + "/rest/v1/profiles?id=eq." + encodeURIComponent(pack.id), {
+          method: "PATCH",
+          headers: {
+            apikey: pack.cfg.anon,
+            Authorization: "Bearer " + pack.tok,
+            "Content-Type": "application/json",
+            Prefer: "return=minimal"
+          },
+          body: JSON.stringify({ avc_balance: local, balance: local })
+        }).catch(function () {});
+      }
+      paintMoney();
+    }).catch(function () {});
   }
   function myMoney() {
     var n = avcGet();
@@ -300,7 +343,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (tgt) tgt.textContent = "AV€";
       return;
     }
-    var n = Math.round(myMoney());
+    if (!bankAsked) { bankAsked = true; pullBank(); }
+    var n = Math.round(Math.max(myMoney(), bankBal));
     if (tgt) tgt.textContent = n.toLocaleString("en-GB") + " AV€";
   }
   function signed() {
