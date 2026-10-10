@@ -1,0 +1,32 @@
+name: grokbuild 4359 (wheel dive keeps the cursor point; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4359.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix61, assert tree, commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "7737b03fa00497a5dc2602a92ca2f652e1e87178" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          base64 -d .grokbuild/fix61.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "ec1f0ccb0ecea0d6d20a04c1a7e993b5a929fe889df7b9e5fd3d91557b12d7c9"
+          gunzip -c /tmp/f.gz > /tmp/fix61.patch
+          test "$(sha256sum /tmp/fix61.patch | cut -d' ' -f1)" = "c8c64933af5dd1b21a6dcb0a9f26238ea976ccef848a7ffae201427da37e8e5e"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4359.yml
+          git apply --index /tmp/fix61.patch
+          node --check js/spacenet/app.js
+          grep -q '^4359$' VERSION
+          test "$(git write-tree)" = "99d1d7794c1f0ab4ef7cc33754926afa4e76c325" || { echo "tree $(git write-tree)"; exit 1; }
+          git commit -q -m "4359: a wheel dive keeps the cursor's point under the cursor (main 4354's national hold, merged at 4358, re-faced the globe to aim below dist 1.2 and ignored the cursor hold, so the dive opened the city over France/Algeria instead of Rhodes); lockstep 4359"
+          git push origin HEAD:grokbuild/4328-street-level-gps
