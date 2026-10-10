@@ -854,7 +854,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     vel.yaw = 0; vel.pitch = 0;
   }
   function cardsNow() {
-    var rows = BRIEF.slice();
+    var rows = BRIEF.filter(function (c) { return c && c.k === "CALENDAR"; });
+    rows = rows.concat(shownResearch());
     var n = 0;
     jobs.forEach(function (j) { if (j && !j.received && seesJob(j)) n++; });
     if (n) rows.unshift({ k: "NOTICE", t: n + " open order" + (n === 1 ? "" : "s") });
@@ -879,6 +880,62 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     window.__snHud = out;
     return out;
   }
+  var researchLens = "ALL";
+  var RESEARCH = [];
+  function seedResearch() {
+    return [
+      { k: "RESEARCH", lens: "STOCK", t: "SpaceX share. A published range, not a promise.", est: "$159", body: "Published prints put SpaceX near $159, after a $225 high in June and a $105 low in August. The cited market value is about $2.2 trillion. Morgan Stanley's published target is $300. Bulls print $600 to $800. Bears print $62 to $100. SpaceNet does not forecast the rise.", lat: 33.92, lng: -118.35, where: "Hawthorne" },
+      { k: "RESEARCH", lens: "SPACEX", t: "Musk says SpaceX could dwarf the Earth economy. Analysts call it theatre.", est: "5,500×", body: "Musk wrote that he sees a path to SpaceX being worth orders of magnitude more than the Earth economy. One reading of that is a 5,500-fold rise. Analysts called it hype. Reported Q2 revenue was $7.8 billion, up 92%. He has spoken of an internal path to $1 trillion of revenue in 2030.", lat: 25.99, lng: -97.19, where: "Starbase" },
+      { k: "RESEARCH", lens: "SPACEX", t: "What is next: Starship Flight 15.", est: "NEXT", body: "Morgan Stanley told clients to build a position before Starship Flight 15. That is the published next event. It is not a date SpaceNet invented.", lat: 28.52, lng: -80.65, where: "Cape" },
+      { k: "RESEARCH", lens: "WAR", t: "Gulf war is choking Hormuz.", est: "WAR", body: "The war with Iran has slowed the Strait of Hormuz, about a fifth of the world's oil. Brent was reported near $90. This is the urgent war story on the energy route.", lat: 26.6, lng: 56.25, where: "Hormuz" },
+      { k: "RESEARCH", lens: "CRISIS", t: "IMF: energy shock, record debt, an AI split.", est: "CRISIS", body: "Georgieva warned of a war energy shock and an AI boom that skips most countries. The biggest growth cuts are in economies hit by war. Bond yields are at multi-year highs.", lat: 13.75, lng: 100.5, where: "Bangkok" },
+      { k: "RESEARCH", lens: "DEAL", t: "War is the top business risk. The opening is whoever can still move goods.", est: "DEAL", body: "Allianz says war is the political-violence risk companies now fear most. Trade is rerouting. The urgent opportunity is capacity on routes that still run, and energy and rare-earth supply that states are underwriting.", lat: 1.35, lng: 103.82, where: "Singapore" }
+    ];
+  }
+  function shownResearch() {
+    return RESEARCH.filter(function (c) {
+      if (!c) return false;
+      if (researchLens === "ALL") return true;
+      if (researchLens === "SPACEX") return c.lens === "SPACEX" || c.lens === "STOCK";
+      return c.lens === researchLens;
+    });
+  }
+  function pullResearch() {
+    if (!RESEARCH.length) RESEARCH = seedResearch();
+    fetch("/api/research?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
+      var cards = j && j.cards;
+      if (!cards || !cards.length) return;
+      RESEARCH = cards;
+    }).catch(function () {});
+  }
+  function focusStory(row) {
+    if (!row || cityOn || !isFinite(+row.lat)) return;
+    aim = { lat: +row.lat, lng: +row.lng };
+    intro = false;
+    var f = face(aim);
+    fly = {
+      t0: performance.now(),
+      ms: 700,
+      start: { yaw: cam.yaw, pitch: cam.pitch, dist: cam.dist },
+      goal: { yaw: f.yaw, pitch: f.pitch, dist: 1.72 }
+    };
+  }
+  function openResearch(row) {
+    row = row || shownResearch()[0] || RESEARCH[0] || seedResearch()[0];
+    focusStory(row);
+    var lenses = ["ALL", "SPACEX", "STOCK", "CRISIS", "WAR", "DEAL"];
+    var buttons = lenses.map(function (k) {
+      return '<button type="button" class="sheet-go' + (researchLens === k ? " primary" : "") + '" data-act="lens" data-k="' + k + '">' + k + "</button>";
+    }).join("");
+    var html = '<b class="sn-est">' + esc(row.est || row.lens || "RESEARCH") + "</b>" +
+      "<p><b>" + esc(row.t || "") + "</b></p>" +
+      '<p class="note">' + esc(row.where || "World") + "</p>" +
+      "<p>" + esc(row.body || row.t || "") + "</p>" +
+      '<p class="note">ONLY CRISIS, WAR, AND MAJOR BUSINESS. THIS CONTROLS THE GLOBE.</p>' + buttons;
+    openTile({ kind: "research", title: "RESEARCH", html: html });
+    var sh = $("sn-sheet");
+    if (sh) sh.classList.add("research");
+  }
   function hitCard(x, y) {
     var i;
     for (i = cardHits.length - 1; i >= 0; i--) {
@@ -892,7 +949,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!ctx || cityOn || !view || cam.dist > 3.4) return;
     var rows = cardsNow().filter(function (row) {
       if (!row || vidHidden(row)) return false;
-      return row.k === "CALENDAR" || row.k === "NEWS" || row.k === "VIDEO" || row.k === "WARN" || row.k === "WARNING";
+      return row.k === "CALENDAR" || row.k === "RESEARCH" || row.k === "NEWS" || row.k === "VIDEO" || row.k === "WARN" || row.k === "WARNING";
     });
     var placed = [];
     window.__snCards = placed;
@@ -951,7 +1008,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ctx.font = "800 9px system-ui,sans-serif";
       ctx.textAlign = "left";
       ctx.textBaseline = "top";
-      ctx.fillText(row.k, x + 8, y + 4);
+      ctx.fillText(row.lens || row.k, x + 8, y + 4);
       ctx.fillStyle = "#e8fbff";
       ctx.font = "600 11px system-ui,sans-serif";
       ctx.fillText(text, x + 8, y + 16, w - 16);
@@ -1225,6 +1282,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       vel.yaw = 0; vel.pitch = 0;
       var pUp = pos(e);
       var card = hitCard(pUp.x, pUp.y);
+      if (card && card.row && (card.row.k === "RESEARCH" || card.row.k === "NEWS" || card.row.k === "WARN" || card.row.k === "WARNING")) {
+        openResearch(card.row);
+        return;
+      }
       if (card && card.row && card.row.k === "VIDEO") {
         if (card.row.act === "youtube" && window.SNAuth && SNAuth.youtube) { SNAuth.youtube(); return; }
         openVidChoice(card.row);
@@ -2939,6 +3000,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet .card{left:max(16px,4vw,calc((100vw - 720px) / 2))!important;right:max(16px,4vw,calc((100vw - 720px) / 2))!important}",
       "#sn-sheet.tile .sn-prof{grid-template-columns:72px minmax(0,1fr)!important}",
       "#sn-sheet.tile .sn-prof .sn-shop-hero,#sn-sheet.tile .sn-prof em{width:72px!important;height:72px!important;max-width:72px!important;max-height:72px!important}",
+      "#sn-sheet.research .card,#sn-sheet.research.tile .card{max-height:78vh!important;height:auto!important}",
+      "#sn-sheet.research #sn-sheet-body{max-height:calc(78vh - 52px)!important}",
+      "#sn-sheet .sn-est{display:block;margin:0 0 6px;font:800 46px/0.85 system-ui;color:#e8fbff;text-shadow:0 0 8px #fff,0 0 16px #4df0ff,0 0 28px #1a6cff}",
       "#sn-sheet .sn-pick{display:grid;grid-template-columns:52px minmax(0,1fr) auto 28px 28px 28px;gap:6px;align-items:center;margin-top:8px}",
       "#sn-sheet .sn-pick.nothumb{grid-template-columns:minmax(0,1fr) auto 28px 28px 28px}",
       "#sn-power-tag{position:fixed;top:58px;left:max(6px,env(safe-area-inset-left));z-index:60;font:700 10px/14px ui-monospace,monospace;color:#8fb3c0;pointer-events:none;white-space:nowrap;text-shadow:0 0 4px #000}",
@@ -3015,6 +3079,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-tick{flex:1!important;min-width:0!important;overflow:hidden!important;height:32px!important;pointer-events:auto!important}",
       "#sn-tick b{display:inline-block!important;white-space:nowrap!important;animation:sn-slide 16s linear infinite!important;color:#d7f6ff!important;font:600 13px/32px system-ui,sans-serif!important;letter-spacing:0!important}",
       "@keyframes sn-slide{from{transform:translateX(0)}to{transform:translateX(-50%)}}",
+      "#sn-sheet.research .card{max-height:78vh!important}",
+      "#sn-sheet.research #sn-sheet-body{max-height:calc(78vh - 52px)!important}",
       "#sn-power{position:fixed!important;top:0!important;left:max(2px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;width:32px!important;height:32px!important;transform:none!important;z-index:60!important}",
       "#sn-power svg{width:16px!important;height:16px!important}",
       "#sn-support{position:fixed!important;top:0!important;right:max(2px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;width:32px!important;height:32px!important;font-size:14px!important;transform:none!important;z-index:60!important}",
@@ -7797,7 +7863,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         say("Assigned to drv-notis · " + ((vendor && vendor.name) || "shop") + ". Set drop, then send.");
       }
       if (act === "self-ride") say("Hold the map. List the vendor, the delivery address, and a driver. Then send the offer.");
-      if (act === "place-order") { checkoutVendor(); return; }
+      if (act === "lens") {
+        researchLens = t.getAttribute("data-k") || "ALL";
+        var keep = shownResearch()[0] || RESEARCH[0];
+        openResearch(keep);
+        return;
+      }
       if (act === "cloud") { openOrderList(t.getAttribute("data-k") || "pending"); return; }
       if (act === "open-job") { openJob(t.getAttribute("data-id")); return; }
       if (act === "compass-north") { armNorth(); return; }
@@ -9193,18 +9264,20 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       bootPt = pt;
       try { bootZoomTo(pt); } catch (eBZ) {}
     }, true);
+    pullResearch();
     fetch("/agenda.json", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
-      if (j && j.cards && j.cards.length) {
-        BRIEF = j.cards.map(function (c, i) {
-          c = c || {};
-          if (!isFinite(+c.lat)) c.lat = 36.43;
-          if (!isFinite(+c.lng)) c.lng = 28.22 + i * 0.35;
-          if (!isFinite(+c.z)) c.z = c.k === "CALENDAR" ? 13 : 10; /* 4342: a tap opens the item at its own scale */
-          return c;
-        });
+      var cal = (j && j.cards) ? j.cards.filter(function (c) { return c && c.k === "CALENDAR"; }).map(function (c, i) {
+        if (!isFinite(+c.lat)) c.lat = 36.43;
+        if (!isFinite(+c.lng)) c.lng = 28.22 + i * 0.35;
+        if (!isFinite(+c.z)) c.z = 13; /* 4342: a tap opens the item at its own scale */
+        return c;
+      }) : [];
+      if (cal.length) {
+        var rest = BRIEF.filter(function (c) { return !c || c.k !== "CALENDAR"; });
+        BRIEF = cal.concat(rest);
       }
-      pullVideos();
-    }).catch(function () { pullVideos(); });
+      pullResearch();
+    }).catch(function () { pullResearch(); });
     setTimeout(pullQueue, 600);
     setInterval(pullQueue, 4000);
     loadBlocks();
