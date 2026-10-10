@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4339";
+  var VER = "4340";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -233,16 +233,47 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var id = me();
     return j.client === id || j.vendorOwner === id || j.driverOwner === id;
   }
+  function walletKey() {
+    var id = "guest";
+    try {
+      var u = window.SNAuth && SNAuth.user && SNAuth.user();
+      if (u && (u.email || u.id)) id = String(u.email || u.id).toLowerCase();
+    } catch (e) {}
+    return "sn:avc:" + id;
+  }
   function avcGet() {
     try {
-      var n = Number(localStorage.getItem("sn:avc"));
+      var k = walletKey();
+      var raw = localStorage.getItem(k);
+      if (raw == null && k !== "sn:avc:guest") {
+        var legacy = localStorage.getItem("sn:avc");
+        if (legacy != null) {
+          localStorage.setItem(k, legacy);
+          raw = legacy;
+        }
+      }
+      var n = Number(raw);
       return isFinite(n) && n >= 0 ? n : 0;
     } catch (e) { return 0; }
   }
   function avcSet(n) {
     n = Math.max(0, Math.round(Number(n) || 0));
-    try { localStorage.setItem("sn:avc", String(n)); } catch (e) {}
+    try {
+      localStorage.setItem(walletKey(), String(n));
+      localStorage.setItem("sn:avc", String(n));
+    } catch (e) {}
     paintMoney();
+    return n;
+  }
+  function myMoney() {
+    var n = avcGet();
+    try {
+      var b = JSON.parse(localStorage.getItem("sn:books") || "null");
+      var id = "client:" + me();
+      (b && b.rows || []).forEach(function (r) {
+        if (r && r.id === id && isFinite(+r.avc) && +r.avc > n) n = +r.avc;
+      });
+    } catch (e) {}
     return n;
   }
   function poolGet() {
@@ -268,7 +299,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (tgt) tgt.textContent = "AV€";
       return;
     }
-    var n = Math.round(isAdmin() ? poolGet() : avcGet());
+    var n = Math.round(myMoney());
     if (tgt) tgt.textContent = n.toLocaleString("en-GB") + " AV€";
   }
   function signed() {
@@ -746,12 +777,67 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       cardHits.push({ x: x, y: y, w: w, h: h, row: row });
     });
   }
+  function ytToken() {
+    try { return (window.SNAuth && SNAuth.yt && SNAuth.yt()) || ""; } catch (e) { return ""; }
+  }
+  function placeVideo(cards) {
+    var rest = BRIEF.filter(function (c) { return !c || (c.k !== "VIDEO" && c.act !== "youtube"); });
+    BRIEF = cards.concat(rest);
+  }
+  function pullMyVideos(token) {
+    fetch("https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&mine=true&maxResults=6", {
+      headers: { Authorization: "Bearer " + token }
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j || j.error || !j.items) {
+        try { localStorage.removeItem("sn:yt"); } catch (e) {}
+        say("YouTube needs authorization again.");
+        return null;
+      }
+      var ids = j.items.map(function (it) {
+        return it && it.snippet && it.snippet.resourceId && it.snippet.resourceId.channelId;
+      }).filter(Boolean);
+      if (!ids.length) return null;
+      return fetch("https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=" + encodeURIComponent(ids.join(",")), {
+        headers: { Authorization: "Bearer " + token }
+      }).then(function (r) { return r.json(); });
+    }).then(function (ch) {
+      if (!ch || !ch.items) return;
+      var lists = ch.items.map(function (c) {
+        return c && c.contentDetails && c.contentDetails.relatedPlaylists && c.contentDetails.relatedPlaylists.uploads;
+      }).filter(Boolean).slice(0, 4);
+      return Promise.all(lists.map(function (pid) {
+        return fetch("https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=1&playlistId=" + encodeURIComponent(pid), {
+          headers: { Authorization: "Bearer " + token }
+        }).then(function (r) { return r.json(); }).catch(function () { return null; });
+      }));
+    }).then(function (packs) {
+      if (!packs) return;
+      var cards = [];
+      packs.forEach(function (pack, i) {
+        var sn = pack && pack.items && pack.items[0] && pack.items[0].snippet;
+        var vid = sn && sn.resourceId && sn.resourceId.videoId;
+        if (!vid || !/^[\w-]{6,16}$/.test(vid)) return;
+        cards.push({ k: "VIDEO", t: sn.title || "Subscription", v: vid, lat: 8 + i * 24, lng: -50 + i * 42, mine: 1 });
+      });
+      if (cards.length) placeVideo(cards);
+    }).catch(function () {});
+  }
   function pullVideos() {
+    var token = ytToken();
+    if (signed() && token) {
+      BRIEF = BRIEF.filter(function (c) { return !c || c.act !== "youtube"; });
+      pullMyVideos(token);
+      return;
+    }
+    if (signed() && !BRIEF.some(function (c) { return c && c.act === "youtube"; })) {
+      BRIEF.unshift({ k: "VIDEO", t: "Authorize YouTube", act: "youtube", lat: 36.43, lng: 28.22 });
+    }
     fetch("/api/videos?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
       var cards = j && j.cards;
       if (!cards || !cards.length) return;
-      var rest = BRIEF.filter(function (c) { return !c || c.k !== "VIDEO"; });
-      BRIEF = rest.concat(cards.map(function (c, i) {
+      var mine = BRIEF.filter(function (c) { return c && (c.mine || c.act === "youtube"); });
+      var rest = BRIEF.filter(function (c) { return !c || (c.k !== "VIDEO" && c.act !== "youtube"); });
+      BRIEF = mine.concat(rest, cards.map(function (c, i) {
         c = c || {};
         c.k = "VIDEO";
         if (!isFinite(+c.lat)) c.lat = 20 + i * 18;
@@ -860,7 +946,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       vel.yaw = 0; vel.pitch = 0;
       var pUp = pos(e);
       var card = hitCard(pUp.x, pUp.y);
-      if (card && card.row && card.row.k === "VIDEO") { openVidChoice(card.row); return; }
+      if (card && card.row && card.row.k === "VIDEO") {
+        if (card.row.act === "youtube" && window.SNAuth && SNAuth.youtube) { SNAuth.youtube(); return; }
+        openVidChoice(card.row);
+        return;
+      }
       if (!globeHit(pUp.x, pUp.y, cam)) {
         var con = pickConstellation(pUp.x, pUp.y);
         if (con) openSky(con);
@@ -3007,6 +3097,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     return { lat: +p.base.lat, lng: +p.base.lng, label: (p.name || "driver") + " · free", job: null };
   }
   function tickLive() {
+    paintMoney();
     paintPulse();
     if (!map || typeof L === "undefined") return;
     var seen = {};
@@ -3373,7 +3464,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (homeDrop) bookRow(b, "client:" + (homeDrop.owner || me()), homeDrop.name || "Client", "client");
     bookRow(b, "client:" + me(), myName(), "client");
     booksSet(b);
-    var html = '<p class="note">Mutual account. An accepted order sits here, including the vendor share, on the way to the shop. Change any amount, then Apply, to clear a test.</p>';
+    var html = '<p class="note">Your money ' + Math.round(avcGet()).toLocaleString("en-GB") + " AV€. The mutual account is below. Change any amount, then Apply.</p>";
     html += '<label class="sn-book">MUTUAL<input id="sn-book-pool" inputmode="decimal" value="' + (Number(b.pool) || 0) + '"></label>';
     b.rows.forEach(function (r) {
       html += '<label class="sn-book">' + esc((r.role || "account").toUpperCase() + " · " + (r.name || "")) + '<input class="sn-book-n" data-id="' + esc(r.id) + '" inputmode="decimal" value="' + (Number(r.avc) || 0) + '"></label>';
