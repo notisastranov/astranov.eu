@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4355";
+  var VER = "4356";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1182,7 +1182,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4355 = true;
+      window.__SN_4356 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -2393,8 +2393,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
             zoomToDist(1.25);
             return;
           }
-          userLeave = false;
-          if (z < 14) map.setZoom(14);
+          /* 4356: main 4343's "if (z < 14) setZoom(14)" auto-merged here snapped every user zoom to z14, so the wheel dive
+             jumped to z14.5..18 and drifted to sea. The branch keeps the gradual wheel and leaves only on a user zoom-out */
         } catch (e) {}
       });
       map.on("moveend", function () {
@@ -2560,7 +2560,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     say("Global view.");
   }
   function listAt(pt) {
-    if (needLogin()) return;
+    /* 4356: no LOGIN wall here; the LIST card tells a guest that listing needs LOGIN, and persistListing saves nothing */
     if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
     listPt = { lat: pt.lat, lng: pt.lng };
     listAlt = altitudeFromDist(cam.dist);
@@ -2826,7 +2826,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4355&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4356&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -9314,7 +9314,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4355 = true;
+    window.__SN_4356 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

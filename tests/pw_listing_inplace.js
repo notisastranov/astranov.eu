@@ -19,7 +19,7 @@ const { chromium } = require("playwright");
 const fs = require("fs");
 const path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4355";
+const STAMP = process.env.STAMP || "4356";
 const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-inplace-" + STAMP;
 fs.mkdirSync(SHOTDIR, { recursive: true });
 const RHODES = { lat: 36.4446, lng: 28.2276 };

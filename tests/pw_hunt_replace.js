@@ -28,7 +28,7 @@ const path = require("path");
 const { chromium } = require("playwright");
 
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const URL0 = BASE + (BASE.indexOf("?") >= 0 ? "&" : "?") + "v=" + (process.env.STAMP || "4355") + "&t=" + Date.now();
+const URL0 = BASE + (BASE.indexOf("?") >= 0 ? "&" : "?") + "v=" + (process.env.STAMP || "4356") + "&t=" + Date.now();
 const PIZZA = /pizz|πιτσ|πίτσ|margherita|calzone/i;
 const MARKET = /market|super|grocer|convenience|παντοπωλ|σούπερ|σουπερ|μάρκετ|μαρκετ/i;
 const RHODES = { lat: 36.4349, lng: 28.2176 };
@@ -191,7 +191,7 @@ function sameSet(f) {
   console.log("[boot]", JSON.stringify(boot));
   check(new RegExp("^LIVE · " + boot.expect + " vendors? on SpaceNet ·").test(boot.live) && boot.expect > 0, "boot LIVE counts the real public network (" + boot.expect + " listed, no fixtures)", boot.live);
   check(new RegExp("^LATEST " + boot.api + "( (UPDATED|CHECKING|UPDATING|FAILED TO UPDATE|PLEASE TRY TO UPDATE MANUALLY))?$").test(boot.latest) && /^\d{4,}$/.test(String(boot.api)), "LATEST shows /api/version (" + boot.api + ", with main 4332's update state)", boot.latest);
-  if (!process.env.LOCAL_APP) check(String(boot.api) === String(process.env.STAMP || "4355") && boot.ver === "V" + (process.env.STAMP || "4355"), "running build == LATEST == STAMP", boot.ver + " / " + boot.api);
+  if (!process.env.LOCAL_APP) check(String(boot.api) === String(process.env.STAMP || "4356") && boot.ver === "V" + (process.env.STAMP || "4355"), "running build == LATEST == STAMP", boot.ver + " / " + boot.api);
   check(!boot.tester, "TESTER ticker hidden for a guest");
   await page.screenshot({ path: path.join(SHOTS, "boot.png") });
 

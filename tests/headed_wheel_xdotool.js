@@ -33,7 +33,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4355";
+const STAMP = process.env.STAMP || "4356";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now() + (process.env.DEBUGQ ? "&debug=wheel" : "");
 const RHODES = { lat: 36.4349, lng: 28.2176 }, ATHENS = { lat: 37.9838, lng: 23.7275 };
 const [WW, WH] = (process.env.WIN || "1280x800").split("x").map(Number);
@@ -138,7 +138,7 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
     });
     const gb = await grab("boot", { x: 0, y: 0, w: geo.iw, h: geo.ih });
     console.log("[boot]", JSON.stringify(boot), gb.file);
-    check("boot LIVE = real public network (" + boot.expect + ")", boot.expect > 0 && new RegExp("^LIVE · " + boot.expect + " vendors? on SpaceNet ·").test(boot.live), boot.live);
+    check("boot LIVE = real public network (" + boot.expect + ")", (boot.expect > 0 ? new RegExp("^LIVE · " + boot.expect + " vendors? on SpaceNet ·").test(boot.live) : /^LIVE · no public vendors on SpaceNet ·/.test(boot.live)), boot.live);
     check("LATEST == /api/version (with main 4332's update state word)", new RegExp("^LATEST " + boot.api + "( (UPDATED|CHECKING|UPDATING|FAILED TO UPDATE|PLEASE TRY TO UPDATE MANUALLY))?$").test(boot.latest) && /^\d{4,}$/.test(String(boot.api)), boot.latest + " / " + boot.api);
     if (!process.env.LOCAL_APP) check("running V == LATEST == " + STAMP, boot.ver === "V" + STAMP && String(boot.api) === STAMP, boot.ver + " / " + boot.api);
     check("TESTER ticker hidden (guest)", !boot.tester);

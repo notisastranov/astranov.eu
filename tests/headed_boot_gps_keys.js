@@ -67,18 +67,18 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4355";
+const STAMP = process.env.STAMP || "4356";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now();
 const ORIGIN = new URL(BASE).origin;
 const [WW, WH] = (process.env.WIN || "1920x1200").split("x").map(Number);
 const SCALE = Number(process.env.SCALE || 1.5);
-const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4355";
+const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-headed-4356";
 fs.mkdirSync(SHOTDIR, { recursive: true });
 if (!process.env.DISPLAY) process.env.DISPLAY = ":3";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const xdo = (a) => execSync("xdotool " + a, { env: process.env });
 const SYNTAGMA = { lat: 37.9755, lng: 23.7348 }, RHODES_OLD = { lat: 36.4446, lng: 28.2276 };
-const GRAB = path.join(os.tmpdir(), "sn_grab4355.py");
+const GRAB = path.join(os.tmpdir(), "sn_grab4356.py");
 fs.writeFileSync(GRAB, `import sys, json
 from PIL import ImageGrab, ImageStat
 out, x, y, w, h = sys.argv[1], *map(int, sys.argv[2:6])
@@ -182,9 +182,11 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   check("IP view is labelled approximate and is camera only (no hunt seat)", /Approximate location \(IP\)/.test(sIp.line) && sIp.kind === "ip", JSON.stringify({ line: sIp.line, kind: sIp.kind }));
   check("IP city view shows street tiles (real pixels)", gIp.std >= 10 && gIp.colors >= 60, JSON.stringify(gIp));
   const seq = await page.evaluate(() => window.__liveSeq);
-  const counts = [...new Set(seq.map((x) => (x[1].match(/LIVE · (\d+) vendor/) || [])[1]).filter(Boolean))];
+  /* 4356: the real network can be empty (sn_listings had no shops on 2026-10-10 evening); then the one honest phrase is
+     'no public vendors on SpaceNet' in every mode, else 'N vendors on SpaceNet' */
+  const counts = [...new Set(seq.map((x) => (x[1].match(/LIVE · (\d+) vendor/) || (/LIVE · no public vendors on SpaceNet/.test(x[1]) ? [0, "0"] : []))[1]).filter((v) => v != null))];
   console.log("[live seq]", JSON.stringify(seq.map((x) => x[0] + ":" + x[1])));
-  check("LIVE shows one final count (loading first, no jump), 'N vendors on SpaceNet'", counts.length === 1 && seq.every((x) => !x[1] || /^LIVE · (loading…|\d+ vendors? on SpaceNet ·)/.test(x[1])), "counts " + JSON.stringify(counts));
+  check("LIVE shows one final count (loading first, no jump), 'N vendors on SpaceNet'", counts.length === 1 && seq.every((x) => !x[1] || /^LIVE · (loading…|\d+ vendors? on SpaceNet ·|no public vendors on SpaceNet ·)/.test(x[1])), "counts " + JSON.stringify(counts));
   const netN = counts[0];
 
   // ---- GPS granted mid-session (CDP override + permission grant) ----
@@ -198,7 +200,7 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
   check("GPS grant mid-session flies to the fix at street level", gp.ms != null && sG.z >= 15 && km(sG.c, SYNTAGMA) < 0.6, (gp.ms == null ? "never" : gp.ms + " ms") + ", z" + sG.z + ", " + (sG.c && km(sG.c, SYNTAGMA).toFixed(3)) + " km from the fix");
   check("IP label replaced after the GPS fix", !/Approximate/.test(sG.line) && sG.here && sG.here.name === "GPS", JSON.stringify({ line: sG.line, here: sG.here }));
   check("street tiles at the GPS fix (real pixels)", gG.std >= 10 && gG.colors >= 60, JSON.stringify(gG));
-  check("LIVE in GPS mode names the same network count as IP mode (no 'no public vendors')", new RegExp("^LIVE · \\d+ places? here · " + netN + " vendors? on SpaceNet · ").test(sG.live) && !/no public vendors/.test(sG.live), JSON.stringify({ ip: "LIVE · " + netN + " vendors on SpaceNet", gps: sG.live }));
+  check("LIVE in GPS mode names the same network count as IP mode (no 'no public vendors')", (netN === "0" ? /^LIVE · \d+ places? here · no public vendors on SpaceNet · /.test(sG.live) : new RegExp("^LIVE · \\d+ places? here · " + netN + " vendors? on SpaceNet · ").test(sG.live) && !/no public vendors/.test(sG.live)), JSON.stringify({ ip: "LIVE · " + netN + " vendors on SpaceNet", gps: sG.live }));
   // locate button with a new fix
   await cdp.send("Emulation.setGeolocationOverride", { latitude: RHODES_OLD.lat, longitude: RHODES_OLD.lng, accuracy: 15 });
   const gb = await page.evaluate(() => { const b = document.getElementById("gps").getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
@@ -1030,12 +1032,12 @@ function km(a, b) { const R = 6371, r = Math.PI / 180; const dLat = (b.lat - a.l
     console.log(`[load view ${w}x${h}] inner ${lv.iw}x${lv.ih} cityOn ${lv.cityOn} line ${JSON.stringify(lv.line)} cards ${JSON.stringify(lv.cards)} disc ${JSON.stringify(lv.disc)}`, shot);
     check(`load view ${w}x${h} stays on the globe without a location`, !lv.cityOn, JSON.stringify(lv.line));
     cardCheck(lv, `load ${w}x${h}, inner ${lv.iw}x${lv.ih}`);
-    check(`load view ${w}x${h}: LIVE = the real public network (${lv.expect}), not the listing cache`, lv.expect > 0 && new RegExp("^LIVE · " + lv.expect + " vendors? on SpaceNet ·").test(lv.live), lv.live);
+    check(`load view ${w}x${h}: LIVE = the real public network (${lv.expect}), not the listing cache`, (lv.expect > 0 ? new RegExp("^LIVE · " + lv.expect + " vendors? on SpaceNet ·").test(lv.live) : /^LIVE · no public vendors on SpaceNet ·/.test(lv.live)), lv.live);
     await c2.close();
   }
   console.log("SCREENSHOTS", SHOTDIR);
   check("4350: the page never calls an Overpass server itself (Overpass only through /api/find, so no CORS error can reach the console)", opDirect.length === 0, JSON.stringify(opDirect.slice(0, 3)));
-  console.log(fails.length ? "HEADED 4355 FAIL: " + fails.join("; ") : "HEADED 4355 ALL PASS");
+  console.log(fails.length ? "HEADED 4356 FAIL: " + fails.join("; ") : "HEADED 4356 ALL PASS");
   await browser.close();
   process.exit(fails.length ? 2 : 0);
 })().catch((e) => { console.error("fail", e); process.exit(1); });
