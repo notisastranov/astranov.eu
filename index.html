@@ -54,6 +54,7 @@ button, [role="button"]{cursor:pointer}
 #island .r2{flex-wrap:wrap;font:600 10px/1 ui-monospace,monospace;color:var(--muted)}
 #sn-spark{display:block;width:120px;height:28px;flex:none;cursor:pointer}
 #ver,.a,.s{color:var(--accent);font:800 13px system-ui;letter-spacing:.12em}
+#sn-brand-s{letter-spacing:0!important;text-transform:none!important;font:700 13px/32px system-ui,sans-serif!important;color:#e8fbff!important}
 #sn-latest{background:none;border:0;padding:0;color:var(--accent);font:800 11px system-ui;letter-spacing:.08em;cursor:pointer}
 #sn-latest.behind{color:#ffb020}
 #sn-update{background:none;border:0;padding:0;color:#ffb020;font:800 11px system-ui;letter-spacing:.08em;cursor:pointer}
@@ -159,7 +160,7 @@ body.sn-support #sn-desk{display:block}
 html,body{margin:0!important;padding:0!important}
 #top{top:0!important;margin:0!important;padding:0!important}
 #island{padding:0 12px 4px!important}
-#sn-topchrome-drag{display:none!important;height:0!important;min-height:0!important;max-height:0!important;padding:0!important;margin:0!important;border:0!important}
+#sn-topchrome-drag,#cli-drag{display:none!important;height:0!important;min-height:0!important;max-height:0!important}#island .r2{display:none!important}#island{height:32px!important;max-height:32px!important;overflow:hidden!important;padding:0 36px!important}#top{height:32px!important;max-height:32px!important;overflow:hidden!important}
 #sn-tasks-btn,#sn-find-btn,#sn-node-btn,#sn-filters,.hud-row,.hud-row.mat{display:none!important;visibility:hidden!important}
 .sheet-go{height:30px!important;margin:4px 0 0!important;font:700 12px/30px system-ui!important}
 .sn-price{margin:4px 0 0;font:800 56px/0.9 system-ui;letter-spacing:-.04em;color:#4df0ff;text-shadow:0 0 18px rgba(77,240,255,.85)}
@@ -182,12 +183,36 @@ html,body{margin:0!important;padding:0!important}
 </head>
 <body>
 <canvas id="g"></canvas>
+<script>
+setTimeout(function () {
+  if (window.__SN_EARTH) return;
+  var once = "";
+  try { once = sessionStorage.getItem("sn:reborn") || ""; } catch (e) {}
+  if (once !== "1") {
+    try { sessionStorage.setItem("sn:reborn", "1"); } catch (e2) {}
+    var wipe = (navigator.serviceWorker && navigator.serviceWorker.getRegistrations)
+      ? navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); })
+      : Promise.resolve();
+    wipe.then(function () { location.replace("/?reborn=1&t=" + Date.now()); }).catch(function () { location.reload(); });
+    return;
+  }
+  var box = document.createElement("div");
+  box.id = "sn-down";
+  box.textContent = "SpaceNet did not start. Tap here to try again.";
+  box.style.cssText = "position:fixed;left:12px;right:12px;top:48px;z-index:300;padding:14px;border-radius:12px;background:#041018;color:#e8fbff;border:1px solid #4df0ff;font:600 16px/1.4 system-ui";
+  box.onclick = function () {
+    try { sessionStorage.removeItem("sn:reborn"); } catch (e) {}
+    location.replace("/?t=" + Date.now());
+  };
+  document.body.appendChild(box);
+}, 5000);
+</script>
 <div id="city"></div>
 <div id="sn-news"></div>
 <div id="top">
   <div id="sn-topchrome-drag" class="sn-trivial-law" aria-hidden="true"></div>
   <div id="island">
-    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">SPACENET</button><span id="ver">V4353</span><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
+    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">Astranov.Eu SpaceNet V4353</button><span id="ver">V4353</span><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
     <div class="r2"><span id="sn-local">-</span><span id="sn-utc">-</span><span id="sn-wx"></span><span id="sn-node"></span><canvas id="sn-spark" width="120" height="28"></canvas></div>
   </div>
 

@@ -83,6 +83,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var pinch = null;
   var holdT = 0;
   var cityOn = false;
+  var cardHits = [];
   var skyOn = false;
   var skyHits = [];
   var skyAsked = false;
@@ -131,11 +132,19 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 
   function $(id) { return document.getElementById(id); }
   var sayHold = 0;
-  function say(s) { var el = $("line"); if (el) el.textContent = s; sayHold = Date.now(); }
+  function say(s) {
+    var el = $("line");
+    if (el) el.textContent = s;
+    sayHold = Date.now();
+    var t = String(s || "");
+    if (t.length > 96 || /LIVE ·|TESTER|LATEST|CHECKING|function |\{|\}|http/.test(t)) return;
+    if (/order|offer|accept|deliver|driver|vendor|menu/i.test(t)) pushNotice(t);
+  }
   var hereLive = null;
   var adminPin = false;
   var homeDrop = null;
   var driverPin = null;
+  var rideArm = null;
   var people = [];
   function isAdmin() {
     return ownerMail();
@@ -275,23 +284,58 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var id = me();
     return j.client === id || j.vendorOwner === id || j.driverOwner === id;
   }
+  function walletKey() {
+    var id = "guest";
+    try {
+      var u = window.SNAuth && SNAuth.user && SNAuth.user();
+      if (u && (u.email || u.id)) id = String(u.email || u.id).toLowerCase();
+    } catch (e) {}
+    return "sn:avc:" + id;
+  }
   function avcGet() {
     try {
-      var n = Number(localStorage.getItem("sn:avc"));
+      var k = walletKey();
+      var raw = localStorage.getItem(k);
+      if (raw == null && k !== "sn:avc:guest") {
+        var legacy = localStorage.getItem("sn:avc");
+        if (legacy != null) {
+          localStorage.setItem(k, legacy);
+          raw = legacy;
+        }
+      }
+      var n = Number(raw);
       return isFinite(n) && n >= 0 ? n : 0;
     } catch (e) { return 0; }
   }
   function avcSet(n) {
     n = Math.max(0, Math.round(Number(n) || 0));
-    try { localStorage.setItem("sn:avc", String(n)); } catch (e) {}
+    try {
+      localStorage.setItem(walletKey(), String(n));
+      localStorage.setItem("sn:avc", String(n));
+    } catch (e) {}
     paintMoney();
+    return n;
+  }
+  function myMoney() {
+    var n = avcGet();
+    try {
+      var b = JSON.parse(localStorage.getItem("sn:books") || "null");
+      var id = "client:" + me();
+      (b && b.rows || []).forEach(function (r) {
+        if (r && r.id === id && isFinite(+r.avc) && +r.avc > n) n = +r.avc;
+      });
+    } catch (e) {}
     return n;
   }
   function poolGet() {
     try {
+      var b = JSON.parse(localStorage.getItem("sn:books") || "null");
+      if (b && isFinite(+b.pool)) return +b.pool;
+    } catch (e) {}
+    try {
       var n = Number(localStorage.getItem("sn:pool"));
       return isFinite(n) ? n : 0;
-    } catch (e) { return 0; }
+    } catch (e2) { return 0; }
   }
   function paintMoney() {
     var btn = $("sn-money");
@@ -306,7 +350,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (tgt) tgt.textContent = "0 AV€ · guest";
       return;
     }
-    var n = Math.round(avcGet());
+    var n = Math.round(myMoney());
     if (tgt) tgt.textContent = n.toLocaleString("en-GB") + " AV€";
   }
   function signed() {
@@ -823,9 +867,21 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     window.__snHud = out;
     return out;
   }
+  function hitCard(x, y) {
+    var i;
+    for (i = cardHits.length - 1; i >= 0; i--) {
+      var g = cardHits[i];
+      if (x >= g.x && x <= g.x + g.w && y >= g.y && y <= g.y + g.h) return g;
+    }
+    return null;
+  }
   function drawCard() {
+    cardHits = [];
     if (!ctx || cityOn || !view || cam.dist > 3.4) return;
-    var rows = cardsNow().filter(function (row) { return row && (row.k === "CALENDAR" || row.k === "NEWS" || row.k === "WARN" || row.k === "WARNING"); });
+    var rows = cardsNow().filter(function (row) {
+      if (!row || vidHidden(row)) return false;
+      return row.k === "CALENDAR" || row.k === "NEWS" || row.k === "VIDEO" || row.k === "WARN" || row.k === "WARNING";
+    });
     var placed = [];
     window.__snCards = placed;
     var RING = view.scale * 1.12 + 4; /* 4341: the glow ring is drawn to r * 1.12: callouts keep clear of it */
@@ -888,7 +944,77 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ctx.font = "600 11px system-ui,sans-serif";
       ctx.fillText(text, x + 8, y + 16, w - 16);
       ctx.restore();
+      cardHits.push({ x: x, y: y, w: w, h: h, row: row });
     });
+  }
+  function ytToken() {
+    try { return (window.SNAuth && SNAuth.yt && SNAuth.yt()) || ""; } catch (e) { return ""; }
+  }
+  function placeVideo(cards) {
+    var rest = BRIEF.filter(function (c) { return !c || (c.k !== "VIDEO" && c.act !== "youtube"); });
+    BRIEF = cards.concat(rest);
+  }
+  function pullMyVideos(token) {
+    fetch("https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&mine=true&maxResults=6", {
+      headers: { Authorization: "Bearer " + token }
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j || j.error || !j.items) {
+        try { localStorage.removeItem("sn:yt"); } catch (e) {}
+        say("YouTube needs authorization again.");
+        return null;
+      }
+      var ids = j.items.map(function (it) {
+        return it && it.snippet && it.snippet.resourceId && it.snippet.resourceId.channelId;
+      }).filter(Boolean);
+      if (!ids.length) return null;
+      return fetch("https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=" + encodeURIComponent(ids.join(",")), {
+        headers: { Authorization: "Bearer " + token }
+      }).then(function (r) { return r.json(); });
+    }).then(function (ch) {
+      if (!ch || !ch.items) return;
+      var lists = ch.items.map(function (c) {
+        return c && c.contentDetails && c.contentDetails.relatedPlaylists && c.contentDetails.relatedPlaylists.uploads;
+      }).filter(Boolean).slice(0, 4);
+      return Promise.all(lists.map(function (pid) {
+        return fetch("https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=1&playlistId=" + encodeURIComponent(pid), {
+          headers: { Authorization: "Bearer " + token }
+        }).then(function (r) { return r.json(); }).catch(function () { return null; });
+      }));
+    }).then(function (packs) {
+      if (!packs) return;
+      var cards = [];
+      packs.forEach(function (pack, i) {
+        var sn = pack && pack.items && pack.items[0] && pack.items[0].snippet;
+        var vid = sn && sn.resourceId && sn.resourceId.videoId;
+        if (!vid || !/^[\w-]{6,16}$/.test(vid)) return;
+        cards.push({ k: "VIDEO", t: sn.title || "Subscription", v: vid, lat: 8 + i * 24, lng: -50 + i * 42, mine: 1 });
+      });
+      if (cards.length) placeVideo(cards);
+    }).catch(function () {});
+  }
+  function pullVideos() {
+    var token = ytToken();
+    if (signed() && token) {
+      BRIEF = BRIEF.filter(function (c) { return !c || c.act !== "youtube"; });
+      pullMyVideos(token);
+      return;
+    }
+    if (signed() && !BRIEF.some(function (c) { return c && c.act === "youtube"; })) {
+      BRIEF.unshift({ k: "VIDEO", t: "Authorize YouTube", act: "youtube", lat: 36.43, lng: 28.22 });
+    }
+    fetch("/api/videos?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
+      var cards = j && j.cards;
+      if (!cards || !cards.length) return;
+      var mine = BRIEF.filter(function (c) { return c && (c.mine || c.act === "youtube"); });
+      var rest = BRIEF.filter(function (c) { return !c || (c.k !== "VIDEO" && c.act !== "youtube"); });
+      BRIEF = mine.concat(rest, cards.map(function (c, i) {
+        c = c || {};
+        c.k = "VIDEO";
+        if (!isFinite(+c.lat)) c.lat = 20 + i * 18;
+        if (!isFinite(+c.lng)) c.lng = -20 + i * 40;
+        return c;
+      }));
+    }).catch(function () {});
   }
   /* 4342: a tap on a NEWS / CALENDAR callout opens the item: the text in a card, the map on its place.
      The box opens at once; the dot sits on the island itself (a few px at globe scale), so a dot tap waits one
@@ -969,17 +1095,21 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     say(c.k + " · " + c.t);
   }
   function loop(now) {
-    var dt = Math.min(0.05, lastT ? (now - lastT) / 1000 : 0.016);
-    lastT = now;
-    if (!introT0) introT0 = now;
-    if (intro && (now - introT0 >= INTRO_MS || (bootPt && now - introT0 >= INTRO_MIN))) endIntro();
-    bootTick(now);
-    stepCam(now, dt);
-    tickNews(now);
-    if (!cityOn) { drawGlobe(now); drawCard(now); }
-    if (skyOn) drawSky(now);
-    paintMonitor(now);
-    maybeLayout();
+    try {
+      var dt = Math.min(0.05, lastT ? (now - lastT) / 1000 : 0.016);
+      lastT = now;
+      if (!introT0) introT0 = now;
+      if (intro && (now - introT0 >= INTRO_MS || (bootPt && now - introT0 >= INTRO_MIN))) endIntro();
+      bootTick(now);
+      stepCam(now, dt);
+      tickNews(now);
+      if (!cityOn) { drawGlobe(now); drawCard(now); }
+      if (skyOn) drawSky(now);
+      paintMonitor(now);
+      maybeLayout();
+    } catch (err) {
+      window.__SN_LOOP_ERR = String(err && (err.message || err));
+    }
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
@@ -1082,6 +1212,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (!d || d.moved) return;
       vel.yaw = 0; vel.pitch = 0;
       var pUp = pos(e);
+      var card = hitCard(pUp.x, pUp.y);
+      if (card && card.row && card.row.k === "VIDEO") {
+        if (card.row.act === "youtube" && window.SNAuth && SNAuth.youtube) { SNAuth.youtube(); return; }
+        openVidChoice(card.row);
+        return;
+      }
       var brief = briefAt(pUp.x, pUp.y);
       if (briefPend) { clearTimeout(briefPend); briefPend = 0; }
       if (brief && brief.box) { window.__snGlobeTap = 0; openBrief(brief.c); return; }
@@ -1826,6 +1962,131 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       try { navigator.permissions.query({ name: "geolocation" }).then(function (ps) { onState(ps.state); }).catch(function () {}); } catch (e2) {}
     }, 2500);
   }
+
+  var cityZoom = 16;
+  var driveMode = "north";
+  var heading = 0;
+  var lastFix = null;
+  var vidLater = {};
+  var vidSkip = {};
+  var vidLove = {};
+  try { vidSkip = JSON.parse(localStorage.getItem("sn:vid-skip") || "{}") || {}; } catch (e) {}
+  try { vidLove = JSON.parse(localStorage.getItem("sn:vid-love") || "{}") || {}; } catch (e) {}
+  function vidKey(row) { return String((row && (row.v || row.video || row.id || row.t)) || ""); }
+  function vidHidden(row) {
+    var k = vidKey(row);
+    return !!(k && (vidLater[k] || vidSkip[k]));
+  }
+  function bearingDeg(a, b) {
+    var p1 = a.lat * Math.PI / 180, p2 = b.lat * Math.PI / 180, dl = (b.lng - a.lng) * Math.PI / 180;
+    var y = Math.sin(dl) * Math.cos(p2);
+    var x = Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl);
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  }
+  function paintCompass() {
+    var b = $("sn-compass");
+    if (!b) return;
+    b.classList.toggle("head", driveMode === "head");
+    var lbl = b.querySelector(".lbl");
+    var tgt = b.querySelector(".tgt");
+    if (lbl) lbl.textContent = driveMode === "head" ? "DRIVE" : "NORTH";
+    if (tgt) tgt.textContent = driveMode === "head" ? String(Math.round(heading) || 0) : "N";
+  }
+  function applyBearing() {
+    if (!map || driveMode !== "head" || !map._getMapPanePos) return;
+    var pane = map.getPane("mapPane");
+    if (!pane) return;
+    var pos = map._getMapPanePos();
+    var size = map.getSize();
+    pane.style.transformOrigin = (-pos.x + size.x / 2) + "px " + (-pos.y + size.y / 2) + "px";
+    pane.style.transform = "translate3d(" + pos.x + "px, " + pos.y + "px, 0) rotate(" + (-heading) + "deg)";
+  }
+  function armNorth() {
+    driveMode = "north";
+    paintCompass();
+    if (map) {
+      try { map.setView(map.getCenter(), map.getZoom(), { animate: false }); } catch (e) {}
+    }
+    closeSheet();
+  }
+  var headOn = false;
+  function listenHead() {
+    if (headOn) return;
+    headOn = true;
+    window.addEventListener("deviceorientation", function (e) {
+      if (driveMode !== "head" || !e) return;
+      var h = null;
+      if (e.webkitCompassHeading != null && isFinite(+e.webkitCompassHeading)) h = +e.webkitCompassHeading;
+      else if (e.absolute && e.alpha != null && isFinite(+e.alpha)) h = (360 - e.alpha) % 360;
+      if (h == null) return;
+      heading = h;
+      paintCompass();
+      if (cityOn) applyBearing();
+    }, true);
+  }
+  function armDrive() {
+    driveMode = "head";
+    var D = window.DeviceOrientationEvent;
+    if (D && typeof D.requestPermission === "function") {
+      D.requestPermission().then(function () { listenHead(); applyBearing(); }).catch(function () { listenHead(); });
+    } else listenHead();
+    paintCompass();
+    if (cityOn) applyBearing();
+    closeSheet();
+  }
+  function freshFix(then) {
+    if (!navigator.geolocation) { if (then) then(null); return; }
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      if (!pos || !pos.coords) { if (then) then(null); return; }
+      var pt = { lat: pos.coords.latitude, lng: pos.coords.longitude, how: "gps" };
+      var moved = lastFix ? haversineKm(lastFix, pt) : 0;
+      if (pos.coords.heading != null && isFinite(+pos.coords.heading) && +pos.coords.heading >= 0) heading = +pos.coords.heading;
+      else if (lastFix && moved > 0.008) heading = bearingDeg(lastFix, pt);
+      lastFix = { lat: pt.lat, lng: pt.lng };
+      if (!adminPin) {
+        hereLive = { lat: pt.lat, lng: pt.lng };
+        here = hereLive;
+        window.__SN_HERE = here;
+        try { localStorage.setItem("sn:here", JSON.stringify(here)); } catch (e) {}
+      }
+      if (youMark && map && here) { try { youMark.setLatLng([here.lat, here.lng]); } catch (e2) {} }
+      paintCompass();
+      if (driveMode === "head" && map && cityOn && here) {
+        try { map.panTo([here.lat, here.lng], { animate: true }); } catch (e3) {}
+        applyBearing();
+      }
+      if (then) then(pt);
+    }, function () { if (then) then(null); }, { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 });
+  }
+  function ensureCompass() {
+    var b = $("sn-compass");
+    if (b) return b;
+    b = document.createElement("button");
+    b.type = "button";
+    b.id = "sn-compass";
+    b.setAttribute("aria-label", "Compass");
+    b.innerHTML = '<span class="lbl">NORTH</span><span class="tgt">N</span>';
+    var gps = $("gps");
+    if (gps && gps.parentNode) gps.parentNode.insertBefore(b, gps);
+    else document.body.appendChild(b);
+    return b;
+  }
+  function openCompass() {
+    openTile({
+      kind: "compass",
+      title: "COMPASS",
+      html: '<button type="button" class="sheet-go" data-act="compass-north">NORTH</button><button type="button" class="sheet-go primary" data-act="compass-drive">DRIVE · MAP TURNS WITH ME</button>'
+    });
+  }
+  function openVidChoice(row) {
+    if (!row) return;
+    var id = vidKey(row);
+    var html = '<p class="note">' + esc(row.t || "Video") + "</p>" +
+      '<button type="button" class="sheet-go" data-act="vid-meh" data-id="' + esc(id) + '">NOT INTERESTING</button>' +
+      '<button type="button" class="sheet-go" data-act="vid-never" data-id="' + esc(id) + '">DON\'T SHOW THIS AGAIN</button>' +
+      '<button type="button" class="sheet-go primary" data-act="vid-love" data-id="' + esc(id) + '">VERY INTERESTING</button>';
+    openTile({ kind: "video", title: "VIDEO", html: html });
+  }
   function bindGps() {
     var btn = $("gps");
     if (!btn || btn.__snGpsLock) return;
@@ -1848,6 +2109,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     btn.addEventListener("click", goGps, true);
     btn.addEventListener("pointerup", goGps, true);
+    var comp = ensureCompass();
+    if (comp && !comp.__sn) {
+      comp.__sn = true;
+      comp.addEventListener("click", function (ev) {
+        ev.preventDefault(); ev.stopPropagation();
+        openCompass();
+      });
+    }
+    paintCompass();
+    if (!window.__SN_GPS13) window.__SN_GPS13 = setInterval(function () { if (seatKind === "gps" && gpsPerm === "granted" && !adminPin) freshFix(null); }, 13000);
   }
   function openCity(pt, opts) {
     opts = opts || {};
@@ -2032,6 +2303,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       });
       map.on("zoomend", function () {
         try {
+          var z = map.getZoom();
+          if (z > 12.5) cityZoom = z;
           /* only a user zoom-out leaves the city; fitBounds / setView / late results never do */
           if (Date.now() < progMoveUntil || Date.now() - mapUserAt > 1500) return;
           if (map && map.getZoom() < closeBelow - 0.01) {
@@ -2099,9 +2372,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           if (clickT) { clearTimeout(clickT); clickT = 0; }
           window.__snMapClick = { at: now, closed: false, kind: kind0, why: why || "armed" };
           if (why) return;
-          var seq0 = sheetSeq, down0 = clickDown;
+          var seq0 = sheetSeq, down0 = clickDown, llA = ev.latlng;
           clickT = setTimeout(function () {
             clickT = 0;
+            /* main 4334: an admin with a ride armed nudges it to the clicked point (single click only) */
+            if (llA && isAdmin() && rideArm) { try { nudgeArmed(llA); } catch (eN) {} }
             var rec = window.__snMapClick || {};
             var sh = $("sn-sheet"), kind = sh && sh.classList.contains("on") ? (sh.getAttribute("data-kind") || "") : "";
             var w2 = "";
@@ -2210,7 +2485,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       '<button type="button" class="sheet-go" data-act="form-driver">DRIVER</button>' +
       '<button type="button" class="sheet-go" data-act="form-post">Post a photo, video, or text</button>';
     if (isAdmin()) {
-      html += '<button type="button" class="sheet-go" data-act="run-offer">Send the offer · closest free driver</button>' +
+      html += '<button type="button" class="sheet-go primary" data-act="i-am-driver">I AM THE DRIVER HERE</button>' +
+        '<button type="button" class="sheet-go" data-act="run-offer">Start the order · closest driver</button>' +
         '<button type="button" class="sheet-go" data-act="admin-gps">Move me here</button>';
     }
     if (!signed()) html += '<button type="button" class="sheet-go" data-act="needlogin">LOGIN</button>';
@@ -2565,12 +2841,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet .sheet-apply,#sn-sheet .sheet-x{flex:none!important;display:flex!important;align-items:center!important;justify-content:center!important;min-width:56px!important;height:48px!important;margin:0!important;padding:0 8px!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;pointer-events:auto!important;z-index:6!important}",
       "#sn-sheet .sheet-apply{color:#7dff9a!important;font:800 11px/1 system-ui!important;letter-spacing:.1em!important;width:auto!important;min-width:64px!important}",
       "#sn-sheet .sheet-x{color:#ff8a8a!important;font:800 22px/1 system-ui!important;width:56px!important;min-width:56px!important}",
+      ".sn-book{display:flex!important;justify-content:space-between!important;align-items:center!important;gap:8px!important;margin:8px 0!important;color:#e8fbff!important;font:700 13px/1.2 system-ui!important}",
+      ".sn-book input{width:108px!important;background:#041018!important;color:#b8fff0!important;border:1px solid rgba(77,240,255,.55)!important;border-radius:8px!important;padding:8px!important;font:800 18px system-ui!important}",
       ".sn-stars{display:flex;gap:6px;margin:6px 0}",
       ".sn-stars button{flex:1;height:36px;border:1px solid rgba(77,240,255,.45);background:#041018;color:#4df0ff;font:800 16px system-ui}",
       ".sn-stars button.on{background:#4df0ff;color:#041018}",
       "#sn-sheet .sheet-mid{flex:1!important;min-width:0!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;background:transparent!important;color:#d7f6ff!important;font:800 13px/1.1 system-ui!important;letter-spacing:.14em!important;text-transform:uppercase!important;padding:0 8px!important}",
-      "#sn-sheet.offer .card{max-height:32vh!important}",
-      "#sn-sheet .sheet-mid .sn-price{margin:0!important;font:800 34px/1 system-ui!important;letter-spacing:-.03em!important;color:#4df0ff!important;text-shadow:0 0 12px rgba(77,240,255,.85)!important}",
+      "#sn-sheet.offer .card,#sn-sheet.offer.tile .card{max-height:176px!important;height:auto!important}",
+      "#sn-sheet.offer .sheet-bar{height:58px!important}",
+      "#sn-sheet.offer .sheet-apply,#sn-sheet.offer .sheet-x{height:58px!important;width:46px!important}",
+      "#sn-sheet.offer #sn-sheet-body{max-height:112px!important;padding:6px 8px 8px!important}",
+      "#sn-sheet .sheet-mid .sn-price{margin:0!important;font:800 44px/0.85 system-ui!important;letter-spacing:-.04em!important;color:#e8fbff!important;text-shadow:0 0 8px #fff,0 0 16px #4df0ff,0 0 28px #1a6cff!important}",
       "#sn-sheet .sn-who{display:grid;grid-template-columns:62px minmax(0,1fr);column-gap:8px;margin:8px 0 0;align-items:baseline}",
       "#sn-sheet .sn-who b{color:#7ee9ff!important;font:800 10px/1.2 system-ui!important;letter-spacing:.14em!important}",
       "#sn-sheet .sn-who span{color:#e8fbff!important;font:700 15px/1.2 system-ui!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
@@ -2642,18 +2923,28 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#cli-drag.sn-grip.max::after,#cli-drag.sn-grip.min::after{content:\"MAX\"!important;display:block!important;position:absolute!important;left:50%!important;top:0!important;transform:translateX(-50%)!important;padding:1px 8px!important;border-radius:8px!important;background:rgba(40,22,0,.82)!important;color:#ffb347!important;font:800 10px/12px system-ui,sans-serif!important;letter-spacing:.1em!important;box-shadow:0 0 8px rgba(255,179,71,.7)!important;pointer-events:none!important}",
       "#cli-drag.sn-grip.min::after{content:\"REST\"!important}",
       "#sn-sheet.sn-spring .card,#sn-sheet.sn-spring #sn-sheet-body{transition:height .34s cubic-bezier(.2,.9,.3,1.25),max-height .34s cubic-bezier(.2,.9,.3,1.25)!important}",
-      "#top{top:0!important;left:0!important;right:0!important;margin:0!important;padding:0!important;display:flex!important;flex-direction:column!important}",
-      "#island{position:relative!important;z-index:2!important;padding-left:52px!important;padding-right:52px!important}",
-      "#island .r1,#island .r2{flex-wrap:nowrap!important;overflow:hidden!important;white-space:nowrap!important}",
       "#sn-sheet .card,#sn-sheet.tall .card{max-height:var(--sn-rest,30vh)!important}#sn-tasks .card{max-height:42vh!important}",
-      "#sn-power{position:fixed!important;top:8px!important;left:max(6px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:60!important}",
-      "#sn-support{position:fixed!important;top:8px!important;right:max(6px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;transform:none!important;z-index:60!important}",
-      "#sn-money{position:fixed!important;top:64px!important;left:max(6px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:46!important}",
+      "#top{top:0!important;left:0!important;right:0!important;margin:0!important;padding:0!important;height:32px!important;min-height:32px!important;max-height:32px!important;overflow:hidden!important;display:flex!important;flex-direction:column!important}",
+      "#island{position:relative!important;z-index:2!important;display:flex!important;align-items:center!important;gap:8px!important;height:32px!important;max-height:32px!important;margin:0!important;padding:0 36px!important;overflow:hidden!important}",
+      "#island .r1{flex:none!important;flex-wrap:nowrap!important;white-space:nowrap!important;overflow:hidden!important;height:32px!important;align-items:center!important}",
+      "#island .r2,#sn-spark,#sn-brand-a,#ver,#sn-latest,#sn-update{display:none!important}",
+      "#sn-brand-s{font:700 13px/32px system-ui,sans-serif!important;letter-spacing:0!important;text-transform:none!important;color:#e8fbff!important;white-space:nowrap!important}",
+      "#sn-tick{flex:1!important;min-width:0!important;overflow:hidden!important;height:32px!important;pointer-events:auto!important}",
+      "#sn-tick b{display:inline-block!important;white-space:nowrap!important;animation:sn-slide 16s linear infinite!important;color:#d7f6ff!important;font:600 13px/32px system-ui,sans-serif!important;letter-spacing:0!important}",
+      "@keyframes sn-slide{from{transform:translateX(0)}to{transform:translateX(-50%)}}",
+      "#sn-power{position:fixed!important;top:0!important;left:max(2px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;width:32px!important;height:32px!important;transform:none!important;z-index:60!important}",
+      "#sn-power svg{width:16px!important;height:16px!important}",
+      "#sn-support{position:fixed!important;top:0!important;right:max(2px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;width:32px!important;height:32px!important;font-size:14px!important;transform:none!important;z-index:60!important}",
+      "#sn-money{position:fixed!important;top:40px!important;left:max(6px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:46!important}",
       "#sn-globe{position:fixed!important;top:64px!important;right:max(6px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;z-index:60!important;width:40px!important;height:40px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;align-items:center!important;justify-content:center!important}",
       "#sn-globe svg{width:22px;height:22px;display:block}",
       "#sn-architect{position:fixed!important;top:112px!important;right:max(6px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;z-index:60!important;width:40px!important;height:40px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;align-items:center!important;justify-content:center!important;font:800 16px/1 ui-monospace,system-ui!important;box-shadow:0 0 12px rgba(77,240,255,.35)!important}",
       "#sn-me{position:fixed!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;top:auto!important;bottom:calc(var(--dock) + 16px)!important;z-index:46!important}",
       "#gps{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:calc(var(--dock) + 16px)!important;z-index:280!important;pointer-events:auto!important}",
+      "#sn-compass{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;bottom:calc(var(--dock) + 112px)!important;top:auto!important;z-index:47!important;width:48px!important;height:48px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;box-shadow:0 0 12px rgba(77,240,255,.35)!important}",
+      "#sn-compass .lbl{display:block!important;font:800 8px/1 system-ui!important;letter-spacing:.06em!important}",
+      "#sn-compass .tgt{display:block!important;font:800 14px/1 system-ui!important}",
+      "#sn-compass.head{color:#7dff9a!important;border-color:#7dff9a!important}",
       "#sn-above{position:static!important;height:0!important;padding:0!important;margin:0!important;display:block!important;background:transparent!important}",
       "#plus,#go{position:fixed!important;bottom:max(8px,env(safe-area-inset-bottom))!important;top:auto!important;z-index:60!important;width:44px!important;height:44px!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.7)!important;background:rgba(4,16,28,.92)!important}",
       "#plus{left:max(6px,env(safe-area-inset-left))!important;right:auto!important}",
@@ -2663,12 +2954,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#panel{width:100%!important;background:transparent!important}",
       "form#f{display:flex!important;width:100%!important;gap:0!important;align-items:center!important;min-height:48px!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}",
       "input#in{flex:1!important;min-width:0!important;width:auto!important;min-height:48px!important;border:0!important;border-radius:0!important;background:transparent!important;padding-left:56px!important;padding-right:56px!important}",
-      "#sn-pulse,#sn-tester{top:108px!important}",
+      "#sn-pulse,#sn-tester{display:none!important}",
       "#island{margin-top:0!important;padding-top:0!important}",
       "#sn-count{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;pointer-events:none;background:transparent}",
       "#sn-count.on{display:flex}",
       "#sn-count b{font:800 46vw/0.78 system-ui;color:#e8fbff;letter-spacing:-.08em;text-shadow:0 0 8px #fff,0 0 18px #4df0ff,0 0 36px #4df0ff,0 0 72px #1a6cff,0 0 120px #1a6cff}",
-      "#sn-pulse{position:fixed!important;top:auto!important;left:72px!important;right:72px!important;bottom:var(--above-in, calc(var(--dock) + 8px))!important;z-index:48!important;max-width:none!important;margin:0 auto!important;text-align:center!important;padding:4px 10px!important;border-radius:999px!important;background:rgba(40,28,4,.92)!important;border:1px solid rgba(255,176,32,.8)!important;color:#ffb020!important;font:700 11px/16px ui-monospace,monospace!important;pointer-events:none!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}",,
+      "#sn-pulse{display:none!important}",
+      ".sn-km{background:transparent!important;border:0!important}",
+      ".sn-km b{display:inline-block;padding:0 4px;border-radius:6px;background:rgba(4,16,28,.9);color:#e8fbff;border:1px solid rgba(77,240,255,.75);font:800 10px/14px ui-monospace,monospace;box-shadow:0 0 8px rgba(77,240,255,.55)}",
     ].join("");
     document.head.appendChild(s);
   }
@@ -3254,8 +3547,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (tasks) bottomBlock = Math.max(bottomBlock, window.innerHeight - tasks.top + 12);
     bot = Math.max(80, bottomBlock);
     try {
-      map.fitBounds(routeLayer.getBounds(), {
-        paddingTopLeft: [side, top],
+      var bounds = routeLayer.getBounds();
+      if (driverPin && isFinite(+driverPin.lat)) bounds.extend([+driverPin.lat, +driverPin.lng]);
+      map.fitBounds(bounds, {
+        paddingTopLeft: [side, Math.max(36, top)],
         paddingBottomRight: [side, bot],
         maxZoom: 16,
         animate: false
@@ -3767,6 +4062,26 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
     }).catch(function () { delete roads[key]; });
   }
+  function lineKm(line) {
+    var total = 0, i;
+    for (i = 1; i < line.length; i++) total += haversineKm(line[i - 1], line[i]);
+    return total;
+  }
+  function pointAtKm(line, km) {
+    var acc = 0, i, d, u;
+    for (i = 1; i < line.length; i++) {
+      d = haversineKm(line[i - 1], line[i]);
+      if (acc + d >= km || i === line.length - 1) {
+        u = d ? Math.max(0, Math.min(1, (km - acc) / d)) : 0;
+        return { lat: line[i - 1].lat + (line[i].lat - line[i - 1].lat) * u, lng: line[i - 1].lng + (line[i].lng - line[i - 1].lng) * u };
+      }
+      acc += d;
+    }
+    return line[line.length - 1];
+  }
+  function kmIcon(text) {
+    return L.divIcon({ className: "sn-km", html: "<b>" + esc(text) + "</b>", iconSize: [64, 16], iconAnchor: [32, 8] });
+  }
   function paintRoads(id, lines, chosen) {
     if (!map || typeof L === "undefined" || !lines || !lines.length) return;
     (roadPaint[id] || []).forEach(function (l) { try { map.removeLayer(l); } catch (e) {} });
@@ -3782,6 +4097,21 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         else pickRoad(id, i);
       });
       roadPaint[id].push(glow, core);
+      var total = lineKm(line);
+      if (total < 0.05) return;
+      var marks = on ? [] : [total / 2];
+      if (on) {
+        var step = total <= 1.2 ? 0.3 : Math.max(0.5, total / 6);
+        var k = 0;
+        while (k < total - step * 0.35) { marks.push(k); k += step; }
+        marks.push(total);
+      }
+      marks.forEach(function (km) {
+        var at = pointAtKm(line, km);
+        var label = (km < 0.05 ? "0" : km.toFixed(1)) + " km";
+        var mk = L.marker([at.lat, at.lng], { icon: kmIcon(label), interactive: false, keyboard: false, zIndexOffset: on ? 400 : 200 }).addTo(map);
+        roadPaint[id].push(mk);
+      });
     });
   }
   function pickRoad(id, i) {
@@ -4098,6 +4428,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (p && (String(p.id) === String(job.driverId) || (job.driver && p.name === job.driver))) who = p;
       });
       if (!who && driverPin && job.driver && driverPin.name === job.driver) who = driverPin;
+      if (who && who.manual && isAdmin()) return;
       var mine = myRole() === "driver" || (who && who.owner === me()) || isAdmin();
       if (!mine) return;
       var line = roads[roadKey(job.vendor, job.drop)];
@@ -4140,6 +4471,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function driverStep(p) {
     if (!p || !isFinite(+p.lat) || !isFinite(+p.lng)) return null;
+    if (p.manual) {
+      var held = null;
+      jobs.forEach(function (j) {
+        if (!j || j.received || !j.vendor) return;
+        if (String(j.driverId) === String(p.id) || (j.driver && p.name && j.driver === p.name)) held = j;
+      });
+      var tag = rideArm && String(rideArm) === String(p.id) ? " · selected" : "";
+      return { lat: +p.lat, lng: +p.lng, label: (p.name || "driver") + tag, job: held };
+    }
     if (!p.base) p.base = { lat: +p.lat, lng: +p.lng };
     var faultJob = null;
     jobs.forEach(function (j) {
@@ -4218,6 +4558,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     return { lat: +p.base.lat, lng: +p.base.lng, label: (p.name || "driver") + " · free", job: null };
   }
   function tickLive() {
+    paintMoney();
     paintPulse();
     if (!map || typeof L === "undefined") return;
     var seen = {};
@@ -4254,7 +4595,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var id = "drv:" + (p.id || p.name);
       seen[id] = 1;
       if (!motionMarks[id]) {
-        motionMarks[id] = L.marker([step.lat, step.lng], { icon: faceIcon("driver", p.photo, p.name || "driver"), zIndexOffset: 640, interactive: false, keyboard: false }).addTo(map);
+        motionMarks[id] = L.marker([step.lat, step.lng], { icon: faceIcon("driver", p.photo, p.name || "driver"), zIndexOffset: 800, interactive: true, keyboard: false, bubblingMouseEvents: false }).addTo(map);
+        (function (person, mark) {
+          mark.on("click", function (ev) {
+            if (ev && ev.originalEvent) L.DomEvent.stop(ev.originalEvent);
+            if (!isAdmin()) { openPerson(person, "driver"); return; }
+            if (String(rideArm) === String(person.id)) { rideArm = null; say((person.name || "Driver") + " released. The map tap will not move them."); }
+            else { rideArm = person.id; say((person.name || "Driver") + " selected. Tap along the route to move."); }
+          });
+        })(p, motionMarks[id]);
       } else motionMarks[id].setLatLng([step.lat, step.lng]);
       try {
         if (!motionMarks[id].getTooltip()) motionMarks[id].bindTooltip(step.label, { permanent: !!isAdmin(), direction: "right" });
@@ -5080,8 +5429,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     var html = '<div class="sn-prof">' + tilePhoto(photoOf(s), "🏪") + "<div><b>" + esc(s.name || "Vendor") + "</b>" + tileContact(s.phone, where) + "</div></div>" +
       feeHtml +
+      '<button type="button" class="sheet-go primary" data-act="place-order">ORDER</button>' +
       (orders ? '<p class="note">CHARGED</p>' + orders : "") +
-      '<p class="note">MENU</p>' + menu;
+      '<p class="note">MENU · tap + then ORDER</p>' + menu;
     openTile({ kind: "vendor", title: s.name || "VENDOR", html: html });
     try { var shV = $("sn-sheet"); if (shV) { shV.setAttribute("data-vkey", vKey(s)); pickLoad($("sn-sheet-card"), vKey(s)); } } catch (eV) {}
     try {
@@ -5146,12 +5496,275 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         whoLine("THEN", d.name || "Client", [d.address, d.phone].filter(Boolean).join(" · ")) +
         '<p class="note">' + esc(names || "No free driver") + "</p>";
     } else {
-      html = whoLine("VENDOR", v.name, [v.address, v.phone].filter(Boolean).join(" · ")) +
-        '<div class="sn-leg">' + esc((job.prep || "—") + " min prep · " + (job.lifeMin || "—") + " min life · " + leg) + "</div>" +
+      var kmBit = isFinite(+job.km) ? Number(job.km).toFixed(1) + " km" : "";
+      html = '<button type="button" class="sheet-go primary" data-act="offer-yes" data-id="' + esc(job.id) + '">ACCEPT</button>' +
+        '<button type="button" class="sheet-go" data-act="offer-no" data-id="' + esc(job.id) + '">DECLINE</button>' +
+        '<div class="sn-leg">' + esc([kmBit, leg].filter(Boolean).join(" · ")) + "</div>" +
+        whoLine("VENDOR", v.name, [v.address, v.phone].filter(Boolean).join(" · ")) +
         whoLine("CLIENT", d.name || "Client", [d.address, d.floor ? "floor " + d.floor : "", d.phone].filter(Boolean).join(" · ")) +
         '<p class="note">' + esc(names || "No free driver") + "</p>";
     }
-    openTile({ kind: "driver-offer", title: job.fault && !job.fault.found ? "COLLECT" : "DRIVERS", mid: priceMid(job.fee), html: html, job: job.id });
+    if (job && drivers && drivers[0] && !job.offeredTo) job.offeredTo = drivers[0].id;
+    openTile({ kind: "driver-offer", title: "OFFER", mid: priceMid(job.fee), html: html, job: job.id });
+  }
+
+  function myName() {
+    try {
+      var u = window.SNAuth && SNAuth.user && SNAuth.user();
+      if (u && u.name) return String(u.name);
+      if (u && u.email) return String(u.email).split("@")[0];
+    } catch (e) {}
+    return "Driver";
+  }
+  function booksGet() {
+    try {
+      var b = JSON.parse(localStorage.getItem("sn:books") || "null");
+      if (b && typeof b === "object") { if (!b.rows) b.rows = []; return b; }
+    } catch (e) {}
+    return { pool: 0, rows: [] };
+  }
+  function booksSet(b) {
+    try { localStorage.setItem("sn:books", JSON.stringify(b)); } catch (e) {}
+    try { localStorage.setItem("sn:pool", String(b.pool || 0)); } catch (e2) {}
+    paintMoney();
+  }
+  function bookRow(b, id, name, role) {
+    var row = null;
+    (b.rows || []).forEach(function (r) { if (r && r.id === id) row = r; });
+    if (!row) { row = { id: id, name: name || id, role: role || "", avc: 0 }; b.rows.push(row); }
+    else { if (name) row.name = name; if (role) row.role = role; }
+    return row;
+  }
+  function booksHtml() {
+    var b = booksGet();
+    people.forEach(function (p) { if (p && p.id) bookRow(b, (p.role || "person") + ":" + p.id, p.name, p.role); });
+    shops.forEach(function (s) { if (s && s.src === "listed" && s.id) bookRow(b, "vendor:" + s.id, s.name, "vendor"); });
+    if (homeDrop) bookRow(b, "client:" + (homeDrop.owner || me()), homeDrop.name || "Client", "client");
+    bookRow(b, "client:" + me(), myName(), "client");
+    booksSet(b);
+    var html = '<p class="note">Your money ' + Math.round(avcGet()).toLocaleString("en-GB") + " AV€. The mutual account is below. Change any amount, then Apply.</p>";
+    html += '<label class="sn-book">MUTUAL<input id="sn-book-pool" inputmode="decimal" value="' + (Number(b.pool) || 0) + '"></label>';
+    b.rows.forEach(function (r) {
+      html += '<label class="sn-book">' + esc((r.role || "account").toUpperCase() + " · " + (r.name || "")) + '<input class="sn-book-n" data-id="' + esc(r.id) + '" inputmode="decimal" value="' + (Number(r.avc) || 0) + '"></label>';
+    });
+    return html;
+  }
+  function saveBooksFromSheet() {
+    var b = booksGet();
+    var pool = $("sn-book-pool");
+    if (pool) b.pool = Math.round((Number(pool.value) || 0) * 100) / 100;
+    var body = $("sn-sheet-body");
+    if (body) body.querySelectorAll(".sn-book-n").forEach(function (input) {
+      var id = input.getAttribute("data-id");
+      b.rows.forEach(function (r) { if (r && r.id === id) r.avc = Math.round((Number(input.value) || 0) * 100) / 100; });
+    });
+    booksSet(b);
+    closeSheet();
+    say("Account numbers saved.");
+  }
+  function escrowJob(job) {
+    if (!job || job.escrowed) return;
+    var total = Math.round((Number(job.fee) || 0) * 100) / 100;
+    var b = booksGet();
+    var client = bookRow(b, "client:" + (job.client || me()), (job.drop && job.drop.name) || "Client", "client");
+    client.avc = Math.round((client.avc - total) * 100) / 100;
+    b.pool = Math.round(((Number(b.pool) || 0) + total) * 100) / 100;
+    bookRow(b, "vendor:" + ((job.vendor && job.vendor.id) || "vendor"), (job.vendor && job.vendor.name) || "Vendor", "vendor");
+    bookRow(b, "driver:" + (job.driverId || "driver"), job.driver || "Driver", "driver");
+    job.escrowed = true;
+    booksSet(b);
+  }
+  function releaseJob(job) {
+    if (!job || job.released || !job.escrowed) return;
+    var food = Math.round((Number(job.food) || 0) * 100) / 100;
+    var total = Math.round((Number(job.fee) || 0) * 100) / 100;
+    var delivery = Math.max(0, Math.round((total - food) * 100) / 100);
+    var cut = Math.round((delivery * 0.03 / 1.03) * 100) / 100;
+    var driverPay = Math.round((delivery - cut) * 100) / 100;
+    var b = booksGet();
+    b.pool = Math.round(((Number(b.pool) || 0) - food - driverPay) * 100) / 100;
+    var v = bookRow(b, "vendor:" + ((job.vendor && job.vendor.id) || "vendor"), (job.vendor && job.vendor.name) || "Vendor", "vendor");
+    v.avc = Math.round((v.avc + food) * 100) / 100;
+    var d = bookRow(b, "driver:" + (job.driverId || "driver"), job.driver || "Driver", "driver");
+    d.avc = Math.round((d.avc + driverPay) * 100) / 100;
+    job.released = true;
+    booksSet(b);
+  }
+  function placeMeDriver(pt) {
+    if (!isAdmin() || !pt) return;
+    var id = "me-driver";
+    var name = myName();
+    people = people.filter(function (p) { return !p || p.id !== id; });
+    var drv = { id: id, name: name, role: "driver", lat: +pt.lat, lng: +pt.lng, free: true, owner: me(), photo: "", manual: true };
+    people.unshift(drv);
+    savePeople();
+    driverPin = { id: id, lat: +pt.lat, lng: +pt.lng, name: name, photo: "", manual: true, owner: me() };
+    try { localStorage.setItem("sn:driver", JSON.stringify(driverPin)); } catch (e) {}
+    rideArm = id;
+    if (!cityOn) openCity(pt);
+    else paintShopsOnMap();
+    say(name + " is the driver here. Tap the map to move. Start an order from a shop, or hold and tap Start the order.");
+  }
+  function snapToLine(p, line) {
+    var best = null, bestD = 1e9, i;
+    for (i = 1; i < line.length; i++) {
+      var a = line[i - 1], b = line[i];
+      var mid = ((+a.lat + +b.lat) / 2) * Math.PI / 180;
+      var mlat = 111320, mlng = 111320 * Math.cos(mid);
+      var bx = (+b.lng - +a.lng) * mlng, by = (+b.lat - +a.lat) * mlat;
+      var px = (+p.lng - +a.lng) * mlng, py = (+p.lat - +a.lat) * mlat;
+      var len2 = bx * bx + by * by;
+      var t = len2 ? Math.max(0, Math.min(1, (px * bx + py * by) / len2)) : 0;
+      var at = { lat: +a.lat + (+b.lat - +a.lat) * t, lng: +a.lng + (+b.lng - +a.lng) * t };
+      var d = haversineKm(p, at);
+      if (d < bestD) { bestD = d; best = at; }
+    }
+    return best || p;
+  }
+  function openReceipt(job) {
+    if (!job || job.receiptShown || job.received) return;
+    job.receiptShown = true;
+    saveJobs();
+    var v = job.vendor || {}, d = job.drop || {};
+    openTile({
+      kind: "receipt",
+      title: "RECEIVED",
+      mid: priceMid(job.fee),
+      html: whoLine("VENDOR", v.name, v.address || "") + whoLine("YOU", d.name || "Client", d.address || "") +
+        '<p class="note">You are at the delivery. Confirm you received it. The mutual account then pays the vendor and the driver.</p>' +
+        '<button type="button" class="sheet-go primary" data-act="client-got" data-id="' + esc(job.id) + '">I RECEIVED IT</button>',
+      job: job.id
+    });
+  }
+  function nudgeArmed(ll) {
+    if (!isAdmin() || !rideArm || !ll) return;
+    var p = null;
+    people.forEach(function (x) { if (x && String(x.id) === String(rideArm)) p = x; });
+    if (!p) { rideArm = null; return; }
+    var pt = { lat: +ll.lat, lng: +ll.lng };
+    var job = null;
+    jobs.forEach(function (j) {
+      if (!j || j.received || !j.vendor || !j.drop) return;
+      if (String(j.driverId) === String(p.id) || (j.driver && j.driver === p.name)) job = j;
+    });
+    if (job) {
+      var line = roads[roadKey(job.vendor, job.drop)];
+      if (line && line.length > 1 && distToRoad(pt, line) < 0.08) pt = snapToLine(pt, line);
+    }
+    p.lat = pt.lat; p.lng = pt.lng; p.manual = true;
+    savePeople();
+    driverPin = { id: p.id, lat: pt.lat, lng: pt.lng, name: p.name, photo: p.photo || "", manual: true, owner: p.owner || me() };
+    try { localStorage.setItem("sn:driver", JSON.stringify(driverPin)); } catch (e) {}
+    if (job) {
+      if (haversineKm(pt, job.vendor) < 0.07) {
+        job.ready = true; job.pickup = true; job.got = false; job.delivered = false;
+        say("At the vendor. Pickup stands. The money is already in the mutual account.");
+      } else if (haversineKm(pt, job.drop) < 0.07) {
+        job.got = true; job.delivered = true;
+        if (!job.outAt) job.outAt = Date.now();
+        say("At the client.");
+        var mineClient = String(job.client || "") === String(me()) || (homeDrop && haversineKm(homeDrop, job.drop) < 0.12);
+        if (mineClient || isAdmin()) openReceipt(job);
+      } else {
+        job.got = true;
+        if (!job.outAt) job.outAt = Date.now();
+        say("On the route.");
+      }
+      saveJobs();
+      publishJob(job);
+    } else say("Driver moved.");
+    paintShopsOnMap();
+  }
+  function flyOffer(shop, dest, lines) {
+    if (!isAdmin()) { say("Only the administrator starts a test order."); return; }
+    if (!shop || !isFinite(+shop.lat)) { say("List a vendor first."); return; }
+    if (!dest || !isFinite(+dest.lat)) { say("List the delivery address first."); return; }
+    var drivers = freeDrivers(shop);
+    if (!drivers.length) { say("No driver here. Hold the map and tap I AM THE DRIVER HERE."); return; }
+    var food = 0;
+    (lines || []).forEach(function (l) { food += moneyOf(l.price) * (l.n || 1); });
+    var q = quoteDelivery(shop, dest, quoteOpts);
+    var job = {
+      id: "j" + Date.now().toString(36),
+      vendor: shop,
+      drop: { lat: +dest.lat, lng: +dest.lng, name: dest.name || "Client", phone: dest.phone || "", address: dest.address || "", floor: dest.floor || "", bell: dest.bell || "" },
+      lines: lines || [],
+      food: Math.round(food * 100) / 100,
+      km: q.km,
+      fee: Math.round((q.total + food) * 100) / 100,
+      prep: 10,
+      lifeMin: 45,
+      stage: "drivers",
+      ready: true, pickup: false, got: false, delivered: false, received: false,
+      vendorAccepted: true, driverAccepted: false, verified: false,
+      offeredTo: drivers[0].id || "",
+      driver: "", driverId: "",
+      client: dest.owner || me(),
+      vendorOwner: shop.owner || "",
+      t: Date.now()
+    };
+    jobs.unshift(job);
+    saveJobs();
+    publishJob(job);
+    vendor = shop;
+    drop = job.drop;
+    if (!cityOn) openCity(shop);
+    say((shop.name || "Shop") + " → " + (drivers[0].name || "driver") + " · " + job.fee + " AV€. Accept or decline.");
+    openDriverOffer(job, drivers);
+  }
+  function offerYes(id) {
+    var job = jobById(id);
+    if (!job || !job.vendor || !job.drop) { say("That offer is gone."); return; }
+    if (!isAdmin() && myRole() !== "driver") { say("This offer is for the driver."); return; }
+    var drivers = freeDrivers(job.vendor);
+    var drv = null;
+    drivers.forEach(function (d) { if (!drv && job.offeredTo && String(d.id) === String(job.offeredTo)) drv = d; });
+    if (!drv) drv = drivers[0];
+    if (!drv) { say("No free driver left."); return; }
+    job.driver = drv.name || "driver";
+    job.driverId = drv.id || "";
+    job.driverOwner = drv.owner || "";
+    job.driverAccepted = true;
+    job.verified = true;
+    job.ready = true;
+    job.stage = "run";
+    escrowJob(job);
+    saveJobs();
+    publishJob(job);
+    rideArm = drv.id;
+    if (!cityOn) openCity(job.vendor);
+    drawRoute(job.vendor, job.drop);
+    closeSheet();
+    say((job.driver) + " accepted. Route is on. " + job.fee + " AV€ is in the mutual account. Tap the map to move along the route.");
+  }
+  function offerNo(id) {
+    var job = jobById(id);
+    if (!job) { say("That offer is gone."); return; }
+    var drivers = freeDrivers(job.vendor).filter(function (d) { return String(d.id) !== String(job.offeredTo); });
+    job.driverAccepted = false;
+    job.verified = false;
+    if (!drivers.length) {
+      job.offeredTo = "";
+      saveJobs();
+      closeSheet();
+      say("Declined. No other free driver.");
+      return;
+    }
+    job.offeredTo = drivers[0].id;
+    saveJobs();
+    say("Declined. Offered to " + (drivers[0].name || "the next driver") + ".");
+    openDriverOffer(job, drivers);
+  }
+  function sheetNote(s) {
+    var body = $("sn-sheet-body");
+    if (!body) { say(s); return; }
+    var n = body.querySelector(".sn-why");
+    if (!n) {
+      n = document.createElement("p");
+      n.className = "note sn-why";
+      body.insertBefore(n, body.firstChild);
+    }
+    n.textContent = s;
   }
 
   function linesKey(lines) {
@@ -5221,8 +5834,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
 
   function checkoutVendor() {
-    if (silenced(me())) { say("You are shut down. No orders until it lifts."); return; }
-    if (!vendor) { say("Tap the vendor again."); return; }
+    if (silenced(me())) { sheetNote("You are shut down. No orders until it lifts."); return; }
+    if (!vendor) { sheetNote("Tap the vendor again."); return; }
     var body = $("sn-sheet-body");
     var lines = [];
     if (body) body.querySelectorAll(".sn-pick").forEach(function (row) {
@@ -5231,8 +5844,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var item = vendor.menu && vendor.menu[i];
       if (n > 0 && item) lines.push({ name: item.name || "item", n: n, price: item.price || "" });
     });
-    if (!lines.length) { say("Choose from the menu, then Apply."); return; }
+    if (!lines.length) {
+      var first = (vendor.menu || []).filter(function (m) { return m && (m.name || m.price); })[0];
+      if (first) lines.push({ name: first.name || "item", n: 1, price: first.price || "" });
+    }
+    if (!lines.length && isAdmin()) lines.push({ name: (vendor.name || "Shop") + " order", n: 1, price: "8" });
+    if (!lines.length) { sheetNote("This shop has no dish yet."); return; }
     var dest = resolveDrop(vendor);
+    if (!dest && isAdmin() && isFinite(+vendor.lat)) dest = { lat: +vendor.lat + 0.004, lng: +vendor.lng, name: "Test client", address: "Test drop", owner: me() };
     if (!dest) { askDropNear(vendor); return; }
     var food = 0;
     lines.forEach(function (l) { food += moneyOf(l.price) * l.n; });
@@ -5278,6 +5897,25 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     jobs.unshift(job);
     saveJobs();
     publishJob(job);
+    if (isAdmin()) {
+      job.prep = job.prep || 10;
+      job.lifeMin = job.lifeMin || 45;
+      job.vendorAccepted = true;
+      job.ready = true;
+      job.stage = "drivers";
+      var drivers = freeDrivers(job.vendor);
+      if (!drivers.length) {
+        saveJobs();
+        say("No driver in the area. Hold the map and tap I AM THE DRIVER HERE.");
+        return;
+      }
+      job.offeredTo = drivers[0].id;
+      saveJobs();
+      publishJob(job);
+      say("Offer is with " + (drivers[0].name || "the closest driver") + ". Accept or decline.");
+      openDriverOffer(job, drivers);
+      return;
+    }
     say("Sent to " + (vendor.name || "the vendor") + ".");
     pickSpent(vKey(vendor));
     openVendorOrder(job);
@@ -5305,6 +5943,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     openDriverOffer(job, drivers);
   }
   function driverAccept() {
+    var sh = $("sn-sheet");
+    offerYes(sh && sh.getAttribute("data-job"));
+  }
+  function driverAcceptBody() {
     var sh = $("sn-sheet");
     var job = jobById(sh && sh.getAttribute("data-job"));
     if (!job || !job.vendor || !job.drop) { say("That offer is gone."); return; }
@@ -5341,6 +5983,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function applyTile() {
     var sh = $("sn-sheet");
     var kind = sh && sh.getAttribute("data-kind");
+    if (kind === "books") return saveBooksFromSheet();
+    if (kind === "receipt") return clientGot(sh && sh.getAttribute("data-job"));
     if (kind === "vendor") return checkoutVendor();
     if (kind === "vendor-order") return vendorAccept();
     if (kind === "driver-offer") return driverAccept();
@@ -5524,10 +6168,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!job.delivered) { say("Not delivered yet."); return; }
     if (!atDrop(job)) return;
     job.received = true;
+    releaseJob(job);
     saveJobs();
     publishJob(job);
     openJobs();
-    say("Received" + (isAdmin() ? " on behalf of the client." : "."));
+    say("Received. Vendor and driver are paid from the mutual account. The cut stays there.");
     openReview(job);
   }
   function applyReview() {
@@ -6013,24 +6658,68 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (utc) opt.timeZone = "UTC";
     try { return d.toLocaleString("en-GB", opt) + (utc ? " UTC" : ""); } catch (e) { return d.toISOString(); }
   }
+  var upState = "CHECKING";
   function paintVersion() {
     var now = $("ver");
     var lat = $("sn-latest");
     var up = $("sn-update");
     var behind = !!(latestVer && Number(latestVer) > Number(VER));
     if (now) now.textContent = "V" + VER;
+    var brand = $("sn-brand-s");
+    if (brand) brand.textContent = "Astranov.Eu SpaceNet V" + VER;
+    var word = upState || (behind ? "FAILED TO UPDATE" : "UPDATED");
     if (lat) {
-      lat.textContent = "LATEST " + (latestVer || "…");
+      lat.textContent = latestVer ? ("LATEST " + latestVer + " " + word) : ("LATEST … " + word);
       lat.title = SPEC;
-      lat.classList.toggle("behind", behind);
+      lat.classList.toggle("behind", behind || word === "FAILED TO UPDATE" || word === "PLEASE TRY TO UPDATE MANUALLY");
     }
     if (up) {
-      up.hidden = !behind;
-      up.textContent = "UPDATE NOW";
+      var manual = behind || word === "PLEASE TRY TO UPDATE MANUALLY" || word === "FAILED TO UPDATE";
+      up.hidden = !manual;
+      up.textContent = "PLEASE TRY TO UPDATE MANUALLY";
     }
+    paintTick();
+  }
+  var tickNotes = [];
+  var tickLiveLine = "";
+  var tickTester = "";
+  var bootUntil = Date.now() + 8000;
+  var tickShown = "";
+  var tickTimer = 0;
+  function pushNotice(s) {
+    s = String(s || "").replace(/\s+/g, " ").trim();
+    if (!s) return;
+    tickNotes = [s];
+    paintTick();
+    clearTimeout(tickTimer);
+    tickTimer = setTimeout(function () { tickNotes = []; paintTick(); }, 7000);
+  }
+  function paintTick() {
+    var isle = $("island");
+    if (!isle) return;
+    var el = $("sn-tick");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "sn-tick";
+      el.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (upState === "FAILED TO UPDATE" || upState === "PLEASE TRY TO UPDATE MANUALLY") forceUpdate();
+      });
+      isle.appendChild(el);
+    }
+    var bits = [];
+    if (upState === "FAILED TO UPDATE" || upState === "PLEASE TRY TO UPDATE MANUALLY") bits.push("Tap to update");
+    tickNotes.forEach(function (n) { bits.push(n); });
+    var text = bits.filter(Boolean).join("    ·    ");
+    if (text === tickShown) return;
+    tickShown = text;
+    el.innerHTML = text ? ("<b>" + esc(text + "    ·    " + text) + "</b>") : "";
   }
   function forceUpdate() {
     var target = latestVer || VER;
+    upState = "UPDATING";
+    paintVersion();
     say("Updating to " + target + "…");
     try { sessionStorage.setItem("sn:updating", String(target)); } catch (e) {}
     var gone = false;
@@ -6080,24 +6769,35 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     forceUpdate();
   }
   function checkVersion() {
+    upState = "CHECKING";
     paintVersion();
-    fetch("/api/version?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
+    fetch("/api/version?t=" + Date.now(), { cache: "no-store" }).then(function (r) {
+      if (!r.ok) throw new Error("version");
+      return r.json();
+    }).then(function (j) {
       latestVer = String((j && (j.latest || j.version)) || "");
-      paintVersion();
-      if (!latestVer) return;
+      if (!latestVer) {
+        upState = "PLEASE TRY TO UPDATE MANUALLY";
+        paintVersion();
+        return;
+      }
       var behind = Number(latestVer) > Number(VER);
       var tried = "";
       try { tried = sessionStorage.getItem("sn:updating") || ""; } catch (e) {}
       if (!behind) {
+        upState = "UPDATED";
         try { sessionStorage.removeItem("sn:updating"); } catch (e) {}
+        paintVersion();
         return;
       }
       if (tried === latestVer) {
-        say("V" + VER + " LATEST " + latestVer + ". Tap UPDATE NOW.");
+        upState = "FAILED TO UPDATE";
+        paintVersion();
         return;
       }
       safeReload(latestVer);
     }).catch(function () {
+      upState = "PLEASE TRY TO UPDATE MANUALLY";
       paintVersion();
     });
   }
@@ -6438,6 +7138,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         html += '<input id="sn-add-eur" inputmode="decimal" placeholder="How many euro" />' +
           '<button type="button" class="sheet-go primary" data-act="add-eur">ADD WITH PAYPAL</button>' +
           '<button type="button" class="sheet-go" data-act="withdraw">WITHDRAW</button>';
+        if (isAdmin()) {
+          openTile({ kind: "books", title: "ACCOUNT", mid: priceMid(Math.round(poolGet() * 100) / 100), html: booksHtml() });
+          return;
+        }
         openSheet("AV€", html);
       });
     }
@@ -6479,7 +7183,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     if (sBtn && !sBtn.__sn) {
       sBtn.__sn = true;
-      sBtn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); hardReset(); });
+      sBtn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); });
     }
     if (spark && !spark.__sn) {
       spark.__sn = true;
@@ -6689,6 +7393,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         say("Assigned to drv-notis · " + ((vendor && vendor.name) || "shop") + ". Set drop, then send.");
       }
       if (act === "self-ride") say("Hold the map. List the vendor, the delivery address, and a driver. Then send the offer.");
+      if (act === "place-order") { checkoutVendor(); return; }
+      if (act === "compass-north") { armNorth(); return; }
+      if (act === "compass-drive") { armDrive(); return; }
+      if (act === "vid-meh" || act === "vid-never" || act === "vid-love") {
+        var id = t.getAttribute("data-id") || "";
+        if (act === "vid-meh") vidLater[id] = 1;
+        if (act === "vid-never") { vidSkip[id] = 1; try { localStorage.setItem("sn:vid-skip", JSON.stringify(vidSkip)); } catch (e) {} }
+        if (act === "vid-love") { vidLove[id] = Date.now(); try { localStorage.setItem("sn:vid-love", JSON.stringify(vidLove)); } catch (e2) {} if (typeof pushNotice === "function") pushNotice("Kept."); }
+        closeSheet();
+        return;
+      }
       if (act === "pick-more" || act === "pick-less") {
         var row = t.closest && t.closest(".sn-pick");
         var em = row && row.querySelector(".n");
@@ -6854,6 +7569,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         closeSheet();
         say(drvName + " is a free driver here.");
       }
+      if (act === "i-am-driver") {
+        if (!isAdmin()) { say("Only the administrator lists themselves as the driver."); return; }
+        if (!listPt) { say("Hold the map first."); return; }
+        placeMeDriver(listPt);
+        closeSheet();
+        return;
+      }
+      if (act === "offer-yes") { offerYes(t.getAttribute("data-id") || (function () { var sh = $("sn-sheet"); return sh && sh.getAttribute("data-job"); })()); return; }
+      if (act === "offer-no") { offerNo(t.getAttribute("data-id") || (function () { var sh = $("sn-sheet"); return sh && sh.getAttribute("data-job"); })()); return; }
       if (act === "run-offer") {
         if (!isAdmin()) { say("Only the administrator sends an offer on behalf of both."); return; }
         absorbMine();
@@ -6885,54 +7609,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           var km = haversineKm(bestShop, d);
           if (km < bestDrvKm) { bestDrv = d; bestDrvKm = km; }
         });
-        if (!bestDrv) { say("List a driver base first. The closest free one takes it."); return; }
-        vendor = bestShop;
-        drop = { lat: +homeDrop.lat, lng: +homeDrop.lng, name: homeDrop.name || "" };
-        var quote = quoteDelivery(vendor, drop, quoteOpts);
-        var job = {
-          id: "j" + Date.now().toString(36),
-          vendor: vendor,
-          drop: drop,
-          km: quote.km,
-          fee: quote.total,
-          ready: true,
-          pickup: false,
-          got: false,
-          delivered: false,
-          received: false,
-          driver: bestDrv.name || "driver",
-          driverId: bestDrv.id || "",
-          driverOwner: bestDrv.owner || "",
-          client: (homeDrop && homeDrop.owner) || me(),
-          vendorOwner: bestShop.owner || me(),
-          vendorAccepted: true,
-          driverAccepted: true,
-          paid: false,
-          t: Date.now()
-        };
-        jobs.unshift(job);
-        saveJobs();
-        publishJob(job);
-        takeStock(vendor, basket.filter(function (line) { return line && String(line.id) === String(vendor.id); }));
-        if (!cityOn) openCity(vendor);
-        drawRoute(vendor, drop);
-        throwOffer({
-          id: job.id,
-          name: vendor.name,
-          fee: quote.total,
-          km: quote.km,
-          vendor: vendor,
-          drop: {
-            name: homeDrop.name || "Client",
-            phone: homeDrop.phone || "",
-            address: homeDrop.address || "",
-            floor: homeDrop.floor || "",
-            bell: homeDrop.bell || "",
-            lat: homeDrop.lat,
-            lng: homeDrop.lng
-          }
-        });
-        say(vendor.name + " accepted. " + (bestDrv.name || "Driver") + " accepted. " + quote.km.toFixed(1) + " km.");
+        if (!bestDrv) { say("No driver here. Hold the map and tap I AM THE DRIVER HERE."); return; }
+        flyOffer(bestShop, {
+          lat: +homeDrop.lat, lng: +homeDrop.lng, name: homeDrop.name || "Client",
+          phone: homeDrop.phone || "", address: homeDrop.address || "", floor: homeDrop.floor || "",
+          bell: homeDrop.bell || "", owner: homeDrop.owner || me()
+        }, []);
       }
       if (act === "list-kinds") {
         openSheet("PLACE",
@@ -8073,7 +8755,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           return c;
         });
       }
-    }).catch(function () {});
+      pullVideos();
+    }).catch(function () { pullVideos(); });
     setTimeout(pullQueue, 600);
     setInterval(pullQueue, 4000);
     loadBlocks();
@@ -8138,7 +8821,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       tileState: function () { var t = window.__snTiles; return t ? { src: t.src, max: t.max, heals: t.heals, lastAt: t.lastAt, why: t.why, z: t.z, osmRun: t.osmRun, altErr: t.altErr, vis: t.vis, ok: t.ok, err: t.err, loading: t.loading } : null; }, /* 4350 */
       seatState: function () { return { kind: seatKind, here: here, hereLive: hereLive, ip: ipView, perm: gpsPerm, liveLoaded: liveLoaded }; }
     };
-    Object.defineProperty(window, "__SN_INTRO", { get: function () { return intro; } });
+    try {
+      Object.defineProperty(window, "__SN_INTRO", { configurable: true, get: function () { return intro; } });
+    } catch (e) {}
     requestAnimationFrame(loop);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
