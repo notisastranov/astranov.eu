@@ -838,30 +838,22 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       cam.pitch = fly.start.pitch + (fly.goal.pitch - fly.start.pitch) * e;
       cam.dist = fly.start.dist + (fly.goal.dist - fly.start.dist) * e;
       if (k >= 1) fly = null;
-      if (!drag && tierI >= 2 && aim && !cityOn) {
-        var held = face(aim);
-        cam.yaw = held.yaw;
-        cam.pitch = held.pitch;
-      }
       return;
     }
-    if (!fly && !seated && !drag && !cityOn) {
-      if (cam.dist < 1.7 || cam.dist > 2.2) cam.dist = 1.85;
-      cam.yaw += dt * 0.16;
+    if (!drag && !cityOn && tierI === 1 && cam.dist >= 1.5 && cam.dist <= 2.5) {
+      cam.yaw += dt * 0.12;
       return;
     }
-    if (intro) {
-      if (cam.dist < 1.7 || cam.dist > 2.05) cam.dist = 1.85;
+    if (!drag && !cityOn && tierI >= 2 && aim && cam.dist < 1.2) {
+      var held = face(aim);
+      cam.yaw = held.yaw;
+      cam.pitch = held.pitch;
+      vel.yaw = 0;
+      vel.pitch = 0;
       return;
     }
-    if (!drag && tierI >= 2 && aim && !cityOn) {
-      var held2 = face(aim);
-      cam.yaw = held2.yaw;
-      cam.pitch = held2.pitch;
-      vel.yaw = 0; vel.pitch = 0;
-      return;
-    }
-    vel.yaw = 0; vel.pitch = 0;
+    vel.yaw = 0;
+    vel.pitch = 0;
   }
   function cardsNow() {
     var rows = BRIEF.filter(function (c) { return c && c.k === "CALENDAR"; });
@@ -1219,17 +1211,19 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function zoomSmooth(dir, sx, sy) {
     if (cityOn && map) {
       var z = map.getZoom() || 16;
-      if (dir > 0 && z <= 13.2) {
-        closeCity();
-        zoomToDist(1.25);
-        say("Back to the globe");
-        return;
-      }
-      var nz = Math.max(13, Math.min(19, z + (dir < 0 ? 0.7 : -0.7)));
-      try { map.flyTo(map.getCenter(), nz, { duration: 0.28 }); } catch (e) { try { map.setZoom(nz); } catch (e2) {} }
+      if (dir > 0 && z <= 14.25) { goNational(); return; }
+      var nz = Math.max(14, Math.min(19, z + (dir < 0 ? 1 : -1)));
+      try { map.setZoom(nz); } catch (e) {}
       return;
     }
-    zoomToDist(cam.dist * (dir < 0 ? 0.88 : 1.14), sx, sy);
+    if (dir > 0) {
+      if (cam.dist < 1.2) { zoomToDist(1.85); say("Global"); return; }
+      if (cam.dist < 3.2) { zoomToDist(5.4); say("Solar"); return; }
+      return;
+    }
+    if (cam.dist > 3.2) { zoomToDist(1.85); say("Global"); return; }
+    if (cam.dist > 1.2) { zoomToDist(0.72); say("National"); return; }
+    zoomToDist(0.5, sx, sy);
   }
   function stepTier(dir, sx, sy) { zoomSmooth(dir, sx, sy); }
   function settleTier(i, pt) {
@@ -1490,21 +1484,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!map) {
       map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 12, maxZoom: 19, scrollWheelZoom: true }).setView([pt.lat, pt.lng], 16);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, minZoom: 12 }).addTo(map);
-      map.on("zoomstart", function (e) {
-        userLeave = !!(e && e.originalEvent);
-      });
       map.on("zoomend", function () {
         try {
           var z = map.getZoom();
-          if (z > 13) cityZoom = z;
-          if (userLeave && z <= 13) {
-            userLeave = false;
-            closeCity();
-            zoomToDist(1.25);
-            return;
-          }
-          userLeave = false;
-          if (z < 14) map.setZoom(14);
+          if (!cityOn) return;
+          if (z <= 13.5) { goNational(); return; }
+          if (z > 14) cityZoom = z;
         } catch (e) {}
       });
       map.on("move", function () { if (driveMode === "head") applyBearing(); });
@@ -1560,28 +1545,33 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     paintShopsOnMap();
     setTimeout(function () { if (map) map.invalidateSize(); }, 80);
   }
-  function closeCity() {
+  function hideCity() {
     var el = $("city");
     if (el) el.classList.remove("on");
     cityOn = false;
-    intro = false;
-    if (tierI > 2) tierI = 2;
-    if (aim) {
-      var f = face(aim);
-      cam.yaw = f.yaw;
-      cam.pitch = f.pitch;
-    }
-    cam.dist = TIERS[2].dist;
     paintOrders();
   }
-  function goGlobal() {
-    closeCity();
-    intro = true;
-    tierI = 1;
+  function showGlobe(dist, name) {
+    hideCity();
     fly = null;
-    cam.pitch = 0.22;
-    cam.dist = TIERS[1].dist;
-    say("Global view.");
+    intro = dist > 1.4 && dist < 2.5;
+    if (intro) introT0 = performance.now();
+    cam.dist = dist;
+    tierI = dist > 3.2 ? 0 : dist > 1.4 ? 1 : 2;
+    if (aim && dist < 3) {
+      var f = face(aim);
+      cam.yaw = f.yaw;
+      cam.pitch = dist < 1.3 ? Math.max(-1.05, Math.min(1.05, f.pitch)) : 0.22;
+    }
+    if (canvas) canvas.style.display = "block";
+    say(name);
+  }
+  function goNational() { showGlobe(0.72, "National"); }
+  function closeCity() {
+    showGlobe(0.72, "National");
+  }
+  function goGlobal() {
+    showGlobe(1.85, "Global");
   }
   function listAt(pt) {
     if (needLogin()) return;
@@ -2007,7 +1997,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ".sn-pin em{display:flex;align-items:center;justify-content:center;width:40px;height:40px;font:28px/40px system-ui;border-radius:8px;border:2px solid #4df0ff;background:rgba(4,14,28,.92)}",
       "#sn-tester{position:fixed;top:28px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(77,240,255,.4);color:#7ee9ff;font:700 10px/14px ui-monospace,monospace;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#sn-tester.stale{color:#8a6a6a;border-color:rgba(255,120,120,.35)}",
-      "#sn-topchrome-drag,#cli-drag{display:block!important;height:10px!important;min-height:10px!important;max-height:10px!important;font-size:0!important;line-height:0!important;color:transparent!important;overflow:hidden!important;background:transparent!important}",
+      "#sn-topchrome-drag,#cli-drag{display:none!important;height:0!important;min-height:0!important;max-height:0!important}",
       "#top{top:0!important;left:0!important;right:0!important;margin:0!important;padding:0!important;height:32px!important;min-height:32px!important;max-height:32px!important;overflow:hidden!important;display:flex!important;flex-direction:column!important}",
       "#island{position:relative!important;z-index:2!important;display:flex!important;align-items:center!important;gap:8px!important;height:32px!important;max-height:32px!important;margin:0!important;padding:0 36px!important;overflow:hidden!important}",
       "#island .r1{flex:none!important;flex-wrap:nowrap!important;white-space:nowrap!important;overflow:hidden!important;height:32px!important;align-items:center!important}",
