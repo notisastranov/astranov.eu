@@ -5,9 +5,6 @@ module.exports = async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("CDN-Cache-Control", "no-store");
   res.setHeader("Vercel-CDN-Cache-Control", "no-store");
-  if (req.method === "OPTIONS") {
-    res.status(204).end();
-    return;
-  }
-  res.status(200).json({ latest: "4332" });
+  if (req.method === "OPTIONS") { res.status(204).end(); return; }
+  res.status(200).json({ latest: "4333" });
 };
