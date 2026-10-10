@@ -17,18 +17,18 @@ const { chromium } = require("playwright");
 const { execSync } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4352";
+const STAMP = process.env.STAMP || "4353";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now();
 const [WW, WH] = (process.env.WIN || "1920x1200").split("x").map(Number);
 const SCALE = Number(process.env.SCALE || 1.5);
 const CYCLES = Number(process.env.CYCLES || 22);
-const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-tile-stress-4352";
+const SHOTDIR = process.env.SHOTDIR || "/tmp/sn-tile-stress-4353";
 fs.mkdirSync(SHOTDIR, { recursive: true });
 if (!process.env.DISPLAY) process.env.DISPLAY = ":3";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const xdo = (a) => execSync("xdotool " + a, { env: process.env });
 let seed = Number(process.env.SEED || 4350); const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
-const GRAB = path.join(os.tmpdir(), "sn_tilegrab4352.py");
+const GRAB = path.join(os.tmpdir(), "sn_tilegrab4353.py");
 fs.writeFileSync(GRAB, `import sys, json, warnings
 warnings.filterwarnings("ignore")
 from PIL import ImageGrab, ImageStat
