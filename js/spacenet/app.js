@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4336";
+  var VER = "4337";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -128,7 +128,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 
   function $(id) { return document.getElementById(id); }
   var sayHold = 0;
-  function say(s) { var el = $("line"); if (el) el.textContent = s; sayHold = Date.now(); pushNotice(s); }
+  function say(s) {
+    var el = $("line");
+    if (el) el.textContent = s;
+    sayHold = Date.now();
+    var t = String(s || "");
+    if (t.length > 96 || /LIVE ·|TESTER|LATEST|CHECKING|function |\{|\}|http/.test(t)) return;
+    if (/order|offer|accept|deliver|driver|vendor|menu/i.test(t)) pushNotice(t);
+  }
   var hereLive = null;
   var adminPin = false;
   var homeDrop = null;
@@ -1493,7 +1500,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#island .r2,#sn-spark,#sn-brand-a,#ver,#sn-latest,#sn-update{display:none!important}",
       "#sn-brand-s{font:800 12px/32px system-ui!important;letter-spacing:.22em!important;color:#e8fbff!important}",
       "#sn-tick{flex:1!important;min-width:0!important;overflow:hidden!important;height:32px!important;pointer-events:auto!important}",
-      "#sn-tick b{display:inline-block!important;white-space:nowrap!important;animation:sn-slide 18s linear infinite!important;color:#7ee9ff!important;font:700 12px/32px ui-monospace,monospace!important}",
+      "#sn-tick b{display:inline-block!important;white-space:nowrap!important;animation:sn-slide 16s linear infinite!important;color:#d7f6ff!important;font:600 13px/32px system-ui,sans-serif!important;letter-spacing:0!important}",
       "@keyframes sn-slide{from{transform:translateX(0)}to{transform:translateX(-50%)}}",
       "#line{display:none!important}",
       "#sn-sheet .card,#sn-sheet.tall .card,#sn-tasks .card{max-height:42vh!important}",
@@ -1667,7 +1674,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var mins = Math.max(0, Math.round((Date.now() - Number(it.t || 0)) / 60000));
     el.classList.toggle("stale", mins > 20);
     el.textContent = "TESTER · " + (mins < 1 ? "now" : mins + "m") + " · " + (it.note || it.title || "checking");
-    if (el.textContent !== tickTester) { tickTester = el.textContent; pushNotice(tickTester); }
     var bits = String(it.ref || "").split(",");
     var lat = Number(bits[0]), lng = Number(bits[1]);
     if (!map || typeof L === "undefined" || !isFinite(lat) || !isFinite(lng)) return;
@@ -2290,9 +2296,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (driverPin && isFinite(+driverPin.lat) && !people.some(function (p) { return p && p.role === "driver" && haversineKm(p, driverPin) < 0.05; })) drivers++;
     jobs.forEach(function (j) { if (j && !j.received && seesJob(j)) orders++; });
     var place = here && near ? near + " vendor" + (near === 1 ? "" : "s") + " here" : vendors + " vendor" + (vendors === 1 ? "" : "s");
-    var liveLine = "LIVE · " + place + " · " + drivers + " driver" + (drivers === 1 ? "" : "s") + " · " + orders + " order" + (orders === 1 ? "" : "s");
-    el.textContent = liveLine;
-    if (liveLine !== tickLiveLine) { tickLiveLine = liveLine; paintTick(); }
+    el.textContent = "LIVE · " + place + " · " + drivers + " driver" + (drivers === 1 ? "" : "s") + " · " + orders + " order" + (orders === 1 ? "" : "s");
   }
   var roads = {};
   var roadAlts = {};
@@ -3100,8 +3104,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       return '<div class="sn-ord"><b>' + esc(j.fee || 0) + " AV€</b><span>" + esc(items || "order") + "</span><em>" + esc(nextStep(j)) + "</em><em>" + esc(orderClock(j)) + "</em></div>";
     }).join("");
     var html = '<div class="sn-prof">' + tilePhoto(s.photo, "🏪") + "<div><b>" + esc(s.name || "Vendor") + "</b>" + tileContact(s.phone, where) + "</div></div>" +
+      '<button type="button" class="sheet-go primary" data-act="place-order">ORDER</button>' +
       (orders ? '<p class="note">CHARGED</p>' + orders : "") +
-      '<p class="note">MENU</p>' + menu;
+      '<p class="note">MENU · tap + then ORDER</p>' + menu;
     openTile({ kind: "vendor", title: s.name || "VENDOR", html: html });
     try { if (map && isFinite(+s.lat)) map.panTo([+s.lat, +s.lng], { animate: false }); } catch (e) {}
   }
@@ -3398,9 +3403,20 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     say("Declined. Offered to " + (drivers[0].name || "the next driver") + ".");
     openDriverOffer(job, drivers);
   }
+  function sheetNote(s) {
+    var body = $("sn-sheet-body");
+    if (!body) { say(s); return; }
+    var n = body.querySelector(".sn-why");
+    if (!n) {
+      n = document.createElement("p");
+      n.className = "note sn-why";
+      body.insertBefore(n, body.firstChild);
+    }
+    n.textContent = s;
+  }
   function checkoutVendor() {
-    if (silenced(me())) { say("You are shut down. No orders until it lifts."); return; }
-    if (!vendor) { say("Tap the vendor again."); return; }
+    if (silenced(me())) { sheetNote("You are shut down. No orders until it lifts."); return; }
+    if (!vendor) { sheetNote("Tap the vendor again."); return; }
     var body = $("sn-sheet-body");
     var lines = [];
     if (body) body.querySelectorAll(".sn-pick").forEach(function (row) {
@@ -3409,9 +3425,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var item = vendor.menu && vendor.menu[i];
       if (n > 0 && item) lines.push({ name: item.name || "item", n: n, price: item.price || "" });
     });
-    if (!lines.length) { say("Choose from the menu, then Apply."); return; }
+    if (!lines.length) {
+      var first = (vendor.menu || []).filter(function (m) { return m && (m.name || m.price); })[0];
+      if (first) lines.push({ name: first.name || "item", n: 1, price: first.price || "" });
+    }
+    if (!lines.length && isAdmin()) lines.push({ name: (vendor.name || "Shop") + " order", n: 1, price: "8" });
+    if (!lines.length) { sheetNote("This shop has no dish yet."); return; }
     var dest = (homeDrop && isFinite(+homeDrop.lat)) ? homeDrop : (here && isFinite(+here.lat) ? here : null);
-    if (!dest) { say("List a delivery address, then Apply."); return; }
+    if (!dest && isAdmin() && isFinite(+vendor.lat)) dest = { lat: +vendor.lat + 0.004, lng: +vendor.lng, name: "Test client", address: "Test drop", owner: me() };
+    if (!dest) { sheetNote("Hold the map and list your delivery address, then ORDER."); return; }
     var food = 0;
     lines.forEach(function (l) { food += moneyOf(l.price) * l.n; });
     var q = quoteDelivery(vendor, dest, quoteOpts);
@@ -3976,13 +3998,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var tickTester = "";
   var bootUntil = Date.now() + 8000;
   var tickShown = "";
+  var tickTimer = 0;
   function pushNotice(s) {
     s = String(s || "").replace(/\s+/g, " ").trim();
     if (!s) return;
-    tickNotes = tickNotes.filter(function (n) { return n !== s; });
-    tickNotes.unshift(s);
-    tickNotes = tickNotes.slice(0, 5);
+    tickNotes = [s];
     paintTick();
+    clearTimeout(tickTimer);
+    tickTimer = setTimeout(function () { tickNotes = []; paintTick(); }, 7000);
   }
   function paintTick() {
     var isle = $("island");
@@ -3999,11 +4022,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       isle.appendChild(el);
     }
     var bits = [];
-    if (Date.now() < bootUntil || (upState && upState !== "UPDATED" && upState !== "CHECKING")) {
-      bits.push("V" + VER + " LATEST " + (latestVer || "…") + " " + (upState || ""));
-    }
+    if (Date.now() < bootUntil) bits.push("V" + VER);
+    else if (upState === "FAILED TO UPDATE" || upState === "PLEASE TRY TO UPDATE MANUALLY") bits.push("Tap to update");
     tickNotes.forEach(function (n) { bits.push(n); });
-    if (tickLiveLine) bits.push(tickLiveLine);
     var text = bits.filter(Boolean).join("    ·    ");
     if (text === tickShown) return;
     tickShown = text;
@@ -4502,6 +4523,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         say("Assigned to drv-notis · " + ((vendor && vendor.name) || "shop") + ". Set drop, then send.");
       }
       if (act === "self-ride") say("Hold the map. List the vendor, the delivery address, and a driver. Then send the offer.");
+      if (act === "place-order") { checkoutVendor(); return; }
       if (act === "pick-more" || act === "pick-less") {
         var row = t.closest && t.closest(".sn-pick");
         var em = row && row.querySelector(".n");
