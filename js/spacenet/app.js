@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4330";
+  var VER = "4332";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1467,7 +1467,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-topchrome-drag,#cli-drag{display:block!important;height:10px!important;min-height:10px!important;max-height:10px!important;font-size:0!important;line-height:0!important;color:transparent!important;overflow:hidden!important}",
       "#top{top:0!important;left:0!important;right:0!important;margin:0!important;padding:0!important;display:flex!important;flex-direction:column!important}",
       "#island{position:relative!important;z-index:2!important;padding-left:52px!important;padding-right:52px!important}",
-      "#island .r1,#island .r2{flex-wrap:nowrap!important;overflow:hidden!important;white-space:nowrap!important}",
+      "#island .r1,#island .r2{flex-wrap:wrap!important;overflow:visible!important;white-space:normal!important;height:auto!important}",
       "#sn-sheet .card,#sn-sheet.tall .card,#sn-tasks .card{max-height:42vh!important}",
       "#sn-power{position:fixed!important;top:8px!important;left:max(6px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:60!important}",
       "#sn-support{position:fixed!important;top:8px!important;right:max(6px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;transform:none!important;z-index:60!important}",
@@ -3584,24 +3584,36 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (utc) opt.timeZone = "UTC";
     try { return d.toLocaleString("en-GB", opt) + (utc ? " UTC" : ""); } catch (e) { return d.toISOString(); }
   }
+  var upState = "CHECKING";
   function paintVersion() {
     var now = $("ver");
     var lat = $("sn-latest");
     var up = $("sn-update");
     var behind = !!(latestVer && Number(latestVer) > Number(VER));
     if (now) now.textContent = "V" + VER;
+    var word = upState || (behind ? "FAILED TO UPDATE" : "UPDATED");
     if (lat) {
-      lat.textContent = "LATEST " + (latestVer || "…");
+      lat.textContent = latestVer ? ("LATEST " + latestVer + " " + word) : ("LATEST … " + word);
       lat.title = SPEC;
-      lat.classList.toggle("behind", behind);
+      lat.classList.toggle("behind", behind || word === "FAILED TO UPDATE" || word === "PLEASE TRY TO UPDATE MANUALLY");
     }
     if (up) {
-      up.hidden = !behind;
-      up.textContent = "UPDATE NOW";
+      var manual = behind || word === "PLEASE TRY TO UPDATE MANUALLY" || word === "FAILED TO UPDATE";
+      up.hidden = !manual;
+      up.textContent = "PLEASE TRY TO UPDATE MANUALLY";
+    }
+    var row = document.querySelector("#island .r1");
+    if (row) {
+      row.style.setProperty("flex-wrap", "wrap", "important");
+      row.style.setProperty("white-space", "normal", "important");
+      row.style.setProperty("overflow", "visible", "important");
+      row.style.setProperty("height", "auto", "important");
     }
   }
   function forceUpdate() {
     var target = latestVer || VER;
+    upState = "UPDATING";
+    paintVersion();
     say("Updating to " + target + "…");
     try { sessionStorage.setItem("sn:updating", String(target)); } catch (e) {}
     var gone = false;
@@ -3632,24 +3644,37 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     setTimeout(go, 2500);
   }
   function checkVersion() {
+    upState = "CHECKING";
     paintVersion();
-    fetch("/api/version?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
+    fetch("/api/version?t=" + Date.now(), { cache: "no-store" }).then(function (r) {
+      if (!r.ok) throw new Error("version");
+      return r.json();
+    }).then(function (j) {
       latestVer = String((j && (j.latest || j.version)) || "");
-      paintVersion();
-      if (!latestVer) return;
+      if (!latestVer) {
+        upState = "PLEASE TRY TO UPDATE MANUALLY";
+        paintVersion();
+        return;
+      }
       var behind = Number(latestVer) > Number(VER);
       var tried = "";
       try { tried = sessionStorage.getItem("sn:updating") || ""; } catch (e) {}
       if (!behind) {
+        upState = "UPDATED";
         try { sessionStorage.removeItem("sn:updating"); } catch (e) {}
+        paintVersion();
         return;
       }
       if (tried === latestVer) {
-        say("V" + VER + " LATEST " + latestVer + ". Tap UPDATE NOW.");
+        upState = "FAILED TO UPDATE";
+        paintVersion();
         return;
       }
+      upState = "UPDATING";
+      paintVersion();
       forceUpdate();
     }).catch(function () {
+      upState = "PLEASE TRY TO UPDATE MANUALLY";
       paintVersion();
     });
   }
