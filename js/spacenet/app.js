@@ -2478,6 +2478,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     cam.dist = TIERS[2].dist;
     /* force a globe frame so wheel-out is never a grey sheet */
     try { if (typeof drawGlobe === "function") drawGlobe(performance.now()); } catch (e) {}
+    paintOrders();
   }
   function goGlobal() {
     closeCity();
@@ -2932,6 +2933,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-power-tag{position:fixed;top:58px;left:max(6px,env(safe-area-inset-left));z-index:60;font:700 10px/14px ui-monospace,monospace;color:#8fb3c0;pointer-events:none;white-space:nowrap;text-shadow:0 0 4px #000}",
       "#sn-power-tag.on{color:#7dff9a}",
       "#sn-power-tag.hold{color:#fff;background:rgba(4,14,28,.88);border:1px solid #4df0ff;border-radius:6px;padding:2px 7px;font-size:12px;line-height:16px;box-shadow:0 0 10px rgba(77,240,255,.6)}",
+      "#sn-sheet .sn-dish{display:grid!important;grid-template-columns:minmax(0,1fr) 88px!important;gap:6px!important;margin:8px 0 0!important}",
+      "#sn-cloud{position:fixed!important;top:40px!important;left:50%!important;right:auto!important;transform:translateX(-50%)!important;z-index:48!important;display:flex!important;gap:12px!important;align-items:center!important;max-width:calc(100vw - 24px)!important;padding:7px 14px!important;border-radius:999px!important;background:rgba(4,16,32,.92)!important;border:1px solid rgba(77,240,255,.8)!important;color:#e8fbff!important;font:700 12px/1 system-ui!important;pointer-events:none!important;box-shadow:0 0 18px rgba(77,240,255,.35)!important;white-space:nowrap!important}",
+      "#sn-cloud.off{display:none!important}",
+      "#sn-cloud b{color:#4df0ff!important;font:800 18px/1 system-ui!important;margin-right:4px!important}",
+      ".sn-obubble{background:transparent!important;border:0!important}",
+      ".sn-obubble b{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-width:28px!important;height:28px!important;padding:0 8px!important;border-radius:999px!important;background:rgba(4,16,28,.94)!important;color:#e8fbff!important;border:1.5px solid #4df0ff!important;font:800 13px/1 system-ui!important;box-shadow:0 0 14px rgba(77,240,255,.65)!important;white-space:nowrap!important}",
       "#sn-sheet .sn-pick img,#sn-sheet .sn-pick .sn-mini{width:52px!important;height:52px!important;max-width:52px!important;max-height:52px!important;object-fit:cover;border-radius:10px;border:1px solid rgba(77,240,255,.45)}",
       "#sn-sheet .sn-pick b{color:#e8fbff!important;font:700 14px/1.2 system-ui!important}",
       "#sn-sheet .sn-pick span{color:#4df0ff!important;font:800 13px/1 system-ui!important}",
@@ -3471,7 +3478,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     });
     if (kept.length !== jobs.length) { jobs = kept; saveJobs(); }
   }
-  function saveJobs() { try { localStorage.setItem("sn:jobs", JSON.stringify(jobs)); } catch (e) {} }
+  function saveJobs() {
+    try { localStorage.setItem("sn:jobs", JSON.stringify(jobs)); } catch (e) {}
+    paintOrders();
+  }
   function publishRow(row) {
     if (!row || !row.id) return;
     var t = authToken();
@@ -3966,6 +3976,73 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (huntView && !huntView.fitted && field.length && cityOn && !huntFitWanted) { huntFitWanted = true; setTimeout(function () { try { fitHunt(); } catch (eF) {} }, 0); }
     if (isAdmin()) paintAdminPins();
     else paintOwnDrivers();
+    paintOrders();
+  }
+  function orderState(j) {
+    if (!j) return "";
+    if (j.wasted || j.cancelled) return "cancelled";
+    if (j.received) return "done";
+    if (j.driverAccepted || j.got || j.stage === "run" || j.stage === "recover") return "way";
+    return "pending";
+  }
+  function vendorOpenOrders(s) {
+    return jobs.filter(function (j) {
+      if (!j || !j.vendor || !seesJob(j)) return false;
+      var same = (s.id && j.vendor.id === s.id) || (s.name && j.vendor.name === s.name);
+      if (!same) return false;
+      var st = orderState(j);
+      return st === "pending" || st === "way";
+    });
+  }
+  var orderMarks = [];
+  function paintCloud() {
+    var el = $("sn-cloud");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "sn-cloud";
+      document.body.appendChild(el);
+    }
+    if (!cityOn) { el.className = "off"; return; }
+    var pending = 0, way = 0, cancelled = 0;
+    jobs.forEach(function (j) {
+      if (!j || !seesJob(j)) return;
+      var st = orderState(j);
+      if (st === "pending") pending++;
+      else if (st === "way") way++;
+      else if (st === "cancelled") cancelled++;
+    });
+    el.className = "";
+    el.innerHTML = "<span><b>" + pending + "</b> pending</span><span><b>" + way + "</b> on the way</span><span><b>" + cancelled + "</b> cancelled</span>";
+  }
+  function paintOrders() {
+    paintCloud();
+    if (!map || typeof L === "undefined") return;
+    orderMarks.forEach(function (m) { try { map.removeLayer(m); } catch (e) {} });
+    orderMarks = [];
+    if (!cityOn) return;
+    shops.forEach(function (s) {
+      if (!s || !isFinite(+s.lat) || !isFinite(+s.lng)) return;
+      var list = vendorOpenOrders(s);
+      if (!list.length) return;
+      var html, w;
+      if (list.length === 1) {
+        var line = (list[0].lines && list[0].lines[0]) || {};
+        var label = (line.name || "order") + (list[0].fee ? " · " + list[0].fee : "");
+        html = "<b>" + esc(label) + "</b>";
+        w = Math.min(160, Math.max(72, label.length * 7));
+      } else {
+        html = "<b>" + list.length + "</b>";
+        w = 36;
+      }
+      var icon = L.divIcon({ className: "sn-obubble", html: html, iconSize: [w, 28], iconAnchor: [w / 2, 86] });
+      var marker = L.marker([+s.lat, +s.lng], { icon: icon, interactive: true, keyboard: false, zIndexOffset: 900 });
+      marker.on("click", function (e) {
+        if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent);
+        openVendor(s);
+      });
+      marker.addTo(map);
+      orderMarks.push(marker);
+    });
   }
   function paintOwnDrivers() {}
   /* labels never overlap: nearest first keeps its label; a label that would cover another label or pin, or sit
@@ -5595,9 +5672,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     var html = '<div class="sn-prof">' + tilePhoto(photoOf(s), "🏪") + "<div><b>" + esc(s.name || "Vendor") + "</b>" + tileContact(s.phone, where) + "</div></div>" +
       feeHtml +
+      '<div class="sn-dish"><input id="sn-dish" placeholder="Dish" /><input id="sn-dish-price" inputmode="decimal" placeholder="Price" /></div>' +
+      '<p class="note">Type a dish, or tap +, then the green check (or ORDER).</p>' +
       '<button type="button" class="sheet-go primary" data-act="place-order">ORDER</button>' +
+      menu +
       (orders ? '<p class="note">CHARGED</p>' + orders : "") +
-      '<p class="note">MENU · tap + then ORDER</p>' + menu +
       ((s.src === "listed" && (ownsShop(s) || isAdmin())) ? '<button type="button" class="sheet-go" data-act="edit-vendor">' + (ownsShop(s) ? "EDIT MY SHOP" : "EDIT THIS SHOP") + "</button>" : "");
     openTile({ kind: "vendor", title: s.name || "VENDOR", html: html });
     try { var shV = $("sn-sheet"); if (shV) { shV.setAttribute("data-vkey", vKey(s)); pickLoad($("sn-sheet-card"), vKey(s)); } } catch (eV) {}
@@ -5876,7 +5955,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     vendor = shop;
     drop = job.drop;
     if (!cityOn) openCity(shop);
-    say((shop.name || "Shop") + " → " + (drivers[0].name || "driver") + " · " + job.fee + " AV€. Accept or decline.");
+    say((shop.name || "Shop") + " → " + ((pickDriver(job, drivers) || drivers[0]).name || "driver") + " · " + job.fee + " AV€. Accept or decline.");
     openDriverOffer(job, drivers);
   }
   function offerYes(id) {
@@ -6009,12 +6088,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var item = vendor.menu && vendor.menu[i];
       if (n > 0 && item) lines.push({ name: item.name || "item", n: n, price: item.price || "" });
     });
+    var dishEl = $("sn-dish");
+    var priceEl = $("sn-dish-price");
+    var typed = dishEl ? String(dishEl.value || "").trim() : "";
+    if (typed) lines.push({ name: typed, n: 1, price: (priceEl && String(priceEl.value || "").trim()) || "5" });
     if (!lines.length) {
       var first = (vendor.menu || []).filter(function (m) { return m && (m.name || m.price); })[0];
-      if (first) lines.push({ name: first.name || "item", n: 1, price: first.price || "" });
+      if (first) lines.push({ name: first.name || "item", n: 1, price: first.price || "5" });
     }
     if (!lines.length && isAdmin()) lines.push({ name: (vendor.name || "Shop") + " order", n: 1, price: "8" });
-    if (!lines.length) { sheetNote("This shop has no dish yet."); return; }
+    if (!lines.length) { sheetNote("Type a dish and a price, then the green check."); return; }
     var dest = resolveDrop(vendor);
     if (!dest && isAdmin() && isFinite(+vendor.lat)) dest = { lat: +vendor.lat + 0.004, lng: +vendor.lng, name: "Test client", address: "Test drop", owner: me() };
     if (!dest) { askDropNear(vendor); return; }
@@ -6037,9 +6120,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       twin.vendorOwner = vendor.owner || twin.vendorOwner || "";
       saveJobs();
       publishJob(twin);
-      say("Updated order for " + (vendor.name || "the vendor") + ".");
+      say("Order updated. " + feeN + " AV€. Sent to " + (vendor.name || "the vendor") + ".");
       pickSpent(vKey(vendor));
-      openVendorOrder(twin);
+      closeSheet(); /* main 4342: the green check places the order and closes */
       return;
     }
     var job = {
@@ -6060,30 +6143,39 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       t: Date.now()
     };
     jobs.unshift(job);
+    if (typed) rememberDish(vendor, { name: typed, price: (priceEl && String(priceEl.value || "").trim()) || "5" });
     saveJobs();
     publishJob(job);
+    closeSheet();
     if (isAdmin()) {
       job.prep = job.prep || 10;
       job.lifeMin = job.lifeMin || 45;
-      job.vendorAccepted = true;
-      job.ready = true;
+      job.vendorAccepted = true; /* 4355: READY stays the vendor's first step on the route card */
       job.stage = "drivers";
       var drivers = freeDrivers(job.vendor);
-      if (!drivers.length) {
-        saveJobs();
-        say("No driver in the area. Hold the map and tap I AM THE DRIVER HERE.");
-        return;
+      var drv0 = pickDriver(job, drivers);
+      if (drv0) {
+        job.offeredTo = drv0.id;
+        job.stage = "drivers";
       }
-      job.offeredTo = drivers[0].id;
       saveJobs();
-      publishJob(job);
-      say("Offer is with " + (drivers[0].name || "the closest driver") + ". Accept or decline.");
-      openDriverOffer(job, drivers);
+      say("Order placed above " + (vendor.name || "the vendor") + ". " + job.fee + " AV€." + (drv0 ? " Offered to " + (drv0.name || "the closest driver") + "." : " No driver yet."));
       return;
     }
-    say("Sent to " + (vendor.name || "the vendor") + ".");
+    say("Order placed. " + job.fee + " AV€. Sent to " + (vendor.name || "the vendor") + ".");
     pickSpent(vKey(vendor));
-    openVendorOrder(job);
+  }
+  function rememberDish(shop, line) {
+    if (!shop || !line || !line.name) return;
+    if (!shop.menu) shop.menu = [];
+    var have = shop.menu.some(function (m) { return m && m.name === line.name; });
+    if (!have) shop.menu.push({ name: line.name, price: line.price || "", qty: "", when: "" });
+    try {
+      var mine = JSON.parse(localStorage.getItem("sn:mine") || "[]") || [];
+      var hit = false;
+      mine.forEach(function (r) { if (r && String(r.id) === String(shop.id)) { r.menu = shop.menu; hit = true; } });
+      if (hit) localStorage.setItem("sn:mine", JSON.stringify(mine));
+    } catch (e) {}
   }
   function vendorAccept() {
     var sh = $("sn-sheet");
