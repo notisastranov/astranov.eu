@@ -1,0 +1,76 @@
+name: grokbuild 4357 (4356 fixes + merge main V4351 + j-q features + merge main V4354; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4357.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Decode kit59; C1 4356, merge V4351, C2 4357, merge V4354; assert every tree; drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch -q origin main
+          echo "main tip $(git rev-parse origin/main)"
+          git merge-base --is-ancestor a363bfc5a8308bd853ca5c6187bd7fb8a7f85135 origin/main || { echo "main does not contain a363bfc5 (V4354)"; exit 1; }
+          git merge-base --is-ancestor 7b996a739a7caca8c548f8d771d42416b1ac7e08 origin/main
+          git merge-base --is-ancestor d0975020266c36c9ab2e52302119dd727724c7b9 HEAD
+          test "$(git rev-parse HEAD~3)" = "d0975020266c36c9ab2e52302119dd727724c7b9" || { echo "unexpected commits between d0975020 and the kit"; git log --oneline -5; exit 1; }
+          test -f .grokbuild/kit59.p00.b64
+          test -f .grokbuild/kit59.p07.b64
+          python3 - <<'PYKIT'
+          from pathlib import Path
+          import hashlib, gzip, glob, tarfile, io, base64
+          raw = base64.b64decode("".join(Path(p).read_text().strip() for p in sorted(glob.glob(".grokbuild/kit59.p*.b64"))), validate=True)
+          g = hashlib.sha256(raw).hexdigest(); print("tgz", g, len(raw))
+          if g != "a969c7f3e735fce2dcfec31c7950ff355bbebb524d98ca9bfa9b947de3b9c11f": raise SystemExit("tgz sha mismatch")
+          body = gzip.decompress(raw); s = hashlib.sha256(body).hexdigest(); print("tar", s, len(body))
+          if s != "5f3970f10c2a3110c4d5ca15563f388271f41b63f22ae27a4eacd2cdcc9f9a9c": raise SystemExit("tar sha mismatch")
+          Path("/tmp/k59").mkdir(parents=True, exist_ok=True)
+          with tarfile.open(fileobj=io.BytesIO(body)) as t:
+              for m in t.getmembers():
+                  if m.name.startswith("/") or ".." in m.name: raise SystemExit("bad member " + m.name)
+              t.extractall("/tmp/k59")
+          PYKIT
+          git rm -q -r --cached .grokbuild
+          git rm -q --cached .github/workflows/grokbuild-4357.yml
+          rm -rf .grokbuild .github/workflows/grokbuild-4357.yml
+          git apply --index /tmp/k59/fix59a.patch
+          test "$(git write-tree)" = "d3517afced72e68870a509015e92da5b1af2124e" || { echo "C1 tree $(git write-tree)"; exit 1; }
+          git commit -q -m "4356: the wheel dive is gradual again (main 4343's 'if (z < 14) setZoom(14)' had auto-merged into the branch zoomend and snapped every user zoom to z14, so the dive jumped to z14.5-18 and drifted out to sea); a guest's hold opens the LIST card again (it tells them listing needs LOGIN; persistListing saves nothing for a guest); headed tests read an empty real network honestly ('no public vendors on SpaceNet'); lockstep 4356"
+          git merge --no-ff --no-commit 7b996a739a7caca8c548f8d771d42416b1ac7e08 || true
+          python3 /tmp/k59/resolve4357.py
+          python3 /tmp/k59/stamp4357.py
+          git add -A
+          git apply --index /tmp/k59/post59.patch
+          test -z "$(git diff --name-only --diff-filter=U)"
+          test "$(git write-tree)" = "294feac3bb81cc1ba1df494d50edaaf380485b10" || { echo "M5 tree $(git write-tree)"; exit 1; }
+          git commit -q -m "Merge main (7b996a73, V4351): take the owner balance from the DB, the offer desk sent to every free driver (first accept wins, clocks), the door tile (verify, call, video, message, dispute), the thin route and the compact driver arrow, no hunt-pin dump / ghost drivers. Kept from the branch: the map init, the number badge on pins, the accepted driver's ROUTE card with the order steps, a tappable route (invisible hit line under main's thin line); stamps 4357"
+          test "$(git rev-parse HEAD^2)" = "7b996a739a7caca8c548f8d771d42416b1ac7e08"
+          git apply --index /tmp/k59/fix59b.patch
+          test "$(git write-tree)" = "df873a68bedb1d97b61775cbf9672d2cfc50c2ce" || { echo "C2 tree $(git write-tree)"; exit 1; }
+          git commit -q -m "4357: (j) the green check on a vendor / dish card only saves the cart, ORDER is the one way an order goes out; (k) move mode only from MOVE THIS DRIVER (or listing yourself / accepting), with a MOVING cue and EXIT, a plain pin tap only opens the card; (l) ON THE WAY rows open the order (route) card, client pins open the client card; (m) JOBS / FIND / NODE removed from the DOM, the route steps no longer pop the JOBS overlay; (p) the hunt pin count on screen (#sn-hunt-n); (q) balance via the own-row RPC sn_my_balance with one JWT refresh on 401 (migration prepared, not applied), no client balance PATCH; globe: 2D context loss handled; tests K + badge + honest LIVE"
+          git merge --no-ff --no-commit a363bfc5a8308bd853ca5c6187bd7fb8a7f85135 || true
+          python3 /tmp/k59/resolve4357b.py
+          python3 /tmp/k59/stamp4357.py
+          git add -A
+          test -z "$(git diff --name-only --diff-filter=U)"
+          if grep -qE '^(<<<<<<<|=======|>>>>>>>)' index.html js/spacenet/app.js sw.js vercel.json VERSION api/version.js api/space.js; then echo 'markers left'; exit 1; fi
+          for f in js/spacenet/app.js js/spacenet/auth.js sw.js api/version.js api/space.js api/live.js api/ai.js api/research.js tests/pw_listing_inplace.js tests/pw_hunt_replace.js tests/headed_boot_gps_keys.js tests/headed_wheel_xdotool.js tests/headed_tile_stress.js; do node --check $f; done
+          grep -q '^4357$' VERSION
+          if grep -q 'sn-handle-law' index.html; then echo 'inline handle-law script came back'; exit 1; fi
+          if grep -q 'id="sn-tasks-btn"' index.html; then echo 'JOBS button is back in the DOM'; exit 1; fi
+          test "$(git write-tree)" = "9dc2b3d601dddd327001f5f825dce37c95c13904" || { echo "M6 tree $(git write-tree)"; git diff --cached --stat HEAD; exit 1; }
+          git commit -q -m "Merge main (a363bfc5, V4352-V4354): take the money-supply pool, take cash / coupons, the Grok Build desk in Support, the 10 px top chrome handle. Kept from the branch: the card grip, APPLY left / name / X right on the GROK BUILD bar, askGrok's timeout, #line visible, no inline sn-handle-law script, one-per-user listings (+ main's supply kind); stamps 4357"
+          test "$(git rev-parse HEAD^2)" = "a363bfc5a8308bd853ca5c6187bd7fb8a7f85135"
+          git log --format='%h %p %s' -5 | cut -c1-110
+          sleep 75
+          git push origin HEAD:grokbuild/4328-street-level-gps
