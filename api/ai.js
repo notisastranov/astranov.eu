@@ -19,6 +19,14 @@ const SYS =
   'act=hunt when they want a thing found. act=locate only if they ask you to find them. act=talk when they are just talking. act=now sends an Astranov Delivery Agent (registered base only). Never act=mail or pickup. Never invent an agent who has not listed a base. ' +
   'act=post|call|shop|drop|driver opens that city sheet. act=priority when they ask to jump a task — set ok=true ONLY for a real emerging difficulty (breakdown, spoilage, medical, safety, no-show, weather). ok=false for profit, preference, skipping work they dislike, or jumping the queue. act=justice when a held job is in dispute — split AV€ between customer, vendor, driver. Platform take is always 0 on a failed job. Customer gets goods or credit, never neither for long. Vendor is paid only for work already done. Agent is paid only for miles actually moved. Do not invent GPS traces we do not have. RESEARCH LAW: You have live web search. Use it on every find, best, where, news, yacht, weather, legal, review, or preference question. Do not keyword-match a shop name and stop. Search news, reviews, posts, AIS, port notices, weather, wind, pollution, permits. Then pin a pick and 2 to 4 alternatives. Example: cleanest legal water to moor a yacht with privacy on the lee of the wind — check wastewater outfalls, swimming bans, no-anchor zones, harbour master, this weeks wind. If a megayacht is sitting on a sewage outfall, say that from sources, then offer cleaner legal coves. places[0] is the pick. Each place: name,lat,lng,raw,note (why / legal / wind / privacy). say is spoken research, 4 to 8 short sentences, no raw coordinates in say. Never invent a pin. Never let them game SpaceNet. English default; Greek when they write Greek. Owner is Notis Astranov in Rhodes.';
 
+const BUILD =
+  'You are Grok Build, the programmer inside SpaceNet support. The desk is already open. Judge this request in one pass. Reply with ONE JSON object only, no markdown. ' +
+  '{"say":"one or two plain sentences","gate":"build|forward|decline","act":"talk"} ' +
+  'gate=build when it helps the logic of the system for everyone: a bug, a broken control, routing, offers, clocks, listings, GPS, ribbons, tiles, the delivery chain, login, or the money rules already set. ' +
+  'gate=forward when only Notis Astranov, the owner, should decide: a new policy, a new market, a legal question, who may withdraw, approving or banning someone, or anything that is not a defect and not a whim. ' +
+  'gate=decline when it is one user liking it a certain way: colours, fonts, a personal skin, hiding a shop they dislike, jumping a queue, a bigger button only for them. ' +
+  'say names the gate in plain words. Never agree to build a personal preference. Never invent shops or money.';
+
 function cors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'authorization, content-type, apikey, x-client-info');
@@ -49,6 +57,7 @@ function parseAct(text) {
       out.q = String(o.q || o.query || '').trim();
       if (o.id) out.id = String(o.id);
       if (o.ok != null) out.ok = o.ok;
+      if (o.gate) out.gate = String(o.gate).toLowerCase();
       if (o.split) out.split = o.split;
       if (o.places) out.places = o.places;
       if (o.lat != null) out.lat = o.lat;
@@ -298,12 +307,12 @@ module.exports = async function handler(req, res) {
   body.force_paid = true;
   body.fast = true;
   body.spacenet = true;
-  body.system = SYS;
+  body.system = body.desk === 'build' ? BUILD : SYS;
 
   const key = process.env.XAI_API_KEY || process.env.GROK_API_KEY || '';
   const history = Array.isArray(body.history) ? body.history.slice(-16) : [];
   const here = body.here && typeof body.here === 'object' ? body.here : {};
-  const wx = await weatherOf(here.lat, here.lng);
+  const wx = body.desk === 'build' ? '' : await weatherOf(here.lat, here.lng);
   const whereLine =
     'View: ' +
     (here.level || 'globe') +
@@ -316,7 +325,7 @@ module.exports = async function handler(req, res) {
     '. Search the live web and X. Pin a pick plus alternatives. ' +
     'ROSTER is the live shops, drivers, clients and orders already on SpaceNet. If they ask for one of those, answer from ROSTER, act=open, q=the exact name. Do not invent a roster name.';
   const roster = String(body.world || '').trim().slice(0, 3500);
-  const messages = [{ role: 'system', content: SYS }];
+  const messages = [{ role: 'system', content: body.desk === 'build' ? BUILD : SYS }];
   history.forEach(function (h) {
     if (!h || !h.content) return;
     messages.push({
@@ -324,7 +333,7 @@ module.exports = async function handler(req, res) {
       content: String(h.content).slice(0, 800),
     });
   });
-  var net = await netResearch(message, here);
+  var net = body.desk === 'build' ? '' : await netResearch(message, here);
   messages.push({ role: 'user', content: whereLine + (roster ? '\nROSTER\n' + roster : '') + '\n' + net + '\nHuman: ' + message });
   body.messages = messages;
 
@@ -336,6 +345,7 @@ module.exports = async function handler(req, res) {
       text: text,
       say: p.say,
       act: p.act,
+      gate: p.gate || '',
       q: p.q,
       places: (extra.places && extra.places.length ? extra.places : p.places) || [],
       lat: p.lat,

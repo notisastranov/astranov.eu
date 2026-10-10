@@ -31,7 +31,7 @@ var TEXT_KEYS = [
   "customerPeer",
 ];
 var JSON_KEYS = ["avc", "ride", "held", "presence", "routes", "vehicles", "shop", "holdMin", "strict"];
-var WRITE_KINDS = { shop: 1, driver: 1, job: 1, peer: 1, gap: 1, post: 1, drop: 1 };
+var WRITE_KINDS = { shop: 1, driver: 1, job: 1, peer: 1, gap: 1, post: 1, drop: 1, supply: 1 };
 /* 4354: one shop, one delivery address and one driver listing per signed-in user: an APPLY updates that row in place */
 var ONE_PER_USER = { shop: 1, drop: 1, driver: 1 };
 var ADMIN_MAIL = { "notisastranov@gmail.com": 1, "info@astranov.eu": 1 };

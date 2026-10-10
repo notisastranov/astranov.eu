@@ -50,7 +50,7 @@ module.exports = async function handler(req, res) {
   }
   var qs = new URLSearchParams({
     select: SELECT,
-    kind: "in.(shop,driver,job,drop,peer)",
+    kind: "in.(shop,driver,job,drop,peer,supply)",
     order: "updated_at.desc",
     limit: "120"
   });
@@ -59,11 +59,11 @@ module.exports = async function handler(req, res) {
   });
   var json = [];
   try { json = await r.json(); } catch (e) { json = []; }
-  var buckets = { ok: !!r.ok, shops: [], drivers: [], drops: [], jobs: [], peers: [] };
+  var buckets = { ok: !!r.ok, shops: [], drivers: [], drops: [], jobs: [], peers: [], supply: [] };
   (Array.isArray(json) ? json : []).forEach(function (row) {
     var body = fromRow(row);
     if (!body) return;
-    var k = body.kind === "shop" ? "shops" : body.kind === "driver" ? "drivers" : body.kind === "drop" ? "drops" : body.kind === "job" ? "jobs" : body.kind === "peer" ? "peers" : "";
+    var k = body.kind === "shop" ? "shops" : body.kind === "driver" ? "drivers" : body.kind === "drop" ? "drops" : body.kind === "job" ? "jobs" : body.kind === "peer" ? "peers" : body.kind === "supply" ? "supply" : "";
     if (k) buckets[k].push(body);
   });
   if (req.method === "HEAD") {
