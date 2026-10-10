@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4351";
+  var VER = "4352";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -272,8 +272,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var bankAsked = false;
   var OWNER_CAPITAL = 3000000;
   function shownMoney() {
+    if (ownerMail()) return supplyView().pool;
     var n = Math.max(myMoney(), bankBal);
-    if (ownerMail() && !bankSeen && n < OWNER_CAPITAL) n = OWNER_CAPITAL;
     return Math.round(n);
   }
   function pullBank() {
@@ -281,11 +281,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var u = null, tok = "";
     try { u = (window.SNAuth && SNAuth.user && SNAuth.user()) || JSON.parse(localStorage.getItem("sn:user") || "null"); } catch (e) {}
     try { tok = (window.SNAuth && SNAuth.token && SNAuth.token()) || localStorage.getItem("sn:access") || ""; } catch (e2) {}
-    if (!u || !u.id || !tok) {
-      if (ownerMail()) bankBal = Math.max(bankBal, OWNER_CAPITAL);
-      paintMoney();
-      return;
-    }
+    if (!u || !u.id || !tok) return;
     fetch("/api/public-config", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (cfg) {
       if (!cfg || !cfg.anon || !cfg.sb) return null;
       return fetch(cfg.sb + "/rest/v1/profiles?id=eq." + encodeURIComponent(u.id) + "&select=avc_balance,balance", {
@@ -294,14 +290,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }).then(function (pack) {
       var row = pack && Array.isArray(pack.rows) ? pack.rows[0] : null;
       if (!row) {
-        if (ownerMail() && !bankSeen) bankBal = Math.max(bankBal, OWNER_CAPITAL);
         paintMoney();
         if (!bankSeen && signed()) setTimeout(pullBank, 2500);
         return;
       }
       var db = Number(row.avc_balance);
       if (!isFinite(db)) db = Number(row.balance);
-      if (!isFinite(db) || (ownerMail() && db <= 0)) return;
+      if (!isFinite(db) || db < 0) return;
       bankSeen = true;
       bankBal = db;
       var local = avcGet();
@@ -321,7 +316,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
       paintMoney();
     }).catch(function () {
-      if (ownerMail() && !bankSeen) bankBal = Math.max(bankBal, OWNER_CAPITAL);
       paintMoney();
       if (!bankSeen && signed()) setTimeout(pullBank, 2500);
     });
@@ -338,14 +332,105 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     return n;
   }
   function poolGet() {
+    return supplyView().pool;
+  }
+  function supplyGet() {
+    var s = { cashIn: 0, reserved: 0, consumed: 0, withdrawn: 0, vendorLock: 0, coupons: 0, locks: {} };
     try {
-      var b = JSON.parse(localStorage.getItem("sn:books") || "null");
-      if (b && isFinite(+b.pool)) return +b.pool;
+      var raw = JSON.parse(localStorage.getItem("sn:supply") || "null");
+      if (raw && typeof raw === "object") {
+        ["cashIn", "reserved", "consumed", "withdrawn", "vendorLock", "coupons"].forEach(function (k) {
+          if (isFinite(+raw[k])) s[k] = +raw[k];
+        });
+        if (raw.locks && typeof raw.locks === "object") s.locks = raw.locks;
+      }
     } catch (e) {}
-    try {
-      var n = Number(localStorage.getItem("sn:pool"));
-      return isFinite(n) ? n : 0;
-    } catch (e2) { return 0; }
+    return s;
+  }
+  function supplySet(s, quiet) {
+    try { localStorage.setItem("sn:supply", JSON.stringify(s)); } catch (e) {}
+    paintMoney();
+    if (quiet || !signed()) return;
+    var t = "";
+    try { t = (window.SNAuth && SNAuth.token && SNAuth.token()) || localStorage.getItem("sn:access") || ""; } catch (e2) {}
+    fetch("/api/space", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: t ? "Bearer " + t : "" },
+      body: JSON.stringify({ row: { id: "supply-pool", kind: "supply", lat: 36.434, lng: 28.217, note: JSON.stringify(s) } })
+    }).catch(function () {});
+  }
+  function supplyView() {
+    var s = supplyGet();
+    var cashIn = Math.round((Number(s.cashIn) || 0) * 100) / 100;
+    var reserved = Math.round((Number(s.reserved) || 0) * 100) / 100;
+    var withdrawable = Math.max(0, Math.round(((Number(s.consumed) || 0) - (Number(s.withdrawn) || 0)) * 100) / 100);
+    var vendorLock = Math.round((Number(s.vendorLock) || 0) * 100) / 100;
+    var stays = Math.round((reserved + vendorLock) * 100) / 100;
+    var pool = Math.round((cashIn + vendorLock) * 100) / 100;
+    return { pool: pool, withdrawable: withdrawable, stays: stays, cashIn: cashIn, reserved: reserved, vendorLock: vendorLock, coupons: Math.round((Number(s.coupons) || 0) * 100) / 100 };
+  }
+  function noteDeposit(n) {
+    n = Math.round(Number(n) * 100) / 100;
+    if (!(n > 0)) return;
+    var s = supplyGet();
+    s.cashIn = Math.round((s.cashIn + n) * 100) / 100;
+    s.reserved = Math.round((s.reserved + n) * 100) / 100;
+    supplySet(s);
+  }
+  function noteSpend(n) {
+    n = Math.round(Number(n) * 100) / 100;
+    if (!(n > 0)) return;
+    var s = supplyGet();
+    var move = Math.min(n, Math.max(0, s.reserved));
+    if (!(move > 0)) return;
+    s.reserved = Math.round((s.reserved - move) * 100) / 100;
+    s.consumed = Math.round((s.consumed + move) * 100) / 100;
+    supplySet(s);
+  }
+  function setVendorLock(id, name, amount) {
+    var s = supplyGet();
+    if (!s.locks) s.locks = {};
+    s.locks[id] = { name: name || "vendor", avc: Math.max(0, Math.round(Number(amount) * 100) / 100) };
+    var sum = 0;
+    Object.keys(s.locks).forEach(function (k) { sum += Number(s.locks[k] && s.locks[k].avc) || 0; });
+    s.vendorLock = Math.round(sum * 100) / 100;
+    supplySet(s);
+  }
+  function openPool() {
+    var v = supplyView();
+    var html = '<p class="sn-kicker">POOL</p>' +
+      '<p class="note">Deposits plus what vendors lock forever. Nothing here is printed.</p>' +
+      '<div class="sn-clocks"><div><b>' + v.withdrawable.toLocaleString("en-GB") + '</b><span>WITHDRAW</span></div><div><b>' + v.stays.toLocaleString("en-GB") + '</b><span>LEAVE INSIDE</span></div></div>' +
+      '<p class="note">Withdraw is only cash that clients already spent. Money still on a client stays reserved until it is consumed. Vendor lock is not euros. It never pays out. Coupons come out of that lock.</p>' +
+      '<p class="note">Cash in ' + v.cashIn.toLocaleString("en-GB") + " · still to spend " + v.reserved.toLocaleString("en-GB") + " · vendor lock " + v.vendorLock.toLocaleString("en-GB") + " · coupons " + v.coupons.toLocaleString("en-GB") + "</p>" +
+      '<button type="button" class="sheet-go primary" data-act="take-cash">WITHDRAW THE CASH</button>' +
+      '<input id="sn-coupon" inputmode="decimal" placeholder="Coupon AV€" />' +
+      '<button type="button" class="sheet-go" data-act="issue-coupon">ISSUE A COUPON</button>';
+    openTile({ kind: "pool", title: "POOL", mid: priceMid(v.pool), html: html });
+  }
+  function takeCash() {
+    if (!ownerMail()) { say("Only the owner withdraws."); return; }
+    var s = supplyGet();
+    var n = Math.max(0, Math.round((s.consumed - s.withdrawn) * 100) / 100);
+    if (!(n > 0)) { say("Nothing to withdraw. Unspent deposits and vendor locks stay inside."); return; }
+    s.withdrawn = Math.round((s.withdrawn + n) * 100) / 100;
+    supplySet(s);
+    say(n + " € is the cash you can take. Vendor lock stays in SpaceNet.");
+    openPool();
+  }
+  function issueCoupon() {
+    if (!ownerMail()) return;
+    var el = $("sn-coupon");
+    var n = Number(String(el && el.value || "").replace(",", "."));
+    n = Math.round(n * 100) / 100;
+    if (!(n > 0)) { say("Type the coupon."); return; }
+    var s = supplyGet();
+    var room = Math.max(0, Math.round((s.vendorLock - s.coupons) * 100) / 100);
+    if (n > room) { say("Coupons cannot pass what vendors locked. Room " + room + " AV€."); return; }
+    s.coupons = Math.round((s.coupons + n) * 100) / 100;
+    supplySet(s);
+    say("Coupon " + n + " AV€. It spends inside. It is not cash.");
+    openPool();
   }
   function paintMoney() {
     var btn = $("sn-money");
@@ -1654,6 +1739,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       '<input id="sn-place-name" placeholder="Name" />' +
       '<input id="sn-place-phone" placeholder="Phone" />' +
       '<input id="sn-place-address" placeholder="Address" />' +
+      '<input id="sn-place-lock" inputmode="decimal" placeholder="AV€ I accept and lock forever" />' +
       '<p class="note">ITEM · PRICE · QTY · HOURS</p>' +
       '<div id="sn-rows"></div>' +
       '<button type="button" class="sheet-go" data-act="add-row">ADD A MENU ROW</button>' +
@@ -2187,6 +2273,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       });
       shops = uniqPlaces(shops);
       paintPulse();
+      (j.supply || []).forEach(function (row) {
+        if (!row || !row.note) return;
+        try {
+          var remote = JSON.parse(row.note);
+          var local = supplyGet();
+          var rScore = (Number(remote.cashIn) || 0) + (Number(remote.vendorLock) || 0) + (Number(remote.consumed) || 0);
+          var lScore = (Number(local.cashIn) || 0) + (Number(local.vendorLock) || 0) + (Number(local.consumed) || 0);
+          if (rScore > lScore) supplySet(remote, true);
+        } catch (e) {}
+      });
       if (cityOn) paintShopsOnMap();
     }).catch(function () {});
   }
@@ -3861,6 +3957,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     d.avc = Math.round((d.avc + driverPay) * 100) / 100;
     job.released = true;
     booksSet(b);
+    noteSpend(total);
   }
   function placeMeDriver(pt) {
     if (!isAdmin() || !pt) return;
@@ -5154,10 +5251,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         html += '<input id="sn-add-eur" inputmode="decimal" placeholder="How many euro" />' +
           '<button type="button" class="sheet-go primary" data-act="add-eur">ADD WITH PAYPAL</button>' +
           '<button type="button" class="sheet-go" data-act="withdraw">WITHDRAW</button>';
-        if (isAdmin()) {
-          openTile({ kind: "books", title: "ACCOUNT", mid: priceMid(Math.round(poolGet() * 100) / 100), html: booksHtml() });
-          return;
-        }
+        if (ownerMail() || isAdmin()) { openPool(); return; }
         openSheet("AV€", html);
       });
     }
@@ -5307,7 +5401,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (act === "reload") location.reload();
       if (act === "terms") location.href = "/terms.html";
       if (act === "apply-vendor" || act === "apply-driver") say("Apply after LOGIN. Notis activates.");
-      if (act === "withdraw") say("Withdraw after a real job. PayPal on origin.");
+      if (act === "withdraw" || act === "take-cash") { takeCash(); return; }
+      if (act === "issue-coupon") { issueCoupon(); return; }
       if (act === "vendor" && isFinite(i) && shops[i]) openVendor(shops[i]);
       if (act === "order-here") {
         if (!vendor || !isFinite(+vendor.lat)) { say("Tap the vendor again."); return; }
@@ -5679,6 +5774,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var shotEl = $("sn-shot-place");
         var photo = shots.place || placePhoto || (shotEl && shotEl.getAttribute("src") && shotEl.getAttribute("src").indexOf("data:") === 0 ? shotEl.getAttribute("src") : "");
         var row = { id: id, kind: "shop", place: kn, name: nm, phone: phone, address: address, menu: menu, lat: listPt.lat, lng: listPt.lng, photo: photo, status: status, customerPeer: me(), owner: me() };
+        var lockEl = $("sn-place-lock");
+        if (lockEl && String(lockEl.value || "").trim() !== "") {
+          var lockN = Number(String(lockEl.value).replace(",", "."));
+          if (isFinite(lockN) && lockN >= 0) setVendorLock(id, nm, lockN);
+        }
         persistListing(row);
         shops = shops.filter(function (s) { return !s || s.id !== id; });
         shops.unshift({ id: id, name: nm, lat: listPt.lat, lng: listPt.lng, kind: kn, phone: phone, address: address, menu: menu, photo: photo, src: "listed", status: status, owner: me() });
@@ -6519,7 +6619,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
             try { dep = Number(localStorage.getItem("sn:pay-deposit") || 0); localStorage.removeItem("sn:pay-deposit"); } catch (e) {}
             if (dep > 0 && signed()) {
               avcSet(avcGet() + dep);
-              say("PayPal " + dep + " € on your account · " + avcGet() + " AV€.");
+              noteDeposit(dep);
+              say("PayPal " + dep + " € is locked in. It is spent inside, not paid back out.");
             } else say("PayPal captured. Transaction verified.");
           } else say((j && (j.error || j.message)) || "PayPal capture did not finish.");
         }).catch(function () { say("PayPal capture dark."); });
