@@ -139,7 +139,7 @@ function check(name, ok, info) { console.log((ok ? "PASS " : "FAIL ") + name + (
     const gb = await grab("boot", { x: 0, y: 0, w: geo.iw, h: geo.ih });
     console.log("[boot]", JSON.stringify(boot), gb.file);
     check("boot LIVE = real public network (" + boot.expect + ")", boot.expect > 0 && new RegExp("^LIVE · " + boot.expect + " vendors? on SpaceNet ·").test(boot.live), boot.live);
-    check("LATEST == /api/version", boot.latest === "LATEST " + boot.api && /^\d{4,}$/.test(String(boot.api)), boot.latest + " / " + boot.api);
+    check("LATEST == /api/version (with main 4332's update state word)", new RegExp("^LATEST " + boot.api + "( (UPDATED|CHECKING|UPDATING|FAILED TO UPDATE|PLEASE TRY TO UPDATE MANUALLY))?$").test(boot.latest) && /^\d{4,}$/.test(String(boot.api)), boot.latest + " / " + boot.api);
     if (!process.env.LOCAL_APP) check("running V == LATEST == " + STAMP, boot.ver === "V" + STAMP && String(boot.api) === STAMP, boot.ver + " / " + boot.api);
     check("TESTER ticker hidden (guest)", !boot.tester);
   }
