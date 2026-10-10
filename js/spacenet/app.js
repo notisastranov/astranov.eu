@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4349";
+  var VER = "4350";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1874,6 +1874,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet .sn-pick button{width:28px;height:28px;border-radius:8px;border:1px solid rgba(77,240,255,.5);background:#041018;color:#4df0ff;font:800 16px/1 system-ui}",
       "#sn-sheet #sn-prep{font:800 22px/1 system-ui!important;color:#4df0ff!important;letter-spacing:.04em}",
       "#sn-sheet .sheet-mid .sn-price small{font:800 14px/1 system-ui!important;letter-spacing:.12em!important;margin-left:6px!important}",
+      ".sn-kicker{margin:0 0 6px;font:800 15px/1.1 system-ui;letter-spacing:.08em;color:#7cf6ff}",
+      ".sn-clocks{display:flex;gap:8px;margin:0 0 8px}",
+      ".sn-clocks div{flex:1;text-align:center;border:1px solid rgba(77,240,255,.4);border-radius:10px;padding:6px 4px}",
+      ".sn-clocks b{display:block;font:800 28px/1 system-ui;color:#e8fbff;text-shadow:0 0 8px #4df0ff}",
+      ".sn-clocks span{font:700 10px/1.2 system-ui;letter-spacing:.08em;color:#b7fff6}",
+      ".sn-offer{margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(77,240,255,.22)}",
+      ".sn-offer .sn-amt{font:800 32px/1 system-ui;color:#e8fbff}",
       "#sn-sheet-body{padding:8px 10px 10px!important}",
       "#sn-sheet input,#sn-sheet textarea{margin:4px 0 0!important;padding:8px 10px!important;font-size:16px!important}",
       "#sn-sheet-body .sheet-go{display:block!important;width:100%!important;height:36px!important;margin:4px 0 0!important;box-sizing:border-box!important;font-size:13px!important;color:#e8fbff!important;background:#041018!important}",
@@ -2770,7 +2777,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var html = rows.map(function (j) {
       var v = j.vendor || {};
       var dish = (j.lines && j.lines[0] && j.lines[0].name) || "order";
-      return '<button type="button" class="sheet-go" data-act="open-job" data-id="' + esc(j.id) + '">' + esc((v.name || "Vendor") + " · " + dish + " · " + (j.fee || 0) + " AV€") + "</button>";
+      return '<button type="button" class="sheet-go" data-act="open-job" data-id="' + esc(j.id) + '">' +
+        esc((v.name || "Vendor") + " · " + dish + " · " + (j.fee || 0) + " AV€ · waiting " + clockText(offerAge(j)) + (offerLeft(j) > 0 ? " · " + clockText(offerLeft(j)) + " to accept" : " · not a live offer")) +
+        "</button>";
     }).join("");
     openTile({ kind: "orders", title: kind === "way" ? "ON THE WAY" : kind.toUpperCase(), html: html });
   }
@@ -2778,15 +2787,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var job = jobById(id);
     if (!job || !job.vendor) return;
     if (!cityOn) openCity(job.vendor);
-    if (map && isFinite(+job.vendor.lat)) {
-      try { map.setView([+job.vendor.lat, +job.vendor.lng], Math.max(15, cityZoom || 16), { animate: true }); } catch (e) {}
-    }
     if (job.drop && isFinite(+job.drop.lat)) drawRoute(job.vendor, job.drop);
-    var drivers = freeDrivers(job.vendor);
-    if (orderState(job) === "pending" && drivers.length) {
-      job.offeredTo = drivers[0].id;
-      saveJobs();
-      openDriverOffer(job, drivers);
+    if (orderState(job) === "pending" && offerLeft(job) > 0) { openOfferDesk(); return; }
+    if (orderState(job) === "pending") {
+      openTile({
+        kind: "waiting",
+        title: "WAITING ORDER",
+        mid: priceMid(job.fee),
+        html: '<p class="sn-kicker">WAITING ORDER</p><p class="note">This is not a new offer. It has been waiting ' + clockText(offerAge(job)) + ".</p>" +
+          '<button type="button" class="sheet-go primary" data-act="reoffer" data-id="' + esc(job.id) + '">SEND TO ALL DRIVERS</button>',
+        job: job.id
+      });
       return;
     }
     openVendor(job.vendor);
@@ -3251,8 +3262,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     askRoad(job.fault, job.fault.goal);
     if (multi) say(job.fault.name + " sat on the order. Other apps. Charged " + bill + " AV€ and closed today. A driver is coming to collect it.");
     else say(job.fault.name + " · move to the " + toward + ". Hand it over before the vendor's time and there is no penalty.");
-    var drivers = freeDrivers(job.fault);
-    if (drivers.length) openDriverOffer(job, drivers);
+    var drivers = castOffer(job);
+    saveJobs();
+    if (drivers.length) openOfferDesk();
     else say("No free driver to collect it yet.");
   }
   function watchRoute() {
@@ -3652,28 +3664,103 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       '<p class="note">How long the order stays good, minutes</p><input id="sn-life" inputmode="numeric" placeholder="Lifetime" />';
     openTile({ kind: "vendor-order", title: "VENDOR", mid: priceMid(job.fee), html: html, job: job.id });
   }
-  function openDriverOffer(job, drivers) {
+  function clockText(sec) {
+    sec = Math.max(0, Math.floor(Number(sec) || 0));
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    return m + ":" + (s < 10 ? "0" : "") + s;
+  }
+  function offerAge(job) {
+    var t = job && (job.offerAt || job.t) || Date.now();
+    return Math.max(0, Math.floor((Date.now() - t) / 1000));
+  }
+  function offerLeft(job) {
+    if (!job || job.driverAccepted || job.wasted || job.received) return 0;
+    var span = Number(job.offerFor);
+    if (!isFinite(span) || span <= 0) return 0;
+    if (!job.offerAt) return 0;
+    return Math.max(0, span - Math.floor((Date.now() - job.offerAt) / 1000));
+  }
+  function liveOffers() {
+    return jobs.filter(function (j) {
+      return j && !j.driverAccepted && !j.received && !j.wasted && !j.cancelled && offerLeft(j) > 0;
+    }).sort(function (a, b) { return (b.offerAt || 0) - (a.offerAt || 0); });
+  }
+  function offerDrivers(job) {
+    var all = freeDrivers(job && (job.fault && !job.fault.found ? job.fault : job.vendor));
+    var ids = (job && job.offerIds) || [];
+    if (!ids.length) return all;
+    var picked = all.filter(function (d) { return ids.some(function (id) { return String(id) === String(d.id); }); });
+    return picked.length ? picked : all;
+  }
+  function castOffer(job) {
+    var drivers = freeDrivers(job && (job.fault && !job.fault.found ? job.fault : job.vendor));
+    job.offerAt = Date.now();
+    job.offerFor = 180;
+    job.offerIds = drivers.map(function (d) { return d.id; });
+    job.offeredTo = "";
+    job.driverAccepted = false;
+    job.verified = false;
+    return drivers;
+  }
+  function offerCard(job) {
     var v = job.vendor || {};
     var d = job.drop || {};
-    var names = (drivers || []).map(function (p) { return p.name || "driver"; }).join(" · ");
-    var exp = expectedMin(v, d, job.km);
-    var leg = exp.n ? exp.min + " min on this road, this hour · " + exp.n + " drivers" : exp.min + " min · no history this hour";
-    var html;
-    if (job.fault && !job.fault.found) {
-      html = whoLine("COLLECT", job.fault.name, "moving to the " + job.fault.to) +
-        whoLine("THEN", d.name || "Client", [d.address, d.phone].filter(Boolean).join(" · ")) +
-        '<p class="note">' + esc(names || "No free driver") + "</p>";
-    } else {
-      var kmBit = isFinite(+job.km) ? Number(job.km).toFixed(1) + " km" : "";
-      html = '<button type="button" class="sheet-go primary" data-act="offer-yes" data-id="' + esc(job.id) + '">ACCEPT</button>' +
-        '<button type="button" class="sheet-go" data-act="offer-no" data-id="' + esc(job.id) + '">DECLINE</button>' +
-        '<div class="sn-leg">' + esc([kmBit, leg].filter(Boolean).join(" · ")) + "</div>" +
-        whoLine("VENDOR", v.name, [v.address, v.phone].filter(Boolean).join(" · ")) +
-        whoLine("CLIENT", d.name || "Client", [d.address, d.floor ? "floor " + d.floor : "", d.phone].filter(Boolean).join(" · ")) +
-        '<p class="note">' + esc(names || "No free driver") + "</p>";
+    var drivers = offerDrivers(job);
+    var fresh = offerLeft(job) > 0 && !job.driverAccepted;
+    var kicker = job.fault && !job.fault.found ? "COLLECT THIS ORDER" : (fresh ? "NEW OFFER FOR YOU" : "WAITING ORDER");
+    var buttons = drivers.map(function (p) {
+      return '<button type="button" class="sheet-go primary" data-act="offer-yes" data-id="' + esc(job.id) + '" data-drv="' + esc(p.id) + '">ACCEPT · ' + esc(p.name || "driver") + "</button>";
+    }).join("");
+    if (!buttons) buttons = '<p class="note">No free driver left.</p>';
+    return '<article class="sn-offer" data-id="' + esc(job.id) + '">' +
+      '<p class="sn-kicker">' + kicker + "</p>" +
+      '<b class="sn-amt">' + esc(job.fee || 0) + " AV€</b>" +
+      '<div class="sn-clocks"><div><b class="age">' + clockText(offerAge(job)) + '</b><span>WAITING</span></div><div><b class="left">' + clockText(offerLeft(job)) + '</b><span>TO ACCEPT</span></div></div>' +
+      whoLine("VENDOR", v.name, [v.address, v.phone].filter(Boolean).join(" · ")) +
+      whoLine("CLIENT", d.name || "Client", [d.address, d.phone].filter(Boolean).join(" · ")) +
+      '<p class="note">Sent to ' + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ". First accept wins.</p>" +
+      buttons +
+      '<button type="button" class="sheet-go" data-act="offer-no" data-id="' + esc(job.id) + '">DECLINE</button>' +
+      "</article>";
+  }
+  function openOfferDesk() {
+    var rows = liveOffers().slice(0, 8);
+    var extra = liveOffers().length - rows.length;
+    if (!rows.length) {
+      var sh = $("sn-sheet");
+      if (sh && sh.getAttribute("data-kind") === "driver-offer") closeSheet();
+      return;
     }
-    if (job && drivers && drivers[0] && !job.offeredTo) job.offeredTo = drivers[0].id;
-    openTile({ kind: "driver-offer", title: "OFFER", mid: priceMid(job.fee), html: html, job: job.id });
+    var html = (rows.length > 1 ? '<p class="note">' + rows.length + " live offers. Each one goes to every free driver. The first accept takes it.</p>" : "") +
+      rows.map(offerCard).join("") +
+      (extra > 0 ? '<p class="note">' + extra + " more behind these.</p>" : "");
+    openTile({
+      kind: "driver-offer",
+      title: rows.length === 1 ? "NEW OFFER FOR YOU" : rows.length + " NEW OFFERS",
+      mid: rows.length === 1 ? priceMid(rows[0].fee) : "",
+      html: html,
+      job: rows[0].id
+    });
+  }
+  function paintOfferClocks() {
+    var sh = $("sn-sheet");
+    if (!sh || !sh.classList.contains("on") || sh.getAttribute("data-kind") !== "driver-offer") return;
+    var dead = false;
+    var cards = sh.querySelectorAll(".sn-offer");
+    Array.prototype.forEach.call(cards, function (el) {
+      var job = jobById(el.getAttribute("data-id"));
+      if (!job || job.driverAccepted || offerLeft(job) <= 0) { dead = true; return; }
+      var age = el.querySelector(".age");
+      var left = el.querySelector(".left");
+      if (age) age.textContent = clockText(offerAge(job));
+      if (left) left.textContent = clockText(offerLeft(job));
+    });
+    if (dead) openOfferDesk();
+  }
+  function openDriverOffer(job) {
+    if (job && offerLeft(job) <= 0) castOffer(job);
+    openOfferDesk();
   }
 
   function myName() {
@@ -4008,30 +4095,34 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       stage: "drivers",
       ready: true, pickup: false, got: false, delivered: false, received: false,
       vendorAccepted: true, driverAccepted: false, verified: false,
-      offeredTo: drivers[0].id || "",
       driver: "", driverId: "",
       client: dest.owner || me(),
       vendorOwner: shop.owner || "",
       t: Date.now()
     };
+    var drivers = castOffer(job);
     jobs.unshift(job);
     saveJobs();
     publishJob(job);
     vendor = shop;
     drop = job.drop;
     if (!cityOn) openCity(shop);
-    say((shop.name || "Shop") + " → " + (drivers[0].name || "driver") + " · " + job.fee + " AV€. Accept or decline.");
-    openDriverOffer(job, drivers);
+    if (!drivers.length) { say("No free driver. The order is waiting."); return; }
+    say("New offer for you. " + job.fee + " AV€. Sent to " + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ". First accept wins. " + clockText(offerLeft(job)) + " to take it.");
+    openOfferDesk();
   }
-  function offerYes(id) {
+  function offerYes(id, drvId) {
     if (needLogin()) return;
     var job = jobById(id);
     if (!job || !job.vendor || !job.drop) { say("That offer is gone."); return; }
+    if (job.driverAccepted) { say((job.driver || "Someone") + " already took it."); openOfferDesk(); return; }
+    if (offerLeft(job) <= 0) { say("Too late. The time to accept is over."); openOfferDesk(); return; }
     if (!isAdmin() && myRole() !== "driver") { say("This offer is for the driver."); return; }
-    var drivers = freeDrivers(job.vendor);
+    var drivers = offerDrivers(job);
     var drv = null;
-    drivers.forEach(function (d) { if (!drv && job.offeredTo && String(d.id) === String(job.offeredTo)) drv = d; });
-    if (!drv) drv = drivers[0];
+    drivers.forEach(function (d) { if (!drv && drvId && String(d.id) === String(drvId)) drv = d; });
+    if (!drv) drivers.forEach(function (d) { if (!drv && (String(d.id) === String(rideArm) || d.owner === me())) drv = d; });
+    if (!drv && isAdmin()) drv = drivers[0];
     if (!drv) { say("No free driver left."); return; }
     job.driver = drv.name || "driver";
     job.driverId = drv.id || "";
@@ -4040,6 +4131,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     job.verified = true;
     job.ready = true;
     job.stage = "run";
+    job.offerFor = 0;
     escrowJob(job);
     saveJobs();
     publishJob(job);
@@ -4047,25 +4139,18 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!cityOn) openCity(job.vendor);
     drawRoute(job.vendor, job.drop);
     closeSheet();
-    say((job.driver) + " accepted. Route is on. " + job.fee + " AV€ is in the mutual account. Tap the map to move along the route.");
+    say((job.driver) + " took it. " + job.fee + " AV€. The others are too late. Route is on. Tap the map to move along the route.");
   }
   function offerNo(id) {
     var job = jobById(id);
     if (!job) { say("That offer is gone."); return; }
-    var drivers = freeDrivers(job.vendor).filter(function (d) { return String(d.id) !== String(job.offeredTo); });
+    if (job.driverAccepted) { say((job.driver || "Someone") + " already took it."); openOfferDesk(); return; }
+    job.offerFor = 0;
     job.driverAccepted = false;
     job.verified = false;
-    if (!drivers.length) {
-      job.offeredTo = "";
-      saveJobs();
-      closeSheet();
-      say("Declined. No other free driver.");
-      return;
-    }
-    job.offeredTo = drivers[0].id;
     saveJobs();
-    say("Declined. Offered to " + (drivers[0].name || "the next driver") + ".");
-    openDriverOffer(job, drivers);
+    say("Declined. " + (job.fee || 0) + " AV€ is off your desk.");
+    openOfferDesk();
   }
   function sheetNote(s) {
     var body = $("sn-sheet-body");
@@ -4139,10 +4224,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       job.stage = "drivers";
     }
     if (drivers.length) {
-      job.offeredTo = drivers[0].id;
+      castOffer(job);
       saveJobs();
-      openDriverOffer(job, drivers);
-      say("Offer is with " + (drivers[0].name || "the closest driver") + ". Accept it, then tap the map to move that driver.");
+      openOfferDesk();
+      say("New offer for you. " + job.fee + " AV€. Sent to " + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ". First accept wins. " + clockText(180) + " to take it.");
       return;
     }
     saveJobs();
@@ -4177,10 +4262,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     job.stage = "drivers";
     saveJobs();
     publishJob(job);
-    var drivers = freeDrivers(job.vendor);
+    var drivers = castOffer(job);
+    saveJobs();
     if (!drivers.length) { say("No free driver to take it."); return; }
-    say((job.vendor && job.vendor.name || "Vendor") + " accepted. Ready in " + mins + " min. Good for " + life + " min. Sent to " + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ".");
-    openDriverOffer(job, drivers);
+    say("New offer for you. " + job.fee + " AV€. Sent to " + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ". First accept wins.");
+    openOfferDesk();
   }
   function driverAccept() {
     var sh = $("sn-sheet");
@@ -5429,8 +5515,20 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         closeSheet();
         return;
       }
-      if (act === "offer-yes") { offerYes(t.getAttribute("data-id") || (function () { var sh = $("sn-sheet"); return sh && sh.getAttribute("data-job"); })()); return; }
+      if (act === "offer-yes") { offerYes(t.getAttribute("data-id") || (function () { var sh = $("sn-sheet"); return sh && sh.getAttribute("data-job"); })(), t.getAttribute("data-drv")); return; }
       if (act === "offer-no") { offerNo(t.getAttribute("data-id") || (function () { var sh = $("sn-sheet"); return sh && sh.getAttribute("data-job"); })()); return; }
+      if (act === "reoffer") {
+        var again = jobBy(t.getAttribute("data-id"));
+        if (!again) return;
+        var sent = castOffer(again);
+        again.stage = "drivers";
+        again.ready = true;
+        saveJobs();
+        if (!sent.length) { say("No free driver."); return; }
+        say("New offer for you. " + again.fee + " AV€. Sent to " + sent.length + ".");
+        openOfferDesk();
+        return;
+      }
       if (act === "run-offer") {
         if (!isAdmin()) { say("Only the administrator sends an offer on behalf of both."); return; }
         absorbMine();
@@ -6376,6 +6474,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }).catch(function () { pullResearch(); });
     setTimeout(pullQueue, 600);
     setInterval(pullQueue, 4000);
+    setInterval(paintOfferClocks, 1000);
     loadBlocks();
     setTimeout(pullLive, 1500);
     setInterval(pullLive, 8000);
