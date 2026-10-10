@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4332";
+  var VER = "4333";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1466,11 +1466,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-tester.stale{color:#8a6a6a;border-color:rgba(255,120,120,.35)}",
       "#sn-topchrome-drag,#cli-drag{display:block!important;height:10px!important;min-height:10px!important;max-height:10px!important;font-size:0!important;line-height:0!important;color:transparent!important;overflow:hidden!important}",
       "#top{top:0!important;left:0!important;right:0!important;margin:0!important;padding:0!important;display:flex!important;flex-direction:column!important}",
-      "#island{position:relative!important;z-index:2!important;padding-left:52px!important;padding-right:52px!important}",
-      "#island .r1,#island .r2{flex-wrap:wrap!important;overflow:visible!important;white-space:normal!important;height:auto!important}",
+      "#island{position:relative!important;z-index:2!important;padding-left:64px!important;padding-right:64px!important}",
+      "#island .r1,#island .r2{flex-wrap:wrap!important;overflow:visible!important;white-space:normal!important;height:auto!important}","#ver,#sn-latest,#sn-update,#sn-brand-a,#sn-brand-s{letter-spacing:.02em!important;font-size:12px!important;line-height:1.15!important}",
       "#sn-sheet .card,#sn-sheet.tall .card,#sn-tasks .card{max-height:42vh!important}",
-      "#sn-power{position:fixed!important;top:8px!important;left:max(6px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:60!important}",
-      "#sn-support{position:fixed!important;top:8px!important;right:max(6px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;transform:none!important;z-index:60!important}",
+      "#sn-power{position:fixed!important;top:4px!important;left:max(4px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;width:40px!important;height:40px!important;transform:none!important;z-index:60!important}",
+      "#sn-support{position:fixed!important;top:4px!important;right:max(4px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;width:40px!important;height:40px!important;transform:none!important;z-index:60!important}",
       "#sn-money{position:fixed!important;top:64px!important;left:max(6px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:46!important}",
       "#sn-globe{position:fixed!important;top:64px!important;right:max(6px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;z-index:60!important;width:40px!important;height:40px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;align-items:center!important;justify-content:center!important}",
       "#sn-globe svg{width:22px;height:22px;display:block}",
