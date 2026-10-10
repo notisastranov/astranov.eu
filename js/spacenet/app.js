@@ -369,6 +369,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     } catch (e) {}
     return false;
   }
+  function needLogin() {
+    if (signed()) return false;
+    say("LOGIN first.");
+    return true;
+  }
   function visRect(el) {
     if (!el) return null;
     var cs = getComputedStyle(el);
@@ -2394,7 +2399,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           clickT = setTimeout(function () {
             clickT = 0;
             /* main 4334: an admin with a ride armed nudges it to the clicked point (single click only) */
-            if (llA && isAdmin() && rideArm) { try { nudgeArmed(llA); } catch (eN) {} }
+            if (llA && isAdmin() && rideArm && !needLogin()) { try { nudgeArmed(llA); frameView(llA); } catch (eN) {} }
             var rec = window.__snMapClick || {};
             var sh = $("sn-sheet"), kind = sh && sh.classList.contains("on") ? (sh.getAttribute("data-kind") || "") : "";
             var w2 = "";
@@ -2494,6 +2499,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     say("Global view.");
   }
   function listAt(pt) {
+    if (needLogin()) return;
     if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
     listPt = { lat: pt.lat, lng: pt.lng };
     listAlt = altitudeFromDist(cam.dist);
@@ -2517,6 +2523,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     openTile({ kind: "list", title: "LIST", html: html });
   }
   function persistListing(row) {
+    if (needLogin()) return;
     if (!row) return;
     row.id = row.id || (String(row.kind || "x")[0] + Date.now().toString(36));
     function stash(list) {
@@ -2942,6 +2949,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-cloud button{pointer-events:auto!important;border:0!important;background:transparent!important;color:#e8fbff!important;font:700 12px/1 system-ui!important;padding:6px 8px!important;white-space:nowrap!important}",
       "#sn-cloud.off{display:none!important}",
       "#sn-cloud b{color:#4df0ff!important;font:800 18px/1 system-ui!important;margin-right:4px!important}",
+      ".sn-sel{display:block!important;border-radius:14px!important;box-shadow:0 0 0 3px #e8fbff, 0 0 0 7px #1236ff, 0 0 22px 4px #3d6bff!important}",
+      ".leaflet-sn-route-pane{filter:saturate(2.4) brightness(1.55)!important}",
       ".sn-obubble{background:transparent!important;border:0!important}",
       ".sn-obubble b{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-width:28px!important;height:28px!important;padding:0 8px!important;border-radius:999px!important;background:rgba(4,16,28,.94)!important;color:#e8fbff!important;border:1.5px solid #4df0ff!important;font:800 13px/1 system-ui!important;box-shadow:0 0 14px rgba(77,240,255,.65)!important;white-space:nowrap!important}",
       "#sn-sheet .sn-pick img,#sn-sheet .sn-pick .sn-mini{width:52px!important;height:52px!important;max-width:52px!important;max-height:52px!important;object-fit:cover;border-radius:10px;border:1px solid rgba(77,240,255,.45)}",
@@ -3908,13 +3917,42 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       : '<em>' + (role === "driver" ? "🏍️" : role === "client" ? "🧍" : "🏪") + "</em>";
     return '<span class="sn-pin">' + (no ? '<i class="sn-no">' + (+no) + "</i>" : "") + mark + "<b>" + esc(name || role) + "</b></span>";
   }
-  function faceIcon(role, photo, name, no) {
+  function faceIcon(role, photo, name, no, on) {
     return L.divIcon({
-      className: "sn-shop-pin",
-      html: faceHtml(role, photo, name, no),
-      iconSize: [76, 62],
-      iconAnchor: [38, 31]
+      className: "sn-shop-pin" + (on ? " sn-on" : ""),
+      html: '<span class="' + (on ? "sn-sel" : "sn-pinwrap") + '">' + faceHtml(role, photo, name, no) + "</span>",
+      iconSize: [84, 70],
+      iconAnchor: [42, 35]
     });
+  }
+  function routePane() {
+    if (!map || map.getPane("sn-route")) return;
+    var pane = map.createPane("sn-route");
+    pane.style.zIndex = "450";
+    pane.style.pointerEvents = "none";
+  }
+  function frameView(pt) {
+    if (!map || !pt || !isFinite(+pt.lat) || typeof L === "undefined") return;
+    var b = L.latLngBounds([+pt.lat, +pt.lng], [+pt.lat, +pt.lng]);
+    if (rideArm) {
+      people.forEach(function (p) {
+        if (p && String(p.id) === String(rideArm) && isFinite(+p.lat)) b.extend([+p.lat, +p.lng]);
+      });
+      if (driverPin && String(driverPin.id) === String(rideArm) && isFinite(+driverPin.lat)) b.extend([+driverPin.lat, +driverPin.lng]);
+    }
+    Object.keys(roadPaint).forEach(function (k) {
+      (roadPaint[k] || []).forEach(function (layer) {
+        if (layer && layer.getBounds) { try { b.extend(layer.getBounds()); } catch (e) {} }
+      });
+    });
+    var span = haversineKm(
+      { lat: b.getSouthWest().lat, lng: b.getSouthWest().lng },
+      { lat: b.getNorthEast().lat, lng: b.getNorthEast().lng }
+    );
+    try {
+      if (!isFinite(span) || span > 6) map.setView([+pt.lat, +pt.lng], Math.max(16, Math.min(18, cityZoom || 16)), { animate: true });
+      else map.fitBounds(b.pad(0.25), { padding: [56, 56], maxZoom: 17, animate: true });
+    } catch (e) {}
   }
   function paintShopsOnMap() {
     if (!map || typeof L === "undefined") return;
@@ -4311,19 +4349,22 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function paintRoads(id, lines, chosen) {
     if (!map || typeof L === "undefined" || !lines || !lines.length) return;
+    routePane();
     (roadPaint[id] || []).forEach(function (l) { try { map.removeLayer(l); } catch (e) {} });
     roadPaint[id] = [];
     lines.forEach(function (line, i) {
       var ll = line.map(function (p) { return [p.lat, p.lng]; });
       var on = i === chosen;
-      var glow = L.polyline(ll, { color: "#4df0ff", weight: on ? 18 : 10, opacity: on ? 0.34 : 0.14, interactive: false }).addTo(map);
-      var core = L.polyline(ll, { color: on ? "#e8fbff" : "#7ee9ff", weight: on ? 5 : 3, opacity: on ? 1 : 0.72 }).addTo(map);
+      var casing = L.polyline(ll, { pane: "sn-route", color: "#02040a", weight: on ? 26 : 16, opacity: 0.9, interactive: false, lineCap: "round", lineJoin: "round" }).addTo(map);
+      var glow = L.polyline(ll, { pane: "sn-route", color: "#1236ff", weight: on ? 16 : 10, opacity: 1, interactive: false, lineCap: "round", lineJoin: "round" }).addTo(map);
+      var core = L.polyline(ll, { pane: "sn-route", color: "#b8ffff", weight: on ? 6 : 3, opacity: 1, interactive: true, lineCap: "round", lineJoin: "round" }).addTo(map);
+      /* 4355: the bright line opens the ROUTE card (order steps), a dim one is picked; the pane stays click-through elsewhere */
       core.on("click", function (e) {
         if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent);
         if (on) openRouteTile(id);
         else pickRoad(id, i);
       });
-      roadPaint[id].push(glow, core);
+      roadPaint[id].push(casing, glow, core);
       var total = lineKm(line);
       if (total < 0.05) return;
       var marks = on ? [] : [total / 2];
@@ -4826,12 +4867,26 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         (function (person, mark) {
           mark.on("click", function (ev) {
             if (ev && ev.originalEvent) L.DomEvent.stop(ev.originalEvent);
-            if (!isAdmin()) { openPerson(person, "driver"); return; }
-            if (String(rideArm) === String(person.id)) { rideArm = null; say((person.name || "Driver") + " released. The map tap will not move them."); }
-            else { rideArm = person.id; say((person.name || "Driver") + " selected. Tap along the route to move."); }
+            if (needLogin()) return;
+            var now = Date.now();
+            var last = mark.__tap || 0;
+            mark.__tap = now;
+            if (now - last < 380) { openPerson(person, "driver"); return; }
+            if (!isAdmin()) return;
+            closeSheet();
+            rideArm = person.id;
+            mark.__on = true;
+            mark.setIcon(faceIcon("driver", person.photo, person.name || "driver", null, true));
+            say((person.name || "Driver") + " selected. Tap the map to move.");
           });
         })(p, motionMarks[id]);
-      } else motionMarks[id].setLatLng([step.lat, step.lng]);
+      }
+      var selected = !!(rideArm && String(rideArm) === String(p.id));
+      if (motionMarks[id].__on !== selected) {
+        motionMarks[id].__on = selected;
+        motionMarks[id].setIcon(faceIcon("driver", p.photo, p.name || "driver", null, selected));
+      }
+      motionMarks[id].setLatLng([step.lat, step.lng]);
       try {
         if (!motionMarks[id].getTooltip()) motionMarks[id].bindTooltip(step.label, { permanent: !!isAdmin(), direction: "right" });
         else motionMarks[id].setTooltipContent(step.label);
@@ -4864,7 +4919,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       mark.bindTooltip(label, { direction: "top" });
       mark.on("click", function (e) {
         if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent);
-        openActor(color === "driver" ? "driver" : "client", pt);
+        if (needLogin()) return;
+        var now = Date.now();
+        var last = mark.__tap || 0;
+        mark.__tap = now;
+        if (color !== "driver" || now - last < 380) { openActor(color === "driver" ? "driver" : "client", pt); return; }
+        if (!isAdmin()) return;
+        closeSheet();
+        rideArm = pt.id;
+        say((pt.name || "Driver") + " selected. Tap the map to move.");
       });
       mark.on("dragend", function () {
         var ll = mark.getLatLng();
@@ -6003,6 +6066,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     openDriverOffer(job, drivers);
   }
   function offerYes(id) {
+    if (needLogin()) return;
     var job = jobById(id);
     if (!job || !job.vendor || !job.drop) { say("That offer is gone."); return; }
     if (!isAdmin() && myRole() !== "driver") { say("This offer is for the driver."); return; }
@@ -6122,6 +6186,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
 
   function checkoutVendor() {
+    if (needLogin()) return;
     if (silenced(me())) { sheetNote("You are shut down. No orders until it lifts."); return; }
     if (!vendor) { sheetNote("Tap the vendor again."); return; }
     var body = $("sn-sheet-body");
