@@ -189,7 +189,7 @@ function sameSet(f) {
       api: vj.latest, ver: (document.getElementById("ver") || {}).textContent || "", tester: !!(t && getComputedStyle(t).display !== "none" && t.offsetParent !== null && t.textContent.trim()), here: window.__SN_HERE };
   });
   console.log("[boot]", JSON.stringify(boot));
-  check(new RegExp("^LIVE · " + boot.expect + " vendors? on SpaceNet ·").test(boot.live) && boot.expect > 0, "boot LIVE counts the real public network (" + boot.expect + " listed, no fixtures)", boot.live);
+  check((boot.expect > 0 ? new RegExp("^LIVE · " + boot.expect + " vendors? on SpaceNet ·").test(boot.live) : /^LIVE · no public vendors on SpaceNet ·/.test(boot.live)), "boot LIVE counts the real public network (" + boot.expect + " listed, no fixtures)", boot.live);
   check(new RegExp("^LATEST " + boot.api + "( (UPDATED|CHECKING|UPDATING|FAILED TO UPDATE|PLEASE TRY TO UPDATE MANUALLY))?$").test(boot.latest) && /^\d{4,}$/.test(String(boot.api)), "LATEST shows /api/version (" + boot.api + ", with main 4332's update state)", boot.latest);
   if (!process.env.LOCAL_APP) check(String(boot.api) === String(process.env.STAMP || "4357") && boot.ver === "V" + (process.env.STAMP || "4355"), "running build == LATEST == STAMP", boot.ver + " / " + boot.api);
   check(!boot.tester, "TESTER ticker hidden for a guest");
@@ -211,7 +211,8 @@ function sameSet(f) {
     await sleep(1200);
     await page.screenshot({ path: path.join(SHOTS, "boot-ip-city.png") });
     const seq = await page.evaluate(() => window.__liveSeq || []);
-    const counts = [...new Set(seq.map((x) => (x[1].match(/LIVE · (\d+) (?:place|vendor)/) || [])[1]).filter(Boolean))];
+    /* 4357: an empty real network reads 'no public vendors on SpaceNet' (counted as 0), the honest phrase */
+    const counts = [...new Set(seq.map((x) => (x[1].match(/LIVE · (\d+) (?:place|vendor)/) || (/LIVE · no public vendors on SpaceNet/.test(x[1]) ? [0, "0"] : []))[1]).filter((v) => v != null))];
     console.log("   LIVE sequence:", JSON.stringify(seq.map((x) => x[0] + ":" + x[1])));
     check(counts.length === 1, "LIVE shows one final count on load (loading first, no jump)", JSON.stringify(counts));
   }

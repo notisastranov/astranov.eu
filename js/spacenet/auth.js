@@ -318,7 +318,7 @@
       applyReturn().then(function () { paintMe(); });
     });
   }
-  window.SNAuth = { google: google, youtube: youtube, yt: yt, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
+  window.SNAuth = { refresh: refresh, google: google, youtube: youtube, yt: yt, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 })();

@@ -345,9 +345,30 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     fetch("/api/public-config", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (cfg) {
       if (!cfg || !cfg.anon || !cfg.sb) return null;
-      return fetch(cfg.sb + "/rest/v1/profiles?id=eq." + encodeURIComponent(u.id) + "&select=avc_balance,balance", {
-        headers: { apikey: cfg.anon, Authorization: "Bearer " + tok, Accept: "application/json" }
-      }).then(function (r) { return r.json(); }).then(function (rows) { return { cfg: cfg, rows: rows, id: u.id, tok: tok }; });
+      /* 4357 (q): avc_balance is not column-granted to authenticated (403 even with a good JWT) and a stale access token
+         gives 401. Ask the own-row RPC sn_my_balance() (SECURITY DEFINER, prepared migration, not applied) with the user's
+         JWT; on 401 refresh the session once and retry; if the RPC is not there yet, stop asking this session */
+      function ask(t2) {
+        return fetch(cfg.sb + "/rest/v1/rpc/sn_my_balance", {
+          method: "POST",
+          headers: { apikey: cfg.anon, Authorization: "Bearer " + t2, Accept: "application/json", "Content-Type": "application/json" },
+          body: "{}"
+        });
+      }
+      if (window.__snBalRpc === false) return { cfg: cfg, rows: [], id: u.id, tok: tok };
+      return ask(tok).then(function (r) {
+        if (r.status === 401 && window.SNAuth && SNAuth.refresh) {
+          return SNAuth.refresh().then(function () { tok = SNAuth.token() || tok; return ask(tok); });
+        }
+        return r;
+      }).then(function (r) {
+        window.__snBalStatus = r.status;
+        if (r.status === 404) { window.__snBalRpc = false; return []; }
+        return r.ok ? r.json() : [];
+      }).then(function (rows) {
+        if (rows && !Array.isArray(rows)) rows = [rows];
+        return { cfg: cfg, rows: rows || [], id: u.id, tok: tok };
+      });
     }).then(function (pack) {
       var row = pack && Array.isArray(pack.rows) ? pack.rows[0] : null;
       if (!row) {
@@ -363,7 +384,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       bankBal = db;
       var local = avcGet();
       if (db > local) avcSet(db);
-      else if (local > db && local > 0) {
+      else if (local > db && local > 0 && window.__snBalPatch === true) { /* 4357: the client never raises its own balance */
         bankBal = local;
         fetch(pack.cfg.sb + "/rest/v1/profiles?id=eq." + encodeURIComponent(pack.id), {
           method: "PATCH",
@@ -4226,6 +4247,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!job || !job.vendor) return;
     if (!cityOn) openCity(job.vendor);
     if (job.drop && isFinite(+job.drop.lat)) drawRoute(job.vendor, job.drop);
+    /* 4357 (l): an ON THE WAY row opens the order card: the route card with its steps, driver and client */
+    if (orderState(job) === "way" && job.drop && isFinite(+job.drop.lat)) {
+      try { openRouteTile(roadKey(job.vendor, job.drop)); return; } catch (eW) {}
+    }
     if (orderState(job) === "pending" && offerLeft(job) > 0) { openOfferDesk(); return; }
     if (orderState(job) === "pending") {
       openTile({
@@ -4396,7 +4421,21 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   /* 4355: the hunt's real pin count, readable from the DOM for remines:
      <html> and the LIVE pill (#sn-pulse) carry data-hunt-pins / data-hunt-query / data-hunt-state (running|done) /
      data-hunt-cached (1 when the last real pins were reused because every live source failed) */
+  function huntBadge(n, state) {
+    var el = $("sn-hunt-n");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "sn-hunt-n";
+      el.style.cssText = "position:fixed;left:max(6px,env(safe-area-inset-left));top:76px;z-index:60;padding:4px 10px;border-radius:999px;background:rgba(4,16,32,.92);border:1px solid #4df0ff;color:#e8fbff;font:800 12px/1.2 system-ui;pointer-events:none";
+      document.body.appendChild(el);
+    }
+    if (state === "off" || n == null || !huntView) { el.style.display = "none"; return; }
+    el.textContent = String(huntLabel()).toUpperCase() + " · " + (state === "busy" ? "looking…" : n + " real pin" + (n === 1 ? "" : "s"));
+    el.style.display = "block";
+  }
   function markHunt(n, state) {
+    /* 4357 (p): the count is also on screen (main hides #line), in #sn-hunt-n */
+    try { huntBadge(n, state); } catch (eB) {}
     var c = window.__snHuntCache;
     var a = { "data-hunt-pins": String(n == null ? "" : n), "data-hunt-query": huntView ? String(huntLabel()) : "", "data-hunt-state": state || "done", "data-hunt-cached": c && c.used ? "1" : "0" };
     window.__snHuntPins = n;
@@ -4988,14 +5027,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
             var now = Date.now();
             var last = mark.__tap || 0;
             mark.__tap = now;
-            if (now - last < 380) { openPerson(person, "driver"); return; }
-            if (!isAdmin()) return;
-            closeSheet();
-            rideArm = person.id;
-            mark.__on = true;
-            mark.__head = driverHead(person, step);
-            mark.setIcon(faceIcon("driver", person.photo, person.name || "driver", true, mark.__head));
-            say((person.name || "Driver") + " selected. Tap the map to move.");
+            /* 4357 (k): a tap only opens the driver card; moving starts from its MOVE THIS DRIVER button, with a cue and EXIT */
+            openPerson(person, "driver");
           });
         })(p, motionMarks[id]);
       }
@@ -5043,11 +5076,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var now = Date.now();
         var last = mark.__tap || 0;
         mark.__tap = now;
-        if (color !== "driver" || now - last < 380) { openActor(color === "driver" ? "driver" : "client", pt); return; }
-        if (!isAdmin()) return;
-        closeSheet();
-        rideArm = pt.id;
-        say((pt.name || "Driver") + " selected. Tap the map to move.");
+        /* 4357 (k, l): a tap opens the driver / client card; it never arms a move */
+        openActor(color === "driver" ? "driver" : "client", pt);
       });
       mark.on("dragend", function () {
         var ll = mark.getLatLng();
@@ -5925,6 +5955,26 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     progMoveUntil = Date.now() + 600;
     try { if (map && isFinite(+s.lat)) map.panTo([+s.lat, +s.lng], { animate: false }); } catch (e) {}
   }
+  function canMove(pt) { return !!(pt && pt.id && (isAdmin() || (pt.owner && pt.owner === me()))); }
+  function armMove(id, name) {
+    rideArm = id;
+    var el = $("sn-move");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "sn-move";
+      el.style.cssText = "position:fixed;left:50%;transform:translateX(-50%);top:78px;z-index:70;display:flex;gap:10px;align-items:center;padding:6px 8px 6px 14px;border-radius:999px;background:rgba(4,16,32,.94);border:2px solid #ffd84d;color:#fff;font:800 12px/1 system-ui;box-shadow:0 0 16px rgba(255,216,77,.55)";
+      document.body.appendChild(el);
+    }
+    el.innerHTML = '<span>MOVING ' + esc(String(name || "driver").toUpperCase()) + ' · tap the map</span><button type="button" data-act="move-exit" style="border:0;border-radius:999px;background:#ff4d6a;color:#fff;font:800 12px system-ui;padding:6px 10px">EXIT</button>';
+    el.setAttribute("data-id", String(id));
+    el.style.display = "flex";
+  }
+  function exitMove() {
+    rideArm = null;
+    var el = $("sn-move");
+    if (el) { el.style.display = "none"; el.removeAttribute("data-id"); }
+  }
+  window.__snMove = function () { var el = $("sn-move"); return { arm: rideArm, cue: !!(el && el.style.display !== "none"), id: el ? el.getAttribute("data-id") : null }; };
   function openPerson(pt, role) {
     if (!pt) return;
     var mark = role === "driver" ? "🏍" : "📍";
@@ -5932,6 +5982,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (pt.rain) bits.push("rain");
     if (pt.night) bits.push("night");
     var html = '<div class="sn-prof">' + tilePhoto(pt.photo, mark) + "<div><b>" + esc(pt.name || role) + "</b>" + tileContact(pt.phone, bits.join(" · ")) + "</div></div>";
+    if (role === "driver" && canMove(pt)) html += '<button type="button" class="sheet-go" data-act="move-arm" data-id="' + esc(pt.id) + '">MOVE THIS DRIVER</button>';
     openTile({ kind: role === "driver" ? "driver" : "client", title: (pt.name || role).toUpperCase(), html: html });
     try { if (map && isFinite(+pt.lat)) map.panTo([+pt.lat, +pt.lng], { animate: false }); } catch (e) {}
   }
@@ -6138,7 +6189,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     savePeople();
     driverPin = { id: id, lat: +pt.lat, lng: +pt.lng, name: name, photo: "", manual: true, owner: me() };
     try { localStorage.setItem("sn:driver", JSON.stringify(driverPin)); } catch (e) {}
-    rideArm = id;
+    armMove(id, name);
     if (!cityOn) openCity(pt);
     else paintShopsOnMap();
     say(name + " is the driver here. Tap the map to move. Start an order from a shop, or hold and tap Start the order.");
@@ -6309,7 +6360,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!isAdmin() || !rideArm || !ll) return;
     var p = null;
     people.forEach(function (x) { if (x && String(x.id) === String(rideArm)) p = x; });
-    if (!p) { rideArm = null; return; }
+    if (!p) { exitMove(); return; }
     var pt = { lat: +ll.lat, lng: +ll.lng };
     var job = null;
     jobs.forEach(function (j) {
@@ -6417,7 +6468,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     escrowJob(job);
     saveJobs();
     publishJob(job);
-    rideArm = drv.id;
+    armMove(drv.id, drv.name || "driver");
     if (!cityOn) openCity(job.vendor);
     drawRoute(job.vendor, job.drop);
     /* 4355: the route card opens with the order steps (READY · PICKUP · ON THE BIKE · DELIVERED · RECEIVED) and names the driver who took it */
@@ -6513,6 +6564,23 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     return null;
   }
 
+  function saveCartOnly() {
+    var dishEl = $("sn-dish"), priceEl = $("sn-dish-price");
+    var typed = dishEl ? String(dishEl.value || "").trim() : "";
+    var vendor = null;
+    try { vendor = targetVendor(); } catch (e) {}
+    if (typed && vendor) {
+      var pr = moneyOf(priceEl && priceEl.value);
+      if (!(pr > 0)) { sheetNote("Put a price on " + typed + ", then the green check."); return; }
+      try { rememberDish(vendor, { name: typed, n: 1, price: String(pr) }); } catch (eR) {}
+    }
+    try { if (listBack && listBack.kind === "vendor") pickSave(listBack.frag, listBack.vkey); } catch (eS) {}
+    var n = 0;
+    try { n = cartPicks(); } catch (eC) {}
+    window.__snCartSaved = (window.__snCartSaved || 0) + 1;
+    sheetNote((n > 0 ? n + " in the cart. " : "Saved. ") + "Nothing was sent. Tap ORDER to send it to the drivers.");
+    say((n > 0 ? n + " in the cart" : "Saved") + ". ORDER sends it.");
+  }
   function checkoutVendor() {
     if (needLogin()) return;
     if (silenced(me())) { sheetNote("You are shut down. No orders until it lifts."); return; }
@@ -6680,7 +6748,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var kind = sh && sh.getAttribute("data-kind");
     if (kind === "books") return saveBooksFromSheet();
     if (kind === "receipt") return clientGot(sh && sh.getAttribute("data-job"));
-    if (kind === "vendor") return checkoutVendor();
+    /* 4357 (j): the green check on a vendor / dish card only saves the dishes into the cart. It never sends an offer;
+       ORDER on the card is the one way an order goes out */
+    if (kind === "vendor") return saveCartOnly();
     if (kind === "vendor-order") return vendorAccept();
     if (kind === "driver-offer") return driverAccept();
     if (kind === "review") return applyReview();
@@ -6840,7 +6910,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     job.ready = true;
     saveJobs();
     publishJob(job);
-    openJobs();
+    /* 4357: no JOBS overlay; the route card is the order view */
     say(job.vendor.name + " is ready for pickup.");
   }
   function verifyPickup(id) {
@@ -6852,7 +6922,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     job.pickup = true;
     saveJobs();
     publishJob(job);
-    openJobs();
+    /* 4357: no JOBS overlay; the route card is the order view */
     say("Pickup verified" + (isAdmin() ? " on behalf of the vendor." : "."));
   }
   function driverGot(id) {
@@ -6867,7 +6937,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (isAdmin()) job.pickup = true;
     saveJobs();
     publishJob(job);
-    openJobs();
+    /* 4357: no JOBS overlay; the route card is the order view */
     drawRoute(job.vendor, job.drop);
     say("On the motorbike. Route is to the client.");
   }
@@ -6882,7 +6952,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     noteTrip(job);
     saveJobs();
     publishJob(job);
-    openJobs();
+    /* 4357: no JOBS overlay; the route card is the order view */
     say("Delivered. Ask the client to verify it.");
     openHandoff(job);
   }
@@ -6899,7 +6969,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     releaseJob(job);
     saveJobs();
     publishJob(job);
-    openJobs();
+    /* 4357: no JOBS overlay; the route card is the order view */
     say("Received. Vendor and driver are paid from the mutual account. The cut stays there.");
     closeSheet();
   }
@@ -6921,10 +6991,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     closeSheet();
   }
   function materialize(need) {
-    var row = $("sn-filters");
-    if (!row) return;
-    if (need) row.classList.add("mat");
-    else row.classList.remove("mat");
+    var row = $("sn-filters"); /* 4357 (m): the row is gone from the DOM; the layout still runs */
+    if (row) { if (need) row.classList.add("mat"); else row.classList.remove("mat"); }
     layoutChrome();
   }
   function needFilter() {
@@ -8131,6 +8199,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         researchLens = t.getAttribute("data-k") || "ALL";
         var keep = shownResearch()[0] || RESEARCH[0];
         openResearch(keep);
+        return;
+      }
+      if (act === "move-exit") { exitMove(); say("Move mode off. Map taps move nobody."); return; }
+      if (act === "move-arm") {
+        var mid = t.getAttribute("data-id"), mp = null;
+        people.forEach(function (x) { if (x && String(x.id) === String(mid)) mp = x; });
+        if (!mp && driverPin && String(driverPin.id) === String(mid)) mp = driverPin;
+        if (!canMove(mp)) { say("Only the driver or the admin can move this pin."); return; }
+        closeSheet();
+        armMove(mp.id, mp.name);
+        say("Moving " + (mp.name || "the driver") + ". Tap the map. EXIT stops it.");
         return;
       }
       if (act === "cloud") { openOrderList(t.getAttribute("data-k") || "pending"); return; }
@@ -9527,6 +9606,26 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     canvas = $("g");
     if (!canvas) return;
     ctx = canvas.getContext("2d");
+    /* 4357: a lost 2D context (GPU pressure, tab restore) leaves the globe black: let it restore, and rebuild the canvas
+       when it stays lost (same element); window.__snCtx counts losses / rebuilds for remines */
+    window.__snCtx = { lost: 0, restored: 0, rebuilt: 0 };
+    function armCtx(cv) {
+      cv.addEventListener("contextlost", function (e) { try { e.preventDefault(); } catch (eP) {} window.__snCtx.lost++; window.__snCtx.at = Date.now(); });
+      cv.addEventListener("contextrestored", function () { window.__snCtx.restored++; window.__snCtx.at = 0; ctx = cv.getContext("2d"); });
+    }
+    armCtx(canvas);
+    setInterval(function () {
+      try {
+        var gone = (ctx && ctx.isContextLost && ctx.isContextLost()) || (window.__snCtx.at && Date.now() - window.__snCtx.at > 1500);
+        if (!gone || cityOn) return;
+        var w0 = canvas.width;
+        canvas.width = 0;
+        canvas.width = w0; /* reallocate the backing store; same element, so no listener is bound twice */
+        ctx = canvas.getContext("2d");
+        window.__snCtx.at = 0;
+        window.__snCtx.rebuilt++;
+      } catch (eW) {}
+    }, 1000);
     seedStars();
     cam.yaw = (20 * Math.PI) / 180 - earthSpin();
     cam.pitch = 0.22;

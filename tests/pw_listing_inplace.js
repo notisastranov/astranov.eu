@@ -150,6 +150,20 @@ const rowsOf = (kind, peer) => [...DB.values()].filter((r) => r.kind === kind &&
   const fill = (page, vals) => page.evaluate((v) => { for (const k in v) { const e = document.getElementById(k); if (e) { e.value = v[k]; e.dispatchEvent(new Event("input", { bubbles: true })); } } }, vals);
   const center = (page) => page.evaluate(() => { const c = SN.getMap().getCenter(); return { lat: c.lat, lng: c.lng }; });
   const shot = (page, n) => page.screenshot({ path: path.join(SHOTDIR, n + ".png") });
+  /* 4357: bring one marker (picked by a test on its element) into the open map above the card; returns its centre */
+  const focusPin = (page, src) => page.evaluate((src) => {
+    const pick = new Function("e", "return (" + src + ")(e);");
+    const m = SN.getMap(); if (!m) return null;
+    let hit = null; m.eachLayer((l) => { if (!hit && l._icon && l.getLatLng && pick(l._icon)) hit = l; });
+    if (!hit) return null;
+    const c = m.getContainer().getBoundingClientRect();
+    const card = document.querySelector("#sn-sheet.on .card"); const top = card ? card.getBoundingClientRect().top : c.bottom;
+    m.setView(hit.getLatLng(), m.getZoom(), { animate: false });
+    const want = { x: c.left + c.width / 2, y: c.top + Math.max(60, (top - c.top) * 0.45) };
+    m.panBy([0, (c.top + c.height / 2) - want.y], { animate: false });
+    const r = hit._icon.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }, src);
+
 
   const ONLY = process.env.ONLY || "VHI";
   /* ---------------- B..G: signed-in vendor ---------------- */
@@ -342,6 +356,49 @@ const rowsOf = (kind, peer) => [...DB.values()].filter((r) => r.kind === kind &&
   console.log("[J pickup]", JSON.stringify({ flags: r2.flags, next: r2.next, line: (await st(ap)).line }));
   check("J: PICKUP advances (pickup verified, next ON THE BIKE) when the admin stands on the vendor, else it stays the bright next step (no fake advance)", (r2.flags.pickup && r2.next === "driver-got") || (!r2.flags.pickup && r2.next === "verify-pickup" && r2.steps[1].primary && !r2.steps[1].dis), JSON.stringify({ flags: r2.flags, next: r2.next, pickLine }));
   await ap.evaluate(() => { const b = document.querySelector("#sn-sheet .sheet-bar .sheet-x"); if (b) b.click(); }); await sleep(600);
+  /* ---- K (4357): j cart-only check, k move mode cue + exit, l ON THE WAY row + client pin, m no JOBS/FIND/NODE ---- */
+  const mv = () => ap.evaluate(() => window.__snMove ? window.__snMove() : null);
+  const m0 = await mv();
+  check("K/k: ACCEPT arms the accepted driver WITH a visible MOVING cue and an EXIT", !!(m0 && m0.arm && m0.cue && String(m0.id) === String(m0.arm)) && await ap.evaluate(() => { const e = document.querySelector('#sn-move [data-act="move-exit"]'); return !!(e && e.offsetParent); }), JSON.stringify(m0));
+  await ap.click('#sn-move [data-act="move-exit"]'); await sleep(400);
+  const m1 = await mv();
+  const peopleBefore = await ap.evaluate(() => localStorage.getItem("sn:people"));
+  await listAtPx(ap, 70, 60).catch(() => {}); await ap.keyboard.press("Escape").catch(() => {}); await sleep(300);
+  await ap.mouse.click(640 + 90, 360 + 80); await sleep(900);
+  const peopleAfter = await ap.evaluate(() => localStorage.getItem("sn:people"));
+  check("K/k: EXIT ends move mode (no arm, no cue) and a later map tap moves no pin", m1 && !m1.arm && !m1.cue && peopleBefore === peopleAfter, JSON.stringify({ m1, moved: peopleBefore !== peopleAfter }));
+  await ap.evaluate(() => { const b = document.querySelector("#sn-sheet .sheet-bar .sheet-x"); if (b) b.click(); }); await sleep(400);
+  const drvPin = await focusPin(ap, "(e) => e.classList.contains('sn-drv') || /🏍/.test(e.textContent)"); await sleep(300);
+  if (drvPin) { await ap.mouse.click(drvPin.x, drvPin.y); await sleep(900); }
+  const sD = await st(ap); const m2 = await mv();
+  check("K/k: a plain tap on a driver pin opens the driver card and does NOT start move mode", !!drvPin && sD.kind === "driver" && !m2.arm && !m2.cue, JSON.stringify({ drvPin, kind: sD.kind, m2 }));
+  const armed = await clickAct(ap, "move-arm");
+  const m3 = await mv();
+  check("K/k: MOVE THIS DRIVER on the card is the explicit start: one named pin, cue on", armed && !!m3.arm && m3.cue && String(m3.id) === String(m3.arm), JSON.stringify({ armed, m3 }));
+  await ap.evaluate(() => { const b = document.querySelector('#sn-move [data-act="move-exit"]'); if (b) b.click(); }); await sleep(300);
+  const domGone = await ap.evaluate(() => !document.getElementById("sn-tasks-btn") && !document.getElementById("sn-find-btn") && !document.getElementById("sn-node-btn") && !document.getElementById("sn-filters"));
+  if (process.env.LOCAL_APP) console.log("NOTE K/m: index.html comes from the preview under LOCAL_APP; JOBS/FIND/NODE gone:", domGone, "(checked on the live run)");
+  else check("K/m: JOBS / FIND / NODE are not in the DOM", domGone, "");
+  // l: the ON THE WAY row opens the order (route) card
+  const way = await ap.evaluate(() => { const b = document.querySelector('#sn-cloud [data-k="way"]'); if (!b) return null; const n = (b.textContent.match(/\d+/) || [0])[0]; b.click(); return n; }); await sleep(900);
+  const rowOk = await ap.evaluate(() => { const b = document.querySelector('#sn-sheet [data-act="open-job"]'); if (!b) return false; b.click(); return true; }); await sleep(1200);
+  const sW = await st(ap);
+  check("K/l: an ON THE WAY row opens the order card (the route card with the steps)", way !== null && rowOk && sW.kind === "route", JSON.stringify({ way, rowOk, kind: sW.kind }));
+  const cliPin = await focusPin(ap, "(e) => /INPLACE ADMIN CLIENT/.test(e.textContent) || /📍/.test(e.textContent)"); await sleep(300);
+  if (cliPin) { await ap.mouse.click(cliPin.x, cliPin.y); await sleep(900); }
+  const sC = await st(ap);
+  check("K/l: on the route card, tapping the client pin opens the client card", !!cliPin && sC.kind === "client", JSON.stringify({ cliPin, kind: sC.kind, title: sC.title }));
+  await ap.evaluate(() => { const b = document.querySelector("#sn-sheet .sheet-bar .sheet-x"); if (b) b.click(); }); await sleep(500);
+  // j: the check on a vendor card with a dish picked saves the cart only, never an offer
+  const jobsN = async () => ap.evaluate(() => JSON.parse(localStorage.getItem("sn:jobs") || "[]").length);
+  const j0 = await jobsN();
+  apb = await ap.evaluate(() => { const b = [...document.querySelectorAll(".sn-shop-pin b")].find((e) => e.textContent.trim() === "INPLACE ADMIN SHOP"); if (!b) return null; const r = b.closest(".leaflet-marker-icon").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+  if (apb) { await ap.mouse.click(apb.x, apb.y); await sleep(1200); }
+  await ap.evaluate(() => { const d = document.getElementById("sn-dish"), p = document.getElementById("sn-dish-price"); if (d) d.value = "Margherita"; if (p) p.value = "9"; });
+  const sV = await st(ap);
+  await ap.evaluate(() => { const b = document.querySelector("#sn-sheet .sheet-bar .sheet-apply"); if (b) b.click(); }); await sleep(1200);
+  const j1 = await jobsN(); const sJ = await st(ap);
+  check("K/j: the green check on a vendor / dish card saves the cart only: no new order, no offer desk", sV.kind === "vendor" && j1 === j0 && sJ.kind !== "offer-desk" && sJ.kind !== "driver-offer" && await ap.evaluate(() => (window.__snCartSaved || 0) >= 1), JSON.stringify({ kindBefore: sV.kind, j0, j1, kindAfter: sJ.kind }));
   check("admin run: no page errors", A.errors.length === 0, JSON.stringify(A.errors.slice(0, 4)));
   await A.ctx.close();
   }
@@ -369,6 +426,8 @@ const rowsOf = (kind, peer) => [...DB.values()].filter((r) => r.kind === kind &&
   await shot(gp, "I-hunt-all-down-cached");
   check("I: the hunt pin count is readable in the DOM (html + LIVE pill data-hunt-pins = pins shown, state done)", h1.dom.pins === String(h1.shown) && h1.dom.pulse === String(h1.shown) && h1.dom.state === "done", JSON.stringify(h1.dom));
   check("I: with every live source empty, the hunt falls back to the last real pins for 'pizza' here (cached)", h2.shown > 0 && h2.cache && h2.cache.used === true && h2.dom.pins === String(h2.shown) && h2.dom.cached === "1", JSON.stringify(h2));
+  const badge = await gp.evaluate(() => { const e = document.getElementById("sn-hunt-n"); if (!e) return null; const r = e.getBoundingClientRect(); return { t: e.textContent, vis: r.width > 0 && r.height > 0 && getComputedStyle(e).display !== "none" && r.top >= 0 && r.top < innerHeight }; });
+  check("I/p: the hunt pin count is visible on screen (#sn-hunt-n), matching the pins shown", !!badge && badge.vis && new RegExp("\\b" + h2.shown + " real pins?").test(badge.t), JSON.stringify({ badge, shown: h2.shown }));
   check("hunt run: no page errors", G.errors.length === 0, JSON.stringify(G.errors.slice(0, 4)));
   await G.ctx.close();
   }
