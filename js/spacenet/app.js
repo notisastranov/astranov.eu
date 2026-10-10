@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4340";
+  var VER = "4341";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -847,27 +847,29 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }).catch(function () {});
   }
   function loop(now) {
-    var dt = Math.min(0.05, lastT ? (now - lastT) / 1000 : 0.016);
-    lastT = now;
-    if (!introT0) introT0 = now;
-    if (intro && now - introT0 >= INTRO_MS) endIntro();
-    stepCam(now, dt);
-    tickNews(now);
-    if (!cityOn) { drawGlobe(now); drawCard(now); }
-    if (skyOn) drawSky(now);
-    paintMonitor(now);
-    maybeLayout();
+    try {
+      var dt = Math.min(0.05, lastT ? (now - lastT) / 1000 : 0.016);
+      lastT = now;
+      if (!introT0) introT0 = now;
+      if (intro && now - introT0 >= INTRO_MS) endIntro();
+      stepCam(now, dt);
+      tickNews(now);
+      if (!cityOn) { drawGlobe(now); drawCard(now); }
+      if (skyOn) drawSky(now);
+      paintMonitor(now);
+      maybeLayout();
+      if (!window.__SN_SW) {
+        window.__SN_SW = true;
+        try {
+          if (navigator.serviceWorker) navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {});
+        } catch (e) {}
+      }
+    } catch (err) {
+      window.__SN_LOOP_ERR = String(err && (err.message || err));
+    }
+    window.__SN_EARTH = true;
+    window.__SN_4254 = true;
     requestAnimationFrame(loop);
-    requestAnimationFrame(function () {
-      window.__SN_EARTH = true;
-      window.__SN_4254 = true;
-      try {
-        if (navigator.serviceWorker && !window.__SN_SW) {
-          window.__SN_SW = true;
-          navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {});
-        }
-      } catch (e) {}
-    });
   }
   function nowMs() { return Date.now(); }
   function pos(e) {
@@ -5964,7 +5966,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       paintPower: function () { var p = $("sn-power"); if (p) p.hidden = false; },
       projectTest: function (lat, lng) { return project(lat, lng, cam); }
     };
-    Object.defineProperty(window, "__SN_INTRO", { get: function () { return intro; } });
+    try {
+      Object.defineProperty(window, "__SN_INTRO", { configurable: true, get: function () { return intro; } });
+    } catch (e) {}
     requestAnimationFrame(loop);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
