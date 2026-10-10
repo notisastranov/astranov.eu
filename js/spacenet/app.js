@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4338";
+  var VER = "4339";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -80,6 +80,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var pinch = null;
   var holdT = 0;
   var cityOn = false;
+  var cardHits = [];
   var skyOn = false;
   var skyHits = [];
   var skyAsked = false;
@@ -687,9 +688,21 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     return rows;
   }
   function tickNews() {}
+  function hitCard(x, y) {
+    var i;
+    for (i = cardHits.length - 1; i >= 0; i--) {
+      var g = cardHits[i];
+      if (x >= g.x && x <= g.x + g.w && y >= g.y && y <= g.y + g.h) return g;
+    }
+    return null;
+  }
   function drawCard() {
+    cardHits = [];
     if (!ctx || cityOn || !view || cam.dist > 3.4) return;
-    var rows = cardsNow().filter(function (row) { return row && (row.k === "CALENDAR" || row.k === "NEWS" || row.k === "WARN" || row.k === "WARNING"); });
+    var rows = cardsNow().filter(function (row) {
+      if (!row || vidHidden(row)) return false;
+      return row.k === "CALENDAR" || row.k === "NEWS" || row.k === "VIDEO" || row.k === "WARN" || row.k === "WARNING";
+    });
     rows.forEach(function (row, i) {
       var lat = isFinite(+row.lat) ? +row.lat : 36.43;
       var lng = isFinite(+row.lng) ? +row.lng : 28.22;
@@ -730,7 +743,22 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ctx.font = "600 11px system-ui,sans-serif";
       ctx.fillText(text, x + 8, y + 16, w - 16);
       ctx.restore();
+      cardHits.push({ x: x, y: y, w: w, h: h, row: row });
     });
+  }
+  function pullVideos() {
+    fetch("/api/videos?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
+      var cards = j && j.cards;
+      if (!cards || !cards.length) return;
+      var rest = BRIEF.filter(function (c) { return !c || c.k !== "VIDEO"; });
+      BRIEF = rest.concat(cards.map(function (c, i) {
+        c = c || {};
+        c.k = "VIDEO";
+        if (!isFinite(+c.lat)) c.lat = 20 + i * 18;
+        if (!isFinite(+c.lng)) c.lng = -20 + i * 40;
+        return c;
+      }));
+    }).catch(function () {});
   }
   function loop(now) {
     var dt = Math.min(0.05, lastT ? (now - lastT) / 1000 : 0.016);
@@ -831,6 +859,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (!d || d.moved) return;
       vel.yaw = 0; vel.pitch = 0;
       var pUp = pos(e);
+      var card = hitCard(pUp.x, pUp.y);
+      if (card && card.row && card.row.k === "VIDEO") { openVidChoice(card.row); return; }
       if (!globeHit(pUp.x, pUp.y, cam)) {
         var con = pickConstellation(pUp.x, pUp.y);
         if (con) openSky(con);
@@ -978,8 +1008,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     aim = { lat: here.lat, lng: here.lng };
     openCity(aim);
     if (map) {
-      try { map.setView([aim.lat, aim.lng], 17); } catch (e) {}
-      setTimeout(function () { try { if (map) { map.invalidateSize(); map.setView([aim.lat, aim.lng], 17); } } catch (e) {} }, 80);
+      var z = cityZoom || 16;
+      try { map.setView([aim.lat, aim.lng], z); } catch (e) {}
+      setTimeout(function () { try { if (map) { map.invalidateSize(); map.setView([aim.lat, aim.lng], cityZoom || z); } } catch (e) {} }, 80);
     }
     var tag = pt.how === "net" ? "Network" : pt.how === "admin" ? "Admin pin" : pt.how === "saved" ? "Last fix" : "GPS";
     say(tag + " " + here.lat.toFixed(4) + "," + here.lng.toFixed(4) + (pt.name ? " · " + pt.name : "") + " · city");
@@ -989,15 +1020,160 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!intro) return;
     intro = false;
   }
+
+  var cityZoom = 16;
+  var driveMode = "north";
+  var heading = 0;
+  var lastFix = null;
+  var vidLater = {};
+  var vidSkip = {};
+  var vidLove = {};
+  try { vidSkip = JSON.parse(localStorage.getItem("sn:vid-skip") || "{}") || {}; } catch (e) {}
+  try { vidLove = JSON.parse(localStorage.getItem("sn:vid-love") || "{}") || {}; } catch (e) {}
+  function vidKey(row) { return String((row && (row.v || row.video || row.id || row.t)) || ""); }
+  function vidHidden(row) {
+    var k = vidKey(row);
+    return !!(k && (vidLater[k] || vidSkip[k]));
+  }
+  function bearingDeg(a, b) {
+    var p1 = a.lat * Math.PI / 180, p2 = b.lat * Math.PI / 180, dl = (b.lng - a.lng) * Math.PI / 180;
+    var y = Math.sin(dl) * Math.cos(p2);
+    var x = Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl);
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  }
+  function paintCompass() {
+    var b = $("sn-compass");
+    if (!b) return;
+    b.classList.toggle("head", driveMode === "head");
+    var lbl = b.querySelector(".lbl");
+    var tgt = b.querySelector(".tgt");
+    if (lbl) lbl.textContent = driveMode === "head" ? "DRIVE" : "NORTH";
+    if (tgt) tgt.textContent = driveMode === "head" ? String(Math.round(heading) || 0) : "N";
+  }
+  function applyBearing() {
+    if (!map || driveMode !== "head" || !map._getMapPanePos) return;
+    var pane = map.getPane("mapPane");
+    if (!pane) return;
+    var pos = map._getMapPanePos();
+    var size = map.getSize();
+    pane.style.transformOrigin = (-pos.x + size.x / 2) + "px " + (-pos.y + size.y / 2) + "px";
+    pane.style.transform = "translate3d(" + pos.x + "px, " + pos.y + "px, 0) rotate(" + (-heading) + "deg)";
+  }
+  function armNorth() {
+    driveMode = "north";
+    paintCompass();
+    if (map) {
+      try { map.setView(map.getCenter(), map.getZoom(), { animate: false }); } catch (e) {}
+    }
+    closeSheet();
+  }
+  var headOn = false;
+  function listenHead() {
+    if (headOn) return;
+    headOn = true;
+    window.addEventListener("deviceorientation", function (e) {
+      if (driveMode !== "head" || !e) return;
+      var h = null;
+      if (e.webkitCompassHeading != null && isFinite(+e.webkitCompassHeading)) h = +e.webkitCompassHeading;
+      else if (e.absolute && e.alpha != null && isFinite(+e.alpha)) h = (360 - e.alpha) % 360;
+      if (h == null) return;
+      heading = h;
+      paintCompass();
+      if (cityOn) applyBearing();
+    }, true);
+  }
+  function armDrive() {
+    driveMode = "head";
+    var D = window.DeviceOrientationEvent;
+    if (D && typeof D.requestPermission === "function") {
+      D.requestPermission().then(function () { listenHead(); applyBearing(); }).catch(function () { listenHead(); });
+    } else listenHead();
+    paintCompass();
+    if (cityOn) applyBearing();
+    closeSheet();
+  }
+  function freshFix(then) {
+    if (!navigator.geolocation) { if (then) then(null); return; }
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      if (!pos || !pos.coords) { if (then) then(null); return; }
+      var pt = { lat: pos.coords.latitude, lng: pos.coords.longitude, how: "gps" };
+      var moved = lastFix ? haversineKm(lastFix, pt) : 0;
+      if (pos.coords.heading != null && isFinite(+pos.coords.heading) && +pos.coords.heading >= 0) heading = +pos.coords.heading;
+      else if (lastFix && moved > 0.008) heading = bearingDeg(lastFix, pt);
+      lastFix = { lat: pt.lat, lng: pt.lng };
+      if (!adminPin) {
+        hereLive = { lat: pt.lat, lng: pt.lng };
+        here = hereLive;
+        window.__SN_HERE = here;
+        try { localStorage.setItem("sn:here", JSON.stringify(here)); } catch (e) {}
+      }
+      if (youMark && map && here) { try { youMark.setLatLng([here.lat, here.lng]); } catch (e2) {} }
+      paintCompass();
+      if (driveMode === "head" && map && cityOn && here) {
+        try { map.panTo([here.lat, here.lng], { animate: true }); } catch (e3) {}
+        applyBearing();
+      }
+      if (then) then(pt);
+    }, function () { if (then) then(null); }, { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 });
+  }
+  function ensureCompass() {
+    var b = $("sn-compass");
+    if (b) return b;
+    b = document.createElement("button");
+    b.type = "button";
+    b.id = "sn-compass";
+    b.setAttribute("aria-label", "Compass");
+    b.innerHTML = '<span class="lbl">NORTH</span><span class="tgt">N</span>';
+    var gps = $("gps");
+    if (gps && gps.parentNode) gps.parentNode.insertBefore(b, gps);
+    else document.body.appendChild(b);
+    return b;
+  }
+  function openCompass() {
+    openTile({
+      kind: "compass",
+      title: "COMPASS",
+      html: '<button type="button" class="sheet-go" data-act="compass-north">NORTH</button><button type="button" class="sheet-go primary" data-act="compass-drive">DRIVE · MAP TURNS WITH ME</button>'
+    });
+  }
+  function openVidChoice(row) {
+    if (!row) return;
+    var id = vidKey(row);
+    var html = '<p class="note">' + esc(row.t || "Video") + "</p>" +
+      '<button type="button" class="sheet-go" data-act="vid-meh" data-id="' + esc(id) + '">NOT INTERESTING</button>' +
+      '<button type="button" class="sheet-go" data-act="vid-never" data-id="' + esc(id) + '">DON\'T SHOW THIS AGAIN</button>' +
+      '<button type="button" class="sheet-go primary" data-act="vid-love" data-id="' + esc(id) + '">VERY INTERESTING</button>';
+    openTile({ kind: "video", title: "VIDEO", html: html });
+  }
   function bindGps() {
     var btn = $("gps");
-    if (!btn || btn.__snGpsLock) return;
-    btn.__snGpsLock = true;
-    btn.addEventListener("click", function (ev) {
-      ev.preventDefault(); ev.stopPropagation();
-      adminPin = false;
-      locate(function (pt) { land(pt, false); });
-    }, true);
+    if (btn && !btn.__snGpsLock) {
+      btn.__snGpsLock = true;
+      btn.addEventListener("click", function (ev) {
+        ev.preventDefault(); ev.stopPropagation();
+        adminPin = false;
+        var seed = here || hereLive;
+        if (seed && isFinite(+seed.lat)) land({ lat: +seed.lat, lng: +seed.lng, how: "saved" }, false);
+        freshFix(function (pt) {
+          if (!pt) { if (!seed) say("GPS did not answer."); return; }
+          if (pt && map && cityOn) {
+            try { map.setView([pt.lat, pt.lng], cityZoom || 16, { animate: true }); } catch (e) {}
+            if (youMark) { try { youMark.setLatLng([pt.lat, pt.lng]); } catch (e2) {} }
+          } else if (pt) land(pt, false);
+          say("GPS recalibrated.");
+        });
+      }, true);
+    }
+    var comp = ensureCompass();
+    if (comp && !comp.__sn) {
+      comp.__sn = true;
+      comp.addEventListener("click", function (ev) {
+        ev.preventDefault(); ev.stopPropagation();
+        openCompass();
+      });
+    }
+    paintCompass();
+    if (!window.__SN_GPS13) window.__SN_GPS13 = setInterval(function () { freshFix(null); }, 13000);
   }
   function openCity(pt) {
     if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
@@ -1012,12 +1188,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, minZoom: 12 }).addTo(map);
       map.on("zoomend", function () {
         try {
-          if (map && map.getZoom() <= 12.5) {
+          var z = map.getZoom();
+          if (z > 12.5) cityZoom = z;
+          if (z <= 12.5) {
             closeCity();
             zoomToDist(1.25);
           }
         } catch (e) {}
       });
+      map.on("move", function () { if (driveMode === "head") applyBearing(); });
       var lastTap = 0, clickTimer = 0;
       map.on("click", function (e) {
         var t = Date.now();
@@ -1513,6 +1692,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-architect{position:fixed!important;top:112px!important;right:max(6px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;z-index:60!important;width:40px!important;height:40px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;align-items:center!important;justify-content:center!important;font:800 16px/1 ui-monospace,system-ui!important;box-shadow:0 0 12px rgba(77,240,255,.35)!important}",
       "#sn-me{position:fixed!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;top:auto!important;bottom:calc(var(--dock) + 16px)!important;z-index:46!important}",
       "#gps{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:calc(var(--dock) + 16px)!important;z-index:46!important}",
+      "#sn-compass{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;bottom:calc(var(--dock) + 112px)!important;top:auto!important;z-index:47!important;width:48px!important;height:48px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;box-shadow:0 0 12px rgba(77,240,255,.35)!important}",
+      "#sn-compass .lbl{display:block!important;font:800 8px/1 system-ui!important;letter-spacing:.06em!important}",
+      "#sn-compass .tgt{display:block!important;font:800 14px/1 system-ui!important}",
+      "#sn-compass.head{color:#7dff9a!important;border-color:#7dff9a!important}",
       "#sn-above{position:static!important;height:0!important;padding:0!important;margin:0!important;display:block!important;background:transparent!important}",
       "#plus,#go{position:fixed!important;bottom:max(8px,env(safe-area-inset-bottom))!important;top:auto!important;z-index:60!important;width:44px!important;height:44px!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.7)!important;background:rgba(4,16,28,.92)!important}",
       "#plus{left:max(6px,env(safe-area-inset-left))!important;right:auto!important}",
@@ -4525,6 +4708,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
       if (act === "self-ride") say("Hold the map. List the vendor, the delivery address, and a driver. Then send the offer.");
       if (act === "place-order") { checkoutVendor(); return; }
+      if (act === "compass-north") { armNorth(); return; }
+      if (act === "compass-drive") { armDrive(); return; }
+      if (act === "vid-meh" || act === "vid-never" || act === "vid-love") {
+        var id = t.getAttribute("data-id") || "";
+        if (act === "vid-meh") vidLater[id] = 1;
+        if (act === "vid-never") { vidSkip[id] = 1; try { localStorage.setItem("sn:vid-skip", JSON.stringify(vidSkip)); } catch (e) {} }
+        if (act === "vid-love") { vidLove[id] = Date.now(); try { localStorage.setItem("sn:vid-love", JSON.stringify(vidLove)); } catch (e2) {} if (typeof pushNotice === "function") pushNotice("Kept."); }
+        closeSheet();
+        return;
+      }
       if (act === "pick-more" || act === "pick-less") {
         var row = t.closest && t.closest(".sn-pick");
         var em = row && row.querySelector(".n");
@@ -5627,7 +5820,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           return c;
         });
       }
-    }).catch(function () {});
+      pullVideos();
+    }).catch(function () { pullVideos(); });
     setTimeout(pullQueue, 600);
     setInterval(pullQueue, 4000);
     loadBlocks();
