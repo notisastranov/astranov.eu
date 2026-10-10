@@ -17,7 +17,7 @@ const { chromium } = require("playwright");
 const { execSync } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path");
 const BASE = process.env.PREVIEW_URL || "https://astranov-git-grokbuild-4328-street-level-gps-astranov.vercel.app/";
-const STAMP = process.env.STAMP || "4358";
+const STAMP = process.env.STAMP || "4359";
 const URL0 = BASE + (BASE.includes("?") ? "&" : "?") + "v=" + STAMP + "&t=" + Date.now();
 const [WW, WH] = (process.env.WIN || "1920x1200").split("x").map(Number);
 const SCALE = Number(process.env.SCALE || 1.5);
