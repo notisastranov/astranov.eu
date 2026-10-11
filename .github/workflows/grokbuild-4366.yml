@@ -1,0 +1,35 @@
+name: grokbuild 4366 (merge main 71020739, grip, input keys, stamps 4366; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4366.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix68, assert tree, merge commit with main, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "b3b600430c3c93c4b37b089f4835d3b52cf56eb9" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          git fetch -q origin main
+          git cat-file -e 710207395f13e5c88889d21ab19a552e504fb2dd^{commit}
+          base64 -d .grokbuild/fix68.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "64b215fd85157378e2604883689501f1786054558596c6045e7383cad37aa2ab"
+          gunzip -c /tmp/f.gz > /tmp/fix68.patch
+          test "$(sha256sum /tmp/fix68.patch | cut -d' ' -f1)" = "2e60397b9638a43a0255bf518ea34e8ef49eb0c6a838e03e12d91963e67beb3f"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4366.yml
+          git apply --index /tmp/fix68.patch
+          node --check js/spacenet/app.js
+          grep -q '^4366$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "9bb9379a5bde12809c6d71288bd77a6e1cc7f6ef" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -p 710207395f13e5c88889d21ab19a552e504fb2dd -m "Merge main (71020739, stamp align) keeping the full branch index and all branch logic; 4366: dock grip sits fully above the card edge (true 10 px visible); keys typed while a HUD button has focus go to the talk box and the first key is inserted directly (no dropped leading characters); lockstep 4366")"
+          git push origin "$C:refs/heads/grokbuild/4328-street-level-gps"
