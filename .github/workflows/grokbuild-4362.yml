@@ -1,0 +1,33 @@
+name: grokbuild 4362 (APPLY left, wallet retry cap, 10px handles; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4362.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix64, assert tree, commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "93dfee8760cc99f5675d37e263c66dfaf4a886ea" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          base64 -d .grokbuild/fix64.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "93889a4967df8deafd2dcca05391dd244257294be2b3be7407fdc5198c005857"
+          gunzip -c /tmp/f.gz > /tmp/fix64.patch
+          test "$(sha256sum /tmp/fix64.patch | cut -d' ' -f1)" = "e885d30312a6ec361c425030b364c1e2f84e1067f817832ac5e2a556f5c2ea2e"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4362.yml
+          git apply --index /tmp/fix64.patch
+          node --check js/spacenet/app.js
+          grep -q '^4362$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "9a043986f10bda8839fbffcb563d7327fba8900f" || { echo "tree $T"; exit 1; }
+          git commit -q -m "4362: green APPLY left / red X right locked in every top row; wallet RPC retries at most once (no poll storm; guests never ask); #cli-drag shown at 10 px (app.js no longer hides it); hunt count stays in #sn-hunt-n + data-hunt-pins; lockstep 4362"
+          git push origin HEAD:grokbuild/4328-street-level-gps
