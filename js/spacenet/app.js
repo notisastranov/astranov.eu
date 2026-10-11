@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4363";
+  var VER = "4364";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1355,7 +1355,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true;
+      window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3013,7 +3013,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4363&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4364&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -9856,7 +9856,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true;
+    window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
