@@ -1,0 +1,35 @@
+name: grokbuild hotfix 4360 (merge main 4ed12ca; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/hotfix-index-4358"]
+    paths: [".grokbuild/**", ".github/workflows/hotfix-4360.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/hotfix-index-4358
+          fetch-depth: 0
+      - name: Merge main, keep branch index, stamp 4360, assert tree
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch -q origin main
+          test "$(git rev-parse origin/main)" = "4ed12ca303bcf07cfc46e861aa50369f9ce7987a" || { echo "main moved: $(git rev-parse origin/main)"; exit 1; }
+          test "$(git rev-parse HEAD~1)" = "c848fddf9f93f929fd3b318db0c418ae65236e7c"
+          base64 -d .grokbuild/st60.b64 > /tmp/st60.sh
+          git merge --no-ff --no-commit origin/main || true
+          git checkout --ours index.html
+          git rm -rq .grokbuild .github/workflows/hotfix-4360.yml
+          bash /tmp/st60.sh
+          git add -A
+          test -z "$(git diff --name-only --diff-filter=U)"
+          for f in js/spacenet/app.js sw.js api/version.js; do node --check $f; done
+          test "$(git write-tree)" = "2ee3999ae7e4f98277e3ae404dadabafa3511f55" || { echo "tree $(git write-tree)"; exit 1; }
+          git commit -q -m "Merge main (4ed12ca) into hotfix: keep the branch's full index.html and the tickNews stub; lockstep 4360 (main can fast-forward here)"
+          test "$(git rev-parse HEAD^2)" = "4ed12ca303bcf07cfc46e861aa50369f9ce7987a"
+          git push origin HEAD:grokbuild/hotfix-index-4358
