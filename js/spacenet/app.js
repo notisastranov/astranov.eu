@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4356";
+  var VER = "4358";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -1047,6 +1047,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }));
     }).catch(function () {});
   }
+  function tickNews() {} /* 4358: a1f5b7f0 removed this while loop() still calls it: ReferenceError every frame, black globe */
   function loop(now) {
     try {
       var dt = Math.min(0.05, lastT ? (now - lastT) / 1000 : 0.016);
