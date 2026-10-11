@@ -1,0 +1,35 @@
+name: grokbuild 4364 (merge main d9af3f5a, stamps 4364; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4364.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix66, assert tree, merge commit with main, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "169abd806b540550f0e9088b2902f24186ef02a2" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          git fetch -q origin main
+          git cat-file -e d9af3f5a287571d08549c471b54805c538ab78a4^{commit}
+          base64 -d .grokbuild/fix66.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "ccab3527f1b15795dda9f5db0be50008adb2552c12ce6680dd267da445ef03e9"
+          gunzip -c /tmp/f.gz > /tmp/fix66.patch
+          test "$(sha256sum /tmp/fix66.patch | cut -d' ' -f1)" = "8efbd80fa708c2f98247def7434dccc2ea081e1cd10ffad7c4c92dd9c04ae4a6"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4364.yml
+          git apply --index /tmp/fix66.patch
+          node --check js/spacenet/app.js
+          grep -q '^4364$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "107e965aadc6514b6020d573b1dacb6545edbca1" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -p d9af3f5a287571d08549c471b54805c538ab78a4 -m "Merge main (d9af3f5a, 4362 chrome P0) keeping the full branch index.html (#line, #sn-tabs, YOU/LOGIN, wallet, ribbon, 10px handles) and all branch app.js logic; lockstep 4364 (main can fast-forward here)")"
+          git push origin "$C:refs/heads/grokbuild/4328-street-level-gps"
