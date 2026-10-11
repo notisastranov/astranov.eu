@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4364";
+  var VER = "4365";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1355,7 +1355,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true;
+      window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3013,7 +3013,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4364&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4365&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3699,7 +3699,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var vendors = shops.slice(0, 8).map(function (s) { return s.name; });
     var done = false;
     var timer = null;
-    var msCap = (isFinite(+ms) && +ms > 0) ? +ms : 8000;
+    var msCap = (isFinite(+ms) && +ms > 0) ? +ms : 45000;
+    if (msCap < 45000) msCap = 45000; /* 4365: /api/ai answers in ~27 s; never abort a talk before 45 s */
     function finish(err, j) {
       if (done) return;
       done = true;
@@ -5816,10 +5817,25 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }, function () { fin(null); }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 });
     } catch (e) { fin(null); }
   }
+  /* 4365: /api/ai can take ~30 s: a visible thinking state with a seconds count, up to 45 s; a newer submit cancels the display */
+  var thinkT = null;
+  function thinking(tq) {
+    var t0 = Date.now();
+    if (thinkT) clearInterval(thinkT);
+    function paint() {
+      if (tq !== talkSeq) { clearInterval(thinkT); thinkT = null; return; }
+      var el = $("line");
+      if (el) { el.textContent = "Grok is thinking… " + Math.round((Date.now() - t0) / 1000) + " s"; el.setAttribute("data-grok", "thinking"); }
+    }
+    paint();
+    thinkT = setInterval(paint, 1000);
+    return function () { if (thinkT) clearInterval(thinkT); thinkT = null; var el = $("line"); if (el) el.removeAttribute("data-grok"); };
+  }
+  var GROK_SLOW = "Grok did not answer within 45 s. Please try again.";
   function sayIfIdle(text) {
     var el = $("line");
     var cur = el ? String(el.textContent || "") : "";
-    if (!cur || /^(Grok…|Landing |Finding |Locating)/.test(cur)) say(text);
+    if (!cur || /^(Grok…|Grok is thinking|Landing |Finding |Locating)/.test(cur)) say(text);
   }
   function hunt(q) {
     q = String(q || "").trim();
@@ -7528,9 +7544,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     placeSeq++;
     if (runLine(q)) return;
     if (GREETING.test(q)) {
-      say("Grok…");
+      var stopG = thinking(tq);
       askGrok(q, function (err, j) {
-        var text = (!err && j && (j.say || j.text)) ? (j.say || j.text) : "Hello. Talk a place, a shop, or hold the map to list.";
+        stopG();
+        if (tq !== talkSeq) return;
+        var text = (!err && j && (j.say || j.text)) ? (j.say || j.text) : (err === "slow" ? GROK_SLOW : "Grok is not answering right now (" + err + "). Please try again.");
         say(text);
         speakIfVoice(text);
       }, 8000);
@@ -7581,8 +7599,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       return;
     }
     var hits = searchRoster(q);
-    say("Grok…");
+    var stopT = thinking(tq);
     askGrok(q, function (err, j) {
+      stopT();
+      if (tq !== talkSeq) return; /* 4365: a newer submit owns the line */
       if (!err && j && (j.say || j.text)) {
         var text = j.say || j.text;
         say(text);
@@ -7595,7 +7615,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
       if (showRoster(hits)) return;
       if (/find|hunt|show|where|pizza|shop|food|near|driver|supermarket/.test(q.toLowerCase())) { hunt(q); return; }
-      say("Nothing in the shops, the drivers, or the clients around you.");
+      say(err === "slow" ? GROK_SLOW : "Grok is not answering right now. Please try again."); /* 4365: talk never gets the empty-roster line */
     }, 8000);
   }
   function clockLine(d, utc) {
@@ -9856,7 +9876,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true;
+    window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
