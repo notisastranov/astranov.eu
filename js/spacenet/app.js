@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4361";
+  var VER = "4362";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -327,6 +327,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var bankBal = 0;
   var bankSeen = false;
   var bankAsked = false;
+  var bankRetry = 0;
   var OWNER_CAPITAL = 3000000;
   function shownMoney() {
     if (ownerMail()) return supplyView().pool;
@@ -353,7 +354,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
       if (window.__snBalRpc === false) return { cfg: cfg, rows: [], id: u.id, tok: tok };
       return ask(tok).then(function (r) {
-        if (r.status === 401 && window.SNAuth && SNAuth.refresh) {
+        if (r.status === 401 && bankRetry < 1 && window.SNAuth && SNAuth.refresh) {
+          bankRetry++;
           return SNAuth.refresh().then(function () { tok = SNAuth.token() || tok; return ask(tok); });
         }
         return r;
@@ -369,7 +371,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var row = pack && Array.isArray(pack.rows) ? pack.rows[0] : null;
       if (!row) {
         paintMoney();
-        if (!bankSeen && signed()) setTimeout(pullBank, 2500);
+        if (!bankSeen && signed() && bankRetry < 1) { bankRetry++; setTimeout(pullBank, 2500); } /* 4362: one retry, no poll storm */
         return;
       }
       var db = Number(row.avc_balance);
@@ -395,7 +397,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       paintMoney();
     }).catch(function () {
       paintMoney();
-      if (!bankSeen && signed()) setTimeout(pullBank, 2500);
+      if (!bankSeen && signed() && bankRetry < 1) { bankRetry++; setTimeout(pullBank, 2500); } /* 4362: one retry, no poll storm */
     });
   }
   function myMoney() {
@@ -1353,7 +1355,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4359 = true; window.__SN_4361 = true;
+      window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3011,7 +3013,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4361&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4362&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3257,7 +3259,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-tester{position:fixed;top:28px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(77,240,255,.4);color:#7ee9ff;font:700 10px/14px ui-monospace,monospace;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#sn-tester.stale{color:#8a6a6a;border-color:rgba(255,120,120,.35)}",
       "#sn-topchrome-drag{display:block!important;height:10px!important;min-height:10px!important;max-height:10px!important;font-size:0!important;line-height:0!important;color:transparent!important;overflow:hidden!important;background:transparent!important}",
-      "#cli-drag{display:none!important}",
+      "#cli-drag{display:block!important;height:10px!important;min-height:10px!important;max-height:10px!important;width:100%!important;cursor:grab!important}", /* 4362: drag handles shown at 10 px, never hidden */
+      ".sheet-bar{flex-direction:row!important;direction:ltr!important}.sheet-bar>.sheet-apply{order:-1!important;margin-right:auto!important}.sheet-bar>.sheet-x{order:99!important;margin-left:auto!important}", /* 4362: green APPLY left, red X right in every top row */
       "#cli-drag.sn-grip.on{display:block!important;position:fixed!important;z-index:300!important;height:28px!important;min-height:28px!important;max-height:28px!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important;cursor:ns-resize!important;touch-action:none!important;pointer-events:auto!important;overflow:visible!important;user-select:none!important;-webkit-user-select:none!important}",
       "#cli-drag.sn-grip.on::before{content:\"\"!important;display:block!important;position:absolute!important;left:50%!important;top:15px!important;width:56px!important;height:6px!important;margin-left:-28px!important;border-radius:3px!important;background:rgba(77,240,255,.9)!important;box-shadow:0 0 6px rgba(77,240,255,.6),0 0 0 1px rgba(4,16,28,.6)!important}",
       "#sn-sheet.on .sheet-bar{touch-action:none!important;cursor:ns-resize!important;user-select:none!important}",
@@ -9853,7 +9856,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4359 = true; window.__SN_4361 = true;
+    window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
