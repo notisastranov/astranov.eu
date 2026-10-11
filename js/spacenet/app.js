@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4365";
+  var VER = "4366";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1355,7 +1355,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true;
+      window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3013,7 +3013,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4365&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4366&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -8209,7 +8209,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           if (t === inp) return;
           var tag = t && t.tagName ? t.tagName.toLowerCase() : "";
           if (tag === "input" || tag === "textarea" || tag === "select" || (t && t.isContentEditable)) return;
-          if (tag === "button" || tag === "a" || (t && t.getAttribute && t.getAttribute("role") === "button")) return; /* a focused control keeps Enter/Space */
+          if ((tag === "button" || tag === "a" || (t && t.getAttribute && t.getAttribute("role") === "button")) && (e.key === "Enter" || e.key === " " || e.keyCode === 13 || e.keyCode === 32)) return; /* 4366: a focused control keeps only Enter/Space; letters typed after tapping a HUD button go to the talk box (they were dropped) */
           if (e.key === "Enter" || e.keyCode === 13) {
             if (e.isComposing) return;
             if (String(inp.value || "").trim()) { e.preventDefault(); submitTalk(e); }
@@ -8217,6 +8217,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           }
           if (e.key && e.key.length === 1 && !e.isComposing) {
             try { inp.focus({ preventScroll: true }); } catch (eF) { inp.focus(); }
+            /* 4366: put the very key into the box ourselves so the first typed character is never lost to the focus move */
+            try {
+              e.preventDefault();
+              var st0 = inp.selectionStart == null ? inp.value.length : inp.selectionStart, en0 = inp.selectionEnd == null ? st0 : inp.selectionEnd;
+              inp.setRangeText(e.key, st0, en0, "end");
+              inp.dispatchEvent(new Event("input", { bubbles: true }));
+            } catch (eK) {}
           }
         }, true);
         inp.addEventListener("keyup", function (e) {
@@ -9572,7 +9579,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     g.setAttribute("aria-hidden", "true");
     g.title = "Drag to resize";
     var drag = null, userH = 0, mapDragWas = null, gripEdge = "";
-    var STRIP = 10, ABOVE = 6; /* 4363: the grip is 10 px tall */ /* 4340: 28 px tall hit strip, 24 px above the card edge + 4 px into it, full card width */
+    var STRIP = 10, ABOVE = 10; /* 4366: the whole 10 px grip sits above the card edge (ABOVE 6 let the card cover 3-4 px, so it read 6-7 px) */ /* 4363: the grip is 10 px tall */ /* 4340: 28 px tall hit strip, 24 px above the card edge + 4 px into it, full card width */
     /* 4342: the percentages hold against the real page: 30 % / 42 % of the area between the bottom of the top ribbon
        and the dock (the card's bottom edge, which already sits above the safe area), measured in innerHeight px, not vh */
     var baseH = 0, springT = null;
@@ -9876,7 +9883,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true;
+    window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
