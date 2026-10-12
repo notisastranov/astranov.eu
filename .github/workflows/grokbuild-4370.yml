@@ -1,0 +1,35 @@
+name: grokbuild 4370 (merge main e323b301, email sign-in, stamps 4370; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4370.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix73, assert tree, merge commit with main, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "dc26a0c94cef9f429409bb84bd4cedfc2be22312" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          git fetch -q origin main
+          git cat-file -e e323b301f6e65030a961b26ed07f9f3203ebdcb2^{commit}
+          base64 -d .grokbuild/fix73.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "37965d8550c7acae252f7733bcb97ef2b733e8963cfe3ff2f10f5590c75445a0"
+          gunzip -c /tmp/f.gz > /tmp/fix73.patch
+          test "$(sha256sum /tmp/fix73.patch | cut -d' ' -f1)" = "7c609155309c17855b66b51968987921e82befc73e61666ce10ee5b32db703cb"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4370.yml
+          git apply --index /tmp/fix73.patch
+          node --check js/spacenet/app.js
+          grep -q '^4370$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "e4e71170a83a1a9f6b54b2d3f848b5794166abac" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -p e323b301f6e65030a961b26ed07f9f3203ebdcb2 -m "Merge main (e323b301: 4366 index 10px handle law + a350b35 email sign-in + spacenet.astranov.eu rewrite) keeping the branch engine and full index; auth.js carries both the 4367 repaint and the email SIGN IN / CREATE ACCOUNT; lockstep 4370")"
+          git push origin "$C:refs/heads/grokbuild/4328-street-level-gps"
