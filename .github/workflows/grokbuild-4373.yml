@@ -1,0 +1,35 @@
+name: grokbuild 4373 (merge main 18a6542c b2801bff, Overpass per-mirror rest, stamps 4373; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4373.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix77, assert tree, merge commit with main, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "1d784a12d51cc01dfc75fe9f51b72141620ae776" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          git fetch -q origin main
+          git cat-file -e 18a6542c8ffe437f85898336c6a631f42c7339a1^{commit}
+          base64 -d .grokbuild/fix77.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "6fe4b847df5a7259b70b2ca667fb3297094d506e9e686f2fdc413f4e2ab40791"
+          gunzip -c /tmp/f.gz > /tmp/fix77.patch
+          test "$(sha256sum /tmp/fix77.patch | cut -d' ' -f1)" = "8b0e3a3447ae1f3b5ae3d718182dc337201bd16158681c69498735bd24c8a119"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4373.yml
+          git apply --index /tmp/fix77.patch
+          node --check js/spacenet/app.js
+          grep -q '^4373$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "b216a6e5c8475de1fa35aef26345f6160ea12ed8" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -p 18a6542c8ffe437f85898336c6a631f42c7339a1 -m "Merge main (18a6542c: b2801bff long-press keeps the list menu, vendor and driver faces, thin route) into the branch engine; Overpass rest per mirror, a failed mirror hands the query to the other awake one, the hunt owns its own budget; lockstep 4373")"
+          git push origin "$C:refs/heads/grokbuild/4328-street-level-gps"
