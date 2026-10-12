@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4370";
+  var VER = "4371";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1374,7 +1374,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true; window.__SN_4369 = true; window.__SN_4370 = true;
+      window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true; window.__SN_4369 = true; window.__SN_4370 = true; window.__SN_4371 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3032,7 +3032,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4370&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4371&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3281,7 +3281,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#cli-drag{display:block!important;height:10px!important;min-height:10px!important;max-height:10px!important;width:100%!important;cursor:grab!important}", /* 4362: drag handles shown at 10 px, never hidden */
       ".sheet-bar{flex-direction:row!important;direction:ltr!important}.sheet-bar>.sheet-apply{order:-1!important;margin-right:auto!important}.sheet-bar>.sheet-x{order:99!important;margin-left:auto!important}", /* 4362: green APPLY left, red X right in every top row */
       "#cli-drag.sn-grip.on{display:block!important;position:fixed!important;z-index:300!important;height:10px!important;min-height:10px!important;max-height:10px!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important;cursor:ns-resize!important;touch-action:none!important;pointer-events:auto!important;overflow:visible!important;user-select:none!important;-webkit-user-select:none!important}",
-      "#cli-drag.sn-grip.on::before{content:\"\"!important;display:block!important;position:absolute!important;left:50%!important;top:0!important;width:56px!important;height:10px!important;margin-left:-28px!important;border-radius:2px!important;background:rgba(77,240,255,.9)!important;box-shadow:0 0 6px rgba(77,240,255,.6),0 0 0 1px rgba(4,16,28,.6)!important}",
+      "#cli-drag.sn-grip.on::before{content:\"\"!important;display:block!important;position:absolute!important;left:50%!important;top:0!important;width:56px!important;height:10px!important;margin-left:-28px!important;border-radius:2px!important;background:rgb(77,240,255)!important;box-shadow:0 0 6px rgba(77,240,255,.6)!important}",
       "#sn-sheet.on .sheet-bar{touch-action:none!important;cursor:ns-resize!important;user-select:none!important}",
       "#sn-sheet.on .sheet-bar button{cursor:pointer!important}",
       "#go,#plus{color:#4df0ff!important;font:800 12px/1 system-ui,sans-serif!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:0!important}",
@@ -5718,7 +5718,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var mirror = ovUsed++;
     return fetch("/api/find", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ op: "overpass", data: data, mirror: mirror }), signal: ctrl && ctrl.signal, cache: "no-store" })
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (j) { if (!j || !j.ok || !Array.isArray(j.elements)) { overpassCool = Date.now() + 300000; return {}; } return j; });
+      .then(function (j) {
+        /* 4371: testers read the mirror the server really used (the Overpass call itself runs inside /api/find) */
+        try { var m0 = (j && j.meta) || {}; (window.__snOverpass = window.__snOverpass || []).push({ asked: mirror, mirror: m0.mirror, src: m0.src || "", ok: !!(j && j.ok), at: Date.now() }); } catch (eM) {}
+        if (!j || !j.ok || !Array.isArray(j.elements)) { overpassCool = Date.now() + 300000; return {}; } return j;
+      });
   }
   function huntOverpass(q) {
     if (!overpassUp()) return Promise.resolve([]);
@@ -8240,6 +8244,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
             if (String(inp.value || "").trim()) { e.preventDefault(); submitTalk(e); }
             return;
           }
+          if (e.isComposing || e.keyCode === 229 || e.key === "Process" || e.key === "Unidentified") { /* 4371: no key name to insert ourselves: move focus first so the native character lands in the box */
+            try { inp.focus({ preventScroll: true }); } catch (eF2) { inp.focus(); }
+            return;
+          }
           if (e.key && e.key.length === 1 && !e.isComposing) {
             try { inp.focus({ preventScroll: true }); } catch (eF) { inp.focus(); }
             /* 4366: put the very key into the box ourselves so the first typed character is never lost to the focus move */
@@ -9921,7 +9929,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true; window.__SN_4369 = true; window.__SN_4370 = true;
+    window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true; window.__SN_4369 = true; window.__SN_4370 = true; window.__SN_4371 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

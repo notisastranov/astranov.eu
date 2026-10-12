@@ -385,8 +385,12 @@ module.exports = async function (req, res) {
     if (!ovUp(OV_MIRRORS[mi]) && ovUp(OV_MIRRORS[1 - mi])) mi = 1 - mi;
     var osrc = mi ? "overpass.kumi.systems" : "overpass-api.de";
     var oj = await ovGrab(OV_MIRRORS[mi], od, 3500);
-    if (!oj || !Array.isArray(oj.elements)) return res.status(200).json({ ok: false, error: "overpass unavailable", elements: [], meta: { mode: "overpass", build: BUILD } });
-    return res.status(200).json({ ok: true, elements: oj.elements.slice(0, 40), meta: { mode: "overpass", src: osrc, build: BUILD } });
+    // 4371: the mirror really used is in the response (meta.mirror 0/1, meta.asked, meta.src) and the X-Astranov-Mirror header,
+    // because the Overpass call runs here, server-side, and never shows in the browser's network panel
+    var asked = Number(n.mirror) === 1 ? 1 : 0;
+    try { res.setHeader("X-Astranov-Mirror", mi + " " + osrc); } catch (eH) {}
+    if (!oj || !Array.isArray(oj.elements)) return res.status(200).json({ ok: false, error: "overpass unavailable", elements: [], meta: { mode: "overpass", mirror: mi, asked: asked, src: osrc, build: BUILD } });
+    return res.status(200).json({ ok: true, elements: oj.elements.slice(0, 40), meta: { mode: "overpass", mirror: mi, asked: asked, src: osrc, build: BUILD } });
   }
   var a = parseQuery(String(n.q || n.name || "").slice(0, 80), String(n.city || n.place || "").slice(0, 80));
   var r = a.q,
@@ -416,7 +420,7 @@ module.exports = async function (req, res) {
   if (shopNear || (!r && isFinite(o))) {
     var near = await overpassNear(o, s);
     cors(res, !near.length);
-    return res.status(200).json({ ok: true, places: near.slice(0, 16), meta: { mode: "near", build: BUILD } });
+    return res.status(200).json({ ok: true, places: near.slice(0, 16), meta: { mode: "near", mirror: 1, src: "overpass.kumi.systems", build: BUILD } });
   }
 
   if (!r && i) r = i;
