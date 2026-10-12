@@ -1,0 +1,33 @@
+name: grokbuild 4371 (find meta.mirror, grip opaque band, IME first key; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4371.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix74, assert tree, commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "3db14ffad10265c8775e8152c12da787c39a91fa" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          base64 -d .grokbuild/fix74.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "ccefbfc6096504558bd415f668a20c134de9bea020b740430e4847f199d38a7c"
+          gunzip -c /tmp/f.gz > /tmp/fix74.patch
+          test "$(sha256sum /tmp/fix74.patch | cut -d' ' -f1)" = "ddf2eea3780d7932543e5f1a794d56e1032d363f567f1bb539df73e2c240b90d"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4371.yml
+          git apply --index /tmp/fix74.patch
+          node --check js/spacenet/app.js
+          grep -q '^4371$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "a9fe17682945844db1cb786ef351f4360e3b288f" || { echo "tree $T"; exit 1; }
+          git commit -q -m "4371: /api/find overpass reports the mirror it used (meta.mirror, meta.asked, meta.src, X-Astranov-Mirror) and the client logs it in window.__snOverpass; grip band opaque cyan with no dark inner ring (glow only outside); a first key with no name (IME / remote desktop 229) moves focus to the talk box before the native insert; lockstep 4371"
+          git push origin HEAD:grokbuild/4328-street-level-gps
