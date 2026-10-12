@@ -26,6 +26,18 @@ function readBody(req) {
   return {};
 }
 
+// 4368: a mirror that fails (504 / timeout / bad JSON) rests 5 min on this instance; one try per mirror per call
+var OV_COOL = {};
+var OV_MIRRORS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
+function ovUp(m) { return !(OV_COOL[m] > Date.now()); }
+async function ovGrab(m, q, ms) {
+  if (!ovUp(m)) return null;
+  var t = await grab(m + "?data=" + encodeURIComponent(q), ms);
+  var j = null;
+  try { j = t ? JSON.parse(t) : null; } catch (e) { j = null; }
+  if (!j || !Array.isArray(j.elements)) { OV_COOL[m] = Date.now() + 300000; return null; }
+  return j;
+}
 async function grab(url, ms) {
   var ctrl = new AbortController();
   var t = setTimeout(function () {
@@ -312,9 +324,9 @@ async function overpassNear(lat, lng) {
     "," +
     lng +
     ')["name"]["shop"~"supermarket|convenience|bakery"];);out center tags 30;';
-  var a = await grab("https://overpass.kumi.systems/api/interpreter?data=" + encodeURIComponent(q), 14000);
+  var aj = await ovGrab(OV_MIRRORS[1], q, 14000);
   try {
-    return (JSON.parse(a).elements || [])
+    return ((aj && aj.elements) || [])
       .map(function (e) {
         var c = e.center || e,
           n = e.tags || {};
@@ -368,13 +380,11 @@ module.exports = async function (req, res) {
     cors(res, true);
     var od = String(n.data || "");
     if (!/^\[out:json\]\[timeout:\d{1,2}\];/.test(od) || od.length > 700) return res.status(200).json({ ok: false, error: "bad query", elements: [], meta: { mode: "overpass", build: BUILD } });
-    var osrc = "overpass-api.de", oj = null, ot = await grab("https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(od), 3500);
-    try { oj = ot ? JSON.parse(ot) : null; } catch (eO) { oj = null; }
-    if (!oj || !Array.isArray(oj.elements)) {
-      osrc = "overpass.kumi.systems";
-      ot = await grab("https://overpass.kumi.systems/api/interpreter?data=" + encodeURIComponent(od), 2500);
-      try { oj = ot ? JSON.parse(ot) : null; } catch (eK) { oj = null; }
-    }
+    // 4368: exactly one mirror per call (the client picks it: mirror=0 overpass-api.de, 1 kumi); a resting mirror falls to the other
+    var mi = Number(n.mirror) === 1 ? 1 : 0;
+    if (!ovUp(OV_MIRRORS[mi]) && ovUp(OV_MIRRORS[1 - mi])) mi = 1 - mi;
+    var osrc = mi ? "overpass.kumi.systems" : "overpass-api.de";
+    var oj = await ovGrab(OV_MIRRORS[mi], od, 3500);
     if (!oj || !Array.isArray(oj.elements)) return res.status(200).json({ ok: false, error: "overpass unavailable", elements: [], meta: { mode: "overpass", build: BUILD } });
     return res.status(200).json({ ok: true, elements: oj.elements.slice(0, 40), meta: { mode: "overpass", src: osrc, build: BUILD } });
   }

@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4367";
+  var VER = "4368";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1205,6 +1205,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     BRIEF = cards.concat(rest);
   }
   function pullMyVideos(token) {
+    if (!token || !ytSession()) return;
+    if (pullMyVideos.busy && Date.now() - pullMyVideos.busy < 60000) return; /* one ask per minute, never a double call */
+    pullMyVideos.busy = Date.now();
     fetch("https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&mine=true&maxResults=6", {
       headers: { Authorization: "Bearer " + token }
     }).then(function (r) { return r.json(); }).then(function (j) {
@@ -1242,9 +1245,18 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (cards.length) placeVideo(cards);
     }).catch(function () {});
   }
+  /* 4368: YouTube only with a live signed-in session (access token present and not expired) AND a fresh provider token */
+  function ytSession() {
+    try {
+      if (!signed()) return false;
+      var acc = localStorage.getItem("sn:access") || "";
+      var exp = Number(localStorage.getItem("sn:exp") || 0);
+      return !!acc && (!exp || exp * 1000 > Date.now());
+    } catch (e) { return false; }
+  }
   function pullVideos() {
-    var token = ytToken();
-    if (signed() && token) {
+    var token = ytSession() ? ytToken() : "";
+    if (token) {
       BRIEF = BRIEF.filter(function (c) { return !c || c.act !== "youtube"; });
       pullMyVideos(token);
       return;
@@ -1362,7 +1374,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true;
+      window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3020,7 +3032,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4367&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4368&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -5565,7 +5577,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function overpassUp() { return !overpassOff && Date.now() > overpassCool; }
   function overpassFail(e) {
-    if (e && e.name === "AbortError") { overpassCool = Date.now() + 120000; return; }
+    if (e && e.name === "AbortError") { overpassCool = Date.now() + 300000; return; }
     /* connection closed / network error: leave Overpass alone for this session */
     overpassOff = true;
     try { sessionStorage.setItem("sn:overpass-off", "1"); } catch (x) {}
@@ -5698,10 +5710,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   /* 4350: Overpass goes through our own /api/find (same origin, POST {op:"overpass"}): a refused, rate-limited or CORS-less
      Overpass answer comes back there as {ok:false} with status 200, so the browser never logs a CORS error; a failed answer cools
      Overpass for 2 min (a dropped connection still turns it off for the session); the landing never waits on it */
+  /* 4368: at most 2 Overpass tries per hunt (one per mirror) and a 5 min rest after a failed one; the pins fallback (/api/find) still runs */
+  var ovUsed = 0;
   function overpassVia(data, ctrl) {
-    return fetch("/api/find", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ op: "overpass", data: data }), signal: ctrl && ctrl.signal, cache: "no-store" })
+    if (ovUsed >= 2 || !overpassUp()) return Promise.resolve({});
+    var mirror = ovUsed++;
+    return fetch("/api/find", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ op: "overpass", data: data, mirror: mirror }), signal: ctrl && ctrl.signal, cache: "no-store" })
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (j) { if (!j || !j.ok || !Array.isArray(j.elements)) { overpassCool = Date.now() + 120000; return {}; } return j; });
+      .then(function (j) { if (!j || !j.ok || !Array.isArray(j.elements)) { overpassCool = Date.now() + 300000; return {}; } return j; });
   }
   function huntOverpass(q) {
     if (!overpassUp()) return Promise.resolve([]);
@@ -5847,6 +5863,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function hunt(q) {
     q = String(q || "").trim();
     if (!q) return;
+    ovUsed = 0; /* 4368: a fresh Overpass budget per hunt */
     abortHunt();
     var mySeq = huntSeq;
     huntCtrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
@@ -9890,7 +9907,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true;
+    window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
