@@ -5713,6 +5713,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   /* 4368: at most 2 Overpass tries per hunt (one per mirror) and a 5 min rest after a failed one; the pins fallback (/api/find) still runs */
   var ovUsed = 0, ovAt = 0;
   function overpassVia(data, ctrl) {
+    if (Date.now() - ovAt > 15000) { ovUsed = 0; ovAt = Date.now(); } /* 4369: the window opens on first use too (the land's nearby query came first and hunt() then reset the count) */
     if (ovUsed >= 2 || !overpassUp()) return Promise.resolve({});
     var mirror = ovUsed++;
     return fetch("/api/find", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ op: "overpass", data: data, mirror: mirror }), signal: ctrl && ctrl.signal, cache: "no-store" })
