@@ -1,0 +1,33 @@
+name: grokbuild 4374 (OSM through /api/find, near-place hunts, GPS honest, live tester strip; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4374.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix79, assert tree, commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "49fa83bf1abb3776729de3461a869313687bef24" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          base64 -d .grokbuild/fix79.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "d05d6dd8af299130ca6373e069fbefa29d243f0ab4976ddf1b9b23d52dd296bb"
+          gunzip -c /tmp/f.gz > /tmp/fix79.patch
+          test "$(sha256sum /tmp/fix79.patch | cut -d' ' -f1)" = "6232f27ef7f1bc4b4cc40644158a5384c10ff740e8493773e90c47f9621b0046"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4374.yml
+          git apply --index /tmp/fix79.patch
+          node --check js/spacenet/app.js
+          grep -q '^4374$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "cd24fe15cc72ba296b2afa1c3e7ee01e302d2f80" || { echo "tree $T"; exit 1; }
+          git commit -q -m "4374: every OSM call from the browser goes through /api/find (Nominatim proxy op; no direct Overpass); the server hunts in a box around the seat with Nominatim and keeps the last real answers 24 h on the instance as a marked fallback (never invented); X near/at/around PLACE lands on the place and hunts there; the GPS button lands only on a real fix (blocked: keep the view or the last real fix, honest message, never the IP guess); the tester strip renders top-centre, small, click-through, one live verdict every 5 s; lockstep 4374"
+          git push origin HEAD:grokbuild/4328-street-level-gps
