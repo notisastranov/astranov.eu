@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4371";
+  var VER = "4372";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1374,7 +1374,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true; window.__SN_4369 = true; window.__SN_4370 = true; window.__SN_4371 = true;
+      window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true; window.__SN_4369 = true; window.__SN_4370 = true; window.__SN_4371 = true; window.__SN_4372 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -2636,6 +2636,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       map.on("click", function (ev) {
         try {
           var oe = ev && ev.originalEvent, now = Date.now();
+          if (window.__snHold && now - window.__snHold < 1200) { lastTap = null; return; } /* 4372 (main fc6bb05): the release after a long-tap never acts as a click; the LIST menu stays open */
           var sh0 = $("sn-sheet"), kind0 = sh0 && sh0.classList.contains("on") ? (sh0.getAttribute("data-kind") || (sh0.classList.contains("tile") ? "tile" : "sheet")) : "";
           var why = mapClickBlock(oe, clickDown, now);
           var cx = oe && isFinite(oe.clientX) ? oe.clientX : NaN, cy = oe && isFinite(oe.clientY) ? oe.clientY : NaN;
@@ -2677,35 +2678,46 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         } catch (eK) {}
       });
       var holdPt = null;
-      el.addEventListener("contextmenu", function (e) {
-        e.preventDefault();
-        if (!map) return;
-        var ll = map.mouseEventToLatLng(e);
-        if (ll) setTimeout(function () { listAt({ lat: ll.lat, lng: ll.lng }); }, 0);
-      });
-      el.addEventListener("pointerdown", function (e) {
-        if (e.button) return;
-        if (e.target && e.target.closest && e.target.closest(".leaflet-marker-icon")) { holdPt = null; return; }
-        holdPt = { x: e.clientX, y: e.clientY, t: Date.now(), ox: e.clientX, oy: e.clientY, ev: e };
-      }, true);
-      el.addEventListener("pointermove", function (e) {
-        if (!holdPt) return;
-        if (Math.hypot(e.clientX - holdPt.x, e.clientY - holdPt.y) > 16) holdPt = null;
-      }, true);
-      el.addEventListener("pointerup", function (e) {
+      var holdTimer = 0;
+      window.__snHoldArm = true;
+      function dropHold() {
+        if (holdTimer) { clearTimeout(holdTimer); holdTimer = 0; }
+        holdPt = null;
+      }
+      function fireHold() {
         var start = holdPt;
+        holdTimer = 0;
         holdPt = null;
         if (!start || !map) return;
-        if (Date.now() - start.t < 420) return;
-        if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 16) return;
-        e.preventDefault();
-        e.stopPropagation();
         var ll = map.mouseEventToLatLng(start.ev);
         if (!ll) return;
         window.__snHold = Date.now();
-        setTimeout(function () { listAt({ lat: ll.lat, lng: ll.lng }); }, 30);
+        listAt({ lat: ll.lat, lng: ll.lng });
+      }
+      el.addEventListener("contextmenu", function (e) {
+        e.preventDefault();
+        if (!map) return;
+        dropHold();
+        var ll = map.mouseEventToLatLng(e);
+        if (!ll) return;
+        window.__snHold = Date.now();
+        listAt({ lat: ll.lat, lng: ll.lng });
+      });
+      el.addEventListener("pointerdown", function (e) {
+        if (e.button) return;
+        if (e.target && e.target.closest && e.target.closest(".leaflet-marker-icon,.sheet-go,.sheet-x,.sheet-apply,#sn-sheet")) return;
+        dropHold();
+        holdPt = { x: e.clientX, y: e.clientY, t: Date.now(), ev: e };
+        holdTimer = setTimeout(fireHold, 460);
       }, true);
-      el.addEventListener("pointercancel", function () { holdPt = null; });
+      el.addEventListener("pointermove", function (e) {
+        if (!holdPt) return;
+        if (Math.hypot(e.clientX - holdPt.x, e.clientY - holdPt.y) > 36) dropHold();
+      }, true);
+      el.addEventListener("pointerup", function () {
+        if (holdPt && Date.now() - holdPt.t < 460) dropHold();
+      }, true);
+      el.addEventListener("pointercancel", dropHold);
     } else {
       try { map.setMinZoom(8); } catch (e) {}
     }
@@ -2716,6 +2728,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       youMark = L.circleMarker([+here.lat, +here.lng], { radius: 8, color: "#4df0ff", fillColor: "#4df0ff", fillOpacity: 0.9, weight: 2 }).addTo(map);
     }
     paintShopsOnMap();
+    pullListings(); /* 4372 (main fc6bb05): listings load as the city opens */
     requestAnimationFrame(function () {
       requestAnimationFrame(applyView);
     });
@@ -3032,7 +3045,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4371&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4372&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3326,7 +3339,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#panel{width:100%!important;background:transparent!important}",
       "form#f{display:flex!important;width:100%!important;gap:0!important;align-items:center!important;min-height:48px!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}",
       "input#in{flex:1!important;min-width:0!important;width:auto!important;min-height:48px!important;border:0!important;border-radius:0!important;background:transparent!important;padding-left:56px!important;padding-right:56px!important}",
-      "#sn-pulse,#sn-tester{display:none!important}",
+      "#sn-pulse{display:none!important}",
+      "#sn-tester{display:block!important}",
       "#island{margin-top:0!important;padding-top:0!important}",
       "#sn-count{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;pointer-events:none;background:transparent}",
       "#sn-count.on{display:flex}",
@@ -3498,6 +3512,25 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       testerMark = L.circleMarker(ll, { radius: 6, color: "#d6ff4a", fillColor: "#d6ff4a", fillOpacity: 0.95, weight: 2 }).addTo(map);
       testerMark.bindTooltip("TESTER", { permanent: true, direction: "right", className: "sn-tester-tip" });
     } else testerMark.setLatLng(ll);
+  }
+  function demoProbe() {
+    var faults = [];
+    if (cityOn && !window.__snHoldArm) faults.push("long-tap not armed");
+    if (window.__snRouteMax && window.__snRouteMax > 5) faults.push("route too thick");
+    var vendors = shops.filter(function (s) { return s && isFinite(+s.lat); }).length;
+    var drivers = people.filter(function (p) { return p && p.role === "driver" && isFinite(+p.lat); }).length;
+    var note = (faults.length ? "FAIL " + faults.join(", ") : "hold menu, face pins, thin route") +
+      " · " + vendors + " vendors · " + drivers + " drivers · " + jobs.length + " orders";
+    var el = $("sn-tester");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "sn-tester";
+      document.body.appendChild(el);
+    }
+    el.style.display = "block";
+    el.classList.toggle("stale", faults.length > 0);
+    el.textContent = "TESTER · " + note;
+    window.__snDemo = { ok: !faults.length, note: note, t: Date.now() };
   }
   var liveMarks = {};
   var liveLines = {};
@@ -4292,9 +4325,27 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       else map.fitBounds(b.pad(0.25), { padding: [56, 56], maxZoom: 17, animate: true });
     } catch (e) {}
   }
+  function absorbJobVendors() {
+    jobs.forEach(function (j) {
+      if (!j || !j.vendor || !isFinite(+j.vendor.lat) || !isFinite(+j.vendor.lng)) return;
+      var have = shops.some(function (s) {
+        return s && (String(s.id) === String(j.vendor.id) || (s.name && j.vendor.name && s.name === j.vendor.name && haversineKm(s, j.vendor) < 0.08));
+      });
+      if (have) return;
+      shops.unshift({
+        id: j.vendor.id || ("job-" + j.id),
+        name: j.vendor.name || "Vendor",
+        lat: +j.vendor.lat, lng: +j.vendor.lng,
+        phone: j.vendor.phone || "", address: j.vendor.address || "",
+        photo: j.vendor.photo || "", menu: j.vendor.menu || [],
+        src: "listed", status: "live", owner: j.vendorOwner || j.vendor.owner || ""
+      });
+    });
+  }
   function paintShopsOnMap() {
     if (!map || typeof L === "undefined") return;
     absorbMine();
+    absorbJobVendors();
     shopMarks.forEach(function (m) { try { map.removeLayer(m); } catch (e) {} });
     shopMarks = [];
     /* sweep any shop layer an older paint left behind (Rhodes pin at Athens) */
@@ -4764,6 +4815,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       add(parts.rest.length > 1 ? parts.rest : line, { pane: "sn-route", color: "#f4feff", weight: 1.4, opacity: 1, dashArray: "7 12", className: "sn-flow", interactive: false, lineCap: "butt" });
       /* 4357: main's thin route stays thin; an invisible 18 px hit line keeps the bright route tappable (ROUTE card with the order steps) */
       hitLine(line, function () { openRouteTile(id); });
+      window.__snRouteMax = 3.5; /* 4372: widest route stroke in px (main fc6bb05 thin route: at most 5) */
       var total = lineKm(line);
       if (total < 0.05) return;
       var marks = [total / 2, total];
@@ -5262,9 +5314,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     if (!covered(homeDrop, "client")) put(homeDrop, "client", (homeDrop && homeDrop.name) || "Client", moveHome);
     people.forEach(function (p) {
-      if (!p || p.role === "driver") return;
-      put(p, p.role || "client", (p.role || "") + " " + (p.name || ""), function (ll) { movePerson(p.id, ll); });
+      if (!p || !isFinite(+p.lat)) return;
+      put(p, p.role || "client", (p.role || "client") + " " + (p.name || ""), function (ll) { movePerson(p.id, ll); });
     });
+    if (driverPin && isFinite(+driverPin.lat) && !covered(driverPin, "driver")) put(driverPin, "driver", driverPin.name || "Driver", moveDriver);
   }
   var findWanted = false;
   /* ---- fix38 field: one filtered, de-duplicated set drives pins, FIND and LIVE ---- */
@@ -9898,6 +9951,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     setTimeout(pullLive, 1500);
     setTimeout(function () { if (!liveLoaded) { liveLoaded = true; try { paintPulse(); } catch (eP) {} } }, 9000);
     setInterval(pullLive, 8000);
+    demoProbe();
+    setInterval(demoProbe, 20000);
     setInterval(tickLive, 1000);
     checkVersion();
     try {
@@ -9929,7 +9984,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true; window.__SN_4369 = true; window.__SN_4370 = true; window.__SN_4371 = true;
+    window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true; window.__SN_4369 = true; window.__SN_4370 = true; window.__SN_4371 = true; window.__SN_4372 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
