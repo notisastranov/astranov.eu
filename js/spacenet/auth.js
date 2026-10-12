@@ -155,7 +155,7 @@
     }
     var at = hq.get("access_token");
     var ytHash = hq.get("provider_token");
-    if (ytHash) write("sn:yt", ytHash);
+    if (ytHash) { write("sn:yt", ytHash); write("sn:yt-at", String(Date.now())); }
     var code = search.get("code");
     function clean() {
       history.replaceState({}, "", location.pathname);
@@ -177,7 +177,7 @@
         .then(function (r) { return r.json(); })
         .then(function (j) {
           write("sn:pkce", "");
-          if (j && j.provider_token) write("sn:yt", j.provider_token);
+          if (j && j.provider_token) { write("sn:yt", j.provider_token); write("sn:yt-at", String(Date.now())); }
           if (j && j.access_token) { keep(j); return takeUser(j.access_token); }
           talk((j && (j.error_description || j.msg || j.error)) || "Google code was not exchanged.");
           return false;
@@ -229,7 +229,9 @@
     var who = inNow ? String(u.name || u.email || "").replace(/[<>"]/g, "") : "";
     btn.setAttribute("aria-label", inNow ? "YOU · " + who : "Login");
     btn.title = inNow ? who : "Login";
-    btn.innerHTML = '<span class="lbl">' + (inNow ? "YOU" : "LOGIN") + '</span><span class="tgt">' + (inNow ? face(u) : '<span class="ph">IN</span>') + "</span>";
+    var short = inNow ? String(u.name || String(u.email).split("@")[0] || "YOU").split(/\s+/)[0].replace(/[<>"&]/g, "").slice(0, 10) : "";
+    btn.setAttribute("data-who", inNow ? who : "");
+    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "LOGIN") + '</span><span class="tgt">' + (inNow ? face(u) : '<span class="ph">IN</span>') + "</span>";
     if (window.SN && SN.paintMoney) SN.paintMoney();
   }
   function fillBody() {
@@ -318,6 +320,12 @@
       applyReturn().then(function () { paintMe(); });
     });
   }
+  /* 4367: the button never reads LOGIN while signed in: repaint when the session lands in another tab, on focus, and on a light 3 s check */
+  try {
+    window.addEventListener("storage", function (e) { if (!e.key || /^sn:(user|access)/.test(e.key)) paintMe(); });
+    window.addEventListener("focus", function () { paintMe(); });
+    setInterval(function () { var b = document.getElementById("sn-me"), u = user(), inNow = !!(u && u.email); if (b && (b.className === "in") !== inNow) paintMe(); }, 3000);
+  } catch (eP) {}
   window.SNAuth = { refresh: refresh, google: google, youtube: youtube, yt: yt, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
