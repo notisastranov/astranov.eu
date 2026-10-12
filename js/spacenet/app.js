@@ -5689,11 +5689,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     return p;
   }
   /* 4373: the 5 min rest is per mirror (0 overpass-api.de, 1 overpass.kumi.systems); Overpass is up while either mirror is awake */
-  var ovRest = [0, 0], ovNext = 0, ovLastM = 0, ovOwner = "";
+  var ovRest = [0, 0], ovSoft = [false, false], ovNext = 0, ovLastM = 0, ovOwner = "";
   function ovRestSync() { overpassCool = Math.min(ovRest[0], ovRest[1]); }
   function overpassUp() { var n = Date.now(); return !overpassOff && (ovRest[0] <= n || ovRest[1] <= n); }
   function overpassFail(e) {
-    if (e && e.name === "AbortError") { ovRest[ovLastM] = Date.now() + 300000; ovRestSync(); return; }
+    if (e && e.name === "AbortError") { ovRest[ovLastM] = Date.now() + 300000; ovSoft[ovLastM] = ovOwner !== "hunt"; ovRestSync(); return; }
     /* connection closed / network error: leave Overpass alone for this session */
     overpassOff = true;
     try { sessionStorage.setItem("sn:overpass-off", "1"); } catch (x) {}
@@ -5845,7 +5845,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         try { var m0 = (j && j.meta) || {}; (window.__snOverpass = window.__snOverpass || []).push({ asked: mirror, mirror: m0.mirror, src: m0.src || "", ok: !!(j && j.ok), at: Date.now() }); } catch (eM) {}
         if (!j || !j.ok || !Array.isArray(j.elements)) {
           var used = (j && j.meta && (j.meta.mirror === 0 || j.meta.mirror === 1)) ? j.meta.mirror : mirror;
-          ovRest[used] = Date.now() + 300000; ovRestSync();
+          ovRest[used] = Date.now() + 300000; ovSoft[used] = ovOwner !== "hunt"; ovRestSync(); /* 4373: a rest earned at boot / listings is soft */
           if (ovUsed < 2 && ovRest[1 - used] <= Date.now() && !(ctrl && ctrl.signal && ctrl.signal.aborted)) { ovNext = 1 - used; return overpassVia(data, ctrl); }
           return {};
         }
@@ -5997,7 +5997,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function hunt(q) {
     q = String(q || "").trim();
     if (!q) return;
-    if (ovOwner !== "hunt" || Date.now() - ovAt > 15000) { ovUsed = 0; ovAt = Date.now(); ovOwner = "hunt"; } /* 4369: land-then-hunt (two hunt() starts within 15 s) shares one budget; 4373: a boot / listings window never eats the user's hunt budget */
+    if (ovOwner !== "hunt" || Date.now() - ovAt > 15000) { ovUsed = 0; ovAt = Date.now(); ovOwner = "hunt"; [0, 1].forEach(function (m) { if (ovSoft[m]) { ovRest[m] = 0; ovSoft[m] = false; } }); ovRestSync(); } /* 4373: the user's hunt wakes mirrors that only failed at boot */ /* 4369: land-then-hunt (two hunt() starts within 15 s) shares one budget; 4373: a boot / listings window never eats the user's hunt budget */
     abortHunt();
     var mySeq = huntSeq;
     huntCtrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
