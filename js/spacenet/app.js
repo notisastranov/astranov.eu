@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4368";
+  var VER = "4369";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1374,7 +1374,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true;
+      window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true; window.__SN_4369 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3032,7 +3032,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4368&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4369&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -5711,7 +5711,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
      Overpass answer comes back there as {ok:false} with status 200, so the browser never logs a CORS error; a failed answer cools
      Overpass for 2 min (a dropped connection still turns it off for the session); the landing never waits on it */
   /* 4368: at most 2 Overpass tries per hunt (one per mirror) and a 5 min rest after a failed one; the pins fallback (/api/find) still runs */
-  var ovUsed = 0;
+  var ovUsed = 0, ovAt = 0;
   function overpassVia(data, ctrl) {
     if (ovUsed >= 2 || !overpassUp()) return Promise.resolve({});
     var mirror = ovUsed++;
@@ -5863,7 +5863,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function hunt(q) {
     q = String(q || "").trim();
     if (!q) return;
-    ovUsed = 0; /* 4368: a fresh Overpass budget per hunt */
+    if (Date.now() - ovAt > 15000) { ovUsed = 0; ovAt = Date.now(); } /* 4369: one budget per request: land-then-hunt (two hunt() starts within 15 s) shares it, so the 2 tries use both mirrors */
     abortHunt();
     var mySeq = huntSeq;
     huntCtrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
@@ -9674,7 +9674,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var r = sh.classList.contains("on") ? card.getBoundingClientRect() : null;
       if (!r || r.height < 20) { g.classList.remove("on"); fabs(); return; }
       g.classList.add("on");
-      g.style.setProperty("top", Math.round(r.top - ABOVE) + "px", "important");
+      g.style.setProperty("top", (Math.floor(r.top) - ABOVE) + "px", "important"); /* 4369: floor, never into the card */
+      g.__snTop = r.top;
       g.style.setProperty("left", Math.round(r.left) + "px", "important");
       g.style.setProperty("width", Math.round(r.width) + "px", "important");
       fabs();
@@ -9690,6 +9691,18 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       place();
       return h;
     }
+    /* 4369: the card springs (height transition .34 s) after setH, so its top kept moving up over a grip placed once:
+       follow the card edge every frame while it moves, and on transitionend */
+    (function follow() {
+      try {
+        if (sh.classList.contains("on") && g.classList.contains("on")) {
+          var rt = card.getBoundingClientRect().top;
+          if (Math.abs(rt - (g.__snTop || 0)) > 0.25) place();
+        }
+      } catch (eF) {}
+      requestAnimationFrame(follow);
+    })();
+    card.addEventListener("transitionend", function () { place(); });
     function clearH() {
       card.style.removeProperty("box-sizing");
       card.style.removeProperty("height");
@@ -9907,7 +9920,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true;
+    window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true; window.__SN_4369 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
