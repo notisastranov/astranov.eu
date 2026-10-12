@@ -1,0 +1,26 @@
+name: grokbuild 4370r (redeploy same tree after transient Vercel failure; self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".github/workflows/grokbuild-4370r.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Drop kit, assert tree e4e71170, commit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "cba32929340daf04b213e4583a2e6143b5f35864"
+          git rm -q .github/workflows/grokbuild-4370r.yml
+          T="$(git write-tree)"
+          test "$T" = "e4e71170a83a1a9f6b54b2d3f848b5794166abac" || { echo "tree $T"; exit 1; }
+          git commit -qm "4370: redeploy (same tree e4e71170) after transient Vercel build failure"
+          git push origin HEAD:refs/heads/grokbuild/4328-street-level-gps
