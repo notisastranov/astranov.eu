@@ -1,4 +1,4 @@
-/* SpaceNet auth 4270 — LOGIN Google. Roles on YOU. No overlay. */
+/* SpaceNet auth — Google, or an Astranov account that is not Google. */
 (function () {
   if (window.SNAuth) return;
   var SB = "https://lkoatrkhuigdolnjsbie.supabase.co";
@@ -122,6 +122,48 @@
     paintMe();
     if (window.SN && SN.paintMoney) SN.paintMoney();
     talk("Signed out.");
+  }
+  function mailFields() {
+    var email = (document.getElementById("sn-mail") || {}).value || "";
+    var password = (document.getElementById("sn-pass") || {}).value || "";
+    return { email: String(email).trim(), password: String(password) };
+  }
+  function finishSession(j, email) {
+    if (j && j.access_token) return takeUser(j.access_token);
+    if (j && (j.id || j.user) && !j.access_token) {
+      talk("Account opened for " + email + ". Confirm the mail, then sign in.");
+      return Promise.resolve(false);
+    }
+    talk((j && (j.error_description || j.msg || j.error_code || j.error)) || "Account did not open.");
+    return Promise.resolve(false);
+  }
+  function mailUp() {
+    var b = mailFields();
+    if (!b.email || b.password.length < 8) { talk("Email, and a password of 8 characters."); return; }
+    loadCfg(function () {
+      talk("Opening the account…");
+      fetch(SB + "/auth/v1/signup", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ email: b.email, password: b.password })
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        return finishSession(j, b.email);
+      }).then(function () { fillBody(); paintMe(); }).catch(function () { talk("Account did not open."); });
+    });
+  }
+  function mailIn() {
+    var b = mailFields();
+    if (!b.email || !b.password) { talk("Email and password."); return; }
+    loadCfg(function () {
+      talk("Signing in…");
+      fetch(SB + "/auth/v1/token?grant_type=password", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ email: b.email, password: b.password })
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        return finishSession(j, b.email);
+      }).then(function () { fillBody(); paintMe(); }).catch(function () { talk("Sign-in did not finish."); });
+    });
   }
   function savePhone(raw) {
     var tel = String(raw || "").replace(/[^\d+ ]/g, "").trim();
@@ -252,7 +294,11 @@
         : "") +
       (inNow
         ? '<button type="button" class="go" data-act="out">SIGN OUT</button>'
-        : '<button type="button" class="go" data-act="google">GOOGLE</button>') +
+        : '<button type="button" class="go" data-act="google">GOOGLE</button>' +
+          '<input id="sn-mail" type="email" autocomplete="username" placeholder="Email">' +
+          '<input id="sn-pass" type="password" autocomplete="current-password" placeholder="Password, 8 characters">' +
+          '<button type="button" class="go" data-act="mail-in">SIGN IN</button>' +
+          '<button type="button" class="go" data-act="mail-up">CREATE ACCOUNT</button>') +
       (inNow
         ? '<p class="note">Activate a role. Notis confirms.</p>' +
           '<button type="button" class="go" data-act="terms">TERMS</button>' +
@@ -261,11 +307,10 @@
           '<button type="button" class="go" data-act="role" data-role="agent">APPLY AGENT</button>' +
           '<button type="button" class="go" data-act="role" data-role="ambassador">APPLY AMBASSADOR</button>'
         : "") +
-      '<p class="note">' + (inNow ? "Wallet is this account only. Pool is owner only." : "LOGIN is Google. AV€ appears after login.") + "</p>";
+      '<p class="note">' + (inNow ? "Wallet is this account only. Pool is owner only." : "One Astranov account. Google, or email. Same profile on every app.") + "</p>";
   }
   function openMe() {
     css();
-    if (!(user() && user().email)) { google(); return; }
     var sh = document.getElementById("sn-me-sheet");
     if (!sh) {
       sh = document.createElement("div");
@@ -277,6 +322,8 @@
         var act = b && b.getAttribute("data-act");
         if (act === "close") { sh.classList.remove("on"); return; }
         if (act === "google") { google(); return; }
+        if (act === "mail-in") { mailIn(); return; }
+        if (act === "mail-up") { mailUp(); return; }
         if (act === "youtube") { youtube(); return; }
         if (act === "twitter") { x(); return; }
         if (act === "out") { out(); fillBody(); return; }
@@ -326,7 +373,7 @@
     window.addEventListener("focus", function () { paintMe(); });
     setInterval(function () { var b = document.getElementById("sn-me"), u = user(), inNow = !!(u && u.email); if (b && (b.className === "in") !== inNow) paintMe(); }, 3000);
   } catch (eP) {}
-  window.SNAuth = { refresh: refresh, google: google, youtube: youtube, yt: yt, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
+  window.SNAuth = { refresh: refresh, google: google, mailIn: mailIn, mailUp: mailUp, youtube: youtube, yt: yt, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 })();

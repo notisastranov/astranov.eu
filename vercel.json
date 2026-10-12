@@ -8,8 +8,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4369"},
-        {"key": "X-Astranov-Ship", "value": "4369-real"}
+        {"key": "X-Astranov-Build", "value": "4370"},
+        {"key": "X-Astranov-Ship", "value": "4370-real"}
       ]
     },
     {
@@ -17,8 +17,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4369"},
-        {"key": "X-Astranov-Ship", "value": "4369-real"}
+        {"key": "X-Astranov-Build", "value": "4370"},
+        {"key": "X-Astranov-Ship", "value": "4370-real"}
       ]
     },
     {
@@ -58,6 +58,8 @@
     {"source": "/index.html", "has": [{"type": "host", "value": "investors.astranov.eu"}], "destination": "/investors/index.html"},
     {"source": "/app.js", "has": [{"type": "host", "value": "investors.astranov.eu"}], "destination": "/investors/app.js"},
     {"source": "/budget.json", "has": [{"type": "host", "value": "investors.astranov.eu"}], "destination": "/investors/budget.json"},
+    {"source": "/", "has": [{"type": "host", "value": "spacenet.astranov.eu"}], "destination": "/index.html"},
+    {"source": "/index.html", "has": [{"type": "host", "value": "spacenet.astranov.eu"}], "destination": "/index.html"},
     {"source": "/", "has": [{"type": "host", "value": "exchange.astranov.eu"}], "destination": "/exchange/index.html"},
     {"source": "/index.html", "has": [{"type": "host", "value": "exchange.astranov.eu"}], "destination": "/exchange/index.html"},
     {"source": "/app.js", "has": [{"type": "host", "value": "exchange.astranov.eu"}], "destination": "/exchange/app.js"},
