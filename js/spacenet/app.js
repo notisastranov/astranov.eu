@@ -8260,10 +8260,21 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         f.appendChild(hid);
       }
       var talkLock = 0;
-      function submitTalk(e) {
+      /* 4372: only a real Enter in the talk box or a real tap on GO may submit and clear it. Astranov.Eu saw
+         /api/find?q=pi fire after two typed keys (input left holding 'zza in Rhodes'): every submit path now needs a trusted
+         event, the form submit and the keyup backup need a real Enter keydown in the last 1.5 s that did not already submit,
+         and every submit is logged with its trigger in window.__snSubmits */
+      var enterDownAt = 0, enterDone = true;
+      function submitTalk(e, why) {
         if (e) { e.preventDefault(); if (e.stopPropagation) e.stopPropagation(); }
         var now = Date.now();
         var v = inp ? String(inp.value || "").trim() : "";
+        var trig = why || (e && e.type) || "call";
+        var okE = !!(e && e.isTrusted !== false);
+        if ((trig === "submit" || trig === "keyup") && (enterDone || now - enterDownAt > 1500)) okE = false;
+        try { (window.__snSubmits = window.__snSubmits || []).push({ at: now, why: trig, v: v, ok: okE && !!v }); if (window.__snSubmits.length > 20) window.__snSubmits.shift(); } catch (eL) {}
+        if (!okE) return;
+        enterDone = true;
         if (!v) return;
         if (now - talkLock < 350 && v === submitTalk.__last) return;
         talkLock = now;
@@ -8280,7 +8291,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           if (e.key !== "Enter" && e.keyCode !== 13) return;
           if (e.isComposing) return;
           e.preventDefault();
-          submitTalk(e);
+          if (e.isTrusted === false) return;
+          enterDownAt = Date.now(); enterDone = false;
+          submitTalk(e, "enter");
         }
         inp.addEventListener("keydown", onEnter);
         /* 4340: focus on the map, a sheet row or the page must not eat keys: printable keys go to the talk box,
@@ -8294,7 +8307,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           if ((tag === "button" || tag === "a" || (t && t.getAttribute && t.getAttribute("role") === "button")) && (e.key === "Enter" || e.key === " " || e.keyCode === 13 || e.keyCode === 32)) return; /* 4366: a focused control keeps only Enter/Space; letters typed after tapping a HUD button go to the talk box (they were dropped) */
           if (e.key === "Enter" || e.keyCode === 13) {
             if (e.isComposing) return;
-            if (String(inp.value || "").trim()) { e.preventDefault(); submitTalk(e); }
+            if (String(inp.value || "").trim() && e.isTrusted !== false) { e.preventDefault(); enterDownAt = Date.now(); enterDone = false; submitTalk(e, "enter-page"); }
             return;
           }
           if (e.isComposing || e.keyCode === 229 || e.key === "Process" || e.key === "Unidentified") { /* 4371: no key name to insert ourselves: move focus first so the native character lands in the box */
@@ -8316,7 +8329,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           if (e.key !== "Enter" && e.keyCode !== 13) return;
           if (e.isComposing) return;
           /* backup if keydown was swallowed while a prior fetch was settling */
-          if (inp && String(inp.value || "").trim()) submitTalk(e);
+          if (inp && String(inp.value || "").trim()) submitTalk(e, "keyup");
         });
       }
     }
@@ -8338,6 +8351,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       go.addEventListener("click", function (e) {
         e.preventDefault();
         if (inp && String(inp.value || "").trim()) {
+          if (e.isTrusted === false) return; /* 4372: only a real tap on GO sends */
+          try { (window.__snSubmits = window.__snSubmits || []).push({ at: Date.now(), why: "go", v: String(inp.value).trim(), ok: true }); } catch (eL) {}
           var v = inp.value; inp.value = ""; paintGo(); talk(v, false); return;
         }
         if (window.SpeechRecognition || window.webkitSpeechRecognition) {
@@ -8348,6 +8363,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           rec.continuous = false;
           rec.onresult = function (ev) {
             var t = ev.results[0][0].transcript;
+            if (inp && String(inp.value || "").trim()) { say("Heard: " + t + " · kept what you typed."); return; } /* 4372: a late voice result never replaces or sends typed text */
             if (inp) inp.value = t;
             paintGo();
             talk(t, true);
