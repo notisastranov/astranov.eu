@@ -1,0 +1,33 @@
+name: grokbuild 4372b (talk box submits only on a real Enter or GO; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4372b.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix76, assert tree, commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "56c082aae1368d2db91b9695aefa19aeac03d8e8" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          base64 -d .grokbuild/fix76.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "7b65e4de3cdc86c98f0c05c233e428e7a7e0fce467c0ba0deddfcd6ac8e2848b"
+          gunzip -c /tmp/f.gz > /tmp/fix76.patch
+          test "$(sha256sum /tmp/fix76.patch | cut -d' ' -f1)" = "573c0d67c323a4b0082cf6e7471c5dc756bab0e9f7b87da8933f0be45f3fef8e"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4372b.yml
+          git apply --index /tmp/fix76.patch
+          node --check js/spacenet/app.js
+          grep -q '^4372$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "37ad3386113e0c97e8580c4f8a1397c678cb31bf" || { echo "tree $T"; exit 1; }
+          git commit -q -m "4372: the talk box submits and clears only on a real Enter or a real GO tap (trusted events; form submit and keyup backup need a fresh unhandled Enter; a late voice result never replaces typed text); every submit logged in window.__snSubmits; lockstep 4372"
+          git push origin HEAD:grokbuild/4328-street-level-gps
