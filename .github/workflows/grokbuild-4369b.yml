@@ -1,0 +1,33 @@
+name: grokbuild 4369b (Overpass budget window opens on first use; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4369b.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix72, assert tree, commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "389b8d14f36864dc61e930880f7665861c5bdbfd" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          base64 -d .grokbuild/fix72.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "677de9e5929603b163e8546f7698b402224cae5d2840439c2a2377231f482494"
+          gunzip -c /tmp/f.gz > /tmp/fix72.patch
+          test "$(sha256sum /tmp/fix72.patch | cut -d' ' -f1)" = "b237141df97cce0b333851c8a499431796c23abed876cdb62e0879663cf0299b"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4369b.yml
+          git apply --index /tmp/fix72.patch
+          node --check js/spacenet/app.js
+          grep -q '^4369$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "5285cd0ed9220b1d9ffe99ed2fc9467e4d4f233c" || { echo "tree $T"; exit 1; }
+          git commit -q -m "4369: the Overpass budget window also opens on first use (the land nearby query ran before hunt() and the hunt reset the count, so both tries went to mirror 0); now mirror 0 then mirror 1"
+          git push origin HEAD:grokbuild/4328-street-level-gps
