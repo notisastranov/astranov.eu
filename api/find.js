@@ -248,6 +248,31 @@ async function nominatimSearch(q) {
   }
 }
 
+// 4374: real-result memory on this instance (never invented): the last real Overpass answer per query and the last real
+// hunt answer per query + ~1 km anchor are kept 24 h and served, marked cached, only when the live sources return nothing
+var REAL_MEM = {};
+function memPut(k, v) { if (v && v.length) REAL_MEM[k] = { t: Date.now(), v: v }; }
+function memGet(k) { var e = REAL_MEM[k]; return e && Date.now() - e.t < 86400000 ? e.v : null; }
+// 4374: the browser never calls Nominatim itself; it asks here (op=nominatim) with the same parameters
+async function nominatimRaw(params) {
+  var qs = ["format=json", "addressdetails=0", "limit=" + Math.min(20, Math.max(1, Number(params.limit) || 10)), "q=" + encodeURIComponent(String(params.q || "").slice(0, 120))];
+  if (/^-?\d+(\.\d+)?(,-?\d+(\.\d+)?){3}$/.test(String(params.viewbox || ""))) qs.push("viewbox=" + params.viewbox);
+  if (String(params.bounded || "") === "1") qs.push("bounded=1");
+  var k = "nom|" + qs.join("&");
+  var t = await grab("https://nominatim.openstreetmap.org/search?" + qs.join("&"), 5000);
+  var rows = null;
+  try { rows = t ? JSON.parse(t) : null; } catch (e) { rows = null; }
+  if (Array.isArray(rows) && rows.length) { memPut(k, rows); return { rows: rows, cached: false }; }
+  var c = memGet(k);
+  return { rows: c || (Array.isArray(rows) ? rows : []), cached: !!c };
+}
+async function nominatimNear(q, anchor, deg) {
+  var d = deg || 0.12;
+  var vb = [(anchor.lng - d).toFixed(4), (anchor.lat + d).toFixed(4), (anchor.lng + d).toFixed(4), (anchor.lat - d).toFixed(4)].join(",");
+  var r = await nominatimRaw({ q: q, viewbox: vb, bounded: "1", limit: 12 });
+  return (r.rows || []).map(fromNominatimRow).filter(Boolean);
+}
+
 async function geocodeRanked(q, opts) {
   opts = opts || {};
   var preferGreece = !!opts.preferGreece;
@@ -376,6 +401,12 @@ module.exports = async function (req, res) {
   var n = req.method === "GET" ? req.query || {} : readBody(req);
   // 4350: Overpass for the browser through this function (same origin, so a refusal or a rate limit is never a CORS error in the
   // page); only [out:json][timeout:N] queries up to 700 chars; overpass-api.de first, overpass.kumi.systems second; always 200
+  if (String(n.op || "") === "nominatim") {
+    cors(res, true);
+    var nr = await nominatimRaw(n);
+    try { res.setHeader("X-Astranov-Cached", nr.cached ? "1" : "0"); } catch (eH) {}
+    return res.status(200).json(nr.rows || []);
+  }
   if (String(n.op || "") === "overpass") {
     cors(res, true);
     var od = String(n.data || "");
@@ -389,7 +420,12 @@ module.exports = async function (req, res) {
     // because the Overpass call runs here, server-side, and never shows in the browser's network panel
     var asked = Number(n.mirror) === 1 ? 1 : 0;
     try { res.setHeader("X-Astranov-Mirror", mi + " " + osrc); } catch (eH) {}
-    if (!oj || !Array.isArray(oj.elements)) return res.status(200).json({ ok: false, error: "overpass unavailable", elements: [], meta: { mode: "overpass", mirror: mi, asked: asked, src: osrc, build: BUILD } });
+    if (!oj || !Array.isArray(oj.elements)) {
+      var oc = memGet("ov|" + od);
+      if (oc) return res.status(200).json({ ok: true, cached: true, elements: oc, meta: { mode: "overpass", mirror: mi, asked: asked, src: osrc, cached: true, build: BUILD } });
+      return res.status(200).json({ ok: false, error: "overpass unavailable", elements: [], meta: { mode: "overpass", mirror: mi, asked: asked, src: osrc, build: BUILD } });
+    }
+    memPut("ov|" + od, oj.elements.slice(0, 40));
     return res.status(200).json({ ok: true, elements: oj.elements.slice(0, 40), meta: { mode: "overpass", mirror: mi, asked: asked, src: osrc, build: BUILD } });
   }
   var a = parseQuery(String(n.q || n.name || "").slice(0, 80), String(n.city || n.place || "").slice(0, 80));
@@ -489,9 +525,22 @@ module.exports = async function (req, res) {
     });
   }
 
-  for (var h = 0; h < f.length && d.length < 8; h++) {
+  // 4374: with an anchor (the user's seat or a named place) ask OSM for the thing inside a box around it first; this is real
+  // OSM data that does not need Overpass (overpass-api.de 504 / 406, kumi timing out)
+  if (anchor && isFinite(+anchor.lat) && r) {
+    var terms = [r];
+    if (pizza && !/pizzeria/i.test(r)) terms.push("pizzeria");
+    for (var bt = 0; bt < terms.length && d.length < 8; bt++) y(await nominatimNear(terms[bt], anchor, 0.12));
+  }
+  for (var h = 0; h < f.length && d.length < 3; h++) { // 4374: the boxed OSM answer usually suffices; keep under the function time limit
     var pack = await geocodeRanked(f[h], { preferGreece: preferGreece });
     y(pack.places);
+  }
+  var memK = anchor ? "hunt|" + String(r).toLowerCase() + "|" + (+anchor.lat).toFixed(2) + "," + (+anchor.lng).toFixed(2) : "";
+  var fromMem = false;
+  if (memK) {
+    if (d.length) memPut(memK, d.slice(0, 8));
+    else { var hm = memGet(memK); if (hm) { d = hm.slice(); fromMem = true; } }
   }
 
   cors(res, !d.length);
@@ -503,6 +552,7 @@ module.exports = async function (req, res) {
       city: i || "",
       wantRhodes: !!m,
       mode: "hunt",
+      cached: fromMem,
       build: BUILD,
       empty: !d.length,
       message: d.length ? "" : "No real pin for that hunt."

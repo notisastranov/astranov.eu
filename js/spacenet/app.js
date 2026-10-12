@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4373";
+  var VER = "4374";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1374,7 +1374,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     requestAnimationFrame(loop);
     requestAnimationFrame(function () {
       window.__SN_EARTH = true;
-      window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true; window.__SN_4369 = true; window.__SN_4370 = true; window.__SN_4371 = true; window.__SN_4372 = true; window.__SN_4373 = true;
+      window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true; window.__SN_4369 = true; window.__SN_4370 = true; window.__SN_4371 = true; window.__SN_4372 = true; window.__SN_4373 = true; window.__SN_4374 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -2368,16 +2368,26 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     btn.style.setProperty("pointer-events", "auto", "important");
     function goGps(ev) {
       if (ev) { ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
-      adminPin = false;
       try { closeSky(); } catch (e) {}
       say("Locating…");
+      /* 4374: the GPS button only ever lands on a real GPS fix. Blocked or failed geolocation keeps the view (or goes back to
+         the last real fix) with an honest message; it never jumps to the network (IP) guess and never invents a place */
       locate(function (pt) {
-        if (!pt || !isFinite(+pt.lat)) {
-          say("Location failed. Allow GPS, or I will try the network.");
+        if (pt && isFinite(+pt.lat) && pt.how === "gps") {
+          adminPin = false;
+          ipView = null; window.__snIpView = null; hereLive = { lat: +pt.lat, lng: +pt.lng, name: "GPS" };
+          window.__snGpsBtn = { at: Date.now(), result: "fix" };
+          land(pt, false);
           return;
         }
-        if (pt.how === "gps") { ipView = null; window.__snIpView = null; hereLive = { lat: +pt.lat, lng: +pt.lng, name: "GPS" }; }
-        land(pt, false);
+        var blocked = gpsPerm === "denied" || (pt && pt.how && pt.how !== "gps") || !pt;
+        window.__snGpsBtn = { at: Date.now(), result: blocked ? "blocked" : "failed", how: pt && pt.how || "" };
+        if (hereLive && isFinite(+hereLive.lat) && !(map && cityOn && haversineKm(map.getCenter(), hereLive) < 0.05)) {
+          land({ lat: +hereLive.lat, lng: +hereLive.lng, name: "Last GPS fix", how: "gps" }, false);
+          say("Location blocked · back on your last real GPS fix. Allow location in the browser for a fresh one.");
+          return;
+        }
+        say(gpsPerm === "denied" ? "Location blocked in this browser · the map stays where it is. Allow location to use GPS." : "No GPS fix · the map stays where it is. Allow location, or name a place.");
       }, false);
     }
     btn.addEventListener("click", goGps, true);
@@ -3053,7 +3063,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4373&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4374&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3296,7 +3306,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ".sn-shop-pin .sn-lead{position:absolute;left:38px;top:31px;height:2px;margin-top:-1px;background:#4df0ff;transform-origin:0 50%;pointer-events:none;z-index:0;box-shadow:0 0 0 1px rgba(4,16,28,.55)}",
       ".sn-shop-pin .sn-lead:before{content:\"\";position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:#4df0ff;border:1px solid #041018;box-sizing:border-box}",
       "#sn-sheet .ph.sn-ph-no{font-weight:900!important}",
-      "#sn-tester{position:fixed;top:28px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(77,240,255,.4);color:#7ee9ff;font:700 10px/14px ui-monospace,monospace;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+      "#sn-tester{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:260;max-width:min(62vw,560px);padding:2px 8px;border-radius:999px;background:rgba(4,14,28,.88);border:1px solid rgba(77,240,255,.45);color:#7ee9ff;font:700 9px/13px ui-monospace,monospace;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.92}",
       "#sn-tester.stale{color:#8a6a6a;border-color:rgba(255,120,120,.35)}",
       "#sn-topchrome-drag{display:block!important;height:10px!important;min-height:10px!important;max-height:10px!important;font-size:0!important;line-height:0!important;color:transparent!important;overflow:hidden!important;background:transparent!important}",
       "#cli-drag{display:block!important;height:10px!important;min-height:10px!important;max-height:10px!important;width:100%!important;cursor:grab!important}", /* 4362: drag handles shown at 10 px, never hidden */
@@ -3495,8 +3505,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     (items || []).forEach(function (x) {
       if (x && (x.kind === "tester" || x.id === "tester-live") && (Date.now() - Number(x.t || 0)) < 20 * 60000) fresh = x;
     });
+    /* 4374: the strip has one writer (demoProbe, live every 5 s); this only keeps the tester's queue note and map dot */
+    window.__snTesterRow = (testView() && fresh) ? (fresh.note || fresh.title || "") : "";
     if (!testView() || !fresh) {
-      if (el) { el.style.display = "none"; el.textContent = ""; }
       if (testerMark && map) { try { map.removeLayer(testerMark); } catch (e) {} testerMark = null; }
       return;
     }
@@ -3507,11 +3518,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       el.id = "sn-tester";
       document.body.appendChild(el);
     }
-    el.style.display = "";
-    if (!it) { el.style.display = "none"; el.textContent = ""; return; }
-    var mins = Math.max(0, Math.round((Date.now() - Number(it.t || 0)) / 60000));
-    el.classList.toggle("stale", mins > 20);
-    el.textContent = "TESTER · " + (mins < 1 ? "now" : mins + "m") + " · " + (it.note || it.title || "checking");
+    if (!it) return;
     var bits = String(it.ref || "").split(",");
     var lat = Number(bits[0]), lng = Number(bits[1]);
     if (!map || typeof L === "undefined" || !isFinite(lat) || !isFinite(lng)) return;
@@ -3529,8 +3536,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var faces = document.querySelectorAll(".leaflet-marker-icon.sn-shop-pin img").length;
     if (cityOn && vendors > 0 && faces < 1) faults.push("vendor faces missing");
     var drivers = people.filter(function (p) { return p && p.role === "driver" && isFinite(+p.lat); }).length;
-    var note = (faults.length ? "FAIL " + faults.join(", ") : "hold menu, face pins, thin route") +
-      " · " + vendors + " vendors · " + faces + " faces · " + drivers + " drivers · " + jobs.length + " orders";
+    if (latestVer && String(latestVer) !== String(VER)) faults.push("stamp V" + VER + " vs latest " + latestVer);
+    var hv = window.__snHuntDone; /* 4374: the last finished hunt, recomputed on every probe */
+    if (hv && hv.n === 0 && Date.now() - hv.t < 10 * 60000) faults.push("last hunt '" + String(hv.q || "").slice(0, 20) + "' 0 pins");
+    var note = (faults.length ? "FAIL " + faults.join(", ") : "PASS hold menu, face pins, thin route") +
+      " · " + vendors + " vendors · " + faces + " faces · " + drivers + " drivers · " + jobs.length + " orders" +
+      (window.__snTesterRow ? " · " + String(window.__snTesterRow).slice(0, 40) : "") +
+      " · " + new Date().toTimeString().slice(0, 8);
     var el = $("sn-tester");
     if (!el) {
       el = document.createElement("div");
@@ -3814,10 +3826,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function parseInPlace(q) {
     var s = String(q || "").trim();
-    var m = s.match(/^(.+?)\s+\bin\b\s+(.+)$/i);
+    /* 4374: 'pizza near Syntagma' / 'pizza at Monastiraki' / 'pizza around Kifisia' land on that place and hunt there, the same as
+       'pizza in Athens'; 'near me' / 'near here' stay on the seat */
+    var m = s.match(/^(.+?)\s+\b(in|near|at|around|by)\b\s+(.+)$/i);
     if (!m) return null;
     var what = m[1].replace(/^(find|hunt|show|go\s+to|take\s+me\s+to|fly\s+to|open)\s+/i, "").trim();
-    var where = m[2].trim();
+    var where = m[3].trim().replace(/[?.!]+$/, "");
+    if (/^(me|here|us|you|my\s+(place|location|home)|the\s+map)$/i.test(where)) return null;
     if (!what || !where || what.length < 2 || where.length < 2) return null;
     if (/^(stock|total|mind|fact|case|time|english|general|love|trouble)$/i.test(where)) return null;
     return { what: what, where: where };
@@ -5787,6 +5802,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   var huntDoneN = null; /* the count the finished hunt announced; null while a hunt runs or none has */
   function huntSay(n, seat0) {
+    window.__snHuntDone = { n: n, q: (huntView && huntView.raw) || "", t: Date.now() }; try { demoProbe(); } catch (eDP) {}
     if (!n && huntView && huntView.nameQ) say("No place named " + huntView.nameQ + " within 50 km of " + seatName(seat0) + ".");
     else if (!n) say("No real " + huntLabel() + " within 50 km of " + seatName(seat0) + ".");
     else say(n + " real " + huntLabel() + " pin" + (n === 1 ? "" : "s") + " at " + seatName(seat0) + (signed() ? ". Tap one to order." : ". Tap one to see the menu."));
@@ -5796,13 +5812,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function huntNominatim(q, lim) {
     var seatN = activeSeat() || here;
-    var url = "https://nominatim.openstreetmap.org/search?format=json&limit=" + (lim || 16) + "&addressdetails=0&q=" + encodeURIComponent(q);
+    var url = "/api/find?op=nominatim&limit=" + (lim || 16) + "&q=" + encodeURIComponent(q); /* 4374: Nominatim through our server, never straight from the browser */
     if (seatN && isFinite(+seatN.lat)) {
       var w = (seatN.lng - 0.25).toFixed(4), e = (seatN.lng + 0.25).toFixed(4);
       var s = (seatN.lat - 0.25).toFixed(4), n = (seatN.lat + 0.25).toFixed(4);
       url += "&viewbox=" + w + "," + n + "," + e + "," + s + "&bounded=1";
     }
-    return fetchJson(url, { headers: { Accept: "application/json" }, signal: huntSig() }).then(function (rows) {
+    return fetchJson(url, { cache: "no-store", signal: huntSig() }).then(function (rows) {
       if (Array.isArray(rows)) {
         /* 4342: keep every named row and every unnamed row that is a real shop / amenity (a pharmacy without a name
            tag is still a pharmacy); drop only unnamed non-places (roads, stops). 4341 dropped all unnamed rows as soon as
@@ -6034,7 +6050,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       /* replace, do not union with the previous city's pins */
       Promise.all([
         huntRace(spaceP, 5000),
-        huntRace(huntApi(named || q), 5000),
+        huntRace(huntApi(named || q), 9000), /* 4374: the server now asks OSM in a box around the seat (real pins without Overpass) */
         huntRace(huntNominatim(named || q), 4000),
         huntRace(huntOverpass(named || q), 2500)
       ]).then(function (packs) {
@@ -7577,7 +7593,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (r) fin({ lat: +r.lat, lng: +r.lng, name: r.name || where, raw: r.raw || "" });
         return j;
       });
-      var b = fetchJsonT("https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(where), { headers: { Accept: "application/json" } }, 6000).then(function (rows) {
+      var b = fetchJsonT("/api/find?op=nominatim&limit=1&q=" + encodeURIComponent(where), { cache: "no-store" }, 6000).then(function (rows) { /* 4374: through our server */
         var r = Array.isArray(rows) && rows[0];
         if (r) fin({ lat: +r.lat, lng: +r.lon, name: String(r.display_name || where).split(",")[0], raw: r.display_name || "" });
         return rows;
@@ -10057,7 +10073,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }, 700);
     setTimeout(function () { clearInterval(authWatch); }, 20000);
     demoProbe();
-    setInterval(demoProbe, 20000);
+    setInterval(demoProbe, 5000); /* 4374: live verdict, never older than 5 s */
     setInterval(tickLive, 1000);
     checkVersion();
     try {
@@ -10089,7 +10105,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true; window.__SN_4369 = true; window.__SN_4370 = true; window.__SN_4371 = true; window.__SN_4372 = true; window.__SN_4373 = true;
+    window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true; window.__SN_4369 = true; window.__SN_4370 = true; window.__SN_4371 = true; window.__SN_4372 = true; window.__SN_4373 = true; window.__SN_4374 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
