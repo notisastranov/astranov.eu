@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4363";
+  var VER = "4365";
   var latestVer = "";
   var INTRO_MS = 13000;
   var LAND = [];
@@ -80,7 +80,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var pinch = null;
   var holdT = 0;
   var cityOn = false;
-  var globeHold = true;
   var userLeave = false;
   var cardHits = [];
   var skyOn = false;
@@ -260,66 +259,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function avcSet(n) {
     n = Math.max(0, Math.round(Number(n) || 0));
-    if (n === 0 && bankBal > 0) n = bankBal;
     try {
       localStorage.setItem(walletKey(), String(n));
       localStorage.setItem("sn:avc", String(n));
     } catch (e) {}
     paintMoney();
     return n;
-  }
-  var bankBal = 0;
-  var bankSeen = false;
-  var bankAsked = false;
-  var OWNER_CAPITAL = 3000000;
-  function shownMoney() {
-    if (ownerMail()) return supplyView().pool;
-    var n = Math.max(myMoney(), bankBal);
-    return Math.round(n);
-  }
-  function pullBank() {
-    if (!signed()) return;
-    var u = null, tok = "";
-    try { u = (window.SNAuth && SNAuth.user && SNAuth.user()) || JSON.parse(localStorage.getItem("sn:user") || "null"); } catch (e) {}
-    try { tok = (window.SNAuth && SNAuth.token && SNAuth.token()) || localStorage.getItem("sn:access") || ""; } catch (e2) {}
-    if (!u || !u.id || !tok) return;
-    fetch("/api/public-config", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (cfg) {
-      if (!cfg || !cfg.anon || !cfg.sb) return null;
-      return fetch(cfg.sb + "/rest/v1/profiles?id=eq." + encodeURIComponent(u.id) + "&select=avc_balance,balance", {
-        headers: { apikey: cfg.anon, Authorization: "Bearer " + tok, Accept: "application/json" }
-      }).then(function (r) { return r.json(); }).then(function (rows) { return { cfg: cfg, rows: rows, id: u.id, tok: tok }; });
-    }).then(function (pack) {
-      var row = pack && Array.isArray(pack.rows) ? pack.rows[0] : null;
-      if (!row) {
-        paintMoney();
-        if (!bankSeen && signed()) setTimeout(pullBank, 2500);
-        return;
-      }
-      var db = Number(row.avc_balance);
-      if (!isFinite(db)) db = Number(row.balance);
-      if (!isFinite(db) || db < 0) return;
-      bankSeen = true;
-      bankBal = db;
-      var local = avcGet();
-      if (db > local) avcSet(db);
-      else if (local > db && local > 0) {
-        bankBal = local;
-        fetch(pack.cfg.sb + "/rest/v1/profiles?id=eq." + encodeURIComponent(pack.id), {
-          method: "PATCH",
-          headers: {
-            apikey: pack.cfg.anon,
-            Authorization: "Bearer " + pack.tok,
-            "Content-Type": "application/json",
-            Prefer: "return=minimal"
-          },
-          body: JSON.stringify({ avc_balance: local, balance: local })
-        }).catch(function () {});
-      }
-      paintMoney();
-    }).catch(function () {
-      paintMoney();
-      if (!bankSeen && signed()) setTimeout(pullBank, 2500);
-    });
   }
   function myMoney() {
     var n = avcGet();
@@ -333,105 +278,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     return n;
   }
   function poolGet() {
-    return supplyView().pool;
-  }
-  function supplyGet() {
-    var s = { cashIn: 0, reserved: 0, consumed: 0, withdrawn: 0, vendorLock: 0, coupons: 0, locks: {} };
     try {
-      var raw = JSON.parse(localStorage.getItem("sn:supply") || "null");
-      if (raw && typeof raw === "object") {
-        ["cashIn", "reserved", "consumed", "withdrawn", "vendorLock", "coupons"].forEach(function (k) {
-          if (isFinite(+raw[k])) s[k] = +raw[k];
-        });
-        if (raw.locks && typeof raw.locks === "object") s.locks = raw.locks;
-      }
+      var b = JSON.parse(localStorage.getItem("sn:books") || "null");
+      if (b && isFinite(+b.pool)) return +b.pool;
     } catch (e) {}
-    return s;
-  }
-  function supplySet(s, quiet) {
-    try { localStorage.setItem("sn:supply", JSON.stringify(s)); } catch (e) {}
-    paintMoney();
-    if (quiet || !signed()) return;
-    var t = "";
-    try { t = (window.SNAuth && SNAuth.token && SNAuth.token()) || localStorage.getItem("sn:access") || ""; } catch (e2) {}
-    fetch("/api/space", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: t ? "Bearer " + t : "" },
-      body: JSON.stringify({ row: { id: "supply-pool", kind: "supply", lat: 36.434, lng: 28.217, note: JSON.stringify(s) } })
-    }).catch(function () {});
-  }
-  function supplyView() {
-    var s = supplyGet();
-    var cashIn = Math.round((Number(s.cashIn) || 0) * 100) / 100;
-    var reserved = Math.round((Number(s.reserved) || 0) * 100) / 100;
-    var withdrawable = Math.max(0, Math.round(((Number(s.consumed) || 0) - (Number(s.withdrawn) || 0)) * 100) / 100);
-    var vendorLock = Math.round((Number(s.vendorLock) || 0) * 100) / 100;
-    var stays = Math.round((reserved + vendorLock) * 100) / 100;
-    var pool = Math.round((cashIn + vendorLock) * 100) / 100;
-    return { pool: pool, withdrawable: withdrawable, stays: stays, cashIn: cashIn, reserved: reserved, vendorLock: vendorLock, coupons: Math.round((Number(s.coupons) || 0) * 100) / 100 };
-  }
-  function noteDeposit(n) {
-    n = Math.round(Number(n) * 100) / 100;
-    if (!(n > 0)) return;
-    var s = supplyGet();
-    s.cashIn = Math.round((s.cashIn + n) * 100) / 100;
-    s.reserved = Math.round((s.reserved + n) * 100) / 100;
-    supplySet(s);
-  }
-  function noteSpend(n) {
-    n = Math.round(Number(n) * 100) / 100;
-    if (!(n > 0)) return;
-    var s = supplyGet();
-    var move = Math.min(n, Math.max(0, s.reserved));
-    if (!(move > 0)) return;
-    s.reserved = Math.round((s.reserved - move) * 100) / 100;
-    s.consumed = Math.round((s.consumed + move) * 100) / 100;
-    supplySet(s);
-  }
-  function setVendorLock(id, name, amount) {
-    var s = supplyGet();
-    if (!s.locks) s.locks = {};
-    s.locks[id] = { name: name || "vendor", avc: Math.max(0, Math.round(Number(amount) * 100) / 100) };
-    var sum = 0;
-    Object.keys(s.locks).forEach(function (k) { sum += Number(s.locks[k] && s.locks[k].avc) || 0; });
-    s.vendorLock = Math.round(sum * 100) / 100;
-    supplySet(s);
-  }
-  function openPool() {
-    var v = supplyView();
-    var html = '<p class="sn-kicker">POOL</p>' +
-      '<p class="note">Deposits plus what vendors lock forever. Nothing here is printed.</p>' +
-      '<div class="sn-clocks"><div><b>' + v.withdrawable.toLocaleString("en-GB") + '</b><span>WITHDRAW</span></div><div><b>' + v.stays.toLocaleString("en-GB") + '</b><span>LEAVE INSIDE</span></div></div>' +
-      '<p class="note">Withdraw is only cash that clients already spent. Money still on a client stays reserved until it is consumed. Vendor lock is not euros. It never pays out. Coupons come out of that lock.</p>' +
-      '<p class="note">Cash in ' + v.cashIn.toLocaleString("en-GB") + " · still to spend " + v.reserved.toLocaleString("en-GB") + " · vendor lock " + v.vendorLock.toLocaleString("en-GB") + " · coupons " + v.coupons.toLocaleString("en-GB") + "</p>" +
-      '<button type="button" class="sheet-go primary" data-act="take-cash">WITHDRAW THE CASH</button>' +
-      '<input id="sn-coupon" inputmode="decimal" placeholder="Coupon AV€" />' +
-      '<button type="button" class="sheet-go" data-act="issue-coupon">ISSUE A COUPON</button>';
-    openTile({ kind: "pool", title: "POOL", mid: priceMid(v.pool), html: html });
-  }
-  function takeCash() {
-    if (!ownerMail()) { say("Only the owner withdraws."); return; }
-    var s = supplyGet();
-    var n = Math.max(0, Math.round((s.consumed - s.withdrawn) * 100) / 100);
-    if (!(n > 0)) { say("Nothing to withdraw. Unspent deposits and vendor locks stay inside."); return; }
-    s.withdrawn = Math.round((s.withdrawn + n) * 100) / 100;
-    supplySet(s);
-    say(n + " € is the cash you can take. Vendor lock stays in SpaceNet.");
-    openPool();
-  }
-  function issueCoupon() {
-    if (!ownerMail()) return;
-    var el = $("sn-coupon");
-    var n = Number(String(el && el.value || "").replace(",", "."));
-    n = Math.round(n * 100) / 100;
-    if (!(n > 0)) { say("Type the coupon."); return; }
-    var s = supplyGet();
-    var room = Math.max(0, Math.round((s.vendorLock - s.coupons) * 100) / 100);
-    if (n > room) { say("Coupons cannot pass what vendors locked. Room " + room + " AV€."); return; }
-    s.coupons = Math.round((s.coupons + n) * 100) / 100;
-    supplySet(s);
-    say("Coupon " + n + " AV€. It spends inside. It is not cash.");
-    openPool();
+    try {
+      var n = Number(localStorage.getItem("sn:pool"));
+      return isFinite(n) ? n : 0;
+    } catch (e2) { return 0; }
   }
   function paintMoney() {
     var btn = $("sn-money");
@@ -446,8 +300,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (tgt) tgt.textContent = "AV€";
       return;
     }
-    if (!bankAsked) { bankAsked = true; pullBank(); }
-    var n = shownMoney();
+    var n = Math.round(myMoney());
     if (tgt) tgt.textContent = n.toLocaleString("en-GB") + " AV€";
   }
   function signed() {
@@ -839,87 +692,39 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       cam.pitch = fly.start.pitch + (fly.goal.pitch - fly.start.pitch) * e;
       cam.dist = fly.start.dist + (fly.goal.dist - fly.start.dist) * e;
       if (k >= 1) fly = null;
+      if (!drag && tierI >= 2 && aim && !cityOn) {
+        var held = face(aim);
+        cam.yaw = held.yaw;
+        cam.pitch = held.pitch;
+      }
       return;
     }
-    if (!drag && !cityOn && tierI === 1 && cam.dist >= 1.5 && cam.dist <= 2.5) {
-      cam.yaw += dt * 0.12;
+    if (!fly && !seated && !drag && !cityOn) {
+      if (cam.dist < 1.7 || cam.dist > 2.2) cam.dist = 1.85;
+      cam.yaw += dt * 0.16;
       return;
     }
-    if (!drag && !cityOn && tierI >= 2 && aim && cam.dist < 1.2) {
-      var held = face(aim);
-      cam.yaw = held.yaw;
-      cam.pitch = held.pitch;
-      vel.yaw = 0;
-      vel.pitch = 0;
+    if (intro) {
+      if (cam.dist < 1.7 || cam.dist > 2.05) cam.dist = 1.85;
       return;
     }
-    vel.yaw = 0;
-    vel.pitch = 0;
+    if (!drag && tierI >= 2 && aim && !cityOn) {
+      var held2 = face(aim);
+      cam.yaw = held2.yaw;
+      cam.pitch = held2.pitch;
+      vel.yaw = 0; vel.pitch = 0;
+      return;
+    }
+    vel.yaw = 0; vel.pitch = 0;
   }
   function cardsNow() {
-    var rows = BRIEF.filter(function (c) { return c && c.k === "CALENDAR"; });
-    rows = rows.concat(shownResearch());
+    var rows = BRIEF.slice();
     var n = 0;
     jobs.forEach(function (j) { if (j && !j.received && seesJob(j)) n++; });
     if (n) rows.unshift({ k: "NOTICE", t: n + " open order" + (n === 1 ? "" : "s") });
     return rows;
   }
-  var researchLens = "ALL";
-  var RESEARCH = [];
-  function seedResearch() {
-    return [
-      { k: "RESEARCH", lens: "STOCK", t: "SpaceX share. A published range, not a promise.", est: "$159", body: "Published prints put SpaceX near $159, after a $225 high in June and a $105 low in August. The cited market value is about $2.2 trillion. Morgan Stanley's published target is $300. Bulls print $600 to $800. Bears print $62 to $100. SpaceNet does not forecast the rise.", lat: 33.92, lng: -118.35, where: "Hawthorne" },
-      { k: "RESEARCH", lens: "SPACEX", t: "Musk says SpaceX could dwarf the Earth economy. Analysts call it theatre.", est: "5,500×", body: "Musk wrote that he sees a path to SpaceX being worth orders of magnitude more than the Earth economy. One reading of that is a 5,500-fold rise. Analysts called it hype. Reported Q2 revenue was $7.8 billion, up 92%. He has spoken of an internal path to $1 trillion of revenue in 2030.", lat: 25.99, lng: -97.19, where: "Starbase" },
-      { k: "RESEARCH", lens: "SPACEX", t: "What is next: Starship Flight 15.", est: "NEXT", body: "Morgan Stanley told clients to build a position before Starship Flight 15. That is the published next event. It is not a date SpaceNet invented.", lat: 28.52, lng: -80.65, where: "Cape" },
-      { k: "RESEARCH", lens: "WAR", t: "Gulf war is choking Hormuz.", est: "WAR", body: "The war with Iran has slowed the Strait of Hormuz, about a fifth of the world's oil. Brent was reported near $90. This is the urgent war story on the energy route.", lat: 26.6, lng: 56.25, where: "Hormuz" },
-      { k: "RESEARCH", lens: "CRISIS", t: "IMF: energy shock, record debt, an AI split.", est: "CRISIS", body: "Georgieva warned of a war energy shock and an AI boom that skips most countries. The biggest growth cuts are in economies hit by war. Bond yields are at multi-year highs.", lat: 13.75, lng: 100.5, where: "Bangkok" },
-      { k: "RESEARCH", lens: "DEAL", t: "War is the top business risk. The opening is whoever can still move goods.", est: "DEAL", body: "Allianz says war is the political-violence risk companies now fear most. Trade is rerouting. The urgent opportunity is capacity on routes that still run, and energy and rare-earth supply that states are underwriting.", lat: 1.35, lng: 103.82, where: "Singapore" }
-    ];
-  }
-  function shownResearch() {
-    return RESEARCH.filter(function (c) {
-      if (!c) return false;
-      if (researchLens === "ALL") return true;
-      if (researchLens === "SPACEX") return c.lens === "SPACEX" || c.lens === "STOCK";
-      return c.lens === researchLens;
-    });
-  }
-  function pullResearch() {
-    if (!RESEARCH.length) RESEARCH = seedResearch();
-    fetch("/api/research?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
-      var cards = j && j.cards;
-      if (!cards || !cards.length) return;
-      RESEARCH = cards;
-    }).catch(function () {});
-  }
-  function focusStory(row) {
-    if (!row || cityOn || !isFinite(+row.lat)) return;
-    aim = { lat: +row.lat, lng: +row.lng };
-    intro = false;
-    var f = face(aim);
-    fly = {
-      t0: performance.now(),
-      ms: 700,
-      start: { yaw: cam.yaw, pitch: cam.pitch, dist: cam.dist },
-      goal: { yaw: f.yaw, pitch: f.pitch, dist: 1.72 }
-    };
-  }
-  function openResearch(row) {
-    row = row || shownResearch()[0] || RESEARCH[0] || seedResearch()[0];
-    focusStory(row);
-    var lenses = ["ALL", "SPACEX", "STOCK", "CRISIS", "WAR", "DEAL"];
-    var buttons = lenses.map(function (k) {
-      return '<button type="button" class="sheet-go' + (researchLens === k ? " primary" : "") + '" data-act="lens" data-k="' + k + '">' + k + "</button>";
-    }).join("");
-    var html = '<b class="sn-est">' + esc(row.est || row.lens || "RESEARCH") + "</b>" +
-      "<p><b>" + esc(row.t || "") + "</b></p>" +
-      '<p class="note">' + esc(row.where || "World") + "</p>" +
-      "<p>" + esc(row.body || row.t || "") + "</p>" +
-      '<p class="note">ONLY CRISIS, WAR, AND MAJOR BUSINESS. THIS CONTROLS THE GLOBE.</p>' + buttons;
-    openTile({ kind: "research", title: "RESEARCH", html: html });
-    var sh = $("sn-sheet");
-    if (sh) sh.classList.add("research");
-  }
+  function tickNews() {}
   function hitCard(x, y) {
     var i;
     for (i = cardHits.length - 1; i >= 0; i--) {
@@ -933,7 +738,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!ctx || cityOn || !view || cam.dist > 3.4) return;
     var rows = cardsNow().filter(function (row) {
       if (!row || vidHidden(row)) return false;
-      return row.k === "CALENDAR" || row.k === "RESEARCH" || row.k === "NEWS" || row.k === "VIDEO" || row.k === "WARN" || row.k === "WARNING";
+      return row.k === "CALENDAR" || row.k === "NEWS" || row.k === "VIDEO" || row.k === "WARN" || row.k === "WARNING";
     });
     rows.forEach(function (row, i) {
       var lat = isFinite(+row.lat) ? +row.lat : 36.43;
@@ -970,7 +775,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ctx.font = "800 9px system-ui,sans-serif";
       ctx.textAlign = "left";
       ctx.textBaseline = "top";
-      ctx.fillText(row.lens || row.k, x + 8, y + 4);
+      ctx.fillText(row.k, x + 8, y + 4);
       ctx.fillStyle = "#e8fbff";
       ctx.font = "600 11px system-ui,sans-serif";
       ctx.fillText(text, x + 8, y + 16, w - 16);
@@ -1047,35 +852,26 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }));
     }).catch(function () {});
   }
-  function tickNews() {
-    if (!NEWS || !NEWS.length) return;
-    var slot = Math.floor(Date.now() / 4000) % NEWS.length;
-    if (slot === briefI) return;
-    briefI = slot;
-    var node = $("sn-node");
-    if (node) node.textContent = NEWS[slot];
-  }
   function loop(now) {
-    var dt = Math.min(0.05, lastT ? (now - lastT) / 1000 : 0.016);
-    lastT = now;
-    if (!introT0) introT0 = now;
-    if (intro && now - introT0 >= INTRO_MS) {
-      try { endIntro(); } catch (e) { intro = false; }
-    }
-    try { stepCam(now, dt); } catch (e) { window.__SN_LOOP_ERR = String(e && (e.message || e)); }
-    if (!cityOn) {
-      try { drawGlobe(now); drawCard(now); } catch (e2) { window.__SN_LOOP_ERR = String(e2 && (e2.message || e2)); }
-    }
-    try { tickNews(now); } catch (e3) {}
-    try { guardOverlap(); } catch (e4) {}
-    try { if (skyOn) drawSky(now); } catch (e5) {}
-    try { paintMonitor(now); } catch (e6) {}
-    try { maybeLayout(); } catch (e7) {}
-    if (!window.__SN_SW) {
-      window.__SN_SW = true;
-      try {
-        if (navigator.serviceWorker) navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {});
-      } catch (e8) {}
+    try {
+      var dt = Math.min(0.05, lastT ? (now - lastT) / 1000 : 0.016);
+      lastT = now;
+      if (!introT0) introT0 = now;
+      if (intro && now - introT0 >= INTRO_MS) endIntro();
+      stepCam(now, dt);
+      tickNews(now);
+      if (!cityOn) { drawGlobe(now); drawCard(now); }
+      if (skyOn) drawSky(now);
+      paintMonitor(now);
+      maybeLayout();
+      if (!window.__SN_SW) {
+        window.__SN_SW = true;
+        try {
+          if (navigator.serviceWorker) navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {});
+        } catch (e) {}
+      }
+    } catch (err) {
+      window.__SN_LOOP_ERR = String(err && (err.message || err));
     }
     window.__SN_EARTH = true;
     window.__SN_4254 = true;
@@ -1158,10 +954,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       vel.yaw = 0; vel.pitch = 0;
       var pUp = pos(e);
       var card = hitCard(pUp.x, pUp.y);
-      if (card && card.row && (card.row.k === "RESEARCH" || card.row.k === "NEWS" || card.row.k === "WARN" || card.row.k === "WARNING")) {
-        openResearch(card.row);
-        return;
-      }
       if (card && card.row && card.row.k === "VIDEO") {
         if (card.row.act === "youtube" && window.SNAuth && SNAuth.youtube) { SNAuth.youtube(); return; }
         openVidChoice(card.row);
@@ -1199,8 +991,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!aim && here && isFinite(here.lat)) aim = { lat: here.lat, lng: here.lng };
     if (cityOn) return;
     if (dist <= 0.52 && aim && isFinite(aim.lat)) {
-      globeHold = false;
-      openCity(aim, true);
+      openCity(aim);
       if (map) {
         try {
           map.setView([aim.lat, aim.lng], 14, { animate: false });
@@ -1222,19 +1013,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function zoomSmooth(dir, sx, sy) {
     if (cityOn && map) {
       var z = map.getZoom() || 16;
-      if (dir > 0 && z <= 14.25) { goNational(); return; }
-      var nz = Math.max(14, Math.min(19, z + (dir < 0 ? 1 : -1)));
-      try { map.setZoom(nz); } catch (e) {}
+      if (dir > 0 && z <= 13.2) {
+        closeCity();
+        zoomToDist(1.25);
+        say("Back to the globe");
+        return;
+      }
+      var nz = Math.max(13, Math.min(19, z + (dir < 0 ? 0.7 : -0.7)));
+      try { map.flyTo(map.getCenter(), nz, { duration: 0.28 }); } catch (e) { try { map.setZoom(nz); } catch (e2) {} }
       return;
     }
-    if (dir > 0) {
-      if (cam.dist < 1.2) { zoomToDist(1.85); say("Global"); return; }
-      if (cam.dist < 3.2) { zoomToDist(5.4); say("Solar"); return; }
-      return;
-    }
-    if (cam.dist > 3.2) { zoomToDist(1.85); say("Global"); return; }
-    if (cam.dist > 1.2) { zoomToDist(0.72); say("National"); return; }
-    zoomToDist(0.5, sx, sy);
+    zoomToDist(cam.dist * (dir < 0 ? 0.88 : 1.14), sx, sy);
   }
   function stepTier(dir, sx, sy) { zoomSmooth(dir, sx, sy); }
   function settleTier(i, pt) {
@@ -1315,8 +1104,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     window.__SN_HERE = here;
     try { if (pt.how === "gps" || pt.how === "saved") localStorage.setItem("sn:here", JSON.stringify(hereLive || here)); } catch (e) {}
     aim = { lat: here.lat, lng: here.lng };
-    globeHold = false;
-    openCity(aim, true);
+    openCity(aim);
     if (map) {
       var z = cityZoom || 16;
       try { map.setView([aim.lat, aim.lng], z); } catch (e) {}
@@ -1485,28 +1273,32 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     paintCompass();
     if (!window.__SN_GPS13) window.__SN_GPS13 = setInterval(function () { freshFix(null); }, 13000);
   }
-  function openCity(pt, force) {
-    if (!force && globeHold) return;
+  function openCity(pt) {
     if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
-    var el = $("city");
-    if (!el || typeof L === "undefined") return;
-    globeHold = false;
     aim = { lat: pt.lat, lng: pt.lng };
     tierI = 3;
+    var el = $("city");
+    if (!el || typeof L === "undefined" || !pt) return;
     cityOn = true;
-    el.style.removeProperty("display");
-    document.documentElement.classList.add("sn-street");
-    document.documentElement.classList.remove("sn-global");
     el.classList.add("on");
     if (!map) {
       map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 12, maxZoom: 19, scrollWheelZoom: true }).setView([pt.lat, pt.lng], 16);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, minZoom: 12 }).addTo(map);
+      map.on("zoomstart", function (e) {
+        userLeave = !!(e && e.originalEvent);
+      });
       map.on("zoomend", function () {
         try {
           var z = map.getZoom();
-          if (!cityOn) return;
-          if (z <= 13.5) { goNational(); return; }
-          if (z > 14) cityZoom = z;
+          if (z > 13) cityZoom = z;
+          if (userLeave && z <= 13) {
+            userLeave = false;
+            closeCity();
+            zoomToDist(1.25);
+            return;
+          }
+          userLeave = false;
+          if (z < 14) map.setZoom(14);
         } catch (e) {}
       });
       map.on("move", function () { if (driveMode === "head") applyBearing(); });
@@ -1519,6 +1311,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           if (needLogin()) return;
           nudgeArmed(ll);
         }
+        frameView(ll);
       });
       var holdPt = null;
       el.addEventListener("contextmenu", function (e) {
@@ -1562,51 +1355,28 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     paintShopsOnMap();
     setTimeout(function () { if (map) map.invalidateSize(); }, 80);
   }
-  function hideCity() {
+  function closeCity() {
     var el = $("city");
-    globeHold = true;
+    if (el) el.classList.remove("on");
     cityOn = false;
-    if (el) {
-      el.classList.remove("on");
-      el.style.setProperty("display", "none", "important");
-    }
-    document.documentElement.classList.remove("sn-street");
-    document.documentElement.classList.add("sn-global");
-    paintOrders();
-  }
-  function guardOverlap() {
-    var ids = ["sn-tasks", "sn-sheet", "sn-support-sheet"];
-    var on = [];
-    ids.forEach(function (id) {
-      var el = $(id);
-      if (el && el.classList.contains("on")) on.push(el);
-    });
-    if (on.length < 2) return;
-    on.slice(0, -1).forEach(function (el) { el.classList.remove("on"); });
-  }
-  function showGlobe(dist, name) {
-    hideCity();
-    fly = null;
-    intro = dist > 1.4 && dist < 2.5;
-    if (intro) introT0 = performance.now();
-    cam.dist = dist;
-    tierI = dist > 3.2 ? 0 : dist > 1.4 ? 1 : 2;
-    if (aim && dist < 3) {
+    intro = false;
+    if (tierI > 2) tierI = 2;
+    if (aim) {
       var f = face(aim);
       cam.yaw = f.yaw;
-      cam.pitch = dist < 1.3 ? Math.max(-1.05, Math.min(1.05, f.pitch)) : 0.22;
+      cam.pitch = f.pitch;
     }
-    if (canvas) canvas.style.display = "block";
-    say(name);
-  }
-  function goNational() { showGlobe(0.72, "National"); }
-  function closeCity() {
-    showGlobe(0.72, "National");
+    cam.dist = TIERS[2].dist;
+    paintOrders();
   }
   function goGlobal() {
-    onlySurface("");
-    showGlobe(1.85, "Global");
-    pushNotice("Global");
+    closeCity();
+    intro = true;
+    tierI = 1;
+    fly = null;
+    cam.pitch = 0.22;
+    cam.dist = TIERS[1].dist;
+    say("Global view.");
   }
   function listAt(pt) {
     if (needLogin()) return;
@@ -1764,7 +1534,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       '<input id="sn-place-name" placeholder="Name" />' +
       '<input id="sn-place-phone" placeholder="Phone" />' +
       '<input id="sn-place-address" placeholder="Address" />' +
-      '<input id="sn-place-lock" inputmode="decimal" placeholder="AV€ I accept and lock forever" />' +
       '<p class="note">ITEM · PRICE · QTY · HOURS</p>' +
       '<div id="sn-rows"></div>' +
       '<button type="button" class="sheet-go" data-act="add-row">ADD A MENU ROW</button>' +
@@ -1942,16 +1711,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var s = document.createElement("style");
     s.id = "sn-law";
     s.textContent = [
-      "#sn-tasks.on{pointer-events:none!important}",
-      "#sn-tasks.on .card{pointer-events:auto!important}",
-      "html.sn-global #city,html:not(.sn-street) #city{display:none!important;visibility:hidden!important;pointer-events:none!important}",
-      "html.sn-street #city{display:block!important;visibility:visible!important;pointer-events:auto!important;z-index:12!important}",
-      "#g{position:fixed!important;inset:0!important;z-index:4!important;display:block!important;background:#02060c!important}",
-      "#sn-globe,#sn-support{z-index:220!important}",
-      "#sn-support-sheet{position:fixed!important;left:10px!important;right:10px!important;top:auto!important;bottom:calc(var(--dock, 64px) + 8px)!important;width:auto!important;max-height:46vh!important;z-index:90!important;overflow:auto!important}",
-      "#sn-support-sheet:not(.on){display:none!important}",
-      "#sn-support-sheet.on{display:block!important}",
-      "#dock{z-index:84!important}",
+      "#sn-sheet.on{pointer-events:none!important}",
       "#sn-sheet .bg{pointer-events:none!important;display:none!important}",
       "#sn-sheet .card{position:absolute!important;left:14px!important;right:14px!important;width:auto!important;transform:none!important;bottom:78px!important;height:auto!important;max-height:42vh!important;padding:0!important;margin:0!important;border-radius:16px!important;border:1px solid rgba(77,240,255,.65)!important;overflow:hidden!important;background:rgba(4,16,32,.58)!important;backdrop-filter:blur(8px)!important;box-shadow:0 0 22px rgba(77,240,255,.28), inset 0 0 28px rgba(77,240,255,.06)!important}",
       "#sn-sheet-body{overflow:auto!important;max-height:calc(42vh - 48px)!important;-webkit-overflow-scrolling:touch!important;touch-action:pan-y!important;padding:8px 10px 12px!important}",
@@ -1964,8 +1724,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ".sn-stars{display:flex;gap:6px;margin:6px 0}",
       ".sn-stars button{flex:1;height:36px;border:1px solid rgba(77,240,255,.45);background:#041018;color:#4df0ff;font:800 16px system-ui}",
       ".sn-stars button.on{background:#4df0ff;color:#041018}",
-      ".sheet-go.sn-dispute{background:#6a1020!important;color:#ffe4e8!important;border-color:#ff4d6a!important}",
-      "#sn-call{width:100%;height:168px;object-fit:cover;border-radius:12px;background:#000;margin:6px 0}",
       "#sn-sheet .sheet-mid{flex:1!important;min-width:0!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;background:transparent!important;color:#d7f6ff!important;font:800 13px/1.1 system-ui!important;letter-spacing:.14em!important;text-transform:uppercase!important;padding:0 8px!important}",
       "#sn-sheet.offer .card,#sn-sheet.offer.tile .card{max-height:176px!important;height:auto!important}",
       "#sn-sheet.offer .sheet-bar{height:58px!important}",
@@ -1982,9 +1740,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet .sn-prof em{display:flex;align-items:center;justify-content:center;font:36px/72px system-ui;background:#041018}",
       "#sn-sheet .sn-prof b{display:block;color:#e8fbff!important;font:800 16px/1.2 system-ui!important}",
       "#sn-sheet .sn-tel{display:block;color:#4df0ff!important;font:700 14px/1.4 system-ui!important;text-decoration:none}",
-      "#sn-sheet.research .card,#sn-sheet.research.tile .card{max-height:78vh!important;height:auto!important}",
-      "#sn-sheet.research #sn-sheet-body{max-height:calc(78vh - 52px)!important}",
-      "#sn-sheet .sn-est{display:block;margin:0 0 6px;font:800 46px/0.85 system-ui;color:#e8fbff;text-shadow:0 0 8px #fff,0 0 16px #4df0ff,0 0 28px #1a6cff}",
+      "#sn-sheet.tile .card{max-height:46vh!important;height:auto!important}",
       "#sn-sheet.tile .sn-prof{grid-template-columns:88px minmax(0,1fr)!important}",
       "#sn-sheet.tile .sn-prof .sn-shop-hero,#sn-sheet.tile .sn-prof em{width:88px!important;height:88px!important;max-width:88px!important;max-height:88px!important;max-height:88px!important}",
       "#sn-sheet .sn-dish{display:grid!important;grid-template-columns:minmax(0,1fr) 88px!important;gap:6px!important;margin:8px 0 0!important}",
@@ -1993,15 +1749,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-cloud button{pointer-events:auto!important;border:0!important;background:transparent!important;color:#e8fbff!important;font:700 12px/1 system-ui!important;padding:6px 8px!important;white-space:nowrap!important}",
       "#sn-cloud.off{display:none!important}",
       "#sn-cloud b{color:#4df0ff!important;font:800 18px/1 system-ui!important;margin-right:4px!important}",
-      ".sn-sel{display:block!important;width:28px!important;height:28px!important;border-radius:50%!important;box-shadow:0 0 0 1px #fff,0 0 0 2px #1236ff,0 0 6px #3d6bff!important}",
-      ".leaflet-marker-icon.sn-shop-pin.sn-drv{overflow:visible!important;width:28px!important;height:28px!important;background:transparent!important;border:0!important}",
-      ".sn-drv .sn-pin{width:28px!important;height:28px!important;padding:0!important;display:block!important}",
-      ".sn-drv .sn-pin em,.sn-drv .sn-pin img{width:28px!important;height:28px!important;max-width:28px!important;max-height:28px!important;font-size:16px!important;line-height:28px!important}",
-      ".sn-aim{position:relative!important;display:block!important;width:28px!important;height:28px!important}",
-      ".sn-arrow{position:absolute!important;left:10px!important;top:-7px!important;width:0!important;height:0!important;border-left:4px solid transparent!important;border-right:4px solid transparent!important;border-bottom:8px solid #e8ffff!important;filter:drop-shadow(0 0 3px #1240ff)!important;transform-origin:4px 21px!important;pointer-events:none!important}",
-      ".leaflet-sn-route-pane{filter:none!important}",
-      "@keyframes sn-flow{to{stroke-dashoffset:-28}}",
-      ".sn-flow{animation:sn-flow .7s linear infinite!important}",
+      ".sn-sel{display:block!important;border-radius:14px!important;box-shadow:0 0 0 3px #e8fbff, 0 0 0 7px #1236ff, 0 0 22px 4px #3d6bff!important}",
+      ".leaflet-sn-route-pane{filter:saturate(2.4) brightness(1.55)!important}",
       ".sn-obubble{background:transparent!important;border:0!important}",
       ".sn-obubble b{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-width:28px!important;height:28px!important;padding:0 8px!important;border-radius:999px!important;background:rgba(4,16,28,.94)!important;color:#e8fbff!important;border:1.5px solid #4df0ff!important;font:800 13px/1 system-ui!important;box-shadow:0 0 14px rgba(77,240,255,.65)!important;white-space:nowrap!important}",
       "#sn-sheet .sn-pick img,#sn-sheet .sn-pick .sn-mini{width:52px!important;height:52px!important;max-width:52px!important;max-height:52px!important;object-fit:cover;border-radius:10px;border:1px solid rgba(77,240,255,.45)}",
@@ -2011,13 +1760,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet .sn-pick button{width:28px;height:28px;border-radius:8px;border:1px solid rgba(77,240,255,.5);background:#041018;color:#4df0ff;font:800 16px/1 system-ui}",
       "#sn-sheet #sn-prep{font:800 22px/1 system-ui!important;color:#4df0ff!important;letter-spacing:.04em}",
       "#sn-sheet .sheet-mid .sn-price small{font:800 14px/1 system-ui!important;letter-spacing:.12em!important;margin-left:6px!important}",
-      ".sn-kicker{margin:0 0 6px;font:800 15px/1.1 system-ui;letter-spacing:.08em;color:#7cf6ff}",
-      ".sn-clocks{display:flex;gap:8px;margin:0 0 8px}",
-      ".sn-clocks div{flex:1;text-align:center;border:1px solid rgba(77,240,255,.4);border-radius:10px;padding:6px 4px}",
-      ".sn-clocks b{display:block;font:800 28px/1 system-ui;color:#e8fbff;text-shadow:0 0 8px #4df0ff}",
-      ".sn-clocks span{font:700 10px/1.2 system-ui;letter-spacing:.08em;color:#b7fff6}",
-      ".sn-offer{margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(77,240,255,.22)}",
-      ".sn-offer .sn-amt{font:800 32px/1 system-ui;color:#e8fbff}",
       "#sn-sheet-body{padding:8px 10px 10px!important}",
       "#sn-sheet input,#sn-sheet textarea{margin:4px 0 0!important;padding:8px 10px!important;font-size:16px!important}",
       "#sn-sheet-body .sheet-go{display:block!important;width:100%!important;height:36px!important;margin:4px 0 0!important;box-sizing:border-box!important;font-size:13px!important;color:#e8fbff!important;background:#041018!important}",
@@ -2041,7 +1783,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ".sn-pin em{display:flex;align-items:center;justify-content:center;width:40px;height:40px;font:28px/40px system-ui;border-radius:8px;border:2px solid #4df0ff;background:rgba(4,14,28,.92)}",
       "#sn-tester{position:fixed;top:28px;left:8px;z-index:90;max-width:calc(100vw - 16px);padding:3px 8px;border-radius:999px;background:rgba(4,14,28,.9);border:1px solid rgba(77,240,255,.4);color:#7ee9ff;font:700 10px/14px ui-monospace,monospace;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#sn-tester.stale{color:#8a6a6a;border-color:rgba(255,120,120,.35)}",
-      "#sn-topchrome-drag,#cli-drag{display:block!important;height:10px!important;min-height:10px!important;max-height:10px!important;font-size:0!important;line-height:0!important;color:transparent!important;overflow:hidden!important;background:transparent!important}",
+      "#sn-topchrome-drag,#cli-drag{display:none!important;height:0!important;min-height:0!important;max-height:0!important}",
       "#top{top:0!important;left:0!important;right:0!important;margin:0!important;padding:0!important;height:32px!important;min-height:32px!important;max-height:32px!important;overflow:hidden!important;display:flex!important;flex-direction:column!important}",
       "#island{position:relative!important;z-index:2!important;display:flex!important;align-items:center!important;gap:8px!important;height:32px!important;max-height:32px!important;margin:0!important;padding:0 36px!important;overflow:hidden!important}",
       "#island .r1{flex:none!important;flex-wrap:nowrap!important;white-space:nowrap!important;overflow:hidden!important;height:32px!important;align-items:center!important}",
@@ -2052,8 +1794,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "@keyframes sn-slide{from{transform:translateX(0)}to{transform:translateX(-50%)}}",
       "#line{display:none!important}",
       "#sn-sheet .card,#sn-sheet.tall .card,#sn-tasks .card{max-height:42vh!important}",
-      "#sn-sheet.research .card{max-height:78vh!important}",
-      "#sn-sheet.research #sn-sheet-body{max-height:calc(78vh - 52px)!important}",
       "#sn-power{position:fixed!important;top:0!important;left:max(2px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;width:32px!important;height:32px!important;transform:none!important;z-index:60!important}",
       "#sn-power svg{width:16px!important;height:16px!important}",
       "#sn-support{position:fixed!important;top:0!important;right:max(2px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;width:32px!important;height:32px!important;font-size:14px!important;transform:none!important;z-index:60!important}",
@@ -2166,8 +1906,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var html = queueHtml(open);
     if (force || fresh.length) {
       upsertTab({ id: "queue", kind: "queue", title: "QUEUE " + open.length, html: html, min: false });
-      var busy = ($("sn-sheet") && $("sn-sheet").classList.contains("on")) || supportOn;
-      if ((force || !busy) && !supportOn) {
+      var busy = $("sn-sheet") && $("sn-sheet").classList.contains("on");
+      if (force || !busy) {
         openSheet("QUEUE " + open.length, html, true);
         say((fresh[0] ? fresh[0].note : open[0].note) + (open.length > 1 ? " · " + open.length + " waiting." : ""));
       }
@@ -2248,9 +1988,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       });
       (j.shops || []).forEach(function (s) {
         if (!s || !s.id || !isFinite(+s.lat)) return;
-        if (s.peer === "spacenet") return;
-        if (/^test\b/i.test(s.name || "")) return;
-        if (/unclaimed|has not signed up/i.test(s.note || "")) return;
         var have = null;
         shops.forEach(function (x) { if (x && x.id === s.id) have = x; });
         if (have) { have.owner = have.owner || s.customerPeer || ""; return; }
@@ -2258,7 +1995,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       });
       (j.drivers || []).forEach(function (d) {
         if (!d || !d.id || !isFinite(+d.lat)) return;
-        if (/^test\b/i.test(d.name || "")) return;
         var have = null;
         people.forEach(function (p) { if (p && p.id === d.id) have = p; });
         if (have) {
@@ -2307,16 +2043,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       });
       shops = uniqPlaces(shops);
       paintPulse();
-      (j.supply || []).forEach(function (row) {
-        if (!row || !row.note) return;
-        try {
-          var remote = JSON.parse(row.note);
-          var local = supplyGet();
-          var rScore = (Number(remote.cashIn) || 0) + (Number(remote.vendorLock) || 0) + (Number(remote.consumed) || 0);
-          var lScore = (Number(local.cashIn) || 0) + (Number(local.vendorLock) || 0) + (Number(local.consumed) || 0);
-          if (rScore > lScore) supplySet(remote, true);
-        } catch (e) {}
-      });
       if (cityOn) paintShopsOnMap();
     }).catch(function () {});
   }
@@ -2332,52 +2058,31 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     });
   }
 
-  function quietSupport() {
-    supportOn = false;
-    var btn = $("sn-support");
-    if (btn) btn.classList.remove("on");
-    var desk = $("sn-support-sheet");
-    if (desk) desk.classList.remove("on");
-    document.body.classList.remove("sn-support");
-  }
-  function onlySurface(which) {
-    if (which !== "support") quietSupport();
-    if (which !== "sheet") {
-      sheetHold = false;
-      var sh = $("sn-sheet");
-      if (sh) sh.classList.remove("on", "tall", "min", "offer", "tile");
-    }
-    if (which !== "tasks") {
-      var tasks = $("sn-tasks");
-      if (tasks) tasks.classList.remove("on");
-    }
-  }
   function setSupport(on) {
+    supportOn = !!on;
     var btn = $("sn-support");
+    if (btn) btn.classList.toggle("on", supportOn);
     var desk = $("sn-support-sheet");
-    if (desk && desk.parentNode !== document.body) document.body.appendChild(desk);
-    if (!on) {
-      quietSupport();
-      if (desk) desk.innerHTML = "";
+    if (!desk) return;
+    if (!supportOn) {
+      desk.classList.remove("on");
+      desk.innerHTML = "";
+      layoutChrome();
       say("Desk closed.");
       return;
     }
-    onlySurface("support");
-    supportOn = true;
-    if (btn) btn.classList.add("on");
-    if (!desk) return;
     intro = false;
     desk.innerHTML =
-      '<div class="sheet-bar"><button type="button" class="sheet-x" data-act="support-close" aria-label="Close">✕</button><b class="sheet-ttl">GROK BUILD</b><button type="button" class="sheet-apply" data-act="support-send" aria-label="Apply">✓</button></div>' +
+      '<div class="sheet-bar"><button type="button" class="sheet-x" data-act="support-close" aria-label="Close">✕</button><b class="sheet-ttl">BUILD</b><button type="button" class="sheet-apply" data-act="support-send" aria-label="Apply">✓</button></div>' +
       '<div id="sn-support-log"></div>' +
-      '<textarea id="sn-support-matter" placeholder="What broke, or what should the system do"></textarea>' +
+      '<textarea id="sn-support-matter" placeholder="Tell the programmer what to fix"></textarea>' +
       '<button type="button" class="sheet-go primary" data-act="support-send">SEND</button>';
     desk.classList.add("on");
-    document.body.classList.add("sn-support");
+    layoutChrome();
     paintSupportLog();
     var ta = $("sn-support-matter");
     if (ta) ta.focus();
-    pushNotice("Grok Build");
+    say("Programmer is here. Type the problem.");
   }
   var supportLog = [];
   function paintSupportLog() {
@@ -2385,7 +2090,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!log) return;
     log.innerHTML = supportLog.map(function (m) {
       return '<p class="note"><b>' + m.who + "</b> " + String(m.text).replace(/[<>]/g, "") + "</p>";
-    }).join("") || '<p class="note">Grok Build is here. System fixes are built. Owner decisions go to Notis. One person\'s taste is declined.</p>';
+    }).join("") || '<p class="note">Tell me what broke. Hold the map to list a vendor, a delivery address, or a driver.</p>';
     log.scrollTop = log.scrollHeight;
   }
   function pushSupport(who, text) {
@@ -2412,63 +2117,35 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     };
     try { rec.start(); say("Support listening…"); } catch (e) { say("Mic busy."); }
   }
-  function buildGate(text) {
-    var s = String(text || "").toLowerCase();
-    if (/colou?r|theme|font|skin|pink|only for me|i (like|prefer)|my taste|don'?t like (this|that|the) (shop|colour|color|button)|hide .+ for me|bigger button/.test(s)) {
-      return { gate: "decline", say: "Declined. That is one person's taste. SpaceNet does not change for it." };
-    }
-    if (/policy|legal|new market|who may withdraw|approve|ban |terms|change the (rule|law|pool)/.test(s)) {
-      return { gate: "forward", say: "Forwarded to Notis. That is an owner decision, not a defect." };
-    }
-    return { gate: "build", say: "Building. That is the system, so Grok Build takes it." };
-  }
-  function applyBuild(gate, matter, sayText) {
-    var g = gate === "forward" || gate === "decline" ? gate : "build";
-    if (g === "decline") return sayText || "Declined. That is one person's taste.";
-    var who = "";
-    try { var u = window.SNAuth && SNAuth.user && SNAuth.user(); who = (u && (u.email || u.name)) || me(); } catch (e) { who = me(); }
-    askAdmin({
-      id: "build-" + Date.now().toString(36),
-      kind: "build",
-      role: g,
-      title: g === "forward" ? "FORWARD" : "BUILD",
-      who: who,
-      note: matter
-    });
-    if (g === "build") programmer(matter);
-    return sayText || (g === "forward" ? "Forwarded to Notis." : "Building. Notis can see it in the queue.");
-  }
   function sendSupport(matter, fromVoice) {
     matter = String(matter || "").trim();
     if (!matter) { say("Say what you need."); return; }
-    if (!supportOn) setSupport(true);
     var ta = $("sn-support-matter");
     if (ta) ta.value = "";
     pushSupport("YOU", matter);
-    say("Grok Build…");
+    say("Grok…");
     askGrok(matter, function (err, j) {
-      var gate = j && j.gate;
-      var reply = (!err && j && (j.say || j.text)) || "";
-      if (gate !== "build" && gate !== "forward" && gate !== "decline") {
-        var local = buildGate(matter);
-        gate = local.gate;
-        if (!reply) reply = local.say;
+      if (!err && j) {
+        var reply = j.say || j.text;
+        pushSupport("GROK", reply);
+        say(reply);
+        if (fromVoice) speakIfVoice(reply);
+        applyAct(j, matter);
+        return;
       }
-      reply = applyBuild(gate, matter, reply);
-      pushSupport("GROK BUILD", reply);
-      say(reply);
-      if (fromVoice) speakIfVoice(reply);
-    }, true);
+      var local = programmer(matter);
+      pushSupport("GROK", local);
+      say(local);
+    });
   }
-  function askGrok(q, cb, build) {
+  function askGrok(q, cb) {
     var vendors = shops.slice(0, 8).map(function (s) { return s.name; });
     fetch("/api/ai", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         message: q,
-        desk: build ? "build" : "",
-        history: build ? [] : hist,
+        history: hist,
         world: worldText(),
         here: {
           lat: here && here.lat,
@@ -2482,12 +2159,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       })
     }).then(function (r) { return r.json(); }).then(function (j) {
       var text = j && (j.say || j.text);
-      if (!text && !(j && j.gate)) { cb((j && j.error) || "quiet"); return; }
-      if (!build) {
-        hist.push({ role: "user", content: q });
-        hist.push({ role: "assistant", content: text || "" });
-        if (hist.length > 16) hist = hist.slice(-16);
-      }
+      if (!text) { cb((j && j.error) || "quiet"); return; }
+      hist.push({ role: "user", content: q });
+      hist.push({ role: "assistant", content: text });
+      if (hist.length > 16) hist = hist.slice(-16);
       cb(null, j);
     }).catch(function () { cb("dark"); });
   }
@@ -2617,6 +2292,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (map && typeof map.invalidateSize === "function") {
       try { map.invalidateSize(); } catch (e) {}
     }
+    if (routeLayer && map) fitOfferRoute();
   }
   function fitOfferRoute() {
     if (!map || !routeLayer) return;
@@ -2646,7 +2322,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function openSheet(title, html, tall, mid) {
     var sh = $("sn-sheet"), card = $("sn-sheet-card");
     if (!sh || !card) return;
-    onlySurface("sheet");
     sheetLaw();
     sheetHold = true;
     var center = mid || esc(title || "");
@@ -2736,7 +2411,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function closeSheet() {
     var sh = $("sn-sheet");
     sheetHold = false;
-    stopCall();
     if (sh) { sh.classList.remove("on"); sh.classList.remove("tall"); sh.classList.remove("min"); sh.classList.remove("offer"); sh.classList.remove("tile"); }
     materialize(needFilter());
     liftChrome();
@@ -2861,16 +2535,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var mark = photo
       ? '<img alt="" width="40" height="40" style="width:40px!important;height:40px!important;max-width:40px!important;max-height:40px!important;object-fit:cover!important;display:block!important" src="' + String(photo).replace(/"/g, "") + '">'
       : '<em>' + (role === "driver" ? "🏍️" : role === "client" ? "🧍" : "🏪") + "</em>";
-    return '<span class="sn-pin">' + mark + (name ? "<b>" + esc(name) + "</b>" : "") + "</span>";
+    return '<span class="sn-pin">' + mark + "<b>" + esc(name || role) + "</b></span>";
   }
-  function faceIcon(role, photo, name, on, head) {
-    var compact = role === "driver";
-    var arrow = compact ? '<i class="sn-arrow" style="transform:rotate(' + Math.round(Number(head) || 0) + 'deg)"></i>' : "";
+  function faceIcon(role, photo, name, on) {
     return L.divIcon({
-      className: "sn-shop-pin" + (compact ? " sn-drv" : "") + (on ? " sn-on" : ""),
-      html: '<span class="sn-aim ' + (on ? "sn-sel" : "sn-pinwrap") + '">' + arrow + faceHtml(role, photo, compact ? "" : name) + "</span>",
-      iconSize: compact ? [28, 28] : [76, 62],
-      iconAnchor: compact ? [14, 14] : [38, 31]
+      className: "sn-shop-pin" + (on ? " sn-on" : ""),
+      html: '<span class="' + (on ? "sn-sel" : "sn-pinwrap") + '">' + faceHtml(role, photo, name) + "</span>",
+      iconSize: [84, 70],
+      iconAnchor: [42, 35]
     });
   }
   function routePane() {
@@ -2976,9 +2648,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var html = rows.map(function (j) {
       var v = j.vendor || {};
       var dish = (j.lines && j.lines[0] && j.lines[0].name) || "order";
-      return '<button type="button" class="sheet-go" data-act="open-job" data-id="' + esc(j.id) + '">' +
-        esc((v.name || "Vendor") + " · " + dish + " · " + (j.fee || 0) + " AV€ · waiting " + clockText(offerAge(j)) + (offerLeft(j) > 0 ? " · " + clockText(offerLeft(j)) + " to accept" : " · not a live offer")) +
-        "</button>";
+      return '<button type="button" class="sheet-go" data-act="open-job" data-id="' + esc(j.id) + '">' + esc((v.name || "Vendor") + " · " + dish + " · " + (j.fee || 0) + " AV€") + "</button>";
     }).join("");
     openTile({ kind: "orders", title: kind === "way" ? "ON THE WAY" : kind.toUpperCase(), html: html });
   }
@@ -2986,17 +2656,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var job = jobById(id);
     if (!job || !job.vendor) return;
     if (!cityOn) openCity(job.vendor);
+    if (map && isFinite(+job.vendor.lat)) {
+      try { map.setView([+job.vendor.lat, +job.vendor.lng], Math.max(15, cityZoom || 16), { animate: true }); } catch (e) {}
+    }
     if (job.drop && isFinite(+job.drop.lat)) drawRoute(job.vendor, job.drop);
-    if (orderState(job) === "pending" && offerLeft(job) > 0) { openOfferDesk(); return; }
-    if (orderState(job) === "pending") {
-      openTile({
-        kind: "waiting",
-        title: "WAITING ORDER",
-        mid: priceMid(job.fee),
-        html: '<p class="sn-kicker">WAITING ORDER</p><p class="note">This is not a new offer. It has been waiting ' + clockText(offerAge(job)) + ".</p>" +
-          '<button type="button" class="sheet-go primary" data-act="reoffer" data-id="' + esc(job.id) + '">SEND TO ALL DRIVERS</button>',
-        job: job.id
-      });
+    var drivers = freeDrivers(job.vendor);
+    if (orderState(job) === "pending" && drivers.length) {
+      job.offeredTo = drivers[0].id;
+      saveJobs();
+      openDriverOffer(job, drivers);
       return;
     }
     openVendor(job.vendor);
@@ -3103,61 +2771,31 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function kmIcon(text) {
     return L.divIcon({ className: "sn-km", html: "<b>" + esc(text) + "</b>", iconSize: [64, 16], iconAnchor: [32, 8] });
   }
-  function lineSplit(line, at) {
-    if (!line || line.length < 2) return { done: line || [], rest: line || [] };
-    if (!at || !isFinite(+at.lat)) return { done: [], rest: line };
-    var best = 0, bestD = 1e9, i, d;
-    for (i = 0; i < line.length; i++) {
-      d = haversineKm(at, line[i]);
-      if (d < bestD) { bestD = d; best = i; }
-    }
-    var done = line.slice(0, best + 1);
-    done.push({ lat: +at.lat, lng: +at.lng });
-    var rest = [{ lat: +at.lat, lng: +at.lng }].concat(line.slice(best + 1));
-    if (rest.length < 2) rest = line.slice(-2);
-    return { done: done, rest: rest };
-  }
-  function driverHead(p, step) {
-    var job = step && step.job;
-    var line = job && job.vendor && job.drop ? roads[roadKey(job.vendor, job.drop)] : null;
-    if (line && line.length > 1 && step && isFinite(+step.lat)) {
-      var rest = lineSplit(line, step).rest;
-      var nxt = rest && rest.length > 1 ? rest[1] : null;
-      if (nxt) return bearingDeg(step, nxt);
-    }
-    if (p && isFinite(+p.head)) return +p.head;
-    return 0;
-  }
-  function paintRoads(id, lines, chosen, at) {
+  function paintRoads(id, lines, chosen) {
     if (!map || typeof L === "undefined" || !lines || !lines.length) return;
     routePane();
     (roadPaint[id] || []).forEach(function (l) { try { map.removeLayer(l); } catch (e) {} });
     roadPaint[id] = [];
-    function add(pts, opt) {
-      if (!pts || pts.length < 2) return null;
-      var ll = pts.map(function (p) { return [p.lat, p.lng]; });
-      var layer = L.polyline(ll, opt).addTo(map);
-      roadPaint[id].push(layer);
-      return layer;
-    }
     lines.forEach(function (line, i) {
+      var ll = line.map(function (p) { return [p.lat, p.lng]; });
       var on = i === chosen;
-      if (!on) {
-        add(line, { pane: "sn-route", color: "#7ee9ff", weight: 1, opacity: 0.35, interactive: false });
-        return;
-      }
-      var parts = lineSplit(line, at);
-      add(line, { pane: "sn-route", color: "#041018", weight: 3.5, opacity: 0.55, interactive: false, lineCap: "round", lineJoin: "round" });
-      add(parts.rest, { pane: "sn-route", color: "#1a4dff", weight: 1.6, opacity: 0.95, interactive: false, lineCap: "round", lineJoin: "round" });
-      add(parts.done, { pane: "sn-route", color: "#e8ffff", weight: 2.6, opacity: 1, interactive: false, lineCap: "round", lineJoin: "round" });
-      add(parts.rest.length > 1 ? parts.rest : line, { pane: "sn-route", color: "#f4feff", weight: 1.4, opacity: 1, dashArray: "7 12", className: "sn-flow", interactive: false, lineCap: "butt" });
+      var casing = L.polyline(ll, { pane: "sn-route", color: "#02040a", weight: on ? 26 : 16, opacity: 0.9, interactive: false, lineCap: "round", lineJoin: "round" }).addTo(map);
+      var glow = L.polyline(ll, { pane: "sn-route", color: "#1236ff", weight: on ? 16 : 10, opacity: 1, interactive: false, lineCap: "round", lineJoin: "round" }).addTo(map);
+      var core = L.polyline(ll, { pane: "sn-route", color: "#b8ffff", weight: on ? 6 : 3, opacity: 1, interactive: false, lineCap: "round", lineJoin: "round" }).addTo(map);
+      roadPaint[id].push(casing, glow, core);
       var total = lineKm(line);
       if (total < 0.05) return;
-      var marks = [total / 2, total];
+      var marks = on ? [] : [total / 2];
+      if (on) {
+        var step = total <= 1.2 ? 0.3 : Math.max(0.5, total / 6);
+        var k = 0;
+        while (k < total - step * 0.35) { marks.push(k); k += step; }
+        marks.push(total);
+      }
       marks.forEach(function (km) {
-        var spot = pointAtKm(line, km);
+        var at = pointAtKm(line, km);
         var label = (km < 0.05 ? "0" : km.toFixed(1)) + " km";
-        var mk = L.marker([spot.lat, spot.lng], { icon: kmIcon(label), interactive: false, keyboard: false, zIndexOffset: 200 }).addTo(map);
+        var mk = L.marker([at.lat, at.lng], { icon: kmIcon(label), interactive: false, keyboard: false, zIndexOffset: on ? 400 : 200 }).addTo(map);
         roadPaint[id].push(mk);
       });
     });
@@ -3461,9 +3099,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     askRoad(job.fault, job.fault.goal);
     if (multi) say(job.fault.name + " sat on the order. Other apps. Charged " + bill + " AV€ and closed today. A driver is coming to collect it.");
     else say(job.fault.name + " · move to the " + toward + ". Hand it over before the vendor's time and there is no penalty.");
-    var drivers = castOffer(job);
-    saveJobs();
-    if (drivers.length) openOfferDesk();
+    var drivers = freeDrivers(job.fault);
+    if (drivers.length) openDriverOffer(job, drivers);
     else say("No free driver to collect it yet.");
   }
   function watchRoute() {
@@ -3520,13 +3157,91 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function driverStep(p) {
     if (!p || !isFinite(+p.lat) || !isFinite(+p.lng)) return null;
-    var held = null;
+    if (p.manual) {
+      var held = null;
+      jobs.forEach(function (j) {
+        if (!j || j.received || !j.vendor) return;
+        if (String(j.driverId) === String(p.id) || (j.driver && p.name && j.driver === p.name)) held = j;
+      });
+      var tag = rideArm && String(rideArm) === String(p.id) ? " · selected" : "";
+      return { lat: +p.lat, lng: +p.lng, label: (p.name || "driver") + tag, job: held };
+    }
+    if (!p.base) p.base = { lat: +p.lat, lng: +p.lng };
+    var faultJob = null;
     jobs.forEach(function (j) {
-      if (!j || j.received || !j.vendor) return;
-      if (String(j.driverId) === String(p.id) || (j.driver && p.name && j.driver === p.name)) held = j;
+      if (!j || !j.fault || j.fault.found || j.received) return;
+      if (String(j.fault.id) === String(p.id) || (j.fault.name && p.name && j.fault.name === p.name)) faultJob = j;
     });
-    var tag = rideArm && String(rideArm) === String(p.id) ? " · selected" : "";
-    return { lat: +p.lat, lng: +p.lng, label: (p.name || "driver") + tag, job: held };
+    if (faultJob) {
+      var back = roads[roadKey(faultJob.fault, faultJob.fault.goal)];
+      if (!back) askRoad(faultJob.fault, faultJob.fault.goal);
+      var u = Math.min(1, (Date.now() - faultJob.fault.since) / 90000);
+      var at = back && back.length ? alongRoad(back, u) : null;
+      if (!at) at = { lat: +faultJob.fault.lat, lng: +faultJob.fault.lng };
+      faultJob.fault.lat = at.lat;
+      faultJob.fault.lng = at.lng;
+      return { lat: at.lat, lng: at.lng, label: (p.name || "driver") + " · back to the " + faultJob.fault.to, job: faultJob };
+    }
+    var job = null;
+    jobs.forEach(function (j) {
+      if (!j || j.received || !seesJob(j) || !j.vendor || !j.drop) return;
+      if (j.driverId === p.id || (j.driver && p.name && j.driver === p.name)) job = j;
+    });
+    if (job && job.fault && !job.fault.found) {
+      if (!job.recoverAt || haversineKm(job.recoverAt, job.fault) > 0.2) {
+        job.recoverAt = { lat: +job.fault.lat, lng: +job.fault.lng };
+        job.recoverT = Date.now();
+      }
+      var hunt = roads[roadKey(p.base, job.recoverAt)];
+      if (!hunt) askRoad(p.base, job.recoverAt);
+      var hu = Math.min(1, (Date.now() - (job.recoverT || Date.now())) / 70000);
+      var hit = hunt && hunt.length ? alongRoad(hunt, hu) : null;
+      if (!hit) hit = { lat: +p.base.lat, lng: +p.base.lng };
+      if (haversineKm(hit, job.fault) < 0.04 || hu >= 1 && haversineKm(hit, job.fault) < 0.15) {
+        var start = job.outAt || job.fault.since;
+        var life = lifeMs(job);
+        if (life && start && Date.now() - start >= life) {
+          var holder = null;
+          people.forEach(function (person) {
+            if (person && (String(person.id) === String(job.fault.id) || person.name === job.fault.name)) holder = person;
+          });
+          settleWaste(job, holder || { id: job.fault.id, name: job.fault.name });
+          return { lat: hit.lat, lng: hit.lng, label: (job.fault.name || "driver") + " · wasted", job: job };
+        }
+        job.fault.found = true;
+        job.fault.meet = { lat: +job.fault.lat, lng: +job.fault.lng };
+        job.got = true;
+        job.t = Date.now();
+        job.stage = "run";
+        cooperate(job, p);
+        saveJobs();
+        publishJob(job);
+        askRoad(job.fault.meet, job.drop);
+      }
+      return { lat: hit.lat, lng: hit.lng, label: (p.name || "driver") + " · collecting " + job.fault.name, job: job };
+    }
+    if (job && job.fault && job.fault.found && job.fault.meet) {
+      var rest = roads[roadKey(job.fault.meet, job.drop)];
+      if (!rest) askRoad(job.fault.meet, job.drop);
+      var ru = job.delivered ? 1 : Math.min(1, (Date.now() - (job.t || Date.now())) / 80000);
+      var rat = rest && rest.length ? alongRoad(rest, ru) : null;
+      if (!rat) rat = { lat: +job.fault.meet.lat, lng: +job.fault.meet.lng };
+      return { lat: rat.lat, lng: rat.lng, label: (p.name || "driver") + " · to the client", job: job };
+    }
+    if (job) {
+      var line = roads[roadKey(job.vendor, job.drop)];
+      if (!line) askRoad(job.vendor, job.drop);
+      var ju = job.delivered ? 1 : job.got ? ((Date.now() - (job.t || Date.now())) % 80000) / 80000 : 0;
+      var jat = line && line.length ? alongRoad(line, ju) : null;
+      if (!jat) jat = { lat: +job.vendor.lat, lng: +job.vendor.lng };
+      return {
+        lat: jat.lat,
+        lng: jat.lng,
+        label: (p.name || "driver") + (job.got && !job.delivered ? " · on the road" : job.delivered ? " · delivered" : " · at the vendor"),
+        job: job
+      };
+    }
+    return { lat: +p.base.lat, lng: +p.base.lng, label: (p.name || "driver") + " · free", job: null };
   }
   function tickLive() {
     paintMoney();
@@ -3549,17 +3264,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var key = roadKey(from, to);
       var lines = roadAlts[key] && roadAlts[key].length ? roadAlts[key] : [road];
       var chosen = Math.max(0, lines.indexOf(road));
-      var rider = null;
-      people.forEach(function (p) {
-        if (!p) return;
-        if (String(j.driverId) === String(p.id) || (j.driver && p.name && j.driver === p.name)) rider = p;
-      });
-      if (!rider && driverPin && isFinite(+driverPin.lat)) rider = driverPin;
-      var at = rider && isFinite(+rider.lat) ? { lat: +rider.lat, lng: +rider.lng } : null;
-      var stamp = chosen + ":" + (at ? Math.round(at.lat * 8000) + "," + Math.round(at.lng * 8000) : "0");
-      if (liveLines[j.id] !== stamp) {
-        paintRoads(key, lines, chosen, at);
-        liveLines[j.id] = stamp;
+      if (!liveLines[j.id] || liveLines[j.id] !== chosen) {
+        paintRoads(key, lines, chosen);
+        liveLines[j.id] = chosen;
       }
     });
     var fleet = people.filter(function (p) { return p && p.role === "driver" && seesDriver(p); });
@@ -3587,18 +3294,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
             closeSheet();
             rideArm = person.id;
             mark.__on = true;
-            mark.__head = driverHead(person, step);
-            mark.setIcon(faceIcon("driver", person.photo, person.name || "driver", true, mark.__head));
+            mark.setIcon(faceIcon("driver", person.photo, person.name || "driver", true));
             say((person.name || "Driver") + " selected. Tap the map to move.");
           });
         })(p, motionMarks[id]);
       }
       var selected = !!(rideArm && String(rideArm) === String(p.id));
-      var head = driverHead(p, step);
-      if (motionMarks[id].__on !== selected || Math.abs((motionMarks[id].__head || 0) - head) > 10) {
+      if (motionMarks[id].__on !== selected) {
         motionMarks[id].__on = selected;
-        motionMarks[id].__head = head;
-        motionMarks[id].setIcon(faceIcon("driver", p.photo, p.name || "driver", selected, head));
+        motionMarks[id].setIcon(faceIcon("driver", p.photo, p.name || "driver", selected));
       }
       motionMarks[id].setLatLng([step.lat, step.lng]);
       try {
@@ -3747,7 +3451,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       shops = uniqPlaces(shops);
       if (shops.length) paintShopsOnMap();
     });
-    listingTried = true;
+    if (!listingTried) {
+      listingTried = true;
+      huntNearby().then(function (rows) {
+        shops = uniqPlaces(shops.concat(rows));
+        if (shops.length) {
+          paintShopsOnMap();
+          say("GPS " + here.lat.toFixed(4) + "," + here.lng.toFixed(4) + " · " + shops.length + " places around you. Talk a hunt or tap a pin.");
+        } else if (here && !cityOn) say("GPS " + here.lat.toFixed(4) + "," + here.lng.toFixed(4) + " · tap GPS for the city");
+      });
+    }
   }
   function behalf(job) {
     if (!isAdmin() || !job) return "";
@@ -3863,103 +3576,28 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       '<p class="note">How long the order stays good, minutes</p><input id="sn-life" inputmode="numeric" placeholder="Lifetime" />';
     openTile({ kind: "vendor-order", title: "VENDOR", mid: priceMid(job.fee), html: html, job: job.id });
   }
-  function clockText(sec) {
-    sec = Math.max(0, Math.floor(Number(sec) || 0));
-    var m = Math.floor(sec / 60);
-    var s = sec % 60;
-    return m + ":" + (s < 10 ? "0" : "") + s;
-  }
-  function offerAge(job) {
-    var t = job && (job.offerAt || job.t) || Date.now();
-    return Math.max(0, Math.floor((Date.now() - t) / 1000));
-  }
-  function offerLeft(job) {
-    if (!job || job.driverAccepted || job.wasted || job.received) return 0;
-    var span = Number(job.offerFor);
-    if (!isFinite(span) || span <= 0) return 0;
-    if (!job.offerAt) return 0;
-    return Math.max(0, span - Math.floor((Date.now() - job.offerAt) / 1000));
-  }
-  function liveOffers() {
-    return jobs.filter(function (j) {
-      return j && !j.driverAccepted && !j.received && !j.wasted && !j.cancelled && offerLeft(j) > 0;
-    }).sort(function (a, b) { return (b.offerAt || 0) - (a.offerAt || 0); });
-  }
-  function offerDrivers(job) {
-    var all = freeDrivers(job && (job.fault && !job.fault.found ? job.fault : job.vendor));
-    var ids = (job && job.offerIds) || [];
-    if (!ids.length) return all;
-    var picked = all.filter(function (d) { return ids.some(function (id) { return String(id) === String(d.id); }); });
-    return picked.length ? picked : all;
-  }
-  function castOffer(job) {
-    var drivers = freeDrivers(job && (job.fault && !job.fault.found ? job.fault : job.vendor));
-    job.offerAt = Date.now();
-    job.offerFor = 180;
-    job.offerIds = drivers.map(function (d) { return d.id; });
-    job.offeredTo = "";
-    job.driverAccepted = false;
-    job.verified = false;
-    return drivers;
-  }
-  function offerCard(job) {
+  function openDriverOffer(job, drivers) {
     var v = job.vendor || {};
     var d = job.drop || {};
-    var drivers = offerDrivers(job);
-    var fresh = offerLeft(job) > 0 && !job.driverAccepted;
-    var kicker = job.fault && !job.fault.found ? "COLLECT THIS ORDER" : (fresh ? "NEW OFFER FOR YOU" : "WAITING ORDER");
-    var buttons = drivers.map(function (p) {
-      return '<button type="button" class="sheet-go primary" data-act="offer-yes" data-id="' + esc(job.id) + '" data-drv="' + esc(p.id) + '">ACCEPT · ' + esc(p.name || "driver") + "</button>";
-    }).join("");
-    if (!buttons) buttons = '<p class="note">No free driver left.</p>';
-    return '<article class="sn-offer" data-id="' + esc(job.id) + '">' +
-      '<p class="sn-kicker">' + kicker + "</p>" +
-      '<b class="sn-amt">' + esc(job.fee || 0) + " AV€</b>" +
-      '<div class="sn-clocks"><div><b class="age">' + clockText(offerAge(job)) + '</b><span>WAITING</span></div><div><b class="left">' + clockText(offerLeft(job)) + '</b><span>TO ACCEPT</span></div></div>' +
-      whoLine("VENDOR", v.name, [v.address, v.phone].filter(Boolean).join(" · ")) +
-      whoLine("CLIENT", d.name || "Client", [d.address, d.phone].filter(Boolean).join(" · ")) +
-      '<p class="note">Sent to ' + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ". First accept wins.</p>" +
-      buttons +
-      '<button type="button" class="sheet-go" data-act="offer-no" data-id="' + esc(job.id) + '">DECLINE</button>' +
-      "</article>";
-  }
-  function openOfferDesk() {
-    var rows = liveOffers().slice(0, 8);
-    var extra = liveOffers().length - rows.length;
-    if (!rows.length) {
-      var sh = $("sn-sheet");
-      if (sh && sh.getAttribute("data-kind") === "driver-offer") closeSheet();
-      return;
+    var names = (drivers || []).map(function (p) { return p.name || "driver"; }).join(" · ");
+    var exp = expectedMin(v, d, job.km);
+    var leg = exp.n ? exp.min + " min on this road, this hour · " + exp.n + " drivers" : exp.min + " min · no history this hour";
+    var html;
+    if (job.fault && !job.fault.found) {
+      html = whoLine("COLLECT", job.fault.name, "moving to the " + job.fault.to) +
+        whoLine("THEN", d.name || "Client", [d.address, d.phone].filter(Boolean).join(" · ")) +
+        '<p class="note">' + esc(names || "No free driver") + "</p>";
+    } else {
+      var kmBit = isFinite(+job.km) ? Number(job.km).toFixed(1) + " km" : "";
+      html = '<button type="button" class="sheet-go primary" data-act="offer-yes" data-id="' + esc(job.id) + '">ACCEPT</button>' +
+        '<button type="button" class="sheet-go" data-act="offer-no" data-id="' + esc(job.id) + '">DECLINE</button>' +
+        '<div class="sn-leg">' + esc([kmBit, leg].filter(Boolean).join(" · ")) + "</div>" +
+        whoLine("VENDOR", v.name, [v.address, v.phone].filter(Boolean).join(" · ")) +
+        whoLine("CLIENT", d.name || "Client", [d.address, d.floor ? "floor " + d.floor : "", d.phone].filter(Boolean).join(" · ")) +
+        '<p class="note">' + esc(names || "No free driver") + "</p>";
     }
-    var html = (rows.length > 1 ? '<p class="note">' + rows.length + " live offers. Each one goes to every free driver. The first accept takes it.</p>" : "") +
-      rows.map(offerCard).join("") +
-      (extra > 0 ? '<p class="note">' + extra + " more behind these.</p>" : "");
-    openTile({
-      kind: "driver-offer",
-      title: rows.length === 1 ? "NEW OFFER FOR YOU" : rows.length + " NEW OFFERS",
-      mid: rows.length === 1 ? priceMid(rows[0].fee) : "",
-      html: html,
-      job: rows[0].id
-    });
-  }
-  function paintOfferClocks() {
-    var sh = $("sn-sheet");
-    if (!sh || !sh.classList.contains("on") || sh.getAttribute("data-kind") !== "driver-offer") return;
-    var dead = false;
-    var cards = sh.querySelectorAll(".sn-offer");
-    Array.prototype.forEach.call(cards, function (el) {
-      var job = jobById(el.getAttribute("data-id"));
-      if (!job || job.driverAccepted || offerLeft(job) <= 0) { dead = true; return; }
-      var age = el.querySelector(".age");
-      var left = el.querySelector(".left");
-      if (age) age.textContent = clockText(offerAge(job));
-      if (left) left.textContent = clockText(offerLeft(job));
-    });
-    if (dead) openOfferDesk();
-  }
-  function openDriverOffer(job) {
-    if (job && offerLeft(job) <= 0) castOffer(job);
-    openOfferDesk();
+    if (job && drivers && drivers[0] && !job.offeredTo) job.offeredTo = drivers[0].id;
+    openTile({ kind: "driver-offer", title: "OFFER", mid: priceMid(job.fee), html: html, job: job.id });
   }
 
   function myName() {
@@ -3996,7 +3634,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (homeDrop) bookRow(b, "client:" + (homeDrop.owner || me()), homeDrop.name || "Client", "client");
     bookRow(b, "client:" + me(), myName(), "client");
     booksSet(b);
-    var html = '<p class="note">Your money ' + shownMoney().toLocaleString("en-GB") + " AV€. The mutual account is below. Change any amount, then Apply.</p>";
+    var html = '<p class="note">Your money ' + Math.round(avcGet()).toLocaleString("en-GB") + " AV€. The mutual account is below. Change any amount, then Apply.</p>";
     html += '<label class="sn-book">MUTUAL<input id="sn-book-pool" inputmode="decimal" value="' + (Number(b.pool) || 0) + '"></label>';
     b.rows.forEach(function (r) {
       html += '<label class="sn-book">' + esc((r.role || "account").toUpperCase() + " · " + (r.name || "")) + '<input class="sn-book-n" data-id="' + esc(r.id) + '" inputmode="decimal" value="' + (Number(r.avc) || 0) + '"></label>';
@@ -4043,7 +3681,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     d.avc = Math.round((d.avc + driverPay) * 100) / 100;
     job.released = true;
     booksSet(b);
-    noteSpend(total);
   }
   function placeMeDriver(pt) {
     if (!isAdmin() || !pt) return;
@@ -4076,150 +3713,19 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     return best || p;
   }
-  function partyPhone(job, who) {
-    if (!job) return "";
-    if (who === "client") return (job.drop && job.drop.phone) || "";
-    if (who === "vendor") return (job.vendor && job.vendor.phone) || "";
-    var ph = "";
-    people.forEach(function (p) {
-      if (p && p.phone && (String(p.id) === String(job.driverId) || (job.driver && p.name === job.driver))) ph = p.phone;
-    });
-    return ph;
-  }
-  function reachRow(job, who) {
-    var id = esc(job.id);
-    var label = who.toUpperCase();
-    return '<p class="note">' + label + "</p>" +
-      '<button type="button" class="sheet-go" data-act="reach-call" data-id="' + id + '" data-k="' + who + '">CALL</button>' +
-      '<button type="button" class="sheet-go" data-act="reach-video" data-id="' + id + '" data-k="' + who + '">VIDEO</button>' +
-      '<button type="button" class="sheet-go" data-act="reach-msg" data-id="' + id + '" data-k="' + who + '">MESSAGE</button>';
-  }
-  function msgLines(job) {
-    return (job.msgs || []).slice(-4).map(function (m) {
-      return '<p class="note"><b>' + esc(m.from || "") + " → " + esc(m.to || "") + "</b> " + esc(m.text || "") + "</p>";
-    }).join("");
-  }
-  function openHandoff(job) {
-    if (!job) return;
-    openTile({
-      kind: "handoff",
-      title: "AT THE DOOR",
-      mid: priceMid(job.fee),
-      html: whoLine("CLIENT", (job.drop && job.drop.name) || "Client", (job.drop && job.drop.address) || "") +
-        whoLine("VENDOR", job.vendor && job.vendor.name, "") +
-        '<p class="note">You are at the delivery. Ask the client to verify it.</p>' +
-        '<button type="button" class="sheet-go primary" data-act="ask-client" data-id="' + esc(job.id) + '">ASK THE CLIENT TO VERIFY</button>' +
-        reachRow(job, "client") + reachRow(job, "vendor") + msgLines(job) +
-        '<button type="button" class="sheet-go sn-dispute" data-act="dispute" data-id="' + esc(job.id) + '">DISPUTE</button>',
-      job: job.id
-    });
-  }
-  function openClientCheck(job) {
-    if (!job) return;
-    var stars = [1, 2, 3, 4, 5].map(function (n) { return '<button type="button" data-act="star" data-n="' + n + '">' + n + "</button>"; }).join("");
-    openTile({
-      kind: "check",
-      title: "VERIFY",
-      mid: priceMid(job.fee),
-      html: '<p class="note">Was the delivery okay? Rate it, then confirm.</p>' +
-        '<div class="sn-stars" data-k="driver" data-id="' + esc(job.driverId || job.driver || "") + '" data-name="' + esc(job.driver || "driver") + '">' + stars + "</div>" +
-        '<button type="button" class="sheet-go primary" data-act="client-got" data-id="' + esc(job.id) + '">I RECEIVED IT</button>' +
-        reachRow(job, "driver") + reachRow(job, "vendor") + msgLines(job) +
-        '<button type="button" class="sheet-go sn-dispute" data-act="dispute" data-id="' + esc(job.id) + '">DISPUTE</button>',
-      job: job.id
-    });
-  }
-  function stopCall() {
-    var stream = window.__snCall;
-    if (stream && stream.getTracks) stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
-    window.__snCall = null;
-  }
-  function reachCall(job, who) {
-    var ph = partyPhone(job, who);
-    if (!ph) { say("No phone on the " + who + "."); return; }
-    location.href = "tel:" + String(ph).replace(/[^\d+]/g, "");
-  }
-  function reachVideo(job, who) {
-    openTile({
-      kind: "call",
-      title: "VIDEO",
-      html: '<p class="note">Calling the ' + esc(who) + ".</p><video id=\"sn-call\" autoplay playsinline muted></video>" +
-        (partyPhone(job, who) ? '<button type="button" class="sheet-go" data-act="reach-call" data-id="' + esc(job.id) + '" data-k="' + who + '">PHONE INSTEAD</button>' : "")
-    });
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { say("This phone has no camera."); return; }
-    navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: "user" } }).then(function (stream) {
-      window.__snCall = stream;
-      var el = $("sn-call");
-      if (el) el.srcObject = stream;
-    }).catch(function () { say("Camera permission was refused."); });
-  }
-  function reachMsg(job, who) {
-    openTile({
-      kind: "msg",
-      title: "MESSAGE",
-      html: '<p class="note">To the ' + esc(who) + ".</p>" + msgLines(job) +
-        '<textarea id="sn-msg" placeholder="Write it"></textarea>' +
-        '<button type="button" class="sheet-go primary" data-act="msg-send" data-id="' + esc(job.id) + '" data-k="' + who + '">SEND</button>'
-    });
-  }
-  function sendMsg(job, who) {
-    var el = $("sn-msg");
-    var text = el ? String(el.value || "").trim() : "";
-    if (!text) { say("Write the message."); return; }
-    job.msgs = job.msgs || [];
-    job.msgs.push({ from: myName(), to: who, text: text, t: Date.now() });
+  function openReceipt(job) {
+    if (!job || job.receiptShown || job.received) return;
+    job.receiptShown = true;
     saveJobs();
-    publishJob(job);
-    say("Sent to the " + who + ".");
-    if (who === "client") openHandoff(job);
-    else openClientCheck(job);
-  }
-  function openDispute(job) {
+    var v = job.vendor || {}, d = job.drop || {};
     openTile({
-      kind: "dispute",
-      title: "DISPUTE",
-      html: '<p class="note">Say what went wrong. The AI judges who pays, and a penalty if one is due.</p>' +
-        '<textarea id="sn-dispute" placeholder="What happened"></textarea>' +
-        '<button type="button" class="sheet-go sn-dispute" data-act="dispute-send" data-id="' + esc(job.id) + '">SEND TO THE JUDGE</button>'
-    });
-  }
-  function judgeDispute(job) {
-    var el = $("sn-dispute");
-    var text = el ? String(el.value || "").trim() : "";
-    if (!text) { say("Say what went wrong."); return; }
-    say("The judge is reading it.");
-    var brief = "JUSTICE for order " + job.id + ". Fee " + (job.fee || 0) + " AV€. Vendor " + ((job.vendor && job.vendor.name) || "") + ". Driver " + (job.driver || "") + ". Client " + ((job.drop && job.drop.name) || "") + ". Claim: " + text + ". act=justice. Name who is wrong. split numbers are what that side pays. If a penalty is due, say shut for the rest of the day.";
-    askGrok(brief, function (err, j) {
-      if (err || !j) { say("The judge did not answer. The dispute stays open."); return; }
-      var split = j.split || {};
-      var sides = [
-        { k: "client", id: "client:" + (job.client || me()), name: (job.drop && job.drop.name) || "Client", pay: Number(split.customer || split.client) || 0 },
-        { k: "vendor", id: "vendor:" + ((job.vendor && job.vendor.id) || "vendor"), name: (job.vendor && job.vendor.name) || "Vendor", pay: Number(split.vendor) || 0 },
-        { k: "driver", id: "driver:" + (job.driverId || "driver"), name: job.driver || "Driver", pay: Number(split.driver) || 0 }
-      ];
-      var guilty = null;
-      sides.forEach(function (s) { if (s.pay > 0 && (!guilty || s.pay > guilty.pay)) guilty = s; });
-      var bill = guilty ? guilty.pay : 0;
-      if (guilty && bill > 0) {
-        var b = booksGet();
-        var row = bookRow(b, guilty.id, guilty.name, guilty.k);
-        row.avc = Math.round(((Number(row.avc) || 0) - bill) * 100) / 100;
-        b.pool = Math.round(((Number(b.pool) || 0) + bill) * 100) / 100;
-        booksSet(b);
-      }
-      var sayText = j.say || j.text || "Judged.";
-      var penalise = /shut|penalty|banned|rest of the day|suspend/i.test(sayText);
-      if (guilty && penalise) shutFor(guilty.id, guilty.name, "Dispute. " + sayText);
-      job.verdict = sayText;
-      job.disputed = true;
-      saveJobs();
-      openTile({
-        kind: "verdict",
-        title: "VERDICT",
-        html: "<p>" + esc(sayText) + "</p>" +
-          (guilty && bill ? '<p class="note">' + esc(guilty.name) + " pays " + bill + " AV€.</p>" : '<p class="note">No payment was ordered.</p>') +
-          (guilty && penalise ? '<p class="note">Penalty applied.</p>' : "")
-      });
+      kind: "receipt",
+      title: "RECEIVED",
+      mid: priceMid(job.fee),
+      html: whoLine("VENDOR", v.name, v.address || "") + whoLine("YOU", d.name || "Client", d.address || "") +
+        '<p class="note">You are at the delivery. Confirm you received it. The mutual account then pays the vendor and the driver.</p>' +
+        '<button type="button" class="sheet-go primary" data-act="client-got" data-id="' + esc(job.id) + '">I RECEIVED IT</button>',
+      job: job.id
     });
   }
   function nudgeArmed(ll) {
@@ -4246,7 +3752,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         return;
       }
     }
-    p.head = bearingDeg(p, pt);
     p.lat = pt.lat; p.lng = pt.lng; p.manual = true;
     savePeople();
     driverPin = { id: p.id, lat: pt.lat, lng: pt.lng, name: p.name, photo: p.photo || "", manual: true, owner: p.owner || me() };
@@ -4259,10 +3764,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         job.got = true; job.delivered = true;
         if (!job.outAt) job.outAt = Date.now();
         say("At the client.");
-        if (!job.handoffShown) {
-          job.handoffShown = true;
-          openHandoff(job);
-        }
+        var mineClient = String(job.client || "") === String(me()) || (homeDrop && haversineKm(homeDrop, job.drop) < 0.12);
+        if (mineClient || isAdmin()) openReceipt(job);
       } else {
         job.got = true;
         if (!job.outAt) job.outAt = Date.now();
@@ -4295,34 +3798,30 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       stage: "drivers",
       ready: true, pickup: false, got: false, delivered: false, received: false,
       vendorAccepted: true, driverAccepted: false, verified: false,
+      offeredTo: drivers[0].id || "",
       driver: "", driverId: "",
       client: dest.owner || me(),
       vendorOwner: shop.owner || "",
       t: Date.now()
     };
-    var drivers = castOffer(job);
     jobs.unshift(job);
     saveJobs();
     publishJob(job);
     vendor = shop;
     drop = job.drop;
     if (!cityOn) openCity(shop);
-    if (!drivers.length) { say("No free driver. The order is waiting."); return; }
-    say("New offer for you. " + job.fee + " AV€. Sent to " + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ". First accept wins. " + clockText(offerLeft(job)) + " to take it.");
-    openOfferDesk();
+    say((shop.name || "Shop") + " → " + (drivers[0].name || "driver") + " · " + job.fee + " AV€. Accept or decline.");
+    openDriverOffer(job, drivers);
   }
-  function offerYes(id, drvId) {
+  function offerYes(id) {
     if (needLogin()) return;
     var job = jobById(id);
     if (!job || !job.vendor || !job.drop) { say("That offer is gone."); return; }
-    if (job.driverAccepted) { say((job.driver || "Someone") + " already took it."); openOfferDesk(); return; }
-    if (offerLeft(job) <= 0) { say("Too late. The time to accept is over."); openOfferDesk(); return; }
     if (!isAdmin() && myRole() !== "driver") { say("This offer is for the driver."); return; }
-    var drivers = offerDrivers(job);
+    var drivers = freeDrivers(job.vendor);
     var drv = null;
-    drivers.forEach(function (d) { if (!drv && drvId && String(d.id) === String(drvId)) drv = d; });
-    if (!drv) drivers.forEach(function (d) { if (!drv && (String(d.id) === String(rideArm) || d.owner === me())) drv = d; });
-    if (!drv && isAdmin()) drv = drivers[0];
+    drivers.forEach(function (d) { if (!drv && job.offeredTo && String(d.id) === String(job.offeredTo)) drv = d; });
+    if (!drv) drv = drivers[0];
     if (!drv) { say("No free driver left."); return; }
     job.driver = drv.name || "driver";
     job.driverId = drv.id || "";
@@ -4331,7 +3830,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     job.verified = true;
     job.ready = true;
     job.stage = "run";
-    job.offerFor = 0;
     escrowJob(job);
     saveJobs();
     publishJob(job);
@@ -4339,18 +3837,25 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!cityOn) openCity(job.vendor);
     drawRoute(job.vendor, job.drop);
     closeSheet();
-    say((job.driver) + " took it. " + job.fee + " AV€. The others are too late. Route is on. Tap the map to move along the route.");
+    say((job.driver) + " accepted. Route is on. " + job.fee + " AV€ is in the mutual account. Tap the map to move along the route.");
   }
   function offerNo(id) {
     var job = jobById(id);
     if (!job) { say("That offer is gone."); return; }
-    if (job.driverAccepted) { say((job.driver || "Someone") + " already took it."); openOfferDesk(); return; }
-    job.offerFor = 0;
+    var drivers = freeDrivers(job.vendor).filter(function (d) { return String(d.id) !== String(job.offeredTo); });
     job.driverAccepted = false;
     job.verified = false;
+    if (!drivers.length) {
+      job.offeredTo = "";
+      saveJobs();
+      closeSheet();
+      say("Declined. No other free driver.");
+      return;
+    }
+    job.offeredTo = drivers[0].id;
     saveJobs();
-    say("Declined. " + (job.fee || 0) + " AV€ is off your desk.");
-    openOfferDesk();
+    say("Declined. Offered to " + (drivers[0].name || "the next driver") + ".");
+    openDriverOffer(job, drivers);
   }
   function sheetNote(s) {
     var body = $("sn-sheet-body");
@@ -4424,10 +3929,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       job.stage = "drivers";
     }
     if (drivers.length) {
-      castOffer(job);
+      job.offeredTo = drivers[0].id;
       saveJobs();
-      openOfferDesk();
-      say("New offer for you. " + job.fee + " AV€. Sent to " + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ". First accept wins. " + clockText(180) + " to take it.");
+      openDriverOffer(job, drivers);
+      say("Offer is with " + (drivers[0].name || "the closest driver") + ". Accept it, then tap the map to move that driver.");
       return;
     }
     saveJobs();
@@ -4462,11 +3967,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     job.stage = "drivers";
     saveJobs();
     publishJob(job);
-    var drivers = castOffer(job);
-    saveJobs();
+    var drivers = freeDrivers(job.vendor);
     if (!drivers.length) { say("No free driver to take it."); return; }
-    say("New offer for you. " + job.fee + " AV€. Sent to " + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ". First accept wins.");
-    openOfferDesk();
+    say((job.vendor && job.vendor.name || "Vendor") + " accepted. Ready in " + mins + " min. Good for " + life + " min. Sent to " + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ".");
+    openDriverOffer(job, drivers);
   }
   function driverAccept() {
     var sh = $("sn-sheet");
@@ -4554,6 +4058,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       roadAlts[key] = lines;
       paintRoads(key, lines, 0);
       routeLayer = roadPaint[key] && roadPaint[key][0];
+      fitOfferRoute();
       avoidLights(key, lines);
     }).catch(function () {});
   }
@@ -4713,8 +4218,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     saveJobs();
     publishJob(job);
     openJobs();
-    say("Delivered. Ask the client to verify it.");
-    openHandoff(job);
+    say("Delivered. The client can confirm they received it.");
   }
   function clientGot(id) {
     var job = jobBy(id);
@@ -4722,16 +4226,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!isAdmin() && myRole() !== "client") { say("Only the client, or the administrator, confirms receipt."); return; }
     if (!job.delivered) { say("Not delivered yet."); return; }
     if (!atDrop(job)) return;
-    var box = document.querySelector("#sn-sheet .sn-stars");
-    var on = box && box.querySelector("button.on");
-    if (on) fileReview(job, "client", "driver", box.getAttribute("data-id"), box.getAttribute("data-name"), Number(on.getAttribute("data-n")), "");
     job.received = true;
     releaseJob(job);
     saveJobs();
     publishJob(job);
     openJobs();
     say("Received. Vendor and driver are paid from the mutual account. The cut stays there.");
-    closeSheet();
+    openReview(job);
   }
   function applyReview() {
     var sh = $("sn-sheet");
@@ -4766,7 +4267,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     return false;
   }
   function openJobs() {
-    onlySurface("tasks");
     materialize(true);
     var sh = $("sn-tasks"); if (!sh) return;
     var list = $("sn-tasks-list");
@@ -4956,25 +4456,20 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (supportOn) { sendSupport(q, fromVoice); return; }
     if (runLine(q)) return;
     var hits = searchRoster(q);
-    openTile({ kind: "mind", title: "GROK", html: '<p class="note">' + esc(q) + '</p><p id="sn-mind">Grok…</p>' });
-    pushNotice("Grok…");
+    say("Grok…");
     askGrok(q, function (err, j) {
-      var text = (!err && j && (j.say || j.text)) || "";
-      if (!text) {
-        if (showRoster(hits)) text = hits.map(function (h) { return h.say; }).join(" · ");
-        else if (/find|hunt|show|where|pizza|shop|food|near|driver/.test(q.toLowerCase())) { hunt(q); text = "Looking on the map."; }
-        else text = "Nothing in the shops, the drivers, or the clients around you.";
-      }
-      var mind = $("sn-mind");
-      if (mind) mind.textContent = text;
-      else openTile({ kind: "mind", title: "GROK", html: '<p class="note">' + esc(q) + "</p><p>" + esc(text) + "</p>" });
-      pushNotice(text.slice(0, 140));
-      speakIfVoice(text);
-      if (!err && j) {
+      if (!err && j && (j.say || j.text)) {
+        var text = j.say || j.text;
+        say(text);
+        speakIfVoice(text);
         var act = String(j.act || "talk").toLowerCase();
         if (act === "open") openBest(searchRoster(j.q || q).length ? searchRoster(j.q || q) : hits);
-        else if (act !== "talk") applyAct(j, q);
+        else applyAct(j, q);
+        return;
       }
+      if (showRoster(hits)) return;
+      if (/find|hunt|show|where|pizza|shop|food|near|driver/.test(q.toLowerCase())) { hunt(q); return; }
+      say("Nothing in the shops, the drivers, or the clients around you.");
     });
   }
   function clockLine(d, utc) {
@@ -5318,7 +4813,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         e.preventDefault();
         e.stopPropagation();
         goGlobal();
-      }, true);
+      });
     }
     var architect = $("sn-architect");
     if (architect && !architect.__sn) {
@@ -5338,12 +4833,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           openSheet("AV€", '<p class="note">Your coins after LOGIN. Pool is owner only.</p><button type="button" class="sheet-go primary" data-act="needlogin">LOGIN</button>');
           return;
         }
-        var html = '<p class="note">' + shownMoney().toLocaleString("en-GB") + " AV€ on this account.</p>";
+        var html = '<p class="note">' + Math.round(avcGet()).toLocaleString("en-GB") + " AV€ on this account.</p>";
         if (ownerMail()) html += '<p class="note">Pool ' + Math.round(poolGet()).toLocaleString("en-GB") + " AV€ · owner only.</p>";
         html += '<input id="sn-add-eur" inputmode="decimal" placeholder="How many euro" />' +
           '<button type="button" class="sheet-go primary" data-act="add-eur">ADD WITH PAYPAL</button>' +
           '<button type="button" class="sheet-go" data-act="withdraw">WITHDRAW</button>';
-        if (ownerMail() || isAdmin()) { openPool(); return; }
+        if (isAdmin()) {
+          openTile({ kind: "books", title: "ACCOUNT", mid: priceMid(Math.round(poolGet() * 100) / 100), html: booksHtml() });
+          return;
+        }
         openSheet("AV€", html);
       });
     }
@@ -5394,7 +4892,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var support = $("sn-support");
     if (support && !support.__sn) {
       support.__sn = true;
-      support.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openSupport(); }, true);
+      support.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openSupport(); });
     }
     var tabsRail = $("sn-tabs");
     if (tabsRail && !tabsRail.__sn) {
@@ -5493,8 +4991,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (act === "reload") location.reload();
       if (act === "terms") location.href = "/terms.html";
       if (act === "apply-vendor" || act === "apply-driver") say("Apply after LOGIN. Notis activates.");
-      if (act === "withdraw" || act === "take-cash") { takeCash(); return; }
-      if (act === "issue-coupon") { issueCoupon(); return; }
+      if (act === "withdraw") say("Withdraw after a real job. PayPal on origin.");
       if (act === "vendor" && isFinite(i) && shops[i]) openVendor(shops[i]);
       if (act === "order-here") {
         if (!vendor || !isFinite(+vendor.lat)) { say("Tap the vendor again."); return; }
@@ -5531,12 +5028,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         say("Assigned to drv-notis · " + ((vendor && vendor.name) || "shop") + ". Set drop, then send.");
       }
       if (act === "self-ride") say("Hold the map. List the vendor, the delivery address, and a driver. Then send the offer.");
-      if (act === "lens") {
-        researchLens = t.getAttribute("data-k") || "ALL";
-        var keep = shownResearch()[0] || RESEARCH[0];
-        openResearch(keep);
-        return;
-      }
+      if (act === "place-order") { checkoutVendor(); return; }
       if (act === "cloud") { openOrderList(t.getAttribute("data-k") || "pending"); return; }
       if (act === "open-job") { openJob(t.getAttribute("data-id")); return; }
       if (act === "compass-north") { armNorth(); return; }
@@ -5719,20 +5211,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         closeSheet();
         return;
       }
-      if (act === "offer-yes") { offerYes(t.getAttribute("data-id") || (function () { var sh = $("sn-sheet"); return sh && sh.getAttribute("data-job"); })(), t.getAttribute("data-drv")); return; }
+      if (act === "offer-yes") { offerYes(t.getAttribute("data-id") || (function () { var sh = $("sn-sheet"); return sh && sh.getAttribute("data-job"); })()); return; }
       if (act === "offer-no") { offerNo(t.getAttribute("data-id") || (function () { var sh = $("sn-sheet"); return sh && sh.getAttribute("data-job"); })()); return; }
-      if (act === "reoffer") {
-        var again = jobBy(t.getAttribute("data-id"));
-        if (!again) return;
-        var sent = castOffer(again);
-        again.stage = "drivers";
-        again.ready = true;
-        saveJobs();
-        if (!sent.length) { say("No free driver."); return; }
-        say("New offer for you. " + again.fee + " AV€. Sent to " + sent.length + ".");
-        openOfferDesk();
-        return;
-      }
       if (act === "run-offer") {
         if (!isAdmin()) { say("Only the administrator sends an offer on behalf of both."); return; }
         absorbMine();
@@ -5866,11 +5346,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var shotEl = $("sn-shot-place");
         var photo = shots.place || placePhoto || (shotEl && shotEl.getAttribute("src") && shotEl.getAttribute("src").indexOf("data:") === 0 ? shotEl.getAttribute("src") : "");
         var row = { id: id, kind: "shop", place: kn, name: nm, phone: phone, address: address, menu: menu, lat: listPt.lat, lng: listPt.lng, photo: photo, status: status, customerPeer: me(), owner: me() };
-        var lockEl = $("sn-place-lock");
-        if (lockEl && String(lockEl.value || "").trim() !== "") {
-          var lockN = Number(String(lockEl.value).replace(",", "."));
-          if (isFinite(lockN) && lockN >= 0) setVendorLock(id, nm, lockN);
-        }
         persistListing(row);
         shops = shops.filter(function (s) { return !s || s.id !== id; });
         shops.unshift({ id: id, name: nm, lat: listPt.lat, lng: listPt.lng, kind: kn, phone: phone, address: address, menu: menu, photo: photo, src: "listed", status: status, owner: me() });
@@ -6037,19 +5512,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (act === "driver-got") driverGot(id);
       if (act === "driver-delivered") driverDelivered(id);
       if (act === "client-got") clientGot(id);
-      if (act === "ask-client") {
-        var asked = jobBy(id);
-        if (!asked) return;
-        asked.askClient = true;
-        saveJobs();
-        openClientCheck(asked);
-      }
-      if (act === "reach-call") { var jc = jobBy(id); if (jc) reachCall(jc, t.getAttribute("data-k")); }
-      if (act === "reach-video") { var jv = jobBy(id); if (jv) reachVideo(jv, t.getAttribute("data-k")); }
-      if (act === "reach-msg") { var jm = jobBy(id); if (jm) reachMsg(jm, t.getAttribute("data-k")); }
-      if (act === "msg-send") { var js = jobBy(id); if (js) sendMsg(js, t.getAttribute("data-k")); }
-      if (act === "dispute") { var jd = jobBy(id); if (jd) openDispute(jd); }
-      if (act === "dispute-send") { var jj = jobBy(id); if (jj) judgeDispute(jj); }
       if (act === "review") openReview(jobBy(id));
       if (act === "star") {
         var box = t.parentNode;
@@ -6651,10 +6113,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
   }
   function boot() {
-    document.documentElement.classList.add("sn-global");
-    document.documentElement.classList.remove("sn-street");
-    globeHold = true;
-    cityOn = false;
+    sheetLaw();
     canvas = $("g");
     if (!canvas) return;
     ctx = canvas.getContext("2d");
@@ -6662,10 +6121,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     cam.yaw = (20 * Math.PI) / 180 - earthSpin();
     cam.pitch = 0.22;
     cam.dist = 1.85;
-    tierI = 1;
-    try { drawGlobe(performance.now()); } catch (e) { window.__SN_LOOP_ERR = String(e && (e.message || e)); }
-    try {
-    sheetLaw();
     bindGlobe();
     bindChrome();
     bindSky();
@@ -6679,18 +6134,19 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       window.__SN_HERE = here;
       try { localStorage.setItem("sn:here", JSON.stringify(here)); } catch (e) {}
     }, true);
-    pullResearch();
     fetch("/agenda.json", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
-      var cal = (j && j.cards) ? j.cards.filter(function (c) { return c && c.k === "CALENDAR"; }) : [];
-      if (cal.length) {
-        var rest = BRIEF.filter(function (c) { return !c || c.k !== "CALENDAR"; });
-        BRIEF = cal.concat(rest);
+      if (j && j.cards && j.cards.length) {
+        BRIEF = j.cards.map(function (c, i) {
+          c = c || {};
+          if (!isFinite(+c.lat)) c.lat = 36.43;
+          if (!isFinite(+c.lng)) c.lng = 28.22 + i * 0.35;
+          return c;
+        });
       }
-      pullResearch();
-    }).catch(function () { pullResearch(); });
+      pullVideos();
+    }).catch(function () { pullVideos(); });
     setTimeout(pullQueue, 600);
     setInterval(pullQueue, 4000);
-    setInterval(paintOfferClocks, 1000);
     loadBlocks();
     setTimeout(pullLive, 1500);
     setInterval(pullLive, 8000);
@@ -6718,17 +6174,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
             try { dep = Number(localStorage.getItem("sn:pay-deposit") || 0); localStorage.removeItem("sn:pay-deposit"); } catch (e) {}
             if (dep > 0 && signed()) {
               avcSet(avcGet() + dep);
-              noteDeposit(dep);
-              say("PayPal " + dep + " € is locked in. It is spent inside, not paid back out.");
+              say("PayPal " + dep + " € on your account · " + avcGet() + " AV€.");
             } else say("PayPal captured. Transaction verified.");
           } else say((j && (j.error || j.message)) || "PayPal capture did not finish.");
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
     window.__SN_4285 = true;
-    } catch (err) {
-      window.__SN_BOOT_ERR = String(err && (err.message || err));
-    }
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
