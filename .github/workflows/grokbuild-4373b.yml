@@ -1,0 +1,33 @@
+name: grokbuild 4373b (boot Overpass rests are soft; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4373b.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix78, assert tree, commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "5f056d905c44a4a45e0b0cb959838cd79fcf90d5" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          base64 -d .grokbuild/fix78.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "2ec9eb67789fe473bdf610c8e9bdd5026eebb6906164696e7dd6a9c687228f0c"
+          gunzip -c /tmp/f.gz > /tmp/fix78.patch
+          test "$(sha256sum /tmp/fix78.patch | cut -d' ' -f1)" = "235265f438ad228cb7594de6817bcc0deedd787f19366674a7a7388c61d1d3da"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4373b.yml
+          git apply --index /tmp/fix78.patch
+          node --check js/spacenet/app.js
+          grep -q '^4373$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "bea462037d6641b1d9287a9626f93962dd7c4f01" || { echo "tree $T"; exit 1; }
+          git commit -q -m "4373: an Overpass rest earned at boot or by the listings load is soft: the user's hunt wakes it and gets its own tries (mirror 0, then mirror 1 on failure); a rest earned by the hunt stays 5 min; lockstep 4373"
+          git push origin HEAD:grokbuild/4328-street-level-gps
