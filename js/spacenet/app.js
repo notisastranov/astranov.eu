@@ -4514,7 +4514,7 @@ window.__SN_4375 = true;
     if (!map || !cityOn || rosterShown || typeof L === "undefined") return;
     /* 4373: only on the approximate (IP) start; a located place, a landing or a hunt keeps its own view */
     if (seatKind !== "ip" || huntView || findWanted || huntPending()) return;
-    var pts = shops.filter(function (s) { return s && isFinite(+s.lat) && isFinite(+s.lng) && seesShop(s); });
+    var pts = shops.filter(function (s) { return s && isFinite(+s.lat) && isFinite(+s.lng) && seesShop(s) && !orderCopy(s); }); /* 4375: never fly to a vendor copied out of an order */
     if (!pts.length) return;
     var b = null;
     try { b = map.getBounds(); } catch (e) {}
@@ -5593,6 +5593,7 @@ window.__SN_4375 = true;
       if (!s || !isFinite(+s.lat) || !isFinite(+s.lng)) return false;
       if (!seesShop(s)) return false;
       if (s.status === "pending" && !isAdmin() && !ownsShop(s)) return false;
+      if (orderCopy(s) && !isAdmin() && !ownsShop(s)) return false; /* 4375: an order's vendor copy is not a public listing */
       if (hasSeat && haversineKm(seat, s) > 50) return false;
       if (huntView && huntView.needle && !huntMatch(s, huntView.needle)) return false;
       if (huntView && huntView.nameQ && !huntView.pending) {
@@ -5611,6 +5612,7 @@ window.__SN_4375 = true;
        and rows with no map source or listing id never join a hunt;
      - radius: "X near Y" keeps 5 km around Y, widened to 10 km only while fewer than 3 match; "X in Y" keeps 50 km;
      - order: distance from the hunt centre, then a stable key, so every reload gives the same pins in the same order. */
+  function orderCopy(s) { return !!(s && (s.via === "job" || s.via === "order" || /^job-/.test(String(s.id || "")))); }
   function huntProven(s) {
     if (!s) return false;
     if (s.via === "job" || s.via === "order") return false;
