@@ -1,0 +1,33 @@
+name: grokbuild 4376b (typing over the kept line replaces it; Enter off the box never re-sends; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4376b.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix83, assert tree, commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "b1bbb9cdbb266700131355c5911d4a29fc3d24ab" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          base64 -d .grokbuild/fix83.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "5120753dace308d75a466c4cd7357095bca43c9469915bc1d1686715cdcb906b"
+          gunzip -c /tmp/f.gz > /tmp/fix83.patch
+          test "$(sha256sum /tmp/fix83.patch | cut -d' ' -f1)" = "8e00b123f3b6f864cad9cfa4047a79657f0273cd6e9314d0c97707139d03f538"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4376b.yml
+          git apply --index /tmp/fix83.patch
+          node --check js/spacenet/app.js
+          grep -q '^4376$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "e2199da9430d5f4f53885aae2a66ba36b78f15be" || { echo "tree $T"; exit 1; }
+          git commit -q -m "4376b: the kept line is replaced by the first typed key even after a tap moved the caret (keydown, page-key insert, select on refocus); Enter off the box never re-sends the kept line; stamps stay 4376"
+          git push origin HEAD:grokbuild/4328-street-level-gps
