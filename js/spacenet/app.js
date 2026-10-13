@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4375";
+  var VER = "4376";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1378,6 +1378,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       window.__SN_EARTH = true;
       window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true; window.__SN_4369 = true; window.__SN_4370 = true; window.__SN_4371 = true; window.__SN_4372 = true; window.__SN_4373 = true; window.__SN_4374 = true;
 window.__SN_4375 = true;
+window.__SN_4376 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3070,7 +3071,7 @@ window.__SN_4375 = true;
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4375&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4376&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3213,6 +3214,9 @@ window.__SN_4375 = true;
       "#sn-sheet .bg{pointer-events:none!important;display:none!important}",
       "#sn-sheet .card{position:absolute!important;left:14px!important;right:14px!important;width:auto!important;transform:none!important;bottom:78px!important;height:auto!important;max-height:var(--sn-rest,30vh)!important;box-sizing:border-box!important;padding:0!important;margin:0!important;border-radius:16px!important;border:1px solid rgba(77,240,255,.65)!important;overflow:hidden!important;background:rgba(4,16,32,.58)!important;backdrop-filter:blur(8px)!important;box-shadow:0 0 22px rgba(77,240,255,.28), inset 0 0 28px rgba(77,240,255,.06)!important}",
       "#sn-sheet-body{overflow:auto!important;max-height:calc(var(--sn-rest,30vh) - 48px)!important;-webkit-overflow-scrolling:touch!important;touch-action:pan-y!important;padding:8px 10px 12px!important}",
+      /* 4376 (main ab5159d V4370): menus fit the text — the body shrink-wraps; the grip keeps the height */
+      "#sn-sheet-body{width:max-content!important;max-width:100%!important;box-sizing:border-box!important}",
+      ".sn-zoom{width:max-content!important;max-width:100%!important;padding:0!important}",
       "#sn-sheet .sheet-bar{display:flex!important;align-items:stretch!important;gap:0!important;margin:0!important;padding:0!important;width:100%!important;position:sticky!important;top:0!important;z-index:5!important;height:48px!important;border-radius:16px 16px 0 0!important;overflow:hidden!important;background:rgba(4,16,28,.42)!important}",
       "#sn-sheet.offer .sheet-bar{height:48px!important}",
       "#sn-sheet .sheet-apply,#sn-sheet .sheet-x{flex:none!important;display:flex!important;align-items:center!important;justify-content:center!important;min-width:56px!important;height:48px!important;margin:0!important;padding:0 8px!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;pointer-events:auto!important;z-index:6!important}",
@@ -3255,6 +3259,12 @@ window.__SN_4375 = true;
       "#sn-power-tag.on{color:#7dff9a}",
       "#sn-power-tag.hold{color:#fff;background:rgba(4,14,28,.88);border:1px solid #4df0ff;border-radius:6px;padding:2px 7px;font-size:12px;line-height:16px;box-shadow:0 0 10px rgba(77,240,255,.6)}",
       "#sn-sheet .sn-dish{display:grid!important;grid-template-columns:minmax(0,1fr) 88px!important;gap:6px!important;margin:8px 0 0!important}",
+      "#sn-sheet.tile .card{width:max-content!important;max-width:min(360px,calc(100vw - 28px))!important}",
+      "#sn-sheet .sn-prof,#sn-sheet.tile .sn-prof{display:grid!important;width:max-content!important;max-width:min(320px,calc(100vw - 48px))!important;grid-template-columns:72px max-content!important;gap:8px!important;align-items:center!important;margin:0 0 8px!important}",
+      "#sn-sheet.tile .sn-prof{grid-template-columns:88px max-content!important}",
+      "#sn-sheet.tile .sn-prof .sn-shop-hero,#sn-sheet.tile .sn-prof em{width:88px!important;height:88px!important;max-width:88px!important;max-height:88px!important}",
+      "#sn-sheet .sn-dish{display:grid!important;width:max-content!important;grid-template-columns:minmax(120px,180px) 84px!important;gap:6px!important;margin:8px 0 0!important}",
+      "#sn-sheet .sn-pick{display:grid;width:max-content!important;max-width:min(340px,calc(100vw - 40px))!important;grid-template-columns:52px max-content max-content 28px 28px 28px;gap:6px;align-items:center;margin-top:8px}",
       "#sn-cloud{position:fixed!important;top:40px!important;left:50%!important;right:auto!important;transform:translateX(-50%)!important;z-index:48!important;display:flex!important;gap:8px!important;align-items:center!important;max-width:calc(100vw - 24px)!important;padding:4px!important;border-radius:999px!important;background:rgba(4,16,32,.92)!important;border:1px solid rgba(77,240,255,.8)!important;color:#e8fbff!important;font:700 12px/1 system-ui!important;pointer-events:auto!important;box-shadow:0 0 18px rgba(77,240,255,.35)!important}",
       "#sn-cloud button{pointer-events:auto!important;border:0!important;background:transparent!important;color:#e8fbff!important;font:700 12px/1 system-ui!important;padding:6px 8px!important;white-space:nowrap!important}",
       "#sn-cloud.off{display:none!important}",
@@ -3292,18 +3302,22 @@ window.__SN_4375 = true;
       ".sn-offer{margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(77,240,255,.22)}",
       ".sn-offer .sn-amt{font:800 32px/1 system-ui;color:#e8fbff}",
       "#sn-sheet-body{padding:8px 10px 10px!important}",
-      "#sn-sheet input,#sn-sheet textarea{margin:4px 0 0!important;padding:8px 10px!important;font-size:16px!important}",
-      "#sn-sheet-body .sheet-go{display:block!important;width:100%!important;height:36px!important;margin:4px 0 0!important;box-sizing:border-box!important;font-size:13px!important;color:#e8fbff!important;background:#041018!important}",
+      "#sn-sheet input,#sn-sheet textarea{display:block!important;width:min(240px,calc(100vw - 64px))!important;max-width:100%!important;box-sizing:border-box!important;margin:4px 0 0!important;padding:8px 10px!important;font-size:16px!important}",
+      "#sn-sheet textarea{min-height:56px!important;resize:vertical!important}",
+      "#sn-sheet-body .sheet-go{display:flex!important;width:max-content!important;max-width:min(320px,calc(100vw - 48px))!important;height:auto!important;min-height:28px!important;margin:4px 0 0!important;padding:6px 12px!important;box-sizing:border-box!important;align-items:center!important;justify-content:flex-start!important;white-space:nowrap!important;font-size:13px!important;line-height:1.2!important;color:#e8fbff!important;background:#041018!important}",
       "#sn-sheet-body .sheet-go.primary{color:#041018!important;background:#4df0ff!important}",
+      "#sn-sheet .note{display:block!important;width:0!important;min-width:100%!important;max-width:100%!important;white-space:normal!important}",
+      "#sn-sheet .pill{width:max-content!important;max-width:min(300px,calc(100vw - 48px))!important}",
+      "#sn-sheet .sn-who{display:grid;width:max-content!important;max-width:min(300px,calc(100vw - 48px))!important;grid-template-columns:62px max-content;column-gap:8px;margin:8px 0 0;align-items:baseline}",
       "#sn-sheet .sn-row{display:block!important;margin:8px 0 0!important}",
       "#sn-sheet .sn-trio{display:grid!important;grid-template-columns:1fr 1fr 1fr!important;gap:4px!important}",
-      "#sn-sheet .sn-row input{width:100%!important;box-sizing:border-box!important}",
+      "#sn-sheet .sn-row input{width:min(220px,calc(100vw - 72px))!important;max-width:100%!important;box-sizing:border-box!important}",
       "#sn-sheet .sn-photo{display:flex!important;align-items:center!important;justify-content:center!important;width:72px!important;height:72px!important;max-height:72px!important;overflow:hidden!important;position:relative!important;padding:0!important;margin:0 0 6px!important;border-radius:12px!important}",
       "#sn-sheet .sn-photo img,#sn-sheet .sn-shop-hero{width:72px!important;height:72px!important;max-width:72px!important;max-height:72px!important;object-fit:cover!important;display:block!important;position:static!important;border-radius:12px!important}",
       "#sn-sheet .phbtn{width:72px!important;height:72px!important;min-width:72px!important;overflow:hidden!important;padding:0!important;border-radius:12px!important}",
       "#sn-sheet .phbtn img{width:72px!important;height:72px!important;max-width:72px!important;max-height:72px!important;object-fit:cover!important;display:block!important}",
       "#sn-sheet .sn-item img,#sn-sheet .sn-mini{width:44px!important;height:44px!important;max-width:44px!important;max-height:44px!important;object-fit:cover!important;display:block!important}",
-      "#sn-sheet .sn-item{display:grid!important;grid-template-columns:44px 1fr auto auto!important;gap:8px!important;align-items:center!important;width:100%!important;margin:6px 0 0!important;padding:6px!important;border:1px solid rgba(126,233,255,.28)!important;background:rgba(4,16,28,.9)!important;color:#e8fbff!important;text-align:left!important}",
+      "#sn-sheet .sn-item{display:grid!important;grid-template-columns:44px max-content max-content max-content!important;gap:8px!important;align-items:center!important;width:max-content!important;max-width:min(340px,calc(100vw - 40px))!important;margin:6px 0 0!important;padding:6px!important;border:1px solid rgba(126,233,255,.28)!important;background:rgba(4,16,28,.9)!important;color:#e8fbff!important;text-align:left!important}",
       "#sn-sheet .sn-item b{font:700 14px/1.2 system-ui!important}",
       "#sn-sheet .sn-item b small{display:block;font:600 11px/1.2 system-ui;color:#8ec8d8;letter-spacing:0}",
       "#sn-sheet .sn-item span{font:800 14px/1 ui-monospace,monospace!important;color:#4df0ff!important}",
@@ -3349,6 +3363,8 @@ window.__SN_4375 = true;
       "@keyframes sn-slide{from{transform:translateX(0)}to{transform:translateX(-50%)}}",
       "#sn-sheet.research .card{max-height:78vh!important}",
       "#sn-sheet.research #sn-sheet-body{max-height:calc(78vh - 52px)!important}",
+      /* 4376 (main V4370): the card is as wide as its text, centred, 280..340 px; height stays the grip's (--sn-rest) */
+      "#sn-sheet .card,#sn-sheet.tall .card,#sn-tasks .card,#sn-sheet.tile .card{left:50%!important;right:auto!important;width:max-content!important;min-width:min(280px,calc(100vw - 28px))!important;max-width:min(340px,calc(100vw - 28px))!important;transform:translateX(-50%)!important}",
       "#sn-power{position:fixed!important;top:0!important;left:max(2px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;width:32px!important;height:32px!important;transform:none!important;z-index:60!important}",
       "#sn-power svg{width:16px!important;height:16px!important}",
       "#sn-support{position:fixed!important;top:0!important;right:max(2px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;width:32px!important;height:32px!important;font-size:14px!important;transform:none!important;z-index:60!important}",
@@ -5624,7 +5640,8 @@ window.__SN_4375 = true;
   function huntKey(s) { return String(s.id || "") + "|" + String(s.name || "").toLowerCase() + "|" + (+s.lat).toFixed(5) + "," + (+s.lng).toFixed(5); }
   function huntTrim(list) {
     var org = huntOrigin();
-    var rows = (list || []).filter(huntProven);
+    var ids = huntView && huntView.ids;
+    var rows = (list || []).filter(function (s) { return huntProven(s) && (!ids || ids[huntKey(s)]); });
     if (!org || !isFinite(+org.lat)) return rows.sort(function (a, b) { return huntKey(a) < huntKey(b) ? -1 : 1; });
     rows.forEach(function (s) { s.__km = haversineKm(org, s); });
     var cap = 50;
@@ -6003,7 +6020,7 @@ window.__SN_4375 = true;
     var url = "/api/find?q=" + encodeURIComponent(q)
       + "&lat=" + Number(seat.lat).toFixed(4)
       + "&lng=" + Number(seat.lng).toFixed(4)
-      + "&bounded=1&radius=25&near=1";
+      + (huntView && huntView.near ? "&bounded=1&radius=10&near=1" : "&bounded=1&radius=40&near=0"); /* 4376: near only for "X near Y" */
     return fetchJson(url, { signal: huntSig() }).then(function (j) {
       return ((j && j.places) || []).map(function (p) { p.src = "find"; return asPlace(p); })
         .filter(function (p) { return p && nearSeat(p, 50); });
@@ -6144,16 +6161,22 @@ window.__SN_4375 = true;
       /* replace, do not union with the previous city's pins */
       Promise.all([
         huntRace(spaceP, 5000),
-        huntRace(huntApi(named || q), 9000), /* 4374: the server now asks OSM in a box around the seat (real pins without Overpass) */
+        huntRace(huntApi(named || q), 11000), /* 4374: the server now asks OSM in a box around the seat (real pins without Overpass) */
         huntRace(huntNominatim(named || q), 4000),
         huntRace(huntOverpass(named || q), 2500)
       ]).then(function (packs) {
         if (!live()) return;
         packs[0] = (packs[0] || []).map(function (p) { if (p) p.src = "listed"; return p; });
-        var merged = uniqPlaces([].concat(packs[0] || [], packs[1] || [], packs[2] || [], packs[3] || []))
+        /* 4376: one source decides a hunt: the server hunt (/api/find, boxed OSM) plus our real listings. The browser
+           Nominatim / Overpass races (2.5-4 s) only stand in when the server hunt returned nothing, so a clean run gives the
+           same pins every time; the q-less nearby Overpass rows never join (huntView.ids gates the field) */
+        var outside = (packs[1] && packs[1].length) ? packs[1] : [].concat(packs[2] || [], packs[3] || []);
+        if (huntView) huntView.via = (packs[1] && packs[1].length) ? "server" : "browser";
+        var merged = uniqPlaces([].concat(packs[0] || [], outside))
           .filter(function (p) { return nearSeat(p, 50); });
         if (huntView && huntView.nameQ) merged = nameField(merged, packs, huntView.nameQ);
         merged = huntCache(named || q, seat0, merged);
+        if (huntView) { huntView.ids = {}; merged.forEach(function (p) { if (p) huntView.ids[huntKey(p)] = 1; }); }
         shops = merged;
         huntCtrl = null;
         showFound();
@@ -7453,7 +7476,7 @@ window.__SN_4375 = true;
   }
   function needFilter() {
     var inp = $("in");
-    if (inp && inp.value.trim()) return true;
+    if (inp && inp.value.trim() && !inp.__snSent) return true; /* 4376: the kept, already-sent line is not new typing */
     var tasks = $("sn-tasks"), sheet = $("sn-sheet");
     if (tasks && tasks.classList.contains("on")) return true;
     if (sheet && sheet.classList.contains("on")) return true;
@@ -8486,6 +8509,29 @@ window.__SN_4375 = true;
       });
     }
     var f = $("f"), inp = $("in"), go = $("go");
+    /* 4376: the submitted line stays in the box, selected, so the next keystroke replaces it (it never blanks right after
+       Enter); the same line sent again within 2.5 s by any path (Enter, form submit, keyup backup, GO) is a double submit
+       and is dropped */
+    function sentTwice(v, now) {
+      var last = window.__snLastSent;
+      if (last && last.v === v && now - last.at < 2500) {
+        try { (window.__snSubmits = window.__snSubmits || []).push({ at: now, why: "double", v: v, ok: false }); } catch (eD) {}
+        return true;
+      }
+      window.__snLastSent = { v: v, at: now };
+      return false;
+    }
+    function keepSent(el, v) {
+      if (!el) return;
+      el.value = v;
+      el.__snSent = v;
+      try { if (document.activeElement === el) el.select(); else el.__snSelectOnFocus = true; } catch (eS) {}
+    }
+    if (inp && !inp.__snKeepSel) {
+      inp.__snKeepSel = true;
+      inp.addEventListener("input", function () { inp.__snSent = ""; });
+      inp.addEventListener("focus", function () { if (inp.__snSelectOnFocus) { inp.__snSelectOnFocus = false; try { inp.select(); } catch (e) {} } });
+    }
     if (f && !f.__sn) {
       f.__sn = true;
       if (!f.querySelector('button[type="submit"]')) {
@@ -8514,9 +8560,10 @@ window.__SN_4375 = true;
         enterDone = true;
         if (!v) return;
         if (now - talkLock < 350 && v === submitTalk.__last) return;
+        if (sentTwice(v, now)) return;
         talkLock = now;
         submitTalk.__last = v;
-        if (inp) inp.value = "";
+        keepSent(inp, v);
         if (typeof paintGo === "function") paintGo();
         talk(v, false);
         materialize(needFilter());
@@ -8573,7 +8620,7 @@ window.__SN_4375 = true;
     if (inp) inp.addEventListener("input", function () { materialize(needFilter()); });
     function paintGo() {
       if (!go) return;
-      var has = inp && String(inp.value || "").trim();
+      var has = inp && String(inp.value || "").trim() && !inp.__snSent; /* 4376: a kept, sent line shows the mic again */
       if (has) go.textContent = "GO";
       else go.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
       go.setAttribute("aria-label", has ? "Send" : "Talk");
@@ -8587,10 +8634,12 @@ window.__SN_4375 = true;
       go.__sn = true;
       go.addEventListener("click", function (e) {
         e.preventDefault();
-        if (inp && String(inp.value || "").trim()) {
+        if (inp && String(inp.value || "").trim() && !inp.__snSent) {
           if (e.isTrusted === false) return; /* 4372: only a real tap on GO sends */
           try { (window.__snSubmits = window.__snSubmits || []).push({ at: Date.now(), why: "go", v: String(inp.value).trim(), ok: true }); } catch (eL) {}
-          var v = inp.value; inp.value = ""; paintGo(); talk(v, false); return;
+          var v = String(inp.value).trim();
+          if (sentTwice(v, Date.now())) return;
+          keepSent(inp, v); paintGo(); talk(v, false); return;
         }
         if (window.SpeechRecognition || window.webkitSpeechRecognition) {
           var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -8600,8 +8649,8 @@ window.__SN_4375 = true;
           rec.continuous = false;
           rec.onresult = function (ev) {
             var t = ev.results[0][0].transcript;
-            if (inp && String(inp.value || "").trim()) { say("Heard: " + t + " · kept what you typed."); return; } /* 4372: a late voice result never replaces or sends typed text */
-            if (inp) inp.value = t;
+            if (inp && String(inp.value || "").trim() && !inp.__snSent) { say("Heard: " + t + " · kept what you typed."); return; } /* 4372: a late voice result never replaces or sends typed text */
+            if (inp) { inp.value = t; inp.__snSent = ""; }
             paintGo();
             talk(t, true);
           };
@@ -10774,6 +10823,7 @@ window.__SN_4375 = true;
     }
     window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true; window.__SN_4369 = true; window.__SN_4370 = true; window.__SN_4371 = true; window.__SN_4372 = true; window.__SN_4373 = true; window.__SN_4374 = true;
 window.__SN_4375 = true;
+window.__SN_4376 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {

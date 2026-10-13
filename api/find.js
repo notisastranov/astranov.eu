@@ -326,6 +326,18 @@ async function geocodeRanked(q, opts) {
     seen[key] = 1;
     out.push(p);
   }
+  // 4376: a city/town node beats the island / admin area of the same name ("Rhodes" = Rhodes town, not mid-island)
+  var AREA = /^(island|islet|archipelago|administrative|state|region|province|county|municipality|state_district|boundary)$/i;
+  var TOWN = /^(city|town|village|suburb|neighbourhood|quarter|borough|hamlet)$/i;
+  if (out.length > 1 && AREA.test(String(out[0].type || ""))) {
+    for (var t = 1; t < out.length; t++) {
+      if (TOWN.test(String(out[t].type || "")) && haversineKm(out[0], out[t]) < 80) {
+        var town = out.splice(t, 1)[0];
+        out.unshift(town);
+        break;
+      }
+    }
+  }
   return { places: out, src: src };
 }
 
@@ -515,14 +527,16 @@ module.exports = async function (req, res) {
     g = {},
     srcSeen = [];
   /* 4375: "X near Y" keeps 5 km around Y (10 km while fewer than 3), ranked by distance */
-  var nearMode = /\b(near|around|by|at)\b/i.test(String(n.q || ""));
-  var capKm = nearMode ? 10 : 40;
+  // 4376: the client's near=1 and radius are honoured (the q-less "pizza" hunt carries them as params)
+  var nearMode = String(n.near || "") === "1" || /\b(near|around|by|at)\b/i.test(String(n.q || ""));
+  var radQ = Number(n.radius);
+  var capKm = nearMode ? 10 : (isFinite(radQ) && radQ > 0 ? Math.min(40, radQ) : 40);
   function y(arr, srcTag) {
     (arr || []).forEach(function (e) {
       if (!e || !isFinite(e.lat)) return;
       if (srcTag && !e.src) e.src = srcTag;
       if (!nameOk(e.name, e.raw, r, i, pizza)) return;
-      if (anchor && haversineKm(anchor, e) > 40) return;
+      if (anchor && haversineKm(anchor, e) > Math.max(40, capKm)) return;
       if (m || !inRhodesBbox(e) || mentionsRhodes(e.name + " " + e.raw)) {
         /* ok */
       } else if (!m && inRhodesBbox(e)) return;
@@ -546,7 +560,7 @@ module.exports = async function (req, res) {
     var pack = await geocodeRanked(f[h], { preferGreece: preferGreece });
     y(pack.places, pack.src || "nominatim");
   }
-  var memK = anchor ? "hunt|" + String(r).toLowerCase() + "|" + (+anchor.lat).toFixed(2) + "," + (+anchor.lng).toFixed(2) : "";
+  var memK = anchor ? "hunt|" + String(r).toLowerCase() + "|" + (+anchor.lat).toFixed(2) + "," + (+anchor.lng).toFixed(2) + (nearMode ? "|near" : "") : "";
   var fromMem = false;
   if (memK) {
     if (d.length) memPut(memK, d.slice(0, 8));
@@ -569,7 +583,8 @@ module.exports = async function (req, res) {
     places: d.slice(0, 8),
     meta: {
       q: r,
-      city: i || "",
+      city: i || (anchor && anchor.name && anchor.name !== "here" ? anchor.name : ""),
+      anchor: anchor ? { lat: +(+anchor.lat).toFixed(5), lng: +(+anchor.lng).toFixed(5) } : null,
       wantRhodes: !!m,
       mode: "hunt",
       src: fromMem ? "cache" : (srcSeen.join("+") || "none"),
