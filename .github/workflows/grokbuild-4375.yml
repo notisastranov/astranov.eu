@@ -1,0 +1,35 @@
+name: grokbuild 4375 (merge main a918600e ffa4cab ZoomBall, city tasks, neon route; hunt provenance and near radius; stamps 4375; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4375.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix80, assert tree, merge commit with main, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "1a979afb1be6bb940aa4fd89621ee5a9f8740b48" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          git fetch -q origin main
+          git cat-file -e a918600e59dd5ceb2b9f2238c936eb6aff026430^{commit}
+          base64 -d .grokbuild/fix80.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "54313ae0f37edad8430e10d631ec5d8b4a78e47b813b9c4a27cb13c0ef9971e8"
+          gunzip -c /tmp/f.gz > /tmp/fix80.patch
+          test "$(sha256sum /tmp/fix80.patch | cut -d' ' -f1)" = "dee7032a6089b3b5444b0e007ecc6713fa354375509f33ec571a46a3b2f5872a"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4375.yml
+          git apply --index /tmp/fix80.patch
+          node --check js/spacenet/app.js
+          grep -q '^4375$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "8c3ec9e6b3a634f9e8b206af2271549eb7db06b4" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -p a918600e59dd5ceb2b9f2238c936eb6aff026430 -m "Merge main (a918600e: ffa4cab ZoomBall, city tasks, one neon route, admin empty shells) into the branch engine; hunt field drops order-copied and unsourced rows, near X keeps 5 km (10 km under 3), deterministic order; hunt meta src, mirror, cached; tester strip reads the real session; lockstep 4375")"
+          git push origin "$C:refs/heads/grokbuild/4328-street-level-gps"
