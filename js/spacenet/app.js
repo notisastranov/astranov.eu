@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4369";
+  var VER = "4370";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -1745,8 +1745,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     s.textContent = [
       "#sn-sheet.on{pointer-events:none!important}",
       "#sn-sheet .bg{pointer-events:none!important;display:none!important}",
-      "#sn-sheet .card{position:absolute!important;left:14px!important;right:14px!important;width:auto!important;transform:none!important;bottom:78px!important;height:auto!important;max-height:42vh!important;padding:0!important;margin:0!important;border-radius:16px!important;border:1px solid rgba(77,240,255,.65)!important;overflow:hidden!important;background:rgba(4,16,32,.58)!important;backdrop-filter:blur(8px)!important;box-shadow:0 0 22px rgba(77,240,255,.28), inset 0 0 28px rgba(77,240,255,.06)!important}",
-      "#sn-sheet-body{overflow:auto!important;max-height:calc(42vh - 48px)!important;-webkit-overflow-scrolling:touch!important;touch-action:pan-y!important;padding:8px 10px 12px!important}",
+      "#sn-sheet .card,#sn-tasks .card{position:absolute!important;left:50%!important;right:auto!important;width:max-content!important;max-width:min(340px,calc(100vw - 28px))!important;min-width:0!important;transform:translateX(-50%)!important;bottom:78px!important;height:auto!important;max-height:min(42vh,380px)!important;padding:0!important;margin:0!important;border-radius:16px!important;border:1px solid rgba(77,240,255,.65)!important;overflow:hidden!important;background:rgba(4,16,32,.58)!important;backdrop-filter:blur(8px)!important;box-shadow:0 0 22px rgba(77,240,255,.28), inset 0 0 28px rgba(77,240,255,.06)!important}",
+      "#sn-sheet-body{overflow:auto!important;width:max-content!important;max-width:min(340px,calc(100vw - 28px))!important;max-height:min(calc(42vh - 48px),320px)!important;-webkit-overflow-scrolling:touch!important;touch-action:pan-y!important;padding:8px 10px 12px!important;box-sizing:border-box!important}",
+      ".sn-zoom{width:max-content!important;max-width:100%!important;padding:0!important}",
       "#sn-sheet .sheet-bar{display:flex!important;align-items:stretch!important;gap:0!important;margin:0!important;padding:0!important;width:100%!important;position:sticky!important;top:0!important;z-index:5!important;height:48px!important;border-radius:16px 16px 0 0!important;overflow:hidden!important;background:rgba(4,16,28,.42)!important}",
       "#sn-sheet.offer .sheet-bar{height:48px!important}",
       "#sn-sheet .sheet-apply,#sn-sheet .sheet-x{flex:none!important;display:flex!important;align-items:center!important;justify-content:center!important;width:48px!important;height:48px!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;font:800 26px/1 system-ui!important;box-shadow:none!important}",
@@ -1772,11 +1773,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet .sn-prof em{display:flex;align-items:center;justify-content:center;font:36px/72px system-ui;background:#041018}",
       "#sn-sheet .sn-prof b{display:block;color:#e8fbff!important;font:800 16px/1.2 system-ui!important}",
       "#sn-sheet .sn-tel{display:block;color:#4df0ff!important;font:700 14px/1.4 system-ui!important;text-decoration:none}",
-      "#sn-sheet.tile .card{max-height:46vh!important;height:auto!important}",
-      "#sn-sheet.tile .sn-prof{grid-template-columns:88px minmax(0,1fr)!important}",
-      "#sn-sheet.tile .sn-prof .sn-shop-hero,#sn-sheet.tile .sn-prof em{width:88px!important;height:88px!important;max-width:88px!important;max-height:88px!important;max-height:88px!important}",
-      "#sn-sheet .sn-dish{display:grid!important;grid-template-columns:minmax(0,1fr) 88px!important;gap:6px!important;margin:8px 0 0!important}",
-      "#sn-sheet .sn-pick{display:grid;grid-template-columns:52px minmax(0,1fr) auto 28px 28px 28px;gap:6px;align-items:center;margin-top:8px}",
+      "#sn-sheet.tile .card{max-height:min(46vh,400px)!important;height:auto!important;width:max-content!important;max-width:min(360px,calc(100vw - 28px))!important}",
+      "#sn-sheet .sn-prof,#sn-sheet.tile .sn-prof{display:grid!important;width:max-content!important;max-width:min(320px,calc(100vw - 48px))!important;grid-template-columns:72px max-content!important;gap:8px!important;align-items:center!important;margin:0 0 8px!important}",
+      "#sn-sheet.tile .sn-prof{grid-template-columns:88px max-content!important}",
+      "#sn-sheet.tile .sn-prof .sn-shop-hero,#sn-sheet.tile .sn-prof em{width:88px!important;height:88px!important;max-width:88px!important;max-height:88px!important}",
+      "#sn-sheet .sn-dish{display:grid!important;width:max-content!important;grid-template-columns:minmax(120px,180px) 84px!important;gap:6px!important;margin:8px 0 0!important}",
+      "#sn-sheet .sn-pick{display:grid;width:max-content!important;max-width:min(340px,calc(100vw - 40px))!important;grid-template-columns:52px max-content max-content 28px 28px 28px;gap:6px;align-items:center;margin-top:8px}",
       "#sn-cloud{position:fixed!important;top:40px!important;left:50%!important;right:auto!important;transform:translateX(-50%)!important;z-index:48!important;display:flex!important;gap:8px!important;align-items:center!important;max-width:calc(100vw - 24px)!important;padding:4px!important;border-radius:999px!important;background:rgba(4,16,32,.92)!important;border:1px solid rgba(77,240,255,.8)!important;color:#e8fbff!important;font:700 12px/1 system-ui!important;pointer-events:auto!important;box-shadow:0 0 18px rgba(77,240,255,.35)!important}",
       "#sn-cloud button{pointer-events:auto!important;border:0!important;background:transparent!important;color:#e8fbff!important;font:700 12px/1 system-ui!important;padding:6px 8px!important;white-space:nowrap!important}",
       "#sn-cloud.off{display:none!important}",
@@ -1801,17 +1803,21 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-sheet #sn-prep{font:800 22px/1 system-ui!important;color:#4df0ff!important;letter-spacing:.04em}",
       "#sn-sheet .sheet-mid .sn-price small{font:800 14px/1 system-ui!important;letter-spacing:.12em!important;margin-left:6px!important}",
       "#sn-sheet-body{padding:8px 10px 10px!important}",
-      "#sn-sheet input,#sn-sheet textarea{margin:4px 0 0!important;padding:8px 10px!important;font-size:16px!important}",
-      "#sn-sheet-body .sheet-go{display:block!important;width:100%!important;height:36px!important;margin:4px 0 0!important;box-sizing:border-box!important;font-size:13px!important;color:#e8fbff!important;background:#041018!important}",
+      "#sn-sheet input,#sn-sheet textarea{display:block!important;width:min(240px,calc(100vw - 64px))!important;max-width:100%!important;box-sizing:border-box!important;margin:4px 0 0!important;padding:8px 10px!important;font-size:16px!important}",
+      "#sn-sheet textarea{min-height:56px!important;resize:vertical!important}",
+      "#sn-sheet-body .sheet-go{display:flex!important;width:max-content!important;max-width:min(320px,calc(100vw - 48px))!important;height:auto!important;min-height:28px!important;margin:4px 0 0!important;padding:6px 12px!important;box-sizing:border-box!important;align-items:center!important;justify-content:flex-start!important;white-space:nowrap!important;font-size:13px!important;line-height:1.2!important;color:#e8fbff!important;background:#041018!important}",
       "#sn-sheet-body .sheet-go.primary{color:#041018!important;background:#4df0ff!important}",
+      "#sn-sheet .note{display:block!important;width:0!important;min-width:100%!important;max-width:100%!important;white-space:normal!important}",
+      "#sn-sheet .pill{width:max-content!important;max-width:min(300px,calc(100vw - 48px))!important}",
+      "#sn-sheet .sn-who{display:grid;width:max-content!important;max-width:min(300px,calc(100vw - 48px))!important;grid-template-columns:62px max-content;column-gap:8px;margin:8px 0 0;align-items:baseline}",
       "#sn-sheet .sn-row{display:block!important;margin:8px 0 0!important}",
       "#sn-sheet .sn-trio{display:grid!important;grid-template-columns:1fr 1fr 1fr!important;gap:4px!important}",
-      "#sn-sheet .sn-row input{width:100%!important;box-sizing:border-box!important}",
+      "#sn-sheet .sn-row input{width:min(220px,calc(100vw - 72px))!important;max-width:100%!important;box-sizing:border-box!important}",
       "#sn-sheet .sn-photo{display:flex!important;align-items:center!important;justify-content:center!important;width:72px!important;height:72px!important;max-height:72px!important;overflow:hidden!important;position:relative!important;padding:0!important;margin:0 0 6px!important;border-radius:12px!important}",
       "#sn-sheet .sn-photo img,#sn-sheet .sn-shop-hero{width:72px!important;height:72px!important;max-width:72px!important;max-height:72px!important;object-fit:cover!important;display:block!important;position:static!important;border-radius:12px!important}",
       "#sn-sheet .phbtn{width:44px!important;height:44px!important;overflow:hidden!important;padding:0!important}",
       "#sn-sheet .phbtn img,#sn-sheet .sn-item img,#sn-sheet .sn-mini{width:44px!important;height:44px!important;max-width:44px!important;max-height:44px!important;object-fit:cover!important;display:block!important}",
-      "#sn-sheet .sn-item{display:grid!important;grid-template-columns:44px 1fr auto auto!important;gap:8px!important;align-items:center!important;width:100%!important;margin:6px 0 0!important;padding:6px!important;border:1px solid rgba(126,233,255,.28)!important;background:rgba(4,16,28,.9)!important;color:#e8fbff!important;text-align:left!important}",
+      "#sn-sheet .sn-item{display:grid!important;grid-template-columns:44px max-content max-content max-content!important;gap:8px!important;align-items:center!important;width:max-content!important;max-width:min(340px,calc(100vw - 40px))!important;margin:6px 0 0!important;padding:6px!important;border:1px solid rgba(126,233,255,.28)!important;background:rgba(4,16,28,.9)!important;color:#e8fbff!important;text-align:left!important}",
       "#sn-sheet .sn-item b{font:700 14px/1.2 system-ui!important}",
       "#sn-sheet .sn-item b small{display:block;font:600 11px/1.2 system-ui;color:#8ec8d8;letter-spacing:0}",
       "#sn-sheet .sn-item span{font:800 14px/1 ui-monospace,monospace!important;color:#4df0ff!important}",
@@ -1833,7 +1839,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-tick b{display:inline-block!important;white-space:nowrap!important;animation:sn-slide 16s linear infinite!important;color:#d7f6ff!important;font:600 13px/32px system-ui,sans-serif!important;letter-spacing:0!important}",
       "@keyframes sn-slide{from{transform:translateX(0)}to{transform:translateX(-50%)}}",
       "#line{display:none!important}",
-      "#sn-sheet .card,#sn-sheet.tall .card,#sn-tasks .card{max-height:42vh!important}",
+      "#sn-sheet .card,#sn-sheet.tall .card,#sn-tasks .card{max-height:min(42vh,380px)!important;width:max-content!important;max-width:min(340px,calc(100vw - 28px))!important;left:50%!important;right:auto!important;transform:translateX(-50%)!important}",
       "#sn-power{position:fixed!important;top:0!important;left:max(2px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;width:32px!important;height:32px!important;transform:none!important;z-index:60!important}",
       "#sn-power svg{width:16px!important;height:16px!important}",
       "#sn-support{position:fixed!important;top:0!important;right:max(2px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;width:32px!important;height:32px!important;font-size:14px!important;transform:none!important;z-index:60!important}",
