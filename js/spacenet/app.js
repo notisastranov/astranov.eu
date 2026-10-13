@@ -8530,6 +8530,19 @@ window.__SN_4376 = true;
     if (inp && !inp.__snKeepSel) {
       inp.__snKeepSel = true;
       inp.addEventListener("input", function () { inp.__snSent = ""; });
+      inp.addEventListener("blur", function () { if (inp.__snSent && inp.value === inp.__snSent) inp.__snSelectOnFocus = true; });
+      /* typing over the kept line replaces it, even when a tap moved the caret and dropped the selection */
+      inp.addEventListener("keydown", function (e) {
+        if (!inp.__snSent || inp.value !== inp.__snSent || e.isComposing) return;
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (e.key && (e.key.length === 1 || e.key === "Backspace" || e.key === "Delete" || e.key === "Unidentified" || e.keyCode === 229)) {
+          inp.value = "";
+          inp.__snSent = "";
+        }
+      }, true);
+      inp.addEventListener("mouseup", function (e) {
+        if (inp.__snSent && inp.value === inp.__snSent) { e.preventDefault(); try { inp.select(); } catch (eS) {} }
+      });
       inp.addEventListener("focus", function () { if (inp.__snSelectOnFocus) { inp.__snSelectOnFocus = false; try { inp.select(); } catch (e) {} } });
     }
     if (f && !f.__sn) {
@@ -8591,7 +8604,7 @@ window.__SN_4376 = true;
           if ((tag === "button" || tag === "a" || (t && t.getAttribute && t.getAttribute("role") === "button")) && (e.key === "Enter" || e.key === " " || e.keyCode === 13 || e.keyCode === 32)) return; /* 4366: a focused control keeps only Enter/Space; letters typed after tapping a HUD button go to the talk box (they were dropped) */
           if (e.key === "Enter" || e.keyCode === 13) {
             if (e.isComposing) return;
-            if (String(inp.value || "").trim() && e.isTrusted !== false) { e.preventDefault(); enterDownAt = Date.now(); enterDone = false; submitTalk(e, "enter-page"); }
+            if (String(inp.value || "").trim() && !inp.__snSent && e.isTrusted !== false) { e.preventDefault(); enterDownAt = Date.now(); enterDone = false; submitTalk(e, "enter-page"); } /* 4376: Enter off the box never re-sends the kept line */
             return;
           }
           if (e.isComposing || e.keyCode === 229 || e.key === "Process" || e.key === "Unidentified") { /* 4371: no key name to insert ourselves: move focus first so the native character lands in the box */
@@ -8603,6 +8616,7 @@ window.__SN_4376 = true;
             /* 4366: put the very key into the box ourselves so the first typed character is never lost to the focus move */
             try {
               e.preventDefault();
+              if (inp.__snSent && inp.value === inp.__snSent) { inp.value = ""; inp.__snSent = ""; } /* 4376: the first key replaces the kept line */
               var st0 = inp.selectionStart == null ? inp.value.length : inp.selectionStart, en0 = inp.selectionEnd == null ? st0 : inp.selectionEnd;
               inp.setRangeText(e.key, st0, en0, "end");
               inp.dispatchEvent(new Event("input", { bubbles: true }));
