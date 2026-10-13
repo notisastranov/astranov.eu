@@ -218,6 +218,7 @@ function fromNominatimRow(e) {
     population: 0,
     type: e.type || e.addresstype || "",
     cls: e.category || e.class || "",
+    osm: e.osm_type && e.osm_id ? String(e.osm_type) + "/" + String(e.osm_id) : "",
     src: "nominatim"
   };
 }
@@ -334,7 +335,9 @@ function stripMeta(p) {
     lat: p.lat,
     lng: p.lng,
     raw: p.raw || "",
-    phone: p.phone || ""
+    phone: p.phone || "",
+    osm: p.osm || "",
+    src: p.src || ""
   };
 }
 
@@ -509,10 +512,15 @@ module.exports = async function (req, res) {
   if (preferGreece && !/greece|hellas/i.test(r)) f.push(r + " Greece");
 
   var d = [],
-    g = {};
-  function y(arr) {
+    g = {},
+    srcSeen = [];
+  /* 4375: "X near Y" keeps 5 km around Y (10 km while fewer than 3), ranked by distance */
+  var nearMode = /\b(near|around|by|at)\b/i.test(String(n.q || ""));
+  var capKm = nearMode ? 10 : 40;
+  function y(arr, srcTag) {
     (arr || []).forEach(function (e) {
       if (!e || !isFinite(e.lat)) return;
+      if (srcTag && !e.src) e.src = srcTag;
       if (!nameOk(e.name, e.raw, r, i, pizza)) return;
       if (anchor && haversineKm(anchor, e) > 40) return;
       if (m || !inRhodesBbox(e) || mentionsRhodes(e.name + " " + e.raw)) {
@@ -521,6 +529,8 @@ module.exports = async function (req, res) {
       var t = (+e.lat).toFixed(4) + "|" + (+e.lng).toFixed(4);
       if (g[t]) return;
       g[t] = 1;
+      if (anchor && haversineKm(anchor, e) > capKm) return;
+      if (srcTag && srcSeen.indexOf(srcTag) < 0) srcSeen.push(srcTag);
       d.push(stripMeta(e));
     });
   }
@@ -530,17 +540,27 @@ module.exports = async function (req, res) {
   if (anchor && isFinite(+anchor.lat) && r) {
     var terms = [r];
     if (pizza && !/pizzeria/i.test(r)) terms.push("pizzeria");
-    for (var bt = 0; bt < terms.length && d.length < 8; bt++) y(await nominatimNear(terms[bt], anchor, 0.12));
+    for (var bt = 0; bt < terms.length && d.length < 8; bt++) y(await nominatimNear(terms[bt], anchor, nearMode ? 0.1 : 0.12), "nominatim");
   }
   for (var h = 0; h < f.length && d.length < 3; h++) { // 4374: the boxed OSM answer usually suffices; keep under the function time limit
     var pack = await geocodeRanked(f[h], { preferGreece: preferGreece });
-    y(pack.places);
+    y(pack.places, pack.src || "nominatim");
   }
   var memK = anchor ? "hunt|" + String(r).toLowerCase() + "|" + (+anchor.lat).toFixed(2) + "," + (+anchor.lng).toFixed(2) : "";
   var fromMem = false;
   if (memK) {
     if (d.length) memPut(memK, d.slice(0, 8));
     else { var hm = memGet(memK); if (hm) { d = hm.slice(); fromMem = true; } }
+  }
+  var usedKm = capKm;
+  if (anchor) {
+    d.forEach(function (e) { e.km = Math.round(haversineKm(anchor, e) * 100) / 100; });
+    d.sort(function (a, b) { return (a.km - b.km) || (String(a.osm || a.name) < String(b.osm || b.name) ? -1 : 1); });
+    if (nearMode) {
+      var in5 = d.filter(function (e) { return e.km <= 5; });
+      usedKm = in5.length >= 3 ? 5 : 10;
+      if (in5.length >= 3) d = in5;
+    }
   }
 
   cors(res, !d.length);
@@ -552,7 +572,11 @@ module.exports = async function (req, res) {
       city: i || "",
       wantRhodes: !!m,
       mode: "hunt",
+      src: fromMem ? "cache" : (srcSeen.join("+") || "none"),
+      mirror: fromMem ? "instance-cache" : (srcSeen.indexOf("photon") >= 0 && srcSeen.length === 1 ? "photon.komoot.io" : (srcSeen.length ? "nominatim.openstreetmap.org" : "")),
       cached: fromMem,
+      near: nearMode,
+      radiusKm: anchor ? usedKm : null,
       build: BUILD,
       empty: !d.length,
       message: d.length ? "" : "No real pin for that hunt."
