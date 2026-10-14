@@ -236,7 +236,8 @@
     var btn = document.getElementById("sn-me");
     if (!btn) return;
     btn.className = inNow ? "in" : "out";
-    btn.innerHTML = '<span class="lbl">' + (inNow ? "YOU" : "LOGIN") + '</span><span class="tgt">' + (inNow ? face(u) : '<span class="ph">IN</span>') + "</span>";
+    var mark = (window.SN && SN.robotFace) ? SN.robotFace() : (inNow ? face(u) : '<span class="ph">IN</span>');
+    btn.innerHTML = '<span class="lbl">' + (inNow ? "YOU" : "LOGIN") + '</span><span class="tgt">' + mark + "</span>";
     if (window.SN && SN.paintMoney) SN.paintMoney();
   }
   function fillBody() {
@@ -319,7 +320,7 @@
     var btn = document.getElementById("sn-me");
     if (btn && !btn.__sn4221) {
       btn.__sn4221 = true;
-      btn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openMe(); });
+      btn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); if (window.SN && SN.openYou) { SN.openYou(); return; } openMe(); });
     }
     var search = new URLSearchParams(location.search);
     var hash = location.hash || "";
