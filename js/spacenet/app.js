@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4372";
+  var VER = "4373";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -3760,21 +3760,20 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (name === "crimson") return "#ff4d6a";
     return "#4df0ff";
   }
+  function robotSrc() {
+    var style = botSpec().style || "spartan";
+    if (style !== "courier" && style !== "wire") style = "spartan";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4373";
+  }
+  function robotFilter() {
+    var c = botSpec().color;
+    if (c === "gold") return "sepia(1) saturate(2.2) hue-rotate(5deg)";
+    if (c === "crimson") return "hue-rotate(300deg) saturate(1.5)";
+    return "none";
+  }
   function robotSvg(px) {
-    var spec = botSpec();
-    var ink = botInk(spec.color);
     var n = px || 34;
-    var wing = spec.style === "wire"
-      ? '<path d="M16 18 L4 8 L14 22 M24 18 L36 8 L26 22" fill="none" stroke="' + ink + '" stroke-width="1.7"/>'
-      : spec.style === "courier"
-      ? '<path d="M14 24 L8 38 M26 24 L32 38" fill="none" stroke="' + ink + '" stroke-width="1.7"/>'
-      : '<path d="M16 16 Q4 4 12 26 M24 16 Q36 4 28 26" fill="none" stroke="' + ink + '" stroke-width="1.7"/>';
-    var body = spec.style === "wire"
-      ? '<path d="M20 8 L30 22 L20 38 L10 22 Z" fill="#04101c" stroke="' + ink + '" stroke-width="1.7"/>'
-      : spec.style === "courier"
-      ? '<circle cx="20" cy="16" r="7" fill="#04101c" stroke="' + ink + '" stroke-width="1.7"/><rect x="14" y="22" width="12" height="10" rx="2" fill="#04101c" stroke="' + ink + '" stroke-width="1.7"/><rect x="15" y="34" width="10" height="8" fill="none" stroke="' + ink + '" stroke-width="1.4"/>'
-      : '<path d="M13 20 L20 8 L27 20 L26 32 L14 32 Z" fill="#04101c" stroke="' + ink + '" stroke-width="1.7"/><path d="M20 8 V2" stroke="' + ink + '" stroke-width="1.7"/><path d="M27 18 L36 4" stroke="' + ink + '" stroke-width="1.7"/>';
-    return '<svg xmlns="http://www.w3.org/2000/svg" width="' + n + '" height="' + Math.round(n * 1.2) + '" viewBox="0 0 40 48" aria-hidden="true">' + wing + body + "</svg>";
+    return '<img alt="" src="' + robotSrc() + '" width="' + n + '" height="' + n + '" style="width:' + n + 'px;height:' + n + 'px;object-fit:cover;border-radius:50%;display:block;filter:' + robotFilter() + '">';
   }
   function robotIcon() {
     return L.divIcon({ className: "sn-you-bot", html: robotSvg(36), iconSize: [40, 48], iconAnchor: [20, 44] });
@@ -3797,44 +3796,28 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     openYou();
   }
   function drawRobot(ctx, x, y, sc, now) {
-    var spec = botSpec();
-    var ink = botInk(spec.color);
-    var bob = Math.sin((now || 0) / 380) * 4 * sc;
+    var bob = Math.sin((now || 0) / 380) * 5;
+    var size = 58 * (sc || 1);
     var yy = y + bob;
+    window.__snBot = { x: x, y: yy, r: size * 0.55 };
+    var key = (botSpec().style || "spartan") + ":" + (botSpec().color || "");
+    if (!window.__snBotImg || window.__snBotKey !== key) {
+      window.__snBotKey = key;
+      var im = new Image();
+      im.src = robotSrc();
+      window.__snBotImg = im;
+    }
+    var im = window.__snBotImg;
+    if (!im || !im.complete || !im.naturalWidth) return;
     ctx.save();
-    ctx.translate(x, yy);
-    ctx.scale(sc, sc);
-    ctx.lineWidth = 1.6;
-    ctx.strokeStyle = ink;
-    ctx.fillStyle = "rgba(4,16,28,0.92)";
-    ctx.shadowColor = ink;
-    ctx.shadowBlur = 14;
+    ctx.shadowColor = botInk(botSpec().color);
+    ctx.shadowBlur = 18;
     ctx.beginPath();
-    if (spec.style === "wire") {
-      ctx.moveTo(-6, -4); ctx.lineTo(-22, -16); ctx.lineTo(-8, 2);
-      ctx.moveTo(6, -4); ctx.lineTo(22, -16); ctx.lineTo(8, 2);
-    } else if (spec.style === "courier") {
-      ctx.moveTo(-8, 4); ctx.lineTo(-16, 18);
-      ctx.moveTo(8, 4); ctx.lineTo(16, 18);
-    } else {
-      ctx.moveTo(-6, -2); ctx.quadraticCurveTo(-26, -20, -8, 8);
-      ctx.moveTo(6, -2); ctx.quadraticCurveTo(26, -20, 8, 8);
-    }
-    ctx.stroke();
-    ctx.beginPath();
-    if (spec.style === "wire") {
-      ctx.moveTo(0, -16); ctx.lineTo(9, 0); ctx.lineTo(0, 16); ctx.lineTo(-9, 0); ctx.closePath();
-    } else if (spec.style === "courier") {
-      ctx.arc(0, -8, 7, 0, Math.PI * 2);
-      ctx.rect(-6, 0, 12, 10);
-    } else {
-      ctx.moveTo(-7, -4); ctx.lineTo(0, -16); ctx.lineTo(7, -4); ctx.lineTo(6, 8); ctx.lineTo(-6, 8); ctx.closePath();
-    }
-    ctx.fill(); ctx.stroke();
-    if (spec.style === "spartan") { ctx.beginPath(); ctx.moveTo(0, -16); ctx.lineTo(0, -24); ctx.moveTo(8, -2); ctx.lineTo(18, -22); ctx.stroke(); }
-    if (spec.style === "courier") ctx.strokeRect(-5, 12, 10, 8);
+    ctx.arc(x, yy, size / 2, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.filter = robotFilter();
+    ctx.drawImage(im, x - size / 2, yy - size / 2, size, size);
     ctx.restore();
-    window.__snBot = { x: x, y: yy, r: 28 * sc };
   }
   function hitRobot(x, y) {
     var b = window.__snBot;
