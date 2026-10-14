@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4370";
+  var VER = "4371";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -1790,8 +1790,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ".sn-task{background:transparent!important;border:0!important}",
       ".sn-task b{display:inline-block;max-width:132px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:3px 8px;border-radius:12px 12px 12px 3px;background:rgba(4,12,32,.94);color:#f4fbff;border:1.5px solid #2f6bff;font:800 12px/16px system-ui;box-shadow:0 0 10px #2454ff,0 0 3px #9ec4ff}",
       ".sn-task span{display:block;max-width:132px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;color:#e8fbff;font:700 10px/12px system-ui;text-shadow:0 1px 2px #000}",
-      "#sn-gear{position:fixed!important;top:40px!important;left:max(4px,env(safe-area-inset-left))!important;width:44px!important;height:44px!important;padding:0!important;border-radius:999px!important;border:1.5px solid #7dff9a!important;background:rgba(4,16,28,.96)!important;color:#7dff9a!important;font:800 13px/1 system-ui!important;z-index:240!important;display:flex!important;align-items:center!important;justify-content:center!important;box-shadow:0 0 14px rgba(125,255,154,.45)!important}",
-      "#sn-filter{position:fixed!important;top:92px!important;left:max(4px,env(safe-area-inset-left))!important;height:32px!important;max-width:168px!important;padding:0 10px!important;border-radius:999px!important;border:1.5px solid #2f6bff!important;background:rgba(4,16,28,.94)!important;color:#e8fbff!important;font:800 11px/1 system-ui!important;z-index:240!important;box-shadow:0 0 12px rgba(47,107,255,.55)!important;overflow:hidden!important}",
+      "#sn-gear,#sn-filter{display:none!important;visibility:hidden!important;pointer-events:none!important;width:0!important;height:0!important;overflow:hidden!important;position:absolute!important;left:-9999px!important}",
 
       ".sn-obubble{background:transparent!important;border:0!important}",
       ".sn-obubble b{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-width:28px!important;height:28px!important;padding:0 8px!important;border-radius:999px!important;background:rgba(4,16,28,.94)!important;color:#e8fbff!important;border:1.5px solid #4df0ff!important;font:800 13px/1 system-ui!important;box-shadow:0 0 14px rgba(77,240,255,.65)!important;white-space:nowrap!important}",
@@ -4605,16 +4604,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       say(taskFilter ? ("Filter · " + taskFilter) : "All open tasks.");
       return true;
     }
-    if (/zoom ball|reset balls/.test(s)) {
-      try { localStorage.removeItem("sn:balls"); } catch (eB) {}
-      ballHomes = {};
+    if (/zoom ball|reset balls|^shrink\b/.test(s)) {
       if (typeof zoomBallPack === "function") zoomBallPack();
-      say("Balls reset.");
-      return true;
-    }
-    if (/^shrink\b/.test(s)) {
-      if (typeof zoomBallPack === "function") zoomBallPack(0.62);
-      say("Shrunk into the open part of the screen.");
+      say("Controls stay where they belong.");
       return true;
     }
 
@@ -5334,11 +5326,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (act === "form-filter") { openTaskFilter(); return; }
       if (act === "gear-say") { gearSay(); return; }
       if (act === "zb-reset") {
-        try { localStorage.removeItem("sn:balls"); } catch (eZ) {}
-        ballHomes = {};
         zoomBallPack();
         closeSheet();
-        say("Balls reset.");
+        say("Controls stay where they belong.");
         return;
       }
       if (act === "still-call") { grantStill(jobBy(t.getAttribute("data-id")), 60000, "I need to answer a call. Please give me a minute."); return; }
@@ -6448,12 +6438,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var taskMarks = [];
   var ballHomes = null;
   function loadBallHomes() {
-    if (ballHomes) return ballHomes;
-    try { ballHomes = JSON.parse(localStorage.getItem("sn:balls") || "null") || {}; } catch (e) { ballHomes = {}; }
+    ballHomes = {};
+    try { localStorage.removeItem("sn:balls"); } catch (e) {}
     return ballHomes;
   }
   function saveBallHomes() {
-    try { localStorage.setItem("sn:balls", JSON.stringify(ballHomes || {})); } catch (e) {}
+    ballHomes = {};
+    try { localStorage.removeItem("sn:balls"); } catch (e) {}
   }
   function ballIds() {
     return ["sn-power", "sn-gear", "sn-support", "sn-globe", "sn-architect", "sn-money", "sn-filter", "plus", "go", "sn-me", "gps"];
@@ -6581,6 +6572,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       '<button type="button" class="sheet-go primary" data-act="form-post">POST</button>' +
       '<button type="button" class="sheet-go primary" data-act="form-task">TASK</button>' +
       '<button type="button" class="sheet-go" data-act="plus-upload">UPLOAD</button>' +
+      '<button type="button" class="sheet-go" data-act="form-filter">FILTER</button>' +
       '<p class="note">A task stays above its pin until someone accepts it.</p>');
   }
   function openTaskForm() {
@@ -6660,124 +6652,47 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var gap = 6;
     return a.x < b.x + b.w + gap && a.x + a.w + gap > b.x && a.y < b.y + b.h + gap && a.y + a.h + gap > b.y;
   }
-  function zoomBallPack(force) {
-    ensureBalls();
-    loadBallHomes();
+  function releaseChrome() {
+    saveBallHomes();
+    ["sn-power", "sn-support", "sn-globe", "sn-architect", "sn-money", "plus", "go", "sn-me", "gps"].forEach(function (id) {
+      var el = $(id);
+      if (!el) return;
+      ["position", "left", "top", "right", "bottom", "margin", "z-index", "transform", "transform-origin"].forEach(function (k) {
+        el.style.removeProperty(k);
+      });
+      el.__zb = false;
+    });
+    ["sn-gear", "sn-filter"].forEach(function (id) {
+      var el = $(id);
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+    });
+  }
+  function zoomBallPack() {
+    releaseChrome();
     var vv = window.visualViewport;
     var vy = vv ? vv.offsetTop : 0;
     var vh = vv ? vv.height : window.innerHeight;
-    var vw = vv ? vv.width : window.innerWidth;
     var keyboard = Math.max(0, Math.round(window.innerHeight - (vy + vh)));
-    var scale = force || (keyboard > 80 ? 0.62 : (vh < 480 ? 0.8 : 1));
-    var boxes = [];
-    ballIds().forEach(function (id) {
-      var el = $(id);
-      if (!el) return;
-      var cs = getComputedStyle(el);
-      if (cs.display === "none" || cs.visibility === "hidden") return;
-      var r = el.getBoundingClientRect();
-      var bw = Math.max(32, el.offsetWidth || 44);
-      var bh = Math.max(32, el.offsetHeight || 44);
-      var home = ballHomes[id];
-      var x, y;
-      if (home && isFinite(+home.x)) {
-        x = home.x * (vw / (home.vw || vw));
-        y = home.y * (vh / (home.vh || window.innerHeight)) + vy;
-      } else if (r.width || r.height) {
-        x = r.left;
-        y = r.top;
-      } else {
-        x = 8;
-        y = vy + 36 + boxes.length * 48;
-      }
-      boxes.push({ el: el, id: id, x: x, y: y, w: bw * scale, h: bh * scale, rawW: bw, rawH: bh });
-    });
-    var i, j, n, hit = false;
-    for (n = 0; n < 28; n++) {
-      hit = false;
-      for (i = 0; i < boxes.length; i++) {
-        for (j = i + 1; j < boxes.length; j++) {
-          var a = boxes[i], b = boxes[j];
-          if (!overlapsBall(a, b)) continue;
-          hit = true;
-          var ox = (a.x + a.w / 2) - (b.x + b.w / 2);
-          var oy = (a.y + a.h / 2) - (b.y + b.h / 2);
-          if (Math.abs(ox) >= Math.abs(oy)) b.x += ox >= 0 ? -(a.x + a.w + 6 - b.x) : (b.x + b.w + 6 - a.x);
-          else b.y += oy >= 0 ? -(a.y + a.h + 6 - b.y) : (b.y + b.h + 6 - a.y);
-        }
-      }
-      for (i = 0; i < boxes.length; i++) {
-        var box = boxes[i];
-        if (box.x < 4) box.x = 4;
-        if (box.y < vy + 4) box.y = vy + 4;
-        if (box.x + box.w > vw - 4) box.x = Math.max(4, vw - 4 - box.w);
-        if (box.y + box.h > vy + vh - 4) box.y = Math.max(vy + 4, vy + vh - 4 - box.h);
-      }
-      if (!hit) break;
-    }
-    boxes.forEach(function (b) {
-      var el = b.el;
-      el.style.setProperty("position", "fixed", "important");
-      el.style.setProperty("left", Math.round(b.x) + "px", "important");
-      el.style.setProperty("top", Math.round(b.y) + "px", "important");
-      el.style.setProperty("right", "auto", "important");
-      el.style.setProperty("bottom", "auto", "important");
-      el.style.setProperty("margin", "0", "important");
-      el.style.setProperty("z-index", "240", "important");
-      el.style.setProperty("transform-origin", "top left", "important");
-      if (scale < 0.98) el.style.setProperty("transform", "scale(" + scale + ")", "important");
-      else el.style.setProperty("transform", "none", "important");
-      if (!ballHomes[b.id]) ballHomes[b.id] = { x: b.x, y: b.y - vy, vw: vw, vh: vh };
-    });
-    saveBallHomes();
     var dock = $("dock");
-    if (dock) dock.style.setProperty("bottom", keyboard + "px", "important");
+    if (dock) {
+      if (keyboard > 80) dock.style.setProperty("bottom", keyboard + "px", "important");
+      else dock.style.removeProperty("bottom");
+    }
     var card = $("sn-sheet-card");
     if (card) {
-      if (keyboard > 40) {
+      if (keyboard > 80) {
         card.style.setProperty("bottom", (keyboard + 8) + "px", "important");
-        card.style.setProperty("max-height", Math.max(140, vh - 96) + "px", "important");
-      } else card.style.removeProperty("bottom");
+        card.style.setProperty("max-height", Math.max(140, Math.round(vh - 96)) + "px", "important");
+      } else {
+        card.style.removeProperty("bottom");
+        card.style.removeProperty("max-height");
+      }
     }
-    window.__snZoomBall = { scale: scale, keyboard: keyboard, balls: boxes.length, clear: !hit };
+    window.__snZoomBall = { scale: 1, keyboard: keyboard, balls: 0, clear: true, internal: true };
     return window.__snZoomBall;
   }
   function ensureBalls() {
-    if (!$("sn-gear")) {
-      var g = document.createElement("button");
-      g.type = "button";
-      g.id = "sn-gear";
-      g.setAttribute("aria-label", "ZoomBall settings");
-      g.textContent = "ZB";
-      document.body.appendChild(g);
-    }
-    if (!$("sn-filter")) {
-      var f = document.createElement("button");
-      f.type = "button";
-      f.id = "sn-filter";
-      f.setAttribute("aria-label", "Filter tasks");
-      f.textContent = "FILTER";
-      document.body.appendChild(f);
-    }
-    var gear = $("sn-gear");
-    if (gear && !gear.__sn) {
-      gear.__sn = true;
-      gear.addEventListener("click", function (e) {
-        e.preventDefault();
-        if (gear.__zbMoved) { gear.__zbMoved = false; return; }
-        openGear();
-      });
-    }
-    var filt = $("sn-filter");
-    if (filt && !filt.__sn) {
-      filt.__sn = true;
-      filt.addEventListener("click", function (e) {
-        e.preventDefault();
-        if (filt.__zbMoved) { filt.__zbMoved = false; return; }
-        openTaskFilter();
-      });
-    }
-    ballIds().forEach(function (id) { armPinball($(id)); });
+    releaseChrome();
   }
   function shellAt(kind, pt) {
     if (!isAdmin()) { say("Only the administrator drops an empty listing."); return; }
