@@ -2,8 +2,8 @@
 
 **What this file is:** the only instruction document. Paste this first. Then the live shell. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
-**Date:** 2026-09-25
-**Stamp:** 4292. Top line is V and the loaded number, then LATEST. Example: ASTRANOV SPACENET V4292 LATEST 4293 UPDATE NOW. No word NOW in front of the loaded number. If loaded is older, clear cache and hard-reload. UPDATE NOW forces it again. Never wipe the wallet to update.
+**Date:** 2026-10-14
+**Stamp:** 4372. Top line is V and the loaded number, then LATEST. Example: ASTRANOV SPACENET V4292 LATEST 4293 UPDATE NOW. No word NOW in front of the loaded number. If loaded is older, clear cache and hard-reload. UPDATE NOW forces it again. Never wipe the wallet to update.
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
@@ -14,7 +14,7 @@ If rebuild law changes, **edit this file**. Chat is not the archive. Latest bloc
 
 ---
 
-## Current law (2026-09-25 19:11 — this block wins)
+## Current law (2026-10-14 — this block wins)
 
 One entity only: `index.html` + `js/spacenet/app.js` + `js/spacenet/auth.js`. No overlay scripts. No second chrome. Do not stack another same-day block on top of this one. Edit this block.
 
@@ -41,12 +41,32 @@ Sky. `#sn-sky-btn` sits above GPS and must not cover GPS, the dock, or LOGIN. It
 
 ### Power
 
-A power button. It does **not** open a menu.
+`#sn-power` stays the only top-left control. No second button.
 
-- Hold 3 seconds (countdown 3-2-1) → offers on.
-- Hold 3 seconds again → offers off. Pop-ups stop.
-- A shorter press only says “Hold 3 seconds.”
+- Hold 3 seconds (countdown 3-2-1) → offers on. Hold 3 seconds again → offers off.
+- A short tap opens the **left section** and closes it again. That section is `#sn-left`. It is not on the map and it does not cover the screen.
+- The left section holds automations first, then map provider, then look. Crazy options live there. They are not scattered as little buttons.
 - Reload, terms, withdraw, and roles are not on power.
+
+### Automations
+
+Automations are not on the map, not on the YOU sheet, and not in the chat page. They live in the left section. A name typed there stays on this phone. Grok project automations stay in the project's left Automations list. Do not seed them onto the public map.
+
+### Robot
+
+Every user has one space robot, stored as `sn:robot`. Three looks: Spartan (winged helmet and spear), Courier (jet and box), Wire (diamond guardian). Three inks: cyan, gold, crimson. The same drawing is the user icon, the city pin, and the figure flying at their GPS on Global and on National. Tap the robot, or the user icon, to open YOU: the look, where they are, their tasks, calendar lines they type, and their schedule. Account and login stay one step under ACCOUNT. Default look is Spartan cyan until they change it.
+
+### Admin testing
+
+Only the administrator (owner mail) may list incomplete vendors, drivers, and clients with empty fields. Those pins are `localOnly` and hidden from everyone else. The green check closes an empty vendor sheet. Price is not required for that account. Their own listed vendor has DELETE and EDIT MENU. Each menu row has a photo, a price, a quantity, hours, and a schedule. The shop has opening hours and a schedule. The sheet bar drags for that account. Other people still have to fill a real order.
+
+### Route and map
+
+One route line, class `sn-route-one`, weight 4, deep neon blue, a strong glow, never a stack of lines and never wide enough to cover a block. Map providers: auto, streets, dark, bright, satellite. Look: time of day, device theme, night, or bright. Both sit in the left section. Auto follows the look.
+
+### Sheets
+
+A sheet is as wide as its text and its photo. It does not stretch to the screen. It never covers the whole screen. ZoomBall is internal. It is not a button.
 
 ### Offers
 
