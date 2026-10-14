@@ -3,7 +3,7 @@
 **What this file is:** the only instruction document. Paste this first. Then the live shell. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
 **Date:** 2026-10-14
-**Stamp:** 4372. Top line is V and the loaded number, then LATEST. Example: ASTRANOV SPACENET V4292 LATEST 4293 UPDATE NOW. No word NOW in front of the loaded number. If loaded is older, clear cache and hard-reload. UPDATE NOW forces it again. Never wipe the wallet to update.
+**Stamp:** 4373. Top line is V and the loaded number, then LATEST. Example: ASTRANOV SPACENET V4292 LATEST 4293 UPDATE NOW. No word NOW in front of the loaded number. If loaded is older, clear cache and hard-reload. UPDATE NOW forces it again. Never wipe the wallet to update.
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
@@ -54,7 +54,7 @@ Automations are not on the map, not on the YOU sheet, and not in the chat page. 
 
 ### Robot
 
-Every user has one space robot, stored as `sn:robot`. Three looks: Spartan (winged helmet and spear), Courier (jet and box), Wire (diamond guardian). Three inks: cyan, gold, crimson. The same drawing is the user icon, the city pin, and the figure flying at their GPS on Global and on National. Tap the robot, or the user icon, to open YOU: the look, where they are, their tasks, calendar lines they type, and their schedule. Account and login stay one step under ACCOUNT. Default look is Spartan cyan until they change it.
+Every user has one space robot, stored as `sn:robot`. Three looks, the same picture everywhere: Spartan, Courier, Wire, at `/js/spacenet/robots/`. Ink cyan, gold, or crimson. Three inks: cyan, gold, crimson. The same drawing is the user icon, the city pin, and the figure flying at their GPS on Global and on National. Tap the robot, or the user icon, to open YOU: the look, where they are, their tasks, calendar lines they type, and their schedule. Account and login stay one step under ACCOUNT. Default look is Spartan cyan until they change it.
 
 ### Admin testing
 
