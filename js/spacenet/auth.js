@@ -273,7 +273,7 @@
     btn.title = inNow ? who : "Login";
     var short = inNow ? String(u.name || String(u.email).split("@")[0] || "YOU").split(/\s+/)[0].replace(/[<>"&]/g, "").slice(0, 10) : "";
     btn.setAttribute("data-who", inNow ? who : "");
-    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "LOGIN") + '</span><span class="tgt">' + (inNow ? face(u) : '<span class="ph">IN</span>') + "</span>";
+    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "LOGIN") + '</span><span class="tgt">' + ((window.SN && SN.robotFace) ? SN.robotFace() : (inNow ? face(u) : '<span class="ph">IN</span>')) + "</span>";
     if (window.SN && SN.paintMoney) SN.paintMoney();
   }
   function fillBody() {
@@ -356,7 +356,7 @@
     var btn = document.getElementById("sn-me");
     if (btn && !btn.__sn4221) {
       btn.__sn4221 = true;
-      btn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openMe(); });
+      btn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); if (window.SN && SN.openYou) { SN.openYou(); return; } openMe(); });
     }
     var search = new URLSearchParams(location.search);
     var hash = location.hash || "";

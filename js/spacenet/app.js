@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4376";
+  var VER = "4377";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -76,6 +76,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var map = null;
   var youMark = null;
   var dblRing = null; /* 4346: the ring on the double-clicked point (map centre) */
+  var mapTiles = null;
   var canvas, ctx;
   var lastT = 0;
   var drag = null;
@@ -762,6 +763,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
+    window.__snBot = null;
     var i, p, lat, lng, first;
     for (i = 0; i < stars.length; i++) {
       ctx.fillStyle = "rgba(210,245,255," + stars[i].a + ")";
@@ -849,11 +851,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     if (here) {
       p = project(here.lat, here.lng, cam);
-      if (p) {
-        ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI * 2); ctx.fillStyle = "#e8fbff"; ctx.fill();
-        ctx.beginPath(); ctx.arc(p.x, p.y, 13, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(232,251,255,0.8)"; ctx.lineWidth = 1.2; ctx.stroke();
-      }
+      if (p) drawRobot(ctx, p.x, p.y - 16, cam.dist < 1.9 ? 1.35 : 1, now);
     }
     ctx.restore();
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -1379,6 +1377,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true; window.__SN_4369 = true; window.__SN_4370 = true; window.__SN_4371 = true; window.__SN_4372 = true; window.__SN_4373 = true; window.__SN_4374 = true;
 window.__SN_4375 = true;
 window.__SN_4376 = true;
+window.__SN_4377 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -1477,6 +1476,7 @@ window.__SN_4376 = true;
       if (!d || d.moved) return;
       vel.yaw = 0; vel.pitch = 0;
       var pUp = pos(e);
+      if (hitRobot(pUp.x, pUp.y)) { openYou(); return; }
       var card = hitCard(pUp.x, pUp.y);
       if (card && card.row && (card.row.k === "RESEARCH" || card.row.k === "NEWS" || card.row.k === "WARN" || card.row.k === "WARNING")) {
         openResearch(card.row);
@@ -2483,7 +2483,7 @@ window.__SN_4376 = true;
     if (!map) {
       map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 8, maxZoom: 19, zoomSnap: 0.5, zoomDelta: 0.5, scrollWheelZoom: false, doubleClickZoom: false });
       var osmT = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19, minZoom: 8,
+        maxZoom: 19, minZoom: 8, crossOrigin: "anonymous", /* 4377: CORS (both OSM servers send ACAO *) so a 200 key-wall tile can be read */
         errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
       }).addTo(map);
       /* a tile the OSM server refuses falls back once to the same tile from the OSM Germany community server (keyless, same
@@ -2493,7 +2493,22 @@ window.__SN_4376 = true;
       var ALT_URL = "https://tile.openstreetmap.de/{z}/{x}/{y}.png";
       var tileSt = { src: "osm", max: osmT.options.maxZoom || 19, heals: 0, lastAt: 0, why: "", z: null, osmRun: 0, altErr: 0, vis: 0, ok: 0, err: 0, loading: 0 };
       window.__snTiles = tileSt;
-      osmT.on("tileload", function (ev) { try { if (tileSt.src === "osm" && ev && ev.tile && !ev.tile.__snAlt) tileSt.osmRun = 0; } catch (eL) {} });
+      setTimeout(function () { try { applyMapLook(); } catch (eML) {} }, 0); /* 4377: the saved LOOK / SATELLITE choice */
+      osmT.on("tileload", function (ev) {
+        try {
+          var tl = ev && ev.tile;
+          /* 4377: a 200 tile that is a grey key-wall card counts as refused: same tile from openstreetmap.de, and 8 in a row switch */
+          if (tl && !tl.__snAlt && keyWall(tl)) {
+            tileSt.keyWall = (tileSt.keyWall || 0) + 1;
+            var c = ev.coords, n = Math.pow(2, c.z), x = ((c.x % n) + n) % n;
+            tl.__snAlt = 1;
+            tl.src = "https://tile.openstreetmap.de/" + c.z + "/" + x + "/" + c.y + ".png";
+            if (++tileSt.osmRun >= 8 && tileSt.src === "osm") { tileSt.src = "alt"; setTimeout(function () { try { osmT.setUrl(ALT_URL); } catch (eU) {} }, 0); }
+            return;
+          }
+          if (tileSt.src === "osm" && tl && !tl.__snAlt) tileSt.osmRun = 0;
+        } catch (eL) {}
+      });
       osmT.on("tileerror", function (ev) {
         try {
           var t = ev && ev.tile, c = ev && ev.coords;
@@ -2747,7 +2762,11 @@ window.__SN_4376 = true;
     if (youMark) try { map.removeLayer(youMark); } catch (e) {}
     youMark = null;
     if (here && isFinite(+here.lat) && isFinite(+here.lng)) {
-      youMark = L.circleMarker([+here.lat, +here.lng], { radius: 8, color: "#4df0ff", fillColor: "#4df0ff", fillOpacity: 0.9, weight: 2 }).addTo(map);
+      youMark = L.marker([+here.lat, +here.lng], { icon: robotIcon(), zIndexOffset: 900, keyboard: false, bubblingMouseEvents: false }).addTo(map); /* 4377 (main V4373): the robot is the city pin */
+      youMark.on("click", function (ev) {
+        if (ev && ev.originalEvent) L.DomEvent.stop(ev.originalEvent);
+        openYou();
+      });
     }
     paintShopsOnMap();
     pullListings(); /* 4372 (main fc6bb05): listings load as the city opens */
@@ -2992,7 +3011,8 @@ window.__SN_4376 = true;
       '<input class="c-price" placeholder="Price" inputmode="decimal" />' +
       '<input class="c-qty" placeholder="Qty" inputmode="numeric" />' +
       '<input class="c-when" placeholder="Hours" />' +
-      '</div>';
+      '</div>' +
+      '<input class="c-sched" placeholder="Schedule" />';
     box.appendChild(row);
   }
   function readMenuRows() {
@@ -3006,6 +3026,7 @@ window.__SN_4376 = true;
       var price = row.querySelector(".c-price");
       var qty = row.querySelector(".c-qty");
       var when = row.querySelector(".c-when");
+      var sched = row.querySelector(".c-sched");
       var img = row.querySelector("img");
       var qv = qty ? String(qty.value || "").trim() : "";
       rows.push({
@@ -3013,6 +3034,7 @@ window.__SN_4376 = true;
         price: price ? String(price.value || "").trim() : "",
         qty: qv === "" ? "" : Math.max(0, Number(qv) || 0),
         when: when ? String(when.value || "").trim() : "",
+        schedule: sched ? String(sched.value || "").trim() : "",
         photo: img && img.src && img.src.indexOf("data:") === 0 ? img.src : ""
       });
     });
@@ -3025,7 +3047,9 @@ window.__SN_4376 = true;
       '<input id="sn-place-phone" placeholder="Phone" />' +
       '<input id="sn-place-address" placeholder="Address" />' +
       '<input id="sn-place-lock" inputmode="decimal" placeholder="AV€ I accept and lock forever" />' +
-      '<p class="note">ITEM · PRICE · QTY · HOURS</p>' +
+      '<input id="sn-place-hours" placeholder="Opening hours" />' +
+      '<input id="sn-place-sched" placeholder="Schedule" />' +
+      '<p class="note">ITEM · PHOTO · PRICE · QTY · HOURS · SCHEDULE</p>' +
       '<div id="sn-rows"></div>' +
       '<button type="button" class="sheet-go" data-act="add-row">ADD A MENU ROW</button>' +
       '<button type="button" data-act="save-place" data-k="shop" hidden>LIST VENDOR</button>';
@@ -3071,7 +3095,7 @@ window.__SN_4376 = true;
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4376&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4377&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3278,13 +3302,21 @@ window.__SN_4376 = true;
       ".leaflet-sn-route-pane{filter:none!important}",
       "@keyframes sn-flow{to{stroke-dashoffset:-28}}",
       ".sn-flow{animation:sn-flow .7s linear infinite!important}",
-      ".sn-route-one{stroke:#2f6bff!important;stroke-width:4px!important;stroke-linecap:round;stroke-linejoin:round;animation:sn-route-glow 1.6s ease-in-out infinite}",
-      "@keyframes sn-route-glow{0%,100%{stroke:#2454ff;filter:drop-shadow(0 0 2px #2454ff) drop-shadow(0 0 6px #1a3cff)}50%{stroke:#8ec0ff;filter:drop-shadow(0 0 3px #8ec0ff) drop-shadow(0 0 10px #2454ff)}}",
+      ".sn-route-one{stroke:#2f6bff!important;stroke-width:4px!important;stroke-linecap:round;stroke-linejoin:round;animation:sn-route-glow 1.4s ease-in-out infinite}",
+      "@keyframes sn-route-glow{0%,100%{stroke:#2f6bff;filter:drop-shadow(0 0 4px #2f6bff) drop-shadow(0 0 10px #1a3cff) drop-shadow(0 0 18px #4df0ff)}50%{stroke:#eaf6ff;filter:drop-shadow(0 0 8px #9ecbff) drop-shadow(0 0 18px #2f6bff) drop-shadow(0 0 28px #4df0ff)}}",
+      ".sn-you-bot{background:transparent!important;border:0!important}",
+      "#sn-me .tgt{overflow:visible!important}",
+      "#sn-me .tgt svg{width:34px;height:40px;display:block}",
+      "#sn-left{display:none;position:fixed;left:max(8px,env(safe-area-inset-left));top:52px;z-index:70;width:max-content;max-width:min(280px,calc(100vw - 24px));max-height:min(68vh,520px);overflow:auto;padding:10px 12px;border-radius:16px;background:rgba(4,14,28,.96);border:1px solid rgba(77,240,255,.55);color:#e8fbff;font:600 13px/1.35 system-ui;box-shadow:0 0 18px rgba(77,240,255,.25)}",
+      "#sn-left.on{display:block}",
+      "#sn-left b{display:block;margin:10px 0 4px;color:#4df0ff;font:800 11px/1 system-ui;letter-spacing:.14em}",
+      "#sn-left button{display:inline-flex;width:max-content;max-width:100%;margin:4px 6px 0 0;padding:6px 10px;border-radius:999px;border:1px solid rgba(77,240,255,.45);background:#041018;color:#e8fbff;font:700 12px/1 system-ui}",
+      "#sn-left button.on{background:#4df0ff;color:#041018}",
+      "#sn-left input{display:block;width:min(220px,70vw);margin:6px 0 0;padding:8px 10px}",
       ".sn-task{background:transparent!important;border:0!important}",
       ".sn-task b{display:inline-block;max-width:132px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:3px 8px;border-radius:12px 12px 12px 3px;background:rgba(4,12,32,.94);color:#f4fbff;border:1.5px solid #2f6bff;font:800 12px/16px system-ui;box-shadow:0 0 10px #2454ff,0 0 3px #9ec4ff}",
       ".sn-task span{display:block;max-width:132px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;color:#e8fbff;font:700 10px/12px system-ui;text-shadow:0 1px 2px #000}",
-      "#sn-gear{position:fixed!important;top:100px!important;left:max(4px,env(safe-area-inset-left))!important;width:44px!important;height:44px!important;padding:0!important;border-radius:999px!important;border:1.5px solid #7dff9a!important;background:rgba(4,16,28,.96)!important;color:#7dff9a!important;font:800 13px/1 system-ui!important;z-index:240!important;display:flex!important;align-items:center!important;justify-content:center!important;box-shadow:0 0 14px rgba(125,255,154,.45)!important}",
-      "#sn-filter{position:fixed!important;top:150px!important;left:max(4px,env(safe-area-inset-left))!important;height:32px!important;max-width:168px!important;padding:0 10px!important;border-radius:999px!important;border:1.5px solid #2f6bff!important;background:rgba(4,16,28,.94)!important;color:#e8fbff!important;font:800 11px/1 system-ui!important;z-index:240!important;box-shadow:0 0 12px rgba(47,107,255,.55)!important;overflow:hidden!important}",
+      "#sn-gear,#sn-filter{display:none!important;visibility:hidden!important;pointer-events:none!important;width:0!important;height:0!important;overflow:hidden!important;position:absolute!important;left:-9999px!important}",
       ".sn-obubble{background:transparent!important;border:0!important}",
       ".sn-obubble b{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-width:28px!important;height:28px!important;padding:0 8px!important;border-radius:999px!important;background:rgba(4,16,28,.94)!important;color:#e8fbff!important;border:1.5px solid #4df0ff!important;font:800 13px/1 system-ui!important;box-shadow:0 0 14px rgba(77,240,255,.65)!important;white-space:nowrap!important}",
       "#sn-sheet .sn-pick img,#sn-sheet .sn-pick .sn-mini{width:52px!important;height:52px!important;max-width:52px!important;max-height:52px!important;object-fit:cover;border-radius:10px;border:1px solid rgba(77,240,255,.45)}",
@@ -4117,6 +4149,7 @@ window.__SN_4376 = true;
     sh.classList.remove("min");
     if (tall) sh.classList.add("tall"); else sh.classList.remove("tall");
     sh.classList.add("on");
+    armSheetDrag(card);
     sheetArm = Date.now() + 400;
     materialize(false);
     liftChrome();
@@ -4242,7 +4275,7 @@ window.__SN_4376 = true;
     var go = body.querySelector("[data-act='save-place'],[data-act='save-drop'],[data-act='save-driver'],[data-act='save-stock'],[data-act='save-block'],[data-act='post-go'],[data-act='post-next'],[data-act='send'],[data-act='run-offer'],[data-act='save-task'],[data-act='apply-filter'],[data-act='gear-say'],[data-act='still-minutes']");
 
     if (!go) {
-      if ($("sn-sheet") && $("sn-sheet").classList.contains("offer")) { closeSheet(); say("It stays on the map."); return; }
+      if (isAdmin() || ($("sn-sheet") && $("sn-sheet").classList.contains("offer"))) { closeSheet(); say("Closed."); return; }
       say("Pick a listing, fill it, then Apply. The window stays until the red X.");
       return;
     }
@@ -5583,6 +5616,12 @@ window.__SN_4376 = true;
       return !!c && (c === qc || c.indexOf(qc) >= 0 || (c.length >= 5 && qc.indexOf(c) >= 0));
     });
   }
+  function cityRow(s) {
+    if (!s || s.src === "listed" || s.phone || s.osm || s.osmId || s.job || s.vendorId) return false;
+    var k = String(s.kind || s.type || s.cls || "").toLowerCase();
+    if (/^(city|town|village|hamlet|suburb|state|country|administrative|county|region|island|locality|neighbourhood|quarter|place|boundary)$/.test(k)) return true;
+    return /^(photon|geocode|nominatim-geo)$/.test(String(s.src || "")) && !k;
+  }
   function nameField(merged, packs, q) {
     var qc = nameCore(q);
     var hits = merged.filter(function (s) { return nameHit(s, qc); });
@@ -5884,6 +5923,15 @@ window.__SN_4376 = true;
     var shown = fieldShops();
     if (huntView.single && shown.length === 1) {
       var one = shown[0];
+      /* 4377: a city / area row (a geocode answer: no OSM shop id, no phone, not listed) never renders as a shop card */
+      if (cityRow(one)) {
+        huntFitWanted = false; huntView.fitted = true;
+        try { openCity(one); paintShopsOnMap(); } catch (eC0) {}
+        try { closeSheet && closeSheet(); } catch (eC1) {}
+        huntDoneN = 0; markHunt(0, "done");
+        say(one.name + " is a place, not a shop · try what you need there, e.g. plumber in " + one.name);
+        return;
+      }
       huntFitWanted = false;
       huntView.fitted = true;
       openCity(one);
@@ -6135,7 +6183,7 @@ window.__SN_4376 = true;
     var named = /^(go\s+to|take\s+me\s+to|fly\s+to|open)\s+/i.test(q)
       ? q.replace(/^(go\s+to|take\s+me\s+to|fly\s+to|open)\s+/i, "")
       : q.replace(/^(find|hunt|show)\s+/i, "").trim();
-    var looksPlace = !!(named && !/pizza|pizzeria|shop|vendor|restaurant|cafe|food|near|pharmacy|hotel|market|supermarket|grocery/i.test(named));
+    var looksPlace = !!(named && !/pizza|pizzeria|shop|vendor|restaurant|cafe|food|near|pharmacy|hotel|market|supermarket|grocery|\b(?:plumb|electric|locksmith|mechanic|garage|dentist|doctor|clinic|hospital|vet|lawyer|notary|bank|atm|bakery|baker|butcher|barber|hair|florist|tailor|laundry|gym|taxi|carpenter|painter|roofer|glazier|kiosk|periptero|bar|pub|gas|fuel|petrol|parking|school|church|museum|post office|courier|repair|cleaner|builder|handyman|optician|bookshop|pet)\w{0,5}\b/i.test(named));
     window.__snHuntPlace = looksPlace;
     huntView = { needle: looksPlace ? "" : String(named || q).toLowerCase(), raw: q, rendered: "", t: Date.now(), pending: true, nameQ: looksPlace ? String(named || q) : "", near: nextHuntNear };
     nextHuntNear = false;
@@ -6338,6 +6386,363 @@ window.__SN_4376 = true;
     if (from && isFinite(+from.lat)) open.sort(function (a, b) { return haversineKm(from, a) - haversineKm(from, b); });
     return open;
   }
+
+  function botSpec() {
+    try {
+      var o = JSON.parse(localStorage.getItem("sn:robot") || "{}") || {};
+      return { style: o.style || "spartan", color: o.color || "cyan" };
+    } catch (e) { return { style: "spartan", color: "cyan" }; }
+  }
+  function botInk(name) {
+    if (name === "gold") return "#e6c36a";
+    if (name === "crimson") return "#ff4d6a";
+    return "#4df0ff";
+  }
+  function robotSrc() {
+    var style = botSpec().style || "spartan";
+    if (style !== "courier" && style !== "wire") style = "spartan";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4373";
+  }
+  function robotFilter() {
+    var c = botSpec().color;
+    if (c === "gold") return "sepia(1) saturate(2.2) hue-rotate(5deg)";
+    if (c === "crimson") return "hue-rotate(300deg) saturate(1.5)";
+    return "none";
+  }
+  function robotSvg(px) {
+    var n = px || 34;
+    return '<img alt="" src="' + robotSrc() + '" width="' + n + '" height="' + n + '" style="width:' + n + 'px;height:' + n + 'px;object-fit:cover;border-radius:50%;display:block;filter:' + robotFilter() + '">';
+  }
+  function robotIcon() {
+    return L.divIcon({ className: "sn-you-bot", html: robotSvg(36), iconSize: [40, 48], iconAnchor: [20, 44] });
+  }
+  function paintYouIcon() {
+    var tgt = document.querySelector("#sn-me .tgt");
+    if (!tgt) return;
+    tgt.innerHTML = robotSvg(34);
+  }
+  function restampYou() {
+    paintYouIcon();
+    if (youMark && youMark.setIcon) { try { youMark.setIcon(robotIcon()); } catch (e) {} }
+  }
+  function setRobot(act, key) {
+    var spec = botSpec();
+    if (act === "robot-style" && key) spec.style = key;
+    if (act === "robot-color" && key) spec.color = key;
+    try { localStorage.setItem("sn:robot", JSON.stringify(spec)); } catch (e) {}
+    restampYou();
+    openYou();
+  }
+  function drawRobot(ctx, x, y, sc, now) {
+    var bob = Math.sin((now || 0) / 380) * 5;
+    var size = 58 * (sc || 1);
+    var yy = y + bob;
+    window.__snBot = { x: x, y: yy, r: size * 0.55 };
+    var key = (botSpec().style || "spartan") + ":" + (botSpec().color || "");
+    if (!window.__snBotImg || window.__snBotKey !== key) {
+      window.__snBotKey = key;
+      var im = new Image();
+      im.src = robotSrc();
+      window.__snBotImg = im;
+    }
+    var im = window.__snBotImg;
+    if (!im || !im.complete || !im.naturalWidth) return;
+    ctx.save();
+    ctx.shadowColor = botInk(botSpec().color);
+    ctx.shadowBlur = 18;
+    ctx.beginPath();
+    ctx.arc(x, yy, size / 2, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.filter = robotFilter();
+    ctx.drawImage(im, x - size / 2, yy - size / 2, size, size);
+    ctx.restore();
+  }
+  function hitRobot(x, y) {
+    var b = window.__snBot;
+    if (!b || cityOn) return false;
+    return Math.hypot(x - b.x, y - b.y) < (b.r || 28);
+  }
+  function openYou() {
+    var spec = botSpec();
+    /* 4377: WHERE is the real GPS fix only; an IP guess (Orland Park) is never shown as the user's location */
+    var where = (hereLive && isFinite(+hereLive.lat) && seatKind === "gps") ? (Number(hereLive.lat).toFixed(5) + ", " + Number(hereLive.lng).toFixed(5) + " · GPS") : "location not shared";
+    var mineTasks = cityTasks.filter(function (t) { return t && t.status !== "closed" && (t.by === me() || t.taker === me()); });
+    var taskHtml = mineTasks.length ? mineTasks.slice(0, 6).map(function (t) {
+      return '<p class="note">' + esc((t.title || "Task") + (t.when ? " · " + t.when : "") + (t.pay ? " · " + t.pay : "")) + "</p>";
+    }).join("") : '<p class="note">No task of yours on the city.</p>';
+    var cal = [];
+    try { cal = JSON.parse(localStorage.getItem("sn:cal") || "[]") || []; } catch (e) {}
+    var calHtml = (cal.slice(0, 8).map(function (c) {
+      return '<p class="note">' + esc(c.text) + ' <button type="button" class="sheet-go" data-act="cal-del" data-id="' + esc(c.id) + '">REMOVE</button></p>';
+    }).join("")) || '<p class="note">No calendar line yet.</p>';
+    var sched = "";
+    try { sched = localStorage.getItem("sn:sched") || ""; } catch (e2) {}
+    function chip(act, k, on) {
+      return '<button type="button" class="sheet-go' + (on ? " primary" : "") + '" data-act="' + act + '" data-k="' + k + '">' + k.toUpperCase() + "</button>";
+    }
+    openSheet("YOU",
+      robotSvg(72) +
+      '<p class="note">One robot. Globe, country, city pin, and this icon.</p>' +
+      chip("robot-style", "spartan", spec.style === "spartan") +
+      chip("robot-style", "courier", spec.style === "courier") +
+      chip("robot-style", "wire", spec.style === "wire") +
+      chip("robot-color", "cyan", spec.color === "cyan") +
+      chip("robot-color", "gold", spec.color === "gold") +
+      chip("robot-color", "crimson", spec.color === "crimson") +
+      '<p class="note">WHERE · ' + esc(where) + "</p>" +
+      '<p class="note">TASKS</p>' + taskHtml +
+      '<p class="note">CALENDAR · typed here. Not a public copy of Google.</p>' +
+      calHtml +
+      '<input id="sn-cal-line" placeholder="Calendar line" />' +
+      '<button type="button" class="sheet-go" data-act="cal-add">ADD LINE</button>' +
+      '<textarea id="sn-sched" placeholder="Schedule">' + esc(sched) + "</textarea>" +
+      '<button type="button" data-act="sched-save" hidden>SAVE</button>' +
+      '<button type="button" class="sheet-go" data-act="account">ACCOUNT</button>' +
+      '<p class="note">Automations are not on this page. Short tap the power mark. They sit in the left section.</p>');
+  }
+  function addCalLine() {
+    var el = $("sn-cal-line");
+    var text = el ? String(el.value || "").trim() : "";
+    if (!text) { say("Type the calendar line."); return; }
+    var cal = [];
+    try { cal = JSON.parse(localStorage.getItem("sn:cal") || "[]") || []; } catch (e) {}
+    cal.unshift({ id: "c" + Date.now().toString(36), text: text });
+    try { localStorage.setItem("sn:cal", JSON.stringify(cal.slice(0, 40))); } catch (e2) {}
+    openYou();
+  }
+  function delCalLine(cid) {
+    var cal = [];
+    try { cal = JSON.parse(localStorage.getItem("sn:cal") || "[]") || []; } catch (e) {}
+    cal = cal.filter(function (c) { return c && String(c.id) !== String(cid); });
+    try { localStorage.setItem("sn:cal", JSON.stringify(cal)); } catch (e2) {}
+    openYou();
+  }
+  function saveSched() {
+    var el = $("sn-sched");
+    try { localStorage.setItem("sn:sched", el ? String(el.value || "") : ""); } catch (e) {}
+    closeSheet();
+    say("Schedule stays on this phone.");
+  }
+  function mapChoice() {
+    try { return JSON.parse(localStorage.getItem("sn:map") || "{}") || {}; } catch (e) { return {}; }
+  }
+  function themeNow() {
+    var mode = mapChoice().theme || "clock";
+    if (mode === "device") return (window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+    if (mode === "night") return "dark";
+    if (mode === "bright") return "light";
+    var h = new Date().getHours();
+    return (h >= 7 && h < 19) ? "light" : "dark";
+  }
+  /* 4377: main V4372's map look, keyless only. No CARTO (it answers every tile with a grey "API KEY REQUIRED" image, HTTP 200)
+     and no keyed provider: the street layer stays the branch OSM layer with the openstreetmap.de fallback and self-heal.
+     DARK / NIGHT is a CSS filter on those tiles; SATELLITE is the keyless Esri World Imagery layer on top (key-wall checked too). */
+  var KEYLESS = /^https:\/\/(\{s\}\.|[abc]\.)?tile\.openstreetmap\.(org|de)\/|^https:\/\/server\.arcgisonline\.com\//;
+  function tileSpec() {
+    var key = mapChoice().provider || "auto";
+    if (key === "sat") return { url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", sat: true };
+    var dark = key === "dark" || ((key === "auto" || key === "osm") && themeNow() === "dark" && (mapChoice().theme || "clock") !== "clock");
+    return { url: "", dark: dark };
+  }
+  function applyMapLook() {
+    if (!map || typeof L === "undefined") return;
+    var spec = tileSpec();
+    if (mapTiles) { try { map.removeLayer(mapTiles); } catch (e) {} mapTiles = null; }
+    if (spec.sat && KEYLESS.test(spec.url)) {
+      mapTiles = L.tileLayer(spec.url, { maxZoom: 19, minZoom: 8, crossOrigin: "anonymous" }).addTo(map);
+      mapTiles.on("tileload", function (ev) { if (ev && ev.tile && keyWall(ev.tile)) { try { map.removeLayer(mapTiles); } catch (eK) {} mapTiles = null; say("Satellite needs a key here. Streets stay."); } });
+    }
+    var pane = map.getPane && map.getPane("tilePane");
+    if (pane) pane.style.filter = spec.dark ? "invert(1) hue-rotate(180deg) brightness(.85) contrast(.9)" : "";
+    window.__snMapLook = { sat: !!mapTiles, dark: !!spec.dark };
+  }
+  /* a tile that loaded (HTTP 200) but is a flat neutral-grey card is a key wall ("API KEY REQUIRED"), not a map */
+  function keyWall(img) {
+    try {
+      if (!img || !img.naturalWidth) return false;
+      var c = keyWall.c || (keyWall.c = document.createElement("canvas"));
+      c.width = 32; c.height = 32;
+      var g = c.getContext("2d", { willReadFrequently: true });
+      g.drawImage(img, 0, 0, 32, 32);
+      var d = g.getImageData(0, 0, 32, 32).data, grey = 0, n = d.length / 4;
+      for (var i = 0; i < d.length; i += 4) {
+        var r = d[i], gg = d[i + 1], b = d[i + 2];
+        if (Math.abs(r - gg) < 5 && Math.abs(gg - b) < 5 && r > 140 && r < 225) grey++;
+      }
+      return grey / n > 0.85;
+    } catch (e) { return false; } /* a tainted canvas cannot tell: keep the tile */
+  }
+  function setMapChoice(key, val) {
+    var c = mapChoice();
+    c[key] = val || "auto";
+    try { localStorage.setItem("sn:map", JSON.stringify(c)); } catch (e) {}
+    applyMapLook();
+    renderLeft();
+    say(key === "theme" ? "Look follows " + c[key] + "." : "Map is " + c[key] + ".");
+  }
+  function closeLeft() {
+    var box = $("sn-left");
+    if (box) box.classList.remove("on");
+  }
+  function renderLeft() {
+    var box = $("sn-left");
+    if (!box) {
+      box = document.createElement("aside");
+      box.id = "sn-left";
+      box.setAttribute("aria-label", "Automations");
+      document.body.appendChild(box);
+    }
+    var autos = [];
+    try { autos = JSON.parse(localStorage.getItem("sn:auto") || "[]") || []; } catch (e) {}
+    var rows = autos.length ? autos.map(function (a) {
+      return '<p class="note">' + esc(a.name) + ' <button type="button" data-act="auto-del" data-id="' + esc(a.id) + '">REMOVE</button></p>';
+    }).join("") : '<p class="note">None on the map.</p>';
+    var c = mapChoice();
+    function chip(act, k, label, on) {
+      return '<button type="button" data-act="' + act + '" data-k="' + k + '"' + (on ? ' class="on"' : "") + ">" + label + "</button>";
+    }
+    box.innerHTML = '<b>AUTOMATIONS</b><button type="button" data-act="left-close">CLOSE</button>' +
+      '<p class="note">This is the left section. Not the map.</p>' + rows +
+      '<input id="sn-auto-name" placeholder="Name an automation" />' +
+      '<button type="button" data-act="auto-add">ADD</button>' +
+      '<b>MAP</b>' +
+      chip("map-provider", "auto", "AUTO", !c.provider || c.provider === "auto") +
+      chip("map-provider", "osm", "STREETS", c.provider === "osm") +
+      chip("map-provider", "dark", "DARK", c.provider === "dark") +
+      chip("map-provider", "light", "BRIGHT", c.provider === "light") +
+      chip("map-provider", "sat", "SATELLITE", c.provider === "sat") +
+      '<b>LOOK</b>' +
+      chip("map-theme", "clock", "TIME OF DAY", !c.theme || c.theme === "clock") +
+      chip("map-theme", "device", "DEVICE", c.theme === "device") +
+      chip("map-theme", "night", "NIGHT", c.theme === "night") +
+      chip("map-theme", "bright", "BRIGHT", c.theme === "bright");
+    box.classList.add("on");
+  }
+  function openLeft() {
+    var box = $("sn-left");
+    if (box && box.classList.contains("on")) { closeLeft(); return; }
+    renderLeft();
+  }
+  function addAuto() {
+    var el = $("sn-auto-name");
+    var name = el ? String(el.value || "").trim() : "";
+    if (!name) { say("Name it."); return; }
+    var autos = [];
+    try { autos = JSON.parse(localStorage.getItem("sn:auto") || "[]") || []; } catch (e) {}
+    autos.unshift({ id: "a" + Date.now().toString(36), name: name });
+    try { localStorage.setItem("sn:auto", JSON.stringify(autos.slice(0, 30))); } catch (e2) {}
+    renderLeft();
+  }
+  function delAuto(aid) {
+    var autos = [];
+    try { autos = JSON.parse(localStorage.getItem("sn:auto") || "[]") || []; } catch (e) {}
+    autos = autos.filter(function (a) { return a && String(a.id) !== String(aid); });
+    try { localStorage.setItem("sn:auto", JSON.stringify(autos)); } catch (e2) {}
+    renderLeft();
+  }
+  function ownTestShop(s) {
+    if (!isAdmin() || !s) return false;
+    if (s.src && s.src !== "listed") return false;
+    if (s.owner && s.owner !== me()) return false;
+    return true;
+  }
+  function rememberShopMeta(shop) {
+    if (!shop) return;
+    try {
+      var mine = JSON.parse(localStorage.getItem("sn:mine") || "[]") || [];
+      mine.forEach(function (r) {
+        if (!r || String(r.id) !== String(shop.id)) return;
+        r.hours = shop.hours || "";
+        r.schedule = shop.schedule || "";
+        r.menu = shop.menu || r.menu;
+      });
+      localStorage.setItem("sn:mine", JSON.stringify(mine));
+    } catch (e) {}
+  }
+  function deleteVendor(id) {
+    var shop = null;
+    shops.forEach(function (s) { if (s && String(s.id) === String(id)) shop = s; });
+    if (!ownTestShop(shop)) { say("That pin is not yours to delete."); return; }
+    shops = shops.filter(function (s) { return !s || String(s.id) !== String(id); });
+    try {
+      var mine = JSON.parse(localStorage.getItem("sn:mine") || "[]") || [];
+      localStorage.setItem("sn:mine", JSON.stringify(mine.filter(function (r) { return !r || String(r.id) !== String(id); })));
+    } catch (e) {}
+    paintShopsOnMap();
+    closeSheet();
+    say("Vendor removed.");
+  }
+  function fillVendorForm(s) {
+    function put(id, val) { var el = $(id); if (el) el.value = val || ""; }
+    put("sn-place-name", s.name);
+    put("sn-place-phone", s.phone);
+    put("sn-place-address", s.address);
+    put("sn-place-hours", s.hours);
+    put("sn-place-sched", s.schedule);
+    var box = $("sn-rows");
+    if (box) box.innerHTML = "";
+    var rows = s.menu || [];
+    if (!rows.length) addMenuRow();
+    rows.forEach(function (m) {
+      if (!m) return;
+      addMenuRow();
+      var row = box && box.lastChild;
+      if (!row) return;
+      var d = row.querySelector(".c-desc"); if (d) d.value = m.name || "";
+      var pr = row.querySelector(".c-price"); if (pr) pr.value = m.price || "";
+      var q = row.querySelector(".c-qty"); if (q) q.value = m.qty === 0 || m.qty ? m.qty : "";
+      var w = row.querySelector(".c-when"); if (w) w.value = m.when || "";
+      var sc = row.querySelector(".c-sched"); if (sc) sc.value = m.schedule || "";
+      if (m.photo) {
+        var img = row.querySelector("img");
+        if (img) { img.hidden = false; img.src = m.photo; cagePhoto(img, 44); }
+        var cap = row.querySelector("span");
+        if (cap) cap.hidden = true;
+      }
+    });
+  }
+  function openVendorEdit(id) {
+    var shop = null;
+    shops.forEach(function (s) { if (s && String(s.id) === String(id)) shop = s; });
+    if (!ownTestShop(shop)) { say("Only your test vendor."); return; }
+    listPt = { lat: +shop.lat, lng: +shop.lng };
+    shots.place = shop.photo || "";
+    placePhoto = shop.photo || "";
+    openSheet("MENU", vendorSheet(), true);
+    fillVendorForm(shop);
+    var save = $("sn-sheet-body") && $("sn-sheet-body").querySelector("[data-act='save-place']");
+    if (save) { save.hidden = false; save.setAttribute("data-id", shop.id); }
+  }
+  function armSheetDrag(card) {
+    if (!card || card.__lift || !isAdmin()) return;
+    var bar = card.querySelector(".sheet-bar");
+    if (!bar) return;
+    card.__lift = true;
+    var drag = null;
+    bar.addEventListener("pointerdown", function (e) {
+      if (e.button) return;
+      if (e.target && e.target.closest && e.target.closest("button")) return;
+      var r = card.getBoundingClientRect();
+      drag = { x: e.clientX, y: e.clientY, l: r.left, t: r.top, pid: e.pointerId };
+      try { bar.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    bar.addEventListener("pointermove", function (e) {
+      if (!drag || e.pointerId !== drag.pid) return;
+      var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      if (Math.hypot(dx, dy) < 4) return;
+      card.style.setProperty("position", "fixed", "important");
+      card.style.setProperty("left", Math.round(Math.max(8, drag.l + dx)) + "px", "important");
+      card.style.setProperty("top", Math.round(Math.max(8, drag.t + dy)) + "px", "important");
+      card.style.setProperty("right", "auto", "important");
+      card.style.setProperty("bottom", "auto", "important");
+      card.style.setProperty("transform", "none", "important");
+      card.style.setProperty("margin", "0", "important");
+    });
+    function end() { drag = null; }
+    bar.addEventListener("pointerup", end);
+    bar.addEventListener("pointercancel", end);
+  }
+
   function openVendor(s) {
     if (!s) return;
     vendor = s;
@@ -6352,12 +6757,22 @@ window.__SN_4376 = true;
     var menu = menuRows.map(function (m, i) {
       if (!m) return "";
       var img = m.photo ? '<img alt="" src="' + String(m.photo).replace(/"/g, "") + '">' : "";
-      var left = m.qty === 0 || m.qty ? " · " + m.qty : "";
+      var extra = [];
+      if (m.when) extra.push(m.when);
+      if (m.qty === 0 || m.qty) extra.push("qty " + m.qty);
+      if (m.schedule) extra.push(m.schedule); /* 4377 (main V4372) */
       return '<div class="sn-pick' + (img ? "" : " nothumb") + '" data-i="' + i + '">' + img +
-        "<b>" + esc(m.name || "item") + (m.when ? " · " + esc(m.when) : "") + left + "</b><span>" + esc(m.price || "") + "</span>" +
+        "<b>" + esc(m.name || "item") + (extra.length ? " · " + esc(extra.join(" · ")) : "") + "</b><span>" + esc(m.price || "") + "</span>" +
         '<button type="button" data-act="pick-less" data-i="' + i + '">−</button><em class="n">0</em><button type="button" data-act="pick-more" data-i="' + i + '">+</button></div>';
     }).join("");
     if (!menu) menu = '<p class="note">No product on the menu yet.</p>';
+    var tools = "";
+    if (ownTestShop(s)) {
+      tools = '<button type="button" class="sheet-go" data-act="edit-vendor" data-id="' + esc(s.id) + '">EDIT MENU</button>' +
+        '<button type="button" class="sheet-go" data-act="delete-vendor" data-id="' + esc(s.id) + '">DELETE</button>' +
+        '<input id="sn-open-hours" placeholder="Opening hours" value="' + esc(s.hours || "") + '" />' +
+        '<input id="sn-open-sched" placeholder="Schedule" value="' + esc(s.schedule || "") + '" />';
+    }
     var charged = jobs.filter(function (j) {
       if (!j || !j.vendor) return false;
       var same = (s.id && j.vendor.id === s.id) || (s.name && j.vendor.name === s.name);
@@ -6380,6 +6795,7 @@ window.__SN_4376 = true;
       feeHtml = '<p class="note">Delivery · set a drop address</p>';
     }
     var html = '<div class="sn-prof">' + tilePhoto(photoOf(s), "🏪") + "<div><b>" + esc(s.name || "Vendor") + "</b>" + tileContact(s.phone, where) + "</div></div>" +
+      tools + /* 4377 (main V4372): EDIT MENU / DELETE / hours on your own test vendor */
       feeHtml +
       '<div class="sn-dish"><input id="sn-dish" placeholder="Dish" /><input id="sn-dish-price" inputmode="decimal" placeholder="Price" /></div>' +
       '<p class="note">Type a dish, or tap +, then the green check (or ORDER).</p>' +
@@ -7059,12 +7475,25 @@ window.__SN_4376 = true;
     var priceEl = $("sn-dish-price");
     var typed = dishEl ? String(dishEl.value || "").trim() : "";
     var typedPrice = moneyOf(priceEl && priceEl.value);
-    if (typed && !(typedPrice > 0)) { sheetNote("Put a price on " + typed + ", then the green check."); return; }
+    if (isAdmin() && vendor) {
+      var hEl = $("sn-open-hours"), scEl = $("sn-open-sched");
+      if (hEl) vendor.hours = String(hEl.value || "").trim();
+      if (scEl) vendor.schedule = String(scEl.value || "").trim();
+      rememberShopMeta(vendor);
+    }
+    if (typed && !(typedPrice > 0)) {
+      if (!isAdmin()) { sheetNote("Put a price on " + typed + ", then the green check."); return; }
+      typedPrice = 0;
+    }
     if (typed) lines.push({ name: typed, n: 1, price: String(typedPrice) });
     var priced = true;
     lines.forEach(function (l) { if (!(moneyOf(l.price) > 0)) priced = false; });
-    if (!lines.length) { sheetNote("Type a dish and a price, then the green check."); return; }
-    if (!priced) { sheetNote("Every dish needs a price."); return; }
+    if (!lines.length) {
+      if (isAdmin()) { closeSheet(); say("Closed."); return; } /* 4377 (main V4372) */
+      sheetNote("Type a dish and a price, then the green check.");
+      return;
+    }
+    if (!priced && !isAdmin()) { sheetNote("Every dish needs a price."); return; }
     var dest = resolveDrop(vendor);
     if (!dest && isAdmin() && isFinite(+vendor.lat)) dest = { lat: +vendor.lat + 0.004, lng: +vendor.lng, name: "Test client", address: "Test drop", owner: me() };
     if (!dest) { askDropNear(vendor); return; }
@@ -7773,15 +8202,9 @@ window.__SN_4376 = true;
       say(taskFilter ? ("Filter · " + taskFilter) : "All open tasks.");
       return true;
     }
-    if (/zoom ball|reset balls/.test(s)) {
-      try { localStorage.removeItem("sn:balls"); } catch (eB) {}
-      if (typeof zbClear === "function") zbClear();
-      say("Balls reset.");
-      return true;
-    }
-    if (/^shrink\b/.test(s)) {
-      if (typeof zoomBallPack === "function") zoomBallPack(0.62);
-      say("Shrunk into the open part of the screen.");
+    if (/zoom ball|reset balls|^shrink\b/.test(s)) {
+      if (typeof zoomBallPack === "function") zoomBallPack();
+      say("Controls stay where they belong.");
       return true;
     }
 
@@ -8386,15 +8809,15 @@ window.__SN_4376 = true;
         clearInterval(holdP); holdP = 0;
         if (power.__clearFlash) power.__clearFlash();
         paintPowerTag();
-        if (Date.now() - holdFrom < 3000) say("Hold Power 3 s to switch.");
       }
-      power.addEventListener("pointerup", cancelHold);
-      power.addEventListener("pointercancel", cancelHold);
-      power.addEventListener("pointerleave", cancelHold);
-      power.addEventListener("click", function (e) {
-        e.preventDefault(); e.stopPropagation();
-        if (!holdP && e.detail === 0) say("Hold Power 3 s to switch.");
+      power.addEventListener("pointerup", function () {
+        var short = !!(holdP && Date.now() - holdFrom < 2800);
+        cancelHold();
+        if (short) openLeft();
       });
+      power.addEventListener("pointercancel", cancelHold);
+      power.addEventListener("pointerleave", function () { if (holdP) cancelHold(); });
+      power.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); });
     }
     var globe = $("sn-globe");
     if (globe && !globe.__sn) {
@@ -8840,10 +9263,9 @@ window.__SN_4376 = true;
       if (act === "form-filter") { openTaskFilter(); return; }
       if (act === "gear-say") { gearSay(); return; }
       if (act === "zb-reset") {
-        try { localStorage.removeItem("sn:balls"); } catch (eZ) {}
-        zbClear();
+        zoomBallPack();
         closeSheet();
-        say("Balls reset.");
+        say("Controls stay where they belong.");
         return;
       }
       if (act === "still-call") { grantStill(jobBy(t.getAttribute("data-id")), 60000, "I need to answer a call. Please give me a minute."); return; }
@@ -8909,6 +9331,18 @@ window.__SN_4376 = true;
         openSheet("VENDOR", vendorSheet(), true);
         addMenuRow(true);
       }
+      if (act === "edit-vendor") { openVendorEdit(id); return; }
+      if (act === "delete-vendor") { deleteVendor(id); return; }
+      if (act === "robot-style" || act === "robot-color") { setRobot(act, t.getAttribute("data-k")); return; }
+      if (act === "cal-add") { addCalLine(); return; }
+      if (act === "cal-del") { delCalLine(id); return; }
+      if (act === "sched-save") { saveSched(); return; }
+      if (act === "account") { if (window.SNAuth && SNAuth.open) SNAuth.open(); return; }
+      if (act === "auto-add") { addAuto(); return; }
+      if (act === "auto-del") { delAuto(id); return; }
+      if (act === "map-provider") { setMapChoice("provider", t.getAttribute("data-k")); return; }
+      if (act === "map-theme") { setMapChoice("theme", t.getAttribute("data-k")); return; }
+      if (act === "left-close") { closeLeft(); return; }
       if (act === "form-drop") {
         shots.drop = "";
         openSheet("CLIENT",
@@ -9218,9 +9652,12 @@ window.__SN_4376 = true;
           if (!editing && myRole() !== "vendor") { say("Only a vendor submits a shop. An administrator approves it."); return; }
           if (!samePt && !standAt(listPt)) { say("Stand at the door. Your own GPS has to match this pin."); return; }
         }
+        var hoursEl = $("sn-place-hours"), schedEl = $("sn-place-sched");
+        var hours = hoursEl ? String(hoursEl.value || "").trim() : "";
+        var schedule = schedEl ? String(schedEl.value || "").trim() : "";
         /* 4354: one shop per user: APPLY updates the caller's existing shop (same id) instead of adding another */
         var twin = editing ? editShop : findOwnRoleTwin("shop");
-        var id = (twin && twin.id) || ("p" + Date.now().toString(36));
+        var id = t.getAttribute("data-id") || (twin && twin.id) || ("p" + Date.now().toString(36)); /* 4377: EDIT MENU saves onto its id */
         if (!twin) shops.forEach(function (s) {
           if (s && s.src === "listed" && ownsShop(s) && String(s.name) === nm && Math.abs(s.lat - listPt.lat) < 0.0003) id = s.id || id;
         });
@@ -9228,7 +9665,7 @@ window.__SN_4376 = true;
         var shotEl = $("sn-shot-place");
         var photo = shots.place || placePhoto || (shotEl && shotEl.getAttribute("src") && shotEl.getAttribute("src").indexOf("data:") === 0 ? shotEl.getAttribute("src") : "");
         var status = isAdmin() ? ((photo && phone && address && menu.length) ? "live" : "incomplete") : ((twin && twin.status === "live") ? "live" : "pending");
-        var row = { id: id, kind: "shop", place: kn, name: nm, phone: phone, address: address, menu: menu, lat: listPt.lat, lng: listPt.lng, photo: photo, status: status, localOnly: status === "incomplete", customerPeer: me(), owner: me() };
+        var row = { id: id, kind: "shop", place: kn, name: nm, phone: phone, address: address, menu: menu, hours: hours, schedule: schedule, lat: listPt.lat, lng: listPt.lng, photo: photo, status: status, localOnly: status === "incomplete", customerPeer: me(), owner: me() };
         var lockEl = $("sn-place-lock");
         if (lockEl && String(lockEl.value || "").trim() !== "") {
           var lockN = Number(String(lockEl.value).replace(",", "."));
@@ -9236,7 +9673,7 @@ window.__SN_4376 = true;
         }
         persistListing(row);
         shops = shops.filter(function (s) { return !s || s.id !== id; });
-        shops.unshift({ id: id, name: nm, lat: listPt.lat, lng: listPt.lng, kind: kn, phone: phone, address: address, menu: menu, photo: photo, src: "listed", status: status, owner: me() });
+        shops.unshift({ id: id, name: nm, lat: listPt.lat, lng: listPt.lng, kind: kn, phone: phone, address: address, menu: menu, hours: hours, schedule: schedule, photo: photo, src: "listed", status: status, owner: me() });
         shops = uniqPlaces(shops);
         if (status === "live" || status === "incomplete") {
           if (!cityOn) openCity(listPt);
@@ -10273,12 +10710,13 @@ window.__SN_4376 = true;
   var taskMarks = [];
   var ballHomes = null;
   function loadBallHomes() {
-    if (ballHomes) return ballHomes;
-    try { ballHomes = JSON.parse(localStorage.getItem("sn:balls") || "null") || {}; } catch (e) { ballHomes = {}; }
+    ballHomes = {};
+    try { localStorage.removeItem("sn:balls"); } catch (e) {}
     return ballHomes;
   }
   function saveBallHomes() {
-    try { localStorage.setItem("sn:balls", JSON.stringify(ballHomes || {})); } catch (e) {}
+    ballHomes = {};
+    try { localStorage.removeItem("sn:balls"); } catch (e) {}
   }
   function ballIds() {
     return ["sn-power", "sn-gear", "sn-support", "sn-globe", "sn-architect", "sn-money", "sn-filter", "plus", "go", "sn-me", "gps"];
@@ -10406,6 +10844,7 @@ window.__SN_4376 = true;
       '<button type="button" class="sheet-go primary" data-act="form-post">POST</button>' +
       '<button type="button" class="sheet-go primary" data-act="form-task">TASK</button>' +
       '<button type="button" class="sheet-go" data-act="plus-upload">UPLOAD</button>' +
+      '<button type="button" class="sheet-go" data-act="form-filter">FILTER</button>' +
       '<p class="note">A task stays above its pin until someone accepts it.</p>');
   }
   function openTaskForm() {
@@ -10487,86 +10926,43 @@ window.__SN_4376 = true;
     var gap = 6;
     return a.x < b.x + b.w + gap && a.x + a.w + gap > b.x && a.y < b.y + b.h + gap && a.y + a.h + gap > b.y;
   }
-  function zoomBallPack(force) {
-    ensureBalls();
-    loadBallHomes();
+  function releaseChrome() {
+    saveBallHomes();
+    ["sn-power", "sn-support", "sn-globe", "sn-architect", "sn-money", "plus", "go", "sn-me", "gps"].forEach(function (id) {
+      var el = $(id);
+      if (!el) return;
+      ["position", "left", "top", "right", "bottom", "margin", "z-index", "transform", "transform-origin"].forEach(function (k) {
+        el.style.removeProperty(k);
+      });
+      el.__zb = false;
+    });
+    ["sn-gear", "sn-filter"].forEach(function (id) {
+      var el = $(id);
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+    });
+  }
+  function zoomBallPack() {
+    releaseChrome();
     var vv = window.visualViewport;
     var vy = vv ? vv.offsetTop : 0;
     var vh = vv ? vv.height : window.innerHeight;
-    var vw = vv ? vv.width : window.innerWidth;
     var keyboard = Math.max(0, Math.round(window.innerHeight - (vy + vh)));
-    var scale = force || (keyboard > 80 ? 0.62 : (vh < 480 ? 0.8 : 1));
-    var boxes = [];
-    ballIds().forEach(function (id) {
-      var el = $(id);
-      if (!el) return;
-      var cs = getComputedStyle(el);
-      if (cs.display === "none" || cs.visibility === "hidden") return;
-      var r = el.getBoundingClientRect();
-      var bw = Math.max(32, el.offsetWidth || 44);
-      var bh = Math.max(32, el.offsetHeight || 44);
-      var home = ballHomes[id];
-      var x, y;
-      if (home && isFinite(+home.x)) {
-        x = home.x * (vw / (home.vw || vw));
-        y = home.y * (vh / (home.vh || window.innerHeight)) + vy;
-      } else if (r.width || r.height) {
-        x = r.left;
-        y = r.top;
-      } else {
-        x = 8;
-        y = vy + 36 + boxes.length * 48;
-      }
-      boxes.push({ el: el, id: id, x: x, y: y, w: bw * scale, h: bh * scale, rawW: bw, rawH: bh });
-    });
-    var i, j, n, hit = false;
-    for (n = 0; n < 28; n++) {
-      hit = false;
-      for (i = 0; i < boxes.length; i++) {
-        for (j = i + 1; j < boxes.length; j++) {
-          var a = boxes[i], b = boxes[j];
-          if (!overlapsBall(a, b)) continue;
-          hit = true;
-          var ox = (a.x + a.w / 2) - (b.x + b.w / 2);
-          var oy = (a.y + a.h / 2) - (b.y + b.h / 2);
-          if (Math.abs(ox) >= Math.abs(oy)) b.x += ox >= 0 ? -(a.x + a.w + 6 - b.x) : (b.x + b.w + 6 - a.x);
-          else b.y += oy >= 0 ? -(a.y + a.h + 6 - b.y) : (b.y + b.h + 6 - a.y);
-        }
-      }
-      for (i = 0; i < boxes.length; i++) {
-        var box = boxes[i];
-        if (box.x < 4) box.x = 4;
-        if (box.y < vy + 4) box.y = vy + 4;
-        if (box.x + box.w > vw - 4) box.x = Math.max(4, vw - 4 - box.w);
-        if (box.y + box.h > vy + vh - 4) box.y = Math.max(vy + 4, vy + vh - 4 - box.h);
-      }
-      if (!hit) break;
-    }
-    boxes.forEach(function (b) {
-      var el = b.el;
-      el.style.setProperty("position", "fixed", "important");
-      el.style.setProperty("left", Math.round(b.x) + "px", "important");
-      el.style.setProperty("top", Math.round(b.y) + "px", "important");
-      el.style.setProperty("right", "auto", "important");
-      el.style.setProperty("bottom", "auto", "important");
-      el.style.setProperty("margin", "0", "important");
-      el.style.setProperty("z-index", "240", "important");
-      el.style.setProperty("transform-origin", "top left", "important");
-      if (scale < 0.98) el.style.setProperty("transform", "scale(" + scale + ")", "important");
-      else el.style.setProperty("transform", "none", "important");
-      if (!ballHomes[b.id]) ballHomes[b.id] = { x: b.x, y: b.y - vy, vw: vw, vh: vh };
-    });
-    saveBallHomes();
     var dock = $("dock");
-    if (dock) dock.style.setProperty("bottom", keyboard + "px", "important");
+    if (dock) {
+      if (keyboard > 80) dock.style.setProperty("bottom", keyboard + "px", "important");
+      else dock.style.removeProperty("bottom");
+    }
     var card = $("sn-sheet-card");
     if (card) {
-      if (keyboard > 40) {
+      if (keyboard > 80) {
         card.style.setProperty("bottom", (keyboard + 8) + "px", "important");
-        card.style.setProperty("max-height", Math.max(140, vh - 96) + "px", "important");
-      } else card.style.removeProperty("bottom");
+        card.style.setProperty("max-height", Math.max(140, Math.round(vh - 96)) + "px", "important");
+      } else {
+        card.style.removeProperty("bottom");
+        card.style.removeProperty("max-height");
+      }
     }
-    window.__snZoomBall = { scale: scale, keyboard: keyboard, balls: boxes.length, clear: !hit };
+    window.__snZoomBall = { scale: 1, keyboard: keyboard, balls: 0, clear: true, internal: true };
     return window.__snZoomBall;
   }
   /* 4375: ZoomBall is opt-in on the branch. Nothing is repositioned until a ball is dragged (sn:balls has a home);
@@ -10588,41 +10984,7 @@ window.__SN_4376 = true;
     try { if (window.__snGrip && window.__snGrip.fabs) window.__snGrip.fabs(); } catch (eF) {}
   }
   function ensureBalls() {
-    if (!$("sn-gear")) {
-      var g = document.createElement("button");
-      g.type = "button";
-      g.id = "sn-gear";
-      g.setAttribute("aria-label", "ZoomBall settings");
-      g.textContent = "ZB";
-      document.body.appendChild(g);
-    }
-    if (!$("sn-filter")) {
-      var f = document.createElement("button");
-      f.type = "button";
-      f.id = "sn-filter";
-      f.setAttribute("aria-label", "Filter tasks");
-      f.textContent = "FILTER";
-      document.body.appendChild(f);
-    }
-    var gear = $("sn-gear");
-    if (gear && !gear.__sn) {
-      gear.__sn = true;
-      gear.addEventListener("click", function (e) {
-        e.preventDefault();
-        if (gear.__zbMoved) { gear.__zbMoved = false; return; }
-        openGear();
-      });
-    }
-    var filt = $("sn-filter");
-    if (filt && !filt.__sn) {
-      filt.__sn = true;
-      filt.addEventListener("click", function (e) {
-        e.preventDefault();
-        if (filt.__zbMoved) { filt.__zbMoved = false; return; }
-        openTaskFilter();
-      });
-    }
-    ballIds().forEach(function (id) { armPinball($(id)); });
+    releaseChrome();
   }
   function shellAt(kind, pt) {
     if (!isAdmin()) { say("Only the administrator drops an empty listing."); return; }
@@ -10838,6 +11200,7 @@ window.__SN_4376 = true;
     window.__SN_4359 = true; window.__SN_4361 = true; window.__SN_4362 = true; window.__SN_4363 = true; window.__SN_4364 = true; window.__SN_4365 = true; window.__SN_4366 = true; window.__SN_4367 = true; window.__SN_4368 = true; window.__SN_4369 = true; window.__SN_4370 = true; window.__SN_4371 = true; window.__SN_4372 = true; window.__SN_4373 = true; window.__SN_4374 = true;
 window.__SN_4375 = true;
 window.__SN_4376 = true;
+window.__SN_4377 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
@@ -10900,7 +11263,10 @@ window.__SN_4376 = true;
       overpassState: function () { var n = Date.now(); return { off: overpassOff, coolMs: Math.max(0, overpassCool - n), rest: [Math.max(0, ovRest[0] - n), Math.max(0, ovRest[1] - n)], used: ovUsed, owner: ovOwner }; },
       tileState: function () { var t = window.__snTiles; return t ? { src: t.src, max: t.max, heals: t.heals, lastAt: t.lastAt, why: t.why, z: t.z, osmRun: t.osmRun, altErr: t.altErr, vis: t.vis, ok: t.ok, err: t.err, loading: t.loading } : null; }, /* 4350 */
       seatState: function () { return { kind: seatKind, here: here, hereLive: hereLive, ip: ipView, perm: gpsPerm, liveLoaded: liveLoaded }; },
-      zoomBall: function (s) { return zoomBallPack(s); }
+      zoomBall: function (s) { return zoomBallPack(s); },
+      robotFace: robotSvg,
+      openYou: openYou,
+      paintYou: paintYouIcon
     };
     try {
       Object.defineProperty(window, "__SN_INTRO", { configurable: true, get: function () { return intro; } });

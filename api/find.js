@@ -110,6 +110,8 @@ function parseQuery(q0, city0) {
     if (r) {
       city = r[1].replace(/\s+/g, " ");
       q = q.replace(r[0], " ").replace(/\s+/g, " ").trim();
+      /* 4377: "plumber in Athens" leaves "plumber", not "plumber in"; "find a plumber" leaves "plumber" */
+      q = q.replace(/\s+(in|at|of|around|near|by)$/i, "").replace(/^(find|show|get|hunt)(\s+me)?\s+/i, "").replace(/^(an?|the|some)\s+/i, "").trim();
     } else {
       var parts = q.split(/\s+/).filter(Boolean);
       if (parts.length >= 2) {
@@ -134,6 +136,8 @@ function parseQuery(q0, city0) {
   return { q: q, city: city };
 }
 
+/* 4377: a trade or service word ("plumber", "electrician") is a thing to hunt, never a place to geocode */
+var TRADE_RE = /\b(plumb|electric|locksmith|mechanic|garage|dentist|doctor|clinic|hospital|vet|lawyer|notary|bank|atm|bakery|baker|butcher|barber|hair|florist|tailor|laundry|gym|taxi|carpenter|painter|roofer|glazier|kiosk|periptero|bar|pub|gas|fuel|petrol|parking|school|church|museum|post office|courier|repair|cleaner|builder|handyman|optician|bookshop|pet)\w{0,5}\b/i;
 function isPlaceOnly(q, city) {
   var raw = String(q || "").trim();
   var c = String(city || "").trim();
@@ -145,6 +149,7 @@ function isPlaceOnly(q, city) {
     return CUISINE[t];
   }))
     return false;
+  if (TRADE_RE.test(raw)) return false;
   if (/pizza|pizzeria|shop|vendor|restaurant|cafe|near|food|hunt|find/i.test(raw) && !PLACE_HINT.test(raw))
     return false;
   // single place token, or "Athens Greece", or city-only after parse
@@ -536,6 +541,8 @@ module.exports = async function (req, res) {
       if (!e || !isFinite(e.lat)) return;
       if (srcTag && !e.src) e.src = srcTag;
       if (!nameOk(e.name, e.raw, r, i, pizza)) return;
+      /* 4377: a hunt answers shops and services only: a road, trail, boundary or town that merely carries the word is dropped ("Joe the Plumber II" is an OSM cycleway in Acharnes) */
+      if (/^(highway|boundary|place|landuse|natural|waterway|railway|route|bridge|mountain_pass)$/i.test(String(e.cls || "")) || /^(city|town|village|hamlet|suburb|administrative|county|state|country|road|cycleway|path|track|footway|residential)$/i.test(String(e.type || ""))) return;
       if (anchor && haversineKm(anchor, e) > Math.max(40, capKm)) return;
       if (m || !inRhodesBbox(e) || mentionsRhodes(e.name + " " + e.raw)) {
         /* ok */
