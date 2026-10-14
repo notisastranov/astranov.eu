@@ -8,6 +8,7 @@ function allowedScript(path) {
 }
 function isOverlay(path) {
   if (!/^\/js\/spacenet\//.test(path)) return false;
+  if (!/\.m?js$/i.test(path)) return false; /* 4377: only scripts are overlays; robots/*.jpg and other assets pass */
   if (allowedScript(path)) return false;
   return true;
 }
