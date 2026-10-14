@@ -1,0 +1,33 @@
+name: grokbuild 4377c (browser hunt drops roads/trails/boundaries too; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4377c.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix86, assert tree, commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "370dcf40b4db2379cad3b49ab1a41543f1f22802" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          base64 -d .grokbuild/fix86.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "508a44db4828fb0cb7b5038dd5729880c18a61e5c379c4abd32fefe2d2f51a45"
+          gunzip -c /tmp/f.gz > /tmp/fix86.patch
+          test "$(sha256sum /tmp/fix86.patch | cut -d' ' -f1)" = "1da9d090c3ede825dbb49f44d8759c53da703de45496d93f660eb1e2c31eddd6"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4377c.yml
+          git apply --index /tmp/fix86.patch
+          node --check js/spacenet/app.js
+          grep -q '^4377$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "f2ffc3148df50347e8faad5bfb4a8e0852680d21" || { echo "tree $T"; exit 1; }
+          git commit -q -m "4377c: the browser Nominatim fallback drops highway / boundary / place / landuse rows like the server, so a cycleway named Joe the Plumber II never answers plumber in Athens; stamps stay 4377"
+          git push origin HEAD:grokbuild/4328-street-level-gps
