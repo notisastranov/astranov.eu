@@ -5981,6 +5981,8 @@ window.__SN_4377 = true;
            tag is still a pharmacy); drop only unnamed non-places (roads, stops). 4341 dropped all unnamed rows as soon as
            6 named ones came back, so the count swung 16 -> 6 with the order Nominatim answered in. */
         rows = rows.filter(function (r) { return r && (r.name || /^(amenity|shop|healthcare|craft|tourism|leisure|office)$/.test(String(r["class"] || r.category || ""))); });
+        /* 4377: a road, trail, boundary or town that merely carries the word never answers a hunt ("Joe the Plumber II" is a cycleway) */
+        rows = rows.filter(function (r) { return !/^(highway|boundary|place|landuse|natural|waterway|railway|route|bridge|mountain_pass)$/.test(String(r["class"] || r.category || "")); });
       }
       return Array.isArray(rows)
         ? rows.map(function (r) { r.src = "nominatim"; return asPlace(r); }).filter(function (p) { return p && nearSeat(p, 50); })
