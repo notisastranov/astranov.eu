@@ -1,0 +1,33 @@
+name: grokbuild 4378b (message notes inside the zoom wrapper get the card width too; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4378b.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix88, assert tree, commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "bc620252d23aeab40841e2fdad6a613c1e138582" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          base64 -d .grokbuild/fix88.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "b75af0b1643a9c1c66a23348a82b99d023006bdc0bad90cf528c33ac35ec7b62"
+          gunzip -c /tmp/f.gz > /tmp/fix88.patch
+          test "$(sha256sum /tmp/fix88.patch | cut -d' ' -f1)" = "e003568d06cce3294a321c20158f363cfcf31879864714eabf227c93e5570312"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4378b.yml
+          git apply --index /tmp/fix88.patch
+          node --check js/spacenet/app.js
+          grep -q '^4378$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "4471ec0ba61e9a5c274bd5853c6946d86c0e573e" || { echo "tree $T"; exit 1; }
+          git commit -q -m "4378b: the empty / message note rule reaches notes inside the .sn-zoom wrapper (FIND · 0 was still 0 px wide); stamps stay 4378"
+          git push origin HEAD:grokbuild/4328-street-level-gps
