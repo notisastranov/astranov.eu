@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4377";
+  var VER = "4378";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1378,6 +1378,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 window.__SN_4375 = true;
 window.__SN_4376 = true;
 window.__SN_4377 = true;
+window.__SN_4378 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -2843,7 +2844,21 @@ window.__SN_4377 = true;
     }
     if (!signed()) html += '<button type="button" class="sheet-go" data-act="needlogin">LOGIN</button>';
     stashCard();
-    openTile({ kind: "list", title: "LIST", html: html });
+    /* 4378: the LIST card is titled with the place under the hold point (reverse geocode through /api/find), "Here" until then */
+    openTile({ kind: "list", title: "Here", html: html });
+    var pt0 = listPt;
+    try {
+      fetchJsonT("/api/find?reverse=1&lat=" + (+pt.lat).toFixed(6) + "&lng=" + (+pt.lng).toFixed(6), { cache: "no-store" }, 6000).then(function (j) {
+        if (listPt !== pt0) return;
+        var nm = "";
+        if (j && j.ok && j.address) nm = String(j.address).split(",")[0].trim();
+        if (!nm && j && j.display) nm = String(j.display).split(",")[0].trim();
+        nm = nm.replace(/\s+/g, " ").slice(0, 40) || "Here";
+        window.__snListTitle = nm;
+        var sh = $("sn-sheet"), mid = sh && sh.querySelector(".sheet-mid");
+        if (sh && sh.classList.contains("on") && mid && /^(Here|LIST)$/i.test(String(mid.textContent || "").trim())) mid.textContent = nm;
+      }).catch(function () {});
+    } catch (eR) {}
   }
   function persistListing(row) {
     if (needLogin()) return;
@@ -3095,7 +3110,7 @@ window.__SN_4377 = true;
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4377&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4378&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3370,6 +3385,7 @@ window.__SN_4377 = true;
       "#sn-tester.stale{color:#8a6a6a;border-color:rgba(255,120,120,.35)}",
       "#sn-topchrome-drag{display:block!important;height:10px!important;min-height:10px!important;max-height:10px!important;font-size:0!important;line-height:0!important;color:transparent!important;overflow:hidden!important;background:transparent!important}",
       "#cli-drag{display:block!important;height:10px!important;min-height:10px!important;max-height:10px!important;width:100%!important;cursor:grab!important}", /* 4362: drag handles shown at 10 px, never hidden */
+      "#sn-sheet-body>p.note,#sn-sheet-body>.sn-msg{display:block!important;box-sizing:border-box!important;width:auto!important;min-width:min(280px,calc(100vw - 48px))!important;max-width:min(340px,calc(100vw - 48px))!important;white-space:normal!important;word-break:normal!important;overflow-wrap:break-word!important;hyphens:none!important}", /* 4378: empty / message cards keep the 280-340 px card range and wrap whole words */
       ".sheet-bar{flex-direction:row!important;direction:ltr!important}.sheet-bar>.sheet-apply{order:-1!important;margin-right:auto!important}.sheet-bar>.sheet-x{order:99!important;margin-left:auto!important}", /* 4362: green APPLY left, red X right in every top row */
       "#cli-drag.sn-grip.on{display:block!important;position:fixed!important;z-index:300!important;height:10px!important;min-height:10px!important;max-height:10px!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important;cursor:ns-resize!important;touch-action:none!important;pointer-events:auto!important;overflow:visible!important;user-select:none!important;-webkit-user-select:none!important}",
       "#cli-drag.sn-grip.on::before{content:\"\"!important;display:block!important;position:absolute!important;left:50%!important;top:0!important;width:56px!important;height:10px!important;margin-left:-28px!important;border-radius:2px!important;background:rgb(77,240,255)!important;box-shadow:0 0 6px rgba(77,240,255,.6)!important}",
@@ -5677,13 +5693,19 @@ window.__SN_4377 = true;
     return false;
   }
   function huntKey(s) { return String(s.id || "") + "|" + String(s.name || "").toLowerCase() + "|" + (+s.lat).toFixed(5) + "," + (+s.lng).toFixed(5); }
+  /* 4378: the radius the hunt really used: near 5 km widened to 10 (10 when nothing is close), otherwise the 40 km city radius */
+  function huntRadiusKm() {
+    var c = window.__snHuntCap;
+    if (huntView && huntView.near) return (c && c.near && c.km) ? Math.max(c.km, c.n ? c.km : 10) : 10;
+    return 40;
+  }
   function huntTrim(list) {
     var org = huntOrigin();
     var ids = huntView && huntView.ids;
     var rows = (list || []).filter(function (s) { return huntProven(s) && (!ids || ids[huntKey(s)]); });
     if (!org || !isFinite(+org.lat)) return rows.sort(function (a, b) { return huntKey(a) < huntKey(b) ? -1 : 1; });
     rows.forEach(function (s) { s.__km = haversineKm(org, s); });
-    var cap = 50;
+    var cap = 40; /* 4378: the city radius the server searches (radius=40), so the empty text can name it */
     if (huntView && huntView.near) {
       cap = 5;
       if (rows.filter(function (s) { return s.__km <= 5; }).length < 3) cap = 10;
@@ -5789,7 +5811,7 @@ window.__SN_4377 = true;
       if (!huntView.single) huntSay(shown.length, seat0);
     }
     if (!shown.length) {
-      openSheet("FIND · 0", '<p class="note">No real ' + esc(huntLabel()) + " within 50 km of " + esc(seatName(seat0)) + ".</p>");
+      openSheet("FIND · 0", '<p class="note sn-msg">No real ' + esc(huntLabel()) + " within " + huntRadiusKm() + " km of " + esc(seatName(seat0)) + ".</p>");
     } else {
       var html = shown.map(function (s, i) {
         var ch = (String(s.name || "").match(/[A-Za-zΑ-Ωα-ω]/) || ["·"])[0].toUpperCase();
@@ -5960,8 +5982,8 @@ window.__SN_4377 = true;
   var huntDoneN = null; /* the count the finished hunt announced; null while a hunt runs or none has */
   function huntSay(n, seat0) {
     window.__snHuntDone = { n: n, q: (huntView && huntView.raw) || "", t: Date.now() }; try { demoProbe(); } catch (eDP) {}
-    if (!n && huntView && huntView.nameQ) say("No place named " + huntView.nameQ + " within 50 km of " + seatName(seat0) + ".");
-    else if (!n) say("No real " + huntLabel() + " within 50 km of " + seatName(seat0) + ".");
+    if (!n && huntView && huntView.nameQ) say("No place named " + huntView.nameQ + " within " + huntRadiusKm() + " km of " + seatName(seat0) + ".");
+    else if (!n) say("No real " + huntLabel() + " within " + huntRadiusKm() + " km of " + seatName(seat0) + ".");
     else say(n + " real " + huntLabel() + " pin" + (n === 1 ? "" : "s") + " at " + seatName(seat0) + (signed() ? ". Tap one to order." : ". Tap one to see the menu."));
   }
   function fetchJson(url, opts) {
@@ -8993,7 +9015,9 @@ window.__SN_4377 = true;
         var trig = why || (e && e.type) || "call";
         var okE = !!(e && e.isTrusted !== false);
         if ((trig === "submit" || trig === "keyup") && (enterDone || now - enterDownAt > 1500)) okE = false;
-        try { (window.__snSubmits = window.__snSubmits || []).push({ at: now, why: trig, v: v, ok: okE && !!v }); if (window.__snSubmits.length > 20) window.__snSubmits.shift(); } catch (eL) {}
+        /* 4378: the Enter-release keyup / form submit right after an Enter that already sent is the guard's normal job: not logged */
+        var routine = !okE && (trig === "submit" || trig === "keyup") && enterDone && now - enterDownAt <= 1500 && e && e.isTrusted !== false;
+        if (!routine) try { (window.__snSubmits = window.__snSubmits || []).push({ at: now, why: trig, v: v, ok: okE && !!v }); if (window.__snSubmits.length > 20) window.__snSubmits.shift(); } catch (eL) {}
         if (!okE) return;
         enterDone = true;
         if (!v) return;
@@ -11203,6 +11227,7 @@ window.__SN_4377 = true;
 window.__SN_4375 = true;
 window.__SN_4376 = true;
 window.__SN_4377 = true;
+window.__SN_4378 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
