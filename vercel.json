@@ -8,8 +8,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4378"},
-        {"key": "X-Astranov-Ship", "value": "4378-real"}
+        {"key": "X-Astranov-Build", "value": "4379"},
+        {"key": "X-Astranov-Ship", "value": "4379-real"}
       ]
     },
     {
@@ -17,8 +17,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4378"},
-        {"key": "X-Astranov-Ship", "value": "4378-real"}
+        {"key": "X-Astranov-Build", "value": "4379"},
+        {"key": "X-Astranov-Ship", "value": "4379-real"}
       ]
     },
     {
@@ -50,6 +50,10 @@
     {"source": "/budget.json", "has": [{"type": "host", "value": "investors.astranov.eu"}], "destination": "/investors/budget.json"},
     {"source": "/", "has": [{"type": "host", "value": "spacenet.astranov.eu"}], "destination": "/index.html"},
     {"source": "/index.html", "has": [{"type": "host", "value": "spacenet.astranov.eu"}], "destination": "/index.html"},
+    {"source": "/", "has": [{"type": "host", "value": "astranov.eu"}], "destination": "/room/index.html"},
+    {"source": "/index.html", "has": [{"type": "host", "value": "astranov.eu"}], "destination": "/room/index.html"},
+    {"source": "/", "has": [{"type": "host", "value": "www.astranov.eu"}], "destination": "/room/index.html"},
+    {"source": "/index.html", "has": [{"type": "host", "value": "www.astranov.eu"}], "destination": "/room/index.html"},
     {"source": "/", "has": [{"type": "host", "value": "exchange.astranov.eu"}], "destination": "/exchange/index.html"},
     {"source": "/index.html", "has": [{"type": "host", "value": "exchange.astranov.eu"}], "destination": "/exchange/index.html"},
     {"source": "/app.js", "has": [{"type": "host", "value": "exchange.astranov.eu"}], "destination": "/exchange/app.js"},

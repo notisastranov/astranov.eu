@@ -3,7 +3,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4378"/>
+<meta name="astranov-build" content="4379"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
@@ -211,23 +211,12 @@ html,body{margin:0!important;padding:0!important}
 .sn-bag{display:flex;gap:12px;align-items:center}
 .sn-bag img{width:72px!important;height:72px!important;border-radius:50%!important;object-fit:cover}
 </style>
-<style id="sn-4378">
-#sn-power,#sn-support,#sn-globe,#sn-architect,#sn-money,#plus,#go,#gps,#sn-sky-btn,#sn-tasks-btn,#sn-find-btn,#sn-node-btn,#sn-latest,#ver,#sn-brand-s,#sn-update,#sn-filters,#island .r2{display:none!important}
-#sn-brand-a{display:inline-block!important;color:#d7f6ff!important;font:600 12px/44px system-ui,sans-serif!important;letter-spacing:.34em!important}
-#top{height:44px!important;background:linear-gradient(180deg,rgba(2,8,16,.94),rgba(2,8,16,.12))!important}
-#sn-me.out{position:fixed!important;left:50%!important;bottom:max(24px,env(safe-area-inset-bottom))!important;transform:translateX(-50%)!important;height:48px!important;padding:0 28px!important;border-radius:999px!important;border:1px solid rgba(77,240,255,.85)!important;background:rgba(4,14,28,.78)!important;color:#e8fbff!important;z-index:70!important}
+<style id="sn-4379">
+#sn-power,#sn-support,#sn-globe,#sn-architect,#sn-money,#plus,#go,#gps,#sn-sky-btn,#sn-tasks-btn,#sn-find-btn,#sn-node-btn,#sn-latest,#ver,#sn-brand-s,#sn-brand-a,#sn-update,#sn-filters,#island .r2,#top,#island,#sn-helper,#sn-radar-hud,#sn-cmds,#sn-mon,#sn-cloud,#sn-sky{display:none!important}
+#sn-me.out{position:fixed!important;left:50%!important;bottom:max(24px,env(safe-area-inset-bottom))!important;transform:translateX(-50%)!important;height:48px!important;padding:0 28px!important;border-radius:999px!important;border:1px solid rgba(77,240,255,.85)!important;background:rgba(4,14,28,.78)!important;color:#e8fbff!important;z-index:70!important;display:inline-flex!important}
 #sn-me.out .lbl{font:600 14px/48px system-ui!important;letter-spacing:.2em!important}
+body.sn-in #sn-me{display:none!important}
 body:not(.sn-in) #dock{display:none!important}
-#sn-helper{position:fixed;z-index:65;left:8px;top:18%;width:128px;height:128px;padding:0;border:0;background:transparent;box-shadow:none;appearance:none;mix-blend-mode:screen;animation:sn-fly 18s linear infinite}
-#sn-helper img{width:128px;height:128px;object-fit:contain;mix-blend-mode:normal;background:transparent;filter:drop-shadow(0 0 14px rgba(77,240,255,.75));pointer-events:none}
-#sn-helper.hold{animation-play-state:paused}
-@keyframes sn-fly{0%{transform:translate(0,0)}25%{transform:translate(58vw,6vh)}50%{transform:translate(34vw,36vh)}75%{transform:translate(6vw,22vh)}100%{transform:translate(0,0)}}
-#sn-cmds{position:fixed;z-index:66;left:16px;top:46%;display:flex;flex-direction:column;gap:8px}
-#sn-cmds button{height:44px;min-width:132px;padding:0 16px;border-radius:999px;border:1px solid rgba(77,240,255,.45);background:rgba(4,14,28,.9);color:#e8fbff;font:600 13px/1 system-ui;text-align:left}
-#sn-radar-hud{position:fixed;z-index:30;top:56px;right:12px;width:108px;height:108px;border-radius:50%;pointer-events:none;border:1px solid rgba(77,240,255,.45);background:radial-gradient(circle,transparent 42%,rgba(77,240,255,.18) 43% 44%,transparent 45%),conic-gradient(from 0deg,transparent 0 70%,rgba(77,240,255,.55) 100%);animation:sn-sweep 2.8s linear infinite;box-shadow:inset 0 0 24px rgba(77,240,255,.18)}
-body.sn-scan #sn-radar-hud{animation-duration:1.1s}
-@keyframes sn-sweep{to{transform:rotate(360deg)}}
-#sn-mon{position:fixed;z-index:66;left:50%;top:56px;transform:translateX(-50%);display:flex;gap:10px;flex-wrap:wrap;justify-content:center;width:min(520px,92vw);padding:6px 10px;border-radius:999px;background:rgba(4,14,28,.86);border:1px solid rgba(77,240,255,.28);color:#d7f6ff;font:600 11px/1.4 ui-monospace,monospace;pointer-events:none}
 </style>
 </head>
 <body>
@@ -261,7 +250,7 @@ setTimeout(function () {
 <div id="top">
   <div id="sn-topchrome-drag" class="sn-trivial-law" aria-hidden="true"></div>
   <div id="island">
-    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">Astranov.Eu SpaceNet V4378</button><span id="ver">V4378</span><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
+    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">Astranov.Eu SpaceNet V4379</button><span id="ver">V4379</span><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
     <div class="r2"><span id="sn-local">-</span><span id="sn-utc">-</span><span id="sn-wx"></span><span id="sn-node"></span><canvas id="sn-spark" width="120" height="28"></canvas></div>
   </div>
 
@@ -305,8 +294,8 @@ setTimeout(function () {
 <div id="dock"><div id="panel"><div id="cli-drag" class="sn-trivial-law" aria-hidden="true"></div><div id="sn-tabs"></div><div id="line"></div><form id="f"><input id="in" autocomplete="off" enterkeyhint="send" placeholder="Command the HUD · show, hide, or reshape"/></form></div></div>
 <input id="sn-file" type="file" accept="image/*,application/pdf,text/*" hidden/>
 <script src="/js/vendor/leaflet.js?v=4127"></script>
-<script src="/js/spacenet/app.js?v=4378"></script>
-<script src="/js/spacenet/auth.js?v=4378"></script>
+<script src="/js/spacenet/app.js?v=4379"></script>
+<script src="/js/spacenet/auth.js?v=4379"></script>
 <script src="/guardian.js?v=4295"></script>
 <script>
 (function(){
@@ -327,12 +316,12 @@ setTimeout(function () {
     el.textContent="";
   }
   function law(){
-    var s=document.getElementById("sn-handle-law");
-    if(!s){s=document.createElement("style");s.id="sn-handle-law";}
-    document.head.appendChild(s); // move to end
-    s.textContent="#sn-topchrome-drag,#cli-drag{display:block!important;height:10px!important;min-height:10px!important;max-height:10px!important;font-size:0!important;line-height:0!important;color:transparent!important;overflow:hidden!important;background:transparent!important}";
-    force(document.getElementById("sn-topchrome-drag"));
-    force(document.getElementById("cli-drag"));
+    ["sn-topchrome-drag","cli-drag"].forEach(function(id){
+      var el=document.getElementById(id);
+      if(!el) return;
+      el.style.setProperty("display","none","important");
+      el.style.setProperty("height","0","important");
+    });
   }
   law();
   addEventListener("load", law);
@@ -412,27 +401,10 @@ setTimeout(function () {
     document.body.classList.toggle("sn-in", on);
     var h = document.getElementById("sn-helper");
     var radar = document.getElementById("sn-radar-hud");
-    if (!on) {
-      if (h) h.remove();
-      var c = document.getElementById("sn-cmds");
-      if (c) c.remove();
-      if (radar) radar.remove();
-      return;
-    }
-    if (!radar) {
-      radar = document.createElement("div");
-      radar.id = "sn-radar-hud";
-      document.body.appendChild(radar);
-    }
-    if (!h) {
-      h = document.createElement("button");
-      h.type = "button";
-      h.id = "sn-helper";
-      h.setAttribute("aria-label", "Helper");
-      h.innerHTML = '<img alt="" src="/js/spacenet/robots/spartan.jpg?v=4378">';
-      h.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); cmds(); });
-      document.body.appendChild(h);
-    }
+    var c = document.getElementById("sn-cmds");
+    if (h) h.remove();
+    if (radar) radar.remove();
+    if (c) c.remove();
   }
   sync();
   setInterval(sync, 800);
