@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4386"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4387"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -533,7 +533,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     btn.classList.add("on");
     var tgt = btn.querySelector(".tgt");
     var lbl = btn.querySelector(".lbl");
-    if (lbl) lbl.textContent = "⭐"; /* 4380: the wallet reads in stars (display only) */
+    if (lbl) lbl.textContent = "WALLET"; /* 4387: a labelled wallet button (stars are the display unit) */
+    btn.setAttribute("aria-label", "Wallet");
+    btn.title = "Wallet";
     if (!signed()) {
       if (tgt) tgt.textContent = "0 ⭐ · guest";
       return;
@@ -1447,6 +1449,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
+window.__SN_4387 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3218,7 +3221,7 @@ window.__SN_4386 = true;
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4386&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4387&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3545,6 +3548,7 @@ window.__SN_4386 = true;
       "form#f{display:flex!important;width:100%!important;gap:0!important;align-items:center!important;min-height:48px!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}",
       "input#in{flex:1!important;min-width:0!important;width:auto!important;min-height:48px!important;border:0!important;border-radius:0!important;background:transparent!important;padding-left:56px!important;padding-right:56px!important}",
       "#sn-pulse{display:none!important}",
+      "#sn-money .lbl{display:inline-flex!important;align-items:center;height:40px;padding:0 4px 0 12px;font:800 10px/1 ui-monospace,monospace!important;letter-spacing:.14em;color:#4df0ff!important;width:auto!important}#sn-money{gap:0!important}#sn-money .tgt{padding-left:6px!important}",
       "#sn-tester.on{display:block!important}#sn-tester:not(.on){display:none!important}", /* 4381: admin / owner / ?testview=1 only */
       "#island{margin-top:0!important;padding-top:0!important}",
       "#sn-count{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;pointer-events:none;background:transparent}",
@@ -3748,9 +3752,10 @@ window.__SN_4386 = true;
     /* 4381: the strip is for admins / the owner, or anyone with ?testview=1 (kept for the session); the public never sees it */
     var stripOk = false;
     try {
-      if (/[?&]testview=1\b/.test(location.search)) sessionStorage.setItem("sn:strip", "1");
-      if (/[?&]testview=0\b/.test(location.search)) sessionStorage.removeItem("sn:strip");
-      stripOk = isAdmin() || sessionStorage.getItem("sn:strip") === "1";
+      /* 4387: ?testview=1 counts only on the page that carries it; a tab that once had it (sessionStorage) no longer
+         shows the strip to a guest on every later screen */
+      sessionStorage.removeItem("sn:strip");
+      stripOk = isAdmin() || /[?&]testview=1\b/.test(location.search);
     } catch (eS) { stripOk = isAdmin(); }
     el.classList.toggle("on", stripOk);
     el.style.display = stripOk ? "block" : "none";
@@ -4167,18 +4172,35 @@ window.__SN_4386 = true;
     return out;
   }
 
+  var GENERIC_PLACE = /^(super\s*-?\s*market|supermarket|mini\s*-?\s*market|minimarket|grocery|groceries|convenience|shop|store|pharmacy|chemist|bakery|kiosk|cafe|café|restaurant|pizzeria|pizza|plumber|market|σούπερ\s*μάρκετ|σουπερ\s*μαρκετ|σουπερμάρκετ|σουπερμαρκετ|μίνι\s*μάρκετ|φαρμακείο|φαρμακειο|περίπτερο|περιπτερο|καφενείο|αρτοποιείο|φούρνος|\?+|·+|-+)$/i;
+  function genericPlaceName(n, type) {
+    var t = String(n || "").trim();
+    if (!t || GENERIC_PLACE.test(t)) return true;
+    return !!(type && t.toLowerCase().replace(/[\s_-]+/g, "") === String(type).toLowerCase().replace(/[\s_-]+/g, ""));
+  }
   function asPlace(row) {
     if (!row) return null;
     var lat = Number(row.lat != null ? row.lat : (row.center && row.center.lat));
     var lng = Number(row.lng != null ? row.lng : row.lon != null ? row.lon : (row.center && row.center.lon));
     var tags = row.tags || {};
-    var name = row.name || tags.name || row.display_name || "";
-    if (name && name.indexOf(",") >= 0) name = name.split(",")[0];
-    if (!row.name && !tags.name && row.display_name && row.type && (row.class === "amenity" || row.class === "shop")) {
-      var ty = String(row.type).replace(/_/g, " ");
-      name = ty.charAt(0).toUpperCase() + ty.slice(1) + " · " + String(row.display_name).split(",")[0].trim();
+    /* 4387: a shop / amenity pin shows its real name, else its brand or operator tag; one with none of these (or only a
+       generic word: "Supermarket", "?") is dropped. No "Type · street" stand-in names, nothing invented */
+    var xt = row.extratags || {};
+    var cls0 = String(row["class"] || row.category || row.cls || "");
+    var ty0 = String(row.type || tags.shop || tags.amenity || "");
+    var shopLike = /^(shop|amenity|healthcare|craft|office|tourism|leisure)$/.test(cls0) || !!(tags.shop || tags.amenity);
+    var name = "";
+    if (shopLike || row.src === "nominatim" || row.src === "overpass" || row.src === "find") {
+      [row.name, tags.name, row.brand, tags.brand, xt.brand, tags["brand:en"], xt["brand:en"], row.operator, tags.operator, xt.operator].some(function (c) {
+        if (c && !genericPlaceName(c, ty0)) { name = String(c).trim(); return true; }
+        return false;
+      });
+      if (!name && !shopLike && row.display_name) name = String(row.display_name).split(",")[0];
+    } else {
+      name = row.name || tags.name || row.display_name || "";
     }
-    if (!name || !isFinite(lat) || !isFinite(lng)) return null;
+    if (name && name.indexOf(",") >= 0) name = name.split(",")[0];
+    if (!name || ((shopLike || row.src === "nominatim" || row.src === "overpass") && genericPlaceName(name, ty0)) || !isFinite(lat) || !isFinite(lng)) return null;
     var menu = row.menu;
     var menuText = "";
     if (typeof menu === "string") {
@@ -4551,7 +4573,7 @@ window.__SN_4386 = true;
     openSheet("MOVE", html, true);
   }
   function portrait(role, name) {
-    var ch = (String(name || role || "?").match(/[A-Za-z0-9]/) || ["?"])[0].toUpperCase();
+    var ch = (String(name || role || "").match(/[A-Za-z0-9\u0370-\u03ff]/) || [String(role || "S").charAt(0) || "S"])[0].toUpperCase(); /* 4387: never "?" */
     var bg = role === "driver" ? "#1636c4" : role === "client" ? "#0b6b45" : "#9a3412";
     var svg = "<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'><circle cx='40' cy='40' r='38' fill='" + bg + "' stroke='#4df0ff' stroke-width='4'/><text x='40' y='52' text-anchor='middle' font-family='system-ui,sans-serif' font-size='36' font-weight='800' fill='#ffffff'>" + ch + "</text></svg>";
     return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg);
@@ -4958,7 +4980,7 @@ window.__SN_4386 = true;
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4386";
+    return "/you.png?v=4387";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -6592,7 +6614,7 @@ window.__SN_4386 = true;
   function robotSrc() {
     var style = botSpec().style || "spartan";
     if (style !== "courier" && style !== "wire") style = "spartan";
-    return "/js/spacenet/robots/" + style + ".jpg?v=4386";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4387";
   }
   function robotFilter() {
     var c = botSpec().color;
@@ -11566,6 +11588,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
+window.__SN_4387 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
@@ -11595,7 +11618,7 @@ window.__SN_4386 = true;
       report.ok = !report.faults.length;
       window.__snScenario = report;
       var el = $("sn-tester");
-      if (el) {
+      if (el && el.classList.contains("on")) { /* 4387: never unhides the strip for a guest */
         el.style.display = "block";
         el.classList.toggle("stale", !report.ok);
         el.textContent = "TESTER · " + (report.ok ? "PASS" : "FAIL " + report.faults.join(", ")) + " · " + (report.vendor || "no vendor") + " · " + report.faces + " faces";

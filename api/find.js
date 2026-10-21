@@ -190,6 +190,7 @@ function fromPhotonFeature(f) {
     lat = Number(c[1]);
   if (!isFinite(lat) || !isFinite(lng)) return null;
   var name = p.name || p.city || p.town || p.village || "";
+  if (/^(shop|amenity|healthcare|craft|office)$/.test(String(p.osm_key || "")) && genericName(name, p.osm_value)) return null; /* 4387 */
   if (!name) return null;
   var bits = [p.street, p.city || p.town, p.state, p.country].filter(Boolean);
   return {
@@ -206,12 +207,29 @@ function fromPhotonFeature(f) {
   };
 }
 
+// 4387: a shop / amenity pin carries its real name, else its brand or operator tag; a pin with none of those (or only a
+// generic word such as "Supermarket" or "?") is dropped. Places (towns, streets) keep their display name. Nothing is invented.
+var GENERIC_NAME = /^(super\s*-?\s*market|supermarket|mini\s*-?\s*market|minimarket|grocery|groceries|convenience|shop|store|pharmacy|chemist|bakery|kiosk|cafe|café|restaurant|pizzeria|pizza|plumber|market|σούπερ\s*μάρκετ|σουπερ\s*μαρκετ|σουπερμάρκετ|σουπερμαρκετ|μίνι\s*μάρκετ|φαρμακείο|φαρμακειο|περίπτερο|περιπτερο|καφενείο|αρτοποιείο|φούρνος|\?+|·+|-+)$/i;
+function genericName(n, type) {
+  var t = String(n || "").trim();
+  if (!t) return true;
+  if (GENERIC_NAME.test(t)) return true;
+  if (type && t.toLowerCase().replace(/[\s_-]+/g, "") === String(type).toLowerCase().replace(/[\s_-]+/g, "")) return true;
+  return false;
+}
+function realShopName(e) {
+  var x = e.extratags || {};
+  var cands = [e.name, x.brand, x["brand:en"], x.operator];
+  for (var i = 0; i < cands.length; i++) if (cands[i] && !genericName(cands[i], e.type)) return String(cands[i]).trim();
+  return "";
+}
 function fromNominatimRow(e) {
   if (!e) return null;
   var lat = Number(e.lat),
     lng = Number(e.lon);
   if (!isFinite(lat) || !isFinite(lng)) return null;
-  var name = e.name || String(e.display_name || "").split(",")[0];
+  var shopLike = /^(shop|amenity|healthcare|craft|office|tourism|leisure)$/.test(String(e.category || e["class"] || ""));
+  var name = shopLike ? realShopName(e) : (e.name || String(e.display_name || "").split(",")[0]);
   if (!name) return null;
   return {
     name: name,
@@ -243,7 +261,7 @@ async function photonSearch(q) {
 
 async function nominatimSearch(q) {
   var url =
-    "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=10&addressdetails=1&q=" +
+    "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=10&addressdetails=1&extratags=1&q=" +
     encodeURIComponent(q);
   var t = await grab(url, 8000);
   if (!t) return [];
@@ -261,7 +279,7 @@ function memPut(k, v) { if (v && v.length) REAL_MEM[k] = { t: Date.now(), v: v }
 function memGet(k) { var e = REAL_MEM[k]; return e && Date.now() - e.t < 86400000 ? e.v : null; }
 // 4374: the browser never calls Nominatim itself; it asks here (op=nominatim) with the same parameters
 async function nominatimRaw(params) {
-  var qs = ["format=json", "addressdetails=0", "limit=" + Math.min(20, Math.max(1, Number(params.limit) || 10)), "q=" + encodeURIComponent(String(params.q || "").slice(0, 120))];
+  var qs = ["format=json", "addressdetails=0", "extratags=1", "limit=" + Math.min(20, Math.max(1, Number(params.limit) || 10)), "q=" + encodeURIComponent(String(params.q || "").slice(0, 120))];
   if (/^-?\d+(\.\d+)?(,-?\d+(\.\d+)?){3}$/.test(String(params.viewbox || ""))) qs.push("viewbox=" + params.viewbox);
   if (String(params.bounded || "") === "1") qs.push("bounded=1");
   var k = "nom|" + qs.join("&");
