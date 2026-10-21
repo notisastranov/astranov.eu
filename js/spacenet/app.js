@@ -3896,15 +3896,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     return (h >= 7 && h < 19) ? "light" : "dark";
   }
   function tileSpec() {
-    var maps = {
-      osm: { url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" },
-      dark: { url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" },
-      light: { url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" },
-      sat: { url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" }
-    };
-    var key = mapChoice().provider || "auto";
-    if (key === "auto") key = themeNow() === "dark" ? "dark" : "light";
-    return maps[key] || maps.osm;
+    return { url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" };
   }
   function applyMapLook() {
     if (!map || typeof L === "undefined") return;
@@ -3917,9 +3909,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var c = mapChoice();
     c[key] = val || "auto";
     try { localStorage.setItem("sn:map", JSON.stringify(c)); } catch (e) {}
+    if (key === "provider" && c[key] !== "osm") {
+      c.provider = "osm";
+      try { localStorage.setItem("sn:map", JSON.stringify(c)); } catch (e2) {}
+    }
     applyMapLook();
     renderLeft();
-    say(key === "theme" ? "Look follows " + c[key] + "." : "Map is " + c[key] + ".");
+    say(key === "provider" ? "Keyless OpenStreetMap only. The other maps ask for an API key." : "Look follows " + c[key] + ".");
   }
   function closeLeft() {
     var box = $("sn-left");

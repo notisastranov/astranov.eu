@@ -14,6 +14,28 @@ If rebuild law changes, **edit this file**. Chat is not the archive. Latest bloc
 
 ---
 
+
+## Current law (2026-10-21 — this block wins)
+
+The midnight bus had stopped after 27 September. It is on again: one batch at 00:00 Europe/Athens.
+
+**Maps.** City streets are OpenStreetMap only. No Carto, no Esri, no Mapbox, no Google, no tile that prints API KEY REQUIRED. Dark is a CSS filter on those streets, not another provider. Zoom never asks for a key.
+
+**Login.** `#sn-me` shows one letter. Signed in as Notis, that letter is N. It is not a clipped picture.
+
+**Ribbon.** `#top` is docked to the top edge. Power, JOBS, AV€, and support sit in that ribbon. They do not float.
+
+**Global view.** Public video previews sit on the globe. A tap plays the file when the publisher gives one.
+
+**Helper.** The winged figure flies the whole session and says which crawl or order it is on.
+
+**Crawl.** Shops and harbours come from OpenStreetMap. A harbour with no fee tag says the price is not on the public map. Do not invent a berth price.
+
+**Delivery play.** The owner session can start an order on a real shop, pin a drop, and move as the driver by tapping the cyan road. Stages are ACCEPT, VENDOR HANDED OFF, DRIVER GOT IT, DRIVER DELIVERED, I RECEIVED. One at a time. No skip. AV€ on screen is the label, not a fake balance. PayPal is not charged by the play session.
+
+**Ship.** Phone map fix is the keyless street tile. The playable check is the preview the owner is looking at.
+
+
 ## Current law (2026-10-14 — this block wins)
 
 One entity only: `index.html` + `js/spacenet/app.js` + `js/spacenet/auth.js`. No overlay scripts. No second chrome. Do not stack another same-day block on top of this one. Edit this block.
