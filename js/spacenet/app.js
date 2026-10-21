@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4388"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4389"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1449,7 +1449,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3221,7 +3221,7 @@ window.__SN_4387 = true; window.__SN_4388 = true;
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4388&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4389&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -4178,9 +4178,10 @@ window.__SN_4387 = true; window.__SN_4388 = true;
   }
 
   var GENERIC_PLACE = /^(super\s*-?\s*market|supermarket|mini\s*-?\s*market|minimarket|grocery|groceries|convenience|shop|store|pharmacy|chemist|bakery|kiosk|cafe|café|restaurant|pizzeria|pizza|plumber|market|σούπερ\s*μάρκετ|σουπερ\s*μαρκετ|σουπερμάρκετ|σουπερμαρκετ|μίνι\s*μάρκετ|φαρμακείο|φαρμακειο|περίπτερο|περιπτερο|καφενείο|αρτοποιείο|φούρνος|\?+|·+|-+)$/i;
+  var CATEGORY_TEXT = /^\s*(?:meat|and|&|\+|other|others|food|foods|goods|products|fish|fruit|fruits|vegetables|veg|grocery|groceries|drinks|beverages|store|stores|shop|shops|market|markets|supermarket|super|mini|local|various|general|deli|butcher|bakery|items|daily|fresh|household)(?:[\s,\/-]+(?:meat|and|&|\+|other|others|food|foods|goods|products|fish|fruit|fruits|vegetables|veg|grocery|groceries|drinks|beverages|store|stores|shop|shops|market|markets|supermarket|super|mini|local|various|general|deli|butcher|bakery|items|daily|fresh|household))*\s*$/i;
   function genericPlaceName(n, type) {
     var t = String(n || "").trim();
-    if (!t || GENERIC_PLACE.test(t)) return true;
+    if (!t || GENERIC_PLACE.test(t) || CATEGORY_TEXT.test(t)) return true; /* 4389: "Meat and other food" is category text, not a name */
     return !!(type && t.toLowerCase().replace(/[\s_-]+/g, "") === String(type).toLowerCase().replace(/[\s_-]+/g, ""));
   }
   function asPlace(row) {
@@ -4985,7 +4986,7 @@ window.__SN_4387 = true; window.__SN_4388 = true;
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4388";
+    return "/you.png?v=4389";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -6619,7 +6620,7 @@ window.__SN_4387 = true; window.__SN_4388 = true;
   function robotSrc() {
     var style = botSpec().style || "spartan";
     if (style !== "courier" && style !== "wire") style = "spartan";
-    return "/js/spacenet/robots/" + style + ".jpg?v=4388";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4389";
   }
   function robotFilter() {
     var c = botSpec().color;
@@ -6990,7 +6991,7 @@ window.__SN_4387 = true; window.__SN_4388 = true;
     vendor = s;
     var ad0 = addrOf(s);
     var kindBit = s.kind && s.kind !== "shop" ? s.kind : "";
-    var where = [ad0.text ? (ad0.approx ? "≈ " : "") + ad0.text : "Address · locating (approx.)…", kindBit].filter(Boolean).join(" · ");
+    var where = [ad0.text ? (ad0.approx ? "≈ " + ad0.text + " (approx. address)" : ad0.text) : "Address · locating (approx.)…", kindBit].filter(Boolean).join(" · ");
     var menuRows = s.menu;
     if (typeof menuRows === "string") {
       try { menuRows = JSON.parse(menuRows); } catch (e) { menuRows = []; }
@@ -7070,7 +7071,7 @@ window.__SN_4387 = true; window.__SN_4388 = true;
           var spans = document.querySelectorAll("#sn-sheet .sn-prof .sn-miss");
           el = spans[spans.length - 1];
         }
-        var line = [txt ? "≈ " + txt + " (approx.)" : "No address listed", kindBit].filter(Boolean).join(" · ");
+        var line = [txt ? "≈ " + txt + " (approx. address)" : "No address listed", kindBit].filter(Boolean).join(" · ");
         if (el) el.textContent = line;
         window.__snAddrFill = { name: s.name || "", text: line, inPage: !!(el && el.isConnected), at: Date.now() };
       });
@@ -9430,9 +9431,11 @@ window.__SN_4387 = true; window.__SN_4388 = true;
     function paintGo() {
       if (!go) return;
       var has = inp && String(inp.value || "").trim() && !inp.__snSent; /* 4376: a kept, sent line shows the mic again */
-      if (has) go.textContent = "GO";
-      else go.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-      go.setAttribute("aria-label", has ? "Send" : "Talk");
+      /* 4389: GO is always a labelled GO button; with an empty line the same tap opens the mic */
+      if (go.textContent !== "GO") go.textContent = "GO";
+      go.setAttribute("aria-label", has ? "Send" : "Go · empty line opens the mic");
+      go.title = has ? "Send" : "GO · type a command, or tap to talk";
+      var pl = $("plus"); if (pl) { pl.setAttribute("aria-label", "Attach a photo or file"); pl.title = "Attach a photo or file"; }
     }
     paintGo();
     if (inp && !inp.__snGoPaint) {
@@ -11595,7 +11598,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {

@@ -210,10 +210,12 @@ function fromPhotonFeature(f) {
 // 4387: a shop / amenity pin carries its real name, else its brand or operator tag; a pin with none of those (or only a
 // generic word such as "Supermarket" or "?") is dropped. Places (towns, streets) keep their display name. Nothing is invented.
 var GENERIC_NAME = /^(super\s*-?\s*market|supermarket|mini\s*-?\s*market|minimarket|grocery|groceries|convenience|shop|store|pharmacy|chemist|bakery|kiosk|cafe|café|restaurant|pizzeria|pizza|plumber|market|σούπερ\s*μάρκετ|σουπερ\s*μαρκετ|σουπερμάρκετ|σουπερμαρκετ|μίνι\s*μάρκετ|φαρμακείο|φαρμακειο|περίπτερο|περιπτερο|καφενείο|αρτοποιείο|φούρνος|\?+|·+|-+)$/i;
+var CATEGORY_TEXT = /^\s*(?:meat|and|&|\+|other|others|food|foods|goods|products|fish|fruit|fruits|vegetables|veg|grocery|groceries|drinks|beverages|store|stores|shop|shops|market|markets|supermarket|super|mini|local|various|general|deli|butcher|bakery|items|daily|fresh|household)(?:[\s,\/-]+(?:meat|and|&|\+|other|others|food|foods|goods|products|fish|fruit|fruits|vegetables|veg|grocery|groceries|drinks|beverages|store|stores|shop|shops|market|markets|supermarket|super|mini|local|various|general|deli|butcher|bakery|items|daily|fresh|household))*\s*$/i;
 function genericName(n, type) {
   var t = String(n || "").trim();
   if (!t) return true;
   if (GENERIC_NAME.test(t)) return true;
+  if (CATEGORY_TEXT.test(t)) return true; /* 4389: category text such as "Meat and other food" or "Mini Shop" is not a name */
   if (type && t.toLowerCase().replace(/[\s_-]+/g, "") === String(type).toLowerCase().replace(/[\s_-]+/g, "")) return true;
   return false;
 }
@@ -282,6 +284,7 @@ async function nominatimRaw(params) {
   var qs = ["format=json", "addressdetails=0", "extratags=1", "limit=" + Math.min(20, Math.max(1, Number(params.limit) || 10)), "q=" + encodeURIComponent(String(params.q || "").slice(0, 120))];
   if (/^-?\d+(\.\d+)?(,-?\d+(\.\d+)?){3}$/.test(String(params.viewbox || ""))) qs.push("viewbox=" + params.viewbox);
   if (String(params.bounded || "") === "1") qs.push("bounded=1");
+  if (/^\d+(,\d+)*$/.test(String(params.exclude || ""))) qs.push("exclude_place_ids=" + params.exclude);
   var k = "nom|" + qs.join("&");
   var t = await grab("https://nominatim.openstreetmap.org/search?" + qs.join("&"), 5000);
   var rows = null;
@@ -442,6 +445,23 @@ module.exports = async function (req, res) {
   if (String(n.op || "") === "nominatim") {
     cors(res, true);
     var nr = await nominatimRaw(n);
+    // 4389: with Overpass down the hunt rests on this answer, and Nominatim gives at most 20 rows, many of them unnamed or
+    // generic ("Supermarket") that the client drops, so the count swung 13 -> 5 with the order Nominatim answered in. A bounded
+    // trade search pages on (exclude_place_ids, up to 2 more pages) until it holds the asked number of really named rows.
+    if (String(n.bounded || "") === "1" && (Number(n.limit) || 0) > 1 && Array.isArray(nr.rows)) {
+      var allR = nr.rows.slice(), seenP = {};
+      allR.forEach(function (x) { if (x && x.place_id) seenP[x.place_id] = 1; });
+      var named = function () { return allR.filter(function (x) { return x && (!/^(shop|amenity|healthcare|craft|office|tourism|leisure)$/.test(String(x.category || x["class"] || "")) || realShopName(x)); }).length; };
+      for (var pg = 0; pg < 2 && nr.rows.length >= Math.min(20, Number(n.limit)) && named() < Math.min(40, Number(n.limit) || 16); pg++) {
+        var ex = Object.keys(seenP).slice(0, 200).join(",");
+        var more = await nominatimRaw(Object.assign({}, n, { limit: 20, exclude: ex }));
+        var fresh = (more.rows || []).filter(function (x) { return x && x.place_id && !seenP[x.place_id]; });
+        if (!fresh.length) break;
+        fresh.forEach(function (x) { seenP[x.place_id] = 1; allR.push(x); });
+        nr = { rows: allR, cached: nr.cached && more.cached };
+      }
+      nr.rows = allR.filter(function (x) { return !(x && /^(shop|amenity|healthcare|craft|office|tourism|leisure)$/.test(String(x.category || x["class"] || "")) && !realShopName(x)); });
+    }
     try { res.setHeader("X-Astranov-Cached", nr.cached ? "1" : "0"); } catch (eH) {}
     return res.status(200).json(nr.rows || []);
   }
