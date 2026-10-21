@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4376";
+  var VER = "4377";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -2935,7 +2935,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4376";
+    return "/you.png?v=4377";
   }
   function openDriverBag(p) {
     if (!p) return;
@@ -2956,7 +2956,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!map || !from || !to || !isFinite(+from.lat) || !isFinite(+to.lat) || !map.getContainer) return;
     var el = document.createElement("div");
     el.className = "sn-parcel";
-    el.innerHTML = '<img alt="" src="/js/spacenet/robots/spartan.jpg?v=4376" style="width:36px;height:36px;object-fit:contain;mix-blend-mode:screen;display:block">';
+    el.innerHTML = '<img alt="" src="/js/spacenet/robots/spartan.jpg?v=4377" style="width:36px;height:36px;object-fit:contain;mix-blend-mode:screen;display:block">';
     document.body.appendChild(el);
     var t0 = performance.now();
     function step(now) {
@@ -2996,7 +2996,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (!key || seen[key]) return;
       seen[key] = 1;
       var n = held(p);
-      var photo = (p.photo && String(p.photo).indexOf("you.png") < 0) ? p.photo : "/js/spacenet/robots/spartan.jpg?v=4376";
+      var photo = (p.photo && String(p.photo).indexOf("you.png") < 0) ? p.photo : "/js/spacenet/robots/spartan.jpg?v=4377";
       var html = '<span class="sn-drv"><img alt="" src="' + String(photo).replace(/"/g, "") + '"><b>' + n + "</b></span>";
       var mark = L.marker([+p.lat, +p.lng], {
         icon: L.divIcon({ className: "sn-drv-pin", html: html, iconSize: [40, 40], iconAnchor: [20, 20] }),

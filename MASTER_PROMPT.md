@@ -23,7 +23,7 @@ Scan is the radar: the vector sweep on the globe, and the round sweep on the cit
 
 The header is the word ASTRANOV, docked to the top. No emoji buttons. No Spartan / cyan / courier / wire / gold / crimson chips. The bottom field talks to the helper. Support is that same field, or the word support.
 
-Stamp 4376. `X-Astranov-Build` matches the page.
+Stamp 4377. `X-Astranov-Build` matches the page.
 
 ---
 
