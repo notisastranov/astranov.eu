@@ -4893,6 +4893,7 @@ window.__SN_4380 = true;
     });
     window.__snDecl = { n: items.length, moved: items.filter(function (it) { return it.el.classList.contains("sn-moved"); }).length,
       labels: items.filter(function (it) { return it.b && !it.el.classList.contains("sn-lbl-off"); }).length };
+  }
   /* 4380 (main V4375): the YOU picture: the signed-in photo, else /you.png */
   function youName() {
     try { var u = JSON.parse(localStorage.getItem("sn:user") || "null"); return u ? String(u.name || String(u.email || "").split("@")[0] || "") : ""; } catch (e) { return ""; }
@@ -4903,7 +4904,6 @@ window.__SN_4380 = true;
       if (u && u.photo) return u.photo;
     } catch (e) {}
     return "/you.png?v=4380";
-  }
   }
   var motionMarks = {};
   var liveOpened = false;
