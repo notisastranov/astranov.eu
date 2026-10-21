@@ -1,0 +1,33 @@
+name: grokbuild 4380d (boot keeps the last GPS fix as last; YOU WHERE reads a fresh GPS fix; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4380d.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix94, assert tree, commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "e872edb7dc2ad9f89b12d71e02d0495ed571d03a" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          base64 -d .grokbuild/fix94.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "82fcfbf808392824fcae42eb8832281313532b6368d682e1ab8e8bef2e67c9f2"
+          gunzip -c /tmp/f.gz > /tmp/fix94.patch
+          test "$(sha256sum /tmp/fix94.patch | cut -d' ' -f1)" = "97b287c7367881dc2ad854c8fdf229bcb497bd7341f49a35d7e61062adb39185"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4380d.yml
+          git apply --index /tmp/fix94.patch
+          node --check js/spacenet/app.js
+          grep -q '^4380$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "9107f04bd208402360cb9bb5fb19a5de5092479b" || { echo "tree $T"; exit 1; }
+          git commit -q -m "4380d: the boot zoom keeps a last-real-fix answer as Last GPS fix (it was relabelled as an IP area); YOU WHERE shows GPS when a fix is under 10 minutes old even after a named seat; stamps stay 4380"
+          git push origin HEAD:grokbuild/4328-street-level-gps
