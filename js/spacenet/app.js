@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4380"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4381"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1434,6 +1434,7 @@ window.__SN_4377 = true;
 window.__SN_4378 = true;
 window.__SN_4379 = true;
 window.__SN_4380 = true;
+window.__SN_4381 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -2069,12 +2070,18 @@ window.__SN_4380 = true;
     say(TIERS[i].name + (where ? " · " + where.lat.toFixed(2) + "," + where.lng.toFixed(2) : ""));
   }
   /* 4380: the last REAL GPS fix (never IP) is kept apart from sn:here, so a missing GPS answer never makes the IP city "you" */
+  /* 4381: a fix counts as "you" only when it is precise (browser accuracy <= 2 km; a VM / desktop without GPS answers with an
+     IP-derived network fix, e.g. Ashburn) — the accuracy of the last browser answer is kept in __snLastAcc */
+  function fixPrecise(acc) { return isFinite(+acc) && +acc > 0 && +acc <= 2000; }
   function saveFix(pt) {
+    var acc = pt && pt.acc != null ? +pt.acc : window.__snLastAcc;
+    if (!fixPrecise(acc)) { window.__snCoarse = { acc: acc, at: Date.now() }; return; }
     if (pt && isFinite(+pt.lat) && isFinite(+pt.lng)) window.__snGpsAt = Date.now();
-    try { if (pt && isFinite(+pt.lat) && isFinite(+pt.lng)) localStorage.setItem("sn:lastgps", JSON.stringify({ lat: +pt.lat, lng: +pt.lng, t: Date.now() })); } catch (e) {}
+    window.__snGpsAcc = acc;
+    try { if (pt && isFinite(+pt.lat) && isFinite(+pt.lng)) localStorage.setItem("sn:lastgps", JSON.stringify({ lat: +pt.lat, lng: +pt.lng, t: Date.now(), acc: acc })); } catch (e) {}
   }
   function lastGps() {
-    try { var g = JSON.parse(localStorage.getItem("sn:lastgps") || "null"); if (g && isFinite(+g.lat) && isFinite(+g.lng)) return g; } catch (e) {}
+    try { var g = JSON.parse(localStorage.getItem("sn:lastgps") || "null"); if (g && isFinite(+g.lat) && isFinite(+g.lng) && fixPrecise(g.acc)) return g; } catch (e) {}
     return null;
   }
   function pinHere(pt) {
@@ -2089,6 +2096,7 @@ window.__SN_4380 = true;
     var done = false;
     function finish(pt) {
       if (done || !pt) return;
+      if (pt.acc != null) window.__snLastAcc = +pt.acc;
       done = true;
       gotGps = pt.how === "gps";
       /* 4340: an IP answer keeps the watch alive, so a prompt answered late still flies to the fix */
@@ -2101,10 +2109,10 @@ window.__SN_4380 = true;
         if (gotGps) return;
         gotGps = true;
         try { if (watchId) navigator.geolocation.clearWatch(watchId); } catch (eW) {}
-        gpsArrived({ lat: pos.coords.latitude, lng: pos.coords.longitude, how: "gps" }, "late");
+        gpsArrived({ lat: pos.coords.latitude, lng: pos.coords.longitude, how: "gps", acc: +pos.coords.accuracy }, "late");
         return;
       }
-      finish({ lat: pos.coords.latitude, lng: pos.coords.longitude, how: "gps" });
+      finish({ lat: pos.coords.latitude, lng: pos.coords.longitude, how: "gps", acc: +pos.coords.accuracy });
     }
     /* 4341: the IP lookup starts at once, in parallel with the GPS ask, so an IP-only boot never waits on it */
     var ipAsk = null;
@@ -2256,6 +2264,7 @@ window.__SN_4380 = true;
      It flies to the fix at street level and replaces the IP label, unless the user is busy on a place they named. */
   function gpsArrived(pt, why) {
     if (!pt || !isFinite(+pt.lat) || !isFinite(+pt.lng)) return;
+    if (pt.acc != null) window.__snLastAcc = +pt.acc;
     var lat = +pt.lat, lng = +pt.lng;
     var prev = hereLive;
     hereLive = { lat: lat, lng: lng, name: "GPS" };
@@ -2282,7 +2291,7 @@ window.__SN_4380 = true;
     if (!navigator.geolocation) return;
     try {
       navigator.geolocation.getCurrentPosition(function (pos) {
-        if (pos && pos.coords) gpsArrived({ lat: pos.coords.latitude, lng: pos.coords.longitude, how: "gps" }, why);
+        if (pos && pos.coords) gpsArrived({ lat: pos.coords.latitude, lng: pos.coords.longitude, how: "gps", acc: +pos.coords.accuracy }, why);
       }, function () {
         if (seatKind !== "gps") say("Location allowed, but this device gave no GPS fix yet. Tap GPS to retry.");
       }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
@@ -2385,7 +2394,7 @@ window.__SN_4380 = true;
     if (!navigator.geolocation) { if (then) then(null); return; }
     navigator.geolocation.getCurrentPosition(function (pos) {
       if (!pos || !pos.coords) { if (then) then(null); return; }
-      var pt = { lat: pos.coords.latitude, lng: pos.coords.longitude, how: "gps" };
+      var pt = { lat: pos.coords.latitude, lng: pos.coords.longitude, how: "gps", acc: +pos.coords.accuracy };
       var moved = lastFix ? haversineKm(lastFix, pt) : 0;
       if (pos.coords.heading != null && isFinite(+pos.coords.heading) && +pos.coords.heading >= 0) heading = +pos.coords.heading;
       else if (lastFix && moved > 0.008) heading = bearingDeg(lastFix, pt);
@@ -3180,7 +3189,7 @@ window.__SN_4380 = true;
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4380&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4381&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3506,7 +3515,7 @@ window.__SN_4380 = true;
       "form#f{display:flex!important;width:100%!important;gap:0!important;align-items:center!important;min-height:48px!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}",
       "input#in{flex:1!important;min-width:0!important;width:auto!important;min-height:48px!important;border:0!important;border-radius:0!important;background:transparent!important;padding-left:56px!important;padding-right:56px!important}",
       "#sn-pulse{display:none!important}",
-      "#sn-tester{display:block!important}",
+      "#sn-tester.on{display:block!important}#sn-tester:not(.on){display:none!important}", /* 4381: admin / owner / ?testview=1 only */
       "#island{margin-top:0!important;padding-top:0!important}",
       "#sn-count{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;pointer-events:none;background:transparent}",
       "#sn-count.on{display:flex}",
@@ -3706,7 +3715,15 @@ window.__SN_4380 = true;
       el.id = "sn-tester";
       document.body.appendChild(el);
     }
-    el.style.display = "block";
+    /* 4381: the strip is for admins / the owner, or anyone with ?testview=1 (kept for the session); the public never sees it */
+    var stripOk = false;
+    try {
+      if (/[?&]testview=1\b/.test(location.search)) sessionStorage.setItem("sn:strip", "1");
+      if (/[?&]testview=0\b/.test(location.search)) sessionStorage.removeItem("sn:strip");
+      stripOk = isAdmin() || sessionStorage.getItem("sn:strip") === "1";
+    } catch (eS) { stripOk = isAdmin(); }
+    el.classList.toggle("on", stripOk);
+    el.style.display = stripOk ? "block" : "none";
     el.classList.toggle("stale", faults.length > 0);
     el.textContent = "TESTER · " + note;
     window.__snDemo = { ok: !faults.length, note: note, t: Date.now() };
@@ -4903,7 +4920,7 @@ window.__SN_4380 = true;
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4380";
+    return "/you.png?v=4381";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -5995,6 +6012,7 @@ window.__SN_4380 = true;
     return revMemo[key];
   }
   function showFound() {
+    if (huntView && (huntView.stale || (huntView.id != null && huntView.id !== huntSeq))) return; /* 4381: results of an older hunt are dropped */
     if (!findWanted) {
       try { paintShopsOnMap(); } catch (e) {}
       return;
@@ -6064,6 +6082,7 @@ window.__SN_4380 = true;
   }
   var huntDoneN = null; /* the count the finished hunt announced; null while a hunt runs or none has */
   function huntSay(n, seat0) {
+    if (huntView && (huntView.stale || (huntView.id != null && huntView.id !== huntSeq))) return; /* 4381 */
     window.__snHuntDone = { n: n, q: (huntView && huntView.raw) || "", t: Date.now() }; try { demoProbe(); } catch (eDP) {}
     if (!n && huntView && huntView.nameQ) say("No place named " + huntView.nameQ + " within " + huntRadiusKm() + " km of " + seatName(seat0) + ".");
     else if (!n) say("No real " + huntLabel() + " within " + huntRadiusKm() + " km of " + seatName(seat0) + ".");
@@ -6215,10 +6234,12 @@ window.__SN_4380 = true;
   var huntSeq = 0;
   var huntCtrl = null;
   function abortHunt() {
+    if (huntView) huntView.stale = true; /* 4381: an older hunt never speaks or renders again */
     huntSeq++;
     if (huntCtrl) { try { huntCtrl.abort(); } catch (e) {} }
     huntCtrl = null;
   }
+  function abortHuntNet() { if (huntCtrl) { try { huntCtrl.abort(); } catch (e) {} } huntCtrl = null; }
   function huntSig() { return huntCtrl ? huntCtrl.signal : undefined; }
   function fetchJsonT(url, opts, ms) {
     opts = opts || {};
@@ -6250,7 +6271,7 @@ window.__SN_4380 = true;
     setTimeout(function () { fin(null); }, 9000);
     try {
       navigator.geolocation.getCurrentPosition(function (pos) {
-        fin(pos && pos.coords ? { lat: pos.coords.latitude, lng: pos.coords.longitude, how: "gps" } : null);
+        fin(pos && pos.coords ? { lat: pos.coords.latitude, lng: pos.coords.longitude, how: "gps", acc: +pos.coords.accuracy } : null);
       }, function () { fin(null); }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 });
     } catch (e) { fin(null); }
   }
@@ -6292,7 +6313,27 @@ window.__SN_4380 = true;
       : q.replace(/^(find|hunt|show)\s+/i, "").trim();
     var looksPlace = !!(named && !/pizza|pizzeria|shop|vendor|restaurant|cafe|food|near|pharmacy|hotel|market|supermarket|grocery|\b(?:plumb|electric|locksmith|mechanic|garage|dentist|doctor|clinic|hospital|vet|lawyer|notary|bank|atm|bakery|baker|butcher|barber|hair|florist|tailor|laundry|gym|taxi|carpenter|painter|roofer|glazier|kiosk|periptero|bar|pub|gas|fuel|petrol|parking|school|church|museum|post office|courier|repair|cleaner|builder|handyman|optician|bookshop|pet)\w{0,5}\b/i.test(named));
     window.__snHuntPlace = looksPlace;
-    huntView = { needle: looksPlace ? "" : String(named || q).toLowerCase(), raw: q, rendered: "", t: Date.now(), pending: true, nameQ: looksPlace ? String(named || q) : "", near: nextHuntNear };
+    huntView = { id: mySeq, needle: looksPlace ? "" : String(named || q).toLowerCase(), raw: q, rendered: "", t: Date.now(), pending: true, nameQ: looksPlace ? String(named || q) : "", near: nextHuntNear };
+    window.__snHuntId = mySeq;
+    /* 4381: every hunt ends with a reply within 15 s: pins, or an honest 0 */
+    var hvWatch = huntView;
+    setTimeout(function () {
+      if (!live() || huntView !== hvWatch || huntDoneN != null) return;
+      try { abortHuntNet(); } catch (eW) {}
+      hvWatch.pending = false;
+      findWanted = true;
+      var nShown = 0;
+      try { showFound(); nShown = (window.__snFindShown || []).length; } catch (eS) {}
+      if (huntDoneN == null) {
+        huntDoneN = nShown;
+        markHunt(nShown, "timeout");
+        if (!nShown) {
+          try { openSheet("FIND · 0", '<p class="note sn-msg">No answer for ' + esc(q) + " in 15 s at " + esc(seatName(activeSeat() || here)) + ". Try again, or name a place.</p>"); } catch (eO) {}
+          say("No answer for " + q + " in 15 s. Try again, or name a place.");
+        }
+      }
+      window.__snHuntTimeout = { q: q, id: hvWatch.id, n: nShown, t: Date.now() };
+    }, 15000);
     nextHuntNear = false;
     window.__snFindShown = [];
     huntDoneN = null;
@@ -6579,7 +6620,7 @@ window.__SN_4380 = true;
     var spec = botSpec();
     /* 4377: WHERE is the real GPS fix only; an IP guess (Orland Park) is never shown as the user's location */
     var lg0 = lastGps();
-    var gpsFresh = !!(hereLive && isFinite(+hereLive.lat) && (seatKind === "gps" || (window.__snGpsAt && Date.now() - window.__snGpsAt < 600000)));
+    var gpsFresh = !!(hereLive && isFinite(+hereLive.lat) && (seatKind === "gps" || (window.__snGpsAt && Date.now() - window.__snGpsAt < 600000)) && fixPrecise(window.__snLastAcc));
     var where = gpsFresh ? (Number(hereLive.lat).toFixed(5) + ", " + Number(hereLive.lng).toFixed(5) + " · GPS")
       : lg0 ? (Number(lg0.lat).toFixed(5) + ", " + Number(lg0.lng).toFixed(5) + " · last GPS fix " + Math.max(1, Math.round((Date.now() - (+lg0.t || 0)) / 60000)) + " min ago")
       : "location not shared"; /* 4380: GPS, else the last real fix, else not shared; never the IP city */
@@ -8426,8 +8467,9 @@ window.__SN_4380 = true;
     /* 4380: "X near me" hunts around the real you (GPS, else the last real fix), never the IP city or the last named place */
     if (/\b(near|around|close\s+to)\s+me\b|\bnearby\b/i.test(q)) {
       var meQ = q.replace(/\b(near|around|close\s+to)\s+me\b|\bnearby\b/ig, " ").replace(/\s+/g, " ").trim() || "shops";
-      var gpsNow = !!(hereLive && isFinite(+hereLive.lat) && window.__snGpsAt && Date.now() - window.__snGpsAt < 600000);
-      var meAt = gpsNow ? hereLive : lastGps();
+      var gpsNow = !!(hereLive && isFinite(+hereLive.lat) && window.__snGpsAt && Date.now() - window.__snGpsAt < 600000 && fixPrecise(window.__snGpsAcc));
+      var lg1 = lastGps();
+      var meAt = gpsNow ? hereLive : (lg1 && Date.now() - (+lg1.t || 0) < 1800000 ? lg1 : null); /* 4381: near me needs a precise fix under 30 min old */
       if (!meAt) { say("Location not shared. Allow location (GPS) or name a place, e.g. " + meQ + " in Athens."); return; }
       seatPlace({ lat: +meAt.lat, lng: +meAt.lng, name: gpsNow ? "you (GPS)" : "you (last GPS fix)" });
       nextHuntNear = true;
@@ -11338,6 +11380,7 @@ window.__SN_4377 = true;
 window.__SN_4378 = true;
 window.__SN_4379 = true;
 window.__SN_4380 = true;
+window.__SN_4381 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
