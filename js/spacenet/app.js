@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4379";
+  var VER = "4380";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -1017,17 +1017,28 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function zoomSmooth(dir, sx, sy) {
     if (cityOn && map) {
       var z = map.getZoom() || 16;
-      if (dir > 0 && z <= 13.2) {
+      if (dir > 0 && z <= 14) {
         closeCity();
-        zoomToDist(1.25);
-        say("Back to the globe");
+        zoomToDist(0.92);
+        say("National");
         return;
       }
-      var nz = Math.max(13, Math.min(19, z + (dir < 0 ? 0.7 : -0.7)));
+      var nz = Math.max(13, Math.min(19, z + (dir < 0 ? 1 : -1)));
       try { map.flyTo(map.getCenter(), nz, { duration: 0.28 }); } catch (e) { try { map.setZoom(nz); } catch (e2) {} }
       return;
     }
-    zoomToDist(cam.dist * (dir < 0 ? 0.88 : 1.14), sx, sy);
+    var d = cam.dist || 1.85;
+    if (dir < 0) {
+      if (d > 3.2) { zoomToDist(1.85); say("Global"); return; }
+      if (d > 1.2) { zoomToDist(0.92); say("National"); return; }
+      var pt = (aim && isFinite(+aim.lat)) ? aim : ((here && isFinite(+here.lat)) ? here : { lat: 36.44305, lng: 28.2279 });
+      openCity(pt);
+      say("City");
+      return;
+    }
+    if (d < 1.2) { zoomToDist(1.85); say("Global"); return; }
+    if (d < 3.2) { zoomToDist(5.4); say("Solar system"); return; }
+    say("Solar system");
   }
   function stepTier(dir, sx, sy) { zoomSmooth(dir, sx, sy); }
   function settleTier(i, pt) {
@@ -1286,8 +1297,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     cityOn = true;
     el.classList.add("on");
     if (!map) {
-      map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 12, maxZoom: 19, scrollWheelZoom: true }).setView([pt.lat, pt.lng], 16);
+      map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 12, maxZoom: 19, scrollWheelZoom: false }).setView([pt.lat, pt.lng], 16);
       applyMapLook();
+      if (!el.__snWheel) {
+        el.__snWheel = function (e) {
+          if (!cityOn) return;
+          e.preventDefault();
+          zoomSmooth(e.deltaY > 0 ? 1 : -1);
+        };
+        el.addEventListener("wheel", el.__snWheel, { passive: false });
+      }
       map.on("zoomstart", function (e) {
         userLeave = !!(e && e.originalEvent);
       });
@@ -1295,14 +1314,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         try {
           var z = map.getZoom();
           if (z > 13) cityZoom = z;
-          if (userLeave && z <= 13) {
+          if (userLeave && z <= 14) {
             userLeave = false;
             closeCity();
-            zoomToDist(1.25);
+            zoomToDist(0.92);
+            say("National");
             return;
           }
           userLeave = false;
-          if (z < 14) map.setZoom(14);
         } catch (e) {}
       });
       map.on("move", function () { if (driveMode === "head") applyBearing(); });
@@ -1919,7 +1938,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-play span{flex:1;padding:7px 2px;border-radius:8px;border:1px solid rgba(77,240,255,.28);color:rgba(232,251,255,.4);font:700 8px/1.15 system-ui;letter-spacing:.02em;text-align:center}",
       "#sn-play span.on{color:#041018;background:#4df0ff;border-color:#4df0ff}",
       "#sn-me.in,#sn-me:not(.out){display:none!important}",
-      ".sn-route-one{stroke:#4df0ff!important}"
+      ".sn-route-one{stroke:#4df0ff!important}",
+      "#sn-power{display:flex!important;visibility:visible!important;pointer-events:auto!important;overflow:visible!important;position:fixed!important;top:max(10px,env(safe-area-inset-top))!important;left:max(10px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;z-index:80!important;align-items:center!important;justify-content:center!important;border-radius:999px!important;border:1px solid rgba(77,240,255,.85)!important;background:rgba(4,14,28,.82)!important;color:#4df0ff!important}",
+      "#sn-power svg{width:20px!important;height:20px!important;display:block!important}",
+      "#sn-money{display:inline-flex!important;visibility:visible!important;pointer-events:auto!important;overflow:visible!important;position:fixed!important;top:max(10px,env(safe-area-inset-top))!important;left:50%!important;right:auto!important;bottom:auto!important;transform:translateX(-50%)!important;width:auto!important;height:44px!important;min-height:44px!important;z-index:80!important;align-items:center!important;border:0!important;background:transparent!important;padding:0!important}",
+      "#sn-money .tgt{display:inline-flex!important;align-items:center!important;height:44px!important;padding:0 14px!important;border-radius:999px!important;border:1px solid rgba(77,240,255,.85)!important;background:rgba(4,14,28,.82)!important;color:#e8fbff!important;font:700 13px/1 ui-monospace,monospace!important}",
+      "#gps{display:flex!important;visibility:visible!important;pointer-events:auto!important;overflow:visible!important;position:fixed!important;right:max(10px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:max(78px,calc(env(safe-area-inset-bottom) + 70px))!important;width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;z-index:80!important;align-items:center!important;justify-content:center!important;border-radius:999px!important;border:1px solid rgba(77,240,255,.85)!important;background:rgba(4,14,28,.82)!important;color:#4df0ff!important;padding:0!important}",
+      "#gps .lbl{display:block!important;font:700 9px/44px system-ui!important;letter-spacing:.06em!important;color:#4df0ff!important;width:44px!important;text-align:center!important}",
+      "#gps .tgt{width:44px!important;height:44px!important;display:flex!important;align-items:center!important;justify-content:center!important}",
+      "#sn-radar-hud{display:block!important;visibility:visible!important;pointer-events:none!important;overflow:visible!important;position:fixed!important;top:max(62px,calc(env(safe-area-inset-top) + 54px))!important;right:max(12px,env(safe-area-inset-right))!important;width:72px!important;height:72px!important;z-index:40!important;border-radius:50%!important;border:1px solid rgba(77,240,255,.5)!important;background:radial-gradient(circle,transparent 46%,rgba(77,240,255,.2) 47% 48%,transparent 49%),conic-gradient(from 0deg,transparent 0 68%,rgba(77,240,255,.7) 100%)!important;animation:sn-sweep 2.8s linear infinite!important;box-shadow:inset 0 0 16px rgba(77,240,255,.2)!important}",
+      "@keyframes sn-sweep{to{transform:rotate(360deg)}}",
+      "#sn-mon{display:flex!important;visibility:visible!important;pointer-events:none!important;overflow:visible!important;position:fixed!important;left:50%!important;right:auto!important;top:auto!important;bottom:max(46px,calc(env(safe-area-inset-bottom) + 38px))!important;transform:translateX(-50%)!important;width:min(520px,calc(100vw - 24px))!important;height:auto!important;z-index:74!important;justify-content:center!important;gap:8px!important;flex-wrap:wrap!important;padding:4px 8px!important;border-radius:999px!important;background:rgba(4,14,28,.72)!important;border:1px solid rgba(77,240,255,.28)!important;color:#d7f6ff!important;font:600 11px/1.3 ui-monospace,monospace!important}"
     ].join("");
     document.head.appendChild(s);
   }
@@ -7439,8 +7468,41 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     closeSheet();
     say("Perfect. Five stars. Great driver, great vendor.");
   }
+  function paintMonitor() {
+    var el = $("sn-mon");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "sn-mon";
+      document.body.appendChild(el);
+    }
+    var nav = navigator;
+    var link = (nav.connection && nav.connection.effectiveType) || (nav.onLine ? "online" : "offline");
+    el.textContent = [
+      (nav.hardwareConcurrency || "—") + " cores",
+      nav.deviceMemory ? nav.deviceMemory + " GB" : "memory n/a",
+      window.innerWidth + "×" + window.innerHeight,
+      (window.devicePixelRatio || 1).toFixed(1) + " dpr",
+      link
+    ].join("  ·  ");
+    if (nav.getBattery) {
+      nav.getBattery().then(function (b) {
+        if (!el) return;
+        el.textContent += "  ·  battery " + Math.round(b.level * 100) + "%" + (b.charging ? " charging" : "");
+      }).catch(function () {});
+    }
+  }
+  function ensureRadar() {
+    if ($("sn-radar-hud")) return;
+    var radar = document.createElement("div");
+    radar.id = "sn-radar-hud";
+    radar.setAttribute("aria-hidden", "true");
+    document.body.appendChild(radar);
+  }
   function boot() {
     sheetLaw();
+    ensureRadar();
+    paintMonitor();
+    setInterval(paintMonitor, 15000);
     canvas = $("g");
     if (!canvas) return;
     ctx = canvas.getContext("2d");
@@ -7477,15 +7539,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     loadBlocks();
     loadCrawl();
     setTimeout(function () {
-      if (!cityOn) {
-        var start = null;
-        try { start = JSON.parse(localStorage.getItem("sn:here") || "null"); } catch (e) {}
-        if (!start || !isFinite(+start.lat)) start = { lat: 36.44305, lng: 28.2279 };
-        openCity(start);
-        say("Tap a shop, then the street for the drop.");
-      }
+      var start = null;
+      try { start = JSON.parse(localStorage.getItem("sn:here") || "null"); } catch (e) {}
+      if (!start || !isFinite(+start.lat)) start = { lat: 36.44305, lng: 28.2279 };
+      aim = { lat: +start.lat, lng: +start.lng };
+      var live = false;
       jobs.forEach(function (j) {
         if (!j || !j.test || j.received || j.cancelled || !j.vendor || !j.drop) return;
+        live = true;
         var key = roadKey(j.vendor, j.drop);
         if (!roads[key]) roads[key] = [{ lat: +j.vendor.lat, lng: +j.vendor.lng }, { lat: +j.drop.lat, lng: +j.drop.lng }];
         placeMeDriver(j.vendor, true);
@@ -7493,6 +7554,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         drawRoute(j.vendor, j.drop);
         paintPlay(j);
       });
+      if (live) {
+        if (!cityOn) openCity(aim);
+      } else if (!cityOn) {
+        var f = face(aim);
+        cam.yaw = f.yaw;
+        cam.pitch = f.pitch;
+        cam.dist = 1.85;
+        tierI = 1;
+        say("Global. Zoom in for national, then the streets.");
+      }
     }, 400);
     loadTasks();
     ensureBalls();
