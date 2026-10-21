@@ -1,0 +1,33 @@
+name: grokbuild 4385b (trade words hunt before the bare-place path; honest boot line when IP is dropped; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4385b.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix101, assert tree, commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "01224e1c9d9413bf1129cf3ac9a90bf7ac85608e" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          base64 -d .grokbuild/fix101.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "195b3de30013dceba9d64a6bc20c765ab55b36b15263e167346bd40e8bbbe72f"
+          gunzip -c /tmp/f.gz > /tmp/fix101.patch
+          test "$(sha256sum /tmp/fix101.patch | cut -d' ' -f1)" = "9378315c3d69438745bf74d0b2af671881d84cc0bf22d5abd80e713644365bfe"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4385b.yml
+          git apply --index /tmp/fix101.patch
+          node --check js/spacenet/app.js
+          grep -q '^4385$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "584df2ab4c100f74424b9abc934dcc60c2819b55" || { echo "tree $T"; exit 1; }
+          git commit -q -m "4385: trade words (plumber) hunt before the bare-place geocode; the boot line says Location not shared when the IP answer is dropped; lockstep 4385"
+          git push origin HEAD:grokbuild/4328-street-level-gps
