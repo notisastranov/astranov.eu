@@ -21,7 +21,7 @@ The ribbon and the constellations stay off. The zoom ladder is back, one step at
 
 On the map, five instruments only, each 44px except the radar and the monitor strip: power top-left, the stored AV€ balance top-center (no invented figure; a guest shows AV€ with no number), GPS bottom-right, the round radar sweep on the globe and on the city, and a short hardware monitor that stops before the GPS button. Delivery is unchanged: shop, street, cyan route, one stage per tap.
 
-Stamp 4381.
+Stamp 4382.
 
 ---
 
