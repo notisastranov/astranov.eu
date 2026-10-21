@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4384"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4385"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1445,6 +1445,7 @@ window.__SN_4381 = true;
 window.__SN_4382 = true;
 window.__SN_4383 = true;
 window.__SN_4384 = true;
+window.__SN_4385 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -2187,16 +2188,27 @@ window.__SN_4384 = true;
     adminPin = false;
     var lat = +pt.lat, lng = +pt.lng;
     if (!isFinite(lat) || !isFinite(lng)) return;
+    /* 4385: a "gps" answer that is not precise (browser network position, e.g. Ashburn VA from a cloud box) is not a fix */
+    if (pt.how === "gps" && pt.acc != null && isFinite(+pt.acc) && !fixPrecise(+pt.acc)) { window.__snCoarse = { acc: +pt.acc, t: Date.now() }; pt = { lat: lat, lng: lng, how: "net", name: "" }; }
     var isGps = pt.how === "gps";
     var ipNote = !isGps && pt.how !== "admin";
+    /* 4385: an IP / network / coarse position never becomes "here", a hunt anchor, a camera target or a number in a reply.
+       Only a stored precise fix ("last") may still land, labelled as such */
+    if (ipNote && pt.how !== "last") {
+      window.__snIpSeen = Date.now();
+      if (!huntView && !findWanted && seatKind !== "named" && seatKind !== "landed" && seatKind !== "gps") {
+        if (!seatKind) seatKind = "ip";
+        say("Location not shared · tap YOU to locate, or name a place.");
+      }
+      return;
+    }
     var label = pt.name || "";
     if (pt.how === "last") label = "Last GPS fix";
     else if (ipNote) label = "Location not shared · approximate area"; /* 4380: the IP city is never named as you */
     else if (isGps) label = label || "GPS";
     else if (pt.how === "admin") label = label || "Admin pin";
     if (ipNote && (huntView || findWanted || seatKind === "named" || seatKind === "landed" || seatKind === "gps")) {
-      /* a late IP answer never moves the camera off a place the user named / is hunting */
-      if (!here) { here = { lat: lat, lng: lng, name: label }; window.__SN_HERE = here; }
+      /* a late answer never moves the camera off a place the user named / is hunting */
       return;
     }
     if (ipNote) {
@@ -2280,6 +2292,7 @@ window.__SN_4384 = true;
   function gpsArrived(pt, why) {
     if (!pt || !isFinite(+pt.lat) || !isFinite(+pt.lng)) return;
     if (pt.acc != null) window.__snLastAcc = +pt.acc;
+    if (pt.acc != null && isFinite(+pt.acc) && !fixPrecise(+pt.acc)) { window.__snCoarse = { acc: +pt.acc, t: Date.now() }; return; } /* 4385 */
     var lat = +pt.lat, lng = +pt.lng;
     var prev = hereLive;
     hereLive = { lat: lat, lng: lng, name: "GPS" };
@@ -3204,7 +3217,7 @@ window.__SN_4384 = true;
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4384&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4385&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -4944,7 +4957,7 @@ window.__SN_4384 = true;
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4384";
+    return "/you.png?v=4385";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -8617,6 +8630,31 @@ window.__SN_4384 = true;
     if (goAsk && landPlaceAsk(goAsk)) return;
     var bare = goToPlaceAsk("go to " + q);
     if (bare && bare.geo && landPlaceAsk(bare)) return;
+    /* 4385: a bare place name ("Heraklion", "Nairobi") geocodes globally and flies there; no seat, no anchor, no Grok
+       round trip. Only when the world has no such place does the line go on to the helper */
+    var bareQ = String(q || "").trim();
+    if (/^[A-Za-z\u00C0-\u024F\u0370-\u03ff][A-Za-z\u00C0-\u024F\u0370-\u03ff .,'\-]{1,48}$/.test(bareQ) && bareQ.split(/[\s,]+/).filter(Boolean).length <= 4 &&
+        !GREETING.test(bareQ) && !/\b(hi|hey|hello|thanks|thank|yes|no|ok|okay|help|who|what|why|how|when|joke|dating|date|love|me|you|my|your|i|we|is|are|the|a|an|tell|show|find|open|close|support|wallet|monitor|scan|globe|streets|login|logout|sign|menu|order|orders|driver|vendor|client)\b/i.test(bareQ)) {
+      var bseq = ++placeSeq;
+      say("Finding " + bareQ + "…");
+      geocodeFast(bareQ).then(function (r) {
+        if (bseq !== placeSeq || tq !== talkSeq) return;
+        if (r && !r.none && isFinite(+r.lat)) {
+          seatPlace({ lat: +r.lat, lng: +r.lng, name: r.name || bareQ, raw: r.raw || "" });
+          try { if (!cityOn) { lookAt({ lat: +r.lat, lng: +r.lng }, 1.05); } openCity({ lat: +r.lat, lng: +r.lng, name: r.name || bareQ }); } catch (eO) {}
+          say((r.name || bareQ) + " on the map.");
+          return;
+        }
+        var stopB = thinking(tq);
+        askGrok(q, function (err, j) {
+          stopB();
+          if (tq !== talkSeq) return;
+          if (!err && j && (j.say || j.text)) { say(j.say || j.text); return; }
+          say("No place called " + bareQ + " found. Try city and country.");
+        }, 8000);
+      });
+      return;
+    }
     if (/^(find|hunt|show)\b/i.test(q) || /\b(pizza|supermarket|grocery|pharmacy|cafe|coffee|restaurant|food)\b/i.test(q) || /\b(?:plumb|electric|locksmith|mechanic|garage|dentist|doctor|clinic|hospital|vet|lawyer|notary|bank|atm|bakery|baker|butcher|barber|hair|florist|tailor|laundry|gym|taxi|carpenter|painter|roofer|glazier|kiosk|periptero|pub|fuel|petrol|parking|courier|repair|cleaner|builder|handyman|optician|bookshop)\w{0,5}\b/i.test(q)) { /* 4380: trade words hunt at once (plumber) */
       var hq = q.replace(/^(find|hunt|show)\s+/i, "").trim();
       hunt(hq || q);
@@ -11422,6 +11460,15 @@ window.__SN_4384 = true;
     try { people = JSON.parse(localStorage.getItem("sn:people") || "[]") || []; } catch (e2) { people = []; }
     locate(function (pt) {
       if (seated || !pt) return;
+      /* 4385: only a precise fix (or the stored precise one) is ever "here"; IP / coarse answers are dropped */
+      if (pt.how === "gps" && pt.acc != null && isFinite(+pt.acc) && !fixPrecise(+pt.acc)) { window.__snCoarse = { acc: +pt.acc, t: Date.now() }; pt = { how: "net" }; }
+      if (pt.how !== "gps" && pt.how !== "last") {
+        window.__snIpSeen = Date.now();
+        if (!seatKind) seatKind = "ip";
+        bootPt = { how: "net" };
+        try { bootZoomTo(bootPt); } catch (eBZ0) {}
+        return;
+      }
       if (pt.how === "gps") {
         hereLive = { lat: pt.lat, lng: pt.lng, name: "GPS" };
         here = hereLive;
@@ -11510,6 +11557,7 @@ window.__SN_4381 = true;
 window.__SN_4382 = true;
 window.__SN_4383 = true;
 window.__SN_4384 = true;
+window.__SN_4385 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
