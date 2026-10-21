@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4387"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4388"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1449,7 +1449,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true;
+window.__SN_4387 = true; window.__SN_4388 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3221,7 +3221,7 @@ window.__SN_4387 = true;
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4387&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4388&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3412,6 +3412,11 @@ window.__SN_4387 = true;
       "#sn-sheet.tile .card{width:max-content!important;max-width:min(360px,calc(100vw - 28px))!important}",
       "#sn-sheet .sn-prof,#sn-sheet.tile .sn-prof{display:grid!important;width:max-content!important;max-width:min(320px,calc(100vw - 48px))!important;grid-template-columns:72px max-content!important;gap:8px!important;align-items:center!important;margin:0 0 8px!important}",
       "#sn-sheet.tile .sn-prof{grid-template-columns:88px max-content!important}",
+      /* 4388: a long address wraps inside the card instead of running off it ('62 Μαρτύρ…') */
+      "#sn-sheet .sn-prof,#sn-sheet.tile .sn-prof{grid-template-columns:72px minmax(0,max-content)!important}",
+      "#sn-sheet.tile .sn-prof{grid-template-columns:88px minmax(0,max-content)!important}",
+      "#sn-sheet .sn-prof>div{min-width:0!important}",
+      "#sn-sheet .sn-prof .sn-miss,#sn-sheet .sn-prof .sn-tel{display:block!important;white-space:normal!important;overflow-wrap:anywhere!important;overflow:visible!important;text-overflow:clip!important}",
       "#sn-sheet.tile .sn-prof .sn-shop-hero,#sn-sheet.tile .sn-prof em{width:88px!important;height:88px!important;max-width:88px!important;max-height:88px!important}",
       "#sn-sheet .sn-dish{display:grid!important;width:max-content!important;grid-template-columns:minmax(120px,180px) 84px!important;gap:6px!important;margin:8px 0 0!important}",
       "#sn-sheet .sn-pick{display:grid;width:max-content!important;max-width:min(340px,calc(100vw - 40px))!important;grid-template-columns:52px max-content max-content 28px 28px 28px;gap:6px;align-items:center;margin-top:8px}",
@@ -4980,7 +4985,7 @@ window.__SN_4387 = true;
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4387";
+    return "/you.png?v=4388";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -6614,7 +6619,7 @@ window.__SN_4387 = true;
   function robotSrc() {
     var style = botSpec().style || "spartan";
     if (style !== "courier" && style !== "wire") style = "spartan";
-    return "/js/spacenet/robots/" + style + ".jpg?v=4387";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4388";
   }
   function robotFilter() {
     var c = botSpec().color;
@@ -9203,8 +9208,9 @@ window.__SN_4387 = true;
         html += '<input id="sn-add-eur" inputmode="decimal" placeholder="How many euro" />' +
           '<button type="button" class="sheet-go primary" data-act="add-eur">ADD WITH PAYPAL</button>' +
           '<button type="button" class="sheet-go" data-act="withdraw">WITHDRAW</button>';
-        if (ownerMail() || isAdmin()) { openPool(); return; }
-        openSheet("⭐", html);
+        /* 4388: the wallet is always the user's ⭐ wallet (main V4382 opened an admin MUTUAL editor); the owner reaches the pool from a button inside it */
+        if (ownerMail()) html += '<button type="button" class="sheet-go" data-act="open-pool">POOL · OWNER</button>';
+        openSheet("⭐ WALLET", html);
       });
     }
     paintMoney();
@@ -9522,6 +9528,7 @@ window.__SN_4387 = true;
       if (act === "reload") location.reload();
       if (act === "terms") location.href = "/terms.html";
       if (act === "apply-vendor" || act === "apply-driver") say("Apply after LOGIN. Notis activates.");
+      if (act === "open-pool") { if (ownerMail()) openPool(); return; } /* 4388 */
       if (act === "withdraw" || act === "take-cash") { takeCash(); return; }
       if (act === "issue-coupon") { issueCoupon(); return; }
       if (act === "vendor" && isFinite(i)) { var pack = window.__snFindShown || shops; if (pack[i]) openVendor(pack[i]); }
@@ -11588,7 +11595,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true;
+window.__SN_4387 = true; window.__SN_4388 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {

@@ -15,6 +15,16 @@ If rebuild law changes, **edit this file**. Chat is not the archive. Latest bloc
 ---
 
 
+## Current law (2026-10-21 — levels and instruments, this block wins)
+
+The ribbon and the constellations stay off. The zoom ladder is back, one step at a time: solar system, global, national, city. Zooming out of the streets lands on national, then global, then the solar system. Zooming in reverses that. It does not skip national.
+
+On the map, five instruments only, each 44px except the radar and the monitor strip: power top-left, the stored AV€ balance top-center (no invented figure; a guest shows AV€ with no number), GPS bottom-right, the round radar sweep on the globe and on the city, and a short hardware monitor that stops before the GPS button. Delivery is unchanged: shop, street, cyan route, one stage per tap.
+
+Stamp 4382. (Branch 4388 keeps its own zoom engine, the ribbon stamp, the ⭐ wallet and the helper; this block is recorded, not applied there.)
+
+---
+
 ## Current law (2026-10-21 — subdomain, this block wins)
 
 astranov.eu and www.astranov.eu are the starry room. One field. The house answers. It opens only a real project host. SpaceNet is not the apex.

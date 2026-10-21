@@ -275,7 +275,7 @@
     var short = inNow ? String(u.name || String(u.email).split("@")[0] || "YOU").split(/\s+/)[0].replace(/[<>"&]/g, "").slice(0, 10) : "";
     btn.setAttribute("data-who", inNow ? who : "");
     /* 4383: a guest sees YOU too (it opens the YOU panel: where, tasks, and LOG IN inside), never a bare LOGIN */
-    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "YOU") + '</span><span class="tgt">' + (inNow ? '<img alt="" src="' + String((u && u.photo) || "/you.png?v=4387").replace(/"/g, "") + '">' : '<span class="ph">?</span>') + "</span>";
+    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "YOU") + '</span><span class="tgt">' + (inNow ? '<img alt="" src="' + String((u && u.photo) || "/you.png?v=4388").replace(/"/g, "") + '">' : '<span class="ph">?</span>') + "</span>";
     if (window.SN && SN.paintMoney) SN.paintMoney();
   }
   function fillBody() {
