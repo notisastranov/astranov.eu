@@ -765,7 +765,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function globePinRows() {
     var rows = (window.__snFindShown || []).slice(0, 24);
     if (!rows.length) rows = (shops || []).filter(function (s) {
-      return s && s.name && isFinite(+s.lat) && (s.src === "listed" || s.src === "osm" || s.src === "nominatim" || s.src === "find" || s.src === "overpass") && seesShop(s) && nearSeat(s, 50);
+      return s && s.name && isFinite(+s.lat) && (s.osm || s.src === "osm" || s.src === "nominatim" || s.src === "find" || s.src === "overpass" || (s.src === "listed" && !s.via)) && seesShop(s) && nearSeat(s, 50);
     }).slice(0, 24);
     return rows.filter(function (s) { return s && s.name && !(isTestFixture(s) && !testView()); });
   }
@@ -2070,6 +2070,7 @@ window.__SN_4380 = true;
   }
   /* 4380: the last REAL GPS fix (never IP) is kept apart from sn:here, so a missing GPS answer never makes the IP city "you" */
   function saveFix(pt) {
+    if (pt && isFinite(+pt.lat) && isFinite(+pt.lng)) window.__snGpsAt = Date.now();
     try { if (pt && isFinite(+pt.lat) && isFinite(+pt.lng)) localStorage.setItem("sn:lastgps", JSON.stringify({ lat: +pt.lat, lng: +pt.lng, t: Date.now() })); } catch (e) {}
   }
   function lastGps() {
@@ -8423,9 +8424,10 @@ window.__SN_4380 = true;
     /* 4380: "X near me" hunts around the real you (GPS, else the last real fix), never the IP city or the last named place */
     if (/\b(near|around|close\s+to)\s+me\b|\bnearby\b/i.test(q)) {
       var meQ = q.replace(/\b(near|around|close\s+to)\s+me\b|\bnearby\b/ig, " ").replace(/\s+/g, " ").trim() || "shops";
-      var meAt = (hereLive && seatKind === "gps" && isFinite(+hereLive.lat)) ? hereLive : lastGps();
+      var gpsNow = !!(hereLive && isFinite(+hereLive.lat) && window.__snGpsAt && Date.now() - window.__snGpsAt < 600000);
+      var meAt = gpsNow ? hereLive : lastGps();
       if (!meAt) { say("Location not shared. Allow location (GPS) or name a place, e.g. " + meQ + " in Athens."); return; }
-      seatPlace({ lat: +meAt.lat, lng: +meAt.lng, name: seatKind === "gps" ? "you (GPS)" : "you (last GPS fix)" });
+      seatPlace({ lat: +meAt.lat, lng: +meAt.lng, name: gpsNow ? "you (GPS)" : "you (last GPS fix)" });
       nextHuntNear = true;
       hunt(meQ.replace(/^(find|hunt|show)\s+/i, ""));
       return;
