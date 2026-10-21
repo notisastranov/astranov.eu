@@ -8630,6 +8630,16 @@ window.__SN_4385 = true;
     if (goAsk && landPlaceAsk(goAsk)) return;
     var bare = goToPlaceAsk("go to " + q);
     if (bare && bare.geo && landPlaceAsk(bare)) return;
+    if (/^(find|hunt|show)\b/i.test(q) || /\b(pizza|supermarket|grocery|pharmacy|cafe|coffee|restaurant|food)\b/i.test(q) || /\b(?:plumb|electric|locksmith|mechanic|garage|dentist|doctor|clinic|hospital|vet|lawyer|notary|bank|atm|bakery|baker|butcher|barber|hair|florist|tailor|laundry|gym|taxi|carpenter|painter|roofer|glazier|kiosk|periptero|pub|fuel|petrol|parking|courier|repair|cleaner|builder|handyman|optician|bookshop)\w{0,5}\b/i.test(q)) { /* 4380: trade words hunt at once (plumber) */
+      var hq = q.replace(/^(find|hunt|show)\s+/i, "").trim();
+      hunt(hq || q);
+      askGrok(q, function (err, j) {
+        if (err || !j) return;
+        var text = j.say || j.text;
+        if (text && tq === talkSeq) sayIfIdle(text);
+      }, 8000);
+      return;
+    }
     /* 4385: a bare place name ("Heraklion", "Nairobi") geocodes globally and flies there; no seat, no anchor, no Grok
        round trip. Only when the world has no such place does the line go on to the helper */
     var bareQ = String(q || "").trim();
@@ -8653,16 +8663,6 @@ window.__SN_4385 = true;
           say("No place called " + bareQ + " found. Try city and country.");
         }, 8000);
       });
-      return;
-    }
-    if (/^(find|hunt|show)\b/i.test(q) || /\b(pizza|supermarket|grocery|pharmacy|cafe|coffee|restaurant|food)\b/i.test(q) || /\b(?:plumb|electric|locksmith|mechanic|garage|dentist|doctor|clinic|hospital|vet|lawyer|notary|bank|atm|bakery|baker|butcher|barber|hair|florist|tailor|laundry|gym|taxi|carpenter|painter|roofer|glazier|kiosk|periptero|pub|fuel|petrol|parking|courier|repair|cleaner|builder|handyman|optician|bookshop)\w{0,5}\b/i.test(q)) { /* 4380: trade words hunt at once (plumber) */
-      var hq = q.replace(/^(find|hunt|show)\s+/i, "").trim();
-      hunt(hq || q);
-      askGrok(q, function (err, j) {
-        if (err || !j) return;
-        var text = j.say || j.text;
-        if (text && tq === talkSeq) sayIfIdle(text);
-      }, 8000);
       return;
     }
     var hits = searchRoster(q);
@@ -11465,8 +11465,7 @@ window.__SN_4385 = true;
       if (pt.how !== "gps" && pt.how !== "last") {
         window.__snIpSeen = Date.now();
         if (!seatKind) seatKind = "ip";
-        bootPt = { how: "net" };
-        try { bootZoomTo(bootPt); } catch (eBZ0) {}
+        if (bootIdle() || /^Exploring/.test(($("line") || {}).textContent || "")) { bootZoom = false; intro = false; say("Location not shared · tap YOU to locate, or name a place."); }
         return;
       }
       if (pt.how === "gps") {
