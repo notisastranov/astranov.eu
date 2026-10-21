@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4383"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4384"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1444,6 +1444,7 @@ window.__SN_4380 = true;
 window.__SN_4381 = true;
 window.__SN_4382 = true;
 window.__SN_4383 = true;
+window.__SN_4384 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -2257,8 +2258,13 @@ window.__SN_4383 = true;
     if (!bootZoom || seated || cityOn || !pt || !isFinite(+pt.lat) || !isFinite(+pt.lng)) return;
     if (!bootIdle()) { bootZoom = false; return; }
     bootZoom = false;
-    if (pt.how === "gps") land({ lat: +pt.lat, lng: +pt.lng, how: "gps", name: "GPS" }, false);
-    else land({ lat: +pt.lat, lng: +pt.lng, how: pt.how === "last" ? "last" : "net", name: pt.name || "" }, false); /* 4380: the last real fix stays "last" */
+    /* 4384: the opening scan zooms only to a real fix: a precise GPS answer, or the stored precise fix under 30 min old.
+       An IP / network guess never becomes the zoom target; the globe stays and the line says so honestly */
+    if (pt.how === "gps" && (pt.acc == null || !isFinite(+pt.acc) || fixPrecise(+pt.acc))) { land({ lat: +pt.lat, lng: +pt.lng, how: "gps", name: "GPS" }, false); return; }
+    var lgB = pt.how === "last" ? lastGps() : null;
+    if (lgB && Date.now() - (+lgB.t || 0) < 1800000) { land({ lat: +pt.lat, lng: +pt.lng, how: "last", name: pt.name || "" }, false); return; }
+    window.__snBootHonest = Date.now();
+    say("Location not shared · tap YOU to locate, or name a place.");
   }
   function endIntro() {
     if (!intro) return;
@@ -2267,7 +2273,7 @@ window.__SN_4383 = true;
     if (seated || cityOn || !bootIdle()) return;
     bootZoom = true;
     if (bootPt) { bootZoomTo(bootPt); return; }
-    say("Zooming to you as soon as location answers… or name a place.");
+    say("Location not shared yet · allow location or tap YOU to locate, or name a place."); /* 4384: the scan always ends with an honest line */
   }
   /* 4340: one door for a real GPS fix that arrives after boot (late prompt answer, permission change, poll).
      It flies to the fix at street level and replaces the IP label, unless the user is busy on a place they named. */
@@ -3198,7 +3204,7 @@ window.__SN_4383 = true;
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4383&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4384&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3395,6 +3401,7 @@ window.__SN_4383 = true;
       "#sn-cloud{position:fixed!important;top:40px!important;left:50%!important;right:auto!important;transform:translateX(-50%)!important;z-index:48!important;display:flex!important;gap:8px!important;align-items:center!important;max-width:calc(100vw - 24px)!important;padding:4px!important;border-radius:999px!important;background:rgba(4,16,32,.92)!important;border:1px solid rgba(77,240,255,.8)!important;color:#e8fbff!important;font:700 12px/1 system-ui!important;pointer-events:auto!important;box-shadow:0 0 18px rgba(77,240,255,.35)!important}",
       "#sn-cloud button{pointer-events:auto!important;border:0!important;background:transparent!important;color:#e8fbff!important;font:700 12px/1 system-ui!important;padding:6px 8px!important;white-space:nowrap!important}",
       "#sn-cloud.off{display:none!important}",
+      "#sn-cloud .sn-cloud-ttl{padding:0 6px 0 10px;font:800 10px/1 ui-monospace,monospace;letter-spacing:.12em;opacity:.8}",
       "#sn-cloud b{color:#4df0ff!important;font:800 18px/1 system-ui!important;margin-right:4px!important}",
       ".sn-sel{display:block!important;width:28px!important;height:28px!important;border-radius:50%!important;box-shadow:0 0 0 1px #fff,0 0 0 2px #1236ff,0 0 6px #3d6bff!important}",
       ".leaflet-marker-icon.sn-shop-pin.sn-drv{overflow:visible!important;width:28px!important;height:28px!important;background:transparent!important;border:0!important}",
@@ -4715,6 +4722,9 @@ window.__SN_4383 = true;
     });
   }
   var orderMarks = [];
+  function realOrder(j) {
+    return !!(j && j.fee && (j.lines || []).some(function (l) { return l && l.name; }));
+  }
   function paintCloud() {
     var el = $("sn-cloud");
     if (!el) {
@@ -4725,19 +4735,23 @@ window.__SN_4383 = true;
     if (!cityOn) { el.className = "off"; return; }
     var pending = 0, way = 0, cancelled = 0;
     jobs.forEach(function (j) {
-      if (!j || !seesJob(j)) return;
+      if (!j || !seesJob(j) || !realOrder(j)) return;
       var st = orderState(j);
       if (st === "pending") pending++;
       else if (st === "way") way++;
       else if (st === "cancelled") cancelled++;
     });
+    /* 4384: the bar is only for real orders (a fee and at least one named line); with none it is not shown at all,
+       and when shown it says whose orders these are */
+    if (!(pending + way + cancelled)) { el.className = "off"; el.innerHTML = ""; return; }
     el.className = "";
-    el.innerHTML = '<button type="button" data-act="cloud" data-k="pending"><b>' + pending + "</b> pending</button>" +
+    el.title = "Your orders: waiting for the shop / with a driver / cancelled";
+    el.innerHTML = '<span class="sn-cloud-ttl">YOUR ORDERS</span><button type="button" data-act="cloud" data-k="pending"><b>' + pending + "</b> pending</button>" +
       '<button type="button" data-act="cloud" data-k="way"><b>' + way + "</b> on the way</button>" +
       '<button type="button" data-act="cloud" data-k="cancelled"><b>' + cancelled + "</b> cancelled</button>";
   }
   function openOrderList(kind) {
-    var rows = jobs.filter(function (j) { return j && seesJob(j) && orderState(j) === kind; });
+    var rows = jobs.filter(function (j) { return j && seesJob(j) && realOrder(j) && orderState(j) === kind; });
     if (!rows.length) { say("No " + (kind === "way" ? "orders on the way" : kind + " orders") + "."); return; }
     var html = rows.map(function (j) {
       var v = j.vendor || {};
@@ -4930,7 +4944,7 @@ window.__SN_4383 = true;
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4383";
+    return "/you.png?v=4384";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -8340,10 +8354,28 @@ window.__SN_4383 = true;
     });
   }
   /* geocode a named place: /api/find and Nominatim race, the first real pin wins (cap 6 s) */
+  /* 4384: a named place resolves once per device per week (the server geocode alone took ~3 s per hunt) */
+  function geoMemo(where, val) {
+    var k = String(where || "").toLowerCase().replace(/\s+/g, " ").trim();
+    if (!k) return null;
+    var m = {};
+    try { m = JSON.parse(localStorage.getItem("sn:geo") || "{}") || {}; } catch (e) { m = {}; }
+    if (val) {
+      m[k] = { lat: +val.lat, lng: +val.lng, name: val.name || where, raw: val.raw || "", t: Date.now() };
+      var ks = Object.keys(m);
+      if (ks.length > 80) ks.sort(function (a, b) { return m[a].t - m[b].t; }).slice(0, ks.length - 80).forEach(function (x) { delete m[x]; });
+      try { localStorage.setItem("sn:geo", JSON.stringify(m)); } catch (e2) {}
+      return null;
+    }
+    var r = m[k];
+    return (r && isFinite(+r.lat) && Date.now() - (+r.t || 0) < 7 * 86400000) ? { lat: +r.lat, lng: +r.lng, name: r.name, raw: r.raw } : null;
+  }
   function geocodeFast(where) {
     var done = false;
+    var memo = geoMemo(where);
+    if (memo) return Promise.resolve(memo);
     return new Promise(function (resolve) {
-      function fin(r) { if (done) return; if (r && isFinite(+r.lat) && isFinite(+r.lng)) { done = true; resolve(r); } }
+      function fin(r) { if (done) return; if (r && isFinite(+r.lat) && isFinite(+r.lng)) { done = true; geoMemo(where, r); resolve(r); } }
       var a = fetchJsonT("/api/find?q=" + encodeURIComponent(where), { cache: "no-store" }, 6000).then(function (j) {
         var r = ((j && j.places) || [])[0];
         if (r) fin({ lat: +r.lat, lng: +r.lng, name: r.name || where, raw: r.raw || "" });
@@ -8370,6 +8402,8 @@ window.__SN_4383 = true;
       say((ask.place || "Place") + " on the map.");
       return true;
     }
+    var memoP = geoMemo(ask.place);
+    if (memoP) { seatPlace(memoP); say((memoP.name || ask.place) + " on the map."); return true; }
     say("Finding " + ask.place + "…");
     var url = "/api/find?q=" + encodeURIComponent(ask.place);
     fetchJson(url, { cache: "no-store", headers: { Accept: "application/json" } }).then(function (j) {
@@ -8377,6 +8411,7 @@ window.__SN_4383 = true;
       var rows = (j && j.places) || [];
       var r = rows[0];
       if (r && isFinite(+r.lat) && isFinite(+r.lng)) {
+        geoMemo(ask.place, { lat: +r.lat, lng: +r.lng, name: r.name || ask.place, raw: r.raw || "" });
         seatPlace({ lat: +r.lat, lng: +r.lng, name: r.name || ask.place, raw: r.raw || "" });
         say((r.name || ask.place) + " on the map.");
       } else {
@@ -9255,6 +9290,26 @@ window.__SN_4383 = true;
           submitTalk(e, "enter");
         }
         inp.addEventListener("keydown", onEnter);
+        /* 4384: the helper box keeps its own route. A card field counts as the user's only after a real tap on it; a
+           helper command typed (or Entered) into a card field (e.g. "dating" in a shop's dish box) goes to the helper */
+        document.addEventListener("pointerdown", function (e) {
+          var t = e.target;
+          if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) t.__snTapped = Date.now();
+        }, true);
+        document.addEventListener("focusout", function (e) { var t = e.target; if (t && t.__snTapped) t.__snTapped = 0; }, true);
+        var HELPER_CMD = /^(dating|support|globe|scan|radar|monitor|wallet|streets|help|hi|hello)\b|^(fly|go|take me|zoom|find|hunt|show|search|where|who|what|how|why|tell|open|close)\b|\b(near me|nearby)\b|\b(in|near|at)\s+[A-Za-z\u0370-\u03ff]{3,}/i;
+        document.addEventListener("keydown", function (e) {
+          var t = e.target;
+          if (!inp || !t || t === inp || !(e.key === "Enter" || e.keyCode === 13) || e.isComposing) return;
+          if (!(t.tagName === "INPUT" || t.tagName === "TEXTAREA") || !t.closest || !t.closest("#sn-sheet,#sn-tasks")) return;
+          var v = String(t.value || "").trim();
+          if (!v || /^\d+([.,]\d+)?$/.test(v) || !HELPER_CMD.test(v)) return;
+          e.preventDefault(); e.stopPropagation();
+          t.value = ""; try { t.blur(); } catch (eB) {}
+          inp.value = v; inp.__snSent = "";
+          window.__snRouted = { v: v, from: t.id || t.placeholder || t.tagName, t: Date.now() };
+          enterDownAt = Date.now(); enterDone = false; submitTalk(e, "card-route");
+        }, true);
         /* 4340: focus on the map, a sheet row or the page must not eat keys: printable keys go to the talk box,
            Enter anywhere outside another field submits what is in it */
         document.addEventListener("keydown", function (e) {
@@ -9262,7 +9317,11 @@ window.__SN_4383 = true;
           var t = e.target;
           if (t === inp) return;
           var tag = t && t.tagName ? t.tagName.toLowerCase() : "";
-          if (tag === "input" || tag === "textarea" || tag === "select" || (t && t.isContentEditable)) return;
+          /* 4384: a card field keeps keys only when the user tapped into it; a field that got focus any other way
+             (autofocus, tab, a click elsewhere on the card) never swallows helper commands */
+          var cardField = (tag === "input" || tag === "textarea") && t.closest && t.closest("#sn-sheet,#sn-tasks") && !t.__snTapped;
+          if (!cardField && (tag === "input" || tag === "textarea" || tag === "select" || (t && t.isContentEditable))) return;
+          if (cardField) { try { t.blur(); } catch (eBl) {} }
           if ((tag === "button" || tag === "a" || (t && t.getAttribute && t.getAttribute("role") === "button")) && (e.key === "Enter" || e.key === " " || e.keyCode === 13 || e.keyCode === 32)) return; /* 4366: a focused control keeps only Enter/Space; letters typed after tapping a HUD button go to the talk box (they were dropped) */
           if (e.key === "Enter" || e.keyCode === 13) {
             if (e.isComposing) return;
@@ -11450,6 +11509,7 @@ window.__SN_4380 = true;
 window.__SN_4381 = true;
 window.__SN_4382 = true;
 window.__SN_4383 = true;
+window.__SN_4384 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
