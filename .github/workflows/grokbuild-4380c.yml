@@ -1,0 +1,33 @@
+name: grokbuild 4380c (youPhoto / youName at top level; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4380c.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix93, assert tree, commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "b5a17c783a4d93ae65eb0d37a5ca3a16244e9fa6" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          base64 -d .grokbuild/fix93.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "2e40cc13634360cc3ebc376e30ef500317d645d0eb439d5363801df9a8567641"
+          gunzip -c /tmp/f.gz > /tmp/fix93.patch
+          test "$(sha256sum /tmp/fix93.patch | cut -d' ' -f1)" = "11451a8de691bffd1c5140cdb1dc9515af0888bce2f368c9d4c30d1f7f0a9604"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4380c.yml
+          git apply --index /tmp/fix93.patch
+          node --check js/spacenet/app.js
+          grep -q '^4380$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "f5e55daa06deca29a4d9529ee6b1868e038e2e5c" || { echo "tree $T"; exit 1; }
+          git commit -q -m "4380c: youPhoto / youName moved out of declutterPins to the top level (openYou and the YOU icon threw youPhoto is not defined); stamps stay 4380"
+          git push origin HEAD:grokbuild/4328-street-level-gps
