@@ -463,6 +463,16 @@ module.exports = async function (req, res) {
     var ad = (rj && rj.address) || {};
     var road = [ad.road || ad.pedestrian || ad.footway || ad.square || ad.street || "", ad.house_number || ""].filter(Boolean).join(" ");
     var line = [road, [ad.postcode, ad.city || ad.town || ad.village || ad.suburb || ""].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+    /* 4379: Nominatim refuses the server at times (empty reverse); Photon's reverse names the street or area instead */
+    if (!line) {
+      try {
+        var pv = await grab("https://photon.komoot.io/reverse?limit=1&lat=" + o.toFixed(6) + "&lon=" + s.toFixed(6), 5000);
+        var pp = pv ? (((JSON.parse(pv).features || [])[0] || {}).properties || {}) : {};
+        var pRoad = [pp.street || "", pp.housenumber || ""].filter(Boolean).join(" ");
+        line = [pRoad || pp.name || pp.district || "", [pp.postcode, pp.city || pp.district || ""].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+        if (line && rj == null) rj = { display_name: [pp.name, pp.city, pp.country].filter(Boolean).join(", ") };
+      } catch (eP) {}
+    }
     cors(res, !line);
     return res.status(200).json({ ok: !!line, address: line, display: (rj && rj.display_name) || "", approx: true, meta: { mode: "reverse", build: BUILD } });
   }
