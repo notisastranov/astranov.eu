@@ -8269,7 +8269,8 @@ window.__SN_4380 = true;
         if (r) fin({ lat: +r.lat, lng: +r.lng, name: r.name || where, raw: r.raw || "" });
         return j;
       });
-      var b = fetchJsonT("/api/find?op=nominatim&limit=1&q=" + encodeURIComponent(where), { cache: "no-store" }, 6000).then(function (rows) { /* 4374: through our server */
+      /* 4380: the ranked server answer (town nodes first) wins; raw Nominatim only when it has nothing ("Heraklion" raced to the Egyptian site) */
+      var b = a.then(function () { return done ? null : fetchJsonT("/api/find?op=nominatim&limit=1&q=" + encodeURIComponent(where), { cache: "no-store" }, 6000); }).then(function (rows) { /* 4374: through our server */
         var r = Array.isArray(rows) && rows[0];
         if (r) fin({ lat: +r.lat, lng: +r.lon, name: String(r.display_name || where).split(",")[0], raw: r.display_name || "" });
         return rows;
