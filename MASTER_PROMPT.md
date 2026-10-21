@@ -15,6 +15,18 @@ If rebuild law changes, **edit this file**. Chat is not the archive. Latest bloc
 ---
 
 
+## Current law (2026-10-21 — helper, this block wins)
+
+The screen starts dormant. The only control is Enter. After the account is in, the winged helper is the user: login state, roles, and the companion. It flies. Tap it and Scan, Monitor, Wallet, Streets appear, then leave.
+
+Scan is the radar: the vector sweep on the globe, and the round sweep on the city. Monitor is a short strip of this device only — cores, memory, screen, pixel ratio, link, battery — then it goes. Wallet says the account’s stored AV€. It does not invent a figure. Guest has no number. Streets are keyless OpenStreetMap dots, not cards that cover a block. An order is a dot on the shop, then it flies onto the driver. Hold the driver to read what he carries.
+
+The header is the word ASTRANOV, docked to the top. No emoji buttons. No Spartan / cyan / courier / wire / gold / crimson chips. The bottom field talks to the helper. Support is that same field, or the word support.
+
+Stamp 4376. `X-Astranov-Build` matches the page.
+
+---
+
 ## Current law (2026-10-21 — this block wins)
 
 The midnight bus had stopped after 27 September. It is on again: one batch at 00:00 Europe/Athens.

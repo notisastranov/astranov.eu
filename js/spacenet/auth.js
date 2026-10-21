@@ -233,12 +233,17 @@
     css();
     var u = user();
     var inNow = !!(u && u.email);
+    document.body.classList.toggle("sn-in", inNow);
     var btn = document.getElementById("sn-me");
     if (!btn) return;
     btn.className = inNow ? "in" : "out";
-    var src = (u && u.photo) ? u.photo : "/you.png?v=4375";
-    var mark = '<img alt="" src="' + String(src).replace(/"/g, "") + '">';
-    btn.innerHTML = '<span class="lbl">YOU</span><span class="tgt">' + mark + "</span>";
+    if (!inNow) {
+      btn.innerHTML = '<span class="lbl">ENTER</span>';
+      btn.setAttribute("aria-label", "Enter");
+    } else {
+      btn.innerHTML = "";
+      btn.setAttribute("aria-label", "Signed in");
+    }
     if (window.SN && SN.paintMoney) SN.paintMoney();
   }
   function fillBody() {
@@ -321,7 +326,12 @@
     var btn = document.getElementById("sn-me");
     if (btn && !btn.__sn4221) {
       btn.__sn4221 = true;
-      btn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); if (window.SN && SN.openYou) { SN.openYou(); return; } openMe(); });
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var u = user();
+        if (!(u && u.email)) openMe();
+      });
     }
     var search = new URLSearchParams(location.search);
     var hash = location.hash || "";

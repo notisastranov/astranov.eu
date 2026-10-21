@@ -3,7 +3,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4375"/>
+<meta name="astranov-build" content="4376"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
@@ -211,6 +211,24 @@ html,body{margin:0!important;padding:0!important}
 .sn-bag{display:flex;gap:12px;align-items:center}
 .sn-bag img{width:72px!important;height:72px!important;border-radius:50%!important;object-fit:cover}
 </style>
+<style id="sn-4376">
+#sn-power,#sn-support,#sn-globe,#sn-architect,#sn-money,#plus,#go,#gps,#sn-sky-btn,#sn-tasks-btn,#sn-find-btn,#sn-node-btn,#sn-latest,#ver,#sn-brand-s,#sn-update,#sn-filters,#island .r2{display:none!important}
+#sn-brand-a{display:inline-block!important;color:#d7f6ff!important;font:600 12px/44px system-ui,sans-serif!important;letter-spacing:.34em!important}
+#top{height:44px!important;background:linear-gradient(180deg,rgba(2,8,16,.94),rgba(2,8,16,.12))!important}
+#sn-me.out{position:fixed!important;left:50%!important;bottom:max(24px,env(safe-area-inset-bottom))!important;transform:translateX(-50%)!important;height:48px!important;padding:0 28px!important;border-radius:999px!important;border:1px solid rgba(77,240,255,.85)!important;background:rgba(4,14,28,.78)!important;color:#e8fbff!important;z-index:70!important}
+#sn-me.out .lbl{font:600 14px/48px system-ui!important;letter-spacing:.2em!important}
+body:not(.sn-in) #dock{display:none!important}
+#sn-helper{position:fixed;z-index:65;left:8px;top:18%;width:128px;height:128px;padding:0;border:0;background:transparent;animation:sn-fly 18s linear infinite}
+#sn-helper img{width:128px;height:128px;object-fit:contain;mix-blend-mode:screen;filter:drop-shadow(0 0 14px rgba(77,240,255,.75));pointer-events:none}
+#sn-helper.hold{animation-play-state:paused}
+@keyframes sn-fly{0%{transform:translate(0,0)}25%{transform:translate(58vw,6vh)}50%{transform:translate(34vw,36vh)}75%{transform:translate(6vw,22vh)}100%{transform:translate(0,0)}}
+#sn-cmds{position:fixed;z-index:66;left:16px;top:46%;display:flex;flex-direction:column;gap:8px}
+#sn-cmds button{height:44px;min-width:132px;padding:0 16px;border-radius:999px;border:1px solid rgba(77,240,255,.45);background:rgba(4,14,28,.9);color:#e8fbff;font:600 13px/1 system-ui;text-align:left}
+#sn-radar-hud{position:fixed;z-index:30;top:56px;right:12px;width:108px;height:108px;border-radius:50%;pointer-events:none;border:1px solid rgba(77,240,255,.45);background:radial-gradient(circle,transparent 42%,rgba(77,240,255,.18) 43% 44%,transparent 45%),conic-gradient(from 0deg,transparent 0 70%,rgba(77,240,255,.55) 100%);animation:sn-sweep 2.8s linear infinite;box-shadow:inset 0 0 24px rgba(77,240,255,.18)}
+body.sn-scan #sn-radar-hud{animation-duration:1.1s}
+@keyframes sn-sweep{to{transform:rotate(360deg)}}
+#sn-mon{position:fixed;z-index:66;left:50%;top:56px;transform:translateX(-50%);display:flex;gap:10px;flex-wrap:wrap;justify-content:center;width:min(520px,92vw);padding:6px 10px;border-radius:999px;background:rgba(4,14,28,.86);border:1px solid rgba(77,240,255,.28);color:#d7f6ff;font:600 11px/1.4 ui-monospace,monospace;pointer-events:none}
+</style>
 </head>
 <body>
 <canvas id="g"></canvas>
@@ -243,7 +261,7 @@ setTimeout(function () {
 <div id="top">
   <div id="sn-topchrome-drag" class="sn-trivial-law" aria-hidden="true"></div>
   <div id="island">
-    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">Astranov.Eu SpaceNet V4375</button><span id="ver">V4375</span><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
+    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">Astranov.Eu SpaceNet V4376</button><span id="ver">V4376</span><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
     <div class="r2"><span id="sn-local">-</span><span id="sn-utc">-</span><span id="sn-wx"></span><span id="sn-node"></span><canvas id="sn-spark" width="120" height="28"></canvas></div>
   </div>
 
@@ -257,24 +275,24 @@ setTimeout(function () {
 <button type="button" id="sn-power" class="idle show" aria-label="Power">
   <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M12 3v9"/><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M7.2 6.4a7 7 0 1 0 9.6 0"/></svg>
 </button>
-<button type="button" id="sn-support" aria-label="Support">🎧</button>
+<button type="button" id="sn-support" aria-label="Support"></button>
 <button type="button" id="sn-globe" aria-label="Global view"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 12h16M12 4c2.4 2.6 3.6 5.2 3.6 8s-1.2 5.4-3.6 8c-2.4-2.6-3.6-5.2-3.6-8s1.2-5.4 3.6-8z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
 <button type="button" id="sn-architect" aria-label="Architect">A</button>
 <button type="button" id="sn-money" class="on" aria-label="Wallet"><span class="lbl">AV€</span><span class="tgt">AV€</span></button>
 <div id="sn-above">
-<button type="button" id="plus" aria-label="Attach">📎</button>
-<button type="button" id="go" aria-label="Talk or send">🎤</button>
+<button type="button" id="plus" aria-label="Attach"></button>
+<button type="button" id="go" aria-label="Talk or send"></button>
 </div>
-<button type="button" id="sn-me" class="out" aria-label="Login"><span class="lbl">LOGIN</span><span class="tgt"><span class="ph">IN</span></span></button>
+<button type="button" id="sn-me" class="out" aria-label="Enter"><span class="lbl">ENTER</span></button>
 <button type="button" id="gps" aria-label="GPS recalibrate" data-geo="getCurrentPosition">
   <span class="lbl">GPS</span>
-  <span class="tgt">📍</span>
+  <span class="tgt"></span>
 </button>
 <div id="sn-count" aria-hidden="true"></div>
 
 <button type="button" id="sn-sky-btn" aria-label="Stars">
   <span class="lbl">SKY</span>
-  <span class="tgt">✨</span>
+  <span class="tgt"></span>
 </button>
 
 <div id="sn-sky" hidden>
@@ -284,11 +302,11 @@ setTimeout(function () {
 </div>
 <div id="sn-tasks"><div class="bg" data-act="hide"></div><div class="card"><div class="sheet-bar"><button type="button" class="sheet-x" data-act="hide" aria-label="Close">✕</button><b class="sheet-ttl">JOBS</b><button type="button" class="sheet-apply" data-act="hide" aria-label="Apply">✓</button></div><div id="sn-tasks-list"></div></div></div>
 <div id="sn-sheet"><div class="bg"></div><div class="card" id="sn-sheet-card"></div></div>
-<div id="dock"><div id="panel"><div id="cli-drag" class="sn-trivial-law" aria-hidden="true"></div><div id="sn-tabs"></div><div id="line"></div><form id="f"><input id="in" autocomplete="off" enterkeyhint="send" placeholder="Command the HUD · show, hide, or reshape"/></form></div></div>
+<div id="dock"><div id="panel"><div id="cli-drag" class="sn-trivial-law" aria-hidden="true"></div><div id="sn-tabs"></div><div id="line"></div><form id="f"><input id="in" autocomplete="off" enterkeyhint="send" placeholder="Tell the helper"/></form></div></div>
 <input id="sn-file" type="file" accept="image/*,application/pdf,text/*" hidden/>
 <script src="/js/vendor/leaflet.js?v=4127"></script>
-<script src="/js/spacenet/app.js?v=4375"></script>
-<script src="/js/spacenet/auth.js?v=4375"></script>
+<script src="/js/spacenet/app.js?v=4376"></script>
+<script src="/js/spacenet/auth.js?v=4376"></script>
 <script src="/guardian.js?v=4295"></script>
 <script>
 (function(){
@@ -319,6 +337,105 @@ setTimeout(function () {
   law();
   addEventListener("load", law);
   setInterval(law, 800);
+})();
+</script>
+<script id="sn-helper-law">
+(function () {
+  function signed() {
+    try { var u = window.SNAuth && SNAuth.user && SNAuth.user(); return !!(u && u.email); } catch (e) { return false; }
+  }
+  function strip(text) {
+    var el = document.getElementById("sn-mon");
+    if (!el) { el = document.createElement("div"); el.id = "sn-mon"; document.body.appendChild(el); }
+    el.textContent = text;
+    clearTimeout(el.__t);
+    el.__t = setTimeout(function () { if (el.parentNode) el.remove(); }, 7000);
+  }
+  window.__snShortMon = function () {
+    var nav = navigator;
+    var rows = [
+      (nav.hardwareConcurrency || "—") + " cores",
+      nav.deviceMemory ? nav.deviceMemory + " GB" : "memory n/a",
+      window.innerWidth + "×" + window.innerHeight,
+      (window.devicePixelRatio || 1).toFixed(1) + " dpr",
+      (nav.connection && nav.connection.effectiveType) || (nav.onLine ? "online" : "offline")
+    ];
+    strip(rows.join("  ·  "));
+    if (nav.getBattery) nav.getBattery().then(function (b) {
+      rows.push(Math.round(b.level * 100) + "%" + (b.charging ? " charging" : ""));
+      var el = document.getElementById("sn-mon");
+      if (el) el.textContent = rows.join("  ·  ");
+    }).catch(function () {});
+    if (window.SN && SN.say) SN.say("Hardware, this device.");
+  };
+  function cmds() {
+    var h = document.getElementById("sn-helper");
+    var box = document.getElementById("sn-cmds");
+    if (box) { box.remove(); if (h) h.classList.remove("hold"); return; }
+    if (h) h.classList.add("hold");
+    box = document.createElement("div");
+    box.id = "sn-cmds";
+    ["Scan", "Monitor", "Wallet", "Streets"].forEach(function (name) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = name;
+      b.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        box.remove();
+        if (h) h.classList.remove("hold");
+        var say = window.SN && SN.say;
+        if (name === "Scan") {
+          document.body.classList.add("sn-scan");
+          setTimeout(function () { document.body.classList.remove("sn-scan"); }, 7000);
+          if (say) say("Radar sweep.");
+        } else if (name === "Monitor") window.__snShortMon();
+        else if (name === "Wallet") {
+          if (!signed()) { if (say) say("Enter first. The balance is the account."); return; }
+          var n = window.SN && SN.myMoney ? SN.myMoney() : 0;
+          strip(Math.round(n).toLocaleString("en-GB") + " AV€");
+          if (say) say(Math.round(n).toLocaleString("en-GB") + " AV€ on this account.");
+        } else if (window.SN && SN.openCity) {
+          var city = document.getElementById("city");
+          var open = city && getComputedStyle(city).display !== "none" && city.offsetHeight > 40;
+          if (open && SN.closeCity) SN.closeCity();
+          else SN.openCity({ lat: 36.44305, lng: 28.2279 });
+          if (say) say(open ? "Globe." : "Streets.");
+        }
+      });
+      box.appendChild(b);
+    });
+    document.body.appendChild(box);
+  }
+  function sync() {
+    var on = signed();
+    document.body.classList.toggle("sn-in", on);
+    var h = document.getElementById("sn-helper");
+    var radar = document.getElementById("sn-radar-hud");
+    if (!on) {
+      if (h) h.remove();
+      var c = document.getElementById("sn-cmds");
+      if (c) c.remove();
+      if (radar) radar.remove();
+      return;
+    }
+    if (!radar) {
+      radar = document.createElement("div");
+      radar.id = "sn-radar-hud";
+      document.body.appendChild(radar);
+    }
+    if (!h) {
+      h = document.createElement("button");
+      h.type = "button";
+      h.id = "sn-helper";
+      h.setAttribute("aria-label", "Helper");
+      h.innerHTML = '<img alt="" src="/js/spacenet/robots/spartan.jpg?v=4376">';
+      h.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); cmds(); });
+      document.body.appendChild(h);
+    }
+  }
+  sync();
+  setInterval(sync, 800);
 })();
 </script>
 </body></html>

@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4373";
+  var VER = "4376";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -1887,6 +1887,24 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-pulse{display:none!important}",
       ".sn-km{background:transparent!important;border:0!important}",
       ".sn-km b{display:inline-block;padding:0 4px;border-radius:6px;background:rgba(4,16,28,.9);color:#e8fbff;border:1px solid rgba(77,240,255,.75);font:800 10px/14px ui-monospace,monospace;box-shadow:0 0 8px rgba(77,240,255,.55)}",
+      "#sn-power,#sn-support,#sn-globe,#sn-architect,#sn-money,#plus,#go,#gps,#sn-sky-btn,#sn-tasks-btn,#sn-find-btn,#sn-node-btn,#sn-latest,#ver,#sn-brand-s,#sn-update,#sn-tick,#sn-above,#sn-filters,#island .r2,#sn-tester{display:none!important;visibility:hidden!important;pointer-events:none!important;width:0!important;height:0!important;overflow:hidden!important}",
+      "#sn-brand-a{display:inline-block!important;visibility:visible!important;width:auto!important;height:auto!important;overflow:visible!important;color:#d7f6ff!important;font:600 12px/44px system-ui,sans-serif!important;letter-spacing:.34em!important;background:transparent!important;border:0!important}",
+      "#top{height:44px!important;min-height:44px!important;max-height:44px!important;background:linear-gradient(180deg,rgba(2,8,16,.94),rgba(2,8,16,.12))!important;border-bottom:1px solid rgba(77,240,255,.16)!important}",
+      "#island{height:44px!important;max-height:44px!important;padding:0 16px!important}",
+      "#sn-me.out{display:inline-flex!important;visibility:visible!important;pointer-events:auto!important;position:fixed!important;left:50%!important;right:auto!important;top:auto!important;bottom:max(24px,env(safe-area-inset-bottom))!important;transform:translateX(-50%)!important;width:auto!important;height:48px!important;padding:0 28px!important;border-radius:999px!important;border:1px solid rgba(77,240,255,.85)!important;background:rgba(4,14,28,.78)!important;z-index:70!important}",
+      "#sn-me.out .lbl{display:block!important;width:auto!important;height:auto!important;font:600 14px/48px system-ui,sans-serif!important;letter-spacing:.2em!important;color:#e8fbff!important}",
+      "#sn-me.in{display:none!important}",
+      "body:not(.sn-in) #dock{display:none!important}",
+      "body.sn-in #dock{display:block!important;background:transparent!important;border:0!important}",
+      "body.sn-in #line{display:block!important;color:#d7f6ff!important;font:600 13px/1.35 system-ui!important;padding:8px 16px 0!important}",
+      "body.sn-in input#in{padding-left:16px!important;padding-right:16px!important}",
+      ".leaflet-marker-icon.sn-shop-pin{width:22px!important;height:22px!important;overflow:hidden!important}",
+      ".sn-pin{width:22px!important;height:22px!important}",
+      ".sn-pin b{display:none!important}",
+      ".leaflet-container .leaflet-marker-pane img,.sn-pin img{width:22px!important;height:22px!important;max-width:22px!important;max-height:22px!important}",
+      ".sn-order-tile{display:block!important;width:12px!important;height:12px!important;min-width:0!important;padding:0!important;border-radius:50%!important;background:#e8fbff!important;border:0!important;font-size:0!important;overflow:hidden!important;box-shadow:0 0 8px #fff!important}",
+      ".sn-drv{width:40px!important;height:40px!important}",
+      ".sn-drv img{width:36px!important;height:36px!important;max-width:36px!important;max-height:36px!important}"
     ].join("");
     document.head.appendChild(s);
   }
@@ -2707,15 +2725,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function faceHtml(role, photo, name) {
     var src = photo || portrait(role, name);
-    var mark = '<img alt="" width="68" height="68" style="width:68px!important;height:68px!important;max-width:68px!important;max-height:68px!important;object-fit:cover!important;display:block!important;border-radius:16px!important;border:2px solid #e8fbff;box-shadow:0 8px 18px rgba(0,0,0,.45)" src="' + String(src).replace(/"/g, "") + '">';
-    return '<span class="sn-pin">' + mark + "<b>" + esc(name || role) + "</b></span>";
+    var mark = '<img alt="" width="22" height="22" style="width:22px!important;height:22px!important;max-width:22px!important;max-height:22px!important;object-fit:cover!important;display:block!important;border-radius:50%!important;border:1px solid #e8fbff" src="' + String(src).replace(/"/g, "") + '">';
+    return '<span class="sn-pin" title="' + esc(name || role) + '">' + mark + "</span>";
   }
   function faceIcon(role, photo, name, on) {
     return L.divIcon({
       className: "sn-shop-pin" + (on ? " sn-on" : ""),
       html: '<span class="' + (on ? "sn-sel" : "sn-pinwrap") + '">' + faceHtml(role, photo, name) + "</span>",
-      iconSize: [96, 112],
-      iconAnchor: [48, 100]
+      iconSize: [22, 22],
+      iconAnchor: [11, 11]
     });
   }
   function routePane() {
@@ -2896,15 +2914,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (!list.length) return;
       var html, w;
       if (list.length === 1) {
-        var line = (list[0].lines && list[0].lines[0]) || {};
-        var label = (line.name || "order") + (list[0].fee ? " · " + list[0].fee : "");
-        html = '<span class="sn-order-tile"><b>' + esc(label) + '</b><i>on this tile</i></span>';
-        w = Math.min(200, Math.max(128, label.length * 7));
+        html = '<span class="sn-order-tile"></span>';
+        w = 14;
       } else {
         html = "<b>" + list.length + "</b>";
-        w = 36;
+        w = 18;
       }
-      var icon = L.divIcon({ className: "sn-obubble", html: html, iconSize: [w, 58], iconAnchor: [w / 2, 108] });
+      var icon = L.divIcon({ className: "sn-obubble", html: html, iconSize: [w, 14], iconAnchor: [w / 2, 28] });
       var marker = L.marker([+s.lat, +s.lng], { icon: icon, interactive: true, keyboard: false, zIndexOffset: 900 });
       marker.on("click", function (e) {
         if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent);
@@ -2919,7 +2935,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4375";
+    return "/you.png?v=4376";
   }
   function openDriverBag(p) {
     if (!p) return;
@@ -2940,7 +2956,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!map || !from || !to || !isFinite(+from.lat) || !isFinite(+to.lat) || !map.getContainer) return;
     var el = document.createElement("div");
     el.className = "sn-parcel";
-    el.innerHTML = '<img alt="" src="/js/spacenet/robots/spartan.jpg?v=4375" style="width:36px;height:36px;border-radius:50%;object-fit:cover;display:block">';
+    el.innerHTML = '<img alt="" src="/js/spacenet/robots/spartan.jpg?v=4376" style="width:36px;height:36px;object-fit:contain;mix-blend-mode:screen;display:block">';
     document.body.appendChild(el);
     var t0 = performance.now();
     function step(now) {
@@ -2980,10 +2996,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (!key || seen[key]) return;
       seen[key] = 1;
       var n = held(p);
-      var photo = p.photo || youPhoto();
+      var photo = (p.photo && String(p.photo).indexOf("you.png") < 0) ? p.photo : "/js/spacenet/robots/spartan.jpg?v=4376";
       var html = '<span class="sn-drv"><img alt="" src="' + String(photo).replace(/"/g, "") + '"><b>' + n + "</b></span>";
       var mark = L.marker([+p.lat, +p.lng], {
-        icon: L.divIcon({ className: "sn-drv-pin", html: html, iconSize: [76, 84], iconAnchor: [38, 76] }),
+        icon: L.divIcon({ className: "sn-drv-pin", html: html, iconSize: [40, 40], iconAnchor: [20, 20] }),
         zIndexOffset: 860,
         keyboard: false,
         bubblingMouseEvents: false
@@ -5056,6 +5072,29 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function runLine(q) {
     var s = String(q || "").toLowerCase().trim();
+    if (/\b(scan|radar)\b/.test(s)) {
+      document.body.classList.add("sn-scan");
+      say("Radar sweep. It leaves when the pass finishes.");
+      setTimeout(function () { document.body.classList.remove("sn-scan"); }, 7000);
+      return true;
+    }
+    if (/\b(monitor|hardware|cores|swarm)\b/.test(s)) {
+      if (window.__snShortMon) window.__snShortMon();
+      else openFleet();
+      return true;
+    }
+    if (/\b(wallet|balance|money)\b/.test(s)) {
+      if (!signed()) { say("Enter first. The balance is the account, not a guess."); return true; }
+      say(Math.round(myMoney()).toLocaleString("en-GB") + " AV€ on this account.");
+      return true;
+    }
+    if (/\b(streets|city map)\b/.test(s)) {
+      openCity(here && isFinite(+here.lat) ? here : { lat: 36.44305, lng: 28.2279 });
+      say("Streets. Dots only.");
+      return true;
+    }
+    if (/^globe\b/.test(s)) { closeCity(); say("Globe."); return true; }
+    if (/^support\b/.test(s)) { openSupport(); return true; }
     if (/^filter\b/.test(s)) {
       taskFilter = s.replace(/^filter\s*/, "").trim();
       if (typeof paintTasks === "function") paintTasks();
@@ -5166,6 +5205,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         else applyAct(j, q);
         return;
       }
+      if (err) { say(err === "dark" ? "The helper did not answer." : String(err)); return; }
       if (showRoster(hits)) return;
       if (/find|hunt|show|where|pizza|shop|food|near|driver/.test(q.toLowerCase())) { hunt(q); return; }
       say("Nothing in the shops, the drivers, or the clients around you.");
@@ -7394,7 +7434,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       hunt: hunt,
       askAdmin: askAdmin,
       quoteDelivery: quoteDelivery,
-      paintMoney: paintMoney, avcGet: avcGet,
+      avcGet: avcGet,
+      openFleet: openFleet,
+      openSupport: openSupport,
+      myMoney: myMoney,
       paintPower: function () { var p = $("sn-power"); if (p) p.hidden = false; },
       zoomBall: function (s) { return zoomBallPack(s); },
       robotFace: robotSvg,
