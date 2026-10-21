@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4381"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4382"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -219,6 +219,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     return blocks.some(function (b) { return b && b.from === from && b.to === to; });
   }
   function wall(a, b) { return blocked(a, b) || blocked(b, a); }
+  /* 4382: a picture that fails to load never leaves a broken-image frame over the globe or map; it just goes away */
+  try {
+    document.addEventListener("error", function (e) {
+      var t = e && e.target;
+      if (t && t.tagName === "IMG" && !t.__snBroken) { t.__snBroken = true; t.setAttribute("data-broken", "1"); t.style.setProperty("display", "none", "important"); }
+    }, true);
+  } catch (eImg) {}
   function isTestFixture(row) {
     if (!row) return false;
     if (row.kind === "tester" || row.id === "tester-live" || row.src === "tester") return true;
@@ -229,7 +236,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (/tester\s*client/i.test(blob)) return true;
     /* 4380: Test Client / Test Driver V4297 and placeholder "0000000000" rows are fixtures too (hidden client-side, nothing deleted) */
     if (/test\s*(client|driver|shop|order)/i.test(blob)) return true;
-    if (/^\s*0{6,}\s*$/.test(String(row.name || "")) || /^\s*0{6,}\s*$/.test(String(row.title || ""))) return true;
+    if (/(^|[^0-9])0{6,}([^0-9]|$)/.test(String(row.name || "")) || /(^|[^0-9])0{6,}([^0-9]|$)/.test(String(row.title || ""))) return true; /* 4382: any zero-run label ("0000000000", "Shop 0000000000") */
     return false;
   }
   function paintWho() {
@@ -490,7 +497,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       '<p class="note">Withdraw is only cash that clients already spent. Money still on a client stays reserved until it is consumed. Vendor lock is not euros. It never pays out. Coupons come out of that lock.</p>' +
       '<p class="note">Cash in ' + v.cashIn.toLocaleString("en-GB") + " · still to spend " + v.reserved.toLocaleString("en-GB") + " · vendor lock " + v.vendorLock.toLocaleString("en-GB") + " · coupons " + v.coupons.toLocaleString("en-GB") + "</p>" +
       '<button type="button" class="sheet-go primary" data-act="take-cash">WITHDRAW THE CASH</button>' +
-      '<input id="sn-coupon" inputmode="decimal" placeholder="Coupon AV€" />' +
+      '<input id="sn-coupon" inputmode="decimal" placeholder="Coupon ⭐" />' +
       '<button type="button" class="sheet-go" data-act="issue-coupon">ISSUE A COUPON</button>';
     openTile({ kind: "pool", title: "POOL", mid: priceMid(v.pool), html: html });
   }
@@ -512,10 +519,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!(n > 0)) { say("Type the coupon."); return; }
     var s = supplyGet();
     var room = Math.max(0, Math.round((s.vendorLock - s.coupons) * 100) / 100);
-    if (n > room) { say("Coupons cannot pass what vendors locked. Room " + room + " AV€."); return; }
+    if (n > room) { say("Coupons cannot pass what vendors locked. Room " + room + " ⭐."); return; }
     s.coupons = Math.round((s.coupons + n) * 100) / 100;
     supplySet(s);
-    say("Coupon " + n + " AV€. It spends inside. It is not cash.");
+    say("Coupon " + n + " ⭐. It spends inside. It is not cash.");
     openPool();
   }
   function paintMoney() {
@@ -1435,6 +1442,7 @@ window.__SN_4378 = true;
 window.__SN_4379 = true;
 window.__SN_4380 = true;
 window.__SN_4381 = true;
+window.__SN_4382 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3140,7 +3148,7 @@ window.__SN_4381 = true;
       '<input id="sn-place-name" placeholder="Name" />' +
       '<input id="sn-place-phone" placeholder="Phone" />' +
       '<input id="sn-place-address" placeholder="Address" />' +
-      '<input id="sn-place-lock" inputmode="decimal" placeholder="AV€ I accept and lock forever" />' +
+      '<input id="sn-place-lock" inputmode="decimal" placeholder="⭐ I accept and lock forever" />' +
       '<input id="sn-place-hours" placeholder="Opening hours" />' +
       '<input id="sn-place-sched" placeholder="Schedule" />' +
       '<p class="note">ITEM · PHOTO · PRICE · QTY · HOURS · SCHEDULE</p>' +
@@ -3189,7 +3197,7 @@ window.__SN_4381 = true;
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4381&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4382&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3534,7 +3542,7 @@ window.__SN_4381 = true;
     var id = "offer-" + (job && job.id ? job.id : Date.now().toString(36));
     try { if (sessionStorage.getItem("sn:offer-x:" + id)) return; } catch (e) {}
     var fee = job && (job.fee != null ? job.fee : job.total);
-    var mid = fee != null && fee !== "" ? '<b class="sn-price">' + esc(fee) + "<small>AV€</small></b>" : "OFFER";
+    var mid = fee != null && fee !== "" ? '<b class="sn-price">' + esc(fee) + "<small>⭐</small></b>" : "OFFER";
     var v = (job && job.vendor) || {};
     var d = (job && job.drop) || {};
     var vWhere = [v.address, v.phone].filter(Boolean).join(" · ");
@@ -3543,7 +3551,7 @@ window.__SN_4381 = true;
     var html = whoLine("VENDOR", v.name || (job && job.name) || "Vendor", vWhere) +
       '<div class="sn-leg">' + esc(km) + "</div>" +
       whoLine("CLIENT", d.name || "Client", dWhere);
-    upsertTab({ id: id, kind: "offer", title: String(fee != null ? fee + " AV€" : "OFFER"), html: html, min: false });
+    upsertTab({ id: id, kind: "offer", title: String(fee != null ? fee + " ⭐" : "OFFER"), html: html, min: false });
     openSheet("OFFER", html, false, mid);
   }
   var queueBuzz = {};
@@ -3697,7 +3705,7 @@ window.__SN_4381 = true;
     var hv = window.__snHuntDone; /* 4374: the last finished hunt, recomputed on every probe */
     if (hv && hv.n === 0 && Date.now() - hv.t < 10 * 60000) faults.push("last hunt '" + String(hv.q || "").slice(0, 20) + "' 0 pins");
     /* 4375: the strip reads the real session (SNAuth's stored user, the same source as YOU), never a cached guest label;
-       a token without a stored user yet reads "session loading". It also repaints the AV€ pill so both agree. */
+       a token without a stored user yet reads "session loading". It also repaints the ⭐ pill so both agree. */
     var su = null;
     try { su = window.SNAuth && SNAuth.user ? SNAuth.user() : null; } catch (eU) { su = null; }
     var sess = (su && su.email) ? ((isAdmin() ? "admin " : "") + String(su.email).toLowerCase()) : (authToken() ? "session loading" : "guest");
@@ -4124,6 +4132,7 @@ window.__SN_4381 = true;
     }
     (list || []).forEach(function (p) {
       if (!p || !isFinite(+p.lat) || !isFinite(+p.lng) || !p.name) return;
+      if (isTestFixture(p) && !testView()) return; /* 4382: fixtures (e.g. the "0000000000" shop) never reach FIND or pins; client-side only */
       var k = keyOf(p);
       var i = seen[k];
       if (i != null) {
@@ -4733,7 +4742,7 @@ window.__SN_4381 = true;
       var v = j.vendor || {};
       var dish = (j.lines && j.lines[0] && j.lines[0].name) || "order";
       return '<button type="button" class="sheet-go" data-act="open-job" data-id="' + esc(j.id) + '">' +
-        esc((v.name || "Vendor") + " · " + dish + " · " + (j.fee || 0) + " AV€ · waiting " + clockText(offerAge(j)) + (offerLeft(j) > 0 ? " · " + clockText(offerLeft(j)) + " to accept" : " · not a live offer")) +
+        esc((v.name || "Vendor") + " · " + dish + " · " + (j.fee || 0) + " ⭐ · waiting " + clockText(offerAge(j)) + (offerLeft(j) > 0 ? " · " + clockText(offerLeft(j)) + " to accept" : " · not a live offer")) +
         "</button>";
     }).join("");
     openTile({ kind: "orders", title: kind === "way" ? "ON THE WAY" : kind.toUpperCase(), html: html });
@@ -4920,7 +4929,7 @@ window.__SN_4381 = true;
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4381";
+    return "/you.png?v=4382";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -5177,7 +5186,7 @@ window.__SN_4381 = true;
     var prize = Math.max(2, Math.round((Number(job.fee) || 4) * 0.15));
     if (multi) {
       payDriver(collector, prize);
-      say((collector && collector.name || "Driver") + " collected it. " + prize + " AV€. " + (job.fault && job.fault.name) + " sat on our order. Closed today.");
+      say((collector && collector.name || "Driver") + " collected it. " + prize + " ⭐. " + (job.fault && job.fault.name) + " sat on our order. Closed today.");
       return;
     }
     clearPenalty(job.fault);
@@ -5189,7 +5198,7 @@ window.__SN_4381 = true;
     payDriver(other, prize);
     job.charge = 0;
     if (job.fault) job.fault.bill = 0;
-    say((collector && collector.name || "Driver") + " and " + (job.fault && job.fault.name) + " cooperated. No penalty. " + prize + " AV€ each.");
+    say((collector && collector.name || "Driver") + " and " + (job.fault && job.fault.name) + " cooperated. No penalty. " + prize + " ⭐ each.");
   }
   function settleWaste(job, who) {
     if (!job || job.wasted || job.delivered || job.received) return;
@@ -5223,7 +5232,7 @@ window.__SN_4381 = true;
     if (job.fault) { job.fault.found = true; job.fault.meet = null; job.fault.bill = bill; }
     saveJobs();
     publishJob(job);
-    say(name + " wasted the order. Charged " + bill + " AV€. Closed for today.");
+    say(name + " wasted the order. Charged " + bill + " ⭐. Closed for today.");
   }
   function checkWaste() {
     var now = Date.now();
@@ -5403,7 +5412,7 @@ window.__SN_4381 = true;
     publishJob(job);
     var multi = /stationary/i.test(why);
     askRoad(job.fault, job.fault.goal);
-    if (multi) say((who && who.manual && isAdmin()) ? "Another driver is coming to collect the order from you." : (job.fault.name + " sat on the order. Other apps. Charged " + bill + " AV€ and closed today. A driver is coming to collect it."));
+    if (multi) say((who && who.manual && isAdmin()) ? "Another driver is coming to collect the order from you." : (job.fault.name + " sat on the order. Other apps. Charged " + bill + " ⭐ and closed today. A driver is coming to collect it."));
 
     else say(job.fault.name + " · move to the " + toward + ". Hand it over before the vendor's time and there is no penalty.");
     var drivers = castOffer(job);
@@ -6466,7 +6475,7 @@ window.__SN_4381 = true;
   function behalf(job) {
     if (!isAdmin() || !job) return "";
     function go(act, label) { return '<button type="button" class="sheet-go" data-act="' + act + '" data-id="' + job.id + '">' + label + "</button>"; }
-    var html = '<p class="sn-price">' + esc(job.fee || 0) + "<small>AV€</small></p>";
+    var html = '<p class="sn-price">' + esc(job.fee || 0) + "<small>⭐</small></p>";
     if (!job.ready) html += go("mark-ready", "I HAND THE ORDER OUT");
     else if (!job.pickup) html += go("verify-pickup", "I TOOK THE ORDER");
     else if (!job.got) html += go("driver-got", "I AM ON THE WAY");
@@ -6506,7 +6515,7 @@ window.__SN_4381 = true;
     if (listBack && PIN_CARDS.indexOf(o.kind || "") >= 0) dropBack();
   }
   function priceMid(n) {
-    return '<b class="sn-price">' + esc(n) + "<small>AV€</small></b>";
+    return '<b class="sn-price">' + esc(n) + "<small>⭐</small></b>";
   }
   function jobById(id) {
     var found = null;
@@ -6919,7 +6928,7 @@ window.__SN_4381 = true;
     }).join("");
     if (!menu) menu = '<p class="note">No product on the menu yet.</p>';
     var tools = "";
-    if (ownTestShop(s)) {
+    if (ownsShop(s)) { /* 4382: EDIT MENU / DELETE / hours only for the shop's own owner, never a visitor (admin or not) */
       tools = '<button type="button" class="sheet-go" data-act="edit-vendor" data-id="' + esc(s.id) + '">EDIT MENU</button>' +
         '<button type="button" class="sheet-go" data-act="delete-vendor" data-id="' + esc(s.id) + '">DELETE</button>' +
         '<input id="sn-open-hours" placeholder="Opening hours" value="' + esc(s.hours || "") + '" />' +
@@ -6928,12 +6937,16 @@ window.__SN_4381 = true;
     var charged = jobs.filter(function (j) {
       if (!j || !j.vendor) return false;
       var same = (s.id && j.vendor.id === s.id) || (s.name && j.vendor.name === s.name);
-      if (!same || !(j.fee || j.lines)) return false;
-      return isAdmin() || j.client === me() || j.vendorOwner === me();
+      /* 4382: CHARGED lists only real orders: a fee AND at least one ordered line, placed by this signed-in account
+         (or for its own shop). A job with a fee but no lines is a task, never a phantom "CHARGED · order" */
+      var realLines = (j.lines || []).filter(function (l) { return l && l.name; });
+      if (!same || !j.fee || !realLines.length || !signed()) return false;
+      var who = me();
+      return !!who && (j.client === who || j.vendorOwner === who || ownsShop(s));
     });
     var orders = charged.map(function (j) {
       var items = (j.lines || []).map(function (l) { return (l.n || 1) + " " + (l.name || "item"); }).join(", ");
-      return '<div class="sn-ord"><b>' + esc(j.fee || 0) + " AV€</b><span>" + esc(items || "order") + "</span><em>" + esc(orderClock(j)) + "</em></div>";
+      return '<div class="sn-ord"><b>' + esc(j.fee || 0) + " ⭐</b><span>" + esc(items || "order") + "</span><em>" + esc(orderClock(j)) + "</em></div>";
     }).join("");
     var org = huntOrigin();
     var dest = (org && isFinite(+org.lat) && isFinite(+s.lat) && haversineKm(org, s) <= 50)
@@ -6942,14 +6955,14 @@ window.__SN_4381 = true;
     var feeHtml;
     if (dest && isFinite(+dest.lat)) {
       var qq = quoteDelivery(s, dest, {});
-      feeHtml = '<p class="note">Delivery · <b>' + esc(qq.fee) + ' AV€</b> · ' + qq.km.toFixed(1) + ' km to ' + esc(dest.name || "your seat") + '</p>';
+      feeHtml = '<p class="note">Delivery · <b>' + esc(qq.fee) + ' ⭐</b> · ' + qq.km.toFixed(1) + ' km to ' + esc(dest.name || "your seat") + '</p>';
     } else {
       feeHtml = '<p class="note">Delivery · set a drop address</p>';
     }
     var html = '<div class="sn-prof">' + tilePhoto(photoOf(s), "🏪") + "<div><b>" + esc(s.name || "Vendor") + "</b>" + tileContact(s.phone, where) + "</div></div>" +
       tools + /* 4377 (main V4372): EDIT MENU / DELETE / hours on your own test vendor */
       feeHtml +
-      '<div class="sn-dish"><input id="sn-dish" placeholder="Dish" /><input id="sn-dish-price" inputmode="decimal" placeholder="Price" /></div>' +
+      (ownsShop(s) ? '<div class="sn-dish"><input id="sn-dish" placeholder="Dish" /><input id="sn-dish-price" inputmode="decimal" placeholder="Price" /></div>' : '<div class="sn-dish"><input id="sn-dish" placeholder="What would you like?" /></div>') + /* 4382: the price field is the owner's */
       '<p class="note">Type a dish, or tap +, then the green check (or ORDER).</p>' +
       '<button type="button" class="sheet-go primary" data-act="place-order">ORDER</button>' +
       menu +
@@ -7078,7 +7091,7 @@ window.__SN_4381 = true;
     if (!buttons) buttons = '<p class="note">No free driver left.</p>';
     return '<article class="sn-offer" data-id="' + esc(job.id) + '">' +
       '<p class="sn-kicker">' + kicker + "</p>" +
-      '<b class="sn-amt">' + esc(job.fee || 0) + " AV€</b>" +
+      '<b class="sn-amt">' + esc(job.fee || 0) + " ⭐</b>" +
       '<div class="sn-clocks"><div><b class="age">' + clockText(offerAge(job)) + '</b><span>WAITING</span></div><div><b class="left">' + clockText(offerLeft(job)) + '</b><span>TO ACCEPT</span></div></div>' +
       whoLine("VENDOR", v.name, [v.address, v.phone].filter(Boolean).join(" · ")) +
       whoLine("CLIENT", d.name || "Client", [d.address, d.phone].filter(Boolean).join(" · ")) +
@@ -7381,7 +7394,7 @@ window.__SN_4381 = true;
         kind: "verdict",
         title: "VERDICT",
         html: "<p>" + esc(sayText) + "</p>" +
-          (guilty && bill ? '<p class="note">' + esc(guilty.name) + " pays " + bill + " AV€.</p>" : '<p class="note">No payment was ordered.</p>') +
+          (guilty && bill ? '<p class="note">' + esc(guilty.name) + " pays " + bill + " ⭐.</p>" : '<p class="note">No payment was ordered.</p>') +
           (guilty && penalise ? '<p class="note">Penalty applied.</p>' : "")
       });
     });
@@ -7472,7 +7485,7 @@ window.__SN_4381 = true;
     drop = job.drop;
     if (!cityOn) openCity(shop);
     if (!drivers.length) { say("No free driver. The order is waiting."); return; }
-    say("New offer for you. " + job.fee + " AV€. Sent to " + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ". First accept wins. " + clockText(offerLeft(job)) + " to take it.");
+    say("New offer for you. " + job.fee + " ⭐. Sent to " + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ". First accept wins. " + clockText(offerLeft(job)) + " to take it.");
     openOfferDesk();
   }
   function offerYes(id, drvId) {
@@ -7503,7 +7516,7 @@ window.__SN_4381 = true;
     drawRoute(job.vendor, job.drop);
     /* 4355: the route card opens with the order steps (READY · PICKUP · ON THE BIKE · DELIVERED · RECEIVED) and names the driver who took it */
     try { openRouteTile(roadKey(job.vendor, job.drop)); } catch (eR) { closeSheet(); }
-    say((job.driver) + " took it. " + job.fee + " AV€. The others are too late. Route is on. Tap the map to move along the route.");
+    say((job.driver) + " took it. " + job.fee + " ⭐. The others are too late. Route is on. Tap the map to move along the route.");
   }
   function offerNo(id) {
     var job = jobById(id);
@@ -7513,7 +7526,7 @@ window.__SN_4381 = true;
     job.driverAccepted = false;
     job.verified = false;
     saveJobs();
-    say("Declined. " + (job.fee || 0) + " AV€ is off your desk.");
+    say("Declined. " + (job.fee || 0) + " ⭐ is off your desk.");
     openOfferDesk();
   }
   function sheetNote(s) {
@@ -7668,7 +7681,7 @@ window.__SN_4381 = true;
       twin.vendorOwner = vendor.owner || twin.vendorOwner || "";
       saveJobs();
       publishJob(twin);
-      say("Order updated. " + feeN + " AV€. Sent to " + (vendor.name || "the vendor") + ".");
+      say("Order updated. " + feeN + " ⭐. Sent to " + (vendor.name || "the vendor") + ".");
       pickSpent(vKey(vendor));
       closeSheet(); /* main 4342: the green check places the order and closes */
       return;
@@ -7708,7 +7721,7 @@ window.__SN_4381 = true;
       castOffer(job);
       saveJobs();
       openOfferDesk();
-      say("New offer for you. " + job.fee + " AV€. Sent to " + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ". First accept wins. " + clockText(180) + " to take it.");
+      say("New offer for you. " + job.fee + " ⭐. Sent to " + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ". First accept wins. " + clockText(180) + " to take it.");
       return;
     }
     saveJobs();
@@ -7746,7 +7759,7 @@ window.__SN_4381 = true;
     var drivers = castOffer(job);
     saveJobs();
     if (!drivers.length) { say("No free driver to take it."); return; }
-    say("New offer for you. " + job.fee + " AV€. Sent to " + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ". First accept wins.");
+    say("New offer for you. " + job.fee + " ⭐. Sent to " + drivers.length + " driver" + (drivers.length === 1 ? "" : "s") + ". First accept wins.");
     openOfferDesk();
   }
   function driverAccept() {
@@ -7818,13 +7831,13 @@ window.__SN_4381 = true;
       '<button type="button" class="sheet-go" data-act="vip">' + (quoteOpts.vip ? "VIP +3 ON" : "VIP +3") + "</button>" +
       '<button type="button" class="sheet-go" data-act="floor">' + (quoteOpts.floor ? "FLOOR +3 ON" : "ROOM / FLOOR +3") + "</button>" +
       (signed()
-        ? '<button type="button" class="sheet-go primary" data-act="send">SEND · ' + q.total + " AV€</button>"
-        : '<button type="button" class="sheet-go primary" data-act="needlogin">LOGIN TO ORDER · ' + q.total + " AV€</button>");
+        ? '<button type="button" class="sheet-go primary" data-act="send">SEND · ' + q.total + " ⭐</button>"
+        : '<button type="button" class="sheet-go primary" data-act="needlogin">LOGIN TO ORDER · ' + q.total + " ⭐</button>");
     openSheet("QUOTE", html);
     var note = $("sn-sheet-body") && $("sn-sheet-body").querySelector(".note");
-    if (note) note.textContent = q.km.toFixed(2) + " km · " + q.fee + " AV€ delivery · 3% " + q.cut + " · night/rain judged. Tip later.";
+    if (note) note.textContent = q.km.toFixed(2) + " km · " + q.fee + " ⭐ delivery · 3% " + q.cut + " · night/rain judged. Tip later.";
     drawRoute(vendor, drop);
-    say("Quote " + q.total + " AV€ · " + vendor.name);
+    say("Quote " + q.total + " ⭐ · " + vendor.name);
   }
   function drawRoute(from, to) {
     if (!map || typeof L === "undefined" || !from || !to) return;
@@ -8079,7 +8092,7 @@ window.__SN_4381 = true;
           j.delivered ? "DELIVERED" : "",
           j.received ? "RECEIVED" : ""
         ].filter(Boolean).join(" · ");
-        var html = '<div class="pill" style="display:block"><b>' + String(j.vendor && j.vendor.name || "job").replace(/</g, "") + "</b><span>" + flags + " · " + j.fee + " AV€ · " + (j.km || 0).toFixed(1) + " km · " + (j.driver || "driver") + "</span>";
+        var html = '<div class="pill" style="display:block"><b>' + String(j.vendor && j.vendor.name || "job").replace(/</g, "") + "</b><span>" + flags + " · " + j.fee + " ⭐ · " + (j.km || 0).toFixed(1) + " km · " + (j.driver || "driver") + "</span>";
         function go(act, label) { return '<button type="button" class="sheet-go" data-act="' + act + '" data-id="' + j.id + '">' + label + "</button>"; }
         if (!j.ready && (admin || role === "vendor")) html += go("mark-ready", admin ? "I HAND THE ORDER OUT" : "MARK READY");
         if (j.ready && !j.pickup && (admin || role === "vendor")) html += go("verify-pickup", admin ? "I TOOK THE ORDER" : "VERIFY PICKUP");
@@ -8350,6 +8363,30 @@ window.__SN_4381 = true;
 
   function runLine(q) {
     var s = String(q || "").toLowerCase().trim();
+    /* 4382: main V4377 helper commands, ported (wallet shows ⭐) */
+    if (/^(scan|radar)$/.test(s)) {
+      document.body.classList.add("sn-scan");
+      say("Radar sweep. It leaves when the pass finishes.");
+      setTimeout(function () { document.body.classList.remove("sn-scan"); }, 7000);
+      return true;
+    }
+    if (/^(monitor|hardware)$/.test(s)) {
+      if (window.__snShortMon) window.__snShortMon();
+      else openFleet();
+      return true;
+    }
+    if (/^(wallet|balance)$/.test(s)) {
+      if (!signed()) { say("Enter first. The balance is the account, not a guess."); return true; }
+      say(Math.round(myMoney()).toLocaleString("en-GB") + " ⭐ on this account.");
+      return true;
+    }
+    if (/^(streets|city map)$/.test(s)) {
+      var stS = activeSeat() || here;
+      if (stS && isFinite(+stS.lat)) { openCity(stS); say("Streets."); } else say("Where? Name a place or allow location");
+      return true;
+    }
+    if (/^globe$/.test(s)) { closeCity(); say("Globe."); return true; }
+    if (/^support$/.test(s)) { openSupport(); return true; }
     if (/^filter\b/.test(s)) {
       taskFilter = s.replace(/^filter\s*/, "").trim();
       if (typeof paintTasks === "function") paintTasks();
@@ -8387,7 +8424,7 @@ window.__SN_4381 = true;
     if (homeDrop && homeDrop.name) lines.push("CLIENT " + homeDrop.name + " | " + (homeDrop.phone || "") + " | " + (homeDrop.address || ""));
     jobs.slice(0, 8).forEach(function (j) {
       if (!j || !seesJob(j)) return;
-      lines.push("ORDER " + ((j.vendor && j.vendor.name) || "shop") + " → " + ((j.drop && j.drop.name) || "client") + " | " + (j.driver || "no driver") + " | " + (j.fee || "") + " AV€");
+      lines.push("ORDER " + ((j.vendor && j.vendor.name) || "shop") + " → " + ((j.drop && j.drop.name) || "client") + " | " + (j.driver || "no driver") + " | " + (j.fee || "") + " ⭐");
     });
     return lines.slice(0, 40).join("\n").slice(0, 3500);
   }
@@ -9029,16 +9066,16 @@ window.__SN_4381 = true;
       money.addEventListener("click", function (e) {
         e.preventDefault(); e.stopPropagation();
         if (!signed()) {
-          openSheet("AV€", '<p class="note">0 AV€ · guest. No fake money. LOGIN to keep a balance.</p><button type="button" class="sheet-go primary" data-act="needlogin">LOGIN</button>');
+          openSheet("⭐", '<p class="note">0 ⭐ · guest. No fake money. LOGIN to keep a balance.</p><button type="button" class="sheet-go primary" data-act="needlogin">LOGIN</button>');
           return;
         }
-        var html = '<p class="note">' + shownMoney().toLocaleString("en-GB") + " AV€ on this account.</p>";
-        if (ownerMail()) html += '<p class="note">Pool ' + Math.round(poolGet()).toLocaleString("en-GB") + " AV€ · owner only.</p>";
+        var html = '<p class="note">' + shownMoney().toLocaleString("en-GB") + " ⭐ on this account.</p>";
+        if (ownerMail()) html += '<p class="note">Pool ' + Math.round(poolGet()).toLocaleString("en-GB") + " ⭐ · owner only.</p>";
         html += '<input id="sn-add-eur" inputmode="decimal" placeholder="How many euro" />' +
           '<button type="button" class="sheet-go primary" data-act="add-eur">ADD WITH PAYPAL</button>' +
           '<button type="button" class="sheet-go" data-act="withdraw">WITHDRAW</button>';
         if (ownerMail() || isAdmin()) { openPool(); return; }
-        openSheet("AV€", html);
+        openSheet("⭐", html);
       });
     }
     paintMoney();
@@ -9685,7 +9722,7 @@ window.__SN_4381 = true;
         again.ready = true;
         saveJobs();
         if (!sent.length) { say("No free driver."); return; }
-        say("New offer for you. " + again.fee + " AV€. Sent to " + sent.length + ".");
+        say("New offer for you. " + again.fee + " ⭐. Sent to " + sent.length + ".");
         openOfferDesk();
         return;
       }
@@ -10942,7 +10979,7 @@ window.__SN_4381 = true;
     taskMarks = [];
     cityTasks.forEach(function (t) {
       if (!taskOpen(t)) return;
-      var pay = t.pay ? (esc(String(t.pay)) + (String(t.pay).indexOf("€") >= 0 ? "" : " AV€")) : "TASK";
+      var pay = t.pay ? (esc(String(t.pay)) + (String(t.pay).indexOf("€") >= 0 ? "" : " ⭐")) : "TASK";
       var icon = L.divIcon({
         className: "sn-task",
         html: "<b>" + pay + "</b><span>" + esc(t.title || "Task") + "</span>",
@@ -11381,6 +11418,7 @@ window.__SN_4378 = true;
 window.__SN_4379 = true;
 window.__SN_4380 = true;
 window.__SN_4381 = true;
+window.__SN_4382 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
@@ -11433,6 +11471,9 @@ window.__SN_4381 = true;
       askAdmin: askAdmin,
       quoteDelivery: quoteDelivery,
       paintMoney: paintMoney, avcGet: avcGet,
+      openFleet: openFleet,
+      openSupport: openSupport,
+      myMoney: myMoney,
       paintPower: function () { var p = $("sn-power"); if (p) p.hidden = false; },
       projectTest: function (lat, lng) { return project(lat, lng, cam); },
       projectFrame: function (lat, lng) { var fc = frameCam || cam; return project(lat, lng, fc, fc.spin != null ? fc.spin : earthSpin()); },

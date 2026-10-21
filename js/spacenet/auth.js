@@ -264,6 +264,7 @@
     css();
     var u = user();
     var inNow = !!(u && u.email);
+    document.body.classList.toggle("sn-in", inNow); /* 4382: main V4377 */
     var btn = document.getElementById("sn-me");
     if (!btn) return;
     btn.className = inNow ? "in" : "out";
@@ -273,7 +274,7 @@
     btn.title = inNow ? who : "Login";
     var short = inNow ? String(u.name || String(u.email).split("@")[0] || "YOU").split(/\s+/)[0].replace(/[<>"&]/g, "").slice(0, 10) : "";
     btn.setAttribute("data-who", inNow ? who : "");
-    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "LOGIN") + '</span><span class="tgt">' + (inNow ? '<img alt="" src="' + String((u && u.photo) || "/you.png?v=4381").replace(/"/g, "") + '">' : '<span class="ph">IN</span>') + "</span>";
+    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "LOGIN") + '</span><span class="tgt">' + (inNow ? '<img alt="" src="' + String((u && u.photo) || "/you.png?v=4382").replace(/"/g, "") + '">' : '<span class="ph">IN</span>') + "</span>";
     if (window.SN && SN.paintMoney) SN.paintMoney();
   }
   function fillBody() {
