@@ -1,0 +1,33 @@
+name: grokbuild 4387 (tester strip URL-only, labelled wallet, real shop names only; stamps 4387; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4387.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix103, assert tree, commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "339838d1efab9bf1c0823fe13389cf08b83449e8" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          base64 -d .grokbuild/fix103.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "8e3d45af1be68ca688c53b11ecd8a6f4aa8ae8c3926e4b417621da102dff31c8"
+          gunzip -c /tmp/f.gz > /tmp/fix103.patch
+          test "$(sha256sum /tmp/fix103.patch | cut -d' ' -f1)" = "57fd0ea90073dab7df8d6fce201722a3719739500e8c94fc64d4ac2c9ea4b8c9"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4387.yml
+          git apply --index /tmp/fix103.patch
+          node --check js/spacenet/app.js
+          grep -q '^4387$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "be07756de09896df96483dabfbc557f6d61ad1a2" || { echo "tree $T"; exit 1; }
+          git commit -q -m "4387: the TESTER strip shows only for admins or on a page that carries ?testview=1 (no tab memory, the scenario never unhides it); the wallet is a labelled WALLET button; shop pins take the real name, else the brand or operator tag, else they are dropped (no Supermarket / ? / Type-street names; Nominatim asked with extratags); lockstep 4387"
+          git push origin HEAD:grokbuild/4328-street-level-gps
