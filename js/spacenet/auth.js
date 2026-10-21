@@ -236,8 +236,9 @@
     var btn = document.getElementById("sn-me");
     if (!btn) return;
     btn.className = inNow ? "in" : "out";
-    var mark = (window.SN && SN.robotFace) ? SN.robotFace() : (inNow ? face(u) : '<span class="ph">IN</span>');
-    btn.innerHTML = '<span class="lbl">' + (inNow ? "YOU" : "LOGIN") + '</span><span class="tgt">' + mark + "</span>";
+    var src = (u && u.photo) ? u.photo : "/you.png?v=4375";
+    var mark = '<img alt="" src="' + String(src).replace(/"/g, "") + '">';
+    btn.innerHTML = '<span class="lbl">YOU</span><span class="tgt">' + mark + "</span>";
     if (window.SN && SN.paintMoney) SN.paintMoney();
   }
   function fillBody() {

@@ -2707,15 +2707,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function faceHtml(role, photo, name) {
     var src = photo || portrait(role, name);
-    var mark = '<img alt="" width="40" height="40" style="width:40px!important;height:40px!important;max-width:40px!important;max-height:40px!important;object-fit:cover!important;display:block!important;border-radius:50%!important;border:2px solid #4df0ff" src="' + String(src).replace(/"/g, "") + '">';
+    var mark = '<img alt="" width="68" height="68" style="width:68px!important;height:68px!important;max-width:68px!important;max-height:68px!important;object-fit:cover!important;display:block!important;border-radius:16px!important;border:2px solid #e8fbff;box-shadow:0 8px 18px rgba(0,0,0,.45)" src="' + String(src).replace(/"/g, "") + '">';
     return '<span class="sn-pin">' + mark + "<b>" + esc(name || role) + "</b></span>";
   }
   function faceIcon(role, photo, name, on) {
     return L.divIcon({
       className: "sn-shop-pin" + (on ? " sn-on" : ""),
       html: '<span class="' + (on ? "sn-sel" : "sn-pinwrap") + '">' + faceHtml(role, photo, name) + "</span>",
-      iconSize: [84, 70],
-      iconAnchor: [42, 35]
+      iconSize: [96, 112],
+      iconAnchor: [48, 100]
     });
   }
   function routePane() {
@@ -2898,13 +2898,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (list.length === 1) {
         var line = (list[0].lines && list[0].lines[0]) || {};
         var label = (line.name || "order") + (list[0].fee ? " · " + list[0].fee : "");
-        html = "<b>" + esc(label) + "</b>";
-        w = Math.min(160, Math.max(72, label.length * 7));
+        html = '<span class="sn-order-tile"><b>' + esc(label) + '</b><i>on this tile</i></span>';
+        w = Math.min(200, Math.max(128, label.length * 7));
       } else {
         html = "<b>" + list.length + "</b>";
         w = 36;
       }
-      var icon = L.divIcon({ className: "sn-obubble", html: html, iconSize: [w, 28], iconAnchor: [w / 2, 86] });
+      var icon = L.divIcon({ className: "sn-obubble", html: html, iconSize: [w, 58], iconAnchor: [w / 2, 108] });
       var marker = L.marker([+s.lat, +s.lng], { icon: icon, interactive: true, keyboard: false, zIndexOffset: 900 });
       marker.on("click", function (e) {
         if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent);
@@ -2914,7 +2914,97 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       orderMarks.push(marker);
     });
   }
-  function paintOwnDrivers() {}
+  function youPhoto() {
+    try {
+      var u = JSON.parse(localStorage.getItem("sn:user") || "null");
+      if (u && u.photo) return u.photo;
+    } catch (e) {}
+    return "/you.png?v=4375";
+  }
+  function openDriverBag(p) {
+    if (!p) return;
+    var rows = jobs.filter(function (j) {
+      if (!j || j.received) return false;
+      return String(j.driverId) === String(p.id) || (j.driver && p.name && j.driver === p.name);
+    });
+    var html = '<div class="sn-bag"><img alt="" src="' + String(p.photo || youPhoto()).replace(/"/g, "") + '"><div><b>' + esc(p.name || "Driver") + "</b><span>" + rows.length + " carried</span></div></div>";
+    if (!rows.length) html += '<p class="note">Nothing on this driver yet. A posted order leaves the shop tile and lands here.</p>';
+    else rows.forEach(function (j) {
+      var dish = (j.lines && j.lines[0] && j.lines[0].name) || "order";
+      var shop = (j.vendor && j.vendor.name) || "shop";
+      html += '<p class="note">' + esc(shop + " · " + dish + (j.fee ? " · " + j.fee : "")) + "</p>";
+    });
+    openTile({ kind: "driver", title: "ON THIS DRIVER", html: html });
+  }
+  function flyParcel(from, to) {
+    if (!map || !from || !to || !isFinite(+from.lat) || !isFinite(+to.lat) || !map.getContainer) return;
+    var el = document.createElement("div");
+    el.className = "sn-parcel";
+    el.innerHTML = '<img alt="" src="/js/spacenet/robots/spartan.jpg?v=4375" style="width:36px;height:36px;border-radius:50%;object-fit:cover;display:block">';
+    document.body.appendChild(el);
+    var t0 = performance.now();
+    function step(now) {
+      var u = Math.min(1, (now - t0) / 1200);
+      var e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+      var lat = +from.lat + (+to.lat - +from.lat) * e;
+      var lng = +from.lng + (+to.lng - +from.lng) * e;
+      var pt = map.latLngToContainerPoint([lat, lng]);
+      var box = map.getContainer().getBoundingClientRect();
+      el.style.left = (box.left + pt.x) + "px";
+      el.style.top = (box.top + pt.y - 28) + "px";
+      if (u < 1) requestAnimationFrame(step);
+      else el.remove();
+    }
+    requestAnimationFrame(step);
+  }
+  function paintOwnDrivers() {
+    if (!map || typeof L === "undefined") return;
+    var seen = {};
+    function held(p) {
+      var n = 0;
+      jobs.forEach(function (j) {
+        if (!j || j.received) return;
+        if (String(j.driverId) === String(p.id) || (j.driver && p.name && j.driver === p.name)) {
+          n++;
+          if (j.driverAccepted && !j._snFlown && j.vendor) {
+            j._snFlown = 1;
+            flyParcel(j.vendor, p);
+          }
+        }
+      });
+      return n;
+    }
+    function paintOne(p) {
+      if (!p || !isFinite(+p.lat) || !isFinite(+p.lng)) return;
+      var key = String(p.id || p.name || "");
+      if (!key || seen[key]) return;
+      seen[key] = 1;
+      var n = held(p);
+      var photo = p.photo || youPhoto();
+      var html = '<span class="sn-drv"><img alt="" src="' + String(photo).replace(/"/g, "") + '"><b>' + n + "</b></span>";
+      var mark = L.marker([+p.lat, +p.lng], {
+        icon: L.divIcon({ className: "sn-drv-pin", html: html, iconSize: [76, 84], iconAnchor: [38, 76] }),
+        zIndexOffset: 860,
+        keyboard: false,
+        bubblingMouseEvents: false
+      });
+      function show(e) { if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent); openDriverBag(p); }
+      mark.on("click", show);
+      mark.on("mouseover", function () { openDriverBag(p); });
+      mark.addTo(map);
+      var node = mark.getElement && mark.getElement();
+      if (node && !node.__hold) {
+        node.__hold = 1;
+        var timer = 0;
+        node.addEventListener("pointerdown", function () { timer = setTimeout(function () { openDriverBag(p); }, 360); });
+        node.addEventListener("pointerup", function () { clearTimeout(timer); });
+        node.addEventListener("pointercancel", function () { clearTimeout(timer); });
+      }
+      shopMarks.push(mark);
+    }
+    people.forEach(function (p) { if (p && p.role === "driver") paintOne(p); });
+    if (driverPin && isFinite(+driverPin.lat)) paintOne({ id: driverPin.id || "driver", name: driverPin.name || "Driver", lat: driverPin.lat, lng: driverPin.lng, photo: driverPin.photo || "", role: "driver" });
+  }
   var motionMarks = {};
   var liveOpened = false;
   function paintPulse() {
@@ -3781,7 +3871,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function paintYouIcon() {
     var tgt = document.querySelector("#sn-me .tgt");
     if (!tgt) return;
-    tgt.innerHTML = robotSvg(34);
+    tgt.innerHTML = '<img alt="" src="' + youPhoto() + '">';
   }
   function restampYou() {
     paintYouIcon();
@@ -3842,14 +3932,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       return '<button type="button" class="sheet-go' + (on ? " primary" : "") + '" data-act="' + act + '" data-k="' + k + '">' + k.toUpperCase() + "</button>";
     }
     openSheet("YOU",
-      robotSvg(72) +
-      '<p class="note">One robot. Globe, country, city pin, and this icon.</p>' +
-      chip("robot-style", "spartan", spec.style === "spartan") +
-      chip("robot-style", "courier", spec.style === "courier") +
-      chip("robot-style", "wire", spec.style === "wire") +
-      chip("robot-color", "cyan", spec.color === "cyan") +
-      chip("robot-color", "gold", spec.color === "gold") +
-      chip("robot-color", "crimson", spec.color === "crimson") +
+      '<img class="sn-face" alt="" src="' + youPhoto() + '">' +
+      '<p class="note">Notis Astranov. This is your picture.</p>' +
       '<p class="note">WHERE · ' + esc(where) + "</p>" +
       '<p class="note">TASKS</p>' + taskHtml +
       '<p class="note">CALENDAR · typed here. Not a public copy of Google.</p>' +
