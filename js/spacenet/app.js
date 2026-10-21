@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4379";
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4380"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -227,6 +227,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (/test\s*vendor/i.test(blob)) return true;
     if (/\bV?4297\b/i.test(blob)) return true;
     if (/tester\s*client/i.test(blob)) return true;
+    /* 4380: Test Client / Test Driver V4297 and placeholder "0000000000" rows are fixtures too (hidden client-side, nothing deleted) */
+    if (/test\s*(client|driver|shop|order)/i.test(blob)) return true;
+    if (/^\s*0{6,}\s*$/.test(String(row.name || "")) || /^\s*0{6,}\s*$/.test(String(row.title || ""))) return true;
     return false;
   }
   function paintWho() {
@@ -523,14 +526,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     btn.classList.add("on");
     var tgt = btn.querySelector(".tgt");
     var lbl = btn.querySelector(".lbl");
-    if (lbl) lbl.textContent = "AV€";
+    if (lbl) lbl.textContent = "⭐"; /* 4380: the wallet reads in stars (display only) */
     if (!signed()) {
-      if (tgt) tgt.textContent = "0 AV€ · guest";
+      if (tgt) tgt.textContent = "0 ⭐ · guest";
       return;
     }
     if (!bankAsked) { bankAsked = true; pullBank(); }
     var n = shownMoney();
-    if (tgt) tgt.textContent = n.toLocaleString("en-GB") + " AV€";
+    if (tgt) tgt.textContent = n.toLocaleString("en-GB") + " ⭐";
   }
   function signed() {
     try {
@@ -751,6 +754,55 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     ctx.fill();
     ctx.stroke();
   }
+  /* 4380: the globe shows what the map shows: the last hunt's real named pins (else the real listed / OSM shops near the
+     seat), test fixtures never; and the arc of the last fly-to */
+  function globeArc(from, to) {
+    if (!to || !isFinite(+to.lat)) return;
+    var f = (from && isFinite(+from.lat)) ? from : (hereLive || lastGps() || null);
+    window.__snGlobeArc = f ? { from: { lat: +f.lat, lng: +f.lng }, to: { lat: +to.lat, lng: +to.lng }, t: Date.now() } : null;
+    window.__snGlobeFrom = { lat: +to.lat, lng: +to.lng };
+  }
+  function globePinRows() {
+    var rows = (window.__snFindShown || []).slice(0, 24);
+    if (!rows.length) rows = (shops || []).filter(function (s) {
+      return s && s.name && isFinite(+s.lat) && (s.src === "listed" || s.src === "osm" || s.src === "nominatim" || s.src === "find" || s.src === "overpass") && seesShop(s) && nearSeat(s, 50);
+    }).slice(0, 24);
+    return rows.filter(function (s) { return s && s.name && !(isTestFixture(s) && !testView()); });
+  }
+  function drawGlobePins(now) {
+    var drawn = [];
+    try {
+      var arc = window.__snGlobeArc;
+      if (arc && Date.now() - arc.t < 120000) {
+        ctx.save(); ctx.strokeStyle = "rgba(77,240,255,.85)"; ctx.lineWidth = 2; ctx.setLineDash([6, 5]); ctx.beginPath();
+        var started = false;
+        for (var k = 0; k <= 40; k++) {
+          var u = k / 40, la = arc.from.lat + (arc.to.lat - arc.from.lat) * u, lo = arc.from.lng + (arc.to.lng - arc.from.lng) * u;
+          var q = project(la, lo, cam);
+          if (!q) { started = false; continue; }
+          var lift = Math.sin(Math.PI * u) * 26;
+          if (!started) { ctx.moveTo(q.x, q.y - lift); started = true; } else ctx.lineTo(q.x, q.y - lift);
+        }
+        ctx.stroke(); ctx.restore();
+      }
+      var rows = globePinRows();
+      ctx.save(); ctx.font = "700 11px system-ui,sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      var boxes = [];
+      rows.forEach(function (s) {
+        var q2 = project(+s.lat, +s.lng, cam);
+        if (!q2) return;
+        ctx.beginPath(); ctx.arc(q2.x, q2.y, 4, 0, Math.PI * 2); ctx.fillStyle = "#ffcf4d"; ctx.fill();
+        ctx.lineWidth = 1.5; ctx.strokeStyle = "#041018"; ctx.stroke();
+        var nm = String(s.name).slice(0, 24), w = ctx.measureText(nm).width;
+        var bx = { l: q2.x + 7, t: q2.y - 7, r: q2.x + 9 + w, b: q2.y + 7 };
+        var hit = boxes.some(function (o) { return bx.l < o.r && o.l < bx.r && bx.t < o.b && o.t < bx.b; });
+        if (!hit && cam.dist < 1.6) { boxes.push(bx); ctx.fillStyle = "rgba(4,16,28,.8)"; ctx.fillRect(bx.l - 2, bx.t, w + 6, 14); ctx.fillStyle = "#e8fbff"; ctx.fillText(nm, q2.x + 8, q2.y); }
+        drawn.push(nm);
+      });
+      ctx.restore();
+    } catch (e) {}
+    window.__snGlobePins = { n: drawn.length, names: drawn.slice(0, 8), arc: !!window.__snGlobeArc };
+  }
   function drawGlobe(now) {
     if (!canvas || !ctx) return;
     fitView();
@@ -849,6 +901,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ctx.beginPath(); ctx.arc(p.x, p.y, 7 + pulse * 4, 0, Math.PI * 2);
       ctx.strokeStyle = SITES[i].c; ctx.globalAlpha = 0.28; ctx.stroke(); ctx.globalAlpha = 1;
     }
+    drawGlobePins(now);
     if (here) {
       p = project(here.lat, here.lng, cam);
       if (p) drawRobot(ctx, p.x, p.y - 16, cam.dist < 1.9 ? 1.35 : 1, now);
@@ -1380,6 +1433,7 @@ window.__SN_4376 = true;
 window.__SN_4377 = true;
 window.__SN_4378 = true;
 window.__SN_4379 = true;
+window.__SN_4380 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -2014,6 +2068,14 @@ window.__SN_4379 = true;
     var where = (pt || aim);
     say(TIERS[i].name + (where ? " · " + where.lat.toFixed(2) + "," + where.lng.toFixed(2) : ""));
   }
+  /* 4380: the last REAL GPS fix (never IP) is kept apart from sn:here, so a missing GPS answer never makes the IP city "you" */
+  function saveFix(pt) {
+    try { if (pt && isFinite(+pt.lat) && isFinite(+pt.lng)) localStorage.setItem("sn:lastgps", JSON.stringify({ lat: +pt.lat, lng: +pt.lng, t: Date.now() })); } catch (e) {}
+  }
+  function lastGps() {
+    try { var g = JSON.parse(localStorage.getItem("sn:lastgps") || "null"); if (g && isFinite(+g.lat) && isFinite(+g.lng)) return g; } catch (e) {}
+    return null;
+  }
   function pinHere(pt) {
     here = { lat: pt.lat, lng: pt.lng };
     window.__SN_HERE = here;
@@ -2054,6 +2116,8 @@ window.__SN_4379 = true;
     }
     function ipFallback(why) {
       if (done) return;
+      var lg = lastGps();
+      if (lg) { finish({ lat: +lg.lat, lng: +lg.lng, how: "last", name: "Last GPS fix" }); return; } /* 4380: the last real fix beats the IP city */
       ipLookup().then(function (j) {
         if (done) return;
         var lat = Number(j && j.latitude), lng = Number(j && j.longitude);
@@ -2107,7 +2171,8 @@ window.__SN_4379 = true;
     var isGps = pt.how === "gps";
     var ipNote = !isGps && pt.how !== "admin";
     var label = pt.name || "";
-    if (ipNote) label = label ? (label + " · Approximate location (IP)") : "Approximate location (IP)";
+    if (pt.how === "last") label = "Last GPS fix";
+    else if (ipNote) label = "Location not shared · approximate area"; /* 4380: the IP city is never named as you */
     else if (isGps) label = label || "GPS";
     else if (pt.how === "admin") label = label || "Admin pin";
     if (ipNote && (huntView || findWanted || seatKind === "named" || seatKind === "landed" || seatKind === "gps")) {
@@ -2128,11 +2193,12 @@ window.__SN_4379 = true;
       ipView = { lat: lat, lng: lng, name: label, at: Date.now() };
       window.__snIpView = ipView;
       try { openCity({ lat: lat, lng: lng, name: label }, { zoom: IP_CITY_Z }); } catch (eOC) {}
-      say("Approximate location (IP)" + (pt.name ? " · " + pt.name : "") + ". Name a place or allow location to hunt.");
+      say(pt.how === "last" ? "Last GPS fix. Allow location or tap GPS for a fresh one." : "Location not shared. Name a place or allow location to hunt.");
       return;
     }
     seatKind = isGps ? "gps" : "admin";
     if (isGps) {
+      saveFix({ lat: lat, lng: lng });
       hereLive = { lat: lat, lng: lng, name: label };
       here = hereLive;
     } else {
@@ -2192,6 +2258,7 @@ window.__SN_4379 = true;
     var lat = +pt.lat, lng = +pt.lng;
     var prev = hereLive;
     hereLive = { lat: lat, lng: lng, name: "GPS" };
+    saveFix(hereLive);
     window.__snGpsAt = Date.now();
     try { localStorage.setItem("sn:here", JSON.stringify(hereLive)); } catch (e) {}
     if (seatKind === "gps" && prev && haversineKm(prev, hereLive) < 0.2) return;
@@ -2322,6 +2389,7 @@ window.__SN_4379 = true;
       if (pos.coords.heading != null && isFinite(+pos.coords.heading) && +pos.coords.heading >= 0) heading = +pos.coords.heading;
       else if (lastFix && moved > 0.008) heading = bearingDeg(lastFix, pt);
       lastFix = { lat: pt.lat, lng: pt.lng };
+      saveFix(pt);
       if (!adminPin) {
         hereLive = { lat: pt.lat, lng: pt.lng };
         here = hereLive;
@@ -2763,7 +2831,7 @@ window.__SN_4379 = true;
     if (opts.ring) ringAt(plat, plng); else ringAt(null);
     if (youMark) try { map.removeLayer(youMark); } catch (e) {}
     youMark = null;
-    if (here && isFinite(+here.lat) && isFinite(+here.lng)) {
+    if (here && isFinite(+here.lat) && isFinite(+here.lng) && !(seatKind === "ip" && !lastGps())) { /* 4380: no YOU pin on an IP guess */
       youMark = L.marker([+here.lat, +here.lng], { icon: robotIcon(), zIndexOffset: 900, keyboard: false, bubblingMouseEvents: false }).addTo(map); /* 4377 (main V4373): the robot is the city pin */
       youMark.on("click", function (ev) {
         if (ev && ev.originalEvent) L.DomEvent.stop(ev.originalEvent);
@@ -3111,7 +3179,7 @@ window.__SN_4379 = true;
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4379&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4380&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3420,7 +3488,7 @@ window.__SN_4379 = true;
       "#sn-money{position:fixed!important;top:40px!important;left:max(6px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:46!important}",
       "#sn-globe{position:fixed!important;top:64px!important;right:max(6px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;z-index:60!important;width:40px!important;height:40px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;align-items:center!important;justify-content:center!important}",
       "#sn-globe svg{width:22px;height:22px;display:block}",
-      "#sn-architect{position:fixed!important;top:112px!important;right:max(6px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;z-index:60!important;width:40px!important;height:40px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;align-items:center!important;justify-content:center!important;font:800 16px/1 ui-monospace,system-ui!important;box-shadow:0 0 12px rgba(77,240,255,.35)!important}",
+      "#sn-architect{display:none!important}",
       "#sn-me{position:fixed!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;top:auto!important;bottom:calc(var(--dock) + 16px)!important;z-index:46!important}",
       "#gps{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:calc(var(--dock) + 16px)!important;z-index:280!important;pointer-events:auto!important}",
       "#sn-compass{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;bottom:calc(var(--dock) + 112px)!important;top:auto!important;z-index:47!important;width:48px!important;height:48px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;box-shadow:0 0 12px rgba(77,240,255,.35)!important}",
@@ -4076,7 +4144,7 @@ window.__SN_4379 = true;
       lat: lat,
       lng: lng,
       kind: row.kind || tags.amenity || tags.shop || ((row.class === "amenity" || row.class === "shop") && row.type ? row.type : "") || "shop",
-      phone: row.phone || tags.phone || tags["contact:phone"] || "",
+      phone: String(row.phone || tags.phone || tags["contact:phone"] || "").replace(/^[\s+0-]*$/, ""), /* 4380: a placeholder 0000000000 is no phone */
       menu: menu,
       photo: row.photo || "",
       address: row.address || tags["addr:full"] || "",
@@ -4594,6 +4662,7 @@ window.__SN_4379 = true;
     if (!map || typeof L === "undefined") return;
     people.forEach(function (p) {
       if (!p || p.role !== "driver" || !p.fleet || !isFinite(+p.lat) || !isFinite(+p.lng)) return;
+      if (isTestFixture(p) && !testView()) return; /* 4380 */
       var mark = L.marker([+p.lat, +p.lng], { icon: faceIcon("driver", p.photo, p.name || "driver"), zIndexOffset: 640, keyboard: false, bubblingMouseEvents: false });
       mark.bindTooltip(p.name || "driver", { direction: "top" });
       mark.on("click", function (e) { if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent); openPerson(p, "driver"); });
@@ -4688,13 +4757,13 @@ window.__SN_4379 = true;
       if (list.length === 1) {
         var line = (list[0].lines && list[0].lines[0]) || {};
         var label = (line.name || "order") + (list[0].fee ? " · " + list[0].fee : "");
-        html = "<b>" + esc(label) + "</b>";
-        w = Math.min(160, Math.max(72, label.length * 7));
+        html = '<span class="sn-order-tile"><b>' + esc(label) + '</b><i>on this tile</i></span>';
+        w = Math.min(200, Math.max(128, label.length * 7));
       } else {
         html = "<b>" + list.length + "</b>";
         w = 36;
       }
-      var icon = L.divIcon({ className: "sn-obubble", html: html, iconSize: [w, 28], iconAnchor: [w / 2, 86] });
+      var icon = L.divIcon({ className: "sn-obubble", html: html, iconSize: [w, 58], iconAnchor: [w / 2, 108] });
       var marker = L.marker([+s.lat, +s.lng], { icon: icon, interactive: true, keyboard: false, zIndexOffset: 900 });
       marker.on("click", function (e) {
         if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent);
@@ -4823,6 +4892,17 @@ window.__SN_4379 = true;
     });
     window.__snDecl = { n: items.length, moved: items.filter(function (it) { return it.el.classList.contains("sn-moved"); }).length,
       labels: items.filter(function (it) { return it.b && !it.el.classList.contains("sn-lbl-off"); }).length };
+  /* 4380 (main V4375): the YOU picture: the signed-in photo, else /you.png */
+  function youName() {
+    try { var u = JSON.parse(localStorage.getItem("sn:user") || "null"); return u ? String(u.name || String(u.email || "").split("@")[0] || "") : ""; } catch (e) { return ""; }
+  }
+  function youPhoto() {
+    try {
+      var u = JSON.parse(localStorage.getItem("sn:user") || "null");
+      if (u && u.photo) return u.photo;
+    } catch (e) {}
+    return "/you.png?v=4380";
+  }
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -5484,6 +5564,7 @@ window.__SN_4379 = true;
   function paintAdminPins() {
     function put(pt, color, label, onDrag) {
       if (!pt || !isFinite(+pt.lat) || !isFinite(+pt.lng)) return;
+      if ((isTestFixture(pt) || isTestFixture({ name: label })) && !testView()) return; /* 4380: TESTER CLIENT never paints, admin included */
       var mark = L.marker([+pt.lat, +pt.lng], {
         draggable: true,
         zIndexOffset: 600,
@@ -6214,6 +6295,11 @@ window.__SN_4379 = true;
     nextHuntNear = false;
     window.__snFindShown = [];
     huntDoneN = null;
+    /* 4380: a hunt typed on the globe flies there: arc + camera to the seat, then its map opens for the pins */
+    if (!cityOn) {
+      var gSeat = activeSeat() || here;
+      if (gSeat && isFinite(+gSeat.lat)) { try { globeArc(here, gSeat); lookAt(gSeat, 1.05); openCity(gSeat); } catch (eG) {} }
+    }
     try { openSheet("FIND · …", '<p class="note">Finding ' + esc(q) + " at " + esc(seatName(activeSeat() || here)) + "…</p>"); } catch (eF) {}
     try { paintShopsOnMap(); paintPulse(); } catch (eF2) {}
     var go = function () {
@@ -6444,7 +6530,8 @@ window.__SN_4379 = true;
   function paintYouIcon() {
     var tgt = document.querySelector("#sn-me .tgt");
     if (!tgt) return;
-    tgt.innerHTML = robotSvg(34);
+    if (!signed()) return; /* 4380: a guest keeps the LOGIN face */
+    tgt.innerHTML = '<img alt="" src="' + youPhoto() + '">';
   }
   function restampYou() {
     paintYouIcon();
@@ -6490,7 +6577,10 @@ window.__SN_4379 = true;
   function openYou() {
     var spec = botSpec();
     /* 4377: WHERE is the real GPS fix only; an IP guess (Orland Park) is never shown as the user's location */
-    var where = (hereLive && isFinite(+hereLive.lat) && seatKind === "gps") ? (Number(hereLive.lat).toFixed(5) + ", " + Number(hereLive.lng).toFixed(5) + " · GPS") : "location not shared";
+    var lg0 = lastGps();
+    var where = (hereLive && isFinite(+hereLive.lat) && seatKind === "gps") ? (Number(hereLive.lat).toFixed(5) + ", " + Number(hereLive.lng).toFixed(5) + " · GPS")
+      : lg0 ? (Number(lg0.lat).toFixed(5) + ", " + Number(lg0.lng).toFixed(5) + " · last GPS fix " + Math.max(1, Math.round((Date.now() - (+lg0.t || 0)) / 60000)) + " min ago")
+      : "location not shared"; /* 4380: GPS, else the last real fix, else not shared; never the IP city */
     var mineTasks = cityTasks.filter(function (t) { return t && t.status !== "closed" && (t.by === me() || t.taker === me()); });
     var taskHtml = mineTasks.length ? mineTasks.slice(0, 6).map(function (t) {
       return '<p class="note">' + esc((t.title || "Task") + (t.when ? " · " + t.when : "") + (t.pay ? " · " + t.pay : "")) + "</p>";
@@ -6506,14 +6596,8 @@ window.__SN_4379 = true;
       return '<button type="button" class="sheet-go' + (on ? " primary" : "") + '" data-act="' + act + '" data-k="' + k + '">' + k.toUpperCase() + "</button>";
     }
     openSheet("YOU",
-      robotSvg(72) +
-      '<p class="note">One robot. Globe, country, city pin, and this icon.</p>' +
-      chip("robot-style", "spartan", spec.style === "spartan") +
-      chip("robot-style", "courier", spec.style === "courier") +
-      chip("robot-style", "wire", spec.style === "wire") +
-      chip("robot-color", "cyan", spec.color === "cyan") +
-      chip("robot-color", "gold", spec.color === "gold") +
-      chip("robot-color", "crimson", spec.color === "crimson") +
+      '<img class="sn-face" alt="" src="' + youPhoto() + '">' +
+      '<p class="note">' + esc(youName() || "Guest") + (signed() ? ". This is your picture." : " · LOG IN to keep a picture.") + '</p>' +
       '<p class="note">WHERE · ' + esc(where) + "</p>" +
       '<p class="note">TASKS</p>' + taskHtml +
       '<p class="note">CALENDAR · typed here. Not a public copy of Google.</p>' +
@@ -7033,7 +7117,7 @@ window.__SN_4379 = true;
     if (homeDrop) bookRow(b, "client:" + (homeDrop.owner || me()), homeDrop.name || "Client", "client");
     bookRow(b, "client:" + me(), myName(), "client");
     booksSet(b);
-    var html = '<p class="note">Your money ' + shownMoney().toLocaleString("en-GB") + " AV€. The mutual account is below. Change any amount, then Apply.</p>";
+    var html = '<p class="note">Your money ' + shownMoney().toLocaleString("en-GB") + " ⭐. The mutual account is below. Change any amount, then Apply.</p>";
     html += '<label class="sn-book">MUTUAL<input id="sn-book-pool" inputmode="decimal" value="' + (Number(b.pool) || 0) + '"></label>';
     b.rows.forEach(function (r) {
       html += '<label class="sn-book">' + esc((r.role || "account").toUpperCase() + " · " + (r.name || "")) + '<input class="sn-book-n" data-id="' + esc(r.id) + '" inputmode="decimal" value="' + (Number(r.avc) || 0) + '"></label>';
@@ -8147,6 +8231,7 @@ window.__SN_4379 = true;
     aim = { lat: lastSeat.lat, lng: lastSeat.lng, name: lastSeat.name };
     listingTried = false;
     seatKind = "named";
+    try { if (!cityOn) globeArc(window.__snGlobeFrom || null, lastSeat); } catch (eA) {}
     clearSeatPins();
     try { closeSky(); } catch (e) {}
     try { lookAt(aim, 1.05); } catch (e) { try { flyTo(aim, 1.05); } catch (e2) {} }
@@ -8335,6 +8420,24 @@ window.__SN_4379 = true;
       }, 8000);
       return;
     }
+    /* 4380: "X near me" hunts around the real you (GPS, else the last real fix), never the IP city or the last named place */
+    if (/\b(near|around|close\s+to)\s+me\b|\bnearby\b/i.test(q)) {
+      var meQ = q.replace(/\b(near|around|close\s+to)\s+me\b|\bnearby\b/ig, " ").replace(/\s+/g, " ").trim() || "shops";
+      var meAt = (hereLive && seatKind === "gps" && isFinite(+hereLive.lat)) ? hereLive : lastGps();
+      if (!meAt) { say("Location not shared. Allow location (GPS) or name a place, e.g. " + meQ + " in Athens."); return; }
+      seatPlace({ lat: +meAt.lat, lng: +meAt.lng, name: seatKind === "gps" ? "you (GPS)" : "you (last GPS fix)" });
+      nextHuntNear = true;
+      hunt(meQ.replace(/^(find|hunt|show)\s+/i, ""));
+      return;
+    }
+    /* 4380: "dating" answers at once and acts on the map: SpaceNet has no dating listings; it flies to your place */
+    if (/\b(dating|date\s+someone|singles|find\s+(a\s+)?(date|partner|girlfriend|boyfriend))\b/i.test(q)) {
+      var dSeat = activeSeat() || here;
+      if (dSeat && !cityOn) { try { globeArc(here, dSeat); lookAt(dSeat, 1.05); openCity(dSeat); } catch (eD) {} }
+      say("Dating is not on SpaceNet. Nobody lists themselves for dating" + (dSeat ? " near " + seatName(dSeat) : "") + ". People who list a place show as faces on the map; hold the map to list yours.");
+      speakIfVoice("Dating is not on SpaceNet.");
+      return;
+    }
     var inP = parseInPlace(q);
     if (inP) {
       say("Landing " + inP.where + "…");
@@ -8370,7 +8473,7 @@ window.__SN_4379 = true;
     if (goAsk && landPlaceAsk(goAsk)) return;
     var bare = goToPlaceAsk("go to " + q);
     if (bare && bare.geo && landPlaceAsk(bare)) return;
-    if (/^(find|hunt|show)\b/i.test(q) || /\b(pizza|supermarket|grocery|pharmacy|cafe|coffee|restaurant|food)\b/i.test(q)) {
+    if (/^(find|hunt|show)\b/i.test(q) || /\b(pizza|supermarket|grocery|pharmacy|cafe|coffee|restaurant|food)\b/i.test(q) || /\b(?:plumb|electric|locksmith|mechanic|garage|dentist|doctor|clinic|hospital|vet|lawyer|notary|bank|atm|bakery|baker|butcher|barber|hair|florist|tailor|laundry|gym|taxi|carpenter|painter|roofer|glazier|kiosk|periptero|pub|fuel|petrol|parking|courier|repair|cleaner|builder|handyman|optician|bookshop)\w{0,5}\b/i.test(q)) { /* 4380: trade words hunt at once (plumber) */
       var hq = q.replace(/^(find|hunt|show)\s+/i, "").trim();
       hunt(hq || q);
       askGrok(q, function (err, j) {
@@ -11230,6 +11333,7 @@ window.__SN_4376 = true;
 window.__SN_4377 = true;
 window.__SN_4378 = true;
 window.__SN_4379 = true;
+window.__SN_4380 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {

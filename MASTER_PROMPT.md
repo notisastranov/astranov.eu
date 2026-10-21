@@ -3,7 +3,7 @@
 **What this file is:** the only instruction document. Paste this first. Then the live shell. Do not add SPECS, LAW, AGENTS, HELM, living-truth, escalation, or log markdown.
 
 **Date:** 2026-10-14
-**Stamp:** 4373. Top line is V and the loaded number, then LATEST. Example: ASTRANOV SPACENET V4292 LATEST 4293 UPDATE NOW. No word NOW in front of the loaded number. If loaded is older, clear cache and hard-reload. UPDATE NOW forces it again. Never wipe the wallet to update.
+**Stamp:** 4375. Top line is V and the loaded number, then LATEST. Example: ASTRANOV SPACENET V4292 LATEST 4293 UPDATE NOW. No word NOW in front of the loaded number. If loaded is older, clear cache and hard-reload. UPDATE NOW forces it again. Never wipe the wallet to update.
 **Owner:** Notis Astranov · Rhodes, Greece · notisastranov@gmail.com · X @astranov97250
 **Live:** https://astranov.eu
 **Repo:** notisastranov/astranov.eu · `main`
@@ -21,9 +21,13 @@ The midnight bus had stopped after 27 September. It is on again: one batch at 00
 
 **Maps.** City streets are OpenStreetMap only. No Carto, no Esri, no Mapbox, no Google, no tile that prints API KEY REQUIRED. Dark is a CSS filter on those streets, not another provider. Zoom never asks for a key.
 
-**Login.** `#sn-me` shows one letter. Signed in as Notis, that letter is N. It is not a clipped picture.
+**Login.** `#sn-me` shows Notis's picture, full, not clipped, not a letter, and not a robot style. Opening it does not offer Spartan, cyan, courier, wire, gold, or crimson. Those are not roles on the screen.
 
-**Ribbon.** `#top` is docked to the top edge. Power, JOBS, AV€, and support sit in that ribbon. They do not float.
+**Ribbon.** `#top` is docked to the top edge. The buttons that stay are large enough to tap. Bottom buttons keep their pictures: attach, microphone, location, sky. Cryptic chips (FIND, NODE, LATEST, the letter A) stay off the first screen.
+
+**Tiles.** The map is the menu. A shop is a tile with its face and its name. A posted order sits on that tile. When a driver accepts, the order travels from the tile into the driver picture. Hold or hover the driver and the list of what he is carrying opens there. No huge scroll of menus standing in for the map.
+
+**Stamp.** 4375. Header `X-Astranov-Build` matches the page.
 
 **Global view.** Public video previews sit on the globe. A tap plays the file when the publisher gives one.
 

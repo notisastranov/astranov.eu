@@ -273,7 +273,7 @@
     btn.title = inNow ? who : "Login";
     var short = inNow ? String(u.name || String(u.email).split("@")[0] || "YOU").split(/\s+/)[0].replace(/[<>"&]/g, "").slice(0, 10) : "";
     btn.setAttribute("data-who", inNow ? who : "");
-    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "LOGIN") + '</span><span class="tgt">' + ((window.SN && SN.robotFace) ? SN.robotFace() : (inNow ? face(u) : '<span class="ph">IN</span>')) + "</span>";
+    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "LOGIN") + '</span><span class="tgt">' + (inNow ? '<img alt="" src="' + String((u && u.photo) || "/you.png?v=4380").replace(/"/g, "") + '">' : '<span class="ph">IN</span>') + "</span>";
     if (window.SN && SN.paintMoney) SN.paintMoney();
   }
   function fillBody() {
@@ -285,7 +285,7 @@
     var mail = inNow ? u.email : "Not signed in";
     var tel = (u && u.phone) || read("sn:phone", "") || "";
     var mine = "";
-    try { if (inNow && window.SN && SN.avcGet) mine = Math.round(SN.avcGet()).toLocaleString("en-GB") + " AV€"; } catch (e) {}
+    try { if (inNow && window.SN && SN.avcGet) mine = Math.round(SN.avcGet()).toLocaleString("en-GB") + " ⭐"; } catch (e) {}
     body.innerHTML =
       '<div class="who">' + face(u) + "<div><b>" + String(name).replace(/[<>]/g, "") + "</b><span>" + (inNow ? "IN · " + String(mail).replace(/[<>]/g, "") : "OUT") + "</span></div></div>" +
       (inNow && mine ? '<p class="note">YOUR MONEY · ' + mine + "</p>" : "") +
