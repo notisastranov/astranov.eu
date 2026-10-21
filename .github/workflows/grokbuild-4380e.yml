@@ -1,0 +1,33 @@
+name: grokbuild 4380e (fly-to takes the ranked server answer before raw Nominatim; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4380e.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix95, assert tree, commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "863691c507ea7a28f3dff2746582ff2f7f8706c0" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          base64 -d .grokbuild/fix95.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "34ba0d1f9e1acc556da18aec586cf82cfd4f9d46354c705fc83bb7055c4f325f"
+          gunzip -c /tmp/f.gz > /tmp/fix95.patch
+          test "$(sha256sum /tmp/fix95.patch | cut -d' ' -f1)" = "c9296bd969ac295156c5185bfa788a4148139e3769d536f2e51b9a0f4e63b94f"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4380e.yml
+          git apply --index /tmp/fix95.patch
+          node --check js/spacenet/app.js
+          grep -q '^4380$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "3927cb56da7bb7bb6bbef6768098688188472e9a" || { echo "tree $T"; exit 1; }
+          git commit -q -m "4380e: geocodeFast waits for the ranked /api/find answer and asks raw Nominatim only when it is empty (supermarket in Heraklion raced to the Egyptian Heraklion site); stamps stay 4380"
+          git push origin HEAD:grokbuild/4328-street-level-gps
