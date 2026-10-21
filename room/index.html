@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="astranov-build" content="4379"/>
+<title>Astranov</title>
+<style>
+html,body{margin:0;height:100%;background:#01040c;color:#d7f4ff;font-family:system-ui,sans-serif}
+#room{position:fixed;inset:0;overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%}
+#log{position:absolute;left:0;right:0;bottom:92px;z-index:2;display:flex;flex-direction:column;gap:8px;width:min(640px,calc(100% - 32px));margin:0 auto;pointer-events:none}
+#log p{margin:0;font:500 15px/1.45 system-ui,sans-serif}
+#log .you{color:#8ec8d8}
+#log .house{color:#e8fbff}
+#open{position:absolute;z-index:3;left:50%;bottom:78px;transform:translateX(-50%);height:36px;padding:0 16px;border-radius:999px;border:1px solid rgba(125,220,255,.45);color:#e8fbff;background:rgba(2,10,22,.72);font:600 13px/36px system-ui;text-decoration:none}
+form{position:absolute;z-index:3;left:0;right:0;bottom:0;padding:0 16px max(16px,env(safe-area-inset-bottom))}
+input{display:block;width:min(640px,100%);height:48px;margin:0 auto;padding:0 16px;border:0;border-top:1px solid rgba(125,220,255,.22);background:transparent;color:#e8fbff;caret-color:#7de8ff;font:500 16px/1 system-ui;outline:none}
+input::placeholder{color:#6ea8bc}
+</style>
+</head>
+<body>
+<main id="room">
+<canvas id="sky" aria-hidden="true"></canvas>
+<section id="log" aria-live="polite"><p class="house">The projects sit under this room. Name one, or speak.</p></section>
+<form id="f"><input id="in" autocomplete="off" placeholder="Talk to Astranov"/></form>
+</main>
+<script>
+(function () {
+  var PROJECTS = [
+    ["SpaceNet", "spacenet.astranov.eu", "Delivery on the map"],
+    ["Architect", "architect.astranov.eu", "Land and buildings"],
+    ["Exchange", "exchange.astranov.eu", "Books"],
+    ["Investors", "investors.astranov.eu", "Investor room"],
+    ["Yachts", "yachts.astranov.eu", "Yachts"],
+    ["Coin", "coin.astranov.eu", "Coin"],
+    ["Auditors", "auditors.astranov.eu", "Auditors"],
+    ["Personality", "personality.astranov.eu", "Practice forms, not a diagnosis"]
+  ];
+  var canvas = document.getElementById("sky");
+  var ctx = canvas.getContext("2d");
+  var stars = [];
+  for (var i = 0; i < 180; i++) stars.push({ x: Math.random(), y: Math.random(), z: 0.2 + Math.random() * 0.8, a: 0.25 + Math.random() * 0.75 });
+  function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
+  resize();
+  addEventListener("resize", resize);
+  function frame(now) {
+    var w = canvas.width, h = canvas.height, s;
+    var sky = ctx.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, "#020814");
+    sky.addColorStop(0.55, "#041428");
+    sky.addColorStop(1, "#01040c");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, h);
+    for (var i = 0; i < stars.length; i++) {
+      s = stars[i];
+      var drift = ((now / 90000) * s.z) % 1;
+      ctx.globalAlpha = s.a * (0.65 + 0.35 * Math.sin(now / 700 + s.x * 12));
+      ctx.fillStyle = "#d7f4ff";
+      ctx.fillRect(((s.x + drift * 0.04) % 1) * w, ((s.y + drift * 0.015) % 1) * h, s.z > 0.85 ? 1.6 : 1, s.z > 0.85 ? 1.6 : 1);
+    }
+    ctx.globalAlpha = 1;
+    var limb = ctx.createRadialGradient(w * 0.5, h * 1.18, h * 0.12, w * 0.5, h * 1.02, h * 0.62);
+    limb.addColorStop(0, "rgba(56,150,214,.42)");
+    limb.addColorStop(0.45, "rgba(18,70,120,.16)");
+    limb.addColorStop(1, "rgba(4,16,32,0)");
+    ctx.fillStyle = limb;
+    ctx.fillRect(0, h * 0.42, w, h * 0.58);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  var log = document.getElementById("log");
+  var input = document.getElementById("in");
+  var history = [];
+  var busy = false;
+  function find(raw) {
+    var s = String(raw || "").toLowerCase();
+    for (var i = 0; i < PROJECTS.length; i++) {
+      if (s.indexOf(PROJECTS[i][0].toLowerCase()) >= 0 || s.indexOf(PROJECTS[i][1]) >= 0) return PROJECTS[i];
+    }
+    return null;
+  }
+  function add(who, text) {
+    var p = document.createElement("p");
+    p.className = who;
+    p.textContent = text;
+    log.appendChild(p);
+    while (log.children.length > 8) log.removeChild(log.firstChild);
+  }
+  function link(host, name) {
+    var old = document.getElementById("open");
+    if (old) old.remove();
+    var a = document.createElement("a");
+    a.id = "open";
+    a.href = "https://" + host;
+    a.textContent = "Open " + name;
+    document.getElementById("room").appendChild(a);
+  }
+  document.getElementById("f").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var text = input.value.trim();
+    if (!text || busy) return;
+    input.value = "";
+    add("you", text);
+    var s = text.toLowerCase();
+    if (/^projects?\b/.test(s) || /\b(list|show) (the )?projects\b/.test(s)) {
+      add("house", PROJECTS.map(function (p) { return p[0]; }).join(" · "));
+      return;
+    }
+    var named = find(s);
+    if (named && /\b(go|open|control|run)\b/.test(s)) {
+      link(named[1], named[0]);
+      add("house", named[0] + ". " + named[2] + ".");
+      return;
+    }
+    busy = true;
+    input.placeholder = "Reading";
+    fetch("/api/ai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ room: true, message: text, history: history.slice(-8) })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      var say = (j && j.say) || "The room stayed quiet.";
+      add("house", say);
+      history.push({ role: "user", content: text }, { role: "assistant", content: say });
+      var open = String((j && j.open) || "").toLowerCase();
+      var hit = null;
+      PROJECTS.forEach(function (p) { if (p[1] === open) hit = p; });
+      if (!hit) hit = find(say);
+      if (hit && /\bopen\b/i.test(text + " " + say)) link(hit[1], hit[0]);
+    }).catch(function () {
+      add("house", "The room did not answer.");
+    }).then(function () {
+      busy = false;
+      input.placeholder = "Talk to Astranov";
+    });
+  });
+})();
+</script>
+</body>
+</html>

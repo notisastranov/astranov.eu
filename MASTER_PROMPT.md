@@ -15,6 +15,18 @@ If rebuild law changes, **edit this file**. Chat is not the archive. Latest bloc
 ---
 
 
+## Current law (2026-10-21 — subdomain, this block wins)
+
+astranov.eu and www.astranov.eu are the starry room. One field. The house answers. It opens only a real project host. SpaceNet is not the apex.
+
+spacenet.astranov.eu is the delivery map. OpenStreetMap only. Dark is the CSS filter already on the streets. No ribbon, no constellations, no helper, no radar, no dock. Enter stays only while signed out.
+
+Delivery. The owner taps a shop, then the street for the drop. The order is a dot on that shop. Fee is not tagged and is not invented. PayPal is not charged. The owner is the driver. Each tap on the cyan route advances one stage and only one: ACCEPT, VENDOR HANDED OFF, DRIVER GOT IT, DRIVER DELIVERED, I RECEIVED. A miss says to tap the route. It does not cancel the order. Hold the driver to read what he carries. After ACCEPT the dot leaves the shop and the parcel goes into the driver.
+
+Stamp 4379. VER, VERSION, the page meta, the script query, and X-Astranov-Build are the same number.
+
+---
+
 ## Current law (2026-10-21 — helper, this block wins)
 
 The screen starts dormant. The only control is Enter. After the account is in, the winged helper is the user: login state, roles, and the companion. It flies. Tap it and Scan, Monitor, Wallet, Streets appear, then leave.

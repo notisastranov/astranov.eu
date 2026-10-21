@@ -19,6 +19,17 @@ const SYS =
   'act=hunt when they want a thing found. act=locate only if they ask you to find them. act=talk when they are just talking. act=now sends an Astranov Delivery Agent (registered base only). Never act=mail or pickup. Never invent an agent who has not listed a base. ' +
   'act=post|call|shop|drop|driver opens that city sheet. act=priority when they ask to jump a task — set ok=true ONLY for a real emerging difficulty (breakdown, spoilage, medical, safety, no-show, weather). ok=false for profit, preference, skipping work they dislike, or jumping the queue. act=justice when a held job is in dispute — split AV€ between customer, vendor, driver. Platform take is always 0 on a failed job. Customer gets goods or credit, never neither for long. Vendor is paid only for work already done. Agent is paid only for miles actually moved. Do not invent GPS traces we do not have. RESEARCH LAW: You have live web search. Use it on every find, best, where, news, yacht, weather, legal, review, or preference question. Do not keyword-match a shop name and stop. Search news, reviews, posts, AIS, port notices, weather, wind, pollution, permits. Then pin a pick and 2 to 4 alternatives. Example: cleanest legal water to moor a yacht with privacy on the lee of the wind — check wastewater outfalls, swimming bans, no-anchor zones, harbour master, this weeks wind. If a megayacht is sitting on a sewage outfall, say that from sources, then offer cleaner legal coves. places[0] is the pick. Each place: name,lat,lng,raw,note (why / legal / wind / privacy). say is spoken research, 4 to 8 short sentences, no raw coordinates in say. Never invent a pin. Never let them game SpaceNet. English default; Greek when they write Greek. Owner is Notis Astranov in Rhodes.';
 
+const ROOM =
+  'You are the Astranov collective intelligence in the starry room at astranov.eu. ' +
+  'You continue the mind Notis Astranov has been building. You are the house, not a generic assistant, and you are not Notis himself. ' +
+  'He directs the projects from this room. One or two short sentences. Calm, exact, no slogan. English by default. Greek when he writes Greek. ' +
+  'Known projects only: SpaceNet spacenet.astranov.eu (delivery on the map), Architect architect.astranov.eu, Exchange exchange.astranov.eu, ' +
+  'Investors investors.astranov.eu, Yachts yachts.astranov.eu, Coin coin.astranov.eu, Auditors auditors.astranov.eu, ' +
+  'Personality personality.astranov.eu (practice forms, not a diagnosis). ' +
+  'Do not invent prices, balances, legal results, or a project that is not listed. ' +
+  'Reply with ONE JSON object only: {"say":"spoken reply","open":""}. ' +
+  'Put a hostname in open only when he asks to open that project. Otherwise open is empty.';
+
 const BUILD =
   'You are Grok Build, the programmer inside SpaceNet support. The desk is already open. Judge this request in one pass. Reply with ONE JSON object only, no markdown. ' +
   '{"say":"one or two plain sentences","gate":"build|forward|decline","act":"talk"} ' +
@@ -303,6 +314,53 @@ module.exports = async function handler(req, res) {
     return;
   }
   body.message = message;
+  if (body.room) {
+    const roomKey = process.env.XAI_API_KEY || process.env.GROK_API_KEY || '';
+    if (!roomKey) {
+      res.status(200).json({ ok: false, say: 'The room has no model on this host.' });
+      return;
+    }
+    const roomHistory = Array.isArray(body.history) ? body.history.slice(-8) : [];
+    const roomMessages = [{ role: 'system', content: ROOM }];
+    roomHistory.forEach(function (h) {
+      if (!h || !h.content) return;
+      roomMessages.push({
+        role: h.role === 'assistant' ? 'assistant' : 'user',
+        content: String(h.content).slice(0, 500),
+      });
+    });
+    roomMessages.push({ role: 'user', content: message.slice(0, 500) });
+    try {
+      const rr = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + roomKey },
+        body: JSON.stringify({
+          model: 'grok-4.5',
+          temperature: 0.4,
+          max_tokens: 160,
+          messages: roomMessages,
+        }),
+      });
+      const rj = await rr.json().catch(function () { return {}; });
+      const raw = String((rj.choices && rj.choices[0] && rj.choices[0].message && rj.choices[0].message.content) || '').trim();
+      let say = raw;
+      let open = '';
+      const jm = raw.match(/\{[\s\S]*\}/);
+      if (jm) {
+        try {
+          const o = JSON.parse(jm[0]);
+          say = String(o.say || '').trim() || raw;
+          open = String(o.open || '').trim().toLowerCase();
+        } catch (_) {}
+      }
+      if (!/^([a-z0-9-]+\.)?astranov\.eu$/.test(open)) open = '';
+      res.status(200).json({ ok: !!say, say: say || 'The room stayed quiet.', open: open });
+      return;
+    } catch (_) {
+      res.status(200).json({ ok: false, say: 'The room did not answer.' });
+      return;
+    }
+  }
   body.allow_paid = true;
   body.force_paid = true;
   body.fast = true;

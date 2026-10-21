@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4385"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4386"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1446,6 +1446,7 @@ window.__SN_4382 = true;
 window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
+window.__SN_4386 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3217,7 +3218,7 @@ window.__SN_4385 = true;
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4385&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4386&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -4957,7 +4958,7 @@ window.__SN_4385 = true;
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4385";
+    return "/you.png?v=4386";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -6591,7 +6592,7 @@ window.__SN_4385 = true;
   function robotSrc() {
     var style = botSpec().style || "spartan";
     if (style !== "courier" && style !== "wire") style = "spartan";
-    return "/js/spacenet/robots/" + style + ".jpg?v=4373";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4386";
   }
   function robotFilter() {
     var c = botSpec().color;
@@ -8394,8 +8395,15 @@ window.__SN_4385 = true;
         if (r) fin({ lat: +r.lat, lng: +r.lng, name: r.name || where, raw: r.raw || "" });
         return j;
       });
-      /* 4380: the ranked server answer (town nodes first) wins; raw Nominatim only when it has nothing ("Heraklion" raced to the Egyptian site) */
-      var b = a.then(function () { return done ? null : fetchJsonT("/api/find?op=nominatim&limit=1&q=" + encodeURIComponent(where), { cache: "no-store" }, 6000); }).then(function (rows) { /* 4374: through our server */
+      /* 4380: the ranked server answer (town nodes first) wins; raw Nominatim only when it has nothing ("Heraklion" raced to the Egyptian site).
+         4386: Nominatim now runs in parallel; its answer wins at once only when it is a real settlement (class place/boundary,
+         importance >= 0.55, e.g. Nairobi); a low-rank hit (the Egyptian Heraklion site) still waits for the server */
+      var nomP = fetchJsonT("/api/find?op=nominatim&limit=1&q=" + encodeURIComponent(where), { cache: "no-store" }, 6000);
+      nomP.then(function (rows) {
+        var r = Array.isArray(rows) && rows[0];
+        if (r && /^(place|boundary)$/.test(String(r.class || r.category || "")) && +r.importance >= 0.55) fin({ lat: +r.lat, lng: +r.lon, name: String(r.name || String(r.display_name || where).split(",")[0]), raw: r.display_name || "" });
+      });
+      var b = a.then(function () { return nomP; }).then(function (rows) { /* 4374: through our server */
         var r = Array.isArray(rows) && rows[0];
         if (r) fin({ lat: +r.lat, lng: +r.lon, name: String(r.display_name || where).split(",")[0], raw: r.display_name || "" });
         return rows;
@@ -11557,6 +11565,7 @@ window.__SN_4382 = true;
 window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
+window.__SN_4386 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
