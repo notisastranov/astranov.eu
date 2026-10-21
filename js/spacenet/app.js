@@ -2241,7 +2241,7 @@ window.__SN_4380 = true;
     if (!bootIdle()) { bootZoom = false; return; }
     bootZoom = false;
     if (pt.how === "gps") land({ lat: +pt.lat, lng: +pt.lng, how: "gps", name: "GPS" }, false);
-    else land({ lat: +pt.lat, lng: +pt.lng, how: "net", name: pt.name || "" }, false);
+    else land({ lat: +pt.lat, lng: +pt.lng, how: pt.how === "last" ? "last" : "net", name: pt.name || "" }, false); /* 4380: the last real fix stays "last" */
   }
   function endIntro() {
     if (!intro) return;
@@ -6579,7 +6579,8 @@ window.__SN_4380 = true;
     var spec = botSpec();
     /* 4377: WHERE is the real GPS fix only; an IP guess (Orland Park) is never shown as the user's location */
     var lg0 = lastGps();
-    var where = (hereLive && isFinite(+hereLive.lat) && seatKind === "gps") ? (Number(hereLive.lat).toFixed(5) + ", " + Number(hereLive.lng).toFixed(5) + " · GPS")
+    var gpsFresh = !!(hereLive && isFinite(+hereLive.lat) && (seatKind === "gps" || (window.__snGpsAt && Date.now() - window.__snGpsAt < 600000)));
+    var where = gpsFresh ? (Number(hereLive.lat).toFixed(5) + ", " + Number(hereLive.lng).toFixed(5) + " · GPS")
       : lg0 ? (Number(lg0.lat).toFixed(5) + ", " + Number(lg0.lng).toFixed(5) + " · last GPS fix " + Math.max(1, Math.round((Date.now() - (+lg0.t || 0)) / 60000)) + " min ago")
       : "location not shared"; /* 4380: GPS, else the last real fix, else not shared; never the IP city */
     var mineTasks = cityTasks.filter(function (t) { return t && t.status !== "closed" && (t.by === me() || t.taker === me()); });
@@ -11258,7 +11259,7 @@ window.__SN_4380 = true;
         seatKind = seatKind || "gps";
         try { localStorage.setItem("sn:here", JSON.stringify(here)); } catch (e) {}
       } else {
-        here = { lat: pt.lat, lng: pt.lng, name: "Approximate location (IP)" };
+        here = { lat: pt.lat, lng: pt.lng, name: pt.how === "last" ? "Last GPS fix" : "Location not shared · approximate area" };
         if (!seatKind) seatKind = "ip";
       }
       window.__SN_HERE = here;
