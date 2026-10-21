@@ -1,0 +1,33 @@
+name: grokbuild 4380b (near me prefers a fresh GPS fix; globe pins only real rows; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4380b.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix92, assert tree, commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "41fa35e132c796504ab0a0560d054652e5aeda93" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          base64 -d .grokbuild/fix92.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "9c50fad83febc640c0f07f5e0fc23d59f9d87bd8d6709d4c5cd06ad001ba5481"
+          gunzip -c /tmp/f.gz > /tmp/fix92.patch
+          test "$(sha256sum /tmp/fix92.patch | cut -d' ' -f1)" = "c1628abc9d2a5cc9be6b68941bb899e439dbddb45c6534eea24931d3c72e15aa"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4380b.yml
+          git apply --index /tmp/fix92.patch
+          node --check js/spacenet/app.js
+          grep -q '^4380$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "7d3564952da719047ea9a7cc35695ae5b061ae51" || { echo "tree $T"; exit 1; }
+          git commit -q -m "4380b: near me uses a GPS fix from the last 10 minutes before the stored last fix; every GPS fix stamps it; globe fallback pins only from OSM / hunt rows or listed shops not borrowed from a job; stamps stay 4380"
+          git push origin HEAD:grokbuild/4328-street-level-gps
