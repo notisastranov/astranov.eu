@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4378";
+  var VER = "4379";
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1379,6 +1379,7 @@ window.__SN_4375 = true;
 window.__SN_4376 = true;
 window.__SN_4377 = true;
 window.__SN_4378 = true;
+window.__SN_4379 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3110,7 +3111,7 @@ window.__SN_4378 = true;
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4378&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4379&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -11228,6 +11229,7 @@ window.__SN_4375 = true;
 window.__SN_4376 = true;
 window.__SN_4377 = true;
 window.__SN_4378 = true;
+window.__SN_4379 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
