@@ -270,11 +270,12 @@
     btn.className = inNow ? "in" : "out";
     /* 4339: the accessible name follows the state (it read "Login" while signed in) */
     var who = inNow ? String(u.name || u.email || "").replace(/[<>"]/g, "") : "";
-    btn.setAttribute("aria-label", inNow ? "YOU · " + who : "Login");
-    btn.title = inNow ? who : "Login";
+    btn.setAttribute("aria-label", inNow ? "YOU · " + who : "YOU · guest");
+    btn.title = inNow ? who : "YOU · guest · log in inside";
     var short = inNow ? String(u.name || String(u.email).split("@")[0] || "YOU").split(/\s+/)[0].replace(/[<>"&]/g, "").slice(0, 10) : "";
     btn.setAttribute("data-who", inNow ? who : "");
-    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "LOGIN") + '</span><span class="tgt">' + (inNow ? '<img alt="" src="' + String((u && u.photo) || "/you.png?v=4382").replace(/"/g, "") + '">' : '<span class="ph">IN</span>') + "</span>";
+    /* 4383: a guest sees YOU too (it opens the YOU panel: where, tasks, and LOG IN inside), never a bare LOGIN */
+    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "YOU") + '</span><span class="tgt">' + (inNow ? '<img alt="" src="' + String((u && u.photo) || "/you.png?v=4383").replace(/"/g, "") + '">' : '<span class="ph">?</span>') + "</span>";
     if (window.SN && SN.paintMoney) SN.paintMoney();
   }
   function fillBody() {

@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4382"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4383"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1443,6 +1443,7 @@ window.__SN_4379 = true;
 window.__SN_4380 = true;
 window.__SN_4381 = true;
 window.__SN_4382 = true;
+window.__SN_4383 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3197,7 +3198,7 @@ window.__SN_4382 = true;
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4382&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4383&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -4929,7 +4930,7 @@ window.__SN_4382 = true;
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4382";
+    return "/you.png?v=4383";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -6625,6 +6626,30 @@ window.__SN_4382 = true;
     if (!b || cityOn) return false;
     return Math.hypot(x - b.x, y - b.y) < (b.r || 28);
   }
+  /* 4383: the YOU panel is always on screen, guests included: a chip beside YOU says where you are from a real
+     precise GPS fix only, else "Location not shared · tap to locate" (never the IP city, never a default). Tap: YOU */
+  function youChip() {
+    try {
+      var c = $("sn-you-where");
+      if (!c) {
+        c = document.createElement("button");
+        c.type = "button";
+        c.id = "sn-you-where";
+        c.style.cssText = "position:fixed;z-index:72;left:56px;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 120px);max-width:min(62vw,300px);padding:6px 12px;border-radius:999px;border:1px solid rgba(77,240,255,.6);background:rgba(4,14,28,.86);color:#e8fbff;font:600 12px/1.3 system-ui,sans-serif;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer";
+        c.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openYou(); });
+        document.body.appendChild(c);
+      }
+      var fresh = !!(hereLive && isFinite(+hereLive.lat) && window.__snGpsAt && Date.now() - window.__snGpsAt < 1800000 && fixPrecise(window.__snLastAcc));
+      var nm = fresh ? (seatName(hereLive) || "") : "";
+      var t = fresh ? "YOU · " + (nm && !/^(you\b|gps$)/i.test(nm) ? nm + " · " : "") + "GPS" : "YOU · Location not shared · tap to locate";
+      if (c.textContent !== t) c.textContent = t;
+      c.setAttribute("data-fix", fresh ? "gps" : "none");
+      var me0 = $("sn-me"), r = me0 && me0.getBoundingClientRect();
+      if (r && r.height) c.style.bottom = Math.max(8, Math.round(window.innerHeight - r.top + 6)) + "px", c.style.left = Math.max(6, Math.round(r.left)) + "px";
+    } catch (eY) {}
+  }
+  setInterval(youChip, 1500);
+  setTimeout(youChip, 300);
   function openYou() {
     var spec = botSpec();
     /* 4377: WHERE is the real GPS fix only; an IP guess (Orland Park) is never shown as the user's location */
@@ -6632,7 +6657,7 @@ window.__SN_4382 = true;
     var gpsFresh = !!(hereLive && isFinite(+hereLive.lat) && (seatKind === "gps" || (window.__snGpsAt && Date.now() - window.__snGpsAt < 600000)) && fixPrecise(window.__snLastAcc));
     var where = gpsFresh ? (Number(hereLive.lat).toFixed(5) + ", " + Number(hereLive.lng).toFixed(5) + " · GPS")
       : lg0 ? (Number(lg0.lat).toFixed(5) + ", " + Number(lg0.lng).toFixed(5) + " · last GPS fix " + Math.max(1, Math.round((Date.now() - (+lg0.t || 0)) / 60000)) + " min ago")
-      : "location not shared"; /* 4380: GPS, else the last real fix, else not shared; never the IP city */
+      : "Location not shared · tap to locate"; /* 4380: GPS, else the last real fix, else not shared; never the IP city */
     var mineTasks = cityTasks.filter(function (t) { return t && t.status !== "closed" && (t.by === me() || t.taker === me()); });
     var taskHtml = mineTasks.length ? mineTasks.slice(0, 6).map(function (t) {
       return '<p class="note">' + esc((t.title || "Task") + (t.when ? " · " + t.when : "") + (t.pay ? " · " + t.pay : "")) + "</p>";
@@ -6651,6 +6676,7 @@ window.__SN_4382 = true;
       '<img class="sn-face" alt="" src="' + youPhoto() + '">' +
       '<p class="note">' + esc(youName() || "Guest") + (signed() ? ". This is your picture." : " · LOG IN to keep a picture.") + '</p>' +
       '<p class="note">WHERE · ' + esc(where) + "</p>" +
+      (gpsFresh ? "" : '<button type="button" class="sheet-go primary" data-act="locate">LOCATE ME</button>') + /* 4383 */
       '<p class="note">TASKS</p>' + taskHtml +
       '<p class="note">CALENDAR · typed here. Not a public copy of Google.</p>' +
       calHtml +
@@ -9548,6 +9574,10 @@ window.__SN_4382 = true;
       if (act === "delete-vendor") { deleteVendor(id); return; }
       if (act === "robot-style" || act === "robot-color") { setRobot(act, t.getAttribute("data-k")); return; }
       if (act === "cal-add") { addCalLine(); return; }
+      if (act === "locate") { /* 4383: LOCATE ME in YOU asks the browser for a real fix */
+        gpsFix(function (pt) { if (pt && isFinite(+pt.lat) && fixPrecise(+pt.acc)) { window.__snLastAcc = +pt.acc; land(pt, false); say("Located by GPS."); } else if (pt) say("Only a rough network position came back (± " + Math.round(+pt.acc / 1000) + " km). Not used as you; name a place, or allow precise location."); else say("Location not shared. Allow location in the browser, or name a place."); try { youChip(); } catch (eY) {} });
+        return;
+      }
       if (act === "cal-del") { delCalLine(id); return; }
       if (act === "sched-save") { saveSched(); return; }
       if (act === "account") { if (window.SNAuth && SNAuth.open) SNAuth.open(); return; }
@@ -11419,6 +11449,7 @@ window.__SN_4379 = true;
 window.__SN_4380 = true;
 window.__SN_4381 = true;
 window.__SN_4382 = true;
+window.__SN_4383 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
