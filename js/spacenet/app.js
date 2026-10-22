@@ -4993,12 +4993,12 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       }
     });
     /* 4391: last guard: a shown label that still touches another marker's face, number or shown label (any marker on the map,
-       not only shops) is hidden; its name stays in the tooltip and comes back on zoom */
+       not only shops; leader lines do not count) is hidden; its name stays in the tooltip and comes back on zoom */
     try {
       var host = cityEl.querySelector(".leaflet-marker-pane") || cityEl;
       var others = [];
       Array.prototype.forEach.call(host.querySelectorAll(".leaflet-marker-icon"), function (mk) {
-        Array.prototype.forEach.call(mk.querySelectorAll("img,em,i,b"), function (x) {
+        Array.prototype.forEach.call(mk.querySelectorAll("img,em,i.sn-no,b"), function (x) {
           if (x.tagName === "B" && mk.classList.contains("sn-lbl-off")) return;
           var q = x.getBoundingClientRect();
           if (q.width > 0 && q.height > 0) others.push({ mk: mk, x: x, r: q });
