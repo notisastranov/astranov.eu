@@ -383,3 +383,7 @@ Evolve. The helper develops the running rules, not a new login.
 - Main V4383 merged (c5deee9e). Taken: nothing in code. Main swapped its handle law() from hide to force() 10px. The branch has no hide law, and its handles already render at 10px. Main's sw/api/version literals are superseded by the branch stamps; api/version reads VERSION.
 - Stamp truth: meta, ?v=, VERSION, sw.js and the vercel.json X-Astranov-Build/Ship headers all move together in one commit (inbox 4383 header mismatch).
 - Pin labels: up to 112px wide on two lines. With no room, a short first-word label is shown, else the label is hidden; title and aria-label always carry the full name.
+
+## 4391 branch note
+- A signed-out visitor sees a SIGN IN button in the ribbon; it starts the existing Google sign-in. There is no auto prompt.
+- Pin labels get a final collision guard: a shown label that touches another marker's face, number or label is hidden. The higher number yields.

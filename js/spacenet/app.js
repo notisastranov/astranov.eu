@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4390"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4391"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1449,7 +1449,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3221,7 +3221,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4390&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4391&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -4992,6 +4992,28 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         ld.style.display = "";
       }
     });
+    /* 4391: last guard: a shown label that still touches another marker's face, number or shown label (any marker on the map,
+       not only shops) is hidden; its name stays in the tooltip and comes back on zoom */
+    try {
+      var host = cityEl.querySelector(".leaflet-marker-pane") || cityEl;
+      var others = [];
+      Array.prototype.forEach.call(host.querySelectorAll(".leaflet-marker-icon"), function (mk) {
+        Array.prototype.forEach.call(mk.querySelectorAll("img,em,i,b"), function (x) {
+          if (x.tagName === "B" && mk.classList.contains("sn-lbl-off")) return;
+          var q = x.getBoundingClientRect();
+          if (q.width > 0 && q.height > 0) others.push({ mk: mk, x: x, r: q });
+        });
+      });
+      items.slice().sort(function (a, b) { return (b.no || 0) - (a.no || 0); }).forEach(function (it) {
+        if (!it.b || it.el.classList.contains("sn-lbl-off")) return;
+        var r = grow(it.b.getBoundingClientRect(), 1);
+        for (var i = 0; i < others.length; i++) {
+          var o = others[i];
+          if (o.mk === it.el || (o.x.tagName === "B" && o.mk.classList.contains("sn-lbl-off"))) continue;
+          if (rectHit(r, o.r)) { it.el.classList.add("sn-lbl-off"); it.el.classList.remove("sn-lbl-short"); break; }
+        }
+      });
+    } catch (e) {}
     window.__snDecl = { n: items.length, moved: items.filter(function (it) { return it.el.classList.contains("sn-moved"); }).length,
       labels: items.filter(function (it) { return it.b && !it.el.classList.contains("sn-lbl-off"); }).length };
   }
@@ -5004,7 +5026,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4390";
+    return "/you.png?v=4391";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -6638,7 +6660,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function robotSrc() {
     var style = botSpec().style || "spartan";
     if (style !== "courier" && style !== "wire") style = "spartan";
-    return "/js/spacenet/robots/" + style + ".jpg?v=4390";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4391";
   }
   function robotFilter() {
     var c = botSpec().color;
@@ -11616,7 +11638,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {

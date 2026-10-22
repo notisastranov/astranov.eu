@@ -265,6 +265,12 @@
     var u = user();
     var inNow = !!(u && u.email);
     document.body.classList.toggle("sn-in", inNow); /* 4382: main V4377 */
+    /* 4391: a signed-out visitor sees SIGN IN in the ribbon; one tap starts the existing Google sign-in (no auto prompt) */
+    var si = document.getElementById("sn-signin");
+    if (si) {
+      si.hidden = inNow;
+      if (!si.__snWired) { si.__snWired = true; si.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); google(); }); }
+    }
     var btn = document.getElementById("sn-me");
     if (!btn) return;
     btn.className = inNow ? "in" : "out";
@@ -275,7 +281,7 @@
     var short = inNow ? String(u.name || String(u.email).split("@")[0] || "YOU").split(/\s+/)[0].replace(/[<>"&]/g, "").slice(0, 10) : "";
     btn.setAttribute("data-who", inNow ? who : "");
     /* 4383: a guest sees YOU too (it opens the YOU panel: where, tasks, and LOG IN inside), never a bare LOGIN */
-    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "YOU") + '</span><span class="tgt">' + (inNow ? '<img alt="" src="' + String((u && u.photo) || "/you.png?v=4389").replace(/"/g, "") + '">' : '<span class="ph">?</span>') + "</span>";
+    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "YOU") + '</span><span class="tgt">' + (inNow ? '<img alt="" src="' + String((u && u.photo) || "/you.png?v=4391").replace(/"/g, "") + '">' : '<span class="ph">?</span>') + "</span>";
     if (window.SN && SN.paintMoney) SN.paintMoney();
   }
   function fillBody() {
