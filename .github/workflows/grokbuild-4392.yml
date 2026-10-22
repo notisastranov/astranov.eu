@@ -1,0 +1,33 @@
+name: grokbuild 4392 (rendered-bounds label guard, plain two-line label box; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4392.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix109, assert tree, commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "bb151b47d5a3bd0fabdfc4ff46e0b78df240ec6b" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          base64 -d .grokbuild/fix109.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "af10f091435020c6fcd234a24384b9f7256cace5dc23532b4ae156dc8ecb57e7"
+          gunzip -c /tmp/f.gz > /tmp/fix109.patch
+          test "$(sha256sum /tmp/fix109.patch | cut -d' ' -f1)" = "f845d7dea5ea00e192b21a330a82462be013ef7f9ddb5320c53e11a6b7932c40"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4392.yml
+          git apply --index /tmp/fix109.patch
+          node --check js/spacenet/app.js
+          grep -q '^4392$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "cfb927b600b3bb17797988bd740219368d5b69bf" || { echo "tree $T"; exit 1; }
+          git commit -q -m "4392: pin labels: rendered-bounds hit-test hides covered labels (faces, numbers, labels, YOU marker, HUD); plain block two-line label box replaces the -webkit-box clamp that painted long names as empty dark boxes. Lockstep 4392"
+          git push origin HEAD:grokbuild/4328-street-level-gps
