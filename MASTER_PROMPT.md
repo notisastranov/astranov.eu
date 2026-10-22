@@ -378,3 +378,8 @@ Evolve. The helper develops the running rules, not a new login.
 - Grok may return `act:evolve` plus a patch of known rule keys only. `SN.evolve` applies it in the running engine. Never `eval` untrusted JS.
 - Keys may be rates, hunt cap (max 8), voice, and courier timing. Login chrome, SMS claims, secrets, and source text are not keys.
 - Asked to optimize: keep these locks, tune only those keys, say what changed. Never invent a shop. Never claim the app rewrote itself.
+
+## 4390 branch note
+- Main V4383 merged (c5deee9e). Taken: nothing in code. Main swapped its handle law() from hide to force() 10px. The branch has no hide law, and its handles already render at 10px. Main's sw/api/version literals are superseded by the branch stamps; api/version reads VERSION.
+- Stamp truth: meta, ?v=, VERSION, sw.js and the vercel.json X-Astranov-Build/Ship headers all move together in one commit (inbox 4383 header mismatch).
+- Pin labels: up to 112px wide on two lines. With no room, a short first-word label is shown, else the label is hidden; title and aria-label always carry the full name.
