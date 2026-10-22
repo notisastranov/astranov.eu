@@ -1,0 +1,33 @@
+name: grokbuild 4393 (no reload during use; sw never serves an older build; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4393.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix110, assert tree, commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "9bd36a05c977b1625cfa60dca53d10313e7c24aa" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          base64 -d .grokbuild/fix110.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "af46255bb0d93fd0ed7608080337c4ca9f9951f0e10efe4850b6dc6c5ac0e2d1"
+          gunzip -c /tmp/f.gz > /tmp/fix110.patch
+          test "$(sha256sum /tmp/fix110.patch | cut -d' ' -f1)" = "47c35940e8a94f924818aff80278f9600bf033146972c7a80b2f419efabff39d"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4393.yml
+          git apply --index /tmp/fix110.patch
+          node --check js/spacenet/app.js
+          grep -q '^4393$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "12f772cbf38762bdfa2b215787978a79a25d2582" || { echo "tree $T"; exit 1; }
+          git commit -q -m "4393: a hunt never reloads the page (watchdog blocks native submit, waits while app.js runs, never fires after input; safeReload never after use); sw fallbacks only from its own shell, never cache-answers a newer ?v=; page drops older sn-shell caches. Lockstep 4393"
+          git push origin HEAD:grokbuild/4328-street-level-gps
