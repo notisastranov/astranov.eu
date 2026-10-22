@@ -1,7 +1,7 @@
-/* SpaceNet SW 4392 — one entity. Tree lock. */
-var CACHE = "sn-shell-4392";
-var VER = "4392";
-var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4392", "/js/spacenet/auth.js?v=4392", "/js/vendor/leaflet.js?v=4392", "/js/vendor/leaflet.css?v=4392", "/icon-192.png", "/manifest.webmanifest"];
+/* SpaceNet SW 4393 — one entity. Tree lock. */
+var CACHE = "sn-shell-4393";
+var VER = "4393";
+var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4393", "/js/spacenet/auth.js?v=4393", "/js/vendor/leaflet.js?v=4393", "/js/vendor/leaflet.css?v=4393", "/icon-192.png", "/manifest.webmanifest"];
 function allowedScript(path) {
   if (path === "/js/spacenet/app.js" || path === "/js/spacenet/auth.js" || path === "/js/vendor/leaflet.js") return true;
   return false;
@@ -36,18 +36,23 @@ self.addEventListener("fetch", function (e) {
   var url = new URL(e.request.url);
   if (url.origin !== location.origin) return;
   if (isOverlay(url.pathname)) {
-    e.respondWith(new Response("/* TREE LOCK 4392: overlay blocked */", { headers: { "Content-Type": "application/javascript" }, status: 200 }));
+    e.respondWith(new Response("/* TREE LOCK 4393: overlay blocked */", { headers: { "Content-Type": "application/javascript" }, status: 200 }));
     return;
   }
   if (e.request.mode === "navigate" || url.pathname === "/" || url.pathname === "/index.html") {
-    e.respondWith(fetch(e.request, { cache: "no-store" }).catch(function () { return caches.match("/index.html"); }));
+    /* 4393: offline fallback only from this worker's own shell (same build), never another cache */
+    e.respondWith(fetch(e.request, { cache: "no-store" }).catch(function () { return caches.open(CACHE).then(function (c) { return c.match("/index.html"); }); }));
     return;
   }
+  /* 4393: a page newer than this worker (its ?v= above VER) is never answered from cache: network only, so the worker can
+     never hand a page an older build */
+  var pv = /[?&]v=(\d{4,})/.exec(url.search);
+  if (pv && Number(pv[1]) > Number(VER)) { e.respondWith(fetch(e.request, { cache: "no-store" })); return; }
   e.respondWith(fetch(e.request).then(function (res) {
     if (res && res.ok && e.request.method === "GET") {
       var copy = res.clone();
       caches.open(CACHE).then(function (c) { c.put(e.request, copy); }).catch(function () {});
     }
     return res;
-  }).catch(function () { return caches.match(e.request); }));
+  }).catch(function () { return caches.open(CACHE).then(function (c) { return c.match(e.request); }); }));
 });

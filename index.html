@@ -3,14 +3,14 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4392"/>
+<meta name="astranov-build" content="4393"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2714%27 fill=%27%2304101c%27/%3E%3Ccircle cx=%2732%27 cy=%2732%27 r=%2727%27 fill=%27none%27 stroke=%27%234df0ff%27 stroke-width=%274%27/%3E%3Ctext x=%2732%27 y=%2744%27 font-family=%27monospace%27 font-size=%2734%27 font-weight=%27800%27 text-anchor=%27middle%27 fill=%27%234df0ff%27%3EA%3C/text%3E%3C/svg%3E"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4392"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4393"/>
 <script>
 (function () {
   function kill(n) {
@@ -219,35 +219,48 @@ body.sn-scan #sn-radar-hud{animation-duration:1.1s}
 <body>
 <canvas id="g"></canvas>
 <script>
-setTimeout(function () {
-  if (window.__SN_EARTH) return;
-  var once = "";
-  try { once = sessionStorage.getItem("sn:reborn") || ""; } catch (e) {}
-  if (once !== "1") {
+/* 4393: the start watchdog never reloads a page the visitor is using. A native form submit (Enter before app.js binds the
+   talk box) can no longer navigate; the watchdog waits while app.js is still loading or running, never fires after any input,
+   and the one automatic retry happens only when app.js never ran at all. */
+(function () {
+  var used = false, t0 = Date.now();
+  document.addEventListener("submit", function (e) { if (e.target && e.target.id === "f") e.preventDefault(); }, true);
+  ["keydown", "pointerdown", "touchstart", "input"].forEach(function (k) { window.addEventListener(k, function () { used = true; }, { capture: true, passive: true }); });
+  function down() {
+    if (document.getElementById("sn-down")) return;
+    var box = document.createElement("div");
+    box.id = "sn-down";
+    box.textContent = "SpaceNet did not start. Tap here to try again.";
+    box.style.cssText = "position:fixed;left:12px;right:12px;top:48px;z-index:300;padding:14px;border-radius:12px;background:#041018;color:#e8fbff;border:1px solid #4df0ff;font:600 16px/1.4 system-ui";
+    box.onclick = function () {
+      try { sessionStorage.removeItem("sn:reborn"); } catch (e) {}
+      location.replace("/?t=" + Date.now());
+    };
+    document.body.appendChild(box);
+  }
+  function check() {
+    if (window.__SN_EARTH) { try { sessionStorage.removeItem("sn:reborn"); } catch (e) {} return; }
+    var age = Date.now() - t0;
+    if (window.__SN_APPJS || used) { if (age < 30000) { setTimeout(check, 2500); return; } if (!used) down(); return; }
+    if (age < 12000) { setTimeout(check, 2000); return; }
+    var once = "";
+    try { once = sessionStorage.getItem("sn:reborn") || ""; } catch (e) {}
+    if (once === "1") { down(); return; }
     try { sessionStorage.setItem("sn:reborn", "1"); } catch (e2) {}
     var wipe = (navigator.serviceWorker && navigator.serviceWorker.getRegistrations)
       ? navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); })
       : Promise.resolve();
     wipe.then(function () { location.replace("/?reborn=1&t=" + Date.now()); }).catch(function () { location.reload(); });
-    return;
   }
-  var box = document.createElement("div");
-  box.id = "sn-down";
-  box.textContent = "SpaceNet did not start. Tap here to try again.";
-  box.style.cssText = "position:fixed;left:12px;right:12px;top:48px;z-index:300;padding:14px;border-radius:12px;background:#041018;color:#e8fbff;border:1px solid #4df0ff;font:600 16px/1.4 system-ui";
-  box.onclick = function () {
-    try { sessionStorage.removeItem("sn:reborn"); } catch (e) {}
-    location.replace("/?t=" + Date.now());
-  };
-  document.body.appendChild(box);
-}, 5000);
+  setTimeout(check, 5000);
+})();
 </script>
 <div id="city"></div>
 <div id="sn-news"></div>
 <div id="top">
   <div id="sn-topchrome-drag" class="sn-trivial-law" aria-hidden="true"></div>
   <div id="island">
-    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">Astranov.Eu SpaceNet V4392</button><span id="ver">V4392</span><button type="button" id="sn-signin" aria-label="Sign in with Google" title="Sign in with Google">SIGN IN</button><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
+    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">Astranov.Eu SpaceNet V4393</button><span id="ver">V4393</span><button type="button" id="sn-signin" aria-label="Sign in with Google" title="Sign in with Google">SIGN IN</button><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
     <div class="r2"><span id="sn-local">-</span><span id="sn-utc">-</span><span id="sn-wx"></span><span id="sn-node"></span><canvas id="sn-spark" width="120" height="28"></canvas></div>
   </div>
 
@@ -286,10 +299,10 @@ setTimeout(function () {
 <div id="sn-sheet"><div class="bg"></div><div class="card" id="sn-sheet-card"></div></div>
 <div id="dock"><div id="panel"><div id="cli-drag" class="sn-trivial-law" aria-hidden="true"></div><div id="sn-tabs"></div><div id="line"></div><form id="f"><input id="in" autocomplete="off" enterkeyhint="send" placeholder="Command the HUD · show, hide, or reshape"/></form></div></div>
 <input id="sn-file" type="file" accept="image/*,application/pdf,text/*" hidden/>
-<script src="/js/vendor/leaflet.js?v=4392"></script>
-<script src="/js/spacenet/app.js?v=4392"></script>
-<script src="/js/spacenet/auth.js?v=4392"></script>
-<script src="/guardian.js?v=4392"></script>
+<script src="/js/vendor/leaflet.js?v=4393"></script>
+<script src="/js/spacenet/app.js?v=4393"></script>
+<script src="/js/spacenet/auth.js?v=4393"></script>
+<script src="/guardian.js?v=4393"></script>
 <script id="sn-helper-law">
 (function () {
   function signed() {
@@ -380,7 +393,7 @@ setTimeout(function () {
       h.type = "button";
       h.id = "sn-helper";
       h.setAttribute("aria-label", "Helper");
-      h.innerHTML = '<img alt="" src="/js/spacenet/robots/spartan.jpg?v=4392">';
+      h.innerHTML = '<img alt="" src="/js/spacenet/robots/spartan.jpg?v=4393">';
       h.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); cmds(); });
       document.body.appendChild(h);
     }

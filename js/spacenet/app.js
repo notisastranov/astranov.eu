@@ -7,8 +7,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 */
 (function () {
   "use strict";
-  var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4392"; })();
+  var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4393"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1449,11 +1449,13 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
-          navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {});
+          /* 4393: an older build's shell cache can never answer this page: drop every sn-shell-N below this build, then update the worker */
+          try { if (window.caches && caches.keys) caches.keys().then(function (ks) { ks.forEach(function (k) { var m = /^sn-shell-(\d+)$/.exec(k); if (m && Number(m[1]) < Number(VER)) caches.delete(k); }); }).catch(function () {}); } catch (eC) {}
+          navigator.serviceWorker.register("/sw.js", { scope: "/" }).then(function (rg) { try { rg.update(); } catch (eU) {} }).catch(function () {});
           navigator.serviceWorker.addEventListener("message", function (ev) {
             var d = ev && ev.data;
             if (d && d.type === "sn-sw" && Number(d.ver) > Number(VER)) safeReload(String(d.ver));
@@ -3221,7 +3223,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4392&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4393&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -5061,7 +5063,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4392";
+    return "/you.png?v=4393";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -6695,7 +6697,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function robotSrc() {
     var style = botSpec().style || "spartan";
     if (style !== "courier" && style !== "wire") style = "spartan";
-    return "/js/spacenet/robots/" + style + ".jpg?v=4392";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4393";
   }
   function robotFilter() {
     var c = botSpec().color;
@@ -8894,10 +8896,12 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   }
   var lastInputAt = 0, reloadT = 0;
   ["pointerdown", "keydown", "wheel", "touchstart"].forEach(function (k) {
-    window.addEventListener(k, function () { lastInputAt = Date.now(); }, { capture: true, passive: true });
+    window.addEventListener(k, function () { lastInputAt = Date.now(); if (k !== "wheel") window.__snUsed = true; }, { capture: true, passive: true });
   });
   function safeReload(ver) {
     if (!(Number(ver) > Number(VER))) return;
+    /* 4393: once the visitor has asked anything (a hunt, a command) or touched the page, a newer build never reloads it: the ribbon offers it */
+    if ((window.__snSubmits && window.__snSubmits.length) || huntPending() || Date.now() - lastInputAt < 20000 || window.__snUsed) { latestVer = String(ver); upState = "FAILED TO UPDATE"; paintVersion(); return; }
     if (/[?&](code|error)=|access_token=/.test(location.search + location.hash)) return; /* 4339: sign-in return in flight */
     var done = "";
     try { done = sessionStorage.getItem("sn:auto-reloaded") || ""; } catch (e) {}
@@ -11673,7 +11677,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
