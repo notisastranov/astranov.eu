@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4391"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4392"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1449,7 +1449,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3221,7 +3221,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4391&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4392&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3493,7 +3493,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       ".sn-pin b{display:block;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;padding:0 3px;background:rgba(4,14,28,.92);color:#e8fbff;font:800 9px/12px system-ui}",
       ".sn-shop-pin.sn-lbl-short .sn-pin b{white-space:nowrap!important;-webkit-line-clamp:1;line-clamp:1}",
       /* 4390: a pin label is readable: up to 112 px wide on at most two lines, whole words, an ellipsis only past the second line */
-      ".sn-pin b{max-width:112px!important;width:max-content;white-space:normal!important;overflow-wrap:anywhere;text-align:center;display:-webkit-box!important;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden!important;text-overflow:clip!important;line-height:11px!important;border-radius:4px}",
+      ".sn-pin b{max-width:112px!important;width:max-content;white-space:normal!important;overflow-wrap:anywhere;text-align:center;display:block!important;-webkit-line-clamp:none;line-clamp:none;overflow:hidden!important;text-overflow:clip!important;line-height:12px!important;height:auto!important;max-height:24px!important;box-sizing:content-box;color:#e8fbff!important;background:rgba(4,14,28,.92)!important;text-shadow:none;opacity:1;border-radius:4px}",
       ".sn-pin em{display:flex;align-items:center;justify-content:center;width:40px;height:40px;font:28px/40px system-ui;border-radius:8px;border:2px solid #4df0ff;background:rgba(4,14,28,.92)}",
       ".sn-shop-pin .sn-pin{position:relative;z-index:1}",
       ".sn-pin .sn-no{position:absolute;left:9px;top:0;z-index:3;min-width:17px;height:17px;padding:0 3px;box-sizing:border-box;border-radius:9px;background:#4df0ff;color:#041018;font:900 11px/17px system-ui;font-style:normal;text-align:center;box-shadow:0 0 0 2px #041018}",
@@ -5014,6 +5014,41 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         }
       });
     } catch (e) {}
+    /* 4392: rendered-bounds pass: sample the label's painted box (rect plus text client rects); if anything painted sits on top
+       of it (another marker's face/number/label, the YOU marker, a HUD button), the label is hidden instead of showing as a dark strip */
+    try {
+      var painted = function (t) {
+        if (!t || t.nodeType !== 1) return false;
+        if (/^(IMG|EM|B|BUTTON|A|INPUT)$/.test(t.tagName) || (t.classList && t.classList.contains("sn-no"))) return true;
+        var cs = getComputedStyle(t), bg = cs.backgroundColor;
+        if (cs.visibility === "hidden" || +cs.opacity === 0) return false;
+        return (bg && bg !== "transparent" && !/rgba\([^)]*,\s*0\)$/.test(bg)) || cs.backgroundImage !== "none" || (cs.boxShadow && cs.boxShadow !== "none") || parseFloat(cs.borderTopWidth) > 0;
+      };
+      var probe = document.getElementById("sn-4392-probe");
+      if (!probe) { probe = document.createElement("style"); probe.id = "sn-4392-probe"; probe.textContent = ".sn-hitprobe .leaflet-marker-icon,.sn-hitprobe .leaflet-marker-icon *{pointer-events:auto!important}"; document.head.appendChild(probe); }
+      cityEl.classList.add("sn-hitprobe");
+      items.forEach(function (it) {
+        if (!it.b || it.el.classList.contains("sn-lbl-off") || !document.elementsFromPoint) return;
+        var rs = [it.b.getBoundingClientRect()];
+        try { var rg = document.createRange(); rg.selectNodeContents(it.b); Array.prototype.push.apply(rs, rg.getClientRects()); } catch (e2) {}
+        var L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
+        rs.forEach(function (q) { if (q.width > 0 && q.height > 0) { L = Math.min(L, q.left); T = Math.min(T, q.top); R = Math.max(R, q.right); B = Math.max(B, q.bottom); } });
+        if (!(R > L)) return;
+        var xs = [L + 1, (L + R) / 2, R - 1], ys = [T + 1, (T + B) / 2, B - 1], hit = false;
+        for (var a = 0; a < 3 && !hit; a++) for (var c = 0; c < 3 && !hit; c++) {
+          var st = document.elementsFromPoint(xs[a], ys[c]);
+          for (var k = 0; k < st.length; k++) {
+            var t = st[k];
+            if (t === it.b || it.b.contains(t)) break;
+            if (t === cityEl) break;
+            if (it.el.contains(t)) continue;
+            if (painted(t)) { hit = true; break; }
+          }
+        }
+        if (hit) { it.el.classList.add("sn-lbl-off"); it.el.classList.remove("sn-lbl-short"); }
+      });
+    } catch (e) {}
+    try { cityEl.classList.remove("sn-hitprobe"); } catch (e) {}
     window.__snDecl = { n: items.length, moved: items.filter(function (it) { return it.el.classList.contains("sn-moved"); }).length,
       labels: items.filter(function (it) { return it.b && !it.el.classList.contains("sn-lbl-off"); }).length };
   }
@@ -5026,7 +5061,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4391";
+    return "/you.png?v=4392";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -6660,7 +6695,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function robotSrc() {
     var style = botSpec().style || "spartan";
     if (style !== "courier" && style !== "wire") style = "spartan";
-    return "/js/spacenet/robots/" + style + ".jpg?v=4391";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4392";
   }
   function robotFilter() {
     var c = botSpec().color;
@@ -11638,7 +11673,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {

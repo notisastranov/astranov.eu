@@ -1,7 +1,7 @@
-/* SpaceNet SW 4391 — one entity. Tree lock. */
-var CACHE = "sn-shell-4391";
-var VER = "4391";
-var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4391", "/js/spacenet/auth.js?v=4391", "/js/vendor/leaflet.js?v=4391", "/js/vendor/leaflet.css?v=4391", "/icon-192.png", "/manifest.webmanifest"];
+/* SpaceNet SW 4392 — one entity. Tree lock. */
+var CACHE = "sn-shell-4392";
+var VER = "4392";
+var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4392", "/js/spacenet/auth.js?v=4392", "/js/vendor/leaflet.js?v=4392", "/js/vendor/leaflet.css?v=4392", "/icon-192.png", "/manifest.webmanifest"];
 function allowedScript(path) {
   if (path === "/js/spacenet/app.js" || path === "/js/spacenet/auth.js" || path === "/js/vendor/leaflet.js") return true;
   return false;
@@ -36,7 +36,7 @@ self.addEventListener("fetch", function (e) {
   var url = new URL(e.request.url);
   if (url.origin !== location.origin) return;
   if (isOverlay(url.pathname)) {
-    e.respondWith(new Response("/* TREE LOCK 4391: overlay blocked */", { headers: { "Content-Type": "application/javascript" }, status: 200 }));
+    e.respondWith(new Response("/* TREE LOCK 4392: overlay blocked */", { headers: { "Content-Type": "application/javascript" }, status: 200 }));
     return;
   }
   if (e.request.mode === "navigate" || url.pathname === "/" || url.pathname === "/index.html") {

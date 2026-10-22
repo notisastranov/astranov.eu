@@ -387,3 +387,5 @@ Evolve. The helper develops the running rules, not a new login.
 ## 4391 branch note
 - A signed-out visitor sees a SIGN IN button in the ribbon; it starts the existing Google sign-in. There is no auto prompt.
 - Pin labels get a final collision guard: a shown label that touches another marker's face, number or label is hidden. The higher number yields.
+
+- 4392: pin labels: a rendered-bounds hit-test pass (elementsFromPoint over the painted label box) hides any label covered by another marker face/number/label, the YOU marker or HUD; label box is plain block, 12px lines, max two lines (no -webkit-box clamp, which painted long names as empty dark boxes). SIGN IN on preview aliases lands on the Site URL because Supabase rejects the preview redirect_to (allow list); client link is correct.
