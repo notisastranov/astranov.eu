@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4405"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4406"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1604,7 +1604,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -2939,6 +2939,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
              jumped to z14.5..18 and drifted to sea. The branch keeps the gradual wheel and leaves only on a user zoom-out */
         } catch (e) {}
       });
+      map.on("dragstart drag", function () { mapDragAt = Date.now(); });
       map.on("moveend", function () {
         try {
           if (!map || !cityOn) return;
@@ -2949,6 +2950,14 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
           }
           var c = map.getCenter();
           if (!c || !isFinite(+c.lat)) return;
+          /* 4406: a hunt's result set is fixed through zoom changes: a wheel / pinch / button zoom (which slides the centre)
+             never re-seats, re-hunts or drops pins. Only a deliberate drag that takes the view 15 km+ from the hunt's
+             place re-seats (and the field refresh runs there); a new search re-hunts. */
+          if (huntView) {
+            if (Date.now() - mapDragAt > 2500) return;
+            var hsO = huntOrigin && huntOrigin();
+            if (hsO && isFinite(+hsO.lat) && haversineKm(hsO, { lat: +c.lat, lng: +c.lng }) < 15) return;
+          }
           /* pan updates the active seat; do not clear a named landing name unless far */
           var prev = lastSeat;
           /* 4404: a named place stays the seat while the view is still around it (a wheel zoom-out around the cursor slides
@@ -3442,7 +3451,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4405&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4406&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -5449,7 +5458,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   }
   /* 4403: label guard: every 500 ms while the map is still (and after each declutter), any shown shop label that sits on another
      marker's face/number or on a shown label of a higher-priority pin (lower number) is hidden. It only hides; it never moves pins */
-  function grow1(r) { return { left: r.left - 2, right: r.right + 2, top: r.top - 2, bottom: r.bottom + 2 }; }
+  function grow1(r) { return { left: r.left - 3, right: r.right + 3, top: r.top - 3, bottom: r.bottom + 3 }; } /* 4406: 2 px margin, strict (rectHit forgives 1 px) */
   function labelGuard() {
     try {
       var cityEl = $("city"); if (!cityEl || (snPress && snPress.down) || cityEl.querySelector(".leaflet-zoom-anim")) return; /* 4404: it only hides, so it runs under a hover too (the hovered pin keeps its name) */
@@ -5502,11 +5511,22 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         leads.push({ mk: mk, x0: q.left + 38, y0: q.top + 31, dx: Math.cos(ang) * w, dy: Math.sin(ang) * w });
       });
       function leadHit(l) {
-        var r = { left: l.r.left - 1, right: l.r.right + 1, top: l.r.top - 1, bottom: l.r.bottom + 1 };
+        var r = { left: l.r.left - 3, right: l.r.right + 3, top: l.r.top - 3, bottom: l.r.bottom + 3 };
         return leads.some(function (s) {
           if (s.mk === l.mk) return false;
           for (var t = 0; t <= 1.0001; t += 0.04) { var x = s.x0 + s.dx * t, y = s.y0 + s.dy * t; if (x > r.left && x < r.right && y > r.top && y < r.bottom) return true; }
           return false;
+        });
+      }
+      function ownLeadHit(l) {
+        return leads.some(function (sg) {
+          if (sg.mk !== l.mk) return false;
+          return labs.some(function (k) {
+            if (k.mk === l.mk) return false;
+            var r = { left: k.r.left - 2, right: k.r.right + 2, top: k.r.top - 2, bottom: k.r.bottom + 2 };
+            for (var t = 0; t <= 1.0001; t += 0.04) { var x = sg.x0 + sg.dx * t, y = sg.y0 + sg.dy * t; if (x > r.left && x < r.right && y > r.top && y < r.bottom) return true; }
+            return false;
+          });
         });
       }
       function coveredAt(l) {
@@ -5527,7 +5547,9 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       }
       var kept = [];
       labs.forEach(function (l) {
-        var hit = faces.some(function (f) { return f.mk !== l.mk && rectHit(grow1(l.r), f.r); }) || kept.some(function (k) { return rectHit(grow1(l.r), k.r); }) || leadHit(l);
+        /* 4406: a name touching any pin (its face or number, 2 px margin; its own face with no overlap) or whose own leader
+           line crosses any other name is hidden too */
+        var hit = faces.some(function (f) { return f.mk !== l.mk ? rectHit(grow1(l.r), f.r) : rectHit(l.r, f.r); }) || kept.some(function (k) { return rectHit(grow1(l.r), k.r); }) || leadHit(l) || ownLeadHit(l);
         var b = l.mk.querySelector("b"), clip = b && (b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1);
         if (!hit && !clip && l.mk !== hovMk) hit = coveredAt(l); /* 4405: whatever is painted on top of the name (sheet grip, chips, another pin) */
         if ((hit && l.mk !== hovMk) || clip) { l.mk.classList.add("sn-lbl-off"); l.mk.classList.remove("sn-lbl-short"); } else kept.push(l);
@@ -5550,7 +5572,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4405";
+    return "/you.png?v=4406";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -5568,8 +5590,27 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     }
     if (state === "off" || n == null || !huntView) { el.style.display = "none"; return; }
     el.textContent = String(huntLabel()).toUpperCase() + " · " + (state === "busy" ? "looking…" : n + " real pin" + (n === 1 ? "" : "s"));
-    el.style.display = "block";
+    el.style.display = "block";    placeRibbon();
   }
+  /* 4406: the top-left ribbon is one column with gaps: WALLET chip, then the hunt chip under it (wrapping, never wider than the
+     room left of the globe button), then the power tag; nothing overlaps whatever the font, width or count */
+  function placeRibbon() {
+    try {
+      var mo = $("sn-money"), hn = $("sn-hunt-n"), pt = $("sn-power-tag");
+      var mr = mo && getComputedStyle(mo).display !== "none" ? mo.getBoundingClientRect() : null;
+      var L = Math.round(mr && mr.width ? mr.left : 6), y = mr && mr.height ? mr.bottom + 6 : 76;
+      if (hn && hn.style.display !== "none") {
+        var gl = $("sn-globe"), gr = gl && gl.getBoundingClientRect(), right = window.innerWidth - 6;
+        if (gr && gr.width && gr.top < y + 60 && gr.left > L + 100) right = gr.left - 6;
+        hn.style.top = Math.round(y) + "px"; hn.style.left = L + "px"; hn.style.right = "auto";
+        hn.style.maxWidth = Math.max(120, right - L) + "px"; hn.style.whiteSpace = "normal"; hn.style.boxSizing = "border-box"; hn.style.overflowWrap = "anywhere";
+        var hr = hn.getBoundingClientRect(); if (hr.height) y = hr.bottom + 4;
+      }
+      if (pt && mr) { var pr = pt.getBoundingClientRect(); if (pr.top < y && pr.left < L + 200) pt.style.top = Math.round(y) + "px"; }
+    } catch (eR) {}
+  }
+  window.addEventListener("resize", function () { placeRibbon(); });
+  setInterval(placeRibbon, 1000);
   function markHunt(n, state) {
     /* 4357 (p): the count is also on screen (main hides #line), in #sn-hunt-n */
     try { huntBadge(n, state); } catch (eB) {}
@@ -6532,7 +6573,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         } catch (eR) {}
       }, ms);
     });
-    closeBelow = Math.max(6, Math.min(8, z - 2.5)); try { if (map.getMinZoom() > closeBelow) map.setMinZoom(closeBelow); } catch (eMz) {} /* 4404: a few wheel notches out keep the field (intermediate levels); only real low zoom leaves for the globe */
+    closeBelow = Math.max(5, Math.min(7, z - 3.5)); /* 4406: seven wheel notches out after a hunt fit stay in the field with the same pins */ try { if (map.getMinZoom() > closeBelow) map.setMinZoom(closeBelow); } catch (eMz) {} /* 4404: a few wheel notches out keep the field (intermediate levels); only real low zoom leaves for the globe */
     huntView.fitted = true;
     try { paintShopsOnMap(); } catch (e3) {}
   }
@@ -6846,8 +6887,25 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   }
   /* 4354: Overpass 504s (or every source failing) never leave a hunt empty if this hunt found real pins here before:
      the last real answer per hunt and ~1 km seat is kept 24 h and used only when the live sources return nothing */
+  function huntSlim(r) { return { id: r.id, name: r.name, lat: r.lat, lng: r.lng, kind: r.kind, phone: r.phone || "", address: r.address || "", street: r.street || "", src: r.src || "", osm: r.osm || "" };; }
+  function huntMemoKey(q, seat) { return "sn:hunt:" + foldTxt(String(q || "")).trim().slice(0, 40) + "@" + (seat && isFinite(+seat.lat) ? (+seat.lat).toFixed(2) + "," + (+seat.lng).toFixed(2) : "-"); }
+  /* 4406: per session, a query at a place is answered once; asking again shows exactly that set (no re-fetch, no drift) */
+  var huntMemo = {};
+  function huntMemoSave(key) {
+    try {
+      if (!key || !huntView || !huntView.ids) return;
+      var set = (shops || []).filter(function (s) { return s && huntView.ids[huntKey(s)]; });
+      if (set.length) {
+        huntMemo[key] = { t: Date.now(), rows: set.slice() };
+        var js = null;
+        try { js = JSON.stringify({ t: Date.now(), rows: set }); } catch (eJ) { js = null; }
+        if (!js || js.length > 400000) js = JSON.stringify({ t: Date.now(), rows: set.map(huntSlim) });
+        try { sessionStorage.setItem("sn:memo:" + key, js); } catch (eS) {}
+      }
+    } catch (eM) {}
+  }
   function huntCache(q, seat, rows) {
-    var key = "sn:hunt:" + foldTxt(String(q || "")).trim().slice(0, 40) + "@" + (seat && isFinite(+seat.lat) ? (+seat.lat).toFixed(2) + "," + (+seat.lng).toFixed(2) : "-");
+    var key = huntMemoKey(q, seat);
     try {
       var needle = huntView && huntView.needle;
       var real = (rows || []).filter(function (r) { return r && (!needle || huntMatch(r, needle)); });
@@ -6857,12 +6915,17 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var c0 = null;
       try { c0 = JSON.parse(localStorage.getItem(key) || "null"); } catch (eC0) {}
       /* 4404: a thin live answer (an upstream hiccup gave 3 instead of 25) is topped up with the last real answer here */
-      if (outside.length && outside.length < 10 && c0 && c0.rows && c0.rows.length > outside.length && Date.now() - c0.t < 86400000) {
-        window.__snHuntCache = { key: key, used: true, n: c0.rows.length, topUp: true };
-        return uniqPlaces((rows || []).concat(c0.rows.map(function (r) { r.cached = true; return r; }).filter(function (p) { return nearSeat(p, 50) && (!needle || huntMatch(p, needle)); })));
+      /* 4406: the same query at the same place gives the same set: every real place seen here in the last 24 h (any source,
+         any Nominatim page) is merged with this answer, and the merged set is what is saved, so runs converge, never shrink */
+      if (outside.length && c0 && c0.rows && c0.rows.length && Date.now() - c0.t < 86400000) {
+        var unionR = uniqPlaces((rows || []).concat(c0.rows.map(function (r) { r.cached = true; return r; }).filter(function (p) { return nearSeat(p, 50) && (!needle || huntMatch(p, needle)); })));
+        var realU = unionR.filter(function (r) { return r && (!needle || huntMatch(r, needle)); });
+        try { localStorage.setItem(key, JSON.stringify({ t: c0.t, rows: realU.slice(0, 80).map(huntSlim) })); } catch (eU) {}
+        window.__snHuntCache = { key: key, used: true, n: realU.length, topUp: true };
+        return unionR;
       }
       if (outside.length) {
-        var slimR = real.slice(0, 24).map(function (r) { return { id: r.id, name: r.name, lat: r.lat, lng: r.lng, kind: r.kind, phone: r.phone || "", address: r.address || "", street: r.street || "", src: r.src || "", osm: r.osm || "" }; });
+        var slimR = real.slice(0, 80).map(huntSlim);
         localStorage.setItem(key, JSON.stringify({ t: Date.now(), rows: slimR }));
         window.__snHuntCache = { key: key, used: false, n: real.length, src: real.slice(0, 6).map(function (r) { return (r.src || "?") + ":" + r.name; }) };
         return rows;
@@ -7011,6 +7074,16 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         }).catch(function () { return []; });
       }
       window.__snLastHunt = named || q;
+      var memoKey = huntMemoKey(named || q, seat0), memo = huntMemo[memoKey];
+      if (!memo) { try { var mS = JSON.parse(sessionStorage.getItem("sn:memo:" + memoKey) || "null"); if (mS && mS.rows && mS.rows.length) memo = huntMemo[memoKey] = { t: mS.t, rows: mS.rows }; } catch (eS2) {} }
+      if (memo && Date.now() - memo.t < 3600000 && memo.rows.length) {
+        shops = uniqPlaces(memo.rows.slice());
+        if (huntView) { huntView.ids = {}; shops.forEach(function (p) { if (p) huntView.ids[huntKey(p)] = 1; }); huntView.via = "session"; }
+        window.__snHuntCache = { key: memoKey, used: true, n: shops.length, session: true };
+        huntCtrl = null;
+        showFound();
+        return;
+      }
       /* 4404: one 4.5 s budget. Every source that answered in time is merged (server boxed OSM, browser Nominatim /
          Overpass, our listings, the last real answer here); a server answer that lands later still joins this hunt.
          Nothing waits 11 s any more, and an empty slow run says so honestly with a retry hint. */
@@ -7045,6 +7118,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         } else {
           huntCtrl = null;
           showFound();
+          huntMemoSave(memoKey);
         }
         if (apiLate) {
           apiP.then(function (rows) {
@@ -7054,6 +7128,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
             huntSlow = null;
             findWanted = true;
             showFound();
+            huntMemoSave(memoKey);
           });
         }
       }).catch(function () {
@@ -7229,7 +7304,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function robotSrc() {
     var style = botSpec().style || "spartan";
     if (style !== "courier" && style !== "wire") style = "spartan";
-    return "/js/spacenet/robots/" + style + ".jpg?v=4405";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4406";
   }
   function robotFilter() {
     var c = botSpec().color;
@@ -8887,6 +8962,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   /* 4338: a tile still on its way shows map paper (OSM land tone), never the dark globe behind */
   var MAP_PAPER = "#ece8df";
   var huntView = null;
+  var mapDragAt = 0; /* 4406: last real map drag (a zoom is not a pan) */
   var findOnSheet = false;
   var overpassOff = false;
   var overpassCool = 0;
@@ -12313,7 +12389,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
