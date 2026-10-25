@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4399"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4400"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -984,7 +984,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   try {
     fetch("/apps/registry.json", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (rows) {
       if (!Array.isArray(rows)) return;
-      var next = rows.filter(function (a) { return a && a.host && a.n; }).map(function (a) {
+      var next = rows.filter(function (a) { return a && a.n && (a.path || a.host); }).map(function (a) {
+        if (a.path) return { n: a.n, path: a.path }; /* 4400: main 4394 path rows (solar-system apps same-origin) */
         return /^(datanet|servernet)$/.test(a.folder || "") ? { n: a.n, path: "/" + a.folder + "/" } : { n: a.n, host: a.host };
       });
       if (next.length) APP_BODIES = next;
@@ -1587,7 +1588,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3394,7 +3395,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4399&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4400&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3723,11 +3724,14 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       "#plus,#go{position:fixed!important;bottom:max(8px,env(safe-area-inset-bottom))!important;top:auto!important;z-index:60!important;width:44px!important;height:44px!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.7)!important;background:rgba(4,16,28,.92)!important}",
       "#plus{left:max(6px,env(safe-area-inset-left))!important;right:auto!important}",
       "#go{right:max(6px,env(safe-area-inset-right))!important;left:auto!important}",
-      "input#in{padding-left:56px!important;padding-right:56px!important}",
+      "input#in{padding-left:56px!important;padding-right:104px!important}",
+      /* 4400: from main 4394-4396 — mic on search beside GO; single GPS button (label only); compass stays clear above it */
+      "#sn-mic{position:fixed!important;bottom:max(8px,env(safe-area-inset-bottom))!important;right:calc(max(6px,env(safe-area-inset-right)) + 62px)!important;top:auto!important;left:auto!important;z-index:60!important;width:44px!important;height:44px!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.7)!important;background:rgba(4,16,28,.92)!important;color:#4df0ff!important;font:18px/1 system-ui!important;padding:0!important;display:flex!important;align-items:center!important;justify-content:center!important}",
+      "#gps .tgt{display:none!important}",
       "#dock{left:0!important;right:0!important;bottom:0!important;top:auto!important;padding:0!important;margin:0!important;background:rgba(4,14,28,.92)!important;border-top:1px solid rgba(80,220,255,.35)!important}",
       "#panel{width:100%!important;background:transparent!important}",
       "form#f{display:flex!important;width:100%!important;gap:0!important;align-items:center!important;min-height:48px!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}",
-      "input#in{flex:1!important;min-width:0!important;width:auto!important;min-height:48px!important;border:0!important;border-radius:0!important;background:transparent!important;padding-left:56px!important;padding-right:56px!important}",
+      "input#in{flex:1!important;min-width:0!important;width:auto!important;min-height:48px!important;border:0!important;border-radius:0!important;background:transparent!important;padding-left:56px!important;padding-right:104px!important}",
       "#sn-pulse{display:none!important}",
       "#sn-money .lbl{display:inline-flex!important;align-items:center;height:40px;padding:0 4px 0 12px;font:800 10px/1 ui-monospace,monospace!important;letter-spacing:.14em;color:#4df0ff!important;width:auto!important}#sn-money{gap:0!important}#sn-money .tgt{padding-left:6px!important}",
       "#sn-tester.on{display:block!important}#sn-tester:not(.on){display:none!important}", /* 4381: admin / owner / ?testview=1 only */
@@ -5399,7 +5403,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4399";
+    return "/you.png?v=4400";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -7045,7 +7049,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function robotSrc() {
     var style = botSpec().style || "spartan";
     if (style !== "courier" && style !== "wire") style = "spartan";
-    return "/js/spacenet/robots/" + style + ".jpg?v=4399";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4400";
   }
   function robotFilter() {
     var c = botSpec().color;
@@ -9916,6 +9920,29 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         } else say("Type, then GO. This browser has no speech engine.");
       });
     }
+    /* 4400: from main 4395 — 🎤 on search: hear in the device language, fill the line, send through talk() */
+    var micBtn = $("sn-mic");
+    if (micBtn && !micBtn.__snWired) {
+      micBtn.__snWired = 1;
+      micBtn.addEventListener("click", function (e) {
+        if (e && e.preventDefault) e.preventDefault();
+        var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!Rec) { say("This browser has no speech engine. Type, then GO."); return; }
+        var rec = new Rec();
+        rec.lang = navigator.language || "en-GB";
+        rec.interimResults = false;
+        rec.continuous = false;
+        rec.onresult = function (ev) {
+          var t = ev.results[0][0].transcript;
+          if (inp && String(inp.value || "").trim() && !inp.__snSent) { say("Heard: " + t + " · kept what you typed."); return; }
+          if (inp) { inp.value = t; inp.__snSent = ""; }
+          if (typeof paintGo === "function") paintGo();
+          talk(t, true);
+        };
+        rec.onerror = function () { say("Mic closed."); };
+        try { rec.start(); say("Listening…"); } catch (err) { say("Mic busy. Tap again."); }
+      });
+    }
     var jobsBtn = $("sn-tasks-btn"), findBtn = $("sn-find-btn"), nodeBtn = $("sn-node-btn");
     if (jobsBtn) jobsBtn.addEventListener("click", openJobs);
     if (findBtn) findBtn.addEventListener("click", openFind);
@@ -12043,7 +12070,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
