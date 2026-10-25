@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4393"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4394"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -916,8 +916,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (p) drawRobot(ctx, p.x, p.y - 16, cam.dist < 1.9 ? 1.35 : 1, now);
     }
     ctx.restore();
+    drawMesh(cam);
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.strokeStyle = "rgba(140, 210, 230, 0.35)"; ctx.lineWidth = 1.2; ctx.stroke();
+    drawLevelTag();
     ctx.fillStyle = "rgba(150, 180, 196, 0.35)";
     ctx.font = "600 10px system-ui,sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     for (i = 0; i < LABELS.length; i++) {
@@ -964,9 +966,130 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var ci = Math.cos((inc || 0) * Math.PI / 180);
     return { x: cx + Math.cos(ang) * rad, y: cy - Math.sin(ang) * rad * ci };
   }
+  var appHits = [];
+  var earthHit = null;
+  var APP_BODIES = [
+    { n: "ARCHITECT", host: "architect.astranov.eu" },
+    { n: "PERSONALITY", host: "personality.astranov.eu" },
+    { n: "DATANET", host: "datanet.astranov.eu" },
+    { n: "EXCHANGE", host: "exchange.astranov.eu" },
+    { n: "INVESTORS", host: "investors.astranov.eu" },
+    { n: "YACHTS", host: "yachts.astranov.eu" },
+    { n: "COIN", host: "coin.astranov.eu" },
+    { n: "AUDITORS", host: "auditors.astranov.eu" },
+    { n: "FROGSCHOOL", host: "frogschool.astranov.eu" }
+  ];
+  /* 4394: from main 4385 — international mesh + level tag (branch zoom engine kept) */
+  function levelName(d) {
+    if (cityOn) return "City";
+    if (d > 3.05) return "Solar";
+    if (d > 1.7) return "Global";
+    if (d > 1.05) return "International";
+    return "National";
+  }
+  function drawMesh(camNow) {
+    if (!ctx || !view || cam.dist <= 1.05 || cam.dist >= 1.7) return;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(view.cx, view.cy, view.scale, 0, Math.PI * 2); ctx.clip();
+    ctx.strokeStyle = "rgba(77, 240, 255, 0.55)";
+    ctx.lineWidth = 1.1;
+    var lat, lng, p, first;
+    for (lat = -60; lat <= 60; lat += 20) {
+      ctx.beginPath(); first = true;
+      for (lng = -180; lng <= 180; lng += 4) {
+        p = project(lat, lng, camNow);
+        if (!p) { first = true; continue; }
+        if (first) { ctx.moveTo(p.x, p.y); first = false; } else ctx.lineTo(p.x, p.y);
+      }
+      ctx.stroke();
+    }
+    for (lng = -180; lng < 180; lng += 20) {
+      ctx.beginPath(); first = true;
+      for (lat = -70; lat <= 70; lat += 4) {
+        p = project(lat, lng, camNow);
+        if (!p) { first = true; continue; }
+        if (first) { ctx.moveTo(p.x, p.y); first = false; } else ctx.lineTo(p.x, p.y);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.fillStyle = "rgba(77,240,255,.85)";
+    ctx.font = "700 11px system-ui,sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("INTERNATIONAL", view.cx, view.cy - view.scale - 14);
+  }
+  function drawLevelTag() {
+    if (!ctx || !view) return;
+    ctx.fillStyle = "rgba(126,233,255,.9)";
+    ctx.font = "700 12px system-ui,sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(levelName(cam.dist).toUpperCase(), view.cx, Math.max(64, (view.top || 16) + 28));
+  }
+  function hitApp(x, y) {
+    var i;
+    for (i = appHits.length - 1; i >= 0; i--) {
+      var h = appHits[i];
+      if (Math.hypot(x - h.x, y - h.y) <= h.r) return h.app;
+    }
+    return null;
+  }
+  function closeAppFrame() {
+    var host = document.getElementById("sn-app-host");
+    if (!host) return;
+    var frame = document.getElementById("sn-app-frame");
+    if (frame) frame.src = "about:blank";
+    host.style.display = "none";
+    say("Solar system");
+  }
+  function openAppFrame(app) {
+    if (!app || !app.host) return;
+    var host = document.getElementById("sn-app-host");
+    if (!host) {
+      host = document.createElement("div");
+      host.id = "sn-app-host";
+      host.style.cssText = "position:fixed;inset:0;z-index:80;background:#02040a;display:flex;flex-direction:column";
+      host.innerHTML = '<div style="display:flex;align-items:center;gap:8px;height:48px;padding:max(6px,env(safe-area-inset-top)) 8px 0;color:#7ee9ff;font:800 12px system-ui"><button type="button" id="sn-app-back" style="height:36px;padding:0 12px;border-radius:999px;border:1px solid rgba(77,240,255,.65);background:#041018;color:#7ee9ff;font:800 12px system-ui">EARTH</button><b id="sn-app-name" style="letter-spacing:.12em"></b></div><iframe id="sn-app-frame" title="Astranov app" style="flex:1;border:0;width:100%;background:#02040a" referrerpolicy="origin"></iframe>';
+      document.body.appendChild(host);
+      document.getElementById("sn-app-back").addEventListener("click", closeAppFrame);
+    }
+    document.getElementById("sn-app-name").textContent = app.n;
+    document.getElementById("sn-app-frame").src = "https://" + app.host + "/";
+    host.style.display = "flex";
+    say(app.n + " on astranov.eu");
+  }
+  function drawAppRing() {
+    appHits = [];
+    if (!view) return;
+    var cols = view.w < 560 ? 5 : APP_BODIES.length;
+    var rows = Math.ceil(APP_BODIES.length / cols);
+    var y0 = view.h - Math.max(92, 28 + rows * 46);
+    ctx.fillStyle = "rgba(77,240,255,.75)";
+    ctx.font = "700 10px system-ui,sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("ASTRANOV", view.cx, y0 - 16);
+    var i;
+    for (i = 0; i < APP_BODIES.length; i++) {
+      var col = i % cols;
+      var row = Math.floor(i / cols);
+      var count = Math.min(cols, APP_BODIES.length - row * cols);
+      var gap = Math.min(72, (view.w - 28) / count);
+      var x = view.cx - ((count - 1) * gap) / 2 + col * gap;
+      var y = y0 + row * 46;
+      var b = APP_BODIES[i];
+      ctx.beginPath();
+      ctx.arc(x, y, 7, 0, Math.PI * 2);
+      ctx.fillStyle = "#4df0ff";
+      ctx.fill();
+      ctx.fillStyle = "rgba(186,226,238,.82)";
+      ctx.font = "600 8px system-ui,sans-serif";
+      ctx.fillText(b.n, x, y + 16);
+      appHits.push({ x: x, y: y, r: 20, app: b });
+    }
+  }
   function drawOrrery(now) {
-    var cx = view.cx, cy = view.cy;
-    var span = Math.min(view.w, view.h) * 0.34;
+    var cx = view.cx, cy = Math.max(86, view.h * 0.34);
+    var span = Math.min(view.w, view.h) * 0.24;
     var maxR = Math.sqrt(30.07);
     function radOf(au) { return span * Math.sqrt(au) / maxR; }
     ctx.strokeStyle = "rgba(140, 180, 200, 0.18)";
@@ -1014,7 +1137,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ctx.font = "600 8px system-ui,sans-serif";
       ctx.fillText(b.n, q.x, q.y + b.sz + 9);
     }
-    if (!earthPos) return;
+    if (!earthPos) { earthHit = null; drawAppRing(); return; }
+    earthHit = { x: earthPos.x, y: earthPos.y, r: 22 };
     var mAng = meanLong(218.32, 27.321661);
     var moon = orbitXY(earthPos.x, earthPos.y, mAng, 18, 5.14);
     ctx.strokeStyle = "rgba(180, 190, 200, 0.25)";
@@ -1041,6 +1165,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     ctx.font = "600 8px system-ui,sans-serif";
     ctx.fillText("EARTH", earthPos.x, earthPos.y + 22);
     view.cx = keep.cx; view.cy = keep.cy; view.scale = keep.scale;
+    drawAppRing();
+    drawLevelTag();
   }
   function drawSolar(now, cx, cy, r) { drawOrrery(now); }
   function stepCam(now, dt) {
@@ -1080,6 +1206,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       vel.pitch = 0;
       return;
     }
+    if (intro && !drag && !cityOn && cam.dist > 3.2) intro = false;
     if (!drag && tierI >= 2 && aim && !cityOn) {
       var held2 = holdFace(cam.dist);
       cam.yaw = held2.yaw;
@@ -1449,7 +1576,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -1560,6 +1687,16 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         if (card.row.act === "youtube" && window.SNAuth && SNAuth.youtube) { SNAuth.youtube(); return; }
         openVidChoice(card.row);
         return;
+      }
+      /* 4394: from main 4385 — Solar view app bodies open in-frame; Earth returns to Global */
+      if (cam.dist > 3) {
+        var appHit = hitApp(pUp.x, pUp.y);
+        if (appHit) { openAppFrame(appHit); return; }
+        if (earthHit && Math.hypot(pUp.x - earthHit.x, pUp.y - earthHit.y) <= earthHit.r) {
+          zoomToDist(1.85);
+          say("Global");
+          return;
+        }
       }
       var brief = briefAt(pUp.x, pUp.y);
       if (briefPend) { clearTimeout(briefPend); briefPend = 0; }
@@ -3223,7 +3360,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4393&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4394&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -5063,7 +5200,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4393";
+    return "/you.png?v=4394";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -6697,7 +6834,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function robotSrc() {
     var style = botSpec().style || "spartan";
     if (style !== "courier" && style !== "wire") style = "spartan";
-    return "/js/spacenet/robots/" + style + ".jpg?v=4393";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4394";
   }
   function robotFilter() {
     var c = botSpec().color;
@@ -11677,7 +11814,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
