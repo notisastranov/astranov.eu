@@ -1,0 +1,36 @@
+name: grokbuild 4405 (fixes; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4405.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix123, assert trees, merge commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "803ae97e233c39940a43d291bb57cdef6216d756" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          base64 -d .grokbuild/fix123.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "783a28a02595ce42d2b85385ef7d01a51a1b814246f970f157e790300fb0b416"
+          gunzip -c /tmp/f.gz > /tmp/fix123.patch
+          test "$(sha256sum /tmp/fix123.patch | cut -d' ' -f1)" = "380c7ddb0e74a5fb67186e8dfa5c2a37ca34c2934d97bff60b1a5890744a481d"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4405.yml
+          T0="$(git write-tree)"
+          test "$T0" = "1eb2a63d1a662b56cf822e9a03a8b698cc443bf9" || { echo "tree0 $T0"; exit 1; }
+          git apply --index /tmp/fix123.patch
+          node --check js/spacenet/app.js
+          node --check js/spacenet/auth.js
+          grep -q '^4405$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "6fabd82d69aca5d3416f127c5244f81bcbeb7bf7" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -m "4405: tests rebuilt to the owner's conditions; 500 px labels also guarded against other pins' faces, leader lines and HUD chips (hit-probe); a wheel burst is one step, the field ends at real low zoom and only an explicit further step goes to the globe; real Bazar card fits 42vh with no inner scroll (dish+ORDER one row); WALLET caption never under the chip. Lockstep 4405")"
+          git push origin "$C:refs/heads/grokbuild/4328-street-level-gps"
