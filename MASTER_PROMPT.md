@@ -433,3 +433,11 @@ Stamps 4403 lockstep; __SN_4403 added.
 3) Pin card: under the 42vh cap with no scroll; no placeholder photo (the real photo still shows); compact name/phone/address/notes; "No phone listed" and "(approx. address)" kept.
 4) The ✕ on the SIGN IN (YOU) card closes only that card (stopPropagation + app close handler ignores #sn-me-sheet).
 Tests: bake-4404/t lab3.js (500/390 labels, chip, 3 wheel notches), card.js (no scroll, 42%, no placeholder, SIGN IN ✕), ttime.js, slow.js, he2e5.sh. Stamps 4404 lockstep; __SN_4404 added.
+
+## 4405 (remine of 4404; tests rebuilt to the owner's conditions first)
+Why 4404 tests passed: they ran with mobile/touch emulation at 900 px height, hidden scrollbars, single 100-px wheel events, and checked labels only against labels/badges (no pin faces of other pins, leader lines or HUD).
+1) 500 px labels (Χαλκιαδάκης, pin 3): the guard now also treats HUD chips (wallet, globe, YOU, GPS, compass, hunt count, power tag) and other pins' leader lines (.sn-lead, from marker+38/+31, width and rotate) as obstacles, and does a final elementFromPoint probe on a 3x3 grid inside each label; anything else on top hides the label.
+2) Wheel: a burst of wheel events (trackpad / one notch on many mice) is one gesture; a gesture steps at most once per 400 ms. After a hunt fit closeBelow = max(6, min(8, fit-2.5)). Reaching the floor only arms the exit ("Widest view of this place. Wheel out again to go back to the globe."); a NEW gesture is needed to go back to the globe.
+3) Pin card (real Bazar card, 500x650 / 1280x630): the name column min-width pushed the body 7 px wide; the dish box and ORDER now share a row, notes follow. No inner scroll either axis, card <= 42vh, 'No product on the menu yet.' in view.
+4) WALLET caption: never shrinks, nowrap, 9 px gap to the chip, paints above it.
+Tests: bake-4404/t lab4.js (desktop, no touch, faces+leaders+HUD+pixel check, burst wheel to floor and exit), card2.js (scrollbars shown, short windows), wallet.js (caption text rect vs chip, elementFromPoint, hunt/long-text/wide-font variants). Stamps 4405 lockstep; __SN_4405 added.

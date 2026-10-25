@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4404"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4405"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1604,7 +1604,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -1791,6 +1791,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       if (e.deltaMode === 2) dy *= 400;
       if (!dy) return;
       var tA = Date.now();
+      cityWheelTick(tA);
       if (tA - wheelAccT > 400 || (wheelAcc && (wheelAcc > 0) !== (dy > 0))) wheelAcc = 0;
       wheelAcc += dy; wheelAccT = tA;
       if (cityOn && map) {
@@ -2132,16 +2133,32 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     return best && bd <= lim ? best : null;
   }
   /* city wheel: our own 0.5-zoom steps around the cursor (Leaflet's default jumped 2 levels a notch, to z19 sea) */
+  /* 4405: wheel gestures: a burst of raw events (one notch on many mice / smooth scrolling sends 3-8 events) is one gesture;
+     a gesture steps at most once per 400 ms, and the field is left for the globe only by a NEW gesture made at the floor */
+  var cityGid = 0, cityRawT = 0, cityStepT = 0, cityStepGid = -1, cityFloorGid = -1;
+  function cityWheelTick(t) { if (t - cityRawT > 450) cityGid++; cityRawT = t; }
   function cityWheel(dir, cx, cy, e) {
     if (!map || !cityOn) return null;
     var z = map.getZoom();
+    var tS = Date.now();
+    if (!e) cityWheelTick(tS);
+    if (cityStepGid === cityGid && tS - cityStepT < 400) return null;
+    cityStepGid = cityGid; cityStepT = tS;
     var ll = null;
     try { ll = map.containerPointToLatLng(L.point(cx, cy)); } catch (eP) {}
     var minZ = map.getMinZoom ? map.getMinZoom() : 9;
     var act = dir > 0 ? ((z <= closeBelow + 0.01 || z <= minZ + 0.01) ? "close" : "out") : (z >= WHEEL_MAX_Z - 0.01 ? "max" : "in");
     var nz = Math.max(minZ, Math.min(WHEEL_MAX_Z, z + (dir < 0 ? 0.5 : -0.5)));
     var rec = wheelLog({ where: "city", e: e, px: cx, py: cy, lat: ll && ll.lat, lng: ll && ll.lng, z: act === "close" ? z : nz, act: act });
+    if (act === "close" && cityFloorGid < 0) {
+      cityFloorGid = cityGid;
+      say("Widest view of this place. Wheel out again to go back to the globe.");
+      return rec;
+    }
+    if (act === "close" && cityFloorGid === cityGid) return rec; /* same gesture that reached the floor: stay */
+    if (act !== "close") cityFloorGid = -1;
     if (act === "close") {
+      cityFloorGid = -1;
       closeCity();
       zoomToDist(1.25);
       say("Back to the globe");
@@ -2857,6 +2874,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         if (e.deltaMode === 2) dy *= 400;
         if (!dy) return;
         var tA = Date.now();
+        cityWheelTick(tA);
         if (tA - cityAccT > 400 || (cityAcc && (cityAcc > 0) !== (dy > 0))) cityAcc = 0;
         cityAcc += dy; cityAccT = tA;
         var rr = el.getBoundingClientRect();
@@ -3424,7 +3442,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4404&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4405&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3698,7 +3716,12 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       "#sn-sheet.tile .sn-prof:not(:has(img)){display:block!important}#sn-sheet.tile .sn-prof>div{flex:1 1 auto!important;min-width:min(240px,60vw)!important}#sn-sheet.tile .sn-prof{gap:6px!important;margin:0 0 2px!important;min-height:0!important}#sn-sheet.tile .sn-prof b{font-size:15px!important;line-height:1.2!important}",
       "#sn-sheet.tile .sn-miss{display:block!important;font:500 12px/1.3 system-ui!important;margin:0!important}#sn-sheet.tile p.note{margin:3px 0!important;font-size:12px!important;line-height:1.3!important}",
       "#sn-sheet.tile .sn-dish{margin:3px 0!important}#sn-sheet.tile .sheet-go{margin:4px 0!important;min-height:40px!important}",
-      ".sn-shop-pin.sn-face-off{visibility:hidden!important;pointer-events:none!important}#sn-you-where.sn-chip-off{opacity:0!important;pointer-events:none!important}",
+      /* 4405: the real Bazar card at short windows (500x650, 1280x630) still scrolled both ways: the name column's min-width pushed
+         the body 7 px wide, and the ORDER row sat under the dish box. Now nothing is wider than the card, the dish box and ORDER
+         share one row, and the two notes follow, so 'No product on the menu yet.' is in view under the 42% cap without a scroll */
+      "#sn-sheet.tile .sn-prof>div{min-width:0!important;max-width:100%!important}#sn-sheet.tile .sn-zoom{display:flex!important;flex-wrap:wrap!important;align-items:center!important;column-gap:8px!important;max-width:100%!important;min-width:0!important;overflow-wrap:anywhere}#sn-sheet.tile .sn-zoom>*{flex:1 1 100%;min-width:0;max-width:100%;box-sizing:border-box}",
+      "#sn-sheet.tile .sn-zoom>.sn-dish{flex:1 1 120px!important;order:1;margin:2px 0!important}#sn-sheet.tile .sn-dish input{width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important;margin:0!important;height:38px!important}#sn-sheet.tile .sn-zoom>.sheet-go{flex:0 0 auto!important;order:1;margin:2px 0!important;min-height:38px!important}#sn-sheet.tile .sn-zoom>.sn-dish~p.note{order:2}#sn-sheet.tile .sn-zoom>.sn-dish~p.note,#sn-sheet.tile .sn-zoom>.sn-dish~*:not(.sheet-go){font-size:11px!important;line-height:1.3!important;margin:2px 0!important}",
+      ".sn-shop-pin.sn-face-off{visibility:hidden!important;pointer-events:none!important}.sn-hitprobe .sn-face-off,.sn-hitprobe .sn-face-off *{pointer-events:none!important}#sn-you-where.sn-chip-off{opacity:0!important;pointer-events:none!important}",
       ".sn-shop-pin.sn-lbl-off b{visibility:hidden}@media (hover:hover){.sn-shop-pin.sn-lbl-off:hover b{visibility:visible}}.leaflet-marker-icon.sn-shop-pin:hover{z-index:9999!important}",
       ".sn-pin b{display:block;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;padding:0 3px;background:rgba(4,14,28,.92);color:#e8fbff;font:800 9px/12px system-ui}",
       ".sn-shop-pin.sn-lbl-short .sn-pin b{white-space:nowrap!important;-webkit-line-clamp:1;line-clamp:1}",
@@ -3769,7 +3792,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       "form#f{display:flex!important;width:100%!important;gap:0!important;align-items:center!important;min-height:48px!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}",
       "input#in{flex:1!important;min-width:0!important;width:auto!important;min-height:48px!important;border:0!important;border-radius:0!important;background:transparent!important;padding-left:56px!important;padding-right:104px!important}",
       "#sn-pulse{display:none!important}",
-      "#sn-money .lbl{display:inline-flex!important;align-items:center;height:40px;padding:0 4px 0 12px;font:800 10px/1 ui-monospace,monospace!important;letter-spacing:.14em;color:#4df0ff!important;width:auto!important}#sn-money{gap:0!important}#sn-money .tgt{padding-left:6px!important}",
+      "#sn-money .lbl{display:inline-flex!important;align-items:center;height:40px;padding:0 4px 0 12px;font:800 10px/1 ui-monospace,monospace!important;letter-spacing:.14em;color:#4df0ff!important;width:auto!important}#sn-money{gap:0!important}#sn-money .tgt{padding-left:6px!important}#sn-money{width:max-content!important;max-width:none!important;min-width:0!important;overflow:visible!important;flex-wrap:nowrap!important}#sn-money .lbl,#sn-money .tgt{flex:0 0 auto!important;white-space:nowrap!important;min-width:max-content!important;overflow:visible!important}#sn-money .lbl{position:relative;z-index:1;padding-right:9px!important}/* 4405: the WALLET caption never shrinks under the chip, keeps a clear gap, and paints above it */",
       "#sn-tester.on{display:block!important}#sn-tester:not(.on){display:none!important}", /* 4381: admin / owner / ?testview=1 only */
       "#island{margin-top:0!important;padding-top:0!important}",
       "#sn-count{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;pointer-events:none;background:transparent}",
@@ -5426,6 +5449,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   }
   /* 4403: label guard: every 500 ms while the map is still (and after each declutter), any shown shop label that sits on another
      marker's face/number or on a shown label of a higher-priority pin (lower number) is hidden. It only hides; it never moves pins */
+  function grow1(r) { return { left: r.left - 2, right: r.right + 2, top: r.top - 2, bottom: r.bottom + 2 }; }
   function labelGuard() {
     try {
       var cityEl = $("city"); if (!cityEl || (snPress && snPress.down) || cityEl.querySelector(".leaflet-zoom-anim")) return; /* 4404: it only hides, so it runs under a hover too (the hovered pin keeps its name) */
@@ -5443,6 +5467,11 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         }
       });
       labs.sort(function (a, b) { return a.no - b.no; });
+      /* 4405: HUD chips/buttons over the map hide a label under them too */
+      ["sn-money", "sn-globe", "sn-me", "gps", "sn-compass", "sn-hunt-n", "sn-power-tag"].forEach(function (id) {
+        var x = $(id); if (!x) return; var cs = getComputedStyle(x), q = x.getBoundingClientRect();
+        if (cs.display !== "none" && cs.visibility !== "hidden" && +cs.opacity > 0 && q.width > 2 && q.height > 2) faces.push({ mk: null, r: q });
+      });
       /* 4404: a face that sits mostly on a higher-priority face is hidden (still in the list/sheet) until the map frees it */
       var sf = [];
       Array.prototype.forEach.call(host.querySelectorAll(".leaflet-marker-icon.sn-shop-pin"), function (mk) {
@@ -5461,12 +5490,46 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         });
         if (on && f.mk !== hovMk) f.mk.classList.add("sn-face-off"); else { f.mk.classList.remove("sn-face-off"); keptF.push(f); }
       });
-      faces = faces.filter(function (f) { return !f.mk.classList.contains("sn-face-off"); });
+      faces = faces.filter(function (f) { return !f.mk || !f.mk.classList.contains("sn-face-off"); });
       labs = labs.filter(function (l) { return !l.mk.classList.contains("sn-face-off"); });
+      /* 4405: another pin's leader line drawn through a name is a collision too (4404 measured faces and labels only) */
+      var leads = [];
+      Array.prototype.forEach.call(host.querySelectorAll(".leaflet-marker-icon.sn-shop-pin .sn-lead"), function (ld) {
+        if (ld.style.display === "none") return;
+        var mk = ld.closest(".leaflet-marker-icon"); if (!mk || mk.classList.contains("sn-face-off")) return;
+        var w = parseFloat(ld.style.width) || 0, m = /rotate\(([-\d.e]+)rad\)/.exec(ld.style.transform || ""); if (w < 2 || !m) return;
+        var q = mk.getBoundingClientRect(), ang = +m[1];
+        leads.push({ mk: mk, x0: q.left + 38, y0: q.top + 31, dx: Math.cos(ang) * w, dy: Math.sin(ang) * w });
+      });
+      function leadHit(l) {
+        var r = { left: l.r.left - 1, right: l.r.right + 1, top: l.r.top - 1, bottom: l.r.bottom + 1 };
+        return leads.some(function (s) {
+          if (s.mk === l.mk) return false;
+          for (var t = 0; t <= 1.0001; t += 0.04) { var x = s.x0 + s.dx * t, y = s.y0 + s.dy * t; if (x > r.left && x < r.right && y > r.top && y < r.bottom) return true; }
+          return false;
+        });
+      }
+      function coveredAt(l) {
+        if (!document.elementFromPoint) return false;
+        var bb = l.mk.querySelector("b"); if (!bb) return false;
+        cityEl.classList.add("sn-hitprobe");
+        try {
+          var r = l.r, xs = [r.left + 4, (r.left + r.right) / 2, r.right - 4], ys = [r.top + 3, (r.top + r.bottom) / 2, r.bottom - 3];
+          for (var a = 0; a < 3; a++) for (var c = 0; c < 3; c++) {
+            var t = document.elementFromPoint(xs[a], ys[c]);
+            if (!t || t === bb || bb.contains(t)) continue;
+            if (l.mk.contains(t)) continue;
+            if (t === cityEl || (t.classList && (t.classList.contains("leaflet-tile") || t.classList.contains("leaflet-container") || t.classList.contains("leaflet-pane")))) return true; /* the name itself is not painted there */
+            return true;
+          }
+        } finally { cityEl.classList.remove("sn-hitprobe"); }
+        return false;
+      }
       var kept = [];
       labs.forEach(function (l) {
-        var hit = faces.some(function (f) { return f.mk !== l.mk && rectHit(l.r, f.r); }) || kept.some(function (k) { return rectHit(l.r, k.r); });
+        var hit = faces.some(function (f) { return f.mk !== l.mk && rectHit(grow1(l.r), f.r); }) || kept.some(function (k) { return rectHit(grow1(l.r), k.r); }) || leadHit(l);
         var b = l.mk.querySelector("b"), clip = b && (b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1);
+        if (!hit && !clip && l.mk !== hovMk) hit = coveredAt(l); /* 4405: whatever is painted on top of the name (sheet grip, chips, another pin) */
         if ((hit && l.mk !== hovMk) || clip) { l.mk.classList.add("sn-lbl-off"); l.mk.classList.remove("sn-lbl-short"); } else kept.push(l);
       });
       /* 4404: the YOU-where chip never sits on a pin: it fades out (no taps) while any shown pin face or label is under it */
@@ -5487,7 +5550,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4404";
+    return "/you.png?v=4405";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -6469,7 +6532,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         } catch (eR) {}
       }, ms);
     });
-    closeBelow = Math.max(7, Math.min(10.5, z - 1.5)); try { if (map.getMinZoom() > closeBelow) map.setMinZoom(closeBelow); } catch (eMz) {} /* 4404: a few wheel notches out keep the field (intermediate levels); only real low zoom leaves for the globe */
+    closeBelow = Math.max(6, Math.min(8, z - 2.5)); try { if (map.getMinZoom() > closeBelow) map.setMinZoom(closeBelow); } catch (eMz) {} /* 4404: a few wheel notches out keep the field (intermediate levels); only real low zoom leaves for the globe */
     huntView.fitted = true;
     try { paintShopsOnMap(); } catch (e3) {}
   }
@@ -7166,7 +7229,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function robotSrc() {
     var style = botSpec().style || "spartan";
     if (style !== "courier" && style !== "wire") style = "spartan";
-    return "/js/spacenet/robots/" + style + ".jpg?v=4404";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4405";
   }
   function robotFilter() {
     var c = botSpec().color;
@@ -12250,7 +12313,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
