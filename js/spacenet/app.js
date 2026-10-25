@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4399";
+  var VER = "4400";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -783,14 +783,28 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       return;
     }
     if (intro && !drag && !cityOn && cam.dist > 3.2) intro = false;
+    if (!drag && !cityOn && (Math.abs(vel.yaw) > 0.00015 || Math.abs(vel.pitch) > 0.00015)) {
+      cam.yaw += vel.yaw;
+      cam.pitch = Math.max(-1.15, Math.min(1.15, cam.pitch + vel.pitch));
+      var damp = Math.pow(0.92, (dt || 0.016) / 0.016);
+      vel.yaw *= damp;
+      vel.pitch *= damp;
+      if (Math.abs(vel.yaw) < 0.00015) vel.yaw = 0;
+      if (Math.abs(vel.pitch) < 0.00015) vel.pitch = 0;
+      if (!vel.yaw && !vel.pitch) {
+        var landed = view ? globeHit(view.cx, view.cy, cam) : null;
+        if (landed && isFinite(landed.lat)) aim = { lat: landed.lat, lng: landed.lng };
+        else aim = null;
+      }
+      return;
+    }
+    if (drag) return;
     if (!drag && tierI >= 2 && aim && !cityOn) {
       var held2 = face(aim);
       cam.yaw = held2.yaw;
       cam.pitch = held2.pitch;
-      vel.yaw = 0; vel.pitch = 0;
       return;
     }
-    vel.yaw = 0; vel.pitch = 0;
   }
   function cardsNow() {
     var rows = BRIEF.slice();
@@ -1026,8 +1040,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (!drag.moved) return;
       var t = nowMs();
       var dt = Math.max(8, t - drag.lastT);
-      vel.yaw = (-(p.x - drag.lastX) * 0.005) * (16 / dt);
-      vel.pitch = ((p.y - drag.lastY) * 0.004) * (16 / dt);
+      vel.yaw = Math.max(-0.08, Math.min(0.08, (-(p.x - drag.lastX) * 0.005) * (16 / dt)));
+      vel.pitch = Math.max(-0.05, Math.min(0.05, ((p.y - drag.lastY) * 0.004) * (16 / dt)));
       drag.lastX = p.x; drag.lastY = p.y; drag.lastT = t;
       cam.yaw = drag.yaw - dx * 0.005;
       cam.pitch = Math.max(-1.15, Math.min(1.15, drag.pitch + dy * 0.004));
@@ -1043,13 +1057,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (hitHold) setTimeout(function () { listAt(hitHold); }, 30);
         return;
       }
-      if (d && d.moved && view && !seekHold) {
-        var mid = globeHit(view.cx, view.cy, cam);
-        if (mid && isFinite(mid.lat) && isFinite(mid.lng)) aim = { lat: mid.lat, lng: mid.lng };
-        vel.yaw = 0;
-        vel.pitch = 0;
+      if (d && d.moved) {
+        seekHold = null;
+        return;
       }
-      if (!d || d.moved) return;
       vel.yaw = 0; vel.pitch = 0;
       var pUp = pos(e);
       if (hitRobot(pUp.x, pUp.y)) { openYou(); return; }
