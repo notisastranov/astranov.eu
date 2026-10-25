@@ -1,0 +1,38 @@
+name: grokbuild 4401 (merge main 4400; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4401.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix119, assert trees, merge commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "282fbc06e6b85044a64cca340fe42145de3589fa" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          git fetch -q origin +refs/heads/main:refs/remotes/origin/main
+          M=953d504f5692f72f9fbe24c39b8ee9911a0cddb2
+          git cat-file -e $M^{commit}
+          base64 -d .grokbuild/fix119.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "51a320ddb3670ba77dd21fb715681e132a6d89fdecb2aefe2885569c52fc25ee"
+          gunzip -c /tmp/f.gz > /tmp/fix119.patch
+          test "$(sha256sum /tmp/fix119.patch | cut -d' ' -f1)" = "8fc6c23ed8b5cf82f6bc6a6da54bab1cdca0dcdd4926c5f0c6c1c95f736768ef"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4401.yml
+          T0="$(git write-tree)"
+          test "$T0" = "8c435760dc31f49b5b27cba901a31d0c046baf36" || { echo "tree0 $T0"; exit 1; }
+          git apply --index /tmp/fix119.patch
+          node --check js/spacenet/app.js
+          grep -q '^4401$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "b9e17c01c366c4f1afbb50b7bc1d250b601a0502" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -p $M -m "4401: merge main 953d504f (4399-4400). Ported: globe inertia, login-card roles, map menu items in the LIST card, deep-blue route with white casing, short Offers live/off. Not ported: view switch, offer drawer. Lockstep 4401")"
+          git push origin "$C:refs/heads/grokbuild/4328-street-level-gps"
