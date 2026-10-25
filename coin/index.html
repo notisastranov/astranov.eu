@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AVC Justice Coin · coin.astranov.eu</title>
+  <meta name="description" content="Astranov Value Coin — 1 AVC = 1 EUR. Work-minted money for all users. Transparent justice ledger." />
+  <script src="core/astranov-shell.js"></script>
+  <script src="core/superbooking-config.js"></script>
+  <style>
+    :root {
+      --bg: #06040f;
+      --panel: #0f0a1e;
+      --line: rgba(212, 175, 55, 0.35);
+      --gold: #e8c547;
+      --gold-dim: #a88b2a;
+      --text: #faf6e8;
+      --muted: #b8a88a;
+      --ok: #5ee4a8;
+      --err: #ff7b7b;
+      --glow: rgba(232, 197, 71, 0.15);
+      font-family: 'Segoe UI', Inter, system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); min-height: 100vh; }
+    body::before {
+      content: '';
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(232,197,71,0.12), transparent 60%);
+    }
+    .app { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 12px 16px 90px; }
+    .topbar {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 0; position: sticky; top: 0;
+      background: rgba(6,4,15,0.9); backdrop-filter: blur(12px); z-index: 10;
+    }
+    .brand b { display: block; font-size: 20px; letter-spacing: 3px; color: var(--gold); }
+    .brand span { font-size: 11px; color: var(--muted); }
+    .peg-badge {
+      font-size: 10px; padding: 4px 10px; border-radius: 999px;
+      border: 1px solid var(--line); background: var(--glow); color: var(--gold);
+    }
+    button, .btn {
+      border: 1px solid var(--line); background: rgba(232,197,71,0.1);
+      color: var(--text); border-radius: 12px; padding: 9px 16px;
+      font-weight: 600; cursor: pointer; font-size: 13px;
+    }
+    button:hover, .btn:hover { background: rgba(232,197,71,0.2); border-color: var(--gold); }
+    .btn-primary { background: linear-gradient(135deg, #c9a227, #e8c547); color: #1a1200; border: none; }
+    .wallet-hero {
+      margin: 20px 0; padding: 28px 24px; border-radius: 24px;
+      background: linear-gradient(145deg, #15102a 0%, #0a0618 100%);
+      border: 1px solid var(--line); text-align: center;
+      box-shadow: 0 0 60px var(--glow);
+    }
+    .wallet-hero .coin { font-size: 48px; line-height: 1; margin-bottom: 8px; }
+    .wallet-hero .balance { font-size: 42px; font-weight: 700; color: var(--gold); letter-spacing: 1px; }
+    .wallet-hero .eur { font-size: 14px; color: var(--muted); margin-top: 4px; }
+    .wallet-hero .motto { font-size: 12px; color: var(--gold-dim); margin-top: 14px; letter-spacing: 2px; }
+    .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 16px 0; }
+    .tab {
+      padding: 9px 14px; border-radius: 12px; border: 1px solid var(--line);
+      background: transparent; color: var(--muted); cursor: pointer; font-size: 12px;
+    }
+    .tab.active { background: var(--glow); color: var(--gold); border-color: var(--gold); }
+    .card {
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: 18px; padding: 16px; margin-top: 12px;
+    }
+    .card h3 { margin: 0 0 10px; color: var(--gold); font-size: 14px; letter-spacing: 1px; }
+    .earn-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+    .earn-item {
+      padding: 12px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.06);
+      background: rgba(0,0,0,0.25); font-size: 12px;
+    }
+    .earn-item b { display: block; color: var(--gold); margin-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { padding: 9px 6px; border-bottom: 1px solid rgba(255,255,255,0.05); text-align: left; }
+    th { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+    .pos { color: var(--ok); }
+    .neg { color: var(--err); }
+    .muted { color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .hidden { display: none !important; }
+    .chain-ok { color: var(--ok); font-weight: 600; }
+    .chain-bad { color: var(--err); font-weight: 600; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 16px; }
+    .toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: #1a1028; border: 1px solid var(--line); padding: 12px 18px;
+      border-radius: 14px; display: none; z-index: 99; font-size: 13px;
+    }
+    .toast.show { display: block; }
+    .login-panel { max-width: 320px; margin: 40px auto; text-align: center; }
+    .login-panel input {
+      width: 100%; margin: 6px 0; padding: 10px 12px; border-radius: 12px;
+      border: 1px solid var(--line); background: #0a0618; color: var(--text);
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <b>◎ AVC</b>
+      <span>coin.astranov.eu · money for all Astranov users</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span class="peg-badge" id="pegBadge">1 AVC = 1 EUR</span>
+      <button id="loginBtn" type="button">Sign in</button>
+    </div>
+  </header>
+
+  <section id="guestView">
+    <div class="wallet-hero">
+      <div class="coin">◎</div>
+      <div style="font-size:18px;color:var(--gold);letter-spacing:2px">AVC JUSTICE COIN</div>
+      <p class="muted" style="margin:12px 0 0">Work-minted money · transparent ledger · no fiat keyboard injection</p>
+      <p class="muted" id="guestMotto">Justice → Truth → Freedom</p>
+      <div class="actions">
+        <button class="btn-primary" id="guestSignIn" type="button">Open wallet</button>
+        <a class="btn" href="https://astranov.eu" style="text-decoration:none">Globe · earn AVC</a>
+      </div>
+    </div>
+    <div class="card">
+      <h3>How AVC works</h3>
+      <p class="muted" id="mintRule">AVC mints only from verified human work inside Astranov — delivery, vendors, drivers, specialists. Initial peg: 1 AVC = 1 EUR reference.</p>
+    </div>
+    <div class="card" id="publicLedger"></div>
+  </section>
+
+  <section id="userView" class="hidden">
+    <div class="wallet-hero">
+      <div class="coin">◎</div>
+      <div class="balance" id="balanceAvc">0.00 AVC</div>
+      <div class="eur" id="balanceEur">= 0.00 EUR</div>
+      <div class="motto" id="userMotto">Justice → Truth → Freedom</div>
+      <div class="actions">
+        <a class="btn" href="https://astranov.eu" style="text-decoration:none">Spend on globe</a>
+        <button type="button" id="refreshBtn">Refresh</button>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="wallet">My ledger</button>
+      <button class="tab" data-tab="earn">Earn AVC</button>
+      <button class="tab" data-tab="justice">Justice</button>
+      <button class="tab" data-tab="transparency">Transparency</button>
+    </div>
+
+    <section id="view-wallet">
+      <div class="card" id="myLedgerTable"></div>
+    </section>
+    <section id="view-earn" class="hidden">
+      <div class="card">
+        <h3>Earn AVC from real work</h3>
+        <div class="earn-grid">
+          <div class="earn-item"><b>Delivery driver</b>Complete orders on the globe — paid in AVC on dispatch</div>
+          <div class="earn-item"><b>Vendor</b>Sell goods — AVC credited from verified sales</div>
+          <div class="earn-item"><b>Specialist</b>Your skill + experience inside Astranov</div>
+          <div class="earn-item"><b>Coders build</b>Platform improvements verified by Astranov coders</div>
+        </div>
+        <p class="muted" style="margin-top:12px">No central bank prints AVC. Every coin traces to human work in our system.</p>
+        <div class="actions"><a class="btn-primary" href="https://astranov.eu" style="text-decoration:none">Start on globe</a></div>
+      </div>
+    </section>
+    <section id="view-justice" class="hidden">
+      <div class="card">
+        <h3>Constitution</h3>
+        <p class="muted" id="justiceText"></p>
+        <p style="margin-top:12px"><span id="chainStatus"></span></p>
+        <button type="button" id="verifyBtn">Verify chain integrity</button>
+      </div>
+    </section>
+    <section id="view-transparency" class="hidden">
+      <div class="card" id="publicFeed"></div>
+    </section>
+  </section>
+
+  <div id="loginModal" class="hidden login-panel card">
+    <h3 style="text-align:center;color:var(--gold)">Astranov wallet</h3>
+    <p class="muted">Same login as globe · yachts · all *.astranov.eu</p>
+    <input id="loginEmail" type="email" placeholder="Email" autocomplete="username" />
+    <input id="loginPass" type="password" placeholder="Password" autocomplete="current-password" />
+    <div class="actions" style="margin-top:12px">
+      <button class="btn-primary" id="doLogin" type="button">Sign in</button>
+      <button id="cancelLogin" type="button">Cancel</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="core/astranov-auth-bridge.js"></script>
+<script src="core/avc-api.js"></script>
+<script>
+const CONFIG = applyCentralDatabase({
+  siteId: 'coin',
+  domain: 'coin.astranov.eu',
+  supabaseUrl: window.ASTRANOV_CENTRAL_DB?.supabaseUrl || '',
+  supabaseAnonKey: window.ASTRANOV_CENTRAL_DB?.supabaseAnonKey || '',
+});
+const $ = (s) => document.querySelector(s);
+const esc = (s) => (s ?? '').toString().replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const avcFmt = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const toast = (m) => { $('#toast').textContent = m; $('#toast').classList.add('show'); setTimeout(() => $('#toast').classList.remove('show'), 4000); };
+
+function switchTab(t) {
+  document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === t));
+  ['wallet', 'earn', 'justice', 'transparency'].forEach((v) => {
+    $('#view-' + v)?.classList.toggle('hidden', v !== t);
+  });
+}
+
+function ledgerTable(rows, title) {
+  if (!rows?.length) return '<p class="muted">No entries yet — earn AVC from work on the globe</p>';
+  return (title ? '<h3>' + esc(title) + '</h3>' : '')
+    + '<table><thead><tr><th>#</th><th>Δ AVC</th><th>Work</th><th>Note</th><th>Date</th></tr></thead><tbody>'
+    + rows.map((e) => {
+      const d = Number(e.delta_avc);
+      const sign = d >= 0 ? '+' : '';
+      return '<tr><td>' + esc(e.seq) + '</td><td class="' + (d >= 0 ? 'pos' : 'neg') + '">'
+        + sign + esc(d.toFixed(2)) + '</td><td>' + esc(e.work_type) + '</td><td>'
+        + esc((e.public_note || '').slice(0, 40)) + '</td><td>'
+        + esc((e.created_at || '').slice(0, 16).replace('T', ' ')) + '</td></tr>';
+    }).join('') + '</tbody></table>';
+}
+
+let constitution = {};
+
+async function loadConstitution() {
+  try {
+    constitution = await AvcApi.call(CONFIG, 'constitution');
+    $('#pegBadge').textContent = '1 AVC = ' + (constitution.peg_eur ?? 1) + ' EUR';
+    $('#guestMotto').textContent = constitution.motto || 'Justice → Truth → Freedom';
+    $('#mintRule').textContent = constitution.mint_rule || $('#mintRule').textContent;
+    $('#userMotto').textContent = constitution.motto || 'Justice → Truth → Freedom';
+    $('#justiceText').innerHTML = '<b>Peg:</b> 1 AVC = ' + (constitution.peg_eur ?? 1) + ' EUR<br><br>'
+      + esc(constitution.mint_rule || '');
+  } catch (e) { console.warn(e); }
+}
+
+async function loadPublicLedger(target) {
+  try {
+    const r = await AvcApi.call(CONFIG, 'transparency', { limit: 15 });
+    $(target).innerHTML = ledgerTable(r.entries, 'Public transparency feed · ' + (r.total_entries || 0) + ' entries');
+  } catch (e) {
+    $(target).innerHTML = '<p class="muted">Transparency feed loading…</p>';
+  }
+}
+
+async function refreshUser() {
+  if (!AstranovAuthBridge.user) return;
+  try {
+    const bal = await AvcApi.call(CONFIG, 'balance');
+    $('#balanceAvc').textContent = avcFmt(bal.avc) + ' AVC';
+    $('#balanceEur').textContent = '= ' + avcFmt(bal.eur_equivalent) + ' EUR · work-mint only';
+    const led = await AvcApi.call(CONFIG, 'ledger', { limit: 40 });
+    $('#myLedgerTable').innerHTML = ledgerTable(led.entries, 'Your ledger · peg ' + (led.peg_eur ?? 1) + ' EUR');
+    await loadPublicLedger('#publicFeed');
+    const ver = await AvcApi.call(CONFIG, 'verify_chain');
+    $('#chainStatus').innerHTML = ver.chain_valid
+      ? '<span class="chain-ok">Chain valid · ' + ver.checked + ' links verified</span>'
+      : '<span class="chain-bad">Chain integrity warning</span>';
+  } catch (e) {
+    toast(e.message || String(e));
+  }
+}
+
+function showView(loggedIn) {
+  $('#guestView').classList.toggle('hidden', loggedIn);
+  $('#userView').classList.toggle('hidden', !loggedIn);
+  $('#loginBtn').textContent = loggedIn ? 'Logout' : 'Sign in';
+}
+
+async function init() {
+  await loadConstitution();
+  await loadPublicLedger('#publicLedger');
+  await AstranovAuthBridge.init(CONFIG);
+  showView(!!AstranovAuthBridge.user);
+  if (AstranovAuthBridge.user) await refreshUser();
+
+  window.addEventListener('astranov-auth', async () => {
+    showView(!!AstranovAuthBridge.user);
+    if (AstranovAuthBridge.user) await refreshUser();
+  });
+
+  document.querySelectorAll('.tab').forEach((b) => b.onclick = () => switchTab(b.dataset.tab));
+
+  $('#guestSignIn').onclick = () => $('#loginModal').classList.remove('hidden');
+  $('#cancelLogin').onclick = () => $('#loginModal').classList.add('hidden');
+  $('#refreshBtn').onclick = refreshUser;
+  $('#verifyBtn').onclick = async () => {
+    const ver = await AvcApi.call(CONFIG, 'verify_chain');
+    toast(ver.chain_valid ? 'Chain valid · ' + ver.checked + ' links' : 'Chain break detected');
+    await refreshUser();
+  };
+
+  $('#doLogin').onclick = async () => {
+    const email = $('#loginEmail').value.trim();
+    const pass = $('#loginPass').value;
+    if (!email || !pass) return toast('Email and password required');
+    const { error } = await AstranovAuthBridge.client.auth.signInWithPassword({ email, password: pass });
+    if (error) toast(error.message);
+    else { $('#loginModal').classList.add('hidden'); await refreshUser(); }
+  };
+
+  $('#loginBtn').onclick = async () => {
+    if (AstranovAuthBridge.user) {
+      await AstranovAuthBridge.client.auth.signOut();
+      showView(false);
+      return;
+    }
+    $('#loginModal').classList.remove('hidden');
+  };
+
+  const tab = new URLSearchParams(location.search).get('tab');
+  if (tab) switchTab(tab);
+}
+
+document.addEventListener('DOMContentLoaded', () => init().catch((e) => toast(e.message)));
+</script>
+</body>
+</html>

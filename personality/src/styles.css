@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --color-paper: #f3efe6;
+  --color-sheet: #faf8f4;
+  --color-ink: #1c1916;
+  --color-mist: #6e675f;
+  --color-rule: #e0d9ce;
+  --color-lake: #1e4d68;
+  --color-on-lake: #f3efe6;
+}
+
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  html {
+    color-scheme: light;
+    background: var(--color-paper);
+    color: var(--color-ink);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--color-paper);
+    color: var(--color-ink);
+    min-height: 100dvh;
+  }
+
+  ::selection {
+    background: var(--color-lake);
+    color: var(--color-on-lake);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-lake);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
