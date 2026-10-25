@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4384";
+  var VER = "4385";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -578,8 +578,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (p) drawRobot(ctx, p.x, p.y - 16, cam.dist < 1.9 ? 1.35 : 1, now);
     }
     ctx.restore();
+    drawMesh(cam);
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.strokeStyle = "rgba(140, 210, 230, 0.35)"; ctx.lineWidth = 1.2; ctx.stroke();
+    drawLevelTag();
     ctx.fillStyle = "rgba(150, 180, 196, 0.35)";
     ctx.font = "600 10px system-ui,sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     for (i = 0; i < LABELS.length; i++) {
@@ -762,6 +764,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     ctx.fillText("EARTH", earthPos.x, earthPos.y + 22);
     view.cx = keep.cx; view.cy = keep.cy; view.scale = keep.scale;
     drawAppRing();
+    drawLevelTag();
   }
   function drawSolar(now, cx, cy, r) { drawOrrery(now); }
   function stepCam(now, dt) {
@@ -779,16 +782,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
       return;
     }
-    if (!fly && !seated && !drag && !cityOn) {
-      if (tierI === 0 || cam.dist > 3) return;
-      if (cam.dist < 1.7 || cam.dist > 2.2) cam.dist = 1.85;
-      cam.yaw += dt * 0.16;
-      return;
+    if (!fly && !drag && !cityOn && cam.dist < 3) {
+      cam.yaw += dt * 0.04;
     }
-    if (intro) {
-      if (cam.dist < 1.7 || cam.dist > 2.05) cam.dist = 1.85;
-      return;
-    }
+    if (intro && !drag && !cityOn && cam.dist > 3.2) intro = false;
     if (!drag && tierI >= 2 && aim && !cityOn) {
       var held2 = face(aim);
       cam.yaw = held2.yaw;
@@ -995,8 +992,32 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var grew = d / pinch;
         pinch = d;
         intro = false;
-        var nd = cam.dist / Math.max(0.92, Math.min(1.08, grew));
-        zoomToDist(nd);
+        fly = null;
+        if (Math.abs(grew - 1) < 0.03) return;
+        if (cityOn && map) {
+          var z = map.getZoom() || 16;
+          if (grew > 1) {
+            try { map.setZoom(Math.min(19, z + 1)); } catch (e) {}
+          } else if (z <= 14) {
+            closeCity();
+            cam.dist = 0.95;
+            markTier(0.95);
+            say("National");
+          } else {
+            try { map.setZoom(Math.max(12, z - 1)); } catch (e2) {}
+          }
+          return;
+        }
+        var nd = cam.dist / Math.max(0.82, Math.min(1.22, grew));
+        nd = Math.max(0.48, Math.min(6.2, nd));
+        if (nd <= 0.52) {
+          var pt = (aim && isFinite(+aim.lat)) ? aim : ((here && isFinite(+here.lat)) ? here : { lat: 36.44305, lng: 28.2279 });
+          openCity(pt);
+          say("City. Goods and services.");
+          return;
+        }
+        cam.dist = nd;
+        markTier(nd);
         return;
       }
       if (!drag) return;
@@ -1101,31 +1122,107 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     };
     tierI = dist > 3.2 ? 0 : dist > 1.4 ? 1 : 2;
   }
+  function levelName(d) {
+    if (cityOn) return "City";
+    if (d > 3.05) return "Solar";
+    if (d > 1.7) return "Global";
+    if (d > 1.05) return "International";
+    return "National";
+  }
+  var levelSaid = "";
+  function markTier(d) {
+    tierI = d > 3.05 ? 0 : d > 1.7 ? 1 : d > 1.05 ? 4 : 2;
+    var name = levelName(d);
+    if (name !== levelSaid) { levelSaid = name; say(name); }
+  }
+  function drawMesh(camNow) {
+    if (!ctx || !view || cam.dist <= 1.05 || cam.dist >= 1.7) return;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(view.cx, view.cy, view.scale, 0, Math.PI * 2); ctx.clip();
+    ctx.strokeStyle = "rgba(77, 240, 255, 0.55)";
+    ctx.lineWidth = 1.1;
+    var lat, lng, p, first;
+    for (lat = -60; lat <= 60; lat += 20) {
+      ctx.beginPath(); first = true;
+      for (lng = -180; lng <= 180; lng += 4) {
+        p = project(lat, lng, camNow);
+        if (!p) { first = true; continue; }
+        if (first) { ctx.moveTo(p.x, p.y); first = false; } else ctx.lineTo(p.x, p.y);
+      }
+      ctx.stroke();
+    }
+    for (lng = -180; lng < 180; lng += 20) {
+      ctx.beginPath(); first = true;
+      for (lat = -70; lat <= 70; lat += 4) {
+        p = project(lat, lng, camNow);
+        if (!p) { first = true; continue; }
+        if (first) { ctx.moveTo(p.x, p.y); first = false; } else ctx.lineTo(p.x, p.y);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.fillStyle = "rgba(77,240,255,.85)";
+    ctx.font = "700 11px system-ui,sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("INTERNATIONAL", view.cx, view.cy - view.scale - 14);
+  }
+  function drawLevelTag() {
+    if (!ctx || !view) return;
+    ctx.fillStyle = "rgba(126,233,255,.9)";
+    ctx.font = "700 12px system-ui,sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(levelName(cam.dist).toUpperCase(), view.cx, Math.max(64, (view.top || 16) + 28));
+  }
+  function seekPlace(q) {
+    q = String(q || "").trim();
+    if (!q) return;
+    say("Searching " + q);
+    fetch("https://photon.komoot.io/api/?limit=1&q=" + encodeURIComponent(q)).then(function (r) { return r.json(); }).then(function (j) {
+      var f = j && j.features && j.features[0];
+      if (!f || !f.geometry) { say("No place for " + q); return; }
+      var c = f.geometry.coordinates;
+      var props = f.properties || {};
+      var p = { lat: +c[1], lng: +c[0], name: props.name || props.city || props.country || q };
+      if (cityOn) closeCity();
+      aim = p;
+      var faced = face(p);
+      cam.yaw = faced.yaw;
+      cam.pitch = faced.pitch;
+      cam.dist = 1.28;
+      fly = null;
+      intro = false;
+      markTier(1.28);
+      say("International · " + p.name);
+    }).catch(function () { say("Search failed"); });
+  }
   function zoomSmooth(dir, sx, sy) {
     if (cityOn && map) {
       var z = map.getZoom() || 16;
       if (dir > 0 && z <= 14) {
         closeCity();
-        zoomToDist(0.92);
+        fly = null;
+        cam.dist = 0.95;
+        markTier(0.95);
         say("National");
         return;
       }
-      var nz = Math.max(13, Math.min(19, z + (dir < 0 ? 1 : -1)));
-      try { map.flyTo(map.getCenter(), nz, { duration: 0.28 }); } catch (e) { try { map.setZoom(nz); } catch (e2) {} }
+      var nz = Math.max(12, Math.min(19, z + (dir < 0 ? 1 : -1)));
+      try { map.flyTo(map.getCenter(), nz, { duration: 0.22 }); } catch (e) { try { map.setZoom(nz); } catch (e2) {} }
       return;
     }
+    intro = false;
+    fly = null;
     var d = cam.dist || 1.85;
-    if (dir < 0) {
-      if (d > 3.2) { zoomToDist(1.85); say("Global"); return; }
-      if (d > 1.2) { zoomToDist(0.92); say("National"); return; }
+    var next = dir > 0 ? d * 1.16 : d / 1.16;
+    next = Math.max(0.48, Math.min(6.2, next));
+    if (next <= 0.52) {
       var pt = (aim && isFinite(+aim.lat)) ? aim : ((here && isFinite(+here.lat)) ? here : { lat: 36.44305, lng: 28.2279 });
       openCity(pt);
       say("City. Goods and services.");
       return;
     }
-    if (d < 1.2) { zoomToDist(1.85); say("Global"); return; }
-    if (d < 3.2) { zoomToDist(5.4); say("Solar system"); return; }
-    say("Solar system");
+    cam.dist = next;
+    markTier(next);
   }
   function stepTier(dir, sx, sy) { zoomSmooth(dir, sx, sy); }
   function settleTier(i, pt) {
@@ -7598,6 +7695,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     cam.pitch = 0.22;
     cam.dist = 1.85;
     bindGlobe();
+    var seek = document.getElementById("sn-seek");
+    if (seek && !seek.__sn) {
+      seek.__sn = true;
+      seek.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var inp = document.getElementById("sn-seek-in");
+        seekPlace(inp && inp.value);
+      });
+    }
     bindChrome();
     bindSky();
     loadJobs();
