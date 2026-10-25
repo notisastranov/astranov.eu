@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4388";
+  var VER = "4389";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -622,7 +622,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     { n: "ARCHITECT", host: "architect.astranov.eu" },
     { n: "PERSONALITY", host: "personality.astranov.eu" },
     { n: "DATANET", path: "/datanet/" },
-    { n: "HOST", path: "/host/" },
+    { n: "HOSTNET", path: "/hostnet/" },
     { n: "EXCHANGE", host: "exchange.astranov.eu" },
     { n: "INVESTORS", host: "investors.astranov.eu" },
     { n: "YACHTS", host: "yachts.astranov.eu" },
@@ -7827,7 +7827,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var inp = document.getElementById("sn-seek-in");
         var raw = String((inp && inp.value) || "").trim();
         if (/^(datanet|database)$/i.test(raw)) { openAppFrame({ n: "DATANET", path: "/datanet/" }); return; }
-        if (/^(host|mesh|hosting)$/i.test(raw)) { openAppFrame({ n: "HOST", path: "/host/" }); return; }
+        if (/^(hostnet|host|mesh|hosting)$/i.test(raw)) { openAppFrame({ n: "HOSTNET", path: "/hostnet/" }); return; }
         if (/^(crew|guide|agents|drill|ambassador|diplomat)$/i.test(raw)) { runCrew(raw); return; }
         seekPlace(raw);
       });
