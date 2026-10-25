@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4386";
+  var VER = "4387";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -2537,7 +2537,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function loadJobs() {
     try { jobs = JSON.parse(localStorage.getItem("sn:jobs") || "[]") || []; } catch (e) { jobs = []; }
     var kept = jobs.filter(function (j) {
-      if (!j || j.self) return false;
+      if (!j || j.self || j.agent) return false;
       var name = j.vendor && j.vendor.name || "";
       if (/^maria$/i.test(name) && j.driver === "motorbike" && !j.driverId) return false;
       return true;
@@ -2548,7 +2548,90 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     try { localStorage.setItem("sn:jobs", JSON.stringify(jobs)); } catch (e) {}
     paintOrders();
   }
+  function ledgerRead() {
+    try { return JSON.parse(localStorage.getItem("sn:ledger") || "[]") || []; } catch (e) { return []; }
+  }
+  function ledgerPut(kind, row) {
+    var book = ledgerRead();
+    book.push({ kind: kind, t: Date.now(), row: row });
+    if (book.length > 200) book = book.slice(-200);
+    try { localStorage.setItem("sn:ledger", JSON.stringify(book)); } catch (e) {}
+    try {
+      var bc = new BroadcastChannel("astranov-mesh");
+      bc.postMessage({ kind: kind, t: Date.now(), row: row });
+      bc.close();
+    } catch (e2) {}
+  }
+  function hostNode(cb) {
+    var node = {
+      id: deviceId(),
+      cores: navigator.hardwareConcurrency || 1,
+      mem: navigator.deviceMemory || 0,
+      at: Date.now(),
+      level: cityOn ? "city" : (typeof levelName === "function" ? levelName(cam.dist) : "globe")
+    };
+    var done = function () { ledgerPut("host", node); if (cb) cb(node); };
+    if (navigator.storage && navigator.storage.estimate) {
+      navigator.storage.estimate().then(function (e) {
+        node.quota = e && e.quota || 0;
+        node.used = e && e.usage || 0;
+        done();
+      }).catch(done);
+    } else done();
+  }
+  function runCrew(word) {
+    word = String(word || "crew").toLowerCase();
+    var faults = [];
+    var base = (seekHold && isFinite(+seekHold.lat)) ? seekHold : ((aim && isFinite(+aim.lat)) ? aim : ((here && isFinite(+here.lat)) ? here : { lat: 36.44305, lng: 28.2279 }));
+    if (word === "ambassador" || word === "diplomat") {
+      if (cityOn) closeCity();
+      aim = { lat: +base.lat, lng: +base.lng };
+      cam.dist = 1.28;
+      fly = null;
+      markTier(1.28);
+      ledgerPut("ambassador", { name: "AGENT AMBASSADOR", post: "international", lat: +base.lat, lng: +base.lng });
+      say("Ambassador on the international mesh. This device keeps the record.");
+      return;
+    }
+    if (word === "host" || word === "mesh") {
+      hostNode(function (node) {
+        var mb = node.quota ? Math.round(node.quota / 1048576) + " MB" : "storage unread";
+        say("Host " + node.id + " · " + node.cores + " cores · " + mb + ". No outside database.");
+      });
+      return;
+    }
+    if (!cityOn) openCity(base);
+    var vendorPt = { lat: +base.lat, lng: +base.lng, name: "AGENT VENDOR" };
+    var dropPt = { lat: +base.lat + 0.006, lng: +base.lng + 0.006, name: "AGENT CLIENT" };
+    var q = quoteDelivery(vendorPt, dropPt, {});
+    if (!(q && q.total >= 3 && q.km > 0)) faults.push("quote");
+    var job = {
+      id: "agent-" + Date.now(),
+      agent: true,
+      vendor: vendorPt,
+      drop: dropPt,
+      fee: q.total,
+      km: q.km,
+      client: "agent-client",
+      vendorOwner: "agent-vendor",
+      driver: "AGENT DRIVER",
+      driverId: "agent-driver",
+      stage: "received",
+      received: true,
+      t: Date.now()
+    };
+    jobs.push(job);
+    try { saveJobs(); } catch (e) { faults.push("save"); }
+    ledgerPut("delivery", { id: job.id, fee: job.fee, km: job.km, vendor: "AGENT VENDOR", driver: "AGENT DRIVER", client: "AGENT CLIENT" });
+    jobs = jobs.filter(function (j) { return !j || !j.agent; });
+    try { saveJobs(); } catch (e2) {}
+    hostNode(function (node) {
+      var line = faults.length ? ("Crew fault: " + faults.join(", ")) : ("Crew walked client, vendor, driver. " + q.km.toFixed(2) + " km · " + q.total + " AV€. Record stays on " + node.id + ".");
+      say(line);
+    });
+  }
   function publishRow(row) {
+    if (row && row.id) ledgerPut(row.kind || "row", row);
     if (!row || !row.id) return;
     var t = authToken();
     if (!t) return;
@@ -7702,13 +7785,27 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     cam.pitch = 0.22;
     cam.dist = 1.85;
     bindGlobe();
+    try {
+      var mesh = new BroadcastChannel("astranov-mesh");
+      mesh.onmessage = function (ev) {
+        var data = ev && ev.data;
+        if (!data || !data.kind) return;
+        var book = ledgerRead();
+        book.push({ kind: data.kind, t: data.t || Date.now(), row: data.row });
+        if (book.length > 200) book = book.slice(-200);
+        try { localStorage.setItem("sn:ledger", JSON.stringify(book)); } catch (e) {}
+      };
+    } catch (e) {}
+    hostNode(null);
     var seek = document.getElementById("sn-seek");
     if (seek && !seek.__sn) {
       seek.__sn = true;
       seek.addEventListener("submit", function (e) {
         e.preventDefault();
         var inp = document.getElementById("sn-seek-in");
-        seekPlace(inp && inp.value);
+        var raw = String((inp && inp.value) || "").trim();
+        if (/^(crew|guide|agents|drill|host|mesh|ambassador|diplomat)$/i.test(raw)) { runCrew(raw); return; }
+        seekPlace(raw);
       });
     }
     bindChrome();
