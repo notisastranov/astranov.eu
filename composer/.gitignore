@@ -1,6 +1,0 @@
-node_modules/
-.vercel
-supabase/.temp/
-src/.assembled-check.js
-scripts/.coders-bridge-secret
-.collective-exports/

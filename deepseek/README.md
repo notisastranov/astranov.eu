@@ -1,1 +1,0 @@
-# astranov.eu-deepseek

@@ -1,15 +1,7 @@
 [
   {"n": "DATANET", "path": "/datanet/"},
   {"n": "SERVERNET", "path": "/servernet/"},
-  {"n": "EXCHANGE", "path": "/exchange/"},
-  {"n": "INVESTORS", "path": "/investors/"},
+  {"n": "ARCHITECT", "host": "architect.astranov.eu"},
   {"n": "YACHTS", "path": "/yachts/"},
-  {"n": "COIN", "path": "/coin/"},
-  {"n": "AUDITORS", "path": "/auditors/"},
-  {"n": "FROGSCHOOL", "path": "/frogschool/"},
-  {"n": "PRESENCE", "path": "/presence/"},
-  {"n": "COMPOSER", "path": "/composer/"},
-  {"n": "CHATGPT", "path": "/chatgpt/"},
-  {"n": "CLAUDE", "path": "/claude/"},
-  {"n": "GROK", "path": "/grok/collective-v4-full.html"}
+  {"n": "PERSONALITY", "host": "personality.astranov.eu"}
 ]
