@@ -1,0 +1,35 @@
+name: grokbuild 4403 (fixes; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4403.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix121, assert trees, merge commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "81141cb8bc777cd96a45193423a4147d87e1bc14" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          base64 -d .grokbuild/fix121.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "9532bbbe74eef982b6cc94f5282b4873a6a4baccfbaa88b1ae5ddd3e9b8cff58"
+          gunzip -c /tmp/f.gz > /tmp/fix121.patch
+          test "$(sha256sum /tmp/fix121.patch | cut -d' ' -f1)" = "57bc41d13d5d20cb635d3ece1af78d5d69f454a140b2d7ad806ceddc04587398"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4403.yml
+          T0="$(git write-tree)"
+          test "$T0" = "0b136a87390bc5c2c3d759c3b13db64c22126440" || { echo "tree0 $T0"; exit 1; }
+          git apply --index /tmp/fix121.patch
+          node --check js/spacenet/app.js
+          grep -q '^4403$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "7e412daa4e804335578f920156a5eb46543aa1dd" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -m "4403: label guard after manual zoom (hide lower-priority labels on any label/face, every 500 ms while still), hover reveal only on hover devices. Lockstep 4403")"
+          git push origin "$C:refs/heads/grokbuild/4328-street-level-gps"
