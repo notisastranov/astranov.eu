@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>DataNet</title>
+<style>
+html,body{margin:0;background:#02040a;color:#e8fbff;font:16px/1.4 system-ui}
+main{max-width:720px;margin:0 auto;padding:16px 16px 48px}
+a{color:#7ee9ff}
+h1{font:800 22px/1 system-ui;letter-spacing:.14em;margin:8px 0}
+p{color:#9fd4ea}
+form{display:flex;gap:8px;margin:12px 0}
+input,button{height:40px;border-radius:999px;border:1px solid rgba(77,240,255,.65);background:#041018;color:#e8fbff;font:600 14px system-ui}
+input{flex:1;min-width:0;padding:0 12px}
+button{padding:0 14px}
+ul{list-style:none;padding:0;margin:0}
+li{display:flex;gap:8px;align-items:baseline;padding:8px 0;border-top:1px solid rgba(77,240,255,.2)}
+li b{color:#4df0ff;font:700 12px/1 system-ui;letter-spacing:.08em}
+li span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+li button{height:32px}
+</style>
+</head>
+<body>
+<main>
+<p><a href="/">Earth</a></p>
+<h1>DATANET</h1>
+<p id="count">This device is the database. Nothing is sent to a paid host.</p>
+<form id="f">
+<input id="kind" placeholder="kind" value="note" aria-label="Kind"/>
+<input id="text" placeholder="Record" aria-label="Record" required/>
+<button type="submit">KEEP</button>
+</form>
+<ul id="list"></ul>
+</main>
+<script>
+var KEY = "sn:ledger";
+function read(){ try { return JSON.parse(localStorage.getItem(KEY) || "[]") || []; } catch (e) { return []; } }
+function write(book){ localStorage.setItem(KEY, JSON.stringify(book.slice(-200))); paint(); }
+function textOf(row){
+  if (row == null) return "";
+  if (typeof row === "string") return row;
+  return row.text || row.name || row.id || JSON.stringify(row);
+}
+function paint(){
+  var book = read();
+  document.getElementById("count").textContent = book.length + " records on this device.";
+  var ul = document.getElementById("list");
+  ul.innerHTML = "";
+  book.slice().reverse().forEach(function (item, i) {
+    var li = document.createElement("li");
+    var b = document.createElement("b");
+    b.textContent = item.kind || "row";
+    var s = document.createElement("span");
+    s.textContent = textOf(item.row);
+    var x = document.createElement("button");
+    x.type = "button";
+    x.textContent = "DROP";
+    x.onclick = function () {
+      var all = read();
+      all.splice(all.length - 1 - i, 1);
+      write(all);
+    };
+    li.appendChild(b); li.appendChild(s); li.appendChild(x);
+    ul.appendChild(li);
+  });
+}
+document.getElementById("f").onsubmit = function (e) {
+  e.preventDefault();
+  var book = read();
+  book.push({ kind: document.getElementById("kind").value.trim() || "note", t: Date.now(), row: { text: document.getElementById("text").value.trim() } });
+  document.getElementById("text").value = "";
+  write(book);
+};
+try {
+  var mesh = new BroadcastChannel("astranov-mesh");
+  mesh.onmessage = function () { paint(); };
+} catch (e) {}
+paint();
+</script>
+</body>
+</html>

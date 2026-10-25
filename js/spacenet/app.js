@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4387";
+  var VER = "4388";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -576,7 +576,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     if (here) {
       p = project(here.lat, here.lng, cam);
-      if (p) drawRobot(ctx, p.x, p.y - 16, cam.dist < 1.9 ? 1.35 : 1, now);
+      if (p) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = "#4df0ff";
+        ctx.fill();
+      }
     }
     ctx.restore();
     drawMesh(cam);
@@ -616,7 +621,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var APP_BODIES = [
     { n: "ARCHITECT", host: "architect.astranov.eu" },
     { n: "PERSONALITY", host: "personality.astranov.eu" },
-    { n: "DATANET", host: "datanet.astranov.eu" },
+    { n: "DATANET", path: "/datanet/" },
+    { n: "HOST", path: "/host/" },
     { n: "EXCHANGE", host: "exchange.astranov.eu" },
     { n: "INVESTORS", host: "investors.astranov.eu" },
     { n: "YACHTS", host: "yachts.astranov.eu" },
@@ -641,7 +647,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     say("Solar system");
   }
   function openAppFrame(app) {
-    if (!app || !app.host) return;
+    if (!app || (!app.host && !app.path)) return;
     var host = document.getElementById("sn-app-host");
     if (!host) {
       host = document.createElement("div");
@@ -652,7 +658,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       document.getElementById("sn-app-back").addEventListener("click", closeAppFrame);
     }
     document.getElementById("sn-app-name").textContent = app.n;
-    document.getElementById("sn-app-frame").src = "https://" + app.host + "/";
+    document.getElementById("sn-app-frame").src = app.path || ("https://" + app.host + "/");
     host.style.display = "flex";
     say(app.n + " on astranov.eu");
   }
@@ -782,9 +788,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         cam.pitch = held.pitch;
       }
       return;
-    }
-    if (!fly && !drag && !cityOn && cam.dist < 3) {
-      cam.yaw += dt * 0.04;
     }
     if (intro && !drag && !cityOn && cam.dist > 3.2) intro = false;
     if (!drag && tierI >= 2 && aim && !cityOn) {
@@ -997,9 +1000,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (Math.abs(grew - 1) < 0.03) return;
         if (cityOn && map) {
           var z = map.getZoom() || 16;
-          if (grew > 1) {
+          if (grew > 1.08) {
             try { map.setZoom(Math.min(19, z + 1)); } catch (e) {}
-          } else if (z <= 14) {
+          } else if (grew < 0.92 && z <= 12) {
             closeCity();
             cam.dist = 0.95;
             markTier(0.95);
@@ -1009,7 +1012,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           }
           return;
         }
-        var nd = cam.dist / Math.max(0.82, Math.min(1.22, grew));
+        var nd = cam.dist / Math.max(0.97, Math.min(1.03, grew));
         nd = Math.max(0.48, Math.min(6.2, nd));
         if (nd <= 0.52) {
           var pt = (aim && isFinite(+aim.lat)) ? aim : ((here && isFinite(+here.lat)) ? here : { lat: 36.44305, lng: 28.2279 });
@@ -1212,7 +1215,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     intro = false;
     fly = null;
     var d = cam.dist || 1.85;
-    var next = dir > 0 ? d * 1.16 : d / 1.16;
+    var next = dir > 0 ? d * 1.05 : d / 1.05;
     next = Math.max(0.48, Math.min(6.2, next));
     if (next <= 0.52) {
       var pt = (aim && isFinite(+aim.lat)) ? aim : ((here && isFinite(+here.lat)) ? here : { lat: 36.44305, lng: 28.2279 });
@@ -2139,7 +2142,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#gps .tgt{width:44px!important;height:44px!important;display:flex!important;align-items:center!important;justify-content:center!important}",
       "#sn-radar-hud{display:block!important;visibility:visible!important;pointer-events:none!important;overflow:visible!important;position:fixed!important;top:max(62px,calc(env(safe-area-inset-top) + 54px))!important;right:max(12px,env(safe-area-inset-right))!important;width:72px!important;height:72px!important;z-index:40!important;border-radius:50%!important;border:1px solid rgba(77,240,255,.5)!important;background:radial-gradient(circle,transparent 46%,rgba(77,240,255,.2) 47% 48%,transparent 49%),conic-gradient(from 0deg,transparent 0 68%,rgba(77,240,255,.7) 100%)!important;animation:sn-sweep 2.8s linear infinite!important;box-shadow:inset 0 0 16px rgba(77,240,255,.2)!important}",
       "@keyframes sn-sweep{to{transform:rotate(360deg)}}",
-      "#sn-mon{display:flex!important;visibility:visible!important;pointer-events:none!important;overflow:visible!important;position:fixed!important;left:12px!important;right:auto!important;top:auto!important;bottom:max(78px,calc(env(safe-area-inset-bottom) + 70px))!important;transform:none!important;width:fit-content!important;max-width:calc(100vw - 84px)!important;height:auto!important;z-index:74!important;justify-content:flex-start!important;gap:8px!important;flex-wrap:wrap!important;padding:4px 8px!important;border-radius:999px!important;background:rgba(4,14,28,.72)!important;border:1px solid rgba(77,240,255,.28)!important;color:#d7f6ff!important;font:600 11px/1.3 ui-monospace,monospace!important}"
+      "#sn-mon{display:flex!important;visibility:visible!important;pointer-events:none!important;overflow:visible!important;position:fixed!important;left:12px!important;right:auto!important;top:auto!important;bottom:max(78px,calc(env(safe-area-inset-bottom) + 70px))!important;transform:none!important;width:fit-content!important;max-width:calc(100vw - 84px)!important;height:auto!important;z-index:74!important;justify-content:flex-start!important;gap:8px!important;flex-wrap:wrap!important;padding:4px 8px!important;border-radius:999px!important;background:rgba(4,14,28,.72)!important;border:1px solid rgba(77,240,255,.28)!important;color:#d7f6ff!important;font:600 11px/1.3 ui-monospace,monospace!important}",
+      "#sn-bar{position:fixed!important;z-index:90!important;top:max(8px,env(safe-area-inset-top))!important;left:8px!important;right:8px!important;height:44px!important;display:flex!important;gap:8px!important;align-items:center!important;pointer-events:none!important}",
+      "#sn-bar #sn-power,#sn-bar #sn-money{position:static!important;transform:none!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;flex:none!important}",
+      "#sn-bar #sn-seek{position:static!important;left:auto!important;right:auto!important;top:auto!important;width:auto!important;transform:none!important;flex:1!important;min-width:0!important;margin:0!important;pointer-events:auto!important}",
+      "#sn-bar #sn-seek input{width:100%!important}",
+      "#sn-radar-hud,#sn-mon,#sn-play,#line{display:none!important}"
     ].join("");
     document.head.appendChild(s);
   }
@@ -7797,6 +7805,20 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       };
     } catch (e) {}
     hostNode(null);
+    var bar = document.getElementById("sn-bar");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "sn-bar";
+      var power = document.getElementById("sn-power");
+      var seekEl = document.getElementById("sn-seek");
+      var money = document.getElementById("sn-money");
+      if (power && seekEl && money) {
+        document.body.insertBefore(bar, document.body.firstChild);
+        bar.appendChild(power);
+        bar.appendChild(seekEl);
+        bar.appendChild(money);
+      }
+    }
     var seek = document.getElementById("sn-seek");
     if (seek && !seek.__sn) {
       seek.__sn = true;
@@ -7804,7 +7826,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         e.preventDefault();
         var inp = document.getElementById("sn-seek-in");
         var raw = String((inp && inp.value) || "").trim();
-        if (/^(crew|guide|agents|drill|host|mesh|ambassador|diplomat)$/i.test(raw)) { runCrew(raw); return; }
+        if (/^(datanet|database)$/i.test(raw)) { openAppFrame({ n: "DATANET", path: "/datanet/" }); return; }
+        if (/^(host|mesh|hosting)$/i.test(raw)) { openAppFrame({ n: "HOST", path: "/host/" }); return; }
+        if (/^(crew|guide|agents|drill|ambassador|diplomat)$/i.test(raw)) { runCrew(raw); return; }
         seekPlace(raw);
       });
     }
