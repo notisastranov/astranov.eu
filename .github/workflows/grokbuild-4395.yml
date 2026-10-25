@@ -1,0 +1,35 @@
+name: grokbuild 4395 (declutter after every re-zoom, no re-zoom under a finger; main unmoved; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4395.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix112, assert tree, commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "4de07258bb723b56b3c0349832a2d913557486c1" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          git fetch -q origin main
+          git cat-file -e de23b20b597496bb375d0d05bdee643015a81e24^{commit}
+          base64 -d .grokbuild/fix112.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "7f4e59aa7010df51c2f02773cbe5caedcfc3aaffcc77d80c087a3aa688b13ba0"
+          gunzip -c /tmp/f.gz > /tmp/fix112.patch
+          test "$(sha256sum /tmp/fix112.patch | cut -d' ' -f1)" = "85d0c3adea7162a2e7d63150d23b0e1309a7f8d04cb2621d81804081b51fb7da"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4395.yml
+          git apply --index /tmp/fix112.patch
+          node --check js/spacenet/app.js
+          grep -q '^4395$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "d5c7c9cbbe00e27e7c4817866ee649e51a781242" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -m "4395: labels never settle under the YOU marker or HUD buttons; two outer declutter rings; a leader through a face or name scores crowded; a second declutter pass 320 ms after every moveend/zoomend/viewreset/resize and after each hunt fit. No auto re-zoom while a finger is on the map, within 2.5 s of a hold or after a user press since the last fit; a pin tap opens the pin under the finger at press start; the LIST hold point is fixed at press start. Main unmoved (de23b20b). Lockstep 4395")"
+          git push origin "$C:refs/heads/grokbuild/4328-street-level-gps"
