@@ -1,0 +1,43 @@
+name: grokbuild 4399 (merge main 4393 as files; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4399.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Carry main files, apply fix116, assert trees, merge commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "ea915172506d4bb6600df400350fdd56e11636f3" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          git fetch -q origin +refs/heads/main:refs/remotes/origin/main
+          M=509d2f4c0c4326fe608ab8a62b3a044db00438eb
+          git cat-file -e $M^{commit}
+          test "$(sha256sum .grokbuild/fix116.list | cut -d' ' -f1)" = "cf11762a49b062963175341867ffd5f1d87a3734f146213dca9c04441f4e2800"
+          base64 -d .grokbuild/fix116.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "a7c8841189e2b8cdd664773bc90c5b7502ca8d79cdb2f7f579975aa3f9204e9a"
+          gunzip -c /tmp/f.gz > /tmp/fix116.patch
+          test "$(sha256sum /tmp/fix116.patch | cut -d' ' -f1)" = "3b8ea2eab4d514482aeb6705542142164ddfed3ebfa16d457d8f2b4d7a1b38fd"
+          cp .grokbuild/fix116.list /tmp/fix116.list
+          git rm -rq .grokbuild .github/workflows/grokbuild-4399.yml
+          xargs -a /tmp/fix116.list -d '\n' git checkout $M --
+          git checkout $M -- datanet/index.html
+          git rm -qf host/index.html
+          T0="$(git write-tree)"
+          test "$T0" = "c0551936585aaa3881faf743735c8aa683e745c1" || { echo "tree0 $T0"; exit 1; }
+          git apply --index /tmp/fix116.patch
+          node --check js/spacenet/app.js
+          grep -q '^4399$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "7af799529839476e7071de71856265c2fadf7877" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -p $M -m "4399: merge main 509d2f4c (4389-4393): other app repositories carried as files only (no migration applied), host/ renamed to servernet/ with redirects, datanet/servernet subdomain rewrites, app registry. Branch engine, stamps and hide-block exclusions win. Lockstep 4399")"
+          git push origin "$C:refs/heads/grokbuild/4328-street-level-gps"
