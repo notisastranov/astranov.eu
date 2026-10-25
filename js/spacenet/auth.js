@@ -204,10 +204,10 @@
     var s = document.createElement("style");
     s.id = "sn-me-css";
     s.textContent =
-      "#sn-me{position:fixed;left:max(10px,env(safe-area-inset-left));bottom:calc(env(safe-area-inset-bottom) + 78px);z-index:90;width:var(--u,40px);padding:0;border:0;background:transparent;color:#4df0ff}" +
-      "#sn-me .lbl{display:block;font:800 8px/1 system-ui;letter-spacing:.16em;text-align:center;margin:0 0 4px}" +
-      "#sn-me .tgt{display:flex;align-items:center;justify-content:center;width:var(--u,40px);height:var(--u,40px);margin:0 auto;border-radius:999px;overflow:hidden;border:1.5px solid rgba(77,240,255,.95);background:rgba(4,16,28,.92)}" +
-      "#sn-me img,#sn-me .ph{width:100%;height:100%;object-fit:cover;display:flex;align-items:center;justify-content:center;font:800 11px system-ui;color:#4df0ff}" +
+      "#sn-me{position:static;width:36px;height:36px;padding:0;border-radius:999px;overflow:hidden;border:1px solid rgba(77,240,255,.85);background:rgba(4,16,28,.9);color:#4df0ff;display:flex;align-items:center;justify-content:center}" +
+      "#sn-me.in,#sn-me.out{display:flex!important}" +
+      "#sn-me .lbl{display:none}" +
+      "#sn-me img,#sn-me .ph{width:36px;height:36px;object-fit:cover;display:flex;align-items:center;justify-content:center;font:800 14px system-ui;color:#4df0ff}" +
       "#sn-me-sheet{position:fixed;inset:0;z-index:80;display:none}" +
       "#sn-me-sheet.on{display:block}" +
       "#sn-me-sheet .bg{position:absolute;inset:0}" +
@@ -238,11 +238,11 @@
     if (!btn) return;
     btn.className = inNow ? "in" : "out";
     if (!inNow) {
-      btn.innerHTML = '<span class="lbl">ENTER</span>';
-      btn.setAttribute("aria-label", "Enter");
+      btn.innerHTML = '<span class="ph">IN</span>';
+      btn.setAttribute("aria-label", "Login");
     } else {
-      btn.innerHTML = "";
-      btn.setAttribute("aria-label", "Signed in");
+      btn.innerHTML = face(u);
+      btn.setAttribute("aria-label", u.name || u.email || "Signed in");
     }
     if (window.SN && SN.paintMoney) SN.paintMoney();
   }
@@ -256,28 +256,19 @@
     var tel = (u && u.phone) || read("sn:phone", "") || "";
     var mine = "";
     try { if (inNow && window.SN && SN.avcGet) mine = Math.round(SN.avcGet()).toLocaleString("en-GB") + " AV€"; } catch (e) {}
+    var roleNow = "";
+    try { roleNow = localStorage.getItem("sn:role") || ""; } catch (e) {}
+    function roleBtn(id, label) {
+      return '<button type="button" class="go" data-act="role-set" data-role="' + id + '">' + (roleNow === id ? "ON · " : "") + label + "</button>";
+    }
     body.innerHTML =
-      '<div class="who">' + face(u) + "<div><b>" + String(name).replace(/[<>]/g, "") + "</b><span>" + (inNow ? "IN · " + String(mail).replace(/[<>]/g, "") : "OUT") + "</span></div></div>" +
-      (inNow && mine ? '<p class="note">YOUR MONEY · ' + mine + "</p>" : "") +
+      '<div class="who">' + face(u) + "<div><b>" + String(name).replace(/[<>]/g, "") + "</b><span>" + (inNow ? String(mail).replace(/[<>]/g, "") : "Not signed in") + "</span></div></div>" +
+      (inNow && mine ? '<p class="note">' + mine + "</p>" : "") +
       (inNow
-        ? '<button type="button" class="go" data-act="youtube">' + (read("sn:yt", "") ? "YOUTUBE ON · REFRESH" : "AUTHORIZE YOUTUBE") + "</button>"
-        : "") +
-      (inNow
-        ? '<button type="button" class="go" data-act="out">SIGN OUT</button>'
-        : '<button type="button" class="go" data-act="google">GOOGLE</button>' +
-          '<input id="sn-mail" type="email" autocomplete="username" placeholder="Email">' +
-          '<input id="sn-pass" type="password" autocomplete="current-password" placeholder="Password, 8 characters">' +
-          '<button type="button" class="go" data-act="mail-in">SIGN IN</button>' +
-          '<button type="button" class="go" data-act="mail-up">CREATE ACCOUNT</button>') +
-      (inNow
-        ? '<p class="note">Activate a role. Notis confirms.</p>' +
-          '<button type="button" class="go" data-act="terms">TERMS</button>' +
-          '<button type="button" class="go" data-act="role" data-role="vendor">APPLY VENDOR</button>' +
-          '<button type="button" class="go" data-act="role" data-role="driver">APPLY DRIVER</button>' +
-          '<button type="button" class="go" data-act="role" data-role="agent">APPLY AGENT</button>' +
-          '<button type="button" class="go" data-act="role" data-role="ambassador">APPLY AMBASSADOR</button>'
-        : "") +
-      '<p class="note">' + (inNow ? "Wallet is this account only. Pool is owner only." : "One Astranov account. Google, or email. Same profile on every app.") + "</p>";
+        ? roleBtn("client", "CONSUMER") + roleBtn("vendor", "VENDOR") + roleBtn("driver", "DRIVER") +
+          '<button type="button" class="go" data-act="out">SIGN OUT</button>'
+        : '<button type="button" class="go" data-act="google">GOOGLE</button>') +
+      '<p class="note">' + (inNow ? "One role at a time." : "Google login.") + "</p>";
   }
   function openMe() {
     css();
@@ -298,21 +289,13 @@
         if (act === "twitter") { x(); return; }
         if (act === "out") { out(); fillBody(); return; }
         if (act === "terms") { talk("Terms: work legal at that GPS. Notis activates roles."); return; }
-        if (act === "role") {
+        if (act === "role-set") {
+          if (!user() || !user().email) { google(); return; }
           var role = b.getAttribute("data-role") || "";
-          try { localStorage.setItem("sn:role-apply", role); } catch (e) {}
-          var u = user();
-          if (window.SN && SN.askAdmin) {
-            SN.askAdmin({
-              id: "role-" + role + "-" + ((u && u.email) || "guest"),
-              kind: "role",
-              role: role,
-              title: role.toUpperCase(),
-              who: (u && u.email) || "",
-              note: ((u && (u.name || u.email)) || "Someone") + " applied as " + role + "."
-            });
-          }
-          talk("Applied " + role + ". Waiting on the administrator.");
+          if (role !== "client" && role !== "vendor" && role !== "driver") return;
+          try { localStorage.setItem("sn:role", role); } catch (err) {}
+          talk(role === "client" ? "Consumer." : role === "vendor" ? "Vendor." : "Driver.");
+          fillBody();
           return;
         }
       });
@@ -329,8 +312,7 @@
       btn.addEventListener("click", function (e) {
         e.preventDefault();
         e.stopPropagation();
-        var u = user();
-        if (!(u && u.email)) openMe();
+        openMe();
       });
     }
     var search = new URLSearchParams(location.search);

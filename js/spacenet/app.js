@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4398";
+  var VER = "4399";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -322,6 +322,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function needLogin() {
     if (signed()) return false;
     say("LOGIN first.");
+    if (window.SNAuth && SNAuth.open) SNAuth.open();
     return true;
   }
   function visRect(el) {
@@ -1554,15 +1555,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (window.__snHold && Date.now() - window.__snHold < 1200) return;
         var ll = e && e.latlng;
         if (!ll) return;
-        if (isAdmin() && dropArm) {
-          var shop = dropArm;
-          beginOwnerRun(shop, ll);
-          return;
-        }
-        if (isAdmin() && rideArm) {
-          if (needLogin()) return;
-          nudgeArmed(ll);
-        }
+        listPt = { lat: +ll.lat, lng: +ll.lng };
+        openMapMenu(listPt);
       });
       var holdPt = null;
       var holdTimer = 0;
@@ -1660,6 +1654,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     cam.pitch = 0.22;
     cam.dist = TIERS[1].dist;
     say("Global view.");
+  }
+  function openMapMenu(pt) {
+    listPt = pt;
+    openSheet("HERE",
+      '<button type="button" class="sheet-go primary" data-act="map-post">POST</button>' +
+      '<button type="button" class="sheet-go" data-act="map-job">START A JOB</button>' +
+      '<button type="button" class="sheet-go" data-act="map-explore">EXPLORE</button>' +
+      '<button type="button" class="sheet-go" data-act="map-event">LIST AN EVENT</button>' +
+      '<button type="button" class="sheet-go" data-act="map-drop">MY DELIVERY ADDRESS</button>' +
+      '<button type="button" class="sheet-go" data-act="map-driver">MY DRIVER BASE</button>', true);
   }
   function listAt(pt) {
     if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
@@ -2189,7 +2193,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-nav-menu{margin-top:6px!important;display:flex!important;flex-direction:column!important;gap:4px!important;background:rgba(4,14,28,.94)!important;border:1px solid rgba(77,240,255,.45)!important;border-radius:12px!important;padding:6px!important}",
       "#sn-nav-menu[hidden]{display:none!important}",
       "#sn-nav-menu button{height:32px!important;padding:0 14px!important;border:0!important;border-radius:8px!important;background:transparent!important;color:#e8fbff!important;font:600 13px/1 system-ui!important;text-align:left!important}",
-      ".sn-route-one{stroke:#1a3cff!important;stroke-width:7px!important;animation:none!important;filter:none!important}",
+      ".sn-route-one{stroke:#1a3cff!important;stroke-width:7px!important;animation:none!important;filter:drop-shadow(0 0 1px #f7fbff) drop-shadow(0 0 3px #1a3cff)!important}",
       ".sn-route-case{stroke:#f7fbff!important;stroke-width:11px!important;animation:none!important}",
       "#sn-offer{position:fixed!important;left:0!important;right:0!important;bottom:0!important;z-index:84!important;display:none!important;flex-direction:column!important;height:42vh!important;background:rgba(4,14,28,.94)!important;color:#e8fbff!important;border-top:1px solid #1a3cff!important;border-radius:18px 18px 0 0!important;box-shadow:0 -10px 28px rgba(0,0,0,.45)!important}",
       "#sn-offer.on{display:flex!important}",
@@ -2200,7 +2204,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ".sn-offer-scroll b{color:#9ec0ff!important;font:700 11px/1.35 system-ui!important;letter-spacing:.05em!important}",
       ".sn-offer-act{flex:none!important;display:flex!important;gap:8px!important;padding:8px 12px max(12px,env(safe-area-inset-bottom))!important}",
       ".sn-offer-act button{flex:1!important;height:44px!important;border-radius:999px!important;border:1px solid #1a3cff!important;background:#041018!important;color:#e8fbff!important;font:800 14px system-ui!important}",
-      ".sn-offer-act button:first-child{background:#1a3cff!important;color:#fff!important}"
+      ".sn-offer-act button:first-child{background:#1a3cff!important;color:#fff!important}",
+      "#sn-bar #sn-me{display:flex!important;visibility:visible!important;pointer-events:auto!important;position:static!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;transform:none!important;width:36px!important;height:36px!important;min-width:36px!important;padding:0!important;border-radius:999px!important;overflow:hidden!important;border:1px solid rgba(77,240,255,.85)!important;background:rgba(4,14,28,.9)!important;align-items:center!important;justify-content:center!important;flex:none!important}",
+      "#sn-bar #sn-me.in,#sn-bar #sn-me.out{display:flex!important}",
+      "#sn-bar #sn-me img,#sn-bar #sn-me .ph{width:36px!important;height:36px!important;border-radius:999px!important;object-fit:cover!important;display:flex!important;align-items:center!important;justify-content:center!important;font:800 14px system-ui!important;color:#4df0ff!important}",
+      "#sn-bar #sn-me .lbl{display:none!important}"
     ].join("");
     document.head.appendChild(s);
   }
@@ -6448,6 +6456,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         return;
       }
       if (act === "form-vendor") {
+        if (needLogin()) return;
 
         shots.place = "";
         placePhoto = "";
@@ -6496,17 +6505,130 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           '<label class="sn-check"><input id="sn-drv-night" type="checkbox" /> Works at night</label>' +
           '<button type="button" data-act="save-driver" hidden>LIST DRIVER BASE</button>', true);
       }
+      if (act === "map-post") {
+        if (needLogin()) return;
+        openSheet("POST",
+          '<button type="button" class="sheet-go primary" data-act="post-file">PHOTO OR VIDEO</button>' +
+          '<textarea id="sn-post-text" placeholder="Text"></textarea>' +
+          '<p class="note" id="sn-post-got">Nothing in yet.</p>' +
+          '<button type="button" class="sheet-go" data-act="post-next">NEXT</button>', true);
+        return;
+      }
+      if (act === "map-job") {
+        if (needLogin()) return;
+        var nearShop = null, nearKm = 1e9;
+        shops.forEach(function (s) {
+          if (!s || !isFinite(+s.lat) || s.status === "denied") return;
+          var km = listPt ? haversineKm(listPt, s) : 1e9;
+          if (km < nearKm) { nearShop = s; nearKm = km; }
+        });
+        if (!nearShop || nearKm > 0.4) {
+          say("List the vendor and the menu.");
+          shots.place = "";
+          placePhoto = "";
+          openSheet("VENDOR", vendorSheet(), true);
+          addMenuRow();
+          return;
+        }
+        vendor = nearShop;
+        if (!homeDrop || !isFinite(+homeDrop.lat)) {
+          say("List the delivery address.");
+          shots.drop = "";
+          openSheet("CLIENT",
+            photoSlot("drop") +
+            '<input id="sn-drop-name" placeholder="Name" />' +
+            '<input id="sn-drop-phone" placeholder="Phone" />' +
+            '<input id="sn-drop-address" placeholder="Address" />' +
+            '<input id="sn-drop-bell" placeholder="Doorbell" />' +
+            '<input id="sn-drop-floor" placeholder="Floor" />' +
+            '<textarea id="sn-drop-note" placeholder="Preferences and comments"></textarea>' +
+            '<button type="button" data-act="save-drop" hidden>LIST DELIVERY ADDRESS</button>', true);
+          return;
+        }
+        drop = homeDrop;
+        sendJob();
+        return;
+      }
+      if (act === "map-explore") {
+        if (listPt) openCity(listPt);
+        var named = "";
+        shops.forEach(function (s) {
+          if (!named && s && listPt && isFinite(+s.lat) && haversineKm(listPt, s) < 0.3) named = s.name || "";
+        });
+        say(named || "This place.");
+        closeSheet();
+        return;
+      }
+      if (act === "map-event") {
+        if (needLogin()) return;
+        openSheet("EVENT",
+          '<input id="sn-ev-title" placeholder="Event" />' +
+          '<input id="sn-ev-when" placeholder="When" />' +
+          '<textarea id="sn-ev-note" placeholder="What happens"></textarea>' +
+          '<button type="button" class="sheet-go primary" data-act="save-event">LIST THE EVENT</button>', true);
+        return;
+      }
+      if (act === "save-event") {
+        if (needLogin()) return;
+        var evTitle = $("sn-ev-title");
+        var evWhen = $("sn-ev-when");
+        var evNote = $("sn-ev-note");
+        var title = evTitle ? String(evTitle.value || "").trim() : "";
+        if (!title) { say("Name the event."); return; }
+        var events = [];
+        try { events = JSON.parse(localStorage.getItem("sn:events") || "[]") || []; } catch (e) {}
+        events.unshift({ id: "e" + Date.now().toString(36), title: title, when: evWhen ? evWhen.value : "", note: evNote ? evNote.value : "", lat: listPt && listPt.lat, lng: listPt && listPt.lng, t: Date.now() });
+        try { localStorage.setItem("sn:events", JSON.stringify(events.slice(0, 80))); } catch (e2) {}
+        closeSheet();
+        say(title + " is listed here.");
+        return;
+      }
+      if (act === "map-drop") {
+        if (needLogin()) return;
+        shots.drop = "";
+        openSheet("CLIENT",
+          photoSlot("drop") +
+          '<input id="sn-drop-name" placeholder="Name" />' +
+          '<input id="sn-drop-phone" placeholder="Phone" />' +
+          '<input id="sn-drop-address" placeholder="Address" />' +
+          '<input id="sn-drop-bell" placeholder="Doorbell" />' +
+          '<input id="sn-drop-floor" placeholder="Floor" />' +
+          '<textarea id="sn-drop-note" placeholder="Preferences and comments"></textarea>' +
+          '<button type="button" data-act="save-drop" hidden>LIST DELIVERY ADDRESS</button>', true);
+        return;
+      }
+      if (act === "map-driver") {
+        if (needLogin()) return;
+        shots.driver = "";
+        openSheet("DRIVER",
+          photoSlot("driver") +
+          '<input id="sn-drv-name" placeholder="Name" />' +
+          '<input id="sn-drv-phone" placeholder="Phone" />' +
+          '<input id="sn-drv-address" placeholder="Base address" />' +
+          '<input id="sn-drv-date" type="date" />' +
+          '<input id="sn-drv-run" placeholder="Delivery schedule" />' +
+          '<input id="sn-drv-hours" placeholder="Hours available" />' +
+          '<textarea id="sn-drv-areas" placeholder="Areas and routes"></textarea>' +
+          '<input id="sn-drv-goods" placeholder="Merchandise he can carry" />' +
+          '<input id="sn-drv-volume" placeholder="Volume" />' +
+          '<input id="sn-drv-weight" placeholder="Weight" />' +
+          '<label class="sn-check"><input id="sn-drv-rain" type="checkbox" /> Works in the rain</label>' +
+          '<label class="sn-check"><input id="sn-drv-night" type="checkbox" /> Works at night</label>' +
+          '<button type="button" data-act="save-driver" hidden>LIST DRIVER BASE</button>', true);
+        return;
+      }
       if (act === "form-post") {
         openSheet("POST",
-          '<button type="button" class="sheet-go primary" data-act="post-cam">CAMERA · PHOTO OR VIDEO</button>' +
-          '<textarea id="sn-post-text" placeholder="Write it, or a selfie note"></textarea>' +
+          '<button type="button" class="sheet-go primary" data-act="post-file">PHOTO OR VIDEO</button>' +
+          '<textarea id="sn-post-text" placeholder="Text"></textarea>' +
           '<p class="note" id="sn-post-got">Nothing in yet.</p>' +
           '<button type="button" class="sheet-go" data-act="post-next">NEXT · WHERE</button>', true);
       }
-      if (act === "post-cam") {
+      if (act === "post-file" || act === "post-cam") {
+        if (needLogin()) return;
         fileForPost = true;
         var cam = $("sn-file");
-        if (cam) { cam.accept = "image/*,video/*"; cam.setAttribute("capture", "user"); cam.click(); }
+        if (cam) { cam.accept = "image/*,video/*"; cam.removeAttribute("capture"); cam.click(); }
       }
       if (act === "post-next") {
         var tx = $("sn-post-text");
@@ -6519,6 +6641,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           '<button type="button" class="sheet-go" data-act="post-go" data-k="team">POST TO THAT TEAM</button>', true);
       }
       if (act === "post-go") {
+        if (needLogin()) return;
         var where = t.getAttribute("data-k") || "global";
         var teamEl = $("sn-post-team");
         var team = teamEl ? String(teamEl.value || "").trim() : "";
@@ -6565,6 +6688,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (rowFile) { rowFile.accept = "image/*"; rowFile.click(); }
       }
       if (act === "save-driver") {
+        if (needLogin()) return;
         if (!listPt) { say("Hold the map first."); return; }
         var drvN = $("sn-drv-name");
         var drvName = drvN ? String(drvN.value || "").trim() : "";
@@ -6620,9 +6744,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         closeSheet();
         return;
       }
-      if (act === "offer-yes") { offerYes(t.getAttribute("data-id") || (function () { var sh = $("sn-sheet"); return sh && sh.getAttribute("data-job"); })()); return; }
+      if (act === "offer-yes") {
+        if (needLogin()) return;
+        offerYes(t.getAttribute("data-id") || (function () { var sh = $("sn-sheet"); return sh && sh.getAttribute("data-job"); })());
+        return;
+      }
       if (act === "offer-no") { offerNo(t.getAttribute("data-id") || (function () { var sh = $("sn-sheet"); return sh && sh.getAttribute("data-job"); })()); return; }
       if (act === "run-offer") {
+        if (needLogin()) return;
         if (!isAdmin()) { say("Only the administrator sends an offer on behalf of both."); return; }
         absorbMine();
         if (!homeDrop) { try { homeDrop = JSON.parse(localStorage.getItem("sn:home") || "null"); } catch (e) {} }
@@ -6732,6 +6861,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (file) { file.accept = "image/*,.csv,text/csv"; file.click(); }
       }
       if (act === "save-place") {
+        if (needLogin()) return;
         var kn = t.getAttribute("data-k") || "shop";
         var nmEl = $("sn-place-name");
         var phEl = $("sn-place-phone");
@@ -6787,6 +6917,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 
       }
       if (act === "list-drop" || act === "save-drop") {
+        if (needLogin()) return;
         if (!listPt) { say("Hold the street first."); return; }
         if (!isAdmin()) {
           if (myRole() && myRole() !== "client") { say("Only a client lists a delivery location."); return; }
@@ -7955,6 +8086,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (power && seekEl && money) {
         document.body.insertBefore(bar, document.body.firstChild);
         bar.appendChild(power);
+        var meBtn = document.getElementById("sn-me");
+        if (meBtn) bar.appendChild(meBtn);
         bar.appendChild(seekEl);
         bar.appendChild(money);
       }
