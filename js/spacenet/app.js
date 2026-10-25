@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4394"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4395"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1576,7 +1576,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -2838,7 +2838,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         cityWheel(dy > 0 ? 1 : -1, e.clientX - rr.left, e.clientY - rr.top, e);
       }, { passive: false });
       map.on("move zoom", function () { if (DEBUG_WHEEL) placeXhair(); });
-      map.on("zoomend moveend", function () { declutterSoon(); });
+      map.on("zoomend moveend viewreset resize", function () { declutterSoon(); declutterLate(); });
       map.on("zoomend", function () { try { if (cityOn) paintShopsOnMap(); } catch (eF) {} });
       try {
         if (typeof ResizeObserver !== "undefined") {
@@ -2853,6 +2853,15 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       } catch (eRO) {}
       ["wheel", "pointerdown", "touchstart"].forEach(function (k) {
         el.addEventListener(k, function () { mapUserAt = Date.now(); }, { capture: true, passive: true });
+      });
+      el.addEventListener("pointerdown", function (e) {
+        if (e.button) return;
+        var ic = e.target && e.target.closest && e.target.closest(".leaflet-marker-icon");
+        snPress = { down: true, t: Date.now(), x: e.clientX, y: e.clientY, shop: ic && ic.__snShopRow ? ic.__snShopRow : null };
+        window.__snPressShop = snPress.shop ? String(snPress.shop.name || "") : "";
+      }, { capture: true, passive: true });
+      ["pointerup", "pointercancel"].forEach(function (k) {
+        el.addEventListener(k, function () { if (snPress) { snPress.down = false; snPress.upAt = Date.now(); } }, { capture: true, passive: true });
       });
       map.on("zoomend", function () {
         try {
@@ -2971,7 +2980,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         holdPt = null;
         if (!map) return;
         var ll = null;
-        try { if (start && start.ev) ll = map.mouseEventToLatLng(start.ev); } catch (err) {}
+        if (start && start.ll) ll = start.ll;
+        try { if (!ll && start && start.ev) ll = map.mouseEventToLatLng(start.ev); } catch (err) {}
         if (!ll) {
           try { var c = map.getCenter(); ll = { lat: c.lat, lng: c.lng }; } catch (err2) {}
         }
@@ -2995,7 +3005,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         dropHold();
         /* 4373: main b2801bff turned map dragging off on every press (a pan then needed a fresh press); the branch keeps the map
            draggable and cancels the hold once the press moves 36 px, so a pan is never a LIST */
-        holdPt = { x: e.clientX, y: e.clientY, t: Date.now(), ev: e };
+        var ll0 = null; try { ll0 = map.mouseEventToLatLng(e); } catch (eL) {}
+        holdPt = { x: e.clientX, y: e.clientY, t: Date.now(), ev: e, ll: ll0 }; /* 4395: the hold point is fixed at press start */
         holdTimer = setTimeout(fireHold, 420);
       }, true);
       el.addEventListener("pointermove", function (e) {
@@ -3360,7 +3371,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4394&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4395&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -4833,26 +4844,28 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
           try { L.DomEvent.preventDefault(e.originalEvent); } catch (err) {}
         }
         try { if (mark.closeTooltip) mark.closeTooltip(); } catch (err2) {}
-        openVendor(s);
+        openVendor(pressedShop(s));
       });
       /* also catch taps that Leaflet routes to the icon DOM */
       try {
         var ic = mark.getElement && mark.getElement();
         if (ic && !ic.__snTap) {
           ic.__snTap = true;
+          ic.__snShopRow = s;
           ic.style.pointerEvents = "auto";
           ic.addEventListener("pointerup", function (ev) {
             if (ev && ev.button) return;
             ev.preventDefault(); ev.stopPropagation();
-            openVendor(s);
+            openVendor(pressedShop(s));
           }, true);
         }
       } catch (err3) {}
       mark.addTo(map);
+      try { var ie0 = mark.getElement && mark.getElement(); if (ie0) ie0.__snShopRow = s; } catch (eIe) {} /* 4395: the pin under a press at its start */
       shopMarks.push(mark);
     });
     window.__snFieldIds = field.map(function (s) { return String(s.id || s.name); });
-    declutterSoon();
+    declutterSoon(); declutterLate();
     /* FIND always equals the pins: a late source that changes the field re-renders the open FIND */
     if (huntView && findOnSheet && huntView.rendered !== findIds(field)) renderFind(field);
     if (huntView && !huntView.fitted && field.length && cityOn && !huntFitWanted) { huntFitWanted = true; setTimeout(function () { try { fitHunt(); } catch (eF) {} }, 0); }
@@ -5008,13 +5021,19 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     if (declT) return;
     declT = requestAnimationFrame(function () { declT = 0; try { declutterPins(); } catch (e) {} });
   }
+  /* 4395: a second pass after the re-zoom / fit settles (late fonts, photos, the sheet resize) */
+  var declLateT = 0;
+  function declutterLate() {
+    clearTimeout(declLateT);
+    declLateT = setTimeout(function () { declLateT = 0; declutterSoon(); }, 320);
+  }
   function rectHit(a, b) { return a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1; }
   /* 4338: nearest first; with a FIND open every pin keeps its number badge and, where there is room, its name: a face that
      would cover another face or label (or sit under the ribbon / sheet) moves to the nearest free slot with a leader line
      back to its real spot. Without a FIND (browsing a town) pins stay put and a crowded label hides (hover shows it). */
   var DECL_SLOTS = (function () {
     var c = [[0, 0]];
-    [[44, 8], [80, 12], [118, 16], [160, 20]].forEach(function (ring) {
+    [[44, 8], [80, 12], [118, 16], [160, 20], [200, 24], [240, 28]].forEach /* 4395: two outer rings so a dense centre never falls back onto another face */(function (ring) {
       for (var k = 0; k < ring[1]; k++) {
         var a = -Math.PI / 2 + (2 * Math.PI * k) / ring[1];
         c.push([Math.round(Math.cos(a) * ring[0] * 1.3), Math.round(Math.sin(a) * ring[0])]);
@@ -5055,6 +5074,30 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     function grow(r, p) { return { left: r.left - p, right: r.right + p, top: r.top - p, bottom: r.bottom + p }; }
     function inside(r) { return r.top >= T && r.bottom <= B && r.left >= LF && r.right <= RT; }
     var placed = [];
+    /* 4395: the YOU marker (and any non-shop marker) and the HUD buttons over the map are obstacles: a face or label never
+       settles under them (4394 put pin 1 Super Mamma's under the YOU bot in the Heraklion centre cluster) */
+    try {
+      var obst = [];
+      Array.prototype.forEach.call(cityEl.querySelectorAll(".leaflet-marker-pane .leaflet-marker-icon:not(.sn-shop-pin)"), function (mk) { obst.push(mk); });
+      ["sn-money", "sn-globe", "sn-me", "gps", "sn-compass", "sn-you-where", "sn-hunt-n", "sn-power-tag"].forEach(function (id) { var x = $(id); if (x) obst.push(x); });
+      obst.forEach(function (x) {
+        var cs = getComputedStyle(x), q = x.getBoundingClientRect();
+        if (cs.display === "none" || cs.visibility === "hidden" || +cs.opacity === 0 || q.width < 2 || q.height < 2) return;
+        if (q.bottom < T || q.top > B) return;
+        placed.push({ left: q.left, right: q.right, top: q.top, bottom: q.bottom });
+      });
+    } catch (eOb) {}
+    function segThrough(r) {
+      var n = 0;
+      for (var i = 0; i < segs.length; i++) {
+        var a = segs[i][0], b = segs[i][1];
+        for (var t = 0.1; t <= 0.9; t += 0.1) {
+          var x = a[0] + (b[0] - a[0]) * t, y = a[1] + (b[1] - a[1]) * t;
+          if (x > r.left && x < r.right && y > r.top && y < r.bottom) { n++; break; }
+        }
+      }
+      return n;
+    }
     function free(r) { for (var i = 0; i < placed.length; i++) if (rectHit(r, placed[i])) return false; return true; }
     function hits(r) { var n = 0; for (var i = 0; i < placed.length; i++) if (rectHit(r, placed[i])) n++; return n; }
     var spread = items.length > 1 && items.length <= 40 && items.some(function (it) { return it.no; });
@@ -5094,10 +5137,11 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
           }
         }
         var len = Math.hypot(dx, dy), sc = (lab ? 0 : 400) + len;
+        if (lab) sc += 150 * segThrough(sh(unit, dx, dy)); /* 4395: a leader line drawn through a name is a crowded label */
         if (len) {
           var a = [it.ax, it.ay], b = [it.ax + dx, it.ay + dy - 11];
           for (var q = 0; q < segs.length; q++) if (cross(a, b, segs[q][0], segs[q][1])) sc += 250;
-          sc += 150 * segHitsRects(a, b);
+          sc += 400 * segHitsRects(a, b); /* 4395: a leader through a face or name is crowded */
           if (ol > 6) sc += 40 * (1 - (dx * ox + dy * oy) / (len * ol));
         }
         if (sc < best) { best = sc; pick = slots[k]; withLabel = lab; }
@@ -5200,7 +5244,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4394";
+    return "/you.png?v=4395";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -6121,11 +6165,22 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     if (o && isFinite(+o.lat) && isFinite(+o.lng)) return o;
     return activeSeat() || here;
   }
+  /* 4395: a press on the map (finger or mouse) and the shop pin under it at press start */
+  var snPress = null;
+  /* a tap or hold on a pin opens the pin that was under the finger when the press began, even if a re-zoom moved pins since */
+  function pressedShop(s) {
+    if (snPress && snPress.shop && Date.now() - snPress.t < 8000) { return snPress.shop; }
+    return s;
+  }
+  function snPressing() { return !!(snPress && snPress.down); }
+  window.__snPressing = snPressing;
   /* after a hunt the map frames every result (and the seat), above the sheet, never past z16 */
   function fitHunt() {
     huntFitWanted = false;
     if (!map || !cityOn || typeof L === "undefined" || !huntView) return;
     if (window.__snGrip && window.__snGrip.dragging()) return; /* 4341: never refit under a grip drag */
+    /* 4395: never auto re-zoom while a finger is on the map or a hold just fired: pins would slide under it (aimed at Lidl, got Cosmos) */
+    if (snPressing() || (window.__snHold && Date.now() - window.__snHold < 2500) || (huntView.fitAt && mapUserAt > huntView.fitAt)) { huntView.fitted = true; return; }
     if (huntView.single) return; /* a name search centres its one place */
     var el = $("city");
     if (!el || el.clientWidth < 40 || el.clientHeight < 40) { huntFitWanted = true; setTimeout(function () { try { fitHunt(); } catch (e) {} }, 80); return; }
@@ -6159,10 +6214,11 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     }
     huntView.fitVB = { t: vb.t, b: vb.b };
     huntView.fitAt = Date.now();
+    declutterSoon(); declutterLate();
     [450, 1300].forEach(function (ms) {
       setTimeout(function () {
         try {
-          if (!huntView || !huntView.fitted || !cityOn || mapUserAt > huntView.fitAt || (window.__snGripAt || 0) > huntView.fitAt) return;
+          if (!huntView || !huntView.fitted || !cityOn || snPressing() || mapUserAt > huntView.fitAt || (window.__snGripAt || 0) > huntView.fitAt) return;
           var v3 = mapVisBox();
           if (Math.abs(v3.t - huntView.fitVB.t) > 10 || Math.abs(v3.b - huntView.fitVB.b) > 10) fitHunt();
         } catch (eR) {}
@@ -6834,7 +6890,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function robotSrc() {
     var style = botSpec().style || "spartan";
     if (style !== "courier" && style !== "wire") style = "spartan";
-    return "/js/spacenet/robots/" + style + ".jpg?v=4394";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4395";
   }
   function robotFilter() {
     var c = botSpec().color;
@@ -11814,7 +11870,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {

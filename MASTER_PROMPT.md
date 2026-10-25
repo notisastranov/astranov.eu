@@ -393,3 +393,6 @@ Evolve. The helper develops the running rules, not a new login.
 
 ## 4394
 Merged main de23b20b (V4386: api consolidated into api/[...path].js + lib/http for the Hobby function cap; Earth-first root rewrite; solar app ring; international mesh + level tag). Branch engine wins: main's zoom/pinch rewrite, #sn-seek top search (its styling lived in the hide-all sn-4382 block; branch hunt CLI already searches places), and every hide list (sn-4379/sn-4382 style blocks, app.js #top/#island/#ver display:none) stay OUT. lib/http/version.js reads VERSION. Lockstep 4394.
+
+## 4395
+Main unmoved (de23b20b). Declutter: the YOU marker, other non-shop markers and the HUD buttons are placement obstacles; a leader through a name scores as crowded; a second declutter pass runs 320 ms after every moveend/zoomend/viewreset/resize and after every fitHunt. Touch: fitHunt and its re-fit timers never run while a finger is on the map, within 2.5 s of a hold, or after any user press since the last fit; a pin tap/hold opens the pin under the finger at press start; the LIST hold point is fixed at press start. Hide blocks sn-4379/sn-4382 and the app.js hide list stay out. Lockstep 4395.
