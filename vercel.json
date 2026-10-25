@@ -8,8 +8,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4390"},
-        {"key": "X-Astranov-Ship", "value": "4390-real"}
+        {"key": "X-Astranov-Build", "value": "4391"},
+        {"key": "X-Astranov-Ship", "value": "4391-real"}
       ]
     },
     {
@@ -17,8 +17,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4390"},
-        {"key": "X-Astranov-Ship", "value": "4390-real"}
+        {"key": "X-Astranov-Build", "value": "4391"},
+        {"key": "X-Astranov-Ship", "value": "4391-real"}
       ]
     },
     {
@@ -50,6 +50,10 @@
     {"source": "/hostnet/", "destination": "/servernet", "permanent": false}
   ],
   "rewrites": [
+    {"source": "/", "has": [{"type": "host", "value": "datanet.astranov.eu"}], "destination": "/datanet/index.html"},
+    {"source": "/index.html", "has": [{"type": "host", "value": "datanet.astranov.eu"}], "destination": "/datanet/index.html"},
+    {"source": "/", "has": [{"type": "host", "value": "servernet.astranov.eu"}], "destination": "/servernet/index.html"},
+    {"source": "/index.html", "has": [{"type": "host", "value": "servernet.astranov.eu"}], "destination": "/servernet/index.html"},
     {"source": "/", "has": [{"type": "host", "value": "investors.astranov.eu"}], "destination": "/investors/index.html"},
     {"source": "/index.html", "has": [{"type": "host", "value": "investors.astranov.eu"}], "destination": "/investors/index.html"},
     {"source": "/app.js", "has": [{"type": "host", "value": "investors.astranov.eu"}], "destination": "/investors/app.js"},
