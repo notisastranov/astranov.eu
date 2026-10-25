@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4395";
+  var VER = "4396";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -2141,7 +2141,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-bar #sn-seek input{width:100%!important}",
       "#sn-radar-hud,#sn-mon,#sn-play,#line,#go,#plus{display:none!important}",
       "body.sn-city #sn-compass{bottom:max(76px,calc(env(safe-area-inset-bottom) + 64px))!important;width:48px!important;height:48px!important;overflow:hidden!important}",
-      "body.sn-city #sn-compass .lbl{display:none!important}"
+      "body.sn-city #sn-compass .lbl{display:none!important}",
+      "#sn-bar #sn-seek{display:flex!important;align-items:center!important;position:relative!important}",
+      "#sn-bar #sn-seek input{padding:0 40px 0 14px!important}",
+      "#sn-mic{position:absolute!important;right:4px!important;top:4px!important;width:32px!important;height:32px!important;border:0!important;border-radius:999px!important;background:transparent!important;color:#e8fbff!important;font:20px/32px system-ui!important;padding:0!important;z-index:2!important}",
+      "#sn-support{display:flex!important;visibility:visible!important;pointer-events:auto!important;overflow:visible!important;position:fixed!important;top:max(60px,calc(env(safe-area-inset-top) + 56px))!important;right:max(10px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;z-index:81!important;align-items:center!important;justify-content:center!important;border-radius:999px!important;border:1px solid rgba(77,240,255,.85)!important;background:rgba(4,14,28,.82)!important;color:#e8fbff!important;font:22px/44px system-ui!important;padding:0!important}"
     ].join("");
     document.head.appendChild(s);
   }
@@ -7824,6 +7828,35 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (/^(servernet|hostnet|host|mesh|hosting)$/i.test(raw)) { openAppFrame({ n: "SERVERNET", path: "/servernet/" }); return; }
         if (/^(crew|guide|agents|drill|ambassador|diplomat)$/i.test(raw)) { runCrew(raw); return; }
         seekPlace(raw);
+      });
+    }
+    var mic = document.getElementById("sn-mic");
+    if (mic && !mic.__sn) {
+      mic.__sn = true;
+      mic.addEventListener("click", function (e) {
+        e.preventDefault();
+        var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!Rec) { say("This browser has no microphone."); return; }
+        var rec = new Rec();
+        rec.lang = navigator.language || "el-GR";
+        rec.interimResults = false;
+        rec.continuous = false;
+        rec.onresult = function (ev) {
+          var t = String((ev.results && ev.results[0] && ev.results[0][0] && ev.results[0][0].transcript) || "").trim();
+          var inp = document.getElementById("sn-seek-in");
+          if (inp) inp.value = t;
+          if (!t) return;
+          if (seek.requestSubmit) seek.requestSubmit();
+          else seek.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+          askGrok(t, function (err, j) {
+            var reply = j && (j.say || j.text);
+            if (!reply) return;
+            say(reply);
+            if (typeof speakIfVoice === "function") speakIfVoice(reply);
+          });
+        };
+        rec.onerror = function () { say("Microphone closed."); };
+        try { rec.start(); say("Listening."); } catch (err) { say("Microphone is busy."); }
       });
     }
     bindChrome();
