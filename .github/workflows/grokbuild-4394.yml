@@ -1,0 +1,35 @@
+name: grokbuild 4394 (merge main V4386; branch engine wins; no hide lists; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4394.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix111, assert tree, merge commit with main, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "8c94cfb626056d43e959f881b1da093d3c6fa605" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          git fetch -q origin main
+          git cat-file -e de23b20b597496bb375d0d05bdee643015a81e24^{commit}
+          base64 -d .grokbuild/fix111.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "ebde6a8c56c04208cf6a07942523e61c96fba2e6a598f98d7c0561bbff20c84a"
+          gunzip -c /tmp/f.gz > /tmp/fix111.patch
+          test "$(sha256sum /tmp/fix111.patch | cut -d' ' -f1)" = "bb2f73db7f471ad66e25dac9bed18d68810b477a4b7dc84bf812fcedb67187b7"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4394.yml
+          git apply --index /tmp/fix111.patch
+          node --check js/spacenet/app.js
+          grep -q '^4394$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "49a6b2b7dfe16e7d0e131afd0cd852aebb7a4f2f" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -p de23b20b597496bb375d0d05bdee643015a81e24 -m "Merge main (de23b20b: V4384-V4386 api consolidated into api/[...path].js + lib/http for the Hobby function cap, Earth-first root rewrite, solar app ring, international mesh + level tag) into the branch engine. Ported: api consolidation (lib/http/version.js keeps reading VERSION), root rewrite, solar app ring + tap, mesh + level tag. Skipped: main zoom/pinch rewrite (branch engine wins), #sn-seek top search (styled only inside the hide-all block; branch hunt CLI already searches places), sn-4379/sn-4382 blocks and the app.js #top/#island/#ver hide list. Lockstep 4394")"
+          git push origin "$C:refs/heads/grokbuild/4328-street-level-gps"
