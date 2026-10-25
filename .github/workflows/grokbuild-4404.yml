@@ -1,0 +1,36 @@
+name: grokbuild 4404 (fixes; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4404.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix122, assert trees, merge commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "c87c2d116a4d1a5ccacc008ff9ddfb08e4db67f1" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          base64 -d .grokbuild/fix122.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "fea1bec76683a97c20618baec6e7095bcfe8985690374e20c565b73d046abe26"
+          gunzip -c /tmp/f.gz > /tmp/fix122.patch
+          test "$(sha256sum /tmp/fix122.patch | cut -d' ' -f1)" = "ae2dee74ecd167e9a99474ccb0393d60ee8d6bea19d5b757d9c1b3f503585b1c"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4404.yml
+          T0="$(git write-tree)"
+          test "$T0" = "7e412daa4e804335578f920156a5eb46543aa1dd" || { echo "tree0 $T0"; exit 1; }
+          git apply --index /tmp/fix122.patch
+          node --check js/spacenet/app.js
+          node --check js/spacenet/auth.js
+          grep -q '^4404$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "1eb2a63d1a662b56cf822e9a03a8b698cc443bf9" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -m "4404: search answers within ~5 s (merged sources, cache top-up, honest retry line, named place kept on zoomed-out re-search); 500 px labels full-or-hidden, face/chip guard, 3 wheel notches stay in the field; compact pin card under 42vh without placeholder photo; SIGN IN close only closes itself. Lockstep 4404")"
+          git push origin "$C:refs/heads/grokbuild/4328-street-level-gps"
