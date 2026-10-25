@@ -269,7 +269,8 @@
     var si = document.getElementById("sn-signin");
     if (si) {
       si.hidden = inNow;
-      if (!si.__snWired) { si.__snWired = true; si.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); google(); }); }
+      if (!si.__snWired) { si.__snWired = true; si.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openMe(); }); } /* 4402: SIGN IN opens the login card (roles + Google + email), not Google directly */
+    if (inNow) { var want = read("sn:role-want", ""); if (want) { try { localStorage.setItem("sn:role", want); localStorage.removeItem("sn:role-want"); } catch (eW) {} } }
     }
     var btn = document.getElementById("sn-me");
     if (!btn) return;
@@ -281,12 +282,12 @@
     var short = inNow ? String(u.name || String(u.email).split("@")[0] || "YOU").split(/\s+/)[0].replace(/[<>"&]/g, "").slice(0, 10) : "";
     btn.setAttribute("data-who", inNow ? who : "");
     /* 4383: a guest sees YOU too (it opens the YOU panel: where, tasks, and LOG IN inside), never a bare LOGIN */
-    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "YOU") + '</span><span class="tgt">' + (inNow ? '<img alt="" src="' + String((u && u.photo) || "/you.png?v=4401").replace(/"/g, "") + '">' : '<span class="ph">?</span>') + "</span>";
+    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "YOU") + '</span><span class="tgt">' + (inNow ? '<img alt="" src="' + String((u && u.photo) || "/you.png?v=4402").replace(/"/g, "") + '">' : '<span class="ph">?</span>') + "</span>";
     if (window.SN && SN.paintMoney) SN.paintMoney();
   }
   /* 4401: from main 4399 — pick your role from the login card */
   function roleBtn(id, label) {
-    var on = read("sn:role", "") === id;
+    var on = read("sn:role", "") === id || read("sn:role-want", "") === id;
     return '<button type="button" class="go" data-act="role-set" data-role="' + id + '">' + (on ? "ON · " : "") + label + "</button>";
   }
   function fillBody() {
@@ -312,10 +313,11 @@
           '<input id="sn-pass" type="password" autocomplete="current-password" placeholder="Password, 8 characters">' +
           '<button type="button" class="go" data-act="mail-in">SIGN IN</button>' +
           '<button type="button" class="go" data-act="mail-up">CREATE ACCOUNT</button>') +
+      /* 4402: the role buttons show on every login card; signed out, a tap keeps the pick and starts Google sign-in */
+      '<p class="note sn-roles">' + (inNow ? "YOUR ROLE · " + (read("sn:role", "") || "none").toUpperCase() : "PICK A ROLE · then sign in") + '</p>' +
+      roleBtn("client", "CONSUMER") + roleBtn("vendor", "VENDOR") + roleBtn("driver", "DRIVER") +
       (inNow
-        ? '<p class="note">YOUR ROLE · ' + (read("sn:role", "") || "none").toUpperCase() + '</p>' +
-          roleBtn("client", "CONSUMER") + roleBtn("vendor", "VENDOR") + roleBtn("driver", "DRIVER") +
-          '<p class="note">Agent or ambassador: apply. Notis confirms.</p>' +
+        ? '<p class="note">Agent or ambassador: apply. Notis confirms.</p>' +
           '<button type="button" class="go" data-act="terms">TERMS</button>' +
           '<button type="button" class="go" data-act="role" data-role="vendor">APPLY VENDOR</button>' +
           '<button type="button" class="go" data-act="role" data-role="driver">APPLY DRIVER</button>' +
@@ -346,8 +348,8 @@
         if (act === "role-set") {
           var rs = b.getAttribute("data-role") || "";
           var us = user();
-          if (!us || !us.email) { google(); return; }
           if (rs !== "client" && rs !== "vendor" && rs !== "driver") return;
+          if (!us || !us.email) { try { localStorage.setItem("sn:role-want", rs); } catch (e) {} talk("Sign in, then you are " + (rs === "client" ? "a consumer." : rs === "vendor" ? "a vendor." : "a driver.")); google(); return; }
           try { localStorage.setItem("sn:role", rs); } catch (e) {}
           talk(rs === "client" ? "You are a consumer." : rs === "vendor" ? "You are a vendor." : "You are a driver.");
           fillBody();

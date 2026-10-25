@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4401"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4402"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -122,6 +122,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     { id: "city", dist: 0.5, name: "City" }
   ];
   var tierI = 1;
+  var seekHold = null; /* 4402: crew drill helper (main keeps the last seek point here; the branch has none, so crew falls back to aim/here) */
   var tierLock = 0;
   var aim = null;
   var gpsSeq = 0;
@@ -1603,7 +1604,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3416,7 +3417,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4401&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4402&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -4347,6 +4348,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       }).catch(done);
     } else done();
   }
+  /* 4402: crew drill helper from main, on the branch tier scale */
+  function markTier(d) { tierI = d > 3.2 ? 0 : d > 1.4 ? 1 : 2; }
   function runCrew(word) {
     word = String(word || "crew").toLowerCase();
     var faults = [];
@@ -5425,7 +5428,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4401";
+    return "/you.png?v=4402";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -7073,7 +7076,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function robotSrc() {
     var style = botSpec().style || "spartan";
     if (style !== "courier" && style !== "wire") style = "spartan";
-    return "/js/spacenet/robots/" + style + ".jpg?v=4401";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4402";
   }
   function robotFilter() {
     var c = botSpec().color;
@@ -9926,23 +9929,50 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
           if (sentTwice(v, Date.now())) return;
           keepSent(inp, v); paintGo(); talk(v, false); return;
         }
-        if (window.SpeechRecognition || window.webkitSpeechRecognition) {
-          var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-          var rec = new Rec();
-          rec.lang = "en-GB";
-          rec.interimResults = false;
-          rec.continuous = false;
-          rec.onresult = function (ev) {
-            var t = ev.results[0][0].transcript;
-            if (inp && String(inp.value || "").trim() && !inp.__snSent) { say("Heard: " + t + " · kept what you typed."); return; } /* 4372: a late voice result never replaces or sends typed text */
-            if (inp) { inp.value = t; inp.__snSent = ""; }
-            paintGo();
-            talk(t, true);
-          };
-          rec.onerror = function () { say("Mic closed."); };
-          try { rec.start(); say("Listening…"); } catch (err) { say("Mic busy. Tap again."); }
-        } else say("Type, then GO. This browser has no speech engine.");
+        micListen(function (t) {
+          if (inp && String(inp.value || "").trim() && !inp.__snSent) { say("Heard: " + t + " · kept what you typed."); return; } /* 4372: a late voice result never replaces or sends typed text */
+          if (inp) { inp.value = t; inp.__snSent = ""; }
+          paintGo();
+          talk(t, true);
+        });
       });
+    }
+    /* 4402: honest voice: ask for the mic inside the tap (getUserMedia prompts), start SpeechRecognition in the same gesture, say what failed */
+    function micWhy(code) {
+      code = String(code || "");
+      if (code === "not-allowed" || code === "NotAllowedError" || code === "service-not-allowed" || code === "SecurityError") return "Mic blocked. Allow the microphone for this site, then tap 🎤 again.";
+      if (code === "audio-capture" || code === "NotFoundError" || code === "NotReadableError") return "No microphone found on this device.";
+      if (code === "network") return "Speech service unreachable. Type, then GO.";
+      if (code === "no-speech") return "Heard nothing. Tap 🎤 and speak.";
+      if (code === "aborted") return "Mic stopped.";
+      if (code === "unsupported") return "This browser has no speech engine. Type, then GO.";
+      return "Mic failed" + (code ? " (" + code + ")" : "") + ". Type, then GO.";
+    }
+    function micListen(onText) {
+      var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      window.__snMic = { at: Date.now(), rec: !!Rec, gum: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) };
+      if (!Rec) { window.__snMic.why = "unsupported"; say(micWhy("unsupported")); return; }
+      var rec;
+      try { rec = new Rec(); } catch (eN) { window.__snMic.why = "unsupported"; say(micWhy("unsupported")); return; }
+      rec.lang = navigator.language || "en-GB";
+      rec.interimResults = false;
+      rec.continuous = false;
+      rec.onresult = function (ev) { window.__snMic.heard = true; onText(ev.results[0][0].transcript); };
+      rec.onerror = function (ev) { var c = ev && ev.error || ""; window.__snMic.why = c; say(micWhy(c)); };
+      if (window.__snMic.gum) {
+        try {
+          navigator.mediaDevices.getUserMedia({ audio: true }).then(function (st) {
+            window.__snMic.granted = true;
+            try { st.getTracks().forEach(function (tk) { tk.stop(); }); } catch (eT) {}
+          }, function (er) {
+            var c = er && er.name || "";
+            window.__snMic.why = c;
+            try { rec.abort(); } catch (eA) {}
+            say(micWhy(c));
+          });
+        } catch (eG) {}
+      }
+      try { rec.start(); say("Listening… speak now."); } catch (err) { window.__snMic.why = "busy"; say("Mic busy. Tap again."); }
     }
     /* 4400: from main 4395 — 🎤 on search: hear in the device language, fill the line, send through talk() */
     var micBtn = $("sn-mic");
@@ -9950,21 +9980,12 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       micBtn.__snWired = 1;
       micBtn.addEventListener("click", function (e) {
         if (e && e.preventDefault) e.preventDefault();
-        var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!Rec) { say("This browser has no speech engine. Type, then GO."); return; }
-        var rec = new Rec();
-        rec.lang = navigator.language || "en-GB";
-        rec.interimResults = false;
-        rec.continuous = false;
-        rec.onresult = function (ev) {
-          var t = ev.results[0][0].transcript;
+        micListen(function (t) {
           if (inp && String(inp.value || "").trim() && !inp.__snSent) { say("Heard: " + t + " · kept what you typed."); return; }
           if (inp) { inp.value = t; inp.__snSent = ""; }
           if (typeof paintGo === "function") paintGo();
           talk(t, true);
-        };
-        rec.onerror = function () { say("Mic closed."); };
-        try { rec.start(); say("Listening…"); } catch (err) { say("Mic busy. Tap again."); }
+        });
       });
     }
     var jobsBtn = $("sn-tasks-btn"), findBtn = $("sn-find-btn"), nodeBtn = $("sn-node-btn");
@@ -12137,7 +12158,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
