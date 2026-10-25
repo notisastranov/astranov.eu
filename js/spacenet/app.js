@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4391";
+  var VER = "4392";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -618,18 +618,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   var appHits = [];
   var earthHit = null;
-  var APP_BODIES = [
-    { n: "ARCHITECT", host: "architect.astranov.eu" },
-    { n: "PERSONALITY", host: "personality.astranov.eu" },
-    { n: "DATANET", host: "datanet.astranov.eu" },
-    { n: "SERVERNET", host: "servernet.astranov.eu" },
-    { n: "EXCHANGE", host: "exchange.astranov.eu" },
-    { n: "INVESTORS", host: "investors.astranov.eu" },
-    { n: "YACHTS", host: "yachts.astranov.eu" },
-    { n: "COIN", host: "coin.astranov.eu" },
-    { n: "AUDITORS", host: "auditors.astranov.eu" },
-    { n: "FROGSCHOOL", host: "frogschool.astranov.eu" }
-  ];
+  var APP_BODIES = [];
+  fetch("/apps/registry.json", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (rows) {
+    if (Array.isArray(rows)) APP_BODIES = rows.filter(function (a) { return a && a.host && a.n; });
+  }).catch(function () {});
   function hitApp(x, y) {
     var i;
     for (i = appHits.length - 1; i >= 0; i--) {

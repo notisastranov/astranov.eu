@@ -1,5 +1,5 @@
-/* SpaceNet SW 4391. Network first. Never navigates the open page. */
-var VER = "4391";
+/* SpaceNet SW 4392. Network first. Never navigates the open page. */
+var VER = "4392";
 function allowedScript(path) {
   return path === "/js/spacenet/app.js" || path === "/js/spacenet/auth.js" || path === "/js/vendor/leaflet.js";
 }

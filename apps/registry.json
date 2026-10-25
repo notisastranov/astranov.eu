@@ -1,0 +1,19 @@
+[
+  {"n": "ARCHITECT", "host": "architect.astranov.eu"},
+  {"n": "PERSONALITY", "host": "personality.astranov.eu"},
+  {"n": "DATANET", "host": "datanet.astranov.eu", "folder": "datanet"},
+  {"n": "SERVERNET", "host": "servernet.astranov.eu", "folder": "servernet"},
+  {"n": "EXCHANGE", "host": "exchange.astranov.eu", "folder": "exchange"},
+  {"n": "INVESTORS", "host": "investors.astranov.eu", "folder": "investors"},
+  {"n": "YACHTS", "host": "yachts.astranov.eu"},
+  {"n": "COIN", "host": "coin.astranov.eu"},
+  {"n": "AUDITORS", "host": "auditors.astranov.eu"},
+  {"n": "FROGSCHOOL", "host": "frogschool.astranov.eu"},
+  {"n": "PRESENCE", "host": "presence.astranov.eu", "folder": "presence"},
+  {"n": "COMPOSER", "host": "composer.astranov.eu"},
+  {"n": "CHATGPT", "host": "chatgpt.astranov.eu"},
+  {"n": "CLAUDE", "host": "claude.astranov.eu"},
+  {"n": "GEMINI", "host": "gemini.astranov.eu"},
+  {"n": "DEEPSEEK", "host": "deepseek.astranov.eu"},
+  {"n": "GROK", "host": "grok.astranov.eu"}
+]
