@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4402"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4403"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1604,7 +1604,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3417,7 +3417,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4402&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4403&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3686,7 +3686,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       ".sn-pin{width:76px;height:62px;display:flex;flex-direction:column;align-items:center}",
       ".leaflet-container .leaflet-marker-pane img,.sn-pin img{width:40px!important;height:40px!important;max-width:40px!important;max-height:40px!important;object-fit:cover!important;display:block!important;position:static!important;border-radius:50%!important;border:2px solid #4df0ff!important;box-sizing:border-box!important;background:#102033!important}",
       ".leaflet-marker-icon.sn-shop-pin{width:76px!important;height:62px!important;overflow:hidden!important;background:transparent!important;border:0!important}",
-      ".sn-shop-pin.sn-lbl-off b{visibility:hidden}.sn-shop-pin.sn-lbl-off:hover b{visibility:visible}.leaflet-marker-icon.sn-shop-pin:hover{z-index:9999!important}",
+      ".sn-shop-pin.sn-lbl-off b{visibility:hidden}@media (hover:hover){.sn-shop-pin.sn-lbl-off:hover b{visibility:visible}}.leaflet-marker-icon.sn-shop-pin:hover{z-index:9999!important}",
       ".sn-pin b{display:block;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;padding:0 3px;background:rgba(4,14,28,.92);color:#e8fbff;font:800 9px/12px system-ui}",
       ".sn-shop-pin.sn-lbl-short .sn-pin b{white-space:nowrap!important;-webkit-line-clamp:1;line-clamp:1}",
       /* 4390: a pin label is readable: up to 112 px wide on at most two lines, whole words, an ellipsis only past the second line */
@@ -5419,6 +5419,32 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     window.__snDecl = { n: items.length, moved: items.filter(function (it) { return it.el.classList.contains("sn-moved"); }).length,
       labels: items.filter(function (it) { return it.b && !it.el.classList.contains("sn-lbl-off"); }).length };
   }
+  /* 4403: label guard: every 500 ms while the map is still (and after each declutter), any shown shop label that sits on another
+     marker's face/number or on a shown label of a higher-priority pin (lower number) is hidden. It only hides; it never moves pins */
+  function labelGuard() {
+    try {
+      var cityEl = $("city"); if (!cityEl || declFrozen() || cityEl.querySelector(".leaflet-zoom-anim")) return;
+      var host = cityEl.querySelector(".leaflet-marker-pane"); if (!host) return;
+      var faces = [], labs = [];
+      Array.prototype.forEach.call(host.querySelectorAll(".leaflet-marker-icon"), function (mk) {
+        Array.prototype.forEach.call(mk.querySelectorAll("img,em,i.sn-no"), function (x) {
+          var q = x.getBoundingClientRect(); if (q.width > 0 && q.height > 0 && getComputedStyle(x).visibility !== "hidden") faces.push({ mk: mk, r: q });
+        });
+        var b = mk.querySelector("b");
+        if (b && mk.classList.contains("sn-shop-pin") && !mk.classList.contains("sn-lbl-off") && b.textContent.trim()) {
+          var q = b.getBoundingClientRect(), no = parseInt(((mk.querySelector(".sn-no") || {}).textContent || "999"), 10) || 999;
+          if (q.width > 0 && q.height > 0) labs.push({ mk: mk, r: q, no: no });
+        }
+      });
+      labs.sort(function (a, b) { return a.no - b.no; });
+      var kept = [];
+      labs.forEach(function (l) {
+        var hit = faces.some(function (f) { return f.mk !== l.mk && rectHit(l.r, f.r); }) || kept.some(function (k) { return rectHit(l.r, k.r); });
+        if (hit) { l.mk.classList.add("sn-lbl-off"); l.mk.classList.remove("sn-lbl-short"); } else kept.push(l);
+      });
+    } catch (e) {}
+  }
+  setInterval(labelGuard, 500);
   /* 4380 (main V4375): the YOU picture: the signed-in photo, else /you.png */
   function youName() {
     try { var u = JSON.parse(localStorage.getItem("sn:user") || "null"); return u ? String(u.name || String(u.email || "").split("@")[0] || "") : ""; } catch (e) { return ""; }
@@ -5428,7 +5454,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4402";
+    return "/you.png?v=4403";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -7076,7 +7102,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function robotSrc() {
     var style = botSpec().style || "spartan";
     if (style !== "courier" && style !== "wire") style = "spartan";
-    return "/js/spacenet/robots/" + style + ".jpg?v=4402";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4403";
   }
   function robotFilter() {
     var c = botSpec().color;
@@ -12158,7 +12184,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
