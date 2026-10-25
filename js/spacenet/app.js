@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4394";
+  var VER = "4395";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -2129,9 +2129,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-power svg{width:20px!important;height:20px!important;display:block!important}",
       "#sn-money{display:inline-flex!important;visibility:visible!important;pointer-events:auto!important;overflow:visible!important;position:fixed!important;top:max(10px,env(safe-area-inset-top))!important;left:50%!important;right:auto!important;bottom:auto!important;transform:translateX(-50%)!important;width:auto!important;height:44px!important;min-height:44px!important;z-index:80!important;align-items:center!important;border:0!important;background:transparent!important;padding:0!important}",
       "#sn-money .tgt{display:inline-flex!important;align-items:center!important;height:44px!important;padding:0 14px!important;border-radius:999px!important;border:1px solid rgba(77,240,255,.85)!important;background:rgba(4,14,28,.82)!important;color:#e8fbff!important;font:700 13px/1 ui-monospace,monospace!important}",
-      "#gps{display:flex!important;visibility:visible!important;pointer-events:auto!important;overflow:visible!important;position:fixed!important;right:max(10px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:max(78px,calc(env(safe-area-inset-bottom) + 70px))!important;width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;z-index:80!important;align-items:center!important;justify-content:center!important;border-radius:999px!important;border:1px solid rgba(77,240,255,.85)!important;background:rgba(4,14,28,.82)!important;color:#4df0ff!important;padding:0!important}",
-      "#gps .lbl{display:block!important;font:700 9px/44px system-ui!important;letter-spacing:.06em!important;color:#4df0ff!important;width:44px!important;text-align:center!important}",
-      "#gps .tgt{width:44px!important;height:44px!important;display:flex!important;align-items:center!important;justify-content:center!important}",
+      "#gps{display:flex!important;visibility:visible!important;pointer-events:auto!important;overflow:hidden!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;position:fixed!important;right:max(10px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:max(16px,env(safe-area-inset-bottom))!important;width:48px!important;height:48px!important;min-width:48px!important;min-height:48px!important;max-width:48px!important;max-height:48px!important;z-index:80!important;padding:0!important;margin:0!important;border-radius:999px!important;border:1px solid rgba(77,240,255,.85)!important;background:rgba(4,14,28,.82)!important;color:#4df0ff!important;box-shadow:none!important}",
+      "#gps .lbl{display:block!important;width:auto!important;height:auto!important;margin:0!important;padding:0!important;overflow:visible!important;font:700 9px/1 system-ui!important;letter-spacing:.06em!important;color:#4df0ff!important}",
+      "#gps .tgt{display:none!important}",
       "#sn-radar-hud{display:block!important;visibility:visible!important;pointer-events:none!important;overflow:visible!important;position:fixed!important;top:max(62px,calc(env(safe-area-inset-top) + 54px))!important;right:max(12px,env(safe-area-inset-right))!important;width:72px!important;height:72px!important;z-index:40!important;border-radius:50%!important;border:1px solid rgba(77,240,255,.5)!important;background:radial-gradient(circle,transparent 46%,rgba(77,240,255,.2) 47% 48%,transparent 49%),conic-gradient(from 0deg,transparent 0 68%,rgba(77,240,255,.7) 100%)!important;animation:sn-sweep 2.8s linear infinite!important;box-shadow:inset 0 0 16px rgba(77,240,255,.2)!important}",
       "@keyframes sn-sweep{to{transform:rotate(360deg)}}",
       "#sn-mon{display:flex!important;visibility:visible!important;pointer-events:none!important;overflow:visible!important;position:fixed!important;left:12px!important;right:auto!important;top:auto!important;bottom:max(78px,calc(env(safe-area-inset-bottom) + 70px))!important;transform:none!important;width:fit-content!important;max-width:calc(100vw - 84px)!important;height:auto!important;z-index:74!important;justify-content:flex-start!important;gap:8px!important;flex-wrap:wrap!important;padding:4px 8px!important;border-radius:999px!important;background:rgba(4,14,28,.72)!important;border:1px solid rgba(77,240,255,.28)!important;color:#d7f6ff!important;font:600 11px/1.3 ui-monospace,monospace!important}",
@@ -2139,7 +2139,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-bar #sn-power,#sn-bar #sn-money{position:static!important;transform:none!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;flex:none!important}",
       "#sn-bar #sn-seek{position:static!important;left:auto!important;right:auto!important;top:auto!important;width:auto!important;transform:none!important;flex:1!important;min-width:0!important;margin:0!important;pointer-events:auto!important}",
       "#sn-bar #sn-seek input{width:100%!important}",
-      "#sn-radar-hud,#sn-mon,#sn-play,#line{display:none!important}"
+      "#sn-radar-hud,#sn-mon,#sn-play,#line,#go,#plus{display:none!important}",
+      "body.sn-city #sn-compass{bottom:max(76px,calc(env(safe-area-inset-bottom) + 64px))!important;width:48px!important;height:48px!important;overflow:hidden!important}",
+      "body.sn-city #sn-compass .lbl{display:none!important}"
     ].join("");
     document.head.appendChild(s);
   }
