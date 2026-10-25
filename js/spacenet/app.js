@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4396";
+  var VER = "4397";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -620,7 +620,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var earthHit = null;
   var APP_BODIES = [];
   fetch("/apps/registry.json", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (rows) {
-    if (Array.isArray(rows)) APP_BODIES = rows.filter(function (a) { return a && a.path && a.n; });
+    if (Array.isArray(rows)) APP_BODIES = rows.filter(function (a) { return a && a.n && (a.path || a.host); });
   }).catch(function () {});
   function hitApp(x, y) {
     var i;
@@ -650,7 +650,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       document.getElementById("sn-app-back").addEventListener("click", closeAppFrame);
     }
     document.getElementById("sn-app-name").textContent = app.n;
-    document.getElementById("sn-app-frame").src = app.path;
+    document.getElementById("sn-app-frame").src = app.path || ("https://" + app.host + "/");
     host.style.display = "flex";
     say(app.n + " on astranov.eu");
   }
@@ -1125,11 +1125,47 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (d > 1.05) return "International";
     return "National";
   }
+  function viewNow() {
+    if (cityOn) return "City";
+    var n = levelName(cam.dist);
+    return n === "International" ? "Global" : n;
+  }
+  function paintNav() {
+    var b = document.getElementById("sn-nav-btn");
+    if (b) b.textContent = viewNow();
+  }
+  function goView(name) {
+    var menu = document.getElementById("sn-nav-menu");
+    if (menu) menu.hidden = true;
+    if (name === "City") {
+      var pt = (aim && isFinite(+aim.lat)) ? aim : ((here && isFinite(+here.lat)) ? here : { lat: 36.44305, lng: 28.2279 });
+      openCity(pt);
+      say("City");
+      paintNav();
+      return;
+    }
+    if (cityOn) closeCity();
+    fly = null;
+    intro = false;
+    cam.dist = name === "Solar" ? 5.4 : name === "Global" ? 1.85 : 0.72;
+    if (aim && isFinite(+aim.lat)) {
+      var f = face(aim);
+      cam.yaw = f.yaw;
+      cam.pitch = name === "Solar" ? 0.15 : f.pitch;
+    }
+    markTier(cam.dist);
+  }
+  function cycleView() {
+    var order = ["Global", "Solar", "National", "City"];
+    var i = order.indexOf(viewNow());
+    goView(order[(i + 1) % order.length]);
+  }
   var levelSaid = "";
   function markTier(d) {
     tierI = d > 3.05 ? 0 : d > 1.7 ? 1 : d > 1.05 ? 4 : 2;
     var name = levelName(d);
     if (name !== levelSaid) { levelSaid = name; say(name); }
+    paintNav();
   }
   function drawMesh(camNow) {
     if (!ctx || !view || cam.dist <= 1.05 || cam.dist >= 1.7) return;
@@ -1597,6 +1633,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     paintShopsOnMap();
     pullListings();
+    paintNav();
     setTimeout(function () { if (map) map.invalidateSize(); }, 80);
   }
   function closeCity() {
@@ -1612,6 +1649,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       cam.pitch = f.pitch;
     }
     cam.dist = TIERS[2].dist;
+    paintNav();
     paintOrders();
   }
   function goGlobal() {
@@ -2129,7 +2167,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-power svg{width:20px!important;height:20px!important;display:block!important}",
       "#sn-money{display:inline-flex!important;visibility:visible!important;pointer-events:auto!important;overflow:visible!important;position:fixed!important;top:max(10px,env(safe-area-inset-top))!important;left:50%!important;right:auto!important;bottom:auto!important;transform:translateX(-50%)!important;width:auto!important;height:44px!important;min-height:44px!important;z-index:80!important;align-items:center!important;border:0!important;background:transparent!important;padding:0!important}",
       "#sn-money .tgt{display:inline-flex!important;align-items:center!important;height:44px!important;padding:0 14px!important;border-radius:999px!important;border:1px solid rgba(77,240,255,.85)!important;background:rgba(4,14,28,.82)!important;color:#e8fbff!important;font:700 13px/1 ui-monospace,monospace!important}",
-      "#gps{display:flex!important;visibility:visible!important;pointer-events:auto!important;overflow:hidden!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;position:fixed!important;right:max(10px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:max(16px,env(safe-area-inset-bottom))!important;width:48px!important;height:48px!important;min-width:48px!important;min-height:48px!important;max-width:48px!important;max-height:48px!important;z-index:80!important;padding:0!important;margin:0!important;border-radius:999px!important;border:1px solid rgba(77,240,255,.85)!important;background:rgba(4,14,28,.82)!important;color:#4df0ff!important;box-shadow:none!important}",
+      "#gps{display:flex!important;visibility:visible!important;pointer-events:auto!important;overflow:hidden!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;position:fixed!important;right:max(10px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;top:max(60px,calc(env(safe-area-inset-top) + 56px))!important;width:48px!important;height:48px!important;min-width:48px!important;min-height:48px!important;max-width:48px!important;max-height:48px!important;z-index:80!important;padding:0!important;margin:0!important;border-radius:999px!important;border:1px solid rgba(77,240,255,.85)!important;background:rgba(4,14,28,.82)!important;color:#4df0ff!important;box-shadow:none!important}",
       "#gps .lbl{display:block!important;width:auto!important;height:auto!important;margin:0!important;padding:0!important;overflow:visible!important;font:700 9px/1 system-ui!important;letter-spacing:.06em!important;color:#4df0ff!important}",
       "#gps .tgt{display:none!important}",
       "#sn-radar-hud{display:block!important;visibility:visible!important;pointer-events:none!important;overflow:visible!important;position:fixed!important;top:max(62px,calc(env(safe-area-inset-top) + 54px))!important;right:max(12px,env(safe-area-inset-right))!important;width:72px!important;height:72px!important;z-index:40!important;border-radius:50%!important;border:1px solid rgba(77,240,255,.5)!important;background:radial-gradient(circle,transparent 46%,rgba(77,240,255,.2) 47% 48%,transparent 49%),conic-gradient(from 0deg,transparent 0 68%,rgba(77,240,255,.7) 100%)!important;animation:sn-sweep 2.8s linear infinite!important;box-shadow:inset 0 0 16px rgba(77,240,255,.2)!important}",
@@ -2145,7 +2183,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-bar #sn-seek{display:flex!important;align-items:center!important;position:relative!important}",
       "#sn-bar #sn-seek input{padding:0 40px 0 14px!important}",
       "#sn-mic{position:absolute!important;right:4px!important;top:4px!important;width:32px!important;height:32px!important;border:0!important;border-radius:999px!important;background:transparent!important;color:#e8fbff!important;font:20px/32px system-ui!important;padding:0!important;z-index:2!important}",
-      "#sn-support{display:flex!important;visibility:visible!important;pointer-events:auto!important;overflow:visible!important;position:fixed!important;top:max(60px,calc(env(safe-area-inset-top) + 56px))!important;right:max(10px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;z-index:81!important;align-items:center!important;justify-content:center!important;border-radius:999px!important;border:1px solid rgba(77,240,255,.85)!important;background:rgba(4,14,28,.82)!important;color:#e8fbff!important;font:22px/44px system-ui!important;padding:0!important}"
+      "#sn-support{display:flex!important;visibility:visible!important;pointer-events:auto!important;overflow:visible!important;position:fixed!important;top:max(60px,calc(env(safe-area-inset-top) + 56px))!important;left:max(10px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;z-index:81!important;align-items:center!important;justify-content:center!important;border-radius:999px!important;border:1px solid rgba(77,240,255,.85)!important;background:rgba(4,14,28,.82)!important;color:#e8fbff!important;font:22px/44px system-ui!important;padding:0!important}",
+      "#sn-nav{position:fixed!important;z-index:82!important;top:max(60px,calc(env(safe-area-inset-top) + 56px))!important;left:50%!important;transform:translateX(-50%)!important;display:flex!important;flex-direction:column!important;align-items:center!important}",
+      "#sn-nav-btn{height:36px!important;padding:0 16px!important;border-radius:999px!important;border:1px solid rgba(77,240,255,.85)!important;background:rgba(4,14,28,.9)!important;color:#e8fbff!important;font:700 13px/1 system-ui!important}",
+      "#sn-nav-menu{margin-top:6px!important;display:flex!important;flex-direction:column!important;gap:4px!important;background:rgba(4,14,28,.94)!important;border:1px solid rgba(77,240,255,.45)!important;border-radius:12px!important;padding:6px!important}",
+      "#sn-nav-menu[hidden]{display:none!important}",
+      "#sn-nav-menu button{height:32px!important;padding:0 14px!important;border:0!important;border-radius:8px!important;background:transparent!important;color:#e8fbff!important;font:600 13px/1 system-ui!important;text-align:left!important}"
     ].join("");
     document.head.appendChild(s);
   }
@@ -7859,6 +7902,34 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         try { rec.start(); say("Listening."); } catch (err) { say("Microphone is busy."); }
       });
     }
+    var navBtn = document.getElementById("sn-nav-btn");
+    var navMenu = document.getElementById("sn-nav-menu");
+    if (navBtn && !navBtn.__sn) {
+      navBtn.__sn = true;
+      var navHold = 0;
+      var navHeld = false;
+      navBtn.addEventListener("pointerdown", function () {
+        navHeld = false;
+        clearTimeout(navHold);
+        navHold = setTimeout(function () { navHeld = true; if (navMenu) navMenu.hidden = false; }, 450);
+      });
+      navBtn.addEventListener("pointerup", function (e) {
+        clearTimeout(navHold);
+        if (navHeld) { e.preventDefault(); return; }
+        cycleView();
+      });
+      navBtn.addEventListener("pointerleave", function () { clearTimeout(navHold); });
+    }
+    if (navMenu && !navMenu.__sn) {
+      navMenu.__sn = true;
+      navMenu.addEventListener("click", function (e) {
+        var hit = e.target && e.target.closest && e.target.closest("[data-view]");
+        if (!hit) return;
+        e.preventDefault();
+        goView(hit.getAttribute("data-view"));
+      });
+    }
+    paintNav();
     bindChrome();
     bindSky();
     loadJobs();
