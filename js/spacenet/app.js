@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4397";
+  var VER = "4398";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -2188,27 +2188,125 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-nav-btn{height:36px!important;padding:0 16px!important;border-radius:999px!important;border:1px solid rgba(77,240,255,.85)!important;background:rgba(4,14,28,.9)!important;color:#e8fbff!important;font:700 13px/1 system-ui!important}",
       "#sn-nav-menu{margin-top:6px!important;display:flex!important;flex-direction:column!important;gap:4px!important;background:rgba(4,14,28,.94)!important;border:1px solid rgba(77,240,255,.45)!important;border-radius:12px!important;padding:6px!important}",
       "#sn-nav-menu[hidden]{display:none!important}",
-      "#sn-nav-menu button{height:32px!important;padding:0 14px!important;border:0!important;border-radius:8px!important;background:transparent!important;color:#e8fbff!important;font:600 13px/1 system-ui!important;text-align:left!important}"
+      "#sn-nav-menu button{height:32px!important;padding:0 14px!important;border:0!important;border-radius:8px!important;background:transparent!important;color:#e8fbff!important;font:600 13px/1 system-ui!important;text-align:left!important}",
+      ".sn-route-one{stroke:#1a3cff!important;stroke-width:7px!important;animation:none!important;filter:none!important}",
+      ".sn-route-case{stroke:#f7fbff!important;stroke-width:11px!important;animation:none!important}",
+      "#sn-offer{position:fixed!important;left:0!important;right:0!important;bottom:0!important;z-index:84!important;display:none!important;flex-direction:column!important;height:42vh!important;background:rgba(4,14,28,.94)!important;color:#e8fbff!important;border-top:1px solid #1a3cff!important;border-radius:18px 18px 0 0!important;box-shadow:0 -10px 28px rgba(0,0,0,.45)!important}",
+      "#sn-offer.on{display:flex!important}",
+      ".sn-offer-handle{height:28px!important;flex:none!important;touch-action:none!important;display:flex!important;align-items:center!important;justify-content:center!important}",
+      ".sn-offer-handle:before{content:\"\"!important;width:42px!important;height:4px!important;border-radius:4px!important;background:#7eb0ff!important;display:block!important}",
+      ".sn-offer-scroll{flex:1!important;overflow:auto!important;padding:0 16px 8px!important}",
+      ".sn-offer-scroll p{display:flex!important;gap:12px!important;justify-content:space-between!important;margin:0!important;padding:8px 0!important;border-bottom:1px solid rgba(26,60,255,.28)!important;font:600 14px/1.35 system-ui!important}",
+      ".sn-offer-scroll b{color:#9ec0ff!important;font:700 11px/1.35 system-ui!important;letter-spacing:.05em!important}",
+      ".sn-offer-act{flex:none!important;display:flex!important;gap:8px!important;padding:8px 12px max(12px,env(safe-area-inset-bottom))!important}",
+      ".sn-offer-act button{flex:1!important;height:44px!important;border-radius:999px!important;border:1px solid #1a3cff!important;background:#041018!important;color:#e8fbff!important;font:800 14px system-ui!important}",
+      ".sn-offer-act button:first-child{background:#1a3cff!important;color:#fff!important}"
     ].join("");
     document.head.appendChild(s);
   }
   function whoLine(role, name, where) {
     return '<div class="sn-who"><b>' + role + "</b><span>" + esc(name || "—") + "</span><em>" + esc(where || "") + "</em></div>";
   }
+  function offerDrawer() {
+    var el = document.getElementById("sn-offer");
+    if (el) return el;
+    el = document.createElement("div");
+    el.id = "sn-offer";
+    el.innerHTML = '<div class="sn-offer-handle" aria-label="Drag"></div><div class="sn-offer-scroll"></div><div class="sn-offer-act"></div>';
+    document.body.appendChild(el);
+    var handle = el.querySelector(".sn-offer-handle");
+    var drag = null;
+    handle.addEventListener("pointerdown", function (e) {
+      drag = { y: e.clientY, h: el.offsetHeight };
+      try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    handle.addEventListener("pointermove", function (e) {
+      if (!drag) return;
+      var max = Math.round(window.innerHeight * 0.86);
+      el.style.height = Math.max(112, Math.min(max, drag.h + (drag.y - e.clientY))) + "px";
+    });
+    function endDrag() {
+      if (!drag) return;
+      drag = null;
+      var h = el.offsetHeight;
+      var full = window.innerHeight;
+      var target = h < full * 0.28 ? Math.round(full * 0.2) : h > full * 0.55 ? Math.round(full * 0.78) : Math.round(full * 0.42);
+      el.style.height = target + "px";
+    }
+    handle.addEventListener("pointerup", endDrag);
+    handle.addEventListener("pointercancel", endDrag);
+    return el;
+  }
+  function closeOfferDrawer() {
+    var el = document.getElementById("sn-offer");
+    if (el) el.classList.remove("on");
+  }
+  function frameOffer(job) {
+    var a = job && job.vendor;
+    var b = job && job.drop;
+    if (!a || !b || !isFinite(+a.lat) || !isFinite(+b.lat)) return;
+    if (!cityOn) openCity(a);
+    askRoad(a, b);
+    var n = 0;
+    var timer = setInterval(function () {
+      n += 1;
+      var line = roads[roadKey(a, b)];
+      if ((!line || line.length < 2) && n < 16) return;
+      clearInterval(timer);
+      if (!map || typeof L === "undefined") return;
+      var pts = (line && line.length > 1) ? line : [a, b];
+      try {
+        map.fitBounds(L.latLngBounds(pts.map(function (p) { return [+p.lat, +p.lng]; })).pad(0.28), {
+          animate: true,
+          paddingTopLeft: [18, 108],
+          paddingBottomRight: [18, Math.round(window.innerHeight * 0.46)]
+        });
+      } catch (e) {}
+    }, 200);
+  }
+  function openOfferDrawer(job, drivers) {
+    if (!job) return;
+    var el = offerDrawer();
+    var v = job.vendor || {};
+    var d = job.drop || {};
+    var rows = [];
+    function add(k, val) {
+      if (val == null || String(val).trim() === "") return;
+      rows.push("<p><b>" + esc(k) + "</b><span>" + esc(String(val)) + "</span></p>");
+    }
+    add("Fee", job.fee != null ? job.fee + " AV€" : "");
+    add("Food", job.food != null && job.food !== "" ? job.food + " AV€" : "");
+    add("Distance", isFinite(+job.km) ? Number(job.km).toFixed(1) + " km" : "");
+    try {
+      var exp = expectedMin(v, d, job.km);
+      if (exp && exp.min) add("Time", exp.min + " min");
+    } catch (e) {}
+    add("Prep", job.prep != null ? job.prep + " min" : "");
+    add("Good for", job.lifeMin != null ? job.lifeMin + " min" : "");
+    add("Stage", job.stage);
+    add("Vendor", v.name || job.name);
+    add("Vendor address", v.address);
+    add("Vendor phone", v.phone);
+    add("Client", d.name);
+    add("Drop", d.address);
+    add("Floor", d.floor);
+    add("Bell", d.bell);
+    add("Phone", d.phone);
+    add("Driver", job.driver);
+    (drivers || []).forEach(function (p, i) { if (p) add("Offered " + (i + 1), p.name); });
+    (job.lines || []).forEach(function (l, i) {
+      if (!l) return;
+      add("Item " + (i + 1), [l.name || l.title || l.item, l.n, l.price].filter(function (x) { return x != null && x !== ""; }).join(" · "));
+    });
+    el.querySelector(".sn-offer-scroll").innerHTML = rows.join("") || "<p><b>Offer</b><span>No extra fields.</span></p>";
+    var act = el.querySelector(".sn-offer-act");
+    act.innerHTML = (job.vendor && job.drop) ? '<button type="button" data-act="offer-yes" data-id="' + esc(job.id) + '">ACCEPT</button><button type="button" data-act="offer-no" data-id="' + esc(job.id) + '">DECLINE</button>' : "";
+    el.style.height = Math.round(window.innerHeight * 0.42) + "px";
+    el.classList.add("on");
+    frameOffer(job);
+  }
   function throwOffer(job) {
-    var id = "offer-" + (job && job.id ? job.id : Date.now().toString(36));
-    var fee = job && (job.fee != null ? job.fee : job.total);
-    var mid = fee != null && fee !== "" ? '<b class="sn-price">' + esc(fee) + "<small>AV€</small></b>" : "OFFER";
-    var v = (job && job.vendor) || {};
-    var d = (job && job.drop) || {};
-    var vWhere = [v.address, v.phone].filter(Boolean).join(" · ");
-    var dWhere = [d.address, d.floor ? "floor " + d.floor : "", d.bell ? "bell " + d.bell : "", d.phone].filter(Boolean).join(" · ");
-    var km = job && isFinite(+job.km) ? Number(job.km).toFixed(1) + " km" : "the route";
-    var html = whoLine("VENDOR", v.name || (job && job.name) || "Vendor", vWhere) +
-      '<div class="sn-leg">' + esc(km) + "</div>" +
-      whoLine("CLIENT", d.name || "Client", dWhere);
-    upsertTab({ id: id, kind: "offer", title: String(fee != null ? fee + " AV€" : "OFFER"), html: html, min: false });
-    openSheet("OFFER", html, false, mid);
+    if (job && job.vendor && job.drop) { openOfferDrawer(job); return; }
   }
   var queueBuzz = {};
   function loadQueue() {
@@ -3474,9 +3572,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var line = lines[Math.max(0, chosen || 0)] || lines[0];
     if (!line || line.length < 2) return;
     var ll = line.map(function (p) { return [p.lat, p.lng]; });
-    var core = L.polyline(ll, { pane: "sn-route", className: "sn-route-one", color: "#2f6bff", weight: 4, opacity: 1, interactive: false, lineCap: "round", lineJoin: "round" }).addTo(map);
-    window.__snRouteW = "4";
-    roadPaint[id].push(core);
+    var casing = L.polyline(ll, { pane: "sn-route", className: "sn-route-case", color: "#f7fbff", weight: 11, opacity: 0.95, interactive: false, lineCap: "round", lineJoin: "round" }).addTo(map);
+    var core = L.polyline(ll, { pane: "sn-route", className: "sn-route-one", color: "#1a3cff", weight: 7, opacity: 1, interactive: false, lineCap: "round", lineJoin: "round" }).addTo(map);
+    window.__snRouteW = "7";
+    roadPaint[id].push(casing, core);
     var total = lineKm(line);
     if (total < 0.05) return;
     var at = pointAtKm(line, total);
@@ -4641,7 +4740,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         '<p class="note">' + esc(names || "No free driver") + "</p>";
     }
     if (job && drivers && drivers[0] && !job.offeredTo) job.offeredTo = drivers[0].id;
-    openTile({ kind: "driver-offer", title: "OFFER", mid: priceMid(job.fee), html: html, job: job.id });
+    openOfferDrawer(job, drivers);
   }
 
   function myName() {
@@ -4991,6 +5090,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!cityOn) openCity(job.vendor);
     drawRoute(job.vendor, job.drop);
     closeSheet();
+    closeOfferDrawer();
     say((job.driver) + " accepted. Route is on. " + job.fee + " AV€ is in the mutual account. Tap the map to move along the route.");
   }
   function offerNo(id) {
@@ -5003,6 +5103,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       job.offeredTo = "";
       saveJobs();
       closeSheet();
+      closeOfferDrawer();
       say("Declined. No other free driver.");
       return;
     }
@@ -5974,18 +6075,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         power.classList.toggle("on", !!on);
         power.classList.toggle("idle", !on);
         if (on) {
-          say("Offers live. Jobs and nearby work can pop.");
+          say("Offers live.");
           materialize(true);
-          if (jobs.length) {
-            jobs.slice(0, 6).forEach(function (j) { throwOffer(j); });
-            openJobs();
-            var tasks = $("sn-tasks");
-            if (tasks) tasks.classList.remove("min");
-          } else {
-            throwOffer({ id: "live", name: "OFFERS", note: "Offers are live. Hunt a pin or wait for work." });
-          }
+          var live = null;
+          jobs.forEach(function (j) {
+            if (!live && j && j.vendor && j.drop && !j.received && !j.cancelled) live = j;
+          });
+          if (live) openDriverOffer(live, freeDrivers(live.vendor));
         } else {
-          say("Offers off. No pop-ups.");
+          say("Offers off.");
+          closeOfferDrawer();
           dockTabs = dockTabs.filter(function (t) { return t.kind !== "offer"; });
           paintDockTabs();
           closeJobs();
