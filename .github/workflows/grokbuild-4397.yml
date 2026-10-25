@@ -1,0 +1,35 @@
+name: grokbuild 4397 (no pin repaint under a pointer; main unmoved; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4397.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix114, assert tree, commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "1949c06b04f4d1cfc0dab2b733139808d18ba359" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          git fetch -q origin +refs/heads/main:refs/remotes/origin/main
+          git cat-file -e 083488561284b2bd67cf4a22b1bb5d5ba9280af6^{commit}
+          base64 -d .grokbuild/fix114.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "5081ea4ae2aa1996b8c9e3c1b1322f85efcc6d8974e6094734124c815e0c0e95"
+          gunzip -c /tmp/f.gz > /tmp/fix114.patch
+          test "$(sha256sum /tmp/fix114.patch | cut -d' ' -f1)" = "51827042b6f973b42cac4729355094a445476eb4f1270ec6523aebad472c0a76"
+          git rm -rq .grokbuild .github/workflows/grokbuild-4397.yml
+          git apply --index /tmp/fix114.patch
+          node --check js/spacenet/app.js
+          grep -q '^4397$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "3b2f8f7b10811659c8ec75916ce5ae5c95f67a3f" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -m "4397: a pin repaint (late results, zoomend) waits, at most 8 s, while a pointer is down on the map, hovers a pin, or for 1.5 s after either; the pin tap listener is bound after addTo and opens only the pin pressed at start (<12 px travel). Main unmoved (08348856). Lockstep 4397")"
+          git push origin "$C:refs/heads/grokbuild/4328-street-level-gps"
