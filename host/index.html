@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Host</title>
+<style>
+html,body{margin:0;background:#02040a;color:#e8fbff;font:16px/1.4 system-ui}
+main{max-width:720px;margin:0 auto;padding:16px 16px 48px}
+a{color:#7ee9ff}
+h1{font:800 22px/1 system-ui;letter-spacing:.14em;margin:8px 0}
+p{color:#9fd4ea}
+button{height:40px;margin:0 8px 8px 0;padding:0 14px;border-radius:999px;border:1px solid rgba(77,240,255,.65);background:#041018;color:#e8fbff;font:600 14px system-ui}
+ul{list-style:none;padding:0}
+li{padding:8px 0;border-top:1px solid rgba(77,240,255,.2)}
+</style>
+</head>
+<body>
+<main>
+<p><a href="/">Earth</a> · <a href="/datanet/">DataNet</a></p>
+<h1>HOST</h1>
+<p id="me">Reading this device…</p>
+<p>This phone keeps DataNet. Another phone does not see it until you carry the file across.</p>
+<button type="button" id="stay">THIS DEVICE HOSTS</button>
+<button type="button" id="out">TAKE THE DATABASE</button>
+<button type="button" id="inn">PUT A DATABASE HERE</button>
+<input id="file" type="file" accept="application/json" hidden/>
+<ul id="nodes"></ul>
+</main>
+<script>
+var KEY = "sn:ledger";
+function read(){ try { return JSON.parse(localStorage.getItem(KEY) || "[]") || []; } catch (e) { return []; } }
+function write(book){ localStorage.setItem(KEY, JSON.stringify(book.slice(-200))); paint(); }
+function id(){
+  var v = localStorage.getItem("sn:device");
+  if (!v) { v = "dev-" + Math.random().toString(36).slice(2, 8); localStorage.setItem("sn:device", v); }
+  return v;
+}
+function beat(){
+  var node = { id: id(), cores: navigator.hardwareConcurrency || 1, mem: navigator.deviceMemory || 0, at: Date.now() };
+  var done = function () {
+    var book = read().filter(function (r) { return !(r && r.kind === "host" && r.row && r.row.id === node.id); });
+    book.push({ kind: "host", t: Date.now(), row: node });
+    write(book);
+    var mb = node.quota ? Math.round((node.quota - (node.used || 0)) / 1048576) + " MB free" : "storage unread";
+    document.getElementById("me").textContent = node.id + " · " + node.cores + " cores · " + mb;
+  };
+  if (navigator.storage && navigator.storage.estimate) {
+    navigator.storage.estimate().then(function (e) { node.quota = e.quota || 0; node.used = e.usage || 0; done(); }).catch(done);
+  } else done();
+}
+function paint(){
+  var ul = document.getElementById("nodes");
+  ul.innerHTML = "";
+  read().filter(function (r) { return r && r.kind === "host"; }).slice().reverse().forEach(function (r) {
+    var li = document.createElement("li");
+    var n = r.row || {};
+    li.textContent = (n.id || "device") + " · " + (n.cores || "?") + " cores";
+    ul.appendChild(li);
+  });
+}
+document.getElementById("stay").onclick = beat;
+document.getElementById("out").onclick = function () {
+  var blob = new Blob([JSON.stringify(read())], { type: "application/json" });
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "datanet.json";
+  a.click();
+};
+document.getElementById("inn").onclick = function () { document.getElementById("file").click(); };
+document.getElementById("file").onchange = function () {
+  var f = this.files && this.files[0];
+  if (!f) return;
+  var reader = new FileReader();
+  reader.onload = function () {
+    var data = JSON.parse(String(reader.result || "[]"));
+    if (!Array.isArray(data)) throw new Error("not a list");
+    write(data.filter(function (r) { return r && r.kind && r.row; }));
+  };
+  reader.readAsText(f);
+};
+beat();
+</script>
+</body>
+</html>

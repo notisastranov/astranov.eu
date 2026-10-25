@@ -402,3 +402,6 @@ Merged main 08348856 (4387 device ledger / crew) with a merge commit; the branch
 
 ## 4397
 4396 shipped, but its alias run still lost about 1 in 6 holds: the pin repaint (paintShopsOnMap, on late results / zoomend) swapped the markers under a held pointer. Now a repaint waits (at most 8 s) while a pointer is down on the map, hovers a pin, or for 1.5 s after either; the pin tap listener is bound after addTo (before, it never existed) and fires only for the pin pressed at start with <12 px travel. Lockstep 4397.
+
+## 4398
+Cause of "supermarket Heraklion → 0 pins": not upstream (/api/find nominatim + server hunt answer for Heraklion) and not 4396/4397 (4394–4397 all fail the same). The line only split "X in/near/at Y"; "supermarket Heraklion" hunted the whole string at the current seat, and plural "supermarkets" missed the trade-word regex, so it was geocoded as a place. Now: "TRADE PLACE" / "PLACE TRADE" are rewritten to "TRADE in PLACE", and plural trade words hunt at the seat. Merged main 2fa79161 (4388): /datanet/ and /host/ pages, the rewrites, DATANET/HOST app bodies with path frames. Main's globe dot, gesture retune, autorotate removal and #sn-bar hide CSS are kept out (the branch engine wins). Commands on #in: crew|guide|agents|drill|ambassador|diplomat → runCrew; host|mesh|hosting → HOST; datanet|database → DATANET (optional leading "/").
