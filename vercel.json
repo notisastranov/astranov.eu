@@ -8,8 +8,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4389"},
-        {"key": "X-Astranov-Ship", "value": "4389-real"}
+        {"key": "X-Astranov-Build", "value": "4390"},
+        {"key": "X-Astranov-Ship", "value": "4390-real"}
       ]
     },
     {
@@ -17,8 +17,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4389"},
-        {"key": "X-Astranov-Ship", "value": "4389-real"}
+        {"key": "X-Astranov-Build", "value": "4390"},
+        {"key": "X-Astranov-Ship", "value": "4390-real"}
       ]
     },
     {
@@ -42,6 +42,12 @@
         {"key": "Access-Control-Allow-Origin", "value": "*"}
       ]
     }
+  ],
+  "redirects": [
+    {"source": "/host", "destination": "/servernet", "permanent": false},
+    {"source": "/host/", "destination": "/servernet", "permanent": false},
+    {"source": "/hostnet", "destination": "/servernet", "permanent": false},
+    {"source": "/hostnet/", "destination": "/servernet", "permanent": false}
   ],
   "rewrites": [
     {"source": "/", "has": [{"type": "host", "value": "investors.astranov.eu"}], "destination": "/investors/index.html"},
@@ -68,10 +74,9 @@
     {"source": "/investors/", "destination": "/investors/index.html"},
     {"source": "/datanet", "destination": "/datanet/index.html"},
     {"source": "/datanet/", "destination": "/datanet/index.html"},
-    {"source": "/hostnet", "destination": "/hostnet/index.html"},
-    {"source": "/hostnet/", "destination": "/hostnet/index.html"},
-    {"source": "/host", "destination": "/hostnet/index.html"},
-    {"source": "/host/", "destination": "/hostnet/index.html"},
+    {"source": "/servernet", "destination": "/servernet/index.html"},
+    {"source": "/servernet/", "destination": "/servernet/index.html"},
+    {"source": "/privacy", "destination": "/privacy.html"},
     {"source": "/terms", "destination": "/terms.html"},
     {"source": "/opt-in", "destination": "/opt-in.html"}
   ]

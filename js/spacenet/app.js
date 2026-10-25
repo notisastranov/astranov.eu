@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4389";
+  var VER = "4390";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -622,7 +622,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     { n: "ARCHITECT", host: "architect.astranov.eu" },
     { n: "PERSONALITY", host: "personality.astranov.eu" },
     { n: "DATANET", path: "/datanet/" },
-    { n: "HOSTNET", path: "/hostnet/" },
+    { n: "SERVERNET", path: "/servernet/" },
     { n: "EXCHANGE", host: "exchange.astranov.eu" },
     { n: "INVESTORS", host: "investors.astranov.eu" },
     { n: "YACHTS", host: "yachts.astranov.eu" },
@@ -7827,7 +7827,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var inp = document.getElementById("sn-seek-in");
         var raw = String((inp && inp.value) || "").trim();
         if (/^(datanet|database)$/i.test(raw)) { openAppFrame({ n: "DATANET", path: "/datanet/" }); return; }
-        if (/^(hostnet|host|mesh|hosting)$/i.test(raw)) { openAppFrame({ n: "HOSTNET", path: "/hostnet/" }); return; }
+        if (/^(servernet|hostnet|host|mesh|hosting)$/i.test(raw)) { openAppFrame({ n: "SERVERNET", path: "/servernet/" }); return; }
         if (/^(crew|guide|agents|drill|ambassador|diplomat)$/i.test(raw)) { runCrew(raw); return; }
         seekPlace(raw);
       });
@@ -7935,12 +7935,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
-        if (!cityOn) openCity({ lat: 36.43895, lng: 28.22701 });
+        if (!cityOn) openCity({ lat: 36.43885, lng: 28.22701 });
         absorbJobVendors();
         if (map) paintShopsOnMap();
         report.hold = !!window.__snHoldArm;
         report.faces = document.querySelectorAll(".leaflet-marker-icon.sn-shop-pin img").length;
-        listAt({ lat: 36.43895, lng: 28.22701 });
+        listAt({ lat: 36.43885, lng: 28.22701 });
         var body = $("sn-sheet-body");
         report.menu = !!(body && /List a vendor/.test(body.textContent || ""));
         var shop = null;
