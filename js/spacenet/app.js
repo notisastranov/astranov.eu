@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4393";
+  var VER = "4394";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -620,7 +620,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var earthHit = null;
   var APP_BODIES = [];
   fetch("/apps/registry.json", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (rows) {
-    if (Array.isArray(rows)) APP_BODIES = rows.filter(function (a) { return a && a.host && a.n; });
+    if (Array.isArray(rows)) APP_BODIES = rows.filter(function (a) { return a && a.path && a.n; });
   }).catch(function () {});
   function hitApp(x, y) {
     var i;
@@ -650,7 +650,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       document.getElementById("sn-app-back").addEventListener("click", closeAppFrame);
     }
     document.getElementById("sn-app-name").textContent = app.n;
-    document.getElementById("sn-app-frame").src = app.path || ("https://" + app.host + "/");
+    document.getElementById("sn-app-frame").src = app.path;
     host.style.display = "flex";
     say(app.n + " on astranov.eu");
   }
@@ -7818,8 +7818,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         e.preventDefault();
         var inp = document.getElementById("sn-seek-in");
         var raw = String((inp && inp.value) || "").trim();
-        if (/^(datanet|database)$/i.test(raw)) { openAppFrame({ n: "DATANET", host: "datanet.astranov.eu" }); return; }
-        if (/^(servernet|hostnet|host|mesh|hosting)$/i.test(raw)) { openAppFrame({ n: "SERVERNET", host: "servernet.astranov.eu" }); return; }
+        if (/^(datanet|database)$/i.test(raw)) { openAppFrame({ n: "DATANET", path: "/datanet/" }); return; }
+        if (/^(servernet|hostnet|host|mesh|hosting)$/i.test(raw)) { openAppFrame({ n: "SERVERNET", path: "/servernet/" }); return; }
         if (/^(crew|guide|agents|drill|ambassador|diplomat)$/i.test(raw)) { runCrew(raw); return; }
         seekPlace(raw);
       });
