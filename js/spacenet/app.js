@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4403"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4404"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1604,7 +1604,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -1857,7 +1857,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     progMoveUntil = Date.now() + 700; mapUserAt = Date.now();
     try { map.setView([lat, lng], nz, { animate: false }); } catch (e) {}
     if (seatKind === "ip") { seatKind = "landed"; ipView = null; window.__snIpView = null; }
-    lastSeat = { lat: lat, lng: lng, name: "map" };
+    lastSeat = { lat: lat, lng: lng, name: "map" }; namedSeat = null;
     adminPin = true;
     here = { lat: lat, lng: lng, name: "map" }; window.__SN_HERE = here;
     aim = { lat: lat, lng: lng, name: "map" };
@@ -2051,7 +2051,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         return;
       }
       var prevSeat = lastSeat;
-      lastSeat = { lat: street.lat, lng: street.lng, name: street.name || "map" };
+      lastSeat = { lat: street.lat, lng: street.lng, name: street.name || "map" }; namedSeat = null;
       seatKind = "landed";
       try { if (!prevSeat || haversineKm(prevSeat, street) > 50) clearSeatPins(); } catch (eC) {}
       openCity(street, { zoom: WHEEL_OPEN_Z, sx: sx, sy: sy });
@@ -2388,7 +2388,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       /* IP never seats a hunt or a listing pull: rough camera only */
       here = { lat: lat, lng: lng, name: label };
       window.__SN_HERE = here;
-      lastSeat = null;
+      lastSeat = null; namedSeat = null;
       seatKind = "ip";
       clearSeatPins();
       /* 4340: the boot promise is kept: the camera lands on the IP city view (street map, city zoom), labelled approximate.
@@ -2408,7 +2408,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     } else {
       here = { lat: lat, lng: lng, name: label };
     }
-    lastSeat = { lat: lat, lng: lng, name: label };
+    lastSeat = { lat: lat, lng: lng, name: label }; namedSeat = null;
     window.__SN_HERE = here;
     try {
       if (isGps) localStorage.setItem("sn:here", JSON.stringify(hereLive || here));
@@ -2763,6 +2763,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     }
     if (!map) {
       map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 8, maxZoom: 19, zoomSnap: 0.5, zoomDelta: 0.5, scrollWheelZoom: false, doubleClickZoom: false });
+      try { window.__snMap = map; } catch (eW) {}
       var osmT = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19, minZoom: 8, crossOrigin: "anonymous", /* 4377: CORS (both OSM servers send ACAO *) so a 200 key-wall tile can be read */
         errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
@@ -2932,9 +2933,15 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
           if (!c || !isFinite(+c.lat)) return;
           /* pan updates the active seat; do not clear a named landing name unless far */
           var prev = lastSeat;
-          if (prev && isFinite(+prev.lat) && haversineKm(prev, { lat: +c.lat, lng: +c.lng }) < 2.5) {
+          /* 4404: a named place stays the seat while the view is still around it (a wheel zoom-out around the cursor slides
+             the centre kilometres away); only a pan beyond 15 km leaves it, and the hunt then runs at the map */
+          if (namedSeat && haversineKm(namedSeat, { lat: +c.lat, lng: +c.lng }) < 15) {
+            lastSeat = { lat: namedSeat.lat, lng: namedSeat.lng, name: namedSeat.name };
+          } else if (prev && isFinite(+prev.lat) && haversineKm(prev, { lat: +c.lat, lng: +c.lng }) < 2.5) {
+            namedSeat = null;
             lastSeat = { lat: +c.lat, lng: +c.lng, name: prev.name || "place" };
           } else {
+            namedSeat = null;
             lastSeat = { lat: +c.lat, lng: +c.lng, name: (prev && prev.name) || "map" };
           }
           adminPin = true;
@@ -3417,7 +3424,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4403&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4404&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3686,6 +3693,12 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       ".sn-pin{width:76px;height:62px;display:flex;flex-direction:column;align-items:center}",
       ".leaflet-container .leaflet-marker-pane img,.sn-pin img{width:40px!important;height:40px!important;max-width:40px!important;max-height:40px!important;object-fit:cover!important;display:block!important;position:static!important;border-radius:50%!important;border:2px solid #4df0ff!important;box-sizing:border-box!important;background:#102033!important}",
       ".leaflet-marker-icon.sn-shop-pin{width:76px!important;height:62px!important;overflow:hidden!important;background:transparent!important;border:0!important}",
+      /* 4404: a pin card fits in one view (no scroll) under the 42% cap: no placeholder photo, compact empty fields */
+      "#sn-sheet.tile .card,#sn-sheet.tile.tall .card{max-height:42vh!important}#sn-sheet.tile #sn-sheet-body{max-height:calc(42vh - 48px)!important}#sn-sheet.tile .sn-prof>em[title='No photo listed']{display:none!important}",
+      "#sn-sheet.tile .sn-prof:not(:has(img)){display:block!important}#sn-sheet.tile .sn-prof>div{flex:1 1 auto!important;min-width:min(240px,60vw)!important}#sn-sheet.tile .sn-prof{gap:6px!important;margin:0 0 2px!important;min-height:0!important}#sn-sheet.tile .sn-prof b{font-size:15px!important;line-height:1.2!important}",
+      "#sn-sheet.tile .sn-miss{display:block!important;font:500 12px/1.3 system-ui!important;margin:0!important}#sn-sheet.tile p.note{margin:3px 0!important;font-size:12px!important;line-height:1.3!important}",
+      "#sn-sheet.tile .sn-dish{margin:3px 0!important}#sn-sheet.tile .sheet-go{margin:4px 0!important;min-height:40px!important}",
+      ".sn-shop-pin.sn-face-off{visibility:hidden!important;pointer-events:none!important}#sn-you-where.sn-chip-off{opacity:0!important;pointer-events:none!important}",
       ".sn-shop-pin.sn-lbl-off b{visibility:hidden}@media (hover:hover){.sn-shop-pin.sn-lbl-off:hover b{visibility:visible}}.leaflet-marker-icon.sn-shop-pin:hover{z-index:9999!important}",
       ".sn-pin b{display:block;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;padding:0 3px;background:rgba(4,14,28,.92);color:#e8fbff;font:800 9px/12px system-ui}",
       ".sn-shop-pin.sn-lbl-short .sn-pin b{white-space:nowrap!important;-webkit-line-clamp:1;line-clamp:1}",
@@ -5337,16 +5350,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       placed.push(sh(it.fr, dx, dy));
       if (withLabel) placed.push(sh(it.br, dx, dy));
       else if (it.b) {
-        /* 4390: no room for the full name: try a short one (first word, at most 12 letters) under the face before hiding it */
-        var full = it.b.getAttribute("data-full") || it.b.textContent, w1 = String(full).split(/[\s·,\-–]+/).filter(Boolean)[0] || "";
-        var shortName = w1.length > 12 ? w1.slice(0, 11) + "…" : w1, sw = Math.ceil(shortName.length * 5.6) + 8;
-        var fcx = (it.fr.left + it.fr.right) / 2 + dx, sr = { left: fcx - sw / 2, right: fcx + sw / 2, top: it.fr.bottom + dy + 1, bottom: it.fr.bottom + dy + 14 };
-        if (shortName && shortName !== full && inside(sr) && free(grow(sr, 2))) {
-          it.b.setAttribute("data-full", full);
-          it.b.textContent = shortName;
-          it.el.classList.add("sn-lbl-short");
-          placed.push(sr);
-        } else it.el.classList.add("sn-lbl-off");
+        /* 4404: no room for the full name: the label is dropped, never shortened mid-name (a tap/hover still shows it) */
+        it.el.classList.add("sn-lbl-off");
       }
       if (dx || dy) {
         it.pin.style.transform = "translate(" + dx + "px," + dy + "px)";
@@ -5423,7 +5428,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
      marker's face/number or on a shown label of a higher-priority pin (lower number) is hidden. It only hides; it never moves pins */
   function labelGuard() {
     try {
-      var cityEl = $("city"); if (!cityEl || declFrozen() || cityEl.querySelector(".leaflet-zoom-anim")) return;
+      var cityEl = $("city"); if (!cityEl || (snPress && snPress.down) || cityEl.querySelector(".leaflet-zoom-anim")) return; /* 4404: it only hides, so it runs under a hover too (the hovered pin keeps its name) */
+      var hovMk = snHoverPin && snHoverPin.closest ? snHoverPin.closest(".leaflet-marker-icon") : null;
       var host = cityEl.querySelector(".leaflet-marker-pane"); if (!host) return;
       var faces = [], labs = [];
       Array.prototype.forEach.call(host.querySelectorAll(".leaflet-marker-icon"), function (mk) {
@@ -5437,11 +5443,38 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         }
       });
       labs.sort(function (a, b) { return a.no - b.no; });
+      /* 4404: a face that sits mostly on a higher-priority face is hidden (still in the list/sheet) until the map frees it */
+      var sf = [];
+      Array.prototype.forEach.call(host.querySelectorAll(".leaflet-marker-icon.sn-shop-pin"), function (mk) {
+        var x = mk.querySelector("img,em"); if (!x) return; var q = x.getBoundingClientRect(); if (!(q.width > 0)) return;
+        sf.push({ mk: mk, r: q, no: parseInt(((mk.querySelector(".sn-no") || {}).textContent || "999"), 10) || 999 });
+      });
+      sf.sort(function (a, b) { return a.no - b.no; });
+      var keptF = [], youF = [];
+      Array.prototype.forEach.call(host.querySelectorAll(".leaflet-marker-icon:not(.sn-shop-pin)"), function (mk) {
+        var x = mk.querySelector("img,em"); if (!x) return; var q = x.getBoundingClientRect(); if (q.width > 0 && getComputedStyle(x).visibility !== "hidden") youF.push({ mk: mk, r: q });
+      });
+      sf.forEach(function (f) {
+        var on = youF.concat(keptF).some(function (k) {
+          var x = Math.min(f.r.right, k.r.right) - Math.max(f.r.left, k.r.left), y = Math.min(f.r.bottom, k.r.bottom) - Math.max(f.r.top, k.r.top);
+          return x > 4 && y > 4;
+        });
+        if (on && f.mk !== hovMk) f.mk.classList.add("sn-face-off"); else { f.mk.classList.remove("sn-face-off"); keptF.push(f); }
+      });
+      faces = faces.filter(function (f) { return !f.mk.classList.contains("sn-face-off"); });
+      labs = labs.filter(function (l) { return !l.mk.classList.contains("sn-face-off"); });
       var kept = [];
       labs.forEach(function (l) {
         var hit = faces.some(function (f) { return f.mk !== l.mk && rectHit(l.r, f.r); }) || kept.some(function (k) { return rectHit(l.r, k.r); });
-        if (hit) { l.mk.classList.add("sn-lbl-off"); l.mk.classList.remove("sn-lbl-short"); } else kept.push(l);
+        var b = l.mk.querySelector("b"), clip = b && (b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1);
+        if ((hit && l.mk !== hovMk) || clip) { l.mk.classList.add("sn-lbl-off"); l.mk.classList.remove("sn-lbl-short"); } else kept.push(l);
       });
+      /* 4404: the YOU-where chip never sits on a pin: it fades out (no taps) while any shown pin face or label is under it */
+      var chip = $("sn-you-where");
+      if (chip) {
+        var cr = chip.getBoundingClientRect(), under = cr.width > 0 && (keptF.some(function (f) { return rectHit(cr, f.r); }) || kept.some(function (k) { return rectHit(cr, k.r); }));
+        chip.classList.toggle("sn-chip-off", !!under);
+      }
     } catch (e) {}
   }
   setInterval(labelGuard, 500);
@@ -5454,7 +5487,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4403";
+    return "/you.png?v=4404";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -6436,7 +6469,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         } catch (eR) {}
       }, ms);
     });
-    closeBelow = Math.min(12.5, z - 0.5);
+    closeBelow = Math.max(7, Math.min(10.5, z - 1.5)); try { if (map.getMinZoom() > closeBelow) map.setMinZoom(closeBelow); } catch (eMz) {} /* 4404: a few wheel notches out keep the field (intermediate levels); only real low zoom leaves for the globe */
     huntView.fitted = true;
     try { paintShopsOnMap(); } catch (e3) {}
   }
@@ -6758,6 +6791,13 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       /* only outside sources (OSM / Photon / Nominatim) decide "live worked": our own listed rows alone must not
          overwrite or block the last real pins when Overpass and the rest fail */
       var outside = real.filter(function (r) { return r.src !== "listed"; });
+      var c0 = null;
+      try { c0 = JSON.parse(localStorage.getItem(key) || "null"); } catch (eC0) {}
+      /* 4404: a thin live answer (an upstream hiccup gave 3 instead of 25) is topped up with the last real answer here */
+      if (outside.length && outside.length < 10 && c0 && c0.rows && c0.rows.length > outside.length && Date.now() - c0.t < 86400000) {
+        window.__snHuntCache = { key: key, used: true, n: c0.rows.length, topUp: true };
+        return uniqPlaces((rows || []).concat(c0.rows.map(function (r) { r.cached = true; return r; }).filter(function (p) { return nearSeat(p, 50) && (!needle || huntMatch(p, needle)); })));
+      }
       if (outside.length) {
         var slimR = real.slice(0, 24).map(function (r) { return { id: r.id, name: r.name, lat: r.lat, lng: r.lng, kind: r.kind, phone: r.phone || "", address: r.address || "", street: r.street || "", src: r.src || "", osm: r.osm || "" }; });
         localStorage.setItem(key, JSON.stringify({ t: Date.now(), rows: slimR }));
@@ -6843,6 +6883,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     var cur = el ? String(el.textContent || "") : "";
     if (!cur || /^(Grok…|Grok is thinking|Landing |Finding |Locating)/.test(cur)) say(text);
   }
+  var huntSlow = null;
   var nextHuntNear = false; /* 4375: set by "X near Y" right before hunt() */
   function hunt(q) {
     q = String(q || "").trim();
@@ -6907,28 +6948,51 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         }).catch(function () { return []; });
       }
       window.__snLastHunt = named || q;
-      /* replace, do not union with the previous city's pins */
-      Promise.all([
-        huntRace(spaceP, 5000),
-        huntRace(huntApi(named || q), 11000), /* 4374: the server now asks OSM in a box around the seat (real pins without Overpass) */
-        huntRace(huntNominatim(named || q), 4000),
-        huntRace(huntOverpass(named || q), 2500)
-      ]).then(function (packs) {
-        if (!live()) return;
+      /* 4404: one 4.5 s budget. Every source that answered in time is merged (server boxed OSM, browser Nominatim /
+         Overpass, our listings, the last real answer here); a server answer that lands later still joins this hunt.
+         Nothing waits 11 s any more, and an empty slow run says so honestly with a retry hint. */
+      var apiP = huntApi(named || q).catch(function () { return []; });
+      var apiLate = true;
+      apiP.then(function () { apiLate = false; });
+      var mergeIn = function (packs) {
         packs[0] = (packs[0] || []).map(function (p) { if (p) p.src = "listed"; return p; });
-        /* 4376: one source decides a hunt: the server hunt (/api/find, boxed OSM) plus our real listings. The browser
-           Nominatim / Overpass races (2.5-4 s) only stand in when the server hunt returned nothing, so a clean run gives the
-           same pins every time; the q-less nearby Overpass rows never join (huntView.ids gates the field) */
-        var outside = (packs[1] && packs[1].length) ? packs[1] : [].concat(packs[2] || [], packs[3] || []);
+        var outside = uniqPlaces([].concat(packs[1] || [], packs[2] || [], packs[3] || []));
         if (huntView) huntView.via = (packs[1] && packs[1].length) ? "server" : "browser";
-        var merged = uniqPlaces([].concat(packs[0] || [], outside))
+        var merged = uniqPlaces([].concat(packs[0] || [], outside, shops && huntView && huntView.ids ? shops.filter(function (s) { return s && huntView.ids[huntKey(s)]; }) : []))
           .filter(function (p) { return nearSeat(p, 50); });
         if (huntView && huntView.nameQ) merged = nameField(merged, packs, huntView.nameQ);
         merged = huntCache(named || q, seat0, merged);
         if (huntView) { huntView.ids = {}; merged.forEach(function (p) { if (p) huntView.ids[huntKey(p)] = 1; }); }
+        return merged;
+      };
+      Promise.all([
+        huntRace(spaceP, 4000),
+        huntRace(apiP, 4500),
+        huntRace(huntNominatim(named || q), 4000),
+        huntRace(huntOverpass(named || q), 2500)
+      ]).then(function (packs) {
+        if (!live()) return;
+        var merged = mergeIn(packs);
         shops = merged;
-        huntCtrl = null;
-        showFound();
+        if (apiLate && !merged.length) {
+          /* the server hunt is still out: say so honestly, keep listening for it until the 15 s watchdog */
+          huntSlow = { q: q, at: Date.now() };
+          say("Still searching " + q + " at " + seatName(seat0) + "… the map service is slow. Tap GO to retry.");
+          try { openSheet("FIND · …", '<p class="note sn-msg">The map service is slow for ' + esc(q) + " at " + esc(seatName(seat0)) + ". Pins appear here as soon as it answers, or tap GO to retry.</p>"); } catch (eSl) {}
+        } else {
+          huntCtrl = null;
+          showFound();
+        }
+        if (apiLate) {
+          apiP.then(function (rows) {
+            if (!live() || !rows || !rows.length) return;
+            packs[1] = rows;
+            shops = uniqPlaces((shops || []).concat(mergeIn(packs)));
+            huntSlow = null;
+            findWanted = true;
+            showFound();
+          });
+        }
       }).catch(function () {
         if (!live()) return;
         say("Hunt timed out. Try again, or name the city.");
@@ -7102,7 +7166,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function robotSrc() {
     var style = botSpec().style || "spartan";
     if (style !== "courier" && style !== "wire") style = "spartan";
-    return "/js/spacenet/robots/" + style + ".jpg?v=4403";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4404";
   }
   function robotFilter() {
     var c = botSpec().color;
@@ -8741,6 +8805,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
 
   var placeSeq = 0;
   var lastSeat = null;
+  var namedSeat = null; /* 4404: the place the user named; survives zoom-outs around it */
   var seatKind = "";
   var bootZoom = false;
   var bootPt = null;
@@ -8846,6 +8911,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     seated = true;
     adminPin = true;
     lastSeat = { lat: +geo.lat, lng: +geo.lng, name: geo.name || geo.label || "place" };
+    namedSeat = { lat: lastSeat.lat, lng: lastSeat.lng, name: lastSeat.name }; /* 4404 */
     here = { lat: lastSeat.lat, lng: lastSeat.lng, name: lastSeat.name };
     window.__SN_HERE = here;
     aim = { lat: lastSeat.lat, lng: lastSeat.lng, name: lastSeat.name };
@@ -10062,7 +10128,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         return;
       }
       if (act === "sheet-apply") { applySheet(); return; }
-      if ((act === "close" || act === "hide") && t.closest && t.closest("#sn-sheet")) return;
+      if ((act === "close" || act === "hide") && t.closest && t.closest("#sn-sheet,#sn-me-sheet")) return;
       if (act === "close" && t.classList && t.classList.contains("bg")) return;
       var id = t.getAttribute("data-id");
       var i = Number(t.getAttribute("data-i"));
@@ -12184,7 +12250,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {

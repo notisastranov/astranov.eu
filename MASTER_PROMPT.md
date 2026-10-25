@@ -426,3 +426,10 @@ Ported into the branch engine: globe trackball inertia (a released flick keeps t
 2) The hover reveal of hidden labels (.sn-lbl-off:hover b) now applies only under @media (hover:hover), so a sticky touch :hover cannot put a hidden name back on top of neighbours.
 3) hold "no pin early" (once in s103): not reproduced locally (3/3 BAD 0); no product change for it.
 Stamps 4403 lockstep; __SN_4403 added.
+
+## 4404 (remine of 4403; main still 953d504f)
+1) Search "Finding…" stall: one ~4.5 s budget (space 4 s, server 4.5 s, Nominatim 4 s, Overpass 2.5 s; was an 11 s server race). Every source is merged (server, browser Nominatim/Overpass, listed rows, rows already on the map), a thin live answer is topped up from the last 24 h cache, and if nothing has landed the line and sheet say "Still searching X at Y… the map service is slow. Tap GO to retry." A late server answer still merges in. A re-search while zoomed out keeps the named place (namedSeat holds the seat while the map centre is within 15 km of it).
+2) 500 px labels: a name that does not fit is dropped, never cut to its first word (the 4390 short-name path is gone); the guard also drops clipped labels, hides a face that sits on a higher-priority face (or on YOU) until the map frees it, runs under a mouse hover (it only hides), and fades the YOU-where chip while a shown pin is under it. After a hunt fit, three wheel notches stay in the field (closeBelow = fit zoom - 1.5, min zoom follows). window.__snMap exposes the map for tests.
+3) Pin card: under the 42vh cap with no scroll; no placeholder photo (the real photo still shows); compact name/phone/address/notes; "No phone listed" and "(approx. address)" kept.
+4) The ✕ on the SIGN IN (YOU) card closes only that card (stopPropagation + app close handler ignores #sn-me-sheet).
+Tests: bake-4404/t lab3.js (500/390 labels, chip, 3 wheel notches), card.js (no scroll, 42%, no placeholder, SIGN IN ✕), ttime.js, slow.js, he2e5.sh. Stamps 4404 lockstep; __SN_4404 added.
