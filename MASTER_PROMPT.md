@@ -396,3 +396,6 @@ Merged main de23b20b (V4386: api consolidated into api/[...path].js + lib/http f
 
 ## 4395
 Main unmoved (de23b20b). Declutter: the YOU marker, other non-shop markers and the HUD buttons are placement obstacles; a leader through a name scores as crowded; a second declutter pass runs 320 ms after every moveend/zoomend/viewreset/resize and after every fitHunt. Touch: fitHunt and its re-fit timers never run while a finger is on the map, within 2.5 s of a hold, or after any user press since the last fit; a pin tap/hold opens the pin under the finger at press start; the LIST hold point is fixed at press start. Hide blocks sn-4379/sn-4382 and the app.js hide list stay out. Lockstep 4395.
+
+## 4396
+Merged main 08348856 (4387 device ledger / crew) with a merge commit; the branch engine and stamps win. The collision pass (declutterSoon, declutterLate) never moves a pin or label while a pointer is down on the map, while a mouse hovers a pin, or for 1.5 s after either ends; it is deferred and runs once afterwards. window.__snDeclBusy / __snDeclAt / __snDeclFrozen let tests wait for it to settle. hold.js waits for the late pass to settle before it picks a target. Lockstep 4396.

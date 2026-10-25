@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4395"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4396"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1576,7 +1576,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -2861,8 +2861,20 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         window.__snPressShop = snPress.shop ? String(snPress.shop.name || "") : "";
       }, { capture: true, passive: true });
       ["pointerup", "pointercancel"].forEach(function (k) {
-        el.addEventListener(k, function () { if (snPress) { snPress.down = false; snPress.upAt = Date.now(); } }, { capture: true, passive: true });
+        el.addEventListener(k, function () { if (snPress) { snPress.down = false; snPress.upAt = Date.now(); } snQuietUntil = Date.now() + 1500; }, { capture: true, passive: true });
       });
+      /* 4396: hovering a pin holds the collision pass; leaving it starts the 1.5 s quiet */
+      el.addEventListener("pointerover", function (e) {
+        var ic = e.target && e.target.closest && e.target.closest(".sn-shop-pin");
+        if (ic && e.pointerType !== "touch") snHoverPin = ic;
+      }, { capture: true, passive: true });
+      el.addEventListener("pointerout", function (e) {
+        if (!snHoverPin) return;
+        var to = e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(".sn-shop-pin");
+        if (to === snHoverPin) return;
+        snHoverPin = to && e.pointerType !== "touch" ? to : null;
+        if (!snHoverPin) snQuietUntil = Math.max(snQuietUntil, Date.now() + 1500);
+      }, { capture: true, passive: true });
       map.on("zoomend", function () {
         try {
           var z = map.getZoom();
@@ -3371,7 +3383,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4395&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4396&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -4256,7 +4268,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function loadJobs() {
     try { jobs = JSON.parse(localStorage.getItem("sn:jobs") || "[]") || []; } catch (e) { jobs = []; }
     var kept = jobs.filter(function (j) {
-      if (!j || j.self) return false;
+      if (!j || j.self || j.agent) return false;
       var name = j.vendor && j.vendor.name || "";
       if (/^maria$/i.test(name) && j.driver === "motorbike" && !j.driverId) return false;
       return true;
@@ -4267,7 +4279,90 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     try { localStorage.setItem("sn:jobs", JSON.stringify(jobs)); } catch (e) {}
     paintOrders();
   }
+  function ledgerRead() {
+    try { return JSON.parse(localStorage.getItem("sn:ledger") || "[]") || []; } catch (e) { return []; }
+  }
+  function ledgerPut(kind, row) {
+    var book = ledgerRead();
+    book.push({ kind: kind, t: Date.now(), row: row });
+    if (book.length > 200) book = book.slice(-200);
+    try { localStorage.setItem("sn:ledger", JSON.stringify(book)); } catch (e) {}
+    try {
+      var bc = new BroadcastChannel("astranov-mesh");
+      bc.postMessage({ kind: kind, t: Date.now(), row: row });
+      bc.close();
+    } catch (e2) {}
+  }
+  function hostNode(cb) {
+    var node = {
+      id: deviceId(),
+      cores: navigator.hardwareConcurrency || 1,
+      mem: navigator.deviceMemory || 0,
+      at: Date.now(),
+      level: cityOn ? "city" : (typeof levelName === "function" ? levelName(cam.dist) : "globe")
+    };
+    var done = function () { ledgerPut("host", node); if (cb) cb(node); };
+    if (navigator.storage && navigator.storage.estimate) {
+      navigator.storage.estimate().then(function (e) {
+        node.quota = e && e.quota || 0;
+        node.used = e && e.usage || 0;
+        done();
+      }).catch(done);
+    } else done();
+  }
+  function runCrew(word) {
+    word = String(word || "crew").toLowerCase();
+    var faults = [];
+    var base = (seekHold && isFinite(+seekHold.lat)) ? seekHold : ((aim && isFinite(+aim.lat)) ? aim : ((here && isFinite(+here.lat)) ? here : { lat: 36.44305, lng: 28.2279 }));
+    if (word === "ambassador" || word === "diplomat") {
+      if (cityOn) closeCity();
+      aim = { lat: +base.lat, lng: +base.lng };
+      cam.dist = 1.28;
+      fly = null;
+      markTier(1.28);
+      ledgerPut("ambassador", { name: "AGENT AMBASSADOR", post: "international", lat: +base.lat, lng: +base.lng });
+      say("Ambassador on the international mesh. This device keeps the record.");
+      return;
+    }
+    if (word === "host" || word === "mesh") {
+      hostNode(function (node) {
+        var mb = node.quota ? Math.round(node.quota / 1048576) + " MB" : "storage unread";
+        say("Host " + node.id + " · " + node.cores + " cores · " + mb + ". No outside database.");
+      });
+      return;
+    }
+    if (!cityOn) openCity(base);
+    var vendorPt = { lat: +base.lat, lng: +base.lng, name: "AGENT VENDOR" };
+    var dropPt = { lat: +base.lat + 0.006, lng: +base.lng + 0.006, name: "AGENT CLIENT" };
+    var q = quoteDelivery(vendorPt, dropPt, {});
+    if (!(q && q.total >= 3 && q.km > 0)) faults.push("quote");
+    var job = {
+      id: "agent-" + Date.now(),
+      agent: true,
+      vendor: vendorPt,
+      drop: dropPt,
+      fee: q.total,
+      km: q.km,
+      client: "agent-client",
+      vendorOwner: "agent-vendor",
+      driver: "AGENT DRIVER",
+      driverId: "agent-driver",
+      stage: "received",
+      received: true,
+      t: Date.now()
+    };
+    jobs.push(job);
+    try { saveJobs(); } catch (e) { faults.push("save"); }
+    ledgerPut("delivery", { id: job.id, fee: job.fee, km: job.km, vendor: "AGENT VENDOR", driver: "AGENT DRIVER", client: "AGENT CLIENT" });
+    jobs = jobs.filter(function (j) { return !j || !j.agent; });
+    try { saveJobs(); } catch (e2) {}
+    hostNode(function (node) {
+      var line = faults.length ? ("Crew fault: " + faults.join(", ")) : ("Crew walked client, vendor, driver. " + q.km.toFixed(2) + " km · " + q.total + " AV€. Record stays on " + node.id + ".");
+      say(line);
+    });
+  }
   function publishRow(row) {
+    if (row && row.id) ledgerPut(row.kind || "row", row);
     if (!row || !row.id) return;
     var t = authToken();
     if (!t) return;
@@ -5016,11 +5111,30 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function paintOwnDrivers() {}
   /* labels never overlap: nearest first keeps its label; a label that would cover another label or pin, or sit
      under the ribbon / sheet, hides until zoom (hover or tap the pin to see it) */
-  var declT = 0;
-  function declutterSoon() {
-    if (declT) return;
-    declT = requestAnimationFrame(function () { declT = 0; try { declutterPins(); } catch (e) {} });
+  var declT = 0, declWaitT = 0;
+  /* 4396: no pin or label ever moves under a pointer: while a pointer is down on the map, while it hovers a pin, and for
+     1.5 s after either ends, the collision pass is deferred and runs once afterwards */
+  var snQuietUntil = 0, snHoverPin = null;
+  function declFrozen() {
+    if (snHoverPin && !snHoverPin.isConnected) snHoverPin = null;
+    return !!((snPress && snPress.down) || snHoverPin || Date.now() < snQuietUntil);
   }
+  window.__snDeclFrozen = declFrozen;
+  window.__snDeclAt = 0;
+  function declutterSoon() {
+    if (declT || declWaitT) return;
+    if (declFrozen()) {
+      declWaitT = setTimeout(function () { declWaitT = 0; declutterSoon(); }, Math.max(120, snQuietUntil - Date.now() + 20));
+      return;
+    }
+    declT = requestAnimationFrame(function () {
+      declT = 0;
+      if (declFrozen()) { declutterSoon(); return; }
+      try { declutterPins(); } catch (e) {}
+      window.__snDeclAt = Date.now();
+    });
+  }
+  window.__snDeclBusy = function () { return !!(declT || declWaitT || declLateT); };
   /* 4395: a second pass after the re-zoom / fit settles (late fonts, photos, the sheet resize) */
   var declLateT = 0;
   function declutterLate() {
@@ -5244,7 +5358,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4395";
+    return "/you.png?v=4396";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -6890,7 +7004,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function robotSrc() {
     var style = botSpec().style || "spartan";
     if (style !== "courier" && style !== "wire") style = "spartan";
-    return "/js/spacenet/robots/" + style + ".jpg?v=4395";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4396";
   }
   function robotFilter() {
     var c = botSpec().color;
@@ -11870,7 +11984,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
