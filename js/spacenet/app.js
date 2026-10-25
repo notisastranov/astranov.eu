@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4383";
+  var VER = "4384";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -608,9 +608,84 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var ci = Math.cos((inc || 0) * Math.PI / 180);
     return { x: cx + Math.cos(ang) * rad, y: cy - Math.sin(ang) * rad * ci };
   }
+  var appHits = [];
+  var earthHit = null;
+  var APP_BODIES = [
+    { n: "ARCHITECT", host: "architect.astranov.eu" },
+    { n: "PERSONALITY", host: "personality.astranov.eu" },
+    { n: "DATANET", host: "datanet.astranov.eu" },
+    { n: "EXCHANGE", host: "exchange.astranov.eu" },
+    { n: "INVESTORS", host: "investors.astranov.eu" },
+    { n: "YACHTS", host: "yachts.astranov.eu" },
+    { n: "COIN", host: "coin.astranov.eu" },
+    { n: "AUDITORS", host: "auditors.astranov.eu" },
+    { n: "FROGSCHOOL", host: "frogschool.astranov.eu" }
+  ];
+  function hitApp(x, y) {
+    var i;
+    for (i = appHits.length - 1; i >= 0; i--) {
+      var h = appHits[i];
+      if (Math.hypot(x - h.x, y - h.y) <= h.r) return h.app;
+    }
+    return null;
+  }
+  function closeAppFrame() {
+    var host = document.getElementById("sn-app-host");
+    if (!host) return;
+    var frame = document.getElementById("sn-app-frame");
+    if (frame) frame.src = "about:blank";
+    host.style.display = "none";
+    say("Solar system");
+  }
+  function openAppFrame(app) {
+    if (!app || !app.host) return;
+    var host = document.getElementById("sn-app-host");
+    if (!host) {
+      host = document.createElement("div");
+      host.id = "sn-app-host";
+      host.style.cssText = "position:fixed;inset:0;z-index:80;background:#02040a;display:flex;flex-direction:column";
+      host.innerHTML = '<div style="display:flex;align-items:center;gap:8px;height:48px;padding:max(6px,env(safe-area-inset-top)) 8px 0;color:#7ee9ff;font:800 12px system-ui"><button type="button" id="sn-app-back" style="height:36px;padding:0 12px;border-radius:999px;border:1px solid rgba(77,240,255,.65);background:#041018;color:#7ee9ff;font:800 12px system-ui">EARTH</button><b id="sn-app-name" style="letter-spacing:.12em"></b></div><iframe id="sn-app-frame" title="Astranov app" style="flex:1;border:0;width:100%;background:#02040a" referrerpolicy="origin"></iframe>';
+      document.body.appendChild(host);
+      document.getElementById("sn-app-back").addEventListener("click", closeAppFrame);
+    }
+    document.getElementById("sn-app-name").textContent = app.n;
+    document.getElementById("sn-app-frame").src = "https://" + app.host + "/";
+    host.style.display = "flex";
+    say(app.n + " on astranov.eu");
+  }
+  function drawAppRing() {
+    appHits = [];
+    if (!view) return;
+    var cols = view.w < 560 ? 5 : APP_BODIES.length;
+    var rows = Math.ceil(APP_BODIES.length / cols);
+    var y0 = view.h - Math.max(92, 28 + rows * 46);
+    ctx.fillStyle = "rgba(77,240,255,.75)";
+    ctx.font = "700 10px system-ui,sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("ASTRANOV", view.cx, y0 - 16);
+    var i;
+    for (i = 0; i < APP_BODIES.length; i++) {
+      var col = i % cols;
+      var row = Math.floor(i / cols);
+      var count = Math.min(cols, APP_BODIES.length - row * cols);
+      var gap = Math.min(72, (view.w - 28) / count);
+      var x = view.cx - ((count - 1) * gap) / 2 + col * gap;
+      var y = y0 + row * 46;
+      var b = APP_BODIES[i];
+      ctx.beginPath();
+      ctx.arc(x, y, 7, 0, Math.PI * 2);
+      ctx.fillStyle = "#4df0ff";
+      ctx.fill();
+      ctx.fillStyle = "rgba(186,226,238,.82)";
+      ctx.font = "600 8px system-ui,sans-serif";
+      ctx.fillText(b.n, x, y + 16);
+      appHits.push({ x: x, y: y, r: 20, app: b });
+    }
+  }
   function drawOrrery(now) {
-    var cx = view.cx, cy = view.cy;
-    var span = Math.min(view.w, view.h) * 0.34;
+    var cx = view.cx, cy = Math.max(86, view.h * 0.34);
+    var span = Math.min(view.w, view.h) * 0.24;
     var maxR = Math.sqrt(30.07);
     function radOf(au) { return span * Math.sqrt(au) / maxR; }
     ctx.strokeStyle = "rgba(140, 180, 200, 0.18)";
@@ -658,7 +733,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ctx.font = "600 8px system-ui,sans-serif";
       ctx.fillText(b.n, q.x, q.y + b.sz + 9);
     }
-    if (!earthPos) return;
+    if (!earthPos) { earthHit = null; drawAppRing(); return; }
+    earthHit = { x: earthPos.x, y: earthPos.y, r: 22 };
     var mAng = meanLong(218.32, 27.321661);
     var moon = orbitXY(earthPos.x, earthPos.y, mAng, 18, 5.14);
     ctx.strokeStyle = "rgba(180, 190, 200, 0.25)";
@@ -685,6 +761,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     ctx.font = "600 8px system-ui,sans-serif";
     ctx.fillText("EARTH", earthPos.x, earthPos.y + 22);
     view.cx = keep.cx; view.cy = keep.cy; view.scale = keep.scale;
+    drawAppRing();
   }
   function drawSolar(now, cx, cy, r) { drawOrrery(now); }
   function stepCam(now, dt) {
@@ -703,6 +780,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       return;
     }
     if (!fly && !seated && !drag && !cityOn) {
+      if (tierI === 0 || cam.dist > 3) return;
       if (cam.dist < 1.7 || cam.dist > 2.2) cam.dist = 1.85;
       cam.yaw += dt * 0.16;
       return;
@@ -963,6 +1041,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         openVidChoice(card.row);
         return;
       }
+      if (cam.dist > 3) {
+        var appHit = hitApp(pUp.x, pUp.y);
+        if (appHit) { openAppFrame(appHit); return; }
+        if (earthHit && Math.hypot(pUp.x - earthHit.x, pUp.y - earthHit.y) <= earthHit.r) {
+          zoomToDist(1.85);
+          say("Global");
+          return;
+        }
+      }
       if (!globeHit(pUp.x, pUp.y, cam)) {
         var con = pickConstellation(pUp.x, pUp.y);
         if (con) openSky(con);
@@ -1033,7 +1120,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (d > 1.2) { zoomToDist(0.92); say("National"); return; }
       var pt = (aim && isFinite(+aim.lat)) ? aim : ((here && isFinite(+here.lat)) ? here : { lat: 36.44305, lng: 28.2279 });
       openCity(pt);
-      say("City");
+      say("City. Goods and services.");
       return;
     }
     if (d < 1.2) { zoomToDist(1.85); say("Global"); return; }
