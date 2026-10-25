@@ -399,3 +399,6 @@ Main unmoved (de23b20b). Declutter: the YOU marker, other non-shop markers and t
 
 ## 4396
 Merged main 08348856 (4387 device ledger / crew) with a merge commit; the branch engine and stamps win. The collision pass (declutterSoon, declutterLate) never moves a pin or label while a pointer is down on the map, while a mouse hovers a pin, or for 1.5 s after either ends; it is deferred and runs once afterwards. window.__snDeclBusy / __snDeclAt / __snDeclFrozen let tests wait for it to settle. hold.js waits for the late pass to settle before it picks a target. Lockstep 4396.
+
+## 4397
+4396 shipped, but its alias run still lost about 1 in 6 holds: the pin repaint (paintShopsOnMap, on late results / zoomend) swapped the markers under a held pointer. Now a repaint waits (at most 8 s) while a pointer is down on the map, hovers a pin, or for 1.5 s after either; the pin tap listener is bound after addTo (before, it never existed) and fires only for the pin pressed at start with <12 px travel. Lockstep 4397.

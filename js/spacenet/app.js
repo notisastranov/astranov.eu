@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4396"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4397"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1576,7 +1576,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3383,7 +3383,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4396&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4397&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -4896,7 +4896,22 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       });
     });
   }
+  /* 4396: a pin repaint (late results, zoomend) never swaps pins under a pointer: while one is down on the map, hovers a
+     pin, or for 1.5 s after, the repaint waits (at most 8 s) and runs once afterwards */
+  var paintWaitT = 0, paintWaitSince = 0;
   function paintShopsOnMap() {
+    if (map && cityOn && declFrozen() && shopMarks.length) {
+      if (!paintWaitSince) paintWaitSince = Date.now();
+      if (Date.now() - paintWaitSince < 8000) {
+        clearTimeout(paintWaitT);
+        paintWaitT = setTimeout(function () { paintWaitT = 0; try { paintShopsOnMap(); } catch (eW) {} }, 150);
+        return;
+      }
+    }
+    clearTimeout(paintWaitT); paintWaitT = 0; paintWaitSince = 0;
+    paintShopsNow();
+  }
+  function paintShopsNow() {
     if (!map || typeof L === "undefined") return;
     absorbMine();
     absorbJobVendors();
@@ -4957,6 +4972,21 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       } catch (err3) {}
       mark.addTo(map);
       try { var ie0 = mark.getElement && mark.getElement(); if (ie0) ie0.__snShopRow = s; } catch (eIe) {} /* 4395: the pin under a press at its start */
+      /* 4396: the icon tap listener is bound after addTo (the icon does not exist before), so a long press on a pin always
+         opens the pin pressed at its start, even when Leaflet drops the click after a hold */
+      try {
+        var ie1 = mark.getElement && mark.getElement();
+        if (ie1 && !ie1.__snTap) {
+          ie1.__snTap = true;
+          ie1.style.pointerEvents = "auto";
+          ie1.addEventListener("pointerup", function (ev) {
+            if (ev && ev.button) return;
+            if (!(snPress && snPress.shop && Math.abs(ev.clientX - snPress.x) < 12 && Math.abs(ev.clientY - snPress.y) < 12)) return;
+            ev.preventDefault(); ev.stopPropagation();
+            openVendor(pressedShop(s));
+          }, true);
+        }
+      } catch (eIe1) {}
       shopMarks.push(mark);
     });
     window.__snFieldIds = field.map(function (s) { return String(s.id || s.name); });
@@ -5358,7 +5388,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4396";
+    return "/you.png?v=4397";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -7004,7 +7034,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function robotSrc() {
     var style = botSpec().style || "spartan";
     if (style !== "courier" && style !== "wire") style = "spartan";
-    return "/js/spacenet/robots/" + style + ".jpg?v=4396";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4397";
   }
   function robotFilter() {
     var c = botSpec().color;
@@ -11984,7 +12014,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
