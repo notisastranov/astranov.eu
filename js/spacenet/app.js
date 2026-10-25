@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4385";
+  var VER = "4386";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -122,6 +122,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var tierI = 1;
   var tierLock = 0;
   var aim = null;
+  var seekHold = null;
   var gpsSeq = 0;
   function altitudeFromDist(d) {
     if (cityOn) return "street";
@@ -1046,7 +1047,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (hitHold) setTimeout(function () { listAt(hitHold); }, 30);
         return;
       }
-      if (d && d.moved && view) {
+      if (d && d.moved && view && !seekHold) {
         var mid = globeHit(view.cx, view.cy, cam);
         if (mid && isFinite(mid.lat) && isFinite(mid.lng)) aim = { lat: mid.lat, lng: mid.lng };
         vel.yaw = 0;
@@ -1177,22 +1178,20 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     q = String(q || "").trim();
     if (!q) return;
     say("Searching " + q);
-    fetch("https://photon.komoot.io/api/?limit=1&q=" + encodeURIComponent(q)).then(function (r) { return r.json(); }).then(function (j) {
-      var f = j && j.features && j.features[0];
+    fetch("https://photon.komoot.io/api/?limit=5&q=" + encodeURIComponent(q)).then(function (r) { return r.json(); }).then(function (j) {
+      var feats = (j && j.features) || [];
+      var f = feats[0];
       if (!f || !f.geometry) { say("No place for " + q); return; }
       var c = f.geometry.coordinates;
       var props = f.properties || {};
       var p = { lat: +c[1], lng: +c[0], name: props.name || props.city || props.country || q };
-      if (cityOn) closeCity();
+      seekHold = p;
       aim = p;
-      var faced = face(p);
-      cam.yaw = faced.yaw;
-      cam.pitch = faced.pitch;
-      cam.dist = 1.28;
-      fly = null;
-      intro = false;
-      markTier(1.28);
-      say("International · " + p.name);
+      openCity(p);
+      if (map) {
+        try { map.setView([p.lat, p.lng], 17, { animate: false }); } catch (e) {}
+      }
+      say(p.name);
     }).catch(function () { say("Search failed"); });
   }
   function zoomSmooth(dir, sx, sy) {
@@ -1288,6 +1287,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     setTimeout(function () { if (!gotGps) coarse(); }, 14000);
   }
   function land(pt, open) {
+    if (seekHold && (!pt || pt.how !== "user-gps")) {
+      if (pt && isFinite(+pt.lat) && isFinite(+pt.lng)) {
+        hereLive = { lat: +pt.lat, lng: +pt.lng };
+        if (!adminPin) here = hereLive;
+        window.__SN_HERE = here;
+      }
+      return;
+    }
+    seekHold = null;
     seated = true;
     intro = false;
     if (pt.how === "gps") {
@@ -1448,6 +1456,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       btn.__snGpsLock = true;
       btn.addEventListener("click", function (ev) {
         ev.preventDefault(); ev.stopPropagation();
+        seekHold = null;
         adminPin = false;
         var seed = here || hereLive;
         if (seed && isFinite(+seed.lat)) land({ lat: +seed.lat, lng: +seed.lng, how: "saved" }, false);
@@ -1476,6 +1485,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
     aim = { lat: pt.lat, lng: pt.lng };
     tierI = 3;
+    document.body.classList.add("sn-city");
     var el = $("city");
     if (!el || typeof L === "undefined" || !pt) return;
     cityOn = true;
@@ -1598,6 +1608,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var el = $("city");
     if (el) el.classList.remove("on");
     cityOn = false;
+    document.body.classList.remove("sn-city");
     intro = false;
     if (tierI > 2) tierI = 2;
     if (aim) {
@@ -2065,16 +2076,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "@keyframes sn-slide{from{transform:translateX(0)}to{transform:translateX(-50%)}}",
       "#line{display:none!important}",
       "#sn-sheet .card,#sn-sheet.tall .card,#sn-tasks .card{max-height:min(42vh,380px)!important;width:max-content!important;max-width:min(340px,calc(100vw - 28px))!important;left:50%!important;right:auto!important;transform:translateX(-50%)!important}",
-      "#sn-power{position:fixed!important;top:0!important;left:max(2px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;width:32px!important;height:32px!important;transform:none!important;z-index:60!important}",
-      "#sn-power svg{width:16px!important;height:16px!important}",
-      "#sn-support{position:fixed!important;top:0!important;right:max(2px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;width:32px!important;height:32px!important;font-size:14px!important;transform:none!important;z-index:60!important}",
-      "#sn-money{position:fixed!important;top:40px!important;left:max(6px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:46!important}",
-      "#sn-globe{position:fixed!important;top:64px!important;right:max(6px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;z-index:60!important;width:40px!important;height:40px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;align-items:center!important;justify-content:center!important}",
-      "#sn-globe svg{width:22px;height:22px;display:block}",
-      "#sn-architect{position:fixed!important;top:112px!important;right:max(6px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;z-index:60!important;width:40px!important;height:40px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;align-items:center!important;justify-content:center!important;font:800 16px/1 ui-monospace,system-ui!important;box-shadow:0 0 12px rgba(77,240,255,.35)!important}",
-      "#sn-me{position:fixed!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;top:auto!important;bottom:calc(var(--dock) + 16px)!important;z-index:46!important}",
-      "#gps{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:calc(var(--dock) + 16px)!important;z-index:46!important}",
-      "#sn-compass{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;bottom:calc(var(--dock) + 112px)!important;top:auto!important;z-index:47!important;width:48px!important;height:48px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;box-shadow:0 0 12px rgba(77,240,255,.35)!important}",
+      "#sn-globe,#sn-architect,#sn-support,#plus,#go,#sn-mon,#top,#island{display:none!important}",
+      "#sn-power{position:fixed!important;top:max(8px,env(safe-area-inset-top))!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;width:44px!important;height:44px!important;transform:none!important;z-index:80!important}",
+      "#sn-money{position:fixed!important;top:max(8px,env(safe-area-inset-top))!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;transform:none!important;z-index:80!important;height:44px!important}",
+      "#gps{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:max(16px,env(safe-area-inset-bottom))!important;z-index:80!important;width:44px!important;height:44px!important}",
+      "#sn-compass{display:none!important}",
+      "body.sn-city #sn-compass{position:fixed!important;display:flex!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;bottom:max(72px,calc(env(safe-area-inset-bottom) + 56px))!important;top:auto!important;z-index:80!important;width:44px!important;height:44px!important;padding:0!important;border-radius:999px!important;border:1px solid rgba(77,240,255,.85)!important;background:rgba(4,16,28,.9)!important;color:#4df0ff!important;flex-direction:column!important;align-items:center!important;justify-content:center!important}",
       "#sn-compass .lbl{display:block!important;font:800 8px/1 system-ui!important;letter-spacing:.06em!important}",
       "#sn-compass .tgt{display:block!important;font:800 14px/1 system-ui!important}",
       "#sn-compass.head{color:#7dff9a!important;border-color:#7dff9a!important}",
