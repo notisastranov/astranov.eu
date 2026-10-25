@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#050b18" />
+  <title>FrogSchool · Astranov Sites</title>
+  <meta name="description" content="AstranoV FrogSchool diving & martial arts reservations at frogschool.astranov.eu" />
+  <link rel="stylesheet" href="core/booker-theme.css" />
+</head>
+<body class="sb-body">
+<div class="sb-app" id="top">
+  <header class="sb-topbar">
+    <div class="sb-brand" id="sbBrand"><b>FrogSchool</b><span>frogschool.astranov.eu</span></div>
+    <button class="sb-btn ghost tiny" id="loginBtn" type="button">Login</button>
+  </header>
+
+  <section class="sb-profile-block">
+    <div class="sb-media-cover sb-media-zone" data-media="cover" id="sbMediaCover"></div>
+    <div class="sb-profile-row">
+      <div class="sb-media-profile sb-media-zone" data-media="profile" id="sbMediaProfile"></div>
+      <div class="sb-profile-meta">
+        <b id="sbProfileTitle">FrogSchool</b>
+        <span id="sbProfileSubtitle">frogschool.astranov.eu</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="sb-card sb-video-card sb-video-below-profile"><div class="sb-video-shell sb-media-zone" data-media="video" id="sbVideoShell"></div></section>
+  <div class="sb-media-bg-zone sb-media-zone sb-hidden" data-media="background" id="sbMediaBgZone" title="Page background">◎ Background</div>
+
+  <section class="sb-section-title"><h2>Reserve Your Session</h2><small class="sb-muted" id="activeUserText">Guest · progressive booking</small></section>
+
+  <div class="sb-tabs" id="sbTabs" style="grid-template-columns:repeat(2,1fr)">
+    <button class="sb-tab active" data-view="book">Book</button>
+    <button class="sb-tab" data-view="portal">My bookings</button>
+  </div>
+
+  <main>
+    <section class="view" id="view-book">
+      <div class="sb-card">
+        <form id="bookingForm">
+          <div id="progressiveForm"></div>
+          <div class="sb-agreement-box" id="sbAgreementBox">
+            <b>Agreement document before verification</b>
+            <p class="sb-muted">The participant acknowledges this is an active athletic activity, accepts the risk, and agrees to follow all Astranov FrogSchool team instructions.</p>
+            <div id="sbAgreementPreview" class="sb-muted">Admin has not uploaded the agreement document yet.</div>
+            <div class="sb-actions" style="margin-top:8px">
+              <a class="sb-btn ghost tiny sb-hidden" id="sbOpenAgreement" href="#" target="_blank" rel="noopener">Open agreement</a>
+              <a class="sb-btn ghost tiny sb-hidden" id="sbDownloadAgreement" href="#" download="frogschool-agreement.jpg">Download agreement</a>
+            </div>
+          </div>
+          <div id="productInfo" class="sb-product-info"></div>
+          <div class="sb-divider"></div>
+          <div class="sb-actions">
+            <button class="sb-btn red" type="button" id="verifyBtn">Cash on arrival · verify & email</button>
+          </div>
+        </form>
+      </div>
+      <section class="sb-card admin-only sb-hidden" id="adminPanel">
+        <h3 style="margin:0 0 8px;color:var(--sb-accent);font-family:var(--sb-display)">Admin master data</h3>
+        <div class="sb-admin-grid">
+          <div class="sb-field"><label class="sb-label">Products (name|price|includes)</label><textarea id="productsEditor" rows="4"></textarea></div>
+          <div class="sb-field"><label class="sb-label">Employees / instructors (one per line)</label><textarea id="employeesEditor" rows="3"></textarea></div>
+          <div class="sb-field"><label class="sb-label">Agents (one per line)</label><textarea id="agentsEditor" rows="2"></textarea></div>
+          <div class="sb-field"><label class="sb-label">Referrals (one per line)</label><textarea id="referralsEditor" rows="2"></textarea></div>
+          <div class="sb-field"><label class="sb-label">Timeslots (HH:MM=capacity)</label><textarea id="timeslotsEditor" rows="3"></textarea></div>
+          <div class="sb-field"><label class="sb-label">Agreement JPEG upload</label><input id="sbAgreementUpload" type="file" accept="image/jpeg,image/png,image/webp"></div>
+        </div>
+        <div class="sb-actions" style="margin-top:8px">
+          <button class="sb-btn" type="button" id="saveMasterBtn">Save admin data</button>
+          <button class="sb-btn ghost" type="button" id="sbSaveAgreementBtn">Save agreement</button>
+        </div>
+      </section>
+    </section>
+
+    <section class="view sb-hidden" id="view-portal">
+      <div class="sb-card" id="portalLocked"><p class="sb-muted">Login to see your reservations.</p><button class="sb-btn" type="button" onclick="openLogin()">Login</button></div>
+      <div class="sb-card sb-hidden" id="portalList">
+        <div class="sb-actions" style="margin-bottom:8px"><input id="search" placeholder="Search" style="flex:2"><select id="statusFilter"><option value="all">All</option><option>pending</option><option>confirmed</option><option>done</option><option>cancelled</option></select></div>
+        <div id="bookingList" class="sb-muted">No reservations yet.</div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="sb-card" style="margin-top:14px">
+    <h3 style="margin:0 0 6px;font-family:var(--sb-display);color:var(--sb-accent);font-size:16px">Contact FrogSchool</h3>
+    <p class="sb-muted" id="contactAddress"></p>
+    <div id="sbContactBar"></div>
+  </footer>
+</div>
+
+<nav class="sb-footer-nav" id="sbFooterNav">
+  <button class="sb-btn ghost tiny" data-goto="book">Book</button>
+  <button class="sb-btn ghost tiny" data-goto="portal">Portal</button>
+  <button class="sb-btn ghost tiny" id="messengerBtn">Messenger</button>
+  <div id="sbContactBarNav"></div>
+</nav>
+
+<div class="sb-toast" id="sbToast"></div>
+
+<div class="sb-modal" id="loginModal">
+  <div class="sb-sheet">
+    <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="font-family:var(--sb-display);color:var(--sb-accent);margin:0">Login / Sign Up</h2><button class="sb-btn ghost tiny" onclick="closeLogin()">Close</button></div>
+    <p class="sb-muted">Astranov Identity on <a href="https://astranov.eu" target="_blank" rel="noopener" style="color:var(--sb-accent)">astranov.eu</a> (Google · email · phone) signs you in here too when owner. Guests: phone + email + password below.</p>
+    <div class="sb-actions" style="margin:8px 0">
+      <button class="sb-btn" type="button" id="authGoogleBtn">Google</button>
+      <button class="sb-btn ghost" type="button" id="authFacebookBtn">Facebook</button>
+    </div>
+    <p class="sb-muted" style="font-size:11px;margin:0 0 8px">— or guest booking login —</p>
+    <p id="loginError" class="sb-muted" style="color:var(--sb-bad,#ff7f9a);min-height:18px;margin:6px 0"></p>
+    <form id="loginForm">
+      <div class="sb-field"><label class="sb-label">Phone</label><input name="phone" type="tel" required autocomplete="tel"></div>
+      <div class="sb-field"><label class="sb-label">Email</label><input name="email" type="email" required autocomplete="email"></div>
+      <div class="sb-field"><label class="sb-label">Password</label><input name="password" type="password" required autocomplete="current-password"></div>
+      <button class="sb-btn" type="submit">Enter</button>
+    </form>
+  </div>
+</div>
+
+<div class="sb-modal" id="sbMediaModal">
+  <div class="sb-sheet">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <h2 style="font-family:var(--sb-display);color:var(--sb-accent);margin:0" id="sbMediaModalTitle">Media</h2>
+      <button class="sb-btn ghost tiny" type="button" id="sbMediaCloseBtn">Close</button>
+    </div>
+    <div class="sb-media-preview-box" id="sbMediaPreview"></div>
+    <div class="sb-actions" style="margin-bottom:8px">
+      <button class="sb-btn" type="button" id="sbMediaChangeBtn">Change</button>
+      <input id="sbMediaFile" type="file" class="sb-hidden" />
+    </div>
+    <div class="sb-field sb-hidden" id="sbMediaUrlRow">
+      <label class="sb-label">YouTube URL (optional instead of upload)</label>
+      <input id="sbMediaYoutubeUrl" type="url" placeholder="https://www.youtube.com/watch?v=...">
+    </div>
+    <button class="sb-btn red" type="button" id="sbMediaApplyBtn">Save</button>
+  </div>
+</div>
+
+<div class="sb-modal" id="sbChatModal">
+  <div class="sb-sheet">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <h2 style="font-family:var(--sb-display);color:var(--sb-accent);margin:0">Messenger</h2>
+      <button class="sb-btn ghost tiny" id="sbCloseChat" type="button">Close</button>
+    </div>
+    <div class="sb-field admin-only sb-hidden" id="sbChatClientRow"><label class="sb-label">Client phone / history</label><input id="sbChatClientPhone" type="tel" inputmode="tel"></div>
+    <div class="sb-msgs" id="sbMessages">No messages yet.</div>
+    <div class="sb-field"><label class="sb-label">Message</label><textarea id="sbChatText" rows="3"></textarea></div>
+    <div class="sb-field"><label class="sb-label">File</label><input id="sbChatFile" type="file" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"></div>
+    <button class="sb-btn" type="button" id="sbSendMsg">Send</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="core/astranov-shell.js"></script>
+<script>
+window.ASTRANOV_SUPERBOOKING_CONFIG = {
+  siteId: 'frogschool',
+  domain: 'frogschool.astranov.eu',
+  businessType: 'diving_school',
+  mode: 'slot',
+  database: 'central',
+  rpcPrefix: 'fs_',
+  decentral: { enabled: true, nodeUrl: 'http://127.0.0.1:8787' },
+  branding: { title: 'AstranoV FrogSchool', subtitle: 'Diving · MartialSthenics · Rhodes' },
+  youtubeUrl: 'https://www.youtube.com/watch?v=DH02kmLRgUA&t=71s',
+  youtubeChannelUrl: 'https://www.youtube.com/@notisastranov'
+};
+</script>
+<script src="core/superbooking-config.js"></script>
+<script src="core/astranov-auth-bridge.js"></script>
+<script src="core/superbooking-decentral.js"></script>
+<script src="core/booker-fields.js"></script>
+<script src="core/booker-core.js"></script>
+<script src="core/booker-adapters.js"></script>
+<script src="core/superbooking-messenger.js"></script>
+<script src="core/superbooking-agreement.js"></script>
+<script src="core/superbooking-media.js"></script>
+<script src="core/astranov-sites-editor.js"></script>
+<script>
+const SB = window.AstranovSites || window.SuperBooking;
+const CONFIG = SB.mergeConfig(window.ASTRANOV_SUPERBOOKING_CONFIG);
+CONFIG.businessType = CONFIG.businessType || 'diving_school';
+CONFIG.mode = CONFIG.mode || 'slot';
+CONFIG.domain = CONFIG.domain || 'frogschool.astranov.eu';
+if (!CONFIG.products?.length) CONFIG.products = [{ name: '1 Hour Training Session of MartialSthenics with 1 Scuba Try Dive, Transfer And Video Clip.', price: 65, includes: '1 hour MartialSthenics, 1 scuba try dive, transfer, video clip' }];
+if (!Object.keys(CONFIG.timeslots || {}).length) CONFIG.timeslots = { '09:00': 4, '11:00': 4, '14:00': 6, '16:30': 3 };
+if (!CONFIG.employees?.length) CONFIG.employees = ['Marina', 'Nikolas', 'Eleni', 'Captain Notis'];
+if (!CONFIG.agents?.length) CONFIG.agents = ['Direct', 'Hotel desk', 'Travel agent'];
+if (!CONFIG.referrals?.length) CONFIG.referrals = ['Google', 'YouTube', 'Instagram', 'Hotel', 'Friend', 'Walk-in'];
+if (!CONFIG.contact?.phone) CONFIG.contact = { phone: '+306971930225', vhf: 'FrogSchool', email: 'notiscs@gmail.com', whatsapp: '306971930225', address: 'Rhodes, Greece' };
+
+const adapter = SuperBookingAdapters.slot(CONFIG);
+let rows = [], formState = { activeStage: 'schedule', values: {} };
+let messenger = null, agreement = null, siteMedia = null, siteEditor = null;
+
+async function init() {
+  SB.initShell(CONFIG);
+  $('sbProfileTitle').textContent = CONFIG.branding?.title || 'FrogSchool';
+  $('sbProfileSubtitle').textContent = CONFIG.branding?.subtitle || CONFIG.domain || '';
+  $('contactAddress').textContent = CONFIG.contact.address || '';
+  SB.renderContactBar('sbContactBarNav', CONFIG.contact, CONFIG.branding);
+  await adapter.connect();
+  if (CONFIG.decentral?.enabled) SuperBookingDecentral.flushQueue(CONFIG);
+  rows = await adapter.listReservations();
+  fillAdminEditors();
+  renderForm();
+  renderPortal();
+  bind();
+  messenger = SuperBookingMessenger.init(adapter, CONFIG, { openLogin, toast: m => SB.toast(m) });
+  agreement = SuperBookingAgreement.init(adapter, CONFIG, { toast: m => SB.toast(m) });
+  siteMedia = (window.AstranovSitesMedia || SuperBookingMedia).init(adapter, CONFIG, { toast: m => SB.toast(m) });
+  siteEditor = (window.AstranovSitesEditor || window.SuperBookingEditor)?.init(adapter, CONFIG, { toast: m => SB.toast(m) });
+}
+
+function $(id) { return document.getElementById(id); }
+
+function q(name) { return document.querySelector(`[name="${name}"]`); }
+
+function renderForm() {
+  formState.bookedCount = t => adapter.bookedCount(q('sb_date')?.value || formState.values.date, rows);
+  formState.values.date = formState.values.date || plusDays(1);
+  SB.renderProgressiveForm('progressiveForm', CONFIG, formState);
+  const product = q('sb_product');
+  if (product) { product.onchange = updateProductInfo; if (!product.value && CONFIG.products[0]) product.value = CONFIG.products[0].name; }
+  const date = q('sb_date');
+  if (date) { date.value = formState.values.date; date.onchange = () => { formState.values.date = date.value; renderForm(); }; }
+  updateProductInfo();
+}
+
+function updateProductInfo() {
+  const p = adapter.productByName(q('sb_product')?.value);
+  $('productInfo').innerHTML = p ? `<span class="sb-chip gold">€${Number(p.price).toFixed(2)}</span> ${SB.esc(p.includes)}` : 'Select a product above.';
+}
+
+function readBooking() {
+  const f = $('bookingForm');
+  const d = SB.readFormData(f);
+  const p = adapter.productByName(d.product);
+  if (!d.client_name || !d.client_phone) { SB.toast('Name and phone required.'); return null; }
+  if (!d.agreement_ack) { SB.toast('Open/download the agreement before verification.'); return null; }
+  return {
+    id: null, client_name: d.client_name, client_phone: d.client_phone, client_email: d.client_email,
+    date: d.date, time: d.time, product: d.product || p?.name, productPrice: p?.price || 0, productIncludes: p?.includes || '',
+    divers: +d.divers_count || 0, passengers: +d.passengers_count || 0, kids: +d.kids_count || 0, babies: +d.babies_count || 0,
+    certification: d.certification || '', dives: +d.dives || 0, employee: d.employee || '', referral: d.referral || '', comments: d.comments || '',
+    agreement_ack: d.agreement_ack, status: 'confirmed', payment: 'CASH ON ARRIVAL ONLY'
+  };
+}
+
+async function verifyCash() {
+  const s = adapter.getSession();
+  if (!s) { openLogin(); SB.toast('Login first, then verify reservation.'); return; }
+  const r = readBooking();
+  if (!r || !r.client_email) return;
+  try {
+    await adapter.saveReservation(r);
+    rows = await adapter.listReservations();
+    sendConfirmationEmail(r);
+    renderPortal();
+    SB.toast('Reservation verified · confirmation email opened.');
+  } catch (e) { SB.toast(e.message); }
+}
+
+function sendConfirmationEmail(r) {
+  const sub = encodeURIComponent('FrogSchool reservation confirmation');
+  const body = encodeURIComponent(`FrogSchool verified reservation\n\nCustomer: ${r.client_name}\nPhone: ${r.client_phone}\nEmail: ${r.client_email}\nDate: ${r.date}\nTime: ${r.time}\nProduct: ${r.product}\nPrice: €${Number(r.productPrice).toFixed(2)}\nPayment: CASH ON ARRIVAL ONLY\n\nPlease bring the signed agreement document on arrival.`);
+  location.href = `mailto:${r.client_email}?subject=${sub}&body=${body}`;
+}
+
+function renderPortal() {
+  const s = adapter.getSession();
+  $('activeUserText').textContent = s ? `${s.name || s.email} · ${s.role}` : 'Guest · login for portal';
+  $('portalLocked').classList.toggle('sb-hidden', !!s);
+  $('portalList').classList.toggle('sb-hidden', !s);
+  $('loginBtn').textContent = s ? 'Logout' : 'Login';
+  const isStaff = s && ['admin', 'super_admin', 'employee'].includes(s.role);
+  $('adminPanel').classList.toggle('sb-hidden', !isStaff || !['admin', 'super_admin'].includes(s.role));
+  $('sbChatClientRow')?.classList.toggle('sb-hidden', !isStaff);
+  $('sbMediaBgZone')?.classList.toggle('sb-hidden', !s || !['admin', 'super_admin'].includes(s.role));
+  siteMedia?.refresh?.();
+  if (!s) { $('bookingList').innerHTML = 'Login required.'; return; }
+  let list = [...rows];
+  if (s.role === 'customer') list = list.filter(r => clean(r.phone) === clean(s.phone));
+  const qv = ($('search')?.value || '').toLowerCase();
+  if (qv) list = list.filter(r => Object.values(r).join(' ').toLowerCase().includes(qv));
+  const st = $('statusFilter')?.value;
+  if (st && st !== 'all') list = list.filter(r => r.status === st);
+  $('bookingList').innerHTML = list.length ? list.map(r => `<article class="sb-card" style="margin-bottom:8px"><b>${SB.esc(r.customer)} · ${r.date} ${r.time}</b><div class="sb-muted">${SB.esc(r.product)} · €${Number(r.productPrice).toFixed(2)} · ${SB.esc(r.status)}</div></article>`).join('') : 'No reservations for this account.';
+}
+
+function fillAdminEditors() {
+  $('productsEditor').value = CONFIG.products.map(p => `${p.name}|${p.price}|${p.includes || ''}`).join('\n');
+  $('employeesEditor').value = (CONFIG.employees || []).join('\n');
+  $('agentsEditor').value = (CONFIG.agents || []).join('\n');
+  $('referralsEditor').value = (CONFIG.referrals || []).join('\n');
+  $('timeslotsEditor').value = Object.entries(CONFIG.timeslots).map(([t, c]) => `${t}=${c}`).join('\n');
+}
+
+function parseLines(id) {
+  return ($(id)?.value || '').split(/\n+/).map(s => s.trim()).filter(Boolean);
+}
+
+async function saveMaster() {
+  const s = adapter.getSession();
+  if (!s || !['admin', 'super_admin'].includes(s.role)) return SB.toast('Admin only.');
+  CONFIG.products = $('productsEditor').value.split(/\n+/).map(line => { const [name, price, ...rest] = line.split('|'); return { name: (name || '').trim(), price: Number(price) || 0, includes: rest.join('|').trim() }; }).filter(p => p.name);
+  CONFIG.employees = parseLines('employeesEditor');
+  CONFIG.agents = parseLines('agentsEditor');
+  CONFIG.referrals = parseLines('referralsEditor');
+  CONFIG.timeslots = {};
+  $('timeslotsEditor').value.split(/\n+/).forEach(l => { const m = l.match(/^(\d{1,2}:\d{2})\s*=\s*(\d+)$/); if (m) CONFIG.timeslots[m[1].padStart(5, '0')] = Number(m[2]); });
+  try {
+    await adapter.rpc('save_master_data', { p_token: s.token, p_products: CONFIG.products, p_employees: CONFIG.employees, p_agents: CONFIG.agents, p_referrals: CONFIG.referrals, p_timeslots: CONFIG.timeslots });
+  } catch (e) { /* local ok */ }
+  renderForm();
+  SB.toast('Admin data saved.');
+}
+
+function switchView(v) {
+  $$('.sb-tab').forEach(t => t.classList.toggle('active', t.dataset.view === v));
+  $$('.view').forEach(x => x.classList.add('sb-hidden'));
+  $(`view-${v}`).classList.remove('sb-hidden');
+  if (v === 'portal') renderPortal();
+}
+
+function bind() {
+  $$('.sb-tab').forEach(t => t.onclick = () => switchView(t.dataset.view));
+  $$('[data-goto]').forEach(b => b.onclick = () => switchView(b.dataset.goto));
+  $('verifyBtn').onclick = verifyCash;
+  $('saveMasterBtn').onclick = saveMaster;
+  $('search') && ($('search').oninput = renderPortal);
+  $('statusFilter') && ($('statusFilter').onchange = renderPortal);
+  $('sbChatClientPhone')?.addEventListener('input', () => messenger?.renderChat?.());
+  $('loginBtn').onclick = async () => {
+    const s = adapter.getSession();
+    if (s) { adapter.setSession(null); rows = []; renderPortal(); return; }
+    openLogin();
+  };
+  $('authGoogleBtn')?.addEventListener('click', async () => {
+    const errEl = $('loginError');
+    if (errEl) errEl.textContent = '';
+    try {
+      await window.AstranovAuthBridge?.signInOAuth?.('google');
+    } catch (err) {
+      const msg = err.message || 'Google sign-in failed';
+      if (errEl) errEl.textContent = msg;
+      SB.toast(msg);
+    }
+  });
+  $('authFacebookBtn')?.addEventListener('click', async () => {
+    const errEl = $('loginError');
+    if (errEl) errEl.textContent = '';
+    try {
+      await window.AstranovAuthBridge?.signInOAuth?.('facebook');
+    } catch (err) {
+      const msg = err.message || 'Facebook sign-in failed';
+      if (errEl) errEl.textContent = msg;
+      SB.toast(msg);
+    }
+  });
+  $('loginForm').onsubmit = async e => {
+    e.preventDefault();
+    const errEl = $('loginError');
+    if (errEl) errEl.textContent = '';
+    const fd = new FormData(e.target);
+    try {
+      await adapter.login(fd.get('phone'), fd.get('email'), fd.get('password'));
+      rows = await adapter.listReservations();
+      closeLogin();
+      renderPortal();
+      agreement?.loadAgreement?.();
+      siteMedia?.refresh?.();
+      siteEditor?.refresh?.();
+      SB.toast('Logged in.');
+    } catch (err) {
+      const msg = err.message || 'Login failed.';
+      if (errEl) errEl.textContent = msg;
+      SB.toast(msg);
+    }
+  };
+}
+
+window.openLogin = () => $('loginModal').classList.add('show');
+window.closeLogin = () => $('loginModal').classList.remove('show');
+const $$ = s => [...document.querySelectorAll(s)];
+const plusDays = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+const clean = p => String(p || '').replace(/\D/g, '');
+
+document.addEventListener('DOMContentLoaded', () => init().catch(e => SB.toast(e.message)));
+</script>
+</body>
+</html>

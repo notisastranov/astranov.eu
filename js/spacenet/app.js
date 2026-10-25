@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4398"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4399"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -972,7 +972,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     { n: "ARCHITECT", host: "architect.astranov.eu" },
     { n: "PERSONALITY", host: "personality.astranov.eu" },
     { n: "DATANET", path: "/datanet/" },
-    { n: "HOST", path: "/host/" },
+    { n: "SERVERNET", path: "/servernet/" },
     { n: "EXCHANGE", host: "exchange.astranov.eu" },
     { n: "INVESTORS", host: "investors.astranov.eu" },
     { n: "YACHTS", host: "yachts.astranov.eu" },
@@ -980,6 +980,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     { n: "AUDITORS", host: "auditors.astranov.eu" },
     { n: "FROGSCHOOL", host: "frogschool.astranov.eu" }
   ];
+  /* 4399: from main 4392 — one app registry (/apps/registry.json); DataNet / ServerNet open same-origin so a preview frames its own build */
+  try {
+    fetch("/apps/registry.json", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (rows) {
+      if (!Array.isArray(rows)) return;
+      var next = rows.filter(function (a) { return a && a.host && a.n; }).map(function (a) {
+        return /^(datanet|servernet)$/.test(a.folder || "") ? { n: a.n, path: "/" + a.folder + "/" } : { n: a.n, host: a.host };
+      });
+      if (next.length) APP_BODIES = next;
+    }).catch(function () {});
+  } catch (eReg) {}
   /* 4394: from main 4385 — international mesh + level tag (branch zoom engine kept) */
   function levelName(d) {
     if (cityOn) return "City";
@@ -1577,7 +1587,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3384,7 +3394,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4398&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4399&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -5389,7 +5399,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4398";
+    return "/you.png?v=4399";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -7035,7 +7045,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function robotSrc() {
     var style = botSpec().style || "spartan";
     if (style !== "courier" && style !== "wire") style = "spartan";
-    return "/js/spacenet/robots/" + style + ".jpg?v=4398";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4399";
   }
   function robotFilter() {
     var c = botSpec().color;
@@ -9015,12 +9025,12 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     abortHunt();
     placeSeq++;
     if (runLine(q)) return;
-    /* 4398: main's crew / host commands on the branch command line; "/crew" or a bare "crew" (the line never geocodes these words) */
+    /* 4399: main's crew / host commands on the branch command line; "/crew" or a bare "crew" (the line never geocodes these words) */
     if (/^\/?(datanet|database)[!.]?$/i.test(q)) { openAppFrame({ n: "DATANET", path: "/datanet/" }); return; }
-    if (/^\/?(host|mesh|hosting)[!.]?$/i.test(q)) { openAppFrame({ n: "HOST", path: "/host/" }); return; }
+    if (/^\/?(servernet|hostnet|host|mesh|hosting)[!.]?$/i.test(q)) { openAppFrame({ n: "SERVERNET", path: "/servernet/" }); return; }
     var crewM = q.match(/^\/?(crew|guide|agents|drill|ambassador|diplomat)[!.]?$/i);
     if (crewM) { try { runCrew(crewM[1]); } catch (eCr) { say("Crew could not run: " + (eCr && eCr.message || eCr)); } return; }
-    /* 4398: "supermarket Heraklion" / "Heraklion supermarkets" (no "in") land on the place and hunt there, like "supermarket in Heraklion" */
+    /* 4399: "supermarket Heraklion" / "Heraklion supermarkets" (no "in") land on the place and hunt there, like "supermarket in Heraklion" */
     if (!parseInPlace(q) && !/\b(me|here|nearby)\b/i.test(q)) {
       var tradeW = /^(?:pizza|pizzeria|supermarket|grocery|pharmacy|cafe|coffee|restaurant|bakery|bakeries|plumber|electrician|locksmith|mechanic|garage|dentist|doctor|clinic|hospital|vet|bank|atm|butcher|barber|florist|taxi|kiosk|hotel|market|bar|pub|gym|fuel|petrol|parking)(?:s|es)?$/i;
       var ws = q.replace(/^(find|hunt|show)\s+/i, "").replace(/[?.!]+$/, "").split(/\s+/).filter(Boolean);
@@ -12033,16 +12043,16 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
-        if (!cityOn) openCity({ lat: 36.43895, lng: 28.22701 });
+        if (!cityOn) openCity({ lat: 36.43885, lng: 28.22701 });
         absorbJobVendors();
         if (map) paintShopsOnMap();
         report.hold = !!window.__snHoldArm;
         report.faces = document.querySelectorAll(".leaflet-marker-icon.sn-shop-pin img").length;
-        listAt({ lat: 36.43895, lng: 28.22701 });
+        listAt({ lat: 36.43885, lng: 28.22701 });
         var body = $("sn-sheet-body");
         report.menu = !!(body && /List a vendor|VENDOR/.test(body.textContent || ""));
         var shop = null;
