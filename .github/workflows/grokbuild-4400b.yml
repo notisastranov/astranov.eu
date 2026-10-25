@@ -1,0 +1,44 @@
+name: grokbuild 4400b (merge main 4398; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4400b.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Carry main files, apply fix118, assert trees, merge commit, drop kit
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          test "$(git rev-parse HEAD~1)" = "d20e839e37bc4c5e9210e529a8393eeeda6c7926" || { echo "unexpected parent"; git log --oneline -3; exit 1; }
+          git fetch -q origin +refs/heads/main:refs/remotes/origin/main
+          M=e0e59bdb4ba3fc57553ab318cdabb07b7c87ea34
+          git cat-file -e $M^{commit}
+          test "$(sha256sum .grokbuild/fix118.list | cut -d' ' -f1)" = "e9ec73ab6a5474fc08eba4c1a83695e5bd2cc7c436a69cf0d8721152a8c7ef96"
+          base64 -d .grokbuild/fix118.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "0a481b89ef95ccc683e2224b97c517a5005fab6127f66991ae1dad639dd2adb6"
+          gunzip -c /tmp/f.gz > /tmp/fix118.patch
+          test "$(sha256sum /tmp/fix118.patch | cut -d' ' -f1)" = "6cfb5e88a319efacebe956cad8d2648d5a2dc0920509782715e7c96adc9f5cb2"
+          cp .grokbuild/fix118.list /tmp/fix118.list
+          test "$(sha256sum .grokbuild/del118.list | cut -d' ' -f1)" = "f4b2d3b9f32d770bb499164d094d3a78affac4fec851ce9b08bccf88c93e3f1d"
+          cp .grokbuild/del118.list /tmp/del118.list
+          git rm -rq .grokbuild .github/workflows/grokbuild-4400b.yml
+          xargs -a /tmp/fix118.list -d '\n' git checkout $M --
+          git --literal-pathspecs rm -q --pathspec-from-file=/tmp/del118.list
+          T0="$(git write-tree)"
+          test "$T0" = "ec693f4733646408d073635553f4d07019703a73" || { echo "tree0 $T0"; exit 1; }
+          git apply --index /tmp/fix118.patch
+          node --check js/spacenet/app.js
+          grep -q '^4400$' VERSION
+          T="$(git write-tree)"
+          test "$T" = "8c435760dc31f49b5b27cba901a31d0c046baf36" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -p $M -m "4400: merge main e0e59bdb (4397-4398): main dropped the other app repositories (700 files) and their rewrites; registry 5 apps. Branch engine wins (view switch, offer drawer, route restyle not ported). Lockstep 4400")"
+          git push origin "$C:refs/heads/grokbuild/4328-street-level-gps"
