@@ -281,8 +281,13 @@
     var short = inNow ? String(u.name || String(u.email).split("@")[0] || "YOU").split(/\s+/)[0].replace(/[<>"&]/g, "").slice(0, 10) : "";
     btn.setAttribute("data-who", inNow ? who : "");
     /* 4383: a guest sees YOU too (it opens the YOU panel: where, tasks, and LOG IN inside), never a bare LOGIN */
-    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "YOU") + '</span><span class="tgt">' + (inNow ? '<img alt="" src="' + String((u && u.photo) || "/you.png?v=4400").replace(/"/g, "") + '">' : '<span class="ph">?</span>') + "</span>";
+    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "YOU") + '</span><span class="tgt">' + (inNow ? '<img alt="" src="' + String((u && u.photo) || "/you.png?v=4401").replace(/"/g, "") + '">' : '<span class="ph">?</span>') + "</span>";
     if (window.SN && SN.paintMoney) SN.paintMoney();
+  }
+  /* 4401: from main 4399 — pick your role from the login card */
+  function roleBtn(id, label) {
+    var on = read("sn:role", "") === id;
+    return '<button type="button" class="go" data-act="role-set" data-role="' + id + '">' + (on ? "ON · " : "") + label + "</button>";
   }
   function fillBody() {
     var body = document.getElementById("sn-me-body");
@@ -308,7 +313,9 @@
           '<button type="button" class="go" data-act="mail-in">SIGN IN</button>' +
           '<button type="button" class="go" data-act="mail-up">CREATE ACCOUNT</button>') +
       (inNow
-        ? '<p class="note">Activate a role. Notis confirms.</p>' +
+        ? '<p class="note">YOUR ROLE · ' + (read("sn:role", "") || "none").toUpperCase() + '</p>' +
+          roleBtn("client", "CONSUMER") + roleBtn("vendor", "VENDOR") + roleBtn("driver", "DRIVER") +
+          '<p class="note">Agent or ambassador: apply. Notis confirms.</p>' +
           '<button type="button" class="go" data-act="terms">TERMS</button>' +
           '<button type="button" class="go" data-act="role" data-role="vendor">APPLY VENDOR</button>' +
           '<button type="button" class="go" data-act="role" data-role="driver">APPLY DRIVER</button>' +
@@ -336,6 +343,16 @@
         if (act === "twitter") { x(); return; }
         if (act === "out") { out(); fillBody(); return; }
         if (act === "terms") { talk("Terms: work legal at that GPS. Notis activates roles."); return; }
+        if (act === "role-set") {
+          var rs = b.getAttribute("data-role") || "";
+          var us = user();
+          if (!us || !us.email) { google(); return; }
+          if (rs !== "client" && rs !== "vendor" && rs !== "driver") return;
+          try { localStorage.setItem("sn:role", rs); } catch (e) {}
+          talk(rs === "client" ? "You are a consumer." : rs === "vendor" ? "You are a vendor." : "You are a driver.");
+          fillBody();
+          return;
+        }
         if (act === "role") {
           var role = b.getAttribute("data-role") || "";
           try { localStorage.setItem("sn:role-apply", role); } catch (e) {}

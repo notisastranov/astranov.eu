@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4400"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4401"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -556,6 +556,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function needLogin() {
     if (signed()) return false;
     say("LOGIN first.");
+    if (window.SNAuth && SNAuth.open) SNAuth.open(); /* 4401: from main 4399 */
     return true;
   }
   function visRect(el) {
@@ -1219,14 +1220,28 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       return;
     }
     if (intro && !drag && !cityOn && cam.dist > 3.2) intro = false;
+    /* 4401: from main 4400 — globe trackball inertia: a flick keeps turning and slows; where it stops becomes the aim */
+    if (!drag && !cityOn && (Math.abs(vel.yaw) > 0.00015 || Math.abs(vel.pitch) > 0.00015)) {
+      cam.yaw += vel.yaw;
+      cam.pitch = Math.max(-1.15, Math.min(1.15, cam.pitch + vel.pitch));
+      var damp = Math.pow(0.92, (dt || 0.016) / 0.016);
+      vel.yaw *= damp;
+      vel.pitch *= damp;
+      if (Math.abs(vel.yaw) < 0.00015) vel.yaw = 0;
+      if (Math.abs(vel.pitch) < 0.00015) vel.pitch = 0;
+      if (!vel.yaw && !vel.pitch) {
+        var landed = view ? globeHit(view.cx, view.cy, cam) : null;
+        if (landed && isFinite(landed.lat)) aim = { lat: landed.lat, lng: landed.lng };
+      }
+      return;
+    }
+    if (drag) return;
     if (!drag && tierI >= 2 && aim && !cityOn) {
       var held2 = holdFace(cam.dist);
       cam.yaw = held2.yaw;
       cam.pitch = held2.pitch;
-      vel.yaw = 0; vel.pitch = 0;
       return;
     }
-    vel.yaw = 0; vel.pitch = 0;
   }
   function cardsNow() {
     var rows = BRIEF.filter(function (c) { return c && c.k === "CALENDAR"; });
@@ -1588,7 +1603,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -1662,8 +1677,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       if (!drag.moved) return;
       var t = nowMs();
       var dt = Math.max(8, t - drag.lastT);
-      vel.yaw = (-(p.x - drag.lastX) * 0.005) * (16 / dt);
-      vel.pitch = ((p.y - drag.lastY) * 0.004) * (16 / dt);
+      vel.yaw = Math.max(-0.08, Math.min(0.08, (-(p.x - drag.lastX) * 0.005) * (16 / dt)));
+      vel.pitch = Math.max(-0.05, Math.min(0.05, ((p.y - drag.lastY) * 0.004) * (16 / dt)));
       drag.lastX = p.x; drag.lastY = p.y; drag.lastT = t;
       cam.yaw = drag.yaw - dx * 0.005;
       cam.pitch = Math.max(-1.15, Math.min(1.15, drag.pitch + dy * 0.004));
@@ -1680,13 +1695,15 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         if (hitHold) setTimeout(function () { listAt(hitHold); }, 30);
         return;
       }
-      if (d && d.moved && view) {
-        var mid = globeHit(view.cx, view.cy, cam);
-        if (mid && isFinite(mid.lat) && isFinite(mid.lng)) aim = { lat: mid.lat, lng: mid.lng };
-        vel.yaw = 0;
-        vel.pitch = 0;
+      if (d && d.moved) {
+        /* 4401: main 4400 — keep the flick velocity (inertia); aim lands where the globe stops */
+        if (d.lastT && nowMs() - d.lastT > 120) {
+          vel.yaw = 0; vel.pitch = 0;
+          if (view) { var mid = globeHit(view.cx, view.cy, cam); if (mid && isFinite(mid.lat) && isFinite(mid.lng)) aim = { lat: mid.lat, lng: mid.lng }; }
+        }
+        return;
       }
-      if (!d || d.moved) return;
+      if (!d) return;
       vel.yaw = 0; vel.pitch = 0;
       var pUp = pos(e);
       if (hitRobot(pUp.x, pUp.y)) { openYou(); return; }
@@ -3114,7 +3131,11 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       '<button type="button" class="sheet-go primary" data-act="form-vendor">VENDOR</button>' +
       '<button type="button" class="sheet-go" data-act="form-drop">CLIENT</button>' +
       '<button type="button" class="sheet-go" data-act="form-driver">DRIVER</button>' +
-      '<button type="button" class="sheet-go" data-act="form-post">Post a photo, video, or text</button>';
+      '<button type="button" class="sheet-go" data-act="form-post">Post a photo, video, or text</button>' +
+      /* 4401: from main 4399's map menu — folded into the hold LIST card (a single tap still closes cards) */
+      '<button type="button" class="sheet-go" data-act="map-job">START A JOB</button>' +
+      '<button type="button" class="sheet-go" data-act="map-explore">EXPLORE</button>' +
+      '<button type="button" class="sheet-go" data-act="map-event">LIST AN EVENT</button>';
     var tgtL = (listBack && listBack.kind === "vendor") ? listBack.vendor : ((function () { var sh = $("sn-sheet"); return sh && sh.classList.contains("on") && sh.getAttribute("data-kind") === "vendor" ? vendor : null; })());
     if (tgtL && tgtL.src === "listed" && (ownsShop(tgtL) || isAdmin())) {
       html += '<button type="button" class="sheet-go primary" data-act="move-vendor" data-id="' + esc(tgtL.id) + '">Move ' + esc(tgtL.name || "my shop") + ' here</button>';
@@ -3395,7 +3416,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4400&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4401&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -3608,7 +3629,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       ".leaflet-sn-route-pane{filter:none!important}",
       "@keyframes sn-flow{to{stroke-dashoffset:-28}}",
       ".sn-flow{animation:sn-flow .7s linear infinite!important}",
-      ".sn-route-one{stroke:#2f6bff!important;stroke-width:4px!important;stroke-linecap:round;stroke-linejoin:round;animation:sn-route-glow 1.4s ease-in-out infinite}",
+      ".sn-route-one{stroke:#1a3cff!important;stroke-width:7px!important;stroke-linecap:round;stroke-linejoin:round;animation:none!important;filter:drop-shadow(0 0 1px #f7fbff) drop-shadow(0 0 3px #1a3cff)!important}",
+      ".sn-route-case{stroke:#f7fbff!important;stroke-width:11px!important;stroke-linecap:round;stroke-linejoin:round;animation:none!important}",
       "@keyframes sn-route-glow{0%,100%{stroke:#2f6bff;filter:drop-shadow(0 0 4px #2f6bff) drop-shadow(0 0 10px #1a3cff) drop-shadow(0 0 18px #4df0ff)}50%{stroke:#eaf6ff;filter:drop-shadow(0 0 8px #9ecbff) drop-shadow(0 0 18px #2f6bff) drop-shadow(0 0 28px #4df0ff)}}",
       ".sn-you-bot{background:transparent!important;border:0!important}",
       "#sn-me .tgt{overflow:visible!important}",
@@ -5403,7 +5425,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4400";
+    return "/you.png?v=4401";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -5574,9 +5596,11 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
        The invisible 18 px hit line keeps it tappable (ROUTE card). */
     var line = lines[Math.max(0, chosen || 0)] || lines[0];
     if (!line || line.length < 2) return;
-    add(line, { pane: "sn-route", className: "sn-route-one", color: "#2f6bff", weight: 4, opacity: 1, interactive: false, lineCap: "round", lineJoin: "round" });
+    /* 4401: from main 4397-4398 — steady deep-blue route with a white casing */
+    add(line, { pane: "sn-route", className: "sn-route-case", color: "#f7fbff", weight: 11, opacity: 0.95, interactive: false, lineCap: "round", lineJoin: "round" });
+    add(line, { pane: "sn-route", className: "sn-route-one", color: "#1a3cff", weight: 7, opacity: 1, interactive: false, lineCap: "round", lineJoin: "round" });
     hitLine(line, function () { openRouteTile(id); });
-    window.__snRouteMax = 4; window.__snRouteW = "4";
+    window.__snRouteMax = 7; window.__snRouteW = "7";
     var total = lineKm(line);
     if (total < 0.05) return;
     var spot = pointAtKm(line, total);
@@ -7049,7 +7073,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function robotSrc() {
     var style = botSpec().style || "spartan";
     if (style !== "courier" && style !== "wire") style = "spartan";
-    return "/js/spacenet/robots/" + style + ".jpg?v=4400";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4401";
   }
   function robotFilter() {
     var c = botSpec().color;
@@ -9526,14 +9550,14 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         power.classList.toggle("on", !!on);
         power.classList.toggle("idle", !on);
         if (on) {
-          say("Offers live. Open JOBS when you want — nothing pops by itself.");
+          say("Offers live.");
           materialize(true);
           try { sessionStorage.setItem("sn:jobs-muted", sessionStorage.getItem("sn:jobs-muted") || "1"); } catch (e) {}
           closeJobs();
           try { closeSheet(); } catch (e) {}
           /* never throwOffer / openJobs / open OFFER sheet on Power-on */
         } else {
-          say("Offers off. No pop-ups.");
+          say("Offers off.");
           dockTabs = dockTabs.filter(function (t) { return t.kind !== "offer"; });
           paintDockTabs();
           closeJobs();
@@ -10170,6 +10194,49 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         if (!mrows.length) addMenuRow(true);
         window.__snEdit = { id: es.id, name: es.name, rows: mrows.length, at: Date.now() };
         say("Editing " + (es.name || "your shop") + ". Change it, then APPLY.");
+        return;
+      }
+      /* 4401: from main 4399 — map menu actions */
+      if (act === "map-job") {
+        if (needLogin()) return;
+        var nearShop = null, nearKm = 1e9;
+        shops.forEach(function (s0) {
+          if (!s0 || !isFinite(+s0.lat) || s0.status === "denied") return;
+          var km0 = listPt ? haversineKm(listPt, s0) : 1e9;
+          if (km0 < nearKm) { nearShop = s0; nearKm = km0; }
+        });
+        if (!nearShop || nearKm > 0.4) { say("List the vendor and the menu."); act = "form-vendor"; }
+        else if (!homeDrop || !isFinite(+homeDrop.lat)) { vendor = nearShop; say("List the delivery address."); act = "form-drop"; }
+        else { vendor = nearShop; drop = homeDrop; closeSheet(); sendJob(); return; }
+      }
+      if (act === "map-explore") {
+        var named = "";
+        shops.forEach(function (s1) { if (!named && s1 && listPt && isFinite(+s1.lat) && haversineKm(listPt, s1) < 0.3) named = s1.name || ""; });
+        closeSheet();
+        if (listPt) openCity(listPt);
+        say(named || "This place.");
+        return;
+      }
+      if (act === "map-event") {
+        if (needLogin()) return;
+        openSheet("EVENT",
+          '<input id="sn-ev-title" placeholder="Event" />' +
+          '<input id="sn-ev-when" placeholder="When" />' +
+          '<textarea id="sn-ev-note" placeholder="What happens"></textarea>' +
+          '<button type="button" class="sheet-go primary" data-act="save-event">LIST THE EVENT</button>', true);
+        return;
+      }
+      if (act === "save-event") {
+        if (needLogin()) return;
+        var evTitle = $("sn-ev-title"), evWhen = $("sn-ev-when"), evNote = $("sn-ev-note");
+        var evName = evTitle ? String(evTitle.value || "").trim() : "";
+        if (!evName) { say("Name the event."); return; }
+        var events = [];
+        try { events = JSON.parse(localStorage.getItem("sn:events") || "[]") || []; } catch (eE) {}
+        events.unshift({ id: "e" + Date.now().toString(36), title: evName, when: evWhen ? evWhen.value : "", note: evNote ? evNote.value : "", lat: listPt && listPt.lat, lng: listPt && listPt.lng, t: Date.now() });
+        try { localStorage.setItem("sn:events", JSON.stringify(events.slice(0, 80))); } catch (eE2) {}
+        closeSheet();
+        say(evName + " is listed here.");
         return;
       }
       if (act === "form-vendor") {
@@ -12070,7 +12137,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
